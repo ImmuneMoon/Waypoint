@@ -562,7 +562,8 @@ Turn-based combat
   during rest only or any time (a daily HT roll that heals, FP back every
   10 minutes of rest). You move time on as Active or Rest; the calendar
   lists what is due, players' characters ticked, and Apply makes the rolls
-  and sends each player a summary.
+  and sends each player a summary. In Settings, time rules can run at once
+  or be off, and you can keep players from filling their own pools.
 - With the Calendar on, a timed effect outside a fight runs by the
   campaign's clock instead of real time: each move of the clock on takes
   that much from every timed effect (a fight's turns count as before).

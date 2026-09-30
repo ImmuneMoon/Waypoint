@@ -75,6 +75,10 @@ function winSigOf(camp, ck, cal) { return camp.id + '|' + ck.t + '|' + (ck.hide 
 // always asks (the GM's choice), a fight's rounds count as activity and are asked about when it ends. What is due waits in the window: players'
 // characters ticked, NPCs offered; Apply runs the ticked ones on this machine (sheets.js runTimeRules), Skip lets the time pass; either way
 // what each rule has counted is kept (camp.clock.acc, the GM's own)
+// K5b: the table's word on the time rules (Settings \u25b8 VTT features \u25b8 Calendar: camp.turnRules.time) — 'confirm' (the default: the GM
+// says), 'auto' (players' characters' rules run at once; a Set forward still asks), 'off' (none run and nothing is counted); a paused table runs none
+function timeMode(camp) { var t = camp && camp.turnRules && typeof camp.turnRules === 'object' ? camp.turnRules.time : ''; return t === 'auto' || t === 'off' ? t : 'confirm'; }
+function tablePaused() { var n = net(); return !!(n && n.active && n.paused); }
 function isPc(ch) { return !!ch && ch.npc !== true && typeof ch.ownerId === 'string' && !!ch.ownerId; }
 function clockRules(sys) { return sys && Array.isArray(sys.rolls) ? sys.rolls.filter(function(r) { return r && r.every; }) : []; }
 function sysUnits(sys) { return sys && sys.combat && sys.combat.turn && Array.isArray(sys.combat.turn.units) ? sys.combat.turn.units : []; }
@@ -82,12 +86,17 @@ function commitAcc(acc) {
     var camp = getActiveCampaign(); if (!camp || isPlayer()) return;
     var ck = clockOf(camp) || { t: 0 }, nc = Object.assign({}, ck), a = cleanAcc(acc); if (a) nc.acc = a; else delete nc.acc; camp.clock = nc; save();
 }
-function timePassed(secs, rest) {
-    var camp = getActiveCampaign(), sys = sysNow(); if (!camp || isPlayer() || typeof secs !== 'number' || !(secs > 0) || !sys) return false;
+function timePassed(secs, rest, ask) {   // ask: always ask (a Set forward: the GM's choice)
+    var camp = getActiveCampaign(), sys = sysNow(); if (!camp || isPlayer() || typeof secs !== 'number' || !(secs > 0) || !sys || timeMode(camp) === 'off' || tablePaused()) return false;
     var rules = clockRules(sys); if (!rules.length) return false;
     var ck = clockOf(camp) || { t: 0 }, res = ruleFires(sysCal(), sysUnits(sys), rules, camp.chars ? Object.keys(camp.chars) : [], ck.acc, secs, !!rest);
     if (!res.fires.length) { commitAcc(res.acc); return false; }
     var on = Object.create(null); res.fires.forEach(function(f) { on[f.c] = isPc(camp.chars[f.c]); });
+    if (!ask && timeMode(camp) === 'auto') {   // K5b: Automatic — players' characters' rules run now, the counts kept
+        var go = res.fires.filter(function(f) { return on[f.c] === true; });
+        if (go.length && window.wpSheets && window.wpSheets.runTimeRules) window.wpSheets.runTimeRules(go, fmtSpan(sysCal(), secs) + (rest ? ' of rest' : ' of activity'));
+        commitAcc(res.acc); return false;
+    }
     pend = { secs: secs, rest: !!rest, fires: res.fires, acc: res.acc, on: on, camp: camp.id };
     if (!winOpen()) openWin(); else renderWin();
     return true;
@@ -253,7 +262,7 @@ function onWinClick(e) {
     if (act === 'calset' && pick !== null) {
         var cc = cleanCalendar(cal) || {}, H = cc.hours || 24, M = cc.minutes || 60, S = cc.seconds || 60, hi = q('cal-set-h'), mi = q('cal-set-m'), h = hi ? Number(hi.value) : 0, m = mi ? Number(mi.value) : 0;
         if (!(h >= 0 && h < H && Math.floor(h) === h && m >= 0 && m < M && Math.floor(m) === m)) { toast('The hour is 0 to ' + (H - 1) + ' and the minute 0 to ' + (M - 1) + '.'); return; }
-        var t1 = pick * dayLength(cal) + (h * M + m) * S, t0 = tOf(camp); if (moveTo(t1, 'Set')) { view = viewOf(cal, t1); pick = null; if (!(t1 > t0 && timePassed(t1 - t0, restMode))) renderWin(); }   // K5: a Set forward asks (the GM's choice)
+        var t1 = pick * dayLength(cal) + (h * M + m) * S, t0 = tOf(camp); if (moveTo(t1, 'Set')) { view = viewOf(cal, t1); pick = null; if (!(t1 > t0 && timePassed(t1 - t0, restMode, true))) renderWin(); }   // K5: a Set forward asks (the GM's choice), whatever the table's mode
     }
 }
 function onWinChange(e) {
@@ -282,7 +291,7 @@ function refresh() {
 function rounds(n) {
     if (isPlayer() || typeof n !== 'number' || !isFinite(n) || !n || !clockOn()) return false;
     var camp = getActiveCampaign(), s = n * roundSecs(sysNow()), ok = moveTo(tOf(camp) + s, null);
-    if (ok && s > 0) roundPend += s;   // K5 (the owner's answer): a fight's rounds count as activity, asked about when it ends
+    if (ok && s > 0) { var cmp = getActiveCampaign(); if (timeMode(cmp) === 'auto') timePassed(s, false); else if (timeMode(cmp) !== 'off' && !tablePaused()) roundPend += s; }   // K5 (the owner's answer): a fight's rounds count as activity — run as they pass when Automatic, else asked about when it ends
     return ok;
 }
 function fightEnded() { if (isPlayer() || !(roundPend > 0)) { roundPend = 0; return false; } var s = roundPend; roundPend = 0; return timePassed(s, false); }

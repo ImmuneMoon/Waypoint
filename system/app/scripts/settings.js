@@ -385,6 +385,8 @@ function syncVttPanel() {
             if (role) role.style.display = 'none';
         }
     });
+    var trM = ui('setTimeRulesMode'); if (trM) { var tv0 = camp && camp.turnRules && typeof camp.turnRules === 'object' ? camp.turnRules.time : ''; trM.value = tv0 === 'auto' || tv0 === 'off' ? tv0 : 'confirm'; trM.disabled = !editable; }   // item 20 K5b
+    var flM = ui('setFillMode'); if (flM) { flM.value = camp && camp.turnRules && camp.turnRules.fill === 'gm' ? 'gm' : 'owner'; flM.disabled = !editable; }
     var tmS = ui('setTimersMode'); if (tmS) { tmS.value = camp && camp.turnRules && camp.turnRules.timers === 'gm' ? 'gm' : 'owner'; tmS.disabled = !editable; }   // T5b
     [['setMoveMode', 'move'], ['setOrderMode', 'order'], ['setActsMode', 'acts']].forEach(function(p) { var s = ui(p[0]); if (!s) return; var tv = camp && camp.turnRules && typeof camp.turnRules === 'object' ? camp.turnRules[p[1]] : ''; s.value = tv === 'warn' || tv === 'off' ? tv : 'refuse'; s.disabled = !editable; });   // T3b
     var wm = ui('setWallsMode'); if (wm) { var tr = camp && camp.turnRules && typeof camp.turnRules === 'object' ? camp.turnRules.walls : ''; wm.value = tr === 'warn' || tr === 'off' ? tr : 'refuse'; wm.disabled = !editable; }   // turn-based combat T3a (D11): the walls' mode
@@ -438,6 +440,21 @@ if (_timersSel) _timersSel.addEventListener('change', function() {
     camp.turnRules = Object.assign({}, camp.turnRules && typeof camp.turnRules === 'object' ? camp.turnRules : {}, { timers: val });
     if (window.wpSave) window.wpSave(true);
     toast(val === 'gm' ? 'Only you pause, reset or stop effect timers.' : 'A character\'s player may pause, reset or stop its effect timers too.');
+});
+var _timeRulesSel = ui('setTimeRulesMode');   // item 20 K5b: confirm (absent) | auto | off — the time rules' mode, the campaign's
+if (_timeRulesSel) _timeRulesSel.addEventListener('change', function() {
+    var v = window.wpVtt, camp = state.appState.campaigns[state.appState.activeCampaignId]; if (!camp || (v && v.locked())) { syncPanel(); return; }
+    var val = _timeRulesSel.value === 'auto' || _timeRulesSel.value === 'off' ? _timeRulesSel.value : 'confirm', tr = Object.assign({}, camp.turnRules && typeof camp.turnRules === 'object' ? camp.turnRules : {});
+    if (val === 'confirm') delete tr.time; else tr.time = val; camp.turnRules = tr;
+    if (window.wpSave) window.wpSave(true);
+    toast(val === 'auto' ? 'Time rules run at once for players\u2019 characters when time passes.' : val === 'off' ? 'No time rules run.' : 'You say which time rules run when time passes.');
+});
+var _fillSel = ui('setFillMode');   // item 20 K5b: owner (absent) | gm — whether players fill their own pools
+if (_fillSel) _fillSel.addEventListener('change', function() {
+    var v = window.wpVtt, camp = state.appState.campaigns[state.appState.activeCampaignId]; if (!camp || (v && v.locked())) { syncPanel(); return; }
+    var tr = Object.assign({}, camp.turnRules && typeof camp.turnRules === 'object' ? camp.turnRules : {}); if (_fillSel.value === 'gm') tr.fill = 'gm'; else delete tr.fill; camp.turnRules = tr;
+    if (window.wpSave) window.wpSave(true);
+    toast(_fillSel.value === 'gm' ? 'Only you fill pools back to full.' : 'Players may fill their own pools back to full.');
 });
 var _wallsSel = ui('setWallsMode');   // turn-based combat T3a (D11): refuse | warn | off, the campaign's (read by the host at each move)
 if (_wallsSel) _wallsSel.addEventListener('change', function() {

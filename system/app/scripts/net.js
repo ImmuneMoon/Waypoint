@@ -2006,11 +2006,11 @@ net.syncClock = function() {
 // judges every press whatever a player's copy says). A host has NO branch for 'turnRules': a client never sets the table's rules.
 // [netcheck:turnrulessync-start]
 net._lastTurnRulesSig = null;
-net.turnRulesMessage = function() { var camp = getActiveCampaign(); if (!camp) return null; return { type: 'turnRules', campId: camp.id, timers: camp.turnRules && camp.turnRules.timers === 'gm' ? 'gm' : 'owner' }; };
+net.turnRulesMessage = function() { var camp = getActiveCampaign(); if (!camp) return null; return { type: 'turnRules', campId: camp.id, timers: camp.turnRules && camp.turnRules.timers === 'gm' ? 'gm' : 'owner', fill: camp.turnRules && camp.turnRules.fill === 'gm' ? 'gm' : 'owner' }; };   // item 20 K5b: and who fills pools
 net.syncTurnRules = function() {
     if (!net.active || net.role !== 'host') return;
     var msg = net.turnRulesMessage(); if (!msg) return;
-    var s = msg.campId + '\n' + msg.timers;
+    var s = msg.campId + '\n' + msg.timers + '\n' + msg.fill;
     if (s === net._lastTurnRulesSig) return;
     net._lastTurnRulesSig = s;
     net.conns.forEach(function(c) { if (c.open && own(net.roster, c.peer)) { try { c.send(msg); } catch (e) { sendFailed(e); } } });
@@ -4058,7 +4058,7 @@ function admitPlayer(conn, prof, provenKey) {
     var cnm = net.campNameMessage(); if (cnm) net._lastCampNameSig = cnm.campId + '\n' + cnm.name;   // and its name
     var cfm = net.campFogMessage(); if (cfm) net._lastCampFogSig = cfm.campId + '\n' + JSON.stringify(cfm.fog);   // and its fog defaults
     var ckm = net.clockMessage(); if (ckm) net._lastClockSig = ckm.campId + '\n' + JSON.stringify(ckm.clock);   // and its clock (item 20 K2)
-    var trm = net.turnRulesMessage(); if (trm) net._lastTurnRulesSig = trm.campId + '\n' + trm.timers;   // and who may press an effect's timer
+    var trm = net.turnRulesMessage(); if (trm) net._lastTurnRulesSig = trm.campId + '\n' + trm.timers + '\n' + trm.fill;   // and who may press an effect's timer, and who fills pools
     var lbm = net.libManifestMessage(); if (lbm && lbm.packs.length) { try { conn.send(lbm); } catch (e) { sendFailed(e); } }   // L3: the library players may look through, to this peer only
     if (land.stage && net.sendFxArrival) net.sendFxArrival(conn, land.stage.itemId);   // the running weather / held wash of the map they land on
     broadcastRoster();
@@ -4850,7 +4850,7 @@ function handleMessage(msg, conn) {
         if (!net.foreign || conn.peer !== net.syncedPeer || net.stream) return;
         if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId || (msg.timers !== 'gm' && msg.timers !== 'owner')) return;
         var campTR = campOf(msg.campId); if (!campTR) return;
-        campTR.turnRules = Object.assign({}, campTR.turnRules && typeof campTR.turnRules === 'object' ? campTR.turnRules : {}, { timers: msg.timers });
+        campTR.turnRules = Object.assign({}, campTR.turnRules && typeof campTR.turnRules === 'object' ? campTR.turnRules : {}, { timers: msg.timers, fill: msg.fill === 'gm' ? 'gm' : 'owner' });   // item 20 K5b: an older host sends no fill: players fill
         if (window.wpSheetsSync) window.wpSheetsSync();
         // [netcheck:turnrules-end]
     } else if (msg.type === 'char-pic' && net.role === 'host') {

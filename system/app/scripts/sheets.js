@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sbRowOps, sbApplyProposal, cleanUploads, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, DEFAULT_POSTURES, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
+import { droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sbRowOps, sbApplyProposal, cleanUploads, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, DEFAULT_POSTURES, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
 
 var ui = function(id) { return document.getElementById(id); };
@@ -507,7 +507,7 @@ function rangeFor(c, mapId, map, tok, camp) {
 }
 // [sinkcheck:rangefor-end]
 function tokenCtxFor(charId, camp) { var c = charById(charId, camp), t = c ? facingTarget(c, camp) : null; return t ? withRange(withRound(tokenCtx(t.map, t.tok, tokenFlags()), combatOn(t.mapId)), rangeFor(c, t.mapId, t.map, t.tok, camp)) : null; }   // Stage 6: { facing, stance } of the token the sheet reads; HF5b: and the round of the combat on its map
-function rangeSigOf(c, camp) { var t = c ? facingTarget(c, camp) : null, r = t ? rangeFor(c, t.mapId, t.map, t.tok, camp) : null; return r ? r.mod + '|' + r.dist : ''; }   // range R2: what RangeMod and TargetDistance read for this character, so a new target or a move redraws the view
+function rangeSigOf(c, camp) { var t = c ? facingTarget(c, camp) : null, r = t ? rangeFor(c, t.mapId, t.map, t.tok, camp) : null; return r ? r.mod + '|' + r.dist + '|' + (r.hmod || 0) + '|' + (r.hdiff || 0) : ''; }   // range R2: what RangeMod and TargetDistance read for this character, so a new target or a move redraws the view (item 19 H2: HeightMod and HeightDiff too)
 function roundSigOf(c, camp) { var t = c ? facingTarget(c, camp) : null, cb = t ? combatOn(t.mapId) : null; return cb && typeof cb.round === 'number' ? String(cb.round) : ''; }   // HF5b: what CombatRound reads for this character, so a round change redraws the view
 function dialSigOf(c, camp) {
     var fl = tokenFlags(), t = c ? facingTarget(c, camp) : null, fc = t ? facingCtx(t.map, t.tok, fl.turning) : null, st = t ? stanceCtx(t.tok, fl) : null, n = net();
@@ -519,7 +519,7 @@ function namesFacing(sys) {   // does a formula on the sheet (or a {formula} in 
     var hit = function(text) {
         if (typeof text !== 'string' || !text) return false;
         var ns = []; try { ns = Fm.names(text) || []; } catch (e) {}
-        return ns.some(function(nm) { var fam = String(nm).toLowerCase().split('.')[0]; return (fam === 'facing' || fam === 'arc' || fam === 'threats' || fam === 'posture' || fam === 'elevation' || fam === 'combatround' || fam === 'rangemod' || fam === 'targetdistance') && own[fam] !== 1; });   // a field of that name keeps it (Stage 6: the stance names too; HF5b: CombatRound)
+        return ns.some(function(nm) { var fam = String(nm).toLowerCase().split('.')[0]; return (fam === 'facing' || fam === 'arc' || fam === 'threats' || fam === 'posture' || fam === 'elevation' || fam === 'combatround' || fam === 'rangemod' || fam === 'targetdistance' || fam === 'heightmod' || fam === 'heightdiff') && own[fam] !== 1; });   // a field of that name keeps it (Stage 6: the stance names too; HF5b: CombatRound)
     };
     return sys.fields.some(function(f) {
         if (hit(f.formula) || hit(f.maxFormula) || hit(f.base)) return true;
@@ -4091,6 +4091,29 @@ function refreshErrors() {
         if (!rKept) rErr.push({ message: 'Range: add a step, or Save drops the rule.' });
     }
     if (rErr.length) errorsById.range = (errorsById.range || []).concat(rErr);
+    // item 19 H2: what Save drops of the height modifier, said under the Height box — read as the cleaner reads it
+    var hgE = draft.combat && draft.combat.height && typeof draft.combat.height === 'object' && !Array.isArray(draft.combat.height) ? draft.combat.height : null, hErr = [];
+    var hbyE = !hgE ? '' : typeof hgE.formula === 'string' ? 'formula' : Array.isArray(hgE.steps) ? 'table' : '';
+    if (hbyE === 'formula') {
+        var hfT = typeof hgE.formula === 'string' ? hgE.formula.trim() : '', hfP = hfT && F() ? F().parse(hfT) : null, hfN = hfP && hfP.ok && Array.isArray(hfP.names) ? hfP.names.filter(function(n) { return String(n).toLowerCase() !== 'heightdiff'; }) : [];
+        if (!hfT) hErr.push({ message: 'Height: type the formula (it reads HeightDiff), or Save drops it.' });
+        else if (!hfP || !hfP.ok) hErr.push({ message: 'Height: ' + (hfP && hfP.error && hfP.error.message ? hfP.error.message : 'the formula cannot be read.') + ' Save drops it.' });
+        else if (hfN.length) hErr.push({ message: 'Height: the formula reads only HeightDiff, not ' + hfN[0] + ': Save drops it.' });
+        else if (rfDice(hfP.ast && hfP.ast.body)) hErr.push({ message: 'Height: the formula cannot roll dice: Save drops it.' });
+        else if (hfT.length > LIMITS.formula || new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']').test(hfT)) hErr.push({ message: 'Height: the formula is at most ' + LIMITS.formula + ' characters, on one line: Save drops it.' });
+    } else if (hbyE === 'table') {
+        var hsE = hgE.steps, hSeen = Object.create(null), hKept = 0, hNum = function(v) { return typeof v === 'number' && isFinite(v) && Math.abs(v) <= 1e15; };
+        hsE.forEach(function(s, i) {
+            var nm = 'Height step ' + (i + 1);
+            if (!s || typeof s !== 'object' || !hNum(s.to) || Math.abs(s.to) > 1e6) hErr.push({ message: nm + ' needs a height difference within 1,000,000 either way: Save drops it.' });
+            else if (!hNum(s.mod)) hErr.push({ message: nm + ' needs a modifier (0 for none): Save drops it.' });
+            else if (hSeen[String(s.to)]) hErr.push({ message: nm + ': another step already reaches ' + s.to + ', so Save drops it.' });
+            else if (hKept >= LIMITS.heightSteps) hErr.push({ message: nm + ': at most ' + LIMITS.heightSteps + ', so Save drops it.' });
+            else { hSeen[String(s.to)] = 1; hKept++; if (Math.abs(s.mod) > 1000) hErr.push({ message: nm + ': a modifier is -1000 to 1000, so Save keeps the nearest.' }); }
+        });
+        if (!hKept) hErr.push({ message: 'Height: add a step, or Save drops the table.' });
+    }
+    if (hErr.length) errorsById.height = hErr;
     // senses S2a: what Save drops or leaves out of the senses, under the Combat card's Senses box — read as the cleaner reads (systemcore
     // cleanSenses): a name left once control characters go, a range field of a number, formula, skill or pool its owner can read, a finite number
     var snO = draft.combat && draft.combat.senses && typeof draft.combat.senses === 'object' ? draft.combat.senses : null, snE = snO && Array.isArray(snO.list) ? snO.list : null, sErr = [], sKept = 0;
@@ -4664,6 +4687,7 @@ function renderCombat() {
     }
     box.appendChild(labeledSelect('sys-combat-checks', 'Roll outcomes', [['', 'Success or failure by the margin'], ['under3d6', '3d6 roll-under criticals']], cm.checks === 'under3d6' ? 'under3d6' : '', 'How a check reads. 3d6 roll-under (a roll of exactly 3d6 against a target): 3\u20134 are a critical success, 5 at a target of 15+, 6 at 16+; 17 fails (critically at 15 or less), 18 or failing by 10+ is a critical failure.'));   // Stage 6 F8
     rangeBox(box, cm);   // range penalties R1: the system's range rule, under cover
+    heightBox(box, cm);   // item 19 H2: the system's height modifier, under range
     lightBox(box, cm);   // lighting L4: the system's light rules
     sensesBox(box, cm);   // senses S2a: the system's senses
     turnBox(box, cm);   // turn-based combat T1: the system's turn rules, under the blast and cover settings
@@ -4946,6 +4970,79 @@ function rangeClick(b) {
     markDirty(); renderAll(); return true;
 }
 // [sinkcheck:rangebox-end]
+// Item 19 H2 (the owner's answer, 2026-09-30: a table like the Range box): the Combat card's Height box — a modifier by how much higher the
+// roller stands than the target (HeightDiff, negative looking up): a table of signed steps (up to that difference; below the first row its
+// modifier, past the last row its modifier) or a formula reading HeightDiff, in yards, feet or metres. Rolls read HeightMod; the ruler and a
+// target mark show it. It keeps combat.height's rule (H1) whatever is chosen here. Every text lands as a value or a text node
+// [sinkcheck:heightbox2-start]
+function heightDraft() { var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }); return cm.height && typeof cm.height === 'object' && !Array.isArray(cm.height) ? cm.height : (cm.height = {}); }
+function heightBy(hg) { return !hg || typeof hg !== 'object' || Array.isArray(hg) ? '' : typeof hg.formula === 'string' ? 'formula' : Array.isArray(hg.steps) ? 'table' : ''; }
+function heightBox(box, cm) {
+    var hg = cm.height && typeof cm.height === 'object' && !Array.isArray(cm.height) ? cm.height : null, by = heightBy(hg), wrap = el('div', 'sys-range sys-height');
+    wrap.appendChild(el('div', 'sys-light-head', 'Height'));
+    wrap.appendChild(el('div', 'sys-note', 'Your game\u2019s height modifier: by how much higher the roller stands than the target (with Token elevation on). Rolls read HeightMod; the ruler between two character tokens and each target mark show it. A table gives each difference\u2019s modifier, lowest first: a difference below 0 is looking up (up to that difference; below the first row its modifier, past the last row its modifier); a formula works it out from HeightDiff.'));
+    var r1 = el('div', 'sys-flags sys-height-top');
+    r1.appendChild(labeledSelect('sys-height-by', 'Height modifier', [['', 'None'], ['table', 'By a table'], ['formula', 'By a formula']], by, 'None: no height modifier. A table: a modifier for each height difference. A formula: a modifier worked out from HeightDiff.'));
+    if (by) r1.appendChild(labeledSelect('sys-height-unit', 'Counts in', [['yd', 'yards'], ['ft', 'feet'], ['m', 'metres']], typeof hg.unit === 'string' && Object.prototype.hasOwnProperty.call(HEIGHT_UNITS, hg.unit) ? hg.unit : 'yd', 'What its differences count in: a token\u2019s elevation is converted into it'));
+    wrap.appendChild(r1);
+    if (by === 'formula') {
+        var fr = el('div', 'sys-flags sys-height-frow'), fm = input('sys-height-formula field', typeof hg.formula === 'string' ? hg.formula : '', 'The modifier at a height difference: HeightDiff is how much higher the roller stands than the target, in the unit above (below 0 looking up); no dice, and no other name', 'Modifier, e.g. floor(HeightDiff / 5)');
+        fm.maxLength = LIMITS.formula; fr.appendChild(fm); wrap.appendChild(fr);
+    } else if (by === 'table') {
+        var st = Array.isArray(hg.steps) ? hg.steps : [];
+        st.forEach(function(s0, i) {
+            var s = s0 && typeof s0 === 'object' ? s0 : {}, rw = el('div', 'sys-flags sys-height-row'); rw.dataset.hi = String(i);
+            [['to', 'Up to', 'How much higher (below 0: lower) this step reaches'], ['mod', 'Modifier', 'The modifier up to this difference: +1, -1, or 0 for none']].forEach(function(g) {
+                var nl = el('label', 'sys-num'); if (i === 0) nl.appendChild(el('span', 'sys-num-cap', g[1]));
+                var ni = el('input', 'field sys-height-s' + g[0]); ni.type = 'number'; ni.step = 'any'; if (g[0] === 'to') { ni.min = '-1000000'; ni.max = '1000000'; } else { ni.min = '-1000'; ni.max = '1000'; }
+                ni.value = typeof s[g[0]] === 'number' ? String(s[g[0]]) : ''; ni.title = g[2]; nl.appendChild(ni); rw.appendChild(nl);
+            });
+            var db = el('button', 'tool ghost sys-btn', '\u00d7'); db.dataset.act = 'htdel'; db.title = 'Remove this step'; rw.appendChild(db);
+            wrap.appendChild(rw);
+        });
+        var ad = el('button', 'tool ghost sys-btn sys-height-add', '+ Step'); ad.dataset.act = 'htadd'; ad.disabled = st.length >= LIMITS.heightSteps; ad.title = ad.disabled ? 'At most ' + LIMITS.heightSteps : 'A height difference and its modifier; Save puts the steps in order'; wrap.appendChild(ad);
+    }
+    var err = errorCell('height'); err.dataset.errFor = 'height'; wrap.appendChild(err);
+    box.appendChild(wrap);
+}
+function onHeightInput(t) {
+    var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-height-') < 0) return false;
+    if (c.indexOf('sys-height-by') >= 0 || c.indexOf('sys-height-unit') >= 0) return true;   // their change events do the work
+    var hg = heightDraft();
+    if (c.indexOf('sys-height-formula') >= 0) hg.formula = t.value.slice(0, LIMITS.formula);
+    else {
+        var rw = t.closest('.sys-height-row'), i = rw ? +rw.dataset.hi : -1, s = Array.isArray(hg.steps) && hg.steps[i] && typeof hg.steps[i] === 'object' ? hg.steps[i] : null; if (!s) return true;
+        var key = c.indexOf('sys-height-sto') >= 0 ? 'to' : c.indexOf('sys-height-smod') >= 0 ? 'mod' : ''; if (!key) return true;
+        var nv = Number(t.value); if (t.value.trim() && isFinite(nv)) s[key] = nv; else delete s[key];
+    }
+    markDirty(); patchErrors(); return true;
+}
+function onHeightChange(t) {
+    var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-height-') < 0) return false;
+    if (c.indexOf('sys-height-by') < 0 && c.indexOf('sys-height-unit') < 0) return true;   // the boxes' change events (their input events did the work)
+    if (c.indexOf('sys-height-unit') >= 0) { var hu = heightDraft(); if (typeof t.value === 'string' && Object.prototype.hasOwnProperty.call(HEIGHT_UNITS, t.value)) hu.unit = t.value; else delete hu.unit; markDirty(); patchErrors(); return true; }
+    var want = t.value === 'table' || t.value === 'formula' ? t.value : '', hg = heightDraft(), was = heightBy(hg);
+    if (!want) { ['steps', 'formula', 'unit', '_f', '_s'].forEach(function(k) { delete hg[k]; }); if (!Object.keys(hg).length) delete draft.combat.height; markDirty(); renderAll(); return true; }   // H1's rule stays
+    if (want !== was) {   // what the other way held waits in the draft, in case the GM comes back to it before Save
+        if (want === 'table') { if (typeof hg.formula === 'string') hg._f = hg.formula; delete hg.formula; hg.steps = Array.isArray(hg._s) ? hg._s : []; delete hg._s; }
+        else { if (Array.isArray(hg.steps)) hg._s = hg.steps; delete hg.steps; hg.formula = typeof hg._f === 'string' ? hg._f : ''; delete hg._f; }
+    }
+    markDirty(); renderAll(); return true;
+}
+function heightClick(b) {
+    var m = /^ht(add|del)$/.exec(b.dataset.act || ''); if (!m) return false;
+    if (m[1] === 'add') {
+        var hg = heightDraft(), arr = Array.isArray(hg.steps) ? hg.steps : (hg.steps = []);
+        if (arr.length >= LIMITS.heightSteps) { toast('At most ' + LIMITS.heightSteps + '.'); return true; }
+        var last = arr.length && arr[arr.length - 1] && typeof arr[arr.length - 1].to === 'number' ? arr[arr.length - 1].to : null; arr.push({ to: last === null ? 0 : last + 5, mod: 0 });
+    } else {   // a remove: only a row the table holds
+        var hgD = draft.combat && draft.combat.height, st = hgD && Array.isArray(hgD.steps) ? hgD.steps : [], rw = b.closest('.sys-height-row'), i = rw ? +rw.dataset.hi : -1;
+        if (!(i >= 0 && i < st.length && Math.floor(i) === i)) return true;
+        st.splice(i, 1);
+    }
+    markDirty(); renderAll(); return true;
+}
+// [sinkcheck:heightbox2-end]
 // Senses S2a: the system's senses on the Combat card (docs/SENSES_PLAN.md 4.3) — each a name, where its range comes from (a field of the
 // character, or a number every character has), what it counts in (never a silent yards: a new row takes the system's first light's unit,
 // else the last picked here, else it waits for one and Save leaves it out), whether walls stop it, whether it sees all round and whether it
@@ -5203,6 +5300,7 @@ function onInput(e) {
     if (onRangeInput(t)) return;   // range penalties R1
     if (onPostureInput(t)) return;   // conditions C3
     if (onInitInput(t)) return;   // initiative O2
+    if (onHeightInput(t)) return;   // item 19 H2
     var fxd = fxOfRow(t);   // 5h: a library effect's text boxes
     if (fxd) {
         var fc = t.className || '';
@@ -5343,6 +5441,7 @@ function onChange(e) {
     if (onRangeChange(t)) return;   // range penalties R1
     if (onPostureChange(t)) return;   // conditions C3
     if (onInitChange(t)) return;   // initiative O2
+    if (onHeightChange(t)) return;   // item 19 H2
     if (c.indexOf('sys-combat-auto') >= 0) { draft.combat.blastAuto = t.value; markDirty(); patchErrors(); return; }
     if (c.indexOf('sys-combat-roller') >= 0) { draft.combat.blastRoller = t.value; markDirty(); patchErrors(); return; }
     if (c.indexOf('sys-combat-checks') >= 0) { if (t.value === 'under3d6') draft.combat.checks = 'under3d6'; else delete draft.combat.checks; markDirty(); patchErrors(); return; }   // Stage 6 F8
@@ -5463,7 +5562,8 @@ function onClick(e) {
     if (lightClick(b)) return;   // lighting L4: the Combat card's light presets
     if (sensesClick(b)) return;   // senses S2a: the Combat card's senses
     if (rangeClick(b)) return;   // range penalties R1: the Combat card's range table
-    if (postureClick(b)) return;   // conditions C3: the Combat card's postures
+    if (postureClick(b)) return;   // conditions C3: the Combat card
+    if (heightClick(b)) return;   // item 19 H2: the Combat card's height table's postures
     var crow = b.closest('.sys-char-row');
     if (crow) {
         var camp = getActiveCampaign(), ch = charById(crow.dataset.cid, camp); if (!ch) return;

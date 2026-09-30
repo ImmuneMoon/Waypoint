@@ -544,6 +544,9 @@ Turn-based combat
 - Height and cover: a piece's Height (its Properties) and your system's
   Height and cover rule (the Combat card): with token elevation on, from
   above a see-over piece gives no cover, from below it hides the target.
+- The Combat card's Height box: a height modifier by how much higher the
+  roller stands than the target, as a table or a formula; rolls read
+  HeightMod and HeightDiff, and the ruler and target marks show it.
 - Heights follow your Imperial or Metric choice: a token's elevation, a
   piece's height, the ruler's 3D line and a blast's labels, in yards or
   metres.

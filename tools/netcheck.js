@@ -6039,6 +6039,15 @@ pendingChecks.push((async () => {
         check('senses S7b (host): a visible smoke piece reaches each player with its tick (their screen hides by it as the host does); a player\'s token walks into and through smoke, the move never refused (smoke blocks sight, never movement)',
             !!smA && smA.smoke === true && !!smB && smB.smoke === true && tEnd.x !== sx0 && Math.abs(tEnd.x - (sx0 + 300)) <= 50 && refused === false, J([smA, smB, tEnd.x - sx0, refused]));
     }
+    // difficult terrain T1 (host): a shown piece reaches every player with its cost (their ruler reads it), a hidden one not at all
+    {
+        const tW = S7({}), mT = tW.camp.items.mA, tT = tW.tok('tA');
+        mT.whiteboard.push({ id: 'bogV', type: 'rect', x: tT.x + 100, y: tT.y, w: 100, h: 100, terrain: 3 }, { id: 'bogC', type: 'hexagon', x: tT.x + 200, y: tT.y, w: 60, h: 52, fill: true, terrain: 2 }, { id: 'bogH', type: 'rect', x: tT.x + 300, y: tT.y, w: 100, h: 100, hidden: true, terrain: 4 });
+        mT.meta = Object.assign({}, mT.meta, { updated: (mT.meta && mT.meta.updated || 0) + 1 }); tW.clearSent(); tW.net.sendItem('k', 'mA');
+        const tA = tW.last(tW.a1), tB = tW.last(tW.b1), of = m => m ? ['bogV', 'bogC', 'bogH'].map(id => { const w = m.whiteboard.find(x => x.id === id); return !w ? 'gone' : 'terrain' in w ? w.terrain : 'none'; }) : null;
+        check('terrain T1 (host): a shown difficult piece and a painted cell reach each player with their cost; the cost of a hidden one reaches no one (what a hidden piece sends carries none)',
+            J(of(tA).slice(0, 2)) === J([3, 2]) && J(of(tB).slice(0, 2)) === J([3, 2]) && of(tA)[2] !== 4 && of(tB)[2] !== 4 && !/"terrain":4/.test(J(tW.a1.sent)) && !/"terrain":4/.test(J(tW.b1.sent)), J([of(tA), of(tB)]));
+    }
     // senses S4b: "Marks in a fight" played On your own turn — the host's refreshes of each player's held marks (slice marksheld, run on stubs)
     {
         const mhSrc = bw('marksheld');
@@ -6342,6 +6351,11 @@ pendingChecks.push((async () => {
     const smToks = () => [{ id: 's1', type: 'rect', x: 0, y: 0, w: 50, h: 50, smoke: true }, { id: 's2', type: 'rect', x: 0, y: 0, w: 50, h: 50, smoke: 'yes' }, { id: 's3', type: 'rect', x: 0, y: 0, w: 50, h: 50, smoke: 1 }, { id: 's4', type: 'rect', x: 0, y: 0, w: 50, h: 50, smoke: { on: true } }, { id: 's5', type: 'rect', x: 0, y: 0, w: 50, h: 50, smoke: false }, { id: 's6', type: 'rect', x: 0, y: 0, w: 50, h: 50 }];
     const smCli = [cli('u_me'), cli('u_me', {}), cli('', { wpFogCore: FCx })].map(K => smToks().map(w => K.item(w)).map(w => (has(w, 'smoke') ? w.smoke : 0)));
     const smMapC = C.map({ id: 'm1', type: 'map', whiteboard: smToks(), rooms: [], links: [] }).whiteboard.map(w => (has(w, 'smoke') ? w.smoke : 0));
+    const trToks = () => [3, 2.6, 40, '3', 1, { cost: 3 }, undefined].map((t, i) => Object.assign({ id: 't' + i, type: 'rect', x: 0, y: 0, w: 50, h: 50 }, t === undefined ? {} : { terrain: t }));
+    const trCli = [cli('u_me'), cli('', { wpFogCore: FCx }), cli('u_me', {})].map(K => trToks().map(w => K.item(w)).map(w => (has(w, 'terrain') ? w.terrain : 0)));
+    const trMapC = C.map({ id: 'm1', type: 'map', whiteboard: trToks(), rooms: [], links: [] }).whiteboard.map(w => (has(w, 'terrain') ? w.terrain : 0));
+    check('terrain T1 (client): a player\'s app keeps a piece\'s difficult terrain from its host as its cost, a whole number 2 to 10 (40 reads 10), with or without a profile; a word, 1 or an object is dropped, item by item and in a whole map; with no cleaner on hand it does not come in',
+        J(trCli) === J([[3, 3, 10, 0, 0, 0, 0], [3, 3, 10, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0]]) && J(trMapC) === J(trCli[0]), J([trCli, trMapC]));
     check('senses S7b (client): a player\'s app keeps a smoke tick from its host only as true, with or without a cleaner or a profile; any other value is dropped, item by item and in a whole map',
         J(smCli) === J([[true, 0, 0, 0, 0, 0], [true, 0, 0, 0, 0, 0], [true, 0, 0, 0, 0, 0]]) && J(smMapC) === J(smCli[0]), J([smCli, smMapC]));
     check('senses S7a (client): a map caught up in place takes its word of what fails in a null area for its own tokens only (cleaned again), an empty word takes it away, a word that is no plain object is refused whole (the whole map asked for)',

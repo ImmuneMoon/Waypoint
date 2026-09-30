@@ -4513,7 +4513,7 @@ pendingChecks.push((async () => {
         // a call and what it is given, brackets inside brackets two deep
         const calls = /invalidateSeen\((?:[^()]|\((?:[^()]|\([^()]*\))*\))*\)/g, ownMove = 'invalidateSeen(msg.itemId, w.light && (!window.wpFog.lightMoves || window.wpFog.lightMoves(map)) ? undefined : pr.id)';
         check('senses S0 (source): a player\'s map copy that changed something empties that map\'s sets after the save is asked for and before the map goes out, and a copy that changed nothing does neither; nowhere in net.js is the whole of it emptied by that call, and the seven places that empty a set name the map — a copy made under a new text, a whole map sent to the table, the hook, a move put back, a map copy and threat marks every player\'s set of it, and a player\'s own move that player\'s alone, or every player\'s where the token carries a light and the fog says a light that moves changes what is seen on that map, or does not say; there the gate reads where the token sees and lights from before it writes the new place and facing, and empties after the write and the seat and before the move is rebuilt and relayed, only where that text is missing or is no longer the same (read once after the seat, fold M7); nothing else in net.js reads the text but fogKey (fold M7), or asks about a light that moves',
-            /var pOut = \{\}, changed = applyClientItemFiltered\(msg, profile, pOut\);\n            if \(changed\) \{\n(?:                [^\n]*\n){3,6}                saveRemoteSoon\(\);\n                if \(window\.wpFog && window\.wpFog\.invalidateSeen\) window\.wpFog\.invalidateSeen\(msg\.itemId\);[^\n]*\n                net\.sendItem\(msg\.campId, msg\.itemId, null, pOut\.strokes \? null : conn\);[^\n]*\n            \}\n            \/\/ \[netcheck:itempatch-end\]\n        \} else \{\n            applyItem\(msg\);/.test(src)
+            /var pOut = \{ conn: conn \}, changed = applyClientItemFiltered\(msg, profile, pOut\);[^\n]*\n            if \(changed\) \{\n(?:                [^\n]*\n){3,6}                saveRemoteSoon\(\);\n                if \(window\.wpFog && window\.wpFog\.invalidateSeen\) window\.wpFog\.invalidateSeen\(msg\.itemId\);[^\n]*\n                net\.sendItem\(msg\.campId, msg\.itemId, null, pOut\.strokes \? null : conn\);[^\n]*\n            \}\n            \} finally \{ if \(typeof ackTook === 'function'\) ackTook\(conn, msg\.a\); \}\n            \/\/ \[netcheck:itempatch-end\]\n        \} else \{\n            applyItem\(msg\);/.test(src)
             && (srcC.match(/invalidateSeen\(/g) || []).length === 7 && j((srcC.match(calls) || []).sort()) === j(['invalidateSeen(id)', 'invalidateSeen(itemId)', 'invalidateSeen(map.id)', 'invalidateSeen(msg.itemId)', 'invalidateSeen(msg.itemId)', 'invalidateSeen(msg.itemId)', ownMove]) && !/invalidateSeen\(\s*\)/.test(srcC)
             && count1(flS, /invalidateSeen\(map\.id\)/g) && count1(whole('net.broadcastItemFiltered = function('), /invalidateSeen\(itemId\)/g) && count1(smS, /invalidateSeen\(/g) && count1(smS, /invalidateSeen\(id\)/g) && count1(posS2, /invalidateSeen\(msg\.itemId\)/g) && posC.split(ownMove).length === 2 && count1(posS2, /invalidateSeen\(msg\.itemId,/g) && count1(thS2, /invalidateSeen\(msg\.itemId\)/g)
             && (srcC.match(/seenKeyOf/g) || []).length === 5 && (posC.match(/seenKeyOf/g) || []).length === 3 && (between('// [netcheck:fogmove-start]', '// [netcheck:fogmove-end]', 'fogmove').replace(/\/\/[^\n]*/g, '').match(/seenKeyOf/g) || []).length === 2 && (srcC.match(/lightMoves/g) || []).length === 2 && (posC.match(/lightMoves/g) || []).length === 2
@@ -4528,7 +4528,7 @@ pendingChecks.push((async () => {
                 'msg = { type: \'pos\', campId: msg.campId, itemId: msg.itemId, wbId: msg.wbId, x: msg.x, y: msg.y, rot: msg.rot, front: msg.front, final: msg.final === true };',
                 'applyPosToDom(msg);',
                 'broadcastPos(msg, conn, camp, map, w);'].join('\n')) > 0
-            && /\nfunction snapBack\(camp, map, w, msg, to\) \{[^\n]*\n[^\n]*\n    w\.x = to\.x; w\.y = to\.y;\n    if \(window\.wpFog && window\.wpFog\.invalidateSeen\) window\.wpFog\.invalidateSeen\(msg\.itemId\);[^\n]*\n    var back = /.test(src), j(srcC.match(calls)));
+            && /\nfunction snapBack\(camp, map, w, msg, to, mover\) \{[^\n]*\n[^\n]*\n    w\.x = to\.x; w\.y = to\.y;\n    if \(window\.wpFog && window\.wpFog\.invalidateSeen\) window\.wpFog\.invalidateSeen\(msg\.itemId\);[^\n]*\n    var back = /.test(src), j(srcC.match(calls)));
     }
 
     // 22. a Sight a player cannot work out for themselves: nothing is sent from the hook
@@ -5394,6 +5394,7 @@ pendingChecks.push((async () => {
         src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem(')), ownKeySrc, bw('pos'), bw('patch'), bw('fogdiffapply'), bw('fogmove'),
         'return { pos: handlePos, patch: applyClientItemFiltered, landed: fogLanded, sweep: fogDragSweep, open: openDrag, opens: openDrags, end: dragEnd, live: fogOwnLive, clean: sanitizeItem, combats: broadcastCombats, targets: broadcastTargets, drags: function() { return _dragFrom; }, stale: FOG_DRAG_STALE_MS,',
         'held: function() { return _fogHeld; }, seedSnap: fogSeedSnapshot, forgetAll: fogForgetAll, hash: quickHash, copy: fogCopyFor,',
+        'acks: function() { return _acks; }, ackTook: ackTook, ackOf: ackOf, withAck: withAck, ackSend: ackSend, forgetConn: fogForgetConn,',
         'arm: fogArm, fire: fogMoveFire, catchUp: fogCatchUp, key: fogKey, windowMs: fogWindowMs, pend: function() { return _fogPend; }, cost: function() { return _fogCost; }, sensesSig: function() { return _sensesSig; }, sensesForget: sensesForget,',
         'item: function(msg, conn) {', bw('itempatch'), '}, threatsIn: function(msg, conn) {', bw('threats'), '} };'].join('\n');
     const NAMES4 = ['net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'sendFailed', 'peerProfileId', 'lim', 'pushChat', 'state', 'itemDelta', 'broadcast', '_lastSent', 'setTimeout', 'clearTimeout', 'save', 'toast', 'logEvent', 'renderRoster', 'dropWaitingFor', 'allow', 'render', 'broadcastRoster', 'checkRoomHandouts', 'applyPosToDom', 'playerStroke', 'bellOut', 'renderNotepad', 'fogNow'];
@@ -5597,11 +5598,153 @@ pendingChecks.push((async () => {
     const scripts5 = fs.readdirSync(path.join(__dirname, '..', 'system', 'app', 'scripts')).filter(f => /\.js$/.test(f) && f !== 'net.js').filter(f => fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', f), 'utf8').indexOf('_fogHeld') >= 0);
     check('fold M5 (source): the record is named only inside its slice and in no other script; each whole send seeds after its try (a send that throws returns first); the snapshot seeds only once it went out, after its try; the close handler, kickPlayer, itemGone, both unfogged sends and a new table forget',
         fmSrc5.indexOf('var _fogHeld') >= 0 && otherSrc5.indexOf('_fogHeld') < 0 && scripts5.length === 0
-        && (src.match(/catch \(e\) \{ sendFailed\(e\); return; \}\n\s*if \(typeof fogSeed === 'function' && fogSeed\(conn, itemId, out\)\) fogRoster\(conn, pr\.id, itemId\);/g) || []).length === 2
+        && (src.match(/catch \(e\) \{ sendFailed\(e\); return; \}[^\n]*\n\s*if \(typeof fogSeed === 'function' && fogSeed\(conn, itemId, out\)\) fogRoster\(conn, pr\.id, itemId\);/g) || []).length === 2
         && /conn\.send\(snap\); snapOk = true;/.test(src) && /\n\s*if \(snapOk && typeof fogSeedSnapshot === 'function'\) fogSeedSnapshot\(conn, snap\);/.test(src)
         && /fogDragSweep\(\);[^\n]*\n\s*if \(typeof fogForgetConn === 'function'\) fogForgetConn\(conn\.peer\);/.test(src) && /if \(typeof fogForgetConn === 'function'\) keys\.forEach\(fogForgetConn\);/.test(whole4('net.kickPlayer = function('))
         && /fogForgetMap\(itemId\)/.test(whole4('net.itemGone = function(')) && /fogForgetAll\(\);/.test(fnSrc('function startHosting(forceFresh) {', '\n    diceSessionReset(true);', 'startHosting')), J(scripts5));
 
+    // 14c K1: how far each copy goes. The host takes a player's action number ('a') once the handler has run, whatever became of the action, per
+    // connection; every copy of a map sent to that connection says it ('ack'); a put-back says the number of the action it answers
+    {
+        const A1 = mk4(), ak = () => J(Object.assign({}, A1.api.acks()));
+        const nums = [3, '5', 5.5, -1, 0, NaN, Infinity, 2147483648, null, [], {}, 2, 2147483647].map(v => { A1.api.ackTook(A1.a2, v); return A1.api.ackOf(A1.a2); });
+        A1.api.ackTook(A1.a1, 4); A1.api.ackTook(A1.a1, 2); const perConn = [A1.api.ackOf(A1.a1), A1.api.ackOf(A1.b1), A1.api.ackOf({ peer: 'nobody' }), A1.api.ackOf(null)];
+        const src1 = { type: 'item', campId: 'k', itemId: 'mA', item: { x: 1 } }, wa = A1.api.withAck(src1, A1.a1), wat = [A1.api.withAck(src1, A1.a1, 9).ack, A1.api.withAck(src1, A1.a1, 1).ack, A1.api.withAck(src1, A1.a1, 'x').ack, A1.api.withAck(src1, A1.b1).ack];
+        check('14c K1: an action number is taken only as a whole number from 1 to 2^31-1 (anything else is none), per connection, never lower than one taken before; a copy of a message says its connection\'s number (or the action\'s, where higher) and leaves the message as it was',
+            J(nums) === J([3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2147483647]) && J(perConn) === J([4, 0, 0, 0]) && wa !== src1 && wa.ack === 4 && wa.item === src1.item && !('ack' in src1) && J(wat) === J([9, 4, 4, 0]), J([nums, perConn, wat]));
+        // every send of a map says the number of the connection it goes to; a peer not admitted gets nothing
+        const A2 = mk4(); A2.api.ackTook(A2.a1, 7); A2.api.ackTook(A2.b1, 2); A2.clearSent();
+        const ackOfLast = (c, type) => { const m = c.sent.filter(x => x.type === (type || 'item')).pop(); return m ? (Object.prototype.hasOwnProperty.call(m, 'ack') ? m.ack : 'none') : 'absent'; };
+        A2.net.sendItem('k', 'mA'); const fogAll = [ackOfLast(A2.a1), ackOfLast(A2.a2), ackOfLast(A2.b1), ackOfLast(A2.w1)];
+        A2.clearSent(); A2.net.sendItem('k', 'mA', A2.a1); const fogOne = [ackOfLast(A2.a1), ackOfLast(A2.b1)];
+        A2.clearSent(); A2.net.broadcastItemFiltered('k', 'mA'); const fogBif = [ackOfLast(A2.a1), ackOfLast(A2.a2), ackOfLast(A2.b1), ackOfLast(A2.w1)];
+        A2.camp.items.mA.fog.on = false;
+        A2.clearSent(); A2.net.sendItem('k', 'mA'); const openAll = [ackOfLast(A2.a1), ackOfLast(A2.a2), ackOfLast(A2.b1), ackOfLast(A2.w1)];
+        A2.clearSent(); A2.net.sendItem('k', 'mA', A2.b1); const openOne = [ackOfLast(A2.a1), ackOfLast(A2.b1)];
+        A2.clearSent(); A2.net.broadcastItemFiltered('k', 'mA'); const openBif = [ackOfLast(A2.a1), ackOfLast(A2.a2), ackOfLast(A2.b1), ackOfLast(A2.w1)];
+        A2.clearSent(); A2.api.ackSend({ type: 'itemDelta', campId: 'k', itemId: 'mA', whiteboard: { set: [], del: [] } }); const delta = [ackOfLast(A2.a1, 'itemDelta'), ackOfLast(A2.b1, 'itemDelta'), ackOfLast(A2.w1, 'itemDelta')];
+        check('14c K1: every copy of a map the host sends says how far it goes for the connection it goes to — a fogged map to every connection, to one alone and to the table, an unfogged one whole to all, to one, to the table and as a delta; a peer not admitted gets none',
+            J(fogAll) === J([7, 0, 2, 'absent']) && J(fogOne) === J([7, 'absent']) && J(fogBif) === J([7, 0, 2, 'absent']) && J(openAll) === J([7, 0, 2, 'absent']) && J(openOne) === J(['absent', 2]) && J(openBif) === J([7, 0, 2, 'absent']) && J(delta) === J([7, 2, 'absent']),
+            J([fogAll, fogOne, fogBif, openAll, openOne, openBif, delta]));
+        // the number is taken once the handler has run: a copy made inside it, before the move lands (the GM's pending edit saved first), says the old one
+        const A3 = mk4(); A3.winRef.wpHistFlush = () => A3.net.sendItem('k', 'mA'); A3.api.ackTook(A3.a1, 3); A3.clearSent();
+        A3.move(A3.a1, 'tA', 250, 100, true, 'mA', { a: 5 }); const inside = A3.a1.sent.filter(m => m.type === 'item').map(m => [m.ack, (m.item.whiteboard.find(w => w.id === 'tA') || {}).x]);
+        delete A3.winRef.wpHistFlush; A3.clearSent(); A3.net.sendItem('k', 'mA'); const after = A3.a1.sent.filter(m => m.type === 'item').map(m => [m.ack, (m.item.whiteboard.find(w => w.id === 'tA') || {}).x]);
+        check('14c K1: a move\'s number is taken only once its handler has run — a copy the host makes inside it before the move lands (the GM\'s pending edit saved first) still says the number before it and has the token where it was; the next copy says the move\'s number and has the token where it landed',
+            J(inside) === J([[3, 100]]) && A3.api.ackOf(A3.a1) === 5 && J(after) === J([[5, 250]]), J([inside, after]));
+        // whatever became of it: refused (another's token, a locked one, a paused table, a rate limit), dropped as malformed, a patch, threat marks
+        const took = (fn) => { const W = mk4(); fn(W); return W.api.ackOf(W.a1); };
+        const verdicts = [
+            took(W => W.move(W.a1, 'tB', 300, 100, true, 'mA', { a: 4 })),
+            took(W => { W.tok('tA').locked = true; W.move(W.a1, 'tA', 300, 100, true, 'mA', { a: 4 }); }),
+            took(W => { W.net.paused = true; W.move(W.a1, 'tA', 300, 100, true, 'mA', { a: 4 }); }),
+            took(W => W.api.pos({ type: 'pos', campId: 'k', itemId: 'mA', wbId: 'tA', x: 'x', y: 1, final: true, a: 4 }, W.a1)),
+            took(W => W.api.item({ type: 'item', campId: 'k', itemId: 'mA', item: { whiteboard: [Object.assign({}, W.tok('tA'), { x: 150 })] }, a: 4 }, W.a1)),
+            took(W => { W.net.paused = true; W.api.item({ type: 'item', campId: 'k', itemId: 'mA', item: { whiteboard: [] }, a: 4 }, W.a1); }),
+            took(W => { W.net.roster.pA1.location = 'mA'; W.api.threatsIn({ type: 'threats', campId: 'k', itemId: 'mA', wbId: 'tA', threats: [90], a: 4 }, W.a1); }),
+            took(W => W.api.threatsIn({ type: 'threats', campId: 'k', itemId: 'mA', wbId: 'tB', threats: [90], a: 4 }, W.a1)),
+            took(W => W.move(W.a1, 'tA', 300, 100, true, 'mA', { a: '4' })),
+            took(W => W.move(W.a1, 'tA', 300, 100, true, 'mA'))];
+        check('14c K1: the number is taken whatever became of the action — a move of another\'s token, of a locked one, on a paused table, a move that is no number, a patch (applied or dropped on a paused table), threat marks (applied or refused); a message with no number, or one that is no whole number, takes none (handled exactly as before)',
+            J(verdicts) === J([4, 4, 4, 4, 4, 4, 4, 4, 0, 0]), J(verdicts));
+        // a put-back answers the action it refuses, to its mover alone: the pos path (a wall) and the patch path
+        const A5 = mk4({ wall: () => true }); A5.api.ackTook(A5.a1, 2); A5.clearSent(); A5.move(A5.a1, 'tA', 250, 100, true, 'mA', { a: 6 });
+        const back5 = A5.a1.sent.filter(m => m.type === 'pos').map(m => [m.x, m.ack]), others5 = [A5.a2, A5.b1].map(c => c.sent.filter(m => m.type === 'pos').map(m => ('ack' in m) ? 'ack' : m.x));
+        const A6 = mk4({ wall: () => true }); A6.clearSent(); A6.api.item({ type: 'item', campId: 'k', itemId: 'mA', item: { whiteboard: [Object.assign({}, A6.tok('tA'), { x: 250 })] }, a: 8 }, A6.a1);
+        const back6 = A6.a1.sent.filter(m => m.type === 'pos').map(m => [m.x, m.ack]), others6 = [A6.a2, A6.b1].map(c => c.sent.filter(m => m.type === 'pos').map(m => ('ack' in m) ? 'ack' : m.x));
+        const A7 = mk4({ wall: () => true }); A7.clearSent(); A7.api.patch({ type: 'item', campId: 'k', itemId: 'mA', item: { whiteboard: [Object.assign({}, A7.tok('tA'), { x: 250 })] }, a: 8 }, A7.net.roster.pA1, {});   // a caller that names no connection: as before, to everyone
+        const noMover = [A7.a1, A7.b1].map(c => c.sent.filter(m => m.type === 'pos').map(m => ('ack' in m) ? 'ack' : m.x));
+        check('14c K1: a move put back (a wall in the way, by the drop and by the map copy after it) reaches its mover once, saying the number of the action it answers, and everyone else who sees it as before, with no number; with no mover known it goes to everyone as before',
+            J(back5) === J([[100, 6]]) && J(others5) === J([[100], [100]]) && J(back6) === J([[100, 8]]) && J(others6) === J([[100], [100]]) && J(noMover) === J([[100], [100]]), J([back5, others5, back6, others6, noMover]));
+        // turn-based combat's put-backs answer their move too: out of turn, and past the move allowed
+        const turnBack = (setup) => { const W = mk4(); W.net.combats = { mA: { mapId: 'mA', round: 1, turn: 0, rows: [{ id: 'r_b', name: 'Bo', tokId: 'tB' }, { id: 'r_a', name: 'Ana', tokId: 'tA' }] } }; if (setup) setup(W); W.clearSent(); W.move(W.a1, 'tA', 350, 100, true, 'mA', { a: 12 }); return W.a1.sent.filter(m => m.type === 'pos').map(m => [m.x, m.ack]); };
+        const outOfTurn = turnBack(), pastMove = turnBack(W => { W.net.combats.mA.turn = 1; W.net.turnMove = { mA: { tokId: 'tA', rowId: 'r_a', allow: 1, moved: 0 } }; });
+        check('14c K1: turn-based combat\'s put-backs (a move out of its turn, a move past the move allowed) reach the mover saying the number of the move they answer',
+            J(outOfTurn) === J([[100, 12]]) && J(pastMove) === J([[100, 12]]), J([outOfTurn, pastMove]));
+        const A8 = mk4(); A8.api.ackTook(A8.a1, 5); A8.api.ackTook(A8.b1, 6); A8.api.forgetConn('pA1'); const f1 = [A8.api.ackOf(A8.a1), A8.api.ackOf(A8.b1)]; A8.api.forgetAll(); const f2 = [A8.api.ackOf(A8.b1)];
+        const srcNoCm = src.replace(/\/\/[^\n]*/g, '');
+        check('14c K1: the number is forgotten with its connection (the close handler and a kick go through it) and at a new table; in net.js no map goes out as a bare item or through the shared broadcast but where the slice is missing, and every handler taking a number takes it in a finally',
+            J(f1) === J([0, 6]) && J(f2) === J([0]) && !/conn\.send\(\{ type: 'item'/.test(srcNoCm) && !/onlyConn\.send\(full\)/.test(srcNoCm) && (srcNoCm.match(/else broadcast\((msg|bm), null\);/g) || []).length === 2
+            && (srcNoCm.match(/\} finally \{ if \(typeof ackTook === 'function'\) ackTook\(conn, (msg\.a|aIn)\); \}/g) || []).length === 3 && (srcNoCm.match(/ackTook\(/g) || []).length === 4, J([f1, f2]));
+    }
+    // 14c K2: the player's side, run for real — a page built from the real client code (the record, applyItem, applyItemDelta, the pos branch,
+    // streamPos, the map patch, sendThreats) wired to the host world above: each crossing is played out in order, a copy the host made before an
+    // action of theirs landed reaching them after they acted, then the host handling what they sent. 'old' strips every number the host sends
+    // (a host without this): the step-back shows, then is gone with the numbers
+    {
+        const pageSrc = [lineOf('function own(o, k) {'), lineOf('function validKey(k) {'), lineOf('function campOf(id) {'), bw('actlog'),
+            fnSrc('function activeItemPatch(', '\n}\n', 'activeItemPatch') + '\n}\n', fnSrc('function applyItem(msg) {', '\n}\n', 'applyItem') + '\n}\n', fnSrc('function applyItemDelta(msg) {', '\n}\n', 'applyItemDelta') + '\n}\n',
+            fnSrc('function handlePos(msg, conn) {', '\n}\n', 'handlePos') + '\n}\n', fnSrc('function quickHash(', '\n}\n', 'quickHash') + '\n}\n', 'var _lastPatchHash = {}, _posLast = 0;',
+            whole4('net.streamPos = function('), whole4('net.onLocalSave = function('), whole4('net.sendThreats = function('),
+            'return { applyItem: applyItem, applyItemDelta: applyItemDelta, pos: handlePos, rec: function() { return _act; }, forget: actForget };'].join('\n');
+        const PNAMES = ['net', 'state', 'window', 'getActiveCampaign', 'getActiveMap', 'cleanHostMap', 'render', 'updateSidebarNav', 'broadcast', 'applyPosToDom', 'sendFailed', 'SC', 'broadcastPos', 'scheduleStageFollow', 'checkRoomHandouts'];
+        const buildPage = new Function(...PNAMES, pageSrc);
+        // one player's page (Ana, u_a) wired to world W's connection a1; old: the numbers the host sends are stripped on the way
+        const mkPage = (W, old) => {
+            const inbox = [], hostConn = { peer: 'h', open: true, send(m) { packCheck(m); inbox.push(JSON.parse(J(m))); } };
+            const net = { role: 'client', active: true, foreign: true, syncedPeer: 'h', applyingRemote: false, myId: 'u_a', conns: [hostConn], roster: {}, paused: false, selfPaused: false };
+            const camp = { id: 'k', activeItemId: 'mA', items: {} }, state = { appState: { activeCampaignId: 'k', campaigns: { k: camp } }, viewMode: 'visual', wbEls: {} };
+            const win = { wpFog: { invalidateVision() {}, redraw() {} }, wpSheets: { tokenTurned() {} } };
+            const bcP = m => net.conns.forEach(c => { if (c.open) c.send(m); });
+            const P = buildPage(net, state, win, () => camp, () => camp.items[camp.activeItemId], m => m, () => {}, () => {}, bcP, () => {}, () => {}, () => Sx, () => {}, () => {}, () => {});
+            const strip = m => { if (!old) return m; const c = JSON.parse(J(m)); delete c.ack; return c; };
+            const feed = m => { m = strip(m); if (m.type === 'item') P.applyItem(m); else if (m.type === 'itemDelta') P.applyItemDelta(m); else if (m.type === 'pos') P.pos(m, { peer: 'h' }); };
+            const pg = { P, net, camp, inbox, feed,
+                take: (from) => { const got = W.a1.sent.slice(from || 0); W.a1.sent.length = 0; got.forEach(feed); return got.length; },   // what the host sent a1 lands on the page, in order
+                map: () => camp.items.mA, tok: id => camp.items.mA.whiteboard.find(w => w && w.id === id),
+                drop: (id, x, y) => { const t = pg.tok(id); t.x = x; t.y = y; net.streamPos(t, true, 'mA'); },
+                save: () => net.onLocalSave(),
+                host: () => { const q = inbox.splice(0); q.forEach(m => { if (m.type === 'pos') W.api.pos(m, W.a1); else if (m.type === 'item') W.api.item(m, W.a1); else if (m.type === 'threats') W.api.threatsIn(m, W.a1); }); return q.map(m => m.type + ':' + m.a); } };
+            W.clearSent(); W.net.sendItem('k', 'mA', W.a1); pg.take();   // her copy, as a join would give it
+            return pg;
+        };
+        const gmSave = W => { W.net.sendItem('k', 'mA'); };
+        // (1) a drop crossing the GM's save, then the drop's own map patch 500 ms later
+        const dropCross = old => { const W = mk4(); const pg = mkPage(W, old); pg.drop('tA', 250, 100); gmSave(W); pg.take(); const mid = pg.tok('tA').x; pg.save(); const handled = pg.host(); gmSave(W); pg.take(); return { mid, handled, page: pg.tok('tA').x, host: W.tok('tA').x }; };
+        const d1 = dropCross(false), d0 = dropCross(true);
+        check('14c K2: a drop crossing the GM\'s save — without the numbers her token steps back on her screen and her drop\'s own map patch then moves it back for the table; with them the copy made before the drop landed gets it written back, the patch carries it, and the host and her screen both keep it',
+            J(d0) === J({ mid: 100, handled: ['pos:1', 'item:2'], page: 100, host: 100 }) && J(d1) === J({ mid: 250, handled: ['pos:1', 'item:2'], page: 250, host: 250 }), J([d0, d1]));
+        // (2) a stance, (3) two drawings around a crossing copy, (4) an erase, (5) the Facing dial's marks
+        const stroke = (id, x) => ({ id, type: 'path', x, y: 10, w: 20, h: 20, baseW: 20, baseH: 20, pts: [[0, 0], [10, 10]], color: '#e9e9f0', strokeWidth: 3, ownerId: 'u_a', byPlayer: true, z: 35 });
+        const stanceCross = old => { const W = mk4(); const pg = mkPage(W, old); pg.tok('tA').posture = 'crouching'; pg.save(); gmSave(W); pg.take(); const mid = pg.tok('tA').posture || 'standing'; pg.host(); gmSave(W); pg.take(); return { mid, page: pg.tok('tA').posture || 'standing', host: W.tok('tA').posture || 'standing' }; };
+        const drawTwice = old => { const W = mk4(); const pg = mkPage(W, old); pg.map().whiteboard.push(stroke('s1', 10)); pg.save(); gmSave(W); pg.take(); const mid = pg.map().whiteboard.filter(w => w.type === 'path').map(w => w.id); pg.map().whiteboard.push(stroke('s2', 40)); pg.save(); pg.host(); gmSave(W); pg.take(); return { mid, page: pg.map().whiteboard.filter(w => w.type === 'path').map(w => w.id), host: W.camp.items.mA.whiteboard.filter(w => w.type === 'path').map(w => w.id) }; };
+        const eraseCross = old => { const W = mk4(); W.camp.items.mA.whiteboard.push(stroke('s1', 10)); const pg = mkPage(W, old); pg.map().whiteboard = pg.map().whiteboard.filter(w => w.id !== 's1'); pg.save(); gmSave(W); pg.take(); const mid = pg.map().whiteboard.some(w => w.id === 's1'); pg.host(); pg.tok('tA').x = 150; pg.save(); pg.host(); gmSave(W); pg.take(); return { mid, page: pg.map().whiteboard.some(w => w.id === 's1'), host: W.camp.items.mA.whiteboard.some(w => w.id === 's1') }; };
+        const marksCross = old => { const W = mk4(); W.net.roster.pA1.location = 'mA'; const pg = mkPage(W, old); pg.tok('tA').threats = [90]; pg.net.sendThreats('k', 'mA', 'tA', [90]); gmSave(W); pg.take(); const mid = J(pg.tok('tA').threats || []); pg.host(); gmSave(W); pg.take(); return { mid, page: J(pg.tok('tA').threats || []), host: J(W.tok('tA').threats || []) }; };
+        const st = [stanceCross(true), stanceCross(false)], dr = [drawTwice(true), drawTwice(false)], er = [eraseCross(true), eraseCross(false)], mk = [marksCross(true), marksCross(false)];
+        check('14c K2: a stance, two drawings, an erase and the Facing dial\'s marks, each crossing a copy made before it landed — without the numbers each is undone on her screen (and her first drawing erased for the table by her second, her erased drawing back for the table by her next patch); with them each stays, on her screen and on the host',
+            J(st[0]) === J({ mid: 'standing', page: 'crouching', host: 'crouching' }) && J(st[1]) === J({ mid: 'crouching', page: 'crouching', host: 'crouching' })
+            && J(dr[0]) === J({ mid: [], page: ['s2'], host: ['s2'] }) && J(dr[1]) === J({ mid: ['s1'], page: ['s1', 's2'], host: ['s1', 's2'] })
+            && J(er[0]) === J({ mid: true, page: true, host: true }) && J(er[1]) === J({ mid: false, page: false, host: false })
+            && J(mk[0]) === J({ mid: '[]', page: '[90]', host: '[90]' }) && J(mk[1]) === J({ mid: '[90]', page: '[90]', host: '[90]' }), J([st, dr, er, mk]));
+        // (6) the host's verdicts: a refused drop's put-back, a newer drop still on its way when it comes, the GM moving her token, a token that left her
+        const refused = (() => { const W = mk4({ wall: (fx, fy, tx) => tx >= 250 }); const pg = mkPage(W); pg.drop('tA', 250, 100); pg.host(); pg.take(); const after = pg.tok('tA').x; gmSave(W); pg.take(); const left = Object.keys(pg.P.rec().pend.mA ? pg.P.rec().pend.mA.t : {}).length; pg.save(); pg.host(); return { after, page: pg.tok('tA').x, host: W.tok('tA').x, left }; })();
+        const newer = (() => { const W = mk4({ wall: (fx, fy, tx) => tx >= 250 }); const pg = mkPage(W); pg.drop('tA', 250, 100); pg.drop('tA', 150, 100); const q = pg.inbox.splice(0); W.api.pos(q[0], W.a1); pg.take(); const mid = pg.tok('tA').x; W.api.pos(q[1], W.a1); gmSave(W); pg.take(); return { mid, page: pg.tok('tA').x, host: W.tok('tA').x }; })();
+        const gmDrag = (() => { const W = mk4(); const pg = mkPage(W); pg.drop('tA', 250, 100); pg.feed({ type: 'pos', campId: 'k', itemId: 'mA', wbId: 'tA', x: 400, y: 100, rot: 0, front: 0, final: false }); const mid = pg.tok('tA').x; pg.host(); gmSave(W); pg.take(); return { mid, page: pg.tok('tA').x, host: W.tok('tA').x }; })();
+        const gone = (() => { const W = mk4(); W.camp.items.mA.fog.on = false; const pg = mkPage(W); pg.drop('tA', 250, 100); W.tok('tA').ownerId = 'u_b'; gmSave(W); pg.take(); return pg.tok('tA') ? pg.tok('tA').x : 'gone'; })();   // unfogged: the GM gave her token to Bo, and she still sees it
+        check('14c K2: the host\'s word — a refused drop\'s put-back (it says the drop\'s number) lands at once and the copies after it are taken as they come; a put-back that comes while a newer drop of hers is on its way waits for it (the newer one lands on the host too); the GM dragging her token (no number) is the host\'s last word; a token no longer hers is taken as it comes',
+            J(refused) === J({ after: 100, page: 100, host: 100, left: 0 }) && J(newer) === J({ mid: 150, page: 150, host: 150 }) && J(gmDrag) === J({ mid: 400, page: 250, host: 250 }) && gone === 100, J([refused, newer, gmDrag, gone]));
+        // (7) an unfogged map (a delta or a whole copy for each connection), an old host, what a hostile number does, and the record's own bounds
+        const openCross = old => { const W = mk4(); W.camp.items.mA.fog.on = false; const pg = mkPage(W, old); pg.drop('tA', 250, 100); gmSave(W); pg.take(); return pg.tok('tA').x; };
+        const bad = [undefined, 'x', -1, 1.5, 0.5, NaN, [], {}, 2 ** 40, null].map(v => { const W = mk4(); const pg = mkPage(W); pg.drop('tA', 250, 100); gmSave(W); const m = W.a1.sent.filter(x => x.type === 'item').pop(); W.a1.sent.length = 0; const c = JSON.parse(J(m)); if (v === undefined) delete c.ack; else c.ack = v; pg.feed(c); return pg.tok('tA').x; });
+        const big = (() => { const W = mk4(); const pg = mkPage(W); pg.drop('tA', 250, 100); gmSave(W); const m = W.a1.sent.filter(x => x.type === 'item').pop(); W.a1.sent.length = 0; m.ack = 2147483647; pg.feed(m); return [pg.tok('tA').x, Object.keys(pg.P.rec().pend.mA.t).length]; })();
+        const cap = (() => { const W = mk4(); const pg = mkPage(W); for (let i = 0; i < 20; i++) { pg.camp.activeItemId = 'm' + i; pg.camp.items['m' + i] = { id: 'm' + i, type: 'map', whiteboard: [{ id: 't' + i, ownerId: 'u_a', x: i, y: 0 }] }; pg.save(); } return [Object.keys(pg.P.rec().pend).length, Object.keys(pg.P.rec().pend)[0], pg.P.rec().order.length]; })();
+        const forgot = (() => { const W = mk4(); const pg = mkPage(W); pg.drop('tA', 250, 100); const s1 = pg.P.rec().seq; pg.P.forget(); pg.drop('tA', 260, 100); return [s1, pg.P.rec().seq, Object.keys(pg.P.rec().pend).length]; })();
+        // a delta written back as a whole copy is; a drawing set forgotten once a copy goes that far (the GM's erase then shows); the GM dragging her
+        // token forgets her drop's record at once (a copy made meanwhile is taken as it comes); a live move carries no number and records nothing;
+        // a number past the top leaves the record as it was
+        const deltaCross = (() => { const W = mk4(); const pg = mkPage(W); pg.drop('tA', 250, 100); const t0 = Object.assign({}, W.tok('tA')); pg.feed({ type: 'itemDelta', campId: 'k', itemId: 'mA', whiteboard: { set: [t0], del: [] }, ack: 0 }); return pg.tok('tA').x; })();
+        const gmErase = (() => { const W = mk4(); const pg = mkPage(W); pg.map().whiteboard.push(stroke('s1', 10)); pg.save(); pg.host(); gmSave(W); pg.take(); const had = pg.map().whiteboard.some(w => w.id === 's1'); W.camp.items.mA.whiteboard = W.camp.items.mA.whiteboard.filter(w => w.id !== 's1'); gmSave(W); pg.take(); return [had, pg.map().whiteboard.some(w => w.id === 's1')]; })();
+        const gmFirst = (() => { const W = mk4(); const pg = mkPage(W); pg.drop('tA', 250, 100); W.tok('tA').x = 400; pg.feed({ type: 'pos', campId: 'k', itemId: 'mA', wbId: 'tA', x: 400, y: 100, rot: 0, front: 0, final: true }); gmSave(W); pg.take(); return pg.tok('tA').x; })();
+        const liveNone = (() => { const W = mk4(); const pg = mkPage(W); const t = pg.tok('tA'); t.x = 180; pg.net.streamPos(t, false, 'mA'); const m = pg.inbox[0]; return [m && m.type, m && ('a' in m), Object.keys(pg.P.rec().pend).length]; })();
+        const overTop = (() => { const W = mk4(); const pg = mkPage(W); pg.drop('tA', 250, 100); gmSave(W); const m = W.a1.sent.filter(x => x.type === 'item').pop(); W.a1.sent.length = 0; m.ack = 2 ** 40; pg.feed(m); return Object.keys(pg.P.rec().pend.mA.t).length; })();
+        check('14c K2: a delta that crosses her drop gets it written back; a drawing the host has taken is forgotten from the record, so the GM\'s later erase shows; the GM moving her token forgets her drop\'s record at once, so a copy made meanwhile is taken as it comes; a live move carries no number and records nothing; a number past the top leaves the record as it was',
+            deltaCross === 250 && J(gmErase) === J([true, false]) && gmFirst === 400 && J(liveNone) === J(['pos', false, 0]) && overTop === 1, J([deltaCross, gmErase, gmFirst, liveNone, overTop]));
+        const actSrc = bw('actlog').replace(/\/\/[^\n]*/g, '');
+        check('14c K2: an unfogged map\'s copy for her is written back as a fogged one is (and not by a host that says nothing); a number that is no whole number from 0 to 2^31-1 (or none) writes nothing back; the highest number writes nothing back and forgets the record; the record holds at most sixteen maps, the oldest going first; forgetting it keeps the count going up; nothing in the record reaches markup, and the snapshot and leaving forget it',
+            openCross(false) === 250 && openCross(true) === 100 && J(bad) === J([100, 100, 100, 100, 100, 100, 100, 100, 100, 100]) && J(big) === J([100, 0]) && J(cap) === J([16, 'm4', 16]) && J(forgot) === J([1, 2, 1])
+            && !/innerHTML|insertAdjacentHTML|outerHTML|setAttribute/.test(actSrc) && /net\.syncedPeer = conn\.peer;[^\n]*\n\s*if \(typeof actForget === 'function'\) actForget\(\);/.test(src) && /var wasHost = net\.active && net\.role === 'host';\n\s*if \(typeof actForget === 'function'\) actForget\(\);/.test(src),
+            J([openCross(false), openCross(true), bad, big, cap, forgot]));
+    }
     // fold M7: the landing. A copy caught up in place after a move lands; every connection's copy then equals a fresh copy judged for it
     const fresh7 = (W, pid, mapId) => W.api.landed(null, () => { const m = W.camp.items[mapId || 'mA'], out = W.api.copy(W.api.clean(m), W.camp, m, pid); return { ids: out.whiteboard.map(w => w.id), fogLit: FCx.cleanFogLit(out.fogLit) || null, cap: out.lightsCapped === true }; });
     const agree = (W, conns, mapId) => (conns || [W.a1, W.a2, W.b1]).every(c => J(W.view(c, mapId)) === J(fresh7(W, W.net.roster[c.peer].id, mapId)) && W.asks(c).length === 0);

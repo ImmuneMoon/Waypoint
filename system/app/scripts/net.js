@@ -762,9 +762,24 @@ function fogSeedSnapshot(conn, snap) {   // every fogged map of the hosted campa
     if (!sc || !sc.items || !camp.items) return;
     Object.keys(camp.items).forEach(function(id) { if (mapFogged(camp.items[id]) && own(sc.items, id)) fogSeed(conn, id, sc.items[id]); });
 }
-function fogForgetConn(peer) { if (typeof peer === 'string') delete _fogHeld[peer]; }
+// [netcheck:acks-start]
+// 14c (the step-back): the highest action number the host has finished handling from each connection ('a' on a player's final, map patch and
+// threat marks), whatever became of it; every copy of a map sent to that connection says it ('ack'), so their app keeps the actions of theirs a
+// copy made before them lacks. Taken only after a handler has run: a copy made inside it before the action lands (the GM's pending edit saved
+// first) must not claim it. The channel is ordered, so every lower number has been handled too. The host's memory only, one number per
+// connection, forgotten with it and at a new table
+var ACK_MAX = 2147483647, _acks = Object.create(null);
+function ackNum(v) { return typeof v === 'number' && v % 1 === 0 && v >= 1 && v <= ACK_MAX ? v : 0; }
+function ackOf(conn) { return conn && typeof conn.peer === 'string' && own(_acks, conn.peer) ? _acks[conn.peer] : 0; }
+function ackTook(conn, a) { var n = ackNum(a); if (n && conn && typeof conn.peer === 'string' && n > ackOf(conn)) _acks[conn.peer] = n; }
+function withAck(msg, conn, at) { var o = {}; for (var k in msg) if (Object.prototype.hasOwnProperty.call(msg, k)) o[k] = msg[k]; o.ack = Math.max(ackOf(conn), ackNum(at)); return o; }   // a copy of the message for that connection, with how far its copy goes (at: the action a put-back answers)
+function ackSend(msg) {   // a map for every admitted, open connection, each with its own number (a shared broadcast cannot carry one)
+    net.conns.forEach(function(c) { if (!c.open || (net.role === 'host' && !own(net.roster, c.peer))) return; try { c.send(withAck(msg, c)); } catch (e) { sendFailed(e); } });
+}
+// [netcheck:acks-end]
+function fogForgetConn(peer) { if (typeof peer === 'string') { delete _fogHeld[peer]; delete _acks[peer]; } }   // 14c: and how far its copies go
 function fogForgetMap(mapId) { Object.keys(_fogHeld).forEach(function(p) { delete _fogHeld[p][mapId]; }); }
-function fogForgetAll() { _fogHeld = Object.create(null); Object.keys(_fogPend).forEach(function(k) { clearTimeout(_fogPend[k]); }); _fogPend = Object.create(null); _fogCost = Object.create(null); }
+function fogForgetAll() { _fogHeld = Object.create(null); _acks = Object.create(null); Object.keys(_fogPend).forEach(function(k) { clearTimeout(_fogPend[k]); }); _fogPend = Object.create(null); _fogCost = Object.create(null); }
 // Fold M7: the landing. A player's move that lands in another cell, facing or stance (their drop, or a map copy their app saves) arms a short
 // timer on that map; when it fires, every admitted connection's copy of the map is caught up in place: the creatures that player now sees
 // or no longer sees, the lit cells a light they cannot see gives them, the light cap ('fogDiff', the player's side is applyFogDiff), judged
@@ -1065,6 +1080,82 @@ function activeItemPatch() {
     return { type: 'item', campId: camp.id, itemId: camp.activeItemId, item: camp.items[camp.activeItemId] };
 }
 
+// [netcheck:actlog-start]
+// 14c (the step-back): a player's app numbers each action it sends ('a': a drop or a turn's end, a map patch, threat marks) and keeps, field by
+// field on its own things, what each one set, until a copy of that map from its host says it goes that far ('ack'); a copy made before an
+// action of theirs landed then gets that action written back over it, so it is never undone on their screen, nor by their next patch. The
+// number counts up for the life of the page (a snapshot on the same connection must not start it below the host's); the record is emptied
+// by every snapshot and on leaving, and holds only their own things on at most sixteen maps. A copy that says nothing (an older host) is
+// taken exactly as it comes
+var ACT_MAPS = 16, ACT_GEO = ['x', 'y', 'rot', 'front'], _act = { seq: 0, pend: Object.create(null), order: [] };
+function actNext() { _act.seq = Math.min(2147483647, _act.seq + 1); return _act.seq; }
+function ackIn(v) { return typeof v === 'number' && v % 1 === 0 && v >= 0 && v <= 2147483647 ? v : -1; }   // how far a copy goes; -1: it does not say
+function actForget() { _act.pend = Object.create(null); _act.order = []; }
+function actMap(mapId, make) {
+    if (!validKey(mapId)) return null;
+    var p = own(_act.pend, mapId) ? _act.pend[mapId] : null;
+    if (!p && make) { p = _act.pend[mapId] = { t: Object.create(null), st: null }; _act.order.push(mapId); while (_act.order.length > ACT_MAPS) delete _act.pend[_act.order.shift()]; }
+    return p;
+}
+function actSet(p, id, f, v, a) { if (typeof id !== 'string' || !id) return; var t = own(p.t, id) ? p.t[id] : (p.t[id] = Object.create(null)); t[f] = [v, a]; }
+// what an action set: 'final' — a token's place and facing as sent; 'patch' — every shown, unlocked thing of theirs on the map (place, facing,
+// stance, absent kept as absent) and the whole set of their drawings (by reference: a later change to one is itself a later action); 'threats'
+function actNote(kind, mapId, x, a) {
+    if (!net.myId || !x) return;
+    var p = actMap(mapId, true); if (!p) return;
+    if (kind === 'final') { ACT_GEO.forEach(function(f) { actSet(p, x.id, f, Number(x[f]) || 0, a); }); return; }
+    if (kind === 'threats') { actSet(p, x.id, 'threats', Array.isArray(x.threats) ? x.threats.slice() : [], a); return; }
+    if (kind !== 'patch' || !Array.isArray(x.whiteboard)) return;
+    var set = Object.create(null);
+    x.whiteboard.forEach(function(w) {
+        if (!w || w.ownerId !== net.myId || typeof w.id !== 'string') return;
+        if (w.type === 'path' && w.byPlayer) { set[w.id] = w; return; }
+        if (w.hidden || w.locked) return;
+        ACT_GEO.forEach(function(f) { actSet(p, w.id, f, Number(w[f]) || 0, a); });
+        ['elevation', 'posture'].forEach(function(f) { actSet(p, w.id, f, Object.prototype.hasOwnProperty.call(w, f) ? w[f] : undefined, a); });
+    });
+    p.st = { set: set, a: a };
+}
+function actTrim(p, ack, only, fields) {   // forget what a copy (or a put-back: only that token, those fields) goes as far as
+    Object.keys(p.t).forEach(function(id) {
+        if (only !== undefined && id !== only) return;
+        var t = p.t[id];
+        Object.keys(t).forEach(function(f) { if ((!fields || fields.indexOf(f) >= 0) && t[f][1] <= ack) delete t[f]; });
+        if (!Object.keys(t).length) delete p.t[id];
+    });
+    if (only === undefined && p.st && p.st.a <= ack) p.st = null;
+}
+// a copy of a map that goes as far as ack: what it lacks of theirs written back over it — a recorded field onto their token of that id, and
+// their drawings made exactly the recorded set (theirs it lacks put back as drawn, theirs it holds that they erased taken away)
+function actOver(mapId, map, ack) {
+    var p = actMap(mapId, false); if (!p || ack < 0) return;
+    actTrim(p, ack);
+    if (!map || typeof map !== 'object' || !Array.isArray(map.whiteboard)) return;
+    var mine = function(w) { return !!(w && typeof w === 'object' && w.ownerId === net.myId); };
+    map.whiteboard.forEach(function(w) {
+        if (!mine(w) || typeof w.id !== 'string' || !own(p.t, w.id)) return;
+        var t = p.t[w.id];
+        Object.keys(t).forEach(function(f) { var v = t[f][0]; if (v === undefined) delete w[f]; else w[f] = Array.isArray(v) ? v.slice() : v; });
+    });
+    if (!p.st) return;
+    var set = p.st.set, held = Object.create(null);
+    map.whiteboard = map.whiteboard.filter(function(w) {
+        if (!(mine(w) && w.type === 'path' && w.byPlayer)) return true;
+        if (!own(set, w.id)) return false;
+        held[w.id] = 1; return true;
+    }).map(function(w) { return mine(w) && w.type === 'path' && w.byPlayer && own(set, w.id) ? set[w.id] : w; });
+    Object.keys(set).forEach(function(id) { if (!held[id]) map.whiteboard.push(set[id]); });
+}
+// a pos from the host for their own token: with a number (a put-back answering an action of theirs) that token's place and facing it goes as
+// far as are forgotten, and it waits (true) while a newer action of theirs on it is still on its way; with none (the GM moving it, their other
+// window, an older host) it is the host's last word and the recorded place goes
+function actPos(mapId, tokId, ack) {
+    var p = actMap(mapId, false); if (!p || typeof tokId !== 'string' || !own(p.t, tokId)) return false;
+    if (ack < 0) { ACT_GEO.forEach(function(f) { delete p.t[tokId][f]; }); if (!Object.keys(p.t[tokId]).length) delete p.t[tokId]; return false; }
+    actTrim(p, ack, tokId, ACT_GEO);
+    return own(p.t, tokId) && ACT_GEO.some(function(f) { return own(p.t[tokId], f); });
+}
+// [netcheck:actlog-end]
 function applyItem(msg) {
     var camp = campOf(msg.campId);
     if (!camp || !validKey(msg.itemId)) return;
@@ -1072,6 +1163,7 @@ function applyItem(msg) {
     if (incoming && incoming.type === 'doc') { incoming = window.wpDocRender ? window.wpDocRender.cleanDoc(incoming, { keepHidden: true }) : null; if (!incoming) return; }   // a page is normalised before it is stored (a hostile host can send shapes, not just markup)
     if (!incoming || typeof incoming !== 'object') return;
     if (incoming.type === 'map') incoming = cleanHostMap(incoming);   // text items rebuilt, colors checked, bounded
+    if (incoming.type === 'map' && typeof actOver === 'function') actOver(msg.itemId, incoming, ackIn(msg.ack));   // 14c: what this copy lacks of their own actions, written back
     net.applyingRemote = true;
     camp.items[msg.itemId] = incoming;
     var myActive = getActiveCampaign();
@@ -1124,7 +1216,7 @@ function applyClientItemFiltered(msg, profile, out) {   // fold M10: out.strokes
             if (frP.x === w.x && frP.y === w.y) delete _refusedAt[dkP];
             else {
                 var whyP = moveRefused(camp, liveItem, msg.itemId, lw, frP.x, frP.y, w.x, w.y), ntP = '', seenP = _refusedAt[dkP] === w.x + ',' + w.y; delete _refusedAt[dkP];
-                if (whyP) { w.x = frP.x; w.y = frP.y; snapBack(camp, liveItem, lw, { campId: msg.campId, itemId: msg.itemId, wbId: lw.id }, frP); ntP = whyP; }
+                if (whyP) { w.x = frP.x; w.y = frP.y; snapBack(camp, liveItem, lw, { campId: msg.campId, itemId: msg.itemId, wbId: lw.id, a: msg.a }, frP, out && out.conn); ntP = whyP; }   // 14c: the put-back answers this patch, to its sender
                 else if (lw.x !== w.x || lw.y !== w.y) ntP = moveCounted(camp, liveItem, msg.itemId, lw, frP.x, frP.y, w.x, w.y);
                 if (ntP && !seenP && typeof noteOwner === 'function') noteOwner(profile.id, ntP, lw.charId);   // their note, as the pos path gives it (once: not again for the drop it just refused)
             }
@@ -1329,6 +1421,7 @@ function applyItemDelta(msg) {
     });
     ['links', 'meta', 'cats'].forEach(function(k) { if (msg[k] !== undefined) it[k] = msg[k]; });
     if (it.type === 'map') cleanHostMap(it);   // whatever the delta touched: text items rebuilt, colors checked, bounded
+    if (it.type === 'map' && typeof actOver === 'function') actOver(msg.itemId, it, ackIn(msg.ack));   // 14c: what this change lacks of their own actions, written back
     if (it.type === 'doc') {   // re-normalised after every delta, then the reader (if it shows this page) follows
         var cd = window.wpDocRender ? window.wpDocRender.cleanDoc(it, { keepHidden: true }) : null;
         if (cd) camp.items[msg.itemId] = cd; else delete camp.items[msg.itemId];
@@ -1396,6 +1489,7 @@ function applyFogDiff(msg) {
 function mapFogged(it) { return !!(it && it.type === 'map' && it.fog && it.fog.on && window.wpVtt && window.wpVtt.on('fog')); }
 net.sendItem = function(campId, itemId, onlyConn, exceptConn) {   // fold M10: exceptConn, a connection a fogged map is not sent to (its own copy catches up in place)
     var camp = state.appState.campaigns[campId], it = camp && camp.items[itemId]; if (!it) return;
+    var ak = typeof withAck === 'function' ? withAck : function(m) { return m; };   // 14c: how far each connection's copy goes (a harness without it sends as before)
     // fog of war (1.5.0 FV2): a fogged map is sent per recipient — the heavy map is cloned once (sanitizeItem), then a
     // cheap shallow copy drops each player's unseen creatures. No shared delta while fog is on (baselines differ per peer).
     if (mapFogged(it)) {
@@ -1405,7 +1499,7 @@ net.sendItem = function(campId, itemId, onlyConn, exceptConn) {   // fold M10: e
                 var pr = net.roster[conn.peer]; if (!pr || !conn.open || (exceptConn && conn === exceptConn)) return;
                 var out = fogCopyFor(clean, camp, it, pr.id);
                 if (typeof fogOwnLive === 'function') out = fogOwnLive(out, itemId, pr.id);
-                try { conn.send({ type: 'item', campId: campId, itemId: itemId, item: out }); } catch (e) { sendFailed(e); return; }
+                try { conn.send(ak({ type: 'item', campId: campId, itemId: itemId, item: out }, conn)); } catch (e) { sendFailed(e); return; }   // 14c: how far that copy goes
                 if (typeof fogSeed === 'function' && fogSeed(conn, itemId, out)) fogRoster(conn, pr.id, itemId);   // fold M5: what that copy now holds; fold R: the order and the pointers where it changed them
             };
             var clean = sanitizeItem(it); if (!clean) return;
@@ -1417,12 +1511,12 @@ net.sendItem = function(campId, itemId, onlyConn, exceptConn) {   // fold M10: e
     var clean = sanitizeItem(it); if (!clean) return;
     if (typeof fogForgetMap === 'function') fogForgetMap(itemId);   // fold M5: an unfogged map is one copy for all: no record of it
     var full = { type: 'item', campId: campId, itemId: itemId, item: clean };
-    if (onlyConn) { try { onlyConn.send(full); } catch (e) { sendFailed(e); } return; }              // one player asked for the whole thing
+    if (onlyConn) { try { onlyConn.send(ak(full, onlyConn)); } catch (e) { sendFailed(e); } return; }              // one player asked for the whole thing
     var d = itemDelta(itemId, clean);
     if (d === false) return;                                                          // unchanged since the last send
     var msg = full;
     if (d) { d.campId = campId; if (JSON.stringify(d).length < JSON.stringify(full).length * 0.9) msg = d; }
-    broadcast(msg, null);
+    if (typeof ackSend === 'function') ackSend(msg); else broadcast(msg, null);   // 14c: each connection's own copy says how far it goes
     _lastSent[itemId] = JSON.parse(JSON.stringify(clean));
 };
 // Host: broadcast one whole map/item to the table, fog-filtered per recipient when it is a fogged map. Used by the many
@@ -1430,7 +1524,7 @@ net.sendItem = function(campId, itemId, onlyConn, exceptConn) {   // fold M10: e
 net.broadcastItemFiltered = function(campId, itemId) {
     var camp = state.appState.campaigns[campId], it = camp && camp.items[itemId]; if (!it) return;
     if (typeof window !== 'undefined' && window.wpFog && window.wpFog.invalidateSeen) window.wpFog.invalidateSeen(itemId);   // Senses S0: a map sent this way was changed as a remote change (a traveller arrived or left, a waiting token placed, a light switched): who sees what on it is judged afresh
-    if (!mapFogged(it)) { var clean = sanitizeItem(it); if (!clean) return; if (typeof fogForgetMap === 'function') fogForgetMap(itemId); broadcast({ type: 'item', campId: campId, itemId: itemId, item: clean }, null); _lastSent[itemId] = JSON.parse(JSON.stringify(clean)); return; }   // the table now holds this: the next delta is worked out from it (a light switched off here and on again by the GM was the same as the older baseline, and never went out)
+    if (!mapFogged(it)) { var clean = sanitizeItem(it); if (!clean) return; if (typeof fogForgetMap === 'function') fogForgetMap(itemId); var bm = { type: 'item', campId: campId, itemId: itemId, item: clean }; if (typeof ackSend === 'function') ackSend(bm); else broadcast(bm, null); _lastSent[itemId] = JSON.parse(JSON.stringify(clean)); return; }   // the table now holds this: the next delta is worked out from it (a light switched off here and on again by the GM was the same as the older baseline, and never went out)
     delete _lastSent[itemId];   // a fogged map has no shared baseline (as sendItem)
     var fogSend = function() {   // fold M4: cloned and judged with every open drag on this map at its start
         var clean = sanitizeItem(it); if (!clean) return;
@@ -1438,7 +1532,7 @@ net.broadcastItemFiltered = function(campId, itemId) {
             var pr = net.roster[conn.peer]; if (!pr || !conn.open) return;
             var out = fogCopyFor(clean, camp, it, pr.id);
             if (typeof fogOwnLive === 'function') out = fogOwnLive(out, itemId, pr.id);
-            try { conn.send({ type: 'item', campId: campId, itemId: itemId, item: out }); } catch (e) { sendFailed(e); return; }
+            try { conn.send(typeof withAck === 'function' ? withAck({ type: 'item', campId: campId, itemId: itemId, item: out }, conn) : { type: 'item', campId: campId, itemId: itemId, item: out }); } catch (e) { sendFailed(e); return; }   // 14c: how far that copy goes
             if (typeof fogSeed === 'function' && fogSeed(conn, itemId, out)) fogRoster(conn, pr.id, itemId);   // fold M5: what that copy now holds; fold R: the order and the pointers where it changed them
         });
     };
@@ -1481,6 +1575,7 @@ net.onLocalSave = function() {
         if (_lastPatchHash[patch.itemId] === hs) patch = null;
         else _lastPatchHash[patch.itemId] = hs;
     }
+    if (patch && net.role === 'client' && typeof actNext === 'function' && patch.item && patch.item.type === 'map') { patch.a = actNext(); actNote('patch', patch.itemId, patch.item, patch.a); }   // 14c: numbered, and what it set kept until a copy goes that far
     if (patch) broadcast(patch, null);
     if (net.role === 'host') { scheduleStageFollow(); var amH = getActiveMap(); if (amH && amH.type === 'map') checkRoomHandouts(amH); }
 };
@@ -2389,7 +2484,10 @@ net.streamPos = function(wItem, final, mapId) {   // fold M8: mapId, the map a g
     var onMap = typeof mapId === 'string' ? mapId : camp.activeItemId;
     var msg = { type: 'pos', campId: camp.id, itemId: onMap, wbId: wItem.id, x: wItem.x, y: wItem.y, rot: wItem.rot || 0, front: wItem.front || 0, final: !!final };
     if (net.role === 'host') broadcastPos(msg, null, camp, Object.prototype.hasOwnProperty.call(camp.items || {}, onMap) ? camp.items[onMap] : null, wItem);
-    else if (net.conns[0] && net.conns[0].open) { try { net.conns[0].send(msg); } catch (e) { sendFailed(e); } }
+    else if (net.conns[0] && net.conns[0].open) {
+        if (msg.final && typeof actNext === 'function') { msg.a = actNext(); actNote('final', onMap, { id: msg.wbId, x: msg.x, y: msg.y, rot: msg.rot, front: msg.front }, msg.a); }   // 14c: numbered, and what it set kept until a copy goes that far
+        try { net.conns[0].send(msg); } catch (e) { sendFailed(e); }
+    }
 };
 
 // Fold M8: a player's app asks its host for one map whole (a drag that began on a map the table has since left)
@@ -2640,6 +2738,8 @@ function handlePos(msg, conn) {
     var w = (map.whiteboard || []).find(function(x) { return x.id === msg.wbId; });
     if (!w) return;
     if (net.role === 'host') {
+        var aIn = msg.a;   // 14c: this move's number, taken once it has been handled (the message is rebuilt below)
+        try {
         if (net.paused || peerPaused(conn.peer)) return;   // frozen table (or this player is paused): client motion is dropped
         var pr = net.roster[conn.peer];
         if (!pr || w.ownerId !== pr.id) return;   // same ownership rule as full patches
@@ -2664,7 +2764,7 @@ function handlePos(msg, conn) {
         if (wlM !== 'off' && window.wpFog && window.wpFog.moveBlocked && window.wpFog.moveBlocked(map, w, frW.x, frW.y, msg.x, msg.y)) {   // T3a: a wall in the way, from where the drag began
             if (wlM === 'refuse') {
                 if (!msg.final) return;   // mid-drag: not applied (nothing past the wall reaches them meanwhile)
-                snapBack(camp, map, w, msg, frW); turnNote(conn, 'A wall is in the way: your token goes back.', w.charId);
+                snapBack(camp, map, w, msg, frW, conn); turnNote(conn, 'A wall is in the way: your token goes back.', w.charId);
                 return;
             }
             if (msg.final) { turnNote(conn, 'That move went through a wall.', w.charId); toast((w.charName || 'A token') + ' moved through a wall.'); if (typeof bellOut === 'function') bellOut(w.charId, { title: 'Turn', text: 'Moved through a wall.' }); }
@@ -2696,7 +2796,9 @@ function handlePos(msg, conn) {
             if (typeof fogArm === 'function' && skN !== null && frW.sk !== skN) fogArm(msg.itemId);   // fold M7: it landed somewhere it sees from differently than where the drag began: catch the copies up
             net.tokenDropped(w, map);   // landed on a portal? the player travels
         }
+        } finally { if (typeof ackTook === 'function') ackTook(conn, aIn); }
     } else {
+        if (net.myId && w.ownerId === net.myId && typeof actPos === 'function' && actPos(msg.itemId, w.id, ackIn(msg.ack))) return;   // 14c: a newer action of theirs on this token is on its way: it lands after this
         w.x = msg.x; w.y = msg.y; w.rot = msg.rot || 0; w.front = msg.front || 0;
         applyPosToDom(msg);
         if (window.wpSheets && window.wpSheets.tokenTurned) window.wpSheets.tokenTurned(msg.wbId, msg.final === true);   // 5h Fold 3: the facing dial (the values are re-checked by facingCtx)
@@ -2723,7 +2825,7 @@ function turnOrderCheck(camp, map, w, frW, msg, conn) {
     var cb = turnCombatOf(camp, msg.itemId, w); if (!cb) return '';
     var cur = cb.rows[cb.turn]; if (cur && cur.tokId === w.id) return '';
     var om = moveMode(camp, 'order'); if (om === 'off') return '';
-    if (om === 'refuse') { if (!msg.final) return 'stop'; snapBack(camp, map, w, msg, frW); turnNote(conn, 'It is not your turn: your token goes back.', w.charId); return 'stop'; }
+    if (om === 'refuse') { if (!msg.final) return 'stop'; snapBack(camp, map, w, msg, frW, conn); turnNote(conn, 'It is not your turn: your token goes back.', w.charId); return 'stop'; }
     if (msg.final) { turnNote(conn, 'You moved out of turn.', w.charId); toast((w.charName || 'A token') + ' moved out of turn.'); if (typeof bellOut === 'function') bellOut(w.charId, { title: 'Turn', text: 'Moved out of turn.' }); }
     return '';
 }
@@ -2734,7 +2836,7 @@ function turnLimitCheck(camp, map, w, frW, msg, conn) {
     var mm = moveMode(camp, 'move'); if (mm === 'off') return '';
     var sys = camp && camp.system, dg = sys && sys.combat && sys.combat.turn ? sys.combat.turn.diag : '';
     var d = window.wpFog && window.wpFog.moveCells ? window.wpFog.moveCells(map, w, frW.x, frW.y, msg.x, msg.y, dg) : 0, over = st.moved + d > st.allow + 0.05;
-    if (over && mm === 'refuse') { if (!msg.final) return 'stop'; snapBack(camp, map, w, msg, frW); turnNote(conn, 'That is ' + cellsText(d, map) + '; you have ' + cellsText(Math.max(0, st.allow - st.moved), map) + ' left.', w.charId); return 'stop'; }
+    if (over && mm === 'refuse') { if (!msg.final) return 'stop'; snapBack(camp, map, w, msg, frW, conn); turnNote(conn, 'That is ' + cellsText(d, map) + '; you have ' + cellsText(Math.max(0, st.allow - st.moved), map) + ' left.', w.charId); return 'stop'; }
     if (msg.final) { st.moved += d; var lf = st.allow - st.moved; turnNote(conn, over ? 'That went ' + cellsText(-lf, map) + ' past your move.' : 'Moved ' + cellsText(d, map) + '; ' + cellsText(Math.max(0, lf), map) + ' left.', w.charId); if (over) { toast((w.charName || 'A token') + ' moved ' + cellsText(-lf, map) + ' past their move.'); if (typeof bellOut === 'function') bellOut(w.charId, { title: 'Turn', text: 'Moved ' + cellsText(-lf, map) + ' past the move.' }); } }
     return '';
 }
@@ -2761,12 +2863,14 @@ function cellsText(n, map) {   // "6 squares (30 ft)": the map's cells and its o
     var nm = gt === 'hex' ? (r === 1 ? 'hex' : 'hexes') : gt === 'square' ? (r === 1 ? 'square' : 'squares') : (r === 1 ? 'cell' : 'cells');
     return r + ' ' + nm + ' (' + (Math.round(r * sc.per * 10) / 10) + ' ' + sc.unit + ')';
 }
-function snapBack(camp, map, w, msg, to) {   // the token goes back where its drag began, for everyone (the mover too)
+function snapBack(camp, map, w, msg, to, mover) {   // the token goes back where its drag began, for everyone (the mover too); mover: the connection whose action this answers
     if (typeof msg.x === 'number') _refusedAt[msg.itemId + '|' + msg.wbId] = msg.x + ',' + msg.y;
     w.x = to.x; w.y = to.y;
     if (window.wpFog && window.wpFog.invalidateSeen) window.wpFog.invalidateSeen(msg.itemId);   // Senses S0: the drag moved the token on the host as it went: who sees what is judged from where it stands again
     var back = { type: 'pos', campId: msg.campId, itemId: msg.itemId, wbId: msg.wbId, x: to.x, y: to.y, rot: w.rot || 0, front: w.front || 0, final: true };
-    applyPosToDom(back); broadcastPos(back, null, camp, map, w);
+    var mv = mover && mover.open && typeof mover.send === 'function' && typeof withAck === 'function' ? mover : null;
+    applyPosToDom(back); broadcastPos(back, mv, camp, map, w);
+    if (mv) { try { mv.send(withAck(back, mv, msg.a)); } catch (e) { sendFailed(e); } }   // 14c: to the mover, as the answer to that very action (its number said)
 }
 // Fold M4: the drag still open on this token, while it stands where the drag's last accepted pos left it. A token the host has moved since (a
 // GM drag, Properties, an undo, a step-off) ends that drag, the host's place standing; a turn the host gave it (the GM's dial) stands and the
@@ -2796,7 +2900,9 @@ function dragEnd(e, camp, map, w) {
 net.sendThreats = function(campId, itemId, wbId, list) {
     if (!net.active || net.role !== 'client' || !net.conns[0] || !net.conns[0].open) return;
     var SCs = SC(); if (!SCs || !SCs.cleanThreats) return;
-    try { net.conns[0].send({ type: 'threats', campId: String(campId), itemId: String(itemId), wbId: String(wbId), threats: SCs.cleanThreats(list) }); } catch (e) { sendFailed(e); }
+    var tm = { type: 'threats', campId: String(campId), itemId: String(itemId), wbId: String(wbId), threats: SCs.cleanThreats(list) };
+    if (typeof actNext === 'function') { tm.a = actNext(); actNote('threats', tm.itemId, { id: tm.wbId, threats: tm.threats }, tm.a); }   // 14c: numbered, and kept until a copy goes that far
+    try { net.conns[0].send(tm); } catch (e) { sendFailed(e); }
 };
 
 // Client: ask the host to travel through a portal item on the current map.
@@ -3860,6 +3966,7 @@ function handleMessage(msg, conn) {
         else { var nm2 = ui('netModal'); if (nm2) nm2.style.display = 'flex'; }
     } else if (msg.type === 'snapshot' && net.role === 'client') {
         net.syncedPeer = conn.peer;   // from now on only this host's 'stance' counts (a table-hop or a waiting join hears others)
+    if (typeof actForget === 'function') actForget();   // 14c: a whole campaign from the host: nothing of theirs is still on its way
         net.gmId = String(msg.gmId || (msg.notepad && msg.notepad.gmId) || '').slice(0, 80);   // kept apart from the notepad, which leaveSession resets
         if (typeof msg.key === 'string' && msg.key) rememberTableKey(net.gmId, msg.key);   // the table key this host issued me: proves this id is mine next time
         applySnapshot(msg);   // after gmId: the settings refresh inside it keys this table's off-list by campaign + GM
@@ -3870,11 +3977,12 @@ function handleMessage(msg, conn) {
     } else if (msg.type === 'item') {
         if (net.role === 'host') {
             // [netcheck:itempatch-start]
+            try {   // 14c: whatever becomes of it, this patch's number is taken once it has been handled
             if (net.paused || peerPaused(conn.peer)) return;   // frozen table (or this player is paused): client edits are dropped
             if (!allow('item', { perMs: 40, burst: 60, windowMs: 5000, table: 2000 }, conn.peer)) return;   // a patch storm from one player: dropped, never saved
             var profile = net.roster[conn.peer];
             if (window.wpHistFlush) window.wpHistFlush();   // the GM's pending edit is its own step before the player's patch lands
-            var pOut = {}, changed = applyClientItemFiltered(msg, profile, pOut);
+            var pOut = { conn: conn }, changed = applyClientItemFiltered(msg, profile, pOut);   // 14c: conn, the mover a put-back answers
             if (changed) {
                 setTimeout(function() { checkRoomHandouts(state.appState.campaigns[msg.campId].items[msg.itemId]); }, 50);
                 var myActive = getActiveCampaign();
@@ -3884,6 +3992,7 @@ function handleMessage(msg, conn) {
                 if (window.wpFog && window.wpFog.invalidateSeen) window.wpFog.invalidateSeen(msg.itemId);   // Senses S0: the live position relay judges by where things now stand
                 net.sendItem(msg.campId, msg.itemId, null, pOut.strokes ? null : conn);   // the filtered result goes back out as a delta; fold M10: on a fogged map a token-only change goes to every other copy, the sender's catching up in place when its fire comes (a drawing goes to all)
             }
+            } finally { if (typeof ackTook === 'function') ackTook(conn, msg.a); }
             // [netcheck:itempatch-end]
         } else {
             applyItem(msg);
@@ -3892,6 +4001,7 @@ function handleMessage(msg, conn) {
         // [netcheck:threats-start]
         // 5h Fold 3: a player's threat marks from their sheet's facing dial — on the hosted campaign, on the map they are on, on a shown,
         // unlocked character token they own, with Token facing on and nobody paused; cleaned (at most six whole-degree bearings), stored, sent out
+        try {   // 14c: whatever becomes of them, their number is taken once they have been handled
         var campT = getActiveCampaign(), prT = net.roster[conn.peer], SCt = SC();
         if (!campT || !prT || !SCt || msg.campId !== campT.id || typeof msg.itemId !== 'string' || typeof msg.wbId !== 'string') return;
         if (net.paused || peerPaused(conn.peer)) return;
@@ -3910,6 +4020,7 @@ function handleMessage(msg, conn) {
         if (window.wpFog && window.wpFog.invalidateSeen) window.wpFog.invalidateSeen(msg.itemId);   // Senses S0: a Sight formula may read the marks
         net.sendItem(campT.id, msg.itemId, null, conn);   // fold M10: the sender wrote its marks itself; on a fogged map its copy catches up in place
         if (typeof fogArm === 'function') fogArm(msg.itemId);
+        } finally { if (typeof ackTook === 'function') ackTook(conn, msg.a); }
         // [netcheck:threats-end]
     } else if (msg.type === 'itemDelta' && net.role === 'client') {
         applyItemDelta(msg);
@@ -5256,6 +5367,7 @@ function joinSession(code, name, isRetry, probe) {
 function leaveSession(silent) {
     var wasClient = net.active && net.role === 'client';
     var wasHost = net.active && net.role === 'host';
+    if (typeof actForget === 'function') actForget();   // 14c: the record of their actions on their way goes with the table
     if (wasHost && typeof fogDragSweep === 'function') fogDragSweep(true);   // fold M4: every drag still open goes back where it began, while the table still hears it
     if (!silent && net.active && net.role === 'host') {
         broadcast({ type: 'end' }, null);   // give players a clean "session ended" instead of a silent drop

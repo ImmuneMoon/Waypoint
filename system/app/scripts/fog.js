@@ -223,6 +223,28 @@ function eligibleBlocker(w) {
 // from every sense the walls stop that does not see through smoke (a sense's veil). A set of its own beside the sight-blockers, so movement,
 // cover, light and doors never read it: tokens walk through it, it gives no cover, light passes and a light in it stays put. Like a wall, only
 // a piece that is not hidden counts (a player's app judges from its own copy); a turned shape other than a circle is not supported
+// Difficult terrain T2: the map's difficult cells, { cellKey: cost } (the highest cost of the shown pieces over each cell) or null, kept on
+// the map's save stamp and grid. A piece counts as Smoke's would be read: one of the four shapes (a painted cell is one), never hidden, a
+// token, a waiting token, a GM-note card or a turned one but a circle; its cost as fogcore cleanTerrain keeps it. Under the walls' cap, judged
+// on a piece's box first: over it no terrain counts (the same answer on every side), and the GM is told once
+var _terrCache = Object.create(null), _terrStamp = Object.create(null), _terrWarned = Object.create(null);
+function terrainFor(map, grid) {
+    if (!map || !grid) return null;
+    var stamp = ((map.meta && map.meta.updated) || 0) + '|' + grid.type + ':' + (grid.size || grid.s);
+    if (_terrStamp[map.id] === stamp) return _terrCache[map.id];
+    var C = core(), set = null, n = 0, over = false, cap = C.LIMITS.blockerCells, cw = grid.type === 'square' ? grid.size : 1.5 * grid.s, ch = grid.type === 'square' ? grid.size : grid.h;
+    (map.whiteboard || []).forEach(function(w) {
+        var t = w && C.cleanTerrain ? C.cleanTerrain(w.terrain) : null;
+        if (over || !t || w.hidden || w.isChar || w.waiting || w.gmNoteFor || ['rect', 'hexagon', 'circle', 'diamond'].indexOf(w.type) < 0 || (w.type !== 'circle' && w.rot)) return;
+        var bw = Math.abs(Number(w.w) || 0), bh = Math.abs(Number(w.h) || 0);
+        if (!isFinite(bw) || !isFinite(bh) || (bw / cw + 2) * (bh / ch + 2) > cap) { over = true; return; }
+        footprintCells(w, grid, C).forEach(function(c) { var k = C.cellKey(c, grid); set = set || Object.create(null); if (!set[k]) { if (++n > cap) over = true; set[k] = t; } else if (t > set[k]) set[k] = t; });
+    });
+    if (over) { set = null; if (!_terrWarned[map.id] && !isClientView()) { _terrWarned[map.id] = 1; toast('Too much difficult terrain on this map — none of it counts here.'); } }
+    else _terrWarned[map.id] = 0;
+    _terrStamp[map.id] = stamp; _terrCache[map.id] = set;
+    return set;
+}
 var _smokeCache = Object.create(null), _smokeStamp = Object.create(null), _smokeSig = Object.create(null), _smokeVer = Object.create(null), _smokeUnion = Object.create(null), _smokeWarned = Object.create(null);
 function smokeFor(map, grid) {   // { cellKey: 1 } or null, kept on the map's save stamp and grid; its content version moves only when the set does
     var stamp = ((map.meta && map.meta.updated) || 0) + '|' + grid.type + ':' + (grid.size || grid.s);
@@ -399,12 +421,23 @@ function moveBlocked(map, w, fx, fy, tx, ty) {
 }
 // Turn-based combat T3b: how far a token's straight move goes, in this map's cells — a hex grid counts hex steps between the token's centre
 // cells, a square grid by the system's diagonal rule (systemcore gridCells), no grid the straight distance in 50px cells (as the ruler)
-function moveCells(map, w, fx, fy, tx, ty, diag) {
-    var C = core(), S = window.wpSystemCore; if (!C || !map) return 0;
-    var gt = map.meta && map.meta.gridType, hw = ((w && w.w) || 60) / 2, hh = ((w && w.h) || 52) / 2;
-    if (gt === 'hex') { var g = C.gridFor('hex'); return g ? C.hexDist(C.cellOf(fx + hw, fy + hh, g), C.cellOf(tx + hw, ty + hh, g)) : 0; }
-    var dx = (tx - fx) / 50, dy = (ty - fy) / 50;
-    return gt === 'square' && S && S.gridCells ? S.gridCells(dx, dy, diag) : Math.hypot(dx, dy);
+// Difficult terrain T2: what it costs, a move stepping into difficult terrain counted at that terrain's cost (moveCost); out.len, when given,
+// the move's own length
+function moveCells(map, w, fx, fy, tx, ty, diag, out) {
+    var hw = ((w && w.w) || 60) / 2, hh = ((w && w.h) || 52) / 2, mc = moveCost(map, fx + hw, fy + hh, tx + hw, ty + hh, diag);
+    if (out && typeof out === 'object') out.len = mc.len;
+    return mc.cost;
+}
+// Difficult terrain T2: a straight move between two board points as a turn's move counts it — { len, cost } in the map's cells, the cost its
+// length times the factor of the difficult terrain it steps into (on a square or hex grid; elsewhere the length)
+function moveCost(map, x1, y1, x2, y2, diag) {
+    var C = core(), S = window.wpSystemCore; if (!C || !map) return { len: 0, cost: 0 };
+    var gt = map.meta && map.meta.gridType, len;
+    if (gt === 'hex') { var g = C.gridFor('hex'); len = g ? C.hexDist(C.cellOf(x1, y1, g), C.cellOf(x2, y2, g)) : 0; }
+    else { var dx = (x2 - x1) / 50, dy = (y2 - y1) / 50; len = gt === 'square' && S && S.gridCells ? S.gridCells(dx, dy, diag) : Math.hypot(dx, dy); }
+    if (!(len > 0) || (gt !== 'square' && gt !== 'hex') || !C.terrainFactor) return { len: len || 0, cost: len || 0 };
+    var grid = gridForMap(map), terr = grid ? terrainFor(map, grid) : null;
+    return { len: len, cost: terr ? len * C.terrainFactor(C.cellOf(x1, y1, grid), C.cellOf(x2, y2, grid), grid, terr, diag) : len };
 }
 // GM clicks a door while in fog mode → flip open/closed on the topmost door under the point. Host-authoritative:
 // save() runs onLocalSave (invalidateVision + resend the map to players); the invalidate+redraw refresh the GM overlay.
@@ -1252,7 +1285,7 @@ window.wpFogRedraw = redraw;
 setTimeout(sync, 0);
 window.wpFog = {
     // host enforcement (net.js)
-    fogDropIds: fogDropIds, fogLitFor: fogLitFor, canSeePoint: canSeePoint, coverAt: coverAt, blastSeat: blastSeat, moveBlocked: moveBlocked, moveCells: moveCells, invalidateVision: invalidateVision, invalidateSeen: invalidateSeen, seenKeyOf: seenKeyOf, lightMoves: lightMoves, sightSigFor: sightSigFor, tokenSightCells: tokenSightCells, coverBetween: coverBetween,
+    fogDropIds: fogDropIds, fogLitFor: fogLitFor, canSeePoint: canSeePoint, coverAt: coverAt, blastSeat: blastSeat, moveBlocked: moveBlocked, moveCells: moveCells, moveCost: moveCost, invalidateVision: invalidateVision, invalidateSeen: invalidateSeen, seenKeyOf: seenKeyOf, lightMoves: lightMoves, sightSigFor: sightSigFor, tokenSightCells: tokenSightCells, coverBetween: coverBetween,
     // GM tools
     paintAt: paintAt, toggleDoorAt: toggleDoorAt, openMenu: openMenu, closeMenu: closeMenu, sync: sync, redraw: redraw,
     setPreview: function(p) { previewMode = p || 'off'; redraw(); }, preview: function() { return previewMode; }, brush: function() { return brush; }, active: active,

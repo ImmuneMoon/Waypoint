@@ -31,18 +31,19 @@ function stepView(cal, v, dir) {
     if (p < 0) { if (yi <= 0) return v; yi--; p = n - 1; } else if (p >= n) { yi++; p = 0; }
     return { yi: yi, period: p };
 }
-// The period in view as a grid: { title, heads (the week's names), cols, cells: [{ day, n, today?, picked? } or null for a blank before day 1] }
-function gridOf(cal, v, t, pk) {
+// The period in view as a grid: { title, heads (the week's names), cols, cells: [{ day, n, today?, picked?, notes? } or null for a blank before
+// day 1] }; nd (K3): how many notes each day holds, by day number
+function gridOf(cal, v, t, pk, nd) {
     var cc = cleanCalendar(cal) || {}, dl = dayLength(cc), today = Math.floor(t / dl), wk = cc.week || [], out = { title: '', heads: [], cols: 7, cells: [] }, d0, len;
     if (!v) return out;
-    if (typeof v.page === 'number') { d0 = v.page * 28; len = 28; out.title = 'Days ' + (d0 + 1) + '–' + (d0 + 28); }
+    if (typeof v.page === 'number') { d0 = v.page * 28; len = 28; out.title = 'Days ' + (d0 + 1) + '\u2013' + (d0 + 28); }
     else {
         var t0 = timeOf(cc, { yi: v.yi, period: v.period, pday: 1 }); if (t0 === null) return out;
         var dd = dateOf(cc, t0); d0 = Math.floor(t0 / dl); len = periodDays(cc, dd.year, v.period);
         out.title = cc.periods[v.period].name + ', ' + dd.year + (cc.era ? ' ' + cc.era : '');
     }
     if (wk.length) { out.cols = wk.length; out.heads = wk.slice(); for (var i = dateOf(cc, d0 * dl).weekday; i > 0; i--) out.cells.push(null); }
-    for (var k = 0; k < len; k++) { var c = { day: d0 + k, n: typeof v.page === 'number' ? d0 + k + 1 : k + 1 }; if (d0 + k === today) c.today = true; if (d0 + k === pk) c.picked = true; out.cells.push(c); }
+    for (var k = 0; k < len; k++) { var c = { day: d0 + k, n: typeof v.page === 'number' ? d0 + k + 1 : k + 1 }; if (d0 + k === today) c.today = true; if (d0 + k === pk) c.picked = true; if (nd && nd[d0 + k]) c.notes = nd[d0 + k]; out.cells.push(c); }
     return out;
 }
 // The steps that move time on, by the calendar's own day ({ label, secs }), and what an amount can count in ({ id, name, secs }): the
@@ -61,30 +62,65 @@ function unitsOf(cal, sys) {
     tu.forEach(function(u, i) { if (u && typeof u.secs === 'number' && isFinite(u.secs) && u.secs > 0 && typeof u.key === 'string') out.push({ id: 'u' + i, name: typeof u.label === 'string' && u.label ? u.label : u.key, secs: u.secs }); });
     return out;
 }
+// Item 20 K3: the clock's dated notes (in day order: cleanClock keeps them so), how many each day holds, the next ones, a new note's id,
+// and the notes a move of the clock reaches: those whose day it steps into, forward only (moving back and on again reaches them again)
+function notesOf(ck) { return ck && Array.isArray(ck.notes) ? ck.notes : []; }
+function noteDays(notes) { var m = Object.create(null); notes.forEach(function(n) { m[n.day] = (m[n.day] || 0) + 1; }); return m; }
+function newNoteId() { var s = ''; while (s.length < 8) s += 'abcdefghijklmnopqrstuvwxyz0123456789'.charAt(Math.floor(Math.random() * 36)); return 'n_' + s; }
+function notesReached(notes, t0, t1, dl) { if (!(t1 > t0) || !(dl > 0)) return []; var d0 = Math.floor(t0 / dl), d1 = Math.floor(t1 / dl); return notes.filter(function(n) { return n.day > d0 && n.day <= d1; }); }
+function winSigOf(camp, ck, cal) { return camp.id + '|' + ck.t + '|' + (ck.hide ? 1 : 0) + '|' + JSON.stringify(notesOf(ck)) + '|' + JSON.stringify(cleanCalendar(cal)); }
+function comingUp(body, cal, notes, today, gm) {   // the next five notes from today on (a player's app holds only those it may see)
+    var next = notes.filter(function(n) { return n.day >= today; }).slice(0, 5); if (!next.length) return;
+    var box = cel('div', 'cal-coming'); box.appendChild(cel('div', 'sys-num-cap', 'Coming up'));
+    next.forEach(function(n) { box.appendChild(cel('div', 'cal-coming-row', fmtDate(cal, n.day * dayLength(cal)) + ': ' + n.text + (gm && n.vis !== 'all' ? ' (you only)' : ''))); });
+    body.appendChild(box);
+}
+function dayNotes(body, cal, notes, day, gm) {   // the picked day's notes: the GM's to add, show to players or remove; a player's to read
+    var box = cel('div', 'cal-notes'), mine = notes.filter(function(n) { return n.day === day; });
+    box.appendChild(cel('div', 'sys-num-cap', 'Notes on ' + fmtDate(cal, day * dayLength(cal))));
+    if (!mine.length && !gm) box.appendChild(cel('div', 'sys-note', 'No notes on this day.'));
+    mine.forEach(function(n) {
+        var row = cel('div', 'cal-note'); row.dataset.note = n.id; row.appendChild(cel('span', 'cal-note-txt', n.text));
+        if (gm) {
+            var l = cel('label', 'cal-tick'), c = cel('input', 'cal-note-vis'); c.type = 'checkbox'; c.checked = n.vis === 'all'; c.dataset.note = n.id; c.title = 'Players see this note on the calendar';
+            l.appendChild(c); l.appendChild(document.createTextNode(' Players see it')); row.appendChild(l);
+            var x = cbtn('cal-note-del', '\u00d7', 'Remove this note', 'calnotedel'); x.dataset.note = n.id; row.appendChild(x);
+        }
+        box.appendChild(row);
+    });
+    if (gm) {
+        var add = cel('div', 'cal-note-add'), inp = cel('input', 'field cal-note-new'); inp.type = 'text'; inp.maxLength = CAL_LIMITS.noteChars; inp.placeholder = 'A note for this day'; inp.title = 'A deadline, a festival, an event: you are reminded when the clock reaches this day'; add.appendChild(inp);
+        var l2 = cel('label', 'cal-tick'), c2 = cel('input', 'cal-note-newvis'); c2.type = 'checkbox'; c2.title = 'Players see this note on the calendar'; l2.appendChild(c2); l2.appendChild(document.createTextNode(' Players see it')); add.appendChild(l2);
+        add.appendChild(cbtn('cal-note-go', 'Add', 'Add this note to the day', 'caladdnote'));
+        box.appendChild(add);
+    }
+    body.appendChild(box);
+}
 function renderWin() {
     var body = document.getElementById('calendarBody'), camp = getActiveCampaign(); if (!body) return;
     if (!shown(camp)) { closeWin(); return; }
     var cal = sysCal(), ck = clockOf(camp) || { t: 0 }, t = ck.t, gm = !isPlayer(), sys = sysNow(), dl = dayLength(cal), now = dateOf(cal, t);
     if (camp.id !== winCamp) { view = null; pick = null; winCamp = camp.id; }   // another campaign on screen: its own calendar, from the clock
     if (!view) view = viewOf(cal, t);
-    winSig = camp.id + '|' + t + '|' + (ck.hide ? 1 : 0) + '|' + JSON.stringify(cleanCalendar(cal));
+    winSig = winSigOf(camp, ck, cal);
     body.textContent = '';
     body.appendChild(cel('div', 'cal-now', fmtWhen(cal, t, now.s !== 0)));
-    var g = gridOf(cal, view, t, pick), nav = cel('div', 'cal-nav');
-    nav.appendChild(cbtn('cal-prev', '◀', 'The period before', 'calprev')); nav.appendChild(cel('span', 'cal-title', g.title)); nav.appendChild(cbtn('cal-next', '▶', 'The period after', 'calnext'));
+    var notes = notesOf(ck), g = gridOf(cal, view, t, pick, noteDays(notes)), nav = cel('div', 'cal-nav');
+    nav.appendChild(cbtn('cal-prev', '\u25c0', 'The period before', 'calprev')); nav.appendChild(cel('span', 'cal-title', g.title)); nav.appendChild(cbtn('cal-next', '\u25b6', 'The period after', 'calnext'));
     nav.appendChild(cbtn('cal-back', 'Today', 'Back to the period the clock is in', 'caltoday'));
     body.appendChild(nav);
     var grid = cel('div', 'cal-grid'); grid.style.gridTemplateColumns = 'repeat(' + g.cols + ', minmax(0, 1fr))';
     g.heads.forEach(function(h) { var hd = cel('div', 'cal-head', Array.from(h).slice(0, 3).join('')); hd.title = h; grid.appendChild(hd); });
     g.cells.forEach(function(c) {
         if (!c) { grid.appendChild(cel('div', 'cal-blank')); return; }
-        var b = cel('button', 'cal-day' + (c.today ? ' cal-is-today' : '') + (c.picked ? ' cal-is-picked' : ''), String(c.n)); b.type = 'button'; b.dataset.day = String(c.day); b.title = fmtDate(cal, c.day * dl) + (c.today ? ' (today)' : '');
+        var b = cel('button', 'cal-day' + (c.today ? ' cal-is-today' : '') + (c.picked ? ' cal-is-picked' : '') + (c.notes ? ' cal-has-note' : ''), String(c.n)); b.type = 'button'; b.dataset.day = String(c.day); b.title = fmtDate(cal, c.day * dl) + (c.today ? ' (today)' : '') + (c.notes ? ' \u2014 ' + c.notes + ' note' + (c.notes === 1 ? '' : 's') : '');
         grid.appendChild(b);
     });
     body.appendChild(grid);
-    if (!gm) { body.appendChild(cbtn('cal-hideme', 'Hide the clock for me', 'Takes the clock out of your header at this table; Settings ▸ VTT features brings it back', 'calhideme')); return; }
+    comingUp(body, cal, notes, now.day, gm);
+    if (!gm) { if (pick !== null) dayNotes(body, cal, notes, pick, false); body.appendChild(cbtn('cal-hideme', 'Hide the clock for me', 'Takes the clock out of your header at this table; Settings \u25b8 VTT features brings it back', 'calhideme')); return; }
     var pr = cel('div', 'cal-pick');
-    if (pick === null) pr.appendChild(cel('span', 'sys-note', 'Pick a day to set the clock to it.'));
+    if (pick === null) pr.appendChild(cel('span', 'sys-note', 'Pick a day to set the clock to it or to write a note on it.'));
     else {
         var cc = cleanCalendar(cal) || {}, H = cc.hours || 24, M = cc.minutes || 60;
         pr.appendChild(cel('span', 'cal-pick-txt', fmtDate(cal, pick * dl)));
@@ -95,6 +131,7 @@ function renderWin() {
         pr.appendChild(cbtn('cal-set', 'Set the clock', 'The clock goes to this day at this time', 'calset'));
     }
     body.appendChild(pr);
+    if (pick !== null) dayNotes(body, cal, notes, pick, true);
     var st = cel('div', 'cal-steps'); st.appendChild(cel('span', 'sys-num-cap', 'Move time on'));
     stepsOf(cal).forEach(function(s) { var b = cbtn('cal-step', s.label, 'Move the clock on ' + fmtSpan(cal, s.secs), 'calstep'); b.dataset.secs = String(s.secs); st.appendChild(b); });
     body.appendChild(st);
@@ -104,7 +141,7 @@ function renderWin() {
     body.appendChild(an);
     var hl = cel('label', 'cal-tick'), hc = cel('input', 'cal-hide'); hc.type = 'checkbox'; hc.checked = !ck.hide; hc.title = 'Off: players see no date or time; you still do';
     hl.appendChild(hc); hl.appendChild(document.createTextNode(' Players see the date')); body.appendChild(hl);
-    body.appendChild(cel('div', 'sys-note cal-round', 'Each round of a combat moves the clock on ' + fmtSpan(cal, roundSecs(sys)) + ' (the round’s length: the Combat card’s Turns box).'));
+    body.appendChild(cel('div', 'sys-note cal-round', 'Each round of a combat moves the clock on ' + fmtSpan(cal, roundSecs(sys)) + ' (the round\u2019s length: the Combat card\u2019s Turns box).'));
 }
 // The GM moves the clock to a moment (clamped to the calendar's range): saved, sent to the table with the save, and said in the
 // session log unless it came from a combat round
@@ -112,10 +149,26 @@ function moveTo(t1, why) {
     var camp = getActiveCampaign(); if (!camp || isPlayer() || typeof t1 !== 'number' || !isFinite(t1)) return false;
     var ck = clockOf(camp) || { t: 0 }, cal = sysCal(); t1 = Math.max(0, Math.min(CAL_LIMITS.time, Math.floor(t1)));
     if (t1 === ck.t) return false;
+    var hits = notesReached(notesOf(ck), ck.t, t1, dayLength(cal));   // K3: the dated notes this move reaches, told to the GM
     camp.clock = Object.assign({}, ck, { t: t1 });
-    if (why && net() && net().logEvent) net().logEvent('time', why + ' — now ' + fmtWhen(cal, t1));
+    if (why && net() && net().logEvent) net().logEvent('time', why + ' \u2014 now ' + fmtWhen(cal, t1));
+    hits.forEach(function(n) { if (net() && net().logEvent) net().logEvent('time', 'Note reached \u2014 ' + fmtDate(cal, n.day * dayLength(cal)) + ': ' + n.text); });
+    if (hits.length) toast(hits.length === 1 ? 'Today: ' + hits[0].text : hits.length + ' dated notes reached: ' + hits.slice(0, 3).map(function(n) { return n.text; }).join('; ') + (hits.length > 3 ? '; \u2026' : ''));
     save(); refresh(); return true;
 }
+// K3: the GM's edits to the notes — cleaned as a load reads them, saved, the window redrawn
+function editNotes(fn) {
+    var camp = getActiveCampaign(); if (!camp || isPlayer()) return false;
+    var ck = clockOf(camp) || { t: 0 }, list = notesOf(ck).map(function(n) { return Object.assign({}, n); }); if (fn(list) === false) return false;
+    camp.clock = cleanClock(Object.assign({}, ck, { notes: list })) || { t: ck.t };
+    save(); refresh(); return true;
+}
+function addNote(day, text, shown) {
+    var tx = typeof text === 'string' ? text.trim() : ''; if (!(typeof day === 'number' && day >= 0 && Math.floor(day) === day) || !tx) return false;
+    return editNotes(function(list) { if (list.length >= CAL_LIMITS.notes) { toast('At most ' + CAL_LIMITS.notes + ' notes.'); return false; } var n = { id: newNoteId(), day: day, text: tx }; if (shown) n.vis = 'all'; list.push(n); });
+}
+function noteVis(id, shown) { return editNotes(function(list) { var n = list.filter(function(x) { return x.id === id; })[0]; if (!n) return false; if (shown) n.vis = 'all'; else delete n.vis; }); }
+function delNote(id) { return editNotes(function(list) { var i = -1; list.forEach(function(x, k) { if (x.id === id) i = k; }); if (i < 0) return false; list.splice(i, 1); }); }
 function moveBy(secs) { var camp = getActiveCampaign(), cal = sysCal(); if (typeof secs !== 'number' || !isFinite(secs) || !secs) return false; return moveTo(tOf(camp) + secs, (secs > 0 ? 'Moved on ' : 'Moved back ') + fmtSpan(cal, secs)); }
 function setHidden(hide) {
     var camp = getActiveCampaign(); if (!camp || isPlayer()) return false;
@@ -131,9 +184,11 @@ function onWinClick(e) {
     if (b.classList.contains('cal-day')) { var d = Number(b.dataset.day); if (d >= 0 && Math.floor(d) === d) { pick = pick === d ? null : d; renderWin(); } return; }
     if (act === 'calprev' || act === 'calnext') { view = stepView(cal, view || viewOf(cal, tOf(camp)), act === 'calnext' ? 1 : -1); renderWin(); return; }
     if (act === 'caltoday') { view = viewOf(cal, tOf(camp)); pick = null; renderWin(); return; }
-    if (isPlayer()) { if (act === 'calhideme' && window.wpVtt && window.wpVtt.setLocal('calendar', true)) { closeWin(); toast('The clock is hidden for you. Settings ▸ VTT features brings it back.'); } return; }
+    if (isPlayer()) { if (act === 'calhideme' && window.wpVtt && window.wpVtt.setLocal('calendar', true)) { closeWin(); toast('The clock is hidden for you. Settings \u25b8 VTT features brings it back.'); } return; }
     var body = document.getElementById('calendarBody'), q = function(c) { return body ? body.querySelector('.' + c) : null; };
     if (act === 'calstep') { moveBy(Number(b.dataset.secs)); return; }
+    if (act === 'caladdnote' && pick !== null) { var nt = q('cal-note-new'), nv = q('cal-note-newvis'), txt = nt ? String(nt.value || '').trim() : ''; if (!txt) { toast('Type the note first.'); return; } addNote(pick, txt, !!(nv && nv.checked === true)); return; }
+    if (act === 'calnotedel') { delNote(b.dataset.note); return; }
     if (act === 'calany') {
         var ni = q('cal-any-n'), ui = q('cal-any-u'), n = ni ? Number(ni.value) : NaN, u = ui ? unitsOf(cal, sysNow()).filter(function(x) { return x.id === ui.value; })[0] : null;
         if (!u || !(String(ni.value).trim() !== '' && isFinite(n)) || !n) { toast('Type an amount: below 0 moves the clock back.'); return; }
@@ -145,7 +200,11 @@ function onWinClick(e) {
         var t1 = pick * dayLength(cal) + (h * M + m) * S; if (moveTo(t1, 'Set')) { view = viewOf(cal, t1); pick = null; renderWin(); }
     }
 }
-function onWinChange(e) { var tg = e.target; if (tg && tg.classList && tg.classList.contains('cal-hide')) setHidden(tg.checked !== true); }
+function onWinChange(e) {
+    var tg = e.target; if (!tg || !tg.classList) return;
+    if (tg.classList.contains('cal-hide')) setHidden(tg.checked !== true);
+    else if (tg.classList.contains('cal-note-vis') && tg.dataset) noteVis(tg.dataset.note, tg.checked === true);   // K3
+}
 // [sinkcheck:calendarwin-end]
 function openWin() { var m = document.getElementById('calendarModal'); if (!m || !shown(getActiveCampaign())) return; view = null; pick = null; m.style.display = 'flex'; renderWin(); }
 function closeWin() { var m = document.getElementById('calendarModal'); if (m) m.style.display = 'none'; }
@@ -159,8 +218,8 @@ function refresh() {
     var cal = sysCal(), ck = clockOf(camp) || { t: 0 }, txt = chip.querySelector('.clock-txt'), words = fmtWhen(cal, ck.t);
     if (txt && txt.textContent !== words) txt.textContent = words;
     var off = !isPlayer() && !!ck.hide; chip.classList.toggle('clock-private', off);
-    chip.title = isPlayer() ? 'The date and time at this table — click for the calendar' : 'The campaign’s date and time' + (off ? ' (players do not see it)' : '') + ' — click for the calendar';
-    if (winOpen() && winSig !== camp.id + '|' + ck.t + '|' + (ck.hide ? 1 : 0) + '|' + JSON.stringify(cleanCalendar(cal))) renderWin();
+    chip.title = isPlayer() ? 'The date and time at this table \u2014 click for the calendar' : 'The campaign\u2019s date and time' + (off ? ' (players do not see it)' : '') + ' \u2014 click for the calendar';
+    if (winOpen() && winSig !== winSigOf(camp, ck, cal)) renderWin();
 }
 // Item 20 K2 (the Foundry model: a round moves world time on by the round's length): n rounds of a combat on the GM's side, forward or back
 function rounds(n) {

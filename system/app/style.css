@@ -1827,6 +1827,13 @@
   .sys-light-row input.sys-light-pname { flex: 1 1 140px; min-width: 0; }
   .sys-light-row input[type=number] { width: 76px; }
   .sys-sense-row input.sys-sense-name { flex: 1 1 140px; min-width: 0; }   /* senses S2a: the Combat card's senses */
+  .sys-postures { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); flex: 1 1 100%; }   /* conditions C3: the Combat card's postures, a row each in one or two lines */
+  .sys-postures > .sys-flags, .sys-posture-row > .sys-flags:first-child { border-top: none; padding-top: 0; }
+  .sys-posture-row input.sys-posture-name { flex: 1 1 160px; width: auto; min-width: 0; }
+  .sys-posture-row input.sys-posture-tag { flex: 0 0 64px; width: 64px; min-width: 0; font-family: ui-monospace, Consolas, monospace; }
+  .sys-posture-row input.sys-posture-notes { flex: 1 1 240px; width: auto; min-width: 0; }
+  .sys-posture-mod .sys-posture-amt { width: 80px; }
+  .sys-posture-row .sys-fx-mods > button { align-self: flex-start; }
   .sys-sense-says { margin: -2px 0 4px 6px; }
   .sheet-fx-timer { display: inline-flex; gap: 2px; margin-left: 4px; }   /* turn-based combat T5b: a timed effect's pause / reset / stop */
   .sheet-fx-tbtn { font-size: 11px; padding: 0 4px; min-width: 0; }
@@ -1977,6 +1984,7 @@
   .sys-tabs button { background: transparent; color: var(--dim); border: none; border-bottom: 2px solid transparent; padding: 4px 10px; font-size: 12.5px; cursor: pointer; font-family: inherit; }
   .sys-tabs button.active { color: var(--gold); border-bottom-color: var(--gold); }
   .sys-tab { display: flex; flex-direction: column; gap: 6px; min-height: 0; flex: 1; }
+  #sysItems { overflow-y: auto; }   /* the Combat card (range, light, senses, turns, postures) can be taller than the editor: the tab scrolls rather than spilling out of it */
   .sys-toolbar { display: flex; align-items: center; gap: 10px; font-size: 11.5px; color: var(--dim); }
   .sys-cols { display: none; }
   .sys-rows { overflow: auto; max-height: 52vh; border: 1px solid var(--edge); border-radius: 8px; padding: 6px; display: flex; flex-direction: column; gap: 6px; background: rgba(0,0,0,0.16); }

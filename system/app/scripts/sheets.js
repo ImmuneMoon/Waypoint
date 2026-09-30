@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sbRowOps, sbApplyProposal, cleanUploads, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, postureList, postureAt, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
+import { droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sbRowOps, sbApplyProposal, cleanUploads, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, DEFAULT_POSTURES, postureList, postureAt, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
 
 var ui = function(id) { return document.getElementById(id); };
@@ -4095,6 +4095,30 @@ function refreshErrors() {
         else if (!secS || secS[blF.id]) sErr.push({ message: 'The blind switch reads ' + (blF.label || blF.key) + ', which its owner cannot read (a GM-only value, or one worked out from one): Save drops it.' });
     }
     if (sErr.length) errorsById.senses = sErr;
+    // conditions C3: what Save drops or changes of the postures, under the Combat card's Postures box — read as systemcore cleanPostures reads
+    var psE = draft.combat && Array.isArray(draft.combat.postures) ? draft.combat.postures : null, pErr = [], pKept = 0, pSeen = Object.create(null), kindsP = Object.create(null);
+    if (psE && psE.length) {
+        (draft.fields || []).forEach(function(f) { if (f && typeof f.id === 'string') kindsP[f.id] = f.kind; });
+        psE.forEach(function(p, i) {
+            if (!p || typeof p !== 'object') return;
+            var nm = 'Posture ' + (i + 1), nmT = typeof p.name === 'string' ? p.name.slice(0, 256).replace(lCtl, ' ').trim() : '', lb = nmT ? ' (' + nmT + ')' : '';
+            if (typeof p.id !== 'string' || pSeen[p.id] || !(/^p_[A-Za-z0-9_]{1,24}$/.test(p.id) || POSTURE_IDS.indexOf(p.id) >= 0)) { pErr.push({ message: nm + lb + ': its id is not one Save keeps, or another posture has it: Save drops it.' }); return; }
+            if (pKept >= LIMITS.postures) { pErr.push({ message: nm + lb + ': at most ' + LIMITS.postures + ', so Save drops it.' }); return; }
+            pSeen[p.id] = 1; pKept++;
+            if (!nmT) pErr.push({ message: nm + ' has no name: Save calls it Posture.' });
+            if (typeof p.tag === 'string' && Array.from(p.tag.replace(lCtl, ' ').trim()).length > LIMITS.postureTag) pErr.push({ message: nm + lb + ': a tag is at most ' + LIMITS.postureTag + ' characters, so Save cuts it.' });
+            var mods = Array.isArray(p.mods) ? p.mods : [];
+            if (pKept === 1) { if (p.small === true || mods.length) pErr.push({ message: nm + lb + ' is first, how a token stands with none set: Save drops its smaller-target tick and its changes.' }); return; }
+            mods.forEach(function(m, mi) {
+                var k = m && typeof m === 'object' && typeof m.f === 'string' ? kindsP[m.f] : '';
+                var ok = !!k && (m.op === 'on' ? k === 'toggle' : m.op === 'add' && typeof m.v === 'number' && isFinite(m.v) && Math.abs(m.v) <= LIMITS.effectAmount && (m.part === 'max' ? k === 'resource' : (k === 'number' || k === 'skill' || k === 'formula')));
+                if (mi >= LIMITS.effectMods) pErr.push({ message: nm + lb + ', change ' + (mi + 1) + ': at most ' + LIMITS.effectMods + ', so Save drops it.' });
+                else if (!ok) pErr.push({ message: nm + lb + ', change ' + (mi + 1) + ': a field that is gone or changed kind, or an amount that is no number: Save drops it.' });
+            });
+        });
+        if (pKept < 2) pErr.push({ message: 'A list of postures needs at least two: Save goes back to the seven.' });
+    }
+    if (pErr.length) errorsById.postures = pErr;
 }
 function errorCell(id) {
     var cell = el('div', 'sys-err');
@@ -4585,7 +4609,97 @@ function renderCombat() {
     lightBox(box, cm);   // lighting L4: the system's light rules
     sensesBox(box, cm);   // senses S2a: the system's senses
     turnBox(box, cm);   // turn-based combat T1: the system's turn rules, under the blast and cover settings
+    postureBox(box, cm);   // conditions C3: the system's own postures, at the card's foot
 }
+// Conditions C3 (docs/CONDITIONS_PLAN.md): the system's own postures on the Combat card — how a token can stand, in order. None: the seven.
+// Name your own starts from the seven (their ids kept, so a website sheet still sets them). Each row a name, its chip's tag, a "smaller target"
+// tick (-2 to a foe's ranged roll, shown only: the owner's answer of 2026-09-30), notes and changes as an effect's; the first is how a token
+// stands with none set and takes neither. Every text lands as a value or a text node. Save cleans them; refreshErrors says what it would drop
+// [sinkcheck:posturebox-start]
+function postureDraft() { var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }); return Array.isArray(cm.postures) ? cm.postures : (cm.postures = []); }
+function postureBox(box, cm) {
+    var arr = Array.isArray(cm.postures) ? cm.postures : [], wrap = el('div', 'sys-postures'), targets = fxTargets(draft);
+    wrap.appendChild(el('div', 'sys-light-head', 'Postures'));
+    wrap.appendChild(el('div', 'sys-note', arr.length ? 'How a token can stand, in order. The first is how a token stands with none set; formulas read Posture as each one\u2019s place (0 for the first), so moving one changes what they read. A posture\u2019s changes apply to the character while its token takes it; a smaller target shows \u22122 to a foe\u2019s ranged roll on the ruler and the token (never worked into a roll).' : 'Your tokens take the seven built-in postures: Standing, Crouching, Sitting, Kneeling, Crawling, Lying prone (face down) and Lying face up, each but Standing a smaller target (\u22122 to a foe\u2019s ranged roll, shown only). Name your own to rename, reorder or add to them, each with changes like an effect\u2019s.'));
+    arr.forEach(function(p0, i) {
+        var p = p0 && typeof p0 === 'object' ? p0 : {}, row = el('div', 'sys-row sys-posture-row'); row.dataset.pi = String(i);
+        var top = el('div', 'sys-flags');
+        var n = input('sys-posture-name field', typeof p.name === 'string' ? p.name : '', i === 0 ? 'How a token stands with no posture set (Standing)' : 'Its name on a token\u2019s menu and the sheet', 'Name'); n.maxLength = LIMITS.name; top.appendChild(n);
+        var tg = input('sys-posture-tag field', typeof p.tag === 'string' ? p.tag : '', 'The chip on the token: up to ' + LIMITS.postureTag + ' characters (empty: the name\u2019s first three letters)', 'Tag'); tg.maxLength = 8; top.appendChild(tg);
+        if (i > 0) { var sl = el('label', 'sys-hover'), sc = el('input', 'sys-posture-small'); sc.type = 'checkbox'; sc.checked = p.small === true; sl.appendChild(sc); sl.appendChild(document.createTextNode(' Smaller target')); sl.title = 'Ticked: \u22122 to a foe\u2019s ranged roll against a token in this posture, shown on the ruler that ends on it and in its tooltip (never worked into a roll)'; top.appendChild(sl); }
+        [['up', '\u25b2', 'Move up'], ['down', '\u25bc', 'Move down'], ['del', '\u00d7', 'Remove this posture']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = 'ps' + bd[0]; bb.title = bd[2]; top.appendChild(bb); });
+        row.appendChild(top);
+        var nr = el('div', 'sys-flags'), nt = input('sys-posture-notes field', typeof p.notes === 'string' ? p.notes : '', 'Shown under the posture on the sheet\u2019s Stance control', 'Notes'); nt.maxLength = LIMITS.postureNotes; nr.appendChild(nt); row.appendChild(nr);
+        if (i > 0) {   // the first takes no changes
+            var mods = el('div', 'sys-fx-mods');
+            (Array.isArray(p.mods) ? p.mods : []).forEach(function(m0, mi) {
+                var m = m0 && typeof m0 === 'object' ? m0 : {}, ln = el('div', 'sys-fx-mod sys-posture-mod'); ln.dataset.mi = String(mi);
+                var val = m.f + '|' + (m.op === 'on' ? 'on' : m.part === 'max' ? 'max' : 'add'), opts = targets.slice();
+                if (!opts.some(function(o) { return o[0] === val; })) opts.unshift([val, '(a field that is gone or changed kind)']);
+                ln.appendChild(select('sys-posture-target', opts, val, 'What this change affects'));
+                if (m.op !== 'on') { var am = numInput('sys-posture-amt', m.v, 'How much it adds (negative to take away)'); am.step = 'any'; ln.appendChild(am); }
+                var db = el('button', 'tool ghost sys-btn', '\u00d7'); db.dataset.act = 'psmoddel'; db.title = 'Remove this change'; ln.appendChild(db);
+                mods.appendChild(ln);
+            });
+            var madd = el('button', 'tool ghost sys-btn', '+ Change'); madd.dataset.act = 'psmodadd'; madd.title = targets.length ? 'Add a number to a field, or switch a toggle on, while a token takes this posture' : 'Add a number, skill, formula, pool or toggle field first'; madd.disabled = !targets.length; mods.appendChild(madd);
+            row.appendChild(mods);
+        }
+        wrap.appendChild(row);
+    });
+    var bar = el('div', 'sys-flags');
+    if (!arr.length) { var own = el('button', 'tool ghost sys-btn sys-posture-own', 'Name your own postures'); own.dataset.act = 'psseven'; own.title = 'Start from the seven built-in postures, their ids kept (a website sheet still sets them): rename, reorder, add, give each changes'; bar.appendChild(own); }
+    else {
+        var ad = el('button', 'tool ghost sys-btn sys-posture-add', '+ Posture'); ad.dataset.act = 'psadd'; ad.disabled = arr.length >= LIMITS.postures; ad.title = ad.disabled ? 'At most ' + LIMITS.postures : 'Another way to stand, a smaller target to begin with'; bar.appendChild(ad);
+        var bk = el('button', 'tool ghost sys-btn sys-posture-clear', 'Back to the seven'); bk.dataset.act = 'psclear'; bk.title = 'Drop this list: your tokens take the seven built-in postures again (a token in a posture of yours stands as the first)'; bar.appendChild(bk);
+    }
+    wrap.appendChild(bar);
+    var err = errorCell('postures'); err.dataset.errFor = 'postures'; wrap.appendChild(err);
+    box.appendChild(wrap);
+}
+function postureRowOf(t) { var arr = postureDraft(), row = t.closest && t.closest('.sys-posture-row'), i = row ? +row.dataset.pi : -1; return i >= 0 && i < arr.length && Math.floor(i) === i && arr[i] && typeof arr[i] === 'object' ? arr[i] : null; }
+function onPostureInput(t) {
+    var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-posture-') < 0) return false;
+    if (c.indexOf('sys-posture-small') >= 0 || c.indexOf('sys-posture-target') >= 0) return true;   // their change events do the work
+    var p = postureRowOf(t); if (!p) return true;
+    if (c.indexOf('sys-posture-name') >= 0) p.name = t.value.slice(0, LIMITS.name);
+    else if (c.indexOf('sys-posture-tag') >= 0) { if (t.value.trim()) p.tag = t.value.slice(0, 8); else delete p.tag; }
+    else if (c.indexOf('sys-posture-notes') >= 0) { if (t.value.trim()) p.notes = t.value.slice(0, LIMITS.postureNotes); else delete p.notes; }
+    else if (c.indexOf('sys-posture-amt') >= 0) { var ln = t.closest('.sys-posture-mod'), m = ln && Array.isArray(p.mods) ? p.mods[+ln.dataset.mi] : null; if (!m || typeof m !== 'object') return true; var nv = Number(t.value); m.v = t.value === '' || !isFinite(nv) ? 0 : nv; }
+    else return true;
+    markDirty(); patchErrors(); return true;
+}
+function onPostureChange(t) {
+    var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-posture-') < 0) return false;
+    if (c.indexOf('sys-posture-small') < 0 && c.indexOf('sys-posture-target') < 0) return true;   // the boxes' change events (their input events did the work)
+    var p = postureRowOf(t); if (!p) return true;
+    if (c.indexOf('sys-posture-small') >= 0) { if (t.checked) p.small = true; else delete p.small; markDirty(); patchErrors(); return true; }
+    var ln = t.closest('.sys-posture-mod'), m = ln && Array.isArray(p.mods) ? p.mods[+ln.dataset.mi] : null; if (!m || typeof m !== 'object') return true;
+    var tp = String(t.value).split('|'); m.f = tp[0];
+    if (tp[1] === 'on') { m.op = 'on'; delete m.v; delete m.part; } else { m.op = 'add'; if (typeof m.v !== 'number') m.v = 1; if (tp[1] === 'max') m.part = 'max'; else delete m.part; }
+    markDirty(); renderAll(); return true;
+}
+function postureClick(b) {
+    var mt = /^ps(seven|add|clear|up|down|del|modadd|moddel)$/.exec(b.dataset.act || ''); if (!mt) return false;
+    var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' });
+    if (mt[1] === 'seven') { cm.postures = DEFAULT_POSTURES.map(function(d) { var o = { id: d.id, name: d.name, tag: d.tag }; if (d.small === true) o.small = true; return o; }); markDirty(); renderAll(); return true; }
+    if (mt[1] === 'clear') { delete cm.postures; markDirty(); renderAll(); return true; }
+    var arr = postureDraft();
+    if (mt[1] === 'add') { if (arr.length >= LIMITS.postures) { toast('At most ' + LIMITS.postures + ' postures.'); return true; } arr.push({ id: uid('p_'), name: '', small: true }); markDirty(); renderAll(); return true; }
+    var row = b.closest('.sys-posture-row'), i = row ? +row.dataset.pi : -1; if (!(i >= 0 && i < arr.length && Math.floor(i) === i)) return true;
+    var p = arr[i] && typeof arr[i] === 'object' ? arr[i] : null;
+    if (mt[1] === 'up') { if (i > 0) arr.splice(i - 1, 0, arr.splice(i, 1)[0]); }
+    else if (mt[1] === 'down') { if (i < arr.length - 1) arr.splice(i + 1, 0, arr.splice(i, 1)[0]); }
+    else if (mt[1] === 'del') arr.splice(i, 1);
+    else if (!p) return true;
+    else if (mt[1] === 'modadd') {
+        var tg = fxTargets(draft)[0]; if (!tg) return true; p.mods = Array.isArray(p.mods) ? p.mods : [];
+        if (p.mods.length >= LIMITS.effectMods) { toast('At most ' + LIMITS.effectMods + ' changes per posture.'); return true; }
+        var tp = tg[0].split('|'), nm = { f: tp[0], op: tp[1] === 'on' ? 'on' : 'add' }; if (nm.op === 'add') { nm.v = 1; if (tp[1] === 'max') nm.part = 'max'; }
+        p.mods.push(nm);
+    } else { var dl = b.closest('.sys-posture-mod'), mi = dl ? +dl.dataset.mi : -1; if (!(Array.isArray(p.mods) && mi >= 0 && mi < p.mods.length)) return true; p.mods.splice(mi, 1); }
+    markDirty(); renderAll(); return true;
+}
+// [sinkcheck:posturebox-end]
 // Lighting L4: the system's light rules on the Combat card — what it calls a dim and a dark place (the ruler and a target mark show the names)
 // and its light presets (a light's Properties offer them; ticked, a player may pick one for their own token). Every text lands as a value or
 // a text node. Save cleans them; refreshErrors says what it would drop
@@ -4985,6 +5099,7 @@ function onInput(e) {
     if (onLightInput(t)) return;   // lighting L4
     if (onSensesInput(t)) return;   // senses S2a
     if (onRangeInput(t)) return;   // range penalties R1
+    if (onPostureInput(t)) return;   // conditions C3
     var fxd = fxOfRow(t);   // 5h: a library effect's text boxes
     if (fxd) {
         var fc = t.className || '';
@@ -5122,6 +5237,7 @@ function onChange(e) {
     if (onLightChange(t)) return;   // lighting L4
     if (onSensesChange(t)) return;   // senses S2a
     if (onRangeChange(t)) return;   // range penalties R1
+    if (onPostureChange(t)) return;   // conditions C3
     if (c.indexOf('sys-combat-auto') >= 0) { draft.combat.blastAuto = t.value; markDirty(); patchErrors(); return; }
     if (c.indexOf('sys-combat-roller') >= 0) { draft.combat.blastRoller = t.value; markDirty(); patchErrors(); return; }
     if (c.indexOf('sys-combat-checks') >= 0) { if (t.value === 'under3d6') draft.combat.checks = 'under3d6'; else delete draft.combat.checks; markDirty(); patchErrors(); return; }   // Stage 6 F8
@@ -5241,6 +5357,7 @@ function onClick(e) {
     if (lightClick(b)) return;   // lighting L4: the Combat card's light presets
     if (sensesClick(b)) return;   // senses S2a: the Combat card's senses
     if (rangeClick(b)) return;   // range penalties R1: the Combat card's range table
+    if (postureClick(b)) return;   // conditions C3: the Combat card's postures
     var crow = b.closest('.sys-char-row');
     if (crow) {
         var camp = getActiveCampaign(), ch = charById(crow.dataset.cid, camp); if (!ch) return;

@@ -2184,6 +2184,46 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 lj(sigGot) === lj({ dark: '4,s10a', darkPass: '4,s10pa', darkDim: '4,s10a', lit: 'L,s10a', litPass: 'L,s10pa', litDim: 'L,s10a', coneAll: 'L,s10a', cone: 'L', none: '4' }) && sigMoves === '4,s11a', lj([sigGot, sigMoves]));
         }
     }
+    {   // difficult terrain T1: fogcore cleanTerrain, and the fill tool's cells (whiteboard.js sliced by its fillcell markers) and its menu (fillmenu), run for real
+        const fs = require('fs'), J = JSON.stringify;
+        const ct = [2, 3, 2.4, 2.6, 1.5, 1.49, 1, 0, -5, 10, 10.4, 11, 1e9, NaN, Infinity, -Infinity, '3', true, null, undefined, {}, [3]].map(v => X.cleanTerrain(v));
+        check('terrain T1 cleanTerrain: a number rounded to a whole one, 2 to 10 (above 10 is 10); below 2, not finite, a string, a switch, nothing or an object is none',
+            J(ct) === J([2, 3, 2, 3, 2, null, null, null, null, 10, 10, 10, 10, null, null, null, null, null, null, null, null, null]), J(ct));
+        const wbS = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, NL);
+        const cutM = name => { const a = wbS.indexOf('// [fogcheck:' + name + '-start]'), b = wbS.indexOf('// [fogcheck:' + name + '-end]'); return a > 0 && b > a ? wbS.slice(a, b) : ''; };
+        const mkFill = st => { const env = { st, map: { whiteboard: [] }, renders: 0, n: 0 };
+            const api = new Function('state', 'getActiveMap', 'cellSnap', 'uid', 'render', 'window', '"use strict"; var _fillDirty = false;' + NL + cutM('fillcell') + NL + 'return { fillCellAt: fillCellAt, fillCellCore: fillCellCore, dirty: function() { var d = _fillDirty; _fillDirty = false; return d; } };')(
+                st, () => env.map, (x, y) => { const cx = Math.floor(x / 50) * 50 + 25, cy = Math.floor(y / 50) * 50 + 25; return { cx, cy, w: 50, h: 50, type: 'rect', px: cx - 25, py: cy - 25 }; }, () => 'u' + (++env.n), () => { env.renders++; }, { wpFogCore: X });
+            return Object.assign(env, api); };
+        const fA = mkFill({ fillColor: '#111111', fillTerrain: 0 }), tOf = () => fA.map.whiteboard.map(w => ('terrain' in w ? w.terrain : '-'));
+        fA.fillCellAt(10, 10); const a1 = [tOf(), fA.dirty()];
+        fA.st.fillTerrain = 3; fA.fillCellAt(10, 10); const a2 = [tOf(), fA.dirty()];
+        const r0 = fA.renders; fA.fillCellAt(12, 12); const a3 = [tOf(), fA.dirty(), fA.renders - r0];
+        fA.st.fillTerrain = 0; fA.st.fillColor = '#222222'; fA.fillCellAt(10, 10); const a4 = [tOf(), fA.map.whiteboard[0].color, fA.dirty()];
+        fA.st.fillTerrain = 99; fA.fillCellAt(60, 10); fA.st.fillTerrain = 'x'; fA.fillCellAt(110, 10); const a5 = tOf();
+        fA.fillCellAt(10, 10, true); const a6 = [tOf(), fA.map.whiteboard.length];
+        const fB = mkFill({ fillColor: '#111111', fillTerrain: 4 }), c1 = fB.fillCellCore(fB.map, 10, 10), c2 = fB.fillCellCore(fB.map, 10, 10);
+        fB.st.fillTerrain = 5; const c3 = fB.fillCellCore(fB.map, 10, 10); fB.st.fillTerrain = 0; const c4 = fB.fillCellCore(fB.map, 10, 10);
+        const fillGot = [a1, a2, a3, a4, a5, a6, [c1, c2, c3, c4, fB.map.whiteboard.map(w => w.terrain), fB.renders]];
+        check('terrain T1 the fill tool (run for real): with its Difficult terrain tick off a painted cell carries no cost; on, a cell painted or painted over takes the menu\'s cost (a change that saves and redraws), the same cell again changes nothing; off again, painting over recolours and keeps the cost; a cost past 10 is 10, one that is no number none; right-click takes the cell away; the flood-fill\'s cells alike',
+            J(fillGot) === J([[['-'], true], [[3], true], [[3], false, 0], [[3], '#222222', true], [3, 10, '-'], [[10, '-'], 2], [true, false, true, false, [5], 0]]), J(fillGot));
+        const mkMenu = (chk, val) => { const wired = [], mkEl = o => Object.assign(o, { addEventListener: (ev, fn) => wired.push([ev, fn && fn.name]) }), els = { fillTerrainChk: mkEl({ checked: chk }), fillTerrainCost: mkEl({ value: val, disabled: false }) }, store = {}, st = { fillColor: '#111111', fillTerrain: 0 };
+            const doc = { querySelectorAll: () => [], querySelector: () => null, getElementById: id => els[id] || null };
+            const api = new Function('document', 'state', 'localStorage', 'window', '"use strict";' + NL + cutM('fillmenu') + NL + 'return { set: fillTerrainSet };')(doc, st, { setItem: (k, v) => { store[k] = v; } }, { wpFogCore: X });
+            api.set(); return [st.fillTerrain, store.wp_fillTerrain, els.fillTerrainCost.value, els.fillTerrainCost.disabled, els.fillTerrainChk.checked, wired]; };
+        const mn = [mkMenu(true, '4'), mkMenu(true, '1'), mkMenu(true, 'abc'), mkMenu(true, '15'), mkMenu(false, '4')], wiredOk = mn.every(m => J(m[5]) === J([['change', 'fillTerrainSet'], ['change', 'fillTerrainSet']]));
+        const ixS = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8');
+        check('terrain T1 the fill menu (run for real): its tick and its cost set what the tool paints and keep it on this machine — the cost 2 to 10 (1 and a word read 2, 15 reads 10), 0 while unticked with the box greyed; both controls wired; read back at start as a number, cleaned where it is used',
+            J(mn.map(m => m.slice(0, 5))) === J([[4, '4', 4, false, true], [2, '2', 2, false, true], [2, '2', 2, false, true], [10, '10', 10, false, true], [0, '0', 4, true, false]]) && wiredOk
+            && wbS.includes("try { state.fillTerrain = Number(localStorage.getItem('wp_fillTerrain')) || 0; } catch (e) { state.fillTerrain = 0; }")
+            && /<input type="checkbox" id="fillTerrainChk"> Difficult terrain &times;<\/label>/.test(ixS) && /<input type="number" id="fillTerrainCost" min="2" max="10" step="1" value="2" disabled/.test(ixS), J(mn));
+        const tuS = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'tutorial.js'), 'utf8'), giS = fs.readFileSync(path.join(__dirname, '..', 'CAMPAIGN_INTEGRATION.md'), 'utf8');
+        check('terrain T1 Help, the tour and the integration guide: the fill menu\'s tick and cost (x2 by default, up to x10), painting over, a shape\'s Properties; the guide\'s key and numbers are the cleaner\'s',
+            ixS.includes('Tick <b>Difficult terrain</b> in the fill menu and set its cost (&times;2 by default, up to &times;10): every cell you paint, or paint over, is marked as ground that costs that many times as much to move into; unticked, painting leaves a cell&rsquo;s mark as it was. A rectangle, hexagon, circle or diamond takes the same mark in its Properties (<b>Difficult terrain</b> and its cost).')
+            && tuS.includes('tick <b>Difficult terrain</b> there, with its cost, and the cells you paint cost that many times as much to move into &mdash; a shape takes the same mark in its Properties')
+            && giS.includes('may carry `terrain`: **difficult terrain**, a whole number 2 to 10, what moving into it costs (2: twice as much); a number is rounded and one above 10 read as 10, anything below 2 or not a number is none.')
+            && X.cleanTerrain(2) === 2 && X.cleanTerrain(10.4) === 10 && X.cleanTerrain(11) === 10 && X.cleanTerrain(1.49) === null && X.cleanTerrain('2') === null);
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

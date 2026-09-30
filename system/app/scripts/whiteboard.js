@@ -3417,12 +3417,28 @@ window.wpFitToGrid = fitToGrid;
   // square on square maps) seated in the cell at layer 'back' (below tokens); right-click a cell clears its fill.
   var _el_fillModeBtn = document.getElementById('fillModeBtn'), _el_fillMenu = document.getElementById('fillMenu');
   try { var _fc0 = localStorage.getItem('wp_fillColor'); if (_fc0 && /^#[0-9a-f]{6}$/i.test(_fc0)) state.fillColor = _fc0; } catch (e) {}
+  try { state.fillTerrain = Number(localStorage.getItem('wp_fillTerrain')) || 0; } catch (e) { state.fillTerrain = 0; }   // difficult terrain T1: the fill menu's cost (cleaned where it is used), or 0
   var _fci0 = document.getElementById('fillColorInput'); if (_fci0 && /^#[0-9a-f]{6}$/i.test(state.fillColor || '')) _fci0.value = state.fillColor;
+  // [fogcheck:fillmenu-start]
   function syncFillMenu() {
       document.querySelectorAll('#fillColorRow .draw-swatch[data-color]').forEach(function(sw) { sw.classList.toggle('active', sw.dataset.color.toLowerCase() === (state.fillColor || '').toLowerCase()); });
       var cs = document.querySelector('#fillColorRow .draw-swatch.custom'); if (cs) { var preset = document.querySelector('#fillColorRow .draw-swatch[data-color].active'); cs.classList.toggle('active', !preset); cs.style.background = preset ? '' : state.fillColor; }
       var _fi = document.getElementById('fillColorIndicator'); if (_fi) _fi.style.background = state.fillColor;
+      var _ftc = document.getElementById('fillTerrainChk'), _ftn = document.getElementById('fillTerrainCost');   // difficult terrain T1
+      var _FCs = window.wpFogCore, _ftv = _FCs && _FCs.cleanTerrain ? _FCs.cleanTerrain(state.fillTerrain) : null;
+      if (_ftc) _ftc.checked = !!_ftv;
+      if (_ftn) { if (_ftv) _ftn.value = _ftv; _ftn.disabled = !_ftv; }
   }
+  function fillTerrainSet() {   // difficult terrain T1: the fill menu's tick and cost, kept on this machine (the cost, or 0 while unticked)
+      var chk = document.getElementById('fillTerrainChk'), box = document.getElementById('fillTerrainCost'), FC = window.wpFogCore;
+      var n = (box && FC && FC.cleanTerrain ? FC.cleanTerrain(Number(box.value)) : null) || 2;
+      if (box) box.value = n;
+      state.fillTerrain = chk && chk.checked ? n : 0;
+      try { localStorage.setItem('wp_fillTerrain', String(state.fillTerrain)); } catch (e) {}
+      syncFillMenu();
+  }
+  ['fillTerrainChk', 'fillTerrainCost'].forEach(function(id) { var e0 = document.getElementById(id); if (e0) e0.addEventListener('change', fillTerrainSet); });
+  // [fogcheck:fillmenu-end]
   if (_el_fillModeBtn) _el_fillModeBtn.addEventListener('click', function(e) {
       e.stopPropagation();
       if (!window.isFillMode) {
@@ -3451,24 +3467,33 @@ window.wpFitToGrid = fitToGrid;
       else { cx = Math.floor(x / 50) * 50 + 25; cy = Math.floor(y / 50) * 50 + 25; w = 50; h = 50; type = 'rect'; }
       return { cx: cx, cy: cy, w: w, h: h, type: type, px: Math.round(cx - w / 2), py: Math.round(cy - h / 2) };
   }
+  // [fogcheck:fillcell-start]
+  // Difficult terrain T1: the fill menu's cost on a cell it paints, new or painted over (true when that changed it); 0 leaves a cell's cost as it was
+  function fillTerrainTo(item) {
+      var FC = window.wpFogCore, t = FC && FC.cleanTerrain ? FC.cleanTerrain(state.fillTerrain) : null;
+      if (!t || item.terrain === t) return false;
+      item.terrain = t; return true;
+  }
   function fillCellAt(x, y, remove) {
       var map = getActiveMap(); if (!map) return;
       if (!Array.isArray(map.whiteboard)) map.whiteboard = [];
       var c = cellSnap(x, y), px = c.px, py = c.py;
       var existing = map.whiteboard.find(function(it) { return it && it.fill && Math.abs(it.x - px) < 1 && Math.abs(it.y - py) < 1; });
       if (remove) { if (existing) { map.whiteboard = map.whiteboard.filter(function(it) { return it !== existing; }); _fillDirty = true; render(); } return; }
-      if (existing) { if (existing.color !== state.fillColor) { existing.color = state.fillColor; _fillDirty = true; render(); } return; }
+      if (existing) { var ch = fillTerrainTo(existing); if (existing.color !== state.fillColor) { existing.color = state.fillColor; ch = true; } if (ch) { _fillDirty = true; render(); } return; }
       var item = Object.assign({ id: 'wb' + uid(), type: c.type, x: px, y: py, w: c.w, h: c.h, baseW: c.w, baseH: c.h, z: 10, color: state.fillColor, fill: true, layer: 'back' }, (window.wpNewOpacityProps ? window.wpNewOpacityProps() : {}));
-      map.whiteboard.push(item); _fillDirty = true; render();
+      fillTerrainTo(item); map.whiteboard.push(item); _fillDirty = true; render();
   }
   // Add (or recolor) one fill cell WITHOUT save/render — for batch use by the flood-fill. Returns true if it changed anything.
   function fillCellCore(map, x, y) {
       var c = cellSnap(x, y), px = c.px, py = c.py;
       var existing = map.whiteboard.find(function(it) { return it && it.fill && Math.abs(it.x - px) < 1 && Math.abs(it.y - py) < 1; });
-      if (existing) { if (existing.color !== state.fillColor) { existing.color = state.fillColor; return true; } return false; }
-      map.whiteboard.push(Object.assign({ id: 'wb' + uid(), type: c.type, x: px, y: py, w: c.w, h: c.h, baseW: c.w, baseH: c.h, z: 10, color: state.fillColor, fill: true, layer: 'back' }, (window.wpNewOpacityProps ? window.wpNewOpacityProps() : {})));
+      if (existing) { var ch2 = fillTerrainTo(existing); if (existing.color !== state.fillColor) { existing.color = state.fillColor; ch2 = true; } return ch2; }
+      var item2 = Object.assign({ id: 'wb' + uid(), type: c.type, x: px, y: py, w: c.w, h: c.h, baseW: c.w, baseH: c.h, z: 10, color: state.fillColor, fill: true, layer: 'back' }, (window.wpNewOpacityProps ? window.wpNewOpacityProps() : {}));
+      fillTerrainTo(item2); map.whiteboard.push(item2);
       return true;
   }
+  // [fogcheck:fillcell-end]
   // Ramer–Douglas–Peucker polyline simplification (iterative, no recursion). Keeps endpoints; drops points within eps of a chord.
   function rdpSimplify(points, eps) {
       var n = points.length;

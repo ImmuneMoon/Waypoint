@@ -1034,6 +1034,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
               '<div class="field check-row"><input type="checkbox" id="wbLock" '+(w.locked?'checked':'')+'> <label for="wbLock">Locked (Prevent drag & resize)</label></div>'+
               (['rect','hexagon','circle','diamond'].indexOf(w.type) >= 0 && !w.hidden && !w.isChar && !w.waiting ? '<div class="field check-row"><input type="checkbox" id="wbBlocksSight" '+(w.blocksSight?'checked':'')+'> <label for="wbBlocksSight">Blocks sight (wall / pillar)</label></div><div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">Fog vision (and each player&rsquo;s view) stops at this shape&rsquo;s cells. Needs fog on for the map.</div>' : '')+
               (['rect','hexagon','circle','diamond'].indexOf(w.type) >= 0 && !w.hidden && !w.isChar && !w.waiting ? '<div class="field check-row"><input type="checkbox" id="wbSmoke" '+(w.smoke===true?'checked':'')+'> <label for="wbSmoke">Smoke (hides what is in it and past it)</label></div><div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">The eyes do not see into or through it, nor a sense the walls stop unless it sees through smoke. Tokens walk through it, it gives no cover and light passes.</div>' : '')+   // senses S7b
+              (['rect','hexagon','circle','diamond'].indexOf(w.type) >= 0 && !w.hidden && !w.isChar && !w.waiting ? terrainFieldHtml(w) : '')+   // difficult terrain T1
               (['rect','hexagon','circle','diamond'].indexOf(w.type) >= 0 && !w.hidden && w.blocksSight ? '<div class="field"><label for="wbSightType">Type</label><select id="wbSightType"><option value="wall"'+(w.sightType!=='door'?' selected':'')+'>Wall / pillar (always blocks)</option><option value="door"'+(w.sightType==='door'?' selected':'')+'>Door (can open)</option></select></div>' : '')+
               (w.blocksSight && w.sightType==='door' && !w.hidden ? '<div class="field check-row"><input type="checkbox" id="wbDoorOpen" '+(w.doorOpen?'checked':'')+'> <label for="wbDoorOpen">Door is open (sight passes through)</label></div><div class="field check-row"><input type="checkbox" id="wbDoorLock" '+(w.doorLock?'checked':'')+'> <label for="wbDoorLock">GM-locked (players can&rsquo;t open it)</label></div>' : '')+
               (['rect','hexagon','circle','diamond'].indexOf(w.type) >= 0 && !w.isChar && !w.hidden ? (w.type !== 'circle' && w.rot ? '<div class="field"><label>Cover</label><div class="muted" style="font-size:10.5px;">A turned shape gives no cover (a circle can turn): straighten it to use it as cover.</div></div>' : '<div class="field"><label for="wbCover">Cover</label><select id="wbCover" title="What this piece gives as cover (the ruler, blasts and target marks, with Cover from blockers on in your system): as its sight (a wall, pillar or closed door gives it; anything else none), cover you can see over (a crate, a low wall: half or three-quarters, never total), or none. It counts in the grid cells whose centres it covers."><option value="like"'+(w.cover!=='yes'&&w.cover!=='no'?' selected':'')+'>'+(w.blocksSight?'Gives cover (it blocks sight)':'No cover (it does not block sight)')+'</option><option value="yes"'+(w.cover==='yes'?' selected':'')+'>'+(w.blocksSight?'Gives cover':'Gives cover you can see over')+'</option><option value="no"'+(w.cover==='no'?' selected':'')+'>No cover</option></select></div>') : '')+
@@ -1275,6 +1276,9 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             if(_el_wbLock) _el_wbLock.addEventListener('change', function() {
                 w.locked = this.checked; save(); render();
             });
+            var _el_wbTerrain = document.getElementById('wbTerrain'), _el_wbTerrainCost = document.getElementById('wbTerrainCost');   // difficult terrain T1: its cost, 2-10, or no key
+            if (_el_wbTerrain) _el_wbTerrain.addEventListener('change', function() { setItemTerrain(w, this.checked, _el_wbTerrainCost ? _el_wbTerrainCost.value : 2); });
+            if (_el_wbTerrainCost) _el_wbTerrainCost.addEventListener('change', function() { setItemTerrain(w, true, this.value); });
             var _el_wbSmoke = document.getElementById('wbSmoke');   // senses S7b: smoke, true or no key
             if (_el_wbSmoke) _el_wbSmoke.addEventListener('change', function() { if (this.checked === true) w.smoke = true; else delete w.smoke; save(); render(); renderInspector(); if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); } });
             var _el_wbBlocksSight = document.getElementById('wbBlocksSight');
@@ -1773,6 +1777,20 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
       save(); render(); renderInspector(); F.invalidateVision(); F.redraw();
   }
   // [sinkcheck:sensesfield-end]
+  // [sinkcheck:terrainfield-start]
+  // Difficult terrain T1: a shape's Properties row — its tick and its cost (item.terrain, 2-10, as fogcore cleanTerrain keeps it; the box
+  // shows 2 while unticked), and the GM's change of either
+  function terrainFieldHtml(w) {
+      var C = window.wpFogCore, t = C && C.cleanTerrain ? C.cleanTerrain(w.terrain) : null;
+      return '<div class="field check-row"><input type="checkbox" id="wbTerrain" ' + (t ? 'checked' : '') + '> <label for="wbTerrain">Difficult terrain</label> &times;<input type="number" id="wbTerrainCost" min="2" max="10" step="1" value="' + (t || 2) + '" style="width:48px; margin-left:4px;"' + (t ? '' : ' disabled') + ' title="What moving into it costs: this many times as much"></div>'
+          + '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">Moving into it costs this many times as much (2 to 10).</div>';
+  }
+  function setItemTerrain(w, on, v) {
+      var C = window.wpFogCore, t = (C && C.cleanTerrain ? C.cleanTerrain(Number(v)) : null) || 2;
+      if (on === true) w.terrain = t; else delete w.terrain;
+      save(); render(); renderInspector();
+  }
+  // [sinkcheck:terrainfield-end]
 
   /* ---------- roster characters ↔ board tokens ----------
      A character added to a node's roster gets a token immediately: a stand-in

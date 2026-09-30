@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sbRowOps, sbApplyProposal, cleanUploads, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
+import { droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sbRowOps, sbApplyProposal, cleanUploads, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, postureList, postureAt, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
 
 var ui = function(id) { return document.getElementById(id); };
@@ -466,7 +466,7 @@ function ruleOn(which) { var v = window.wpVtt; return !v || (v.rulesOn ? v.rules
 function tokenFlags() { return { turning: ruleOn('turning'), posture: ruleOn('posture'), elevation: ruleOn('elevation') }; }   // Stage 6: the features the token names read through — the same gate as the host's rolls
 function stanceSigOf(c, camp) {   // what the stance control shows: its rows, the token, its values, who may use it
     var fl = tokenFlags(), t = c ? facingTarget(c, camp) : null, st = t ? stanceCtx(t.tok, fl) : null, n = net();
-    return [vttOn('posture'), vttOn('elevation'), t ? t.mapId + '|' + t.tok.id + '|' + (t.tok.ownerId || '') + '|' + (t.tok.locked ? 1 : 0) : '', st ? st.posture + '|' + st.elevation : '', !!(n && (n.paused || n.selfPaused))].join('#');
+    return [vttOn('posture'), vttOn('elevation'), t ? t.mapId + '|' + t.tok.id + '|' + (t.tok.ownerId || '') + '|' + (t.tok.locked ? 1 : 0) : '', st ? st.posture + '|' + (st.pid || '') + '|' + st.elevation : '', !!(n && (n.paused || n.selfPaused))].join('#');   // conditions C3: the posture as stored (a posture of the system's own list)
 }
 function mapOk(m) { return !!(m && m.type === 'map' && Array.isArray(m.whiteboard)); }
 // Which token the dial (and every facing name on the sheet and in rolls) reads:
@@ -611,9 +611,11 @@ function stanceNode(c, gm) {
     if (pOn) {
         var pr = el('label', 'sheet-stance-row'); pr.appendChild(el('span', 'sheet-label', 'Posture'));
         var ps = el('select', 'field sheet-select'); ps.dataset.dk = 'posture';
-        POSTURE_IDS.forEach(function(p, i) { ps.appendChild(opt(p, POSTURE_NAMES[i], st.posture === i)); });
+        var sysS = systemOf(), atS = postureAt(sysS, st.pid);   // conditions C3: the postures in use (the system's own list, else the seven)
+        postureList(sysS).forEach(function(p, i) { ps.appendChild(opt(p.id, p.name, atS.i === i)); });
         ps.disabled = !live; ps.addEventListener('change', function() { setSt({ posture: ps.value }); });
         pr.appendChild(ps); wrap.appendChild(pr);
+        var pw = postureWords(sysS, atS); if (pw) wrap.appendChild(el('div', 'sheet-dial-note sheet-stance-fx', pw));
     }
     if (eOn) {
         var er = el('div', 'sheet-stance-row'); er.appendChild(el('span', 'sheet-label', 'Elevation'));
@@ -631,6 +633,18 @@ function stanceNode(c, gm) {
     if (!gm && t.tok.locked) wrap.appendChild(el('span', 'sheet-dial-map', '\uD83D\uDD12 Locked by the GM'));
     return wrap;
 }
+// [sinkcheck:posturewords-start]
+// Conditions C3: what the token's posture does, under the stance control as the Foundry sheet shows a posture's effect — its changes, a smaller
+// target's -2 (in the website's words), its notes; nothing for the first posture. Text only (a text node)
+function postureWords(sys, at) {
+    if (!at || !(at.i > 0) || !at.p || typeof at.p !== 'object') return '';
+    var labels = {}; ((sys && Array.isArray(sys.fields)) ? sys.fields : []).forEach(function(x) { if (x && typeof x.id === 'string') labels[x.id] = x.label || x.key; });
+    var out = (Array.isArray(at.p.mods) ? at.p.mods : []).map(function(m) { return fxChangeText(m, labels); });
+    if (at.p.small === true) out.push('Ranged attacks against you are at \u22122 (their roll, not yours)');
+    if (typeof at.p.notes === 'string' && at.p.notes) out.push(at.p.notes);
+    return out.join(' \u00b7 ');
+}
+// [sinkcheck:posturewords-end]
 // whiteboard.js / net.js / main.js: a token turned or its threat marks changed. The dial follows in place (focus kept); a sheet whose
 // numbers read a facing name redraws once the turn is final, debounced (a drag's stream never redraws a sheet someone is typing in)
 // The dial and stance controls in one panel (the sheet's or a HUD's) follow the token in place, keeping focus

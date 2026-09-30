@@ -45,7 +45,10 @@ function stanceOn(which) {   // 'elevation' | 'posture'
     try { return localStorage.getItem('wp_' + which) !== 'off'; } catch (e) { return true; }   // vtt.js absent: the 1.4.6 keys, on until switched off
 }
 function setTokenElevation(it, v) { v = Math.round(Number(v) * 10) / 10; if (!isFinite(v) || v === 0) delete it.elevation; else it.elevation = Math.max(-999, Math.min(999, v)); }
-function setTokenPosture(it, v) { v = normalizePosture(v); if (v === 'standing') delete it.posture; else it.posture = v; }
+function setTokenPosture(it, v) {   // conditions C3: a posture of the list in use by its id (the first: none stored); without the core, the seven as ever
+    var S = window.wpSystemCore; if (S && S.postureAt) { var at = S.postureAt(postureSys(), typeof v === 'string' ? v : ''); if (at.i > 0 && at.p) it.posture = at.p.id; else delete it.posture; return; }
+    v = normalizePosture(v); if (v === 'standing') delete it.posture; else it.posture = v;
+}
 function fmtElev(e) { return (e > 0 ? '+' : e < 0 ? '\u2212' : '') + (Math.round(Math.abs(e) * 10) / 10); }
 // [systemcheck:postranged-start]
 // Every posture but standing makes a smaller target: -2 to a foe's RANGED attack roll (Chapter 9, Change Posture, Target Modifier; the owner's
@@ -54,9 +57,15 @@ function fmtElev(e) { return (e > 0 ? '+' : e < 0 ? '\u2212' : '') + (Math.round
 // website's RANGED_TARGET_PENALTY (src/lib/posture-rules.ts): if the rule changes, both change together. Plain text: callers escape it
 var POSTURE_RANGED = -2;
 var POSTURE_RANGED_LINE = 'Ranged attacks against this token are at \u2212' + (-POSTURE_RANGED) + ' (their roll)';
-function postureRanged(tok) { var p = tok && tok.isChar && stanceOn('posture') ? tokenPosture(tok) : 'standing'; return p === 'standing' ? '' : '\u2212' + (-POSTURE_RANGED) + ' ranged (posture: ' + POSTURE_LABEL[p].toLowerCase() + ')'; }
+// Conditions C3 (the owner's answer of 2026-09-30): the postures in use are the system's own list (its Combat card), else the seven, and the
+// note is each posture's own "smaller target" tick (on for the six of the seven). The chip, the menus and the hover card follow the list too.
+// A name or a tag comes from a system file or the host: it lands through esc or as text
+function postureSys() { return window.wpSheets && window.wpSheets.systemOf ? window.wpSheets.systemOf() : null; }
+function postureListNow() { var S = window.wpSystemCore; return S && S.postureList ? S.postureList(postureSys()) : POSTURES.map(function(p, i) { return { id: p, name: POSTURE_LABEL[p], tag: POSTURE_CHIP[p] || '', small: i > 0 }; }); }
+function tokenPostureAt(it) { var S = window.wpSystemCore; if (S && S.postureAt) return S.postureAt(postureSys(), it && it.posture); var p = tokenPosture(it), i = POSTURES.indexOf(p); return { i: i, p: { id: p, name: POSTURE_LABEL[p], tag: POSTURE_CHIP[p] || '', small: i > 0 } }; }
+function postureRanged(tok) { if (!(tok && tok.isChar && stanceOn('posture'))) return ''; var at = tokenPostureAt(tok); return at.i > 0 && at.p && at.p.small === true ? '\u2212' + (-POSTURE_RANGED) + ' ranged (posture: ' + String(at.p.name || '').toLowerCase() + ')' : ''; }
 // [systemcheck:postranged-end]
-window.wpStance = { POSTURES: POSTURES, POSTURE_LABEL: POSTURE_LABEL, normalizePosture: normalizePosture, tokenElevation: tokenElevation, tokenPosture: tokenPosture, on: stanceOn, setElevation: setTokenElevation, setPosture: setTokenPosture, fmtElev: fmtElev };
+window.wpStance = { POSTURES: POSTURES, POSTURE_LABEL: POSTURE_LABEL, normalizePosture: normalizePosture, tokenElevation: tokenElevation, tokenPosture: tokenPosture, postures: postureListNow, postureAt: tokenPostureAt, on: stanceOn, setElevation: setTokenElevation, setPosture: setTokenPosture, fmtElev: fmtElev };
 
 // Context-menu rows for elevation (− / value / +) and posture (select); shared by the GM's
 // item menu and the player's own-token menu. Rows carry cm-stance so the menu stays open.
@@ -71,9 +80,12 @@ function stanceMenuHtml(it) {
         + '<span class="cm-stance" style="color:var(--dim);">yd</span>'
         + '<button class="cm-stance align-btn stance-elev" data-d="1" title="Up one yard">+</button></div>';
     if (pOn) html += '<div class="menu-item cm-stance" style="display:flex; align-items:center; gap:6px; cursor:default;"><span class="cm-stance" style="flex:1;">Posture</span>'
-        + '<select class="cm-stance stance-post" style="' + ctl + '">' + POSTURES.map(function(p) { return '<option value="' + p + '"' + (tokenPosture(it) === p ? ' selected' : '') + '>' + POSTURE_LABEL[p] + '</option>'; }).join('') + '</select></div>';
+        + '<select class="cm-stance stance-post" style="' + ctl + '">' + postureOptionsHtml(it) + '</select></div>';
     return html;
 }
+// [sinkcheck:postopts-start]
+function postureOptionsHtml(it) { var cur = tokenPostureAt(it).i; return postureListNow().map(function(p, i) { return '<option value="' + esc(p.id) + '"' + (i === cur ? ' selected' : '') + '>' + esc(p.name) + '</option>'; }).join(''); }   // conditions C3: the list in use, its names escaped
+// [sinkcheck:postopts-end]
 // [systemcheck:owntok-start]
 // Fold M8: a player's gesture follows the live map. A whole copy of the map can land while a drag, a turn or the stance menu is under way and
 // replace every object in it: the gesture finds its token again by id each time it writes, and writes it only while the token is still
@@ -487,7 +499,7 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
                       var cstats = wItem.charStats || '';
                       var stanceBits = [];
                       if (stanceOn('elevation') && tokenElevation(wItem)) stanceBits.push('Elevation ' + fmtElev(tokenElevation(wItem)) + ' yd');
-                      if (stanceOn('posture') && tokenPosture(wItem) !== 'standing') stanceBits.push(POSTURE_LABEL[tokenPosture(wItem)]);
+                      var postAtH = stanceOn('posture') ? tokenPostureAt(wItem) : null; if (postAtH && postAtH.i > 0 && postAtH.p) stanceBits.push(String(postAtH.p.name || ''));   // conditions C3: its posture's name in the list in use (a text node below)
                       var stanceLine = stanceBits.length ? '<div class="rc" style="color:var(--gold); font-size:11px;">' + stanceBits.join(' \u00b7 ') + '</div>' : '';
 
                       // GM only: the roster entry's notes ride along (players never get `info`)
@@ -1000,10 +1012,10 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
           // Stance chips (Settings ▸ VTT features, per campaign): a small row at the bottom of the token,
           // inside its own cell so one-token-per-hex still reads at grid scale.
           var elevV = item.isChar && stanceOn('elevation') ? tokenElevation(item) : 0;
-          var postV = item.isChar && stanceOn('posture') ? tokenPosture(item) : 'standing';
+          var postAt = item.isChar && stanceOn('posture') ? tokenPostureAt(item) : null;   // conditions C3: its place in the list in use (the first: no chip)
           var stanceHtml = '';
           if (elevV) stanceHtml += '<span class="chip elev' + (elevV < 0 ? ' below' : '') + '" title="Elevation ' + fmtElev(elevV) + ' yd">' + fmtElev(elevV) + '</span>';
-          if (postV !== 'standing') stanceHtml += '<span class="chip post" title="' + esc(POSTURE_LABEL[postV]) + '&#10;' + esc(POSTURE_RANGED_LINE) + '">' + POSTURE_CHIP[postV] + '</span>';   // its tooltip's second line: a foe's ranged roll at -2
+          if (postAt && postAt.i > 0 && postAt.p) stanceHtml += '<span class="chip post" title="' + esc(postAt.p.name) + (postAt.p.small === true ? '&#10;' + esc(POSTURE_RANGED_LINE) : '') + '">' + esc(postAt.p.tag) + '</span>';   // its tooltip's second line, a smaller target's: a foe's ranged roll at -2
           var stanceEl = el.querySelector(':scope > .token-stance');
           if (stanceHtml) {
               if (!stanceEl) { stanceEl = document.createElement('div'); stanceEl.className = 'token-stance'; el.appendChild(stanceEl); }

@@ -215,7 +215,7 @@ function eligibleBlocker(w) {
     if (w.isChar || w.waiting) return false;                        // a token never blocks sight: a player's copy may lack it (fog drops it), so host and client would disagree
     if (w.sightType === 'door' && w.doorOpen) return false;         // an OPEN door blocks nothing; a closed one blocks like a wall
     if (w.fill) return true;                                        // a fill-bucket cell
-    return w.type === 'rect' || w.type === 'hexagon' || w.type === 'diamond' || w.type === 'circle' || w.type === 'image';   // item 18: a solid shape or an image, turned or not, by its outline (fogcore itemCells)
+    return w.type === 'rect' || w.type === 'hexagon' || w.type === 'diamond' || w.type === 'circle' || w.type === 'image' || w.type === 'path';   // item 18: a solid shape or an image, turned or not, by its outline (fogcore itemCells); W2: a pen line as the line itself (pathSegs)
 }
 // Senses S7b (the owner's answer 5a): smoke — a piece the GM ticks as smoke (item.smoke, true) hides what is in it and past it from the eyes and
 // from every sense the walls stop that does not see through smoke (a sense's veil). A set of its own beside the sight-blockers, so movement,
@@ -265,7 +265,7 @@ function smokeFor(map, grid) {   // { cellKey: 1 } or null, kept on the map's sa
 }
 function smokeUnion(map, blk, sm) {   // the walls and the smoke as one set, for a line smoke stops; kept while the walls' set is the same object
     var su = _smokeUnion[map.id];
-    if (!su || su.blk !== blk) { var un = Object.create(null), k; if (blk) for (k in blk) un[k] = 1; for (k in sm) un[k] = 1; su = _smokeUnion[map.id] = { blk: blk, set: un }; }
+    if (!su || su.blk !== blk) { var un = Object.create(null), k; if (blk) for (k in blk) un[k] = 1; for (k in sm) un[k] = 1; core().copyWalls(blk, un); su = _smokeUnion[map.id] = { blk: blk, set: un }; }   // item 18 W2: the walls' thin walls too
     return su.set;
 }
 // The grid cells an eligible blocker item covers — shared by blockersFor and the door click-toggle so they agree.
@@ -276,17 +276,18 @@ function blockersFor(map, grid) {
     // in solo mode — there onLocalSave early-returns before invalidateVision(), so id alone would go stale.
     var stamp = (map.meta && map.meta.updated) || 0;
     if (_blockerCache[map.id] !== undefined && _blockerStamp[map.id] === stamp) return _blockerCache[map.id];
-    var C = core(), wb = map.whiteboard || [], set = Object.create(null), n = 0, over = false;
+    var C = core(), wb = map.whiteboard || [], set = Object.create(null), n = 0, over = false, segs = [];
     for (var i = 0; i < wb.length && !over; i++) {
         var w = wb[i]; if (!eligibleBlocker(w)) continue;
+        if (w.type === 'path') { var ps = C.pathSegs(w); for (var q = 0; q < ps.length; q++) { segs.push(ps[q]); if (segs.length > C.LIMITS.wallSegs) { over = true; break; } } continue; }   // item 18 W2: a pen line blocks as its line
         var cells = footprintCells(w, grid, C);
         for (var j = 0; j < cells.length; j++) { var k = C.cellKey(cells[j], grid); if (!set[k]) { set[k] = 1; if (++n > C.LIMITS.blockerCells) { over = true; break; } } }
     }
     if (over && !_blockerWarned[map.id]) { _blockerWarned[map.id] = 1; toast('Too many sight-blockers on this map — vision is not being blocked here.'); }
     if (!over) _blockerWarned[map.id] = 0;
-    var result = (over || n === 0) ? null : set;                    // over cap or none → no occlusion (fail open)
+    var result = (over || (n === 0 && !segs.length)) ? null : C.withWalls(set, segs, grid);   // over cap or none → no occlusion (fail open); item 18 W2: the lines' walls on the set
     _blockerOver[map.id] = over;   // lighting review: over the cap no wall blocks, so no light may be judged through them (the map reads by sight only)
-    var bsig = result ? Object.keys(result).sort().join(';') : '';
+    var bsig = result ? Object.keys(result).sort().join(';') + (segs.length ? '|' + segs.map(function(s) { return s.map(function(v) { return Math.round(v * 10) / 10; }).join(','); }).join(';') : '') : '';   // W2: a moved line is a new version
     if (_blockerSig[map.id] !== bsig) { _blockerSig[map.id] = bsig; _blockerVer[map.id] = (_blockerVer[map.id] || 0) + 1; }
     _blockerStamp[map.id] = stamp;
     _blockerCache[map.id] = result;
@@ -356,17 +357,21 @@ function coverSetsFor(map, grid) {
     if (!map || !grid) return null;
     var stamp = (map.meta && map.meta.updated) || 0;
     if (_coverCache[map.id] !== undefined && _coverStamp[map.id] === stamp) return _coverCache[map.id];
-    var C = core(), wb = map.whiteboard || [], cap = C.LIMITS.blockerCells, hard = Object.create(null), soft = Object.create(null), nh = 0, ns = 0, over = false;
+    var C = core(), wb = map.whiteboard || [], cap = C.LIMITS.blockerCells, hard = Object.create(null), soft = Object.create(null), nh = 0, ns = 0, over = false, hs = [], ss = [];
     for (var i = 0; i < wb.length && !over; i++) {
         var role = C.coverRole(wb[i]); if (!role) continue;
+        if (wb[i].type === 'path') { var pz = C.pathSegs(wb[i]), into = role === 'hard' ? hs : ss; for (var q = 0; q < pz.length; q++) { into.push(pz[q]); if (hs.length > C.LIMITS.wallSegs) { over = true; break; } } if (ss.length > C.LIMITS.wallSegs) ss.length = C.LIMITS.wallSegs; continue; }   // item 18 W2: a pen line's cover is its line
         var cells = footprintCells(wb[i], grid, C);
         for (var j = 0; j < cells.length; j++) { var k = C.cellKey(cells[j], grid); if (role === 'hard') { if (!hard[k]) { hard[k] = 1; if (++nh > cap) { over = true; break; } } } else if (!soft[k] && ns <= cap) { soft[k] = 1; ns++; } }
     }
     // the walls and the see-over cells together over the cap (a cell counted once): the walls keep their cover, the see-over pieces give none.
     // all: the union the fogcore calls read, built once here
     var all = hard;
-    if (!over && ns) { all = Object.create(null); for (var hk in hard) all[hk] = 1; for (var sk in soft) all[sk] = 1; if (Object.keys(all).length > cap) { all = hard; soft = Object.create(null); ns = 0; } }
-    var result = over || !(nh + ns) ? null : { hard: nh ? hard : null, soft: ns ? soft : null, all: all };
+    if (!over && ns) { all = Object.create(null); for (var hk in hard) all[hk] = 1; for (var sk in soft) all[sk] = 1; if (Object.keys(all).length > cap) { all = hard; soft = Object.create(null); ns = 0; ss = []; } }
+    var hasH = nh || hs.length, hasS = ns || ss.length;   // item 18 W2: the lines' walls on the sets that give their cover (all: both)
+    if (hasS && all === hard) { all = Object.create(null); for (var hk2 in hard) all[hk2] = 1; }
+    if (hasH) C.withWalls(hard, hs, grid); if (hasS) { C.withWalls(soft, ss, grid); if (all !== hard) C.withWalls(all, hs.concat(ss), grid); }
+    var result = over || !(hasH || hasS) ? null : { hard: hasH ? hard : null, soft: hasS ? soft : null, all: all };
     _coverStamp[map.id] = stamp; _coverCache[map.id] = result;
     return result;
 }
@@ -441,7 +446,7 @@ function toggleDoorAt(boardX, boardY) {
     for (var i = wb.length - 1; i >= 0; i--) {
         var w = wb[i];
         if (!w || w.blocksSight !== true || w.sightType !== 'door' || w.hidden) continue;
-        var cells = footprintCells(w, grid, C);
+        var cells = w.type === 'path' ? C.pathCells(w, grid) : footprintCells(w, grid, C);   // item 18 W2: a line door is found on the cells its line passes
         for (var j = 0; j < cells.length; j++) {
             if (C.cellKey(cells[j], grid) === key) { w.doorOpen = !w.doorOpen; save(); if (window.appRender) window.appRender(); invalidateVision(); redraw(); toast(w.doorOpen ? 'Door opened.' : 'Door closed.'); return true; }
         }

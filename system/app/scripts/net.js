@@ -4719,7 +4719,7 @@ function handleMessage(msg, conn) {
         if (doorEl.doorLock) { denyDR('locked'); return; }                            // GM-locked against players
         var Cdr = window.wpFogCore; if (!Cdr) return;
         var gridDR = Cdr.gridFor((amDR.meta && amDR.meta.gridType) || 'off', amDR.fog && amDR.fog.cell); if (!gridDR) return;   // gridless: can't judge adjacency -> ignore
-        var dCellsR = Cdr.itemCells(doorEl, gridDR);   // item 18: the door's own cells, by its outline (a turned door as it is drawn)
+        var dCellsR = doorEl.type === 'path' ? Cdr.pathCells(doorEl, gridDR) : Cdr.itemCells(doorEl, gridDR);   // item 18: the door's own cells, by its outline (a turned door as it is drawn); W2: a line door's, the cells its line passes
         var adjacentR = (amDR.whiteboard || []).some(function(w) {
             if (!w || !w.isChar || w.hidden || w.ownerId !== profDR.id) return false;
             var tc = Cdr.cellOf(w.x + (w.w || 60) / 2, w.y + (w.h || 52) / 2, gridDR);

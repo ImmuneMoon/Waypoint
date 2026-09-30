@@ -19,6 +19,9 @@ function net() { return window.wpNet || null; }
 function featureOn() { return window.wpVtt ? !!window.wpVtt.on('sheets') : true; }
 function canWrite() { return !!(window.wpCanPersistLocal && window.wpCanPersistLocal()) && !window.wpStream; }
 function isClient() { var n = net(); return !!(n && n.active && n.role === 'client' && !n.stream); }
+// Item 20 K5b ("reset drained attributes if the GM allows"): at a table whose GM fills pools themselves (camp.turnRules.fill: 'gm'), a player's
+// Fill button and a section's Reset all stay inert — their pools still move by − and + as the system lets them
+function fillBarred() { var camp = getActiveCampaign(); return isClient() && !!camp && !!camp.turnRules && typeof camp.turnRules === 'object' && camp.turnRules.fill === 'gm'; }
 function myId() { var n = net(); return n ? n.myId : null; }
 function clone(o) { return JSON.parse(JSON.stringify(o)); }
 function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
@@ -1352,10 +1355,10 @@ function pinChip(g, ctx) {   // a Pin in a section's header (like a handbook chi
 // inert when there is nothing to reset; null when the section places no pool and no counter
 function resetChip(sec, ctx) {
     var who = { gm: ctx.gm, own: ctx.own }, rt = resetTargets(ctx.sys, ctx.c, sec, F(), who); if (!rt.any) return null;
-    var live = _fxLive && !(ctx.vctx && ctx.vctx.preview) && !window.wpPopout, targets = rt.targets, on = live && targets.length > 0;
+    var live = _fxLive && !(ctx.vctx && ctx.vctx.preview) && !window.wpPopout, targets = rt.targets, barred = typeof fillBarred === 'function' && fillBarred(), on = live && targets.length > 0 && !barred;   // K5b: the GM fills pools at this table
     var ch = el('span', 'sheet-sec-chip sheet-sec-reset'); ch.setAttribute('role', 'button'); ch.tabIndex = 0; ch.dataset.reset = sec.id; ch.setAttribute('aria-disabled', on ? 'false' : 'true');   // focusable even when inert (it says why); data-reset keeps the focus across a redraw
     ch.appendChild(iconNode('icon:rotate-left', 'sheet-chip-ico')); ch.appendChild(el('span', 'sheet-chip-txt', sec.resetText || 'Reset all'));
-    ch.title = !live ? 'Resets this section\u2019s pools and counters (on the sheet itself)' : !rt.allowed ? 'Only the GM resets these' : targets.length ? 'Resets ' + targets.map(function(t) { return t.label; }).join(', ') : 'Nothing to reset: every pool is full and every counter at its start';
+    ch.title = !live ? 'Resets this section\u2019s pools and counters (on the sheet itself)' : barred ? 'The GM resets pools at this table' : !rt.allowed ? 'Only the GM resets these' : targets.length ? 'Resets ' + targets.map(function(t) { return t.label; }).join(', ') : 'Nothing to reset: every pool is full and every counter at its start';
     var go = function(e) {
         e.preventDefault(); e.stopPropagation(); if (!on || ch.closest('#systemModal')) return;
         sec.fields.forEach(function(pl) { var pk = pl && typeof pl.id === 'string' ? ctx.c.id + '|' + pl.id : ''; if (pk && _stepPend[pk]) { clearTimeout(_stepPend[pk].timer); delete _stepPend[pk]; } });   // the reset is the later action: a minus/plus burst still waiting on this section's counters is dropped
@@ -2942,7 +2945,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
         r.appendChild(minus); r.appendChild(ci); r.appendChild(plus); r.appendChild(mx);
         if (f.reset) {   // Fold B: fill back to the max (the host clamps it like any edit)
             var rs = el('button', 'tool ghost sheet-pm sheet-reset', '\u21bb'); rs.dataset.fid = f.id; rs.dataset.part = 'reset';
-            rs.title = max === null ? 'No max to fill to' : 'Back to full (' + fmtNum(max) + ')'; rs.disabled = !editable || max === null || cur === max;
+            var fb = typeof fillBarred === 'function' && fillBarred(); rs.title = fb ? 'The GM fills pools at this table' : max === null ? 'No max to fill to' : 'Back to full (' + fmtNum(max) + ')'; rs.disabled = !editable || max === null || cur === max || fb;   // K5b
             rs.addEventListener('click', function() { if (max !== null) commit(c, f, { cur: max }); });
             r.appendChild(rs);
         }

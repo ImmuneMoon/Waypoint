@@ -717,6 +717,7 @@ function sanitizeAppState(s, recipientId) {   // recipientId: the player this co
         // its own sight the same way the host does (character sheets already travel per recipient above)
         if (camp.id === c.activeCampaignId && window.wpFogCore) camp.fog = window.wpFogCore.cleanCampFog(camp.fog);
         else delete camp.fog;
+        var ckS = camp.id === c.activeCampaignId && typeof clockOut === 'function' ? clockOut(camp) : null; if (ckS) camp.clock = ckS; else delete camp.clock;   // item 20 K2: the hosted campaign's clock, its time alone, while players may see it
         Object.keys(camp.items).forEach(function(id) {
             var orig = camp.items[id];
             if (orig && orig.type === 'doc' && camp.id !== c.activeCampaignId) { delete camp.items[id]; return; }   // a session is one campaign: only the hosted campaign's pages travel
@@ -1617,6 +1618,7 @@ net.onLocalSave = function() {
         net.syncLibrary();   // and the library players may look through (Stage 6 library L3), the same way
         net.syncNewPlayers(); // and the rules for players without a character (Onboarding F1a), the same way
         net.syncCampFog();  // and its fog defaults (an empty map's fog, the default sight), the same way
+        net.syncClock();    // and its clock (item 20 K2), the same way
         if (patch) net.sendItem(patch.campId, patch.itemId);
         if (net.syncCombatHidden) net.syncCombatHidden();   // fold M0: after the map (its stub first): a token hidden or shown mid-fight changes its row
         patch = null;
@@ -1983,6 +1985,22 @@ net.syncSenses = function() {
 };
 // [netcheck:syncsenses-end]
 // [netcheck:campfogsync-end]
+// [netcheck:clocksync-start]
+// Item 20 K2: the hosted campaign's clock — the join snapshot carries it; a change goes to admitted players the way the fog defaults do,
+// once per change, cleaned again on arrival: its time alone. While the Calendar feature is off or the GM keeps the date from players the
+// message carries null and a player's app drops its clock. A host has NO branch for 'clock'
+net._lastClockSig = null;
+function clockOut(camp) { var CCo = window.wpCalendarCore; if (!camp || !CCo || !CCo.cleanClock || !window.wpVtt || !window.wpVtt.campaignOn('calendar', camp)) return null; var ck = CCo.cleanClock(camp.clock) || { t: 0 }; return ck.hide ? null : { t: ck.t }; }
+net.clockMessage = function() { var camp = getActiveCampaign(); if (!camp) return null; return { type: 'clock', campId: camp.id, clock: clockOut(camp) }; };
+net.syncClock = function() {
+    if (!net.active || net.role !== 'host') return;
+    var msg = net.clockMessage(); if (!msg) return;
+    var s = msg.campId + '\n' + JSON.stringify(msg.clock);
+    if (s === net._lastClockSig) return;
+    net._lastClockSig = s;
+    net.conns.forEach(function(c) { if (c.open && own(net.roster, c.peer)) { try { c.send(msg); } catch (e) { sendFailed(e); } } });
+};
+// [netcheck:clocksync-end]
 // Turn-based combat T5b: who may pause, reset or stop an effect's countdown (camp.turnRules.timers) — a player's sheet shows the controls
 // only when they may. The join snapshot carries it; a change mid-session goes out the way a rename does, the one word only (the host
 // judges every press whatever a player's copy says). A host has NO branch for 'turnRules': a client never sets the table's rules.
@@ -3237,6 +3255,8 @@ function marksOwnMoved(mapId, toks, pid) {   // a player dropped tokens of their
 function combatRefresh() { render(); if (window.wpRenderCombatStrip) window.wpRenderCombatStrip(); }
 // Stage 6 HUD G10: a combat's round just changed (its start, or a step past either end) — the sheets' round hook runs the Each round actions;
 // a fault in it never stops the turn
+// Item 20 K2 (the Foundry model): n rounds of a fight move the campaign's clock on by the round's length, back for a step back (calendar.js)
+function clockRounds(n) { try { if (window.wpCalendar && window.wpCalendar.rounds) window.wpCalendar.rounds(n); } catch (e) { console.error(e); } }
 function roundChanged(mapId, c) { try { if (window.wpSheets && window.wpSheets.roundHook) window.wpSheets.roundHook(mapId, c); } catch (e) { console.error(e); } if (typeof marksRound === 'function') { try { marksRound(mapId, c); } catch (e) { console.error(e); } } }   // senses S4b: marks held to the round
 function turnStarted(mapId, c) { try { if (window.wpSheets && window.wpSheets.turnHook) window.wpSheets.turnHook(mapId, c); } catch (e) { console.error(e); } try { turnMoveStart(mapId, c); } catch (e) { console.error(e); } try { turnActsStart(mapId, c); } catch (e) { console.error(e); } try { turnFxStart(mapId, c); } catch (e) { console.error(e); } if (typeof marksTurn === 'function') { try { marksTurn(mapId, c); } catch (e) { console.error(e); } } }   // turn-based combat T2b: a character's turn just began; T3b: its move; senses S4b: its player's marks
 // [netcheck:turnmove-start]
@@ -3359,6 +3379,7 @@ net.combatSet = function(mapId, combat) {
         if (had && (had.side === 'pc' || had.side === 'rest')) net.combats[mapId].side = had.side;
         if (typeof combatSides === 'function') combatSides(mapId, net.combats[mapId], !had);   // ...and each side together (a new fight rolls the sides first)
         if (!had || had.round !== net.combats[mapId].round) roundChanged(mapId, net.combats[mapId]);   // G10: the first round (a roster edit keeps its round)
+        if (had && had.round !== net.combats[mapId].round && typeof clockRounds === 'function') clockRounds(net.combats[mapId].round - had.round);   // item 20 K2: a round edited in the roster moves the clock with it (a new fight moves nothing)
         if (!had) logEvent('table', 'Combat started on ' + mapTitleOf(mapId) + ': ' + combat.rows.map(function(r) { return r.name; }).join(', '));
         toast(had ? 'Combat roster updated.' : 'Combat started on ' + mapTitleOf(mapId) + ' — ' + (net.combats[mapId].rows[net.combats[mapId].turn] || net.combats[mapId].rows[0]).name + ' goes first.');
     } else {
@@ -3459,6 +3480,7 @@ net.combatStep = function(mapId, dir) {
     if (c.rows[t]) delete c.rows[t].held;   // ...and a row whose turn it is holds nothing
     if (c.round > r0 && typeof combatNewRound === 'function') { combatNewRound(mapId, c); t = c.turn; }   // initiative O4: a new round's order (rolled again, by side), the first time the fight reaches it
     if (c.round !== r0) roundChanged(mapId, c);   // G10
+    if (c.round !== r0 && typeof clockRounds === 'function') clockRounds(c.round - r0);   // item 20 K2: a round moves the clock on by its length (a step back, back)
     toast((c.rows[t].name || 'Someone') + "'s turn" + (t === 0 && dir > 0 ? ' — round ' + c.round : '') + '.');
     broadcastCombats(); combatRefresh();
     if (c.round !== r0 || c.turn !== t0) turnStarted(mapId, c);   // T2b: whoever's turn it now is (nothing when a step back at the first turn moves nothing), after the broadcast
@@ -4015,6 +4037,7 @@ function admitPlayer(conn, prof, provenKey) {
     var npm = net.newPlayersMessage(); if (npm) net._lastNewPlayersSig = newPlayersSig(npm);   // and the rules for players without a character (Onboarding F1a)
     var cnm = net.campNameMessage(); if (cnm) net._lastCampNameSig = cnm.campId + '\n' + cnm.name;   // and its name
     var cfm = net.campFogMessage(); if (cfm) net._lastCampFogSig = cfm.campId + '\n' + JSON.stringify(cfm.fog);   // and its fog defaults
+    var ckm = net.clockMessage(); if (ckm) net._lastClockSig = ckm.campId + '\n' + JSON.stringify(ckm.clock);   // and its clock (item 20 K2)
     var trm = net.turnRulesMessage(); if (trm) net._lastTurnRulesSig = trm.campId + '\n' + trm.timers;   // and who may press an effect's timer
     var lbm = net.libManifestMessage(); if (lbm && lbm.packs.length) { try { conn.send(lbm); } catch (e) { sendFailed(e); } }   // L3: the library players may look through, to this peer only
     if (land.stage && net.sendFxArrival) net.sendFxArrival(conn, land.stage.itemId);   // the running weather / held wash of the map they land on
@@ -4758,6 +4781,17 @@ function handleMessage(msg, conn) {
         campFg.fog = FCf.cleanCampFog(msg.fog);
         if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
         // [netcheck:campfog-end]
+    } else if (msg.type === 'clock' && net.role === 'client') {
+        // [netcheck:clockmsg-start]
+        // item 20 K2: the hosted campaign's clock from the synced host, for the hosted campaign, cleaned again (calendarcore cleanClock): its
+        // time alone, never a hide; null takes it away (the Calendar off, or the GM keeps the date from players)
+        if (!net.foreign || conn.peer !== net.syncedPeer || net.stream) return;
+        if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId) return;
+        var campCk = campOf(msg.campId), CCk = window.wpCalendarCore; if (!campCk || !CCk || !CCk.cleanClock) return;
+        var ckIn = msg.clock === null ? null : CCk.cleanClock(msg.clock);
+        if (ckIn) campCk.clock = { t: ckIn.t }; else delete campCk.clock;
+        if (window.wpCalendar) window.wpCalendar.refresh();
+        // [netcheck:clockmsg-end]
     } else if (msg.type === 'fogDiff' && net.role === 'client') {
         // [netcheck:fogdiff-start]
         // Fold M: the host catching this player's copy of one fogged map up in place (applyFogDiff): from the synced host only, never in the
@@ -5482,6 +5516,7 @@ function startHosting(forceFresh) {
     net._lastSensesSig = null;   // and its senses (senses S2a)
     net._lastDocStyleSig = null; // and the campaign's document look
     net._lastNewPlayersSig = null; // and the rules for players without a character (Onboarding F1a)
+    net._lastClockSig = null;    // and the campaign's clock (item 20 K2)
     setStatus((resumed ? 'Resuming host with your last room code...' : 'Starting host...') + (relayOnly() ? ' (relay-only connections)' : ''));
     peer.on('open', function() {
         net.active = true;
@@ -6462,7 +6497,7 @@ net.syncSessionButtons = syncSessionButtons;
     });
 })();
 // Session Log window
-var _logKinds = { session: 'Session', player: 'Players', handout: 'Handouts', travel: 'Travel', share: 'Shares', chat: 'Chat', dice: 'Dice', table: 'Table', items: 'Items', char: 'Characters' };
+var _logKinds = { session: 'Session', player: 'Players', handout: 'Handouts', travel: 'Travel', share: 'Shares', chat: 'Chat', dice: 'Dice', table: 'Table', items: 'Items', char: 'Characters', time: 'Time' };
 function fmtLogTime(ts) { var d = new Date(ts); return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
 net.openSessionLog = function() {
     var m = ui('sessionLogModal'), list = ui('sessionLogList'), sel = ui('sessionLogKind'); if (!m || !list) return;

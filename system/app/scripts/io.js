@@ -189,7 +189,8 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
                 if (SCm.ownedTokenPlan) SCm.applyOwnerOps(c, SCm.ownedTokenPlan(c, { all: !sheetsOnM }));
             }
         }
-        if (c.fog !== undefined && window.wpFogCore) c.fog = window.wpFogCore.cleanCampFog(c.fog);   // fog of war (1.5.0): campaign sight-field mapping + default, cleaned on load
+        if (c.fog !== undefined && window.wpFogCore) c.fog = window.wpFogCore.cleanCampFog(c.fog);
+        if (c.clock !== undefined) { var ckL = window.wpCalendarCore && window.wpCalendarCore.cleanClock ? window.wpCalendarCore.cleanClock(c.clock) : null; if (ckL) c.clock = ckL; else delete c.clock; }   // item 20 K2: the campaign's clock, cleaned on load (none without the cleaner)   // fog of war (1.5.0): campaign sight-field mapping + default, cleaned on load
     });
 
     // Picture categories (1.5.0): the app-wide ones move into the campaign that owns or uses most of each

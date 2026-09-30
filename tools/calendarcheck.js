@@ -115,6 +115,125 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         && ci.includes('Beside "combat", the system may carry "calendar" (absent: a plain count of days of 24 hours):') && ci.includes('"first" and a leap rule\'s "period" count places as written, move with a row dropped before them and go with their own.')
         && wn.includes("- The System editor's Calendar tab: the calendar your game keeps, its") && wa.includes("- The System editor's Calendar tab: the calendar your game keeps, its") && cm.includes('| `tools/calendarcheck.js` |') && ck.includes('run: node tools/calendarcheck.js'));
 
+    {   // item 20 K2 (its own scope: its names never meet K1's)
+    /* ---- item 20 K2: the clock ---- */
+    const { cleanClock } = C;
+    const ckK = [cleanClock({ t: 3600.9, hide: true, notes: [1], x: '<b>' }), cleanClock({ t: -5, hide: 'yes' }), cleanClock({ t: 1e20 }), cleanClock({ t: 'x' }), cleanClock({}), cleanClock(null), cleanClock([]), cleanClock(5), cleanClock(JSON.parse('{"__proto__": {"hide": true}, "t": 7}'))];
+    check('item 20 K2 cleanClock: the time as whole seconds from 0 to 10^15 (below 0 or no number: 0, past the limit: the limit), the hide flag only as true, nothing else kept; not an object is no clock; a "__proto__" key is never read',
+        j(ckK) === j([{ t: 3600, hide: true }, { t: 0 }, { t: 1e15 }, { t: 0 }, { t: 0 }, null, null, null, { t: 7 }]) && ({}).hide === undefined && j(cleanClock(ckK[0])) === j(ckK[0]), j(ckK));
+
+    // the window and the chip (calendar.js, sliced by its calendarwin markers and from openWin to its wiring, run for real on a page of plain objects)
+    const calJs = read('system/app/scripts/calendar.js'), cutJ = (a, b) => { const i = calJs.indexOf(a), k = calJs.indexOf(b, i + 1); if (i < 0 || k < 0) throw new Error('calendar.js slice: ' + a); return calJs.slice(i, k); };
+    const winSrc = cutJ('// [sinkcheck:calendarwin-start]', '// [sinkcheck:calendarwin-end]') + cutJ('function openWin()', '(function wire()');
+    const mkDom = () => {
+        const reg = {};
+        const node = (tag, text) => ({ tag, _text: text === undefined ? '' : String(text), className: '', children: [], dataset: {}, style: {}, title: '', type: '', value: '', checked: false, disabled: false, parentNode: null,
+            get textContent() { return this.children.length ? this.children.map(c => c.textContent).join('') : this._text; }, set textContent(v) { this.children = []; this._text = String(v); },
+            appendChild(c) { this.children.push(c); c.parentNode = this; return c; },
+            get classList() { const self = this, has = c => (' ' + self.className + ' ').indexOf(' ' + c + ' ') >= 0; return { contains: has, toggle: (c, on) => { if (on === undefined) on = !has(c); if (on && !has(c)) self.className = (self.className + ' ' + c).trim(); if (!on && has(c)) self.className = (' ' + self.className + ' ').replace(' ' + c + ' ', ' ').trim(); } }; },
+            querySelector(sel) { const cls = sel.replace(/^\./, ''), walk = n => { for (const k of n.children) { if ((' ' + k.className + ' ').indexOf(' ' + cls + ' ') >= 0) return k; const r = walk(k); if (r) return r; } return null; }; return walk(this); },
+            closest(sel) { let n = this; while (n) { if (sel === 'button' && n.tag === 'button') return n; n = n.parentNode; } return null; } });
+        const doc = { createElement: t => node(t), createTextNode: t => node('#text', t), getElementById: id => reg[id] || null };
+        reg.calendarModal = node('div'); reg.calendarModal.style.display = 'none'; reg.calendarBody = node('div'); reg.clockChip = node('button'); const tx = node('span'); tx.className = 'clock-txt'; reg.clockChip.appendChild(tx);
+        return { doc, reg };
+    };
+    const walkN = (n, p, acc) => { if (p(n)) acc.push(n); (n.children || []).forEach(k => walkN(k, p, acc)); return acc; }, findN = (n, c) => walkN(n, x => (' ' + x.className + ' ').indexOf(' ' + c + ' ') >= 0, []);
+    const mkCal = o => {
+        const Dm = mkDom(), log = [], saves = [], toasts = [], local = [];
+        const win = { wpVtt: { on: id => id === 'calendar' && o.on !== false, setLocal: (id, off) => { local.push([id, off]); return true; } }, wpNet: o.player ? { foreign: true, logEvent: () => log.push('player!') } : { foreign: false, logEvent: (k, t) => log.push([k, t]) } };
+        const api = new Function('document', 'window', 'getActiveCampaign', 'save', 'toast', 'roundSecs', 'cleanCalendar', 'cleanClock', 'dateOf', 'timeOf', 'periodDays', 'dayLength', 'fmtDate', 'fmtWhen', 'fmtSpan', 'CAL_LIMITS', 'net', 'sysNow',
+            "'use strict';\n" + winSrc + '\nreturn { gridOf, stepView, viewOf, stepsOf, unitsOf, renderWin, moveTo, moveBy, setHidden, onWinClick, onWinChange, openWin, closeWin, refresh, rounds, st: () => ({ view, pick }) };')(
+            Dm.doc, win, () => o.camp, () => saves.push(j(o.camp && o.camp.clock !== undefined ? o.camp.clock : null)), t => toasts.push(t), S.roundSecs, cleanCalendar, cleanClock, dateOf, timeOf, periodDays, dayLength, fmtDate, fmtWhen, fmtSpan, C.CAL_LIMITS, () => win.wpNet, () => o.sys);
+        return { api, Dm, log, saves, toasts, local, win, body: Dm.reg.calendarBody, chip: Dm.reg.clockChip, modal: Dm.reg.calendarModal };
+    };
+    const cal0 = mkCal({ camp: { id: 'k' }, sys: null }).api, ton = timeOf(tw, { year: 1, period: 0, pday: 15, h: 10 }), g1 = cal0.gridOf(tw, { yi: 0, period: 0 }, ton, 20), g2 = cal0.gridOf(tw, { yi: 0, period: 1 }, ton, null);
+    const gH = cal0.gridOf(gsc, { yi: 0, period: 6 }, 0, null), gP = cal0.gridOf(null, { page: 1 }, 29 * D, 28), gN = cal0.gridOf(custom, { yi: 0, period: 0 }, 0, null);
+    check('item 20 K2 the calendar\'s grid (gridOf, run for real): the period in view by the week\'s columns and names, blank cells before its first day\'s weekday, each day numbered from 1 with its day count, today and the picked day marked; a one-day holiday outside the month count; a plain count of days in pages of 28; no week: seven columns and no names',
+        g1.title === 'January, 1' && g1.cols === 7 && j(g1.heads) === j(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']) && g1.cells.length === 31 && g1.cells[0].day === 0 && g1.cells.filter(c => c.today).map(c => c.n) + '' === '15' && g1.cells.filter(c => c.picked).map(c => c.n) + '' === '21'
+        && g2.title === 'February, 1' && g2.cells.slice(0, 3).every(c => c === null) && g2.cells.length === 31 && g2.cells[3].day === 31 && g2.cells[3].n === 1 && !g2.cells.some(c => c && (c.today || c.picked))
+        && gH.title === 'Midyear Holiday, 3964 BBY' && gH.cells.length === 1 && gH.cells[0].day === 180 && gP.title === 'Days 29' + String.fromCharCode(0x2013) + '56' && gP.cells.length === 28 && gP.cells[0].n === 29 && gP.cells[1].today === true && gP.cells[0].picked === true && gP.heads.length === 0
+        && gN.cols === 7 && gN.heads.length === 0 && gN.cells.length === 3 && gN.cells[0] !== null, j([g1.title, g2.cells.slice(0, 4), gH, gP.title]));
+    const sv = [cal0.stepView(tw, { yi: 0, period: 11 }, 1), cal0.stepView(tw, { yi: 0, period: 0 }, -1), cal0.stepView(tw, { yi: 2, period: 0 }, -1), cal0.stepView(tw, { yi: 2, period: 5 }, 1), cal0.stepView(null, { page: 0 }, -1), cal0.stepView(null, { page: 3 }, 1), cal0.viewOf(tw, ton), cal0.viewOf(null, 60 * D)];
+    check('item 20 K2 the window\'s steps between periods (stepView, viewOf): on past the year\'s last period into the next year, back past the first into the year before, never before the first year; a plain count by pages of 28 from 0; the view of a moment is its period (or page)',
+        j(sv) === j([{ yi: 1, period: 0 }, { yi: 0, period: 0 }, { yi: 1, period: 11 }, { yi: 2, period: 6 }, { page: 0 }, { page: 4 }, { yi: 0, period: 0 }, { page: 2 }]), j(sv));
+    const sysU = { combat: { turn: { secs: 1, units: [{ key: 'watch', label: 'Watches', secs: 14400 }, { key: 'x', secs: 0 }, { key: 5, secs: 1 }, { key: 'shift', label: HOSTILE, secs: 28800 }] } } };
+    const st1 = cal0.stepsOf(tw), st2 = cal0.stepsOf(custom), un1 = cal0.unitsOf(tw, sysU), un2 = cal0.unitsOf(null, null);
+    check('item 20 K2 the steps and the amount\'s units by the calendar\'s own day (stepsOf, unitsOf): a minute, ten minutes, an hour, a day and a week of the calendar (no week, no week step); minutes, hours, days, weeks, then the system\'s own time units with a length (a watch; its label, else its key; by place)',
+        j(st1.map(s => [s.label, s.secs])) === j([['+1 minute', 60], ['+10 minutes', 600], ['+1 hour', 3600], ['+1 day', 86400], ['+1 week', 604800]]) && j(st2.map(s => s.secs)) === j([100, 1000, 10000, 100000])
+        && j(un1.map(u => [u.id, u.name, u.secs])) === j([['min', 'minutes', 60], ['hour', 'hours', 3600], ['day', 'days', 86400], ['week', 'weeks', 604800], ['u0', 'Watches', 14400], ['u3', HOSTILE, 28800]]) && j(un2.map(u => u.id)) === j(['min', 'hour', 'day']), j([st1, st2, un1]));
+    // the GM's window: a calendar from a file with markup in its names
+    const sysH = { calendar: { periods: [{ name: HOSTILE, days: 3 }], week: [HOSTILE, 'B'], era: HOSTILE }, combat: { turn: { secs: 6 } } }, campH = { id: 'k', clock: { t: 3600 } }, WH = mkCal({ camp: campH, sys: sysH });
+    WH.api.openWin(); const bH = WH.body;
+    const daysH = findN(bH, 'cal-day'), headsH = findN(bH, 'cal-head'), stepsH = findN(bH, 'cal-step'), unitsH = findN(bH, 'cal-any-u')[0], hideH = findN(bH, 'cal-hide')[0];
+    check('item 20 K2 the GM\'s calendar window (renderWin, run for real): the date and time; the period\'s title with the calendar\'s own names as text (the era cut to 24); the week\'s names cut to three letters with the whole name as a title; a button per day with its day count and its date as a title; a note until a day is picked; the steps with their seconds; an amount, its units and Move; Players see the date ticked while they do; the round\'s length; nothing of its own markup; the window closes when there is nothing to show',
+        WH.modal.style.display === 'flex' && findN(bH, 'cal-now')[0].textContent === fmtWhen(sysH.calendar, 3600) && findN(bH, 'cal-title')[0].textContent === HOSTILE + ', 1 ' + HOSTILE.slice(0, 24)
+        && headsH.length === 2 && headsH[0].textContent === '<im' && headsH[0].title === HOSTILE && daysH.length === 3 && j(daysH.map(b => [b.textContent, b.dataset.day])) === j([['1', '0'], ['2', '1'], ['3', '2']]) && daysH[0].title === fmtDate(sysH.calendar, 0) + ' (today)' && daysH[0].type === 'button'
+        && walkN(bH, x => x.tag === '#text' || x.className === 'sys-note', []).some(x => x.textContent === 'Pick a day to set the clock to it.') && j(stepsH.map(b => [b.textContent, b.dataset.secs, b.dataset.act])) === j([['+1 minute', '60', 'calstep'], ['+10 minutes', '600', 'calstep'], ['+1 hour', '3600', 'calstep'], ['+1 day', '86400', 'calstep'], ['+1 week', '172800', 'calstep']])
+        && j(unitsH.children.map(o => o.value)) === j(['min', 'hour', 'day', 'week']) && hideH.checked === true && hideH.type === 'checkbox' && findN(bH, 'cal-round')[0].textContent.indexOf('6 seconds') > 0 && findN(bH, 'cal-hideme').length === 0
+        && !/innerHTML|insertAdjacentHTML|outerHTML/.test(winSrc), j([findN(bH, 'cal-title')[0].textContent, stepsH.map(b => b.dataset.secs)]));
+    // the GM's gestures
+    const campG = { id: 'k', clock: { t: 0 } }, WG = mkCal({ camp: campG, sys: { calendar: tw, combat: {} } }); WG.api.openWin();
+    const clickG = el => WG.api.onWinClick({ target: el }), btnG = act => findN(WG.body, 'cal-' + act)[0] || walkN(WG.body, x => x.dataset && x.dataset.act === act, [])[0];
+    clickG(findN(WG.body, 'cal-day')[9]); const pickG = [WG.api.st().pick, findN(WG.body, 'cal-pick-txt')[0].textContent, findN(WG.body, 'cal-set-h')[0].value, findN(WG.body, 'cal-set-m')[0].value];
+    findN(WG.body, 'cal-set-h')[0].value = '24'; clickG(btnG('set')); const badSet = [campG.clock.t, WG.toasts.slice()];
+    findN(WG.body, 'cal-set-h')[0].value = '13'; findN(WG.body, 'cal-set-m')[0].value = '30'; clickG(btnG('set')); const setG = [campG.clock.t, WG.api.st().pick, WG.log.slice(-1)[0]];
+    clickG(findN(WG.body, 'cal-step').find(b => b.textContent === '+1 hour')); const stepG = [campG.clock.t, WG.log.slice(-1)[0]];
+    findN(WG.body, 'cal-any-n')[0].value = '2'; findN(WG.body, 'cal-any-u')[0].value = 'day'; clickG(btnG('any-go')); const anyG = campG.clock.t;
+    findN(WG.body, 'cal-any-n')[0].value = '-1.5'; findN(WG.body, 'cal-any-u')[0].value = 'hour'; clickG(btnG('any-go')); const backG = [campG.clock.t, WG.log.slice(-1)[0]];
+    findN(WG.body, 'cal-any-n')[0].value = ' '; findN(WG.body, 'cal-any-u')[0].value = 'hour'; clickG(btnG('any-go')); findN(WG.body, 'cal-any-n')[0].value = '1'; findN(WG.body, 'cal-any-u')[0].value = 'nope'; clickG(btnG('any-go')); const junkG = [campG.clock.t, WG.toasts.length];
+    const savesG = WG.saves.length; const sameG = WG.api.moveTo(campG.clock.t, 'Set'), zeroG = WG.api.moveBy(-1e9), limitG = WG.api.moveTo(1e20, 'Set');
+    check('item 20 K2 the GM moves the clock from the window (onWinClick, run for real): a day picked shows its date and the clock\'s hour and minute to set; Set the clock refuses an hour past the day (said), else goes to that day at that time, logs it and forgets the pick; a step moves it on and logs "Moved on 1 hour"; an amount in a unit moves it on or back ("Moved back 1 hour, 30 minutes"), a blank amount or an unknown unit only says so; a move to where it is does nothing, below 0 stops at 0, past the limit at the limit; each move saves',
+        j(pickG) === j([9, 'Wednesday, 10 January, 1', '0', '0']) && badSet[0] === 0 && badSet[1].length === 1 && setG[0] === (9 * 86400 + 13 * 3600 + 30 * 60) && setG[1] === null && j(setG[2]) === j(['time', 'Set ' + String.fromCharCode(0x2014) + ' now Wednesday, 10 January, 1, 13:30'])
+        && stepG[0] === setG[0] + 3600 && j(stepG[1]) === j(['time', 'Moved on 1 hour ' + String.fromCharCode(0x2014) + ' now Wednesday, 10 January, 1, 14:30']) && anyG === stepG[0] + 2 * 86400 && backG[0] === anyG - 5400 && backG[1][1].indexOf('Moved back 1 hour, 30 minutes') === 0
+        && junkG[0] === backG[0] && junkG[1] === 3 && sameG === false && zeroG === true && campG.clock.t === 1e15 && limitG === true && WG.saves.length === savesG + 2 && WG.saves.every(s => JSON.parse(s).t >= 0), j([pickG, badSet, setG, stepG, anyG, backG, junkG, campG.clock]));
+    const navG = []; clickG(btnG('next')); navG.push(j(WG.api.st().view)); clickG(btnG('prev')); clickG(btnG('prev')); navG.push(j(WG.api.st().view)); clickG(btnG('back')); navG.push(j(WG.api.st().view));
+    WG.api.onWinChange({ target: Object.assign(findN(WG.body, 'cal-hide')[0], { checked: false }) }); const hid = [j(campG.clock), WG.log.slice(-1)[0]], boxOff = findN(WG.body, 'cal-hide')[0].checked; WG.api.onWinChange({ target: Object.assign(findN(WG.body, 'cal-hide')[0], { checked: true }) }); const shownAgain = [j(campG.clock), WG.log.slice(-1)[0]];
+    const dv = dateOf(tw, 1e15), nowV = j({ yi: dv.yi, period: dv.period });
+    check('item 20 K2 the window\'s navigation and the GM\'s Players see the date (run for real): the period after the one in view, back two (never before the first), and Today back to the clock\'s own; unticking keeps the date from players (logged) and the window shows the box unticked, ticking gives it back and leaves no hide flag',
+        j(navG) === j([j({ yi: 0, period: 1 }), j({ yi: 0, period: 0 }), nowV]) && j(hid) === j([j({ t: 1e15, hide: true }), ['time', 'Players no longer see the date']]) && j(shownAgain) === j([j({ t: 1e15 }), ['time', 'Players see the date again']]) && boxOff === false && findN(WG.body, 'cal-hide')[0].checked === true, j([navG, nowV, hid, shownAgain, boxOff]));
+    // a player's window
+    const campP = { id: 'k', clock: { t: 100 } }, WP = mkCal({ camp: campP, sys: { calendar: tw }, player: true }); WP.api.openWin();
+    const pSteps = findN(WP.body, 'cal-step').length, pHide = findN(WP.body, 'cal-hideme')[0]; WP.api.onWinClick({ target: findN(WP.body, 'cal-day')[3] }); const pPick = WP.api.st().pick;
+    const pMoves = [WP.api.moveTo(5000, 'Set'), WP.api.moveBy(60), WP.api.setHidden(true), WP.api.rounds(3)]; WP.api.onWinClick({ target: pHide });
+    const WP2 = mkCal({ camp: { id: 'k' }, sys: { calendar: tw }, player: true }); WP2.modal.style.display = 'flex'; WP2.api.renderWin();
+    check('item 20 K2 a player\'s window (run for real): the date and the grid, a day may be picked, no steps, no amount, no Set and no Players see the date; nothing of theirs moves or hides the clock; Hide the clock for me switches the Calendar off for them at this table (the feature\'s own switch), says where it comes back and closes the window; with no clock from the host the window shuts',
+        pSteps === 0 && findN(WP.body, 'cal-any-n').length === 0 && findN(WP.body, 'cal-hide').length === 0 && pHide.dataset.act === 'calhideme' && pPick === 3 && j(pMoves) === j([false, false, false, false]) && j(campP.clock) === j({ t: 100 }) && WP.log.length === 0
+        && j(WP.local) === j([['calendar', true]]) && WP.toasts.length === 1 && /Settings/.test(WP.toasts[0]) && WP.modal.style.display === 'none' && WP2.modal.style.display === 'none', j([pSteps, pPick, pMoves, WP.local, WP.toasts]));
+    // the chip and the rounds of a fight
+    const campC = { id: 'k', clock: { t: 7200 } }, WC = mkCal({ camp: campC, sys: { calendar: tw, combat: { turn: { secs: 1 } } } }); WC.api.refresh();
+    const chipTxt = () => findN(WC.chip, 'clock-txt')[0].textContent, c1 = [WC.chip.style.display, chipTxt(), WC.chip.className, WC.chip.title];
+    campC.clock.hide = true; WC.api.refresh(); const c2 = [WC.chip.className, WC.chip.title];
+    const r1 = WC.api.rounds(3), rT = campC.clock.t, r2 = WC.api.rounds(-1), rT2 = campC.clock.t, logR = WC.log.length, r3 = [WC.api.rounds(0), WC.api.rounds(NaN), WC.api.rounds('2')];
+    WC.api.openWin(); const mark = WC.body.children[0]; WC.api.refresh(); const kept = WC.body.children[0] === mark; campC.clock.t += 60; WC.api.refresh(); const redrawn = WC.body.children[0] !== mark && findN(WC.body, 'cal-now')[0].textContent === fmtWhen(tw, campC.clock.t, dateOf(tw, campC.clock.t).s !== 0);
+    const WOff = mkCal({ camp: campC, sys: { calendar: tw }, on: false }); WOff.chip.style.display = ''; WOff.modal.style.display = 'flex'; WOff.api.refresh(); const offR = WOff.api.rounds(2);
+    const WPc = mkCal({ camp: { id: 'k' }, sys: { calendar: tw }, player: true }); WPc.api.refresh(); const WPd = mkCal({ camp: { id: 'k', clock: { t: 60, hide: true } }, sys: { calendar: tw }, player: true }); WPd.api.refresh();
+    check('item 20 K2 the header\'s chip (refresh, run for real): the date and time; for the GM a mark and a title while players do not see it; each round of a fight moves the clock by the system\'s round length (3 rounds of 1 second, one back), never logged, nothing for no rounds or a count that is no number; the open window redrawn only when what it shows changed; the Calendar off hides the chip, shuts the window and moves nothing; a player\'s chip only while the host sends a clock, never marked private whatever it holds',
+        c1[0] === '' && c1[1] === fmtWhen(tw, 7200) && c1[2] === '' && /click for the calendar/.test(c1[3]) && !/do not see/.test(c1[3]) && c2[0] === 'clock-private' && /players do not see it/.test(c2[1])
+        && r1 === true && rT === 7203 && r2 === true && rT2 === 7202 && logR === WC.log.length && WC.log.length === 0 && j(r3) === j([false, false, false]) && kept && redrawn
+        && WOff.chip.style.display === 'none' && WOff.modal.style.display === 'none' && offR === false && WPc.chip.style.display === 'none' && WPd.chip.style.display === '' && /at this table/.test(WPd.chip.title) && WPd.chip.className === '', j([c1, c2, rT, rT2, kept, redrawn]));
+
+    const oS = { camp: { id: 'k1', clock: { t: 0 } }, sys: { calendar: tw } }, WS = mkCal(oS); WS.api.openWin();
+    WS.api.onWinClick({ target: walkN(WS.body, x => x.dataset && x.dataset.act === 'calnext', [])[0] }); WS.api.onWinClick({ target: findN(WS.body, 'cal-day')[4] }); const vBefore = [j(WS.api.st().view), WS.api.st().pick];
+    oS.camp = { id: 'k2', clock: { t: timeOf(tw, { year: 3, period: 4, pday: 1 }) } }; WS.api.refresh(); const vAfter = [j(WS.api.st().view), WS.api.st().pick, findN(WS.body, 'cal-title')[0].textContent];
+    WS.api.onWinClick({ target: findN(WS.body, 'cal-day')[2] }); const pk2 = WS.api.st().pick; oS.camp = { id: 'k3', clock: { t: oS.camp.clock.t } }; WS.api.refresh(); const pk3 = WS.api.st().pick;
+    check('item 20 K2 the open window follows the campaign on screen (refresh, run for real): another campaign resets the view to its own clock\'s period and forgets the day picked',
+        j(vBefore) === j([j({ yi: 0, period: 1 }), 35]) && j(vAfter) === j([j({ yi: 2, period: 4 }), null, 'May, 3']) && typeof pk2 === 'number' && pk3 === null, j([vBefore, vAfter, pk2, pk3]));
+
+    /* ---- K2 wired and said (pinned) ---- */
+    const mainJ = read('system/app/scripts/main.js'), ioJ = read('system/app/scripts/io.js'), vtJ = read('system/app/scripts/vtt.js'), cssJ = read('system/app/style.css');
+    check('item 20 K2 wired (pinned): the chip in the header after the spacer, the Calendar window, calendar.js loaded after its core, the app\'s render refreshing the chip before its no-map return, the load cleaning a campaign\'s clock (none without the cleaner), the Calendar in the feature list (off by default, a player\'s own switch) with its rows in Settings, the chip\'s look',
+        ix.includes('<div class="spacer"></div>\n    <button class="tool ghost hdr-clock" id="clockChip" style="display:none;"') && ix.includes('<span class="clock-txt"></span></button>') && ix.includes('<div id="calendarModal" style="display:none;') && ix.includes('<div id="calendarBody" class="cal-body"></div>') && ix.includes('id="calendarClose"')
+        && ix.includes('<script type="module" src="scripts/calendarcore.js"></script>\n<script type="module" src="scripts/calendar.js"></script>') && /window\.wpNet\.renderWhere\(\);[^\n]*\n\s*if \(window\.wpCalendar && window\.wpCalendar\.refresh\) window\.wpCalendar\.refresh\(\);/.test(mainJ)
+        && ioJ.includes("if (c.clock !== undefined) { var ckL = window.wpCalendarCore && window.wpCalendarCore.cleanClock ? window.wpCalendarCore.cleanClock(c.clock) : null; if (ckL) c.clock = ckL; else delete c.clock; }")
+        && vtJ.includes("{ id: 'calendar',  label: 'Calendar',         legacyKey: null, def: false }") && ix.includes('<div class="set-vtt-row" data-vtt="calendar"') && ix.includes('id="setCalendarBtn"') && ix.includes('id="setCalendarState"') && ix.includes('id="setVttGlobalCalendarBtn"') && ix.includes('id="setVttGlobalCalendarState"')
+        && /\n  \.hdr-clock \{ /.test(cssJ) && /\n  \.hdr-clock\.clock-private \{ /.test(cssJ) && /\n  \.cal-grid \{ /.test(cssJ));
+    check('item 20 K2 said (pinned): Help has a Calendar section before VTT settings (the chip, the grid, Move time on and any amount in the system\'s own units, Set the clock, Players see the date, combat rounds, the session log\'s Time, not a step of Undo, Hide the clock for me) and names the calendar among the features in three places; the tour\'s VTT features step names it; the integration guide the clock\'s keys; What\'s New in both copies',
+        ix.includes('<h4 id="helpCalendar">Calendar</h4>') && /<h4 id="helpCalendar">Calendar<\/h4>[\s\S]{0,300}chip at the top right[\s\S]{0,900}<b>Move time on<\/b>[\s\S]{0,300}your system&rsquo;s own time units[\s\S]{0,200}<b>Set the clock<\/b>[\s\S]{0,100}<b>Players see the date<\/b>[\s\S]{0,300}Each round of a combat moves the clock on[\s\S]{0,300}under <b>Time<\/b>\. The clock is not a step of Undo[\s\S]{0,400}<b>Hide the clock for me<\/b>[\s\S]{0,200}\n\s*<h4 id="helpVtt">VTT settings<\/h4>/.test(ix)
+        && ix.includes('fog of war, lighting, turn-based combat, the calendar, and the VTT integration master') && ix.includes('fog of war, lighting, turn-based combat and the calendar. <b>&#9881; Settings') && ix.includes('fog of war, lighting, turn-based combat and the calendar (both off until you turn them on) are switched in')
+        && tu.includes('<b>Turn-based combat</b> and the <b>Calendar</b> (both off until you turn them on: the calendar puts the campaign&rsquo;s date and time in the header, and its chip opens the calendar to move time on)')
+        && ci.includes('"clock": { "t": 3600, "hide": true },   // OPTIONAL (1.5.0, the Calendar feature)') && wn.includes('- The Calendar (Settings ' + String.fromCharCode(0x25b8) + ' VTT features; off until you turn it on): the') && wa.includes('- The Calendar (Settings ' + String.fromCharCode(0x25b8) + ' VTT features; off until you turn it on): the'));
+
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

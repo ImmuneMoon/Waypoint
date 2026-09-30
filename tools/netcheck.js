@@ -1096,7 +1096,7 @@ pendingChecks.push((async () => {
         && [none, other, elsewhere, hid, fogged, self, gmOnly, shape, gone, wrongMap, selfBonus].every(zero) && j(fogged.drops) === j([['u_a', true, 'm1']]) && none.drops.length === 0,
         j([base, none, other, elsewhere, hid, fogged, self, gmOnly, shape, gone].map(r => [r.mod, r.dist, r.n])));
     check('range R2 roll-req: with no range rule TargetDistance still reads the distance in yards and RangeMod 0; a formula rule in feet reads its own (30 ft: -3); an open drag is judged where it began (fogLanded on that map: 20 yd, past the last step -4 holds) and the token is back where it was; heights count only while the elevation rule is on (30 yd up: 31.622777 yd)',
-        noRule.mod === 0 && noRule.dist === 10 && formula.mod === -3 && formula.dist === 30 && dragged.mod === -4 && dragged.dist === 20 && j(dragged.landed) === j(['m1']) && dragged.back === 0
+        noRule.mod === 0 && noRule.dist === 10 && formula.mod === -3 && formula.dist === 30 && dragged.mod === -4 && dragged.dist === 20 && dragged.landed[0] === 'm1' && dragged.landed.every(m => m === 'm1') && dragged.back === 0
         && up.dist === 31.622777 && up.mod === -4 && upOff.dist === 10,
         j([[noRule.mod, noRule.dist], [formula.mod, formula.dist], [dragged.mod, dragged.dist, dragged.landed, dragged.back], [up.mod, up.dist], [upOff.mod, upOff.dist]]));
     // an apply action reads it the same way: Range hit takes (0 - RangeMod) from HP
@@ -1115,8 +1115,64 @@ pendingChecks.push((async () => {
     check('range R2 (source): the host\'s roll and apply action merge the range after the round, through rangeTo with the player\'s own token on the map they are on and their own id, guarded where a handler runs alone; the GM\'s own roll reads the sheet\'s token context (tokenCtxFor, which carries it)',
         /if \(typeof rangeTo === 'function' && SQ\.withRange\) tcQ = SQ\.withRange\(tcQ, rangeTo\(campQ, mapQ, locQ, SQ\.charTokenOn\(mapQ, q\.charId, pidQ, \{ strict: true \}\), pidQ\)\);/.test(src)
         && /if \(typeof rangeTo === 'function' && Sa\.withRange\) tcA = Sa\.withRange\(tcA, rangeTo\(campA, mapA, locA, Sa\.charTokenOn\(mapA, qa\.charId, profA\.id, \{ strict: true \}\), profA\.id\)\);/.test(src)
-        && /varsR = SR\.makeResolver\(campR\.system, chR, F, window\.wpSheets && window\.wpSheets\.tokenCtxFor \? window\.wpSheets\.tokenCtxFor\(chR\.id, campR\) : null\);/.test(src)
+        && /tcR = window\.wpSheets && window\.wpSheets\.tokenCtxFor \? window\.wpSheets\.tokenCtxFor\(chR\.id, campR\) : null; varsR = SR\.makeResolver\(campR\.system, chR, F, tcR\);/.test(src)
         && /return typeof fogLanded === 'function' \? fogLanded\(mapId, judge\) : judge\(\);/.test(rtSrc));
+})());
+// Range penalties R3 (the owner's answer of 2026-09-29): a public roll that reads the range goes to its roller and the GM alone while
+// another player on the target's map cannot see the target — the real roll-req branch and the GM's own net.diceRoll, with the real
+// rangeTo, rangeReadBy and rangeUnseen (sliced by their netcheck markers), systemcore, formula engine and dicecore
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js')), Dx = await import(url('dicecore.js'));
+    const rtSrc = between('// [netcheck:rangeto-start]', '// [netcheck:rangeto-end]', 'rangeto'), rqSrc = between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]', 'rollreq'), drSrc = between('// [netcheck:diceroll-start]', '// [netcheck:diceroll-end]', 'diceroll');
+    const lineOf = k => { const i = src.indexOf(k); if (i < 0) throw new Error('netcheck: ' + k + ' not found'); return src.slice(i, src.indexOf('\n', i)); };
+    const helpers = ['function own(', 'function peerProfileId(', 'function fxLib(', 'function itemLib(', 'function diceFrom(', 'function fogDrop('].map(lineOf).join('\n') + '\n';
+    const sysR3 = Sx.cleanSystem({ v: 1, name: 'R3', fields: [{ id: 'f_atk', key: 'Atk', kind: 'formula', formula: '10 + RangeMod', vis: 'all' }, { id: 'f_a', key: 'A', kind: 'number', def: 4, vis: 'all' }], rolls: [],
+        combat: { range: { steps: [{ to: 2, mod: 0 }, { to: 5, mod: -2 }, { to: 10, mod: -4 }] } } }, { F: Fx, gmView: true });
+    // Ana (u_a) at the corner, an orc six squares east; Bo (u_b) another player, on the same map unless told otherwise
+    const world = o => {
+        o = o || {};
+        const mine = { id: 't_me', isChar: true, charId: 'c_a', ownerId: 'u_a', x: 0, y: 0, w: 50, h: 50 }, orc = Object.assign({ id: 't_npc', isChar: true, charId: 'c_n', x: 300, y: 0, w: 50, h: 50 }, o.orc || {});
+        const camp = { id: 'k', activeItemId: 'm1', system: sysR3, chars: { c_a: { id: 'c_a', name: 'Ana', ownerId: 'u_a', npc: false, values: {} }, c_n: { id: 'c_n', name: 'Orc', npc: true, values: {} } },
+            items: { m1: { id: 'm1', type: 'map', meta: { gridType: 'square' }, whiteboard: [mine, orc] }, m2: { id: 'm2', type: 'map', meta: { gridType: 'square' }, whiteboard: [] } } };
+        const roster = { pA: { id: 'u_a', name: 'Pat', location: 'm1' } }; if (o.bo !== false) roster.pB = { id: 'u_b', name: 'Bo', location: o.boAt || 'm1' };
+        const conns = [{ peer: 'pA', open: true, send() {} }, { peer: 'pB', open: o.boOpen !== false, send() {} }];
+        const net = { active: true, role: 'host', paused: false, targets: o.targets !== undefined ? o.targets : { u_a: { id: 't_npc', mapId: 'm1', name: 'Pat' }, u_gm: { id: 't_npc', mapId: 'm1', name: 'GM' } }, combats: {}, conns, roster };
+        const asked = [], landed = [];
+        const win = { wpFormula: Fx, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {}, tokenCtxFor: o.gmCtx || (() => null) }, wpVtt: { on: () => true, rulesOn: () => true }, wpDiceCore: null,
+            wpFog: { fogDropIds: (pid, c, m) => { asked.push(pid); return (o.unseenBy || []).indexOf(pid) >= 0 ? { t_npc: 1 } : null; } } };
+        const fogLanded = (mapId, fn) => { landed.push(mapId); return fn(); };
+        return { camp, net, win, asked, landed, fogLanded };
+    };
+    const roll = (expr, o) => {
+        o = o || {}; const W = world(o), out = { table: [], sent: [], notes: [] }, conn = { peer: 'pA', send(m) { packCheck(m); out.sent.push(JSON.parse(JSON.stringify(m))); } };
+        const msg = Object.assign({ type: 'roll-req', rid: 'q1', expr: expr, charId: 'c_a', label: 'Shot' }, o.msg || {});
+        new Function('msg', 'conn', 'net', 'DC', 'SC', 'window', 'getActiveCampaign', 'peerPaused', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'fogLanded', 'turnNote', 'var diceLimit = null, _diceSlowSaid = {};\n' + helpers + rtSrc + '\n' + rqSrc)(
+            msg, conn, W.net, () => Dx, () => Sx, W.win, () => W.camp, () => false, e => { throw e; }, rec => { packCheck(rec); out.table.push(JSON.parse(JSON.stringify(rec))); }, () => {}, () => {}, W.fogLanded, (c, text, cid) => out.notes.push([c === conn, text, cid]));
+        return { pub: out.table.length === 1 && out.sent.length === 0 && !out.table[0].priv, priv: out.table.length === 0 && out.sent.length === 1 && out.sent[0].priv === 'gm' && out.sent[0].type === 'roll', notes: out.notes, asked: W.asked, landed: W.landed };
+    };
+    const NOTE = [[true, 'Rolled privately: a player on that map cannot see your target.', 'c_a']];
+    const hid = roll('d20 + RangeMod', { unseenBy: ['u_b'] }), seen = roll('d20 + RangeMod'), elsewhere = roll('d20 + RangeMod', { unseenBy: ['u_b'], boAt: 'm2' }), closed = roll('d20 + RangeMod', { unseenBy: ['u_b'], boOpen: false }), alone = roll('d20 + RangeMod', { unseenBy: ['u_b'], bo: false });
+    const plain = roll('d20 + A', { unseenBy: ['u_b'] }), derived = roll('d20 + Atk', { unseenBy: ['u_b'] }), dist = roll('d20 + TargetDistance', { unseenBy: ['u_b'] }), branch = roll('if(0, RangeMod, 1) + d20', { unseenBy: ['u_b'] });
+    const noTarget = roll('d20 + RangeMod', { unseenBy: ['u_b'], targets: {} }), already = roll('d20 + RangeMod', { unseenBy: ['u_b'], msg: { priv: 'gm' } }), selfUnseen = roll('d20 + RangeMod', { unseenBy: ['u_a'] });
+    check('range R3 roll-req (host, run for real): a public roll reading RangeMod goes to the roller and the GM alone, with a note to its roller, while another player on that map cannot see the target (the fog asked as them, with every open drag at its start); it stays public when they see it, are on another map, have no open connection or are not at the table, and when the roller alone would not see it',
+        hid.priv && j(hid.notes) === j(NOTE) && hid.asked.indexOf('u_b') >= 0 && hid.landed.filter(m => m === 'm1').length >= 2
+        && [seen, elsewhere, closed, alone, selfUnseen].every(r => r.pub && r.notes.length === 0), j([hid, seen, elsewhere, closed, alone, selfUnseen].map(r => [r.pub, r.priv, r.notes.length, r.asked])));
+    check('range R3 roll-req: what counts as reading the range — RangeMod or TargetDistance, a field worked out from them (Atk = 10 + RangeMod), or a name in a branch the roll does not take (the card shows its text); a roll reading neither stays public, one with no target too, and one already private stays private with no note',
+        [derived, dist, branch].every(r => r.priv && j(r.notes) === j(NOTE)) && plain.pub && noTarget.pub && already.priv && already.notes.length === 0, j([derived, dist, branch, plain, noTarget, already].map(r => [r.pub, r.priv, r.notes.length])));
+    // the GM's own roll: the sheet's token context carries the range with its target and map
+    const gmRoll = (expr, o) => {
+        o = o || {}; const W = world(Object.assign({ gmCtx: () => (o.ctx === undefined ? { facing: null, stance: null, range: { mod: -4, dist: 10, tid: 't_npc', mapId: 'm1' } } : o.ctx) }, o)), out = { table: [], pushed: [], toasts: [] };
+        const dr = new Function('net', 'DC', 'SC', 'window', 'getActiveCampaign', 'getProfile', 'toast', 'ui', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'fogLanded', 'var _dicePending = null;\n' + helpers + rtSrc + '\n' + drSrc + '\nreturn net.diceRoll;')(
+            W.net, () => Dx, () => Sx, W.win, () => W.camp, () => ({ id: 'u_gm', name: 'GM' }), t => out.toasts.push(t), k => (k === 'chatTo' ? { value: '' } : null), e => { throw e; }, rec => { packCheck(rec); out.table.push(JSON.parse(JSON.stringify(rec))); }, (rec, res, scope) => out.pushed.push([scope, rec.priv || '']), () => {}, W.fogLanded);
+        const ret = dr(expr, { charId: 'c_n', label: 'Axe' });
+        return { priv: !!ret && ret.priv === true && out.table.length === 0 && j(out.pushed) === j([['whisper', 'gm']]), pub: !!ret && ret.priv === false && out.table.length === 1, toasts: out.toasts };
+    };
+    const gHid = gmRoll('d20 + RangeMod', { unseenBy: ['u_b'] }), gSeen = gmRoll('d20 + RangeMod'), gPlain = gmRoll('d20 + A', { unseenBy: ['u_b'] }), gNone = gmRoll('d20 + RangeMod', { unseenBy: ['u_b'], ctx: null });
+    const gHidden = gmRoll('d20 + RangeMod', { orc: { hidden: true } }), gAllIn = gmRoll('d20 + RangeMod', { unseenBy: ['u_a'] });
+    check('range R3 the GM\'s own roll (net.diceRoll, run for real): reading the range to a target a player on that map cannot see — out of their sight, or one the GM hid — keeps it the GM\'s, with the toast; every player seeing it, a roll reading no range, or no range at all leaves it public',
+        gHid.priv && j(gHid.toasts) === j(['Kept private: a player on that map cannot see its target (Axe).']) && gHidden.priv && gAllIn.priv && [gSeen, gPlain, gNone].every(r => r.pub && r.toasts.length === 0),
+        j([gHid, gSeen, gPlain, gNone, gHidden, gAllIn]));
 })());
 // 1.5.0 derived GM-only values: the GM's own roll (net.diceRoll, run for real with the real dicecore, formula engine and systemcore) goes to the
 // GM alone when it names a GM-only field anywhere or reads a value worked out from one; a player's own roll-req of such a value is refused

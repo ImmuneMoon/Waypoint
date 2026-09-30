@@ -2268,7 +2268,11 @@ function rangeCtx(sys, mp, from, to, opts) {
 }
 // ... merged into a token context as withRound merges the round: a NEW object, or the context unchanged with no token or no range (the
 // names read 0 then)
-function withRange(tctx, rc) { if (!isObj(tctx) || !isObj(rc) || !fin(rc.mod) || !fin(rc.dist)) return tctx; return Object.assign({}, tctx, { range: { mod: rc.mod, dist: rc.dist } }); }
+function withRange(tctx, rc) {   // R3: the target's id and map ride along (tid, mapId: text), for the host's privacy check
+    if (!isObj(tctx) || !isObj(rc) || !fin(rc.mod) || !fin(rc.dist)) return tctx;
+    var rg = { mod: rc.mod, dist: rc.dist }; ['tid', 'mapId'].forEach(function(k) { if (typeof rc[k] === 'string' && rc[k].length <= 200) rg[k] = rc[k]; });
+    return Object.assign({}, tctx, { range: rg });
+}
 function withRound(tctx, combat) { if (!isObj(tctx) || !isObj(combat) || !fin(combat.round)) return tctx; return Object.assign({}, tctx, { combat: { round: Math.max(0, Math.min(9999, Math.floor(combat.round))) } }); }
 function norm180(d) { d = d % 360; if (d <= -180) d += 360; if (d > 180) d -= 360; return d; }
 function sideOf(deg, sides) { var n = sides === 4 ? 4 : 6, x = deg % 360; if (x < 0) x += 360; return Math.round(x / (360 / n)) % n; }   // the dial side a bearing falls on (side 0 = up)
@@ -2510,6 +2514,7 @@ function facingValue(fc, l) {   // a built-in facing name's value; with no conte
 function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no effect applied (the breakdown's true base); ropts.facing / ropts.stance: tokenCtx(...) for the built-in token names
     var ix = keyIndex(sys), cache = map(), chain = [], fx = (ropts && ropts.noFx) ? null : fxIndex(sys, char), detail = map();
     var lctx = map(), asts = map(), pretty = map();   // Stage 6 F5a1: each list's rows (once a render), each column formula parsed once, readable names for a loop's message
+    var rangeRead = false;   // range penalties R3: whether anything this resolver worked out read RangeMod or TargetDistance (fn.rangeRead)
     // 5h: where a derived value's effects came from — the sources recorded on the names its formula read (theirs and their own "via")
     function viaOf(names) {
         if (!fx || !Array.isArray(names)) return null;
@@ -2628,7 +2633,7 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
     }
     function builtin(l) {   // 5h Fold 3: Facing, Arc, Arc.front|side|rear, Threats, Threats.front|side|rear — a field named Facing, Arc or Threats keeps its whole family
         var fam = l.split('.')[0]; if (ix[fam]) return undefined;
-        if (l === 'rangemod' || l === 'targetdistance') { var rgc = ropts && isObj(ropts.range) ? ropts.range : null, rgv = rgc ? (l === 'rangemod' ? rgc.mod : rgc.dist) : 0; return typeof rgv === 'number' && isFinite(rgv) ? rgv : 0; }   // range penalties R2: to the roller's target; 0 with none (a field of the system's own of that name keeps it)
+        if (l === 'rangemod' || l === 'targetdistance') { rangeRead = true; var rgc = ropts && isObj(ropts.range) ? ropts.range : null, rgv = rgc ? (l === 'rangemod' ? rgc.mod : rgc.dist) : 0; return typeof rgv === 'number' && isFinite(rgv) ? rgv : 0; }   // range penalties R2: to the roller's target; 0 with none (a field of the system's own of that name keeps it)
         if (l === 'combatround') { var cb = ropts && isObj(ropts.combat) ? ropts.combat : null; return cb && fin(cb.round) ? Math.max(0, Math.floor(cb.round)) : 0; }   // HUD frame (HF5b): the round of the combat on the token's map; 0 with no token, no combat, or offline (a field of the system's own keeps the name, above)
         if (l === 'posture' || l === 'elevation') { var stc = ropts && isObj(ropts.stance) ? ropts.stance : null; return stc && typeof stc[l] === 'number' ? stc[l] : 0; }   // Stage 6: the token's stance
         if (fam !== 'facing' && fam !== 'arc' && fam !== 'threats') return undefined;
@@ -2662,7 +2667,8 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         cache[l] = out;   // values only; an error is path-dependent and is never cached
         return out;
     }
-    fn.reset = function() { cache = map(); chain = []; detail = map(); lctx = map(); pretty = map(); };
+    fn.reset = function() { cache = map(); chain = []; detail = map(); lctx = map(); pretty = map(); rangeRead = false; };
+    fn.rangeRead = function() { return rangeRead; };   // range R3: a fresh resolver asked for a roll's names says whether its value reads the range
     fn.row = function(fieldId, rowId) { var f = null; sys.fields.forEach(function(x) { if (!f && x.id === fieldId && x.kind === 'item-list') f = x; }); if (!f) return null; var L = listCtx(f); for (var i = 0; i < L.rows.length; i++) if (L.rows[i].id === rowId) return rowVars(L, L.rows[i]); return null; };   // F5b: a row's own names for a roll on it (a kept curse has none)
     fn.needsOk = function(f, row, text) { var L = f ? listCtx(f) : null; if (!L || !isObj(row) || typeof text !== 'string' || !text) return true; var rd = rowDef(sys, row), v = F.evaluate(text, { vars: rowVars(L, { r: row, d: rd ? rd.def : null, id: rowIdOf(row) || '' }), random: noDice }); return !!(v.ok && (v.value === true || (typeof v.value === 'number' && v.value !== 0))); };   // Stage 6 HUD R2b: a list roll's needs on one row (an error holds it back)
     fn.ctMax = function(f, row, key) { var L = f ? listCtx(f) : null, t = L && L.ct ? L.ct[lower(key)] : null; if (!t || !t.max || !isObj(row)) return null; var rd = rowDef(sys, row), v = F.evaluate(t.max, { vars: rowVars(L, { r: row, d: rd ? rd.def : null, id: rowIdOf(row) || '' }), random: noDice }); return v.ok && typeof v.value === 'number' && fin(v.value) ? Math.max(0, Math.floor(v.value)) : null; };   // Stage 6 HUD R2: a counter's most for this row (none: null)

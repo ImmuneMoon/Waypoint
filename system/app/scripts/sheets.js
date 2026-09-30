@@ -10,6 +10,7 @@ import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
 import { droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sbRowOps, sbApplyProposal, cleanUploads, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, DEFAULT_POSTURES, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
+import { cleanCalendar, fmtWhen, fmtDate, timeOf, calPreset, CAL_LIMITS } from './calendarcore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 var NL = String.fromCharCode(10);
@@ -4114,6 +4115,37 @@ function refreshErrors() {
         if (!hKept) hErr.push({ message: 'Height: add a step, or Save drops the table.' });
     }
     if (hErr.length) errorsById.height = hErr;
+    // item 20 K1: what Save drops or changes of the calendar, said under the Calendar tab — each name read by calendarcore cleanCalendar itself
+    var calE = draft.calendar && typeof draft.calendar === 'object' && !Array.isArray(draft.calendar) ? draft.calendar : null, cErr = [];
+    if (calE) {
+        var cWh = function(v, lo, hi) { return typeof v === 'number' && isFinite(v) && Math.floor(v) === v && v >= lo && v <= hi; }, cPs = Array.isArray(calE.periods) ? calE.periods : [], cWk = Array.isArray(calE.week) ? calE.week : [], cOkP = Object.create(null), cOkW = Object.create(null), cKp = 0, cKw = 0;
+        cPs.forEach(function(p, i) {
+            var nm = 'Period ' + (i + 1), q = p && typeof p === 'object' ? p : {};
+            if (!cleanCalendar({ periods: [{ name: q.name, days: 1 }] })) cErr.push({ message: nm + ' needs a name: Save drops it.' });
+            else if (!cWh(q.days, 1, CAL_LIMITS.periodDays)) cErr.push({ message: nm + ': its days are a whole number from 1 to ' + CAL_LIMITS.periodDays + ': Save drops it.' });
+            else if (cKp >= CAL_LIMITS.periods) cErr.push({ message: nm + ': at most ' + CAL_LIMITS.periods + ', so Save drops it.' });
+            else { cOkP[i] = 1; cKp++; }
+        });
+        cWk.forEach(function(w, i) {
+            if (!cleanCalendar({ week: [w] })) cErr.push({ message: 'Weekday ' + (i + 1) + ' needs a name: Save drops it.' });
+            else if (cKw >= CAL_LIMITS.week) cErr.push({ message: 'Weekday ' + (i + 1) + ': at most ' + CAL_LIMITS.week + ', so Save drops it.' });
+            else { cOkW[i] = 1; cKw++; }
+        });
+        if (typeof calE.first === 'number' && calE.first > 0 && !cOkW[calE.first]) cErr.push({ message: 'Day 1\u2019s weekday is dropped, so Save starts the week at the first weekday it keeps.' });
+        [['hours', 'Hours a day', CAL_LIMITS.hours, 24], ['minutes', 'Minutes an hour', CAL_LIMITS.minutes, 60], ['seconds', 'Seconds a minute', CAL_LIMITS.seconds, 60]].forEach(function(g) {
+            if (calE[g[0]] !== undefined && !cWh(calE[g[0]], 1, g[2])) cErr.push({ message: g[1] + ': a whole number from 1 to ' + g[2] + ', so Save keeps ' + g[3] + '.' });
+        });
+        if (calE.one !== undefined && !cWh(calE.one, -CAL_LIMITS.year, CAL_LIMITS.year)) cErr.push({ message: 'Day 1\u2019s year: a whole number within 10,000,000 either way, so Save keeps 1.' });
+        var cLp = calE.leap && typeof calE.leap === 'object' && !Array.isArray(calE.leap) ? calE.leap : null;
+        if (cLp) {
+            if (!cKp) cErr.push({ message: 'Leap years: add a period first, or Save drops the rule.' });
+            else if (!cWh(cLp.every, 2, CAL_LIMITS.leapEvery)) cErr.push({ message: 'Leap years: every 2 to ' + CAL_LIMITS.leapEvery + ' years, or Save drops the rule.' });
+            else if (!cWh(cLp.from, -CAL_LIMITS.year, CAL_LIMITS.year)) cErr.push({ message: 'Leap years: the year it counts from is a whole number within 10,000,000 either way, or Save drops the rule.' });
+            else if (!cWh(cLp.days, 1, CAL_LIMITS.leapDays)) cErr.push({ message: 'Leap years: 1 to ' + CAL_LIMITS.leapDays + ' days more, or Save drops the rule.' });
+            else if (!(typeof cLp.period === 'number' && cOkP[cLp.period])) cErr.push({ message: 'Leap years: the period that gains the days is dropped, so Save drops the rule.' });
+        }
+    }
+    if (cErr.length) errorsById.calendar = cErr;
     // senses S2a: what Save drops or leaves out of the senses, under the Combat card's Senses box — read as the cleaner reads (systemcore
     // cleanSenses): a name left once control characters go, a range field of a number, formula, skill or pool its owner can read, a finite number
     var snO = draft.combat && draft.combat.senses && typeof draft.combat.senses === 'object' ? draft.combat.senses : null, snE = snO && Array.isArray(snO.list) ? snO.list : null, sErr = [], sKept = 0;
@@ -5043,6 +5075,147 @@ function heightClick(b) {
     markDirty(); renderAll(); return true;
 }
 // [sinkcheck:heightbox2-end]
+// [sinkcheck:calendarbox-start]
+// Item 20 K1 (docs/CALENDAR_PLAN.md; the owner's answers of 2026-09-30): the system's calendar, the System editor's Calendar tab — a year's
+// periods in order (a name, its days, whether it stands outside the month count: a festival week, a holiday), the week's days and which
+// one day 1 is, the day's hours, minutes and seconds, the year of day 1 with the label after it and whether years count down, and a leap
+// rule. Every text lands as a value or a text node; Save cleans it (calendarcore cleanCalendar) and refreshErrors says what it would drop
+function calDraft() { if (!draft.calendar || typeof draft.calendar !== 'object' || Array.isArray(draft.calendar)) draft.calendar = {}; return draft.calendar; }
+function calOf() { return draft && draft.calendar && typeof draft.calendar === 'object' && !Array.isArray(draft.calendar) ? draft.calendar : {}; }
+function calNum(cls, value, title, min, max, cap) {
+    var l = el('label', 'sys-num'); if (cap) l.appendChild(el('span', 'sys-num-cap', cap));
+    var n = el('input', 'field ' + cls); n.type = 'number'; n.min = String(min); n.max = String(max); n.step = '1'; n.value = typeof value === 'number' && isFinite(value) ? String(value) : ''; n.title = title;
+    l.appendChild(n); return l;
+}
+function calSums(cal) {   // [the year's length in words, day 1 and a year on as the clock reads them]: the calendar as Save would keep it
+    var cc = cleanCalendar(cal), ps = cc && cc.periods ? cc.periods : [], base = 0; ps.forEach(function(p) { base += p.days; });
+    if (!ps.length) return ['No periods: the clock counts days (Day 1, Day 2 \u2026).', 'Day 1 reads: ' + fmtWhen(cc, 0) + '.'];
+    var ms = ps.filter(function(p) { return !p.extra; }).length, ex = ps.length - ms, lp = cc.leap ? cc.leap.days : 0, y2 = timeOf(cc, { yi: 1, period: 0, pday: 1 });
+    return [base + ' days a year' + (lp ? ' (' + (base + lp) + ' in a leap year)' : '') + ': ' + ms + ' month' + (ms === 1 ? '' : 's') + (ex ? ' and ' + ex + ' period' + (ex === 1 ? '' : 's') + ' outside the month count' : '') + '.',
+        'Day 1 reads: ' + fmtWhen(cc, 0) + (y2 !== null ? '. A year on: ' + fmtDate(cc, y2) : '') + '.'];
+}
+function renderCalendar() { var box = ui('sysCalendar'); if (!box) return; var st = box.scrollTop; box.textContent = ''; calendarBox(box, calOf()); box.scrollTop = st; }   // the pane scrolls: a redraw keeps its place
+function calendarBox(box, cal) {
+    var wrap = el('div', 'sys-cal');
+    wrap.appendChild(el('div', 'sys-light-head', 'Calendar'));
+    wrap.appendChild(el('div', 'sys-note', 'The calendar your game keeps: its months and other periods, its week, its day and how its years are numbered. With none, a plain count of days of 24 hours.'));
+    var pr = el('div', 'sys-flags sys-cal-presets'); pr.appendChild(el('span', 'sys-num-cap', 'Start from'));
+    [['twelve', 'Twelve months', 'The real-world year: twelve months, a seven-day week, a leap day in February every fourth year. It replaces what is here.'], ['days', 'A plain count of days', 'No calendar: the clock counts days (Day 1, Day 2 \u2026). It clears what is here.']].forEach(function(p) {
+        var b = el('button', 'tool ghost sys-btn sys-cal-preset', p[1]); b.dataset.act = 'calpreset'; b.dataset.preset = p[0]; b.title = p[2]; pr.appendChild(b);
+    });
+    wrap.appendChild(pr);
+    wrap.appendChild(el('div', 'sys-cal-sub', 'Periods, in year order'));
+    var ps = Array.isArray(cal.periods) ? cal.periods : [];
+    ps.forEach(function(p0, i) {
+        var p = p0 && typeof p0 === 'object' ? p0 : {}, rw = el('div', 'sys-flags sys-cal-prow'); rw.dataset.ci = String(i);
+        var nm = input('sys-cal-pname field', typeof p.name === 'string' ? p.name : '', 'This period\u2019s name: a month (First, January), a festival week or a holiday', 'Name'); nm.maxLength = CAL_LIMITS.name; rw.appendChild(nm);
+        rw.appendChild(calNum('sys-cal-pdays', p.days, 'How many days it holds (1 to ' + CAL_LIMITS.periodDays + ')', 1, CAL_LIMITS.periodDays, i === 0 ? 'Days' : ''));
+        var xl = el('label', 'sys-cal-tick'), xc = el('input', 'sys-cal-pextra'); xc.type = 'checkbox'; xc.checked = p.extra === true; xc.title = 'Outside the month count: a festival week or a holiday between months, never numbered as a month';
+        xl.appendChild(xc); xl.appendChild(document.createTextNode(' Outside the month count')); rw.appendChild(xl);
+        [['up', '\u25b2', 'Move up'], ['down', '\u25bc', 'Move down'], ['del', '\u00d7', 'Remove']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = 'calp' + bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
+        wrap.appendChild(rw);
+    });
+    var pa = el('button', 'tool ghost sys-btn sys-cal-padd', '+ Period'); pa.dataset.act = 'calpadd'; pa.disabled = ps.length >= CAL_LIMITS.periods; pa.title = pa.disabled ? 'At most ' + CAL_LIMITS.periods : 'A month, a festival week or a holiday, at the end of the year'; wrap.appendChild(pa);
+    wrap.appendChild(el('div', 'sys-cal-sub', 'The week'));
+    var wk = Array.isArray(cal.week) ? cal.week : [];
+    wk.forEach(function(w, i) {
+        var rw = el('div', 'sys-flags sys-cal-wrow'); rw.dataset.wi = String(i);
+        var wi = input('sys-cal-wname field', typeof w === 'string' ? w : '', 'This weekday\u2019s name', 'Day ' + (i + 1)); wi.maxLength = CAL_LIMITS.name; rw.appendChild(wi);
+        [['up', '\u25b2', 'Move up'], ['down', '\u25bc', 'Move down'], ['del', '\u00d7', 'Remove']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = 'calw' + bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
+        wrap.appendChild(rw);
+    });
+    var wa = el('button', 'tool ghost sys-btn sys-cal-wadd', '+ Weekday'); wa.dataset.act = 'calwadd'; wa.disabled = wk.length >= CAL_LIMITS.week; wa.title = wa.disabled ? 'At most ' + CAL_LIMITS.week : 'A day of the week, at its end; the week runs on across months and years'; wrap.appendChild(wa);
+    if (wk.length) wrap.appendChild(labeledSelect('sys-cal-first', 'Day 1 is a', wk.map(function(w, i) { return [String(i), typeof w === 'string' && w.trim() ? w : 'Day ' + (i + 1)]; }), String(typeof cal.first === 'number' ? cal.first : 0), 'The weekday of the very first day; the week runs on from it'));
+    wrap.appendChild(el('div', 'sys-cal-sub', 'The day'));
+    var dr = el('div', 'sys-flags sys-cal-day');
+    dr.appendChild(calNum('sys-cal-hours', typeof cal.hours === 'number' ? cal.hours : 24, 'Hours in a day (1 to ' + CAL_LIMITS.hours + ')', 1, CAL_LIMITS.hours, 'Hours a day'));
+    dr.appendChild(calNum('sys-cal-minutes', typeof cal.minutes === 'number' ? cal.minutes : 60, 'Minutes in an hour (1 to ' + CAL_LIMITS.minutes + ')', 1, CAL_LIMITS.minutes, 'Minutes an hour'));
+    dr.appendChild(calNum('sys-cal-seconds', typeof cal.seconds === 'number' ? cal.seconds : 60, 'Seconds in a minute (1 to ' + CAL_LIMITS.seconds + ')', 1, CAL_LIMITS.seconds, 'Seconds a minute'));
+    wrap.appendChild(dr);
+    wrap.appendChild(el('div', 'sys-cal-sub', 'Years'));
+    var yr = el('div', 'sys-flags sys-cal-years');
+    yr.appendChild(calNum('sys-cal-one', typeof cal.one === 'number' ? cal.one : 1, 'The year the very first day falls in', -CAL_LIMITS.year, CAL_LIMITS.year, 'Day 1 is in year'));
+    var eraL = el('label', 'sys-num'); eraL.appendChild(el('span', 'sys-num-cap', 'After the year'));
+    var eraI = input('sys-cal-era field', typeof cal.era === 'string' ? cal.era : '', 'A label after the year\u2019s number (BBY, AR); empty: none', 'e.g. BBY'); eraI.maxLength = CAL_LIMITS.era; eraL.appendChild(eraI); yr.appendChild(eraL);
+    var dnL = el('label', 'sys-cal-tick'), dnC = el('input', 'sys-cal-down'); dnC.type = 'checkbox'; dnC.checked = cal.down === true; dnC.title = 'Years count down, as a count before an event does: 3964, then 3963';
+    dnL.appendChild(dnC); dnL.appendChild(document.createTextNode(' Years count down')); yr.appendChild(dnL);
+    wrap.appendChild(yr);
+    var lp = cal.leap && typeof cal.leap === 'object' && !Array.isArray(cal.leap) ? cal.leap : null, lr = el('div', 'sys-flags sys-cal-leap');
+    var lpL = el('label', 'sys-cal-tick'), lpC = el('input', 'sys-cal-leapon'); lpC.type = 'checkbox'; lpC.checked = !!lp; lpC.disabled = !ps.length && !lp; lpC.title = ps.length ? 'Some years are longer: a period gains days every so many years' : 'Add a period first: a leap year\u2019s days go into one';
+    lpL.appendChild(lpC); lpL.appendChild(document.createTextNode(' Leap years')); lr.appendChild(lpL);
+    if (lp) {
+        lr.appendChild(calNum('sys-cal-levery', lp.every, 'Every how many years (2 to ' + CAL_LIMITS.leapEvery + ')', 2, CAL_LIMITS.leapEvery, 'Every (years)'));
+        lr.appendChild(calNum('sys-cal-lfrom', lp.from, 'A leap year, as the calendar numbers it: the rule counts from it both ways', -CAL_LIMITS.year, CAL_LIMITS.year, 'Counting from year'));
+        lr.appendChild(calNum('sys-cal-ldays', lp.days, 'How many days a leap year adds (1 to ' + CAL_LIMITS.leapDays + ')', 1, CAL_LIMITS.leapDays, 'Days more'));
+        if (ps.length) lr.appendChild(labeledSelect('sys-cal-lperiod', 'In', ps.map(function(p, i) { return [String(i), p && typeof p.name === 'string' && p.name.trim() ? p.name : 'Period ' + (i + 1)]; }), String(lp.period), 'The period that gains the days'));
+    }
+    wrap.appendChild(lr);
+    var sm = calSums(cal), s1 = el('div', 'sys-note sys-cal-sum', sm[0]), s2 = el('div', 'sys-note sys-cal-preview', sm[1]); s1.id = 'sysCalSum'; s2.id = 'sysCalPreview';
+    wrap.appendChild(s1); wrap.appendChild(s2);
+    var err = errorCell('calendar'); err.dataset.errFor = 'calendar'; wrap.appendChild(err);
+    box.appendChild(wrap);
+}
+function calRefreshText() { var sm = calSums(calOf()), a = ui('sysCalSum'), b = ui('sysCalPreview'); if (a) a.textContent = sm[0]; if (b) b.textContent = sm[1]; }
+function onCalendarInput(t) {
+    var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-cal-') < 0) return false;
+    var cal = calDraft(), numV = function() { var v = Number(t.value); return String(t.value).trim() !== '' && isFinite(v) ? v : null; };
+    if (c.indexOf('sys-cal-pname') >= 0 || c.indexOf('sys-cal-pdays') >= 0) {
+        var prw = t.closest ? t.closest('.sys-cal-prow') : null, i = prw ? +prw.dataset.ci : -1, p = Array.isArray(cal.periods) && i >= 0 && Math.floor(i) === i && cal.periods[i] && typeof cal.periods[i] === 'object' ? cal.periods[i] : null; if (!p) return true;
+        if (c.indexOf('sys-cal-pname') >= 0) p.name = String(t.value).slice(0, CAL_LIMITS.name * 2); else { var d = numV(); if (d === null) delete p.days; else p.days = d; }
+    } else if (c.indexOf('sys-cal-wname') >= 0) {
+        var wrw = t.closest ? t.closest('.sys-cal-wrow') : null, k = wrw ? +wrw.dataset.wi : -1; if (!(Array.isArray(cal.week) && k >= 0 && k < cal.week.length && Math.floor(k) === k)) return true;
+        cal.week[k] = String(t.value).slice(0, CAL_LIMITS.name * 2);
+    } else {
+        var key = ['hours', 'minutes', 'seconds', 'one'].filter(function(k0) { return c.indexOf('sys-cal-' + k0) >= 0; })[0];
+        if (key) { var n = numV(); if (n === null) delete cal[key]; else cal[key] = n; }
+        else if (c.indexOf('sys-cal-era') >= 0) { if (String(t.value).trim()) cal.era = String(t.value).slice(0, CAL_LIMITS.era * 2); else delete cal.era; }
+        else if (c.indexOf('sys-cal-levery') >= 0 || c.indexOf('sys-cal-lfrom') >= 0 || c.indexOf('sys-cal-ldays') >= 0) {
+            var lp = cal.leap && typeof cal.leap === 'object' && !Array.isArray(cal.leap) ? cal.leap : null; if (!lp) return true;
+            var lk = c.indexOf('sys-cal-levery') >= 0 ? 'every' : c.indexOf('sys-cal-lfrom') >= 0 ? 'from' : 'days', ln = numV(); if (ln === null) delete lp[lk]; else lp[lk] = ln;
+        } else return true;   // a tick's or a select's input event: its change event does the work
+    }
+    markDirty(); patchErrors(); calRefreshText(); return true;
+}
+function onCalendarChange(t) {
+    var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-cal-') < 0) return false;
+    var cal = calDraft();
+    if (c.indexOf('sys-cal-pextra') >= 0) {
+        var rw = t.closest ? t.closest('.sys-cal-prow') : null, i = rw ? +rw.dataset.ci : -1, p = Array.isArray(cal.periods) && i >= 0 && Math.floor(i) === i && cal.periods[i] && typeof cal.periods[i] === 'object' ? cal.periods[i] : null; if (!p) return true;
+        if (t.checked === true) p.extra = true; else delete p.extra;
+    }
+    else if (c.indexOf('sys-cal-down') >= 0) { if (t.checked === true) cal.down = true; else delete cal.down; }
+    else if (c.indexOf('sys-cal-first') >= 0) { var f = Number(t.value); if (f > 0 && Math.floor(f) === f && Array.isArray(cal.week) && f < cal.week.length) cal.first = f; else delete cal.first; }
+    else if (c.indexOf('sys-cal-leapon') >= 0) {
+        if (t.checked === true) { if (!cal.leap || typeof cal.leap !== 'object' || Array.isArray(cal.leap)) cal.leap = { every: 4, from: typeof cal.one === 'number' ? cal.one : 1, period: 0, days: 1 }; } else delete cal.leap;
+        markDirty(); renderAll(); return true;
+    }
+    else if (c.indexOf('sys-cal-lperiod') >= 0) { var lp = cal.leap && typeof cal.leap === 'object' && !Array.isArray(cal.leap) ? cal.leap : null, v = Number(t.value); if (!lp || !(v >= 0 && Math.floor(v) === v && Array.isArray(cal.periods) && v < cal.periods.length)) return true; lp.period = v; }
+    else return true;   // the boxes' change events (their input events did the work)
+    markDirty(); patchErrors(); calRefreshText(); return true;
+}
+function calendarClick(b) {
+    var act = b.dataset.act || '';
+    if (act === 'calpreset') {
+        var pid = b.dataset.preset;
+        if (pid === 'days') delete draft.calendar; else { var pz = calPreset(pid); if (!pz) return true; draft.calendar = pz; }
+        markDirty(); renderAll(); return true;
+    }
+    var m = /^cal(p|w)(add|up|down|del)$/.exec(act); if (!m) return false;
+    var cal = calDraft(), isP = m[1] === 'p', key = isP ? 'periods' : 'week', cap = isP ? CAL_LIMITS.periods : CAL_LIMITS.week, arr = Array.isArray(cal[key]) ? cal[key] : (cal[key] = []);
+    var rw = b.closest ? b.closest(isP ? '.sys-cal-prow' : '.sys-cal-wrow') : null, i = rw ? +(isP ? rw.dataset.ci : rw.dataset.wi) : -1;
+    // the leap rule's period and the first weekday are places in these lists: they follow a move, and go with a remove of their own row
+    var refOf = function() { return isP ? (cal.leap && typeof cal.leap === 'object' && typeof cal.leap.period === 'number' ? cal.leap.period : -1) : (typeof cal.first === 'number' ? cal.first : 0); };
+    var setRef = function(v) { if (isP) { if (cal.leap && typeof cal.leap === 'object') { if (v < 0) delete cal.leap; else cal.leap.period = v; } } else if (v > 0) cal.first = v; else delete cal.first; };
+    if (m[2] === 'add') { if (arr.length >= cap) { toast('At most ' + cap + '.'); return true; } arr.push(isP ? { name: '', days: 30 } : ''); }
+    else if (!(i >= 0 && i < arr.length && Math.floor(i) === i)) return true;
+    else {
+        var r = refOf(), j = m[2] === 'up' ? i - 1 : m[2] === 'down' ? i + 1 : -1;
+        if (m[2] === 'del') { arr.splice(i, 1); if (r === i) setRef(isP ? -1 : 0); else if (r > i) setRef(r - 1); }
+        else if (j >= 0 && j < arr.length) { arr.splice(j, 0, arr.splice(i, 1)[0]); if (r === i) setRef(j); else if (r === j) setRef(i); }
+    }
+    markDirty(); renderAll(); return true;
+}
+// [sinkcheck:calendarbox-end]
 // Senses S2a: the system's senses on the Combat card (docs/SENSES_PLAN.md 4.3) — each a name, where its range comes from (a field of the
 // character, or a number every character has), what it counts in (never a silent yards: a new row takes the system's first light's unit,
 // else the last picked here, else it waits for one and Save leaves it out), whether walls stop it, whether it sees all round and whether it
@@ -5278,6 +5451,7 @@ function renderAll() {
     var slEl = ui('sysLists'); if (slEl) { slEl.style.display = tab === 'lists' ? '' : 'none'; if (tab === 'lists') renderLists(); }   // Stage 6 F4b
     var efr = ui('sysEffectRows'); if (efr) { efr.textContent = ''; if (!draft.effects || !draft.effects.length) efr.appendChild(el('div', 'sys-empty', 'No status effects yet. Add Rage, Prone, Blessed\u2026 each with the numbers it changes, then put a Status effects field on the sheet.')); (draft.effects || []).forEach(function(d) { efr.appendChild(effectRow(d)); }); }
     var sl = ui('sysLayout'); if (sl) { sl.style.display = tab === 'layout' ? '' : 'none'; if (tab === 'layout') renderLayout(); }
+    var scal = ui('sysCalendar'); if (scal) { scal.style.display = tab === 'calendar' ? '' : 'none'; if (tab === 'calendar') renderCalendar(); }   // item 20 K1: the calendar
     var fr = ui('sysFieldRows'); fr.textContent = '';
     if (!draft.fields.length) fr.appendChild(el('div', 'sys-empty', 'No fields yet. Add one, or Start from a preset.'));
     draft.fields.forEach(function(f) { fr.appendChild(fieldRow(f)); });
@@ -5301,6 +5475,7 @@ function onInput(e) {
     if (onPostureInput(t)) return;   // conditions C3
     if (onInitInput(t)) return;   // initiative O2
     if (onHeightInput(t)) return;   // item 19 H2
+    if (onCalendarInput(t)) return;   // item 20 K1
     var fxd = fxOfRow(t);   // 5h: a library effect's text boxes
     if (fxd) {
         var fc = t.className || '';
@@ -5442,6 +5617,7 @@ function onChange(e) {
     if (onPostureChange(t)) return;   // conditions C3
     if (onInitChange(t)) return;   // initiative O2
     if (onHeightChange(t)) return;   // item 19 H2
+    if (onCalendarChange(t)) return;   // item 20 K1
     if (c.indexOf('sys-combat-auto') >= 0) { draft.combat.blastAuto = t.value; markDirty(); patchErrors(); return; }
     if (c.indexOf('sys-combat-roller') >= 0) { draft.combat.blastRoller = t.value; markDirty(); patchErrors(); return; }
     if (c.indexOf('sys-combat-checks') >= 0) { if (t.value === 'under3d6') draft.combat.checks = 'under3d6'; else delete draft.combat.checks; markDirty(); patchErrors(); return; }   // Stage 6 F8
@@ -5563,7 +5739,8 @@ function onClick(e) {
     if (sensesClick(b)) return;   // senses S2a: the Combat card's senses
     if (rangeClick(b)) return;   // range penalties R1: the Combat card's range table
     if (postureClick(b)) return;   // conditions C3: the Combat card
-    if (heightClick(b)) return;   // item 19 H2: the Combat card's height table's postures
+    if (heightClick(b)) return;   // item 19 H2: the Combat card's height table
+    if (calendarClick(b)) return;   // item 20 K1: the Calendar tab
     var crow = b.closest('.sys-char-row');
     if (crow) {
         var camp = getActiveCampaign(), ch = charById(crow.dataset.cid, camp); if (!ch) return;

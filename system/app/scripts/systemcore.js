@@ -6,6 +6,7 @@
    or a stub) is passed in as F, so tools/systemcheck.js runs this under Node. Published as window.wpSystemCore.
    Design of record: docs/SHEET_BUILDER_PLAN.md. */
 'use strict';
+import { cleanCalendar } from './calendarcore.js';   // item 20 K1: the system's calendar (a pure module of its own: calendarcheck runs it)
 
 var VERSION = '1.5.0';
 var LIMITS = Object.freeze({
@@ -1234,6 +1235,7 @@ function cleanSystem(sys, opts) {
         (lay && Array.isArray(lay.sections) ? lay.sections : []).forEach(function(s) { if (s.showIf && showMention(s.showIf)) delete s.showIf; (s.fields || []).forEach(function(p) { if (p.showIf && showMention(p.showIf)) delete p.showIf; if (p.kind === 'roller' && p.formula && showMention(p.formula)) delete p.formula; }); });   // H9: a roller's starting formula naming a GM-only value goes too (the box starts empty)
     });
     var ss = cleanSheetStyle(sys.sheetStyle); if (ss) out.sheetStyle = ss;   // the sheet's own look (doc theming), players' view included
+    var cal = cleanCalendar(sys.calendar); if (cal) out.calendar = cal;   // item 20 K1: the calendar, the same in both views (absent: a plain count of days)
     return out;
 }
 // Stage 6 library L0: what a system file had that cleaning left out — past a limit, or not valid — per kind, for the import's notice

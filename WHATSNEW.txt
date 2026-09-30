@@ -550,6 +550,11 @@ Turn-based combat
 - Heights follow your Imperial or Metric choice: a token's elevation, a
   piece's height, the ruler's 3D line and a blast's labels, in yards or
   metres.
+- The System editor's Calendar tab: the calendar your game keeps, its
+  months and the festival weeks or holidays outside the month count, its
+  week, the day's hours, how its years are numbered (counting down, if yours
+  do) and leap years; start from the real-world year or a plain count of
+  days.
 - Difficult terrain: tick it in the fill menu, with its cost (x2 by default,
   up to x10), and the cells you paint are ground that costs that many times
   as much to move into; a rectangle, hexagon, circle or diamond takes the

@@ -84,3 +84,6 @@ jobs:
       - name: framecheck — the token creator's pure core
         if: ${{ !cancelled() }}
         run: node tools/framecheck.js
+      - name: calendarcheck — the game calendar's pure core
+        if: ${{ !cancelled() }}
+        run: node tools/calendarcheck.js

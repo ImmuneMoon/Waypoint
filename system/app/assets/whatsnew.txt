@@ -501,7 +501,10 @@ Turn-based combat
 - Difficult terrain: tick it in the fill menu, with its cost (x2 by default,
   up to x10), and the cells you paint are ground that costs that many times
   as much to move into; a rectangle, hexagon, circle or diamond takes the
-  same mark in its Properties.
+  same mark in its Properties. On a square or hex grid a turn's Move per
+  turn counts each difficult cell a move steps into at its cost (the note
+  says what the move cost), and a ruler crossing difficult terrain shows the
+  move's cost under its length.
 - A target mark's cover, light and range now follow a token at once when
   you drop it on your own screen, not at the next redraw.
 

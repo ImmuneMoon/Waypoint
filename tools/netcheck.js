@@ -2024,7 +2024,7 @@ pendingChecks.push((async () => {
         const camp = { id: 'c1', items: { m1: map }, system: o.system || sysT, turnRules: o.rules || {}, chars: { c_p: { id: 'c_p', name: 'Pat', ownerId: 'u_a', values: {} }, c_o: { id: 'c_o', name: 'Orc', npc: true, values: {} } } };
         const out = { bcast: [], notes: [], toasts: [], sent: [], bells: [] }, conn = { peer: 'pA', open: true, send: m => out.sent.push(m) }, conn2 = { peer: 'pA2', open: true, send: m => out.sent.push(Object.assign({ to: 'pA2' }, m)) };
         const net = { role: 'host', paused: false, roster: { pA: { id: 'u_a', location: 'm1' }, pA2: { id: 'u_a', location: 'm1' } }, conns: [conn, conn2], tokenDropped() {}, combats: { m1: { round: 1, turn: o.turn === undefined ? 1 : o.turn, rows: [{ id: 'r_o', tokId: 't_o' }, { id: 'r_p', tokId: 't_p' }] } } };
-        const win = { wpVtt: { on: k => k === 'turns' ? o.turns !== false : true, campaignOn: () => true }, wpFog: { moveBlocked: (mp, w, fx, fy, tx, ty) => tx >= 1000, moveCells: (mp, w, fx, fy, tx, ty) => Math.max(Math.abs(tx - fx), Math.abs(ty - fy)) / 50 }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }) }, wpFormula: Fx };
+        const win = { wpVtt: { on: k => k === 'turns' ? o.turns !== false : true, campaignOn: () => true }, wpFog: { moveBlocked: (mp, w, fx, fy, tx, ty) => tx >= 1000, moveCells: o.moveCells || ((mp, w, fx, fy, tx, ty) => Math.max(Math.abs(tx - fx), Math.abs(ty - fy)) / 50) }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }) }, wpFormula: Fx };
         const api = new Function('state', 'net', 'window', 'peerPaused', 'allow', 'checkRoomHandouts', 'applyPosToDom', 'broadcastPos', 'toast', 'saveRemoteSoon', 'sendFailed', 'setTimeout', 'playerStroke', 'SC', 'getActiveCampaign', 'bellOut',
             clT + ownKeySrc + helpT + posT + '\n' + patT + '\n' + tmT + '\nreturn { pos: function(m, c) { return handlePos(m, c); }, patch: function(m) { return applyClientItemFiltered(m, { id: "u_a" }); }, start: turnMoveStart };')(
             { appState: { campaigns: { c1: camp } } }, net, win, () => false, () => true, () => {}, () => {}, (m, ex) => out.bcast.push([m.wbId, m.x, m.y, ex === null ? 'all' : 'others']), t => out.toasts.push(t), () => {}, e => { throw e; }, f => f(), () => null, () => Sx, () => camp, (cid, note) => out.bells.push([cid, note.title, note.text]));
@@ -2050,6 +2050,20 @@ pendingChecks.push((async () => {
     check('T3b a drag whose final pos was lost: the map copy after it closes it — past the move, the token goes back to where the drag began for everyone, with a note to each of the player\'s connections; within it, the whole drag counts (from its start, not the last mid-drag place), with its note',
         b.pat.x === 0 && b.out.bcast.some(x => x[1] === 0 && x[3] === 'all') && j(b.out.notes()) === j(['That is 5 squares (25 ft); you have 4 squares (20 ft) left.', 'pA2:That is 5 squares (25 ft); you have 4 squares (20 ft) left.'])
         && b2.pat.x === 150 && b2.net.turnMove.m1.moved === 3 && j(b2.out.notes()) === j(['Moved 3 squares (15 ft); 1 square (5 ft) left.', 'pA2:Moved 3 squares (15 ft); 1 square (5 ft) left.']), j([b.out.notes(), b2.out.notes(), b2.net.turnMove]));
+    // difficult terrain T2: the fog tells the move's own length beside its cost (moveCells' out.len); here a move ending past x 100 costs double
+    const terrMc = (mp, tw, fx, fy, tx, ty, dg, outL) => { const l = Math.max(Math.abs(tx - fx), Math.abs(ty - fy)) / 50; if (outL) outL.len = l; return tx > 100 ? l * 2 : l; };
+    const tA = mkT({ allow: 4, moveCells: terrMc }); tA.P('t_p', 150, 0, true);
+    const tB = mkT({ allow: 8, moveCells: terrMc }); tB.P('t_p', 150, 0, true);
+    const tN = mkT({ allow: 8, moveCells: terrMc }); tN.P('t_p', 100, 0, true);
+    const tC = mkT({ allow: 8, moveCells: terrMc }); tC.P('t_p', 50, 0); tC.C('t_p', 150, 0);
+    const tD = mkT({ allow: 4, moveCells: terrMc }); tD.P('t_p', 50, 0); tD.C('t_p', 150, 0);
+    check('terrain T2 the move limit counts a move\'s cost (host, run for real): a drop that difficult terrain makes cost past the move goes back, its note naming the cost; one within counts its cost, its note naming both the length and the cost; plain ground as before; the map copy that closes a drag alike, refused or counted, to each of the player\'s connections',
+        tA.pat.x === 0 && j(tA.out.notes()) === j(['That costs 6 squares (30 ft) with difficult terrain; you have 4 squares (20 ft) left.'])
+        && tB.pat.x === 150 && tB.net.turnMove.m1.moved === 6 && j(tB.out.notes()) === j(['Moved 3 squares (15 ft), costing 6 squares (30 ft) with difficult terrain; 2 squares (10 ft) left.'])
+        && tN.net.turnMove.m1.moved === 2 && j(tN.out.notes()) === j(['Moved 2 squares (10 ft); 6 squares (30 ft) left.'])
+        && tC.pat.x === 150 && tC.net.turnMove.m1.moved === 6 && j(tC.out.notes()) === j(['Moved 3 squares (15 ft), costing 6 squares (30 ft) with difficult terrain; 2 squares (10 ft) left.', 'pA2:Moved 3 squares (15 ft), costing 6 squares (30 ft) with difficult terrain; 2 squares (10 ft) left.'])
+        && tD.pat.x === 0 && j(tD.out.notes()) === j(['That costs 6 squares (30 ft) with difficult terrain; you have 4 squares (20 ft) left.', 'pA2:That costs 6 squares (30 ft) with difficult terrain; you have 4 squares (20 ft) left.']),
+        j([tA.out.notes(), tB.out.notes(), tN.out.notes(), tC.out.notes(), tD.out.notes()]));
     const w = mkT({ allow: 4, rules: { move: 'warn' } }); w.P('t_p', 300, 0, true);
     const bo = mkT({ turn: 0, rules: { order: 'warn' } }); bo.P('t_p', 50, 0, true); const br = mkT({ turn: 0 }); br.P('t_p', 50, 0, true);
     const bp = mkT({ allow: 4 }); bp.P('t_p', 50, 0); bp.C('t_p', 250, 0); const bs = mkT(); bs.api.start('m1', bs.net.combats.m1);

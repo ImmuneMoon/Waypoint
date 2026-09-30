@@ -162,6 +162,31 @@ function moveClear(x1, y1, x2, y2, grid, blockers) {
     if (b !== a && blockers[b]) return false;
     return segClear(x1, y1, x2, y2, grid, blockers, s);
 }
+// Difficult terrain T2 (owner 2026-09-29): what a straight move from cell a to cell b costs against its length. It walks the cells the move
+// steps into along the line (a hex grid's cube line; a square grid's line a column or a row at a time, a diagonal step where both change),
+// weighs each step by its own length (1, or a square's diagonal: 1 with diag 'one', 1 then 2 by turns with 'alt', the straight line's
+// otherwise) and by the cost of the cell it enters (terr: { cellKey: 2..10 }, 1 where none), and gives the factor to multiply the move's
+// length by: 1 with no terrain, no step or no grid. The start cell never counts; a line past 4000 steps, or from a cell that is no number, is
+// not walked (1)
+function cubeRoundQR(x, y, z) {
+    var rx = Math.round(x), ry = Math.round(y), rz = Math.round(z), dx = Math.abs(rx - x), dy = Math.abs(ry - y), dz = Math.abs(rz - z);
+    if (dx > dy && dx > dz) rx = -ry - rz; else if (dy > dz) ry = -rx - rz; else rz = -rx - ry;
+    return { q: rx, r: rz };
+}
+function terrainFactor(a, b, grid, terr, diag) {
+    if (!isObj(grid) || !isObj(terr) || !isObj(a) || !isObj(b)) return 1;
+    var hex = grid.type === 'hex', n = hex ? hexDist(a, b) : Math.max(Math.abs(b.c - a.c), Math.abs(b.r - a.r));
+    if (n > 4000) return 1;
+    var sum = 0, wsum = 0, nd = 0, prev = a;
+    for (var i = 1; i <= n; i++) {
+        var u = i / n, c, s = 1;
+        if (hex) { var x = a.q + (b.q - a.q) * u + 1e-6, z = a.r + (b.r - a.r) * u + 2e-6; c = cubeRoundQR(x, -x - z, z); }
+        else { c = { c: a.c + Math.round((b.c - a.c) * u), r: a.r + Math.round((b.r - a.r) * u) }; if (c.c !== prev.c && c.r !== prev.r) { nd++; s = diag === 'one' ? 1 : diag === 'alt' ? (nd % 2 ? 1 : 2) : Math.SQRT2; } }
+        var t = cleanTerrain(terr[cellKey(c, grid)]) || 1;
+        sum += s * t; wsum += s; prev = c;
+    }
+    return wsum > 0 ? sum / wsum : 1;
+}
 /* ---------- cover (line-of-effect between two cells, for combat cover) ----------
    Reuses the SAME opaque-cell blocker set as fog, so the cover readout, host enforcement and the client overlay
    agree. coverBetween returns a SYSTEM-NEUTRAL result — { coverage 0..1 (kept < 1), lineOfEffect } — and each
@@ -583,6 +608,6 @@ function cleanCampFog(cf) {   // campaign-level: { fields:{sight, sightUnit?}, d
     return out;
 }
 
-var API = { VERSION: VERSION, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, lineClear: lineClear, moveClear: moveClear, cellCorners: cellCorners, coverBetween: coverBetween, coverFromPoint: coverFromPoint, openSeat: openSeat, coverRole: coverRole, visibleCells: visibleCells, seenCells: seenCells, cellDist: cellDist, cleanLight: cleanLight, cleanTokSenses: cleanTokSenses, cleanUnsensed: cleanUnsensed, cleanNulls: cleanNulls, cleanTerrain: cleanTerrain, cleanFogOff: cleanFogOff, markCells: markCells, cleanFogMarks: cleanFogMarks, lightUnit: lightUnit, unitCells: unitCells, cellInArc: cellInArc, litLevels: litLevels, neighbourCells: neighbourCells, cleanFogLit: cleanFogLit, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog };
+var API = { VERSION: VERSION, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, lineClear: lineClear, moveClear: moveClear, cellCorners: cellCorners, coverBetween: coverBetween, coverFromPoint: coverFromPoint, openSeat: openSeat, coverRole: coverRole, visibleCells: visibleCells, seenCells: seenCells, cellDist: cellDist, cleanLight: cleanLight, cleanTokSenses: cleanTokSenses, cleanUnsensed: cleanUnsensed, cleanNulls: cleanNulls, cleanTerrain: cleanTerrain, terrainFactor: terrainFactor, cleanFogOff: cleanFogOff, markCells: markCells, cleanFogMarks: cleanFogMarks, lightUnit: lightUnit, unitCells: unitCells, cellInArc: cellInArc, litLevels: litLevels, neighbourCells: neighbourCells, cleanFogLit: cleanFogLit, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog };
 if (typeof window !== 'undefined') window.wpFogCore = API;
-export { VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, lineClear, moveClear, cellCorners, coverBetween, coverFromPoint, openSeat, coverRole, visibleCells, seenCells, cellDist, cleanLight, cleanTokSenses, cleanUnsensed, cleanNulls, cleanTerrain, cleanFogOff, markCells, cleanFogMarks, lightUnit, unitCells, cellInArc, litLevels, neighbourCells, cleanFogLit, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog };
+export { VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, lineClear, moveClear, cellCorners, coverBetween, coverFromPoint, openSeat, coverRole, visibleCells, seenCells, cellDist, cleanLight, cleanTokSenses, cleanUnsensed, cleanNulls, cleanTerrain, terrainFactor, cleanFogOff, markCells, cleanFogMarks, lightUnit, unitCells, cellInArc, litLevels, neighbourCells, cleanFogLit, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog };

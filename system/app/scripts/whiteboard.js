@@ -2849,6 +2849,16 @@ window.wpFitToGrid = fitToGrid;
       if (!sc || !sc.gridCells || (dg !== 'one' && dg !== 'alt') || state.gridType !== 'square') return null;
       var px = mapMeasureConfig().cellPx; return sc.gridCells((m.x2 - m.x1) / px, (m.y2 - m.y1) / px, dg);
   }
+  // [fogcheck:rulercost-start]
+  // Difficult terrain T2: what a move along the ruler costs when it steps into difficult terrain, in the map's cells and unit, counted as a
+  // turn's move counts it (fog.js moveCost, the system's diagonal rule); '' when it costs no more than its length, or off a square or hex grid
+  function rulerCostText(map, m) {
+      var F = window.wpFog, sys = window.wpSheets && window.wpSheets.systemOf ? window.wpSheets.systemOf() : null, dg = sys && sys.combat && sys.combat.turn ? sys.combat.turn.diag : '';
+      if (!F || !F.moveCost || !map) return '';
+      var mc = F.moveCost(map, m.x1, m.y1, m.x2, m.y2, dg);
+      return mc && mc.cost > mc.len + 0.05 ? 'Move cost ' + measureLabel(0, mc.cost) : '';
+  }
+  // [fogcheck:rulercost-end]
   function renderMeasures() {
 
       var layer = document.getElementById('measureLayer');
@@ -2896,6 +2906,8 @@ window.wpFitToGrid = fitToGrid;
           if (litR) html += rulerLightText(mx + 8, _covY + (labCov ? 19 : 0), litR);
           var rgR = bothTok ? rangeSeen(amR, tokenCentre(tA), tokenCentre(tB), tA, tB) : rangeSeen(amR, { x: m.x1, y: m.y1 }, { x: m.x2, y: m.y2 }, null, null);   // range R1: on every ruler; between two tokens as a roll reads it
           if (rgR) html += rulerRangeText(mx + 8, _covY + (labCov ? 19 : 0) + (litR ? 19 : 0), rgR);
+          var mcR = rulerCostText(amR, m);   // difficult terrain T2: what the move costs, when terrain makes it cost more than its length
+          if (mcR) html += '<text x="' + (mx + 8) + '" y="' + (_covY + (labCov ? 19 : 0) + (litR ? 19 : 0) + (rgR ? 19 : 0)) + '">' + esc(mcR) + '</text>';
           html += '</g>';
 
       });

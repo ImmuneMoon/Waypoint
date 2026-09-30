@@ -2825,9 +2825,9 @@ function turnLimitCheck(camp, map, w, frW, msg, conn) {
     if (!cur || cur.tokId !== w.id || !st || st.tokId !== w.id || st.rowId !== cur.id || typeof st.allow !== 'number') return '';   // no limit this turn
     var mm = moveMode(camp, 'move'); if (mm === 'off') return '';
     var sys = camp && camp.system, dg = sys && sys.combat && sys.combat.turn ? sys.combat.turn.diag : '';
-    var d = window.wpFog && window.wpFog.moveCells ? window.wpFog.moveCells(map, w, frW.x, frW.y, msg.x, msg.y, dg) : 0, over = st.moved + d > st.allow + 0.05;
-    if (over && mm === 'refuse') { if (!msg.final) return 'stop'; snapBack(camp, map, w, msg, frW, conn); turnNote(conn, 'That is ' + cellsText(d, map) + '; you have ' + cellsText(Math.max(0, st.allow - st.moved), map) + ' left.', w.charId); return 'stop'; }
-    if (msg.final) { st.moved += d; var lf = st.allow - st.moved; turnNote(conn, over ? 'That went ' + cellsText(-lf, map) + ' past your move.' : 'Moved ' + cellsText(d, map) + '; ' + cellsText(Math.max(0, lf), map) + ' left.', w.charId); if (over) { toast((w.charName || 'A token') + ' moved ' + cellsText(-lf, map) + ' past their move.'); if (typeof bellOut === 'function') bellOut(w.charId, { title: 'Turn', text: 'Moved ' + cellsText(-lf, map) + ' past the move.' }); } }
+    var mvO = {}, d = window.wpFog && window.wpFog.moveCells ? window.wpFog.moveCells(map, w, frW.x, frW.y, msg.x, msg.y, dg, mvO) : 0, over = st.moved + d > st.allow + 0.05;
+    if (over && mm === 'refuse') { if (!msg.final) return 'stop'; snapBack(camp, map, w, msg, frW, conn); turnNote(conn, thatIsText(d, mvO.len, map) + '; you have ' + cellsText(Math.max(0, st.allow - st.moved), map) + ' left.', w.charId); return 'stop'; }
+    if (msg.final) { st.moved += d; var lf = st.allow - st.moved; turnNote(conn, over ? 'That went ' + cellsText(-lf, map) + ' past your move.' : movedText(d, mvO.len, map) + '; ' + cellsText(Math.max(0, lf), map) + ' left.', w.charId); if (over) { toast((w.charName || 'A token') + ' moved ' + cellsText(-lf, map) + ' past their move.'); if (typeof bellOut === 'function') bellOut(w.charId, { title: 'Turn', text: 'Moved ' + cellsText(-lf, map) + ' past the move.' }); } }
     return '';
 }
 // T3: the note of the Refuse rule that stops a player's move of this token from (fx, fy) to (tx, ty) — a wall in the way, out of its turn, past
@@ -2837,17 +2837,22 @@ function moveRefused(camp, map, mapId, w, fx, fy, tx, ty) {
     var cb = turnCombatOf(camp, mapId, w); if (!cb) return '';
     var cur = cb.rows[cb.turn]; if (!cur || cur.tokId !== w.id) return moveMode(camp, 'order') === 'refuse' ? 'It is not your turn: your token goes back.' : '';
     var st = own(net.turnMove, mapId) ? net.turnMove[mapId] : null; if (!st || st.tokId !== w.id || st.rowId !== cur.id || typeof st.allow !== 'number' || moveMode(camp, 'move') !== 'refuse') return '';
-    var sys = camp && camp.system, dg = sys && sys.combat && sys.combat.turn ? sys.combat.turn.diag : '', d = window.wpFog && window.wpFog.moveCells ? window.wpFog.moveCells(map, w, fx, fy, tx, ty, dg) : 0;
-    return st.moved + d > st.allow + 0.05 ? 'That is ' + cellsText(d, map) + '; you have ' + cellsText(Math.max(0, st.allow - st.moved), map) + ' left.' : '';
+    var sys = camp && camp.system, dg = sys && sys.combat && sys.combat.turn ? sys.combat.turn.diag : '', mvR = {}, d = window.wpFog && window.wpFog.moveCells ? window.wpFog.moveCells(map, w, fx, fy, tx, ty, dg, mvR) : 0;
+    return st.moved + d > st.allow + 0.05 ? thatIsText(d, mvR.len, map) + '; you have ' + cellsText(Math.max(0, st.allow - st.moved), map) + ' left.' : '';
 }
 // T3b: a move that lands through a map copy (its drag's final pos was lost) still counts against the turn's move; its note, or ''
 function moveCounted(camp, map, mapId, w, fx, fy, tx, ty) {
     var cb = turnCombatOf(camp, mapId, w); if (!cb) return '';
     var cur = cb.rows[cb.turn], st = own(net.turnMove, mapId) ? net.turnMove[mapId] : null; if (!cur || cur.tokId !== w.id || !st || st.tokId !== w.id || st.rowId !== cur.id || typeof st.allow !== 'number') return '';
-    var sys = camp && camp.system, dg = sys && sys.combat && sys.combat.turn ? sys.combat.turn.diag : '', d = window.wpFog && window.wpFog.moveCells ? window.wpFog.moveCells(map, w, fx, fy, tx, ty, dg) : 0;
+    var sys = camp && camp.system, dg = sys && sys.combat && sys.combat.turn ? sys.combat.turn.diag : '', mvC = {}, d = window.wpFog && window.wpFog.moveCells ? window.wpFog.moveCells(map, w, fx, fy, tx, ty, dg, mvC) : 0;
     st.moved += d;
-    return moveMode(camp, 'move') === 'off' ? '' : 'Moved ' + cellsText(d, map) + '; ' + cellsText(Math.max(0, st.allow - st.moved), map) + ' left.';
+    return moveMode(camp, 'move') === 'off' ? '' : movedText(d, mvC.len, map) + '; ' + cellsText(Math.max(0, st.allow - st.moved), map) + ' left.';
 }
+// Difficult terrain T2: a turn note's words for a move that cost d, its own length len (from the fog, when it can tell): the cost and "with
+// difficult terrain" where terrain made it cost more than its length, the move alone otherwise
+function viaTerrain(d, len) { return typeof len === 'number' && isFinite(len) && typeof d === 'number' && d > len + 0.05; }
+function thatIsText(d, len, map) { return viaTerrain(d, len) ? 'That costs ' + cellsText(d, map) + ' with difficult terrain' : 'That is ' + cellsText(d, map); }
+function movedText(d, len, map) { return viaTerrain(d, len) ? 'Moved ' + cellsText(len, map) + ', costing ' + cellsText(d, map) + ' with difficult terrain' : 'Moved ' + cellsText(d, map); }
 function cellsText(n, map) {   // "6 squares (30 ft)": the map's cells and its own unit
     var S = SC(), sc = S && S.mapCellScale ? S.mapCellScale(map) : { per: 5, unit: 'ft', hex: false }, r = Math.round(n * 10) / 10, gt = map && map.meta && map.meta.gridType;
     var nm = gt === 'hex' ? (r === 1 ? 'hex' : 'hexes') : gt === 'square' ? (r === 1 ? 'square' : 'squares') : (r === 1 ? 'cell' : 'cells');

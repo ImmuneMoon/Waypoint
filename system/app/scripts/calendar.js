@@ -149,8 +149,9 @@ function moveTo(t1, why) {
     var camp = getActiveCampaign(); if (!camp || isPlayer() || typeof t1 !== 'number' || !isFinite(t1)) return false;
     var ck = clockOf(camp) || { t: 0 }, cal = sysCal(); t1 = Math.max(0, Math.min(CAL_LIMITS.time, Math.floor(t1)));
     if (t1 === ck.t) return false;
-    var hits = notesReached(notesOf(ck), ck.t, t1, dayLength(cal));   // K3: the dated notes this move reaches, told to the GM
+    var hits = notesReached(notesOf(ck), ck.t, t1, dayLength(cal)), gone = t1 - ck.t;   // K3: the dated notes this move reaches, told to the GM
     camp.clock = Object.assign({}, ck, { t: t1 });
+    if (gone > 0 && net() && net().fxGameTime) net().fxGameTime(gone);   // K4: timed effects outside a fight run by the game clock (never back)
     if (why && net() && net().logEvent) net().logEvent('time', why + ' \u2014 now ' + fmtWhen(cal, t1));
     hits.forEach(function(n) { if (net() && net().logEvent) net().logEvent('time', 'Note reached \u2014 ' + fmtDate(cal, n.day * dayLength(cal)) + ': ' + n.text); });
     if (hits.length) toast(hits.length === 1 ? 'Today: ' + hits[0].text : hits.length + ' dated notes reached: ' + hits.slice(0, 3).map(function(n) { return n.text; }).join('; ') + (hits.length > 3 ? '; \u2026' : ''));

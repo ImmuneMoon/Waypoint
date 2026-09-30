@@ -2325,10 +2325,23 @@ pendingChecks.push((async () => {
         const out = { deltas: [], changed: [], chat: [], saves: 0 }, mk = p => ({ peer: p, open: true, sent: [], send(m) { this.sent.push(m); } }), conns = [mk('pA'), mk('pB')];
         const net = { active: true, role: o.role || 'host', stream: false, myId: 'u_gm', conns, roster: { pA: { id: 'u_a' }, pB: { id: 'u_b' } }, combats: o.combats || {}, syncCharDelta: (id, d) => out.deltas.push([id, JSON.parse(JSON.stringify(d))]) };
         const api = new Function('net', 'window', 'SC', 'getActiveCampaign', 'own', 'saveRemoteSoon', 'pushChat', 'sendFailed', pidF + ftS + '\nreturn { apply: fxApply, turn: turnFxStart, edge: fxCombatEdge, clock: fxClockTick, inCombat: net.charInCombat };')(
-            net, { wpVtt: { on: k => k !== 'sheets' || o.sheets !== false }, wpSheets: { charChanged: id => out.changed.push(id) } }, () => Sx, () => camp, (ob, k) => !!ob && Object.prototype.hasOwnProperty.call(ob, k), () => out.saves++, m => out.chat.push(m), e => { throw e; });
+            net, { wpVtt: { on: k => (k === 'sheets' ? o.sheets !== false : k === 'calendar' ? o.calendar === true : true) }, wpSheets: { charChanged: id => out.changed.push(id) } }, () => Sx, () => camp, (ob, k) => !!ob && Object.prototype.hasOwnProperty.call(ob, k), () => out.saves++, m => out.chat.push(m), e => { throw e; });
         return { out, net, camp, api, conns };
     };
     const cb = { round: 1, turn: 0, rows: [{ id: 'r_p', tokId: 't_p' }] };
+    {   // item 20 K4: the Calendar on — the tick only stops a running clock; the game clock's move (net.fxGameTime) runs every timed effect outside a fight
+        const g = mkF({ calendar: true, combats: { m1: cb } }), now0 = Date.now(); g.camp.chars.c_q.values.f_fx[0].t = { left: 10, at: now0 - 2000 }; g.camp.chars.c_r.values.f_fx[0].t = { left: 30, at: 0, p: 1 };
+        g.api.clock(); const gq1 = JSON.parse(JSON.stringify(g.camp.chars.c_q.values.f_fx[0].t)), gd1 = g.out.deltas.length; g.api.clock(); const gd2 = g.out.deltas.length;
+        g.net.fxGameTime(3); const gq2 = g.camp.chars.c_q.values.f_fx[0].t.left, gp2 = JSON.parse(JSON.stringify(g.camp.chars.c_p.values.f_fx[0].t)), gr2 = g.camp.chars.c_r.values.f_fx[0].t;
+        [0, -5, NaN, '3'].forEach(v => g.net.fxGameTime(v)); const gq3 = g.camp.chars.c_q.values.f_fx[0].t.left;
+        g.net.fxGameTime(3600); const gGone = [g.camp.chars.c_q.values.f_fx.length, g.out.chat.map(m => m.text)];
+        const off = mkF({ calendar: false }); off.camp.chars.c_q.values.f_fx[0].t = { left: 10, at: 0 }; off.net.fxGameTime(3); const offT = JSON.parse(JSON.stringify(off.camp.chars.c_q.values.f_fx[0].t)); off.api.clock(); const offT2 = off.camp.chars.c_q.values.f_fx[0].t;
+        const cli = mkF({ calendar: true, role: 'client' }); cli.camp.chars.c_q.values.f_fx[0].t = { left: 10, at: 0 }; cli.net.fxGameTime(3); const noSheets = mkF({ calendar: true, sheets: false }); noSheets.camp.chars.c_q.values.f_fx[0].t = { left: 10, at: 0 }; noSheets.net.fxGameTime(3);
+        check('item 20 K4 the Calendar on (host, run for real): the tick stops a clock still running, keeping what ran (about 8 of 10 s), once; each move of the game clock on takes that much from every timed effect outside a fight (Quin 8 to 5), never one in the fight (Pat) or a paused one (Rex); no move, one back or one that is no number takes nothing; what runs out comes off with its lines; the Calendar off, the game clock runs nothing and the tick starts a stopped clock again from now; a player\'s machine or a table without sheets runs nothing',
+            gq1.at === 0 && gq1.left > 7.5 && gq1.left <= 8.1 && gd1 >= 1 && gd2 === gd1 && Math.abs(gq2 - (gq1.left - 3)) < 1e-6 && j(gp2) === j({ left: 6, at: 0 }) && j(gr2) === j({ left: 30, at: 0, p: 1 }) && gq3 === gq2
+            && gGone[0] === 0 && gGone[1].indexOf('Quick ran out on Quin.') >= 0 && j(offT) === j({ left: 10, at: 0 }) && offT2.at > 0 && offT2.left === 10 && cli.camp.chars.c_q.values.f_fx[0].t.left === 10 && noSheets.camp.chars.c_q.values.f_fx[0].t.left === 10
+            , j([gq1, gd1, gd2, gq2, gp2, gr2, gq3, gGone, offT, offT2]));
+    }
     const a = mkF({ combats: { m1: cb } }); a.api.turn('m1', cb);
     check('T5a a turn\'s start (host, run for real): a round of the character\'s timed effects passes; one that runs out comes off (stored, sent as a delta, its views redrawn) with a private line for the GM and each connection of its player, never another\'s',
         j(a.camp.chars.c_p.values.f_fx) === '[]' && j(a.out.deltas) === j([['c_p', { f_fx: [] }]]) && j(a.out.changed) === j(['c_p']) && a.out.chat.length === 1 && a.out.chat[0].text === 'Bless ran out on Pat.' && a.out.chat[0].scope === 'whisper'

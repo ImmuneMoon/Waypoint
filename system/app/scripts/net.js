@@ -527,11 +527,15 @@ if (_rosterEl) _rosterEl.addEventListener('click', function(e) {
 // Strip GM-only content before anything leaves the host: planners never ship,
 // room notes / character dossier info never ship, GM-note cards never ship,
 // and hidden whiteboard items are reduced to a position-only stub.
-// Token stance from a player: a finite elevation in yards, a posture from the seven
+// Token stance from a player: a finite elevation in yards, a posture of the list in use (conditions C3: the system's own, by its id, else the seven)
 var POSTURE_SET = { standing: 1, crouching: 1, sitting: 1, kneeling: 1, crawling: 1, 'lying-prone': 1, 'lying-face-up': 1 };
 var POSTURE_OLD = { prone: 'lying-prone', supine: 'lying-face-up' };   // 1.4.6 pre-release ids, still read
 function cleanElevation(v) { v = Math.round(Number(v) * 10) / 10; return isFinite(v) ? Math.max(-999, Math.min(999, v)) : 0; }
-function cleanPosture(v) { v = String(v || 'standing').toLowerCase(); v = POSTURE_OLD[v] || v; return POSTURE_SET[v] ? v : 'standing'; }
+function cleanPosture(v, sys) {   // '' for the first posture (none stored)
+    var S = typeof window === 'object' && window ? window.wpSystemCore : null;
+    if (S && S.ownPostures && S.ownPostures(sys)) { var at = S.postureAt(sys, typeof v === 'string' ? v : ''); return at.i > 0 && at.p ? at.p.id : ''; }
+    v = String(v || 'standing').toLowerCase(); v = POSTURE_OLD[v] || v; return POSTURE_SET[v] && v !== 'standing' ? v : '';
+}
 function sanitizeItem(item) {
     if (!item) return item;
     if (item.type === 'planner') return null;
@@ -1279,10 +1283,10 @@ function applyClientItemFiltered(msg, profile, out) {   // fold M10: out.strokes
         var _v = window.wpVtt;
         var evOn = !_v || _v.campaignOn('elevation', camp), poOn = !_v || _v.campaignOn('posture', camp);
         var elevC = evOn ? cleanElevation(w.elevation) : cleanElevation(lw.elevation),
-            postC = poOn ? cleanPosture(w.posture) : cleanPosture(lw.posture);
-        if ((lw.elevation || 0) !== elevC || (lw.posture || 'standing') !== postC) {
+            postC = poOn ? cleanPosture(w.posture, camp.system) : (typeof lw.posture === 'string' ? lw.posture : '');   // off: the host's value as it is
+        if ((lw.elevation || 0) !== elevC || (typeof lw.posture === 'string' ? lw.posture : '') !== postC) {
             if (elevC) lw.elevation = elevC; else delete lw.elevation;
-            if (postC !== 'standing') lw.posture = postC; else delete lw.posture;
+            if (postC) lw.posture = postC; else delete lw.posture;
             changed = true;
         }
         // Threat marks (5h Fold 3) never ride a patch: a player's own arrive as a 'threats' message (see there), so a stale copy in a

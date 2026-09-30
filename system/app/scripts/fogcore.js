@@ -130,6 +130,26 @@ function cellsUnderDiamond(x, y, w, h, grid) {
     for (var i = 0; i < box.length; i++) { var p = cellCenter(box[i], grid); if (Math.abs(p.x - cx) / rx + Math.abs(p.y - cy) / ry <= 1 + 1e-9) out.push(box[i]); }
     return out;
 }
+// Item 18 (the owner's answer, 2026-09-30: a turned shape or an image blocks by its outline, never by pixels): a board piece's cells — those
+// whose centre lies inside its outline, turned by its rot (degrees, about its box's centre, as the board draws it). A painted cell is its one
+// cell; a circle its ellipse (a true circle turns into itself, so it is read unturned); a hexagon or a diamond its own outline; a rectangle, an
+// image or anything else its box. Unturned: exactly the helpers above
+function itemCells(w, grid) {
+    if (!isObj(w) || !isObj(grid) || !fin(w.x) || !fin(w.y)) return [];
+    var ww = fin(w.w) ? w.w : 0, hh = fin(w.h) ? w.h : 0;
+    if (w.fill) return [cellOf(w.x + ww / 2, w.y + hh / 2, grid)];
+    var kind = w.type === 'hexagon' ? 'hex' : w.type === 'circle' ? 'ell' : w.type === 'diamond' ? 'dia' : 'rect', rot = fin(w.rot) ? w.rot % 360 : 0;
+    if (!rot || (kind === 'ell' && ww === hh)) return kind === 'hex' ? cellsUnderHex(w.x, w.y, ww, hh, grid) : kind === 'ell' ? cellsUnderCircle(w.x, w.y, ww, hh, grid) : kind === 'dia' ? cellsUnderDiamond(w.x, w.y, ww, hh, grid) : cellsUnderRect(w.x, w.y, ww, hh, grid);
+    var rad = rot * Math.PI / 180, co = Math.cos(rad), si = Math.sin(rad), cx = w.x + ww / 2, cy = w.y + hh / 2, rx = ww / 2 || 1, ry = hh / 2 || 1;
+    var bw = Math.abs(ww * co) + Math.abs(hh * si), bh = Math.abs(ww * si) + Math.abs(hh * co), box = cellsUnderRect(cx - bw / 2, cy - bh / 2, bw, bh, grid), out = [];
+    for (var i = 0; i < box.length; i++) {
+        var p = cellCenter(box[i], grid), dx = p.x - cx, dy = p.y - cy, lx = dx * co + dy * si, ly = -dx * si + dy * co;   // the cell centre in the piece's own frame
+        var inside = kind === 'hex' ? pointInFlatHex(lx, ly, 0, 0, ww, hh) : kind === 'ell' ? (lx / rx) * (lx / rx) + (ly / ry) * (ly / ry) <= 1 + 1e-9
+            : kind === 'dia' ? Math.abs(lx) / rx + Math.abs(ly) / ry <= 1 + 1e-9 : Math.abs(lx) <= ww / 2 + 1e-9 && Math.abs(ly) <= hh / 2 + 1e-9;
+        if (inside) out.push(box[i]);
+    }
+    return out;
+}
 // True if the straight PIXEL segment (pax,pay)->(pbx,pby) crosses no opaque cell, sampling at ~half a cell and
 // skipping any cell key in skipKeys. The shared sampler behind lineClear (sight) and coverBetween (cover), so host
 // enforcement, the client overlay and the cover readout all agree by construction. Private to this module.
@@ -279,11 +299,12 @@ function openSeat(px, py, tx, ty, grid, blocked) {
 // Cover follow-ups (owner 2026-09-28): what a board piece gives as cover — 'hard' (it blocks sight: a wall, a pillar, a closed door, unless set to
 // no cover), 'soft' (set to give cover without blocking sight: a crate, a low wall — never total), or null. Never a token (a token is not cover,
 // and its absence from a fogged player's board would split the host's cover from theirs), a hidden piece, an open door or a rotated shape other
-// than a circle. w.cover: 'yes' | 'no' | absent (as its sight) — read by comparison only (an import's value can be anything)
+// than a circle (item 18: a turned shape and an image count too, by their outline). w.cover: 'yes' | 'no' | absent (as its sight) — read by
+// comparison only (an import's value can be anything)
 function coverRole(w) {
     if (!w || typeof w !== 'object' || w.hidden || w.isChar || w.waiting) return null;
     if (w.sightType === 'door' && w.doorOpen) return null;
-    var shapeOk = w.type === 'circle' || (!w.rot && (!!w.fill || w.type === 'rect' || w.type === 'hexagon' || w.type === 'diamond'));
+    var shapeOk = !!w.fill || w.type === 'circle' || w.type === 'rect' || w.type === 'hexagon' || w.type === 'diamond' || w.type === 'image';
     if (!shapeOk || w.cover === 'no') return null;
     if (w.blocksSight) return 'hard';
     return w.cover === 'yes' ? 'soft' : null;
@@ -624,6 +645,6 @@ function cleanCampFog(cf) {   // campaign-level: { fields:{sight, sightUnit?}, d
     return out;
 }
 
-var API = { VERSION: VERSION, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, lineClear: lineClear, moveClear: moveClear, cellCorners: cellCorners, coverBetween: coverBetween, coverFromPoint: coverFromPoint, openSeat: openSeat, coverRole: coverRole, visibleCells: visibleCells, seenCells: seenCells, cellDist: cellDist, cleanLight: cleanLight, cleanTokSenses: cleanTokSenses, cleanUnsensed: cleanUnsensed, cleanNulls: cleanNulls, cleanTerrain: cleanTerrain, cleanTokFx: cleanTokFx, terrainFactor: terrainFactor, cleanFogOff: cleanFogOff, markCells: markCells, cleanFogMarks: cleanFogMarks, lightUnit: lightUnit, unitCells: unitCells, cellInArc: cellInArc, litLevels: litLevels, neighbourCells: neighbourCells, cleanFogLit: cleanFogLit, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog };
+var API = { VERSION: VERSION, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, itemCells: itemCells, lineClear: lineClear, moveClear: moveClear, cellCorners: cellCorners, coverBetween: coverBetween, coverFromPoint: coverFromPoint, openSeat: openSeat, coverRole: coverRole, visibleCells: visibleCells, seenCells: seenCells, cellDist: cellDist, cleanLight: cleanLight, cleanTokSenses: cleanTokSenses, cleanUnsensed: cleanUnsensed, cleanNulls: cleanNulls, cleanTerrain: cleanTerrain, cleanTokFx: cleanTokFx, terrainFactor: terrainFactor, cleanFogOff: cleanFogOff, markCells: markCells, cleanFogMarks: cleanFogMarks, lightUnit: lightUnit, unitCells: unitCells, cellInArc: cellInArc, litLevels: litLevels, neighbourCells: neighbourCells, cleanFogLit: cleanFogLit, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog };
 if (typeof window !== 'undefined') window.wpFogCore = API;
-export { VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, lineClear, moveClear, cellCorners, coverBetween, coverFromPoint, openSeat, coverRole, visibleCells, seenCells, cellDist, cleanLight, cleanTokSenses, cleanUnsensed, cleanNulls, cleanTerrain, cleanTokFx, terrainFactor, cleanFogOff, markCells, cleanFogMarks, lightUnit, unitCells, cellInArc, litLevels, neighbourCells, cleanFogLit, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog };
+export { VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, itemCells, lineClear, moveClear, cellCorners, coverBetween, coverFromPoint, openSeat, coverRole, visibleCells, seenCells, cellDist, cleanLight, cleanTokSenses, cleanUnsensed, cleanNulls, cleanTerrain, cleanTokFx, terrainFactor, cleanFogOff, markCells, cleanFogMarks, lightUnit, unitCells, cellInArc, litLevels, neighbourCells, cleanFogLit, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog };

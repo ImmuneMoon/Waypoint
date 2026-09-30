@@ -534,6 +534,10 @@ Turn-based combat
   card's Initiative box, tick Rolled again every round, or give a Sides roll
   (1d6) and each round the players' characters and everyone else roll it,
   the higher side first, each side in its own order.
+- A turned shape or an image can block sight: flag it Blocks sight and it
+  blocks the cells its outline covers, turned as it is drawn (never by its
+  pixels). It gives cover as any wall does, and a turned door opens as any
+  door.
 - Difficult terrain: tick it in the fill menu, with its cost (x2 by default,
   up to x10), and the cells you paint are ground that costs that many times
   as much to move into; a rectangle, hexagon, circle or diamond takes the

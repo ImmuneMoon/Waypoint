@@ -1651,6 +1651,7 @@
   .combat-strip-cur img { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; border: 1px solid var(--gold); }
   .combat-strip-next { color: var(--dim); font-size: 11px; }
   .combat-strip-held { color: var(--gold); font-size: 11px; font-style: italic; }   /* initiative O3: a row holding its turn */
+  .combat-strip-side { color: var(--dim); font-size: 11px; font-weight: 600; }   /* initiative O4: the side going first this round */
   .combat-strip-btn { font: inherit; background: transparent; border: 1px solid var(--edge); color: var(--ink); border-radius: 10px; padding: 1px 8px; cursor: pointer; font-size: 11px; }
   .combat-strip-btn:hover { border-color: var(--gold); color: var(--gold); }
   .combat-strip-btn.danger:hover { border-color: var(--red); color: var(--red); }

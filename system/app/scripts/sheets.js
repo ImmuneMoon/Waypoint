@@ -4168,6 +4168,10 @@ function refreshErrors() {
         else if (!pa || !pa.ok) iErr.push({ message: nm + ': ' + (pa && pa.error && pa.error.message ? pa.error.message : 'the formula cannot be read.') + ' Save drops it.' });
         else { iSys = iSys || { fields: gmViewFields(draft, F()), items: draft.items, core: draft.core }; var gmI = gmDerivedNames(iSys, F(), Array.isArray(pa.names) ? pa.names : []); if (gmI.length) iErr.push({ message: nm + ': it reads ' + gmI[0] + ', which players cannot read, and the order is public: Save drops it.' }); }
     });
+    var sdE = irE && typeof irE.side === 'string' ? irE.side.trim() : '', paS = sdE && F() ? F().parse(sdE) : null;   // initiative O4: the sides' roll, read as the cleaner reads it
+    if (sdE && (sdE.length > LIMITS.formula || new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']').test(sdE))) iErr.push({ message: 'Sides roll: a formula is at most ' + LIMITS.formula + ' characters, on one line: Save drops it.' });
+    else if (sdE && (!paS || !paS.ok)) iErr.push({ message: 'Sides roll: ' + (paS && paS.error && paS.error.message ? paS.error.message : 'the formula cannot be read.') + ' Save drops it.' });
+    else if (sdE && Array.isArray(paS.names) && paS.names.length) iErr.push({ message: 'Sides roll: it reads ' + paS.names[0] + ', but a side rolls it as one, never as one character: Save drops it.' });
     if (iErr.length) errorsById.initiative = iErr;
 }
 function errorCell(id) {
@@ -4673,15 +4677,24 @@ function renderCombat() {
 function initBox(box, cm) {
     var ir = cm.initiative && typeof cm.initiative === 'object' && !Array.isArray(cm.initiative) ? cm.initiative : {}, ties = Array.isArray(ir.ties) ? ir.ties : [], wrap = el('div', 'sys-init');
     wrap.appendChild(el('div', 'sys-light-head', 'Initiative'));
-    wrap.appendChild(el('div', 'sys-note', 'The combat roster orders a fight by the roll you tick Initiative on (the Rolls tab): one with no dice is worked out (Basic Speed), one with dice rolled (d20 + DEX). When two tie, the steps below settle it in turn: a value puts the higher first (DX); a roll (1d6, d20) is made only for those still tied, and made again while they stay tied. They read only what players can read: the order is public.'));
+    wrap.appendChild(el('div', 'sys-note', 'The combat roster orders a fight by the roll you tick Initiative on (the Rolls tab): one with no dice is worked out (Basic Speed), one with dice rolled (d20 + DEX). When two tie, the steps below settle it in turn: a value puts the higher first (DX); a roll (1d6, d20) is made only for those still tied, and made again while they stay tied. They read only what players can read: the order is public. Rolled again every round has everyone roll it again when a new round begins; a Sides roll (1d6) plays the players against the rest each round, the higher side first.'));
     var r = el('div', 'sys-flags sys-init-ties'); r.appendChild(el('span', 'sys-num-cap', 'Ties go to the higher'));
     for (var i = 0; i < LIMITS.initTies; i++) { var ti = input('sys-init-tie field', typeof ties[i] === 'string' ? ties[i] : '', i === 0 ? 'The first step for a tie: a value (DX) or a roll (1d6)' : 'If still tied: a value or a roll', i === 0 ? 'e.g. DX' : i === 1 ? 'then, e.g. 1d6' : 'then\u2026'); ti.maxLength = LIMITS.formula; ti.dataset.ti = String(i); r.appendChild(ti); }
     wrap.appendChild(r);
+    // initiative O4: rolled again every round (a tick), and a sides roll (the players' characters against everyone else, each round)
+    var r2 = el('div', 'sys-flags sys-init-more'), evL = el('label', 'sys-hover'), evC = el('input', 'sys-init-every'); evC.type = 'checkbox'; evC.checked = ir.every === true; evL.appendChild(evC); evL.appendChild(document.createTextNode(' Rolled again every round')); evL.title = 'When a new round begins, everyone in the fight rolls the initiative roll again and the order re-sorts (a row with no character keeps its number)'; r2.appendChild(evL);
+    r2.appendChild(el('span', 'sys-num-cap', 'Sides roll')); var sdI = input('sys-init-side field', typeof ir.side === 'string' ? ir.side : '', 'Side initiative: the players\u2019 characters and everyone else each roll this when the fight starts and at every new round, the higher side first, each side in its own order. It reads no one\u2019s values. Blank: no sides', 'e.g. 1d6'); sdI.maxLength = LIMITS.formula; r2.appendChild(sdI);
+    wrap.appendChild(r2);
     var err = errorCell('initiative'); err.dataset.errFor = 'initiative'; wrap.appendChild(err);
     box.appendChild(wrap);
 }
 function onInitInput(t) {
     var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-init-') < 0) return false;
+    if (c.indexOf('sys-init-side') >= 0) {   // initiative O4: the sides' roll (Save cleans it)
+        var cmS = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }), irS = cmS.initiative && typeof cmS.initiative === 'object' && !Array.isArray(cmS.initiative) ? cmS.initiative : (cmS.initiative = {}), sv = String(t.value || '').slice(0, LIMITS.formula);
+        if (sv.trim()) irS.side = sv; else { delete irS.side; if (!Object.keys(irS).length) delete cmS.initiative; }
+        markDirty(); patchErrors(); return true;
+    }
     var i = Number(t.dataset && t.dataset.ti); if (c.indexOf('sys-init-tie') < 0 || !(i >= 0 && i < LIMITS.initTies && Math.floor(i) === i)) return true;
     var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }), ir = cm.initiative && typeof cm.initiative === 'object' && !Array.isArray(cm.initiative) ? cm.initiative : (cm.initiative = {});
     var ties = Array.isArray(ir.ties) ? ir.ties.slice(0, LIMITS.initTies).map(function(x) { return typeof x === 'string' ? x : ''; }) : []; while (ties.length < LIMITS.initTies) ties.push('');
@@ -4689,7 +4702,15 @@ function onInitInput(t) {
     if (ties.some(function(x) { return x.trim(); })) ir.ties = ties; else { delete ir.ties; if (!Object.keys(ir).length) delete cm.initiative; }
     markDirty(); patchErrors(); return true;
 }
-function onInitChange(t) { var c = t.className || ''; return typeof c === 'string' && c.indexOf('sys-init-') >= 0; }   // the boxes' change events (their input events did the work)
+function onInitChange(t) {   // the boxes' change events (their input events did the work); initiative O4: the Rolled again every round tick, true only
+    var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-init-') < 0) return false;
+    if (c.indexOf('sys-init-every') >= 0) {
+        var cmE = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }), irV = cmE.initiative && typeof cmE.initiative === 'object' && !Array.isArray(cmE.initiative) ? cmE.initiative : (cmE.initiative = {});
+        if (t.checked === true) irV.every = true; else { delete irV.every; if (!Object.keys(irV).length) delete cmE.initiative; }
+        markDirty(); patchErrors();
+    }
+    return true;
+}
 // [sinkcheck:initbox-end]
 // Conditions C3 (docs/CONDITIONS_PLAN.md): the system's own postures on the Combat card — how a token can stand, in order. None: the seven.
 // Name your own starts from the seven (their ids kept, so a website sheet still sets them). Each row a name, its chip's tag, a "smaller target"

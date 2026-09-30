@@ -530,6 +530,10 @@ Turn-based combat
 - Hold a turn: on the turn strip, Hold lets the one on turn wait; Act later
   that round puts them right after whoever is acting, and they keep that
   place. A hold not used by the round's end is lost.
+- Initiative rolled again every round, and side initiative: in the Combat
+  card's Initiative box, tick Rolled again every round, or give a Sides roll
+  (1d6) and each round the players' characters and everyone else roll it,
+  the higher side first, each side in its own order.
 - Difficult terrain: tick it in the fill menu, with its cost (x2 by default,
   up to x10), and the cells you paint are ground that costs that many times
   as much to move into; a rectangle, hexagon, circle or diamond takes the

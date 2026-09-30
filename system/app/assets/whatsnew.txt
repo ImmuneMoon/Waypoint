@@ -523,6 +523,10 @@ Turn-based combat
 - The combat roster has Roll all: your system's initiative roll for every
   ticked character without a number yet. In a running fight a player's own
   initiative roll from their sheet takes its place in the order, once.
+- The Combat card's Initiative box settles ties: up to three steps, each a
+  value (the higher first, such as DX) or a roll made only for those still
+  tied (1d6, d20), so a 3d6 game can order by Basic Speed and roll only for
+  ties, and a d20 game roll and roll again.
 - Difficult terrain: tick it in the fill menu, with its cost (x2 by default,
   up to x10), and the cells you paint are ground that costs that many times
   as much to move into; a rectangle, hexagon, circle or diamond takes the

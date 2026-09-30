@@ -3093,6 +3093,7 @@ function cleanCombats(c) {
             if (!r || typeof r !== 'object') return null;
             var o = { id: String(r.id || '').slice(0, 40), name: String(r.name || '').slice(0, 60), tokId: r.tokId ? String(r.tokId).slice(0, 80) : null, init: Math.max(-1e6, Math.min(1e6, Number(r.init) || 0)), src: typeof r.src === 'string' && r.src.length <= 400 ? r.src : null };
             if (r.rolled === 1 || r.rolled === true) o.rolled = 1;   // initiative O1: the row has its number (rolled or given); the host's own, never sent to a player (combatRowOut)
+            if (Array.isArray(r.tb)) { var tb = r.tb.slice(0, 3).map(function(v) { return Array.isArray(v) ? v.slice(0, 8).filter(function(n) { return typeof n === 'number' && isFinite(n); }).map(function(n) { return Math.max(-1e6, Math.min(1e6, n)); }) : null; }); if (tb.some(function(v) { return v && v.length; })) o.tb = tb; }   // initiative O2: its tie rolls, each step's in order, kept so a later sort never shuffles; the host's own
             return o;
         }).filter(Boolean);
         if (!rows.length) return;
@@ -3362,8 +3363,9 @@ function initIntoFight(camp, mapId, charId, pid, value) {
     var mine = {}; map.whiteboard.forEach(function(w) { if (w && w.isChar && w.charId === charId && w.ownerId === pid && typeof w.id === 'string') mine[w.id] = 1; });
     var row = c.rows.find(function(r) { return r && typeof r.tokId === 'string' && mine[r.tokId] === 1; }); if (!row || row.rolled === 1) return false;
     var cur = c.rows[c.turn], S = SC();
-    row.init = Math.max(-1e6, Math.min(1e6, Math.round(value * 100) / 100)); row.rolled = 1;
-    c.rows = S && S.orderByInit ? S.orderByInit(c.rows) : c.rows;
+    row.init = Math.max(-1e6, Math.min(1e6, Math.round(value * 100) / 100)); row.rolled = 1; delete row.tb;   // a new number: its old roll-offs go
+    var tieIF = S && S.initTie ? S.initTie(camp.system, window.wpFormula, function(r) { var tk = r && typeof r.tokId === 'string' ? map.whiteboard.find(function(w) { return w && w.id === r.tokId; }) : null; return tk && typeof tk.charId === 'string' && camp.chars && own(camp.chars, tk.charId) ? camp.chars[tk.charId] : null; }) : null;   // initiative O2: the system's tie steps
+    c.rows = S && S.orderByInit ? S.orderByInit(c.rows, tieIF) : c.rows;
     var at = cur ? c.rows.indexOf(cur) : 0; c.turn = at >= 0 ? at : 0;
     toast((row.name || 'Someone') + ' rolled initiative: ' + row.init + ', now ' + (c.rows.indexOf(row) + 1) + ' of ' + c.rows.length + '.');
     logEvent('table', (row.name || 'Someone') + ' rolled initiative on ' + mapTitleOf(mapId) + ': ' + row.init);

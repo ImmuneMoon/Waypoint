@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sbRowOps, sbApplyProposal, cleanUploads, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, DEFAULT_POSTURES, postureList, postureAt, autoEffectsOn, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
+import { droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sbRowOps, sbApplyProposal, cleanUploads, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, DEFAULT_POSTURES, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
 
 var ui = function(id) { return document.getElementById(id); };
@@ -3149,6 +3149,7 @@ function runDue(charId, actId) {
 }
 // The combat roster (whiteboard.js): initiative from the system's init roll, made at the table like any roll
 function hasInitRoll() { var sys = systemOf(getActiveCampaign()); return !!(sys && initRoll(sys)); }
+function initTieNow() { var camp = getActiveCampaign(), sys = systemOf(camp); return sys && F() ? initTie(sys, F(), function(r) { return r && typeof r.charId === 'string' ? charById(r.charId, camp) : null; }) : null; }   // initiative O2: the tie steps for the roster's sort (its rows name their character)
 function rollInit(charId) {
     var camp = getActiveCampaign(), sys = systemOf(camp), c = charById(charId, camp), r = sys ? initRoll(sys) : null;
     if (!c || !r) return { error: 'No initiative roll in this system (tick Initiative on a roll in the System editor).' };
@@ -4157,6 +4158,17 @@ function refreshErrors() {
         if (pKept < 2) pErr.push({ message: 'A list of postures needs at least two: Save goes back to the seven.' });
     }
     if (pErr.length) errorsById.postures = pErr;
+    // initiative O2: what Save drops of the tie steps, under the Initiative box — read as the cleaner reads them (a step that reads, of 300
+    // characters at most, reading only what players can read)
+    var irE = draft.combat && draft.combat.initiative && typeof draft.combat.initiative === 'object' && !Array.isArray(draft.combat.initiative) ? draft.combat.initiative : null, iErr = [], iSys = null;
+    (irE && Array.isArray(irE.ties) ? irE.ties : []).slice(0, LIMITS.initTies).forEach(function(t, i) {
+        if (typeof t !== 'string' || !t.trim()) return;
+        var t0 = t.trim(), nm = 'Tie step ' + (i + 1), pa = F() ? F().parse(t0) : null;
+        if (t0.length > LIMITS.formula || new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']').test(t0)) iErr.push({ message: nm + ': a formula is at most ' + LIMITS.formula + ' characters, on one line: Save drops it.' });
+        else if (!pa || !pa.ok) iErr.push({ message: nm + ': ' + (pa && pa.error && pa.error.message ? pa.error.message : 'the formula cannot be read.') + ' Save drops it.' });
+        else { iSys = iSys || { fields: gmViewFields(draft, F()), items: draft.items, core: draft.core }; var gmI = gmDerivedNames(iSys, F(), Array.isArray(pa.names) ? pa.names : []); if (gmI.length) iErr.push({ message: nm + ': it reads ' + gmI[0] + ', which players cannot read, and the order is public: Save drops it.' }); }
+    });
+    if (iErr.length) errorsById.initiative = iErr;
 }
 function errorCell(id) {
     var cell = el('div', 'sys-err');
@@ -4650,8 +4662,35 @@ function renderCombat() {
     lightBox(box, cm);   // lighting L4: the system's light rules
     sensesBox(box, cm);   // senses S2a: the system's senses
     turnBox(box, cm);   // turn-based combat T1: the system's turn rules, under the blast and cover settings
+    initBox(box, cm);   // initiative O2: how ties of initiative break
     postureBox(box, cm);   // conditions C3: the system's own postures, at the card's foot
 }
+// Initiative O2 (docs/TURN_ORDER_PLAN.md; the owner's note: 3d6 systems order by Basic Speed and roll only to settle ties, d20 systems roll and
+// roll again for ties): the Combat card's Initiative box — up to three tie steps, each a formula: with no dice a value (the higher first),
+// with dice a roll made only for the rows still tied. Every text lands as a value or a text node. Save cleans them; refreshErrors says what
+// it would drop
+// [sinkcheck:initbox-start]
+function initBox(box, cm) {
+    var ir = cm.initiative && typeof cm.initiative === 'object' && !Array.isArray(cm.initiative) ? cm.initiative : {}, ties = Array.isArray(ir.ties) ? ir.ties : [], wrap = el('div', 'sys-init');
+    wrap.appendChild(el('div', 'sys-light-head', 'Initiative'));
+    wrap.appendChild(el('div', 'sys-note', 'The combat roster orders a fight by the roll you tick Initiative on (the Rolls tab): one with no dice is worked out (Basic Speed), one with dice rolled (d20 + DEX). When two tie, the steps below settle it in turn: a value puts the higher first (DX); a roll (1d6, d20) is made only for those still tied, and made again while they stay tied. They read only what players can read: the order is public.'));
+    var r = el('div', 'sys-flags sys-init-ties'); r.appendChild(el('span', 'sys-num-cap', 'Ties go to the higher'));
+    for (var i = 0; i < LIMITS.initTies; i++) { var ti = input('sys-init-tie field', typeof ties[i] === 'string' ? ties[i] : '', i === 0 ? 'The first step for a tie: a value (DX) or a roll (1d6)' : 'If still tied: a value or a roll', i === 0 ? 'e.g. DX' : i === 1 ? 'then, e.g. 1d6' : 'then\u2026'); ti.maxLength = LIMITS.formula; ti.dataset.ti = String(i); r.appendChild(ti); }
+    wrap.appendChild(r);
+    var err = errorCell('initiative'); err.dataset.errFor = 'initiative'; wrap.appendChild(err);
+    box.appendChild(wrap);
+}
+function onInitInput(t) {
+    var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-init-') < 0) return false;
+    var i = Number(t.dataset && t.dataset.ti); if (c.indexOf('sys-init-tie') < 0 || !(i >= 0 && i < LIMITS.initTies && Math.floor(i) === i)) return true;
+    var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }), ir = cm.initiative && typeof cm.initiative === 'object' && !Array.isArray(cm.initiative) ? cm.initiative : (cm.initiative = {});
+    var ties = Array.isArray(ir.ties) ? ir.ties.slice(0, LIMITS.initTies).map(function(x) { return typeof x === 'string' ? x : ''; }) : []; while (ties.length < LIMITS.initTies) ties.push('');
+    ties[i] = t.value.slice(0, LIMITS.formula);   // each box its own place (Save drops the blanks)
+    if (ties.some(function(x) { return x.trim(); })) ir.ties = ties; else { delete ir.ties; if (!Object.keys(ir).length) delete cm.initiative; }
+    markDirty(); patchErrors(); return true;
+}
+function onInitChange(t) { var c = t.className || ''; return typeof c === 'string' && c.indexOf('sys-init-') >= 0; }   // the boxes' change events (their input events did the work)
+// [sinkcheck:initbox-end]
 // Conditions C3 (docs/CONDITIONS_PLAN.md): the system's own postures on the Combat card — how a token can stand, in order. None: the seven.
 // Name your own starts from the seven (their ids kept, so a website sheet still sets them). Each row a name, its chip's tag, a "smaller target"
 // tick (-2 to a foe's ranged roll, shown only: the owner's answer of 2026-09-30), notes and changes as an effect's; the first is how a token
@@ -5141,6 +5180,7 @@ function onInput(e) {
     if (onSensesInput(t)) return;   // senses S2a
     if (onRangeInput(t)) return;   // range penalties R1
     if (onPostureInput(t)) return;   // conditions C3
+    if (onInitInput(t)) return;   // initiative O2
     var fxd = fxOfRow(t);   // 5h: a library effect's text boxes
     if (fxd) {
         var fc = t.className || '';
@@ -5280,6 +5320,7 @@ function onChange(e) {
     if (onSensesChange(t)) return;   // senses S2a
     if (onRangeChange(t)) return;   // range penalties R1
     if (onPostureChange(t)) return;   // conditions C3
+    if (onInitChange(t)) return;   // initiative O2
     if (c.indexOf('sys-combat-auto') >= 0) { draft.combat.blastAuto = t.value; markDirty(); patchErrors(); return; }
     if (c.indexOf('sys-combat-roller') >= 0) { draft.combat.blastRoller = t.value; markDirty(); patchErrors(); return; }
     if (c.indexOf('sys-combat-checks') >= 0) { if (t.value === 'under3d6') draft.combat.checks = 'under3d6'; else delete draft.combat.checks; markDirty(); patchErrors(); return; }   // Stage 6 F8
@@ -5631,7 +5672,7 @@ window.wpSheets = { bellNote: bellNote, startMaking: startMaking, inviteMaking: 
     charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, deleteCharacter: deleteCharacter, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
     charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId, tokenFx: tokenFx, tokenFxModel: tokenFxModel, tokenFxCharOp: tokenFxCharOp,
     playerFinder: playerFinder, charFromJson: charFromJson, startFromFile: startFromFile,
-    openSheet: openSheet, closeSheet: closeSheet, openHud: openHud, closeHud: closeHud, closeHuds: closeHuds, hudFor: hudFor, rolled: rolled, tokenTurned: tokenTurned, tokenCtxFor: tokenCtxFor, canOpen: canOpen, renderSheet: renderViews, renderSheetInto: renderSheetInto, charChanged: charChanged, charGone: charGone, editResult: editResult, sheetOpen: function() { return sheetOpen; }, canRoll: canRoll, hasInitRoll: hasInitRoll, rollInit: rollInit, fromShadowBase: fromShadowBase, LIMITS: LIMITS };
+    openSheet: openSheet, closeSheet: closeSheet, openHud: openHud, closeHud: closeHud, closeHuds: closeHuds, hudFor: hudFor, rolled: rolled, tokenTurned: tokenTurned, tokenCtxFor: tokenCtxFor, canOpen: canOpen, renderSheet: renderViews, renderSheetInto: renderSheetInto, charChanged: charChanged, charGone: charGone, editResult: editResult, sheetOpen: function() { return sheetOpen; }, canRoll: canRoll, hasInitRoll: hasInitRoll, rollInit: rollInit, initTieNow: initTieNow, fromShadowBase: fromShadowBase, LIMITS: LIMITS };
 
 // Pop the open sheet out into its own window (like the doc panel); dock-back there reopens the in-app panel.
 (function wireSheetPopout() {

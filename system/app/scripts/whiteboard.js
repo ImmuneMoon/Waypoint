@@ -5883,10 +5883,10 @@ function combatRowsFor(mapId, opts) {
     var rows = (map.whiteboard || []).filter(function(w) { return w.isChar && !w.hidden; }).map(function(w) {
         var was = byTok[w.id];
         var on = !!was || !!pair[w.id];   // only a running combat's rows and the tokens in a target pair start ticked
-        return { id: was ? was.id : 'r' + w.id, name: w.charName || w.name || 'Unnamed', tokId: w.id, init: was ? was.init : 0, rolled: !!(was && was.rolled === 1), src: w.src || null, on: on, party: !!w.ownerId, targeted: pair[w.id] || '', charId: w.charId || null };
+        return { id: was ? was.id : 'r' + w.id, name: w.charName || w.name || 'Unnamed', tokId: w.id, init: was ? was.init : 0, rolled: !!(was && was.rolled === 1), tb: was && Array.isArray(was.tb) ? was.tb.slice() : undefined, src: w.src || null, on: on, party: !!w.ownerId, targeted: pair[w.id] || '', charId: w.charId || null };
     });
     // custom rows of a running combat (no token) stay
-    (running ? running.rows : []).forEach(function(r) { if (!r.tokId) rows.push({ id: r.id, name: r.name, tokId: null, init: r.init, rolled: r.rolled === 1, src: null, on: true, custom: true }); });
+    (running ? running.rows : []).forEach(function(r) { if (!r.tokId) rows.push({ id: r.id, name: r.name, tokId: null, init: r.init, rolled: r.rolled === 1, tb: Array.isArray(r.tb) ? r.tb.slice() : undefined, src: null, on: true, custom: true }); });
     if (running) {   // keep the running order first, newcomers after
         var order = {}; running.rows.forEach(function(r, i) { order[r.id] = i; });
         rows.sort(function(a, b) { var x = order[a.id] !== undefined ? order[a.id] : 999 + rows.indexOf(a), y = order[b.id] !== undefined ? order[b.id] : 999 + rows.indexOf(b); return x - y; });
@@ -5894,7 +5894,7 @@ function combatRowsFor(mapId, opts) {
     return rows;
 }
 function combatSortByInit(rows) {   // high to low, ties keep their place (initiative O1: the core's one rule, shared with the host's re-sort)
-    var S = window.wpSystemCore; if (S && S.orderByInit) return S.orderByInit(rows);
+    var S = window.wpSystemCore; if (S && S.orderByInit) return S.orderByInit(rows, window.wpSheets && window.wpSheets.initTieNow ? window.wpSheets.initTieNow() : null);   // initiative O2: the system's tie steps
     return rows.map(function(r, i) { return { r: r, i: i }; }).sort(function(a, b) { return (b.r.init - a.r.init) || (a.i - b.i); }).map(function(x) { return x.r; });
 }
 function renderCombatModal() {
@@ -5931,7 +5931,7 @@ window.wpOpenCombat = openCombatModal;
     list.addEventListener('change', function(e) {
         var i = rowOf(e); if (i < 0) return;
         if (e.target.classList.contains('combat-on')) { combatDraft.rows[i].on = e.target.checked; renderCombatModal(); }
-        if (e.target.classList.contains('combat-init')) { combatDraft.rows[i].init = Number(e.target.value) || 0; combatDraft.rows[i].rolled = true; combatDraft.rows = combatSortByInit(combatDraft.rows); renderCombatModal(); }   // initiative O1: a number given is its number (a player's roll no longer changes it)
+        if (e.target.classList.contains('combat-init')) { combatDraft.rows[i].init = Number(e.target.value) || 0; combatDraft.rows[i].rolled = true; delete combatDraft.rows[i].tb; combatDraft.rows = combatSortByInit(combatDraft.rows); renderCombatModal(); }   // initiative O1: a number given is its number (a player's roll no longer changes it)
     });
     list.addEventListener('keydown', function(e) { e.stopPropagation(); });
     list.addEventListener('click', function(e) {
@@ -5939,7 +5939,7 @@ window.wpOpenCombat = openCombatModal;
         var rows = combatDraft.rows;
         if (e.target.closest('.combat-up') && i > 0) { rows.splice(i - 1, 0, rows.splice(i, 1)[0]); renderCombatModal(); }
         else if (e.target.closest('.combat-down') && i < rows.length - 1) { rows.splice(i + 1, 0, rows.splice(i, 1)[0]); renderCombatModal(); }
-        else if (e.target.closest('.combat-roll')) { var rr = window.wpSheets && rows[i].charId ? window.wpSheets.rollInit(rows[i].charId) : null; if (rr && rr.error) toast(rr.error); else if (rr && typeof rr.value === 'number') { rows[i].init = rr.value; rows[i].rolled = true; combatDraft.rows = combatSortByInit(rows); renderCombatModal(); } }
+        else if (e.target.closest('.combat-roll')) { var rr = window.wpSheets && rows[i].charId ? window.wpSheets.rollInit(rows[i].charId) : null; if (rr && rr.error) toast(rr.error); else if (rr && typeof rr.value === 'number') { rows[i].init = rr.value; rows[i].rolled = true; delete rows[i].tb; combatDraft.rows = combatSortByInit(rows); renderCombatModal(); } }
         else if (e.target.closest('.combat-del')) { rows.splice(i, 1); renderCombatModal(); }
     });
     var dragI = -1;
@@ -5958,7 +5958,7 @@ window.wpOpenCombat = openCombatModal;
         for (var k = 0; k < draft.rows.length; k++) {
             var r = draft.rows[k]; if (!r || !r.on || !r.charId || r.rolled) continue;
             var rr = window.wpSheets.rollInit(r.charId); if (rr && rr.error) { toast(rr.error); break; }
-            if (rr && typeof rr.value === 'number') { r.init = rr.value; r.rolled = true; n++; }
+            if (rr && typeof rr.value === 'number') { r.init = rr.value; r.rolled = true; delete r.tb; n++; }
         }
         draft.rows = combatSortByInit(draft.rows);
         return n;
@@ -5978,7 +5978,7 @@ window.wpOpenCombat = openCombatModal;
     document.getElementById('combatCloseBtn').addEventListener('click', function() { m.style.display = 'none'; combatDraft = null; });
     document.getElementById('combatStartBtn').addEventListener('click', function() {
         var n = window.wpNet; if (!combatDraft || !n) return;
-        var rows = combatDraft.rows.filter(function(r) { return r.on; }).map(function(r) { var o = { id: r.id, name: r.name, tokId: r.tokId, init: r.init, src: r.src }; if (r.rolled) o.rolled = 1; return o; });   // initiative O1: whether a row has its number
+        var rows = combatDraft.rows.filter(function(r) { return r.on; }).map(function(r) { var o = { id: r.id, name: r.name, tokId: r.tokId, init: r.init, src: r.src }; if (r.rolled) o.rolled = 1; if (Array.isArray(r.tb)) o.tb = r.tb; return o; });   // initiative O1: whether a row has its number
         if (!rows.length) { toast('Tick at least one combatant.'); return; }
         var was = n.combats && n.combats[combatDraft.mapId];
         var turn = 0, round = 1;

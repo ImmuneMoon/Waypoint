@@ -488,7 +488,10 @@ Turn-based combat
   as Shot ({±RangeMod}) shows it on the sheet as the target changes. Both
   read 0 with no target, a target that player cannot see (one you hid, or
   one out of their sight on a fogged map), no token or offline; your
-  machine works a player's roll out and judges that for them.
+  machine works a player's roll out and judges that for them. A roll that
+  reads them goes to its roller and you alone while another player on that
+  map cannot see the target, so its card never tells them how far an unseen
+  creature is (the player is told why; your own rolls do the same).
 - A target mark's cover, light and range now follow a token at once when
   you drop it on your own screen, not at the next redraw.
 

@@ -3359,9 +3359,38 @@ function rangeTo(camp, map, mapId, tok, pid) {
         if (!w || !w.isChar || w.hidden || w === tok) return null;
         var drop = fogDrop(camp, map, pid); if (drop && drop[w.id]) return null;
         var vt = window.wpVtt, el = !vt || (vt.rulesOn ? vt.rulesOn('elevation') : vt.on('elevation'));
-        return S.rangeCtx(camp.system, map, tok, w, { F: window.wpFormula, elev: !!el });
+        var rc = S.rangeCtx(camp.system, map, tok, w, { F: window.wpFormula, elev: !!el }); if (rc) { rc.tid = w.id; rc.mapId = mapId; }   // R3: which target
+        return rc;
     };
     return typeof fogLanded === 'function' ? fogLanded(mapId, judge) : judge();
+}
+// Range penalties R3 (docs/RANGE_PLAN.md, the owner's answer of 2026-09-29): a public roll that reads the range — RangeMod or
+// TargetDistance, directly or through a value worked out from them — goes to its roller and the GM alone while another player on the
+// target's map cannot see the target, so its card never tells them how far an unseen creature is. rangeReadBy: a FRESH resolver asked for
+// every name the formula reads (a branch not taken counts: the card shows the text); rangeUnseen: another admitted, connected player on that
+// map whose copy would not hold the target (one the GM hid, one gone, one their fogged copy drops), judged with every open drag at its start.
+// rc: the token context's range ({ mod, dist, tid, mapId }); rollerPid: the roller's own profile ('' for the GM's own roll)
+function rangeReadBy(S, sys, ch, F, tc, expr, row) {
+    if (!S || typeof S.makeResolver !== 'function' || !sys || !ch || !F || typeof F.names !== 'function' || typeof expr !== 'string') return false;
+    var base = S.makeResolver(sys, ch, F, tc); if (!base || typeof base.rangeRead !== 'function') return false;
+    var v = row ? base.row(row.f, row.r) : base; if (!v) return false;
+    (F.names(expr) || []).forEach(function(n) { var nm = typeof n === 'string' ? n : (n && typeof n.name === 'string' ? n.name : ''); if (nm) { try { v(nm); } catch (e) {} } });
+    return base.rangeRead() === true;
+}
+function rangeUnseen(camp, rc, rollerPid) {
+    if (!camp || !rc || typeof rc.tid !== 'string' || typeof rc.mapId !== 'string' || !camp.items || !own(camp.items, rc.mapId)) return false;
+    var map = camp.items[rc.mapId];
+    var judge = function() {
+        var w = Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return !!x && x.id === rc.tid; }) : null, asked = Object.create(null);
+        return Object.keys(net.roster || {}).some(function(peer) {
+            var p = net.roster[peer]; if (!p || typeof p.id !== 'string' || p.id === rollerPid || asked[p.id] || p.location !== rc.mapId) return false;
+            if (!(net.conns || []).some(function(c) { return c && c.peer === peer && c.open; })) return false;
+            asked[p.id] = 1;
+            if (!w || w.hidden) return true;
+            var drop = fogDrop(camp, map, p.id); return !!(drop && drop[w.id]);
+        });
+    };
+    return typeof fogLanded === 'function' ? fogLanded(rc.mapId, judge) : judge();
 }
 // [netcheck:rangeto-end]
 /* ---------- handouts (host) ----------
@@ -4896,6 +4925,9 @@ function handleMessage(msg, conn) {
         if (resQ.breakdown && resQ.breakdown.names && resQ.breakdown.names.length) { var nmQ = Dq.cleanNames(resQ.breakdown.names); if (!nmQ) { denyQ('error'); return; } if (nmQ.length) recQ.names = nmQ; }
         if (q.label) recQ.label = q.label;
         if (chQ) recQ.as = String(chQ.name || '').slice(0, Dq.LIMITS.label);
+        if (!q.priv && tcQ && tcQ.range && typeof rangeUnseen === 'function' && typeof rangeReadBy === 'function' && rangeUnseen(campQ, tcQ.range, pidQ) && rangeReadBy(SQ, viewQ, chvQ, Fq, tcQ, q.expr, q.row)) {   // range R3: its card would tell another player how far a target they cannot see is
+            q.priv = 'gm'; if (typeof turnNote === 'function') turnNote(conn, 'Rolled privately: a player on that map cannot see your target.', q.charId);
+        }
         if (q.priv) { recQ.priv = 'gm'; try { conn.send(recQ); } catch (e) { sendFailed(e); } pushRoll(recQ, resQ, 'whisper', { cid: chQ ? q.charId : '' }); }
         else { sendTable(recQ, null); pushRoll(recQ, resQ, 'global', { cid: chQ ? q.charId : '' }); }
         var ruleQ = campQ && campQ.system && campQ.system.combat && campQ.system.combat.checks === 'under3d6' ? 'under3d6' : '';   // Stage 6 F8: the system's roll outcomes
@@ -5694,8 +5726,8 @@ net.diceRoll = function(expr, o) {
         try { net.conns[0].send(req); } catch (e) { clearTimeout(_dicePending.timer); _dicePending = null; return { error: 'Could not reach the GM.' }; }
         return { ok: true, pending: true };
     }
-    var campR = getActiveCampaign(), SR = SC(), chR = null, varsR = null;   // a character makes its sheet's names available (character sheets, 1.5.0)
-    if (o.charId) { chR = (campR && campR.chars && typeof o.charId === 'string' && Object.prototype.hasOwnProperty.call(campR.chars, o.charId) ? campR.chars[o.charId] : null); if (!chR || !campR.system || !SR) return { error: D.denyText('char') }; varsR = SR.makeResolver(campR.system, chR, F, window.wpSheets && window.wpSheets.tokenCtxFor ? window.wpSheets.tokenCtxFor(chR.id, campR) : null); }
+    var campR = getActiveCampaign(), SR = SC(), chR = null, varsR = null, tcR = null;   // range R3: tcR, the token context its names read (the range's target with it)   // a character makes its sheet's names available (character sheets, 1.5.0)
+    if (o.charId) { chR = (campR && campR.chars && typeof o.charId === 'string' && Object.prototype.hasOwnProperty.call(campR.chars, o.charId) ? campR.chars[o.charId] : null); if (!chR || !campR.system || !SR) return { error: D.denyText('char') }; tcR = window.wpSheets && window.wpSheets.tokenCtxFor ? window.wpSheets.tokenCtxFor(chR.id, campR) : null; varsR = SR.makeResolver(campR.system, chR, F, tcR); }
     var rowP = null;
     if (o.row && varsR) { var rvR = varsR.row(o.row.f, o.row.r); if (!rvR) return { error: D.denyText('char') }; varsR = rvR; }
     var entR = null;   // Stage 6 HUD R1/R2b: the entry a roll with consequences or needs names — a system roll by act, a list's roll by its index
@@ -5724,6 +5756,7 @@ net.diceRoll = function(expr, o) {
     else if (hosting && rowP && rowP.kept) { rec.priv = 'gm'; toast('Kept private: its owner sees that item switched off' + (rec.label ? ' (' + rec.label + ')' : '') + '.'); }   // owed review F5b#2: a curse the GM keeps on
     else if (hosting && o.gmOnly) { rec.priv = 'gm'; toast('Kept private: that roll is GM only' + (rec.label ? ' (' + rec.label + ')' : '') + '.'); }   // the caller's word: a GM-only field's own roll, a GM-only roll, a GM-only item's damage — its label and formula are the GM's
     else if (gmR.length) { rec.priv = 'gm'; toast('Kept private: that roll uses a GM-only value (' + gmR.join(', ') + ').'); }   // a public roll never carries a GM-only value
+    else if (hosting && tcR && tcR.range && typeof rangeUnseen === 'function' && typeof rangeReadBy === 'function' && rangeUnseen(campR, tcR.range, '') && rangeReadBy(SR, campR.system, chR, F, tcR, expr, o.row)) { rec.priv = 'gm'; toast('Kept private: a player on that map cannot see its target' + (rec.label ? ' (' + rec.label + ')' : '') + '.'); }   // range R3: its card would tell them how far it is
     else if (hosting && rowP && SR && varsR && SR.gmEffectNames(varsR, rowP.names).length) { rec.priv = 'gm'; toast('Kept private: a GM-only effect changes ' + SR.gmEffectNames(varsR, rowP.names).join(', ') + '.'); }   // F5b: through a column
     else if (hosting && rec.names && SR && varsR && SR.gmEffectNames(varsR, rec.names).length) { rec.priv = 'gm'; toast('Kept private: a GM-only effect changes ' + SR.gmEffectNames(varsR, rec.names).join(', ') + '.'); }   // 5h: nor a number a GM-only effect moved
     else if (hosting) {

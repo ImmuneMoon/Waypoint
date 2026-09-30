@@ -457,7 +457,8 @@ function rangeFor(c, mapId, map, tok, camp) {
     var w = Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return !!x && x.id === tg.id; }) : null;
     if (!w || !w.isChar || w === tok || (w.hidden && pc)) return null;
     if (pc && !isClient() && window.wpFog && typeof window.wpFog.fogDropIds === 'function') { var drop = window.wpFog.fogDropIds(c.ownerId, camp, map); if (drop && drop[w.id]) return null; }
-    return rangeCtx(systemOf(camp), map, tok, w, { F: F(), elev: !!tokenFlags().elevation });
+    var rc = rangeCtx(systemOf(camp), map, tok, w, { F: F(), elev: !!tokenFlags().elevation }); if (rc) { rc.tid = w.id; rc.mapId = mapId; }   // R3: which target, for the GM's privacy check
+    return rc;
 }
 // [sinkcheck:rangefor-end]
 function tokenCtxFor(charId, camp) { var c = charById(charId, camp), t = c ? facingTarget(c, camp) : null; return t ? withRange(withRound(tokenCtx(t.map, t.tok, tokenFlags()), combatOn(t.mapId)), rangeFor(c, t.mapId, t.map, t.tok, camp)) : null; }   // Stage 6: { facing, stance } of the token the sheet reads; HF5b: and the round of the combat on its map

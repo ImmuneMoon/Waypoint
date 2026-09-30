@@ -951,6 +951,12 @@ Fog of war
   always seated character tokens). Arrow keys follow it too: with Snap on a
   token hops one cell at a time, off it moves by pixels. Your players' drops
   follow your Snap. A token you fitted with Fit to Grid stays in its cell.
+- A player's drop, turn, stance, drawing, erase or facing marks is no longer
+  undone when it crosses something your machine sends at the same moment
+  (your save, another player's change): every map you send says which of
+  that player's actions it already holds, and their app keeps the ones it
+  does not, on their screen and in what it sends next. It needs both of you
+  on this version; with an older GM's Waypoint a player's app works as before.
 - Players remember what they have seen (the fog menu, off until you tick
   it): each player's own screen keeps the ground they have seen this
   session, dimmed further than a dim cell. Remembered ground shows every

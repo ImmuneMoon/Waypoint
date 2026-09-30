@@ -512,6 +512,10 @@ Turn-based combat
 - A sheet's Stance control says what the token's posture does under it: its
   changes, "Ranged attacks against you are at -2 (their roll, not yours)"
   for a smaller target, and its notes.
+- The System editor's Combat card names your own postures: start from the
+  seven, then rename, reorder or add (up to 12), each with a tag for its
+  chip, notes, a Smaller target tick and changes like an effect's, applied
+  while a token takes it. Formulas read Posture as its place in the list.
 - Difficult terrain: tick it in the fill menu, with its cost (x2 by default,
   up to x10), and the cells you paint are ground that costs that many times
   as much to move into; a rectangle, hexagon, circle or diamond takes the

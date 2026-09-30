@@ -3257,6 +3257,7 @@ function combatRefresh() { render(); if (window.wpRenderCombatStrip) window.wpRe
 // a fault in it never stops the turn
 // Item 20 K2 (the Foundry model): n rounds of a fight move the campaign's clock on by the round's length, back for a step back (calendar.js)
 function clockRounds(n) { try { if (window.wpCalendar && window.wpCalendar.rounds) window.wpCalendar.rounds(n); } catch (e) { console.error(e); } }
+function clockFightEnd() { try { if (window.wpCalendar && window.wpCalendar.fightEnded) window.wpCalendar.fightEnded(); } catch (e) { console.error(e); } }   // K5: a fight's rounds, as active time, asked about now
 function roundChanged(mapId, c) { try { if (window.wpSheets && window.wpSheets.roundHook) window.wpSheets.roundHook(mapId, c); } catch (e) { console.error(e); } if (typeof marksRound === 'function') { try { marksRound(mapId, c); } catch (e) { console.error(e); } } }   // senses S4b: marks held to the round
 function turnStarted(mapId, c) { try { if (window.wpSheets && window.wpSheets.turnHook) window.wpSheets.turnHook(mapId, c); } catch (e) { console.error(e); } try { turnMoveStart(mapId, c); } catch (e) { console.error(e); } try { turnActsStart(mapId, c); } catch (e) { console.error(e); } try { turnFxStart(mapId, c); } catch (e) { console.error(e); } if (typeof marksTurn === 'function') { try { marksTurn(mapId, c); } catch (e) { console.error(e); } } }   // turn-based combat T2b: a character's turn just began; T3b: its move; senses S4b: its player's marks
 // [netcheck:turnmove-start]
@@ -3353,6 +3354,16 @@ function fxEnded(ch, name) {   // "Bless ran out on Pat." — a private line for
     if (net.active && net.role === 'host' && ch.ownerId && !ch.npc) net.conns.forEach(function(c) { if (c.open && net.roster[c.peer] && peerProfileId(c) === ch.ownerId) { try { c.send(m); } catch (e) { sendFailed(e); } } });
     pushChat(m);
 }
+// [netcheck:timecard-start]
+// Item 20 K5: a time rules summary (sheets.js runTimeRules) — a private line for the GM, and one for the character's player at the table unless it
+// is the GM's alone (an NPC, or a rule that moves or reads what the player cannot see); and the Session Log's Time
+net.timeCard = function(ch, text, gmOnly) {
+    if (net.role === 'client' || net.stream || !ch || typeof ch !== 'object') return;
+    var t = String(text || '').slice(0, 1500), m = { type: 'chat', scope: 'whisper', from: { id: net.myId || 'gm', name: 'GM', gm: true }, text: t, ts: Date.now() };
+    if (!gmOnly && net.active && net.role === 'host' && ch.ownerId && !ch.npc) net.conns.forEach(function(c) { if (c.open && net.roster[c.peer] && peerProfileId(c) === ch.ownerId) { try { c.send(m); } catch (e) { sendFailed(e); } } });
+    pushChat(m); logEvent('time', t);
+};
+// [netcheck:timecard-end]
 function fxCombatChars(mapId, combat) { var camp = getActiveCampaign(); if (!camp || !camp.system) return []; var S = SC(), mp = camp && camp.items && own(camp.items, mapId) ? camp.items[mapId] : null; return S && S.combatChars && mp ? S.combatChars(mp, combat, camp.chars || {}).map(function(e) { return camp.chars[e.charId]; }).filter(Boolean) : []; }
 function turnFxStart(mapId, c) {   // the character whose turn begins: a round of its timed effects passes
     var camp = getActiveCampaign(), row = c && Array.isArray(c.rows) ? c.rows[c.turn] : null; if (!camp || !row) return;
@@ -3393,6 +3404,7 @@ net.combatSet = function(mapId, combat) {
     } else {
         if (had) { try { turnActsEnd(mapId, had); } catch (e) { console.error(e); } }   // T4
         if (had) { try { fxCombatEdge(mapId, had, 'resume'); } catch (e) { console.error(e); } }   // T5a: their effects' clocks run again
+        if (had && typeof clockFightEnd === 'function') clockFightEnd();   // item 20 K5 (the owner's answer): the fight's rounds counted as active time for the time rules
         if (had) { logEvent('table', 'Combat ended on ' + mapTitleOf(mapId) + ' after ' + had.round + ' round' + (had.round === 1 ? '' : 's')); toast('Combat ended on ' + mapTitleOf(mapId) + '.'); }
         delete net.combats[mapId];
         if (had && typeof marksEnd === 'function') { try { marksEnd(mapId); } catch (e) { console.error(e); } }   // senses S4b: the marks follow every move again

@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sbRowOps, sbApplyProposal, cleanUploads, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, DEFAULT_POSTURES, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
+import { timeRuleRun, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sbRowOps, sbApplyProposal, cleanUploads, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, DEFAULT_POSTURES, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
 import { cleanCalendar, fmtWhen, fmtDate, timeOf, calPreset, CAL_LIMITS } from './calendarcore.js';
 
@@ -3136,6 +3136,37 @@ function timedHook(mapId, combat, kind) {
     if (done) { save(true); if (window.appRender) window.appRender(); }
     return done;
 }
+// [sinkcheck:timerules-start]
+// Item 20 K5: the time rules a stretch of the campaign's clock fired (calendar.js: after the GM's Apply, or at once when Automatic) — each fire
+// { c: charId, r: ruleId, n } run n times with the GM's full view and no token (systemcore timeRuleRun: the host makes every roll), stored, one
+// delta per character, its views redrawn; then one summary per character (net.timeCard: its player and the GM, or the GM alone for an NPC or a
+// rule that moves or reads what its player cannot see) and the Session Log's line. words: the stretch ("8 hours of rest"). Returns how many
+// characters changed
+function runTimeRules(fires, words) {
+    var camp = getActiveCampaign(), sys = systemOf(camp), n = net(), D = window.wpDiceCore; if (!camp || !sys || !F() || !Array.isArray(fires)) return 0;
+    var byChar = Object.create(null), order = [], changed = 0;
+    fires.forEach(function(fi) { if (!fi || typeof fi.c !== 'string' || typeof fi.r !== 'string') return; if (!byChar[fi.c]) { byChar[fi.c] = []; order.push(fi.c); } byChar[fi.c].push(fi); });
+    order.forEach(function(cid) {
+        var c = charById(cid, camp); if (!c) return;
+        var parts = [], all = {}, gm = false;
+        byChar[cid].forEach(function(fi) {
+            var rule = (Array.isArray(sys.rolls) ? sys.rolls : []).filter(function(r) { return r && r.id === fi.r && r.every; })[0]; if (!rule) return;
+            var res = timeRuleRun(sys, c, rule, fi.n, F(), D), ks = Object.keys(res.values);
+            if (ks.length) { c.values = c.values || {}; ks.forEach(function(k) { if (JSON.stringify(c.values[k]) === JSON.stringify(res.values[k])) return; c.values[k] = res.values[k]; all[k] = res.values[k]; }); }   // only what really moved is stored and sent
+            var acts = Array.isArray(rule.apply) ? rule : { apply: Array.isArray(rule.then) ? rule.then : [] }, reads = typeof rule.formula === 'string' ? gmOnlyNames(sys, F().names(rule.formula).map(function(x) { return { name: x }; })).length > 0 : false;
+            if (rule.vis === 'gm' || applyScope(sys, c, acts, reads, F()) === 'gm') gm = true;
+            var head = (rule.label || 'A rule') + ' \u00d7' + fi.n + (res.rolls.made ? ' (' + res.rolls.pass + ' of ' + res.rolls.made + ' succeeded)' : '');
+            var moved = res.lines.filter(function(l) { return l.d !== 0; });   // a full pool says no change
+            parts.push(head + (moved.length ? ': ' + moved.map(function(l) { return l.n + ' ' + (l.d >= 0 ? '+' : '') + l.d + ' \u2192 ' + l.v; }).join(', ') : ': no change'));
+        });
+        if (!parts.length) return;
+        if (Object.keys(all).length) { c.updated = Date.now(); if (n && n.active && n.role === 'host' && n.syncCharDelta) n.syncCharDelta(c.id, all); renderViews(c.id); changed++; }
+        if (n && n.timeCard) n.timeCard(c, (words ? words + ' \u2014 ' : '') + (c.name || 'A character') + ': ' + parts.join('; '), gm);
+    });
+    if (changed) { save(true); if (window.appRender) window.appRender(); }
+    return changed;
+}
+// [sinkcheck:timerules-end]
 function roundHook(mapId, combat) { return timedHook(mapId, combat, 'round'); }
 function turnHook(mapId, combat) { return timedHook(mapId, combat, 'turn'); }
 // Turn-based combat T2b: a reminder's Run — this character's saved action as this viewer's system has it, pressed as its button is (the
@@ -4146,6 +4177,15 @@ function refreshErrors() {
         }
     }
     if (cErr.length) errorsById.calendar = cErr;
+    // item 20 K5: what Save drops of a roll's clock rule, said under the roll (a unit the Combat card no longer has: it runs by nothing)
+    var evUnits = Object.create(null); (draft.combat && draft.combat.turn && Array.isArray(draft.combat.turn.units) ? draft.combat.turn.units : []).forEach(function(u) { if (u && typeof u.key === 'string') evUnits[u.key.toLowerCase()] = 1; });
+    (Array.isArray(draft.rolls) ? draft.rolls : []).forEach(function(r) {
+        var ev = r && typeof r === 'object' && r.every && typeof r.every === 'object' && !Array.isArray(r.every) ? r.every : null, msg = ''; if (!ev) return;
+        if (!(typeof ev.n === 'number' && isFinite(ev.n) && Math.floor(ev.n) === ev.n && ev.n >= 1 && ev.n <= 1000)) msg = 'By the clock: every 1 to 1000 (a whole number), or Save drops it.';
+        else if (typeof ev.u !== 'string' || !ev.u) msg = 'By the clock: pick what it counts in, or Save drops it.';
+        else if (['min', 'hour', 'day', 'week'].indexOf(ev.u) < 0 && evUnits[ev.u.toLowerCase()] !== 1) msg = 'By the clock: ' + ev.u + ' is no time unit of yours (the Combat card\u2019s Turns box), so it runs by nothing and players never see it.';
+        if (msg) (errorsById[r.id] = Array.isArray(errorsById[r.id]) ? errorsById[r.id] : []).push({ message: msg });
+    });
     // senses S2a: what Save drops or leaves out of the senses, under the Combat card's Senses box — read as the cleaner reads (systemcore
     // cleanSenses): a name left once control characters go, a range field of a number, formula, skill or pool its owner can read, a finite number
     var snO = draft.combat && draft.combat.senses && typeof draft.combat.senses === 'object' ? draft.combat.senses : null, snE = snO && Array.isArray(snO.list) ? snO.list : null, sErr = [], sKept = 0;
@@ -4395,6 +4435,7 @@ function rollRow(r) {
     if (!isApply) { var dl = el('label', 'sys-hover'); var dc = el('input'); dc.type = 'checkbox'; dc.className = 'sys-dmg-chk'; dc.checked = r.dmg === true; dl.appendChild(dc); dl.appendChild(document.createTextNode(' Damage')); dl.title = 'A damage roll: its card in Table Chat takes the damage colour, a larger total and a damage tag'; top.appendChild(dl); }   // chat cards (owner 2026-09-27)
     top.appendChild(btnRow([['up', 'Move up', '&#9650;'], ['down', 'Move down', '&#9660;'], ['del', 'Delete this roll', '&times;']]));
     row.appendChild(top);
+    row.appendChild(everyRow(r));   // item 20 K5: by the campaign's clock
     row.appendChild(applyEditor(r, isApply ? 'apply' : 'then'));   // R1: a roll's consequences under it
     var err = errorCell(r.id); err.dataset.errFor = r.id; row.appendChild(err);
     return row;
@@ -5369,6 +5410,28 @@ function sensesClick(b) {
 // Turn-based combat T1: the system's turn rules on the Combat card — how far a character moves in one turn (a formula and its unit), how a
 // square grid counts a diagonal (the ruler follows it), how long a round is, the system's own time units and what one turn allows. Save
 // cleans them; refreshErrors says what it would drop
+// [sinkcheck:everyrow-start]
+// Item 20 K5 (the owner's answers of 2026-09-30): a roll or an apply action may also run by the campaign's clock (the Calendar) — every n minutes,
+// hours, days, weeks or the system's own time units (the Combat card's Turns box), during rest only or any time; the GM moves the clock as Rest
+// or Active and says which characters' rules run. Its boxes land as values; Save cleans them (systemcore cleanEvery)
+function everyRow(r) {
+    var ev = r.every && typeof r.every === 'object' && !Array.isArray(r.every) ? r.every : null, row = el('div', 'sys-flags sys-roll-everyrow');
+    row.appendChild(el('span', 'sys-num-cap', 'By the clock'));
+    var n = el('input', 'field sys-roll-evn'); n.type = 'number'; n.min = '1'; n.max = '1000'; n.step = '1'; n.placeholder = 'Every'; n.value = ev && typeof ev.n === 'number' && isFinite(ev.n) ? String(ev.n) : ''; n.title = 'With the Calendar on, it also runs every so many of the unit beside as the clock moves on (empty: never by the clock)'; row.appendChild(n);
+    var tn = draft && draft.combat && draft.combat.turn, tus = tn && typeof tn === 'object' && Array.isArray(tn.units) ? tn.units.filter(function(u) { return u && typeof u.key === 'string' && u.key; }) : [];
+    var opts = [['min', 'minutes'], ['hour', 'hours'], ['day', 'days'], ['week', 'weeks']].concat(tus.map(function(u) { return [u.key, typeof u.label === 'string' && u.label ? u.label : u.key]; }));
+    var cur = ev && typeof ev.u === 'string' && ev.u ? ev.u : 'day'; if (!opts.some(function(o) { return o[0] === cur; })) opts.push([cur, cur + ' (no such unit)']);
+    row.appendChild(select('sys-roll-evu', opts, cur, 'What it counts in: the calendar\u2019s minutes, hours, days and weeks, or one of your time units (the Combat card\u2019s Turns box)'));
+    var rl = el('label', 'sys-hover'), rc = el('input', 'sys-roll-evrest'); rc.type = 'checkbox'; rc.checked = !!(ev && ev.rest === true); rc.title = 'It counts rest only: time the GM moves on as Rest; activity starts its count again'; rl.appendChild(rc); rl.appendChild(document.createTextNode(' During rest only')); row.appendChild(rl);
+    return row;
+}
+function everyEdit(r, c, t) {   // the three boxes' edits; a unit or the rest tick before any number keeps the shown unit
+    if (c.indexOf('sys-roll-evn') >= 0) { var v = Number(t.value); r.every = Object.assign({ u: 'day' }, r.every && typeof r.every === 'object' && !Array.isArray(r.every) ? r.every : {}); if (String(t.value).trim() && isFinite(v)) r.every.n = v; else delete r.every; return true; }
+    if (c.indexOf('sys-roll-evu') >= 0) { r.every = Object.assign({}, r.every && typeof r.every === 'object' && !Array.isArray(r.every) ? r.every : {}); r.every.u = String(t.value).slice(0, 24); return true; }
+    if (c.indexOf('sys-roll-evrest') >= 0) { r.every = Object.assign({ u: 'day' }, r.every && typeof r.every === 'object' && !Array.isArray(r.every) ? r.every : {}); if (t.checked === true) r.every.rest = true; else delete r.every.rest; return true; }
+    return false;
+}
+// [sinkcheck:everyrow-end]
 function turnActs() { var tn = draft && draft.combat && draft.combat.turn; return tn && typeof tn === 'object' && Array.isArray(tn.acts) ? tn.acts.filter(function(a) { return a && typeof a === 'object' && typeof a.key === 'string' && a.key; }) : []; }
 function turnDraft() { var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }); return cm.turn && typeof cm.turn === 'object' && !Array.isArray(cm.turn) ? cm.turn : (cm.turn = {}); }
 function costOptions(cost, acts) {   // a roll's Costs menu: nothing, each action, and a cost naming none (kept until picked away)
@@ -5602,6 +5665,7 @@ function onInput(e) {
         else if (c.indexOf('sys-formula') >= 0) r.formula = t.value;
         else if (c.indexOf('sys-roll-icon') >= 0) { if (t.value.trim()) r.icon = t.value.slice(0, 32); else delete r.icon; }   // Stage 6 look fold
         else if (c.indexOf('sys-roll-malf') >= 0) { if (t.value.trim()) r.malf = t.value.slice(0, LIMITS.formula); else delete r.malf; }   // Stage 6 HUD R3
+        else if (c.indexOf('sys-roll-evn') >= 0) everyEdit(r, c, t);   // item 20 K5
         else return;
     } else return;
     markDirty(); patchErrors();
@@ -5717,6 +5781,7 @@ function onChange(e) {
         else if (c.indexOf('sys-roll-cost') >= 0) { if (t.value) r.cost = t.value; else delete r.cost; }   // turn-based combat T1
         else if (c.indexOf('sys-roll-each') >= 0) { delete r.round; if (t.value === 'round' || t.value === 'turn') r.each = t.value; else { delete r.each; delete r.by; } markDirty(); renderAll(); return; }   // Stage 6 HUD G10 + turn-based combat T2b
         else if (c.indexOf('sys-roll-by') >= 0) { if (t.value === 'gm' || t.value === 'owner') r.by = t.value; else delete r.by; }
+        else if (c.indexOf('sys-roll-evu') >= 0 || c.indexOf('sys-roll-evrest') >= 0) everyEdit(r, c, t);   // item 20 K5
         else if (c.indexOf('sys-dmg-chk') >= 0) { if (t.checked) r.dmg = true; else delete r.dmg; }   // chat cards: a damage roll
         else if (c.indexOf('sys-init-chk') >= 0) { r.init = t.checked; if (t.checked) draft.rolls.forEach(function(o) { if (o !== r) delete o.init; }); markDirty(); renderAll(); return; }
         else return;
@@ -5967,7 +6032,7 @@ var _lastCamp = null;
 setInterval(function() { var c = getActiveCampaign(), id = c ? c.id : null; if (_lastCamp !== null && id !== _lastCamp) { if (sheetOpen) closeSheet(); closeHuds(); } _lastCamp = id; try { bellFx(null); } catch (e) { console.error(e); } var chI = window.wpChat; if (chI && chI.lookSync) chI.lookSync(); }, 1000);   // (and the bell's effects feed, for a change no repaint followed)
 window.wpSheetsSync = sync;
 setTimeout(sync, 0);
-window.wpSheets = { bellNote: bellNote, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
+window.wpSheets = { bellNote: bellNote, runTimeRules: runTimeRules, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
     sbFinder: sbFinder, uploadsChanged: uploadsChanged, openReview: openReview, emojiSet: EMOJI_SET, applyCharFace: applyCharFace, applyCharFrame: applyCharFrame, applyTokenFrame: applyTokenFrame,
     charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, deleteCharacter: deleteCharacter, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
     charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId, tokenFx: tokenFx, tokenFxModel: tokenFxModel, tokenFxCharOp: tokenFxCharOp,

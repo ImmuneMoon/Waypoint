@@ -557,6 +557,12 @@ Turn-based combat
   whether players see the date. Each round of a combat moves it on by the
   round's length, every move you make goes in the session log, and a player
   may hide it for themselves.
+- Time rules: with the Calendar on, a roll or an apply action can also run
+  by the clock, every so many minutes, hours, days or your own units,
+  during rest only or any time (a daily HT roll that heals, FP back every
+  10 minutes of rest). You move time on as Active or Rest; the calendar
+  lists what is due, players' characters ticked, and Apply makes the rolls
+  and sends each player a summary.
 - With the Calendar on, a timed effect outside a fight runs by the
   campaign's clock instead of real time: each move of the clock on takes
   that much from every timed effect (a fight's turns count as before).

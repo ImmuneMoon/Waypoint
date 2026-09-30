@@ -473,12 +473,20 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const netSrcF = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n');
         const sliceF = (a, b) => { const i = netSrcF.indexOf(a), k = netSrcF.indexOf(b); if (i < 0 || k < 0 || k <= i) throw new Error('marker ' + a); return netSrcF.slice(i + a.length, k); };
         // the client's handler, run on a real cleaned system: an item-list delta keeps its entries
-        const charIn0 = new Function('net', 'conn', 'msg', 'window', '_charPending', 'charPendingDone', 'state', 'campOf', 'reapplyPending', '_charHost', 'noteHostCopy', sliceF('// [netcheck:charin-start]', '// [netcheck:charin-end]') + '\nreturn "ran";');
-        const charIn = (...a) => charIn0(...a, {}, () => {});   // Stage 6: the host's last copy is kept on the side (the pending slice's own test below)
+        const charIn0 = new Function('net', 'conn', 'msg', 'window', '_charPending', 'charPendingDone', 'state', 'campOf', 'reapplyPending', '_charHost', 'noteHostCopy', 'own', sliceF('// [netcheck:charin-start]', '// [netcheck:charin-end]') + '\nreturn "ran";');
+        const ownF = (o, k) => !!o && typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k) && o[k] !== undefined && o[k] !== null;   // net.js own(), as it is
+        const charIn = (...a) => charIn0(...a, Object.create(null), () => {}, ownF);   // Stage 6: the host's last copy is kept on the side (the pending slice's own test below)
         const campC = { id: 'camp1', system: fx1, chars: { c_1: cleanChar({ id: 'c_1', name: 'P', ownerId: 'u_p', values: { f_inv: [{ defId: 'i_a', qty: 1 }] } }, fx1) } };
         const envW = { wpSystemCore: S, wpSheets: { charChanged() {}, charGone() {} } }, netC = { foreign: true, stream: false, syncedPeer: 'host' };
         charIn(netC, { peer: 'host' }, { type: 'charDelta', campId: 'camp1', id: 'c_1', values: { f_inv: [{ defId: 'i_a', qty: 3 }, { defId: 'i_b', qty: 1 }, { defId: 'i_nope', qty: 1 }] } }, envW, {}, () => {}, { appState: { activeCampaignId: 'camp1' } }, id => id === 'camp1' ? campC : null, () => {});
         check('5h F1: a player\'s item list survives a delta from the host (the real client handler, sliced from net.js)', j(campC.chars.c_1.values.f_inv) === j([{ defId: 'i_a', qty: 3 }, { defId: 'i_b', qty: 1 }]), j(campC.chars.c_1.values));
+        {   // found during senses S0, (f): a hostile host names a character by a prototype's name in a delta or a removal — nothing is written onto a prototype
+            const campP = { id: 'camp1', system: fx1, chars: { c_1: cleanChar({ id: 'c_1', name: 'P', ownerId: 'u_p', values: {} }, fx1) } }, stP = { appState: { activeCampaignId: 'camp1', campaigns: { camp1: campP } } };
+            const netP = { role: 'client', syncedPeer: 'host', foreign: true, myId: 'u_p' }, envP = { wpSystemCore: S, wpFormula: F, wpSheets: { charChanged() {}, renderSheet() {} } };
+            let thrP = ''; ['__proto__', 'constructor', 'toString', 'hasOwnProperty'].forEach(id => { ['charDelta', 'charGone'].forEach(type => { try { charIn(netP, { peer: 'host' }, { type, campId: 'camp1', id, values: { f_inv: [{ defId: 'i_a', qty: 1 }] } }, envP, {}, () => {}, stP, () => campP, () => {}); } catch (e) { thrP += type + ':' + id + ':' + e.message + ' '; } }); });
+            check('found during senses S0 (f): a player\'s app takes a character\'s delta or removal from its host only for a character it holds under that very id — a host naming __proto__, constructor, toString or hasOwnProperty writes nothing onto any prototype or built-in, removes nothing and throws nothing; the character it does hold is left as it was',
+                thrP === '' && !Object.prototype.hasOwnProperty.call(Object.prototype, 'values') && ({}).values === undefined && /\[native code\]/.test(String(Object.values)) && /\[native code\]/.test(String(Object.prototype.toString)) && !!campP.chars.c_1 && j(Object.keys(campP.chars)) === j(['c_1']), thrP);
+        }
         charIn(netC, { peer: 'host' }, { type: 'chars', campId: 'camp1', chars: { c_2: { id: 'c_2', name: 'T', ownerId: 'u_t', partial: true, values: {}, lines: ['HP 9 / 14'] } } }, envW, {}, () => {}, { appState: { activeCampaignId: 'camp1' } }, id => id === 'camp1' ? campC : null, () => {});
         check('5h F1: a teammate\'s copy from the host keeps its partial flag and its hover lines on the client', campC.chars.c_2 && campC.chars.c_2.partial === true && j(campC.chars.c_2.lines) === j(['HP 9 / 14']), j(campC.chars.c_2));
         // the host's per-peer delta: the owner gets the projected value, a teammate gets the whole copy with fresh lines
@@ -2312,6 +2320,19 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             check('Cover: a Full auto blast\'s damage behind cover (applyBlastDamage run for real) — each token takes its system\'s outcome for the cover it has from the blast (half rounded down, total none); a shielded token is left out of the throw (and its Undo); the toast counts, never names; all shielded says so; no cover, the whole to each',
                 j(r1.hp) === j([13, 17, 20]) && r1.tx && r1.tx.hits.length === 2 && /^\u22127 to 2 tokens \u00b7 1 behind cover took less \u00b7 1 shielded by cover\./.test(r1.toasts[0]) && r1.saves === 1
                 && j(r2.hp) === j([20, 20, 20]) && r2.tx === null && j(r2.toasts) === j(['No damage: 3 tokens shielded by cover.']) && j(r3.hp) === j([13, 13, 13]) && /^\u22127 to 3 tokens\. Undo/.test(r3.toasts[0]), j([r1.hp, r1.toasts, r2.toasts, r3.hp]));
+            // found during senses S0, (f): a token from a file names its character by a prototype's name — the blast's damage and its undo reach no prototype
+            const protoAB = (() => {
+                const camp = { system: sysCV, chars: { c_a: { id: 'c_a', values: { f_hp: { cur: 20 } } } } }, toast = [], win = { wpSystemCore: S, wpFormula: F, wpFog: { coverAt: () => null } };
+                const toks = ['__proto__', 'constructor', 'hasOwnProperty', 'toString', 'c_a'].map((cid, i) => ({ id: 't_' + i, isChar: true, charId: cid }));
+                const undoSrc = wbC.slice(wbC.indexOf('  var _lastThrowTx = null;'), wbC.indexOf('  window.wpHasThrowUndo = function()'));
+                const api = new Function('getActiveCampaign', 'getActiveMap', 'blastRadiusYd', 'blastDistances', 'save', 'syncBlastMenu', 'toast', 'window', "'use strict';\n" + undoSrc + '\nreturn { apply: applyBlastDamage, last: function() { return _lastThrowTx; } };')(() => camp, () => ({ whiteboard: toks }), () => 5, () => toks.map(t => ({ tok: t, d: 1 })), () => {}, () => {}, t => toast.push(t), win);
+                let threw = ''; try { api.apply({ x: 1, y: 1 }, 5, 'f_hp'); } catch (e) { threw = 'apply: ' + e.message; }
+                const hit = camp.chars.c_a.values.f_hp.cur, hits = api.last() ? api.last().hits.map(h => h.charId) : [];
+                try { win.wpUndoThrow(); } catch (e) { threw += ' undo: ' + e.message; }
+                return { threw, hit, hits, undone: camp.chars.c_a.values.f_hp.cur, clean: !Object.prototype.hasOwnProperty.call(Object.prototype, 'values') && ({}).values === undefined && /\[native code\]/.test(String(Object.values)) && !Object.prototype.hasOwnProperty.call(Object.prototype, 'updated') && /\[native code\]/.test(String(Object.prototype.hasOwnProperty)) };
+            })();
+            check('found during senses S0 (f): a Full auto blast over tokens whose character is named by a prototype\'s name (a token from a file: __proto__, constructor, hasOwnProperty, toString) damages only the real character beside them, and its undo restores that one alone — nothing is written onto any prototype or built-in, nothing throws',
+                protoAB.threw === '' && protoAB.hit === 15 && j(protoAB.hits) === j(['c_a']) && protoAB.undone === 20 && protoAB.clean === true, j(protoAB));
             const r4 = runAB({ t_b: { name: 'Half cover', block: false } }, 1), r5 = runAB({ t_a: { name: 'Total cover', block: true } }, 0);
             check('Cover: a blast\'s cover is read from its own point on the host\'s board, once per token; a half that rounds to nothing took less (never shielded); a roll of 0 shields nobody',
                 j(r1.calls) === j([[125, 375, 't_a', true], [125, 375, 't_b', true], [125, 375, 't_c', true]]) && j(r4.hp) === j([19, 20, 19]) && /^\u22121 to 3 tokens \u00b7 1 behind cover took less\./.test(r4.toasts[0])

@@ -1031,6 +1031,10 @@ Security
 - A player who joins your table receives only the campaign you are hosting:
   your other campaigns (their names, maps and planners) no longer reach
   them, and their campaign list offers the hosted one alone.
+- A character is only ever looked up by its own id: a token in a campaign
+  file, or a host, naming a character by one of JavaScript's built-in names
+  (such as "__proto__" or "constructor") finds nothing, so a Full auto blast
+  or a character update can no longer write into the app's own objects.
 - Players you have hosted before are recognised by a private table key their
   copy of Waypoint receives when you first let them in, not by the name they
   give; someone using a known name without it waits for you to let them in,

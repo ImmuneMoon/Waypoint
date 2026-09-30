@@ -1048,6 +1048,76 @@ pendingChecks.push((async () => {
         j([a, b.table, c.table, d.table, f.table, e.sent, g.sent]));
 })());
 
+// Range penalties R2 (docs/RANGE_PLAN.md 3): a player's roll and apply action read RangeMod and TargetDistance to their own pointer's target
+// as their copy holds it — the real roll-req and char-apply branches with the real rangeTo (sliced by its netcheck markers), systemcore,
+// formula engine and dicecore; never a target the GM hid, one their sight drops on a fogged map, one on another map, their own token or
+// anyone else's pointer; an open drag judged at its start
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js')), Dx = await import(url('dicecore.js'));
+    const rtSrc = between('// [netcheck:rangeto-start]', '// [netcheck:rangeto-end]', 'rangeto'), rqSrc = between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]', 'rollreq');
+    const apSrc = between('// [netcheck:charapply-start]', '// [netcheck:charapply-end]', 'charapply'), paSrc = between('// [netcheck:postapply-start]', '// [netcheck:postapply-end]', 'postapply'), dlSrc = between('// [netcheck:chardelta-start]', '// [netcheck:chardelta-end]', 'chardelta');
+    const lineOf = k => { const i = src.indexOf(k); if (i < 0) throw new Error('netcheck: ' + k + ' not found'); return src.slice(i, src.indexOf('\n', i)); };
+    const helpers = ['function own(', 'function peerProfileId(', 'function fxLib(', 'function itemLib(', 'function diceFrom(', 'function fogDrop('].map(lineOf).join('\n') + '\n';
+    const STEPS = [{ to: 2, mod: 0 }, { to: 5, mod: -2 }, { to: 10, mod: -4 }];
+    const sysOf = range => Sx.cleanSystem({ v: 1, name: 'R', fields: [{ id: 'f_hp', key: 'HP', label: 'Hit points', kind: 'resource', maxFormula: '10', def: 'max', min: -50, edit: 'owner' }],
+        rolls: [{ id: 'r_rng', label: 'Range hit', apply: [{ f: 'f_hp', formula: '0 - RangeMod' }] }], combat: range === null ? undefined : { range: range || { steps: STEPS } } }, { F: Fx, gmView: true });
+    // a square map (5 ft squares): the player's token at the corner, an NPC 6 squares east (30 ft = 10 yd: -4), another NPC and a plain shape
+    const world = o => {
+        o = o || {};
+        const mine = { id: 't_me', isChar: true, charId: 'c_a', ownerId: 'u_a', x: 0, y: 0, w: 50, h: 50 };
+        const npc = Object.assign({ id: 't_npc', isChar: true, charId: 'c_n', x: 300, y: 0, w: 50, h: 50 }, o.npc || {});
+        const wall = { id: 't_wall', type: 'rect', x: 100, y: 0, w: 50, h: 50 };
+        const camp = { id: 'k', activeItemId: 'm1', system: o.sys || sysOf(), chars: { c_a: { id: 'c_a', name: 'Ana', ownerId: 'u_a', npc: false, values: {} }, c_n: { id: 'c_n', name: 'Orc', npc: true, values: {} } },
+            items: { m1: { id: 'm1', type: 'map', meta: { gridType: 'square' }, whiteboard: [mine, npc, wall] }, m2: { id: 'm2', type: 'map', meta: { gridType: 'square' }, whiteboard: [{ id: 't_far', isChar: true, x: 0, y: 0 }] } } };
+        const targets = o.targets !== undefined ? o.targets : { u_a: { id: 't_npc', mapId: 'm1', name: 'Pat' } };
+        const net = { active: true, role: 'host', paused: false, targets: targets, combats: {}, conns: [], roster: { pA: { id: 'u_a', name: 'Pat', location: o.loc || 'm1' } } };
+        const drops = [], landed = [];
+        const win = { wpFormula: Fx, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} }, wpVtt: { on: () => true, rulesOn: k => k !== 'elevation' || o.elev === true }, wpDiceCore: null,
+            wpFog: { fogDropIds: (pid, c, m) => { drops.push([pid, c === camp, m && m.id]); return o.drop || null; } } };
+        const fogLanded = o.drag ? (mapId, fn) => { landed.push(mapId); const was = mine.x; mine.x = o.drag; try { return fn(); } finally { mine.x = was; } } : undefined;
+        return { camp, net, win, mine, npc, drops, landed, fogLanded };
+    };
+    const roll = o => {
+        const W = world(o), out = { table: [], sent: [] }, conn = { peer: 'pA', send(m) { packCheck(m); out.sent.push(JSON.parse(JSON.stringify(m))); } };
+        const msg = { type: 'roll-req', rid: 'q1', expr: 'd20 + RangeMod + TargetDistance', charId: 'c_a', label: 'Shot' };
+        new Function('msg', 'conn', 'net', 'DC', 'SC', 'window', 'getActiveCampaign', 'peerPaused', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'fogLanded', 'var diceLimit = null, _diceSlowSaid = {};\n' + helpers + rtSrc + '\n' + rqSrc)(
+            msg, conn, W.net, () => Dx, () => Sx, W.win, () => W.camp, () => false, e => { throw e; }, rec => { packCheck(rec); out.table.push(JSON.parse(JSON.stringify(rec))); }, () => {}, () => {}, W.fogLanded);
+        const rec = out.table[0] || {}, nm = n => ((rec.names || []).filter(x => x.name === n).map(x => x.value))[0];
+        return { mod: nm('RangeMod'), dist: nm('TargetDistance'), n: out.table.length, sent: out.sent, drops: W.drops, landed: W.landed, back: W.mine.x };
+    };
+    const base = roll(), none = roll({ targets: {} }), other = roll({ targets: { u_a: { id: 't_far', mapId: 'm2', name: 'Pat' } } }), elsewhere = roll({ loc: 'm2' }), hid = roll({ npc: { hidden: true } });
+    const fogged = roll({ drop: { t_npc: 1 } }), foggedOther = roll({ drop: { t_wall: 1 } }), self = roll({ targets: { u_a: { id: 't_me', mapId: 'm1', name: 'Pat' } } }), gmOnly = roll({ targets: { u_gm: { id: 't_npc', mapId: 'm1', name: 'GM' } } });
+    const shape = roll({ targets: { u_a: { id: 't_wall', mapId: 'm1', name: 'Pat' } } }), gone = roll({ targets: { u_a: { id: 't_zz', mapId: 'm1', name: 'Pat' } } }), noRule = roll({ sys: sysOf(null) }), formula = roll({ sys: sysOf({ unit: 'ft', formula: '-1 * floor(Distance / 10)' }) });
+    const wrongMap = roll({ targets: { u_a: { id: 't_npc', mapId: 'm2', name: 'Pat' } } }), selfBonus = roll({ sys: sysOf({ steps: [{ to: 1, mod: 3 }] }), targets: { u_a: { id: 't_me', mapId: 'm1', name: 'Pat' } } }), dragged = roll({ drag: -300 }), up = roll({ elev: true, npc: { elevation: 30 } }), upOff = roll({ npc: { elevation: 30 } });
+    const zero = r => r.n === 1 && r.mod === 0 && r.dist === 0;
+    check('range R2 roll-req (host, run for real): a player\'s roll reads RangeMod (-4) and TargetDistance (10 yd: six 5 ft squares) to their own pointer\'s target on the map they are on, asking the fog what their copy holds; both read 0 with no pointer, a pointer on another map or to a map they are not on, a target the GM hid, one their sight drops, their own token, a plain shape, a token that is gone, or only the GM\'s pointer',
+        base.n === 1 && base.mod === -4 && base.dist === 10 && j(base.drops) === j([['u_a', true, 'm1']]) && foggedOther.mod === -4
+        && [none, other, elsewhere, hid, fogged, self, gmOnly, shape, gone, wrongMap, selfBonus].every(zero) && j(fogged.drops) === j([['u_a', true, 'm1']]) && none.drops.length === 0,
+        j([base, none, other, elsewhere, hid, fogged, self, gmOnly, shape, gone].map(r => [r.mod, r.dist, r.n])));
+    check('range R2 roll-req: with no range rule TargetDistance still reads the distance in yards and RangeMod 0; a formula rule in feet reads its own (30 ft: -3); an open drag is judged where it began (fogLanded on that map: 20 yd, past the last step -4 holds) and the token is back where it was; heights count only while the elevation rule is on (30 yd up: 31.622777 yd)',
+        noRule.mod === 0 && noRule.dist === 10 && formula.mod === -3 && formula.dist === 30 && dragged.mod === -4 && dragged.dist === 20 && j(dragged.landed) === j(['m1']) && dragged.back === 0
+        && up.dist === 31.622777 && up.mod === -4 && upOff.dist === 10,
+        j([[noRule.mod, noRule.dist], [formula.mod, formula.dist], [dragged.mod, dragged.dist, dragged.landed, dragged.back], [up.mod, up.dist], [upOff.mod, upOff.dist]]));
+    // an apply action reads it the same way: Range hit takes (0 - RangeMod) from HP
+    const apply = o => {
+        const W = world(o), out = { answer: [], saves: 0 }, box = b => m => { packCheck(m); b.push(JSON.parse(JSON.stringify(m))); };
+        const conn = { peer: 'pA', send: box(out.answer) }; W.net.conns = [{ peer: 'pA', open: true, send: () => {} }];
+        new Function('msg', 'conn', 'net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'peerProfileId', 'lim', 'own', 'diceFrom', 'sendTable', 'pushChat', 'logEvent', 'applyLine', 'fogLanded', 'fogDrop',
+            'var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {};\n' + rtSrc + '\n' + dlSrc + '\n' + paSrc + '\n' + apSrc)(
+            { type: 'char-apply', rid: 'a1', charId: 'c_a', act: 'r_rng' }, conn, W.net, () => Sx, W.win, () => false, () => W.camp, () => { out.saves++; }, e => { throw e; }, c => (W.net.roster[c.peer] ? W.net.roster[c.peer].id : null), { allow: () => true },
+            (ob, k) => !!ob && Object.prototype.hasOwnProperty.call(ob, k), (p, gm) => ({ id: p.id, name: p.name, gm: !!gm }), () => {}, () => {}, () => {}, r => Dx.applyText(r), W.fogLanded, (c, m, pid) => W.win.wpFog.fogDropIds(pid, c, m));
+        return { hp: W.camp.chars.c_a.values.f_hp, answer: out.answer.map(m => m.type + (m.reason ? ':' + m.reason : '')), saves: out.saves };
+    };
+    const apA = apply(), apN = apply({ targets: {} }), apH = apply({ npc: { hidden: true } });
+    check('range R2 char-apply (host, run for real): an apply action\'s amount reads RangeMod as a roll does (Range hit: HP 10 - 4 = 6); with no target, or a hidden one, it reads 0, so the action changes nothing and is refused as any such action is (none): nothing stored, nothing saved',
+        j(apA.hp) === j({ cur: 6 }) && j(apA.answer) === j(['char-ack']) && apA.saves === 1 && [apN, apH].every(r => r.hp === undefined && j(r.answer) === j(['char-deny:none']) && r.saves === 0), j([apA, apN, apH]));
+    check('range R2 (source): the host\'s roll and apply action merge the range after the round, through rangeTo with the player\'s own token on the map they are on and their own id, guarded where a handler runs alone; the GM\'s own roll reads the sheet\'s token context (tokenCtxFor, which carries it)',
+        /if \(typeof rangeTo === 'function' && SQ\.withRange\) tcQ = SQ\.withRange\(tcQ, rangeTo\(campQ, mapQ, locQ, SQ\.charTokenOn\(mapQ, q\.charId, pidQ, \{ strict: true \}\), pidQ\)\);/.test(src)
+        && /if \(typeof rangeTo === 'function' && Sa\.withRange\) tcA = Sa\.withRange\(tcA, rangeTo\(campA, mapA, locA, Sa\.charTokenOn\(mapA, qa\.charId, profA\.id, \{ strict: true \}\), profA\.id\)\);/.test(src)
+        && /varsR = SR\.makeResolver\(campR\.system, chR, F, window\.wpSheets && window\.wpSheets\.tokenCtxFor \? window\.wpSheets\.tokenCtxFor\(chR\.id, campR\) : null\);/.test(src)
+        && /return typeof fogLanded === 'function' \? fogLanded\(mapId, judge\) : judge\(\);/.test(rtSrc));
+})());
 // 1.5.0 derived GM-only values: the GM's own roll (net.diceRoll, run for real with the real dicecore, formula engine and systemcore) goes to the
 // GM alone when it names a GM-only field anywhere or reads a value worked out from one; a player's own roll-req of such a value is refused
 pendingChecks.push((async () => {

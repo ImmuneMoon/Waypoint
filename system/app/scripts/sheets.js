@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sbRowOps, sbApplyProposal, cleanUploads, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
+import { droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sbRowOps, sbApplyProposal, cleanUploads, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
 
 var ui = function(id) { return document.getElementById(id); };
@@ -407,7 +407,7 @@ function hoverLinesForToken(w, camp, mapId) {   // mapId: the map the token stan
     if (!sys || !c) return [];
     if (c.npc && isClient()) return [];
     if (c.partial && Array.isArray(c.lines)) return c.lines.slice();   // 5h: a teammate's copy shows the host's lines (it lacks the fields their formulas read)
-    try { var midH = typeof mapId === 'string' && camp.items && Object.prototype.hasOwnProperty.call(camp.items, mapId) ? mapId : camp.activeItemId, amH = camp.items && camp.items[midH]; return hoverLines(sys, c, F(), withRound(tokenCtx(amH, w, tokenFlags()), combatOn(midH))); } catch (e) { return []; }   // 5h Fold 3 / Stage 6: this token's own facing and stance; HF5b: the combat on its map (HF5 review: the map it stands on, as its sheet reads it)
+    try { var midH = typeof mapId === 'string' && camp.items && Object.prototype.hasOwnProperty.call(camp.items, mapId) ? mapId : camp.activeItemId, amH = camp.items && camp.items[midH]; return hoverLines(sys, c, F(), withRange(withRound(tokenCtx(amH, w, tokenFlags()), combatOn(midH)), rangeFor(c, midH, amH, w, camp))); } catch (e) { return []; }   // 5h Fold 3 / Stage 6: this token's own facing and stance; HF5b: the combat on its map (HF5 review: the map it stands on, as its sheet reads it)
 }
 function hoverLinesForTokenId(camp, tokId) {
     if (!camp || !tokId) return [];
@@ -416,7 +416,7 @@ function hoverLinesForTokenId(camp, tokId) {
 }
 
 /* ---------- the facing dial (Stage 5h Fold 3): a view of the token's own facing, with threat marks formulas read as Arc / Threats ---------- */
-var SVGNS = 'http://www.w3.org/2000/svg', _dialSig = '', _dialStale = false, _dialRedraw = null, _dialOn = null, _roundSig = '';   // HF5b: _roundSig, the sheet's combat round
+var SVGNS = 'http://www.w3.org/2000/svg', _dialSig = '', _dialStale = false, _dialRedraw = null, _dialOn = null, _roundSig = '', _rangeSig = '';   // HF5b: _roundSig, the sheet's combat round; range R2: _rangeSig, its range to the target
 function turningOn() { return window.wpVtt ? !!window.wpVtt.on('turning') : true; }
 function vttOn(which) { return window.wpVtt ? !!window.wpVtt.on(which) : true; }
 function ruleOn(which) { var v = window.wpVtt; return !v || (v.rulesOn ? v.rulesOn(which) : v.on(which)); }   // Stage 6: the table's setting (a player's "off for me" only hides a control)
@@ -443,7 +443,25 @@ function facingTarget(c, camp) {
     return mapOk(am) ? hit(amId, am, charTokenOn(am, c.id, c.ownerId, { hidden: !pc })) : null;
 }
 function combatOn(mapId) { var n = net(); return n && n.combatFor && typeof mapId === 'string' ? n.combatFor(mapId) : null; }   // HUD frame (HF5b): the combat on a map, while a table is up (null offline)
-function tokenCtxFor(charId, camp) { var c = charById(charId, camp), t = c ? facingTarget(c, camp) : null; return t ? withRound(tokenCtx(t.map, t.tok, tokenFlags()), combatOn(t.mapId)) : null; }   // Stage 6: { facing, stance } of the token the sheet reads; HF5b: and the round of the combat on its map
+// Range penalties R2 (docs/RANGE_PLAN.md 3): what RangeMod and TargetDistance read for a character's token, worked out on this screen from
+// its own copy — to its player's pointer (a player's character, whoever looks at the sheet) or the GM's own (an NPC, a character with no
+// player), while a table is up: a character token on the same map, never the token itself; for a player's character never one the GM hid,
+// and on the GM's screen never one that player's sight drops on a fogged map (the host judges their rolls the same, net.js rangeTo). null:
+// the names read 0
+// [sinkcheck:rangefor-start]
+function rangeFor(c, mapId, map, tok, camp) {
+    var n = net(); if (!c || !tok || !map || !n || !n.active || !n.targets || typeof mapId !== 'string') return null;
+    var pc = !!(c.ownerId && !c.npc), pid = isClient() ? myId() : pc ? c.ownerId : myId();
+    var tg = typeof pid === 'string' && Object.prototype.hasOwnProperty.call(n.targets, pid) ? n.targets[pid] : null;
+    if (!tg || typeof tg !== 'object' || tg.mapId !== mapId || typeof tg.id !== 'string') return null;
+    var w = Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return !!x && x.id === tg.id; }) : null;
+    if (!w || !w.isChar || w === tok || (w.hidden && pc)) return null;
+    if (pc && !isClient() && window.wpFog && typeof window.wpFog.fogDropIds === 'function') { var drop = window.wpFog.fogDropIds(c.ownerId, camp, map); if (drop && drop[w.id]) return null; }
+    return rangeCtx(systemOf(camp), map, tok, w, { F: F(), elev: !!tokenFlags().elevation });
+}
+// [sinkcheck:rangefor-end]
+function tokenCtxFor(charId, camp) { var c = charById(charId, camp), t = c ? facingTarget(c, camp) : null; return t ? withRange(withRound(tokenCtx(t.map, t.tok, tokenFlags()), combatOn(t.mapId)), rangeFor(c, t.mapId, t.map, t.tok, camp)) : null; }   // Stage 6: { facing, stance } of the token the sheet reads; HF5b: and the round of the combat on its map
+function rangeSigOf(c, camp) { var t = c ? facingTarget(c, camp) : null, r = t ? rangeFor(c, t.mapId, t.map, t.tok, camp) : null; return r ? r.mod + '|' + r.dist : ''; }   // range R2: what RangeMod and TargetDistance read for this character, so a new target or a move redraws the view
 function roundSigOf(c, camp) { var t = c ? facingTarget(c, camp) : null, cb = t ? combatOn(t.mapId) : null; return cb && typeof cb.round === 'number' ? String(cb.round) : ''; }   // HF5b: what CombatRound reads for this character, so a round change redraws the view
 function dialSigOf(c, camp) {
     var fl = tokenFlags(), t = c ? facingTarget(c, camp) : null, fc = t ? facingCtx(t.map, t.tok, fl.turning) : null, st = t ? stanceCtx(t.tok, fl) : null, n = net();
@@ -455,7 +473,7 @@ function namesFacing(sys) {   // does a formula on the sheet (or a {formula} in 
     var hit = function(text) {
         if (typeof text !== 'string' || !text) return false;
         var ns = []; try { ns = Fm.names(text) || []; } catch (e) {}
-        return ns.some(function(nm) { var fam = String(nm).toLowerCase().split('.')[0]; return (fam === 'facing' || fam === 'arc' || fam === 'threats' || fam === 'posture' || fam === 'elevation' || fam === 'combatround') && own[fam] !== 1; });   // a field of that name keeps it (Stage 6: the stance names too; HF5b: CombatRound)
+        return ns.some(function(nm) { var fam = String(nm).toLowerCase().split('.')[0]; return (fam === 'facing' || fam === 'arc' || fam === 'threats' || fam === 'posture' || fam === 'elevation' || fam === 'combatround' || fam === 'rangemod' || fam === 'targetdistance') && own[fam] !== 1; });   // a field of that name keeps it (Stage 6: the stance names too; HF5b: CombatRound)
     };
     return sys.fields.some(function(f) {
         if (hit(f.formula) || hit(f.maxFormula) || hit(f.base)) return true;
@@ -597,7 +615,8 @@ function tokenTurned(tokId, final) {
             if (_dialOn !== null && on !== _dialOn) { _dialOn = on; _dialStale = false; redrawForFacing(); return; }   // a token feature switched on or off: the whole sheet (a player's dial or stance control comes and goes with it)
             swapTokenControls(p, c, camp);
         }
-        var rsS = roundSigOf(c, camp); if (rsS !== _roundSig) { _roundSig = rsS; _dialStale = true; }   // HUD frame (HF5b): a round change (Next turn) redraws what reads CombatRound
+        var rsS = roundSigOf(c, camp); if (rsS !== _roundSig) { _roundSig = rsS; _dialStale = true; }
+        var rgS = typeof rangeSigOf === 'function' ? rangeSigOf(c, camp) : ''; if (rgS !== _rangeSig) { _rangeSig = rgS; _dialStale = true; }   // range R2: a new target or a move redraws what reads RangeMod or TargetDistance   // HUD frame (HF5b): a round change (Next turn) redraws what reads CombatRound
         if (final && _dialStale) { _dialStale = false; if (namesFacing(systemOf(camp))) redrawForFacing(); }
     } catch (e) {}   // it runs at the end of every render: a sheet problem never stops the map
     try { syncEndTurn(); } catch (e) {}   // turn-based combat T2
@@ -654,7 +673,7 @@ function renderSheet() {
     var hb = ui('sheetHud'); if (hb) { var hOn = hudHasContent(sys) && canOpen(c.id); hb.style.display = hOn ? '' : 'none'; if (hOn) hb.title = 'Open ' + (sys.sheet.hud.title || 'the HUD'); }   // HUD frame (HF2a): only when the saved system has a HUD they can see
     p.classList.toggle('sheet-has-headportrait', !!(sys.sheet && sys.sheet.look && sys.sheet.look.portrait));   // Stage 5g: the header block carries the portrait, so the title bar's small one steps aside
     var all = resolveAll(sys, c, F(), tokenCtxFor(c.id, camp));   // 5h Fold 3 / Stage 6: the token names read this character's token
-    _dialSig = dialSigOf(c, camp); _dialStale = false; _dialOn = JSON.stringify(tokenFlags()); _roundSig = roundSigOf(c, camp);
+    _dialSig = dialSigOf(c, camp); _dialStale = false; _dialOn = JSON.stringify(tokenFlags()); _roundSig = roundSigOf(c, camp); _rangeSig = rangeSigOf(c, camp);
     _sheetRefSig = refSig(sys);
     buildSections(body, sys, c, all, gm, own, renderSheet, { campId: camp.id, view: 'sheet', preview: false });
     applyPaletteTo(p, sys.sheet && sys.sheet.look);   // Stage 6 look fold: the palette also dresses the panel's own head, border and grip
@@ -744,7 +763,7 @@ function makeHud(charId) {
     var tpl = ui('hudTpl'), layer = ui('hudLayer'); if (!tpl || !tpl.content || !tpl.content.firstElementChild || !layer || !HUD_CID.test(String(charId))) return null;
     var p = tpl.content.firstElementChild.cloneNode(true); p.dataset.cid = charId;
     var q = function(cls) { return p.querySelector('.' + cls); };
-    var v = { charId: charId, panel: p, head: q('hud-head'), body: q('hud-body'), name: q('hud-name'), sub: q('hud-sub'), por: q('hud-portrait'), dialSig: '', dialStale: false, dialOn: null, roundSig: '', redraw: null };
+    var v = { charId: charId, panel: p, head: q('hud-head'), body: q('hud-body'), name: q('hud-name'), sub: q('hud-sub'), por: q('hud-portrait'), dialSig: '', dialStale: false, dialOn: null, roundSig: '', rangeSig: '', redraw: null };
     v.foot = q('hud-foot'); v.histOpen = false; v.bellOpen = false;   // HF3: the roll history drawer, closed on a new window (as the reference)
     layer.appendChild(p);
     p.addEventListener('keydown', function(e) { e.stopPropagation(); if (e.key === 'Escape') { e.preventDefault(); closeHud(charId); } });
@@ -788,7 +807,7 @@ function renderHud(charId) {
     v.panel.setAttribute('aria-label', 'HUD: ' + c.name);
     if (c.portrait) { v.por.src = imgSrc(c.portrait); v.por.style.display = ''; } else { v.por.removeAttribute('src'); v.por.style.display = 'none'; }
     var all = resolveAll(sys, c, F(), tokenCtxFor(c.id, camp));
-    v.dialSig = dialSigOf(c, camp); v.dialStale = false; v.dialOn = JSON.stringify(tokenFlags()); v.roundSig = roundSigOf(c, camp);
+    v.dialSig = dialSigOf(c, camp); v.dialStale = false; v.dialOn = JSON.stringify(tokenFlags()); v.roundSig = roundSigOf(c, camp); v.rangeSig = rangeSigOf(c, camp);
     _sheetRefSig = refSig(full);
     buildSections(v.body, sys, c, all, gm, own, function() { renderHud(charId); }, { campId: camp.id, view: 'hud', preview: false, targets: pinTargetsAll(full.sheet) });
     applyPaletteTo(v.panel, sys.sheet && sys.sheet.look);
@@ -1008,7 +1027,8 @@ function turnView(v, final) {
         if (v.dialOn !== null && on !== v.dialOn) { v.dialOn = on; v.dialStale = false; redrawForFacing(v); return; }   // a token feature switched: the whole HUD
         swapTokenControls(v.panel, c, camp);
     }
-    var rs = roundSigOf(c, camp); if (rs !== v.roundSig) { v.roundSig = rs; v.dialStale = true; }   // HF5b: a round change redraws what reads CombatRound
+    var rs = roundSigOf(c, camp); if (rs !== v.roundSig) { v.roundSig = rs; v.dialStale = true; }
+    var rg = typeof rangeSigOf === 'function' ? rangeSigOf(c, camp) : ''; if (rg !== v.rangeSig) { v.rangeSig = rg; v.dialStale = true; }   // range R2: what reads RangeMod or TargetDistance   // HF5b: a round change redraws what reads CombatRound
     if (final && v.dialStale) { v.dialStale = false; if (namesFacing(systemOf(camp))) redrawForFacing(v); }
 }
 // The floating panels (the sheet, every HUD, the doc panel) come to the front when clicked or opened — only while a HUD is open (with none,

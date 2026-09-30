@@ -481,6 +481,14 @@ Turn-based combat
   each target mark carries it at its lower corner beside its cover and
   light. A hex grid counts hexes, a square one follows your diagonal rule,
   and between two tokens their heights count while Token elevation is on.
+- Rolls read the range: any formula can use RangeMod (your range modifier to
+  the target the character's player has marked, your own mark for an NPC)
+  and TargetDistance (how far that target is), so a roll of
+  3d6 + Skill + RangeMod takes its range penalty by itself, and a label such
+  as Shot ({±RangeMod}) shows it on the sheet as the target changes. Both
+  read 0 with no target, a target that player cannot see (one you hid, or
+  one out of their sight on a fogged map), no token or offline; your
+  machine works a player's roll out and judges that for them.
 - A target mark's cover, light and range now follow a token at once when
   you drop it on your own screen, not at the next redraw.
 

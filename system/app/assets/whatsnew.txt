@@ -492,6 +492,10 @@ Turn-based combat
   reads them goes to its roller and you alone while another player on that
   map cannot see the target, so its card never tells them how far an unseen
   creature is (the player is told why; your own rolls do the same).
+- Weapon ranges need no setting of their own: Help shows how a weapons
+  list's Half and MaxRange stats, an Attack roll's Needs and a Damage
+  formula refuse a shot past its longest range, apply the range penalty to
+  ranged weapons only, and halve damage past half range.
 - A target mark's cover, light and range now follow a token at once when
   you drop it on your own screen, not at the next redraw.
 

@@ -428,6 +428,18 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
       return true;
   }
 
+  // R2 security (cluster E): a join the GM has not yet let in (no snapshot, no synced host) still shows this machine's own campaign, so a save of it
+  // goes to this disk as ever — never to the host it is waiting on — and nothing the player draws or moves while they wait is lost. False the
+  // moment a snapshot lands (net.foreign, the state's origin marker), between a reconnect's attempts, in the stream and pop-out windows, and
+  // while a restore decides. Only save() reads it: every other write stays behind canPersistLocal.
+  function ownWhileWaiting() {
+      var n = window.wpNet;
+      if (window.__wpNoSave || window.wpStream || window.wpPopout) return false;
+      if (!n || !n.active || n.role !== 'client' || n.foreign || n.stream || n.syncedPeer) return false;
+      if (state.appState && state.appState._foreign) return false;
+      return true;
+  }
+
   function itemKey(camp, id) { return camp.id + '/' + id; }
 
   // The content of one item as a string: every own key but id / type / meta, plus the meta keys not in META_LIVE
@@ -1059,7 +1071,7 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
         // Multiplayer: clients don't touch their own disk — edits go to the host. And a campaign
         // that came from a host (wpNet.foreign) never reaches this disk even after the link drops:
         // between reconnect attempts the client is briefly "inactive" but still holds the GM's table.
-        if (!canPersistLocal()) {
+        if (!canPersistLocal() && !ownWhileWaiting()) {   // (a client waiting for the GM's Allow writes its own campaign to its own disk below)
             if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') {
                 window.wpNet.onLocalSave();
                 saveNote.innerHTML = 'Synced to host <b>&#10003;</b>';

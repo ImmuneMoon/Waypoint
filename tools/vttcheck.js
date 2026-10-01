@@ -161,6 +161,10 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     world([camp('J', { v: 1, master: true, features: { elevation: false, posture: true, minimap: false, sound: true, dice: true, sheets: true, fx: true } })], 'J');
     check('host: mode, not locked, C, hostFlags = what players receive', V.mode() === 'host' && !V.locked() && eff() === 'elevation0posture1minimap0sound1dice1sheets1fx1fog1turning1music1turns1lighting1calendar1video1' && j(V.hostFlags()) === j({ elevation: false, posture: true, minimap: false, sound: true, dice: true, sheets: true, fx: true, fog: true, turning: true, music: true, turns: true, lighting: true, calendar: true, video: true }));
     check('hostSig covers the hosted id and every campaign', V.hostSig().indexOf('J|') === 0 && V.hostSig().indexOf('J:elevation0posture1minimap0') > 0);
+    // secrets (R2 #18): a session is one campaign — the GM's other games (their ids, their switches) never reach a player
+    world([camp('J', { v: 1, master: true, features: { elevation: false, posture: true, minimap: false, sound: true, dice: true, sheets: true, fx: true } }), camp('J2', { v: 1, master: true, features: { elevation: true, posture: false, minimap: true, sound: false, dice: true, sheets: true, fx: true } }), camp('J3')], 'J');
+    check('secrets: hostCamps (what the snapshot and the stance message carry) names the hosted campaign alone, its entry hostFlags, whatever else the save holds; a hosted id the save lacks gives an empty map', Object.keys(V.hostCamps()).join() === 'J' && j(V.hostCamps().J) === j(V.hostFlags()) && V.hostFlags().elevation === false && (world([camp('J'), camp('J2')], 'ZZ'), j(V.hostCamps()) === '{}'), j(V.hostCamps()));
+    world([camp('J', { v: 1, master: true, features: { elevation: false, posture: true, minimap: false, sound: true, dice: true, sheets: true, fx: true } })], 'J');
     check('host: setLocal refused', V.setLocal('posture', true) === false);
 
     /* ---- awaiting approval after a previous table ---- */

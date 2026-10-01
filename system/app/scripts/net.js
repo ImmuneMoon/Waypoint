@@ -15,7 +15,7 @@ import { state } from './state.js';
 import { getActiveCampaign, findLandingRoom, landingPoint, getActiveMap } from './models.js';
 import { save, toast, load } from './io.js';
 import { updateCampaignSelect, updateSidebarNav } from './sidebar.js';
-import { showConfirm } from './dialogs.js';
+import { showConfirm, showAlert } from './dialogs.js';
 
 /* ---------- version gate ----------
    The join handshake carries the player's app version. A host turns away anyone
@@ -418,8 +418,20 @@ function awayMap() {
     if (net.role !== 'host') return net.away || {};
     // a PLAIN object (the packer refuses one without a prototype) of checked player ids to checked map ids: camp.players comes from a
     // save or an import, and one record keyed "constructor" or "hasOwnProperty" made the packer refuse the whole roster message
-    var camp = getActiveCampaign(), out = {};
-    if (camp && camp.players && typeof camp.players === 'object') Object.keys(camp.players).forEach(function(pid) { var r = camp.players[pid]; if (validProfileId(pid) && r && typeof r === 'object' && validKey(r.lastMap)) out[pid] = r.lastMap; });
+    // Secrets (R2): the registry itself — every profile that ever joined, and where each was last, banned or not — is the GM's. The table gets only
+    // what a screen can ask about (isPresent: the owner of a character token on a map of the campaign, by the token or by the character it names),
+    // and never a banned player's record
+    var camp = getActiveCampaign(), out = {}, owners = Object.create(null);
+    if (camp && camp.items && typeof camp.items === 'object') Object.keys(camp.items).forEach(function(id) {
+        var it = camp.items[id]; if (!it || it.type !== 'map' || !Array.isArray(it.whiteboard)) return;
+        it.whiteboard.forEach(function(w) {
+            if (!w || typeof w !== 'object' || !w.isChar) return;
+            if (typeof w.ownerId === 'string') owners[w.ownerId] = 1;
+            var ch = typeof w.charId === 'string' && camp.chars && own(camp.chars, w.charId) ? camp.chars[w.charId] : null;
+            if (ch && typeof ch === 'object' && !ch.npc && typeof ch.ownerId === 'string') owners[ch.ownerId] = 1;
+        });
+    });
+    if (camp && camp.players && typeof camp.players === 'object') Object.keys(camp.players).forEach(function(pid) { var r = camp.players[pid]; if (validProfileId(pid) && owners[pid] === 1 && !(camp.bannedPlayers && own(camp.bannedPlayers, pid)) && r && typeof r === 'object' && validKey(r.lastMap)) out[pid] = r.lastMap; });
     return out;
 }
 // [netcheck:away-end]
@@ -572,6 +584,7 @@ function wireWbItem(w, cloned) {
     if (w.fxb !== undefined) delete w.fxb;   // conditions C1: never taken from the map; worked out afresh below
     if (w.isChar && typeof fxbOf === 'function') { var fxb = fxbOf(w); if (fxb) w.fxb = fxb; }   // C2: a token with no sheet, from its own
     if (w.fx !== undefined) delete w.fx;   // conditions C2: a token's own rows are the GM's (their GM-only ids and names): the table gets fxb
+    if (w.eventMessage !== undefined) delete w.eventMessage;   // secrets (R2): a trigger zone's message is GM prep until a token lands in it — the host says it then, to the dropper alone (triggerFire)
     return w;
 }
 // Conditions C1 (docs/CONDITIONS_PLAN.md): the effects the table sees on a token, the host's list ([{ n, i, t }], never a GM-only effect) or
@@ -1800,7 +1813,7 @@ net.stanceFlags = function() {
 // A key absent from an older host's payload means ON — never coerce a newer feature to off
 function cleanStance(s) { return window.wpVtt ? window.wpVtt.cleanFlags(s) : { elevation: !!(s && s.elevation), posture: !!(s && s.posture) }; }
 function cleanStanceCamps(m) { return window.wpVtt ? window.wpVtt.cleanStanceCamps(m) : null; }
-// Admitted players only: the ceiling names every campaign in the save
+// Admitted players only: the ceiling names the hosted campaign alone (vtt.js hostCamps — a session is one campaign, and the GM's other games never reach a player)
 net.broadcastStance = function() {
     if (!net.active || net.role !== 'host') return;
     var camp = getActiveCampaign();
@@ -2447,7 +2460,7 @@ function itemLib(sys) { var lib = {}; (sys && Array.isArray(sys.items) ? sys.ite
 function withHoverLines(v, src, view, lib, items, full) {   // full (F6): the GM's system, so the owner's view counts what rows they cannot see change
     var S = SC(); if (!v || !v.partial || !S || !window.wpFormula || !src) return v;
     var ownV = S.charFor(src, view, src.ownerId, { lib: lib || null, items: items || null, full: full || null }); if (!ownV) return v;
-    var ln = []; try { ln = S.hoverLines(view, ownV, window.wpFormula); } catch (e) {}
+    var ln = []; try { ln = S.hoverLines(view, ownV, window.wpFormula, undefined, v.values && typeof v.values === 'object' ? v.values : {}); } catch (e) {}   // secrets (R2): the Effects line names only the effects the teammate's own copy holds (never a GM-only one), the numbers the owner's
     v.lines = ln.slice(0, 12).map(function(s) { return String(s).slice(0, 120); });   // always, even [] — the owner's "no lines" is the answer; a teammate never falls back to its own defaults
     return v;
 }
@@ -3151,6 +3164,7 @@ function handlePos(msg, conn) {
         if (frW.sk === undefined) frW.sk = skW;   // fold M7: where the drag began to see from (its first accepted move: nothing moved the token before it)
         if (window.wpSheets && window.wpSheets.tokenTurned) window.wpSheets.tokenTurned(msg.wbId, msg.final);   // 5h Fold 3: a sheet's facing dial follows (in place; a final turn redraws numbers that read it)
         if (msg.final) {
+            if (typeof triggerFire === 'function') triggerFire(conn, map, w, frW);   // secrets (R2): a trigger zone's message, to the dropper alone (their copy holds none), as the gesture carries the token in
             var toRoom = window.wpAutoRoom ? window.wpAutoRoom(w, map) : null;
             if (toRoom) toast((w.charName || 'A character') + ' is now in ' + (toRoom.name || 'a room') + '.');
             saveRemoteSoon();
@@ -3176,6 +3190,26 @@ function turnNote(conn, text, cid) {   // cid (the bell): the character it is ab
     if (!conn || typeof conn.send !== 'function') return;
     var m = { type: 'turn-note', text: String(text).slice(0, 200) }; if (typeof cid === 'string' && /^c_[A-Za-z0-9_]{1,24}$/.test(cid)) m.charId = cid;
     try { conn.send(m); } catch (e) { sendFailed(e); }
+}
+// Secrets (R2): a trigger zone's message is kept off every copy of the map (wireWbItem), so the host says it to the player whose own token lands
+// in a shown zone — the test the dropper's app ran on its own copy before (datamap.js: the token's centre inside the zone's box, a box 100 by 100
+// when unset, the first zone found speaking even with nothing to say), now run here on the host's map, to that connection alone, text only.
+// Said as the gesture carries the token in: a final also ends a turn in place (the facing dial, the rotate handle, an arrow turn) and a shuffle
+// within the zone, and those said nothing before (the dropper's app read only its drag's drop), so a zone that held the token's centre where the
+// gesture began (from: the drag's record, or the token's place before a lone final) is passed over
+function triggerFire(conn, map, w, from) {
+    if (!conn || typeof conn.send !== 'function' || !map || !w || !Array.isArray(map.whiteboard)) return;
+    var hw = (Number(w.w) || 100) / 2, hh = (Number(w.h) || 100) / 2, cx = (Number(w.x) || 0) + hw, cy = (Number(w.y) || 0) + hh;
+    var fx = from && typeof from === 'object' ? (Number(from.x) || 0) + hw : null, fy = from && typeof from === 'object' ? (Number(from.y) || 0) + hh : null;
+    for (var i = 0; i < map.whiteboard.length; i++) {
+        var t = map.whiteboard[i]; if (!t || typeof t !== 'object' || t.type !== 'trigger' || t.hidden) continue;
+        var tx = Number(t.x) || 0, ty = Number(t.y) || 0, tw = Number(t.w) || 100, th = Number(t.h) || 100;
+        if (!(cx >= tx && cx <= tx + tw && cy >= ty && cy <= ty + th)) continue;
+        if (fx !== null && fx >= tx && fx <= tx + tw && fy >= ty && fy <= ty + th) return;   // it was in this zone when the gesture began
+        var text = typeof t.eventMessage === 'string' ? t.eventMessage.slice(0, 2000) : '';
+        if (text.trim()) { try { conn.send({ type: 'trigmsg', text: text }); } catch (e) { sendFailed(e); } }
+        return;
+    }
 }
 // Turn-based combat T3b (D2, D3): while turn-based combat runs a combat on the map, a token in its order moves only on its own turn (order),
 // and on its turn no further than its move (move), each by the campaign's mode; a token outside the combat is free
@@ -3804,7 +3838,7 @@ function combatNewRound(mapId, c) {   // combatStep at a new round, once per rou
         var charOf = function(r) { var tk = tokOf(r); return tk && tk.isChar && typeof tk.charId === 'string' && camp.chars && own(camp.chars, tk.charId) ? camp.chars[tk.charId] : null; };
         for (var i = 0, n = 0; i < c.rows.length; i++) {
             var ch = charOf(c.rows[i]); if (!ch) continue;
-            var tkI = tokOf(c.rows[i]), rr = window.wpSheets.rollInit(ch.id, { priv: !!(tkI && tkI.hidden) }); if (rr && rr.error) { toast(rr.error); break; }   // no roll, dice off: said once, the rest keep their numbers; hidden pieces: a creature the GM hid rolls in private (its row reads Hidden on the table, and the card would name it)
+            var tkI = tokOf(c.rows[i]), rr = window.wpSheets.rollInit(ch.id, { priv: !!(tkI && (tkI.hidden || (typeof net.tokUnseen === 'function' && net.tokUnseen(mapId, tkI.id)))) }); if (rr && rr.error) { toast(rr.error); break; }   // no roll, dice off: said once, the rest keep their numbers; hidden pieces: a creature the GM hid, or one some player at the table cannot see (net.tokUnseen), rolls in private (its row reads Hidden to them, and the card would name it)
             if (rr && typeof rr.value === 'number' && isFinite(rr.value)) { c.rows[i].init = Math.max(-1e6, Math.min(1e6, Math.round(rr.value * 100) / 100)); c.rows[i].rolled = 1; delete c.rows[i].tb; n++; }
         }
         if (n && S.orderByInit) c.rows = S.orderByInit(c.rows, S.initTie ? S.initTie(camp.system, window.wpFormula, charOf) : null);   // nothing rolled: the order as it was
@@ -3940,6 +3974,27 @@ function rangeUnseen(camp, rc, rollerPid) {
     };
     return typeof fogLanded === 'function' ? fogLanded(rc.mapId, judge) : judge();
 }
+// Secrets (R2): an initiative card names its creature ("as <name>"), so the roster's Roll, Roll all and the every-round re-roll roll it in private
+// while some admitted, connected player would read its row as Hidden in their turn order (combatsFor's own rule): the GM hid it, it is gone, or
+// their fogged copy of the map drops it and they never saw it in this fight (combatSeen) — whatever map that player is on, since every player
+// gets the order and the card; judged with every open drag at its start, each player asked once
+net.tokUnseen = function(mapId, tokId) {
+    var camp = getActiveCampaign();
+    if (!camp || typeof mapId !== 'string' || typeof tokId !== 'string' || !camp.items || !own(camp.items, mapId)) return false;
+    var map = camp.items[mapId];
+    var judge = function() {
+        var w = Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return !!x && x.id === tokId; }) : null, asked = Object.create(null);
+        return Object.keys(net.roster || {}).some(function(peer) {
+            var p = net.roster[peer]; if (!p || typeof p.id !== 'string' || asked[p.id]) return false;
+            if (!(net.conns || []).some(function(c) { return c && c.peer === peer && c.open; })) return false;
+            asked[p.id] = 1;
+            if (typeof combatSeen === 'function' && combatSeen(mapId, p.id, tokId)) return false;
+            if (!w || w.hidden) return true;
+            var drop = fogDrop(camp, map, p.id); return !!(drop && drop[tokId]);
+        });
+    };
+    return typeof fogLanded === 'function' ? fogLanded(mapId, judge) : judge();
+};
 // [netcheck:rangeto-end]
 /* ---------- handouts (host) ----------
    revealHandout(hid, playerIds|null): resize the picture, send it to those players (all connected
@@ -5596,6 +5651,13 @@ function handleMessage(msg, conn) {
         } else return;
         if (window.wpSheets && window.wpSheets.charChanged) window.wpSheets.charChanged(msg.charId);
         // [netcheck:actsin-end]
+    } else if (msg.type === 'trigmsg' && net.role === 'client') {
+        // [netcheck:trigmsg-start]
+        // Secrets (R2): a trigger zone's message, said by the host when a token of theirs landed in a shown zone (triggerFire) — from the synced host
+        // only, as plain text (showAlert sets textContent; line breaks kept), 2000 characters at most
+        if (!net.foreign || conn.peer !== net.syncedPeer || net.stream || typeof msg.text !== 'string') return;
+        var tgx = msg.text.replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g, ' ').slice(0, 2000).trim(); if (tgx) showAlert(tgx, function() {});
+        // [netcheck:trigmsg-end]
     } else if (msg.type === 'turn-note' && net.role === 'client') {
         // [netcheck:turnnote-start]
         // Turn-based combat T3a: why the host stopped or noted a move of theirs — from the synced host only, a plain line as a toast

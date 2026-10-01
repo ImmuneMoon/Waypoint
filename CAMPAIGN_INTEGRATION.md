@@ -223,6 +223,7 @@ Waypoint now runs GM-hosted P2P sessions: players join with a room code, follow 
 - `room.notes` and `room.characters[].info` / `.ref`.
 - Text items with `gmNoteFor`.
 - `hidden` play map items — nothing of them is sent (no placeholder, no position) until the GM reveals them.
+- A trigger zone's `eventMessage` (1.5.0) — the zone itself travels, its message does not: the host says it to the player whose own character token the drag carried into the zone, and to nobody else. A GM-only effect (`vis: "gm"`) on a character reaches its owner alone; a teammate's hover copy never names it.
 
 **Sent to players** (player-safe wording only):
 - Room **names**, categories, node layout, links, warp icons.

@@ -448,8 +448,13 @@ Turn-based combat
   only while the turn is still theirs.
 - Moves: a player's token in the combat moves only on its own turn, and then
   no further than its Move per turn, counted from where each drag began in
-  the map's cells (hex steps on hexes). They hear "Your turn: 6 squares
-  (30 ft) to move." and what is left after each move. A token outside the
+  the map's whole cells: from the cell the token stands in to the cell it
+  lands in, on squares as on hexes (your diagonal rule still decides what a
+  diagonal costs), so a token standing off the grid is no longer told it
+  moved 2.1 squares. A map with no grid keeps the exact distance, and a turn
+  in place or a shuffle inside its own cell counts nothing and says nothing.
+  They hear "Your turn: 6 squares (30 ft) to move." and what is left after
+  each move. A token outside the
   combat is free, and your own moves are never limited.
 - Actions per turn: while their token is in the combat, a player's press of
   a roll or apply action that costs an action spends one, on or off their

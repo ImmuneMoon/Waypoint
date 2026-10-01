@@ -439,22 +439,29 @@ function moveBlocked(map, w, fx, fy, tx, ty) {
     var hw = ((w && w.w) || 60) / 2, hh = ((w && w.h) || 52) / 2;
     return !C.moveClear(fx + hw, fy + hh, tx + hw, ty + hh, grid, bl);
 }
-// Turn-based combat T3b: how far a token's straight move goes, in this map's cells — a hex grid counts hex steps between the token's centre
-// cells, a square grid by the system's diagonal rule (systemcore gridCells), no grid the straight distance in 50px cells (as the ruler)
+// Turn-based combat T3b: how far a token's straight move goes, in this map's cells — whole cells on a grid (owner, 2026-10-01: "Moved 2.1
+// squares" for a token standing off the grid was wrong): a hex grid counts hex steps between the token's centre cells; a square grid the
+// squares between the cells it stands in, by the system's diagonal rule (systemcore gridCells), each end taken where Snap would seat the
+// token (the lattice corner nearest its own, as a drop lands: datamap wpSeatDrop) so a token off the lattice, or one several squares wide
+// whose centre lies on a line, counts steadily; no grid: the straight distance in 50px cells (as the ruler)
 // Difficult terrain T2: what it costs, a move stepping into difficult terrain counted at that terrain's cost (moveCost); out.len, when given,
 // the move's own length
 function moveCells(map, w, fx, fy, tx, ty, diag, out) {
-    var hw = ((w && w.w) || 60) / 2, hh = ((w && w.h) || 52) / 2, mc = moveCost(map, fx + hw, fy + hh, tx + hw, ty + hh, diag);
+    var hw = ((w && w.w) || 60) / 2, hh = ((w && w.h) || 52) / 2;
+    if (map && map.meta && map.meta.gridType === 'square') { fx = Math.round(fx / 50) * 50; fy = Math.round(fy / 50) * 50; tx = Math.round(tx / 50) * 50; ty = Math.round(ty / 50) * 50; }
+    var mc = moveCost(map, fx + hw, fy + hh, tx + hw, ty + hh, diag);
     if (out && typeof out === 'object') out.len = mc.len;
     return mc.cost;
 }
-// Difficult terrain T2: a straight move between two board points as a turn's move counts it — { len, cost } in the map's cells, the cost its
-// length times the factor of the difficult terrain it steps into (on a square or hex grid; elsewhere the length)
+// Difficult terrain T2: a straight move between two board points as a turn's move counts it — { len, cost } in the map's cells (on a grid,
+// from the cell the first point lies in to the cell the second does: whole cells, the length and the terrain walked on the same cells), the
+// cost its length times the factor of the difficult terrain it steps into (on a square or hex grid; elsewhere the length)
 function moveCost(map, x1, y1, x2, y2, diag) {
     var C = core(), S = window.wpSystemCore; if (!C || !map) return { len: 0, cost: 0 };
     var gt = map.meta && map.meta.gridType, len;
     if (gt === 'hex') { var g = C.gridFor('hex'); len = g ? C.hexDist(C.cellOf(x1, y1, g), C.cellOf(x2, y2, g)) : 0; }
-    else { var dx = (x2 - x1) / 50, dy = (y2 - y1) / 50; len = gt === 'square' && S && S.gridCells ? S.gridCells(dx, dy, diag) : Math.hypot(dx, dy); }
+    else if (gt === 'square') { var gs = C.gridFor('square'), ca = gs ? C.cellOf(x1, y1, gs) : null, cb = gs ? C.cellOf(x2, y2, gs) : null; len = !ca || !cb ? 0 : S && S.gridCells ? S.gridCells(cb.c - ca.c, cb.r - ca.r, diag) : Math.hypot(cb.c - ca.c, cb.r - ca.r); }
+    else len = Math.hypot((x2 - x1) / 50, (y2 - y1) / 50);
     if (!(len > 0) || (gt !== 'square' && gt !== 'hex') || !C.terrainFactor) return { len: len || 0, cost: len || 0 };
     var grid = gridForMap(map), terr = grid ? terrainFor(map, grid) : null;
     return { len: len, cost: terr ? len * C.terrainFactor(C.cellOf(x1, y1, grid), C.cellOf(x2, y2, grid), grid, terr, diag) : len };

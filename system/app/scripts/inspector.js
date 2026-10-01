@@ -1045,6 +1045,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
               })() : '')+
               // [sinkcheck:heightbox-end]
               (['rect','hexagon','circle','diamond','image','path'].indexOf(w.type) >= 0 && !w.isChar && !w.hidden ? ('<div class="field"><label for="wbCover">Cover</label><select id="wbCover" title="What this piece gives as cover (the ruler, blasts and target marks, with Cover from blockers on in your system): as its sight (a wall, pillar or closed door gives it; anything else none), cover you can see over (a crate, a low wall: half or three-quarters, never total), or none. It counts in the grid cells whose centres it covers."><option value="like"'+(w.cover!=='yes'&&w.cover!=='no'?' selected':'')+'>'+(w.blocksSight?'Gives cover (it blocks sight)':'No cover (it does not block sight)')+'</option><option value="yes"'+(w.cover==='yes'?' selected':'')+'>'+(w.blocksSight?'Gives cover':'Gives cover you can see over')+'</option><option value="no"'+(w.cover==='no'?' selected':'')+'>No cover</option></select></div>') : '')+
+              (textureFieldOk(w) ? textureFieldHtml(w) : '')+   // map builder B1: a piece's texture, a name from the app's own table
               (['rect','hexagon','circle','diamond','image'].indexOf(w.type) >= 0 && !w.isChar && !w.hidden ? '<div class="field check-row"><input type="checkbox" id="wbFogged" '+(w.fogged?'checked':'')+'> <label for="wbFogged">Play area (fog covers only this)</label></div><div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">With fog on, only cells under items marked as play areas are fogged &mdash; scenes and map art stay lit. Mark none to fog the whole map (or nothing), per your campaign default in the &#127787; menu.</div>' : '')+
               ((w.type === 'light' || w.isChar) && !w.waiting && !w.hidden && window.wpCanPersistLocal && window.wpCanPersistLocal() ? (function() {   // lighting (L2): the GM sets a light's radii (a player's own light: the host takes none of this from them)
                   var L = window.wpFogCore && window.wpFogCore.cleanLight ? window.wpFogCore.cleanLight(w.light) : null;
@@ -1075,7 +1076,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                 _el_wbFillCustomColor.addEventListener('input', function() {
                     w.color = this.value;
                     var fel = state.wbEls && state.wbEls[w.id];
-                    if (fel) fel.style.background = this.value;
+                    if (fel) fel.style.backgroundColor = this.value;   // map builder B1: the colour alone, so the live recolour keeps a texture
                 });
                 _el_wbFillCustomColor.addEventListener('change', function() { save(); render(); });
             }
@@ -1289,6 +1290,8 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             var _el_wbTerrain = document.getElementById('wbTerrain'), _el_wbTerrainCost = document.getElementById('wbTerrainCost');   // difficult terrain T1: its cost, 2-10, or no key
             if (_el_wbTerrain) _el_wbTerrain.addEventListener('change', function() { setItemTerrain(w, this.checked, _el_wbTerrainCost ? _el_wbTerrainCost.value : 2); });
             if (_el_wbTerrainCost) _el_wbTerrainCost.addEventListener('change', function() { setItemTerrain(w, true, this.value); });
+            var _el_wbTexture = document.getElementById('wbTexture');   // map builder B1
+            if (_el_wbTexture) _el_wbTexture.addEventListener('change', function() { setItemTexture(w, this.value); });
             var _el_wbSmoke = document.getElementById('wbSmoke');   // senses S7b: smoke, true or no key
             if (_el_wbSmoke) _el_wbSmoke.addEventListener('change', function() { if (this.checked === true) w.smoke = true; else delete w.smoke; save(); render(); renderInspector(); if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); } });
             var _el_wbBlocksSight = document.getElementById('wbBlocksSight');
@@ -1801,6 +1804,20 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
       save(); render(); renderInspector();
   }
   // [sinkcheck:terrainfield-end]
+  // [sinkcheck:texfield-start]
+  // Map builder B1: a piece's Texture row — the app's own names as option values and text (escaped), the piece's own selected, "Plain colour" none;
+  // offered on a box shape or a filled region that is no token and not hidden; the GM's change written only as a name the table holds
+  function textureFieldOk(w) { return (['rect', 'hexagon', 'circle', 'diamond'].indexOf(w.type) >= 0 || (w.type === 'path' && w.tip === 'fill')) && !w.isChar && !w.waiting && !w.hidden && !!(window.wpBuildCore && window.wpBuildCore.cleanTexture); }
+  function textureFieldHtml(w) {
+      var BC = window.wpBuildCore, cur = BC && BC.cleanTexture ? BC.cleanTexture(w.texture) : null, names = BC && Array.isArray(BC.TEXTURES) ? BC.TEXTURES : [];
+      return '<div class="field"><label for="wbTexture">Texture</label><select id="wbTexture" title="A pattern the app draws over the piece&rsquo;s colour, seated on the grid so pieces side by side read as one surface"><option value=""' + (cur ? '' : ' selected') + '>Plain colour</option>' + names.map(function(n) { return '<option value="' + esc(n) + '"' + (n === cur ? ' selected' : '') + '>' + esc(n.charAt(0).toUpperCase() + n.slice(1)) + '</option>'; }).join('') + '</select></div>';
+  }
+  function setItemTexture(w, v) {
+      var BC = window.wpBuildCore, t = BC && BC.cleanTexture ? BC.cleanTexture(v) : null;
+      if (t) w.texture = t; else delete w.texture;
+      save(); render(); renderInspector();
+  }
+  // [sinkcheck:texfield-end]
 
   /* ---------- roster characters ↔ board tokens ----------
      A character added to a node's roster gets a token immediately: a stand-in

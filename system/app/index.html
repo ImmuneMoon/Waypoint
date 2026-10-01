@@ -102,6 +102,7 @@ window.addEventListener('unhandledrejection', function(e) {
 <script type="module" src="scripts/fxcore.js"></script>
 <script type="module" src="scripts/fx.js"></script>
 <script type="module" src="scripts/fogcore.js"></script>
+<script type="module" src="scripts/buildcore.js"></script>
 <script type="module" src="scripts/calendarcore.js"></script>
 <script type="module" src="scripts/calendar.js"></script>
 <script type="module" src="scripts/fog.js"></script>
@@ -371,6 +372,12 @@ window.addEventListener('unhandledrejection', function(e) {
                           <li>Drop a <b>&#9889; Trigger Zone</b> and give it an Event Message &mdash; it fires when a character token is dragged inside. The button picks a shape to fit the grid (hex on hex maps, square on square grids); change it any time under <b>Trigger Shape</b>.</li>
                           <li>Any item can be a <b>portal</b>: Properties &rarr; <b>Portal to Map</b>. On a nested map the parent is offered first (&#11014; Back to&hellip;), so a way home takes one click &mdash; no node needed.</li>
                           <li><b>Trap tiles:</b> a hidden portal (right-click &rarr; Hide from Players) is normally inert &mdash; a decorative or unfinished way. Tick <b>&#9888;&#65039; Trap</b> in its Properties to arm it: players never see the tile, but a token that lands on it is still teleported. You see a red <b>&#9888;&#65039;</b> and a dashed outline on an armed trap; a <b>locked destination map</b> (or locked travel) still stops it, silently &mdash; the player is told nothing, you are &mdash; so you stay in control of when it can fire.</li>
+                      </ul>
+                      <h4>Map builder</h4>
+                      <ul>
+                          <li><b>&#129521; Build</b> (GM) lays a map&rsquo;s pieces straight onto the grid: pick a <b>material</b> (Floor, Wall, Door, Water, Rubble, Wood floor, Grass), a <b>shape</b> and, if you like, another texture, color or rule, then <b>click</b> a cell or <b>drag</b> an area. <b>Rectangle</b> and <b>Circle</b> cover whole cells; <b>Corridor</b> is a straight strip one or two cells wide; <b>Polygon</b> takes a click at each corner (on the grid&rsquo;s corners) and closes when you click the first again or press <kbd>Enter</kbd>; <b>Wall line</b> hands you the pen with a wall preset, so the line you draw along the grid lines <i>is</i> the wall. On a square grid pieces always land on the cells whatever Snap says; a hex map is laid cell by cell (a drag lays up to 400 cells at a time); with no grid, Snap decides. Building stays on after each piece until <kbd>Esc</kbd>, the Build button or another tool.</li>
+                          <li><b>What the pieces do.</b> A <b>Wall</b> and a <b>Door</b> block sight (a door can be opened: fog mode&rsquo;s click, Properties, or a player standing next to it); <b>Water</b> is difficult terrain &times;2; <b>Rubble</b> gives cover you can see over; the floors do none of that. Each is a tick in the palette (<b>Blocks sight</b>, <b>Gives cover</b>, <b>Difficult terrain</b>), so a wall that only decorates or a floor that slows is yours to choose, and every one can be changed in Properties afterwards. A polygon wall blocks along its outline only. A piece you <b>Hide from Players</b> blocks nothing for anyone.</li>
+                          <li><b>Every piece is an ordinary item</b> &mdash; move, resize, recolor, restyle, group or delete it like any shape; a textured piece keeps its pattern when you recolor it, and the <b>Texture</b> row in Properties (and in the Fill menu) puts a pattern on any shape or filled region. Textures are drawn by the app (flagstones, bricks, cobbles, planks, stone, hatching, ripples, grass) &mdash; no picture files, nothing but a name travels to players. A map holds at most 6000 pieces; long walls are best laid as wall lines, which cost the fog far less than wall blocks.</li>
                       </ul>
                       <h4>The selection toolbar</h4>
                       <p>A small toolbar floats above whatever you select: color, layer up/down, <b>group/ungroup</b> (&#128279; &mdash; lit gold when the selection is a group), <b>lock proportions</b> (the dashed box with a diagonal arrow &mdash; a padlock appears on it when on), lock (the padlock shows the current state: closed = locked), <b>player visibility</b>, <b>duplicate</b> (&#10697; &mdash; a full copy with every setting and attached data; also <kbd>Ctrl + D</kbd>, the right-click menu, and Properties), delete. Select several items and right-click for <b>Align</b> and <b>Space</b> (distribute) buttons.</p>
@@ -651,6 +658,10 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                       <h4>Blasts thrown from the sheet</h4>
                       <ul>
                           <li><b>Item libraries.</b> The campaign&rsquo;s items &mdash; weapons, gear, explosives &mdash; carried on characters and thrown from the sheet (built; System &#9656; Items). Still to come: point <b>budgets</b> and <b>prerequisites</b> as formulas, and <b>players building their own characters</b> from the library.</li>
+                      </ul>
+                      <h4>Map builder</h4>
+                      <ul>
+                          <li><b>Built, first fold:</b> the Build palette &mdash; textured floors, walls, doors, water and more laid on the grid. <b>Coming:</b> a random dungeon generator and <b>Walls around selection</b>; your own pictures as fills; export a map as a picture; secret doors players see as walls until you reveal them; then city maps and world maps with their own tools.</li>
                       </ul>
                       <h4>Campaign content</h4>
                       <ul>
@@ -953,7 +964,51 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                       <label class="fill-terrain-lbl" style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--dim); cursor:pointer;" title="On: every cell you paint, or paint over, is difficult terrain at this cost (moving into it costs this many times as much). Off: painting leaves a cell's cost as it was."><input type="checkbox" id="fillTerrainChk"> Difficult terrain &times;</label>
                       <input type="number" id="fillTerrainCost" min="2" max="10" step="1" value="2" disabled style="width:44px; font-size:11px;" title="What moving into a painted cell costs: this many times as much (2 to 10)">
                   </div>
+                  <div class="draw-menu-row" style="margin-top:2px;">
+                      <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--dim);" title="A pattern the app draws over the cell's color (flagstones, bricks, planks and more), seated on the grid so painted cells read as one surface. Plain color: no pattern.">Texture <select id="fillTexture" style="flex:1; font-size:11px;"></select></label>
+                  </div>
                   <div class="draw-menu-row" style="font-size:10.5px; color:var(--dim); max-width:200px; line-height:1.4;">Fills seat into cells, below tokens. Right-click a cell to clear it.</div>
+              </div>
+          </div>
+          <div style="position:relative;" class="gm-only">
+              <button class="wb-tool-btn draw-tool-btn" id="buildBtn" title="Build &mdash; lay floors, walls, doors, water, rubble, wood and grass on the grid as textured pieces: click a cell or drag an area; walls and doors as thin lines along the grid. Click again for the palette; Esc stops building.">&#129521;</button>
+              <div class="shape-menu draw-menu" id="buildMenu">
+                  <div class="draw-menu-label">Material</div>
+                  <div class="draw-menu-row" id="buildMatRow"></div>
+                  <div class="draw-menu-label">Shape</div>
+                  <div class="draw-menu-row" id="buildShapeRow">
+                      <button class="draw-style-btn build-shape-btn" data-shape="rect" title="Whole cells: click for one cell, drag for the area">&#9645; Rectangle</button>
+                      <button class="draw-style-btn build-shape-btn" data-shape="circle" title="A circle (an oval) fitted to whole cells">&#9711; Circle</button>
+                      <button class="draw-style-btn build-shape-btn" data-shape="poly" title="Click each corner on the grid; click the first corner again (or press Enter) to close the shape. Esc cancels.">&#11040; Polygon</button>
+                      <button class="draw-style-btn build-shape-btn" data-shape="corridor" title="A straight corridor of whole cells, one or two wide: drag along it">&#9552; Corridor</button>
+                      <button class="draw-style-btn build-shape-btn" data-shape="line" title="A thin wall (or door) drawn with the pen along the grid lines: it blocks sight as the line itself, a wall between cells">&#9473; Wall line</button>
+                  </div>
+                  <div class="draw-menu-label">Texture</div>
+                  <div class="draw-menu-row"><select id="buildTexture" style="flex:1; font-size:11px;" title="The pattern drawn over the piece's color; Plain color for none"></select></div>
+                  <div class="draw-menu-label">Color</div>
+                  <div class="draw-menu-row" id="buildColorRow">
+                      <button class="draw-swatch" data-color="#5a5663" title="Slate" style="background:#5a5663;"></button>
+                      <button class="draw-swatch" data-color="#3f3b47" title="Dark stone" style="background:#3f3b47;"></button>
+                      <button class="draw-swatch" data-color="#6b4a2a" title="Oak" style="background:#6b4a2a;"></button>
+                      <button class="draw-swatch" data-color="#7a5634" title="Pine" style="background:#7a5634;"></button>
+                      <button class="draw-swatch" data-color="#2e5d86" title="Water" style="background:#2e5d86;"></button>
+                      <button class="draw-swatch" data-color="#55505c" title="Rubble" style="background:#55505c;"></button>
+                      <button class="draw-swatch" data-color="#4b6b36" title="Grass" style="background:#4b6b36;"></button>
+                      <button class="draw-swatch" data-color="#b89b5e" title="Sand" style="background:#b89b5e;"></button>
+                      <label class="draw-swatch custom" title="Custom color"><input type="color" id="buildColorInput" value="#5a5663"></label>
+                  </div>
+                  <div class="draw-menu-row" style="margin-top:2px;">
+                      <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--dim); cursor:pointer;" title="On: moving into the piece costs this many times as much (Water has it on). Changeable in Properties afterwards."><input type="checkbox" id="buildTerrainChk"> Difficult terrain &times;</label>
+                      <input type="number" id="buildTerrainCost" min="2" max="10" step="1" value="2" disabled style="width:44px; font-size:11px;" title="What moving into it costs: this many times as much (2 to 10)">
+                  </div>
+                  <div class="draw-menu-row" style="margin-top:2px; gap:10px;">
+                      <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--dim); cursor:pointer;" title="On: the piece gives cover you can see over (Rubble has it on). A piece that blocks sight gives cover anyway. Changeable in Properties afterwards."><input type="checkbox" id="buildCoverChk"> Gives cover</label>
+                      <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--dim); cursor:pointer;" title="On: fog vision, light and players' moves stop at the piece (Wall and Door have it on; a Door can be opened). Off: a floor or a decoration."><input type="checkbox" id="buildSightChk"> Blocks sight</label>
+                  </div>
+                  <div class="draw-menu-row" style="margin-top:2px;">
+                      <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--dim);">Corridor width <select id="buildCorridorW" style="font-size:11px;"><option value="1">1 cell</option><option value="2">2 cells</option></select></label>
+                  </div>
+                  <div class="draw-menu-row" id="buildHint" style="font-size:10.5px; color:var(--dim); max-width:230px; line-height:1.4;">Pieces seat on the grid, below tokens; building stays on until Esc.</div>
               </div>
           </div>
           <div class="wb-tool-sep"></div>

@@ -1,3 +1,24 @@
+WAYPOINT 1.5.1 — What's New
+============================
+
+Map builder
+- A Build tool on the play map (🧱, next to Fill) lays a map's pieces
+  straight onto the grid: pick a material — Floor, Wall, Door, Water,
+  Rubble, Wood floor or Grass — and a shape, then click a cell or drag an
+  area. Rectangle and Circle cover whole cells, Corridor is a strip one or
+  two cells wide, Polygon takes a click at each corner and closes on the
+  first, and Wall line hands you the pen with a wall preset so the line
+  you draw along the grid is the wall. Pieces land on the cells whatever
+  Snap says (a hex map is laid cell by cell), building stays on until Esc,
+  and every piece is an ordinary item afterwards.
+- Walls and doors block sight, water is difficult terrain and rubble gives
+  cover you can see over — each a tick you can change before laying and in
+  Properties after.
+- Textures: eight patterns the app draws itself (flagstones, bricks,
+  cobbles, planks, stone, hatching, ripples, grass), seated on the grid so
+  pieces side by side read as one surface. A Texture row in Properties and
+  in the Fill menu puts one on any shape, filled region or painted cell;
+  recolouring keeps it. No picture files: only a name reaches players.
 WAYPOINT 1.5.0 — What's New
 ============================
 

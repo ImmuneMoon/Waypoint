@@ -544,6 +544,18 @@
   .wb-item.diamond { clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); background: var(--faint); }
   /* flat-top hexagon matching the hex grid cells (a flat side faces up) */
   .wb-item.hexagon { clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); background: var(--faint); }
+  /* Map builder B1: a textured piece draws its pattern over its colour; pieces side by side show no seam or rounded corner */
+  .wb-item.wb-tex { border: 0; border-radius: 0; background-repeat: repeat; }
+  .wb-item.wb-tex.circle { border-radius: 50%; }
+  .wb-item.path.wb-tex svg > path { pointer-events: visiblePainted; }   /* a textured region is picked up by its filled inside, not only its outline */
+  .build-mat-btn { width: 30px; height: 30px; border-radius: 4px; border: 2px solid var(--edge); padding: 0; cursor: pointer; background-repeat: repeat; }
+  .build-mat-btn.active { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold); }
+  #buildMenu .build-shape-btn.active { color: var(--gold); border-color: var(--gold); }
+  .wb-build-poly { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; z-index: 120; }
+  .wb-build-poly svg { overflow: visible; }
+  .wb-build-poly .wb-build-band { fill: rgba(224, 165, 79, 0.18); stroke: var(--gold); stroke-width: 2; stroke-dasharray: 6 4; }
+  .wb-build-poly .wb-build-first { fill: var(--gold); }
+  .wb-build-poly .wb-build-dot { fill: var(--ink); }
   .wb-item.hex-trigger { clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); }
   .wb-item.trigger.trigger-circle { border-radius: 50%; }
   /* Stand-in character tokens: initials centred in the shape */

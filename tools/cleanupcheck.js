@@ -436,7 +436,13 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         '/saves/images/%2e%2e%5cdata.json', '/saves/images/c1/%5c..%5cdata.json', '/saves/images/c1/a%00.png', '/saves/images/c1/a.png?x=1',
         '/saves/images/c1/a.png#h', 'http://evil.example/saves/images/c1/a.png', '//evil.example/saves/images/c1/a.png',
         'https://localhost:3000/saves/images/c1/a.png', 'file:///saves/images/c1/a.png', '/saves/imagesX/a.png', '/saves/data.json', '/api/data',
-        '', 42, null, '/saves/images/' + 'a'.repeat(400) + '.png'
+        '', 42, null, '/saves/images/' + 'a'.repeat(400) + '.png',
+        // security R2 cluster C (2026-10-01): this machine's Journal (private shares, notes, other tables' journals) and the video library are never served to a peer —
+        // in any case, with trailing dots or spaces, percent-encoded, through an empty or a dot segment, or as an NTFS stream name: every spelling reaches the same folder on Windows
+        '/saves/images/journal/c1__g1/journal.json', '/saves/images/journal/journals.json', '/saves/images/journal/c1__g1/sh_p1_e1.png', '/saves/images/JOURNAL/journals.json',
+        '/saves/images//journal/journals.json', '/saves/images/./journal/journals.json', '/saves/images/%6Aournal/journals.json', '/saves/images/journal./journals.json',
+        '/saves/images/journal%20/journals.json', '/saves/images/journal::$INDEX_ALLOCATION/journals.json', '/saves/images/journal:x/journals.json',
+        '/saves/images/video/c1/ab12cd34_clip.mp4', '/saves/images/Video/c1/x.mp4', '/saves/images/video./c1/x.mp4', '/saves/images/c1/a:b.png'
     ];
     refused.forEach(p => check('asset gate refuses ' + String(JSON.stringify(p)).slice(0, 60), assetPathOk(p) === '', JSON.stringify(assetPathOk(p))));
     const served = [   // raw stored path -> the pathname the host fetches -> the on-disk name main.js resolves it to (null = not asserted)
@@ -446,7 +452,9 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         ['/saves/images/audio/c1/日本語 ♪.mp3', '/saves/images/audio/c1/%E6%97%A5%E6%9C%AC%E8%AA%9E%20%E2%99%AA.mp3', '/saves/images/audio/c1/日本語 ♪.mp3'],
         ['/saves/images/c1/a[1] b|c^d "q".png', '/saves/images/c1/a[1]%20b|c%5Ed%20%22q%22.png', '/saves/images/c1/a[1] b|c^d "q".png'],
         ['/saves/images/c1/pic%20already.png', '/saves/images/c1/pic%20already.png', null],   // pre-encoded: kept as is, never doubled to %2520
-        ['/saves/images/audio/c1/100% rock.mp3', '/saves/images/audio/c1/100%25%20rock.mp3', '/saves/images/audio/c1/100% rock.mp3']   // a lone % re-encoded, as encodeURI did for the host's own playback
+        ['/saves/images/audio/c1/100% rock.mp3', '/saves/images/audio/c1/100%25%20rock.mp3', '/saves/images/audio/c1/100% rock.mp3'],   // a lone % re-encoded, as encodeURI did for the host's own playback
+        ['/saves/images/journalism/a.png', '/saves/images/journalism/a.png', '/saves/images/journalism/a.png'],   // the Journal rule is a folder's name, never a prefix: real campaign art beside it is served
+        ['/saves/images/videos/c1/poster.png', '/saves/images/videos/c1/poster.png', '/saves/images/videos/c1/poster.png']
     ];
     // The gate hands back what the runtime's URL parser makes of the path, and parsers differ on two bytes: Node 22 leaves
     // ^ and | raw, Node 24 encodes ^ (%5E) and leaves |, Chromium 152 encodes both (%5E, %7C) — the first live CI run (Node

@@ -1510,6 +1510,89 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && /src = v \? videoSrc\(v\.path\) : ''/.test(vjs) && (vjs.match(/\.src = /g) || []).length === 2 && /el\.src = src;/.test(vjs) && /v\.src = url;/.test(vjs)
             && /ui\('videoCaption'\)\.textContent = /.test(vjs) && /s\.textContent = 'Adding ' \+ uploading\.name/.test(vjs));
     }
+    {   // music from another campaign: the Music panel's picker (music.js, sliced by its musicpick markers), run on a page that records every node
+        const MU = await import(modUrl('musiccore.js')), muSrc = read('music.js'), pickSrc = slice('music.js', 'musicpick');
+        const lineOfM = k => { const i = muSrc.indexOf('\n' + k); if (i < 0) throw new Error('sinkcheck: music.js ' + k + ' not found'); return muSrc.slice(i + 1, muSrc.indexOf('\n', i + 1)); };
+        const campMusicSrc = muSrc.slice(muSrc.indexOf('\nfunction campMusic(camp) {') + 1, muSrc.indexOf('\nfunction campMusicW('));
+        const HOST = '<img src=x onerror=alert(1)>', QUO = '"><script>x</script>';
+        const mkPick = (campaigns, activeId, canWrite) => {
+            const made = [], htmlSet = [], calls = { saves: 0, syncs: 0, toasts: [], renders: 0 };
+            const fake = tag => { const e = { tag, children: [], style: {}, className: '', textContent: '', listeners: {}, appendChild(k) { this.children.push(k); return k; }, addEventListener(t, f) { this.listeners[t] = f; } };
+                ['innerHTML', 'outerHTML'].forEach(p => Object.defineProperty(e, p, { set(v) { htmlSet.push(v); }, get() { return ''; } })); e.insertAdjacentHTML = (w, v) => { htmlSet.push(v); }; e.setAttribute = (k, v) => { htmlSet.push('attr:' + k + '=' + v); }; made.push(e); return e; };
+            function Option(text, value) { const o = fake('option'); o.text = String(text); o.value = value; return o; }
+            const env = { state: { appState: { campaigns } }, active: () => (Object.prototype.hasOwnProperty.call(campaigns, activeId) ? campaigns[activeId] : null), MU, safeId: SND.safeId, document: { createElement: fake }, Option,
+                canWrite: () => canWrite !== false, save: () => { calls.saves++; }, net: () => ({ syncMusic: () => { calls.syncs++; } }), toast: m => calls.toasts.push(m), renderPanel: () => { calls.renders++; } };
+            const api = new Function('env', "'use strict';\nvar state = env.state, getActiveCampaign = env.active, cleanMusic = env.MU.cleanMusic, bringPlan = env.MU.bringPlan, safeId = env.safeId, document = env.document, Option = env.Option, canWrite = env.canWrite, save = env.save, net = env.net, toast = env.toast, renderPanel = env.renderPanel, picking = null, selPl = null;\n"
+                + lineOfM('function el(tag, cls, text) {') + '\n' + campMusicSrc + '\n' + lineOfM('function campMusicW(camp) {') + '\n' + pickSrc
+                + '\nreturn { pickSource: pickSource, otherMusicCamps: otherMusicCamps, campNameOfFolder: campNameOfFolder, renderPicker: renderPicker, bringPicked: bringPicked, pick: function(v) { if (v !== undefined) picking = v; return picking; }, selPl: function() { return selPl; } };')(env);
+            api.made = made; api.htmlSet = htmlSet; api.calls = calls; api.fake = fake; return api;
+        };
+        const fa = n => '/saves/images/audio/src1/' + n + '.mp3';
+        const camps = () => { const c = {
+            me: { id: 'me', name: 'Mine', music: { v: 1, tracks: [{ id: 't_own', name: 'Own', path: '/saves/images/audio/me/own.mp3', size: 5 }, { id: 't_had', name: 'Had', path: fa('two'), size: 20 }], playlists: [] } },
+            src1: { id: 'src1', name: HOST, music: { v: 1, tracks: [{ id: 't_1', name: HOST, path: fa('one'), size: 10, dur: 1 }, { id: 't_2', name: QUO, path: fa('two'), size: 20, dur: 2 }, { id: 't_bad', name: 'Web', path: 'https://evil.example/a.mp3', size: 1 }], playlists: [{ id: 'pl_1', name: QUO, tracks: ['t_1', 't_2'] }] } },
+            empty: { id: 'empty', name: 'No music', music: { v: 1, tracks: [], playlists: [] } },
+            webOnly: { id: 'webOnly', name: 'Only a web address', music: { tracks: [{ id: 't_w', name: 'W', path: 'https://evil.example/b.mp3', size: 1 }] } },
+            theirs: { id: 'theirs', name: 'Another GM\'s', _foreign: true, music: { tracks: [{ id: 't_f', name: 'F', path: '/saves/images/audio/theirs/f.mp3', size: 1 }] } },
+            gone: null, text: 'x',
+            src2: { id: 'src2', name: 'Second', music: { tracks: [{ id: 't_s2', name: 'S2 song', path: '/saves/images/audio/src2/s.mp3', size: 3 }], playlists: [] } } }; return c; };
+        const cs = camps(), P = mkPick(cs, 'me');
+        check('music picker: a source is found by its own key only — never this campaign, another GM\'s kept copy, an entry that is no campaign, an id that is no text, or a name a prototype holds; the list offers only campaigns with a song players could be sent',
+            P.pickSource('src1') === cs.src1 && P.pickSource('me') === null && P.pickSource('theirs') === null && P.pickSource('gone') === null && P.pickSource('text') === null && P.pickSource('nope') === null && P.pickSource('__proto__') === null && P.pickSource('constructor') === null && P.pickSource('toString') === null && P.pickSource(7) === null && P.pickSource(null) === null
+            && JSON.stringify(P.otherMusicCamps()) === JSON.stringify([{ id: 'src1', name: HOST, n: 2 }, { id: 'src2', name: 'Second', n: 1 }]), JSON.stringify(P.otherMusicCamps()));
+        P.pick({ to: 'me', from: 'nope', pl: Object.create(null), tr: Object.create(null) });
+        const lib = P.fake('div'); P.made.length = 0; P.renderPicker(lib);
+        const texts = P.made.map(e => e.tag === 'option' ? e.text : e.textContent).filter(Boolean), rows = P.made.filter(e => e.className === 'music-pick-name').map(e => e.textContent), boxes = P.made.filter(e => e.tag === 'input'), bringB = P.made.filter(e => /music-pick-bring/.test(e.className))[0];
+        check('music picker: hostile campaign, playlist and song names are written as text nodes and an option\'s text only — the sliced source and the page record no innerHTML, outerHTML, insertAdjacentHTML or setAttribute; a stale source falls back to the first campaign on offer; a song this campaign already lists is not offered again; nothing is ticked and Bring is off until something is',
+            P.htmlSet.length === 0 && !/innerHTML|outerHTML|insertAdjacentHTML|setAttribute|document\.write/.test(pickSrc) && texts.indexOf(HOST + ' (2)') >= 0 && P.pick().from === 'src1'
+            && JSON.stringify(rows) === JSON.stringify([QUO + '  (2)', HOST]) && boxes.length === 2 && boxes.every(b => b.type === 'checkbox' && b.checked === false) && bringB.disabled === true && bringB.textContent === 'Bring 0 into Mine', JSON.stringify([rows, texts.slice(0, 6)]));
+        boxes[0].checked = true; boxes[0].listeners.change(); boxes[1].checked = true; boxes[1].listeners.change();
+        const ticked = [Object.keys(P.pick().pl), Object.keys(P.pick().tr), bringB.textContent, bringB.disabled];
+        boxes[0].checked = false; boxes[0].listeners.change();
+        const unticked = [Object.keys(P.pick().pl), Object.keys(P.pick().tr), bringB.textContent];
+        const before = JSON.stringify(cs.src1), want = MU.bringPlan(cs.me.music, cs.src1.music, { playlists: [], tracks: ['t_1'] }, { rand: () => 0.25 });
+        bringB.listeners.click();
+        const got = cs.me.music, afterSong = [got.tracks.length, got.playlists.length, P.calls.saves, P.calls.syncs, P.selPl(), P.pick()];
+        P.pick({ to: 'me', from: 'src1', pl: Object.assign(Object.create(null), { pl_1: 1 }), tr: Object.create(null) }); P.bringPicked();
+        check('music picker: ticking and unticking count on the button; Bring appends exactly what bringPlan gives — the ticked song under a new id with the same path, then the playlist with its songs (the new song, and the one already here reused) —, saves and sends the table the library once each time, selects a brought playlist, says what came and closes the picker; the other campaign is untouched',
+            JSON.stringify(ticked) === JSON.stringify([['pl_1'], ['t_1'], 'Bring 2 into Mine', false]) && JSON.stringify(unticked) === JSON.stringify([[], ['t_1'], 'Bring 1 into Mine'])
+            && JSON.stringify(afterSong) === JSON.stringify([3, 0, 1, 1, null, null]) && got.tracks[2].path === fa('one') && got.tracks[2].name === HOST && got.tracks[2].id !== 't_1' && want.tracks.length === 1 && want.tracks[0].path === got.tracks[2].path && want.playlists.length === 0
+            && got.tracks.length === 3 && got.playlists.length === 1 && JSON.stringify(got.playlists[0].tracks) === JSON.stringify([got.tracks[2].id, 't_had']) && got.playlists[0].name === QUO && P.calls.saves === 2 && P.calls.syncs === 2 && P.pick() === null && P.selPl() === got.playlists[0].id
+            && JSON.stringify(P.calls.toasts) === JSON.stringify(['1 song brought in.', '1 playlist brought in.']) && JSON.stringify(cs.src1) === before && P.calls.renders >= 2, JSON.stringify([ticked, unticked, afterSong, got, P.calls]));
+        // again: nothing new; where the campaign cannot be written, or the source is gone or is this campaign: nothing at all
+        P.pick({ to: 'me', from: 'src1', pl: Object.assign(Object.create(null), { pl_1: 1 }), tr: Object.assign(Object.create(null), { t_1: 1 }) }); P.bringPicked();
+        const again = [got.tracks.length, got.playlists.length, P.calls.saves, P.calls.syncs, P.calls.toasts[2]];
+        const cs2 = camps(), P2 = mkPick(cs2, 'me', false); P2.pick({ to: 'me', from: 'src1', pl: Object.create(null), tr: Object.assign(Object.create(null), { t_1: 1 }) }); P2.bringPicked();
+        const cs3 = camps(), P3 = mkPick(cs3, 'me'); P3.pick({ to: 'me', from: 'me', pl: Object.create(null), tr: Object.assign(Object.create(null), { t_own: 1 }) }); P3.bringPicked();
+        P3.pick({ to: 'me', from: 'gone', pl: Object.create(null), tr: Object.assign(Object.create(null), { t_1: 1 }) }); P3.bringPicked(); P3.pick({ to: 'me', from: '__proto__', pl: Object.create(null), tr: Object.create(null) }); P3.bringPicked(); P3.pick(null); P3.bringPicked();
+        check('music picker: bringing the same again adds nothing and saves nothing ("Nothing new to bring"); nothing is brought where the campaign cannot be written, from a source that is gone, from a prototype\'s name, or from this campaign into itself',
+            JSON.stringify(again) === JSON.stringify([3, 1, 2, 2, 'Nothing new to bring: this campaign already lists them.']) && cs2.me.music.tracks.length === 2 && P2.calls.saves === 0 && P2.calls.syncs === 0 && P2.pick() === null
+            && cs3.me.music.tracks.length === 2 && cs3.me.music.playlists.length === 0 && P3.calls.saves === 0 && P3.calls.syncs === 0 && P3.calls.toasts.length === 0, JSON.stringify([again, P2.calls, P3.calls]));
+        check('music picker: a brought-in song\'s tag names the campaign whose folder its file lies in, as text — "another campaign" when that campaign is gone or the folder is none',
+            P.campNameOfFolder('src1') === HOST && P.campNameOfFolder('nope') === 'another campaign' && P.campNameOfFolder('') === 'another campaign' && P.campNameOfFolder('gone') === 'another campaign' && P.campNameOfFolder('__proto__') === 'another campaign'
+            && /var fr = el\('span', 'music-from', 'from ' \+ campNameOfFolder\(folderOf\(tr\.path\)\)\); fr\.title = /.test(muSrc) && !/innerHTML/.test(muSrc.slice(muSrc.indexOf('function renderPanel()'))));
+        // the From list, a redraw while picking, and Cancel
+        const csS = camps(), PS = mkPick(csS, 'me'); PS.pick({ to: 'me', from: 'src1', pl: Object.create(null), tr: Object.create(null) }); PS.made.length = 0; PS.renderPicker(PS.fake('div'));
+        const selS = PS.made.filter(e => e.tag === 'select')[0], optsS = PS.made.filter(e => e.tag === 'option'), boxS = PS.made.filter(e => e.tag === 'input');
+        boxS[1].checked = true; boxS[1].listeners.change(); PS.made.length = 0; PS.renderPicker(PS.fake('div')); const reBox = PS.made.filter(e => e.tag === 'input');
+        const r0 = PS.calls.renders; selS.value = 'src2'; selS.listeners.change(); const afterSel = [PS.pick().from, Object.keys(PS.pick().pl).length, Object.keys(PS.pick().tr).length, PS.calls.renders - r0];
+        PS.made.length = 0; PS.renderPicker(PS.fake('div'));
+        const rows2 = PS.made.filter(e => e.className === 'music-pick-name').map(e => e.textContent), opts2 = PS.made.filter(e => e.tag === 'option'), cancelS = PS.made.filter(e => e.tag === 'button' && e.textContent === 'Cancel')[0];
+        const r1 = PS.calls.renders; cancelS.listeners.click();
+        const csT = camps(); csT.me.music = { v: 1, tracks: [], playlists: [] }; const PT = mkPick(csT, 'me'); PT.pick({ to: 'me', from: 'src1', pl: Object.assign(Object.create(null), { pl_1: 1 }), tr: Object.create(null) }); PT.bringPicked();
+        check('music picker: the From list holds each campaign on offer by its id (its name and count as the option\'s text), the one being picked from selected; choosing another empties the ticks, redraws and lists that campaign\'s rows; a tick stands through a redraw; Cancel closes the picker and redraws, nothing saved; a playlist with two new songs says "2 songs and 1 playlist brought in."',
+            JSON.stringify(optsS.map(o => [o.value, o.text, !!o.selected])) === JSON.stringify([['src1', HOST + ' (2)', true], ['src2', 'Second (1)', false]]) && reBox.length === 2 && reBox[0].checked === false && reBox[1].checked === true
+            && JSON.stringify(afterSel) === JSON.stringify(['src2', 0, 0, 1]) && JSON.stringify(rows2) === JSON.stringify(['S2 song']) && JSON.stringify(opts2.map(o => [o.value, !!o.selected])) === JSON.stringify([['src1', false], ['src2', true]])
+            && PS.pick() === null && PS.calls.renders === r1 + 1 && PS.calls.saves === 0 && JSON.stringify(PT.calls.toasts) === JSON.stringify(['2 songs and 1 playlist brought in.']) && csT.me.music.tracks.length === 2, JSON.stringify([optsS.map(o => [o.value, o.text, !!o.selected]), reBox.map(b => b.checked), afterSel, rows2, PT.calls.toasts]));
+        const cs4 = camps(), P4 = mkPick(cs4, 'me'); P4.pick({ to: 'other', from: 'src1', pl: Object.create(null), tr: Object.assign(Object.create(null), { t_1: 1 }) }); P4.bringPicked();
+        const full = camps(); full.me.music.tracks = Array.from({ length: MU.LIMITS.trackDefs }, (_, i) => ({ id: 'k' + i, name: 'K', path: '/saves/images/audio/me/k' + i + '.mp3', size: 1 }));
+        const P5 = mkPick(full, 'me'); P5.pick({ to: 'me', from: 'src1', pl: Object.create(null), tr: Object.assign(Object.create(null), { t_1: 1 }) }); P5.bringPicked();
+        const arr = camps(); arr.me.music = []; const P6 = mkPick(arr, 'me'); P6.pick({ to: 'me', from: 'src1', pl: Object.create(null), tr: Object.assign(Object.create(null), { t_1: 1 }) }); P6.bringPicked();
+        check('music picker: a picker opened in one campaign brings nothing once another is the open one; with the library full it says that nothing was brought and how many were left out, never that the campaign already lists them; a campaign whose stored music is a list is given a music object, so what is brought is saved',
+            cs4.me.music.tracks.length === 2 && P4.calls.saves === 0 && P4.calls.toasts.length === 0 && P4.pick() === null
+            && full.me.music.tracks.length === MU.LIMITS.trackDefs && P5.calls.saves === 0 && JSON.stringify(P5.calls.toasts) === JSON.stringify(['Nothing was brought in. 1 left out: the music library is full.'])
+            && !Array.isArray(arr.me.music) && JSON.parse(JSON.stringify(arr.me)).music.tracks.length === 1 && P6.calls.saves === 1, JSON.stringify([P4.calls, P5.calls, P6.calls]));
+    }
     delete global.window;
 
     summed = true;

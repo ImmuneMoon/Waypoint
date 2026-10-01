@@ -218,6 +218,17 @@ Protecting your table
   folder (the import says how many were already here) and never writes a
   Journal; the players a file names come in without their keys, so the
   file's author is asked at your table like anyone new.
+- A yes you give to a joiner whose connection has dropped admits nobody by
+  that name later: you are asked again when they come back. One Start-combat
+  offer is open per player at a time. A wrong session password locks out
+  only the name it was tried under, for a minute, never the whole table. At
+  most 32 connections wait for admission at once, and a stranger's dropped
+  connection costs you no save and no roster message. Each player's app is
+  served at most 150 MB of pictures and sounds a minute.
+- A player's app takes an "end" only from its own host, keeps a host's
+  positions only as sane numbers, refuses any message past the app's own
+  sizes, shows a refusal in its own words (never the host's text, never a
+  dialog the host can raise again), and draws a flood of chat lines once.
 - Smaller leaks closed: an unseen creature's initiative roll stays private,
   a trigger zone's message reaches a player only when their own token
   enters it, the party strip's hover names only effects a teammate may see,

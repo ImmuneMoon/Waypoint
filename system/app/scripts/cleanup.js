@@ -619,6 +619,7 @@ function cleanImportItems(ic, deps) {
             if (w.smoke !== undefined && w.smoke !== true) delete w.smoke;   // senses S7b: smoke only as true
             if (w.terrain !== undefined) { var TR = FC && typeof FC.cleanTerrain === 'function' ? FC.cleanTerrain(w.terrain) : null; if (TR) w.terrain = TR; else delete w.terrain; }   // difficult terrain T1: its cost, 2-10
             if (w.height !== undefined) { var HT = FC && typeof FC.cleanHeight === 'function' ? FC.cleanHeight(w.height) : null; if (HT) w.height = HT; else delete w.height; }   // item 19 H1: a piece's height in yards
+            if (w.texture !== undefined) { var TX = FC && typeof FC.cleanTexture === 'function' ? FC.cleanTexture(w.texture) : null; if (TX) w.texture = TX; else delete w.texture; }   // map builder B1: a texture only as a name the app's table holds
             delete w.fxb;   // conditions C1: a token's effects as the table sees them are worked out by a host, never a file's
             if (w.fx !== undefined) { var TF = FC && typeof FC.cleanTokFx === 'function' ? FC.cleanTokFx(w.fx) : null; if (TF) w.fx = TF; else delete w.fx; }   // conditions C2: a token's own effects
         });

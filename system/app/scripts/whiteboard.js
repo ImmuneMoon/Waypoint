@@ -355,6 +355,7 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
 
 
 
+  var _texSerial = 0;   // map builder B1: one id per svg pattern a filled region's texture takes (never an item id)
   function renderWhiteboard() {
       if (window.wpRenderPartyStrip) window.wpRenderPartyStrip();
       if (window.wpRenderCombatStrip) window.wpRenderCombatStrip();
@@ -719,6 +720,16 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
               el.style.background = (item.type === 'path' || item.type === 'image' || item.type === 'text' || item.type === 'trigger') ? 'transparent' : cssColor(item.color);
 
           }
+          // [sinkcheck:texstyle-start]
+          // Map builder B1: a piece's texture — a name from the app's own table (buildcore.js), drawn over its colour as a repeating tile seated on the
+          // board's lattice, so pieces side by side read as one surface; on a box shape that is no token. A filled region's is drawn in its own svg
+          // below. Anything else (no name, a name the table lacks, another kind of item) leaves the piece exactly as it was drawn above
+          var BCt = window.wpBuildCore, texN = BCt && BCt.cleanTexture ? BCt.cleanTexture(item.texture) : null;
+          var texBox = texN && (item.type === 'rect' || item.type === 'circle' || item.type === 'hexagon' || item.type === 'diamond') && !item.isChar && !item.waiting ? BCt.texStyle(texN, item.x, item.y) : null;
+          if (texBox) { el.style.backgroundImage = texBox.image; el.style.backgroundSize = texBox.size; el.style.backgroundPosition = texBox.position; el.dataset.tex = texN; }
+          else if (el.dataset.tex) { el.style.backgroundImage = ''; el.style.backgroundSize = ''; el.style.backgroundPosition = ''; delete el.dataset.tex; }
+          el.classList.toggle('wb-tex', !!texBox || !!(texN && item.type === 'path' && item.tip === 'fill'));
+          // [sinkcheck:texstyle-end]
 
           // Text boxes: the color swatch is the text color, not a fill; the box
           // has its own background, font, size, and alignment.
@@ -934,7 +945,7 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
 
               
 
-              var pathEl = svg.querySelector('path'), _tip = item.tip || 'round', _col = cssColor(item.color) || 'var(--ink)';
+              var pathEl = svg.querySelector(':scope > path'), _tip = item.tip || 'round', _col = cssColor(item.color) || 'var(--ink)';   // its own path, never a texture pattern's (map builder B1: a defs may come first)
               var _sp = buildStrokePath(item.pts, _tip, item.strokeWidth || 3, item.holes);
               pathEl.setAttribute('d', _sp.d);
               if (_sp.fill) {
@@ -945,6 +956,25 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
                   pathEl.setAttribute('stroke-linecap', _sp.linecap); pathEl.setAttribute('stroke-linejoin', _sp.linejoin);
                   pathEl.removeAttribute('fill-rule');
               }
+              // [sinkcheck:texpath-start]
+              // Map builder B1: a filled region's texture — an svg pattern in the path's own defs, built by createElementNS only (buildcore texPattern), seated
+              // on the board's lattice and scaled back by the box over its base size (the svg's viewBox is stretched to the box), rebuilt only when its
+              // place, size, name or colour changes; an untextured path keeps no defs and its plain fill
+              var BCp = window.wpBuildCore, texP = _sp.fill && BCp && BCp.cleanTexture ? BCp.cleanTexture(item.texture) : null, defsP = svg.querySelector(':scope > defs');
+              if (texP) {
+                  var texKey = texP + '|' + item.x + '|' + item.y + '|' + (item.w || 0) + '|' + (item.h || 0) + '|' + bw + '|' + bh + '|' + _col;
+                  if (!defsP || svg.dataset.texKey !== texKey) {
+                      if (defsP) defsP.remove();
+                      var patP = BCp.texPattern(document, texP, item.x, item.y, _col, ++_texSerial);
+                      if (patP) {
+                          patP.setAttribute('patternTransform', 'scale(' + (bw / (item.w || bw)) + ' ' + (bh / (item.h || bh)) + ')');
+                          defsP = document.createElementNS('http://www.w3.org/2000/svg', 'defs'); defsP.appendChild(patP); svg.insertBefore(defsP, svg.firstChild);
+                          svg.dataset.texKey = texKey; svg.dataset.texId = patP.getAttribute('id');
+                      } else { delete svg.dataset.texKey; delete svg.dataset.texId; }
+                  }
+                  if (svg.dataset.texId) pathEl.setAttribute('fill', 'url(#' + svg.dataset.texId + ')');
+              } else if (defsP) { defsP.remove(); delete svg.dataset.texKey; delete svg.dataset.texId; }
+              // [sinkcheck:texpath-end]
 
           }
 
@@ -1351,7 +1381,7 @@ window.wpFitToGrid = fitToGrid;
           if (!el) return;
           if (i.type === 'text') el.style.color = (v && v !== 'transparent') ? v : '';
           else if (i.type === 'path') { var p = el.querySelector('path'); if (p) { if (i.tip === 'fill') p.style.fill = v; else p.style.stroke = v; } }
-          else if (i.type !== 'image' && i.type !== 'trigger') el.style.background = v;
+          else if (i.type !== 'image' && i.type !== 'trigger') el.style.backgroundColor = v;   // map builder B1: the colour alone, so a recolour keeps a piece's texture
       });
   }
   // The palette matches the selection: text and drawings get the pen inks,
@@ -3594,6 +3624,15 @@ window.wpFitToGrid = fitToGrid;
   }
   ['fillTerrainChk', 'fillTerrainCost'].forEach(function(id) { var e0 = document.getElementById(id); if (e0) e0.addEventListener('change', fillTerrainSet); });
   // [fogcheck:fillmenu-end]
+  // Map builder B1: the fill menu's Texture select — the app's own names, "Plain colour" none — kept on this machine and read back through the cleaner
+  try { state.fillTexture = localStorage.getItem('wp_fillTexture') || ''; } catch (e) { state.fillTexture = ''; }
+  (function wireFillTexture() {   // buildcore.js loads after this module (main.js pulls whiteboard.js in first): the rows are made when the menu is first opened
+      var sel = document.getElementById('fillTexture'); if (!sel) return;
+      var fillRows = function() { var BC = window.wpBuildCore; if (!BC || sel.options.length) return; state.fillTexture = BC.cleanTexture(state.fillTexture) || ''; texOptionsInto(sel, state.fillTexture); };
+      fillRows();
+      var fb = document.getElementById('fillModeBtn'); if (fb) fb.addEventListener('click', fillRows, true);
+      sel.addEventListener('change', function() { var BC2 = window.wpBuildCore; state.fillTexture = (BC2 && BC2.cleanTexture(this.value)) || ''; try { localStorage.setItem('wp_fillTexture', state.fillTexture); } catch (e) {} });
+  })();
   if (_el_fillModeBtn) _el_fillModeBtn.addEventListener('click', function(e) {
       e.stopPropagation();
       if (!window.isFillMode) {
@@ -3629,23 +3668,31 @@ window.wpFitToGrid = fitToGrid;
       if (!t || item.terrain === t) return false;
       item.terrain = t; return true;
   }
+  // Map builder B1: the fill menu's texture on a cell it paints, new or painted over (true when that changed it) — a name the app's table holds, or
+  // "Plain colour", which takes a texture off
+  function fillTextureTo(item) {
+      var BC = window.wpBuildCore, t = BC && BC.cleanTexture ? BC.cleanTexture(state.fillTexture) : null;
+      if (t ? item.texture === t : item.texture === undefined) return false;
+      if (t) item.texture = t; else delete item.texture;
+      return true;
+  }
   function fillCellAt(x, y, remove) {
       var map = getActiveMap(); if (!map) return;
       if (!Array.isArray(map.whiteboard)) map.whiteboard = [];
       var c = cellSnap(x, y), px = c.px, py = c.py;
       var existing = map.whiteboard.find(function(it) { return it && it.fill && Math.abs(it.x - px) < 1 && Math.abs(it.y - py) < 1; });
       if (remove) { if (existing) { map.whiteboard = map.whiteboard.filter(function(it) { return it !== existing; }); _fillDirty = true; render(); } return; }
-      if (existing) { var ch = fillTerrainTo(existing); if (existing.color !== state.fillColor) { existing.color = state.fillColor; ch = true; } if (ch) { _fillDirty = true; render(); } return; }
+      if (existing) { var ch = fillTerrainTo(existing); if (fillTextureTo(existing)) ch = true; if (existing.color !== state.fillColor) { existing.color = state.fillColor; ch = true; } if (ch) { _fillDirty = true; render(); } return; }
       var item = Object.assign({ id: 'wb' + uid(), type: c.type, x: px, y: py, w: c.w, h: c.h, baseW: c.w, baseH: c.h, z: 10, color: state.fillColor, fill: true, layer: 'back' }, (window.wpNewOpacityProps ? window.wpNewOpacityProps() : {}));
-      fillTerrainTo(item); map.whiteboard.push(item); _fillDirty = true; render();
+      fillTerrainTo(item); fillTextureTo(item); map.whiteboard.push(item); _fillDirty = true; render();
   }
   // Add (or recolor) one fill cell WITHOUT save/render — for batch use by the flood-fill. Returns true if it changed anything.
   function fillCellCore(map, x, y) {
       var c = cellSnap(x, y), px = c.px, py = c.py;
       var existing = map.whiteboard.find(function(it) { return it && it.fill && Math.abs(it.x - px) < 1 && Math.abs(it.y - py) < 1; });
-      if (existing) { var ch2 = fillTerrainTo(existing); if (existing.color !== state.fillColor) { existing.color = state.fillColor; ch2 = true; } return ch2; }
+      if (existing) { var ch2 = fillTerrainTo(existing); if (fillTextureTo(existing)) ch2 = true; if (existing.color !== state.fillColor) { existing.color = state.fillColor; ch2 = true; } return ch2; }
       var item2 = Object.assign({ id: 'wb' + uid(), type: c.type, x: px, y: py, w: c.w, h: c.h, baseW: c.w, baseH: c.h, z: 10, color: state.fillColor, fill: true, layer: 'back' }, (window.wpNewOpacityProps ? window.wpNewOpacityProps() : {}));
-      fillTerrainTo(item2); map.whiteboard.push(item2);
+      fillTerrainTo(item2); fillTextureTo(item2); map.whiteboard.push(item2);
       return true;
   }
   // [fogcheck:fillcell-end]
@@ -5456,7 +5503,7 @@ window.wpArmLight = function() {
     if (window.wpFog && window.wpFog.lightCount && window.wpFog.lightCount(map) >= C.LIMITS.lights) { toast('This map already has the most light sources it can hold (' + C.LIMITS.lights + ').'); return; }
     armPlacement('light', { w: 40, h: 40, color: 'transparent', name: 'Light source', light: { bright: 5, dim: 10 } }, 'light source');
 };
-function armPlacement(type, props, label) {
+function armPlacement(type, props, label, quiet) {   // quiet (map builder B1): the Build tool re-arms after every piece and says nothing
     // Placement is a mode of its own: leave draw / erase / measure / pan first
     var mv = document.getElementById('moveModeBtn');
     if (mv && !mv.classList.contains('active')) mv.click();
@@ -5465,8 +5512,8 @@ function armPlacement(type, props, label) {
     if (wbWrap) wbWrap.style.cursor = 'crosshair';
     document.body.classList.add('placing');
     // The tool that armed placement stays lit until the shape lands or Esc
-    ['shapeTextBtn', 'shapeMenuBtn'].forEach(function(id) { var b = document.getElementById(id); if (b) b.classList.toggle('active', id === (type === 'text' ? 'shapeTextBtn' : 'shapeMenuBtn')); });
-    toast(type === 'text' ? 'Click the board to place a text box (drag to size it), or click an existing text box to edit it. Esc cancels.' : 'Click the board to place the ' + label + ', or drag to size it. Esc cancels.');
+    ['shapeTextBtn', 'shapeMenuBtn'].forEach(function(id) { var b = document.getElementById(id); if (b) b.classList.toggle('active', id === (type === 'text' ? 'shapeTextBtn' : type === 'build' ? '' : 'shapeMenuBtn')); });
+    if (!quiet) toast(type === 'text' ? 'Click the board to place a text box (drag to size it), or click an existing text box to edit it. Esc cancels.' : 'Click the board to place the ' + label + ', or drag to size it. Esc cancels.');
 }
 function disarmPlacement() {
     window.wpPlace = null;
@@ -5508,6 +5555,8 @@ window.wpPlaceCommit = function(px, py, pw, ph, sx, sy) {
     var P = window.wpPlace;
     disarmPlacement();
     if (!P) return;
+    if (P.build) { wpBuildCommit(P, px, py, pw, ph, sx, sy); return; }   // map builder B1: a built piece lands by its own rules (on the lattice, cell by cell on hexes, sticky)
+    if (_build.armed) buildDisarm();   // a plain shape placed while building: building is over
     var props = Object.assign({}, P.props);
     var dragged = pw > 12 && ph > 12;
     var type = P.type;
@@ -5548,6 +5597,237 @@ function addWbItemAt(type, props, x, y) {
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape' && window.wpPlace) { disarmPlacement(); toast('Placement cancelled.'); }
 });
+// ---------- Map builder B1 (backlog item 23; the owner's answers of 2026-10-01) ----------
+// A palette of textured pieces laid on the grid: Floor, Wall, Door, Water, Rubble, Wood floor and Grass as a rectangle, a circle, a polygon,
+// a corridor or a thin Wall line (the pen's wall). Every piece is an ordinary board item carrying today's keys — blocksSight / sightType,
+// cover, terrain — and one new one, texture: a name from the app's own table, drawn by buildcore.js; so fog, cover, light and the move gate
+// read it as they read any shape. A built piece is a grid piece: on a map with a grid it always lands on the lattice whatever Snap says (a
+// hex map cell by cell); on a map with no grid Snap decides. Building stays armed after each piece until Esc, the Build button or another
+// tool. GM only (the hosting or offline machine); the menu's choices are kept on this machine and read back through their cleaners.
+// [buildcheck:buildtool-start]
+var BUILD_MAX = 6000;   // players' copies of a map hold this many items (net.js): a gesture past it lays nothing more
+var _build = { mat: 'floor', shape: 'rect', tex: 'flagstones', color: '#5a5663', terrain: 0, cover: false, sight: false, corridorW: 1, armed: false, poly: null, polyEl: null, arming: false };
+function buildCore() { return window.wpBuildCore || null; }
+function buildGridOf(map) { var C = window.wpFogCore, gt = map && map.meta ? map.meta.gridType : null; if (!C) return null; return gt === 'hex' ? C.hexGrid(30, 52) : gt === 'square' ? C.squareGrid(50) : null; }
+function texOptionsInto(sel, cur) {   // a Texture select's rows: the app's own names as option values and text nodes, "Plain colour" none
+    var BC = buildCore(); if (!sel || !BC) return;
+    while (sel.firstChild) sel.removeChild(sel.firstChild);
+    var o0 = document.createElement('option'); o0.value = ''; o0.textContent = 'Plain colour'; sel.appendChild(o0);
+    BC.TEXTURES.forEach(function(n) { var o = document.createElement('option'); o.value = n; o.textContent = n.charAt(0).toUpperCase() + n.slice(1); sel.appendChild(o); });
+    sel.value = BC.cleanTexture(cur) || '';
+}
+function buildHex6(v) { return typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v) ? v : null; }
+function buildLoad() {   // the palette's last choices, kept on this machine, each read back through its own cleaner
+    var BC = buildCore(), FC = window.wpFogCore; if (!BC) return;
+    try {
+        var v = JSON.parse(localStorage.getItem('wp_build') || 'null'); if (!v || typeof v !== 'object') return;
+        var mat = BC.cleanMaterial(v.mat), M = mat ? BC.MATERIALS[mat] : null; if (!M) return;
+        _build.mat = mat; _build.shape = ['rect', 'circle', 'poly', 'corridor', 'line'].indexOf(v.shape) >= 0 ? v.shape : 'rect';
+        _build.tex = v.tex === '' ? '' : (BC.cleanTexture(v.tex) || M.texture); _build.color = buildHex6(v.color) || M.color;
+        _build.terrain = (FC && FC.cleanTerrain ? FC.cleanTerrain(v.terrain) : null) || 0; _build.cover = v.cover === true; _build.sight = v.sight === true; _build.corridorW = v.corridorW === 2 ? 2 : 1;
+    } catch (e) {}
+}
+function buildSave() { try { localStorage.setItem('wp_build', JSON.stringify({ mat: _build.mat, shape: _build.shape, tex: _build.tex, color: _build.color, terrain: _build.terrain, cover: _build.cover, sight: _build.sight, corridorW: _build.corridorW })); } catch (e) {} }
+function buildMaterial(mat) {   // picking a material takes its defaults: texture, colour, terrain (Water), cover (Rubble), blocks sight (Wall, Door); Wall line for those two
+    var BC = buildCore(), M = BC && BC.MATERIALS[mat]; if (!M) return;
+    _build.mat = mat; _build.tex = M.texture; _build.color = M.color; _build.terrain = M.terrain || 0; _build.cover = M.cover === 'yes'; _build.sight = M.blocksSight === true;
+    _build.shape = (mat === 'wall' || mat === 'door') ? 'line' : (_build.shape === 'line' ? 'rect' : _build.shape);
+}
+function buildProps() {   // the props bag of the piece about to be laid (buildcore pieceProps: never fill, rot, isChar, hidden or a type; the ticks decide the flags)
+    var BC = buildCore(); if (!BC) return null;
+    var p = BC.pieceProps(_build.mat, { texture: _build.tex, color: _build.color, terrain: _build.terrain || 0, cover: _build.cover === true, blocksSight: _build.sight ? undefined : false });
+    if (p && _build.sight && !p.blocksSight) { p.blocksSight = true; p.sightType = _build.mat === 'door' ? 'door' : 'wall'; }
+    return p;
+}
+function buildLabel() { var BC = buildCore(), M = BC && BC.MATERIALS[_build.mat]; return (M ? M.name.toLowerCase() : 'piece') + (_build.tex ? ' (' + _build.tex + ')' : ''); }
+function buildArm(quiet) {   // arm the board for the next piece: the pen with a wall preset for a Wall line, placement (click or drag) for the rest
+    var BC = buildCore(), map = getActiveMap(); if (!BC || !map || !window.wpCanPersistLocal || !window.wpCanPersistLocal()) return false;
+    var bm = document.getElementById('buildMenu'), shown = !!(bm && bm.classList.contains('show'));
+    _build.arming = true;
+    try {
+        if (_build.shape !== 'poly') buildPolyEnd();   // a polygon in progress survives the re-arm after each corner
+        if (_build.shape === 'line') {
+            var pp = BC.penPreset(_build.mat === 'door' ? 'door' : 'wall', { color: _build.color });
+            if (pp && !_build.sight) { delete pp.blocksSight; delete pp.sightType; }
+            window.wpPenPreset = pp;
+            if (window.wpPlace) disarmPlacement();
+            var db = document.getElementById('drawModeBtn'); if (db && !db.classList.contains('active')) db.click();
+            var dm = document.getElementById('drawMenu'); if (dm) dm.classList.remove('show');
+        } else {
+            window.wpPenPreset = null;
+            var props = buildProps(); if (!props) return false;
+            armPlacement('build', props, buildLabel(), true);
+            window.wpPlace.build = { mat: _build.mat, shape: _build.shape, corridorW: _build.corridorW };
+        }
+        _build.armed = true;
+        var bb = document.getElementById('buildBtn'); if (bb) bb.classList.add('active');
+        document.body.classList.add('mode-build');
+        if (shown && bm) bm.classList.add('show');
+        if (!quiet) toast(_build.shape === 'line' ? 'Draw along the grid lines to lay a ' + (_build.mat === 'door' ? 'door' : 'wall') + '. Esc or the Build button stops building.' : _build.shape === 'poly' ? 'Click each corner on the grid; click the first corner again (or press Enter) to close the shape. Esc cancels.' : 'Click the board to lay one cell of ' + buildLabel() + ', or drag an area. Building stays on until Esc.');
+    } finally { _build.arming = false; }
+    return true;
+}
+function buildDisarm(toMove) {   // toMove: Esc or the Build button ended it — a Wall line's pen goes back to the move tool (another tool's click keeps that tool)
+    var wasLine = _build.armed && _build.shape === 'line';
+    _build.armed = false; window.wpPenPreset = null; buildPolyEnd();
+    if (window.wpPlace && window.wpPlace.build) disarmPlacement();
+    if (toMove && wasLine) { var mvB = document.getElementById('moveModeBtn'); if (mvB && !mvB.classList.contains('active')) mvB.click(); }
+    var bb = document.getElementById('buildBtn'); if (bb) bb.classList.remove('active');
+    document.body.classList.remove('mode-build');
+    var bm = document.getElementById('buildMenu'); if (bm) bm.classList.remove('show');
+}
+window.wpBuildDisarm = buildDisarm;
+var _buildLoaded = false;
+function buildEnsure() { if (!_buildLoaded && buildCore()) { _buildLoaded = true; buildLoad(); } }   // buildcore.js loads after this module: the kept choices are read on first use
+function buildSync() {   // the menu from the choices: chips, the Texture select, the colour, the ticks, the width, the count
+    var BC = buildCore(), FC = window.wpFogCore; if (!BC) return;
+    buildEnsure();
+    var row = document.getElementById('buildMatRow');
+    if (row && !row.firstChild) BC.MATERIAL_IDS.forEach(function(id) {   // the material chips are made once: a swatch of the material's texture over its colour
+        var M = BC.MATERIALS[id], b = document.createElement('button'); b.className = 'build-mat-btn'; b.type = 'button'; b.dataset.mat = id; b.title = M.name;
+        var ts = BC.texStyle(M.texture, 0, 0); b.style.backgroundColor = M.color; if (ts) { b.style.backgroundImage = ts.image; b.style.backgroundSize = ts.size; }
+        b.addEventListener('click', function(ev) { ev.stopPropagation(); buildMaterial(id); buildSave(); buildSync(); buildArm(true); });
+        row.appendChild(b);
+    });
+    document.querySelectorAll('#buildMatRow .build-mat-btn').forEach(function(b) { b.classList.toggle('active', b.dataset.mat === _build.mat); });
+    document.querySelectorAll('#buildShapeRow .build-shape-btn').forEach(function(b) { b.classList.toggle('active', b.dataset.shape === _build.shape); });
+    var ts = document.getElementById('buildTexture'); if (ts) texOptionsInto(ts, _build.tex);
+    document.querySelectorAll('#buildColorRow .draw-swatch[data-color]').forEach(function(sw) { sw.classList.toggle('active', sw.dataset.color.toLowerCase() === (_build.color || '').toLowerCase()); });
+    var cs = document.querySelector('#buildColorRow .draw-swatch.custom'); if (cs) { var preset = document.querySelector('#buildColorRow .draw-swatch[data-color].active'); cs.classList.toggle('active', !preset); cs.style.background = preset ? '' : (buildHex6(_build.color) || ''); }
+    var ci = document.getElementById('buildColorInput'); if (ci && buildHex6(_build.color)) ci.value = _build.color;
+    var tc = document.getElementById('buildTerrainChk'), tn = document.getElementById('buildTerrainCost'), tv = FC && FC.cleanTerrain ? FC.cleanTerrain(_build.terrain) : null;
+    if (tc) tc.checked = !!tv;
+    if (tn) { if (tv) tn.value = tv; tn.disabled = !tv; }
+    var cc = document.getElementById('buildCoverChk'); if (cc) cc.checked = _build.cover === true;
+    var sc = document.getElementById('buildSightChk'); if (sc) sc.checked = _build.sight === true;
+    var cw = document.getElementById('buildCorridorW'); if (cw) cw.value = String(_build.corridorW);
+    var map = getActiveMap(), n = map && Array.isArray(map.whiteboard) ? map.whiteboard.length : 0, hint = document.getElementById('buildHint');
+    if (hint) { hint.textContent = n + ' of ' + BUILD_MAX + ' pieces on this map. Pieces seat on the grid, below tokens; building stays on until Esc. Long walls are best as wall lines.'; hint.style.color = n > 5000 ? '#d9534f' : ''; }
+}
+// Laying (wpPlaceCommit hands a built piece here): the pure lattice maths is buildcore's — snapBox, hexCellsInBox, hexCellBox, corridor, snapVertex,
+// polyItem, seatedAt — so a later generator lays pieces through the very same functions
+function wpBuildCommit(P, px, py, pw, ph, sx, sy) {
+    var B = P.build, BC = buildCore(), C = window.wpFogCore, map = getActiveMap();
+    if (!B || !BC || !C || !map || !window.wpCanPersistLocal || !window.wpCanPersistLocal()) { buildDisarm(); return; }
+    if (!Array.isArray(map.whiteboard)) map.whiteboard = [];
+    var grid = buildGridOf(map), dragged = pw > 12 && ph > 12, mx = Math.abs(sx - px) < 0.5 ? px + pw : px, my = Math.abs(sy - py) < 0.5 ? py + ph : py;
+    if (B.shape === 'poly') { buildPolyAdd(sx, sy, grid); buildArm(true); return; }
+    var boxes = [], more = false;
+    if (grid && grid.type === 'hex') {   // cell by cell (the owner's answer): one hexagon per cell, so the area is exact
+        var hc = B.shape === 'corridor' ? BC.corridor(grid, sx, sy, mx, my, B.corridorW) : dragged ? BC.hexCellsInBox(grid, px, py, pw, ph, 400) : { cells: [C.cellOf(sx, sy, grid)], more: false };
+        if (hc && hc.cells) { more = hc.more === true; hc.cells.forEach(function(c) { boxes.push(Object.assign({ type: 'hexagon' }, BC.hexCellBox(grid, c))); }); }
+    } else if (grid) {   // the square lattice: a click one cell, a drag the cells it covers, a corridor a strip of whole cells
+        var bx = B.shape === 'corridor' ? BC.corridor(grid, sx, sy, mx, my, B.corridorW) : BC.snapBox(grid, sx, sy, mx, my, dragged);
+        if (bx) boxes.push(Object.assign({ type: B.shape === 'circle' ? 'circle' : 'rect' }, bx));
+    } else {   // no grid: a free box, on the dot lattice (every 50) while Snap is on, as the plain shapes seat
+        var snap = !!(window.wpSnapOn && window.wpSnapOn()), r50 = function(v) { return snap ? Math.round(v / 50) * 50 : Math.round(v); };
+        var fb = B.shape === 'corridor' ? (Math.abs(mx - sx) >= Math.abs(my - sy) ? { x: Math.min(sx, mx), y: sy - 25, w: Math.abs(mx - sx), h: 50 } : { x: sx - 25, y: Math.min(sy, my), w: 50, h: Math.abs(my - sy) })
+            : dragged ? { x: px, y: py, w: pw, h: ph } : { x: sx - 50, y: sy - 50, w: 100, h: 100 };
+        boxes.push({ type: B.shape === 'circle' ? 'circle' : 'rect', x: r50(fb.x), y: r50(fb.y), w: Math.max(snap ? 50 : 10, r50(fb.w)), h: Math.max(snap ? 50 : 10, r50(fb.h)) });
+    }
+    buildLay(map, boxes, P.props, more);
+    buildArm(true);
+}
+function buildLay(map, boxes, props, more) {   // the boxes as pieces, ONE save for the gesture; a cell already holding a piece of that shape takes the new props instead of a second piece
+    var BC = buildCore(); if (!BC || !props) return;
+    if (!boxes.length) { toast('Nothing to lay there.'); return; }
+    var room = BUILD_MAX - map.whiteboard.length, laid = [], wall = false, keys = ['color', 'layer', 'name', 'texture', 'blocksSight', 'sightType', 'cover', 'terrain'];
+    for (var i = 0; i < boxes.length; i++) {
+        var b = boxes[i], item = Object.assign({ id: 'wb' + uid(), type: b.type, x: b.x, y: b.y, w: b.w, h: b.h, z: 10 }, newOpacityProps(), props);
+        if (b.pts) { item.pts = b.pts; item.baseW = b.baseW; item.baseH = b.baseH; item.tip = 'fill'; }
+        var at = b.pts ? -1 : BC.seatedAt(map.whiteboard, item);
+        if (at >= 0) {
+            var old = map.whiteboard[at], wasWall = old.blocksSight === true;
+            keys.forEach(function(k) { if (props[k] !== undefined) old[k] = props[k]; else delete old[k]; });
+            if (props.sightType !== 'door') { delete old.doorOpen; delete old.doorLock; }
+            if (wasWall || old.blocksSight) wall = true;
+            laid.push(old.id); continue;
+        }
+        if (room <= 0) { toast('This map holds as many pieces as players\u2019 copies can carry (' + BUILD_MAX + '). Nothing more was laid.'); break; }
+        room--; map.whiteboard.push(item); laid.push(item.id); if (item.blocksSight) wall = true;
+    }
+    if (!laid.length) return;
+    state.selWbId = laid[laid.length - 1]; state.selWbIds = laid.length > 1 ? laid.slice() : [];
+    save(); render();
+    if (wall && window.wpFog && window.wpFog.invalidateVision) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
+    if (more) toast('A drag lays at most 400 cells at a time; drag again for the rest.');
+    buildSync();
+}
+// The polygon: each click a corner on the lattice (square corners, hex vertices; the dot lattice or free with no grid, as Snap says), a rubber band to the
+// pointer, closed by a click on the first corner or Enter — one filled region (a path, tip fill) with the piece's props; Esc cancels
+function buildPolyAdd(sx, sy, grid) {
+    var BC = buildCore(); if (!BC) return;
+    var v = BC.snapVertex(grid, sx, sy, !!(window.wpSnapOn && window.wpSnapOn()));
+    if (!_build.poly) _build.poly = [];
+    var P0 = _build.poly[0];
+    if (P0 && _build.poly.length >= 3 && Math.hypot(v.x - P0.x, v.y - P0.y) < 20) { buildPolyClose(); return; }
+    if (_build.poly.length >= 500) { toast('A polygon takes at most 500 corners.'); return; }
+    var last = _build.poly[_build.poly.length - 1]; if (last && last.x === v.x && last.y === v.y) return;
+    _build.poly.push(v); buildPolyDraw(null);
+}
+function buildPolyClose() {
+    var BC = buildCore(), map = getActiveMap(), verts = _build.poly || [];
+    if (!BC || !map || verts.length < 3) { toast('A polygon needs at least three corners.'); return; }
+    var it = BC.polyItem(verts.map(function(p) { return [p.x, p.y]; }));
+    buildPolyEnd();
+    if (!it) { toast('That polygon has too few distinct corners.'); return; }
+    var props = buildProps(); if (!props) return;
+    buildLay(map, [{ type: 'path', x: it.x, y: it.y, w: it.w, h: it.h, pts: it.pts, baseW: it.baseW, baseH: it.baseH }], props, false);
+}
+function buildPolyDraw(cur) {   // the rubber band over the board: numbers only into attributes, built by createElementNS
+    var verts = _build.poly || []; if (!verts.length) return;
+    var el = _build.polyEl;
+    if (!el) { el = document.createElement('div'); el.className = 'wb-build-poly'; el.appendChild(document.createElementNS('http://www.w3.org/2000/svg', 'svg')); wb.appendChild(el); _build.polyEl = el; }
+    var svg = el.firstChild; svg.setAttribute('width', '100%'); svg.setAttribute('height', '100%');
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    var pts = verts.map(function(p) { return p.x + ',' + p.y; }); if (cur) pts.push(cur.x + ',' + cur.y);
+    var line = document.createElementNS('http://www.w3.org/2000/svg', 'polyline'); line.setAttribute('points', pts.join(' ')); line.setAttribute('class', 'wb-build-band'); svg.appendChild(line);
+    verts.forEach(function(p, i) { var c = document.createElementNS('http://www.w3.org/2000/svg', 'circle'); c.setAttribute('cx', p.x); c.setAttribute('cy', p.y); c.setAttribute('r', i === 0 ? 7 : 4); c.setAttribute('class', i === 0 ? 'wb-build-first' : 'wb-build-dot'); svg.appendChild(c); });
+}
+function buildPolyEnd() { _build.poly = null; if (_build.polyEl) { _build.polyEl.remove(); _build.polyEl = null; } }
+// The menu and its wiring
+var _el_buildBtn = document.getElementById('buildBtn'), _el_buildMenu = document.getElementById('buildMenu');
+if (_el_buildBtn) _el_buildBtn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    if (!_build.armed) { buildSync(); if (_el_buildMenu) _el_buildMenu.classList.add('show'); buildArm(false); }
+    else if (_el_buildMenu && _el_buildMenu.classList.contains('show')) buildDisarm(true);
+    else { buildSync(); if (_el_buildMenu) _el_buildMenu.classList.add('show'); }
+});
+document.querySelectorAll('#buildShapeRow .build-shape-btn').forEach(function(b) { b.addEventListener('click', function(ev) { ev.stopPropagation(); if (['rect', 'circle', 'poly', 'corridor', 'line'].indexOf(this.dataset.shape) >= 0) _build.shape = this.dataset.shape; buildSave(); buildSync(); buildArm(true); }); });
+var _el_buildTexture = document.getElementById('buildTexture');
+if (_el_buildTexture) _el_buildTexture.addEventListener('change', function() { var BC = buildCore(); _build.tex = this.value === '' ? '' : ((BC && BC.cleanTexture(this.value)) || _build.tex); buildSave(); buildSync(); if (_build.armed) buildArm(true); });
+document.querySelectorAll('#buildColorRow .draw-swatch[data-color]').forEach(function(sw) { sw.addEventListener('click', function(ev) { ev.stopPropagation(); var c = buildHex6(this.dataset.color); if (c) _build.color = c; buildSave(); buildSync(); if (_build.armed) buildArm(true); }); });
+var _el_buildColorInput = document.getElementById('buildColorInput');
+if (_el_buildColorInput) _el_buildColorInput.addEventListener('input', function() { var c = buildHex6(this.value); if (c) _build.color = c; buildSave(); buildSync(); if (_build.armed) buildArm(true); });
+['buildTerrainChk', 'buildTerrainCost'].forEach(function(id) { var e0 = document.getElementById(id); if (e0) e0.addEventListener('change', function() { var FC = window.wpFogCore, chk = document.getElementById('buildTerrainChk'), box = document.getElementById('buildTerrainCost'), n = (box && FC && FC.cleanTerrain ? FC.cleanTerrain(Number(box.value)) : null) || 2; if (box) box.value = n; _build.terrain = chk && chk.checked ? n : 0; buildSave(); buildSync(); if (_build.armed) buildArm(true); }); });
+var _el_buildCoverChk = document.getElementById('buildCoverChk');
+if (_el_buildCoverChk) _el_buildCoverChk.addEventListener('change', function() { _build.cover = this.checked === true; buildSave(); if (_build.armed) buildArm(true); });
+var _el_buildSightChk = document.getElementById('buildSightChk');
+if (_el_buildSightChk) _el_buildSightChk.addEventListener('change', function() { _build.sight = this.checked === true; buildSave(); if (_build.armed) buildArm(true); });
+var _el_buildCorridorW = document.getElementById('buildCorridorW');
+if (_el_buildCorridorW) _el_buildCorridorW.addEventListener('change', function() { _build.corridorW = this.value === '2' ? 2 : 1; buildSave(); if (_build.armed) buildArm(true); });
+document.addEventListener('click', function(e) { if (_el_buildMenu && _el_buildMenu.classList.contains('show') && !e.target.closest('#buildMenu') && !e.target.closest('#buildBtn')) _el_buildMenu.classList.remove('show'); });
+// Another tool ends building (the pen's own button while a Wall line is armed only opens its menu); so do Esc and, for a polygon, Enter closes it
+var _wbTbBuild = document.getElementById('wbFloatingToolbar');
+if (_wbTbBuild) _wbTbBuild.addEventListener('click', function(e) {
+    if (_build.arming || !_build.armed) return;
+    var btn = e.target.closest('.wb-tool-btn'); if (!btn || btn.id === 'buildBtn' || btn.closest('#buildMenu')) return;
+    if (_build.shape === 'line' && btn.id === 'drawModeBtn') return;
+    buildDisarm();
+}, true);
+if (wbWrap) wbWrap.addEventListener('pointermove', function(e) {
+    if (!_build.poly || !_build.poly.length || !buildCore()) return;
+    var r = wbWrap.getBoundingClientRect(), x = (e.clientX - r.left + wbWrap.scrollLeft) / state.zoomLevel, y = (e.clientY - r.top + wbWrap.scrollTop) / state.zoomLevel;
+    buildPolyDraw(buildCore().snapVertex(buildGridOf(getActiveMap()), x, y, !!(window.wpSnapOn && window.wpSnapOn())));
+});
+document.addEventListener('keydown', function(e) {
+    if (!_build.armed) return;
+    var t = e.target, typing = t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable);
+    if (e.key === 'Enter' && !typing && _build.poly && _build.poly.length >= 3) { e.preventDefault(); buildPolyClose(); buildArm(true); }
+    else if (e.key === 'Escape') buildDisarm(true);
+});
+buildEnsure();
+// [buildcheck:buildtool-end]
 
 var _el_shapeTextBtn = document.getElementById('shapeTextBtn');
 

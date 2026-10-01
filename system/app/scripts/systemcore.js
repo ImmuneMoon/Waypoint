@@ -3050,14 +3050,16 @@ function headerEntry(f, e) {
     return out;
 }
 // "HP 7 / 14 · Prone" — the hover card and the party strip; a field that errors here is skipped, never printed as an error
-function hoverLines(sys, char, F, tctx) {
-    var all = resolveAll(sys, char, F, tctx, { noRows: true }), lines = [];   // F5a1: no list cells (critic 17)
+// names (secrets R2): the recipient's own projected rows by field id — a teammate's copy, which holds no GM-only effect — so the Effects line
+// names only what they may see while the numbers stay the character's; absent, the character's own rows (the GM's and the owner's own cards)
+function hoverLines(sys, char, F, tctx, names) {
+    var all = resolveAll(sys, char, F, tctx, { noRows: true }), lines = [], theirs = names && typeof names === 'object' ? names : null;   // F5a1: no list cells (critic 17)
     sys.fields.forEach(function(f) {
         if (!f.hover) return;
         var e = all[f.id]; if (!e || e.error) return;
         if (f.kind === 'toggle') { if (e.value === true) lines.push(f.label); return; }
         if (f.kind === 'notes') return;
-        if (f.kind === 'effects') { if (e.active && e.active.length) lines.push(f.label + ' ' + e.active.map(function(a) { return a.name; }).join(', ')); return; }   // 5h
+        if (f.kind === 'effects') { var act = theirs ? activeEffects(sys, theirs[f.id]) : e.active; if (act && act.length) lines.push(f.label + ' ' + act.map(function(a) { return a.name; }).join(', ')); return; }   // 5h
         if (e.text) lines.push(f.label + ' ' + e.text);
     });
     return lines;
@@ -3348,7 +3350,9 @@ function validateSystem(sys, F) {
 // An NPC or an ownerless character: nothing. The owner: every visible value. Another player: the hover fields only.
 // 5h: a character's effects rows as one recipient may hold them (sys = the players' view; lib = the FULL library by id). The owner gets a
 // visible library row as a reference, a GM-only one INLINE (so their sheet and rolls agree with the GM's), ad hoc rows as they are — every
-// change filtered to fields in the view. A teammate (hover only) gets names, never changes. A row with no definition anywhere is dropped.
+// change filtered to fields in the view. A teammate (hover only) gets names, never changes — and only of the effects in the players' view: a
+// GM-only effect's name, icon and tone are the owner's and the GM's alone (conditions C1, the token's rule; secrets R2). A row with no
+// definition the recipient may read is dropped.
 function projectEffects(rows, sys, own, lib) {
     if (!Array.isArray(rows)) return undefined;
     var view = map(), vf = map(); (Array.isArray(sys.effects) ? sys.effects : []).forEach(function(d) { view[d.id] = d; }); sys.fields.forEach(function(x) { vf[x.id] = 1; });
@@ -3358,7 +3362,7 @@ function projectEffects(rows, sys, own, lib) {
         var on = r.on !== false, d = r;
         if (typeof r.ref === 'string') {
             if (own && view[r.ref]) { var pr0 = { id: r.id, ref: r.ref, on: on }, pt0 = cleanFxTimer(r.t); if (pt0) pr0.t = pt0; out.push(pr0); return; }   // T5a: its timer to its owner
-            d = view[r.ref] || (lib && lib[r.ref]) || null; if (!d) return;
+            d = view[r.ref] || (own && lib && lib[r.ref]) || null; if (!d) return;
         }
         var mods = own ? (Array.isArray(d.mods) ? d.mods : []).filter(function(m) { return isObj(m) && vf[m.f] === 1; }).map(function(m) { var o = { f: m.f, op: m.op }; if (m.op === 'add') o.v = m.v; if (m.part) o.part = m.part; return o; }) : [];
         var pr1 = { id: r.id, name: d.name || 'Effect', icon: d.icon || '', tone: d.tone || '', dur: own ? (d.dur || '') : '', notes: own ? (d.notes || '') : '', on: on, mods: mods }, pt1 = own ? cleanFxTimer(r.t) : null; if (pt1) pr1.t = pt1;   // T5a: the owner's timer (a teammate gets names only)

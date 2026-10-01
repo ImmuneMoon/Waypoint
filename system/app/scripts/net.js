@@ -1883,6 +1883,228 @@ net.sendMusicControl = function(ctrl) {
     msg.type = 'music-ctl';
     net.conns.forEach(function(c) { if (c.open && net.roster[c.peer]) { try { c.send(msg); } catch (e) { sendFailed(e); } } });
 };
+// Campaign videos (1.5.0, item 21 V2): the GM's playing video, live to the table. The picture and its sound go from the host to each
+// player of the showing's audience (every admitted player, or the ticked profiles) over a WebRTC connection of its own, agreed over the
+// table's own data connection — an offer, an answer and their candidates as messages — so nothing of it passes the signalling server and
+// the words arrive in the order they were said. Of the library and the file only the video's name leaves the host. Nothing comes back but
+// the answer: the host sends, a player receives. Neither side uses a media call: both close any they are offered.
+// [netcheck:videocand-start]
+var VIDEO_ID = /^[0-9a-f]{16}$/;   // a link's id: the host's, new for every link
+// One ICE candidate as it may travel, either way: its line (cut short, one line) and the media line it belongs to; anything else is none
+function videoCand(c) {
+    if (!c || typeof c !== 'object' || Array.isArray(c) || typeof c.candidate !== 'string' || c.candidate.length > 600 || c.candidate.indexOf('candidate:') !== 0 || /[\r\n\u0000]/.test(c.candidate)) return null;
+    var out = { candidate: c.candidate };
+    if (typeof c.sdpMid === 'string' && /^[A-Za-z0-9_-]{1,16}$/.test(c.sdpMid)) out.sdpMid = c.sdpMid;
+    if (typeof c.sdpMLineIndex === 'number' && c.sdpMLineIndex >= 0 && c.sdpMLineIndex <= 8 && Math.floor(c.sdpMLineIndex) === c.sdpMLineIndex) out.sdpMLineIndex = c.sdpMLineIndex;
+    return out.sdpMid !== undefined || out.sdpMLineIndex !== undefined ? out : null;
+}
+// A session description as it may travel: a text of bounded length that starts as one does; anything else is none
+function videoSdp(s) { return typeof s === 'string' && s.length <= 20000 && s.indexOf('v=0') === 0 ? s : null; }
+// [netcheck:videocand-end]
+// [netcheck:videohost-start]
+var _vid = null;      // the showing: { name, to: null for everyone | [profile id], stream, w, h, links: peer key -> { id, pc, pid, up, answered, ice, timer }, of: profile id -> the peer key holding their link }
+var _vidAsk = null;   // a player's asks, limited per profile (never forgotten when a connection closes: a reconnect loop gets no new count)
+function videoWants(v, pr) { return !!(v && pr && typeof pr.id === 'string' && (!v.to || v.to.indexOf(pr.id) >= 0)); }
+function videoTold() { if (window.wpVideo && window.wpVideo.audienceChanged) { try { window.wpVideo.audienceChanged(); } catch (e) {} } }
+function videoLive(stream) { try { return !!stream && typeof stream.getVideoTracks === 'function' && stream.getVideoTracks().some(function(t) { return !!t && t.readyState === 'live'; }); } catch (e) { return false; } }
+function videoHang(key) {   // that connection's link, closed and forgotten
+    var v = _vid, ln = v && own(v.links, key) ? v.links[key] : null; if (!ln) return;
+    delete v.links[key];
+    if (own(v.of, ln.pid) && v.of[ln.pid] === key) delete v.of[ln.pid];
+    if (ln.timer) { clearTimeout(ln.timer); ln.timer = null; }
+    try { ln.pc.onicecandidate = null; ln.pc.onconnectionstatechange = null; ln.pc.close(); } catch (e) {}
+}
+// What each viewer is sent at most (videocore's sendCap): set once the link is up, lower when the picture travels through a relay
+function videoCap(ln, v) {
+    var VCc = window.wpVideoCore; if (!VCc || !VCc.sendCap || typeof ln.pc.getSenders !== 'function') return;
+    var apply = function(relayed) {
+        try {
+            var s = ln.pc.getSenders().filter(function(x) { return x && x.track && x.track.kind === 'video'; })[0]; if (!s) return;
+            var p = s.getParameters(), cap = VCc.sendCap(v.w, v.h, relayed); if (!p || !p.encodings || !p.encodings.length) return;
+            p.encodings[0].maxBitrate = cap.maxBitrate; p.encodings[0].maxFramerate = cap.maxFramerate; p.encodings[0].scaleResolutionDownBy = cap.scaleResolutionDownBy;
+            var r = s.setParameters(p); if (r && r.catch) r.catch(function() {});
+        } catch (e) {}
+    };
+    var only = false; try { only = !!(relayOnly() && turnConfig()); } catch (e) {}
+    apply(only);
+    if (only || typeof ln.pc.getStats !== 'function') return;
+    try {
+        ln.pc.getStats().then(function(st) {   // a link that found its way only through the relay
+            var used = Object.create(null), kind = Object.create(null), relayed = false;
+            st.forEach(function(r) { if (r.type === 'candidate-pair' && r.nominated && r.state === 'succeeded') used[r.localCandidateId] = 1; else if (r.type === 'local-candidate') kind[r.id] = r.candidateType; });
+            Object.keys(used).forEach(function(k) { if (kind[k] === 'relay') relayed = true; });
+            if (relayed) apply(true);
+        }).catch(function() {});
+    } catch (e) {}
+}
+function videoLink(c) {   // one link to one admitted, open connection of the audience; a player has one link, on their newest connection
+    var v = _vid;
+    if (!v || !net.active || net.role !== 'host' || !c || !c.open || !own(net.roster, c.peer) || !videoWants(v, net.roster[c.peer]) || !videoLive(v.stream) || typeof RTCPeerConnection !== 'function') return false;
+    var pid = net.roster[c.peer].id, prev = own(v.of, pid) ? v.of[pid] : null;
+    if (prev && prev !== c.peer) videoHang(prev);
+    videoHang(c.peer);
+    var pc = null;
+    try { pc = new RTCPeerConnection(peerOpts().config); } catch (e) { return false; }
+    var ln = { id: newKey().slice(0, 16), pc: pc, pid: pid, up: false, answered: false, ice: 0, timer: null };
+    v.links[c.peer] = ln; v.of[pid] = c.peer;
+    var mine = function() { return _vid === v && own(v.links, c.peer) && v.links[c.peer] === ln; };
+    var say = function(m) { if (!mine() || !c.open) return; m.type = 'video'; m.id = ln.id; try { c.send(m); } catch (e) { sendFailed(e); } };
+    var drop = function() { if (mine()) { videoHang(c.peer); videoTold(); } };
+    try { v.stream.getTracks().forEach(function(t) { if (t && t.readyState === 'live') pc.addTransceiver(t, { direction: 'sendonly', streams: [v.stream] }); }); } catch (e) { drop(); return false; }
+    pc.onicecandidate = function(e) { var cd = e && e.candidate ? videoCand(e.candidate) : null; if (cd) say({ act: 'ice', cand: cd }); };
+    pc.onconnectionstatechange = function() {
+        if (!mine()) return;
+        var s = pc.connectionState;
+        if (s === 'connected') { if (ln.timer) { clearTimeout(ln.timer); ln.timer = null; } if (!ln.up) { ln.up = true; videoCap(ln, v); videoTold(); } }   // agreed: the watchdog is done with it (a link that later dies ends through 'failed')
+        else if (s === 'disconnected') { if (ln.up) { ln.up = false; videoTold(); } }
+        else if (s === 'failed' || s === 'closed') drop();
+    };
+    try {
+        pc.createOffer().then(function(o) { if (!mine()) return null; return pc.setLocalDescription(o).then(function() { if (mine()) say({ act: 'offer', name: v.name, sdp: pc.localDescription.sdp }); }); }).catch(drop);
+    } catch (e) { drop(); return false; }
+    ln.timer = setTimeout(function() { ln.timer = null; if (mine() && !ln.up) drop(); }, 20000);   // never agreed (no route): the idle connection goes; the player's own ask brings a new one
+    return true;
+}
+// Show a stream to everyone (pids absent or null) or to the listed profiles: the audience is fixed for the showing, and a latecomer of it
+// is linked when admitted. Only a stream whose picture is live is shown. Returns who it reaches now, or null when nothing was shown
+net.videoShow = function(stream, name, pids, w, h) {
+    if (!net.active || net.role !== 'host' || !window.wpVideoCore || !videoLive(stream)) return null;
+    var to = null;
+    if (pids !== null && pids !== undefined) {
+        if (!Array.isArray(pids)) return null;
+        to = pids.filter(function(p, i) { return validProfileId(p) && pids.indexOf(p) === i; }).slice(0, 64);
+        if (!to.length) return null;
+    }
+    net.videoStop();
+    _vid = { name: window.wpVideoCore.cleanName(name, 'Video'), to: to, stream: stream, w: typeof w === 'number' && isFinite(w) ? w : 0, h: typeof h === 'number' && isFinite(h) ? h : 0, links: Object.create(null), of: Object.create(null) };
+    if (_vidAsk) _vidAsk.reset();   // a new showing, a new count of asks
+    net.conns.forEach(function(c) { videoLink(c); });
+    var who = net.videoAudience();
+    logEvent('table', 'Video "' + _vid.name + '" shown to ' + (to ? (who.names.concat(who.waiting).join(', ') || 'chosen players') : 'everyone'));
+    return who;
+};
+net.videoStop = function() {
+    var v = _vid; if (!v) return false;
+    Object.keys(v.links).forEach(videoHang);
+    _vid = null;
+    // the stop goes to every admitted connection of the audience, one whose link already failed too (its panel may still be open)
+    if (net.active && net.role === 'host') net.conns.forEach(function(c) { if (c.open && own(net.roster, c.peer) && videoWants(v, net.roster[c.peer])) { try { c.send({ type: 'video', act: 'stop' }); } catch (e) { sendFailed(e); } } });
+    return true;
+};
+// Who a showing reaches, for the GM's panel, one name per profile: names — a link of theirs is up, they are being sent it; waiting — in the
+// audience and connected, with no link up (still connecting, their own Video off, no route)
+net.videoAudience = function() {
+    var v = _vid, up = Object.create(null), nameOf = Object.create(null), order = [];
+    if (!v) return { live: false, all: true, names: [], waiting: [] };
+    net.conns.forEach(function(c) {
+        var pr = c.open && own(net.roster, c.peer) ? net.roster[c.peer] : null; if (!videoWants(v, pr)) return;
+        if (nameOf[pr.id] === undefined) { nameOf[pr.id] = cleanRosterName(pr.name); order.push(pr.id); }
+        if (own(v.links, c.peer) && v.links[c.peer].up === true) up[pr.id] = 1;
+    });
+    return { live: true, all: !v.to, names: order.filter(function(id) { return up[id] === 1; }).map(function(id) { return nameOf[id]; }), waiting: order.filter(function(id) { return up[id] !== 1; }).map(function(id) { return nameOf[id]; }) };
+};
+// A player's word about a video (video-up), from an admitted connection (the gate), and only while a showing is live with them in its
+// audience: ask — link me (again), limited per profile; bye — I am not taking it (their Video is off): the link goes at once; answer and
+// ice — only for the link this connection holds, named by its id: one answer, then at most 60 candidates, each cleaned
+function videoUp(msg, conn) {
+    var v = _vid, pr = own(net.roster, conn.peer) ? net.roster[conn.peer] : null;
+    if (!v || !videoWants(v, pr)) return;
+    if (msg.act === 'ask') {
+        if (!_vidAsk) { var DCv = window.wpDiceCore; if (!DCv || !DCv.RateLimit) return; _vidAsk = DCv.RateLimit({ perMs: 1500, burst: 4, windowMs: 60000, table: 40 }); }
+        if (_vidAsk.allow('$' + pr.id, Date.now()) !== true) return;
+        videoLink(conn);
+        return;
+    }
+    var ln = own(v.links, conn.peer) ? v.links[conn.peer] : null;
+    if (!ln || typeof msg.id !== 'string' || msg.id !== ln.id) return;
+    var mine = function() { return _vid === v && own(v.links, conn.peer) && v.links[conn.peer] === ln; };
+    if (msg.act === 'bye') { videoHang(conn.peer); videoTold(); }
+    else if (msg.act === 'answer') {
+        var sdp = videoSdp(msg.sdp); if (ln.answered || !sdp) return;
+        ln.answered = true;
+        try { ln.pc.setRemoteDescription({ type: 'answer', sdp: sdp }).catch(function() { if (mine()) { videoHang(conn.peer); videoTold(); } }); } catch (e) { videoHang(conn.peer); videoTold(); }
+    } else if (msg.act === 'ice') {
+        var cd = videoCand(msg.cand); if (!ln.answered || !cd || ++ln.ice > 60) return;
+        try { ln.pc.addIceCandidate(cd).catch(function() {}); } catch (e) {}
+    }
+}
+// [netcheck:videohost-end]
+// The player's side: the synced host's offer is taken only with this player's own Video feature on, never in the stream window (the
+// message branch judges who speaks); a connection of its own receives the picture and sends nothing but the answer. The name is cleaned
+// again and shown as text.
+// [netcheck:videoclient-start]
+var _vidIn = { id: null, pc: null, ice: 0, live: false, offered: false, asks: 0, askedAt: 0, timer: null };
+function videoOn() { return !!(window.wpVideo && window.wpVtt && window.wpVtt.on('video')); }
+function videoSay(m) {   // a word to our GM about a video; false when there is no synced table to say it to
+    var c0 = net.conns[0];
+    if (!net.active || net.role !== 'client' || net.stream || !net.foreign || !c0 || !c0.open || !net.syncedPeer || c0.peer !== net.syncedPeer) return false;
+    m.type = 'video-up';
+    try { c0.send(m); } catch (e) { sendFailed(e); return false; }
+    return true;
+}
+function videoAsk() { return videoOn() && videoSay({ act: 'ask' }); }
+function videoShut() {   // this app's end of a link, closed
+    var pc = _vidIn.pc; _vidIn.pc = null; _vidIn.id = null; _vidIn.ice = 0;
+    if (pc) { try { pc.ontrack = null; pc.onicecandidate = null; pc.onconnectionstatechange = null; pc.close(); } catch (e) {} }
+}
+function videoAskSoon() {   // the picture went with no stop from the GM: ask for it again shortly, at most 3 times running (a link that comes up starts the count again)
+    if (!_vidIn.live || _vidIn.asks >= 3 || _vidIn.timer) return;
+    _vidIn.timer = setTimeout(function() { _vidIn.timer = null; if (_vidIn.live && !_vidIn.pc) { _vidIn.asks++; if (!videoAsk()) _vidIn.offered = true; } }, 2000);   // not sent (Video is off here just now): remembered, asked for when it is on again
+}
+function videoOver() {   // the GM stopped showing, or the table is left: nothing of a showing is kept
+    if (_vidIn.timer) clearTimeout(_vidIn.timer);
+    videoShut();
+    _vidIn = { id: null, pc: null, ice: 0, live: false, offered: false, asks: 0, askedAt: 0, timer: null };
+}
+function videoMsg(msg) {   // the synced host's word about a video: stop; an offer (a new link); a candidate for the link held
+    if (msg.act === 'stop') { videoOver(); if (window.wpVideo && window.wpVideo.onStop) window.wpVideo.onStop(); return; }
+    if (typeof msg.id !== 'string' || !VIDEO_ID.test(msg.id)) return;
+    if (msg.act === 'ice') {
+        var cdI = videoCand(msg.cand); if (!_vidIn.pc || msg.id !== _vidIn.id || !cdI || ++_vidIn.ice > 60) return;
+        try { _vidIn.pc.addIceCandidate(cdI).catch(function() {}); } catch (e) {}
+        return;
+    }
+    if (msg.act !== 'offer') return;
+    var sdp = videoSdp(msg.sdp); if (!sdp) return;
+    if (!videoOn()) { _vidIn.offered = true; videoSay({ act: 'bye', id: msg.id }); return; }   // Video is off here: not taken, the GM told; switching it on asks for it
+    if (typeof RTCPeerConnection !== 'function') { videoSay({ act: 'bye', id: msg.id }); return; }   // this app can take no video at all: the GM told, nothing asked for
+    if (!allow('videoin', { perMs: 300, burst: 20, windowMs: 60000, table: 20 }, 'host')) {   // a host that offers without end is not followed; an offer the limit caught is asked for again shortly
+        _vidIn.offered = true;
+        if (!_vidIn.timer) _vidIn.timer = setTimeout(function() { _vidIn.timer = null; net.videoWake(); }, 2000);
+        return;
+    }
+    var VCi = window.wpVideoCore, name = VCi ? VCi.cleanName(msg.name, 'Video') : 'Video', id = msg.id, ms = null, pc = null;
+    videoShut();   // one link: an older one goes first
+    try { pc = new RTCPeerConnection(peerOpts().config); } catch (e) { return; }
+    _vidIn.pc = pc; _vidIn.id = id; _vidIn.ice = 0; _vidIn.live = true; _vidIn.offered = false;
+    var mine = function() { return _vidIn.pc === pc; };
+    var lost = function() { if (!mine()) return; videoShut(); if (window.wpVideo && window.wpVideo.onLost) window.wpVideo.onLost(); videoAskSoon(); };
+    pc.ontrack = function(e) {   // the picture, then its sound (or the other way round): one stream for the panel, handed over at each
+        if (!mine() || !e || !e.track) return;
+        if (!ms) ms = new MediaStream();
+        try { ms.addTrack(e.track); } catch (er) {}
+        if (window.wpVideo && window.wpVideo.onStream) window.wpVideo.onStream(ms, name);
+    };
+    pc.onicecandidate = function(e) { var cd = e && e.candidate ? videoCand(e.candidate) : null; if (cd && mine()) videoSay({ act: 'ice', id: id, cand: cd }); };
+    pc.onconnectionstatechange = function() { if (!mine()) return; var s = pc.connectionState; if (s === 'connected') _vidIn.asks = 0; else if (s === 'failed' || s === 'closed') lost(); };   // a link that is up starts the count of asks again; an interruption is not yet a loss
+    try {
+        pc.setRemoteDescription({ type: 'offer', sdp: sdp }).then(function() { return mine() ? pc.createAnswer() : null; }).then(function(a) {
+            if (!a || !mine()) return null;
+            return pc.setLocalDescription({ type: 'answer', sdp: VCi && VCi.stereoSdp ? VCi.stereoSdp(a.sdp) : a.sdp }).then(function() { if (mine()) videoSay({ act: 'answer', id: id, sdp: pc.localDescription.sdp }); });
+        }).catch(lost);
+    } catch (e) { lost(); }
+}
+net.videoWake = function() {   // the snapshot came, or Video was switched on here: a showing this app did not take is asked for — and again, 2 s apart, until its offer is taken or the GM stops (an ask the GM's limit refused is not the end)
+    if (!_vidIn.offered || _vidIn.pc) return;
+    var now = Date.now(); if (now - _vidIn.askedAt < 2000) return;
+    if (videoAsk()) _vidIn.askedAt = now;
+};
+net.videoDrop = function() {   // Video was switched off here while it played: the link closes, the GM is told, and switching it on again asks for it
+    var id = _vidIn.id; if (!_vidIn.pc) { _vidIn.offered = _vidIn.live; return; }   // no link just now (the picture was lost): the showing is still remembered
+    videoShut(); _vidIn.offered = _vidIn.live;
+    if (id) videoSay({ act: 'bye', id: id });
+};
+// [netcheck:videoclient-end]
 // Visual effects (1.5.0, S3): a short-lived effect to the players ON THAT MAP (a stop reaches everyone); the host
 // makes every effect, a player never triggers one on anyone. The renderer and the presets live in fx.js / fxcore.js.
 // `to` (the GM's ping, fold P): one player's profile id, every connection of theirs, still only on that map; absent,
@@ -4062,6 +4284,7 @@ function admitPlayer(conn, prof, provenKey) {
     var trm = net.turnRulesMessage(); if (trm) net._lastTurnRulesSig = trm.campId + '\n' + trm.timers + '\n' + trm.fill;   // and who may press an effect's timer, and who fills pools
     var lbm = net.libManifestMessage(); if (lbm && lbm.packs.length) { try { conn.send(lbm); } catch (e) { sendFailed(e); } }   // L3: the library players may look through, to this peer only
     if (land.stage && net.sendFxArrival) net.sendFxArrival(conn, land.stage.itemId);   // the running weather / held wash of the map they land on
+    if (snapOk && typeof videoLink === 'function') videoLink(conn);   // item 21 V2: a showing in progress reaches a latecomer of its audience, its offer behind their snapshot on the same connection
     broadcastRoster();
 }
 
@@ -4113,6 +4336,7 @@ net.kickPlayer = function(peerKey) {
     if (p) dropWaitingFor(p.id);   // Onboarding F1a: their waiting token goes with them   // kicked players stay out for this session — and out of the roster NOW, so nothing sent in the 400 ms before the close lands
     if (p && p.id && net.targets && own(net.targets, p.id)) { delete net.targets[p.id]; if (typeof render === 'function') render(); if (typeof broadcastTargets === 'function') broadcastTargets(); }   // fold M1: their pointer goes with them (the removed get none of these: every send is roster-gated)
     if (p && typeof broadcastRoster === 'function') broadcastRoster();   // and the others' party strip no longer shows them
+    if (typeof videoHang === 'function') { keys.forEach(videoHang); videoTold(); }   // item 21 V2: a video being shown stops reaching them at once
     keys.forEach(function(k) {   // every connection under each of their keys (a second data connection from one peer id too)
         net.conns.filter(function(c) { return c.peer === k; }).forEach(function(conn) {
             try { conn.send({ type: 'kicked' }); } catch (e) { sendFailed(e); }
@@ -4236,6 +4460,7 @@ function handleMessage(msg, conn) {
         setStatus('Connected — campaign synced from host.');
         toast('Campaign synced from host.');
         if (window.wpVtt) window.wpVtt.joined();   // seed this table's off-list and queue the join notice
+        net.videoWake();   // item 21 V2: a video the GM is showing, offered before this snapshot, is asked for now
     } else if (msg.type === 'item') {
         if (net.role === 'host') {
             // [netcheck:itempatch-start]
@@ -5116,6 +5341,21 @@ function handleMessage(msg, conn) {
         // A host has no branch: a player never triggers an effect on anyone.
         if (!net.foreign || conn.peer !== net.syncedPeer || net.stream || !window.wpFxCore || !window.wpFx) return;
         var cfx = window.wpFxCore.cleanFx(msg); if (cfx) window.wpFx.receive(cfx);
+    } else if (msg.type === 'video' && net.role === 'client') {
+        // [netcheck:videomsg-start]
+        // item 21 V2: the GM's word about a video (an offer, a candidate, a stop) — from the synced host only, after the snapshot, never in the
+        // stream window; videoMsg cleans what it carries. An offer from our own GM that comes before the snapshot is remembered and asked for
+        // once the snapshot is in (a stop that follows it forgets it). A host has no branch for it.
+        if (net.stream) return;
+        if (!net.foreign || conn.peer !== net.syncedPeer) { if (conn === net.conns[0]) { if (msg.act === 'offer') _vidIn.offered = true; else if (msg.act === 'stop') _vidIn.offered = false; } return; }
+        videoMsg(msg);
+        // [netcheck:videomsg-end]
+    } else if (msg.type === 'video-up' && net.role === 'host') {
+        // [netcheck:videoup-start]
+        // item 21 V2: a player's word about a video being shown (ask, bye, answer, ice): admitted (the gate above); videoUp takes it only while
+        // a showing is live with them in its audience, and reads nothing else from it
+        videoUp(msg, conn);
+        // [netcheck:videoup-end]
     } else if (msg.type === 'blast' && net.role === 'client') {
         // a thrown blast's shared template from the synced host, for the player's current map (item library, 1.5.0)
         if (!net.foreign || conn.peer !== net.syncedPeer || net.stream || !window.wpRenderSharedBlast || !msg.blast) return;
@@ -5378,6 +5618,7 @@ function wireConn(conn) {
         if (p && p.id && !net.conns.some(function(c) { return c.open && net.roster[c.peer] && net.roster[c.peer].id === p.id; })) sensesForget(p.id);   // Senses S0: their last connection: what their copies were made by is forgotten, and no send waits for them
         if (net.role === 'host' && typeof fogDragSweep === 'function') fogDragSweep();   // fold M4: a drag this connection left open goes back where it began
         if (typeof fogForgetConn === 'function') fogForgetConn(conn.peer);   // fold M5: and what its copies held
+        if (net.role === 'host' && typeof videoHang === 'function') { videoHang(conn.peer); videoTold(); }   // item 21 V2: and the call that showed it a video
         renderRoster();
         if (net.role === 'host') {
             if (p) toast((p.name || 'A player') + ' left' + (p.location ? ' — their character stays on ' + (((getActiveCampaign() || {}).items || {})[p.location] || { meta: {} }).meta.title + '.' : '.'));
@@ -5399,6 +5640,7 @@ function wireConn(conn) {
                 net.music = null; net.sounds = null; net.soundNow = null;   // drop the table's media memory (mirrors leaveSession)
                 if (window.wpMusic && window.wpMusic.tableLeft) window.wpMusic.tableLeft(true);   // else a take-control track plays forever and per-map auto-play stays wedged (controlled=true)
                 if (window.wpSound && window.wpSound.tableLeft) window.wpSound.tableLeft(true);
+                videoOver(); if (window.wpVideo && window.wpVideo.tableLeft) window.wpVideo.tableLeft();   // item 21 V2: and a video the GM was showing
                 stopHeartbeat(); setIndicator(null);
                 net.roster = Object.create(null); net.away = Object.create(null);   // the old table's players never carry into this machine's own campaign
                 renderRoster();
@@ -5560,6 +5802,7 @@ function startHosting(forceFresh) {
         _connMeta[conn.peer] = { openedAt: Date.now(), hellos: 0 };
         wireConn(conn);
     });
+    peer.on('call', function(call) { try { call.close(); } catch (e) {} });   // item 21 V2: no media call is used (a video's link is agreed over the table's own connection): any that comes is closed
     // Signaling-server blips don't touch open data channels; quietly re-register
     // so NEW players can still join after the blip.
     peer.on('disconnected', function() { if (net.active) { try { peer.reconnect(); } catch (e) {} } });
@@ -5593,6 +5836,7 @@ function joinSession(code, name, isRetry, probe) {
     net.myId = profile.id;
     var peer = new Peer(peerOpts());
     net.peer = peer; net.role = 'client'; net.code = code;
+    peer.on('call', function(call) { try { call.close(); } catch (e) {} });   // item 21 V2: no media call is used: any that comes is closed
     if (isRetry) {
         // Still at the GM's table as far as the player is concerned: the GM's campaign is on
         // screen, so the spectator rules (no sidebars, no editing, no planners) must hold
@@ -5667,6 +5911,8 @@ function leaveSession(silent) {
     }
     if (!silent && wasClient) net.leaving = true;
     if (!silent) cancelReconnect();
+    if (window.wpVideo && window.wpVideo.tableLeft) { try { window.wpVideo.tableLeft(); } catch (e) {} }   // item 21 V2: a showing stops while the table still hears it; a player's panel closes
+    net.videoStop(); videoOver();
     if (net.peer) { try { net.peer.destroy(); } catch (e) {} }
     net.peer = null; net.conns = []; net.roster = Object.create(null); if (!silent) net.away = Object.create(null); net.active = false; net.role = null; net.code = null; net.lastStage = null;   // a reconnect retry (silent) keeps the away map: tokens stay on their last-known maps while it retries
     diceSessionReset(!silent);   // a deliberate leave or end clears the chat panel too; a retry keeps it

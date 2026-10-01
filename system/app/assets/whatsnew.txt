@@ -859,6 +859,14 @@ Video
   picture size, a button to watch it in the panel and one to delete it with
   its file. The panel moves by its head, resizes from its corner and goes
   full screen.
+- Show a video to your players, live: while you host, a video on the
+  panel's stage has Show to players, for everyone or the players you tick.
+  They see and hear what plays in your panel (you play, pause and seek for
+  all) in a panel of their own that they move, resize, mute and put full
+  screen; closed, a chip in the header reopens it while it plays. It closes
+  on their screens when the video ends or you stop it, and Loop keeps a
+  mood clip running. Nothing is downloaded, a player who joins late is
+  shown it too, and the panel names who is being sent it.
 - The local server answers a byte range: a long video or song loads in
   parts and seeks without being read whole, and a video or a sound is
   served under its own type.

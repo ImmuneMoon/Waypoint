@@ -4,7 +4,7 @@
 
    camp.videos = [{ id: 'v_xxxxxxxx', name, path: '/saves/images/video/<campId>/<file>', size, dur?, w?, h? }]   GM-only: it never
    travels in the snapshot (net.js strips it). A video lives in the GM's saves folder; in a session it is streamed live to the table
-   (V2), never sent as a file. */
+   (V2), never sent as a file: sendCap is what each viewer is sent at most, stereoSdp a viewer's ask for its sound in stereo. */
 'use strict';
 
 var VERSION = '1.5.0';
@@ -104,6 +104,22 @@ function sumLine(list) {
     return n ? n + ' video' + (n === 1 ? '' : 's') + ' · ' + fmtSize(bytes) + ' in your saves folder' : 'No videos yet';
 }
 
-var API = { VERSION: VERSION, LIMITS: LIMITS, EXT_RE: EXT_RE, safeId: safeId, isVideoPath: isVideoPath, videoSrc: videoSrc, cleanName: cleanName, cleanVideo: cleanVideo, cleanVideos: cleanVideos, diskName: diskName, nameOf: nameOf, newId: newId, fmtSize: fmtSize, fmtDur: fmtDur, sumLine: sumLine };
+// V2, a showing: what each viewer is sent at most — the picture's long side scaled down to 1280, 30 frames a second, 2.5 Mbit/s
+// (1 Mbit/s when it travels through a relay). One encoder runs per viewer on the GM's machine, and a relay's allowance is not endless
+function sendCap(w, h, relayed) {
+    var long = Math.max(numIn(w, 1, LIMITS.px) || 0, numIn(h, 1, LIMITS.px) || 0);
+    return { scaleResolutionDownBy: long > 1280 ? Math.round(long / 1280 * 1000) / 1000 : 1, maxFramerate: 30, maxBitrate: relayed === true ? 1000000 : 2500000 };
+}
+// V2, a viewer's answer: its sound line asks for stereo at a music bitrate (else a cutscene's music arrives as speech, in mono). The text
+// is returned unchanged when it has no Opus line with parameters, or already speaks of stereo
+function stereoSdp(sdp) {
+    if (typeof sdp !== 'string') return sdp;
+    var m = /a=rtpmap:(\d+) opus\/48000\/2/i.exec(sdp); if (!m) return sdp;
+    var re = new RegExp('(a=fmtp:' + m[1] + ' [^\r\n]*)'), line = re.exec(sdp);
+    if (!line || /stereo=/.test(line[1])) return sdp;
+    return sdp.replace(re, '$1;stereo=1;maxaveragebitrate=128000');
+}
+
+var API = { VERSION: VERSION, LIMITS: LIMITS, EXT_RE: EXT_RE, safeId: safeId, isVideoPath: isVideoPath, videoSrc: videoSrc, cleanName: cleanName, cleanVideo: cleanVideo, cleanVideos: cleanVideos, diskName: diskName, nameOf: nameOf, newId: newId, fmtSize: fmtSize, fmtDur: fmtDur, sumLine: sumLine, sendCap: sendCap, stereoSdp: stereoSdp };
 if (typeof window !== 'undefined') window.wpVideoCore = API;
-export { VERSION, LIMITS, EXT_RE, safeId, isVideoPath, videoSrc, cleanName, cleanVideo, cleanVideos, diskName, nameOf, newId, fmtSize, fmtDur, sumLine };
+export { VERSION, LIMITS, EXT_RE, safeId, isVideoPath, videoSrc, cleanName, cleanVideo, cleanVideos, diskName, nameOf, newId, fmtSize, fmtDur, sumLine, sendCap, stereoSdp };

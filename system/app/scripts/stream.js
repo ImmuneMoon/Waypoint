@@ -1,6 +1,8 @@
 /* Stream window — Waypoint opened with ?stream=1.
-   A second window that shows only the play map, exactly as players see it: GM notes and
-   dossiers stripped, hidden items left out, no toolbars. It reads the saves folder
+   A second window that shows only the play map, from the party's standpoint (R2 #14, the owner's ruling of 2026-10-01: "a combined view of
+   the players, each of them being represented from a 3rd party perspective"): on a fogged map the fog is what the players' own tokens see
+   together and the creatures none of them sees are left out (net.js sanitizeAppState with no recipient, fog.js PARTY), never one player's own
+   view and never the GM's whole map; GM notes and dossiers stripped, hidden items left out, no toolbars. It reads the saves folder
    through the same local server every second and redraws, so it mirrors the table as the
    GM plays. Meant to be screen-shared (Discord, OBS) to someone watching without the app.
    "Showing" in the corner follows the GM's current map or pins one until changed. */
@@ -18,14 +20,13 @@ if (on) {
     net.active = true; net.role = 'client'; net.foreign = true; net.stream = true; net.myId = 'stream';
     window.isPanMode = true;   // left-drag pans the view
     var focus = '', charFocus = '';
-    try { focus = localStorage.getItem('wp_streamFocus') || ''; charFocus = localStorage.getItem('wp_streamChar') || ''; } catch (e) {}
-    var charSel = document.getElementById('streamChar');
-    var FOCUS_ZOOM = 1.5;
-    var lastCam = '';   // "mapId:x:y" the view was last centred on, so a still token is not re-centred every tick
-
+    // [videocheck:streamchar-start]
+    // R2 #14: the "Focus on" menu names the players' characters alone (characterList owned-only: a token that carries a player's id), never an NPC
+    // on a fogged map; a focus — kept from before or picked — is only ever one of theirs ('o:' and a name), anything else is no one
+    var ownKey = function(k) { return typeof k === 'string' && k.slice(0, 2) === 'o:' && k.length > 2 ? k : ''; };
     function refreshCharSelect(camp) {
         if (!charSel) return;
-        var list = characterList(camp, false);
+        var list = characterList(camp, true);
         var sig = list.map(function(c) { return c.key + ':' + c.name + '@' + c.map; }).join('|') + '#' + charFocus;
         if (charSel.dataset.sig === sig) return;
         charSel.dataset.sig = sig;
@@ -34,7 +35,12 @@ if (on) {
         charSel.innerHTML = html;
         if (sel) { sel.disabled = !!charFocus; sel.title = charFocus ? 'The map follows the focused character; clear "Focus on" to pick a map' : 'Follow the GM\'s current map, or focus one map until you change it'; }
     }
-    function setCharFocus(key) { charFocus = key || ''; lastCam = ''; try { localStorage.setItem('wp_streamChar', charFocus); } catch (e) {} tick(); }
+    // [videocheck:streamchar-end]
+    try { focus = localStorage.getItem('wp_streamFocus') || ''; charFocus = ownKey(localStorage.getItem('wp_streamChar')); } catch (e) {}
+    var charSel = document.getElementById('streamChar');
+    var FOCUS_ZOOM = 1.5;
+    var lastCam = '';   // "mapId:x:y" the view was last centred on, so a still token is not re-centred every tick
+    function setCharFocus(key) { charFocus = ownKey(key); lastCam = ''; try { localStorage.setItem('wp_streamChar', charFocus); } catch (e) {} tick(); }
     if (charSel) charSel.addEventListener('change', function() { setCharFocus(charSel.value); });
     window.wpStreamFocusChar = setCharFocus;   // the party strip's click lands here in the stream window
     var bar = document.getElementById('streamBar'), sel = document.getElementById('streamFocus'), hideBtn = document.getElementById('streamHideBtn');
@@ -64,7 +70,7 @@ if (on) {
         var campId = clean.activeCampaignId && clean.campaigns[clean.activeCampaignId] ? clean.activeCampaignId : Object.keys(clean.campaigns)[0];
         var camp = clean.campaigns[campId];
         var gmItem = camp.items[camp.activeItemId];
-        var loc = charFocus ? locateCharacter(camp, charFocus) : null;
+        var loc = charFocus && charFocus.charAt(0) === 'o' ? locateCharacter(camp, charFocus) : null;   // R2 #14: a player's character alone is followed
         var want = loc ? loc.map.id
                  : (focus && camp.items[focus] && camp.items[focus].type === 'map') ? focus
                  : (gmItem && gmItem.type === 'map') ? camp.activeItemId

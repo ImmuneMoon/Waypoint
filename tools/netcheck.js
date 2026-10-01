@@ -721,7 +721,7 @@ pendingChecks.push((async () => {
 /* ================= a session is one campaign (owner's answer 2026-09-29, found during senses S0 (b)): the real sanitizeAppState copies only the hosted campaign ================= */
 {
     const saSrc = src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState');
-    const SA = new Function('own', 'window', 'fxLib', 'itemLib', 'withHoverLines', 'fogCopyFor', "'use strict';\n" + saSrc + '\nreturn sanitizeAppState;')(H.own, {}, () => ({}), () => ({}), v => v, (it) => it);
+    const SA = new Function('own', 'window', 'fxLib', 'itemLib', 'withHoverLines', 'fogCopyFor', 'fogPartyCopy', "'use strict';\n" + saSrc + '\nreturn sanitizeAppState;')(H.own, {}, () => ({}), () => ({}), v => v, (it) => it, (it) => it);
     const map = id => ({ id, type: 'map', meta: { title: id }, rooms: [], links: [], whiteboard: [{ id: 'orc_' + id, type: 'image', isChar: true, x: 1, y: 1, w: 50, h: 50 }] });
     const gm = () => ({ activeCampaignId: 'k1', _schema: 2, campaigns: { k1: { id: 'k1', name: 'Hosted', activeItemId: 'm1', items: { m1: map('m1') } }, k2: { id: 'k2', name: 'Secret game', activeItemId: 'm2', items: { m2: map('m2'), p2: { id: 'p2', type: 'planner', blocks: [] } } } } });
     const forP = SA(gm(), 'u_p'), forStream = SA(gm()), odd = SA(Object.assign(gm(), { activeCampaignId: 'constructor' })), none = SA(Object.assign(gm(), { activeCampaignId: 'k9' }));
@@ -733,7 +733,7 @@ pendingChecks.push((async () => {
 // item 21 V1: the campaign's video library is the GM's alone — the real sanitizeAppState leaves it out of the join snapshot and the stream window
 {
     const saSrcV = src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState');
-    const SAv = new Function('own', 'window', 'fxLib', 'itemLib', 'withHoverLines', 'fogCopyFor', "'use strict';\n" + saSrcV + '\nreturn sanitizeAppState;')(H.own, {}, () => ({}), () => ({}), v => v, (it) => it);
+    const SAv = new Function('own', 'window', 'fxLib', 'itemLib', 'withHoverLines', 'fogCopyFor', 'fogPartyCopy', "'use strict';\n" + saSrcV + '\nreturn sanitizeAppState;')(H.own, {}, () => ({}), () => ({}), v => v, (it) => it, (it) => it);
     const vids = () => [{ id: 'v_abcdefgh', name: 'The reveal', path: '/saves/images/video/k1/aaaa_reveal.mp4', size: 123456, dur: 42 }];
     const gmV = () => ({ activeCampaignId: 'k1', _schema: 2, campaigns: { k1: { id: 'k1', name: 'Hosted', activeItemId: null, items: {}, videos: vids() } } });
     const forPv = SAv(gmV(), 'u_p'), forSv = SAv(gmV()), keptV = gmV(); SAv(keptV, 'u_p');
@@ -745,7 +745,7 @@ pendingChecks.push((async () => {
 // hidden pieces (owner, 2026-10-01: players see nothing where something is hidden): the join snapshot and the stream window, by the real sanitizeAppState
 {
     const saSrcH = src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState');
-    const SAh = new Function('own', 'window', 'fxLib', 'itemLib', 'withHoverLines', 'fogCopyFor', "'use strict';\n" + saSrcH + '\nreturn sanitizeAppState;')(H.own, {}, () => ({}), () => ({}), v => v, (it) => it);
+    const SAh = new Function('own', 'window', 'fxLib', 'itemLib', 'withHoverLines', 'fogCopyFor', 'fogPartyCopy', "'use strict';\n" + saSrcH + '\nreturn sanitizeAppState;')(H.own, {}, () => ({}), () => ({}), v => v, (it) => it, (it) => it);
     const gmH = () => ({ activeCampaignId: 'k1', _schema: 2, campaigns: { k1: { id: 'k1', name: 'Hosted', activeItemId: 'm1', items: { m1: { id: 'm1', type: 'map', rooms: [], links: [], whiteboard: [{ id: 'seen', type: 'rect', x: 1, y: 2, w: 3, h: 4 },
         { id: 'lurker', type: 'image', isChar: true, charName: 'Lurker', hidden: true, x: 777, y: 888, w: 60, h: 52 }, { id: 'trapdoor', type: 'rect', hidden: true, trap: true, targetMapId: 'm2', x: 555, y: 666, w: 50, h: 50 }] } } } } });
     const forPh = SAh(gmH(), 'u_p'), forSh = SAh(gmH()), keptH = gmH(); SAh(keptH, 'u_p');
@@ -753,6 +753,60 @@ pendingChecks.push((async () => {
         [forPh, forSh].every(s => JSON.stringify(s.campaigns.k1.items.m1.whiteboard.map(w => w.id)) === '["seen"]' && !/lurker|Lurker|trapdoor|777|888|555|666|"hidden"|"trap"/.test(JSON.stringify(s)))
         && keptH.campaigns.k1.items.m1.whiteboard.length === 3 && keptH.campaigns.k1.items.m1.whiteboard[1].hidden === true, JSON.stringify(forPh.campaigns.k1.items.m1.whiteboard));
 }
+// R2 #14 (the owner's ruling of 2026-10-01: the stream window "should be a combined view of the players, each of them being represented from a
+// 3rd party perspective"): the stream window's copy of a fogged map is the PARTY VIEW, by the real sanitizeAppState, fogPartyCopy, fog.js's vision
+// half and fogcore — the creatures no player's own token sees dropped, every player's token kept, and the cells the players' tokens see together
+// riding on the copy (fogParty) for the window's fog to draw; never the GM's whole map, never one player's own view, never an NPC's eyes
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const FCp = await import(url('fogcore.js'));
+    const fogT = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'fog.js'), 'utf8').replace(/\r\n/g, '\n');
+    const fogA = fogT.indexOf('function core() {'), fogB = fogT.indexOf('/* ---------- the overlay');
+    const fogSrc = fogT.slice(fogA, fogB);
+    const saSrcP = src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + between('// [netcheck:foglit-start]', '// [netcheck:foglit-end]', 'foglit') + '\n' + lineOf('function mapFogged(') + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState');
+    const mkSA = (feats, noFog) => {
+        const win = { wpFogCore: FCp, wpVtt: { on: k => feats[k] !== false, campaignOn: k => feats[k] !== false, mode: () => 'stream' } };
+        let fog = null;
+        try { fog = new Function('window', 'document', 'getActiveMap', 'getActiveCampaign', 'state', "'use strict';\n" + fogSrc + '\nreturn { fogDropIds: fogDropIds, fogLitFor: fogLitFor, fogMarksFor: fogMarksFor, fogOffFor: fogOffFor, sightSigFor: sightSigFor, invalidateSeen: invalidateSeen, PARTY: typeof PARTY === "string" ? PARTY : null, fogPartyCells: typeof fogPartyCells === "function" ? fogPartyCells : null };')(win, { getElementById: () => null }, () => null, () => null, { appState: {} }); } catch (e) { fog = { err: e.message }; }
+        if (!noFog) win.wpFog = fog;
+        const SA = new Function('own', 'window', 'fxLib', 'itemLib', 'withHoverLines', "'use strict';\n" + saSrcP + '\nreturn sanitizeAppState;')(H.own, win, () => ({}), () => ({}), v => v);
+        return { SA, fog };
+    };
+    const T = (id, owner, c, r, more) => Object.assign({ id, type: 'image', isChar: true, charName: id, x: c * 50, y: r * 50, w: 50, h: 50, rot: 0, front: 0 }, owner ? { ownerId: owner } : {}, more || {});
+    const M = (id, fog, wb, meta) => ({ id, type: 'map', meta: Object.assign({ title: id, gridType: 'square', cellValue: 5, cellUnit: 'ft', updated: 1 }, meta || {}), rooms: [], links: [], fog: Object.assign({ on: true, mode: 'auto', light: 'dark', manual: { adds: [], cuts: [] } }, fog || {}), whiteboard: wb });
+    // mF: 5 ft squares, Sight 30 ft = 6 cells, the map dark. Ana's token at (2,2) sees the goblin at (5,2); a wall down column 7 hides the ogre at (8,2) though it
+    // is in reach; the orc at (20,2) is out of reach and its own eyes see the second orc at (22,2) — the GM's '*' union would keep both; Bo's token at (30,30)
+    // sees the second goblin; Cy's waiting token at (40,40) is no viewer (the campaign gives a waiting token no sight) but is a player's; a crate is no creature
+    const mkState = () => ({ activeCampaignId: 'k', campaigns: { k: { id: 'k', name: 'K', activeItemId: 'mF', fog: { fields: { sightUnit: 'ft' }, defaults: { sight: 30 } }, items: {
+        mF: M('mF', null, [T('tA', 'u_a', 2, 2), T('gob', '', 5, 2), { id: 'wall', type: 'rect', x: 350, y: 0, w: 50, h: 600, blocksSight: true }, T('ogre', '', 8, 2), T('orc', '', 20, 2), T('orc2', '', 22, 2), T('tB', 'u_b', 30, 30), T('gob2', '', 31, 30), { id: 'crate', type: 'rect', x: 1000, y: 1000, w: 50, h: 50 }, T('lurk', '', 3, 3, { hidden: true }), { id: 'wt', type: 'image', waiting: 1, ownerId: 'u_c', x: 2000, y: 2000, w: 50, h: 50 }]),
+        mU: M('mU', { on: false }, [T('tA9', 'u_a', 2, 2), T('orc5', '', 15, 2)]),
+        mR: M('mR', { mode: 'reveal' }, [T('tA5', 'u_a', 2, 2), T('orcR', '', 15, 2)]),
+        mV: M('mV', { mode: 'cover' }, [T('tA6', 'u_a', 2, 2), T('orcV', '', 15, 2), { id: 'wtV', type: 'image', waiting: 1, ownerId: 'u_b', x: 800, y: 800, w: 50, h: 50 }]),
+        mG: M('mG', null, [T('tA7', 'u_a', 2, 2), T('orcG', '', 15, 2)], { gridType: 'off' }) } } } });
+    const body = () => {
+    const ids = m => (m && m.whiteboard ? m.whiteboard.map(w => w.id).join('+') : '-');
+    const cellsOf = m => (m && m.fogParty && Array.isArray(m.fogParty.list) ? m.fogParty.list.map(e => e.c + ',' + e.r + ':' + e.t).sort() : null);
+    const { SA, fog } = mkSA({ fog: true, lighting: true });
+    const st = mkState(), stream = SA(st), sm = stream.campaigns.k.items, sF = sm.mF;
+    const party = cellsOf(sF) || [], has = k => party.some(x => x.startsWith(k + ':'));
+    const gotStream = { mF: ids(sF), mU: ids(sm.mU), mR: ids(sm.mR), mV: ids(sm.mV), mG: ids(sm.mG), pF: !!sF.fogParty, pU: 'fogParty' in sm.mU, pR: j(sm.mR.fogParty), pV: j(sm.mV.fogParty), pG: 'fogParty' in sm.mG, n: party.length, tiers: party.every(x => /:2$/.test(x)),
+        seen: [has('2,2'), has('5,2'), has('30,30'), has('31,30')], unseen: [has('8,2'), has('20,2'), has('22,2'), has('40,40')], gmKept: st.campaigns.k.items.mF.whiteboard.length, gmParty: 'fogParty' in st.campaigns.k.items.mF };
+    check('R2 #14 the stream window\'s copy (the real sanitizeAppState with no recipient, fogPartyCopy, fog.js and fogcore) is the party view: on a fogged map the creatures none of the players\' own tokens sees are gone — one out of reach, one behind a wall though in reach, one only an NPC\'s eyes see — and the ones Ana\'s or Bo\'s token sees stay, every player\'s token stays (Cy\'s waiting one too), a crate stays, a hidden one is gone as ever; the cells the players\' tokens see together ride on the copy (fogParty, each cell with its tier) — their own cells and the goblins\' among them, never the ogre\'s, the orcs\' or the waiting token\'s; a map with fog off, or gridless, is whole with no fogParty; Reveal all says all; Cover all keeps the players\' tokens alone and says no cell is seen; the GM\'s own campaign is left as it was',
+        !fog.err && fog.PARTY === '*players' && j(gotStream) === j({ mF: 'tA+gob+wall+tB+gob2+crate+wt', mU: 'tA9+orc5', mR: 'tA5+orcR', mV: 'tA6+wtV', mG: 'tA7+orcG', pF: true, pU: false, pR: j({ all: true }), pV: j({ list: [] }), pG: false, n: party.length, tiers: true,
+            seen: [true, true, true, true], unseen: [false, false, false, false], gmKept: 11, gmParty: false }) && party.length > 100 && party.length < 400, j([fog.err, fog.PARTY, gotStream]));
+    // a player's copy as before (fogCopyFor): their own sight alone, and never a word of the party's cells; the fog feature off, or no fog module at all
+    const forA = SA(mkState(), 'u_a').campaigns.k.items, offSA = mkSA({ fog: false, lighting: true }).SA(mkState()).campaigns.k.items, none = mkSA({ fog: true, lighting: true }, true).SA(mkState()).campaigns.k.items;
+    const gotA = { mF: ids(forA.mF), mV: ids(forA.mV), party: /fogParty/.test(j(forA)) }, gotOff = { mF: ids(offSA.mF), party: /fogParty/.test(j(offSA)) }, gotNone = { mF: ids(none.mF), mU: ids(none.mU), mV: ids(none.mV), pF: j(none.mF.fogParty), pU: 'fogParty' in none.mU };
+    check('R2 #14 a player\'s own copy is as it was — Ana\'s keeps what her tokens see (Bo\'s token, his goblin and Cy\'s waiting token gone) and carries no fogParty on any map; with the fog feature off the stream window is sent every map whole and no fogParty; with no fog module at all the stream copy fails closed — every creature that is no player\'s is gone from a fogged map and no cell is said seen, an unfogged map whole',
+        j(gotA) === j({ mF: 'tA+gob+wall+crate', mV: 'tA6', party: false }) && j(gotOff) === j({ mF: 'tA+gob+wall+ogre+orc+orc2+tB+gob2+crate+wt', party: false }) && j(gotNone) === j({ mF: 'tA+wall+tB+crate+wt', mU: 'tA9+orc5', mV: 'tA6+wtV', pF: j({ list: [] }), pU: false }), j([gotA, gotOff, gotNone]));
+    const sj = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'stream.js'), 'utf8').replace(/\r\n/g, '\n'), ioj = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'io.js'), 'utf8').replace(/\r\n/g, '\n');
+    check('R2 #14 wired: the stream window alone calls sanitizeAppState with no recipient (stream.js each tick, io.js at its load), and sanitizeAppState hands a map of the hosted campaign to fogPartyCopy exactly there, to fogCopyFor for a player; fogPartyCopy is published to the window nowhere (never a message)',
+        /var clean = net\.sanitizeAppState\(data\);/.test(sj) && /if \(window\.wpStream && window\.wpNet && window\.wpNet\.sanitizeAppState\) state\.appState = window\.wpNet\.sanitizeAppState\(state\.appState\);/.test(ioj)
+        && /if \(it\.type === 'map' && recipientId && camp\.id === c\.activeCampaignId\) it = fogCopyFor\(it, \(s\.campaigns && s\.campaigns\[camp\.id\]\) \|\| camp, orig, recipientId\);[^\n]*\n\s*else if \(it\.type === 'map' && !recipientId && camp\.id === c\.activeCampaignId\) it = fogPartyCopy\(it, \(s\.campaigns && s\.campaigns\[camp\.id\]\) \|\| camp, orig\);/.test(src)
+        && (src.match(/fogPartyCopy\(/g) || []).length === 2);
+    };
+    try { body(); } catch (e) { check('R2 #14 the stream window\'s party view (the case ran to its end)', false, e.message); }
+})());
 // the table's follow and the summons: a connection still waiting for the GM's Allow hears nothing, not even where the table is
 {
     const stSrc = between('// [netcheck:stage-start]', '// [netcheck:stage-end]', 'stage');
@@ -6940,8 +6994,8 @@ pendingChecks.push((async () => {
     // the join snapshot: the real sanitizeAppState, with and without the clock's rule beside it
     const saSrcK = src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState');
     const clockOutSrc = syncK.slice(syncK.indexOf('function clockOut('), syncK.indexOf('\n', syncK.indexOf('function clockOut(')));
-    const SAk = new Function('own', 'window', 'fxLib', 'itemLib', 'withHoverLines', 'fogCopyFor', "'use strict';\n" + clockOutSrc + '\n' + saSrcK + '\nreturn sanitizeAppState;')(H.own, { wpCalendarCore: CCx, wpVtt: vttK }, () => ({}), () => ({}), v => v, it => it);
-    const SA0 = new Function('own', 'window', 'fxLib', 'itemLib', 'withHoverLines', 'fogCopyFor', "'use strict';\n" + saSrcK + '\nreturn sanitizeAppState;')(H.own, { wpCalendarCore: CCx, wpVtt: vttK }, () => ({}), () => ({}), v => v, it => it);
+    const SAk = new Function('own', 'window', 'fxLib', 'itemLib', 'withHoverLines', 'fogCopyFor', 'fogPartyCopy', "'use strict';\n" + clockOutSrc + '\n' + saSrcK + '\nreturn sanitizeAppState;')(H.own, { wpCalendarCore: CCx, wpVtt: vttK }, () => ({}), () => ({}), v => v, it => it, it => it);
+    const SA0 = new Function('own', 'window', 'fxLib', 'itemLib', 'withHoverLines', 'fogCopyFor', 'fogPartyCopy', "'use strict';\n" + saSrcK + '\nreturn sanitizeAppState;')(H.own, { wpCalendarCore: CCx, wpVtt: vttK }, () => ({}), () => ({}), v => v, it => it, it => it);
     const gmK = (clock, cal) => ({ activeCampaignId: 'k1', _schema: 2, campaigns: { k1: { id: 'k1', name: 'Hosted', vtt: { cal: cal !== false }, clock: clock, activeItemId: 'm1', items: { m1: { id: 'm1', type: 'map', whiteboard: [] } } }, k2: { id: 'k2', name: 'Other', vtt: { cal: true }, clock: { t: 99 }, activeItemId: 'm2', items: { m2: { id: 'm2', type: 'map', whiteboard: [] } } } } });
     const snK = [SAk(gmK({ t: 500.5, hide: false, notes: 'x' }), 'u_p'), SAk(gmK({ t: 500, hide: true }), 'u_p'), SAk(gmK({ t: 500 }, false), 'u_p'), SAk(gmK(undefined), 'u_p'), SA0(gmK({ t: 500 }), 'u_p'), SAk(gmK({ t: 500 }))].map(s => s.campaigns.k1 ? (ownK(s.campaigns.k1, 'clock') ? s.campaigns.k1.clock : 'none') : 'no campaign');
     const keptK = gmK({ t: 500, hide: true }); SAk(keptK, 'u_p');

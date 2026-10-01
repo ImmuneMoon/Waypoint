@@ -18,6 +18,7 @@ function toast(m) { if (window.appToast) window.appToast(m); }
 function roleNow() { var v = vtt(); return v ? v.mode() : 'solo'; }
 function isGmView() { var m = roleNow(); return m === 'solo' || m === 'host'; }
 function isClientView() { return roleNow() === 'client'; }   // a foreign player past the snapshot (never the stream or awaiting)
+function isStreamView() { return roleNow() === 'stream'; }   // the stream window (R2 #14): a spectator's standpoint, the players' tokens together
 function myId() { var n = net(); return (n && n.myId) || ''; }
 function fogFeatureOn() { var v = vtt(); return v ? !!v.on('fog') : false; }   // host: the campaign setting; client: the GM's ceiling
 function lightingOn() { var v = vtt(); return v ? !!v.on('lighting') : false; }   // lighting (backlog 14): the GM's switch, on by default (an absent flag reads on, as every feature's)
@@ -183,6 +184,11 @@ function senseViewers(ts, eyesArc) {
 
 /* ---------- who reveals what ----------
    ownerId: a player's profile id (their own tokens only) or '*' (every character token — the GM's party preview). */
+// R2 #14 (the owner's ruling of 2026-10-01: the stream window is "a combined view of the players, each of them being represented from a 3rd party
+// perspective"): PARTY, the stream window's standpoint — every token that is a player's (it carries a player's id: a character's or a waiting one),
+// each judged as its own player's copy judges it (its own sheet alone, never waived), never an NPC's eyes, never the GM's whole map. A profile id
+// never holds a star, so no player is PARTY. The GM's '*' preview stays what it was: every character token, NPCs included, every sheet read
+var PARTY = '*players', playerTok = function(w) { return typeof w.ownerId === 'string' && w.ownerId !== ''; };
 // A map's vision mode: its explicit map.fog.vision, else the grid-type default (square = all-around, hex = 180° front
 // cone). The arc is DECOUPLED from the grid type — a GM can give a square map a facing cone, or a hex map all-around.
 function gridIsHexMap(map) {
@@ -200,7 +206,7 @@ function viewersFor(map, camp, ownerId) {
     var waitSight = !!(camp && camp.newPlayers && typeof camp.newPlayers === 'object' && camp.newPlayers.sight === true);   // Onboarding F1a: a waiting token sees only when the campaign says so
     (map.whiteboard || []).forEach(function(w) {
         if (!w || w.hidden || w.type === 'light' || !(w.isChar || (w.waiting && waitSight))) return;
-        if (ownerId && ownerId !== '*' && w.ownerId !== ownerId) return;
+        if (ownerId && ownerId !== '*' && w.ownerId !== ownerId && !(ownerId === PARTY && playerTok(w))) return;   // R2 #14: the party sees by every player's token
         var x = w.x + (w.w || 60) / 2, y = w.y + (w.h || 52) / 2, front = (w.rot || 0) + (w.front || 0), ts = tokenSenses(w, map, camp, !ownerId || ownerId === '*');
         out.push(ts.blind ? { x: x, y: y, front: front, range: 0, arc: arc, blind: true } : { x: x, y: y, front: front, range: ts.sight, arc: arc });   // world facing = rot + front, so the arc follows the token's rotation; senses S3: blind eyes, their own cell
         if (ts.full.length) senseViewers(ts, arc).forEach(function(s) { var v = { x: x, y: y, front: front, range: s.range, arc: s.arc, sense: true }; if (s.pass) v.pass = true; if (s.dim) v.dim = true; if (s.veil) v.veil = true; out.push(v); });   // senses S2a: a viewer per full sense, after its token's eyes
@@ -687,11 +693,24 @@ function fogDropIds(recipientId, camp, map) {
     var drop = Object.create(null), any = false;
     (map.whiteboard || []).forEach(function(w) {
         if (!w || w.type === 'light' || !(w.isChar || w.waiting)) return;   // a light source is never a creature; Onboarding F1a: another player's waiting token hides in fog like a character's
-        if (w.ownerId === recipientId) return;                          // your own token is always yours
+        if (w.ownerId === recipientId || (recipientId === PARTY && playerTok(w))) return;   // your own token is always yours; the party view (R2 #14) keeps every player's
         var tk = C.cellKey(C.cellOf(w.x + (w.w || 60) / 2, w.y + (w.h || 52) / 2, grid), grid);
         if (inMask(mask, tk) && !keys[tk]) { drop[w.id] = 1; any = true; }   // hidden only inside a fog area a viewer can't see; a token OUT of every fog area is always visible
     });
     return any ? drop : null;
+}
+// R2 #14: the stream window's copy of a fogged map carries the cells the players' tokens see together (fogPartyCopy in net.js puts it on the copy as
+// map.fogParty), worked out here from the host's own campaign — the players' sheets, the GM's null areas, every light — which the window's own copy
+// could not repeat, so the window draws exactly what the host rules (partyTiers). Each cell with its tier, shaped as a lit cell is ({c,r,t} or
+// {q,r,t}); { all: true } for Reveal all (no fog at all); null where this map draws no fog (fog off, no grid, no play area: the window draws none
+// there either); { list: [] } where nothing is seen (Cover all, no player's token on the map)
+function fogPartyCells(camp, map) {
+    if (!fogFeatureOn() || !map || map.type !== 'map') return null;
+    var mf = mapFog(map); if (!mf.on) return null;
+    var grid = gridForMap(map); if (!grid) return null;
+    if (fogMask(map, camp, grid).mode === 'none') return null;
+    var t = revealedTiers(map, camp, PARTY); if (t === null) return { all: true };
+    return { list: t.list.map(function(o) { var c = o.cell, k = t.keys[o.key]; return c.q !== undefined ? { q: c.q, r: c.r, t: k } : { c: c.c, r: c.r, t: k }; }) };
 }
 // Senses S0: what one player's own tokens see by on a map, as a text the host compares — each of their viewers' sight in cells, in the map's
 // own order (viewersFor's, so who counts as a viewer is decided in one place). null where a change of sight changes nothing a player is sent:
@@ -867,10 +886,12 @@ function active() {
     if (!fogFeatureOn() || !mapFog(map).on || !gridForMap(map)) return false;
     if (isGmView()) return true;   // fog enabled for this map => the GM always sees the see-through overlay (party vision by default), across every tool and while dragging items
     if (isClientView()) return true;                                // a player always sees their own-vision fog
-    return false;                                                   // stream / awaiting: no fog overlay in v1
+    if (isStreamView()) return true;                                // R2 #14: the stream window draws the party's fog, opaque, from the host's word on its copy (partyTiers)
+    return false;                                                   // awaiting: no fog overlay
 }
 function drawOwner() {
     if (isClientView()) return myId();                             // a player sees only their own tokens' vision
+    if (isStreamView()) return PARTY;                              // R2 #14: the stream window, the players' tokens together
     return (previewMode === 'off' || previewMode === 'party') ? '*' : previewMode;   // GM: all tokens, or one player
 }
 // Senses S6 (the owner's answer 3a): explored terrain. With "Players remember what they have seen" on (camp.fog.defaults.remember), a player's
@@ -935,6 +956,20 @@ function maskClip(mask, grid, z, sx, sy, W, H, traceOn) {
     return _clipPath;
 }
 // [fogcheck:maskclip-end]
+// R2 #14: the stream window's tiers — the host's word on its copy (map.fogParty, fogPartyCells) alone, never worked out from the window's own copy,
+// which lacks the players' sheets and the GM's null areas. Each cell once, the clearer tier winning; { all: true } (Reveal all) is no fog; nothing
+// said, or a word that is no list, covers everything (fail closed)
+function partyTiers(map, grid) {
+    var C = core(), p = map && typeof map === 'object' ? map.fogParty : null;
+    if (p && p.all === true) return null;
+    var keys = Object.create(null), list = [];
+    (p && Array.isArray(p.list) ? p.list : []).forEach(function(e) {
+        if (!e || typeof e !== 'object') return;
+        var cell = e.q !== undefined ? { q: e.q, r: e.r } : { c: e.c, r: e.r }, k = C.cellKey(cell, grid), t = e.t === 1 ? 1 : 2;
+        if (keys[k] === undefined) { keys[k] = t; list.push({ key: k, cell: cell }); } else if (t > keys[k]) keys[k] = t;
+    });
+    return { list: list, keys: keys };
+}
 function draw() {
     var s = screenEl(), wrap = ui('whiteboardWrap'), C = core(); if (!s || !wrap || !C) return;
     placeScreen();
@@ -946,7 +981,7 @@ function draw() {
     var map = activeMap(), camp = activeCamp(), grid = gridForMap(map);
     var mask = fogMask(map, camp, grid);
     if (mask.mode === 'none') return;                              // no play area marked + default 'none': nothing to fog
-    var tiers = revealedTiers(map, camp, drawOwner());
+    var tiers = isStreamView() ? partyTiers(map, grid) : revealedTiers(map, camp, drawOwner());   // R2 #14: the stream window draws the host's word
     if (tiers === null) return;                                    // reveal-all: no fog
     var z = state.zoomLevel || 1, sx = wrap.scrollLeft, sy = wrap.scrollTop;
     var pad = 80 + (grid.type === 'square' ? grid.size * z / 2 : grid.s * z * 1.02);   // keep a cell whose CENTRE is off-view but whose body reaches the viewport (else a sliver of the clip edge stays unfogged at high zoom)
@@ -965,7 +1000,7 @@ function draw() {
         else { ctx.beginPath(); for (var mi = 0; mi < mask.cells.length; mi++) traceCell(mask.cells[mi]); ctx.clip(); }
     }
     ctx.globalCompositeOperation = 'source-over';
-    ctx.fillStyle = isClientView() ? 'rgba(5,6,12,0.97)' : 'rgba(9,11,20,0.62)';   // players: opaque; the GM: see-through
+    ctx.fillStyle = isClientView() || isStreamView() ? 'rgba(5,6,12,0.97)' : 'rgba(9,11,20,0.62)';   // players and the stream window: opaque; the GM: see-through
     ctx.fillRect(0, 0, W, H);                                      // one flat fill (clipped to the mask when set) — no per-cell alpha seams
     ctx.globalCompositeOperation = 'destination-out';
     if (memLay) { ctx.globalAlpha = 0.3; ctx.drawImage(memLay, 0, 0); ctx.globalAlpha = 1; }   // senses S6: remembered ground, a third of the way through the fog
@@ -1070,7 +1105,7 @@ function blindCaptionsFor(map, camp, ownerId) {
     var out = [], byId = Object.create(null); campSenses(camp).concat(campMarkSenses(camp)).forEach(function(s) { byId[s.id] = s; });   // senses S4: a mark sense still works blind too
     ((map && map.whiteboard) || []).forEach(function(w) {
         if (!w || w.hidden || !w.isChar || typeof w.id !== 'string') return;   // a waiting token is never blind (tokenSenses)
-        if (ownerId && ownerId !== '*' && w.ownerId !== ownerId) return;
+        if (ownerId && ownerId !== '*' && w.ownerId !== ownerId && !(ownerId === PARTY && playerTok(w))) return;   // R2 #14: the stream window, every player's token
         var ts = tokenSenses(w, map, camp, !ownerId || ownerId === '*'), nulled = (ts.offs || []).filter(function(o) { return o.why === 'null' && byId[o.id]; }).map(function(o) { return String(byId[o.id].name); });   // senses S7a: the senses a null area switches off here
         if (!ts.blind && !nulled.length) return;
         var words = [];
@@ -1342,6 +1377,7 @@ setTimeout(sync, 0);
 window.wpFog = {
     // host enforcement (net.js)
     fogDropIds: fogDropIds, fogLitFor: fogLitFor, canSeePoint: canSeePoint, coverAt: coverAt, blastSeat: blastSeat, moveBlocked: moveBlocked, moveCells: moveCells, moveCost: moveCost, invalidateVision: invalidateVision, invalidateSeen: invalidateSeen, seenKeyOf: seenKeyOf, lightMoves: lightMoves, sightSigFor: sightSigFor, tokenSightCells: tokenSightCells, coverBetween: coverBetween,
+    PARTY: PARTY, fogPartyCells: fogPartyCells,   // R2 #14: the stream window's standpoint (the players' tokens together) and the cells it draws by, for its copy (net.js fogPartyCopy)
     // GM tools
     paintAt: paintAt, toggleDoorAt: toggleDoorAt, openMenu: openMenu, closeMenu: closeMenu, sync: sync, redraw: redraw,
     setPreview: function(p) { previewMode = p || 'off'; redraw(); }, preview: function() { return previewMode; }, brush: function() { return brush; }, active: active,

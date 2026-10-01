@@ -1253,8 +1253,10 @@ function applyItem(msg) {
 // Host-side validation: from a player's patch, apply ONLY position/rotation of
 // whiteboard items owned by that player. Everything else is ignored.
 // [netcheck:patch-start]
+var STROKE_CAP = 600, STROKE_PTS_CAP = 60000;   // a player's drawings on one map: their count, and their points in all (a drawing is 4000 points at most) — what bounds the GM's save and every copy of the map
 function applyClientItemFiltered(msg, profile, out) {   // fold M10: out.strokes, set when a drawing of theirs was added, redrawn or erased
     if (!profile) return false;
+    if (typeof profile.location === 'string' && msg.itemId !== profile.location) return false;   // the map they are on, as the pos gate and the threats branch have it: a copy of another map — one they left a token on, one closed to players — moves nothing there, draws nothing and finds no room's handout (and a stale copy of the map the GM just moved them from is dropped, as a final pos is)
     var camp = campOf(msg.campId);   // own keys only: a campId or itemId such as "constructor" names nothing (it used to reach a prototype's function and throw)
     if (!camp || !validKey(msg.itemId) || !own(camp.items, msg.itemId)) return false;
     var liveItem = camp.items[msg.itemId];
@@ -1262,26 +1264,29 @@ function applyClientItemFiltered(msg, profile, out) {   // fold M10: out.strokes
     var changed = false;
     var liveById = Object.create(null);
     (liveItem.whiteboard || []).forEach(function(w) { liveById[w.id] = w; });
-    var sentIds = {};
+    var sentIds = Object.create(null);
     var pend = out && out.conn && typeof hidPendOf === 'function' ? hidPendOf(out.conn.peer, msg.itemId) : null;   // hidden pieces: their drawings the GM hid, which a copy of theirs may lack by the GM's hand
-    var ownStrokes = (liveItem.whiteboard || []).filter(function(w) { return w && w.type === 'path' && w.byPlayer && w.ownerId === profile.id; }).length;   // this player's drawings already on the map: the cap is per map, not per patch
+    var ownStrokes = 0, ownPts = 0;   // this player's drawings already on the map, and their points: the caps are per map, not per patch
+    (liveItem.whiteboard || []).forEach(function(w) { if (w && w.type === 'path' && w.byPlayer && w.ownerId === profile.id) { ownStrokes++; ownPts += Array.isArray(w.pts) ? w.pts.length : 0; } });
     var fkP = [];   // fold M7: each own token's where-it-sees-from before this copy lands (at the drag's start while one is open)
     msg.item.whiteboard.forEach(function(w) {
-        if (!w || typeof w.id !== 'string') return;
+        if (!w || !validKey(w.id)) return;   // an id that is no key (empty, past 160, a prototype's) names nothing here
         sentIds[w.id] = true;
         var lw = liveById[w.id];
         if (!lw) {
             // New item: only a drawing signed with this player's id, in a sane shape
             var stroke = playerStroke(w, profile.id);
-            if (stroke && ownStrokes++ < 600) { liveItem.whiteboard.push(stroke); changed = true; if (out) out.strokes = true; }
+            if (!stroke || ownStrokes >= STROKE_CAP || ownPts + stroke.pts.length > STROKE_PTS_CAP) return;   // past either cap the drawing is not taken (their own copy keeps it until the next copy of the map, as ever)
+            ownStrokes++; ownPts += stroke.pts.length; liveItem.whiteboard.push(stroke); liveById[stroke.id] = stroke; changed = true; if (out) out.strokes = true;   // noted under its id: the same new id again in this copy redraws it instead of adding a second
             return;
         }
         if (lw.ownerId !== profile.id) return;   // ownership is judged on the HOST's copy
         if (lw.hidden) { if (out && lw.type === 'path' && lw.byPlayer) out.whole = true; return; }   // a piece the GM hid is not on its player's copy at all: nothing a patch says of it overwrites the host's; a copy naming a drawing of theirs hidden here was made before the hide reached them, and their app writes such a drawing back over every copy of that age — the whole map puts it right (the item branch)
         if (lw.locked) return;   // the GM locked it: frozen for its player — no move, turn, facing, stance or redrawn stroke (their app stops them too)
         if (lw.type === 'path' && lw.byPlayer) {
-            var re = playerStroke(w, profile.id);
-            if (re && JSON.stringify(re.pts) !== JSON.stringify(lw.pts) || (re && (re.x !== lw.x || re.y !== lw.y))) { Object.assign(lw, re); changed = true; if (out) out.strokes = true; }
+            var re = playerStroke(w, profile.id), hadPts = Array.isArray(lw.pts) ? lw.pts.length : 0;
+            if (re && ownPts - hadPts + re.pts.length > STROKE_PTS_CAP) return;   // a redraw that would take their points past the budget is refused whole
+            if (re && JSON.stringify(re.pts) !== JSON.stringify(lw.pts) || (re && (re.x !== lw.x || re.y !== lw.y))) { ownPts += re.pts.length - hadPts; Object.assign(lw, re); changed = true; if (out) out.strokes = true; }
             return;
         }
         var wx = Number(w.x), wy = Number(w.y), wr = Number(w.rot || 0), wf = Number(w.front || 0);   // geometry from a peer: finite and on the board, or nothing
@@ -1337,6 +1342,7 @@ function applyClientItemFiltered(msg, profile, out) {   // fold M10: out.strokes
 // A drawing a player may hand the host: a freehand path signed with their id, whitelisted fields only.
 function playerStroke(w, pid) {
     if (!w || w.type !== 'path' || w.ownerId !== pid || !Array.isArray(w.pts)) return null;
+    if (typeof w.id !== 'string' || !/^[A-Za-z0-9_.:-]{1,80}$/.test(w.id) || (w.id in Object.prototype)) return null;   // its id: short plain text (the app's own are 'wb' + a few characters), never a prototype's key (a drawing called "constructor" was kept past its erasing on every other copy), never megabytes stored in the GM's save and sent in every copy
     if (w.pts.length < 2 || w.pts.length > 4000) return null;
     var num = function(v, d) { return (typeof v === 'number' && isFinite(v)) ? Math.max(-1e6, Math.min(1e6, v)) : d; };   // bounded: the packer refuses a whole number past 64 bits
     var pts = [];
@@ -1466,7 +1472,7 @@ function itemDelta(itemId, clean) {
     if (clean.type === 'doc' && !(uniqueIds(clean.blocks) && uniqueIds(base.blocks))) return null;             // block deltas key on ids
     var d = { type: 'itemDelta', itemId: itemId }, any = false;
     function coll(key) {
-        var was = {}, now = {}, set = [], del = [], added = false;
+        var was = Object.create(null), now = Object.create(null), set = [], del = [], added = false;   // keyed off the prototype: a drawing named "constructor" (an older save's) is one more drawing, deleted like any other — it used to read as still there, a ghost on every other copy
         (base[key] || []).forEach(function(x) { was[x.id] = quickHash(JSON.stringify(x)); });
         (clean[key] || []).forEach(function(x) { var h = quickHash(JSON.stringify(x)); now[x.id] = 1; if (was[x.id] !== h) { set.push(x); if (was[x.id] === undefined) added = true; } });
         Object.keys(was).forEach(function(id) { if (!now[id]) del.push(id); });
@@ -1495,11 +1501,11 @@ function applyItemDelta(msg) {
         if (!Array.isArray(ch.del)) ch.del = []; if (!Array.isArray(ch.set)) ch.set = []; if (ch.order !== undefined && !Array.isArray(ch.order)) delete ch.order;
         ch.set = ch.set.filter(function(x) { return x && typeof x === 'object' && typeof x.id === 'string'; });
         var list = it[key] = it[key] || [];
-        var at = {}; list.forEach(function(x, i) { at[x.id] = i; });
+        var at = Object.create(null); list.forEach(function(x, i) { at[x.id] = i; });   // off the prototype, as itemDelta's
         (ch.del || []).forEach(function(id) { if (at[id] !== undefined) list[at[id]] = null; });
         (ch.set || []).forEach(function(x) { if (at[x.id] !== undefined && list[at[x.id]]) list[at[x.id]] = x; else list.push(x); });
         it[key] = list.filter(Boolean);
-        if (ch.order) { var pos = {}; ch.order.forEach(function(id, i) { pos[id] = i; }); it[key].sort(function(a, b) { return (pos[a.id] === undefined ? 1e9 : pos[a.id]) - (pos[b.id] === undefined ? 1e9 : pos[b.id]); }); }
+        if (ch.order) { var pos = Object.create(null); ch.order.forEach(function(id, i) { pos[id] = i; }); it[key].sort(function(a, b) { return (pos[a.id] === undefined ? 1e9 : pos[a.id]) - (pos[b.id] === undefined ? 1e9 : pos[b.id]); }); }
     });
     ['links', 'meta', 'cats'].forEach(function(k) { if (msg[k] !== undefined) it[k] = msg[k]; });
     if (it.type === 'map') cleanHostMap(it);   // whatever the delta touched: text items rebuilt, colors checked, bounded
@@ -1570,7 +1576,7 @@ function applyFogDiff(msg) {
 // Host: send one map item to the table — as a delta when one exists and is smaller, else whole.
 function mapFogged(it) { return !!(it && it.type === 'map' && it.fog && it.fog.on === true && window.wpVtt && window.wpVtt.on('fog')); }   // true alone, as fog.js reads it: a map stored with on 'yes' is unfogged for both, never per-player once and shared after
 net.sendItem = function(campId, itemId, onlyConn, exceptConn, at) {   // fold M10: exceptConn, a connection a fogged map is not sent to (its own copy catches up in place); at: the action of onlyConn's that this whole copy answers (14c)
-    var camp = state.appState.campaigns[campId], it = camp && camp.items[itemId]; if (!it) return;
+    var camp = own(state.appState.campaigns, campId) ? state.appState.campaigns[campId] : null, it = camp && own(camp.items, itemId) ? camp.items[itemId] : null; if (!it) return;   // own keys only: an id from the wire (needItem) that is a prototype's names nothing — never a prototype object sent as a map, never a function handed to the packer
     var ak = typeof withAck === 'function' ? withAck : function(m) { return m; };   // 14c: how far each connection's copy goes (a harness without it sends as before)
     if (typeof hidNote === 'function') hidNote(it);   // hidden pieces: a player's drawing the GM hid, noted for each of their connections before the copy without it goes
     // fog of war (1.5.0 FV2): a fogged map is sent per recipient — the heavy map is cloned once (sanitizeItem), then a
@@ -1605,7 +1611,7 @@ net.sendItem = function(campId, itemId, onlyConn, exceptConn, at) {   // fold M1
 // Host: broadcast one whole map/item to the table, fog-filtered per recipient when it is a fogged map. Used by the many
 // one-off sends (travel, summon, bring, push) that always send whole; a fogged map never leaks a creature through them.
 net.broadcastItemFiltered = function(campId, itemId) {
-    var camp = state.appState.campaigns[campId], it = camp && camp.items[itemId]; if (!it) return;
+    var camp = own(state.appState.campaigns, campId) ? state.appState.campaigns[campId] : null, it = camp && own(camp.items, itemId) ? camp.items[itemId] : null; if (!it) return;   // own keys only, as sendItem
     if (typeof window !== 'undefined' && window.wpFog && window.wpFog.invalidateSeen) window.wpFog.invalidateSeen(itemId);   // Senses S0: a map sent this way was changed as a remote change (a traveller arrived or left, a waiting token placed, a light switched): who sees what on it is judged afresh
     if (typeof hidNote === 'function') hidNote(it);   // hidden pieces: as sendItem
     if (!mapFogged(it)) { var clean = sanitizeItem(it); if (!clean) return; if (typeof fogForgetMap === 'function') fogForgetMap(itemId); var bm = { type: 'item', campId: campId, itemId: itemId, item: clean }; if (typeof ackSend === 'function') ackSend(bm); else broadcast(bm, null); _lastSent[itemId] = JSON.parse(JSON.stringify(clean)); return; }   // the table now holds this: the next delta is worked out from it (a light switched off here and on again by the GM was the same as the older baseline, and never went out)
@@ -2868,7 +2874,7 @@ function hostTravel(conn, traveler, portal, fromMap) {
     traveler.detached = true;
     renderRoster();
     var mineF = (fromMap.whiteboard || []).filter(function(w) { return w.isChar && w.ownerId === traveler.id; });
-    var left = mineF.find(function(w) { return portalUnder(w, fromMap) === portal; }) || mineF.find(function(w) { return w.charId; }) || mineF[0];   // the token on the portal steps off (not a pet beside it)
+    var left = mineF.find(function(w) { return portalUnder(w, fromMap) === portal; });   // only the token on the portal steps off (not a pet beside it, and never one elsewhere on the map: a travel by double-click moves no token across the map — through walls, out of turn or one the GM locked)
     if (left) { stepOffPortal(left, portal, fromMap); net.broadcastItemFiltered(tCamp.id, fromMap.id); }
     if (left) { net.applyingRemote = true; save(true); net.applyingRemote = false; }   // the step-off reaches disk now, not on the GM's next save
     ensurePlayerToken(traveler.id, pRoom.targetMapId, landRoom && landRoom.id);
@@ -4531,6 +4537,7 @@ function handleMessage(msg, conn) {
             // [netcheck:itempatch-start]
             try {   // 14c: whatever becomes of it, this patch's number is taken once it has been handled
             if (net.paused || peerPaused(conn.peer)) return;   // frozen table (or this player is paused): client edits are dropped
+            var hcI = getActiveCampaign(); if (!hcI || msg.campId !== hcI.id || typeof msg.itemId !== 'string') return;   // a session is one campaign (as the threats and needItem branches have it): a copy naming another of the GM's campaigns changes nothing there, is saved nowhere and sends that campaign's map to no one
             if (!allow('item', { perMs: 40, burst: 60, windowMs: 5000, table: 2000 }, conn.peer)) return;   // a patch storm from one player: dropped, never saved
             var profile = net.roster[conn.peer];
             if (window.wpHistFlush) window.wpHistFlush();   // the GM's pending edit is its own step before the player's patch lands
@@ -4590,9 +4597,11 @@ function handleMessage(msg, conn) {
             net.applyingRemote = false;
         }
     } else if (msg.type === 'needItem' && net.role === 'host') {
-        var campN = getActiveCampaign(); if (!campN || msg.campId !== campN.id || typeof msg.itemId !== 'string') return;   // a session is one campaign
+        // [netcheck:needitem-start]
+        var campN = getActiveCampaign(); if (!campN || msg.campId !== campN.id || !validKey(msg.itemId) || !own(campN.items, msg.itemId)) return;   // a session is one campaign, and an item of it by its own key (a prototype's key names nothing)
         if (!allow('need', { perMs: 50, burst: 30, windowMs: 5000, table: 1000 }, conn.peer)) return;
         net.sendItem(msg.campId, msg.itemId, conn);
+        // [netcheck:needitem-end]
     } else if (msg.type === 'stage' && net.role === 'client') {
         applyStage(msg.stage);
         toast(msg.personal ? 'You arrive.' : 'The GM moved the table to a new map.');
@@ -4633,6 +4642,11 @@ function handleMessage(msg, conn) {
         if (!fromMap || fromMap.type !== 'map') return;
         var portal = (fromMap.whiteboard || []).find(function(w) { return w.id === msg.viaItemId; });
         if (portal && portal.hidden) return;   // a hidden portal is no door to knock on: a trap tile fires only when a token is dropped on it (the host judges the drop), never by naming it
+        // leaving the map through a door is a move of theirs: a token of theirs here the GM locked is frozen for its player, and one a running turn-based
+        // fight holds off its turn under the Refuse rule moves only on its turn — either keeps them on the map and says why (the GM's summon and bring still take them)
+        var mineT = (fromMap.whiteboard || []).filter(function(w) { return w && w.isChar && w.ownerId === traveler.id && !w.hidden; });
+        if (mineT.some(function(w) { return w.locked; })) { turnNote(conn, 'The GM has locked your token: you cannot leave this map.'); return; }
+        if (mineT.some(function(w) { var cb = turnCombatOf(tCamp, fromMap.id, w), cur = cb && cb.rows[cb.turn]; return !!cb && !(cur && cur.tokId === w.id) && moveMode(tCamp, 'order') === 'refuse'; })) { turnNote(conn, 'It is not your turn: you cannot leave this map yet.'); return; }
         hostTravel(conn, traveler, portal, fromMap);
         // [netcheck:travelmsg-end]
     } else if (msg.type === 'target' && net.role === 'host') {

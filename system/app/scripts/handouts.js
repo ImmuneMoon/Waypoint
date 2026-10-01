@@ -14,6 +14,7 @@ import { save, toast, historyBarrier } from './io.js';
 import { esc } from './inspector.js';
 import { picRef } from './safecore.js';   // a handout's picture is the app's own (a web address from a file never loads)
 
+// [netcheck:journal-start]
 var ui = function(id) { return document.getElementById(id); };
 var JOURNAL_DIR = 'images/journal';                 // under saves/ (the shell only writes inside images/)
 var MAX_EDGE = 1600, JPEG_Q = 0.86, MAX_BYTES = 6 * 1024 * 1024;
@@ -37,7 +38,8 @@ async function writeIndex(campId, idx) {
         var r = await fetch('/api/upload-exact?path=' + encodeURIComponent(JOURNAL_DIR + '/' + safeId(campId) + '/journal.json'), { method: 'POST', body: body });
         ok = r.ok;
     } catch (e) {}
-    try { localStorage.setItem(lsKey(campId), body); ok = true; } catch (e) {}   // mirror (and fallback when there is no shell)
+    if (ok) { try { localStorage.removeItem(lsKey(campId)); } catch (e) {} return true; }   // the file holds it: a copy here would only fill the browser's storage (readIndex never reaches it while the file is there)
+    if (body.length <= 256 * 1024) { try { localStorage.setItem(lsKey(campId), body); ok = true; } catch (e) {} }   // no shell endpoint: the browser's storage keeps a small index
     return ok;
 }
 // Every change to a journal goes through one queue per campaign: read, change, write, in order.
@@ -76,7 +78,7 @@ async function registerJournal(key) {
     var keys = await readRegistry(); keys[safeId(key)] = true;
     var list = Object.keys(keys);
     try { await fetch('/api/upload-exact?path=' + encodeURIComponent(JOURNAL_DIR + '/journals.json'), { method: 'POST', body: JSON.stringify({ keys: list }) }); } catch (e) {}
-    try { localStorage.setItem('journal_registry', JSON.stringify(list)); } catch (e) {}
+    try { localStorage.setItem('journal_registry', JSON.stringify(list.slice(-200))); } catch (e) {}   // the 200 newest here; the file holds them all
 }
 // Every campaign that has a journal on this machine
 async function listJournals() {
@@ -106,12 +108,17 @@ function hashBytes(bytes) {
     for (var i = 0; i < bytes.length; i++) { h ^= bytes[i]; h = Math.imul(h, 0x01000193) >>> 0; }
     return h.toString(16) + '-' + bytes.length.toString(16);
 }
-// The newest journal entry that came from handout <id> (the original or any later version)
-function latestOf(idx, id) {
+// The newest journal entry that came from handout <id> (the original or any later version) from the same sender — the GM ('') or one player by
+// their exact id. Two players' shares under one id (a host cleaned 'u_x' and 'u_.x' alike once) never find each other's page: a page is replaced
+// in place only by its own sender
+function exactId(v) { return typeof v === 'string' && /^[A-Za-z0-9_.:-]{1,80}$/.test(v) ? v : ''; }
+function sharerOf(msg) { return msg && msg.sharedBy ? exactId(msg.sharedById) : ''; }
+function latestOf(idx, id, who) {
     var best = null;
-    idx.entries.forEach(function(e) { if ((e.id === id || e.from === id) && (!best || (e.receivedAt || 0) > (best.receivedAt || 0))) best = e; });
+    idx.entries.forEach(function(e) { if ((e.id === id || e.from === id) && (e.sharedById || '') === who && (!best || (e.receivedAt || 0) > (best.receivedAt || 0))) best = e; });
     return best;
 }
+function idTaken(idx, id) { return idx.entries.some(function(e) { return e.id === id; }); }
 function versionId(id) { return safeId(id).slice(0, 44) + '-v' + Date.now().toString(36); }
 // A shared entry remembers who sent it and what they wrote under it
 // Tags: short lowercase words, at most eight, from "faces, places" or an array
@@ -126,15 +133,25 @@ function stampShared(en, msg) {
     en.tags = tagList(msg.tags);
     if (!msg.sharedBy) return;
     en.sharedBy = String(msg.sharedBy).slice(0, 60);
-    en.sharedById = safeId(msg.sharedById);
+    en.sharedById = exactId(msg.sharedById);   // exactly as the host names the sender: cleaned, 'u_.x' would read as 'u_x'
     en.sharedNotes = String(msg.sharedNotes || '').slice(0, 20000);
 }
 function stampHead(idx, msg) {
-    idx.gm = String(msg.gm || idx.gm || '').slice(0, 60); idx.gmId = safeId(msg.gmId) || idx.gmId || '';
-    idx.campaign = String(msg.campaign || idx.campaign || '').slice(0, 120);
+    var g = safeId(msg.gmId);
+    if (!idx.gmId) idx.gmId = g;   // set once: a journal is one GM's
+    if (g && idx.gmId && g !== idx.gmId) return;   // a message naming another GM renames nothing here
+    idx.gm = String(msg.gm || idx.gm || '').slice(0, 60); idx.campaign = String(msg.campaign || idx.campaign || '').slice(0, 120);
 }
-var _hoCount = 0, _hoBytes = 0;   // what one run of the app accepts from tables: a host that keeps sending fills no disk
-function handoutBudget(msg) { var n = (msg && msg.data && msg.data.byteLength) || (msg && typeof msg.text === 'string' ? msg.text.length : 0) || 0; if (_hoCount >= 1000 || _hoBytes + n > 500 * 1024 * 1024) { toast('The GM is sending more handouts than this session can hold — the rest are skipped.'); return false; } _hoCount++; _hoBytes += n; return true; }
+var _hoCount = 0, _hoBytes = 0, _shCount = 0, _shBytes = 0;   // what one run of the app accepts from tables — the GM's handouts and, apart from them, the pages players share: a host that keeps sending fills no disk, and a player who keeps sharing never spends what the GM's handouts live on
+function handoutBudget(msg) {
+    var n = (msg && msg.data && msg.data.byteLength) || (msg && typeof msg.text === 'string' ? msg.text.length : 0) || 0;
+    if (msg && typeof msg.sharedBy === 'string' && msg.sharedBy) {
+        if (_shCount >= 200 || _shBytes + n > 100 * 1024 * 1024) { toast('Players are sharing more than this session can hold — the rest are skipped.'); return false; }
+        _shCount++; _shBytes += n; return true;
+    }
+    if (_hoCount >= 1000 || _hoBytes + n > 500 * 1024 * 1024) { toast('The GM is sending more handouts than this session can hold — the rest are skipped.'); return false; }
+    _hoCount++; _hoBytes += n; return true;
+}
 async function receiveHandout(msg) {
     var campId = journalKey(msg), id = safeId(msg.id);
     if (!campId || !id) return;
@@ -150,7 +167,7 @@ async function receiveHandout(msg) {
     var existing, added = false, failed = false, src, shownId = id;
     await withIndex(campId, async function(idx) {
         stampHead(idx, msg);
-        existing = latestOf(idx, id);
+        existing = latestOf(idx, id, sharerOf(msg));
         if (existing && existing.hash === undefined) {
             // first time this entry meets a hash (journal from before versions): same picture assumed, file refreshed
             src = await putFile(campId, existing.id + '.' + ext, bytes, mime);
@@ -177,8 +194,8 @@ async function receiveHandout(msg) {
             src = existing.src; shownId = existing.id;
             return;
         }
-        // first time, or a re-queue / re-show / new picture on top of a noted copy: a new entry of its own
-        var nid = existing ? versionId(id) : id;
+        // first time, or a re-queue / re-show / new picture on top of a noted copy: a new entry of its own (under an id of its own where another sender's page holds this one)
+        var nid = existing || idTaken(idx, id) ? versionId(id) : id;
         src = await putFile(campId, nid + '.' + ext, bytes, mime);
         if (!src) { failed = true; return false; }
         var en = { id: nid, title: title, caption: caption, src: src, mime: mime, hash: hash, receivedAt: Date.now(), notes: '' };
@@ -199,7 +216,7 @@ async function receiveTextHandout(msg, campId, id) {
     var existing, added = false, shownId = id;
     await withIndex(campId, function(idx) {
         stampHead(idx, msg);
-        existing = latestOf(idx, id);
+        existing = latestOf(idx, id, sharerOf(msg));
         var hasNotes = existing && String(existing.notes || '').trim() !== '';
         if (existing && !hasNotes) {
             // nothing written on it yet: the latest replaces it, whatever changed
@@ -216,8 +233,8 @@ async function receiveTextHandout(msg, campId, id) {
             shownId = existing.id;
             return;
         }
-        // first time, or a re-queue / re-show / changed text on top of a noted copy: a new entry of its own
-        var en = { id: existing ? versionId(id) : id, kind: 'text', title: title, caption: caption, text: text, receivedAt: Date.now(), notes: '' };
+        // first time, or a re-queue / re-show / changed text on top of a noted copy: a new entry of its own (under an id of its own where another sender's page holds this one)
+        var en = { id: existing || idTaken(idx, id) ? versionId(id) : id, kind: 'text', title: title, caption: caption, text: text, receivedAt: Date.now(), notes: '' };
         if (existing) en.from = id;
         stampShared(en, msg);
         idx.entries.push(en); added = true; shownId = en.id;
@@ -229,6 +246,7 @@ async function receiveTextHandout(msg, campId, id) {
     else toast((msg.sharedBy ? msg.sharedBy + ' shared' : 'New handout') + ': "' + (title || 'Handout') + '" — in your Journal.');
 }
 window.wpJournalReceive = receiveHandout;
+// [netcheck:journal-end]
 
 /* ---------- the viewer (used for a fresh reveal and from the journal) ---------- */
 function showHandout(h) {

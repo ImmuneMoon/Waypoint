@@ -109,7 +109,7 @@ function newKey() { var a = new Uint8Array(16); try { crypto.getRandomValues(a);
 // (client) the keys this player holds, per GM id
 function tableKeys() { try { var k = JSON.parse(localStorage.getItem('wp_tableKeys') || 'null'); return k && typeof k === 'object' && !Array.isArray(k) ? k : {}; } catch (e) { return {}; } }
 function tableKeyFor(gmId) { var k = tableKeys(); return (own(k, gmId) && typeof k[gmId] === 'string') ? k[gmId].slice(0, 64) : ''; }
-function rememberTableKey(gmId, key) { if (typeof gmId !== 'string' || !gmId || typeof key !== 'string' || !key) return; var k = tableKeys(); k[gmId] = key.slice(0, 64); try { localStorage.setItem('wp_tableKeys', JSON.stringify(k)); } catch (e) {} }
+function rememberTableKey(gmId, key) { if (typeof gmId !== 'string' || !gmId || typeof key !== 'string' || !key) return; var k = tableKeys(); delete k[gmId]; k[gmId] = key.slice(0, 64); var ids = Object.keys(k); ids.slice(0, Math.max(0, ids.length - 50)).forEach(function(g) { delete k[g]; }); try { localStorage.setItem('wp_tableKeys', JSON.stringify(k)); } catch (e) {} }   // the 50 newest GM ids (the one just remembered newest): a host naming a new id at every snapshot grows nothing without end
 // A profile picture a peer may show: a small inline image whose WHOLE string is base64. A prefix check let a quote-breaking tail
 // (x" onerror=…) ride into an src="…" — script on the GM's screen, and through the roster on every player's.
 function safeAvatar(v) { return typeof v === 'string' && v.length <= 200000 && /^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+\/=]+$/.test(v); }
@@ -312,7 +312,7 @@ var _lim = Object.create(null);
 function allow(name, cfg, peer) { var Lr = _lim[name]; if (!Lr) { var DCl = window.wpDiceCore; if (!DCl || !DCl.RateLimit) return true; Lr = _lim[name] = DCl.RateLimit(cfg); } return Lr.allow(peer, Date.now()) === true; }
 var _connMeta = Object.create(null);    // host: per-connection bookkeeping before admission — openedAt, hello count, the key challenge
 var _pwFails = [];                       // host: timestamps of wrong session passwords (any connection), for the table-wide lockout
-var _shareBytes = Object.create(null);   // host: bytes each peer has shared this session
+var _shareBytes = Object.create(null), _shareCount = Object.create(null);   // host: the bytes and the shares each player (by profile id) has sent this session — a reconnect keeps its budget; a new table forgets them
 net.myId = getProfile().id;
 
 /* ---------- ui helpers ---------- */
@@ -3395,13 +3395,16 @@ function cleanCombats(c) {
     });
     return out;
 }
+// [netcheck:notepad-start]
 function applyNotepad(m) {
     var was = net.notepad.on;
-    net.notepad = { on: !!m.on, text: String(m.text || '').slice(0, 20000), campId: String(m.campId || '').slice(0, 80), gmId: String(m.gmId || '').slice(0, 80), campaign: String(m.campaign || '').slice(0, 120), gm: String(m.gm || 'GM').slice(0, 60) };
+    // filed, on "save to Journal", under the table played — the campaign on screen and the GM the snapshot named — never under a campaign or GM the message names
+    net.notepad = { on: !!m.on, text: String(m.text || '').slice(0, 20000), campId: String((state.appState && state.appState.activeCampaignId) || '').slice(0, 80), gmId: String(net.gmId || '').slice(0, 80), campaign: String(m.campaign || '').slice(0, 120), gm: String(m.gm || 'GM').slice(0, 60) };
     if (net.notepad.on && !was) toast('The GM opened a table notepad — you can save it to your Journal any time.');
     else if (!net.notepad.on && was) toast('The GM put the table notepad away.');
     renderNotepad();
 }
+// [netcheck:notepad-end]
 /* What a player gets of the combats: the order, never a number (1.5.0). A row's initiative can be the total of a roll the GM alone saw
    (the roster's Roll keeps one that reads a GM-only value private, and its total still sets the order), and nothing on a player's side
    reads it, so no row carries init to a player, on any map; the host keeps its own for the roster. Fog of war (1.5.0 FV2): the combat
@@ -3915,15 +3918,27 @@ net.shareEntry = function(payload) {
     if (!net.active || net.role !== 'client' || !net.conns[0] || !net.conns[0].open) { toast('Join a session first.'); return false; }
     try { net.conns[0].send(Object.assign({ type: 'share' }, payload)); return true; } catch (e) { toast('Could not send that.'); return false; }
 };
+// [netcheck:share-start]
+// The id a shared page lands under in a journal: 'sh_' + the sender + '__' + the page's own id. The sender part names the sender without
+// ambiguity — every character outside [A-Za-z0-9] is written as '-' and two hex digits, so no two profile ids read alike ('u_x' and 'u_.x' did) —
+// and the page part keeps no '_', so the one '__' parts them; an id too long for the journal's 60 characters is hashed behind '--', which no
+// encoded part can hold. (A journal replaces a page in place only for the same sender besides, so an equal id never lets one player overwrite another's.)
+function shareIdOf(pid, eid) {
+    var s = String(pid || ''), enc = s.replace(/[^A-Za-z0-9]/g, function(ch) { return '-' + ('0' + ch.charCodeAt(0).toString(16)).slice(-2); });
+    if (enc.length > 24) { var h = 0x811c9dc5; for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } enc = '--' + ('0000000' + h.toString(16)).slice(-8); }
+    return 'sh_' + enc + '__' + String(eid || '').replace(/[^A-Za-z0-9-]/g, '').slice(0, 30);
+}
 function relayShare(msg, conn, sender) {
     var sp = sender || (conn && net.roster[conn.peer]); if (!sp) return false;
     var en = msg.entry; if (!en || typeof en !== 'object') return;
-    if (conn) {   // from a player: a few a minute, and a budget for the session (a share lands on the GM's disk or in another player's journal)
-        if (!allow('share', { perMs: 1000, burst: 6, windowMs: 60000, table: 300 }, conn.peer)) return;
+    if (conn) {   // from a player: a few a minute, and a budget for the session (a share lands on the GM's disk or in another player's journal) — 100 shares and 60 MB,
+                  // the player's own by profile id, so a new connection (a new peer id) is no new allowance; the notes and the caption count with the text or the picture
+        var kS = String(sp.id);
+        if (!allow('share', { perMs: 1000, burst: 6, windowMs: 60000, table: 300 }, kS)) return;
         if (en.data && !(en.data instanceof ArrayBuffer || ArrayBuffer.isView(en.data))) return;   // binary or nothing: a decoded map could claim any byteLength
-        var szS = (en.data && en.data.byteLength) || (typeof en.text === 'string' ? en.text.length : 0);
-        if ((_shareBytes[conn.peer] || 0) + szS > 60 * 1024 * 1024) return;
-        _shareBytes[conn.peer] = (_shareBytes[conn.peer] || 0) + szS;
+        var szS = ((en.data && en.data.byteLength) || (typeof en.text === 'string' ? en.text.length : 0)) + (typeof en.notes === 'string' ? en.notes.length : 0) + (typeof en.caption === 'string' ? en.caption.length : 0);
+        if ((_shareCount[kS] || 0) >= 100 || (_shareBytes[kS] || 0) + szS > 60 * 1024 * 1024) return;
+        _shareCount[kS] = (_shareCount[kS] || 0) + 1; _shareBytes[kS] = (_shareBytes[kS] || 0) + szS;
     }
     var kind = en.kind === 'image' ? 'image' : 'text';
     var to = msg.to === '*' || msg.to === 'gm' ? msg.to : (typeof msg.to === 'string' && msg.to.length <= 80 ? msg.to : null);
@@ -3931,7 +3946,7 @@ function relayShare(msg, conn, sender) {
     var camp = getActiveCampaign(); if (!camp) return;
     var out = {
         type: 'handout', campId: camp.id, gmId: getProfile().id, campaign: camp.name || '', gm: getProfile().name || 'GM',
-        id: 'sh_' + String(sp.id || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 24) + '_' + String(en.id || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 30),
+        id: shareIdOf(sp.id, en.id),
         title: String(en.title || '').slice(0, 120), caption: String(en.caption || '').slice(0, 4000),
         sharedBy: String(sp.name || 'A player').slice(0, 60), sharedById: sp.id, sharedNotes: String(en.notes || '').slice(0, 20000),
         tags: Array.isArray(en.tags) ? en.tags.slice(0, 8).map(function(t) { return String(t).slice(0, 24); }) : []
@@ -3952,6 +3967,7 @@ function relayShare(msg, conn, sender) {
     if (names.length) toast((sp.name || 'A player') + ' shared "' + (out.title || 'a note') + '" with ' + names.join(', ') + '.');
     if (names.length) logEvent('share', (sp.name || 'A player') + ' shared "' + (out.title || 'a note') + '" with ' + names.join(', '));
 }
+// [netcheck:share-end]
 net.revealHandout = function(hid, pids) {
     if (!net.active || net.role !== 'host') { toast('Host a session first.'); return; }
     var camp = getActiveCampaign(); var h = camp && camp.handouts && camp.handouts[hid];
@@ -4661,9 +4677,18 @@ function handleMessage(msg, conn) {
     } else if (msg.type === 'share' && net.role === 'host') {
         relayShare(msg, conn);
     } else if (msg.type === 'handout' && net.role === 'client') {
+        // [netcheck:handoutmsg-start]
+        // the synced host only, after its snapshot, never the stream window; and only for the table played — the campaign on screen and the GM the snapshot
+        // named — so nothing a host says before it admits a player, and nothing naming another GM's table, is written into the Journal kept for that table
+        if (!net.foreign || conn.peer !== net.syncedPeer || net.stream || !net.gmId) return;
+        if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId || msg.gmId !== net.gmId) return;
         if (window.wpJournalReceive) window.wpJournalReceive(msg);
+        // [netcheck:handoutmsg-end]
     } else if (msg.type === 'notepad' && net.role === 'client') {
+        // [netcheck:notepadmsg-start]
+        if (!net.foreign || conn.peer !== net.syncedPeer || net.stream) return;   // the synced host only, after its snapshot; never the stream window
         applyNotepad(msg);
+        // [netcheck:notepadmsg-end]
     } else if (msg.type === 'combats' && net.role === 'client') {
         var before = net.combats, after = cleanCombats(msg.combats);
         net.combats = after;
@@ -5688,7 +5713,7 @@ function wireConn(conn) {
         if (charLimit) charLimit.forget(conn.peer);
         Object.keys(_lim).forEach(function(k) { _lim[k].forget(conn.peer); });
         var cmC = _connMeta[conn.peer]; if (cmC && cmC.authTimer) clearTimeout(cmC.authTimer);
-        delete _connMeta[conn.peer]; delete _shareBytes[conn.peer]; delete lastSeen[conn.peer];
+        delete _connMeta[conn.peer]; delete lastSeen[conn.peer];   // (a player's share budget is by profile id and outlives the connection)
         var p = net.roster[conn.peer];
         delete net.roster[conn.peer];
         if (p && p.id && !net.conns.some(function(c) { return c.open && net.roster[c.peer] && net.roster[c.peer].id === p.id; })) sensesForget(p.id);   // Senses S0: their last connection: what their copies were made by is forgotten, and no send waits for them
@@ -5997,7 +6022,7 @@ function leaveSession(silent) {
     net.syncedPeer = null;
     net.sounds = null; net.soundNow = null;   // transport memory, unlike the ceiling: the next table sends its own list
     net.music = null;                         // the music library too; wpMusic.tableLeft below stops any playback
-    net.libReset(); _libSpent = Object.create(null);   // Stage 6 library L3: a table's library and what its players drew, gone with the session
+    net.libReset(); _libSpent = Object.create(null); _shareBytes = Object.create(null); _shareCount = Object.create(null);   // Stage 6 library L3: a table's library and what its players drew — and what they shared — gone with the session
     resetAssetTransfers();                    // in-flight sound requests and their waiters die with the connection
     if (window.wpSound) window.wpSound.tableLeft(wasClient);
     if (window.wpMusic && window.wpMusic.tableLeft) window.wpMusic.tableLeft(wasClient);

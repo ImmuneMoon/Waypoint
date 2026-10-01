@@ -83,6 +83,11 @@ Tokens and portals
   shows the character's initials in a dashed circle instead of an empty box.
 
 Welcome screen, profile and tour
+- On a fresh Waypoint the tour starts once you are past the welcome screen
+  (Start a campaign or Enter Waypoint), before anything is made: the
+  Tutorial campaign is your first unless you skip the tour, and the prompt
+  naming a campaign of your own follows the tour or its Skip. The welcome
+  lists no campaign to continue until one holds something.
 - Waypoint opens on a Welcome screen: Start a campaign, Import one from a
   file, Continue one already on this computer, or Join a game. The Waypoint
   logo at the top left brings it back any time, and Settings ▸ Profile ▸

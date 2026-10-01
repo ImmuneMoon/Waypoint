@@ -8067,7 +8067,7 @@ pendingChecks.push((async () => {
         fnSrc('function freeSpotNear(', '\n}\n', 'freeSpotNear') + '\n}\n', fnSrc('function stepOffPortal(', '\n}\n', 'stepOffPortal') + '\n}\n', fnSrc('function portalUnder(', '\n}\n', 'portalUnder') + '\n}\n', trSrc,
         lineOf('var _saveSoon = null;'), lineOf('function saveRemoteSoon()'), bw('bpos'), src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem(')), bw('pos'), bw('patch'), bw('fogmove'),
         'return { snapshot: sanitizeAppState, travel: hostTravel, stageConn: stageConn, relay: broadcastPos, seedSnap: fogSeedSnapshot, catchUp: fogCatchUp, fire: fogMoveFire, arm: fogArm, forgetConn: fogForgetConn, forgetAll: fogForgetAll, ackTook: ackTook, fogHeld: function() { return _fogHeld; },',
-        'held: typeof mapHeld === "function" ? mapHeld : null, heldNote: typeof mapHeldNote === "function" ? mapHeldNote : null, heldOf: typeof mapHeldOf === "function" ? mapHeldOf : null, give: typeof mapGive === "function" ? mapGive : null, stub: typeof mapStub === "function" ? mapStub : null, store: function() { return typeof _mapHeld === "object" ? _mapHeld : null; },',
+        'held: typeof mapHeld === "function" ? mapHeld : null, heldNote: typeof mapHeldNote === "function" ? mapHeldNote : null, heldOf: typeof mapHeldOf === "function" ? mapHeldOf : null, give: typeof mapGive === "function" ? mapGive : null, stub: typeof mapStub === "function" ? mapStub : null, store: function() { return typeof _mapHeld === "object" ? _mapHeld : null; }, take: typeof mapTake === "function" ? mapTake : null, left: typeof mapLeft === "function" ? mapLeft : null, follow: typeof followConns === "function" ? followConns : null, pend: function(p, m) { return typeof hidPendOf === "function" ? hidPendOf(p, m) : null; },',
         'needItem: function(msg, conn) {', niBody, '} };'].join('\n');
     const NAMES9 = ['net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'sendFailed', 'peerProfileId', 'lim', 'pushChat', 'state', 'broadcast', '_lastSent', 'setTimeout', 'clearTimeout', 'save', 'toast', 'logEvent', 'renderRoster', 'dropWaitingFor', 'allow', 'render', 'broadcastRoster', 'checkRoomHandouts', 'applyPosToDom', 'bellOut', 'renderNotepad', 'fogNow', 'ensurePlayerToken', 'findLandingRoom', 'landingPoint'];
     const build9 = new Function(...NAMES9, modSrc);
@@ -8076,15 +8076,17 @@ pendingChecks.push((async () => {
     const pageSrc = [ownKeySrc, broadcastSrc, lineOf('function escAttr(s) {'), fnSrc('function sanitizeRichText(', '\n}\n', 'sanitizeRichText') + '\n}\n', lineOf('function safeColor('), lineOf('function cleanHostWbItem(w) {'), lineOf('function cleanHostTokSenses(w) {'), lineOf('function cleanHostFxb(w) {'), lineOf('function cleanHostLight(w) {'),
         fnSrc('function ownCellKeysOf(', '\n}\n', 'ownCellKeysOf') + '\n}\n', fnSrc('function ownTokIdsOf(', '\n}\n', 'ownTokIdsOf') + '\n}\n', fnSrc('function cleanHostMap(', '\n}\n', 'cleanHostMap') + '\n}\n', bw('actlog'),
         fnSrc('function applyItem(msg) {', '\n}\n', 'applyItem') + '\n}\n', fnSrc('function applyItemDelta(msg) {', '\n}\n', 'applyItemDelta') + '\n}\n', bw('fogdiffapply'),
-        'return { applyItem: applyItem, applyItemDelta: applyItemDelta, cleanMap: cleanHostMap, fogDiff: function(msg, conn) {', bw('fogdiff'), '} };'].join('\n');
+        lineOf('function fromHost('), fnSrc('function mapStub(map) {', '\n}\n', 'mapStub') + '\n}\n', fnSrc('function activeItemPatch() {', '\n}\n', 'activeItemPatch') + '\n}\n',
+        'return { applyItem: applyItem, applyItemDelta: applyItemDelta, cleanMap: cleanHostMap, patch: activeItemPatch, fogDiff: function(msg, conn) {', bw('fogdiff'), '}, mapBack: function(msg, conn) {', has('mapback') ? bw('mapback') : '', '} };'].join('\n');   // mapback: absent on the code before the take-back — its cases then fail, not the run
     const buildPage = new Function('net', 'state', 'window', 'getActiveCampaign', 'render', 'updateSidebarNav', 'cleanWaitingItem', pageSrc);
     const mkPage = (myId, active) => {
         const asked = [], hostConn = { peer: 'h', open: true, send(m) { packCheck(m); asked.push(JSON.parse(J(m))); } };
         const net = { role: 'client', active: true, foreign: true, syncedPeer: 'h', stream: false, applyingRemote: false, myId, conns: [hostConn], roster: {} };
         const camp = { id: 'k', activeItemId: active || 'mA', items: {} }, state = { appState: { activeCampaignId: 'k', campaigns: { k: camp } } };
-        const P = buildPage(net, state, { wpFogCore: FCx, wpFog: { invalidateVision() {}, redraw() {} } }, () => camp, () => {}, () => {}, H.cleanWaitingItem);
-        const feed = m => { m = JSON.parse(J(m)); if (m.type === 'item') P.applyItem(m); else if (m.type === 'itemDelta') P.applyItemDelta(m); else if (m.type === 'fogDiff') P.fogDiff(m, { peer: 'h' }); else if (m.type === 'itemGone') delete camp.items[m.itemId]; };
-        return { P, camp, asked, feed, map: id => camp.items[id] };
+        const cnt = { render: 0, nav: 0 };
+        const P = buildPage(net, state, { wpFogCore: FCx, wpFog: { invalidateVision() {}, redraw() {} } }, () => camp, () => { cnt.render++; }, () => { cnt.nav++; }, H.cleanWaitingItem);
+        const feed = m => { m = JSON.parse(J(m)); if (m.type === 'item') P.applyItem(m); else if (m.type === 'itemDelta') P.applyItemDelta(m); else if (m.type === 'fogDiff') P.fogDiff(m, { peer: 'h' }); else if (m.type === 'mapBack') P.mapBack(m, { peer: 'h' }); else if (m.type === 'itemGone') delete camp.items[m.itemId]; };
+        return { P, camp, asked, feed, cnt, state, net, map: id => camp.items[id] };
     };
     const T = (id, owner, charId, c, r, more) => Object.assign({ id, type: 'image', isChar: true, charName: id, x: c * 50, y: r * 50, w: 50, h: 50, rot: 0, front: 0 }, owner ? { ownerId: owner } : {}, charId ? { charId } : {}, more || {});
     const M = (id, wb, meta, fog) => ({ id, type: 'map', meta: Object.assign({ title: 'The ' + id, gridType: 'square', cellValue: 5, cellUnit: 'ft' }, meta || {}), rooms: [], links: [], cats: {}, fog: fog ? Object.assign({ on: true, mode: 'auto', light: 'dark', manual: { adds: [], cuts: [] } }, fog) : { on: false }, whiteboard: wb });
@@ -8178,8 +8180,8 @@ pendingChecks.push((async () => {
         const W = mkW(); W.join(W.a1, 'mA'); W.join(W.a2, 'mA'); W.join(W.b1, 'mA'); delete W.camp.items.mB.meta.playerLock; W.clear();
         const ok = W.net.summonPlayerToMap('u_b', 'mB');
         const bTypes = W.types(W.b1), bItem = W.b1.sent.find(m => m.type === 'item' && m.itemId === 'mB'), bPage = W.b1.page.map('mB');
-        check('possession: summoning Bo to mB (net.summonPlayerToMap, stageConn, run for real) makes his token there and tells the table (nobody holds mB: no copy goes out, Ana\'s connections get the stub afresh), then gives his connection mB whole — the text, the monster, Ana\'s token and his new one, no stub mark — and only then the stage word; the record names mB for his connection alone; Ana\'s connections hear nothing of what is on mB (one fresh stub each, no content, nothing else) and the waiting peer nothing at all',
-            ok === true && J(bTypes) === J(['item:mB', 'stage']) && !!bItem && J(bItem.item.whiteboard.map(w => w.id)) === J(['noteB', 'tokB', 'pad1', 'pad2', 'tAb', 'new_u_b_mB']) && bItem.item.stub === undefined && J(W.ensured) === J(['u_b:mB'])
+        check('possession: summoning Bo to mB (net.summonPlayerToMap, stageConn, run for real) makes his token there and tells the table (nobody holds mB: no copy goes out, Ana\'s connections get the stub afresh), then gives his connection mB whole — the text, the monster, Ana\'s token and his new one, no stub mark — and only then the stage word, and after it the take-back word for mA, the map he left (his page holds mA\'s stub, the record no longer names it for him; Ana\'s connections keep it whole and are sent no take-back); the record names mB for his connection alone; Ana\'s connections hear nothing of what is on mB (one fresh stub each, no content, nothing else) and the waiting peer nothing at all',
+            ok === true && J(bTypes) === J(['item:mB', 'stage', 'mapBack:mA']) && W.held(W.b1, 'mA') === false && J(W.b1.page.map('mA')) === J(STUB('mA', 'The mA')) && [W.a1, W.a2].every(c => W.held(c, 'mA') === true && !('stub' in c.page.map('mA'))) && !!bItem && J(bItem.item.whiteboard.map(w => w.id)) === J(['noteB', 'tokB', 'pad1', 'pad2', 'tAb', 'new_u_b_mB']) && bItem.item.stub === undefined && J(W.ensured) === J(['u_b:mB'])
             && J(bPage.whiteboard.map(w => w.id)) === J(['noteB', 'tokB', 'pad1', 'pad2', 'tAb', 'new_u_b_mB']) && !('stub' in bPage) && J(bPage) === J(W.cleanOf('mB')) && W.held(W.b1, 'mB') === true && W.held(W.a1, 'mB') === false && W.held(W.a2, 'mB') === false && [W.a1, W.a2].every(c => J(W.types(c)) === J(['item:mB']) && J(c.sent[0].item) === J(STUB('mB', 'The mB', { parentId: 'mA', sortIndex: 2 }))) && W.w1.sent.length === 0 && W.net.roster.pB.location === 'mB',
             J([ok, bTypes, bItem && bItem.item.whiteboard.map(w => w.id), W.ensured, W.a1.sent.length]));
         W.clear(); W.camp.items.mB.whiteboard[0].text = 'SENTINEL_TEXT_B changed'; W.net.sendItem('k', 'mB');
@@ -8198,8 +8200,8 @@ pendingChecks.push((async () => {
         const order = W.ev.filter(e => /^(pA1|pB):/.test(e)), pagesEq = [W.a1, W.b1].map(c => J(c.page.map('mB')) === J(W.cleanOf('mB')));
         W.clear(); W.camp.items.mB.whiteboard[1].x = 900; W.net.sendItem('k', 'mB');
         const next = { types: W.ev.filter(e => /^(pA1|pB):/.test(e)), eq: [W.a1, W.b1].map(c => J(c.page.map('mB')) === J(W.cleanOf('mB'))), asked: W.a1.page.asked.length + W.b1.page.asked.length };
-        check('possession: a change made while only Bo held mB is sent to him as a delta before Ana\'s whole copy goes (then her stage word), so both pages equal the host\'s copy, and the next change reaches both as a delta that fits both — no page asks for the whole map',
-            J(order) === J(['pB:itemDelta:mB', 'pA1:item:mB', 'pA1:stage']) && J(pagesEq) === J([true, true]) && J(next) === J({ types: ['pA1:itemDelta:mB', 'pB:itemDelta:mB'], eq: [true, true], asked: 0 }), J([order, pagesEq, next]));
+        check('possession: a change made while only Bo held mB is sent to him as a delta before Ana\'s whole copy goes (then her stage word, then the take-back of the map she left), so both pages equal the host\'s copy, and the next change reaches both as a delta that fits both — no page asks for the whole map',
+            J(order) === J(['pB:itemDelta:mB', 'pA1:item:mB', 'pA1:stage', 'pA1:mapBack:mA']) && J(pagesEq) === J([true, true]) && J(next) === J({ types: ['pA1:itemDelta:mB', 'pB:itemDelta:mB'], eq: [true, true], asked: 0 }), J([order, pagesEq, next]));
     }
     // (5) a portal: hostTravel gives the destination whole before the personal stage, to the traveller's connection alone; a locked destination still refuses
     {
@@ -8250,18 +8252,19 @@ pendingChecks.push((async () => {
         W.api.arm('mF'); W.fire(150); const caught = W.ev.slice();
         W.clear(); W.net.broadcastItemFiltered('k', 'mF'); W.net.sendItem('k', 'mF'); const resent = W.ev.slice();
         check('possession: a fogged map given at Ana\'s arrival (summoned to mF) is her own copy through her own fog (the orc 13 cells off left out, her token in) with the step-back\'s number on it, and fogSeed records it; a move of the orc into her sight is caught up in place on her connection alone (the real fogCatchUp over the real fog.js); a whole re-send of mF goes to her connection alone: a push gives her other connection and Bo, who hold its stub, the stub afresh and nothing of the map, a send gives them nothing',
-            J(aT) === J(['item:mF', 'stage']) && !!aItem && J(aItem.item.whiteboard.map(w => w.id)) === J(['tAf']) && aItem.ack === 7 && J(fogRec) === J(['mF']) && J(caught) === J(['pA1:fogDiff:mF']) && J(W.a1.page.map('mF').whiteboard.map(w => w.id)) === J(['tAf', 'orcF'])
+            J(aT) === J(['item:mF', 'stage', 'mapBack:mA']) && !!aItem && J(aItem.item.whiteboard.map(w => w.id)) === J(['tAf']) && aItem.ack === 7 && J(fogRec) === J(['mF']) && J(caught) === J(['pA1:fogDiff:mF']) && J(W.a1.page.map('mF').whiteboard.map(w => w.id)) === J(['tAf', 'orcF'])
             && J(resent) === J(['pA2:item:mF', 'pB:item:mF', 'pA1:item:mF', 'pA1:item:mF']) && [W.a2, W.b1].every(c => c.sent.length === 1 && J(c.sent[0].item) === J(STUB('mF', 'The mF', { sortIndex: 4 }))) && !W.leak(W.a2, SENT_F) && !W.leak(W.b1, SENT_F), J([aT, fogRec, caught, resent]));
     }
     // (9) forgotten with the connection, with the map and at a new table; a map that goes leaves every page
     {
-        const W = mkW(); W.join(W.a1, 'mA'); W.join(W.b1, 'mA'); delete W.camp.items.mB.meta.playerLock; W.net.summonPlayerToMap('u_b', 'mB'); W.net.summonPlayerToMap('u_a', 'mB');
-        const before = [W.held(W.a1, 'mB'), W.held(W.b1, 'mB'), W.held(W.a1, 'mA')];
-        W.api.forgetConn('pB'); const conn = [W.held(W.a1, 'mB'), W.held(W.b1, 'mB'), W.held(W.b1, 'mA')];
-        W.net.itemGone('k', 'mB'); const gone = [W.held(W.a1, 'mB'), W.held(W.a1, 'mA'), 'mB' in W.a1.page.camp.items];
-        W.api.forgetAll(); const all = [W.held(W.a1, 'mA'), J(W.api.store())];
-        check('possession: the record is forgotten with the connection (fogForgetConn, as the close handler and a kick go through it), with a map that goes (net.itemGone: every page loses it too) and at a new table (fogForgetAll)',
-            J(before) === J([true, true, true]) && J(conn) === J([true, false, false]) && J(gone) === J([false, true, false]) && J(all) === J([false, '{}']), J([before, conn, gone, all]));
+        const W = mkW(); W.join(W.a1, 'mA'); W.join(W.b1, 'mA'); delete W.camp.items.mB.meta.playerLock; W.net.summonPlayerToMap('u_b', 'mB');
+        const before = [W.held(W.a1, 'mA'), W.held(W.b1, 'mB'), W.held(W.b1, 'mA')];
+        W.api.forgetConn('pB'); const conn = [W.held(W.a1, 'mA'), W.held(W.b1, 'mB')];
+        W.net.summonPlayerToMap('u_a', 'mB'); const left = [W.held(W.a1, 'mB'), W.held(W.a1, 'mA'), W.a1.page.map('mA') && W.a1.page.map('mA').stub === true];   // Ana leaves mA: her page holds its stub
+        W.net.itemGone('k', 'mA'); W.net.itemGone('k', 'mB'); const gone = [W.held(W.a1, 'mB'), 'mA' in W.a1.page.camp.items, 'mB' in W.a1.page.camp.items];
+        W.note(W.a1, 'mC'); const noted = W.held(W.a1, 'mC'); W.api.forgetAll(); const all = [W.held(W.a1, 'mC'), J(W.api.store())];
+        check('possession: the record is forgotten with the connection (fogForgetConn, as the close handler and a kick go through it), with a map that goes (net.itemGone: every page loses it too — a map the GM deletes while a player is away takes its stub with it) and at a new table (fogForgetAll)',
+            J(before) === J([true, true, false]) && J(conn) === J([true, false]) && J(left) === J([true, false, true]) && J(gone) === J([false, false, false]) && noted === true && J(all) === J([false, '{}']), J([before, conn, left, gone, noted, all]));
     }
     // (10) the source: the join, the stage and the travel wired to the record; the stage word still written in three places; Help and the lock's tooltip say it
     {
@@ -8271,8 +8274,142 @@ pendingChecks.push((async () => {
             /camp\.items\[stage\.itemId\]\.stub === true && net\.needItem\) net\.needItem\(stage\.campId, stage\.itemId\);/.test(fnSrc('function applyStage(stage) {', '\n}\n', 'applyStage')) && /si-lock" title="[^"]*holds only its name/.test(sbSrc) &&
             /if \(typeof mapForgetConn === 'function'\) mapForgetConn\(conn\.peer\);[^\n]*\n\s*if \(land\.stage && typeof mapHeldNote === 'function'\) mapHeldNote\(conn, land\.stage\.itemId\);/.test(src) && /sanitizeAppState\(state\.appState, prof\.id, typeof mapHeldOf === 'function' \? mapHeldOf\(conn\) : null\)/.test(src) && /sendFailed\(e, 'snapshot'\);[^\n]*if \(typeof mapForgetConn === 'function'\) mapForgetConn\(conn\.peer\); \}/.test(src)
             && /ensurePlayerToken\(p\.id, stage\.itemId\);\n\s*if \(typeof mapGive === 'function'\) mapGive\(c, stage\.campId, stage\.itemId\);[^\n]*\n\s*if \(c\.open\) \{ try \{ c\.send\(personal \? \{ type: 'stage'/.test(src) && /if \(conn && typeof mapGive === 'function'\) mapGive\(conn, tCamp\.id, pRoom\.targetMapId\);[^\n]*\n\s*if \(conn\) \{ try \{ conn\.send\(\{ type: 'stage', personal: true/.test(src)
-            && (src.match(/type: 'stage'/g) || []).length === 3 && /net\.sendItem\(msg\.campId, msg\.itemId, conn\);/.test(has('needitem') ? bw('needitem') : '') && !/conn\.send\(/.test(has('needitem') ? bw('needitem') : 'conn.send(') && (srcNoCm.match(/mapGive\(/g) || []).length === 3 && (srcNoCm.match(/mapStub\(/g) || []).length === 3
+            && (src.match(/type: 'stage'/g) || []).length === 3 && /net\.sendItem\(msg\.campId, msg\.itemId, conn\);/.test(has('needitem') ? bw('needitem') : '') && !/conn\.send\(/.test(has('needitem') ? bw('needitem') : 'conn.send(') && (srcNoCm.match(/mapGive\(/g) || []).length === 3 && (srcNoCm.match(/mapStub\(/g) || []).length === 5
             && /not on their machine/.test(html) && /id="ctxLockItem"[^\n]*not on their machine/.test(html) && /<li><b>What reaches a player[^\n]*not reached/.test(html));
+    }
+    // (11) the take-back (the owner's ruling of 2026-10-01): a map a player leaves is taken back from that connection — the host forgets it for the
+    // connection and sends one word, the player's app puts the stub back — and it is given whole again when they return
+    {
+        const W = mkW(); Object.assign(W.camp.items.mA.meta, { playerLock: true, parentId: 'mC', sortIndex: 1 }); delete W.camp.items.mB.meta.playerLock;
+        W.join(W.a1, 'mA'); W.join(W.a2, 'mA'); W.join(W.b1, 'mA'); W.clear();
+        W.camp.items.mA.whiteboard[0].x = 300; W.camp.items.mA.whiteboard[0].y = 300;   // Ana stands on the door
+        const went = W.api.travel(W.a1, W.net.roster.pA1, W.camp.items.mA.whiteboard[3], W.camp.items.mA);
+        const a1T = W.types(W.a1), back = W.a1.sent.filter(m => m.type === 'mapBack'), stubA = STUB('mA', 'The mA', { playerLock: true, parentId: 'mC', sortIndex: 1 });
+        check('possession (take-back): Ana travels from mA to mB through a portal (hostTravel, run for real) — after mB is given whole and her stage word sent, her connection gets one take-back word for mA; her page then holds mA as its stub (its title, its lock, its nesting; nothing on it) and mB whole, and the record no longer names mA for her connection; her other connection and Bo, still on mA, keep it whole and are sent no take-back; her page asks for nothing',
+            went === true && J(a1T.slice(-3)) === J(['item:mB', 'stage', 'mapBack:mA']) && back.length === 1 && J(W.a1.page.map('mA')) === J(stubA) && J(W.a1.page.map('mB')) === J(W.cleanOf('mB')) && W.held(W.a1, 'mA') === false && W.held(W.a1, 'mB') === true
+            && [W.a2, W.b1].every(c => W.held(c, 'mA') === true && !c.sent.some(m => m.type === 'mapBack') && J(c.page.map('mA')) === J(W.cleanOf('mA'))) && W.a1.page.asked.length === 0, J([went, a1T, W.a1.page.map('mA')]));
+        check('possession (take-back): the take-back word carries nothing of the map — its type, the campaign, the map\'s id and the stub\'s meta (title, lock, nesting, sort order) and no key besides: no item, no piece, no room, no link, no fog',
+            back.length === 1 && J(back[0]) === J({ type: 'mapBack', campId: 'k', itemId: 'mA', meta: { title: 'The mA', playerLock: true, parentId: 'mC', sortIndex: 1 } }) && !/SENTINEL_BEAST_A|beast|door|whiteboard|rooms|links|fog|gridType/.test(J(back[0])), J(back));
+        W.clear(); W.camp.items.mA.whiteboard[2].x = 777; W.net.sendItem('k', 'mA');
+        W.api.relay({ type: 'pos', campId: 'k', itemId: 'mA', wbId: 'beast', x: 5, y: 6, rot: 0, front: 0, final: true }, null, W.camp, W.camp.items.mA, W.camp.items.mA.whiteboard[2]);
+        W.api.needItem({ type: 'needItem', campId: 'k', itemId: 'mA' }, W.a1);
+        const later = { a1: W.types(W.a1), a2: W.types(W.a2), b: W.types(W.b1), bPage: J(W.b1.page.map('mA')) === J(W.cleanOf('mA')), aPage: J(W.a1.page.map('mA')) === J(stubA), asked: W.a1.page.asked.length + W.b1.page.asked.length };
+        W.clear(); W.net.pushItems(['mA']); const pushed = { a1: W.a1.sent.map(m => m.type + ':' + J(m.item)), b: W.types(W.b1) };
+        check('possession (take-back): a later change on mA sends her connection nothing — no delta, no copy, no live position, and its ask for the whole map is refused (the needItem branch, sendItem\'s own gate) — while Bo and her other connection, still on mA, get the delta (Bo\'s page equal to the host\'s copy) and the position; a push of mA reaches her as its stub afresh alone',
+            J(later) === J({ a1: [], a2: ['itemDelta:mA', 'pos:mA'], b: ['itemDelta:mA', 'pos:mA'], bPage: true, aPage: true, asked: 0 }) && J(pushed) === J({ a1: ['item:' + J(stubA)], b: ['item:mA'] }), J([later, pushed]));
+        // (b) she returns: given whole again before the stage word, held again, deltas flow again; and a second time
+        W.clear(); const ret = W.net.summonPlayerToMap('u_a', 'mA');
+        const rT = W.types(W.a1), rPage = [J(W.a1.page.map('mA')) === J(W.cleanOf('mA')), 'stub' in W.a1.page.map('mA'), J(W.a1.page.map('mB')) === J(STUB('mB', 'The mB', { parentId: 'mA', sortIndex: 2 }))], rHeld = [W.held(W.a1, 'mA'), W.held(W.a1, 'mB')];
+        W.clear(); W.camp.items.mA.whiteboard[2].y = 888; W.net.sendItem('k', 'mA');
+        const rDelta = { a1: W.types(W.a1), b: W.types(W.b1), eq: J(W.a1.page.map('mA')) === J(W.cleanOf('mA')), asked: W.a1.page.asked.length };
+        W.clear(); W.net.summonPlayerToMap('u_a', 'mB'); const again = { t: W.types(W.a1), held: [W.held(W.a1, 'mA'), W.held(W.a1, 'mB')], pages: [J(W.a1.page.map('mA')) === J(stubA), J(W.a1.page.map('mB')) === J(W.cleanOf('mB'))] };
+        check('possession (take-back): she returns (summoned to mA, stageConn run for real) — mA is given whole again before her stage word (the host\'s copy, no stub mark) and held again, mB is taken back in its turn (her page holds its stub), and the next change on mA reaches her as a delta that fits (her page equal to the host\'s copy, nothing asked); leaving a second time takes it back again and gives mB whole again',
+            ret === true && J(rT) === J(['item:mA', 'stage', 'mapBack:mB']) && J(rPage) === J([true, false, true]) && J(rHeld) === J([true, false]) && J(rDelta) === J({ a1: ['itemDelta:mA'], b: ['itemDelta:mA'], eq: true, asked: 0 })
+            && J(again) === J({ t: ['item:mB', 'stage', 'mapBack:mA'], held: [false, true], pages: [true, true] }), J([ret, rT, rPage, rHeld, rDelta, again]));
+    }
+    // (12) the GM's stage moving the table takes the map back from every connection it moved, never from a wanderer it left behind
+    {
+        const W = mkW(); W.join(W.a1, 'mA'); W.join(W.a2, 'mA'); W.join(W.b1, 'mA'); W.net.roster.pB.detached = true; W.clear();
+        const moved = W.api.follow ? W.api.follow({ campId: 'k', itemId: 'mC' }) : -1;
+        const per = [W.a1, W.a2].map(c => { const t = W.types(c), whole = c.sent.findIndex(m => m.type === 'item' && m.itemId === 'mC' && m.item.stub !== true); return { backs: t.filter(x => /^mapBack/.test(x)), order: whole >= 0 && t.indexOf('stage') > whole && t.indexOf('mapBack:mA') > t.indexOf('stage'), held: [W.held(c, 'mA'), W.held(c, 'mC')], pages: [J(c.page.map('mA')) === J(STUB('mA', 'The mA')), J(c.page.map('mC')) === J(W.cleanOf('mC'))] }; });
+        const stay = { backs: W.b1.sent.filter(m => m.type === 'mapBack').length, held: [W.held(W.b1, 'mA'), W.held(W.b1, 'mC')], page: [J(W.b1.page.map('mA')) === J(W.cleanOf('mA')), W.b1.page.map('mC').stub === true] };
+        W.clear(); W.camp.items.mA.whiteboard[2].x = 912; W.net.sendItem('k', 'mA'); const after = [W.types(W.a1), W.types(W.a2), W.types(W.b1).length];
+        check('possession (take-back): the GM\'s stage moving the table from mA to mC (followConns, stageConn, run for real) gives each connection it moved mC whole, then its stage word, then takes mA back (each page holds mA\'s stub and mC as the host\'s copy; the record names mC alone); Bo, a wanderer the stage left behind, keeps mA whole and is sent no take-back; the waiting peer and a closed connection are sent nothing; a change on mA then reaches Bo alone',
+            moved === 3 && per.every(p => J(p) === J({ backs: ['mapBack:mA'], order: true, held: [false, true], pages: [true, true] })) && J(stay) === J({ backs: 0, held: [true, false], page: [true, true] }) && W.w1.sent.length === 0 && W.c1.sent.length === 0 && J(after) === J([[], [], 1]), J([moved, per, stay, after]));
+    }
+    // (13) per connection: a player's second window on the same map keeps it when the first leaves; a stage that gives no map takes nothing back
+    {
+        const W = mkW(); delete W.camp.items.mB.meta.playerLock; W.join(W.a1, 'mA'); W.join(W.a2, 'mA'); W.join(W.b1, 'mA'); W.clear();
+        W.net.summonPlayerToMap('u_a', 'mB');   // her first connection alone
+        const first = { a1: [W.held(W.a1, 'mA'), W.held(W.a1, 'mB')], a2: [W.held(W.a2, 'mA'), W.held(W.a2, 'mB')], a2Sent: W.types(W.a2), a2Page: J(W.a2.page.map('mA')) === J(W.cleanOf('mA')), loc: [W.net.roster.pA1.location, W.net.roster.pA2.location] };
+        W.clear(); W.camp.items.mA.whiteboard[2].x = 640; W.net.sendItem('k', 'mA'); const chg = { a1: W.types(W.a1), a2: W.types(W.a2).length, eq: J(W.a2.page.map('mA')) === J(W.cleanOf('mA')) };
+        W.clear(); W.api.stageConn(W.a2, { campId: 'k', itemId: 'mB' }, true);
+        const second = { a2: W.types(W.a2), held: [W.held(W.a2, 'mA'), W.held(W.a2, 'mB')], page: J(W.a2.page.map('mA')) === J(STUB('mA', 'The mA')) };
+        check('possession (take-back): per connection — Ana\'s first window is summoned to mB and loses mA; her second window, still on mA, keeps it whole, is sent no take-back and still gets its changes; when that window is moved too it loses mA in its turn (mB whole, the stage word, then the take-back)',
+            J(first) === J({ a1: [false, true], a2: [true, false], a2Sent: [], a2Page: true, loc: ['mB', 'mA'] }) && J(chg) === J({ a1: [], a2: 1, eq: true }) && J(second) === J({ a2: ['item:mB', 'stage', 'mapBack:mA'], held: [false, true], page: true }), J([first, chg, second]));
+        W.clear(); W.api.stageConn(W.b1, { campId: 'k', itemId: 'dD' }, true); W.api.stageConn(W.b1, { campId: 'k', itemId: 'nope' }, true);
+        const noGive = { b: W.types(W.b1), held: W.held(W.b1, 'mA'), stub: 'stub' in W.b1.page.map('mA') };
+        const lone = mkW(); lone.join(lone.a1, 'mA'); lone.clear();
+        const none = [lone.api.left ? lone.api.left(lone.a1, 'k') : -1, lone.api.take ? lone.api.take(lone.a1, 'k', 'mB') : null, lone.api.take ? lone.api.take(lone.w1, 'k', 'mA') : null, lone.api.take ? lone.api.take(null, 'k', 'mA') : null, lone.held(lone.a1, 'mA'), lone.a1.sent.length + lone.w1.sent.length];
+        check('possession (take-back): a stage that could give no map (it names a page, or nothing) takes nothing back — the connection keeps the map its screen shows; a connection on the one map it holds loses nothing, and a take-back of a map a connection does not hold (a stub, a waiting peer, no connection) does nothing and sends nothing',
+            J(noGive) === J({ b: ['stage', 'stage'], held: true, stub: false }) && J(none) === J([0, false, false, false, true, 0]), J([noGive, none]));
+    }
+    // (14) a fogged map is taken back the same way: what the host knew of that copy is forgotten, and it comes back whole through the player's own fog
+    {
+        const W = mkW(); W.join(W.a1, 'mA'); W.join(W.b1, 'mA'); W.net.summonPlayerToMap('u_a', 'mF'); const rec0 = Object.keys(W.api.fogHeld().pA1 || {});
+        W.net.summonPlayerToMap('u_a', 'mA'); const rec1 = Object.keys(W.api.fogHeld().pA1 || {}), pageF = J(W.a1.page.map('mF'));
+        W.clear(); W.camp.items.mF.whiteboard[1].x = 250;   // the orc steps into what would be her sight
+        W.api.arm('mF'); W.fire(150); const cu = W.api.catchUp(W.a1, W.camp, W.camp.items.mF, 'u_a', Object.create(null)); W.net.sendItem('k', 'mF');
+        W.api.relay({ type: 'pos', campId: 'k', itemId: 'mF', wbId: 'orcF', x: 250, y: 100, rot: 0, front: 0, final: true }, null, W.camp, W.camp.items.mF, W.camp.items.mF.whiteboard[1]);
+        const quiet = W.ev.slice();
+        W.clear(); W.net.summonPlayerToMap('u_a', 'mF'); const backT = W.types(W.a1), backItem = W.a1.sent.find(m => m.type === 'item' && m.itemId === 'mF'), rec2 = Object.keys(W.api.fogHeld().pA1 || {});
+        check('possession (take-back): a fogged map is taken back the same way — the host forgets what her copy of it held (the fog record), her page holds its stub with none of the fog\'s notes, and no catch-up, whole re-send or live position of it reaches her connection (the real fogCatchUp says false); when she returns it is given whole again through her own fog (the orc, now in her sight, on it), recorded afresh, before her stage word',
+            J(rec0) === J(['mF']) && J(rec1) === J([]) && pageF === J(STUB('mF', 'The mF', { sortIndex: 4 })) && cu === false && J(quiet) === J([]) && J(backT) === J(['item:mF', 'stage', 'mapBack:mA']) && !!backItem && J(backItem.item.whiteboard.map(w => w.id)) === J(['tAf', 'orcF']) && J(rec2) === J(['mF']) && W.held(W.a1, 'mF') === true && W.held(W.a1, 'mA') === false,
+            J([rec0, rec1, pageF, cu, quiet, backT, rec2]));
+    }
+    // (14b) the drawings of theirs the GM hid on a map they leave are forgotten with their copy, and noted afresh when the map is given again
+    {
+        const W = mkW(); W.camp.items.mA.whiteboard.push({ id: 'strA', type: 'path', byPlayer: true, ownerId: 'u_a', hidden: true, pts: [[0, 0], [5, 5]], x: 0, y: 0, w: 5, h: 5 });
+        W.join(W.a1, 'mA'); W.join(W.a2, 'mA'); W.net.sendItem('k', 'mA');
+        const p0 = [J(W.api.pend('pA1', 'mA')), J(W.api.pend('pA2', 'mA'))];
+        W.net.summonPlayerToMap('u_a', 'mC'); const p1 = [J(W.api.pend('pA1', 'mA')), J(W.api.pend('pA2', 'mA'))];
+        W.net.summonPlayerToMap('u_a', 'mA'); const p2 = [J(W.api.pend('pA1', 'mA')), W.a1.page.map('mA').whiteboard.some(w => w.id === 'strA')];
+        check('possession (take-back): the host\'s note of a drawing of hers the GM hid on mA goes with her copy when she leaves (her other window, still there, keeps its own) and is made afresh when mA is given whole again — the hidden drawing itself on no copy',
+            J(p0) === J(['{"strA":1}', '{"strA":1}']) && J(p1) === J(['null', '{"strA":1}']) && J(p2) === J(['{"strA":1}', false]), J([p0, p1, p2]));
+    }
+    // (15) the player's side, run for real: the word from the synced host alone, for a map this copy holds, and nothing of the word but its cleaned meta
+    {
+        const wholeA = () => ({ id: 'mA', type: 'map', meta: { title: 'The mA', playerLock: true, parentId: 'mC', sortIndex: 1, gridType: 'square' }, rooms: [{ id: 'r1', name: 'Hall' }], links: [['r1', 'r1']], cats: { c: { color: '#ffffff' } }, fog: { on: true }, fogLit: ['1,1'], fogMarks: [{ c: '2,2', g: 1 }], fogOff: { tA: ['s'] }, lightsCapped: true,
+            whiteboard: [{ id: 'tA', type: 'image', isChar: true, ownerId: 'u_a', x: 1, y: 1, w: 50, h: 50 }, { id: 'beast', type: 'image', name: 'SENTINEL_BEAST_A', x: 5, y: 5, w: 50, h: 50 }] });
+        const mk = active => { const pg = mkPage('u_a', active || 'mB'); pg.camp.items.mA = wholeA(); pg.camp.items.mB = { id: 'mB', type: 'map', meta: { title: 'The mB' }, rooms: [], links: [], cats: {}, whiteboard: [{ id: 'noteB', type: 'text', text: 'x', x: 1, y: 1, w: 5, h: 5 }] }; pg.camp.items.dD = { id: 'dD', type: 'doc', meta: { title: 'Page' }, blocks: [] }; return pg; };
+        const word = more => Object.assign({ type: 'mapBack', campId: 'k', itemId: 'mA', meta: { title: 'The mA', playerLock: true, parentId: 'mC', sortIndex: 1 } }, more || {});
+        const stubA = J(STUB('mA', 'The mA', { playerLock: true, parentId: 'mC', sortIndex: 1 }));
+        const run = (pg, m, conn) => { if (pg.P.mapBack) pg.P.mapBack(JSON.parse(J(m)), conn || { peer: 'h' }); return pg; };
+        const honest = run(mk(), word()), hOut = { map: J(honest.map('mA')) === stubA, other: honest.map('mB').whiteboard.length, render: honest.cnt.render, nav: honest.cnt.nav, asked: honest.asked.length, remote: honest.net.applyingRemote };
+        check('possession (take-back, the player\'s side, run for real): the synced host\'s word puts the stub in the map\'s place — its title, its lock and its place in the Maps list, an empty whiteboard, no rooms, no links, no categories, none of the fog\'s notes (its fog, lit cells, marks, switched-off senses, light cap) — the Maps list is drawn again, the map on screen is left alone, and nothing is asked of the host',
+            J(hOut) === J({ map: true, other: 1, render: 0, nav: 1, asked: 0, remote: false }), J([hOut, honest.map('mA')]));
+        const before = J(mk().camp.items);
+        const other = run(mk(), word(), { peer: 'x' }), own0 = mk(); own0.net.foreign = false; run(own0, word()); const unsynced = mk(); unsynced.net.syncedPeer = null; run(unsynced, word());
+        const absent = run(mk(), word({ itemId: 'mZ' })), page = run(mk(), word({ itemId: 'dD' })), camp2 = run(mk(), word({ campId: 'other' }));
+        const odd = ['__proto__', 'constructor', 'hasOwnProperty', '', 5, null, undefined, { a: 1 }].map(id => { const pg = mk(); let threw = false; try { run(pg, word({ itemId: id })); } catch (e) { threw = true; } return !threw && J(pg.camp.items) === before && Object.keys(pg.camp.items).length === 3; });
+        check('possession (take-back, the player\'s side): a take-back from a connection other than the synced host, before the snapshot or with no synced host changes nothing; one naming a map this copy does not hold adds nothing, one naming a page leaves the page, one naming another campaign or an id that is no key (a prototype\'s name, an empty one, a number, nothing, an object) does nothing and throws nothing',
+            has('mapback') && J(honest.map('mA')) === stubA && [other, own0, unsynced, page, camp2].every(pg => J(pg.camp.items) === before && pg.cnt.nav === 0) && J(absent.camp.items) === before && !('mZ' in absent.camp.items) && odd.every(Boolean) && ({}).stub === undefined && ({}).meta === undefined, J([J(other.camp.items) === before, J(own0.camp.items) === before, J(unsynced.camp.items) === before, J(page.camp.items) === before, J(camp2.camp.items) === before, odd]));
+        const hostile = run(mk(), word({ meta: { title: 'T'.repeat(500), playerLock: 0, parentId: 7, sortIndex: 'x', bg: 'http://example.invalid/x.png', collapsed: true, lastWbX: 5 }, item: wholeA(), whiteboard: [{ id: 'evil', type: 'text', text: 'SENTINEL_EVIL' }], rooms: [{ id: 'r9' }], links: [[1, 2]], fog: { on: true }, fogLit: ['9,9'], stub: 'no' }));
+        const noMeta = [undefined, null, 'x', 7, ['a']].map(mv => J(run(mk(), word({ meta: mv })).map('mA')) === stubA);
+        const long = run(mk(), word({ meta: { title: 'ok', parentId: 'p'.repeat(400), sortIndex: Infinity } })).map('mA');
+        check('possession (take-back, the player\'s side): whatever else a host puts in the word, the stub is all that is kept — the meta cleaned as the host\'s own stub is made (a title cut to 200, a lock only where it is set, a parent only as a string cut to 160, a sort order only as a finite number, no other key), no item, piece, room, link or fog from the message; a word with no usable meta keeps the copy\'s own title, lock and nesting',
+            J(hostile.map('mA')) === J(STUB('mA', 'T'.repeat(200))) && !/SENTINEL_EVIL|evil|example\.invalid|collapsed|lastWbX|fogLit/.test(J(hostile.camp.items)) && noMeta.every(Boolean) && J(long) === J(STUB('mA', 'ok', { parentId: 'p'.repeat(160) })), J([hostile.map('mA').meta.title.length, noMeta, long.meta]));
+        const shown = mk('mA'); shown.state.selId = 'r1'; shown.state.selWbId = 'beast'; shown.state.selWbIds = ['beast']; const patchWhole = shown.P.patch ? shown.P.patch() : null; run(shown, word());
+        const sOut = { map: J(shown.map('mA')) === stubA, render: shown.cnt.render, sel: [shown.state.selId, shown.state.selWbId, J(shown.state.selWbIds)], asked: shown.asked.length, patch: shown.P.patch ? shown.P.patch() : 'none', whole: !!patchWhole && patchWhole.type === 'item' && patchWhole.itemId === 'mA' };
+        check('possession (take-back, the player\'s side): a take-back of the map on screen (no honest host sends one: the stage word comes first) leaves its stub on screen — drawn again, the selection dropped, nothing asked — and a player\'s app sends no copy of a stub as its own (activeItemPatch: the host would read a copy with nothing on it as their drawings erased), while a map held whole is still sent',
+            J(sOut) === J({ map: true, render: 1, sel: [null, null, '[]'], asked: 0, patch: null, whole: true }), J(sOut));
+        // the stub still names the map in the Maps list and at a portal's hover: the sidebar's row and the hover's line, sliced and run on the stub
+        const rd9 = f => fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', f), 'utf8').replace(/\r\n/g, '\n'), sb9 = rd9('sidebar.js'), wb9 = rd9('whiteboard.js');
+        const escT = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        const rowI = sb9.indexOf('function rowHtml(item, depth, hasKids, collapsed) {'), rowE = sb9.indexOf('// Both lists render as nested trees', rowI);
+        const hvI = wb9.indexOf('var destTT = r.targetMapId && getActiveCampaign()'), hvE = wb9.indexOf('\n', wb9.indexOf('var destLine = destTT ?', hvI));
+        let row = '', hover = '', stubTitle = null;
+        try {
+            const st = honest.map('mA'); stubTitle = st.stub === true ? st.meta.title : null;
+            row = new Function('camp', 'esc', 'mapPresenceHtml', sb9.slice(rowI, rowE) + '\nreturn rowHtml;')(honest.camp, escT, () => '')(st, 0, false, false);
+            hover = new Function('r', 'getActiveCampaign', 'esc', 'isClientTT', wb9.slice(hvI, hvE) + '\nreturn destLine;')({ targetMapId: 'mA' }, () => honest.camp, escT, true);
+        } catch (e) { row = 'threw: ' + e.message; }
+        check('possession (take-back): the stub a map leaves behind still names it — the Maps list\'s row (sidebar.js rowHtml, sliced and run on the stub) shows its title and its lock badge, and a portal\'s hover (whiteboard.js, its destination line sliced and run) says where it leads and that it is closed for now',
+            rowI >= 0 && rowE > rowI && hvI >= 0 && hvE > hvI && stubTitle === 'The mA' && /<span class="si-title">The mA<\/span>/.test(row) && /si-lock/.test(row) && /\u2192 The mA/.test(hover) && /closed for now/.test(hover), J([row.slice(0, 200), hover]));
+    }
+    // (16) the source: where a roster location is set, and the take-back wired after each stage word; the client's branch; Help and the tooltips
+    {
+        const srcNoCm = src.replace(/\/\/[^\n]*/g, ''), html = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8'), sbSrc = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sidebar.js'), 'utf8');
+        const mb = has('mapback') ? bw('mapback') : '';
+        check('possession (take-back, source): a roster location is set in three places as before (the join, stageConn, hostTravel — the join\'s snapshot replaces the record, the other two take back after their stage word: mapLeft right after it, three calls with its definition); mapTake forgets the record and the fog record before it sends, and sends the stub\'s meta alone; the mapBack branch is the client\'s, gated by fromHost, builds the stub through mapStub and never from the message\'s own item; no other message of the host\'s carries the word',
+            (srcNoCm.match(/\.location = [^=]/g) || []).length === 3
+            && /if \(c\.open\) \{ try \{ c\.send\(personal \? \{ type: 'stage', stage: stage, personal: true \} : \{ type: 'stage', stage: stage \}\); \} catch \(e\) \{ sendFailed\(e\); \} \}\n\s*if \(typeof mapLeft === 'function'\) mapLeft\(c, stage\.campId\);/.test(src)
+            && /if \(conn\) \{ try \{ conn\.send\(\{ type: 'stage', personal: true, stage: \{[^\n]*\n\s*if \(conn && typeof mapLeft === 'function'\) mapLeft\(conn, tCamp\.id\);/.test(src)
+            && (srcNoCm.match(/mapLeft\(/g) || []).length === 3 && (srcNoCm.match(/mapTake\(/g) || []).length === 2 && (srcNoCm.match(/type: 'mapBack'/g) || []).length === 1
+            && /delete _mapHeld\[conn\.peer\]\[mapId\];\n\s*if \(typeof fogForgetOne === 'function'\) fogForgetOne\(conn\.peer, mapId\);[\s\S]*conn\.send\(\{ type: 'mapBack', campId: campId, itemId: mapId, meta: mapStub\(it\)\.meta \}\)/.test(mhSrc)
+            && /\} else if \(msg\.type === 'mapBack' && net\.role === 'client'\) \{\n\s*\/\/ \[netcheck:mapback-start\]/.test(src) && /if \(!fromHost\(conn\)\) return;/.test(mb) && /mapStub\(\{ id: msg\.itemId, meta: /.test(mb) && !/msg\.item\b(?!Id)/.test(mb) && !/msg\.whiteboard|msg\.rooms/.test(mb));
+        check('possession (take-back, words): Help says a map a player leaves is taken back until they return, and the Lock for players tooltip and the Maps list\'s lock badge say a player who is not on a map holds only its name',
+            /<li><b>What reaches a player[^\n]*A map they leave is taken back until they return/.test(html) && /id="ctxLockItem"[^\n]*again once they leave/.test(html) && /si-lock" title="[^"]*A player who is not here holds only its name/.test(sbSrc));
     }
 })());
 // security R2 cluster J (2026-10-01), the host side: what the fuzz harness (tools/fuzzcheck.js) still found on the GM's machine — a yes to a dropped join,

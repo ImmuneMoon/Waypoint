@@ -781,6 +781,28 @@ function mapGive(conn, campId, mapId, at) {
     net.sendItem(campId, mapId, conn, null, at);
     return true;
 }
+// The take-back (the owner's ruling of 2026-10-01: a map is taken back when a player leaves it): a connection holds whole only the map its
+// player is on. Once that map has been given and the stage word sent (stageConn, hostTravel — the only places besides the join that set a
+// roster location, and the join's snapshot replaces the whole record), every other map the connection holds is forgotten for it: no later
+// copy, delta, catch-up, put-back, needItem answer or live position of that map reaches the connection, and what the host knew of its copy
+// goes too (fogForgetOne), so the map given again starts afresh. The connection is sent one word for it, 'mapBack', carrying the stub's meta
+// alone (its name, its lock, its place in the Maps list) — nothing of what is on the map; the player's app puts the stub back in the map's
+// place. Per connection: a player's other window still on the map keeps its own copy. Nothing is taken while the map they are on is not
+// held whole (the stage named no map, the connection is closed), so a player's screen never loses the map it shows
+function mapTake(conn, campId, mapId) {
+    if (!mapHeld(conn, mapId)) return false;
+    delete _mapHeld[conn.peer][mapId];
+    if (typeof fogForgetOne === 'function') fogForgetOne(conn.peer, mapId);
+    var camp = state.appState && state.appState.campaigns && own(state.appState.campaigns, campId) ? state.appState.campaigns[campId] : null, it = camp && own(camp.items, mapId) ? camp.items[mapId] : null;
+    if (conn.open && it && it.type === 'map') { try { conn.send({ type: 'mapBack', campId: campId, itemId: mapId, meta: mapStub(it).meta }); } catch (e) { sendFailed(e); } }
+    return true;
+}
+function mapLeft(conn, campId) {
+    var pr = conn && typeof conn.peer === 'string' && own(net.roster, conn.peer) ? net.roster[conn.peer] : null, here = pr ? pr.location : null, n = 0;
+    if (typeof here !== 'string' || !mapHeld(conn, here)) return 0;
+    Object.keys(mapHeldOf(conn)).forEach(function(id) { if (id !== here && mapTake(conn, campId, id)) n++; });
+    return n;
+}
 // [netcheck:mapheld-end]
 function sanitizeAppState(s, recipientId, held) {   // recipientId: the player this copy is for (characters are per recipient); absent = the stream window's: the party view of every fogged map (fogPartyCopy), no characters; held: the maps this connection holds whole (mapHeldOf) — every other map of the hosted campaign goes as its stub; absent, every map whole (the stream window, an older caller)
     // a session is one campaign (owner's answer, 2026-09-29): only the hosted campaign is copied at all — the GM's other games (their names,
@@ -959,6 +981,7 @@ function hidForgetMap(mapId) { Object.keys(_hidPend).forEach(function(p) { delet
 // [netcheck:hidpend-end]
 function fogForgetConn(peer) { if (typeof peer === 'string') { delete _fogHeld[peer]; delete _acks[peer]; delete _hidPend[peer]; } if (typeof mapForgetConn === 'function') mapForgetConn(peer); }   // 14c: and how far its copies go; hidden pieces: and the drawings of theirs the GM hid
 function fogForgetMap(mapId) { Object.keys(_fogHeld).forEach(function(p) { delete _fogHeld[p][mapId]; }); }
+function fogForgetOne(peer, mapId) { if (typeof peer !== 'string' || typeof mapId !== 'string') return; if (own(_fogHeld, peer)) delete _fogHeld[peer][mapId]; if (own(_hidPend, peer)) delete _hidPend[peer][mapId]; }   // possession (the take-back): one connection's copy of one map is gone — what it held (fold M5) and the drawings of theirs the GM hid on it (the whole copy they get on their return notes those afresh)
 function fogForgetAll() { _fogHeld = Object.create(null); _acks = Object.create(null); _hidPend = Object.create(null); if (typeof mapForgetAll === 'function') mapForgetAll(); Object.keys(_fogPend).forEach(function(k) { clearTimeout(_fogPend[k]); }); _fogPend = Object.create(null); _fogCost = Object.create(null); if (typeof combatForget === 'function') combatForget(); }   // a new table: no fight's rows seen
 // Fold M7: the landing. A player's move that lands in another cell, facing or stance (their drop, or a map copy their app saves) arms a short
 // timer on that map; when it fires, every admitted connection's copy of the map is caught up in place: the creatures that player now sees
@@ -1259,6 +1282,7 @@ function applyStage(stage) {
 function activeItemPatch() {
     var camp = getActiveCampaign();
     if (!camp || !camp.items[camp.activeItemId]) return null;
+    if (camp.items[camp.activeItemId].stub === true) return null;   // possession: a stub is no copy of the map — a player's app sends nothing of one (the host would read a copy with nothing on it as their drawings erased)
     return { type: 'item', campId: camp.id, itemId: camp.activeItemId, item: camp.items[camp.activeItemId] };
 }
 
@@ -3014,6 +3038,7 @@ function hostTravel(conn, traveler, portal, fromMap) {
     broadcastRoster();
     if (conn && typeof mapGive === 'function') mapGive(conn, tCamp.id, pRoom.targetMapId);   // possession: the map they arrive on, whole, before the word that they are on it
     if (conn) { try { conn.send({ type: 'stage', personal: true, stage: { campId: tCamp.id, itemId: pRoom.targetMapId, landRoomId: landRoom ? landRoom.id : null } }); } catch (e) { sendFailed(e); } }
+    if (conn && typeof mapLeft === 'function') mapLeft(conn, tCamp.id);   // possession (the take-back): the map they left, once the one they arrive on has been given and they have been told they are on it
     var destTitle = (tCamp.items[pRoom.targetMapId].meta || {}).title || pRoom.targetMapId;
     toast((traveler.name || 'A player') + ' traveled to ' + destTitle + '.');
     logEvent('travel', (traveler.name || 'A player') + ' traveled to ' + destTitle + (pRoom && pRoom.name ? ' via ' + pRoom.name : ''));
@@ -4855,6 +4880,26 @@ function handleMessage(msg, conn) {
             updateSidebarNav(); render();
             net.applyingRemote = false;
         }
+    } else if (msg.type === 'mapBack' && net.role === 'client') {
+        // [netcheck:mapback-start]
+        // possession (the take-back): a map this player has left is taken back — their copy of it becomes its stub again (its name, its lock and
+        // its place in the Maps list, from the host's word cleaned as the host's own stub is made, or the copy's own where the word has none;
+        // nothing drawn, no rooms, no links, none of the fog's notes) until they return and the host gives it whole. From the synced host only;
+        // a map this copy does not hold, or an item that is no map, is left alone: the word never adds one. Nothing of the message but its
+        // meta is read, and nothing is asked of the host
+        if (!fromHost(conn)) return;
+        var campB = campOf(msg.campId), curB = campB && campB.items && validKey(msg.itemId) && own(campB.items, msg.itemId) ? campB.items[msg.itemId] : null;
+        if (!curB || typeof curB !== 'object' || curB.type !== 'map') return;
+        net.applyingRemote = true;
+        try {
+            campB.items[msg.itemId] = mapStub({ id: msg.itemId, meta: msg.meta && typeof msg.meta === 'object' && !Array.isArray(msg.meta) ? msg.meta : curB.meta });
+            var actB = getActiveCampaign(), shownB = !!actB && actB.id === msg.campId && actB.activeItemId === msg.itemId;
+            if (shownB) { state.selId = null; state.selWbId = null; state.selWbIds = []; }   // on screen (no honest host takes back the map a player is on): its stub, nothing selected
+            updateSidebarNav();
+            if (shownB) render();
+            if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
+        } finally { net.applyingRemote = false; }
+        // [netcheck:mapback-end]
     } else if (msg.type === 'needItem' && net.role === 'host') {
         // [netcheck:needitem-start]
         var campN = getActiveCampaign(); if (!campN || msg.campId !== campN.id || !validKey(msg.itemId) || !own(campN.items, msg.itemId)) return;   // a session is one campaign, and an item of it by its own key (a prototype's key names nothing)
@@ -7120,6 +7165,7 @@ function stageConn(c, stage, personal) {
     p.location = stage.itemId; ensurePlayerToken(p.id, stage.itemId);
     if (typeof mapGive === 'function') mapGive(c, stage.campId, stage.itemId);   // possession: the map they arrive on, whole, before the word that they are on it
     if (c.open) { try { c.send(personal ? { type: 'stage', stage: stage, personal: true } : { type: 'stage', stage: stage }); } catch (e) { sendFailed(e); } }
+    if (typeof mapLeft === 'function') mapLeft(c, stage.campId);   // possession (the take-back): every map this connection held and its player is no longer on, once the new one has been given and the stage word sent
     if (c.open && net.sendFxArrival) net.sendFxArrival(c, stage.itemId);
     return p;
 }

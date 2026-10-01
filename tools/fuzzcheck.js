@@ -432,6 +432,8 @@ function mutations(tpl) {
         const given = sentLog.slice(n0).find(s => s.to === 'peer_p1' && s.m.type === 'item' && s.m.itemId === 'm_fog' && s.m.item && !s.m.item.stub);
         check('a travel through the visible portal gives the player the fogged map whole (their own token on it, the far creature dropped by the fog)', !!given && net.roster.peer_p1.location === 'm_fog' && given.m.item.whiteboard.some(w => w.id === 'tok_p1b') && !given.m.item.whiteboard.some(w => w.id === 'tok_far'), given ? given.m.item.whiteboard.map(w => w.id) : sentLog.slice(n0).map(s => s.to + ':' + s.m.type));
         if (given) mfogForClient = clone(given.m);
+        const toP1 = sentLog.slice(n0).filter(s => s.to === 'peer_p1'), stageI = toP1.findIndex(s => s.m.type === 'stage'), backI = toP1.findIndex(s => s.m.type === 'mapBack'), backM = backI >= 0 ? toP1[backI].m : null;
+        check('the travel takes the map the player left back (possession): one mapBack for m_open after their stage word, carrying the campaign, the map\'s id and its stub\'s meta — nothing of what is on it', stageI >= 0 && backI > stageI && toP1.filter(s => s.m.type === 'mapBack').length === 1 && backM.itemId === 'm_open' && JSON.stringify(Object.keys(backM).sort()) === JSON.stringify(['campId', 'itemId', 'meta', 'type']) && !/whiteboard|rooms|tok_/.test(JSON.stringify(backM)), backM || toP1.map(s => s.m.type));
     }
     conns.w = connect('peer_w'); hello(conns.w, { id: 'u_w', name: 'Waiting' });
     check('a stranger\'s hello waits for the GM (one dialog, a wait sent, not admitted)', rec.confirms.length === 1 && conns.w.sent.some(m => m.type === 'wait') && !net.roster.peer_w);
@@ -504,7 +506,9 @@ function mutations(tpl) {
         const camp = stubs.getActiveCampaign();
         camp.items = clone(pristine.items); camp.chars = clone(pristine.chars); camp.players = Object.assign({}, clone(pristine.players), { u_p1: Object.assign({}, camp.players.u_p1 || {}, { key: K1 }), u_p2: Object.assign({}, camp.players.u_p2 || {}, { key: K2 }) }); camp.turnRules = {}; camp.activeItemId = 'm_open';
         camp.sessionLog = (camp.sessionLog || []).slice(-50); delete camp.uploads;
-        Object.keys(net.roster).forEach(k => { net.roster[k].location = 'm_open'; net.roster[k].detached = false; });
+        // a player a probe left on another map is brought back as the host brings one — a summon to the GM's map: that map given whole again, the stage
+        // word, the map they left taken back — so the host's record of what each connection holds agrees with where the roster says its player is
+        Object.keys(net.roster).forEach(k => { const c = net.conns.find(x => x.peer === k); if (net.roster[k].location !== 'm_open' && c && c.open) net.summonPlayer(k); net.roster[k].location = 'm_open'; net.roster[k].detached = false; });
         ['u_p1', 'u_p2'].forEach(pid => { if (camp.players[pid]) camp.players[pid].lastMap = 'm_open'; });   // the record agrees with the roster (renderRoster copies the roster's location onto it: a stale record would read as a write by whatever probe first redraws the roster)
         net.paused = false; net.pausedPlayers = {}; net.travelLocked = false; net.targets = {}; seedCombat();
         clockOff += 61000;   // every rate-limit window has passed
@@ -603,7 +607,7 @@ function mutations(tpl) {
         'item': o => tokH('tok_p1').x === 120 && tokH('tok_p1').y === 130 && !!tokH('stroke_p1') && tokH('stroke_p1').byPlayer === true && o.p2.some(m => m.type === 'itemDelta' || m.type === 'item'),
         'threats': () => JSON.stringify(tokH('tok_p1').threats) === '[90,180]',
         'needItem': o => o.p1.some(m => m.type === 'item' && m.itemId === 'm_open'),
-        'travel': o => net.roster.peer_p1.location === 'm_fog' && o.p1.some(m => m.type === 'stage'),
+        'travel': o => net.roster.peer_p1.location === 'm_fog' && o.p1.some(m => m.type === 'stage') && o.p1.some(m => m.type === 'mapBack' && m.itemId === 'm_open') && !o.p2.some(m => m.type === 'mapBack'),
         'target': o => net.targets.u_p1 && net.targets.u_p1.id === 'tok_npc' && o.p2.some(m => m.type === 'targets'),
         'share': o => o.p2.some(m => m.type === 'handout' && m.title === 'Note' && m.sharedById === 'u_p1'),
         'share-image': () => rec.journal.length === 1 && rec.journal[0].mime === 'image/png' && rec.journal[0].data instanceof ArrayBuffer,
@@ -827,6 +831,8 @@ function mutations(tpl) {
         'item-planner': { type: 'item', campId: 'c1', itemId: 'pl_x', item: { id: 'pl_x', type: 'planner', meta: { title: CANARY }, content: '<script>1</script>' } },
         'itemDelta': { type: 'itemDelta', campId: 'c1', itemId: 'm_open', whiteboard: { set: [{ id: 'tok_npc', type: 'circle', isChar: true, x: 10, y: 10, w: 50, h: 50 }], del: ['tok_npc2'], order: ['tok_p1', 'tok_npc'] }, meta: { title: 'Renamed', gridType: 'hex', cell: 1e300, bg: 'http://evil/x.png' }, links: [['a', 'b', 1, { label: 'L', notes: 'n' }]], cats: { c1: { color: 'red' } }, ack: 2 },
         'itemGone': { type: 'itemGone', campId: 'c1', itemId: 'm_fog' },
+        'mapBack': { type: 'mapBack', campId: 'c1', itemId: 'm_fog', meta: { title: CANARY, playerLock: true, parentId: 'm_open', sortIndex: 2 } },   // possession: a map the player left is taken back — its stub in its place
+        'mapBack-shown': { type: 'mapBack', campId: 'c1', itemId: 'm_open', meta: { title: 'Open Field' }, item: { id: 'm_open', type: 'map', whiteboard: [{ id: 'evil', type: 'text', text: CANARY }] }, whiteboard: [{ id: 'evil2', type: 'text', text: CANARY }] },   // the map on screen, with a map riding in the word: no honest host sends either
         'stage': { type: 'stage', stage: { campId: 'c1', itemId: 'm_open' }, personal: true },
         'pause': { type: 'pause', on: true }, 'pausePlayer': { type: 'pausePlayer', on: false }, 'snap': { type: 'snap', on: true },
         'stance': { type: 'stance', flags: { elevation: true, posture: false }, camps: {}, campId: 'c1' },
@@ -883,6 +889,8 @@ function mutations(tpl) {
     const expectClient = {
         'itemDelta': () => tokC('m_open', 'tok_npc').x === 10 && !tokC('m_open', 'tok_npc2') && campC().items.m_open.meta.title === 'Renamed',
         'itemGone': () => !campC().items.m_fog,
+        'mapBack': () => { const m = campC().items.m_fog; return !!m && m.stub === true && m.whiteboard.length === 0 && m.rooms.length === 0 && !m.fog && m.meta.title === CANARY && m.meta.playerLock === true && Object.keys(m.meta).length === 4; },
+        'mapBack-shown': () => { const m = campC().items.m_open; return !!m && m.stub === true && m.whiteboard.length === 0 && JSON.stringify(m).indexOf(CANARY) < 0 && campC().activeItemId === 'm_open'; },
         'stage': () => campC().activeItemId === 'm_open' && rec.toasts.some(t => /arrive/.test(t)),
         'pause': () => cnet.paused === true, 'snap': () => cnet.tableSnapOn === true, 'stance': () => !!cnet.stance,
         'handout': () => rec.journal.length === 1, 'notepad': () => cnet.notepad && cnet.notepad.on === true,

@@ -109,7 +109,24 @@ function newKey() { var a = new Uint8Array(16); try { crypto.getRandomValues(a);
 // (client) the keys this player holds, per GM id
 function tableKeys() { try { var k = JSON.parse(localStorage.getItem('wp_tableKeys') || 'null'); return k && typeof k === 'object' && !Array.isArray(k) ? k : {}; } catch (e) { return {}; } }
 function tableKeyFor(gmId) { var k = tableKeys(); return (own(k, gmId) && typeof k[gmId] === 'string') ? k[gmId].slice(0, 64) : ''; }
-function rememberTableKey(gmId, key) { if (typeof gmId !== 'string' || !gmId || typeof key !== 'string' || !key) return; var k = tableKeys(); delete k[gmId]; k[gmId] = key.slice(0, 64); var ids = Object.keys(k); ids.slice(0, Math.max(0, ids.length - 50)).forEach(function(g) { delete k[g]; }); try { localStorage.setItem('wp_tableKeys', JSON.stringify(k)); } catch (e) {} }   // the 50 newest GM ids (the one just remembered newest): a host naming a new id at every snapshot grows nothing without end
+var TABLE_KEYS_MAX = 50;   // as many tables as vtt.js remembers: a host sending snapshots under ever new GM ids cannot grow the store (or the preferences file it mirrors to)
+function rememberTableKey(gmId, key) { if (typeof gmId !== 'string' || !gmId || typeof key !== 'string' || !key) return; var k = tableKeys(); delete k[gmId]; k[gmId] = key.slice(0, 64); var ks = Object.keys(k); for (var i = 0; i < ks.length - TABLE_KEYS_MAX; i++) delete k[ks[i]]; try { localStorage.setItem('wp_tableKeys', JSON.stringify(k)); } catch (e) {} }   // newest last, the oldest forgotten
+// The key is PROVEN, never sent: the host challenges with a fresh nonce and the player answers with HMAC-SHA256(key, authData(nonce, the room id
+// they dialled)); the host checks it over its own room id. A proof made at another room (a squatted generation of the code, another GM's table
+// relaying the challenge) or for another nonce never verifies here, and the key itself never travels. Without WebCrypto there is no proof:
+// the host then asks the GM and the player sends none (fail closed).
+function authData(nonce, roomId) { return 'wp-auth|' + nonce + '|' + roomId; }
+function hmacHex(key, data) {
+    var sub = typeof crypto !== 'undefined' && crypto && crypto.subtle;
+    if (!sub || typeof key !== 'string' || !key || typeof data !== 'string') return Promise.resolve(null);
+    try {
+        var enc = new TextEncoder();
+        return sub.importKey('raw', enc.encode(key), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']).then(function(k) { return sub.sign('HMAC', k, enc.encode(data)); })
+            .then(function(sig) { return Array.prototype.map.call(new Uint8Array(sig), function(b) { return ('0' + b.toString(16)).slice(-2); }).join(''); }).catch(function() { return null; });
+    } catch (e) { return Promise.resolve(null); }
+}
+function sameStr(a, b) { if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false; var d = 0; for (var i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i); return d === 0; }   // every character, whatever the first difference
+function retryGen(last, tries, gens) { return (((last | 0) + Math.max(0, (tries | 0) - 1)) % gens + gens) % gens; }   // a reconnect dials the generation that last answered first, then the others in turn
 // A profile picture a peer may show: a small inline image whose WHOLE string is base64. A prefix check let a quote-breaking tail
 // (x" onerror=…) ride into an src="…" — script on the GM's screen, and through the roster on every player's.
 function safeAvatar(v) { return typeof v === 'string' && v.length <= 200000 && /^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+\/=]+$/.test(v); }
@@ -4519,6 +4536,11 @@ net.kickPlayer = function(peerKey) {
 };
 
 /* ---------- message handling ---------- */
+// [netcheck:fromhost-start]
+// (client) the one peer whose word changes anything on this screen: the host whose snapshot this app took, on the connection it came by.
+// Before the snapshot the campaign in memory is this machine's OWN; a host that has not admitted the player gets to change none of it.
+function fromHost(conn) { return !!(net.foreign && net.syncedPeer && conn && conn.peer === net.syncedPeer); }
+// [netcheck:fromhost-end]
 function handleMessage(msg, conn) {
     if (!msg || !msg.type) return;
     // Host-side gate: until a connection has been admitted (passed the version check, any
@@ -4589,44 +4611,74 @@ function handleMessage(msg, conn) {
             if (_pwFails.length >= 20) { denyJoin(conn, 'Too many wrong passwords at this table — try again in a minute.'); return; }   // a guessing run locks the door for everyone, briefly
             if (String(msg.password || '').slice(0, 200).trim() !== pw) { _pwFails.push(nowPw); denyJoin(conn, 'Wrong session password.'); return; }
         }
-        // Identity: a player this campaign knows proves the id is theirs with the table key the host issued them
-        // (kept per GM on their machine, sent with the hello). A match goes straight in, as before. A known id
-        // without a match is first CHALLENGED once (an older client never answers and simply gets the GM's prompt);
-        // a second failure — or a stranger — waits for the GM's Allow/Deny.
+        // Identity: a player this campaign knows proves the id is theirs with the table key the host issued them (kept per GM on
+        // their machine) — never by sending it. A known id is CHALLENGED with a fresh nonce; the answer is an HMAC-SHA256 proof over
+        // that nonce and the room id the player dialled, checked here over this host's own room id, so a proof relayed through a
+        // squatted generation of the code or another GM's table never opens this one. A valid proof goes straight in, as a matching
+        // key did before. A key sent in clear (a client from before the proof) is ignored. No valid proof — a wrong one, the key
+        // itself, no answer — or a stranger, and the GM decides (Allow/Deny, flagged as a known name without its key).
         var camp0 = getActiveCampaign();
         var rec0 = (camp0 && camp0.players && own(camp0.players, prof.id)) ? camp0.players[prof.id] : null;
-        var keyOk = !!(rec0 && typeof rec0.key === 'string' && rec0.key && typeof msg.key === 'string' && msg.key === rec0.key);
-        if (keyOk || own(approvedIds, prof.id)) {
+        var keyed0 = !!(rec0 && typeof rec0.key === 'string' && rec0.key);
+        if (own(approvedIds, prof.id)) {
             delete approvedIds[prof.id];   // a yes to a dropped connection is good once
-            admitPlayer(conn, prof, keyOk ? rec0.key : null);
-        } else if (rec0 && rec0.key && !cm.authAsked) {
-            cm.authAsked = true;
-            try { conn.send({ type: 'auth', gmId: net.myId }); } catch (e) { sendFailed(e); }
-            cm.authTimer = setTimeout(function() { cm.authTimer = null; if (!conn.open || own(net.roster, conn.peer)) return; queueJoin(conn, prof, 'nokey'); }, 2500);   // no keyed hello came back: the GM decides
+            admitPlayer(conn, prof, null);
+        } else if (keyed0 && cm.nonce && typeof msg.proof === 'string') {
+            var nonce0 = cm.nonce, key0 = rec0.key; cm.nonce = null;   // a nonce is good for one answer
+            hmacHex(key0, authData(nonce0, net.roomPeer)).then(function(want) {
+                // the check ran asynchronously: judge again what may have changed meanwhile
+                if (net.role !== 'host' || !conn.open || own(net.roster, conn.peer) || _connMeta[conn.peer] !== cm) return;   // the table ended, the connection closed or was admitted, or a new connection took this peer id
+                if (pendingJoins.some(function(q) { return q.conn === conn; })) return;   // the challenge timer already put this request to the GM: the GM's word stands (a second admit would re-issue the key under the player)
+                var dupV = net.conns.find(function(c) { return c !== conn && c.open && own(net.roster, c.peer) && net.roster[c.peer].id === prof.id && Date.now() - (lastSeen[c.peer] || 0) < HB_STALE; });
+                if (dupV) { denyJoin(conn, 'That player identity is already at the table.'); return; }
+                var campV = getActiveCampaign(), recV = (campV && campV.players && own(campV.players, prof.id)) ? campV.players[prof.id] : null;
+                if (want && recV && recV.key === key0 && sameStr(want, msg.proof)) admitPlayer(conn, prof, key0);   // the key still the one proven (the GM may have re-issued it meanwhile)
+                else queueJoin(conn, prof, 'nokey');
+            });
+        } else if (keyed0 && !cm.authAsked) {
+            cm.authAsked = true; cm.nonce = newKey();
+            try { conn.send({ type: 'auth', gmId: net.myId, nonce: cm.nonce }); } catch (e) { sendFailed(e); }
+            cm.authTimer = setTimeout(function() { cm.authTimer = null; if (!conn.open || own(net.roster, conn.peer)) return; queueJoin(conn, prof, 'nokey'); }, 2500);   // no answer came back: the GM decides
         } else {
             queueJoin(conn, prof, rec0 ? 'nokey' : '');
         }
     } else if (msg.type === 'auth' && net.role === 'client') {
-        // the host asks this player to prove a known id: answer with the table key it issued (per GM); with none, the GM is simply asked
-        if (!net.conns[0] || conn !== net.conns[0]) return;
-        var pwA = ui('netJoinPassInput');
-        try { conn.send({ type: 'hello', profile: getProfile(), password: pwA ? pwA.value.trim() : '', version: APP_VERSION, key: tableKeyFor(String(msg.gmId || '').slice(0, 80)) }); } catch (e) { sendFailed(e); }
+        // the host asks this player to prove a known id. The table key it issued (per GM) never travels: the answer is a proof over the host's
+        // nonce and the room id THIS app dialled (conn.peer), which a host relaying another table's challenge cannot turn into a proof for that
+        // table. One answer per connection, before the snapshot only; with no key for the GM named — or no usable nonce (a host from before
+        // the proof) — a plain hello, and the GM is simply asked.
+        if (!net.conns[0] || conn !== net.conns[0] || net.syncedPeer || conn.wpAuthDone) return;
+        conn.wpAuthDone = true;
+        var keyA = tableKeyFor(String(msg.gmId || '').slice(0, 80)), nonceA = (typeof msg.nonce === 'string' && msg.nonce.length >= 16 && msg.nonce.length <= 128) ? msg.nonce : '';
+        var sayA = function(proof) {
+            if (!conn.open || net.conns[0] !== conn) return;
+            var pwA = ui('netJoinPassInput'), helloA = { type: 'hello', profile: getProfile(), password: pwA ? pwA.value.trim() : '', version: APP_VERSION };
+            if (typeof proof === 'string' && proof) helloA.proof = proof;
+            try { conn.send(helloA); } catch (e) { sendFailed(e); }
+        };
+        if (keyA && nonceA) hmacHex(keyA, authData(nonceA, conn.peer)).then(sayA); else sayA(null);
     // [netcheck:gate-end]
     } else if (msg.type === 'wait' && net.role === 'client') {
         setStatus('Connected — waiting for the GM to let you in…');
     } else if ((msg.type === 'denied' || msg.type === 'kicked') && net.role === 'client') {
+        // [netcheck:denied-start]
+        if (net.leaving || (net.conns[0] && conn !== net.conns[0])) return;   // once, and only from the host this app dialled: a host that repeats itself is not followed into dialog after dialog
         net.leaving = true;   // deliberate teardown: no auto-reconnect
-        var why = msg.type === 'kicked' ? 'Removed from the session by the GM.' : (msg.reason || 'The GM declined your request.');
+        var why = msg.type === 'kicked' ? 'Removed from the session by the GM.' : ((typeof msg.reason === 'string' && msg.reason) ? msg.reason.slice(0, 400) : 'The GM declined your request.');
         setStatus(why);
         if (msg.update) showConfirm(why, function() {});   // an update prompt is worth a dialog, not just a status line
         toast(why + ' Restoring your own campaign.');
         if (net.fromWelcome) { if (window.wpJoinFailed) window.wpJoinFailed(); }   // stay on the welcome Join screen with the reason shown; re-enable Join
         else { var nm2 = ui('netModal'); if (nm2) nm2.style.display = 'flex'; }
+        setTimeout(function() { try { conn.close(); } catch (e) {} }, 400);   // the honest host closes it too, 400 ms after its word; one that keeps the line open is not waited for
+        // [netcheck:denied-end]
     } else if (msg.type === 'snapshot' && net.role === 'client') {
         net.syncedPeer = conn.peer;   // from now on only this host's 'stance' counts (a table-hop or a waiting join hears others)
     if (typeof actForget === 'function') actForget();   // 14c: a whole campaign from the host: nothing of theirs is still on its way
+        // [netcheck:snapkey-start]
         net.gmId = String(msg.gmId || (msg.notepad && msg.notepad.gmId) || '').slice(0, 80);   // kept apart from the notepad, which leaveSession resets
-        if (typeof msg.key === 'string' && msg.key) rememberTableKey(net.gmId, msg.key);   // the table key this host issued me: proves this id is mine next time
+        if (typeof msg.key === 'string' && msg.key && !conn.wpKeyTaken) { conn.wpKeyTaken = true; rememberTableKey(net.gmId, msg.key); }   // the table key this host issued me: proves this id is mine next time — taken once per connection (a host cannot fill or overwrite the store snapshot after snapshot)
+        // [netcheck:snapkey-end]
         applySnapshot(msg);   // after gmId: the settings refresh inside it keys this table's off-list by campaign + GM
         syncSessionButtons();
         setStatus('Connected — campaign synced from host.');
@@ -4656,7 +4708,7 @@ function handleMessage(msg, conn) {
             } finally { if (typeof ackTook === 'function') ackTook(conn, msg.a); }
             // [netcheck:itempatch-end]
         } else {
-            if (!net.foreign || conn.peer !== net.syncedPeer) return;   // before the snapshot, or from a host other than the synced one: nothing to apply (the campaign on screen is this player's own)
+            if (!fromHost(conn)) return;   // before the snapshot, or from a host other than the synced one: nothing to apply
             applyItem(msg);
         }
     } else if (msg.type === 'threats' && net.role === 'host') {
@@ -4685,7 +4737,7 @@ function handleMessage(msg, conn) {
         } finally { if (typeof ackTook === 'function') ackTook(conn, msg.a); }
         // [netcheck:threats-end]
     } else if (msg.type === 'itemDelta' && net.role === 'client') {
-        if (!net.foreign || conn.peer !== net.syncedPeer) return;   // before the snapshot, or from a host other than the synced one: nothing to apply (the campaign on screen is this player's own)
+        if (!fromHost(conn)) return;
         applyItemDelta(msg);
     } else if (msg.type === 'itemGone' && net.role === 'client') {
         if (conn.peer !== net.syncedPeer) return;   // only the synced host may take things away
@@ -4706,13 +4758,15 @@ function handleMessage(msg, conn) {
         net.sendItem(msg.campId, msg.itemId, conn);
         // [netcheck:needitem-end]
     } else if (msg.type === 'stage' && net.role === 'client') {
-        if (!net.foreign || conn.peer !== net.syncedPeer) return;   // before the snapshot, or from a host other than the synced one: nothing to apply (the campaign on screen is this player's own)
+        if (!fromHost(conn)) return;
         applyStage(msg.stage);
         toast(msg.personal ? 'You arrive.' : 'The GM moved the table to a new map.');
     } else if (msg.type === 'pause' && net.role === 'client') {
+        if (!fromHost(conn)) return;
         setPausedLocal(!!msg.on);
         toast(msg.on ? 'The GM paused the table.' : 'The table is live again.');
     } else if (msg.type === 'pausePlayer' && net.role === 'client') {
+        if (!fromHost(conn)) return;
         setSelfPausedLocal(!!msg.on);
         render();   // refresh my own token affordances (turn handles etc.) now that I'm frozen/thawed
         toast(msg.on ? 'The GM paused you.' : 'You are live again.');
@@ -4730,9 +4784,11 @@ function handleMessage(msg, conn) {
         if (window.wpVtt) window.wpVtt.ceilingChanged(prevStance, typeof msg.campId === 'string' ? msg.campId.slice(0, 160) : '');
         if (window.wpSettingsSync) window.wpSettingsSync();
     } else if (msg.type === 'travelLock' && net.role === 'client') {
+        if (!fromHost(conn)) return;
         setTravelLockLocal(!!msg.on);
         toast(msg.on ? 'The GM has locked travel between maps for now.' : 'Travel between maps is open again.');
     } else if (msg.type === 'travelDenied' && net.role === 'client') {
+        if (!fromHost(conn)) return;
         if (msg.reason === 'closed') toast((msg.map ? String(msg.map).slice(0, 120) : 'That map') + " isn't open yet — the GM will let you through when it's time.");
         else toast('Travel between maps is locked right now — the GM will open it when the time comes.');
     } else if (msg.type === 'travel' && net.role === 'host') {
@@ -4792,6 +4848,7 @@ function handleMessage(msg, conn) {
         applyNotepad(msg);
         // [netcheck:notepadmsg-end]
     } else if (msg.type === 'combats' && net.role === 'client') {
+        if (!fromHost(conn)) return;
         var before = net.combats, after = cleanCombats(msg.combats);
         net.combats = after;
         var camC = getActiveCampaign(), mineC = camC && after[camC.activeItemId], mineB = camC && before[camC.activeItemId];
@@ -4799,9 +4856,11 @@ function handleMessage(msg, conn) {
         else if (mineB && !mineC) toast('Combat is over.');
         combatRefresh();
     } else if (msg.type === 'targets' && net.role === 'client') {
+        if (!fromHost(conn)) return;
         net.targets = cleanTargets(msg.targets);
         render();
     } else if (msg.type === 'pos') {
+        if (net.role === 'client' && !fromHost(conn)) return;
         handlePos(msg, conn);
     } else if (msg.type === 'end' && net.role === 'client') {
         net.leaving = true;   // deliberate teardown from the GM: no auto-reconnect
@@ -5719,6 +5778,7 @@ function handleMessage(msg, conn) {
         }
         // [netcheck:chat-end]
     } else if (msg.type === 'chat-history' && net.role === 'client') {
+        if (!fromHost(conn)) return;
         var histD = window.wpDiceCore, histF = window.wpFormula;
         var hist = Array.isArray(msg.log) ? msg.log.filter(function(m) { return m && m.from && (typeof m.text === 'string' || m.roll); }).slice(-60) : [];
         var have = {}; chatLog.forEach(function(m) { have[m.roll ? 'r|' + m.roll.id : m.apply ? 'a|' + m.apply.id : (m.ts || 0) + '|' + (m.from && m.from.id) + '|' + m.text] = true; });
@@ -5760,7 +5820,7 @@ function handleMessage(msg, conn) {
 /* ---------- auto-reconnect (client) ----------
    An unexpected drop keeps the room code and retries quietly; only after the
    retries run out (or the GM ends the session) is the local campaign restored. */
-var reconn = { tries: 0, timer: null, code: null, name: null, pending: false };
+var reconn = { tries: 0, timer: null, code: null, name: null, pending: false, gen: 0 };   // gen: the room generation that last answered, dialled first on a retry
 
 function cancelReconnect() {
     reconn.pending = false; reconn.tries = 0;
@@ -5981,7 +6041,7 @@ function startHosting(forceFresh) {
     var code = resumed || makeCode();
     var gen = resumed ? net._hostGen : 0;
     var peer = new Peer(roomPeerId(code, gen), peerOpts());
-    net.peer = peer; net.role = 'host'; net.code = code;
+    net.peer = peer; net.role = 'host'; net.code = code; net.roomPeer = roomPeerId(code, gen);   // the room id players dial: what a player's proof of their table key is checked over
     net._lastStanceSig = null;   // the first save after hosting starts sends the ceiling
     net._lastSoundSig = null;    // and the sound list
     net._lastMusicSig = null;    // and the music library
@@ -6056,7 +6116,7 @@ function joinSession(code, name, isRetry, probe) {
         renderRoster(); syncSessionButtons();
     }
     if (!isRetry && !probe) setStatus('Connecting to ' + code.toUpperCase() + '...');
-    var gen = isRetry ? (reconn.tries % ROOM_GENS) : probe;
+    var gen = isRetry ? retryGen(reconn.gen, reconn.tries, ROOM_GENS) : probe;   // a blip reconnects to the generation that last answered at once; a crashed GM's next generation follows in turn
     peer.on('open', function() {
         var conn = peer.connect(roomPeerId(code, gen), { reliable: true });
         net.conns = [conn];
@@ -6086,9 +6146,10 @@ function joinSession(code, name, isRetry, probe) {
         conn.on('open', function() {
             var wasRetry = reconn.pending;
             cancelReconnect();
+            reconn.gen = gen;
             net.active = true;
             var pwIn = ui('netJoinPassInput');
-            conn.send({ type: 'hello', profile: profile, password: pwIn ? pwIn.value.trim() : '', version: APP_VERSION, key: tableKeyFor(net.gmId) });   // before the first heartbeat: the host admits nothing that speaks first; the key proves a known id (a reconnect knows its GM; a fresh join is challenged for it)
+            conn.send({ type: 'hello', profile: profile, password: pwIn ? pwIn.value.trim() : '', version: APP_VERSION });   // before the first heartbeat: the host admits nothing that speaks first; no key rides here — a known id is challenged and answers with a proof (the auth branch), so nothing of a previous table reaches a host unasked
             startHeartbeat();
             renderRoster();
             setStatus('Connected — waiting for campaign snapshot...');
@@ -6125,7 +6186,7 @@ function leaveSession(silent) {
     if (window.wpVideo && window.wpVideo.tableLeft) { try { window.wpVideo.tableLeft(); } catch (e) {} }   // item 21 V2: a showing stops while the table still hears it; a player's panel closes
     net.videoStop(); videoOver();
     if (net.peer) { try { net.peer.destroy(); } catch (e) {} }
-    net.peer = null; net.conns = []; net.roster = Object.create(null); if (!silent) net.away = Object.create(null); net.active = false; net.role = null; net.code = null; net.lastStage = null;   // a reconnect retry (silent) keeps the away map: tokens stay on their last-known maps while it retries
+    net.peer = null; net.conns = []; net.roster = Object.create(null); if (!silent) net.away = Object.create(null); net.active = false; net.role = null; net.code = null; net.roomPeer = null; net.lastStage = null;   // a reconnect retry (silent) keeps the away map: tokens stay on their last-known maps while it retries
     diceSessionReset(!silent);   // a deliberate leave or end clears the chat panel too; a retry keeps it
     // do not null net.stance / net.stanceCamps / net.gmId here — joinSession calls leaveSession(true) on every retry,
     // and the GM's campaign stays on screen until load() brings the player's own back; load() is the one clear point

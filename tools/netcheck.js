@@ -2361,6 +2361,24 @@ pendingChecks.push((async () => {
         && tC.pat.x === 150 && tC.net.turnMove.m1.moved === 6 && j(tC.out.notes()) === j(['Moved 3 squares (15 ft), costing 6 squares (30 ft) with difficult terrain; 2 squares (10 ft) left.', 'pA2:Moved 3 squares (15 ft), costing 6 squares (30 ft) with difficult terrain; 2 squares (10 ft) left.'])
         && tD.pat.x === 0 && j(tD.out.notes()) === j(['That costs 6 squares (30 ft) with difficult terrain; you have 4 squares (20 ft) left.', 'pA2:That costs 6 squares (30 ft) with difficult terrain; you have 4 squares (20 ft) left.']),
         j([tA.out.notes(), tB.out.notes(), tN.out.notes(), tC.out.notes(), tD.out.notes()]));
+    // whole cells (owner, 2026-10-01): the real moveCells (fog.js, sliced, over the real fogcore and systemcore) in the real pos gate and patch
+    // path — a token standing off the grid is counted from the cell it stands in to the cell it lands in; a final that moved nothing says nothing
+    const FCm = await import(url('fogcore.js')), fogM = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'fog.js'), 'utf8').replace(/\r\n/g, '\n');
+    const realMc = new Function('core', 'window', 'gridForMap', 'terrainFor', fogM.slice(fogM.indexOf('function moveCells('), fogM.indexOf('// GM clicks a door while in fog mode')) + '\nreturn moveCells;')(() => FCm, { wpSystemCore: Sx }, m => FCm.gridFor(m.meta.gridType), () => null);
+    const offAt = (o, x, y) => { const W = mkT(Object.assign({ moveCells: realMc }, o)); W.pat.x = x; W.pat.y = y; return W; };
+    const g1 = offAt({ allow: 4 }, 100, 321.7); g1.P('t_p', 100, 400, true);                                   // straight down, off the lattice: 2 squares (1.6 by the old raw count)
+    const g2 = offAt({ allow: 4 }, 100, 321.7); g2.P('t_p', 100, 360); g2.C('t_p', 100, 400);                  // the same through the map copy that closes a lost final
+    const g3 = offAt({ allow: 4 }, 100, 321.7); g3.P('t_p', 100, 580, true);                                   // six squares: past the move, back where it began
+    const g4 = offAt({ allow: 4 }, 0, 0); g4.P('t_p', 20, 20, true); g4.P('t_p', 20, 20, true); g4.C('t_p', 24, 24);   // a shuffle inside its own cell, a turn in place, a copy of the same
+    const g5 = offAt({ allow: 4, rules: { move: 'warn' }, moved: 9 }, 0, 0); g5.P('t_p', 0, 0, true);          // already past its move (Warn), turning in place: nothing more is said
+    const g6 = offAt({ allow: 4, moved: 9 }, 10, 10); g6.P('t_p', 12, 14, true); g6.P('t_p', 12, 14); g6.C('t_p', 16, 18);   // Refuse, already past its move: a shuffle in its cell is no move to refuse
+    check('whole cells in the move limit (host, the real moveCells in the real pos gate and patch path): a token standing off the grid that moves straight down two squares is told "Moved 2 squares", and so is the map copy that closes a lost final (each of the player\'s connections); six squares past a move of four goes back where it stood, off the grid as it was; a shuffle inside its own cell, a turn in place and a copy of the same count nothing and say nothing, even for a token already past its move, which is not sent back for a move of nothing either',
+        g1.net.turnMove.m1.moved === 2 && j(g1.out.notes()) === j(['Moved 2 squares (10 ft); 2 squares (10 ft) left.'])
+        && g2.net.turnMove.m1.moved === 2 && j(g2.out.notes()) === j(['Moved 2 squares (10 ft); 2 squares (10 ft) left.', 'pA2:Moved 2 squares (10 ft); 2 squares (10 ft) left.'])
+        && g3.pat.x === 100 && g3.pat.y === 321.7 && g3.net.turnMove.m1.moved === 0 && j(g3.out.notes()) === j(['That is 6 squares (30 ft); you have 4 squares (20 ft) left.'])
+        && g4.net.turnMove.m1.moved === 0 && j(g4.out.notes()) === '[]' && g4.out.toasts.length === 0 && g5.net.turnMove.m1.moved === 9 && j(g5.out.notes()) === '[]' && g5.out.toasts.length === 0 && g5.out.bells.length === 0
+        && g6.pat.x === 16 && g6.pat.y === 18 && g6.net.turnMove.m1.moved === 9 && j(g6.out.notes()) === '[]',
+        j([g1.out.notes(), g2.out.notes(), g3.out.notes(), [g3.pat.x, g3.pat.y], g4.out.notes(), g5.out.notes(), g5.out.toasts]));
     const w = mkT({ allow: 4, rules: { move: 'warn' } }); w.P('t_p', 300, 0, true);
     const bo = mkT({ turn: 0, rules: { order: 'warn' } }); bo.P('t_p', 50, 0, true); const br = mkT({ turn: 0 }); br.P('t_p', 50, 0, true);
     const bp = mkT({ allow: 4 }); bp.P('t_p', 50, 0); bp.C('t_p', 250, 0); const bs = mkT(); bs.api.start('m1', bs.net.combats.m1);

@@ -3159,6 +3159,7 @@ function turnOrderCheck(camp, map, w, frW, msg, conn) {
     if (msg.final) { turnNote(conn, 'You moved out of turn.', w.charId); toast((w.charName || 'A token') + ' moved out of turn.'); if (typeof bellOut === 'function') bellOut(w.charId, { title: 'Turn', text: 'Moved out of turn.' }); }
     return '';
 }
+// A final that moved nothing (a turn in place, a shuffle inside its own cell) counts nothing and says nothing
 function turnLimitCheck(camp, map, w, frW, msg, conn) {
     var cb = turnCombatOf(camp, msg.itemId, w); if (!cb) return '';
     var cur = cb.rows[cb.turn], st = own(net.turnMove, msg.itemId) ? net.turnMove[msg.itemId] : null;
@@ -3166,8 +3167,8 @@ function turnLimitCheck(camp, map, w, frW, msg, conn) {
     var mm = moveMode(camp, 'move'); if (mm === 'off') return '';
     var sys = camp && camp.system, dg = sys && sys.combat && sys.combat.turn ? sys.combat.turn.diag : '';
     var mvO = {}, d = window.wpFog && window.wpFog.moveCells ? window.wpFog.moveCells(map, w, frW.x, frW.y, msg.x, msg.y, dg, mvO) : 0, over = st.moved + d > st.allow + 0.05;
-    if (over && mm === 'refuse') { if (!msg.final) return 'stop'; snapBack(camp, map, w, msg, frW, conn); turnNote(conn, thatIsText(d, mvO.len, map) + '; you have ' + cellsText(Math.max(0, st.allow - st.moved), map) + ' left.', w.charId); return 'stop'; }
-    if (msg.final) { st.moved += d; var lf = st.allow - st.moved; turnNote(conn, over ? 'That went ' + cellsText(-lf, map) + ' past your move.' : movedText(d, mvO.len, map) + '; ' + cellsText(Math.max(0, lf), map) + ' left.', w.charId); if (over) { toast((w.charName || 'A token') + ' moved ' + cellsText(-lf, map) + ' past their move.'); if (typeof bellOut === 'function') bellOut(w.charId, { title: 'Turn', text: 'Moved ' + cellsText(-lf, map) + ' past the move.' }); } }
+    if (over && d > 0 && mm === 'refuse') { if (!msg.final) return 'stop'; snapBack(camp, map, w, msg, frW, conn); turnNote(conn, thatIsText(d, mvO.len, map) + '; you have ' + cellsText(Math.max(0, st.allow - st.moved), map) + ' left.', w.charId); return 'stop'; }
+    if (msg.final && d > 0) { st.moved += d; var lf = st.allow - st.moved; turnNote(conn, over ? 'That went ' + cellsText(-lf, map) + ' past your move.' : movedText(d, mvO.len, map) + '; ' + cellsText(Math.max(0, lf), map) + ' left.', w.charId); if (over) { toast((w.charName || 'A token') + ' moved ' + cellsText(-lf, map) + ' past their move.'); if (typeof bellOut === 'function') bellOut(w.charId, { title: 'Turn', text: 'Moved ' + cellsText(-lf, map) + ' past the move.' }); } }
     return '';
 }
 // T3: the note of the Refuse rule that stops a player's move of this token from (fx, fy) to (tx, ty) — a wall in the way, out of its turn, past
@@ -3178,13 +3179,14 @@ function moveRefused(camp, map, mapId, w, fx, fy, tx, ty) {
     var cur = cb.rows[cb.turn]; if (!cur || cur.tokId !== w.id) return moveMode(camp, 'order') === 'refuse' ? 'It is not your turn: your token goes back.' : '';
     var st = own(net.turnMove, mapId) ? net.turnMove[mapId] : null; if (!st || st.tokId !== w.id || st.rowId !== cur.id || typeof st.allow !== 'number' || moveMode(camp, 'move') !== 'refuse') return '';
     var sys = camp && camp.system, dg = sys && sys.combat && sys.combat.turn ? sys.combat.turn.diag : '', mvR = {}, d = window.wpFog && window.wpFog.moveCells ? window.wpFog.moveCells(map, w, fx, fy, tx, ty, dg, mvR) : 0;
-    return st.moved + d > st.allow + 0.05 ? thatIsText(d, mvR.len, map) + '; you have ' + cellsText(Math.max(0, st.allow - st.moved), map) + ' left.' : '';
+    return d > 0 && st.moved + d > st.allow + 0.05 ? thatIsText(d, mvR.len, map) + '; you have ' + cellsText(Math.max(0, st.allow - st.moved), map) + ' left.' : '';
 }
 // T3b: a move that lands through a map copy (its drag's final pos was lost) still counts against the turn's move; its note, or ''
 function moveCounted(camp, map, mapId, w, fx, fy, tx, ty) {
     var cb = turnCombatOf(camp, mapId, w); if (!cb) return '';
     var cur = cb.rows[cb.turn], st = own(net.turnMove, mapId) ? net.turnMove[mapId] : null; if (!cur || cur.tokId !== w.id || !st || st.tokId !== w.id || st.rowId !== cur.id || typeof st.allow !== 'number') return '';
     var sys = camp && camp.system, dg = sys && sys.combat && sys.combat.turn ? sys.combat.turn.diag : '', mvC = {}, d = window.wpFog && window.wpFog.moveCells ? window.wpFog.moveCells(map, w, fx, fy, tx, ty, dg, mvC) : 0;
+    if (!(d > 0)) return '';   // nothing moved (a turn in place, a shuffle inside its own cell): nothing to count, nothing to say
     st.moved += d;
     return moveMode(camp, 'move') === 'off' ? '' : movedText(d, mvC.len, map) + '; ' + cellsText(Math.max(0, st.allow - st.moved), map) + ' left.';
 }

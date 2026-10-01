@@ -50,7 +50,7 @@ const hmacRef = (key, data) => require('crypto').createHmac('sha256', key).updat
 const tryBetween = (a, b) => { try { return between(a, b, a); } catch (e) { return null; } };   // a slice whose markers may be missing: the check fails instead of the suite dying
 const RC = new Function('localStorage', 'crypto', helpersSrc + '\n' + rosterCleanSrc + '\nreturn { cleanHostRoster, cleanHostAway, validKey };')(storage, globalThis.crypto);
 
-const ENV_NAMES = ['net', 'own', 'validProfileId', 'cleanFace', '_connMeta', 'UNADMITTED_TTL', 'noteSeen', 'denyJoin', 'lastSeen', 'HB_STALE', 'bannedIds', 'getActiveCampaign', 'APP_VERSION', 'versionCmp', 'updateMessage', 'toast', 'logEvent', 'newerSeen', 'ui', '_pwFails', 'approvedIds', 'admitPlayer', 'queueJoin', 'setTimeout', 'clearTimeout', 'tableKeyFor', 'getProfile', 'showConfirm', 'pendingJoins', 'processNextApproval', 'allow', 'pushChat', 'broadcast', 'safeAvatar', 'cleanRosterName', 'awayMap', 'validKey', 'sendFailed', 'newKey', 'hmacHex', 'authData', 'sameStr'];
+const ENV_NAMES = ['net', 'own', 'validProfileId', 'cleanFace', '_connMeta', 'UNADMITTED_TTL', 'noteSeen', 'denyJoin', 'lastSeen', 'HB_STALE', 'bannedIds', 'getActiveCampaign', 'APP_VERSION', 'versionCmp', 'updateMessage', 'toast', 'logEvent', 'newerSeen', 'ui', '_pwFails', 'PW_LOCK_FAILS', 'PW_LOCK_MS', 'admitPlayer', 'queueJoin', 'setTimeout', 'clearTimeout', 'tableKeyFor', 'getProfile', 'showConfirm', 'pendingJoins', 'processNextApproval', 'allow', 'pushChat', 'broadcast', 'safeAvatar', 'cleanRosterName', 'awayMap', 'validKey', 'sendFailed', 'newKey', 'hmacHex', 'authData', 'sameStr'];
 // the env supplies every name a slice references — except the function the slice itself DEFINES (a var of the same name would overwrite the hoisted declaration)
 const pre = (except) => 'var ' + ENV_NAMES.filter(n => except.indexOf(n) < 0).map(n => n + ' = env.' + n).join(', ') + ';\n';
 const runGate = new Function('env', 'msg', 'conn', pre([]) + gateSrc + '\nreturn "ran";');
@@ -76,7 +76,7 @@ function harness(opts) {
         _connMeta: Object.create(null), UNADMITTED_TTL: 10 * 60 * 1000, HB_STALE: 8000, lastSeen: {},
         noteSeen: p => h.seen.push(p),
         denyJoin: (conn, reason) => { conn.send({ type: 'denied', reason }); conn.close(); },
-        bannedIds: {}, approvedIds: {}, newerSeen: {}, _pwFails: [], pendingJoins: [],
+        bannedIds: {}, newerSeen: {}, _pwFails: Object.create(null), PW_LOCK_FAILS: 5, PW_LOCK_MS: 60000, pendingJoins: [],
         getActiveCampaign: () => h.camp, APP_VERSION: '1.5.0', versionCmp, updateMessage: () => 'update',
         toast: m => h.toasts.push(String(m)), logEvent: () => {}, showConfirm: m => h.confirms.push(m),
         ui: () => ({ value: opts.password || '' }),
@@ -277,9 +277,9 @@ pendingChecks.push((async () => {
     check('hello: a pre-key record is not auto-admitted — the GM is asked once (then a key is issued on admit)', h.admitted.length === 0 && h.env.pendingJoins.length === 1 && !h.lastSent('p6', 'auth'));
 }
 {
-    const h = harness(); h.env.approvedIds.u_dropped = true; const c = h.conn('p7');
+    const h = harness(); const c = h.conn('p7');   // security (2026-10-01, cluster J #1): no "go straight in" list — a yes the GM gave to a connection that dropped opens nothing to a later hello claiming that id
     h.hello(c, { id: 'u_dropped', name: 'Dee' });
-    check('hello: a yes the GM gave to a dropped connection is good once, then spent', h.admitted.length === 1 && !('u_dropped' in h.env.approvedIds));
+    check('hello: a hello claiming an id the GM once said yes to (on a connection that had dropped) is a new request — queued for the GM, never admitted on the name alone; the gate holds no approved-ids list', h.admitted.length === 0 && h.env.pendingJoins.length === 1 && !/approvedIds/.test(gateSrc));
 }
 
 /* ================= the impersonation the audit found ================= */
@@ -453,12 +453,13 @@ pendingChecks.push((async () => {
     const denials = h.sent.filter(s => s.m.type === 'denied' && /not valid/.test(s.m.reason)).length;
     check('hello: prototype keys, spaces, over-long and empty ids are refused as invalid', denials === 5 && h.admitted.length === 0 && h.env.pendingJoins.length === 0);
 }
-{
-    const h = harness({ players: { u_k: { name: 'K', key: 'z'.repeat(32) } } }); const c = h.conn('w1'); h.env.approvedIds.u_k = true;   // admitted on the GM's yes (a key is proven, never sent: see the proof flow above)
-    h.hello(c, { id: 'u_k', name: 'K', color: '#12ab34', avatar: 'data:text/html;base64,AAAA', location: 'map_secret', evil: { deep: 1 }, gm: true }, { key: 'z'.repeat(32) });
+pendingChecks.push((async () => {
+    const h = harness({ players: { u_k: { name: 'K', key: 'z'.repeat(32) } } }); const c = h.conn('w1');   // admitted on the proof of the table key (a key is proven, never sent: see the proof flow above)
+    h.hello(c, { id: 'u_k', name: 'K' }); await h.settle(); const nonce = h.lastSent('w1', 'auth').m.nonce;
+    h.hello(c, { id: 'u_k', name: 'K', color: '#12ab34', avatar: 'data:text/html;base64,AAAA', location: 'map_secret', evil: { deep: 1 }, gm: true }, { key: 'z'.repeat(32), proof: hmacRef('z'.repeat(32), 'wp-auth|' + nonce + '|waypoint-c1') }); await h.settle();
     const prof = h.admitted[0] && h.admitted[0].prof;
-    check('hello: only id/name/color survive from the profile (a bad avatar and any extra field are dropped)', prof && Object.keys(prof).sort().join() === 'color,id,name' && prof.color === '#12ab34');
-}
+    check('hello: only id/name/color survive from the profile (a bad avatar and any extra field are dropped)', prof && Object.keys(prof).sort().join() === 'color,id,name' && prof.color === '#12ab34', JSON.stringify(h.admitted));
+})());
 {
     const h = harness(); const c = h.conn('s1');
     for (let i = 0; i < 5; i++) h.hello(c, { id: 'u_storm', name: 'S' });
@@ -481,10 +482,7 @@ pendingChecks.push((async () => {
     for (let i = 0; i < 20; i++) { const c = h.conn('pw' + i); h.hello(c, { id: 'u_guess' + i, name: 'G' }, { password: 'nope' + i }); }
     check('password: every wrong guess is refused', h.sent.filter(s => s.m.type === 'denied' && /Wrong session password/.test(s.m.reason)).length === 20);
     const cR = h.conn('pwR'); h.hello(cR, { id: 'u_right', name: 'R' }, { password: 'sesame' });
-    check('password: after 20 wrong guesses in a minute the door is locked briefly, even for the right word', h.lastSent('pwR', 'denied') && /Too many/.test(h.lastSent('pwR', 'denied').m.reason));
-    h.env._pwFails.length = 0;
-    const cOk = h.conn('pwOK'); h.hello(cOk, { id: 'u_right2', name: 'R' }, { password: 'sesame' });
-    check('password: the right word joins the queue as normal once the lockout lapses', h.lastSent('pwOK', 'wait') && h.env.pendingJoins.some(j => j.prof.id === 'u_right2'));
+    check('password (security 2026-10-01, cluster J #3): twenty wrong guesses under twenty names lock nobody else out — the right word under another name joins the queue as normal', h.lastSent('pwR', 'wait') && !h.lastSent('pwR', 'denied') && h.env.pendingJoins.some(j => j.prof.id === 'u_right'));
 }
 
 /* ================= the join queue ================= */
@@ -605,14 +603,16 @@ const j = JSON.stringify;
             j(awayB) === j({ u_a: 'map_1', u_kept: 'map_2' }) && Object.getPrototypeOf(awayB) === Object.prototype, j(awayB));
     }
 }
-{
-    const h = harness({ players: { u_q: { name: 'Q', key: 'q'.repeat(32) }, u_r: { name: 'R', key: 'r'.repeat(32) } } }); h.env.approvedIds.u_q = true; h.env.approvedIds.u_r = true;   // admitted on the GM's yes (a key is proven, never sent)
-    h.hello(h.conn('q1'), { id: 'u_q', name: ' Q\u202e\u0007 ', avatar: 'data:image/png;base64,AAAA" onerror="alert(1)' }, { key: 'q'.repeat(32) });
-    h.hello(h.conn('r1'), { id: 'u_r', name: 'R', avatar: 'data:image/png;base64,iVBORw0KGgo=' }, { key: 'r'.repeat(32) });
+pendingChecks.push((async () => {
+    const h = harness({ players: { u_q: { name: 'Q', key: 'q'.repeat(32) }, u_r: { name: 'R', key: 'r'.repeat(32) } } });   // admitted on the proof of their table keys (a key is proven, never sent)
+    const cq = h.conn('q1'), cr = h.conn('r1'); h.hello(cq, { id: 'u_q', name: 'Q' }); h.hello(cr, { id: 'u_r', name: 'R' }); await h.settle();
+    const nq = h.lastSent('q1', 'auth').m.nonce, nr = h.lastSent('r1', 'auth').m.nonce, PR = (k, n) => hmacRef(k, 'wp-auth|' + n + '|waypoint-c1');
+    h.hello(cq, { id: 'u_q', name: ' Q\u202e\u0007 ', avatar: 'data:image/png;base64,AAAA" onerror="alert(1)' }, { proof: PR('q'.repeat(32), nq) });
+    h.hello(cr, { id: 'u_r', name: 'R', avatar: 'data:image/png;base64,iVBORw0KGgo=' }, { proof: PR('r'.repeat(32), nr) }); await h.settle();
     const pq = h.admitted.find(a => a.prof.id === 'u_q'), pr = h.admitted.find(a => a.prof.id === 'u_r');
     check('hello: a valid image prefix with a quote-breaking tail is dropped (the whole data URL must be base64); a real one is kept; the name loses bidi and control characters', pq && !('avatar' in pq.prof) && pq.prof.name === 'Q' && pr && pr.prof.avatar === 'data:image/png;base64,iVBORw0KGgo=', j(h.admitted.map(a => a.prof)));
     check('setProfile keeps only a whole base64 image data URL too', /if \(typeof patch\.avatar === 'string'\) \{ if \(safeAvatar\(patch\.avatar\)\) p\.avatar = patch\.avatar;/.test(src));
-}
+})());
 {
     const rd = f => fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', f), 'utf8').replace(/\r\n/g, '\n');
     const sbSrc = rd('sidebar.js'), wbSrc2 = rd('whiteboard.js'), inSrc = rd('inspector.js'), shSrc = rd('sheets.js');
@@ -1160,8 +1160,8 @@ pendingChecks.push((async () => {
         const camp = { id: 'k', turnRules: o.rules === undefined ? {} : o.rules, items: { m1: { id: 'm1', type: 'map', meta: { title: 'Keep' }, whiteboard: [{ id: 'orc', isChar: true, charName: 'Orc' }, { id: 'ghost', isChar: true, charName: 'Ghost', hidden: true }, { id: 'pc', isChar: true, charName: 'Bo', ownerId: 'u_b' }, { id: 'box', type: 'rect' }, null] }, d1: { id: 'd1', type: 'doc', whiteboard: [{ id: 'orc', isChar: true }] } } };
         const net = { role: 'host', roster: { pA: { id: 'u_a', name: 'Ana' } }, combats: o.combats || {} };
         try {
-            new Function('msg', 'conn', 'net', 'allow', 'applyTarget', 'broadcastTargets', 'combatAsked', 'getActiveCampaign', 'showConfirm', 'mapTitleOf', 'window', 'own', taSrc)(
-                Object.assign({ type: 'target', id: 'orc', mapId: 'm1' }, msg || {}), { peer: o.peer || 'pA' }, net, () => !o.slow, (pid, name, t) => out.applied.push([pid, name, t]), () => { out.bcast++; }, asked, () => (o.noCamp ? null : camp),
+            new Function('msg', 'conn', 'net', 'allow', 'applyTarget', 'broadcastTargets', 'combatAsked', 'combatAskOpen', 'getActiveCampaign', 'showConfirm', 'mapTitleOf', 'window', 'own', taSrc)(
+                Object.assign({ type: 'target', id: 'orc', mapId: 'm1' }, msg || {}), { peer: o.peer || 'pA' }, net, () => !o.slow, (pid, name, t) => out.applied.push([pid, name, t]), () => { out.bcast++; }, asked, Object.create(null), () => (o.noCamp ? null : camp),
                 (title, cb, opts) => { out.asks.push([title, opts]); if (o.yes !== undefined) cb(o.yes); }, id => 'Keep', { wpOpenCombat: (mid, oo) => out.opened.push([mid, oo]) }, H.own);
         } catch (e) { out.threw = e.message; }
         out.asked = Object.keys(asked); return out; };
@@ -1358,24 +1358,23 @@ pendingChecks.push((async () => {
         const camp = { id: 'c1', players: { u_a: { name: 'Ana', key: 'k1', lastMap: 'm0' }, u_b: { name: 'Bo', key: 'k2' } } };
         const net = { role: 'host', roster: { pA: { id: 'u_a', location: 'm1' }, pB: { id: 'u_b', location: 'm1' } }, forgotten: Object.create(null) };
         const out = { asked: [], toasts: [], saved: 0, redraws: 0, camp, net, waitRemoved: [], waitChanged: [] };
-        out.approvedIds = { u_a: true };   // a yes to a connection that had dropped, not yet used
-        const env = [net, H.own, (m, cb) => { out.asked.push(m); cb(answer); }, () => (opts.switched ? { id: 'c2' } : camp), () => { out.saved++; }, m => out.toasts.push(m), () => { out.redraws++; }, out.approvedIds, () => ({ playableChars: (c, pid) => pid === 'u_a' ? [{ id: 'c_1' }] : [] }), (c, pid) => { out.waitRemoved.push(pid); return ['m1']; }, (c, maps) => { out.waitChanged.push(maps); }];
+        const env = [net, H.own, (m, cb) => { out.asked.push(m); cb(answer); }, () => (opts.switched ? { id: 'c2' } : camp), () => { out.saved++; }, m => out.toasts.push(m), () => { out.redraws++; }, {}, () => ({ playableChars: (c, pid) => pid === 'u_a' ? [{ id: 'c_1' }] : [] }), (c, pid) => { out.waitRemoved.push(pid); return ['m1']; }, (c, maps) => { out.waitChanged.push(maps); }];
         const fns = new Function('net', 'own', 'showConfirm', 'getActiveCampaign', 'save', 'toast', 'renderPlayersPanel', 'approvedIds', 'SC', 'removeWaiting', 'waitingChanged', fgSrc + '\n' + slSrc + '\nreturn { forgetPlayer, syncLastMaps };')(...env);
         fns.forgetPlayer(camp, fid);
         fns.syncLastMaps();
         return out;
     };
     const yes = run(true, 'u_a'), no = run(false, 'u_a');
-    check('forget (host): asked first, naming them and saying they stay at the table; on yes the record goes for good — the roster sync that runs on every redraw no longer re-creates it while they play on — and a one-time approval still waiting goes too (Cancel keeps it)',
+    check('forget (host): asked first, naming them and saying they stay at the table; on yes the record goes for good — the roster sync that runs on every redraw no longer re-creates it while they play on (Cancel keeps it)',
         yes.asked.length === 1 && /Forget Ana\?/.test(yes.asked[0]) && /stay at the table/.test(yes.asked[0]) && !('u_a' in yes.camp.players) && yes.net.forgotten.u_a === true && yes.saved === 1 && yes.redraws === 1
-        && yes.camp.players.u_b.lastMap === 'm1' && !('u_a' in yes.approvedIds) && no.approvedIds.u_a === true, j([yes.asked, yes.camp.players, yes.approvedIds]));
+        && yes.camp.players.u_b.lastMap === 'm1', j([yes.asked, yes.camp.players]));
     check('forget (F1a): a Forget takes the player\'s waiting token too (Cancel leaves it)', j(yes.waitRemoved) === j(['u_a']) && j(yes.waitChanged) === j([['m1']]) && no.waitRemoved.length === 0 && no.waitChanged.length === 0, j([yes.waitRemoved, no.waitRemoved]));
     const gone = run(true, 'u_a', { switched: true }), proto = run(true, 'constructor'), stranger = run(true, 'u_zz');
     check('forget (host): Cancel keeps them (and the sync still records where they are); an answer after a campaign switch changes nothing; a prototype-key or unknown id asks nothing',
         no.camp.players.u_a.key === 'k1' && no.camp.players.u_a.lastMap === 'm1' && !no.net.forgotten.u_a && no.saved === 0 && gone.camp.players.u_a.key === 'k1' && gone.saved === 0
         && proto.asked.length === 0 && stranger.asked.length === 0 && proto.saved === 0, j([no.camp.players, gone.camp.players, proto.asked]));
-    check('forget (host): the Players panel\'s Forget goes through forgetPlayer, and only the GM\'s next Allow (admitPlayer) ends a forget, before the record is written again — and any admission uses up a one-time approval, so none is left over to let them straight back in',
-        /\} else if \(btn\.dataset\.forget\) \{\s*forgetPlayer\(camp, btn\.dataset\.forget\);\s*return;/.test(src) && /delete net\.forgotten\[prof\.id\];[^\n]*\n\s*delete approvedIds\[prof\.id\];[^\n]*\n\s*var rec = camp\.players\[prof\.id\] = /.test(src) && /net\.forgotten = Object\.create\(null\);/.test(src)
+    check('forget (host): the Players panel\'s Forget goes through forgetPlayer, and only the GM\'s next Allow (admitPlayer) ends a forget, before the record is written again',
+        /\} else if \(btn\.dataset\.forget\) \{\s*forgetPlayer\(camp, btn\.dataset\.forget\);\s*return;/.test(src) && /delete net\.forgotten\[prof\.id\];[^\n]*\n\s*var rec = camp\.players\[prof\.id\] = /.test(src) && /net\.forgotten = Object\.create\(null\);/.test(src)
         && /if \(!p \|\| !p\.id \|\| !p\.location \|\| net\.forgotten\[p\.id\]\) return;/.test(src));
 }
 
@@ -3986,8 +3985,9 @@ pendingChecks.push((async () => {
     const wpcU = host({ msg: { sheet: { format: 'waypoint-character', v: 1, name: 'Ana', values: {} } } });
     check('F2a on the wire (host): a character file sent as a sheet update is refused and answered so — never read as a ShadowBase dossier; nothing kept, saved or said. The player shows only a reason of ours',
         denied(wpcU, 'file') && /\{ error: Object\.prototype\.hasOwnProperty\.call\(UP_WHY, msg\.reason\) \? UP_WHY\[msg\.reason\] : 'The GM could not read it\.' \}/.test(src.replace(/\r\n/g, '\n')) && /file: 'A character file only fills a character you are still making\.'/.test(src), j(wpcU.answer));
-    check('U2 on the wire (host): an oversize file or a malformed request is dropped unanswered; a file matching the sheet answers 0 and keeps nothing',
-        big.answer.length === 0 && !big.camp.uploads && badRid.answer.length === 0 && j(same.answer) === j([{ n: 0, auto: 0, type: 'char-upload-ans', rid: 'e1' }]) && !same.camp.uploads && same.toasts.length === 0 && same.saves === 1);
+    const sameB = host({ rules: { uploadFacts: true }, msg: { sheet: { name: 'Ana', attributes: { strength: { value: 12 } }, skills: [{ name: 'Climbing', level: '12', relativeLevel: 'DX/Average' }] } } });
+    check('U2 on the wire (host): an oversize file or a malformed request is dropped unanswered; a file matching the sheet answers 0, keeps nothing and (cluster J #8, 2026-10-01) saves nothing — under setting B too, where nothing applied and nothing waits',
+        big.answer.length === 0 && !big.camp.uploads && badRid.answer.length === 0 && j(same.answer) === j([{ n: 0, auto: 0, type: 'char-upload-ans', rid: 'e1' }]) && !same.camp.uploads && same.toasts.length === 0 && same.saves === 0 && j(sameB.answer) === j([{ n: 0, auto: 0, type: 'char-upload-ans', rid: 'e1' }]) && sameB.saves === 0 && sameB.deltas.length === 0, j([same.saves, sameB.answer, sameB.saves]));
     const b = host({ rules: { uploadFacts: true } }), bOnly = host({ rules: { uploadFacts: true }, msg: { sheet: dossier(12, 15) } }), bGm = host({ rules: { uploadFacts: true }, gmList: true }), bHid = host({ rules: { uploadFacts: true }, hid: true });
     const old = [{ id: 'up_old', charId: 'c_1', from: 'u_a', name: 'Pat', at: 1, changes: [] }, { id: 'up_bo', charId: 'c_2', from: 'u_b', name: 'Bea', at: 1, changes: [] }], rep = host({ queue: old });
     check('U2 setting B (host): the owner\'s own row facts apply at once (a skill\'s level), synced to them as a delta, and answered as applied; the rest (a value) still waits; with only facts, nothing waits and the GM is not asked',
@@ -5307,9 +5307,9 @@ pendingChecks.push((async () => {
         // one pos on a table whose four sets are worked out. The relay is a stand-in here, so what is held afterwards is what the gate itself left
         const one = (o, fin, conn, wbId, itemId, more) => {
             const W = mkP(Object.assign({ noRelay: true }, o)); W.prime(); if (o && o.mid) o.mid(W); W.clear(); let threw = '';   // o.pre runs before the sets are worked out, o.mid after
-            const id = wbId === undefined ? 'tA' : wbId, c = W[conn || 'a1'], t = W.tok(id, itemId), was = t ? [t.x, t.y] : null, held0 = W.fog.held();
+            const id = wbId === undefined ? 'tA' : wbId, c = W[conn || 'a1'], t = W.tok(id, itemId), was = t ? [t.x, t.y] : null, turn0 = t ? [t.rot || 0, t.front || 0] : null, held0 = W.fog.held();
             try { W.move(c, id, 150, 100, fin, itemId, more); } catch (e) { threw = e.message; }
-            return { inv: W.invs(), order: W.ev.filter(e => /^key|^later|^seat|^asked|^inv|^relay/.test(e)), kept: W.kept(), held0, held: W.fog.held(), was, at: t ? [t.x, t.y] : null, turn: t ? [t.rot, t.front] : null, relay: W.ev.filter(e => /^relay/.test(e)), saved: W.ev.filter(e => e === 'saveSoon').length, dropped: W.ev.filter(e => /^dropped/.test(e)).length,
+            return { inv: W.invs(), order: W.ev.filter(e => /^key|^later|^seat|^asked|^inv|^relay/.test(e)), kept: W.kept(), held0, held: W.fog.held(), was, turn0, at: t ? [t.x, t.y] : null, turn: t ? [t.rot, t.front] : null, relay: W.ev.filter(e => /^relay/.test(e)), saved: W.ev.filter(e => e === 'saveSoon').length, dropped: W.ev.filter(e => /^dropped/.test(e)).length,
                 notes: c.sent.filter(m => m.type === 'turn-note').length, out: W.net.conns.map(x => x.sent.filter(m => m.type !== 'turn-note').length), timers: W.timers.map(x => x.ms), threw };
         };
         const less = k => four.filter(x => x !== k);
@@ -5417,16 +5417,17 @@ pendingChecks.push((async () => {
         // empties only where that is no longer the same: the mover's set, or every player's set for that map where the token carries a light (these maps are dark)
         const torch = { bright: 20, dim: 40, unit: 'ft' }, lit = W => { W.tok('tA').light = Object.assign({}, torch); }, litOff = W => { W.tok('tA').light = Object.assign({ off: true }, torch); };
         const to = (o, x, y, more) => both(o, 'a1', 'tA', 'mA', Object.assign({ x, y }, more || {}));
-        const quiet = (r, fin, at) => j(r.inv) === j([]) && r.kept === '1111' && j(r.held) === j(four) && j(r.held0) === j(four) && j(r.relay) === j(['relay:tA:' + fin]) && j(r.at) === j(at) && r.saved === (fin ? 1 : 0) && r.dropped === (fin ? 1 : 0) && r.notes === 0 && j(r.out) === j(zero) && r.threw === '';
-        const own = (r, fin, at) => lands(r, 'inv:mA>u_a', '0111', less('u_a|mA'), 'relay:tA:' + fin, at) && r.saved === (fin ? 1 : 0);
-        const every = (r, fin, at) => lands(r, 'inv:mA>undefined', '0101', ['u_a|mO', 'u_b|mO'], 'relay:tA:' + fin, at) && r.saved === (fin ? 1 : 0);
+        const savedOf = (r, fin) => (fin && !(j(r.at) === j(r.was) && j(r.turn) === j(r.turn0)) ? 1 : 0);   // security (2026-10-01, cluster J #8): a final that leaves the token as it stood — its place, turn and facing — saves nothing; one that moved or turned it saves
+        const quiet = (r, fin, at) => j(r.inv) === j([]) && r.kept === '1111' && j(r.held) === j(four) && j(r.held0) === j(four) && j(r.relay) === j(['relay:tA:' + fin]) && j(r.at) === j(at) && r.saved === savedOf(r, fin) && r.dropped === (fin ? 1 : 0) && r.notes === 0 && j(r.out) === j(zero) && r.threw === '';
+        const own = (r, fin, at) => lands(r, 'inv:mA>u_a', '0111', less('u_a|mA'), 'relay:tA:' + fin, at) && r.saved === savedOf(r, fin);
+        const every = (r, fin, at) => lands(r, 'inv:mA>undefined', '0101', ['u_a|mO', 'u_b|mO'], 'relay:tA:' + fin, at) && r.saved === savedOf(r, fin);
         const pair = (p, f, at) => p.length === 2 && f(p[0], false, at) && f(p[1], true, at);
         // Ana's token is 50 across on cells 50 across and stands at 100, 100: its centre is in its cell from 75 up to, and not at, 125
         const inCell = [[100, 100], [75, 75], [124, 124], [110, 80], [124.9, 75]], pastEdge = [[125, 100], [74, 100], [100, 125], [100, 74], [125, 125]];
         const stays = inCell.map(p => to(null, p[0], p[1])), steps = pastEdge.map(p => to(null, p[0], p[1]));
         const sameWay = to(null, 110, 110, { rot: 30, front: -30 }), sameWay2 = to({ pre: W => { W.tok('tA').rot = 90; W.tok('tA').front = 45; } }, 110, 110, { rot: 45, front: 90 });
         const turns = [{ rot: 90 }, { front: 45 }, { rot: -1 }, { rot: 30, front: 30 }, { rot: 360 }].map(m => to(null, 100, 100, m));
-        check('senses S0: a pos that leaves a player\'s token in its cell and facing as it did empties no set (the real pos gate over the real seenKeyOf) — the four sets of two players on two maps are the very sets they were, mid-drag and at a final move alike, wherever in its cell the token is put, up to the cell\'s edge, and where its turn and its facing changed and add up to the way it faced; the move is written, relayed and saved as ever; one step past the edge, along either axis or both, empties the mover\'s set for that map and no other, and so does a turn on the spot, by its turn, by its facing or by both',
+        check('senses S0: a pos that leaves a player\'s token in its cell and facing as it did empties no set (the real pos gate over the real seenKeyOf) — the four sets of two players on two maps are the very sets they were, mid-drag and at a final move alike, wherever in its cell the token is put, up to the cell\'s edge, and where its turn and its facing changed and add up to the way it faced; the move is written and relayed as ever, and saved where it moved or turned the token (a final naming the very place where it stands, turned as it is, saves nothing: cluster J #8); one step past the edge, along either axis or both, empties the mover\'s set for that map and no other, and so does a turn on the spot, by its turn, by its facing or by both',
             stays.length === 5 && stays.every((p, i) => pair(p, quiet, inCell[i])) && pair(sameWay, quiet, [110, 110]) && sameWay.every(r => j(r.turn) === j([30, -30])) && pair(sameWay2, quiet, [110, 110]) && sameWay2.every(r => j(r.turn) === j([45, 90]))
             && steps.length === 5 && steps.every((p, i) => pair(p, own, pastEdge[i])) && turns.length === 5 && turns.every(p => pair(p, own, [100, 100])), j([stays, sameWay, sameWay2, steps, turns]));
 
@@ -8257,6 +8258,176 @@ pendingChecks.push((async () => {
             && /ensurePlayerToken\(p\.id, stage\.itemId\);\n\s*if \(typeof mapGive === 'function'\) mapGive\(c, stage\.campId, stage\.itemId\);[^\n]*\n\s*if \(c\.open\) \{ try \{ c\.send\(personal \? \{ type: 'stage'/.test(src) && /if \(conn && typeof mapGive === 'function'\) mapGive\(conn, tCamp\.id, pRoom\.targetMapId\);[^\n]*\n\s*if \(conn\) \{ try \{ conn\.send\(\{ type: 'stage', personal: true/.test(src)
             && (src.match(/type: 'stage'/g) || []).length === 3 && /net\.sendItem\(msg\.campId, msg\.itemId, conn\);/.test(has('needitem') ? bw('needitem') : '') && !/conn\.send\(/.test(has('needitem') ? bw('needitem') : 'conn.send(') && (srcNoCm.match(/mapGive\(/g) || []).length === 3 && (srcNoCm.match(/mapStub\(/g) || []).length === 3
             && /not on their machine/.test(html) && /id="ctxLockItem"[^\n]*not on their machine/.test(html) && /<li><b>What reaches a player[^\n]*not reached/.test(html));
+    }
+})());
+// security R2 cluster J (2026-10-01), the host side: what the fuzz harness (tools/fuzzcheck.js) still found on the GM's machine — a yes to a dropped join,
+// the Start-combat offers a player can queue, the table-wide password lockout, unadmitted connections held without bound, pictures read without a
+// byte budget, a stranger's close costing a save, and saves that write nothing new. Each run on the real code (sliced) and pinned where it is wired
+pendingChecks.push((async () => {
+    const J = JSON.stringify, PROOF = (key, nonce, room) => hmacRef(key, 'wp-auth|' + nonce + '|' + room);
+    const slice = (a, b) => { try { return between(a, b, a); } catch (e) { return null; } };
+    /* ---- J1: a yes the GM gives to a join whose connection dropped admits nobody later (processNextApproval, run for real; the gate) ---- */
+    {
+        const apSrc = slice('// [netcheck:approval-start]', '// [netcheck:approval-end]');
+        const runAp = (dropsFirst) => {   // dropsFirst: the connection goes while the GM's question is up. The approval runs on the gate harness's own state (bannedIds, the queue, the campaign), and the next hello claiming the id on the same
+            const h = harness(); h.env.net.active = true; const out = { admitted: h.admitted, toasts: h.toasts, asks: [], threw: '', h }; const conn = h.conn('pD'); h.hello(conn, { id: 'u_drop', name: 'Dee' });   // a stranger's hello: queued for the GM
+            const env = Object.assign({}, h.env, { approvalOpen: false, showConfirm: (t, cb) => out.asks.push(cb) });
+            const names = Object.keys(env);
+            try { new Function(...names, apSrc + '\nprocessNextApproval();')(...names.map(n => env[n])); if (dropsFirst) conn.close(); out.asks.forEach(cb => cb(true)); } catch (e) { out.threw = String(e && e.message); }
+            if (!dropsFirst) h.env.lastSeen.pD = Date.now();   // the admitted connection is live (its heartbeats heard)
+            const cT = h.conn('pThief'); h.hello(cT, { id: 'u_drop', name: 'Thief' });   // the next hello claiming that id, from a new connection
+            out.queuedAfter = h.env.pendingJoins.filter(q => q.prof.id === 'u_drop' && q.conn === cT).length; out.waitSent = !!h.lastSent('pThief', 'wait'); out.deniedAfter = !!h.lastSent('pThief', 'denied');
+            return out;
+        };
+        const dropped = apSrc ? runAp(true) : null, live = apSrc ? runAp(false) : null;
+        check('cluster J #1 (host, processNextApproval run for real): a yes to a join whose connection has dropped admits nobody and keeps no "go straight in" note — the GM is told they will be asked again; a yes to a live connection admits it as ever; the next hello claiming that id, from any connection, is a new request queued for the GM, never admitted on the name alone; no approved-ids list is left anywhere in net.js',
+            !!apSrc && dropped.threw === '' && dropped.admitted.length === 0 && dropped.asks.length === 1 && dropped.toasts.length === 1 && /asked again/.test(dropped.toasts[0]) && dropped.queuedAfter === 1 && dropped.waitSent
+            && live.threw === '' && live.admitted.length === 1 && live.admitted[0].prof.id === 'u_drop' && live.toasts.length === 0 && live.queuedAfter === 0 && live.deniedAfter && !/approvedIds/.test(src), J([dropped && [dropped.threw, dropped.admitted, dropped.toasts, dropped.queuedAfter, dropped.waitSent], live && [live.threw, live.admitted.length, live.toasts, live.queuedAfter, live.deniedAfter]]));
+    }
+    /* ---- J2: one open Start-combat offer per player at a time (the targetask slice, run for real) ---- */
+    {
+        const taSrc = slice('// [netcheck:targetask-start]', '// [netcheck:targetask-end]');
+        const world = () => {
+            const st = { asked: {}, open: Object.create(null), asks: [], opened: [], threw: '' };
+            const camp = { id: 'k', turnRules: {}, items: { m1: { id: 'm1', type: 'map', meta: { title: 'Keep' }, whiteboard: [{ id: 'orc', isChar: true, charName: 'Orc' }, { id: 'wolf', isChar: true, charName: 'Wolf' }, { id: 'bat', isChar: true, charName: 'Bat' }] } } };
+            st.fire = (id, peer) => { const net = { role: 'host', roster: { pA: { id: 'u_a', name: 'Ana' }, pB: { id: 'u_b', name: 'Bo' } }, combats: {} };
+                try { new Function('msg', 'conn', 'net', 'allow', 'applyTarget', 'broadcastTargets', 'combatAsked', 'combatAskOpen', 'getActiveCampaign', 'showConfirm', 'mapTitleOf', 'window', 'own', taSrc)(
+                    { type: 'target', id, mapId: 'm1' }, { peer: peer || 'pA' }, net, () => true, () => {}, () => {}, st.asked, st.open, () => camp, (t, cb) => st.asks.push({ t, cb }), () => 'Keep', { wpOpenCombat: (m, o) => st.opened.push(o) }, H.own); }
+                catch (e) { st.threw = String(e && e.message); } };
+            return st;
+        };
+        const W = taSrc ? world() : null;
+        let during = null, bo = 0, after = 0, again = 0, openAfter = null;
+        if (W) {
+            W.fire('orc'); W.fire('wolf'); W.fire('bat'); during = [W.asks.length, Object.keys(W.asked), Object.keys(W.open)];   // Ana: one offer open, the other two ask nothing and mark nothing
+            W.fire('wolf', 'pB'); bo = W.asks.length;   // Bo has no offer open: his own is raised
+            W.asks[0].cb(false); openAfter = Object.keys(W.open);   // Ana's answered: hers is no longer open
+            W.fire('bat'); after = W.asks.length;   // the bat's offer was still owed: asked now
+            W.fire('bat'); W.fire('orc'); again = W.asks.length;   // asked already: nothing more
+        }
+        check('cluster J #2 (host, the target branch run for real): a player targeting three of the GM\'s characters in turn raises ONE Start-combat offer — while theirs is open a further target asks nothing and marks nothing (so that offer is still owed); another player\'s own offer is raised beside it; once theirs is answered their next target asks again, and a character asked about is not asked about twice',
+            !!W && W.threw === '' && J(during) === J([1, ['m1|orc'], ['u_a']]) && bo === 2 && J(openAfter) === J(['u_b']) && after === 3 && again === 3 && J(Object.keys(W.asked).sort()) === J(['m1|bat', 'm1|orc', 'm1|wolf']) && /combatAskOpen = Object\.create\(null\);/.test(src), J([W && W.threw, during, bo, openAfter, after, again]));
+    }
+    /* ---- J3: the password lockout is the guessed name's own, never the table's (the gate, run for real) ---- */
+    {
+        const h = harness({ password: 'sesame' });
+        for (let i = 0; i < 25; i++) { const c = h.conn('pw' + i); h.hello(c, { id: 'u_guess' + i, name: 'G' }, { password: 'nope' + i }); }
+        const cR = h.conn('pwR'); h.hello(cR, { id: 'u_right', name: 'R' }, { password: 'sesame' });
+        for (let i = 0; i < 5; i++) { const c = h.conn('pg' + i); h.hello(c, { id: 'u_guesser', name: 'G' }, { password: 'nope' }); }
+        const cL = h.conn('pwL'); h.hello(cL, { id: 'u_guesser', name: 'G' }, { password: 'sesame' });
+        const cO = h.conn('pwO'); h.hello(cO, { id: 'u_other', name: 'O' }, { password: 'sesame' });
+        const c4 = harness({ password: 'sesame' }); for (let i = 0; i < 4; i++) { const c = c4.conn('pf' + i); c4.hello(c, { id: 'u_four', name: 'F' }, { password: 'nope' }); } const cF = c4.conn('pfR'); c4.hello(cF, { id: 'u_four', name: 'F' }, { password: 'sesame' });
+        check('cluster J #3 (host): twenty-five wrong passwords from twenty-five strangers lock nobody out — the right word under another name joins the queue as normal; five wrong words under ONE name within a minute lock that name briefly, even for the right word, while another name with the right word still joins; four wrong then the right word joins',
+            h.sent.filter(s => s.m.type === 'denied' && /Wrong session password/.test(s.m.reason)).length === 30 && !!h.lastSent('pwR', 'wait') && !h.lastSent('pwR', 'denied') && !!h.lastSent('pwL', 'denied') && /Too many/.test(h.lastSent('pwL', 'denied').m.reason) && !h.lastSent('pwL', 'wait')
+            && !!h.lastSent('pwO', 'wait') && !h.lastSent('pwO', 'denied') && !!c4.lastSent('pfR', 'wait') && !c4.lastSent('pfR', 'denied') && !/_pwFails\.length|_pwFails\.shift|_pwFails\[0\]/.test(gateSrc), J([h.lastSent('pwR', 'denied'), h.lastSent('pwL', 'denied'), h.lastSent('pwO', 'denied'), c4.lastSent('pfR', 'denied')]));
+        if (h.env._pwFails && h.env._pwFails.u_guesser) h.env._pwFails.u_guesser = h.env._pwFails.u_guesser.map(t => t - 61000);
+        const cOk = h.conn('pwOK'); h.hello(cOk, { id: 'u_guesser', name: 'G' }, { password: 'sesame' });
+        check('cluster J #3 (host): the lockout lapses after a minute — the right word under that name joins the queue again', !!h.lastSent('pwOK', 'wait') && h.env.pendingJoins.some(q => q.prof.id === 'u_guesser'), J([h.lastSent('pwOK', 'denied')]));
+    }
+    /* ---- J4: a cap on the connections held before admission (unadmittedRoom, run for real) ---- */
+    {
+        const ccSrc = slice('// [netcheck:conncap-start]', '// [netcheck:conncap-end]');
+        const mk = (silent, spoke, admitted) => {
+            const w = { closed: [], net: { conns: [], roster: Object.create(null) }, meta: Object.create(null), lastSeen: {}, threw: '' };
+            const add = (peer, hellos, t) => { const c = { peer, open: true, close() { c.open = false; w.closed.push(peer); } }; w.net.conns.push(c); w.meta[peer] = { openedAt: t, hellos }; w.lastSeen[peer] = t; return c; };
+            for (let i = 0; i < silent; i++) add('s' + i, 0, 1000 + i); for (let i = 0; i < spoke; i++) add('h' + i, 1, 5000 + i); for (let i = 0; i < admitted; i++) { add('a' + i, 1, 100 + i); w.net.roster['a' + i] = { id: 'u_a' + i }; }
+            w.room = conn => { try { return new Function('net', 'own', '_connMeta', 'lastSeen', 'UNADMITTED_MAX', ccSrc + '\nreturn unadmittedRoom;')(w.net, H.own, w.meta, w.lastSeen, 32)(conn); } catch (e) { w.threw = String(e && e.message); return null; } };
+            return w;
+        };
+        const newcomer = { peer: 'new', open: true, close() {} };
+        const A = ccSrc ? mk(31, 0, 5) : null, rA = A && A.room(newcomer);
+        const B = ccSrc ? mk(30, 2, 3) : null, rB = B && B.room(newcomer);
+        const C = ccSrc ? mk(0, 32, 0) : null, rC = C && C.room(newcomer);
+        const newcomer2 = { peer: 'new2', open: true, close() {} };
+        const D = ccSrc ? mk(32, 0, 0) : null, rD = D && D.room(newcomer); if (D && rD) { D.net.conns.push(newcomer); D.meta.new = { openedAt: 9e9, hellos: 0 }; } const rD2 = D && D.room(newcomer2);   // the newcomer listed (as the handler lists it), the next one knocks
+        check('cluster J #4 (host, unadmittedRoom run for real): with fewer than 32 connections waiting for admission a newcomer has room and nothing is closed (admitted connections never count); at 32, the oldest that never said hello (held open on heartbeats alone) is closed and taken out of the list and its records, and the newcomer has room; with 32 waiting that all said hello, the newcomer is refused; the handler closes a refused connection before it is listed or wired',
+            !!ccSrc && rA === true && A.closed.length === 0 && A.threw === '' && rB === true && J(B.closed) === J(['s0']) && !B.net.conns.some(c => c.peer === 's0') && !('s0' in B.meta) && !('s0' in B.lastSeen) && B.net.conns.length === 34
+            && rC === false && C.closed.length === 0 && rD === true && rD2 === true && J(D.closed) === J(['s0', 's1']) && D.net.conns.length === 31
+            && /peer\.on\('connection', function\(conn\) \{\s*if \(!unadmittedRoom\(conn\)\) \{ try \{ conn\.close\(\); \} catch \(e\) \{\} return; \}[^\n]*\n\s*net\.conns\.push\(conn\);/.test(src), J([rA, A && A.closed, rB, B && B.closed, rC, rD, rD2, D && D.closed, A && A.threw]));
+    }
+    /* ---- J5: a byte budget on the pictures and sounds read for one connection (the asset gate, run for real on a clock of its own) ---- */
+    {
+        const aqSrc = slice('// [netcheck:assetreq-start]', '// [netcheck:assetreq-end]');
+        const tick = () => new Promise(r => setTimeout(r, 30));
+        const mkW = () => {
+            const w = { fetched: 0, reads: 0, cancels: 0, now: 1e9, files: {}, threw: '' };
+            const fetch = reqPath => { w.fetched++; let dec; try { dec = decodeURIComponent(reqPath); } catch (e) { dec = reqPath; } const f = w.files[dec]; if (!f) return Promise.resolve({ ok: false });
+                const body = f.body || new Uint8Array(4);
+                return Promise.resolve({ ok: true, headers: { get: h => (h === 'content-length' && f.stated !== false) ? String(f.len !== undefined ? f.len : body.byteLength) : null }, body: { cancel: () => { w.cancels++; } }, arrayBuffer: () => { w.reads++; return Promise.resolve(body.buffer.slice(0)); } }); };
+            try { w.api = new Function('net', 'location', 'sendFailed', 'allow', 'fetch', 'setTimeout', 'Date', aqSrc + '\nreturn { handleAssetRequest, assetNoteSends, spent: function(p) { return assetSpent(p); }, budget: ASSET_BUDGET };')({ active: true, role: 'host', conns: [], stream: false }, { origin: 'http://localhost:3999' }, e => { throw e; }, () => true, fetch, setTimeout, { now: () => w.now }); }
+            catch (e) { w.threw = String(e && e.message); w.api = null; }
+            w.conn = peer => { const c = { peer, open: true, sent: [], send: m => { packCheck(m); c.sent.push(m.type === 'asset' ? (m.error ? 'refused:' + m.error : 'asset') : m.type === 'asset-part' ? 'part' : m.type); } }; if (w.api) w.api.assetNoteSends(c); return c; };
+            w.ask = async (c, p) => { if (!w.api) return ['no slice']; const n = c.sent.length; w.api.handleAssetRequest({ type: 'asset-req', path: p }, c); await tick(); return c.sent.slice(n); };
+            return w;
+        };
+        const MB = 1024 * 1024, W = aqSrc ? mkW() : null; let r = {};
+        if (W && W.api) {
+            const pics = []; for (let i = 0; i < 160; i++) { const p = '/saves/images/m1/pic' + i + '.png'; W.files[p] = { len: MB, body: new Uint8Array(8) }; pics.push(p); }
+            const NOLEN = '/saves/images/m1/nolen.png', SND = '/saves/images/audio/c1/song.mp3'; W.files[NOLEN] = { body: new Uint8Array(3000), stated: false }; W.files[SND] = { len: MB, body: new Uint8Array(300 * 1024) };
+            const A = W.conn('pA'), B = W.conn('pB');
+            const refs = { type: 'item', item: { whiteboard: pics.map((p, i) => ({ id: 't' + i, src: p })) } }; A.send(refs); B.send(refs); A.send({ type: 'item', item: { whiteboard: [{ id: 'n', src: NOLEN }] } }); A.send({ type: 'sounds', list: [{ id: 's', path: SND }] });
+            const n0 = A.sent.length, reads0 = W.reads, fetched0 = W.fetched;
+            for (let i = 0; i < 160; i++) W.api.handleAssetRequest({ type: 'asset-req', path: pics[i] }, A);
+            await tick(); await tick();
+            const got = A.sent.slice(n0), served = got.filter(x => x === 'asset').length, busy = got.filter(x => x === 'refused:busy').length;
+            r.burst = [served, busy, W.reads - reads0, W.cancels, W.api.spent('pA') === 150 * MB, W.fetched - fetched0];
+            r.again = await W.ask(A, pics[0]); r.sound = await W.ask(A, SND); r.fetchedSpent = W.fetched;   // spent: nothing more is looked up or fetched
+            r.other = (await W.ask(B, pics[0]))[0];   // another connection: its own budget
+            r.otherSpent = W.api.spent('pB') === MB;
+            W.now += 61000; r.later = await W.ask(A, pics[1]); r.laterSpent = W.api.spent('pA');   // a minute on: the window has passed
+            const WN = mkW(); WN.files[NOLEN] = W.files[NOLEN]; const C = WN.conn('pC'); C.send({ type: 'item', item: { whiteboard: [{ id: 'n', src: NOLEN }] } });
+            r.noLen = await WN.ask(C, NOLEN); r.noLenSpent = WN.api.spent('pC');
+            r.budget = W.api.budget === 150 * MB;
+        }
+        check('cluster J #5 (host, the asset gate run for real): the bytes read for one connection\'s pictures and sounds are budgeted at 150 MB a minute, judged on each file\'s stated length before a byte is read — of 160 pictures of 1 MB asked in one burst 150 are read and served and 10 are answered busy, their bodies cancelled and never read; with the budget spent a picture or a sound is answered busy with nothing fetched; another connection has a budget of its own; a minute on, the window has passed and the file is served; a file with no stated length is charged by its bytes once read',
+            !!W && W.threw === '' && J(r.burst) === J([150, 10, 150, 10, true, 160]) && J(r.again) === J(['refused:busy']) && J(r.sound) === J(['refused:busy']) && r.fetchedSpent === 160 && r.other === 'asset' && r.otherSpent === true && J(r.later) === J(['asset']) && r.laterSpent === MB
+            && J(r.noLen) === J(['asset']) && r.noLenSpent === 3000 && r.budget === true, J([W && W.threw, r]));
+        check('cluster J #5 (source): the budget is forgotten with the connection and at a new table, beside the asset record', /delete assetInflight\[conn\.peer\]; delete assetRefs\[conn\.peer\]; delete assetBytes\[conn\.peer\];/.test(src) && /assetInflight = \{\}; assetRefs = Object\.create\(null\); assetBytes = Object\.create\(null\);/.test(src));
+    }
+    /* ---- J6: an unadmitted connection's close saves nothing and tells the table nothing (the close handler's body, run for real) ---- */
+    {
+        const clSrc = slice('// [netcheck:connclose-start]', '// [netcheck:connclose-end]');
+        const runClose = (admitted) => {
+            const out = { saves: 0, rosters: 0, renders: 0, rosterDraws: 0, toasts: [], logs: [], threw: '', swept: 0, forgotConn: [], hung: [] };
+            const conn = { peer: 'pX', open: false };
+            const env = { net: { role: 'host', active: true, conns: [conn, { peer: 'pO', open: true }], roster: Object.create(null), targets: {}, applyingRemote: false, leaving: false, code: 'abc' }, assetInflight: { pX: '/x' }, assetRefs: { pX: {} }, assetBytes: { pX: { t: 1, n: 1 } }, diceLimit: { forget() {} }, charLimit: { forget() {} }, _lim: {}, _connMeta: { pX: { openedAt: 1, hellos: 0 } }, lastSeen: { pX: 1 },
+                sensesForget() {}, fogDragSweep() { out.swept++; }, fogForgetConn(p) { out.forgotConn.push(p); }, videoHang(p) { out.hung.push(p); }, videoTold() {}, renderRoster() { out.rosterDraws++; }, toast(m) { out.toasts.push(String(m)); }, getActiveCampaign: () => ({ items: {} }), logEvent: (k, m) => out.logs.push(m), startWaitGrace() {}, render() { out.renders++; }, broadcastTargets() {},
+                save() { out.saves++; }, broadcastRoster() { out.rosters++; }, cancelReconnect() {}, setPausedLocal() {}, stopHeartbeat() {}, setIndicator() {}, load() {}, reconn: {}, scheduleReconnect() {}, getProfile: () => ({ name: 'Me' }), window: {} };
+            if (admitted) { env.net.roster.pX = { id: 'u_x', name: 'Xan', location: 'm1' }; env.net.roster.pO = { id: 'u_o', name: 'Odo' }; }
+            const names = Object.keys(env);
+            try { new Function('conn', ...names, clSrc)(conn, ...names.map(n => env[n])); } catch (e) { out.threw = String(e && e.message); }
+            out.left = { conns: env.net.conns.map(c => c.peer), meta: Object.keys(env._connMeta), seen: Object.keys(env.lastSeen), refs: Object.keys(env.assetRefs), bytes: Object.keys(env.assetBytes), roster: Object.keys(env.net.roster) };
+            return out;
+        };
+        const adm = clSrc ? runClose(true) : null, str = clSrc ? runClose(false) : null;
+        const gone = o => J(o.left) === J({ conns: ['pO'], meta: [], seen: [], refs: [], bytes: [], roster: o === adm ? ['pO'] : [] });
+        check('cluster J #6 (host, the close handler run for real): an admitted player\'s connection closing saves the campaign once, sends the roster once, redraws and says who left; a connection never admitted (a stranger whose junk message the gate closed, a waiting peer that gave up) is taken out of the list and its records the same, but costs no disk save, no roster message to the table, no redraw and no word',
+            !!clSrc && adm.threw === '' && str.threw === '' && adm.saves === 1 && adm.rosters === 1 && adm.renders === 1 && adm.toasts.length === 1 && /Xan left/.test(adm.toasts[0]) && adm.logs.length === 1 && gone(adm)
+            && str.saves === 0 && str.rosters === 0 && str.renders === 0 && str.toasts.length === 0 && str.logs.length === 0 && gone(str) && str.swept === 1 && J(str.forgotConn) === J(['pX']) && J(str.hung) === J(['pX']) && str.rosterDraws === 1, J([adm, str]));
+    }
+    /* ---- J8: a pos final that moves nothing writes nothing (the pos gate, run for real) ---- */
+    {
+        const posSrc = slice('// [netcheck:pos-start]', '// [netcheck:pos-end]');
+        const mk = () => {
+            const log = { saves: 0, relayed: 0 };
+            const camp = { id: 'c', items: { m1: { id: 'm1', type: 'map', whiteboard: [{ id: 't', isChar: true, ownerId: 'u_a', x: 0, y: 0, rot: 0, front: 0 }] } } };
+            const env = { net: { role: 'host', paused: false, roster: { pA: { id: 'u_a', location: 'm1' } }, tokenDropped() {}, turnMove: {} }, campOf: () => camp, validKey: k => typeof k === 'string' && Object.prototype.hasOwnProperty.call(camp.items, k), peerPaused: () => false, allow: () => true, checkRoomHandouts() {}, applyPosToDom() {}, broadcastPos() { log.relayed++; }, toast() {}, saveRemoteSoon() { log.saves++; }, window: {}, setTimeout: f => f() };
+            const names = Object.keys(env);
+            const fn = posSrc ? new Function(...names, posSrc + '\nreturn handlePos;')(...names.map(n => env[n])) : null;   // built once: the drag record lives between calls, as it does on the host
+            const pos = (x, y, final, more) => { fn(Object.assign({ type: 'pos', campId: 'c', itemId: 'm1', wbId: 't', x, y, rot: 0, front: 0, final }, more || {}), { peer: 'pA' }); return log.saves; };
+            return { pos, log, tok: () => camp.items.m1.whiteboard[0] };
+        };
+        let r = null;
+        if (posSrc) {
+            const A = mk(); const a1 = A.pos(50, 60, true), a2 = A.pos(50, 60, true), a3 = A.pos(50, 60, true, { rot: 90 }), a4 = A.pos(50, 60, true, { rot: 90 }), a5 = A.pos(50, 60, true, { rot: 90, front: 45 });
+            const B = mk(); B.pos(20, 20, false); B.pos(40, 40, false); const b1 = B.log.saves, b2 = B.pos(40, 40, true);   // a drag: its moves unsaved, its final at the last move's place saves
+            const C = mk(); C.pos(20, 20, false); const c1 = C.pos(0, 0, true);   // a drag back to where it began: the moves it made were never saved, the final is
+            const D = mk(); const d1 = D.pos(0, 0, true, { rot: 0, front: 0 });   // a lone final that moves nothing at all
+            const E = mk(); E.pos(0, 0, false); E.pos(0, 0, false); const e1 = E.pos(0, 0, true);   // a drag whose every move left the token where it stood: nothing to save at its end
+            r = { a: [a1, a2, a3, a4, a5], b: [b1, b2], c: c1, d: d1, e: e1, relayedA: A.log.relayed, tokA: [A.tok().x, A.tok().rot, A.tok().front] };
+        }
+        check('cluster J #8 (host, the pos gate run for real): a final that lands the token where it already stood — the same place, turn and facing — is relayed as ever but saves nothing; a change of place, of turn or of facing saves; a drag\'s final saves once (its moves were never saved) even back where the drag began, and a drag whose moves never moved the token ends with nothing saved',
+            !!r && J(r.a) === J([1, 1, 2, 2, 3]) && J(r.b) === J([0, 1]) && r.c === 1 && r.d === 0 && r.e === 0 && r.relayedA === 5 && J(r.tokA) === J([50, 90, 45]), J(r));
     }
 })());
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary

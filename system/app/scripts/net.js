@@ -43,7 +43,7 @@ function versionCmp(a, b) {   // numeric major.minor.patch; anything after a '-'
     return 0;
 }
 function updateMessage(theirs, ours) {
-    return 'Your Waypoint (' + (theirs || 'older than 1.1.2') + ') is older than the GM\'s (' + ours + '). Update Waypoint, then rejoin: open Settings ▸ Check for Updates and press Update Now (or get the latest Waypoint_Setup.exe from your GM and run it over your copy — saves and settings are kept).';
+    return 'Your Waypoint (' + (theirs || 'older than 1.1.2') + ') is older than the GM\'s' + (ours ? ' (' + ours + ')' : '') + '. Update Waypoint, then rejoin: open Settings ▸ Check for Updates and press Update Now (or get the latest Waypoint_Setup.exe from your GM and run it over your copy — saves and settings are kept).';
 }
 
 var net = {
@@ -286,7 +286,7 @@ function sanitizeRichText(html) {
 }
 net.sanitizeRichText = sanitizeRichText;
 // A play map as a client keeps it: text items rebuilt, category colors that are colors, collections bounded.
-function cleanHostWbItem(w) { if (!w || typeof w !== 'object' || typeof w.id !== 'string') return null; if (w.waiting) return cleanWaitingItem(w); if (w.type === 'text') w.text = sanitizeRichText(w.text); if (w.light !== undefined) cleanHostLight(w); if (w.senses !== undefined || w.blind !== undefined) cleanHostTokSenses(w); if (w.fxb !== undefined) cleanHostFxb(w); if (w.smoke !== undefined && w.smoke !== true) delete w.smoke; if (w.terrain !== undefined) { var FCt = window.wpFogCore, tr = FCt && FCt.cleanTerrain ? FCt.cleanTerrain(w.terrain) : null; if (tr) w.terrain = tr; else delete w.terrain; } if (w.height !== undefined) { var FCh = window.wpFogCore, ht = FCh && FCh.cleanHeight ? FCh.cleanHeight(w.height) : null; if (ht) w.height = ht; else delete w.height; } return w; }   // senses S7b: smoke only as true; difficult terrain T1: its cost, 2-10, or none; item 19 H1: a piece's height, yards
+function cleanHostWbItem(w) { if (!w || typeof w !== 'object' || typeof w.id !== 'string') return null; if (w.waiting) return cleanWaitingItem(w); for (var gi = 0; gi < 6; gi++) { var gk = ['x', 'y', 'w', 'h', 'rot', 'front'][gi], gv = w[gk], gc = gi < 4 ? 1e7 : 1e6; if (gv === undefined) continue; if (typeof gv !== 'number' || !isFinite(gv)) delete w[gk]; else if (gv > gc) w[gk] = gc; else if (gv < -gc) w[gk] = -gc; } if (w.type === 'text') w.text = sanitizeRichText(w.text); if (w.light !== undefined) cleanHostLight(w); if (w.senses !== undefined || w.blind !== undefined) cleanHostTokSenses(w); if (w.fxb !== undefined) cleanHostFxb(w); if (w.smoke !== undefined && w.smoke !== true) delete w.smoke; if (w.terrain !== undefined) { var FCt = window.wpFogCore, tr = FCt && FCt.cleanTerrain ? FCt.cleanTerrain(w.terrain) : null; if (tr) w.terrain = tr; else delete w.terrain; } if (w.height !== undefined) { var FCh = window.wpFogCore, ht = FCh && FCh.cleanHeight ? FCh.cleanHeight(w.height) : null; if (ht) w.height = ht; else delete w.height; } return w; }   // senses S7b: smoke only as true; difficult terrain T1: its cost, 2-10, or none; item 19 H1: a piece's height, yards
 // Senses S2b: a token's own ranges, kept on a token of this player's alone (the host sends no other), cleaned again; none from a hostile host
 // on anyone else's token, and none with no cleaner on hand. S3: the GM's Blind tick likewise, and only as true
 function cleanHostTokSenses(w) { var FCs = window.wpFogCore, mine = !!w.ownerId && w.ownerId === net.myId, ts = FCs && FCs.cleanTokSenses && mine ? FCs.cleanTokSenses(w.senses) : null; if (ts) w.senses = ts; else delete w.senses; if (!(mine && w.blind === true)) delete w.blind; }
@@ -1327,6 +1327,7 @@ function applyItem(msg) {
     var incoming = msg.item;
     if (incoming && incoming.type === 'doc') { incoming = window.wpDocRender ? window.wpDocRender.cleanDoc(incoming, { keepHidden: true }) : null; if (!incoming) return; }   // a page is normalised before it is stored (a hostile host can send shapes, not just markup)
     if (!incoming || typeof incoming !== 'object') return;
+    if (incoming.type !== 'map' && incoming.type !== 'doc') return;   // security (2026-10-01): a player's copy holds maps and pages, nothing else a host names (a planner never ships; an unknown kind used to be stored as sent)
     if (incoming.type === 'map') incoming = cleanHostMap(incoming);   // text items rebuilt, colors checked, bounded
     if (incoming.type === 'map' && typeof actOver === 'function') actOver(msg.itemId, incoming, ackIn(msg.ack));   // 14c: what this copy lacks of their own actions, written back
     net.applyingRemote = true;
@@ -1453,7 +1454,7 @@ function applySnapshot(msg) {
     net.applyingRemote = true;
     // Origin marker: this state came from someone else's table. Lives in the appState so it rides
     // through every copy; a marked state is never written to disk and never installed by undo.
-    var mark = { at: Date.now(), gm: msg.gmId || null };
+    var mark = { at: Date.now(), gm: validProfileId(msg.gmId) ? msg.gmId : null };   // security (2026-10-01): the origin mark carries a profile id or nothing (never a host's unbounded text)
     msg.appState._foreign = mark;
     Object.values(msg.appState.campaigns || {}).forEach(function (c) { c._foreign = mark; });
     state.appState = msg.appState;
@@ -2504,7 +2505,7 @@ net.syncSystem = function(force) {
 // ---------- characters (character sheets, 1.5.0): per-recipient copies, deltas, a player's edits ----------
 // A player holds their own character in full (minus GM-only fields), other PCs' hover fields only, no NPCs. Every
 // payload is built per peer from a fresh view; nothing a client says about a character is applied unchecked.
-var charLimit = null, _doorLimit = null, _charPending = {}, _charSlowSaid = {};
+var charLimit = null, _doorLimit = null, _charPending = Object.create(null), _charSlowSaid = {};   // _charPending: keyed by a request id the host echoes — prototype-free, read by own key (security, 2026-10-01)
 var _charHost = Object.create(null);    // Stage 6 (client): the last copy of each character's values the host sent — a refused change goes back to it, never to an older one
 var _rowGrace = {};    // Stage 6 (host): a pickup's Undo window, 'charId|fieldId|rowId' -> { until, added } (memory only; a bound item may drop by what its pickups added)
 function SC() { return window.wpSystemCore || null; }
@@ -2532,7 +2533,7 @@ function charViewFor(charId, recipientId) {   // the copy one peer may hold, or 
     return withHoverLines(S.charFor(camp.chars[charId], view, recipientId, { lib: lib, items: items, full: camp.system }), camp.chars[charId], view, lib, items, camp.system);
 }
 net.dropPending = function(charId) { Object.keys(_charPending).forEach(function(rid) { if (_charPending[rid].charId === charId) { clearTimeout(_charPending[rid].timer); delete _charPending[rid]; } }); };   // a sheet that stopped being ours: its queued edits go
-function charSessionReset() { Object.keys(_charPending).forEach(function(k) { clearTimeout(_charPending[k].timer); }); _charPending = {}; _charSlowSaid = {}; _charHost = Object.create(null); _rowGrace = {}; _triedSaid = {}; if (charLimit) charLimit.reset(); }
+function charSessionReset() { Object.keys(_charPending).forEach(function(k) { clearTimeout(_charPending[k].timer); }); _charPending = Object.create(null); _charSlowSaid = {}; _charHost = Object.create(null); _rowGrace = {}; _triedSaid = {}; if (charLimit) charLimit.reset(); }
 // Stage 6: the GM alone hears when a player picks up, tries to remove or drops a bound or cursed item (a toast and the session log's Items)
 function itemNotice(ch, name, what) {
     var who = ch && ch.name ? ch.name : 'A character', nm = name || 'an item';
@@ -2783,7 +2784,7 @@ net.doorReq = function(mapId, itemId) {
 };
 // [netcheck:pending-start]
 function charPendingDone(rid, ok, reason, msg) {
-    var p = _charPending[rid]; if (!p) return; clearTimeout(p.timer); delete _charPending[rid];
+    var p = Object.prototype.hasOwnProperty.call(_charPending, rid) ? _charPending[rid] : null; if (!p) return; clearTimeout(p.timer); delete _charPending[rid];   // own key only: a request id such as "constructor" names nothing
     if (!ok) {   // Stage 6: back to the host's last copy (never the one this change was made on), the changes still waiting laid over it again
         var camp = getActiveCampaign(), c = (camp && camp.chars && typeof p.charId === 'string' && Object.prototype.hasOwnProperty.call(camp.chars, p.charId) ? camp.chars[p.charId] : null), b = Object.prototype.hasOwnProperty.call(_charHost, p.charId) ? _charHost[p.charId] : null;
         if (c) {
@@ -3242,8 +3243,14 @@ function handlePos(msg, conn) {
     } else {
         if (!net.foreign || conn.peer !== net.syncedPeer) return;   // before the snapshot, or from a host other than the synced one: nothing to apply (the campaign on screen is this player's own)
         if (net.myId && w.ownerId === net.myId && typeof actPos === 'function' && actPos(msg.itemId, w.id, ackIn(msg.ack))) return;   // 14c: a newer action of theirs on this token is on its way: it lands after this
-        w.x = msg.x; w.y = msg.y; w.rot = msg.rot || 0; w.front = msg.front || 0;
-        applyPosToDom(msg);
+        // security (2026-10-01): the place the host names lands field by field, only as finite numbers within bounds (±1e7 a place, ±1e6 a turn or a facing) —
+        // a string, an object, null or an infinity leaves that field as the token has it (its turn and facing numbers, 0 where it had none); the screen is
+        // written only with a finite place, and only when something landed. Nothing a host sends reaches a style as it came
+        var gn = function(v, c) { return typeof v === 'number' && isFinite(v) ? Math.max(-c, Math.min(c, v)) : null; }, kn = function(v) { return typeof v === 'number' && isFinite(v) ? v : 0; };
+        var hx = gn(msg.x, 1e7), hy = gn(msg.y, 1e7), hr = gn(msg.rot, 1e6), hf = gn(msg.front, 1e6), landed = hx !== null || hy !== null || hr !== null || hf !== null;
+        if (hx !== null) w.x = hx; if (hy !== null) w.y = hy; w.rot = hr !== null ? hr : kn(w.rot); w.front = hf !== null ? hf : kn(w.front);
+        if (!landed) return;
+        if (gn(w.x, 1e7) !== null && gn(w.y, 1e7) !== null) applyPosToDom({ type: 'pos', campId: msg.campId, itemId: msg.itemId, wbId: msg.wbId, x: w.x, y: w.y, rot: w.rot, front: w.front, final: msg.final === true });
         if (window.wpSheets && window.wpSheets.tokenTurned) window.wpSheets.tokenTurned(msg.wbId, msg.final === true);   // 5h Fold 3: the facing dial (the values are re-checked by facingCtx)
     }
 }
@@ -4591,9 +4598,28 @@ net.kickPlayer = function(peerKey) {
 // (client) the one peer whose word changes anything on this screen: the host whose snapshot this app took, on the connection it came by.
 // Before the snapshot the campaign in memory is this machine's OWN; a host that has not admitted the player gets to change none of it.
 function fromHost(conn) { return !!(net.foreign && net.syncedPeer && conn && conn.peer === net.syncedPeer); }
+// [netcheck:wireshape-start]
+// Security (2026-10-01): the shape of every message a player's app takes from a host, judged before any branch reads it — no string past
+// WIRE_STR_MAX characters (the app's own largest: a text item's rich text at 200,000, a framed picture at 200,000, an inline picture at 300,000)
+// and nothing nested past WIRE_DEPTH_MAX levels (a campaign's deepest honest structure is under 20). Past either the message is dropped whole, so
+// a copy of the table can always be serialised and holds nothing unbounded. Bytes (a picture's or a sound's) are not walked
+var WIRE_STR_MAX = 400000, WIRE_DEPTH_MAX = 64;
+function wireShapeOk(msg) {
+    var stack = [[msg, 1]];
+    while (stack.length) {
+        var e = stack.pop(), v = e[0], d = e[1];
+        if (typeof v === 'string') { if (v.length > WIRE_STR_MAX) return false; continue; }
+        if (!v || typeof v !== 'object' || ArrayBuffer.isView(v) || v instanceof ArrayBuffer) continue;
+        if (d > WIRE_DEPTH_MAX) return false;
+        var ks = Object.keys(v); for (var i = 0; i < ks.length; i++) stack.push([v[ks[i]], d + 1]);
+    }
+    return true;
+}
+// [netcheck:wireshape-end]
 // [netcheck:fromhost-end]
 function handleMessage(msg, conn) {
     if (!msg || !msg.type) return;
+    if (net.role === 'client' && !wireShapeOk(msg)) return;   // security (2026-10-01): a host's message past the app's own sizes or depth is dropped whole, before any branch reads it
     // Host-side gate: until a connection has been admitted (passed the version check, any
     // password, and the GM's approval) the only thing it may say is 'hello'. Anything else —
     // an old build, a hand-rolled client, a probe — is dropped without a reply and the
@@ -4642,7 +4668,7 @@ function handleMessage(msg, conn) {
         if (APP_VERSION) {
             var theirV = (typeof msg.version === 'string') ? msg.version.slice(0, 20) : null;
             if (!theirV || versionCmp(theirV, APP_VERSION) < 0) {
-                try { conn.send({ type: 'denied', reason: updateMessage(theirV, APP_VERSION), update: true }); } catch (e) { sendFailed(e); }
+                try { conn.send({ type: 'denied', reason: updateMessage(theirV, APP_VERSION), update: true, v: APP_VERSION }); } catch (e) { sendFailed(e); }   // v: the host's version, so the player's app can say the notice in its own words
                 setTimeout(function() { try { conn.close(); } catch (e) {} }, 400);
                 toast((prof.name || 'A player') + ' tried to join on Waypoint ' + (theirV || 'older than 1.1.2') + ' — turned away to update.');
                 return;
@@ -4715,9 +4741,11 @@ function handleMessage(msg, conn) {
         // [netcheck:denied-start]
         if (net.leaving || (net.conns[0] && conn !== net.conns[0])) return;   // once, and only from the host this app dialled: a host that repeats itself is not followed into dialog after dialog
         net.leaving = true;   // deliberate teardown: no auto-reconnect
-        var why = msg.type === 'kicked' ? 'Removed from the session by the GM.' : ((typeof msg.reason === 'string' && msg.reason) ? msg.reason.slice(0, 400) : 'The GM declined your request.');
+        // Security (2026-10-01): an update notice is said in this app's OWN words — the host names only its version — in the status line and the
+        // toast, like every other refusal, never in a dialog carrying the host's text (which read as the app's own voice); a reason is plain text, cut
+        var whyR = typeof msg.reason === 'string' ? msg.reason.replace(/[\u0000-\u001f\u007f\u200b\u200e\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200) : '';
+        var why = msg.type === 'kicked' ? 'Removed from the session by the GM.' : msg.update === true ? updateMessage(APP_VERSION, typeof msg.v === 'string' && /^\d{1,4}\.\d{1,4}\.\d{1,4}$/.test(msg.v) ? msg.v : '') : (whyR || 'The GM declined your request.');
         setStatus(why);
-        if (msg.update) showConfirm(why, function() {});   // an update prompt is worth a dialog, not just a status line
         toast(why + ' Restoring your own campaign.');
         if (net.fromWelcome) { if (window.wpJoinFailed) window.wpJoinFailed(); }   // stay on the welcome Join screen with the reason shown; re-enable Join
         else { var nm2 = ui('netModal'); if (nm2) nm2.style.display = 'flex'; }
@@ -4914,12 +4942,15 @@ function handleMessage(msg, conn) {
         if (net.role === 'client' && !fromHost(conn)) return;
         handlePos(msg, conn);
     } else if (msg.type === 'end' && net.role === 'client') {
+        // [netcheck:end-start]
+        if (net.leaving || (net.conns[0] && conn !== net.conns[0])) return;   // security (2026-10-01): only the host this app dialled ends the session, once — a stale connection kept wired after a reconnect, or another host, cannot throw a player off the table (as denied and kicked have it)
         net.leaving = true;   // deliberate teardown from the GM: no auto-reconnect
         diceSessionReset(true);   // the table is over: its chat and rolls go with it (the teardown below is the silent path)
         setStatus('Session ended by the GM.');
         var nm = ui('netModal');
         if (nm) nm.style.display = 'flex';
         toast('The GM ended the session — restoring your own campaign.');
+        // [netcheck:end-end]
     } else if (msg.type === 'char-upload-ans' && net.role === 'client') {   // Stage 6 U2: the host's answer to our upload
         if (typeof msg.rid !== 'string' || !Object.prototype.hasOwnProperty.call(_uploadPending, msg.rid)) return;
         var pU = _uploadPending[msg.rid]; delete _uploadPending[msg.rid]; clearTimeout(pU.timer);
@@ -4961,7 +4992,7 @@ function handleMessage(msg, conn) {
         if (!net.foreign || conn.peer !== net.syncedPeer || net.stream || !window.wpSystemCore) return;
         var SC2 = window.wpSystemCore;
         var dropP = function(id) { Object.keys(_charPending).forEach(function(rid) { if (_charPending[rid].charId === id) { clearTimeout(_charPending[rid].timer); delete _charPending[rid]; } }); };   // Onboarding F0: a copy that is no longer ours drops its queued edits
-        if (msg.type === 'char-ack' || msg.type === 'char-deny') { if (typeof msg.rid !== 'string' || !_charPending[msg.rid]) return; charPendingDone(msg.rid, msg.type === 'char-ack', SC2.cleanDenyReason(msg.reason), SC2.cleanItemMsg(msg.msg)); return; }   // Stage 6: a bound or cursed item's message, as text
+        if (msg.type === 'char-ack' || msg.type === 'char-deny') { if (typeof msg.rid !== 'string' || !Object.prototype.hasOwnProperty.call(_charPending, msg.rid)) return; charPendingDone(msg.rid, msg.type === 'char-ack', SC2.cleanDenyReason(msg.reason), SC2.cleanItemMsg(msg.msg)); return; }   // Stage 6: a bound or cursed item's message, as text
         if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId) return;
         var campC = campOf(msg.campId); if (!campC || !campC.system) return;   // the system always comes first
         var sysC = campC.system;
@@ -6279,7 +6310,7 @@ function leaveSession(silent) {
 var assetCache = Object.create(null);    // path -> blob URL (pictures, pulled on render); prototype-free: a path like "constructor" is never a hit
 var assetPending = Object.create(null);  // path -> true
 var assetRenderTimer = null;
-var assetWaiters = {};  // path -> { promise, resolve, reject, timer, parts, n, bytes }: sounds, pulled by net.fetchAsset and answered in parts
+var assetWaiters = Object.create(null);  // path -> { promise, resolve, reject, timer, parts, n, bytes }: sounds, pulled by net.fetchAsset and answered in parts; prototype-free and read by own key: a host's "__proto__" or "constructor" is no waiter (security, 2026-10-01)
 // [netcheck:assetreq-start]
 // Security (2026-10-01): a connection may pull only a picture or sound the host SENT IT A REFERENCE TO. Every message to a player passes its
 // connection's send (assetNoteSends wraps it as the host accepts the connection), and the paths under the keys a player's app reads a picture or
@@ -6404,7 +6435,7 @@ net.fetchAsset = function(path, size) {
     if (!net.active || net.role !== 'client' || net.stream) return Promise.reject(new Error('offline'));
     if (!isAudioPath(path) || path.indexOf('..') !== -1 || path.length > 400) return Promise.reject(new Error('bad path'));
     if (Number(size) > AUDIO_CAP) return Promise.reject(new Error('too-big'));
-    if (assetWaiters[path]) return assetWaiters[path].promise;
+    if (own(assetWaiters, path)) return assetWaiters[path].promise;
     var w = { parts: [], n: 0, bytes: 0 };
     w.promise = new Promise(function(resolve, reject) {
         w.resolve = resolve; w.reject = reject;
@@ -6417,10 +6448,10 @@ net.fetchAsset = function(path, size) {
     return w.promise;
 };
 function handleAssetPart(msg) {
-    var w = typeof msg.path === 'string' ? assetWaiters[msg.path] : null; if (!w) return;   // unsolicited: dropped, nothing kept
+    var w = own(assetWaiters, msg.path) ? assetWaiters[msg.path] : null; if (!w) return;   // unsolicited (or a prototype key as the path): dropped, nothing kept
     var i = msg.i | 0, n = msg.n | 0, data = msg.data;
-    if (!data || n < 1 || n > MAX_PARTS || i < 0 || i >= n || (w.n && w.n !== n)) return;
-    var len = data.byteLength || data.length || 0; if (!len) return;
+    if (!data || !(data instanceof ArrayBuffer || ArrayBuffer.isView(data)) || n < 1 || n > MAX_PARTS || i < 0 || i >= n || (w.n && w.n !== n)) return;   // bytes only: an array, an object or a string is no part
+    var len = data.byteLength || 0; if (!len) return;
     w.n = n; if (!w.parts[i]) w.bytes += len;
     if (w.bytes > AUDIO_CAP) { clearTimeout(w.timer); delete assetWaiters[msg.path]; w.reject(new Error('too-big')); return; }
     w.parts[i] = data;
@@ -6430,11 +6461,11 @@ function handleAssetPart(msg) {
 }
 function resetAssetTransfers() {
     Object.keys(assetWaiters).forEach(function(p) { var w = assetWaiters[p]; clearTimeout(w.timer); try { w.reject(new Error('left')); } catch (e) {} });
-    assetWaiters = {}; assetPending = Object.create(null); assetInflight = {}; assetRefs = Object.create(null);
+    assetWaiters = Object.create(null); assetPending = Object.create(null); assetInflight = {}; assetRefs = Object.create(null);
 }
 
 function handleAssetArrival(msg) {
-    if (typeof msg.path === 'string' && assetWaiters[msg.path]) { var w = assetWaiters[msg.path]; clearTimeout(w.timer); delete assetWaiters[msg.path]; w.reject(new Error(typeof msg.error === 'string' ? msg.error.slice(0, 40) : 'failed')); return; }   // the only 'asset' answer to a sound request is a refusal (the bytes come as asset-part)
+    if (own(assetWaiters, msg.path)) { var w = assetWaiters[msg.path]; clearTimeout(w.timer); delete assetWaiters[msg.path]; w.reject(new Error(typeof msg.error === 'string' ? msg.error.slice(0, 40) : 'failed')); return; }   // the only 'asset' answer to a sound request is a refusal (the bytes come as asset-part)
     if (typeof msg.path === 'string' && typeof msg.error === 'string' && own(assetPending, msg.path)) {   // a picture the host would not send
         delete assetPending[msg.path];
         var tries = (_assetRetries[msg.path] = (_assetRetries[msg.path] || 0) + 1);
@@ -6706,6 +6737,8 @@ function renderChat() {
     }
     if (!window.wpPopout) broadcastChatSync();   // mirror the chat to any popped-out chat window (which owns no session of its own)
 }
+var _chatRenderTimer = null;   // one pending draw of the chat panel (renderChatSoon): a burst of lines costs one render
+function renderChatSoon() { if (_chatRenderTimer) return; _chatRenderTimer = setTimeout(function() { _chatRenderTimer = null; renderChat(); }, 40); }
 /* Chat pop-out relay: the chat lives in memory here (chatLog) over the live session, so a pop-out window
    (which has no session) mirrors it over BroadcastChannel — the main window broadcasts the log on every
    render, answers a new pop-out's request, and sends on the pop-out's behalf; the pop-out relays its input. */
@@ -6754,7 +6787,7 @@ function pushChat(m) {
             toast(String(line).slice(0, 120));
         }
     }
-    renderChat();
+    renderChatSoon();   // security (2026-10-01): one draw per burst — a flood of lines from a host used to redraw the whole panel (and post it to a pop-out) for each
     if (m.roll && window.wpDice) window.wpDice.landed(m);   // this machine's own dice cue, if wanted
 }
 function refreshChatRecipients() {

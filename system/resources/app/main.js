@@ -309,7 +309,7 @@ const server = http.createServer((req, res) => {
         if (!savePath.startsWith(imagesRoot + path.sep)) { res.writeHead(400); res.end('bad path'); return; }   // and inside images/, whatever the segments spelled
         try {
             fs.mkdirSync(path.dirname(savePath), { recursive: true });
-            servefile.saveUpload(req, res, savePath, JSON.stringify({ url: '/saves/' + segs.join('/') }));   // whole or not at all: a copy cut short never replaces a good file
+            servefile.saveUpload(req, res, savePath, JSON.stringify({ url: '/saves/' + segs.join('/') }), { keep: url.searchParams.get('keep') === '1' });   // whole or not at all: a copy cut short never replaces a good file; keep=1 (an import): never over a file already there (409)
         } catch (e) { res.writeHead(500); res.end('{"error":"upload failed"}'); }
         return;
     }

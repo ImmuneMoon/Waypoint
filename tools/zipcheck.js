@@ -242,7 +242,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         /too large to read whole/.test(budgetErr) && budgetOk.length === 2 && /var READ_WHOLE = 512 \* 1024 \* 1024;/.test(read('system/app/scripts/zip.js')) && /for \(var s = 0; s < z\.entries\.length; s\+\+\) \{ sum \+= z\.entries\[s\]\.size; if \(sum > cap\) throw new Error\('zip: too large to read whole'\); \}\n    for \(var i = 0; i < z\.entries\.length; i\+\+\)/.test(read('system/app/scripts/zip.js')));
     check('an archive that lists more than 500,000 files is not listed (each costs memory); the import writes at most twenty times the archive\'s own size (entries that share bytes, or inflate out of proportion, stop there) and reads a pack file only when it copies it (source)',
         /var MAX_ENTRIES = 500000;/.test(read('system/app/scripts/zip.js')) && /if \(count > MAX_ENTRIES\) throw new Error\('zip: too many files to list/.test(read('system/app/scripts/zip.js'))
-        && /var ok = 0, fail = 0, vidAt = 0, wrote = 0, budget = pendingImportBytes \* 20 \+ 1048576;/.test(read('system/app/scripts/main.js')) && /wrote \+= imgs\[i\]\.size; if \(wrote > budget\) throw new Error\('more than the archive can hold'\);\n\s*var body = await imgs\[i\]\.check\(\);/.test(read('system/app/scripts/main.js'))
+        && /var ok = 0, kept = 0, fail = 0, vidAt = 0, wrote = 0, budget = pendingImportBytes \* 20 \+ 1048576;/.test(read('system/app/scripts/main.js')) && /wrote \+= imgs\[i\]\.size; if \(wrote > budget\) throw new Error\('more than the archive can hold'\);\n\s*var body = await imgs\[i\]\.check\(\);/.test(read('system/app/scripts/main.js'))
         && /var feD = null; if \(fe\) \{ try \{ feD = fe\.data \|\| await fe\.bytes\(\); \} catch \(eF\) \{ feD = null; \} \}/.test(read('system/app/scripts/library.js')));
     check('an older archive (the writer\'s own small output) still reads: zipRead takes its bytes as an ArrayBuffer, as the Markdown importer hands them',
         j((await Z.zipRead(smallZip.buffer)).map(e => [e.name, e.data.length])) === j([['data.json', 19], ['images/map 1/pic (1).png', 70000], ['images/video/c/Überfahrt.webm', 0], ['library/l_abcdefgh/p_x.3.json', 2]]));
@@ -387,9 +387,31 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
     const zipBranch = mainSrc.slice(mainSrc.indexOf("      if (/\\.zip$/i.test(file.name)) {"), mainSrc.indexOf('      var reader = new FileReader();'));
     check('the import (source): the picked file is opened by slices, never read whole; data.json is read then (by its checksum; one past 512 MB refused), the pack files, the pictures and the videos kept as entries; each is copied only after check() found its checksum right, the Blob itself sent (a slice of the picked file), and a failure is counted and said',
         zipBranch.length > 400 && /var zopen = await zip\.zipOpen\(file\), entries = zopen\.entries;\n\s*pendingImportBytes = zopen\.size;/.test(zipBranch) && !/arrayBuffer\(\)/.test(zipBranch) && !/zipRead\(/.test(zipBranch) && /if \(dj\.size > 512 \* 1024 \* 1024\) \{ toast\(/.test(zipBranch) && /var djText = new TextDecoder\(\)\.decode\(await dj\.bytes\(\)\);/.test(zipBranch)
-        && /pendingImportImages = entries\.filter\(function\(en\) \{ return \/\^images\\\/\/\.test\(en\.name\); \}\);/.test(zipBranch) && /libE\.forEach\(function\(en\) \{ pendingImportLibrary\[en\.name\] = en; \}\);/.test(zipBranch) && !/libE\[li\]\.bytes\(\)/.test(zipBranch)
-        && /var body = await imgs\[i\]\.check\(\);[^\n]*\n\s*var r = await fetch\('\/api\/upload-exact\?path=' \+ encodeURIComponent\(relPath\), \{ method: 'POST', body: body \}\);\n\s*if \(r\.ok\) ok\+\+; else fail\+\+;\n\s*\} catch\(err\) \{ fail\+\+; \}/.test(mainSrc)
-        && /toast\('Files copied: ' \+ ok \+ \(fail \? ', ' \+ fail \+ ' failed/.test(mainSrc) && !/new Blob\(\[imgs\[i\]\.data\]\)/.test(mainSrc));
+        && /pendingImportImages = entries\.filter\(function\(en\) \{ return \/\^images\\\/\/\.test\(en\.name\) && !\/\^images\\\/journal\(\\\/\|\$\)\/i\.test\(en\.name\); \}\);/.test(zipBranch) && /libE\.forEach\(function\(en\) \{ pendingImportLibrary\[en\.name\] = en; \}\);/.test(zipBranch) && !/libE\[li\]\.bytes\(\)/.test(zipBranch)
+        && /var body = await imgs\[i\]\.check\(\);[^\n]*\n\s*var r = await fetch\('\/api\/upload-exact\?keep=1&path=' \+ encodeURIComponent\(relPath\), \{ method: 'POST', body: body \}\);[^\n]*\n\s*if \(r\.ok\) ok\+\+; else if \(r\.status === 409\) kept\+\+; else fail\+\+;\n\s*\} catch\(err\) \{ fail\+\+; \}/.test(mainSrc)
+        && /toast\('Files copied: ' \+ ok \+ \(kept \? ', ' \+ kept \+ ' already here' : ''\) \+ \(fail \? ', ' \+ fail \+ ' failed/.test(mainSrc) && !/new Blob\(\[imgs\[i\]\.data\]\)/.test(mainSrc));
+    // the security pass of 2026-10-01: what an import copies back, and how — main.js sliced by its importpick and importcopy markers and run for real on
+    // an archive of plain entries. An archive from elsewhere must never replace a file of yours: not a player's Journal (images/journal/, which no export
+    // carries and the import now leaves out whole) and not a picture, portrait or another campaign's file already on disk (every copy asks the saves
+    // folder to keep what is there — keep=1 — and a 409 is counted as already here, never as a failure, so your own export imported again still reads as done)
+    const sliceMain = name => { try { return sliceOf(mainSrc, name); } catch (e) { return ''; } };
+    const pickSrc = sliceMain('importpick'), copySrc = sliceMain('importcopy');
+    const ent = (name, size) => ({ name, size: size || 10, csize: size || 10, method: 0, check: async function() { return new Uint8Array(this.size); } });
+    const archive = [ent('data.json'), ent('images/journal/journals.json'), ent('images/journal/campA__gm1/journal.json'), ent('images/Journal/x.png'), ent('images/journal'), ent('images/journalx/y.png'), ent('images/m_abc/x1_pic.png'), ent('images/portraits/portrait-c1-k.png'), ent('images/video/c/k_clip.mp4'), ent('library/l_abcd1234/p_a.1.json')];
+    let picked = null; try { picked = new Function('entries', '"use strict"; var pendingImportImages = null;' + NL + pickSrc + NL + 'return pendingImportImages;')(archive); } catch (e) { picked = 'threw: ' + e.message; }
+    const names = Array.isArray(picked) ? picked.map(e => e.name) : picked;
+    check('the import (main.js importpick, run for real): of an archive\'s entries only those under images/ are kept for copying, and never one under images/journal/ in any spelling of its case (a player\'s Journal, which no export carries) nor a file of that name; a picture folder whose name merely begins with journal is kept like any other',
+        pickSrc.length > 40 && j(names) === j(['images/journalx/y.png', 'images/m_abc/x1_pic.png', 'images/portraits/portrait-c1-k.png', 'images/video/c/k_clip.mp4']), j(names));
+    const urlsK = [], toastsK = [], bodiesK = [];
+    const fetchK = async (url, init) => { urlsK.push(url); bodiesK.push(init && init.body instanceof Uint8Array ? init.body.length : 'no body'); return /x1_pic/.test(url) ? { ok: false, status: 409 } : /k_clip/.test(url) ? { ok: false, status: 500 } : { ok: true, status: 200 }; };
+    let copyRan = false;
+    try {
+        const copyFn = new Function('imgs', 'msg', 'toast', 'fetch', 'render', 'pendingImportBytes', '"use strict";' + NL + copySrc);
+        copyRan = await new Promise(res => { const t = setTimeout(() => res(false), 4000); copyFn(Array.isArray(picked) ? picked : [], 'Imported.', m => toastsK.push(m), fetchK, () => { clearTimeout(t); res(true); }, 100000); });
+    } catch (e) { toastsK.push('threw: ' + e.message); }
+    check('the import (main.js importcopy, run for real): every file is copied with keep=1 — the saves folder keeps a file already there — and its bytes only after check(); a 409 counts as already here and a refusal as failed, and the closing line says how many of each; no address names the Journal folder',
+        copySrc.length > 400 && copyRan && urlsK.length === 4 && urlsK.every(u => /^\/api\/upload-exact\?keep=1&path=images%2F/.test(u)) && !urlsK.some(u => /journal%2F/i.test(u)) && j(bodiesK) === j([10, 10, 10, 10])
+        && toastsK[toastsK.length - 1] === 'Files copied: 2, 1 already here, 1 failed (damaged in the archive, or refused by the saves folder).' && toastsK[0] === 'Imported. Copying 3 image(s) and 1 video(s)…', j([urlsK, toastsK, bodiesK]));
 
     /* ---- said ---- */
     const ixZ = read('system/app/index.html'), wnZ = read('WHATSNEW.txt'), waZ = read('system/app/assets/whatsnew.txt'), ciZ = read('CAMPAIGN_INTEGRATION.md'), ymlZ = read('.github/workflows/checks.yml');

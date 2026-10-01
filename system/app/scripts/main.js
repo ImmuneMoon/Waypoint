@@ -501,12 +501,15 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
       if (!imgs.length) { toast(msg); return; }
 
       // Copy the bundle's images into saves/ at their exact original paths so
-      // the imported items' references resolve.
+      // the imported items' references resolve. A file already there is never replaced (keep=1: the saves folder answers 409, counted as
+      // already here): an archive from elsewhere cannot overwrite your pictures, portraits or another campaign's files, and your own export
+      // imported again — the same files under the same names — still reads as done
+      // [zipcheck:importcopy-start]
       var nVidI = imgs.filter(function(en) { return /^images\/video\//.test(en.name); }).length;
       toast(msg + ' Copying ' + (imgs.length - nVidI) + ' image(s)' + (nVidI ? ' and ' + nVidI + ' video(s)' : '') + '…');
 
       (async function() {
-          var ok = 0, fail = 0, vidAt = 0, wrote = 0, budget = pendingImportBytes * 20 + 1048576;   // an archive never unpacks to more than twenty times itself: entries that share bytes, or inflate out of proportion, stop there
+          var ok = 0, kept = 0, fail = 0, vidAt = 0, wrote = 0, budget = pendingImportBytes * 20 + 1048576;   // an archive never unpacks to more than twenty times itself: entries that share bytes, or inflate out of proportion, stop there
           for (var i = 0; i < imgs.length; i++) {
               var relPath = imgs[i].name;
               try { relPath = decodeURIComponent(relPath); } catch(e) {}
@@ -515,13 +518,14 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
                   if (imgs[i].method !== 0 && imgs[i].size > imgs[i].csize * 20 + 1048576) throw new Error('an entry that inflates out of proportion');   // pictures, sounds and videos barely compress: one said to grow twentyfold is no export's (and would fill the disk)
                   wrote += imgs[i].size; if (wrote > budget) throw new Error('more than the archive can hold');
                   var body = await imgs[i].check();   // the entry's bytes, straight from the picked file, only once its checksum is the archive's: a damaged file is never written
-                  var r = await fetch('/api/upload-exact?path=' + encodeURIComponent(relPath), { method: 'POST', body: body });
-                  if (r.ok) ok++; else fail++;
+                  var r = await fetch('/api/upload-exact?keep=1&path=' + encodeURIComponent(relPath), { method: 'POST', body: body });   // keep: never over a file already there
+                  if (r.ok) ok++; else if (r.status === 409) kept++; else fail++;
               } catch(err) { fail++; }
           }
-          toast('Files copied: ' + ok + (fail ? ', ' + fail + ' failed (damaged in the archive, or refused by the saves folder)' : '') + '.');
+          toast('Files copied: ' + ok + (kept ? ', ' + kept + ' already here' : '') + (fail ? ', ' + fail + ' failed (damaged in the archive, or refused by the saves folder)' : '') + '.');
           render();
       })();
+      // [zipcheck:importcopy-end]
 
   }
 
@@ -730,7 +734,9 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
                   }
                   if (dj.size > 512 * 1024 * 1024) { toast('This zip\'s data.json is too large to read.'); return; }
                   var djText = new TextDecoder().decode(await dj.bytes());
-                  pendingImportImages = entries.filter(function(en) { return /^images\//.test(en.name); });
+                  // [zipcheck:importpick-start]
+                  pendingImportImages = entries.filter(function(en) { return /^images\//.test(en.name) && !/^images\/journal(\/|$)/i.test(en.name); });   // only what an export carries: never a player's Journal (images/journal/, which the export leaves out too — io.js)
+                  // [zipcheck:importpick-end]
                   var libE = entries.filter(function(en) { return /^library\/l_[a-z0-9]{8}\/p_[A-Za-z0-9_]{1,24}\.[0-9]{1,10}\.json$/.test(en.name) && en.size <= 16 * 1024 * 1024; });
                   pendingImportLibrary = null;
                   if (libE.length) { pendingImportLibrary = Object.create(null); libE.forEach(function(en) { pendingImportLibrary[en.name] = en; }); }   // kept as entries: a pack file is read (its checksum checked) only when the import copies it, one at a time

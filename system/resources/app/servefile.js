@@ -39,7 +39,17 @@ function serveFile(req, res, filePath, headers) {
 // bytes go to a .part file beside the target and are moved into place only when the request ended complete and as long as it said it
 // would be. A request cut short, or a write that fails, leaves the target as it was — a good copy is never replaced by half of one —
 // and no .part behind. Answers 200 with okBody once the file is in place, else 500.
-function saveUpload(req, res, savePath, okBody) {
+// opts.keep (an import copying an archive's files back): a file already there is never replaced — the finished .part is linked into
+// place, which fails where a file exists (409, the file as it was, no .part); a filesystem without hard links copies exclusively instead,
+// and a copy that fails part-way takes its own half away, never a file that was there first.
+function placeKept(tmp, savePath) {   // 'placed' | 'exists' | 'failed'
+    const existed = fs.existsSync(savePath);
+    try { fs.linkSync(tmp, savePath); return 'placed'; } catch (e) { if (e && e.code === 'EEXIST') return 'exists'; }
+    try { fs.copyFileSync(tmp, savePath, fs.constants.COPYFILE_EXCL); return 'placed'; }
+    catch (e) { if (e && e.code === 'EEXIST') return 'exists'; if (!existed) { try { fs.unlinkSync(savePath); } catch (e2) {} } return 'failed'; }
+}
+function saveUpload(req, res, savePath, okBody, opts) {
+    const keep = !!(opts && opts.keep === true);
     const tmp = savePath + '.' + process.pid + '-' + Math.random().toString(36).slice(2, 10) + '.part';
     let answered = false, failed = false;
     const answer = (code, body) => { if (answered) return; answered = true; try { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(body); } catch (e) {} };
@@ -53,6 +63,12 @@ function saveUpload(req, res, savePath, okBody) {
         const len = req.headers ? req.headers['content-length'] : undefined;
         const whole = !failed && req.complete === true && (len === undefined || Number(len) === ws.bytesWritten);
         if (!whole) { drop(); return answer(500, '{"error":"write failed"}'); }
+        if (keep) {
+            const placed = placeKept(tmp, savePath); drop();
+            if (placed === 'exists') return answer(409, '{"error":"already there"}');
+            if (placed !== 'placed') return answer(500, '{"error":"write failed"}');
+            return answer(200, okBody);
+        }
         try { fs.renameSync(tmp, savePath); } catch (e) { drop(); return answer(500, '{"error":"write failed"}'); }
         answer(200, okBody);
     });

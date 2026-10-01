@@ -5742,7 +5742,7 @@ function wireConn(conn) {
     });
     conn.on('close', function() {
         net.conns = net.conns.filter(function(c) { return c !== conn; });
-        delete assetInflight[conn.peer];
+        delete assetInflight[conn.peer]; delete assetRefs[conn.peer];
         if (diceLimit) diceLimit.forget(conn.peer);
         if (charLimit) charLimit.forget(conn.peer);
         Object.keys(_lim).forEach(function(k) { _lim[k].forget(conn.peer); });
@@ -5935,6 +5935,7 @@ function startHosting(forceFresh) {
     peer.on('connection', function(conn) {
         net.conns.push(conn);
         _connMeta[conn.peer] = { openedAt: Date.now(), hellos: 0 };
+        assetNoteSends(conn);   // security (2026-10-01): what this connection is sent is noted, so the asset gate serves it only that
         wireConn(conn);
     });
     peer.on('call', function(call) { try { call.close(); } catch (e) {} });   // item 21 V2: no media call is used (a video's link is agreed over the table's own connection): any that comes is closed
@@ -6092,6 +6093,39 @@ var assetCache = Object.create(null);    // path -> blob URL (pictures, pulled o
 var assetPending = Object.create(null);  // path -> true
 var assetRenderTimer = null;
 var assetWaiters = {};  // path -> { promise, resolve, reject, timer, parts, n, bytes }: sounds, pulled by net.fetchAsset and answered in parts
+// [netcheck:assetreq-start]
+// Security (2026-10-01): a connection may pull only a picture or sound the host SENT IT A REFERENCE TO. Every message to a player passes its
+// connection's send (assetNoteSends wraps it as the host accepts the connection), and the paths under the keys a player's app reads a picture or
+// sound from are noted there, before the message leaves — so a path learnt any other way (a token the GM has since hidden, another campaign's
+// file, a Journal, a name guessed or worked out) is answered as a file that is not there, and never read. An asset answer is left out: it
+// names the path the player asked for, the player's own word. Text a player wrote (a chat line, a name, a sheet value) never lands under
+// these keys — the patch gate takes geometry and strokes, a share travels as bytes, a sheet file's portrait is dropped — so nothing a player
+// says can make a path askable. Forgotten with the connection and at a new table.
+var assetRefs = Object.create(null);   // host: peer -> the paths that connection was sent (decoded canonical form -> 1)
+var ASSET_KEYS = Object.create(null); ASSET_KEYS.src = ASSET_KEYS.image = ASSET_KEYS.portrait = ASSET_KEYS.bgImage = ASSET_KEYS.path = 1;   // a board item's or a page block's src, a room's image, a character's portrait, a page's or sheet's bgImage, a sound's or song's path
+function assetKeyOf(raw) { var p = assetPathOk(raw); if (!p) return ''; try { return decodeURIComponent(p); } catch (e) { return p; } }   // the form a request is compared in: the canonical path, decoded — the same file however it was spelt
+function htmlAttr(s) { return s.replace(/&(?:(amp|quot|apos|lt|gt|nbsp)|#(\d{1,7})|#[xX]([0-9a-fA-F]{1,6}));/g, function(m, n, d, h) { if (n) return { amp: '&', quot: '"', apos: "'", lt: '<', gt: '>', nbsp: '\u00a0' }[n]; var c = parseInt(d || h, d ? 10 : 16); return c > 0 && c <= 0x10ffff ? String.fromCodePoint(c) : m; }); }   // an attribute's value as the browser reads it: the entities the text tool's serialisation writes (&, ", a no-break space) and the named or numeric ones pasted markup may carry
+function assetNote(peer, msg) {
+    if (!msg || typeof msg !== 'object' || msg.type === 'asset' || msg.type === 'asset-part') return;
+    var set = assetRefs[peer] || (assetRefs[peer] = Object.create(null)), put = function(raw) { var k = assetKeyOf(raw); if (k) set[k] = 1; };
+    (function walk(v, d) {
+        if (d > 40 || v === null || typeof v !== 'object' || ArrayBuffer.isView(v) || v instanceof ArrayBuffer) return;
+        if (Array.isArray(v)) { for (var i = 0; i < v.length; i++) walk(v[i], d + 1); return; }
+        if (v.type === 'text' && typeof v.id === 'string' && typeof v.text === 'string') { var re = /\ssrc\s*=\s*(?:"([^"]*)"|'([^']*)')/g, m; while ((m = re.exec(v.text)) !== null) put(htmlAttr(m[1] !== undefined ? m[1] : m[2])); }   // a text item's pictures, as a player's app reads them off its img tags (whiteboard.js fixEmbeddedImgs), however the markup quotes or encodes them
+        var ks = Object.keys(v); for (var k = 0; k < ks.length; k++) { var x = v[ks[k]]; if (typeof x === 'string') { if (ASSET_KEYS[ks[k]] === 1) put(x); } else walk(x, d + 1); }
+    })(msg, 0);
+}
+function assetNoteSends(conn) { var send = conn.send; conn.send = function() { try { assetNote(conn.peer, arguments[0]); } catch (e) {} return send.apply(conn, arguments); }; }   // host: the one funnel every message to that connection passes
+function assetSent(peer, dec) { var set = assetRefs[peer]; return !!set && set[dec] === 1; }
+// The body of a file the local server answered with, null for one that is not there, or 'big' when its stated length is past the cap — judged on
+// the Content-Length before a byte is read, so a file past the cap never comes into this machine's memory whole. A shell that states no length
+// (1.4.9 streams a file without one) is read and judged by its bytes, as before.
+function assetBody(r) {
+    if (!r.ok) return null;
+    var len = Number(r.headers && typeof r.headers.get === 'function' ? r.headers.get('content-length') : NaN);
+    if (len > AUDIO_CAP) { try { if (r.body && r.body.cancel) r.body.cancel(); } catch (e) {} return 'big'; }
+    return r.arrayBuffer();
+}
 var assetInflight = {}; // host: peer -> path, one sound transfer at a time per peer
 var ASSET_PART = 256 * 1024, AUDIO_CAP = 26 * 1024 * 1024, ASSET_WAIT = 45000, MAX_PARTS = 130;   // AUDIO_CAP covers full music tracks (musiccore caps a track at 25 MB); SFX stay small — soundcore caps them at 4 MB at upload. MAX_PARTS (130×256 KB ≈ 33 MB) > cap so a legit transfer never trips the part guard.
 function isAudioPath(p) { return typeof p === 'string' && p.indexOf('/saves/images/audio/') === 0; }
@@ -6133,6 +6167,8 @@ function assetPathOk(raw) {
     // encodeURI does for the host's own playback (sound.js/music.js); the audio branch used encodeURI before 020a8b4.
     var p = u.pathname.replace(/%(?![0-9A-Fa-f]{2})/g, '%25'), dec; try { dec = decodeURIComponent(p); } catch (e) { dec = p; }   // a bad UTF-8 sequence still checks as sent
     if (p.indexOf('/saves/images/') !== 0 || dec.indexOf('/saves/images/') !== 0 || dec.indexOf('..') !== -1 || dec.indexOf('\\') !== -1 || dec.indexOf('\0') !== -1) return '';
+    var top = dec.slice(14).split('/').filter(Boolean)[0] || '';   // the first folder under /saves/images/ (an empty segment skipped, as the server's path.join skips it)
+    if (dec.indexOf(':') !== -1 || /^(journal|video)[. ]*$/i.test(top)) return '';   // security (2026-10-01): this machine's own Journal (private shares, notes, other tables' journals) and the video library (a video reaches players as a live stream) are never served to a peer — spelt in any case, with trailing dots or spaces, or as an NTFS stream name, each of which reaches the same folder on disk
     return p;
 }
 net._assetPathOk = assetPathOk;   // exposed for the dev console / checks
@@ -6141,15 +6177,16 @@ function handleAssetRequest(msg, conn) {
     var reqPath = assetPathOk(msg.path); if (!reqPath) return;
     if (!allow('asset', { perMs: 0, burst: 200, windowMs: 10000, table: 8000 }, conn.peer)) { answerAsset(conn, msg.path, 'busy'); return; }   // a map's pictures arrive in ONE burst (several in the same millisecond): no spacing, a wide window; a flood beyond it is refused — and told so, so the player's copy retries instead of waiting forever
     var decPath; try { decPath = decodeURIComponent(reqPath); } catch (e) { decPath = reqPath; }
+    if (!assetSent(conn.peer, decPath)) { answerAsset(conn, msg.path, 'missing'); return; }   // security (2026-10-01): only a file this connection was sent a reference to (assetNote); anything else reads as a file that is not there, and is never read
     if (isAudioPath(decPath)) {   // judged on the DECODED path: an encoded "audio" must not slip into the whole-file picture branch
         // a sound or music track: one in flight per peer, the AUDIO_CAP, 256 KB parts so the heartbeats never queue behind a whole file, every refusal answered
         if (assetInflight[conn.peer]) { answerAsset(conn, msg.path, 'busy'); return; }
         assetInflight[conn.peer] = msg.path;
         var done = function() { if (assetInflight[conn.peer] === msg.path) delete assetInflight[conn.peer]; };
-        fetch(reqPath).then(function(r) { return r.ok ? r.arrayBuffer() : null; }).then(function(buf) {
+        fetch(reqPath).then(assetBody).then(function(buf) {
             if (!conn.open) { done(); return; }
             if (!buf) { answerAsset(conn, msg.path, 'missing'); done(); return; }
-            if (buf.byteLength > AUDIO_CAP) { answerAsset(conn, msg.path, 'too-big'); done(); return; }
+            if (buf === 'big' || buf.byteLength > AUDIO_CAP) { answerAsset(conn, msg.path, 'too-big'); done(); return; }
             var n = Math.max(1, Math.ceil(buf.byteLength / ASSET_PART)), i = 0;
             (function pump() {
                 if (!conn.open) { done(); return; }
@@ -6162,13 +6199,14 @@ function handleAssetRequest(msg, conn) {
         }).catch(function() { answerAsset(conn, msg.path, 'missing'); done(); });
         return;
     }
-    fetch(reqPath).then(function(r) { return r.ok ? r.arrayBuffer() : null; }).then(function(buf) {
+    fetch(reqPath).then(assetBody).then(function(buf) {
         if (!conn.open) return;
         if (!buf) { answerAsset(conn, msg.path, 'missing'); return; }
-        if (buf.byteLength > AUDIO_CAP) { answerAsset(conn, msg.path, 'too-big'); return; }   // a picture past the cap is never sent whole
+        if (buf === 'big' || buf.byteLength > AUDIO_CAP) { answerAsset(conn, msg.path, 'too-big'); return; }   // a picture past the cap is never sent whole — nor read whole where the server states its length
         try { conn.send({ type: 'asset', path: msg.path, mime: assetMime(msg.path), data: new Uint8Array(buf) }); } catch (e) { sendFailed(e); }
     }).catch(function() { answerAsset(conn, msg.path, 'missing'); });
 }
+// [netcheck:assetreq-end]
 
 // A sound file from the host, for sound.js: one request, answered in parts (or with an error) and reassembled here.
 // sound.js serialises its requests; the host allows one in flight per peer anyway. Rejects: offline, bad path, too-big, busy, missing, timeout, left.
@@ -6202,7 +6240,7 @@ function handleAssetPart(msg) {
 }
 function resetAssetTransfers() {
     Object.keys(assetWaiters).forEach(function(p) { var w = assetWaiters[p]; clearTimeout(w.timer); try { w.reject(new Error('left')); } catch (e) {} });
-    assetWaiters = {}; assetPending = Object.create(null); assetInflight = {};
+    assetWaiters = {}; assetPending = Object.create(null); assetInflight = {}; assetRefs = Object.create(null);
 }
 
 function handleAssetArrival(msg) {

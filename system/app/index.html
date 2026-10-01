@@ -51,7 +51,7 @@ window.addEventListener('unhandledrejection', function(e) {
             Object.keys(f.prefs).forEach(function(k) {
                 if (k.indexOf('wp_') !== 0) return;
                 if (k === 'wp_profile') { try { var fp = JSON.parse(f.prefs[k]), lp = JSON.parse(localStorage.getItem(k) || 'null'); if (fp && typeof fp === 'object') { if (lp && lp.id && !fp.id) fp.id = lp.id; if (lp && lp.name && !fp.name) fp.name = lp.name; localStorage.setItem(k, JSON.stringify(fp)); return; } } catch (e) {} }
-                if (k === 'wp_tableKeys') { try { var fk = JSON.parse(f.prefs[k]), lk = JSON.parse(localStorage.getItem(k) || 'null'); if (fk && typeof fk === 'object') { localStorage.setItem(k, JSON.stringify(Object.assign({}, lk && typeof lk === 'object' ? lk : {}, fk))); return; } } catch (e) {} }
+                if (k === 'wp_tableKeys') { try { var fk = JSON.parse(f.prefs[k]), lk = JSON.parse(localStorage.getItem(k) || 'null'); if (fk && typeof fk === 'object' && !Array.isArray(fk)) { var mk = Object.assign({}, lk && typeof lk === 'object' ? lk : {}, fk), mks = Object.keys(mk); while (mks.length > 50) delete mk[mks.shift()]; try { localStorage.setItem(k, JSON.stringify(mk)); } catch (e2) {} return; } } catch (e) {} }   // at most 50 (as net.js keeps them), the oldest out; a full store ends this key, not the whole merge
                 localStorage.setItem(k, String(f.prefs[k]));
             });
             localStorage.setItem('wp_prefsStamp', String(f.updated));

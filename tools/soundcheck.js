@@ -62,6 +62,41 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     check('window.wpSoundCore published', !!(global.window.wpSoundCore && global.window.wpSoundCore.cleanSoundList && global.window.wpSoundCore.VERSION === S2.VERSION));
     delete global.window;
 
+    /* ---- Sound's Delete keeps a file another campaign uses (sound.js fileIsOnlyOurs, sliced by its ours markers and run on a state of plain objects) ---- */
+    {
+        const fs = require('fs');
+        const sndT = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sound.js'), 'utf8').replace(/\r\n/g, '\n');
+        const a = sndT.indexOf('// [soundcheck:ours-start]'), b = sndT.indexOf('// [soundcheck:ours-end]');
+        check('ours: the slice is marked once', a >= 0 && b > a && sndT.indexOf('// [soundcheck:ours-start]', a + 1) < 0);
+        const MC = await import('file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', 'musiccore.js')).replace(/\\/g, '/'));
+        const mk = (camps, noCore) => { const st = { appState: { campaigns: camps } }, f = new Function('state', 'window', 'safeId', sndT.slice(a, b) + '\nreturn fileIsOnlyOurs;')(st, noCore ? {} : { wpMusicCore: MC }, safeId); return (camp, p) => f(camps.camp_a, p); };   // the campaign as the state holds it (the same object)
+        const P = '/saves/images/audio/camp_a/ab12cd34_rain.ogg', A = { id: 'camp_a', sounds: { v: 1, list: [{ id: 's_1', path: P }] } };
+        const other = extra => Object.assign({ id: 'camp_b' }, extra);
+        const cases = [
+            ['our file, no other campaign', mk({ camp_a: A }), true],
+            ['our file, another campaign with no sounds and no music', mk({ camp_a: A, camp_b: other({}) }), true],
+            ['another campaign\'s sounds name it', mk({ camp_a: A, camp_b: other({ sounds: { list: [{ id: 's_9', path: P }] } }) }), false],
+            ['another campaign\'s music names it (a song brought in by reference)', mk({ camp_a: A, camp_b: other({ music: { v: 1, tracks: [{ id: 't_abc', name: 'Rain', path: P, size: 10 }], playlists: [] } }) }), false],
+            ['another campaign\'s music that is a list (read as none)', mk({ camp_a: A, camp_b: other({ music: [{ id: 't_abc', path: P, size: 10 }] }) }), true],
+            ['another campaign\'s music naming a track that does not clean (no size)', mk({ camp_a: A, camp_b: other({ music: { tracks: [{ id: 't_abc', path: P }] } }) }), true],
+            ['another campaign\'s sounds naming another file', mk({ camp_a: A, camp_b: other({ sounds: { list: [{ id: 's_9', path: '/saves/images/audio/camp_a/other.ogg' }] } }) }), true],
+            ['our own campaign naming it twice is still ours', mk({ camp_a: Object.assign({}, A, { music: { tracks: [{ id: 't_x', path: P, size: 1 }] } }) }), true],
+            ['a campaign entry that is no object', mk({ camp_a: A, camp_b: null, camp_c: 'x' }), true],
+            ['a file in another campaign\'s folder is never ours', mk({ camp_a: A }), false, '/saves/images/audio/camp_b/x.ogg'],
+            ['a path that is no text', mk({ camp_a: A }), false, 7],
+            ['without the music core only the sounds are read', mk({ camp_a: A, camp_b: other({ music: { tracks: [{ id: 't_abc', path: P, size: 10 }] } }) }, true), true],
+            ['without the music core another campaign\'s sounds still count', mk({ camp_a: A, camp_b: other({ sounds: { list: [{ id: 's_9', path: P }] } }) }, true), false],
+        ];
+        const wrong = cases.filter(c => c[1]({ id: 'camp_a' }, c.length > 3 ? c[3] : P) !== c[2]).map(c => c[0]);
+        check('ours: a file is only ours when it lies in this campaign\'s audio folder and no other campaign names it in its sounds or in its music as the app reads it (a list is none, a track that does not clean is none); our own second mention, a campaign that is no object, another file; another folder or a path that is no text never ours; without the music core the sounds alone are read',
+            wrong.length === 0, wrong);
+        const delSrc = sndT.slice(sndT.indexOf("if (b.classList.contains('snd-del')) {"), sndT.indexOf("document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && m.style.display !== 'none')"));
+        check('ours (source): the Delete button asks fileIsOnlyOurs — a file another campaign uses is taken out of this campaign only, said so in the question and the toast, and never sent to /api/delete-image',
+            /var ownFile = !entry\.from && String\(entry\.path \|\| ''\)\.indexOf\('\/saves\/images\/audio\/' \+ safeId\(camp\.id\) \+ '\/'\) === 0, shared = ownFile && !fileIsOnlyOurs\(camp, entry\.path\), isRef = !ownFile \|\| shared;/.test(delSrc)
+            && /if \(isRef\) \{ toast\(shared \? 'Taken out of this campaign; the file stays for the other campaign that uses it\.' : 'Reference removed\.'\); return; \}\n\s*fetch\('\/api\/delete-image'/.test(delSrc)
+            && /\+ \(shared \? ' Its file stays: another campaign uses it\.' : ''\) :/.test(delSrc) && (sndT.match(/fileIsOnlyOurs\(/g) || []).length === 2, delSrc.slice(0, 300));
+    }
+
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

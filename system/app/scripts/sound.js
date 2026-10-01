@@ -359,21 +359,35 @@ function uploadFiles(files) {
         if (b.classList.contains('snd-hide')) { var h = hiddenDefaults(); if (h.indexOf(id) < 0) h.push(id); setHiddenDefaults(h); if (ambient && ambient.entry.id === id) hostStopAmbient(); renderLib(); saveLib(true); return; }
         if (b.classList.contains('snd-del')) {
             var list = campListW(camp), entry = list.find(function(x) { return x.id === id; }); if (!entry) return;
-            var isRef = !!entry.from || String(entry.path || '').indexOf('/saves/images/audio/' + safeId(camp.id) + '/') !== 0;
+            var ownFile = !entry.from && String(entry.path || '').indexOf('/saves/images/audio/' + safeId(camp.id) + '/') === 0, shared = ownFile && !fileIsOnlyOurs(camp, entry.path), isRef = !ownFile || shared;   // shared: our file, but another campaign names it (its sounds, or a song brought in From another campaign…): the entry goes, the file stays
             var go = function() {
                 if (ambient && ambient.entry.id === id) hostStopAmbient();
                 var idx = list.indexOf(entry); if (idx >= 0) list.splice(idx, 1);
                 delete cache[id]; delete bytes[entry.path];
                 saveLib(true); renderLib();
-                if (isRef) { toast('Reference removed.'); return; }
+                if (isRef) { toast(shared ? 'Taken out of this campaign; the file stays for the other campaign that uses it.' : 'Reference removed.'); return; }
                 fetch('/api/delete-image', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: entry.path }) }).then(function(r) { toast(r.ok ? 'Deleted ' + entry.name + '.' : 'The entry is gone; the file could not be deleted.'); }).catch(function() { toast('The entry is gone; the file could not be deleted.'); });
             };
-            showConfirm(isRef ? 'Take "' + entry.name + '" out of this campaign?' : 'Delete "' + entry.name + '" and its file from your saves folder? This cannot be undone.', function(yes) { if (yes) go(); });
+            showConfirm(isRef ? 'Take "' + entry.name + '" out of this campaign?' + (shared ? ' Its file stays: another campaign uses it.' : '') : 'Delete "' + entry.name + '" and its file from your saves folder? This cannot be undone.', function(yes) { if (yes) go(); });
         }
     });
     document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && m.style.display !== 'none') { e.stopPropagation(); closeLib(); } }, true);
 })();
 
+// [soundcheck:ours-start]
+// A file is deleted only when it sits in this campaign's own audio folder and no other campaign names it — in its sounds, or in its music (a
+// song brought in From another campaign… is a reference to the file here, never a copy); otherwise the entry alone goes and the file stays
+function fileIsOnlyOurs(camp, path) {
+    if (!camp || typeof path !== 'string' || path.indexOf('/saves/images/audio/' + safeId(camp.id) + '/') !== 0) return false;
+    var MC = window.wpMusicCore, camps = state.appState && state.appState.campaigns && typeof state.appState.campaigns === 'object' ? state.appState.campaigns : {};
+    return !Object.keys(camps).some(function(k) {
+        var c = camps[k]; if (!c || typeof c !== 'object' || c === camp) return false;
+        if (c.sounds && Array.isArray(c.sounds.list) && c.sounds.list.some(function(o) { return !!o && o.path === path; })) return true;
+        var mv = MC && typeof MC.musicView === 'function' ? MC.musicView(c.music) : null;   // the music as the app reads it (an odd shape is none)
+        return !!(mv && mv.tracks.some(function(t) { return !!t && t.path === path; }));
+    });
+}
+// [soundcheck:ours-end]
 /* ---------- the indicator and its popover (every role) ---------- */
 function renderInd() {
     var b = ui('soundInd'); if (!b) return;

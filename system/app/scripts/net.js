@@ -855,7 +855,7 @@ function hidForgetMap(mapId) { Object.keys(_hidPend).forEach(function(p) { delet
 // [netcheck:hidpend-end]
 function fogForgetConn(peer) { if (typeof peer === 'string') { delete _fogHeld[peer]; delete _acks[peer]; delete _hidPend[peer]; } }   // 14c: and how far its copies go; hidden pieces: and the drawings of theirs the GM hid
 function fogForgetMap(mapId) { Object.keys(_fogHeld).forEach(function(p) { delete _fogHeld[p][mapId]; }); }
-function fogForgetAll() { _fogHeld = Object.create(null); _acks = Object.create(null); _hidPend = Object.create(null); Object.keys(_fogPend).forEach(function(k) { clearTimeout(_fogPend[k]); }); _fogPend = Object.create(null); _fogCost = Object.create(null); }
+function fogForgetAll() { _fogHeld = Object.create(null); _acks = Object.create(null); _hidPend = Object.create(null); Object.keys(_fogPend).forEach(function(k) { clearTimeout(_fogPend[k]); }); _fogPend = Object.create(null); _fogCost = Object.create(null); if (typeof combatForget === 'function') combatForget(); }   // a new table: no fight's rows seen
 // Fold M7: the landing. A player's move that lands in another cell, facing or stance (their drop, or a map copy their app saves) arms a short
 // timer on that map; when it fires, every admitted connection's copy of the map is caught up in place: the creatures that player now sees
 // or no longer sees, the lit cells a light they cannot see gives them, the light cap ('fogDiff', the player's side is applyFogDiff), judged
@@ -3412,12 +3412,26 @@ function applyNotepad(m) {
    and gone answer alike, so an echo tells a player's app nothing — and the pointers go out again when a hide, a show or a deletion changes
    which are sent, as the rows are. A table without fog keeps the single broadcast, through the same judge. */
 function combatRowOut(r, i, unseen) { if (unseen) return { id: 'h' + i, name: 'Hidden', tokId: null, src: null }; var o = { id: r.id, name: r.name, tokId: r.tokId, src: r.src }; if (r.held === 1) o.held = 1; return o; }   // initiative O3: a seen row's hold too (an unseen one tells nothing)
+// The owner's ruling of 2026-10-01 ("if they've already seen the character, there's no reason to exclude it from the turn order unless it's
+// left the fight"): a row a player was once sent whole in this fight keeps its name for them when its token is hidden or out of their sight;
+// only a creature they have never seen in it reads Hidden. The host's memory per fight (the map's id) and player (a profile id; '*' = everyone
+// at the table, an unfogged broadcast): the token ids sent whole. Forgotten when the fight ends or a new one starts there, and at a new table
+var _combatSeen = Object.create(null);
+function combatSeenKey(pid) { return typeof pid === 'string' && pid ? pid : '*'; }
+function combatSeen(mapId, pid, tokId) { var m = _combatSeen[mapId]; if (!m || typeof tokId !== 'string') return false; var k = combatSeenKey(pid); return !!((m[k] && m[k][tokId] === 1) || (m['*'] && m['*'][tokId] === 1)); }
+function combatSaw(mapId, pid, tokId) { if (typeof mapId !== 'string' || typeof tokId !== 'string') return; var m = _combatSeen[mapId] || (_combatSeen[mapId] = Object.create(null)), k = combatSeenKey(pid), s = m[k] || (m[k] = Object.create(null)); s[tokId] = 1; }
+function combatForget(mapId) { if (mapId === undefined) _combatSeen = Object.create(null); else delete _combatSeen[mapId]; }
 function combatsFor(recipientId) {
     var camp = getActiveCampaign(), fogged = anyFog(camp), out = {};
     Object.keys(net.combats || {}).forEach(function(mapId) {
         var cmb = net.combats[mapId], map = fogged && camp && camp.items[mapId];
         var drop = map && map.type === 'map' && map.fog && map.fog.on === true ? (fogDrop(camp, map, recipientId) || {}) : null, hid = combatHidden(camp, mapId);
-        out[mapId] = { mapId: cmb.mapId, round: cmb.round, turn: cmb.turn, rows: (cmb.rows || []).map(function(r, i) { return combatRowOut(r, i, !!(r.tokId && ((drop && drop[r.tokId]) || hid[r.tokId]))); }) };
+        out[mapId] = { mapId: cmb.mapId, round: cmb.round, turn: cmb.turn, rows: (cmb.rows || []).map(function(r, i) {
+            var unseen = !!(r.tokId && ((drop && drop[r.tokId]) || hid[r.tokId]));
+            if (unseen && combatSeen(mapId, recipientId, r.tokId)) unseen = false;   // seen in this fight already: the name stays
+            if (!unseen && r.tokId) combatSaw(mapId, recipientId, r.tokId);
+            return combatRowOut(r, i, unseen);
+        }) };
         if (cmb.side === 'pc' || cmb.side === 'rest') out[mapId].side = cmb.side;   // initiative O4: which side goes first this round (never its rolls: those are their cards)
     });
     return out;
@@ -3661,6 +3675,7 @@ net.combatSet = function(mapId, combat) {
     if (net.role !== 'host') return;
     var had = net.combats[mapId];
     if (combat) {
+        if (!had && typeof combatForget === 'function') combatForget(mapId);   // a new fight: what players saw in the last one there is no longer seen
         combat.mapId = mapId;
         net.combats[mapId] = cleanCombats({ m: combat }).m; net.combats[mapId].mapId = mapId;
         if (!had && typeof marksStart === 'function') { try { marksStart(mapId); } catch (e) { console.error(e); } }   // senses S4b: everyone's marks held from the fight's start
@@ -3678,6 +3693,7 @@ net.combatSet = function(mapId, combat) {
         if (had) { logEvent('table', 'Combat ended on ' + mapTitleOf(mapId) + ' after ' + had.round + ' round' + (had.round === 1 ? '' : 's')); toast('Combat ended on ' + mapTitleOf(mapId) + '.'); }
         delete net.combats[mapId];
         if (had && typeof marksEnd === 'function') { try { marksEnd(mapId); } catch (e) { console.error(e); } }   // senses S4b: the marks follow every move again
+        if (typeof combatForget === 'function') combatForget(mapId);   // the fight over: nothing of it seen
     }
     broadcastCombats(); combatRefresh();
     if (combat && !had) { try { fxCombatEdge(mapId, net.combats[mapId], 'bank'); } catch (e) { console.error(e); } }   // T5a: their effects' clocks stop (what ran is kept)

@@ -496,6 +496,26 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('item 21 V1 the load cleans a campaign\'s video library (the real load normaliser with the real videocore): an entry by its id pattern once and its file once, its name as one plain line, only an uploaded video\'s path (never a web address, a page, a walk out of the folder or a picture folder), a size in bytes, a length and picture size only as numbers, nothing else riding along; a library that is no list or holds nothing that cleans goes; a campaign without one gets none; with the cleaner not loaded it is left as it is (never lost: the panel cleans it again as it reads)',
             JSON.stringify(vidsOf(withV)) === JSON.stringify([[{ id: 'v_abcdefgh', name: 'Intro <b>x</b>', path: '/saves/images/video/vA/k3j9_intro.mp4', size: 1000, dur: 12.3, w: 1920, h: 1080 }, { id: 'v_hhhhhhhh', name: 'Video', path: '/saves/images/video/vA/q_clip.webm', size: 0 }], 'none', 'none', 'none'])
             && JSON.stringify(vidsOf(noV)) === JSON.stringify(vidsOf({ campaigns: fileV().campaigns })), JSON.stringify([vidsOf(withV), vidsOf(noV)]));
+        // the campaign's music library from a file, cleaned by the real load normaliser as the app reads it (musiccore musicView); left as it is without the cleaner
+        const MCl = await import(surl('musiccore.js'));
+        const fileM = () => ({ activeCampaignId: 'mA', campaigns: {
+            mA: { id: 'mA', name: 'A', items: {}, music: { v: 1, tracks: [
+                { id: 't_one', name: ' Rain\u0000 <b>x</b> ', path: '/saves/images/audio/mA/k3j9_rain.ogg', size: 1000.7, dur: 12.34, secret: 'x' },
+                { id: 't_one', name: 'again', path: '/saves/images/audio/mA/other.ogg', size: 1 },
+                { id: 't_web', name: 'web', path: 'https://evil.example/x.mp3', size: 1 },
+                { id: 't_walk', name: 'walk', path: '/saves/images/audio/mA/..%2f..%2fdata.ogg', size: 1 },
+                { id: '../x', name: 'id', path: '/saves/images/audio/mA/y.ogg', size: 1 },
+                { id: 't_nosize', name: 'no size', path: '/saves/images/audio/mA/z.ogg' },
+                { id: 't_ref', name: 'Brought in', path: '/saves/images/audio/mB/song.ogg', size: 5 } ],
+              playlists: [{ id: 'pl_a', name: ' Mood ', tracks: ['t_one', 't_web', 't_ref', 'nope', 7] }, { id: 'pl_a', name: 'twice', tracks: [] }, { id: 'bad id!', tracks: ['t_one'] }, 'x'] } },
+            mB: { id: 'mB', name: 'B', items: {}, music: [{ id: 't_l', path: '/saves/images/audio/mB/l.ogg', size: 1 }] },
+            mC: { id: 'mC', name: 'C', items: {}, music: { tracks: [{ id: 'bad' }], playlists: [] } },
+            mD: { id: 'mD', name: 'D', items: {} } } });
+        const withM = migV({ wpSystemCore: S, wpFormula: F, wpLibraryCore: LBC, wpMusicCore: MCl })(fileM()), noM = migV({ wpSystemCore: S, wpFormula: F, wpLibraryCore: LBC })(fileM());
+        const musOf = st => ['mA', 'mB', 'mC', 'mD'].map(id => ('music' in st.campaigns[id] ? st.campaigns[id].music : 'none'));
+        check('the load cleans a campaign\'s music library (the real load normaliser with the real musiccore, as the app reads the music): a track by its id pattern once, its name as one plain line, only an uploaded song\'s path (its own folder\'s or another campaign\'s: a song brought in by reference), a size in bytes and a length as numbers, nothing else riding along; a playlist by its id once naming only tracks that are there; a library that is a list, or holds nothing that cleans, goes; a campaign without one gets none; with the cleaner not loaded it is left as it is (never lost: the panel reads it through the same view)',
+            JSON.stringify(musOf(withM)) === JSON.stringify([{ v: 1, tracks: [{ id: 't_one', name: 'Rain  <b>x</b>', path: '/saves/images/audio/mA/k3j9_rain.ogg', size: 1000, dur: 12.34 }, { id: 't_ref', name: 'Brought in', path: '/saves/images/audio/mB/song.ogg', size: 5, dur: 0 }], playlists: [{ id: 'pl_a', name: 'Mood', tracks: ['t_one', 't_ref'] }] }, 'none', 'none', 'none'])
+            && JSON.stringify(musOf(noM)) === JSON.stringify(musOf({ campaigns: fileM().campaigns })), JSON.stringify([musOf(withM), musOf(noM)]));
         // item 21, the zip fold: an export's archive carries the campaign's videos with its pictures and sounds (each file read from disk in
         // parts, the archive of any size: tools/zipcheck.js)
         const cipSrc = ioSrc.slice(ioSrc.indexOf('  function collectImagePaths('), ioSrc.indexOf('  // [zipcheck:exportfile-start]'));

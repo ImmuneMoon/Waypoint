@@ -103,6 +103,45 @@ if (on) {
     }
     setTimeout(tick, 400);
     setInterval(tick, 1000);
+    // The GM's video shown to players (item 21 V2): the main window says what is on its stage over BroadcastChannel (video.js streamPost);
+    // this window plays the same file from the local server over the map, within a second of the GM's position — muted unless Settings'
+    // "Stream window plays the table's sound" is on. The message is another window's data: the path through videocore's videoSrc, the name
+    // as a text node, numbers only as numbers
+    var svEl = document.getElementById('streamVideoEl'), svBox = document.getElementById('streamVideo'), svCap = document.getElementById('streamVideoCap');
+    var svSoundOn = function() { try { return localStorage.getItem('wp_streamSound') === 'on'; } catch (e) { return false; } };
+    if (svEl && svBox && svCap) {
+        try {
+            var svChan = new BroadcastChannel('waypoint');
+            svChan.addEventListener('message', function(e) { var d = e.data; if (d && d.type === 'video-stage') streamVideoApply(d, svEl, svBox, svCap, window.wpVideoCore, svSoundOn()); });
+            svChan.postMessage({ type: 'video-stage-query' });
+            window.addEventListener('storage', function(e) { if (e.key === 'wp_streamSound') svEl.muted = !svSoundOn(); });
+        } catch (e) {}
+    }
+}
+// [videocheck:streamwatch-start]
+// What the stream window does with the main window's word on its stage: a video shown to players is played here from its own path (videoSrc:
+// an uploaded video's path, encoded, or nothing), at the GM's position when this window has drifted more than 1.5 s from it, playing or
+// paused as the GM has it, looping as the GM has it; anything else — nothing shown, no live showing, a path that is no uploaded video's — takes
+// the picture down. The name is a text node. Returns true while a video is up
+function streamVideoApply(d, el, box, cap, VC, soundOn) {
+    var now = d && typeof d === 'object' && d.now && typeof d.now === 'object' ? d.now : null;
+    var src = now && now.live === true && VC && typeof VC.videoSrc === 'function' ? VC.videoSrc(now.path) : '';
+    if (!src) {
+        if (el.getAttribute('src')) { try { el.pause(); } catch (e) {} el.removeAttribute('src'); try { el.load(); } catch (e) {} }
+        box.style.display = 'none'; cap.textContent = '';
+        return false;
+    }
+    if (el.getAttribute('src') !== src) el.src = src;
+    box.style.display = ''; cap.textContent = VC.cleanName(now.name, 'Video');
+    el.loop = now.loop === true; el.muted = !soundOn;
+    var pos = typeof now.pos === 'number' && isFinite(now.pos) && now.pos >= 0 ? now.pos : 0;
+    if (Math.abs((Number(el.currentTime) || 0) - pos) > 1.5) { try { el.currentTime = pos; } catch (e) {} }
+    if (now.playing === true) { if (el.paused) { var p = null; try { p = el.play(); } catch (e) {} if (p && typeof p.catch === 'function') p.catch(function() {}); } }
+    else if (!el.paused) { try { el.pause(); } catch (e) {} }
+    return true;
+}
+// [videocheck:streamwatch-end]
+if (on) {
     // A hot update in the main window reloads this one too, so it never runs old code
     try { new BroadcastChannel('waypoint').onmessage = function(e) { if (e.data && e.data.type === 'reload') location.reload(); }; } catch (e) {}
 }

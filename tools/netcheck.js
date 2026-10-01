@@ -244,10 +244,10 @@ check('table keys (client): remembered per GM id, absent → empty string, a pro
     const scripts = fs.readdirSync(path.join(__dirname, '..', 'system', 'app', 'scripts')).filter(f => /\.js$/.test(f)), noCom = s => s.replace(/\/\/[^\n]*/g, '');
     const kickedSends = scripts.map(f => [f, (fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', f), 'utf8').match(/type: 'kicked'/g) || []).length]).filter(x => x[1]);
     const kickCalls = scripts.map(f => [f, (noCom(fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', f), 'utf8')).match(/kickPlayer\(/g) || []).length]).filter(x => x[1]);
-    check('M1: a Ban from the Players panel (its branch run for real) calls net.kickPlayer exactly once, with the first roster key of the profile, and that one call takes both of Pat\'s connections (told, closed, forgotten once); a profile not at the table and a player\'s machine call it not at all; in the source the Ban branch calls it once and never in a loop, net.js calls it twice (the roster\'s kick button, the Ban branch) and no other script does, and kickPlayer is the only place that sends \'kicked\'; the host still has 24 message branches',
+    check('M1: a Ban from the Players panel (its branch run for real) calls net.kickPlayer exactly once, with the first roster key of the profile, and that one call takes both of Pat\'s connections (told, closed, forgotten once); a profile not at the table and a player\'s machine call it not at all; in the source the Ban branch calls it once and never in a loop, net.js calls it twice (the roster\'s kick button, the Ban branch) and no other script does, and kickPlayer is the only place that sends \'kicked\'; the host has 25 message branches (the one new one is video-up, item 21)',
         js(ban1) === js({ threw: '', calls: ['pA1'], roster: ['pB', 'pX', 'pY'], kicked: ['pA1', 'pA2'], timers: 2, forgot: ['forget:u_a'], banned: ['u_a'], session: ['u_a'], saves: 1 }) && js(banAway.calls) === js([]) && banAway.kicked.length === 0 && banAway.threw === '' && js(banClient.calls) === js([]) && banClient.kicked.length === 0 && banClient.threw === ''
         && (noCom(banBody).match(/net\.kickPlayer\(/g) || []).length === 1 && !/forEach|\bfor \(|\bwhile \(/.test(noCom(banBody)) && js(kickCalls) === js([['net.js', 2]]) && (noCom(src).match(/net\.kickPlayer\(/g) || []).length === 2
-        && js(kickedSends) === js([['net.js', 1]]) && kickSrc.indexOf("conn.send({ type: 'kicked' });") >= 0 && (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 24, js([ban1, banAway, banClient, kickCalls, kickedSends]));
+        && js(kickedSends) === js([['net.js', 1]]) && kickSrc.indexOf("conn.send({ type: 'kicked' });") >= 0 && (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 25, js([ban1, banAway, banClient, kickCalls, kickedSends]));
 
     /* round 2: the review's three older gaps — a removed player's pointer and roster row, a second connection under one key, a queued request */
     const tg = { u_a: { mapId: 'm1', id: 'orc' }, u_b: { mapId: 'm1', id: 'gob' } }, withT = t => h => { h.env.net.targets = JSON.parse(js(t)); };
@@ -2556,7 +2556,7 @@ pendingChecks.push((async () => {
     check('fold M0 (source): combatHidden is defined once and read only by combatsFor and net.syncCombatHidden, inside the combats slice; net.syncCombatHidden is called once, from the host\'s save; the GM\'s own strip (whiteboard.js) reads neither; the host\'s message handler has the same number of branches as before',
         (src.match(/function combatHidden\(/g) || []).length === 1 && (src.match(/combatHidden\(/g) || []).length === 3 && (cbSrc.match(/combatHidden\(/g) || []).length === 3
         && (src.match(/syncCombatHidden/g) || []).length === 3 && (cbSrc.match(/syncCombatHidden/g) || []).length === 1 && (olsSrc.match(/syncCombatHidden/g) || []).length === 2 && (cbSrc.match(/_combatHidSig = combatHidSigNow\(\);/g) || []).length === 1
-        && !/combatsFor|combatHidden|syncCombatHidden/.test(wbAll) && (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 24,
+        && !/combatsFor|combatHidden|syncCombatHidden/.test(wbAll) && (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 25,
         j([(src.match(/combatHidden\(/g) || []).length, (src.match(/syncCombatHidden/g) || []).length, (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length]));
 }
 
@@ -5108,7 +5108,7 @@ pendingChecks.push((async () => {
             && /if \(hosting\) \{ window\.wpNet\.applyingRemote = true; save\(true\); window\.wpNet\.applyingRemote = false; if \(window\.wpFog\) window\.wpFog\.invalidateVision\(\); if \(window\.wpNet\.sendItem\) window\.wpNet\.sendItem\(camp\.id, item\.id\);/.test(ioT));
         const dmT = read('datamap.js'), posCode = posS2.replace(/\/\/[^\n]*/g, ''), patCode = patS2.replace(/\/\/[^\n]*/g, '');
         check('senses S0 (source): nothing new comes in from a player — no branch of the host\'s message handler was added or names sight or senses, the hook and its timer read nothing of a message or of a connection\'s word, and what is kept (what a copy was made by, the text last known, the sends that wait) is never saved or sent: it lives in the host\'s memory, named nowhere else',
-            hostBranches.length === 24 && !hostBranches.some(b => /sens|sight/i.test(b)) && !/msg\.type === '[^']*(sens|sight)/i.test(src) && !/\bmsg\b/.test(smCode) && !/\bconn\b/.test(smCode) && !/type: '(?!combats'|targets')/.test(smCode)
+            hostBranches.length === 25 && !hostBranches.some(b => /sens|sight/i.test(b)) && !/msg\.type === '[^']*(sens|sight)/i.test(src) && !/\bmsg\b/.test(smCode) && !/\bconn\b/.test(smCode) && !/type: '(?!combats'|targets')/.test(smCode)
             && count(src, /_sensesSig/g) === count(flS + smS, /_sensesSig/g) && count(src, /_sensesPend/g) === count(smS, /_sensesPend/g) && count(smS, /_sensesPend/g) > 0 && count(flS, /_sensesSig/g) > 0 && !/_senses(Sig|Pend|At)/.test(sheetsT + ioT + fogT + dmT + read('main.js'))
             && count(src, /_sensesAt/g) === count(flS + smS, /_sensesAt/g) && count(flS, /_sensesAt/g) > 0 && count(smS, /_sensesAt/g) > 0
             && !/sensesReads|sensesHidden/.test(src) && count(smCode, /setTimeout\(/g) === 1 && count(smCode, /SENSES_RESEND_MS/g) === 2, j([hostBranches.length, count(src, /_sensesSig/g), count(src, /_sensesPend/g), count(src, /_sensesAt/g), count(smCode, /setTimeout\(/g)]));
@@ -5148,7 +5148,7 @@ pendingChecks.push((async () => {
         const cnt = (s, re) => (s.match(re) || []).length, hostB = cnt(src, /msg\.type === '[a-z-]+' && net\.role === 'host'/g);
         check('fold M0 (source): no pointer message goes to all outside broadcastTargets — net.js broadcasts one only there, in its branch for a table without fog; every other pointer message is a player\'s own copy built by targetsFor; the combats slice now defines broadcastTargets, and the host\'s message handler has the same number of branches as before',
             btSrc.length > 0 && cnt(src, /broadcast\(\{ type: 'targets'/g) === 1 && cnt(btSrc, /broadcast\(\{ type: 'targets'/g) === 1 && cnt(src, /targets: net\.targets/g) === 1 && cnt(btSrc, /targets: net\.targets/g) === 1
-            && cnt(src, /type: 'targets'/g) === cnt(src, /type: 'targets', targets: targetsFor\(/g) + 1 && cbS.indexOf(btSrc) >= 0 && cbS.indexOf('function targetsFor(') >= 0 && hostB === 24,
+            && cnt(src, /type: 'targets'/g) === cnt(src, /type: 'targets', targets: targetsFor\(/g) + 1 && cbS.indexOf(btSrc) >= 0 && cbS.indexOf('function targetsFor(') >= 0 && hostB === 25,
             j([btSrc.length, cnt(src, /broadcast\(\{ type: 'targets'/g), cnt(src, /type: 'targets'/g), cbS.indexOf(btSrc), hostB]));
 
         // (c) the live position relay and the drag that feeds it
@@ -5305,7 +5305,7 @@ pendingChecks.push((async () => {
     check('a file with one entry twice: the gates are as before — past the rate a fill and an upload are refused and answered slow, a file over the size is dropped unanswered, and nothing is changed, kept, saved, said or sent; the host still reads a file through its one branch (no branch added)',
         j(mSlow.answer) === j([{ reason: 'slow', type: 'char-upload-ans', rid: 'e1' }]) && still(mSlow) && j(mSlow.allowed) === j(['charfill']) && j(pSlow.answer) === j([{ reason: 'slow', type: 'char-upload-ans', rid: 'e1' }]) && still(pSlow)
         && mBig.answer.length === 0 && still(mBig) && mBig.allowed.length === 0 && pBig.answer.length === 0 && still(pBig) && Sx.cleanCharUpload({ type: 'char-upload', rid: 'e1', charId: 'c_m', sheet: twice }) !== null
-        && hostBr.length === 24 && hostBr.filter(b => /'char-upload'/.test(b)).length === 1, j([mSlow.answer, pSlow.answer, mBig.answer, pBig.answer, hostBr.length]));
+        && hostBr.length === 25 && hostBr.filter(b => /'char-upload'/.test(b)).length === 1, j([mSlow.answer, pSlow.answer, mBig.answer, pBig.answer, hostBr.length]));
     // (d) F11b: a twin's changes are its entry's as the host holds it, a GM-only field's included (the players' copy a fill reads lacks them); a later
     // upload sends a row of its own whole (every stat, a dropped one as null, the changes where they differ, a twin's entry by id); a GM-only pack's
     // entry reaches the GM's finder as its GM-only copy, so it lends a row of its own nothing
@@ -5695,9 +5695,9 @@ pendingChecks.push((async () => {
         && J(ids(p1.map('mA'))) === J(['wall', 'me1', 'bo']) && J(ids(p2.map('mA'))) === J(['wall', 'me1', 'orc', 'bo']) && p2.rec.asked.length === 0,
         J([pF.map('mA').whiteboard.length, pF.rec.asked, pB.rec, threw, pT.net.applyingRemote]));
 
-    // (8) where it sits: a client branch (the host's branches still 24), and nothing sends the message yet
-    check('fold M3: the catch-up is a client branch only (the host\'s branches stay 24, none new); the host builds it in one place only, its catch-up of a copy (fold M7)',
-        (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 24 && /\} else if \(msg\.type === 'fogDiff' && net\.role === 'client'\) \{\n\s*\/\/ \[netcheck:fogdiff-start\]/.test(src)
+    // (8) where it sits: a client branch (the host's branches still 25), and nothing sends the message yet
+    check('fold M3: the catch-up is a client branch only (the host\'s branches stay 25, none new but video-up of item 21); the host builds it in one place only, its catch-up of a copy (fold M7)',
+        (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 25 && /\} else if \(msg\.type === 'fogDiff' && net\.role === 'client'\) \{\n\s*\/\/ \[netcheck:fogdiff-start\]/.test(src)
         && (src.match(/msg\.type === 'fogDiff'/g) || []).length === 1 && (src.match(/type: 'fogDiff'/g) || []).length === 1 && /function fogCatchUp\([^]*?type: 'fogDiff'/.test(between('// [netcheck:fogmove-start]', '// [netcheck:fogmove-end]', 'fogmove')));
 })());
 // fold M4: an open drag is judged where it began. The real pos gate, patch path, relay, sends, kick, senses and the fogmove slice are compiled as
@@ -6714,6 +6714,279 @@ pendingChecks.push((async () => {
         && src.includes("if (had && typeof clockFightEnd === 'function') clockFightEnd();") && src.includes('function clockFightEnd() { try { if (window.wpCalendar && window.wpCalendar.fightEnded) window.wpCalendar.fightEnded(); } catch (e) { console.error(e); } }')
         && /fxCombatEdge\(mapId, had, 'resume'\); \} catch \(e\) \{ console\.error\(e\); \} \}[^\n]*\n\s*if \(had && typeof clockFightEnd === 'function'\) clockFightEnd\(\);/.test(src));
 }
+// Item 21 V2: a video shown live to the table — the link is agreed over the table's own data connection (an offer, an answer, candidates as
+// messages); the host's slices and the player's run for real on a stubbed RTCPeerConnection, the real RateLimit and the real videocore
+pendingChecks.push((async () => {
+    const urlV = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).replace(/[\\]/g, '/');
+    const VCv = await import(urlV('videocore.js')), DCv = await import(urlV('dicecore.js'));
+    const candS = between('// [netcheck:videocand-start]', '// [netcheck:videocand-end]', 'videocand'), hostS = between('// [netcheck:videohost-start]', '// [netcheck:videohost-end]', 'videohost');
+    const cliS = between('// [netcheck:videoclient-start]', '// [netcheck:videoclient-end]', 'videoclient'), msgS = between('// [netcheck:videomsg-start]', '// [netcheck:videomsg-end]', 'videomsg'), upS = between('// [netcheck:videoup-start]', '// [netcheck:videoup-end]', 'videoup');
+    const tick = () => new Promise(r => setTimeout(r, 0));
+    const HEX16 = /^[0-9a-f]{16}$/;
+    const OFFER = 'v=0\r\no=- 1 2 IN IP4 127.0.0.1\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\na=sendonly\r\n';
+    const ANSWER = 'v=0\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\na=rtpmap:111 opus/48000/2\r\na=fmtp:111 minptime=10;useinbandfec=1\r\na=recvonly\r\n';
+    const CAND = { candidate: 'candidate:842163049 1 udp 1677729535 203.0.113.7 51234 typ srflx raddr 0.0.0.0 rport 0', sdpMid: '0', sdpMLineIndex: 0, usernameFragment: 'x', evil: '<b>' };
+    const STOP = '[{"type":"video","act":"stop"}]';
+    // a peer connection that records what is done to it (its statistics only where a world gives some)
+    const mkRtc = world => function PC(cfg) {
+        const pc = this; pc.cfg = cfg; pc.trans = []; pc.cands = []; pc.closed = false; pc.connectionState = 'new'; pc.localDescription = null; pc.remote = null; pc.setP = [];
+        pc.addTransceiver = (t, o) => { pc.trans.push(t.kind + ':' + o.direction + ':' + (o.streams && o.streams.length)); };
+        pc.createOffer = () => Promise.resolve({ type: 'offer', sdp: OFFER });
+        pc.createAnswer = () => Promise.resolve({ type: 'answer', sdp: ANSWER });
+        pc.setLocalDescription = d => { pc.localDescription = d; return Promise.resolve(); };
+        pc.setRemoteDescription = d => { if (world.failRemote) return Promise.reject(new Error('no')); pc.remote = d; return Promise.resolve(); };
+        pc.addIceCandidate = c => { pc.cands.push(c); return Promise.resolve(); };
+        pc.getSenders = () => [{ track: { kind: 'audio' } }, { track: { kind: 'video' }, getParameters: () => ({ encodings: [{ active: true }] }), setParameters: p => { pc.setP.push(JSON.parse(JSON.stringify(p.encodings[0]))); return Promise.resolve(); } }];
+        if (world.stats) pc.getStats = () => (world.stats === 'fail' ? Promise.reject(new Error('no')) : Promise.resolve(new Map(world.stats.map(r => [r.id, r]))));
+        pc.close = () => { pc.closed = true; pc.connectionState = 'closed'; };
+        pc.state = s => { pc.connectionState = s; if (pc.onconnectionstatechange) pc.onconnectionstatechange(); };
+        world.pcs.push(pc);
+    };
+    const mkTimers = () => { const list = []; return { list, set: (fn, ms) => { const t = { fn, ms, on: true }; list.push(t); return t; }, clear: t => { if (t) t.on = false; }, fire: ms => list.filter(t => t.on && t.ms === ms).forEach(t => { t.on = false; t.fn(); }) }; };
+    const mkStream = tracks => ({ tracks, getTracks() { return this.tracks; }, getVideoTracks() { return this.tracks.filter(t => t.kind === 'video'); } });
+    const liveStream = () => mkStream([{ kind: 'audio', readyState: 'live' }, { kind: 'video', readyState: 'live' }, { kind: 'video', readyState: 'ended' }]);
+    const sj = o => j(Object.keys(o).sort().map(k => [k, o[k]]));   // a map's entries in key order
+    const packs = list => { try { list.forEach(packCheck); return true; } catch (e) { return false; } };
+
+    /* ---- the candidate and the description as they may travel ---- */
+    const cand = new Function(candS + '\nreturn { videoCand, videoSdp, VIDEO_ID };')();
+    const badCands = [null, 'x', [], {}, { candidate: 5, sdpMid: '0' }, { candidate: '', sdpMid: '0' }, { candidate: 'a=candidate:1', sdpMid: '0' }, { candidate: 'candidate:1 1 udp 1 1.2.3.4 5 typ host\r\na=evil', sdpMid: '0' }, { candidate: 'candidate:' + 'x'.repeat(600), sdpMid: '0' }, { candidate: CAND.candidate }, { candidate: CAND.candidate, sdpMid: 'a b' }, { candidate: CAND.candidate, sdpMid: 5, sdpMLineIndex: -1 }, { candidate: CAND.candidate, sdpMLineIndex: 9 }, { candidate: CAND.candidate, sdpMLineIndex: 1.5 }, { candidate: CAND.candidate, sdpMLineIndex: '0' }];
+    check('item 21 V2 a candidate as it travels (videoCand, run for real): its line (one line, up to 600 characters, starting candidate:) and the media line it belongs to (a short id, or a place 0 to 8), nothing else riding along; anything else is none; a description is a text of at most 20,000 characters that starts as one does; a link id is 16 of 0-9 and a-f',
+        j(cand.videoCand(CAND)) === j({ candidate: CAND.candidate, sdpMid: '0', sdpMLineIndex: 0 }) && j(cand.videoCand({ candidate: CAND.candidate, sdpMLineIndex: 1 })) === j({ candidate: CAND.candidate, sdpMLineIndex: 1 }) && badCands.every(c => cand.videoCand(c) === null)
+        && cand.videoCand({ candidate: 'candidate:' + 'x'.repeat(590), sdpMid: '0' }) !== null
+        && cand.videoSdp(OFFER) === OFFER && [null, 5, {}, '', ' v=0', 'x', 'v=0' + 'x'.repeat(20000)].every(s => cand.videoSdp(s) === null) && cand.videoSdp('v=0' + 'x'.repeat(19997)) !== null
+        && cand.VIDEO_ID.test('0123456789abcdef') && !['0123456789abcde', '0123456789abcdef0', '0123456789ABCDEF', '__proto__', ''].some(s => cand.VIDEO_ID.test(s)), j(badCands.map(cand.videoCand)));
+
+    /* ---- the host ---- */
+    const mkHost = o => {
+        o = o || {};
+        const world = { pcs: [], told: 0, log: [], failed: [], clock: 1000, relay: !!o.relay, stats: o.stats }, tm = mkTimers();
+        const conns = [mkConn('pA'), mkConn('pA2'), mkConn('pB'), mkConn('pWait'), mkConn('constructor'), mkConn('pShut', false), mkConn('pC')];
+        const net = { active: o.active !== false, role: o.role || 'host', conns, roster: { pA: { id: 'u_a', name: 'Ann' }, pA2: { id: 'u_a', name: 'Ann' }, pB: { id: 'u_b', name: 'Bo\u0000b' }, pShut: { id: 'u_s', name: 'Shut' }, pC: { id: 'u_c', name: 'Cy' } } };
+        const win = { wpVideoCore: o.noCore ? undefined : VCv, wpDiceCore: o.noLimit ? {} : DCv, wpVideo: { audienceChanged: () => { world.told++; } } };
+        const api = new Function('net', 'own', 'window', 'validProfileId', 'cleanRosterName', 'logEvent', 'sendFailed', 'peerOpts', 'newKey', 'relayOnly', 'turnConfig', 'RTCPeerConnection', 'setTimeout', 'clearTimeout', 'Date',
+            candS + hostS + '\nreturn { videoLink: videoLink, videoHang: videoHang, videoUp: videoUp, vid: function() { return _vid; } };')(
+            net, H.own, win, H.validProfileId, H.cleanRosterName, (k, t) => world.log.push([k, t]), e => world.failed.push(e.message), () => ({ config: { iceServers: [{ urls: 'stun:x' }] } }), H.newKey, () => world.relay, () => (world.relay ? { urls: 'turn:x' } : null), o.noRtc ? undefined : mkRtc(world), tm.set, tm.clear, { now: () => world.clock });
+        const conn = p => conns.find(c => c.peer === p), vids = p => conn(p).sent.filter(m => m.type === 'video');
+        return { net, world, tm, api, conn, vids, got: () => conns.filter(c => c.sent.some(m => m.type === 'video')).map(c => c.peer).join() };
+    };
+    const A = mkHost(), whoA = A.net.videoShow(liveStream(), 'The\u0007 reveal <b>', null, 1920, 1080); await tick(); await tick();
+    const vA = A.api.vid(), offB = A.vids('pB')[0], offA2 = A.vids('pA2')[0];
+    vA.links.pB.pc.onicecandidate({ candidate: CAND }); vA.links.pB.pc.onicecandidate({ candidate: null }); vA.links.pB.pc.onicecandidate({ candidate: { candidate: 'evil', sdpMid: '0' } }); vA.links.pB.pc.onicecandidate(null);
+    const hostIce = j(A.vids('pB').slice(1));
+    check('item 21 V2 a showing to everyone (net.videoShow, run for real): one link a player, on their newest connection (an older connection\'s link is closed), to every admitted, open connection\'s player — never a peer waiting for the Allow, a prototype-key peer or a closed connection; each link a connection of its own from the table\'s own ICE settings, sending only (the live tracks, never an ended one), its offer a message on that player\'s connection: the link\'s id, the name cleaned, the description',
+        !!whoA && A.got() === 'pA2,pB,pC' && Object.keys(vA.links).sort().join() === 'pA2,pB,pC' && sj(vA.of) === j([['u_a', 'pA2'], ['u_b', 'pB'], ['u_c', 'pC']]) && A.world.pcs.length === 4 && A.world.pcs[0].closed === true && A.world.pcs.slice(1).every(p => !p.closed)
+        && A.world.pcs.every(p => j(p.cfg) === j({ iceServers: [{ urls: 'stun:x' }] }) && j(p.trans) === j(['audio:sendonly:1', 'video:sendonly:1']))
+        && j(Object.keys(offB).sort()) === j(['act', 'id', 'name', 'sdp', 'type']) && offB.act === 'offer' && HEX16.test(offB.id) && offB.id !== offA2.id && offB.name === 'The reveal <b>' && offB.sdp === OFFER && A.vids('pB').length === 2
+        && j(whoA) === j({ live: true, all: true, names: [], waiting: ['Ann', 'Bob', 'Cy'] }) && j(A.world.log) === j([['table', 'Video "The reveal <b>" shown to everyone']]) && packs(A.conn('pB').sent)
+        && hostIce === j([{ act: 'ice', cand: { candidate: CAND.candidate, sdpMid: '0', sdpMLineIndex: 0 }, type: 'video', id: offB.id }]),   // the host's own candidates: cleaned, with the link's id, none for no candidate
+        j([A.got(), Object.keys(vA.links), A.world.pcs.map(p => p.closed), offB, whoA, A.world.log]));
+    // who is watching: a link up; the cap; each change told; a failure at once; the watchdog for a link never agreed
+    const pcB = vA.links.pB.pc, pcC = vA.links.pC.pc, told0 = A.world.told, tmB = vA.links.pB.timer;
+    pcB.state('connecting'); pcB.state('connected'); pcB.state('connected');
+    const up1 = A.net.videoAudience(), told1 = A.world.told - told0, capB = j(pcB.setP), watchB = [!!tmB && tmB.on === false, vA.links.pB.timer];
+    pcB.state('disconnected'); const up2 = A.net.videoAudience(), toldDown = A.world.told - told0; pcB.state('connected'); const toldUp2 = A.world.told - told0;
+    pcC.state('failed'); const up3 = A.net.videoAudience(), failedNow = j([pcC.closed, H.own(A.api.vid().links, 'pC'), H.own(A.api.vid().of, 'u_c'), A.world.told - told0]);
+    A.tm.fire(20000); const up4 = A.net.videoAudience(), linksAfter = Object.keys(A.api.vid().links).join(), toldIdle = A.world.told - told0;
+    check('item 21 V2 who a showing reaches (net.videoAudience): a player is named as watching only while a link of theirs is up, the rest of the connected audience as waiting, one name a profile, cleaned; the panel is told each time a link comes up, drops, comes back, fails or is given up; a link that fails is closed and forgotten at once (before any watchdog), one never agreed after 20 s, and one that came up is done with its watchdog',
+        j(up1) === j({ live: true, all: true, names: ['Bob'], waiting: ['Ann', 'Cy'] }) && told1 === 1 && j(watchB) === j([true, null]) && j(up2.names) === '[]' && toldDown === 2 && toldUp2 === 3 && j(up3) === j({ live: true, all: true, names: ['Bob'], waiting: ['Ann', 'Cy'] }) && failedNow === j([true, false, false, 4])
+        && linksAfter === 'pB' && A.world.pcs[1].closed === true && toldIdle === 5 && pcB.closed === false && j(up4) === j({ live: true, all: true, names: ['Bob'], waiting: ['Ann', 'Cy'] }), j([up1, told1, watchB, up2, toldDown, toldUp2, up3, failedNow, up4, linksAfter, toldIdle]));
+    const Wd = mkHost(); Wd.net.videoShow(liveStream(), 'x', ['u_b'], 1, 1); await tick();
+    const pcWd = Wd.api.vid().links.pB.pc; pcWd.state('connected'); pcWd.state('disconnected'); Wd.tm.fire(20000); const blip = [pcWd.closed, H.own(Wd.api.vid().links, 'pB'), j(Wd.net.videoAudience().waiting)]; pcWd.state('connected');
+    check('item 21 V2 a link that came up and is only interrupted when the 20 s pass is not closed by the watchdog: it comes back by itself', j(blip) === j([false, true, '["Bob"]']) && j(Wd.net.videoAudience().names) === j(['Bob']), j(blip));
+    const R1 = mkHost({ relay: true }); R1.net.videoShow(liveStream(), 'x', ['u_b'], 3840, 2160); await tick(); R1.api.vid().links.pB.pc.state('connected');
+    const N1 = mkHost(); N1.net.videoShow(liveStream(), 'x', ['u_b'], 'wide', NaN); await tick(); N1.api.vid().links.pB.pc.state('connected');
+    check('item 21 V2 what each viewer is sent at most, set when their link comes up (videocore\'s sendCap on the picture sender): the long side down to 1280, 30 frames, 2.5 Mbit/s; 1 Mbit/s on a relay-only table; a size that is no number scales nothing',
+        capB === j([{ active: true, maxBitrate: 2500000, maxFramerate: 30, scaleResolutionDownBy: 1.5 }]) && j(R1.api.vid().links.pB.pc.setP) === j([{ active: true, maxBitrate: 1000000, maxFramerate: 30, scaleResolutionDownBy: 3 }])
+        && j(N1.api.vid().links.pB.pc.setP) === j([{ active: true, maxBitrate: 2500000, maxFramerate: 30, scaleResolutionDownBy: 1 }]) && N1.api.vid().w === 0 && N1.api.vid().h === 0, j([capB, R1.api.vid().links.pB.pc.setP, N1.api.vid().links.pB.pc.setP]));
+    // a link that found its way only through the relay (the connection's own statistics)
+    const capOf = async stats => { const s = mkHost({ stats }); s.net.videoShow(liveStream(), 'x', ['u_b'], 1920, 1080); await tick(); s.api.vid().links.pB.pc.state('connected'); await tick(); await tick(); return s.api.vid().links.pB.pc.setP.map(e => e.maxBitrate).join(); };
+    const pair = (extra, cand2) => [Object.assign({ id: 'P1', type: 'candidate-pair', nominated: true, state: 'succeeded', localCandidateId: 'L1' }, extra), Object.assign({ id: 'L1', type: 'local-candidate', candidateType: 'relay' }, cand2)];
+    const capRelay = await capOf(pair()), capHost = await capOf(pair({}, { candidateType: 'host' })), capUnnom = await capOf(pair({ nominated: false })), capUnsucc = await capOf(pair({ state: 'in-progress' })), capFail = await capOf('fail');
+    const capOther = await capOf(pair({ localCandidateId: 'L2' }).concat([{ id: 'L2', type: 'local-candidate', candidateType: 'srflx' }]));
+    check('item 21 V2 on a table that is not relay-only, a viewer whose link found its way only through the relay is lowered to 1 Mbit/s once that shows (the nominated, succeeded pair\'s own local candidate a relay); a direct link, a pair not chosen, a relay candidate the link does not use, or statistics that cannot be read leave the cap as it is',
+        capRelay === '2500000,1000000' && capHost === '2500000' && capUnnom === '2500000' && capUnsucc === '2500000' && capFail === '2500000' && capOther === '2500000', j([capRelay, capHost, capUnnom, capUnsucc, capFail, capOther]));
+    // a showing whose picture has ended links nobody
+    const E1 = mkHost(), sE = liveStream(); E1.net.videoShow(sE, 'x', null, 1, 1); await tick();
+    const nE = E1.world.pcs.length, pcE = E1.api.vid().links.pB.pc; sE.tracks[1].readyState = 'ended';
+    const endE = [E1.api.videoLink(E1.conn('pB')), (E1.api.videoUp({ type: 'video-up', act: 'ask' }, E1.conn('pB')), E1.world.pcs.length - nE), pcE.closed];
+    check('item 21 V2 a showing whose picture has ended links nobody, by an admit or by an ask, and leaves the link already held alone', j(endE) === j([false, 0, false]), j(endE));
+    // chosen players; what is no showing
+    const C1 = mkHost(), whoC = C1.net.videoShow(liveStream(), 'Secret', ['u_b', 'u_b', 'bad id!', 5, '__proto__'], 640, 360); await tick();
+    const keepC = C1.api.vid(), none = [C1.net.videoShow(liveStream(), 'x', [], 1, 1), C1.net.videoShow(liveStream(), 'x', ['bad id!'], 1, 1), C1.net.videoShow(liveStream(), 'x', 'u_b', 1, 1), C1.net.videoShow(mkStream([{ kind: 'audio', readyState: 'live' }]), 'x', null, 1, 1), C1.net.videoShow(mkStream([{ kind: 'video', readyState: 'ended' }]), 'x', null, 1, 1), C1.net.videoShow(null, 'x', null, 1, 1), C1.net.videoShow({}, 'x', null, 1, 1)];
+    const nots = [{ role: 'client' }, { active: false }, { noCore: true }].map(o => { const s = mkHost(o); return [s.net.videoShow(liveStream(), 'x', null, 1, 1), s.got(), s.world.pcs.length]; });
+    const noRtc = mkHost({ noRtc: true }), whoN = noRtc.net.videoShow(liveStream(), 'x', null, 1, 1);
+    const C64 = mkHost(); C64.net.videoShow(liveStream(), 'x', Array.from({ length: 70 }, (_, i) => 'u_n' + i), 1, 1);
+    check('item 21 V2 a showing to chosen players reaches only them (a profile id once, cleaned, 64 at most); an audience of nobody, one that is no list, a stream with no live picture, a player\'s machine, no table or no core shows nothing and leaves a showing under way as it is; a machine with no peer connections shows to nobody',
+        j(whoC) === j({ live: true, all: false, names: [], waiting: ['Bob'] }) && j(keepC.to) === j(['u_b']) && C1.got() === 'pB' && none.every(x => x === null) && C1.api.vid() === keepC && C1.world.pcs.length === 1 && C64.api.vid().to.length === 64 && C64.api.vid().to[63] === 'u_n63'
+        && j(C1.world.log) === j([['table', 'Video "Secret" shown to Bob']]) && j(nots) === j([[null, '', 0], [null, '', 0], [null, '', 0]]) && j(whoN) === j({ live: true, all: true, names: [], waiting: ['Ann', 'Bob', 'Cy'] }) && noRtc.got() === '' && noRtc.world.pcs.length === 0, j([whoC, none, nots, whoN, C64.api.vid().to.length]));
+    // a latecomer, a closed connection, a kick's hang
+    const L = mkHost(); L.net.videoShow(liveStream(), 'x', ['u_a', 'u_d'], 1, 1); await tick();
+    const lateIn = (() => { const c = mkConn('pD'); L.net.conns.push(c); L.net.roster.pD = { id: 'u_d', name: 'Dee' }; return [L.api.videoLink(c), c]; })(); await tick();
+    const lateOut = L.api.videoLink(L.conn('pB')), lateWait = L.api.videoLink(L.conn('pWait')), lateShut = L.api.videoLink(L.conn('pShut'));
+    const pcA2 = L.api.vid().links.pA2.pc; L.api.videoLink(L.conn('pA')); await tick();   // the older connection of Ann takes the link (its ask)
+    const moved = [pcA2.closed, sj(L.api.vid().of), Object.keys(L.api.vid().links).sort().join()];
+    L.api.videoHang('pA2'); const stillA = sj(L.api.vid().of);   // hanging a key that no longer holds the link leaves the player's link alone
+    const tmA = L.api.vid().links.pA.timer; L.api.videoHang('pA'); const goneA = [sj(L.api.vid().of), Object.keys(L.api.vid().links).join(), L.api.vid().links.pA === undefined, tmA.on];
+    check('item 21 V2 a latecomer of the audience is linked when admitted, and nobody else (not the audience\'s, waiting, closed); a player\'s link moves to the connection that asks (the other\'s is closed), and closing a connection takes only the link it holds, its watchdog with it',
+        lateIn[0] === true && lateIn[1].sent.length === 1 && lateIn[1].sent[0].act === 'offer' && lateOut === false && lateWait === false && lateShut === false && L.vids('pB').length === 0
+        && j(moved) === j([true, '[["u_a","pA"],["u_d","pD"]]', 'pA,pD']) && stillA === '[["u_a","pA"],["u_d","pD"]]' && j(goneA) === j(['[["u_d","pD"]]', 'pD', true, false]), j([lateIn[0], lateOut, moved, stillA, goneA]));
+    // stop
+    const S = mkHost(); S.net.videoShow(liveStream(), 'x', ['u_a', 'u_c'], 1, 1); await tick(); S.net.conns.forEach(c => { c.sent.length = 0; });
+    const pcsS = S.world.pcs.slice(), stop1 = S.net.videoStop(), stop2 = S.net.videoStop();
+    const S2 = mkHost(); S2.net.videoShow(liveStream(), 'x', null, 1, 1); await tick(); S2.net.conns.forEach(c => { c.sent.length = 0; }); S2.net.videoStop();
+    const stopAll = S2.net.conns.filter(c => c.sent.length).map(c => c.peer + ':' + j(c.sent)).join(' ');
+    check('item 21 V2 a stop (net.videoStop): every link closed, the showing gone, and the stop\'s one word to every admitted, open connection of the audience (a player\'s older connection too, one whose link failed too) and to nobody else; a second stop does nothing; a player\'s machine sends none',
+        stop1 === true && stop2 === false && S.api.vid() === null && pcsS.every(p => p.closed) && j(S.net.conns.map(c => c.peer + ':' + j(c.sent))) === j(['pA:' + STOP, 'pA2:' + STOP, 'pB:[]', 'pWait:[]', 'constructor:[]', 'pShut:[]', 'pC:' + STOP])
+        && j(S.net.videoAudience()) === j({ live: false, all: true, names: [], waiting: [] }) && S.tm.list.every(t => !t.on)
+        && stopAll === ['pA', 'pA2', 'pB', 'pC'].map(p => p + ':' + STOP).join(' '), j([stop1, stop2, S.net.conns.map(c => c.sent.length), stopAll]));   // a showing to everyone: every admitted, open connection, never a waiting, prototype-key or closed one
+    // a player's word: video-up
+    const U = mkHost(); U.net.videoShow(liveStream(), 'x', ['u_a', 'u_b'], 1, 1); await tick();
+    const lnB = U.api.vid().links.pB, idB = lnB.id, pcUB = lnB.pc, lnA2 = U.api.vid().links.pA2, idA2 = lnA2.id, pcUA2 = lnA2.pc, up = (p, m) => { U.api.videoUp(Object.assign({ type: 'video-up' }, m), U.conn(p)); };
+    up('pB', { act: 'ice', id: idB, cand: CAND });   // before the answer: not taken
+    up('pB', { act: 'answer', id: 'f'.repeat(16), sdp: ANSWER }); up('pB', { act: 'answer', id: idB, sdp: 'x' }); up('pB', { act: 'answer', id: idB, sdp: 5 }); up('pB', { act: 'answer', sdp: ANSWER }); up('pB', { act: 'answer', id: [idB], sdp: ANSWER });
+    // another connection's answer for a link it does not hold: Ann's older connection, another player, a player outside the audience
+    up('pA', { act: 'answer', id: idA2, sdp: ANSWER }); up('pB', { act: 'answer', id: idA2, sdp: ANSWER }); up('pC', { act: 'answer', id: idB, sdp: ANSWER }); up('pA2', { act: 'answer', id: idB, sdp: ANSWER });
+    const early = [pcUB.remote, pcUB.cands.length, lnB.answered, pcUA2.remote, lnA2.answered];
+    up('pA2', { act: 'answer', id: idA2, sdp: ANSWER });
+    up('pB', { act: 'answer', id: idB, sdp: ANSWER, evil: 1 }); up('pB', { act: 'answer', id: idB, sdp: 'v=0 second' });
+    up('pB', { act: 'ice', id: idB, cand: CAND }); up('pB', { act: 'ice', id: idB, cand: { candidate: 'evil', sdpMid: '0' } }); up('pB', { act: 'ice', id: 'f'.repeat(16), cand: CAND });
+    ['pA', 'pB', 'pC'].forEach(p => { up(p, { act: 'ice', id: idA2, cand: CAND }); up(p, { act: 'bye', id: idA2 }); });
+    ['pA', 'pA2', 'pC'].forEach(p => { up(p, { act: 'ice', id: idB, cand: CAND }); up(p, { act: 'bye', id: idB }); });
+    const foreign = [pcUA2.cands.length, pcUB.cands.length, pcUA2.closed, pcUB.closed, U.api.vid().links.pA2 === lnA2, U.api.vid().links.pB === lnB];
+    for (let i = 0; i < 80; i++) up('pB', { act: 'ice', id: idB, cand: CAND });
+    const X = mkHost(); X.net.videoShow(liveStream(), 'x', ['u_b'], 1, 1); await tick();
+    const lnX = X.api.vid().links.pB; X.net.roster.pB = { id: 'u_x', name: 'X' };   // a link held by a connection whose player is no longer the audience's
+    ['answer', 'ice', 'bye'].forEach(a => X.api.videoUp({ type: 'video-up', act: a, id: lnX.id, sdp: ANSWER, cand: CAND }, X.conn('pB')));
+    check('item 21 V2 a player\'s answer and candidates (videoUp, run for real): only for the link their own connection holds, named by its id; one answer (a text that starts as a description does), then at most 60 candidates, each cleaned to its line and its media line; none before the answer; an answer, a candidate or a bye from another connection (the same player\'s older one, another player\'s, one outside the audience) naming a link it does not hold changes nothing; nor does any word of a player who is not the audience\'s',
+        j(early) === j([null, 0, false, null, false]) && j(pcUB.remote) === j({ type: 'answer', sdp: ANSWER }) && j(pcUA2.remote) === j({ type: 'answer', sdp: ANSWER }) && j(foreign) === j([0, 1, false, false, true, true])
+        && pcUB.cands.length === 60 && pcUB.cands.every(c => j(c) === j({ candidate: CAND.candidate, sdpMid: '0', sdpMLineIndex: 0 })) && j([lnX.pc.remote, lnX.answered, lnX.pc.closed]) === j([null, false, false]), j([early, foreign, pcUB.cands.length, [lnX.pc.remote, lnX.answered, lnX.pc.closed]]));
+    // asks: limited per profile on the world's clock
+    const askOnce = p => { const before = U.world.pcs.length; up(p, { act: 'ask', id: 'ignored', sdp: 'ignored' }); return U.world.pcs.length - before; };
+    const a1 = askOnce('pB'), newB = U.api.vid().links.pB; await tick();
+    const a2 = askOnce('pB'); U.world.clock += 1499; const a3 = askOnce('pB'); U.world.clock += 1; const a4 = askOnce('pB');
+    U.world.clock += 1500; const a5 = askOnce('pA'); U.world.clock += 100; const a6 = askOnce('pA2');   // one count for a profile's two connections
+    U.world.clock += 1500; const a7 = askOnce('pB'); U.world.clock += 1500; const a8 = askOnce('pB'); U.world.clock += 1500; const a9 = askOnce('pB');   // the fourth in a minute, then none
+    const aOut = askOnce('pC'), aWait = (() => { const b = U.world.pcs.length; U.api.videoUp({ type: 'video-up', act: 'ask' }, U.conn('pWait')); return U.world.pcs.length - b; })();
+    // a new showing stops the one under way first
+    const oldPcsU = U.world.pcs.filter(p => !p.closed), oldTmU = U.tm.list.filter(t => t.on), oldVidU = U.api.vid(); U.net.conns.forEach(c => { c.sent.length = 0; });
+    U.net.videoShow(liveStream(), 'next', ['u_b'], 1, 1); await tick();
+    const swapU = [oldPcsU.length >= 2 && oldPcsU.every(p => p.closed), oldTmU.length >= 2 && oldTmU.every(t => !t.on), Object.keys(oldVidU.links).length, j(U.conn('pA').sent), j(U.conn('pA2').sent), U.conn('pB').sent.map(m => m.act).join(), U.conn('pC').sent.length, j(U.net.videoAudience().waiting)];
+    U.world.clock += 1; const aNew = askOnce('pB');
+    check('item 21 V2 a player\'s ask to be linked again (videoUp): a new link with a new id on the asking connection, the old one closed; limited per player, 1.5 s apart and 4 a minute, a player\'s several connections sharing one count; none for a player outside the audience or a waiting peer; nothing is read from the message but its act. A new showing stops the one under way first (its links closed, its watchdogs cleared, the stop to its whole audience before the new offer) and starts a new count of asks',
+        j([a1, a2, a3, a4]) === j([1, 0, 0, 1]) && pcUB.closed === true && HEX16.test(newB.id) && newB.id !== idB && j([a5, a6]) === j([1, 0]) && j([a7, a8, a9]) === j([1, 1, 0]) && aOut === 0 && aWait === 0 && aNew === 1
+        && j(swapU) === j([true, true, 0, STOP, STOP, 'stop,offer', 0, '["Bob"]']), j([a1, a2, a3, a4, a5, a6, a7, a8, a9, aOut, aWait, aNew, swapU]));
+    // bye; an answer the connection cannot take; no limiter; no showing
+    const B = mkHost(); B.net.videoShow(liveStream(), 'x', null, 1, 1); await tick();
+    const idBB = B.api.vid().links.pB.id, pcBB = B.api.vid().links.pB.pc, toldB = B.world.told;
+    B.api.videoUp({ type: 'video-up', act: 'bye', id: 'f'.repeat(16) }, B.conn('pB')); const byeWrong = pcBB.closed;
+    B.api.videoUp({ type: 'video-up', act: 'bye', id: idBB }, B.conn('pB')); const byeRight = [pcBB.closed, H.own(B.api.vid().links, 'pB'), B.world.told - toldB, B.net.videoAudience().waiting];
+    B.world.failRemote = true; const pcBC = B.api.vid().links.pC.pc; B.api.videoUp({ type: 'video-up', act: 'answer', id: B.api.vid().links.pC.id, sdp: ANSWER }, B.conn('pC')); await tick(); await tick();
+    const NL = mkHost({ noLimit: true }); NL.net.videoShow(liveStream(), 'x', null, 1, 1); await tick(); const nlBefore = NL.world.pcs.length; NL.api.videoUp({ type: 'video-up', act: 'ask' }, NL.conn('pB'));
+    const Z = mkHost(); ['ask', 'bye', 'answer', 'ice'].forEach(a => Z.api.videoUp({ type: 'video-up', act: a, id: idBB, sdp: ANSWER, cand: CAND }, Z.conn('pB')));
+    check('item 21 V2 a player\'s bye (their own Video is off): their link goes at once and the panel is told, only by the link\'s own id; an answer the connection refuses closes that link; with no limiter an ask is refused, never let through; with no showing nothing is done',
+        byeWrong === false && j(byeRight) === j([true, false, 1, ['Ann', 'Bob', 'Cy']]) && pcBC.closed === true && !H.own(B.api.vid().links, 'pC') && NL.world.pcs.length === nlBefore && Z.world.pcs.length === 0 && Z.got() === '', j([byeWrong, byeRight, pcBC.closed, NL.world.pcs.length - nlBefore]));
+    check('item 21 V2 the host\'s one branch (videoup, source) hands a video-up to videoUp and reads nothing itself; an admitted player in the audience is linked right behind their snapshot; a closed connection and a removed player lose their link at once; the table\'s end stops the showing while the table still hears it; neither side takes a media call',
+        /^\s*\/\/[^\n]*\n\s*\/\/[^\n]*\n\s*videoUp\(msg, conn\);\s*$/.test(upS) && /\} else if \(msg\.type === 'video-up' && net\.role === 'host'\) \{\n\s*\/\/ \[netcheck:videoup-start\]/.test(src)
+        && /if \(snapOk && typeof videoLink === 'function'\) videoLink\(conn\);[^\n]*\n    broadcastRoster\(\);\n\}/.test(src)
+        && /if \(net\.role === 'host' && typeof videoHang === 'function'\) \{ videoHang\(conn\.peer\); videoTold\(\); \}/.test(src) && /if \(typeof videoHang === 'function'\) \{ keys\.forEach\(videoHang\); videoTold\(\); \}/.test(src)
+        && /window\.wpVideo\.tableLeft\(\); \} catch \(e\) \{\} \}[^\n]*\n    net\.videoStop\(\); videoOver\(\);\n    if \(net\.peer\) \{ try \{ net\.peer\.destroy\(\); \}/.test(src) && /videoOver\(\); if \(window\.wpVideo && window\.wpVideo\.tableLeft\) window\.wpVideo\.tableLeft\(\);/.test(src)
+        && (src.match(/peer\.on\('call', function\(call\) \{ try \{ call\.close\(\); \} catch \(e\) \{\} \}\);/g) || []).length === 2 && !/\.answer\(|peer\.call\(/.test(src));
+
+    /* ---- the player ---- */
+    const mkCli = o => {
+        o = o || {};
+        const world = { pcs: [], streams: [], got: [], lost: 0, stopped: 0, failed: [], allowOk: true, videoOn: o.videoOn !== false, clock: 100000 }, tm = mkTimers();
+        const c0 = mkConn('host1');
+        const net = { active: true, role: 'client', stream: !!o.streamWin, foreign: o.foreign !== false, syncedPeer: o.synced === false ? null : 'host1', conns: [c0] };
+        const win = { wpVideoCore: VCv, wpVtt: { on: id => id === 'video' && world.videoOn }, wpVideo: { onStream: (s, n) => world.got.push([s, n]), onLost: () => { world.lost++; }, onStop: () => { world.stopped++; } } };
+        const MS = function() { this.tracks = []; this.addTrack = t => this.tracks.push(t); world.streams.push(this); };
+        const clockD = { now: () => world.clock };
+        // the offer limiter: a switch, or the host file's own allow() with the real RateLimit on this world's clock
+        const allowFn = o.realAllow ? new Function('window', 'Date', lineOf('var _lim = Object.create(null);') + '\n' + lineOf('function allow(') + '\nreturn allow;')({ wpDiceCore: DCv }, clockD) : () => world.allowOk;
+        const api = new Function('net', 'window', 'sendFailed', 'peerOpts', 'allow', 'RTCPeerConnection', 'MediaStream', 'setTimeout', 'clearTimeout', 'Date',
+            candS + cliS + '\nreturn { videoMsg: videoMsg, videoOver: videoOver, videoAsk: videoAsk, inn: function() { return _vidIn; }, branch: function(msg, conn) { ' + msgS + ' } };')(
+            net, win, e => world.failed.push(e.message), () => ({ config: { iceServers: [{ urls: 'stun:y' }] } }), allowFn, o.noRtc ? undefined : mkRtc(world), MS, tm.set, tm.clear, clockD);
+        return { net, world, tm, api, c0, ups: () => c0.sent.filter(m => m.type === 'video-up'), asks: () => c0.sent.filter(m => m.type === 'video-up' && m.act === 'ask').length };
+    };
+    const ID1 = '0123456789abcdef', ID2 = 'fedcba9876543210', hid = i => i.toString(16).padStart(16, '0');
+    const offerTo = (s, id) => { s.api.videoMsg({ type: 'video', act: 'offer', id: id, name: 'x', sdp: OFFER }); };
+    const RESET = '{"id":null,"pc":null,"ice":0,"live":false,"offered":false,"asks":0,"askedAt":0,"timer":null}';
+    const P = mkCli(); P.api.videoMsg({ type: 'video', act: 'offer', id: ID1, name: 'The\u0000 <b>reveal</b>', sdp: OFFER, evil: 1 }); await tick(); await tick(); await tick();
+    const pcP = P.world.pcs[0], ansP = P.ups()[0];
+    pcP.onicecandidate({ candidate: CAND }); pcP.onicecandidate({ candidate: null }); pcP.onicecandidate({ candidate: { candidate: 'evil', sdpMid: '0' } });
+    P.api.videoMsg({ type: 'video', act: 'ice', id: ID1, cand: CAND }); P.api.videoMsg({ type: 'video', act: 'ice', id: ID2, cand: CAND }); P.api.videoMsg({ type: 'video', act: 'ice', id: ID1, cand: { candidate: 'x' } });
+    const iceOne = pcP.cands.length;
+    for (let i = 0; i < 80; i++) P.api.videoMsg({ type: 'video', act: 'ice', id: ID1, cand: CAND });
+    const trA = { kind: 'audio' }, trV = { kind: 'video' }, oldTrackP = pcP.ontrack; pcP.ontrack({ track: trA }); pcP.ontrack({ track: trV });
+    check('item 21 V2 a player takes their GM\'s offer (videoMsg, run for real): a connection of its own from this app\'s own ICE settings, the offer set, an answer sent back on the table\'s connection with the link\'s id — its sound line asking for stereo — and nothing else; this side\'s candidates follow, cleaned; the GM\'s candidates are taken only for the link held, cleaned, 60 at most',
+        P.world.pcs.length === 1 && j(pcP.cfg) === j({ iceServers: [{ urls: 'stun:y' }] }) && j(pcP.remote) === j({ type: 'offer', sdp: OFFER }) && j(Object.keys(ansP).sort()) === j(['act', 'id', 'sdp', 'type']) && ansP.act === 'answer' && ansP.id === ID1 && ansP.sdp === VCv.stereoSdp(ANSWER) && /a=fmtp:111 minptime=10;useinbandfec=1;stereo=1;maxaveragebitrate=128000\r\n/.test(ansP.sdp)
+        && j(P.ups().slice(1)) === j([{ act: 'ice', id: ID1, cand: { candidate: CAND.candidate, sdpMid: '0', sdpMLineIndex: 0 }, type: 'video-up' }]) && iceOne === 1 && pcP.cands.length === 60 && pcP.cands.every(c => j(c) === j({ candidate: CAND.candidate, sdpMid: '0', sdpMLineIndex: 0 })) && pcP.trans.length === 0 && packs(P.c0.sent), j([P.ups(), iceOne, pcP.cands.length]));
+    check('item 21 V2 the picture and its sound reach the panel as one stream, handed over at each track (the same stream twice), with the name cleaned again (shown as text)',
+        P.world.got.length === 2 && P.world.got[0][0] === P.world.got[1][0] && P.world.streams.length === 1 && j(P.world.streams[0].tracks) === j([trA, trV]) && P.world.got[0][1] === 'The <b>reveal</b>' && P.api.inn().live === true && P.api.inn().id === ID1, j(P.world.got.map(g => g[1])));
+    // a second offer; a track from the replaced link; a stop
+    P.api.videoMsg({ type: 'video', act: 'offer', id: ID2, name: 'Two', sdp: OFFER }); await tick(); await tick(); await tick();
+    const pcP2 = P.world.pcs[1]; oldTrackP({ track: { kind: 'video' } }); pcP.state('failed');   // the first link's own handler, kept from before it was closed
+    const afterSecond = [pcP.closed, pcP2.closed, P.world.got.length, P.world.lost, P.api.inn().id, P.ups().filter(m => m.act === 'answer').map(m => m.id).join()];
+    P.api.videoMsg({ type: 'video', act: 'stop', id: 'whatever' });
+    const afterStop = [pcP2.closed, P.world.stopped, j(P.api.inn())]; pcP2.state('failed');
+    // a stop while an ask is waiting: its timer goes too
+    const K = mkCli(); offerTo(K, ID1); await tick(); await tick(); K.world.pcs[0].state('failed'); const kPending = K.tm.list.filter(t => t.on).length; K.api.videoMsg({ type: 'video', act: 'stop' });
+    check('item 21 V2 one link at a time: a second offer closes the first (whose tracks and whose failure are no longer heard); the GM\'s stop closes the link, closes the panel and keeps nothing of the showing — an ask that was waiting is called off, and a failure after it asks for nothing',
+        j(afterSecond) === j([true, false, 2, 0, ID2, ID1 + ',' + ID2]) && j(afterStop) === j([true, 1, RESET]) && P.world.lost === 0 && kPending === 1 && K.tm.list.length === 1 && K.tm.list.every(t => !t.on) && j(K.api.inn()) === RESET && K.asks() === 0, j([afterSecond, afterStop, P.world.lost, kPending, K.tm.list.map(t => t.on)]));
+    // what is no offer; Video off; an app that can take none
+    const Q = mkCli(); [{ act: 'offer', id: 'short', sdp: OFFER }, { act: 'offer', id: ID1.toUpperCase(), sdp: OFFER }, { act: 'offer', id: ID1, sdp: 'x' }, { act: 'offer', id: ID1 }, { act: 'offer', sdp: OFFER }, { act: 'nope', id: ID1, sdp: OFFER }, { id: ID1, sdp: OFFER }, { act: 'ice', id: ID1, cand: CAND }].forEach(m => Q.api.videoMsg(Object.assign({ type: 'video' }, m))); await tick();
+    const O = mkCli({ videoOn: false }); offerTo(O, ID1); await tick();
+    const BYE1 = '[{"act":"bye","id":"' + ID1 + '","type":"video-up"}]';
+    const offNow = [O.world.pcs.length, j(O.ups()), O.api.inn().offered, O.api.inn().live]; O.net.videoWake(); const wakeOff = O.ups().length;
+    O.world.videoOn = true; O.net.videoWake(); O.net.videoWake(); const wakeOn = [O.asks(), O.api.inn().offered];
+    O.world.clock += 1999; O.net.videoWake(); const wakeSoon = O.asks(); O.world.clock += 1; O.net.videoWake(); const wakeAgain = [O.asks(), O.api.inn().offered];   // the first ask was refused by the GM's limit: asked again
+    offerTo(O, ID2); await tick(); await tick(); O.world.clock += 5000; O.net.videoWake(); const wakeTaken = [O.world.pcs.length, O.asks(), O.api.inn().offered];
+    const NR = mkCli({ noRtc: true }); offerTo(NR, ID1); await tick();
+    check('item 21 V2 what is no offer (an id that is not a link\'s, no description, another act, a candidate with no link) makes no connection and says nothing; with Video off here the offer is not taken and the GM is told (bye, by the link\'s id); switching Video on asks for it — once, then again only 2 s later, until the offer is taken (an ask the GM\'s limit refused is not the end); an app that can take no video at all says bye and asks for nothing',
+        Q.world.pcs.length === 0 && Q.c0.sent.length === 0 && j(offNow) === j([0, BYE1, true, false]) && wakeOff === 1 && j(wakeOn) === j([1, true]) && wakeSoon === 1 && j(wakeAgain) === j([2, true]) && j(wakeTaken) === j([1, 2, false])
+        && j(NR.ups()) === BYE1 && NR.api.inn().offered === false && NR.tm.list.length === 0 && NR.world.pcs.length === 0, j([Q.world.pcs.length, offNow, wakeOff, wakeOn, wakeSoon, wakeAgain, wakeTaken, NR.ups()]));
+    // a host that offers without end: the app's own limiter (the real allow() and RateLimit, on this world's clock)
+    const F = mkCli(); F.world.allowOk = false; offerTo(F, ID1); offerTo(F, ID2); await tick();
+    const refusedF = [F.world.pcs.length, F.api.inn().offered, F.c0.sent.length, F.tm.list.filter(t => t.on).map(t => t.ms).join()]; F.tm.fire(2000);
+    const RL = mkCli({ realAllow: true }); offerTo(RL, hid(1)); RL.world.clock += 299; offerTo(RL, hid(2)); const rlClose = [RL.world.pcs.length, RL.api.inn().offered];
+    RL.world.clock += 5000; RL.tm.fire(2000); RL.net.videoWake(); const rlStands = RL.asks();   // the first link still stands: nothing is asked while it does
+    const RM = mkCli({ realAllow: true }); for (let i = 0; i < 25; i++) { offerTo(RM, hid(100 + i)); RM.world.clock += 300; }
+    const rmMinute = RM.world.pcs.length; RM.world.clock += 60000; offerTo(RM, hid(200)); const rmLater = RM.world.pcs.length;
+    check('item 21 V2 a host that offers without end is not followed (the app\'s own limiter, run for real): offers less than 300 ms apart or past 20 in a minute make no connection, whatever link id each names; one the limit caught is remembered and asked for again 2 s later (one timer, however many were refused); a minute later offers are taken again',
+        j(refusedF) === j([0, true, 0, '2000']) && F.asks() === 1 && j(rlClose) === j([1, true]) && rlStands === 0 && rmMinute === 20 && rmLater === 21, j([refusedF, F.asks(), rlClose, rlStands, rmMinute, rmLater]));
+    // the picture lost with no stop: ask again, three times at most running; a link that comes up starts the count again
+    const W = mkCli(); offerTo(W, ID1); await tick(); await tick(); W.world.pcs[0].ontrack({ track: { kind: 'video' } });
+    W.world.pcs[0].state('disconnected'); const notYet = W.world.lost; W.world.pcs[0].state('failed');
+    const lost1 = [W.world.lost, W.world.pcs[0].closed, W.tm.list.filter(t => t.on).map(t => t.ms).join(), W.api.inn().live]; W.tm.fire(2000);
+    const asks1 = W.asks();
+    for (let i = 0; i < 5; i++) { offerTo(W, hid(300 + i)); await tick(); await tick(); const pcI = W.world.pcs[W.world.pcs.length - 1]; pcI.ontrack({ track: { kind: 'video' } }); pcI.state('failed'); W.tm.fire(2000); }   // as a browser does: the tracks arrive with the offer, long before the link is up
+    const asksAll = W.asks(), capped = [W.api.inn().asks, W.tm.list.filter(t => t.on).length];
+    offerTo(W, hid(400)); await tick(); await tick(); const pcW = W.world.pcs[W.world.pcs.length - 1]; pcW.state('connected'); const again = [W.api.inn().asks]; pcW.state('failed'); W.tm.fire(2000); again.push(W.api.inn().asks, W.asks());
+    check('item 21 V2 the picture lost with no stop from the GM (the link failed, not merely interrupted): the panel is told and the GM is asked again 2 s later, at most 3 times running — tracks arriving with each new offer do not start the count again, a link that comes up does',
+        notYet === 0 && j(lost1) === j([1, true, '2000', true]) && asks1 === 1 && asksAll === 3 && j(capped) === j([3, 0]) && j(again) === j([0, 1, 4]), j([notYet, lost1, asks1, asksAll, capped, again]));
+    // Video switched off while it plays, or while the picture is lost
+    const D = mkCli(); offerTo(D, ID1); await tick(); await tick(); D.net.videoDrop();
+    const dropped = [D.world.pcs[0].closed, j(D.ups().filter(m => m.act !== 'answer')), D.api.inn().offered, D.world.lost]; D.net.videoDrop();
+    const La = mkCli(); offerTo(La, ID1); await tick(); await tick(); La.world.pcs[0].state('failed'); La.world.videoOn = false; La.net.videoDrop();
+    const lostDrop = [La.api.inn().offered, j(La.ups().filter(m => m.act !== 'answer'))];
+    const Lb = mkCli(); offerTo(Lb, ID1); await tick(); await tick(); Lb.world.pcs[0].state('failed'); Lb.world.videoOn = false; Lb.tm.fire(2000);   // no panel to drop: the waiting ask finds Video off
+    const lostTimer = [Lb.api.inn().offered, Lb.asks(), Lb.api.inn().asks]; Lb.world.videoOn = true; Lb.net.videoWake(); Lb.net.videoWake();
+    const Ln = mkCli(); Ln.net.videoDrop();   // nothing is being shown: nothing to remember
+    check('item 21 V2 Video switched off here while it plays closes the link, tells the GM once and remembers to ask when it is on again; switched off while the picture is lost (no link to close) it is remembered all the same — by the drop, and by the waiting ask that finds Video off — and switching it on asks; with no showing there is nothing to remember',
+        j(dropped) === j([true, BYE1, true, 0]) && D.ups().filter(m => m.act === 'bye').length === 1 && j(lostDrop) === j([true, '[]']) && j(lostTimer) === j([true, 0, 1]) && Lb.asks() === 1 && Lb.api.inn().offered === true && Ln.api.inn().offered === false && Ln.c0.sent.length === 0, j([dropped, lostDrop, lostTimer, Lb.asks()]));
+    // who may be told, and whose word is heard (the branch, run for real)
+    const hear = (o, msg, peer) => { const s = mkCli(o); s.api.branch(Object.assign({ type: 'video' }, msg), peer ? { peer: peer } : s.c0); return s; };
+    const offerM = { act: 'offer', id: ID1, name: 'x', sdp: OFFER };
+    const hOk = hear({}, offerM), hStream = hear({ streamWin: true }, offerM), hEarly = hear({ foreign: false, synced: false }, offerM), hOther = hear({}, offerM, 'evil9'), hEarlyStop = hear({ foreign: false, synced: false }, { act: 'stop' });
+    const hMid = hear({ foreign: false }, offerM);   // the host known, its campaign not yet in
+    await tick(); await tick();
+    const earlyThen = [hEarly.api.inn().offered]; hEarly.api.branch({ type: 'video', act: 'stop' }, { peer: 'evil9' }); earlyThen.push(hEarly.api.inn().offered); hEarly.api.branch({ type: 'video', act: 'ice', id: ID1, cand: CAND }, hEarly.c0); earlyThen.push(hEarly.api.inn().offered); hEarly.api.branch({ type: 'video', act: 'stop' }, hEarly.c0); earlyThen.push(hEarly.api.inn().offered);
+    const sayNo = [mkCli({ synced: false }), mkCli({ foreign: false }), mkCli({ streamWin: true }), (() => { const s = mkCli(); s.c0.open = false; return s; })(), (() => { const s = mkCli(); s.net.conns = []; return s; })(), (() => { const s = mkCli(); s.net.role = 'host'; return s; })(), (() => { const s = mkCli({ videoOn: false }); return s; })()].map(s => [s.api.videoAsk(), s.c0.sent.length]);
+    check('item 21 V2 a player hears a video\'s word only from the synced host, after the snapshot, never in the stream window (the videomsg branch, run for real): an offer from their own GM that comes before the snapshot is remembered, to be asked for once it is in, and that GM\'s stop (no other peer\'s, no other word) forgets it; another peer\'s offer is nothing; and a player asks only their synced GM, over an open connection, with Video on',
+        hOk.world.pcs.length === 1 && hStream.world.pcs.length === 0 && hStream.api.inn().offered === false && hMid.world.pcs.length === 0 && hMid.api.inn().offered === true && hEarly.world.pcs.length === 0 && j(earlyThen) === j([true, true, true, false]) && hOther.world.pcs.length === 0 && hOther.api.inn().offered === false && hEarlyStop.world.stopped === 0 && hEarlyStop.api.inn().offered === false
+        && sayNo.every(x => x[0] === false && x[1] === 0) && mkCli().api.videoAsk() === true && /net\.videoWake\(\);[^\n]*\n    \} else if \(msg\.type === 'item'\)/.test(src), j([hOk.world.pcs.length, earlyThen, sayNo]));
+})());
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');

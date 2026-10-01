@@ -1491,8 +1491,22 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('item 21 V1 a video element\'s address comes only from videoSrc: an uploaded video\'s path with its file name encoded (a name in any script), never a web address, a scheme, a walk, a page, a picture folder, a space, a query or a percent sign',
             srcs.every(x => x === '') && VC.videoSrc('/saves/images/video/camp_1/k3_Überfahrt\u00e9.mp4') === '/saves/images/video/camp_1/' + encodeURIComponent('k3_Überfahrt\u00e9.mp4') && VC.videoSrc('/saves/images/video/c/k_(1).webm') === '/saves/images/video/c/k_(1).webm', srcs);
         const vjs = read('video.js');
-        check('item 21 V1 video.js writes markup in one place (the body, from bodyHtml), the caption and the progress line as text, and a video element\'s address only from videoSrc',
-            (vjs.match(/innerHTML/g) || []).length === 1 && /ui\('videoBody'\)\.innerHTML = bodyHtml\(on, list, showing, uploading\);/.test(vjs) && !/insertAdjacentHTML|outerHTML|document\.write/.test(vjs)
+        // item 21 V2: the stage's table row — the players connected come from the roster (a peer's own name and profile id)
+        const vt = new Function('esc', slice('video.js', 'videotable') + '\nreturn tableHtml;')(SC.esc);
+        const tPick = vt({ host: true, live: false, loop: false, all: false, players: [{ id: P, name: T, on: true }, { id: 'u_b', name: P, on: false }], words: '' });
+        const tAll = vt({ host: true, live: false, loop: true, all: true, players: [{ id: 'u_a', name: 'Pat', on: false }], words: '' });
+        const tLive = vt({ host: true, live: true, loop: false, all: true, players: [{ id: 'u_a', name: 'Pat', on: true }], words: 'Showing to everyone: ' + T + P });
+        const tSolo = vt({ host: false, live: false, loop: false, all: true, players: [{ id: 'u_a', name: T, on: true }], words: T });
+        check('item 21 V2 the stage\'s table row (tableHtml, run for real): a hostile player name or profile id renders as text and a data attribute only; chosen players each a tick by their profile, Everyone ticking and locking them all; while it shows, Stop and the line of who it reaches as text, no ticks; with no table hosted, a note and Loop alone',
+            [tPick, tAll, tLive, tSolo].every(h => risks(h).length === 0 && h.indexOf(T) < 0 && h.indexOf('onmouseover="') < 0)
+            && tPick.indexOf('data-pid="' + SC.esc(P) + '" checked> ' + SC.esc(T) + '</label>') >= 0 && tPick.indexOf('class="vid-who" data-pid="u_b"> ' + SC.esc(P) + '</label>') >= 0 && /class="tool vid-go"/.test(tPick) && !/vid-stop/.test(tPick) && /class="vid-all"> Everyone/.test(tPick) && /class="vid-loop"> Loop/.test(tPick)
+            && /class="vid-all" checked> Everyone/.test(tAll) && /class="vid-who" data-pid="u_a" disabled checked> Pat/.test(tAll) && /class="vid-loop" checked> Loop/.test(tAll)
+            && /class="tool vid-stop"/.test(tLive) && !/vid-go|vid-who|vid-all/.test(tLive) && tLive.indexOf('&#9679; ' + SC.esc('Showing to everyone: ' + T + P) + '</span>') >= 0
+            && !/vid-go|vid-stop|vid-who|vid-all/.test(tSolo) && /Host a table/.test(tSolo) && /class="vid-loop"> Loop/.test(tSolo), [risks(tPick), risks(tLive), tPick.slice(0, 500)]);
+        check('item 21 video.js writes markup in two places only (the body from bodyHtml, the stage\'s table row from tableHtml); the caption, the progress line, a player\'s chip and note as text; a video element\'s address only from videoSrc, and a player\'s picture only as the stream net.js hands over (never an address)',
+            (vjs.match(/innerHTML/g) || []).length === 2 && /ui\('videoBody'\)\.innerHTML = bodyHtml\(on, list, showing, uploading\);/.test(vjs) && /tableSig = sig; box\.innerHTML = tableHtml\(m\);/.test(vjs) && !/insertAdjacentHTML|outerHTML|document\.write/.test(vjs)
+            && (vjs.match(/\.srcObject = /g) || []).length === 2 && /if \(vl\.srcObject !== stream\) vl\.srcObject = stream;/.test(vjs) && /vl\.srcObject = null;/.test(vjs)
+            && /if \(ct\) ct\.textContent = watch \? watch\.name : '';/.test(vjs) && /ui\('videoCaption'\)\.textContent = watch\.lost \? /.test(vjs) && /if \(note\) note\.textContent = /.test(vjs) && /watch\.name = cleanName\(name, 'Video'\);/.test(vjs)
             && /src = v \? videoSrc\(v\.path\) : ''/.test(vjs) && (vjs.match(/\.src = /g) || []).length === 2 && /el\.src = src;/.test(vjs) && /v\.src = url;/.test(vjs)
             && /ui\('videoCaption'\)\.textContent = /.test(vjs) && /s\.textContent = 'Adding ' \+ uploading\.name/.test(vjs));
     }

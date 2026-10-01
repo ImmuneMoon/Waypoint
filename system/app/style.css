@@ -1783,6 +1783,23 @@
   #videoPanel.vid-max { left: 0 !important; top: 0 !important; right: auto; width: 100vw !important; height: 100vh !important; max-width: none; max-height: none; border-radius: 0; z-index: 100001; }
   #videoPanel.vid-max #videoBody, #videoPanel.vid-max .video-resize, #videoPanel.vid-max .video-caption { display: none; }
   #videoPanel.vid-max #videoHead { cursor: default; }
+  /* item 21 V2: the stage's table row (who the video is shown to, live), and a player's side of a showing in the same panel */
+  #videoTable { flex: 0 0 auto; padding: 6px 8px; border-bottom: 1px solid var(--edge); background: rgba(0,0,0,0.08); }
+  .vid-table { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; font-size: 12px; }
+  .vid-aud { display: inline-flex; flex-wrap: wrap; gap: 4px 10px; flex: 1 1 auto; min-width: 0; }
+  .vid-tick { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; color: var(--ink); cursor: pointer; }
+  .vid-tick input { accent-color: var(--gold); margin: 0; }
+  .vid-note { flex: 1 1 auto; color: var(--dim); font-size: 11px; }
+  .vid-live-line { flex: 1 1 auto; min-width: 0; color: #e0655f; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #videoPanel.vid-live { border-color: #d0524c; }
+  #videoPanel.vid-watch #videoBody, #videoPanel.vid-watch #videoTable, #videoPanel.vid-watch #videoEl { display: none !important; }
+  #videoPanel:not(.vid-watch) #videoLive, #videoPanel:not(.vid-watch) .video-watchbar { display: none; }
+  .video-watchbar { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; padding: 4px 8px; background: rgba(0,0,0,0.78); }
+  .video-watchbar .tool.ghost { color: #eee; }
+  .video-watchbar input[type=range] { width: 110px; accent-color: var(--gold); }
+  .video-watchnote { color: #ddd; font-size: 11px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hdr-clock.hdr-video { max-width: 170px; }   /* two classes: the later .hdr-clock rule would win over one */
+  .hdr-video.active { border-color: var(--gold); }
   .video-resize { position: absolute; right: 0; bottom: 0; width: 14px; height: 12px; cursor: nwse-resize; z-index: 3; touch-action: none; background: linear-gradient(135deg, transparent 0 55%, var(--edge) 55% 62%, transparent 62% 72%, var(--edge) 72% 79%, transparent 79%); }
   #musicPanel input[type=checkbox], .music-pillpop input[type=checkbox] { accent-color: var(--gold); }
   .music-section { padding: 8px 10px; border-bottom: 1px solid var(--edge); }

@@ -671,6 +671,25 @@ function fogCopyFor(clean, camp, map, recipientId) {
     if (off) out.fogOff = off;
     return out;
 }
+// R2 #14 (the owner's ruling of 2026-10-01: the stream window "should be a combined view of the players, each of them being represented from a 3rd
+// party perspective"): the stream window's copy of a fogged map of the hosted campaign is the PARTY VIEW, a spectator's standpoint — the creatures no
+// player's own token sees are dropped (wpFog.fogDropIds with its PARTY owner: every token that is a player's, each read as its own player reads it,
+// never an NPC's eyes), every player's token stays, and the cells the players' tokens see together ride on the copy as map.fogParty (fogPartyCells,
+// each with its tier) for the window's fog to draw — the host's own judgement from its own campaign, never one player's own view and never the GM's
+// whole map. Never on a copy made for a player (fogCopyFor) and never on the wire: the stream window reads its copy from this machine alone. With
+// no fog module the copy fails closed: every creature that is no player's goes and nothing is said seen
+function fogPartyCopy(clean, camp, map) {
+    if (!clean || clean.type !== 'map' || !mapFogged(map)) return clean;
+    var F = window.wpFog, cp, k;
+    if (!F || typeof F.PARTY !== 'string' || typeof F.fogDropIds !== 'function' || typeof F.fogPartyCells !== 'function') {
+        var d = Object.create(null), any = false;
+        (clean.whiteboard || []).forEach(function(w) { if (w && w.type !== 'light' && (w.isChar || w.waiting) && !(typeof w.ownerId === 'string' && w.ownerId !== '')) { d[w.id] = 1; any = true; } });
+        var shut = fogFilterClean(clean, any ? d : null); cp = {}; for (k in shut) cp[k] = shut[k]; cp.fogParty = { list: [] }; return cp;
+    }
+    var out = fogFilterClean(clean, F.fogDropIds(F.PARTY, camp, map)), cells = F.fogPartyCells(camp, map);
+    if (cells === null) return out;
+    cp = {}; for (k in out) cp[k] = out[k]; cp.fogParty = cells; return cp;
+}
 // [netcheck:foglit-end]
 // Is any map in the hosted campaign fogged? While false, every per-recipient loop below stays on the old single-broadcast path.
 function anyFog(camp) {
@@ -680,7 +699,7 @@ function anyFog(camp) {
 // Everything a player receives is built from the two clones above and below: a number the wire's packer would refuse (a whole number past
 // 64 bits — typed into a box, imported, computed) is bounded as it is copied, so one value can never stop a map, a join or a snapshot.
 function wireNum(k, v) { return (typeof v === 'number' && (v > 1e15 || v < -1e15)) ? (v > 0 ? 1e15 : -1e15) : v; }
-function sanitizeAppState(s, recipientId) {   // recipientId: the player this copy is for (characters are per recipient); absent = nobody's (the stream window)
+function sanitizeAppState(s, recipientId) {   // recipientId: the player this copy is for (characters are per recipient); absent = the stream window's: the party view of every fogged map (fogPartyCopy), no characters
     // a session is one campaign (owner's answer, 2026-09-29): only the hosted campaign is copied at all — the GM's other games (their names,
     // maps and planners) never reach a player or the stream window
     var one = {}; Object.keys(s || {}).forEach(function(k) { if (k !== 'campaigns') one[k] = s[k]; });
@@ -724,6 +743,7 @@ function sanitizeAppState(s, recipientId) {   // recipientId: the player this co
             var it = sanitizeItem(orig);
             if (it === null) { delete camp.items[id]; return; }
             if (it.type === 'map' && recipientId && camp.id === c.activeCampaignId) it = fogCopyFor(it, (s.campaigns && s.campaigns[camp.id]) || camp, orig, recipientId);   // drop the creatures this player cannot see (judged on the host's own campaign, as every later send is), with their lit cells
+            else if (it.type === 'map' && !recipientId && camp.id === c.activeCampaignId) it = fogPartyCopy(it, (s.campaigns && s.campaigns[camp.id]) || camp, orig);   // R2 #14: the stream window's copy is the party view — the creatures no player's token sees dropped, the cells the players' tokens see together on it
             camp.items[id] = it;
         });
         // a client's active item is always a map: the host's own open page or planner is not its business, and a
@@ -3275,7 +3295,7 @@ net.refreshUi = function() {               // own campaign is back: spectator cl
     if (!net.active) refreshStageSelect();
     syncSessionButtons();
 };
-net.sanitizeAppState = sanitizeAppState;   // the stream window shows exactly what players may see
+net.sanitizeAppState = sanitizeAppState;   // the stream window shows the party view: what the players' tokens see together, never the GM's whole map (R2 #14)
 net.applyStage = applyStage;
 /* ---------- targeting ----------
    net.targets: playerId -> { id, mapId, name }. Clients send { type:'target' }; the host keeps

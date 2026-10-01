@@ -66,6 +66,14 @@ function cleanVideos(list) {
     return out;
 }
 
+// A library joined by another's (an import merged into a campaign already here): an imported entry replaces the one with its id, a
+// new one is added after those here, and the whole is cleaned again (an id once, a file once, 100 at most)
+function mergeVideos(cur, inc) {
+    var out = cleanVideos(cur);
+    cleanVideos(inc).forEach(function(v) { var k = -1; out.forEach(function(o, i) { if (o.id === v.id) k = i; }); if (k >= 0) out[k] = v; else out.push(v); });
+    return cleanVideos(out);
+}
+
 // The name a file is uploaded under: its own name with every character a path could misread (a separator, ?, #, %, a space, a
 // control character) as _, cut to 80 code points (with the server's prefix, well inside the path's 200), then its extension in
 // lower case. '' for a file that is not a video by name
@@ -120,6 +128,6 @@ function stereoSdp(sdp) {
     return sdp.replace(re, '$1;stereo=1;maxaveragebitrate=128000');
 }
 
-var API = { VERSION: VERSION, LIMITS: LIMITS, EXT_RE: EXT_RE, safeId: safeId, isVideoPath: isVideoPath, videoSrc: videoSrc, cleanName: cleanName, cleanVideo: cleanVideo, cleanVideos: cleanVideos, diskName: diskName, nameOf: nameOf, newId: newId, fmtSize: fmtSize, fmtDur: fmtDur, sumLine: sumLine, sendCap: sendCap, stereoSdp: stereoSdp };
+var API = { VERSION: VERSION, LIMITS: LIMITS, EXT_RE: EXT_RE, safeId: safeId, isVideoPath: isVideoPath, videoSrc: videoSrc, cleanName: cleanName, cleanVideo: cleanVideo, cleanVideos: cleanVideos, mergeVideos: mergeVideos, diskName: diskName, nameOf: nameOf, newId: newId, fmtSize: fmtSize, fmtDur: fmtDur, sumLine: sumLine, sendCap: sendCap, stereoSdp: stereoSdp };
 if (typeof window !== 'undefined') window.wpVideoCore = API;
-export { VERSION, LIMITS, EXT_RE, safeId, isVideoPath, videoSrc, cleanName, cleanVideo, cleanVideos, diskName, nameOf, newId, fmtSize, fmtDur, sumLine, sendCap, stereoSdp };
+export { VERSION, LIMITS, EXT_RE, safeId, isVideoPath, videoSrc, cleanName, cleanVideo, cleanVideos, mergeVideos, diskName, nameOf, newId, fmtSize, fmtDur, sumLine, sendCap, stereoSdp };

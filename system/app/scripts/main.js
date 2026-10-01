@@ -460,7 +460,8 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
 
   var pendingImport = null;
 
-  var pendingImportImages = null; // zip bundles: [{name:'images/<mapId>/<file>', data:Uint8Array}]
+  var pendingImportImages = null; // zip bundles: the archive's entries under images/ ({ name, size, check() }: each read from the picked file only when it is copied)
+  var pendingImportBytes = 0;     // the picked archive's own size: what an import may write is judged against it
   var pendingImportLibrary = null; // Stage 6 library L1c2: the zip's pack files by name (library/<dir>/<id>.<rev>.json); none: a file's manifest is not used
   var importLibJobs = [];
   // an imported campaign's library manifest, used only with its files: it lands in a fresh folder, or joins the one already here
@@ -501,19 +502,24 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
 
       // Copy the bundle's images into saves/ at their exact original paths so
       // the imported items' references resolve.
-      toast(msg + ' Copying ' + imgs.length + ' image(s)…');
+      var nVidI = imgs.filter(function(en) { return /^images\/video\//.test(en.name); }).length;
+      toast(msg + ' Copying ' + (imgs.length - nVidI) + ' image(s)' + (nVidI ? ' and ' + nVidI + ' video(s)' : '') + '…');
 
       (async function() {
-          var ok = 0, fail = 0;
+          var ok = 0, fail = 0, vidAt = 0, wrote = 0, budget = pendingImportBytes * 20 + 1048576;   // an archive never unpacks to more than twenty times itself: entries that share bytes, or inflate out of proportion, stop there
           for (var i = 0; i < imgs.length; i++) {
               var relPath = imgs[i].name;
               try { relPath = decodeURIComponent(relPath); } catch(e) {}
               try {
-                  var r = await fetch('/api/upload-exact?path=' + encodeURIComponent(relPath), { method: 'POST', body: new Blob([imgs[i].data]) });
+                  if (/^images\/video\//.test(imgs[i].name)) { vidAt++; toast('Copying video ' + vidAt + ' of ' + nVidI + '…'); }
+                  if (imgs[i].method !== 0 && imgs[i].size > imgs[i].csize * 20 + 1048576) throw new Error('an entry that inflates out of proportion');   // pictures, sounds and videos barely compress: one said to grow twentyfold is no export's (and would fill the disk)
+                  wrote += imgs[i].size; if (wrote > budget) throw new Error('more than the archive can hold');
+                  var body = await imgs[i].check();   // the entry's bytes, straight from the picked file, only once its checksum is the archive's: a damaged file is never written
+                  var r = await fetch('/api/upload-exact?path=' + encodeURIComponent(relPath), { method: 'POST', body: body });
                   if (r.ok) ok++; else fail++;
               } catch(err) { fail++; }
           }
-          toast('Images copied: ' + ok + (fail ? ', ' + fail + ' failed' : '') + '.');
+          toast('Files copied: ' + ok + (fail ? ', ' + fail + ' failed (damaged in the archive, or refused by the saves folder)' : '') + '.');
           render();
       })();
 
@@ -557,6 +563,7 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
 
               state.appState.campaigns[ic.id] = ic;
               takeImportedLibrary(ic, ic, null);   // Stage 6 library L1c2: a fresh folder for its packs
+              if (ic.videos !== undefined && window.wpVideoCore) { var vdN = window.wpVideoCore.cleanVideos(ic.videos); if (vdN.length) ic.videos = vdN; else delete ic.videos; }   // item 21: its video library, cleaned as a load cleans it
               if (ic.system && window.wpSystemCore && window.wpFormula) { var nsys = window.wpSystemCore.cleanSystem(ic.system, { F: window.wpFormula, gmView: true }); if (nsys) ic.system = nsys; else delete ic.system; }   // character sheets (1.5.0)
               if (ic.chars && typeof ic.chars === 'object' && window.wpSystemCore) { if (!ic.system) delete ic.chars; else { var nch = {}; Object.keys(ic.chars).forEach(function(id) { var cc = window.wpSystemCore.cleanChar(ic.chars[id], ic.system, { state: 'host' }); if (cc && cc.id === id) nch[id] = cc; }); ic.chars = nch; if (window.wpSystemCore.migrateBindings) { var rbN = window.wpSystemCore.migrateBindings(ic); if ((rbN.bound || rbN.linked) && window.wpNoteBindings) window.wpNoteBindings([{ camp: ic, r: rbN }]); window.wpSystemCore.applyOwnerOps(ic, window.wpSystemCore.ownedTokenPlan(ic, { all: !!(window.wpVtt && window.wpVtt.campaignOn('sheets', ic) === false) })); } } }   // Onboarding F0: bound by id, one owned token per character
 
@@ -602,6 +609,8 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
               var es = existing.sounds && typeof existing.sounds === 'object' && Array.isArray(existing.sounds.list) ? existing.sounds : (existing.sounds = { v: 1, list: [] });
               ic.sounds.list.forEach(function(sn) { if (!sn || typeof sn !== 'object' || typeof sn.id !== 'string') return; var k = -1; es.list.forEach(function(o, i) { if (o && o.id === sn.id) k = i; }); if (k >= 0) es.list[k] = sn; else es.list.push(sn); });
           }
+          // the video library merges by id too (item 21): an imported entry replaces the same id, new ones are added, the whole cleaned
+          if (Array.isArray(ic.videos) && window.wpVideoCore && window.wpVideoCore.mergeVideos) { var vdM = window.wpVideoCore.mergeVideos(existing.videos, ic.videos); if (vdM.length) existing.videos = vdM; else delete existing.videos; }
           // the picture library's per-campaign bookkeeping merges too (brought-in pictures and categories)
           if (Array.isArray(ic.pictures)) { existing.pictures = Array.isArray(existing.pictures) ? existing.pictures : []; ic.pictures.forEach(function(p) { if (existing.pictures.indexOf(p) < 0) existing.pictures.push(p); }); }
           if (ic.imageCats && typeof ic.imageCats === 'object') {
@@ -699,25 +708,30 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
 
       if (/\.zip$/i.test(file.name)) {
 
-          // Export bundle: data.json + images/ inside a zip
-          file.arrayBuffer().then(async function(buf) {
+          // Export bundle: data.json + images/ inside a zip. The file is opened by slices, never read whole (an export with its
+          // videos may be larger than memory): data.json and the pack files are read now, each picture and video when it is copied
+          (async function() {
               try {
                   var zip = await import('./zip.js');
-                  var entries = await zip.zipRead(buf);
+                  var zopen = await zip.zipOpen(file), entries = zopen.entries;
+                  pendingImportBytes = zopen.size;
                   var dj = entries.find(function(en) { return en.name === 'data.json'; });
                   if (!dj) {
                       if (window.wpDocImport && window.wpDocImport.detectBundle(entries)) { window.wpDocImport.importFile(file); return; }   // a .md with its pictures
                       toast('This zip has no data.json — not a Waypoint export.'); return;
                   }
+                  if (dj.size > 512 * 1024 * 1024) { toast('This zip\'s data.json is too large to read.'); return; }
+                  var djText = new TextDecoder().decode(await dj.bytes());
                   pendingImportImages = entries.filter(function(en) { return /^images\//.test(en.name); });
-                  var libE = entries.filter(function(en) { return /^library\/l_[a-z0-9]{8}\/p_[A-Za-z0-9_]{1,24}\.[0-9]{1,10}\.json$/.test(en.name); });
-                  pendingImportLibrary = null; if (libE.length) { pendingImportLibrary = Object.create(null); libE.forEach(function(en) { pendingImportLibrary[en.name] = en; }); }
-                  handleImportedJson(new TextDecoder().decode(dj.data));
+                  var libE = entries.filter(function(en) { return /^library\/l_[a-z0-9]{8}\/p_[A-Za-z0-9_]{1,24}\.[0-9]{1,10}\.json$/.test(en.name) && en.size <= 16 * 1024 * 1024; });
+                  pendingImportLibrary = null;
+                  if (libE.length) { pendingImportLibrary = Object.create(null); libE.forEach(function(en) { pendingImportLibrary[en.name] = en; }); }   // kept as entries: a pack file is read (its checksum checked) only when the import copies it, one at a time
+                  handleImportedJson(djText);
               } catch(err) {
                   console.error(err);
                   toast('Could not read zip: ' + err.message);
               }
-          });
+          })();
 
           this.value = '';
 

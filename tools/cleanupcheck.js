@@ -496,13 +496,14 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('item 21 V1 the load cleans a campaign\'s video library (the real load normaliser with the real videocore): an entry by its id pattern once and its file once, its name as one plain line, only an uploaded video\'s path (never a web address, a page, a walk out of the folder or a picture folder), a size in bytes, a length and picture size only as numbers, nothing else riding along; a library that is no list or holds nothing that cleans goes; a campaign without one gets none; with the cleaner not loaded it is left as it is (never lost: the panel cleans it again as it reads)',
             JSON.stringify(vidsOf(withV)) === JSON.stringify([[{ id: 'v_abcdefgh', name: 'Intro <b>x</b>', path: '/saves/images/video/vA/k3j9_intro.mp4', size: 1000, dur: 12.3, w: 1920, h: 1080 }, { id: 'v_hhhhhhhh', name: 'Video', path: '/saves/images/video/vA/q_clip.webm', size: 0 }], 'none', 'none', 'none'])
             && JSON.stringify(vidsOf(noV)) === JSON.stringify(vidsOf({ campaigns: fileV().campaigns })), JSON.stringify([vidsOf(withV), vidsOf(noV)]));
-        // item 21 V1: an export's zip never carries a video file (built in memory, no ZIP64); the pictures and sounds it names still travel
-        const cipSrc = ioSrc.slice(ioSrc.indexOf('  function collectImagePaths('), ioSrc.indexOf('  // A campaign file that leaves this machine'));
-        const filterLine = (/      var paths = collectImagePaths\(payload\)\.filter\(function\(p\) \{ return p\.indexOf\('\/saves\/images\/video\/'\) !== 0; \}\);/.exec(ioSrc) || [''])[0];
+        // item 21, the zip fold: an export's archive carries the campaign's videos with its pictures and sounds (each file read from disk in
+        // parts, the archive of any size: tools/zipcheck.js)
+        const cipSrc = ioSrc.slice(ioSrc.indexOf('  function collectImagePaths('), ioSrc.indexOf('  // [zipcheck:exportfile-start]'));
+        const filterLine = (/      var paths = collectImagePaths\(payload\);/.exec(ioSrc) || [''])[0];
         const pathsOf = new Function('payload', cipSrc + '\n' + filterLine + '\nreturn paths;');
         const exP = pathsOf({ campaigns: { c: { items: { m: { whiteboard: [{ src: '/saves/images/m/a.png' }] } }, sounds: [{ path: '/saves/images/audio/c/rain.ogg' }], videos: [{ path: '/saves/images/video/c/k_intro.mp4' }, { path: '/saves/images/video/c/k_big.webm' }] } } });
-        check('item 21 V1 an export bundles the pictures and sounds its campaign names and never a video file (the zip is built in memory with no ZIP64: the library entries travel, the files stay in the saves folder)',
-            !!filterLine && JSON.stringify(exP.slice().sort()) === JSON.stringify(['/saves/images/audio/c/rain.ogg', '/saves/images/m/a.png']), JSON.stringify(exP));
+        check('item 21 an export bundles the pictures, the sounds and the videos its campaign names: no path of the video folder is filtered out any more (the files travel whole)',
+            !!filterLine && !/collectImagePaths\(payload\)\.filter/.test(ioSrc) && JSON.stringify(exP.slice().sort()) === JSON.stringify(['/saves/images/audio/c/rain.ogg', '/saves/images/m/a.png', '/saves/images/video/c/k_big.webm', '/saves/images/video/c/k_intro.mp4']), JSON.stringify(exP));
         // item 20 K2: a campaign's clock from a file, cleaned by the real load normaliser with the real calendarcore; none without the cleaner
         const CCl = await import(surl('calendarcore.js'));
         const migK = win => new Function('window', 'CATS', 'CURRENT_SCHEMA', 'createNewCampaign', '"use strict";\n' + ioSrc.slice(mi, mk) + '\nreturn function(d) { return migrateAppState(d).data; };')(win, { default: { label: 'Default', color: '#ccc' } }, 2, nm => ({ id: 'camp_v0', name: nm, items: {} }));

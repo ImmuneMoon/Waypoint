@@ -867,6 +867,17 @@ Video
   on their screens when the video ends or you stop it, and Loop keeps a
   mood clip running. Nothing is downloaded, a player who joins late is
   shown it too, and the panel names who is being sent it.
+- An export carries the campaign's videos, whole: Export This Campaign and
+  Export Everything bundle each video file with the pictures and sounds, and
+  an import puts them back in place. An export has no size limit now: files
+  are read from disk and written in parts, an archive past 4 GB or 65,535
+  files is written as ZIP64, and it is refused rather than written wrong.
+  When the videos pass 1 GB the export asks where to save it and writes
+  straight to that file (it is never held in memory), then reads it back
+  and checks every file in it before calling it exported.
+  An import opens the file without reading it whole and checks every file
+  against its checksum before copying it: a damaged one is counted as
+  failed, never written.
 - The local server answers a byte range: a long video or song loads in
   parts and seeks without being read whole, and a video or a sound is
   served under its own type.

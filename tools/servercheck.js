@@ -145,6 +145,54 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         /const servefile = require\('\.\/servefile'\);/.test(main) && /const servefile = require\('\.\.\/system\/resources\/app\/servefile'\);/.test(dev) && staticM.test(main) && staticD.test(dev)
         && !/createReadStream\(filePath\)\.pipe\(res\)/.test(main) && !/createReadStream\(filePath\)\.pipe\(res\)/.test(dev));
 
+    {   // the zip fold: an upload is written whole or not at all (servefile.saveUpload, on a real server over a scratch folder)
+        const dirU = fs.mkdtempSync(path.join(os.tmpdir(), 'wp-upload-')), net = require('net');
+        const srvU = http.createServer((req, res) => { const name = decodeURIComponent(new URL(req.url, 'http://localhost').pathname.slice(1)); sf.saveUpload(req, res, path.join(dirU, name), JSON.stringify({ url: '/saves/' + name })); });
+        await new Promise(r => srvU.listen(0, '127.0.0.1', r)); srvU.unref();
+        const portU = srvU.address().port;
+        const post = (p, body) => new Promise(resolve => {
+            const rq = http.request({ host: '127.0.0.1', port: portU, path: '/' + p, method: 'POST', headers: { 'Content-Length': body.length }, timeout: 5000 }, rs => { let d = ''; rs.on('data', c => { d += c; }); rs.on('end', () => resolve({ status: rs.statusCode, body: d })); });
+            rq.on('error', e => resolve({ err: e.message })); rq.on('timeout', () => { rq.destroy(); resolve({ err: 'timeout' }); }); rq.end(body);
+        });
+        // a request that says 5,000 bytes, sends 1,000 and is cut
+        const cut = p => new Promise(resolve => {
+            const so = net.connect(portU, '127.0.0.1', () => { so.write('POST /' + p + ' HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 5000\r\n\r\n'); so.write(Buffer.alloc(1000, 9), () => setTimeout(() => { so.destroy(); setTimeout(resolve, 150); }, 60)); });
+            so.on('error', () => resolve());
+        });
+        const ls = () => fs.readdirSync(dirU).sort().join();
+        try {
+            const good = Buffer.alloc(5000, 7), newer = Buffer.alloc(3000, 5);
+            const r1 = await post('clip.mp4', good), after1 = [ls(), fs.readFileSync(path.join(dirU, 'clip.mp4')).equals(good)];
+            await cut('clip.mp4'); const afterCut = [ls(), fs.readFileSync(path.join(dirU, 'clip.mp4')).equals(good)];
+            await cut('fresh.mp4'); const afterCutNew = ls();
+            const r2 = await post('clip.mp4', newer), after2 = [ls(), fs.readFileSync(path.join(dirU, 'clip.mp4')).equals(newer)];
+            const r3 = await post('empty.mp4', Buffer.alloc(0)), after3 = fs.statSync(path.join(dirU, 'empty.mp4')).size;
+            fs.mkdirSync(path.join(dirU, 'taken.mp4')); const r4 = await post('taken.mp4', good);   // the place is a folder: the move fails
+            const r5 = await post('nowhere/x.mp4', good);                                             // the folder is not there: the write fails
+            check('an upload is written whole or not at all (servefile.saveUpload, run for real): a complete one lands with its bytes and answers 200 with its address, a later complete one replaces it, an empty one is an empty file; one cut short (5,000 bytes promised, 1,000 sent) leaves a good copy already there untouched, makes no file where there was none, and leaves no .part behind; a move or a write that fails answers 500 and leaves nothing',
+                r1.status === 200 && r1.body === '{"url":"/saves/clip.mp4"}' && j(after1) === j(['clip.mp4', true]) && j(afterCut) === j(['clip.mp4', true]) && afterCutNew === 'clip.mp4' && r2.status === 200 && j(after2) === j(['clip.mp4', true])
+                && r3.status === 200 && after3 === 0 && r4.status === 500 && r5.status === 500 && ls() === 'clip.mp4,empty.mp4,taken.mp4' && fs.readdirSync(path.join(dirU, 'taken.mp4')).length === 0, j([r1, after1, afterCut, afterCutNew, r2.status, after2, r3.status, r4, r5, ls()]));
+            // a request that closes with neither its end nor an error (how some runtimes report a cut), and one that errors after its last byte
+            const { PassThrough } = require('stream');
+            const fake = (name, len, complete, after) => new Promise(resolve => {
+                const rq = new PassThrough(); rq.headers = { 'content-length': String(len) }; rq.complete = complete;
+                const t = setTimeout(() => resolve('no answer'), 1500), rs = { code: 0, writeHead(c) { this.code = c; }, end() { clearTimeout(t); resolve(this.code); } };
+                sf.saveUpload(rq, rs, path.join(dirU, name), '{}');
+                rq.write(Buffer.alloc(4, 1)); setTimeout(() => after(rq), 80);
+            });
+            const closedR = await fake('closed.mp4', 9, false, rq => rq.destroy()), erroredR = await fake('errored.mp4', 4, true, rq => rq.emit('error', new Error('reset')));
+            check('a request that just closes, incomplete, is a cut one (answered 500, nothing left); one that reports an error is never moved into place, even with every promised byte written',
+                closedR === 500 && erroredR === 500 && ls() === 'clip.mp4,empty.mp4,taken.mp4', j([closedR, erroredR, ls()]));
+        } finally {
+            srvU.close();
+            try { fs.rmSync(dirU, { recursive: true, force: true }); } catch (e) {}
+        }
+        const upBoth = s => (s.match(/servefile\.saveUpload\(req, res, savePath, /g) || []).length === 2 && !/fs\.createWriteStream\(savePath\)/.test(s) && /server\.requestTimeout = 0;/.test(s)
+            && /let rel = relRaw; try \{ rel = decodeURIComponent\(relRaw\); \} catch \(e\) \{ rel = relRaw; \}/.test(s) && !/const rel = decodeURIComponent\(url\.searchParams\.get\('path'\)/.test(s);
+        check('the shell and the dev server write both kinds of upload (a new file into the library, an import copying a file back to its place) through saveUpload, never straight onto the final path; a request may take as long as a large file needs (no five-minute cut); a name with a bare % is taken as it is, never an exception that leaves the request unanswered',
+            upBoth(main) && upBoth(dev));
+    }
+
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

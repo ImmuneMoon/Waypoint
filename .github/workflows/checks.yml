@@ -90,3 +90,6 @@ jobs:
       - name: videocheck — campaign videos' pure core and the Video panel's rules
         if: ${{ !cancelled() }}
         run: node tools/videocheck.js
+      - name: zipcheck — the export bundle's archive, at any size
+        if: ${{ !cancelled() }}
+        run: node tools/zipcheck.js

@@ -179,6 +179,44 @@ Running the table
   your roster now shows its name (the initiative box had squeezed the names
   out).
 
+Protecting your table
+- Your table key is never sent again. A player your table already knows is
+  asked to prove the key over a one-time challenge bound to the very room
+  they dialled, so a key cannot be collected by another host, by someone
+  squatting a later room code, or on the wire. A player whose key does not
+  match (a fresh install, or someone else using that name) is put to you
+  for Allow/Deny as before. A player's app answers one challenge per
+  connection, keeps a key only from the host it joined, and holds at most
+  the 50 newest tables.
+- A player's app holds only the maps they have reached: the map they land
+  on, and each one they travel or are summoned to, which arrives whole the
+  moment they do. Every other map of the campaign is a name in their list
+  and nothing more, so a locked map or one the party has not found carries
+  no tokens, labels or room names to their machine until they get there.
+- The stream window shows the party's view: on a fogged map its fog is the
+  union of what your players' own tokens see, creatures none of them sees
+  are left out, and its Focus on menu lists players' characters alone.
+- A player's map changes land only on the hosted campaign and only on the
+  map they are on; their drawings are bounded by points as well as count
+  (60,000 a map), a new drawing's id is plain text, and a double-click on a
+  door no longer carries a token across the map — the token standing on the
+  door steps through, one your fight or your lock holds stays, with a word
+  why.
+- A player's app is served only the pictures and sounds it was sent a
+  reference to, never a Journal or video file, and nothing past the size
+  cap is read at all. Before you let a player in, their app sends nothing
+  of its own campaign to you, and a handout or notepad is taken only from
+  the host that admitted them, filed under that table alone. What players
+  share has a budget of its own, apart from your handouts, and a shared
+  page is replaced only by its own sender.
+- Importing a campaign file never replaces a file already in your saves
+  folder (the import says how many were already here) and never writes a
+  Journal; the players a file names come in without their keys, so the
+  file's author is asked at your table like anyone new.
+- Smaller leaks closed: an unseen creature's initiative roll stays private,
+  a trigger zone's message reaches a player only when their own token
+  enters it, the party strip's hover names only effects a teammate may see,
+  and your other campaigns are never named to a table.
 Character sheets: the system
 - Character sheets start with the system: a System button in the Campaign
   pill opens an editor for the campaign's rules, with no code. Fields with a

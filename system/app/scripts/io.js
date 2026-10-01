@@ -1505,6 +1505,13 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
       return n;
   }
   function exportBaseName(scope) { var c = getActiveCampaign(); return scope === 'all' ? 'waypoint-everything' : slugName(c && c.name) + '-campaign'; }
+  // What an export says of itself: the pictures and the videos that went in (a file left out taken off the count of its kind) and
+  // how many were left out — a file that was not there, or changed while it was read, is never passed over in silence
+  function exportTally(nImg, nVid, skipped) {
+      var v = skipped.filter(function(n) { return /^images\/video\//.test(n); }).length;
+      return { images: nImg - (skipped.length - v), videos: nVid - v, missing: skipped.length };
+  }
+  function exportDoneWords(r) { return 'Exported ' + r.name + ' (' + r.images + ' image(s)' + (r.videos ? ', ' + r.videos + ' video(s)' : '') + (r.missing ? ', ' + r.missing + ' missing' : '') + ').'; }
   // [zipcheck:exportfile-end]
 
   // A campaign file that leaves this machine carries the players' names and history, never their table keys
@@ -1603,7 +1610,7 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
       var zip = await import('./zip.js');
       var enc = new TextEncoder();
       var entries = [{ name: 'data.json', data: enc.encode(json) }].concat(libFiles);
-      var missing = 0, videos = 0, vidAt = 0;
+      var skipped = [], vidAt = 0;
       if (handle) {
           // straight to the file: each entry is read part by part and written as it comes (never held whole), its checksum written back
           // into its header; then the file is opened again and every entry checked against its checksum before the export is called done
@@ -1628,18 +1635,17 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
               toast('The export could not be written: ' + (e && e.message || 'the file could not be made') + '.' + (left ? ' The file it left is not to be trusted: delete it.' : ''));
               return null;
           }
-          var skippedV = res.skipped.filter(function(n) { return /^images\/video\//.test(n); }).length;
-          return { name: handle.name || (base + '.zip'), saved: true, images: nImg - (res.skipped.length - skippedV), videos: nVid - skippedV, library: libFiles.length, missing: res.skipped.length };
+          var tallyS = exportTally(nImg, nVid, res.skipped);
+          return { name: handle.name || (base + '.zip'), saved: true, images: tallyS.images, videos: tallyS.videos, library: libFiles.length, missing: tallyS.missing };
       }
       for (var k = 0; k < paths.length; k++) {
           try {
               var vid = isVideo(paths[k]);
               if (vid) { vidAt++; toast('Bundling video ' + vidAt + ' of ' + nVid + '\u2026'); }
               var fe = await exportFile(encodeURI(paths[k]), zip);
-              if (!fe) { missing++; continue; }
+              if (!fe) { skipped.push(paths[k].replace(/^\/saves\//, '')); continue; }
               entries.push({ name: paths[k].replace(/^\/saves\//, ''), data: fe.data, crc: fe.crc });
-              if (vid) videos++;
-          } catch(e) { missing++; }
+          } catch(e) { skipped.push(paths[k].replace(/^\/saves\//, '')); }
       }
       // refused, never a wrong file: the writer states every size exactly or throws, and the finished archive is opened again (its
       // end record and its list of files read back) before it is handed over
@@ -1652,7 +1658,8 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
           toast(e && e.name === 'NotReadableError' ? 'The export is too large for this window to hold in one piece. Nothing was written.' : 'The export could not be written: ' + (e && e.message || 'the archive could not be made') + '.');
           return null;
       }
-      return { name: base + '.zip', blob: zblob, images: entries.length - 1 - libFiles.length - videos, videos: videos, library: libFiles.length, missing: missing };
+      var tallyB = exportTally(nImg, nVid, skipped);
+      return { name: base + '.zip', blob: zblob, images: tallyB.images, videos: tallyB.videos, library: libFiles.length, missing: tallyB.missing };
   }
   window.wpBuildExport = buildExport;
 
@@ -1670,7 +1677,7 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
       if (r.text) { download(r.name, r.text); toast('Exported ' + r.name); }
       else {
           if (!r.saved) downloadBlob(r.name, r.blob);
-          toast('Exported ' + r.name + ' (' + r.images + ' image(s)' + (r.videos ? ', ' + r.videos + ' video(s)' : '') + (r.missing ? ', ' + r.missing + ' missing' : '') + ').');
+          toast(exportDoneWords(r));
       }
   }
 

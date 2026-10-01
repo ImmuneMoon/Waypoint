@@ -1635,9 +1635,13 @@ net.itemGone = function(campId, itemId) {
 };
 net._itemDelta = itemDelta; net._applyItemDelta = applyItemDelta; net._handleMessage = handleMessage;   // sandbox testing hooks
 
+// [netcheck:localsave-start]
 net.onLocalSave = function() {
     if (!net.active || net.applyingRemote) return;
     if (window.wpFog) window.wpFog.invalidateVision();   // fog: a save may have moved tokens or changed fog — recompute vision on the next send
+    // R2 security: a player's app waiting for the GM's Allow still shows its own campaign, and one between a reconnect's attempts shows a table no
+    // synced host stands behind — nothing of either goes on the wire, and the save leaves no mark (the hash below), so the first save seated goes out
+    if (net.role === 'client' && (!net.foreign || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer)) return;
     var patch = activeItemPatch();
     if (net.role === 'host') {
         net.syncStance();   // before the item: a changed ceiling reaches players ahead of the map it applies to
@@ -1665,6 +1669,7 @@ net.onLocalSave = function() {
     if (patch) broadcast(patch, null);
     if (net.role === 'host') { scheduleStageFollow(); var amH = getActiveMap(); if (amH && amH.type === 'map') checkRoomHandouts(amH); }
 };
+// [netcheck:localsave-end]
 
 /* The table follows the GM's map, but only once they have stayed on it for a moment:
    a quick detour to another map (to fetch a stray token, check a note) no longer drags
@@ -2810,7 +2815,7 @@ net.streamPos = function(wItem, final, mapId) {   // fold M8: mapId, the map a g
     var onMap = typeof mapId === 'string' ? mapId : camp.activeItemId;
     var msg = { type: 'pos', campId: camp.id, itemId: onMap, wbId: wItem.id, x: wItem.x, y: wItem.y, rot: wItem.rot || 0, front: wItem.front || 0, final: !!final };
     if (net.role === 'host') broadcastPos(msg, null, camp, Object.prototype.hasOwnProperty.call(camp.items || {}, onMap) ? camp.items[onMap] : null, wItem);
-    else if (net.conns[0] && net.conns[0].open) {
+    else if (net.conns[0] && net.conns[0].open && net.foreign && net.syncedPeer && net.conns[0].peer === net.syncedPeer) {   // R2 security: seated only — never a token of the player's own campaign while they wait for the GM's Allow
         if (msg.final && typeof actNext === 'function') { msg.a = actNext(); actNote('final', onMap, { id: msg.wbId, x: msg.x, y: msg.y, rot: msg.rot, front: msg.front }, msg.a); }   // 14c: numbered, and what it set kept until a copy goes that far
         try { net.conns[0].send(msg); } catch (e) { sendFailed(e); }
     }
@@ -2819,6 +2824,7 @@ net.streamPos = function(wItem, final, mapId) {   // fold M8: mapId, the map a g
 // Fold M8: a player's app asks its host for one map whole (a drag that began on a map the table has since left)
 net.needItem = function(campId, itemId) {
     if (!net.active || net.role !== 'client' || typeof campId !== 'string' || typeof itemId !== 'string') return;
+    if (!net.foreign || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return;   // R2 security: seated only
     var c0 = net.conns[0]; if (c0 && c0.open) { try { c0.send({ type: 'needItem', campId: campId, itemId: itemId }); } catch (e) { sendFailed(e); } }
 };
 // Fast path: move the DOM node directly, no full re-render per frame.
@@ -3128,6 +3134,7 @@ function handlePos(msg, conn) {
         }
         } finally { if (typeof ackTook === 'function') ackTook(conn, aIn); }
     } else {
+        if (!net.foreign || conn.peer !== net.syncedPeer) return;   // before the snapshot, or from a host other than the synced one: nothing to apply (the campaign on screen is this player's own)
         if (net.myId && w.ownerId === net.myId && typeof actPos === 'function' && actPos(msg.itemId, w.id, ackIn(msg.ack))) return;   // 14c: a newer action of theirs on this token is on its way: it lands after this
         w.x = msg.x; w.y = msg.y; w.rot = msg.rot || 0; w.front = msg.front || 0;
         applyPosToDom(msg);
@@ -3236,6 +3243,7 @@ function dragEnd(e, camp, map, w) {
 // Client: a player's threat marks from their sheet's facing dial (5h Fold 3), as their own message — a map patch never carries them
 net.sendThreats = function(campId, itemId, wbId, list) {
     if (!net.active || net.role !== 'client' || !net.conns[0] || !net.conns[0].open) return;
+    if (!net.foreign || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return;   // R2 security: seated only
     var SCs = SC(); if (!SCs || !SCs.cleanThreats) return;
     var tm = { type: 'threats', campId: String(campId), itemId: String(itemId), wbId: String(wbId), threats: SCs.cleanThreats(list) };
     if (typeof actNext === 'function') { tm.a = actNext(); actNote('threats', tm.itemId, { id: tm.wbId, threats: tm.threats }, tm.a); }   // 14c: numbered, and kept until a copy goes that far
@@ -3245,6 +3253,7 @@ net.sendThreats = function(campId, itemId, wbId, list) {
 // Client: ask the host to travel through a portal item on the current map.
 net.requestTravel = function(viaItemId) {
     if (!net.active || net.role !== 'client' || !net.conns[0] || !net.conns[0].open) return;
+    if (!net.foreign || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return;   // R2 security: seated only
     if (net.paused || net.selfPaused) { toast(net.selfPaused && !net.paused ? 'The GM has paused you.' : 'The table is paused.'); return; }
     try { net.conns[0].send({ type: 'travel', viaItemId: viaItemId }); } catch (e) { sendFailed(e); }
 };
@@ -3845,7 +3854,8 @@ net.setTarget = function(itemId, mapId, itemName) {
     var next = (cur && cur.id === itemId) ? null : { id: itemId, mapId: mapId };
     if (net.role === 'client') {
         var c0 = net.conns[0];
-        if (c0 && c0.open) { try { c0.send({ type: 'target', id: next ? itemId : null, mapId: mapId }); } catch (e) { sendFailed(e); } }
+        if (!net.foreign || !net.syncedPeer || !c0 || !c0.open || c0.peer !== net.syncedPeer) return;   // R2 security: seated only — a token of the player's own campaign, pointed at while they wait for the GM's Allow, is named to no one
+        try { c0.send({ type: 'target', id: next ? itemId : null, mapId: mapId }); } catch (e) { sendFailed(e); }
         applyTarget(me, getProfile().name, next);   // show it at once; the host's broadcast confirms
     } else if (net.role === 'host') {
         applyTarget(me, getProfile().name || 'GM', next);
@@ -4548,6 +4558,7 @@ function handleMessage(msg, conn) {
             } finally { if (typeof ackTook === 'function') ackTook(conn, msg.a); }
             // [netcheck:itempatch-end]
         } else {
+            if (!net.foreign || conn.peer !== net.syncedPeer) return;   // before the snapshot, or from a host other than the synced one: nothing to apply (the campaign on screen is this player's own)
             applyItem(msg);
         }
     } else if (msg.type === 'threats' && net.role === 'host') {
@@ -4576,6 +4587,7 @@ function handleMessage(msg, conn) {
         } finally { if (typeof ackTook === 'function') ackTook(conn, msg.a); }
         // [netcheck:threats-end]
     } else if (msg.type === 'itemDelta' && net.role === 'client') {
+        if (!net.foreign || conn.peer !== net.syncedPeer) return;   // before the snapshot, or from a host other than the synced one: nothing to apply (the campaign on screen is this player's own)
         applyItemDelta(msg);
     } else if (msg.type === 'itemGone' && net.role === 'client') {
         if (conn.peer !== net.syncedPeer) return;   // only the synced host may take things away
@@ -4594,6 +4606,7 @@ function handleMessage(msg, conn) {
         if (!allow('need', { perMs: 50, burst: 30, windowMs: 5000, table: 1000 }, conn.peer)) return;
         net.sendItem(msg.campId, msg.itemId, conn);
     } else if (msg.type === 'stage' && net.role === 'client') {
+        if (!net.foreign || conn.peer !== net.syncedPeer) return;   // before the snapshot, or from a host other than the synced one: nothing to apply (the campaign on screen is this player's own)
         applyStage(msg.stage);
         toast(msg.personal ? 'You arrive.' : 'The GM moved the table to a new map.');
     } else if (msg.type === 'pause' && net.role === 'client') {
@@ -6044,13 +6057,15 @@ function assetMime(path) {
 
 // Resolve an image path for display. Host/solo: the path itself.
 // Client in a session: cached blob URL, requesting it from the host if new.
+// [netcheck:assetsrc-start]
 net.assetSrc = function(path) {
     if (!path || !net.active || net.role !== 'client' || net.stream) return path;   // the stream window reads images straight from the local server
+    if (!net.foreign) return path;   // R2 security: no snapshot yet (a join waiting for the GM's Allow) — the campaign on screen is this machine's own, its pictures come from its own server, and none of their paths is asked of a host
     if (/^(data:|blob:)/.test(path)) return path;   // already self-contained
     if (/^[a-zA-Z][a-zA-Z0-9+.-]*:|^\/\//.test(path)) return ASSET_PLACEHOLDER;   // an absolute URL from a host would make this machine call out to it (an IP beacon, a LAN probe): never
     if (!/^\/?saves\//.test(path)) return path;     // shipped with the app (assets/…): every install has it
     if (assetCache[path]) return assetCache[path];
-    if (!assetPending[path] && net.conns[0] && net.conns[0].open) {
+    if (!assetPending[path] && net.conns[0] && net.conns[0].open && net.syncedPeer && net.conns[0].peer === net.syncedPeer) {   // asked only of the synced host: between a reconnect's attempts nothing is asked and nothing marked, so the first draw after its snapshot asks
         assetPending[path] = true;
         try { net.conns[0].send({ type: 'asset-req', path: path }); } catch (e) { sendFailed(e); }
     }
@@ -6058,6 +6073,7 @@ net.assetSrc = function(path) {
 };
 var ASSET_PLACEHOLDER = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
 net.ASSET_PLACEHOLDER = ASSET_PLACEHOLDER;
+// [netcheck:assetsrc-end]
 var _assetRetries = Object.create(null);   // client: per picture, how many 'busy' answers were retried
 
 function answerAsset(conn, path, error) { try { conn.send({ type: 'asset', path: path, error: error }); } catch (e) { sendFailed(e); } }

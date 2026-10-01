@@ -118,11 +118,13 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
   var _confirmQueue = [];
 
-  function showConfirm(title, callback) {
+  function showConfirm(title, callback, opts) {   // opts.noEnter: a question Enter must not answer — its buttons alone (the Start-combat offer: a key pressed for something else said Yes)
 
       var p = document.getElementById('customConfirm');
 
-      if (p.style.display === 'flex') { _confirmQueue.push([title, callback]); return; }   // one question at a time: a second waits its turn instead of silently replacing the first (whose answer would then never arrive)
+      var noEnter = !!(opts && opts.noEnter === true);
+
+      if (p.style.display === 'flex') { _confirmQueue.push([title, callback, opts]); return; }   // one question at a time: a second waits its turn instead of silently replacing the first (whose answer would then never arrive)
 
       document.getElementById('customConfirmTitle').textContent = title;
 
@@ -146,7 +148,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
           document.removeEventListener('keydown', handleKey);
 
-          var nx = _confirmQueue.shift(); if (nx) setTimeout(function() { showConfirm(nx[0], nx[1]); }, 0);
+          var nx = _confirmQueue.shift(); if (nx) setTimeout(function() { showConfirm(nx[0], nx[1], nx[2]); }, 0);
 
       }
 
@@ -160,7 +162,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       function handleKey(e) {
 
-          if (e.key === 'Enter') okBtn.onclick();
+          if (e.key === 'Enter' && !noEnter) okBtn.onclick();
 
           if (e.key === 'Escape') cancelBtn.onclick();
 

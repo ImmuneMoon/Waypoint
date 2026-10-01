@@ -4620,23 +4620,28 @@ function handleMessage(msg, conn) {
         hostTravel(conn, traveler, portal, fromMap);
         // [netcheck:travelmsg-end]
     } else if (msg.type === 'target' && net.role === 'host') {
+        // [netcheck:targetask-start]
         var tp = net.roster[conn.peer]; if (!tp) return;
         if (!allow('target', { perMs: 100, burst: 20, windowMs: 5000, table: 1000 }, conn.peer)) return;
         var okId = msg.id === null || (typeof msg.id === 'string' && msg.id.length <= 80);
         if (!okId || typeof msg.mapId !== 'string' || msg.mapId.length > 80) return;
         applyTarget(tp.id, tp.name || 'Player', msg.id ? { id: msg.id, mapId: msg.mapId } : null);
         broadcastTargets();
-        // a player squaring up to an NPC: offer to start combat there (once per NPC per session)
-        if (msg.id && !net.combats[msg.mapId] && !combatAsked[msg.mapId + '|' + msg.id]) {
-            var campT = getActiveCampaign(), mapT = campT && campT.items[msg.mapId];
-            var tokT = mapT && (mapT.whiteboard || []).find(function(w) { return w.id === msg.id; });
+        // a player squaring up to one of the GM's characters: offer to start combat there (once per character per session) — unless the campaign
+        // says to do nothing (the owner's ruling of 2026-10-01: camp.turnRules.targetAsk 'off'; absent: ask; Settings, the Turn-based combat row);
+        // never for a token the GM hid. The GM answers the offer by its buttons alone: Enter does not say Yes to it (a key pressed for something else)
+        if (msg.id && !own(net.combats, msg.mapId) && !combatAsked[msg.mapId + '|' + msg.id]) {
+            var campT = getActiveCampaign(), mapT = campT && campT.items && own(campT.items, msg.mapId) ? campT.items[msg.mapId] : null;
+            var askT = !(campT && campT.turnRules && typeof campT.turnRules === 'object' && campT.turnRules.targetAsk === 'off');
+            var tokT = askT && mapT && mapT.type === 'map' ? (mapT.whiteboard || []).find(function(w) { return w && w.id === msg.id; }) : null;
             if (tokT && tokT.isChar && !tokT.ownerId && !tokT.hidden) {
                 combatAsked[msg.mapId + '|' + msg.id] = true;
                 showConfirm((tp.name || 'A player') + ' is targeting ' + (tokT.charName || tokT.name || 'a character') + ' on ' + mapTitleOf(msg.mapId) + '. Start combat there?', function(yes) {
                     if (yes && window.wpOpenCombat) window.wpOpenCombat(msg.mapId, { pre: [msg.id], owner: tp.id });
-                });
+                }, { noEnter: true });
             }
         }
+        // [netcheck:targetask-end]
     } else if (msg.type === 'share' && net.role === 'host') {
         relayShare(msg, conn);
     } else if (msg.type === 'handout' && net.role === 'client') {

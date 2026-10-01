@@ -2555,8 +2555,9 @@ window.wpFitToGrid = fitToGrid;
       document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closePartyMenu(); });
   })();
   /* ---- targeting (players) ----
-     A click — not a drag — on a character token that isn't yours marks it as your target;
-     the table sees a ring in your color. Same token again, or Esc, clears it. */
+     The owner's ruling of 2026-10-01: a plain click on a token targets nothing (a look at a token used to target it by mistake). A player
+     targets by the token's right-click menu, or with T while pointing at one (showTargetMenu / toggleTarget below); the same again, or Esc,
+     clears. A click on a door still asks the host to open or close it. */
   (function wireTargeting() {
       var down = null;
       document.addEventListener('pointerdown', function(e) {
@@ -2567,25 +2568,44 @@ window.wpFitToGrid = fitToGrid;
           var el = e.target.closest('#whiteboard .wb-item'); if (!el) return;
           var am = getActiveMap(); if (!am || am.type !== 'map' || state.viewMode !== 'visual') return;
           var item = am.whiteboard.find(function(x) { return x.id === el.dataset.id; });
-          if (item && item.blocksSight && item.sightType === 'door' && !item.hidden) { down = { doorId: item.id, mapId: am.id, x: e.clientX, y: e.clientY }; return; }   // a client clicks a door to request opening/closing it
-          if (!item || !item.isChar || item.hidden || item.ownerId === window.wpNet.myId) return;
-          down = { id: item.id, name: item.charName || item.name || 'that token', x: e.clientX, y: e.clientY, mapId: am.id };
+          if (item && item.blocksSight && item.sightType === 'door' && !item.hidden) down = { doorId: item.id, mapId: am.id, x: e.clientX, y: e.clientY };   // a client clicks a door to request opening/closing it
       }, true);
       document.addEventListener('pointerup', function(e) {
           if (!down) return;
           var d = down; down = null;
           if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > 6) return;   // a drag (of your own token underneath), not a click
           var el = e.target && e.target.closest && e.target.closest('#whiteboard .wb-item');
-          if (!el) return;
-          if (d.doorId) { if (el.dataset.id === d.doorId && window.wpNet.doorReq) window.wpNet.doorReq(d.mapId, d.doorId); return; }   // door open/close request (host validates adjacency + lock)
-          if (el.dataset.id !== d.id) return;
-          window.wpNet.setTarget(d.id, d.mapId, d.name);
+          if (el && el.dataset.id === d.doorId && window.wpNet.doorReq) window.wpNet.doorReq(d.mapId, d.doorId);   // door open/close request (host validates adjacency + lock)
       }, true);
       document.addEventListener('keydown', function(e) {
-          if (e.key !== 'Escape') return;
-          if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client' && window.wpNet.targets && window.wpNet.targets[window.wpNet.myId]) window.wpNet.clearMyTarget();
+          if (e.key === 'Escape') { if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client' && window.wpNet.targets && window.wpNet.targets[window.wpNet.myId]) window.wpNet.clearMyTarget(); return; }
+          if (e.key !== 't' && e.key !== 'T') return;
+          if (e.ctrlKey || e.metaKey || e.altKey || !e.target || (e.target.tagName && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) || e.target.isContentEditable) return;   // typing, or a shortcut of the browser's
+          var hov = document.querySelector('#whiteboard .wb-item:hover'), am = getActiveMap();
+          var tok = hov && am && am.type === 'map' && state.viewMode === 'visual' ? (am.whiteboard || []).find(function(x) { return x.id === hov.dataset.id; }) : null;
+          if (tok && canTarget(tok)) { e.preventDefault(); toggleTarget(tok, am.id); }
       });
   })();
+  // [sinkcheck:targetmenu-start]
+  // Targeting (the owner's ruling of 2026-10-01): a player targets a token by its right-click menu — Target, or Clear target when it is their
+  // target already — or with T while pointing at one; a plain click targets nothing. Only at a table, as a player (never the stream window),
+  // on a shown character token that is not their own and not a waiting one. The token's name is the host's text: through esc. net.setTarget
+  // toggles, so the same token again clears
+  function canTarget(tok) { var n = window.wpNet; return !!(tok && tok.isChar && !tok.hidden && !tok.waiting && n && n.active && n.role === 'client' && !window.wpStream && tok.ownerId !== n.myId); }
+  function targetedByMe(tok) { var n = window.wpNet, t = n && n.targets && n.myId ? n.targets[n.myId] : null; return !!(t && tok && t.id === tok.id); }
+  function toggleTarget(tok, mapId) { var n = window.wpNet; if (!canTarget(tok) || !n.setTarget || typeof mapId !== 'string') return false; n.setTarget(tok.id, mapId, tok.charName || tok.name); return true; }
+  function showTargetMenu(e, tok, mapId) {
+      var cMenu = document.getElementById('contextMenu'); if (!cMenu || !canTarget(tok)) return false;
+      cMenu.onclick = null;   // as showStanceMenu: a machine that hosted earlier in this run still holds the GM's item menu's handler
+      var mine = targetedByMe(tok);
+      cMenu.innerHTML = '<div class="menu-item" style="color:var(--dim); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; cursor:default;">' + esc(tok.charName || tok.name || 'Token') + '</div>'
+          + '<div class="menu-item cm-target" title="' + (mine ? 'Stop targeting it (Esc does too)' : 'Mark it as your target: everyone sees a small copy of your token on it (T while pointing at a token does the same)') + '">' + (mine ? '&#9711; Clear target' : '&#9678; Target') + '</div>';
+      cMenu.style.display = 'flex';
+      placeMenu(cMenu, e);
+      var row = cMenu.querySelector('.cm-target'); if (row) row.addEventListener('click', function(ce) { ce.stopPropagation(); cMenu.style.display = 'none'; toggleTarget(tok, mapId); });
+      return true;
+  }
+  // [sinkcheck:targetmenu-end]
   /* ---- click-away deselect ----
      Clicking anywhere that isn't the board, the Properties/Elements sidebar,
      the selection toolbar, a menu, or a dialog drops the selection, so the
@@ -6230,6 +6250,7 @@ document.addEventListener('contextmenu', function(e) {
                 var amO = getActiveMap(), tokO = amO && (amO.whiteboard || []).find(function(x) { return x.id === ownEl.dataset.id; });
                 if (tokO && tokO.waiting && tokO.ownerId === window.wpNet.myId) { e.preventDefault(); if (window.wpJoinCard) window.wpJoinCard.show(); }   // Onboarding F1a: their waiting token: where they stand
                 else if (tokO && tokO.isChar && tokO.ownerId === window.wpNet.myId && !(window.wpNet.paused || window.wpNet.selfPaused) && (stanceOn('elevation') || stanceOn('posture') || (tokO.charId && window.wpSheets && window.wpSheets.canOpen(tokO.charId)) || ownLightHtml(tokO) || ownPicOk(tokO) || tokenSensesLine(tokO) || (window.wpSheets && window.wpSheets.tokenFxModel && window.wpSheets.tokenFxModel(tokO)))) { e.preventDefault(); showStanceMenu(e, tokO); }
+                else if (tokO && canTarget(tokO)) { e.preventDefault(); showTargetMenu(e, tokO, amO.id); }   // the owner's ruling of 2026-10-01: another's token is targeted from here, never by a plain click
             } else { e.preventDefault(); showSessionMenu(e, 'client'); }
         }
         return;

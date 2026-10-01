@@ -733,6 +733,41 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && j(lgP.props) === j({ '--card-primary': '#abcdef', '--card-t-primary': '#abcdef', '--card-bad': '#123456', '--card-t-bad': '#123456' }) && lgP.dataset.cardTone === 'light' && rS.posts.length === 0,
             j([lgM.props, post1 && post1.look, post2 && post2.look, lgP.props, rS.posts.length]));
     }
+    /* ---- targeting (the owner's ruling of 2026-10-01): a player targets by the token's right-click menu or T — the menu, sliced by its targetmenu markers and run on a recording menu ---- */
+    {
+        const j = JSON.stringify, wbTm = read('whiteboard.js');
+        const mkTm = opt => {
+            const o = opt || {}, calls = { placed: 0, set: [], rows: [] };
+            const row = { listeners: {}, addEventListener(k, h) { this.listeners[k] = h; } };
+            const cMenu = { onclick: () => {}, innerHTML: '', style: { display: 'none' }, querySelector: sel => (sel === '.cm-target' && /cm-target/.test(cMenu.innerHTML) ? row : null) };
+            const net = o.noNet ? null : Object.assign({ active: true, role: 'client', myId: 'u_a', targets: o.targets || {}, setTarget: (id, mapId, name) => calls.set.push([id, mapId, name]) }, o.net || {});
+            const win = { wpNet: net }; if (o.stream) win.wpStream = {};
+            const api = new Function('esc', 'window', 'document', 'placeMenu', "'use strict';\n" + slice('whiteboard.js', 'targetmenu') + '\nreturn { canTarget: canTarget, targetedByMe: targetedByMe, toggleTarget: toggleTarget, showTargetMenu: showTargetMenu };')(SC.esc, win, { getElementById: id => (id === 'contextMenu' && !o.noMenu ? cMenu : null) }, () => { calls.placed++; });
+            return { api, calls, cMenu, row, click: () => { row.listeners.click({ stopPropagation() {} }); } };
+        };
+        const tokT = extra => Object.assign({ id: 't1', isChar: true, ownerId: 'u_b', charName: T, name: P }, extra || {});
+        const M1 = mkTm(), shown = M1.api.showTargetMenu({ clientX: 10, clientY: 10 }, tokT(), 'm1'), html1 = M1.cMenu.innerHTML;
+        check('target menu: a hostile token name lands escaped as the menu\'s heading and nothing in the menu can run or call out; the one row reads Target with a fixed title; the menu is shown and placed; its click sends setTarget with the token\'s id, the map and the name, and closes the menu',
+            shown === true && risks(html1).length === 0 && html1.indexOf(T) < 0 && html1.indexOf('<img') < 0 && html1.indexOf(SC.esc(T)) >= 0 && /<div class="menu-item cm-target" title="Mark it as your target[^"]*">&#9678; Target<\/div>$/.test(html1) && M1.cMenu.style.display === 'flex' && M1.calls.placed === 1
+            && (M1.click(), j(M1.calls.set) === j([['t1', 'm1', T]]) && M1.cMenu.style.display === 'none'), [html1, M1.calls]);
+        const M2 = mkTm({ targets: { u_a: { id: 't1', mapId: 'm1' } } }); M2.api.showTargetMenu({ clientX: 0, clientY: 0 }, tokT(), 'm1'); const html2 = M2.cMenu.innerHTML; M2.click();
+        const M3 = mkTm(); const noName = (M3.api.showTargetMenu({ clientX: 0, clientY: 0 }, tokT({ charName: '', name: '' }), 'm1'), M3.cMenu.innerHTML);
+        check('target menu: a token that is their target already reads Clear target (its click sends the same setTarget, which toggles); a token with no name reads Token; targetedByMe reads the player\'s own pointer by the token\'s id only',
+            /&#9711; Clear target<\/div>$/.test(html2) && j(M2.calls.set) === j([['t1', 'm1', T]]) && M2.api.targetedByMe(tokT()) === true && M2.api.targetedByMe(tokT({ id: 't2' })) === false && M1.api.targetedByMe(tokT()) === false && />Token<\/div>/.test(noName), [html2, noName]);
+        const can = (extra, opt) => mkTm(opt).api.canTarget(extra === null ? null : tokT(extra));
+        check('target menu: canTarget only for a shown character token that is not their own nor a waiting one, at a table as a player, never in the stream window, as a host or with no session',
+            can({}) === true && can(null) === false && can({ isChar: false }) === false && can({ hidden: true }) === false && can({ hidden: 1 }) === false && can({ waiting: true }) === false && can({ ownerId: 'u_a' }) === false && can({ ownerId: undefined }) === true
+            && can({}, { net: { role: 'host' } }) === false && can({}, { net: { active: false } }) === false && can({}, { stream: true }) === false && can({}, { noNet: true }) === false);
+        const M4 = mkTm({ net: { role: 'host' } }), h4 = M4.api.showTargetMenu({ clientX: 0, clientY: 0 }, tokT(), 'm1'), M5 = mkTm({ noMenu: true }), h5 = M5.api.showTargetMenu({ clientX: 0, clientY: 0 }, tokT(), 'm1');
+        const M6 = mkTm(), t6 = [M6.api.toggleTarget(tokT({ hidden: true }), 'm1'), M6.api.toggleTarget(tokT(), 7), M6.api.toggleTarget(tokT(), 'm1')];
+        check('target menu: no menu and no send where the token cannot be targeted or there is no menu element; toggleTarget sends nothing for such a token or a map id that is no text, and sends for a good one',
+            h4 === false && M4.calls.placed === 0 && M4.cMenu.innerHTML === '' && h5 === false && j(t6) === j([false, false, true]) && j(M6.calls.set) === j([['t1', 'm1', T]]));
+        const wtA = wbTm.indexOf('  (function wireTargeting() {'), wtB = wbTm.indexOf('  // [sinkcheck:targetmenu-start]'), wtSrc = wtA >= 0 && wtB > wtA ? wbTm.slice(wtA, wtB) : '';
+        check('targeting (source): a plain click targets nothing — wireTargeting sends no target and keeps only the door click; T while pointing at a token toggles the target (never while typing or with a modifier); a player\'s right-click on another\'s token opens the target menu (their own token keeps its stance menu, a waiting token its card); the party list\'s Target row stays',
+            wtSrc.length > 0 && !/setTarget/.test(wtSrc) && /doorReq\(d\.mapId, d\.doorId\)/.test(wtSrc) && /if \(e\.key !== 't' && e\.key !== 'T'\) return;/.test(wtSrc) && /if \(e\.ctrlKey \|\| e\.metaKey \|\| e\.altKey \|\| !e\.target \|\| \(e\.target\.tagName && \/\^\(INPUT\|TEXTAREA\|SELECT\)\$\/\.test\(e\.target\.tagName\)\) \|\| e\.target\.isContentEditable\) return;/.test(wtSrc)
+            && /var hov = document\.querySelector\('#whiteboard \.wb-item:hover'\), am = getActiveMap\(\);/.test(wtSrc) && /if \(tok && canTarget\(tok\)\) \{ e\.preventDefault\(\); toggleTarget\(tok, am\.id\); \}/.test(wtSrc)
+            && /showStanceMenu\(e, tokO\); \}\n\s*else if \(tokO && canTarget\(tokO\)\) \{ e\.preventDefault\(\); showTargetMenu\(e, tokO, amO\.id\); \}/.test(wbTm) && (wbTm.match(/showTargetMenu\(/g) || []).length === 2 && /items\.push\(\{ act: 'target', label: '\\u25CE Target ' \+ name \}\);/.test(wbTm));
+    }
     /* ---- Lighting L4: the system's light rules on the GM's screen — a preset's name and a level's name come from a system file, a light's own name from a save or the wire ---- */
     {
         const j = JSON.stringify, FCl = await import(modUrl('fogcore.js')), SYl = await import(modUrl('systemcore.js'));

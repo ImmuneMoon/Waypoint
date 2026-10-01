@@ -388,6 +388,7 @@ function syncVttPanel() {
     });
     var trM = ui('setTimeRulesMode'); if (trM) { var tv0 = camp && camp.turnRules && typeof camp.turnRules === 'object' ? camp.turnRules.time : ''; trM.value = tv0 === 'auto' || tv0 === 'off' ? tv0 : 'confirm'; trM.disabled = !editable; }   // item 20 K5b
     var flM = ui('setFillMode'); if (flM) { flM.value = camp && camp.turnRules && camp.turnRules.fill === 'gm' ? 'gm' : 'owner'; flM.disabled = !editable; }
+    var taM = ui('setTargetAskMode'); if (taM) { taM.value = camp && camp.turnRules && typeof camp.turnRules === 'object' && camp.turnRules.targetAsk === 'off' ? 'off' : 'ask'; taM.disabled = !editable; }   // the owner's ruling of 2026-10-01
     var tmS = ui('setTimersMode'); if (tmS) { tmS.value = camp && camp.turnRules && camp.turnRules.timers === 'gm' ? 'gm' : 'owner'; tmS.disabled = !editable; }   // T5b
     [['setMoveMode', 'move'], ['setOrderMode', 'order'], ['setActsMode', 'acts']].forEach(function(p) { var s = ui(p[0]); if (!s) return; var tv = camp && camp.turnRules && typeof camp.turnRules === 'object' ? camp.turnRules[p[1]] : ''; s.value = tv === 'warn' || tv === 'off' ? tv : 'refuse'; s.disabled = !editable; });   // T3b
     var wm = ui('setWallsMode'); if (wm) { var tr = camp && camp.turnRules && typeof camp.turnRules === 'object' ? camp.turnRules.walls : ''; wm.value = tr === 'warn' || tr === 'off' ? tr : 'refuse'; wm.disabled = !editable; }   // turn-based combat T3a (D11): the walls' mode
@@ -456,6 +457,13 @@ if (_fillSel) _fillSel.addEventListener('change', function() {
     var tr = Object.assign({}, camp.turnRules && typeof camp.turnRules === 'object' ? camp.turnRules : {}); if (_fillSel.value === 'gm') tr.fill = 'gm'; else delete tr.fill; camp.turnRules = tr;
     if (window.wpSave) window.wpSave(true);
     toast(_fillSel.value === 'gm' ? 'Only you fill pools back to full.' : 'Players may fill their own pools back to full.');
+});
+var _targetAskSel = ui('setTargetAskMode');   // the owner's ruling of 2026-10-01: ask (absent) | off — whether a player targeting one of the GM's characters offers to start combat there
+if (_targetAskSel) _targetAskSel.addEventListener('change', function() {
+    var v = window.wpVtt, camp = state.appState.campaigns[state.appState.activeCampaignId]; if (!camp || (v && v.locked())) { syncPanel(); return; }
+    var tr = Object.assign({}, camp.turnRules && typeof camp.turnRules === 'object' ? camp.turnRules : {}); if (_targetAskSel.value === 'off') tr.targetAsk = 'off'; else delete tr.targetAsk; camp.turnRules = tr;
+    if (window.wpSave) window.wpSave(true);
+    toast(_targetAskSel.value === 'off' ? 'A player targeting one of your characters starts nothing.' : 'A player targeting one of your characters asks you to start combat there.');
 });
 var _wallsSel = ui('setWallsMode');   // turn-based combat T3a (D11): refuse | warn | off, the campaign's (read by the host at each move)
 if (_wallsSel) _wallsSel.addEventListener('change', function() {

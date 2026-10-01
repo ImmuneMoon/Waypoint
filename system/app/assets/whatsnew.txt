@@ -1291,6 +1291,15 @@ Undo
   bringing a token over from another map clear both maps' undo at that point.
 
 Multiplayer
+- Targeting is now a deliberate act. A plain click on a token used to mark it
+  as your target, so a player who clicked to look at a token targeted it (and
+  the GM was asked to start combat) without meaning to. Players now target by
+  right-clicking the token and picking Target (Clear target takes it away), or
+  by pressing T while pointing at it; Esc and the party list's Target row work
+  as before. The GM's "Start combat there?" question, asked once per character
+  when a player targets one of the GM's characters, is answered by its buttons
+  alone — Enter no longer says Yes to it — and a new setting under Turn-based
+  combat, "A player targets one of my characters", can set it to do nothing.
 - A GM-only custom row no longer counts on your sheet alone. A GM-only row
   on a list players can see (one you made custom, or the copy a deleted
   GM-only item left) whose key one of their formulas reads used to count on

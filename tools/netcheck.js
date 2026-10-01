@@ -7285,6 +7285,171 @@ pendingChecks.push((async () => {
         hOk.world.pcs.length === 1 && hStream.world.pcs.length === 0 && hStream.api.inn().offered === false && hMid.world.pcs.length === 0 && hMid.api.inn().offered === true && hEarly.world.pcs.length === 0 && j(earlyThen) === j([true, true, true, false]) && hOther.world.pcs.length === 0 && hOther.api.inn().offered === false && hEarlyStop.world.stopped === 0 && hEarlyStop.api.inn().offered === false
         && sayNo.every(x => x[0] === false && x[1] === 0) && mkCli().api.videoAsk() === true && /net\.videoWake\(\);[^\n]*\n    \} else if \(msg\.type === 'item'\)/.test(src), j([hOk.world.pcs.length, earlyThen, sayNo]));
 })());
+// R2 security pass, cluster F (2026-10-01): journals, handouts and shares. The host's relayShare (sliced by its share markers, run with the real
+// RateLimit and the host's own allow() on an injected clock), the player's 'handout' and 'notepad' branches and applyNotepad (the handoutmsg,
+// notepadmsg and notepad slices), and the Journal's own receiving side in handouts.js (sliced by its journal markers and run on a stubbed shell:
+// a fetch that keeps every upload-exact body and serves it back, a localStorage with a quota, a counting clock)
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Dx = await import(url('dicecore.js'));
+    const j = v => JSON.stringify(v);
+    const bw = n => between('// [netcheck:' + n + '-start]', '// [netcheck:' + n + '-end]', n);
+    const hoT = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'handouts.js'), 'utf8').replace(/\r\n/g, '\n');
+    const hoBetween = (a, b) => { const i = hoT.indexOf(a), k = hoT.indexOf(b); if (i < 0 || k < 0 || k <= i || hoT.indexOf(a, i + 1) >= 0 || hoT.indexOf(b, k + 1) >= 0) throw new Error('netcheck: handouts.js journal markers not found once'); return hoT.slice(i + a.length, k); };
+    const journalSrc = hoBetween('// [netcheck:journal-start]', '// [netcheck:journal-end]');
+    const shareSrc = bw('share');
+
+    /* ---- the host: relayShare on a table of stub connections, the real limiter on this world's clock ---- */
+    const mkHost = () => {
+        const w = { now: 1e6, sent: [], gmGot: [], toasts: [], logs: [], roster: Object.create(null), conns: [] };
+        const L = new Function('window', 'Date', lineOf('var _lim = Object.create(null);') + '\n' + lineOf('function allow(') + '\nreturn { allow: allow, lim: _lim };')({ wpDiceCore: Dx }, { now: () => w.now });
+        const env = { net: { myId: 'u_gm', roster: w.roster, conns: w.conns }, allow: L.allow, _shareBytes: Object.create(null), _shareCount: Object.create(null), getActiveCampaign: () => ({ id: 'camp1', name: 'The Camp' }), getProfile: () => ({ id: 'u_gm', name: 'Gina' }),
+            toast: m => w.toasts.push(m), logEvent: (k, m) => w.logs.push(m), sendFailed: () => {}, window: { wpJournalReceive: m => w.gmGot.push(m) } };
+        const names = Object.keys(env);
+        w.relay = new Function(...names, "'use strict';\n" + shareSrc + '\nreturn relayShare;')(...names.map(n => env[n]));
+        w.env = env;
+        w.join = (peer, id, name) => { const c = { peer, open: true, send: m => { packCheck(m); w.sent.push([peer, m]); } }; w.conns.push(c); w.roster[peer] = { id, name }; return c; };
+        // the close handler as it stood at 7226cb4: the connection and its roster row go, the limiters forget the peer id, and so did the share budget
+        w.leave = c => { w.conns.splice(w.conns.indexOf(c), 1); delete w.roster[c.peer]; Object.keys(L.lim).forEach(k => L.lim[k].forget(c.peer)); delete env._shareBytes[c.peer]; };
+        w.share = (c, msg, step) => { w.now += step === undefined ? 60000 : step; return w.relay(Object.assign({ type: 'share' }, msg), c); };
+        w.to = peer => w.sent.filter(s => s[0] === peer).length;
+        return w;
+    };
+    const textShare = (i, more) => Object.assign({ to: '*', entry: { kind: 'text', id: 'n' + i, text: 'x', title: 't' + i } }, more || {});
+
+    // #2 (b): the budget belongs to the player, not the connection — a reconnect (a new peer id, the same profile) carries it on, and the
+    // session allows a player 100 shares
+    const W1 = mkHost(); const a1 = W1.join('pA', 'u_p1', 'Pat'); W1.join('pV', 'u_v', 'Vic');
+    for (let i = 0; i < 60; i++) W1.share(a1, textShare(i));
+    W1.leave(a1); const b1 = W1.join('pB', 'u_p1', 'Pat');
+    for (let i = 60; i < 110; i++) W1.share(b1, textShare(i));
+    const carried = [W1.to('pV'), W1.to('pB'), W1.to('pA')];
+    const W2 = mkHost(); const a2 = W2.join('pA', 'u_p1', 'Pat'); W2.join('pV', 'u_v', 'Vic');
+    for (let i = 0; i < 7; i++) W2.share(a2, textShare(i), 1000);   // six in a minute pass, the seventh is slowed
+    W2.leave(a2); const b2 = W2.join('pB', 'u_p1', 'Pat'); W2.share(b2, textShare(7), 1000);   // back on a new connection within the same minute: still slowed
+    const burst = W2.to('pV');
+    const W3 = mkHost(); const a3 = W3.join('pA', 'u_p1', 'Pat'); W3.join('pV', 'u_v', 'Vic'); W3.join('pX', 'u_x', 'Xan');
+    for (let i = 0; i < 3; i++) W3.share(a3, textShare(i, { to: 'u_x' }));
+    const toOne = [W3.to('pX'), W3.to('pV'), W3.gmGot.length, W3.env._shareCount.u_p1, W3.env._shareBytes.u_p1];
+    check('cluster F #2 (host): a player\'s share budget is the player\'s for the session, not the connection\'s — a reconnect under a new peer id carries the count and the burst on, 100 shares a session reach the table and the 101st reaches no one; a share to one player counts once',
+        j(carried) === j([100, 0, 0]) && burst === 6 && j(toOne) === j([3, 0, 0, 3, 3]) && W1.env._shareCount.u_p1 === 100 && W1.env._shareBytes.pA === undefined && W1.env._shareBytes.pB === undefined, j([carried, burst, toOne, W1.env._shareCount]));
+    // #26 (c): what a share carries beside its text or picture — the notes and the caption — counts toward the 60 MB a player may send a session
+    const big = new ArrayBuffer(6 * 1024 * 1024), imgShare = (i, notes) => ({ to: '*', entry: { kind: 'image', id: 'p' + i, mime: 'image/png', data: big, title: 'pic', notes: notes || '', caption: '' } });
+    const W4 = mkHost(); const a4 = W4.join('pA', 'u_p1', 'Pat'); W4.join('pV', 'u_v', 'Vic');
+    for (let i = 0; i < 11; i++) W4.share(a4, imgShare(i));
+    const W5 = mkHost(); const a5 = W5.join('pA', 'u_p1', 'Pat'); W5.join('pV', 'u_v', 'Vic');
+    const notes = 'n'.repeat(20000); for (let i = 0; i < 11; i++) W5.share(a5, imgShare(i, notes));
+    const W6 = mkHost(); const a6 = W6.join('pA', 'u_p1', 'Pat'); W6.join('pV', 'u_v', 'Vic');
+    W6.share(a6, { to: '*', entry: { kind: 'text', id: 'c', text: '', notes: 'n'.repeat(20000), caption: 'c'.repeat(4000), title: 't' } });
+    check('cluster F #26 (host): a player\'s 60 MB a session counts the notes and the caption of a share with its picture or text — ten 6 MB pictures pass and the eleventh is dropped, with 20,000 characters of notes on each only nine pass; a share with no text spends its notes and caption',
+        W4.to('pV') === 10 && W5.to('pV') === 9 && W6.env._shareBytes.u_p1 === 24000, j([W4.to('pV'), W5.to('pV'), W6.env._shareBytes.u_p1]));
+    // #30 (host): the id a share lands under names its sender without ambiguity — the sender part encodes every character outside [A-Za-z0-9],
+    // a long id is hashed behind a marker no encoded id can hold, the entry part keeps no '_', and '__' stands between them once
+    const W7 = mkHost(); const cBob = W7.join('pB', 'u_abc12345', 'Bob'), cMal = W7.join('pM', 'u_.abc12345', 'Mal'), cMel = W7.join('pL', 'u', 'Mel'), cLong = W7.join('pG', 'u_' + 'x'.repeat(70), 'Gus'), cCol = W7.join('pC', 'u:abc12345', 'Col');
+    W7.share(cBob, { to: 'gm', entry: { kind: 'text', id: 'e1', text: 'Bob text', title: 'Bob' } }); W7.share(cMal, { to: 'gm', entry: { kind: 'text', id: 'e1', text: 'Mal text', title: 'Mal' } });
+    W7.share(cMel, { to: 'gm', entry: { kind: 'text', id: 'abc12345_e1', text: 'Mel text', title: 'Mel' } }); W7.share(cLong, { to: 'gm', entry: { kind: 'text', id: 'e1', text: 'Gus text', title: 'Gus' } }); W7.share(cCol, { to: 'gm', entry: { kind: 'text', id: 'e1', text: 'Col text', title: 'Col' } });
+    W7.share(cBob, { to: 'gm', entry: { kind: 'text', id: 'sh_u_abc12345_e1', text: 'again', title: 'Bob' } });   // a share of a share: its id holds the old separator and survives distinct
+    const ids = W7.gmGot.map(m => m.id), senders = ids.map(id => id.slice(3, id.lastIndexOf('__')));
+    check('cluster F #30 (host): the ids of shares from \'u_abc12345\', \'u_.abc12345\', \'u\' (sharing \'abc12345_e1\'), \'u:abc12345\' and an 80-character id are five different ids, each at most 60 characters of [A-Za-z0-9_-], the sender and the entry parted by one \'__\'; a long id\'s part begins with \'--\' and no encoded part holds it; the sender\'s exact id travels as sharedById',
+        new Set(ids).size === ids.length && ids.length === 6 && ids.every(id => id.length <= 60 && /^sh_[A-Za-z0-9-]+__[A-Za-z0-9-]*$/.test(id) && id.split('__').length === 2) && ids[0] === 'sh_u-5fabc12345__e1' && ids[1] === 'sh_u-5f-2eabc12345__e1' && ids[2] === 'sh_u__abc12345e1'
+        && senders[3].indexOf('--') === 0 && senders.slice(0, 3).concat(senders.slice(4)).every(s => s.indexOf('--') < 0) && W7.gmGot[1].sharedById === 'u_.abc12345' && W7.gmGot[4].sharedById === 'u:abc12345', j([ids, W7.gmGot.map(m => m.sharedById)]));
+    check('cluster F #2 (source): the close handler no longer forgets a peer\'s share budget; a new table forgets every player\'s; the limiter and the budget are keyed by the sender\'s profile id',
+        !/delete _shareBytes\[conn\.peer\]/.test(src) && /_shareBytes = Object\.create\(null\); _shareCount = Object\.create\(null\);/.test(src) && /allow\('share', \{ perMs: 1000, burst: 6, windowMs: 60000, table: 300 \}, kS\)/.test(shareSrc) && /var kS = String\(sp\.id\);/.test(shareSrc));
+
+    /* ---- the player: the 'handout' and 'notepad' branches and applyNotepad ---- */
+    const hmSrc = bw('handoutmsg'), nmSrc = bw('notepadmsg'), npSrc = bw('notepad');
+    const hear = (netO, msg, peer) => { const got = []; new Function('net', 'conn', 'msg', 'state', 'window', "'use strict';\n" + hmSrc)(Object.assign({ foreign: true, syncedPeer: 'room-a', stream: false, gmId: 'gmA' }, netO), { peer: peer || 'room-a' }, msg, { appState: { activeCampaignId: 'c1' } }, { wpJournalReceive: m => got.push(m) }); return got; };
+    const hMsg = { type: 'handout', campId: 'c1', gmId: 'gmA', id: 'h1', kind: 'text', text: 'x' };
+    const hGot = [hear({ foreign: false, syncedPeer: null, gmId: '' }, hMsg), hear({}, hMsg, 'room-b'), hear({ stream: true }, hMsg), hear({ gmId: '' }, hMsg), hear({}, Object.assign({}, hMsg, { gmId: 'gmB' })), hear({}, Object.assign({}, hMsg, { campId: 'c2' })), hear({}, Object.assign({}, hMsg, { campId: 7 })), hear({}, hMsg)];
+    check('cluster F #10 / #29 (player): a handout is taken from the synced host only, after its snapshot, never in the stream window, and only for the table played — the campaign on screen and the GM the snapshot named; one before the snapshot, from another peer, with no GM known, or naming another GM or campaign writes nothing into the Journal',
+        j(hGot.slice(0, 7).map(g => g.length)) === j([0, 0, 0, 0, 0, 0, 0]) && hGot[7].length === 1 && hGot[7][0].gmId === 'gmA' && hGot[7][0].campId === 'c1', j(hGot.map(g => g.length)));
+    const hearNote = (netO, peer) => { const got = []; new Function('net', 'conn', 'msg', 'applyNotepad', "'use strict';\n" + nmSrc)(Object.assign({ foreign: true, syncedPeer: 'room-a', stream: false }, netO), { peer: peer || 'room-a' }, { type: 'notepad', on: true, text: 'hi' }, m => got.push(m)); return got.length; };
+    const noteGot = [hearNote({ foreign: false, syncedPeer: null }), hearNote({}, 'room-b'), hearNote({ stream: true }), hearNote({})];
+    const npNet = { notepad: { on: false, text: '' }, gmId: 'gmA' }, npToasts = [];
+    new Function('net', 'state', 'toast', 'renderNotepad', 'm', "'use strict';\n" + npSrc + '\napplyNotepad(m);')(npNet, { appState: { activeCampaignId: 'c1' } }, t => npToasts.push(t), () => {}, { on: true, text: 'the notes', campId: 'otherCamp', gmId: 'otherGM', campaign: 'Renamed', gm: 'Mallory' });
+    check('cluster F #29 (player): the table notepad is heard from the synced host only, after the snapshot and never in the stream window, and what it keeps for "save to Journal" is the table played — the campaign on screen and the GM the snapshot named, whatever the message says — so the saved page is filed under the real table; the player\'s Journal keys the page by it',
+        j(noteGot) === j([0, 0, 0, 1]) && npNet.notepad.on === true && npNet.notepad.text === 'the notes' && npNet.notepad.campId === 'c1' && npNet.notepad.gmId === 'gmA' && npNet.notepad.campaign === 'Renamed' && npNet.notepad.gm === 'Mallory' && npToasts.length === 1
+        && /var meta = net\.role === 'host' \? notepadMsg\(\) : net\.notepad;/.test(src) && /else key = journalKey\(meta \|\| \{\}\) \|\| 'personal';/.test(hoT) && /\} else if \(msg\.type === 'handout' && net\.role === 'client'\) \{\n\s*\/\/ \[netcheck:handoutmsg-start\]/.test(src) && (src.match(/msg\.type === 'handout'/g) || []).length === 1, j([noteGot, npNet.notepad]));
+
+    /* ---- the Journal's receiving side, run for real on a stubbed shell ---- */
+    const mkJournal = (o) => {
+        o = o || {};
+        const files = new Map(), ls = new Map(), quota = o.quota || Infinity;
+        const used = () => { let n = 0; ls.forEach((v, k) => { n += k.length + v.length; }); return n; };
+        const localStorage = { getItem: k => ls.has(k) ? ls.get(k) : null, setItem: (k, v) => { v = String(v); if (used() - (ls.has(k) ? k.length + ls.get(k).length : 0) + k.length + v.length > quota) { const e = new Error('quota'); e.name = 'QuotaExceededError'; throw e; } ls.set(k, v); }, removeItem: k => { ls.delete(k); }, get length() { return ls.size; }, key: i => Array.from(ls.keys())[i] };
+        const fetch = async (u, init) => {
+            u = String(u);
+            if (u.indexOf('/api/upload-exact?path=') === 0) { if (o.uploadFails) return { ok: false, status: 500 }; files.set(decodeURIComponent(u.slice('/api/upload-exact?path='.length)), init.body); return { ok: true }; }
+            if (u.indexOf('/saves/images/journal/') === 0) { const p = 'images/journal/' + u.slice('/saves/images/journal/'.length); if (!files.has(p)) return { ok: false, status: 404 }; const b = files.get(p); return { ok: true, json: async () => JSON.parse(String(b)) }; }
+            return { ok: false, status: 404 };
+        };
+        const w = { files, ls, localStorage, used, toasts: [], now: 1700000000000, o };
+        const env = { fetch, localStorage, document: { getElementById: () => null }, toast: m => w.toasts.push(m), esc: s => String(s), showHandout: () => {}, handoutPopup: () => false, window: {}, FileReader: function() {}, Blob: function() {}, Date: { now: () => (w.now += 7) } };
+        const names = Object.keys(env);
+        w.api = new Function(...names, "'use strict';\n" + journalSrc + '\nreturn { receive: receiveHandout, readIndex: readIndex, stampHead: stampHead, registerJournal: registerJournal, budget: handoutBudget };')(...names.map(n => env[n]));
+        w.idx = key => w.api.readIndex(key);
+        return w;
+    };
+    const gmMsg = (id, text, more) => Object.assign({ type: 'handout', campId: 'camp1', gmId: 'u_gm', campaign: 'The Camp', gm: 'Gina', id, kind: 'text', title: 'T ' + id, caption: '', text, tags: [] }, more || {});
+    const shMsg = (id, text, who, whoId, more) => gmMsg(id, text, Object.assign({ sharedBy: who, sharedById: whoId, sharedNotes: '' }, more || {}));
+
+    // #2 (a): a player's shares never spend what the GM's handouts live on
+    const JB = mkJournal();
+    for (let i = 0; i < 1001; i++) await JB.api.receive(shMsg('sh_mal__n' + i, 'junk', 'Mallory', 'u_mal'));
+    await JB.api.receive(gmMsg('h1', 'the real clue'));
+    const ixB = await JB.idx('camp1__u_gm'), shB = ixB.entries.filter(e => e.sharedBy).length, gmB = ixB.entries.filter(e => !e.sharedBy).map(e => e.id);
+    check('cluster F #2 (journal): the pages other players share have a budget of their own — 200 a run — so a thousand of them leave the GM\'s own handouts untouched: the GM\'s page still lands, the toast names the players\' shares and never blames the GM',
+        shB === 200 && j(gmB) === j(['h1']) && JB.toasts.some(t => /Players are sharing more than this session can hold/.test(t)) && !JB.toasts.some(t => /The GM is sending more handouts/.test(t)), j([shB, gmB, JB.toasts.filter(t => /hold/.test(t)).slice(0, 2)]));
+    const JG = mkJournal(); let gmOk = 0; for (let i = 0; i < 1001; i++) if (JG.api.budget({ kind: 'text', text: 'x' })) gmOk++;
+    const shAfter = JG.api.budget({ kind: 'text', text: 'x', sharedBy: 'Mal' });
+    check('cluster F #2 (journal): the GM\'s own budget stands as it was — 1000 handouts a run — and a share is still taken once it is spent', gmOk === 1000 && shAfter === true && JG.toasts.filter(t => /The GM is sending/.test(t)).length === 1, j([gmOk, shAfter]));
+
+    // #29: a journal keeps the GM and campaign names it was given; a message naming another GM does not relabel it
+    const JS = mkJournal(); await JS.api.receive(Object.assign(gmMsg('h1', 'Real clue'), { campId: 'campA', gmId: 'alice1', gm: 'Alice', campaign: 'Alice camp' }));
+    const ixS = await JS.idx('campA__alice1'); JS.api.stampHead(ixS, { gm: 'Mallory', gmId: 'gmB', campaign: 'Bob renamed' }); const relabel = [ixS.gm, ixS.gmId, ixS.campaign];
+    JS.api.stampHead(ixS, { gm: 'Alice R.', gmId: 'alice1', campaign: 'Alice camp II' }); const renamed = [ixS.gm, ixS.gmId, ixS.campaign];
+    const ixN = { gm: '', gmId: '', campaign: '', entries: [] }; JS.api.stampHead(ixN, { gm: 'Alice', gmId: 'alice1', campaign: 'Alice camp' });
+    check('cluster F #29 (journal): a journal\'s GM id is set once; its GM and campaign names follow only a message from that GM (an honest GM still renames their campaign), never one naming another GM; a new journal takes its names',
+        j(relabel) === j(['Alice', 'alice1', 'Alice camp']) && j(renamed) === j(['Alice R.', 'alice1', 'Alice camp II']) && j([ixN.gm, ixN.gmId, ixN.campaign]) === j(['Alice', 'alice1', 'Alice camp']), j([relabel, renamed]));
+
+    // #30 (journal): a share replaces an entry in place only when it comes from the same sender; another sender's share under the same id is a page of its own
+    const JC = mkJournal(), sid = 'sh_u_abc12345_e1';
+    await JC.api.receive(shMsg(sid, 'Bob text', 'Bob', 'u_abc12345')); await JC.api.receive(shMsg(sid, 'Mal text', 'Mal', 'u_.abc12345')); await JC.api.receive(shMsg(sid, 'Mel text', 'Mel', 'u'));
+    await JC.api.receive(shMsg(sid, 'Bob v2', 'Bob', 'u_abc12345'));
+    const ixC = await JC.idx('camp1__u_gm'), bob = ixC.entries.find(e => e.id === sid), others = ixC.entries.filter(e => e.id !== sid);
+    const png = new Uint8Array([137, 80, 78, 71, 1, 2, 3]), png2 = new Uint8Array([137, 80, 78, 71, 9, 9, 9]), pid = 'sh_u_abc12345_p1';
+    await JC.api.receive(shMsg(pid, undefined, 'Bob', 'u_abc12345', { kind: undefined, mime: 'image/png', data: png })); await JC.api.receive(shMsg(pid, undefined, 'Mal', 'u_.abc12345', { kind: undefined, mime: 'image/png', data: png2 }));
+    const ixP = await JC.idx('camp1__u_gm'), bobPic = ixP.entries.find(e => e.id === pid), malPic = ixP.entries.find(e => e.sharedBy === 'Mal' && e.mime);
+    const bobFile = JC.files.get('images/journal/camp1__u_gm/' + pid + '.png');
+    check('cluster F #30 (journal): Bob\'s shared page keeps his text, his name and his exact id when another sender shares under the same entry id — their pages land as entries of their own with their exact sender ids (a \'.\' kept) — while Bob\'s own re-share still replaces his page in place; his picture file is never overwritten by another sender\'s',
+        ixC.entries.length === 3 && bob && bob.text === 'Bob v2' && bob.sharedBy === 'Bob' && bob.sharedById === 'u_abc12345' && others.length === 2 && j(others.map(e => [e.sharedBy, e.sharedById, e.text]).sort()) === j([['Mal', 'u_.abc12345', 'Mal text'], ['Mel', 'u', 'Mel text']]) && new Set(ixC.entries.map(e => e.id)).size === 3
+        && bobPic && bobPic.sharedBy === 'Bob' && bobFile && bobFile[4] === 1 && malPic && malPic.id !== pid && JC.files.get('images/journal/camp1__u_gm/' + malPic.id + '.png')[4] === 9, j([ixC.entries.map(e => [e.id, e.sharedBy, e.text]), bobPic && bobPic.hash, malPic && malPic.id]));
+
+    // #26: the Journal's index lives in its file; the browser's storage holds a copy only where there is no shell, and a small one
+    const JL = mkJournal({ quota: 1000000 }); JL.ls.set('journal_camp1__u_gm', 'j'.repeat(900000));
+    const full = (i) => shMsg('sh_mal__f' + i, 'a'.repeat(60000), 'Mallory', 'u_mal', { caption: 'c'.repeat(4000), sharedNotes: 'n'.repeat(20000) });
+    for (let i = 0; i < 11; i++) await JL.api.receive(full(i));
+    await JL.api.receive(shMsg('sh_mal__last', 'a'.repeat(60000), 'Mallory', 'u_mal'));
+    let profileOk = true; try { JL.localStorage.setItem('wp_profile', 'p'.repeat(150000)); } catch (e) { profileOk = false; }
+    const ixL = await JL.idx('camp1__u_gm');
+    check('cluster F #26 (journal): with the shell writing the file, no copy of the index stays in the browser\'s storage — a stale copy already there goes with the first write — so twelve large shares leave a 150,000-character profile write room; the file holds every entry',
+        !JL.ls.has('journal_camp1__u_gm') && profileOk && ixL.entries.length === 12 && JL.files.has('images/journal/camp1__u_gm/journal.json'), j([JL.ls.has('journal_camp1__u_gm'), profileOk, ixL.entries.length, JL.used()]));
+    const JF = mkJournal({ uploadFails: true }); for (let i = 0; i < 4; i++) await JF.api.receive(full(i));
+    const mirror = JF.ls.get('journal_camp1__u_gm'), mirrorN = mirror ? JSON.parse(mirror).entries.length : -1, ixF = await JF.idx('camp1__u_gm');
+    const JF2 = mkJournal({ uploadFails: true }); await JF2.api.receive(gmMsg('h1', 'small')); const m2 = JF2.ls.get('journal_camp1__u_gm');
+    check('cluster F #26 (journal): with no shell the browser\'s storage is the fallback — an index up to 256 KB is kept there and read back; past it nothing more is written, the copy that fit stays',
+        m2 && JSON.parse(m2).entries.length === 1 && mirrorN === 3 && ixF.entries.length === 3, j([mirrorN, ixF.entries.length, !!m2]));
+    const JR = mkJournal(); for (let i = 0; i < 230; i++) await JR.api.registerJournal('camp' + i + '__gm');
+    const reg = JSON.parse(JR.ls.get('journal_registry') || '[]'), regFile = JSON.parse(String(JR.files.get('images/journal/journals.json') || '{"keys":[]}')).keys;
+    check('cluster F #26 (journal): the registry of journals kept in the browser\'s storage holds the 200 newest keys; the file holds them all', reg.length === 200 && reg[reg.length - 1] === 'camp229__gm' && reg.indexOf('camp0__gm') < 0 && regFile.length === 230, j([reg.length, reg.slice(-2), regFile.length]));
+    // #26 (b): the table keys a player holds, one per GM id, are the 50 newest
+    for (let i = 0; i < 500; i++) H.rememberTableKey('u_g' + i, 'k' + i);
+    const nKeys = Object.keys(H.tableKeys()).length, newest = H.tableKeyFor('u_g499'), oldest = H.tableKeyFor('u_g0');
+    H.rememberTableKey('u_g450', 'k450b'); H.rememberTableKey('u_new1', 'kn');   // a key remembered again is the newest: the one after it goes first
+    const moved = [H.tableKeyFor('u_g450'), H.tableKeyFor('u_g451'), H.tableKeyFor('u_new1'), Object.keys(H.tableKeys()).length];
+    check('cluster F #26 (client): the table keys remembered per GM id are capped at the 50 newest — a snapshot that keeps naming new GM ids cannot grow the browser\'s storage without end — the newest kept, the oldest gone, and a key remembered again moved to the newest place',
+        nKeys === 50 && newest === 'k499' && oldest === '' && j(moved) === j(['k450b', '', 'kn', 50]), j([nKeys, newest, oldest, moved]));
+})());
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');

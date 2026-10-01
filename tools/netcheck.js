@@ -7285,6 +7285,75 @@ pendingChecks.push((async () => {
         hOk.world.pcs.length === 1 && hStream.world.pcs.length === 0 && hStream.api.inn().offered === false && hMid.world.pcs.length === 0 && hMid.api.inn().offered === true && hEarly.world.pcs.length === 0 && j(earlyThen) === j([true, true, true, false]) && hOther.world.pcs.length === 0 && hOther.api.inn().offered === false && hEarlyStop.world.stopped === 0 && hEarlyStop.api.inn().offered === false
         && sayNo.every(x => x[0] === false && x[1] === 0) && mkCli().api.videoAsk() === true && /net\.videoWake\(\);[^\n]*\n    \} else if \(msg\.type === 'item'\)/.test(src), j([hOk.world.pcs.length, earlyThen, sayNo]));
 })());
+// security R2, cluster C (2026-10-01): the asset gate serves a connection only a picture or sound the host sent it a reference to, never a Journal or
+// video file, and reads no file past the cap — the real gate, recorder and handler sliced and run against stub connections and a stub local server
+pendingChecks.push((async () => {
+    let api = null, aqErr = '';
+    const tick = ms => new Promise(r => setTimeout(r, ms || 40));
+    const mkWorld = (o) => {
+        o = o || {};
+        const w = { fetched: [], reads: 0, cancels: 0 };
+        const files = o.files || {};   // decoded path -> { len, body, stated, throws }: stated false = an older shell streaming a file without its Content-Length
+        const fetch = reqPath => {
+            w.fetched.push(reqPath); let dec; try { dec = decodeURIComponent(reqPath); } catch (e) { dec = reqPath; }
+            const f = files[dec]; if (!f) return Promise.resolve({ ok: false });
+            const body = f.body || new Uint8Array(f.len || 0);
+            return Promise.resolve({ ok: true, headers: { get: h => (h === 'content-length' && f.stated !== false) ? String(f.len !== undefined ? f.len : body.byteLength) : null }, body: { cancel: () => { w.cancels++; } },
+                arrayBuffer: () => { w.reads++; if (f.throws) throw new Error('read whole'); return Promise.resolve(body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength)); } });
+        };
+        const net = { active: true, role: 'host', conns: [], stream: false };
+        try {
+            const aqSrc = between('// [netcheck:assetreq-start]', '// [netcheck:assetreq-end]', 'assetreq');
+            w.api = new Function('net', 'location', 'sendFailed', 'allow', 'fetch', 'setTimeout', aqSrc + '\nreturn { assetPathOk, handleAssetRequest, assetNoteSends, assetRefsOf: function(p) { return assetRefs[p] || null; } };')(net, { origin: 'http://localhost:3999' }, e => { throw e; }, o.allow || (() => true), fetch, setTimeout);
+        } catch (e) { aqErr = String(e && e.message || e); w.api = null; }
+        w.conn = peer => { const c = { peer, open: true, sent: [], send: m => { packCheck(m); c.sent.push(JSON.parse(j(m, (k, v) => ArrayBuffer.isView(v) ? '<' + v.byteLength + ' bytes>' : v))); } }; if (w.api) w.api.assetNoteSends(c); return c; };
+        w.ask = async (c, p) => { if (!w.api) return ['no slice: ' + aqErr]; const n = c.sent.length; w.api.handleAssetRequest({ type: 'asset-req', path: p }, c); await tick(); return c.sent.slice(n).map(m => m.type === 'asset' ? (m.error ? 'refused:' + m.error : 'asset:' + m.mime + ':' + m.data) : m.type === 'asset-part' ? 'part:' + m.i + '/' + m.n : m.type); };
+        return w;
+    };
+    const PIC = '/saves/images/m1/ab12cd34_tower.png', PIC2 = '/saves/images/m1/zz99zz99_since_hidden.png', SND = '/saves/images/audio/c1/x1y2z3w4_rain.mp3';
+    const ODD = "/saves/images/m1/Ror'Chiir — token (v2).png", ODD_ENC = "/saves/images/m1/Ror'Chiir%20%E2%80%94%20token%20(v2).png", AMP = '/saves/images/m1/a&b (1).png', NUM = '/saves/images/m1/num.png';
+    const JOURNAL = '/saves/images/journal/journals.json', VIDEO = '/saves/images/video/c1/ab12cd34_clip.mp4', BIGPIC = '/saves/images/other/ab12cd34_big.png', BIGSND = '/saves/images/audio/c1/ab12cd34_big.mp3';
+    const NOLEN = '/saves/images/m1/ab12cd34_nolen.png', NOLENBIG = '/saves/images/m1/ab12cd34_nolenbig.png';
+    const files = {};
+    files[PIC] = { len: 5 }; files[PIC2] = { len: 5 }; files[SND] = { body: new Uint8Array(300 * 1024) }; files[ODD] = { len: 3 }; files[AMP] = { len: 3 }; files[NUM] = { len: 4 };
+    files[JOURNAL] = { len: 9 }; files[VIDEO] = { len: 9 }; files[BIGPIC] = { len: 40 * 1024 * 1024, throws: true }; files[BIGSND] = { len: 40 * 1024 * 1024, throws: true };
+    files[NOLEN] = { len: 5, stated: false }; files[NOLENBIG] = { body: new Uint8Array(26 * 1024 * 1024 + 1), stated: false };
+    const W = mkWorld({ files }); const A = W.conn('pA'), B = W.conn('pB');
+    const before = await W.ask(A, PIC), fetchedBefore = W.fetched.length;
+    A.send({ type: 'item', campId: 'c1', itemId: 'm1', item: { id: 'm1', type: 'map', whiteboard: [{ id: 't1', type: 'image', src: PIC }, { id: 'tx', type: 'text', text: '<p>see <img src="/saves/images/m1/a&amp;b (1).png" alt="x"> here, and <img src=\'/saves/images/m1/n&#117;&#x6D;.png\'></p>' }] } });
+    const after = await W.ask(A, PIC), other = await W.ask(B, PIC), embedded = await W.ask(A, AMP), pasted = await W.ask(A, NUM);
+    check('asset gate (assetreq, run for real): a picture is served to a connection only after the host sent it a reference — before, the request fetches nothing and is answered missing (the player\'s app settles on its placeholder); after a map copy naming the item\'s src, served whole as asset; a picture a text item carries in its img tag, as the player\'s app reads it (the entity decoded; a pasted tag\'s single quotes and numeric entities too), served too; another connection that was sent nothing is still refused',
+        j(before) === j(['refused:missing']) && fetchedBefore === 0 && j(after) === j(['asset:image/png:<5 bytes>']) && j(other) === j(['refused:missing']) && j(embedded) === j(['asset:image/png:<3 bytes>']) && j(pasted) === j(['asset:image/png:<4 bytes>']) && j(W.fetched.map(decodeURIComponent)) === j([PIC, AMP, NUM]), j([before, after, other, embedded, pasted, W.fetched, aqErr]));   // fetched in its canonical (percent-encoded) form
+    A.send({ type: 'chars', chars: { c1: { id: 'c1', name: 'Ror', portrait: ODD } } });
+    const raw = await W.ask(A, ODD), enc = await W.ask(A, ODD_ENC), cased = await W.ask(A, ODD.replace('/m1/', '/M1/'));
+    check('asset gate (assetreq): a reference is matched on the decoded canonical path — a character\'s portrait sent raw is served asked for raw or percent-encoded, and a different spelling of its folder (a case the file system might not tell apart) is refused',
+        j(raw) === j(['asset:image/png:<3 bytes>']) && j(enc) === j(['asset:image/png:<3 bytes>']) && j(cased) === j(['refused:missing']), j([raw, enc, cased]));
+    A.send({ type: 'chat', from: 'Zed', text: PIC2 });
+    A.send({ type: 'chars', chars: { c2: { id: 'c2', name: PIC2, values: { notes: PIC2, rows: [{ label: PIC2 }] } } } });
+    A.send({ type: 'roster', roster: [{ id: 'u_z', name: PIC2 }] });
+    A.send({ type: 'asset', path: PIC2, error: 'missing' });
+    A.send({ type: 'asset-part', path: PIC2, i: 0, n: 1, data: new Uint8Array(1) });
+    const fetchedEcho = W.fetched.length, echoed = await W.ask(A, PIC2);
+    check('asset gate (assetreq): a path that reaches a player only as text — a chat line, a character\'s name or a value, a roster name — or as the host\'s own answer to an earlier request of theirs (asset, asset-part) is no reference: still refused, nothing fetched',
+        j(echoed) === j(['refused:missing']) && W.fetched.length === fetchedEcho && (W.api ? W.api.assetRefsOf('pA')[PIC2] === undefined : false), j([echoed, W.api && Object.keys(W.api.assetRefsOf('pA') || {})]));
+    A.send({ type: 'sounds', list: [{ id: 's1', path: JOURNAL }, { id: 's2', path: VIDEO }, { id: 's3', path: SND }] });
+    const jr = await W.ask(A, JOURNAL), vd = await W.ask(A, VIDEO), fetchedJV = W.fetched.length, snd = await W.ask(A, SND);
+    check('asset gate (assetreq): the Journal folder (this machine\'s private shares and notes) and the video library are refused by the gate even when a message named them — nothing fetched, nothing answered — while a sound of the list is served in parts',
+        j(jr) === j([]) && j(vd) === j([]) && fetchedJV === fetchedEcho && j(snd) === j(['part:0/2', 'part:1/2']), j([jr, vd, snd, W.fetched]));
+    A.send({ type: 'item', item: { id: 'm2', type: 'map', whiteboard: [{ id: 'b1', src: BIGPIC }, { id: 'b2', src: NOLEN }, { id: 'b3', src: NOLENBIG }] } });
+    A.send({ type: 'music', music: { songs: [{ id: 'g1', path: BIGSND }] } });
+    const reads0 = W.reads, cancels0 = W.cancels;
+    const bigPic = await W.ask(A, BIGPIC), bigSnd = await W.ask(A, BIGSND), readsBig = W.reads - reads0, cancelsBig = W.cancels - cancels0;
+    const noLen = await W.ask(A, NOLEN), noLenBig = await W.ask(A, NOLENBIG);
+    check('asset gate (assetreq): a file whose stated length is past the cap — a picture or a sound — is answered too-big from its Content-Length, its body cancelled and never read; a shell that states no length (1.4.9 streams a file without one) is read and judged by its bytes as before: a small one served, one past the cap refused',
+        j(bigPic) === j(['refused:too-big']) && j(bigSnd) === j(['refused:too-big']) && readsBig === 0 && cancelsBig === 2 && j(noLen) === j(['asset:image/png:<5 bytes>']) && j(noLenBig) === j(['refused:too-big']) && W.reads - reads0 === 2, j([bigPic, bigSnd, readsBig, cancelsBig, noLen, noLenBig]));
+    const Wb = mkWorld({ files, allow: () => false }); const Ab = Wb.conn('pA'); Ab.send({ type: 'item', item: { whiteboard: [{ id: 't', src: PIC }] } });
+    const busy = await Wb.ask(Ab, PIC);
+    check('asset gate (assetreq): the rate limit still answers busy before anything is looked up or fetched', j(busy) === j(['refused:busy']) && Wb.fetched.length === 0, j([busy, Wb.fetched]));
+    check('asset gate (assetreq): wired — the host wraps each accepted connection\'s send before it is listened to, forgets the record with the connection and at a new table, and asset-req is a host-only branch',
+        /_connMeta\[conn\.peer\] = \{ openedAt: Date\.now\(\), hellos: 0 \};\s*assetNoteSends\(conn\);[^\n]*\n\s*wireConn\(conn\);/.test(src) && /delete assetInflight\[conn\.peer\]; delete assetRefs\[conn\.peer\];/.test(src)
+        && /assetInflight = \{\}; assetRefs = Object\.create\(null\);/.test(src) && /msg\.type === 'asset-req' && net\.role === 'host'/.test(src));
+})());
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');

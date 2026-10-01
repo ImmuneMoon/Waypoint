@@ -813,14 +813,15 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const icKy = { items: {}, players: playersIn() }; cleanImportItems(icKy, deps);
             const icKn = { players: playersIn() }; cleanImportItems(icKn, {});   // a campaign with no items yet: the keys go before anything returns early
             const icKs = { items: {}, players: 'junk' }; cleanImportItems(icKs, deps);
-            const gateSrc = (/var rec0 = [^\n]+\n\s*var keyOk = [^\n]+/.exec(netSrc) || [''])[0];
-            const gate = new Function('camp0', 'prof', 'msg', '"use strict"; var own = function(o, k) { return Object.prototype.hasOwnProperty.call(o, k); };\n' + gateSrc + '\nreturn keyOk;');
+            // the host's gate (net.js, since the key became a proof): a hello's raw key is compared with nothing — a known record with a key is challenged (keyed0) and the
+            // proof is judged over the host's own room, so a key a file carried could admit nobody even if it stayed; it goes all the same, so the file's author is simply new
+            const gateSrc = (/var rec0 = [^\n]+\n\s*var keyed0 = [^\n]+/.exec(netSrc) || [''])[0];
+            const gateOk = gateSrc.length > 80 && /typeof rec0\.key === 'string'/.test(gateSrc) && !/msg\.key === rec0\.key/.test(netSrc) && !/rec0\.key === msg\.key/.test(netSrc);
             const mergeSrc = mainSrc.slice(mainSrc.indexOf('  function mergeAppState(imported) {'), mainSrc.indexOf('var _el_importMergeBtn'));
-            check('import: a table key from a file proves nothing — an imported campaign\'s players keep their names, bindings and history but no key, on Replace and on Merge (with or without items), and the host\'s own gate (net.js, sliced) then sends a hello carrying the file\'s key to the GM\'s Allow/Deny instead of straight in; a key the host itself issued still admits; the file\'s bans stay; Merge cleans each campaign before it is kept',
+            check('import: a table key from a file proves nothing — an imported campaign\'s players keep their names, bindings and history but no key, on Replace and on Merge (with or without items), and the host\'s own gate (net.js) compares no raw key at all — a known record with a key is challenged for a proof over the host\'s own room, so a hello carrying the file\'s key goes to the GM\'s Allow/Deny; the file\'s bans stay; Merge cleans each campaign before it is kept',
                 !!outKy && JSON.stringify(outKy.campaigns.cX.players) === playersOut && JSON.stringify(outKy.campaigns.cX.bannedPlayers) === JSON.stringify({ u_z: { name: 'Z', bannedAt: 1 } })
                 && JSON.stringify(icKy.players) === playersOut && JSON.stringify(icKn.players) === playersOut && !('players' in icKs)
-                && gateSrc.length > 80 && gate(outKy.campaigns.cX, { id: 'u_a' }, { type: 'hello', id: 'u_a', key: 'k_file' }) === false && gate(icKy, { id: 'u_a' }, { type: 'hello', key: 'k_file' }) === false
-                && gate({ players: { u_a: { name: 'Pat', key: 'k_issued' } } }, { id: 'u_a' }, { type: 'hello', key: 'k_issued' }) === true && gate({ players: { u_a: { name: 'Pat', key: 'k_issued' } } }, { id: 'u_a' }, { type: 'hello', key: 'k_other' }) === false
+                && gateOk
                 && /cleanImportedItems\(ic\);[\s\S]*?if \(!existing\) \{[\s\S]*?state\.appState\.campaigns\[ic\.id\] = ic;/.test(mergeSrc) && mergeSrc.indexOf('cleanImportedItems(ic);') < mergeSrc.indexOf('state.appState.campaigns[ic.id] = ic;'),
                 JSON.stringify([outKy && outKy.campaigns.cX.players, icKy.players, icKn.players, icKs.players, gateSrc.length]));
         }

@@ -769,7 +769,7 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
 
           el.classList.toggle('gm-note', !!item.gmNoteFor);
 
-          // GM-hidden items: the GM sees them ghosted with an eye badge; players see a grey cloud box
+          // GM-hidden items: the GM sees them ghosted with an eye badge; a player's app draws a grey cloud box only for the stub an older host (before 1.5.0) still sends — a current host sends nothing of a hidden item
 
           var clientView = window.wpNet && window.wpNet.active && window.wpNet.role === 'client';
 
@@ -3304,9 +3304,9 @@ window.wpFitToGrid = fitToGrid;
   }
   function hexDist(a, b) { var dq = a.q - b.q, dr = a.r - b.r; return Math.max(Math.abs(dq), Math.abs(dr), Math.abs(dq + dr)); }
   function tokenCentre(t) { return { x: t.x + (t.w || 60) / 2, y: t.y + (t.h || 52) / 2 }; }
-  function tokenAtPoint(map, x, y) {   // topmost character token whose box holds the point
+  function tokenAtPoint(map, x, y, shown) {   // topmost character token whose box holds the point; shown: never one the GM hid (a reading players get, a thrown blast's height)
       var hit = null;
-      (map.whiteboard || []).forEach(function(t) { if (t.isChar && x >= t.x && x <= t.x + (t.w || 60) && y >= t.y && y <= t.y + (t.h || 52)) hit = t; });
+      (map.whiteboard || []).forEach(function(t) { if (t.isChar && !(shown && t.hidden) && x >= t.x && x <= t.x + (t.w || 60) && y >= t.y && y <= t.y + (t.h || 52)) hit = t; });
       return hit;
   }
   // Horizontal distance in yards between two board points, the way the handbook counts it
@@ -3357,7 +3357,7 @@ window.wpFitToGrid = fitToGrid;
   function seatBlast(b) {
       if (state.gridType === 'hex') { var hc = snapToHex(b.x, b.y, 30, 'center'); b.x = hc.x; b.y = hc.y; }
       else if (state.gridType === 'square') { b.x = Math.floor(b.x / 50) * 50 + 25; b.y = Math.floor(b.y / 50) * 50 + 25; }
-      if (b.autoElev) { var mapS = getActiveMap(), under = mapS && tokenAtPoint(mapS, b.x, b.y); b.elev = under ? tokenElevation(under) : 0; }
+      if (b.autoElev) { var mapS = getActiveMap(), under = mapS && tokenAtPoint(mapS, b.x, b.y, b.thrown); b.elev = under ? tokenElevation(under) : 0; }   // hidden pieces: a thrown blast (sent to the table) takes no height from a token the GM hid; the GM's own tool reads them, the GM being its only viewer
   }
   function placeBlast(e) {
       var map = getActiveMap(); if (!map) return;
@@ -3387,7 +3387,7 @@ window.wpFitToGrid = fitToGrid;
       seatBlast(b);
       var thrB = opts.charId ? (map.whiteboard || []).filter(function(w) { return w.charId === opts.charId; }).sort(function(p, q) { return (q.isChar ? 1 : 0) - (p.isChar ? 1 : 0); })[0] : null;   // cover follow-ups (owner, answer 5): the thrower's token on this map
       var seatB = window.wpFog && window.wpFog.blastSeat ? window.wpFog.blastSeat(map, b.x, b.y, thrB ? thrB.x + (thrB.w || 60) / 2 : opts.x, thrB ? thrB.y + (thrB.h || 52) / 2 : opts.y) : null;   // a blast can't go off inside a wall or a closed door: it goes off in front, on the thrower's side
-      if (seatB) { b.x = seatB.x; b.y = seatB.y; if (b.autoElev) { var underB = tokenAtPoint(map, b.x, b.y); b.elev = underB ? tokenElevation(underB) : 0; } }
+      if (seatB) { b.x = seatB.x; b.y = seatB.y; if (b.autoElev) { var underB = tokenAtPoint(map, b.x, b.y, true); b.elev = underB ? tokenElevation(underB) : 0; } }
       pushBlast(b); renderMeasures(); syncBlastMenu();
       if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.broadcastBlast) window.wpNet.broadcastBlast({ x: b.x, y: b.y, ft: b.ft, name: opts.gmOnly ? '' : b.name, elev: b.elev, by: b.by }, map.id);   // a GM-only item's blast reaches players unnamed
       var n = blastDistances(b, map).filter(function(r) { return r.d <= blastRadiusYd(b) + 1e-9; }).length;

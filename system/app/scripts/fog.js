@@ -312,8 +312,8 @@ function maskFootprint(w, grid, C) {
 // A per-item `fogged` flag marks an image/shape as a play area. Fog lives ONLY inside the union of such items'
 // footprints — outside stays lit, so scenes and map art the GM never flagged are never fogged. With NO flagged
 // item on the map, the campaign default decides: 'all' (fog the whole map — the pre-1.5.0 behaviour) or 'none'
-// (no fog until an area is marked). Hidden items never contribute: the wire reduces a hidden item to a stub with
-// no flags, so host and client must both ignore them to agree (same rule as the sight-blockers above).
+// (no fog until an area is marked). Hidden items never contribute: a hidden item is not sent to players at all, so
+// host and client must both ignore them to agree (same rule as the sight-blockers above).
 var _maskCache = Object.create(null), _maskStamp = Object.create(null);
 function fogSig(wb) { var s = ''; for (var i = 0; i < wb.length; i++) { var w = wb[i]; if (w && w.fogged && !w.hidden) s += w.id + ':' + w.x + ',' + w.y + ',' + (w.w || 0) + ',' + (w.h || 0) + ',' + (w.rot || 0) + ';'; } return s; }
 function fogMask(map, camp, grid) {

@@ -935,7 +935,8 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                             (activeMap.rooms || []).forEach(function(rm) { (rm.characters || []).forEach(function(c) { _rOpts += '<option value="' + esc(c.id) + '">' + esc(c.name || '(unnamed)') + (rm.name ? ' — ' + esc(rm.name) : '') + '</option>'; }); });
                             html += '<div class="field"><label for="wbRosterLink">Character (roster)</label>'
                                 + '<div class="muted" style="margin-bottom:4px;">Not linked to a roster character. Link it to share one Info / Background / Reference with the Data Map.</div>'
-                                + '<select id="wbRosterLink"><option value="">— Link to a character… —</option>' + _rOpts + '<option value="__new">+ New character from this token</option></select></div>';
+                                + '<select id="wbRosterLink"><option value="">— Link to a character… —</option>' + _rOpts + (w.hidden ? '' : '<option value="__new">+ New character from this token</option>') + '</select>'
+                                + (w.hidden ? '<div class="muted" style="margin-top:4px;">A new roster entry waits until you show the token: a roster name is sent to players. The GM note above stays yours.</div>' : '') + '</div>';   // hidden pieces: as a drag never surfaces a hidden token in a room's roster (wpAutoRoom)
                         }
                     }
                     html += '<div class="field"><label for="wbFront">Front Side <span class="muted">(the little arrow)</span></label><select id="wbFront">' +
@@ -1175,6 +1176,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                 var wbRosterLink = document.getElementById('wbRosterLink'); if (wbRosterLink) wbRosterLink.addEventListener('change', function() {
                     var v = this.value; if (!v) return;
                     if (v === '__new') {
+                        if (w.hidden) { this.value = ''; import('./io.js').then(function(m) { m.toast('Show the token first: a roster entry\'s name is sent to players, and this token is hidden from them.'); }); return; }   // hidden pieces: never through the picker either
                         var room = (w.nodeId && (activeMap.rooms || []).find(function(x) { return x.id === w.nodeId; })) || (activeMap.rooms || [])[0];
                         if (!room) { import('./io.js').then(function(m) { m.toast('This map has no room to hold a character — add one on the Data Map first.'); }); this.value = ''; return; }
                         room.characters = room.characters || [];

@@ -329,7 +329,7 @@ function saveRemoteSoon() { if (_saveSoon) return; _saveSoon = setTimeout(functi
 var _lim = Object.create(null);
 function allow(name, cfg, peer) { var Lr = _lim[name]; if (!Lr) { var DCl = window.wpDiceCore; if (!DCl || !DCl.RateLimit) return true; Lr = _lim[name] = DCl.RateLimit(cfg); } return Lr.allow(peer, Date.now()) === true; }
 var _connMeta = Object.create(null);    // host: per-connection bookkeeping before admission — openedAt, hello count, the key challenge
-var _pwFails = [];                       // host: timestamps of wrong session passwords (any connection), for the table-wide lockout
+var _pwFails = Object.create(null), PW_LOCK_FAILS = 5, PW_LOCK_MS = 60000;   // host: profile id -> timestamps of wrong session passwords claimed under that name: PW_LOCK_FAILS of them within PW_LOCK_MS lock that name out for the minute — the name's own lockout, never the table's (security 2026-10-01: strangers' wrong words used to lock every join for a minute)
 var _shareBytes = Object.create(null), _shareCount = Object.create(null);   // host: the bytes and the shares each player (by profile id) has sent this session — a reconnect keeps its budget; a new table forgets them
 net.myId = getProfile().id;
 
@@ -345,6 +345,23 @@ function setStatus(msg) { var el = ui('netStatus'); if (el) el.textContent = msg
    player. The dot is the always-visible truth about the table's health. */
 var HB_EVERY = 4000, HB_STALE = 8000, HB_DEAD = 20000;   // silence → "not responding" at 8 s, dropped at 20 s
 var UNADMITTED_TTL = 10 * 60 * 1000;   // a connection the GM has not admitted may wait this long (heartbeating) for the Allow, then it is closed
+var UNADMITTED_MAX = 32;   // and this many may wait at once (security 2026-10-01): past it the newcomer takes the place of the oldest that never said hello, or is refused
+// [netcheck:conncap-start]
+// host: room for a new connection among those not yet admitted. A connection costs this machine a data channel and its records, and until it is admitted
+// nothing bounds how long it is kept but UNADMITTED_TTL — so at most UNADMITTED_MAX wait at once. Past that, a connection that never said hello (one held open
+// on heartbeats alone, or one that never opened) goes first, the oldest of them, out of the list and its records (its close handler does the same, once);
+// with none such — every one waiting has a request in with the GM or a challenge under way — the newcomer is refused (closed unanswered, before it is listed)
+function unadmittedRoom(conn) {
+    var waiting = net.conns.filter(function(c) { return c !== conn && !own(net.roster, c.peer); });
+    if (waiting.length < UNADMITTED_MAX) return true;
+    var silent = waiting.filter(function(c) { var m = _connMeta[c.peer]; return !m || !m.hellos; }).sort(function(a, b) { var ma = _connMeta[a.peer], mb = _connMeta[b.peer]; return (ma ? ma.openedAt : 0) - (mb ? mb.openedAt : 0); });
+    if (!silent.length) return false;
+    var old = silent[0];
+    try { old.close(); } catch (e) {}
+    net.conns = net.conns.filter(function(c) { return c !== old; }); delete _connMeta[old.peer]; delete lastSeen[old.peer];
+    return true;
+}
+// [netcheck:conncap-end]
 var hbTimer = null, lastSeen = {}, hostLastSeen = 0;
 var holdUntil = {}, hostHoldUntil = 0, HOLD_MAX = 180000;   // Onboarding F2b: a side about to freeze in a print dialog asks the other to wait (3 minutes at most, until it speaks again)
 function noteSeen(peerId) { var now = Date.now(); lastSeen[peerId] = now; delete holdUntil[peerId]; if (net.role === 'client') { hostLastSeen = now; hostHoldUntil = 0; } }
@@ -3198,6 +3215,7 @@ function handlePos(msg, conn) {
         // a drag ends at its final pos, or at the map copy its client saves after it (the final can be lost to a redraw mid-drag). Fold M4: its entry
         // holds where it began (place and facing), where its last accepted pos left the token, when, from which connection; one the host moved past is over
         var dkW = msg.itemId + '|' + msg.wbId, frW = openDrag(msg.itemId, w);
+        var loneW = !frW;   // no drag open on this token: a final alone, judged below against where the token stands now
         if (!frW) { if (Object.keys(_dragFrom).length > 400) _dragFrom = Object.create(null); frW = _dragFrom[dkW] = { x: Number(w.x) || 0, y: Number(w.y) || 0, rot: Number(w.rot) || 0, front: Number(w.front) || 0, lx: w.x, ly: w.y, lr: w.rot || 0, lf: w.front || 0, at: typeof fogNow === 'function' ? fogNow() : 0, peer: conn.peer, mapId: msg.itemId, wbId: msg.wbId }; }
         var wlM = moveMode(camp, 'walls');
         if (msg.final) delete _dragFrom[dkW];
@@ -3211,6 +3229,7 @@ function handlePos(msg, conn) {
             if (msg.final) { turnNote(conn, 'That move went through a wall.', w.charId); toast((w.charName || 'A token') + ' moved through a wall.'); if (typeof bellOut === 'function') bellOut(w.charId, { title: 'Turn', text: 'Moved through a wall.' }); }
         }
         if (turnLimitCheck(camp, map, w, frW, msg, conn) === 'stop') return;   // T3b: the move limit, while it is their turn
+        var wasW = { x: w.x, y: w.y, rot: w.rot || 0, front: w.front || 0 };   // where the token stood before this move (a final that leaves it there, with no drag that moved it, is not saved: below)
         if (window.wpHistFlush) window.wpHistFlush();   // the GM's pending edit is its own step before the player's move lands
         var skW = window.wpFog && window.wpFog.seenKeyOf ? window.wpFog.seenKeyOf(map, w) : null;   // Senses S0: where the token saw and lit from before this move
         w.x = msg.x; w.y = msg.y; w.rot = msg.rot || 0; w.front = msg.front || 0;
@@ -3231,9 +3250,11 @@ function handlePos(msg, conn) {
         if (window.wpSheets && window.wpSheets.tokenTurned) window.wpSheets.tokenTurned(msg.wbId, msg.final);   // 5h Fold 3: a sheet's facing dial follows (in place; a final turn redraws numbers that read it)
         if (msg.final) {
             if (typeof triggerFire === 'function') triggerFire(conn, map, w, frW);   // secrets (R2): a trigger zone's message, to the dropper alone (their copy holds none), as the gesture carries the token in
+            var sameW = function(o) { return w.x === o.x && w.y === o.y && (w.rot || 0) === o.rot && (w.front || 0) === o.front; };
+            var stillW = sameW(wasW) && (loneW || sameW(frW));   // security (2026-10-01): a final that leaves the token as it stood before it and, a drag open, as it stood when the drag began (a drop sent twice, a turn to its own facing, a drag that never moved it) changes nothing on disk and is not saved; a drag that moved it, even back to its start, is (its moves were never saved)
             var toRoom = window.wpAutoRoom ? window.wpAutoRoom(w, map) : null;
             if (toRoom) toast((w.charName || 'A character') + ' is now in ' + (toRoom.name || 'a room') + '.');
-            saveRemoteSoon();
+            if (!stillW) saveRemoteSoon();
             if (typeof marksOwnMoved === 'function') marksOwnMoved(msg.itemId, [w], pr.id);   // senses S4b: their own drop on its turn takes their marks afresh
             if (typeof fogArm === 'function' && skN !== null && frW.sk !== skN) fogArm(msg.itemId);   // fold M7: it landed somewhere it sees from differently than where the drag began: catch the copies up
             net.tokenDropped(w, map);   // landed on a portal? the player travels
@@ -3511,6 +3532,7 @@ net.notepadInput = function(text) {
    The host owns it; clients get it in the snapshot and in 'combats' messages. Ends with the session. */
 net.combats = {};
 var combatAsked = {};   // mapId|tokId -> true: the "start combat?" question for a targeted NPC is asked once per session
+var combatAskOpen = Object.create(null);   // profile id -> true while a Start-combat offer of theirs is open (security 2026-10-01): one at a time per player — a further target meanwhile asks nothing and marks nothing, so that offer is still owed
 // [netcheck:combats-start]
 function cleanCombats(c) {
     var out = {}; if (!c || typeof c !== 'object') return out;
@@ -4457,7 +4479,6 @@ net.tidyWaiting = function(o) {
 var bannedIds = {};        // profile id -> true, for this session only
 var pendingJoins = [];     // [{conn, prof}] awaiting the GM's Allow/Deny
 var approvalOpen = false;
-var approvedIds = {};      // profile id -> true: the GM said yes, but that connection was already gone — next attempt goes straight in
 
 function denyJoin(conn, reason) {
     try { conn.send({ type: 'denied', reason: reason }); } catch (e) { sendFailed(e); }
@@ -4486,7 +4507,6 @@ function admitPlayer(conn, prof, provenKey) {
         camp.players = camp.players || {};
         // merge: keep the charName binding and anything else the GM has set
         delete net.forgotten[prof.id];   // the GM let them in again: their record is back
-        delete approvedIds[prof.id];     // and a one-time "go straight in" (a yes to a connection that had dropped) is used up, whichever way they came in
         var rec = camp.players[prof.id] = Object.assign({}, own(camp.players, prof.id) ? camp.players[prof.id] : null, { name: prof.name || prof.id });
         rec.key = (provenKey && rec.key === provenKey) ? rec.key : newKey();   // the table key: kept when the player proved it, fresh when the GM let them in (revokes whoever held the old one). camp.players never ships (sanitizeAppState).
         issuedKey = rec.key;
@@ -4538,6 +4558,7 @@ function queueJoin(conn, prof, why) {
     processNextApproval();
 }
 // [netcheck:queue-end]
+// [netcheck:approval-start]
 function processNextApproval() {
     if (approvalOpen) return;
     var next = pendingJoins.shift();
@@ -4553,7 +4574,7 @@ function processNextApproval() {
         if (!net.active || net.role !== 'host') return;
         if (yes) {
             if (next.conn.open) admitPlayer(next.conn, next.prof);
-            else { approvedIds[next.prof.id] = true; toast((next.prof.name || 'That player') + ' had already dropped — they go straight in when they try again.'); }
+            else toast((next.prof.name || 'That player') + ' had already dropped — you will be asked again when they come back.');   // security (2026-10-01): a yes is for the connection that asked; a later hello claiming that id (anyone can) is a new request, never let straight in
         } else {
             bannedIds[next.prof.id] = true;   // no re-prompt spam this session
             denyJoin(next.conn, 'The GM declined your request to join.');
@@ -4562,6 +4583,7 @@ function processNextApproval() {
         processNextApproval();
     });
 }
+// [netcheck:approval-end]
 
 net.kickPlayer = function(peerKey) {
     if (net.role !== 'host') return;
@@ -4658,9 +4680,15 @@ function handleMessage(msg, conn) {
         var pwEl = ui('netPassInput');
         var pw = pwEl ? pwEl.value.trim() : '';
         if (pw) {
-            var nowPw = Date.now(); while (_pwFails.length && nowPw - _pwFails[0] > 60000) _pwFails.shift();
-            if (_pwFails.length >= 20) { denyJoin(conn, 'Too many wrong passwords at this table — try again in a minute.'); return; }   // a guessing run locks the door for everyone, briefly
-            if (String(msg.password || '').slice(0, 200).trim() !== pw) { _pwFails.push(nowPw); denyJoin(conn, 'Wrong session password.'); return; }
+            var nowPw = Date.now(), failsPw = own(_pwFails, prof.id) ? _pwFails[prof.id].filter(function(t) { return nowPw - t <= PW_LOCK_MS; }) : [];
+            if (failsPw.length) _pwFails[prof.id] = failsPw; else delete _pwFails[prof.id];
+            if (failsPw.length >= PW_LOCK_FAILS) { denyJoin(conn, 'Too many wrong passwords under that name — try again in a minute.'); return; }   // a guessing run under one name locks that name out, briefly; a player under another name is not kept waiting by it
+            if (String(msg.password || '').slice(0, 200).trim() !== pw) {
+                var ksPw = Object.keys(_pwFails);
+                if (ksPw.length >= 500) { ksPw.forEach(function(k) { if (k !== prof.id && _pwFails[k].every(function(t) { return nowPw - t > PW_LOCK_MS; })) delete _pwFails[k]; }); ksPw = Object.keys(_pwFails); if (ksPw.length >= 500) delete _pwFails[ksPw[0]]; }   // a guessing run under ever new names holds no more than this many records
+                failsPw.push(nowPw); _pwFails[prof.id] = failsPw;
+                denyJoin(conn, 'Wrong session password.'); return;
+            }
         }
         // Identity: a player this campaign knows proves the id is theirs with the table key the host issued them (kept per GM on
         // their machine) — never by sending it. A known id is CHALLENGED with a fresh nonce; the answer is an HMAC-SHA256 proof over
@@ -4671,10 +4699,7 @@ function handleMessage(msg, conn) {
         var camp0 = getActiveCampaign();
         var rec0 = (camp0 && camp0.players && own(camp0.players, prof.id)) ? camp0.players[prof.id] : null;
         var keyed0 = !!(rec0 && typeof rec0.key === 'string' && rec0.key);
-        if (own(approvedIds, prof.id)) {
-            delete approvedIds[prof.id];   // a yes to a dropped connection is good once
-            admitPlayer(conn, prof, null);
-        } else if (keyed0 && cm.nonce && typeof msg.proof === 'string') {
+        if (keyed0 && cm.nonce && typeof msg.proof === 'string') {
             var nonce0 = cm.nonce, key0 = rec0.key; cm.nonce = null;   // a nonce is good for one answer
             hmacHex(key0, authData(nonce0, net.roomPeer)).then(function(want) {
                 // the check ran asynchronously: judge again what may have changed meanwhile
@@ -4871,13 +4896,15 @@ function handleMessage(msg, conn) {
         // a player squaring up to one of the GM's characters: offer to start combat there (once per character per session) — unless the campaign
         // says to do nothing (the owner's ruling of 2026-10-01: camp.turnRules.targetAsk 'off'; absent: ask; Settings, the Turn-based combat row);
         // never for a token the GM hid. The GM answers the offer by its buttons alone: Enter does not say Yes to it (a key pressed for something else)
-        if (msg.id && !own(net.combats, msg.mapId) && !combatAsked[msg.mapId + '|' + msg.id]) {
+        if (msg.id && !own(net.combats, msg.mapId) && !combatAsked[msg.mapId + '|' + msg.id] && !own(combatAskOpen, tp.id)) {
             var campT = getActiveCampaign(), mapT = campT && campT.items && own(campT.items, msg.mapId) ? campT.items[msg.mapId] : null;
             var askT = !(campT && campT.turnRules && typeof campT.turnRules === 'object' && campT.turnRules.targetAsk === 'off');
             var tokT = askT && mapT && mapT.type === 'map' ? (mapT.whiteboard || []).find(function(w) { return w && w.id === msg.id; }) : null;
             if (tokT && tokT.isChar && !tokT.ownerId && !tokT.hidden) {
-                combatAsked[msg.mapId + '|' + msg.id] = true;
+                combatAsked[msg.mapId + '|' + msg.id] = true; combatAskOpen[tp.id] = true;
+                var askPid = tp.id;
                 showConfirm((tp.name || 'A player') + ' is targeting ' + (tokT.charName || tokT.name || 'a character') + ' on ' + mapTitleOf(msg.mapId) + '. Start combat there?', function(yes) {
+                    delete combatAskOpen[askPid];
                     if (yes && window.wpOpenCombat) window.wpOpenCombat(msg.mapId, { pre: [msg.id], owner: tp.id });
                 }, { noEnter: true });
             }
@@ -5158,13 +5185,13 @@ function handleMessage(msg, conn) {
         if (isFileU) { ansU({ reason: 'file' }); return; }   // a character file fills only a character in the making (owner, 2026-09-27: in play, Import stays as it was)
         _uploadAt[conn.peer] = nowU;
         var findU = window.wpSheets && window.wpSheets.sbFinder ? window.wpSheets.sbFinder(campU, campU.system) : null;
-        var prU = Su.sbProposal(campU.system, chU, qu.sheet, Fu, findU), autoU = 0;
+        var prU = Su.sbProposal(campU.system, chU, qu.sheet, Fu, findU), autoU = 0, wroteU = false;   // wroteU: something of the campaign changed below (security 2026-10-01: an upload that changes nothing is not saved)
         if (campU.system.listRules && campU.system.listRules.uploadFacts === true) {   // setting B: their own row facts at once, each as their own hand would make it (a list they cannot change, a locked switch, a row kept from them: it waits for the GM)
             var optU = { player: true, view: window.wpSheets && window.wpSheets.playerSystem ? window.wpSheets.playerSystem(campU) : null }, valsU = chU.values, doneU = {};
             prU.changes.forEach(function(ch) { if (ch.kind !== 'fact') return; var oneU = {}; oneU[ch.id] = true; var rU = Su.sbApplyProposal(campU.system, Object.assign({}, chU, { values: valsU }), prU, oneU, Fu, optU); if (rU.done === 1) { valsU = rU.values; doneU[ch.id] = true; autoU++; } });
             if (autoU) {
                 var dU = {}; Object.keys(valsU).forEach(function(k) { if (JSON.stringify(valsU[k]) !== JSON.stringify((chU.values || {})[k])) dU[k] = valsU[k]; });
-                if (Object.keys(dU).length) { chU.values = valsU; chU.updated = nowU; net.syncCharDelta(qu.charId, dU); if (window.wpSheets) window.wpSheets.charChanged(qu.charId); }
+                if (Object.keys(dU).length) { chU.values = valsU; chU.updated = nowU; wroteU = true; net.syncCharDelta(qu.charId, dU); if (window.wpSheets) window.wpSheets.charChanged(qu.charId); }
             }
             prU.changes = prU.changes.filter(function(ch) { return doneU[ch.id] !== true; });
         }
@@ -5175,8 +5202,9 @@ function handleMessage(msg, conn) {
             var tU = (profU.name || 'A player') + ' sent a sheet update for ' + (chU.name || 'their character') + ': ' + prU.changes.length + (prU.changes.length === 1 ? ' change' : ' changes') + ' to review (Review on the character\u2019s sheet).';
             toast(tU); logEvent('char', tU);
             if (window.wpSheets && window.wpSheets.uploadsChanged) window.wpSheets.uploadsChanged(qu.charId);
+            wroteU = true;
         }
-        saveRemoteSoon();
+        if (wroteU) saveRemoteSoon();
         ansU({ n: prU.changes.length, auto: autoU });
         // [netcheck:charupload-end]
     } else if (msg.type === 'char-item' && net.role === 'host') {
@@ -5927,8 +5955,9 @@ function wireConn(conn) {
         }
     });
     conn.on('close', function() {
+        // [netcheck:connclose-start]
         net.conns = net.conns.filter(function(c) { return c !== conn; });
-        delete assetInflight[conn.peer]; delete assetRefs[conn.peer];
+        delete assetInflight[conn.peer]; delete assetRefs[conn.peer]; delete assetBytes[conn.peer];
         if (diceLimit) diceLimit.forget(conn.peer);
         if (charLimit) charLimit.forget(conn.peer);
         Object.keys(_lim).forEach(function(k) { _lim[k].forget(conn.peer); });
@@ -5946,6 +5975,7 @@ function wireConn(conn) {
             if (p) logEvent('player', (p.name || 'A player') + ' left' + (p.location ? ' (on ' + ((((getActiveCampaign() || {}).items || {})[p.location] || { meta: {} }).meta.title || p.location) + ')' : ''));
             if (p) startWaitGrace(p.id);   // Onboarding F1a: their waiting token goes if they are not back in three minutes
             if (p && net.targets[p.id]) { delete net.targets[p.id]; render(); broadcastTargets(); }   // fold M0: each player the pointers they may see (a fogged table), never all of them
+            if (!p) return;   // security (2026-10-01): a connection never admitted (a stranger's the gate closed, a waiting peer that gave up) was on no roster and changed nothing: its close saves nothing, tells the table nothing and redraws nothing
             net.applyingRemote = true; save(true); net.applyingRemote = false;   // lastMap persists
             broadcastRoster();
             render();
@@ -5974,6 +6004,7 @@ function wireConn(conn) {
             scheduleReconnect();
         }
         // stale close events after a completed teardown are ignored
+        // [netcheck:connclose-end]
     });
 }
 
@@ -6119,6 +6150,7 @@ function startHosting(forceFresh) {
         net.applyingRemote = true; save(true); net.applyingRemote = false;
     });
     peer.on('connection', function(conn) {
+        if (!unadmittedRoom(conn)) { try { conn.close(); } catch (e) {} return; }   // security (2026-10-01): no room among those waiting for the GM — refused unanswered, never listed
         net.conns.push(conn);
         _connMeta[conn.peer] = { openedAt: Date.now(), hellos: 0 };
         assetNoteSends(conn);   // security (2026-10-01): what this connection is sent is noted, so the asset gate serves it only that
@@ -6250,7 +6282,7 @@ function leaveSession(silent) {
     if (window.wpMusic && window.wpMusic.tableLeft) window.wpMusic.tableLeft(wasClient);
     if (window.wpFx) window.wpFx.tableLeft();
     endWaiting(wasHost);   // Onboarding F1a: waiting tokens live only while the session runs (the end's save writes them away)
-    net.targets = {};
+    net.targets = {}; combatAskOpen = Object.create(null);
     net.combats = {}; combatAsked = {};
     net.notepad = { on: false, text: '' }; setTimeout(renderNotepad, 0);
     if (window.wpRenderCombatStrip) setTimeout(function() { window.wpRenderCombatStrip(); }, 0);
@@ -6304,15 +6336,25 @@ function assetNote(peer, msg) {
 }
 function assetNoteSends(conn) { var send = conn.send; conn.send = function() { try { assetNote(conn.peer, arguments[0]); } catch (e) {} return send.apply(conn, arguments); }; }   // host: the one funnel every message to that connection passes
 function assetSent(peer, dec) { var set = assetRefs[peer]; return !!set && set[dec] === 1; }
-// The body of a file the local server answered with, null for one that is not there, or 'big' when its stated length is past the cap — judged on
-// the Content-Length before a byte is read, so a file past the cap never comes into this machine's memory whole. A shell that states no length
-// (1.4.9 streams a file without one) is read and judged by its bytes, as before.
-function assetBody(r) {
+// The body of a file the local server answered with, null for one that is not there, 'big' when its stated length is past the cap, or 'busy' when it
+// would take the connection past its byte budget — each judged on the Content-Length before a byte is read, so a file past the cap, or one more than
+// the budget allows, never comes into this machine's memory. A shell that states no length (1.4.9 streams a file without one) is read and judged by
+// its bytes, as before, and charged to the budget once read.
+function assetBody(r, peer) {
     if (!r.ok) return null;
-    var len = Number(r.headers && typeof r.headers.get === 'function' ? r.headers.get('content-length') : NaN);
+    var lenS = r.headers && typeof r.headers.get === 'function' ? r.headers.get('content-length') : null, len = lenS === null || lenS === undefined || lenS === '' ? NaN : Number(lenS);
     if (len > AUDIO_CAP) { try { if (r.body && r.body.cancel) r.body.cancel(); } catch (e) {} return 'big'; }
-    return r.arrayBuffer();
+    if (len >= 0 && assetSpent(peer) + len > ASSET_BUDGET) { try { if (r.body && r.body.cancel) r.body.cancel(); } catch (e) {} return 'busy'; }
+    if (len >= 0) { assetCharge(peer, len); return r.arrayBuffer(); }
+    return Promise.resolve(r.arrayBuffer()).then(function(buf) { assetCharge(peer, buf && buf.byteLength || 0); return buf; });
 }
+// Security (2026-10-01): the bytes this machine reads for one connection's picture and sound answers are budgeted — ASSET_BUDGET within ASSET_BUDGET_MS
+// of the first charge — so a player asking for picture after picture cannot have the host read and hold files without bound (the count limiter alone
+// allowed 200 reads of up to 26 MB each in ten seconds). An honest map's pictures arrive in one burst far under it; past it a request is answered busy
+// and nothing is looked up or read (the player's app asks again, backing off). Forgotten with the connection and at a new table.
+var assetBytes = Object.create(null), ASSET_BUDGET = 150 * 1024 * 1024, ASSET_BUDGET_MS = 60000;   // host: peer -> { t, n }: the bytes read for that connection since t
+function assetSpent(peer) { var b = assetBytes[peer]; return b && Date.now() - b.t <= ASSET_BUDGET_MS ? b.n : 0; }
+function assetCharge(peer, n) { var b = assetBytes[peer], now = Date.now(); if (!b || now - b.t > ASSET_BUDGET_MS) b = assetBytes[peer] = { t: now, n: 0 }; b.n += n; }
 var assetInflight = {}; // host: peer -> path, one sound transfer at a time per peer
 var ASSET_PART = 256 * 1024, AUDIO_CAP = 26 * 1024 * 1024, ASSET_WAIT = 45000, MAX_PARTS = 130;   // AUDIO_CAP covers full music tracks (musiccore caps a track at 25 MB); SFX stay small — soundcore caps them at 4 MB at upload. MAX_PARTS (130×256 KB ≈ 33 MB) > cap so a legit transfer never trips the part guard.
 function isAudioPath(p) { return typeof p === 'string' && p.indexOf('/saves/images/audio/') === 0; }
@@ -6368,14 +6410,16 @@ function handleAssetRequest(msg, conn) {
     if (!allow('asset', { perMs: 0, burst: 200, windowMs: 10000, table: 8000 }, conn.peer)) { answerAsset(conn, msg.path, 'busy'); return; }   // a map's pictures arrive in ONE burst (several in the same millisecond): no spacing, a wide window; a flood beyond it is refused — and told so, so the player's copy retries instead of waiting forever
     var decPath; try { decPath = decodeURIComponent(reqPath); } catch (e) { decPath = reqPath; }
     if (!assetSent(conn.peer, decPath)) { answerAsset(conn, msg.path, 'missing'); return; }   // security (2026-10-01): only a file this connection was sent a reference to (assetNote); anything else reads as a file that is not there, and is never read
+    if (assetSpent(conn.peer) >= ASSET_BUDGET) { answerAsset(conn, msg.path, 'busy'); return; }   // security (2026-10-01): this connection's byte budget is spent for the minute: nothing is looked up or read
     if (isAudioPath(decPath)) {   // judged on the DECODED path: an encoded "audio" must not slip into the whole-file picture branch
         // a sound or music track: one in flight per peer, the AUDIO_CAP, 256 KB parts so the heartbeats never queue behind a whole file, every refusal answered
         if (assetInflight[conn.peer]) { answerAsset(conn, msg.path, 'busy'); return; }
         assetInflight[conn.peer] = msg.path;
         var done = function() { if (assetInflight[conn.peer] === msg.path) delete assetInflight[conn.peer]; };
-        fetch(reqPath).then(assetBody).then(function(buf) {
+        fetch(reqPath).then(function(r) { return assetBody(r, conn.peer); }).then(function(buf) {
             if (!conn.open) { done(); return; }
             if (!buf) { answerAsset(conn, msg.path, 'missing'); done(); return; }
+            if (buf === 'busy') { answerAsset(conn, msg.path, 'busy'); done(); return; }   // past this connection's byte budget: not read
             if (buf === 'big' || buf.byteLength > AUDIO_CAP) { answerAsset(conn, msg.path, 'too-big'); done(); return; }
             var n = Math.max(1, Math.ceil(buf.byteLength / ASSET_PART)), i = 0;
             (function pump() {
@@ -6389,9 +6433,10 @@ function handleAssetRequest(msg, conn) {
         }).catch(function() { answerAsset(conn, msg.path, 'missing'); done(); });
         return;
     }
-    fetch(reqPath).then(assetBody).then(function(buf) {
+    fetch(reqPath).then(function(r) { return assetBody(r, conn.peer); }).then(function(buf) {
         if (!conn.open) return;
         if (!buf) { answerAsset(conn, msg.path, 'missing'); return; }
+        if (buf === 'busy') { answerAsset(conn, msg.path, 'busy'); return; }   // past this connection's byte budget: not read
         if (buf === 'big' || buf.byteLength > AUDIO_CAP) { answerAsset(conn, msg.path, 'too-big'); return; }   // a picture past the cap is never sent whole — nor read whole where the server states its length
         try { conn.send({ type: 'asset', path: msg.path, mime: assetMime(msg.path), data: new Uint8Array(buf) }); } catch (e) { sendFailed(e); }
     }).catch(function() { answerAsset(conn, msg.path, 'missing'); });
@@ -6430,7 +6475,7 @@ function handleAssetPart(msg) {
 }
 function resetAssetTransfers() {
     Object.keys(assetWaiters).forEach(function(p) { var w = assetWaiters[p]; clearTimeout(w.timer); try { w.reject(new Error('left')); } catch (e) {} });
-    assetWaiters = {}; assetPending = Object.create(null); assetInflight = {}; assetRefs = Object.create(null);
+    assetWaiters = {}; assetPending = Object.create(null); assetInflight = {}; assetRefs = Object.create(null); assetBytes = Object.create(null);
 }
 
 function handleAssetArrival(msg) {
@@ -6891,7 +6936,6 @@ function forgetPlayer(camp, fid) {
         if (!yes || getActiveCampaign() !== camp || !camp.players || !own(camp.players, fid)) { renderPlayersPanel(); return; }
         delete camp.players[fid];
         net.forgotten[fid] = true;
-        delete approvedIds[fid];   // a one-time "go straight in" still waiting goes too: their next join is asked about
         waitingChanged(camp, removeWaiting(camp, fid));   // Onboarding F1a: and their waiting token
         mkIds().forEach(function(k) { delete camp.chars[k]; net.syncCharGone(k, fid); });
         save();

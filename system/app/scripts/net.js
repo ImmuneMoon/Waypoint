@@ -283,6 +283,7 @@ function cleanHostMap(m) {
     if (!m || typeof m !== 'object') return m;
     if (Array.isArray(m.whiteboard)) m.whiteboard = m.whiteboard.slice(0, 6000).map(cleanHostWbItem).filter(Boolean); else m.whiteboard = [];
     if (Array.isArray(m.rooms)) m.rooms = m.rooms.slice(0, 600); else m.rooms = [];
+    if (m.stub === true) { m.whiteboard = []; m.rooms = []; m.links = []; } else if (m.stub !== undefined) delete m.stub;   // possession: a stub holds nothing (whatever a host put on it); the mark is true or absent
     var flC = window.wpFogCore && window.wpFogCore.cleanFogLit ? window.wpFogCore.cleanFogLit(m.fogLit) : null; if (flC) m.fogLit = flC; else delete m.fogLit;   // lighting L3: the lit cells the host sent this player, cleaned again
     if (m.lightsCapped !== true) delete m.lightsCapped;
     if (m.fogMarks !== undefined) { var mkC = window.wpFogCore && window.wpFogCore.cleanFogMarks ? window.wpFogCore.cleanFogMarks(m.fogMarks, ownCellKeysOf(m)) : null; if (mkC) m.fogMarks = mkC; else delete m.fogMarks; }   // senses S4: this player's marks, cleaned again
@@ -680,7 +681,42 @@ function anyFog(camp) {
 // Everything a player receives is built from the two clones above and below: a number the wire's packer would refuse (a whole number past
 // 64 bits — typed into a box, imported, computed) is bounded as it is copied, so one value can never stop a map, a join or a snapshot.
 function wireNum(k, v) { return (typeof v === 'number' && (v > 1e15 || v < -1e15)) ? (v > 0 ? 1e15 : -1e15) : v; }
-function sanitizeAppState(s, recipientId) {   // recipientId: the player this copy is for (characters are per recipient); absent = nobody's (the stream window)
+// [netcheck:mapheld-start]
+// Per-player map possession (security, the owner's ruling of 2026-10-01: "build per-player possession now"): a player's app holds only the maps
+// they have reached. The join snapshot carries a STUB for every hosted map the recipient is not on — its type, its id and the meta the Maps
+// list and a portal's hover need (title, lock, nesting), nothing drawn, no rooms, no links; the whole map is given to a connection when its
+// player arrives there (stageConn, hostTravel, the summons), before the word that they are on it; and a copy, a delta, a catch-up or a live
+// position of a map goes only to the connections holding it whole. The host's memory only, per connection (its id may hold any character:
+// prototype-free, never parsed): which maps were given whole; forgotten with the connection, with the map and at a new table. A player's app
+// asking for a map it was never given gets nothing
+var _mapHeld = Object.create(null);
+function mapHeld(conn, mapId) { return !!(conn && typeof conn.peer === 'string' && typeof mapId === 'string' && own(_mapHeld, conn.peer) && _mapHeld[conn.peer][mapId] === 1); }
+function mapHeldNote(conn, mapId) { if (!conn || typeof conn.peer !== 'string' || typeof mapId !== 'string') return; (own(_mapHeld, conn.peer) ? _mapHeld[conn.peer] : (_mapHeld[conn.peer] = Object.create(null)))[mapId] = 1; }
+function mapHeldOf(conn) { return conn && typeof conn.peer === 'string' && own(_mapHeld, conn.peer) ? _mapHeld[conn.peer] : Object.create(null); }
+function mapForgetConn(peer) { if (typeof peer === 'string') delete _mapHeld[peer]; }
+function mapForgetMap(mapId) { Object.keys(_mapHeld).forEach(function(p) { delete _mapHeld[p][mapId]; }); }
+function mapForgetAll() { _mapHeld = Object.create(null); }
+// the stub a player holds for a map they have not reached: its name, its lock and its place in the Maps list; nothing of what is on it
+function mapStub(map) {
+    var meta = map && map.meta && typeof map.meta === 'object' ? map.meta : {}, out = { title: typeof meta.title === 'string' ? meta.title.slice(0, 200) : '' };
+    if (meta.playerLock) out.playerLock = true;
+    if (typeof meta.parentId === 'string') out.parentId = meta.parentId.slice(0, 160);
+    if (typeof meta.sortIndex === 'number' && isFinite(meta.sortIndex)) out.sortIndex = meta.sortIndex;
+    return { type: 'map', id: map.id, stub: true, meta: out, whiteboard: [], rooms: [], links: [], cats: {} };
+}
+// a map given whole to one connection as its player arrives there: the table's other holders are brought up to date first (an unfogged map's
+// shared delta baseline is then the very copy about to go, so their later deltas apply exactly), then the copy is recorded as held and sent;
+// one held already is left to its deltas. at: the action of theirs this copy answers (14c)
+function mapGive(conn, campId, mapId, at) {
+    var camp = state.appState && state.appState.campaigns && own(state.appState.campaigns, campId) ? state.appState.campaigns[campId] : null, it = camp && own(camp.items, mapId) ? camp.items[mapId] : null;
+    if (!conn || !conn.open || !it || it.type !== 'map' || !own(net.roster, conn.peer) || mapHeld(conn, mapId)) return false;
+    if (!mapFogged(it)) net.sendItem(campId, mapId);
+    mapHeldNote(conn, mapId);
+    net.sendItem(campId, mapId, conn, null, at);
+    return true;
+}
+// [netcheck:mapheld-end]
+function sanitizeAppState(s, recipientId, held) {   // recipientId: the player this copy is for (characters are per recipient); absent = nobody's (the stream window); held: the maps this connection holds whole (mapHeldOf) — every other map of the hosted campaign goes as its stub; absent, every map whole (the stream window, an older caller)
     // a session is one campaign (owner's answer, 2026-09-29): only the hosted campaign is copied at all — the GM's other games (their names,
     // maps and planners) never reach a player or the stream window
     var one = {}; Object.keys(s || {}).forEach(function(k) { if (k !== 'campaigns') one[k] = s[k]; });
@@ -721,6 +757,7 @@ function sanitizeAppState(s, recipientId) {   // recipientId: the player this co
         Object.keys(camp.items).forEach(function(id) {
             var orig = camp.items[id];
             if (orig && orig.type === 'doc' && camp.id !== c.activeCampaignId) { delete camp.items[id]; return; }   // a session is one campaign: only the hosted campaign's pages travel
+            if (orig && orig.type === 'map' && recipientId && held && typeof mapStub === 'function' && !(own(held, id) && held[id] === 1)) { camp.items[id] = mapStub(orig); return; }   // possession: a map this player has not reached travels as its stub (name, lock, nesting), nothing of what is on it
             var it = sanitizeItem(orig);
             if (it === null) { delete camp.items[id]; return; }
             if (it.type === 'map' && recipientId && camp.id === c.activeCampaignId) it = fogCopyFor(it, (s.campaigns && s.campaigns[camp.id]) || camp, orig, recipientId);   // drop the creatures this player cannot see (judged on the host's own campaign, as every later send is), with their lit cells
@@ -812,7 +849,7 @@ function fogSeed(conn, mapId, out) {
 function fogSeedSnapshot(conn, snap) {   // every fogged map of the hosted campaign, as the join snapshot carried it
     var camp = getActiveCampaign(), cs = snap && snap.appState && snap.appState.campaigns, sc = camp && cs && own(cs, camp.id) ? cs[camp.id] : null;
     if (!sc || !sc.items || !camp.items) return;
-    Object.keys(camp.items).forEach(function(id) { if (mapFogged(camp.items[id]) && own(sc.items, id)) fogSeed(conn, id, sc.items[id]); });
+    Object.keys(camp.items).forEach(function(id) { if (mapFogged(camp.items[id]) && own(sc.items, id) && sc.items[id].stub !== true) fogSeed(conn, id, sc.items[id]); });   // possession: a stub is no copy of the map
 }
 // [netcheck:acks-start]
 // 14c (the step-back): the highest action number the host has finished handling from each connection ('a' on a player's final, map patch and
@@ -825,8 +862,8 @@ function ackNum(v) { return typeof v === 'number' && v % 1 === 0 && v >= 1 && v 
 function ackOf(conn) { return conn && typeof conn.peer === 'string' && own(_acks, conn.peer) ? _acks[conn.peer] : 0; }
 function ackTook(conn, a) { var n = ackNum(a); if (n && conn && typeof conn.peer === 'string' && n > ackOf(conn)) _acks[conn.peer] = n; }
 function withAck(msg, conn, at) { var o = {}; for (var k in msg) if (Object.prototype.hasOwnProperty.call(msg, k)) o[k] = msg[k]; o.ack = Math.max(ackOf(conn), ackNum(at)); return o; }   // a copy of the message for that connection, with how far its copy goes (at: the action a put-back answers)
-function ackSend(msg) {   // a map for every admitted, open connection, each with its own number (a shared broadcast cannot carry one)
-    net.conns.forEach(function(c) { if (!c.open || (net.role === 'host' && !own(net.roster, c.peer))) return; try { c.send(withAck(msg, c)); } catch (e) { sendFailed(e); } });
+function ackSend(msg, mapId) {   // a map for every admitted, open connection, each with its own number (a shared broadcast cannot carry one); mapId: only the connections holding that map whole (possession)
+    net.conns.forEach(function(c) { if (!c.open || (net.role === 'host' && !own(net.roster, c.peer))) return; if (mapId && typeof mapHeld === 'function' && !mapHeld(c, mapId)) return; try { c.send(withAck(msg, c)); } catch (e) { sendFailed(e); } });
 }
 // [netcheck:acks-end]
 // [netcheck:hidpend-start]
@@ -853,9 +890,9 @@ function hidPendOf(peer, mapId) { return typeof peer === 'string' && own(_hidPen
 function hidNamed(peer, mapId, ids) { var p = hidPendOf(peer, mapId); if (p) Object.keys(ids).forEach(function(id) { delete p[id]; }); }
 function hidForgetMap(mapId) { Object.keys(_hidPend).forEach(function(p) { delete _hidPend[p][mapId]; }); }
 // [netcheck:hidpend-end]
-function fogForgetConn(peer) { if (typeof peer === 'string') { delete _fogHeld[peer]; delete _acks[peer]; delete _hidPend[peer]; } }   // 14c: and how far its copies go; hidden pieces: and the drawings of theirs the GM hid
+function fogForgetConn(peer) { if (typeof peer === 'string') { delete _fogHeld[peer]; delete _acks[peer]; delete _hidPend[peer]; } if (typeof mapForgetConn === 'function') mapForgetConn(peer); }   // 14c: and how far its copies go; hidden pieces: and the drawings of theirs the GM hid
 function fogForgetMap(mapId) { Object.keys(_fogHeld).forEach(function(p) { delete _fogHeld[p][mapId]; }); }
-function fogForgetAll() { _fogHeld = Object.create(null); _acks = Object.create(null); _hidPend = Object.create(null); Object.keys(_fogPend).forEach(function(k) { clearTimeout(_fogPend[k]); }); _fogPend = Object.create(null); _fogCost = Object.create(null); if (typeof combatForget === 'function') combatForget(); }   // a new table: no fight's rows seen
+function fogForgetAll() { _fogHeld = Object.create(null); _acks = Object.create(null); _hidPend = Object.create(null); if (typeof mapForgetAll === 'function') mapForgetAll(); Object.keys(_fogPend).forEach(function(k) { clearTimeout(_fogPend[k]); }); _fogPend = Object.create(null); _fogCost = Object.create(null); if (typeof combatForget === 'function') combatForget(); }   // a new table: no fight's rows seen
 // Fold M7: the landing. A player's move that lands in another cell, facing or stance (their drop, or a map copy their app saves) arms a short
 // timer on that map; when it fires, every admitted connection's copy of the map is caught up in place: the creatures that player now sees
 // or no longer sees, the lit cells a light they cannot see gives them, the light cap ('fogDiff', the player's side is applyFogDiff), judged
@@ -890,6 +927,7 @@ function fogMoveFire(mapId) {
 }
 // one connection's copy caught up: true where the creatures it holds changed
 function fogCatchUp(c, camp, m, pid, memo) {
+    if (typeof mapHeld === 'function' && !mapHeld(c, m.id)) return false;   // possession: a map this connection was never given whole is not caught up (nor sent whole here)
     var per = own(_fogHeld, c.peer) ? _fogHeld[c.peer] : null, rec = per && own(per, m.id) ? per[m.id] : null;
     if (!rec) { net.sendItem(camp.id, m.id, c); fogRoster(c, pid, m.id); return true; }   // nothing known of it: the whole copy, which records it
     var jd = memo[pid];
@@ -1129,6 +1167,7 @@ function applyStage(stage) {
     state.appState.activeCampaignId = stage.campId;
     var camp = state.appState.campaigns[stage.campId];
     if (camp.items[stage.itemId] && camp.items[stage.itemId].type === 'map') camp.activeItemId = stage.itemId;   // only ever a map
+    if (camp.items[stage.itemId] && camp.items[stage.itemId].type === 'map' && camp.items[stage.itemId].stub === true && net.needItem) net.needItem(stage.campId, stage.itemId);   // possession: put on a map this app holds only as a stub (its whole copy did not come): ask for it
     state.viewMode = 'visual';
     state.selId = null; state.selWbId = null; state.selWbIds = [];
     // Personal travel names a landing room: open the map looking at it
@@ -1488,7 +1527,7 @@ function itemDelta(itemId, clean) {
 function applyItemDelta(msg) {
     var camp = campOf(msg.campId); if (!camp || !validKey(msg.itemId)) return;
     var it = own(camp.items, msg.itemId) ? camp.items[msg.itemId] : null;
-    if (!it) { broadcast({ type: 'needItem', campId: msg.campId, itemId: msg.itemId }, null); return; }   // never had it: ask for the whole thing
+    if (!it || it.stub === true) { broadcast({ type: 'needItem', campId: msg.campId, itemId: msg.itemId }, null); return; }   // never had it, or holds only its stub (possession): ask for the whole thing
     net.applyingRemote = true;
     (it.type === 'doc' ? ['blocks'] : ['whiteboard', 'rooms']).forEach(function(key) {   // a page has blocks, a map has the rest — a delta never adds the other kind
         var ch = msg[key]; if (!ch || typeof ch !== 'object') return;
@@ -1535,7 +1574,7 @@ function fogDiffShape(msg) {
 function applyFogDiff(msg) {
     var camp = campOf(msg.campId); if (!camp || !validKey(msg.itemId)) return;
     var map = own(camp.items, msg.itemId) ? camp.items[msg.itemId] : null, ask = function() { broadcast({ type: 'needItem', campId: msg.campId, itemId: msg.itemId }, null); };
-    if (!map) { ask(); return; }   // never had it: the whole thing
+    if (!map || map.stub === true) { ask(); return; }   // never had it, or holds only its stub (possession): the whole thing
     if (typeof map !== 'object' || map.type !== 'map') return;
     if (!fogDiffShape(msg) || !Array.isArray(map.whiteboard)) { ask(); return; }
     var wb = map.whiteboard, refused = false;
@@ -1579,7 +1618,7 @@ net.sendItem = function(campId, itemId, onlyConn, exceptConn, at) {   // fold M1
         delete _lastSent[itemId];                                                     // leaving the shared-delta path: the next non-fog send is whole
         var fogSend = function() {   // fold M4: cloned and judged with every open drag on this map at its start
             var sendOne = function(conn) {
-                var pr = net.roster[conn.peer]; if (!pr || !conn.open || (exceptConn && conn === exceptConn)) return;
+                var pr = net.roster[conn.peer]; if (!pr || !conn.open || (exceptConn && conn === exceptConn) || (typeof mapHeld === 'function' && !mapHeld(conn, itemId))) return;   // possession: only a connection holding the map whole
                 var out = fogCopyFor(clean, camp, it, pr.id);
                 if (typeof fogOwnLive === 'function') out = fogOwnLive(out, itemId, pr.id);
                 try { conn.send(ak({ type: 'item', campId: campId, itemId: itemId, item: out }, conn, at)); } catch (e) { sendFailed(e); return; }   // 14c: how far that copy goes
@@ -1593,13 +1632,13 @@ net.sendItem = function(campId, itemId, onlyConn, exceptConn, at) {   // fold M1
     }
     var clean = sanitizeItem(it); if (!clean) return;
     if (typeof fogForgetMap === 'function') fogForgetMap(itemId);   // fold M5: an unfogged map is one copy for all: no record of it
-    var full = { type: 'item', campId: campId, itemId: itemId, item: clean };
-    if (onlyConn) { try { onlyConn.send(ak(full, onlyConn, at)); } catch (e) { sendFailed(e); } return; }              // one player asked for the whole thing (or is put right after a stale patch: at)
+    var full = { type: 'item', campId: campId, itemId: itemId, item: clean }, heldOnly = it.type === 'map' && typeof mapHeld === 'function';   // possession: a map goes only to the connections holding it whole (a page to every admitted one)
+    if (onlyConn) { if (heldOnly && !mapHeld(onlyConn, itemId)) return; try { onlyConn.send(ak(full, onlyConn, at)); } catch (e) { sendFailed(e); } return; }              // one player asked for the whole thing (or is put right after a stale patch: at) — never a map they were not given
     var d = itemDelta(itemId, clean);
     if (d === false) return;                                                          // unchanged since the last send
     var msg = full;
     if (d) { d.campId = campId; if (JSON.stringify(d).length < JSON.stringify(full).length * 0.9) msg = d; }
-    if (typeof ackSend === 'function') ackSend(msg); else broadcast(msg, null);   // 14c: each connection's own copy says how far it goes
+    if (typeof ackSend === 'function') ackSend(msg, heldOnly ? itemId : null); else broadcast(msg, null);   // 14c: each connection's own copy says how far it goes
     _lastSent[itemId] = JSON.parse(JSON.stringify(clean));
 };
 // Host: broadcast one whole map/item to the table, fog-filtered per recipient when it is a fogged map. Used by the many
@@ -1608,12 +1647,16 @@ net.broadcastItemFiltered = function(campId, itemId) {
     var camp = state.appState.campaigns[campId], it = camp && camp.items[itemId]; if (!it) return;
     if (typeof window !== 'undefined' && window.wpFog && window.wpFog.invalidateSeen) window.wpFog.invalidateSeen(itemId);   // Senses S0: a map sent this way was changed as a remote change (a traveller arrived or left, a waiting token placed, a light switched): who sees what on it is judged afresh
     if (typeof hidNote === 'function') hidNote(it);   // hidden pieces: as sendItem
-    if (!mapFogged(it)) { var clean = sanitizeItem(it); if (!clean) return; if (typeof fogForgetMap === 'function') fogForgetMap(itemId); var bm = { type: 'item', campId: campId, itemId: itemId, item: clean }; if (typeof ackSend === 'function') ackSend(bm); else broadcast(bm, null); _lastSent[itemId] = JSON.parse(JSON.stringify(clean)); return; }   // the table now holds this: the next delta is worked out from it (a light switched off here and on again by the GM was the same as the older baseline, and never went out)
+    if (it.type === 'map' && typeof mapStub === 'function' && typeof mapHeld === 'function') {   // possession: a connection holding this map's stub (a lock changed, say) gets the stub afresh — its name and its lock, nothing of what is on it
+        var stubMsg = { type: 'item', campId: campId, itemId: itemId, item: mapStub(it) };
+        net.conns.forEach(function(c) { if (!c.open || !own(net.roster, c.peer) || mapHeld(c, itemId) || net.roster[c.peer].location === itemId) return; try { c.send(stubMsg); } catch (e) { sendFailed(e); } });   // not to one arriving on it now: the whole map follows (mapGive)
+    }
+    if (!mapFogged(it)) { var clean = sanitizeItem(it); if (!clean) return; if (typeof fogForgetMap === 'function') fogForgetMap(itemId); var bm = { type: 'item', campId: campId, itemId: itemId, item: clean }; if (typeof ackSend === 'function') ackSend(bm, it.type === 'map' && typeof mapHeld === 'function' ? itemId : null); else broadcast(bm, null); _lastSent[itemId] = JSON.parse(JSON.stringify(clean)); return; }   // possession: a map to the connections holding it whole, a page to every admitted one   // the table now holds this: the next delta is worked out from it (a light switched off here and on again by the GM was the same as the older baseline, and never went out)
     delete _lastSent[itemId];   // a fogged map has no shared baseline (as sendItem)
     var fogSend = function() {   // fold M4: cloned and judged with every open drag on this map at its start
         var clean = sanitizeItem(it); if (!clean) return;
         net.conns.forEach(function(conn) {
-            var pr = net.roster[conn.peer]; if (!pr || !conn.open) return;
+            var pr = net.roster[conn.peer]; if (!pr || !conn.open || (typeof mapHeld === 'function' && !mapHeld(conn, itemId))) return;   // possession: only a connection holding the map whole
             var out = fogCopyFor(clean, camp, it, pr.id);
             if (typeof fogOwnLive === 'function') out = fogOwnLive(out, itemId, pr.id);
             try { conn.send(typeof withAck === 'function' ? withAck({ type: 'item', campId: campId, itemId: itemId, item: out }, conn) : { type: 'item', campId: campId, itemId: itemId, item: out }); } catch (e) { sendFailed(e); return; }   // 14c: how far that copy goes
@@ -1629,6 +1672,7 @@ net.itemGone = function(campId, itemId) {
     if (typeof sensesForgetMap === 'function') sensesForgetMap(itemId);   // Senses S0: and what anyone's copy of it was made by
     if (typeof fogForgetMap === 'function') fogForgetMap(itemId);   // fold M5: and what anyone's copy of it holds
     if (typeof hidForgetMap === 'function') hidForgetMap(itemId);   // hidden pieces: and the drawings on it the GM hid
+    if (typeof mapForgetMap === 'function') mapForgetMap(itemId);   // possession: and who held it whole
     if (!(net.active && net.role === 'host')) return;
     var msg = { type: 'itemGone', campId: campId, itemId: itemId };
     net.conns.forEach(function(c) { if (c.open && net.roster[c.peer]) { try { c.send(msg); } catch (e) { sendFailed(e); } } });
@@ -2790,10 +2834,14 @@ var _posLast = 0;
 // [netcheck:bpos-start]
 function broadcastPos(msg, exceptConn, camp, map, w) {
     if (w && (w.gmNoteFor || w.hidden)) return;   // a GM-note card and a hidden piece never reach a player (wireWbItem drops them), so neither does their place while the GM drags them
-    if (!map || !mapFogged(map)) { broadcast(msg, exceptConn); return; }
+    if (!map || !mapFogged(map)) {
+        if (!map || typeof map.id !== 'string' || typeof mapHeld !== 'function') { broadcast(msg, exceptConn); return; }
+        net.conns.forEach(function(c) { if (c === exceptConn || !c.open || !own(net.roster, c.peer) || !mapHeld(c, map.id)) return; try { c.send(msg); } catch (e) { sendFailed(e); } });   // possession: a place on a map reaches only the connections holding that map whole
+        return;
+    }
     var cx = (msg.x || 0) + ((w && w.w) || 60) / 2, cy = (msg.y || 0) + ((w && w.h) || 52) / 2;
     net.conns.forEach(function(c) {
-        if (c === exceptConn || !c.open) return;
+        if (c === exceptConn || !c.open || (typeof mapHeld === 'function' && !mapHeld(c, map.id))) return;   // possession: as above
         var pr = net.roster[c.peer]; if (!pr) return;
         if ((w && w.ownerId === pr.id) || (window.wpFog && window.wpFog.canSeePoint(pr.id, camp, map, cx, cy))) { try { c.send(msg); } catch (e) { sendFailed(e); } }
     });
@@ -2884,6 +2932,7 @@ function hostTravel(conn, traveler, portal, fromMap) {
     }
     if (window.wpHistBarrier) window.wpHistBarrier([fromMap.id, destMap.id]);   // a move between two maps: neither side can be undone past it
     broadcastRoster();
+    if (conn && typeof mapGive === 'function') mapGive(conn, tCamp.id, pRoom.targetMapId);   // possession: the map they arrive on, whole, before the word that they are on it
     if (conn) { try { conn.send({ type: 'stage', personal: true, stage: { campId: tCamp.id, itemId: pRoom.targetMapId, landRoomId: landRoom ? landRoom.id : null } }); } catch (e) { sendFailed(e); } }
     var destTitle = (tCamp.items[pRoom.targetMapId].meta || {}).title || pRoom.targetMapId;
     toast((traveler.name || 'A player') + ' traveled to ' + destTitle + '.');
@@ -4327,13 +4376,15 @@ function admitPlayer(conn, prof, provenKey) {
     // a follow still in its grace window moves everyone once it fires; marking the stage seen now would cancel it
     if (!_stageTimer) net.lastStage = stage ? stage.campId + '/' + stage.itemId : null;
     if (land.stage) ensurePlayerToken(prof.id, land.stage.itemId);   // before the snapshot so it's included
+    if (typeof mapForgetConn === 'function') mapForgetConn(conn.peer);   // possession: the snapshot replaces whatever this connection held; the map they land on is the one it gets whole, every other map as its stub
+    if (land.stage && typeof mapHeldNote === 'function') mapHeldNote(conn, land.stage.itemId);
     if (window.wpFog) window.wpFog.invalidateVision();   // fog: this admit may follow token moves; compute a fresh per-recipient view
     var snapOk = false;
     try {
-        var snap, mkSnap = function() { snap = { type: 'snapshot', gmId: getProfile().id, key: issuedKey, appState: sanitizeAppState(state.appState, prof.id), stage: land.stage, paused: net.paused, pausedSelf: !!(net.pausedPlayers && net.pausedPlayers[prof.id]), travelLocked: net.travelLocked, snap: typeof window.wpSnapOn === 'function' && window.wpSnapOn() === true, stance: net.stanceFlags(), stanceCamps: window.wpVtt ? window.wpVtt.hostCamps() : null, targets: targetsFor(prof.id), combats: combatsFor(prof.id), notepad: notepadMsg() }; };
+        var snap, mkSnap = function() { snap = { type: 'snapshot', gmId: getProfile().id, key: issuedKey, appState: sanitizeAppState(state.appState, prof.id, typeof mapHeldOf === 'function' ? mapHeldOf(conn) : null), stage: land.stage, paused: net.paused, pausedSelf: !!(net.pausedPlayers && net.pausedPlayers[prof.id]), travelLocked: net.travelLocked, snap: typeof window.wpSnapOn === 'function' && window.wpSnapOn() === true, stance: net.stanceFlags(), stanceCamps: window.wpVtt ? window.wpVtt.hostCamps() : null, targets: targetsFor(prof.id), combats: combatsFor(prof.id), notepad: notepadMsg() }; };
         if (typeof fogLanded === 'function') fogLanded(null, mkSnap); else mkSnap();   // fold M4: judged with every open drag at its start
         conn.send(snap); snapOk = true;
-    } catch (e) { sendFailed(e, 'snapshot'); toast('Could not send the campaign to ' + (prof.name || 'the player') + ' \u2014 something in it cannot be sent (the console has the details).'); }
+    } catch (e) { sendFailed(e, 'snapshot'); toast('Could not send the campaign to ' + (prof.name || 'the player') + ' \u2014 something in it cannot be sent (the console has the details).'); if (typeof mapForgetConn === 'function') mapForgetConn(conn.peer); }
     if (snapOk && typeof fogSeedSnapshot === 'function') fogSeedSnapshot(conn, snap);   // fold M5: what each of its fogged maps holds
     if (snapOk && typeof hidNoteAll === 'function') hidNoteAll();   // hidden pieces: the drawings of theirs the GM hid, which this copy lacks
     if (window.wpVtt) net._lastStanceSig = window.wpVtt.hostSig();   // the snapshot carried the ceiling: no re-send on the next save
@@ -4590,9 +4641,11 @@ function handleMessage(msg, conn) {
             net.applyingRemote = false;
         }
     } else if (msg.type === 'needItem' && net.role === 'host') {
+        // [netcheck:needitem-start]
         var campN = getActiveCampaign(); if (!campN || msg.campId !== campN.id || typeof msg.itemId !== 'string') return;   // a session is one campaign
         if (!allow('need', { perMs: 50, burst: 30, windowMs: 5000, table: 1000 }, conn.peer)) return;
-        net.sendItem(msg.campId, msg.itemId, conn);
+        net.sendItem(msg.campId, msg.itemId, conn);   // possession: a map this connection was never given whole is refused there (sendItem's own gate)
+        // [netcheck:needitem-end]
     } else if (msg.type === 'stage' && net.role === 'client') {
         applyStage(msg.stage);
         toast(msg.personal ? 'You arrive.' : 'The GM moved the table to a new map.');
@@ -6754,6 +6807,7 @@ function stageConn(c, stage, personal) {
     if (!p) return null;
     if (personal) p.detached = false;
     p.location = stage.itemId; ensurePlayerToken(p.id, stage.itemId);
+    if (typeof mapGive === 'function') mapGive(c, stage.campId, stage.itemId);   // possession: the map they arrive on, whole, before the word that they are on it
     if (c.open) { try { c.send(personal ? { type: 'stage', stage: stage, personal: true } : { type: 'stage', stage: stage }); } catch (e) { sendFailed(e); } }
     if (c.open && net.sendFxArrival) net.sendFxArrival(c, stage.itemId);
     return p;

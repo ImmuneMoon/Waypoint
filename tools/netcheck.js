@@ -906,6 +906,74 @@ pendingChecks.push((async () => {
     const protoRuns = [['constructor', 'm1'], ['__proto__', 'm1'], ['hasOwnProperty', 'm1'], ['c1', 'constructor'], ['c1', 'toString'], ['c1', '__proto__'], [5, 'm1'], ['c1', 7]].map(([c, i]) => runPatch(mk(), { campId: c, itemId: i, item: { whiteboard: [{ id: 't1', x: 9, y: 9 }] } }));
     check('patch (host): a campaign or map id that is a prototype key (or not a string) names nothing — refused, never a throw', protoRuns.every(r => r === false), j(protoRuns));
 }
+// R2 security (cluster A, #1 #3 #23): the patch path with the REAL playerStroke — a copy of the map they are on, ids that are keys, each new id once,
+// and a budget of points per player per map beside the count
+{
+    const patchSrc = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch');
+    const cleanersSrc = src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem('));
+    const psSrc = fnSrc('function playerStroke(', '\n}\n', 'playerStroke') + '\n}\n';
+    const runP = (camps, msg, prof) => { try { return new Function('state', 'window', 'msg', 'prof', cleanersSrc + ownKeySrc + psSrc + patchSrc + '\nreturn applyClientItemFiltered(msg, prof);')({ appState: { campaigns: camps } }, { wpVtt: { campaignOn: () => true } }, msg, prof); } catch (e) { return 'threw: ' + e.message; } };
+    const mk = () => ({ c1: { id: 'c1', items: {
+        m1: { id: 'm1', type: 'map', whiteboard: [{ id: 'tA', isChar: true, ownerId: 'u_p', x: 0, y: 0, rot: 0, front: 0 }, { id: 's1', type: 'path', byPlayer: true, ownerId: 'u_p', pts: [[0, 0], [1, 1]], x: 0, y: 0 }] },
+        m2: { id: 'm2', type: 'map', meta: { playerLock: true }, whiteboard: [{ id: 'tB', isChar: true, ownerId: 'u_p', x: 0, y: 0, rot: 0, front: 0 }] } } } });
+    const sk = (id, pts) => ({ id, type: 'path', ownerId: 'u_p', pts: pts || [[0, 0], [9, 9]] });
+    const ids = wb => wb.map(w => w.id);
+    // #1: the map they are on (the pos gate's rule)
+    const cA = mk(), rA = runP(cA, { campId: 'c1', itemId: 'm2', item: { whiteboard: [{ id: 'tB', x: 400, y: 500 }, sk('g1')] } }, { id: 'u_p', location: 'm1' });
+    const cC = mk(), rC = runP(cC, { campId: 'c1', itemId: 'm1', item: { whiteboard: [{ id: 'tA', x: 400, y: 500 }, sk('s1', [[0, 0], [1, 1]]), sk('g1')] } }, { id: 'u_p', location: 'm1' });
+    const cD = mk(), rD = runP(cD, { campId: 'c1', itemId: 'm1', item: { whiteboard: [{ id: 'tA', x: 400, y: 500 }, sk('s1', [[0, 0], [1, 1]])] } }, { id: 'u_p', location: null });
+    const cE = mk(), rE = runP(cE, { campId: 'c1', itemId: 'm1', item: { whiteboard: [{ id: 'tA', x: 400, y: 500 }, sk('s1', [[0, 0], [1, 1]])] } }, { id: 'u_p', location: 'm2' });
+    check('security (patch, host): a map copy from a player names the map they are on, as the pos gate and the threats branch have it — a copy of a map they left a token on (here one closed to players) moves nothing there and draws nothing, so no room\'s handout is found on a map they never travelled to; a copy of the map they stand on lands; a player with no place yet, as before; the GM moved them meanwhile: the stale copy of the old map is dropped',
+        rA === false && j(cA.c1.items.m2) === j(mk().c1.items.m2) && rC === true && cC.c1.items.m1.whiteboard[0].x === 400 && j(ids(cC.c1.items.m1.whiteboard)) === j(['tA', 's1', 'g1'])
+        && rD === true && cD.c1.items.m1.whiteboard[0].x === 400 && rE === false && j(cE.c1.items.m1) === j(mk().c1.items.m1), j([rA, cA.c1.items.m2, rC, ids(cC.c1.items.m1.whiteboard), rD, rE, cE.c1.items.m1.whiteboard[0]]));
+    // #3: a new drawing's id
+    const cI = mk(), oddIds = ['x'.repeat(100000), 'constructor', '__proto__', 'hasOwnProperty', '"><b>', '', 'a b', 'x'.repeat(81)];
+    const rI = runP(cI, { campId: 'c1', itemId: 'm1', item: { whiteboard: [{ id: 'tA', x: 0, y: 0 }, sk('s1', [[0, 0], [1, 1]])].concat(oddIds.map(id => sk(id))).concat([sk('dup', [[1, 1], [2, 2]]), sk('dup', [[3, 3], [4, 4]]), sk('dup', [[5, 5], [6, 6]]), sk('wb' + 'k'.repeat(78)), sk('a.b:c-d_e')]) } }, { id: 'u_p', location: 'm1' });
+    const wbI = cI.c1.items.m1.whiteboard;
+    check('security (patch, host): a new drawing\'s id is short plain text — letters, digits, _ . : - and up to 80 of them — and never a prototype\'s key: one 100,000 characters long, "constructor", "__proto__", "hasOwnProperty", markup, an empty one, one with a space and one 81 long each name nothing and are stored nowhere; the same new id three times in one copy lands once (the later entries redraw the first); the existing token and drawing are untouched',
+        rI === true && j(ids(wbI)) === j(['tA', 's1', 'dup', 'wb' + 'k'.repeat(78), 'a.b:c-d_e']) && j(wbI.find(w => w.id === 'dup').pts) === j([[5, 5], [6, 6]]) && j(wbI[0]) === j(mk().c1.items.m1.whiteboard[0]) && j(wbI[1].pts) === j([[0, 0], [1, 1]]) && JSON.stringify(cI).length < 2000,
+        j([rI, ids(wbI).map(s => s.slice(0, 20)), JSON.stringify(cI).length]));
+    // #23: a budget of points per player per map
+    const big = n => { const p = []; for (let i = 0; i < n; i++) p.push([i, i]); return p; };
+    const cB = mk(), many = []; for (let i = 0; i < 600; i++) many.push(sk('b' + i, big(4000)));
+    const rB = runP(cB, { campId: 'c1', itemId: 'm1', item: { whiteboard: [{ id: 'tA', x: 0, y: 0 }, sk('s1', [[0, 0], [1, 1]])].concat(many) } }, { id: 'u_p', location: 'm1' });
+    const wbB = cB.c1.items.m1.whiteboard, ptsOf = () => wbB.filter(w => w.type === 'path' && w.byPlayer).reduce((n, w) => n + w.pts.length, 0), held = () => wbB.filter(w => w.type === 'path').map(w => sk(w.id, w.pts));
+    const step1 = { ret: rB, ids: ids(wbB), pts: ptsOf(), bytes: JSON.stringify(cB.c1.items.m1).length };
+    const rB2 = runP(cB, { campId: 'c1', itemId: 'm1', item: { whiteboard: [{ id: 'tA', x: 0, y: 0 }].concat(held()).concat([sk('more4k', big(4000)), sk('tiny', [[0, 0], [1, 1]])]) } }, { id: 'u_p', location: 'm1' });
+    const step2 = { ret: rB2, more: ids(wbB).includes('more4k'), tiny: ids(wbB).includes('tiny'), pts: ptsOf() };
+    const rB3 = runP(cB, { campId: 'c1', itemId: 'm1', item: { whiteboard: [{ id: 'tA', x: 0, y: 0 }].concat(held().map(h => h.id === 's1' ? sk('s1', big(4000)) : h)) } }, { id: 'u_p', location: 'm1' });
+    const step3 = { ret: rB3, s1: wbB.find(w => w.id === 's1').pts.length, pts: ptsOf() };
+    const rB4 = runP(cB, { campId: 'c1', itemId: 'm1', item: { whiteboard: [{ id: 'tA', x: 0, y: 0 }].concat(held().map(h => h.id === 's1' ? sk('s1', big(3000)) : h)) } }, { id: 'u_p', location: 'm1' });
+    const step4 = { ret: rB4, s1: wbB.find(w => w.id === 's1').pts.length, pts: ptsOf(), tA: j(wbB[0]) === j(mk().c1.items.m1.whiteboard[0]) };
+    check('security (patch, host): a player\'s drawings on one map are bounded by their points as well as by their count — 600 new drawings of 4,000 points each leave 14 on the map (60,000 points a player a map, counted with what is there), the map under 2 MB; a further drawing of 4,000 points is refused while a small one still lands; a redraw of 4,000 points that would take their points past the budget is refused and one of 3,000 within it lands; their token is untouched throughout',
+        step1.ret === true && j(step1.ids.slice(0, 3)) === j(['tA', 's1', 'b0']) && step1.ids.length === 16 && step1.pts === 56002 && step1.bytes < 2e6
+        && step2.ret === true && step2.more === false && step2.tiny === true && step2.pts === 56004
+        && step3.ret === false && step3.s1 === 2 && step3.pts === 56004 && step4.ret === true && step4.s1 === 3000 && step4.pts === 59002 && step4.tA,
+        j([step1.ret, step1.ids.length, step1.pts, step1.bytes, step2, step3, step4]));
+}
+// R2 security (cluster A, #3, the delta path): the host's itemDelta and a player's applyItemDelta key their id maps off the prototype, so a drawing
+// an older save named for a prototype's key ("constructor") is deleted on every copy when it is erased, instead of standing as a ghost
+{
+    const qh = new Function(fnSrc('function quickHash(', '\n}\n', 'quickHash') + '\n}\nreturn quickHash;')();
+    const idSrc = lineOf('function uniqueIds(') + '\n' + fnSrc('function itemDelta(itemId, clean) {', '\nfunction applyItemDelta(', 'itemDelta');
+    const mkMap = ids => ({ type: 'map', id: 'm1', whiteboard: ids.map(id => ({ id, type: 'path', byPlayer: true, ownerId: 'u_p', pts: [[0, 0], [1, 1]] })), rooms: [] });
+    const delta = (baseIds, nowIds) => new Function('_lastSent', 'quickHash', 'cleanMap', idSrc + '\nreturn itemDelta("m1", cleanMap);')({ m1: mkMap(baseIds) }, qh, mkMap(nowIds));
+    const dC = delta(['t1', 'constructor', 'toString'], ['t1']), dAdd = delta(['t1'], ['t1', 'constructor']), dPlain = delta(['t1', 'd2'], ['t1']);
+    const adSrc = fnSrc('function applyItemDelta(msg) {', '\n}\n', 'applyItemDelta') + '\n}\n';
+    const applyD = (ids, msg) => {
+        const camp = { id: 'c1', activeItemId: 'm1', items: { m1: mkMap(ids) } }, asked = [];
+        new Function('state', 'net', 'window', 'broadcast', 'cleanHostMap', 'actOver', 'ackIn', 'getActiveCampaign', 'render', 'updateSidebarNav', 'msg',
+            ownKeySrc + adSrc + '\napplyItemDelta(msg);')({ appState: { campaigns: { c1: camp } } }, { applyingRemote: false }, {}, m => asked.push(m.type), () => {}, () => {}, () => 0, () => camp, () => {}, () => {}, msg);
+        return { ids: camp.items.m1.whiteboard.map(w => w.id), asked };
+    };
+    const aDel = applyD(['t1', 'constructor', 'hasOwnProperty'], { type: 'itemDelta', campId: 'c1', itemId: 'm1', whiteboard: { set: [], del: ['constructor', 'hasOwnProperty'], order: ['t1'] } });
+    const aSet = applyD(['t1', 'constructor'], { type: 'itemDelta', campId: 'c1', itemId: 'm1', whiteboard: { set: [{ id: 'constructor', type: 'path', byPlayer: true, ownerId: 'u_p', pts: [[5, 5], [6, 6]] }], del: [] } });
+    const aOrder = applyD(['t1', 'constructor', 'd2'], { type: 'itemDelta', campId: 'c1', itemId: 'm1', whiteboard: { set: [], del: [], order: ['constructor', 'd2', 't1'] } });
+    check('security (deltas, both sides — the real itemDelta and applyItemDelta): a drawing named for a prototype\'s key is a drawing like any other — erased on the host, the delta names it in del (it used to count as still there, so every other copy kept a ghost of it); added, the delta sets it; a player\'s copy told to delete it deletes it, told to set it replaces its own copy once, and sorts it by the order given',
+        j(dC.whiteboard) === j({ set: [], del: ['constructor', 'toString'], order: ['t1'] }) && j(dAdd.whiteboard) === j({ set: [mkMap(['constructor']).whiteboard[0]], del: [], order: ['t1', 'constructor'] }) && j(dPlain.whiteboard) === j({ set: [], del: ['d2'], order: ['t1'] })
+        && j(aDel.ids) === j(['t1']) && j(aSet.ids) === j(['t1', 'constructor']) && j(aOrder.ids) === j(['constructor', 'd2', 't1']) && [aDel, aSet, aOrder].every(a => a.asked.length === 0),
+        j([dC, dAdd, dPlain, aDel, aSet, aOrder]));
+}
 // the live drag: the same lock rule
 {
     const posSrc = fnSrc('function handlePos(msg, conn) {', '\n// Client: a player\'s threat marks', 'handlePos');
@@ -1049,6 +1117,68 @@ pendingChecks.push((async () => {
         && j([dPaused.ret, dPaused.loc, dPaused.sent, dPaused.toasts]) === j([false, 'm1', [], []]) && j([dBeside.ret, dBeside.sent, dBeside.toasts]) === j([false, [], []])
         && j([vLock.ret, vLock.loc, vLock.sent, vLock.toasts]) === j([false, 'm1', ['travelDenied'], []]) && j([vClosed.ret, vClosed.loc, vClosed.sent, vClosed.toasts]) === j([false, 'm1', ['travelDenied:closed:There'], []]),
         j([dLock, dClosed, dPaused, dBeside, vLock, vClosed]));
+}
+// R2 security (cluster A, #5): the host's needItem branch and net.sendItem look the campaign and the item up by their own keys alone
+{
+    const niSrc = between('// [netcheck:needitem-start]', '// [netcheck:needitem-end]', 'needitem');
+    const sendSrc = (() => { const i = src.indexOf('net.sendItem = function('), e = src.indexOf('\n};\n', i); return src.slice(i, e + 4); })();
+    const runNeed = (itemId, campId) => {
+        const conn = { peer: 'pA', open: true, sent: [], send(m) { packCheck(m); this.sent.push(m); } }, camp = { id: 'k', items: JSON.parse('{"mA":{"type":"map","id":"mA","whiteboard":[]}}') };
+        const net = { role: 'host', roster: { pA: { id: 'u_a' } }, conns: [conn] }, state = { appState: { activeCampaignId: 'k', campaigns: { k: camp } } };
+        let threw = '';
+        try {
+            new Function('msg', 'conn', 'net', 'state', 'getActiveCampaign', 'allow', 'window', 'withAck', 'hidNote', 'fogForgetMap', 'itemDelta', '_lastSent', 'ackSend', 'broadcast', 'sendFailed',
+                ownKeySrc + siSrc() + '\n' + lineOf('function mapFogged(') + '\n' + sendSrc + '\n' + niSrc)(
+                { type: 'needItem', campId: campId || 'k', itemId }, conn, net, state, () => camp, () => true, { wpVtt: { on: () => true } }, m => m, () => {}, () => {}, () => null, {}, () => {}, () => {}, e => { threw = e.message; });
+        } catch (e) { threw = 'threw: ' + e.message; }
+        return { sent: conn.sent.map(m => [m.type, m.itemId, m.item && typeof m.item]), threw };
+    };
+    const protoN = ['__proto__', 'constructor', 'toString', 'hasOwnProperty', 'valueOf', '', 5, null].map(id => runNeed(id));
+    const okN = runNeed('mA'), otherC = runNeed('mA', 'k9'), missing = runNeed('mB');
+    check('security (needItem, host — the real branch and net.sendItem): a map asked for by a prototype\'s key, an empty id, a number or null is looked up by its own key alone and sends nothing — never a prototype object as a map, never a function the wire cannot carry; the hosted campaign\'s own map goes to the asker once; another campaign\'s or a map that is not there sends nothing',
+        protoN.every(r => r.sent.length === 0 && r.threw === '') && j(okN.sent) === j([['item', 'mA', 'object']]) && okN.threw === '' && otherC.sent.length === 0 && otherC.threw === '' && missing.sent.length === 0 && missing.threw === '', j([protoN, okN, otherC, missing]));
+    check('security (source): net.sendItem and net.broadcastItemFiltered read the campaign and the item by their own keys, and the needItem branch refuses an id that is no key before the rate limit',
+        /net\.sendItem = function\([^\n]*\n\s*var camp = own\(state\.appState\.campaigns, campId\) \? state\.appState\.campaigns\[campId\] : null, it = camp && own\(camp\.items, itemId\) \? camp\.items\[itemId\] : null; if \(!it\) return;/.test(src)
+        && /net\.broadcastItemFiltered = function\([^\n]*\n\s*var camp = own\(state\.appState\.campaigns, campId\) \? state\.appState\.campaigns\[campId\] : null, it = camp && own\(camp\.items, itemId\) \? camp\.items\[itemId\] : null; if \(!it\) return;/.test(src)
+        && /var campN = getActiveCampaign\(\); if \(!campN \|\| msg\.campId !== campN\.id \|\| !validKey\(msg\.itemId\) \|\| !own\(campN\.items, msg\.itemId\)\) return;[^\n]*\n\s*if \(!allow\('need'/.test(niSrc));
+}
+// R2 security (cluster H, #4): a player's travel through a door — the real travel branch run with the real hostTravel, stepOffPortal, freeSpotNear,
+// portalUnder, turnCombatOf and moveMode: the token the GM locked, or one a Refuse-order fight holds off its turn, keeps its player on the map;
+// a travel by double-click moves no token that is not on the portal; a drop on the portal still steps off
+{
+    const tvSrc = between('// [netcheck:travelmsg-start]', '// [netcheck:travelmsg-end]', 'travelmsg');
+    const trSrcT = fnSrc('function hostTravel(conn, traveler, portal, fromMap) {', '\n// The portal item under a token\'s center', 'hostTravel');
+    const fsSrc = fnSrc('function freeSpotNear(', '\n}\n', 'freeSpotNear') + '\n}\n', soSrc = fnSrc('function stepOffPortal(', '\n}\n', 'stepOffPortal') + '\n}\n', puSrcT = fnSrc('function portalUnder(item, map) {', '\n}\n', 'portalUnder') + '\n}\n';
+    const tcSrc = fnSrc('function turnCombatOf(', '\n}\n', 'turnCombatOf') + '\n}\n' + lineOf('function moveMode(') + '\n';
+    const tdSrcT = fnSrc('net.tokenDropped = function(item, map) {', '\n};\n', 'tokenDropped') + '\n};\n';
+    const runTravel = (o) => {   // o: at (the token's place), locked, combat ('mine' | 'theirs': whose turn), order (the campaign's rule), turns (the feature), drop (through net.tokenDropped instead of the message)
+        o = o || {};
+        const tok = Object.assign({ id: 'tok', isChar: true, ownerId: 'u_p', charId: 'c_p', x: o.at ? o.at[0] : 2000, y: o.at ? o.at[1] : 2000, w: 60, h: 52 }, o.locked ? { locked: true } : {});
+        const from = { id: 'm1', type: 'map', meta: { title: 'Here', gridType: 'square' }, rooms: [], whiteboard: [tok, { id: 'po', targetMapId: 'm2', x: 0, y: 0, w: 60, h: 52 }] };
+        const camp = { id: 'c1', activeItemId: 'm1', turnRules: o.order ? { order: o.order } : {}, items: { m1: from, m2: { id: 'm2', type: 'map', meta: { title: 'There' }, rooms: [], whiteboard: [] } } };
+        const conn = mkConn('pA'), bcast = [], toasts = [], notes = [];
+        const net = { active: true, role: 'host', paused: false, travelLocked: false, roster: { pA: { id: 'u_p', name: 'P', location: 'm1' } }, conns: [conn], broadcastItemFiltered: (c, i) => bcast.push(i),
+            combats: o.combat ? { m1: { mapId: 'm1', round: 1, turn: o.combat === 'mine' ? 0 : 1, rows: [{ id: 'r_p', tokId: 'tok' }, { id: 'r_o', tokId: 'orc' }] } } : {} };
+        const win = { wpVtt: { on: k => (k === 'turns' ? o.turns !== false : true) } };
+        let ret = null;
+        try {
+            ret = new Function('msg', 'conn', 'net', 'peerPaused', 'allow', 'getActiveCampaign', 'turnNote', '_travelDenyLast', 'sendFailed', 'findLandingRoom', 'landingPoint', 'renderRoster', 'broadcastRoster', 'ensurePlayerToken', 'save', 'toast', 'logEvent', 'window', 'npcTravel', 'offlinePlayerTravel', 'pausedById', 'drop',
+                ownKeySrc + trSrcT + '\n' + fsSrc + soSrc + puSrcT + tcSrc + tdSrcT + '\nif (drop) return net.tokenDropped(drop, getActiveCampaign().items.m1);\n' + tvSrc + '\nreturn "ran";')(
+                { type: 'travel', viaItemId: 'po' }, conn, net, () => false, () => true, () => camp, (c, t) => notes.push(t), {}, e => { throw e; }, () => null, () => null, () => {}, () => {}, () => {}, () => {}, t => toasts.push(t), () => {}, win, () => 'npc', () => 'offline', () => false, o.drop ? tok : null);
+        } catch (e) { ret = 'threw: ' + e.message; }
+        return { ret, loc: net.roster.pA.location, at: [tok.x, tok.y], staged: conn.sent.filter(m => m.type === 'stage').length, notes, bcast };
+    };
+    const far = [2000, 2000];
+    const lockedT = runTravel({ locked: true }), lockedOn = runTravel({ locked: true, at: [0, 0] });
+    const offTurn = runTravel({ combat: 'theirs' }), offWarn = runTravel({ combat: 'theirs', order: 'warn' }), offOff = runTravel({ combat: 'theirs', order: 'off' }), myTurn = runTravel({ combat: 'mine' }), noFeat = runTravel({ combat: 'theirs', turns: false });
+    const plain = runTravel({}), onPortal = runTravel({ at: [0, 0] }), dropped = runTravel({ at: [0, 0], drop: true }), droppedOff = runTravel({ at: [500, 500], drop: true });
+    check('security (travel, host — the real branch with the real hostTravel): a player whose token on this map the GM locked is kept on the map — no travel, the token where it was, one line saying why — whether the token stands on the door or far from it; so is one whose token a running turn-based fight holds off its turn under the Refuse rule; with the rule Warn or Off, on their own turn, or with turn-based combat off, they travel as before',
+        j([lockedT.staged, lockedT.loc, lockedT.at, lockedT.notes]) === j([0, 'm1', far, ['The GM has locked your token: you cannot leave this map.']]) && j([lockedOn.staged, lockedOn.loc, lockedOn.at]) === j([0, 'm1', [0, 0]])
+        && j([offTurn.staged, offTurn.loc, offTurn.at, offTurn.notes]) === j([0, 'm1', far, ['It is not your turn: you cannot leave this map yet.']])
+        && [offWarn, offOff, myTurn, noFeat].every(r => r.staged === 1 && r.loc === 'm2' && r.notes.length === 0), j([lockedT, lockedOn, offTurn, offWarn, offOff, myTurn, noFeat]));
+    check('security (travel, host): a travel by double-click from anywhere on the map goes through as documented, and moves no token — one far from the door stays exactly where it is and the map is not sent again for it; a token standing on the door steps off it as ever, by the message and by a drop on it (the real net.tokenDropped), the map going out once; a drop beside the door travels nobody',
+        j([plain.staged, plain.loc, plain.at, plain.bcast]) === j([1, 'm2', far, []]) && onPortal.staged === 1 && onPortal.loc === 'm2' && j(onPortal.at) !== j([0, 0]) && j(onPortal.bcast) === j(['m1'])
+        && dropped.ret === true && dropped.loc === 'm2' && j(dropped.at) !== j([0, 0]) && j(dropped.bcast) === j(['m1']) && j([droppedOff.ret, droppedOff.loc, droppedOff.at]) === j([false, 'm1', [500, 500]]), j([plain, onPortal, dropped, droppedOff]));
 }
 // hidden pieces: an NPC the GM walks through a portal hidden arrives hidden (npcTravel, run for real with the real sanitizeItem): players see nothing of it on either map
 {
@@ -4380,7 +4510,7 @@ pendingChecks.push((async () => {
     {   // review: a whole map sent to the table becomes the baseline the next delta is worked out from (a light switched off by its player and on again by the GM went unsent, the same as the older baseline)
         const bfA = src.indexOf('net.broadcastItemFiltered = function(campId, itemId) {'), bfSrc = bfA >= 0 ? src.slice(bfA, src.indexOf('\n};\n', bfA) + 4) : '';
         const runBF = (fogged, had) => { const last = had ? { m1: { old: 1 } } : {}, sent = [], netB = { conns: [{ peer: 'pA', open: true, send: m => sent.push(['one', m.item.tag]) }], roster: { pA: { id: 'u_a' } } }, map = { id: 'm1', type: 'map', whiteboard: [{ id: 't', light: { bright: 1, dim: 2, off: true } }] };
-            new Function('net', 'state', 'sanitizeItem', 'mapFogged', 'broadcast', '_lastSent', 'fogCopyFor', 'sendFailed', bfSrc)(netB, { appState: { campaigns: { k: { id: 'k', items: { m1: map } } } } }, it => JSON.parse(JSON.stringify(it)), () => fogged, (m, x) => sent.push(['all', m.type, m.itemId, x]), last, (clean) => Object.assign({ tag: 'mine' }, clean), e => { throw e; });
+            new Function('net', 'state', 'sanitizeItem', 'mapFogged', 'broadcast', '_lastSent', 'fogCopyFor', 'sendFailed', ownKeySrc + bfSrc)(netB, { appState: { campaigns: { k: { id: 'k', items: { m1: map } } } } }, it => JSON.parse(JSON.stringify(it)), () => fogged, (m, x) => sent.push(['all', m.type, m.itemId, x]), last, (clean) => Object.assign({ tag: 'mine' }, clean), e => { throw e; });
             netB.broadcastItemFiltered('k', 'm1'); netB.broadcastItemFiltered('k', 'nope'); map.whiteboard[0].light.off = false; return { last, sent, map }; };
         const bfOpen = runBF(false, true), bfNew = runBF(false, false), bfFog = runBF(true, true);
         check('sending a whole map to the table (broadcastItemFiltered, run for real): an unfogged one becomes the baseline of the next delta, as a copy (a later change to the map is a change against it); a fogged one, sent to each player through their own fog, leaves no shared baseline; a map that is not there sends nothing',
@@ -6029,7 +6159,7 @@ pendingChecks.push((async () => {
         W.asks = c => (c.page ? c.page.rec.asked.slice() : []);
         W.a1 = mkConn('pA1'); W.a2 = mkConn('pA2'); W.b1 = mkConn('pB'); W.w1 = mkConn('pW');
         W.net = { active: true, role: 'host', paused: false, applyingRemote: false, myId: 'u_gm', conns: [W.a1, W.a2, W.b1, W.w1], roster: { pA1: { id: 'u_a', name: 'Pat' }, pA2: { id: 'u_a', name: 'Pat' }, pB: { id: 'u_b', name: 'Bea' } }, combats: {}, targets: {}, tokenDropped: w => ev.push('dropped:' + w.id) };
-        const state = { appState: { activeCampaignId: 'k', campaigns: { k: camp } } };
+        const state = { appState: { activeCampaignId: 'k', campaigns: { k: camp } } }; W.state = state;   // R2 security: a case adds another campaign of the GM's beside the hosted one
         const win = { wpFogCore: FCx, wpSystemCore: Sx, wpFormula: Fx, wpDiceCore: null, wpVtt: { on: k => feats[k] !== false, campaignOn: k => feats[k] !== false, mode: () => 'host' }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} } };
         W.fog = buildFog4()(win, { getElementById: () => null }, () => null, () => camp, state);
         win.wpFog = Object.assign({}, W.fog, { moveBlocked: (map, w, fx, fy, tx, ty) => { W.asked.push([fx, fy, tx, ty]); return !!(o.wall && o.wall(fx, fy, tx, ty)); } });
@@ -6096,6 +6226,18 @@ pendingChecks.push((async () => {
     check('fold M4: fogLanded puts every held token back exactly as it found it when fn throws (a key that was absent is absent again), returns fn\'s value, judges as a fresh fog module does with the token really at its start, and leaves the host\'s own fog judging the live place as a fresh module does',
         threw3 === 'boom' && after3.keys === false && J(after3.place) === J([250, 100]) && after3.held === false && after3.open === true && inside3 === fresh(100, 100) && outside3 === fresh(250, 100) && inside3 !== outside3,
         J([threw3, after3, inside3, outside3]));
+
+    // R2 security (cluster A, #0): a session is one campaign — a map copy naming another of the GM's campaigns changes nothing there, is saved
+    // nowhere, sends that campaign's map to no one, and its number is still taken; the same copy naming the hosted campaign lands as ever
+    const W0 = mk4(), mZ = { id: 'mZ', type: 'map', meta: { title: 'mZ', gridType: 'square' }, rooms: [], links: [], whiteboard: [T('tZ', 'u_a', 'c_a', 2, 2)] };
+    W0.state.appState.campaigns.k2 = { id: 'k2', items: { mZ: mZ }, chars: {} }; const before0 = J(mZ), saves0 = W0.timers.filter(t => t.ms === 250).length, made0 = () => W0.timers.filter(t => t.ms === 250).length - saves0;
+    W0.clearSent(); W0.api.item({ type: 'item', campId: 'k2', itemId: 'mZ', a: 1, item: { whiteboard: [{ id: 'tZ', x: 500, y: 600, rot: 0, front: 0 }, { id: 'g0', type: 'path', ownerId: 'u_a', pts: [[0, 0], [1, 1]] }] } }, W0.a1);
+    const other0 = { same: J(mZ) === before0, saves: made0(), sent: W0.net.conns.map(c => c.sent.filter(m => (m.type === 'item' || m.type === 'itemDelta') && (m.campId === 'k2' || m.itemId === 'mZ')).length), ack: W0.api.ackOf(W0.a1) };
+    W0.api.item({ type: 'item', campId: 'k', itemId: 'mA', a: 2, item: { whiteboard: [Object.assign({}, W0.tok('tA'), { x: 150 })] } }, W0.a1);
+    const ctrl0 = { x: W0.tok('tA').x, saves: made0(), ack: W0.api.ackOf(W0.a1) }, ipSrc = bw('itempatch');
+    check('security (item patch, host — the real branch in the one-module world): a session is one campaign, as the threats and needItem branches have it — a map copy naming another of the GM\'s campaigns and a map there changes nothing on that map (no drawing, no move of their token there), queues no save, sends no copy or delta of it to anyone, the sender included, and still takes the patch\'s number; the same copy naming the hosted campaign lands as ever; the gate stands before the patch is applied',
+        other0.same && other0.saves === 0 && J(other0.sent) === J([0, 0, 0, 0]) && other0.ack === 1 && ctrl0.x === 150 && ctrl0.saves === 1 && ctrl0.ack === 2
+        && ipSrc.indexOf('msg.campId !== hcI.id') >= 0 && ipSrc.indexOf('msg.campId !== hcI.id') < ipSrc.indexOf('applyClientItemFiltered(msg, profile, pOut)'), J([other0, ctrl0]));
 
     // (4) a drag that ends without landing goes back where it began, place and facing, for everyone who sees it there: its connection closes, its
     // player is removed, sent to another map, the GM locks or hides the token; one the GM moved is forgotten, the GM's place standing

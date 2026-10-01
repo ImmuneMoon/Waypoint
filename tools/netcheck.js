@@ -1352,7 +1352,7 @@ pendingChecks.push((async () => {
         { id: 'f_a', key: 'A', kind: 'number', def: 4 }, { id: 'f_fl', key: 'Flag', kind: 'number', def: 0 }, { id: 'f_fx', key: 'Effects', kind: 'effects' }],
         effects: [{ id: 'e_g', name: 'Veil', vis: 'gm', mods: [{ f: 'f_a', op: 'add', v: 2 }] }] }, { F: Fx, gmView: true });
     const run = (expr, o, env) => { env = env || {}; const out = { table: [], pushed: [], toasts: [], target: [] };
-        const camp = { id: 'k', system: sysD, chars: { c_a: { id: 'c_a', name: 'Ana', ownerId: 'u_a', npc: false, values: env.values || {} } } };
+        const camp = { id: 'k', system: env.sys || sysD, chars: { c_a: { id: 'c_a', name: 'Ana', ownerId: 'u_a', npc: false, values: env.values || {} } } };
         const tgt = { peer: 'pA', open: true, send(m) { packCheck(m); out.target.push(JSON.parse(JSON.stringify(m))); } };
         const net = { active: env.active !== false, role: 'host', stream: false, conns: [tgt], roster: { pA: { id: 'u_a', name: 'Pat' } } };
         const win = { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { tokenCtxFor: () => null } };
@@ -1367,6 +1367,13 @@ pendingChecks.push((async () => {
     check('derived GM-only values: the GM\'s own public roll (net.diceRoll, run for real) goes to the GM alone with the toast when it reads a GM-only value or one worked out from it — a formula, a formula over it, a pool whose max is one (its max; the pool full or stored), a skill — and stays public for a skill\'s ranks and a plain number; every message packs',
         [dG, dB, dAt, dHm, dHf, dHs, dSk].every(priv) && [dSr, dA].every(pub) && dG.toasts[0] === toastOf('GMFig') && dB.toasts[0] === toastOf('Bonus') && dAt.toasts[0] === toastOf('Atk') && dHm.toasts[0] === toastOf('HP.max') && dHf.toasts[0] === toastOf('HP') && dHs.toasts[0] === toastOf('HP') && dSk.toasts[0] === toastOf('Sk')
         && dA.table[0].names.length === 1 && dA.table[0].names[0].name === 'A' && dA.table[0].names[0].value === 4, j([dG, dB, dHs, dA].map(r => [r.ret, r.table.length, r.pushed, r.toasts])));
+    // owed review leftover (a), the owner's ruling of 2026-10-01: a GM-only custom row is not its key's row on a list players see, so the GM's
+    // own public roll that reads the key shows the table what the owner's own roll reads (not carried), never the hidden row's number
+    const sysK = Sx.cleanSystem({ v: 1, name: 'K', rolls: [], fields: [{ id: 'f_sk', key: 'Skills', kind: 'item-list', vis: 'all', edit: 'owner', list: { cats: ['Skill'], lvl: { label: 'Level', min: 0, max: 20, def: 0 }, custom: true } }], items: [] }, { F: Fx, gmView: true });
+    const rowK = vis => [{ id: 'w_h', qty: 1, lvl: 3, def: { name: 'Quiet step', key: 'Hush', category: 'Skill', vis } }];
+    const dK = run('d6 + Skills.Hush.lvl', {}, { sys: sysK, values: { f_sk: rowK('gm') } }), dKv = run('d6 + Skills.Hush.lvl', {}, { sys: sysK, values: { f_sk: rowK('all') } });
+    check('owed review (a) the GM\'s own public roll (net.diceRoll, run for real): reading a GM-only custom row by its key on a list players see stays public and shows the table the value its owner\'s sheet works out (0: not carried), never the hidden row\'s level; a visible row of that key reads its level, as ever',
+        pub(dK) && j(dK.table[0].names.map(n => n.value)) === '[0]' && !/"value":3/.test(j(dK.table[0].names)) && pub(dKv) && j(dKv.table[0].names.map(n => n.value)) === '[3]', j([dK.ret, dK.table, dKv.table]));
     const dIf = run('if(Flag, GMFig, 0) + d6'), dIf0 = run('if(0, GMFig, 1) + d6'), dIfD = run('if(d20 >= 21, GMFig, 0) + d6'), dIfB = run('if(Flag, Bonus, 0) + d6'), dW = run('d6 + Bonus', {}, { to: 'pA' }), dWa = run('d6 + A', {}, { to: 'pA' }), dOff = run('d6 + Bonus', {}, { active: false }), dPriv = run('d6 + Bonus', { priv: true }), dFx = run('d6 + A', {}, { values: { f_fx: [{ id: 'x_1', ref: 'e_g', on: true }] } });
     check('derived GM-only values: a GM-only name the formula writes in a branch it does not take still keeps the roll private (the card shows the text); a derived value in such a branch is not read, so the roll stays public; a whisper of a derived value reaches no one (a plain one reaches its player); offline nothing is kept back or said; Private asks nothing; a GM-only effect still keeps it private',
         priv(dIf) && dIf.toasts[0] === toastOf('GMFig') && j(dIf.pushed[0][2]) === j('Flag') && [dIf0, dIfD].every(r => priv(r) && r.toasts[0] === toastOf('GMFig') && r.pushed[0][2] === '') && pub(dIfB) && dIfB.table[0].names.map(n => n.name).join(',') === 'Flag'

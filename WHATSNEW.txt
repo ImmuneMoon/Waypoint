@@ -1291,6 +1291,14 @@ Undo
   bringing a token over from another map clear both maps' undo at that point.
 
 Multiplayer
+- A GM-only custom row no longer counts on your sheet alone. A GM-only row
+  on a list players can see (one you made custom, or the copy a deleted
+  GM-only item left) whose key one of their formulas reads used to count on
+  your sheet and not on theirs, so a pool could stand above the maximum
+  their sheet showed, and one of your public rolls could show the row's
+  number. Formulas now read such a row as not carried on every sheet. For
+  something hidden that should count, carry a GM-only library item with
+  that key, or use a GM-only list: both hide the number properly.
 - What you hide, players no longer see at all. A hidden item used to show
   players a grey cloud exactly where it stood, so a hidden creature, a
   secret door or a trap tile gave its place away. Now nothing of it is sent

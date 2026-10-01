@@ -2785,9 +2785,20 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         if (vias.length) detail[l] = { base: sum, mods: [], via: vias };
         cache[l] = sum; return sum;
     }
+    // Owed review leftover (a), the owner's ruling of 2026-10-01: a GM-only row is its key's row only where the players' view hides that
+    // name — on a GM-only list, or where a GM-only entry in the list's scope has the key (the names cleanSystem blanks for players).
+    // Anywhere else (a GM-only custom row whose key no such entry has, the copy a deleted GM-only entry left, one sharing its key with a
+    // visible entry, a GM-only library entry the core does not hold) it reads as not carried on every machine: its owner's copy has no
+    // key for it, so the GM's sheet would otherwise work out a number theirs cannot — and the host's clamp, or a public roll of the GM's,
+    // would show it. Worked out once per list and resolver, and only when such a row is met.
+    function gmKeyed(L, key) {
+        if (L.f.vis === 'gm') return true;
+        if (!L.gmK) L.gmK = gmEntryKeys(sys, [L.f])[lower(L.f.key)] || map();
+        return L.gmK[key] === 1;
+    }
     function findRow(L, key) {   // L.<Key>.*: the first carried row with that key, the rows its owner can see first (critic 7); else the library entry with it in L's scope; else a row of defaults
         var hit = null, gmHit = null, cats = L.spec && Array.isArray(L.spec.cats) ? L.spec.cats : null, ent = null;
-        L.rows.forEach(function(x) { if (hit || !x.d || typeof x.d.key !== 'string' || lower(x.d.key) !== key) return; if (x.d.vis === 'gm') { if (!gmHit && (!cats || catIn(cats, x.d.category))) gmHit = x; } else hit = x; });   // owed review F5a1#5: a GM-only row out of the list's categories is not the key's (the players' view keeps that name)
+        L.rows.forEach(function(x) { if (hit || !x.d || typeof x.d.key !== 'string' || lower(x.d.key) !== key) return; if (x.d.vis === 'gm') { if (!gmHit && gmKeyed(L, key) && (!cats || catIn(cats, x.d.category))) gmHit = x; } else hit = x; });   // owed review F5a1#5: a GM-only row out of the list's categories is not the key's (the players' view keeps that name)
         if (hit || gmHit) return hit || gmHit;
         var pick = function(it) { if (!ent && isObj(it) && typeof it.key === 'string' && lower(it.key) === key && (!cats || catIn(cats, it.category))) ent = it; };
         (Array.isArray(sys.items) ? sys.items : []).forEach(pick); if (!ent) (Array.isArray(sys.core) ? sys.core : []).forEach(pick);   // L1d: then the core (the library's addressed entries)
@@ -3103,7 +3114,7 @@ function validateSystem(sys, F) {
             if (!NUMERIC[target.kind]) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" is ' + (target.kind === 'notes' ? 'a notes field' : (target.kind === 'effects' || target.kind === 'item-list') ? 'a list' : 'text') + ', not a number.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }
             if (target.list) {   // F5a1: what a list name reads
                 if (target.onTotal && !(isObj(target.list.list) && isObj(target.list.list.on))) warnings.push({ id: owner.id, prop: prop, message: '"' + n + '" counts rows switched on, but ' + (target.list.label || target.list.key) + ' has no switch, so it reads as none.' });
-                if (target.addr) { var tc = isObj(target.list.list) && Array.isArray(target.list.list.cats) && target.list.list.cats.length ? target.list.list.cats : null, has = (Array.isArray(sys.items) ? sys.items : []).concat(Array.isArray(sys.core) ? sys.core : []).some(function(it) { return isObj(it) && typeof it.key === 'string' && lower(it.key) === target.addr && (!tc || catIn(tc, it.category)); }); if (!has) warnings.push({ id: owner.id, prop: prop, message: 'No item in ' + (target.list.label || target.list.key) + ' has the key "' + n.split('.')[1] + '": it reads as not carried until a row has it.' }); }
+                if (target.addr) { var tc = isObj(target.list.list) && Array.isArray(target.list.list.cats) && target.list.list.cats.length ? target.list.list.cats : null, has = (Array.isArray(sys.items) ? sys.items : []).concat(Array.isArray(sys.core) ? sys.core : []).some(function(it) { return isObj(it) && typeof it.key === 'string' && lower(it.key) === target.addr && (!tc || catIn(tc, it.category)); }); if (!has) warnings.push({ id: owner.id, prop: prop, message: 'No item in ' + (target.list.label || target.list.key) + ' has the key "' + n.split('.')[1] + '": it reads as not carried until a row its player can see has it.' }); }
                 if (vis === 'all' && target.gmKey && gmP[owner.id] !== 1) warnings.push({ id: owner.id, prop: prop, message: '"' + n + '" names a GM-only item: ' + (isApplyProp(prop) ? (/(^|\.)then\./.test(prop) ? 'players\u2019 rolls will not apply it.' : 'players will not get this action.') : prop.indexOf('list.needs.') === 0 ? 'players\u2019 rolls are not held back by it.' : prop === 'turn.move' ? 'players\u2019 moves are not limited by it.' : (prop === 'malf' || prop.indexOf('list.malf.') === 0) ? 'players\u2019 rolls never malfunction by it.' : prop.indexOf('list.roll.') === 0 ? 'players will not get this roll.' : 'players will see an error for this ' + (prop === 'roll' || prop === 'rollFormula' ? 'roll' : 'field') + '.') });
             }
             if (vis === 'all' && (target.vis === 'gm' || gmP[target.id] === 1) && gmP[owner.id] !== 1) warnings.push({ id: owner.id, prop: prop, message: '"' + n + '" is GM only: ' + (isApplyProp(prop) ? (/(^|\.)then\./.test(prop) ? 'players\u2019 rolls will not apply it.' : 'players will not get this action.') : prop.indexOf('list.needs.') === 0 ? 'players\u2019 rolls are not held back by it.' : prop === 'turn.move' ? 'players\u2019 moves are not limited by it.' : (prop === 'malf' || prop.indexOf('list.malf.') === 0) ? 'players\u2019 rolls never malfunction by it.' : prop.indexOf('list.roll.') === 0 ? 'players will not get this roll.' : 'players will see an error for this ' + (prop === 'roll' || prop === 'rollFormula' ? 'roll' : 'field') + '.') });

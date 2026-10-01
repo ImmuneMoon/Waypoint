@@ -2593,7 +2593,7 @@ function customForm(entry, rd, c, f, spec, sysI, mode) {
     var cs = el('select', 'field sheet-rf-sel'); cs.appendChild(opt('', '(none)', !curC)); cats.forEach(function(x) { cs.appendChild(opt(x, x, x === curC)); });
     cs.addEventListener('change', function() { one('category', cs.value || null); }); add('Category', cs, 'category');
     text('notes', 'Notes', LIMITS.text, d.notes || '');
-    text('key', 'Key', 40, d.key || '', 'A short fixed name formulas will read in a later update: a letter, then letters, digits and _ (up to 40); no other row or item of this list may have it', true);
+    text('key', 'Key', 40, d.key || '', 'A short fixed name your formulas read this row by (List.Key.lvl): a letter, then letters, digits and _ (up to 40); no other row or item of this list may have it. A GM-only row is read by its key only on a GM-only list', true);
     (spec && Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) {
         if (!s || typeof s.key !== 'string' || !SK_RE.test(s.key)) return;
         var k = s.key, lk = k.toLowerCase(), mine, ds = d.stats && typeof d.stats === 'object' ? d.stats : {}, name = 's-' + k, part = partOf(name), ctl;
@@ -2648,7 +2648,7 @@ function customForm(entry, rd, c, f, spec, sysI, mode) {
         if (d.rm === 'bound' || d.rm === 'curse') text('rmMsg', 'Message on removal', LIMITS.rmMsg, d.rmMsg || '');
         if (spec && spec.on && typeof spec.on === 'object') { lockSel('eq', 'When a player switches it off', { none: 'A player may switch it off', bound: 'Bound: it stays on', curse: 'Curse on contact: you keep it on' }); if (d.eq === 'bound' || d.eq === 'curse') text('eqMsg', 'Message on switching off', LIMITS.rmMsg, d.eqMsg || ''); }
         var gv = el('input', 'sheet-rf-gm'); gv.type = 'checkbox'; gv.checked = d.vis === 'gm'; gv.addEventListener('change', function() { one('vis', gv.checked ? 'gm' : 'all'); });
-        add('GM only', gv, 'vis', 'Secret: its player still has it (its name, notes and stats), never its key, blast or formulas; they can no longer change it');
+        add('GM only', gv, 'vis', 'Secret: its player still has it (its name, notes and stats), never its key, blast or formulas; they can no longer change it. On a list players can see, formulas do not read a GM-only row by its key (their sheet could not work out the same number): for a hidden thing that should count, carry a GM-only library item, or use a GM-only list');
     }
     if (stRef && stRef.focus === 'name') { delete stRef.focus; setTimeout(function() { try { nb.focus(); } catch (e) {} }, 0); }   // a new row: its name first
     return form;

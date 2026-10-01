@@ -653,6 +653,34 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 d: { id: 'd', type: 'doc', meta: { title: 'D' }, blocks: [{ id: 'db', type: 'h3', title: 'T' }] } } } } });
             const wf = run(() => loadNorm(wellFormed()));
             check('load: a save that was already well formed comes through byte for byte, not marked changed (no "Save upgraded" note)', !wf.err && !!wf.v && wf.v.changed === false && jl(wf.v.data) === jl(wellFormed()), wf.err || jl(wf.v));
+            // R3 (the 1.4.9 -> 1.5.0 upgrade path, 2026-10-01): a whole save from before 1.5.0 (no _schema, no per-campaign vtt set, none of the
+            // 1.5.0 keys: system, chars, fog, music, videos, clock, library, uploads) loads through the real migrateAppState with a wpVtt present —
+            // every old thing kept, the VTT feature set filled once per campaign, the schema stamped, nothing of 1.5.0 invented, and silently
+            // (changed false: the fill and the stamp are not announced, so no backup churn and no "Save upgraded" toast on a plain older save)
+            const vttCalls = [];
+            const vttStub = { fill: function(c) { vttCalls.push(c.id); if (!c.vtt) { c.vtt = { v: 1, master: true, features: { sound: true, dice: true, fog: true } }; return true; } return false; } };
+            const upWin = { wpSystemCore: S, wpFormula: F, wpLibraryCore: LBC, wpFogCore: FCj, wpMigratePictures: picWin.wpMigratePictures, wpVtt: vttStub };
+            const upNorm = new Function('window', 'CATS', 'CURRENT_SCHEMA', 'createNewCampaign', '"use strict";\n' + ioSrc.slice(mi, mk) + '\nreturn migrateAppState;')(
+                upWin, { default: { label: 'Default', color: '#ccc' } }, 2, nm => ({ id: 'camp_v0', name: nm, items: {} }));
+            const old149 = () => ({ _picsV: 1, activeCampaignId: 'c', campaigns: { c: { id: 'c', name: 'Keep', activeItemId: 'm', sounds: { v: 1, master: 1, list: [{ id: 's1', name: 'Rain', path: '/saves/images/audio/c/ab_rain.ogg', kind: 'loop', gain: 1, size: 9, dur: 6 }] }, items: {
+                m: { id: 'm', type: 'map', meta: { title: 'Hall', gridType: 'square' }, cats: { default: { label: 'Default', color: '#ccc' } }, rooms: [{ id: 'r1', x: 10, y: 20, characters: [{ id: 'k1', name: 'Bren', info: 'the smith' }] }], links: [['r1', 'r1', 'loop']], whiteboard: [{ id: 'a', type: 'image', src: '/saves/images/a.png', x: 0, y: 0, w: 60, h: 52 }, { id: 't', isChar: true, charName: 'Orc', x: 100, y: 100, w: 60, h: 52 }] },
+                p: { id: 'p', type: 'planner', meta: { title: 'Plan' }, blocks: [{ id: 'pb', type: 'text', content: 'the raid' }] },
+                d: { id: 'd', type: 'doc', meta: { title: 'Lore' }, blocks: [{ id: 'db', type: 'h3', title: 'The Fort' }] } } } } });
+            vttCalls.length = 0;
+            const up = run(() => upNorm(old149()));
+            const upD = up.v && up.v.data, upC = upD && upD.campaigns.c;
+            const newKeys = upC ? ['system', 'chars', 'fog', 'videos', 'music', 'clock', 'library', 'uploads'].filter(k => k in upC) : ['(no campaign)'];
+            const oldKept = upC && jl({ sounds: upC.sounds, m: upC.items.m, p: upC.items.p, d: upC.items.d, active: upC.activeItemId }) === jl({ sounds: old149().campaigns.c.sounds, m: old149().campaigns.c.items.m, p: old149().campaigns.c.items.p, d: old149().campaigns.c.items.d, active: 'm' });
+            check('R3 the 1.4.9 -> 1.5.0 upgrade (the real migrateAppState with a wpVtt present): a whole older save keeps every map, room, character-in-room, play-map item, planner, page and the sound library byte for byte; its VTT feature set is filled once per campaign (window.wpVtt.fill) and the schema is stamped to 2; no 1.5.0 key (system, chars, fog, videos, music, clock, library, uploads) is invented; and it loads silently (changed false: no backup churn, no upgrade toast for a plain older save)',
+                !up.err && !!upC && jl(vttCalls) === jl(['c']) && !!upC.vtt && upC.vtt.v === 1 && !!upC.vtt.features && upD._schema === 2 && !('_schema' in old149()) && jl(newKeys) === jl([]) && oldKept && up.v.changed === false,
+                up.err || jl([vttCalls, newKeys, upD && upD._schema, up.v && up.v.changed, upC && upC.vtt]));
+            // and a 1.4.9 save that DID carry app-wide picture categories is a real (announced) upgrade: the categories move into the campaign and it saves once
+            const oldPics = () => ({ activeCampaignId: 'c', imageCats: { list: ['Default', 'Maps'], by: { '/saves/images/a.png': ['Maps'] }, shelf: {} }, campaigns: { c: { id: 'c', name: 'Keep', activeItemId: 'm', items: {
+                m: { id: 'm', type: 'map', meta: { title: 'Hall', gridType: 'square' }, cats: { default: { label: 'Default', color: '#ccc' } }, rooms: [], links: [], whiteboard: [{ id: 'a', type: 'image', src: '/saves/images/a.png', x: 0, y: 0, w: 60, h: 52 }] } } } } });
+            vttCalls.length = 0;
+            const upP = run(() => upNorm(oldPics())), upPD = upP.v && upP.v.data;
+            check('R3: a 1.4.9 save with app-wide picture categories is a real upgrade — the Maps category moves into the campaign that uses it (once, _picsV stamped) and the load saves it, while the VTT set is still filled',
+                !upP.err && !!upPD && up.v.changed !== undefined && upP.v.changed === true && upPD._picsV === 1 && jl(vttCalls) === jl(['c']) && upPD.campaigns.c.imageCats && upPD.campaigns.c.imageCats.list.indexOf('Maps') >= 0 && upPD.imageCats.list.indexOf('Maps') < 0, upP.err || jl([upP.v && upP.v.changed, upPD && upPD._picsV]));
         }
         // lighting L4: a light from a file is cleaned as the app reads one (the real fogcore.js), on Replace and on Merge
         {

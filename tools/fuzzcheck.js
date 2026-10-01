@@ -88,7 +88,7 @@ async function drain() { for (let i = 0; i < 6; i++) await new Promise(r => proc
 
 /* ---------- the stub page: every sink recorded ---------- */
 const allConfirms = [];
-const rec = { html: [], attr: [], text: [], style: [], toasts: [], confirms: [], saves: [], fetches: [], loads: 0, renders: 0, opens: [], warns: [], journal: [], blasts: 0, pics: [], gives: [], combatsOpened: [] };
+const rec = { html: [], attr: [], text: [], style: [], toasts: [], confirms: [], saves: [], fetches: [], loads: 0, renders: 0, opens: [], warns: [], journal: [], blasts: 0, pics: [], gives: [], combatsOpened: [], reads: 0, cancels: 0 };   // reads / cancels: the stub server's bodies read whole, and cancelled unread
 function resetRec() { Object.keys(rec).forEach(k => { if (Array.isArray(rec[k])) rec[k].length = 0; else rec[k] = 0; }); }
 function mkEl(tag, id) {
     const el = { tagName: String(tag || 'div').toUpperCase(), id: id || '', children: [], _attrs: {}, _h: {}, dataset: {}, _text: '', _html: '', value: '', checked: false, disabled: false, scrollTop: 0, scrollHeight: 0, offsetParent: null, offsetWidth: 100, offsetHeight: 20, parentNode: null, nodeType: 1, nodeName: String(tag || 'div').toUpperCase(), className: '', hidden: false };
@@ -140,7 +140,9 @@ globalThis.fetch = function(url, opts) {
     rec.fetches.push({ url: String(url), method: opts && opts.method || 'GET' });
     const u = String(url);
     if (/version/.test(u)) return Promise.resolve({ ok: true, json: () => Promise.resolve({ version: '1.5.0' }) });
-    return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({}), text: () => Promise.resolve(''), arrayBuffer: () => Promise.resolve(new Uint8Array([137, 80, 78, 71]).buffer), blob: () => Promise.resolve(new Blob([new Uint8Array([1, 2, 3])])) });
+    // the local server states every file's length (servefile.js): a picture of the budget probe (/saves/images/pN.png) states 1 MB, any other file its 4 bytes
+    const stated = /\/saves\/images\/p\d+\.png$/.test(u) ? 1048576 : 4;
+    return Promise.resolve({ ok: true, status: 200, headers: { get: h => (String(h).toLowerCase() === 'content-length' ? String(stated) : null) }, body: { cancel() { rec.cancels++; } }, json: () => Promise.resolve({}), text: () => Promise.resolve(''), arrayBuffer: () => { rec.reads++; return Promise.resolve(new Uint8Array([137, 80, 78, 71]).buffer); }, blob: () => Promise.resolve(new Blob([new Uint8Array([1, 2, 3])])) });
 };
 const warned = []; const realWarn = console.warn.bind(console), realError = console.error.bind(console);
 console.warn = (...a) => { warned.push(a.map(x => (x && x.message) || String(x)).join(' ')); };
@@ -734,8 +736,9 @@ function mutations(tpl) {
         check('host: the number of unadmitted heartbeating connections is capped', n < 300);
         net.conns.slice(before).forEach(c => c.close()); flushTimers();
     }
-    {   // the asset path: pictures have no in-flight cap or byte budget. The asset gate serves a connection only a file it was sent a reference to,
-        // so the 200 pictures are first put on the player's map and the map sent (an honest battle map with many pictures); then each is asked for
+    {   // the asset path: the bytes read for one connection are budgeted (150 MB a minute, judged on each file's stated length before the read; cluster J #5).
+        // The asset gate serves a connection only a file it was sent a reference to, so the 200 pictures (each stating 1 MB) are first put on the
+        // player's map and the map sent (an honest battle map with many pictures); then each is asked for in one burst
         await resetWorld(); resetRec();
         const mapA = stubs.getActiveCampaign().items.m_open;
         for (let i = 0; i < 200; i++) mapA.whiteboard.push({ id: 'img_' + i, type: 'image', src: '/saves/images/p' + i + '.png', x: 800 + i, y: 800, w: 10, h: 10, layer: 'bottom' });
@@ -744,9 +747,10 @@ function mutations(tpl) {
         resetRec();
         for (let i = 0; i < 200; i++) net._handleMessage({ type: 'asset-req', path: '/saves/images/p' + i + '.png' }, conns.p1);
         await drain(); flushTimers(); await drain();
-        if (rec.fetches.length >= 200) finding('resource: 200 picture fetches per 10 s per player, each up to 26 MB held in memory, no byte budget', 'asset-req ×200 from u_p1 (every path one the map they were sent names) → ' + rec.fetches.length + ' fetches by the host', { type: 'asset-req', path: '/saves/images/pN.png' });
+        const busyN = conns.p1.sent.filter(m => m.type === 'asset' && m.error === 'busy' && /\/p\d+\.png$/.test(m.path)).length, servedN = conns.p1.sent.filter(m => m.type === 'asset' && !m.error && /\/p\d+\.png$/.test(m.path)).length;
+        if (rec.reads > 150) finding('resource: pictures read for one connection past 150 MB in a minute, each up to 26 MB held in memory', 'asset-req ×200 of 1 MB each from u_p1 (every path one the map they were sent names) → ' + rec.reads + ' MB read by the host', { type: 'asset-req', path: '/saves/images/pN.png' });
         check('host: the 200 pictures reached the player as references (the probe asks for files the gate will serve)', refsNoted);
-        check('host: picture requests are budgeted below 200 fetches per 10 s per player', rec.fetches.length < 200);
+        check('host: the pictures read for one connection are budgeted by bytes — of 200 asked in one burst, each stating 1 MB, at most 150 MB are read and served in a minute and the rest are answered busy with their bodies cancelled unread (' + rec.reads + ' read, ' + servedN + ' served, ' + busyN + ' busy, ' + rec.cancels + ' cancelled)', rec.reads <= 150 && servedN === rec.reads && servedN + busyN === 200 && rec.cancels === busyN && busyN > 0);
         clockOff += 11000; resetRec(); net._handleMessage({ type: 'asset-req', path: '/saves/images/never-sent.png' }, conns.p1); await drain();   // past the asset limiter's window: judged by the gate, not refused as busy
         check('host: a picture path this connection was never sent a reference to is answered as missing and never read', rec.fetches.length === 0 && conns.p1.sent.some(m => m.type === 'asset' && m.path === '/saves/images/never-sent.png' && m.error === 'missing'), conns.p1.sent.filter(m => m.type === 'asset').slice(-1));
         let bad = false; for (const p of ['/saves/data.json', '/api/data', '/saves/images/../data.json', '/saves/images/%2e%2e/data.json', 'http://evil/x.png', '/saves/images/a.png?x=1', '/saves/images/a\u0000.png', '\\saves\\images\\a.png']) { resetRec(); net._handleMessage({ type: 'asset-req', path: p }, conns.p1); await drain(); if (rec.fetches.some(f => !/^\/saves\/images\/[^.]/.test(f.url) || /\.\./.test(f.url))) bad = true; }

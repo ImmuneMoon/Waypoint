@@ -794,6 +794,28 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('import (main.js): a legacy single-campaign file is wrapped and cleaned the same way before it joins the campaigns; Merge cleans its items with the same cleaner',
             /var cleanL = cleanImport\(wrapL, importDeps\(\)\);[\s\S]*var guardL = [\s\S]*state\.appState\.campaigns\[defaultCamp\.id\] = cleanL\.campaigns\[defaultCamp\.id\];/.test(legacy) && !/state\.appState\.campaigns\[defaultCamp\.id\] = defaultCamp;/.test(legacy)
             && /function cleanImportedItems\(ic\) \{ cleanImportItems\(ic, importDeps\(\)\); \}/.test(mainSrc) && /cleanImportedItems\(ic\);/.test(mainSrc));
+        // a table key from a file proves nothing (the security pass of 2026-10-01): an imported campaign's players come in without their keys, on
+        // Replace (cleanImport, after the load's normaliser) and on Merge (cleanImportItems, which main.js runs on each campaign before it is kept),
+        // so whoever wrote the file is asked at the GM's table like anyone new — the host's own gate line, sliced from net.js, says so; the file's
+        // bans stay (they can only refuse). A record that is no object goes; players that are no object go
+        {
+            const playersIn = () => ({ u_a: { name: 'Pat', key: 'k_file', charName: 'Hero', firstSeen: 1 }, u_b: 'junk', u_c: { key: 'k_only' } });
+            const playersOut = JSON.stringify({ u_a: { name: 'Pat', charName: 'Hero', firstSeen: 1 }, u_c: {} });
+            const outKy = cleanImport({ campaigns: { cX: { id: 'cX', name: 'X', items: {}, players: playersIn(), bannedPlayers: { u_z: { name: 'Z', bannedAt: 1 } } } } }, deps);
+            const icKy = { items: {}, players: playersIn() }; cleanImportItems(icKy, deps);
+            const icKn = { players: playersIn() }; cleanImportItems(icKn, {});   // a campaign with no items yet: the keys go before anything returns early
+            const icKs = { items: {}, players: 'junk' }; cleanImportItems(icKs, deps);
+            const gateSrc = (/var rec0 = [^\n]+\n\s*var keyOk = [^\n]+/.exec(netSrc) || [''])[0];
+            const gate = new Function('camp0', 'prof', 'msg', '"use strict"; var own = function(o, k) { return Object.prototype.hasOwnProperty.call(o, k); };\n' + gateSrc + '\nreturn keyOk;');
+            const mergeSrc = mainSrc.slice(mainSrc.indexOf('  function mergeAppState(imported) {'), mainSrc.indexOf('var _el_importMergeBtn'));
+            check('import: a table key from a file proves nothing — an imported campaign\'s players keep their names, bindings and history but no key, on Replace and on Merge (with or without items), and the host\'s own gate (net.js, sliced) then sends a hello carrying the file\'s key to the GM\'s Allow/Deny instead of straight in; a key the host itself issued still admits; the file\'s bans stay; Merge cleans each campaign before it is kept',
+                !!outKy && JSON.stringify(outKy.campaigns.cX.players) === playersOut && JSON.stringify(outKy.campaigns.cX.bannedPlayers) === JSON.stringify({ u_z: { name: 'Z', bannedAt: 1 } })
+                && JSON.stringify(icKy.players) === playersOut && JSON.stringify(icKn.players) === playersOut && !('players' in icKs)
+                && gateSrc.length > 80 && gate(outKy.campaigns.cX, { id: 'u_a' }, { type: 'hello', id: 'u_a', key: 'k_file' }) === false && gate(icKy, { id: 'u_a' }, { type: 'hello', key: 'k_file' }) === false
+                && gate({ players: { u_a: { name: 'Pat', key: 'k_issued' } } }, { id: 'u_a' }, { type: 'hello', key: 'k_issued' }) === true && gate({ players: { u_a: { name: 'Pat', key: 'k_issued' } } }, { id: 'u_a' }, { type: 'hello', key: 'k_other' }) === false
+                && /cleanImportedItems\(ic\);[\s\S]*?if \(!existing\) \{[\s\S]*?state\.appState\.campaigns\[ic\.id\] = ic;/.test(mergeSrc) && mergeSrc.indexOf('cleanImportedItems(ic);') < mergeSrc.indexOf('state.appState.campaigns[ic.id] = ic;'),
+                JSON.stringify([outKy && outKy.campaigns.cX.players, icKy.players, icKn.players, icKs.players, gateSrc.length]));
+        }
         // the dev console's reload: never under a table, the GM's or someone else's
         const ri = ioSrc.indexOf('window.wpReloadFromDisk = function() {'), rk = ioSrc.indexOf('\n};', ri);
         const reload = (n) => { const calls = { load: 0, cleared: 0, toasts: [] }; const w = { wpNet: n };

@@ -193,6 +193,65 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             upBoth(main) && upBoth(dev));
     }
 
+    {   // the security pass of 2026-10-01: an import copying a file back never replaces one already there (servefile.saveUpload with keep, run for real)
+        const dirK = fs.mkdtempSync(path.join(os.tmpdir(), 'wp-keep-'));
+        const srvK = http.createServer((req, res) => { const u = new URL(req.url, 'http://localhost'), name = decodeURIComponent(u.pathname.slice(1)); sf.saveUpload(req, res, path.join(dirK, name), JSON.stringify({ url: '/saves/' + name }), { keep: u.searchParams.get('keep') === '1' }); });
+        await new Promise(r => srvK.listen(0, '127.0.0.1', r)); srvK.unref();
+        const portK = srvK.address().port;
+        const postK = (p, body, port) => new Promise(resolve => {
+            const rq = http.request({ host: '127.0.0.1', port: port || portK, path: '/' + p, method: 'POST', headers: { 'Content-Length': body.length }, timeout: 5000 }, rs => { let d = ''; rs.on('data', c => { d += c; }); rs.on('end', () => resolve({ status: rs.statusCode, body: d })); });
+            rq.on('error', e => resolve({ err: e.message })); rq.on('timeout', () => { rq.destroy(); resolve({ err: 'timeout' }); }); rq.end(body);
+        });
+        const lsK = () => fs.readdirSync(dirK).sort().join(), readK = n => fs.readFileSync(path.join(dirK, n));
+        const realLink = fs.linkSync;
+        try {
+            const had = Buffer.from('{"entries":[{"text":"a player\'s own notes"}]}'), mine = Buffer.alloc(300, 3), other = Buffer.alloc(10, 4);
+            fs.writeFileSync(path.join(dirK, 'journal.json'), had);
+            const k1 = await postK('journal.json?keep=1', mine), a1 = [lsK(), readK('journal.json').equals(had)];                   // over a file already there: refused, the file kept
+            const k2 = await postK('fresh.png?keep=1', mine), a2 = [lsK(), readK('fresh.png').equals(mine)];                          // where there was none: written whole
+            const k3 = await postK('fresh.png?keep=1', other), a3 = readK('fresh.png').equals(mine);                                   // the same name again (an archive holding a file twice, or an export imported twice): kept
+            fs.linkSync = () => { const e = new Error('no hard links here'); e.code = 'EPERM'; throw e; };                             // a saves folder on a filesystem without hard links (a memory stick): the exclusive copy instead
+            const k4 = await postK('journal.json?keep=1', mine), a4 = readK('journal.json').equals(had);
+            const k5 = await postK('copied.png?keep=1', mine), a5 = [lsK(), readK('copied.png').equals(mine)];
+            fs.linkSync = realLink;
+            const k6 = await postK('journal.json', mine), a6 = readK('journal.json').equals(mine);                                     // without keep (the Journal's own saves, a new picture): replaced in place, as ever
+            check('an import never replaces a file already there (servefile.saveUpload with keep, run for real): over a file that exists it answers 409 and the file keeps its bytes, where there is none the upload is written whole and answers 200, the same name a second time is kept, no .part is left either way; on a filesystem without hard links the exclusive copy gives the same answers; without keep a file is replaced in place as before',
+                k1.status === 409 && j(a1) === j(['journal.json', true]) && k2.status === 200 && k2.body === '{"url":"/saves/fresh.png"}' && j(a2) === j(['fresh.png,journal.json', true]) && k3.status === 409 && a3 === true
+                && k4.status === 409 && a4 === true && k5.status === 200 && j(a5) === j(['copied.png,fresh.png,journal.json', true]) && k6.status === 200 && a6 === true && lsK() === 'copied.png,fresh.png,journal.json',
+                j([k1, a1, k2, a2, k3, a3, k4, a4, k5, a5, k6, a6, lsK()]));
+        } finally {
+            fs.linkSync = realLink;
+            srvK.close();
+            try { fs.rmSync(dirK, { recursive: true, force: true }); } catch (e) {}
+        }
+        // the dev server itself (tools/dev-server.js on a scratch saves folder, as a child process): upload-exact with keep=1 over a picture already there
+        const savesK = fs.mkdtempSync(path.join(os.tmpdir(), 'wp-devkeep-')), pic = path.join(savesK, 'images', 'm_abc', 'x1_pic.png'), was = Buffer.from('the GM\'s own picture');
+        fs.mkdirSync(path.dirname(pic), { recursive: true }); fs.writeFileSync(pic, was);
+        const freePort = await new Promise(r => { const s = http.createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => r(p)); }); });
+        const child = require('child_process').spawn(process.execPath, [path.join(__dirname, 'dev-server.js'), savesK, String(freePort)], { stdio: ['ignore', 'pipe', 'pipe'] });
+        const started = await new Promise(resolve => { let out = ''; const t = setTimeout(() => resolve(false), 15000); child.stdout.on('data', c => { out += c; if (/Waypoint dev server/.test(out)) { clearTimeout(t); resolve(true); } }); child.on('exit', () => { clearTimeout(t); resolve(false); }); });
+        try {
+            const d1 = started ? await postK('api/upload-exact?keep=1&path=' + encodeURIComponent('images/m_abc/x1_pic.png'), Buffer.alloc(40, 9), freePort) : { err: 'the dev server did not start' };
+            const d1k = fs.readFileSync(pic).equals(was), partsD = fs.readdirSync(path.dirname(pic)).filter(f => /\.part$/.test(f)).length;
+            const d2 = started ? await postK('api/upload-exact?keep=1&path=' + encodeURIComponent('images/m_abc/x2_new.png'), Buffer.alloc(40, 9), freePort) : { err: 'the dev server did not start' };
+            const d2k = fs.existsSync(path.join(savesK, 'images', 'm_abc', 'x2_new.png')) && fs.readFileSync(path.join(savesK, 'images', 'm_abc', 'x2_new.png')).equals(Buffer.alloc(40, 9));
+            const d3 = started ? await postK('api/upload-exact?path=' + encodeURIComponent('images/m_abc/x1_pic.png'), Buffer.alloc(40, 9), freePort) : { err: 'the dev server did not start' };
+            const d3k = fs.readFileSync(pic).equals(Buffer.alloc(40, 9));
+            check('the dev server run for real on a scratch saves folder: upload-exact with keep=1 over a picture already there answers 409 and leaves it as it was, no .part beside it; a new name is written; without keep the file is replaced as before',
+                started && d1.status === 409 && d1k && partsD === 0 && d2.status === 200 && d2k && d3.status === 200 && d3k, j([started, d1, d1k, partsD, d2, d2k, d3, d3k]));
+        } finally {
+            try { child.kill(); } catch (e) {}
+            await new Promise(r => { const t = setTimeout(r, 2000); child.on('exit', () => { clearTimeout(t); r(); }); if (child.exitCode !== null) { clearTimeout(t); r(); } });
+            try { fs.rmSync(savesK, { recursive: true, force: true }); } catch (e) {}
+        }
+        const keepBoth = s => { const b = s.slice(s.indexOf("if (url.pathname === '/api/upload-exact' && req.method === 'POST') {"), s.indexOf("if (url.pathname === '/api/upload' && req.method === 'POST') {")); return b.length > 200 && /servefile\.saveUpload\(req, res, savePath, JSON\.stringify\(\{ url: '\/saves\/' \+ segs\.join\('\/'\) \}\), \{ keep: url\.searchParams\.get\('keep'\) === '1' \}\);/.test(b); };
+        const keepOnlyExact = s => (s.match(/\{ keep: url\.searchParams\.get\('keep'\) === '1' \}/g) || []).length === 1;
+        check('the shell and the dev server hand upload-exact\'s keep flag to saveUpload (and only there: a new file into the library is named afresh each time); the import\'s copies (main.js) ask for it on every file, the Journal\'s, a portrait\'s and the tutorial\'s own saves do not',
+            keepBoth(main) && keepBoth(dev) && keepOnlyExact(main) && keepOnlyExact(dev)
+            && /fetch\('\/api\/upload-exact\?keep=1&path=' \+ encodeURIComponent\(relPath\), \{ method: 'POST', body: body \}\)/.test(fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'main.js'), 'utf8'))
+            && ['handouts.js', 'sheets.js', 'tutorial.js'].every(f => { const s = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', f), 'utf8'); return /upload-exact\?path=/.test(s) && !/keep=1/.test(s); }));
+    }
+
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

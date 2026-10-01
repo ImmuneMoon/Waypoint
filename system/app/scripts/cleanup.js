@@ -587,6 +587,14 @@ function cleanupInfo() { return { lastRun: lastRun, tiers: lastTiers, ledgerSize
 // Fails closed: with no sanitiser on hand a raw block, a diagram and a text item come in empty and a page does not come in.
 // deps: { DR: docrender.js (cleanDoc, stripMermaidLinks), sanitize: net.js sanitizeRichText }. Merge runs it on each campaign.
 function cleanImportItems(ic, deps) {
+    // A table key from a file proves nothing: the players a campaign file names come in with their names, bindings and history, never
+    // the secret each proves their identity with at THIS table (the export drops them too, io.js stripTableKeys). Whoever wrote the file is
+    // asked at the GM's table like anyone new, and admitPlayer issues a fresh key once the GM lets them in. Before the early return below:
+    // a campaign with no items yet still has players
+    if (ic.players !== undefined) {
+        if (!isObj(ic.players)) delete ic.players;
+        else Object.keys(ic.players).forEach(function(pid) { var p = ic.players[pid]; if (isObj(p)) delete p.key; else delete ic.players[pid]; });
+    }
     if (!isObj(ic.items)) { ic.items = {}; return; }
     var DR = deps && deps.DR, san = deps && typeof deps.sanitize === 'function' ? deps.sanitize : null, FC = deps && deps.FC && typeof deps.FC.cleanLight === 'function' ? deps.FC : null;
     Object.keys(ic.items).forEach(function(id) {

@@ -252,18 +252,33 @@ pendingChecks.push((async () => {
         before.threw === '' && before.rec.length === 0 && before.log === 0 && hop.rec.length === 0 && hop.log === 0 && elsewhere.rec.length === 0 && elsewhere.log === 0 && fine.threw === '' && j(fine.rec) === j(['item:map_tut_city', 'delta', 'stage:map_tut_city', 't', 'pause:true', 't', 'pauseMe:true', 't', 'lock:true', 't', 't', 'handout', 'notepad', 'combats', 'targets', 'pos', 'chat']) && fine.log === 1, j([before, hop, elsewhere, fine]));
     // #13: denied / kicked acted on once, from the dialled host only, the connection closed from this side
     const deniedSrc = tryBetween('// [netcheck:denied-start]', '// [netcheck:denied-end]') || seg("} else if ((msg.type === 'denied' || msg.type === 'kicked') && net.role === 'client') {", "} else if (msg.type === 'snapshot' && net.role === 'client') {", 'denied').replace(/^[^\n]*\n/, '');
-    const DD = ['net', 'setStatus', 'showConfirm', 'toast', 'ui', 'window', 'setTimeout'];
+    const DD = ['net', 'setStatus', 'showConfirm', 'toast', 'ui', 'window', 'setTimeout', 'updateMessage', 'APP_VERSION'];
     const runDenied = new Function('env', 'msg', 'conn', 'var ' + DD.map(n => n + ' = env.' + n).join(', ') + ';\n' + deniedSrc + '\nreturn "ran";');
-    const mkDen = () => { const hd = { confirms: [], status: [], timers: [], closed: 0, toasts: [] }; const conn = { peer: 'host-x', open: true, close: () => { hd.closed++; conn.open = false; } }; const env = { net: { role: 'client', conns: [conn], leaving: false, fromWelcome: false }, setStatus: s => hd.status.push(s), showConfirm: t => hd.confirms.push(t), toast: t => hd.toasts.push(t), ui: () => ({ style: {} }), window: {}, setTimeout: (fn, ms) => { hd.timers.push({ fn, ms }); return hd.timers.length; } }; return { h: hd, env, conn }; };
+    const updMsgSrc = (() => { const i = src.indexOf('function updateMessage(theirs, ours) {'); return i < 0 ? '' : src.slice(i, src.indexOf('\n}\n', i) + 3); })();
+    const realUpdateMessage = updMsgSrc ? new Function(updMsgSrc + '\nreturn updateMessage;')() : () => 'no updateMessage';
+    const mkDen = () => { const hd = { confirms: [], status: [], timers: [], closed: 0, toasts: [] }; const conn = { peer: 'host-x', open: true, close: () => { hd.closed++; conn.open = false; } }; const env = { net: { role: 'client', conns: [conn], leaving: false, fromWelcome: false }, setStatus: s => hd.status.push(s), showConfirm: t => hd.confirms.push(t), toast: t => hd.toasts.push(t), ui: () => ({ style: {} }), window: {}, setTimeout: (fn, ms) => { hd.timers.push({ fn, ms }); return hd.timers.length; }, updateMessage: realUpdateMessage, APP_VERSION: '1.4.9' }; return { h: hd, env, conn }; };
     const D1 = mkDen(); const bigWhy = 'x'.repeat(100000);
     for (let i = 0; i < 50; i++) runDenied(D1.env, { type: 'denied', update: true, reason: bigWhy }, D1.conn);
-    const d1 = { confirms: D1.h.confirms.length, len: D1.h.confirms[0] && D1.h.confirms[0].length, status: D1.h.status.length, timers: D1.h.timers.map(t => t.ms), leaving: D1.env.net.leaving }; D1.h.timers.forEach(t => t.fn());
+    const d1 = { confirms: D1.h.confirms.length, status: D1.h.status.length, timers: D1.h.timers.map(t => t.ms), leaving: D1.env.net.leaving, said: D1.h.status[0] || '' }; D1.h.timers.forEach(t => t.fn());
     const D2 = mkDen(); runDenied(D2.env, { type: 'denied', reason: 'no' }, { peer: 'other', open: true, close: () => { D2.h.closed++; } });
     const D3 = mkDen(); runDenied(D3.env, { type: 'kicked' }, D3.conn); runDenied(D3.env, { type: 'kicked' }, D3.conn);
     const D4 = mkDen(); runDenied(D4.env, { type: 'denied', reason: 'The GM declined your request to join.' }, D4.conn); runDenied(D4.env, { type: 'denied', update: true, reason: 'again' }, D4.conn);
-    check('denied / kicked (client): acted on once per connection — one status line, one dialog for an update notice, the reason cut to 400 characters — and the connection closed from this side 400 ms later, so a host that keeps the line open and repeats itself is not followed (49 more on the same line do nothing); one from a connection other than the one this app dialled does nothing; the removal words for kicked',
-        d1.confirms === 1 && d1.len === 400 && d1.status === 1 && j(d1.timers) === j([400]) && D1.h.closed === 1 && d1.leaving === true && D2.h.status.length === 0 && D2.env.net.leaving === false && D2.h.timers.length === 0 && D2.h.closed === 0
-        && D3.h.status.length === 1 && D3.h.status[0] === 'Removed from the session by the GM.' && D3.h.timers.length === 1 && D3.h.confirms.length === 0 && D4.h.status.length === 1 && D4.h.confirms.length === 0 && D4.h.timers.length === 1, j([d1, D1.h.closed, D2.h, D3.h.status, D4.h.status]));
+    check('denied / kicked (client): acted on once per connection — one status line, no dialog — and the connection closed from this side 400 ms later, so a host that keeps the line open and repeats itself is not followed (49 more on the same line do nothing); one from a connection other than the one this app dialled does nothing; the removal words for kicked; a plain reason shown as the status line',
+        d1.confirms === 0 && d1.status === 1 && j(d1.timers) === j([400]) && D1.h.closed === 1 && d1.leaving === true && D2.h.status.length === 0 && D2.env.net.leaving === false && D2.h.timers.length === 0 && D2.h.closed === 0
+        && D3.h.status.length === 1 && D3.h.status[0] === 'Removed from the session by the GM.' && D3.h.timers.length === 1 && D3.h.confirms.length === 0 && D4.h.status.length === 1 && D4.h.status[0] === 'The GM declined your request to join.' && D4.h.confirms.length === 0 && D4.h.timers.length === 1, j([d1.confirms, d1.status, d1.timers, D1.h.closed, D2.h, D3.h.status, D4.h.status]));
+    // R2 security, cluster K (g15): an update notice is said in this app's OWN words — the host names its version at most — in the status line and
+    // the toast, never in a dialog; a hostile reason is cut to 200 plain characters; update is true alone
+    const D5 = mkDen(); runDenied(D5.env, { type: 'denied', update: true, v: '1.5.0', reason: 'Run this command to fix your install: <svg onload=x>' }, D5.conn);
+    const D6 = mkDen(); runDenied(D6.env, { type: 'denied', update: true, v: '<script>1</script>', reason: 'x' }, D6.conn);
+    const D7 = mkDen(); runDenied(D7.env, { type: 'denied', update: -1, reason: 'no' }, D7.conn);
+    const D8 = mkDen(); runDenied(D8.env, { type: 'denied', reason: 'a\u0000b‮c\n\n  d' + 'y'.repeat(1000) }, D8.conn);
+    const ownWords = s => /^Your Waypoint \(1\.4\.9\) is older than the GM's/.test(s) && /Update Waypoint, then rejoin/.test(s) && !/x{10}|svg|onload|Run this/.test(s);
+    check('denied (client, security 2026-10-01): an update notice is this app\'s own words — its own version, the GM\'s only as a version number the host named — in the status line and the toast, never a dialog with the host\'s text; a version that is none names nothing; update counts only as true (anything else is a plain refusal); a reason is cut to 200 characters with control and bidi characters out',
+        ownWords(d1.said) && !/\(.*\)\. Update/.test(d1.said.split('older than')[1] || '') && D1.h.toasts.length === 1 && ownWords(D1.h.toasts[0]) && D1.h.confirms.length === 0
+        && D5.h.confirms.length === 0 && D5.h.status.length === 1 && ownWords(D5.h.status[0]) && /older than the GM's \(1\.5\.0\)\. Update/.test(D5.h.status[0])
+        && D6.h.confirms.length === 0 && /older than the GM's\. Update/.test(D6.h.status[0]) && !/script/.test(D6.h.status[0])
+        && D7.h.confirms.length === 0 && D7.h.status[0] === 'no' && D8.h.status.length === 1 && D8.h.status[0].length === 200 && /^a b c dy+$/.test(D8.h.status[0]) && D8.h.confirms.length === 0,
+        j([d1.said.slice(0, 80), D5.h.status, D6.h.status, D7.h.status, D8.h.status[0] && D8.h.status[0].slice(0, 20), D8.h.status[0] && D8.h.status[0].length]));
 })());
 {
     const h = harness({ players: { u_known: { name: 'Kay', key: 'k'.repeat(32) } } }); const c = h.conn('p5');
@@ -470,7 +485,7 @@ pendingChecks.push((async () => {
     h.hello(c, { id: 'u_newer', name: 'N' }, { version: '9.9.9' });
     check('hello: a newer client is a toast + queued join, never a dialog (which would sit on the pending Allow/Deny)', h.confirms.length === 0 && h.toasts.some(t => /newer/.test(t)) && h.env.pendingJoins.length === 1);
     const c2 = h.conn('v2'); h.hello(c2, { id: 'u_old', name: 'O' }, { version: '1.0.0' });
-    check('hello: an older client is turned away with the update notice', h.lastSent('v2', 'denied') && h.lastSent('v2', 'denied').m.update === true);
+    check('hello: an older client is turned away with the update notice, the host naming its own version (security K g15: the player\'s app says the notice in its own words)', h.lastSent('v2', 'denied') && h.lastSent('v2', 'denied').m.update === true && h.lastSent('v2', 'denied').m.v === '1.5.0');
 }
 {
     const h = harness({ players: { u_b: { name: 'B', key: 'b'.repeat(32) } }, bannedPlayers: { u_b: true } }); const c = h.conn('b1');
@@ -8428,6 +8443,133 @@ pendingChecks.push((async () => {
         }
         check('cluster J #8 (host, the pos gate run for real): a final that lands the token where it already stood — the same place, turn and facing — is relayed as ever but saves nothing; a change of place, of turn or of facing saves; a drag\'s final saves once (its moves were never saved) even back where the drag began, and a drag whose moves never moved the token ends with nothing saved',
             !!r && J(r.a) === J([1, 1, 2, 2, 3]) && J(r.b) === J([0, 1]) && r.c === 1 && r.d === 0 && r.e === 0 && r.relayedA === 5 && J(r.tokA) === J([50, 90, 45]), J(r));
+    }
+})());
+// R2 security, cluster K (2026-10-01): the PLAYER's side against a hostile host — what the fuzz harness (tools/fuzzcheck.js) still found at
+// 8941d21. A player's app: ends its session only on the dialled host's word (g12); keeps a host's geometry only as finite numbers (g13); drops a
+// message whole past the app's own sizes and depth, and an item of a kind it does not hold (g14); keeps every table keyed by a wire value
+// prototype-free (g16); renders a chat flood once (g17). Each run on the real code, sliced
+pendingChecks.push((async () => {
+    const J = JSON.stringify, bwK = n => tryBetween('// [netcheck:' + n + '-start]', '// [netcheck:' + n + '-end]') || '';
+    const fnK = (start, end) => { const i = src.indexOf(start); if (i < 0) return ''; const k = src.indexOf(end, i + 1); return k < 0 ? '' : src.slice(i, k) + end; };
+    const protoNow = () => Object.getOwnPropertyNames(Object.prototype).sort().join() + '|' + Object.getOwnPropertyNames(Array.prototype).sort().join();
+    const PROTO0 = protoNow();
+    const noThrow = f => { try { f(); return ''; } catch (e) { return e.constructor.name + ': ' + e.message; } };
+    // (g16) the sound-transfer table (assetWaiters) and its two readers, run for real: a path such as "__proto__" or "constructor" is no waiter —
+    // nothing thrown, nothing written on a prototype, nothing kept; a part's bytes are typed; an honest transfer still lands as a Blob
+    {
+        const assetSrc = [lineOf('function own('), lineOf('var assetCache = Object.create(null);'), lineOf('var assetPending = Object.create(null);'), lineOf('var assetRenderTimer = null;'), lineOf('var assetWaiters = '), lineOf('var ASSET_PART = '), lineOf('function isAudioPath('), fnK('function assetMime(path) {', '\n}\n'), lineOf('var ASSET_PLACEHOLDER = '), lineOf('var _assetRetries = '),
+            fnK('net.fetchAsset = function(path, size) {', '\n};\n'), fnK('function handleAssetPart(msg) {', '\n}\n'), fnK('function handleAssetArrival(msg) {', '\n}\n'),
+            'return { part: handleAssetPart, arrival: handleAssetArrival, waiters: function() { return assetWaiters; }, cache: function() { return assetCache; } };'].join('\n');
+        const mkA = () => { const A = { sent: [], timers: [], renders: 0, events: 0 }; const conn = { peer: 'h', open: true, send(m) { packCheck(m); A.sent.push(m); } };
+            const net = { active: true, role: 'client', stream: false, conns: [conn], assetSrc: () => {} };
+            A.err = noThrow(() => { A.api = new Function('net', 'setTimeout', 'clearTimeout', 'document', 'state', 'render', 'URL', 'Blob', 'CustomEvent', assetSrc)(net, (fn, ms) => { A.timers.push({ fn, ms }); return A.timers.length; }, id => { const t = A.timers[id - 1]; if (t) t.fn = null; }, { dispatchEvent() { A.events++; } }, { viewMode: 'visual' }, () => { A.renders++; }, { createObjectURL: () => 'blob:x', revokeObjectURL() {} }, globalThis.Blob, function() {}); });
+            A.net = net; return A; };
+        const A = mkA(); const errs = [];
+        const KEYS = ['__proto__', 'constructor', 'hasOwnProperty', 'toString', 'valueOf'];
+        if (!A.err) KEYS.forEach(k => {
+            errs.push(noThrow(() => A.api.part({ type: 'asset-part', path: k, i: 0, n: 1, data: {} })), noThrow(() => A.api.part({ type: 'asset-part', path: k, i: 0, n: 1, data: new Uint8Array([1]).buffer })));
+            errs.push(noThrow(() => A.api.arrival({ type: 'asset', path: k, mime: 'text/html', data: new Uint8Array([60, 115]).buffer })), noThrow(() => A.api.arrival({ type: 'asset', path: k, error: 'busy' })));
+        });
+        const proto1 = protoNow(), kept1 = A.err ? -1 : Object.keys(A.api.waiters()).length + Object.keys(A.api.cache()).length;
+        errs.push(noThrow(() => A.api.part({ type: 'asset-part', path: '/saves/images/audio/never.mp3', i: 0, n: 1, data: new Uint8Array([1]).buffer })));   // never asked for: dropped
+        check('security K g16 (assets, client): an asset-part or an asset naming a path such as "__proto__", "constructor" or "hasOwnProperty" is no waiter and no picture — nothing thrown, nothing written on Object.prototype or Array.prototype, nothing kept; a part for a sound never asked for is dropped',
+            !A.err && errs.every(e => e === '') && proto1 === PROTO0 && kept1 === 0 && Object.keys(A.api.waiters()).length === 0, J([A.err, errs.filter(Boolean), proto1 === PROTO0, kept1]));
+        // an honest transfer: asked through net.fetchAsset, answered in parts (a view and a buffer), a part whose bytes are no bytes ignored, the Blob the sum
+        let got = null, failed = null; const P = '/saves/images/audio/s.mp3';
+        if (!A.err) { const pr = A.net.fetchAsset(P, 10); pr.then(b => { got = b; }, e => { failed = e.message; });
+            const asked = A.sent.length === 1 && A.sent[0].type === 'asset-req' && A.sent[0].path === P;
+            A.api.part({ type: 'asset-part', path: P, i: 1, n: 2, data: [1, 2, 3] }); A.api.part({ type: 'asset-part', path: P, i: 1, n: 2, data: { byteLength: 3, length: 3 } }); A.api.part({ type: 'asset-part', path: P, i: 1, n: 2, data: 'abc' });
+            const stillWaiting = Object.keys(A.api.waiters()).length === 1;
+            A.api.part({ type: 'asset-part', path: P, i: 0, n: 2, data: new Uint8Array([1, 2]) }); A.api.part({ type: 'asset-part', path: P, i: 1, n: 2, data: new Uint8Array([3]).buffer });
+            await new Promise(r => setImmediate(r));
+            check('security K g16 (assets, client): an honest sound transfer still lands — one request, parts as a typed-array view or a buffer summed into a Blob of their bytes, the waiter gone; a part whose data is an array, a plain object or a string is ignored and the transfer waits on',
+                asked && stillWaiting && !failed && !!got && got.size === 3 && Object.keys(A.api.waiters()).length === 0, J([asked, stillWaiting, failed, got && got.size]));
+        }
+        // the queued-edit table (_charPending), keyed by a request id the host echoes: prototype-free and read by own key; a host naming "__proto__" or "constructor" settles nothing and reaches no sheet
+        const pendSrc = bwK('pending'); const calls = [];
+        const runPend = (rid) => { const api = new Function('_charPending', '_charHost', 'getActiveCampaign', 'window', 'toast', 'SC', 'net', pendSrc + '\nreturn charPendingDone;')({}, Object.create(null), () => ({ chars: {} }), { wpSheets: { editResult: (r) => calls.push('edit:' + r), charChanged: r => calls.push('changed:' + r) } }, t => calls.push('toast:' + t), () => null, {}); return noThrow(() => api(rid, false, 'slow', 'm')) + noThrow(() => api(rid, true, '', 'm')); };
+        const pendErr = ['__proto__', 'constructor', 'hasOwnProperty', 'toString'].map(runPend).join('');
+        check('security K g16 (client): the queued-edit table is prototype-free and read by own key — a char-ack or char-deny whose request id is "__proto__" or "constructor" settles nothing and reaches no sheet; the sound-transfer table is prototype-free and reset so; both pinned',
+            pendSrc !== '' && pendErr === '' && calls.length === 0 && /var p = Object\.prototype\.hasOwnProperty\.call\(_charPending, rid\) \? _charPending\[rid\] : null; if \(!p\) return;/.test(pendSrc)
+            && /if \(typeof msg\.rid !== 'string' \|\| !Object\.prototype\.hasOwnProperty\.call\(_charPending, msg\.rid\)\) return; charPendingDone\(msg\.rid/.test(src)
+            && (src.match(/_charPending = Object\.create\(null\)/g) || []).length === 2 && !/_charPending = \{\}/.test(src)
+            && /^var assetWaiters = Object\.create\(null\);/m.test(src) && /assetWaiters = Object\.create\(null\); assetPending = Object\.create\(null\);/.test(src) && !/assetWaiters = \{\}/.test(src), J([pendErr, calls]));
+    }
+    // (g13) geometry a host sends — a whole map's or a delta's pieces (cleanHostWbItem) and a live move (handlePos, the client branch): finite
+    // numbers within bounds, or nothing
+    {
+        const cw = new Function('window', 'cleanWaitingItem', 'sanitizeRichText', 'cleanHostLight', 'cleanHostTokSenses', 'cleanHostFxb', lineOf('function cleanHostWbItem(w) {') + '\nreturn cleanHostWbItem;')({}, H.cleanWaitingItem, t => t, () => {}, () => {}, () => {});
+        const g = o => cw(Object.assign({ id: 't', type: 'circle' }, o));
+        const bad = g({ x: 'calc(1px)', y: { a: 1 }, w: NaN, h: Infinity, rot: 'NaNdeg', front: [] }), nul = g({ x: null, y: '300', rot: true, front: -Infinity });
+        const far = g({ x: 1e300, y: -1e300, w: 1e300, h: -5, rot: 1e300, front: -1e300 }), ok = g({ x: 100.5, y: -200, w: 60, h: 52, rot: 45, front: 90 }), none = g({});
+        const gone = o => ['x', 'y', 'w', 'h', 'rot', 'front'].every(k => !(k in o));
+        check('security K g13 (client): a piece from the host keeps its place, size, turn and facing only as finite numbers — a string, an object, null, true, NaN or an infinity is dropped from it (the renderer\'s defaults apply, as for a piece that never had one); a finite number past the board is clamped (±1e7 a place or a size, ±1e6 a turn or a facing); honest numbers exactly; none made up',
+            gone(bad) && gone(nul) && far.x === 1e7 && far.y === -1e7 && far.w === 1e7 && far.h === -5 && far.rot === 1e6 && far.front === -1e6 && J(ok) === J({ id: 't', type: 'circle', x: 100.5, y: -200, w: 60, h: 52, rot: 45, front: 90 }) && gone(none) && none.id === 't', J([bad, nul, far, ok, none]));
+        const posSrc = ownKeySrc + bwK('pos');
+        const mkP = () => { const P = { dom: [], turned: [] }; const tok = { id: 'tB', type: 'circle', isChar: true, ownerId: 'u_b', x: 100, y: 200, rot: 10, front: 20 };
+            const state = { appState: { activeCampaignId: 'k', campaigns: { k: { id: 'k', activeItemId: 'mA', items: { mA: { id: 'mA', type: 'map', whiteboard: [tok] } } } } } };
+            const net = { role: 'client', foreign: true, syncedPeer: 'h', myId: 'u_a', paused: false, roster: {} };
+            P.err = noThrow(() => { P.api = new Function('net', 'state', 'applyPosToDom', 'window', 'getActiveCampaign', posSrc + '\nreturn handlePos;')(net, state, m => P.dom.push(J(m)), { wpSheets: { tokenTurned: (id, fin) => P.turned.push(id + ':' + fin) } }, () => state.appState.campaigns.k); });
+            P.tok = tok; P.at = () => [tok.x, tok.y, tok.rot, tok.front]; P.pos = (o, peer) => P.api(Object.assign({ type: 'pos', campId: 'k', itemId: 'mA', wbId: 'tB' }, o), { peer: peer || 'h' }); return P; };
+        const P1 = mkP(); if (!P1.err) { P1.pos({ x: 'calc(1px)', y: { a: 1 }, rot: 'NaNdeg', front: [] }); P1.pos({ x: null, y: '300', rot: true, front: -Infinity }); P1.pos({ x: NaN, y: Infinity, rot: {}, front: 'x' }); P1.pos({ x: 300, y: 400, rot: 0, front: 0 }, 'h-stale'); P1.pos({ x: 300, y: 400, rot: 0, front: 0 }, 'waypoint-other'); }
+        const P2 = mkP(); if (!P2.err) { P2.pos({ x: 1e300, y: -1e300, rot: 1e300, front: -1e300, final: true }); }
+        const P3 = mkP(); if (!P3.err) { P3.pos({ x: 300, y: 400 }); P3.pos({ x: 310.5, y: 410, rot: 90, front: 180, final: true }); }
+        const P4 = mkP(); if (!P4.err) { P4.pos({ x: '7', y: 5 }); P4.pos({ x: 8, y: null, rot: 'NaNdeg', front: 45 }); }   // field by field: what is a number lands, the rest stays
+        const P5 = mkP(); if (!P5.err) { delete P5.tok.rot; delete P5.tok.front; P5.pos({ x: 1, y: 2, rot: 'x', front: {} }); }   // a token that never had a turn: given a garbage one it reads 0 (a number), never the text
+        check('security K g13 (client): a live move from the host lands field by field, only as finite numbers — a string, an object, null, a numeric string, NaN or an infinity leaves that field as the token has it (nothing changed, nothing drawn, the dial not told); a finite number past the board is clamped; from a connection other than the synced host nothing; honest moves land on the copy and the screen alike (a move that names no turn keeps the token\'s), the facing dial told; a token with no turn given a garbage one reads 0',
+            !P1.err && J(P1.at()) === J([100, 200, 10, 20]) && P1.dom.length === 0 && P1.turned.length === 0
+            && J(P2.at()) === J([1e7, -1e7, 1e6, -1e6]) && J(P2.dom) === J([J({ type: 'pos', campId: 'k', itemId: 'mA', wbId: 'tB', x: 1e7, y: -1e7, rot: 1e6, front: -1e6, final: true })])
+            && J(P3.at()) === J([310.5, 410, 90, 180]) && J(P3.dom.map(d => JSON.parse(d)).map(d => [d.x, d.y, d.rot, d.front, d.final])) === J([[300, 400, 10, 20, false], [310.5, 410, 90, 180, true]]) && J(P3.turned) === J(['tB:false', 'tB:true'])
+            && J(P4.at()) === J([8, 5, 10, 45]) && J(P4.dom.map(d => JSON.parse(d)).map(d => [d.x, d.y, d.rot, d.front])) === J([[100, 5, 10, 20], [8, 5, 10, 45]])
+            && J(P5.at()) === J([1, 2, 0, 0]) && J(P5.dom.map(d => JSON.parse(d)).map(d => [d.x, d.y, d.rot, d.front])) === J([[1, 2, 0, 0]]),
+            J([P1.err, P1.at(), P1.dom, P2.at(), P2.dom, P3.at(), P3.dom, P3.turned, P4.at(), P4.dom, P5.at(), P5.dom]));
+    }
+    // (g14) the shape of a host's message, judged before any branch reads it (wireShapeOk): strings of at most 400,000 characters, nothing nested
+    // past 64 levels, bytes not walked; and an item of a kind a player's copy does not hold is not stored (applyItem)
+    {
+        const wsSrc = bwK('wireshape'); let ok = null; const wsErr = noThrow(() => { ok = new Function(wsSrc + '\nreturn wireShapeOk;')(); });
+        const nest = n => { let o = { a: 1 }; for (let i = 0; i < n; i++) o = { a: o }; return o; };
+        const honest = { type: 'snapshot', appState: { campaigns: { c1: { items: { m: { whiteboard: [{ id: 't', pts: [[1, 2], [3, 4]], text: 'x'.repeat(200000), src: 'd'.repeat(300000) }] } } } } } };
+        const r = ok ? {
+            honest: ok(honest), edge: ok({ type: 'x', s: 'y'.repeat(400000) }), over: ok({ type: 'x', s: 'y'.repeat(400001) }), deepIn: ok({ type: 'x', a: [{ b: { c: 'z'.repeat(400001) } }] }),
+            typeBig: ok({ type: 'q'.repeat(400001) }), nest64: ok(nest(63)), nest65: ok(nest(64)), nest2000: ok(nest(2000)), nestArr: ok((() => { let a = [1]; for (let i = 0; i < 70; i++) a = [a]; return { type: 'x', a }; })()),
+            bytes: ok({ type: 'asset', data: new Uint8Array(600000) }), buffer: ok({ type: 'asset-part', data: new Uint8Array(600000).buffer }), plain: ok({ type: 'hb' }), nul: ok(null), num: ok(5)
+        } : null;
+        check('security K g14 (client): wireShapeOk — a host\'s message with a string past 400,000 characters anywhere (a key\'s value, an array\'s, the type) or an object nested past 64 levels is refused; a snapshot with a 200,000-character text and a 300,000-character picture, a string of exactly 400,000, 64 levels, half a megabyte of bytes (not walked) and a bare message pass',
+            !wsErr && !!r && r.honest === true && r.edge === true && r.over === false && r.deepIn === false && r.typeBig === false && r.nest64 === true && r.nest65 === false && r.nest2000 === false && r.nestArr === false && r.bytes === true && r.buffer === true && r.plain === true && r.nul === true && r.num === true, J([wsErr, r]));
+        check('security K g14 (client, wired): every message a player\'s app takes is judged by wireShapeOk first, at the head of handleMessage, before any branch; the two caps as stated',
+            /function handleMessage\(msg, conn\) \{\n\s*if \(!msg \|\| !msg\.type\) return;\n\s*if \(net\.role === 'client' && !wireShapeOk\(msg\)\) return;/.test(src) && /var WIRE_STR_MAX = 400000, WIRE_DEPTH_MAX = 64;/.test(wsSrc) && (src.match(/wireShapeOk\(/g) || []).length === 2);
+        const aiSrc = ownKeySrc + fnK('function applyItem(msg) {', '\n}\n');
+        const mkI = () => { const I = { renders: 0 }; const state = { appState: { activeCampaignId: 'k', campaigns: { k: { id: 'k', activeItemId: 'mA', items: { mA: { id: 'mA', type: 'map', whiteboard: [] } } } } } };
+            I.run = msg => noThrow(() => new Function('net', 'state', 'window', 'getActiveCampaign', 'render', 'updateSidebarNav', 'cleanHostMap', 'msg', aiSrc + '\nreturn applyItem(msg);')({ applyingRemote: false }, state, { wpDocRender: { cleanDoc: d => (d && d.type === 'doc' ? { id: d.id, type: 'doc', meta: { title: 'P' }, blocks: [] } : null) }, wpFog: { invalidateVision() {}, redraw() {} } }, () => state.appState.campaigns.k, () => { I.renders++; }, () => {}, m => m, msg)); I.items = () => state.appState.campaigns.k.items; return I; };
+        const I = mkI(); const ie = ['planner', 'zzz', 'circle', 'map ', 'MAP', '', 7, null, undefined].map(t => I.run({ type: 'item', campId: 'k', itemId: 'i_' + String(t), item: { id: 'i_x', type: t, meta: { title: 'P' }, content: 'secret' } })).join('');
+        const ie2 = I.run({ type: 'item', campId: 'k', itemId: 'mB', item: { id: 'mB', type: 'map', whiteboard: [], meta: { title: 'B' } } }) + I.run({ type: 'item', campId: 'k', itemId: 'dD', item: { id: 'dD', type: 'doc', blocks: [{ id: 'b', type: 'text', content: '<b>x</b>' }] } });
+        check('security K g14 (client): an item of a kind a player\'s copy does not hold — a planner, an unknown or misspelt type, none — is not stored (it used to be kept as sent); a map and a page still land, the page as the cleaner rebuilt it',
+            ie === '' && ie2 === '' && J(Object.keys(I.items()).sort()) === J(['dD', 'mA', 'mB']) && I.items().mB.meta.title === 'B' && J(I.items().dD) === J({ id: 'dD', type: 'doc', meta: { title: 'P' }, blocks: [] }), J([ie, ie2, Object.keys(I.items())]));
+    }
+    // (g12) the end of a session: the dialled host's word, once
+    {
+        const endSrc = bwK('end');
+        const mkE = () => { const E = { status: [], toasts: [], dice: 0, modal: { style: {} } }; const conn = { peer: 'h', open: true }; const net = { role: 'client', leaving: false, conns: [conn] };
+            E.run = c => noThrow(() => new Function('net', 'conn', 'msg', 'diceSessionReset', 'setStatus', 'ui', 'toast', endSrc)(net, c, { type: 'end' }, () => { E.dice++; }, s => E.status.push(s), () => E.modal, t => E.toasts.push(t))); E.net = net; E.conn = conn; return E; };
+        const E1 = mkE(); const e1 = E1.run({ peer: 'h-stale', open: true }) + E1.run({ peer: 'waypoint-other', open: true }); const stale = { status: E1.status.length, toasts: E1.toasts.length, dice: E1.dice, leaving: E1.net.leaving, modal: E1.modal.style.display };
+        const e2 = E1.run(E1.conn) + E1.run(E1.conn) + E1.run(E1.conn); const own1 = { status: E1.status.slice(), toasts: E1.toasts.slice(), dice: E1.dice, leaving: E1.net.leaving, modal: E1.modal.style.display };
+        check('security K g12 (client): an "end" ends the session only from the host this app dialled (its first connection), once — from a stale connection kept wired after a reconnect, or from another host, nothing: no status, no toast, the table kept; from the dialled host the one teardown as before (the chat and rolls reset, the status line, the join dialog, one toast), and a repeat does nothing more',
+            endSrc !== '' && e1 === '' && e2 === '' && J(stale) === J({ status: 0, toasts: 0, dice: 0, leaving: false, modal: undefined })
+            && J(own1) === J({ status: ['Session ended by the GM.'], toasts: ['The GM ended the session — restoring your own campaign.'], dice: 1, leaving: true, modal: 'flex' }), J([e1, e2, stale, own1]));
+    }
+    // (g17) a flood of chat lines from the host is drawn once: pushChat schedules one render (renderChatSoon), the log stays at 200
+    {
+        const pcSrc = ['var chatLog = [], chatUnread = 0, _chatRollOpened = false, _chatRenderTimer = null;', fnK('function pushChat(m) {', '\n}\n'), lineOf('function renderChatSoon() {'), 'return { push: pushChat, log: function() { return chatLog; }, soon: typeof renderChatSoon === "function" ? renderChatSoon : null };'].join('\n');
+        const C = { renders: 0, timers: [], toasts: 0 }; let capi = null;
+        const cErr = noThrow(() => { capi = new Function('ui', 'renderChat', 'refreshChatRecipients', 'armChatDismiss', 'net', 'toast', 'applyLine', 'dueLine', 'window', 'setTimeout', 'clearTimeout', pcSrc)(() => ({ style: { display: 'none' } }), () => { C.renders++; }, () => {}, () => {}, { myId: 'u_me' }, () => { C.toasts++; }, () => '', () => '', {}, (fn, ms) => { C.timers.push({ fn, ms }); return C.timers.length; }, id => { const t = C.timers[id - 1]; if (t) t.fn = null; }); });
+        const fire = () => { const due = C.timers.filter(t => t.fn); due.forEach(t => { const f = t.fn; t.fn = null; f(); }); return due.length; };
+        let during = -1, fired1 = 0, after1 = -1, fired2 = 0, after2 = -1, pending = -1;
+        if (!cErr) { for (let i = 0; i < 500; i++) capi.push({ type: 'chat', scope: 'global', from: { id: 'u_x', name: 'X' }, text: 'hi ' + i, ts: i }); during = C.renders; pending = C.timers.filter(t => t.fn).length; fired1 = fire(); after1 = C.renders; capi.push({ type: 'chat', scope: 'global', from: { id: 'u_x', name: 'X' }, text: 'more', ts: 501 }); fired2 = fire(); after2 = C.renders; }
+        check('security K g17 (client): 500 chat lines pushed in one burst draw the panel once — pushChat schedules one render (renderChatSoon, a short timer) instead of redrawing every line, the log kept at its last 200 lines; the next line after the draw schedules one more; pushChat itself calls renderChat no longer',
+            !cErr && during === 0 && pending === 1 && fired1 === 1 && after1 === 1 && fired2 === 1 && after2 === 2 && capi.log().length === 200 && capi.log()[199].text === 'more' && C.toasts === 501
+            && /\n    renderChatSoon\(\);[^\n]*\n    if \(m\.roll && window\.wpDice\) window\.wpDice\.landed\(m\);/.test(fnK('function pushChat(m) {', '\n}\n')) && !/\n    renderChat\(\);/.test(fnK('function pushChat(m) {', '\n}\n')), J([cErr, during, pending, fired1, after1, fired2, after2, capi && capi.log().length, C.toasts]));
     }
 })());
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary

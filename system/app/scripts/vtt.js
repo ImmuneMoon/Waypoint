@@ -210,7 +210,7 @@ function pushTo(ids) {
 function sig(flags) { return FEATURES.map(function(f) { return f.id + (flags && flags[f.id] ? 1 : 0); }).join(''); }
 function flagsOf(camp) { var out = {}; FEATURES.forEach(function(f) { out[f.id] = campaignOn(f.id, camp); }); return out; }
 function hostFlags() { return flagsOf(activeCamp()); }                       // master folded in: the wire needs no master field
-function hostCamps() { var a = state.appState, out = {}; if (a && a.campaigns) Object.keys(a.campaigns).forEach(function(id) { out[id] = flagsOf(a.campaigns[id]); }); return out; }
+function hostCamps() { var a = state.appState, out = {}, id = a && a.activeCampaignId; if (a && a.campaigns && typeof id === 'string' && Object.prototype.hasOwnProperty.call(a.campaigns, id)) out[id] = flagsOf(a.campaigns[id]); return out; }   // the hosted campaign alone (secrets R2): a session is one campaign, and the GM's other games — their ids, their switches — never reach a player
 function hostSig() {
     var a = state.appState, ids = (a && a.campaigns) ? Object.keys(a.campaigns).sort() : [];
     return String(a && a.activeCampaignId || '') + '|' + ids.map(function(id) { return id + ':' + sig(flagsOf(a.campaigns[id])); }).join(',');

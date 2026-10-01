@@ -5988,7 +5988,7 @@ window.wpOpenCombat = openCombatModal;
         var rows = combatDraft.rows;
         if (e.target.closest('.combat-up') && i > 0) { rows.splice(i - 1, 0, rows.splice(i, 1)[0]); renderCombatModal(); }
         else if (e.target.closest('.combat-down') && i < rows.length - 1) { rows.splice(i + 1, 0, rows.splice(i, 1)[0]); renderCombatModal(); }
-        else if (e.target.closest('.combat-roll')) { var rr = window.wpSheets && rows[i].charId ? window.wpSheets.rollInit(rows[i].charId) : null; if (rr && rr.error) toast(rr.error); else if (rr && typeof rr.value === 'number') { rows[i].init = rr.value; rows[i].rolled = true; delete rows[i].tb; combatDraft.rows = combatSortByInit(rows); renderCombatModal(); } }
+        else if (e.target.closest('.combat-roll')) { var rr = window.wpSheets && rows[i].charId ? window.wpSheets.rollInit(rows[i].charId, { priv: combatRollPriv(combatDraft.mapId, rows[i].tokId) }) : null; if (rr && rr.error) toast(rr.error); else if (rr && typeof rr.value === 'number') { rows[i].init = rr.value; rows[i].rolled = true; delete rows[i].tb; combatDraft.rows = combatSortByInit(rows); renderCombatModal(); } }
         else if (e.target.closest('.combat-del')) { rows.splice(i, 1); renderCombatModal(); }
     });
     var dragI = -1;
@@ -6002,11 +6002,16 @@ window.wpOpenCombat = openCombatModal;
     // [systemcheck:rollall-start]
     // Initiative O1: Roll all — the system's initiative roll for every ticked row with a character that has no number yet (Foundry's Roll All);
     // a row rolled or given a number keeps it. One refusal (no roll, dice off) is said once and stops the rest
+    // Secrets (R2): an initiative card names its creature, so one some player at the table would read as Hidden in their turn order (the host's one
+    // judge, net.tokUnseen: hidden, or dropped by their fogged copy and never seen in this fight) rolls in private — the roster's per-row Roll too
+    function combatRollPriv(mapId, tokId) {
+        var n = window.wpNet; return !!(typeof tokId === 'string' && n && typeof n.tokUnseen === 'function' && n.tokUnseen(mapId, tokId));
+    }
     function combatRollAll(draft) {
         var n = 0; if (!draft || !window.wpSheets || !window.wpSheets.rollInit) return n;
         for (var k = 0; k < draft.rows.length; k++) {
             var r = draft.rows[k]; if (!r || !r.on || !r.charId || r.rolled) continue;
-            var rr = window.wpSheets.rollInit(r.charId); if (rr && rr.error) { toast(rr.error); break; }
+            var rr = window.wpSheets.rollInit(r.charId, { priv: combatRollPriv(draft.mapId, r.tokId) }); if (rr && rr.error) { toast(rr.error); break; }
             if (rr && typeof rr.value === 'number') { r.init = rr.value; r.rolled = true; delete r.tb; n++; }
         }
         draft.rows = combatSortByInit(draft.rows);

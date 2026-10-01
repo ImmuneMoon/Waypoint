@@ -53,6 +53,16 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
     check('the library: entries that clean, in their order, an id once and a file once, at most 100; no list is an empty library',
         j(lib.map(x => x.id)) === j(['v_abcdefgh', 'v_cccccccc']) && lib[0].name === 'Intro' && V.cleanVideos(many).length === 100 && V.cleanVideos(many)[99].id === 'v_00000099' && j(V.cleanVideos('x')) === '[]' && j(V.cleanVideos({ length: 3 })) === '[]' && V.LIMITS.videos === 100);
 
+    const mA = { id: 'v_aaaaaaaa', name: 'Here', path: '/saves/images/video/c/a.mp4', size: 1 }, mB = { id: 'v_bbbbbbbb', name: 'Also here', path: '/saves/images/video/c/b.mp4', size: 2 };
+    const merged = V.mergeVideos([mA, mB], [{ id: 'v_bbbbbbbb', name: 'From the file', path: '/saves/images/video/c/b2.mp4', size: 3 }, { id: 'v_cccccccc', name: T, path: '/saves/images/video/c/c.webm', size: 4, evil: 1 }, { id: 'v_dddddddd', name: 'Same file as A', path: '/saves/images/video/c/a.mp4', size: 5 }, { id: 'bad', path: 'https://evil.example/x.mp4', size: 1 }, null]);
+    check('an imported library joins the one here (mergeVideos): an entry with an id already here replaces it in its place, a new one follows, each cleaned (nothing else riding along, never a web address), a file listed once (the one here stays), 100 at most; no list on either side is an empty one',
+        j(merged) === j([mA, { id: 'v_bbbbbbbb', name: 'From the file', path: '/saves/images/video/c/b2.mp4', size: 3 }, { id: 'v_cccccccc', name: T, path: '/saves/images/video/c/c.webm', size: 4 }])
+        && j(V.mergeVideos(null, [mA])) === j([mA]) && j(V.mergeVideos([mA], 'x')) === j([mA]) && j(V.mergeVideos(undefined, undefined)) === '[]' && V.mergeVideos(many, many).length === 100 && j(V.mergeVideos([mA, mB], [])) === j([mA, mB]), j(merged));
+    check('an import brings a video library in cleaned (source): a campaign new to this machine has its own cleaned as a load would, and one merged into a campaign already here joins that campaign\'s by id; both only through videocore',
+        /if \(ic\.videos !== undefined && window\.wpVideoCore\) \{ var vdN = window\.wpVideoCore\.cleanVideos\(ic\.videos\); if \(vdN\.length\) ic\.videos = vdN; else delete ic\.videos; \}/.test(read('system/app/scripts/main.js'))
+        && /if \(Array\.isArray\(ic\.videos\) && window\.wpVideoCore && window\.wpVideoCore\.mergeVideos\) \{ var vdM = window\.wpVideoCore\.mergeVideos\(existing\.videos, ic\.videos\); if \(vdM\.length\) existing\.videos = vdM; else delete existing\.videos; \}/.test(read('system/app/scripts/main.js'))
+        && (read('system/app/scripts/main.js').match(/\.videos\b/g) || []).length === 9);
+
     /* ---- the name a file is uploaded under, and the local server taking it ---- */
     const main = read('system/resources/app/main.js'), grab = re => (re.exec(main) || [''])[0];
     const serverName = new Function(grab(/const FILE_EXT_BAD = [^\n]*/) + NL + grab(/function safeSeg\(s\) [^\n]*/) + NL + grab(/function safeFileName\(n\) [^\n]*/) + NL + 'return safeFileName;')();
@@ -218,7 +228,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         && tourStep.length > 300 && tu.indexOf("{ target: '#videoBtn'") > tu.indexOf("{ target: '#fxBtn'") && /goes <b>full screen<\/b>/.test(tourStep) && /window\.wpVideo\.close\(\)/.test(tourStep) && tu.includes('<b>Turn-based combat</b>, the <b>Calendar</b> and <b>Video</b>')
         && wn.indexOf('\nVideo\n- Video is a new VTT feature (Settings ▸ VTT features, on by default)') > 0 && wn.slice(wn.indexOf('\nVideo\n'), wn.indexOf('\nDice\n')) === wa.slice(wa.indexOf('\nVideo\n'), wa.indexOf('\nDice\n'))
         && /"videos": \[\{ "id": "v_ab12cd34", "name": "The docks at night", "path": "\/saves\/images\/video\/camp_x\/k3j9a0pq_docks\.mp4", "size": 48213401, "dur": 94\.5, "w": 1920, "h": 1080 \}\],   \/\/ OPTIONAL, app-managed \(1\.5\.0, the Video feature\): the GM's video library, never sent to players/.test(ci)
-        && /The files themselves are not in a campaign export\./.test(ci) && V.cleanVideos([{ id: 'v_ab12cd34', name: 'The docks at night', path: '/saves/images/video/camp_x/k3j9a0pq_docks.mp4', size: 48213401, dur: 94.5, w: 1920, h: 1080 }]).length === 1);
+        && /A campaign export carries the files themselves under images\/video\/<campaign>\/ in its zip \(any size: an archive past 4 GB or 65,535 entries is ZIP64\), and an import copies each back only after its CRC-32 matches; on a merge the library joins the one already there by "id"\./.test(ci) && V.cleanVideos([{ id: 'v_ab12cd34', name: 'The docks at night', path: '/saves/images/video/camp_x/k3j9a0pq_docks.mp4', size: 48213401, dur: 94.5, w: 1920, h: 1080 }]).length === 1);
 
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');

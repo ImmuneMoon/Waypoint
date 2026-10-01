@@ -1437,7 +1437,7 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
           var url = URL.createObjectURL(blob);
           var a = document.createElement('a'); a.href = url; a.download = name;
           document.body.appendChild(a); a.click(); a.remove();
-          setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+          setTimeout(function() { URL.revokeObjectURL(url); }, blob && blob.size > 50 * 1024 * 1024 ? 600000 : 1000);   // a large archive is still being written a second later
       } catch(e) { toast('Export failed.'); }
   }
 
@@ -1456,13 +1456,66 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
       return Object.keys(found);
   }
 
+  // [zipcheck:exportfile-start]
+  // One file of the saves folder, opened for an archive: its size (known from the first answer) and pull(emit), which hands its
+  // bytes on in order — a file up to 32 MB in one piece, a larger one in byte ranges of 32 MB, never a whole large file in memory.
+  // Null when the file is not there or its first answer does not say what it is; pull throws when a later range comes back wrong
+  // (a file that changed while it was read is left out by the writer, not written wrong).
+  var EXPORT_PART = 32 * 1024 * 1024;
+  async function exportOpen(url, fetchFn, part) {
+      var get = fetchFn || fetch, PART = part || EXPORT_PART;
+      var one = function(u8) { return { size: u8.length, pull: async function(emit) { await emit(u8); } }; };
+      var r = await get(url, { headers: { Range: 'bytes=0-' + (PART - 1) } });
+      if (r.status === 416) { r = await get(url); if (!r.ok) return null; return one(new Uint8Array(await r.arrayBuffer())); }   // an empty file has no first range
+      if (!r.ok) return null;
+      var first = new Uint8Array(await r.arrayBuffer());
+      if (r.status !== 206) return one(first);   // a server that sends it whole
+      var cr = /^bytes 0-(\d+)\/(\d+)$/.exec(r.headers.get('Content-Range') || '');
+      if (!cr) return null;
+      var total = Number(cr[2]), firstLen = first.length;
+      if (!(total >= firstLen) || Number(cr[1]) !== firstLen - 1) return null;
+      return { size: total, pull: async function(emit) {
+          await emit(first); first = null;
+          var at = firstLen;
+          while (at < total) {
+              var end = Math.min(total, at + PART) - 1;
+              var rr = await get(url, { headers: { Range: 'bytes=' + at + '-' + end } });
+              if (rr.status !== 206 || (rr.headers.get('Content-Range') || '') !== 'bytes ' + at + '-' + end + '/' + total) throw new Error('the file changed while it was read');
+              var u = new Uint8Array(await rr.arrayBuffer());
+              if (u.length !== end - at + 1) throw new Error('the file changed while it was read');
+              await emit(u); at += u.length;
+          }
+      } };
+  }
+  // The same file as an archive entry's data (a Blob: its bytes leave this page's memory at once) and its checksum, read once
+  async function exportFile(url, zip, fetchFn, part) {
+      var f = await exportOpen(url, fetchFn, part); if (!f) return null;
+      var parts = [], c = -1, got = 0;
+      try { await f.pull(async function(u8) { c = zip.crcUpdate(c, u8); parts.push(new Blob([u8])); got += u8.length; }); } catch (e) { return null; }
+      if (got !== f.size) return null;
+      return { data: new Blob(parts), crc: zip.crcDone(c) };
+  }
+  // How many bytes of video an export of this scope would carry (from each library's own sizes): past EXPORT_BIG the archive is
+  // written straight to a file, since a window can hold only so large a Blob
+  var EXPORT_BIG = 1024 * 1024 * 1024;
+  function exportVideoBytes(scope) {
+      if (scope !== 'campaign' && scope !== 'all') return 0;
+      var camps = scope === 'all' ? Object.values((state.appState && state.appState.campaigns) || {}) : [getActiveCampaign()], n = 0;
+      camps.forEach(function(c) { (c && Array.isArray(c.videos) ? c.videos : []).forEach(function(v) { if (v && typeof v.size === 'number' && isFinite(v.size) && v.size > 0) n += v.size; }); });
+      return n;
+  }
+  function exportBaseName(scope) { var c = getActiveCampaign(); return scope === 'all' ? 'waypoint-everything' : slugName(c && c.name) + '-campaign'; }
+  // [zipcheck:exportfile-end]
+
   // A campaign file that leaves this machine carries the players' names and history, never their table keys
   // (the secret each player proves their identity with at THIS table — a file handed to another GM must not carry it).
   function stripTableKeys(payload) {
       Object.values((payload && payload.campaigns) || {}).forEach(function(c) { if (c && c.players && typeof c.players === 'object') Object.keys(c.players).forEach(function(pid) { var p = c.players[pid]; if (p && typeof p === 'object') delete p.key; }); });
       return payload;
   }
-  async function buildExport(scope) {
+  // handle (optional): a file to write the archive straight to (exportScope asks for one when the export is large); without it
+  // the archive is a Blob, as ever
+  async function buildExport(scope, handle) {
       if (!canPersistLocal()) { toast('Not while you\'re at someone else\'s table.'); return null; }
       var camp = getActiveCampaign();
       if (!camp) { toast('No campaign selected.'); return null; }
@@ -1521,7 +1574,7 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
       Object.values(payload.campaigns || {}).forEach(function(c) { delete c._foreign; delete c._keptByUser; delete c._cleanup; dropWaiting(c); });   // Onboarding F1a: nor a waiting token
 
       var json = JSON.stringify(payload, null, 2);
-      var paths = collectImagePaths(payload).filter(function(p) { return p.indexOf('/saves/images/video/') !== 0; });   // item 21: a campaign's videos stay out of the zip (it is built in memory, with no ZIP64): the library's entries travel, the files stay in the saves folder
+      var paths = collectImagePaths(payload);   // item 21: a campaign's videos travel too — the archive is made of the files as they lie on disk, of any size (zip.js)
       if (scope === 'campaign' || scope === 'all') {   // a campaign's own pictures travel even when nothing references them yet
           try {
               var listed = await (await fetch('/api/list-images')).json();
@@ -1542,32 +1595,82 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
               }
           }
       }
-      if (!paths.length && !libFiles.length) return { name: base + '.json', text: json };
+      if (!paths.length && !libFiles.length && !handle) return { name: base + '.json', text: json };
 
-      toast('Bundling ' + paths.length + ' image(s)' + (libFiles.length ? ' and ' + libFiles.length + ' library pack(s)' : '') + '\u2026');
+      var isVideo = function(p) { return p.indexOf('/saves/images/video/') === 0; };
+      var nVid = paths.filter(isVideo).length, nImg = paths.length - nVid;
+      toast('Bundling ' + nImg + ' image(s)' + (nVid ? ', ' + nVid + ' video(s)' : '') + (libFiles.length ? ' and ' + libFiles.length + ' library pack(s)' : '') + '\u2026');
+      var zip = await import('./zip.js');
       var enc = new TextEncoder();
       var entries = [{ name: 'data.json', data: enc.encode(json) }].concat(libFiles);
-      var missing = 0;
+      var missing = 0, videos = 0, vidAt = 0;
+      if (handle) {
+          // straight to the file: each entry is read part by part and written as it comes (never held whole), its checksum written back
+          // into its header; then the file is opened again and every entry checked against its checksum before the export is called done
+          var total = 0, done = 0, lastSaid = 0;
+          var say = function(n) { done += n; var now = Date.now(); if (now - lastSaid < 1000) return; lastSaid = now; toast('Writing the export' + (total ? ' ' + Math.min(99, Math.floor(done / total * 100)) + '%' : '') + '\u2026'); };
+          var sEntries = entries.map(function(en) { return { name: en.name, size: en.data.length, pull: async function(emit) { await emit(en.data); } }; });
+          paths.forEach(function(p) { sEntries.push({ name: p.replace(/^\/saves\//, ''), open: function() { return exportOpen(encodeURI(p)); } }); });
+          total = exportVideoBytes(scope);
+          var w = null, res = null;
+          try {
+              w = await handle.createWritable();
+              res = await zip.zipWrite({ write: function(pos, data) { return w.write({ type: 'write', position: pos, data: data }); }, truncate: function(n) { return w.truncate(n); } }, sEntries, say);
+              await w.close(); w = null;
+              toast('Checking the export\u2026');
+              var zfile = await handle.getFile(), zread = await zip.zipOpen(zfile);
+              if (zfile.size !== res.size || zread.entries.length !== res.count) throw new Error('the file did not read back as it was written');
+              for (var zi = 0; zi < zread.entries.length; zi++) await zread.entries[zi].check();
+          } catch (e) {
+              var left = false;
+              if (w) { try { await w.abort(); } catch (e2) {} }   // not closed: nothing reached the file you picked
+              else if (typeof handle.remove === 'function') { try { await handle.remove(); } catch (e3) { left = true; } } else left = true;   // written, then found wrong: taken away again
+              toast('The export could not be written: ' + (e && e.message || 'the file could not be made') + '.' + (left ? ' The file it left is not to be trusted: delete it.' : ''));
+              return null;
+          }
+          var skippedV = res.skipped.filter(function(n) { return /^images\/video\//.test(n); }).length;
+          return { name: handle.name || (base + '.zip'), saved: true, images: nImg - (res.skipped.length - skippedV), videos: nVid - skippedV, library: libFiles.length, missing: res.skipped.length };
+      }
       for (var k = 0; k < paths.length; k++) {
           try {
-              var r = await fetch(encodeURI(paths[k]));
-              if (!r.ok) { missing++; continue; }
-              entries.push({ name: paths[k].replace(/^\/saves\//, ''), data: new Uint8Array(await r.arrayBuffer()) });
+              var vid = isVideo(paths[k]);
+              if (vid) { vidAt++; toast('Bundling video ' + vidAt + ' of ' + nVid + '\u2026'); }
+              var fe = await exportFile(encodeURI(paths[k]), zip);
+              if (!fe) { missing++; continue; }
+              entries.push({ name: paths[k].replace(/^\/saves\//, ''), data: fe.data, crc: fe.crc });
+              if (vid) videos++;
           } catch(e) { missing++; }
       }
-      var zip = await import('./zip.js');
-      return { name: base + '.zip', blob: zip.zipCreate(entries), images: entries.length - 1 - libFiles.length, library: libFiles.length, missing: missing };
+      // refused, never a wrong file: the writer states every size exactly or throws, and the finished archive is opened again (its
+      // end record and its list of files read back) before it is handed over
+      var zblob = null;
+      try {
+          zblob = zip.zipCreate(entries);
+          var zback = await zip.zipOpen(zblob);
+          if (zback.entries.length !== entries.filter(function(en) { return !/\/$/.test(en.name); }).length) throw new Error('its list of files did not read back');
+      } catch (e) {
+          toast(e && e.name === 'NotReadableError' ? 'The export is too large for this window to hold in one piece. Nothing was written.' : 'The export could not be written: ' + (e && e.message || 'the archive could not be made') + '.');
+          return null;
+      }
+      return { name: base + '.zip', blob: zblob, images: entries.length - 1 - libFiles.length - videos, videos: videos, library: libFiles.length, missing: missing };
   }
   window.wpBuildExport = buildExport;
 
   async function exportScope(scope) {
       if (!canPersistLocal()) { toast('Not while you\'re at someone else\'s table.'); return; }
-      var r = await buildExport(scope);
+      // a large export (its videos past 1 GB) is written straight to a file you pick, never held in this window's memory; the
+      // picker must open while the click still counts, so the size is judged first, from the library's own numbers
+      var handle = null;
+      if (typeof window.showSaveFilePicker === 'function' && exportVideoBytes(scope) > EXPORT_BIG) {
+          try { handle = await window.showSaveFilePicker({ suggestedName: exportBaseName(scope) + '.zip', types: [{ description: 'Waypoint export', accept: { 'application/zip': ['.zip'] } }] }); }
+          catch (e) { if (e && e.name === 'AbortError') return; handle = null; }   // cancelled: no export; a window that cannot ask: the archive as a download, as ever
+      }
+      var r = await buildExport(scope, handle);
       if (!r) return;
       if (r.text) { download(r.name, r.text); toast('Exported ' + r.name); }
       else {
-          downloadBlob(r.name, r.blob);
-          toast('Exported ' + r.name + ' (' + r.images + ' image(s)' + (r.missing ? ', ' + r.missing + ' missing' : '') + ').');
+          if (!r.saved) downloadBlob(r.name, r.blob);
+          toast('Exported ' + r.name + ' (' + r.images + ' image(s)' + (r.videos ? ', ' + r.videos + ' video(s)' : '') + (r.missing ? ', ' + r.missing + ' missing' : '') + ').');
       }
   }
 

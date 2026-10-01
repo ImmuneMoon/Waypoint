@@ -35,4 +35,28 @@ function serveFile(req, res, filePath, headers) {
     rs.pipe(res);
 }
 
-module.exports = { MEDIA, mediaType, parseRange, serveFile };
+// Write a request's body to a file, whole or not at all (an import copying a large video back, an upload into the library): the
+// bytes go to a .part file beside the target and are moved into place only when the request ended complete and as long as it said it
+// would be. A request cut short, or a write that fails, leaves the target as it was — a good copy is never replaced by half of one —
+// and no .part behind. Answers 200 with okBody once the file is in place, else 500.
+function saveUpload(req, res, savePath, okBody) {
+    const tmp = savePath + '.' + process.pid + '-' + Math.random().toString(36).slice(2, 10) + '.part';
+    let answered = false, failed = false;
+    const answer = (code, body) => { if (answered) return; answered = true; try { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(body); } catch (e) {} };
+    const drop = () => { try { fs.unlinkSync(tmp); } catch (e) {} };
+    let ws;
+    try { ws = fs.createWriteStream(tmp); } catch (e) { return answer(500, '{"error":"upload failed"}'); }
+    ws.on('error', () => { failed = true; });   // a bad write answers (on close), never crashes the process
+    req.on('error', () => { failed = true; try { ws.destroy(); } catch (e) {} });
+    req.on('close', () => { if (!req.complete) { failed = true; try { ws.destroy(); } catch (e) {} } });
+    ws.on('close', () => {   // the file is closed by now (a rename over an open file fails on Windows)
+        const len = req.headers ? req.headers['content-length'] : undefined;
+        const whole = !failed && req.complete === true && (len === undefined || Number(len) === ws.bytesWritten);
+        if (!whole) { drop(); return answer(500, '{"error":"write failed"}'); }
+        try { fs.renameSync(tmp, savePath); } catch (e) { drop(); return answer(500, '{"error":"write failed"}'); }
+        answer(200, okBody);
+    });
+    req.pipe(ws);
+}
+
+module.exports = { MEDIA, mediaType, parseRange, serveFile, saveUpload };

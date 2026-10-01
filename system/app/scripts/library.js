@@ -156,7 +156,8 @@ async function importFiles(jobs, files) {
             var camp = jobs[j].camp, ctx = libCtx(camp && camp.system, F(), true);
             for (var k = 0; k < jobs[j].uploads.length; k++) {
                 var u = jobs[j].uploads[k], fe = files && Object.prototype.hasOwnProperty.call(files, u.from) ? files[u.from] : null;
-                var rd = fe ? readPackFile(new TextDecoder().decode(fe.data), ctx) : null; if (!rd || rd.error || rd.pack.id !== u.pack) { bad++; continue; }
+                var feD = null; if (fe) { try { feD = fe.data || await fe.bytes(); } catch (eF) { feD = null; } }   // a zip's pack file is read only now, one at a time, its checksum checked: a damaged one is not used
+                var rd = feD ? readPackFile(new TextDecoder().decode(feD), ctx) : null; if (!rd || rd.error || rd.pack.id !== u.pack) { bad++; continue; }
                 rd.pack.rev = u.rev;
                 var res = null; try { res = await fetch('/api/library?dir=' + u.dir + '&pack=' + u.pack + '&rev=' + u.rev, { method: 'POST', body: JSON.stringify(rd.pack) }); } catch (e) { res = null; }
                 if (res && res.ok) ok++; else { bad++; if (res && res.status === 404) oldCore(); }

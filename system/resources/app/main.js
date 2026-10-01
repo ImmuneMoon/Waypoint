@@ -299,7 +299,8 @@ const server = http.createServer((req, res) => {
     if (url.pathname === '/api/upload-exact' && req.method === 'POST') {
         // Import bundles restore images at their exact original paths so the
         // imported items' references still resolve. Restricted to images/.
-        const rel = decodeURIComponent(url.searchParams.get('path') || '');
+        const relRaw = url.searchParams.get('path') || '';
+        let rel = relRaw; try { rel = decodeURIComponent(relRaw); } catch (e) { rel = relRaw; }   // a name with a bare % is itself, never an exception that leaves the request unanswered
         const segs = rel.split('/').filter(Boolean);
         const bad = !segs.length || segs[0] !== 'images' || segs.length < 2 || segs.length > 6 ||
             segs.some(s => !safeSeg(s)) || FILE_EXT_BAD.test(segs[segs.length - 1]);   // never a page or a script under saves/
@@ -308,14 +309,7 @@ const server = http.createServer((req, res) => {
         if (!savePath.startsWith(imagesRoot + path.sep)) { res.writeHead(400); res.end('bad path'); return; }   // and inside images/, whatever the segments spelled
         try {
             fs.mkdirSync(path.dirname(savePath), { recursive: true });
-            const ws = fs.createWriteStream(savePath);
-            ws.on('error', () => { try { res.writeHead(500); res.end('{"error":"write failed"}'); } catch (e) {} });   // a bad write answers, never crashes the process
-            req.on('error', () => { try { ws.destroy(); } catch (e) {} });
-            req.pipe(ws);
-            ws.on('finish', () => {
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ url: '/saves/' + segs.join('/') }));
-            });
+            servefile.saveUpload(req, res, savePath, JSON.stringify({ url: '/saves/' + segs.join('/') }));   // whole or not at all: a copy cut short never replaces a good file
         } catch (e) { res.writeHead(500); res.end('{"error":"upload failed"}'); }
         return;
     }
@@ -330,14 +324,7 @@ const server = http.createServer((req, res) => {
         if (!mapDir.startsWith(imagesRoot + path.sep) || !savePath.startsWith(mapDir + path.sep)) { res.writeHead(400); return res.end('{"error":"bad path"}'); }
         try {
             if (!fs.existsSync(mapDir)) fs.mkdirSync(mapDir, { recursive: true });
-            const ws = fs.createWriteStream(savePath);
-            ws.on('error', () => { try { res.writeHead(500); res.end('{"error":"write failed"}'); } catch (e) {} });
-            req.on('error', () => { try { ws.destroy(); } catch (e) {} });
-            req.pipe(ws);
-            ws.on('finish', () => {   // answered once the bytes are on disk (the old reply came on the request's end, before the write finished)
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ url: '/saves/images/' + mapId + '/' + filename }));
-            });
+            servefile.saveUpload(req, res, savePath, JSON.stringify({ url: '/saves/images/' + mapId + '/' + filename }));   // answered once the bytes are on disk, whole; an upload cut short leaves no file
         } catch (e) { res.writeHead(500); res.end('{"error":"upload failed"}'); }
         return;
     }
@@ -384,6 +371,8 @@ const server = http.createServer((req, res) => {
         res.end('Not Found');
     }
 });
+
+server.requestTimeout = 0;   // a large video copied in (an import, an upload) may take longer than the five minutes Node gives a request by default; this server answers this machine only
 
 let port = 3000;
 server.on('error', (e) => {

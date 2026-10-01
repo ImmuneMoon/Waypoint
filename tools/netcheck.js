@@ -687,9 +687,9 @@ pendingChecks.push((async () => {
     const F1 = mkF('host'), c1 = F1.api.sanitizeItem(F1.camp.items.m1), c2 = F1.api.sanitizeItem(F1.camp.items.m2), c3 = F1.api.sanitizeItem(F1.camp.items.m3), alone = F1.api.wireWbItem(F1.camp.items.m1.whiteboard[0], false);
     const tokOf = (m, id) => m.whiteboard.find(w => w.id === id), hostKept = JSON.stringify(F1.camp.items);
     const cl = mkF('client'), cc1 = cl.api.sanitizeItem(cl.camp.items.m1);
-    check('conditions C1 (host, run for real): a character token\'s copy carries the effects the table sees (fxb: name, icon, tone), never a GM-only one, whole or sent alone; a token whose character has none and any other piece carry none (even one naming the character), a stray fxb on the host\'s map never travels; a hidden token\'s stub carries none; the host\'s own map is left as it was; worked out on a host alone',
+    check('conditions C1 (host, run for real): a character token\'s copy carries the effects the table sees (fxb: name, icon, tone), never a GM-only one, whole or sent alone; a token whose character has none and any other piece carry none (even one naming the character), a stray fxb on the host\'s map never travels; a hidden token is not in the copy at all; the host\'s own map is left as it was; worked out on a host alone',
         J(tokOf(c1, 'tA').fxb) === J([{ n: 'Blessed', i: 'icon:bolt', t: 'buff' }]) && !/Cursed/.test(J(c1)) && J(alone.fxb) === J(tokOf(c1, 'tA').fxb) && !('fxb' in tokOf(c1, 'box')) && !('fxb' in tokOf(c1, 'plate')) && !('fxb' in tokOf(c2, 'tB'))
-        && J(tokOf(c3, 'tA2')) === J({ id: 'tA2', type: 'rect', hidden: true, x: 0, y: 0, w: 50, h: 50, rot: 0, locked: true }) && !/"fxb":\[\{"n":"Blessed/.test(hostKept) && /Odd/.test(hostKept) && !('fxb' in tokOf(cc1, 'tA')), J([tokOf(c1, 'tA'), tokOf(c2, 'tB'), tokOf(c3, 'tA2')]));
+        && tokOf(c3, 'tA2') === undefined && c3.whiteboard.length === 0 && F1.api.wireWbItem(F1.camp.items.m3.whiteboard[0], false) === null && !/"fxb":\[\{"n":"Blessed/.test(hostKept) && /Odd/.test(hostKept) && !('fxb' in tokOf(cc1, 'tA')), J([tokOf(c1, 'tA'), tokOf(c2, 'tB'), tokOf(c3, 'tA2')]));
     F1.camp.chars.c_a.values.f_fx[0].on = false; F1.api.fxbMoved('c_a'); const mv1 = F1.sent.slice(); F1.sent.length = 0;
     F1.api.fxbMoved('c_a'); const mv2 = F1.sent.slice(); F1.sent.length = 0;
     F1.camp.chars.c_b.values.f_fx = [{ id: 'r3', ref: 'e_pub', on: true }]; F1.api.fxbMoved(null); const mv3 = F1.sent.slice(); F1.sent.length = 0;
@@ -741,6 +741,17 @@ pendingChecks.push((async () => {
     check('item 21 V1 the video library never leaves the host: the join snapshot and the stream window carry no videos key, no name and no path of one; the GM\'s own campaign keeps its library; net.js names camp.videos nowhere but where it strips it (no message carries it)',
         !('videos' in forPv.campaigns.k1) && !('videos' in forSv.campaigns.k1) && !/The reveal|reveal\.mp4|v_abcdefgh/.test(JSON.stringify([forPv, forSv])) && JSON.stringify(keptV.campaigns.k1.videos) === JSON.stringify(vids())
         && /        delete camp\.uploads;[^\n]*\n        delete camp\.videos;/.test(src) && !/\.videos\b/.test(netNoDelete), JSON.stringify(forPv.campaigns.k1));
+}
+// hidden pieces (owner, 2026-10-01: players see nothing where something is hidden): the join snapshot and the stream window, by the real sanitizeAppState
+{
+    const saSrcH = src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState');
+    const SAh = new Function('own', 'window', 'fxLib', 'itemLib', 'withHoverLines', 'fogCopyFor', "'use strict';\n" + saSrcH + '\nreturn sanitizeAppState;')(H.own, {}, () => ({}), () => ({}), v => v, (it) => it);
+    const gmH = () => ({ activeCampaignId: 'k1', _schema: 2, campaigns: { k1: { id: 'k1', name: 'Hosted', activeItemId: 'm1', items: { m1: { id: 'm1', type: 'map', rooms: [], links: [], whiteboard: [{ id: 'seen', type: 'rect', x: 1, y: 2, w: 3, h: 4 },
+        { id: 'lurker', type: 'image', isChar: true, charName: 'Lurker', hidden: true, x: 777, y: 888, w: 60, h: 52 }, { id: 'trapdoor', type: 'rect', hidden: true, trap: true, targetMapId: 'm2', x: 555, y: 666, w: 50, h: 50 }] } } } } });
+    const forPh = SAh(gmH(), 'u_p'), forSh = SAh(gmH()), keptH = gmH(); SAh(keptH, 'u_p');
+    check('hidden pieces: the join snapshot and the stream window hold nothing of a hidden token or a hidden trap tile — no id, no box, no place, no mark that something is hidden; the GM\'s own campaign keeps both',
+        [forPh, forSh].every(s => JSON.stringify(s.campaigns.k1.items.m1.whiteboard.map(w => w.id)) === '["seen"]' && !/lurker|Lurker|trapdoor|777|888|555|666|"hidden"|"trap"/.test(JSON.stringify(s)))
+        && keptH.campaigns.k1.items.m1.whiteboard.length === 3 && keptH.campaigns.k1.items.m1.whiteboard[1].hidden === true, JSON.stringify(forPh.campaigns.k1.items.m1.whiteboard));
 }
 // the table's follow and the summons: a connection still waiting for the GM's Allow hears nothing, not even where the table is
 {
@@ -831,6 +842,13 @@ pendingChecks.push((async () => {
         !!byId('s1') && !byId('s2') && j(byId('s1').pts) === '[[0,0],[1,1]]', j(wb.map(w => w.id)));
     const cs2 = mk(), redraw = runPatch(cs2, { campId: 'c1', itemId: 'm1', item: { whiteboard: [{ id: 's1', type: 'path', ownerId: 'u_p', pts: [[5, 5], [9, 9]] }, { id: 's2', type: 'path', ownerId: 'u_p', pts: [[0, 0], [2, 2]] }] } });
     check('patch (host): a locked stroke\'s new points are refused', j(cs2.c1.items.m1.whiteboard.find(w => w.id === 's1').pts) === '[[0,0],[1,1]]', j([redraw, cs2.c1.items.m1.whiteboard]));
+    const csH = mk(); csH.c1.items.m1.whiteboard.push({ id: 's3', type: 'path', byPlayer: true, ownerId: 'u_p', pts: [[0, 0], [3, 3]], x: 0, y: 0, hidden: true }, { id: 't3', isChar: true, ownerId: 'u_p', x: 0, y: 0, rot: 0, front: 0, hidden: true }, { id: 's5', type: 'path', byPlayer: true, ownerId: 'u_p', pts: [[0, 0], [5, 5]], x: 0, y: 0, hidden: 1 });
+    const heldH = [{ id: 't1', x: 0, y: 0, rot: 0, front: 0 }, { id: 't2', x: 0, y: 0 }, { id: 's1', type: 'path', ownerId: 'u_p', pts: [[0, 0], [1, 1]] }, { id: 's2', type: 'path', ownerId: 'u_p', pts: [[0, 0], [2, 2]] }], hb = id => csH.c1.items.m1.whiteboard.find(w => w.id === id);
+    runPatch(csH, { campId: 'c1', itemId: 'm1', item: { whiteboard: heldH } }); const afterOut = [!!hb('s3'), !!hb('s2'), !!hb('t3'), !!hb('s5')];
+    runPatch(csH, { campId: 'c1', itemId: 'm1', item: { whiteboard: heldH.concat([{ id: 't3', x: 40, y: 50, rot: 90, front: 45, posture: 'kneeling' }, { id: 's3', type: 'path', ownerId: 'u_p', pts: [[9, 9], [8, 8]] }]) } });
+    check('hidden pieces (patch, host): a player\'s own drawing the GM hid is not on their copy, so a map copy of theirs that leaves it out does not erase it (it left by the GM\'s hand, not theirs; one they left out themselves still goes); a copy that names it, or their hidden token, changes neither',
+        j(afterOut) === j([true, true, true, true]) && j(hb('s3')) === j({ id: 's3', type: 'path', byPlayer: true, ownerId: 'u_p', pts: [[0, 0], [3, 3]], x: 0, y: 0, hidden: true }) && j(hb('t3')) === j({ id: 't3', isChar: true, ownerId: 'u_p', x: 0, y: 0, rot: 0, front: 0, hidden: true })
+        && (() => { const c2 = mk(); c2.c1.items.m1.whiteboard.push({ id: 's4', type: 'path', byPlayer: true, ownerId: 'u_p', pts: [[0, 0], [4, 4]], x: 0, y: 0 }); runPatch(c2, { campId: 'c1', itemId: 'm1', item: { whiteboard: heldH } }); return !c2.c1.items.m1.whiteboard.some(w => w.id === 's4'); })(), j([afterOut, hb('s3'), hb('t3')]));
     const protoRuns = [['constructor', 'm1'], ['__proto__', 'm1'], ['hasOwnProperty', 'm1'], ['c1', 'constructor'], ['c1', 'toString'], ['c1', '__proto__'], [5, 'm1'], ['c1', 7]].map(([c, i]) => runPatch(mk(), { campId: c, itemId: i, item: { whiteboard: [{ id: 't1', x: 9, y: 9 }] } }));
     check('patch (host): a campaign or map id that is a prototype key (or not a string) names nothing — refused, never a throw', protoRuns.every(r => r === false), j(protoRuns));
 }
@@ -883,6 +901,91 @@ pendingChecks.push((async () => {
     check('travel (host): a portal to another play map moves the player there; one to a planner, a handbook page, the map it stands on, or a prototype key moves nobody (as the GM\'s own walk-through has it)',
         good.ret === true && good.loc === 'm2' && good.sent.length === 1 && bad.every(b => b.ret === false && b.loc === 'm1' && b.sent.length === 0), j([good, bad]));
 }
+// hidden pieces: a trap tile (a hidden portal ticked Trap) fires when a player's token is dropped on it — the host judges the drop on its own
+// map, so players need nothing of the tile — and never by naming it in a travel request; a hidden portal that is no trap is inert both ways
+{
+    const tvSrc = between('// [netcheck:travelmsg-start]', '// [netcheck:travelmsg-end]', 'travelmsg');
+    const runTv = (via, portalOver, o) => {
+        const from = { id: 'm1', type: 'map', whiteboard: [Object.assign({ id: 'po', targetMapId: 'm2', x: 0, y: 0, w: 60, h: 52 }, portalOver)] }, calls = [];
+        new Function('msg', 'conn', 'net', 'peerPaused', 'allow', 'getActiveCampaign', 'hostTravel', tvSrc)({ type: 'travel', viaItemId: via }, { peer: 'pA' }, { paused: !!(o && o.paused), roster: { pA: { id: 'u_p', location: 'm1' } } }, () => false, () => !(o && o.limited), () => ({ id: 'c1', activeItemId: 'm1', items: { m1: from } }), (c, t, p) => { calls.push(p ? p.id : null); });
+        return calls;
+    };
+    check('hidden pieces (travel, host): a travel request naming a visible portal is passed on; one naming a hidden portal — a trap tile or not — moves nobody, however the id was learned; one naming nothing on the map is passed on as nothing (and refused there); a paused table and the rate limit still stop it first',
+        j(runTv('po', {})) === j(['po']) && j(runTv('po', { hidden: true, trap: true })) === '[]' && j(runTv('po', { hidden: true })) === '[]' && j(runTv('po', { hidden: 1, trap: true })) === '[]' && j(runTv('nope', {})) === j([null])
+        && j(runTv('po', {}, { paused: true })) === '[]' && j(runTv('po', {}, { limited: true })) === '[]', j([runTv('po', {}), runTv('po', { hidden: true, trap: true }), runTv('nope', {})]));
+    const trSrcD = fnSrc('function hostTravel(conn, traveler, portal, fromMap) {', '\n// The portal item under a token\'s center', 'hostTravel');
+    const puSrc = fnSrc('function portalUnder(item, map) {', '\n}\n', 'portalUnder') + '\n}\n', tdSrc = fnSrc('net.tokenDropped = function(item, map) {', '\n};\n', 'tokenDropped') + '\n};\n';
+    const runDropX = (portalOver, at, o) => {   // o: travelLocked, playerLock (the destination closed to players), paused (this player)
+        o = o || {};
+        const tok = { id: 'tok', isChar: true, ownerId: 'u_p', x: at[0], y: at[1], w: 60, h: 52 }, toasts = [];
+        const from = { id: 'm1', type: 'map', meta: { title: 'Here' }, rooms: [], whiteboard: [tok, Object.assign({ id: 'po', targetMapId: 'm2', x: 0, y: 0, w: 60, h: 52 }, portalOver)] };
+        const camp = { id: 'c1', items: { m1: from, m2: { id: 'm2', type: 'map', meta: Object.assign({ title: 'There' }, o.playerLock ? { playerLock: true } : {}), rooms: [], whiteboard: [] } } };
+        const conn = mkConn('pA'), netD = { active: true, role: 'host', paused: false, travelLocked: !!o.travelLocked, roster: { pA: { id: 'u_p', name: 'P', location: 'm1' } }, conns: [conn], broadcastItemFiltered: () => {} };
+        let ret;
+        try {
+            ret = new Function('getActiveCampaign', 'net', '_travelDenyLast', 'sendFailed', 'findLandingRoom', 'landingPoint', 'freeSpotNear', 'stepOffPortal', 'renderRoster', 'broadcastRoster', 'ensurePlayerToken', 'save', 'toast', 'logEvent', 'window', 'npcTravel', 'offlinePlayerTravel', 'pausedById', 'item', 'map',
+                ownKeySrc + trSrcD + '\n' + puSrc + '\n' + tdSrc + '\nreturn net.tokenDropped(item, map);')(
+                () => camp, netD, {}, () => {}, () => null, () => null, () => ({ x: 0, y: 0 }), () => {}, () => {}, () => {}, () => {}, () => {}, t => toasts.push(t), () => {}, {}, () => 'npc', () => 'offline', () => !!o.paused, tok, from);
+        } catch (e) { ret = 'threw: ' + e.message; }
+        return { ret, loc: netD.roster.pA.location, sent: conn.sent.map(m => m.type + (m.reason ? ':' + m.reason + ':' + m.map : '')), toasts };
+    };
+    const runDrop = (portalOver, at) => { const r = runDropX(portalOver, at); return [r.ret, r.loc, r.sent.length]; };
+    const puOnly = new Function(puSrc + '\nreturn portalUnder;')(), tokP = { id: 'tok', x: 0, y: 0, w: 60, h: 52 }, mapP = over => ({ whiteboard: [tokP, Object.assign({ id: 'po', targetMapId: 'm2', x: 0, y: 0, w: 60, h: 52 }, over)], rooms: [] });
+    check('hidden pieces (a drop, host — the real net.tokenDropped, portalUnder and hostTravel): a player\'s token dropped on a hidden trap tile still travels (the host\'s own map holds the tile); dropped on a hidden portal that is no trap, or beside the tile, it stays; a visible portal as ever; the portal under a token (which the GM\'s own walk-throughs read too) is never a hidden one that is no trap',
+        puOnly(tokP, mapP({ hidden: true })) === null && puOnly(tokP, mapP({ hidden: true, trap: true })).id === 'po' && puOnly(tokP, mapP({})).id === 'po'
+        && j(runDrop({ hidden: true, trap: true }, [0, 0])) === j([true, 'm2', 1]) && j(runDrop({ hidden: true }, [0, 0])) === j([false, 'm1', 0]) && j(runDrop({ hidden: true, trap: true }, [500, 500])) === j([false, 'm1', 0]) && j(runDrop({}, [0, 0])) === j([true, 'm2', 1]) && j(runDrop({ hidden: 1, trap: true }, [0, 0])) === j([true, 'm2', 1]),
+        j([runDrop({ hidden: true, trap: true }, [0, 0]), runDrop({ hidden: true }, [0, 0]), runDrop({ hidden: true, trap: true }, [500, 500]), runDrop({}, [0, 0])]));
+    // hidden pieces: a trap tile that cannot fire tells its player nothing — a denial would give its place (and its destination's name) away
+    const dLock = runDropX({ hidden: true, trap: true }, [0, 0], { travelLocked: true }), dClosed = runDropX({ hidden: true, trap: true }, [0, 0], { playerLock: true }), dPaused = runDropX({ hidden: true, trap: true }, [0, 0], { paused: true });
+    const vLock = runDropX({}, [0, 0], { travelLocked: true }), vClosed = runDropX({}, [0, 0], { playerLock: true }), dBeside = runDropX({ hidden: true, trap: true }, [500, 500], { travelLocked: true });
+    check('hidden pieces (a drop on a trap tile that cannot fire — the real net.tokenDropped, portalUnder and hostTravel): with travel locked, or the destination closed to players, a player\'s drop on a hidden trap tile moves nobody and sends that player nothing — no denial, no map name — while the GM is told what happened; a visible portal in the same two states still gets its one travelDenied (the closed one naming the map) and the GM no toast; a paused player\'s drop does nothing either way; a drop beside the tile nothing',
+        j([dLock.ret, dLock.loc, dLock.sent]) === j([false, 'm1', []]) && j(dLock.toasts) === j(['P stepped on a hidden trap tile, but travel is locked: nothing happened, and they were told nothing.'])
+        && j([dClosed.ret, dClosed.loc, dClosed.sent]) === j([false, 'm1', []]) && j(dClosed.toasts) === j(['P stepped on a hidden trap tile to There, which is closed to players: nothing happened, and they were told nothing.'])
+        && j([dPaused.ret, dPaused.loc, dPaused.sent, dPaused.toasts]) === j([false, 'm1', [], []]) && j([dBeside.ret, dBeside.sent, dBeside.toasts]) === j([false, [], []])
+        && j([vLock.ret, vLock.loc, vLock.sent, vLock.toasts]) === j([false, 'm1', ['travelDenied'], []]) && j([vClosed.ret, vClosed.loc, vClosed.sent, vClosed.toasts]) === j([false, 'm1', ['travelDenied:closed:There'], []]),
+        j([dLock, dClosed, dPaused, dBeside, vLock, vClosed]));
+}
+// hidden pieces: an NPC the GM walks through a portal hidden arrives hidden (npcTravel, run for real with the real sanitizeItem): players see nothing of it on either map
+{
+    const npSrc = fnSrc('function npcTravel(item, map) {', '\n// [netcheck:pos-start]', 'npcTravel'), puSrcN = fnSrc('function portalUnder(item, map) {', '\n}\n', 'portalUnder') + '\n}\n', tdSrcN = fnSrc('net.tokenDropped = function(item, map) {', '\n};\n', 'tokenDropped') + '\n};\n';
+    const fxA2 = src.indexOf('// Conditions C1 (docs/CONDITIONS_PLAN.md): the effects the table sees'), fxB2 = src.indexOf('/* ---------- fog of war (1.5.0 FV2): per-recipient creature drop');
+    const runNpc = o => {   // the GM's NPC (no owner) dropped on a visible portal to m2; o.hidden: it is hidden; o.there: m2 already holds a left-behind copy of its name, hidden
+        const npc = Object.assign({ id: 'npc1', type: 'image', isChar: true, charName: 'Lurker', gmInfo: 'secret', x: 0, y: 0, w: 60, h: 52 }, o.hidden ? { hidden: true } : {});
+        const from = { id: 'm1', type: 'map', meta: { title: 'Here' }, rooms: [], whiteboard: [npc, { id: 'po', targetMapId: 'm2', x: 0, y: 0, w: 60, h: 52 }] };
+        const dest = { id: 'm2', type: 'map', meta: { title: 'There' }, rooms: [], whiteboard: o.there ? [{ id: 'old', type: 'image', isChar: true, charName: 'Lurker', hidden: true, x: 500, y: 500, w: 60, h: 52 }] : [] };
+        const camp = { id: 'c1', items: { m1: from, m2: dest } }, toasts = [], sentMaps = [];
+        const netN = { active: true, role: 'host', paused: false, roster: {}, conns: [], broadcastItemFiltered: (c, m) => sentMaps.push(m) };
+        const ret = new Function('getActiveCampaign', 'net', 'sendFailed', 'findLandingRoom', 'landingPoint', 'freeSpotNear', 'stepOffPortal', 'save', 'toast', 'window', 'SC', 'offlinePlayerTravel', 'pausedById', 'item', 'map',
+            ownKeySrc + puSrcN + '\n' + tdSrcN + '\n' + npSrc + '\nreturn net.tokenDropped(item, map);')(() => camp, netN, () => {}, () => null, () => null, () => ({ x: 100, y: 100 }), () => {}, () => {}, t => toasts.push(t), {}, () => null, () => 'offline', () => false, npc, from);
+        const SI = new Function('net', 'getActiveCampaign', 'SC', 'own', 'window', "'use strict';\n" + siSrc() + '\n' + src.slice(fxA2, fxB2) + '\nreturn sanitizeItem;')(netN, () => camp, () => null, H.own, {});
+        const wire = [SI(from), SI(dest)];
+        return { ret, there: dest.whiteboard.map(w => w.charName + ':' + (w.hidden === true)), here: npc.hidden === true, wire: wire.map(m => m.whiteboard.map(w => w.id)), raw: j(wire), toasts, sentMaps };
+    };
+    const nH = runNpc({ hidden: true }), nV = runNpc({}), nHT = runNpc({ hidden: true, there: true }), nVT = runNpc({ there: true });
+    check('hidden pieces (npcTravel, run for real): a hidden NPC the GM drops on a portal arrives on the far map as a hidden copy and the one left behind stays hidden — neither map\'s copy for players holds either (no id, no name, no GM note); a shown NPC arrives shown as ever; where the far map already holds a hidden copy of its name, a hidden NPC walking through leaves it hidden and a shown one shows it; the toast says which',
+        j([nH.ret, nH.there, nH.here, nH.wire]) === j([true, ['Lurker:true'], true, [['po'], []]]) && !/Lurker|npc1|secret|hidden/.test(nH.raw) && j(nH.toasts) === j(['Lurker goes through to There — a token is placed there, hidden as this one was; the one here is hidden from players.']) && j(nH.sentMaps) === j(['m1', 'm2'])
+        && j([nV.ret, nV.there, nV.here]) === j([true, ['Lurker:false'], true]) && nV.wire[1].length === 1 && /Lurker/.test(nV.raw) && j(nV.toasts) === j(['Lurker goes through to There — a token is placed there; the one here is hidden from players.'])
+        && j([nHT.ret, nHT.there, nHT.wire]) === j([true, ['Lurker:true'], [['po'], []]]) && j(nHT.toasts) === j(['Lurker goes through to There — the token there stays hidden; the one here is hidden from players.'])
+        && j([nVT.ret, nVT.there, nVT.wire[1]]) === j([true, ['Lurker:false'], ['old']]) && j(nVT.toasts) === j(['Lurker goes through to There — the token there is shown; the one here is hidden from players.']), j([nH, nV, nHT, nVT]));
+}
+// hidden pieces: a player's door request naming a hidden door (an id their app remembers) answers nothing and opens nothing; a visible door beside their token opens (the real branch and fogcore)
+pendingChecks.push((async () => {
+    const FCd = await import('file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', 'fogcore.js')).split(String.fromCharCode(92)).join('/'));
+    const drSrc = between('// [netcheck:doorreq-start]', '// [netcheck:doorreq-end]', 'doorreq');
+    const runDoor = (doorOver, o) => {
+        o = o || {};
+        const door = Object.assign({ id: 'dr', type: 'rect', blocksSight: true, sightType: 'door', x: 50, y: 50, w: 50, h: 50 }, doorOver), tok = { id: 'tk', isChar: true, ownerId: 'u_p', x: 100, y: 50, w: 50, h: 50 };
+        const map = { id: 'm1', type: 'map', meta: { gridType: 'square' }, fog: { on: true }, whiteboard: [door, tok] }, out = { sent: [], saves: 0, redraws: 0 };
+        const conn = { peer: 'pA', send: m => { packCheck(m); out.sent.push(JSON.parse(j(m))); } };
+        const netD = { role: 'host', active: true, paused: false, roster: { pA: { id: 'u_p', location: 'm1' } } };
+        new Function('msg', 'conn', 'net', 'peerPaused', 'window', '_doorLimit', 'sendFailed', 'getActiveCampaign', 'getActiveMap', 'save', 'toast', drSrc)(
+            { type: 'door-req', mapId: 'm1', itemId: o.itemId || 'dr' }, conn, netD, () => false, { wpVtt: { on: () => true }, wpDiceCore: null, wpFogCore: FCd, wpFog: { redraw: () => { out.redraws++; } } }, null, e => { throw e; }, () => ({ id: 'c1', items: { m1: map } }), () => map, () => { out.saves++; }, () => {});
+        return { open: door.doorOpen === true, sent: out.sent.map(m => m.type + ':' + m.reason), saves: out.saves };
+    };
+    check('hidden pieces (door-req, run for real with the real fogcore): a player\'s request naming a visible door next to their token opens it (saved, nothing sent); one naming a hidden door — locked or not, hidden as true or as 1 — opens nothing, saves nothing and answers nothing, like one naming nothing on the map; a visible locked door still answers locked',
+        j(runDoor({})) === j({ open: true, sent: [], saves: 1 }) && j(runDoor({ hidden: true })) === j({ open: false, sent: [], saves: 0 }) && j(runDoor({ hidden: true, doorLock: true })) === j({ open: false, sent: [], saves: 0 }) && j(runDoor({ hidden: 1 })) === j({ open: false, sent: [], saves: 0 })
+        && j(runDoor({}, { itemId: 'nope' })) === j({ open: false, sent: [], saves: 0 }) && j(runDoor({ doorLock: true })) === j({ open: false, sent: ['door-deny:locked'], saves: 0 }), j([runDoor({}), runDoor({ hidden: true }), runDoor({ doorLock: true })]));
+})());
 // Forget: asked first, and whole — a player at the table plays on, but nothing brings their record back until the GM's next Allow
 {
     const fgSrc = between('// [netcheck:forget-start]', '// [netcheck:forget-end]', 'forget');
@@ -1318,6 +1421,25 @@ pendingChecks.push((async () => {
         j(tG.sent) === j(blastT('')) && tG.placed.length === 1 && tG.placed[0].name === 'Orb' && j(tG.rolls) === j([['c_n', '3d6', 'Orb damage', { gmOnly: true, dmg: true }]]) && tG.applied.length === 0
         && j(tV.sent) === j(blastT('Frag')) && j(tV.rolls) === j([['c_n', '2d6', 'Frag damage', { gmOnly: false, dmg: true }]]) && j(tU.sent) === j(blastT('Frag')) && j(tU.rolls) === j(tV.rolls)
         && j(tF.sent) === j(blastT('')) && j(tF.rolls) === j(tG.rolls) && j(tF.applied) === j([[7, 'f_hp']]), j([tG, tV.sent, tV.rolls, tU.rolls, tF.applied]));
+    // hidden pieces (owner, 2026-10-01): a thrown blast's height — a number every player on the map gets — is never read from a token the GM hid, under
+    // the seat or under the spot the wall rule moves it to; the GM's own blast tool still reads one (the GM is its only viewer). The real tokenAtPoint,
+    // seatBlast, placeBlast, placeThrownBlast and net.broadcastBlast on a square grid
+    const tapSrc = cut('  function tokenAtPoint(map, x, y, shown) {', '  // Horizontal distance in yards'), seatSrc = cut('  // Seat a blast in its grid cell', '  function placeBlast(e) {');
+    const runE = (tokens, thrown, noWall) => { const out = { sent: [], placed: [] };   // noWall: the wall rule moves the blast nowhere, so the seat's own reading is the one sent
+        const net = { active: true, role: 'host', conns: [{ peer: 'pA', open: true, send(m) { packCheck(m); out.sent.push(JSON.parse(JSON.stringify(m))); } }], roster: { pA: { id: 'u_a', location: 'm1' } } };
+        const camp = { id: 'k', system: { combat: { blastAuto: 'roll', hpResource: 'f_hp' } } }, map = { id: 'm1', whiteboard: tokens };
+        new Function('net', 'getActiveCampaign', 'sendFailed', bbSrc)(net, () => camp, e => { throw e; });
+        const win = { wpNet: net, wpVtt: { on: () => true }, wpDice: { rollFor: () => ({ ok: true, value: 7 }) }, wpFog: { blastSeat: (m, x, y) => (noWall ? null : { x: x, y: y }) } };
+        const api = new Function('window', 'document', 'toast', 'getActiveMap', 'getActiveCampaign', 'pushBlast', 'renderMeasures', 'syncBlastMenu', 'blastDistances', 'blastRadiusYd', 'applyBlastDamage', 'wbWrap', 'state', 'tokenElevation', 'snapToHex', 'stanceOn', 'fmtElev', 'lenUnit', 'blastDefaults',
+            'var _armedThrow = null;\n' + tapSrc + seatSrc + placeSrc + throwSrc + armSrc + '\nreturn { place: placeBlast };')(
+            win, { body: { classList: { add() {}, remove() {} } }, getElementById: () => null }, () => {}, () => map, () => camp, b => out.placed.push(JSON.parse(JSON.stringify(b))), () => {}, () => {}, () => [], () => 1,
+            () => {}, { getBoundingClientRect: () => ({ left: 0, top: 0 }), scrollLeft: 0, scrollTop: 0, style: {} }, { zoomLevel: 1, gridType: 'square' }, t => Number(t.elevation) || 0, null, () => true, v => String(v), () => 'yd', { ft: 10, name: '' });
+        if (thrown) win.wpArmBlast(10, 'Frag', { charId: 'c_n', fieldId: 'f_it', rowId: 'w_1', by: 'Nix', damage: '2d6' });
+        api.place({ clientX: 120, clientY: 80 }); return { sent: out.sent.map(m => m.blast.elev), placed: out.placed.map(b => b.elev) }; };
+    const hidE = { id: 'h', isChar: true, hidden: true, elevation: 2, x: 100, y: 50, w: 60, h: 52 }, visE = { id: 'v', isChar: true, elevation: 3, x: 100, y: 50, w: 60, h: 52 };
+    const eH = runE([hidE], true), eHs = runE([hidE], true, true), eVs = runE([visE], true, true), eV = runE([visE], true), eVH = runE([visE, hidE], true), eHV = runE([hidE, visE], true), eGm = runE([hidE], false), eNone = runE([], true);
+    check('hidden pieces: a thrown blast over a hidden token with a height is sent at 0, as over empty ground (moved by the wall rule or not), while one over a shown token carries its height; a hidden token standing on a shown one neither hides nor gives the shown one\'s height; the GM\'s own blast tool (nothing sent) still seats at the hidden token\'s height',
+        j(eH) === j({ sent: [0], placed: [0] }) && j(eHs) === j({ sent: [0], placed: [0] }) && j(eVs) === j({ sent: [3], placed: [3] }) && j(eV) === j({ sent: [3], placed: [3] }) && j(eVH) === j({ sent: [3], placed: [3] }) && j(eHV) === j({ sent: [3], placed: [3] }) && j(eGm) === j({ sent: [], placed: [2] }) && j(eNone) === j({ sent: [0], placed: [0] }), j([eH, eV, eVH, eHV, eGm, eNone]));
 })());
 
 // 1.5.0 GM-only pools: a visible pool whose max is worked out from a GM-only field is GM-only as a whole. The host's char-edit, char-edits and
@@ -2040,10 +2162,10 @@ pendingChecks.push((async () => {
         const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
         const ccO = fnSrc('function cleanCombats(c) {', '\nfunction applyNotepad(', 'cleanCombats'), setO = fnSrc('function combatRefresh() {', '\nnet.combatStep = function', 'combatSet'), stepO = fnSrc('net.combatStep = function', '\nnet.combatEnd = function', 'combatStep');
         const mkO = (ir, o) => { o = o || {};
-            const out = { toasts: [], logs: [], labels: [], calls: [], errs: [], dice: (o.dice || []).slice(), seqs: JSON.parse(j(o.seqs || {})) };
+            const out = { toasts: [], logs: [], labels: [], calls: [], privs: [], errs: [], dice: (o.dice || []).slice(), seqs: JSON.parse(j(o.seqs || {})) };
             const camp = { system: { combat: { initiative: ir } }, chars: { c_a: { id: 'c_a' }, c_b: { id: 'c_b' }, c_g: { id: 'c_g' } }, items: { m1: { type: 'map', meta: { title: 'Hall' }, whiteboard: [{ id: 't_a', isChar: true, charId: 'c_a', ownerId: 'u_a' }, { id: 't_g', isChar: true, charId: 'c_g' }, { id: 't_b', isChar: true, charId: 'c_b', ownerId: 'u_b' }, { id: 't_x', isChar: false, charId: 'c_a', ownerId: 'u_a' }] } } };
             const net = { role: 'host', active: true, combats: {}, diceRoll: (expr, d) => { out.labels.push(expr + '|' + d.label); if (o.diceErr) return { error: o.diceErr }; return { ok: true, value: out.dice.length ? out.dice.shift() : 1 }; } };
-            const win = { wpFormula: Fx, wpSheets: { rollInit: id => { out.calls.push(id); if (o.rollErr) return { error: o.rollErr }; const s = out.seqs[id]; return { ok: true, value: s && s.length ? s.shift() : 0 }; } } };
+            const win = { wpFormula: Fx, wpSheets: { rollInit: (id, oI) => { out.calls.push(id); out.privs.push(!!(oI && oI.priv === true)); if (o.rollErr) return { error: o.rollErr }; const s = out.seqs[id]; return { ok: true, value: s && s.length ? s.shift() : 0 }; } } };
             const api = new Function('net', 'window', 'getActiveCampaign', 'broadcastCombats', 'logEvent', 'toast', 'render', 'console', 'showConfirm', 'own', 'SC', ccO + '\n' + setO + '\n' + stepO + '\nreturn { initIntoFight: initIntoFight, cleanCombats: cleanCombats };')(
                 net, win, () => camp, () => {}, (k, t) => out.logs.push(t), t => out.toasts.push(t), () => {}, { error: e => out.errs.push(String(e && e.message)) }, () => {}, H.own, () => Sx);
             return Object.assign(out, { net, camp, api, c: () => net.combats.m1, ids: () => net.combats.m1.rows.map(r => r.id), cur: () => net.combats.m1.rows[net.combats.m1.turn].id }); };
@@ -2062,6 +2184,11 @@ pendingChecks.push((async () => {
         check('initiative O4 every round: a roll the sheet refuses is said once and the rest keep their numbers and their order; without the rule a new round rolls nothing and keeps the order',
             j(Ef.calls) === j(['c_a']) && Ef.toasts.filter(t => t === 'Dice are off for this campaign (Settings > VTT features).').length === 1 && j(Ef.ids()) === j(['r_a', 'r_g', 'r_c', 'r_x']) && Ef.c().rows[0].init === 15
             && En.calls.length === 0 && En.labels.length === 0 && j(En.ids()) === j(['r_a', 'r_g', 'r_c', 'r_x']) && !('side' in En.c()), j([Ef.calls, Ef.toasts, Ef.ids(), En.ids()]));
+        // hidden pieces (owner, 2026-10-01): a creature the GM hid rolls again in private — its row reads Hidden on the table, and an open card would name it
+        const Eh = mkO({ every: true }, { seqs: { c_a: [3], c_g: [18], c_h: [19] } }); Eh.camp.chars.c_h = { id: 'c_h' }; Eh.camp.items.m1.whiteboard.push({ id: 't_h', isChar: true, charId: 'c_h', hidden: true });
+        Eh.net.combatSet('m1', { round: 1, turn: 0, rows: rowsO().concat([{ id: 'r_h', name: 'Lurker', tokId: 't_h', init: 11, src: null }]) }); stepN(Eh, 5);
+        check('initiative O4 every round, hidden pieces: a row whose token the GM hid rolls again through the sheet\'s roll in private (priv true), a shown token\'s row in the open (priv false), and its new number still places it in the order; nothing else of the round changes',
+            j(Eh.calls) === j(['c_a', 'c_g', 'c_h']) && j(Eh.privs) === j([false, false, true]) && j(E.privs) === j([false, false, false, false]) && j(Eh.ids()) === j(['r_h', 'r_g', 'r_c', 'r_a', 'r_x']) && Eh.c().rows[0].init === 19 && Eh.c().round === 2 && Eh.errs.length === 0, j([Eh.calls, Eh.privs, Eh.ids(), E.privs]));
         // side: the players' characters against the rest, rolled at the fight's start and each new round, again while they tie
         const rowsS = () => [{ id: 'r_a', name: 'Ana', tokId: 't_a', init: 15, src: null }, { id: 'r_g', name: 'Gob', tokId: 't_g', init: 10, src: null }, { id: 'r_b', name: 'Bo', tokId: 't_b', init: 8, src: null }, { id: 'r_c', name: 'Trap', tokId: null, init: 12, src: null }];
         const Sd = mkO({ side: '1d6' }, { dice: [2, 5, 4, 4, 6, 1] }); Sd.net.combatSet('m1', { round: 1, turn: 0, rows: rowsS() });
@@ -2397,7 +2524,7 @@ pendingChecks.push((async () => {
         const out = { toasts: [], rolls: [], bcast: [], net, conns };
         const win = { wpFog: { fogDropIds: (pid, c, map) => (o.drops && map === c.items.m1 && o.drops[pid]) || null }, wpVtt: { on: k => k === 'fog' } };
         const broadcast = (msg, except) => { packCheck(msg); out.bcast.push(JSON.parse(JSON.stringify(msg))); conns.forEach(c => { if (c !== except && c.open && net.roster[c.peer]) c.send(msg); }); };   // admitted peers only, as the real one on a host
-        const N = new Function('net', 'getActiveCampaign', 'window', 'broadcast', 'sendFailed', 'logEvent', 'toast', 'render', 'renderNotepad', fogSrc + '\n' + cbSrc + '\n' + setSrc + '\nreturn { cleanCombats, combatsFor, broadcastCombats };')(
+        const N = new Function('net', 'getActiveCampaign', 'window', 'broadcast', 'sendFailed', 'logEvent', 'toast', 'render', 'renderNotepad', fogSrc + '\n' + cbSrc + '\n' + setSrc + '\nreturn { cleanCombats, combatsFor, broadcastCombats, targetsFor, broadcastTargets };')(
             net, () => camp, win, broadcast, e => { throw e; }, () => {}, t => out.toasts.push(t), () => {}, () => {});
         out.N = N; out.camp = camp;
         const els = {}; ['combatModal', 'combatRows', 'combatAddBtn', 'combatAddName', 'combatCancelBtn', 'combatCloseBtn', 'combatStartBtn'].forEach(id => { els[id] = fe(); });
@@ -2467,7 +2594,7 @@ pendingChecks.push((async () => {
         && (src.match(/if \(inFight\) c\.send\(\{ type: 'combats', combats: combatsFor\(pid\) \}\);/g) || []).length === 2 && /combats: combatsFor\(prof\.id\)/.test(src) && !/combats: net\.combats/.test(src)
         && /broadcast\(\{ type: 'combats', combats: combatsFor\(null\) \}, null\)/.test(src) && /c\.send\(\{ type: 'combats', combats: combatsFor\(pr\.id\) \}\)/.test(src));
 
-    // Fold M0 (a security fix): a token the GM hides after the fight began reaches players as a nameless stub, so its row goes out Hidden too, on
+    // Fold M0 (a security fix): a token the GM hides after the fight began leaves every player's copy, so its row goes out Hidden too, on
     // a table without fog as on a fogged one (combatHidden, run for real in combatsFor and broadcastCombats); the host keeps the row whole. m2
     // holds a hidden token with the Orc's id and a combat of its own: a hidden token counts on its own map only. An item whose id reads 'null'
     // (a file may hold any id) is hidden on m1: a row with no token is never touched
@@ -2530,10 +2657,25 @@ pendingChecks.push((async () => {
     tokOf(Sr, 'm1', 't_gob').hidden = true; const srReHide = srn(), srReMsg = Sr.bcast[Sr.bcast.length - 1], srQuiet = srn();
     check('fold M0: a token hidden again after the rows went out whole for another reason (a turn step) is sent again: every send of the rows to the table records what it holds, so net.syncCombatHidden compares with what the players last got',
         srHide === 1 && j(srWhole) === j(order) && srReHide === 1 && j(rowsOf(srReMsg)) === j([hidRow(0)].concat(order.slice(1))) && srQuiet === 0, j([srHide, srWhole, srReHide, srReMsg, srQuiet]));
+    // hidden pieces (owner, 2026-10-01): a pointer at a token the GM hid, or at nothing on the host's map, goes to no one, on a table without fog as on one
+    // with it — hidden and gone answer alike; net.syncCombatHidden sends the pointers again when a hide, a show or a deletion changes which are sent
+    const Tg = scen(); Tg.net.targets = { u_a: { id: 't_orc', mapId: 'm1', name: 'Ana' }, u_b: { id: 't_gob', mapId: 'm1', name: 'Bea' }, u_g: { id: 'nope', mapId: 'm1', name: 'GM' }, u_x: { id: 't_orc', mapId: 'zzz', name: 'X' }, u_y: { id: 't_orc', mapId: '__proto__', name: 'Y' }, u_z: { id: 't_orc', mapId: 'm2', name: 'Z' } };
+    const tgKeys = o => Object.keys(o || {}).sort().join(), tgn = () => { const n = Tg.bcast.length; Tg.net.syncCombatHidden(); return Tg.bcast.slice(n).map(m => m.type + ':' + tgKeys(m.targets)); };
+    const tg0 = tgKeys(Tg.N.targetsFor('u_a')), tgNull = tgKeys(Tg.N.targetsFor(null)); Tg.N.broadcastTargets(); const tgB = Tg.bcast[Tg.bcast.length - 1], tgQuiet = tgn();
+    tokOf(Tg, 'm1', 't_orc').hidden = true; const tgHide = tgn(), tgHideAgain = tgn(), tgHidFor = tgKeys(Tg.N.targetsFor('u_a'));
+    tokOf(Tg, 'm1', 't_orc').hidden = false; const tgShow = tgn();
+    Tg.camp.items.m1.whiteboard = Tg.camp.items.m1.whiteboard.filter(w => w.id !== 't_gob'); const tgGone = tgn(), tgGoneFor = tgKeys(Tg.N.targetsFor('u_b')), tgGoneAgain = tgn();
+    check('hidden pieces: a target pointer at a token the GM hid, at a token that is gone, at nothing on its map, or at a map that is none (another map, a prototype name) goes to no one on a table without fog — the one broadcast is built by the same judge, and hidden and gone answer alike; net.syncCombatHidden sends the pointers again once when a hide, a show or a deletion changes which are sent, and nothing while they stay',
+        tg0 === 'u_a,u_b' && tgNull === 'u_a,u_b' && tgB.type === 'targets' && tgKeys(tgB.targets) === 'u_a,u_b' && !/nope|zzz|u_g|u_x|u_y|u_z/.test(j(tgB)) && j(tgQuiet) === j([]) && j(tgHide) === j(['targets:u_b']) && j(tgHideAgain) === j([]) && tgHidFor === 'u_b'
+        && j(tgShow) === j(['targets:u_a,u_b']) && j(tgGone) === j(['targets:u_a']) && tgGoneFor === 'u_a' && j(tgGoneAgain) === j([]), j([tg0, tgNull, tgB, tgQuiet, tgHide, tgHideAgain, tgHidFor, tgShow, tgGone, tgGoneFor]));
+    const Tf = scen({ fog: true, drops: { u_b: { t_orc: 1 } } }); Tf.net.targets = { u_a: { id: 't_orc', mapId: 'm1', name: 'Ana' }, u_b: { id: 't_gob', mapId: 'm1', name: 'Bea' } }; tokOf(Tf, 'm1', 't_gob').hidden = true;
+    const tfA = tgKeys(Tf.N.targetsFor('u_a')), tfB = tgKeys(Tf.N.targetsFor('u_b')); Tf.conns.forEach(c => { c.sent.length = 0; }); Tf.N.broadcastTargets(); const tfOut = Tf.conns.map(c => c.sent.filter(m => m.type === 'targets').map(m => tgKeys(m.targets)));
+    check('hidden pieces: on a fogged table each player\'s own copy of the pointers drops one at a hidden token for everyone (Bea\'s pointer at the hidden goblin reaches neither) and one at a creature that player does not see for them alone (Ana\'s pointer at the orc Bea cannot see); no broadcast, nothing to a waiting or closed connection',
+        tfA === 'u_a' && tfB === '' && j(tfOut) === j([['u_a'], [''], [], []]) && Tf.bcast.length === 0, j([tfA, tfB, tfOut]));
     const ioSrcM0 = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'io.js'), 'utf8').replace(/\r\n/g, '\n'), undoLine = (ioSrcM0.match(/\n[^\n]*if \(hosting\) \{ window\.wpNet\.applyingRemote = true; save\(true\);[^\n]*/) || [''])[0];
     check('fold M0 (source): the GM\'s undo while hosting (io.js), saved as a remote change so the host\'s save hook returns early, calls net.syncCombatHidden itself, after the map and the other maps it undid went out',
         undoLine.length > 0 && /window\.wpNet\.sendItem\(camp\.id, item\.id\);[^\n]*wUndo\.forEach\([^\n]*broadcastItemFiltered[^\n]*\}\); if \(window\.wpNet\.syncCombatHidden\) window\.wpNet\.syncCombatHidden\(\); \}/.test(undoLine), undoLine.slice(0, 400));
-    // the host's save calls it right after the map it saved went out (its stub first), run for real: net.onLocalSave sliced whole, over stubs
+    // the host's save calls it right after the map it saved went out (the map first, the token gone from it), run for real: net.onLocalSave sliced whole, over stubs
     const olsSrc = fnSrc('net.onLocalSave = function() {', '\n};\n', 'onLocalSave') + '\n};';
     const SYNCS = ['syncStance', 'syncSounds', 'syncMusic', 'syncSystem', 'syncSenses', 'syncDocStyle', 'syncCampName', 'syncTurnRules', 'syncLibrary', 'syncNewPlayers', 'syncCampFog', 'syncClock'];
     const runSave = (s, patch) => {
@@ -2549,7 +2691,7 @@ pendingChecks.push((async () => {
     const lsHost = runSave(Ls, true), lsWire = Ls.conns[0].sent.map(m => m.type), lsRows = rowsOf(Ls.last(Ls.conns[0]));
     const lsNoPatch = runSave(Ls, false);
     Ls.net.role = 'client'; const lsCli = runSave(Ls, true); Ls.net.role = 'host'; Ls.net.applyingRemote = true; const lsRemote = runSave(Ls, true); Ls.net.applyingRemote = false;
-    check('fold M0: the host\'s save (net.onLocalSave, run for real) calls net.syncCombatHidden once, right after the map went out (sendItem) — a player gets the map (its stub) first, then the combats with the row Hidden; a save with no map to send still calls it once; a player\'s save and a remote change\'s save never do',
+    check('fold M0: the host\'s save (net.onLocalSave, run for real) calls net.syncCombatHidden once, right after the map went out (sendItem) — a player gets the map (the token gone from it) first, then the combats with the row Hidden; a save with no map to send still calls it once; a player\'s save and a remote change\'s save never do',
         j(lsHost) === j(SYNCS.concat(['sendItem:m1', 'combatHidden', 'follow'])) && j(lsWire) === j(['item', 'combats']) && j(lsRows) === j([hidRow(0)].concat(order.slice(1)))
         && j(lsNoPatch) === j(SYNCS.concat(['combatHidden', 'follow'])) && lsCli.indexOf('combatHidden') < 0 && !lsCli.some(e => SYNCS.indexOf(e) >= 0) && lsCli.length > 0 &&j(lsRemote) === j([]), j([lsHost, lsWire, lsNoPatch, lsCli, lsRemote]));
     const wbAll = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8');
@@ -3746,9 +3888,9 @@ pendingChecks.push((async () => {
     const frK = { src: '/saves/images/lib/a.png', x: 1, y: 2, s: 3, of: '/saves/images/portraits/token-w1-k1.png' };
     const mapF = { id: 'm1', type: 'map', rooms: [], links: [], whiteboard: [{ id: 'w1', type: 'image', isChar: true, src: frK.of, frame: frK, gmInfo: 'secret', sheet: { a: 1 } }, { id: 'w2', type: 'image', src: '/saves/images/x.png', frame: { src: 'a' } }, { id: 'w3', hidden: true, type: 'image', frame: { src: 'b' }, x: 1, y: 2, w: 3, h: 4 }, { id: 'w4', type: 'rect', x: 0 }] };
     const outF = siF(mapF);
-    check('token creator: a token\'s kept original (frame) never reaches a player — sanitizeItem (run for real) strips it with the attached sheet and the GM note from every token (a hidden one is only a stub); the rest of the token travels; the GM\'s own map keeps it',
-        siA > 0 && outF.whiteboard.length === 4 && outF.whiteboard.every(w => !('frame' in w) && !('gmInfo' in w) && !('sheet' in w)) && outF.whiteboard[0].src === frK.of && outF.whiteboard[0].isChar === true && outF.whiteboard[3].x === 0
-        && j(Object.keys(outF.whiteboard[2]).sort()) === j(['h', 'hidden', 'id', 'layer', 'locked', 'rot', 'type', 'w', 'x', 'y']) && j(mapF.whiteboard[0].frame) === j(frK) && !!mapF.whiteboard[1].frame, j(outF.whiteboard));
+    check('token creator: a token\'s kept original (frame) never reaches a player — sanitizeItem (run for real) strips it with the attached sheet and the GM note from every token (a hidden one is not sent at all); the rest of the token travels; the GM\'s own map keeps it',
+        siA > 0 && outF.whiteboard.length === 3 && outF.whiteboard.every(w => !('frame' in w) && !('gmInfo' in w) && !('sheet' in w)) && outF.whiteboard[0].src === frK.of && outF.whiteboard[0].isChar === true && outF.whiteboard[2].x === 0
+        && j(outF.whiteboard.map(w => w.id)) === j(['w1', 'w2', 'w4']) && mapF.whiteboard.length === 4 && j(mapF.whiteboard[0].frame) === j(frK) && !!mapF.whiteboard[1].frame, j(outF.whiteboard));
 }
 // Onboarding F4: a file fills a character in the making (the [netcheck:charfill] branch of char-upload, run for real with the real systemcore and
 // sheetexport): at once, with its owner's rights, past the list rules while making (owner, 2026-09-27), read on the players' view only; the table's
@@ -3848,11 +3990,11 @@ pendingChecks.push((async () => {
     const ok = await tp();
     const why = async (o, reason) => { const r = await tp(o); return j(r.answer) === j([{ reason, type: 'tok-pic-ans', rid: 'p1' }]) && r.faces.length === 0 && r.toasts.length === 0; };
     const refusals = [await why({ peer: 'pB' }, 'tokowner'), await why({ tok: { charId: 'c_1' } }, 'tokowner'), await why({ tok: { waiting: 1 } }, 'tokowner'), await why({ tok: { isChar: false } }, 'tokowner'),
-        await why({ tok: { locked: true } }, 'locked'), await why({ tok: { hidden: true } }, 'locked'), await why({ msg: { wbId: 'nope' } }, 'missing'), await why({ msg: { mapId: 'd1' } }, 'missing'), await why({ msg: { mapId: '__proto__' } }, 'missing'), await why({ board: {} }, 'missing'), await why({ board: null }, 'missing'),
+        await why({ tok: { locked: true } }, 'locked'), await why({ tok: { hidden: true } }, 'missing'), await why({ peer: 'pB', tok: { hidden: true } }, 'missing'), await why({ tok: { hidden: 1, locked: true } }, 'missing'), await why({ tok: { gmNoteFor: 'u_a' } }, 'missing'), await why({ msg: { wbId: 'nope' } }, 'missing'), await why({ msg: { mapId: 'd1' } }, 'missing'), await why({ msg: { mapId: '__proto__' } }, 'missing'), await why({ board: {} }, 'missing'), await why({ board: null }, 'missing'),
         await why({ msg: { img: 'data:image/svg+xml;base64,PHN2Zz4=' } }, 'bad'), await why({ msg: { img: 'https://evil/x.png' } }, 'bad'), await why({ msg: { img: 'data:image/png;base64,' + 'A'.repeat(200001) } }, 'bad'),
         await why({ paused: true }, 'paused'), await why({ peerPaused: true }, 'paused'), await why({ slow: 'charpic' }, 'slow'), await why({ noSheets: true }, 'off')];
     const unnamed = await tp({ tok: { charName: '' } }), failed = await tp({ fail: true }), badRid = await tp({ msg: { rid: 'p 1' } }), stranger = await tp({ peer: 'pZ' });
-    check('token creator: tok-pic (host, run for real) — a player\'s framed picture for their OWN plain token is saved over its picture (applyTokenFace, replace) and answered ok, the GM told; refused and answered why, nothing saved: another\'s token, a character\'s token (its picture goes through char-pic), a waiting token (even one marked a character) or no token at all (tokowner), locked or hidden (locked), a token or map that is not there, not a map or a board that is not a list (missing), a picture that is not a whole safe picture — SVG, a web address, past 200,000 characters (bad), paused, the rate — one budget with char-pic, every picture saved on the GM\'s disk counted together (slow), no sheets module (off); a token with no name is "their token" to the GM; a failed save answers failed; a malformed request id or a peer not admitted: no answer',
+    check('token creator: tok-pic (host, run for real) — a player\'s framed picture for their OWN plain token is saved over its picture (applyTokenFace, replace) and answered ok, the GM told; refused and answered why, nothing saved: another\'s token, a character\'s token (its picture goes through char-pic), a waiting token (even one marked a character) or no token at all (tokowner), locked (locked), a token or map that is not there, not a map or a board that is not a list, and — hidden pieces — a hidden token, theirs or another\'s, or a GM note, as one that is not there (missing), a picture that is not a whole safe picture — SVG, a web address, past 200,000 characters (bad), paused, the rate — one budget with char-pic, every picture saved on the GM\'s disk counted together (slow), no sheets module (off); a token with no name is "their token" to the GM; a failed save answers failed; a malformed request id or a peer not admitted: no answer',
         j(ok.answer) === j([{ ok: true, type: 'tok-pic-ans', rid: 'p1' }]) && j(ok.faces) === j([['m1', 'wt', 'picture', true, true]]) && j(ok.toasts) === j(['Pat changed the picture of their token (Vex).']) && j(ok.logs) === j([['char', 'Pat changed the picture of their token (Vex)']]) && j(ok.allowed) === j(['charpic'])
         && j(unnamed.toasts) === j(['Pat changed the picture of their token (their token).']) && refusals.every(Boolean) && j(failed.answer) === j([{ reason: 'failed', type: 'tok-pic-ans', rid: 'p1' }]) && failed.toasts.length === 0 && badRid.answer.length === 0 && stranger.answer.length === 0 && stranger.faces.length === 0, j([ok, refusals]));
     const ps = src.replace(/\r\n/g, '\n'), mkA = ps.indexOf('var _mkPending = {};'), mkB = ps.indexOf('// Onboarding F1b: a player\'s changed face reaches the host');
@@ -3959,14 +4101,13 @@ pendingChecks.push((async () => {
         { id: 'w1', type: 'image', isChar: true, x: 1, y: 2, w: 3, h: 4, light: torch }, { id: 'w2', type: 'light', x: 5, y: 6, w: 7, h: 8, light: lamp }, { id: 'w3', type: 'image', sheet: { a: 1 }, gmInfo: 'secret', frame: { src: 'a' }, light: torch },
         { id: 'w4', type: 'image', hidden: true, x: 1, y: 2, w: 3, h: 4, light: { bright: 9, dim: 9, unit: 'm', name: 'Secret lantern' } }, { id: 'w5', type: 'light', hidden: true, x: 1, y: 2, w: 3, h: 4, light: { bright: 1, dim: 2, name: 'Secret glow' } }, { id: 'w6', type: 'rect', x: 0 }] };
     const before = j(mapS), outS = siL(mapS); let packedS = true; try { packCheck(outS); } catch (e) { packedS = e.message; }
-    const stubKeys = j(['h', 'hidden', 'id', 'layer', 'locked', 'rot', 'type', 'w', 'x', 'y']);
-    check('Lighting: a player\'s copy of a map keeps a visible item\'s light with its unit and name (sanitizeItem, run for real: a token\'s, a light source\'s, one on a token whose GM prep is stripped) and the light of a hidden item never travels — a hidden token or light source is only a stub, its light and its name nowhere in the copy; the host\'s own map is unchanged',
-        siA > 0 && outS.whiteboard.length === 6 && j(outS.whiteboard[0].light) === j(torch) && j(outS.whiteboard[1].light) === j(lamp) && outS.whiteboard[1].type === 'light' && j(outS.whiteboard[2].light) === j(torch) && !ownK(outS.whiteboard[2], 'sheet') && !ownK(outS.whiteboard[2], 'gmInfo') && !ownK(outS.whiteboard[2], 'frame')
-        && [3, 4].every(i => j(Object.keys(outS.whiteboard[i]).sort()) === stubKeys && outS.whiteboard[i].type === 'rect' && !ownK(outS.whiteboard[i], 'light')) && !/Secret|"unit":"m"/.test(j(outS)) && !ownK(outS.whiteboard[5], 'light') && packedS === true && j(mapS) === before
-        && j(CL.cleanHostWbItem(JSON.parse(j(outS.whiteboard[0]))).light) === j(torch) && j(CL.cleanHostMap(JSON.parse(j(outS))).whiteboard.map(w => w.light || 0)) === j([torch, lamp, torch, 0, 0, 0]), j(outS.whiteboard));
+    check('Lighting: a player\'s copy of a map keeps a visible item\'s light with its unit and name (sanitizeItem, run for real: a token\'s, a light source\'s, one on a token whose GM prep is stripped) and the light of a hidden item never travels — a hidden token or light source is not in the copy at all, its light and its name nowhere; the host\'s own map is unchanged',
+        siA > 0 && outS.whiteboard.length === 4 && j(outS.whiteboard[0].light) === j(torch) && j(outS.whiteboard[1].light) === j(lamp) && outS.whiteboard[1].type === 'light' && j(outS.whiteboard[2].light) === j(torch) && !ownK(outS.whiteboard[2], 'sheet') && !ownK(outS.whiteboard[2], 'gmInfo') && !ownK(outS.whiteboard[2], 'frame')
+        && j(outS.whiteboard.map(w => w.id)) === j(['w1', 'w2', 'w3', 'w6']) && !/Secret|"unit":"m"|"hidden"/.test(j(outS)) && !ownK(outS.whiteboard[3], 'light') && packedS === true && j(mapS) === before
+        && j(CL.cleanHostWbItem(JSON.parse(j(outS.whiteboard[0]))).light) === j(torch) && j(CL.cleanHostMap(JSON.parse(j(outS))).whiteboard.map(w => w.light || 0)) === j([torch, lamp, torch, 0]), j(outS.whiteboard));
 })());
 // Lighting L5 (a player's own light) on the wire: the host's tok-light (the [netcheck:toklight] slice, run for real with the real fogcore and
-// systemcore), the player's sender and its answers (LIGHT_WHY), and no other door in: the patch gate takes no light, a hidden token's stub none
+// systemcore), the player's sender and its answers (LIGHT_WHY), and no other door in: the patch gate takes no light, a hidden token is not there to a player at all
 pendingChecks.push((async () => {
     const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
     const FCx = await import(url('fogcore.js')), Sx = await import(url('systemcore.js'));
@@ -4050,7 +4191,7 @@ pendingChecks.push((async () => {
         [{ msg: { wbId: 'nope' } }, 'missing'], [{ msg: { wbId: 7 } }, 'missing'], [{ msg: { wbId: ['wt'] } }, 'missing'], [{ drop: ['wbId'] }, 'missing'], [{ board: [] }, 'missing'], [{ board: {} }, 'missing'], [{ board: null }, 'missing'], [{ noCamp: true }, 'missing'],
         [{ peer: 'pB' }, 'tokowner'], [{ msg: { wbId: 'wo' } }, 'tokowner'], [{ tok: { ownerId: undefined } }, 'tokowner'], [{ tok: { ownerId: null } }, 'tokowner'], [{ tok: { ownerId: '' } }, 'tokowner'], [{ tok: { isChar: false } }, 'tokowner'], [{ tok: { isChar: false, type: 'light' } }, 'tokowner'],
         [{ tok: { waiting: 1 } }, 'tokowner'], [{ tok: { waiting: true, isChar: true } }, 'tokowner'], [{ peer: 'pB', tok: { locked: true, lightLock: true } }, 'tokowner'],
-        [{ tok: { locked: true } }, 'locked'], [{ tok: { hidden: true } }, 'locked'], [{ tok: { locked: true, lightLock: true } }, 'locked'], [{ tok: { hidden: true }, msg: { preset: 0, name: 'Candle' } }, 'locked'],
+        [{ tok: { locked: true } }, 'locked'], [{ tok: { hidden: true } }, 'missing'], [{ peer: 'pB', tok: { hidden: true } }, 'missing'], [{ tok: { hidden: 1, locked: true, lightLock: true } }, 'missing'], [{ tok: { gmNoteFor: 'u_a' } }, 'missing'], [{ tok: { locked: true, lightLock: true } }, 'locked'], [{ tok: { hidden: true }, msg: { preset: 0, name: 'Candle' } }, 'missing'],
         [{ tok: { lightLock: true } }, 'lightlock'], [{ tok: { lightLock: true }, msg: { on: false } }, 'lightlock'], [pick(0, 'Candle', { tok: { lightLock: true } }), 'lightlock'], [{ tok: { lightLock: true }, win: w => { delete w.wpFogCore; } }, 'lightlock'],
         [{ win: w => { delete w.wpFogCore; } }, 'off'], [{ win: w => { w.wpFogCore = {}; } }, 'off'], [{ win: w => { delete w.wpSystemCore; } }, 'off'], [{ win: w => { w.wpSystemCore = {}; } }, 'off'], [pick(77, 'Nope', { win: w => { delete w.wpSystemCore; } }), 'off'],
         [pick(5, 'Sun'), 'preset'], [pick(99, 'Candle'), 'preset'], [pick(-1, 'Candle'), 'preset'], [pick(0.5, 'Candle'), 'preset'], [pick(1e300, 'Candle'), 'preset'], [pick('0', 'Candle'), 'preset'], [pick(NaN, 'Candle'), 'preset'], [pick(null, 'Candle'), 'preset'],
@@ -4063,7 +4204,7 @@ pendingChecks.push((async () => {
         [pick(0, 'Candle', { tok: bare, count: 200 }), 'cap'], [pick(0, 'Candle', { tok: bare, count: 201 }), 'cap'], [pick(0, 'Candle', { tok: bare, count: 200, slow: 'toklight' }), 'cap'], [pick(0, 'Candle', { tok: { light: null }, count: 1e9 }), 'cap'],
         [{ slow: 'toklight', msg: { on: false } }, 'slow'], [pick(0, 'Candle', { slow: 'toklight' }), 'slow'], [pick(0, 'Candle', { slow: 'toklight', tok: bare, count: 199 }), 'slow'], [{ slow: 'toklight', msg: { on: false }, peer: 'pN', tok: { ownerId: 'u_n' } }, 'slow']];
     const wrong = cases.filter(c => !why(c[0], c[1])).map(c => j([c[0], c[1], tl(c[0]).answer]));
-    check('a player\'s own light (host): each gate refuses with its own reason and nothing is written, saved, sent, toasted or logged — a paused table or player (paused), a map that is no own key of the campaign, a page, a prototype name or not text, a token that is not there (missing), another player\'s token, one with no owner, an item that is no character, a waiting token (tokowner), a locked or hidden one (locked), a light the GM locked (lightlock), no fog core or no system core (off), a place out of range, negative, fractional, not a number or a prototype name, a preset not ticked for players, a name that is not that preset\'s or names a prototype key (preset), a switch on a token with no light (nolight), a new light at the map\'s cap (cap), the rate by its own budget (slow); the gates are asked in that order',
+    check('a player\'s own light (host): each gate refuses with its own reason and nothing is written, saved, sent, toasted or logged — a paused table or player (paused), a map that is no own key of the campaign, a page, a prototype name or not text, a token that is not there (missing), another player\'s token, one with no owner, an item that is no character, a waiting token (tokowner), a locked one (locked), a hidden one — theirs or another\'s, a GM note too — as one that is not there (missing: hidden pieces), a light the GM locked (lightlock), no fog core or no system core (off), a place out of range, negative, fractional, not a number or a prototype name, a preset not ticked for players, a name that is not that preset\'s or names a prototype key (preset), a switch on a token with no light (nolight), a new light at the map\'s cap (cap), the rate by its own budget (slow); the gates are asked in that order',
         wrong.length === 0 && cases.length > 80, wrong);
     const quiet = [tl({ msg: { rid: 'l 1' } }), tl({ msg: { rid: '' } }), tl({ msg: { rid: 7 } }), tl({ msg: { rid: 'x'.repeat(25) } }), tl({ msg: { rid: '<img>' } }), tl({ drop: ['rid'] }), tl({ msg: { rid: ['l1'] } }),
         tl({ peer: 'pZ' }), tl({ peer: 'constructor' }), tl({ peer: '__proto__' }), tl({ peer: 'hasOwnProperty' }), tl({ peer: 'pZ', paused: true }), tl({ peer: 'pZ', msg: { on: false } })];
@@ -4178,11 +4319,11 @@ pendingChecks.push((async () => {
     const lineC = k => { const i = src.indexOf(k); return i < 0 ? '' : src.slice(i, src.indexOf('\n', i)); };
     const cleanC = new Function('window', 'cleanWaitingItem', 'sanitizeRichText', '"use strict";\n' + lineC('function cleanHostWbItem(w) {') + '\n' + lineC('function cleanHostLight(w) {') + '\nreturn cleanHostWbItem;')({ wpFogCore: FCx }, H.cleanWaitingItem, t => t);
     const gotC = JSON.parse(j(outS)).whiteboard.map(w => cleanC(w));
-    check('a player\'s own light: a player\'s copy of a map (sanitizeItem, run for real) carries a visible token\'s light lock with its light — their menu reads it, also on a token whose GM prep is stripped — and a client keeps both; a hidden token is only a stub with neither its light nor its lock; the host\'s own map is unchanged',
-        siA > 0 && outS.whiteboard.length === 4 && outS.whiteboard[0].lightLock === true && j(outS.whiteboard[0].light) === j(torch) && !ownK(outS.whiteboard[1], 'lightLock') && j(outS.whiteboard[1].light) === j(candleOff)
-        && outS.whiteboard[2].lightLock === true && !ownK(outS.whiteboard[2], 'gmInfo') && !ownK(outS.whiteboard[2], 'sheet') && j(Object.keys(outS.whiteboard[3]).sort()) === j(['h', 'hidden', 'id', 'layer', 'locked', 'rot', 'type', 'w', 'x', 'y'])
-        && !ownK(outS.whiteboard[3], 'light') && !ownK(outS.whiteboard[3], 'lightLock') && !/Secret/.test(j(outS)) && (j(outS).match(/lightLock/g) || []).length === 2 && packedS === true && j(mapS) === beforeS
-        && gotC[0].lightLock === true && j(gotC[0].light) === j(torch) && j(gotC[1].light) === j(candleOff) && gotC[2].lightLock === true && !ownK(gotC[3], 'light') && !ownK(gotC[3], 'lightLock'), j(outS.whiteboard));
+    check('a player\'s own light: a player\'s copy of a map (sanitizeItem, run for real) carries a visible token\'s light lock with its light — their menu reads it, also on a token whose GM prep is stripped — and a client keeps both; a hidden token is not in the copy, so neither is its light or its lock; the host\'s own map is unchanged',
+        siA > 0 && outS.whiteboard.length === 3 && outS.whiteboard[0].lightLock === true && j(outS.whiteboard[0].light) === j(torch) && !ownK(outS.whiteboard[1], 'lightLock') && j(outS.whiteboard[1].light) === j(candleOff)
+        && outS.whiteboard[2].lightLock === true && !ownK(outS.whiteboard[2], 'gmInfo') && !ownK(outS.whiteboard[2], 'sheet') && j(outS.whiteboard.map(w => w.id)) === j(['w1', 'w2', 'w3'])
+        && !/Secret/.test(j(outS)) && (j(outS).match(/lightLock/g) || []).length === 2 && packedS === true && j(mapS) === beforeS
+        && gotC[0].lightLock === true && j(gotC[0].light) === j(torch) && j(gotC[1].light) === j(candleOff) && gotC[2].lightLock === true && gotC.length === 3, j(outS.whiteboard));
 })());
 // Senses S0 (when vision changes): a character's change that moves what its tokens see by re-sends that player's own copy of each fogged map
 // it moved on, with no map saved. Run for real: net.js's foglit and sensesmoved slices (sensesSeed, fogCopyFor, net.sensesMoved, sensesFire,
@@ -4861,7 +5002,7 @@ pendingChecks.push((async () => {
         // a call and what it is given, brackets inside brackets two deep
         const calls = /invalidateSeen\((?:[^()]|\((?:[^()]|\([^()]*\))*\))*\)/g, ownMove = 'invalidateSeen(msg.itemId, w.light && (!window.wpFog.lightMoves || window.wpFog.lightMoves(map)) ? undefined : pr.id)';
         check('senses S0 (source): a player\'s map copy that changed something empties that map\'s sets after the save is asked for and before the map goes out, and a copy that changed nothing does neither; nowhere in net.js is the whole of it emptied by that call, and the seven places that empty a set name the map — a copy made under a new text, a whole map sent to the table, the hook, a move put back, a map copy and threat marks every player\'s set of it, and a player\'s own move that player\'s alone, or every player\'s where the token carries a light and the fog says a light that moves changes what is seen on that map, or does not say; there the gate reads where the token sees and lights from before it writes the new place and facing, and empties after the write and the seat and before the move is rebuilt and relayed, only where that text is missing or is no longer the same (read once after the seat, fold M7); nothing else in net.js reads the text but fogKey (fold M7), or asks about a light that moves',
-            /var pOut = \{ conn: conn \}, changed = applyClientItemFiltered\(msg, profile, pOut\);[^\n]*\n            if \(changed\) \{\n(?:                [^\n]*\n){3,6}                saveRemoteSoon\(\);\n                if \(window\.wpFog && window\.wpFog\.invalidateSeen\) window\.wpFog\.invalidateSeen\(msg\.itemId\);[^\n]*\n                net\.sendItem\(msg\.campId, msg\.itemId, null, pOut\.strokes \? null : conn\);[^\n]*\n            \}\n            \} finally \{ if \(typeof ackTook === 'function'\) ackTook\(conn, msg\.a\); \}\n            \/\/ \[netcheck:itempatch-end\]\n        \} else \{\n            applyItem\(msg\);/.test(src)
+            /var pOut = \{ conn: conn \}, changed = applyClientItemFiltered\(msg, profile, pOut\);[^\n]*\n            if \(changed\) \{\n(?:                [^\n]*\n){3,6}                saveRemoteSoon\(\);\n                if \(window\.wpFog && window\.wpFog\.invalidateSeen\) window\.wpFog\.invalidateSeen\(msg\.itemId\);[^\n]*\n                net\.sendItem\(msg\.campId, msg\.itemId, null, pOut\.strokes \? null : conn\);[^\n]*\n            \}\n            if \(pOut\.whole\) net\.sendItem\(msg\.campId, msg\.itemId, conn, null, msg\.a\);[^\n]*\n            \} finally \{ if \(typeof ackTook === 'function'\) ackTook\(conn, msg\.a\); \}\n            \/\/ \[netcheck:itempatch-end\]\n        \} else \{\n            applyItem\(msg\);/.test(src)
             && (srcC.match(/invalidateSeen\(/g) || []).length === 7 && j((srcC.match(calls) || []).sort()) === j(['invalidateSeen(id)', 'invalidateSeen(itemId)', 'invalidateSeen(map.id)', 'invalidateSeen(msg.itemId)', 'invalidateSeen(msg.itemId)', 'invalidateSeen(msg.itemId)', ownMove]) && !/invalidateSeen\(\s*\)/.test(srcC)
             && count1(flS, /invalidateSeen\(map\.id\)/g) && count1(whole('net.broadcastItemFiltered = function('), /invalidateSeen\(itemId\)/g) && count1(smS, /invalidateSeen\(/g) && count1(smS, /invalidateSeen\(id\)/g) && count1(posS2, /invalidateSeen\(msg\.itemId\)/g) && posC.split(ownMove).length === 2 && count1(posS2, /invalidateSeen\(msg\.itemId,/g) && count1(thS2, /invalidateSeen\(msg\.itemId\)/g)
             && (srcC.match(/seenKeyOf/g) || []).length === 5 && (posC.match(/seenKeyOf/g) || []).length === 3 && (between('// [netcheck:fogmove-start]', '// [netcheck:fogmove-end]', 'fogmove').replace(/\/\/[^\n]*/g, '').match(/seenKeyOf/g) || []).length === 2 && (srcC.match(/lightMoves/g) || []).length === 2 && (posC.match(/lightMoves/g) || []).length === 2
@@ -5146,9 +5287,9 @@ pendingChecks.push((async () => {
         // (b) the source: every pointer message outside broadcastTargets is a player's own copy (targetsFor); the combats slice defines it
         const btA = src.indexOf('function broadcastTargets() {'), btB = btA < 0 ? -1 : src.indexOf('\n}\n', btA), btSrc = btB < 0 ? '' : src.slice(btA, btB + 3);
         const cnt = (s, re) => (s.match(re) || []).length, hostB = cnt(src, /msg\.type === '[a-z-]+' && net\.role === 'host'/g);
-        check('fold M0 (source): no pointer message goes to all outside broadcastTargets — net.js broadcasts one only there, in its branch for a table without fog; every other pointer message is a player\'s own copy built by targetsFor; the combats slice now defines broadcastTargets, and the host\'s message handler has the same number of branches as before',
-            btSrc.length > 0 && cnt(src, /broadcast\(\{ type: 'targets'/g) === 1 && cnt(btSrc, /broadcast\(\{ type: 'targets'/g) === 1 && cnt(src, /targets: net\.targets/g) === 1 && cnt(btSrc, /targets: net\.targets/g) === 1
-            && cnt(src, /type: 'targets'/g) === cnt(src, /type: 'targets', targets: targetsFor\(/g) + 1 && cbS.indexOf(btSrc) >= 0 && cbS.indexOf('function targetsFor(') >= 0 && hostB === 25,
+        check('fold M0 (source): no pointer message goes to all outside broadcastTargets — net.js broadcasts one only there, in its branch for a table without fog, and (hidden pieces) that one too is built by targetsFor; every other pointer message is a player\'s own copy built by targetsFor; the combats slice now defines broadcastTargets, and the host\'s message handler has the same number of branches as before',
+            btSrc.length > 0 && cnt(src, /broadcast\(\{ type: 'targets'/g) === 1 && cnt(btSrc, /broadcast\(\{ type: 'targets'/g) === 1 && cnt(src, /targets: net\.targets/g) === 0 && /broadcast\(\{ type: 'targets', targets: targetsFor\(null\) \}, null\)/.test(btSrc)
+            && cnt(src, /type: 'targets'/g) === cnt(src, /type: 'targets', targets: targetsFor\(/g) && cbS.indexOf(btSrc) >= 0 && cbS.indexOf('function targetsFor(') >= 0 && hostB === 25,
             j([btSrc.length, cnt(src, /broadcast\(\{ type: 'targets'/g), cnt(src, /type: 'targets'/g), cbS.indexOf(btSrc), hostB]));
 
         // (c) the live position relay and the drag that feeds it
@@ -5173,7 +5314,7 @@ pendingChecks.push((async () => {
             && j(wolfMsg) === j({ type: 'pos', campId: 'k', itemId: 'mA', wbId: 'wolf', x: 600, y: 100, rot: 0, front: 0, final: true }) && !!tokUMsg && tokUMsg.wbId === 'orc5' && tokUMsg.itemId === 'mU'
             && j(cli) === j([['pos:mA:note:true', 'pos:mA:wolf:true'], 0, 0]), j([hostSp, tokU, wolfMsg, tokUMsg, cli]));
 
-        // (d) fold M0 round 2: a hidden token reaches players as a stub with no facing, so its live moves carry none — broadcastPos (the bpos
+        // (d) a hidden token is not on any player's copy (owner, 2026-10-01: nothing at all), so none of its live moves go out — broadcastPos (the bpos
         // slice) run for real over the real canSeePoint on a fresh host: a hidden creature 8 cells from Ana's token on the fogged mA, one on mU
         // (no fog), a visible one on mA, and a GM-note card that is hidden too; each turned and facing somewhere
         const Q = mkW({ maps: ['mA', 'mU'] }), qA = Q.camp.items.mA, qU = Q.camp.items.mU;
@@ -5185,11 +5326,11 @@ pendingChecks.push((async () => {
             return { conns: Q.net.conns.map(c => c.sent.map(x => j(x))), bc: Q.bc.map(x => j(x)), kept: j(m) === before && m.front === w.front }; };
         const want = (map, w, front) => j(Object.assign(POSF(map, w), { front }));
         const rF = { ghost: relayF(qA, ghost), ghostU: relayF(qU, ghostU), seen: relayF(qA, seen), ghostN: relayF(qA, ghostN) };
-        check('fold M0: the live position relay (broadcastPos, run for real) sends a hidden token\'s move with its facing 0 to every player it reaches — on a fogged map each of Ana\'s two connections, on a map without fog the one broadcast — its place and its turn as they were; a visible creature keeps its facing; a GM-note card, hidden or not, still sends nothing; the caller\'s own message is never changed',
-            j(rF.ghost) === j({ conns: [[want(qA, ghost, 0)], [want(qA, ghost, 0)], [], [], []], bc: [], kept: true })
-            && j(rF.ghostU) === j({ conns: [[], [], [], [], []], bc: [want(qU, ghostU, 0)], kept: true })
+        check('hidden pieces: the live position relay (broadcastPos, run for real) sends nothing of a hidden token\'s move — on a fogged map to neither of Ana\'s connections, though she would see its cell, and on a map without fog no broadcast; a visible creature\'s move goes out as before with its place, its turn and its facing; a GM-note card, hidden or not, still sends nothing; the caller\'s own message is never changed',
+            j(rF.ghost) === j({ conns: [[], [], [], [], []], bc: [], kept: true })
+            && j(rF.ghostU) === j({ conns: [[], [], [], [], []], bc: [], kept: true })
             && j(rF.seen) === j({ conns: [[want(qA, seen, 30)], [want(qA, seen, 30)], [], [], []], bc: [], kept: true })
-            && j(rF.ghostN) === j({ conns: [[], [], [], [], []], bc: [], kept: true }) && JSON.parse(rF.ghost.conns[0][0]).rot === 15 && JSON.parse(rF.ghostU.bc[0]).x === 600, j(rF));
+            && j(rF.ghostN) === j({ conns: [[], [], [], [], []], bc: [], kept: true }) && JSON.parse(rF.seen.conns[0][0]).rot === 5 && JSON.parse(rF.seen.conns[0][0]).x === 550, j(rF));
     }
 })());
 // F11 (owner, 2026-09-28): a file that holds one entry twice on a list that takes an entry once — the second row comes in as a row of its own, on
@@ -5494,7 +5635,8 @@ pendingChecks.push((async () => {
 {
     const [siNew, wwi] = new Function('window', '"use strict";\n' + siSrc() + '\nreturn [sanitizeItem, wireWbItem];')({});
     const wireNumF = new Function((src.match(/function wireNum\(k, v\) \{[^\n]*\}/) || [''])[0] + '\nreturn wireNum;')();
-    // sanitizeItem as it stood before fold M2 (a35b807), kept here to compare against
+    // sanitizeItem's rule written out a second time, to compare against (as it stood before fold M2, a35b807, with the one change since: a
+    // hidden piece is left out whole where it used to be a position-only box)
     const siOld = (function(window, wireNum) {
         return function sanitizeItem(item) {
             if (!item) return item;
@@ -5512,12 +5654,9 @@ pendingChecks.push((async () => {
                 if (!(lk[3] && typeof lk[3] === 'object')) return lk;
                 var keep = lk.slice(0, 3); if (lk[3].label) keep.push({ label: lk[3].label }); return keep;
             });
-            m.whiteboard = (m.whiteboard || []).filter(function(w) { return !w.gmNoteFor; }).map(function(w) {
-                if (!w.hidden) {
-                    if (w.sheet || w.gmInfo || w.frame) { w = JSON.parse(JSON.stringify(w)); delete w.sheet; delete w.gmInfo; delete w.frame; }
-                    return w;
-                }
-                return { id: w.id, type: 'rect', hidden: true, x: w.x, y: w.y, w: w.w, h: w.h, rot: w.rot || 0, layer: w.layer, locked: true };
+            m.whiteboard = (m.whiteboard || []).filter(function(w) { return !w.gmNoteFor && !w.hidden; }).map(function(w) {
+                if (w.sheet || w.gmInfo || w.frame) { w = JSON.parse(JSON.stringify(w)); delete w.sheet; delete w.gmInfo; delete w.frame; }
+                return w;
             });
             return m;
         };
@@ -5551,21 +5690,20 @@ pendingChecks.push((async () => {
     ];
     const same = fixtures.map(fx => { const a = fx(), b = fx(), before = JSON.stringify(a); const n = siNew(a), o = siOld(b); return [JSON.stringify(n) === JSON.stringify(o), JSON.stringify(a) === before, JSON.stringify(n).slice(0, 60)]; });
     const img = fixtures[5](), m1out = siNew(fixtures[0]());
-    check('fold M2: sanitizeItem (run for real) with its per-item rule lifted into wireWbItem gives, byte for byte, the copy it gave before (a hidden token, a GM-note card, a hidden one, sheet, GM note and kept original, 1e20, a text box, a waiting token, a light, falsy GM prep, a stray entry; a map with nothing, a planner, a page, a picture) and never touches the host\'s own map',
-        same.every(s => s[0] && s[1]) && siNew(img) === img && m1out.whiteboard.length === 16 && m1out.whiteboard.find(w => w && w.id === 'v0').front === 30 && m1out.whiteboard.find(w => w && w.id === 'v1').front === 60 && !/secret|GM note|"sheet":\{|"frame":\{/.test(JSON.stringify(m1out)),
+    check('fold M2: sanitizeItem (run for real) with its per-item rule in wireWbItem gives, byte for byte, the copy the rule written out beside it gives (a hidden token, a hidden shape and one hidden by a 1 left out whole, a GM-note card, a hidden one, sheet, GM note and kept original, 1e20, a text box, a waiting token, a light, falsy GM prep, a stray entry; a map with nothing, a planner, a page, a picture) and never touches the host\'s own map',
+        same.every(s => s[0] && s[1]) && siNew(img) === img && m1out.whiteboard.length === 13 && !m1out.whiteboard.some(w => w && (w.id === 'w2' || w.id === 'w9' || w.id === 'w10' || w.hidden)) && !/the key|hidden secret/.test(JSON.stringify(m1out)) && m1out.whiteboard.find(w => w && w.id === 'v0').front === 30 && m1out.whiteboard.find(w => w && w.id === 'v1').front === 60 && !/secret|GM note|"sheet":\{|"frame":\{/.test(JSON.stringify(m1out)),
         JSON.stringify(same));
-    const stubKeys = Object.keys(new Function((fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'cleanup.js'), 'utf8').match(/var STUB_KEYS = \{[^}]*\};/) || ['var STUB_KEYS = {};'])[0] + '\nreturn STUB_KEYS;')());
     const note = { id: 'n', type: 'rect', gmNoteFor: 'r1', x: 1 }, hid = { id: 'h', type: 'image', hidden: true, x: 1e20, y: 2, w: 3, h: 4, rot: Infinity, front: 45, layer: 'bg', sheet: { a: 1 }, light: torchM };
     const hidBefore = JSON.stringify(hid), stubF = wwi(hid, false), stubT = wwi(JSON.parse(JSON.stringify(hid), wireNumF), true);
-    const wantStub = { id: 'h', type: 'rect', hidden: true, x: 1e15, y: 2, w: 3, h: 4, rot: 0, layer: 'bg', locked: true };
+    const hid1 = { id: 'h1', type: 'rect', hidden: 1, x: 1, y: 2 }, notHid = [{ id: 'v', type: 'rect', hidden: false, x: 1 }, { id: 'v', type: 'rect', hidden: 0, x: 1 }, { id: 'v', type: 'rect', hidden: '', x: 1 }];
     const tok = { id: 't', type: 'image', isChar: true, x: 1e20, y: 1, sheet: { hp: 3 }, gmInfo: 'g', frame: { src: 'k' }, light: torchM }, tokBefore = JSON.stringify(tok), tokF = wwi(tok, false);
     const plain = { id: 'p', type: 'rect', x: 1, y: 2 }, prep = { id: 'q', type: 'image', x: 1, sheet: { a: 1 }, gmInfo: 'g', frame: { src: 'k' } }, prepT = wwi(prep, true);
     const vis = { id: 'v', type: 'image', isChar: true, x: 1e20, light: torchM }, visBefore = JSON.stringify(vis), visF = wwi(vis, false);
     const oneEach = [{ id: 'g', gmInfo: 'g' }, { id: 's', sheet: { a: 1 } }, { id: 'f', frame: { src: 'k' } }], oneF = oneEach.map(w => wwi(w, false)), oneT = oneEach.map(w => wwi(JSON.parse(JSON.stringify(w)), true));
-    check('fold M2: wireWbItem (run for real) gives null for a GM-note card, and a hidden item exactly the position-only stub (its keys the ones cleanup.js knows a stub by), bounded, with no facing, sheet or light, whether it was cloned already or not',
-        wwi(note, false) === null && wwi(note, true) === null && JSON.stringify(stubF) === JSON.stringify(wantStub) && JSON.stringify(stubT) === JSON.stringify(wantStub)
-        && JSON.stringify(Object.keys(stubF).sort()) === JSON.stringify(stubKeys.slice().sort()) && JSON.stringify(hid) === hidBefore,
-        JSON.stringify([stubF, stubT, stubKeys]));
+    check('hidden pieces: wireWbItem (run for real) gives null for a GM-note card and for a hidden item — no id, no box, nothing of it — whether it was cloned already or not, hidden by true or by any truthy mark; a piece whose mark is false, 0 or empty is sent as ever; the host\'s own item is left as it was',
+        wwi(note, false) === null && wwi(note, true) === null && stubF === null && stubT === null && wwi(hid1, false) === null && wwi(JSON.parse(JSON.stringify(hid1)), true) === null
+        && notHid.every(w => { const o = wwi(w, false); return !!o && o.id === 'v' && o.x === 1; }) && JSON.stringify(hid) === hidBefore,
+        JSON.stringify([stubF, stubT]));
     check('fold M2: wireWbItem on an item sent alone (cloned = false) copies and bounds it first and never touches the host\'s own item; on sanitizeItem\'s own clone (cloned = true) it works in place: a plain item is the same object, GM prep is deleted from it with no second clone',
         tokF !== tok && JSON.stringify(tok) === tokBefore && tokF.x === 1e15 && !('sheet' in tokF) && !('gmInfo' in tokF) && !('frame' in tokF) && JSON.stringify(tokF.light) === JSON.stringify(torchM) && tokF.isChar === true
         && wwi(plain, true) === plain && JSON.stringify(plain) === JSON.stringify({ id: 'p', type: 'rect', x: 1, y: 2 }) && prepT === prep && JSON.stringify(prep) === JSON.stringify({ id: 'q', type: 'image', x: 1 })
@@ -5574,9 +5712,9 @@ pendingChecks.push((async () => {
         JSON.stringify([tokF, prepT, visF, oneF, oneT]));
     const siAt = src.indexOf('function sanitizeItem('), siEnd = src.indexOf('\n}\n', siAt) + 3, wwAt = src.indexOf('function wireWbItem(');
     const gap = src.slice(siEnd, wwAt).split('\n').filter(Boolean), siBody = src.slice(siAt, siEnd);
-    check('fold M2: wireWbItem sits directly after sanitizeItem (comments only between), which calls it once on its own clone, and the hidden stub is written once in net.js',
+    check('fold M2: wireWbItem sits directly after sanitizeItem (comments only between), which calls it once on its own clone, and no box for a hidden piece is written anywhere in net.js',
         wwAt > siEnd && gap.every(l => /^\/\/ /.test(l)) && (siBody.match(/wireWbItem\(w, true\)/g) || []).length === 1 && !/gmNoteFor|hidden: true/.test(siBody)
-        && (src.match(/function wireWbItem\(/g) || []).length === 1 && (src.match(/type: 'rect', hidden: true/g) || []).length === 1,
+        && (src.match(/function wireWbItem\(/g) || []).length === 1 && (src.match(/type: 'rect', hidden: true/g) || []).length === 0 && /function wireWbItem\(w, cloned\) \{\n    if \(w\.gmNoteFor \|\| w\.hidden\) return null;\n/.test(src),
         JSON.stringify(gap));
 }
 // fold M3: a player's page as the 'fogDiff' branch and applyFogDiff see it, both sliced by their markers and run for real with the real
@@ -5715,7 +5853,7 @@ pendingChecks.push((async () => {
         fnSrc('function quickHash(', '\n}\n', 'quickHash') + '\n}\n', fnSrc('function playerStroke(', '\n}\n', 'playerStroke') + '\n}\n', whole4('net.sendItem = function('), whole4('net.broadcastItemFiltered = function('), whole4('net.itemGone = function('), whole4('net.kickPlayer = function('), bw('sensesmoved'), bw('combats'), lineOf('var _saveSoon = null;'), lineOf('function saveRemoteSoon()'), bw('bpos'),
         src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem(')), ownKeySrc, bw('pos'), bw('patch'), bw('fogdiffapply'), bw('fogmove'),
         'return { pos: handlePos, patch: applyClientItemFiltered, landed: fogLanded, sweep: fogDragSweep, open: openDrag, opens: openDrags, end: dragEnd, live: fogOwnLive, clean: sanitizeItem, combats: broadcastCombats, targets: broadcastTargets, drags: function() { return _dragFrom; }, stale: FOG_DRAG_STALE_MS,',
-        'held: function() { return _fogHeld; }, seedSnap: fogSeedSnapshot, forgetAll: fogForgetAll, hash: quickHash, copy: fogCopyFor,',
+        'held: function() { return _fogHeld; }, seedSnap: fogSeedSnapshot, forgetAll: fogForgetAll, hash: quickHash, copy: fogCopyFor, hid: function() { return _hidPend; },',
         'acks: function() { return _acks; }, ackTook: ackTook, ackOf: ackOf, withAck: withAck, ackSend: ackSend, forgetConn: fogForgetConn,',
         'arm: fogArm, fire: fogMoveFire, catchUp: fogCatchUp, key: fogKey, windowMs: fogWindowMs, pend: function() { return _fogPend; }, cost: function() { return _fogCost; }, sensesSig: function() { return _sensesSig; }, sensesForget: sensesForget,',
         'item: function(msg, conn) {', bw('itempatch'), '}, threatsIn: function(msg, conn) {', bw('threats'), '} };'].join('\n');
@@ -5727,6 +5865,8 @@ pendingChecks.push((async () => {
     const sysM = Sx.cleanSystem({ v: 1, name: 'S', rolls: [], fields: [{ id: 'f_sight', key: 'Sight', label: 'Sight', kind: 'number', def: 60, edit: 'owner', vis: 'all' }] }, { F: Fx, gmView: true });
     // mA: a dark 5 ft map; Ana's tA at (2,2) sees 12 cells, the orc at (15,2) is 13 away (seen from (5,2)); Bo's tB at (2,4) sees tA, never the orc.
     // mB: tA2 and orc2 the same way. mC: a facing cone of 90 degrees with tC and a bat 4 cells off. mO: Bo's other map
+    const quickHash4 = new Function(fnSrc('function quickHash(', '\n}\n', 'quickHash') + '\n}\nreturn quickHash;')();
+    const realDelta = ls => new Function('_lastSent', 'quickHash', lineOf('function uniqueIds(') + '\n' + fnSrc('function itemDelta(itemId, clean) {', '\nfunction applyItemDelta(', 'itemDelta') + '\nreturn itemDelta;')(ls, quickHash4);   // hidden pieces: a world sending an unfogged map's deltas for real (o.realDelta)
     const mk4 = o => {
         o = o || {};
         const ev = [], timers = [], feats = { fog: true, lighting: true, sheets: true, turning: true };
@@ -5752,7 +5892,8 @@ pendingChecks.push((async () => {
         W.winRef = win;   // fold M7: a case sets the GM's gesture on this page's own window   // a stand-in where a case needs lit cells on a copy without building the corner that gives them
         const setT = (fn, ms) => { timers.push({ fn, ms }); return timers.length; }, clearT = id => { const t = timers[id - 1]; if (t) t.fn = null; };
         const bc = (m, ex) => { packCheck(m); W.net.conns.forEach(c => { if (c !== ex && c.open && Object.prototype.hasOwnProperty.call(W.net.roster, c.peer)) c.send(m); }); };
-        W.api = build4(W.net, () => Sx, win, peer => !!(o.paused && o.paused(peer)), () => camp, o.failed ? (e => { o.failed.push(e.message); }) : (e => { throw e; }), c => (W.net.roster[c.peer] ? W.net.roster[c.peer].id : null), { allow: () => true }, () => {}, state, () => null, bc, {}, setT, clearT,
+        const lastSent = {};
+        W.api = build4(W.net, () => Sx, win, peer => !!(o.paused && o.paused(peer)), () => camp, o.failed ? (e => { o.failed.push(e.message); }) : (e => { throw e; }), c => (W.net.roster[c.peer] ? W.net.roster[c.peer].id : null), { allow: () => true }, () => {}, state, o.realDelta ? realDelta(lastSent) : () => null, bc, lastSent, setT, clearT,
             () => { W.saves++; }, t => W.toasts.push(t), () => {}, () => {}, () => {}, o.realAllow ? realAllow(() => W.now) : () => true, () => {}, () => {}, () => {}, m => ev.push('dom:' + m.wbId), () => null, () => {}, () => {}, () => W.now);
         W.move = (conn, wbId, x, y, fin, itemId, more) => W.api.pos(Object.assign({ type: 'pos', campId: 'k', itemId: itemId || 'mA', wbId, x, y, rot: 0, front: 0, final: fin }, more || {}), conn);
         W.tok = (id, mapId) => camp.items[mapId || 'mA'].whiteboard.find(w => w.id === id);
@@ -5828,8 +5969,8 @@ pendingChecks.push((async () => {
     check('fold M4: a drag that ends without landing goes back where it began, place and facing, with one final pos to each who sees it there and the save to come: its connection closed (the close handler\'s own line, run), its player removed (net.kickPlayer, run), its player sent to another map (a copy asked for meanwhile judged and shipping the token at its start), the GM locking the token (its moves refused meanwhile, a GM save shipping it at its start)',
         J(closed.mid) === J([250, 100, 0, 60]) && [closed, summoned, locked].every(r => back(r)) && back(kicked, 0, [250, 400, 400]) && J(summoned.W.sumB) === J([100, 100, 0, 30]) && J(locked.W.lockedAt) === J([250, 100]) && J(locked.W.lockB) === J([100, 100, 0, 30]),
         J([closed, kicked, summoned, locked].map(r => [r.place, r.entry, r.bPos, r.a2Pos, r.timers])));
-    check('fold M4: a token the GM hides mid-drag goes back where it began too, and no one is sent its facing with it (a hidden token\'s pos carries none)',
-        J(hidden.place) === J([100, 100, 0, 30]) && hidden.entry && hidden.W.net.conns.every(c => c.sent.filter(x => x.type === 'pos').every(p => p.front === 0)) && hidden.a2Pos === 1,
+    check('fold M4: a token the GM hides mid-drag goes back where it began on the host too, the drag forgotten, and no one is sent its place — its owner\'s other connection neither (a hidden token\'s moves reach no one)',
+        J(hidden.place) === J([100, 100, 0, 30]) && hidden.entry && hidden.W.net.conns.every(c => c.sent.filter(x => x.type === 'pos').length === 0) && hidden.a2Pos === 0,
         J([hidden.place, hidden.bPos, hidden.W.net.conns.map(c => c.sent.filter(x => x.type === 'pos'))]));
     const W5 = mk4(); W5.move(W5.a1, 'tA', 250, 100, false); W5.tok('tA').x = 400; W5.clearSent(); W5.net.sendItem('k', 'mA', W5.b1); const gmMoved = { b: W5.at(W5.b1, 'tA') };
     W5.clearSent(); W5.api.sweep(); gmMoved.gone = W5.entry('mA', 'tA') === undefined; gmMoved.stay = W5.place('tA'); gmMoved.sent = W5.net.conns.map(c => c.sent.length);
@@ -6066,6 +6207,51 @@ pendingChecks.push((async () => {
             openCross(false) === 250 && openCross(true) === 100 && J(bad) === J([100, 100, 100, 100, 100, 100, 100, 100, 100, 100]) && J(big) === J([100, 0]) && J(cap) === J([16, 'm4', 16]) && J(forgot) === J([1, 2, 1])
             && !/innerHTML|insertAdjacentHTML|outerHTML|setAttribute/.test(actSrc) && /net\.syncedPeer = conn\.peer;[^\n]*\n\s*if \(typeof actForget === 'function'\) actForget\(\);/.test(src) && /var wasHost = net\.active && net\.role === 'host';\n\s*if \(typeof actForget === 'function'\) actForget\(\);/.test(src),
             J([openCross(false), openCross(true), bad, big, cap, forgot]));
+        // hidden pieces (owner, 2026-10-01) on a map without fog, with the real itemDelta and a real player page: the hide goes out as a delta that
+        // names the piece in del alone, a move of the hidden piece sends nothing, Show sets it back in the host's order
+        const dW = () => { const W = mk4({ realDelta: true }); W.camp.items.mA.fog.on = false; const pg = mkPage(W); gmSave(W); pg.take(); W.clearSent(); return { W, pg }; };   // the first send to all is whole: the baseline
+        const has = (pg, id) => pg.map().whiteboard.some(w => w.id === id), kindsOf = c => c.sent.map(m => m.type).filter(t => t !== 'pos'), wb = m => (m && m.whiteboard) || {};
+        const hd = (() => { const { W, pg } = dW(); W.tok('orc').hidden = true; gmSave(W); const m1 = W.a1.sent.slice(); pg.take(); const page1 = pg.map().whiteboard.map(w => w.id);
+            W.clearSent(); W.tok('orc').x = 999; gmSave(W); const moved = W.net.conns.map(c => kindsOf(c).length);
+            W.tok('orc').hidden = false; gmSave(W); const m2 = W.a1.sent.slice(); pg.take();
+            return { k1: m1.map(m => m.type), del1: wb(m1[0]).del, set1: (wb(m1[0]).set || []).map(w => w.id), order1: wb(m1[0]).order, raw1: J(m1), page1, moved, k2: m2.map(m => m.type), set2: (wb(m2[0]).set || []).map(w => [w.id, w.x]), order2: wb(m2[0]).order, page2: pg.map().whiteboard.map(w => w.id), host: W.camp.items.mA.whiteboard.map(w => w.id) }; })();
+        check('hidden pieces (a map without fog, the real itemDelta and a real player page): the hide goes out as a delta naming the piece in del alone — no item of its id, no mark of a hidden thing — and it leaves her page; the GM moving it while hidden sends nothing to anyone; Show sets it back at its new place with the host\'s own order, which her page then holds',
+            J(hd.k1) === J(['itemDelta']) && J(hd.del1) === J(['orc']) && J(hd.set1) === J([]) && J(hd.order1) === J(['tA', 'tB']) && !/\{"id":"orc"|"hidden"/.test(hd.raw1) && J(hd.page1) === J(['tA', 'tB']) && J(hd.moved) === J([0, 0, 0, 0])
+            && J(hd.k2) === J(['itemDelta']) && J(hd.set2) === J([['orc', 999]]) && J(hd.order2) === J(['tA', 'tB', 'orc']) && J(hd.page2) === J(['tA', 'tB', 'orc']) && J(hd.host) === J(['tA', 'tB', 'orc']), J(hd));
+        // a player's own drawing the GM hid: (a) her patch made while it was hidden lands after the GM shows it — nothing erased, her screen put right
+        // with the map whole saying her patch's number, and an erase of hers right after that is an erase; (b) her patch made before the hide reached
+        // her, naming it, leaves no ghost on her screen; (c) a hide and a show with no patch crossing: her next patch names it, then her erase erases
+        const ea = (() => { const { W, pg } = dW(); pg.map().whiteboard.push(stroke('s1', 10)); pg.save(); pg.host(); gmSave(W); pg.take();
+            const s1 = W.camp.items.mA.whiteboard.find(w => w.id === 's1'); s1.hidden = true; gmSave(W); pg.take(); const gone = has(pg, 's1'), rec = J(W.api.hid());
+            pg.drop('tA', 250, 100); pg.save();   // her patch, made from a copy without s1, on its way
+            s1.hidden = false; W.clearSent(); gmSave(W); pg.take(); const shownMid = has(pg, 's1');   // the show reaches her first: her app drops the drawing her patch did not know of
+            W.clearSent(); pg.host(); const hostHas = has({ map: () => W.camp.items.mA }, 's1'), wholes = W.a1.sent.filter(m => m.type === 'item').map(m => [m.ack, m.item.whiteboard.map(w => w.id).join()]), others = kindsOf(W.b1), recAfter = J(W.api.hid());
+            pg.take(); const pageHas = has(pg, 's1');
+            W.clearSent(); pg.tok('tA').x = 150; pg.map().whiteboard = pg.map().whiteboard.filter(w => w.id !== 's1'); pg.save(); pg.host(); const erased = !has({ map: () => W.camp.items.mA }, 's1'), wholes2 = W.a1.sent.filter(m => m.type === 'item').length;   // her erase, with her next move (a copy equal to her last patch is not sent again)
+            return { gone, rec, shownMid, hostHas, wholes, others, recAfter, pageHas, erased, wholes2 }; })();
+        const gh = (() => { const { W, pg } = dW(); pg.map().whiteboard.push(stroke('s1', 10)); pg.save(); pg.host(); gmSave(W); pg.take();
+            pg.drop('tA', 250, 100); pg.save();   // her patch, naming s1, on its way
+            const s1 = W.camp.items.mA.whiteboard.find(w => w.id === 's1'); s1.hidden = true; W.clearSent(); gmSave(W); pg.take(); const ghost = has(pg, 's1');
+            W.clearSent(); pg.host(); const wholes = W.a1.sent.filter(m => m.type === 'item').map(m => [m.ack, m.item.whiteboard.map(w => w.id).join()]); pg.take(); const after = has(pg, 's1'), hostHid = s1.hidden === true && W.camp.items.mA.whiteboard.indexOf(s1) >= 0;
+            W.clearSent(); pg.tok('tA').x = 150; pg.save(); pg.host(); const again = W.a1.sent.filter(m => m.type === 'item').length; pg.take(); const later = has(pg, 's1');
+            return { ghost, wholes, after, hostHid, again, later }; })();
+        const nm = (() => { const { W, pg } = dW(); pg.map().whiteboard.push(stroke('s1', 10)); pg.save(); pg.host(); gmSave(W); pg.take();
+            const s1 = W.camp.items.mA.whiteboard.find(w => w.id === 's1'); s1.hidden = true; gmSave(W); pg.take(); s1.hidden = false; gmSave(W); pg.take(); const back = has(pg, 's1');
+            W.clearSent(); pg.drop('tA', 250, 100); pg.save(); pg.host(); const wholes = W.a1.sent.filter(m => m.type === 'item').length, rec = J(W.api.hid());   // her copy names it: the record forgets it
+            pg.take(); pg.map().whiteboard = pg.map().whiteboard.filter(w => w.id !== 's1'); pg.save(); pg.host(); const erased = !has({ map: () => W.camp.items.mA }, 's1');
+            return { back, wholes, rec, erased }; })();
+        check('hidden pieces (a player\'s own drawing the GM hid; the real patch gate, sends, itemDelta and player page): (a) her map copy made while it was hidden that lands after the GM shows it erases nothing — the host remembers, per connection of hers, the drawings of hers it hid — and she is sent the map whole saying her patch\'s number, which puts the drawing her app had dropped back on her screen; her erase with her next move is an erase (the record forgot the id with that copy); nobody else gets a whole map',
+            ea.gone === false && ea.rec === J({ pA1: { mA: { s1: 1 } }, pA2: { mA: { s1: 1 } } }) && ea.shownMid === false && ea.hostHas === true && J(ea.wholes) === J([[3, 'tA,tB,orc,s1']]) && J(ea.others) === J([]) && ea.recAfter === J({ pA1: { mA: {} }, pA2: { mA: { s1: 1 } } }) && ea.pageHas === true && ea.erased === true && ea.wholes2 === 0, J(ea));
+        check('hidden pieces (a player\'s own drawing the GM hid): (b) her copy made before the hide reached her names the drawing, and her app had written it back over the hide — she is sent the map whole saying her patch\'s number and the ghost goes, the host\'s drawing still hidden and in place; her next copy without it erases nothing and brings no whole map; (c) a hide and a show no patch crosses: the drawing is back on her screen, her next copy names it and brings no whole map (the record forgets it), and her erase after that is an erase',
+            gh.ghost === true && J(gh.wholes) === J([[3, 'tA,tB,orc']]) && gh.after === false && gh.hostHid === true && gh.again === 0 && gh.later === false
+            && nm.back === true && nm.wholes === 0 && nm.rec === J({ pA1: { mA: {} }, pA2: { mA: { s1: 1 } } }) && nm.erased === true, J([gh, nm]));
+        // the record: made at a send of the map (whole or a delta) and at a join, for each connection of the drawing's owner; forgotten with the connection, the map and the table; its source
+        const rc = (() => { const W = mk4({ realDelta: true }); W.camp.items.mA.fog.on = false; W.camp.items.mA.whiteboard.push(Object.assign(stroke('s1', 10), { hidden: true }), Object.assign(stroke('s2', 20), { hidden: 1, ownerId: 'u_b' }));
+            W.net.sendItem('k', 'mA'); const r1 = J(W.api.hid()); W.net.broadcastItemFiltered('k', 'mB'); const r2 = J(W.api.hid()); W.net.broadcastItemFiltered('k', 'mA'); const r3 = J(W.api.hid());
+            W.api.forgetConn('pA2'); const r4 = J(W.api.hid()); W.net.itemGone('k', 'mA'); const r5 = J(W.api.hid()); W.net.sendItem('k', 'mA'); W.api.forgetAll(); const r6 = J(W.api.hid()); return { r1, r2, r3, r4, r5, r6 }; })();
+        check('hidden pieces (the record): a send of a map notes each hidden drawing of a player\'s for every connection of theirs — hidden as true or as 1, never for another player\'s connections nor a peer not admitted — whole or filtered alike, another map adding nothing; a closed connection, the map gone and a new table forget it; the join notes every map of the hosted campaign after the snapshot went, and the record lives in the host\'s memory alone (never saved, never sent)',
+            rc.r1 === J({ pA1: { mA: { s1: 1 } }, pA2: { mA: { s1: 1 } }, pB: { mA: { s2: 1 } } }) && rc.r2 === rc.r1 && rc.r3 === rc.r1 && rc.r4 === J({ pA1: { mA: { s1: 1 } }, pB: { mA: { s2: 1 } } }) && rc.r5 === J({ pA1: {}, pB: {} }) && rc.r6 === '{}'
+            && /if \(snapOk && typeof hidNoteAll === 'function'\) hidNoteAll\(\);/.test(src) && (src.match(/hidNote\(it\)/g) || []).length === 2 && !/_hidPend/.test(src.slice(src.indexOf('function sanitizeAppState('), src.indexOf('function fogNow()'))), J(rc));
     }
     // fold M7: the landing. A copy caught up in place after a move lands; every connection's copy then equals a fresh copy judged for it
     const fresh7 = (W, pid, mapId) => W.api.landed(null, () => { const m = W.camp.items[mapId || 'mA'], out = W.api.copy(W.api.clean(m), W.camp, m, pid); return { ids: out.whiteboard.map(w => w.id), fogLit: FCx.cleanFogLit(out.fogLit) || null, cap: out.lightsCapped === true }; });
@@ -6083,17 +6269,38 @@ pendingChecks.push((async () => {
         && J(out7.a1) === J(['fogDiff:["orc"]']) && J(out7.b) === J([]) && out7.agree,
         J([pin7, armed7, before7, land7, out7]));
 
-    // the player walked away from, and up to again; content: a GM-hidden creature arrives as its stub, nothing of the GM's rides along, no own token
+    // the player walked away from, and up to again; content: a GM-hidden creature is in no catch-up, nothing of the GM's rides along, no own token
     const H = S7(); H.camp.items.mA.whiteboard.push(T('ghost', '', 'c_n', 12, 20, { hidden: true, gmInfo: 'secret', sheet: { a: 1 }, frame: { src: 'k' } }));
     H.net.conns.forEach(c => { H.net.sendItem('k', 'mA', c); c.sent.length = 0; });
     H.move(H.a1, 'tA', 100, 1000, true); H.fire(150); const away = { b: H.b1.sent.filter(m => m.type !== 'pos').map(m => m.type + ':' + J(m.drop || '')), a: H.a1.sent.map(m => (m.add || []).map(a => a.item.id).join(',') + '/' + J(m.drop || [])), ghost: ((H.a1.sent[0] || {}).add || []).map(a => a.item).find(i => i.id === 'ghost'), agree: agree(H) };
     H.net.conns.forEach(c => { c.sent.length = 0; }); H.move(H.a1, 'tA', 100, 100, true); H.fire(150); const backM7 = { b: H.b1.sent.filter(m => m.type === 'fogDiff').map(m => (m.add || []).map(a => a.item.id + '@' + a.item.x + ',' + a.item.y + '<' + a.after).join(',')), agree: agree(H) };
     const all7 = H.net.conns.concat([]).reduce((acc, c) => acc.concat(c.sent.filter(m => m.type === 'fogDiff')), []).concat(G.a1.sent);
     const noOwn = [G, H].every(W => W.net.conns.every(c => c.sent.filter(m => m.type === 'fogDiff').every(m => (m.add || []).every(a => a.item.ownerId !== (W.net.roster[c.peer] || {}).id) && (m.drop || []).every(id => { const t = W.tok(id); return !t || t.ownerId !== (W.net.roster[c.peer] || {}).id; }))));
-    check('fold M7: the player walked away from loses the mover\'s token and the one walked up to gets it back at the host\'s own place, after what their copy holds; a creature the GM hid arrives as its position-only stub; no catch-up carries a GM note, a sheet, a kept original or anyone\'s own token',
-        J(away.b) === J(['fogDiff:["tA"]']) && J(away.a) === J(['ghost/["tB"]']) && J(Object.keys(away.ghost).sort()) === J(['h', 'hidden', 'id', 'locked', 'rot', 'type', 'w', 'x', 'y']) && away.agree
+    check('fold M7: the player walked away from loses the mover\'s token and the one walked up to gets it back at the host\'s own place, after what their copy holds; a creature the GM hid, though in the mover\'s sight, is in no catch-up (no item, no id); no catch-up carries a GM note, a sheet, a kept original or anyone\'s own token',
+        J(away.b) === J(['fogDiff:["tA"]']) && J(away.a) === J(['/["tB"]']) && away.ghost === undefined && !/ghost/.test(J(H.net.conns.map(c => c.sent))) && away.agree
         && J(backM7.b) === J(['tA@100,100<null']) && backM7.agree && noOwn && !/secret|"sheet"|"gmInfo"|"frame"|gmNoteFor/.test(J(all7)),
         J([away, backM7]));
+
+    // hidden pieces: a hidden piece that is no creature (a trap tile) standing right before the creature a catch-up adds is never the place the add names
+    const Hz = S7(); const wbZ = Hz.camp.items.mA.whiteboard; wbZ.splice(wbZ.findIndex(w => w.id === 'orc'), 0, { id: 'trapz', type: 'rect', hidden: 1, trap: true, targetMapId: 'mB', x: 700, y: 100, w: 50, h: 50 });
+    Hz.net.conns.forEach(c => { Hz.net.sendItem('k', 'mA', c); c.sent.length = 0; });
+    Hz.move(Hz.a1, 'tA', 250, 100, false); Hz.move(Hz.a1, 'tA', 250, 100, true); Hz.fire(150);
+    const anchorZ = Hz.a1.sent.filter(m => m.type === 'fogDiff').map(m => (m.add || []).map(a => a.item.id + '<' + a.after));
+    check('hidden pieces (the catch-up\'s anchor): a hidden trap tile standing right before the orc in the stacking order is never the place a catch-up names for it (the add comes after the last piece the copy holds), and nothing of the tile is on the wire; every copy still equals a fresh one',
+        J(anchorZ) === J([['orc<tB']]) && !/trapz|700/.test(J(Hz.net.conns.map(c => c.sent))) && agree(Hz), J([anchorZ]));
+    // hidden pieces in the one-module world (real player pages): hiding takes a piece out of every copy and showing puts it back, on a map
+    // without fog (its whole copies here; its deltas with the real itemDelta above, 14c K2) and on a fogged one (whole copies); and a creature a copy holds that the GM hides leaves at the next catch-up
+    const hasOrc = W => [W.a1, W.a2, W.b1].map(c => W.view(c).ids.indexOf('orc') >= 0), rawSent = W => J(W.net.conns.map(c => c.sent));
+    const wHid = S7(); wHid.camp.items.mA.fog.on = false; wHid.net.sendItem('k', 'mA'); const hid0 = hasOrc(wHid);
+    wHid.tok('orc').hidden = true; wHid.clearSent(); wHid.net.sendItem('k', 'mA'); const hid1 = hasOrc(wHid), hidRaw = rawSent(wHid);
+    wHid.tok('orc').hidden = false; wHid.clearSent(); wHid.net.sendItem('k', 'mA'); const hid2 = hasOrc(wHid), hidOrder = J(wHid.view(wHid.b1).ids) === J(wHid.camp.items.mA.whiteboard.filter(w => !w.gmNoteFor && !w.hidden).map(w => w.id));
+    check('hidden pieces (a map without fog, the real sends and player pages): everyone holds the orc; the GM hides it and it leaves every copy, with no item of that id and no mark of a hidden thing on the wire; shown again it is back, in the host\'s own stacking order though the copies had lost it',
+        J(hid0) === J([true, true, true]) && J(hid1) === J([false, false, false]) && !/\{"id":"orc"|"hidden"/.test(hidRaw) && J(hid2) === J([true, true, true]) && hidOrder, J([hid0, hid1, hid2, hidOrder, hidRaw.slice(0, 300)]));
+    const Hd = S7(); Hd.move(Hd.a1, 'tA', 250, 100, false); Hd.move(Hd.a1, 'tA', 250, 100, true); Hd.fire(150); const held0 = hasOrc(Hd);
+    Hd.tok('orc').hidden = true; Hd.net.conns.forEach(c => { c.sent.length = 0; }); Hd.move(Hd.a1, 'tA', 300, 100, false); Hd.move(Hd.a1, 'tA', 300, 100, true); Hd.fire(150);
+    const hidCu = { diffs: Hd.a1.sent.filter(m => m.type === 'fogDiff').map(m => J((m.add || []).map(a => a.item.id)) + '/' + J(m.drop || [])), has: hasOrc(Hd), agree: agree(Hd) };
+    check('hidden pieces (a fogged map, the catch-up): a creature the mover\'s copies hold that the GM has hidden since is taken out by the next catch-up — though it stands in their sight — and every copy then equals a fresh one',
+        J(held0) === J([true, true, false]) && J(hidCu.diffs) === J(['[]/["orc"]']) && J(hidCu.has) === J([false, false, false]) && hidCu.agree, J([held0, hidCu]));
 
     // arming: what arms the fire and what does not
     const armN = W => W.timers.filter(t => t.fn && t.ms === 150).length;
@@ -6225,7 +6432,7 @@ pendingChecks.push((async () => {
             J(nGot.aOff) === J({ tA: ['sn_hear0001'] }) && nGot.aMarks === false && nGot.bOff === false && /"id":"zoneV"/.test(nGot.zoneV) && !/nulls/.test(nGot.zoneV) && nGot.hidIds === false && nGot.nulls === false && nGot.clone === false
             && J(outD) === J([J({})]) && J(backD) === J([J({ tA: ['sn_hear0001'] })]), J([nGot, outD, backD]));
         check('senses S7a (source): a hidden null area is left out of a player\'s copy whole and its live moves reach no one; the whole copy, the catch-up and the player\'s app carry and clean fogOff',
-            /if \(w\.hidden && w\.nulls !== undefined\) return null;/.test(src) && /if \(w && \(w\.gmNoteFor \|\| \(w\.hidden && w\.nulls !== undefined\)\)\) return;/.test(src) && /delete w\.unsensed; delete w\.nulls; \}/.test(src)
+            /if \(w\.gmNoteFor \|\| w\.hidden\) return null;/.test(src) && /if \(w && \(w\.gmNoteFor \|\| w\.hidden\)\) return;/.test(src) && /delete w\.unsensed; delete w\.nulls; \}/.test(src)
             && /if \(off\) out\.fogOff = off;/.test(src) && /if \(ofHash !== rec\.of\) msg\.off = ofNow;/.test(src) && /FCo\.cleanFogOff\(msg\.off, ownTokIdsOf\(map\)\)/.test(src) && /window\.wpFogCore\.cleanFogOff\(m\.fogOff, ownTokIdsOf\(m\)\)/.test(src));
     }
     // senses S7b (host): smoke on the wire — a visible piece travels with its tick (every side must agree on what it hides), and a token walks through it
@@ -6380,9 +6587,9 @@ pendingChecks.push((async () => {
     const clT = wT.api.clean(wT.camp.items.mA), cpT = wT.api.copy(clT, wT.camp, wT.camp.items.mA, 'u_a'), noneT = [snN(clT), snN(wT.api.copy(clT, wT.camp, wT.camp.items.mA, 'u_zz')), snN(wT.api.copy(clT, wT.camp, wT.camp.items.mA, null)) + snN(wT.api.copy(clT, wT.camp, wT.camp.items.mA, undefined)) + snN(wT.api.copy({ type: 'map', whiteboard: [] }, wT.camp, { id: 'mZ', type: 'map', fog: { on: true, mode: 'auto' } }, 'u_a')), cpT.whiteboard.find(w => w.id === 'tA') !== clT.whiteboard.find(w => w.id === 'tA'), cpT !== clT, snN(cpT)];
     wT.clearSent(); wT.net.broadcastItemFiltered('k', 'mA'); const bifT = [snOf(wT, wT.a1, 'tA'), snOf(wT, wT.b1, 'tB'), snOf(wT, wT.b1, 'tA'), snN(wT.last(wT.a1)), snN(wT.last(wT.b1))];
     const joinT = snN(wT.api.copy(wT.api.clean(JSON.parse(hostT)), wT.camp, JSON.parse(hostT), 'u_a'));
-    check('senses S2b (host): a token given a range of its own sees by it on the host\'s judgement (a sense every token has at 0: the orc 13 cells off reaches both of Ana\'s copies only once her token has 65 ft); each copy of a fogged map carries the ranges of its own player\'s visible tokens alone — cleaned (the first of a sense, clamped), only the senses the system holds — never another player\'s, an NPC\'s, a hidden or a waiting token\'s, a plain send or one to the table alike; the join snapshot\'s copy (made from a clone of the map) the same',
+    check('senses S2b (host): a token given a range of its own sees by it on the host\'s judgement (a sense every token has at 0: the orc 13 cells off reaches both of Ana\'s copies only once her token has 65 ft); each copy of a fogged map carries the ranges of its own player\'s visible tokens alone — cleaned (the first of a sense, clamped), only the senses the system holds — never another player\'s, an NPC\'s or a waiting token\'s (a hidden token is not sent at all), a plain send or one to the table alike; the join snapshot\'s copy (made from a clone of the map) the same',
         J(seenT) === J([{ a: false, a2: false, b: false, relay: false, relayB: false }, { a: true, a2: true, b: false, relay: true, relayB: false }])
-        && J(sentT) === J({ a1: [s65(), 'none', 'none', 'none', 'none', [{ id: 'sn_force001', n: 100000 }], 'none'], a2: s65(), b: ['none', [{ id: 'sn_force001', n: 5 }], 'absent', 'none'], nA: 2, nB: 1, orcA: true })
+        && J(sentT) === J({ a1: [s65(), 'none', 'none', 'absent', 'none', [{ id: 'sn_force001', n: 100000 }], 'none'], a2: s65(), b: ['none', [{ id: 'sn_force001', n: 5 }], 'absent', 'none'], nA: 2, nB: 1, orcA: true })
         && J(bifT) === J([s65(), [{ id: 'sn_force001', n: 5 }], 'none', 2, 1]) && joinT === 2, J([seenT, sentT, bifT, joinT]));
     check('senses S2b (host): the shared clone every copy is made from never holds a token\'s ranges, nor a copy made for nobody or for a profile with no token there; the owner\'s copy gets a board and a token of its own (the clone untouched), and the host\'s own map is exactly as it was after every send',
         J(noneT) === J([0, 0, 0, true, true, 2]) && J(wT.camp.items.mA) === hostT && snN(wT.api.clean(wT.camp.items.mA)) === 0, J(noneT));
@@ -6403,7 +6610,7 @@ pendingChecks.push((async () => {
     wPt.api.item(patchMsg({ senses: [{ id: 'sn_force001', n: 100000 }] }, [{ id: 'tB', x: 100, y: 200, rot: 0, front: 0, senses: [{ id: 'sn_force001', n: 100000 }] }]), wPt.a1);
     wPt.api.item(patchMsg({ x: 150 }), wPt.a1); wPt.api.patch(patchMsg({ x: 150, senses: [] }), { id: 'u_a' });
     const patT = [wPt.tok('tA').senses, Object.prototype.hasOwnProperty.call(wPt.tok('tB'), 'senses'), wPt.tok('tA').x, snN(wPt.b1.sent), wPt.a2.sent.filter(m => m.type === 'item').map(m => snN(m))];
-    // what the mutants found: a hidden, waiting or GM-note item sharing a visible token's id never lends it its ranges, nor does a stub take
+    // what the mutants found: a hidden, waiting or GM-note item sharing a visible token's id never lends it its ranges (a hidden one is not sent: it cannot take
     // the visible one's; a senses list with a stray entry sends as ever; a host with no cleaner on hand sends no ranges at all
     const wDup = S7({ system: sysSn(snBy(0)), tA: { senses: s65() } }), dupB = wDup.camp.items.mA.whiteboard;
     dupB.push({ id: 'tA', type: 'rect', hidden: true, ownerId: 'u_a', x: 0, y: 0, w: 5, h: 5, senses: [{ id: 'sn_force001', n: 70 }] });
@@ -6413,8 +6620,8 @@ pendingChecks.push((async () => {
     wDup2.clearSent(); wDup2.net.sendItem('k', 'mA'); const dupC = snN(wDup2.last(wDup2.a1));
     const wStray = S7({ system: sysSn(snBy(0)), tA: { senses: s65() } }); wStray.camp.system.combat.senses.list.push(null); wStray.clearSent(); let strayErr = ''; try { wStray.net.sendItem('k', 'mA'); } catch (e) { strayErr = e.message; }
     const wNoC = S7({ system: sysSn(snBy(0)), tA: { senses: s65() } }); delete wNoC.winRef.wpFogCore; wNoC.clearSent(); wNoC.net.sendItem('k', 'mA'); wNoC.winRef.wpFogCore = FCx;
-    check('senses S2b (host): a hidden, a waiting or a GM-note item that shares a visible token\'s id never lends it its ranges and a hidden stub never takes the visible token\'s; a stray entry in the senses list sends as ever; with no cleaner on hand the host sends no ranges at all',
-        J(dupA) === J([[false, s65()], [true, 'none']]) && dupC === 0 && strayErr === '' && J(snOf(wStray, wStray.a1, 'tA')) === J(s65()) && snN(wNoC.a1.sent) + snN(wNoC.a2.sent) + snN(wNoC.b1.sent) === 0 && wNoC.a1.sent.length === 1, J([dupA, dupC, strayErr, wNoC.a1.sent.length]));
+    check('senses S2b (host): a hidden, a waiting or a GM-note item that shares a visible token\'s id never lends it its ranges, and the hidden one is not sent; a stray entry in the senses list sends as ever; with no cleaner on hand the host sends no ranges at all',
+        J(dupA) === J([[false, s65()]]) && dupC === 0 && strayErr === '' && J(snOf(wStray, wStray.a1, 'tA')) === J(s65()) && snN(wNoC.a1.sent) + snN(wNoC.a2.sent) + snN(wNoC.b1.sent) === 0 && wNoC.a1.sent.length === 1, J([dupA, dupC, strayErr, wNoC.a1.sent.length]));
     check('senses S2b (host): no map copy of a player\'s sets a token\'s ranges — their own token\'s stay the GM\'s (a range sent, none sent, an empty list), another\'s get none; the copies it sends on carry the host\'s ranges to that player\'s other connection and none to anyone else',
         J(patT) === J([s65(), false, 150, 0, [1]]), J(patT));
 

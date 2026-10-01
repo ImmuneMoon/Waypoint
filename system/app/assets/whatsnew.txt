@@ -1286,6 +1286,25 @@ Undo
   bringing a token over from another map clear both maps' undo at that point.
 
 Multiplayer
+- What you hide, players no longer see at all. A hidden item used to show
+  players a grey cloud exactly where it stood, so a hidden creature, a
+  secret door or a trap tile gave its place away. Now nothing of it is sent
+  to them: no cloud, no outline, none of its moves while you drag it. Show
+  to Players brings it back where it is, in its place in the stacking
+  order. Trap tiles still fire when a token is dropped on them (your
+  machine judges the drop), and a hidden portal can no longer be entered by
+  a player's app that remembers it from before it was hidden. A trap tile
+  that cannot fire (travel locked, its destination closed to players) tells
+  the player nothing either: you are told instead. A creature you walk
+  through a portal hidden arrives hidden; a hidden creature's initiative is
+  rolled again in private; a target pointer at a hidden token reaches
+  nobody; a thrown blast takes no height from a hidden token; the host
+  answers a player's app about a hidden token as about one that is not
+  there; and a hidden token's Properties wait until you show it before
+  offering a new roster entry (a roster name is sent to players). A drawing
+  of a player's that you hide stays on your map until you show or delete
+  it, and showing it again can no longer lose it to a map copy of theirs
+  made while it was hidden.
 - "Players arrive at" now offers "Player's last location" — the default once a
   campaign has players — so each player comes back to the map they were last
   on and stays put until they travel or the GM summons them. A second choice,

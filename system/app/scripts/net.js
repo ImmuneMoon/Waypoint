@@ -526,7 +526,7 @@ if (_rosterEl) _rosterEl.addEventListener('click', function(e) {
 /* ---------- what clients are allowed to receive ---------- */
 // Strip GM-only content before anything leaves the host: planners never ship,
 // room notes / character dossier info never ship, GM-note cards never ship,
-// and hidden whiteboard items are reduced to a position-only stub.
+// and hidden whiteboard items never ship (not even their place).
 // Token stance from a player: a finite elevation in yards, a posture of the list in use (conditions C3: the system's own, by its id, else the seven)
 var POSTURE_SET = { standing: 1, crouching: 1, sitting: 1, kneeling: 1, crawling: 1, 'lying-prone': 1, 'lying-face-up': 1 };
 var POSTURE_OLD = { prone: 'lying-prone', supine: 'lying-face-up' };   // 1.4.6 pre-release ids, still read
@@ -560,13 +560,12 @@ function sanitizeItem(item) {
     return m;
 }
 // Fold M: one item's rule on its way to a player, for a whole map's copy (sanitizeItem, whose clone it already is: cloned = true) and for
-// one item sent alone (cloned = false: copied and bounded here first, so the host's own item is never touched). null for a GM-note card;
-// a hidden item is a position-only stub
+// one item sent alone (cloned = false: copied and bounded here first, so the host's own item is never touched). null for a GM-note card
+// and for a hidden piece: what the GM hides is not sent at all — no id, no box, nothing to draw (owner, 2026-10-01: players see nothing
+// where something is hidden; a box in its place told them where a hidden creature, a secret door or a trap tile was)
 function wireWbItem(w, cloned) {
-    if (w.gmNoteFor) return null;
-    if (w.hidden && w.nulls !== undefined) return null;   // senses S7a: a hidden null area leaves no stub (its box would be the place's outline)
+    if (w.gmNoteFor || w.hidden) return null;
     if (!cloned) w = JSON.parse(JSON.stringify(w), wireNum);
-    if (w.hidden) return { id: w.id, type: 'rect', hidden: true, x: w.x, y: w.y, w: w.w, h: w.h, rot: w.rot || 0, layer: w.layer, locked: true };
     // attached sheets, the per-token GM note/dialogue AND the token creator's kept original are GM prep (and heavy) — never on the wire
     if (w.sheet || w.gmInfo || w.frame) { delete w.sheet; delete w.gmInfo; delete w.frame; }
     if (w.senses !== undefined || w.blind !== undefined || w.unsensed !== undefined || w.nulls !== undefined) { delete w.senses; delete w.blind; delete w.unsensed; delete w.nulls; }   // S7a: a null area's senses are the GM's   // senses S2b, S3, S4 (unsensed: never on the wire at all): a token's own ranges and the GM's Blind tick are the GM's: only its player's own copy of a fogged map gets them back (fogCopyFor)
@@ -604,7 +603,7 @@ function fxbMoved(id) {
     Object.keys(camp.items || {}).forEach(function(mid) {
         var m = camp.items[mid]; if (!m || m.type !== 'map' || !Array.isArray(m.whiteboard)) return;
         m.whiteboard.forEach(function(w) {
-            if (!w || !w.isChar || w.hidden) return;   // a hidden token's stub carries none
+            if (!w || !w.isChar || w.hidden) return;   // a hidden token is not sent at all
             if (typeof w.charId === 'string' && own(camp.chars, w.charId)) { if (moved[w.charId] === 1) out[mid] = 1; return; }
             var k = 'w:' + w.id; if (id !== null || !Array.isArray(w.fx) || typeof w.id !== 'string' || _fxbSig[k] === undefined) return;
             var was = _fxbSig[k]; fxbOf(w); if (was !== _fxbSig[k]) out[mid] = 1;
@@ -615,8 +614,8 @@ function fxbMoved(id) {
 /* ---------- fog of war (1.5.0 FV2): per-recipient creature drop ----------
    window.wpFog.fogDropIds(recipientId, camp, map) → the ids of character tokens the recipient cannot see, or null
    (no fog / drop nothing). sanitizeItem clones the heavy map ONCE; fogFilterClean makes a cheap shallow copy with a
-   filtered whiteboard per peer (never re-cloning images — §11R-5). AND with the existing hidden stub: an unseen token
-   is dropped whether it was full or a hidden stub, matched by id. */
+   filtered whiteboard per peer (never re-cloning images — §11R-5). A hidden token is already out of the clean copy
+   (wireWbItem); an unseen one is dropped here, matched by id. */
 // [netcheck:foglit-start]
 // Senses S0: what each player's own tokens saw by when their copy of a fogged map was last made (profile id | map id -> wpFog.sightSigFor's
 // text). The host's memory only: never saved, never sent. Every copy made for a player seeds it, so a later change is judged against what
@@ -830,9 +829,33 @@ function ackSend(msg) {   // a map for every admitted, open connection, each wit
     net.conns.forEach(function(c) { if (!c.open || (net.role === 'host' && !own(net.roster, c.peer))) return; try { c.send(withAck(msg, c)); } catch (e) { sendFailed(e); } });
 }
 // [netcheck:acks-end]
-function fogForgetConn(peer) { if (typeof peer === 'string') { delete _fogHeld[peer]; delete _acks[peer]; } }   // 14c: and how far its copies go
+// [netcheck:hidpend-start]
+// hidden pieces (owner, 2026-10-01): a drawing of a player's that the GM hid is on no copy of theirs, so a map copy of theirs that leaves it out
+// is no erase — and still none once the GM shows it again, until a copy of theirs names it (a copy made before the shown drawing reached them
+// lacks it too). The host's memory only, per connection and map: the ids of their own drawings seen hidden at a send of the map or at their
+// join, forgotten one by one as a copy of theirs names them or the host puts their copy right, and with the connection, the map or the table.
+// A patch that leaves such a drawing out, or names one still hidden here, came from a stale copy: that connection is sent the map whole, with
+// the patch's number, so their app takes it as the word on everything up to that patch (applyClientItemFiltered, the item branch)
+var _hidPend = Object.create(null);
+function hidNote(map) {
+    if (!map || map.type !== 'map' || typeof map.id !== 'string' || !Array.isArray(map.whiteboard)) return;
+    map.whiteboard.forEach(function(w) {
+        if (!w || !w.hidden || w.type !== 'path' || !w.byPlayer || typeof w.ownerId !== 'string' || typeof w.id !== 'string') return;
+        net.conns.forEach(function(c) {
+            var pr = c && typeof c.peer === 'string' && own(net.roster, c.peer) ? net.roster[c.peer] : null; if (!pr || pr.id !== w.ownerId) return;
+            var per = own(_hidPend, c.peer) ? _hidPend[c.peer] : (_hidPend[c.peer] = Object.create(null)), ids = own(per, map.id) ? per[map.id] : (per[map.id] = Object.create(null));
+            ids[w.id] = 1;
+        });
+    });
+}
+function hidNoteAll() { var camp = getActiveCampaign(); if (camp && camp.items) Object.keys(camp.items).forEach(function(id) { hidNote(camp.items[id]); }); }
+function hidPendOf(peer, mapId) { return typeof peer === 'string' && own(_hidPend, peer) && typeof mapId === 'string' && own(_hidPend[peer], mapId) ? _hidPend[peer][mapId] : null; }
+function hidNamed(peer, mapId, ids) { var p = hidPendOf(peer, mapId); if (p) Object.keys(ids).forEach(function(id) { delete p[id]; }); }
+function hidForgetMap(mapId) { Object.keys(_hidPend).forEach(function(p) { delete _hidPend[p][mapId]; }); }
+// [netcheck:hidpend-end]
+function fogForgetConn(peer) { if (typeof peer === 'string') { delete _fogHeld[peer]; delete _acks[peer]; delete _hidPend[peer]; } }   // 14c: and how far its copies go; hidden pieces: and the drawings of theirs the GM hid
 function fogForgetMap(mapId) { Object.keys(_fogHeld).forEach(function(p) { delete _fogHeld[p][mapId]; }); }
-function fogForgetAll() { _fogHeld = Object.create(null); _acks = Object.create(null); Object.keys(_fogPend).forEach(function(k) { clearTimeout(_fogPend[k]); }); _fogPend = Object.create(null); _fogCost = Object.create(null); }
+function fogForgetAll() { _fogHeld = Object.create(null); _acks = Object.create(null); _hidPend = Object.create(null); Object.keys(_fogPend).forEach(function(k) { clearTimeout(_fogPend[k]); }); _fogPend = Object.create(null); _fogCost = Object.create(null); }
 // Fold M7: the landing. A player's move that lands in another cell, facing or stance (their drop, or a map copy their app saves) arms a short
 // timer on that map; when it fires, every admitted connection's copy of the map is caught up in place: the creatures that player now sees
 // or no longer sees, the lit cells a light they cannot see gives them, the light cap ('fogDiff', the player's side is applyFogDiff), judged
@@ -880,7 +903,7 @@ function fogCatchUp(c, camp, m, pid, memo) {
         if (!w || typeof w.id !== 'string' || w.gmNoteFor) return;
         var held = rec.ids[w.id] === 1, creature = (w.isChar || w.waiting) && w.type !== 'light' && w.ownerId !== pid;
         if (!creature) { if (held) prev = w.id; return; }
-        var gone = jd.drop[w.id] === 1;
+        var gone = jd.drop[w.id] === 1 || !!w.hidden;   // one the GM has hidden since is gone from every copy, as a fresh copy would have it
         if (held && gone) { drop.push(w.id); if (w.id.length > FOG_DIFF_ID_MAX) long = true; return; }
         if (!held && !gone) { var it = wireWbItem(w, false); if (!it) return; add.push({ item: it, after: prev }); if (w.id.length > FOG_DIFF_ID_MAX) long = true; prev = w.id; return; }
         if (held) prev = w.id;
@@ -1240,6 +1263,7 @@ function applyClientItemFiltered(msg, profile, out) {   // fold M10: out.strokes
     var liveById = Object.create(null);
     (liveItem.whiteboard || []).forEach(function(w) { liveById[w.id] = w; });
     var sentIds = {};
+    var pend = out && out.conn && typeof hidPendOf === 'function' ? hidPendOf(out.conn.peer, msg.itemId) : null;   // hidden pieces: their drawings the GM hid, which a copy of theirs may lack by the GM's hand
     var ownStrokes = (liveItem.whiteboard || []).filter(function(w) { return w && w.type === 'path' && w.byPlayer && w.ownerId === profile.id; }).length;   // this player's drawings already on the map: the cap is per map, not per patch
     var fkP = [];   // fold M7: each own token's where-it-sees-from before this copy lands (at the drag's start while one is open)
     msg.item.whiteboard.forEach(function(w) {
@@ -1253,7 +1277,7 @@ function applyClientItemFiltered(msg, profile, out) {   // fold M10: out.strokes
             return;
         }
         if (lw.ownerId !== profile.id) return;   // ownership is judged on the HOST's copy
-        if (lw.hidden) return;   // a hidden token reaches the player as a stub (no front, stance or marks): their copy never overwrites the host's
+        if (lw.hidden) { if (out && lw.type === 'path' && lw.byPlayer) out.whole = true; return; }   // a piece the GM hid is not on its player's copy at all: nothing a patch says of it overwrites the host's; a copy naming a drawing of theirs hidden here was made before the hide reached them, and their app writes such a drawing back over every copy of that age — the whole map puts it right (the item branch)
         if (lw.locked) return;   // the GM locked it: frozen for its player — no move, turn, facing, stance or redrawn stroke (their app stops them too)
         if (lw.type === 'path' && lw.byPlayer) {
             var re = playerStroke(w, profile.id);
@@ -1296,7 +1320,12 @@ function applyClientItemFiltered(msg, profile, out) {   // fold M10: out.strokes
     });
     // A player's own drawing missing from their copy was erased by them
     var before = liveItem.whiteboard.length;
-    liveItem.whiteboard = liveItem.whiteboard.filter(function(w) { return !(w.type === 'path' && w.byPlayer && w.ownerId === profile.id && !w.locked && !sentIds[w.id]); });   // a locked one stays
+    liveItem.whiteboard = liveItem.whiteboard.filter(function(w) {
+        if (!(w.type === 'path' && w.byPlayer && w.ownerId === profile.id) || w.locked || w.hidden || sentIds[w.id]) return true;   // a locked one stays, and one the GM hid: it left their copy by the GM's hand, not theirs
+        if (pend && pend[w.id] === 1) { delete pend[w.id]; if (out) out.whole = true; return true; }   // ...and one the GM hid and has shown again, this once: this copy may be older than the showing (their app may have dropped the shown drawing meanwhile: the whole map puts it right, and a later copy without it is an erase)
+        return false;
+    });
+    if (typeof hidNamed === 'function' && out && out.conn) hidNamed(out.conn.peer, msg.itemId, sentIds);   // the drawings this copy names are on their copy: a later copy without one is an erase
     if (liveItem.whiteboard.length !== before) { changed = true; if (out) out.strokes = true; }
     var mvP = fkP.filter(function(p) { return fogKey(liveItem, p[0]) !== p[1]; });   // fold M7: a cell, a facing or a stance that landed (a put-back arms nothing)
     if (mvP.length && typeof marksOwnMoved === 'function') marksOwnMoved(msg.itemId, mvP.map(function(p) { return p[0]; }), profile.id);   // senses S4b: their own drop on its turn
@@ -1540,9 +1569,10 @@ function applyFogDiff(msg) {
 // [netcheck:fogdiffapply-end]
 // Host: send one map item to the table — as a delta when one exists and is smaller, else whole.
 function mapFogged(it) { return !!(it && it.type === 'map' && it.fog && it.fog.on === true && window.wpVtt && window.wpVtt.on('fog')); }   // true alone, as fog.js reads it: a map stored with on 'yes' is unfogged for both, never per-player once and shared after
-net.sendItem = function(campId, itemId, onlyConn, exceptConn) {   // fold M10: exceptConn, a connection a fogged map is not sent to (its own copy catches up in place)
+net.sendItem = function(campId, itemId, onlyConn, exceptConn, at) {   // fold M10: exceptConn, a connection a fogged map is not sent to (its own copy catches up in place); at: the action of onlyConn's that this whole copy answers (14c)
     var camp = state.appState.campaigns[campId], it = camp && camp.items[itemId]; if (!it) return;
     var ak = typeof withAck === 'function' ? withAck : function(m) { return m; };   // 14c: how far each connection's copy goes (a harness without it sends as before)
+    if (typeof hidNote === 'function') hidNote(it);   // hidden pieces: a player's drawing the GM hid, noted for each of their connections before the copy without it goes
     // fog of war (1.5.0 FV2): a fogged map is sent per recipient — the heavy map is cloned once (sanitizeItem), then a
     // cheap shallow copy drops each player's unseen creatures. No shared delta while fog is on (baselines differ per peer).
     if (mapFogged(it)) {
@@ -1552,7 +1582,7 @@ net.sendItem = function(campId, itemId, onlyConn, exceptConn) {   // fold M10: e
                 var pr = net.roster[conn.peer]; if (!pr || !conn.open || (exceptConn && conn === exceptConn)) return;
                 var out = fogCopyFor(clean, camp, it, pr.id);
                 if (typeof fogOwnLive === 'function') out = fogOwnLive(out, itemId, pr.id);
-                try { conn.send(ak({ type: 'item', campId: campId, itemId: itemId, item: out }, conn)); } catch (e) { sendFailed(e); return; }   // 14c: how far that copy goes
+                try { conn.send(ak({ type: 'item', campId: campId, itemId: itemId, item: out }, conn, at)); } catch (e) { sendFailed(e); return; }   // 14c: how far that copy goes
                 if (typeof fogSeed === 'function' && fogSeed(conn, itemId, out)) fogRoster(conn, pr.id, itemId);   // fold M5: what that copy now holds; fold R: the order and the pointers where it changed them
             };
             var clean = sanitizeItem(it); if (!clean) return;
@@ -1564,7 +1594,7 @@ net.sendItem = function(campId, itemId, onlyConn, exceptConn) {   // fold M10: e
     var clean = sanitizeItem(it); if (!clean) return;
     if (typeof fogForgetMap === 'function') fogForgetMap(itemId);   // fold M5: an unfogged map is one copy for all: no record of it
     var full = { type: 'item', campId: campId, itemId: itemId, item: clean };
-    if (onlyConn) { try { onlyConn.send(ak(full, onlyConn)); } catch (e) { sendFailed(e); } return; }              // one player asked for the whole thing
+    if (onlyConn) { try { onlyConn.send(ak(full, onlyConn, at)); } catch (e) { sendFailed(e); } return; }              // one player asked for the whole thing (or is put right after a stale patch: at)
     var d = itemDelta(itemId, clean);
     if (d === false) return;                                                          // unchanged since the last send
     var msg = full;
@@ -1577,6 +1607,7 @@ net.sendItem = function(campId, itemId, onlyConn, exceptConn) {   // fold M10: e
 net.broadcastItemFiltered = function(campId, itemId) {
     var camp = state.appState.campaigns[campId], it = camp && camp.items[itemId]; if (!it) return;
     if (typeof window !== 'undefined' && window.wpFog && window.wpFog.invalidateSeen) window.wpFog.invalidateSeen(itemId);   // Senses S0: a map sent this way was changed as a remote change (a traveller arrived or left, a waiting token placed, a light switched): who sees what on it is judged afresh
+    if (typeof hidNote === 'function') hidNote(it);   // hidden pieces: as sendItem
     if (!mapFogged(it)) { var clean = sanitizeItem(it); if (!clean) return; if (typeof fogForgetMap === 'function') fogForgetMap(itemId); var bm = { type: 'item', campId: campId, itemId: itemId, item: clean }; if (typeof ackSend === 'function') ackSend(bm); else broadcast(bm, null); _lastSent[itemId] = JSON.parse(JSON.stringify(clean)); return; }   // the table now holds this: the next delta is worked out from it (a light switched off here and on again by the GM was the same as the older baseline, and never went out)
     delete _lastSent[itemId];   // a fogged map has no shared baseline (as sendItem)
     var fogSend = function() {   // fold M4: cloned and judged with every open drag on this map at its start
@@ -1597,6 +1628,7 @@ net.itemGone = function(campId, itemId) {
     delete _lastSent[itemId];
     if (typeof sensesForgetMap === 'function') sensesForgetMap(itemId);   // Senses S0: and what anyone's copy of it was made by
     if (typeof fogForgetMap === 'function') fogForgetMap(itemId);   // fold M5: and what anyone's copy of it holds
+    if (typeof hidForgetMap === 'function') hidForgetMap(itemId);   // hidden pieces: and the drawings on it the GM hid
     if (!(net.active && net.role === 'host')) return;
     var msg = { type: 'itemGone', campId: campId, itemId: itemId };
     net.conns.forEach(function(c) { if (c.open && net.roster[c.peer]) { try { c.send(msg); } catch (e) { sendFailed(e); } } });
@@ -1621,7 +1653,7 @@ net.onLocalSave = function() {
         net.syncCampFog();  // and its fog defaults (an empty map's fog, the default sight), the same way
         net.syncClock();    // and its clock (item 20 K2), the same way
         if (patch) net.sendItem(patch.campId, patch.itemId);
-        if (net.syncCombatHidden) net.syncCombatHidden();   // fold M0: after the map (its stub first): a token hidden or shown mid-fight changes its row
+        if (net.syncCombatHidden) net.syncCombatHidden();   // fold M0: after the map (the token gone from it first): a token hidden or shown mid-fight changes its row
         patch = null;
     }
     if (patch) {
@@ -2757,8 +2789,7 @@ var _posLast = 0;
 // revealed on the drag's stop (sendItem), not mid-drag.
 // [netcheck:bpos-start]
 function broadcastPos(msg, exceptConn, camp, map, w) {
-    if (w && (w.gmNoteFor || (w.hidden && w.nulls !== undefined))) return;   // fold M0: a GM-note card never reaches a player (sanitizeItem drops it), so neither does its place while the GM drags it; S7a: nor a hidden null area's
-    if (w && w.hidden && msg.front) msg = Object.assign({}, msg, { front: 0 });   // fold M0: a hidden token reaches players as a stub with no facing, so its live moves carry none (a copy: the caller's own message is left as it is)
+    if (w && (w.gmNoteFor || w.hidden)) return;   // a GM-note card and a hidden piece never reach a player (wireWbItem drops them), so neither does their place while the GM drags them
     if (!map || !mapFogged(map)) { broadcast(msg, exceptConn); return; }
     var cx = (msg.x || 0) + ((w && w.w) || 60) / 2, cy = (msg.y || 0) + ((w && w.h) || 52) / 2;
     net.conns.forEach(function(c) {
@@ -2810,12 +2841,14 @@ function applyPosToDom(msg) {
 function hostTravel(conn, traveler, portal, fromMap) {
     var tCamp = getActiveCampaign();
     if (!traveler || !tCamp || !fromMap || !portal) return false;
+    if ((portal.hidden && !portal.trap) || !(portal.nodeId || portal.targetMapId)) return false;   // a hidden decorative portal stays inert; a hidden TRAP still fires (the locks below still stop it, in silence)
+    var quiet = !!portal.hidden;   // hidden pieces (owner, 2026-10-01): a trap tile that cannot fire tells its player nothing — a denial would give its place, and its destination's name, away; the GM is told instead
     if (net.travelLocked) {
         var k = traveler.id || 'x', now = Date.now();
-        if (conn && now - (_travelDenyLast[k] || 0) > 4000) { _travelDenyLast[k] = now; try { conn.send({ type: 'travelDenied' }); } catch (e) { sendFailed(e); } }
+        if (quiet) toast((traveler.name || 'A player') + ' stepped on a hidden trap tile, but travel is locked: nothing happened, and they were told nothing.');
+        else if (conn && now - (_travelDenyLast[k] || 0) > 4000) { _travelDenyLast[k] = now; try { conn.send({ type: 'travelDenied' }); } catch (e) { sendFailed(e); } }
         return false;
     }
-    if ((portal.hidden && !portal.trap) || !(portal.nodeId || portal.targetMapId)) return false;   // a hidden decorative portal stays inert; a hidden TRAP still fires (playerLock below still applies)
     // The item's own portal target, else its linked room's
     var pRoom = portal.targetMapId ? { targetMapId: portal.targetMapId } : (fromMap.rooms || []).find(function(r) { return r.id === portal.nodeId; });
     if (!pRoom || !validKey(pRoom.targetMapId) || !own(tCamp.items, pRoom.targetMapId)) return false;
@@ -2823,7 +2856,8 @@ function hostTravel(conn, traveler, portal, fromMap) {
     if (destLockM.type !== 'map' || destLockM === fromMap) return false;   // a play map, and another one (as offlinePlayerTravel and npcTravel have it): a portal to a page, or to the map it stands on, moves nobody
     if (destLockM.meta && destLockM.meta.playerLock) {   // closed to players until the GM opens it (summon and bring still work)
         var kL = (traveler.id || 'x') + '|' + pRoom.targetMapId, nowL = Date.now();
-        if (conn && nowL - (_travelDenyLast[kL] || 0) > 4000) { _travelDenyLast[kL] = nowL; try { conn.send({ type: 'travelDenied', reason: 'closed', map: String((destLockM.meta || {}).title || '').slice(0, 120) }); } catch (e) { sendFailed(e); } }
+        if (quiet) toast((traveler.name || 'A player') + ' stepped on a hidden trap tile to ' + String((destLockM.meta || {}).title || 'a closed map').slice(0, 120) + ', which is closed to players: nothing happened, and they were told nothing.');
+        else if (conn && nowL - (_travelDenyLast[kL] || 0) > 4000) { _travelDenyLast[kL] = nowL; try { conn.send({ type: 'travelDenied', reason: 'closed', map: String((destLockM.meta || {}).title || '').slice(0, 120) }); } catch (e) { sendFailed(e); } }
         return false;
     }
     var destMap = tCamp.items[pRoom.targetMapId];
@@ -3002,13 +3036,13 @@ function npcTravel(item, map) {
         there = JSON.parse(JSON.stringify(item));
         there.id = 'wb' + Math.random().toString(36).slice(2, 10);
         delete there.threats;   // 5h: threat marks belong to the map they were set on
-        delete there.hidden;
+        if (!item.hidden) delete there.hidden;   // hidden pieces (owner, 2026-10-01): a creature the GM walks through hidden arrives hidden (the copy came with the mark); players see nothing of it on either map
         var Sn = SC(); if (Sn && Sn.shapeStandIn) Sn.shapeStandIn(there, dest);   // grid-shaped tokens: the copy takes the destination's cell shape
         var spot = freeSpotNear(dest, sx, sy, there.w || 60, there.h || 52, null, nodeEl);
         there.x = spot.x; there.y = spot.y;
         dest.whiteboard.push(there); placed = true;
     } else {
-        delete there.hidden;   // the character is there now: players may see it
+        if (!item.hidden) delete there.hidden;   // the character is there now: players may see it — unless the GM walked it through hidden; then the one there stays hidden too
         if (nodeEl && there.x < nodeEl.x + (nodeEl.w || 0) && there.x + (there.w || 60) > nodeEl.x && there.y < nodeEl.y + (nodeEl.h || 0) && there.y + (there.h || 52) > nodeEl.y) {
             var spot2 = freeSpotNear(dest, sx, sy, there.w || 60, there.h || 52, there.id, nodeEl);
             there.x = spot2.x; there.y = spot2.y;
@@ -3021,7 +3055,8 @@ function npcTravel(item, map) {
     net.applyingRemote = true; save(true); net.applyingRemote = false;
     if (net.active && net.role === 'host') [map, dest].forEach(function(m) { net.broadcastItemFiltered(camp.id, m.id); });
     if (window.appRender) window.appRender();
-    toast((key || 'The character') + ' goes through to ' + ((dest.meta || {}).title || 'the next map') + (placed ? ' — a token is placed there' : ' — the token there is shown') + '; the one here is hidden from players.');
+    var hidThere = !!there.hidden;
+    toast((key || 'The character') + ' goes through to ' + ((dest.meta || {}).title || 'the next map') + (placed ? (hidThere ? ' — a token is placed there, hidden as this one was' : ' — a token is placed there') : (hidThere ? ' — the token there stays hidden' : ' — the token there is shown')) + '; the one here is hidden from players.');
     return true;
 }
 // [netcheck:pos-start]
@@ -3370,8 +3405,10 @@ function applyNotepad(m) {
    reads it, so no row carries init to a player, on any map; the host keeps its own for the roster. Fog of war (1.5.0 FV2): the combat
    roster and the target pointers name tokens, so a player must not learn an unseen creature through them. On a fogged map a combat row
    for a token they cannot see is REDACTED (name "Hidden"; no token, no picture, and an id of its place rather than the row's, which
-   carries the token's) — the order, count and turn index stay intact; a target pointer at an unseen token is dropped. Non-fog tables
-   keep the single broadcast. */
+   carries the token's) — the order, count and turn index stay intact; a target pointer at an unseen token is dropped. Hidden pieces (the
+   owner's ruling of 2026-10-01): a pointer at a token the GM has hidden, or at nothing on the host's map, goes to no one on any table — hidden
+   and gone answer alike, so an echo tells a player's app nothing — and the pointers go out again when a hide, a show or a deletion changes
+   which are sent, as the rows are. A table without fog keeps the single broadcast, through the same judge. */
 function combatRowOut(r, i, unseen) { if (unseen) return { id: 'h' + i, name: 'Hidden', tokId: null, src: null }; var o = { id: r.id, name: r.name, tokId: r.tokId, src: r.src }; if (r.held === 1) o.held = 1; return o; }   // initiative O3: a seen row's hold too (an unseen one tells nothing)
 function combatsFor(recipientId) {
     var camp = getActiveCampaign(), fogged = anyFog(camp), out = {};
@@ -3383,8 +3420,8 @@ function combatsFor(recipientId) {
     });
     return out;
 }
-// Fold M0: the tokens the GM has hidden on a combat's map, fogged or not: a hidden token reaches players as a nameless stub, so its row does
-// too (the GM may hide a creature after the fight began). The GM's own strip reads net.combats, never this
+// Fold M0: the tokens the GM has hidden on a combat's map, fogged or not: a hidden token is not on any player's copy, so its row is
+// nameless too (the GM may hide a creature after the fight began). The GM's own strip reads net.combats, never this
 function combatHidden(camp, mapId) {
     var m = camp && camp.items && Object.prototype.hasOwnProperty.call(camp.items, mapId) ? camp.items[mapId] : null, out = Object.create(null);
     (m && Array.isArray(m.whiteboard) ? m.whiteboard : []).forEach(function(w) { if (w && w.hidden && typeof w.id === 'string') out[w.id] = 1; });
@@ -3394,18 +3431,25 @@ function combatHidden(camp, mapId) {
 // (what the table was last sent, recorded by every send of the rows to the table: broadcastCombats)
 var _combatHidSig = '';
 function combatHidSigNow() { var camp = getActiveCampaign(); return Object.keys(net.combats || {}).sort().map(function(mapId) { var hid = combatHidden(camp, mapId); return mapId + ':' + ((net.combats[mapId] || {}).rows || []).map(function(r) { return r && r.tokId && hid[r.tokId] ? 1 : 0; }).join(''); }).join('|'); }
+var _targetHidSig = '';
 net.syncCombatHidden = function() {
     if (!net.active || net.role !== 'host') return;
     if (combatHidSigNow() !== _combatHidSig) broadcastCombats();
+    if (targetHidSigNow() !== _targetHidSig) broadcastTargets();   // hidden pieces: and the pointers, where a hide, a show or a deletion changed which are sent
 };
+// the token a pointer names on the host's own map, else null (a map that is none, a token gone or the GM's hidden one all read alike)
+function targetTok(camp, t) {
+    var map = t && camp && camp.items && typeof t.mapId === 'string' && Object.prototype.hasOwnProperty.call(camp.items, t.mapId) ? camp.items[t.mapId] : null;   // (as combatHidden reads a map: this slice runs without own)
+    var w = map && map.type === 'map' && Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return !!x && x.id === t.id; }) : null;
+    return w && !w.hidden ? { tok: w, map: map } : null;
+}
+function targetHidSigNow() { var camp = getActiveCampaign(); return Object.keys(net.targets || {}).sort().filter(function(pid) { return !targetTok(camp, net.targets[pid]); }).join(','); }
 function targetsFor(recipientId) {
-    var camp = getActiveCampaign(); if (!anyFog(camp)) return net.targets;
-    var out = {};
+    var camp = getActiveCampaign(), fogged = anyFog(camp), out = {};
     Object.keys(net.targets || {}).forEach(function(pid) {
-        var t = net.targets[pid], map = camp && t && camp.items[t.mapId];
-        if (!map || map.type !== 'map' || !(map.fog && map.fog.on === true)) { out[pid] = t; return; }
-        var drop = fogDrop(camp, map, recipientId) || {};
-        if (!(t.id && drop[t.id])) out[pid] = t;
+        var t = net.targets[pid], at = targetTok(camp, t); if (!at) return;   // hidden pieces: a pointer at a token the GM hid, or at nothing here, is nobody's
+        if (fogged && at.map.fog && at.map.fog.on === true && (fogDrop(camp, at.map, recipientId) || {})[t.id]) return;   // fog: one at a creature this player does not see
+        out[pid] = t;
     });
     return out;
 }
@@ -3418,7 +3462,8 @@ function broadcastCombats() {
 }
 function broadcastTargets() {
     var camp = getActiveCampaign();
-    if (!anyFog(camp)) { broadcast({ type: 'targets', targets: net.targets }, null); return; }
+    _targetHidSig = targetHidSigNow();   // hidden pieces: which pointers the table now goes without
+    if (!anyFog(camp)) { broadcast({ type: 'targets', targets: targetsFor(null) }, null); return; }
     var sendAll = function() { net.conns.forEach(function(c) { var pr = net.roster[c.peer]; if (!pr || !c.open) return; try { c.send({ type: 'targets', targets: targetsFor(pr.id) }); } catch (e) { sendFailed(e); } }); };
     if (typeof fogLanded === 'function') fogLanded(null, sendAll); else sendAll();   // fold M4: judged with every open drag at its start
 }
@@ -3699,10 +3744,11 @@ function combatNewRound(mapId, c) {   // combatStep at a new round, once per rou
     if (c.round <= (typeof c.rr === 'number' ? c.rr : 1)) return; c.rr = c.round;
     if (every && window.wpSheets && window.wpSheets.rollInit) {
         var map = camp.items && own(camp.items, mapId) ? camp.items[mapId] : null;
-        var charOf = function(r) { var tk = r && typeof r.tokId === 'string' && map && Array.isArray(map.whiteboard) ? map.whiteboard.find(function(w) { return w && w.id === r.tokId; }) : null; return tk && tk.isChar && typeof tk.charId === 'string' && camp.chars && own(camp.chars, tk.charId) ? camp.chars[tk.charId] : null; };
+        var tokOf = function(r) { return r && typeof r.tokId === 'string' && map && Array.isArray(map.whiteboard) ? map.whiteboard.find(function(w) { return w && w.id === r.tokId; }) : null; };
+        var charOf = function(r) { var tk = tokOf(r); return tk && tk.isChar && typeof tk.charId === 'string' && camp.chars && own(camp.chars, tk.charId) ? camp.chars[tk.charId] : null; };
         for (var i = 0, n = 0; i < c.rows.length; i++) {
             var ch = charOf(c.rows[i]); if (!ch) continue;
-            var rr = window.wpSheets.rollInit(ch.id); if (rr && rr.error) { toast(rr.error); break; }   // no roll, dice off: said once, the rest keep their numbers
+            var tkI = tokOf(c.rows[i]), rr = window.wpSheets.rollInit(ch.id, { priv: !!(tkI && tkI.hidden) }); if (rr && rr.error) { toast(rr.error); break; }   // no roll, dice off: said once, the rest keep their numbers; hidden pieces: a creature the GM hid rolls in private (its row reads Hidden on the table, and the card would name it)
             if (rr && typeof rr.value === 'number' && isFinite(rr.value)) { c.rows[i].init = Math.max(-1e6, Math.min(1e6, Math.round(rr.value * 100) / 100)); c.rows[i].rolled = 1; delete c.rows[i].tb; n++; }
         }
         if (n && S.orderByInit) c.rows = S.orderByInit(c.rows, S.initTie ? S.initTie(camp.system, window.wpFormula, charOf) : null);   // nothing rolled: the order as it was
@@ -4271,6 +4317,7 @@ function admitPlayer(conn, prof, provenKey) {
         conn.send(snap); snapOk = true;
     } catch (e) { sendFailed(e, 'snapshot'); toast('Could not send the campaign to ' + (prof.name || 'the player') + ' \u2014 something in it cannot be sent (the console has the details).'); }
     if (snapOk && typeof fogSeedSnapshot === 'function') fogSeedSnapshot(conn, snap);   // fold M5: what each of its fogged maps holds
+    if (snapOk && typeof hidNoteAll === 'function') hidNoteAll();   // hidden pieces: the drawings of theirs the GM hid, which this copy lacks
     if (window.wpVtt) net._lastStanceSig = window.wpVtt.hostSig();   // the snapshot carried the ceiling: no re-send on the next save
     var sm = net.soundsMessage(); if (sm) { try { conn.send(sm); } catch (e) { sendFailed(e); } net._lastSoundSig = soundSig(sm); }   // the hosted campaign's sounds, to this peer only
     var mm = net.musicMessage(); if (mm) { try { conn.send(mm); } catch (e) { sendFailed(e); } net._lastMusicSig = musicSig(mm); }   // the hosted campaign's music library, to this peer only (before any control so its refs validate)
@@ -4479,6 +4526,7 @@ function handleMessage(msg, conn) {
                 if (window.wpFog && window.wpFog.invalidateSeen) window.wpFog.invalidateSeen(msg.itemId);   // Senses S0: the live position relay judges by where things now stand
                 net.sendItem(msg.campId, msg.itemId, null, pOut.strokes ? null : conn);   // the filtered result goes back out as a delta; fold M10: on a fogged map a token-only change goes to every other copy, the sender's catching up in place when its fire comes (a drawing goes to all)
             }
+            if (pOut.whole) net.sendItem(msg.campId, msg.itemId, conn, null, msg.a);   // hidden pieces: this copy of theirs was made before a hide or a show of a drawing of theirs reached them — the whole map, saying this patch's number, puts their screen right
             } finally { if (typeof ackTook === 'function') ackTook(conn, msg.a); }
             // [netcheck:itempatch-end]
         } else {
@@ -4557,6 +4605,7 @@ function handleMessage(msg, conn) {
         if (msg.reason === 'closed') toast((msg.map ? String(msg.map).slice(0, 120) : 'That map') + " isn't open yet — the GM will let you through when it's time.");
         else toast('Travel between maps is locked right now — the GM will open it when the time comes.');
     } else if (msg.type === 'travel' && net.role === 'host') {
+        // [netcheck:travelmsg-start]
         if (net.paused || peerPaused(conn.peer)) return;   // frozen table (or this player is paused): no travel
         if (!allow('travel', { perMs: 400, burst: 6, windowMs: 10000, table: 500 }, conn.peer)) return;   // each travel saves + re-sends maps: a few a second is plenty
         var traveler = net.roster[conn.peer];
@@ -4565,7 +4614,9 @@ function handleMessage(msg, conn) {
         var fromMap = tCamp.items[traveler.location || tCamp.activeItemId];
         if (!fromMap || fromMap.type !== 'map') return;
         var portal = (fromMap.whiteboard || []).find(function(w) { return w.id === msg.viaItemId; });
+        if (portal && portal.hidden) return;   // a hidden portal is no door to knock on: a trap tile fires only when a token is dropped on it (the host judges the drop), never by naming it
         hostTravel(conn, traveler, portal, fromMap);
+        // [netcheck:travelmsg-end]
     } else if (msg.type === 'target' && net.role === 'host') {
         var tp = net.roster[conn.peer]; if (!tp) return;
         if (!allow('target', { perMs: 100, burst: 20, windowMs: 5000, table: 1000 }, conn.peer)) return;
@@ -4972,6 +5023,7 @@ function handleMessage(msg, conn) {
         if (!isFinite(xT) || !isFinite(yT)) return;
         window.wpPlaceThrownBlast({ x: xT, y: yT, ft: defT.area.ft, name: defT.area.name || defT.name, by: chT.name, charId: msg.charId, damage: defT.damage || '' });
     } else if (msg.type === 'door-req' && net.role === 'host') {
+        // [netcheck:doorreq-start]
         // a player opens/closes a door a token of theirs is adjacent to; validated on the host's OWN copy, then resynced to all
         if (typeof msg.mapId !== 'string' || typeof msg.itemId !== 'string') return;
         if (net.paused || peerPaused(conn.peer)) return;                              // frozen table (or this player is paused): no board mutation
@@ -4984,7 +5036,7 @@ function handleMessage(msg, conn) {
         var profDR = net.roster[conn.peer]; if (!profDR) return;
         if (profDR.location && profDR.location !== amDR.id) { denyDR('far'); return; }   // the player must BE on this map, not merely own a token left behind on it
         var doorEl = (amDR.whiteboard || []).find(function(w) { return w && w.id === msg.itemId; });
-        if (!doorEl || doorEl.blocksSight !== true || doorEl.sightType !== 'door' || doorEl.hidden) return;   // not a visible door
+        if (!doorEl || doorEl.blocksSight !== true || doorEl.sightType !== 'door' || doorEl.hidden) return;   // not a visible door (a hidden one answers nothing, like none: it is on no player's copy)
         if (doorEl.doorLock) { denyDR('locked'); return; }                            // GM-locked against players
         var Cdr = window.wpFogCore; if (!Cdr) return;
         var gridDR = Cdr.gridFor((amDR.meta && amDR.meta.gridType) || 'off', amDR.fog && amDR.fog.cell); if (!gridDR) return;   // gridless: can't judge adjacency -> ignore
@@ -4998,6 +5050,7 @@ function handleMessage(msg, conn) {
         doorEl.doorOpen = !doorEl.doorOpen;
         save(true);                                                                   // host save -> onLocalSave: invalidateVision + resend the map fog-filtered per recipient
         if (window.wpFog) window.wpFog.redraw();                                       // refresh the GM's own overlay
+        // [netcheck:doorreq-end]
     } else if (msg.type === 'door-deny' && net.role === 'client') {
         toast(msg.reason === 'locked' ? 'The GM has that door locked.' : msg.reason === 'far' ? 'Move a token next to that door to open it.' : 'Cannot open that door right now.');
     } else if (msg.type === 'system' && net.role === 'client') {
@@ -5241,9 +5294,9 @@ function handleMessage(msg, conn) {
         if (net.paused || peerPaused(conn.peer)) { ansP({ reason: 'paused' }); return; }
         var campP2 = getActiveCampaign(), mP2 = campP2 && typeof msg.mapId === 'string' && own(campP2.items, msg.mapId) ? campP2.items[msg.mapId] : null;
         var wP2 = mP2 && mP2.type === 'map' && Array.isArray(mP2.whiteboard) && typeof msg.wbId === 'string' ? mP2.whiteboard.find(function(w) { return w && w.id === msg.wbId; }) : null;
-        if (!wP2) { ansP({ reason: 'missing' }); return; }
+        if (!wP2 || wP2.hidden || wP2.gmNoteFor) { ansP({ reason: 'missing' }); return; }   // hidden pieces: a piece the GM hid (or a GM note) answers as one that is not there — it is on no player's copy, and the answer must not say otherwise
         if (!wP2.isChar || wP2.charId || wP2.waiting || wP2.ownerId !== prP2.id) { ansP({ reason: 'tokowner' }); return; }
-        if (wP2.locked || wP2.hidden) { ansP({ reason: 'locked' }); return; }
+        if (wP2.locked) { ansP({ reason: 'locked' }); return; }
         var imP2 = typeof msg.img === 'string' && safeAvatar(msg.img) ? msg.img : ''; if (!imP2) { ansP({ reason: 'bad' }); return; }
         if (!window.wpSheets || !window.wpSheets.applyTokenFace) { ansP({ reason: 'off' }); return; }
         if (!allow('charpic', { perMs: 3000, burst: 2, windowMs: 30000, table: 12 }, conn.peer)) { ansP({ reason: 'slow' }); return; }   // one budget with char-pic: every picture saved on the GM's disk counted together
@@ -5258,8 +5311,8 @@ function handleMessage(msg, conn) {
         // Lighting L5 (owner answers 3, 9, 10, 11): a player's own light — a token they own switched on or off, or given one of the system's
         // presets the GM ticked "players may pick" (its place in the list AND its name: the list may have changed since their menu was drawn).
         // No number of a light is taken from the player: it is copied from the host's own list, or the token's own light is kept. Anywhere
-        // (no fog or lighting gate: a torch set ready beforehand); never a waiting, hidden or locked token, never one whose light the GM
-        // locked; a new light never past the map's cap. Written as a remote change (never a step of the GM's undo), then that map goes to
+        // (no fog or lighting gate: a torch set ready beforehand); never a waiting or locked token (a hidden one answers as one that is not
+        // there), never one whose light the GM locked; a new light never past the map's cap. Written as a remote change (never a step of the GM's undo), then that map goes to
         // every player again, each through their own fog, whichever map the GM is on; the GM is told
         var ridL = typeof msg.rid === 'string' && /^[A-Za-z0-9_-]{1,24}$/.test(msg.rid) ? msg.rid : null; if (!ridL) return;
         var ansL = function(o) { o.type = 'tok-light-ans'; o.rid = ridL; try { conn.send(o); } catch (e) { sendFailed(e); } };
@@ -5267,9 +5320,9 @@ function handleMessage(msg, conn) {
         if (net.paused || peerPaused(conn.peer)) { ansL({ reason: 'paused' }); return; }
         var campL = getActiveCampaign(), mL = campL && typeof msg.mapId === 'string' && own(campL.items, msg.mapId) ? campL.items[msg.mapId] : null;
         var wL = mL && mL.type === 'map' && Array.isArray(mL.whiteboard) && typeof msg.wbId === 'string' ? mL.whiteboard.find(function(w) { return w && w.id === msg.wbId; }) : null;
-        if (!wL) { ansL({ reason: 'missing' }); return; }
+        if (!wL || wL.hidden || wL.gmNoteFor) { ansL({ reason: 'missing' }); return; }   // hidden pieces: as tok-pic has it
         if (!wL.isChar || wL.waiting || wL.ownerId !== prL.id) { ansL({ reason: 'tokowner' }); return; }
-        if (wL.locked || wL.hidden) { ansL({ reason: 'locked' }); return; }
+        if (wL.locked) { ansL({ reason: 'locked' }); return; }
         if (wL.lightLock === true) { ansL({ reason: 'lightlock' }); return; }
         var FCL = window.wpFogCore, SCL = window.wpSystemCore; if (!FCL || !FCL.cleanLight || !SCL || !SCL.lightPresets) { ansL({ reason: 'off' }); return; }
         var oldL = FCL.cleanLight(wL.light), offL = msg.on === false, pickL = msg.preset !== undefined || msg.name !== undefined, newL = null;

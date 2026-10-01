@@ -137,7 +137,7 @@ Common: `id`, `type`, `x`, `y`, `w`, `h`, `color` (CSS color or `"transparent"`)
 
 More optional common fields:
 - `opacity` — 0.1–1.0; below 1 renders translucent (fog, ghosts, terrain washes, spell areas).
-- `hidden` — `true` shows players a grey placeholder cloud in multiplayer until the GM reveals it; the GM sees a ghosted version. Pre-hide ambushes, secret doors, and reveals when authoring.
+- `hidden` — `true` keeps the item from players altogether in multiplayer (it is not sent to them: no placeholder, no position) until the GM reveals it; the GM sees a ghosted version. Pre-hide ambushes, secret doors, and reveals when authoring.
 - `aboveGrid` — `true` renders the item above the grid overlay (text items do this automatically).
 - `gmNoteFor` (text items) — marks a GM-note card; never sent to players.
 - `isChar` + `charName` + `charStats` — character token. `ownerId` (a player id) grants that player drag control in multiplayer; it is assigned by the GM in-app — don't author it, but DO preserve it on existing tokens (automatic if you build from staged live data).
@@ -222,7 +222,7 @@ Waypoint now runs GM-hosted P2P sessions: players join with a room code, follow 
 - Pages with `"players": false`, and every page of a campaign other than the hosted one.
 - `room.notes` and `room.characters[].info` / `.ref`.
 - Text items with `gmNoteFor`.
-- The content of `hidden` play map items (players get a position-only grey stub until revealed).
+- `hidden` play map items — nothing of them is sent (no placeholder, no position) until the GM reveals them.
 
 **Sent to players** (player-safe wording only):
 - Room **names**, categories, node layout, links, warp icons.

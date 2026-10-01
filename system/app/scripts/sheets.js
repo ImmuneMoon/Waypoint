@@ -3185,14 +3185,14 @@ function runDue(charId, actId) {
 // The combat roster (whiteboard.js): initiative from the system's init roll, made at the table like any roll
 function hasInitRoll() { var sys = systemOf(getActiveCampaign()); return !!(sys && initRoll(sys)); }
 function initTieNow() { var camp = getActiveCampaign(), sys = systemOf(camp); return sys && F() ? initTie(sys, F(), function(r) { return r && typeof r.charId === 'string' ? charById(r.charId, camp) : null; }) : null; }   // initiative O2: the tie steps for the roster's sort (its rows name their character)
-function rollInit(charId) {
+function rollInit(charId, opts) {   // opts.priv: rolled in private whatever the label shows (the roster's re-roll for a creature the GM hid)
     var camp = getActiveCampaign(), sys = systemOf(camp), c = charById(charId, camp), r = sys ? initRoll(sys) : null;
     if (!c || !r) return { error: 'No initiative roll in this system (tick Initiative on a roll in the System editor).' };
     if (!window.wpDice || !window.wpDice.rollFor) return { error: 'Dice are not available.' };
     if (window.wpVtt && !window.wpVtt.on('dice')) return { error: 'Dice are off for this campaign (Settings > VTT features).' };
     var allI = F() ? resolveAll(sys, c, F(), tokenCtxFor(c.id, camp)) : null, lbI = allI ? rollLabel(r, sys, c, allI.vars) : r.label, whyI = allI ? labelSecret(sys, allI.vars, r.label) : '';   // HF5a: the label's value, and the GM's privacy rule
     if (whyI) toast('Kept private: its label shows a GM-only value (' + whyI + ').');
-    return window.wpDice.rollFor(charId, r.formula, lbI || 'Initiative', { source: 'combat', priv: !!whyI, gmOnly: r.vis === 'gm' });
+    return window.wpDice.rollFor(charId, r.formula, lbI || 'Initiative', { source: 'combat', priv: !!whyI || !!(opts && opts.priv === true), gmOnly: r.vis === 'gm' });
 }
 // One value changed on the open sheet: the GM applies it here; a player asks the host and shows it meanwhile
 function commit(c, f, value) {

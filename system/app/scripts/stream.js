@@ -1,6 +1,6 @@
 /* Stream window — Waypoint opened with ?stream=1.
    A second window that shows only the play map, exactly as players see it: GM notes and
-   dossiers stripped, hidden items as placeholders, no toolbars. It reads the saves folder
+   dossiers stripped, hidden items left out, no toolbars. It reads the saves folder
    through the same local server every second and redraws, so it mirrors the table as the
    GM plays. Meant to be screen-shared (Discord, OBS) to someone watching without the app.
    "Showing" in the corner follows the GM's current map or pins one until changed. */

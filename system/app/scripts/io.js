@@ -1495,13 +1495,18 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
       if (got !== f.size) return null;
       return { data: new Blob(parts), crc: zip.crcDone(c) };
   }
-  // How many bytes of video an export of this scope would carry (from each library's own sizes): past EXPORT_BIG the archive is
-  // written straight to a file, since a window can hold only so large a Blob
+  // How many bytes of video and music an export of this scope would carry (from each library's own sizes; a song two campaigns
+  // list is counted for each, so this errs high): past EXPORT_BIG the archive is written straight to a file, since a window can
+  // hold only so large a Blob
   var EXPORT_BIG = 1024 * 1024 * 1024;
-  function exportVideoBytes(scope) {
+  function exportMediaBytes(scope) {
       if (scope !== 'campaign' && scope !== 'all') return 0;
       var camps = scope === 'all' ? Object.values((state.appState && state.appState.campaigns) || {}) : [getActiveCampaign()], n = 0;
-      camps.forEach(function(c) { (c && Array.isArray(c.videos) ? c.videos : []).forEach(function(v) { if (v && typeof v.size === 'number' && isFinite(v.size) && v.size > 0) n += v.size; }); });
+      var add = function(v) { if (v && typeof v.size === 'number' && isFinite(v.size) && v.size > 0) n += v.size; };
+      camps.forEach(function(c) {
+          (c && Array.isArray(c.videos) ? c.videos : []).forEach(add);
+          (c && c.music && typeof c.music === 'object' && Array.isArray(c.music.tracks) ? c.music.tracks : []).forEach(add);
+      });
       return n;
   }
   function exportBaseName(scope) { var c = getActiveCampaign(); return scope === 'all' ? 'waypoint-everything' : slugName(c && c.name) + '-campaign'; }
@@ -1618,7 +1623,7 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
           var say = function(n) { done += n; var now = Date.now(); if (now - lastSaid < 1000) return; lastSaid = now; toast('Writing the export' + (total ? ' ' + Math.min(99, Math.floor(done / total * 100)) + '%' : '') + '\u2026'); };
           var sEntries = entries.map(function(en) { return { name: en.name, size: en.data.length, pull: async function(emit) { await emit(en.data); } }; });
           paths.forEach(function(p) { sEntries.push({ name: p.replace(/^\/saves\//, ''), open: function() { return exportOpen(encodeURI(p)); } }); });
-          total = exportVideoBytes(scope);
+          total = exportMediaBytes(scope);
           var w = null, res = null;
           try {
               w = await handle.createWritable();
@@ -1665,10 +1670,10 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
 
   async function exportScope(scope) {
       if (!canPersistLocal()) { toast('Not while you\'re at someone else\'s table.'); return; }
-      // a large export (its videos past 1 GB) is written straight to a file you pick, never held in this window's memory; the
+      // a large export (its videos and music past 1 GB) is written straight to a file you pick, never held in this window's memory; the
       // picker must open while the click still counts, so the size is judged first, from the library's own numbers
       var handle = null;
-      if (typeof window.showSaveFilePicker === 'function' && exportVideoBytes(scope) > EXPORT_BIG) {
+      if (typeof window.showSaveFilePicker === 'function' && exportMediaBytes(scope) > EXPORT_BIG) {
           try { handle = await window.showSaveFilePicker({ suggestedName: exportBaseName(scope) + '.zip', types: [{ description: 'Waypoint export', accept: { 'application/zip': ['.zip'] } }] }); }
           catch (e) { if (e && e.name === 'AbortError') return; handle = null; }   // cancelled: no export; a window that cannot ask: the archive as a download, as ever
       }

@@ -10,8 +10,8 @@
 import { state } from './state.js';
 import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
-import { LIMITS, cleanMusic, cleanMapMusic, cleanControl, cleanName } from './musiccore.js';
-import { isUploadPath } from './soundcore.js';
+import { LIMITS, cleanMusic, cleanMapMusic, cleanControl, cleanName, bringPlan, isRefPath, folderOf } from './musiccore.js';
+import { isUploadPath, safeId } from './soundcore.js';
 
 var ui = function(id) { return document.getElementById(id); };
 function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
@@ -30,11 +30,11 @@ function fmtTime(s) { s = Math.max(0, Math.round(s || 0)); return Math.floor(s /
 // A file from elsewhere may have shaped camp.music any way: readers see objects in arrays (the stored objects, not copies, so an edit through a playlist lands)
 function campMusic(camp) {
     camp = camp || getActiveCampaign();
-    var m = camp && camp.music && typeof camp.music === 'object' ? camp.music : null, isObj = function(x) { return !!x && typeof x === 'object'; };
+    var m = camp && camp.music && typeof camp.music === 'object' && !Array.isArray(camp.music) ? camp.music : null, isObj = function(x) { return !!x && typeof x === 'object'; };   // a list is no music object: what is put on one is never saved
     if (!m) return { v: 1, tracks: [], playlists: [] };
     return { v: 1, tracks: Array.isArray(m.tracks) ? m.tracks.filter(isObj) : [], playlists: Array.isArray(m.playlists) ? m.playlists.filter(function(p) { return isObj(p) && Array.isArray(p.tracks); }) : [] };
 }
-function campMusicW(camp) { camp = camp || getActiveCampaign(); if (!camp) return null; if (!camp.music || typeof camp.music !== 'object') camp.music = { v: 1, tracks: [], playlists: [] }; if (!Array.isArray(camp.music.tracks)) camp.music.tracks = []; if (!Array.isArray(camp.music.playlists)) camp.music.playlists = []; return camp.music; }
+function campMusicW(camp) { camp = camp || getActiveCampaign(); if (!camp) return null; if (!camp.music || typeof camp.music !== 'object' || Array.isArray(camp.music)) camp.music = { v: 1, tracks: [], playlists: [] }; if (!Array.isArray(camp.music.tracks)) camp.music.tracks = []; if (!Array.isArray(camp.music.playlists)) camp.music.playlists = []; return camp.music; }
 // what THIS machine may play now: the host/solo reads its own camp.music; a client (M3) reads net.music
 function musicNow() { if (isClient()) { var n = net(); return (n && n.music && typeof n.music === 'object') ? n.music : { v: 1, tracks: [], playlists: [] }; } return campMusic(); }
 function trackById(id) { var m = musicNow(); for (var i = 0; i < m.tracks.length; i++) if (m.tracks[i].id === id) return m.tracks[i]; return null; }
@@ -313,9 +313,10 @@ function openPill() {
 
 /* ---------- the GM panel: playlists, transport, per-map binding ---------- */
 var selPl = null;   // the selected playlist id in the panel
+var picking = null; // bringing music in from another campaign: { to: this campaign's id, from: campaign id, pl: { playlist id: 1 }, tr: { track id: 1 } } while the picker is open
 function panelOpen() { var p = ui('musicPanel'); return !!(p && p.style.display !== 'none'); }
 function openPanel() { if (!canWrite()) { toast('Only the GM manages music.'); return; } var p = ui('musicPanel'); if (!p) return; p.style.display = 'flex'; try { var pos = JSON.parse(pref('wp_musicPanel', '')); if (pos && typeof pos.x === 'number') { p.style.left = Math.max(0, Math.min(pos.x, window.innerWidth - 60)) + 'px'; p.style.top = Math.max(0, Math.min(pos.y, window.innerHeight - 40)) + 'px'; p.style.right = 'auto'; } } catch (e) {} renderPanel(); }
-function closePanel() { var p = ui('musicPanel'); if (p) p.style.display = 'none'; }
+function closePanel() { var p = ui('musicPanel'); if (p) p.style.display = 'none'; picking = null; }
 // Light update of the transport display without rebuilding the panel (so a slider being dragged is never yanked).
 function refreshTransport() {
     var p = ui('musicPanel'); if (!p || p.style.display === 'none') return;
@@ -330,6 +331,70 @@ function refreshTransport() {
     var mb = q('.music-mute'); if (mb) mb.textContent = st.muted ? '🔇' : '🔊';
     var sv = q('.music-speed-val'); if (sv && document.activeElement !== sv) sv.value = st.rate.toFixed(2);
 }
+// [sinkcheck:musicpick-start]
+// Music from another campaign: the GM picks playlists and songs of another of their campaigns and brings them in by reference (this
+// campaign lists the other one's files: nothing is copied, and taking a song out here never touches a file). Every name is written
+// as a text node or an option's text; a source is found by its own key only, never this campaign itself nor another GM's kept copy.
+function pickSource(id) {
+    var all = (state.appState && state.appState.campaigns) || {}, me = getActiveCampaign();
+    if (typeof id !== 'string' || !Object.prototype.hasOwnProperty.call(all, id)) return null;
+    var c = all[id];
+    return c && typeof c === 'object' && c !== me && !c._foreign ? c : null;
+}
+function otherMusicCamps() {
+    var all = (state.appState && state.appState.campaigns) || {}, out = [];
+    Object.keys(all).forEach(function(id) { var c = pickSource(id); if (!c) return; var n = cleanMusic(campMusic(c)).tracks.length; if (n) out.push({ id: id, name: typeof c.name === 'string' && c.name ? c.name : 'Campaign', n: n }); });
+    return out;
+}
+// the campaign whose folder a brought-in song lies in, by name ('another campaign' when it is gone)
+function campNameOfFolder(folder) {
+    var all = (state.appState && state.appState.campaigns) || {}, name = '';
+    if (folder) Object.keys(all).forEach(function(id) { var c = all[id]; if (!name && c && typeof c === 'object' && safeId(id) === folder && typeof c.name === 'string') name = c.name; });
+    return name || 'another campaign';
+}
+function renderPicker(lib) {
+    var camp = getActiveCampaign(), others = otherMusicCamps();
+    if (!others.some(function(o) { return o.id === picking.from; })) { picking.from = others.length ? others[0].id : ''; picking.pl = Object.create(null); picking.tr = Object.create(null); }
+    var src = pickSource(picking.from);
+    var fromRow = el('div', 'music-pick-from'); fromRow.appendChild(el('span', null, 'From'));
+    var sel = el('select'); others.forEach(function(o) { var op = new Option(o.name + ' (' + o.n + ')', o.id); if (o.id === picking.from) op.selected = true; sel.appendChild(op); });
+    sel.addEventListener('change', function() { picking.from = sel.value; picking.pl = Object.create(null); picking.tr = Object.create(null); renderPanel(); });
+    fromRow.appendChild(sel); lib.appendChild(fromRow);
+    var bringB = el('button', 'tool music-pick-bring'), cancel = el('button', 'tool ghost', 'Cancel');
+    var relabel = function() { var n = Object.keys(picking.pl).length + Object.keys(picking.tr).length; bringB.textContent = 'Bring ' + n + ' into ' + (camp && typeof camp.name === 'string' && camp.name ? camp.name : 'this campaign'); bringB.disabled = !n; };
+    var tickRow = function(set, id, label) {
+        var row = el('label', 'music-pick-row'), box = el('input'); box.type = 'checkbox'; box.checked = set[id] === 1;
+        box.addEventListener('change', function() { if (box.checked) set[id] = 1; else delete set[id]; relabel(); });
+        row.appendChild(box); row.appendChild(el('span', 'music-pick-name', label)); lib.appendChild(row);
+    };
+    if (src) {
+        var sm = cleanMusic(campMusic(src)), have = Object.create(null);
+        cleanMusic(campMusic(camp)).tracks.forEach(function(t) { have[t.path] = 1; });
+        var fresh = sm.tracks.filter(function(t) { return !have[t.path]; });
+        if (sm.playlists.length) { lib.appendChild(el('div', 'music-pick-sub', 'Playlists (each with its songs)')); sm.playlists.forEach(function(pl) { tickRow(picking.pl, pl.id, pl.name + '  (' + pl.tracks.length + ')'); }); }
+        lib.appendChild(el('div', 'music-pick-sub', 'Songs'));
+        if (fresh.length) fresh.forEach(function(t) { tickRow(picking.tr, t.id, t.name); });
+        else lib.appendChild(el('div', 'music-empty', 'Every song of that campaign is already listed here.'));
+    } else lib.appendChild(el('div', 'music-empty', 'No other campaign has music.'));
+    var foot = el('div', 'music-pick-foot');
+    bringB.addEventListener('click', bringPicked); cancel.addEventListener('click', function() { picking = null; renderPanel(); });
+    foot.appendChild(bringB); foot.appendChild(cancel); lib.appendChild(foot);
+    lib.appendChild(el('div', 'music-empty', 'Nothing is copied: this campaign lists the other one’s files. Taking a song out here never touches the file.'));
+    relabel();
+}
+function bringPicked() {
+    var camp = getActiveCampaign(), src = picking ? pickSource(picking.from) : null;
+    if (!camp || !src || !canWrite() || picking.to !== camp.id) { picking = null; renderPanel(); return; }   // the picker belongs to the campaign it was opened in: after a switch it brings nothing
+    var mw = campMusicW(camp); if (!mw) return;
+    var plan = bringPlan(campMusic(camp), campMusic(src), { playlists: Object.keys(picking.pl), tracks: Object.keys(picking.tr) });
+    plan.tracks.forEach(function(t) { mw.tracks.push(t); }); plan.playlists.forEach(function(pl) { mw.playlists.push(pl); });
+    picking = null;
+    var nT = plan.tracks.length, nP = plan.playlists.length;
+    if (nT || nP) { if (nP) selPl = plan.playlists[0].id; save(true); var n = net(); if (n && n.syncMusic) n.syncMusic(); }
+    toast((nT || nP ? (nT ? nT + ' song' + (nT === 1 ? '' : 's') : '') + (nT && nP ? ' and ' : '') + (nP ? nP + ' playlist' + (nP === 1 ? '' : 's') : '') + ' brought in.' : plan.skipped ? 'Nothing was brought in.' : 'Nothing new to bring: this campaign already lists them.') + (plan.skipped ? ' ' + plan.skipped + ' left out: the music library is full.' : ''));
+    renderPanel();
+}
+// [sinkcheck:musicpick-end]
 function renderPanel() {
     var p = ui('musicPanel'); if (!p || p.style.display === 'none') return;
     var m = campMusic(), st = status();
@@ -436,18 +501,30 @@ function renderPanel() {
         p.appendChild(bindWrap);
     }
 
-    // library: upload songs + manage tracks
-    var lib = el('div', 'music-section music-lib');
-    var libHead = el('div', 'music-sec-head'); libHead.appendChild(el('span', null, 'Library — ' + m.tracks.length + ' track' + (m.tracks.length === 1 ? '' : 's')));
+    // library: upload songs + manage tracks, or (while picking) bring some in from another campaign
+    var lib = el('div', 'music-section music-lib'), campL = getActiveCampaign();
+    if (picking && (!campL || picking.to !== campL.id)) picking = null;   // another campaign is open now: its own library, no picker left from the last
+    var libHead = el('div', 'music-sec-head'); libHead.appendChild(el('span', null, picking ? 'From another campaign' : 'Library — ' + m.tracks.length + ' track' + (m.tracks.length === 1 ? '' : 's')));
+    var headBtns = el('span', 'music-sec-btns');
+    var fromB = el('button', 'tool ghost', 'From another campaign…');
+    fromB.title = 'Pick playlists and songs from another of your campaigns and bring them into this one. Nothing is copied: this campaign lists the other one’s files.';
+    fromB.addEventListener('click', function() {
+        if (!canWrite()) { toast('Only the GM manages music.'); return; }
+        var o = otherMusicCamps(); if (!o.length) { toast('No other campaign has music.'); return; }
+        picking = { to: campL ? campL.id : '', from: o[0].id, pl: Object.create(null), tr: Object.create(null) }; renderPanel();
+    });
     var addF = el('button', 'tool ghost', '+ Add music…');
     var fileIn = el('input'); fileIn.type = 'file'; fileIn.accept = 'audio/*'; fileIn.multiple = true; fileIn.style.display = 'none';
     addF.addEventListener('click', function() { if (!canWrite()) { toast('Only the GM manages music.'); return; } fileIn.value = ''; fileIn.click(); });
     fileIn.addEventListener('change', function() { uploadTracks(fileIn.files); });
-    libHead.appendChild(addF); lib.appendChild(libHead); lib.appendChild(fileIn);
-    if (!m.tracks.length) lib.appendChild(el('div', 'music-empty', 'No music tracks yet. Add songs (MP3 / OGG, up to ' + fmtMB(LIMITS.file) + ') above; a playlist plays tracks from here.'));
+    if (!picking) { headBtns.appendChild(fromB); headBtns.appendChild(addF); }
+    libHead.appendChild(headBtns); lib.appendChild(libHead); lib.appendChild(fileIn);
+    if (picking) renderPicker(lib);
+    else if (!m.tracks.length) lib.appendChild(el('div', 'music-empty', 'No music tracks yet. Add songs (MP3 / OGG, up to ' + fmtMB(LIMITS.file) + ') above; a playlist plays tracks from here.'));
     else m.tracks.forEach(function(tr) {
         var row = el('div', 'music-libtrack');
         row.appendChild(el('span', 'music-libtrack-name', tr.name));
+        if (campL && isRefPath(campL.id, tr.path)) { var fr = el('span', 'music-from', 'from ' + campNameOfFolder(folderOf(tr.path))); fr.title = 'Brought in from another campaign: this campaign lists that campaign’s file'; row.appendChild(fr); }
         var rm = el('button', 'tool ghost music-del', '×'); rm.title = 'Remove this track (and from every playlist)'; rm.addEventListener('click', function() { removeTrack(tr.id); });
         row.appendChild(rm); lib.appendChild(row);
     });

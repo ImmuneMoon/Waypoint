@@ -849,6 +849,17 @@ Music
   gives each player their own music volume and mute, apart from Sound. Music
   is a VTT feature (Settings ▸ VTT features), and a player can switch it off
   for themselves.
+- Music from another campaign: From another campaign… in the Music panel's
+  Library lists your other campaigns that have music. Tick playlists (each
+  comes with its songs) and single songs and bring them in. Nothing is
+  copied: this campaign lists the other one's files, a song it already
+  lists is not added twice, and a brought-in song says which campaign it
+  is from. Taking a song out of the library never touches its file.
+- A campaign file merged into a campaign already here brings its music too
+  (its playlists and songs, and the maps that came with it still find their
+  remembered music); before, a merge left the file's music behind. A song
+  or a playlist the campaign already holds is updated by the file's, as a
+  merged map is, so merging a newer copy never leaves two of a playlist.
 
 Video
 - Video is a new VTT feature (Settings ▸ VTT features, on by default): the
@@ -872,9 +883,9 @@ Video
   an import puts them back in place. An export has no size limit now: files
   are read from disk and written in parts, an archive past 4 GB or 65,535
   files is written as ZIP64, and it is refused rather than written wrong.
-  When the videos pass 1 GB the export asks where to save it and writes
-  straight to that file (it is never held in memory), then reads it back
-  and checks every file in it before calling it exported.
+  When the videos and music pass 1 GB the export asks where to save it and
+  writes straight to that file (it is never held in memory), then reads it
+  back and checks every file in it before calling it exported.
   An import opens the file without reading it whole and checks every file
   against its checksum before copying it: a damaged one is counted as
   failed, never written.

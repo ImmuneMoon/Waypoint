@@ -611,6 +611,14 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
           }
           // the video library merges by id too (item 21): an imported entry replaces the same id, new ones are added, the whole cleaned
           if (Array.isArray(ic.videos) && window.wpVideoCore && window.wpVideoCore.mergeVideos) { var vdM = window.wpVideoCore.mergeVideos(existing.videos, ic.videos); if (vdM.length) existing.videos = vdM; else delete existing.videos; }
+          // the music library merges by id too: a song or a playlist of the file that this campaign holds is updated, a new one is added
+          // (a song whose file is already listed here is that song), and the merged maps' remembered music is pointed at wherever its
+          // playlist or song now is
+          if (ic.music && typeof ic.music === 'object' && window.wpMusicCore && window.wpMusicCore.mergePlan) {
+              var muP = window.wpMusicCore.mergePlan(existing.music, ic.music);
+              if (muP.changed) existing.music = window.wpMusicCore.applyMerge(existing.music, muP);
+              window.wpMusicCore.remapMapMusic(ic.items, muP.ids);
+          }
           // the picture library's per-campaign bookkeeping merges too (brought-in pictures and categories)
           if (Array.isArray(ic.pictures)) { existing.pictures = Array.isArray(existing.pictures) ? existing.pictures : []; ic.pictures.forEach(function(p) { if (existing.pictures.indexOf(p) < 0) existing.pictures.push(p); }); }
           if (ic.imageCats && typeof ic.imageCats === 'object') {

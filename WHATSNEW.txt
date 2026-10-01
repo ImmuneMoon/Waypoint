@@ -1332,6 +1332,10 @@ Multiplayer
   of a player's that you hide stays on your map until you show or delete
   it, and showing it again can no longer lose it to a map copy of theirs
   made while it was hidden.
+- The stream window shows a video you are showing to players, over its
+  map, keeping to your position (play, pause and seek follow your hand);
+  it is muted unless "Stream window plays the table's sound" is on in
+  Settings, which now covers the ambient loop and a shown video alike.
 - Sound's Delete no longer removes a file another campaign uses: a song
   brought in From another campaign… and a sound brought in from another
   campaign are references to the file in the campaign it was uploaded to,

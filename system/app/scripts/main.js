@@ -1035,6 +1035,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
       var brand = document.getElementById('headerBrand'); if (brand) brand.addEventListener('click', showWelcome);
   })();
   (function maybeShowWelcome() {
+      if (/[?&]stream=1/.test(location.search)) return;   // the stream window mirrors the table: never the welcome over its map (as the tour stays out of it)
       var pref = welcomePref();
       if (pref === 'never') return;
       if (pref === 'first' && (wcProfile().name || '').trim()) return;

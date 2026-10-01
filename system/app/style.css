@@ -452,7 +452,7 @@
   body.stream-mode #sidebar, body.stream-mode #wbFloatingToolbar, body.stream-mode #selToolbar, body.stream-mode #minimap,
   body.stream-mode #saveNote, body.stream-mode #toast, body.stream-mode #updateBanner, body.stream-mode #updateBtn,
   body.stream-mode #pauseBanner, body.stream-mode #rulerTop, body.stream-mode #rulerLeft, body.stream-mode #wbTooltip,
-  body.stream-mode #dataFloatingToolbar, body.stream-mode #zoomBox, body.stream-mode [id$="Modal"] { display: none !important; }
+  body.stream-mode #dataFloatingToolbar, body.stream-mode #zoomBox, body.stream-mode [id$="Modal"], body.stream-mode #welcomeScreen { display: none !important; }
   body.stream-mode #whiteboardWrap, body.stream-mode #whiteboardWrap * { cursor: grab !important; }
   body.stream-mode .wb-item.wb-absent { opacity: 1 !important; filter: none !important; }
   /* ---- doc panel: a planner / handbook popped OVER the map (like the sheet panel), read-only + live ---- */
@@ -505,6 +505,9 @@
     font-size: 12px; color: var(--ink); backdrop-filter: blur(4px); transition: opacity .25s;
   }
   #streamBar.hidden { opacity: 0; pointer-events: none; }
+  #streamVideo { position: fixed; inset: 0; z-index: 99990; background: #000; display: flex; align-items: center; justify-content: center; }
+  #streamVideo video { width: 100%; height: 100%; object-fit: contain; background: #000; }
+  #streamVideoCap { position: absolute; left: 12px; bottom: 10px; font-size: 13px; color: rgba(233,233,240,0.75); text-shadow: 0 1px 3px #000; pointer-events: none; }
   #streamBar label { color: var(--dim); }
   #streamBar select { font-size: 12px; max-width: 320px; }
   #streamBar select:disabled { opacity: 0.45; }

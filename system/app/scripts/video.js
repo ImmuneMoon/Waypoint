@@ -210,6 +210,7 @@ function startShowing() {
     if (!who) { stopTracks(cap); toast('It could not be shown: is the table still up?'); return; }
     live = { id: v.id, cap: cap };
     renderTable(true);
+    streamPost(); streamTicking(true);
     toast('Showing "' + v.name + '" to ' + (pids ? (who.names.concat(who.waiting).join(', ') || 'the players you ticked') : 'everyone') + ': what plays here plays for them.');
 }
 function stopShowing(why) {
@@ -218,8 +219,27 @@ function stopShowing(why) {
     if (n && n.videoStop) n.videoStop();
     stopTracks(l.cap);
     renderTable(true);
+    streamTicking(false); streamPost();
     if (why) toast(why);
 }
+// [videocheck:streamstage-start]
+// The stream window (the GM's second window, screen-shared to a spectator): it is told what is being shown to players over
+// BroadcastChannel('waypoint') and plays the same file itself from the local server — the picture at the GM's position, never the capture.
+// Posted when a showing starts or stops, when the GM plays, pauses or seeks, and once a second while it plays; the stream window asks on load.
+// Only a GM's main window posts (never a player's app, never the stream window); nothing is sent while nothing is shown to players
+var streamChan = null; try { streamChan = new BroadcastChannel('waypoint'); } catch (e) {}
+function stageMsg(v, el, isLive) {
+    var on = !!(v && el && isLive);
+    return { type: 'video-stage', now: on ? { id: v.id, name: v.name, path: v.path, pos: Math.round((Number(el.currentTime) || 0) * 10) / 10, playing: !el.paused && !el.ended, loop: el.loop === true, live: true } : null };
+}
+function streamPost() {
+    if (!streamChan || window.wpStream || !canWrite()) return;
+    var el = ui('videoEl'), v = showing ? lib().find(function(x) { return x.id === showing; }) : null;
+    try { streamChan.postMessage(stageMsg(v, el, !!live)); } catch (e) {}
+}
+var _streamTick = null;
+function streamTicking(on) { if (on && !_streamTick) _streamTick = setInterval(streamPost, 1000); else if (!on && _streamTick) { clearInterval(_streamTick); _streamTick = null; } }
+// [videocheck:streamstage-end]
 function audienceChanged() { if (panelOpen && showing && !watch) renderTable(false); }   // net.js: a call came or went
 
 /* ---------- a player's side (V2): the GM's video in this panel, live ---------- */
@@ -400,6 +420,8 @@ function deleteVideo(id) {
         stopShowing('The video could not be played: no longer showing to players.');
     });
     el.addEventListener('ended', function() { stopShowing('The video ended: it closed on the players’ screens.'); });   // with Loop it never ends
+    ['play', 'pause', 'seeked'].forEach(function(k) { el.addEventListener(k, function() { if (live) streamPost(); }); });   // the stream window follows the GM's hand
+    if (streamChan && !window.wpStream) streamChan.addEventListener('message', function(e) { if (e.data && e.data.type === 'video-stage-query') streamPost(); });   // a stream window opened mid-showing asks
     // the stage's table row (V2): who it is shown to, Show and Stop, Loop
     var table = ui('videoTable');
     if (table) {

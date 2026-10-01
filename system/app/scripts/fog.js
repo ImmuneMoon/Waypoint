@@ -910,7 +910,24 @@ function memLayer(map, m, z, sx, sy, W, H, traceOn) {
     return _memCanvas;
 }
 // [fogcheck:memory-end]
-function hexPath(ctx, cx, cy, s) { for (var i = 0; i < 6; i++) { var a = Math.PI / 180 * (60 * i), px = cx + s * Math.cos(a), py = cy + s * Math.sin(a); if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py); } ctx.closePath(); }
+var HEX_COS = [0, 1, 2, 3, 4, 5].map(function(i) { return Math.cos(Math.PI / 180 * (60 * i)); }), HEX_SIN = [0, 1, 2, 3, 4, 5].map(function(i) { return Math.sin(Math.PI / 180 * (60 * i)); });   // a hexagon's six corners, worked out once: the very numbers each cell used to work out for itself
+function hexPath(ctx, cx, cy, s) { for (var i = 0; i < 6; i++) { var px = cx + s * HEX_COS[i], py = cy + s * HEX_SIN[i]; if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py); } ctx.closePath(); }
+// [fogcheck:maskclip-start]
+// The play area's clip as a kept path. A frame with the same play area and the same view as the frame before it clips to a Path2D made
+// once by the very calls the frame itself would make (traceOn, cell for cell, in order), and the frames after it trace nothing: the
+// overlay redraws many times a second while nothing moves, and at the full frame rate while a token is dragged. A frame whose play area
+// or view has just changed (a scroll, a zoom, a play area being dragged) gets null and is traced on the canvas as ever, so a moving
+// view builds no path only to throw it away. Null too where there is no Path2D. The play area is known by its object (fogMask hands
+// the same one on until its stamp changes), the view by its numbers.
+var _clipKey = null, _clipPath = null;
+function maskClip(mask, grid, z, sx, sy, W, H, traceOn) {
+    if (typeof Path2D !== 'function') return null;
+    var k = _clipKey, same = !!k && k.mask === mask && k.type === grid.type && k.size === grid.size && k.s === grid.s && k.h === grid.h && k.z === z && k.sx === sx && k.sy === sy && k.W === W && k.H === H;
+    if (!same) { _clipKey = { mask: mask, type: grid.type, size: grid.size, s: grid.s, h: grid.h, z: z, sx: sx, sy: sy, W: W, H: H }; _clipPath = null; return null; }
+    if (!_clipPath) { var p = new Path2D(); for (var i = 0; i < mask.cells.length; i++) traceOn(p, mask.cells[i]); _clipPath = p; }
+    return _clipPath;
+}
+// [fogcheck:maskclip-end]
 function draw() {
     var s = screenEl(), wrap = ui('whiteboardWrap'), C = core(); if (!s || !wrap || !C) return;
     placeScreen();
@@ -936,9 +953,9 @@ function draw() {
     var mem = isClientView() && rememberOn(camp) ? memRemember(map, grid, tiers) : null, memLay = mem && mem.n ? memLayer(map, mem, z, sx, sy, W, H, traceOn) : null;   // senses S6: the ground this player remembers
     ctx.save();
     if (mask.mode === 'set') {                                     // confine the fog to the play-area cells
-        ctx.beginPath();
-        for (var mi = 0; mi < mask.cells.length; mi++) traceCell(mask.cells[mi]);
-        ctx.clip();
+        var mp = maskClip(mask, grid, z, sx, sy, W, H, traceOn);   // the same clip, kept from the frame before while nothing moved
+        if (mp) ctx.clip(mp);
+        else { ctx.beginPath(); for (var mi = 0; mi < mask.cells.length; mi++) traceCell(mask.cells[mi]); ctx.clip(); }
     }
     ctx.globalCompositeOperation = 'source-over';
     ctx.fillStyle = isClientView() ? 'rgba(5,6,12,0.97)' : 'rgba(9,11,20,0.62)';   // players: opaque; the GM: see-through

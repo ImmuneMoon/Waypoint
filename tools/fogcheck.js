@@ -617,6 +617,61 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 && hostile.rec.length === 2 && hostile.rec[1][1] === HOST && none.rec.length === 0 && blank.rec.length === 0 && off.rec.length === 0 && many.rec.filter(r => r[0] === 'text').length === 40 && long.rec[1][1].length === 200 && long.rec[0][3] === 360 && noText.rec.length === 0
                 && /\n    ctx\.restore\(\);\n    drawMarks\(ctx, s, marksToDraw\(map, camp\), tiers\.keys, grid, Date\.now\(\), marksStill\(\), marksStrictOn\(camp, map\)\);[^\n]*\n    drawCaptions\(ctx, s\);\n    drawSenseCaptions\(ctx, s, blindCaptionsFor\(map, camp, drawOwner\(\)\)\);[^\n]*\n\}\n/.test(fogSrc) && (fogSrc.match(/drawCaptions\(/g) || []).length === 2 && (() => { drawRun({ list: [], keys: {} }); return lj(drawRun.captions) === lj([{ captions: true, marks: [['marks of', 'amap', 'acamp'], true, true, 1234, 'still?', ['strict?', 'acamp', 'amap']] }, { captions: true }, { captions: true, senses: ['amap', 'acamp', '*'] }]); })(), lj([one.rec, hostile.rec, off.rec.length, many.rec.length]));
         }
+        {   // the play area's clip, kept from the frame before while nothing moves (fog.js maskClip, sliced by its maskclip markers, and the real draw)
+            const clipSrc = fogSrc.slice(fogSrc.indexOf('// [fogcheck:maskclip-start]'), fogSrc.indexOf('// [fogcheck:maskclip-end]')), hexSrc = lineOf('var HEX_COS = ') + lineOf('function hexPath(');
+            const mkClip = hasP2 => {
+                const made = [];
+                function P2() { this.ops = []; made.push(this); }
+                ['rect', 'moveTo', 'lineTo', 'closePath'].forEach(n => { P2.prototype[n] = function() { this.ops.push([n].concat([].slice.call(arguments))); }; });
+                const w = new Function('Path2D', "'use strict';" + NL + hexSrc + clipSrc + NL + 'return { maskClip: maskClip, hexPath: hexPath };')(hasP2 ? P2 : undefined);
+                w.made = made; return w;
+            };
+            const drawSet = (w, mask, g, v) => {
+                const rec = [], op = n => function() { rec.push([n].concat([].slice.call(arguments))); };
+                const cx = { save() {}, restore() {}, clearRect() {}, drawImage() {}, fillRect: op('fillRect'), beginPath: op('beginPath'), rect: op('rect'), moveTo: op('moveTo'), lineTo: op('lineTo'), closePath: op('closePath'), clip: op('clip'), fill: op('fill') };
+                const scr = { clientWidth: v.W, clientHeight: v.H, querySelector: () => ({ getContext: () => cx }) };
+                new Function('screenEl', 'placeScreen', 'ui', 'core', 'active', 'activeMap', 'activeCamp', 'gridForMap', 'fogMask', 'revealedTiers', 'drawOwner', 'isClientView', 'state', 'hexPath', 'drawCaptions', 'drawSenseCaptions', 'blindCaptionsFor', 'drawMarks', 'marksToDraw', 'marksStill', 'marksStrictOn', 'rememberOn', 'memRemember', 'memLayer', 'Date', 'maskClip', "'use strict';" + NL + cut('function draw(') + NL + 'return draw;')(
+                    () => scr, () => {}, () => ({ scrollLeft: v.sx, scrollTop: v.sy }), () => FC, () => true, () => ({ id: 'amap' }), () => ({ id: 'acamp' }), () => g, () => mask, () => ({ list: [], keys: {} }), () => '*', () => true, { zoomLevel: v.z }, w.hexPath, () => {}, () => {}, () => [], () => {}, () => [], () => true, () => false, () => false, () => null, () => null, { now: () => 1 }, w.maskClip)();
+                return rec;
+            };
+            const sameOps = (a, b) => a.length === b.length && a.every((o, i) => o.length === b[i].length && o.every((x, k) => Object.is(x, b[i][k])));
+            const sqG = FC.squareGrid(50), hxG = FC.gridFor('hex'), view1 = { z: 1, sx: 0, sy: 0, W: 800, H: 600 }, view2 = { z: 1.3, sx: 37, sy: 12.5, W: 800, H: 600 };
+            const sqMask = { mode: 'set', cells: Array.from({ length: 30 }, (_, i) => ({ c: i % 6, r: (i / 6) | 0 })).concat([{ c: 400, r: 400 }]) };   // thirty cells in view and one far off it
+            const hxMask = { mode: 'set', cells: Array.from({ length: 12 }, (_, i) => ({ q: i % 4, r: (i / 4) | 0 })).concat([{ q: 300, r: 300 }]) };
+            const frames = (hasP2, mask, g, v) => { const w = mkClip(hasP2); return { w, f: [drawSet(w, mask, g, v), drawSet(w, mask, g, v), drawSet(w, mask, g, v)] }; };
+            const tail = [['fillRect', 0, 0, 800, 600], ['beginPath'], ['fill']], traceOf = rec => rec.slice(1, rec.findIndex(o => o[0] === 'clip'));
+            const both = (mask, g, v, perCell, nCells) => {
+                const old = frames(false, mask, g, v), kept = frames(true, mask, g, v), ref = old.f[0], trace = traceOf(ref), p = kept.w.made[0];
+                return ref[0][0] === 'beginPath' && trace.length === perCell * nCells && sameOps(ref.slice(-3), tail) && ref.length === trace.length + 5 && sameOps([ref[trace.length + 1]], [['clip']])   // today's frame: beginPath, the cells in view, clip(), the fill, the punch
+                    && old.f.every(f => sameOps(f, ref)) && old.w.made.length === 0                                    // no Path2D: every frame exactly that
+                    && sameOps(kept.f[0], ref)                                                                           // a first frame at a view: traced on the canvas as ever
+                    && kept.w.made.length === 1 && sameOps(p.ops, trace)                                                 // the second: one path, made of the very calls, in order, number for number
+                    && kept.f[1].length === 4 && kept.f[1][0][0] === 'clip' && kept.f[1][0].length === 2 && kept.f[1][0][1] === p && sameOps(kept.f[1].slice(1), tail)
+                    && kept.f[2].length === 4 && kept.f[2][0][1] === p && sameOps(kept.f[2].slice(1), tail);            // the third: the same path, nothing traced, the rest of the frame as it was
+            };
+            check('the play area\'s clip is kept while nothing moves: the first frame at a view traces the cells on the canvas as ever; the next clips to one Path2D made of the very same calls in the same order (every number identical; the cell off the view left out of both) and the frames after it trace nothing, the fill and the punches after the clip unchanged — on squares at zoom 1 and on hexagons at a fractional zoom with the view scrolled; with no Path2D every frame is today\'s',
+                both(sqMask, sqG, view1, 1, 30) && both(sqMask, sqG, view2, 1, 30) && both(hxMask, hxG, view2, 7, 12) && both(hxMask, hxG, view1, 7, 12));
+            const emptyOld = frames(false, { mode: 'set', cells: [] }, sqG, view1), emptyKept = frames(true, { mode: 'set', cells: [] }, sqG, view1);
+            const noMask = (() => { const w = { hexPath() {}, maskClip() { throw new Error('the clip is not asked for'); } }; return [drawSet(w, { mode: 'all' }, sqG, view1), drawSet(w, { mode: 'none' }, sqG, view1)]; })();
+            check('a play area with no cell still clips everything away (an empty path, kept or not: never no clip); a map fogged whole, or not at all, asks for no clip',
+                sameOps(emptyOld.f[1], [['beginPath'], ['clip']].concat(tail)) && emptyKept.f[1][0][0] === 'clip' && emptyKept.f[1][0][1] === emptyKept.w.made[0] && emptyKept.w.made[0].ops.length === 0 && sameOps(emptyKept.f[1].slice(1), tail)
+                && sameOps(noMask[0], tail) && noMask[1].length === 0, lj([emptyOld.f[1], noMask]));
+            const wK = mkClip(true); let traced = 0; const tr = (p, c) => { traced++; p.rect(c.c, c.r, 1, 1); };
+            const big = { mode: 'set', cells: Array.from({ length: 6000 }, (_, i) => ({ c: i % 100, r: (i / 100) | 0 })) };
+            const k1 = wK.maskClip(big, sqG, 1, 0, 0, 800, 600, tr), n1 = traced, k2 = wK.maskClip(big, sqG, 1, 0, 0, 800, 600, tr), n2 = traced, k3 = wK.maskClip(big, sqG, 1, 0, 0, 800, 600, tr), n3 = traced;
+            const sq40 = FC.squareGrid(40), again = { mode: 'set', cells: big.cells };
+            const moves = [[big, sqG, 2, 0, 0, 800, 600], [big, sqG, 2, 5, 0, 800, 600], [big, sqG, 2, 5, 7, 800, 600], [big, sqG, 2, 5, 7, 801, 600], [big, sqG, 2, 5, 7, 801, 601], [big, sq40, 2, 5, 7, 801, 601], [big, hxG, 2, 5, 7, 801, 601], [again, hxG, 2, 5, 7, 801, 601], [big, hxG, 2, 5, 7, 801, 601], [big, { type: 'hex', s: 31, h: 52 }, 2, 5, 7, 801, 601], [big, { type: 'hex', s: 31, h: 53 }, 2, 5, 7, 801, 601], [big, { type: 'square', s: 31, h: 53 }, 2, 5, 7, 801, 601]];   // the last three: one number of the grid at a time
+            let last = k2; const moved = moves.map(a => { const t0 = traced, first = wK.maskClip.apply(null, a.concat([tr])), t1 = traced, second = wK.maskClip.apply(null, a.concat([tr])), t2 = traced, third = wK.maskClip.apply(null, a.concat([tr])); const ok = first === null && t1 === t0 && !!second && second !== last && t2 === t0 + 6000 && third === second && traced === t2; last = second; return ok; });
+            check('maskClip: a play area of 6,000 cells is traced once for a view that stays (the first call none: it may be a view passing by; the second all of them into a path; the third none, the same path); a change of the zoom, either scroll, the width, the height, the cell\'s size, the grid (its kind, or either of a hexagon\'s two lengths alone), or another play-area object (even one of the same cells), each starts over — none, then a new path',
+                k1 === null && n1 === 0 && !!k2 && n2 === 6000 && k3 === k2 && n3 === 6000 && wK.made[0].ops.length === 6000 && moved.every(Boolean) && wK.made.length === 1 + moves.length, lj([n1, n2, n3, moved]));
+            const wH = mkClip(false), pts = (cx, cy, s) => { const o = []; wH.hexPath({ moveTo(x, y) { o.push(['moveTo', x, y]); }, lineTo(x, y) { o.push(['lineTo', x, y]); }, closePath() { o.push(['closePath']); } }, cx, cy, s); return o; };
+            const want = (cx, cy, s) => [0, 1, 2, 3, 4, 5].map(i => [i === 0 ? 'moveTo' : 'lineTo', cx + s * Math.cos(Math.PI / 180 * (60 * i)), cy + s * Math.sin(Math.PI / 180 * (60 * i))]).concat([['closePath']]);
+            check('a hexagon\'s corners are worked out once and are the very numbers each cell used to work out (the angle\'s cosine and sine, number for number); the overlay names the kept clip nowhere but in its own helper, hands it and the memory layer the same tracer, and still holds today\'s trace for a view that moves',
+                [[0, 0, 30], [123.456, -78.9, 30 * 1.3 * 1.02], [1e6 + 0.25, 3.5, 17.77]].every(a => sameOps(pts(a[0], a[1], a[2]), want(a[0], a[1], a[2])))
+                && /var mp = maskClip\(mask, grid, z, sx, sy, W, H, traceOn\);[^\n]*\n        if \(mp\) ctx\.clip\(mp\);\n        else \{ ctx\.beginPath\(\); for \(var mi = 0; mi < mask\.cells\.length; mi\+\+\) traceCell\(mask\.cells\[mi\]\); ctx\.clip\(\); \}/.test(fogSrc)
+                && /memLayer\(map, mem, z, sx, sy, W, H, traceOn\)/.test(fogSrc) && (fogSrc.match(/maskClip\(/g) || []).length === 2 && fogSrc.split('_clipKey').length - 1 === clipSrc.split('_clipKey').length - 1 && fogSrc.split('_clipPath').length - 1 === clipSrc.split('_clipPath').length - 1
+                && /function maskClip\(mask, grid, z, sx, sy, W, H, traceOn\) \{\n    if \(typeof Path2D !== 'function'\) return null;/.test(clipSrc) && !/Math\.cos|Math\.sin/.test(lineOf('function hexPath(')));
+        }
         check('Lighting: the overlay punches the dim cells part-way in one pass and the clear or bright ones fully in the next (drawn for real on a recording canvas); with no dim cell, one full pass as before',
             lj(pm) === lj([{ op: 'destination-out', style: 'rgba(0,0,0,0.5)', n: 2 }, { op: 'destination-out', style: 'rgba(0,0,0,1)', n: 3 }]) && lj(pc) === lj([{ op: 'destination-out', style: 'rgba(0,0,0,1)', n: 5 }]), lj([pm, pc]));
         check('Lighting: the fog menu sets a map\'s light (Auto, Bright, Dim, Dark) only while Lighting is on, saved, and follows the switch while open; window.wpFog reports it; a save or a received change no longer clears the viewer memo',

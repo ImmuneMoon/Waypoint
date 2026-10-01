@@ -1044,7 +1044,8 @@ Fog of war
   the cells under marked items, leaving scenes and map art around them lit.
   When no play area is marked, in the fog menu, chooses for the campaign
   between fogging the whole map, as before, and no fog until you mark one.
-  Hidden items never fog.
+  Hidden items never fog. A large play area's outline is traced once while
+  the view stays still, not again on every frame.
 - Fog on · all maps, in the fog menu, turns fog on for every map of the
   campaign at once, and New maps in this campaign start with fog on covers
   the maps you add later.

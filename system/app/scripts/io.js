@@ -191,6 +191,7 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
         }
         if (c.fog !== undefined && window.wpFogCore) c.fog = window.wpFogCore.cleanCampFog(c.fog);
         if (c.videos !== undefined && window.wpVideoCore) { var vdL = window.wpVideoCore.cleanVideos(c.videos); if (vdL.length) c.videos = vdL; else delete c.videos; }   // item 21 V1: the campaign's video library, cleaned on load (with its cleaner not loaded it stays as it is: never lost; the panel cleans it again as it reads)
+        if (c.music !== undefined && window.wpMusicCore && window.wpMusicCore.musicView) { var muL = window.wpMusicCore.musicView(c.music); if (muL.tracks.length || muL.playlists.length) c.music = muL; else delete c.music; }   // the campaign's music library, cleaned on load as the app reads it (a list, a hostile track, a playlist naming a track that is not there); none when nothing cleans; without the cleaner left as it is
         if (c.clock !== undefined) { var ckL = window.wpCalendarCore && window.wpCalendarCore.cleanClock ? window.wpCalendarCore.cleanClock(c.clock) : null; if (ckL) c.clock = ckL; else delete c.clock; }   // item 20 K2: the campaign's clock, cleaned on load (none without the cleaner)   // fog of war (1.5.0): campaign sight-field mapping + default, cleaned on load
     });
 

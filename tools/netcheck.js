@@ -2686,9 +2686,9 @@ pendingChecks.push((async () => {
     const m2Out = hid1 => ({ mapId: 'm2', round: 2, turn: 2, rows: [full('r_g2', 'Goblin2', 't_gob', 'g2.png'), hid1 ? hidRow(1) : full('r_o2', 'Orc2', 't_orc', 'o2.png'), full('c_gate', 'Gate', null, null)] });
     const U = hideWorld(), ub0 = U.bcast.length; U.N.broadcastCombats();
     const uA = U.last(U.conns[0]), uB = U.last(U.conns[1]), uSnap = [U.N.combatsFor('u_a'), U.N.combatsFor(null)], uHost = U.net.combats.m1.rows[0];
-    check('fold M0: on a table without fog a token the GM hid after the fight began goes out as a Hidden row (broadcastCombats, run for real) — no name, token, picture or token-bearing id, in its place, with the order, the count, the round and the turn intact and every other row whole (the Trap, with no token, too); a hidden token on another map than the combat\'s hides nothing, and one hidden on the combat\'s own map does',
-        j(uA) === j({ type: 'combats', combats: { m1: { mapId: 'm1', round: 3, turn: 1, rows: [hidRow(0)].concat(order.slice(1)) }, m2: m2Out(true) } })
-        && j(rowsOf(uA)).indexOf('gob') < 0 && j(rowsOf(uA)).indexOf('Goblin') < 0 && j(uA.combats.m2).indexOf('Orc2') < 0 && j(uA.combats.m2).indexOf('o2.png') < 0, j(uA));
+    check('fold M0 and the owner\'s ruling of 2026-10-01: on a table without fog a token the GM hid after the fight began keeps its row by name for the table that saw it go out whole at the start (broadcastCombats, run for real), the order, the count, the round and the turn intact; a creature hidden before any copy of its fight went out (m2\'s Orc2, its fight set up while it was hidden) goes out as a Hidden row — no name, token, picture or token-bearing id, in its place; a hidden token on another map than the combat\'s hides nothing',
+        j(uA) === j({ type: 'combats', combats: { m1: { mapId: 'm1', round: 3, turn: 1, rows: order }, m2: m2Out(true) } })
+        && j(rowsOf(uA)).indexOf('Goblin') >= 0 && j(uA.combats.m2).indexOf('Orc2') < 0 && j(uA.combats.m2).indexOf('o2.png') < 0 && j(uA.combats.m2).indexOf('t_orc') < 0, j(uA));
     check('fold M0: without fog that is still one broadcast, the same for each admitted player, nothing to a waiting or closed connection; the join snapshot (combatsFor) says the same; the host keeps the hidden token\'s row whole with its number',
         U.bcast.length === ub0 + 1 && j(uB) === j(uA) && j(U.bcast[U.bcast.length - 1]) === j(uA) && U.conns[2].sent.length === 0 && U.conns[3].sent.length === 0
         && j(uSnap) === j([uA.combats, uA.combats]) && j(uHost) === j({ id: 'r_t_gob', name: 'Goblin', tokId: 't_gob', init: 23, src: 'gob.png', rolled: 1 }) && !/rolled|init/.test(j(uA)), j([U.bcast.length - ub0, uSnap, uHost]));   // initiative O1: the roster's roll marks the host's row rolled (a deliberate change); a player gets neither
@@ -2698,9 +2698,9 @@ pendingChecks.push((async () => {
     // fogged: Bo cannot see the Orc on m1; the Goblin is hidden
     const Fh = hideWorld({ fog: true, drops: { u_b: { t_orc: 1 } } }), fb0 = Fh.bcast.length; Fh.N.broadcastCombats();
     const fhA = Fh.last(Fh.conns[0]), fhB = Fh.last(Fh.conns[1]);
-    check('fold M0: on a fogged table the hidden token\'s row is Hidden in every player\'s own copy (per-player sends, no broadcast), alongside a row hidden by their sight — Ana, who sees the Orc, gets it whole; Bo gets both Hidden, each by its place; the Trap and Ana whole; m2 (no fog there) as on a table without fog; the join snapshot matches',
-        Fh.bcast.length === fb0 && fb0 === 0 && j(fhA) === j({ type: 'combats', combats: { m1: { mapId: 'm1', round: 3, turn: 1, rows: [hidRow(0)].concat(order.slice(1)) }, m2: m2Out(true) } })
-        && j(fhB) === j({ type: 'combats', combats: { m1: { mapId: 'm1', round: 3, turn: 1, rows: [hidRow(0), hidRow(1), order[2], order[3]] }, m2: m2Out(true) } })
+    check('fold M0 and the owner\'s ruling: on a fogged table each player\'s own copy (per-player sends, no broadcast) keeps the hidden Goblin by name — both saw it at the start — while Bo, who never saw the Orc, still gets its row Hidden, by its place; the Trap and Ana whole; m2 (no fog there) as on a table without fog; the join snapshot matches',
+        Fh.bcast.length === fb0 && fb0 === 0 && j(fhA) === j({ type: 'combats', combats: { m1: { mapId: 'm1', round: 3, turn: 1, rows: order }, m2: m2Out(true) } })
+        && j(fhB) === j({ type: 'combats', combats: { m1: { mapId: 'm1', round: 3, turn: 1, rows: [order[0], hidRow(1), order[2], order[3]] }, m2: m2Out(true) } })
         && Fh.conns[2].sent.length === 0 && Fh.conns[3].sent.length === 0 && j(Fh.N.combatsFor('u_a')) === j(fhA.combats) && j(Fh.N.combatsFor('u_b')) === j(fhB.combats), j([fhA, fhB, Fh.bcast.length]));
 
     // net.syncCombatHidden (run for real): the host sends the combats again only when a running row's hidden flag changes
@@ -2714,17 +2714,17 @@ pendingChecks.push((async () => {
     delete Sy.net.combats.m2; const syDel = syn();
     const cliBefore = Sy.conns.map(c => c.sent.length).join(); Sy.net.role = 'client'; tokOf(Sy, 'm1', 't_orc').hidden = true; const syCli = syn(), cliSent = Sy.conns.map(c => c.sent.length).join();
     Sy.net.role = 'host'; Sy.net.active = false; const syOffline = syn(); Sy.net.active = true; const syBack = syn(), syBackMsg = Sy.bcast[Sy.bcast.length - 1];
-    check('fold M0: net.syncCombatHidden (run for real on a table without fog) sends the combats at most once while the flags stay the same, then nothing; one broadcast when a running row\'s token is hidden (its row Hidden) and nothing more after; nothing when a token no running row names is hidden; one more when it is shown (its row whole again)',
-        syFirst <= 1 && syQuiet === 0 && syHide === 1 && j(rowsOf(syHideMsg)) === j([hidRow(0)].concat(order.slice(1))) && syHideAgain === 0 && syOff === 0 && syShow === 1 && j(rowsOf(syShowMsg)) === j(order),
+    check('fold M0: net.syncCombatHidden (run for real on a table without fog) sends the combats at most once while the flags stay the same, then nothing; one broadcast when a running row\'s token is hidden (its row by name: the table saw it) and nothing more after; nothing when a token no running row names is hidden; one more when it is shown',
+        syFirst <= 1 && syQuiet === 0 && syHide === 1 && j(rowsOf(syHideMsg)) === j(order) && syHideAgain === 0 && syOff === 0 && syShow === 1 && j(rowsOf(syShowMsg)) === j(order),
         j([syFirst, syQuiet, syHide, syHideAgain, syOff, syShow, syHideMsg, syShowMsg]));
     check('fold M0: a combat added or removed changes what net.syncCombatHidden compares (one send each); on a player\'s machine or with no session it sends nothing, and once hosting again it catches up with a change made meanwhile',
-        syAdd === 1 && !!syAddMsg.combats.m2 && syDel === 1 && syCli === 0 && cliSent === cliBefore &&syOffline === 0 && syBack === 1 && rowsOf(syBackMsg)[1].name === 'Hidden' && rowsOf(syBackMsg)[1].id === 'h1',
+        syAdd === 1 && !!syAddMsg.combats.m2 && syDel === 1 && syCli === 0 && cliSent === cliBefore &&syOffline === 0 && syBack === 1 && rowsOf(syBackMsg)[1].name === 'Orc' && rowsOf(syBackMsg)[1].id === order[1].id,
         j([syAdd, syDel, syCli, syOffline, syBack]));
     const Sf = scen({ fog: true }); Sf.rollRow('Goblin'); Sf.start(); Sf.net.syncCombatHidden(); Sf.conns.forEach(c => { c.sent.length = 0; });
     tokOf(Sf, 'm1', 't_gob').hidden = true; Sf.net.syncCombatHidden();
     const sfOut = Sf.conns.map(c => c.sent.filter(m => m.type === 'combats').length).join(''), sfRows = [rowsOf(Sf.last(Sf.conns[0])), rowsOf(Sf.last(Sf.conns[1]))];
-    check('fold M0: on a fogged table net.syncCombatHidden sends each admitted player their own copy, the hidden token\'s row Hidden; no broadcast, nothing to a waiting or closed connection',
-        sfOut === '1100' && Sf.bcast.length === 0 && j(sfRows) === j([[hidRow(0)].concat(order.slice(1)), [hidRow(0)].concat(order.slice(1))]), j([sfOut, sfRows]));
+    check('fold M0: on a fogged table net.syncCombatHidden sends each admitted player their own copy (the hidden token\'s row by name: each saw it); no broadcast, nothing to a waiting or closed connection',
+        sfOut === '1100' && Sf.bcast.length === 0 && j(sfRows) === j([order, order]), j([sfOut, sfRows]));
 
     // what the table holds is recorded by every send of the rows to the table: a re-hide after another send (a turn step, a Start) still goes out
     const Sr = scen(); Sr.rollRow('Goblin'); Sr.start(); Sr.net.syncCombatHidden();
@@ -2732,7 +2732,22 @@ pendingChecks.push((async () => {
     tokOf(Sr, 'm1', 't_gob').hidden = true; const srHide = srn(); tokOf(Sr, 'm1', 't_gob').hidden = false; Sr.N.broadcastCombats(); const srWhole = rowsOf(Sr.bcast[Sr.bcast.length - 1]);
     tokOf(Sr, 'm1', 't_gob').hidden = true; const srReHide = srn(), srReMsg = Sr.bcast[Sr.bcast.length - 1], srQuiet = srn();
     check('fold M0: a token hidden again after the rows went out whole for another reason (a turn step) is sent again: every send of the rows to the table records what it holds, so net.syncCombatHidden compares with what the players last got',
-        srHide === 1 && j(srWhole) === j(order) && srReHide === 1 && j(rowsOf(srReMsg)) === j([hidRow(0)].concat(order.slice(1))) && srQuiet === 0, j([srHide, srWhole, srReHide, srReMsg, srQuiet]));
+        srHide === 1 && j(srWhole) === j(order) && srReHide === 1 && j(rowsOf(srReMsg)) === j(order) && srQuiet === 0, j([srHide, srWhole, srReHide, srReMsg, srQuiet]));
+    // the owner's ruling of 2026-10-01, run for real: a creature never sent whole in this fight reads Hidden until it is; one seen keeps its name while hidden or out of sight; a new fight there, the fight's end and a new table forget what was seen; a late joiner who never saw it gets Hidden
+    const Sn = scen({ fog: true, drops: { u_b: { t_orc: 1 } } }); Sn.rollRow('Goblin'); Sn.start();
+    const snA0 = rowsOf(Sn.last(Sn.conns[0])).map(r => r.name), snB0 = rowsOf(Sn.last(Sn.conns[1])).map(r => r.name);
+    tokOf(Sn, 'm1', 't_gob').hidden = true; Sn.N.broadcastCombats(); const snA1 = rowsOf(Sn.last(Sn.conns[0])).map(r => r.name), snB1 = rowsOf(Sn.last(Sn.conns[1])).map(r => r.name);
+    Sn.net.roster.pC = { id: 'u_c' }; const snLate = Sn.N.combatsFor('u_c').m1.rows.map(r => r.name), snNull = Sn.N.combatsFor(null).m1.rows.map(r => r.name);
+    const seenAfterB = (() => { delete Sn.net.combats.m1; Sn.net.combatSet('m1', { round: 1, turn: 0, rows: [{ id: 'r_t_gob', name: 'Goblin', tokId: 't_gob', init: 1, src: null }, { id: 'r_t_orc', name: 'Orc', tokId: 't_orc', init: 2, src: null }] }); return rowsOf(Sn.last(Sn.conns[0])).map(r => r.name); })();   // a new fight: the hidden Goblin unseen again
+    tokOf(Sn, 'm1', 't_gob').hidden = false; Sn.N.broadcastCombats(); const snShown = rowsOf(Sn.last(Sn.conns[0])).map(r => r.name); tokOf(Sn, 'm1', 't_gob').hidden = true; Sn.N.broadcastCombats(); const snAgain = rowsOf(Sn.last(Sn.conns[0])).map(r => r.name);
+    Sn.net.combatSet('m1', null); Sn.net.combatSet('m1', { round: 1, turn: 0, rows: [{ id: 'r_t_gob', name: 'Goblin', tokId: 't_gob', init: 1, src: null }] }); const snEnded = rowsOf(Sn.last(Sn.conns[0])).map(r => r.name);
+    check('the owner\'s ruling of 2026-10-01 (combatsFor, run for real on a fogged table): at the start Ana sees everyone and Bo not the Orc (Hidden for him); the GM hiding the Goblin changes nothing for either (both saw it), the Orc still Hidden for Bo; a player who joins now, and the unfogged broadcast\'s own view, never saw the Goblin and get Hidden; a new fight on that map forgets what was seen (the hidden Goblin Hidden again), seen once shown it keeps its name when hidden again, and the fight\'s end forgets it too',
+        j(snA0) === j(['Goblin', 'Orc', 'Trap', 'Ana']) && j(snB0) === j(['Goblin', 'Hidden', 'Trap', 'Ana']) && j(snA1) === j(snA0) && j(snB1) === j(snB0) && j(snLate) === j(['Hidden', 'Orc', 'Trap', 'Ana']) && j(snNull) === j(['Hidden', 'Orc', 'Trap', 'Ana'])
+        && j(seenAfterB) === j(['Hidden', 'Orc']) && j(snShown) === j(['Goblin', 'Orc']) && j(snAgain) === j(['Goblin', 'Orc']) && j(snEnded) === j(['Hidden']), j([snA0, snB0, snA1, snB1, snLate, snNull, seenAfterB, snShown, snAgain, snEnded]));
+    check('the owner\'s ruling (source): what a player saw is kept in the combats slice alone, read only by combatsFor, forgotten by combatSet at a new fight and at the end and by fogForgetAll at a new table; the client\'s toast still names Hidden only for a row that reads so',
+        (src.match(/function combatForget\(/g) || []).length === 1 && (cbSrc.match(/combatSeen\(|combatSaw\(/g) || []).length === 4 && (src.match(/combatSeen\(|combatSaw\(/g) || []).length === 4
+        && /if \(!had && typeof combatForget === 'function'\) combatForget\(mapId\);/.test(src) && /delete net\.combats\[mapId\];\n[^\n]*marksEnd\(mapId\)[^\n]*\n\s*if \(typeof combatForget === 'function'\) combatForget\(mapId\);/.test(src) && /_fogCost = Object\.create\(null\); if \(typeof combatForget === 'function'\) combatForget\(\); \}/.test(src)
+        && /A creature your players have seen stays in their order by name when you hide it or it moves out of their sight/.test(fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8')));
     // hidden pieces (owner, 2026-10-01): a pointer at a token the GM hid, or at nothing on the host's map, goes to no one, on a table without fog as on one
     // with it — hidden and gone answer alike; net.syncCombatHidden sends the pointers again when a hide, a show or a deletion changes which are sent
     const Tg = scen(); Tg.net.targets = { u_a: { id: 't_orc', mapId: 'm1', name: 'Ana' }, u_b: { id: 't_gob', mapId: 'm1', name: 'Bea' }, u_g: { id: 'nope', mapId: 'm1', name: 'GM' }, u_x: { id: 't_orc', mapId: 'zzz', name: 'X' }, u_y: { id: 't_orc', mapId: '__proto__', name: 'Y' }, u_z: { id: 't_orc', mapId: 'm2', name: 'Z' } };
@@ -2767,8 +2782,8 @@ pendingChecks.push((async () => {
     const lsHost = runSave(Ls, true), lsWire = Ls.conns[0].sent.map(m => m.type), lsRows = rowsOf(Ls.last(Ls.conns[0]));
     const lsNoPatch = runSave(Ls, false);
     Ls.net.role = 'client'; const lsCli = runSave(Ls, true); Ls.net.role = 'host'; Ls.net.applyingRemote = true; const lsRemote = runSave(Ls, true); Ls.net.applyingRemote = false;
-    check('fold M0: the host\'s save (net.onLocalSave, run for real) calls net.syncCombatHidden once, right after the map went out (sendItem) — a player gets the map (the token gone from it) first, then the combats with the row Hidden; a save with no map to send still calls it once; a player\'s save and a remote change\'s save never do',
-        j(lsHost) === j(SYNCS.concat(['sendItem:m1', 'combatHidden', 'follow'])) && j(lsWire) === j(['item', 'combats']) && j(lsRows) === j([hidRow(0)].concat(order.slice(1)))
+    check('fold M0: the host\'s save (net.onLocalSave, run for real) calls net.syncCombatHidden once, right after the map went out (sendItem) — a player gets the map (the token gone from it) first, then the combats (the row by name: they saw it); a save with no map to send still calls it once; a player\'s save and a remote change\'s save never do',
+        j(lsHost) === j(SYNCS.concat(['sendItem:m1', 'combatHidden', 'follow'])) && j(lsWire) === j(['item', 'combats']) && j(lsRows) === j(order)
         && j(lsNoPatch) === j(SYNCS.concat(['combatHidden', 'follow'])) && lsCli.indexOf('combatHidden') < 0 && !lsCli.some(e => SYNCS.indexOf(e) >= 0) && lsCli.length > 0 &&j(lsRemote) === j([]), j([lsHost, lsWire, lsNoPatch, lsCli, lsRemote]));
     const wbAll = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8');
     check('fold M0 (source): combatHidden is defined once and read only by combatsFor and net.syncCombatHidden, inside the combats slice; net.syncCombatHidden is called once, from the host\'s save; the GM\'s own strip (whiteboard.js) reads neither; the host\'s message handler has the same number of branches as before',
@@ -6423,7 +6438,7 @@ pendingChecks.push((async () => {
     const HS = S7({ system: sysGm }); HS.move(HS.a1, 'tA', 500, 100, true); HS.fire(150); const hidSight = kinds(HS.a1);   // her Sight GM-only: the default (6 cells) sees the orc from five cells
     check('fold M7: a copy the host holds no record of, more than 200 creatures to add, a message past 256 KB or an id past 256 characters each go as the whole copy, which is then recorded; the turn order and the pointers follow a change of what is held, only on a map with a fight or a pointer — a creature newly seen by its name, one no longer seen as Hidden; a light the player cannot see gives them its lit cells alone, and takes them away; a player whose Sight is GM-only still gets their landing',
         J(noRec7) === J([['item'], true]) && J(many7) === J(['item']) && J(big7) === J(['item']) && J(long7) === J(['item'])
-        && J(ros7.a1) === J(['fogDiff', 'combats', 'targets']) && J(ros7.rows) === J(['Ana', 'Orc']) && J(ros7.targ) === J(['u_b']) && J(ros7.b) === J([]) && J(ros7.back) === J(['Ana', 'Hidden']) && J(ros7.backTarg) === J([]) && J(noFight) === J(['fogDiff'])
+        && J(ros7.a1) === J(['fogDiff', 'combats', 'targets']) && J(ros7.rows) === J(['Ana', 'Orc']) && J(ros7.targ) === J(['u_b']) && J(ros7.b) === J([]) && J(ros7.back) === J(['Ana', 'Orc']) && J(ros7.backTarg) === J([]) && J(noFight) === J(['fogDiff'])
         && J(lit7b.b) === J(['fogDiff:[null,null,[{"c":9,"r":9,"t":2}]]']) && J(lit7b.a) === J(['null']) && J(lit7b.view) === J([{ c: 9, r: 9, t: 2 }]) && J(lit7b.off) === J(['[]']) && lit7b.viewOff === null && J(hidSight) === J(['fogDiff']),
         J([noRec7, many7, big7, long7, ros7, noFight, lit7b, hidSight]));
 
@@ -6738,8 +6753,8 @@ pendingChecks.push((async () => {
     const rAway = { a1: rKinds(R1w.a1), a2: rKinds(R1w.a2), b: rKinds(R1w.b1), rowsA: rowsTo(R1w, R1w.a1), rowsB: rowsTo(R1w, R1w.b1), orcA: R1w.ids(R1w.a1).indexOf('orc') >= 0 };
     R1w.tok('orc').x = 751; R1w.clearSent(); R1w.net.sendItem('k', 'mA'); const rStill = [rKinds(R1w.a1), rKinds(R1w.b1)];
     R1w.tok('orc').x = 250; R1w.fog.invalidateVision(); R1w.clearSent(); R1w.net.broadcastItemFiltered('k', 'mA'); const rBack = { a1: rKinds(R1w.a1), rowsA: rowsTo(R1w, R1w.a1) };
-    check('fold R: a creature the GM walks out of a player\'s sight (a GM save, a whole copy of a fogged map) leaves their turn order at once — each of their connections is sent the order again, the orc\'s row Hidden, after the copy; a save that changes nothing a fight\'s token is held by sends the copy alone; walking it back, a copy sent to the table names it again',
-        J(rStart) === J([['Ana', 'Orc', 'Extra'], ['Ana', 'Orc', 'Extra']]) && J(rAway) === J({ a1: ['item', 'combats'], a2: ['item', 'combats'], b: ['item', 'combats'], rowsA: ['Ana', 'Hidden', 'Extra'], rowsB: ['Ana', 'Hidden', 'Extra'], orcA: false })
+    check('fold R (and the owner\'s ruling of 2026-10-01): a creature the GM walks out of a player\'s sight (a GM save, a whole copy of a fogged map) has their turn order sent again at once — each of their connections, after the copy — where the orc, seen at the start, keeps its name; a save that changes nothing a fight\'s token is held by sends the copy alone; walking it back, a copy sent to the table names it again',
+        J(rStart) === J([['Ana', 'Orc', 'Extra'], ['Ana', 'Orc', 'Extra']]) && J(rAway) === J({ a1: ['item', 'combats'], a2: ['item', 'combats'], b: ['item', 'combats'], rowsA: ['Ana', 'Orc', 'Extra'], rowsB: ['Ana', 'Orc', 'Extra'], orcA: false })
         && J(rStill) === J([['item'], ['item']]) && J(rBack) === J({ a1: ['item', 'combats'], rowsA: ['Ana', 'Orc', 'Extra'] }), J([rStart, rAway, rStill, rBack]));
     const R2w = S7(); R2w.tok('orc').x = 250; R2w.net.targets = { u_b: { id: 'orc', mapId: 'mA', name: 'Bea' } }; R2w.clearSent(); R2w.net.sendItem('k', 'mA');
     R2w.tok('orc').x = 750; R2w.fog.invalidateVision(); R2w.clearSent(); R2w.net.sendItem('k', 'mA');

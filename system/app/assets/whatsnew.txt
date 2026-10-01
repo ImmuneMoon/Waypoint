@@ -1291,6 +1291,11 @@ Undo
   bringing a token over from another map clear both maps' undo at that point.
 
 Multiplayer
+- A creature your players have seen stays in their turn order by name when
+  you hide it or it moves out of their sight: a row read "Hidden" before,
+  which told them only that something they knew was now unseen. One they
+  have never seen in the fight still reads Hidden until they see it, and
+  Update Combat takes a creature out once it has left.
 - Targeting is now a deliberate act. A plain click on a token used to mark it
   as your target, so a player who clicked to look at a token targeted it (and
   the GM was asked to start combat) without meaning to. Players now target by
@@ -1327,6 +1332,17 @@ Multiplayer
   of a player's that you hide stays on your map until you show or delete
   it, and showing it again can no longer lose it to a map copy of theirs
   made while it was hidden.
+- Sound's Delete no longer removes a file another campaign uses: a song
+  brought in From another campaign… and a sound brought in from another
+  campaign are references to the file in the campaign it was uploaded to,
+  so deleting it there used to leave the other campaign with a silent
+  entry. Delete now takes the entry out of this campaign and keeps the
+  file, saying so, while a file no other campaign names is deleted as
+  before.
+- A campaign's music library is cleaned as it loads, the way the panel
+  reads it, so a file with an odd shape in it (a list, a track without a
+  size, a playlist naming a track that is not there) cannot upset the
+  panel or reach the table.
 - "Players arrive at" now offers "Player's last location" — the default once a
   campaign has players — so each player comes back to the map they were last
   on and stays put until they travel or the GM summons them. A second choice,

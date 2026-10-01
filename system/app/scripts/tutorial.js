@@ -889,6 +889,7 @@ function endTour() {
     if (window.wpSheets) { window.wpSheets.closeSheet(); if (window.wpSheets.closeHuds) window.wpSheets.closeHuds(); window.wpSheets.close(true); }   // and the sheet step Bren's sheet (and the HUD step his HUD) + the layout step's System editor
     if (window.wpFog) window.wpFog.setPreview('off');   // and the fog step its player-view preview
     document.querySelectorAll('#wbFloatingToolbar .shape-menu.show').forEach(function(m) { m.classList.remove('show'); });   // and any toolbar flyout a step opened (Add, Scene)
+    if (window.wpCampaignAfterTour === true) { window.wpCampaignAfterTour = false; var nbT = document.getElementById('newCampBtn'); if (nbT) setTimeout(function() { nbT.click(); }, 300); }   // the welcome's Start a campaign on a fresh save: the naming prompt now, after the tour or its Skip (the owner's word, 2026-10-01)
 }
 
 /* ---------- Help → Tutorial pane wiring ---------- */
@@ -933,13 +934,19 @@ function syncPane() {
 
 /* ---------- first launch ----------
    The tour starts by itself exactly once, and only for a new user: a save with nothing in it
-   yet (no rooms, no play-map items, no planners, one campaign at most). wp_tourSeen is a
-   table preference, so it lives in saves/preferences.json and follows the saves folder — an
-   existing campaign updated to this version never sees the pop-up. Everyone else finds the
-   tour under Help → Tutorial. */
+   yet (no rooms, no play-map items, no planners — however many empty campaigns). It starts in
+   Waypoint proper (the owner's word, 2026-10-01: "before the first campaign is made — technically
+   the tutorial campaign would be the first unless they skip it"): never over the welcome screen;
+   as soon as the welcome is closed and no dialog is up. The welcome's "Start a campaign" on such a
+   save just enters the app (main.js asks wpTutorial.pending), the tour's own Tutorial campaign
+   is the first, and the prompt naming their own campaign follows the tour's end or its Skip
+   (wpCampaignAfterTour, endTour); an import from the welcome holds it until the import is settled. A join from the
+   welcome never starts it (a table is never fresh to a player). wp_tourSeen is a table
+   preference, so it lives in saves/preferences.json and follows the saves folder — an existing
+   campaign updated to this version never sees the pop-up. Everyone else finds the tour under
+   Help → Tutorial. */
 function saveIsFresh() {
     var camps = Object.values(state.appState.campaigns || {});
-    if (camps.length > 1) return false;
     return camps.every(function(c) {
         return Object.values(c.items || {}).every(function(it) {
             if (it.type === 'planner') return false;
@@ -963,6 +970,13 @@ function saveIsFresh() {
         installTutorialArt(function() { tc.tutorialArt = 'installed'; save(true); render(); });
     }, 300);
 })();
+// [tutorialcheck:autostart-start]
+// the welcome screen is up (shown with display flex; the stylesheet hides it otherwise), one of the app's dialogs is open (a prompt, a
+// question, the import's choice) or an import picked from the welcome is still being chosen: the tour waits
+function welcomeUp() { var w = document.getElementById('welcomeScreen'); return !!(w && w.style.display && w.style.display !== 'none'); }
+function dialogUp() { return window.wpWelcomeImporting === true || ['customPrompt', 'customConfirm', 'importChoiceModal'].some(function(id) { var d = document.getElementById(id); return !!(d && d.style.display === 'flex'); }); }
+// the tour is still owed to this save: not seen, nothing in the save yet, not at a table (the welcome's Start a campaign asks before it names one)
+function tourPending() { var seen = false; try { seen = localStorage.getItem('wp_tourSeen') === '1'; } catch (e) {} return !seen && !(window.wpNet && window.wpNet.active) && Object.keys(state.appState.campaigns || {}).length > 0 && saveIsFresh(); }
 (function autoStart() {
     if (/[?&]stream=1/.test(location.search)) return;
     var seen = false; try { seen = localStorage.getItem('wp_tourSeen') === '1'; } catch (e) {}
@@ -972,14 +986,15 @@ function saveIsFresh() {
         if (window.__wpCleanupBusy) return;   // the cleanup is deciding what the save holds: keep waiting
         tries++;
         var loaded = Object.keys(state.appState.campaigns || {}).length > 0;
-        if (!loaded && tries < 40) return;          // wait for load() (up to ~12 s), then give up quietly
+        if (!loaded) { if (tries >= 40) clearInterval(t); return; }   // wait for load() (up to ~12 s), then give up quietly
+        if (window.wpNet && window.wpNet.active) { clearInterval(t); return; }   // at a table (a join from the welcome): never
+        if (welcomeUp() || dialogUp()) return;   // in Waypoint proper: once the welcome is closed and nothing is asked — keep waiting
         clearInterval(t);
-        if (!loaded) return;
-        if (window.wpNet && window.wpNet.active) return;
-        if (!saveIsFresh()) { try { localStorage.setItem('wp_tourSeen', '1'); } catch (e) {} return; }   // an existing table: never pop up, Help → Tutorial has it
+        if (!saveIsFresh()) { try { localStorage.setItem('wp_tourSeen', '1'); } catch (e) {} return; }   // an existing table (or one just imported): never pop up, Help → Tutorial has it
         try { localStorage.setItem('wp_tourSeen', '1'); } catch (e) {}
         setTimeout(startTour, 600);
     }, 300);
 })();
+// [tutorialcheck:autostart-end]
 
-window.wpTutorial = { start: startTour, fresh: saveIsFresh, end: endTour, steps: STEPS, version: TUTORIAL_VERSION, ensure: ensureTutorialCampaign, discard: discardTutorialCampaign, build: buildTutorialCampaign, system: tutorialSystem, ensureSheet: ensureTutorialSheet };
+window.wpTutorial = { start: startTour, fresh: saveIsFresh, pending: tourPending, end: endTour, steps: STEPS, version: TUTORIAL_VERSION, ensure: ensureTutorialCampaign, discard: discardTutorialCampaign, build: buildTutorialCampaign, system: tutorialSystem, ensureSheet: ensureTutorialSheet };

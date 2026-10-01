@@ -914,13 +914,34 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
       if (window.wpNet && window.wpNet.setProfile) window.wpNet.setProfile(patch);
       if (window.wpFaces) window.wpFaces.paintRows();   // Onboarding F1b: the token face preview follows the colour
   }
-  function hideWelcome() { var w = document.getElementById('welcomeScreen'); if (w) w.style.display = 'none'; }
+  // [tutorialcheck:wclaunch-start]
+  // "Show this on launch" is set ONCE from the welcome (the owner's word, 2026-10-01): the select shows there only while the preference has never
+  // been stored, the first leaving of the welcome stores whatever it says, and from then on Settings alone changes it (#setWelcomePref)
+  function welcomePrefSet() { try { return localStorage.getItem('wp_welcome') !== null; } catch (e) { return true; } }
+  function wcLaunchRow(show) { var lab = document.querySelector('#welcomeScreen .wc-launch'); if (lab) lab.style.display = show ? '' : 'none'; }
+  function wcLaunchStoreOnce() {
+      if (welcomePrefSet()) return;
+      var s1 = document.getElementById('wcLaunchPref'), v = s1 && (s1.value === 'first' || s1.value === 'never') ? s1.value : 'always';
+      try { localStorage.setItem('wp_welcome', v); } catch (e) {}
+      var s2 = document.getElementById('setWelcomePref'); if (s2) s2.value = v;
+  }
+  // [tutorialcheck:wclaunch-end]
+  function hideWelcome() { wcLaunchStoreOnce(); var w = document.getElementById('welcomeScreen'); if (w) w.style.display = 'none'; }
+  // [tutorialcheck:wcseed-start]
+  // The campaign the app seeds into an empty save ("Default Campaign" with one empty map) is not one to continue (the owner's word, 2026-10-01: a
+  // fresh Waypoint lists none): it stays off the welcome's list until something is put in it — a room, a drawing, a planner or a page — or it is
+  // renamed. A campaign the user named is listed from the start, empty or not
+  function wcSeedOnly(c) {
+      if (!c || c.name !== 'Default Campaign') return false;
+      return Object.values(c.items || {}).every(function(it) { return !!it && it.type === 'map' && !(it.rooms || []).length && !(it.whiteboard || []).length; });
+  }
+  // [tutorialcheck:wcseed-end]
   function renderWcContinue() {
       var box = document.getElementById('wcContinue'), list = document.getElementById('wcContinueList');
       if (!box || !list) return;
       list.textContent = '';
       var camps = (state.appState && state.appState.campaigns) || {};
-      var ids = Object.keys(camps);
+      var ids = Object.keys(camps).filter(function(id) { return !wcSeedOnly(camps[id]); });
       if (!ids.length) { box.style.display = 'none'; return; }
       ids.slice(0, 12).forEach(function(id) {
           var b = document.createElement('button');
@@ -973,6 +994,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
       var av = document.getElementById('wcAvatarPrev');
       if (av) { av.textContent = ''; var avI = document.createElement('img'); avI.alt = ''; avI.src = wcSafeAvatar(prof.avatar) ? prof.avatar : wpDefaultAvatar(prof.color); av.appendChild(avI); av.style.background = ''; }   // a photo, else the color-tinted silhouette default (built as a node)
       var pref = document.getElementById('wcLaunchPref'); if (pref) pref.value = welcomePref();
+      wcLaunchRow(!welcomePrefSet());   // the one-time choice: on the welcome only until it has been stored once
       if (window.wpFaces) window.wpFaces.paintRows();   // Onboarding F1b: the token face row
       w.style.display = 'flex';
       (function ensureContinue(tries) {   // load() is async; retry the campaign list until it arrives (no-op once loaded, e.g. on reopen)
@@ -991,8 +1013,12 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
       function setPref(v) { try { localStorage.setItem('wp_welcome', v); } catch (e) {} var s2 = document.getElementById('setWelcomePref'); if (s2) s2.value = v; var s1 = document.getElementById('wcLaunchPref'); if (s1) s1.value = v; }
       var prefEl = document.getElementById('wcLaunchPref'); if (prefEl) prefEl.addEventListener('change', function() { setPref(this.value); });
       var setPrefEl = document.getElementById('setWelcomePref'); if (setPrefEl) { setPrefEl.value = welcomePref(); setPrefEl.addEventListener('change', function() { setPref(this.value); }); }
-      var startBtn = document.getElementById('wcStartBtn'); if (startBtn) startBtn.addEventListener('click', function() { saveWcProfile(); hideWelcome(); var b = document.getElementById('newCampBtn'); if (b) b.click(); });
-      var loadBtn = document.getElementById('wcLoadBtn'); if (loadBtn) loadBtn.addEventListener('click', function() { saveWcProfile(); hideWelcome(); var b = document.getElementById('importBtn'); if (b) b.click(); });
+      // Start a campaign on a save the tour is still owed to (nothing in it yet, the tour not seen): just enter — the tour starts in Waypoint proper, its
+      // Tutorial campaign is the first one, and the naming prompt for their own campaign comes when the tour ends or is skipped (the owner's word,
+      // 2026-10-01: wpCampaignAfterTour, read by tutorial.js endTour). Otherwise the naming prompt at once, as ever
+      var startBtn = document.getElementById('wcStartBtn'); if (startBtn) startBtn.addEventListener('click', function() { saveWcProfile(); hideWelcome(); if (window.wpTutorial && window.wpTutorial.pending && window.wpTutorial.pending()) { window.wpCampaignAfterTour = true; return; } var b = document.getElementById('newCampBtn'); if (b) b.click(); });
+      // Import from the welcome: the tour (if still owed) holds until the file is chosen and the import's choice made or dropped
+      var loadBtn = document.getElementById('wcLoadBtn'); if (loadBtn) loadBtn.addEventListener('click', function() { saveWcProfile(); hideWelcome(); window.wpWelcomeImporting = true; var fi = document.getElementById('fileIn'); var done = function() { window.wpWelcomeImporting = false; }; if (fi) { fi.addEventListener('change', done, { once: true }); fi.addEventListener('cancel', done, { once: true }); } setTimeout(done, 60000); var b = document.getElementById('importBtn'); if (b) b.click(); });
       // Join a game → its OWN screen (profile + room code + live status); it stays up until the GM's snapshot lands (or an error).
       function showJoinView() {
           var mv = document.getElementById('wcMain'), jv = document.getElementById('wcJoinView');

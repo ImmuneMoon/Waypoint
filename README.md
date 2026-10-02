@@ -107,7 +107,7 @@ The rest of `system/` (the Electron binary, DLLs, locales) and the `saves` folde
 
 See `license.txt` for the terms of use and privacy policy. Questions and problems: fulllioncreativeworks@gmail.com.
 
-Waypoint includes the Inter typeface (SIL Open Font License 1.1, `system/app/assets/fonts/inter/LICENSE`) and Font Awesome Free icons by Fonticons, Inc. (CC BY 4.0, `system/app/assets/icons/fa/LICENSE.txt`).
+Waypoint includes the Inter typeface (SIL Open Font License 1.1, `system/app/assets/fonts/inter/LICENSE`) and Font Awesome Free icons by Fonticons, Inc. (CC BY 4.0, `system/app/assets/icons/fa/LICENSE.txt`). It also includes PeerJS, Mermaid and html2canvas (MIT License; each file's licence text is beside it in `system/app/assets/vendor/`).
 
 ## ☕ Support the Project
 

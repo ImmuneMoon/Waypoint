@@ -11,7 +11,9 @@
    - the local server holds both loopback addresses on its port, or moves to the next one (the window loads "localhost",
      which names both);
    - the system browser is sent to this project's own release pages only;
-   - the dev server never updates the source tree it runs from.
+   - the dev server never updates the source tree it runs from;
+   - every page of the app is answered with a policy naming what it may run and load: only the app's own files, no script
+     written into the page, nothing from another address but the signalling server a table is brokered through.
 
    Nothing here reads the network. install() takes the electron module as an argument, so a recording stand-in can be given. */
 'use strict';
@@ -118,6 +120,49 @@ function devToolsKey(input) {
     return letter && (!!input.control || !!input.meta) && (!!input.shift || !!input.alt);
 }
 
+/* ---------- the page's policy ---------- */
+
+// What a page of the app may run and load, sent as a response header with every page by both servers (the main window, the
+// stream window and a pop-out are the same page). Script comes from the app's own files only: no script written into the
+// page, no handler attribute, no text run as code — so markup that slips past a cleaner stays markup. Styles may be
+// written inline (the app sets them everywhere); pictures, sound and video are the app's own files, data: and blob:; fonts
+// the app's own; a request goes to the app's own server, to data: and blob:, and to the signalling server a table is
+// brokered through (SIGNAL_HOST: the address the bundled connection library dials — the relay and the peers themselves are
+// not requests of the page). No frame, no plug-in, no <base>, no form target, no worker, and no page may frame the app.
+// Developer mode (the person at this machine switched it on, after a warning) adds one thing and nothing else: text run as
+// code, which is what the in-app console does. dev counts only as exactly true.
+const SIGNAL_HOST = '0.peerjs.com';
+function pagePolicy(dev) {
+    return [
+        "default-src 'self'",
+        "script-src 'self'" + (dev === true ? " 'unsafe-eval'" : ''),
+        "style-src 'self' 'unsafe-inline'",
+        "img-src 'self' data: blob:",
+        "media-src 'self' data: blob:",
+        "font-src 'self'",
+        "connect-src 'self' data: blob: https://" + SIGNAL_HOST + ' wss://' + SIGNAL_HOST,
+        "worker-src 'none'",
+        "frame-src 'none'",
+        "object-src 'none'",
+        "base-uri 'none'",
+        "form-action 'none'",
+        "frame-ancestors 'none'"
+    ].join('; ');
+}
+// The headers one of the app's own files is answered with (never a file under saves/, which has its own): its type is taken
+// as stated, never guessed, and a page — an HTML or SVG document — carries the policy, in the mode the mirrored settings
+// file says at that moment (devModeOf: anything but exactly "on", or no readable file, is off).
+function pageHeaders(mime, prefsFile) {
+    const h = { 'X-Content-Type-Options': 'nosniff' };
+    if (/^(text\/html|image\/svg\+xml)\s*(;|$)/i.test(String(mime || ''))) h['Content-Security-Policy'] = pagePolicy(devModeOf(prefsFile));
+    return h;
+}
+// A file under saves/ is never answered as a page, a script or a stylesheet, whatever its name: the policy's "own files"
+// include that folder, and nothing in it is the app's code (the app writes only pictures, sounds, videos and data there).
+function savesType(mime) {
+    return /^(text\/html|application\/xhtml\+xml|text\/xml|application\/xml|text\/javascript|application\/javascript|application\/ecmascript|text\/ecmascript|text\/css)\s*(;|$)/i.test(String(mime || '')) ? 'application/octet-stream' : mime;
+}
+
 /* ---------- every window ---------- */
 
 // Wire the rules above into Electron. electron: the module (app, session, shell, Menu). opts: { port, prefsFile, icon }.
@@ -216,4 +261,4 @@ function scratchSystemDir(ownSystem, named) {
 }
 
 module.exports = { ownOrigin, isOwn, childWindowOk, childWindowOptions, webLinkOk, releaseLink, PERMS_ASK, PERMS_CHECK, permOk,
-    devModeOf, menuTemplate, devToolsKey, install, listenLoopback, scratchSystemDir };
+    devModeOf, menuTemplate, devToolsKey, SIGNAL_HOST, pagePolicy, pageHeaders, savesType, install, listenLoopback, scratchSystemDir };

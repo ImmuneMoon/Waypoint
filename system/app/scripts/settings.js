@@ -501,14 +501,28 @@ function renderNetVttLine() {
 // Live refresh: net.js (snapshot, stage, stance), vtt.js (any change), the minimap's own button and campaign switches call it
 window.wpSettingsSync = function() { var m = ui('settingsModal'); if (m && m.style.display === 'flex') syncPanel(); renderNetVttLine(); };
 
-var _dcBtn = ui('setDevConsoleBtn');
-if (_dcBtn) _dcBtn.addEventListener('click', function() {
-    var on = localStorage.getItem('wp_devconsole') === 'on';
-    try { localStorage.setItem('wp_devconsole', on ? 'off' : 'on'); } catch (e) {}
-    if (on && window.wpDevConsole) window.wpDevConsole.close();   // turning it off: close the console if it's open
+// Developer mode (Settings ▸ Advanced, off by default): one switch for the in-app console on ~ (devconsole.js reads the same
+// key) and, in the installed app, the developer tools (the shell reads the key from the mirrored settings file and only then
+// lets them open). Switching it ON asks first, every time, in the app's own question — never one Enter answers — because
+// what it unlocks runs whatever is typed or pasted into it. Nothing a player or a host sends can switch it on.
+// [servercheck:devmode-start]
+var DEV_MODE_WARNING = 'Developer mode opens tools that can change or break your campaigns, your settings and Waypoint itself if they are used incorrectly. Only type or paste something into them when you know what it does — never because someone asked you to. Turn Developer mode on?';
+function setDevMode(on) {
+    try { localStorage.setItem('wp_devconsole', on ? 'on' : 'off'); } catch (e) {}
+    if (!on && window.wpDevConsole) window.wpDevConsole.close();   // turning it off: close the console if it is open (the shell closes the developer tools)
     syncPanel();
-    toast('Developer console ' + (on ? 'off.' : 'on — press ~ to open it (type /help inside).'));
+    toast(on ? 'Developer mode on — press ~ for the console (type /help inside); in the installed app Ctrl+Shift+I opens the developer tools.' : 'Developer mode off.');
+}
+var _dcBtn = ui('setDevConsoleBtn'), _dcAsking = false;
+if (_dcBtn) _dcBtn.addEventListener('click', function() {
+    if (localStorage.getItem('wp_devconsole') === 'on') { setDevMode(false); return; }
+    if (_dcAsking) return;   // one question at a time: Enter on the button (still focused behind the question) asks nothing more
+    _dcAsking = true;
+    import('./dialogs.js').then(function(d) {
+        d.showConfirm(DEV_MODE_WARNING, function(yes) { _dcAsking = false; if (yes) setDevMode(true); }, { noEnter: true });   // No leaves it off, and says nothing
+    }, function() { _dcAsking = false; });
 });
+// [servercheck:devmode-end]
 
 var _op = ui('setOpacity');
 if (_op) _op.addEventListener('input', function() {

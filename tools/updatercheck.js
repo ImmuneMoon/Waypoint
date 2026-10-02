@@ -13,6 +13,8 @@
    run) and the four routes, each refusal leaving nothing behind; the core's revision (tools/shellrev.js: the recorded hash is
    the core's, minShell is its `since`, and the release build refuses a stale record); the installer script's two additions,
    pinned; and the page's one-click core update, run on a page of plain objects, with every fallback to the walk-through.
+   The dev server (tools/dev-server.js), a scratch copy of it run as a child process against a signed release newer than it:
+   it never updates, restores or installs over the source tree it runs from, only a scratch copy of system/ named on purpose.
    Usage: node tools/updatercheck.js   (exit 1 on any failure) */
 'use strict';
 const http = require('http'), fs = require('fs'), path = require('path'), os = require('os'), zlib = require('zlib'), crypto = require('crypto'), cp = require('child_process');
@@ -944,6 +946,51 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                 && /changes Waypoint&rsquo;s core is one click too/.test(step) && /closes Waypoint/.test(step) && /<b>Get Installer<\/b>/.test(step)
                 && /From Waypoint 1\.5\.0 on, updates like this one install themselves\./.test(introCore) && /cannot take that update by itself/.test(introNormal) && /Nothing has downloaded yet/.test(introNormal)
                 && /id="setUpdateInstallerBtn"[^>]*>Get Installer<\/button>/.test(group) && /installs itself/.test(rd), j([ups.length, step.length, introCore.length, introNormal.length]));
+        }
+        /* ---- the dev server never updates the source tree it runs from (the outside audit, 2026-10-01) ----
+           A scratch copy of the dev server and of the shell's files, with its own system/app and a public key made here, run as a
+           child process against a signed mock release that is newer than it: never the repository's own tools/dev-server.js,
+           whose Update would have swapped the repository's own system/app. */
+        {
+            const tree0 = path.join(tmp, 'devtree' + (++seq)), sys0 = path.join(tree0, 'system'), app0 = path.join(sys0, 'app');
+            for (const f of ['tools/dev-server.js', 'system/resources/app/updater.js', 'system/resources/app/libstore.js', 'system/resources/app/servefile.js', 'system/resources/app/shellguard.js', 'system/resources/app/package.json', 'system/resources/app/main.js']) {
+                fs.mkdirSync(path.dirname(path.join(tree0, f)), { recursive: true }); if (has(f)) fs.copyFileSync(path.join(ROOT, f), path.join(tree0, f));
+            }
+            fs.writeFileSync(path.join(tree0, 'system/resources/app/updatekey.js'), signkey ? signkey.keyFileText(PUB) : '');
+            fs.mkdirSync(path.join(app0, 'scripts'), { recursive: true });
+            fs.writeFileSync(path.join(app0, 'index.html'), '<!doctype html><title>the working tree</title>'); fs.writeFileSync(path.join(app0, 'scripts', 'wip.js'), '// work that was never committed' + NL);
+            const api = publish({ tag: '99.0.0' });
+            const freePort = () => new Promise(r => { const s = http.createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => r(p)); }); });
+            // start the scratch dev server with (or without) WAYPOINT_SYSTEM_DIR, ask it, stop it
+            async function devRun(named, asks) {
+                const port = await freePort(), saves = path.join(tmp, 'devsaves' + (++seq)), env = cleanEnv({ WAYPOINT_UPDATE_API: api });
+                delete env.WAYPOINT_SYSTEM_DIR; if (named !== undefined) env.WAYPOINT_SYSTEM_DIR = named;
+                const child = cp.spawn(process.execPath, [path.join(tree0, 'tools', 'dev-server.js'), saves, String(port)], { stdio: ['ignore', 'pipe', 'pipe'], env });
+                const up = await new Promise(resolve => { let out = ''; const t = setTimeout(() => resolve(false), 15000); child.stdout.on('data', c => { out += c; if (/Waypoint dev server: http/.test(out)) { clearTimeout(t); resolve(true); } }); child.on('exit', () => { clearTimeout(t); resolve(false); }); });
+                const ask = (method, p) => new Promise(resolve => {
+                    const rq = http.request({ host: '127.0.0.1', port, method, path: p, agent: false }, rs => { let d = ''; rs.on('data', c => { d += c; }); rs.on('end', () => { let jn = null; try { jn = JSON.parse(d); } catch (e) { jn = null; } resolve({ code: rs.statusCode, json: jn || {} }); }); });
+                    rq.on('error', e => resolve({ code: 0, json: { error: String(e && e.code) } })); rq.setTimeout(60000, () => { const e = new Error('no answer'); e.code = 'ETIMEDOUT'; rq.destroy(e); }); rq.end();
+                });
+                const out = [];
+                try { if (up) for (const a of asks) out.push(await ask(a[0], a[1])); }
+                finally { await new Promise(r => { if (child.exitCode !== null) return r(); const t = setTimeout(r, 3000); child.on('exit', () => { clearTimeout(t); r(); }); try { child.kill(); } catch (e) { r(); } }); }
+                return { up, out };
+            }
+            const asks = [['GET', '/api/update-check?force=1'], ['POST', '/api/update-apply'], ['POST', '/api/update-rollback'], ['POST', '/api/update-installer'], ['GET', '/api/update-check?force=1']];
+            const refusedAll = r => r.up && r.out.length === 5 && r.out[0].code === 200 && r.out[0].json.newer === true && r.out[0].json.latest === '99.0.0' && r.out[4].code === 200 && r.out[4].json.newer === true
+                && [1, 2, 3].every(i => r.out[i].code === 409 && r.out[i].json.ok === false && /WAYPOINT_SYSTEM_DIR/.test(String(r.out[i].json.error)));
+            const before = tree(sys0), zipHits0 = hitsOf(api, 'waypoint-app-99.0.0.zip');
+            const bare = await devRun(undefined, asks), afterBare = tree(sys0);
+            const sameSpelt = process.platform === 'win32' ? sys0.toUpperCase() + path.sep : path.join(sys0, '..', 'system') + path.sep;
+            const own = await devRun(sameSpelt, asks), ownPlain = await devRun(sys0, asks), empty = await devRun('', asks), afterOwn = tree(sys0);
+            check('the dev server never updates the source tree it runs from (a scratch copy of it, run for real against a signed release newer than it): with no WAYPOINT_SYSTEM_DIR, an empty one, or one that names the tree\'s own system folder under any spelling, Update, Restore and the installer route answer 409 with a plain reason, the tree — its app and its uncommitted work — is byte for byte as it was, no app.prev or app.new appears and the release\'s zip is never even downloaded; the check itself still answers that a newer release is there',
+                refusedAll(bare) && refusedAll(own) && refusedAll(ownPlain) && refusedAll(empty) && afterBare === before && afterOwn === before && !fs.existsSync(path.join(sys0, 'app.prev')) && !fs.existsSync(path.join(sys0, 'app.new')) && hitsOf(api, 'waypoint-app-99.0.0.zip') === zipHits0
+                && fs.readFileSync(path.join(app0, 'scripts', 'wip.js'), 'utf8') === '// work that was never committed' + NL, j([bare, own.out.map(o => o.code), ownPlain.out.map(o => o.code), empty.out.map(o => o.code), afterBare === before, afterOwn === before]));
+            const scratch = install('1.5.0');
+            const dry = await devRun(scratch.sys, [['GET', '/api/update-check?force=1'], ['POST', '/api/update-apply'], ['POST', '/api/update-rollback']]);
+            check('the dry run the dev server is for still works: with WAYPOINT_SYSTEM_DIR naming a scratch copy of system/, Update applies the signed release there and Restore puts the scratch copy back, and the tree the server runs from is still untouched',
+                dry.up && dry.out.length === 3 && dry.out[0].json.newer === true && dry.out[1].code === 200 && dry.out[1].json.ok === true && dry.out[1].json.version === '99.0.0' && dry.out[2].code === 200 && dry.out[2].json.ok === true && verOf(scratch.app) === '1.5.0'
+                && hitsOf(api, 'waypoint-app-99.0.0.zip') > zipHits0 && tree(sys0) === before, j([dry, verOf(scratch.app), tree(sys0) === before]));
         }
     } catch (e) { check('the suite ran to its end', false, e && e.stack || e); }
 

@@ -17,14 +17,19 @@ const dataFile = path.join(savesDir, 'data.json');
 // Self-update endpoints, same module the shell uses. For a dry run against a mock release set
 //   WAYPOINT_UPDATE_API=http://localhost:3999/saves/mock-release.json   (a GitHub-shaped JSON)
 //   WAYPOINT_SYSTEM_DIR=<a scratch copy of system/>                     (never the repo's own)
+// Without a scratch folder named — or with the source tree's own system folder named, under any spelling — the dev server
+// changes nothing: Update and Restore answer 409 and the tree it runs from stays as it is (the check itself still answers).
 const updater = require('../system/resources/app/updater');
 const libstore = require('../system/resources/app/libstore');   // Stage 6 library L1b: the shell's own pack store
 const servefile = require('../system/resources/app/servefile');   // item 21 V1: the shell's own file serving (media types, byte ranges)
+const shellguard = require('../system/resources/app/shellguard');   // the shell's own rules: which folder an update may change, the loopback listen
 const shellPkg = require('../system/resources/app/package.json');
 const UPDATE_REPO = (fs.readFileSync(path.join(__dirname, '..', 'system', 'resources', 'app', 'main.js'), 'utf8').match(/const UPDATE_REPO = '([^']+)'/) || [])[1] || 'owner/repo';
+const ownSystem = path.join(__dirname, '..', 'system');
+const scratchSystem = shellguard.scratchSystemDir(ownSystem, process.env.WAYPOINT_SYSTEM_DIR);   // null: no folder this server may change
 const updateHandler = updater.makeHandler({
     repo: UPDATE_REPO, currentVersion: shellPkg.version, shellVersion: shellPkg.version,
-    systemDir: process.env.WAYPOINT_SYSTEM_DIR || path.join(__dirname, '..', 'system'),
+    systemDir: scratchSystem || ownSystem,
     apiUrl: process.env.WAYPOINT_UPDATE_API || undefined,
 });
 
@@ -55,6 +60,10 @@ const server = http.createServer((req, res) => {
     if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
 
     const url = new URL(req.url, 'http://localhost');
+    if (!scratchSystem && req.method === 'POST' && updater.UPDATE_ROUTES.includes(url.pathname)) {   // the dev server never updates, restores or installs over the source tree it runs from
+        res.writeHead(409, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ ok: false, error: 'the dev server never changes the source tree: set WAYPOINT_SYSTEM_DIR to a scratch copy of system/ to try an update' }));
+    }
     if (updater.UPDATE_ROUTES.includes(url.pathname)) { updateHandler(req, res, url); return; }   // the shell's own list (a core update's routes too: here they answer that this copy cannot install one)
     if (url.pathname === '/api/open-external' && req.method === 'POST') { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end('{"ok":true,"note":"dev server: not opening a browser"}'); }
     if (url.pathname === '/api/ping') { res.writeHead(200); return res.end(); }
@@ -259,4 +268,11 @@ const server = http.createServer((req, res) => {
 });
 
 server.requestTimeout = 0;   // as the shell: a large video copied in may take longer than Node's five minutes a request
-server.listen(port, '127.0.0.1', () => console.log('Waypoint dev server: http://localhost:' + port + '  (saves: ' + savesDir + ')'));
+// as the shell: both loopback addresses of the port, or neither ("localhost" names both). The port is the one asked for — a
+// browser tab and .claude/launch.json name it — so where another program holds either address this says so and stops.
+const server6 = http.createServer((req, res) => server.emit('request', req, res));
+server6.requestTimeout = 0;
+shellguard.listenLoopback(server, server6, port, (held) => {
+    if (!held) { console.error('Waypoint dev server: port ' + port + ' is taken (on 127.0.0.1 or on [::1]). Stop the program that holds it, or give another port.'); process.exit(1); }
+    console.log('Waypoint dev server: http://localhost:' + port + '  (saves: ' + savesDir + ')');
+}, 0);

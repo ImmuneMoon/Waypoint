@@ -771,7 +771,7 @@ function heightIn(yd, unit) { var u = typeof unit === 'string' && hasOwn(HEIGHT_
 function heightOf(sys, from, to, opts) {
     opts = isObj(opts) ? opts : {};
     var hr = sys && isObj(sys.combat) ? cleanHeightRules(sys.combat.height, opts.F) : null; if (!hr || !(hr.formula || hr.steps)) return null;
-    var el = function(t) { var s = stanceCtx(t, { elevation: true }); return s ? s.elevation : 0; }, u = hr.unit || 'yd';
+    var el = function(t) { var s = stanceCtx(t, { elevation: true }); return (s ? s.elevation : 0) + groundYd(opts, t); }, u = hr.unit || 'yd';   // item 19b H5: on the ground it stands on
     var d = opts.elev && isObj(from) && isObj(to) ? heightIn(el(from) - el(to), u) : 0, m = heightModOf(hr, d, opts.F);
     return m === null ? null : { mod: m, diff: d, unit: u };
 }
@@ -2426,11 +2426,15 @@ function postureAt(sys, v) {
 // { mod, dist }: the system's range modifier (0 with no rule, or a formula that gives no number) and the distance in the rule's unit (yards
 // with no rule), centre to centre, with their heights when opts.elev (the elevation feature on) as the ruler and a target mark count them;
 // null with no two tokens or a place that is no number. Whose target, and whether its player may know it, the caller decides
+// Item 19b H5 (ground height): the ground under a token, when the caller knows it — opts.groundOf, a function of the token (whiteboard.js
+// tokenGround on its map): yards within -1000 to 1000, 0 with none or an answer that is no number. A token's height is its own elevation plus
+// this, in the range (its 3D distance), HeightDiff and HeightMod alike; without it, the elevation alone as before
+function groundYd(opts, t) { if (!isObj(opts) || typeof opts.groundOf !== 'function') return 0; var g = opts.groundOf(t); return typeof g === 'number' && isFinite(g) ? Math.max(-1000, Math.min(1000, g)) : 0; }
 function rangeCtx(sys, mp, from, to, opts) {
     if (!isObj(from) || !isObj(to)) return null;
     opts = isObj(opts) ? opts : {};
     var mid = function(t) { var w = typeof t.w === 'number' && fin(t.w) && t.w > 0 ? t.w : 60, h = typeof t.h === 'number' && fin(t.h) && t.h > 0 ? t.h : 52; return { x: t.x + w / 2, y: t.y + h / 2 }; };
-    var el = function(t) { var s = stanceCtx(t, { elevation: true }); return s ? s.elevation : 0; };
+    var el = function(t) { var s = stanceCtx(t, { elevation: true }); return (s ? s.elevation : 0) + groundYd(opts, t); };
     var rr = sys && isObj(sys.combat) ? cleanRangeRules(sys.combat.range, opts.F) : null, u = rr && rr.unit ? rr.unit : 'yd';
     var d = rangeDist(sys, mp, mid(from), mid(to), u, opts.elev ? el(to) - el(from) : 0); if (d === null) return null;
     var m = rr ? rangeModOf(rr, d, opts.F) : null, out = { mod: m === null ? 0 : m, dist: d };

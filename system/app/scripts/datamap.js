@@ -1069,6 +1069,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           }
           save();
           if (modeStr === 'visual' && window.wpNet && window.wpNet.active && window.wpNet.targets && Object.keys(window.wpNet.targets).length && multiDrag.some(function(md) { return md.item.isChar; })) render();   // range penalties R1: a target mark's tags (cover, light, range) read where the tokens stand, so the mover's own screen draws them again once the drop lands
+          if (modeStr === 'visual' && window.wpStanceChips) window.wpStanceChips();   // item 19b H5: a token dropped on or off a ground piece, or a ground piece dropped under one, reads its height where it now stands (no redraw follows a drop)
         } else {
           if(modeStr==='data'){
               if(isLinkMode()){

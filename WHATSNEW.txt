@@ -667,6 +667,11 @@ Turn-based combat
 - Heights follow your Imperial or Metric choice: a token's elevation, a
   piece's height, the ruler's 3D line and a blast's labels, in yards or
   metres.
+- Ground height: a shape, an image or a filled region can be a hill, a
+  ledge or a pit. Give it a Ground height in its Properties and a token
+  standing on it is that much higher, on top of its own elevation; where
+  such pieces overlap, the highest counts. Cover by height, the ruler's 3D
+  line, blasts and your rolls' HeightDiff read the two together.
 - The Calendar (Settings ▸ VTT features; on by default): the
   campaign's date and time in the header. Its chip opens the calendar: the
   month as a grid by the week, steps to move time on (a minute to a week, or

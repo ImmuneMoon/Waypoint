@@ -38,7 +38,7 @@ import * as TF from './textfmt.js';
 
 import { num, picRef } from './safecore.js';
 
-import { load, updateUndoBtn, pushHistory, undo, redo, save, download, getBase64Image, rebaseHistory, withoutHistory, fieldUndoChord, stepBoundary, stepFold, stepSel } from './io.js';
+import { load, updateUndoBtn, pushHistory, undo, redo, save, download, getBase64Image, rebaseHistory, withoutHistory, fieldUndoChord, boxUndo, stepBoundary, stepFold, stepSel } from './io.js';
 
 import { updateCampaignSelect, updateSidebarNav, navigateToMap } from './sidebar.js';
 
@@ -326,7 +326,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // The text a box shows for a stored text: what the input it replaces held as its value. A one-line input dropped line breaks from its value;
   // a textarea read \r\n and \r as \n and never showed one leading line break; a NUL was the replacement character in both.
   function tsShown(text, multi) {
-      text = (typeof text === 'string' ? text : '').replace(/\u0000/g, '�');
+      text = (typeof text === 'string' ? text : '').replace(/\u0000/g, '\uFFFD');
       if (!multi) return text.replace(/[\r\n]/g, '');
       text = text.replace(/\r\n?/g, '\n');
       return text.charAt(0) === '\n' ? text.slice(1) : text;
@@ -436,7 +436,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
      box; Alt+F10 goes from the box into its bar, Tab moves along it, a control pressed there keeps the focus (the Size list stepped by its
      arrow keys is one undo step) and Escape — or Enter in the Size list — goes back to the box with its selection as it was. The bar floats
      over whatever is right above its box: Escape in the box puts it away (the box keeps the focus, the keys still work), and a click in the
-     box, or Alt+F10, brings it back.
+     box, or Alt+F10, brings it back. Those keys and the undo chord are all a box takes: every other key goes on to the page as an input's
+     does (Ctrl+F is Find and Ctrl+K the quick jump from a box too). While a composition is under way (an IME, a dead key, the emoji picker)
+     the bar waits — a press, a symbol and the key into the bar do nothing until it ends: the box is the engine's and is not drawn again.
      UNDO, one rule: in a box Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z are always the planner's own history (io.js) — the engine has no undo of a box the
      app draws. Typing is recorded there in steps: a run of typing, or of deleting, in one box is one step until a pause, a move of the caret,
      a switch between typing and deleting, a paste, a drop, a cut, a line break, a symbol, a press of the bar or leaving the box ends it; each
@@ -582,7 +584,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var it = String(e.inputType || '');
       if (tsState.comp) return;   // a composition is the engine's until it ends
       tsState.pre = tsSelOf(box);
-      if (it === 'historyUndo' || it === 'historyRedo') { e.preventDefault(); if (it === 'historyUndo') undo(); else redo(); return; }
+      if (it === 'historyUndo' || it === 'historyRedo') { e.preventDefault(); boxUndo(it === 'historyUndo' ? 'undo' : 'redo'); return; }   // the browser's undo stack is one per document: a Ctrl+Z left to it in another field can land here
       if (it === 'insertParagraph' || it === 'insertLineBreak') { e.preventDefault(); if (tsMulti(tsDesc(box))) tsInsert(box, '\n', it); return; }
       if (/^insertFrom/.test(it) || it === 'insertLink') {   // a paste or a drop the paste and drop events did not see: plain text, through the box's text
           e.preventDefault();
@@ -623,17 +625,22 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       tsInsertAt(box, tsIncoming(t, tsMulti(tsDesc(box))), at, at, 'insertFromDrop');
   }
   function tsDragStart(e) { if (tsBoxOf(e.target)) e.preventDefault(); }   // a box's text is not dragged about: it is selected, cut and pasted
-  // A key in a box: Alt+F10 goes into the bar; Ctrl+Z / Ctrl+Y are the planner's history; no other handler of the page sees a box's keys
+  // A key in a box. The box takes three things: Alt+F10 goes into the bar; Escape puts the bar away while it is up (the next Escape goes
+  // on); Ctrl+Z / Ctrl+Y are the planner's history (io.js fieldUndoChord stops the chord it takes). Every other key goes on to the page as
+  // an input's does — Ctrl+F is Find and Ctrl+K the quick jump from a box too; the page's own handlers tell typing by the element.
   function tsBoxKey(e) {
       var box = tsBoxOf(e.target); if (!box) return;
       if (e.key === 'F10' && e.altKey && !e.ctrlKey && !e.metaKey) { e.preventDefault(); e.stopPropagation(); tsToBar(box); return; }
-      if (e.key === 'Escape' && tsState.box === box && tsState.els && !tsState.els.root.hidden) { tsState.away = true; tsState.els.root.hidden = true; tsState.els.symWrap.classList.remove('open'); }   // the bar out of the way; the box keeps the focus
-      if (fieldUndoChord(e)) return;
-      e.stopPropagation();
+      if (e.key === 'Escape' && tsState.box === box && tsState.els && !tsState.els.root.hidden) {   // the bar out of the way; the box keeps the focus
+          tsState.away = true; tsState.els.root.hidden = true; tsState.els.symWrap.classList.remove('open');
+          e.stopPropagation();
+          return;
+      }
+      fieldUndoChord(e);
   }
   // From the box into its bar, by the keyboard
   function tsToBar(box) {
-      var E = tsState.els; if (!E) return false;
+      var E = tsState.els; if (!E || tsState.comp) return false;   // never out of a box in the middle of a composition
       tsNote(box);
       if (tsState.box !== box || E.root.hidden) tsShow(box);
       var first = tsOrder()[0]; if (!first) return false;
@@ -651,6 +658,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // One press of a control. change: { b: true } | { i: true } | { u: true } | { st: true } | { color: '#rrggbb' | null } | { size: key | null } | { link: address | null } | 'clear'. True when something changed.
   // from: the bar's control the press came from. One the keyboard reached and holds keeps the focus; after any other press the box has it.
   function tsPress(change, from) {
+      if (tsState.comp) return false;   // a composition is under way: the box holds text the store does not have yet and must not be drawn again — the press waits for its end
       var am = tsBlocksOf(), sel = tsTarget(), box = tsState.box;
       if (!am || !sel) { tsState.run = null; tsRefresh(); return false; }
       var fld = tsField(am.blocks, sel.d), text = fld.text(), was = fld.fmt();
@@ -695,6 +703,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   }
   // A symbol from the tray: text, typed at the caret (over a selection), through the same path as typing
   function tsSymbol(ch, from) {
+      if (tsState.comp) return false;   // as a press: not while a composition is under way
       var sel = tsTarget(), box = tsState.box; if (!sel || !box || typeof ch !== 'string' || !ch) return false;
       var kept = !!(from && tsState.key && document.activeElement === from);
       var did = tsInsertAt(box, ch, sel.s, sel.e, 'insertSymbol');
@@ -711,11 +720,15 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (!am || !sel || !box || sel.map !== am.id || !tsField(am.blocks, sel.d) || tsBox(sel.d) !== box) return false;
       return tsHold(box, sel.s, sel.e, sel.back);
   }
-  // the link of the character a caret belongs to (the one before it — where typing joins; at the very start, the first one's)
+  // The link a caret is INSIDE: the address what is typed there would be linked to — the link of the character before the caret (typing
+  // joins the part on its left) when the character after it is in the same link. At a link's end what is typed is not linked (the one rule,
+  // TS_LINK_GROWS: with it true the character before is enough), and neither is anything typed before a link's first character.
   function tsLinkAt(fld, at) {
-      var text = fld.text(), f = fld.fmt(); if (f === undefined || !text) return '';
-      var st = at > 0 ? TF.stateAt(f, text, at - 1, at) : TF.stateAt(f, text, 0, 1);
-      return typeof st.link === 'string' ? st.link : '';
+      var text = fld.text(), f = fld.fmt(); if (f === undefined || !text || !(at > 0)) return '';
+      var left = TF.stateAt(f, text, at - 1, at).link;
+      if (typeof left !== 'string' || !left) return '';
+      if (TS_LINK_GROWS) return left;
+      return at < text.length && TF.stateAt(f, text, at, at + 1).link === left ? left : '';
   }
   // The bar as it stands: what it acts on, which controls are lit, which cannot apply
   function tsRefresh() {
@@ -816,15 +829,15 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       E.custom.addEventListener('change', function() { tsPress({ color: E.custom.value }, E.custom); });   // once, when the picker closes: one undo step
       tsRefresh();
   }
-  // Ctrl+B / Ctrl+I / Ctrl+U in a box do what the buttons do (seen in the capture phase: a box stops its own keys)
+  // Ctrl+B / Ctrl+I / Ctrl+U in a box do what the buttons do (seen in the capture phase, before any handler of the page's)
   function tsKey(e) {
       tsState.tab = e.key === 'Tab' && !e.ctrlKey && !e.metaKey && !e.altKey;
       if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return false;
       var k = String(e.key || '').toLowerCase(); if (k !== 'b' && k !== 'i' && k !== 'u') return false;
       var box = tsBoxOf(e.target); if (!box) return false;
       e.preventDefault(); e.stopPropagation();
-      if (tsState.box !== box) tsShow(box);
-      tsPress(k === 'b' ? { b: true } : k === 'i' ? { i: true } : { u: true });
+      if (tsState.box !== box && !tsState.comp) tsShow(box);
+      tsPress(k === 'b' ? { b: true } : k === 'i' ? { i: true } : { u: true });   // (nothing while a composition is under way: the key is still taken)
       return true;
   }
   // The focus came to rest somewhere: on a box (its bar comes up), in the bar (it stays), anywhere else (it goes)

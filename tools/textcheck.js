@@ -437,7 +437,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             save: im => { page.log.push('save:' + !!im); if (page.hist) page.hist.save(!!im); }, renderPlannerPreview: () => { page.log.push('preview'); },
             stepBoundary: el => { page.log.push(el ? 'step+' : 'step'); if (page.hist) page.hist.stepBoundary(el); }, stepFold: () => { page.log.push('fold'); if (page.hist) page.hist.stepFold(); },
             stepSel: (b, a) => { page.sels.push([b, a]); if (page.hist) page.hist.stepSel(b, a); }, toast: m => { page.toasts.push(m); },
-            fieldUndoChord: e => (page.hist ? page.hist.fieldUndoChord(e) : false), undo: () => { page.log.push('undo'); if (page.hist) page.hist.undo(); }, redo: () => { page.log.push('redo'); if (page.hist) page.hist.redo(); }
+            fieldUndoChord: e => (page.hist ? page.hist.fieldUndoChord(e) : false), boxUndo: dir => { page.log.push(dir); if (page.hist) page.hist.boxUndo(dir); }
         };
         const names = Object.keys(deps), fsrc = opts.linkGrows ? fieldsSrc.replace('var TS_LINK_GROWS = false;', 'var TS_LINK_GROWS = true;') : fieldsSrc;
         if (opts.linkGrows && fsrc === fieldsSrc) throw new Error('textcheck: the link rule\'s one line was not found');
@@ -480,7 +480,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const camp = { id: 'c', activeItemId: page.map.id, items: { [page.map.id]: page.map } }, toasts = [], H = { toasts, camp };
         const names = ['window', 'state', 'getActiveCampaign', 'getActiveMap', 'localStorage', 'document', 'setTimeout', 'clearTimeout', 'Date', 'render', 'save', 'toast', 'saveTimeout', 'mergeLivePlayerState'];
         const api = new Function(...names, slice('io.js', 'history') + '\n' + slice('io.js', 'steps') + '\n' + slice('io.js', 'undochord') + '\n' + slice('io.js', 'chunks')
-            + '\nreturn { pushHistory, stepBoundary, stepFold, stepSel, fieldUndoChord, undo, redo, stack: function() { return histories["c/" + getActiveMap().id]; }, pending: function(v) { if (v !== undefined) savePending = v; return savePending; }, slot: function() { return typeSlot; } };')(
+            + '\nreturn { pushHistory, stepBoundary, stepFold, stepSel, fieldUndoChord, boxUndo, undo, redo, stack: function() { return histories["c/" + getActiveMap().id]; }, pending: function(v) { if (v !== undefined) savePending = v; return savePending; }, slot: function() { return typeSlot; } };')(
             page.dom.window, { appState: { campaigns: { c: camp } } }, () => camp, () => page.map, { getItem: () => null }, page.doc, page.dom.setTimeout, () => {}, { now: () => page.clock.t }, () => page.render(), im => H.save(im), m => { toasts.push(m); }, undefined, () => {});
         Object.assign(H, api, {
             save: im => { if (im) { api.pushHistory(); api.pending(false); } else api.pending(true); },   // save(true) is the pass at once; save(false) leaves it waiting on its timer
@@ -567,9 +567,9 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 && startOff === J({ spans: [{ s: 1, e: 5, size: 'large', color: GREEN, b: true, link: LINK }] }) && afterOff === J(part)
                 && wholeOff === J({ b: true, spans: [{ s: 0, e: 4, link: LINK }] }) && wholeIn === J({ b: true, link: LINK }) && wholeFront === J({ link: LINK })
                 && twoOff === J({ spans: [{ s: 0, e: 2, link: LINK }, { s: 3, e: 5, link: 'https://b.example/' }] }), [endOff, inOff, overOff, tailOff, startOff, afterOff, wholeOff, wholeIn, wholeFront, twoOff]);
-            check('typing (a link, the other setting): with the one constant true a link grows by typing at its end as its colour does — the rule is that one line, read by tsType alone',
+            check('typing (a link, the other setting): with the one constant true a link grows by typing at its end as its colour does — the rule is that one line, read by tsType (and by the bar\'s tsLinkAt, which says whether what is typed at the caret would be linked) and by nothing else',
                 on.p.TS_LINK_GROWS === true && endOn === J({ spans: [{ s: 0, e: 5, size: 'large', color: GREEN, b: true, link: LINK }] }) && wholeOn === J({ b: true, link: LINK })
-                && (fieldsSrc.match(/TS_LINK_GROWS/g) || []).length === 2 && /\n  var TS_LINK_GROWS = false;\n/.test(fieldsSrc) && /if \(now && !apart && !TS_LINK_GROWS\) \{/.test(fieldsSrc) && !/TS_LINK_GROWS/.test(boxSrc + barSrc), [endOn, wholeOn]);
+                && (fieldsSrc.match(/TS_LINK_GROWS/g) || []).length === 2 && /\n  var TS_LINK_GROWS = false;\n/.test(fieldsSrc) && /if \(now && !apart && !TS_LINK_GROWS\) \{/.test(fieldsSrc) && !/TS_LINK_GROWS/.test(boxSrc) && (barSrc.match(/TS_LINK_GROWS/g) || []).length === 2 && /\n      if \(TS_LINK_GROWS\) return left;\n/.test(barSrc), [endOn, wholeOn]);
             // tsEditAt reads an edit exactly as respan does: a format of one bold span over the old text's prefix shows where respan saw the edit begin
             const R = rng(31337), al = 'ab 😀😁\n'; let bad = null;
             const chars = Array.from(al);
@@ -782,6 +782,33 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('box (composition): between its start and its end the box is the engine\'s — nothing is read back, stored, saved or drawn while it composes; at the end it is applied ONCE (one edit, one save), and it joins the styled part it was typed after; an input that follows the end changes nothing more',
             midText === 'ab' && midLog === 0 && midKids === true && J(afterEnd) === J(['abか', J({ spans: [{ s: 0, e: 3, b: true }] }), J(['step+', 'save:false', 'preview'])]) && t13.pg.log.length === 3 && t13.pg.tsState.comp === false, [midText, midLog, midKids, afterEnd, t13.pg.log]);
 
+        // the bar while a composition is under way: a press, a symbol and the key into the bar wait — nothing is drawn, nothing is stored
+        const t16 = mkT('ab', { spans: [{ s: 0, e: 2, b: true }] }), b16 = t16.first, E16 = t16.pg.tsState.els; t16.pg.focus(b16, 2); t16.pg.log.length = 0;
+        t16.pg.dom.fire(b16, 'compositionstart', {});
+        t16.pg.dom.fire(b16, 'beforeinput', { inputType: 'insertCompositionText', data: 'か' }); { const tn = b16.childNodes[0].firstChild; tn.nodeValue = 'abか'; t16.pg.dom.sel.setBaseAndExtent(tn, 3, tn, 3); } t16.pg.dom.fire(b16, 'input', { inputType: 'insertCompositionText', data: 'か', isComposing: true });
+        const kids16 = b16.childNodes.slice(), was16 = J(t16.pg.map.blocks);
+        t16.pg.click(E16.i); t16.pg.click(E16.swatches[2]); t16.pg.click(E16.clear); t16.pg.click(E16.symBtn); t16.pg.click(E16.symList[0]);
+        E16.size.value = 'large'; t16.pg.dom.fire(E16.size, 'change'); E16.custom.value = '#abcdef'; t16.pg.dom.fire(E16.custom, 'change');   // a list or a picker that changed without taking the focus (the keyboard, a wheel)
+        const kb16 = t16.pg.dom.fire(b16, 'keydown', keyEv({ key: 'b', ctrlKey: true })); t16.pg.dom.fire(b16, 'keydown', keyEv({ key: 'F10', altKey: true }));
+        const mid16 = [J(t16.pg.map.blocks) === was16, b16.childNodes.length === kids16.length && b16.childNodes.every((c, i) => c === kids16[i]), t16.pg.textOf(b16), t16.pg.log.length, t16.pg.sels.length, t16.pg.dom.page.active === b16, kb16.defaultPrevented];
+        t16.pg.dom.fire(b16, 'compositionend', { data: 'か' });
+        const end16 = [t16.text(), t16.fmt(), J(t16.pg.log)];
+        t16.E.caret(b16, 0, 2); t16.pg.click(E16.i); const after16 = t16.fmt();
+        check('box (composition, the bar): between a composition\'s start and its end a click on a control of the bar, a symbol from the tray, a change of the Size list or the custom colour, Ctrl+B and Alt+F10 change nothing — the box keeps the very nodes the engine is composing in (it is not drawn again), the stored block is untouched, no step is recorded and the focus stays in the box; at its end the composed text is stored ONCE, and the bar works as ever',
+            J(mid16) === J([true, true, 'abか', 0, 0, true, true]) && J(end16) === J(['abか', J({ spans: [{ s: 0, e: 3, b: true }] }), J(['step+', 'save:false', 'preview'])]) && after16 === J({ spans: [{ s: 0, e: 2, b: true, i: true }, { s: 2, e: 3, b: true }] }), [mid16, end16, after16]);
+
+        // before the engine edits, during a composition: nothing of the app's own — no line break put in, no paste, no undo, no selection noted afresh
+        const t17 = mkT('ab\ncd', { spans: [{ s: 0, e: 2, b: true }] }, true), b17 = t17.first; t17.pg.focus(b17, 2); t17.pg.log.length = 0;
+        t17.pg.dom.fire(b17, 'compositionstart', {});
+        const kids17 = b17.childNodes.slice();
+        { const tn = b17.childNodes[0].firstChild; tn.nodeValue = 'abか'; t17.pg.dom.sel.setBaseAndExtent(tn, 3, tn, 3); }   // the engine composes: its text is in the box, its caret after it
+        const during17 = ['insertCompositionText', 'insertParagraph', 'insertLineBreak', 'insertFromPaste', 'historyUndo', 'historyRedo', 'formatBold'].map(it => t17.pg.dom.fire(b17, 'beforeinput', { inputType: it, data: 'zz' }).defaultPrevented);
+        const mid17 = [t17.text(), t17.pg.log.length, b17.childNodes.length === kids17.length && b17.childNodes.every((c, i) => c === kids17[i]), t17.pg.textOf(b17), J(t17.pg.tsState.pre)];
+        t17.pg.dom.fire(b17, 'compositionend', { data: 'か' });
+        const end17 = [t17.text(), t17.fmt(), J(t17.pg.sels), J(t17.pg.log)];
+        check('box (composition, before the engine edits): while a composition is under way nothing the engine is about to do is cancelled or done by the app instead — a line break in a label, a paste, its undo and redo, its bold — the box keeps its nodes, nothing is stored, and the selection the composition began with stays the one its step is told (it is not read afresh from a box that holds composing text); at the end the text is stored once, with that selection before it',
+            during17.every(p => p === false) && J(mid17) === J(['ab\ncd', 0, true, 'abか\ncd', J({ s: 2, e: 2, back: false })]) && J(end17) === J(['abか\ncd', J({ spans: [{ s: 0, e: 3, b: true }] }), J([[{ d: t17.d, s: 2, e: 2 }, { d: t17.d, s: 3, e: 3 }]]), J(['step+', 'save:false', 'preview'])]), [during17, mid17, end17]);
+
         // what the engine would do on its own that the app does itself: its undo, its redo, its bold
         const t14 = mkT('abc'), b14 = t14.first; t14.pg.focus(b14, 3); t14.pg.log.length = 0;
         const hu = t14.E.edit(b14, 'historyUndo', null), hr = t14.E.edit(b14, 'historyRedo', null), fb = t14.E.edit(b14, 'formatBold', null), fi = t14.E.edit(b14, 'formatItalic', null);
@@ -790,8 +817,20 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
 
         // keys
         const t15 = mkT('abc'), b15 = t15.first; t15.pg.focus(b15, 1);
-        const k1 = t15.pg.dom.fire(b15, 'keydown', keyEv({ key: 'x' })), k2 = t15.pg.dom.fire(b15, 'keydown', keyEv({ key: 'Delete' })), idBox = t15.pg.plain('input', 'fc-n-id', { idx: 1, ni: 0 }), k3 = t15.pg.dom.fire(idBox, 'keydown', keyEv({ key: 'x' }));
-        check('box (keys): a key pressed in a box goes no further than the editor (no other handler of the page reads a box\'s typing as a shortcut); a key in a box that is no plain field\'s is left alone', k1.stopped === true && k2.stopped === true && k3.stopped === false);
+        const idBox = t15.pg.plain('input', 'fc-n-id', { idx: 1, ni: 0 }), seen15 = [], named = seen => e => { seen.push((e.ctrlKey ? 'Ctrl+' : e.altKey ? 'Alt+' : '') + e.key + (e.target.classList.contains('ts-box') ? '' : ' (not a box)')); };
+        t15.pg.doc.addEventListener('keydown', named(seen15));   // a handler of the page's own, as Find's and the quick jump's are: on the document, after the editor's
+        const fire15 = (el, o) => t15.pg.dom.fire(el, 'keydown', keyEv(o));
+        ['x', 'Delete', 'ArrowRight', 'Enter'].forEach(k => fire15(b15, { key: k }));
+        const kf = fire15(b15, { key: 'f', ctrlKey: true }), kk = fire15(b15, { key: 'k', ctrlKey: true });
+        const f10 = fire15(b15, { key: 'F10', altKey: true }), barEsc = t15.pg.dom.fire(t15.pg.tsState.els.b, 'keydown', keyEv({ key: 'Escape' }));   // into the bar, and back
+        const esc15 = fire15(b15, { key: 'Escape' }), away15 = t15.pg.tsState.els.root.hidden, esc15b = fire15(b15, { key: 'Escape' });
+        fire15(idBox, { key: 'x' });
+        const pc15 = mkPage({ map: mapOf(B0()) }).wire().rebuild(), seenC = [], cell15 = pc15.tsBox({ idx: 1, k: 'cell', ri: 0, ci: 0 }), lab15 = pc15.tsBox({ idx: 2, k: 'node', ni: 0 }); pc15.doc.addEventListener('keydown', named(seenC));
+        pc15.focus(cell15, 2); pc15.dom.fire(cell15, 'keydown', keyEv({ key: 'f', ctrlKey: true })); pc15.dom.fire(cell15, 'keydown', keyEv({ key: 'k', ctrlKey: true }));
+        pc15.focus(lab15, 2); ['x', 'Enter'].forEach(k => pc15.dom.fire(lab15, 'keydown', keyEv({ key: k }))); pc15.dom.fire(lab15, 'keydown', keyEv({ key: 'f', ctrlKey: true })); pc15.dom.fire(lab15, 'keydown', keyEv({ key: 'k', metaKey: true }));
+        check('box (keys): a key pressed in a box goes on to the page as an input\'s does — Ctrl+F (Find) and Ctrl+K (the quick jump) reach the page\'s own handlers from a title, a table cell and a flowchart label, and so does every key the box does not take (the page\'s handlers tell typing by the element, as they do for an input); the box takes only Alt+F10 (into its bar), the Escape that puts its bar away (the next Escape goes on) and the undo chord; a key in a box that is no plain field\'s is left alone',
+            J(seen15) === J(['x', 'Delete', 'ArrowRight', 'Enter', 'Ctrl+f', 'Ctrl+k', 'Escape', 'x (not a box)']) && !kf.defaultPrevented && !kk.defaultPrevented && f10.stopped && f10.defaultPrevented && barEsc.stopped && esc15.stopped && away15 === true && esc15b.stopped === false
+            && J(seenC) === J(['Ctrl+f', 'Ctrl+k', 'x', 'Enter', 'Ctrl+f', 'k']), [seen15, seenC, away15]);
 
         // a seeded walk through the box: type, delete, type over a selection, paste, Enter, cut — against the text an input would hold and the look respan gives
         const R = rng(424242), alpha = 'ab c<&d', look = (text, fmt) => { const out = []; runsOf(text, fmt).forEach(r => { for (let k = 0; k < r.t.length; k++) out.push([r.color, r.b, r.i, r.u, r.st, r.size, r.link].join('|')); }); return out; };
@@ -950,6 +989,49 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const dirty = b7._wpNativeDirty, onRte = kz(rte), onBox = kz(u7.box());
         check('undo (the chord, io.js fieldUndoChord run for real): in a styled field\'s box every Ctrl+Z is the planner\'s history at once — the engine is never asked first, whatever was typed in the box — while a text block\'s own box still lets the engine try (a probe is armed, the key is left to it)',
             dirty === true && J(onRte) === J([false, false, 1]) && onBox[0] === true && onBox[1] === true && u7.text() === 'abc' && /var own = !!\(t\.classList && t\.classList\.contains\('ts-box'\)\);/.test(ioSrc) && /if \(t\._wpNativeDirty && !own\) \{/.test(ioSrc) && !/_wpFloor/.test(ioSrc + plannerSrc), [dirty, onRte, onBox]);
+        // the page's own key handler stands behind a box's (io.js: a key in a field hands the undo chord to fieldUndoChord): the chord is taken ONCE
+        const twoSteps = u => { u.pg.focus(u.box(), 3); u.E.type(u.box(), 'd'); u.tick(600); u.tick(2500); u.E.type(u.box(), 'e'); u.tick(600); return u; };
+        const u9 = twoSteps(mkU('abc')); u9.pg.doc.addEventListener('keydown', e => { const t = e.target; if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) u9.H.fieldUndoChord(e); });
+        const d9 = J(u9.H.depth()), z9 = u9.undo(), once9 = [u9.text(), J(u9.H.depth()), z9.stopped, z9.defaultPrevented]; u9.undo(); const y9 = u9.redo(), once9b = [u9.text(), J(u9.H.depth()), y9.stopped];
+        check('undo (the chord is taken once): with the page\'s own key handler behind the editor\'s — the one that hands a field\'s Ctrl+Z to fieldUndoChord — a Ctrl+Z in a box takes exactly ONE step and a Ctrl+Y brings exactly one back: the chord the box took goes no further',
+            d9 === '[2,0]' && J(once9) === J(['abcd', '[1,1]', true, true]) && J(once9b) === J(['abcd', '[1,1]', true]) && /if \(typing\) \{ fieldUndoChord\(e\); return; \}/.test(ioSrc), [d9, once9, once9b]);
+        // a text block lets the browser try its own undo first (a probe is armed); the browser's ONE undo stack has a box's typing on top, so its undo is
+        // sent to the box, which hands it to the planner's history — and the probe's timer must not take a second step
+        const u10 = twoSteps(mkU('abc')), rte10 = u10.pg.plain('div', 'field rte-body', { idx: 9 }); rte10.setAttribute('contenteditable', 'true');
+        rte10.addEventListener('keydown', e => { if (u10.H.fieldUndoChord(e)) return; e.stopPropagation(); });   // as a text block is wired (wireRte)
+        rte10.focus(); u10.pg.dom.runTimers(); rte10._wpNativeDirty = true;   // something was typed into the text block and the browser has taken it back already
+        const kz10 = u10.pg.dom.fire(rte10, 'keydown', keyEv({ key: 'z', ctrlKey: true })), armed10 = [kz10.defaultPrevented, u10.pg.dom.page.timers.length];
+        const land10 = u10.E.edit(u10.box(), 'historyUndo', null); u10.pg.dom.runTimers();
+        const one10 = [land10.defaultPrevented, u10.text(), J(u10.H.depth()), rte10._wpNativeDirty];
+        const re10 = u10.E.edit(u10.box(), 'historyRedo', null); u10.pg.dom.runTimers(); const back10 = [re10.defaultPrevented, u10.text(), J(u10.H.depth())];
+        check('undo (the browser\'s own undo lands on a box): a Ctrl+Z pressed in a text block is left to the browser first; when the browser\'s undo then reaches a box\'s typing (its undo stack is one per document) the box cancels it and the planner\'s history takes ONE step — the timer that waits for a browser that stayed silent takes no second one — and that text block is spent (its next Ctrl+Z is the planner\'s at once); the browser\'s redo landing on a box is one step forward',
+            J(armed10) === J([false, 1]) && J(one10) === J([true, 'abcd', '[1,1]', false]) && J(back10) === J([true, 'abcde', '[2,0]']) && /boxUndo\(it === 'historyUndo' \? 'undo' : 'redo'\);/.test(barSrc) && /\n\s*boxUndo,\n/.test(ioSrc), [armed10, one10, back10]);
+        // the browser's undo in a field that saves nothing (the Find box, the chat): its flag is for the save that undo itself causes and for no other
+        const find = u => { const f = u.pg.mk('input', '', {}, 'plannerFind'); u.pg.doc.body.appendChild(f); return f; }, nativeUndo = (u, f) => { u.pg.dom.fire(f, 'input', { inputType: 'insertText', data: 'x' }); u.pg.dom.fire(f, 'input', { inputType: 'historyUndo' }); u.pg.dom.runTimers(); };
+        const u11 = mkU('abc'), f11 = find(u11); f11.focus(); nativeUndo(u11, f11);
+        u11.pg.focus(u11.box(), 3); u11.E.type(u11.box(), 'A'); u11.tick(600);
+        const a11 = [u11.text(), J(u11.H.depth())]; u11.undo(); const b11 = [u11.text(), J(u11.H.depth())];
+        const u12 = mkU('abc'), f12 = find(u12); u12.pg.focus(u12.box(), 3); u12.E.type(u12.box(), 'A');   // typed, the save still on its timer
+        f12.focus(); nativeUndo(u12, f12); u12.tick(600);
+        const a12 = J(u12.H.depth()); u12.H.undo(); const b12 = [u12.text(), J(u12.H.depth())];
+        check('undo (after the browser\'s undo somewhere else): x typed into the Find box and taken back by the browser saves nothing — what is typed into a box next is still a step of its own (Ctrl+Z takes it back, and only it); and typing in a box still on its save timer when the browser\'s undo comes in another field is its own step first, never folded away',
+            J(a11) === J(['abcA', '[1,0]']) && J(b11) === J(['abc', '[0,1]']) && a12 === '[1,0]' && J(b12) === J(['abc', '[0,1]']), [a11, b11, a12, b12]);
+        // a box's typing still on its save timer when the browser's undo comes in a text block (reached by Tab, no click between): its own step first
+        const u14 = mkU('abc'), rte14 = u14.pg.plain('div', 'field rte-body', { idx: 9 }); rte14.setAttribute('contenteditable', 'true');
+        u14.pg.focus(u14.box(), 3); u14.E.type(u14.box(), 'A');
+        rte14.focus(); u14.pg.dom.fire(rte14, 'input', { inputType: 'insertText', data: 'x' }); u14.pg.dom.fire(rte14, 'input', { inputType: 'historyUndo' }); u14.tick(600);
+        const a14 = J(u14.H.depth()); u14.H.undo(); const z14 = [u14.text(), J(u14.H.depth())];
+        check('undo (a box\'s typing on its timer, the browser\'s undo in a text block): typing in a box whose save is still waiting is recorded as its own step the moment the browser\'s undo changes a text block — it is never folded into the baseline with it, so the planner\'s undo still takes it back',
+            a14 === '[1,0]' && J(z14) === J(['abc', '[0,1]']) && /if \(t\.closest && t\.closest\('#plannerBlocks'\)\) \{ if \(selNote && savePending\) pushHistory\(\); nativeEdit = true; \}/.test(ioSrc), [a14, z14]);
+        // …while the browser's undo in a field that does save (a text block) is still the user's undo, not new work: the baseline moves, no step is added
+        const pg13 = mkPage({ map: mapOf([{ id: 'h', type: 'h2', title: 'abc' }, { id: 'tx', type: 'text', content: '<p>one</p>' }]) }).wire().rebuild(), H13 = mkHist(pg13), rte13 = pg13.plain('div', 'field rte-body', { idx: 1 }); rte13.setAttribute('contenteditable', 'true');
+        pg13.dom.fire(rte13, 'input', { inputType: 'insertText', data: 'x' }); pg13.map.blocks[1].content = '<p>onex</p>'; H13.save(false); pg13.clock.t += 600; H13.flush();
+        const d13 = J(H13.depth()); pg13.clock.t += 3000;   // well past the two seconds in which typing folds into its step: only the flag keeps the undo from being one
+        pg13.dom.fire(rte13, 'input', { inputType: 'historyUndo' }); pg13.map.blocks[1].content = '<p>one</p>'; H13.save(false); pg13.dom.runTimers(); pg13.clock.t += 600; H13.flush();   // the text block's own handler saves, on the timer
+        const e13 = [J(H13.depth()), JSON.parse(H13.stack().last).c.blocks[1].content];
+        check('undo (the browser\'s undo in a text block, as before): typing in a text block is a step; the browser\'s own undo of it there, seconds later — whose change the text block saves — moves the baseline and adds no step (it is the user\'s undo, not new work)',
+            d13 === '[1,0]' && J(e13) === J(['[1,0]', '<p>one</p>']), [d13, e13]);
+
         // the Size list stepped through by the keyboard: every size applied, the run of them ONE step
         const u8 = mkU(LBL, undefined, true), S8 = u8.B.size; u8.pg.focus(u8.box(), 9, 17);
         S8.focus(); const keyOn = (el, key) => u8.pg.dom.fire(el, 'keydown', keyEv({ key }));
@@ -1117,6 +1199,26 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('bar (a flowchart label): Link is off for a node\'s label and an arrow\'s, with a title that says why in plain words — a press there changes nothing; on again in a title. Everything else a label can carry works there as anywhere: bold, a colour, underline, strike and a size on part of it, and a symbol',
             J(offL) === J([true, 'A flowchart label cannot hold a link: a chart never carries web addresses.', true, false, false, false, false, false]) && pressed === false && viaBox === 0 && offE === true && J(onT) === '[false,false,true]'
             && J(pg.map.blocks[2].nodes[0].fmt) === J({ spans: [{ s: 9, e: 17, size: 'large', color: GREEN, b: true, u: true, st: true }] }) && !('fmt' in pg.map.blocks[2].edges[0]), [offL, pressed, viaBox, offE, onT, pg.map.blocks[2].nodes[0].fmt]);
+        {   // the Link box at a caret: "here" only where what is typed would be linked
+            const lp = grows => {
+                const p = mkPage({ map: mapOf([{ id: 'h', type: 'h2', title: 'The Hill Road', fmt: { title: { spans: [{ s: 4, e: 8, link: LINK }] } } }, { id: 'g', type: 'h2', title: 'Hill', fmt: { title: { link: LINK } } }, { id: 'k', type: 'h2', title: 'abcd', fmt: { title: { spans: [{ s: 0, e: 2, link: LINK }, { s: 2, e: 4, link: 'https://b.example/' }] } } }]), linkGrows: grows }).wire().rebuild();
+                const EL = p.tsState.els, at = (idx, n) => { p.focus(p.tsBox({ idx, k: 'title' }), n); return [EL.link.placeholder, / The part at the caret links to https:\/\/a\.example\/x$/.test(EL.linkLab.title)]; };
+                return { inside: at(0, 6), end: at(0, 8), first: at(0, 5), before: at(0, 4), away: at(0, 11), wholeIn: at(1, 2), wholeEnd: at(1, 4), wholeStart: at(1, 0), seam: at(2, 2) };
+            };
+            const offL = lp(false), onL = lp(true), HERE = 'here: ' + LINK;
+            check('bar (Link, at a caret): the Link box says "here: <address>" — and its title names the part at the caret — only where what is typed at the caret would be linked: inside a link, the character after the caret linked to the same address. At a link\'s end, before its first character, between two links and away from one it does not (what is typed there is not linked); a field linked whole is the same at its end and its start. With the one constant true (a link grows) it says so at a link\'s end too',
+                J(offL) === J({ inside: [HERE, true], end: ['several links', false], first: [HERE, true], before: ['several links', false], away: ['several links', false], wholeIn: ['https://…', true], wholeEnd: ['https://…', false], wholeStart: ['https://…', false], seam: ['several links', false] })
+                && J(onL) === J({ inside: [HERE, true], end: [HERE, true], first: [HERE, true], before: ['several links', false], away: ['several links', false], wholeIn: ['https://…', true], wholeEnd: ['https://…', true], wholeStart: ['https://…', false], seam: [HERE, true] }), [offL, onL]);
+        }
+        {   // the symbol tray: under its button and to the right; to the left where that would leave the panel; upward near the bottom of the window
+            const pgT = mkPage({ map: mapOf(B0()) }).wire().rebuild(), ET = pgT.tsState.els; pgT.focus(pgT.tsBox({ idx: 0, k: 'title' }), 0);
+            const trayAt = (left, top, winH) => { ET.symWrap.classList.remove('open'); ET.symWrap.rect = { left: left, top: top, right: left + 26, bottom: top + 24 }; ET.syms.rect = { left: 0, top: 0, right: 264, bottom: 120 }; pgT.dom.window.innerHeight = winH; pgT.click(ET.symBtn); const s = ET.syms.style; return [ET.symWrap.classList.contains('open'), s.left, s.right, s.top, s.bottom, s.marginTop, s.marginBottom]; };
+            const toRight = trayAt(150, 100, 900), toLeft = trayAt(500, 100, 900), edge = [trayAt(432, 100, 900)[1], trayAt(433, 100, 900)[1]], up = trayAt(150, 800, 900), upLeft = trayAt(500, 800, 900), upEdge = [trayAt(150, 748, 900)[3], trayAt(150, 749, 900)[3]];
+            check('bar (the symbol tray\'s place): the tray opens under its button and to its right; where its width would pass the panel\'s right edge (less 4) it opens to the LEFT, its right edge on the button\'s; where its height would pass the bottom of the window it opens upward — each flip alone and both together, to the pixel',
+                J(toRight) === J([true, '0', 'auto', '100%', 'auto', '4px', '0']) && J(toLeft) === J([true, 'auto', '0', '100%', 'auto', '4px', '0']) && J(edge) === J(['0', 'auto']) && J(up) === J([true, '0', 'auto', 'auto', '100%', '0', '4px']) && J(upLeft) === J([true, 'auto', '0', 'auto', '100%', '0', '4px']) && J(upEdge) === J(['100%', 'auto']), [toRight, toLeft, edge, up, upLeft, upEdge]);
+        }
+        check('box (the source): the replacement character a NUL is shown as is written as its escape — the script holds no literal U+FFFD (an editor or a tool that re-encodes the file could not change what a box shows)',
+            /\.replace\(\/\\u0000\/g, '\\uFFFD'\);/.test(boxSrc) && plannerSrc.indexOf('\uFFFD') < 0 && mkPage().tsShown('a\u0000b', false) === 'a\uFFFDb' && mkPage().tsShown('a\u0000b', true) === 'a\uFFFDb');
         check('bar (wired): the link box is an input the bar builds itself — never a prompt — its address goes through the core\'s one link rule before anything is stored, and the label rule is the same everywhere (tsIsLabel)',
             !/\bprompt\(/.test(barSrc) && /if \(v && !TF\.cleanLink\(v\)\) \{ toast\(/.test(barSrc) && /E\.link = mk\('input', 'ts-link'\); E\.link\.type = 'text';/.test(barSrc) && /function tsIsLabel\(d\) \{ return !!d && \(d\.k === 'node' \|\| d\.k === 'edge'\); \}/.test(barSrc)
             && /if \(change !== 'clear' && tsOwn\(change, 'link'\) && tsIsLabel\(sel\.d\)\) \{ tsRefresh\(\); return false; \}/.test(barSrc));
@@ -1188,9 +1290,9 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const pc = mkPage({ map: mapOf([{ id: 'b', type: 'h2', title: 'x'.repeat(900) }]) }).wire(), many = []; for (let k = 0; k < 199; k++) many.push({ s: k * 2, e: k * 2 + 1, b: true });
         pc.map.blocks[0].fmt = { title: { spans: many } }; pc.rebuild(); pc.focus(pc.tsBox({ idx: 0, k: 'title' }), 600, 601); pc.tsPress({ i: true });
         check('bar: a field at its ' + MAX_SPANS + ' styled parts says so', pc.map.blocks[0].fmt.title.spans.length === 200 && pc.toasts.length === 1 && /200/.test(pc.toasts[0]));
-        check('bar (wired): the boxes are wired once, on the element that holds them — the engine\'s edits before and after, a composition\'s start and end, paste, copy, cut, drop, the keys — and the page\'s part: Ctrl+B / I / U seen in the capture phase, the focus followed in and out, the selection as it moves, the panel\'s scroll and the window\'s size; a box\'s keys are stopped after the undo chord has had them',
+        check('bar (wired): the boxes are wired once, on the element that holds them — the engine\'s edits before and after, a composition\'s start and end, paste, copy, cut, drop, the keys — and the page\'s part: Ctrl+B / I / U seen in the capture phase, the focus followed in and out, the selection as it moves, the panel\'s scroll and the window\'s size; a box hands the undo chord to the history and stops no key it does not take',
             ['beforeinput', 'input', 'compositionstart', 'compositionend', 'paste', 'copy', 'cut', 'drop', 'dragstart', 'keydown'].every(ev => new RegExp("root\\.addEventListener\\('" + ev + "', ts[A-Za-z]+\\);").test(barSrc)) && /document\.addEventListener\('keydown', tsKey, true\);/.test(barSrc) && /document\.addEventListener\('focusin', /.test(barSrc) && /document\.addEventListener\('focusout', /.test(barSrc)
-            && /document\.addEventListener\('selectionchange', /.test(barSrc) && /host\.addEventListener\('scroll', tsPlace, true\);/.test(barSrc) && /window\.addEventListener\('resize', tsPlace\);/.test(barSrc) && /if \(fieldUndoChord\(e\)\) return;\n\s*e\.stopPropagation\(\);/.test(barSrc)
+            && /document\.addEventListener\('selectionchange', /.test(barSrc) && /host\.addEventListener\('scroll', tsPlace, true\);/.test(barSrc) && /window\.addEventListener\('resize', tsPlace\);/.test(barSrc) && /\n      fieldUndoChord\(e\);\n  \}\n/.test(barSrc) && !/fieldUndoChord\(e\)\) return;/.test(barSrc) && (barSrc.slice(barSrc.indexOf('function tsBoxKey(e)'), barSrc.indexOf('function tsToBar(box)')).match(/stopPropagation\(\)/g) || []).length === 2
             && !/sessionStorage|wp_textStyleOpen|textStyleBar|textStyleToggle|textStyleBody/.test(plannerSrc));
     }
 

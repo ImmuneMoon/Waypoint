@@ -779,13 +779,24 @@ function ensureDom() {
     document.body.appendChild(ov);
     tour.overlay = ov; tour.spot = ov.querySelector('#tourSpot'); tour.card = ov.querySelector('#tourCard');
     window.addEventListener('resize', function() { if (tour.active) place(); });
-    document.addEventListener('keydown', function(e) {
-        if (!tour.active) return;
-        if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); endTour(); }
-        else if (e.key === 'ArrowRight' || e.key === 'Enter') { if (!e.target.closest || !e.target.closest('input, textarea, select, [contenteditable="true"]')) { e.preventDefault(); next(1); } }
-        else if (e.key === 'ArrowLeft') { e.preventDefault(); next(-1); }
-    }, true);
+    document.addEventListener('keydown', tourKey, true);
 }
+
+// [tutorialcheck:keys-start]
+// The tour's keys, seen before any handler of the page's: Esc ends the tour from anywhere; Right arrow and Enter go on, Left arrow goes back —
+// never from a field. Nothing is locked while the tour runs, so in a field those keys are the field's: the caret moves, Enter is a new line in
+// a flowchart label. A field is an input, a textarea, a list, or anything being edited in place — told by the element itself
+// (isContentEditable), since a planner's boxes are editable as plain text only and no one word of the attribute names them all.
+function tourField(t) { return !!t && (t.isContentEditable === true || !!(t.closest && t.closest('input, textarea, select'))); }
+function tourKey(e) {
+    if (!tour.active) return;
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); endTour(); return; }
+    if (e.key !== 'ArrowRight' && e.key !== 'Enter' && e.key !== 'ArrowLeft') return;
+    if (tourField(e.target)) return;
+    e.preventDefault();
+    next(e.key === 'ArrowLeft' ? -1 : 1);
+}
+// [tutorialcheck:keys-end]
 
 function targetEl(step) { return step.target ? document.querySelector(step.target) : null; }
 

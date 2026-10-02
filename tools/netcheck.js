@@ -24,7 +24,7 @@ const rosterCleanSrc = between('// [netcheck:rosterclean-start]', '// [netcheck:
 const awaySrc = between('// [netcheck:away-start]', '// [netcheck:away-end]', 'away');
 
 let pass = 0, fail = 0;
-// PeerJS 1.5.2's default serializer is BinaryPack (loaded from a CDN, not vendored): its pack() reads value.constructor for every
+// PeerJS 1.5.2's default serializer is BinaryPack (inside the bundled library file, assets/vendor/peerjs.min.js, which this suite does not load): its pack() reads value.constructor for every
 // object and throws on one it does not know — an object with no prototype, or an own "constructor" / "hasOwnProperty" — and the real
 // broadcast() swallows the throw. Every harness send runs this emulation, so a payload production could not deliver never passes here.
 function packCheck(v) {
@@ -922,8 +922,8 @@ pendingChecks.push((async () => {
     const fogA = fogT.indexOf('function core() {'), fogB = fogT.indexOf('/* ---------- the overlay');
     const fogSrc = fogT.slice(fogA, fogB);
     const saSrcP = src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + between('// [netcheck:foglit-start]', '// [netcheck:foglit-end]', 'foglit') + '\n' + lineOf('function mapFogged(') + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState');
-    const mkSA = (feats, noFog) => {
-        const win = { wpFogCore: FCp, wpVtt: { on: k => feats[k] !== false, campaignOn: k => feats[k] !== false, mode: () => 'stream' } };
+    const mkSA = (feats, noFog, stance) => {   // stance: the host's stance module, where a case reads the ground
+        const win = { wpFogCore: FCp, wpVtt: { on: k => feats[k] !== false, campaignOn: k => feats[k] !== false, mode: () => 'stream' } }; if (stance) win.wpStance = stance;
         let fog = null;
         try { fog = new Function('window', 'document', 'getActiveMap', 'getActiveCampaign', 'state', "'use strict';\n" + fogSrc + '\nreturn { fogDropIds: fogDropIds, fogLitFor: fogLitFor, fogMarksFor: fogMarksFor, fogOffFor: fogOffFor, sightSigFor: sightSigFor, invalidateSeen: invalidateSeen, PARTY: typeof PARTY === "string" ? PARTY : null, fogPartyCells: typeof fogPartyCells === "function" ? fogPartyCells : null };')(win, { getElementById: () => null }, () => null, () => null, { appState: {} }); } catch (e) { fog = { err: e.message }; }
         if (!noFog) win.wpFog = fog;
@@ -957,6 +957,16 @@ pendingChecks.push((async () => {
     const gotA = { mF: ids(forA.mF), mV: ids(forA.mV), party: /fogParty/.test(j(forA)) }, gotOff = { mF: ids(offSA.mF), party: /fogParty/.test(j(offSA)) }, gotNone = { mF: ids(none.mF), mU: ids(none.mU), mV: ids(none.mV), pF: j(none.mF.fogParty), pU: 'fogParty' in none.mU };
     check('R2 #14 a player\'s own copy is as it was — Ana\'s keeps what her tokens see (Bo\'s token, his goblin and Cy\'s waiting token gone) and carries no fogParty on any map; with the fog feature off the stream window is sent every map whole and no fogParty; with no fog module at all the stream copy fails closed — every creature that is no player\'s is gone from a fogged map and no cell is said seen, an unfogged map whole',
         j(gotA) === j({ mF: 'tA+gob+wall+crate', mV: 'tA6', party: false }) && j(gotOff) === j({ mF: 'tA+gob+wall+ogre+orc+orc2+tB+gob2+crate+wt', party: false }) && j(gotNone) === j({ mF: 'tA+wall+tB+crate+wt', mU: 'tA9+orc5', mV: 'tA6+wtV', pF: j({ list: [] }), pU: false }), j([gotA, gotOff, gotNone]));
+    // a hidden ground piece counts for nothing the stream window is sent either (the party's view): the real tokenElevation as the host's stance module, the
+    // true 3D sightline, an orc on a 3-yard ledge behind a 1-yard low wall, the ledge hidden and then shown
+    const wbS = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, '\n');
+    const stS = (() => { try { return new Function('window', 'stanceOn', 'fmtElev', 'lenUnit', '"use strict";\n' + wbS.slice(wbS.indexOf('// [fogcheck:ground-start]'), wbS.indexOf('// [fogcheck:ground-end]')) + '\nreturn { tokenElevation: tokenElevation };')({ wpFogCore: FCp }, () => true, String, () => 'yd'); } catch (e) { return null; } })();
+    const hgState = hid => ({ activeCampaignId: 'k', campaigns: { k: { id: 'k', name: 'K', activeItemId: 'mH', system: { combat: { height: { line3d: true } } }, fog: { fields: { sightUnit: 'ft' }, defaults: { sight: 60 } }, items: {
+        mH: M('mH', null, [T('tA', 'u_a', 2, 2), T('orcH', '', 6, 2), { id: 'low', type: 'rect', x: 200, y: 100, w: 50, h: 50, blocksSight: true, height: 1 }, Object.assign({ id: 'ledge', type: 'rect', x: 300, y: 100, w: 50, h: 50, ground: 3 }, hid ? { hidden: true } : {})]) } } } });
+    const hgStream = hid => { const m = mkSA({ fog: true, lighting: true }, false, stS).SA(hgState(hid)).campaigns.k.items.mH; return [ids(m), (cellsOf(m) || []).some(x => x.startsWith('6,2:')), /ground/.test(j(m))]; };
+    const hgS = { hid: hgStream(true), shown: hgStream(false) };
+    check('a hidden ground piece counts for nothing the stream window is sent (the real sanitizeAppState with no recipient, fogPartyCopy, fog.js and the real tokenElevation): under the true 3D sightline a creature on a hidden 3-yard ledge behind a low wall is gone from the party\'s copy, its cell not among the cells the players\' tokens see, the ledge and its ground nowhere on the copy; on the same ledge shown the creature and its cell are there',
+        !!stS && j(hgS) === j({ hid: ['tA+low', false, false], shown: ['tA+orcH+low+ledge', true, true] }), j(hgS));
     const sj = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'stream.js'), 'utf8').replace(/\r\n/g, '\n'), ioj = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'io.js'), 'utf8').replace(/\r\n/g, '\n');
     check('R2 #14 wired: the stream window alone calls sanitizeAppState with no recipient (stream.js each tick, io.js at its load), and sanitizeAppState hands a map of the hosted campaign to fogPartyCopy exactly there, to fogCopyFor for a player; fogPartyCopy is published to the window nowhere (never a message)',
         /var clean = net\.sanitizeAppState\(data\);/.test(sj) && /if \(window\.wpStream && window\.wpNet && window\.wpNet\.sanitizeAppState\) state\.appState = window\.wpNet\.sanitizeAppState\(state\.appState\);/.test(ioj)
@@ -7310,6 +7320,49 @@ pendingChecks.push((async () => {
         pgWall.system === J({ line3d: true, eye: 2 }) && pgWall.had === undefined && pgWall.now === 2 && pgWall.n === 1 && pgTall.had === undefined && pgTall.now === undefined && pgTall.n === 0 && pgEye.had === 2 && pgEye.now === 2 && pgEye.n === 0, J([pgWall, pgTall, pgEye]));
     check('item 19b (pinned): the live relay hands the fog the piece it moves, so a creature\'s place is judged at its height as its drop is — the one call, in the bpos slice',
         (src.match(/wpFog\.canSeePoint\(/g) || []).length === 1 && /window\.wpFog\.canSeePoint\(pr\.id, camp, map, cx, cy, w\)/.test(between('// [netcheck:bpos-start]', '// [netcheck:bpos-end]', 'bpos')));
+
+    // the connection library is a file of the app: where it is missing the file did not load, and the app says that — never that the internet is needed
+    {
+        const plSrc = (() => { try { return between('// [netcheck:peerlib-start]', '// [netcheck:peerlib-end]', 'peerlib'); } catch (e) { return ''; } })(), plSaid = [];
+        const plRun = lib => { try { return new Function('toast', 'Peer', '"use strict";\n' + plSrc + '\nreturn peerLibMissing();')(m => plSaid.push(m), lib); } catch (e) { return 'threw'; } };
+        const plGot = [plRun(undefined), plSaid.length, plRun(function Peer() {}), plSaid.length];
+        check('the connection library missing (net.js peerLibMissing, run for real): hosting and joining both stop and say that a part of Waypoint did not load, with what to do — restart, then update or reinstall — once, in plain text; with the library there nothing is said and both go on; nowhere does the app say multiplayer needs an internet connection; the two entrances ask the one function, the only place that looks for the library',
+            J(plGot) === J([true, 1, false, 1]) && plSaid[0] === 'Multiplayer can\u2019t start: a part of Waypoint did not load. Restart Waypoint; if it keeps happening, update or reinstall it.' && !/[<>]/.test(plSaid[0])
+            && !/needs an internet connection/.test(src) && (src.match(/typeof Peer\b/g) || []).length === 1 && (src.match(/\n    if \(peerLibMissing\(\)\) return;\n/g) || []).length === 2
+            && /\nfunction startHosting\(forceFresh\) \{\n[^]*?\n    if \(peerLibMissing\(\)\) return;\n[^]*?\nfunction joinSession\(code, name, isRetry, probe\) \{\n    if \(peerLibMissing\(\)\) return;\n/.test(src), J([plGot, plSaid]));
+    }
+
+    // a hidden ground piece counts for nothing a player is sent (the owner's ruling of 2026-10-01: "players see nothing where something is hidden"). The same
+    // world with the real tokenElevation (whiteboard.js sliced by its ground markers) over the real fogcore as the host's stance module: the orc at (6,2)
+    // on a ledge (a piece with a Ground height) the GM hid, then the same ledge shown
+    const wbHg = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, '\n');
+    const stHg = (() => { try { return new Function('window', 'stanceOn', 'fmtElev', 'lenUnit', '"use strict";\n' + wbHg.slice(wbHg.indexOf('// [fogcheck:ground-start]'), wbHg.indexOf('// [fogcheck:ground-end]')) + '\nreturn { tokenElevation: tokenElevation, tokenGround: tokenGround };')({ wpFogCore: FCx }, () => true, String, () => 'yd'); } catch (e) { return null; } })();
+    const ledgeHg = (c, r, g, hid) => pieceH('ledge', c, r, Object.assign({ ground: g }, hid ? { hidden: true } : {}));
+    const wHg = (height, o, pieces, more) => wH19(height, Object.assign({}, o, { setup: (W, m) => { W.winRef.wpStance = stHg; pieces.forEach(p => m.whiteboard.push(p)); if (more) more(W, m); } }));
+    const heldHg = (W, c) => (W.view(c, 'mA').ids.indexOf('ledge') >= 0 ? (c.page.camp().items.mA.whiteboard.find(w => w.id === 'ledge') || {}).ground : 'none');
+    const gHid = wHg({ rule: 'clears' }, { orcElev: 0 }, [ledgeHg(6, 2, 1, true)]), gShown = wHg({ rule: 'clears' }, { orcElev: 0 }, [ledgeHg(6, 2, 1, false)]);
+    const gMeHid = wHg({ rule: 'clears' }, {}, [ledgeHg(2, 2, 3, true)]), gMeShown = wHg({ rule: 'clears' }, {}, [ledgeHg(2, 2, 3, false)]);
+    const gotHg = { hid: [hasOrc19(gHid), relay19(gHid, 'u_a'), heldHg(gHid, gHid.a1), agree(gHid)], shown: [hasOrc19(gShown), relay19(gShown, 'u_a'), heldHg(gShown, gShown.a1), agree(gShown)],
+        meHid: [hasOrc19(gMeHid), relay19(gMeHid, 'u_a'), agree(gMeHid)], meShown: [hasOrc19(gMeShown), relay19(gMeShown, 'u_a'), agree(gMeShown)], leak: /ledge|ground/.test(J(gHid.a1.sent) + J(gHid.b1.sent) + J(gMeHid.a1.sent)) };
+    // the GM shows the ledge mid-session (a save of the map, as Properties does), then hides it again: each player's copies follow, and equal a fresh one
+    const flipHg = (W, hid) => { const m = W.camp.items.mA, l = m.whiteboard.find(w => w.id === 'ledge'); if (hid) l.hidden = true; else delete l.hidden; m.meta.updated = (m.meta.updated || 0) + 1; W.fog.invalidateVision(); W.clearSent(); W.net.sendItem('k', 'mA'); W.fire(150); return [hasOrc19(W), heldHg(W, W.a1), agree(W)]; };
+    const gFlip = wHg({ rule: 'clears' }, { orcElev: 0 }, [ledgeHg(6, 2, 1, true)]), flipGot = [hasOrc19(gFlip), flipHg(gFlip, false), flipHg(gFlip, true)];
+    check('a hidden ground piece counts for nothing a player is sent (host, the real tokenElevation; the owner\'s ruling of 2026-10-01): under "clears" a creature standing on a ledge the GM hid, behind a 2-yard crate, is judged as if the ledge were not there — every copy holds it, it is relayed, and no copy holds the ledge or a word of its ground; the same ledge shown lifts it a yard and it is left out of both copies of the player below it and of their relay, the ledge and its ground on their page; a player\'s own token on a hidden 3-yard ledge does not look down over the crate, on a shown one it does; shown mid-session and hidden again, each player\'s copies follow; every copy equals a fresh one',
+        !!stHg && J(gotHg) === J({ hid: [[true, true, true], true, 'none', true], shown: [[false, false, true], false, 1, true], meHid: [[false, false, true], false, true], meShown: [[true, true, true], true, true], leak: false })
+        && J(flipGot) === J([[true, true, true], [[false, false, true], 1, true], [[true, true, true], 'none', true]]), J([gotHg, flipGot]));
+    // their marks: a blind token's tremor sense (the walls stop it) marks the creature where the ledge is hidden, and not where the shown ledge lets the crate hide it
+    const blindHg = (W, m) => { m.whiteboard = m.whiteboard.filter(w => w.id !== 'tA'); m.whiteboard.push(T('tA', 'u_a', 'c_a', 2, 2, { blind: true })); };
+    const gMkHid = wHg({ rule: 'clears' }, { orcElev: 0, senses: [hSense('sn_feel0001', false)] }, [ledgeHg(6, 2, 1, true)], blindHg), gMkShown = wHg({ rule: 'clears' }, { orcElev: 0, senses: [hSense('sn_feel0001', false)] }, [ledgeHg(6, 2, 1, false)], blindHg);
+    // the true 3D sightline, and the player's own screen (the real fog.js over their copy, with the real tokenElevation): the host's word and their overlay agree
+    const pageHg = (W, c, pid) => { const hostCamp = W.camp, campP = { id: 'k', system: Sx.cleanSystem(hostCamp.system, { F: Fx, gmView: false }), fog: JSON.parse(J(hostCamp.fog)), chars: { c_a: JSON.parse(J(hostCamp.chars.c_a)) }, items: c.page.camp().items };
+        const F = new Function('window', 'document', 'getActiveMap', 'getActiveCampaign', 'state', "'use strict';\n" + fogSrc + '\nreturn { revealedTiers: revealedTiers, fogMask: fogMask, gridForMap: gridForMap, heightShown: heightShown };')(
+            { wpFogCore: FCx, wpSystemCore: Sx, wpFormula: Fx, wpStance: stHg, wpVtt: { on: () => true, mode: () => 'client' }, wpNet: { myId: pid } }, { getElementById: () => null }, () => null, () => campP, { appState: { activeCampaignId: 'k', campaigns: { k: campP } } });
+        const map = campP.items.mA, grid = F.gridForMap(map), flat = F.revealedTiers(map, campP, pid), shown = F.heightShown(F.revealedTiers(map, campP, pid), map, campP, pid, grid, F.fogMask(map, campP, grid));
+        return [flat.keys['6,2'] === undefined ? null : flat.keys['6,2'], shown.keys['6,2'] === undefined ? null : shown.keys['6,2'], shown.list.length - flat.list.length]; };
+    const g3Hid = wHg({ line3d: true, eye: 2 }, { orcElev: 0, piece: lowWall(1) }, [ledgeHg(6, 2, 3, true)]), g3Shown = wHg({ line3d: true, eye: 2 }, { orcElev: 0, piece: lowWall(1) }, [ledgeHg(6, 2, 3, false)]);
+    const got3Hg = { hid: [hasOrc19(g3Hid), relay19(g3Hid, 'u_a'), pageHg(g3Hid, g3Hid.a1, 'u_a'), agree(g3Hid)], shown: [hasOrc19(g3Shown), relay19(g3Shown, 'u_a'), pageHg(g3Shown, g3Shown.a1, 'u_a'), agree(g3Shown)], mkHid: mk19(gMkHid, gMkHid.a1), mkShown: mk19(gMkShown, gMkShown.a1) };
+    check('a hidden ground piece counts for nothing a player is sent (host and the player\'s own screen): under the true 3D sightline a creature on a hidden 3-yard ledge behind a 1-yard low wall is not seen over it — left out of that player\'s copies and of their relay, their overlay showing no cell behind the wall — and on the same ledge shown it is sent, relayed, and their overlay shows that one cell: the host rules what their own app works out; their marks alike — a sense the walls stop marks the creature on the hidden ledge (it stands on the ground for them) and not on the shown one, where the crate hides it from below',
+        J(got3Hg) === J({ hid: [[false, false, true], false, [null, null, 0], true], shown: [[true, true, true], true, [null, 2, 1], true], mkHid: [{ c: 2, r: 4, k: 2 }, { c: 6, r: 2, k: 2 }], mkShown: [{ c: 2, r: 4, k: 2 }] }), J(got3Hg));
 
     // senses S2b: a token's own ranges (item.senses) are the GM's on the host: only that token's player receives them, on their own copies of a
     // fogged map (fogOwnSenses in fogCopyFor), cleaned, the senses the system holds only; the shared clone, anyone else's copy, an unfogged map,

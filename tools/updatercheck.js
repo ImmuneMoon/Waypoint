@@ -801,8 +801,9 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                     const u = rig({ appVersion: '1.5.0', answer: { ok: true, version: '1.5.1' } }); u.ui('setUpdateNowBtn'); u.upd.info = { current: '1.5.0', latest: '1.5.1', newer: true, canHotUpdate: true };
                     const uWired = typeof u.els.setUpdateNowBtn.handlers.click === 'function'; u.api.runHotUpdate(); await flush(); const uAsked = u.log.confirms.length; u.st.cb(false); await flush(); const uNo = u.log.fetches.length, uNoToasts = u.log.toasts.length;
                     u.api.runHotUpdate(); await flush(); u.st.cb(true); await flush();
-                    ok4 = uWired && uAsked === 1 && uNo === 0 && uNoToasts === 0 && j(u.log.fetches) === j([['/api/update-apply', 'POST']]) && u.log.reloads === 1;
-                    d.push([uWired, uAsked, uNo, u.log.fetches, u.log.reloads]);
+                    ok4 = uWired && uAsked === 1 && uNo === 0 && uNoToasts === 0 && j(u.log.fetches) === j([['/api/update-apply', 'POST']]) && u.log.reloads === 1
+                        && u.log.confirms[0] === 'Update Waypoint from 1.5.0 to 1.5.1? The new version downloads, replaces the app files, and Waypoint reloads. Your campaigns and settings are untouched.' && !/\d\s*(MB|KB|GB)|couple/i.test(u.log.confirms[0]);
+                    d.push([uWired, uAsked, uNo, u.log.fetches, u.log.reloads, u.log.confirms[0]]);
                     // a check: the shell's answer drawn, the Restore button with it
                     const c = rig({ appVersion: '1.5.1', answer: { current: '1.5.1', latest: '1.5.1', newer: false, hasPrev: true, prevVersion: '1.5.0' } }); c.ui('setUpdateRestoreBtn'); c.ui('setUpdateState'); c.ui('setUpdateRow');
                     await c.api.checkUpdates(true, true);
@@ -813,7 +814,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             check('Settings: "Restore the previous version" shows only when the shell says hasPrev is true (never for a missing, false or non-boolean answer; also when the release list could not be reached), naming the version only when it is a plain version — as text', !!src && nImports === 3 && ok1, d[0]);
             check('Settings: Restore asks first in the app\'s own words, naming both versions; No changes nothing and asks the shell nothing; Yes posts /api/update-rollback, says what was restored, tells a stream window and reloads', ok2, d[1]);
             check('Settings: a restore the shell refuses is said and the button comes back, with no reload; at a multiplayer table it is not even asked; with nothing to restore the button does nothing; a version that is no plain version never reaches the question or a toast', ok3, d[2]);
-            check('Settings: the Update Now question takes No for an answer — nothing downloads, nothing is said; Yes posts /api/update-apply and reloads', ok4, d[3]);
+            check('Settings: the Update Now question names both versions and what will happen, with no size that could go stale (the app download grew when the libraries were bundled), and takes No for an answer — nothing downloads, nothing is said; Yes posts /api/update-apply and reloads', ok4, d[3]);
             check('Settings: a check draws the shell\'s answer, the Restore button with it', ok5, d[4]);
 
             /* ---- an update that changes the core, in one click (Part D4) ---- */

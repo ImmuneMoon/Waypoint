@@ -6784,7 +6784,7 @@ function startHosting(forceFresh) {
     if (window.wpFog && typeof window.wpFog.marksForget === 'function') window.wpFog.marksForget(null);   // senses S4b: and no marks held for anyone
     net._lastSnapSent = typeof window.wpSnapOn === 'function' && window.wpSnapOn() === true;   // the snap rule: the join snapshot carries Snap as it stands
     diceSessionReset(true);   // and from an empty chat: the last table's lines never reach the next one
-    if (typeof Peer === 'undefined') { toast('Multiplayer needs an internet connection.'); return; }
+    if (peerLibMissing()) return;
     if (forceFresh) net._hostGen = 0;
     cancelReconnect();   // a pending retry would otherwise tear the new host down and rejoin the old table
     if (net.foreign) {
@@ -6893,10 +6893,19 @@ function startHosting(forceFresh) {
     });
     // [netcheck:hostpeer-end]
 }
+// [netcheck:peerlib-start]
+// The connection library is a file of the app (bundled, loaded by the page before any module runs). Where it is missing, that file did not
+// load — a damaged install, or an update that stopped half way — and no network would help: said as what it is, with what to do about it
+function peerLibMissing() {
+    if (typeof Peer !== 'undefined') return false;
+    toast('Multiplayer can’t start: a part of Waypoint did not load. Restart Waypoint; if it keeps happening, update or reinstall it.');
+    return true;
+}
+// [netcheck:peerlib-end]
 
 var JOIN_ATTEMPT_MS = 7000;   // per generation; a dead generation's registration answers nothing
 function joinSession(code, name, isRetry, probe) {
-    if (typeof Peer === 'undefined') { toast('Multiplayer needs an internet connection.'); return; }
+    if (peerLibMissing()) return;
     code = typedCode(code);   // transport: a code typed or pasted in its two groups dials the same room (hyphen and spaces out, lower case)
     probe = probe || 0;                       // which generation this attempt targets
     if (!isRetry && !probe) cancelReconnect();

@@ -210,6 +210,43 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('text style (reader, wired): the reader, the floating panel and the pop-out window all draw a page through docrender\'s renderDoc, and a player\'s app stores a page only as cleanDoc rebuilt it',
             /body\.innerHTML = renderDoc\(it, \{ src: srcOf, mermaid: !!window\.mermaid, docStyle: _camp && _camp\.docStyle \}\);/.test(hbSrc) && /body\.innerHTML = DR\.renderDoc\(it, /.test(dpSrc) && /body\.innerHTML = DR\.renderDoc\(it, /.test(poSrc)
             && (read('net.js').match(/window\.wpDocRender\.cleanDoc\((incoming|itS|it), \{ keepHidden: true \}\)/g) || []).length === 3 && /if \(item\.type === 'doc'\) return window\.wpDocRender \? window\.wpDocRender\.cleanDoc\(item\) : null;/.test(read('net.js')));
+
+        // a size on a part, underline, strike and a link (the owner, 2026-10-02): the preview and the reader with hostile ones
+        const OKL = 'https://ok.example/p?a=1&b=2', OKA = '<a href="https://ok.example/p?a=1&amp;b=2" target="_blank" rel="noopener noreferrer">';
+        const BADL = ['javascript:alert(1)', 'JAVASCRIPT:alert(1)//', 'data:text/html,<script>alert(1)</script>', 'vbscript:x', 'https://a.example/' + String.fromCharCode(0) + 'x', 'https://a.example/ x', 'https://a.example/' + String.fromCharCode(10) + 'x', '//evil.example/x', P, 'https://' + 'a'.repeat(2000), 7, { href: U }, [U]];
+        const lk = v => { const s = stPlain();
+            s.blocks[0].fmt = { title: { link: v, u: true }, sub: { spans: [{ s: 0, e: 1, link: v, size: '99em;position:fixed' }] } };
+            s.blocks[1].fmt = { title: { spans: [{ s: 0, e: 2, link: v, size: 'huge' }, { s: 2, e: 5, link: OKL, st: true }] } };
+            s.blocks[2].fmt = { title: { link: v }, tag: { link: v }, must: { link: v } }; s.blocks[2].colFmt = [{ link: v }]; s.blocks[2].rows[0].fmt = { col1: { link: v }, col2: { spans: [{ s: 0, e: 1, link: v, size: P }] } };
+            s.blocks[4].fmt = { caption: { link: v, size: 'small' } };
+            s.blocks[5].nodes[0].fmt = { link: v, spans: [{ s: 0, e: 3, link: OKL, size: 'large', u: true }] }; s.blocks[5].edges[0].fmt = { link: v, st: true };
+            return s; };
+        const okPv = plannerPreviewHtml(lk(OKL), campS);
+        check('text style (planner preview): a link is the sanitiser\'s own <a href> — the address escaped, the fixed target and rel — around the field\'s runs, in a title, a tag, must-resolve, a head, a cell and a caption; a part\'s size and a strike are fixed words in the run\'s style',
+            okPv.indexOf('<h1>' + OKA + '<span style="text-decoration:underline;">Tom &amp; Jerry</span></a><span class="sub">' + OKA + 'a</a><br>b</span></h1>') >= 0
+            && okPv.indexOf('<h2>' + OKA + '<span style="font-size:1.728em;">Be</span><span style="text-decoration:line-through;">ats</span></a></h2>') >= 0 && okPv.indexOf('<h3>' + OKA + 'N</a> <span class="tag">' + OKA + 'Tag</a></span></h3>') >= 0
+            && okPv.indexOf('<p class="must"><b>Must resolve:</b> ' + OKA + 'Win </a><b>' + OKA + 'now</a></b></p>') >= 0 && okPv.indexOf('<th>' + OKA + 'A</a></th><th>B</th>') >= 0 && okPv.indexOf('<td>' + OKA + 'x</a><br>' + OKA + 'y</a></td><td>' + OKA + '5</a> &lt; 6</td>') >= 0
+            && okPv.indexOf('<figcaption><span style="font-size:0.833em;">' + OKA + 'cap &amp; &lt;b&gt;</a></span></figcaption>') >= 0 && risks(okPv).length === 0 && !/href|https?:|<a\b/i.test(mermaidReads(okPv, 0)), okPv.slice(0, 1500));
+        check('text style (planner preview): a hostile link — javascript:, data:, a control character or white space inside, a protocol-relative one, an attribute breakout, an over-long one, one that is no string — draws no <a> in any field (the text and the rest of its look are drawn), a hostile size draws no size, the one allowed link beside them is the sanitiser\'s own <a>, a flowchart label carries no link at all, and nothing can run or call out',
+            BADL.every(v => { const h = plannerPreviewHtml(lk(v), campS), as = h.match(/<a\b[^>]*>/g) || [], mmS = mermaidReads(h, 0);
+                return as.length === 1 && as[0] === OKA && h.indexOf('<h2><span style="font-size:1.728em;">Be</span>' + OKA + '<span style="text-decoration:line-through;">ats</span></a></h2>') > 0
+                    && h.indexOf('<h1><span style="text-decoration:underline;">Tom &amp; Jerry</span><span class="sub">a<br>b</span></h1>') > 0 && h.indexOf('<h3>N <span class="tag">Tag</span></h3>') > 0 && h.indexOf('<td>x<br>y</td><td>5 &lt; 6</td>') > 0
+                    && h.indexOf('<figcaption><span style="font-size:0.833em;">cap &amp; &lt;b&gt;</span></figcaption>') > 0 && risks(h).length === 0 && !/javascript:|vbscript:|data:text|position:fixed|99em|onmouseover|evil\.example/i.test(h)
+                    && !/href|https?:|<a\b/i.test(mmS) && mmS.indexOf('a["<big><u>buy</u></big> milk<br>walk dog"]') >= 0 && mmS.indexOf('|"<s>go</s>"|') >= 0; }),
+            JSON.stringify(BADL.filter(v => (plannerPreviewHtml(lk(v), campS).match(/<a\b[^>]*>/g) || []).length !== 1)));
+        const TRICK = 'https://ok.example/?q="><img/src=x/onerror=alert(1)>';   // an allowed address that tries to leave its attribute
+        const pageL = v => ({ id: 'd2', type: 'doc', meta: { title: 'P', players: true }, blocks: [
+            { id: 'b1', type: 'h1', title: 'Rules ' + T, sub: 'v1', fmt: { title: { link: v, spans: [{ s: 0, e: 5, size: 'large', u: true }] }, sub: { link: TRICK } } },
+            { id: 'b2', type: 'table', title: 'T', cols: ['A'], colFmt: [{ link: v, st: true }], rows: [{ col1: T, fmt: { col1: { spans: [{ s: 0, e: 4, link: v, size: 'huge' }, { s: 5, e: 8, size: 'url(' + U + ')' }] } } }] },
+            { id: 'b3', type: 'image', src: '/saves/images/m1/ok.png', caption: 'cap', fmt: { caption: { link: v, size: '1.2em' } } },
+            { id: 'b4', type: 'flowchart', nodes: [{ id: 'a', text: 'label', fmt: { link: OKL, u: true } }], edges: [] } ] });
+        check('text style (reader): a page a hostile host sends with links and sizes that are not allowed, as a player\'s app holds and draws it — no <a> but the one allowed, whose address cannot leave its attribute; the run\'s text escaped; a size only as a fixed step; the chart\'s label with no link; nothing can run or call out',
+            BADL.every(v => { const pl = DR.cleanDoc(DR.cleanDoc(pageL(v)), { keepHidden: true }), h = DR.renderDoc(pl, { src: function(p) { return 'blob:http://127.0.0.1:3999/1'; } }), as = h.match(/<a\b[^>]*>/g) || [];
+                return as.length === 1 && as[0] === '<a href="https://ok.example/?q=&quot;&gt;&lt;img/src=x/onerror=alert(1)&gt;" target="_blank" rel="noopener noreferrer">'
+                    && h.indexOf('<h1><span style="text-decoration:underline;font-size:1.2em;">Rules</span> &lt;img src=x onerror=alert(1)&gt;<span class="sub">' + as[0] + 'v1</a></span></h1>') >= 0 && h.indexOf('<th><span style="text-decoration:line-through;">A</span></th>') >= 0
+                    && h.indexOf('<td><span style="font-size:1.728em;">&lt;img</span> src=x onerror=alert(1)&gt;</td>') >= 0 && h.indexOf('<figcaption>cap</figcaption>') >= 0 && risks(h).length === 0 && !/javascript:|vbscript:|data:text|evil\.example/i.test(h)
+                    && !/href|https?:/i.test(mermaidReads(h, 0)) && mermaidReads(h, 0).indexOf('a["<u>label</u>"]') >= 0 && JSON.stringify(pl).indexOf('"link":"https://ok.example/p') < 0; }),
+            JSON.stringify(BADL.filter(v => (DR.renderDoc(DR.cleanDoc(DR.cleanDoc(pageL(v)), { keepHidden: true }), {}).match(/<a\b[^>]*>/g) || []).length !== 1)));
     }
 
     /* ---- text style (1.5.0): a text block's own bar — its colour and size controls are markup too ---- */
@@ -235,7 +272,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && /var em = key && Object\.prototype\.hasOwnProperty\.call\(TF\.SIZE_EM, key\) \? TF\.SIZE_EM\[key\] : '';/.test(plannerAll) && !/insertHTML/.test(plannerAll));
         check('text style (text block): the selection is put back on the same characters after a colour or a size (so the next press needs no second selecting), and Ctrl+Z after one goes to the planner\'s own history',
             (plannerAll.match(/\n      rteSelect\(body, off\);\n  \}/g) || []).length === 2 && /var off = rteOffsets\(body\);\n      if \(!off \|\| off\[0\] === off\[1\]\) return;/.test(plannerAll)
-            && /if \(change !== 'clear' && !\(change && \(change\.b === true \|\| change\.i === true\)\)\) body\._wpNativeDirty = false;/.test(plannerAll) && /if \(this\._wpQuiet\) return;/.test(plannerAll));
+            && /if \(change !== 'clear' && !\(change && \(change\.b === true \|\| change\.i === true \|\| change\.u === true \|\| change\.st === true\)\)\) body\._wpNativeDirty = false;/.test(plannerAll) && /if \(this\._wpQuiet\) return;/.test(plannerAll));
     }
 
     /* ---- the planner editor's rich-text boxes (planner.js rteInitial): a contenteditable is markup too ---- */
@@ -259,8 +296,10 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         ft.indexOf('math') < 0 && ['mglyph', 'svg', 'style', 'img', 'image', 'picture', 'iframe', 'object', 'embed', 'link'].every(t => ft.indexOf(t) >= 0) && ['style', 'src', 'srcset', 'href', 'xlink:href'].every(a => fa.indexOf(a) >= 0), ft);
     check('mermaid config: a diagram\'s own %%{init}%% cannot change the label rules or the security level', ['dompurifyConfig', 'securityLevel', 'secure'].every(k => (mcfg.secure || []).indexOf(k) >= 0), mcfg.secure);
     check('mermaid config: the GM\'s own mode is unchanged (loose; players get strict from handbook.js)', mcfg.securityLevel === 'loose' && mcfg.startOnLoad === false && !!mcfg.flowchart);
-    check('mermaid config (text style): a styled flowchart label needs nothing new from it — the label rules still forbid the style attribute, and the plain tags a label\'s runs are written in (b, i, font with its color, big, small, br) are not forbidden and not cut down to an allow-list',
-        fa.indexOf('style') >= 0 && ['b', 'i', 'font', 'big', 'small', 'br'].every(t => ft.indexOf(t) < 0) && fa.indexOf('color') < 0 && !('ALLOWED_TAGS' in dp) && !('ALLOWED_ATTR' in dp), [ft, fa]);
+    check('mermaid config (text style): a styled flowchart label needs nothing new from it — the label rules are exactly as they were: the style and href attributes (and src, srcset) are still forbidden, so a label carries no link and no inline style; the plain tags a label\'s runs are written in (b, i, u, s, font with its color, big, small, br) are not forbidden and not cut down to an allow-list',
+        fa.indexOf('style') >= 0 && fa.indexOf('href') >= 0 && fa.indexOf('xlink:href') >= 0 && fa.indexOf('src') >= 0 && fa.indexOf('srcset') >= 0 && ['b', 'i', 'u', 's', 'font', 'big', 'small', 'br'].every(t => ft.indexOf(t) < 0) && fa.indexOf('color') < 0 && !('ALLOWED_TAGS' in dp) && !('ALLOWED_ATTR' in dp)
+        && JSON.stringify(ft) === JSON.stringify(['style', 'img', 'image', 'picture', 'source', 'video', 'audio', 'track', 'iframe', 'object', 'embed', 'link', 'meta', 'base', 'svg', 'mglyph', 'form', 'input', 'button']) && JSON.stringify(fa) === JSON.stringify(['style', 'src', 'srcset', 'href', 'xlink:href', 'background', 'poster', 'action', 'formaction', 'ping'])
+        && !/<a\b|href/i.test(DR.compileFlowchart({ nodes: [{ id: 'a', text: 'x', fmt: { link: 'https://ok.example/', u: true, st: true, spans: [{ s: 0, e: 1, size: 'large', link: 'https://b.example/' }] } }], edges: [{ from: 'a', to: 'a', text: 'e', fmt: { link: 'https://ok.example/' } }] })), [ft, fa]);
 
     /* ---- cluster P of the outside audit: the page runs only the app's own files (the policy both servers send says so; a script written into the page or a handler attribute would simply stop working) ---- */
     {

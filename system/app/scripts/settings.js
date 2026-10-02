@@ -593,8 +593,8 @@ if (_snapList) _snapList.addEventListener('click', async function(e) {
 
 var _prefs = ui('setResetPrefsBtn');
 if (_prefs) _prefs.addEventListener('click', function() {
-    // Every wp_* preference goes — except identity/profile, the version marker and the last host code
-    var keep = { wp_profile: 1, wp_version: 1, wp_lastHost: 1, wp_prefsStamp: 1 };
+    // Every wp_* preference goes — except identity/profile (a GM's signing key and the GMs this app knows with it), the version marker and the last host code
+    var keep = { wp_profile: 1, wp_version: 1, wp_lastHost: 1, wp_prefsStamp: 1, wp_gmSign: 1, wp_gmPins: 1, wp_gmRooms: 1 };
     var keys = [];
     try { for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (k && k.indexOf('wp_') === 0 && !keep[k]) keys.push(k); } } catch (e) {}
     keys.forEach(function(k) { try { localStorage.removeItem(k); } catch (e) {} });
@@ -824,12 +824,14 @@ var _ident = ui('setResetIdentityBtn');
 if (_ident) _ident.addEventListener('click', function() {
     if (window.wpNet && window.wpNet.active) { toast('Leave the multiplayer session first.'); return; }
     import('./dialogs.js').then(function(d) {
-        d.showConfirm('Reset your multiplayer identity? Tokens a GM assigned to you will no longer recognize you until reassigned.', function() {
+        d.showConfirm('Reset your multiplayer identity? Tokens a GM assigned to you will no longer recognize you until reassigned. If you host, your table becomes a new GM\u2019s to your players\u2019 apps: you let each of them in again, and at a room code they have joined before they are asked once whether to trust it.', function(yes) {
+            if (!yes) return;   // only on Yes: Cancel keeps the identity, and with it the key your players know your table by
             var p = getProfile();
             var np = { id: 'u_' + Math.random().toString(36).slice(2, 10), name: p.name || '' };
             if (p.avatar) np.avatar = p.avatar;
             saveProfile(np);
             if (window.wpNet) window.wpNet.myId = np.id;
+            if (window.wpNet && window.wpNet.gmSignReset) window.wpNet.gmSignReset(); else { try { localStorage.removeItem('wp_gmSign'); } catch (e) {} }   // a new identity is a new GM: the next table hosted is signed with a new key
             toast('New identity generated.');
         });
     });

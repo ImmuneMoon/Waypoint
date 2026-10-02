@@ -470,9 +470,9 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                       <p>Multiplayer is <b>peer-to-peer</b>: your app is the table, and your players' apps connect directly to yours. No accounts, no server, nothing to set up &mdash; everyone just needs Waypoint and an internet connection, and you keep the app open while playing.</p>
                       <h4>Host a session</h4>
                       <ol>
-                          <li>Click <b>&#127760;</b> in the header and enter your <b>display name</b> &mdash; it&rsquo;s required to host or join, and it&rsquo;s how players know you at the table. In <b>Settings &rsaquo; Profile</b> you can set it once along with a <b>color</b> (your dot in the roster and on the maps) and a <b>picture</b>; they carry to every table.</li>
+                          <li>Click <b>&#127760;</b> in the header and enter your <b>display name</b> &mdash; it&rsquo;s required to host or join, and it&rsquo;s how players know you at the table. In <b>Settings &rsaquo; Profile</b> you can set it once along with a <b>color</b> (your dot in the roster and on the maps) and a <b>picture</b>; they carry to every table. Then press <b>Host a table</b>: the panel shows hosting or joining, one at a time, each behind its own button.</li>
                           <li><b>Players arrive at</b> shows where joiners will land &mdash; leave it on <b>Follow me</b> or pick a specific map to pin the table there (handy for a staging area while you prep elsewhere). Once the campaign has had players, <b>Player's last location</b> is offered and is the default: each player comes back to the map they were last on and stays put until they travel or you summon them, so a split party picks up where it left off. <b>New players start at</b> appears under it and says where someone joining for the first time lands (Follow me, or a map of your choice).</li>
-                          <li>Press <b>Host Session</b>. A short <b>room code</b> appears &mdash; send it to your players however you like, then <b>close the window</b>: the session keeps running while you work, and the &#127760; button reopens it whenever you need the roster, pause, or summon.</li>
+                          <li>Press <b>Start Hosting This Campaign</b>. A <b>room code</b> appears &mdash; send it to your players however you like, then <b>close the window</b>: the session keeps running while you work, and the &#127760; button reopens it whenever you need the roster, pause, or summon.</li>
                           <li>Players who join appear in the roster and see the arrival map. On <b>Follow me</b>, changing maps brings them along. Your planners, room notes, and character dossiers are <b>never sent</b> to them; <b>Handbook</b> pages you leave open to players are.</li>
                       </ol>
                       <h4>Give each player a token</h4>
@@ -534,7 +534,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                       <h4>Join your GM's table</h4>
                       <ol>
                           <li>Get the <b>room code</b> from your GM (it looks like <b>AB2CD-EF3GH</b>; type or paste it with or without the hyphen, in capitals or not), plus the session password if they set one.</li>
-                          <li>On the <b>Welcome</b> screen press <b>Join a game</b> (or the <b>&#127760;</b> button in the header any time) &mdash; set your name (required), your color, picture and token face, enter the code (and password), and press <b>Join</b>. The Join screen shows the connection and drops you in when the GM&rsquo;s table loads.</li>
+                          <li>On the <b>Welcome</b> screen press <b>Join a game</b> (or the <b>&#127760;</b> button in the header any time, then <b>Join a table</b>) &mdash; set your name (required), your color, picture and token face, enter the code (and password), and press <b>Join</b>. The Join screen shows the connection and drops you in when the GM&rsquo;s table loads.</li>
                           <li>Your first time at a table, the GM gets a prompt to let you in &mdash; you'll see "waiting for the GM" for a moment. After that you're recognized and go straight in.</li>
                           <li><b>Your GM, and no one else:</b> the first time you join a table your app remembers its GM&rsquo;s key, and from then on it takes a table at that room code, or under that GM, only from the same GM &mdash; if someone else answers there you are not joined, and you are asked once whether to trust the table that answered (say yes only if your GM tells you they reinstalled or changed computers). Your GM&rsquo;s app proves itself within a few seconds of your hello: at a room code you have joined before, a table that does not is passed over, and a dropped connection keeps looking for your GM instead of waiting on whoever answered. If no table there shows in time that it is your GM&rsquo;s, you are asked whether to join again and wait for it &mdash; it may only be slow, and your app still checks that it is your GM before you are joined. This protection begins with the first table your GM hosts on this version.</li>
                           <li>You'll land on whatever map the GM is showing, and follow along as they move the party.</li>
@@ -1284,7 +1284,15 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     <div style="background:var(--panel2); padding:22px; border:1px solid var(--gold); border-radius:8px; width: 420px; max-width:92vw; max-height:88vh; overflow-y:auto; box-sizing:border-box;">
         <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between;">Multiplayer <button id="netCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
         <p id="netStatus" style="color:var(--dim); font-size:13px; margin:4px 0 14px;">Not in a session.</p>
-        <div style="border:1px solid var(--edge); border-radius:8px; padding:12px; margin-bottom:12px;">
+        <div style="display:flex; gap:8px; margin-bottom:10px; align-items:center;">
+            <div id="netJoinAvatar" title="Your table picture — click to change it">?</div>
+            <input type="text" id="netNameInput" placeholder="Your name" style="flex:1; box-sizing:border-box;" title="How everyone at the table knows you. Needed to host and to join.">
+        </div>
+        <div id="netPaneBar" role="group" aria-label="Host a table or join one" style="display:flex; gap:8px; margin-bottom:12px;">
+            <button class="tool ghost" id="netPaneHostBtn" data-pane="host" aria-expanded="false" aria-controls="netPaneHost" style="flex:1;" title="Run the table from this computer: players connect to you with a room code">Host a table</button>
+            <button class="tool ghost" id="netPaneJoinBtn" data-pane="join" aria-expanded="false" aria-controls="netPaneJoin" style="flex:1;" title="Join your GM's table with the room code they sent you">Join a table</button>
+        </div>
+        <div id="netPaneHost" style="display:none; border:1px solid var(--edge); border-radius:8px; padding:12px; margin-bottom:12px;">
             <div class="net-section-label" style="color:var(--gold); font-size:11px; text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;">Host (be the GM)</div>
             <div style="margin-bottom:10px;">
                 <div style="color:var(--dim); font-size:11px; margin-bottom:4px;">Campaign being hosted</div>
@@ -1332,12 +1340,8 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                 <button class="tool ghost" id="netPauseBtn" style="margin-top:8px; width:100%;" title="Freeze the table: players can't move tokens or travel until you resume. Chat stays open.">&#9208;&#65039; Pause the Table</button>
             </div>
         </div>
-        <div style="border:1px solid var(--edge); border-radius:8px; padding:12px; margin-bottom:12px;">
+        <div id="netPaneJoin" style="display:none; border:1px solid var(--edge); border-radius:8px; padding:12px; margin-bottom:12px;">
             <div class="net-section-label" style="color:var(--gold); font-size:11px; text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;">Join (be a player)</div>
-            <div style="display:flex; gap:8px; margin-bottom:8px; align-items:center;">
-                <div id="netJoinAvatar" title="Your table picture — click to change it">?</div>
-                <input type="text" id="netNameInput" placeholder="Your name" style="flex:1; box-sizing:border-box;">
-            </div>
             <div style="display:flex; gap:8px; margin-bottom:8px;">
                 <input type="text" id="netCodeInput" placeholder="Room code" style="flex:1; box-sizing:border-box; font-family:monospace; text-transform:uppercase;">
                 <button class="tool" id="netJoinBtn">Join</button>

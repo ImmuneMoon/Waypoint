@@ -183,6 +183,10 @@ Running the table
   number, and a Hidden row carries nothing of its creature. Every row of
   your roster now shows its name (the initiative box had squeezed the names
   out).
+- The Multiplayer panel opens on two buttons, Host a table and Join a
+  table, and shows one part at a time; your name sits above both, since it
+  is needed either way. While you host or play, the panel shows the part
+  you are using.
 
 Protecting your table
 - Your table key is never sent again. A player your table already knows is

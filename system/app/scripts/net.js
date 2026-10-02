@@ -7765,9 +7765,10 @@ function ensureNamed() {
     return false;
 }
 var _hostBtn = ui('netHostBtn');
-if (_hostBtn) _hostBtn.addEventListener('click', function() { if (!ensureNamed()) return; startHosting(false); });   // (passing the event made every host "force fresh": the old code was never resumed)
+if (_hostBtn) _hostBtn.addEventListener('click', function() { netPaneShow('host'); if (!ensureNamed()) return; startHosting(false); });   // (passing the event made every host "force fresh": the old code was never resumed)
 var _joinBtn = ui('netJoinBtn');
 if (_joinBtn) _joinBtn.addEventListener('click', function() {
+    netPaneShow('join');
     var code = typedCode(ui('netCodeInput').value);
     if (code.length < 4) { toast('Enter the room code.'); return; }
     if (!ensureNamed()) return;
@@ -7806,7 +7807,26 @@ setTimeout(function() {
 }, 1200);
 /* The GM gets one clear "End Session for Everyone" (the host's Leave was the same
    teardown, but its label read like a player's exit). Players keep Leave Session. */
+// [netcheck:netpane-start]
+// The Multiplayer panel shows one of its two parts at a time, each behind its own button: Host a table, Join a table. Out of a session
+// the part shown is the one last pressed (pressing it again closes it; none until one is pressed). In a session it is the part of the
+// role this app has — the room code and the table's controls for a GM, the join fields for a player — and the other button is off.
+var _netPane = null;
+function netPaneWant(active, role, pick) { if (active) return role === 'host' ? 'host' : 'join'; return pick === 'host' || pick === 'join' ? pick : null; }
+function netPaneSync() {
+    var want = netPaneWant(!!net.active, net.role, _netPane);
+    ['host', 'join'].forEach(function(k) {
+        var box = ui(k === 'host' ? 'netPaneHost' : 'netPaneJoin'), btn = ui(k === 'host' ? 'netPaneHostBtn' : 'netPaneJoinBtn'), shown = want === k;
+        if (box) box.style.display = shown ? 'block' : 'none';
+        if (btn) { btn.classList.toggle('on', shown); btn.setAttribute('aria-expanded', shown ? 'true' : 'false'); btn.disabled = !!net.active && !shown; }
+    });
+}
+function netPanePick(k) { if (net.active) return; _netPane = _netPane === k ? null : k; netPaneSync(); }
+function netPaneShow(k) { _netPane = k; netPaneSync(); }   // the part a press of Host or Join belongs to stays shown, so a join that fails is read where it was typed
+// [netcheck:netpane-end]
+['netPaneHostBtn', 'netPaneJoinBtn'].forEach(function(id) { var b = ui(id); if (b) b.addEventListener('click', function() { netPanePick(b.dataset.pane); }); });
 function syncSessionButtons() {
+    netPaneSync();
     var cbtn = ui('chatBtn');
     var diceOn = !!(window.wpVtt && window.wpVtt.on('dice'));
     if (cbtn) { cbtn.classList.toggle('needs-session', !net.active && !diceOn); cbtn.dataset.tip = net.active ? 'Table chat and dice' : diceOn ? 'Table chat and dice — chat needs a session; dice roll here anyway' : 'Table chat — needs a session (host or join one first)'; cbtn.removeAttribute('title'); }

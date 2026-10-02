@@ -508,19 +508,33 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // Where the bar goes — pure: the panel and the box as { left, top, right, bottom } on the screen, the bar's width and height. Above the box,
   // or under it when there is no room above inside the panel; from the box's left edge, pushed inside the panel sideways. seen: the box is in
   // the panel's view at all (a bar never floats over a box that has scrolled away).
-  function tsPlaceAt(panel, box, w, h) {
+  // table: the box is a heading or a cell of this table. A bar beside a cell would lie over the row above or the row beneath, so there it
+  // sits along the table's top edge (just above the heading row, from the table's left edge) and no cell is covered; once that edge has
+  // scrolled out of the panel it stays at the top of the panel's view (edge: 'top'), and only where it would then lie over its own box
+  // does it go under the box.
+  function tsPlaceAt(panel, box, w, h, table) {
       var gap = 6, pad = 6;
       var seen = box.bottom > panel.top && box.top < panel.bottom && box.right > panel.left && box.left < panel.right;
-      var left = Math.max(panel.left + pad, Math.min(box.left, panel.right - pad - w));
+      var from = table ? table.left : box.left;
+      var left = Math.max(panel.left + pad, Math.min(from, panel.right - pad - w));
+      if (table) {
+          var edge = table.top - gap - h, stuck = panel.top + pad;
+          if (edge >= panel.top + 2) return { left: Math.round(left), top: Math.round(edge), below: false, seen: seen, edge: 'table' };
+          if (box.top >= stuck + h + gap) return { left: Math.round(left), top: Math.round(stuck), below: false, seen: seen, edge: 'top' };
+          return { left: Math.round(left), top: Math.round(box.bottom + gap), below: true, seen: seen };
+      }
       var above = box.top - gap - h, below = above < panel.top + 2;
       return { left: Math.round(left), top: Math.round(below ? box.bottom + gap : above), below: below, seen: seen };
   }
+  // the table a box is a heading or a cell of (its element), else null
+  function tsTableOf(box) { return box && box.matches && box.closest && box.matches('.b-colhead, .r-col') ? box.closest('.b-table') : null; }
   function tsPlace() {
       var E = tsState.els, box = tsState.box; if (!E || !box || E.root.hidden || !box.getBoundingClientRect) return;
       var hr = E.host.getBoundingClientRect(), br = box.getBoundingClientRect();
       var right = hr.left + (E.host.clientLeft || 0) + (E.host.clientWidth || (hr.right - hr.left));   // less the panel's scroll bar
       E.root.style.maxWidth = Math.max(180, Math.round(right - hr.left - 12)) + 'px';
-      var at = tsPlaceAt({ left: hr.left, top: hr.top, right: right, bottom: hr.bottom }, br, E.root.offsetWidth || 0, E.root.offsetHeight || 0);
+      var tb = tsTableOf(box);
+      var at = tsPlaceAt({ left: hr.left, top: hr.top, right: right, bottom: hr.bottom }, br, E.root.offsetWidth || 0, E.root.offsetHeight || 0, tb && tb.getBoundingClientRect ? tb.getBoundingClientRect() : null);
       E.root.style.left = at.left + 'px'; E.root.style.top = at.top + 'px';
       E.root.style.visibility = at.seen ? '' : 'hidden';
       E.root.classList.toggle('ts-below', at.below);

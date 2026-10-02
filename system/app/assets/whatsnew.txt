@@ -297,6 +297,45 @@ Protecting your table
   screen, with their usual keys.
 - If another program is already using Waypoint's port on your computer,
   Waypoint moves to the next one instead of showing that program's page.
+- Your app proves it is yours as soon as a player's app says hello,
+  before you let anyone in. If someone else answers at your room code
+  while you are away, a reconnecting player no longer sits at "waiting for
+  the GM to let you in": their app gives that table five seconds to show
+  it is yours, then moves on through the code's other generations and
+  finds you when you are back. A refusal from a table that has not shown
+  it is yours is not believed during a reconnect, and a GM whose app is
+  only slow is come back to, not taken for a stranger. "Reconnected"
+  appears when the player is actually back at your table.
+- At a room code you have joined before, a table that cannot show in time
+  that it is your GM's is passed over. If none does, you are asked whether
+  to join again and wait for it; saying yes only waits, and your app still
+  checks that it is your GM before you are joined.
+- A returning player whose key is right but was proven over a different
+  connection than the one that reached your app is turned away, and you
+  get a notice naming them. You are no longer asked to decide. If your app
+  cannot read the connection at all you are asked as for a name without
+  its key, so a hiccup never locks your table.
+- A map you rename, nest, move or create while a player is elsewhere
+  reaches them at once as its name alone, so a portal's hover shows the
+  right name. If a player's screen shows a map they are not on, the board
+  says so in one line instead of showing an empty board.
+- The three libraries Waypoint used to load from the internet are part of
+  the app now (the connection library, the diagram library and the
+  picture export's renderer). Nothing is fetched from a CDN when you start
+  Waypoint, and diagrams and Save as Image work with no internet
+  connection. Multiplayer still needs it, to reach the matchmaking
+  service.
+- The diagram library is updated to a version that closes a published
+  flaw: a diagram on a page from another table, or in a campaign file you
+  import, can no longer run code on your machine.
+- Every window of Waypoint runs only Waypoint's own code. If something
+  from another table or an imported file ever slipped past the cleaners
+  it would stay inert text: it cannot run, load code from elsewhere or
+  send your data to another address. A file put in your saves folder is
+  never treated as a page or a script.
+- Switching Developer mode on or off reloads Waypoint (the rule that lets
+  the console run what you type is set when the window loads), and it
+  cannot be switched during a multiplayer session.
 Updates
 - Updates are signed. Your copy takes an update only when its signature
   checks against a key that only Waypoint's maker holds; an update that is

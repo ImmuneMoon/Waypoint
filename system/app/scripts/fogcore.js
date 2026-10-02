@@ -556,6 +556,70 @@ function cleanTerrain(v) {
     var n = Math.round(v);
     return n >= 2 ? Math.min(n, 10) : null;
 }
+// Item 19b H5 (the owner's answer of 2026-10-01, "Added": ground height — a hill, a ledge, a pit): a piece's ground, kept in yards as a token's
+// elevation is — a number from -1000 to 1000, to the hundredth, below 0 for a pit; 0, or anything that is no number, none (null). A token
+// standing on the piece is that much higher, on top of its own elevation (whiteboard.js tokenElevation). The map builder's materials will
+// write it too
+function cleanGround(v) { if (typeof v !== 'number' || !fin(v)) return null; var g = clamp(Math.round(v * 100) / 100, -1000, 1000); return g === 0 ? null : g; }
+// ... what a piece gives as ground (0: none), read by its own key: a shape, an image or a filled region — never a token, a waiting token, a
+// GM-note card, a pen line, a text, a trigger or a light
+function groundOf(w) {
+    if (!isObj(w) || w.isChar || w.waiting || w.gmNoteFor || !Object.prototype.hasOwnProperty.call(w, 'ground')) return 0;
+    if (!(w.type === 'rect' || w.type === 'circle' || w.type === 'hexagon' || w.type === 'diamond' || w.type === 'image' || (w.type === 'path' && w.tip === 'fill'))) return 0;
+    return cleanGround(w.ground) || 0;
+}
+// A filled region's board segments (pathSegs: scaled and turned as the board draws it) and the box they span, kept while its outline, its
+// holes and its place stand
+var REGION_SEGS = typeof WeakMap === 'function' ? new WeakMap() : null;
+function regionSegs(w) {
+    var sig = [w.x, w.y, w.w, w.h, w.baseW, w.baseH, w.rot, Array.isArray(w.pts) ? w.pts.length : -1, Array.isArray(w.holes) ? w.holes.length : -1].join(','), got = REGION_SEGS ? REGION_SEGS.get(w) : null;
+    if (got && got.sig === sig && got.pts === w.pts && got.holes === w.holes) return got;
+    var segs = pathSegs(w), x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (var i = 0; i < segs.length; i++) { var s = segs[i]; x0 = Math.min(x0, s[0], s[2]); x1 = Math.max(x1, s[0], s[2]); y0 = Math.min(y0, s[1], s[3]); y1 = Math.max(y1, s[1], s[3]); }
+    got = { sig: sig, pts: w.pts, holes: w.holes, segs: segs, x0: x0, x1: x1, y0: y0, y1: y1 };
+    if (REGION_SEGS) REGION_SEGS.set(w, got);
+    return got;
+}
+// Whether a piece's outline covers a board point, read as itemCells reads an outline: a cell is one of a piece's cells exactly when its centre
+// is covered (fogcheck proves the two agree, turned or not, on both grids). A painted cell covers its one cell (with a grid); a filled region
+// its outline less its holes, even-odd as the board draws it; a pen line covers nothing
+function itemCovers(w, px, py, grid) {
+    if (!isObj(w) || !fin(w.x) || !fin(w.y) || !fin(px) || !fin(py)) return false;
+    var ww = fin(w.w) ? w.w : 0, hh = fin(w.h) ? w.h : 0, cx = w.x + ww / 2, cy = w.y + hh / 2;
+    if (w.fill && isObj(grid)) return cellKey(cellOf(px, py, grid), grid) === cellKey(cellOf(cx, cy, grid), grid);
+    if (w.type === 'path') {
+        if (w.tip !== 'fill') return false;
+        var rs = regionSegs(w), inside = false; if (px < rs.x0 || px > rs.x1 || py < rs.y0 || py > rs.y1) return false;
+        for (var i = 0; i < rs.segs.length; i++) { var s = rs.segs[i]; if ((s[1] > py) !== (s[3] > py) && px < (s[2] - s[0]) * (py - s[1]) / (s[3] - s[1]) + s[0]) inside = !inside; }
+        return inside;
+    }
+    var kind = w.type === 'hexagon' ? 'hex' : w.type === 'circle' ? 'ell' : w.type === 'diamond' ? 'dia' : 'rect', rot = fin(w.rot) ? w.rot % 360 : 0, rx = ww / 2 || 1, ry = hh / 2 || 1;
+    if (!rot || (kind === 'ell' && ww === hh)) {
+        if (!(px >= w.x && px <= w.x + ww && py >= w.y && py <= w.y + hh)) return false;   // cellsUnderRect's own test of a cell's centre
+        if (kind === 'hex') return pointInFlatHex(px, py, cx, cy, ww, hh);
+        if (kind === 'ell') { var ex = (px - cx) / rx, ey = (py - cy) / ry; return ex * ex + ey * ey <= 1 + 1e-9; }
+        if (kind === 'dia') return Math.abs(px - cx) / rx + Math.abs(py - cy) / ry <= 1 + 1e-9;
+        return true;
+    }
+    var rad = rot * Math.PI / 180, co = Math.cos(rad), si = Math.sin(rad), bw = Math.abs(ww * co) + Math.abs(hh * si), bh = Math.abs(ww * si) + Math.abs(hh * co), bx = cx - bw / 2, by = cy - bh / 2;
+    if (!(px >= bx && px <= bx + bw && py >= by && py <= by + bh)) return false;   // the turned box, as itemCells lists its cells
+    var dx = px - cx, dy = py - cy, lx = dx * co + dy * si, ly = -dx * si + dy * co;   // the point in the piece's own frame
+    return kind === 'hex' ? pointInFlatHex(lx, ly, 0, 0, ww, hh) : kind === 'ell' ? (lx / rx) * (lx / rx) + (ly / ry) * (ly / ry) <= 1 + 1e-9
+        : kind === 'dia' ? Math.abs(lx) / rx + Math.abs(ly) / ry <= 1 + 1e-9 : Math.abs(lx) <= ww / 2 + 1e-9 && Math.abs(ly) <= hh / 2 + 1e-9;
+}
+// The ground under a board point of a map's pieces (wb), in yards: the highest ground of the pieces whose outline covers the centre of the
+// point's cell — the cell the cover readers put a token in; with no grid, the point itself — and 0 where none does. A pit alone is below 0;
+// under a hill the hill wins (the owner: where ground pieces overlap the highest wins). shown: only the pieces players hold, never one the GM
+// hid (what a host works out for its players); a player's own copy holds no hidden piece
+function groundAt(wb, x, y, grid, shown) {
+    if (!Array.isArray(wb) || !fin(x) || !fin(y)) return 0;
+    var g = isObj(grid) ? grid : null, p = g ? cellCenter(cellOf(x, y, g), g) : { x: x, y: y }, best = null;
+    for (var i = 0; i < wb.length; i++) {
+        var w = wb[i], gr = groundOf(w); if (!gr || (shown && w.hidden) || (best !== null && gr <= best)) continue;
+        if (itemCovers(w, p.x, p.y, g)) best = gr;
+    }
+    return best === null ? 0 : best;
+}
 // Senses S7a: a player's own tokens whose senses a null area switches off, as their app takes it from the host (map.fogOff) — keys only of
 // ownIds (their own tokens on that map), each a list cleanNulls keeps; null for none
 function cleanFogOff(v, ownIds) {
@@ -744,6 +808,6 @@ function cleanCampFog(cf) {   // campaign-level: { fields:{sight, sightUnit?}, d
     return out;
 }
 
-var API = { VERSION: VERSION, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, itemCells: itemCells, pathSegs: pathSegs, pathCells: pathCells, withWalls: withWalls, wallsOf: wallsOf, copyWalls: copyWalls, lineClear: lineClear, moveClear: moveClear, cellCorners: cellCorners, coverBetween: coverBetween, coverFromPoint: coverFromPoint, openSeat: openSeat, coverRole: coverRole, visibleCells: visibleCells, seenCells: seenCells, cellDist: cellDist, cleanLight: cleanLight, cleanTokSenses: cleanTokSenses, cleanUnsensed: cleanUnsensed, cleanNulls: cleanNulls, cleanTerrain: cleanTerrain, cleanHeight: cleanHeight, cleanTokFx: cleanTokFx, terrainFactor: terrainFactor, cleanFogOff: cleanFogOff, markCells: markCells, cleanFogMarks: cleanFogMarks, lightUnit: lightUnit, unitCells: unitCells, cellInArc: cellInArc, litLevels: litLevels, neighbourCells: neighbourCells, cleanFogLit: cleanFogLit, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog };
+var API = { VERSION: VERSION, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, itemCells: itemCells, pathSegs: pathSegs, pathCells: pathCells, withWalls: withWalls, wallsOf: wallsOf, copyWalls: copyWalls, lineClear: lineClear, moveClear: moveClear, cellCorners: cellCorners, coverBetween: coverBetween, coverFromPoint: coverFromPoint, openSeat: openSeat, coverRole: coverRole, visibleCells: visibleCells, seenCells: seenCells, cellDist: cellDist, cleanLight: cleanLight, cleanTokSenses: cleanTokSenses, cleanUnsensed: cleanUnsensed, cleanNulls: cleanNulls, cleanTerrain: cleanTerrain, cleanHeight: cleanHeight, cleanGround: cleanGround, itemCovers: itemCovers, groundAt: groundAt, cleanTokFx: cleanTokFx, terrainFactor: terrainFactor, cleanFogOff: cleanFogOff, markCells: markCells, cleanFogMarks: cleanFogMarks, lightUnit: lightUnit, unitCells: unitCells, cellInArc: cellInArc, litLevels: litLevels, neighbourCells: neighbourCells, cleanFogLit: cleanFogLit, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog };
 if (typeof window !== 'undefined') window.wpFogCore = API;
-export { VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, itemCells, pathSegs, pathCells, withWalls, wallsOf, copyWalls, lineClear, moveClear, cellCorners, coverBetween, coverFromPoint, openSeat, coverRole, visibleCells, seenCells, cellDist, cleanLight, cleanTokSenses, cleanUnsensed, cleanNulls, cleanTerrain, cleanHeight, cleanTokFx, terrainFactor, cleanFogOff, markCells, cleanFogMarks, lightUnit, unitCells, cellInArc, litLevels, neighbourCells, cleanFogLit, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog };
+export { VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, itemCells, pathSegs, pathCells, withWalls, wallsOf, copyWalls, lineClear, moveClear, cellCorners, coverBetween, coverFromPoint, openSeat, coverRole, visibleCells, seenCells, cellDist, cleanLight, cleanTokSenses, cleanUnsensed, cleanNulls, cleanTerrain, cleanHeight, cleanGround, itemCovers, groundAt, cleanTokFx, terrainFactor, cleanFogOff, markCells, cleanFogMarks, lightUnit, unitCells, cellInArc, litLevels, neighbourCells, cleanFogLit, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog };

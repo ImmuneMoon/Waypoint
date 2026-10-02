@@ -945,6 +945,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                     // Elevation (yards) and posture — only while the campaign's VTT features are on (Settings ▸ VTT features; at a table, the GM's setting and the player's own "off for me")
                     var stanceApi = window.wpStance, elevOnI = !!(stanceApi && stanceApi.on('elevation')), postOnI = !!(stanceApi && stanceApi.on('posture'));
                     if (elevOnI) html += '<div class="field"><label for="wbElev">Elevation <span class="muted">(' + (stanceApi.lenUnit && stanceApi.lenUnit() === 'm' ? 'metres' : 'yards') + ' above the ground; a pit is negative)</span></label><input type="number" id="wbElev" step="1" value="' + (stanceApi.ydOut ? Math.round(stanceApi.ydOut(stanceApi.tokenElevation(w)) * 10) / 10 : stanceApi.tokenElevation(w)) + '"></div>';   // item 19 H1: in the viewer's unit
+                    if (elevOnI && stanceApi.groundWords) { var gWordsI = stanceApi.groundWords(w, getActiveMap()); if (gWordsI) html += '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">Standing on ' + esc(gWordsI) + ', added to its elevation.</div>'; }   // item 19b H5: the ground under it
                     if (postOnI) { var curPI = stanceApi.postureAt(w).i; html += '<div class="field"><label for="wbPosture">Posture</label><select id="wbPosture">' + stanceApi.postures().map(function(p, i) { return '<option value="' + esc(p.id) + '"' + (i === curPI ? ' selected' : '') + '>' + esc(p.name) + '</option>'; }).join('') + '</select></div>'; }   // conditions C3: the postures in use (the system's own, else the seven), names escaped
                     if (!elevOnI && !postOnI) {
                         var vttI = window.wpVtt, whyE = vttI ? vttI.whyOff('elevation') : 'own', whyP = vttI ? vttI.whyOff('posture') : 'own';
@@ -1044,6 +1045,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                   return '<div class="field"><label for="wbHeight">Height <span class="muted">(' + (un === 'm' ? 'metres' : 'yards') + ')</span></label><input type="number" id="wbHeight" min="0" step="0.5" placeholder="' + (w.blocksSight ? 'full height' : un === 'm' ? '0.9' : '1') + '" value="' + (hv ? Math.round((Sh && Sh.ydOut ? Sh.ydOut(hv) : hv) * 100) / 100 : '') + '" title="How tall it is, for a system whose height rule reads it: looked at from higher than a see-over piece it gives no cover, and from below the target it hides them. Empty: a wall is full height, a see-over piece 1 yard"></div>';
               })() : '')+
               // [sinkcheck:heightbox-end]
+              groundFieldHtml(w)+   // item 19b H5: a piece's Ground height (a hill, a ledge, a pit)
               (['rect','hexagon','circle','diamond','image','path'].indexOf(w.type) >= 0 && !w.isChar && !w.hidden ? ('<div class="field"><label for="wbCover">Cover</label><select id="wbCover" title="What this piece gives as cover (the ruler, blasts and target marks, with Cover from blockers on in your system): as its sight (a wall, pillar or closed door gives it; anything else none), cover you can see over (a crate, a low wall: half or three-quarters, never total), or none. It counts in the grid cells whose centres it covers."><option value="like"'+(w.cover!=='yes'&&w.cover!=='no'?' selected':'')+'>'+(w.blocksSight?'Gives cover (it blocks sight)':'No cover (it does not block sight)')+'</option><option value="yes"'+(w.cover==='yes'?' selected':'')+'>'+(w.blocksSight?'Gives cover':'Gives cover you can see over')+'</option><option value="no"'+(w.cover==='no'?' selected':'')+'>No cover</option></select></div>') : '')+
               (['rect','hexagon','circle','diamond','image'].indexOf(w.type) >= 0 && !w.isChar && !w.hidden ? '<div class="field check-row"><input type="checkbox" id="wbFogged" '+(w.fogged?'checked':'')+'> <label for="wbFogged">Play area (fog covers only this)</label></div><div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">With fog on, only cells under items marked as play areas are fogged &mdash; scenes and map art stay lit. Mark none to fog the whole map (or nothing), per your campaign default in the &#127787; menu.</div>' : '')+
               ((w.type === 'light' || w.isChar) && !w.waiting && !w.hidden && window.wpCanPersistLocal && window.wpCanPersistLocal() ? (function() {   // lighting (L2): the GM sets a light's radii (a player's own light: the host takes none of this from them)
@@ -1192,6 +1194,8 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                 var wbElev = document.getElementById('wbElev');
                 var wbHeight = document.getElementById('wbHeight');   // item 19 H1: a piece's height, typed in the viewer's unit, kept in yards (none when empty or no number above 0)
                 if (wbHeight) wbHeight.addEventListener('change', function() { var Sh = window.wpStance, FCh = window.wpFogCore, yd = this.value.trim() === '' ? null : (Sh && Sh.ydIn ? Sh.ydIn(this.value) : Number(this.value)), hv = FCh && FCh.cleanHeight && yd !== null ? FCh.cleanHeight(yd) : null; if (hv) w.height = hv; else delete w.height; this.value = hv ? Math.round((Sh && Sh.ydOut ? Sh.ydOut(hv) : hv) * 100) / 100 : ''; save(); render(); if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); } });
+                var wbGround = document.getElementById('wbGround');   // item 19b H5: a piece's ground height, typed in the viewer's unit, kept in yards (none when empty or 0)
+                if (wbGround) wbGround.addEventListener('change', function() { setItemGround(w, this.value); });
                 if (wbElev) wbElev.addEventListener('change', function() { var St = window.wpStance; St.setElevation(w, St.ydIn ? St.ydIn(this.value) : this.value); this.value = St.ydOut ? Math.round(St.ydOut(St.tokenElevation(w)) * 10) / 10 : St.tokenElevation(w); save(); renderWhiteboard(); });   // item 19 H1: typed in the viewer's unit, kept in yards
                 var wbPosture = document.getElementById('wbPosture');
                 if (wbPosture) wbPosture.addEventListener('change', function() { window.wpStance.setPosture(w, this.value); save(); renderWhiteboard(); });
@@ -1801,6 +1805,27 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
       save(); render(); renderInspector();
   }
   // [sinkcheck:terrainfield-end]
+  // [sinkcheck:groundbox-start]
+  // Item 19b H5 (the owner's answer of 2026-10-01, "Added": ground height): a piece's Ground height row — a shape, an image or a filled region
+  // as a hill, a ledge or a pit: a token standing on it is that much higher, on top of its own elevation. Shown and typed in the viewer's
+  // unit (yards or metres) and kept in yards (item.ground, as fogcore cleanGround keeps it: -1000 to 1000, none at 0); never on a token, a
+  // waiting token, a GM-note card, a pen line, a text, a trigger or a light. Its markup holds that number and fixed words only
+  function groundFieldOk(w) { return !!w && typeof w === 'object' && (['rect', 'hexagon', 'circle', 'diamond', 'image'].indexOf(w.type) >= 0 || (w.type === 'path' && w.tip === 'fill')) && !w.isChar && !w.waiting && !w.gmNoteFor; }
+  function groundFieldHtml(w) {
+      if (!groundFieldOk(w)) return '';
+      var St = window.wpStance, C = window.wpFogCore, g = C && C.cleanGround && Object.prototype.hasOwnProperty.call(w, 'ground') ? C.cleanGround(w.ground) : null, un = St && St.lenUnit ? St.lenUnit() : 'yd';
+      return '<div class="field"><label for="wbGround">Ground height <span class="muted">(' + (un === 'm' ? 'metres' : 'yards') + '; a pit is negative)</span></label><input type="number" id="wbGround" step="0.5" placeholder="0" value="' + (g ? Math.round((St && St.ydOut ? St.ydOut(g) : g) * 100) / 100 : '') + '" title="Makes this piece ground &mdash; a hill, a ledge, a pit: a token standing on it (the centre of its cell under the piece&rsquo;s outline) is this much higher, on top of its own elevation. Where ground pieces overlap the highest counts. Empty or 0: no ground"></div>'
+          + (w.hidden ? '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">While this piece is hidden, players&rsquo; screens, their rolls and a thrown blast do not read its ground; your own screen does.</div>' : '');
+  }
+  function setItemGround(w, v) {
+      var St = window.wpStance, C = window.wpFogCore, s = String(v === undefined || v === null ? '' : v).trim(), yd = s === '' ? null : (St && St.ydIn ? St.ydIn(s) : Number(s));
+      var g = groundFieldOk(w) && C && C.cleanGround && yd !== null ? C.cleanGround(yd) : null;
+      if (g) w.ground = g; else delete w.ground;
+      save(); render(); renderInspector();
+      if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
+      if (window.wpRefreshBlasts) window.wpRefreshBlasts();   // the rulers and blasts placed read the heights of the tokens there
+  }
+  // [sinkcheck:groundbox-end]
 
   /* ---------- roster characters ↔ board tokens ----------
      A character added to a node's roster gets a token immediately: a stand-in

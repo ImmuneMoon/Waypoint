@@ -8156,8 +8156,8 @@ pendingChecks.push((async () => {
             if (u.indexOf('/saves/images/journal/') === 0) { const p = 'images/journal/' + u.slice('/saves/images/journal/'.length); if (!files.has(p)) return { ok: false, status: 404 }; const b = files.get(p); return { ok: true, headers: { get: h => (h === 'content-length' ? String(o.indexLen && o.indexLen[p] !== undefined ? o.indexLen[p] : String(b).length) : null) }, json: async () => JSON.parse(String(b)) }; }
             return { ok: false, status: 404 };
         };
-        const w = { files, ls, localStorage, used, toasts: [], deleted: [], now: 1700000000000, o };
-        const env = { fetch, localStorage, document: { getElementById: () => null }, toast: m => w.toasts.push(m), esc: s => String(s), showHandout: () => {}, handoutPopup: () => false, window: {}, FileReader: function() {}, Blob: function() {}, Date: { now: () => (w.now += 7) } };
+        const w = { files, ls, localStorage, used, toasts: [], deleted: [], shown: [], now: 1700000000000, o };
+        const env = { fetch, localStorage, document: { getElementById: () => null }, toast: m => w.toasts.push(m), esc: s => String(s), showHandout: h => { w.shown.push(h); }, handoutPopup: () => o.popup === true, window: {}, FileReader: function() {}, Blob: function() {}, Date: { now: () => (w.now += 7) } };
         const names = Object.keys(env);
         w.api = new Function(...names, "'use strict';\n" + journalSrc + '\nreturn { receive: receiveHandout, readIndex: readIndex, stampHead: stampHead, registerJournal: registerJournal, budget: handoutBudget, dropEntryFiles: typeof dropEntryFiles === "function" ? dropEntryFiles : null };')(...names.map(n => env[n]));
         w.idx = key => w.api.readIndex(key);
@@ -8165,6 +8165,34 @@ pendingChecks.push((async () => {
     };
     const gmMsg = (id, text, more) => Object.assign({ type: 'handout', campId: 'camp1', gmId: 'u_gm', campaign: 'The Camp', gm: 'Gina', id, kind: 'text', title: 'T ' + id, caption: '', text, tags: [] }, more || {});
     const shMsg = (id, text, who, whoId, more) => gmMsg(id, text, Object.assign({ sharedBy: who, sharedById: whoId, sharedNotes: '' }, more || {}));
+
+    // links (1.5.0): nothing new on the wire or on disk. A handout's text, a caption and a share travel and are stored as the plain text they are —
+    // a web address in them is drawn as a link only where the text is read (handouts.js showHandout through linkgate.js); the viewer is only told who a page came from
+    {
+        const ADDR = 'Meet at https://a.example/x?y=1&z=2 (see https://b.example/wiki/A_(b)). <a href="https://c.example/">c</a> javascript:alert(1)\nhttps://аррӏе.example/', CAPL = 'cap https://cap.example/.';
+        const WL = mkHost(), plL = WL.join('pA', 'u_p1', 'Pat'); WL.join('pV', 'u_v', 'Vic');
+        WL.share(plL, { to: '*', entry: { kind: 'text', id: 'n1', title: 'T https://t.example/', caption: CAPL, text: ADDR, notes: 'mine https://n.example/', tags: ['a'] } });
+        WL.share(plL, { to: 'gm', entry: { kind: 'text', id: 'n2', title: 'T2', caption: '', text: ADDR, notes: '', tags: [] } });
+        const toVic = (WL.sent.find(s => s[0] === 'pV') || [])[1] || {}, toGm = WL.gmGot[0] || {}, KEYS = 'campId,campaign,caption,gm,gmId,id,kind,sharedBy,sharedById,sharedNotes,tags,text,title,type';
+        check('links (the wire): a player\'s share whose text, caption and notes hold web addresses is relayed by the host exactly as before — the same fields and no other, each the plain text that was typed (no markup, no link, nothing cut out); to another player and to the GM alike',
+            Object.keys(toVic).sort().join() === KEYS && toVic.text === ADDR && toVic.caption === CAPL && toVic.sharedNotes === 'mine https://n.example/' && toVic.title === 'T https://t.example/' && toVic.kind === 'text'
+            && Object.keys(toGm).sort().join() === KEYS && toGm.text === ADDR && j(Object.keys(toVic).map(k => typeof toVic[k]).sort()) === j(Object.keys(toGm).map(k => typeof toGm[k]).sort()), j([Object.keys(toVic).sort().join(), toVic.text === ADDR]));
+        const JL = mkJournal({ popup: true });
+        await JL.api.receive(gmMsg('h1', ADDR, { caption: CAPL }));
+        await JL.api.receive(shMsg('sh1', ADDR, 'Pat', 'u_p1', { caption: CAPL, sharedNotes: 'mine https://n.example/' }));
+        await JL.api.receive(shMsg('sh2', ADDR, 'Gina', 'u_gm'));
+        await JL.api.receive(shMsg('sh3', ADDR, 'x'.repeat(99), 'u_long'));
+        const ixL = await JL.idx('camp1__u_gm'), eG = ixL.entries.find(e => e.id === 'h1') || {}, eS = ixL.entries.find(e => e.id === 'sh1') || {}, onDisk = String(JL.files.get('images/journal/camp1__u_gm/journal.json') || '');
+        check('links (the Journal\'s store): a received handout and a received share are stored as before — the same keys and no other, the text, the caption and the sender\'s notes each the plain text that came; the index on disk holds no link, no href and no markup of the app\'s',
+            eG.text === ADDR && eG.caption === CAPL && Object.keys(eG).sort().join() === 'caption,id,kind,notes,receivedAt,tags,text,title' && eS.text === ADDR && eS.caption === CAPL && eS.sharedNotes === 'mine https://n.example/' && Object.keys(eS).sort().join() === 'caption,id,kind,notes,receivedAt,sharedBy,sharedById,sharedNotes,tags,text,title'
+            && onDisk.length > 400 && !/target=|rel=|noopener|"href"|"link"/.test(onDisk) && (onDisk.match(/<a /g) || []).length === 4, j([Object.keys(eG).sort().join(), Object.keys(eS).sort().join()]));
+        check('links (who a received page came from): the viewer is told with each page that arrives — a handout from the GM and a page the GM shared are the GM\'s, a player\'s share is that player\'s by the name the Journal shows (cut to 60) — and is handed the text and the caption as the plain text they are',
+            JL.shown.length === 4 && j(JL.shown.map(h => h.from)) === j([{ gm: true }, { who: 'Pat' }, { gm: true }, { who: 'x'.repeat(60) }]) && JL.shown.every(h => h.text === ADDR && h.fresh === true) && JL.shown[0].caption === CAPL, j(JL.shown.map(h => h.from)));
+        const hoL = hoBetween('// [netcheck:journal-start]', '// [netcheck:journal-end]'), hoWhole = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'handouts.js'), 'utf8').replace(/\r\n/g, '\n'), netWhole = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'utf8');
+        check('links (pinned): what a GM\'s text handout sends is its text and nothing else; nothing in the wire code or in the Journal\'s receiving and storing code knows about links — they are made only where a text is drawn to be read',
+            /if \(h\.kind === 'text'\) return Promise\.resolve\(\{ kind: 'text', text: String\(h\.text \|\| ''\)\.slice\(0, 60000\) \}\);/.test(hoWhole) && !/linkParts|fillLinked|linkgate|typedLink/.test(netWhole) && !/linkParts|fillLinked|<a /.test(hoL)
+            && /if \(e\.kind === 'note'\) entry = \{ id: e\.id, kind: 'text', title: e\.title \|\| 'A note', caption: '', text: e\.text \|\| '', notes: '', tags: e\.tags \|\| \[\] \};/.test(hoWhole));
+    }
 
     // #2 (a): a player's shares never spend what the GM's handouts live on
     const JB = mkJournal();

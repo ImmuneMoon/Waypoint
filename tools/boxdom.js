@@ -26,6 +26,11 @@ function makeDom() {
     El.prototype.appendChild = function(c) { detach(c); c.parentNode = this; this.childNodes.push(c); return c; };
     El.prototype.insertBefore = function(c, ref) { detach(c); c.parentNode = this; const i = ref ? this.childNodes.indexOf(ref) : -1; if (i < 0) this.childNodes.push(c); else this.childNodes.splice(i, 0, c); return c; };
     El.prototype.removeChild = function(c) { if (c.parentNode !== this) throw new Error('removeChild: not a child'); detach(c); if (!this.childNodes.length && this.scrollLeft) this.scrollLeft = 0; return c; };   // an element emptied of its content springs back to its start
+    // the node after and the node before, among its parent's children
+    const sib = (n, d) => { const l = n.parentNode ? n.parentNode.childNodes : null, i = l ? l.indexOf(n) : -1; return i < 0 ? null : (l[i + d] || null); };
+    [El.prototype, Text.prototype].forEach(p => { Object.defineProperty(p, 'nextSibling', { get() { return sib(this, 1); } }); Object.defineProperty(p, 'previousSibling', { get() { return sib(this, -1); } }); });
+    // the element itself copied without what it holds (cloneNode(false)): its name, classes, attributes, data and style — never its listeners
+    El.prototype.cloneNode = function(deep) { if (deep) throw new Error('cloneNode(true) on the test page'); const c = new El(this.tagName); c.className = this.className; c.id = this.id; Object.assign(c.attrs, this.attrs); Object.assign(c.dataset, this.dataset); Object.assign(c.style, this.style); return c; };
     Object.defineProperty(El.prototype, 'firstChild', { get() { return this.childNodes[0] || null; } });
     Object.defineProperty(El.prototype, 'lastChild', { get() { return this.childNodes[this.childNodes.length - 1] || null; } });
     Object.defineProperty(El.prototype, 'children', { get() { return this.childNodes.filter(c => c.nodeType === 1); } });

@@ -980,6 +980,40 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('cleanBlockFmts: a table\'s heads are read up to the ' + LIMITS.cols + ' columns a table can have — a format past the last of them is not kept', LIMITS.cols === 8 && Jq(wide.colFmt) === Jq([{ b: true }, null, null, null, null, null, null, { i: true }]) && !('colFmt' in past), Jq([wide.colFmt, past.colFmt]));
     }
 
+    /* ---- a text block's link (1.5.0, the Link control on a text block's own bar): through the sanitiser, and through Markdown both ways ---- */
+    {
+        const AH = 'https://a.example/x?y=1&z=2', OPENA = h => '<a href="' + h.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '" target="_blank" rel="noopener noreferrer">';
+        const made = '<p>see ' + OPENA(AH) + 'the map</a> here</p>';   // as the control makes it
+        check('text block link (sanitiser): the <a> the Link control makes is kept exactly; however an <a> is written in a block — attributes in another order, a handler, a style, a download, another target — it comes out as the one form, the address escaped, the fixed target and rel',
+            sanitizeHtml(made) === made && sanitizeHtml('<p>see <a rel="x" target="_top" onclick="alert(1)" style="position:fixed" download="x" HREF="' + AH.replace(/&/g, '&amp;') + '">the map</a> here</p>') === made
+            && sanitizeHtml('<p>see <a href=' + AH.replace(/&/g, '&amp;') + '>the map</a> here</p>') === made && sanitizeHtml('<a href="https://a.example/"><a href="https://b.example/">x</a></a>') === OPENA('https://a.example/') + '</a>' + OPENA('https://b.example/') + 'x</a>', sanitizeHtml('<a href="https://a.example/"><a href="https://b.example/">x</a></a>'));
+        const HOSTILE = ['javascript:alert(1)', 'JaVaScRiPt:alert(1)', 'java\tscript:alert(1)', '&#106;avascript:alert(1)', '&#x6a;avascript:alert(1)', 'jav&Tab;ascript:alert(1)', ' javascript:alert(1)', 'data:text/html,<script>alert(1)</script>', 'vbscript:x', 'file:///c:/x', '//evil.example/x', '/api/data', '#x', '', 'https://a b', 'https://a.example/&#10;x', 'https://' + 'a'.repeat(1993), 'ftp://a.example/x', 'mailto:a@b.example'];
+        const TYPES = ['text', 'lede', 'oneline', 'callout', 'flare'];
+        check('text block link (sanitiser): a hostile href typed, pasted or loaded into a text block never survives — a script address in any spelling (mixed case, a tab or an entity inside it), data:, another scheme, a protocol-relative or a local address, white space inside, an over-long one: the <a> is gone and its text stays, in the editing box\'s first draw, in the preview and on a page as a player\'s app holds and draws it, for every kind of text block',
+            HOSTILE.every(h => { const c = '<p>go <a href="' + h.replace(/"/g, '&quot;') + '">there</a> now</p>', s = sanitizeHtml(c);
+                return !/<a\b/i.test(s) && s.indexOf('go there now') >= 0 && !/javascript:|vbscript:|data:text/i.test(s.replace(/&[a-z#0-9]+;/gi, ''))
+                    && TYPES.every(t => { const pl = cleanDoc(cleanDoc({ id: 'd', type: 'doc', meta: { title: 'P', players: true }, blocks: [{ id: 'b', type: t, content: c }, { id: 'c', type: t, content: made }] }), { keepHidden: true }), h2 = renderDoc(pl, {}), as = h2.match(/<a\b[^>]*>/g) || []; return as.length === 1 && as[0] === OPENA(AH); }); }),
+            HOSTILE.filter(h => /<a\b/i.test(sanitizeHtml('<p>go <a href="' + h.replace(/"/g, '&quot;') + '">there</a> now</p>'))).join(' | '));
+        if (M) {
+            const ODD = ['https://b.example/a)b', 'https://b.example/(a', 'https://b.example/a(b)c', 'https://b.example/[x]', 'https://b.example/a]b', 'https://b.example/?q="x"', 'https://b.example/<y>', 'https://b.example/y>', 'https://b.example/a\\b', 'https://b.example/a*b*c', 'https://b.example/a_b_c', 'https://b.example/~~x~~', 'https://b.example/a`b', 'HTTP://B.example/', 'https://b.example/a|b', 'https://b.example/&amp;', 'https://b.example/x#y!'];
+            const blocksOf = t => [made, '<p>' + OPENA(AH) + 'a <b>bold</b> c</a></p>', '<p>a <b>b' + OPENA(AH) + 'ol</a>d</b> c</p>', '<p>' + OPENA(AH) + '<span style="color:#d9534f">red</span></a> and more</p>', '<p>' + OPENA(AH) + 'te]xt [x] (y) *z*</a></p>', '<p>' + OPENA(AH) + AH.replace(/&/g, '&amp;') + '</a></p>']
+                .concat(ODD.map(h => '<p>go ' + OPENA(h) + 'odd</a> on</p>'), t === 'text' ? ['<p>o' + OPENA(AH) + 'ne</a></p><p>' + OPENA(AH) + 'tw</a>o</p>', '<ul><li>' + OPENA(AH) + 'item</a></li></ul>'] : []).map(c => (t === 'text' ? c : c.slice(3, -4)));
+            const trip = (kind, type, content) => { const md = M.docToMarkdown({ id: 'p', type: kind, meta: { title: 'T' }, blocks: [{ id: 'b', type: type, content: content }] }, {}).text, back = M.markdownToBlocks(md, { kind: kind }).blocks.filter(b => b.type === type)[0]; return { md: md, same: !!back && sanitizeHtml(back.content) === sanitizeHtml(content), again: !!back && M.docToMarkdown({ id: 'p', type: kind, meta: { title: 'T' }, blocks: [back] }, {}).text === md }; };
+            const fails = [];
+            ['planner', 'doc'].forEach(kind => TYPES.forEach(type => blocksOf(type).forEach(c => { const r = trip(kind, type, c); if (!r.same || !r.again) fails.push([kind, type, c]); })));
+            const t1 = trip('planner', 'text', made), t2 = trip('doc', 'callout', '<b>go</b> ' + OPENA('https://b.example/a)b') + 'odd</a>'), t3 = trip('planner', 'text', '<p>' + OPENA('https://b.example/<y>') + 'odd</a></p>');
+            check('text block link (Markdown both ways): a link in a text, lead, one-line, callout or flare block is written [text](address) and read back to the very same block — a planner and a page, a link across bold text, inside a bold word, around a coloured part, in two paragraphs, in a list; the same Markdown on a second export; ' + ODD.length + ' odd addresses too',
+                fails.length === 0 && t1.md.indexOf('see [the map](' + AH + ') here') > 0, JSON.stringify(fails.slice(0, 2)) + t1.md.slice(-80));
+            check('text block link (Markdown export): an address that [text](address) would not read back — one with a lone ( or ), or with < or > — is written as <a href="…"> with the address escaped (as a plain field\'s link is), and reads back to the same link; every other address keeps the bracket form (pinned: bracketLinkOk)',
+                t2.same && t2.md.indexOf('<a href="https://b.example/a&#41;b">odd</a>') > 0 && t3.same && t3.md.indexOf('<a href="https://b.example/&lt;y&gt;">odd</a>') > 0 && trip('planner', 'text', '<p>' + OPENA('https://b.example/a(b)c') + 'odd</a></p>').md.indexOf('[odd](https://b.example/a(b)c)') > 0
+                && /asA = !!hv && !bracketLinkOk\(hv\)/.test(require('fs').readFileSync(require('path').join(__dirname, '..', 'system', 'app', 'scripts', 'docmd.js'), 'utf8')), [t2.md.slice(-60), t3.md.slice(-60)]);
+            const hostMd = ['[x](javascript:alert(1)) and <a href="javascript:alert(2)">y</a> and <a href="https://ok.example/" onclick="alert(3)" style="position:fixed">z</a> and [w](data:text/html,x) and <https://ok.example/auto> and [v](https://a b)', '', '> [!callout] [x](JAVASCRIPT:alert(1)) <a href="//evil.example/">y</a>'].join('\n');
+            const hb = M.markdownToBlocks(hostMd, { kind: 'planner' }).blocks, hs = hb.map(b => sanitizeHtml(b.content)).join('\n'), has = hs.match(/<a\b[^>]*>/g) || [];
+            check('text block link (Markdown import): a file\'s links come into a text block only through the sanitiser — a script address, data:, a protocol-relative one and one with a space are text; an allowed <a> loses its handler and style; an address in angle brackets is a link to itself',
+                hb.length === 2 && has.length === 2 && has[0] === OPENA('https://ok.example/') && has[1] === OPENA('https://ok.example/auto') && !/onclick|position:fixed|javascript:|evil\.example"|data:text/i.test(hs.replace(/&[a-z#0-9]+;/gi, '')) , hs);
+        }
+    }
+
     /* ---- publication under a window ---- */
     global.window = {};
     const D2 = await import(url + '?x');

@@ -412,6 +412,8 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
 
   var foldNext = false;      // the next pass folds the open item's change into the step before it (stepFold)
 
+  var selNote = null;        // the selection around the open planner field's pending edit: { before, after } (stepSel) — the next pass takes it
+
   var HIST_BUDGET_BYTES = 64 * 1024 * 1024;
     // Undo/redo depth per map & per planner: user-configurable via wp_undoDepth (Settings), default 100 (doubled from the old 50), clamped 10..500. The 64 MB byte budget above still caps total memory.
     function histDepth() { var v = 0; try { v = parseInt(localStorage.getItem('wp_undoDepth'), 10); } catch (e) {} return (v >= 10 && v <= 500) ? v : 100; }
@@ -475,7 +477,13 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
 
   }
 
-  function seed(cur, campId, itemId) { return { campId: campId, itemId: itemId, undo: [], redo: [], last: cur, bytes: 0, lru: 0 }; }
+  // cur: the selection that goes with the state the item is in now — { made, left }: as the step that made the state left it (a redo back to
+  // the state puts that one back), and as the step that left the state found it (an undo back to it puts that one back). Only a planner's
+  // styled fields note one (stepSel); a state with none is stored exactly as before.
+  function seed(cur, campId, itemId) { return { campId: campId, itemId: itemId, undo: [], redo: [], last: cur, bytes: 0, lru: 0, cur: null }; }
+
+  // A stored state with its selection beside its content ("s", read back by stepHistory; the content is untouched)
+  function withSel(snap, s) { return s && typeof s === 'object' && (s.made || s.left) ? snap.slice(0, -1) + ',"s":' + JSON.stringify({ made: s.made || undefined, left: s.left || undefined }) + '}' : snap; }
 
   // V8 keeps a string with any non-Latin-1 character at two bytes a character, and the save has plenty
   function histBytes(h) {
@@ -584,12 +592,17 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
 
   function closeChunk() { typeSlot.el = null; typeSlot.key = null; }
 
-  // A press that must be one undo step of its own while a text field has the focus (the planner's Text style bar by key): typing still on
-  // the debounce timer becomes its step first, and the chunk closes, so the save that follows is never folded into it.
-  function stepBoundary() { if (savePending) pushHistory(); closeChunk(); }
+  // An edit that must be one undo step of its own while a text field has the focus (a press of the bar on a planner field's box; a paste, a
+  // line break or a symbol there; typing after the caret moved): typing still on the debounce timer becomes its step first, and the chunk
+  // closes, so the save that follows is never folded into it. el: the field a new run of typing begins in — the step that follows opens its chunk.
+  function stepBoundary(el) { if (savePending) pushHistory(); closeChunk(); if (el) typeSlot.el = el; }
+
+  // The selection around the open planner field's edit, for the step it lands in: before the step's first edit and after its last. An undo
+  // of the step puts the first back, a redo the second (stepHistory). Noted only where the save that follows is recorded.
+  function stepSel(before, after) { if (!canPersistLocal()) return; if (selNote) selNote.after = after; else selNote = { before: before, after: after }; }
 
   // The save that follows belongs to the step before it: the open item's baseline moves and no step is added, so one undo takes the whole
-  // run back (the Text style bar's Size list stepped through by its arrow keys: every size on the way is applied, the run of them is one
+  // run back (the Size list of the bar on a planner field's box stepped through by its arrow keys: every size on the way is applied, the run of them is one
   // step). One shot — the next pass reads and clears it, whatever that pass decides — and armed only where the save that follows is recorded
   // (this window may write to this disk), so it can never be left waiting for some later, unrelated pass.
   function stepFold() { foldNext = canPersistLocal(); }
@@ -606,6 +619,8 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
       nativeEdit = false;
 
       foldNext = false;
+
+      selNote = null;
 
       closeChunk();
 
@@ -655,6 +670,10 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
 
       foldNext = false;
 
+      var note = selNote;   // one shot too: the selection around the open planner field's edit
+
+      selNote = null;
+
       if (!canPersistLocal()) return;   // someone else's campaign is never recorded
 
       var camp = getActiveCampaign();
@@ -685,13 +704,17 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
           // not new work — the baseline moves, redo is kept, and the field's chunk stays open for what follows
           if (native && id === camp.activeItemId) { h.last = cur; if (typeSlot.el) { typeSlot.key = key; typeSlot.lastT = now; typeSlot.chunkStart = now; } return; }
 
-          if (fold && id === camp.activeItemId && h.undo.length) { h.last = cur; return; }   // stepFold: part of the step before it (with no step to join, an ordinary one)
+          var mine = id === camp.activeItemId ? note : null;
 
-          if (canCoalesce(key, now)) { h.last = cur; typeSlot.lastT = now; return; }
+          if (fold && id === camp.activeItemId && h.undo.length) { h.last = cur; if (mine) h.cur = { made: mine.after, left: h.cur ? h.cur.left : undefined }; return; }   // stepFold: part of the step before it (with no step to join, an ordinary one)
+
+          if (canCoalesce(key, now)) { h.last = cur; typeSlot.lastT = now; if (mine) h.cur = { made: mine.after, left: h.cur ? h.cur.left : undefined }; return; }
 
           h.redo = [];
 
-          pushStep(h, h.last);
+          pushStep(h, withSel(h.last, { made: h.cur ? h.cur.made : undefined, left: mine ? mine.before : undefined }));   // the state being left, with the selection this step found
+
+          h.cur = mine ? { made: mine.after } : null;
 
           h.last = cur;
 
@@ -842,6 +865,7 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
 
   }
 
+  // [textcheck:steps-start]
   // Where the planner was being looked at, so a restore lands the eye and the caret back where they were
   function rememberPlannerSpot() {
 
@@ -851,7 +875,8 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
 
       if (a && a.dataset && a.dataset.idx !== undefined && a.closest && a.closest('#plannerBlocks')) {
 
-          spot.field = { idx: a.dataset.idx, cls: a.className, ri: a.dataset.ri, ci: a.dataset.ci, ni: a.dataset.ni, sel: (typeof a.selectionStart === 'number') ? a.selectionStart : null };
+          spot.field = { idx: a.dataset.idx, cls: a.className, ri: a.dataset.ri, ci: a.dataset.ci, ni: a.dataset.ni, ei: a.dataset.ei, sel: (typeof a.selectionStart === 'number') ? a.selectionStart : null,
+                         ts: window.wpTextBox ? window.wpTextBox.selOf(a) : null };   // a styled field's box (planner.js): its selection as offsets into its text
 
       }
 
@@ -859,7 +884,9 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
 
   }
 
-  function restorePlannerSpot(spot) {
+  // sel: the selection the step that was undone or redone noted (a styled field's box): it goes back where it was — only when the focus was
+  // in the editor (the toolbar's buttons leave the focus alone)
+  function restorePlannerSpot(spot, sel) {
 
       var ed = document.getElementById('plannerEditorWrap'), pw = document.getElementById('plannerPreviewWrap');
 
@@ -873,9 +900,11 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
 
       if (!f) return;
 
+      if (sel && window.wpTextBox && window.wpTextBox.restore(sel)) return;
+
       var el = Array.prototype.find.call(document.querySelectorAll('#plannerBlocks [data-idx="' + f.idx + '"]'), function(x) {
 
-          return x.className === f.cls && x.dataset.ri === f.ri && x.dataset.ci === f.ci && x.dataset.ni === f.ni;
+          return x.className === f.cls && x.dataset.ri === f.ri && x.dataset.ci === f.ci && x.dataset.ni === f.ni && x.dataset.ei === f.ei;
 
       });
 
@@ -885,7 +914,9 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
 
           el.focus({ preventScroll: true });
 
-          if (f.sel !== null && typeof el.setSelectionRange === 'function') { var p = Math.min(f.sel, (el.value || '').length); el.setSelectionRange(p, p); }
+          if (f.ts && window.wpTextBox) window.wpTextBox.select(el, f.ts.s, f.ts.e);   // a styled field's box: the same characters, as far as its text now reaches
+
+          else if (f.sel !== null && typeof el.setSelectionRange === 'function') { var p = Math.min(f.sel, (el.value || '').length); el.setSelectionRange(p, p); }
 
           else if (el.isContentEditable) { var r = document.createRange(); r.selectNodeContents(el); r.collapse(false); var s = window.getSelection(); s.removeAllRanges(); s.addRange(r); }
 
@@ -918,7 +949,7 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
 
       var snap = from.pop();
 
-      if (dir === 'undo') h.redo.push(h.last); else pushStep(h, h.last);
+      if (dir === 'undo') h.redo.push(withSel(h.last, h.cur)); else pushStep(h, withSel(h.last, h.cur));
 
       var parsed = JSON.parse(snap);
 
@@ -927,6 +958,10 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
       var hosting = !!(window.wpNet && window.wpNet.active && window.wpNet.role === 'host');
 
       if (hosting && item.type === 'map') mergeLivePlayerState(parsed.c, item);
+
+      h.cur = parsed && parsed.s && typeof parsed.s === 'object' ? parsed.s : null;   // the selection that goes with the state come back to (a planner's styled fields)
+
+      var selBack = h.cur ? (dir === 'undo' ? h.cur.left : h.cur.made) : null;   // an undo: the selection the step found; a redo: the one it left
 
       var spot = (item.type === 'planner' || item.type === 'doc') ? rememberPlannerSpot() : null;
 
@@ -957,7 +992,7 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
 
       histBytes(h);
 
-      if (spot) restorePlannerSpot(spot);
+      if (spot) restorePlannerSpot(spot, selBack);
 
       updateUndoBtn();
 
@@ -968,14 +1003,15 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
   function undo() { stepHistory('undo'); }
 
   function redo() { stepHistory('redo'); }
+  // [textcheck:steps-end]
 
   // [textcheck:undochord-start]
   // Ctrl+Z / Ctrl+Y with a planner field focused. The browser's own text undo runs while the field has
   // typing to take back; when it has none — nothing typed since the editor was last rebuilt, or the
   // native stack just ran dry — the chord reaches the planner's history instead. Returns true when the
-  // chord was taken over (callers that stop propagation check it first). A field the Text style bar has styled (planner.js tsPress) is
-  // spent at that press, and again whenever its text is back to what it was then: the browser's undo may take back what was typed since, never
-  // reach behind the press — it would take the styled characters away and its redo would bring them back plain. The press is the planner's step.
+  // chord was taken over (callers that stop propagation check it first). A styled field's box (planner.js: a title, a cell, a label — an
+  // editable element the app draws from the field's runs) has no undo of the browser's at all: drawing it again breaks that, and it would put
+  // text back without its look. In a box every chord is the planner's history, which records its typing in steps with their selections.
   function fieldUndoChord(e) {
 
       if (!(e.ctrlKey || e.metaKey) || e.altKey) return false;
@@ -992,9 +1028,9 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
 
       if (!canPersistLocal()) return false;
 
-      if (t._wpNativeDirty && dir === 'undo' && typeof t._wpFloor === 'string' && t.value === t._wpFloor) t._wpNativeDirty = false;
+      var own = !!(t.classList && t.classList.contains('ts-box'));   // a styled field's box: never the browser's own undo
 
-      if (t._wpNativeDirty) {
+      if (t._wpNativeDirty && !own) {
 
           // let the browser try; if no text moved anywhere (its undo stack is one per document, so the
           // 'input' may land on another field) this field is spent and the press falls through. A dry
@@ -1016,6 +1052,7 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
   }
   // [textcheck:undochord-end]
 
+  // [textcheck:chunks-start]
   /* Text coalescing, seen in the capture phase so fields that stop propagation (rich text boxes, flowchart
      labels) count too: an 'input' on a text field makes it the typing slot; a pointer down elsewhere, the
      field losing focus, a change / cut / paste from another field or a drop anywhere closes the chunk, so
@@ -1067,6 +1104,7 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
   document.addEventListener('change', function(e) { if (e.target !== typeSlot.el) closeChunk(); }, true);
 
   ['cut', 'paste', 'drop'].forEach(function(ev) { document.addEventListener(ev, function() { closeChunk(); }, true); });
+  // [textcheck:chunks-end]
 
   // A safety copy before something that cannot be undone (an item or campaign delete); Settings ▸ Advanced ▸
   // Snapshots lists it. Resolves either way — a core older than 1.3.6 has no such route and answers 404,
@@ -1822,6 +1860,8 @@ export {
     stepBoundary,
 
     stepFold,
+
+    stepSel,
 
     takeSafetyCopy,
 

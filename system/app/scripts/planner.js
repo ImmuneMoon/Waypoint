@@ -38,7 +38,7 @@ import * as TF from './textfmt.js';
 
 import { num, picRef } from './safecore.js';
 
-import { load, updateUndoBtn, pushHistory, undo, redo, save, download, getBase64Image, rebaseHistory, withoutHistory, fieldUndoChord, stepBoundary, stepFold } from './io.js';
+import { load, updateUndoBtn, pushHistory, undo, redo, save, download, getBase64Image, rebaseHistory, withoutHistory, fieldUndoChord, stepBoundary, stepFold, stepSel } from './io.js';
 
 import { updateCampaignSelect, updateSidebarNav, navigateToMap } from './sidebar.js';
 
@@ -78,11 +78,12 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   }
 
   /* ---- text style: the look of a plain field, kept beside its text (textfmt.js) ----
-     A title, a tag, a table cell, a flowchart label are the plain strings they always were. What the Text style bar does to one
+     A title, a tag, a table cell, a flowchart label are the plain strings they always were. What the bar on a field's box does to one
      is stored next to the value it belongs to, so moving, deleting or re-ordering rows, columns, nodes and arrows can never
      leave a look pointing at another text: block.fmt.{title, sub, tag, must, caption}; a table's heads in colFmt (a list
      parallel to cols, kept in step by the Columns select); a row's cells on the row (row.fmt.col1…); a node's label on the
      node, an arrow's on the arrow. A block with none of these is saved, sent and drawn exactly as before. */
+  // [sinkcheck:boxes-start]
   // [textcheck:fields-start]
   var TS_PLAIN = '.b-title, .b-sub, .b-must, .b-caption, .b-colhead, .r-col, .fc-n-text, .fc-e-text';   // the editor boxes that hold a plain field
   function tsDefaultCols(b) { return (b.mode === 'table' || b.type === 'table') ? ['Item', 'Detail', 'Notes'] : ['Action', 'Why', 'Cost', 'Returns via']; }
@@ -157,47 +158,53 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       }
       return null;
   }
-  // Typing in a field: the text takes the new value and its spans are carried across the edit (caret: the box's selectionStart).
-  // inputType: the 'input' event's own. The browser's undo and redo (historyUndo / historyRedo) are not typing: they put a text back, and it
-  // comes back with the look it had then. tsPast holds, per field (by its place), the texts the field has had since the editor was built,
-  // each with its format, and where among them the field stands: an undo looks back from there, a redo forward. A text it does not hold
-  // has its spans carried with nothing joined (respan's fifth argument): what an undo puts back right after a styled part never had that
-  // part's look. A field that never had a format keeps no list and is handled exactly as before. Forgotten whenever the editor is rebuilt
-  // (tsRebuilt): a place is an index, and the boxes — with the browser's own undo of them — are new.
-  var TS_PAST_MAX = 100, tsPast = Object.create(null);
-  function tsForget() { tsPast = Object.create(null); }
+  // Typing in a field: the text takes the new value and its spans are carried across the edit (textfmt.js respan). caret: where the caret stands
+  // in the box after the edit — it tells a run of equal characters where the edit was. inputType: the edit's own kind. The boxes cancel the
+  // engine's own undo and redo (a box is drawn by the app, so every Ctrl+Z is the planner's history); should a historyUndo / historyRedo ever
+  // arrive all the same, its text is carried with nothing joined. A field that never had a format gets none.
+  // What is typed right after a styled part joins it: its colour, bold, italic, underline, strike and size. A LINK does not grow that way —
+  // typed at a link's end it takes the rest of that part's look and is not linked; typed inside a link it is linked. That one rule is this
+  // constant: set it true and a link grows by typing at its end as everything else does.
+  var TS_LINK_GROWS = false;
+  // Where an edit was: the old text's [p, oe) became the new text's [p, p + typed) — read exactly as textfmt.js respan reads it (the caret
+  // first; never beginning or ending inside a surrogate pair)
+  function tsEditAt(oldText, newText, caret) {
+      var a = oldText.length, z = newText.length, p = 0, q = 0, hinted = false;
+      var pair = function(t, i) { if (i <= 0 || i >= t.length) return false; var x = t.charCodeAt(i - 1), y = t.charCodeAt(i); return x >= 0xd800 && x <= 0xdbff && y >= 0xdc00 && y <= 0xdfff; };
+      if (typeof caret === 'number' && isFinite(caret) && Math.floor(caret) === caret && caret >= 0 && caret <= z && z - caret <= a && newText.slice(caret) === oldText.slice(a - (z - caret))) {
+          q = z - caret; hinted = true;
+          var limP = Math.min(a - q, caret);
+          while (p < limP && oldText.charCodeAt(p) === newText.charCodeAt(p)) p++;
+          if (pair(oldText, p) || pair(newText, p)) p--;
+      }
+      if (!hinted) {
+          var lim = Math.min(a, z);
+          while (p < lim && oldText.charCodeAt(p) === newText.charCodeAt(p)) p++;
+          if (pair(oldText, p) || pair(newText, p)) p--;
+          while (q < lim - p && oldText.charCodeAt(a - 1 - q) === newText.charCodeAt(z - 1 - q)) q++;
+      }
+      if (pair(oldText, a - q) || pair(newText, z - q)) q--;
+      return { p: p, oe: a - q, typed: z - q - p };
+  }
   function tsType(blocks, d, value, caret, inputType) {
       var fld = tsField(blocks, d); if (!fld) return false;
       var old = fld.text(), f = fld.fmt();
       value = String(value == null ? '' : value);
       fld.setText(value);
-      var key = [d.idx, d.k, d.ri, d.ci, d.ni, d.ei].join('/'), past = tsPast[key];
-      if (f === undefined && !past) return true;   // never styled
-      var dir = inputType === 'historyUndo' ? -1 : inputType === 'historyRedo' ? 1 : 0, now, k = -1;
-      var str = function(x) { return x === undefined ? '' : JSON.stringify(x); };
-      if (dir) {
-          if (past) {
-              var n = past.list.length, miss = function(j) { return j >= 0 && j < n && past.list[j].t !== value; };
-              for (k = past.at + dir; miss(k); k += dir) {}
-              if (k < 0 || k >= n) for (k = past.at - dir; miss(k); k -= dir) {}   // not that way: the browser and the list disagree on where the field stands
-              if (k >= n) k = -1;
+      if (f === undefined) return true;   // never styled
+      var apart = inputType === 'historyUndo' || inputType === 'historyRedo';
+      var now = TF.respan(old, value, f, caret, apart);
+      if (now && !apart && !TS_LINK_GROWS) {   // a link ends where it ended: what was typed there is not part of it
+          var ed = tsEditAt(old, value, caret);
+          if (ed.typed > 0 && ed.p > 0) {
+              var left = TF.stateAt(f, old, ed.p - 1, ed.p).link, right = ed.p < old.length ? TF.stateAt(f, old, ed.p, ed.p + 1).link : '';
+              if (left && left !== right) now = TF.apply(now, value, ed.p, ed.p + ed.typed, { link: null });
           }
-          if (k >= 0) { past.at = k; now = past.list[k].f ? TF.cleanFmt(JSON.parse(past.list[k].f), value) : undefined; }
-          else now = f !== undefined ? TF.respan(old, value, f, caret, true) : undefined;
-      } else {
-          var cur = str(TF.cleanFmt(f, old));
-          now = f !== undefined ? TF.respan(old, value, f, caret) : undefined;
-          if (!past) past = tsPast[key] = { list: [], at: -1 };
-          past.list.length = past.at + 1;   // what an undo took back is gone once something is typed
-          if (past.at < 0 || past.list[past.at].t !== old || past.list[past.at].f !== cur) past.list.push({ t: old, f: cur });   // the field as it stands (a press of the bar changed its look since)
-          past.list.push({ t: value, f: str(now) });
-          if (past.list.length > TS_PAST_MAX) past.list.splice(0, past.list.length - TS_PAST_MAX);
-          past.at = past.list.length - 1;
       }
-      if (f !== undefined || now !== undefined) fld.setFmt(now);
+      fld.setFmt(now);
       return true;
   }
-  // What the bar says it will act on, in a few words (plain text: the caller sets it as textContent)
+  // A field's name in a few words (plain text: the bar's own name, for a screen reader)
   function tsName(blocks, d) {
       var b = d && Array.isArray(blocks) ? blocks[d.idx] : null; if (!b || !tsField(blocks, d)) return '';
       var cut = function(s) { s = String(s == null ? '' : s).replace(/\s+/g, ' ').trim(); return s.length > 30 ? s.slice(0, 29) + '\u2026' : s; };
@@ -241,24 +248,206 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   }
   // [textcheck:fields-end]
 
-  /* ---- the Text style bar ----
-     One bar at the top of the editor, closed until its caret is clicked (remembered for the session, never saved). It acts on the field
-     that holds the selection: for a plain box (an input or a textarea) the selection is its selectionStart / selectionEnd, read at the
-     press — the bar's buttons never take the focus (mousedown is swallowed, as the text blocks' own bar does) — and remembered for the
-     controls that must take it (the size list, the custom colour, the link box). With nothing selected B, I, U, S, a colour, a size
-     and a link are the whole field's; with characters selected, theirs. A link is a web address typed into the bar's own box (Enter, or
-     leaving the box for somewhere else, sets it; Escape backs out and sets nothing; an empty box takes the link off) — never for a flowchart label, which cannot hold one: the box is off
-     there and says why. In a text block's box the bar drives that block's own rich-text commands. Each press is one undo step, and Ctrl+Z
-     in the field takes the press back (never the typing before it). A control the keyboard reached keeps the focus while it is pressed, so
-     the Size list can be stepped through by its arrow keys — that run of sizes is one step — and Escape (Enter in the Size list) goes back
-     to the field. Nothing is remembered across a rebuild of the editor: a place is an index, and every index may have moved. */
+  /* ---- the box: a plain field's editor ----
+     Every plain field — a title, a tag, a cell, a caption, a label — is edited in a box that SHOWS its styling: an editable element drawn from
+     the field's runs (textfmt.js runsOf), one element per run with a text node inside, all made here with createElement / createTextNode. The
+     box is a VIEW of the text and the format beside it and an input device for edits to them: nothing it holds is ever stored. After anything
+     the engine did to it (typing, deleting, a composition, a spelling correction) the box is read back as TEXT ONLY, the text goes to tsType
+     with the caret as a character offset, and the runs are drawn again; a paste, a drop, a cut, a line break and a symbol never touch the box
+     at all — they are worked out on its text. A typed <b> is the five characters it is, in the box as in the data.
+     The box's text is what the input it replaces held as its value: a one-line field shows its text without line breaks, a label with its
+     line breaks as \n and without the one leading line break a textarea never showed (tsShown), and an edit stores exactly what that input
+     would have. A caret and a selection are character offsets into that text, mapped to the drawn nodes and back by tsPointAt and tsScan —
+     pure functions over { nodeType, nodeName, nodeValue, childNodes }, so tools/textcheck.js runs them on plain objects. */
+  // [textcheck:box-start]
+  var TS_BLOCKS = { DIV: 1, P: 1 };   // a block the engine might wrap a line in where the box cannot be plain-text-only: it begins a new line
+  var TS_EDIT = (function() { try { var p = document.createElement('div'); p.contentEditable = 'plaintext-only'; return p.contentEditable === 'plaintext-only' ? 'plaintext-only' : 'true'; } catch (e) { return 'true'; } })();
+  function tsKids(n) { return n && n.childNodes ? n.childNodes : []; }
+  // The last node of the tree when it is a line-break element: the one drawn after a final line break so that the last line has a place, or
+  // one the engine left in an emptied box. It is no text.
+  function tsTail(root) {
+      var n = root, k;
+      while (n && n.nodeType === 1 && (k = tsKids(n)).length) n = k[k.length - 1];
+      return n && n !== root && n.nodeType === 1 && n.nodeName === 'BR' ? n : null;
+  }
+  // The box read as text, and where a place in it lies — ONE walk, so the two can never disagree. text: every text node's characters in order,
+  // a line break for a <br> that is not the tail and for a block that is not first. at: the offset of (node, offset) in that text — a text node
+  // and a count of its characters, or an element and a count of its children, as a selection gives them — or -1 when the place is not in the box.
+  function tsScan(root, node, offset) {
+      var tail = tsTail(root), out = '', at = -1, n0 = typeof offset === 'number' && offset > 0 ? Math.floor(offset) : 0;
+      (function go(n) {
+          var k = tsKids(n), stop = n === node ? Math.min(k.length, n0) : -1;
+          for (var i = 0; i < k.length; i++) {
+              if (i === stop && at < 0) at = out.length;
+              var c = k[i];
+              if (c.nodeType === 3) {
+                  var t = c.nodeValue == null ? '' : String(c.nodeValue);
+                  if (c === node && at < 0) at = out.length + Math.min(t.length, n0);
+                  out += t;
+              } else if (c.nodeType === 1) {
+                  if (c.nodeName === 'BR') { if (c === node && at < 0) at = out.length; if (c !== tail) out += '\n'; }
+                  else { if (TS_BLOCKS[c.nodeName] && out) out += '\n'; go(c); }
+              }
+          }
+          if (stop === k.length && at < 0) at = out.length;
+      })(root);
+      return { text: out, at: at };
+  }
+  // A character offset as a place in the drawn nodes: { node, offset }. Between two runs the place is the END OF THE LEFT one — what is typed
+  // there joins the part before it (textfmt.js respan), so the caret is drawn inside that part — unless the left run ends with a line break:
+  // a line begun after a styled line is not that line's, and the place is the start of the right run. An empty box: the box itself.
+  function tsPointAt(root, offset) {
+      var tail = tsTail(root), texts = [], at = 0;
+      (function go(n) {
+          var k = tsKids(n);
+          for (var i = 0; i < k.length; i++) {
+              var c = k[i];
+              if (c.nodeType === 3) { var t = c.nodeValue == null ? '' : String(c.nodeValue); if (t) texts.push({ n: c, a: at, t: t }); at += t.length; }
+              else if (c.nodeType === 1) {
+                  if (c.nodeName === 'BR') { if (c !== tail) at++; }
+                  else { if (TS_BLOCKS[c.nodeName] && at) at++; go(c); }
+              }
+          }
+      })(root);
+      if (!texts.length) return { node: root, offset: 0 };
+      offset = typeof offset === 'number' && offset > 0 ? Math.min(at, Math.floor(offset)) : 0;
+      for (var i = 0; i < texts.length; i++) {
+          var x = texts[i], z = x.a + x.t.length;
+          if (offset < z) return { node: x.n, offset: Math.max(0, offset - x.a) };
+          if (offset === z) {
+              var nx = texts[i + 1], c1 = x.t.charCodeAt(x.t.length - 1);
+              if (nx && nx.a === z && (c1 === 10 || c1 === 13)) return { node: nx.n, offset: 0 };
+              return { node: x.n, offset: x.t.length };
+          }
+      }
+      var last = texts[texts.length - 1];
+      return { node: last.n, offset: last.t.length };
+  }
+  // The text a box shows for a stored text: what the input it replaces held as its value. A one-line input dropped line breaks from its value;
+  // a textarea read \r\n and \r as \n and never showed one leading line break; a NUL was the replacement character in both.
+  function tsShown(text, multi) {
+      text = (typeof text === 'string' ? text : '').replace(/\u0000/g, '�');
+      if (!multi) return text.replace(/[\r\n]/g, '');
+      text = text.replace(/\r\n?/g, '\n');
+      return text.charAt(0) === '\n' ? text.slice(1) : text;
+  }
+  // Text on its way in from outside (a paste, a drop): a label takes its line breaks as \n, a one-line field takes each as a space, as an input did
+  function tsIncoming(text, multi) {
+      text = String(text == null ? '' : text).replace(/\u0000/g, '');
+      return multi ? text.replace(/\r\n?/g, '\n') : text.replace(/\r\n?|\n/g, ' ');
+  }
+  function tsMulti(d) { return !!d && d.k === 'node'; }   // a flowchart node's label is the one field that takes line breaks
+  // A run's look as one string: what its element is drawn with
+  function tsSig(r) { return [r.color, r.b === true ? 1 : 0, r.i === true ? 1 : 0, r.u === true ? 1 : 0, r.st === true ? 1 : 0, r.size, r.link].join('|'); }
+  // One run as an element: its text in a text node, its look through the element's style from the cleaned values only — a strict colour, fixed
+  // words for weight, slant, underline and strike, one of the four size steps. A linked run looks like a link and is none: a span is not
+  // followed, and its address is its title.
+  function tsRunEl(r) {
+      var el = document.createElement('span'), link = typeof r.link === 'string' && !!TF.cleanLink(r.link);
+      el.className = link ? 'tsr tsr-link' : 'tsr';
+      if (typeof r.color === 'string' && /^#[0-9a-f]{6}$/.test(r.color)) el.style.color = r.color;
+      if (r.b === true) el.style.fontWeight = 'bold';
+      if (r.i === true) el.style.fontStyle = 'italic';
+      if (r.u === true || r.st === true || link) el.style.textDecoration = (r.u === true || link ? 'underline' : '') + ((r.u === true || link) && r.st === true ? ' ' : '') + (r.st === true ? 'line-through' : '');
+      if (typeof r.size === 'string' && tsOwn(TF.SIZE_EM, r.size)) el.style.fontSize = TF.SIZE_EM[r.size];
+      if (link) el.title = 'Link: ' + TF.cleanLink(r.link);
+      el.appendChild(document.createTextNode(String(r.t)));
+      el._tsSig = tsSig(r);
+      return el;
+  }
+  // Draw a box from a text and its format. Where the box already holds exactly these runs (the engine typed into a run's own text node) only
+  // a text that differs is put right; anything else in it — a node the app did not make, a run too many, a look that changed — and everything
+  // is made anew. A label that ends with a line break gets one <br> after its runs (tsTail: it is no text). True when the box was touched.
+  function tsDraw(box, shown, fmt, multi) {
+      var runs = shown ? TF.runsOf(shown, fmt) : [], kids = tsKids(box), tail = !!multi && /\n$/.test(shown), same = kids.length === runs.length + (tail ? 1 : 0), changed = false, i;
+      for (i = 0; same && i < runs.length; i++) { var c = kids[i]; same = c.nodeType === 1 && c._tsSig === tsSig(runs[i]) && tsKids(c).length === 1 && tsKids(c)[0].nodeType === 3; }
+      if (same && tail) same = kids[runs.length].nodeType === 1 && kids[runs.length].nodeName === 'BR';
+      if (same) {
+          for (i = 0; i < runs.length; i++) { var tn = tsKids(kids[i])[0]; if (tn.nodeValue !== runs[i].t) { tn.nodeValue = runs[i].t; changed = true; } }
+          return changed;
+      }
+      var left = box.scrollLeft;   // a one-line box scrolled sideways to its caret stays there (an emptied box would spring back to its start)
+      while (box.firstChild) box.removeChild(box.firstChild);
+      runs.forEach(function(r) { box.appendChild(tsRunEl(r)); });
+      if (tail) box.appendChild(document.createElement('br'));
+      if (left) box.scrollLeft = left;
+      return true;
+  }
+  // The box drawn from its own text (box._tsText: its value, as an input had one) and its field's look. Where the stored text is not the text
+  // shown (a one-line field from a file that holds line breaks, until it is next edited) the spans are carried onto what is shown first.
+  function tsPaint(box, fld, multi) {
+      var shown = typeof box._tsText === 'string' ? box._tsText : '', stored = fld.text(), fmt = fld.fmt();
+      if (fmt !== undefined && shown !== stored) fmt = TF.respan(stored, shown, fmt, undefined, true);
+      return tsDraw(box, shown, fmt, multi);
+  }
+  // The markup of an EMPTY box (renderPlanner writes the editor as one string): its classes, its place, its placeholder — never the field's
+  // text, which tsFill draws. A placeholder is shown by the style sheet while the box holds nothing, and is no part of the text.
+  function tsBoxHtml(cls, ph, data, style, multi, extra) {
+      return '<div class="' + cls + ' ts-box' + (multi ? ' ts-multi' : '') + '" contenteditable="' + TS_EDIT + '" role="textbox" aria-multiline="' + (multi ? 'true' : 'false') + '" spellcheck="true" data-placeholder="' + esc(ph) + '" aria-label="' + esc(ph) + '" ' + data + (extra ? ' ' + extra : '') + (style ? ' style="' + style + '"' : '') + '></div>';
+  }
+  // Every box under root drawn from its field (after renderPlanner wrote the editor)
+  function tsFill(root, blocks) {
+      Array.prototype.forEach.call(root.querySelectorAll('.ts-box'), function(box) {
+          var d = tsDesc(box), fld = d ? tsField(blocks, d) : null, multi = tsMulti(d);
+          box._tsText = tsShown(fld ? fld.text() : '', multi);
+          if (fld) tsPaint(box, fld, multi);
+      });
+  }
+  // The selection inside a box as offsets into its text: { s, e, back } (back: it was made right to left) — null when it is not in the box
+  function tsSelOf(box) {
+      var gs = window.getSelection ? window.getSelection() : null;
+      if (!gs || !gs.rangeCount || !gs.anchorNode || !gs.focusNode || !box.contains(gs.anchorNode) || !box.contains(gs.focusNode)) return null;
+      var a = tsScan(box, gs.anchorNode, gs.anchorOffset), f = tsScan(box, gs.focusNode, gs.focusOffset);
+      var ao = a.at < 0 ? a.text.length : a.at, fo = f.at < 0 ? f.text.length : f.at;
+      return { s: Math.min(ao, fo), e: Math.max(ao, fo), back: fo < ao };
+  }
+  // …and put there: the characters s to e selected (a caret when they are equal), by the places tsPointAt gives
+  function tsSelect(box, s, e, back) {
+      var gs = window.getSelection ? window.getSelection() : null; if (!gs || !gs.setBaseAndExtent) return false;
+      var n = tsScan(box).text.length;
+      s = Math.max(0, Math.min(n, s | 0)); e = Math.max(s, Math.min(n, e | 0));
+      var a = tsPointAt(box, back ? e : s), f = s === e ? a : tsPointAt(box, back ? s : e);
+      try { gs.setBaseAndExtent(a.node, a.offset, f.node, f.offset); } catch (err) { return false; }
+      tsReveal(box);
+      return true;
+  }
+  // A one-line box longer than it is wide scrolls sideways with its caret, as an input does — the engine does that for its own caret, never
+  // for a selection the app sets: the end the caret is at is brought into view.
+  function tsReveal(box) {
+      try {
+          var gs = window.getSelection(), r = gs && gs.rangeCount && gs.getRangeAt ? gs.getRangeAt(0).cloneRange() : null; if (!r || !box.getBoundingClientRect) return;
+          r.setStart(gs.focusNode, gs.focusOffset); r.collapse(true);
+          var c = r.getClientRects()[0], b = box.getBoundingClientRect(); if (!c) return;
+          if (c.right > b.right - 6) box.scrollLeft += c.right - b.right + 16;
+          else if (c.left < b.left + 6) box.scrollLeft -= b.left - c.left + 16;
+      } catch (err) {}
+  }
+  // [textcheck:box-end]
+
+  /* ---- the bar on the box ----
+     ONE bar for the editor. It floats above the box that has the focus (under it where there is no room above, inside the panel sideways) and
+     goes away when the focus leaves both the box and the bar; it shifts nothing, follows its box as the panel scrolls, and points at no box
+     once the editor is rebuilt (tsRebuilt). Its controls are a text block's, in a text block's look: B, I, U, S, the ink row with Custom and
+     Default, Size, Link, Clear and the symbol tray. A press acts on the selected characters, or on the whole field with nothing selected. The
+     buttons never take the focus (mousedown is swallowed, as the text blocks' bar does it); the Size list, the custom colour and the Link box
+     must, so the box's selection is remembered for them and comes back with the focus. A link is a web address typed into the Link box
+     (Enter, or leaving the box, sets it; Escape drops what was typed; an empty box takes the link off) — never for a flowchart label, which
+     cannot hold one: the box is off there and says why. A symbol is text: it goes where typing goes. From the keyboard: Ctrl+B / I / U in a
+     box; Alt+F10 goes from the box into its bar, Tab moves along it, a control pressed there keeps the focus (the Size list stepped by its
+     arrow keys is one undo step) and Escape — or Enter in the Size list — goes back to the box with its selection as it was. The bar floats
+     over whatever is right above its box: Escape in the box puts it away (the box keeps the focus, the keys still work), and a click in the
+     box, or Alt+F10, brings it back.
+     UNDO, one rule: in a box Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z are always the planner's own history (io.js) — the engine has no undo of a box the
+     app draws. Typing is recorded there in steps: a run of typing, or of deleting, in one box is one step until a pause, a move of the caret,
+     a switch between typing and deleting, a paste, a drop, a cut, a line break, a symbol, a press of the bar or leaving the box ends it; each
+     press is one step. Every step is told the selection before it and after it (stepSel), and an undo or a redo puts the text, its look and
+     that selection back. */
   // [textcheck:bar-start]
-  var tsState = { open: false, sel: null, els: null, key: false, run: null, linkDone: null };   // key: the bar was last touched by the keyboard; run: the field and selection a run of Size list steps is on; linkDone: the address Enter has just set, or Escape has just dropped (the box's own change event then has nothing left to do)
-  var TS_LINK_TITLE = 'Link \u2014 a web address (https://\u2026) for the selected characters, or the whole field with nothing selected. Enter sets it, Esc backs out; an empty box takes the link off.';
+  var tsState = { box: null, sel: null, els: null, key: false, run: null, linkDone: null, comp: false, pre: null, last: null, tab: false, away: false };   // away: Esc put the bar away while its box keeps the focus; tab: the last key pressed was Tab (a one-line box it lands in has its text selected, as an input has); box: the box the bar is on; sel: its selection { map, d, s, e, back }; key: the bar was last touched by the keyboard; run: the field and selection a run of Size list steps is on; linkDone: the address Enter has just set, or Escape has just dropped (the Link box's own change event then has nothing left to do); comp: a composition is under way; pre: the selection an edit of the engine's is about to act on; last: the last edit { box, kind, s, e }
+  var TS_SCOPE = ' — the selected characters, or the whole field with nothing selected';
+  var TS_LINK_TITLE = 'Link — a web address (https://…) for the selected characters, or the whole field with nothing selected. Enter sets it, Esc backs out; an empty box takes the link off.';
   var TS_LINK_LABEL = 'A flowchart label cannot hold a link: a chart never carries web addresses.';
-  var TS_LINK_RTE = 'This box links titles, table cells and captions.';
   function tsIsLabel(d) { return !!d && (d.k === 'node' || d.k === 'edge'); }
-  try { tsState.open = sessionStorage.getItem('wp_textStyleOpen') === '1'; } catch (e) {}
   function tsBlocksOf() { var am = getActiveMap(); return am && isDocLike(am) && Array.isArray(am.blocks) ? am : null; }
   // the editor box of a field, by its place
   function tsBox(d) {
@@ -269,37 +458,201 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           : d.k === 'node' ? '.fc-n-text' + at + '[data-ni="' + d.ni + '"]' : d.k === 'edge' ? '.fc-e-text' + at + '[data-ei="' + d.ei + '"]' : null;
       return q ? root.querySelector(q) : null;
   }
-  // Remember what a box in the editor holds selected (called as the selection moves, and again at every press)
-  function tsNote(el) {
-      var am = tsBlocksOf(); if (!am || !el || !el.closest || !el.closest('#plannerBlocks')) return;
-      if (el.matches && el.matches(TS_PLAIN)) {
-          var d = tsDesc(el);
-          tsState.sel = d && tsField(am.blocks, d) ? { map: am.id, d: d, s: typeof el.selectionStart === 'number' ? el.selectionStart : 0, e: typeof el.selectionEnd === 'number' ? el.selectionEnd : 0 } : null;
-      } else if (el.classList && el.classList.contains('rte-body')) {
-          var gs = window.getSelection ? window.getSelection() : null;
-          tsState.sel = { map: am.id, rte: tsInt(el.dataset.idx), some: !!(gs && gs.rangeCount && !gs.isCollapsed) };
-      } else if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
-          tsState.sel = { map: am.id, none: true };   // a box that takes no styling (an id, raw HTML, a diagram's code)
-      } else return;
-      tsRefresh();
+  // the box an event's target lies in (a text node, a run's element, the box itself) — only a box of the editor
+  function tsBoxOf(t) {
+      var el = t && t.nodeType === 3 ? t.parentNode : t;
+      el = el && el.closest ? el.closest('.ts-box') : null;
+      return el && el.closest('#plannerBlocks') ? el : null;
   }
-  // The field the bar acts on now: the focused box as it stands, else the one last remembered — null when there is none (or it is gone)
+  function tsInBar(t) { var E = tsState.els; return !!(E && t && E.root.contains(t)); }
+  // Remember what a box holds selected (as the selection moves, and again at every press). A box whose selection cannot be read — the focus
+  // is in the bar — keeps what was remembered for it.
+  function tsNote(box) {
+      var am = tsBlocksOf(), d = am && box ? tsDesc(box) : null; if (!d || !tsField(am.blocks, d)) return false;
+      var gs = tsSelOf(box), old = tsState.sel, mine = !!old && old.map === am.id && tsState.box === box;
+      if (!gs) { if (mine) return true; var n = (box._tsText || '').length; gs = { s: n, e: n, back: false }; }
+      tsState.sel = { map: am.id, d: d, s: gs.s, e: gs.e, back: gs.back };
+      return true;
+  }
+  // The field the bar acts on now: its box's selection as it stands — null when there is none (or the box, or its field, is gone)
   function tsTarget() {
-      var am = tsBlocksOf(); if (!am) return null;
-      var a = document.activeElement;
-      if (a && a.closest && a.closest('#plannerBlocks')) tsNote(a);
+      var am = tsBlocksOf(), box = tsState.box; if (!am || !box) return null;
+      if (document.activeElement === box) tsNote(box);
       var sel = tsState.sel;
-      if (!sel || sel.map !== am.id || sel.none) return null;
-      if (sel.rte !== undefined) { var bb = am.blocks[sel.rte]; return bb && tsRteBody(sel.rte) ? sel : null; }
-      return tsField(am.blocks, sel.d) ? sel : null;
+      if (!sel || sel.map !== am.id || !tsField(am.blocks, sel.d) || tsBox(sel.d) !== box) return null;
+      return sel;
   }
-  function tsRteBody(idx) { var root = document.getElementById('plannerBlocks'); return root ? root.querySelector('.rte-body[data-idx="' + idx + '"]') : null; }
+  // The focus and the selection back in the box (after a press by the mouse, or from the bar by Escape)
+  function tsHold(box, s, e, back) {
+      var am = tsBlocksOf(), d = am ? tsDesc(box) : null; if (!d) return false;
+      try { if (document.activeElement !== box) box.focus(); } catch (err) {}
+      tsState.box = box; tsState.sel = { map: am.id, d: d, s: s, e: e, back: !!back };
+      tsSelect(box, s, e, back);
+      return true;
+  }
+  // The bar on a box / off
+  function tsShow(box) {
+      var E = tsState.els; if (!E || !box) return;
+      if (tsState.box !== box) { tsState.sel = null; tsState.run = null; tsState.last = null; tsState.pre = null; tsState.comp = false; }
+      tsState.box = box; tsNote(box);
+      E.root.hidden = false; tsState.away = false;
+      tsRefresh(); tsPlace();
+  }
+  function tsHide() {
+      var E = tsState.els;
+      tsState.box = null; tsState.sel = null; tsState.run = null; tsState.last = null; tsState.pre = null; tsState.comp = false; tsState.away = false;
+      if (E) { E.root.hidden = true; E.symWrap.classList.remove('open'); }
+  }
+  // Where the bar goes — pure: the panel and the box as { left, top, right, bottom } on the screen, the bar's width and height. Above the box,
+  // or under it when there is no room above inside the panel; from the box's left edge, pushed inside the panel sideways. seen: the box is in
+  // the panel's view at all (a bar never floats over a box that has scrolled away).
+  function tsPlaceAt(panel, box, w, h) {
+      var gap = 6, pad = 6;
+      var seen = box.bottom > panel.top && box.top < panel.bottom && box.right > panel.left && box.left < panel.right;
+      var left = Math.max(panel.left + pad, Math.min(box.left, panel.right - pad - w));
+      var above = box.top - gap - h, below = above < panel.top + 2;
+      return { left: Math.round(left), top: Math.round(below ? box.bottom + gap : above), below: below, seen: seen };
+  }
+  function tsPlace() {
+      var E = tsState.els, box = tsState.box; if (!E || !box || E.root.hidden || !box.getBoundingClientRect) return;
+      var hr = E.host.getBoundingClientRect(), br = box.getBoundingClientRect();
+      var right = hr.left + (E.host.clientLeft || 0) + (E.host.clientWidth || (hr.right - hr.left));   // less the panel's scroll bar
+      E.root.style.maxWidth = Math.max(180, Math.round(right - hr.left - 12)) + 'px';
+      var at = tsPlaceAt({ left: hr.left, top: hr.top, right: right, bottom: hr.bottom }, br, E.root.offsetWidth || 0, E.root.offsetHeight || 0);
+      E.root.style.left = at.left + 'px'; E.root.style.top = at.top + 'px';
+      E.root.style.visibility = at.seen ? '' : 'hidden';
+      E.root.classList.toggle('ts-below', at.below);
+  }
+  // What kind of edit this is, for the steps of undo: a run of typing ('ins') or of deleting ('del') in one place folds into one step; every
+  // other edit — a paste, a drop, a cut, a line break, a symbol, a correction — is a step of its own ('one')
+  function tsKind(inputType) { return inputType === 'insertText' || inputType === 'insertCompositionText' ? 'ins' : /^delete(Content|Word|SoftLine|HardLine|Entire)/.test(inputType) ? 'del' : 'one'; }
+  // ONE edit of a box's text on its way to the field — typed (the box read back), or worked out on its text (a paste, a drop, a cut, a line
+  // break, a symbol). value: the box's whole text after it; s, e: the selection after it; before: the selection it acted on. The step it
+  // belongs to (io.js), the look carried (tsType), both selections noted for undo, the box drawn again, the save. own: the app worked it out,
+  // so the selection must be set (the engine's own edit left its caret where it belongs unless the box had to be drawn again).
+  function tsCommit(box, value, s, e, inputType, before, own) {
+      var am = tsBlocksOf(), d = am ? tsDesc(box) : null, fld = d ? tsField(am.blocks, d) : null; if (!fld) return false;
+      var kind = tsKind(inputType), last = tsState.last && tsState.last.box === box ? tsState.last : null;
+      if (!before) before = last ? { s: last.s, e: last.e } : { s: s, e: e };
+      var cont = kind !== 'one' && !!last && last.kind === kind && before.s === last.s && before.e === last.e;   // the same kind of edit, where the last one left the caret
+      if (!cont) stepBoundary(kind === 'one' ? null : box);   // what was typed so far is its own step; a run of typing or deleting opens one
+      tsType(am.blocks, d, value, s, inputType);
+      box._tsText = value;
+      stepSel({ d: d, s: before.s, e: before.e }, { d: d, s: s, e: e });
+      tsState.last = { box: box, kind: kind, s: s, e: e };
+      tsState.run = null;
+      var redrawn = tsPaint(box, fld, tsMulti(d));
+      tsState.sel = { map: am.id, d: d, s: s, e: e, back: false };
+      if ((own || redrawn) && document.activeElement === box) tsSelect(box, s, e);
+      save(d.k === 'caption');
+      renderPlannerPreview();
+      tsRefresh(); tsPlace();
+      return true;
+  }
+  // The engine edited a box (typing, deleting, a composition's end, a correction): read it back as text and take the edit
+  function tsTake(box, inputType) {
+      var am = tsBlocksOf(), d = am ? tsDesc(box) : null, fld = d ? tsField(am.blocks, d) : null; if (!fld) return false;
+      var multi = tsMulti(d), raw = tsScan(box).text, value = multi ? raw.replace(/\r/g, '\n') : raw.replace(/[\r\n]/g, ' ');   // one character for one: the offsets hold
+      var sel = tsSelOf(box), s = sel ? sel.s : value.length, e = sel ? sel.e : value.length, before = tsState.pre;
+      tsState.pre = null;
+      if (value === box._tsText) {   // nothing of the text changed: only put right what the engine may have left in the box
+          if (tsPaint(box, fld, multi) && document.activeElement === box) tsSelect(box, s, e);
+          return false;
+      }
+      return tsCommit(box, value, s, e, inputType, before, false);
+  }
+  // Text put into a box's text at [s, e) by the app (never by the engine)
+  function tsInsertAt(box, text, s, e, inputType) {
+      var cur = typeof box._tsText === 'string' ? box._tsText : '';
+      s = Math.max(0, Math.min(cur.length, s)); e = Math.max(s, Math.min(cur.length, e));
+      var value = cur.slice(0, s) + text + cur.slice(e);
+      if (value === cur) return false;
+      return tsCommit(box, value, s + text.length, s + text.length, inputType, { s: s, e: e }, true);
+  }
+  // …at the box's selection (the remembered one while the focus is in the bar; the end with none)
+  function tsInsert(box, text, inputType) {
+      var sel = document.activeElement === box ? tsSelOf(box) : null, rem = tsState.box === box ? tsState.sel : null, n = (box._tsText || '').length;
+      if (!sel) sel = rem ? { s: rem.s, e: rem.e } : { s: n, e: n };
+      return tsInsertAt(box, tsIncoming(text, tsMulti(tsDesc(box))), sel.s, sel.e, inputType);
+  }
+  // Before the engine edits a box. What it would do to the box that the app does itself — a line break, a paste, a drop, its own undo and
+  // redo, its own bold — is cancelled here; a one-line field takes no line break at all.
+  function tsBefore(e) {
+      var box = tsBoxOf(e.target); if (!box) return;
+      var it = String(e.inputType || '');
+      if (tsState.comp) return;   // a composition is the engine's until it ends
+      tsState.pre = tsSelOf(box);
+      if (it === 'historyUndo' || it === 'historyRedo') { e.preventDefault(); if (it === 'historyUndo') undo(); else redo(); return; }
+      if (it === 'insertParagraph' || it === 'insertLineBreak') { e.preventDefault(); if (tsMulti(tsDesc(box))) tsInsert(box, '\n', it); return; }
+      if (/^insertFrom/.test(it) || it === 'insertLink') {   // a paste or a drop the paste and drop events did not see: plain text, through the box's text
+          e.preventDefault();
+          var dt = e.dataTransfer, t = dt && dt.getData ? dt.getData('text/plain') : (typeof e.data === 'string' ? e.data : '');
+          if (t) tsInsert(box, t, it);
+          return;
+      }
+      if (/^format/.test(it)) e.preventDefault();   // the engine's own bold, italic and the rest: the bar's presses are the only styling
+  }
+  function tsInput(e) {
+      var box = tsBoxOf(e.target); if (!box || tsState.comp) return;   // never between a composition's start and its end
+      tsTake(box, String(e.inputType || ''));
+  }
+  function tsCompStart(e) { var box = tsBoxOf(e.target); if (!box) return; tsState.comp = true; tsState.pre = tsSelOf(box); }
+  function tsCompEnd(e) { var box = tsBoxOf(e.target); if (!box) return; tsState.comp = false; tsTake(box, 'insertCompositionText'); }   // applied once, at its end
+  function tsPaste(e) {
+      var box = tsBoxOf(e.target); if (!box) return;
+      e.preventDefault();
+      var cd = e.clipboardData || window.clipboardData, t = cd && cd.getData ? cd.getData('text/plain') : '';
+      if (t) tsInsert(box, t, 'insertFromPaste');
+  }
+  // Copy and cut give plain text: the selected characters of the box's text
+  function tsCopy(e) {
+      var box = tsBoxOf(e.target); if (!box) return;
+      var sel = tsSelOf(box), cd = e.clipboardData; if (!sel || sel.s === sel.e || !cd || !cd.setData) return;
+      e.preventDefault();
+      cd.setData('text/plain', (box._tsText || '').slice(sel.s, sel.e));
+      if (e.type === 'cut') tsInsertAt(box, '', sel.s, sel.e, 'deleteByCut');
+  }
+  function tsDrop(e) {
+      var box = tsBoxOf(e.target); if (!box) return;
+      e.preventDefault();
+      var dt = e.dataTransfer, t = dt && dt.getData ? dt.getData('text/plain') : ''; if (!t) return;
+      var at = -1;
+      try { var r = document.caretRangeFromPoint ? document.caretRangeFromPoint(e.clientX, e.clientY) : null; if (r && box.contains(r.startContainer)) at = tsScan(box, r.startContainer, r.startOffset).at; } catch (err) {}
+      if (at < 0) at = (box._tsText || '').length;
+      try { box.focus(); } catch (err) {}
+      tsInsertAt(box, tsIncoming(t, tsMulti(tsDesc(box))), at, at, 'insertFromDrop');
+  }
+  function tsDragStart(e) { if (tsBoxOf(e.target)) e.preventDefault(); }   // a box's text is not dragged about: it is selected, cut and pasted
+  // A key in a box: Alt+F10 goes into the bar; Ctrl+Z / Ctrl+Y are the planner's history; no other handler of the page sees a box's keys
+  function tsBoxKey(e) {
+      var box = tsBoxOf(e.target); if (!box) return;
+      if (e.key === 'F10' && e.altKey && !e.ctrlKey && !e.metaKey) { e.preventDefault(); e.stopPropagation(); tsToBar(box); return; }
+      if (e.key === 'Escape' && tsState.box === box && tsState.els && !tsState.els.root.hidden) { tsState.away = true; tsState.els.root.hidden = true; tsState.els.symWrap.classList.remove('open'); }   // the bar out of the way; the box keeps the focus
+      if (fieldUndoChord(e)) return;
+      e.stopPropagation();
+  }
+  // From the box into its bar, by the keyboard
+  function tsToBar(box) {
+      var E = tsState.els; if (!E) return false;
+      tsNote(box);
+      if (tsState.box !== box || E.root.hidden) tsShow(box);
+      var first = tsOrder()[0]; if (!first) return false;
+      tsState.key = true;
+      try { first.focus(); } catch (err) {}
+      return true;
+  }
+  // the bar's controls the keyboard can stand on, in order (the symbols while their tray is open)
+  function tsOrder() {
+      var E = tsState.els; if (!E) return [];
+      var list = [E.b, E.i, E.u, E.s].concat(E.swatches, [E.custom, E.nocolor, E.size, E.link, E.clear, E.symBtn]);
+      if (E.symWrap.classList.contains('open')) list = list.concat(E.symList);
+      return list.filter(function(c) { return !c.disabled; });
+  }
   // One press of a control. change: { b: true } | { i: true } | { u: true } | { st: true } | { color: '#rrggbb' | null } | { size: key | null } | { link: address | null } | 'clear'. True when something changed.
-  // from: the bar's control the press came from. One the keyboard reached and holds keeps the focus; after any other press the field has it.
+  // from: the bar's control the press came from. One the keyboard reached and holds keeps the focus; after any other press the box has it.
   function tsPress(change, from) {
-      var am = tsBlocksOf(), sel = tsTarget();
+      var am = tsBlocksOf(), sel = tsTarget(), box = tsState.box;
       if (!am || !sel) { tsState.run = null; tsRefresh(); return false; }
-      if (sel.rte !== undefined) { tsState.run = null; var body = tsRteBody(sel.rte), did = body ? rteLook(body, change) : false; tsNote(body); return did; }
       var fld = tsField(am.blocks, sel.d), text = fld.text(), was = fld.fmt();
       if (change !== 'clear' && tsOwn(change, 'link') && tsIsLabel(sel.d)) { tsRefresh(); return false; }   // a flowchart label never holds a link
       var now = change === 'clear' ? TF.clear(was, text, sel.s, sel.e) : TF.apply(was, text, sel.s, sel.e, change);
@@ -310,16 +663,15 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (runOn && tsState.run === runOn) stepFold();   // the Size list stepped through by its arrow keys: every size on the way is applied, the run of them is one undo step (io.js)
       else stepBoundary();   // typing still on its way is its own step; this press is one step of its own
       tsState.run = runOn;
+      tsState.last = null;   // what is typed next is a step of its own
       fld.setFmt(now);
+      stepSel({ d: sel.d, s: sel.s, e: sel.e }, { d: sel.d, s: sel.s, e: sel.e });   // an undo of the press, and its redo, leave the same characters selected
       save(true);
       renderPlannerPreview();
-      var box = tsBox(sel.d);   // the selection stays where it was, so the next press needs no second selecting
-      if (box) {
-          box._wpNativeDirty = false; box._wpFloor = box.value;   // Ctrl+Z in the field now takes this press back (the planner's history has it, after the typing): the browser's own undo would take the typed text away with its styling, and its redo bring it back plain (io.js fieldUndoChord; what is typed after this it may still take back, down to this text)
-          try { if (!left) { if (!kept && document.activeElement !== box) box.focus(); box.setSelectionRange(sel.s, sel.e); } } catch (e) {}
-      }
+      tsPaint(box, fld, tsMulti(sel.d));   // only this box is drawn again
+      if (!left && !kept) tsHold(box, sel.s, sel.e, sel.back);   // the selection stays where it was, so the next press needs no second selecting
       if (now && now.spans && now.spans.length >= TF.MAX_SPANS) toast('This field now holds the most styled parts it can (' + TF.MAX_SPANS + ').');
-      tsRefresh();
+      tsRefresh(); tsPlace();
       return true;
   }
   // The link box's address onto the field. A web address typed without its scheme ("example.com/page") is taken as https:// — one with a port
@@ -332,101 +684,124 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (v && !TF.cleanLink(v)) { toast('A link is a web address: it starts with http:// or https:// and holds no spaces.'); return 'bad'; }
       return tsPress({ link: v || null }, E.link);
   }
-  // The editor was rebuilt (a row, a block, a node or an arrow added, deleted or moved; undo, redo; another document): what was remembered is a
-  // place by index, and every index may now name another text — so nothing stays remembered and the bar asks for a click in a field. (A box
-  // given the focus again after an undo is noted afresh as it takes it.) The texts each field has held (tsType) are forgotten with it.
-  function tsRebuilt() { tsState.sel = null; tsState.run = null; tsForget(); tsRefresh(); }
-  // Back from the bar to the field it acts on, its selection as it was. False when there is none.
-  function tsBack() {
-      var am = tsBlocksOf(), sel = tsState.sel;
-      if (!am || !sel || sel.map !== am.id || sel.none) return false;
-      if (sel.rte !== undefined) { var body = am.blocks[sel.rte] ? tsRteBody(sel.rte) : null; if (!body) return false; body.focus(); return true; }
-      var box = tsField(am.blocks, sel.d) ? tsBox(sel.d) : null; if (!box) return false;
-      try { box.focus(); box.setSelectionRange(sel.s, sel.e); } catch (e) {}
-      return true;
+  // The tray opens under its button and to its right; where that would leave the panel it opens to the left, and near the bottom of the window upward
+  function tsTray() {
+      var E = tsState.els; if (!E || !E.symWrap.getBoundingClientRect) return;
+      var w = E.symWrap.getBoundingClientRect(), h = E.host.getBoundingClientRect(), tw = E.syms.offsetWidth || 264, th = E.syms.offsetHeight || 0;
+      var toLeft = w.left + tw > h.right - 4, up = w.bottom + th + 8 > (window.innerHeight || 1e9);
+      E.syms.style.left = toLeft ? 'auto' : '0'; E.syms.style.right = toLeft ? '0' : 'auto';
+      E.syms.style.top = up ? 'auto' : '100%'; E.syms.style.bottom = up ? '100%' : 'auto';
+      E.syms.style.marginTop = up ? '0' : '4px'; E.syms.style.marginBottom = up ? '4px' : '0';
   }
-  // The bar as it stands: what it acts on (as text), which controls are lit, which cannot apply
+  // A symbol from the tray: text, typed at the caret (over a selection), through the same path as typing
+  function tsSymbol(ch, from) {
+      var sel = tsTarget(), box = tsState.box; if (!sel || !box || typeof ch !== 'string' || !ch) return false;
+      var kept = !!(from && tsState.key && document.activeElement === from);
+      var did = tsInsertAt(box, ch, sel.s, sel.e, 'insertSymbol');
+      if (!kept) { tsState.els.symWrap.classList.remove('open'); var at = tsState.sel ? tsState.sel.s : 0; tsHold(box, at, at, false); }
+      return did;
+  }
+  // The editor was rebuilt (a row, a block, a node or an arrow added, deleted or moved; undo, redo; another document): every box is new and
+  // a place is an index that may now name another text — so the bar is on no box and remembers nothing. (A box given the focus again, as an
+  // undo does, takes the bar afresh.)
+  function tsRebuilt() { tsHide(); }
+  // Back from the bar to its box, the selection as it was. False when there is none.
+  function tsBack() {
+      var am = tsBlocksOf(), sel = tsState.sel, box = tsState.box;
+      if (!am || !sel || !box || sel.map !== am.id || !tsField(am.blocks, sel.d) || tsBox(sel.d) !== box) return false;
+      return tsHold(box, sel.s, sel.e, sel.back);
+  }
+  // the link of the character a caret belongs to (the one before it — where typing joins; at the very start, the first one's)
+  function tsLinkAt(fld, at) {
+      var text = fld.text(), f = fld.fmt(); if (f === undefined || !text) return '';
+      var st = at > 0 ? TF.stateAt(f, text, at - 1, at) : TF.stateAt(f, text, 0, 1);
+      return typeof st.link === 'string' ? st.link : '';
+  }
+  // The bar as it stands: what it acts on, which controls are lit, which cannot apply
   function tsRefresh() {
       var E = tsState.els; if (!E) return;
-      var am = tsBlocksOf(), sel = tsState.sel, kind = 'none', words = 'Click in a title, a label or a table cell, then pick a style.', st = null;
-      if (am && sel && sel.map === am.id) {
-          if (sel.none) words = 'This box takes no styling.';
-          else if (sel.rte !== undefined) { if (am.blocks[sel.rte]) { kind = 'rte'; words = 'Text block \u2014 ' + (sel.some ? 'the selected text' : 'select text to colour or size it; B and I also set what you type next'); } }
-          else {
-              var fld = tsField(am.blocks, sel.d);
-              if (fld) { kind = 'plain'; st = TF.stateAt(fld.fmt(), fld.text(), sel.s, sel.e); var n = Math.abs(sel.e - sel.s); words = tsName(am.blocks, sel.d) + ' \u2014 ' + (n ? n + ' selected character' + (n === 1 ? '' : 's') : 'the whole field'); }
-          }
-      }
-      E.target.textContent = words;
-      var needSel = kind === 'rte' && !sel.some;   // in a text block a colour, a size and Clear need a selection
-      E.b.disabled = E.i.disabled = E.u.disabled = E.s.disabled = kind === 'none';
+      var am = tsBlocksOf(), sel = tsState.sel, fld = am && sel && tsState.box && sel.map === am.id ? tsField(am.blocks, sel.d) : null, st = null, n = 0;
+      if (fld) { st = TF.stateAt(fld.fmt(), fld.text(), sel.s, sel.e); n = Math.abs(sel.e - sel.s); }
+      var off = !fld;
+      E.root.setAttribute('aria-label', fld ? 'Text style — ' + tsName(am.blocks, sel.d) : 'Text style');
+      E.scope.textContent = off ? '' : n ? n + ' selected' : 'Whole field';
+      E.scope.title = off ? '' : n ? 'The controls act on the ' + n + ' selected character' + (n === 1 ? '' : 's') + '.' : 'Nothing is selected: the controls act on the whole field.';
+      E.b.disabled = E.i.disabled = E.u.disabled = E.s.disabled = off;
       E.b.classList.toggle('on', !!(st && st.b)); E.i.classList.toggle('on', !!(st && st.i)); E.u.classList.toggle('on', !!(st && st.u)); E.s.classList.toggle('on', !!(st && st.st));
-      E.swatches.forEach(function(sw) { sw.disabled = kind === 'none'; sw.classList.toggle('active', !!(st && st.color === sw.dataset.color)); });
-      E.custom.disabled = kind === 'none';
+      E.swatches.forEach(function(sw) { sw.disabled = off; sw.classList.toggle('active', !!(st && st.color === sw.dataset.color)); });
+      E.custom.disabled = off;
       E.customWrap.classList.toggle('active', !!(st && st.color && !E.swatches.some(function(sw) { return sw.dataset.color === st.color; })));
-      E.customWrap.classList.toggle('off', kind === 'none');
-      E.nocolor.disabled = kind === 'none' || needSel;
-      E.size.disabled = kind === 'none' || needSel;
+      E.customWrap.classList.toggle('off', off);
+      E.nocolor.disabled = off;
+      E.size.disabled = off;
       var mixed = !!st && st.size === null;   // the range holds more than one size: the list says so (a word it shows, never one to pick)
       E.sizeMixed.hidden = !mixed;
       E.size.value = mixed ? 'mixed' : st && st.size ? st.size : '';
-      var label = kind === 'plain' && tsIsLabel(sel.d);
-      E.link.disabled = kind !== 'plain' || label;
+      var label = !!fld && tsIsLabel(sel.d), here = fld && !n && !label ? tsLinkAt(fld, sel.s) : '';
+      E.link.disabled = off || label;
       E.linkLab.classList.toggle('off', E.link.disabled);
-      E.linkLab.title = label ? TS_LINK_LABEL : kind === 'rte' ? TS_LINK_RTE : TS_LINK_TITLE;
+      E.linkLab.title = label ? TS_LINK_LABEL : here ? TS_LINK_TITLE + ' The part at the caret links to ' + here : TS_LINK_TITLE;
       if (document.activeElement !== E.link) {   // never over what is being typed
           E.link.value = st && st.link && !E.link.disabled ? st.link : '';
-          E.link.placeholder = st && st.link === null && !E.link.disabled ? 'several links' : 'https://\u2026';
+          E.link.placeholder = E.link.disabled ? 'https://…' : here && !(st && st.link) ? 'here: ' + here : st && st.link === null ? 'several links' : 'https://…';
       }
-      E.clear.disabled = kind === 'none' || needSel || (kind === 'plain' && !st.any);
+      E.clear.disabled = off || !st.any;
+      E.symBtn.disabled = off;
   }
-  // Build the bar's controls (text nodes and values only) and wire them. root: #textStyleBar from index.html.
-  function tsBuild(root) {
-      var toggle = root && root.querySelector('#textStyleToggle'), body = root && root.querySelector('#textStyleBody'); if (!toggle || !body) return;
+  // Build the bar (elements, text nodes and values only) inside the editor panel and wire its controls. host: the panel that scrolls
+  // (#plannerEditorWrap); syms: the symbol tray's [character, name] list (the text blocks' own).
+  function tsBuild(host, syms) {
+      if (!host || tsState.els) return;
       var mk = function(tag, cls, text, title) { var el = document.createElement(tag); if (cls) el.className = cls; if (text) el.textContent = text; if (title) el.title = title; return el; };
-      var E = { root: root, toggle: toggle, body: body };
-      var row = mk('div', 'ts-row');
-      E.b = mk('button', 'ts-btn ts-b', 'B', 'Bold (Ctrl+B) \u2014 the selected characters, or the whole field with nothing selected'); E.b.type = 'button'; E.b.dataset.ts = 'b';
-      E.i = mk('button', 'ts-btn ts-i', 'I', 'Italic (Ctrl+I) \u2014 the selected characters, or the whole field with nothing selected'); E.i.type = 'button'; E.i.dataset.ts = 'i';
-      E.u = mk('button', 'ts-btn ts-u', 'U', 'Underline (Ctrl+U) \u2014 the selected characters, or the whole field with nothing selected'); E.u.type = 'button'; E.u.dataset.ts = 'u';
-      E.s = mk('button', 'ts-btn ts-s', 'S', 'Strike through \u2014 the selected characters, or the whole field with nothing selected'); E.s.type = 'button'; E.s.dataset.ts = 'st';
-      row.appendChild(E.b); row.appendChild(E.i); row.appendChild(E.u); row.appendChild(E.s); row.appendChild(mk('span', 'ts-sep'));
-      E.swatches = TF.PALETTE.map(function(p) { var sw = mk('button', 'ts-sw', '', p[1]); sw.type = 'button'; sw.dataset.color = p[0]; sw.style.background = p[0]; row.appendChild(sw); return sw; });
-      E.customWrap = mk('label', 'ts-sw ts-custom', '', 'Custom colour');
-      E.custom = mk('input', 'ts-colorpick'); E.custom.type = 'color'; E.custom.value = '#d9534f';
-      E.customWrap.appendChild(E.custom); row.appendChild(E.customWrap);
-      E.nocolor = mk('button', 'ts-btn ts-word', 'Default', 'The default colour'); E.nocolor.type = 'button'; E.nocolor.dataset.ts = 'nocolor';
-      row.appendChild(E.nocolor); row.appendChild(mk('span', 'ts-sep'));
-      var sizeLab = mk('label', 'ts-sizelab', 'Size ', 'Size \u2014 the selected characters, or the whole field with nothing selected');
-      E.size = mk('select', 'ts-size');
+      var root = mk('div', 'ts-bar'); root.id = 'tsBar'; root.hidden = true; root.setAttribute('role', 'toolbar'); root.setAttribute('aria-label', 'Text style');
+      var E = { root: root, host: host };
+      var btn = function(key, tag, text, title) { var b = mk('button', 'rte-btn', '', title); b.type = 'button'; b.tabIndex = -1; b.dataset.ts = key; b.appendChild(mk(tag, '', text)); root.appendChild(b); return b; };
+      E.b = btn('b', 'b', 'B', 'Bold (Ctrl+B)' + TS_SCOPE);
+      E.i = btn('i', 'i', 'I', 'Italic (Ctrl+I)' + TS_SCOPE);
+      E.u = btn('u', 'u', 'U', 'Underline (Ctrl+U)' + TS_SCOPE);
+      E.s = btn('st', 's', 'S', 'Strike through' + TS_SCOPE);
+      root.appendChild(mk('span', 'rte-sep'));
+      E.swatches = TF.PALETTE.map(function(p) { var sw = mk('button', 'rte-sw', '', p[1] + TS_SCOPE); sw.type = 'button'; sw.tabIndex = -1; sw.dataset.color = p[0]; sw.style.background = p[0]; root.appendChild(sw); return sw; });
+      E.customWrap = mk('label', 'rte-sw rte-custom ts-custom', '', 'Custom colour' + TS_SCOPE);
+      E.custom = mk('input', 'rte-colorpick'); E.custom.type = 'color'; E.custom.value = '#d9534f'; E.custom.tabIndex = -1;
+      E.customWrap.appendChild(E.custom); root.appendChild(E.customWrap);
+      E.nocolor = mk('button', 'rte-btn rte-nocolor', 'Default', 'The default colour' + TS_SCOPE); E.nocolor.type = 'button'; E.nocolor.tabIndex = -1; E.nocolor.dataset.ts = 'nocolor';
+      root.appendChild(E.nocolor); root.appendChild(mk('span', 'rte-sep'));
+      var sizeLab = mk('label', 'ts-sizelab', 'Size ', 'Size' + TS_SCOPE);
+      E.size = mk('select', 'rte-size'); E.size.tabIndex = -1;
       [['', 'Default']].concat(TF.SIZES.map(function(k) { return [k, TF.SIZE_NAMES[k] || k]; })).forEach(function(o) { var op = mk('option', '', o[1]); op.value = o[0]; E.size.appendChild(op); });
       E.sizeMixed = mk('option', '', 'Mixed'); E.sizeMixed.value = 'mixed'; E.sizeMixed.disabled = true; E.sizeMixed.hidden = true; E.size.appendChild(E.sizeMixed);   // shown, never picked: the range holds more than one size
-      sizeLab.appendChild(E.size); row.appendChild(sizeLab); row.appendChild(mk('span', 'ts-sep'));
+      sizeLab.appendChild(E.size); root.appendChild(sizeLab); root.appendChild(mk('span', 'rte-sep'));
       E.linkLab = mk('label', 'ts-linklab', 'Link ', TS_LINK_TITLE);
-      E.link = mk('input', 'ts-link'); E.link.type = 'text'; E.link.placeholder = 'https://\u2026'; E.link.setAttribute('spellcheck', 'false'); E.link.setAttribute('autocomplete', 'off'); E.link.setAttribute('aria-label', 'Link address');
-      E.linkLab.appendChild(E.link); row.appendChild(E.linkLab); row.appendChild(mk('span', 'ts-sep'));
-      E.clear = mk('button', 'ts-btn ts-word', 'Clear', 'Take the styling off: the selected characters, or the whole field with nothing selected'); E.clear.type = 'button'; E.clear.dataset.ts = 'clear';
-      row.appendChild(E.clear);
-      E.target = mk('div', 'ts-target');
-      body.appendChild(row); body.appendChild(E.target);
+      E.link = mk('input', 'ts-link'); E.link.type = 'text'; E.link.tabIndex = -1; E.link.placeholder = 'https://…'; E.link.setAttribute('spellcheck', 'false'); E.link.setAttribute('autocomplete', 'off'); E.link.setAttribute('aria-label', 'Link address');
+      E.linkLab.appendChild(E.link); root.appendChild(E.linkLab); root.appendChild(mk('span', 'rte-sep'));
+      E.clear = mk('button', 'rte-btn', 'Tₓ', 'Clear — take the styling off: the selected characters, or the whole field with nothing selected'); E.clear.type = 'button'; E.clear.tabIndex = -1; E.clear.dataset.ts = 'clear';
+      root.appendChild(E.clear); root.appendChild(mk('span', 'rte-sep'));
+      E.symWrap = mk('span', 'rte-symwrap');
+      E.symBtn = mk('button', 'rte-btn rte-symbtn', 'Ω', 'Insert a symbol at the caret — arrows, dashes, ellipsis, bullets, maths, checks, quotes'); E.symBtn.type = 'button'; E.symBtn.tabIndex = -1;
+      E.syms = mk('div', 'rte-syms');
+      E.symList = (Array.isArray(syms) ? syms : []).map(function(s) { var b = mk('button', 'rte-sym', String(s[0]), String(s[1])); b.type = 'button'; b.tabIndex = -1; b.dataset.sym = String(s[0]); E.syms.appendChild(b); return b; });
+      E.symWrap.appendChild(E.symBtn); E.symWrap.appendChild(E.syms); root.appendChild(E.symWrap);
+      E.scope = mk('span', 'ts-scope'); root.appendChild(E.scope);
+      host.appendChild(root);
       tsState.els = E;
-      var show = function() { body.hidden = !tsState.open; toggle.setAttribute('aria-expanded', tsState.open ? 'true' : 'false'); root.classList.toggle('open', tsState.open); };
-      toggle.addEventListener('mousedown', function(e) { e.preventDefault(); });
-      toggle.addEventListener('click', function() { tsState.open = !tsState.open; try { sessionStorage.setItem('wp_textStyleOpen', tsState.open ? '1' : '0'); } catch (e) {} show(); tsRefresh(); });
-      // the buttons never take the focus: the field keeps its selection. The size list, the colour picker and the link box must take it; the press then acts on what was remembered
-      body.addEventListener('mousedown', function(e) { tsState.key = false; var t = e.target; if (t === E.size || t === E.custom || t === E.link || (t && t.tagName === 'OPTION')) { tsTarget(); return; } e.preventDefault(); });
-      // the keyboard in the bar: a control pressed from it keeps the focus (tsPress), Escape — and Enter in the Size list — goes back to the field;
-      // Enter in the link box sets the link and goes back to the field; Escape there backs out: the field takes the focus, the box loses it with
-      // what was typed still in it, and its change event — which would set that — is told there is nothing left to do (linkDone)
-      body.addEventListener('keydown', function(e) {
+      // the buttons never take the focus: the box keeps its selection. The size list, the colour picker and the link box must take it; the press then acts on what was remembered
+      root.addEventListener('mousedown', function(e) { tsState.key = false; var t = e.target; if (t === E.size || t === E.custom || t === E.link || (t && t.tagName === 'OPTION')) { tsTarget(); return; } e.preventDefault(); });
+      // the keyboard in the bar: Tab and Shift+Tab move along it; a control pressed from it keeps the focus (tsPress); Escape — and Enter in the
+      // Size list — goes back to the box; Enter in the link box sets the link and goes back; Escape there backs out: the box takes the focus, the
+      // link box loses it with what was typed still in it, and its change event — which would set that — is told there is nothing left to do (linkDone)
+      root.addEventListener('keydown', function(e) {
           tsState.key = true;
+          if (e.key === 'Tab') { var list = tsOrder(), at = list.indexOf(e.target), nx = list.length ? list[(at + (e.shiftKey ? list.length - 1 : 1) + list.length) % list.length] : null; e.preventDefault(); e.stopPropagation(); if (nx) { try { nx.focus(); } catch (err) {} } return; }
           if (e.key === 'Enter' && e.target === E.link) { e.preventDefault(); e.stopPropagation(); tsState.linkDone = E.link.value; if (tsLink() !== 'bad') tsBack(); return; }
           if (e.key === 'Escape' && e.target === E.link) tsState.linkDone = E.link.value;
           if ((e.key === 'Escape' || (e.key === 'Enter' && e.target === E.size)) && tsBack()) { e.preventDefault(); e.stopPropagation(); }
       });
-      body.addEventListener('click', function(e) {
+      root.addEventListener('click', function(e) {
           var t = e.target, btn = t && t.closest ? t.closest('button') : null; if (!btn || btn.disabled) return;
-          if (btn.dataset.color) tsPress({ color: btn.dataset.color }, btn);
+          if (btn.dataset.sym) tsSymbol(btn.dataset.sym, btn);
+          else if (btn === E.symBtn) { if (E.symWrap.classList.toggle('open')) tsTray(); }
+          else if (btn.dataset.color) tsPress({ color: btn.dataset.color }, btn);
           else if (btn.dataset.ts === 'b') tsPress({ b: true }, btn);
           else if (btn.dataset.ts === 'i') tsPress({ i: true }, btn);
           else if (btn.dataset.ts === 'u') tsPress({ u: true }, btn);
@@ -439,25 +814,75 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       E.link.addEventListener('blur', function() { tsState.linkDone = null; tsRefresh(); });   // left: it shows the field's own link again
       E.size.addEventListener('blur', function() { tsState.run = null; });   // the list was left: the next size is a step of its own
       E.custom.addEventListener('change', function() { tsPress({ color: E.custom.value }, E.custom); });   // once, when the picker closes: one undo step
-      show(); tsRefresh();
+      tsRefresh();
   }
-  // Ctrl+B / Ctrl+I / Ctrl+U in a plain box do what the buttons do (seen in the capture phase: a flowchart label stops its own keys)
+  // Ctrl+B / Ctrl+I / Ctrl+U in a box do what the buttons do (seen in the capture phase: a box stops its own keys)
   function tsKey(e) {
+      tsState.tab = e.key === 'Tab' && !e.ctrlKey && !e.metaKey && !e.altKey;
       if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return false;
       var k = String(e.key || '').toLowerCase(); if (k !== 'b' && k !== 'i' && k !== 'u') return false;
-      var t = e.target; if (!t || !t.matches || !t.matches(TS_PLAIN) || !t.closest || !t.closest('#plannerBlocks')) return false;
+      var box = tsBoxOf(e.target); if (!box) return false;
       e.preventDefault(); e.stopPropagation();
+      if (tsState.box !== box) tsShow(box);
       tsPress(k === 'b' ? { b: true } : k === 'i' ? { i: true } : { u: true });
       return true;
   }
-  // [textcheck:bar-end]
-  (function wireTextStyle() {
-      var root = document.getElementById('textStyleBar'); if (!root) return;
-      tsBuild(root);
+  // The focus came to rest somewhere: on a box (its bar comes up), in the bar (it stays), anywhere else (it goes)
+  function tsFocusNow() {
+      var a = document.activeElement, box = a ? tsBoxOf(a) : null;
+      if (box && box === a) { if (tsState.box !== box || (tsState.els && tsState.els.root.hidden && !tsState.away)) tsShow(box); return; }
+      if (tsInBar(a)) return;
+      if (tsState.box) tsHide();
+  }
+  // Wire the editor's boxes — once, on the element that holds them (it outlives every rebuild of the editor) — and the page's part
+  function tsWire(root, host) {
+      if (!root) return;
+      root.addEventListener('beforeinput', tsBefore);
+      root.addEventListener('input', tsInput);
+      root.addEventListener('compositionstart', tsCompStart);
+      root.addEventListener('compositionend', tsCompEnd);
+      root.addEventListener('paste', tsPaste);
+      root.addEventListener('copy', tsCopy);
+      root.addEventListener('cut', tsCopy);
+      root.addEventListener('drop', tsDrop);
+      root.addEventListener('dragstart', tsDragStart);
+      root.addEventListener('keydown', tsBoxKey);
+      root.addEventListener('mousedown', function(e) { var box = tsBoxOf(e.target); if (box && box === tsState.box && tsState.away) tsShow(box); });   // a click in the box brings a bar that was put away back
       document.addEventListener('keydown', tsKey, true);
-      ['focusin', 'select', 'keyup', 'mouseup', 'input'].forEach(function(ev) { document.addEventListener(ev, function(e) { var t = e.target; if (t && t.closest && t.closest('#plannerBlocks')) tsNote(t); }, true); });
-      document.addEventListener('selectionchange', function() { var a = document.activeElement; if (a && a.closest && a.closest('#plannerBlocks')) tsNote(a); });
-  })();
+      document.addEventListener('mousedown', function() { tsState.tab = false; }, true);
+      document.addEventListener('focusin', function(e) {
+          var box = tsBoxOf(e.target);
+          if (!(box && box === e.target)) { if (!tsInBar(e.target)) tsHide(); return; }
+          tsShow(box);
+          if (tsState.tab && !tsMulti(tsDesc(box))) { var n = (box._tsText || '').length; if (n) tsHold(box, 0, n, false); tsRefresh(); }   // reached by Tab: all of a one-line box is selected (a label, like a textarea, is not)
+          tsState.tab = false;
+      }, true);
+      document.addEventListener('focusout', function(e) {
+          var box = tsBoxOf(e.target); if (box && box === e.target) { try { box.scrollLeft = 0; } catch (err) {} }   // a one-line box left: it shows its start again, as an input does
+          if (box || tsInBar(e.target)) setTimeout(tsFocusNow, 0);
+      }, true);
+      document.addEventListener('selectionchange', function() { var a = document.activeElement; if (a && a === tsState.box && !tsState.comp && tsNote(a)) tsRefresh(); });
+      if (host) host.addEventListener('scroll', tsPlace, true);
+      window.addEventListener('resize', tsPlace);
+  }
+  // For the planner's undo (io.js): the selection of a box, and a selection put back where a step noted it
+  window.wpTextBox = {
+      selOf: function(box) { var s = box && box.classList && box.classList.contains('ts-box') ? tsSelOf(box) : null; return s ? { s: s.s, e: s.e } : null; },
+      select: function(box, s, e) { return !!box && tsSelect(box, s, e); },
+      restore: function(sel) {
+          var am = tsBlocksOf(); if (!am || !sel || typeof sel !== 'object' || !sel.d || !tsField(am.blocks, sel.d)) return false;
+          var box = tsBox(sel.d); if (!box) return false;
+          try { box.focus({ preventScroll: true }); } catch (e) { return false; }
+          var s = typeof sel.s === 'number' ? sel.s : 0, e2 = typeof sel.e === 'number' ? sel.e : s;
+          tsHold(box, s, e2, false);
+          var n = (box._tsText || '').length; tsState.sel.s = Math.max(0, Math.min(n, tsState.sel.s)); tsState.sel.e = Math.max(tsState.sel.s, Math.min(n, tsState.sel.e));
+          try { if (box.scrollIntoView) box.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) {}
+          tsRefresh(); tsPlace();
+          return true;
+      }
+  };
+  // [textcheck:bar-end]
+  // [sinkcheck:boxes-end]
 
   function renderPlanner() {
       var activeMap = getActiveMap();
@@ -548,13 +973,13 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
           if (b.type === 'h1') {
 
-              html += '<input type="text" class="field b-title" value="'+esc(b.title||'')+'" placeholder="Title" data-idx="'+idx+'" style="margin-bottom:6px; width:100%;">';
+              html += tsBoxHtml('field b-title', 'Title', 'data-idx="'+idx+'"', 'margin-bottom:6px; width:100%;');
 
-              html += '<input type="text" class="field b-sub" value="'+esc(b.sub||'')+'" placeholder="Subtitle" data-idx="'+idx+'" style="width:100%;">';
+              html += tsBoxHtml('field b-sub', 'Subtitle', 'data-idx="'+idx+'"', 'width:100%;');
 
           } else if (b.type === 'h2' || b.type === 'h3') {
 
-              html += '<input type="text" class="field b-title" value="'+esc(b.title||'')+'" placeholder="'+(b.type === 'h3' ? 'Sub-heading' : 'Section Header')+'" data-idx="'+idx+'" style="width:100%;">';
+              html += tsBoxHtml('field b-title', b.type === 'h3' ? 'Sub-heading' : 'Section Header', 'data-idx="'+idx+'"', 'width:100%;');
               if (isDocEd && b.type === 'h2') html += '<div class="fc-opts" style="margin-top:6px;"><label title="Everything under this section, up to the next section or title, flows in this many columns">Columns <select class="b-h2cols" data-idx="'+idx+'">' + [1, 2, 3].map(function(n) { return '<option value="' + n + '"' + (secCols === n ? ' selected' : '') + '>' + n + '</option>'; }).join('') + '</select></label></div>';
 
           } else if (b.type === 'oneline' || b.type === 'lede' || b.type === 'text' || b.type === 'callout' || b.type === 'flare') {
@@ -567,7 +992,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                     + '<label class="tool ghost b-img-uplabel" title="Upload a picture from your computer">Upload…<input type="file" accept="image/*" class="b-img-upload" data-idx="' + idx + '" style="display:none;"></label>'
                     + (isDocEd ? '' : '<label>Width <select class="b-imgw" data-idx="' + idx + '">' + [25, 33, 50, 66, 75, 100].map(function(w) { return '<option value="' + w + '"' + ((b.width || 100) === w ? ' selected' : '') + '>' + w + '%</option>'; }).join('') + '</select></label>'
                     + '<label>Align <select class="b-imga" data-idx="' + idx + '">' + [['left', 'Left'], ['center', 'Centre'], ['right', 'Right']].map(function(o) { return '<option value="' + o[0] + '"' + ((b.align || 'center') === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></label>') + '</div>'
-                    + '<input type="text" class="field b-caption" value="' + esc(b.caption || '') + '" placeholder="Caption (optional)" data-idx="' + idx + '" style="width:100%; margin-top:6px;"></div></div>';
+                    + tsBoxHtml('field b-caption', 'Caption (optional)', 'data-idx="' + idx + '"', 'width:100%; margin-top:6px;') + '</div></div>';
           } else if (b.type === 'raw') {
 
               html += '<textarea class="field b-content" placeholder="Raw HTML..." data-idx="'+idx+'" style="width:100%; height:120px; font-family:monospace;">'+esc(b.content||'')+'</textarea>';
@@ -581,10 +1006,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           } else if (b.type === 'node' || b.type === 'table') {
               var plain = b.mode === 'table' || b.type === 'table';   // a page's table block is the node grid in table mode, without the mode switch
               if (b.type === 'node') html += '<div class="fc-opts" style="margin-bottom:6px;"><label>Mode <select class="b-mode" data-idx="'+idx+'" title="Scene node: a scene with what must be resolved and the routes out of it. Plain table: just a grid of information."><option value="node"'+(plain ? '' : ' selected')+'>Scene node</option><option value="table"'+(plain ? ' selected' : '')+'>Plain table</option></select></label></div>';
-              html += '<input type="text" class="field b-title" value="'+esc(b.title||'')+'" placeholder="'+(plain ? 'Table title (optional)' : 'Node Title')+'" data-idx="'+idx+'" style="margin-bottom:6px; width:100%;">';
+              html += tsBoxHtml('field b-title', plain ? 'Table title (optional)' : 'Node Title', 'data-idx="'+idx+'"', 'margin-bottom:6px; width:100%;');
               if (!plain) {
-                  html += '<input type="text" class="field b-sub" value="'+esc(b.tag||'')+'" placeholder="Tag (optional)" data-idx="'+idx+'" style="margin-bottom:6px; width:100%;">';
-                  html += '<input type="text" class="field b-must" value="'+esc(b.must||'')+'" placeholder="Must Resolve... (optional)" data-idx="'+idx+'" style="margin-bottom:6px; width:100%;">';
+                  html += tsBoxHtml('field b-sub', 'Tag (optional)', 'data-idx="'+idx+'"', 'margin-bottom:6px; width:100%;');
+                  html += tsBoxHtml('field b-must', 'Must Resolve... (optional)', 'data-idx="'+idx+'"', 'margin-bottom:6px; width:100%;');
                   var campL = getActiveCampaign();
                   var mapsL = campL ? Object.values(campL.items).filter(function(i) { return i.type === 'map'; }).sort(function(x, y) { return String(x.meta.title || '').localeCompare(String(y.meta.title || '')); }) : [];
                   var linkedMap = b.linkMapId && campL ? campL.items[b.linkMapId] : null;
@@ -596,11 +1021,11 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               if (!b.rows) b.rows = [];
               html += '<div class="fc-opts"><label>Columns <select class="b-ncols" data-idx="'+idx+'" title="How many columns the table has">' + [1,2,3,4,5,6,7,8].map(function(n) { return '<option value="'+n+'"'+(colNames.length === n ? ' selected' : '')+'>'+n+'</option>'; }).join('') + '</select></label><span style="color:var(--dim); font-size:11px;">Headers below, then one line of boxes per row.</span></div>';
               html += '<div class="grouped-fields b-table"><div class="row-h b-heads">';
-              colNames.forEach(function(c, ci) { html += '<input type="text" class="b-colhead" placeholder="Column '+(ci+1)+'" value="'+esc(c)+'" data-idx="'+idx+'" data-ci="'+ci+'" title="Header of column '+(ci+1)+'">'; });
+              colNames.forEach(function(c, ci) { html += tsBoxHtml('b-colhead', 'Column '+(ci+1), 'data-idx="'+idx+'" data-ci="'+ci+'"', '', false, 'title="Header of column '+(ci+1)+'"'); });
               html += '<div style="width:31px; height:31px; flex:0 0 31px;"></div></div>';
               b.rows.forEach(function(r, ri) {
                   html += '<div class="row-h">';
-                  colNames.forEach(function(c, ci) { html += '<input type="text" class="r-col" placeholder="'+esc(c||'—')+'" value="'+esc(r['col'+(ci+1)]||'')+'" data-idx="'+idx+'" data-ri="'+ri+'" data-ci="'+ci+'">'; });
+                  colNames.forEach(function(c, ci) { html += tsBoxHtml('r-col', c||'—', 'data-idx="'+idx+'" data-ri="'+ri+'" data-ci="'+ci+'"', ''); });
                   html += '<button class="tool ghost danger del-row x-btn" data-idx="'+idx+'" data-ri="'+ri+'" title="Remove this row">✖</button>';
                   html += '</div>';
               });
@@ -628,7 +1053,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
                   html += '<input type="text" value="'+esc(n.id||'')+'" placeholder="ID (n1)" data-idx="'+idx+'" data-ni="'+ni+'" class="fc-n-id" style="flex: 0 0 60px;">';
 
-                  html += '<textarea rows="1" placeholder="Label (Enter for a new line)" data-idx="'+idx+'" data-ni="'+ni+'" class="field fc-n-text fc-grow" style="flex: 1; resize:none; min-height:31px; line-height:1.3; padding:6px 8px;">'+esc(n.text||'')+'</textarea>';
+                  html += tsBoxHtml('field fc-n-text fc-grow', 'Label (Enter for a new line)', 'data-idx="'+idx+'" data-ni="'+ni+'"', 'flex: 1; min-width:0; min-height:31px; line-height:1.3; padding:6px 8px;', true);
 
                   html += '<button class="tool ghost danger del-fc-n x-btn" data-idx="'+idx+'" data-ni="'+ni+'">✖</button>';
 
@@ -664,7 +1089,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
                   html += '</div><div class="row-h">';
 
-                  html += '<input type="text" value="'+esc(e.text||'')+'" placeholder="Label (optional)" data-idx="'+idx+'" data-ei="'+ei+'" class="fc-e-text" style="flex: 1;">';
+                  html += tsBoxHtml('fc-e-text', 'Label (optional)', 'data-idx="'+idx+'" data-ei="'+ei+'"', 'flex: 1; min-width:0;');
 
                   html += '<select data-idx="'+idx+'" data-ei="'+ei+'" class="fc-e-style" style="flex: 1;"><option value="solid"'+(e.style==='solid'?' selected':'')+'>Solid Line</option><option value="dotted"'+(e.style==='dotted'?' selected':'')+'>Dotted Line</option></select>';
 
@@ -687,11 +1112,11 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       blockContainer.innerHTML = html;
 
+      tsFill(blockContainer, activeMap.blocks);   // every plain field's box drawn from its runs (the markup above holds no field's text)
+
 
 
       // Attach listeners
-
-      Array.from(blockContainer.querySelectorAll('.b-title')).forEach(el => el.addEventListener('input', function(e) { tsType(activeMap.blocks, tsDesc(this), this.value, this.selectionStart, e.inputType); save(false); renderPlannerPreview(); }));
 
       Array.from(blockContainer.querySelectorAll('.b-img-pick')).forEach(el => el.addEventListener('click', function() {
           var idx = +this.dataset.idx;
@@ -708,7 +1133,6 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       }));
       Array.from(blockContainer.querySelectorAll('.b-imgw')).forEach(el => el.addEventListener('change', function() { activeMap.blocks[this.dataset.idx].width = +this.value; save(true); renderPlannerPreview(); }));
       Array.from(blockContainer.querySelectorAll('.b-imga')).forEach(el => el.addEventListener('change', function() { activeMap.blocks[this.dataset.idx].align = this.value; save(true); renderPlannerPreview(); }));
-      Array.from(blockContainer.querySelectorAll('.b-caption')).forEach(el => el.addEventListener('input', function(e) { tsType(activeMap.blocks, tsDesc(this), this.value, this.selectionStart, e.inputType); save(true); renderPlannerPreview(); }));
       // Page layout row (pages only). Selects and the checkbox are one undo step each; the nudge boxes coalesce like text.
       var layOf = function(el) { var bb = activeMap.blocks[el.dataset.idx]; if (!bb.layout || typeof bb.layout !== 'object') bb.layout = blockLayout(bb); return bb; };
       Array.from(blockContainer.querySelectorAll('.b-lay-w')).forEach(el => el.addEventListener('change', function() { layOf(this).layout.width = +this.value; save(true); renderPlannerPreview(); }));
@@ -716,10 +1140,6 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       Array.from(blockContainer.querySelectorAll('.b-lay-dx, .b-lay-dy')).forEach(el => el.addEventListener('input', function() { var bb = layOf(this); bb.layout[this.classList.contains('b-lay-dx') ? 'dx' : 'dy'] = Math.max(-200, Math.min(200, Math.round(+this.value || 0))); save(false); renderPlannerPreview(); }));
       Array.from(blockContainer.querySelectorAll('.b-lay-span')).forEach(el => el.addEventListener('change', function() { var bb = layOf(this); bb.layout.span = this.checked; if (this.checked) bb.layout.float = 'none'; save(true); renderPlanner(); }));
       Array.from(blockContainer.querySelectorAll('.b-h2cols')).forEach(el => el.addEventListener('change', function() { activeMap.blocks[this.dataset.idx].cols = Math.max(1, Math.min(3, parseInt(this.value, 10) || 1)); save(true); renderPlanner(); }));
-      Array.from(blockContainer.querySelectorAll('.b-sub')).forEach(el => el.addEventListener('input', function(e) { tsType(activeMap.blocks, tsDesc(this), this.value, this.selectionStart, e.inputType); save(false); renderPlannerPreview(); }));
-
-      Array.from(blockContainer.querySelectorAll('.b-must')).forEach(el => el.addEventListener('input', function(e) { tsType(activeMap.blocks, tsDesc(this), this.value, this.selectionStart, e.inputType); save(false); renderPlannerPreview(); }));
-
       Array.from(blockContainer.querySelectorAll('.b-linkmap')).forEach(el => el.addEventListener('change', function() {
           var bb = activeMap.blocks[this.dataset.idx];
           if (this.value) bb.linkMapId = this.value; else delete bb.linkMapId;
@@ -741,14 +1161,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           tsSetColCount(bb, n);   // the heads, and their formats in step
           save(true); renderPlanner();
       }));
-      Array.from(blockContainer.querySelectorAll('.b-colhead')).forEach(el => el.addEventListener('input', function(e) {
-          tsType(activeMap.blocks, tsDesc(this), this.value, this.selectionStart, e.inputType);   // the heads become the block's own at the first typed one, as before
-          save(false); renderPlannerPreview();
-      }));
       Array.from(blockContainer.querySelectorAll('.b-content')).forEach(el => el.addEventListener('input', function() { activeMap.blocks[this.dataset.idx].content = this.value; save(false); if(activeMap.blocks[this.dataset.idx].type !== 'diagram') renderPlannerPreview(); }));
       wireRte(blockContainer);
-
-      Array.from(blockContainer.querySelectorAll('.r-col')).forEach(el => el.addEventListener('input', function(e) { tsType(activeMap.blocks, tsDesc(this), this.value, this.selectionStart, e.inputType); save(false); renderPlannerPreview(); }));
 
       
 
@@ -784,10 +1198,6 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       Array.from(blockContainer.querySelectorAll('.fc-n-id')).forEach(el => el.addEventListener('input', function() { activeMap.blocks[this.dataset.idx].nodes[this.dataset.ni].id = this.value; save(false); renderPlannerPreview(); }));
 
-      Array.from(blockContainer.querySelectorAll('.fc-grow')).forEach(function(el) {
-          var grow = function() { el.style.height = 'auto'; el.style.height = Math.max(31, el.scrollHeight) + 'px'; };
-          el.addEventListener('input', grow); el.addEventListener('keydown', function(e) { if (fieldUndoChord(e)) return; e.stopPropagation(); }); grow();
-      });
       Array.from(blockContainer.querySelectorAll('.fc-dir')).forEach(el => el.addEventListener('change', function() { activeMap.blocks[this.dataset.idx].dir = this.value; save(true); renderPlannerPreview(); }));
       Array.from(blockContainer.querySelectorAll('.fc-space')).forEach(el => el.addEventListener('change', function() { activeMap.blocks[this.dataset.idx].space = this.value; save(true); renderPlannerPreview(); }));
       Array.from(blockContainer.querySelectorAll('.fc-zoom')).forEach(el => el.addEventListener('input', function() {
@@ -798,8 +1208,6 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       Array.from(blockContainer.querySelectorAll('.fc-reset-pos')).forEach(el => el.addEventListener('click', function() {
           var bb = activeMap.blocks[this.dataset.idx]; delete bb.nodePos; delete bb.nodeSize; delete bb.nodePosSig; save(true); renderPlanner(); renderPlannerPreview();
       }));
-      Array.from(blockContainer.querySelectorAll('.fc-n-text')).forEach(el => el.addEventListener('input', function(e) { tsType(activeMap.blocks, tsDesc(this), this.value, this.selectionStart, e.inputType); save(false); renderPlannerPreview(); }));
-
       Array.from(blockContainer.querySelectorAll('.fc-n-shape')).forEach(el => el.addEventListener('change', function() { activeMap.blocks[this.dataset.idx].nodes[this.dataset.ni].shape = this.value; save(true); renderPlannerPreview(); }));
 
       Array.from(blockContainer.querySelectorAll('.fc-n-color')).forEach(el => el.addEventListener('change', function() { activeMap.blocks[this.dataset.idx].nodes[this.dataset.ni].color = this.value; save(true); renderPlannerPreview(); }));
@@ -814,8 +1222,6 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       Array.from(blockContainer.querySelectorAll('.fc-e-to')).forEach(el => el.addEventListener('input', function() { activeMap.blocks[this.dataset.idx].edges[this.dataset.ei].to = this.value; save(false); renderPlannerPreview(); }));
 
-      Array.from(blockContainer.querySelectorAll('.fc-e-text')).forEach(el => el.addEventListener('input', function(e) { tsType(activeMap.blocks, tsDesc(this), this.value, this.selectionStart, e.inputType); save(false); renderPlannerPreview(); }));
-
       Array.from(blockContainer.querySelectorAll('.fc-e-style')).forEach(el => el.addEventListener('change', function() { activeMap.blocks[this.dataset.idx].edges[this.dataset.ei].style = this.value; save(true); renderPlannerPreview(); }));
 
       Array.from(blockContainer.querySelectorAll('.del-fc-e')).forEach(el => el.addEventListener('click', function() { activeMap.blocks[this.dataset.idx].edges.splice(this.dataset.ei, 1); save(true); renderPlanner(); }));
@@ -828,7 +1234,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       applyPlannerFullscreen();
 
-      tsRebuilt();   // every box above is new: no place in the old ones is remembered
+      tsRebuilt();   // every box above is new: the bar is on none of them and no place in the old ones is remembered
 
   }
 
@@ -1075,6 +1481,11 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       });
   }
   // [textcheck:rtewire-end]
+  (function wireTextStyle() {   // the bar is built once, inside the editor panel; the boxes are wired once, on the element that holds them
+      var root = document.getElementById('plannerBlocks'), host = document.getElementById('plannerEditorWrap'); if (!root || !host) return;
+      tsBuild(host, RTE_SYMS);
+      tsWire(root, host);
+  })();
   function nl(content, para) {
       var c = String(content || '');
       if (!/\n/.test(c) || /<(p|br|div|ul|ol|li|h[1-6]|table|pre|blockquote)\b/i.test(c)) return c;
@@ -1295,7 +1706,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   /* ---- find in planner ----
      Highlights in the rendered preview only (the editor boxes are left alone). The text is read in
      stretches — the text nodes of one run of inline content, joined — so a word drawn as several
-     runs (part of it coloured by the Text style bar) is found whole; each stretch is matched on a
+     runs (part of it coloured by the bar on its box) is found whole; each stretch is matched on a
      normalised copy (lower case, accents stripped) with an index map back to the original, so
      "Selkath" is found by "selk" and "Sahrhie" by "sahr". The exact phrase wins; with no phrase
      hit, every word is matched at word starts. */

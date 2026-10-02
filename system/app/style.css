@@ -2781,36 +2781,28 @@
   .rte-size { font: inherit; font-size: 12px; height: 24px; padding: 0 4px; border: 1px solid var(--edge); border-radius: 4px; background: var(--panel); color: var(--ink); }
   html[data-theme="light"] .rte-sw { border-color: rgba(0,0,0,0.3); }
 
-  /* Planner / page editor: the Text style bar (closed until its caret is clicked) */
-  .ts-bar { position: sticky; top: -15px; z-index: 45; flex: 0 0 auto; margin: -15px -15px 12px; padding: 6px 15px; background: var(--bg2); border-bottom: 1px solid var(--edge); }
-  .ts-toggle { font: inherit; font-size: 12px; padding: 2px 6px; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--dim); cursor: pointer; }
-  .ts-toggle:hover, .ts-bar.open .ts-toggle { color: var(--ink); }
-  .ts-caret { display: inline-block; transition: transform 0.12s; }
-  .ts-bar.open .ts-caret { transform: rotate(90deg); }
-  .ts-body { margin-top: 6px; }
-  .ts-body[hidden] { display: none; }
-  .ts-row { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
-  .ts-btn { font: inherit; font-size: 12px; min-width: 26px; height: 24px; padding: 0 7px; border: 1px solid var(--edge); border-radius: 4px; background: var(--panel); color: var(--ink); cursor: pointer; }
-  .ts-btn.ts-b { font-weight: bold; } .ts-btn.ts-i { font-style: italic; font-family: Georgia, serif; }
-  .ts-btn.ts-u { text-decoration: underline; } .ts-btn.ts-s { text-decoration: line-through; }
-  .ts-btn:hover:not(:disabled) { border-color: var(--gold); }
-  .ts-btn.on { background: var(--edge); color: var(--gold); border-color: var(--gold); }
-  .ts-btn:disabled, .ts-sw:disabled, .ts-size:disabled, .ts-custom.off, .ts-linklab.off { opacity: 0.4; cursor: default; }
-  .ts-custom.off input { pointer-events: none; }
-  .ts-sep { width: 1px; height: 16px; background: var(--edge); margin: 0 4px; }
-  .ts-sw { width: 18px; height: 18px; flex: 0 0 auto; padding: 0; border-radius: 50%; border: 2px solid transparent; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.25); cursor: pointer; box-sizing: border-box; }
-  .ts-sw:hover:not(:disabled) { transform: scale(1.12); }
-  .ts-sw.active { border-color: #fff; }
-  .ts-sw.ts-custom { position: relative; overflow: hidden; display: inline-block; background: conic-gradient(#d9534f, #e0a54f, #5cb87a, #4db3d3, #b98cff, #d9534f); }
-  .ts-sw.ts-custom input { position: absolute; inset: -4px; width: 200%; height: 200%; opacity: 0; cursor: pointer; }
-  .ts-sizelab { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--dim); }
-  .ts-size { font: inherit; font-size: 12px; height: 24px; padding: 0 4px; border: 1px solid var(--edge); border-radius: 4px; background: var(--panel); color: var(--ink); }
-  .ts-linklab { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--dim); }
-  .ts-link { font: inherit; font-size: 12px; height: 24px; width: 190px; box-sizing: border-box; padding: 0 6px; border: 1px solid var(--edge); border-radius: 4px; background: var(--panel); color: var(--ink); }
+  /* Planner / page editor: a plain field's box — an editable element the app draws from the field's runs, in the look of the input it
+     replaces — and the one bar that floats over the box in use (a text block's controls, in a text block's look) */
+  .ts-box { width: 100%; background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; padding: 8px 9px; font: inherit; font-size: 13px; box-sizing: border-box; outline: none; cursor: text; white-space: pre; overflow: hidden; }
+  .ts-box:focus { border-color: var(--gold); }
+  .ts-box.ts-multi { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .ts-box:empty::before { content: attr(data-placeholder); color: var(--dim); opacity: 0.75; font-weight: normal; pointer-events: none; }
+  .grouped-fields .row-h .ts-box { flex: 1; min-width: 0; }
+  .b-heads .ts-box { font-weight: 600; color: var(--gold); }
+  .b-table .row-h .ts-box { min-width: 70px; }
+  .ts-box .tsr-link { color: var(--blue); }   /* a linked part looks like a link; in the editor it is not followed */
+  .ts-bar { position: fixed; z-index: 46; left: 0; top: 0; box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; gap: 2px; padding: 3px 5px; background: var(--panel2); border: 1px solid var(--gold); border-radius: 6px; box-shadow: var(--shadow); }
+  .ts-bar[hidden] { display: none; }
+  .ts-bar .rte-btn:disabled, .ts-bar .rte-sw:disabled, .ts-bar .rte-size:disabled, .ts-bar .ts-custom.off, .ts-bar .ts-linklab.off { opacity: 0.4; cursor: default; }
+  .ts-bar .rte-btn:disabled:hover { border-color: transparent; }
+  .ts-bar .rte-sw:disabled:hover { transform: none; }
+  .ts-bar .ts-custom.off input { pointer-events: none; }
+  .ts-bar .rte-sw.active { box-shadow: 0 0 0 2px var(--panel2), 0 0 0 3px var(--ink); }
+  .ts-bar .rte-btn:focus-visible, .ts-bar .rte-sw:focus-visible, .ts-bar .rte-size:focus-visible, .ts-bar .rte-sym:focus-visible, .ts-bar .ts-custom:focus-within { outline: 2px solid var(--gold); outline-offset: 1px; }
+  .ts-sizelab, .ts-linklab { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--dim); }
+  .ts-link { font: inherit; font-size: 12px; height: 24px; width: 150px; box-sizing: border-box; padding: 0 6px; border: 1px solid var(--edge); border-radius: 4px; background: var(--panel); color: var(--ink); }
   .ts-link:focus { border-color: var(--gold); outline: none; }
-  .ts-target { margin-top: 5px; font-size: 11px; color: var(--dim); min-height: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  html[data-theme="light"] .ts-sw { box-shadow: inset 0 0 0 1px rgba(0,0,0,0.3); }
-  html[data-theme="light"] .ts-sw.active { border-color: var(--ink); }
+  .ts-scope { margin-left: 6px; font-size: 11px; color: var(--dim); white-space: nowrap; }
 
   /* Planner editor: symbol tray */
   .rte-symwrap { position: relative; display: inline-flex; }

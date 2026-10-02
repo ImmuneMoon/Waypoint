@@ -1815,7 +1815,7 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
       if (!groundFieldOk(w)) return '';
       var St = window.wpStance, C = window.wpFogCore, g = C && C.cleanGround && Object.prototype.hasOwnProperty.call(w, 'ground') ? C.cleanGround(w.ground) : null, un = St && St.lenUnit ? St.lenUnit() : 'yd';
       return '<div class="field"><label for="wbGround">Ground height <span class="muted">(' + (un === 'm' ? 'metres' : 'yards') + '; a pit is negative)</span></label><input type="number" id="wbGround" step="0.5" placeholder="0" value="' + (g ? Math.round((St && St.ydOut ? St.ydOut(g) : g) * 100) / 100 : '') + '" title="Makes this piece ground &mdash; a hill, a ledge, a pit: a token standing on it (the centre of its cell under the piece&rsquo;s outline) is this much higher, on top of its own elevation. Where ground pieces overlap the highest counts. Empty or 0: no ground"></div>'
-          + (w.hidden ? '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">While this piece is hidden, nothing players are shown reads its ground &mdash; their screens, their rolls, a thrown blast, what the fog shows or hides for them; your own screen does.</div>' : '');
+          + (w.hidden ? '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">While this piece is hidden, nothing worked out for players reads its ground &mdash; their screens, their rolls, a thrown blast, what the fog shows or hides for them; your own screen, your own rolls and your blast tool do.</div>' : '');
   }
   function setItemGround(w, v) {
       var St = window.wpStance, C = window.wpFogCore, s = String(v === undefined || v === null ? '' : v).trim(), yd = s === '' ? null : (St && St.ydIn ? St.ydIn(s) : Number(s));

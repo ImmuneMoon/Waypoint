@@ -247,14 +247,14 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
      press — the bar's buttons never take the focus (mousedown is swallowed, as the text blocks' own bar does) — and remembered for the
      controls that must take it (the size list, the custom colour, the link box). With nothing selected B, I, U, S, a colour, a size
      and a link are the whole field's; with characters selected, theirs. A link is a web address typed into the bar's own box (Enter, or
-     leaving the box, sets it; an empty box takes the link off) — never for a flowchart label, which cannot hold one: the box is off
+     leaving the box for somewhere else, sets it; Escape backs out and sets nothing; an empty box takes the link off) — never for a flowchart label, which cannot hold one: the box is off
      there and says why. In a text block's box the bar drives that block's own rich-text commands. Each press is one undo step, and Ctrl+Z
      in the field takes the press back (never the typing before it). A control the keyboard reached keeps the focus while it is pressed, so
      the Size list can be stepped through by its arrow keys — that run of sizes is one step — and Escape (Enter in the Size list) goes back
      to the field. Nothing is remembered across a rebuild of the editor: a place is an index, and every index may have moved. */
   // [textcheck:bar-start]
-  var tsState = { open: false, sel: null, els: null, key: false, run: null, linkDone: null };   // key: the bar was last touched by the keyboard; run: the field and selection a run of Size list steps is on; linkDone: the address Enter has just set (the box's own change event then has nothing left to do)
-  var TS_LINK_TITLE = 'Link \u2014 a web address (https://\u2026) for the selected characters, or the whole field with nothing selected. Enter sets it; an empty box takes the link off.';
+  var tsState = { open: false, sel: null, els: null, key: false, run: null, linkDone: null };   // key: the bar was last touched by the keyboard; run: the field and selection a run of Size list steps is on; linkDone: the address Enter has just set, or Escape has just dropped (the box's own change event then has nothing left to do)
+  var TS_LINK_TITLE = 'Link \u2014 a web address (https://\u2026) for the selected characters, or the whole field with nothing selected. Enter sets it, Esc backs out; an empty box takes the link off.';
   var TS_LINK_LABEL = 'A flowchart label cannot hold a link: a chart never carries web addresses.';
   var TS_LINK_RTE = 'This box links titles, table cells and captions.';
   function tsIsLabel(d) { return !!d && (d.k === 'node' || d.k === 'edge'); }
@@ -322,11 +322,13 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       tsRefresh();
       return true;
   }
-  // The link box's address onto the field. A web address typed without its scheme ("example.com/page") is taken as https://; anything that is
-  // still no link (textfmt.js cleanLink: the page sanitiser's rule) is refused in words and changes nothing ('bad'); an empty box takes the link off.
+  // The link box's address onto the field. A web address typed without its scheme ("example.com/page") is taken as https:// — one with a port
+  // too ("example.com:8080/page", "localhost:3000": a first word followed by one to five digits and then the end, a /, a ? or a # is a host and
+  // its port, not a scheme); anything that is still no link (textfmt.js cleanLink: the page sanitiser's rule — so whatever begins with another
+  // scheme) is refused in words and changes nothing ('bad'); an empty box takes the link off.
   function tsLink() {
       var E = tsState.els, v = String(E.link.value == null ? '' : E.link.value).trim();
-      if (v && !/^[a-z][a-z0-9+.-]*:/i.test(v)) v = 'https://' + v;
+      if (v && !/^[a-z][a-z0-9+.-]*:(?!\d{1,5}(?:[\/?#]|$))/i.test(v)) v = 'https://' + v;
       if (v && !TF.cleanLink(v)) { toast('A link is a web address: it starts with http:// or https:// and holds no spaces.'); return 'bad'; }
       return tsPress({ link: v || null }, E.link);
   }
@@ -414,10 +416,12 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       // the buttons never take the focus: the field keeps its selection. The size list, the colour picker and the link box must take it; the press then acts on what was remembered
       body.addEventListener('mousedown', function(e) { tsState.key = false; var t = e.target; if (t === E.size || t === E.custom || t === E.link || (t && t.tagName === 'OPTION')) { tsTarget(); return; } e.preventDefault(); });
       // the keyboard in the bar: a control pressed from it keeps the focus (tsPress), Escape — and Enter in the Size list — goes back to the field;
-      // Enter in the link box sets the link and goes back to the field
+      // Enter in the link box sets the link and goes back to the field; Escape there backs out: the field takes the focus, the box loses it with
+      // what was typed still in it, and its change event — which would set that — is told there is nothing left to do (linkDone)
       body.addEventListener('keydown', function(e) {
           tsState.key = true;
           if (e.key === 'Enter' && e.target === E.link) { e.preventDefault(); e.stopPropagation(); tsState.linkDone = E.link.value; if (tsLink() !== 'bad') tsBack(); return; }
+          if (e.key === 'Escape' && e.target === E.link) tsState.linkDone = E.link.value;
           if ((e.key === 'Escape' || (e.key === 'Enter' && e.target === E.size)) && tsBack()) { e.preventDefault(); e.stopPropagation(); }
       });
       body.addEventListener('click', function(e) {

@@ -314,8 +314,13 @@ function fieldMd(text, fmt, o) {
     return tagged;
 }
 var IN_LINE = { put: function(x, first) { return first ? mdEscapeText(x) : mdEscapeMarks(x); } };   // a heading, a scene node's tag and must-resolve
+// A picture's line: ![caption](path){tail} or ![caption][ref]{tail}. The caption is read with its escapes — a \] (which the export writes for
+// a ] in a caption) is part of it, not its end; where that reading does not fit (a caption written by hand that ends in a backslash) it is
+// read up to the first ], as it always was.
+var PIC_ESC = /^!\[((?:\\[\s\S]|[^\]\\])*)\]\(([^)]*)\)\s*(\{[^{}]*\})?\s*$/, PIC_RAW = /^!\[([^\]]*)\]\(([^)]*)\)\s*(\{[^{}]*\})?\s*$/, PIC_REF = /^!\[([^\]]*)\]\[([^\]]*)\]\s*(\{[^{}]*\})?\s*$/;
+function picLine(line) { return PIC_ESC.exec(line) || PIC_RAW.exec(line) || PIC_REF.exec(line); }
 // a caption: read as the picture line reads it — between ![ and ]( — so a link written [text](address) there, which would end the caption early, is written <a href> instead
-var IN_CAPTION = { put: IN_LINE.put, read: function(s) { var m = /^!\[([^\]]*)\]\(([^)]*)\)\s*$/.exec('![' + s + '](x)'); return m && m[1] === s && m[2] === 'x' ? fieldOf(s) : null; } };
+var IN_CAPTION = { put: IN_LINE.put, read: function(s) { var m = picLine('![' + s + '](x)'); return m && m[1] === s && m[2] === 'x' ? fieldOf(s) : null; } };
 var IN_BOLD = { put: IN_LINE.put, tags: true, read: function(s) { var m = /^\s*(\*\*|__)(.+?)\1\s*$/.exec('**' + s + '**'); return m ? fieldOf(m[2]) : null; } };   // a table's title: its line is bold syntax
 var IN_ITALIC = { put: IN_LINE.put, tags: true, read: function(s) { var m = /^\s*(\*|_)([^*_]+)\1\s*$/.exec('*' + s + '*'); return m ? fieldOf(m[2]) : null; } };   // the subtitle: its line is italic syntax
 var IN_CELL = { lines: true, put: function(x) { return mdEscapeMarks(String(x).replace(/\r?\n/g, ' ')).replace(/\|/g, '\\|'); }, read: function(s) { var c = splitRow('| ' + s + ' |'); return c.length === 1 ? fieldOf(c[0]) : null; } };
@@ -356,7 +361,7 @@ function flowchartFromMermaid(src) {
             var afterE = l.slice(pos).replace(/^\s+/, ''); pos = l.length - afterE.length;
             var nxt = defNode(afterE); if (!nxt) return null;
             pos += nxt.len;
-            var ef = e[3] ? mmRead(e[3]) : null, edge = { from: cur.id, to: nxt.id, text: ef ? ef.text : (e[3] || e[4] || e[5] || '').trim(), style: e[1] === '-.->' || e[5] !== undefined ? 'dotted' : 'solid' };
+            var ef = e[3] ? mmRead(e[3]) : null, edge = { from: cur.id, to: nxt.id, text: ef ? ef.text : (e[3] || e[4] || e[5] || '').trim().replace(/#quot;/g, '"').replace(/#35;/g, '#'), style: e[1] === '-.->' || e[5] !== undefined ? 'dotted' : 'solid' };
             if (ef) edge.fmt = ef.fmt;
             edges.push(edge);
             cur = nxt;
@@ -369,8 +374,10 @@ function flowchartFromMermaid(src) {
 // <u>, <s>, <font color=rrggbb> (no quote and no # may stand in a mermaid string), <big> / <small> (around everything for the label's one
 // size, around a part for a part's; never one inside another) — the look of the whole label once around everything, the parts inside it.
 // No link: a label's format holds none (docrender labelFmt). The label's OWN text is written escaped inside that form (mmEscStyled), so a
-// typed <b> is text and the styling tags are tags. Read back (mmRead) only when writing the format read gives the very label again: any
-// other label is its text, tags and all, exactly as before — and a label with no format is written exactly as before (mmQuote).
+// typed <b> is text and the styling tags are tags. Read back (mmRead) only when writing the format read gives the very label again — but
+// for a % and a | standing as themselves, which a label written by hand may hold (a lone % opens no comment, and a | that reached a label
+// did not end it): any other label is its text, tags and all, exactly as before — and a label with no format is written exactly as
+// before (mmQuote).
 var MM_SIZE = { small: ['<small>', '</small>'], large: ['<big>', '</big>'], larger: ['<big><big>', '</big></big>'], huge: ['<big><big><big>', '</big></big></big>'] };
 var MM_STEPS = { 'small': 'small', 'big': 'large', 'big big': 'larger', 'big big big': 'huge' };   // the open size tags, outermost first: the size of what they hold
 // A styled label's own text, escaped as mermaid's entity codes: the two a mermaid string cannot hold (" and #, as ever), the < that
@@ -405,12 +412,13 @@ function mmStyled(text, fmt) {
 function mmRead(raw) {
     raw = String(raw == null ? '' : raw);
     if (raw.indexOf('<') < 0) return null;
-    var w = lookWalk(), text = '', open = [], at = 0, re = /<(\/?)(b|i|u|s|font|big|small|br)(\s[^<>]*|\/)?>/gi, m;
-    var put = function(s) { if (!s) return; var t = mmUnescStyled(s); text += t; w.text(t.length); };
+    var w = lookWalk(), text = '', norm = '', open = [], at = 0, re = /<(\/?)(b|i|u|s|font|big|small|br)(\s[^<>]*|\/)?>/gi, m;
+    // norm: the label as it was written, a % and a | of its own text as the codes the export writes for them
+    var put = function(s) { if (!s) return; var t = mmUnescStyled(s); text += t; norm += s.replace(/[%|]/g, function(c) { return MM_ENT[c]; }); w.text(t.length); };
     while ((m = re.exec(raw))) {
         var tag = m[2].toLowerCase(), attr = m[3] || '', look;
-        if (tag === 'br') { if (m[1] || !/^\s*\/?$/.test(attr)) continue; put(raw.slice(at, m.index)); text += '\n'; w.text(1); at = re.lastIndex; continue; }
-        if (m[1]) { if (attr || open[open.length - 1] !== tag) return null; put(raw.slice(at, m.index)); open.pop(); w.close(); at = re.lastIndex; continue; }
+        if (tag === 'br') { if (m[1] || !/^\s*\/?$/.test(attr)) continue; put(raw.slice(at, m.index)); text += '\n'; norm += m[0]; w.text(1); at = re.lastIndex; continue; }
+        if (m[1]) { if (attr || open[open.length - 1] !== tag) return null; put(raw.slice(at, m.index)); norm += m[0]; open.pop(); w.close(); at = re.lastIndex; continue; }
         if (tag === 'font') { var c = /^ color=([0-9a-f]{6})$/.exec(attr); if (!c) continue; look = { color: '#' + c[1] }; }
         else if (attr) continue;   // not a tag of ours: it stays text
         else if (tag === 'big' || tag === 'small') {   // a size step: <small>, or one to three <big> — the innermost count is the size of what it holds
@@ -419,12 +427,12 @@ function mmRead(raw) {
             look = { size: MM_STEPS[steps] };
         }
         else look = tag === 'b' ? { b: true } : tag === 'i' ? { i: true } : tag === 'u' ? { u: true } : { st: true };
-        put(raw.slice(at, m.index)); open.push(tag); w.open(look); at = re.lastIndex;
+        put(raw.slice(at, m.index)); norm += m[0]; open.push(tag); w.open(look); at = re.lastIndex;
     }
     put(raw.slice(at));
     if (open.length) return null;
     var fmt = w.fmt(text);
-    return fmt && mmStyled(text, fmt) === raw ? { text: text, fmt: fmt } : null;
+    return fmt && mmStyled(text, fmt) === norm ? { text: text, fmt: fmt } : null;
 }
 // What the export writes for a styled label — only when it reads back to the very text and looks; else null (the label is then written as before).
 // A label that holds a carriage return never does: the fence is read line by line and its carriage returns dropped.
@@ -449,7 +457,7 @@ function flowchartToMermaid(b) {
 // paragraph — is dropped, the white space it held kept (so it leaves no empty paragraph behind and no empty tag in a block)
 function dropEmptySpans(html) { var prev; do { prev = html; html = html.replace(/<span[^>]*>(\s*)<\/span>/g, '$1'); } while (html !== prev); return html; }
 function isBlockStart(line, next) {
-    return /^(```+|~~~+)/.test(line) || /^:::\s*(lede|oneline|flare|callout)\s*$/i.test(line) || /^#{1,6}\s/.test(line) || /^(?:-{3,}|\*{3,}|_{3,})\s*$/.test(line) || /^>/.test(line) || LIST_RE.test(line) || (/\|/.test(line) && isTableSep(next)) || /^!\[[^\]]*\](\([^)]*\)|\[[^\]]*\])\s*(\{[^{}]*\})?\s*$/.test(line);
+    return /^(```+|~~~+)/.test(line) || /^:::\s*(lede|oneline|flare|callout)\s*$/i.test(line) || /^#{1,6}\s/.test(line) || /^(?:-{3,}|\*{3,}|_{3,})\s*$/.test(line) || /^>/.test(line) || LIST_RE.test(line) || (/\|/.test(line) && isTableSep(next)) || !!picLine(line);
 }
 // opts.kind: 'doc' (default) | 'planner'; opts.items: the campaign's items (a planner's "Map: title / room" lines resolve against them)
 function markdownToBlocks(text, opts) {
@@ -573,7 +581,7 @@ function markdownToBlocks(text, opts) {
             while (i < lines.length && /\|/.test(lines[i]) && lines[i].trim()) { var rc = splitRow(lines[i]).map(fieldOf); rows.push(rc.map(textOf)); rfm.push(rc.map(fmtOf)); i++; }
             var tt = pendingTitle; pendingTitle = null; pushTable(cols, rows, tt ? tt.text : tt, { title: tt ? tt.fmt : undefined, cols: hc.map(fmtOf), rows: rfm }); continue;
         }
-        var imL = /^!\[([^\]]*)\]\(([^)]*)\)\s*(\{[^{}]*\})?\s*$/.exec(line) || /^!\[([^\]]*)\]\[([^\]]*)\]\s*(\{[^{}]*\})?\s*$/.exec(line);
+        var imL = picLine(line);
         if (imL) {
             var byRef = line.indexOf('](') < 0, dest = byRef ? null : imL[2].replace(/\s+"[^"]*"$/, '').replace(/^<|>$/g, ''), ref = byRef ? (imL[2] || imL[1]) : null;
             var at = imL[3] ? parseAttrs(imL[3]) : null; if (imL[3] && !at) notes.push('Picture attributes "' + imL[3] + '" not understood (use width, float, dx, dy, span).');

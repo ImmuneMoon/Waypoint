@@ -959,7 +959,9 @@ function ackSend(msg, mapId) {   // a map for every admitted, open connection, e
 // hidden pieces (owner, 2026-10-01): a drawing of a player's that the GM hid is on no copy of theirs, so a map copy of theirs that leaves it out
 // is no erase — and still none once the GM shows it again, until a copy of theirs names it (a copy made before the shown drawing reached them
 // lacks it too). The host's memory only, per connection and map: the ids of their own drawings seen hidden at a send of the map or at their
-// join, forgotten one by one as a copy of theirs names them or the host puts their copy right, and with the connection, the map or the table.
+// join — for a connection holding that map whole (possession: one holding its stub has no copy to lack the drawing, and the whole map notes it
+// when its player arrives) — forgotten one by one as a copy of theirs names them or the host puts their copy right, with the map as it is
+// taken back from that connection, and with the connection, the map or the table.
 // A patch that leaves such a drawing out, or names one still hidden here, came from a stale copy: that connection is sent the map whole, with
 // the patch's number, so their app takes it as the word on everything up to that patch (applyClientItemFiltered, the item branch)
 var _hidPend = Object.create(null);
@@ -969,6 +971,7 @@ function hidNote(map) {
         if (!w || !w.hidden || w.type !== 'path' || !w.byPlayer || typeof w.ownerId !== 'string' || typeof w.id !== 'string') return;
         net.conns.forEach(function(c) {
             var pr = c && typeof c.peer === 'string' && own(net.roster, c.peer) ? net.roster[c.peer] : null; if (!pr || pr.id !== w.ownerId) return;
+            if (typeof mapHeld === 'function' && !mapHeld(c, map.id)) return;   // possession: only a connection holding this map whole has a copy of it
             var per = own(_hidPend, c.peer) ? _hidPend[c.peer] : (_hidPend[c.peer] = Object.create(null)), ids = own(per, map.id) ? per[map.id] : (per[map.id] = Object.create(null));
             ids[w.id] = 1;
         });

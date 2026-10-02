@@ -507,24 +507,59 @@ window.wpSettingsSync = function() { var m = ui('settingsModal'); if (m && m.sty
 // Developer mode (Settings ▸ Advanced, off by default): one switch for the in-app console on ~ (devconsole.js reads the same
 // key) and, in the installed app, the developer tools (the shell reads the key from the mirrored settings file and only then
 // lets them open). Switching it ON asks first, every time, in the app's own question — never one Enter answers — because
-// what it unlocks runs whatever is typed or pasted into it. Nothing a player or a host sends can switch it on.
+// what it unlocks runs whatever is typed or pasted into it. Nothing a player or a host sends can switch it on. The local
+// server reads the same key from that file for the page's policy (shellguard.pagePolicy): only in Developer mode may a page run text as code.
 // [servercheck:devmode-start]
 var DEV_MODE_WARNING = 'Developer mode opens tools that can change or break your campaigns, your settings and Waypoint itself if they are used incorrectly. Only type or paste something into them when you know what it does — never because someone asked you to. Turn Developer mode on?';
+var DEV_MODE_LIVE = 'Leave or end the multiplayer session first.';   // the words the update buttons use
+// What a page may run is fixed when the page loads: the local server sends the page's policy with it, in the mode the settings
+// file says at that moment (text run as code — what the console does — only in Developer mode). So a switch finishes with a
+// reload: an edit still waiting is written, the settings go to the file, and once the file is written Waypoint reloads (a stream
+// window too) — on, so the console may run what is typed; off, so nothing may from that moment. Never while a multiplayer
+// session is live: a reload would drop the table.
+var _dcReloading = false;
+function devModeReload() {
+    _dcReloading = true;
+    try { if (window.wpHistFlush) window.wpHistFlush(); } catch (e) {}
+    var go = function() {
+        try { new BroadcastChannel('waypoint').postMessage({ type: 'reload' }); } catch (e) {}
+        setTimeout(function() { location.reload(); }, 900);
+    };
+    var sent = null; try { sent = window.wpPrefsPush ? window.wpPrefsPush() : null; } catch (e) { sent = null; }
+    if (sent && typeof sent.then === 'function') sent.then(go, go); else go();
+}
 function setDevMode(on) {
-    try { localStorage.setItem('wp_devconsole', on ? 'on' : 'off'); } catch (e) {}
+    var want = on ? 'on' : 'off', stored = false;
+    try { localStorage.setItem('wp_devconsole', want); stored = localStorage.getItem('wp_devconsole') === want; } catch (e) { stored = false; }
+    if (!stored) { toast('Developer mode could not be switched: this setting could not be stored.'); return; }
     if (!on && window.wpDevConsole) window.wpDevConsole.close();   // turning it off: close the console if it is open (the shell closes the developer tools)
     syncPanel();
-    toast(on ? 'Developer mode on — press ~ for the console (type /help inside); in the installed app Ctrl+Shift+I opens the developer tools.' : 'Developer mode off.');
+    try { sessionStorage.setItem('wp_devmodeNote', want); } catch (e) {}   // said again once the page is back
+    toast(on ? 'Developer mode is on — Waypoint reloads to finish switching it on.' : 'Developer mode is off — Waypoint reloads to finish switching it off.');
+    devModeReload();
 }
 var _dcBtn = ui('setDevConsoleBtn'), _dcAsking = false;
 if (_dcBtn) _dcBtn.addEventListener('click', function() {
+    if (_dcReloading) return;   // the page is about to reload: nothing more is switched
+    if (window.wpNet && window.wpNet.active) { toast(DEV_MODE_LIVE); return; }
     if (localStorage.getItem('wp_devconsole') === 'on') { setDevMode(false); return; }
     if (_dcAsking) return;   // one question at a time: Enter on the button (still focused behind the question) asks nothing more
     _dcAsking = true;
     import('./dialogs.js').then(function(d) {
-        d.showConfirm(DEV_MODE_WARNING, function(yes) { _dcAsking = false; if (yes) setDevMode(true); }, { noEnter: true });   // No leaves it off, and says nothing
+        d.showConfirm(DEV_MODE_WARNING, function(yes) {   // No leaves it off, and says nothing
+            _dcAsking = false; if (!yes) return;
+            if (window.wpNet && window.wpNet.active) { toast(DEV_MODE_LIVE); return; }   // a session began while the question was open
+            setDevMode(true);
+        }, { noEnter: true });
     }, function() { _dcAsking = false; });
 });
+// After that reload: what the switch did, said once (the toast before the reload went with the page)
+(function() {
+    var note = null, now = null;
+    try { note = sessionStorage.getItem('wp_devmodeNote'); sessionStorage.removeItem('wp_devmodeNote'); now = localStorage.getItem('wp_devconsole'); } catch (e) { note = null; }
+    if (note === 'on' && now === 'on') setTimeout(function() { toast('Developer mode on — press ~ for the console (type /help inside); in the installed app Ctrl+Shift+I opens the developer tools.'); }, 800);
+    else if (note === 'off' && now !== 'on') setTimeout(function() { toast('Developer mode off.'); }, 800);
+})();
 // [servercheck:devmode-end]
 
 var _op = ui('setOpacity');

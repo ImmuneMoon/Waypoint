@@ -4,7 +4,7 @@
    sanitiser, colours that are colours, numbers that are numbers, pictures that are the app's own (the owner's rule: a
    picture never loads from outside the app), and a category's files deleted only when they are that category's own.
    Runs the REAL code: safecore.js and docrender.js as modules, the renderers sliced out of planner.js, inspector.js,
-   whiteboard.js, sheets.js and music.js by their [sinkcheck:...] markers (never copied), and index.html's mermaid config,
+   whiteboard.js, sheets.js and music.js by their [sinkcheck:...] markers (never copied), and the page's mermaid config (scripts/bootdiagram.js),
    so a rewrite that drops a check fails here. Every built string is scanned for the markup it would create: no script-bearing tag, no on* attribute, no
    url() in a style, no src or href that leaves the app.
    Run: node tools/sinkcheck.js */
@@ -145,15 +145,80 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     check('planner editor: the formatting the bar makes stays as typed', rteInitial({ type: 'text', content: '<p><b>B</b> <i>I</i> <u>U</u> <s>S</s></p><ul><li>one</li></ul><ol><li>two</li></ol>' }) === '<p><b>B</b> <i>I</i> <u>U</u> <s>S</s></p><ul><li>one</li></ul><ol><li>two</li></ol>');
     check('planner editor: typed line breaks still become paragraphs and breaks', rteInitial({ type: 'text', content: 'a\n\nb\nc' }) === '<p>a</p><p>b<br>c</p>' && rteInitial({ type: 'lede', content: 'x\ny' }) === 'x<br>y' && rteInitial({ type: 'callout', content: '' }) === '');
 
-    /* ---- mermaid: a diagram's labels are HTML mermaid cleans itself — the app's config (index.html) forbids pictures, styles and links ---- */
+    /* ---- mermaid: a diagram's labels are HTML mermaid cleans itself — the app's config (scripts/bootdiagram.js, the page's last script) forbids pictures, styles and links ---- */
     const idx = fs.readFileSync(path.join(dir, '..', 'index.html'), 'utf8').replace(/\r\n/g, '\n');
-    const mm = /window\.wpMermaidConfig = (\{[\s\S]*?\});\n/.exec(idx);
+    const readOr = f => { try { return read(f); } catch (e) { return ''; } };   // a file that is not there fails its check, it does not stop the suite
+    const bootDiagram = readOr('bootdiagram.js');
+    const mm = /window\.wpMermaidConfig = (\{[\s\S]*?\});\n/.exec(bootDiagram);
     const mcfg = mm ? new Function('return (' + mm[1] + ');')() : {};
     const dp = mcfg.dompurifyConfig || {}, ft = dp.FORBID_TAGS || [], fa = dp.FORBID_ATTR || [];
     check('mermaid config: labels keep no picture, frame, svg or style element', ['img', 'image', 'picture', 'source', 'video', 'audio', 'iframe', 'object', 'embed', 'svg', 'style', 'link'].every(t => ft.indexOf(t) >= 0), ft);
     check('mermaid config: labels keep no style, src, srcset or href attribute', ['style', 'src', 'srcset', 'href', 'xlink:href', 'background', 'poster'].every(a => fa.indexOf(a) >= 0), fa);
+    // the library draws a $$…$$ formula in a label as a math element and, from 10.9.4, sends it through these same label rules: a rule against math would leave the label blank
+    check('mermaid config: a formula in a label is drawn — the label rules let the math element through (the library draws $$…$$ as one and cleans it by these rules), never its picture element (mglyph), and every picture, frame, svg, style and link element and every style, src, srcset and href attribute stays forbidden',
+        ft.indexOf('math') < 0 && ['mglyph', 'svg', 'style', 'img', 'image', 'picture', 'iframe', 'object', 'embed', 'link'].every(t => ft.indexOf(t) >= 0) && ['style', 'src', 'srcset', 'href', 'xlink:href'].every(a => fa.indexOf(a) >= 0), ft);
     check('mermaid config: a diagram\'s own %%{init}%% cannot change the label rules or the security level', ['dompurifyConfig', 'securityLevel', 'secure'].every(k => (mcfg.secure || []).indexOf(k) >= 0), mcfg.secure);
     check('mermaid config: the GM\'s own mode is unchanged (loose; players get strict from handbook.js)', mcfg.securityLevel === 'loose' && mcfg.startOnLoad === false && !!mcfg.flowchart);
+
+    /* ---- cluster P of the outside audit: the page runs only the app's own files (the policy both servers send says so; a script written into the page or a handler attribute would simply stop working) ---- */
+    {
+        const j = JSON.stringify, crypto = require('crypto'), appDir = path.join(dir, '..'), repo = path.join(appDir, '..', '..'), vendor = path.join(appDir, 'assets', 'vendor');
+        const scriptNames = fs.readdirSync(dir).filter(f => f.endsWith('.js')).sort(), allScripts = scriptNames.map(f => [f, read(f)]);
+        check('mermaid config: there is one, in scripts/bootdiagram.js — the page holds none of its own and no other script writes it — and it starts the library once the page is parsed',
+            !!mm && (idx + allScripts.map(p => p[1]).join('\n')).split('window.wpMermaidConfig = ').length === 2 && !/wpMermaidConfig/.test(idx) && /document\.addEventListener\("DOMContentLoaded", function\(\) \{\n\s*if \(window\.mermaid\) \{\n\s*mermaid\.initialize\(window\.wpMermaidConfig\);/.test(bootDiagram));
+        // every <script> of the page, as the parser reads them
+        const tags = []; { const reS = /<script\b([^>]*)>([\s\S]*?)<\/script>/g; let m; while ((m = reS.exec(idx))) tags.push({ attrs: m[1], body: m[2], at: m.index }); }
+        const srcOf = t => (/\ssrc="([^"]*)"/.exec(t.attrs) || [])[1], outside = v => typeof v !== 'string' || /^[a-z][a-z0-9+.-]*:|^\/\//i.test(v);
+        const links = idx.match(/<link\b[^>]*>/g) || [], hrefOf = l => (/\shref="([^"]*)"/.exec(l) || [])[1];
+        const headEnd = idx.indexOf('</head>');
+        check('the page (index.html) holds no script of its own: every <script> names a file — none is written into the page — and each is a plain classic script or a module with nothing else on its tag; no script or stylesheet comes from another address (no scheme, no //); all of them are in the head; the page carries no policy of its own in a <meta> (the policy is the servers\' header, so Developer mode can add to it), no handler attribute on any element, no javascript: address, and no <base>, <iframe>, <object>, <embed> or <form>',
+            tags.length >= 45 && (idx.match(/<script\b/g) || []).length === tags.length && tags.every(t => t.body === '' && /^( type="module")? src="[^"]+"$/.test(t.attrs) && !outside(srcOf(t)) && t.at < headEnd) && links.length >= 2 && links.every(l => !outside(hrefOf(l)))
+            && !/http-equiv/i.test(idx) && !/<[a-zA-Z][^<>]*\son[a-z]+\s*=/.test(idx) && !/javascript:/i.test(idx) && !/<(base|iframe|object|embed|form)\b/i.test(idx),
+            [tags.length, tags.filter(t => t.body !== '' || !/^( type="module")? src="[^"]+"$/.test(t.attrs) || outside(srcOf(t))).map(t => (t.attrs + ' ' + t.body).slice(0, 80)), links.filter(l => outside(hrefOf(l))), (/<[a-zA-Z][^<>]*\son[a-z]+\s*=/.exec(idx) || [''])[0].slice(0, 120)]);
+        const seq = tags.map(t => (/type="module"/.test(t.attrs) ? 'm:' : 'c:') + srcOf(t)), firstMod = seq.findIndex(x => x.indexOf('m:') === 0), lastMod = seq.length - 1 - seq.slice().reverse().findIndex(x => x.indexOf('m:') === 0);
+        const sheetAt = idx.indexOf('<link rel="stylesheet" href="style.css">');
+        const boots = { 'boottheme.js': "try { if (localStorage.getItem('wp_theme') === 'light') document.documentElement.setAttribute('data-theme', 'light'); } catch (e) {}", 'booterror.js': 'function showErrorBanner(text, color, top) {', 'bootprefs.js': 'window.wpPrefsPush = push;', 'bootdiagram.js': 'mermaid.initialize(window.wpMermaidConfig);' };
+        check('the four scripts that were written into the page run where and when they did, each now a classic script file of the app: the theme first of all and before the stylesheet; the error banner after the stylesheet and before every other script; the settings mirror directly after /api/prefs.js and before the first module (modules wait for the whole page, so the file\'s settings are merged before any of them reads one); the diagram config last, directly after the three bundled libraries; each file holds the code and the page holds none of it',
+            j(seq.slice(0, 4)) === j(['c:scripts/boottheme.js', 'c:scripts/booterror.js', 'c:/api/prefs.js', 'c:scripts/bootprefs.js']) && firstMod === 4 && j(seq.slice(lastMod + 1)) === j(['c:scripts/tooltips.js', 'c:assets/vendor/peerjs.min.js', 'c:assets/vendor/mermaid.min.js', 'c:assets/vendor/html2canvas.min.js', 'c:scripts/bootdiagram.js'])
+            && seq.slice(firstMod, lastMod + 1).every(x => x.indexOf('m:scripts/') === 0) && sheetAt > tags[0].at && sheetAt < tags[1].at
+            && Object.keys(boots).every(f => readOr(f).split(boots[f]).length === 2 && idx.indexOf(boots[f]) < 0 && !/^\s*(import|export)\s/m.test(readOr(f))), [seq.slice(0, 5), seq.slice(lastMod), sheetAt > 0]);
+
+        // the three libraries are files of the app
+        const LIBS = [['peerjs.min.js', '29e6ad48ce4552a35a348dc55ee7a5657db89cf9de229dbc56292d1be35867e8', '1.5.2', 'PeerJS'], ['mermaid.min.js', '8d607d7ef1d077a8aa202e18e62212bfa992c68bfeabc5cf45d51a128fe6675d', '10.9.8', 'Mermaid'], ['html2canvas.min.js', 'e87e550794322e574a1fda0c1549a3c70dae5a93d9113417a429016838eab8cb', '1.4.1', 'html2canvas']];
+        const bytesOf = f => { try { return fs.readFileSync(path.join(vendor, f)); } catch (e) { return null; } }, shaOf = b => (b ? crypto.createHash('sha256').update(b).digest('hex') : 'no file');
+        const licOf = f => { try { return fs.readFileSync(path.join(vendor, f.replace(/\.min\.js$/, '.LICENSE.txt')), 'utf8'); } catch (e) { return ''; } };
+        const vendorLs = (() => { try { return fs.readdirSync(vendor).sort(); } catch (e) { return []; } })();
+        const attrs = (() => { try { return fs.readFileSync(path.join(repo, '.gitattributes'), 'utf8').split(/\r?\n/); } catch (e) { return []; } })();
+        const iss = (() => { try { return fs.readFileSync(path.join(repo, 'installer.iss'), 'utf8'); } catch (e) { return ''; } })(), excl = (/Excludes: "([^"]*)"/.exec(iss) || ['', 'none'])[1].split(',');
+        check('bundled libraries: PeerJS 1.5.2, the diagram library 10.9.8 and html2canvas 1.4.1 are files of the app (assets/vendor), each the pinned file byte for byte (SHA-256) with its licence text beside it (the MIT permission notice, the file\'s version and its SHA-256) and nothing else in the folder; git keeps their bytes on every checkout (.gitattributes: binary); the installer leaves the folder in; the page loads each once, and no script of the app names the folder or the CDN they came from',
+            LIBS.every(l => shaOf(bytesOf(l[0])) === l[1] && /Permission is hereby granted, free of charge/.test(licOf(l[0])) && /MIT License/.test(licOf(l[0])) && /Copyright \(c\) /.test(licOf(l[0])) && licOf(l[0]).indexOf(l[3] + ' ' + l[2] + ' (' + l[0] + ')') === 0 && licOf(l[0]).indexOf('SHA-256 ' + l[1]) > 0)
+            && j(vendorLs) === j(['html2canvas.LICENSE.txt', 'html2canvas.min.js', 'mermaid.LICENSE.txt', 'mermaid.min.js', 'peerjs.LICENSE.txt', 'peerjs.min.js']) && attrs.indexOf('system/app/assets/vendor/*.js binary') >= 0
+            && excl.length > 10 && !excl.some(x => /vendor|assets|^system(\\\*)?$|^system\\app(\\|$)|^\*(\.(js|txt|\*))?$/i.test(x.trim())) && LIBS.every(l => idx.split('<script src="assets/vendor/' + l[0] + '"></script>').length === 2) && (idx.match(/assets\/vendor\//g) || []).length === 3
+            && !/cdnjs|cloudflare|unpkg|jsdelivr/i.test(idx) && allScripts.every(p => !/cdnjs|assets\/vendor/i.test(p[1])), [LIBS.map(l => shaOf(bytesOf(l[0])) === l[1]), vendorLs, allScripts.filter(p => /cdnjs|assets\/vendor/i.test(p[1])).map(p => p[0])]);
+        const guide = (() => { try { return fs.readFileSync(path.join(repo, 'CAMPAIGN_INTEGRATION.md'), 'utf8').replace(/\r\n/g, '\n'); } catch (e) { return ''; } })();
+        const guideLine = (guide.split('\n').filter(l => l.indexOf('"type": "diagram"') >= 0)[0] || '');
+        check('bundled libraries: the integration guide says of a diagram block what the app does — drawn by the bundled diagram library at the pinned version, with no connection — and nowhere that a diagram needs the internet, comes from a CDN or is drawn by the version the app left',
+            guideLine.indexOf('mermaid ' + LIBS[1][2]) > 0 && /bundled/.test(guideLine) && /no connection/i.test(guideLine) && !/needs internet|loaded from CDN|from a CDN|cdnjs|10\.9\.1/i.test(guide), guideLine.slice(0, 200));
+        const mmLib = bytesOf('mermaid.min.js'), mmVer = LIBS[1][2].split('.').map(Number);
+        check('mermaid: the bundled build is past the sequence-label fix (10.9.4 or later) and on the 10 line, never 11 (handbook.js and this suite rely on mermaid 10\'s run() reading a pre\'s markup); the file says the version the pin names',
+            mmVer.length === 3 && mmVer[0] === 10 && (mmVer[1] > 9 || (mmVer[1] === 9 && mmVer[2] >= 4)) && !!mmLib && mmLib.indexOf('="' + LIBS[1][2] + '"') > 0 && mmLib.indexOf('="10.9.1"') < 0, [mmVer, !!mmLib]);
+
+        // no script of the app writes what the policy would refuse, or steps around it
+        // the event names an element takes as an attribute (a variable called once or ongoing is no handler)
+        const EV = '(?:abort|animation\\w+|auxclick|before\\w+|afterprint|blur|cancel|canplay\\w*|change|click|close|contextmenu|copy|cuechange|cut|dblclick|drag\\w*|drop|durationchange|emptied|ended|error|focus(?:in|out)?|formdata|fullscreen\\w+|gotpointercapture|hashchange|input|invalid|key(?:down|press|up)|languagechange|load\\w*|lostpointercapture|message(?:error)?|mouse\\w+|offline|online|page(?:hide|show)|paste|pause|play(?:ing)?|pointer\\w+|popstate|progress|ratechange|readystatechange|reset|resize|scroll(?:end)?|search|securitypolicyviolation|seek(?:ed|ing)|select\\w*|slotchange|stalled|storage|submit|suspend|timeupdate|toggle|touch\\w+|transition\\w+|unhandledrejection|rejectionhandled|unload|volumechange|waiting|webkit\\w+|wheel|begin|end|repeat|show)';
+        const SCAN = [['a handler attribute in markup', new RegExp('[\\s"\'<]on' + EV + '\\s*=\\s*\\\\?["\']', 'gi')], ['a handler attribute in a tag', new RegExp('<[a-zA-Z][^<>\\n]{0,300}?\\son' + EV + '\\s*=', 'gi')], ['a handler set as an attribute', /setAttribute\(\s*["'`]on|setAttributeNS\(\s*[^,()]*,\s*["'`]on/gi], ['a javascript: address', /["'`]\s*javascript:/gi],
+            ['text run as code', /\bnew\s+Function\b|\bFunction\s*\(|\.constructor\s*\(|\[\s*["'`]constructor["'`]\s*\]\s*\(|\bset(Timeout|Interval)\(\s*["'`]|\bdocument\.write(ln)?\(|\bimportScripts\(|\beval\s*\(/g], ['a script element made by hand', /createElement\(\s*["'`]script["'`]\s*\)/gi],
+            ['a module or worker from somewhere else', /\bimport\(\s*(?!["']\.\/[\w.-]+["']\s*\))|^\s*import\s[^\n]*?\bfrom\s+["'](?!\.\/)|^\s*import\s+["'](?!\.\/)|\bnew\s+(Shared)?Worker\(|serviceWorker/gm]];
+        const scan = src => { const out = []; SCAN.forEach(p => { p[1].lastIndex = 0; let m; while ((m = p[1].exec(src))) { out.push(p[0] + ': ' + src.slice(Math.max(0, m.index - 30), m.index + 50).replace(/\s+/g, ' ')); if (m.index === p[1].lastIndex) p[1].lastIndex++; } }); return out; };
+        const found = []; allScripts.forEach(p => scan(p[1]).forEach(x => found.push(p[0] + ' — ' + x)));
+        const indirect = allScripts.map(p => [p[0], (p[1].match(/\(0, eval\)\(/g) || []).length]).filter(p => p[1] > 0), anyEval = allScripts.filter(p => /\beval\b\s*[),(]/.test(p[1])).map(p => p[0]);
+        const probe = ['el.innerHTML = \'<b onclick="go()">x</b>\';', 'h += "<img src=x onerror=\\"go()\\">";', 'el.setAttribute(\'onclick\', \'go()\');', 'a.href = "javascript:go()";', 'var f = new Function("return 1");', 'setTimeout("go()", 5);', 'var s = document.createElement("script");', 'import("https://example.com/x.js");', 'import(name);', 'new Worker("w.js");', 'x = eval("1");',
+            'var f = Function("return 1");', 'var g = window.Function("a", "return a");', 'x = (function() {}).constructor("return 1")();', 'x = go["constructor"](code)();', 'el.setAttribute("on" + n, code);', 'el.setAttribute(`on${n}`, code);', 'el.setAttributeNS(null, "onclick", code);'];
+        const fine = ['el.onclick = function() {};', 'el.addEventListener("click", go);', 'import(\'./dialogs.js\').then(go);', 'import { a } from \'./state.js\';', 'setTimeout(function() {}, 5);', 'var ongoing = "x", once = "y", only = \'z\'; if (ongoing === "y") {}', '// the import (a Merge or a Replace) is cleaned first','h += \'<span title="carry on = yes">\';',
+            'if (typeof f === "function") f();', 'function isFunction(v) { return typeof v === "function"; }', 'el.setAttribute("aria-pressed", "on");', 'el.setAttribute("data-kind", only);', 'if (Object.prototype.hasOwnProperty.call(o, "constructor")) return null;', 'var BAD = ["__proto__", "constructor", "prototype"];'];
+        check('no script of the app writes a handler attribute or a javascript: address into markup, runs text as code, makes a script element by hand or loads a module or worker from anywhere but the app\'s own scripts folder (every file in system/app/scripts scanned; the scan itself proven on a line of each kind, and quiet on the ways the app does wire a handler); the one place text is run as code is the Developer mode console (devconsole.js, twice: the typed line, and the probe that tells a refusal by the page\'s policy from an error of the typed line)',
+            scriptNames.length >= 50 && found.length === 0 && probe.every(l => scan(l).length > 0) && fine.every(l => scan(l).length === 0) && j(indirect) === j([['devconsole.js', 2]]) && j(anyEval) === j(['devconsole.js']), [found.slice(0, 6), probe.filter(l => scan(l).length === 0), fine.filter(l => scan(l).length > 0), indirect, anyEval]);
+    }
 
     /* ---- docrender: a page's layout numbers even when it never met cleanDoc ---- */
     let dHtml = '';

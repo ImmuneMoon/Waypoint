@@ -274,6 +274,11 @@
     function toggle() { isOpen() ? close() : open(); }
     function clear() { if (logEl) logEl.innerHTML = ''; seeded = false; }
 
+    // The page's policy lets typed text run only in a page that was loaded with Developer mode already on (the local server reads
+    // the settings file as it sends the page). In a window loaded before that, the engine refuses: this tells that refusal from an
+    // error of the typed line itself, so the console can say what to do instead of showing the engine's own words.
+    function refusedByPolicy() { try { (0, eval)('0'); return false; } catch (e) { return true; } }
+
     function run(cmd) {
         addLine('› ' + cmd, 'dc-cmd');
         if (cmd !== hist[hist.length - 1]) {
@@ -284,7 +289,14 @@
         var slash = /^\/([a-z?]+)(?:\s+([\s\S]*))?$/i.exec(cmd.trim());   // only the words in CMDS are intercepted; /foo/.test(y) still evals
         if (slash && CMDS[slash[1].toLowerCase()]) { CMDS[slash[1].toLowerCase()](slash[2] || ''); return; }
         var r;
-        try { r = (0, eval)(cmd); } catch (e) { addLine(String((e && e.stack) || e), 'dc-err'); return; }   // indirect eval → global scope, so window.* is reachable
+        try { r = (0, eval)(cmd); } catch (e) {   // indirect eval → global scope, so window.* is reachable
+            if (e instanceof EvalError && refusedByPolicy()) {
+                try { if (window.wpPrefsPush) window.wpPrefsPush(); } catch (e2) {}   // the settings file says "on" by the time of the reload
+                addLine('Developer mode is on, but this window was loaded before it was switched on, so it cannot run what you type yet. Reload Waypoint (Ctrl+R) and try again — the / commands work now.', 'dc-note');
+                return;
+            }
+            addLine(String((e && e.stack) || e), 'dc-err'); return;
+        }
         if (r && typeof r.then === 'function') {
             addLine('(pending…)', 'dc-note');
             r.then(function (v) { addLine(fmt(v), 'dc-out'); }, function (e) { addLine('Rejected: ' + String((e && e.stack) || e), 'dc-err'); });

@@ -255,7 +255,8 @@ const server = http.createServer((req, res) => {
     if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
         const ext = path.extname(filePath).toLowerCase();
         const mimes = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.woff2': 'font/woff2' };
-        servefile.serveFile(req, res, filePath, Object.assign({ 'Content-Type': servefile.mediaType(ext) || mimes[ext] || 'text/plain', 'Cache-Control': 'no-cache, no-store, must-revalidate' }, pathname.startsWith('/saves/') ? { 'Content-Security-Policy': 'sandbox', 'X-Content-Type-Options': 'nosniff' } : {}));   // item 21 V1: as main.js — a media file's own type, its length and a byte range when asked for
+        const underSaves = pathname.startsWith('/saves/'), mime = servefile.mediaType(ext) || (underSaves ? shellguard.savesType(mimes[ext] || 'text/plain') : mimes[ext] || 'text/plain');   // as main.js: nothing under saves/ is answered as a page, a script or a stylesheet
+        servefile.serveFile(req, res, filePath, Object.assign({ 'Content-Type': mime, 'Cache-Control': 'no-cache, no-store, must-revalidate' }, underSaves ? { 'Content-Security-Policy': 'sandbox', 'X-Content-Type-Options': 'nosniff' } : shellguard.pageHeaders(mime, path.join(savesDir, 'preferences.json'))));   // item 21 V1: as main.js — a media file's own type, its length and a byte range when asked for; a page of the app carries the policy for what it may run and load (shellguard.pagePolicy)
     } else {
         res.writeHead(404); res.end('Not Found');
     }

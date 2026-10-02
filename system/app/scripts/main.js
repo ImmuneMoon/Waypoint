@@ -386,7 +386,7 @@ if(_el_exportImgBtn) _el_exportImgBtn.addEventListener('click', function() {
 
       if(typeof html2canvas === 'undefined') {
 
-          toast('Image export needs an internet connection to load its renderer.');
+          toast('Image export is not available: its renderer did not load. Reload Waypoint and try again.');
 
           return;
 

@@ -21,10 +21,19 @@
      runsOf(text, fmt)               the text cut into runs [{ t, color, b, i }] with the base applied — what every renderer
                                      draws from (text nodes, or escaped text in elements it builds). The size is the field's
                                      own: cleanFmt(fmt, text).size.
-     respan(old, new, fmt, caret?)   carries the spans across an edit of the text: a span wholly before the change stays, one
+     respan(old, new, fmt, caret?, apart?)
+                                     carries the spans across an edit of the text: a span wholly before the change stays, one
                                      wholly after it moves with it, one the change sits inside grows or shrinks with it, one
-                                     the change cut into keeps what survives, one inside what was replaced goes. caret (the
-                                     field's selectionStart after the edit) tells a run of equal characters where the edit was.
+                                     the change cut into keeps what survives, one inside what was replaced goes. What is typed
+                                     (or pasted) right AFTER a span joins it, as in a word processor — the span grows; typed
+                                     right BEFORE one it does not (it takes what is before it), and between two touching spans
+                                     it is the left one's. A line break ends a span's reach: a typed run that begins with one,
+                                     or one typed after a line break that is the span's last character, stays outside (a line
+                                     begun with Enter after a styled line is not styled). A deletion never grows a span. caret
+                                     (the field's selectionStart after the edit) tells a run of equal characters where the edit was.
+                                     An edit never begins or ends inside a surrogate pair (two emoji that share half their code are
+                                     two whole characters). apart === true: the edit is not typing (the browser's own undo or redo
+                                     put the text there) — the spans are carried the same and nothing joins.
      apply(fmt, text, s, e, change)  what a press of a control does. change: { b: true } / { i: true } (the control was
                                      pressed: a range that is all bold loses it, any other gains it), { color: '#rrggbb' } or
                                      { color: null } (the default colour), { size: key } or { size: null }. s === e (a caret)
@@ -51,6 +60,7 @@ function hex(v) { return typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v) ? 
 function sizeKey(v) { return typeof v === 'string' && SIZES.indexOf(v) >= 0 ? v : ''; }
 function txt(t) { return t == null ? '' : String(t); }
 function whole(v) { return typeof v === 'number' && isFinite(v) && Math.floor(v) === v; }
+function isBreak(code) { return code === 10 || code === 13; }   // a line break (a flowchart label's \n; \r for a text from elsewhere)
 // offset i would split a surrogate pair
 function inPair(t, i) {
     if (i <= 0 || i >= t.length) return false;
@@ -139,7 +149,7 @@ function runsOf(text, fmt) {
     return flatten(text, base, readSpans(f, text)).map(function(iv) { return { t: text.slice(iv.s, iv.e), color: iv.color, b: iv.b, i: iv.i }; });
 }
 
-function respan(oldText, newText, fmt, caret) {
+function respan(oldText, newText, fmt, caret, apart) {
     oldText = txt(oldText); newText = txt(newText);
     var f = cleanFmt(fmt, oldText);
     if (!f) return undefined;
@@ -149,19 +159,26 @@ function respan(oldText, newText, fmt, caret) {
         q = z - caret; hinted = true;
         var limP = Math.min(a - q, caret);
         while (p < limP && oldText.charCodeAt(p) === newText.charCodeAt(p)) p++;
+        if (inPair(oldText, p) || inPair(newText, p)) p--;   // the change never begins inside a pair: two emoji may share their first half
     }
     if (!hinted) {
         var lim = Math.min(a, z);
         while (p < lim && oldText.charCodeAt(p) === newText.charCodeAt(p)) p++;
+        if (inPair(oldText, p) || inPair(newText, p)) p--;
         while (q < lim - p && oldText.charCodeAt(a - 1 - q) === newText.charCodeAt(z - 1 - q)) q++;
     }
-    var oe = a - q, d = z - a, spans = [];   // the old text's [p, oe) became the new text's [p, oe + d)
+    if (inPair(oldText, a - q) || inPair(newText, z - q)) q--;   // nor ends inside one (or their second half)
+    var oe = a - q, d = z - a, typed = oe + d - p, spans = [];   // the old text's [p, oe) became the new text's [p, p + typed)
+    // What was typed joins the span that ends where it begins — unless it begins with a line break, or follows one (a new line is not the styled line's)
+    // — and never when the edit is not typing (apart)
+    var joins = apart !== true && typed > 0 && p > 0 && !isBreak(newText.charCodeAt(p)) && !isBreak(newText.charCodeAt(p - 1));
     f.spans.forEach(function(sp) {
         var s, e;
-        if (sp.e <= p) { s = sp.s; e = sp.e; }
+        if (sp.e < p || (sp.e === p && !joins)) { s = sp.s; e = sp.e; }
+        else if (sp.e === p) { s = sp.s; e = p + typed; }             // typed right after it: it grows
         else if (sp.s >= oe) { s = sp.s + d; e = sp.e + d; }
         else if (sp.s < p && sp.e > oe) { s = sp.s; e = sp.e + d; }   // the change sits inside it
-        else if (sp.s < p) { s = sp.s; e = p; }                       // its end was replaced
+        else if (sp.s < p) { s = sp.s; e = joins ? p + typed : p; }   // its end was replaced: what was typed there joins what is left of it
         else if (sp.e > oe) { s = oe + d; e = sp.e + d; }             // its start was replaced
         else return;                                                  // all of it was replaced
         var o = { s: s, e: e };

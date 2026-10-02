@@ -55,7 +55,7 @@ var BY_ID = {
     netStageSelect: 'Where joining players land. Player\'s last location sends each player back to the map they were last on, to stay put until they travel or you summon; Follow me keeps the table on whatever map you are viewing.',
     netStageFallbackSelect: 'Where a player joining this campaign for the first time lands: with you (Follow me) or parked on a map of your choice.',
     netPassInput: 'Optional extra lock: players must type this along with the room code.',
-    netCodeInput: 'The six-character code your GM gave you.',
+    netCodeInput: 'The room code your GM gave you: ten characters, shown as XXXXX-XXXXX. Type or paste it with or without the hyphen.',
     netJoinPassInput: 'Only needed if the GM set a session password.',
     elementSearchInput: 'Filter the list by name.',
     newDocBtn: 'A new handbook page: rules or reference your players can read at the table.',

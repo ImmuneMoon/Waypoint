@@ -195,6 +195,21 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         && J(respan('xaay', 'xaaay', { spans: [{ s: 1, e: 2, b: true }] }, 99)) === J({ spans: [{ s: 1, e: 2, b: true }] }));  // a caret that cannot be: ignored
     check('respan: an edit next to a surrogate pair never leaves half of it styled',
         (() => { const o = 'a😀b', nw = 'a😁b', f = respan(o, nw, { spans: [{ s: 0, e: 4, color: RED }, { s: 1, e: 3, b: true }] }, 3); return runsOf(nw, f).every(r => !/^[\udc00-\udfff]/.test(r.t) && !/[\ud800-\udbff]$/.test(r.t)) && runsOf(nw, f).map(r => r.t).join('') === nw; })());
+    check('respan: an emoji typed over an emoji joins or stays apart exactly as a letter typed over a letter does — two emoji that share half their code are still two whole characters (right after a span it joins it; over a span\'s first character it does not; with the caret or without)',
+        (() => { const g = { spans: [{ s: 0, e: 1, color: GREEN }] }, a = '😀', b = '😁', c = '🈀';   // a and b share their first half, a and c their second
+            return J(respan('G' + a + 'x', 'G' + b + 'x', g, 3)) === J({ spans: [{ s: 0, e: 3, color: GREEN }] }) && J(respan('G' + a + 'x', 'G' + b + 'x', g)) === J({ spans: [{ s: 0, e: 3, color: GREEN }] })
+                && J(respan('Gax', 'Gbx', g, 2)) === J({ spans: [{ s: 0, e: 2, color: GREEN }] })
+                && J(respan('x' + a + 'G', 'x' + c + 'G', { spans: [{ s: 1, e: 4, color: GREEN }] }, 3)) === J({ spans: [{ s: 3, e: 4, color: GREEN }] }) && J(respan('x' + a + 'G', 'x' + c + 'G', { spans: [{ s: 1, e: 4, color: GREEN }] })) === J({ spans: [{ s: 3, e: 4, color: GREEN }] })
+                && J(respan('xaG', 'xbG', { spans: [{ s: 1, e: 3, color: GREEN }] }, 2)) === J({ spans: [{ s: 2, e: 3, color: GREEN }] }); })(),
+        [respan('G😀x', 'G😁x', { spans: [{ s: 0, e: 1, color: GREEN }] }, 3), respan('x😀G', 'x🈀G', { spans: [{ s: 1, e: 4, color: GREEN }] }, 3)]);
+    check('respan: one of two emoji that share half their code deleted is a deletion — the one that stays keeps its own look and nothing grows (with the caret or without)',
+        (() => { const a = '😀', b = '😁', g = { spans: [{ s: 0, e: 1, color: GREEN }, { s: 1, e: 3, b: true }] };   // G green, the first emoji bold
+            return J(respan('G' + a + b + 'x', 'G' + b + 'x', g, 1)) === J({ spans: [{ s: 0, e: 1, color: GREEN }] }) && J(respan('G' + a + b + 'x', 'G' + b + 'x', g)) === J({ spans: [{ s: 0, e: 1, color: GREEN }] })
+                && J(respan('G' + a + b + 'x', 'G' + a + 'x', g, 3)) === J(g) && J(respan('G' + a + b + 'x', 'G' + a + 'x', g)) === J(g); })());
+    check('respan: an edit the browser\'s own undo or redo made is not typing — with the fifth argument true nothing joins: text put back right after a span stays outside it, and what replaces a span\'s end does not join what is left; everything else is carried as ever',
+        J(respan('then', 'then go', { spans: [{ s: 0, e: 4, b: true }] }, 7, true)) === J({ spans: [{ s: 0, e: 4, b: true }] }) && J(respan('then', 'then go', { spans: [{ s: 0, e: 4, b: true }] }, 7)) === J({ spans: [{ s: 0, e: 7, b: true }] })
+        && J(respan('buy milk now', 'buy miXw', F1, 7, true)) === J({ color: RED, spans: [{ s: 4, e: 6, color: GREEN }] }) && J(respan('buy milk now', 'buy miilk now', F1, 7, true)) === J({ color: RED, spans: [{ s: 4, e: 9, color: GREEN }] })
+        && J(respan('buy milk now', 'do buy milk now', F1, 3, true)) === J({ color: RED, spans: [{ s: 7, e: 11, color: GREEN }] }) && J(respan('then', 'then go', { spans: [{ s: 0, e: 4, b: true }] }, 7, 1)) === J({ spans: [{ s: 0, e: 7, b: true }] }));
     // a seeded walk, with and without the caret: every character that survives an edit keeps its look, and what was typed takes the look of
     // the character on its left where a span styles that one — unless the typed run begins with a line break or follows one at that span's
     // end — and the field's own look everywhere else
@@ -416,15 +431,59 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             check('typing (the owner\'s case, through tsType to the stored format): everything red and one line green — typed at the end of the green line it is green, typed at its start it is red, and after Enter at its end the new line is red',
                 atEnd === J({ color: RED, spans: [{ s: 9, e: 18, color: GREEN }] }) && atStart === J({ color: RED, spans: [{ s: 10, e: 19, color: GREEN }] }) && J(nt.fmt) === atStart && nt.text === 'buy milk\nxwalk dogs\nf\ncall mum', [atEnd, atStart, nt.fmt]);
         }
+        {   // the browser's own undo and redo in a plain field (an 'input' of type historyUndo / historyRedo) put a text back with the look it had
+            const bold4 = J({ spans: [{ s: 0, e: 4, b: true }] });
+            const mkU = (text, fmt) => { const p = mkPage({ map: mapOf(B0()) }), b = p.map.blocks, e = b[2].edges[0]; e.text = text; if (fmt) e.fmt = fmt; return { p, b, e, d: { idx: 2, k: 'edge', ei: 0 }, type(v, c, it) { p.tsType(b, this.d, v, c, it); return J(e.fmt); } }; };
+            const u1 = mkU('then go', { spans: [{ s: 0, e: 4, b: true }] });
+            const cut = u1.type('then', 4, 'deleteContentForward'), undone = u1.type('then go', 7, 'historyUndo');   // " go" selected and deleted, then Ctrl+Z
+            const typed = u1.type('thens go', 5, 'insertText'), undone2 = u1.type('then go', 4, 'historyUndo'), redone = u1.type('thens go', 5, 'historyRedo');
+            check('typing (the browser\'s undo and redo, through tsType to the stored format): text a Ctrl+Z brings back right after a styled part comes back as it was, not styled — and a letter typed after the part, undone and redone, ends on the grown part',
+                cut === bold4 && undone === bold4 && typed === J({ spans: [{ s: 0, e: 5, b: true }] }) && undone2 === bold4 && redone === J({ spans: [{ s: 0, e: 5, b: true }] }) && u1.e.text === 'thens go', [cut, undone, typed, undone2, redone]);
+            // the same text twice with two looks: undo looks back from where the field stands, redo forward
+            const u2 = mkU('then go', { spans: [{ s: 0, e: 4, b: true }] });
+            u2.type('then', 4, 'deleteContentForward'); const retyped = u2.type('then go', 7, 'insertText');   // " go" typed again after the bold part: it joins
+            const b1 = u2.type('then', 4, 'historyUndo'), b2 = u2.type('then go', 7, 'historyUndo'), f1 = u2.type('then', 4, 'historyRedo'), f2 = u2.type('then go', 7, 'historyRedo');
+            check('typing (undo and redo): a text the field has held twice with two looks comes back with the look of that time — undo looks back from where the field stands, redo forward',
+                retyped === J({ spans: [{ s: 0, e: 7, b: true }] }) && b1 === bold4 && b2 === bold4 && f1 === bold4 && f2 === J({ spans: [{ s: 0, e: 7, b: true }] }), [retyped, b1, b2, f1, f2]);
+            // a styled part typed over and brought back; what is typed after an undo drops what the undo took back
+            const u3 = mkU('then go', { color: RED, spans: [{ s: 5, e: 7, color: GREEN, i: true }] });
+            const over = u3.type('x', 1, 'insertText'), restored = u3.type('then go', 7, 'historyUndo');
+            const u4 = mkU('ab', { spans: [{ s: 0, e: 2, b: true }] });
+            u4.type('abc', 3, 'insertText'); u4.type('ab', 2, 'historyUndo'); u4.type('abZ', 3, 'insertText'); const noRedo = u4.type('abc', 3, 'historyRedo');   // "abc" is no longer ahead: carried, nothing joins
+            check('typing (undo and redo): a styled part typed over comes back styled when the browser puts its text back, the field\'s own look with it; what is typed after an undo drops what the undo took back',
+                over === J({ color: RED }) && restored === J({ color: RED, spans: [{ s: 5, e: 7, color: GREEN, i: true }] }) && noRedo === J({ spans: [{ s: 0, e: 2, b: true }] }), [over, restored, noRedo]);
+            // a press of the bar between two edits: the look after the press is the one that comes back
+            const u5 = mkU('then go', { spans: [{ s: 0, e: 4, b: true }] });
+            u5.type('then go!', 8, 'insertText'); u5.e.fmt = { spans: [{ s: 0, e: 4, b: true }, { s: 5, e: 8, color: RED }] };   // as a press of Red on "go!" stores it
+            const afterPress = u5.type('then go!x', 9, 'insertText'), toPress = u5.type('then go!', 8, 'historyUndo');
+            check('typing (undo and redo): after a press of the bar an undo of what was typed since comes back to the look the press gave, not the one before it',
+                afterPress === J({ spans: [{ s: 0, e: 4, b: true }, { s: 5, e: 9, color: RED }] }) && toPress === J({ spans: [{ s: 0, e: 4, b: true }, { s: 5, e: 8, color: RED }] }), [afterPress, toPress]);
+            // nothing remembered: a rebuilt editor, a text the field never held, a field never styled
+            const u6 = mkU('then go', { spans: [{ s: 0, e: 4, b: true }, { s: 5, e: 7, color: RED }] });
+            u6.type('then', 4, 'deleteContentForward'); u6.p.tsRebuilt(); const forgot = u6.type('then go', 7, 'historyUndo');
+            const u7 = mkU('then', { spans: [{ s: 0, e: 4, b: true }] }), unknown = u7.type('then go', 7, 'historyUndo'), asTyping = mkU('then', { spans: [{ s: 0, e: 4, b: true }] }).type('then go', 7, 'insertText');
+            const u8 = mkU('then go'); u8.type('then', 4, 'deleteContentForward'); u8.type('then go', 7, 'historyUndo');
+            const u9 = mkU('then go', { spans: [{ s: 0, e: 4, b: true }] }), cell = { idx: 1, k: 'cell', ri: 0, ci: 0 };
+            u9.type('then', 4, 'deleteContentForward'); u9.p.tsType(u9.b, cell, 'then go', 7, 'historyUndo');   // another field given the same text: it takes nothing from the label's list
+            check('typing (undo and redo): nothing is remembered across a rebuild of the editor (a place is an index), and a text the field is not known to have held has its spans carried with nothing joined — never read as typing; a field never styled gets no format and another field takes nothing from this one\'s list',
+                forgot === bold4 && unknown === bold4 && asTyping === J({ spans: [{ s: 0, e: 7, b: true }] }) && !('fmt' in u8.e) && u8.e.text === 'then go' && !('fmt' in u9.b[1].rows[0]) && u9.b[1].rows[0].col1 === 'then go' && J(u9.e.fmt) === bold4, [forgot, unknown, asTyping, u8.e, u9.b[1].rows[0]]);
+            // the list is bounded
+            const u10 = mkU('a b.', { spans: [{ s: 0, e: 1, b: true }, { s: 2, e: 3, color: RED }] }); let tx = 'a b.';
+            for (let k = 0; k < 130; k++) { if (k === 10) u10.e.fmt = { spans: [{ s: 0, e: 1, b: true }] }; tx += ' x'; u10.type(tx, tx.length, 'insertText'); }   // the red taken off on the way, as a press of Default would
+            const gone = u10.type('q', 1, 'insertText'), late = u10.type(tx, tx.length, 'historyUndo'), early = u10.type('a b. x', 6, 'historyUndo');
+            check('typing (undo and redo): a field remembers its last 100 texts — one within them comes back as it was (a part typed over is styled again), one from before them is carried from the field as it stands, never given a look from a list without end',
+                gone === undefined && late === J({ spans: [{ s: 0, e: 1, b: true }] }) && early === J({ spans: [{ s: 0, e: 1, b: true }] }) && u10.e.text === 'a b. x', [gone, late, early]);
+        }
         pg.tsType(bl, { idx: 1, k: 'cell', ri: 0, ci: 0 }, 'Medicine!', 9); pg.tsType(bl, { idx: 6, k: 'col', ci: 0 }, 'Things', 6);
         check('typing: a field with no format gets none (no key appears), a head typed for the first time makes the heads the block\'s own, as before',
             bl[1].rows[0].col1 === 'Medicine!' && !('fmt' in bl[1].rows[0]) && J(bl[6].cols) === J(['Things', 'Detail', 'Notes']) && !('colFmt' in bl[6]) && pg.tsType(bl, { idx: 9, k: 'title' }, 'x', 1) === false);
         bl[1].rows[1].fmt = { col3: { spans: [{ s: 2, e: 6, i: true }] } };
         pg.tsType(bl, { idx: 1, k: 'cell', ri: 1, ci: 2 }, '', 0);
         check('typing: emptying a field leaves no spans behind', !('fmt' in bl[1].rows[1]) && bl[1].rows[1].col3 === '');
-        const handlers = ['b-title', 'b-caption', 'b-sub', 'b-must', 'r-col', 'fc-n-text', 'fc-e-text'].every(c => new RegExp("querySelectorAll\\('\\." + c + "'\\)\\)\\.forEach\\(el => el\\.addEventListener\\('input', function\\(\\) \\{ tsType\\(activeMap\\.blocks, tsDesc\\(this\\), this\\.value, this\\.selectionStart\\);").test(plannerSrc));
-        check('typing (wired): every plain box\'s input handler goes through tsType with the box\'s caret — a title, a caption, a subtitle or tag, must-resolve, a cell, a node\'s label, an arrow\'s — and a head too',
-            handlers && /querySelectorAll\('\.b-colhead'\)\)\.forEach\(el => el\.addEventListener\('input', function\(\) \{\n\s*tsType\(activeMap\.blocks, tsDesc\(this\), this\.value, this\.selectionStart\);/.test(plannerSrc)
+        const handlers = ['b-title', 'b-caption', 'b-sub', 'b-must', 'r-col', 'fc-n-text', 'fc-e-text'].every(c => new RegExp("querySelectorAll\\('\\." + c + "'\\)\\)\\.forEach\\(el => el\\.addEventListener\\('input', function\\(e\\) \\{ tsType\\(activeMap\\.blocks, tsDesc\\(this\\), this\\.value, this\\.selectionStart, e\\.inputType\\);").test(plannerSrc));
+        check('typing (wired): every plain box\'s input handler goes through tsType with the box\'s caret and the input\'s own type (so the browser\'s undo and redo are told from typing) — a title, a caption, a subtitle or tag, must-resolve, a cell, a node\'s label, an arrow\'s — and a head too; a rebuild of the editor forgets every field\'s texts',
+            handlers && /querySelectorAll\('\.b-colhead'\)\)\.forEach\(el => el\.addEventListener\('input', function\(e\) \{\n\s*tsType\(activeMap\.blocks, tsDesc\(this\), this\.value, this\.selectionStart, e\.inputType\);/.test(plannerSrc)
+            && (plannerSrc.match(/tsType\(activeMap\.blocks, tsDesc\(this\), this\.value, this\.selectionStart, e\.inputType\)/g) || []).length === 8 && !/this\.selectionStart\);/.test(plannerSrc) && /function tsRebuilt\(\) \{ tsState\.sel = null; tsState\.run = null; tsForget\(\); tsRefresh\(\); \}/.test(plannerSrc)
             && !/\.(title|caption|must|text) = this\.value/.test(plannerSrc) && !/\['col' \+ \(parseInt\(this\.dataset\.ci, 10\) \+ 1\)\] = this\.value/.test(plannerSrc));
     }
 

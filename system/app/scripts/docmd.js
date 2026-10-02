@@ -21,8 +21,10 @@
      resolved against the files or zip dropped with the .md, `data:` decoded, `https:` kept as a
      link). Raw HTML from a file is never a raw block: unknown tags are dropped, their text kept.
      Text style travels: a text block keeps `<span style="color:#rrggbb">` / `<span style="font-size:1.2em">`
-     (the sanitizer's one span form); in a title, a cell, a caption or a flowchart label, bold, italic
-     and those spans are written from the field's format and read back into it ("text style" below). */
+     (the sanitizer's one span form; beside one, the block's bold and italic are written as <b> / <i>
+     wherever the marks would not read back; a span lives inside one paragraph); in a title, a cell, a
+     caption or a flowchart label, bold, italic and those spans are written from the field's format and
+     read back into it ("text style" below). */
 'use strict';
 import { sanitizeHtml, DOC_BLOCKS, fieldFmt, colFmtOf, cellFmtOf } from './docrender.js';
 import { cleanFmt, runsOf, SIZE_EM, MAX_RAW } from './textfmt.js';
@@ -388,6 +390,9 @@ function flowchartToMermaid(b) {
 }
 
 /* ---------- Markdown → blocks ---------- */
+// A span that holds nothing — one a file opens on a line of its own, leaves open, or closes on a later line: a span lives inside one
+// paragraph — is dropped, the white space it held kept (so it leaves no empty paragraph behind and no empty tag in a block)
+function dropEmptySpans(html) { var prev; do { prev = html; html = html.replace(/<span[^>]*>(\s*)<\/span>/g, '$1'); } while (html !== prev); return html; }
 function isBlockStart(line, next) {
     return /^(```+|~~~+)/.test(line) || /^:::\s*(lede|oneline|flare|callout)\s*$/i.test(line) || /^#{1,6}\s/.test(line) || /^(?:-{3,}|\*{3,}|_{3,})\s*$/.test(line) || /^>/.test(line) || LIST_RE.test(line) || (/\|/.test(line) && isTableSep(next)) || /^!\[[^\]]*\](\([^)]*\)|\[[^\]]*\])\s*(\{[^{}]*\})?\s*$/.test(line);
 }
@@ -418,7 +423,7 @@ function markdownToBlocks(text, opts) {
 
     function push(b) { b.id = uid(); blocks.push(b); return b; }
     // What a file's inline HTML becomes in a text block: the page sanitiser's — its allow-list of tags, and the one span form (a colour, a size step) an export writes
-    function tidy(html) { return sanitizeHtml(html).replace(/<p>\s*<\/p>/g, ''); }   // an HTML block inside a paragraph leaves empty pairs behind
+    function tidy(html) { return dropEmptySpans(sanitizeHtml(html)).replace(/<p>\s*<\/p>/g, ''); }   // an HTML block inside a paragraph leaves empty pairs behind
     function flushRun() { if (!run.length) return; var html = tidy(run.join('')); run = []; if (html.replace(/<[^>]+>/g, '').trim() || /<pre>/.test(html)) push({ type: 'text', content: html }); }
     function flushInlineImages() { var list = ctx.inlineImages; ctx.inlineImages = []; list.forEach(function(im) { addImage(im.caption, im.dest, im.ref, im.attrs, true); }); }
     function addImage(caption, dest, ref, attrs, wasInline) {
@@ -472,7 +477,7 @@ function markdownToBlocks(text, opts) {
             i++; scene = null; handleFence(info, body.join('\n')); continue;
         }
         var cf = /^:::\s*(lede|oneline|flare|callout)\s*$/i.exec(line);
-        if (cf) { var cb = []; i++; while (i < lines.length && !/^:::\s*$/.test(lines[i])) { cb.push(lines[i]); i++; } i++; flushRun(); scene = null; push({ type: cf[1].toLowerCase(), content: sanitizeHtml(paraHtml(cb.filter(function(x) { return x.trim(); }), ctx)) }); flushInlineImages(); continue; }
+        if (cf) { var cb = []; i++; while (i < lines.length && !/^:::\s*$/.test(lines[i])) { cb.push(lines[i]); i++; } i++; flushRun(); scene = null; push({ type: cf[1].toLowerCase(), content: dropEmptySpans(sanitizeHtml(paraHtml(cb.filter(function(x) { return x.trim(); }), ctx))) }); flushInlineImages(); continue; }
         if (!line.trim()) { i++; continue; }
         var h = /^(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line);
         if (h) {
@@ -505,7 +510,7 @@ function markdownToBlocks(text, opts) {
             var qt = 'callout', tm = /^\[!(lede|oneline|flare|callout)\]\s*/i.exec(qb[0] || '');
             if (tm) { qt = tm[1].toLowerCase(); qb[0] = qb[0].slice(tm[0].length); }
             if (qb.some(function(x) { return /^>/.test(x); })) notes.push('A nested quote was flattened.');
-            flushRun(); scene = null; push({ type: qt, content: sanitizeHtml(paraHtml(qb.map(function(x) { return x.replace(/^>\s?/, ''); }).filter(function(x) { return x.trim(); }), ctx)) }); flushInlineImages(); continue;
+            flushRun(); scene = null; push({ type: qt, content: dropEmptySpans(sanitizeHtml(paraHtml(qb.map(function(x) { return x.replace(/^>\s?/, ''); }).filter(function(x) { return x.trim(); }), ctx))) }); flushInlineImages(); continue;
         }
         if (/\|/.test(line) && isTableSep(next)) {
             var textOf = function(c) { return c.text; }, fmtOf = function(c) { return c.fmt; };
@@ -567,12 +572,15 @@ function spanTag(attrs) {
     var m = /^\s*style="(?:color:(#[0-9a-f]{6}))?;?(?:font-size:([0-9.]+em))?"\s*$/.exec(attrs || ''), size = m && m[2] && ownKey(SIZE_OF, m[2]) ? m[2] : '';
     return m && (m[1] || size) ? '<span style="' + (m[1] ? 'color:' + m[1] : '') + (m[1] && size ? ';' : '') + (size ? 'font-size:' + size : '') + '">' : '';
 }
-// Sanitized prose HTML back to the dialect (p, br, b/strong, i/em, u, s, ul/ol/li, code, pre, a, and the colour / size span as itself)
-function htmlToMarkdown(html) {
-    var out = '', hrefs = [], lists = [], inPre = false, inCode = false, re = /<(\/?)([a-z0-9]+)([^>]*)>|([^<]+)/gi, m;
+// Sanitized prose HTML back to the dialect (p, br, b/strong, i/em, u, s, ul/ol/li, code, pre, a, and the colour / size span as itself).
+// opts.tags === true: bold and italic as <b> / <i> instead of the marks (proseMd: where the marks would not read back).
+function htmlToMarkdown(html, opts) {
+    var tags = !!opts && opts.tags === true, out = '', hrefs = [], lists = [], inPre = false, inCode = false, re = /<(\/?)([a-z0-9]+)([^>]*)>|([^<]+)/gi, m;
     // open colour / size spans: written when text follows, closed before a block ends and opened again after it (a span never crosses a paragraph in the file)
     var spans = [];
     var hold = function() { for (var k = spans.length - 1; k >= 0; k--) if (spans[k].live) { out += '</span>'; spans[k].live = false; } };
+    // bold / italic: the mark — or, with opts.tags, the tag; each closes the way it was opened (inside code it is the mark, as ever)
+    var asTag = [], bi = function(close, t, mark) { if (!tags) return mark; if (!close) { asTag.push(!inCode); return inCode ? mark : '<' + t + '>'; } return asTag.pop() === true ? '</' + t + '>' : mark; };
     var resume = function() { for (var k = 0; k < spans.length; k++) if (!spans[k].live && spans[k].tag) { out += spans[k].tag; spans[k].live = true; } };
     while ((m = re.exec(html))) {
         if (m[4] !== undefined) {   // F2a: a code span is read back raw (no escapes in it); a line start only where the run starts a line
@@ -588,8 +596,8 @@ function htmlToMarkdown(html) {
         switch (tag) {
             case 'p': if (close) out += '\n\n'; break;
             case 'br': out += '  \n'; break;
-            case 'b': case 'strong': out += '**'; break;
-            case 'i': case 'em': out += '*'; break;
+            case 'b': case 'strong': out += bi(close, 'b', '**'); break;
+            case 'i': case 'em': out += bi(close, 'i', '*'); break;
             case 's': case 'strike': out += '~~'; break;
             case 'u': out += close ? '</u>' : '<u>'; break;
             case 'code': out += '`'; inCode = !close; break;
@@ -603,6 +611,20 @@ function htmlToMarkdown(html) {
     return out.replace(/`\n```/g, '\n```').replace(/[ \t]+\n/g, function(x) { return /  \n$/.test(x) ? '  \n' : '\n'; }).replace(/\n{3,}/g, '\n\n').trim();
 }
 function quoteLines(md) { return md.split('\n').map(function(l) { return '> ' + l; }).join('\n'); }
+// A text block's Markdown as its lines in the file; a prose block's (lede, oneline, flare, callout) as its quote
+function proseLines(type, md) { if (type === 'text') return [md]; var l = md.split('\n'); return ['> [!' + type + '] ' + l[0]].concat(l.slice(1).map(function(x) { return '> ' + x; })); }
+// A text or prose block as the dialect's Markdown. Where it holds a colour / size span, Markdown's own bold and italic marks are used only
+// where the block reads back as it does with the tags: a mark beside a span's tag can pair up wrongly on the way back in
+// (*<span …>**word**</span>* is read as an italic that ends at the first of the two stars). Else its bold and italic are written as
+// <b> / <i>, which the importer hands to the sanitiser as they are. A block with no span is written exactly as it always was.
+function proseMd(html, type, kind) {
+    var md = htmlToMarkdown(html);
+    if (html.indexOf('<span') < 0) return md;
+    var tagged = htmlToMarkdown(html, { tags: true });
+    if (tagged === md) return md;
+    var read = function(x) { return JSON.stringify(markdownToBlocks(proseLines(type, x).join('\n'), { kind: kind }).blocks.map(function(b) { return [b.type, b.content]; })); };
+    return read(md) === read(tagged) ? md : tagged;
+}
 function cellText(s) { return String(s == null ? '' : s).replace(/\r?\n/g, ' ').replace(/\|/g, '\\|').trim(); }
 function yamlStr(s) { s = String(s == null ? '' : s); return /[:#\[\]{}"'<>&\u0000-\u001f\u007f]|^\s|\s$/.test(s) ? JSON.stringify(s).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026') : s; }   // F2a: a control character (a CR would end the front matter early), and markup, always quoted and escaped
 function layoutTail(l, forPage) {
@@ -653,11 +675,8 @@ function docToMarkdown(item, opts) {
                 sawH1 = true; L.push('# ' + fieldText(b, 'title', IN_LINE)); if (b.sub) L.push('*' + fieldText(b, 'sub', IN_ITALIC) + '*'); L.push(''); break;
             case 'h2': L.push('## ' + fieldText(b, 'title', IN_LINE) + (kind === 'doc' && b.cols > 1 ? ' {cols=' + Math.min(3, b.cols) + '}' : ''), ''); break;
             case 'h3': L.push('### ' + fieldText(b, 'title', IN_LINE), ''); break;
-            case 'text': L.push(htmlToMarkdown(sanitizeHtml(b.content || '')), ''); break;
-            case 'lede': case 'oneline': case 'flare': case 'callout': {
-                var md = htmlToMarkdown(sanitizeHtml(b.content || ''));
-                L.push('> [!' + b.type + '] ' + md.split('\n')[0]); md.split('\n').slice(1).forEach(function(x) { L.push('> ' + x); }); L.push(''); break;
-            }
+            case 'text': L.push(proseMd(sanitizeHtml(b.content || ''), 'text', kind), ''); break;
+            case 'lede': case 'oneline': case 'flare': case 'callout': L.push.apply(L, proseLines(b.type, proseMd(sanitizeHtml(b.content || ''), b.type, kind))); L.push(''); break;
             case 'image': {
                 var ref = '';
                 if (b.src && b.src.indexOf('/saves/images/') === 0) {

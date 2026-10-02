@@ -157,13 +157,44 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       }
       return null;
   }
-  // Typing in a field: the text takes the new value and its spans are carried across the edit (caret: the box's selectionStart)
-  function tsType(blocks, d, value, caret) {
+  // Typing in a field: the text takes the new value and its spans are carried across the edit (caret: the box's selectionStart).
+  // inputType: the 'input' event's own. The browser's undo and redo (historyUndo / historyRedo) are not typing: they put a text back, and it
+  // comes back with the look it had then. tsPast holds, per field (by its place), the texts the field has had since the editor was built,
+  // each with its format, and where among them the field stands: an undo looks back from there, a redo forward. A text it does not hold
+  // has its spans carried with nothing joined (respan's fifth argument): what an undo puts back right after a styled part never had that
+  // part's look. A field that never had a format keeps no list and is handled exactly as before. Forgotten whenever the editor is rebuilt
+  // (tsRebuilt): a place is an index, and the boxes — with the browser's own undo of them — are new.
+  var TS_PAST_MAX = 100, tsPast = Object.create(null);
+  function tsForget() { tsPast = Object.create(null); }
+  function tsType(blocks, d, value, caret, inputType) {
       var fld = tsField(blocks, d); if (!fld) return false;
       var old = fld.text(), f = fld.fmt();
       value = String(value == null ? '' : value);
       fld.setText(value);
-      if (f !== undefined) fld.setFmt(TF.respan(old, value, f, caret));
+      var key = [d.idx, d.k, d.ri, d.ci, d.ni, d.ei].join('/'), past = tsPast[key];
+      if (f === undefined && !past) return true;   // never styled
+      var dir = inputType === 'historyUndo' ? -1 : inputType === 'historyRedo' ? 1 : 0, now, k = -1;
+      var str = function(x) { return x === undefined ? '' : JSON.stringify(x); };
+      if (dir) {
+          if (past) {
+              var n = past.list.length, miss = function(j) { return j >= 0 && j < n && past.list[j].t !== value; };
+              for (k = past.at + dir; miss(k); k += dir) {}
+              if (k < 0 || k >= n) for (k = past.at - dir; miss(k); k -= dir) {}   // not that way: the browser and the list disagree on where the field stands
+              if (k >= n) k = -1;
+          }
+          if (k >= 0) { past.at = k; now = past.list[k].f ? TF.cleanFmt(JSON.parse(past.list[k].f), value) : undefined; }
+          else now = f !== undefined ? TF.respan(old, value, f, caret, true) : undefined;
+      } else {
+          var cur = str(TF.cleanFmt(f, old));
+          now = f !== undefined ? TF.respan(old, value, f, caret) : undefined;
+          if (!past) past = tsPast[key] = { list: [], at: -1 };
+          past.list.length = past.at + 1;   // what an undo took back is gone once something is typed
+          if (past.at < 0 || past.list[past.at].t !== old || past.list[past.at].f !== cur) past.list.push({ t: old, f: cur });   // the field as it stands (a press of the bar changed its look since)
+          past.list.push({ t: value, f: str(now) });
+          if (past.list.length > TS_PAST_MAX) past.list.splice(0, past.list.length - TS_PAST_MAX);
+          past.at = past.list.length - 1;
+      }
+      if (f !== undefined || now !== undefined) fld.setFmt(now);
       return true;
   }
   // What the bar says it will act on, in a few words (plain text: the caller sets it as textContent)
@@ -285,8 +316,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   }
   // The editor was rebuilt (a row, a block, a node or an arrow added, deleted or moved; undo, redo; another document): what was remembered is a
   // place by index, and every index may now name another text — so nothing stays remembered and the bar asks for a click in a field. (A box
-  // given the focus again after an undo is noted afresh as it takes it.)
-  function tsRebuilt() { tsState.sel = null; tsState.run = null; tsRefresh(); }
+  // given the focus again after an undo is noted afresh as it takes it.) The texts each field has held (tsType) are forgotten with it.
+  function tsRebuilt() { tsState.sel = null; tsState.run = null; tsForget(); tsRefresh(); }
   // Back from the bar to the field it acts on, its selection as it was. False when there is none.
   function tsBack() {
       var am = tsBlocksOf(), sel = tsState.sel;
@@ -618,7 +649,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       // Attach listeners
 
-      Array.from(blockContainer.querySelectorAll('.b-title')).forEach(el => el.addEventListener('input', function() { tsType(activeMap.blocks, tsDesc(this), this.value, this.selectionStart); save(false); renderPlannerPreview(); }));
+      Array.from(blockContainer.querySelectorAll('.b-title')).forEach(el => el.addEventListener('input', function(e) { tsType(activeMap.blocks, tsDesc(this), this.value, this.selectionStart, e.inputType); save(false); renderPlannerPreview(); }));
 
       Array.from(blockContainer.querySelectorAll('.b-img-pick')).forEach(el => el.addEventListener('click', function() {
           var idx = +this.dataset.idx;
@@ -635,7 +666,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       }));
       Array.from(blockContainer.querySelectorAll('.b-imgw')).forEach(el => el.addEventListener('change', function() { activeMap.blocks[this.dataset.idx].width = +this.value; save(true); renderPlannerPreview(); }));
       Array.from(blockContainer.querySelectorAll('.b-imga')).forEach(el => el.addEventListener('change', function() { activeMap.blocks[this.dataset.idx].align = this.value; save(true); renderPlannerPreview(); }));
-      Array.from(blockContainer.querySelectorAll('.b-caption')).forEach(el => el.addEventListener('input', function() { tsType(activeMap.blocks, tsDesc(this), this.value, this.selectionStart); save(true); renderPlannerPreview(); }));
+      Array.from(blockContainer.querySelectorAll('.b-caption')).forEach(el => el.addEventListener('input', function(e) { tsType(activeMap.blocks, tsDesc(this), this.value, this.selectionStart, e.inputType); save(true); renderPlannerPreview(); }));
       // Page layout row (pages only). Selects and the checkbox are one undo step each; the nudge boxes coalesce like text.
       var layOf = function(el) { var bb = activeMap.blocks[el.dataset.idx]; if (!bb.layout || typeof bb.layout !== 'object') bb.layout = blockLayout(bb); return bb; };
       Array.from(blockContainer.querySelectorAll('.b-lay-w')).forEach(el => el.addEventListener('change', function() { layOf(this).layout.width = +this.value; save(true); renderPlannerPreview(); }));
@@ -643,9 +674,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       Array.from(blockContainer.querySelectorAll('.b-lay-dx, .b-lay-dy')).forEach(el => el.addEventListener('input', function() { var bb = layOf(this); bb.layout[this.classList.contains('b-lay-dx') ? 'dx' : 'dy'] = Math.max(-200, Math.min(200, Math.round(+this.value || 0))); save(false); renderPlannerPreview(); }));
       Array.from(blockContainer.querySelectorAll('.b-lay-span')).forEach(el => el.addEventListener('change', function() { var bb = layOf(this); bb.layout.span = this.checked; if (this.checked) bb.layout.float = 'none'; save(true); renderPlanner(); }));
       Array.from(blockContainer.querySelectorAll('.b-h2cols')).forEach(el => el.addEventListener('change', function() { activeMap.blocks[this.dataset.idx].cols = Math.max(1, Math.min(3, parseInt(this.value, 10) || 1)); save(true); renderPlanner(); }));
-      Array.from(blockContainer.querySelectorAll('.b-sub')).forEach(el => el.addEventListener('input', function() { tsType(activeMap.blocks, tsDesc(this), this.value, this.selectionStart); save(false); renderPlannerPreview(); }));
+      Array.from(blockContainer.querySelectorAll('.b-sub')).forEach(el => el.addEventListener('input', function(e) { tsType(activeMap.blocks, tsDesc(this), this.value, this.selectionStart, e.inputType); save(false); renderPlannerPreview(); }));
 
-      Array.from(blockContainer.querySelectorAll('.b-must')).forEach(el => el.addEventListener('input', function() { tsType(activeMap.blocks, tsDesc(this), this.value, this.selectionStart); save(false); renderPlannerPreview(); }));
+      Array.from(blockContainer.querySelectorAll('.b-must')).forEach(el => el.addEventListener('input', function(e) { tsType(activeMap.blocks, tsDesc(this), this.value, this.selectionStart, e.inputType); save(false); renderPlannerPreview(); }));
 
       Array.from(blockContainer.querySelectorAll('.b-linkmap')).forEach(el => el.addEventListener('change', function() {
           var bb = activeMap.blocks[this.dataset.idx];
@@ -668,14 +699,14 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           tsSetColCount(bb, n);   // the heads, and their formats in step
           save(true); renderPlanner();
       }));
-      Array.from(blockContainer.querySelectorAll('.b-colhead')).forEach(el => el.addEventListener('input', function() {
-          tsType(activeMap.blocks, tsDesc(this), this.value, this.selectionStart);   // the heads become the block's own at the first typed one, as before
+      Array.from(blockContainer.querySelectorAll('.b-colhead')).forEach(el => el.addEventListener('input', function(e) {
+          tsType(activeMap.blocks, tsDesc(this), this.value, this.selectionStart, e.inputType);   // the heads become the block's own at the first typed one, as before
           save(false); renderPlannerPreview();
       }));
       Array.from(blockContainer.querySelectorAll('.b-content')).forEach(el => el.addEventListener('input', function() { activeMap.blocks[this.dataset.idx].content = this.value; save(false); if(activeMap.blocks[this.dataset.idx].type !== 'diagram') renderPlannerPreview(); }));
       wireRte(blockContainer);
 
-      Array.from(blockContainer.querySelectorAll('.r-col')).forEach(el => el.addEventListener('input', function() { tsType(activeMap.blocks, tsDesc(this), this.value, this.selectionStart); save(false); renderPlannerPreview(); }));
+      Array.from(blockContainer.querySelectorAll('.r-col')).forEach(el => el.addEventListener('input', function(e) { tsType(activeMap.blocks, tsDesc(this), this.value, this.selectionStart, e.inputType); save(false); renderPlannerPreview(); }));
 
       
 
@@ -725,7 +756,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       Array.from(blockContainer.querySelectorAll('.fc-reset-pos')).forEach(el => el.addEventListener('click', function() {
           var bb = activeMap.blocks[this.dataset.idx]; delete bb.nodePos; delete bb.nodeSize; delete bb.nodePosSig; save(true); renderPlanner(); renderPlannerPreview();
       }));
-      Array.from(blockContainer.querySelectorAll('.fc-n-text')).forEach(el => el.addEventListener('input', function() { tsType(activeMap.blocks, tsDesc(this), this.value, this.selectionStart); save(false); renderPlannerPreview(); }));
+      Array.from(blockContainer.querySelectorAll('.fc-n-text')).forEach(el => el.addEventListener('input', function(e) { tsType(activeMap.blocks, tsDesc(this), this.value, this.selectionStart, e.inputType); save(false); renderPlannerPreview(); }));
 
       Array.from(blockContainer.querySelectorAll('.fc-n-shape')).forEach(el => el.addEventListener('change', function() { activeMap.blocks[this.dataset.idx].nodes[this.dataset.ni].shape = this.value; save(true); renderPlannerPreview(); }));
 
@@ -741,7 +772,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       Array.from(blockContainer.querySelectorAll('.fc-e-to')).forEach(el => el.addEventListener('input', function() { activeMap.blocks[this.dataset.idx].edges[this.dataset.ei].to = this.value; save(false); renderPlannerPreview(); }));
 
-      Array.from(blockContainer.querySelectorAll('.fc-e-text')).forEach(el => el.addEventListener('input', function() { tsType(activeMap.blocks, tsDesc(this), this.value, this.selectionStart); save(false); renderPlannerPreview(); }));
+      Array.from(blockContainer.querySelectorAll('.fc-e-text')).forEach(el => el.addEventListener('input', function(e) { tsType(activeMap.blocks, tsDesc(this), this.value, this.selectionStart, e.inputType); save(false); renderPlannerPreview(); }));
 
       Array.from(blockContainer.querySelectorAll('.fc-e-style')).forEach(el => el.addEventListener('change', function() { activeMap.blocks[this.dataset.idx].edges[this.dataset.ei].style = this.value; save(true); renderPlannerPreview(); }));
 

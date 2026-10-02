@@ -124,6 +124,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       var noEnter = !!(opts && opts.noEnter === true);
 
+      // opts.body: an element the caller built from text nodes, shown between the question and its buttons and taken out again with it
+      // (a link's site and whole address: linkgate.js). A question without one is drawn exactly as before.
+      var bodyEl = opts && opts.body && typeof opts.body === 'object' && opts.body.nodeType === 1 ? opts.body : null, slot = null;
+
       if (p.style.display === 'flex') { _confirmQueue.push([title, callback, opts]); return; }   // one question at a time: a second waits its turn instead of silently replacing the first (whose answer would then never arrive)
 
       document.getElementById('customConfirmTitle').textContent = title;
@@ -148,11 +152,17 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
           document.removeEventListener('keydown', handleKey);
 
+          if (slot) { if (slot.parentNode) { slot.parentNode.classList.remove('confirm-wide'); slot.parentNode.removeChild(slot); } slot = null; }
+
           var nx = _confirmQueue.shift(); if (nx) setTimeout(function() { showConfirm(nx[0], nx[1], nx[2]); }, 0);
 
       }
 
       
+
+      var row = bodyEl ? okBtn.parentNode : null;
+
+      if (row && row.parentNode) { slot = document.createElement('div'); slot.id = 'customConfirmBody'; slot.appendChild(bodyEl); row.parentNode.insertBefore(slot, row); row.parentNode.classList.add('confirm-wide'); }
 
       okBtn.onclick = function() { cleanup(); callback(true); };
 

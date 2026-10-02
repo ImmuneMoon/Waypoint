@@ -37,7 +37,24 @@ function normalizePosture(v) {
     if (/crawl/.test(s)) return 'crawling';
     return 'standing';
 }
-function tokenElevation(it) { var e = Number(it && it.elevation); return isFinite(e) ? e : 0; }
+// [fogcheck:ground-start]
+// Item 19b H5 (the owner's answer of 2026-10-01, "Added": ground height): a token's height is its own elevation — what its player or the GM
+// set, "above the ground you stand on" — plus the ground under it: the highest Ground height (item.ground, yards, below 0 for a pit) of the
+// map's pieces whose outline covers the centre of the token's cell (fogcore groundAt: the cells the cover readers use). Given the map, every
+// reader of a height reads the sum through this one function — the chip and the hover card, cover, the ruler's 3D line, a blast, HeightDiff
+// and HeightMod, the fog rules; without a map, the token's own elevation as ever (what the stance rows show and set). shown (true): only the
+// pieces players hold, never one the GM hid — for what a host works out for its players (their roll, a thrown blast's height); a player's own
+// copy holds no hidden piece, so their app reads the ground from what it has
+function tokenElevation(it, map, shown) { var e = Number(it && it.elevation); e = isFinite(e) ? e : 0; return map ? Math.round((e + tokenGround(it, map, shown)) * 100) / 100 : e; }
+function tokenGround(it, map, shown) { return it && typeof it === 'object' ? groundAt(map, it.x + (it.w || 60) / 2, it.y + (it.h || 52) / 2, shown) : 0; }   // the ground under a token's centre
+function groundAt(map, x, y, shown) {   // the ground under a board point of a map, yards (0: none, no map, no fog core)
+    var C = window.wpFogCore; if (!C || !C.groundAt || !C.gridFor || !map || typeof map !== 'object' || !Array.isArray(map.whiteboard)) return 0;
+    return C.groundAt(map.whiteboard, x, y, C.gridFor((map.meta && map.meta.gridType) || 'off', map.fog && map.fog.cell), shown === true);
+}
+// ... and its words beside a token's own Elevation, in the viewer's unit: "+3 yd ground" ('' on no ground, or with Token elevation off). A
+// number and fixed words; callers escape it
+function groundWords(it, map) { var g = stanceOn('elevation') ? tokenGround(it, map) : 0; return g ? fmtElev(g) + ' ' + lenUnit() + ' ground' : ''; }
+// [fogcheck:ground-end]
 function tokenPosture(it) { return normalizePosture(it && it.posture); }
 function stanceOn(which) {   // 'elevation' | 'posture'
     var v = window.wpVtt;
@@ -76,7 +93,33 @@ function postureListNow() { var S = window.wpSystemCore; return S && S.postureLi
 function tokenPostureAt(it) { var S = window.wpSystemCore; if (S && S.postureAt) return S.postureAt(postureSys(), it && it.posture); var p = tokenPosture(it), i = POSTURES.indexOf(p); return { i: i, p: { id: p, name: POSTURE_LABEL[p], tag: POSTURE_CHIP[p] || '', small: i > 0 } }; }
 function postureRanged(tok) { if (!(tok && tok.isChar && stanceOn('posture'))) return ''; var at = tokenPostureAt(tok); return at.i > 0 && at.p && at.p.small === true ? '\u2212' + (-POSTURE_RANGED) + ' ranged (posture: ' + String(at.p.name || '').toLowerCase() + ')' : ''; }
 // [systemcheck:postranged-end]
-window.wpStance = { POSTURES: POSTURES, POSTURE_LABEL: POSTURE_LABEL, normalizePosture: normalizePosture, tokenElevation: tokenElevation, tokenPosture: tokenPosture, postures: postureListNow, postureAt: tokenPostureAt, on: stanceOn, setElevation: setTokenElevation, setPosture: setTokenPosture, fmtElev: fmtElev, lenUnit: lenUnit, ydOut: ydOut, ydIn: ydIn, fmtLen: fmtLen };   // item 19 H1: lengths in the viewer's unit
+window.wpStance = { POSTURES: POSTURES, POSTURE_LABEL: POSTURE_LABEL, normalizePosture: normalizePosture, tokenElevation: tokenElevation, tokenGround: tokenGround, groundAt: groundAt, groundWords: groundWords, tokenPosture: tokenPosture, postures: postureListNow, postureAt: tokenPostureAt, on: stanceOn, setElevation: setTokenElevation, setPosture: setTokenPosture, fmtElev: fmtElev, lenUnit: lenUnit, ydOut: ydOut, ydIn: ydIn, fmtLen: fmtLen };   // item 19 H1: lengths in the viewer's unit
+
+// [fogcheck:stancechips-start]
+// A token's stance chips (its Elevation, its posture), drawn into its element. Item 19b H5: the Elevation chip reads the token's height where it
+// stands now — its own elevation plus the ground under it — and a token moves with no redraw of the board: its mover's drop, a move that lands
+// from the table, a ground piece dragged, resized or re-set under it. The board's redraw and each of those call this one function, so the chip
+// never keeps the ground of a place the token has left. It writes only what changed. Its markup: numbers, fixed words, names escaped
+function stanceChipsSync(el, item, activeMap) {
+    var elevV = item.isChar && stanceOn('elevation') ? tokenElevation(item, activeMap) : 0, elevG = elevV ? groundWords(item, activeMap) : '';   // item 19b H5: its height with the ground it stands on
+    var postAt = item.isChar && stanceOn('posture') ? tokenPostureAt(item) : null;   // conditions C3: its place in the list in use (the first: no chip)
+    var stanceHtml = '';
+    if (elevV) stanceHtml += '<span class="chip elev' + (elevV < 0 ? ' below' : '') + '" title="Elevation ' + fmtElev(elevV) + ' ' + lenUnit() + (elevG ? ' (' + esc(elevG) + ')' : '') + '">' + fmtElev(elevV) + '</span>';
+    if (postAt && postAt.i > 0 && postAt.p) stanceHtml += '<span class="chip post" title="' + esc(postAt.p.name) + (postAt.p.small === true ? '&#10;' + esc(POSTURE_RANGED_LINE) : '') + '">' + esc(postAt.p.tag) + '</span>';   // its tooltip's second line, a smaller target's: a foe's ranged roll at -2
+    var stanceEl = el.querySelector(':scope > .token-stance');
+    if (stanceHtml) {
+        if (!stanceEl) { stanceEl = document.createElement('div'); stanceEl.className = 'token-stance'; el.appendChild(stanceEl); }
+        if (stanceEl.dataset.sig !== stanceHtml) { stanceEl.dataset.sig = stanceHtml; stanceEl.innerHTML = stanceHtml; }
+    } else if (stanceEl) stanceEl.remove();
+}
+// ... and the chips of every character token on the map on screen, again (window.wpStanceChips): nothing while the data map is on screen, with
+// no map, or for a token with no element on the board
+function refreshStanceChips() {
+    var map = getActiveMap(); if (!map || map.type !== 'map' || !Array.isArray(map.whiteboard) || state.viewMode !== 'visual' || !state.wbEls) return;
+    map.whiteboard.forEach(function(w) { if (!w || !w.isChar || typeof w.id !== 'string') return; var el = Object.prototype.hasOwnProperty.call(state.wbEls, w.id) ? state.wbEls[w.id] : null; if (el) stanceChipsSync(el, w, map); });
+}
+window.wpStanceChips = refreshStanceChips;
+// [fogcheck:stancechips-end]
 
 // Context-menu rows for elevation (− / value / +) and posture (select); shared by the GM's
 // item menu and the player's own-token menu. Rows carry cm-stance so the menu stays open.
@@ -84,8 +127,8 @@ function stanceMenuHtml(it) {
     var eOn = stanceOn('elevation'), pOn = stanceOn('posture');
     if (!eOn && !pOn) return '';
     var ctl = 'padding:2px 4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;';
-    var html = '<div class="menu-divider"></div>';
-    if (eOn) html += '<div class="menu-item cm-stance" style="display:flex; align-items:center; gap:6px; cursor:default;"><span class="cm-stance" style="flex:1;">Elevation</span>'
+    var html = '<div class="menu-divider"></div>', gWords = eOn ? groundWords(it, getActiveMap()) : '';   // item 19b H5: the ground it stands on, beside its own Elevation
+    if (eOn) html += '<div class="menu-item cm-stance" style="display:flex; align-items:center; gap:6px; cursor:default;"><span class="cm-stance" style="flex:1;">Elevation' + (gWords ? ' <span class="cm-stance stance-ground" style="color:var(--dim); font-size:11px;" title="The ground this token stands on, added to its own elevation">' + esc(gWords) + '</span>' : '') + '</span>'
         + '<button class="cm-stance align-btn stance-elev" data-d="-1" title="Down one ' + (metricOn() ? 'metre' : 'yard') + '">&minus;</button>'
         + '<input class="cm-stance stance-elev-in num-stepped" type="number" step="1" value="' + (Math.round(ydOut(tokenElevation(it)) * 10) / 10) + '" style="width:54px; ' + ctl + '">'
         + '<span class="cm-stance" style="color:var(--dim);">' + lenUnit() + '</span>'
@@ -509,7 +552,7 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
 
                       var cstats = wItem.charStats || '';
                       var stanceBits = [];
-                      if (stanceOn('elevation') && tokenElevation(wItem)) stanceBits.push('Elevation ' + fmtElev(tokenElevation(wItem)) + ' ' + lenUnit());
+                      if (stanceOn('elevation')) { var hvE = tokenElevation(wItem, _am), hvG = groundWords(wItem, _am); if (hvE || hvG) stanceBits.push('Elevation ' + fmtElev(hvE) + ' ' + lenUnit() + (hvG ? ' (' + esc(hvG) + ')' : '')); }   // item 19b H5: its height, the ground it stands on included (and named)
                       var postAtH = stanceOn('posture') ? tokenPostureAt(wItem) : null; if (postAtH && postAtH.i > 0 && postAtH.p) stanceBits.push(String(postAtH.p.name || ''));   // conditions C3: its posture's name in the list in use (a text node below)
                       var stanceLine = stanceBits.length ? '<div class="rc" style="color:var(--gold); font-size:11px;">' + stanceBits.join(' \u00b7 ') + '</div>' : '';
 
@@ -984,11 +1027,11 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
           var marksEl = el.querySelector(':scope > .target-marks');
           if (tgs.length) {
               if (!marksEl) { marksEl = document.createElement('div'); marksEl.className = 'target-marks'; el.appendChild(marksEl); }
-              var tcov = tgs.map(function(t) { var mt = targeterTok(t.id, activeMap); if (!mt || !window.wpFog || !window.wpFog.coverBetween) return null; return window.wpFog.coverBetween(mt.x + (mt.w || 60) / 2, mt.y + (mt.h || 52) / 2, item.x + (item.w || 60) / 2, item.y + (item.h || 52) / 2, stanceOn('elevation') ? tokenElevation(mt) : 0, stanceOn('elevation') ? tokenElevation(item) : 0); });   // item 19 H1: their heights, for the system's height rule   // cover follow-ups (owner 2026-09-28): the cover between each targeter's token here and this one, worked out from this viewer's own board
+              var tcov = tgs.map(function(t) { var mt = targeterTok(t.id, activeMap); if (!mt || !window.wpFog || !window.wpFog.coverBetween) return null; return window.wpFog.coverBetween(mt.x + (mt.w || 60) / 2, mt.y + (mt.h || 52) / 2, item.x + (item.w || 60) / 2, item.y + (item.h || 52) / 2, stanceOn('elevation') ? tokenElevation(mt, activeMap) : 0, stanceOn('elevation') ? tokenElevation(item, activeMap) : 0); });   // item 19 H1: their heights, for the system's height rule   // cover follow-ups (owner 2026-09-28): the cover between each targeter's token here and this one, worked out from this viewer's own board
               var tsig = tgs.map(function(t, ti) { return t.id + ':' + (tcov[ti] ? tcov[ti].name : ''); }).join(',');
               var trng = tgs.map(function(t) { var mr = targeterTok(t.id, activeMap); return mr && mr !== item ? rangeSeen(activeMap, tokenCentre(mr), tokenCentre(item), mr, item) : null; });   // range R1: the modifier from each targeter's token here to this one (the same token cover measures from)
               tsig += '|' + trng.map(function(r) { return r ? r.mod + ':' + Math.round(r.dist * 10) + r.unit : ''; }).join(',');
-              var thgt = tgs.map(function(t) { var mh = targeterTok(t.id, activeMap); return mh && mh !== item ? heightSeen(mh, item) : null; });   // item 19 H2: the height modifier from each targeter's token to this one
+              var thgt = tgs.map(function(t) { var mh = targeterTok(t.id, activeMap); return mh && mh !== item ? heightSeen(mh, item, activeMap) : null; });   // item 19 H2: the height modifier from each targeter's token to this one
               tsig += '|' + thgt.map(function(h) { return h ? h.mod + ':' + h.diff : ''; }).join(',') + '|' + (state.measureUnit || '');
               var tlit = tgs.map(function(t) { var ml = targeterTok(t.id, activeMap); return ml ? lightSeenBy(ml, item, activeMap) : null; });   // lighting L4: the light this token stands in as each targeter's token sees it — on the GM's screen, and on a player's for their own mark alone
               tsig += '|' + tlit.map(function(l) { return l ? l.lv + ':' + l.name : ''; }).join(',');
@@ -1024,16 +1067,7 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
           el.classList.toggle('tok-down', stv === 'down');
           // Stance chips (Settings ▸ VTT features, per campaign): a small row at the bottom of the token,
           // inside its own cell so one-token-per-hex still reads at grid scale.
-          var elevV = item.isChar && stanceOn('elevation') ? tokenElevation(item) : 0;
-          var postAt = item.isChar && stanceOn('posture') ? tokenPostureAt(item) : null;   // conditions C3: its place in the list in use (the first: no chip)
-          var stanceHtml = '';
-          if (elevV) stanceHtml += '<span class="chip elev' + (elevV < 0 ? ' below' : '') + '" title="Elevation ' + fmtElev(elevV) + ' ' + lenUnit() + '">' + fmtElev(elevV) + '</span>';
-          if (postAt && postAt.i > 0 && postAt.p) stanceHtml += '<span class="chip post" title="' + esc(postAt.p.name) + (postAt.p.small === true ? '&#10;' + esc(POSTURE_RANGED_LINE) : '') + '">' + esc(postAt.p.tag) + '</span>';   // its tooltip's second line, a smaller target's: a foe's ranged roll at -2
-          var stanceEl = el.querySelector(':scope > .token-stance');
-          if (stanceHtml) {
-              if (!stanceEl) { stanceEl = document.createElement('div'); stanceEl.className = 'token-stance'; el.appendChild(stanceEl); }
-              if (stanceEl.dataset.sig !== stanceHtml) { stanceEl.dataset.sig = stanceHtml; stanceEl.innerHTML = stanceHtml; }
-          } else if (stanceEl) stanceEl.remove();
+          stanceChipsSync(el, item, activeMap);   // item 19b H5: its chips, as a move that lands with no redraw asks for them again (wpStanceChips)
           var fxHtml = item.isChar && window.wpSheets && window.wpSheets.tokenFx ? tokenFxHtml(window.wpSheets.tokenFx(item)) : '', fxEl = el.querySelector(':scope > .token-fx');   // conditions C1: its effects
           if (fxHtml) {
               if (!fxEl) { fxEl = document.createElement('div'); fxEl.className = 'token-fx'; el.appendChild(fxEl); }
@@ -1622,6 +1656,7 @@ window.wpFitToGrid = fitToGrid;
           try { handle.releasePointerCapture(e.pointerId); } catch(e){}
 
           save();
+          refreshStanceChips();   // item 19b H5: a ground piece resized under a token (or away from one) changes its chip with no redraw
 
       });
 
@@ -2960,7 +2995,7 @@ window.wpFitToGrid = fitToGrid;
   // and a unit's short name, never a name from a file
   function rangeSeen(map, a, b, tA, tB) {   // { mod, dist, unit } or null: no rule, no map
       var S = window.wpSystemCore, sys = window.wpSheets && window.wpSheets.systemOf ? window.wpSheets.systemOf() : null; if (!S || !S.rangeOf || !sys || !map) return null;
-      var dz = tA && tB && stanceOn('elevation') ? tokenElevation(tB) - tokenElevation(tA) : 0;
+      var dz = tA && tB && stanceOn('elevation') ? tokenElevation(tB, map) - tokenElevation(tA, map) : 0;   // item 19b H5: each on the ground it stands on
       return S.rangeOf(sys, map, a, b, { F: window.wpFormula, dz: dz });
   }
   function rangeModText(m) { return typeof m !== 'number' || !isFinite(m) ? '' : m < 0 ? '\u2212' + String(-m) : m > 0 ? '+' + String(m) : '0'; }
@@ -2973,9 +3008,9 @@ window.wpFitToGrid = fitToGrid;
   // Item 19 H2 (the owner's answer: shown on the ruler and at a target mark): the system's height modifier between two character tokens — the
   // first's height over the second's, as a roll's HeightMod reads it — on the ruler and at each target mark from its targeter's token. Worked
   // out on this screen; its words a number and the viewer's own unit (yards or metres), never a name from a file
-  function heightSeen(tA, tB) {   // { mod, diff, unit } or null: no table or formula, no two tokens
+  function heightSeen(tA, tB, map) {   // { mod, diff, unit } or null: no table or formula, no two tokens; map (item 19b H5): each on the ground it stands on there
       var S = window.wpSystemCore, sys = window.wpSheets && window.wpSheets.systemOf ? window.wpSheets.systemOf() : null; if (!S || !S.heightOf || !sys || !tA || !tB) return null;
-      return S.heightOf(sys, tA, tB, { F: window.wpFormula, elev: stanceOn('elevation') });
+      return S.heightOf(sys, tA, tB, { F: window.wpFormula, elev: stanceOn('elevation'), groundOf: map ? function(t) { return tokenGround(t, map); } : null });
   }
   var HEIGHT_YD = { yd: 1, ft: 1 / 3, m: 1.0936133 };
   function heightTitle(hg) { var yd = (typeof hg.diff === 'number' && isFinite(hg.diff) ? hg.diff : 0) * (Object.prototype.hasOwnProperty.call(HEIGHT_YD, hg.unit) ? HEIGHT_YD[hg.unit] : 1); return 'Height ' + rangeModText(hg.mod) + ' (' + (yd ? fmtElev(yd) + ' ' + lenUnit() : 'level') + ')'; }
@@ -3030,12 +3065,12 @@ window.wpFitToGrid = fitToGrid;
           var amR = getActiveMap();
           var tA = amR && tokenAtPoint(amR, m.x1, m.y1), tB = amR && tokenAtPoint(amR, m.x2, m.y2);
           var bothTok = !!(tA && tB && tA !== tB);
-          if (bothTok && stanceOn('elevation') && tokenElevation(tA) !== tokenElevation(tB)) {
-              var hY = boardYards(m.x1, m.y1, m.x2, m.y2), vY = tokenElevation(tB) - tokenElevation(tA);
+          if (bothTok && stanceOn('elevation') && tokenElevation(tA, amR) !== tokenElevation(tB, amR)) {   // item 19b H5: their heights, the ground each stands on included
+              var hY = boardYards(m.x1, m.y1, m.x2, m.y2), vY = tokenElevation(tB, amR) - tokenElevation(tA, amR);
               lab3 = '3D ' + fmtLen(Math.sqrt(hY * hY + vY * vY)) + ' \u00b7 ' + fmtElev(vY) + ' ' + lenUnit();   // item 19 H1: in the viewer's unit
           }
           if (bothTok && window.wpFog && window.wpFog.coverBetween) {
-              var cA = tokenCentre(tA), cB = tokenCentre(tB), cv = window.wpFog.coverBetween(cA.x, cA.y, cB.x, cB.y, stanceOn('elevation') ? tokenElevation(tA) : 0, stanceOn('elevation') ? tokenElevation(tB) : 0);   // found live (item 19): from the tokens' own cells, never the cells a snapped ruler's ends happen to fall in   // advisory: Waypoint estimates cover from the map's blockers; the GM makes the call (item 19 H1: from the first end's height to the second's)
+              var cA = tokenCentre(tA), cB = tokenCentre(tB), cv = window.wpFog.coverBetween(cA.x, cA.y, cB.x, cB.y, stanceOn('elevation') ? tokenElevation(tA, amR) : 0, stanceOn('elevation') ? tokenElevation(tB, amR) : 0);   // found live (item 19): from the tokens' own cells, never the cells a snapped ruler's ends happen to fall in   // advisory: Waypoint estimates cover from the map's blockers; the GM makes the call (item 19 H1: from the first end's height to the second's)
               if (cv && cv.name) labCov = 'Cover: ' + cv.name;
           }
           var prR = tB && tB !== tA ? postureRanged(tB) : '';   // posture: a foe's ranged roll at -2 against the token the ruler ends on, after the distance (display only)
@@ -3049,7 +3084,7 @@ window.wpFitToGrid = fitToGrid;
           if (rgR) html += rulerRangeText(mx + 8, _covY + (labCov ? 19 : 0) + (litR ? 19 : 0), rgR);
           var mcR = rulerCostText(amR, m);   // difficult terrain T2: what the move costs, when terrain makes it cost more than its length
           if (mcR) html += '<text x="' + (mx + 8) + '" y="' + (_covY + (labCov ? 19 : 0) + (litR ? 19 : 0) + (rgR ? 19 : 0)) + '">' + esc(mcR) + '</text>';
-          var hgR = bothTok ? heightSeen(tA, tB) : null;   // item 19 H2: the height modifier between the two tokens, as a roll reads it
+          var hgR = bothTok ? heightSeen(tA, tB, amR) : null;   // item 19 H2: the height modifier between the two tokens, as a roll reads it
           if (hgR) html += rulerHeightText(mx + 8, _covY + (labCov ? 19 : 0) + (litR ? 19 : 0) + (rgR ? 19 : 0) + (mcR ? 19 : 0), hgR);
           html += '</g>';
 
@@ -3340,7 +3375,7 @@ window.wpFitToGrid = fitToGrid;
       return (map.whiteboard || []).filter(function(t) { return t.isChar; }).map(function(t) {
           var c = tokenCentre(t);
           var h = boardYards(b.x, b.y, c.x, c.y);
-          var v = elevOn ? tokenElevation(t) - (b.elev || 0) : 0;
+          var v = elevOn ? tokenElevation(t, map, b.thrown === true) - (b.elev || 0) : 0;   // item 19b H5: on the ground it stands on (a thrown blast, shown to the table, never reads a hidden piece's)
           return { tok: t, h: h, v: v, d: Math.sqrt(h * h + v * v) };
       });
   }
@@ -3356,7 +3391,7 @@ window.wpFitToGrid = fitToGrid;
           if (!window.wpNet || !window.wpNet.active || window.wpNet.role === 'host') html += '<text class="blast-boom" data-i="' + i + '" x="' + (b.x + 8) + '" y="' + (b.y - rPx - 26) + '">💥 Boom</text>';   // fires a burst everyone sees (1.5.0)
           blastDistances(b, map).forEach(function(r) {
               if (r.d > rYd + 1e-9) return;
-              var cvB = window.wpFog && window.wpFog.coverAt ? window.wpFog.coverAt(b.x, b.y, r.tok, map, elevOn ? (b.elev || 0) : 0, elevOn ? tokenElevation(r.tok) : 0) : null;   // cover follow-ups: the cover each token in range has from the blast's centre (local, advisory); item 19 H1: from the blast's height
+              var cvB = window.wpFog && window.wpFog.coverAt ? window.wpFog.coverAt(b.x, b.y, r.tok, map, elevOn ? (b.elev || 0) : 0, elevOn ? tokenElevation(r.tok, map, b.thrown === true) : 0) : null;   // cover follow-ups: the cover each token in range has from the blast's centre (local, advisory); item 19 H1: from the blast's height
               html += '<text class="hit" x="' + (r.tok.x + (r.tok.w || 60) / 2) + '" y="' + (r.tok.y - 5) + '" text-anchor="middle">' + fmtLen(r.d) + (elevOn && r.v ? ' (' + (r.v > 0 ? '\u2191' : '\u2193') + (Math.round(ydOut(Math.abs(r.v)) * 10) / 10) + ')' : '') + (cvB ? ' \u00b7 ' + esc(cvB.name) : '') + '</text>';
           });
           html += '</g>';
@@ -3377,7 +3412,7 @@ window.wpFitToGrid = fitToGrid;
   function seatBlast(b) {
       if (state.gridType === 'hex') { var hc = snapToHex(b.x, b.y, 30, 'center'); b.x = hc.x; b.y = hc.y; }
       else if (state.gridType === 'square') { b.x = Math.floor(b.x / 50) * 50 + 25; b.y = Math.floor(b.y / 50) * 50 + 25; }
-      if (b.autoElev) { var mapS = getActiveMap(), under = mapS && tokenAtPoint(mapS, b.x, b.y, b.thrown); b.elev = under ? tokenElevation(under) : 0; }   // hidden pieces: a thrown blast (sent to the table) takes no height from a token the GM hid; the GM's own tool reads them, the GM being its only viewer
+      if (b.autoElev) { var mapS = getActiveMap(), under = mapS && tokenAtPoint(mapS, b.x, b.y, b.thrown); b.elev = under ? tokenElevation(under, mapS, b.thrown === true) : groundAt(mapS, b.x, b.y, b.thrown === true); }   // item 19b H5: on the ground there (a thrown blast never reads a hidden piece's)   // hidden pieces: a thrown blast (sent to the table) takes no height from a token the GM hid; the GM's own tool reads them, the GM being its only viewer
   }
   function placeBlast(e) {
       var map = getActiveMap(); if (!map) return;
@@ -3407,7 +3442,7 @@ window.wpFitToGrid = fitToGrid;
       seatBlast(b);
       var thrB = opts.charId ? (map.whiteboard || []).filter(function(w) { return w.charId === opts.charId; }).sort(function(p, q) { return (q.isChar ? 1 : 0) - (p.isChar ? 1 : 0); })[0] : null;   // cover follow-ups (owner, answer 5): the thrower's token on this map
       var seatB = window.wpFog && window.wpFog.blastSeat ? window.wpFog.blastSeat(map, b.x, b.y, thrB ? thrB.x + (thrB.w || 60) / 2 : opts.x, thrB ? thrB.y + (thrB.h || 52) / 2 : opts.y) : null;   // a blast can't go off inside a wall or a closed door: it goes off in front, on the thrower's side
-      if (seatB) { b.x = seatB.x; b.y = seatB.y; if (b.autoElev) { var underB = tokenAtPoint(map, b.x, b.y, true); b.elev = underB ? tokenElevation(underB) : 0; } }
+      if (seatB) { b.x = seatB.x; b.y = seatB.y; if (b.autoElev) { var underB = tokenAtPoint(map, b.x, b.y, true); b.elev = underB ? tokenElevation(underB, map, true) : groundAt(map, b.x, b.y, true); } }
       pushBlast(b); renderMeasures(); syncBlastMenu();
       if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.broadcastBlast) window.wpNet.broadcastBlast({ x: b.x, y: b.y, ft: b.ft, name: opts.gmOnly ? '' : b.name, elev: b.elev, by: b.by }, map.id);   // a GM-only item's blast reaches players unnamed
       var n = blastDistances(b, map).filter(function(r) { return r.d <= blastRadiusYd(b) + 1e-9; }).length;
@@ -3438,7 +3473,7 @@ window.wpFitToGrid = fitToGrid;
       blastDistances(b, map).forEach(function(r) {
           if (r.d > rYd + 1e-9 || !r.tok.charId) return;
           var ch = camp.chars && typeof r.tok.charId === 'string' && Object.prototype.hasOwnProperty.call(camp.chars, r.tok.charId) ? camp.chars[r.tok.charId] : null; if (!ch) return;   // own ids only: a token from a file naming '__proto__' writes no damage onto a prototype
-          var tierC = window.wpFog && window.wpFog.coverAt ? window.wpFog.coverAt(b.x, b.y, r.tok, map, stanceOn('elevation') ? (b.elev || 0) : 0, stanceOn('elevation') ? tokenElevation(r.tok) : 0) : null, ocC = S.coverOutcome ? S.coverOutcome(sys, tierC) : 'full', dmgC = S.coverDamage ? S.coverDamage(sys, tierC, total) : total;   // cover follow-ups (owner 2026-09-28): the system's outcome for the cover this token has from the blast (the host's own board)
+          var tierC = window.wpFog && window.wpFog.coverAt ? window.wpFog.coverAt(b.x, b.y, r.tok, map, stanceOn('elevation') ? (b.elev || 0) : 0, stanceOn('elevation') ? tokenElevation(r.tok, map, b.thrown === true) : 0) : null, ocC = S.coverOutcome ? S.coverOutcome(sys, tierC) : 'full', dmgC = S.coverDamage ? S.coverDamage(sys, tierC, total) : total;   // cover follow-ups (owner 2026-09-28): the system's outcome for the cover this token has from the blast (the host's own board)
           if (ocC === 'none' && total > 0) { shielded++; return; }   // shielded: the system's outcome for this grade is none (a half that rounds to 0 took less)
           var all = S.resolveAll(sys, ch, F), e = all[hpId]; if (!e) return;
           var cur = typeof e.value === 'number' ? e.value : 0;

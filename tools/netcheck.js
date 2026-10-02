@@ -1610,12 +1610,12 @@ pendingChecks.push((async () => {
         const npc = Object.assign({ id: 't_npc', isChar: true, charId: 'c_n', x: 300, y: 0, w: 50, h: 50 }, o.npc || {});
         const wall = { id: 't_wall', type: 'rect', x: 100, y: 0, w: 50, h: 50 };
         const camp = { id: 'k', activeItemId: 'm1', system: o.sys || sysOf(), chars: { c_a: { id: 'c_a', name: 'Ana', ownerId: 'u_a', npc: false, values: {} }, c_n: { id: 'c_n', name: 'Orc', npc: true, values: {} } },
-            items: { m1: { id: 'm1', type: 'map', meta: { gridType: 'square' }, whiteboard: [mine, npc, wall] }, m2: { id: 'm2', type: 'map', meta: { gridType: 'square' }, whiteboard: [{ id: 't_far', isChar: true, x: 0, y: 0 }] } } };
+            items: { m1: { id: 'm1', type: 'map', meta: { gridType: 'square' }, whiteboard: [mine, npc, wall].concat(o.pieces || []) }, m2: { id: 'm2', type: 'map', meta: { gridType: 'square' }, whiteboard: [{ id: 't_far', isChar: true, x: 0, y: 0 }] } } };
         const targets = o.targets !== undefined ? o.targets : { u_a: { id: 't_npc', mapId: 'm1', name: 'Pat' } };
         const net = { active: true, role: 'host', paused: false, targets: targets, combats: {}, conns: [], roster: { pA: { id: 'u_a', name: 'Pat', location: o.loc || 'm1' } } };
         const drops = [], landed = [];
         const win = { wpFormula: Fx, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} }, wpVtt: { on: () => true, rulesOn: k => k !== 'elevation' || o.elev === true }, wpDiceCore: null,
-            wpFog: { fogDropIds: (pid, c, m) => { drops.push([pid, c === camp, m && m.id]); return o.drop || null; } } };
+            wpFog: { fogDropIds: (pid, c, m) => { drops.push([pid, c === camp, m && m.id]); return o.drop || null; } }, wpStance: o.stance };   // item 19b H5: the stance module, where a case reads the ground
         const fogLanded = o.drag ? (mapId, fn) => { landed.push(mapId); const was = mine.x; mine.x = o.drag; try { return fn(); } finally { mine.x = was; } } : undefined;
         return { camp, net, win, mine, npc, drops, landed, fogLanded };
     };
@@ -1640,6 +1640,13 @@ pendingChecks.push((async () => {
         noRule.mod === 0 && noRule.dist === 10 && formula.mod === -3 && formula.dist === 30 && dragged.mod === -4 && dragged.dist === 20 && dragged.landed[0] === 'm1' && dragged.landed.every(m => m === 'm1') && dragged.back === 0
         && up.dist === 31.622777 && up.mod === -4 && upOff.dist === 10,
         j([[noRule.mod, noRule.dist], [formula.mod, formula.dist], [dragged.mod, dragged.dist, dragged.landed, dragged.back], [up.mod, up.dist], [upOff.mod, upOff.dist]]));
+    // item 19b H5: the ground each token stands on, as the player's copy reads it — the real tokenGround (whiteboard.js sliced by its ground markers) over the real fogcore
+    const FCg5 = await import(url('fogcore.js')), wbG5 = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, '\n'), g5A = wbG5.indexOf('// [fogcheck:ground-start]'), g5B = wbG5.indexOf('// [fogcheck:ground-end]');
+    const stanceG = (() => { try { return new Function('window', 'stanceOn', 'fmtElev', 'lenUnit', '"use strict";\n' + wbG5.slice(g5A, g5B) + '\nreturn { tokenGround: tokenGround, tokenElevation: tokenElevation };')({ wpFogCore: FCg5 }, () => true, String, () => 'yd'); } catch (e) { return undefined; } })();
+    const hillG = { id: 't_hill', type: 'rect', x: 250, y: -50, w: 150, h: 150, ground: 9 }, hillHid = { id: 't_hid', type: 'rect', x: 250, y: -50, w: 150, h: 150, ground: 30, hidden: true }, pitMe = { id: 't_pit', type: 'circle', x: -50, y: -50, w: 150, h: 150, ground: -3 };
+    const gUp = roll({ elev: true, stance: stanceG, pieces: [hillG] }), gHid = roll({ elev: true, stance: stanceG, pieces: [hillHid] }), gBoth = roll({ elev: true, stance: stanceG, pieces: [hillG, pitMe], npc: { elevation: 3 } }), gOff = roll({ stance: stanceG, pieces: [hillG] }), gNoSt = roll({ elev: true, pieces: [hillG] });
+    check('item 19b H5 roll-req (host, run for real): a player\'s roll reads the range with the ground each token stands on — a target on a 9-yard hill 10 yards off is 13.453624 yd away; with the target\'s own elevation and the roller in a pit, all of it (15 up: 18.027756 yd); a piece the GM hid counts for nothing in a player\'s roll (their copy does not hold it); nothing with the elevation rule off, nor with no stance module on hand',
+        !!stanceG && gUp.dist === 13.453624 && gHid.dist === 10 && gBoth.dist === 18.027756 && gOff.dist === 10 && gNoSt.dist === 10 && /St\.tokenGround\(t, map, true\)/.test(rtSrc), j([gUp.dist, gHid.dist, gBoth.dist, gOff.dist, gNoSt.dist]));
     // an apply action reads it the same way: Range hit takes (0 - RangeMod) from HP
     const apply = o => {
         const W = world(o), out = { answer: [], saves: 0 }, box = b => m => { packCheck(m); b.push(JSON.parse(JSON.stringify(m))); };
@@ -1868,21 +1875,29 @@ pendingChecks.push((async () => {
     // the seat or under the spot the wall rule moves it to; the GM's own blast tool still reads one (the GM is its only viewer). The real tokenAtPoint,
     // seatBlast, placeBlast, placeThrownBlast and net.broadcastBlast on a square grid
     const tapSrc = cut('  function tokenAtPoint(map, x, y, shown) {', '  // Horizontal distance in yards'), seatSrc = cut('  // Seat a blast in its grid cell', '  function placeBlast(e) {');
-    const runE = (tokens, thrown, noWall) => { const out = { sent: [], placed: [] };   // noWall: the wall rule moves the blast nowhere, so the seat's own reading is the one sent
+    const runE = (tokens, thrown, noWall, real) => { const out = { sent: [], placed: [] };   // real (item 19b H5): the real tokenElevation and groundAt, over the real fogcore   // noWall: the wall rule moves the blast nowhere, so the seat's own reading is the one sent
         const net = { active: true, role: 'host', conns: [{ peer: 'pA', open: true, send(m) { packCheck(m); out.sent.push(JSON.parse(JSON.stringify(m))); } }], roster: { pA: { id: 'u_a', location: 'm1' } } };
         const camp = { id: 'k', system: { combat: { blastAuto: 'roll', hpResource: 'f_hp' } } }, map = { id: 'm1', whiteboard: tokens };
         new Function('net', 'getActiveCampaign', 'sendFailed', bbSrc)(net, () => camp, e => { throw e; });
         const win = { wpNet: net, wpVtt: { on: () => true }, wpDice: { rollFor: () => ({ ok: true, value: 7 }) }, wpFog: { blastSeat: (m, x, y) => (noWall ? null : { x: x, y: y }) } };
-        const api = new Function('window', 'document', 'toast', 'getActiveMap', 'getActiveCampaign', 'pushBlast', 'renderMeasures', 'syncBlastMenu', 'blastDistances', 'blastRadiusYd', 'applyBlastDamage', 'wbWrap', 'state', 'tokenElevation', 'snapToHex', 'stanceOn', 'fmtElev', 'lenUnit', 'blastDefaults',
+        const api = new Function('window', 'document', 'toast', 'getActiveMap', 'getActiveCampaign', 'pushBlast', 'renderMeasures', 'syncBlastMenu', 'blastDistances', 'blastRadiusYd', 'applyBlastDamage', 'wbWrap', 'state', 'tokenElevation', 'groundAt', 'snapToHex', 'stanceOn', 'fmtElev', 'lenUnit', 'blastDefaults',
             'var _armedThrow = null;\n' + tapSrc + seatSrc + placeSrc + throwSrc + armSrc + '\nreturn { place: placeBlast };')(
             win, { body: { classList: { add() {}, remove() {} } }, getElementById: () => null }, () => {}, () => map, () => camp, b => out.placed.push(JSON.parse(JSON.stringify(b))), () => {}, () => {}, () => [], () => 1,
-            () => {}, { getBoundingClientRect: () => ({ left: 0, top: 0 }), scrollLeft: 0, scrollTop: 0, style: {} }, { zoomLevel: 1, gridType: 'square' }, t => Number(t.elevation) || 0, null, () => true, v => String(v), () => 'yd', { ft: 10, name: '' });
+            () => {}, { getBoundingClientRect: () => ({ left: 0, top: 0 }), scrollLeft: 0, scrollTop: 0, style: {} }, { zoomLevel: 1, gridType: 'square' }, real ? real.tokenElevation : t => Number(t.elevation) || 0, real ? real.groundAt : () => 0, null, () => true, v => String(v), () => 'yd', { ft: 10, name: '' });
         if (thrown) win.wpArmBlast(10, 'Frag', { charId: 'c_n', fieldId: 'f_it', rowId: 'w_1', by: 'Nix', damage: '2d6' });
         api.place({ clientX: 120, clientY: 80 }); return { sent: out.sent.map(m => m.blast.elev), placed: out.placed.map(b => b.elev) }; };
     const hidE = { id: 'h', isChar: true, hidden: true, elevation: 2, x: 100, y: 50, w: 60, h: 52 }, visE = { id: 'v', isChar: true, elevation: 3, x: 100, y: 50, w: 60, h: 52 };
     const eH = runE([hidE], true), eHs = runE([hidE], true, true), eVs = runE([visE], true, true), eV = runE([visE], true), eVH = runE([visE, hidE], true), eHV = runE([hidE, visE], true), eGm = runE([hidE], false), eNone = runE([], true);
     check('hidden pieces: a thrown blast over a hidden token with a height is sent at 0, as over empty ground (moved by the wall rule or not), while one over a shown token carries its height; a hidden token standing on a shown one neither hides nor gives the shown one\'s height; the GM\'s own blast tool (nothing sent) still seats at the hidden token\'s height',
         j(eH) === j({ sent: [0], placed: [0] }) && j(eHs) === j({ sent: [0], placed: [0] }) && j(eVs) === j({ sent: [3], placed: [3] }) && j(eV) === j({ sent: [3], placed: [3] }) && j(eVH) === j({ sent: [3], placed: [3] }) && j(eHV) === j({ sent: [3], placed: [3] }) && j(eGm) === j({ sent: [], placed: [2] }) && j(eNone) === j({ sent: [0], placed: [0] }), j([eH, eV, eVH, eHV, eGm, eNone]));
+    // item 19b H5: a blast on ground. The real tokenElevation and groundAt (whiteboard.js sliced by its ground markers) over the real fogcore: a thrown
+    // blast's height, sent to the table, reads the ground of the pieces players hold; the GM's own blast tool every piece on its map
+    const FCbl = await import('file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', 'fogcore.js')).split(String.fromCharCode(92)).join('/')), gbA = wbT.indexOf('// [fogcheck:ground-start]'), gbB = wbT.indexOf('// [fogcheck:ground-end]');
+    const realG = (() => { try { return new Function('window', 'stanceOn', 'fmtElev', 'lenUnit', '"use strict";\n' + wbT.slice(gbA, gbB) + '\nreturn { tokenElevation: tokenElevation, groundAt: groundAt };')({ wpFogCore: FCbl }, () => true, String, () => 'yd'); } catch (e) { return null; } })();
+    const hillE = { id: 'hill', type: 'rect', x: 100, y: 50, w: 100, h: 100, ground: 4 }, hillHidE = { id: 'hillH', type: 'rect', x: 100, y: 50, w: 100, h: 100, ground: 6, hidden: true };
+    const gE = realG ? [runE([hillE], true, true, realG), runE([hillE], true, false, realG), runE([hillHidE], true, true, realG), runE([hillHidE], false, true, realG), runE([hillE, visE], true, true, realG), runE([hillHidE, visE], true, true, realG), runE([hillHidE, visE], false, true, realG), runE([hillE, hillHidE, hidE], true, true, realG), runE([visE], true, true, realG)] : null;
+    check('item 19b H5 a blast on ground (seatBlast and placeThrownBlast run for real with the real tokenElevation and groundAt): a thrown blast with no token under it is sent at the ground\'s height there (moved by the wall rule or not), one over a token at the token\'s elevation plus the ground; a hidden ground piece adds nothing to a thrown blast, with or without a token on it, nor does a hidden token standing on shown ground; the GM\'s own blast tool (nothing sent) reads the hidden ground too',
+        !!gE && j(gE) === j([{ sent: [4], placed: [4] }, { sent: [4], placed: [4] }, { sent: [0], placed: [0] }, { sent: [], placed: [6] }, { sent: [7], placed: [7] }, { sent: [3], placed: [3] }, { sent: [], placed: [9] }, { sent: [4], placed: [4] }, { sent: [3], placed: [3] }]), j(gE));
 })());
 
 // 1.5.0 GM-only pools: a visible pool whose max is worked out from a GM-only field is GM-only as a whole. The host's char-edit, char-edits and
@@ -4668,6 +4683,9 @@ pendingChecks.push((async () => {
     const htGot = [2, 2.345, 1e9, '3', -1, { v: 1 }, null].map((h, i) => CL.cleanHostWbItem({ id: 'hh' + i, type: 'rect', height: h })).map(w => (ownK(w, 'height') ? w.height : 'none')), htNo = CN.cleanHostWbItem({ id: 'hq', type: 'rect', height: 2 });
     check('item 19 H1: a client cleans a piece\'s height its host sends again (run for real) — yards above 0 to the hundredth, at most 10,000; text, a number not above 0, an object or nothing none; with no cleaner on hand none',
         j(htGot) === j([2, 2.35, 10000, 'none', 'none', 'none', 'none']) && !ownK(htNo, 'height'), j(htGot));
+    const grGot = [3, -2.346, 1e9, -1e9, 0, '3', { v: 1 }, null].map((g, i) => CL.cleanHostWbItem({ id: 'gg' + i, type: 'rect', ground: g })).map(w => (ownK(w, 'ground') ? w.ground : 'none')), grNo = [CN, CO].map(C => C.cleanHostWbItem({ id: 'gq', type: 'rect', ground: 2 })), grPlain = { id: 'gp', type: 'rect', x: 1 };
+    check('item 19b H5: a client cleans a piece\'s ground height its host sends again (run for real) — yards from -1000 to 1000 to the hundredth, below 0 for a pit; 0, text, an object or nothing none; with no cleaner on hand none; a piece without one is the same piece, no key added',
+        j(grGot) === j([3, -2.35, 1000, -1000, 'none', 'none', 'none', 'none']) && grNo.every(w => !ownK(w, 'ground')) && CL.cleanHostWbItem(grPlain) === grPlain && !ownK(grPlain, 'ground'), j([grGot, grNo]));
     const mapL = CL.cleanHostMap({ id: 'm1', type: 'map', whiteboard: items().concat([null, { id: 9 }, 'x']), rooms: 'x', cats: { a: { color: 'url(x)' }, b: { color: '#123456' } }, fogLit: '<img>', lightsCapped: 'yes' });
     check('Lighting: a whole map from the host has every item\'s light cleaned the same way (cleanHostMap, run for real) — the items that are not items dropped, each light as the item cleaner leaves it, the map\'s own lit cells and light cap still cleaned',
         j(mapL.whiteboard.map(w => w.id)) === j(['t1', 't2', 't3', 'l1', 'l2', 't4', 'q1', 't5', 't6', 'l3', 'x1']) && j(mapL.whiteboard.map(w => (ownK(w, 'light') ? w.light : 'none'))) === j(lights) && !ownK(mapL, 'fogLit') && !ownK(mapL, 'lightsCapped') && j(mapL.rooms) === '[]' && mapL.cats.a.color === '#888' && mapL.cats.b.color === '#123456', j(mapL));
@@ -7069,6 +7087,26 @@ pendingChecks.push((async () => {
         const tA = tW.last(tW.a1), tB = tW.last(tW.b1), of = m => m ? ['bogV', 'bogC', 'bogH'].map(id => { const w = m.whiteboard.find(x => x.id === id); return !w ? 'gone' : 'terrain' in w ? w.terrain : 'none'; }) : null;
         check('terrain T1 (host): a shown difficult piece and a painted cell reach each player with their cost; the cost of a hidden one reaches no one (what a hidden piece sends carries none)',
             J(of(tA).slice(0, 2)) === J([3, 2]) && J(of(tB).slice(0, 2)) === J([3, 2]) && of(tA)[2] !== 4 && of(tB)[2] !== 4 && !/"terrain":4/.test(J(tW.a1.sent)) && !/"terrain":4/.test(J(tW.b1.sent)), J([of(tA), of(tB)]));
+    }
+    // item 19b H5 (host): a shown piece's ground height reaches every player with the piece (their app reads the ground from its own copy); a hidden
+    // piece is not sent at all; a player's copy of the map sets no ground
+    {
+        const gW = S7({}), mG = gW.camp.items.mA, tG = gW.tok('tA');
+        mG.whiteboard.push({ id: 'hillV', type: 'rect', x: tG.x - 50, y: tG.y - 50, w: 200, h: 200, ground: 3 }, { id: 'pitV', type: 'path', tip: 'fill', x: tG.x + 300, y: tG.y, w: 100, h: 100, baseW: 100, baseH: 100, pts: [[0, 0], [100, 0], [100, 100], [0, 100]], ground: -2 }, { id: 'hillH', type: 'rect', x: tG.x + 500, y: tG.y, w: 100, h: 100, hidden: true, ground: 44 });
+        mG.meta = Object.assign({}, mG.meta, { updated: (mG.meta && mG.meta.updated || 0) + 1 }); gW.clearSent(); gW.net.sendItem('k', 'mA');
+        const gA = gW.last(gW.a1), gB = gW.last(gW.b1), gOf = m => m ? ['hillV', 'pitV', 'hillH'].map(id => { const w = m.whiteboard.find(x => x.id === id); return !w ? 'gone' : 'ground' in w ? w.ground : 'none'; }) : null;
+        const cloneG = gW.api.clean(mG), allG = J(gW.a1.sent.concat(gW.a2.sent, gW.b1.sent)), pageG = gW.a1.page && gW.a1.page.camp().items.mA;
+        const stroke = { id: 'wbstroke1', type: 'path', tip: 'fill', ownerId: 'u_a', x: 0, y: 0, w: 100, h: 100, baseW: 100, baseH: 100, pts: [[0, 0], [100, 0], [100, 100]], ground: 9 };
+        const mine = JSON.parse(J(gA || { whiteboard: [] })); mine.whiteboard.forEach(w => { if (w.id === 'hillV') w.ground = 99; if (w.id === 'tA') w.ground = 9; if (w.id === 'pitV') delete w.ground; }); mine.whiteboard.push(stroke);
+        gW.api.item({ type: 'item', campId: 'k', itemId: 'mA', item: mine }, gW.a1);
+        const after = ['hillV', 'pitV', 'hillH', 'tA', 'wbstroke1'].map(id => { const w = mG.whiteboard.find(x => x.id === id); return !w ? 'gone' : 'ground' in w ? w.ground : 'none'; }), drew = mG.whiteboard.find(x => x.id === 'wbstroke1');
+        check('item 19b H5 (host): a shown piece\'s ground height — a hill, a filled region as a pit — reaches each player with the piece and stands on their page; a hidden piece is not sent, nor its ground in anything sent; a player\'s copy of the map sets no ground: the GM\'s pieces keep theirs, their own token takes none and a drawing of theirs lands as a pen line with none',
+            J(gOf(gA)) === J([3, -2, 'gone']) && J(gOf(gB)) === J([3, -2, 'gone']) && !/hillH|"ground":44/.test(allG) && J(gOf(cloneG)) === J([3, -2, 'gone']) && J(gOf(pageG)) === J([3, -2, 'gone'])
+            && J(after) === J([3, -2, 44, 'none', 'none']) && !!drew && !('tip' in drew), J([gOf(gA), gOf(gB), gOf(cloneG), gOf(pageG), after, drew && Object.keys(drew)]));
+        const wireSrc = fnSrc('function wireWbItem(', '\n}\n', 'wireWbItem');
+        check('item 19b H5 (source): the rule that sends one piece to a player names no ground (it is the table\'s to read: a player\'s app works its own token\'s height out from its copy), and sends nothing of a hidden piece; a player\'s drawing is rebuilt from a list of keys that holds none; the player\'s app cleans it again before it returns the piece',
+            !/ground/.test(wireSrc) && /if \(w\.gmNoteFor \|\| w\.hidden\) return null;/.test(wireSrc) && !/ground|tip/.test(fnSrc('function playerStroke(', '\n}\n', 'playerStroke'))
+            && /if \(w\.ground !== undefined\) \{ var FCg = window\.wpFogCore, gr = FCg && FCg\.cleanGround \? FCg\.cleanGround\(w\.ground\) : null; if \(gr\) w\.ground = gr; else delete w\.ground; \} return w; \}/.test(src));
     }
     // senses S4b: "Marks in a fight" played On your own turn — the host's refreshes of each player's held marks (slice marksheld, run on stubs)
     {

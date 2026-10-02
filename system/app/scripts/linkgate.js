@@ -28,6 +28,10 @@
    How:         window.open(address, '_blank', 'noopener,noreferrer') — in the shell that is handed to the system browser by the
                 window rules (shellguard.js webLinkOk), in a browser it is a new tab. The engine's own following is always stopped.
    A file the app itself hands over to be saved (an <a download> to a blob: or data: address, clicked by the app) is left alone.
+   A script's window.open never steers the window it is made from (openGuard): the diagram library binds a click on a Gantt chart's task
+                to window.open(address, '_self') whatever its mode — and it finds the task by its id on the whole page, so the click it
+                binds can land on an element of the app's own that shares that id. A call whose target is _self, _parent or _top (in any
+                case), or the window's own name, opens nothing; every other call (a new window, a pop-out) goes through as it was made.
    A drag:      a link is dragged only where a click on it opens it directly. Anywhere else the drag does not begin (a second listener,
                 for dragstart): a dragged address dropped on another of the app's windows would be followed there with no question.
 
@@ -149,7 +153,21 @@ function dragGate(win) {
         if (linkVerdict(c) !== 'open') e.preventDefault();
     };
 }
+// A script's window.open, guarded (see the comment at the top). The guard is put in once per window.
+function openGuard(win) {
+    var open = win && win.open;
+    if (typeof open !== 'function' || open.wpGuarded === true) return;
+    var guarded = function(url, target) {
+        var t = '', own = '';
+        try { t = target == null ? '' : String(target).trim().toLowerCase(); own = typeof win.name === 'string' ? win.name : ''; } catch (e) { return null; }
+        if (t === '_self' || t === '_parent' || t === '_top' || (own && target === own)) return null;   // this window, never steered
+        return open.apply(win, arguments);
+    };
+    guarded.wpGuarded = true;
+    try { win.open = guarded; } catch (e) {}
+}
 function wireLinks(win, doc, ask) {
+    openGuard(win);
     var h = linkGate(win, doc, ask);
     doc.addEventListener('click', h, true);
     doc.addEventListener('auxclick', h, true);

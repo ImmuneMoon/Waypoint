@@ -455,6 +455,10 @@ function readLinkLine(line) { var m = /^click ([A-Za-z0-9_-]{1,64}) href "([^"]*
 // a directive's own text may hold a ';', so nothing after it is kept. The ';' that closes one of the library's own #…; entities
 // is part of the entity, as the library reads it. The rule fails closed: a ';' inside a hand-written label counts too, so a label
 // that says "…; click …" loses that part (the entity #59; writes a ';' that is the label's own).
+// A statement also begins, with nothing before it, after a '}' (the end of an accDescr { … } block, on its own line or the block's
+// first) and after the library's statements that need no separator after them, however many stand in a row (MM_NOSEP): a flowchart's
+// end, a Gantt chart's gantt, inclusiveEndDates, topAxis, weekday <day> and a date. A directive there is judged as one at the start
+// of a line — the line is cut where it begins, the statements before it stay. That too fails closed: a '}' inside a label counts.
 //   click / callback / href / linkStyle …   any diagram's
 //   link <name> "address"                   a class diagram's (a node, a class or a task that is merely called link is left alone)
 //   link / links <actor>: …                 a sequence diagram's, judged only in a source that names one
@@ -468,7 +472,7 @@ function readLinkLine(line) { var m = /^click ([A-Za-z0-9_-]{1,64}) href "([^"]*
 // exactly as before. The kind of diagram is told as the library tells it (mmKind): after its %%{…}%% blocks and its comment lines the
 // source begins with flowchart, graph or classDiagram; a source that begins with front matter, or holds a block inside a block, has
 // no kind and keeps no link. (In a Gantt chart the library would steer the app's own window to a link's address: no link is ever
-// written for one.)
+// written for one — and linkgate.js refuses any script's window.open that would load an address into the window it is made from.)
 // The source is judged as the library will read it: a NUL (which a page drops) is taken out, a lone carriage return (which a page
 // reads as a line break) is a line break, and the library's own %%{…}%% blocks — which it takes out before it reads a diagram,
 // wherever they stand — are taken out with its own pattern and what is left is judged again; a source that hides a directive that
@@ -482,6 +486,7 @@ function readLinkLine(line) { var m = /^click ([A-Za-z0-9_-]{1,64}) href "([^"]*
 var MM_DIRECTIVE = /\s*(?:click|callback|href|linkStyle)\b/iy;
 var MM_LINK = /\s*link\s+(?![-=.<>~&|:\s"'])[^"'\n;]*["']/iy;
 var MM_SEQ_LINK = /\s*links?\s+[^:;\n]*:/iy;
+var MM_NOSEP = /(?:\s*(?:end|gantt|inclusiveEndDates|topAxis|weekday\s+\w+|\d{4}-\d\d-\d\d)\b)+/iy;   // the statements that need no separator after them
 var MM_BLOCK = /%{2}{\s*(?:(\w+)\s*:|(\w+))\s*(?:(\w+)|((?:(?!}%{2}).|\r?\n)*))?\s*(?:}%{2})?/gi;   // the library's own pattern for its %%{…}%% blocks
 var MM_COMMENT = /^\s*%%(?!{)[^\n]+\n?/gm;   // the library's own pattern for a comment line
 function mmAt(re, s, at) { re.lastIndex = at; return re.test(s); }
@@ -511,13 +516,18 @@ function mmCanon(stmt, kind) {
 function mmCut(s, kind) {
     var seq = /sequenceDiagram/i.test(s), out = [];
     function directive(line, at) { return mmAt(MM_DIRECTIVE, line, at) || mmAt(MM_LINK, line, at) || (seq && mmAt(MM_SEQ_LINK, line, at)); }
+    function past(line, at) { MM_NOSEP.lastIndex = at; return MM_NOSEP.test(line) ? MM_NOSEP.lastIndex : at; }   // where a statement begins, past those that need no separator
     s.split(/\r\n|\n|\r/).forEach(function(line) {
         if (directive(line, 0)) { var whole = mmCanon(line, kind); if (whole) out.push(whole); return; }
         var canon = '', cut = false;
-        for (var at = line.indexOf(';'); at >= 0; at = line.indexOf(';', at + 1)) {
-            var k = at - 1; while (k >= 0 && /\w/.test(line.charAt(k))) k--;
-            if (k < at - 1 && k >= 0 && line.charAt(k) === '#') continue;   // the ';' that closes a #…; entity
-            if (directive(line, at + 1)) { canon = mmCanon(line.slice(at + 1), kind); line = line.slice(0, at); cut = true; break; }
+        // where a statement begins: the line's start, after a ';' (not one that closes a #…; entity) and after a '}' — in the line's order
+        for (var at = 0; at >= 0 && !cut; at = (function(i) { var a = line.indexOf(';', i), b = line.indexOf('}', i); return a < 0 ? b : b < 0 ? a : Math.min(a, b); })(at + 1)) {
+            var semi = line.charAt(at) === ';', from = at === 0 && !semi && line.charAt(0) !== '}' ? 0 : at + 1;
+            if (semi) { var k = at - 1; while (k >= 0 && /\w/.test(line.charAt(k))) k--; if (k < at - 1 && k >= 0 && line.charAt(k) === '#') continue; }   // the ';' that closes a #…; entity
+            var p = past(line, from);
+            if (!directive(line, p)) continue;
+            canon = mmCanon(line.slice(p), kind); cut = true;
+            line = p === from && semi ? line.slice(0, at) : line.slice(0, p).replace(/\s+$/, '');   // after a ';' as before; after the others, they stay
         }
         if (!cut || line.trim()) out.push(mmKey(line));
         if (canon) out.push(canon);

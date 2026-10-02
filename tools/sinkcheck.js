@@ -2100,6 +2100,20 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 && eg.every(e => e.defaultPrevented) && J(G.opened) === J([[OK, '_blank', 'noopener,noreferrer'], [OK, '_blank', 'noopener,noreferrer'], [OK, '_blank', 'noopener,noreferrer']]) && !G.asking()
                 && res.length === 4 * 5 * BADX.length * 3 && res.every(Boolean) && en.defaultPrevented && nUp && nSite === 'ok.example' && !e0.defaultPrevented && !B.asking() && B.opened.length === 0, [had, e1.defaultPrevented, up, lines, afterYes, G.opened.length, res.filter(x => !x).length, en.defaultPrevented, nUp]);
         }
+        {   // a script's window.open never loads an address into the window it is made from — the diagram library binds a Gantt chart's task to
+            // window.open(address, '_self') whatever its mode, and by the task's id on the whole page, so on an element of the app's too
+            const P = mkPage({ net: ALONE }), W = P.W; W.name = 'wpPopout_d1';
+            const SELF = [['https://ok.example/a', '_self'], ['https://ok.example/b', '_SELF'], ['/api/prefs.js', ' _top '], ['https://ok.example/c', '_parent'], ['https://ok.example/d', 'wpPopout_d1'], ['https://ok.example/e', { toString() { return '_self'; } }], ['https://ok.example/f', { toString() { throw new Error('x'); } }]];
+            const refused = SELF.map(c => W.open(c[0], c[1]));
+            const passed = [W.open(OK, '_blank', 'noopener,noreferrer'), W.open('http://127.0.0.1:3999/?popout=chat:', 'wpPopout_chat', 'width=440,height=760'), W.open(OK)];
+            const btn = P.doc.createElement('button'); btn.id = 'plannerUndoBtn'; P.z.whiteboard.appendChild(btn); btn.addEventListener('click', () => { W.open('https://evil.example/x', '_self'); });
+            const task = P.doc.createElement('rect'); task.id = 't1'; P.z.docReaderBody.appendChild(task); task.addEventListener('click', () => { W.open('/api/prefs.js', '_self'); });
+            P.click(btn); P.click(task); P.mid(task);
+            const byLink = P.link('plannerPreview', OK); P.click(byLink); const inner = W.open; P.api.wireLinks(W, P.doc, P.showConfirm); const wired = W.open('https://ok.example/g', '_self'), same = W.open === inner;
+            check('links (a script\'s window.open): the window a call is made from is never steered to an address — a call whose target is _self, _parent or _top in any case or with spaces round it, or the window\'s own name, opens nothing and answers null, so the click the diagram library binds to a Gantt chart\'s task (window.open(address, \'_self\')), on the drawing or on an element of the app\'s that shares the task\'s id, does nothing; a new window (_blank, a pop-out\'s own name, no target) opens as it was asked, and a link still opens through the one rule; wired twice it is the same',
+                refused.every(r => r === null) && wired === null && same && passed.every(r => r === null) && J(P.opened) === J([[OK, '_blank', 'noopener,noreferrer'], ['http://127.0.0.1:3999/?popout=chat:', 'wpPopout_chat', 'width=440,height=760'], [OK, null, null], [OK, '_blank', 'noopener,noreferrer']]) && !P.asking()
+                && /function wireLinks\(win, doc, ask\) \{\n\s*openGuard\(win\);/.test(gateSrc), P.opened);
+        }
         {   // the question is answered only by a deliberate press of its button
             const P = mkPage({ net: PLAYER }), a = P.link('docReaderBody', OK), st = () => [P.asking(), P.opened.length]; P.click(a);
             const dim = [P.ccOk.disabled, P.timers.length, P.timers[0] && P.timers[0].ms, P.timers[0] && P.timers[0].on];

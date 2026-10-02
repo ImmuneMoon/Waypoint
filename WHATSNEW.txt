@@ -936,41 +936,56 @@ ShadowBase sheets
   levels, switches and quantities of rows they already carry apply at once.
 
 Text style in planners and pages
-- A Text style bar at the top of the planner and page editor (closed until
-  you click its ▸) colours, bolds, italicises, underlines and strikes
-  through the characters you select in a title, a table heading or cell, a
-  scene node's fields, a picture's caption, a flowchart node's label or an
-  arrow's label. Select, then click; the selection stays, so green and
-  then bold needs no second selecting. Ctrl+B, Ctrl+I and Ctrl+U work in
-  those boxes too.
+- Every title, table heading and cell, scene node field, caption and
+  flowchart label in the planner and page editor is an editor of its own.
+  The box shows its styling as you type (bold as bold, a colour as that
+  colour, the sizes, underline, strike-through, a link looking like a
+  link), and when you click into one a bar appears on it with the
+  controls a text block has: B, I, U, S, the colours, Size, Link, Clear
+  and the Ω symbol tray. Select, then click; the selection stays, so green
+  and then bold needs no second selecting. Ctrl+B, Ctrl+I and Ctrl+U work
+  in those boxes too.
+- The bar goes away when you leave the box; Esc puts it away while you
+  stay, and a click in the box brings it back. It sits above the box; in
+  a table it sits along the top of the table, so it never lies over a
+  row.
 - With nothing selected the click is the whole field's: click in a node's
   label and pick red, then select the lines you have finished and pick
-  green. Size (Small, Large, Larger, Huge) works the same way: on the
-  characters you selected, or on the whole field with nothing selected;
-  Default on a selection takes the size off that part. Clear takes the
-  styling off, a part's size included.
+  green. The end of the bar says which it will be: Whole field, or how
+  many characters are selected. Size (Small, Large, Larger, Huge) works
+  the same way: on the characters you selected, or on the whole field
+  with nothing selected; Default on a selection takes the size off that
+  part. Clear takes the styling off, a part's size included.
 - Link: select text in a title, a table cell or a caption, type a web
   address into the bar's Link box and press Enter. Select linked text and
   the box shows its address; empty the box and press Enter to take the
   link off, and Esc backs out without changing anything. An address
   starts with http:// or https:// (one typed without it is taken as
   https://); anything else is refused. Your players can click the link on
-  a page.
+  a page. In the editor a linked part is not followed: put the caret in
+  it and the Link box says where it leads. What you type at the end of a
+  link is not part of the link.
 - A flowchart label takes underline, strike-through and a size on one of
   its lines. It cannot hold a link, so the Link box is greyed out there.
-- Text blocks have colours, Default and a Size list on their own bar, for
-  the selected text.
-- Each click is one undo step: Ctrl+Z right after a click takes that click
-  back and leaves what you typed, and Ctrl+Z after a deletion brings the
-  text back with the look it had. What you type afterwards leaves the
-  styling on the characters it was on, and moving or deleting rows,
+- Text blocks keep the bar fixed above their box, with the same controls
+  and lists.
+- Undo in these boxes is the planner's own: Ctrl+Z and Ctrl+Y (or
+  Ctrl+Shift+Z) take back and bring back one step at a time (a run of
+  typing, a paste, a line break, a symbol, a click of the bar), each with
+  its text, its styling and its selection. A pause, moving the caret or
+  switching to deleting starts a new step. Moving or deleting rows,
   columns, nodes and arrows keeps every style on its own text.
 - What you type right after a styled part joins it, as in a word
   processor: keep typing at the end of a green line and it stays green.
   Typed right before a styled part it takes what is before it, and a new
   line you start with Enter is not styled.
-- The bar works from the keyboard: Tab to it, the arrow keys step through
-  the Size list as one undo step, and Esc takes you back to the field.
+- From the keyboard: Tab goes from box to box (a one-line box you Tab
+  into is selected whole). Alt+F10 goes from a box into its bar, Tab
+  moves along it, the arrow keys step through the Size list as one undo
+  step, and Esc takes you back to the box.
+- Paste into these boxes brings in plain text only (in a one-line box
+  each line break becomes a space), and a tag you type is just its
+  characters in the box.
 - Find in a planner's or a page's preview, and the search of a page
   opened over the map, find a word you coloured in part and a phrase that
   runs across a styled part.

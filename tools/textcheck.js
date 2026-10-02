@@ -3,12 +3,15 @@
    run for real on a page of plain objects — never copied).
    The core: every rule of cleanFmt (a seeded list of spans flattened to what painting them in order onto an array of
    characters gives; surrogate pairs; hostile and prototype keys; the same twice; nothing left -> undefined), respan (an edit
-   before, inside, after; a cut; a full replacement; a seeded walk in which every character that survives keeps its look),
+   before, inside, after; a cut; a full replacement; what is typed right after a styled part joining it — never across a line
+   break — and right before it not; a seeded walk in which every character that survives keeps its look and what was typed takes
+   the look of the character on its left where a span styles it),
    runsOf, apply / clear / stateAt.
    The editor: where each field's format lives, typing carrying it, the bar's presses, and a seeded sequence of structure
    edits against a plain model. Ctrl+Z after a press and the Size list stepped through by keyboard run io.js's own history and
    undo chord (sliced by [textcheck:history] / [textcheck:undochord]); Find in the preview (planner.js [textcheck:find]) runs on a
-   tree of plain objects; the text blocks' own bar is wired by the real wireRte ([textcheck:rtewire]).
+   tree of plain objects, and so does the floating page panel's highlight (docpanel.js [textcheck:panelfold] / [textcheck:panelfind]:
+   a word drawn as several runs is one hit of several marks); the text blocks' own bar is wired by the real wireRte ([textcheck:rtewire]).
    Run: node tools/textcheck.js */
 'use strict';
 const fs = require('fs'), path = require('path');
@@ -153,8 +156,31 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     check('respan: typing before a span moves it along', J(respan('buy milk now', 'do buy milk now', F1, 3)) === J({ color: RED, spans: [{ s: 7, e: 11, color: GREEN }] }));
     check('respan: typing inside a span grows it', J(respan('buy milk now', 'buy miilk now', F1, 7)) === J({ color: RED, spans: [{ s: 4, e: 9, color: GREEN }] }));
     check('respan: typing after a span leaves it where it is', J(respan('buy milk now', 'buy milk now!', F1, 13)) === J(F1));
-    check('respan: typing right at a span\'s end or right at its start is outside it',
-        J(respan('buy milk now', 'buy milks now', F1, 9)) === J(F1) && J(respan('buy milk now', 'buy xmilk now', F1, 5)) === J({ color: RED, spans: [{ s: 5, e: 9, color: GREEN }] }));
+    // Typing next to a styled part (the owner's rule of 2026-10-02): what is typed right AFTER a part joins it, what is typed right BEFORE it does not
+    check('respan: typing right after a span joins it (the span grows); typing right before it does not (it takes what is before it)',
+        J(respan('buy milk now', 'buy milks now', F1, 9)) === J({ color: RED, spans: [{ s: 4, e: 9, color: GREEN }] }) && J(respan('buy milk now', 'buy xmilk now', F1, 5)) === J({ color: RED, spans: [{ s: 5, e: 9, color: GREEN }] })
+        && J(respan('buy milk now', 'buy milks now', F1)) === J({ color: RED, spans: [{ s: 4, e: 9, color: GREEN }] }), [respan('buy milk now', 'buy milks now', F1, 9), respan('buy milk now', 'buy xmilk now', F1, 5)]);
+    check('respan: a paste counts as typing — every character of it joins the span it was pasted right after',
+        J(respan('buy milk now', 'buy milkshake mix now', F1, 17)) === J({ color: RED, spans: [{ s: 4, e: 17, color: GREEN }] }) && J(respan('ab', 'abcd', { spans: [{ s: 0, e: 2, b: true }] }, 4)) === J({ spans: [{ s: 0, e: 4, b: true }] }));
+    check('respan: between two touching spans what is typed belongs to the one on its left',
+        J(respan('abcd', 'abXcd', { spans: [{ s: 0, e: 2, color: RED }, { s: 2, e: 4, color: GREEN }] }, 3)) === J({ spans: [{ s: 0, e: 3, color: RED }, { s: 3, e: 5, color: GREEN }] })
+        && J(respan('abcd', 'abX', { spans: [{ s: 0, e: 2, color: RED }, { s: 2, e: 4, color: GREEN }] }, 3)) === J({ spans: [{ s: 0, e: 3, color: RED }] }));   // the right one typed over: still the left one's
+    check('respan: a deletion never grows a span (the character after it, its own last one, a cut across its end)',
+        J(respan('buy milk now', 'buy milknow', F1, 8)) === J(F1) && J(respan('buy milk now', 'buy mil now', F1, 7)) === J({ color: RED, spans: [{ s: 4, e: 7, color: GREEN }] })
+        && J(respan('buy milk now', 'buy miow', F1, 6)) === J({ color: RED, spans: [{ s: 4, e: 6, color: GREEN }] }) && J(respan('buy milk now', 'buy milk', F1, 8)) === J(F1));
+    check('respan: a span that ends at a line break still grows when you type at the end of its line',
+        J(respan('buy milk\nwalk dog', 'buy milk!\nwalk dog', { color: RED, spans: [{ s: 0, e: 8, color: GREEN }] }, 9)) === J({ color: RED, spans: [{ s: 0, e: 9, color: GREEN }] }));
+    check('respan: Enter at a span\'s end begins a line that is not the span\'s — neither the line break nor what is typed after it joins (a pasted run that begins with a line break too)',
+        (() => { const g = { color: RED, spans: [{ s: 0, e: 8, color: GREEN }] }, a = respan('buy milk', 'buy milk\n', g, 9), b = respan('buy milk\n', 'buy milk\nw', a, 10), c = respan('buy milk\nw', 'buy milk\nwalk', b, 13);
+            return J(a) === J(g) && J(b) === J(g) && J(c) === J(g) && J(respan('buy milk', 'buy milk\nwalk dog', g, 17)) === J(g) && J(respan('buy milk', 'buy milk\r\nwalk', g, 14)) === J(g); })());
+    check('respan: a span that holds its line\'s break as its last character does not run on into the next line; typed before that break it grows',
+        (() => { const g = { color: RED, spans: [{ s: 0, e: 9, color: GREEN }] };   // "buy milk" and its line break, as a triple click selects a line
+            return J(respan('buy milk\nwalk dog', 'buy milk\nxwalk dog', g, 10)) === J(g) && J(respan('buy milk\nwalk dog', 'buy milk!\nwalk dog', g, 9)) === J({ color: RED, spans: [{ s: 0, e: 10, color: GREEN }] }); })());
+    check('respan: inside a span everything typed is the span\'s — a line break too, and the line begun after it',
+        (() => { const g = { spans: [{ s: 0, e: 4, color: GREEN }] }, a = respan('abcd x', 'ab\ncd x', g, 3), b = respan('ab\ncd x', 'ab\nzcd x', a, 4);
+            return J(a) === J({ spans: [{ s: 0, e: 5, color: GREEN }] }) && J(b) === J({ spans: [{ s: 0, e: 6, color: GREEN }] }); })());
+    check('respan: typing over a selection — what replaces the end of a span joins what is left of it; what replaces its start does not',
+        J(respan('buy milk now', 'buy miXw', F1, 7)) === J({ color: RED, spans: [{ s: 4, e: 7, color: GREEN }] }) && J(respan('buy milk now', 'buXlk now', F1, 3)) === J({ color: RED, spans: [{ s: 3, e: 5, color: GREEN }] }));
     check('respan: a deletion that cuts into a span leaves what survives (its end, its start, its middle)',
         J(respan('buy milk now', 'buy mi now', F1, 6)) === J({ color: RED, spans: [{ s: 4, e: 6, color: GREEN }] })
         && J(respan('buy milk now', 'bulk now', F1, 2)) === J({ color: RED, spans: [{ s: 2, e: 4, color: GREEN }] })
@@ -169,11 +195,13 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         && J(respan('xaay', 'xaaay', { spans: [{ s: 1, e: 2, b: true }] }, 99)) === J({ spans: [{ s: 1, e: 2, b: true }] }));  // a caret that cannot be: ignored
     check('respan: an edit next to a surrogate pair never leaves half of it styled',
         (() => { const o = 'a😀b', nw = 'a😁b', f = respan(o, nw, { spans: [{ s: 0, e: 4, color: RED }, { s: 1, e: 3, b: true }] }, 3); return runsOf(nw, f).every(r => !/^[\udc00-\udfff]/.test(r.t) && !/[\ud800-\udbff]$/.test(r.t)) && runsOf(nw, f).map(r => r.t).join('') === nw; })());
-    // a seeded walk: every character that survives an edit keeps its look, with and without the caret
+    // a seeded walk, with and without the caret: every character that survives an edit keeps its look, and what was typed takes the look of
+    // the character on its left where a span styles that one — unless the typed run begins with a line break or follows one at that span's
+    // end — and the field's own look everywhere else
     {
         const R = rng(7741), alpha = 'ab c\nd';
         const look = (text, fmt) => { const out = []; runsOf(text, fmt).forEach(r => { for (let k = 0; k < r.t.length; k++) out.push(r.color + '|' + r.b + '|' + r.i); }); return out; };
-        let bad = null, steps = 0, styled = 0;
+        let bad = null, steps = 0, styled = 0, joined = 0, apart = 0;
         for (let round = 0; round < 60 && !bad; round++) {
             let text = Array.from({ length: 6 + Math.floor(R() * 20) }, () => alpha[Math.floor(R() * alpha.length)]).join('');
             let fmt = cleanFmt({ color: R() < 0.5 ? RED : undefined, spans: Array.from({ length: 5 }, () => { const s = Math.floor(R() * text.length); return { s, e: s + 1 + Math.floor(R() * 6), color: R() < 0.6 ? [GREEN, BLUE][Math.floor(R() * 2)] : undefined, b: R() < 0.5 ? true : undefined, i: R() < 0.3 ? true : undefined }; }) }, text);
@@ -188,13 +216,20 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 else { p = 0; const lim = Math.min(text.length, next.length); while (p < lim && text[p] === next[p]) p++; q = 0; while (q < lim - p && text[text.length - 1 - q] === next[next.length - 1 - q]) q++; }
                 for (let k = 0; k < p; k++) if (before[k] !== after[k]) bad = { text, next, fmt, nf, k, where: 'prefix' };
                 for (let k = 0; k < q; k++) if (before[text.length - 1 - k] !== after[next.length - 1 - k]) bad = { text, next, fmt, nf, k, where: 'suffix' };
+                // what was typed: the new text's [p, p + n)
+                const oe = text.length - q, n = next.length - q - p, left = ((fmt && fmt.spans) || []).find(sp => sp.s < p && sp.e >= p);   // the span that styles the character on the left
+                const brk = c => c === '\n' || c === '\r', own = (fmt && fmt.color ? fmt.color : '') + '|' + !!(fmt && fmt.b) + '|' + !!(fmt && fmt.i);
+                const joins = !!left && (left.e > oe || (n > 0 && !brk(next[p]) && !brk(next[p - 1]))), want = joins ? before[p - 1] : own;
+                for (let k = p; k < p + n; k++) if (after[k] !== want) bad = { text, next, fmt, nf, k, want, got: after[k], where: 'typed' };
+                if (n > 0) { if (joins) joined++; else if (left) apart++; }
                 if (J(nf) !== J(cleanFmt(nf, next))) bad = { text, next, nf, where: 'not clean' };
                 if (nf && nf.spans) styled++;
                 text = next; fmt = nf; steps++;
                 if (!text) break;
             }
         }
-        check('respan (a seeded walk of ' + steps + ' edits): every character that survives keeps its look, and what comes out is clean', !bad && steps > 1000 && styled > 300, bad || { steps, styled });
+        check('respan (a seeded walk of ' + steps + ' edits): every character that survives keeps its look; what was typed takes the look of the character on its left where a span styles it (' + joined + ' times) — never when it begins with a line break or follows one at the span\'s end (' + apart + ' times) — and the field\'s own look elsewhere; what comes out is clean',
+            !bad && steps > 1000 && styled > 300 && joined > 150 && apart > 20, bad || { steps, styled, joined, apart });
     }
 
     /* ================= apply / clear / stateAt ================= */
@@ -369,6 +404,18 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         pg.tsType(bl, d, t2 + '\nfeed cat', t2.length + 9);   // at the end
         check('typing: an edit at the start, in the middle and at the end of a label carries its spans (respan on every input)',
             a1 === J({ color: RED, spans: [{ s: 11, e: 19, color: GREEN, b: true }] }) && a2 === J({ color: RED, spans: [{ s: 11, e: 20, color: GREEN, b: true }] }) && J(n1.fmt) === a2 && n1.text === '- buy milk\nwalks dog\ncall mum\nfeed cat', [a1, a2, n1.fmt]);
+        {   // the owner's case, through the editor: everything red, one line green
+            const pt = mkPage({ map: mapOf(B0()) }), bt = pt.map.blocks, nt = bt[2].nodes[0], dt = { idx: 2, k: 'node', ni: 0 };
+            nt.fmt = { color: RED, spans: [{ s: 9, e: 17, color: GREEN }] };   // "walk dog"
+            pt.tsType(bt, dt, 'buy milk\nwalk dogs\ncall mum', 18);            // at the end of the green line
+            const atEnd = J(nt.fmt);
+            pt.tsType(bt, dt, 'buy milk\nxwalk dogs\ncall mum', 10);           // at its start
+            const atStart = J(nt.fmt);
+            pt.tsType(bt, dt, 'buy milk\nxwalk dogs\n\ncall mum', 20);         // Enter at its end
+            pt.tsType(bt, dt, 'buy milk\nxwalk dogs\nf\ncall mum', 21);        // and a letter on the line that began
+            check('typing (the owner\'s case, through tsType to the stored format): everything red and one line green — typed at the end of the green line it is green, typed at its start it is red, and after Enter at its end the new line is red',
+                atEnd === J({ color: RED, spans: [{ s: 9, e: 18, color: GREEN }] }) && atStart === J({ color: RED, spans: [{ s: 10, e: 19, color: GREEN }] }) && J(nt.fmt) === atStart && nt.text === 'buy milk\nxwalk dogs\nf\ncall mum', [atEnd, atStart, nt.fmt]);
+        }
         pg.tsType(bl, { idx: 1, k: 'cell', ri: 0, ci: 0 }, 'Medicine!', 9); pg.tsType(bl, { idx: 6, k: 'col', ci: 0 }, 'Things', 6);
         check('typing: a field with no format gets none (no key appears), a head typed for the first time makes the heads the block\'s own, as before',
             bl[1].rows[0].col1 === 'Medicine!' && !('fmt' in bl[1].rows[0]) && J(bl[6].cols) === J(['Things', 'Detail', 'Notes']) && !('colFmt' in bl[6]) && pg.tsType(bl, { idx: 9, k: 'title' }, 'x', 1) === false);
@@ -685,14 +732,14 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const sib = function() { const l = this.parentNode ? this.parentNode.childNodes : [], i = l.indexOf(this); return i >= 0 && i + 1 < l.length ? l[i + 1] : null; };
         Object.defineProperty(TN.prototype, 'nextSibling', { get: sib }); Object.defineProperty(EN.prototype, 'nextSibling', { get: sib });
         Object.defineProperty(EN.prototype, 'firstChild', { get() { return this.childNodes[0] || null; } });
-        Object.defineProperty(EN.prototype, 'classList', { get() { const el = this; return { add: c => { el.cls[c] = 1; }, remove: c => { delete el.cls[c]; }, contains: c => !!el.cls[c] }; } });
+        Object.defineProperty(EN.prototype, 'classList', { get() { const el = this; return { add: c => { el.cls[c] = 1; }, remove: c => { delete el.cls[c]; }, contains: c => !!el.cls[c], toggle: (c, on) => { if (on) el.cls[c] = 1; else delete el.cls[c]; return !!on; } }; } });
         const detach = n => { if (n.parentNode) { const l = n.parentNode.childNodes; l.splice(l.indexOf(n), 1); n.parentNode = null; } };
         EN.prototype.appendChild = function(c) { detach(c); c.parentNode = this; this.childNodes.push(c); return c; };
         EN.prototype.insertBefore = function(c, ref) { detach(c); c.parentNode = this; this.childNodes.splice(this.childNodes.indexOf(ref), 0, c); return c; };
         EN.prototype.removeChild = function(c) { detach(c); return c; };
-        EN.prototype.normalize = function() { for (let i = 0; i < this.childNodes.length; i++) { const n = this.childNodes[i]; if (n.nodeType !== 3) continue; if (!n.nodeValue) { this.childNodes.splice(i--, 1); continue; } const nx = this.childNodes[i + 1]; if (nx && nx.nodeType === 3) { n.nodeValue += nx.nodeValue; this.childNodes.splice(i + 1, 1); i--; } } };
+        EN.prototype.normalize = function() { for (let i = 0; i < this.childNodes.length; i++) { const n = this.childNodes[i]; if (n.nodeType !== 3) continue; if (!n.nodeValue) { this.childNodes.splice(i--, 1); continue; } const nx = this.childNodes[i + 1]; if (nx && nx.nodeType === 3) { n.nodeValue += nx.nodeValue; this.childNodes.splice(i + 1, 1); i--; } } this.childNodes.forEach(n => { if (n.nodeType === 1) n.normalize(); }); };
         EN.prototype.scrollIntoView = function() { this.scrolled++; };
-        EN.prototype.querySelectorAll = function(sel) { if (sel !== 'mark.pf-hit') throw new Error('selector not understood by the test tree: ' + sel); const out = []; (function walk(el) { el.childNodes.slice().forEach(n => { if (n.nodeType !== 1) return; if (n.nodeName === 'MARK' && n.className === 'pf-hit') out.push(n); walk(n); }); })(this); return out; };
+        EN.prototype.querySelectorAll = function(sel) { if (sel !== 'mark.pf-hit' && sel !== 'mark.docpanel-hit') throw new Error('selector not understood by the test tree: ' + sel); const cls = sel.slice(5), out = []; (function walk(el) { el.childNodes.slice().forEach(n => { if (n.nodeType !== 1) return; if (n.nodeName === 'MARK' && n.className === cls) out.push(n); walk(n); }); })(this); return out; };
         TN.prototype.splitText = function(at) { const rest = new TN(this.nodeValue.slice(at)); this.nodeValue = this.nodeValue.slice(0, at); const l = this.parentNode.childNodes; l.splice(l.indexOf(this) + 1, 0, rest); rest.parentNode = this.parentNode; return rest; };
         const shape = n => n.nodeType === 3 ? n.nodeValue : '<' + n.nodeName.toLowerCase() + (n.className ? '.' + n.className : '') + (n.cls['pf-cur'] ? '!' : '') + '>' + n.childNodes.map(shape).join('') + '</>';
         const textOf = n => n.nodeType === 3 ? n.nodeValue : n.childNodes.map(textOf).join('');
@@ -720,6 +767,52 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const F5 = mkFind(new EN('div', '', [new EN('p', '', [new EN('span', '', ['Sé']), 'lkath elder']), new EN('p', '', ['The ', new EN('span', '', ['Hi']), 'll road'])]));
             check('find: accents and word starts work over the joined text — "selk" finds "Sélk" across its runs, and with no phrase each word is found at a word start',
                 J(hitsText(F5.find('selk'))) === '[["Sé","lk"]]' && J(hitsText(F5.find('road hill'))) === '[["Hi","ll"],["road"]]' && F5.find('ill').length === 1 && J(hitsText(F5.find('lkath'))) === '[["lkath"]]');
+        }
+
+        /* ---- the floating page panel's highlight: the page read in the same stretches (docpanel.js, sliced by [textcheck:panelfold] and [textcheck:panelfind], run on the same tree of plain objects) ---- */
+        {
+            const shapeP = n => n.nodeType === 3 ? n.nodeValue : '<' + n.nodeName.toLowerCase() + (n.className ? '.' + n.className : '') + (n.cls.cur ? '!' : '') + '>' + n.childNodes.map(shapeP).join('') + '</>';
+            const panelSrc = read('docpanel.js');
+            const mkPanel = body => { const cnt = { textContent: '' }, page = { body }; let api = null, err = null;
+                try {
+                    api = new Function('ui', 'document', 'var query = "", hits = [], curHit = -1;\n' + slice('docpanel.js', 'panelfold') + '\n' + slice('docpanel.js', 'panelfind')
+                        + '\nreturn { highlightBody: highlightBody, clearMarks: clearMarks, step: step, hlStretches: hlStretches, hits: function() { return hits; }, cur: function() { return curHit; }, setQuery: function(q) { query = q; } };')(id => ({ docPanelBody: page.body, docPanelFindCount: cnt })[id] || null, { createElement: tag => new EN(tag) });
+                } catch (e) { err = e; }
+                return { err, cnt, page, api, find: q => { if (!api) return []; api.setQuery(q); api.highlightBody(q); return api.hits(); }, step: d => api && api.step(d), clear: () => api && api.clearMarks(), stretches: r => api ? api.hlStretches(r) : [] }; };
+            const td = new EN('td', '', [new EN('span', '', ['Me']), new EN('span', '', ['di']), 'cine']), P = mkPanel(new EN('div', '', [new EN('table', '', [new EN('tr', '', [td, new EN('td', '', ['10'])])])]));
+            const h = P.find('medicine'), s1 = shapeP(td), c1 = P.cnt.textContent, t1 = J(hitsText(h)), sc = h.length ? h[0][0].scrolled : -1;
+            const h2 = P.find('med'), s2 = shapeP(td), t2 = J(hitsText(h2));
+            P.find(''); const s3 = shapeP(td), c3 = P.cnt.textContent;
+            P.find('medicine'); P.clear(); const s4 = shapeP(td), left = P.api ? P.api.hits().length : -1, nodesBack = td.childNodes.length === 3 && td.childNodes[0].childNodes.length === 1 && td.childNodes[1].childNodes.length === 1 && td.childNodes[2].nodeValue === 'cine';   // the text nodes joined again: no split left behind
+            check('panel highlight: a word drawn as three runs (part of it coloured) is ONE hit of three marks — one around its part of each text node, all lit as the focused hit, counted once; a part of it is found across its runs too; clearing leaves the tree as it was',
+                !P.err && h.length === 1 && t1 === '[["Me","di","cine"]]' && c1 === '1/1' && s1 === '<td><span><mark.docpanel-hit!>Me</></><span><mark.docpanel-hit!>di</></><mark.docpanel-hit!>cine</></>' && sc === 0
+                && h2.length === 1 && t2 === '[["Me","d"]]' && s2 === '<td><span><mark.docpanel-hit!>Me</></><span><mark.docpanel-hit!>d</>i</>cine</>' && s3 === '<td><span>Me</><span>di</>cine</>' && c3 === '' && s4 === s3 && left === 0 && nodesBack, P.err ? String(P.err) : [t1, c1, s1, t2, s2, s3, s4]);
+            const h1 = new EN('h1', '', [new EN('span', '', ['Session']), ' 1 — The Hill Road', new EN('span', 'sub', ['A one-evening adventure'])]), P2 = mkPanel(new EN('div', 'wrap', [h1]));
+            check('panel highlight: a phrase that crosses a run boundary is found as one hit; a span with a class of the renderer\'s (a subtitle) is not run on into; nothing found counts 0',
+                !P2.err && J(hitsText(P2.find('session 1'))) === '[["Session"," 1"]]' && P2.find('roada').length === 0 && P2.cnt.textContent === '0' && J(hitsText(P2.find('road'))) === '[["Road"]]' && J(hitsText(P2.find('one-evening'))) === '[["one-evening"]]', P2.err ? String(P2.err) : shapeP(h1));
+            const p = new EN('p', '', ['the cat and ', new EN('b', '', ['the']), ' hat, then']), P3 = mkPanel(new EN('div', '', [p])), h3 = P3.find('the');
+            const sA = shapeP(p), cA = P3.cnt.textContent; P3.step(1); const sB = shapeP(p), cB = P3.cnt.textContent, scB = h3.length > 1 ? h3[1][0].scrolled : -1; P3.step(1); P3.step(1); const cD = P3.cnt.textContent; P3.step(-1); P3.step(-1); const cF = P3.cnt.textContent, sF = shapeP(p);
+            check('panel highlight: a hit inside one text node is as before — each its own mark, the first focused without scrolling, the count "1/3"; next and previous move the focus (scrolled to), the count follows, and both wrap round',
+                !P3.err && h3.length === 3 && J(hitsText(h3)) === '[["the"],["the"],["the"]]' && sA === '<p><mark.docpanel-hit!>the</> cat and <b><mark.docpanel-hit>the</></> hat, <mark.docpanel-hit>the</>n</>' && cA === '1/3'
+                && sB === '<p><mark.docpanel-hit>the</> cat and <b><mark.docpanel-hit!>the</></> hat, <mark.docpanel-hit>the</>n</>' && cB === '2/3' && scB === 1 && cD === '1/3' && cF === '2/3' && sF === sB, P3.err ? String(P3.err) : [sA, cA, sB, cB, cD, cF]);
+            const chart = new EN('svg', '', [new EN('style', '', ['.node rect{fill:#medicine}']), new EN('foreignObject', '', [new EN('div', '', [new EN('span', 'nodeLabel', [new EN('font', '', ['Med']), 'icine'])])])]);
+            const body4 = new EN('div', '', [new EN('p', '', ['ab']), new EN('p', '', ['cd']), new EN('p', '', ['x', new EN('br'), 'y']), chart, new EN('script', '', ['medicine secret'])]), P4 = mkPanel(body4);
+            check('panel highlight: a paragraph and a line break end a stretch (nothing is found across them); a drawn chart\'s label is still searched, its coloured part with the rest, but never a style sheet or a script',
+                !P4.err && P4.find('bc').length === 0 && P4.find('xy').length === 0 && P4.find('secret').length === 0 && J(hitsText(P4.find('medicine'))) === '[["Med","icine"]]' && J(hitsText(P4.find('cd'))) === '[["cd"]]'
+                && J(P4.stretches(body4).map(s => s.map(n => n.nodeValue))) === '[["ab"],["cd"],["x"],["y"],["Med","icine"]]', P4.err ? String(P4.err) : J(P4.stretches(body4).map(s => s.map(n => n.nodeValue))));
+            const P5 = mkPanel(new EN('div', '', [new EN('p', '', [new EN('span', '', ['Sé']), 'lkath elder']), new EN('p', '', ['The ', new EN('span', '', ['Hi']), 'll road'])]));
+            check('panel highlight: accents and the word rule work over the joined text — "selk" finds "Sélk" across its runs; with no phrase on the page each word is found at a word start, one of them across its runs',
+                !P5.err && J(hitsText(P5.find('selk'))) === '[["Sé","lk"]]' && J(hitsText(P5.find('road hill'))) === '[["Hi","ll"],["road"]]' && P5.cnt.textContent === '1/2' && J(hitsText(P5.find('ill'))) === '[["i","ll"]]' && J(hitsText(P5.find('lkath'))) === '[["lkath"]]', P5.err ? String(P5.err) : '');
+            const first = new EN('div', '', [new EN('p', '', [new EN('span', '', ['Med']), 'icine'])]), P6 = mkPanel(first);
+            P6.find('medicine'); P6.step(1); const again = P6.find('medicine'), sAgain = shapeP(first);   // found again on the same page: the old marks go first
+            P6.page.body = new EN('div', '', [new EN('p', '', ['No ', new EN('span', '', ['medi']), 'cine here, nor medicine there'])]);   // the page was drawn again (a live edit, a chart that finished drawing)
+            const redrawn = P6.api ? (P6.api.highlightBody('medicine'), P6.api.hits()) : [];
+            check('panel highlight: applied again — on the same page the old marks go first (never a mark inside a mark), on a page drawn again the hits are that page\'s — and the panel does so after a live re-render and after its charts are drawn (pinned)',
+                !P6.err && again.length === 1 && sAgain === '<div><p><span><mark.docpanel-hit!>Med</></><mark.docpanel-hit!>icine</></></>' && J(hitsText(redrawn)) === '[["medi","cine"],["medicine"]]' && P6.cnt.textContent === '1/2'
+                && (panelSrc.match(/if \(query\.trim\(\)\) highlightBody\(query\);/g) || []).length === 2 && /\.then\(function\(\) \{ if \(window\.wpFcPostProcess\) window\.wpFcPostProcess\(body, it\); if \(query\.trim\(\)\) highlightBody\(query\); \}\)/.test(panelSrc)
+                && /function clearSearch\(\) \{ query = ''; var box = ui\('docPanelSearchInput'\); if \(box\) box\.value = ''; clearMarks\(\); renderResults\(\[\]\); updateCount\(\); \}/.test(panelSrc), P6.err ? String(P6.err) : [sAgain, J(hitsText(redrawn))]);
+            check('panel highlight (the file): docpanel.js is still LF-only and keeps its three NUL separators — it is binary to git and edited byte for byte',
+                (() => { const raw = fs.readFileSync(path.join(dir, 'docpanel.js')); let cr = 0, nul = 0; for (const x of raw) { if (x === 13) cr++; if (x === 0) nul++; } return cr === 0 && nul === 3; })());
         }
 
         /* ---- the text blocks' own bar: its colour and size controls, wired (planner.js wireRte, sliced and run on the test page) ---- */
@@ -753,14 +846,14 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const ix = rd('system/app/index.html'), tu = rd('system/app/scripts/tutorial.js'), ci = rd('CAMPAIGN_INTEGRATION.md'), css = rd('system/app/style.css'), yml = rd('.github/workflows/checks.yml');
         const pane = name => { const a = ix.indexOf('<div class="help-pane" data-pane="' + name + '"'), b = ix.indexOf('<div class="help-pane"', a + 10); return a < 0 ? '' : ix.slice(a, b < 0 ? undefined : b); };
         const hp = pane('planners'), words = s => s.replace(/<[^>]+>/g, '').replace(/&mdash;/g, '\u2014').replace(/&[a-z#0-9]+;/g, ' ').replace(/\s+/g, ' ');
-        check('said (Help, Planners): a Text style section — the bar closed until its caret is clicked, select then click, nothing selected is the whole field, size per field, Clear, what it names, one undo step, the text blocks\' colour and size, Markdown writes the plain text',
+        check('said (Help, Planners): a Text style section — the bar closed until its caret is clicked, select then click, nothing selected is the whole field, size per field, Clear, what it names, one undo step, the text blocks\' colour and size, a Markdown file keeps the style',
             /<h4>Text style<\/h4>/.test(hp) && ['closed until you click its', 'Select, then click.', 'so you can click green and then bold without selecting again', 'Ctrl + B', 'Nothing selected is the whole field.', 'then select the lines you have finished and pick green',
                 'is always the whole field\'s', 'Clear takes the styling off the selection, or off the whole field when nothing is selected', 'names what it will act on', 'a control that cannot apply is greyed out', 'Each click is one undo step',
-                'keep their own bar, which also has the colours, Default and a Size list for the selected text', 'A Markdown export writes the plain text: Markdown has no colour and no size'].every(w => words(hp).indexOf(w) >= 0), words(hp).slice(words(hp).indexOf('Text style'), words(hp).indexOf('Text style') + 400));
-        check('said (Help, Planners): Ctrl+Z in the field takes a click back and not the typing before it; after a row, a block, a node or an arrow is added, deleted or moved the bar asks for a click again; the keyboard in the bar — a control keeps the focus, the Size list stepped through is one undo step, Esc or Enter goes back; a Markdown import brings no colour or size in',
+                'keep their own bar, which also has the colours, Default and a Size list for the selected text', 'Save Markdown keeps text style and an import brings it back'].every(w => words(hp).indexOf(w) >= 0), words(hp).slice(words(hp).indexOf('Text style'), words(hp).indexOf('Text style') + 400));
+        check('said (Help, Planners): Ctrl+Z in the field takes a click back and not the typing before it; after a row, a block, a node or an arrow is added, deleted or moved the bar asks for a click again; the keyboard in the bar — a control keeps the focus, the Size list stepped through is one undo step, Esc or Enter goes back; what is typed right after a styled part joins it; the Handbook pane says how Markdown carries text style',
             ['After you add, delete or move a row, a block, a node or an arrow it asks for a click again.', 'Ctrl + Z in the field takes the click back, not what you typed before it', 'From the keyboard: Tab to the bar. A control you press there keeps the focus',
-                'step through the Size list with the arrow keys (that whole run of sizes is one undo step)', 'or Enter in the Size list', 'takes you back to the field, its selection as you left it', 'Markdown has no colour and no size, and a Markdown import brings none in.'].every(w => words(hp).indexOf(w) >= 0)
-            && words(pane('handbook')).indexOf('Markdown has no colour and no size: a file brings none in, and Save Markdown writes none.') >= 0, words(hp).slice(words(hp).indexOf('The bar names'), words(hp).indexOf('The bar names') + 900));
+                'step through the Size list with the arrow keys (that whole run of sizes is one undo step)', 'or Enter in the Size list', 'takes you back to the field, its selection as you left it', 'What you type right after a styled part joins it, as in a word processor; typed right before it, or on a new line you start with Enter, it does not.'].every(w => words(hp).indexOf(w) >= 0)
+            && ['Text style travels too. Save Markdown writes bold and italic as ** and *, and a colour or a size as a small tag around the text', 'an import reads all of those back, and you can write them by hand', 'A file with none of this in it comes in exactly as before.'].every(w => words(pane('handbook')).indexOf(w) >= 0), words(hp).slice(words(hp).indexOf('The bar names'), words(hp).indexOf('The bar names') + 900));
         const hh = ix.slice(ix.indexOf('<h4>What a page is</h4>'), ix.indexOf('<h4>Players can read / GM only</h4>'));
         check('said (Help, Handbook): editing a page names the Text style bar and that players see a styled page as the GM does', /The <b>Text style<\/b> bar at the top of the editor colours, bolds, italicises and sizes a page's text just as in a planner/.test(hh) && /Players see a styled page exactly as you do\./.test(hh));
         const stepOf = title => { const a = tu.indexOf("title: '" + title + "'"); return a < 0 ? '' : tu.slice(a, tu.indexOf('before:', a)); };
@@ -769,13 +862,13 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && /the text blocks have the colours and a size list on their own bar/.test(stepOf('Writing a planner')) && /The same <b>Text style<\/b> bar colours and sizes a page&rsquo;s titles, table cells and flowchart labels, and players see them as you do\./.test(stepOf('Handbook')));
         check('said (the integration guide): the keys and where each is stored, with the cleaner\'s own numbers and steps',
             ci.indexOf('**Text style (1.5.0):**') > 0 && ci.indexOf('"size": "' + SIZES.join('|') + '"') > 0 && SIZES.every(k => ci.indexOf(k + ' ' + SIZE_EM[k].replace('em', '')) > 0) && Object.keys(SIZE_EM).map(k => SIZE_EM[k]).every(v => ci.indexOf(v) > 0)
-            && ci.indexOf('at most ' + MAX_SPANS + ' a field') > 0 && ci.indexOf('only the first ' + MAX_RAW + ' entries of a list are read') > 0 && ['"fmt": { "title": …, "sub": …, "tag": …, "must": …, "caption": … }', '`"colFmt"`, a list parallel to `cols`', '"fmt": { "col1": …, "col2": … }', '`"rowFmt"`, a list of lists parallel to `rows`', 'a strict `#rrggbb`', '<span style="color:#rrggbb">', 'an export writes the plain text and an import brings no format'].every(w => ci.indexOf(w) > 0));
+            && ci.indexOf('at most ' + MAX_SPANS + ' a field') > 0 && ci.indexOf('only the first ' + MAX_RAW + ' entries of a list are read') > 0 && ['"fmt": { "title": …, "sub": …, "tag": …, "must": …, "caption": … }', '`"colFmt"`, a list parallel to `cols`', '"fmt": { "col1": …, "col2": … }', '`"rowFmt"`, a list of lists parallel to `rows`', 'a strict `#rrggbb`', '<span style="color:#rrggbb">', '**Text style in Markdown:** an export carries it and an import reads it back'].every(w => ci.indexOf(w) > 0));
         check('the page: the bar\'s place is in index.html above the blocks, closed (its body hidden), with no handler attribute and no inline script; its styles keep it in view while the editor scrolls',
             /<div id="textStyleBar" class="ts-bar">\n\s*<button type="button" id="textStyleToggle" class="ts-toggle" aria-expanded="false" aria-controls="textStyleBody" title="[^"<>]+"><span class="ts-caret" aria-hidden="true">&#9656;<\/span> Text style<\/button>\n\s*<div id="textStyleBody" class="ts-body" hidden><\/div>\n\s*<\/div>\n\s*<div id="plannerBlocks"><\/div>/.test(ix)
             && /\.ts-bar \{ position: sticky; top: -15px;/.test(css) && /\.ts-body\[hidden\] \{ display: none; \}/.test(css));
         check('CI runs this suite', /run: node tools\/textcheck\.js/.test(yml));
         const DRX = await import(modUrl('docrender.js'));
-        check('the console\'s list names the new module and the renderer\'s new calls, as the code publishes them', /wpTextFmt: 'Text formats, pure \(scripts\/textfmt\.js\)/.test(rd('system/app/scripts/devconsole.js')) && /fmtHtml\(text, fmt, put\), fmtRich\(text, fmt\), cleanBlockFmts\(block\), sanitizeBare\(html\)/.test(rd('system/app/scripts/devconsole.js')) && typeof DRX.fmtRich === 'function' && typeof DRX.sanitizeBare === 'function' && ['cleanFmt', 'runsOf', 'respan', 'apply', 'clear', 'stateAt', 'SIZES', 'SIZE_EM', 'PALETTE', 'MAX_SPANS'].every(k => k in TF));
+        check('the console\'s list names the new module and the renderer\'s new calls, as the code publishes them', /wpTextFmt: 'Text formats, pure \(scripts\/textfmt\.js\)/.test(rd('system/app/scripts/devconsole.js')) && /fmtHtml\(text, fmt, put\), fmtRich\(text, fmt\), cleanBlockFmts\(block\), sanitizeBare\(html\)/.test(rd('system/app/scripts/devconsole.js')) && /htmlToMarkdown, fmtFromInline\(html\), flowchartFromMermaid/.test(rd('system/app/scripts/devconsole.js')) && typeof DRX.fmtRich === 'function' && typeof DRX.sanitizeBare === 'function' && ['cleanFmt', 'runsOf', 'respan', 'apply', 'clear', 'stateAt', 'SIZES', 'SIZE_EM', 'PALETTE', 'MAX_SPANS'].every(k => k in TF));
     }
 
     summed = true;

@@ -95,7 +95,7 @@
         wpDocForeign: 'Handbook reader: (on) closes the reader and switches mermaid to strict while someone else\'s campaign is on screen; (off) restores the app\'s own mode (handbook.js).',
         wpDocGone: "Handbook reader: (campId, itemId) closes the reader with a toast when the GM hid or deleted the page on screen.",
         wpDocImport: 'Markdown in and out (scripts/docimport.js): openImport({kind, mode, parentId, files}), importFile(file), exportMarkdown(item), detectBundle(entries), TEMPLATE.',
-        wpDocMd: 'The pure Markdown half (scripts/docmd.js): markdownToBlocks(text, {kind, items}), docToMarkdown(item, {items}), htmlToMarkdown, flowchartFromMermaid, parseAttrs, detectBundle, LIMITS. No DOM.',
+        wpDocMd: 'The pure Markdown half (scripts/docmd.js): markdownToBlocks(text, {kind, items}), docToMarkdown(item, {items}), htmlToMarkdown, fmtFromInline(html), flowchartFromMermaid, parseAttrs, detectBundle, LIMITS. No DOM.',
         wpDocReaderOpenId: 'Handbook reader: the id of the page open in the reader, or null.',
         wpDocReaderRefresh: 'Handbook reader: (campId, itemId) re-renders the reader when that page changed (keeps the scroll position).',
         wpDocRender: 'The handbook renderer and sanitizer (scripts/docrender.js): sanitizeHtml(html), cleanDoc(doc, {keepHidden}), renderDoc(doc, {src, mermaid}), proseHtml, compileFlowchart, fmtHtml(text, fmt, put), fmtRich(text, fmt), cleanBlockFmts(block), sanitizeBare(html), LIMITS. Pure — no state, no DOM.',

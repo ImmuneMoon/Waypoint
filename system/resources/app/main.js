@@ -367,10 +367,11 @@ const server = http.createServer((req, res) => {
         if (ext === '.svg') mime = 'image/svg+xml';
         if (ext === '.ico') mime = 'image/x-icon';
         if (ext === '.woff2') mime = 'font/woff2';
+        if (pathname.startsWith('/saves/')) mime = shellguard.savesType(mime);   // nothing under saves/ is answered as a page, a script or a stylesheet
         mime = servefile.mediaType(ext) || mime;   // item 21 V1: a video or a sound by its own type (saves/ answers nosniff)
         servefile.serveFile(req, res, filePath, {   // item 21 V1: its length, and a byte range when asked for (a video seeks without being read whole)
             'Content-Type': mime,
-            ...(pathname.startsWith('/saves/') ? { 'Content-Security-Policy': 'sandbox', 'X-Content-Type-Options': 'nosniff' } : {}),   // a file under saves/ (a picture, a sound, an imported page) is inert if ever opened as a page
+            ...(pathname.startsWith('/saves/') ? { 'Content-Security-Policy': 'sandbox', 'X-Content-Type-Options': 'nosniff' } : shellguard.pageHeaders(mime, path.join(savesDir, 'preferences.json'))),   // a file under saves/ (a picture, a sound, an imported page) is inert if ever opened as a page; a page of the app carries the policy for what it may run and load (shellguard.pagePolicy, in the mode the settings file says)
             'Cache-Control': 'no-cache, no-store, must-revalidate'
         });
     } else {

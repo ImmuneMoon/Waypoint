@@ -1,3 +1,5 @@
 # Auto detect text files and perform LF normalization
 * text=auto
 *.woff2 binary
+# the bundled libraries are kept byte for byte on every checkout (tools/sinkcheck.js pins their SHA-256)
+system/app/assets/vendor/*.js binary

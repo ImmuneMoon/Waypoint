@@ -20,7 +20,7 @@
      { do: 'devtools', wc }                     the developer tools open there              -> { open }
      { do: 'ask', wc, perm, url }               a page asks for a permission                -> { granted }
      { do: 'check', wc, perm, origin }          the engine checks a permission              -> { granted }
-     { do: 'http', method, path, body, v6 }     a request to the local server (v6: over [::1]) -> { code, text, ext }
+     { do: 'http', method, path, body, v6 }     a request to the local server (v6: over [::1]) -> { code, text, ext, h: { csp, sniff, type } } (h: the answer's policy, type-guessing and type headers)
      { do: 'state' }                            -> { menus, menu, devOpen, closed }
    wc is a number: 0 is the main window's, each 'wc' step makes the next. ext is what was handed to the system browser by
    that step. */
@@ -112,7 +112,7 @@ function request(step, port) {
         if (rec.hook && !step.bare) rec.hook({ url: 'http://localhost:' + port + step.path, requestHeaders: Object.assign({}, headers) }, r => { if (r && r.requestHeaders) Object.assign(headers, r.requestHeaders); });   // and whatever the shell's session adds to a window's request (bare: a request from another program, which carries none of it)
         if (body) { headers['Content-Type'] = 'application/json'; headers['Content-Length'] = body.length; }
         const rq = http.request({ host: step.v6 ? '::1' : '127.0.0.1', port, method: step.method || 'GET', path: step.path, headers, agent: false }, rs => {
-            const bufs = []; rs.on('data', b => bufs.push(b)); rs.on('end', () => resolve({ code: rs.statusCode, text: Buffer.concat(bufs).toString('utf8').slice(0, 400) }));
+            const bufs = []; rs.on('data', b => bufs.push(b)); rs.on('end', () => resolve({ code: rs.statusCode, text: Buffer.concat(bufs).toString('utf8').slice(0, 400), h: { csp: rs.headers['content-security-policy'] || null, sniff: rs.headers['x-content-type-options'] || null, type: rs.headers['content-type'] || null } }));
         });
         rq.on('error', e => resolve({ code: 0, text: String(e && e.code) }));
         rq.setTimeout(8000, () => { const e = new Error('no answer'); e.code = 'ETIMEDOUT'; rq.destroy(e); });

@@ -64,15 +64,15 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         && (read('system/app/scripts/main.js').match(/\.videos\b/g) || []).length === 9);
 
     /* ---- the name a file is uploaded under, and the local server taking it ---- */
-    const main = read('system/resources/app/main.js'), grab = re => (re.exec(main) || [''])[0];
-    const serverName = new Function(grab(/const FILE_EXT_BAD = [^\n]*/) + NL + grab(/function safeSeg\(s\) [^\n]*/) + NL + grab(/function safeFileName\(n\) [^\n]*/) + NL + 'return safeFileName;')();
+    const main = read('system/resources/app/main.js');
+    let serverName = null; try { serverName = require('../system/resources/app/reqguard.js').safeFileName; } catch (e) { serverName = null; }   // the rule both servers take a new file's name by (reqguard.js)
     const names = ['My Clip (final).MP4', 'a/b\\c?d#e%f.webm', '..\\..\\evil.mp4', '.hidden.mov', 'con:*"<>|.m4v', 'tab\there.ogv', 'Überfahrt nach Hause.mp4', '😀'.repeat(120) + '.mp4', 'x'.repeat(300) + '.webm', '...mp4', ' spaced .mp4 ', 'a..b...c.mp4'];
     const disk = names.map(V.diskName);
     check('the name a video is uploaded under: its own name with separators, ?, #, %, spaces, control characters and a walk as _, no leading dot, cut to 80 code points, its extension in lower case; a file that is not a video by name gets none',
         j(disk.slice(0, 4)) === j(['My_Clip_(final).mp4', 'a_b_c_d_e_f.webm', 'evil.mp4', 'hidden.mov']) && disk[5] === 'tab_here.ogv' && disk[6] === 'Überfahrt_nach_Hause.mp4' && Array.from(disk[7]).length === 84 && disk[8] === 'x'.repeat(80) + '.webm' && disk[9] === 'video.mp4' && disk[10] === 'spaced_.mp4' && disk[11] === 'a_b_c.mp4'
         && ['x.mkv', 'x.mp4.exe', 'x.html', 'mp4', '', null, 5].every(n => V.diskName(n) === ''), j(disk));
-    check('every name it gives is one the local server takes (the shell\'s own safeFileName, sliced from main.js) and, behind the server\'s prefix, an uploaded video\'s path',
-        typeof serverName === 'function' && disk.every(n => serverName(n) && V.isVideoPath('/saves/images/video/camp_1/k3j9a0pq_' + n)) && !serverName('x.html') && !serverName('.x.mp4'), j(disk.filter(n => !serverName(n) || !V.isVideoPath('/saves/images/video/camp_1/k3j9a0pq_' + n))));
+    check('every name it gives is one the local server takes (the shell\'s own safeFileName, reqguard.js, which the upload route asks through freshKind) and, behind the server\'s prefix, an uploaded video\'s path',
+        typeof serverName === 'function' && disk.every(n => serverName(n) && V.isVideoPath('/saves/images/video/camp_1/k3j9a0pq_' + n)) && !serverName('x.html') && !serverName('.x.mp4') && /const kind = reqguard\.freshKind\(mapId, rawName\);/.test(main), typeof serverName === 'function' ? j(disk.filter(n => !serverName(n) || !V.isVideoPath('/saves/images/video/camp_1/k3j9a0pq_' + n))) : 'no reqguard.js');
     check('the name an upload shows: the file\'s own without its extension or the server\'s prefix, cleaned; nothing gives the default',
         V.nameOf('Opening Crawl.mp4') === 'Opening Crawl' && V.nameOf('k3j9a0pq_Clip.webm') === 'Clip' && V.nameOf('.mp4') === 'Video' && V.nameOf(null) === 'Video' && V.nameOf('a' + String.fromCharCode(0) + 'b.mov') === 'a b');
     let seq = 0; const rnd = () => ((seq++ * 7) % 36) / 36;

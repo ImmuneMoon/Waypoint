@@ -1634,6 +1634,85 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     }
     delete global.window;
 
+    /* ---- the Journal window against an index read from disk (handouts.js, sliced by its journal and journalshare markers and run for real on a
+       recording page) — the outside audit of 2026-10-01: a journal's index is a file under saves/, and a saves folder can come from anywhere ---- */
+    {
+        const escLine = (/function esc\(s\)\{[^\n]*\}/.exec(read('inspector.js')) || [''])[0], escApp = escLine ? new Function(escLine + '\nreturn esc;')() : null;   // the page's own esc, as handouts.js imports it
+        const hoT = read('handouts.js'), tagLine = (/function tagChips\(tags, cls\) \{[^\n]*/.exec(hoT) || [''])[0], ownSrcFn = (/function ownPicSrc\(src\) \{[\s\S]*?\n\}/.exec(hoT) || [''])[0];
+        let jSrc = '', shSrc = ''; try { jSrc = slice('handouts.js', 'journal'); shSrc = slice('handouts.js', 'journalshare'); } catch (e) { jSrc = ''; shSrc = ''; }
+        const mkJ = (journals, o) => {
+            o = o || {};
+            const list = { innerHTML: '' }, w = { list, toasts: [], fetched: [], shared: [], err: '' };
+            const ui = id => (id === 'journalModal' ? { style: {} } : id === 'journalList' ? list : null);
+            const wnd = { wpNet: Object.assign({ myId: 'u_me', active: false, role: null, roster: {}, shareEntry: p => { w.shared.push(p); return true; } }, o.net || {}) };
+            const readIndex = async key => journals.find(x => x.campId === key) || { campId: key, entries: [] };
+            const fetchS = async u => { w.fetched.push(String(u)); return { ok: true, arrayBuffer: async () => new Uint8Array([137, 80, 78, 71]).buffer }; };
+            const names = ['ui', 'listJournals', 'ownCampaignKey', 'sentRecords', 'readIndex', 'withIndex', 'journalPage', 'journalDefaultPage', 'journalShow', 'journalShowDefault', 'chipOpensTo', 'journalFilter', 'badge', 'esc', 'picRef', 'window', 'fetch', 'toast', 'document'];
+            const vals = [ui, async () => journals, () => null, () => [], readIndex, async (k, fn) => { const ix = await readIndex(k); fn(ix); return ix; }, {}, () => 'all', {}, () => '', () => '', () => {}, () => {}, escApp, SC.picRef, wnd, fetchS, t => w.toasts.push(t), { querySelector: () => null }];
+            try { w.api = new Function(...names, '"use strict";\n' + tagLine + '\n' + ownSrcFn + '\n' + shSrc + '\n' + jSrc + '\nreturn { openJournal: openJournal, shareEntry: shareEntry, sentLine: sentLine };')(...vals); } catch (e) { w.err = String(e && e.message); w.api = { openJournal: async () => { throw new Error(w.err); }, shareEntry: async () => { throw new Error(w.err); } }; }
+            return w;
+        };
+        const X = '"><img src=x onerror=1>', protoBefore = Object.getOwnPropertyNames(Object.prototype).sort().join();
+        const hostile = [{ campId: X, campaign: X, gm: X, gmId: X, sentNotes: { ['sent:' + X + ':0']: X }, entries: [
+            { id: X, kind: 'image', title: X, caption: X, text: X, notes: X, src: X, mime: X, tags: [X], sharedBy: X, sharedById: X, sharedNotes: X, from: X, receivedAt: X, sentTo: [{ to: X, name: X, at: X }, { to: 'gm', name: 'GM', at: ['"><i>'] }, null, 'x', 7, { to: 9, name: 9, at: 9 }, { to: { a: 1 }, name: ['"><i>'], at: '12' }] },
+            { id: 'n2', kind: 'note', title: X, text: X, sentTo: X },
+            { id: 'n3', kind: 'text', title: X, text: X, sharedBy: 'Mal', sharedById: '__proto__', sentTo: { 0: { at: X } } },
+            { id: 'n4', kind: 'text', title: 't', text: 'x', sharedBy: 'Con', sharedById: 'constructor' }] }];
+        const JH = mkJ(hostile); let threwH = '';
+        try { await JH.api.openJournal(); } catch (e) { threwH = String(e && e.message); }
+        const htmlH = JH.list.innerHTML, sentIds = (htmlH.match(/journal-sentrow"[^>]*data-id="[^"]*"/g) || []).map(s => /data-id="([^"]*)"/.exec(s)[1]);
+        check('journal (an index from disk): every value of a hostile index — the campaign, the GM, each page\'s id, title, caption, text, notes, picture, tags and sender, and the time a page was sent — reaches the Journal\'s markup only as text or as a number: no tag, no attribute of its own, no picture from outside the app; a sent row\'s id ends in a number whatever the index holds for its time (a text, a list), a row that is no row (nothing, a text, a number) and a sent list that is no list are passed over, and the Journal still opens',
+            jSrc.length > 400 && !threwH && htmlH.length > 400 && risks(htmlH).length === 0 && !/<img src=x/.test(htmlH) && !/<i>/.test(htmlH) && JSON.stringify(sentIds) === JSON.stringify([12, 9, 0, 0].map(n => 'sent:' + SC.esc(X) + ':' + n)), [threwH || JH.err, risks(htmlH).slice(0, 3), sentIds]);
+        check('journal (an index from disk): a sender whose id is a name every object inherits (__proto__, constructor) is counted in a list of its own — nothing is written onto Object.prototype',
+            !threwH && Object.getOwnPropertyNames(Object.prototype).sort().join() === protoBefore && ({}).n === undefined && ({}).name === undefined && /data-from="__proto__"/.test(htmlH) && /data-from="constructor"/.test(htmlH), [Object.getOwnPropertyNames(Object.prototype).filter(k => protoBefore.split(',').indexOf(k) < 0)]);
+        delete Object.prototype.n; delete Object.prototype.name; delete Object.prototype.id;
+        const honest = [{ campId: 'c1__u_gm', campaign: 'The Camp', gm: 'Gina', gmId: 'u_gm', sentNotes: { 'sent:n1:1700000000000': 'my note' }, entries: [{ id: 'n1', kind: 'note', title: 'T', text: 'body', receivedAt: 1700000000000, sentTo: [{ to: 'gm', name: 'GM', at: 1700000000000 }] }, { id: 'h1', kind: 'image', title: 'Pic', src: '/saves/images/journal/c1__u_gm/h1.png', mime: 'image/png', receivedAt: 1700000000001, notes: 'seen' }] }];
+        const JO = mkJ(honest); let threwO = ''; try { await JO.api.openJournal(); } catch (e) { threwO = String(e && e.message); }
+        const htmlO = JO.list.innerHTML;
+        check('journal (an index from disk): an honest index reads as before — the sent row keeps its id (sent:<page>:<time>) so the note written under that send is found, the page\'s picture is the Journal\'s own file, its notes are in its box',
+            !threwO && /data-id="sent:n1:1700000000000" data-kind="text" data-sent="1"/.test(htmlO) && /Your notes about this send…">my note<\/textarea>/.test(htmlO) && /<img class="journal-thumb" src="\/saves\/images\/journal\/c1__u_gm\/h1\.png"/.test(htmlO) && />seen<\/textarea>/.test(htmlO) && /Sent to <b>GM<\/b>/.test(htmlO), [threwO, (/data-id="sent:[^"]*"/.exec(htmlO) || [''])[0]]);
+        // Send: only the Journal's own picture is ever read and handed to the table
+        const shareRun = async src => { const W = mkJ([{ campId: 'c1__u_gm', entries: [{ id: 'h1', kind: 'image', title: 'Pic', src: src, mime: 'image/png', notes: '' }] }], { net: { active: true, role: 'client' } }); try { await W.api.shareEntry('c1__u_gm', 'h1', 'gm', null); } catch (e) { W.err = String(e && e.message); } return W; };
+        const badSrc = ['/api/data', '/saves/data.json', '/saves/preferences.json', '/saves/backups/data-2026-10-01-09-00-00.json', '/saves/images/m_abc/x.png', '/saves/images/journal/../data.json', '/saves/images/journal/c1__u_gm/journal.json', '/saves/images/journal/journals.json', '/saves/images/journal/c1__u_gm/../../m/x.png', '/saves/images/journal/c1__u_gm/sub/h.png', '/saves/images/Journal/c1__u_gm/h1.png', 'blob:http://localhost:3000/abc', 'data:text/html;base64,PGI+', 'data:image/svg+xml;base64,PHN2Zz4=', 'https://evil.example/x.png', '', 5, null];
+        const goodSrc = ['/saves/images/journal/c1__u_gm/h1.png', '/saves/images/journal/c1__u_gm/h1-v2abc.jpg', '/saves/images/journal/personal/x_1.webp', 'data:image/png;base64,iVBORw0KGgo=', 'data:image/jpeg;base64,/9j/4AAQ'];
+        const badRuns = [], goodRuns = []; for (const s of badSrc) badRuns.push(await shareRun(s)); for (const s of goodSrc) goodRuns.push(await shareRun(s));
+        check('journal (Send): a page hands the table only the Journal\'s own picture — its file in this machine\'s journal folder, or the small picture kept inside the index; a page whose picture names the save, the profile store, a backup, an index, another folder, a walk, a blob, a page or a web address reads nothing (no fetch at all), sends nothing and says the picture could not be read',
+            shSrc.length > 400 && badRuns.every(W => !W.err && W.fetched.length === 0 && W.shared.length === 0 && JSON.stringify(W.toasts) === JSON.stringify(['That picture could not be read from your journal.']))
+            && goodRuns.every((W, i) => !W.err && JSON.stringify(W.fetched) === JSON.stringify([goodSrc[i]]) && W.shared.length === 1 && W.shared[0].to === 'gm' && W.shared[0].entry.kind === 'image' && W.shared[0].entry.data.length === 4 && W.toasts[0] === '"Pic" sent to GM.'),
+            [badRuns.map(W => [W.err, W.fetched.length, W.shared.length]), goodRuns.map(W => [W.err, W.fetched, W.shared.length])]);
+    }
+
+    /* ---- Settings' snapshots: Delete and Restore act only on a yes (settings.js, sliced by its snaps markers and run on a recording page; the page's
+       dialogs module is handed in where the handler imports it) ---- */
+    {
+        let snapSrc = ''; try { snapSrc = slice('settings.js', 'snaps'); } catch (e) { snapSrc = ''; }
+        const mkS = (answer, net) => {
+            const w = { asked: [], fetched: [], toasts: [], reloaded: 0, err: '' }; let handler = null;
+            const listEl = { addEventListener: (ev, fn) => { if (ev === 'click') handler = fn; } };
+            const dialogs = { showConfirm: (msg, cb) => { w.asked.push(msg); return cb(answer); } };   // dialogs.js calls back with true (OK, Enter) or false (Cancel, Escape)
+            try { new Function('ui', '__dialogs', 'fetch', 'toast', 'loadSnapshots', 'window', 'location', 'setTimeout', snapSrc.split("await import('./dialogs.js')").join('__dialogs'))(() => listEl, dialogs, async (u, init) => { w.fetched.push([u, JSON.parse(init.body).file]); return { ok: true }; }, t => w.toasts.push(t), () => {}, { wpNet: net || null }, { reload() { w.reloaded++; } }, fn => fn()); } catch (e) { w.err = String(e && e.message); }
+            w.click = async (file, cls) => { if (!handler) { w.err = w.err || 'no handler'; return; } const row = { dataset: { file }, querySelector: () => ({ textContent: 'then' }) }; await handler({ target: { closest: sel => (sel === '.snap-row' ? row : sel === cls ? {} : null) } }); await new Promise(r => setImmediate(r)); };
+            return w;
+        };
+        const no = mkS(false); await no.click('data-2026-10-01-09-00-00.json', '.snap-del'); await no.click('keep-2026-10-01-09-30-00.json', '.snap-del'); await no.click('data-2026-10-01-09-00-00.json', '.snap-restore');
+        const yes = mkS(true); await yes.click('data-2026-10-01-09-00-00.json', '.snap-del'); await yes.click('keep-2026-10-01-09-30-00.json', '.snap-del'); await yes.click('data-2026-10-01-09-00-00.json', '.snap-restore');
+        const atTable = mkS(true, { active: true }); await atTable.click('data-2026-10-01-09-00-00.json', '.snap-restore');
+        check('settings (snapshots): Delete and Restore act only on a yes — answered Cancel or Escape, nothing is asked of the saves folder: no snapshot deleted, the save not replaced, no reload; answered OK, the snapshot named is deleted or restored (then the reload); a restore is refused at a table before it is even asked; the question for a launch backup says it is set aside in backups/removed, the one for a snapshot taken by hand does not',
+            snapSrc.length > 400 && !no.err && no.asked.length === 3 && no.fetched.length === 0 && no.toasts.length === 0 && no.reloaded === 0
+            && !yes.err && JSON.stringify(yes.fetched) === JSON.stringify([['/api/delete-backup', 'data-2026-10-01-09-00-00.json'], ['/api/delete-backup', 'keep-2026-10-01-09-30-00.json'], ['/api/restore-backup', 'data-2026-10-01-09-00-00.json']]) && yes.reloaded === 1
+            && atTable.asked.length === 0 && atTable.fetched.length === 0 && /set aside rather than erased: it moves to backups\/removed/.test(no.asked[0] || '') && !/set aside/.test(no.asked[1] || '') && /^Restore the save from then\?/.test(no.asked[2] || ''), [no.err || yes.err, no.asked.length, no.fetched, yes.fetched, yes.reloaded, atTable.asked.length]);
+    }
+
+    /* ---- a category's files, from a campaign file's category keys (whiteboard.js catMemberFile, in the catfiles slice) ---- */
+    {
+        let member = null; try { member = new Function(slice('whiteboard.js', 'catfiles') + '\nreturn typeof catMemberFile === "function" ? catMemberFile : null;')(); } catch (e) { member = null; }
+        const keys = ['/saves/images/m_abc/pic.png', '/saves/images/m_abc/Pic 2.JPEG', '/saves/images/journal/c1/journal.json', '/saves/images/journal/journals.json', '/saves/images/journal/c1/h_1.png', '/saves/images/Journal/c1/h_1.png', '/saves/images/journal./c1/h.png', '/saves/images/video/x/abcd1234_v.mp4', '/saves/images/audio/x/abcd1234_s.ogg',
+            '/saves/images/../data.json', '/saves/images/m/../../data.json', '/saves/images//x.png', '/saves/images/m/.. /x.png', '/saves/images/pic.png', '/saves/data.json', 'https://evil.example/a.png', '/saves/images/m\\x.png', '/saves/images/m/a.png?x', 7, null];
+        const kept = member ? keys.filter(member) : null;
+        check('category files: of a category\'s keys (they come from a campaign file) only a picture the Image Library itself lists may be offered for deletion with it — never a journal\'s index, the registry or a page\'s picture, another campaign\'s video or sound, a path that walks or holds an empty segment, a file outside the pictures\' folders, a web address or a value that is no path; the Delete category handler filters its members through it',
+            JSON.stringify(kept) === JSON.stringify(['/saves/images/m_abc/pic.png', '/saves/images/m_abc/Pic 2.JPEG']) && /var members = Object\.keys\(cc\.by\)\.filter\(function\(p\) \{ return tagsIn\(cc, p\)\.indexOf\(del\) >= 0 && catMemberFile\(p\); \}\);/.test(read('whiteboard.js')), [kept]);
+    }
+
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

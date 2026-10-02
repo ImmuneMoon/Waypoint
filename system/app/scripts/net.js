@@ -6873,7 +6873,7 @@ function assetCharge(peer, n) { var b = assetBytes[peer], now = Date.now(); if (
 var ASSET_BACKLOG = 2048;
 function connBacklog(conn) { var n = conn ? Number(conn.bufferSize) : 0; return n > 0 ? n : 0; }
 var assetInflight = {}; // host: peer -> path, one sound transfer at a time per peer
-var ASSET_PART = 256 * 1024, AUDIO_CAP = 26 * 1024 * 1024, ASSET_WAIT = 45000, MAX_PARTS = 130;   // AUDIO_CAP covers full music tracks (musiccore caps a track at 25 MB); SFX stay small — soundcore caps them at 4 MB at upload. MAX_PARTS (130×256 KB ≈ 33 MB) > cap so a legit transfer never trips the part guard.
+var ASSET_PART = 256 * 1024, AUDIO_CAP = 26 * 1024 * 1024, ASSET_WAIT = 45000, MAX_PARTS = 130, SVG_CAP = 2 * 1024 * 1024;   // AUDIO_CAP covers full music tracks (musiccore caps a track at 25 MB); SFX stay small — soundcore caps them at 4 MB at upload. MAX_PARTS (130×256 KB ≈ 33 MB) > cap so a legit transfer never trips the part guard.
 function isAudioPath(p) { return typeof p === 'string' && p.indexOf('/saves/images/audio/') === 0; }
 
 function assetMime(path) {
@@ -7008,12 +7008,23 @@ function handleAssetArrival(msg) {
         return;
     }
     if (typeof msg.path !== 'string' || !msg.data || !own(assetPending, msg.path)) return;   // unsolicited (or a prototype-key path): never cached
-    if (typeof msg.data.byteLength !== 'number' || msg.data.byteLength > AUDIO_CAP) { delete assetPending[msg.path]; return; }   // past the cap: not held
+    if (!(msg.data instanceof ArrayBuffer || ArrayBuffer.isView(msg.data)) || msg.data.byteLength > AUDIO_CAP) { delete assetPending[msg.path]; return; }   // bytes only (an object that claims a length, an array or a text is no picture), and within the cap: else not held
     try {
-        var blob = new Blob([msg.data], { type: msg.mime || assetMime(msg.path) });
-        if (typeof assetCache[msg.path] === 'string' && assetCache[msg.path].indexOf('blob:') === 0) { try { URL.revokeObjectURL(assetCache[msg.path]); } catch (e) {} }   // a picture sent twice does not keep two copies
-        assetCache[msg.path] = URL.createObjectURL(blob);
-    } catch (e) { return; }
+        // The address made here is one of this app's own origin, so its type is the app's own word — by the path it asked for, never the
+        // host's. And an SVG, which can carry script, is never a blob of this origin: it is kept as a data address of its bytes, which draws
+        // the same in a picture or a background and is no page of the app's if it is ever opened as one (past 2 MB: the placeholder)
+        var type = assetMime(msg.path), was = assetCache[msg.path], made;
+        if (type === 'image/svg+xml') {
+            if (msg.data.byteLength > SVG_CAP) made = ASSET_PLACEHOLDER;
+            else {
+                var bytes = msg.data instanceof ArrayBuffer ? new Uint8Array(msg.data) : new Uint8Array(msg.data.buffer, msg.data.byteOffset, msg.data.byteLength), bin = '';
+                for (var bi = 0; bi < bytes.length; bi += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(bi, bi + 0x8000));
+                made = 'data:image/svg+xml;base64,' + btoa(bin);
+            }
+        } else made = URL.createObjectURL(new Blob([msg.data], { type: type }));
+        if (typeof was === 'string' && was.indexOf('blob:') === 0) { try { URL.revokeObjectURL(was); } catch (e) {} }   // a picture sent twice does not keep two copies
+        assetCache[msg.path] = made;
+    } catch (e) { delete assetPending[msg.path]; return; }
     delete assetPending[msg.path];
     try { document.dispatchEvent(new CustomEvent('wp-asset', { detail: { path: msg.path } })); } catch (e) {}   // the handbook reader patches its pictures in place
     clearTimeout(assetRenderTimer);

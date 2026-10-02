@@ -552,7 +552,7 @@ check('client: the join snapshot\'s system is re-cleaned as the players\' view b
     && /else \{ var csys = window\.wpSystemCore\.cleanSystem\(msg\.system, \{ F: window\.wpFormula, gmView: false, libCats: \{\} \}\); if \(csys\) campS\.system = csys; \}/.test(src)
     && /gmView: false, pages: [^\n]*, libCats: window\.wpLibrary && window\.wpLibrary\.catsFor \? window\.wpLibrary\.catsFor\(\) : null \}\); if \(psys\) camp\.system = psys; else delete camp\.system;/.test(src));
 check('wireConn: a message that throws never leaves applyingRemote on', /try \{ handleMessage\(d, conn\); \} catch \(e\)[^\n]*finally \{ net\.applyingRemote = false; \}/.test(src));
-check('assets (client): prototype-free caches, own-key arrival check, size cap, old blob revoked, no outside URLs', /var assetCache = Object\.create\(null\)/.test(src) && /var assetPending = Object\.create\(null\)/.test(src) && /!own\(assetPending, msg\.path\)\) return;/.test(src) && /msg\.data\.byteLength > AUDIO_CAP/.test(src) && /URL\.revokeObjectURL\(assetCache\[msg\.path\]\)/.test(src) && /return ASSET_PLACEHOLDER;\s*\/\/ an absolute URL from a host/.test(src));
+check('assets (client): prototype-free caches, own-key arrival check, size cap, old blob revoked, no outside URLs', /var assetCache = Object\.create\(null\)/.test(src) && /var assetPending = Object\.create\(null\)/.test(src) && /!own\(assetPending, msg\.path\)\) return;/.test(src) && /msg\.data\.byteLength > AUDIO_CAP/.test(src) && /var type = assetMime\(msg\.path\), was = assetCache\[msg\.path\], made;/.test(src) && /URL\.revokeObjectURL\(was\)/.test(src) && /return ASSET_PLACEHOLDER;\s*\/\/ an absolute URL from a host/.test(src));
 check('chat (client): only the synced host, shape-checked, text capped', /if \(conn\.peer !== net\.syncedPeer \|\| typeof msg\.text !== 'string' \|\| !msg\.from/.test(src) && /text: msg\.text\.slice\(0, 2000\)/.test(src));
 check('rich text: the sanitiser drops the dangerous tags with their content and never keeps an event handler or a script-scheme link', /RICH_DROP = \/\^\(script\|style\|iframe\|object\|embed/.test(src) && /safeRichHref/.test(src) && /RICH_STYLE/.test(src));
 
@@ -693,11 +693,13 @@ pendingChecks.push((async () => {
 /* ================= the local server: request bodies are decoded as UTF-8 across chunk boundaries ================= */
 {
     const rdS = rel => fs.readFileSync(path.join(__dirname, '..', ...rel.split('/')), 'utf8');
-    const srvs = [['system/resources/app/main.js', 6], ['tools/dev-server.js', 5]].map(([rel, n]) => { const s = rdS(rel); return { rel, n, readers: (s.match(/req\.on\('data'/g) || []).length, utf8: (s.match(/req\.setEncoding\('utf8'\); req\.on\('data', (c|chunk) => body \+= \1\);/g) || []).length, raw: (s.match(/body \+= (c|chunk)\.toString\(\)/g) || []).length }; });
-    check('local server: every request body is read as UTF-8 text (setEncoding before the data handler) — a character split between two chunks can never be saved as \uFFFD (main.js and the dev server alike)',
-        srvs.every(x => x.readers === x.n && x.utf8 === x.n && x.raw === 0), j(srvs));
+    const srvs = [['system/resources/app/main.js', 6], ['tools/dev-server.js', 5]].map(([rel, n]) => { const s = rdS(rel); return { rel, n, readers: (s.match(/reqguard\.readBody\(req, res, reqguard\.BODY\.(small|prefs|data), /g) || []).length, own: (s.match(/req\.on\('data'/g) || []).length, raw: (s.match(/body \+= (c|chunk)\.toString\(\)/g) || []).length }; });
+    const rgS = rdS('system/resources/app/reqguard.js'), rbA = rgS.indexOf('function readBody('), rbB = rgS.indexOf('/* ---- the error log ---- */'), rbSrc = rbA >= 0 && rbB > rbA ? rgS.slice(rbA, rbB) : '';
+    check('local server: every request body is read as UTF-8 text (setEncoding before the data handler) — a character split between two chunks can never be saved as \uFFFD (main.js and the dev server alike, each through the one bounded reader they share, reqguard.readBody, and no reader of its own)',
+        srvs.every(x => x.readers === x.n && x.own === 0 && x.raw === 0) && rbSrc.indexOf("req.setEncoding('utf8');") > 0 && rbSrc.indexOf("req.setEncoding('utf8');") < rbSrc.indexOf("req.on('data'") && !/toString\(\)/.test(rbSrc), j(srvs));
     const { PassThrough } = require('stream'); const em = Buffer.from('a\u2014b \uD83D\uDC09', 'utf8');   // an em dash (3 bytes) and an emoji (4 bytes)
-    const splitRead = (cut) => new Promise(res => { const req = new PassThrough(); let body = ''; req.setEncoding('utf8'); req.on('data', c => body += c); req.on('end', () => res(body)); req.write(em.slice(0, cut)); req.write(em.slice(cut)); req.end(); });
+    const RGs = (() => { try { return require('../system/resources/app/reqguard.js'); } catch (e) { return null; } })();
+    const splitRead = (cut) => new Promise(res => { const req = new PassThrough(); req.headers = {}; if (!RGs) return res('no reqguard.js'); RGs.readBody(req, { writeHead() {}, end() {} }, 1000, body => res(body)); req.write(em.slice(0, cut)); req.write(em.slice(cut)); req.end(); });   // the servers' own reader, run for real
     pendingChecks.push(Promise.all([2, 3, 7, 8, 9].map(splitRead)).then(outs => check('local server: a body split inside an em dash or an emoji decodes whole', outs.every(o => o === 'a\u2014b \uD83D\uDC09'), j(outs))));
 }
 
@@ -7914,13 +7916,15 @@ pendingChecks.push((async () => {
         const fetch = async (u, init) => {
             u = String(u);
             if (u.indexOf('/api/upload-exact?path=') === 0) { if (o.uploadFails) return { ok: false, status: 500 }; files.set(decodeURIComponent(u.slice('/api/upload-exact?path='.length)), init.body); return { ok: true }; }
-            if (u.indexOf('/saves/images/journal/') === 0) { const p = 'images/journal/' + u.slice('/saves/images/journal/'.length); if (!files.has(p)) return { ok: false, status: 404 }; const b = files.get(p); return { ok: true, json: async () => JSON.parse(String(b)) }; }
+            if (u === '/api/list-images') return o.listed ? { ok: true, json: async () => o.listed } : { ok: false, status: 404, json: async () => { throw new Error('no list'); } };
+            if (u === '/api/delete-image') { const b = JSON.parse(init.body); w.deleted.push(b); const p = String(b.path).replace(/^\/saves\//, ''); if (!files.has(p)) return { ok: false, status: 404 }; files.delete(p); return { ok: true, status: 200 }; }
+            if (u.indexOf('/saves/images/journal/') === 0) { const p = 'images/journal/' + u.slice('/saves/images/journal/'.length); if (!files.has(p)) return { ok: false, status: 404 }; const b = files.get(p); return { ok: true, headers: { get: h => (h === 'content-length' ? String(o.indexLen && o.indexLen[p] !== undefined ? o.indexLen[p] : String(b).length) : null) }, json: async () => JSON.parse(String(b)) }; }
             return { ok: false, status: 404 };
         };
-        const w = { files, ls, localStorage, used, toasts: [], now: 1700000000000, o };
+        const w = { files, ls, localStorage, used, toasts: [], deleted: [], now: 1700000000000, o };
         const env = { fetch, localStorage, document: { getElementById: () => null }, toast: m => w.toasts.push(m), esc: s => String(s), showHandout: () => {}, handoutPopup: () => false, window: {}, FileReader: function() {}, Blob: function() {}, Date: { now: () => (w.now += 7) } };
         const names = Object.keys(env);
-        w.api = new Function(...names, "'use strict';\n" + journalSrc + '\nreturn { receive: receiveHandout, readIndex: readIndex, stampHead: stampHead, registerJournal: registerJournal, budget: handoutBudget };')(...names.map(n => env[n]));
+        w.api = new Function(...names, "'use strict';\n" + journalSrc + '\nreturn { receive: receiveHandout, readIndex: readIndex, stampHead: stampHead, registerJournal: registerJournal, budget: handoutBudget, dropEntryFiles: typeof dropEntryFiles === "function" ? dropEntryFiles : null };')(...names.map(n => env[n]));
         w.idx = key => w.api.readIndex(key);
         return w;
     };
@@ -7951,13 +7955,13 @@ pendingChecks.push((async () => {
     await JC.api.receive(shMsg(sid, 'Bob text', 'Bob', 'u_abc12345')); await JC.api.receive(shMsg(sid, 'Mal text', 'Mal', 'u_.abc12345')); await JC.api.receive(shMsg(sid, 'Mel text', 'Mel', 'u'));
     await JC.api.receive(shMsg(sid, 'Bob v2', 'Bob', 'u_abc12345'));
     const ixC = await JC.idx('camp1__u_gm'), bob = ixC.entries.find(e => e.id === sid), others = ixC.entries.filter(e => e.id !== sid);
-    const png = new Uint8Array([137, 80, 78, 71, 1, 2, 3]), png2 = new Uint8Array([137, 80, 78, 71, 9, 9, 9]), pid = 'sh_u_abc12345_p1';
+    const png = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3]), png2 = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 9, 9, 9]), pid = 'sh_u_abc12345_p1';   // a PNG's whole signature, then bytes that tell the two apart
     await JC.api.receive(shMsg(pid, undefined, 'Bob', 'u_abc12345', { kind: undefined, mime: 'image/png', data: png })); await JC.api.receive(shMsg(pid, undefined, 'Mal', 'u_.abc12345', { kind: undefined, mime: 'image/png', data: png2 }));
     const ixP = await JC.idx('camp1__u_gm'), bobPic = ixP.entries.find(e => e.id === pid), malPic = ixP.entries.find(e => e.sharedBy === 'Mal' && e.mime);
     const bobFile = JC.files.get('images/journal/camp1__u_gm/' + pid + '.png');
     check('cluster F #30 (journal): Bob\'s shared page keeps his text, his name and his exact id when another sender shares under the same entry id — their pages land as entries of their own with their exact sender ids (a \'.\' kept) — while Bob\'s own re-share still replaces his page in place; his picture file is never overwritten by another sender\'s',
         ixC.entries.length === 3 && bob && bob.text === 'Bob v2' && bob.sharedBy === 'Bob' && bob.sharedById === 'u_abc12345' && others.length === 2 && j(others.map(e => [e.sharedBy, e.sharedById, e.text]).sort()) === j([['Mal', 'u_.abc12345', 'Mal text'], ['Mel', 'u', 'Mel text']]) && new Set(ixC.entries.map(e => e.id)).size === 3
-        && bobPic && bobPic.sharedBy === 'Bob' && bobFile && bobFile[4] === 1 && malPic && malPic.id !== pid && JC.files.get('images/journal/camp1__u_gm/' + malPic.id + '.png')[4] === 9, j([ixC.entries.map(e => [e.id, e.sharedBy, e.text]), bobPic && bobPic.hash, malPic && malPic.id]));
+        && bobPic && bobPic.sharedBy === 'Bob' && bobFile && bobFile[8] === 1 && malPic && malPic.id !== pid && JC.files.get('images/journal/camp1__u_gm/' + malPic.id + '.png')[8] === 9, j([ixC.entries.map(e => [e.id, e.sharedBy, e.text]), bobPic && bobPic.hash, malPic && malPic.id]));
 
     // #26: the Journal's index lives in its file; the browser's storage holds a copy only where there is no shell, and a small one
     const JL = mkJournal({ quota: 1000000 }); JL.ls.set('journal_camp1__u_gm', 'j'.repeat(900000));
@@ -7976,6 +7980,59 @@ pendingChecks.push((async () => {
     const JR = mkJournal(); for (let i = 0; i < 230; i++) await JR.api.registerJournal('camp' + i + '__gm');
     const reg = JSON.parse(JR.ls.get('journal_registry') || '[]'), regFile = JSON.parse(String(JR.files.get('images/journal/journals.json') || '{"keys":[]}')).keys;
     check('cluster F #26 (journal): the registry of journals kept in the browser\'s storage holds the 200 newest keys; the file holds them all', reg.length === 200 && reg[reg.length - 1] === 'camp229__gm' && reg.indexOf('camp0__gm') < 0 && regFile.length === 230, j([reg.length, reg.slice(-2), regFile.length]));
+    // the outside audit of 2026-10-01 (cluster V): what a host can leave on a player's disk through the Journal, and what an index from disk may do
+    const PNG = [137, 80, 78, 71, 13, 10, 26, 10], JPG = [255, 216, 255, 224, 0, 16], WEBP = [82, 73, 70, 70, 4, 0, 0, 0, 87, 69, 66, 80, 86, 80];
+    const picMsg = (id, bytes, mime, more) => gmMsg(id, undefined, Object.assign({ kind: undefined, mime: mime, data: new Uint8Array(bytes) }, more || {}));
+    const pics = W => Array.from(W.files.keys()).filter(k => /\.(png|jpg|webp)$/.test(k)).sort();
+    // the type comes from the bytes
+    const JT = mkJournal();
+    await JT.api.receive(picMsg('t_exe', [77, 90, 144, 0, 60, 115, 99, 114, 105, 112, 116, 62], 'image/png'));        // a program's first bytes and a script tag, called a PNG
+    await JT.api.receive(picMsg('t_html', Array.from(Buffer.from('<html><script>1</script></html>')), 'image/jpeg'));
+    await JT.api.receive(picMsg('t_short', [137, 80, 78, 71, 1, 2, 3], 'image/png'));                                   // not the whole signature
+    await JT.api.receive(picMsg('t_riff', [82, 73, 70, 70, 4, 0, 0, 0, 87, 65, 86, 69], 'image/webp'));                 // a RIFF file that is no WebP
+    const noneT = [JT.files.size, (await JT.idx('camp1__u_gm')).entries.length];
+    await JT.api.receive(picMsg('t_jpg', JPG, 'image/png')); await JT.api.receive(picMsg('t_png', PNG.concat([1]), 'image/jpeg')); await JT.api.receive(picMsg('t_webp', WEBP, 'text/html'));
+    const typedT = (await JT.idx('camp1__u_gm')).entries.map(e => [e.id, e.mime, e.src]);
+    check('cluster V (journal): a handout\'s type is read from its own first bytes, never from what the sender calls it — bytes that are no PNG, JPEG or WebP (a program, a page, half a signature, another RIFF file) are not stored at all, no file and no page; a JPEG sent as a PNG lands as .jpg, a PNG sent as a JPEG as .png, a WebP sent as a page as .webp, each page naming its real type',
+        j(noneT) === j([0, 0]) && j(typedT) === j([['t_jpg', 'image/jpeg', '/saves/images/journal/camp1__u_gm/t_jpg.jpg'], ['t_png', 'image/png', '/saves/images/journal/camp1__u_gm/t_png.png'], ['t_webp', 'image/webp', '/saves/images/journal/camp1__u_gm/t_webp.webp']])
+        && j(pics(JT)) === j(['images/journal/camp1__u_gm/t_jpg.jpg', 'images/journal/camp1__u_gm/t_png.png', 'images/journal/camp1__u_gm/t_webp.webp']), j([noneT, typedT, pics(JT)]));
+    // a total that outlives the run: the Journal's folder is measured at the first handout (the pictures by the saves folder's list, each index by its length)
+    const GBj = 1024 * 1024 * 1024, bigPic = i => PNG.concat(new Array(30000).fill(i));
+    const JD = mkJournal({ listed: [{ path: '/saves/images/journal/old__gm/h.png', folder: 'journal/old__gm', name: 'h.png', size: GBj - 100000 }, { path: '/saves/images/m_abc/map.png', folder: 'm_abc', name: 'map.png', size: 5 * GBj }, { path: '/saves/images/journalx/y.png', folder: 'journalx', name: 'y.png', size: GBj }] });
+    for (let i = 0; i < 53; i++) await JD.api.receive(picMsg('d' + i, bigPic(i), 'image/png'));
+    await JD.api.receive(gmMsg('dtext', 'x'.repeat(40000)));
+    const ixD = await JD.idx('camp1__u_gm'), fullToasts = JD.toasts.filter(t => /Your Journal on this computer is full/.test(t)).length;
+    const JE = mkJournal({ listed: [{ path: '/saves/images/journal/old__gm/h.png', folder: 'journal/old__gm', name: 'h.png', size: GBj }] });
+    for (let i = 0; i < 50; i++) await JE.api.receive(picMsg('e' + i, PNG.concat([i]), 'image/png'));
+    await JE.api.receive(gmMsg('etext', 'short')); await JE.api.receive(shMsg('sh_mal__e', 'short', 'Mallory', 'u_mal'));
+    check('cluster V (journal): what the Journal holds on this disk has a total that outlives the run — 1 GB for every journal together, measured at a run\'s first handout from the saves folder (a picture outside the Journal\'s folder is not counted) and kept in step after — so a fresh run with 100 KB of room takes three 30 KB pictures and refuses the rest, a text too; a run that starts full writes nothing at all — no picture, no page, no index — from the GM or from a player; the refusal is said once a run, not once per handout',
+        j(pics(JD)) === j(['images/journal/camp1__u_gm/d0.png', 'images/journal/camp1__u_gm/d1.png', 'images/journal/camp1__u_gm/d2.png']) && j(ixD.entries.map(e => e.id)) === j(['d0', 'd1', 'd2']) && fullToasts === 1
+        && JE.files.size === 0 && JE.toasts.length === 1 && /Your Journal on this computer is full\. Nothing more is saved to it until you clear some pages: open the Journal and use Clear\./.test(JE.toasts[0]), j([pics(JD), ixD.entries.map(e => e.id), fullToasts, JE.files.size, JE.toasts]));
+    // one journal's index, and the number of journals
+    const JI = mkJournal({ indexLen: { 'images/journal/camp1__u_gm/journal.json': 16 * 1024 * 1024 - 3000 } });
+    JI.files.set('images/journal/journals.json', JSON.stringify({ keys: ['camp1__u_gm'] })); JI.files.set('images/journal/camp1__u_gm/journal.json', JSON.stringify({ campId: 'camp1__u_gm', gm: 'Gina', entries: [] }));
+    await JI.api.receive(gmMsg('i_long', 'x'.repeat(5000))); const afterLong = (await JI.idx('camp1__u_gm')).entries.length;
+    await JI.api.receive(gmMsg('i_short', 'ok')); const afterShort = (await JI.idx('camp1__u_gm')).entries.map(e => e.id);
+    const JN = mkJournal(); JN.files.set('images/journal/journals.json', JSON.stringify({ keys: Array.from({ length: 500 }, (x, i) => 'k' + i + '__gm') }));
+    await JN.api.receive(gmMsg('n_new', 'a new table')); const newKept = (await JN.idx('camp1__u_gm')).entries.length;
+    await JN.api.receive(Object.assign(gmMsg('n_old', 'a table already here'), { campId: 'k7', gmId: 'gm' })); const oldKept = (await JN.idx('k7__gm')).entries.map(e => e.id);
+    check('cluster V (journal): one journal\'s index stays under 16 MB of text — a handout that would pass it is refused, a short one still lands — and a machine keeps at most 500 journals: a handout that would start the 501st is refused while one for a journal already here lands; each refusal says the Journal is full',
+        afterLong === 0 && j(afterShort) === j(['i_short']) && JI.toasts.filter(t => /Journal on this computer is full/.test(t)).length === 1 && newKept === 0 && j(oldKept) === j(['n_old']) && JN.toasts.filter(t => /Journal on this computer is full/.test(t)).length === 1, j([afterLong, afterShort, JI.toasts, newKept, oldKept, JN.toasts]));
+    // removing a page removes its file
+    const JX = mkJournal(); await JX.api.receive(picMsg('x1', PNG.concat([5]), 'image/png')); await JX.api.receive(gmMsg('x2', 'words'));
+    const ixX = await JX.idx('camp1__u_gm'), hadX = pics(JX);
+    const nDrop = JX.api.dropEntryFiles ? await JX.api.dropEntryFiles('camp1__u_gm', ixX.entries.concat([{ id: 'x9', kind: 'note', text: 'mine' }, { id: 'evil', mime: 'image/png', src: '/saves/images/m1/x.png' }, { id: '../../m1/x', mime: 'image/jpeg', src: '/saves/data.json' }, { id: 'nomime', src: '/saves/images/m1/y.png' }, { id: 'odd', mime: 'text/html', src: '/saves/images/m1/z.png' }, null, 'x'])) : -1;
+    const JY = mkJournal(); await JY.api.receive(picMsg('y1', PNG.concat([1]), 'image/png')); await JY.api.receive(picMsg('y1', JPG, 'image/png')); const ixY = await JY.idx('camp1__u_gm');
+    check('cluster V (journal): pages removed from a journal take their picture files with them — each file named from the page\'s own id and type inside that journal\'s folder, asked of the saves folder as the Journal\'s own delete; never the address a page carries (one naming a map\'s picture or the save deletes nothing there), nothing for a text page or a note; and a page whose picture is replaced by one of another type drops the file under its old type; Clear and the × both go through it (source)',
+        j(hadX) === j(['images/journal/camp1__u_gm/x1.png']) && nDrop === 1 && pics(JX).length === 0 && j(JX.deleted) === j([{ path: '/saves/images/journal/camp1__u_gm/x1.png', journal: true }, { path: '/saves/images/journal/camp1__u_gm/evil.png', journal: true }, { path: '/saves/images/journal/camp1__u_gm/m1x.jpg', journal: true }])
+        && j(pics(JY)) === j(['images/journal/camp1__u_gm/y1.jpg']) && j(JY.deleted) === j([{ path: '/saves/images/journal/camp1__u_gm/y1.png', journal: true }]) && ixY.entries.length === 1 && ixY.entries[0].mime === 'image/jpeg' && ixY.entries[0].src === '/saves/images/journal/camp1__u_gm/y1.jpg'
+        && /await dropEntryFiles\(campC, goneC\);/.test(hoT) && /dropEntryFiles\(cId, goneD\);/.test(hoT) && !/journalRoom\(/.test(hoT.slice(hoT.indexOf('window.wpJournalAddNote = '), hoT.indexOf('// The GM\'s own campaign, keyed'))), j([hadX, nDrop, JX.deleted, pics(JY), JY.deleted]));
+    // an index read from disk is taken as data
+    const JK = mkJournal(); JK.files.set('images/journal/camp1__u_gm/journal.json', JSON.stringify({ campId: 'personal', gm: 5, campaign: ['x'], gmId: { a: 1 }, sentNotes: 'x', updated: 7, entries: [null, 'x', 7, [1], { id: 'ok', kind: 'text', text: 't' }] }));
+    const ixK = await JK.idx('camp1__u_gm'); JK.ls.set('journal_camp2', JSON.stringify({ campId: 'camp1__u_gm', entries: [null, { id: 'ls' }] })); const ixK2 = await JK.idx('camp2');
+    check('cluster V (journal): an index read back from disk (or from the browser\'s storage) is taken as data — it is the journal of the key it was read by, whatever it calls itself; its rows are the objects among them; a GM, campaign or GM id that is no text is none; notes on sends that are no object are dropped — so a planted or damaged index cannot stand in for another journal or keep the Journal from opening',
+        ixK.campId === 'camp1__u_gm' && j(ixK.entries) === j([{ id: 'ok', kind: 'text', text: 't' }]) && ixK.gm === '' && ixK.campaign === '' && ixK.gmId === '' && !('sentNotes' in ixK) && ixK.updated === 7 && ixK2.campId === 'camp2' && j(ixK2.entries) === j([{ id: 'ls' }]), j([ixK, ixK2]));
+    check('cluster V (journal): each budget\'s refusal is said once a run — a thousand shares past the players\' budget raise one toast, not eight hundred', JB.toasts.filter(t => /Players are sharing more than this session can hold/.test(t)).length === 1, JB.toasts.length);
     // #26 (b): the table keys a player holds, one per GM id, are the 50 newest
     for (let i = 0; i < 500; i++) H.rememberTableKey('u_g' + i, 'k' + i);
     const nKeys = Object.keys(H.tableKeys()).length, newest = H.tableKeyFor('u_g499'), oldest = H.tableKeyFor('u_g0');
@@ -9143,10 +9200,10 @@ pendingChecks.push((async () => {
     {
         const assetSrc = [lineOf('function own('), lineOf('var assetCache = Object.create(null);'), lineOf('var assetPending = Object.create(null);'), lineOf('var assetRenderTimer = null;'), lineOf('var assetWaiters = '), lineOf('var ASSET_PART = '), lineOf('function isAudioPath('), fnK('function assetMime(path) {', '\n}\n'), lineOf('var ASSET_PLACEHOLDER = '), lineOf('var _assetRetries = '),
             fnK('net.fetchAsset = function(path, size) {', '\n};\n'), fnK('function handleAssetPart(msg) {', '\n}\n'), fnK('function handleAssetArrival(msg) {', '\n}\n'),
-            'return { part: handleAssetPart, arrival: handleAssetArrival, waiters: function() { return assetWaiters; }, cache: function() { return assetCache; } };'].join('\n');
-        const mkA = () => { const A = { sent: [], timers: [], renders: 0, events: 0 }; const conn = { peer: 'h', open: true, send(m) { packCheck(m); A.sent.push(m); } };
+            'return { part: handleAssetPart, arrival: handleAssetArrival, waiters: function() { return assetWaiters; }, cache: function() { return assetCache; }, pending: function() { return assetPending; } };'].join('\n');
+        const mkA = () => { const A = { sent: [], timers: [], renders: 0, events: 0, blobs: [], revoked: [] }; const conn = { peer: 'h', open: true, send(m) { packCheck(m); A.sent.push(m); } };
             const net = { active: true, role: 'client', stream: false, conns: [conn], assetSrc: () => {} };
-            A.err = noThrow(() => { A.api = new Function('net', 'setTimeout', 'clearTimeout', 'document', 'state', 'render', 'URL', 'Blob', 'CustomEvent', assetSrc)(net, (fn, ms) => { A.timers.push({ fn, ms }); return A.timers.length; }, id => { const t = A.timers[id - 1]; if (t) t.fn = null; }, { dispatchEvent() { A.events++; } }, { viewMode: 'visual' }, () => { A.renders++; }, { createObjectURL: () => 'blob:x', revokeObjectURL() {} }, globalThis.Blob, function() {}); });
+            A.err = noThrow(() => { A.api = new Function('net', 'setTimeout', 'clearTimeout', 'document', 'state', 'render', 'URL', 'Blob', 'CustomEvent', 'btoa', assetSrc)(net, (fn, ms) => { A.timers.push({ fn, ms }); return A.timers.length; }, id => { const t = A.timers[id - 1]; if (t) t.fn = null; }, { dispatchEvent() { A.events++; } }, { viewMode: 'visual' }, () => { A.renders++; }, { createObjectURL: b => { A.blobs.push(b); return 'blob:x' + A.blobs.length; }, revokeObjectURL(u) { A.revoked.push(u); } }, globalThis.Blob, function() {}, globalThis.btoa); });
             A.net = net; return A; };
         const A = mkA(); const errs = [];
         const KEYS = ['__proto__', 'constructor', 'hasOwnProperty', 'toString', 'valueOf'];
@@ -9168,6 +9225,30 @@ pendingChecks.push((async () => {
             await new Promise(r => setImmediate(r));
             check('security K g16 (assets, client): an honest sound transfer still lands — one request, parts as a typed-array view or a buffer summed into a Blob of their bytes, the waiter gone; a part whose data is an array, a plain object or a string is ignored and the transfer waits on',
                 asked && stillWaiting && !failed && !!got && got.size === 3 && Object.keys(A.api.waiters()).length === 0, J([asked, stillWaiting, failed, got && got.size]));
+        }
+        // the outside audit of 2026-10-01 (cluster V): a picture from the host becomes an address of this app's own origin — its type is the
+        // app's own word (by the path it asked for), its bytes are bytes, and an SVG (which can carry script) is never a blob of this origin
+        {
+            const B = mkA(), script = () => new Uint8Array([60, 115, 99, 114, 105, 112, 116, 62]).buffer;   // "<script>"
+            const land = (p, mime, data) => { if (B.err) return [B.err]; B.api.pending()[p] = true; const n = B.blobs.length, ev = B.events; const err = noThrow(() => B.api.arrival({ type: 'asset', path: p, mime: mime, data: data === undefined ? script() : data }));
+                return [err, B.blobs.length === n + 1 ? B.blobs[n].type : 'no blob', B.api.cache()[p], Object.prototype.hasOwnProperty.call(B.api.pending(), p), B.events - ev]; };
+            const lied = [land('/saves/images/m/a.png', 'text/html'), land('/saves/images/m/b.png', 'application/xhtml+xml'), land('/saves/images/m/c.png', ['text/html']), land('/saves/images/m/d.png', { toString: 0 }), land('/saves/images/m/e.png', 'TEXT/HTML; charset=utf-8'), land('/saves/images/m/f.png', 'image/svg+xml')];
+            const jpgLied = land('/saves/images/m/g.jpg', 'image/svg+xml'), other = [land('/saves/images/m/h.webp'), land('/saves/images/m/i.html', 'text/html'), land('/saves/images/m/noext', 'text/html')];
+            check('cluster V (assets, client): a picture\'s blob takes its type from the path this app asked for, never from the host\'s word — a .png the host calls a page, an XHTML page, an SVG, a list or a value that cannot be read as text is an image/png blob all the same (nothing thrown, nothing left pending), a .jpg is image/jpeg; a path with no picture type of the app\'s own is a plain octet stream, never a page and never an empty type; the arrival\'s code no longer reads the host\'s type at all',
+                !B.err && lied.every(r => r[0] === '' && r[1] === 'image/png' && /^blob:x\d+$/.test(r[2]) && r[3] === false && r[4] === 1) && jpgLied[1] === 'image/jpeg' && other.every(r => r[0] === '' && r[1] === 'application/octet-stream' && r[3] === false)
+                && !/msg\.mime/.test(fnK('function handleAssetArrival(msg) {', '\n}\n')), J([B.err, lied.map(r => r.slice(0, 2)), jpgLied.slice(0, 2), other.map(r => r.slice(0, 2))]));
+            const svgBytes = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>1</script><text>—</text></svg>', 'utf8'), svg = land('/saves/images/m/art.svg', 'image/svg+xml', new Uint8Array(svgBytes)), svgUp = land('/saves/images/m/ART2.SVG', undefined, new Uint8Array(svgBytes).buffer);
+            const view = new Uint8Array(svgBytes.length + 6); view.set(svgBytes, 3); const svgView = land('/saves/images/m/part.svg', undefined, new Uint8Array(view.buffer, 3, svgBytes.length));   // a view into a longer buffer: only its own bytes
+            const decode = u => (typeof u === 'string' && u.indexOf('data:image/svg+xml;base64,') === 0 ? Buffer.from(u.slice(26), 'base64').equals(svgBytes) : false);
+            const svgBig = land('/saves/images/m/big.svg', 'image/svg+xml', new Uint8Array(2 * 1024 * 1024 + 1)), svgAt = land('/saves/images/m/at.svg', undefined, new Uint8Array(2 * 1024 * 1024));
+            check('cluster V (assets, client): an SVG from the host never becomes a blob of this app\'s origin — it is kept as a data address of its own bytes (an array or a view into a longer buffer alike), which draws the same in a picture or a background and is no page of the app\'s if ever opened as one; an SVG past 2 MB settles on the placeholder; the picture is no longer pending and the page is told once',
+                [svg, svgUp, svgView].every(r => r[0] === '' && r[1] === 'no blob' && decode(r[2]) && r[3] === false && r[4] === 1) && svgBig[1] === 'no blob' && /^data:image\/gif;base64,/.test(svgBig[2] || '') && svgBig[3] === false && svgAt[1] === 'no blob' && /^data:image\/svg\+xml;base64,/.test(svgAt[2] || ''), J([svg.slice(0, 2), (svg[2] || '').slice(0, 40), svgUp.slice(0, 2), svgView.slice(0, 2), decode(svgView[2]), svgBig.slice(0, 2), (svgBig[2] || '').slice(0, 30), svgAt[1]]));
+            const notBytes = [land('/saves/images/m/n1.png', 'image/png', { byteLength: 3 }), land('/saves/images/m/n2.png', 'image/png', [1, 2, 3]), land('/saves/images/m/n3.png', 'image/png', 'abc'), land('/saves/images/m/n4.png', 'image/png', { byteLength: 3, length: 3, 0: 1 })];
+            const honest = [land('/saves/images/m/p.png', undefined, new Uint8Array([1, 2, 3])), land('/saves/images/m/q.JPG', 'image/jpeg', new Uint8Array([1, 2]).buffer), land('/saves/images/m/r.gif', 'image/gif', new Uint8Array([1]))];
+            const again = land('/saves/images/m/p.png', undefined, new Uint8Array([4, 5]));
+            check('cluster V (assets, client): a picture\'s data is bytes or it is nothing — an object that only claims a length, an array or a text is not kept and the picture no longer waits; an honest picture still lands as before: a blob address cached, typed by its extension, the page told once, and one sent a second time takes the first one\'s place (its address let go)',
+                notBytes.every(r => r[0] === '' && r[1] === 'no blob' && r[2] === undefined && r[3] === false) && honest.every(r => r[0] === '' && /^blob:x\d+$/.test(r[2]) && r[3] === false && r[4] === 1) && honest[0][1] === 'image/png' && honest[1][1] === 'image/jpeg' && honest[2][1] === 'image/gif'
+                && again[1] === 'image/png' && again[2] !== honest[0][2] && B.revoked.indexOf(honest[0][2]) >= 0, J([notBytes.map(r => r.slice(0, 4)), honest.map(r => r.slice(0, 3)), again.slice(0, 3), B.revoked]));
         }
         // the queued-edit table (_charPending), keyed by a request id the host echoes: prototype-free and read by own key; a host naming "__proto__" or "constructor" settles nothing and reaches no sheet
         const pendSrc = bwK('pending'); const calls = [];

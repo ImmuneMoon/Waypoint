@@ -735,7 +735,12 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
                   if (dj.size > 512 * 1024 * 1024) { toast('This zip\'s data.json is too large to read.'); return; }
                   var djText = new TextDecoder().decode(await dj.bytes());
                   // [zipcheck:importpick-start]
-                  pendingImportImages = entries.filter(function(en) { return /^images\//.test(en.name) && !/^images\/journal(\/|$)/i.test(en.name); });   // only what an export carries: never a player's Journal (images/journal/, which the export leaves out too — io.js)
+                  // Only what an export carries: under images/, and never a player's Journal (images/journal/, which the export leaves out too — io.js).
+                  // The Journal is judged on where the entry would LAND: its name as the copy below and the saves folder together read it (percent-decoded
+                  // until it stops changing, empty segments dropped), so no spelling of that folder — another case, an encoded letter or separator, an
+                  // empty segment, a trailing dot or space — walks past it. (The saves folder refuses such a copy too: reqguard.js.)
+                  var importDest = function(name) { var p = String(name); for (var k = 0; k < 4; k++) { var d; try { d = decodeURIComponent(p); } catch (e) { break; } if (d === p) break; p = d; } return p.split('/').filter(Boolean); };
+                  pendingImportImages = entries.filter(function(en) { var s = importDest(en.name); return /^images\//.test(en.name) && s.length >= 2 && s[0] === 'images' && !/^journal[. ]*$/i.test(s[1]); });
                   // [zipcheck:importpick-end]
                   var libE = entries.filter(function(en) { return /^library\/l_[a-z0-9]{8}\/p_[A-Za-z0-9_]{1,24}\.[0-9]{1,10}\.json$/.test(en.name) && en.size <= 16 * 1024 * 1024; });
                   pendingImportLibrary = null;

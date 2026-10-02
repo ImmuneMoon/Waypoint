@@ -15,7 +15,7 @@
                              with no format, exactly put(text).
      fmtRich(text, fmt)      the same for a field that reads typed markup (a planner's): the whole field through
                              sanitizeHtml once, the runs laid over its text; with no format, exactly sanitizeHtml(text).
-     sanitizeBare(html)      sanitizeHtml less the look: a span or a font is just its text (a Markdown import).
+     sanitizeBare(html)      sanitizeHtml less the look: a span or a font is just its text.
      cleanBlockFmts(block)   every format a planner or page block carries, cleaned in place against its text.
      cleanDoc(doc, opts)     the wire sanitizer (host) and the client-side normaliser (keepHidden):
                              a new object with only the known fields, every string capped, every
@@ -194,8 +194,8 @@ function sanitize(html, opt) {
     return out;
 }
 function sanitizeHtml(html) { return sanitize(html, null); }
-// The same, less the look: a span or a font is just its text. A Markdown import reads its inline HTML through this — Markdown has no colour
-// and no size, an export writes none, so an import brings none.
+// The same, less the look: a span or a font is just its text (a published call; a Markdown import keeps the look — docmd.js carries colour
+// and size both ways).
 function sanitizeBare(html) { return sanitize(html, { bare: true }); }
 
 /* ---------- a plain field with a format: drawn from runs (textfmt.js) ----------

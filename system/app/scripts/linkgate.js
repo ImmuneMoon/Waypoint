@@ -6,6 +6,8 @@
    addresses in a plain text the Journal shows. Whoever wrote it, a click on it — the left button, the middle button, Ctrl or Shift
    with either, Enter on it — comes here first: one listener on the document, in the capture phase, for click and auxclick. The main
    window, the stream window and a pop-out window are the same page, so each has it, and it covers whatever a panel draws later.
+   A link is any <a> that carries an address — in href, or in xlink:href, where the diagram library puts the address of a link it
+   draws (an SVG <a>, which the engine follows like any other).
 
    What opens:  only an address textfmt.js cleanLink keeps (the page sanitiser's own rule for an <a href>) that the URL parser reads
                 as http or https. Anything else under an <a href> opens nothing at all — the second check, at the click.
@@ -16,13 +18,16 @@
    Asked first: everything else — a page or a handout on a player's screen, a Journal entry that was received (a GM's handout, a
                 player's share; on the GM's machine too, and later with no session), and anything whose author the code cannot tell
                 (a pop-out whose main window is gone, the stream window, a link anywhere this list does not name). The question is
-                the app's own (dialogs.js showConfirm, never answered by Enter), its words text nodes: who it came from where that is
+                the app's own (dialogs.js showConfirm, never answered by Enter, and by its OK only on a single press once it has been
+                up a moment — the second click of a double-click on the link lands where OK appears), its words text nodes: who it came from where that is
                 known, the site as the URL parser gives it (a look-alike name written in another alphabet shows in its xn-- form; a
                 name in front of an @ is not the site), then the whole address as the parser reads it — plain characters only, so
                 nothing in an address can make that line read differently from where it leads. One question at a time.
    How:         window.open(address, '_blank', 'noopener,noreferrer') — in the shell that is handed to the system browser by the
                 window rules (shellguard.js webLinkOk), in a browser it is a new tab. The engine's own following is always stopped.
    A file the app itself hands over to be saved (an <a download> to a blob: or data: address, clicked by the app) is left alone.
+   A drag:      a link is dragged only where a click on it opens it directly. Anywhere else the drag does not begin (a second listener,
+                for dragstart): a dragged address dropped on another of the app's windows would be followed there with no question.
 
    linkVerdict(c) is the rule as a pure function, linkWhere(a, win) reads where a link is, fillLinked(el, text, doc) is the renderer
    (elements and text nodes only). tools/sinkcheck.js runs all of it by the markers below. */
@@ -93,15 +98,29 @@ function askBody(doc, url, c) {
     return box;
 }
 function openLink(win, link) { try { win.open(link, '_blank', 'noopener,noreferrer'); } catch (e) {} }
+// The address an <a> carries — null where it carries none. A diagram draws its links as SVG <a> elements whose address is in
+// xlink:href, not href: the engine follows either, so either makes a link here.
+var XLINK = 'http://www.w3.org/1999/xlink';
+function linkOf(a) {
+    if (!a || !a.hasAttribute) return null;
+    if (a.hasAttribute('href')) return String(a.getAttribute('href'));
+    if (a.hasAttributeNS && a.hasAttributeNS(XLINK, 'href')) return String(a.getAttributeNS(XLINK, 'href'));
+    return a.hasAttribute('xlink:href') ? String(a.getAttribute('xlink:href')) : null;
+}
+// The link around an event's target: the nearest <a> that carries an address (one that carries none is no link, but an <a> around it may be one)
+function linkAt(t) {
+    if (t && t.nodeType === 3) t = t.parentNode;
+    for (var a = t && t.closest ? t.closest('a') : null; a; a = a.parentNode && a.parentNode.closest ? a.parentNode.closest('a') : null) if (linkOf(a) !== null) return a;
+    return null;
+}
 // The listener: (win, doc, ask) -> a handler for click and auxclick. ask is dialogs.js showConfirm.
 function linkGate(win, doc, ask) {
     var asking = false;
     return function(e) {
         if (e.type === 'auxclick' ? e.button !== 1 : !!e.button) return;   // a click, or the middle button — the right button is the menu's
-        var t = e.target; if (t && t.nodeType === 3) t = t.parentNode;
-        var a = t && t.closest ? t.closest('a') : null;
-        if (!a || !a.hasAttribute || !a.hasAttribute('href')) return;
-        var raw = String(a.getAttribute('href'));
+        var a = linkAt(e.target);
+        if (!a) return;
+        var raw = linkOf(a);
         if (a.hasAttribute('download') && /^(blob|data):/i.test(raw)) return;   // a file the app itself hands over to be saved
         e.preventDefault();   // the engine follows nothing: whatever opens is opened below
         var c = linkWhere(a, win); c.link = cleanLink(raw);
@@ -111,14 +130,27 @@ function linkGate(win, doc, ask) {
         if (v === 'open') { openLink(win, link); return; }
         if (asking) return;   // one question at a time: a click while it is up asks nothing more
         asking = true;
-        try { ask(LINK_ASK, function(yes) { asking = false; if (yes === true) openLink(win, link); }, { noEnter: true, body: askBody(doc, url, c) }); }
+        // careful: the question's OK takes only a single, deliberate press once the question has been up a moment (dialogs.js) — the
+        // second click of a double-click on the link lands where OK appears, and must not answer a question nobody has read
+        try { ask(LINK_ASK, function(yes) { asking = false; if (yes === true) openLink(win, link); }, { noEnter: true, careful: true, body: askBody(doc, url, c) }); }
         catch (err) { asking = false; }
+    };
+}
+// A drag that begins on a link carries its address: dropped on another of the app's windows it would be followed there, with no
+// question. So a link is dragged only where a click on it opens it directly; anywhere else the drag does not begin.
+function dragGate(win) {
+    return function(e) {
+        var a = linkAt(e.target);
+        if (!a) return;
+        var c = linkWhere(a, win); c.link = cleanLink(linkOf(a));
+        if (linkVerdict(c) !== 'open') e.preventDefault();
     };
 }
 function wireLinks(win, doc, ask) {
     var h = linkGate(win, doc, ask);
     doc.addEventListener('click', h, true);
     doc.addEventListener('auxclick', h, true);
+    doc.addEventListener('dragstart', dragGate(win), true);
     return h;
 }
 // A plain text drawn with its web addresses as links (textfmt.js linkParts): a text node for every part, and around an address an <a>
@@ -140,4 +172,4 @@ function fillLinked(el, text, doc) {
 
 if (typeof window !== 'undefined' && typeof document !== 'undefined') wireLinks(window, document, showConfirm);
 
-export { linkVerdict, linkWhere, readUrl, askBody, linkGate, wireLinks, fillLinked, atTable };
+export { linkVerdict, linkWhere, linkOf, linkAt, readUrl, askBody, linkGate, dragGate, wireLinks, fillLinked, atTable };

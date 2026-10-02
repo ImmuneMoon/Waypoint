@@ -201,15 +201,16 @@ function visionOf(map) {
     if (v && v.mode === 'all') return { mode: 'all', arc: 360 };
     return gridIsHexMap(map) ? { mode: 'arc', arc: def } : { mode: 'all', arc: 360 };
 }
-function viewersFor(map, camp, ownerId) {
+function viewersFor(map, camp, ownerId, withH) {   // withH (item 19b): each viewer carries its token's height (h, yards)
     var turningOn = !window.wpVtt || window.wpVtt.on('turning'); var out = [], arc = turningOn ? visionOf(map).arc : 360;   // facing feature off ⇒ the cone falls back to all-around (nothing can aim it); host + client agree via the shared turning flag
     var waitSight = !!(camp && camp.newPlayers && typeof camp.newPlayers === 'object' && camp.newPlayers.sight === true);   // Onboarding F1a: a waiting token sees only when the campaign says so
     (map.whiteboard || []).forEach(function(w) {
         if (!w || w.hidden || w.type === 'light' || !(w.isChar || (w.waiting && waitSight))) return;
         if (ownerId && ownerId !== '*' && w.ownerId !== ownerId && !(ownerId === PARTY && playerTok(w))) return;   // R2 #14: the party sees by every player's token
-        var x = w.x + (w.w || 60) / 2, y = w.y + (w.h || 52) / 2, front = (w.rot || 0) + (w.front || 0), ts = tokenSenses(w, map, camp, !ownerId || ownerId === '*');
+        var x = w.x + (w.w || 60) / 2, y = w.y + (w.h || 52) / 2, front = (w.rot || 0) + (w.front || 0), ts = tokenSenses(w, map, camp, !ownerId || ownerId === '*'), n0 = out.length;
         out.push(ts.blind ? { x: x, y: y, front: front, range: 0, arc: arc, blind: true } : { x: x, y: y, front: front, range: ts.sight, arc: arc });   // world facing = rot + front, so the arc follows the token's rotation; senses S3: blind eyes, their own cell
         if (ts.full.length) senseViewers(ts, arc).forEach(function(s) { var v = { x: x, y: y, front: front, range: s.range, arc: s.arc, sense: true }; if (s.pass) v.pass = true; if (s.dim) v.dim = true; if (s.veil) v.veil = true; out.push(v); });   // senses S2a: a viewer per full sense, after its token's eyes
+        if (withH === true) { var hh = tokHeight(w, map); for (var hi = n0; hi < out.length; hi++) out[hi].h = hh; }
     });
     return out;
 }
@@ -269,7 +270,8 @@ function smokeFor(map, grid) {   // { cellKey: 1 } or null, kept on the map's sa
     _smokeStamp[map.id] = stamp; _smokeCache[map.id] = set;
     return set;
 }
-function smokeUnion(map, blk, sm) {   // the walls and the smoke as one set, for a line smoke stops; kept while the walls' set is the same object
+function smokeUnion(map, blk, sm, tag) {   // the walls and the smoke as one set, for a line smoke stops; kept while the walls' set is the same object (tag, item 19b: the 3D line's walls keep a union of their own)
+    if (tag) { var sh = _smokeUnionH[map.id]; if (!sh || sh.blk !== blk || sh.sm !== sm) { var uh = Object.create(null), kh; if (blk) for (kh in blk) uh[kh] = 1; for (kh in sm) uh[kh] = 1; core().copyWalls(blk, uh); sh = _smokeUnionH[map.id] = { blk: blk, sm: sm, set: uh }; } return sh.set; }
     var su = _smokeUnion[map.id];
     if (!su || su.blk !== blk) { var un = Object.create(null), k; if (blk) for (k in blk) un[k] = 1; for (k in sm) un[k] = 1; core().copyWalls(blk, un); su = _smokeUnion[map.id] = { blk: blk, set: un }; }   // item 18 W2: the walls' thin walls too
     return su.set;
@@ -352,7 +354,9 @@ function coverBetween(x1, y1, x2, y2, hA, hB) {   // item 19 H1: hA, hB — the 
     var a = C.cellOf(x1, y1, grid), b = C.cellOf(x2, y2, grid);
     if (C.cellKey(a, grid) === C.cellKey(b, grid)) return null;         // same cell → no cover
     var sys = camp && camp.system; if (!window.wpSystemCore) return null;
-    var cs = coverSetsFor(map, grid); if (heightRuleOf(sys) === 'clears') cs = heightCover(cs, hA, hB, grid);   // item 19 H1: height clears low cover (from above; from below it hides)
+    var cs = coverSetsFor(map, grid), h3 = typeof heightSightOf === 'function' ? heightSightOf(sys) : null;
+    if (h3 && h3.mode === '3d') { var pa = C.cellCenter(a, grid), pb = C.cellCenter(b, grid); cs = cover3d(cs, grid, pa.x, pa.y, hNum(hA) + h3.eye, pb.x, pb.y, hNum(hB)); }   // item 19b H4: the true 3D line, from the first end's eye
+    else if (heightRuleOf(sys) === 'clears') cs = heightCover(cs, hA, hB, grid);   // item 19 H1: height clears low cover (from above; from below it hides)
     var cov = C.coverBetween(a, b, grid, cs && cs.hard, cs && cs.soft, cs && cs.all);   // cover follow-ups: the cover pieces (a see-over one too, never a token)
     return window.wpSystemCore.coverTier(sys, cov.coverage, cov.lineOfEffect);
 }
@@ -366,12 +370,13 @@ function coverSetsFor(map, grid) {
     if (_coverCache[map.id] !== undefined && _coverStamp[map.id] === stamp) return _coverCache[map.id];
     var C = core(), wb = map.whiteboard || [], cap = C.LIMITS.blockerCells, hard = Object.create(null), soft = Object.create(null), nh = 0, ns = 0, over = false, hs = [], ss = [];
     var softH = Object.create(null), softLines = [];   // item 19 H1: each see-over cell's height (its tallest piece; 1 yard where none is given) and each see-over line's
+    var hardH = Object.create(null), hardLines = [], fullW = null, lowW = false;   // item 19b H4: each wall cell's height (Infinity where a piece with none stands in it) and each wall line's; fullW: the walls with no height; lowW: some wall has a height
     for (var i = 0; i < wb.length && !over; i++) {
         var role = C.coverRole(wb[i]); if (!role) continue;
-        var hW = C.cleanHeight(wb[i].height) || 1;
-        if (wb[i].type === 'path') { var pz = C.pathSegs(wb[i]), into = role === 'hard' ? hs : ss; for (var q = 0; q < pz.length; q++) { into.push(pz[q]); if (hs.length > C.LIMITS.wallSegs) { over = true; break; } } if (ss.length > C.LIMITS.wallSegs) ss.length = C.LIMITS.wallSegs; if (role === 'soft' && pz.length) softLines.push({ segs: pz, h: hW }); continue; }   // item 18 W2: a pen line's cover is its line
+        var hW = C.cleanHeight(wb[i].height) || 1, hR = role === 'hard' ? C.cleanHeight(wb[i].height) || Infinity : 0; if (role === 'hard' && hR < Infinity) lowW = true;
+        if (wb[i].type === 'path') { var pz = C.pathSegs(wb[i]), into = role === 'hard' ? hs : ss; for (var q = 0; q < pz.length; q++) { into.push(pz[q]); if (hs.length > C.LIMITS.wallSegs) { over = true; break; } } if (ss.length > C.LIMITS.wallSegs) ss.length = C.LIMITS.wallSegs; if (role === 'soft' && pz.length) softLines.push({ segs: pz, h: hW }); if (role === 'hard' && pz.length) hardLines.push({ segs: pz, h: hR }); continue; }   // item 18 W2: a pen line's cover is its line
         var cells = footprintCells(wb[i], grid, C);
-        for (var j = 0; j < cells.length; j++) { var k = C.cellKey(cells[j], grid); if (role === 'hard') { if (!hard[k]) { hard[k] = 1; if (++nh > cap) { over = true; break; } } } else { if (!soft[k] && ns <= cap) { soft[k] = 1; ns++; } if (soft[k] && !(softH[k] >= hW)) softH[k] = hW; } }
+        for (var j = 0; j < cells.length; j++) { var k = C.cellKey(cells[j], grid); if (role === 'hard') { if (!(hardH[k] >= hR)) hardH[k] = hR; if (!hard[k]) { hard[k] = 1; if (++nh > cap) { over = true; break; } } } else { if (!soft[k] && ns <= cap) { soft[k] = 1; ns++; } if (soft[k] && !(softH[k] >= hW)) softH[k] = hW; } }
     }
     // the walls and the see-over cells together over the cap (a cell counted once): the walls keep their cover, the see-over pieces give none.
     // all: the union the fogcore calls read, built once here
@@ -380,7 +385,8 @@ function coverSetsFor(map, grid) {
     var hasH = nh || hs.length, hasS = ns || ss.length;   // item 18 W2: the lines' walls on the sets that give their cover (all: both)
     if (hasS && all === hard) { all = Object.create(null); for (var hk2 in hard) all[hk2] = 1; }
     if (hasH) C.withWalls(hard, hs, grid); if (hasS) { C.withWalls(soft, ss, grid); if (all !== hard) C.withWalls(all, hs.concat(ss), grid); }
-    var result = over || !(hasH || hasS) ? null : { hard: hasH ? hard : null, soft: hasS ? soft : null, all: all, softH: softH, softLines: softLines };
+    if (!over && hardLines.some(function(g) { return g.h < Infinity; })) { var fsg = []; hardLines.forEach(function(g) { if (!(g.h < Infinity)) g.segs.forEach(function(s) { fsg.push(s); }); }); fullW = C.withWalls(Object.create(null), fsg, grid); }
+    var result = over || !(hasH || hasS) ? null : { hard: hasH ? hard : null, soft: hasS ? soft : null, all: all, softH: softH, softLines: softLines, hardH: hardH, hardLines: hardLines, fullW: fullW, lowW: lowW };
     _coverStamp[map.id] = stamp; _coverCache[map.id] = result;
     return result;
 }
@@ -402,6 +408,23 @@ function heightCover(cs, hA, hT, grid) {
     if (softOut) { all = Object.create(null); for (k in hard || {}) all[k] = 1; for (k in soft) all[k] = 1; C.copyWalls(hard, all); C.copyWalls(softOut, all); }
     return { hard: hard, soft: softOut, all: all };
 }
+// Item 19b H4 (the owner's answer of 2026-10-01): the map's cover sets for one pair under the true 3D sightline. A piece with a height — a
+// see-over piece (its own, 1 yard where none is given) or a sight-blocker that has one — counts only where the straight line from the first
+// end (zA: its eye) to the second (zB) runs at or below the piece where it passes it, and then stops the line as a wall does; a sight-blocker
+// with no height always counts. The map's own sets (coverSetsFor) untouched; nothing left: null. A map with no see-over piece and no wall
+// that has a height: those very sets (nothing is judged by height there)
+function cover3d(cs, grid, ax, ay, zA, bx, by, zB) {
+    var C = core(); if (!cs || (!cs.lowW && !cs.soft && !(cs.softLines && cs.softLines.length))) return cs;
+    var hard = Object.create(null), n = 0, segs = [], k, sq = grid.type === 'square', anyH = false;
+    var under = function(key, H) { var sp = key.split(sq ? ',' : ':'), p = C.cellCenter(sq ? { c: +sp[0], r: +sp[1] } : { q: +sp[0], r: +sp[1] }, grid); return !C.lineOverHeight(ax, ay, zA, bx, by, zB, p.x, p.y, H); };
+    for (k in cs.hard || {}) { var H = cs.hardH && typeof cs.hardH[k] === 'number' ? cs.hardH[k] : Infinity; if (H < Infinity && !under(k, H)) continue; hard[k] = 1; n++; }
+    for (k in cs.soft || {}) { if (hard[k]) continue; if (under(k, cs.softH && cs.softH[k] >= 0 ? cs.softH[k] : 1)) { hard[k] = 1; n++; } }
+    (cs.hardLines || []).forEach(function(g) { if (g.h < Infinity) { anyH = true; g.segs.forEach(function(s) { if (!C.lineOverWall(ax, ay, zA, bx, by, zB, s, g.h)) segs.push(s); }); } });
+    (cs.softLines || []).forEach(function(g) { g.segs.forEach(function(s) { if (!C.lineOverWall(ax, ay, zA, bx, by, zB, s, g.h)) segs.push(s); }); });
+    C.copyWalls(anyH ? cs.fullW : cs.hard, hard);   // the walls with no height, as the map keeps them
+    C.withWalls(hard, segs, grid);
+    return n || C.wallsOf(hard) ? { hard: hard, soft: null, all: hard } : null;
+}
 // [fogcheck:heightcover-end]
 // The cover a board point (a blast's centre) has to a token on a map: its system's tier, or null (no grid, cover off, none). Local and advisory on
 // every viewer; the host alone turns it into damage (whiteboard.js applyBlastDamage)
@@ -410,7 +433,9 @@ function coverAt(x, y, tok, map, hFrom, hTok) {   // item 19 H1: hFrom, hTok —
     var sys = camp && camp.system; if (!coverOn(sys) || !window.wpSystemCore) return null;
     var grid = gridForMap(map); if (!grid) return null;
     var cs = coverSetsFor(map, grid); if (!cs) return null;
-    if (heightRuleOf(sys) === 'clears') { cs = heightCover(cs, hFrom, hTok, grid); if (!cs) return null; }
+    var h3 = typeof heightSightOf === 'function' ? heightSightOf(sys) : null;
+    if (h3 && h3.mode === '3d') { cs = cover3d(cs, grid, x, y, hNum(hFrom), tok.x + (tok.w || 60) / 2, tok.y + (tok.h || 52) / 2, hNum(hTok)); if (!cs) return null; }   // item 19b H4: a blast has no eye: from its own height to the token's
+    else if (heightRuleOf(sys) === 'clears') { cs = heightCover(cs, hFrom, hTok, grid); if (!cs) return null; }
     // a token over several cells is as exposed as its most exposed cell (the cells whose centres it covers, leaving out any inside a wall
     // unless all are; its centre's cell when it covers none, or more than 64, a box far bigger ruled out first): a line of effect to any cell
     // beats none, then the least coverage
@@ -594,13 +619,13 @@ function viewEvict(need, mapId) {
     var byUse = function(a, b) { return a.e.used - b.e.used; }, all = others.sort(byUse).concat(mine.sort(byUse));
     for (var i = 0; i < all.length && _viewCells + need > VIEW_BUDGET * 0.8; i++) { var o = all[i]; delete o.mc.m[o.k]; o.mc.cells -= o.e.hit.length; _viewCells -= o.e.hit.length; }
 }
-function viewSeen(map, grid, blk, lvl, v, lc) {
+function viewSeen(map, grid, blk, lvl, v, lc, tag) {   // tag (item 19b): the cells seen past the 3D line's walls, kept apart from the map's own
     var sm = smokeFor(map, grid), useSm = !!sm && !v.veil && !(v.sense && v.pass);   // senses S7b: smoke hides from the eyes and from a sense the walls stop that does not see through it
-    var C = core(), stamp = grid.type + ':' + (grid.size || grid.s) + '|' + lvl + '|' + (_blockerVer[map.id] || 0) + '|' + (blk ? 1 : 0) + '|' + (lc ? lc.ver : 0) + '|' + (_smokeVer[map.id] || 0), mc = _viewCache[map.id];
+    var C = core(), stamp = grid.type + ':' + (grid.size || grid.s) + '|' + lvl + '|' + (_blockerVer[map.id] || 0) + '|' + ((tag ? blockersFor(map, grid) : blk) ? 1 : 0) + '|' + (lc ? lc.ver : 0) + '|' + (_smokeVer[map.id] || 0), mc = _viewCache[map.id];   // tag (item 19b): the stamp stays the map's own, so both sets of cells share one memo
     if (!mc || mc.stamp !== stamp) { if (mc) _viewCells -= mc.cells; mc = _viewCache[map.id] = { stamp: stamp, m: Object.create(null), cells: 0 }; }
-    var k = C.cellKey(C.cellOf(v.x, v.y, grid), grid) + '|' + (v.arc >= 360 ? 0 : v.front) + '|' + v.range + '|' + v.arc + (v.sense ? '|' + (v.pass ? 'p' : 's') + (v.dim ? 'd' : '') : v.blind ? '|b' : '') + (sm && !useSm && !v.pass ? '|v' : ''), hit = mc.m[k];   // senses S2a: a sense's cells are its own, never an eyes viewer's of the same range (an eyes viewer's key is as it always was); S7b: one that sees through smoke apart
+    var k = C.cellKey(C.cellOf(v.x, v.y, grid), grid) + '|' + (v.arc >= 360 ? 0 : v.front) + '|' + v.range + '|' + v.arc + (v.sense ? '|' + (v.pass ? 'p' : 's') + (v.dim ? 'd' : '') : v.blind ? '|b' : '') + (sm && !useSm && !v.pass ? '|v' : '') + (tag || ''), hit = mc.m[k];   // senses S2a: a sense's cells are its own, never an eyes viewer's of the same range (an eyes viewer's key is as it always was); S7b: one that sees through smoke apart
     if (hit) { hit.used = ++_viewTick; hit.pass = _viewPass; return hit.hit; }
-    var cells = C.seenCells(v, grid, useSm ? smokeUnion(map, blk, sm) : blk, lvl === null ? null : { level: lvl, lit: lc ? lc.lit : null });
+    var cells = C.seenCells(v, grid, useSm ? smokeUnion(map, blk, sm, tag) : blk, lvl === null ? null : { level: lvl, lit: lc ? lc.lit : null });
     if (useSm) { var ownK = C.cellKey(C.cellOf(v.x, v.y, grid), grid); cells = cells.filter(function(o) { return o.key === ownK || sm[o.key] !== 1; }); }   // nothing in smoke is seen but a token's own cell
     if (_viewCells + cells.length > VIEW_BUDGET) viewEvict(cells.length, map.id);
     mc.m[k] = { hit: cells, used: ++_viewTick, pass: _viewPass }; mc.cells += cells.length; _viewCells += cells.length;
@@ -661,16 +686,21 @@ function lightSeen(from, to, map, camp) {
     var d = C.cellDist(a, b, grid), ts = tokenSenses(from, map, camp, !from.ownerId), lit = null, litRead = false, sense = null;
     var litAt = function() { if (!litRead) { litRead = true; var lc = over ? null : litFor(map, grid, blk); lit = lc ? lc.lit : null; } return lit; };
     // senses S7b: smoke stops the eyes and a sense the walls stop that does not see through it — a target in it (but the viewer's own cell) or past it
-    var sm = smokeFor(map, grid), ak = C.cellKey(a, grid), smLine = function(to, tk) { return !sm || ((tk === ak || sm[tk] !== 1) && C.lineClear(a, to, grid, smokeUnion(map, blk, sm))); };
+    // item 19b: with heights judged, the target's own line is read past the walls the heights are judged against (under the 3D line a wall with a
+    // height is no wall but a piece: blkT, the map's own set otherwise), and a piece that hides the target at their heights stops the eyes and a
+    // sense the walls stop (hst)
+    var hrL = typeof heightRules === 'function' ? heightRules(map, camp, grid) : null, blkT = hrL ? hrL.base : blk;
+    var sm = smokeFor(map, grid), ak = C.cellKey(a, grid), smLine = function(to, tk, tgt) { return !sm || ((tk === ak || sm[tk] !== 1) && C.lineClear(a, to, grid, tgt && hrL && hrL.tag ? smokeUnion(map, blkT, sm, hrL.tag) : smokeUnion(map, blk, sm))); };
+    var hst = !!hrL && hrL.C.heightStops(a, b, grid, tokHeight(from, map) + hrL.hm.eye, tokHeight(to, map), hrL.hs, hrL.hm.mode);
     senseViewers(ts, v.arc).forEach(function(s) {   // senses S2a: a full sense that reaches the target reads it clear, or (dim) its own light raised to dim, as seenCells shows it
-        if (!(d <= s.range + 1e-9) || !C.cellInArc({ x: v.x, y: v.y, front: v.front, arc: s.arc }, b, grid) || (!s.pass && !C.lineClear(a, b, grid, blk)) || (!s.pass && !s.veil && !smLine(b, bk))) return;
+        if ((!s.pass && hst) || !(d <= s.range + 1e-9) || !C.cellInArc({ x: v.x, y: v.y, front: v.front, arc: s.arc }, b, grid) || (!s.pass && !C.lineClear(a, b, grid, blkT)) || (!s.pass && !s.veil && !smLine(b, bk, true))) return;
         var t = 2;
         if (s.dim) { var lv = over ? 0 : blk && blk[bk] ? lvl : Math.max(lvl, (litAt() && lit[bk]) || 0); t = lv >= 2 ? 2 : 1; }
         if (sense === null || t > sense) sense = t;
     });
     var up = function(t) { return sense !== null && sense > t ? sense : t; };
     if (ts.blind) return d <= 1e-9 ? 2 : sense;   // senses S3: blind eyes read no light but their own cell's; a full sense still reads what it reaches
-    if (!(d <= C.LIMITS.rangeCells + 1e-9) || !C.cellInArc(v, b, grid) || !C.lineClear(a, b, grid, blk) || !smLine(b, bk)) return sense;   // out of the eyes' reach: a sense's answer or none
+    if (!(d <= C.LIMITS.rangeCells + 1e-9) || !C.cellInArc(v, b, grid) || !C.lineClear(a, b, grid, blkT) || !smLine(b, bk, true) || hst) return sense;   // out of the eyes' reach: a sense's answer or none
     if (d <= ts.sight + 1e-9) return 2;
     if (over) return up(0);   // walls over their cap: the map reads by sight alone, never by a light judged through them
     litAt();
@@ -680,6 +710,146 @@ function lightSeen(from, to, map, camp) {
     return up(best);
 }
 
+// [fogcheck:heightsight-start]
+// Item 19b (the owner's answers of 2026-10-01): heights in the fog. With the system's height rule "clears" (H3: "everything a wall stops") a
+// see-over piece hides a creature from a token BELOW it — the token lower than the creature, the creature no higher than the piece — as the
+// cover readout has it (heightCover): at those heights the piece stops that token's eyes and every sense the walls stop; a sense that passes
+// walls, and a mark it makes, is unaffected. With the system's True 3D sightline (H4) every piece with a height — a see-over piece (1 yard
+// where none is given) and a sight-blocker that has one — stops a line only where the straight line from the token's eye (its height, plus the
+// system's standing height when it gives one) to the creature (at its height) runs at or below the piece where it passes it; a sight-blocker
+// with no height is a wall, full height, as ever. Judged per token and creature, never per cell: the ground a player sees stays what the
+// walls give (a creature seen over a low wall has its own cell shown, heightShown). A creature is left out of a player's copy when EVERY
+// token of theirs has it hidden so or does not see it at all; one token that sees it keeps it. What the GM shows or hides by hand, and where
+// no fog is drawn, stay as they were. Heights come from wpStance.tokenElevation(token, map) (a token's own elevation plus the ground it stands
+// on), 0 with Token elevation off. A map with no piece that has a height — and, under "clears", no token off the ground — is not judged at
+// all: exactly the code as it was
+function hNum(v) { return typeof v === 'number' && isFinite(v) ? v : 0; }
+function heightSightOf(sys) {   // { mode: 'clears' | '3d', eye (yards), soft } or null: no height in the fog. soft: the see-over pieces count (the system's Cover from blockers is on: with it off a piece set to give cover is no piece at all, here as on the ruler)
+    var h = sys && sys.combat && typeof sys.combat === 'object' ? sys.combat.height : null; if (!h || typeof h !== 'object') return null;
+    if (h.line3d === true) return { mode: '3d', eye: Math.min(100, Math.max(0, hNum(h.eye))), soft: coverOn(sys) };
+    return h.rule === 'clears' && coverOn(sys) ? { mode: 'clears', eye: 0, soft: true } : null;
+}
+function tokHeight(w, map) {   // a token's height in yards, by the contract every reader shares; 0 while the table plays without Token elevation
+    var vt = window.wpVtt; if (!w || (vt && !(vt.rulesOn ? vt.rulesOn('elevation') : vt.on('elevation')))) return 0;
+    var St = window.wpStance, e = St && typeof St.tokenElevation === 'function' ? Number(St.tokenElevation(w, map)) : Number(w.elevation);
+    return isFinite(e) ? e : 0;
+}
+// A map's pieces that have a height, for the mode: { cells: { cellKey: H }, lines: [{ segs, h }], full, split, ver } or null with none. The
+// see-over pieces are the cover readout's own (coverSetsFor: a cell its tallest piece, 1 yard where none is given). Under the 3D line the
+// sight-blockers split: one with a Height joins the pieces, one with none stays a wall (full: the walls a 3D line is judged against, the
+// map's own set when nothing was split off; a cell a wall also stands in is the wall's). ver moves only when the pieces do: the vision memo
+// keys on it. Kept while the map's cover sets and walls are the very sets they were
+var _hsCache = Object.create(null), _hsSig = Object.create(null), _hsVer = Object.create(null), _smokeUnionH = Object.create(null), _seenIdx = typeof WeakMap === 'function' ? new WeakMap() : null;
+var _dropHid = typeof WeakMap === 'function' ? new WeakMap() : null;   // a drop (fogDropIds) -> the creatures in it a piece hides in a cell its player sees ({ id: 1 }): a mark on one is drawn though the cell is seen
+function heightSetsFor(map, grid, hm, blk) {
+    var C = core(), cs = coverSetsFor(map, grid), stamp = ((map.meta && map.meta.updated) || 0) + '|' + hm.mode + (hm.soft ? 's' : '') + '|' + grid.type + ':' + (grid.size || grid.s), hit = _hsCache[map.id];
+    if (hit && hit.stamp === stamp && hit.cs === cs && hit.blk === blk) return hit.res;
+    var cells = Object.create(null), lines = [], any = false, full = blk, split = false, k;
+    if (hm.soft && cs && cs.soft) for (k in cs.soft) { cells[k] = cs.softH && cs.softH[k] >= 0 ? cs.softH[k] : 1; any = true; }
+    if (hm.soft && cs && cs.softLines) cs.softLines.forEach(function(g) { if (g && Array.isArray(g.segs) && g.segs.length) { lines.push({ segs: g.segs, h: g.h }); any = true; } });
+    if (hm.mode === '3d' && blk) {
+        var wb = map.whiteboard || [], fset = Object.create(null), fsegs = [], hcells = Object.create(null), nh = 0, nf = 0;
+        for (var i = 0; i < wb.length; i++) {
+            var w = wb[i]; if (!eligibleBlocker(w)) continue;
+            var H = C.cleanHeight(w.height);
+            if (w.type === 'path') { var ps = C.pathSegs(w); if (!ps.length) continue; if (H) { lines.push({ segs: ps, h: H }); nh++; } else for (var q = 0; q < ps.length; q++) fsegs.push(ps[q]); continue; }
+            var fc = footprintCells(w, grid, C);
+            for (var j = 0; j < fc.length; j++) { var ck = C.cellKey(fc[j], grid); if (H) { if (!(hcells[ck] >= H)) hcells[ck] = H; nh++; } else if (!fset[ck]) { fset[ck] = 1; nf++; } }
+        }
+        if (nh) {
+            split = true; any = true;
+            for (k in hcells) if (!fset[k] && !(cells[k] >= hcells[k])) cells[k] = hcells[k];
+            full = nf || fsegs.length ? C.withWalls(fset, fsegs, grid) : null;
+        }
+    }
+    var res = null;
+    if (any) {
+        var r1 = function(v) { return Math.round(v * 10) / 10; };
+        var sig = Object.keys(cells).sort().map(function(key) { return key + '=' + cells[key]; }).join(';') + '|' + lines.map(function(g) { return g.h + ':' + g.segs.map(function(s) { return s.map(r1).join(','); }).join(';'); }).join('|') + '|' + (split ? 1 : 0);
+        if (_hsSig[map.id] !== sig) { _hsSig[map.id] = sig; _hsVer[map.id] = (_hsVer[map.id] || 0) + 1; }
+        res = { cells: cells, lines: lines, full: full, split: split, ver: _hsVer[map.id] };
+    }
+    _hsCache[map.id] = { stamp: stamp, cs: cs, blk: blk, res: res };
+    return res;
+}
+// The rules a map is judged by, or null where no height is judged: the mode, its pieces, and the walls a line is judged against (base: the
+// map's own, or under the 3D line the walls with no height; tag: the vision memo's key for cells seen past base alone)
+function heightRules(map, camp, grid) {
+    var hm = heightSightOf(camp && camp.system); if (!hm || !map || !grid) return null;
+    var C = core(); if (!C || typeof C.heightStops !== 'function') return null;
+    var blk = blockersFor(map, grid); if (_blockerOver[map.id]) return null;   // walls over their cap block nothing: no piece is judged either
+    var hs = heightSetsFor(map, grid, hm, blk); if (!hs) return null;
+    if (hm.mode === 'clears' && !(map.whiteboard || []).some(function(w) { return !!w && (w.isChar || w.waiting) && tokHeight(w, map) !== 0; })) return null;   // everyone on the ground: nobody is below anybody
+    return { C: C, hm: hm, hs: hs, blk: blk, base: hs.split ? hs.full : blk, tag: hs.split ? '|h' + hs.ver : '' };
+}
+function seenIdxOf(cells) {   // a viewer's seen cells as { key: tier }, kept beside the list the vision memo holds
+    var ix = _seenIdx ? _seenIdx.get(cells) : null; if (ix) return ix;
+    ix = Object.create(null); for (var i = 0; i < cells.length; i++) ix[cells[i].key] = cells[i].tier;
+    if (_seenIdx) _seenIdx.set(cells, ix);
+    return ix;
+}
+// What one owner's tokens are judged with on a map (fog on Auto only: Reveal all shows everything, Cover all reads no viewer): the rules,
+// each viewer with its token's height, the light, and the cells shown or hidden by hand. null where nothing is judged
+function heightCtx(map, camp, ownerId, grid) {
+    if (!map || !grid || mapFog(map).mode !== 'auto') return null;
+    var hr = heightRules(map, camp, grid); if (!hr) return null;
+    var vs = viewersFor(map, camp, ownerId, true); if (!vs.length) return null;
+    var C = hr.C, lvl = mapLevel(map), lc = lvl === null ? null : litFor(map, grid, hr.blk), mf = mapFog(map), man = Object.create(null), cut = Object.create(null);
+    (mf.manual.adds || []).forEach(function(c) { man[C.cellKey(c, grid)] = 1; }); (mf.manual.cuts || []).forEach(function(c) { cut[C.cellKey(c, grid)] = 1; });
+    return { C: C, hm: hr.hm, hs: hr.hs, base: hr.base, tag: hr.tag, vs: vs, lvl: lvl, lc: lc, man: man, cut: cut, map: map, grid: grid, idx: [] };
+}
+// The tier at which those tokens see a creature standing in that cell at that height (2 clear, 1 dim), 0 when none does: a viewer must
+// see the cell past the walls (its light, its reach, its arc, smoke: its own seen cells, viewSeen) and have no piece stop its line — a sense
+// that passes walls is stopped by none
+function heightSees(ctx, cell, key, hT) {
+    var C = ctx.C, tier = 0;
+    for (var i = 0; i < ctx.vs.length && tier < 2; i++) {
+        var v = ctx.vs[i], ix = ctx.idx[i] || (ctx.idx[i] = seenIdxOf(viewSeen(ctx.map, ctx.grid, ctx.base, ctx.lvl, v, ctx.lc, ctx.tag))), t = ix[key];
+        if (!t) continue;
+        if (!(v.sense && v.pass) && C.heightStops(C.cellOf(v.x, v.y, ctx.grid), cell, ctx.grid, hNum(v.h) + ctx.hm.eye, hT, ctx.hs, ctx.hm.mode)) continue;
+        if (t > tier) tier = t;
+    }
+    return tier;
+}
+// Every creature the heights judge otherwise than the cells do, for one owner: hide { id: 1 } (its cell is seen, but a piece hides it from
+// every token that sees the cell) and show { id: { key, cell, tier } } (its cell is not, but a token sees it over a low wall). flat: the cells
+// revealed to that owner ({ key: tier }, revealedTiers). null where nothing differs
+function heightJudge(map, camp, ownerId, grid, mask, flat) {
+    var ctx = heightCtx(map, camp, ownerId, grid); if (!ctx) return null;
+    var C = ctx.C, hide = null, show = null;
+    (map.whiteboard || []).forEach(function(w) {
+        if (!w || w.type === 'light' || !(w.isChar || w.waiting) || typeof w.id !== 'string') return;
+        if (w.ownerId === ownerId || (ownerId === PARTY && playerTok(w))) return;
+        var cell = C.cellOf(w.x + (w.w || 60) / 2, w.y + (w.h || 52) / 2, grid), key = C.cellKey(cell, grid);
+        if (!inMask(mask, key) || ctx.man[key] === 1 || ctx.cut[key] === 1) return;
+        var tier = heightSees(ctx, cell, key, tokHeight(w, map)), was = !!flat[key];
+        if (was && !tier) (hide || (hide = Object.create(null)))[w.id] = 1;
+        else if (!was && tier) (show || (show = Object.create(null)))[w.id] = { key: key, cell: cell, tier: tier };
+    });
+    return hide || show ? { hide: hide || Object.create(null), show: show || Object.create(null) } : null;
+}
+// The cells an owner's overlay shows, with the cell of each creature a token of theirs sees over a low wall (H4; its tier the light it is
+// seen in): the same tiers when there is none. The tiers are the caller's own (revealedTiers and partyTiers build them afresh each time)
+function heightShown(tiers, map, camp, ownerId, grid, mask) {
+    if (!tiers || !tiers.keys || !Array.isArray(tiers.list)) return tiers;
+    var hr = heightRules(map, camp, grid); if (!hr || !hr.hs.split) return tiers;   // only a wall with a height is ever seen over
+    var hj = heightJudge(map, camp, ownerId, grid, mask, tiers.keys); if (!hj) return tiers;
+    for (var id in hj.show) { var s = hj.show[id], o = tiers.keys[s.key]; if (o === undefined) { tiers.keys[s.key] = s.tier; tiers.list.push({ key: s.key, cell: s.cell }); } else if (s.tier > o) tiers.keys[s.key] = s.tier; }
+    return tiers;
+}
+// A player's mark senses and the creatures they may mark, with the heights counted: each viewer the walls stop is told the creatures a
+// piece hides from its token (hid: fogcore markCells leaves them unfound by it), and the walls to judge by are the rules' own
+function heightVeto(inp, vs, cs, blk) {
+    var hr = inp.hr, C = hr.C, grid = inp.grid;
+    vs.forEach(function(v) {
+        delete v.hid; if (v.pass) return;
+        var a = C.cellOf(v.x, v.y, grid), hid = null;
+        cs.forEach(function(c) { if (typeof c.id === 'string' && C.heightStops(a, C.cellOf(c.x, c.y, grid), grid, hNum(v.hh) + hr.hm.eye, hNum(c.hh), hr.hs, hr.hm.mode)) (hid || (hid = Object.create(null)))[c.id] = 1; });
+        if (hid) v.hid = hid;
+    });
+    return hr.base;
+}
+// [fogcheck:heightsight-end]
 /* ---------- host enforcement helpers (called by net.js) ---------- */
 // Ids of the character tokens a recipient CANNOT see on a map (drop these from their wire copy). null = no fog / drop nothing.
 function fogDropIds(recipientId, camp, map) {
@@ -691,12 +861,17 @@ function fogDropIds(recipientId, camp, map) {
     if (list === null) return null;                                     // reveal-all: nothing hidden
     var C = core(), keys = Object.create(null); list.forEach(function(c) { keys[C.cellKey(c, grid)] = 1; });
     var drop = Object.create(null), any = false;
+    var hj = typeof heightJudge === 'function' ? heightJudge(map, camp, recipientId, grid, mask, keys) : null;   // item 19b: the creatures a piece with a height hides, or shows over a low wall (null: none, as before)
     (map.whiteboard || []).forEach(function(w) {
         if (!w || w.type === 'light' || !(w.isChar || w.waiting)) return;   // a light source is never a creature; Onboarding F1a: another player's waiting token hides in fog like a character's
         if (w.ownerId === recipientId || (recipientId === PARTY && playerTok(w))) return;   // your own token is always yours; the party view (R2 #14) keeps every player's
         var tk = C.cellKey(C.cellOf(w.x + (w.w || 60) / 2, w.y + (w.h || 52) / 2, grid), grid);
-        if (inMask(mask, tk) && !keys[tk]) { drop[w.id] = 1; any = true; }   // hidden only inside a fog area a viewer can't see; a token OUT of every fog area is always visible
+        if (!inMask(mask, tk)) return;   // hidden only inside a fog area a viewer can't see; a token OUT of every fog area is always visible
+        var seen = !!keys[tk];
+        if (hj && typeof w.id === 'string') { if (seen) { if (hj.hide[w.id] === 1) seen = false; } else if (hj.show[w.id]) seen = true; }
+        if (!seen) { drop[w.id] = 1; any = true; }
     });
+    if (any && hj && typeof _dropHid !== 'undefined' && _dropHid) _dropHid.set(drop, hj.hide);   // item 19b: which of them stand in a cell this player sees (a mark on one is drawn there)
     return any ? drop : null;
 }
 // R2 #14: the stream window's copy of a fogged map carries the cells the players' tokens see together (fogPartyCopy in net.js puts it on the copy as
@@ -708,8 +883,9 @@ function fogPartyCells(camp, map) {
     if (!fogFeatureOn() || !map || map.type !== 'map') return null;
     var mf = mapFog(map); if (!mf.on) return null;
     var grid = gridForMap(map); if (!grid) return null;
-    if (fogMask(map, camp, grid).mode === 'none') return null;
+    var mask = fogMask(map, camp, grid); if (mask.mode === 'none') return null;
     var t = revealedTiers(map, camp, PARTY); if (t === null) return { all: true };
+    if (typeof heightShown === 'function') t = heightShown(t, map, camp, PARTY, grid, mask);   // item 19b H4
     return { list: t.list.map(function(o) { var c = o.cell, k = t.keys[o.key]; return c.q !== undefined ? { q: c.q, r: c.r, t: k } : { c: c.c, r: c.r, t: k }; }) };
 }
 // Senses S0: what one player's own tokens see by on a map, as a text the host compares — each of their viewers' sight in cells, in the map's
@@ -737,6 +913,8 @@ function sightSigFor(recipientId, camp, map) {
         if (!w || w.hidden || w.type === 'light' || w.ownerId !== recipientId || !w.isChar) return;
         (tokenSenses(w, map, camp, false).marks || []).forEach(function(m) { out.push('m' + m.cells + (m.pass ? 'p' : '') + (m.all ? 'a' : '') + m.k + (m.veil ? 'v' : '')); });
     });
+    var hsg = typeof heightSightOf === 'function' ? heightSightOf(camp && camp.system) : null;   // item 19b: the system's height rule decides which creatures are seen (absent: the text as it was)
+    if (hsg) out.push(hsg.mode === '3d' ? 'h3d' + hsg.eye + (hsg.soft ? 's' : '') : 'hc');
     return out.join(',');
 }
 // Senses S4: one player's marks on one map — the host's, for their copy (fogCopyFor) and its catch-ups: the creatures dropped from it (a character
@@ -757,8 +935,9 @@ function marksStrictOn(camp, map) {
 function marksBlk(map, grid) { var blk = blockersFor(map, grid); return _blockerOver[map.id] ? null : blk; }   // walls over their cap block nothing, as for the eyes
 function marksHeldOf(key, inp, blk, keep) {   // what a refresh holds: the creatures found now and where they stand, and the senses that looked
     var found = Object.create(null), pos = Object.create(null), sids = Object.create(null);
+    if (inp && inp.hr && inp.vs.length && inp.cs.length && typeof heightVeto === 'function') blk = heightVeto(inp, inp.vs, inp.cs, blk);   // item 19b
     if (inp && inp.vs.length && inp.cs.length) inp.C.markCells(inp.vs, inp.cs, inp.grid, blk, found, inp.smoke);
-    if (inp) { inp.cs.forEach(function(c) { if (found[c.id] === 1) pos[c.id] = { x: c.x, y: c.y }; }); inp.vs.forEach(function(v) { if (typeof v.sid === 'string') sids[v.sid] = 1; }); }
+    if (inp) { inp.cs.forEach(function(c) { if (found[c.id] === 1) { pos[c.id] = { x: c.x, y: c.y }; if (c.open === true) pos[c.id].open = true; if (typeof c.hh === 'number') pos[c.id].hh = c.hh; } }); inp.vs.forEach(function(v) { if (typeof v.sid === 'string') sids[v.sid] = 1; }); }
     var held = { pos: pos, sids: sids }; if (keep) _marksHeld[key] = held;
     return held;
 }
@@ -778,21 +957,25 @@ function marksInputs(recipientId, camp, map, drop) {
     if (!campMarkSenses(camp).length || fogMask(map, camp, grid).mode === 'none') return null;
     var turningOn = !window.wpVtt || window.wpVtt.on('turning'), arc = turningOn ? visionOf(map).arc : 360, vs = [], cs = [];
     var waitSight = !!(camp && camp.newPlayers && typeof camp.newPlayers === 'object' && camp.newPlayers.sight === true);
+    var hr = typeof heightRules === 'function' ? heightRules(map, camp, grid) : null, hidOf = hr && typeof _dropHid !== 'undefined' && _dropHid ? _dropHid.get(drop) : null;   // item 19b: with heights judged, each viewer and creature carries its height (hh); open: a creature a piece hides in a cell this player sees
     (map.whiteboard || []).forEach(function(w) {
         if (!w || w.hidden || w.type === 'light') return;
         if (w.ownerId === recipientId) {
             if (!(w.isChar || (w.waiting && waitSight))) return;
             var x = w.x + (w.w || 60) / 2, y = w.y + (w.h || 52) / 2, front = (w.rot || 0) + (w.front || 0);
-            (tokenSenses(w, map, camp, false).marks || []).forEach(function(m) { var vm = { x: x, y: y, front: front, range: m.cells, arc: m.all ? 360 : arc, pass: m.pass, k: m.k, sid: m.id }; if (m.veil) vm.veil = true; vs.push(vm); });
+            (tokenSenses(w, map, camp, false).marks || []).forEach(function(m) { var vm = { x: x, y: y, front: front, range: m.cells, arc: m.all ? 360 : arc, pass: m.pass, k: m.k, sid: m.id }; if (m.veil) vm.veil = true; if (hr) vm.hh = tokHeight(w, map); vs.push(vm); });
             return;
         }
         if (drop[w.id] !== 1 || !(w.isChar || w.waiting)) return;
         var un = C.cleanUnsensed(w.unsensed), skip = null;
         if (un === true) return;
         if (un) { skip = Object.create(null); un.forEach(function(id) { skip[id] = 1; }); }
-        cs.push({ x: w.x + (w.w || 60) / 2, y: w.y + (w.h || 52) / 2, skip: skip, id: w.id });
+        var cr = { x: w.x + (w.w || 60) / 2, y: w.y + (w.h || 52) / 2, skip: skip, id: w.id }; if (hr) { cr.hh = tokHeight(w, map); if (hidOf && hidOf[w.id] === 1) cr.open = true; }
+        cs.push(cr);
     });
-    return { C: C, grid: grid, vs: vs, cs: cs, smoke: smokeFor(map, grid) };   // senses S7b: the map's smoke, for a mark sense that does not see through it
+    var inp = { C: C, grid: grid, vs: vs, cs: cs, smoke: smokeFor(map, grid) };   // senses S7b: the map's smoke, for a mark sense that does not see through it
+    if (hr) inp.hr = hr;
+    return inp;
 }
 function fogMarksFor(recipientId, camp, map, drop, peek) {   // peek: the GM's preview reads what is held, never takes a refresh of its own
     var inp = marksInputs(recipientId, camp, map, drop); if (!inp) return null;
@@ -800,10 +983,11 @@ function fogMarksFor(recipientId, camp, map, drop, peek) {   // peek: the GM's p
     if (marksStrictOn(camp, map)) {   // senses S4b: from what is held (a player new to the fight has theirs taken now)
         var hk = recipientId + '|' + map.id, held = _marksHeld[hk] || marksHeldOf(hk, inp, blk, !peek);
         vs = vs.filter(function(v) { return held.sids[v.sid] === 1; });
-        cs = cs.filter(function(c) { return !!held.pos[c.id]; }).map(function(c) { var p = held.pos[c.id]; return { x: p.x, y: p.y, skip: c.skip }; });
+        cs = cs.filter(function(c) { return !!held.pos[c.id]; }).map(function(c) { var p = held.pos[c.id], o = { x: p.x, y: p.y, skip: c.skip }; if (inp.hr) { o.id = c.id; o.hh = typeof p.hh === 'number' ? p.hh : c.hh; if (p.open === true) o.open = true; } return o; });
     }
     if (!vs.length || !cs.length) return null;
-    var sig = grid.type + ':' + (grid.size || grid.s) + '|' + (_blockerVer[map.id] || 0) + '|' + (blk ? 1 : 0) + '|' + (_smokeVer[map.id] || 0) + '|' + JSON.stringify(vs) + '|' + JSON.stringify(cs), k = recipientId + '|' + map.id, hit = _marksMemo[k];   // S7b: marks move when smoke does
+    if (inp.hr && typeof heightVeto === 'function') blk = heightVeto(inp, vs, cs, blk);   // item 19b: a piece that hides a creature from a token stops its mark senses the walls stop
+    var sig = grid.type + ':' + (grid.size || grid.s) + '|' + (_blockerVer[map.id] || 0) + '|' + (blk ? 1 : 0) + '|' + (_smokeVer[map.id] || 0) + '|' + JSON.stringify(vs) + '|' + JSON.stringify(cs) + (inp.hr ? '|h' + inp.hr.hs.ver + inp.hr.hm.mode + inp.hr.hm.eye : ''), k = recipientId + '|' + map.id, hit = _marksMemo[k];   // S7b: marks move when smoke does
     if (hit && hit.sig === sig) return hit.marks;
     var res = C.markCells(vs, cs, grid, blk, null, inp.smoke), marks = res.marks.length ? res.marks : null;   // senses S7b: smoke hides from a mark sense that does not see through it
     _marksMemo[k] = { sig: sig, marks: marks };
@@ -846,7 +1030,7 @@ function lightMoves(map) {
     return !_blockerOver[map.id];
 }
 function invalidateVision() { _coverCache = Object.create(null); _coverStamp = Object.create(null); _keyCache = Object.create(null); _blockerCache = Object.create(null); _blockerStamp = Object.create(null); _maskCache = Object.create(null); _maskStamp = Object.create(null); }
-function canSeePoint(recipientId, camp, map, x, y) {
+function canSeePoint(recipientId, camp, map, x, y, w) {   // w (item 19b): the piece whose place this is — a creature is judged at its height, as its drop is
     if (!fogFeatureOn() || !map) return true;
     var mf = mapFog(map); if (!mf.on) return true;
     var grid = gridForMap(map); if (!grid) return true;
@@ -861,6 +1045,11 @@ function canSeePoint(recipientId, camp, map, x, y) {
     if (ce.all) return true;
     var pk = core().cellKey(core().cellOf(x, y, grid), grid);
     if (!inMask(mask, pk)) return true;                                 // outside every fog area → always visible
+    if (w && typeof w === 'object' && (w.isChar || w.waiting) && w.type !== 'light' && typeof heightCtx === 'function') {
+        if (ce.hc === undefined) ce.hc = heightCtx(map, camp, recipientId, grid);   // kept with the set: both are emptied together
+        var hc = ce.hc;
+        if (hc && hc.man[pk] !== 1 && hc.cut[pk] !== 1) { var live = {}; for (var lk in w) live[lk] = w[lk]; live.x = x - (w.w || 60) / 2; live.y = y - (w.h || 52) / 2; return heightSees(hc, hc.C.cellOf(x, y, grid), pk, tokHeight(live, map)) > 0; }
+    }
     return !!ce.keys[pk];
 }
 
@@ -993,6 +1182,7 @@ function draw() {
     };
     var traceCell = function(cell) { traceOn(ctx, cell); };
     var mem = isClientView() && rememberOn(camp) ? memRemember(map, grid, tiers) : null, memLay = mem && mem.n ? memLayer(map, mem, z, sx, sy, W, H, traceOn) : null;   // senses S6: the ground this player remembers
+    if (!isStreamView() && typeof heightShown === 'function') tiers = heightShown(tiers, map, camp, drawOwner(), grid, mask);   // item 19b H4: the cell of a creature seen over a low wall (after the memory: it is no ground seen)
     ctx.save();
     if (mask.mode === 'set') {                                     // confine the fog to the play-area cells
         var mp = maskClip(mask, grid, z, sx, sy, W, H, traceOn);   // the same clip, kept from the frame before while nothing moved
@@ -1069,7 +1259,7 @@ function drawMarks(ctx, s, marks, seenKeys, grid, now, still, held) {   // held:
     ctx.strokeStyle = '#e8e6f5'; ctx.fillStyle = '#e8e6f5'; ctx.lineWidth = Math.max(1.5, R * 0.18); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     for (var i = 0; i < marks.length; i++) {
         var m = marks[i], cell = m.q !== undefined ? { q: m.q, r: m.r } : { c: m.c, r: m.r }, key = C.cellKey(cell, grid);
-        if (!MARK_WORD[m.k] || (seenKeys && seenKeys[key])) continue;
+        if (!MARK_WORD[m.k] || (seenKeys && seenKeys[key] && m.s !== 1)) continue;   // item 19b: s — a creature a piece hides in a cell this player sees: its mark is drawn there
         count[m.k]++;
         var ctr = C.cellCenter(cell, grid), x = ctr.x * z - sx, y = ctr.y * z - sy;
         if (x < -2 * R || y < -2 * R || x > W + 2 * R || y > H + 2 * R) continue;   // off the board's view

@@ -725,6 +725,10 @@ function cleanCombat(c, resIds, fieldIds, secretIds, F, viewKinds) {   // senses
 // modifier from HeightDiff alone: the roller's height over the target's in that unit, negative looking up; no dice, no other name; kept, it
 // wins and the steps go), steps (each { to, mod }: "up to 2 yards above: 0", a height difference within 1,000,000 either way, below 0
 // looking up, sorted, the first of each kept; a modifier within 1000 either way, to the hundredth). A unit with neither: none
+// Item 19b H4 (the owner's answer of 2026-10-01): line3d (true only) — the true 3D sightline: a piece with a height stops a line of sight or
+// of cover only where the straight line from the eye to the target runs at or below it (fog.js); eye — the standing height, in yards: how
+// far above its elevation a token's eye sits (above 0, at most 100, to the hundredth; kept only with the line; absent: the eye is at the
+// token's elevation). The same in both views: a player's own screen judges as the host does
 var HEIGHT_UNITS = Object.freeze({ ft: 1, m: 1 });
 function heightFormulaOk(text, F) {
     if (!F || typeof F.parse !== 'function') return false;
@@ -748,6 +752,7 @@ function cleanHeightRules(v, F) {
         if (st.length) out.steps = st;
     }
     if (!out.formula && !out.steps) delete out.unit;
+    if (v.line3d === true) { out.line3d = true; var ey = fin(v.eye) ? Math.round(Math.min(v.eye, 100) * 100) / 100 : 0; if (ey > 0) out.eye = ey; }
     return Object.keys(out).length ? out : null;
 }
 // ... the modifier its table or formula gives at a height difference in its unit (the table's first step that reaches it; below the first,

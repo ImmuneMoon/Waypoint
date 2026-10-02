@@ -221,29 +221,34 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const rq = http.request({ host, port, path: pathName || '/', method: method || 'GET', agent: false, headers: { Host: 'localhost:' + port } }, rs => { let d = ''; rs.on('data', c => { d += c; }); rs.on('end', () => resolve(d || String(rs.statusCode))); });
             rq.on('error', e => resolve(String(e && e.code))); rq.setTimeout(5000, () => { const e = new Error('no answer'); e.code = 'ETIMEDOUT'; rq.destroy(e); }); rq.end();
         });
+        // A machine may listen on [::1] and still be unable to dial it (a VPN or a filter that blocks IPv6 answers "not permitted" to every connection, the loopback included).
+        // Nothing on such a machine can reach [::1] either, the app's window included, so what [::1] would answer is not read there: the listens, the ports and 127.0.0.1 still are.
+        const dial6 = has6 && await new Promise(r => { const sv = http.createServer((q, rs) => rs.end('X')); sv.unref(); sv.once('error', () => r(false)); sv.listen({ port: 0, host: '::1', ipv6Only: true }, () => { getL('::1', sv.address().port).then(v => sv.close(() => r(v === 'X'))); }); });
+        const get6 = (port, blind, pathName) => dial6 ? getL('::1', port, pathName) : Promise.resolve(blind);
+        const NOTE6 = has6 && !dial6 ? ' (this machine listens on [::1] but cannot dial it — a VPN or a filter blocks IPv6 — so what [::1] answers is not read here)' : '';
         const pair = () => { const a = http.createServer((q, r) => r.end('OURS')), b = http.createServer((q, r) => a.emit('request', q, r)); a.unref(); b.unref(); return [a, b]; };
         const other = (host, port) => new Promise(r => { const s = http.createServer((q, rs) => rs.end('OTHER')); s.unref(); s.once('error', () => r(null)); s.listen({ port, host, ipv6Only: host === '::1' }, () => r(s)); });
         const hold = (a, b, port, tries) => new Promise(resolve => { let n = 0, got; if (!sg) return resolve({ port: -1, calls: 0 }); sg.listenLoopback(a, b, port, p => { n++; if (n === 1) { got = p; setTimeout(() => resolve({ port: got, calls: n }), 120); } }, tries); });
         const shut = list => Promise.all(list.filter(Boolean).map(s => new Promise(r => { try { s.close(() => r()); } catch (e) { r(); } setTimeout(r, 300).unref(); })));
         {
             const P = await free(), [a, b] = pair(), r = await hold(a, b, P);
-            const v4 = await getL('127.0.0.1', P), v6 = has6 ? await getL('::1', P) : 'OURS', late = has6 ? await other('::1', P) : null;
-            check('the local server\'s address (shellguard.listenLoopback, run for real): on a free port it holds 127.0.0.1 and [::1] alike, both answered by the app\'s own handler, tells its caller once, and another program can no longer take [::1] on that port' + (has6 ? '' : ' (this machine has no IPv6 loopback: 127.0.0.1 alone)'),
+            const v4 = await getL('127.0.0.1', P), v6 = has6 ? await get6(P, 'OURS') : 'OURS', late = has6 ? await other('::1', P) : null;
+            check('the local server\'s address (shellguard.listenLoopback, run for real): on a free port it holds 127.0.0.1 and [::1] alike, both answered by the app\'s own handler, tells its caller once, and another program can no longer take [::1] on that port' + (has6 ? '' : ' (this machine has no IPv6 loopback: 127.0.0.1 alone)') + NOTE6,
                 r.port === P && r.calls === 1 && v4 === 'OURS' && v6 === 'OURS' && late === null, j([r, v4, v6, !!late]));
             await shut([a, b, late]);
         }
         if (has6) {
             const P = await free(), o6 = await other('::1', P), [a, b] = pair(), r = await hold(a, b, P);
-            const v4 = await getL('127.0.0.1', r.port), v6 = await getL('::1', r.port), left = await getL('127.0.0.1', P), theirs = await getL('::1', P);
-            check('the local server\'s address: with another program already on [::1] of the port it asks for, it does not settle there (a window loading "localhost" would be shown that program\'s page as the app) — it moves to another port where both addresses are its own, leaves nothing of its own on the first port, and tells its caller once',
+            const v4 = await getL('127.0.0.1', r.port), v6 = await get6(r.port, 'OURS'), left = await getL('127.0.0.1', P), theirs = await get6(P, 'OTHER');
+            check('the local server\'s address: with another program already on [::1] of the port it asks for, it does not settle there (a window loading "localhost" would be shown that program\'s page as the app) — it moves to another port where both addresses are its own, leaves nothing of its own on the first port, and tells its caller once' + NOTE6,
                 !!o6 && r.port > 0 && r.port !== P && r.calls === 1 && v4 === 'OURS' && v6 === 'OURS' && left === 'ECONNREFUSED' && theirs === 'OTHER', j([P, r, v4, v6, left, theirs]));
             await shut([a, b]);
             const [c, d] = pair(), r0 = await hold(c, d, P, 0), left0 = await getL('127.0.0.1', P);
             check('the local server\'s address: asked to take that port or none (the dev server, whose port is named), it holds nothing and says so (0), once', r0.port === 0 && r0.calls === 1 && left0 === 'ECONNREFUSED', j([r0, left0]));
             await shut([c, d, o6]);
             const P2 = await free(), o4 = await other('127.0.0.1', P2), [e, f] = pair(), r2 = await hold(e, f, P2);
-            const w4 = await getL('127.0.0.1', r2.port), w6 = await getL('::1', r2.port), left6 = await getL('::1', P2);
-            check('the local server\'s address: with another program on 127.0.0.1 of the port it moves on as before, both addresses its own on the new port and [::1] of the first port left alone',
+            const w4 = await getL('127.0.0.1', r2.port), w6 = await get6(r2.port, 'OURS'), left6 = await get6(P2, 'ECONNREFUSED');
+            check('the local server\'s address: with another program on 127.0.0.1 of the port it moves on as before, both addresses its own on the new port and [::1] of the first port left alone' + NOTE6,
                 !!o4 && r2.port > 0 && r2.port !== P2 && r2.calls === 1 && w4 === 'OURS' && w6 === 'OURS' && left6 === 'ECONNREFUSED', j([P2, r2, w4, w6, left6]));
             await shut([e, f, o4]);
         } else check('the local server\'s address: this machine has no IPv6 loopback, so the cases with another program on [::1] cannot be made here (127.0.0.1 alone is checked above and below)', true);
@@ -350,8 +355,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('the update walk-through\'s link as the shell takes it (main.js run for real, POST /api/open-external): a download host that serves every project\'s files, a file by commit, a list in place of an address and a body that is no JSON are refused with an answer (400) and open nothing; the installer\'s own download link is opened, as the address the parser made of it',
             A.ok && a.extHost.code === 400 && extOf('extHost') === '[]' && a.extRaw.code === 400 && extOf('extRaw') === '[]' && a.extList.code === 400 && extOf('extList') === '[]' && a.extNone.code === 400 && extOf('extNone') === '[]' && a.extGood.code === 200 && extOf('extGood') === j([GH + '/releases/download/1.5.0/Waypoint_Setup.exe']),
             j([a.extHost, a.extRaw, a.extList, a.extNone, a.extGood]));
-        check('the shell\'s own server answers on both loopback addresses of its port (main.js run for real): 127.0.0.1 and' + (has6 ? ' [::1], the app\'s page served there too' : ' — this machine has no IPv6 loopback — 127.0.0.1 alone'),
-            A.ok && a.ping4.code === 200 && (has6 ? a.ping6.code === 200 && a.page6.code === 200 && /scratch/.test(a.page6.text) : true), j([a.ping4, a.ping6, a.page6]));
+        check('the shell\'s own server answers on both loopback addresses of its port (main.js run for real): 127.0.0.1 and' + (has6 ? ' [::1], the app\'s page served there too' : ' — this machine has no IPv6 loopback — 127.0.0.1 alone') + NOTE6,
+            A.ok && a.ping4.code === 200 && (has6 && dial6 ? a.ping6.code === 200 && a.page6.code === 200 && /scratch/.test(a.page6.text) : true), j([a.ping4, a.ping6, a.page6]));
         const planB = [['state0', { do: 'state' }], ['wc1', { do: 'wc', url: '{OWN}/?stream=1' }], ['tools0', { do: 'devtools', wc: 0 }], ['tools1', { do: 'devtools', wc: 1 }], ['navTools', { do: 'nav', wc: 1, url: 'https://example.com/x' }], ['state1', { do: 'state' }]];
         toolKeys.slice(0, 4).forEach((k, i) => planB.push(['key' + i, { do: 'key', wc: 0, input: k }]));
         const toolsWin = [['wcT', { do: 'wc', url: 'devtools://devtools/bundled/devtools_app.html' }], ['navInTools', { do: 'nav', wc: 0, url: 'devtools://devtools/bundled/other.html' }]];   // the developer tools' own window: wc is set to its number below
@@ -385,11 +390,11 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 ch.stdout.on('data', c => { out += c; if (/Waypoint dev server: http/.test(out)) fin({ up: true }); }); ch.stderr.on('data', c => { out += c; }); ch.on('exit', code => fin({ up: false, code }));
             });
             const stop = ch => new Promise(r => { if (ch.exitCode !== null) return r(); const t = setTimeout(r, 2000); ch.on('exit', () => { clearTimeout(t); r(); }); try { ch.kill(); } catch (e) { r(); } });
-            const P = await free(), d1 = await start(P), p4 = d1.up ? await getL('127.0.0.1', P, '/api/ping') : 'down', p6 = d1.up && has6 ? await getL('::1', P, '/api/ping') : '200';
+            const P = await free(), d1 = await start(P), p4 = d1.up ? await getL('127.0.0.1', P, '/api/ping') : 'down', p6 = d1.up && has6 ? await get6(P, '200', '/api/ping') : '200';
             await stop(d1.child);
             const P2 = await free(), blocker = await other(has6 ? '::1' : '127.0.0.1', P2), d2 = await start(P2), left = has6 ? await getL('127.0.0.1', P2, '/api/ping') : 'ECONNREFUSED';
             await stop(d2.child); await shut([blocker]);
-            check('the dev server run for real on a scratch saves folder: it answers on 127.0.0.1 and' + (has6 ? ' [::1]' : ' (no IPv6 loopback here) 127.0.0.1 alone') + ' of its port; with another program already on ' + (has6 ? '[::1]' : '127.0.0.1') + ' of the port it was given it does not start beside it — it says the port is taken, exits 1 and leaves nothing listening',
+            check('the dev server run for real on a scratch saves folder: it answers on 127.0.0.1 and' + (has6 ? ' [::1]' : ' (no IPv6 loopback here) 127.0.0.1 alone') + ' of its port; with another program already on ' + (has6 ? '[::1]' : '127.0.0.1') + ' of the port it was given it does not start beside it — it says the port is taken, exits 1 and leaves nothing listening' + NOTE6,
                 d1.up === true && p4 === '200' && p6 === '200' && !!blocker && d2.up === false && d2.code === 1 && /is taken/.test(d2.out()) && left === 'ECONNREFUSED', j([d1.up, p4, p6, d2.up, d2.code, d2.out().slice(0, 200), left]));
             try { fs.rmSync(savesL, { recursive: true, force: true }); } catch (e) {}
         }

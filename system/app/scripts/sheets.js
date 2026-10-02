@@ -506,7 +506,8 @@ function rangeFor(c, mapId, map, tok, camp) {
     var w = Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return !!x && x.id === tg.id; }) : null;
     if (!w || !w.isChar || w === tok || (w.hidden && pc)) return null;
     if (pc && !isClient() && window.wpFog && typeof window.wpFog.fogDropIds === 'function') { var drop = window.wpFog.fogDropIds(c.ownerId, camp, map); if (drop && drop[w.id]) return null; }
-    var rc = rangeCtx(systemOf(camp), map, tok, w, { F: F(), elev: !!tokenFlags().elevation }); if (rc) { rc.tid = w.id; rc.mapId = mapId; }   // R3: which target, for the GM's privacy check
+    var gOf = function(t) { var St = window.wpStance; return St && St.tokenGround ? St.tokenGround(t, map, pc) : 0; };   // item 19b H5: each on the ground it stands on; a player's character as its player's copy reads it (never a piece the GM hid)
+    var rc = rangeCtx(systemOf(camp), map, tok, w, { F: F(), elev: !!tokenFlags().elevation, groundOf: gOf }); if (rc) { rc.tid = w.id; rc.mapId = mapId; }   // R3: which target, for the GM's privacy check
     return rc;
 }
 // [sinkcheck:rangefor-end]

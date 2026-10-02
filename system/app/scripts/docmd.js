@@ -93,7 +93,9 @@ function inline(src, ctx) {
             out += '&lt;'; i++; continue;
         }
         if (ch === '*' || ch === '_') {
-            m = new RegExp('^(\\' + ch + '\\' + ch + ')(?=\\S)([\\s\\S]+?\\S)\\1').exec(rest);
+            m = new RegExp('^(\\' + ch + '{3})(?=\\S)([\\s\\S]*?\\S)\\1(?!\\' + ch + ')').exec(rest);   // three markers: bold and italic together
+            if (m) { out += '<b><i>' + inline(m[2], ctx) + '</i></b>'; i += m[0].length; continue; }
+            m = new RegExp('^(\\' + ch + '\\' + ch + ')(?=\\S)([\\s\\S]*?\\S)\\1').exec(rest);   // one character between the markers is a bold too ("**b**")
             if (m) { out += '<b>' + inline(m[2], ctx) + '</b>'; i += m[0].length; continue; }
             m = new RegExp('^(\\' + ch + ')(?=\\S)([^' + (ch === '*' ? '*' : '_') + ']+?\\S|\\S)\\1(?!' + (ch === '*' ? '\\*' : '\\w') + ')').exec(rest);
             if (m) { out += '<i>' + inline(m[2], ctx) + '</i>'; i += m[0].length; continue; }

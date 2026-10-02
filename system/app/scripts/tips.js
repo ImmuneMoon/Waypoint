@@ -114,7 +114,7 @@ var BY_TEXT = {
     'token elevation': 'A height in yards on every character token, shown as a chip; the blast tool and rulers then measure straight-line, height included. Off hides the chips and keeps the values.',
     'token posture': 'Standing, crouching, sitting, kneeling, crawling, prone or face up on every character token, shown as a chip. Off hides the chips and keeps the values.',
     'default for new campaigns': 'What a campaign starts with when you create it. Changing this touches no existing campaign — "Apply to existing campaigns…" copies it onto the ones you tick.',
-    'advanced': 'Defaults for new items, the developer console, snapshots and resets. Nothing here touches your campaigns: Reset Local Preferences clears your VTT default and per-table choices, never a campaign\'s own settings.',
+    'advanced': 'Defaults for new items, Developer mode (the ~ console and the developer tools; off unless you switch it on), snapshots and resets. Nothing here touches your campaigns: Reset Local Preferences clears your VTT default and per-table choices, never a campaign\'s own settings.',
     'display name': 'How other players see you in the roster and chat.',
     'measurement system': 'Units for the measure tool: yards/feet/miles or meters/kilometers.',
     'minimap': 'The small overview map in the corner of the board — a VTT feature, set per campaign; the ▾ on the box itself only folds it away.',

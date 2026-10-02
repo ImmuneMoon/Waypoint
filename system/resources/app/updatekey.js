@@ -3,5 +3,10 @@
    its own. Written by tools/signkey.js: never edit it by hand, and never put a private key here.
    Empty ('') means no key has been made yet: no one-click update is taken at all. */
 'use strict';
-const UPDATE_PUBKEY = '';
+const UPDATE_PUBKEY = [
+    '-----BEGIN PUBLIC KEY-----',
+    'MCowBQYDK2VwAyEA1MgGqKWjN9BEQs+DfkhYZnLfS/F90D2QXc0Tc95q9xo=',
+    '-----END PUBLIC KEY-----',
+    '',
+].join('\n');
 module.exports = { UPDATE_PUBKEY };

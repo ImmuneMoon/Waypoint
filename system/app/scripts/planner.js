@@ -32,7 +32,7 @@ import { state, dom } from './state.js';
 
 import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap, isDocLike } from './models.js';
 
-import { renderDoc, compileFlowchart, DOC_BLOCKS, mergeDocStyle, docStyleCss, cleanDocStyle, sanitizeHtml, proseHtml, stripMermaidLinks, fmtHtml, fmtRich, fieldFmt, colFmtOf, cellFmtOf } from './docrender.js';
+import { renderDoc, compileFlowchart, DOC_BLOCKS, mergeDocStyle, docStyleCss, cleanDocStyle, sanitizeHtml, proseHtml, stripMermaidLinks, mermaidPre, fmtHtml, fmtRich, fieldFmt, colFmtOf, cellFmtOf } from './docrender.js';
 
 import * as TF from './textfmt.js';
 
@@ -2075,7 +2075,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           } else if (b.type === 'callout') {
               html += '<div class="callout">' + proseHtml(b.content) + '</div>';
           } else if (b.type === 'diagram') {
-              html += '<div class="diagram"><pre class="mermaid">' + sanitizeHtml(stripMermaidLinks(b.content)) + '</pre></div>';   // mermaid reads the pre's HTML and decodes it: typed source, <br> labels and an import's &lt; all read as before
+              html += '<div class="diagram"><pre class="mermaid">' + mermaidPre(b.content) + '</pre></div>';   // docrender.js: the sanitiser's output, judged once more as mermaid will read it (it reads the pre's HTML and decodes it: typed source, <br> labels and an import's &lt; all read as before)
           } else if (b.type === 'image') {
               var pSrc = picRef(b.src), pW = num(b.width, 0, 0, 100) || 100;
               html += pSrc ? '<figure class="planner-img" style="width:' + pW + '%; margin-left:' + ((b.align || 'center') === 'left' ? '0' : 'auto') + '; margin-right:' + ((b.align || 'center') === 'right' ? '0' : 'auto') + ';"><img src="' + esc(pSrc) + '" alt="' + esc(b.caption || '') + '">' + (b.caption ? '<figcaption>' + fmtHtml(b.caption, fieldFmt(b, 'caption'), esc) + '</figcaption>' : '') + '</figure>' : '';
@@ -2106,7 +2106,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               var m = compileFlowchart(b);   // docrender.js: one compiler for planners and pages
               var bw = num(b.boxW, 0), bh = num(b.boxH, 0);
               var boxStyle = (bw ? 'width:' + bw + 'px;' : '') + (bh ? 'height:' + bh + 'px;' : '');
-              html += '<div class="diagram fc-box" data-fc="' + _bi + '" style="' + boxStyle + '"><pre class="mermaid">' + esc(stripMermaidLinks(m)) + '</pre></div>';   // as a page renders it: labels are text, mermaid decodes them
+              html += '<div class="diagram fc-box" data-fc="' + _bi + '" style="' + boxStyle + '"><pre class="mermaid">' + esc(stripMermaidLinks(m, true)) + '</pre></div>';   // as a page renders it: labels are text, mermaid decodes them
           }
           html += '</div>';
       });

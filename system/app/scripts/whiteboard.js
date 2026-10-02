@@ -4185,6 +4185,15 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       });
       return { go: go, kept: kept };
   }
+  // A category's member whose FILE may be offered for deletion with it: a picture the Image Library itself lists — under saves/images,
+  // by its extension, in a folder of its own — and never a file of the Journal's, a sound or a video another panel owns, or a path that
+  // walks. A category's keys come from a campaign file, and whatever nobody "owns" (catFilesToDelete) would otherwise go.
+  function catMemberFile(p) {
+      if (typeof p !== 'string' || p.indexOf('/saves/images/') !== 0 || /[\\?#\x00-\x1f]/.test(p)) return false;
+      var segs = p.slice(14).split('/');
+      if (segs.length < 2 || segs.some(function(s) { return !s || /^[. ]+$/.test(s); })) return false;
+      return !/^journal[. ]*$/i.test(segs[0]) && /\.(png|jpe?g|gif|webp|svg)$/i.test(p);
+  }
   // [sinkcheck:catfiles-end]
   function imgUsage(src) {
       var n = 0, maps = {}, keys = pathKeys(src);
@@ -4389,7 +4398,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
               var cc = catStore(homeD, true), n = Object.keys(cc.by).filter(function(p) { return tagsIn(cc, p).indexOf(del) >= 0; }).length;
               showConfirm('Delete the category "' + del + '"? ' + (n ? n + ' picture' + (n === 1 ? ' loses' : 's lose') + ' that tag — nothing is deleted.' : 'It is empty.'), function(yes) {
                   if (!yes) return;
-                  var members = Object.keys(cc.by).filter(function(p) { return tagsIn(cc, p).indexOf(del) >= 0 && p.indexOf('/saves/images/') === 0; });
+                  var members = Object.keys(cc.by).filter(function(p) { return tagsIn(cc, p).indexOf(del) >= 0 && catMemberFile(p); });
                   cc.list = cc.list.filter(function(x) { return x !== del; }); delete cc.shelf[del];
                   Object.keys(cc.by).forEach(function(p) { var rest = tagsIn(cc, p); if (rest.length) cc.by[p] = rest; else delete cc.by[p]; });
                   _imgLibCat = ''; imgCatsSave(); renderImgLib(document.getElementById('imgLibSearch').value);

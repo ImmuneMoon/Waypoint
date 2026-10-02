@@ -568,13 +568,16 @@ if (_snapNow) _snapNow.addEventListener('click', async function() {
         loadSnapshots();
     } catch (e) { toast('Snapshot failed.'); }
 });
+// [sinkcheck:snaps-start]
 var _snapList = ui('setSnapList');
 if (_snapList) _snapList.addEventListener('click', async function(e) {
     var row = e.target.closest && e.target.closest('.snap-row'); if (!row) return;
     var file = row.dataset.file, when = (row.querySelector('.snap-when') || {}).textContent || file;
     var d = await import('./dialogs.js');
     if (e.target.closest('.snap-del')) {
-        d.showConfirm('Delete the snapshot from ' + when + '? Only that copy goes; the save is untouched.', async function() {
+        var aside = /^data-/.test(file) ? ' A launch backup is set aside rather than erased: it moves to backups/removed in your saves folder, where the ten newest are kept in case one is wanted back.' : '';
+        d.showConfirm('Delete the snapshot from ' + when + '? Only that copy goes; the save is untouched.' + aside, async function(yes) {
+            if (!yes) return;   // Cancel and Escape answer too (with false): only a yes deletes
             try { var r = await fetch('/api/delete-backup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ file: file }) }); if (!r.ok) throw new Error(); toast('Snapshot deleted.'); loadSnapshots(); }
             catch (err) { toast('Could not delete that snapshot.'); }
         });
@@ -582,7 +585,8 @@ if (_snapList) _snapList.addEventListener('click', async function(e) {
     }
     if (e.target.closest('.snap-restore')) {
         if (window.wpNet && (window.wpNet.active || window.wpNet.foreign)) { toast('End or leave the session first — a restore replaces the whole save.'); return; }
-        d.showConfirm('Restore the save from ' + when + '? Every campaign goes back to how it was then. The save as it is now is snapshotted first, then Waypoint reloads.', async function() {
+        d.showConfirm('Restore the save from ' + when + '? Every campaign goes back to how it was then. The save as it is now is snapshotted first, then Waypoint reloads.', async function(yes) {
+            if (!yes) return;   // only a yes replaces the save
             try {
                 var r = await fetch('/api/restore-backup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ file: file }) });
                 if (!r.ok) throw new Error();
@@ -593,6 +597,7 @@ if (_snapList) _snapList.addEventListener('click', async function(e) {
         });
     }
 });
+// [sinkcheck:snaps-end]
 
 var _prefs = ui('setResetPrefsBtn');
 if (_prefs) _prefs.addEventListener('click', function() {

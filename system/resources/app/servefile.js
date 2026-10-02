@@ -42,6 +42,8 @@ function serveFile(req, res, filePath, headers) {
 // opts.keep (an import copying an archive's files back): a file already there is never replaced — the finished .part is linked into
 // place, which fails where a file exists (409, the file as it was, no .part); a filesystem without hard links copies exclusively instead,
 // and a copy that fails part-way takes its own half away, never a file that was there first.
+// opts.max (the kind of file's size, reqguard.js): a request that says it is longer answers 413 before a byte is read or a .part made;
+// one that only keeps coming past it is stopped there (413, the .part dropped, the target as it was). None, or Infinity: any size.
 function placeKept(tmp, savePath) {   // 'placed' | 'exists' | 'failed'
     const existed = fs.existsSync(savePath);
     try { fs.linkSync(tmp, savePath); return 'placed'; } catch (e) { if (e && e.code === 'EEXIST') return 'exists'; }
@@ -49,20 +51,22 @@ function placeKept(tmp, savePath) {   // 'placed' | 'exists' | 'failed'
     catch (e) { if (e && e.code === 'EEXIST') return 'exists'; if (!existed) { try { fs.unlinkSync(savePath); } catch (e2) {} } return 'failed'; }
 }
 function saveUpload(req, res, savePath, okBody, opts) {
-    const keep = !!(opts && opts.keep === true);
+    const keep = !!(opts && opts.keep === true), max = opts && typeof opts.max === 'number' && opts.max >= 0 ? opts.max : Infinity;
     const tmp = savePath + '.' + process.pid + '-' + Math.random().toString(36).slice(2, 10) + '.part';
-    let answered = false, failed = false;
-    const answer = (code, body) => { if (answered) return; answered = true; try { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(body); } catch (e) {} };
+    let answered = false, failed = false, tooBig = false, got = 0;
+    const answer = (code, body) => { if (answered) return; answered = true; try { res.writeHead(code, code === 413 ? { 'Content-Type': 'application/json', 'Connection': 'close' } : { 'Content-Type': 'application/json' }); res.end(body); } catch (e) {} };
+    if (req.headers && Number(req.headers['content-length']) > max) { try { req.on('error', () => {}); req.resume(); } catch (e) {} return answer(413, '{"error":"too large"}'); }
     const drop = () => { try { fs.unlinkSync(tmp); } catch (e) {} };
     let ws;
     try { ws = fs.createWriteStream(tmp); } catch (e) { return answer(500, '{"error":"upload failed"}'); }
     ws.on('error', () => { failed = true; });   // a bad write answers (on close), never crashes the process
     req.on('error', () => { failed = true; try { ws.destroy(); } catch (e) {} });
     req.on('close', () => { if (!req.complete) { failed = true; try { ws.destroy(); } catch (e) {} } });
+    if (max !== Infinity) req.on('data', c => { got += c.length; if (got > max && !tooBig) { tooBig = true; failed = true; try { req.unpipe(ws); ws.destroy(); req.resume(); } catch (e) {} } });
     ws.on('close', () => {   // the file is closed by now (a rename over an open file fails on Windows)
         const len = req.headers ? req.headers['content-length'] : undefined;
         const whole = !failed && req.complete === true && (len === undefined || Number(len) === ws.bytesWritten);
-        if (!whole) { drop(); return answer(500, '{"error":"write failed"}'); }
+        if (!whole) { drop(); return tooBig ? answer(413, '{"error":"too large"}') : answer(500, '{"error":"write failed"}'); }
         if (keep) {
             const placed = placeKept(tmp, savePath); drop();
             if (placed === 'exists') return answer(409, '{"error":"already there"}');

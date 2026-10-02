@@ -6,7 +6,7 @@ SHA-256 e87e550794322e574a1fda0c1549a3c70dae5a93d9113417a429016838eab8cb
 
 html2canvas is released under the MIT License.
 
-Copyright (c) 2022 Niklas von Hertzen <https://hertzen.com>
+Copyright (c) 2012 Niklas von Hertzen
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

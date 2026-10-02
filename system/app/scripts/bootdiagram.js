@@ -5,9 +5,11 @@
 // joined player has someone else's campaign on screen (initialize() rebuilds the whole config from it).
 // A diagram's labels are HTML that mermaid cleans itself (DOMPurify, in every security level): no picture, no inline style, no
 // link in a label, so a diagram from a file or another table never makes this machine fetch an address (a picture or a url()).
+// A formula in a label ($$…$$) is drawn as a math element, and the library sends it through these same rules: math is let
+// through (forbidding it left the label blank), its picture element (mglyph) is not.
 // 'secure' keeps a diagram's own %%{init}%% directive from changing that.
 window.wpMermaidConfig = { startOnLoad: false, securityLevel: 'loose', flowchart: { curve: 'basis', useMaxWidth: true },
-    dompurifyConfig: { FORBID_TAGS: ['style', 'img', 'image', 'picture', 'source', 'video', 'audio', 'track', 'iframe', 'object', 'embed', 'link', 'meta', 'base', 'svg', 'math', 'form', 'input', 'button'], FORBID_ATTR: ['style', 'src', 'srcset', 'href', 'xlink:href', 'background', 'poster', 'action', 'formaction', 'ping'] },
+    dompurifyConfig: { FORBID_TAGS: ['style', 'img', 'image', 'picture', 'source', 'video', 'audio', 'track', 'iframe', 'object', 'embed', 'link', 'meta', 'base', 'svg', 'mglyph', 'form', 'input', 'button'], FORBID_ATTR: ['style', 'src', 'srcset', 'href', 'xlink:href', 'background', 'poster', 'action', 'formaction', 'ping'] },
     secure: ['secure', 'securityLevel', 'startOnLoad', 'maxTextSize', 'maxEdges', 'dompurifyConfig'] };
 document.addEventListener("DOMContentLoaded", function() {
     if (window.mermaid) {

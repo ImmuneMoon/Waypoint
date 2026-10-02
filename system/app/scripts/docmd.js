@@ -573,7 +573,7 @@ function spanTag(attrs) {
     return m && (m[1] || size) ? '<span style="' + (m[1] ? 'color:' + m[1] : '') + (m[1] && size ? ';' : '') + (size ? 'font-size:' + size : '') + '">' : '';
 }
 // Sanitized prose HTML back to the dialect (p, br, b/strong, i/em, u, s, ul/ol/li, code, pre, a, and the colour / size span as itself).
-// opts.tags === true: bold and italic as <b> / <i> instead of the marks (proseMd: where the marks would not read back).
+// opts.tags === true: bold, italic and strike-through as <b> / <i> / <s> instead of the marks (proseMd: where the marks would not read back).
 function htmlToMarkdown(html, opts) {
     var tags = !!opts && opts.tags === true, out = '', hrefs = [], lists = [], inPre = false, inCode = false, re = /<(\/?)([a-z0-9]+)([^>]*)>|([^<]+)/gi, m;
     // open colour / size spans: written when text follows, closed before a block ends and opened again after it (a span never crosses a paragraph in the file)
@@ -598,7 +598,7 @@ function htmlToMarkdown(html, opts) {
             case 'br': out += '  \n'; break;
             case 'b': case 'strong': out += bi(close, 'b', '**'); break;
             case 'i': case 'em': out += bi(close, 'i', '*'); break;
-            case 's': case 'strike': out += '~~'; break;
+            case 's': case 'strike': out += bi(close, 's', '~~'); break;
             case 'u': out += close ? '</u>' : '<u>'; break;
             case 'code': out += '`'; inCode = !close; break;
             case 'pre': inPre = true; out += '\n```\n'; break;
@@ -616,14 +616,16 @@ function proseLines(type, md) { if (type === 'text') return [md]; var l = md.spl
 // A text or prose block as the dialect's Markdown. Where it holds a colour / size span, Markdown's own bold and italic marks are used only
 // where the block reads back as it does with the tags: a mark beside a span's tag can pair up wrongly on the way back in
 // (*<span …>**word**</span>* is read as an italic that ends at the first of the two stars). Else its bold and italic are written as
-// <b> / <i>, which the importer hands to the sanitiser as they are. A block with no span is written exactly as it always was.
+// <b> / <i>, which the importer hands to the sanitiser as they are. The same holds with no span at all (a bold part inside an italic is
+// written *a **word*** and read back with stray stars): every block is checked, and one whose marks read back is written as it always was.
 function proseMd(html, type, kind) {
     var md = htmlToMarkdown(html);
-    if (html.indexOf('<span') < 0) return md;
     var tagged = htmlToMarkdown(html, { tags: true });
     if (tagged === md) return md;
     var read = function(x) { return JSON.stringify(markdownToBlocks(proseLines(type, x).join('\n'), { kind: kind }).blocks.map(function(b) { return [b.type, b.content]; })); };
-    return read(md) === read(tagged) ? md : tagged;
+    var flat = function(x) { return x.replace(/<i><b>/g, '<b><i>').replace(/<\/b><\/i>/g, '</i></b>'); };   // an italic right around a bold and a bold right around an italic are one look: *** reads back as the second
+    var was = read(md), now = read(tagged);
+    return was === now || (html.indexOf('<span') < 0 && flat(was) === flat(now)) ? md : tagged;   // (beside a span the block comes back exactly as it was, so there the order counts)
 }
 function cellText(s) { return String(s == null ? '' : s).replace(/\r?\n/g, ' ').replace(/\|/g, '\\|').trim(); }
 function yamlStr(s) { s = String(s == null ? '' : s); return /[:#\[\]{}"'<>&\u0000-\u001f\u007f]|^\s|\s$/.test(s) ? JSON.stringify(s).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026') : s; }   // F2a: a control character (a CR would end the front matter early), and markup, always quoted and escaped

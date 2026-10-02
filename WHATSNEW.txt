@@ -949,16 +949,32 @@ Text style in planners and pages
 - Text blocks have colours, Default and a Size list on their own bar, for
   the selected text.
 - Each click is one undo step: Ctrl+Z right after a click takes that click
-  back and leaves what you typed. What you type afterwards leaves the
+  back and leaves what you typed, and Ctrl+Z after a deletion brings the
+  text back with the look it had. What you type afterwards leaves the
   styling on the characters it was on, and moving or deleting rows,
   columns, nodes and arrows keeps every style on its own text.
+- What you type right after a styled part joins it, as in a word
+  processor: keep typing at the end of a green line and it stays green.
+  Typed right before a styled part it takes what is before it, and a new
+  line you start with Enter is not styled.
 - The bar works from the keyboard: Tab to it, the arrow keys step through
   the Size list as one undo step, and Esc takes you back to the field.
-- Find in a planner's or a page's preview finds a word you coloured in
-  part.
+- Find in a planner's or a page's preview, and the search of a page
+  opened over the map, find a word you coloured in part and a phrase that
+  runs across a styled part.
 - Your players see a styled page exactly as you do. Styling is kept in the
-  campaign and its export file; Markdown has neither colour nor size, so a
-  Markdown export writes the plain text and an import brings none in.
+  campaign and its export file, and Save Markdown keeps it too: bold and
+  italic as ** and *, a colour or a size as a small <span> tag around the
+  text (in a flowchart label as <b>, <i>, <font color> and <big> /
+  <small>), and an import brings it back. You can write these by hand; a
+  tag belongs to one paragraph. Not carried: a size on part of a title or
+  a cell, and underline, strike-through or a link inside a title, a cell
+  or a caption.
+- A Markdown file's **bold** or *italic* in a heading, a table cell or a
+  caption comes in as that field's text style (the marks were dropped
+  before). A text block whose bold and italic overlap in a way Markdown's
+  marks cannot say is saved with <b> and <i>, and reads back as you made
+  it.
 - Fixed: a handbook page's table brought in from a campaign file showed
   empty boxes in the editor; its cells show again.
 

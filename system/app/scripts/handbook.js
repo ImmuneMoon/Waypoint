@@ -39,7 +39,13 @@ function srcOf(p) { return net.assetSrc ? net.assetSrc(p) : p; }
 // Mermaid's security mode: strict while the campaign on screen is someone else's (click / href /
 // callback directives are dead; docrender strips those lines anyway), the app's own config again
 // once load() brings this machine's campaign back. initialize() rebuilds the whole config, so the
-// full object is passed. Re-checked before every render, in case mermaid's CDN load came late.
+// full object is passed. The diagram library is a file of the app (bundled), run by the page
+// before any module, so it is there from the first render on; where that file is missing (a damaged
+// install) window.mermaid is not set, nothing here runs and pages draw without their diagrams.
+// renderPage still asks for strict before each render at another's table. With the library always
+// there that is no longer a wait for a late load: setForeign has set the mode by then and this is one
+// comparison. It stays so that a page of someone else's campaign is never laid out under the app's own
+// config, whichever path put that campaign on screen.
 var mode = null;
 function setMermaidMode(m) {
     if (!window.mermaid || !window.wpMermaidConfig || mode === m) return;

@@ -802,7 +802,7 @@ function runHotUpdate() {
     var i = _upd.info; if (!i || !i.canHotUpdate) return;
     if (window.wpNet && window.wpNet.active) { toast('Leave or end the multiplayer session first.'); return; }
     import('./dialogs.js').then(function(d) {
-        d.showConfirm('Update Waypoint from ' + i.current + ' to ' + i.latest + '? The new version downloads (a couple of MB), replaces the app files, and Waypoint reloads. Your campaigns and settings are untouched.', function(yes) {
+        d.showConfirm('Update Waypoint from ' + i.current + ' to ' + i.latest + '? The new version downloads, replaces the app files, and Waypoint reloads. Your campaigns and settings are untouched.', function(yes) {
             if (!yes) return;   // No means no: nothing downloads
             toast('Downloading Waypoint ' + i.latest + '…');
             var btns = [ui('setUpdateNowBtn'), ui('updateBannerGo'), ui('updateBtn')];

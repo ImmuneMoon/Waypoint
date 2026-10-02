@@ -210,7 +210,7 @@ function viewersFor(map, camp, ownerId, withH) {   // withH (item 19b): each vie
         var x = w.x + (w.w || 60) / 2, y = w.y + (w.h || 52) / 2, front = (w.rot || 0) + (w.front || 0), ts = tokenSenses(w, map, camp, !ownerId || ownerId === '*'), n0 = out.length;
         out.push(ts.blind ? { x: x, y: y, front: front, range: 0, arc: arc, blind: true } : { x: x, y: y, front: front, range: ts.sight, arc: arc });   // world facing = rot + front, so the arc follows the token's rotation; senses S3: blind eyes, their own cell
         if (ts.full.length) senseViewers(ts, arc).forEach(function(s) { var v = { x: x, y: y, front: front, range: s.range, arc: s.arc, sense: true }; if (s.pass) v.pass = true; if (s.dim) v.dim = true; if (s.veil) v.veil = true; out.push(v); });   // senses S2a: a viewer per full sense, after its token's eyes
-        if (withH === true) { var hh = tokHeight(w, map); for (var hi = n0; hi < out.length; hi++) out[hi].h = hh; }
+        if (withH === true) { var hh = tokHeight(w, map, forPlayers(ownerId)); for (var hi = n0; hi < out.length; hi++) out[hi].h = hh; }   // for a player or the party: from the pieces players hold only
     });
     return out;
 }
@@ -723,15 +723,21 @@ function lightSeen(from, to, map, camp) {
 // no fog is drawn, stay as they were. Heights come from wpStance.tokenElevation(token, map) (a token's own elevation plus the ground it stands
 // on), 0 with Token elevation off. A map with no piece that has a height — and, under "clears", no token off the ground — is not judged at
 // all: exactly the code as it was
+// The owner's ruling of 2026-10-01 ("players see nothing where something is hidden"): a judgement made FOR A PLAYER — what their copy of a map
+// holds, the live relay, their marks, the GM's preview of that player, the party's view the stream window draws — reads every height from the
+// pieces players hold only (tokenElevation's third argument, true): a ground piece the GM hid lifts nobody there, so the host rules exactly what
+// the player's own app works out from its copy, which holds no hidden piece. The GM's own overlay ('*', every token) and the light the GM's
+// ruler names (lightSeen) read every piece the map holds, as the GM's chips, ruler and blast tool do
+function forPlayers(ownerId) { return typeof ownerId === 'string' && ownerId !== '' && ownerId !== '*'; }   // a profile id, or the party (PARTY); never the GM's own '*', never no owner at all
 function hNum(v) { return typeof v === 'number' && isFinite(v) ? v : 0; }
 function heightSightOf(sys) {   // { mode: 'clears' | '3d', eye (yards), soft } or null: no height in the fog. soft: the see-over pieces count (the system's Cover from blockers is on: with it off a piece set to give cover is no piece at all, here as on the ruler)
     var h = sys && sys.combat && typeof sys.combat === 'object' ? sys.combat.height : null; if (!h || typeof h !== 'object') return null;
     if (h.line3d === true) return { mode: '3d', eye: Math.min(100, Math.max(0, hNum(h.eye))), soft: coverOn(sys) };
     return h.rule === 'clears' && coverOn(sys) ? { mode: 'clears', eye: 0, soft: true } : null;
 }
-function tokHeight(w, map) {   // a token's height in yards, by the contract every reader shares; 0 while the table plays without Token elevation
+function tokHeight(w, map, shown) {   // a token's height in yards, by the contract every reader shares; 0 while the table plays without Token elevation. shown (true): the ground only of pieces players hold
     var vt = window.wpVtt; if (!w || (vt && !(vt.rulesOn ? vt.rulesOn('elevation') : vt.on('elevation')))) return 0;
-    var St = window.wpStance, e = St && typeof St.tokenElevation === 'function' ? Number(St.tokenElevation(w, map)) : Number(w.elevation);
+    var St = window.wpStance, e = St && typeof St.tokenElevation === 'function' ? Number(St.tokenElevation(w, map, shown === true)) : Number(w.elevation);
     return isFinite(e) ? e : 0;
 }
 // A map's pieces that have a height, for the mode: { cells: { cellKey: H }, lines: [{ segs, h }], full, split, ver } or null with none. The
@@ -773,14 +779,16 @@ function heightSetsFor(map, grid, hm, blk) {
     return res;
 }
 // The rules a map is judged by, or null where no height is judged: the mode, its pieces, and the walls a line is judged against (base: the
-// map's own, or under the 3D line the walls with no height; tag: the vision memo's key for cells seen past base alone)
-function heightRules(map, camp, grid) {
+// map's own, or under the 3D line the walls with no height; tag: the vision memo's key for cells seen past base alone). ownerId: whose view
+// is judged — for a player or the party every height is read from shown pieces only (shown, carried with the rules)
+function heightRules(map, camp, grid, ownerId) {
     var hm = heightSightOf(camp && camp.system); if (!hm || !map || !grid) return null;
     var C = core(); if (!C || typeof C.heightStops !== 'function') return null;
     var blk = blockersFor(map, grid); if (_blockerOver[map.id]) return null;   // walls over their cap block nothing: no piece is judged either
     var hs = heightSetsFor(map, grid, hm, blk); if (!hs) return null;
-    if (hm.mode === 'clears' && !(map.whiteboard || []).some(function(w) { return !!w && (w.isChar || w.waiting) && tokHeight(w, map) !== 0; })) return null;   // everyone on the ground: nobody is below anybody
-    return { C: C, hm: hm, hs: hs, blk: blk, base: hs.split ? hs.full : blk, tag: hs.split ? '|h' + hs.ver : '' };
+    var shown = forPlayers(ownerId);
+    if (hm.mode === 'clears' && !(map.whiteboard || []).some(function(w) { return !!w && (w.isChar || w.waiting) && tokHeight(w, map, shown) !== 0; })) return null;   // everyone on the ground: nobody is below anybody
+    return { C: C, hm: hm, hs: hs, blk: blk, base: hs.split ? hs.full : blk, tag: hs.split ? '|h' + hs.ver : '', shown: shown };
 }
 function seenIdxOf(cells) {   // a viewer's seen cells as { key: tier }, kept beside the list the vision memo holds
     var ix = _seenIdx ? _seenIdx.get(cells) : null; if (ix) return ix;
@@ -792,11 +800,11 @@ function seenIdxOf(cells) {   // a viewer's seen cells as { key: tier }, kept be
 // each viewer with its token's height, the light, and the cells shown or hidden by hand. null where nothing is judged
 function heightCtx(map, camp, ownerId, grid) {
     if (!map || !grid || mapFog(map).mode !== 'auto') return null;
-    var hr = heightRules(map, camp, grid); if (!hr) return null;
+    var hr = heightRules(map, camp, grid, ownerId); if (!hr) return null;
     var vs = viewersFor(map, camp, ownerId, true); if (!vs.length) return null;
     var C = hr.C, lvl = mapLevel(map), lc = lvl === null ? null : litFor(map, grid, hr.blk), mf = mapFog(map), man = Object.create(null), cut = Object.create(null);
     (mf.manual.adds || []).forEach(function(c) { man[C.cellKey(c, grid)] = 1; }); (mf.manual.cuts || []).forEach(function(c) { cut[C.cellKey(c, grid)] = 1; });
-    return { C: C, hm: hr.hm, hs: hr.hs, base: hr.base, tag: hr.tag, vs: vs, lvl: lvl, lc: lc, man: man, cut: cut, map: map, grid: grid, idx: [] };
+    return { C: C, hm: hr.hm, hs: hr.hs, base: hr.base, tag: hr.tag, vs: vs, lvl: lvl, lc: lc, man: man, cut: cut, map: map, grid: grid, idx: [], shown: hr.shown };
 }
 // The tier at which those tokens see a creature standing in that cell at that height (2 clear, 1 dim), 0 when none does: a viewer must
 // see the cell past the walls (its light, its reach, its arc, smoke: its own seen cells, viewSeen) and have no piece stop its line — a sense
@@ -822,7 +830,7 @@ function heightJudge(map, camp, ownerId, grid, mask, flat) {
         if (w.ownerId === ownerId || (ownerId === PARTY && playerTok(w))) return;
         var cell = C.cellOf(w.x + (w.w || 60) / 2, w.y + (w.h || 52) / 2, grid), key = C.cellKey(cell, grid);
         if (!inMask(mask, key) || ctx.man[key] === 1 || ctx.cut[key] === 1) return;
-        var tier = heightSees(ctx, cell, key, tokHeight(w, map)), was = !!flat[key];
+        var tier = heightSees(ctx, cell, key, tokHeight(w, map, ctx.shown)), was = !!flat[key];
         if (was && !tier) (hide || (hide = Object.create(null)))[w.id] = 1;
         else if (!was && tier) (show || (show = Object.create(null)))[w.id] = { key: key, cell: cell, tier: tier };
     });
@@ -832,7 +840,7 @@ function heightJudge(map, camp, ownerId, grid, mask, flat) {
 // seen in): the same tiers when there is none. The tiers are the caller's own (revealedTiers and partyTiers build them afresh each time)
 function heightShown(tiers, map, camp, ownerId, grid, mask) {
     if (!tiers || !tiers.keys || !Array.isArray(tiers.list)) return tiers;
-    var hr = heightRules(map, camp, grid); if (!hr || !hr.hs.split) return tiers;   // only a wall with a height is ever seen over
+    var hr = heightRules(map, camp, grid, ownerId); if (!hr || !hr.hs.split) return tiers;   // only a wall with a height is ever seen over
     var hj = heightJudge(map, camp, ownerId, grid, mask, tiers.keys); if (!hj) return tiers;
     for (var id in hj.show) { var s = hj.show[id], o = tiers.keys[s.key]; if (o === undefined) { tiers.keys[s.key] = s.tier; tiers.list.push({ key: s.key, cell: s.cell }); } else if (s.tier > o) tiers.keys[s.key] = s.tier; }
     return tiers;
@@ -957,20 +965,20 @@ function marksInputs(recipientId, camp, map, drop) {
     if (!campMarkSenses(camp).length || fogMask(map, camp, grid).mode === 'none') return null;
     var turningOn = !window.wpVtt || window.wpVtt.on('turning'), arc = turningOn ? visionOf(map).arc : 360, vs = [], cs = [];
     var waitSight = !!(camp && camp.newPlayers && typeof camp.newPlayers === 'object' && camp.newPlayers.sight === true);
-    var hr = typeof heightRules === 'function' ? heightRules(map, camp, grid) : null, hidOf = hr && typeof _dropHid !== 'undefined' && _dropHid ? _dropHid.get(drop) : null;   // item 19b: with heights judged, each viewer and creature carries its height (hh); open: a creature a piece hides in a cell this player sees
+    var hr = typeof heightRules === 'function' ? heightRules(map, camp, grid, recipientId) : null, hidOf = hr && typeof _dropHid !== 'undefined' && _dropHid ? _dropHid.get(drop) : null;   // item 19b: with heights judged, each viewer and creature carries its height (hh); open: a creature a piece hides in a cell this player sees
     (map.whiteboard || []).forEach(function(w) {
         if (!w || w.hidden || w.type === 'light') return;
         if (w.ownerId === recipientId) {
             if (!(w.isChar || (w.waiting && waitSight))) return;
             var x = w.x + (w.w || 60) / 2, y = w.y + (w.h || 52) / 2, front = (w.rot || 0) + (w.front || 0);
-            (tokenSenses(w, map, camp, false).marks || []).forEach(function(m) { var vm = { x: x, y: y, front: front, range: m.cells, arc: m.all ? 360 : arc, pass: m.pass, k: m.k, sid: m.id }; if (m.veil) vm.veil = true; if (hr) vm.hh = tokHeight(w, map); vs.push(vm); });
+            (tokenSenses(w, map, camp, false).marks || []).forEach(function(m) { var vm = { x: x, y: y, front: front, range: m.cells, arc: m.all ? 360 : arc, pass: m.pass, k: m.k, sid: m.id }; if (m.veil) vm.veil = true; if (hr) vm.hh = tokHeight(w, map, hr.shown); vs.push(vm); });
             return;
         }
         if (drop[w.id] !== 1 || !(w.isChar || w.waiting)) return;
         var un = C.cleanUnsensed(w.unsensed), skip = null;
         if (un === true) return;
         if (un) { skip = Object.create(null); un.forEach(function(id) { skip[id] = 1; }); }
-        var cr = { x: w.x + (w.w || 60) / 2, y: w.y + (w.h || 52) / 2, skip: skip, id: w.id }; if (hr) { cr.hh = tokHeight(w, map); if (hidOf && hidOf[w.id] === 1) cr.open = true; }
+        var cr = { x: w.x + (w.w || 60) / 2, y: w.y + (w.h || 52) / 2, skip: skip, id: w.id }; if (hr) { cr.hh = tokHeight(w, map, hr.shown); if (hidOf && hidOf[w.id] === 1) cr.open = true; }
         cs.push(cr);
     });
     var inp = { C: C, grid: grid, vs: vs, cs: cs, smoke: smokeFor(map, grid) };   // senses S7b: the map's smoke, for a mark sense that does not see through it
@@ -1048,7 +1056,7 @@ function canSeePoint(recipientId, camp, map, x, y, w) {   // w (item 19b): the p
     if (w && typeof w === 'object' && (w.isChar || w.waiting) && w.type !== 'light' && typeof heightCtx === 'function') {
         if (ce.hc === undefined) ce.hc = heightCtx(map, camp, recipientId, grid);   // kept with the set: both are emptied together
         var hc = ce.hc;
-        if (hc && hc.man[pk] !== 1 && hc.cut[pk] !== 1) { var live = {}; for (var lk in w) live[lk] = w[lk]; live.x = x - (w.w || 60) / 2; live.y = y - (w.h || 52) / 2; return heightSees(hc, hc.C.cellOf(x, y, grid), pk, tokHeight(live, map)) > 0; }
+        if (hc && hc.man[pk] !== 1 && hc.cut[pk] !== 1) { var live = {}; for (var lk in w) live[lk] = w[lk]; live.x = x - (w.w || 60) / 2; live.y = y - (w.h || 52) / 2; return heightSees(hc, hc.C.cellOf(x, y, grid), pk, tokHeight(live, map, hc.shown)) > 0; }
     }
     return !!ce.keys[pk];
 }

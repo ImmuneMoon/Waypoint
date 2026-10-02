@@ -489,7 +489,11 @@
   #cmdkList .cmdk-sub { white-space: normal; }
   /* ---- pop-out window (?popout=…): one doc/sheet full-window, read-only + live, with a dock-back bar ---- */
   body.popout-mode { overflow: hidden; }
-  body.popout-mode > *:not(#popoutWrap):not(#chatPanel) { display: none !important; }   /* keep #chatPanel for the chat kind */
+  /* keep #chatPanel for the chat kind, and what the diagram library adds to the page while it draws: the bare <svg> it measures a label's text in
+     (added to the body and taken away again at once; hidden, the text measured as nothing and a sequence diagram failed with "Syntax error in
+     text") and the element it lays a diagram out in when it is given no place of its own (id "dmermaid-…"). Nothing else of the page is an
+     <svg> directly under the body */
+  body.popout-mode > *:not(#popoutWrap):not(#chatPanel):not(svg):not([id^="dmermaid"]) { display: none !important; }
   body.popout-mode #popoutWrap { display: flex; flex-direction: column; position: fixed; inset: 0; background: var(--bg); }
   /* chat kind: the dock bar at top, the existing #chatPanel filling the rest of the window */
   body.popout-chat #popoutWrap { position: fixed; left: 0; right: 0; top: 0; bottom: auto; height: 44px; }

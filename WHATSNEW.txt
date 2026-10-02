@@ -963,6 +963,9 @@ Text style in planners and pages
   empty boxes in the editor; its cells show again.
 
 Handbook
+- A Markdown file's one-letter bold (**b**) comes in as bold; it came in
+  as a stray asterisk and an italic, and swallowed the next bold on the
+  line. Three markers (***b***) are bold and italic together.
 - A sequence diagram on a page opened in its own window is drawn (it
   showed "Syntax error in text").
 - A third kind of item beside maps and planners: Handbook pages — rules,

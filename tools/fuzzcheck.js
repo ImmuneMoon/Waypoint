@@ -32,6 +32,18 @@
    over it is verified by Node's own ECDSA; the private half is looked for in every send. On the player's side the real join is run — a first
    join, an automatic reconnect, a join that walks every generation of the code — against hosts the suite builds with Node's own key pairs: a
    snapshot is taken only when an independent reading of what the app knew (its pins, its room codes) and of the signature says so.
+   The host's early proof ('gmhello': the GM's signed answer to a hello, before any admission) is judged in both worlds. Host: it is sent once per
+   connection, to a hello that passed the ban, version and password gates, its signature verified by Node's own ECDSA over wp-host, the player's
+   nonce, the room id, the GM id and the connection's two fingerprints; it carries the GM id, the public key and the signature and nothing else.
+   Client: every mutation of it from every sender, before and after the snapshot, writes nothing to storage, raises no question by itself and
+   costs an honest signed table nothing; under a pinned GM a host counts as proven only when an independent reading says so; and an automatic
+   reconnect is driven past a stand-in that stays silent, says wait, opens each connection and closes it (with a wait or without), refuses, or
+   proves itself as someone else, to the GM — every attempt counting on by one, "Reconnected" said only once the table is taken. The GM's own app
+   slow once is passed over unmarked and taken when the round comes back. A join the player began against tables that prove nothing in time ends
+   in the late table's own question; a yes to it is a yes to waiting and to nothing else (an unsigned table under the GM's id is still refused).
+   A connection closed before any proof is passed over within the join where the GM is known, and reconnects by itself where nothing is. On the
+   host, a map renamed just before an admission reaches the players already at the table at that admission (the real admitPlayer). The clock of
+   the wait for the proof is the suite's own (the app's five-second timers are set aside at each dial and fired by hand).
    The suite is diagnostic: it exits 1 while it has findings and is not in the CI matrix.
    SKIP_KNOWN below marks a finding the owner has accepted (an exact prefix of its FAIL or FINDING line, with the reason): such a line is
    printed as accepted and counted apart, and the run still exits 1 for any red line not in it.
@@ -54,7 +66,19 @@ const proofFor = (key, nonce, room, playerFp, hostFp) => nodeCrypto.createHmac('
 const snapText = (cn, room, gmId, key) => 'wp-snap|' + cn + '|' + room + '|' + gmId + '|' + key + '|' + FP_P + '|' + FP_H;   // (the honest stub connection's two fingerprints, the player's then the host's)
 const sigOk = (pub, sig, text) => { try { return !!pub && typeof sig === 'string' && /^[0-9a-f]{128}$/.test(sig) && nodeCrypto.verify('sha256', Buffer.from(text), { key: nodeCrypto.createPublicKey({ key: { kty: pub.kty, crv: pub.crv, x: pub.x, y: pub.y }, format: 'jwk' }), dsaEncoding: 'ieee-p1363' }, Buffer.from(sig, 'hex')); } catch (e) { return false; } };
 const mkSigner = () => { const kp = nodeCrypto.generateKeyPairSync('ec', { namedCurve: 'P-256' }), j = kp.publicKey.export({ format: 'jwk' }); return { pub: { kty: j.kty, crv: j.crv, x: j.x, y: j.y }, sign: text => nodeCrypto.sign('sha256', Buffer.from(text), { key: kp.privateKey, dsaEncoding: 'ieee-p1363' }).toString('hex') }; };
+const hostText = (cn, room, gmId) => 'wp-host|' + cn + '|' + room + '|' + gmId + '|' + FP_P + '|' + FP_H;   // what the host's early proof covers (the same nonce, room, GM id and fingerprints as the snapshot's, under a first word of its own)
+const hailShape = m => !!m && JSON.stringify(Object.keys(m).sort()) === JSON.stringify(['gmId', 'gmPub', 'sig', 'type']) && typeof m.gmId === 'string' && !!m.gmPub && JSON.stringify(Object.keys(m.gmPub).sort()) === JSON.stringify(['crv', 'kty', 'x', 'y']) && typeof m.sig === 'string' && /^[0-9a-f]{128}$/.test(m.sig);   // all an early proof carries: who the GM is, the public key, the signature
 const hasOwn = (o, k) => !!o && Object.prototype.hasOwnProperty.call(o, k);
+/* what a player's app should make of a host's early proof, read independently of net.js: 'refuse' (the room code is another GM's, or the key pinned
+   for the GM named did not sign this connection's nonce, the room dialled and that GM id), 'ok' (it did), 'none' (nothing known to judge it by) */
+function hailJudge(ls, msg, conn, code) {
+    const rd = k => { try { const o = JSON.parse(ls[k] || '{}'); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; } catch (e) { return {}; } };
+    let gmId = ''; try { gmId = String(msg.gmId || '').slice(0, 80); } catch (e) { return 'refuse'; }
+    const pins = rd('wp_gmPins'), rooms = rd('wp_gmRooms'), roomGm = hasOwn(rooms, 'c_' + code) ? rooms['c_' + code] : '', pin = hasOwn(pins, gmId) ? pins[gmId] : null;
+    if (roomGm && roomGm !== gmId) return 'refuse';
+    if (pin) return sigOk(pin, msg.sig, hostText(conn.wpCn, conn.peer, gmId)) ? 'ok' : 'refuse';
+    return 'none';
+}
 /* what a player's app should do with a snapshot, read independently of net.js: the room code is another GM's → refuse; a key is pinned for the GM
    named → take only on that key's signature over this connection's nonce, the room dialled, the GM id and the table key; nothing known → take */
 function gmJudge(ls, msg, conn, code) {
@@ -98,9 +122,9 @@ function check(name, ok, detail) {
 const realNow = Date.now.bind(Date); let clockOff = 0; Date.now = () => realNow() + clockOff;
 const realTimeout = globalThis.setTimeout;   // the one real timer the suite keeps: to wait for WebCrypto (the key proof is checked off the main thread)
 async function settle(cond, max) { for (let i = 0; i < (max || 500); i++) { if (cond()) return true; await new Promise(r => realTimeout(r, 0)); } return cond(); }   // until the condition holds, a macrotask at a time (an HMAC lands in a few); bounded
-const timers = { q: [], seq: 0, intervals: [] };
+const timers = { q: [], seq: 0, intervals: [], cleared: new Set() };
 globalThis.setTimeout = function(fn, ms) { const id = ++timers.seq; timers.q.push({ id, fn, ms: Number(ms) || 0 }); return id; };
-globalThis.clearTimeout = function(id) { timers.q = timers.q.filter(t => t.id !== id); };
+globalThis.clearTimeout = function(id) { timers.q = timers.q.filter(t => t.id !== id); timers.cleared.add(id); };
 globalThis.setInterval = function(fn, ms) { const id = ++timers.seq; timers.intervals.push({ id, fn, ms: Number(ms) || 0 }); return id; };
 globalThis.clearInterval = function(id) { timers.intervals = timers.intervals.filter(t => t.id !== id); };
 const flushed = { threw: [] };
@@ -455,6 +479,13 @@ function mutations(tpl) {
     const snapP1 = conns.p1.sent.find(m => m.type === 'snapshot');
     check('two known players are challenged (auth naming the GM, a nonce) and admitted on the proof over their table keys, no dialog raised, and each gets a snapshot', adm1.ok && adm2.ok && adm1.gm === 'u_gm' && rec.confirms.length === 0 && net.roster.peer_p1 && net.roster.peer_p1.id === 'u_p1' && net.roster.peer_p2 && net.roster.peer_p2.id === 'u_p2' && !!snapP1 && conns.p2.sent.some(m => m.type === 'snapshot'), { adm1, adm2, confirms: rec.confirms.length });
     check('the snapshot is signed with the GM\'s key: its four public fields (the pair kept on this machine), and a signature Node\'s own crypto verifies over the player\'s nonce, the host\'s room id, the GM id and the table key handed over — and over no other nonce or room', !!snapP1 && !!GM_PRIV && JSON.stringify(snapP1.gmPub) === JSON.stringify({ kty: 'EC', crv: 'P-256', x: GM_PRIV.x, y: GM_PRIV.y }) && sigOk(snapP1.gmPub, snapP1.sig, snapText(conns.p1.cn, hostPeer.id, 'u_gm', K1)) && !sigOk(snapP1.gmPub, snapP1.sig, snapText(conns.p2.cn, hostPeer.id, 'u_gm', K1)) && !sigOk(snapP1.gmPub, snapP1.sig, snapText(conns.p1.cn, hostPeer.id + '-r1', 'u_gm', K1)), snapP1 && { gmPub: snapP1.gmPub, sig: snapP1.sig });
+    {   // the host's early proof: ONE gmhello per connection, on the wire before the snapshot
+        const hp1 = conns.p1.sent.filter(m => m.type === 'gmhello'), hp2 = conns.p2.sent.filter(m => m.type === 'gmhello'), order = conns.p1.sent.map(m => m.type);
+        check('the host proves itself early: each known player\'s connection was sent ONE gmhello — after the challenge, before the snapshot — carrying the GM id, the key\'s four public fields and a signature and nothing else, the signature verified by Node\'s own crypto over wp-host, the player\'s nonce, the host\'s room id, the GM id and the connection\'s two fingerprints — and over no other nonce or room, nor as a snapshot\'s text',
+            hp1.length === 1 && hp2.length === 1 && hailShape(hp1[0]) && hp1[0].gmId === 'u_gm' && !!GM_PRIV && JSON.stringify(hp1[0].gmPub) === JSON.stringify({ kty: 'EC', crv: 'P-256', x: GM_PRIV.x, y: GM_PRIV.y }) && order.indexOf('auth') >= 0 && order.indexOf('auth') < order.indexOf('gmhello') && order.indexOf('gmhello') < order.indexOf('snapshot')
+            && sigOk(hp1[0].gmPub, hp1[0].sig, hostText(conns.p1.cn, hostPeer.id, 'u_gm')) && !sigOk(hp1[0].gmPub, hp1[0].sig, hostText(conns.p2.cn, hostPeer.id, 'u_gm')) && !sigOk(hp1[0].gmPub, hp1[0].sig, hostText(conns.p1.cn, hostPeer.id + '-r1', 'u_gm')) && !sigOk(hp1[0].gmPub, hp1[0].sig, snapText(conns.p1.cn, hostPeer.id, 'u_gm', K1)) && !sigOk(snapP1.gmPub, snapP1.sig, hostText(conns.p1.cn, hostPeer.id, 'u_gm'))
+            && sigOk(hp2[0].gmPub, hp2[0].sig, hostText(conns.p2.cn, hostPeer.id, 'u_gm')), { n: [hp1.length, hp2.length], order, shape: hailShape(hp1[0]) });
+    }
     check('the proven key is kept, not re-issued (the snapshot carries the key the player proved)', !!snapP1 && snapP1.key === K1 && stubs.getActiveCampaign().players.u_p1.key === K1 && stubs.getActiveCampaign().players.u_p2.key === K2);
     check('the snapshot carries no GM-only field value, no hidden token, no GM note, no planner, no players record, no table key', (() => { const s = JSON.stringify(snapP1 && snapP1.appState); const m = s && s.match(/tok_hidden|note1|"pl_1"|secret plan|the orc lies|"players":\{|aaaaaaaa|"f_gmfig":(7|3|99)/); return !!s && !m; })(), String((JSON.stringify(snapP1 && snapP1.appState) || '').match(/.{0,60}(tok_hidden|note1|"pl_1"|secret plan|the orc lies|"players":\{|aaaaaaaa|"f_gmfig":(7|3|99)).{0,40}/) || 'leak'));
     check('the snapshot gives the map the player landed on whole and the other map as its stub (possession)', !!snapP1 && snapP1.appState.campaigns.c1.items.m_open && !snapP1.appState.campaigns.c1.items.m_open.stub && snapP1.appState.campaigns.c1.items.m_open.whiteboard.some(w => w.id === 'tok_p1') && snapP1.appState.campaigns.c1.items.m_fog && snapP1.appState.campaigns.c1.items.m_fog.stub === true && snapP1.appState.campaigns.c1.items.m_fog.whiteboard.length === 0);
@@ -631,7 +662,7 @@ function mutations(tpl) {
         if (GM_D && sentLog.slice(sentBefore).some(s => { try { return JSON.stringify(s.m).indexOf(GM_D) >= 0; } catch (e) { return false; } })) finding('the GM\'s signing key (its private half) is sent', tag, msg, mut);
         warned.forEach(w => { if (/wire send failed/.test(w)) finding('a send the packer refused (console.warn)', tag + ' → ' + w.slice(0, 100), msg); });
         if (who === 's' || who === 'w') {
-            const toThem = sentLog.slice(sentBefore).filter(s => s.to === conn.peer && s.m.type !== 'hb' && s.m.type !== 'denied' && s.m.type !== 'wait');
+            const toThem = sentLog.slice(sentBefore).filter(s => s.to === conn.peer && s.m.type !== 'hb' && s.m.type !== 'denied' && s.m.type !== 'wait' && !(s.m.type === 'gmhello' && hailShape(s.m)));   // (the host's early proof — who the GM is, the public key, a signature — is all a peer not yet admitted may be sent besides)
             if (toThem.length) finding('an unadmitted peer is sent something of the table', tag + ' → ' + toThem[0].m.type, msg);
         }
         return { threw, changes, dt };
@@ -835,10 +866,16 @@ function mutations(tpl) {
         resetRec(); const cm = new Conn('peer_between'); cm.peerConnection = pcStub(FP_H, 'sha-256 EE:05:99'); hostPeer.emit('connection', cm);
         const admM = await admit(cm, { id: 'u_p3', name: 'Cato' }, K3); const dlgM = rec.confirms[rec.confirms.length - 1];
         if (admM.ok) finding('identity: a proof passed along from another channel admits (the proof is not bound to the connection it travels on)', 'hello from peer_between as u_p3 with the right proof over the player\'s own leg → admitted', { type: 'hello', proof: '…', fp: [FP_P, FP_H] });
-        const between = !admM.ok && !net.roster.peer_between && !!dlgM && /did not match this connection/.test(dlgM.text);
-        cm.close(); flushTimers(); if (dlgM) { dlgM.answered = true; dlgM.cb(true); } flushTimers(); drainDialogs();   // the connection is gone before the GM answers: nobody is let in, nobody barred
+        if (dlgM) finding('identity: a right key proven over another connection is put to the GM as a question (it is refused: both ends were readable and they differ)', 'hello from peer_between as u_p3 → "' + dlgM.text.slice(0, 80) + '"', { type: 'hello', proof: '…', fp: [FP_P, FP_H] });
+        const denM = cm.sent.filter(m => m.type === 'denied').map(m => m.reason), toldM = rec.toasts.filter(t => /^Cato was turned away: /.test(t)), logM = (stubs.getActiveCampaign().sessionLog || []).filter(e => e.kind === 'table' && /^Cato was turned away: /.test(e.text));
+        const between = !admM.ok && !net.roster.peer_between && !dlgM && JSON.stringify(denM) === JSON.stringify(['This table could not check your connection. Try joining again.']) && toldM.length === 1 && logM.length === 1 && stubs.getActiveCampaign().players.u_p3.key === K3 && !cm.sent.some(m => m.type === 'wait' || m.type === 'snapshot');
+        flushTimers();   // the refused connection is closed (400 ms after the word)
+        // again and again inside the minute: refused each time, the GM told once
+        const nToast = rec.toasts.length; let againOk = true;
+        for (let i = 0; i < 3; i++) { const cx = new Conn('peer_between' + i); cx.peerConnection = pcStub(FP_H, 'sha-256 EE:05:99'); hostPeer.emit('connection', cx); const ax = await admit(cx, { id: 'u_p3', name: 'Cato' }, K3); if (ax.ok || !cx.sent.some(m => m.type === 'denied')) againOk = false; flushTimers(); }
+        const quietM = rec.toasts.length === nToast && rec.confirms.length === 0;
         const c3 = connect('peer_p3'), nDlg = rec.confirms.length, adm3 = await admit(c3, { id: 'u_p3', name: 'Cato' }, K3);
-        check('host: a right proof made over another connection\'s certificates admits nobody — the GM is asked, in the words for a proof that did not match the connection; the same player over their own connection\'s pair goes straight in, nobody asked', between && adm3.ok && rec.confirms.length === nDlg, { admM, dlg: dlgM && dlgM.text, adm3 });
+        check('host: a right proof made over another connection\'s certificates admits nobody and asks nobody — the join is refused in the app\'s own words, the connection closed, no key issued, and the GM told once by a notice naming the player (a toast and a Session Log line; three more tries inside the minute say nothing more); the same player over their own connection\'s pair goes straight in, nobody asked', between && cm.open === false && againOk && quietM && adm3.ok && rec.confirms.length === nDlg, { admM, den: denM, told: toldM.length, logged: logM.length, againOk, quietM, adm3 });
         c3.close(); flushTimers(); await drain(); flushTimers();
     }
     {   // the GM-only field through the players' paths: a roll naming it, an edit of it, an apply reading it
@@ -851,9 +888,33 @@ function mutations(tpl) {
         check('host: the GM-only field is neither rolled by name, nor edited, nor is another\'s character or the NPC', camp.chars.c_p1.values.f_gmfig === 7 && camp.chars.c_p2.values.f_str === 9 && camp.chars.c_npc.values.f_str === 16 && !out.some(s => s.m.type === 'roll' && /GMFig/.test(JSON.stringify(s.m.names || ''))) && out.filter(s => s.m.type === 'char-deny').length >= 3, { gmfig: camp.chars.c_p1.values.f_gmfig, p2: camp.chars.c_p2.values.f_str, npc: camp.chars.c_npc.values.f_str, out: out.map(s => s.m.type + (s.m.reason ? ':' + s.m.reason : '')) });
         check('host: nothing sent to any player carries the GM-only value, the hidden token or the GM note', !out.some(s => /"f_gmfig":(7|3|99)|tok_hidden|the orc lies|secret plan/.test(JSON.stringify(s.m))));
     }
+    {   // the early proof and the gates: a stranger whose hello passes them is sent it; a removed id, an older version and a wrong password are not
+        await resetWorld(); drainDialogs(); resetRec(); clockOff += 20000;
+        const cnOf = () => nodeCrypto.randomBytes(16).toString('hex'), realWait = ms => new Promise(r => realTimeout(r, ms));
+        const cOk = connect('peer_hail_ok'), cnOk = cnOf(); hello(cOk, { id: 'u_hail', name: 'Hail' }, { cn: cnOk });
+        const atOnce = cOk.sent.map(m => m.type); await settle(() => cOk.sent.some(m => m.type === 'gmhello'), 200);
+        const hOk = cOk.sent.filter(m => m.type === 'gmhello');
+        net._handleMessage({ type: 'hello', profile: { id: 'u_hail', name: 'Hail' }, version: '1.5.0', cn: cnOf() }, cOk); await realWait(30);   // a second hello, another nonce: no second proof
+        stubs.getActiveCampaign().bannedPlayers.u_banned = true;
+        const cBan = connect('peer_hail_ban'); hello(cBan, { id: 'u_banned', name: 'Banned' }, { cn: cnOf() });
+        const cOld = connect('peer_hail_old'); hello(cOld, { id: 'u_old', name: 'Old' }, { cn: cnOf(), version: '1.4.9' });
+        document.getElementById('netPassInput').value = 'secret';
+        const cPw = connect('peer_hail_pw'); hello(cPw, { id: 'u_pw', name: 'Pw' }, { cn: cnOf(), password: 'wrong' });
+        const cPwOk = connect('peer_hail_pwok'); hello(cPwOk, { id: 'u_pwok', name: 'PwOk' }, { cn: cnOf(), password: 'secret' });
+        document.getElementById('netPassInput').value = '';
+        const cNone = connect('peer_hail_none'); hello(cNone, { id: 'u_none', name: 'None' });   // no nonce (an older app)
+        await settle(() => cPwOk.sent.some(m => m.type === 'gmhello'), 200); await realWait(30);
+        const hailN = c => c.sent.filter(m => m.type === 'gmhello').length;
+        check('host: the early proof follows the gates — a stranger\'s hello with a nonce is told to wait at once and sent ONE gmhello (Node\'s crypto verifies it over that nonce and this room; a second hello gets no second), and with the right session password likewise; a banned id, an older version, a wrong password and a hello with no nonce are sent none; each proof carries the GM id, the public key and the signature alone',
+            JSON.stringify(atOnce) === JSON.stringify(['wait']) && hOk.length === 1 && hailN(cOk) === 1 && hailShape(hOk[0]) && sigOk(hOk[0].gmPub, hOk[0].sig, hostText(cnOk, hostPeer.id, 'u_gm')) && hailN(cPwOk) === 1 && hailN(cBan) === 0 && hailN(cOld) === 0 && hailN(cPw) === 0 && hailN(cNone) === 0
+            && [cBan, cOld, cPw].every(c => c.sent.some(m => m.type === 'denied')), { atOnce, n: [hailN(cOk), hailN(cPwOk), hailN(cBan), hailN(cOld), hailN(cPw), hailN(cNone)] });
+        delete stubs.getActiveCampaign().bannedPlayers.u_banned; [cOk, cBan, cOld, cPw, cPwOk, cNone].forEach(c => c.close()); flushTimers(); drainDialogs(); clockOff += 61000;
+    }
     {   // the waiting peer and the stranger across the whole run heard nothing of the table
-        const leak = sentLog.filter(s => /^peer_(w|s\d+|junk|zombie|guess|dropper)/.test(s.to) && !/^(hb|wait|denied|auth)$/.test(s.m.type));
-        check('host: across the run, no waiting peer or stranger was sent anything but hb / wait / denied / auth', leak.length === 0, leak.slice(0, 3).map(l => l.to + ':' + l.m.type));
+        const leak = sentLog.filter(s => /^peer_(w|s\d+|junk|zombie|guess|dropper|hail)/.test(s.to) && !/^(hb|wait|denied|auth)$/.test(s.m.type) && !(s.m.type === 'gmhello' && hailShape(s.m)));
+        check('host: across the run, no waiting peer or stranger was sent anything but hb / wait / denied / auth and the host\'s early proof (the GM id, the public key and a signature, nothing else)', leak.length === 0, leak.slice(0, 3).map(l => l.to + ':' + l.m.type));
+        const priv = !!GM_D && sentLog.some(s => { try { return JSON.stringify(s.m).indexOf(GM_D) >= 0; } catch (e) { return false; } });
+        check('host: across the run, nothing sent to anyone holds the private half of the GM\'s signing key', !!GM_D && !priv);
     }
     {   // the GM never saw a raw hostile string in markup: the roster, the players panel, the chat
         await resetWorld(); resetRec();
@@ -867,6 +928,24 @@ function mutations(tpl) {
     }
     // every host dialog shown in the run is a known one
     check('host: every dialog raised was a join request or a Start-combat offer', rec.confirms.concat([]).every(c => /wants to join|Start combat/.test(c.text)) && [...confirmsBy.keys()].every(k => /^(hello|target)\|/.test(k)), [...confirmsBy.keys()].slice(0, 5));
+
+    {   // a map renamed just before an admission (its save had not run yet): the players already at the table hear of it at that admission
+        await resetWorld(); drainDialogs(); resetRec();
+        const campR = stubs.getActiveCampaign(); stubs.save(false);
+        const stubsTo = (c, n0) => c.sent.slice(n0).filter(m => m.type === 'item' && m.itemId === 'm_fog').map(m => (m.item && m.item.stub === true ? 'stub:' : 'whole:') + (m.item && m.item.meta && m.item.meta.title));
+        let nR = conns.p1.sent.length; campR.items.m_fog.meta.title = 'Cellar, renamed'; stubs.save(false);
+        const control = stubsTo(conns.p1, nR);   // the ordinary way: a rename, then the GM's save
+        nR = conns.p1.sent.length; campR.items.m_fog.meta.title = 'Cellar, renamed again';   // a rename whose save has not run when a returning player is admitted by their proof
+        const c3 = connect('peer_p3x'), a3 = await admit(c3, { id: 'u_p3', name: 'Cato' }, K3), atAdmit = stubsTo(conns.p1, nR), snap3 = c3.sent.find(m => m.type === 'snapshot');
+        const early3 = c3.sent.slice(0, c3.sent.indexOf(snap3)).filter(m => m.type === 'item').length;
+        stubs.save(false); stubs.save(false);
+        check('host: a map renamed just before an admission (the real admitPlayer) reaches the players already at the table as its stub afresh, at that admission — once, not again at the saves that follow — while the newcomer reads the new name in their snapshot and is sent no map before it',
+            a3.ok && JSON.stringify(control) === JSON.stringify(['stub:Cellar, renamed']) && JSON.stringify(atAdmit) === JSON.stringify(['stub:Cellar, renamed again']) && JSON.stringify(stubsTo(conns.p1, nR)) === JSON.stringify(['stub:Cellar, renamed again'])
+            && !!snap3 && snap3.appState.campaigns.c1.items.m_fog.meta.title === 'Cellar, renamed again' && snap3.appState.campaigns.c1.items.m_fog.stub === true && early3 === 0,
+            { admitted: a3.ok, control, atAdmit, after: stubsTo(conns.p1, nR), snapTitle: snap3 && snap3.appState.campaigns.c1.items.m_fog.meta.title, early3 });
+        campR.items.m_fog.meta.title = 'Dark Cellar'; stubs.save(false);
+        c3.close(); flushTimers(); await drain(); drainDialogs(); resetRec();
+    }
 
     /* =================================================== CLIENT WORLD =================================================== */
     console.log('# client world');
@@ -912,6 +991,7 @@ function mutations(tpl) {
         'pos': { type: 'pos', campId: 'c1', itemId: 'm_open', wbId: 'tok_p2', x: 200, y: 210, rot: 45, front: 0, final: true },
         'pos-own': { type: 'pos', campId: 'c1', itemId: 'm_open', wbId: 'tok_p1', x: 90, y: 90, rot: 0, front: 0, final: true, ack: 3 },
         'wait': { type: 'wait' }, 'auth': { type: 'auth', gmId: 'u_gm', nonce: 'n'.repeat(32) },
+        'gmhello': { type: 'gmhello', gmId: 'u_gm', gmPub: { kty: 'EC', crv: 'P-256', x: 'A'.repeat(43), y: 'B'.repeat(43) }, sig: 'f'.repeat(128) },   // the host's early proof: read before the snapshot only (after it the branch is inert by design)
         'denied': { type: 'denied', reason: 'no', update: false }, 'kicked': { type: 'kicked' }, 'end': { type: 'end' },
         'char-upload-ans': { type: 'char-upload-ans', rid: 'u1', n: 1, auto: 0, left: 0 }, 'char-pic-ans': { type: 'char-pic-ans', rid: 'p1', ok: true },
         'char-make-ans': { type: 'char-make-ans', rid: 'm1', ok: true, charId: 'c_new' }, 'tok-light-ans': { type: 'tok-light-ans', rid: 'l1', reason: 'cap' },
@@ -1072,6 +1152,16 @@ function mutations(tpl) {
         hconn.wpAuthDone = false;
     }
 
+    // the host's early proof, before the snapshot (that is when a host gives it), on a table this app knows nothing of: every mutation, from every
+    // sender, each as the first of its connection — nothing is stored, nothing asked, the join left as it was
+    {
+        const f0 = found.size, ls0 = JSON.stringify(localStorage.dump()), revived0 = revived; let n = 0;
+        for (const m of mutations(ctpl.gmhello)) { for (const from of ['host', 'stale', 'other']) { hconn.wpHailed = false; staleConn.wpHailed = false; otherConn.wpHailed = false; await fireClient(from, 'gmhello (pre-snapshot)', m.name, m.msg); n++; } }
+        check('client: every mutation of the host\'s early proof before the snapshot (' + n + ' probes, from the dialled host, a stale connection and another host) writes nothing to storage, raises no question, proves no host and leaves the join waiting as it was — on a table this app knows nothing against, no proof is expected and none is judged',
+            found.size === f0 && JSON.stringify(localStorage.dump()) === ls0 && revived === revived0 && cnet.active === true && hconn.open && hconn.wpHostOk !== true && !cnet.syncedPeer, { newFindings: found.size - f0, revived: revived - revived0, active: cnet.active });
+        hconn.wpHailed = false;
+    }
+
     // 2. the snapshot, then every type from the synced host with mutations; from a stale and another connection the well-formed example
     await fireClient('host', 'snapshot', 'well-formed (the real one the host made for this player)', clone(snapshotForClient));
     check('client: the snapshot syncs (foreign, the hosted campaign on screen, the key remembered under the real gmId)', cnet.foreign === true && stateMod.state.appState.activeCampaignId === 'c1' && cnet.syncedPeer === hconn.peer && JSON.parse(localStorage.getItem('wp_tableKeys')).u_gm === snapshotForClient.key);
@@ -1163,7 +1253,12 @@ function mutations(tpl) {
         const gmS = mkSigner(), sqS = mkSigner();   // the GM's pair and a stand-in host's, both Node's own: nothing here is signed by the app's code
         const lsJ = k => { try { const o = JSON.parse(localStorage.getItem(k) || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } };
         const signedSnap = (signer, c, over) => { const s = Object.assign(clone(snapshotForClient), over || {}); s.gmPub = Object.assign({}, signer.pub); s.sig = signer.sign(snapText(c.wpCn, c.peer, s.gmId, s.key)); return s; };
-        const dial = () => { const p = peers[peers.length - 1]; p.emit('open'); flushTimers(); const c = p.conns[0]; c.emit('open'); flushTimers(); return c; };   // the newest peer registers and its connection to the room opens
+        // The app gives a host it knows the GM of five seconds from its hello to prove itself (HOST_PROOF_MS). The suite's timers all fire at a flush, so
+        // each dial sets that connection's proof timer aside: a scenario then plays inside the window, and late(c) is the five seconds passing.
+        const PROOF_MS = 5000, proofT = new Map();
+        const holdProof = c => { const mine = timers.q.filter(t => t.ms === PROOF_MS); timers.q = timers.q.filter(t => t.ms !== PROOF_MS); proofT.set(c, (proofT.get(c) || []).concat(mine)); return mine.length; };
+        const late = c => { const due = (proofT.get(c) || []).filter(t => !timers.cleared.has(t.id)); proofT.set(c, []); due.forEach(t => { try { t.fn(); } catch (e) { flushed.threw.push(e); } }); return due.length; };   // the time is up — unless the app cleared its timer
+        const dial = () => { const p = peers[peers.length - 1]; p.emit('open'); flushTimers(); const c = p.conns[0]; c.emit('open'); c.proofArmed = holdProof(c); flushTimers(); return c; };   // the newest peer registers and its connection to the room opens (its hello goes out; the wait for the host's proof is the suite's to end)
         const freshJoin = () => { document.getElementById('netJoinBtn').click(); return dial(); };   // a join the player begins, through the real Join button
         const give = async (c, m) => { let threw = null; try { cnet._handleMessage(m, c); } catch (e) { threw = e; } finally { cnet.applyingRemote = false; } await settle(() => !c.wpSnapWait); await drain(); return threw; };
         const SAID = 'This table\u2019s GM is not the one you know from this room code \u2014 the GM may have reinstalled, or someone else is at that code.';
@@ -1230,6 +1325,168 @@ function mutations(tpl) {
         }
         check('client (the GM this app knows): ' + (nMut + others.length) + ' variations of the GM\'s signed snapshot, each on a join of its own (' + took + ' taken, ' + refused + ' refused, ' + stricter + ' refused though rightly signed) — one is taken only when Node\'s own crypto finds the pinned key\'s signature over this connection\'s nonce, the room dialled, the GM id and the table key; none of the ' + others.length + ' forgeries is',
             found.size === f0 && took >= 1 && refused >= 40 && tookOther === 0, { took, refused, stricter, tookOther, newFindings: found.size - f0 });
+
+        // 3b. the host's early proof, under the pin: the GM this app knows proves itself as its hello is answered; the wait then is the GM's own
+        const gmHail = (signer, c, over) => { const m = Object.assign({ type: 'gmhello', gmId: 'u_gm' }, over || {}); m.gmPub = Object.assign({}, signer.pub); m.sig = signer.sign(hostText(c.wpCn, c.peer, m.gmId)); return m; };
+        const proven = c => c.wpHostOk === true;
+        const giveH = async (c, m) => { let threw = null; try { cnet._handleMessage(m, c); } catch (e) { threw = e; } finally { cnet.applyingRemote = false; } await settle(() => c.wpHostOk === true || c.wpSnapDead === true || !c.open, 40); await drain(); return threw; };   // until the proof's verdict is in
+        {
+            resetRec(); const cA = freshJoin(), lsA0 = JSON.stringify(localStorage.dump()), hA = cA.sent.find(m => m.type === 'hello');
+            const tA = await giveH(cA, gmHail(gmS, cA)), lateA = late(cA);
+            cnet._handleMessage({ type: 'wait' }, cA); flushTimers();
+            const mid = { armed: cA.proofArmed, proven: proven(cA), open: cA.open, active: cnet.active, synced: cnet.syncedPeer, ls: JSON.stringify(localStorage.dump()) === lsA0, confirms: rec.confirms.length, late: lateA, waiting: rec.text.some(t => /waiting for the GM to let you in/.test(t.v)) };
+            const tA2 = await give(cA, signedSnap(gmS, cA));
+            check('client (the early proof): at a room code this app knows the GM of, the hello starts a five-second wait for the host\'s proof; the GM\'s gmhello — signed over this connection\'s nonce, the room dialled, the GM id and the two fingerprints — marks the host as proven and ends that wait, storing nothing and asking nothing; the join then waits on the GM as ever and the signed snapshot is taken',
+                !tA && !tA2 && !!hA && hA.cn === cA.wpCn && mid.armed === 1 && mid.proven && mid.open && mid.active === true && mid.synced === null && mid.ls && mid.confirms === 0 && mid.late === 0 && mid.waiting && cnet.syncedPeer === cA.peer && rec.confirms.length === 0, mid);
+        }
+        // 3c. every variation of the early proof, each on a join of its own: a host counts as proven only when the independent reading says so
+        {
+            const tplH = { type: 'gmhello', gmId: 'u_gm', gmPub: Object.assign({}, gmS.pub), sig: 'f'.repeat(128) }, nMutH = mutations(tplH).length;
+            const forged = [
+                ['a key pair of its own, rightly signing under the GM\'s id', c => gmHail(sqS, c)],
+                ['the GM\'s proof made for another connection\'s nonce', c => { const m = gmHail(gmS, c); m.sig = gmS.sign(hostText('0'.repeat(32), c.peer, 'u_gm')); return m; }],
+                ['the GM\'s proof made for another room id', c => { const m = gmHail(gmS, c); m.sig = gmS.sign(hostText(c.wpCn, c.peer + '-r1', 'u_gm')); return m; }],
+                ['a snapshot\'s signature shown as the proof', c => { const m = gmHail(gmS, c); m.sig = gmS.sign(snapText(c.wpCn, c.peer, 'u_gm', K1)); return m; }],
+                ['another GM id at this room code, rightly signed by its own key', c => gmHail(sqS, c, { gmId: 'u_other' })],
+                ['the pinned key shown, signed by another', c => { const m = gmHail(sqS, c); m.gmPub = Object.assign({}, gmS.pub); return m; }],
+                ['no key and no signature', () => ({ type: 'gmhello', gmId: 'u_gm' })]
+            ];
+            let okN = 0, refN = 0, idleN = 0, okForged = 0; const f0h = found.size;
+            for (let i = 0; i < nMutH + forged.length; i++) {
+                probes++;
+                const c = freshJoin(); let msg, name;
+                if (i < nMutH) { const m = mutations({ type: 'gmhello', gmId: 'u_gm', gmPub: Object.assign({}, gmS.pub), sig: gmS.sign(hostText(c.wpCn, c.peer, 'u_gm')) })[i]; msg = m.msg; name = m.name; }
+                else { name = forged[i - nMutH][0]; msg = forged[i - nMutH][1](c); }
+                const lsB = localStorage.dump(), want = msg && msg.type === 'gmhello' ? hailJudge(lsB, msg, c, 'abcdef') : 'none';
+                resetRec(); warned.length = 0;
+                const thr = await giveH(c, msg);
+                if (thr) finding('exception escapes handleMessage (client)', 'early proof — ' + thr.constructor.name + ': ' + String(thr.message).slice(0, 120), msg, name);
+                if (proven(c) && want !== 'ok') finding('client: a host counts as proven that is not the GM this app knows', 'an early proof under a pinned GM, at a room code this app knows', msg, name);
+                if (JSON.stringify(localStorage.dump()) !== JSON.stringify(lsB)) finding('client: an early proof writes to this app\'s storage', 'an early proof under a pinned GM', msg, name);
+                if (rec.confirms.length) finding('client: an early proof raises a question by itself', 'an early proof under a pinned GM → "' + rec.confirms[0].text.slice(0, 60) + '"', msg, name);
+                if (cnet.syncedPeer) finding('client: an early proof syncs a table', 'an early proof under a pinned GM', msg, name);
+                if (canary()) finding('client: an early proof\'s text reaches the page', 'an early proof under a pinned GM', msg, name);
+                if (proven(c)) { okN++; if (i >= nMutH) okForged++; } else if (c.wpSnapDead === true) refN++; else idleN++;
+            }
+            check('client (the early proof): ' + (nMutH + forged.length) + ' variations of the GM\'s early proof, each on a join of its own (' + okN + ' proven, ' + refN + ' not waited on, ' + idleN + ' not read) — a host counts as proven only when Node\'s own crypto finds the pinned key\'s signature over this connection\'s nonce, the room dialled and the GM id; none of the ' + forged.length + ' forgeries does; nothing is written to storage, no question is raised by it and no table is synced',
+                found.size === f0h && okN >= 1 && refN >= 40 && okForged === 0, { okN, refN, idleN, okForged, newFindings: found.size - f0h });
+            // from any other sender it changes nothing: the GM's own proof and its signed table are then taken as ever
+            let costly = 0, n2 = 0;
+            for (const m of mutations({ type: 'gmhello', gmId: 'u_gm', gmPub: Object.assign({}, gmS.pub), sig: 'f'.repeat(128) }).slice(0, 40).concat([{ name: 'a rightly signed proof of another key', sq: true }, { name: 'the GM\'s own proof for this very connection', own: true }])) {
+                probes += 2; n2++;
+                const c = freshJoin(), st = new Conn(c.peer), ot = new Conn('waypoint-other'), lsB = JSON.stringify(localStorage.dump()), msg = m.sq ? gmHail(sqS, c) : m.own ? gmHail(gmS, c) : m.msg;
+                resetRec(); let thr = null; [st, ot].forEach(from => { try { cnet._handleMessage(msg, from); } catch (e) { thr = e; } finally { cnet.applyingRemote = false; } });
+                await settle(() => false, 3); await drain();
+                const quietNow = !proven(c) && c.open && c.wpSnapDead !== true && st.wpHailed === undefined && ot.wpHailed === undefined && JSON.stringify(localStorage.dump()) === lsB;
+                const t1 = await giveH(c, gmHail(gmS, c)), t2 = await give(c, signedSnap(gmS, c));
+                if (thr || t1 || t2 || !quietNow || !proven(c) || cnet.syncedPeer !== c.peer || rec.confirms.length) { costly++; finding('client: an early proof from a connection other than the dialled host changes the join, or costs the GM\'s own signed table', 'gmhello from a stale connection and another host, then the GM\'s proof and snapshot', msg, m.name); }
+            }
+            check('client (the early proof): from a stale connection or another host it is not read (' + n2 + ' variations, each sent by both) — nothing proven, nothing refused, nothing stored — and the dialled GM\'s own proof and signed snapshot are then taken as ever', costly === 0, { costly });
+        }
+        // 3d. an automatic reconnect, against a stand-in at every other generation of the code: one that proves nothing (silent, or saying wait, until its
+        // five seconds are up — or closing the connection it opened, with or without a wait), one that proves itself as another GM, one that refuses
+        // (denied, kicked, end) — none is waited on or believed, none ends or restarts the reconnect, and the GM, back at its own generation, is taken
+        const LATE = 'A table answered at this room code but did not show in time that it is your GM\u2019s.';
+        const LATE_ASK = 'The table at this room code did not show in time that it is your GM\u2019s. It may only be slow \u2014 or someone else is at that code. Join again and wait for it as long as it takes? Your app still checks that it is your GM before you are joined.';
+        const backN = () => rec.toasts.filter(t => /Reconnected/.test(t)).length, attemptNow = () => Number(rec.text.map(t => (t.v.match(/attempt (\d+) of 30/) || [])[1]).filter(Boolean).pop() || 0);
+        const genOf = c => (c.peer.match(/-r(\d)$/) || [0, 0])[1] | 0, isGone = () => { const p = peers[peers.length - 1]; p.emit('open'); p.emit('error', { type: 'peer-unavailable' }); flushTimers(); };
+        {
+            const cS0 = freshJoin(); await giveH(cS0, gmHail(gmS, cS0)); await give(cS0, signedSnap(gmS, cS0));
+            const sessionOk = cnet.syncedPeer === cS0.peer && cS0.peer === 'waypoint-abcdef';
+            resetRec(); const pinsR = localStorage.getItem('wp_gmPins'), keysR = localStorage.getItem('wp_tableKeys'), appR = JSON.stringify(stateMod.state.appState);
+            cS0.close(); flushTimers();
+            const logR = [], badR = [], words = ['denied', 'kicked', 'end'], quiet = ['late', 'wait-late', 'close', 'wait-close'], attR = []; let cG = null, guard = 0, refusals = 0, quiets = 0, armedAll = true;
+            while (!cG && guard++ < 40) {
+                const p = peers[peers.length - 1]; p.emit('open'); const c0 = p.conns[0], gen = genOf(c0);
+                attR.push(attemptNow());
+                if (gen === 0 && logR.length < 16) { p.emit('error', { type: 'peer-unavailable' }); flushTimers(); logR.push('0:gone'); continue; }   // the GM is not back yet
+                c0.emit('open'); c0.proofArmed = holdProof(c0); flushTimers(); if (c0.proofArmed !== 1) armedAll = false;
+                if (gen === 0) { cG = c0; break; }
+                if (gen === 1) {
+                    const how = quiet[quiets++ % 4];
+                    if (/wait/.test(how)) { cnet._handleMessage({ type: 'wait' }, c0); flushTimers(); }
+                    const stillOpen = c0.open; if (!stillOpen) badR.push('closed before its time was up');
+                    if (/close/.test(how)) { c0.close(); late(c0); } else late(c0);   // it closes the connection it opened (the clock then finds nothing to do) — or its five seconds pass
+                    logR.push('1:' + how);
+                }
+                else if (gen === 2) { await giveH(c0, gmHail(sqS, c0, { reason: CANARY })); logR.push('2:other'); }
+                else { const w = words[refusals++ % 3]; try { cnet._handleMessage({ type: w, reason: CANARY + ' go away', update: false }, c0); } catch (e) { badR.push('threw: ' + e.message); } finally { cnet.applyingRemote = false; } logR.push('3:' + w); }
+                if (c0.open) badR.push(logR[logR.length - 1] + ': the connection was kept');
+                if (cnet.active !== true || cnet.leaving === true || cnet.role !== 'client') badR.push(logR[logR.length - 1] + ': the reconnect was ended');
+                if (rec.confirms.length) badR.push(logR[logR.length - 1] + ': a question was raised');
+                if (rec.loads) badR.push(logR[logR.length - 1] + ': the app went back to its own campaign');
+                if (backN()) badR.push(logR[logR.length - 1] + ': "Reconnected" was said with no table taken');
+                if (canary()) badR.push(logR[logR.length - 1] + ': the host\'s text reached the page');
+                if (JSON.stringify(stateMod.state.appState) !== appR || localStorage.getItem('wp_gmPins') !== pinsR || localStorage.getItem('wp_tableKeys') !== keysR) badR.push(logR[logR.length - 1] + ': something was applied or stored');
+                flushTimers();   // the next attempt
+            }
+            attR.forEach((a, i) => { if (i && a !== attR[i - 1] + 1) badR.push('attempt ' + a + ' after attempt ' + attR[i - 1] + ': the count did not go on by one'); });
+            const saidR = rec.toasts.filter(t => t.indexOf(SAID) === 0).length, lateR = rec.toasts.filter(t => t.indexOf(LATE) === 0).length;
+            const tG = cG ? await giveH(cG, gmHail(gmS, cG)) : null, backMid = backN(), tG2 = cG ? await give(cG, signedSnap(gmS, cG)) : null;
+            badR.forEach(b => finding('client: an automatic reconnect is held, ended or misled by a host that is not the GM this session was with', b, { type: 'gmhello / wait / denied / kicked / end / a connection opened and closed' }));
+            check('client (the early proof, an automatic reconnect): with the GM gone and a stand-in at every other generation of the code — one that proves nothing (silent or saying wait until its five seconds are up, or closing each connection it opened, with a wait or without: passed over, the round coming back to it), one that proves itself with a key of its own (passed over at once, and not dialled again), one that refuses with denied, kicked and end in turn (not believed: nothing shown, the reconnect not ended, the round coming back to it) — nothing is applied, stored or asked, each notice is said once in the app\'s own words, "Reconnected" is not said while no table is taken, every attempt counts on by one (never started over, never held at one generation), and the GM, back at its own generation, proves itself and its table is taken with no question — said then, once',
+                sessionOk && armedAll && badR.length === 0 && JSON.stringify(logR) === JSON.stringify(['0:gone', '1:late', '2:other', '3:denied', '0:gone', '1:wait-late', '3:kicked', '3:end', '0:gone', '1:close', '3:denied', '3:kicked', '0:gone', '1:wait-close', '3:end', '3:denied']) && !!cG && cG.peer === 'waypoint-abcdef' && attR[0] === 1 && attR.length === 17 && saidR === 1 && lateR === 1 && !tG && !tG2 && backMid === 0 && backN() === 1 && proven(cG) && cnet.syncedPeer === cG.peer && rec.confirms.length === 0 && localStorage.getItem('wp_gmPins') === pinsR,
+                { sessionOk, armedAll, badR, logR, cG: cG && cG.peer, attR, saidR, lateR, backMid, back: backN(), synced: cnet.syncedPeer });
+            // the GM itself slow once (its proof would land after the five seconds), the other generations not there: passed over, not marked — and
+            // prompt when the round comes back, it is taken
+            resetRec(); cG.close(); flushTimers();
+            const slowLog = []; let cT = null, slowDone = false, gS = 0;
+            while (!cT && gS++ < 12 && !rec.loads) {
+                const p = peers[peers.length - 1]; p.emit('open'); const c0 = p.conns[0], gen = genOf(c0);
+                if (gen !== 0) { p.emit('error', { type: 'peer-unavailable' }); flushTimers(); slowLog.push(gen + ':gone'); continue; }
+                c0.emit('open'); c0.proofArmed = holdProof(c0); flushTimers();
+                if (!slowDone) { slowDone = true; late(c0); slowLog.push('0:slow'); try { cnet._handleMessage(gmHail(gmS, c0), c0); } catch (e) {} finally { cnet.applyingRemote = false; } flushTimers(); continue; }   // (its proof, landing after the app let go, is not read)
+                cT = c0; slowLog.push('0:prompt');
+            }
+            const tT = cT ? await giveH(cT, gmHail(gmS, cT)) : null, tT2 = cT ? await give(cT, signedSnap(gmS, cT)) : null;
+            check('client (the early proof, an automatic reconnect): the GM\'s own app slow once — no proof within its five seconds — is passed over in words of its own (never "not the one you know") and NOT marked as refused: the round comes back to its generation, and prompt this time its proof and its table are taken, with no question and nothing restored',
+                JSON.stringify(slowLog) === JSON.stringify(['0:slow', '1:gone', '2:gone', '3:gone', '0:prompt']) && !!cT && !tT && !tT2 && proven(cT) && cnet.syncedPeer === cT.peer && rec.loads === 0 && rec.confirms.length === 0 && rec.toasts.filter(t => t.indexOf(SAID) === 0).length === 0 && rec.toasts.filter(t => t.indexOf(LATE) === 0).length === 1 && backN() === 1,
+                { slowLog, synced: cnet.syncedPeer, loads: rec.loads, toasts: rec.toasts.slice(0, 5) });
+            cG = cT || cG;
+            // and a refusal from a host that HAS proven itself on a reconnect is its own word, taken as ever
+            resetRec(); cG.close(); flushTimers();
+            const cP = dial(), tP = await giveH(cP, gmHail(gmS, cP)); let tP2 = null; try { cnet._handleMessage({ type: 'denied', reason: 'The GM declined your request to join.' }, cP); } catch (e) { tP2 = e; } finally { cnet.applyingRemote = false; }
+            const saidP = rec.text.some(t => t.v === 'The GM declined your request to join.'); flushTimers();
+            check('client (the early proof, an automatic reconnect): a refusal from the host that has proven itself as the GM is the GM\'s own — shown and acted on as before (the reconnect ends, the app goes back to its own campaign)', !tP && !tP2 && cP.peer === 'waypoint-abcdef' && saidP && cnet.active === false && rec.loads === 1 && cP.open === false, { peer: cP.peer, saidP, active: cnet.active, loads: rec.loads });
+            cnet.leaveSession(true); flushTimers(); cnet.foreign = false; cnet.leaving = false; stateMod.state.appState = clone(own);
+            // a join the player begins: hosts that say wait and prove nothing are not waited on; ONE question at the end, in words of its own
+            resetRec(); const atS = []; let cW = freshJoin();
+            for (let g = 0; g < 4; g++) { atS.push(cW.peer); cnet._handleMessage({ type: 'wait' }, cW); flushTimers(); late(cW); flushTimers(); if (g < 3) cW = dial(); }
+            const qS = rec.confirms.slice(), stS = { active: cnet.active, synced: cnet.syncedPeer, pins: localStorage.getItem('wp_gmPins') === pinsR, said: rec.text.some(t => t.v === LATE + ' You have not joined.'), notOther: !rec.text.some(t => t.v.indexOf(SAID) === 0) };
+            if (qS[0]) qS[0].cb(false); flushTimers();
+            check('client (the early proof, a join the player begins): at a room code this app knows the GM of, a host that says wait and proves nothing is not waited on — each generation is passed over when its five seconds are up, and the join ends unjoined, said in words of its own (a table that did not show in time, never "not the one you know"), with ONE question (its own words, never answered by Enter); a no changes nothing',
+                JSON.stringify(atS) === JSON.stringify(['waypoint-abcdef', 'waypoint-abcdef-r1', 'waypoint-abcdef-r2', 'waypoint-abcdef-r3']) && qS.length === 1 && qS[0].text === LATE_ASK && !!qS[0].opts && qS[0].opts.noEnter === true && stS.active === false && stS.synced === null && stS.pins && stS.said && stS.notOther && localStorage.getItem('wp_gmPins') === pinsR, { atS, asked: qS.map(d => d.text.slice(0, 60)), stS });
+            // a yes to that question is a yes to waiting longer, and to nothing else: an unsigned table under the GM's id is still refused
+            resetRec(); let cL = freshJoin(); late(cL); flushTimers(); isGone(); isGone(); isGone();
+            const qL = rec.confirms.slice(); if (qL[0]) qL[0].cb(true);
+            const cY = dial(), uns = clone(snapshotForClient); delete uns.gmPub; delete uns.sig; uns.gmId = 'u_gm'; uns.key = 'e'.repeat(32);
+            cnet._handleMessage({ type: 'wait' }, cY); flushTimers(); const armY = [cY.proofArmed, cY.open, late(cY), rec.text.some(t => /waiting for the GM to let you in/.test(t.v))], tY = await give(cY, uns); flushTimers();   // no clock on this join: its wait is waited on
+            const afterUns = { synced: cnet.syncedPeer, pins: localStorage.getItem('wp_gmPins') === pinsR, key: JSON.parse(localStorage.getItem('wp_tableKeys') || '{}').u_gm === K1, open: cY.open };
+            isGone(); isGone(); isGone(); const qU = rec.confirms.slice(1); if (qU[0]) qU[0].cb(false); flushTimers();
+            check('client (the early proof, a join the player begins): a yes to the late table\'s question joins again and waits on that table with no clock, and is a yes to nothing else — whoever then answers with an unsigned table under the GM\'s id is refused as ever (nothing synced, the pin and the table key untouched), and that join ends in its own ONE question, the existing one',
+                qL.length === 1 && qL[0].text === LATE_ASK && JSON.stringify(armY) === JSON.stringify([0, true, 0, true]) && !tY && afterUns.synced === null && afterUns.pins && afterUns.key && qU.length === 1 && qU[0].text === ASKED && localStorage.getItem('wp_gmPins') === pinsR, { asked: qL.map(d => d.text.slice(0, 40)), armY, afterUns, then: qU.map(d => d.text.slice(0, 40)) });
+            resetRec(); cL = freshJoin(); late(cL); flushTimers(); isGone(); isGone(); isGone();
+            const qM = rec.confirms.slice(); if (qM[0]) qM[0].cb(true);
+            const cZ2 = dial(), tZ1 = await giveH(cZ2, gmHail(gmS, cZ2)), tZ2 = await give(cZ2, signedSnap(gmS, cZ2));
+            check('client (the early proof, a join the player begins): after that yes the GM\'s own proof and signed table are taken with no second question',
+                qM.length === 1 && !tZ1 && !tZ2 && proven(cZ2) && cnet.syncedPeer === cZ2.peer && rec.confirms.length === 1 && localStorage.getItem('wp_gmPins') === pinsR && backN() === 0, { asked: qM.length, synced: cnet.syncedPeer, confirms: rec.confirms.length });
+            cnet.leaveSession(true); flushTimers(); cnet.foreign = false; cnet.leaving = false; stateMod.state.appState = clone(own);
+            // a join the player begins, and whoever holds the first generation opens each connection and closes it without a word
+            resetRec(); const cJ0 = freshJoin(); cJ0.close(); flushTimers();
+            const cJ1 = dial(), j1 = { peer: cJ1.peer, retry: cJ1.wpRetry, attempt: attemptNow(), loads: rec.loads, lost: rec.toasts.filter(t => /Connection lost/.test(t)).length };
+            const tJ1 = await giveH(cJ1, gmHail(gmS, cJ1)), tJ2 = await give(cJ1, signedSnap(gmS, cJ1));
+            check('client (the early proof, a join the player begins): at a room code this app knows the GM of, a connection that opens and is closed before any proof is passed over as a host that did not prove itself — the join goes on to the next generation as a join the player began (no automatic reconnect is started at the generation that closed it), and the GM there is taken',
+                j1.peer === 'waypoint-abcdef-r1' && j1.retry === false && j1.attempt === 0 && j1.loads === 0 && j1.lost === 0 && !tJ1 && !tJ2 && cnet.syncedPeer === cJ1.peer && rec.confirms.length === 0, j1);
+            cnet.leaveSession(true); flushTimers(); cnet.foreign = false; cnet.leaving = false; stateMod.state.appState = clone(own);
+            // the same where this app knows nothing of the code's GM (a first join): the dropped join reconnects by itself, as before — and is not held
+            const lsRooms = localStorage.getItem('wp_gmRooms'), lsPins = localStorage.getItem('wp_gmPins'); localStorage.removeItem('wp_gmRooms'); localStorage.removeItem('wp_gmPins');
+            resetRec(); let cF = freshJoin(); const walkF = [];
+            for (let i = 0; i < 6; i++) { cF.close(); flushTimers(); const p = peers[peers.length - 1]; p.emit('open'); cF = p.conns[0]; walkF.push(genOf(cF) + ':' + attemptNow() + ':' + (cF.wpRetry === true)); cF.emit('open'); holdProof(cF); flushTimers(); }
+            check('client (a first join, nothing known of the table): a connection that opens and is closed before any table is taken starts the automatic reconnect as before, and that reconnect is not held — every attempt counts on by one and the generations are dialled in turn, "Reconnected" never said',
+                JSON.stringify(walkF) === JSON.stringify(['0:1:true', '1:2:true', '2:3:true', '3:4:true', '0:5:true', '1:6:true']) && backN() === 0 && rec.loads === 0 && rec.confirms.length === 0, { walkF, back: backN() });
+            cnet.leaveSession(); flushTimers(); cnet.foreign = false; cnet.leaving = false; stateMod.state.appState = clone(own);
+            if (lsRooms !== null) localStorage.setItem('wp_gmRooms', lsRooms); if (lsPins !== null) localStorage.setItem('wp_gmPins', lsPins);
+        }
 
         // 4. a join the player begins, and every generation of the code answers as someone else: asked once, at the end, in the app's own words
         const walk = async () => { const at = []; let c = freshJoin(); for (let g = 0; g < 4; g++) { at.push(c.peer); await give(c, signedSnap(sqS, c, { reason: CANARY, notepad: { type: 'notepad', on: true, text: CANARY, gmId: 'u_gm', campaign: CANARY, gm: CANARY } })); flushTimers(); if (g < 3) c = dial(); } return at; };

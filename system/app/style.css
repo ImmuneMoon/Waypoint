@@ -388,6 +388,11 @@
     cursor: grab;
   }
   
+  /* possession: a map a player's app holds only by its name — one line over the board says why. Its own element in the map area (#main, which
+     does not scroll — never on the board or in its scrolling wrapper), plain text, no pointer events; shown only on a player's app (net.js stubLine) */
+  #wbStubNote { display: none; position: absolute; left: 50%; top: 42%; transform: translateX(-50%); z-index: 4000; max-width: min(560px, 80%); padding: 10px 16px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 14px; line-height: 1.4; text-align: center; box-shadow: var(--shadow); pointer-events: none; user-select: none; -webkit-user-select: none; cursor: default; }
+  body.net-client #wbStubNote.on { display: block; }
+
   .wb-item {
     position: absolute; box-sizing: border-box; cursor: grab; z-index: 10;
     box-shadow: var(--shadow);

@@ -24,6 +24,10 @@
    The two known players are admitted through the real key proof: the host challenges each hello with a nonce (the auth message) and the
    suite answers as the player's app does, with HMAC-SHA256(key, 'wp-auth|' + nonce + '|' + the room id dialled) computed by Node's own
    crypto, so the host's WebCrypto check is judged against an independent implementation; the player's app's own answer is checked the same way.
+   The GM's signing key (trust on first use) is judged the same way: each known player's hello carries a nonce, and the snapshot the host signs
+   over it is verified by Node's own ECDSA; the private half is looked for in every send. On the player's side the real join is run — a first
+   join, an automatic reconnect, a join that walks every generation of the code — against hosts the suite builds with Node's own key pairs: a
+   snapshot is taken only when an independent reading of what the app knew (its pins, its room codes) and of the signature says so.
    The suite is diagnostic: it exits 1 while it has findings and is not in the CI matrix.
    SKIP_KNOWN below marks a finding the owner has accepted (an exact prefix of its FAIL or FINDING line, with the reason): such a line is
    printed as accepted and counted apart, and the run still exits 1 for any red line not in it.
@@ -39,6 +43,21 @@ const SKIP_KNOWN = [];
 function acceptedBy(line) { return SKIP_KNOWN.find(s => s && typeof s.prefix === 'string' && s.prefix && line.indexOf(s.prefix) === 0) || null; }
 /* the table-key proof, as the player's app computes it (hmacHex in net.js over WebCrypto), here by Node's crypto: the two must agree */
 const proofFor = (key, nonce, room) => nodeCrypto.createHmac('sha256', key).update('wp-auth|' + nonce + '|' + room).digest('hex');
+/* the GM's signing key: what a snapshot's signature covers, Node's own ECDSA to verify what the host's WebCrypto signs, and a host of the suite's own making */
+const snapText = (cn, room, gmId, key) => 'wp-snap|' + cn + '|' + room + '|' + gmId + '|' + key;
+const sigOk = (pub, sig, text) => { try { return !!pub && typeof sig === 'string' && /^[0-9a-f]{128}$/.test(sig) && nodeCrypto.verify('sha256', Buffer.from(text), { key: nodeCrypto.createPublicKey({ key: { kty: pub.kty, crv: pub.crv, x: pub.x, y: pub.y }, format: 'jwk' }), dsaEncoding: 'ieee-p1363' }, Buffer.from(sig, 'hex')); } catch (e) { return false; } };
+const mkSigner = () => { const kp = nodeCrypto.generateKeyPairSync('ec', { namedCurve: 'P-256' }), j = kp.publicKey.export({ format: 'jwk' }); return { pub: { kty: j.kty, crv: j.crv, x: j.x, y: j.y }, sign: text => nodeCrypto.sign('sha256', Buffer.from(text), { key: kp.privateKey, dsaEncoding: 'ieee-p1363' }).toString('hex') }; };
+const hasOwn = (o, k) => !!o && Object.prototype.hasOwnProperty.call(o, k);
+/* what a player's app should do with a snapshot, read independently of net.js: the room code is another GM's → refuse; a key is pinned for the GM
+   named → take only on that key's signature over this connection's nonce, the room dialled, the GM id and the table key; nothing known → take */
+function gmJudge(ls, msg, conn, code) {
+    const rd = k => { try { const o = JSON.parse(ls[k] || '{}'); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; } catch (e) { return {}; } };
+    let gmId = ''; try { gmId = String(msg.gmId || (msg.notepad && msg.notepad.gmId) || '').slice(0, 80); } catch (e) { return 'refuse'; }
+    const pins = rd('wp_gmPins'), rooms = rd('wp_gmRooms'), roomGm = hasOwn(rooms, 'c_' + code) ? rooms['c_' + code] : '', pin = hasOwn(pins, gmId) ? pins[gmId] : null;
+    if (roomGm && roomGm !== gmId) return 'refuse';
+    if (pin) return sigOk(pin, msg.sig, snapText(conn.wpCn, conn.peer, gmId, typeof msg.key === 'string' ? msg.key : '')) ? 'take' : 'refuse';
+    return 'take';
+}
 
 /* ---------- a seeded generator (reproducible) ---------- */
 let seed = 20261001;
@@ -398,6 +417,9 @@ function mutations(tpl) {
     const hostPeer = peers[peers.length - 1];
     check('hosting starts through the real Host button on a stub Peer', !!hostPeer && net.role === 'host' && /^waypoint-/.test(hostPeer.id));
     hostPeer.emit('open'); flushTimers(); await drain();
+    await settle(() => !!localStorage.getItem('wp_gmSign'));   // the GM's signing key is made as hosting starts (WebCrypto, off the main thread)
+    const GM_PRIV = (() => { try { return JSON.parse(localStorage.getItem('wp_gmSign')).priv; } catch (e) { return null; } })(), GM_D = GM_PRIV && typeof GM_PRIV.d === 'string' && GM_PRIV.d.length >= 40 ? GM_PRIV.d : '';
+    check('the GM\'s signing key is made as hosting starts and kept on this machine (wp_gmSign: a P-256 pair with its private half)', !!GM_D && GM_PRIV.kty === 'EC' && GM_PRIV.crv === 'P-256' && typeof GM_PRIV.x === 'string' && typeof GM_PRIV.y === 'string');
     check('the host is active after the peer opens', net.active === true && net.role === 'host');
     resetRec(); warned.length = 0; sentLog.length = 0;
 
@@ -408,10 +430,11 @@ function mutations(tpl) {
     // a second hello answering with the proof over that nonce and the room id the player dialled; the host checks it over WebCrypto (asynchronous)
     async function admit(c, profile, key) {
         const n0 = c.sent.length;
-        net._handleMessage({ type: 'hello', profile, version: '1.5.0' }, c);   // no flushTimers here: the challenge's 2.5 s timer would hand the join to the GM before the answer
+        c.cn = nodeCrypto.randomBytes(16).toString('hex');   // this connection's own nonce, as the player's app sends it: the snapshot it is given is signed over it
+        net._handleMessage({ type: 'hello', profile, version: '1.5.0', cn: c.cn }, c);   // no flushTimers here: the challenge's 2.5 s timer would hand the join to the GM before the answer
         const ch = c.sent.slice(n0).find(m => m.type === 'auth');
         if (!ch || typeof ch.nonce !== 'string' || !ch.nonce) { flushTimers(); return { ok: false, why: 'no challenge', sent: c.sent.slice(n0).map(m => m.type) }; }
-        net._handleMessage({ type: 'hello', profile, version: '1.5.0', proof: proofFor(key, ch.nonce, hostPeer.id) }, c);   // the answer clears the challenge timer
+        net._handleMessage({ type: 'hello', profile, version: '1.5.0', proof: proofFor(key, ch.nonce, hostPeer.id), cn: c.cn }, c);   // the answer clears the challenge timer
         await settle(() => !!net.roster[c.peer] || c.sent.slice(n0).some(m => m.type === 'wait' || m.type === 'denied'));
         flushTimers(); await drain();
         return { ok: !!net.roster[c.peer], why: net.roster[c.peer] ? '' : 'not admitted', sent: c.sent.slice(n0).map(m => m.type), gm: ch.gmId };
@@ -421,6 +444,7 @@ function mutations(tpl) {
     await drain(); flushTimers();
     const snapP1 = conns.p1.sent.find(m => m.type === 'snapshot');
     check('two known players are challenged (auth naming the GM, a nonce) and admitted on the proof over their table keys, no dialog raised, and each gets a snapshot', adm1.ok && adm2.ok && adm1.gm === 'u_gm' && rec.confirms.length === 0 && net.roster.peer_p1 && net.roster.peer_p1.id === 'u_p1' && net.roster.peer_p2 && net.roster.peer_p2.id === 'u_p2' && !!snapP1 && conns.p2.sent.some(m => m.type === 'snapshot'), { adm1, adm2, confirms: rec.confirms.length });
+    check('the snapshot is signed with the GM\'s key: its four public fields (the pair kept on this machine), and a signature Node\'s own crypto verifies over the player\'s nonce, the host\'s room id, the GM id and the table key handed over — and over no other nonce or room', !!snapP1 && !!GM_PRIV && JSON.stringify(snapP1.gmPub) === JSON.stringify({ kty: 'EC', crv: 'P-256', x: GM_PRIV.x, y: GM_PRIV.y }) && sigOk(snapP1.gmPub, snapP1.sig, snapText(conns.p1.cn, hostPeer.id, 'u_gm', K1)) && !sigOk(snapP1.gmPub, snapP1.sig, snapText(conns.p2.cn, hostPeer.id, 'u_gm', K1)) && !sigOk(snapP1.gmPub, snapP1.sig, snapText(conns.p1.cn, hostPeer.id + '-r1', 'u_gm', K1)), snapP1 && { gmPub: snapP1.gmPub, sig: snapP1.sig });
     check('the proven key is kept, not re-issued (the snapshot carries the key the player proved)', !!snapP1 && snapP1.key === K1 && stubs.getActiveCampaign().players.u_p1.key === K1 && stubs.getActiveCampaign().players.u_p2.key === K2);
     check('the snapshot carries no GM-only field value, no hidden token, no GM note, no planner, no players record, no table key', (() => { const s = JSON.stringify(snapP1 && snapP1.appState); const m = s && s.match(/tok_hidden|note1|"pl_1"|secret plan|the orc lies|"players":\{|aaaaaaaa|"f_gmfig":(7|3|99)/); return !!s && !m; })(), String((JSON.stringify(snapP1 && snapP1.appState) || '').match(/.{0,60}(tok_hidden|note1|"pl_1"|secret plan|the orc lies|"players":\{|aaaaaaaa|"f_gmfig":(7|3|99)).{0,40}/) || 'leak'));
     check('the snapshot gives the map the player landed on whole and the other map as its stub (possession)', !!snapP1 && snapP1.appState.campaigns.c1.items.m_open && !snapP1.appState.campaigns.c1.items.m_open.stub && snapP1.appState.campaigns.c1.items.m_open.whiteboard.some(w => w.id === 'tok_p1') && snapP1.appState.campaigns.c1.items.m_fog && snapP1.appState.campaigns.c1.items.m_fog.stub === true && snapP1.appState.campaigns.c1.items.m_fog.whiteboard.length === 0);
@@ -436,14 +460,14 @@ function mutations(tpl) {
     conns.w = connect('peer_w'); hello(conns.w, { id: 'u_w', name: 'Waiting' });
     check('a stranger\'s hello waits for the GM (one dialog, a wait sent, not admitted)', rec.confirms.length === 1 && conns.w.sent.some(m => m.type === 'wait') && !net.roster.peer_w);
     const joinConfirm = rec.confirms[0];
-    const snapshotForClient = clone(snapP1);
+    const snapshotForClient = clone(snapP1); delete snapshotForClient.gmPub; delete snapshotForClient.sig;   // as an older host gives it: the client world below fuzzes every kind on a table with no signing key; the signed snapshot has its own section at the end
     resetRec(); sentLog.length = 0; warned.length = 0;
 
     /* ---------- the host templates: one well-formed example per message type ---------- */
     const host = {
         pid: { p1: 'u_p1', p2: 'u_p2' },
         tpl: {
-            'hello': { type: 'hello', profile: { id: 'u_new', name: 'Newcomer', color: '#123456', avatar: 'data:image/png;base64,iVBORw0KGgo=', face: '🙂' }, version: '1.5.0', password: '', proof: '' },   // no key rides in a hello since the proof (a known id is challenged; the answer is a proof)
+            'hello': { type: 'hello', profile: { id: 'u_new', name: 'Newcomer', color: '#123456', avatar: 'data:image/png;base64,iVBORw0KGgo=', face: '🙂' }, version: '1.5.0', password: '', proof: '', cn: 'c'.repeat(32) },   // no key rides in a hello since the proof (a known id is challenged; the answer is a proof)
             'hold': { type: 'hold', ms: 1000 },
             'hb': { type: 'hb' },
             'item': { type: 'item', campId: 'c1', itemId: 'm_open', item: { whiteboard: [{ id: 'tok_p1', x: 120, y: 130, rot: 0, front: 0, elevation: 0, posture: '' }, { id: 'stroke_p1', type: 'path', ownerId: 'u_p1', pts: [[0, 0], [10, 10], [20, 5]], color: '#ffffff', strokeWidth: 3, x: 0, y: 0, w: 20, h: 10, baseW: 20, baseH: 10, opacity: 1 }] }, a: 1 },
@@ -590,6 +614,7 @@ function mutations(tpl) {
         if (longest(after.roster) > 100000) finding('an unbounded string is kept on the roster', tag, msg, mut);
         rec.confirms.forEach(c => { const k = msg.type + '|' + (pid || conn.peer); confirmsBy.set(k, (confirmsBy.get(k) || 0) + 1); if (confirmsBy.get(k) === 2) finding('a dialog raised more than once per message type by one peer', msg.type + ' from ' + (pid || 'a stranger') + ' → "' + c.text.slice(0, 80) + '"', msg); });
         if (dt > 200 && !opts.again) { const t1 = performance.now(); try { net._handleMessage(clone(msg), conn); } catch (e) {} finally { net.applyingRemote = false; } flushTimers(); const dt2 = performance.now() - t1; if (dt2 > 200) finding('one message takes more than 200 ms', tag + ' (' + Math.round(dt) + ' ms, again ' + Math.round(dt2) + ' ms)', msg, mut); }
+        if (GM_D && sentLog.slice(sentBefore).some(s => { try { return JSON.stringify(s.m).indexOf(GM_D) >= 0; } catch (e) { return false; } })) finding('the GM\'s signing key (its private half) is sent', tag, msg, mut);
         warned.forEach(w => { if (/wire send failed/.test(w)) finding('a send the packer refused (console.warn)', tag + ' → ' + w.slice(0, 100), msg); });
         if (who === 's' || who === 'w') {
             const toThem = sentLog.slice(sentBefore).filter(s => s.to === conn.peer && s.m.type !== 'hb' && s.m.type !== 'denied' && s.m.type !== 'wait');
@@ -913,6 +938,7 @@ function mutations(tpl) {
         try { cnet._handleMessage(msg, conn); } catch (e) { threw = e; } finally { cnet.applyingRemote = false; }
         try { flushTimers(); } catch (e) { threw = threw || e; }
         await drain(); flushTimers();
+        if (conn && conn.wpSnapWait) { await settle(() => !conn.wpSnapWait); await drain(); flushTimers(); }   // a snapshot whose signature is being checked (off the main thread): its oracles wait for the verdict
         if (authMay && conn.wpAuthDone) await settle(() => sentLog.length > sb);   // the proof is computed off the main thread: wait for the answer so this probe's oracles see it
         const dt = performance.now() - t0;
         let after = snapOf(cnet);
@@ -1080,6 +1106,97 @@ function mutations(tpl) {
     }
     check('client: every dialog raised in the run was one the app owns (none with host text)', !openFindings().some(f => /dialog/.test(f.kind) && /client/.test(f.kind)));
     check('client: across the run the join was torn down only by denied / kicked / end from the dialled host (' + revived + ' revivals of the stand-in join)', revivedOdd.length === 0, revivedOdd.slice(0, 3));
+
+    /* ---------- the GM this app knows (the signing key, trust on first use): the real join against hosts that are and are not that GM ---------- */
+    {
+        const gmS = mkSigner(), sqS = mkSigner();   // the GM's pair and a stand-in host's, both Node's own: nothing here is signed by the app's code
+        const lsJ = k => { try { const o = JSON.parse(localStorage.getItem(k) || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } };
+        const signedSnap = (signer, c, over) => { const s = Object.assign(clone(snapshotForClient), over || {}); s.gmPub = Object.assign({}, signer.pub); s.sig = signer.sign(snapText(c.wpCn, c.peer, s.gmId, s.key)); return s; };
+        const dial = () => { const p = peers[peers.length - 1]; p.emit('open'); flushTimers(); const c = p.conns[0]; c.emit('open'); flushTimers(); return c; };   // the newest peer registers and its connection to the room opens
+        const freshJoin = () => { document.getElementById('netJoinBtn').click(); return dial(); };   // a join the player begins, through the real Join button
+        const give = async (c, m) => { let threw = null; try { cnet._handleMessage(m, c); } catch (e) { threw = e; } finally { cnet.applyingRemote = false; } await settle(() => !c.wpSnapWait); await drain(); return threw; };
+        const SAID = 'This table\u2019s GM is not the one you know from this room code \u2014 the GM may have reinstalled, or someone else is at that code.';
+        const ASKED = 'This table\u2019s GM is not the one you know from this room code. The GM may have reinstalled or moved to another computer \u2014 or someone else is at that code. If you are not sure, ask your GM before you say yes. Trust this table\u2019s GM from now on, and join?';
+        const canary = () => [].concat(rec.html, rec.text, rec.attr).some(x => x.v.indexOf(CANARY) >= 0) || rec.toasts.some(t => t.indexOf(CANARY) >= 0) || rec.confirms.some(d => d.text.indexOf(CANARY) >= 0);
+        cnet.leaveSession(true); flushTimers(); cnet.foreign = false; cnet.leaving = false; stateMod.state.appState = clone(own);
+        localStorage.removeItem('wp_gmPins'); localStorage.removeItem('wp_gmRooms'); localStorage.setItem('wp_tableKeys', JSON.stringify({ u_victim: 'VICTIMKEY'.repeat(3), u_gm: K1 }));
+        resetRec(); warned.length = 0;
+
+        // 1. first use
+        const c1 = freshJoin(), h1 = c1.sent.find(m => m.type === 'hello');
+        const t1 = await give(c1, signedSnap(gmS, c1));
+        check('client (the GM this app knows): a first join pins the GM — the hello carries this connection\'s own nonce, the snapshot signed over it, the room dialled, the GM id and the table key is taken, the GM\'s key kept by its four public fields, the room code remembered as that GM\'s, the table key stored, no question asked',
+            !t1 && !!h1 && h1.cn === c1.wpCn && /^[0-9a-f]{32}$/.test(String(h1.cn)) && !('key' in h1) && cnet.syncedPeer === c1.peer && cnet.foreign === true && JSON.stringify(lsJ('wp_gmPins').u_gm) === JSON.stringify(gmS.pub) && lsJ('wp_gmRooms').c_abcdef === 'u_gm' && lsJ('wp_tableKeys').u_gm === K1 && rec.confirms.length === 0,
+            { threw: t1 && t1.message, cn: h1 && h1.cn, synced: cnet.syncedPeer, pins: lsJ('wp_gmPins'), rooms: lsJ('wp_gmRooms'), confirms: rec.confirms.length });
+
+        // 2. the link drops; the app dials again by itself; the next generation of the code is held by someone else, the one after by the GM
+        resetRec(); const keys0 = localStorage.getItem('wp_tableKeys'), pins0 = localStorage.getItem('wp_gmPins'), app0 = JSON.stringify(stateMod.state.appState);
+        c1.close(); flushTimers();
+        peers[peers.length - 1].emit('error', { type: 'peer-unavailable' }); flushTimers();   // the generation that last answered is gone
+        const c2 = dial(), evil = signedSnap(sqS, c2, { key: 'e'.repeat(32), reason: CANARY, notepad: { type: 'notepad', on: true, text: CANARY, gmId: 'u_gm', campaign: CANARY, gm: CANARY } });
+        evil.appState.campaigns.c1.name = 'Not your table ' + CANARY;
+        const t2 = await give(c2, evil), t2b = await give(c2, { type: 'chat', text: CANARY, from: { id: 'u_gm', name: 'GM', gm: true } });
+        const after2 = { open: c2.open, synced: cnet.syncedPeer, same: JSON.stringify(stateMod.state.appState) === app0, keys: localStorage.getItem('wp_tableKeys') === keys0, pins: localStorage.getItem('wp_gmPins') === pins0, confirms: rec.confirms.length, said: rec.toasts.filter(t => t.indexOf(SAID) === 0).length, canary: canary(), active: cnet.active };
+        flushTimers();   // the reconnect goes on: the generations after it are not there, and the round comes back to the one refused
+        const gone = () => { const p = peers[peers.length - 1]; p.emit('open'); const id = p.conns[0].peer; p.emit('error', { type: 'peer-unavailable' }); flushTimers(); return id; };
+        const walked = [gone(), gone(), gone()];
+        const c3 = dial(), t3 = await give(c3, signedSnap(gmS, c3));
+        check('client (the GM this app knows): on an automatic reconnect a snapshot from whoever holds the next generation of the room code — its own key pair, the GM\'s id, its own text — is refused: nothing synced or applied, nothing more read from it, the stored key and the pin untouched, the connection closed from this side, no question, the notice in the app\'s own words; the reconnect then dials the generations after it and, the round done, passes over the one it refused — where the GM answers, its own snapshot is taken with no question',
+            !t2 && !t2b && c2.peer === 'waypoint-abcdef-r1' && after2.open === false && after2.synced === null && after2.same && after2.keys && after2.pins && after2.confirms === 0 && after2.said === 1 && !after2.canary && after2.active === true
+            && JSON.stringify(walked) === JSON.stringify(['waypoint-abcdef-r2', 'waypoint-abcdef-r3', 'waypoint-abcdef']) && !t3 && c3.peer === 'waypoint-abcdef-r2' && cnet.syncedPeer === c3.peer && rec.confirms.length === 0 && rec.toasts.filter(t => t.indexOf(SAID) === 0).length === 1 && localStorage.getItem('wp_gmPins') === pins0 && lsJ('wp_tableKeys').u_gm === K1,
+            { c2: c2.peer, after2, walked, c3: c3.peer, synced: cnet.syncedPeer, toasts: rec.toasts.slice(0, 4) });
+
+        // 3. every variation of the signed snapshot, each on a join of its own: taken only when the independent reading says so
+        const others = [
+            ['another key pair, rightly signing its own snapshot under the GM\'s id', c => signedSnap(sqS, c)],
+            ['the GM\'s signature made for another connection\'s nonce', c => { const s = signedSnap(gmS, c); s.sig = gmS.sign(snapText('0'.repeat(32), c.peer, 'u_gm', K1)); return s; }],
+            ['the GM\'s signature made for another room id', c => { const s = signedSnap(gmS, c); s.sig = gmS.sign(snapText(c.wpCn, c.peer + '-r1', 'u_gm', K1)); return s; }],
+            ['the table key changed after signing', c => Object.assign(signedSnap(gmS, c), { key: 'f'.repeat(32) })],
+            ['no key and no signature (as an older host)', c => { const s = signedSnap(gmS, c); delete s.gmPub; delete s.sig; return s; }],
+            ['another GM id at this room code, rightly signed by its own key', c => signedSnap(sqS, c, { gmId: 'u_other', notepad: null })],
+            ['the signature in upper case', c => { const s = signedSnap(gmS, c); s.sig = s.sig.toUpperCase(); return s; }],
+            ['the pinned key shown, signed by another', c => { const s = signedSnap(sqS, c); s.gmPub = Object.assign({}, gmS.pub); return s; }]
+        ];
+        const tplS = { type: 'snapshot', gmId: 'u_gm', key: K1, gmPub: Object.assign({}, gmS.pub), sig: 'f'.repeat(128) }, nMut = mutations(tplS).length;
+        let took = 0, refused = 0, stricter = 0, tookOther = 0; const f0 = found.size;
+        for (let i = 0; i < nMut + others.length; i++) {
+            probes++;
+            const c = freshJoin(); let msg, name;
+            if (i < nMut) {
+                const m = mutations({ type: 'snapshot', gmId: 'u_gm', key: K1, gmPub: Object.assign({}, gmS.pub), sig: gmS.sign(snapText(c.wpCn, c.peer, 'u_gm', K1)) })[i]; msg = m.msg; name = m.name;
+                if (msg && typeof msg === 'object') Object.keys(snapshotForClient).forEach(k => { if (!hasOwn(tplS, k) && !hasOwn(msg, k)) msg[k] = clone(snapshotForClient[k]); });   // the rest of a snapshot rides along (none of it is signed)
+            } else { name = others[i - nMut][0]; msg = others[i - nMut][1](c); }
+            const lsB = localStorage.dump(), want = msg && msg.type === 'snapshot' ? gmJudge(lsB, msg, c, 'abcdef') : 'refuse';
+            resetRec(); warned.length = 0;
+            const thr = await give(c, msg); flushTimers();
+            const tk = cnet.syncedPeer === c.peer && cnet.active === true, lsA = localStorage.dump();
+            if (thr) finding('exception escapes handleMessage (client)', 'signed snapshot — ' + thr.constructor.name + ': ' + String(thr.message).slice(0, 120), msg, name);
+            if (tk && want === 'refuse') finding('client: a table is taken from a host that is not the GM this app knows', 'a snapshot under a pinned GM, at a room code this app knows → synced', msg, name);
+            if (!tk && ['wp_tableKeys', 'wp_gmPins', 'wp_gmRooms'].some(k => lsA[k] !== lsB[k])) finding('client: a refused table changes what this app knows of its GMs or its table keys', 'a snapshot under a pinned GM', msg, name);
+            if (rec.confirms.length) finding('client: a refused table raises a question before the join has run its course', 'a snapshot under a pinned GM → "' + rec.confirms[0].text.slice(0, 60) + '"', msg, name);
+            if (canary()) finding('client: a refused table\'s text reaches the page', 'a snapshot under a pinned GM', msg, name);
+            if (tk) { took++; if (i >= nMut) tookOther++; } else if (want === 'take') stricter++; else refused++;
+        }
+        check('client (the GM this app knows): ' + (nMut + others.length) + ' variations of the GM\'s signed snapshot, each on a join of its own (' + took + ' taken, ' + refused + ' refused, ' + stricter + ' refused though rightly signed) — one is taken only when Node\'s own crypto finds the pinned key\'s signature over this connection\'s nonce, the room dialled, the GM id and the table key; none of the ' + others.length + ' forgeries is',
+            found.size === f0 && took >= 1 && refused >= 40 && tookOther === 0, { took, refused, stricter, tookOther, newFindings: found.size - f0 });
+
+        // 4. a join the player begins, and every generation of the code answers as someone else: asked once, at the end, in the app's own words
+        const walk = async () => { const at = []; let c = freshJoin(); for (let g = 0; g < 4; g++) { at.push(c.peer); await give(c, signedSnap(sqS, c, { reason: CANARY, notepad: { type: 'notepad', on: true, text: CANARY, gmId: 'u_gm', campaign: CANARY, gm: CANARY } })); flushTimers(); if (g < 3) c = dial(); } return at; };
+        resetRec(); const at1 = await walk(), q1 = rec.confirms.slice(), nPeers = peers.length;
+        const said1 = rec.text.some(t => t.v.indexOf(SAID + ' You have not joined.') === 0), state1 = { active: cnet.active, synced: cnet.syncedPeer, pins: localStorage.getItem('wp_gmPins') === pins0, keys: lsJ('wp_tableKeys').u_gm === K1, canary: canary() };
+        if (q1[0]) q1[0].cb(false);
+        flushTimers(); const afterNo = { peers: peers.length - nPeers, active: cnet.active, pins: localStorage.getItem('wp_gmPins') === pins0 };
+        check('client (the GM this app knows): a join the player begins tries each generation of the code in turn when the one that answers is not their GM, and ends unjoined — said in the app\'s own words, nothing of the host\'s text shown — with ONE question (the app\'s own words, never answered by Enter); a no changes nothing and dials nothing',
+            JSON.stringify(at1) === JSON.stringify(['waypoint-abcdef', 'waypoint-abcdef-r1', 'waypoint-abcdef-r2', 'waypoint-abcdef-r3']) && q1.length === 1 && q1[0].text === ASKED && !!q1[0].opts && q1[0].opts.noEnter === true && said1 && state1.active === false && state1.synced === null && state1.pins && state1.keys && !state1.canary && afterNo.peers === 0 && afterNo.active === false && afterNo.pins,
+            { at1, asked: q1.map(d => d.text.slice(0, 50)), said1, state1, afterNo });
+        resetRec(); await walk(); const q2 = rec.confirms.slice();
+        if (q2[0]) q2[0].cb(true);
+        const cY = dial(), tY = await give(cY, signedSnap(sqS, cY)), yes = { asked: q2.length, synced: cnet.syncedPeer === cY.peer, pin: JSON.stringify(lsJ('wp_gmPins').u_gm) === JSON.stringify(sqS.pub), confirms: rec.confirms.length };
+        const cZ = freshJoin(), tZ = await give(cZ, signedSnap(gmS, cZ)), then = { synced: cnet.syncedPeer === cZ.peer, pin: JSON.stringify(lsJ('wp_gmPins').u_gm) === JSON.stringify(sqS.pub) };   // and from then on the key said yes to is the one known: the old one is refused in its turn
+        check('client (the GM this app knows): a yes joins again and takes the table that answered with that very key — pinned in place of the old one, no second question — and from then on that is the GM this app knows',
+            !tY && !tZ && yes.asked === 1 && yes.synced && yes.pin && yes.confirms === 1 && then.synced === false && then.pin, { yes, then });
+        cnet.leaveSession(true); flushTimers(); resetRec();
+    }
 
     /* ---------- the summary ---------- */
     check('host: every player a probe cost their connection was readmitted through the proof (' + readmits + ' readmissions)', readmitFailed.length === 0, readmitFailed.slice(0, 3));

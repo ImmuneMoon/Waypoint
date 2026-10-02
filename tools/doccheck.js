@@ -437,7 +437,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('fmtHtml: a hostile format draws plain — a colour that is no colour, a size that is none, a span outside the text, keys that are not the format\'s',
             ['red;background:url(//evil.example/x)', 'url(x)', '#fff', '" onmouseover="alert(1)', 'expression(alert(1))'].every(c => fmtHtml('t<x', { color: c, spans: [{ s: 0, e: 1, color: c }] }) === 't&lt;x')
             && fmtHtml('t', { size: '40px;position:fixed', style: 'color:red', onclick: 'x', spans: [{ s: 5, e: 9, b: true }, { s: 0, e: 1, style: 'x' }] }) === 't' && fmtHtml('t', 'bold') === 't' && fmtHtml('t', [{ b: true }]) === 't');
-        check('fmtHtml: the run\'s text goes through the function given (the planner\'s preview hands in the page sanitiser), never raw', fmtHtml('a<br>b<img src=x onerror=alert(1)>', { spans: [{ s: 0, e: 5, b: true }] }, sanitizeHtml) === '<span style="font-weight:bold;">a<br></span>b' && fmtHtml('x&y', undefined, sanitizeHtml) === 'x&amp;y');
+        check('fmtHtml: the run\'s text goes through the function given (escaping by default), never raw', fmtHtml('a<br>b<img src=x onerror=alert(1)>', { spans: [{ s: 0, e: 5, b: true }] }, sanitizeHtml) === '<span style="font-weight:bold;">a<br></span>b' && fmtHtml('x&y', undefined, sanitizeHtml) === 'x&amp;y');
 
         // the page: every field kind drawn from runs; with no format exactly as before
         const styled = { type: 'doc', id: 'd', meta: { title: 'T' }, blocks: [
@@ -499,6 +499,59 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && JSON.stringify(cleanBlockFmts(JSON.parse(JSON.stringify(pb)))) === JSON.stringify(pb) && cleanBlockFmts(null) === null && cleanBlockFmts('x') === 'x'
             && (() => { const c = cleanBlockFmts({ type: 'node', title: 'T', fmt: 'x', colFmt: [{ b: true }], rows: 'r', rowFmt: [[{ b: true }]] }); return !('fmt' in c) && !('colFmt' in c) && !('rowFmt' in c); })(), JSON.stringify([pb, fb]));
         check('cleanBlockFmts: a block with no format is left exactly as it is', (() => { const b = { type: 'node', title: 'T', cols: ['A'], rows: [{ col1: 'x' }] }, j = JSON.stringify(b); return JSON.stringify(cleanBlockFmts(b)) === j; })());
+
+        /* ---- the review's follow-ups ---- */
+        const Jq = JSON.stringify, { fmtRich, sanitizeBare } = D;
+        // a field that reads typed markup (a planner's): sanitised whole, the runs laid over its text
+        check('fmtRich: with no format the result is exactly the page sanitiser\'s (a planner\'s field reads as it always did until it is styled)',
+            ['a <b>bold</b> &mdash; c', 'x<br>y', '5 < 6', '<img src=x onerror=alert(1)>t', ''].every(t => fmtRich(t, undefined) === sanitizeHtml(t) && fmtRich(t, {}) === sanitizeHtml(t) && fmtRich(t, 'bold') === sanitizeHtml(t)) && fmtRich(null, { b: true }) === '' && fmtRich('', { b: true }) === '');
+        check('fmtRich: a run that begins and ends inside typed markup leaves the markup reading as it did — the word is coloured and still bold, the dash still a dash',
+            fmtRich('a <b>bold</b> &mdash; c', { spans: [{ s: 5, e: 9, color: GREEN }] }) === 'a <b><span style="color:#5cb87a;">bold</span></b> \u2014 c'
+            && fmtRich('a <b>b</b> c', { color: RED }) === '<span style="color:#d9534f;">a </span><b><span style="color:#d9534f;">b</span></b><span style="color:#d9534f;"> c</span>', fmtRich('a <b>bold</b> &mdash; c', { spans: [{ s: 5, e: 9, color: GREEN }] }));
+        check('fmtRich: a run boundary inside an entity moves to its end (an entity is one character, of the run it begins in); one inside a tag changes nothing about the tag',
+            fmtRich('x &mdash; y', { spans: [{ s: 0, e: 5, color: RED }] }) === '<span style="color:#d9534f;">x \u2014</span> y' && fmtRich('x &mdash; y', { spans: [{ s: 4, e: 11, b: true }] }) === 'x \u2014<span style="font-weight:bold;"> y</span>'
+            && fmtRich('a<br>b', { spans: [{ s: 0, e: 3, b: true }] }) === '<span style="font-weight:bold;">a</span><br>b' && fmtRich('a<b>x</b>', { spans: [{ s: 2, e: 5, i: true }] }) === 'a<b><span style="font-style:italic;">x</span></b>');
+        check('fmtRich: markup can never be made of two runs, and what the sanitiser drops is dropped whole — nothing of a dropped tag shows as text',
+            (() => { const h = fmtRich('<img src=x onerror=alert(1)> and <script>x</script>y', { color: RED, spans: [{ s: 5, e: 40, b: true }] }); return h === '<span style="color:#d9534f;font-weight:bold;"> and </span><span style="color:#d9534f;">y</span>' && risksNone(h); })()
+            && fmtRich('<scr' + 'ipt>alert(1)</scr' + 'ipt><a href="javascript:alert(1)">x</a>', { spans: [{ s: 2, e: 6, b: true }, { s: 10, e: 30, color: RED }] }) === 'x');
+        check('fmtRich: a field with a size keeps no size of a typed span inside it (they would multiply); the span\'s colour stays; with no size on the field the typed one stands',
+            fmtRich('<span style="font-size:1.728em">big</span> x', { size: 'huge' }) === '<span style="font-size:1.728em;">big x</span>'
+            && fmtRich('<span style="font-size:1.728em;color:#112233">big</span> x', { size: 'huge', i: true }) === '<span style="font-size:1.728em;"><span style="color:#112233"><span style="font-style:italic;">big</span></span><span style="font-style:italic;"> x</span></span>'
+            && fmtRich('<span style="font-size:1.728em">big</span> x', { b: true }) === '<span style="font-size:1.728em"><span style="font-weight:bold;">big</span></span><span style="font-weight:bold;"> x</span>');
+        check('fmtRich: a text with no markup in it is drawn exactly as fmtHtml draws it through the sanitiser (a bare < and & too), and a hostile format draws plain',
+            [['buy milk now', { color: RED, size: 'large', spans: [{ s: 4, e: 8, color: GREEN, b: true }, { s: 9, e: 12, i: true }] }], ['5 < 6 & 7', { spans: [{ s: 0, e: 3, color: RED }] }], ['ab', { b: true, spans: [{ s: 1, e: 2, color: GREEN }] }], ['x', { i: true }]].every(c => fmtRich(c[0], c[1]) === fmtHtml(c[0], c[1], sanitizeHtml))
+            && fmtRich('t<b>x</b>', { color: 'url(x)', size: '40px', spans: [{ s: 0, e: 1, color: '" onmouseover="alert(1)' }, { s: 5, e: 99, style: 'x' }] }) === 't<b>x</b>');
+
+        // Markdown has no colour and no size: an import brings none
+        check('sanitizeBare: the page sanitiser less the look — a span or a font is just its text; everything else is what sanitizeHtml gives',
+            sanitizeBare('<p>Plain <span style="color:#ff0000;font-size:1.728em">red <b>huge</b></span> and <font color="#00ff00">green</font> <a href="https://a.b/c">l</a><script>x</script></p>') === '<p>Plain red <b>huge</b> and green <a href="https://a.b/c" target="_blank" rel="noopener noreferrer">l</a></p>'
+            && ['<p>a<br>b</p><ul><li>x</li></ul>', '<b>x</span>y</b>', '<p onclick="x()">t</p><img src=x onerror=alert(1)>', 'a &amp; b &mdash; <unknown>c</unknown>', '<div><i>x</div>y'].every(h => sanitizeBare(h) === sanitizeHtml(h)) && sanitizeBare(null) === '');
+        if (M) {
+            const mi = M.markdownToBlocks('Plain <span style="color:#ff0000;font-size:1.728em">red huge</span> and <font color="#00ff00">green</font> text.\n\n::: callout\n<span style="color:#ff0000">c</span>all\n:::\n\n> <font color="#00ff00">q</font>uote', { kind: 'doc' });
+            const guide = require('fs').readFileSync(path.join(__dirname, '..', 'CAMPAIGN_INTEGRATION.md'), 'utf8');
+            check('Markdown import (text style): a file\'s inline colour and size are not brought in — a paragraph, a fenced block and a quote come in as their plain text — as the guide says',
+                Jq(mi.blocks.map(b => [b.type, b.content])) === Jq([['text', '<p>Plain red huge and green text.</p>'], ['callout', 'call'], ['callout', 'quote']])
+                && guide.indexOf('Markdown has neither: an export writes the plain text and an import brings no format (a file\'s inline `<span style>` or `<font color>` comes in as its text)') > 0, Jq(mi.blocks.map(b => [b.type, b.content])));
+            const mdOut = M.docToMarkdown({ type: 'doc', id: 'd', meta: { title: 'T' }, blocks: [{ id: 'b', type: 'text', content: '<p><span style="color:#d9534f">red</span> <b>text</b></p>' }] }).text;
+            check('Markdown round trip (text style): an export writes no colour and an import of it brings none — the same both ways', !/span|color|d9534f/.test(mdOut) && /red \*\*text\*\*/.test(mdOut) && Jq(M.markdownToBlocks(mdOut, { kind: 'doc' }).blocks.map(b => b.content)) === Jq(['<p>red <b>text</b></p>']), mdOut);
+        }
+
+        // a page's table title, a caption with no picture, the heads past the eighth
+        const tdoc = { type: 'doc', id: 'd', meta: { title: 'T' }, blocks: [
+            { id: 't1', type: 'table', title: 'Loot table', cols: ['A'], rows: [['x']], fmt: { title: { color: RED, spans: [{ s: 0, e: 4, b: true }] }, sub: { b: true } } },
+            { id: 'i1', type: 'image', src: '', caption: 'no picture', fmt: { caption: { i: true } } }
+        ] };
+        const tSent = cleanDoc(tdoc), tGot = cleanDoc(tSent, { keepHidden: true }), tH = renderDoc(tGot, { mermaid: false });
+        check('cleanDoc (text style): a page table\'s title keeps its format on the wire (that key only), and a caption on a block with no picture too',
+            Jq(tSent.blocks[0].fmt) === Jq({ title: { color: RED, spans: [{ s: 0, e: 4, b: true }] } }) && Jq(tSent.blocks[1].fmt) === Jq({ caption: { i: true } }) && Jq(tGot) === Jq(tSent), Jq(tSent.blocks));
+        check('render (text style): a page table\'s title is drawn from its runs; with no format exactly as before',
+            tH.indexOf('<h3><span style="color:#d9534f;font-weight:bold;">Loot</span><span style="color:#d9534f;"> table</span></h3>') > 0 && renderDoc({ blocks: [{ type: 'table', title: 'Loot table', cols: ['A'], rows: [['x']] }] }).indexOf('<h3>Loot table</h3><table class="doc-table">') > 0, tH);
+        check('render (text style): the caption of a picture block with no picture yet is drawn from its runs too; with no format exactly as before',
+            tH.indexOf('<div class="doc-noimg">No picture yet</div><figcaption><span style="font-style:italic;">no picture</span></figcaption>') > 0 && renderDoc({ blocks: [{ type: 'image', src: '', caption: 'no picture' }] }).indexOf('<div class="doc-noimg">No picture yet</div><figcaption>no picture</figcaption>') > 0, tH);
+        const ten = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'];
+        const wide = cleanBlockFmts({ type: 'node', title: 'W', cols: ten.slice(), colFmt: [{ b: true }, null, null, null, null, null, null, { i: true }, { b: true }, { i: true }] });
+        const past = cleanBlockFmts({ type: 'node', title: 'W', cols: ten.slice(), colFmt: [null, null, null, null, null, null, null, null, { b: true }] });
+        check('cleanBlockFmts: a table\'s heads are read up to the ' + LIMITS.cols + ' columns a table can have — a format past the last of them is not kept', LIMITS.cols === 8 && Jq(wide.colFmt) === Jq([{ b: true }, null, null, null, null, null, null, { i: true }]) && !('colFmt' in past), Jq([wide.colFmt, past.colFmt]));
     }
 
     /* ---- publication under a window ---- */

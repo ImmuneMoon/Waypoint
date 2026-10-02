@@ -32,13 +32,13 @@ import { state, dom } from './state.js';
 
 import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap, isDocLike } from './models.js';
 
-import { renderDoc, compileFlowchart, DOC_BLOCKS, mergeDocStyle, docStyleCss, cleanDocStyle, sanitizeHtml, proseHtml, stripMermaidLinks, fmtHtml, fieldFmt, colFmtOf, cellFmtOf } from './docrender.js';
+import { renderDoc, compileFlowchart, DOC_BLOCKS, mergeDocStyle, docStyleCss, cleanDocStyle, sanitizeHtml, proseHtml, stripMermaidLinks, fmtHtml, fmtRich, fieldFmt, colFmtOf, cellFmtOf } from './docrender.js';
 
 import * as TF from './textfmt.js';
 
 import { num, picRef } from './safecore.js';
 
-import { load, updateUndoBtn, pushHistory, undo, redo, save, download, getBase64Image, rebaseHistory, withoutHistory, fieldUndoChord, stepBoundary } from './io.js';
+import { load, updateUndoBtn, pushHistory, undo, redo, save, download, getBase64Image, rebaseHistory, withoutHistory, fieldUndoChord, stepBoundary, stepFold } from './io.js';
 
 import { updateCampaignSelect, updateSidebarNav, navigateToMap } from './sidebar.js';
 
@@ -215,9 +215,12 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
      that holds the selection: for a plain box (an input or a textarea) the selection is its selectionStart / selectionEnd, read at the
      press — the bar's buttons never take the focus (mousedown is swallowed, as the text blocks' own bar does) — and remembered for the
      two controls that must take it (the size list, the custom colour). With nothing selected B, I and a colour are the whole field's;
-     the size always is. In a text block's box the bar drives that block's own rich-text commands. Each press is one undo step. */
+     the size always is. In a text block's box the bar drives that block's own rich-text commands. Each press is one undo step, and Ctrl+Z
+     in the field takes the press back (never the typing before it). A control the keyboard reached keeps the focus while it is pressed, so
+     the Size list can be stepped through by its arrow keys — that run of sizes is one step — and Escape (Enter in the Size list) goes back
+     to the field. Nothing is remembered across a rebuild of the editor: a place is an index, and every index may have moved. */
   // [textcheck:bar-start]
-  var tsState = { open: false, sel: null, els: null };
+  var tsState = { open: false, sel: null, els: null, key: false, run: null };   // key: the bar was last touched by the keyboard; run: the field and selection a run of Size list steps is on
   try { tsState.open = sessionStorage.getItem('wp_textStyleOpen') === '1'; } catch (e) {}
   function tsBlocksOf() { var am = getActiveMap(); return am && isDocLike(am) && Array.isArray(am.blocks) ? am : null; }
   // the editor box of a field, by its place
@@ -255,21 +258,42 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   }
   function tsRteBody(idx) { var root = document.getElementById('plannerBlocks'); return root ? root.querySelector('.rte-body[data-idx="' + idx + '"]') : null; }
   // One press of a control. change: { b: true } | { i: true } | { color: '#rrggbb' | null } | { size: key | null } | 'clear'. True when something changed.
-  function tsPress(change) {
+  // from: the bar's control the press came from. One the keyboard reached and holds keeps the focus; after any other press the field has it.
+  function tsPress(change, from) {
       var am = tsBlocksOf(), sel = tsTarget();
-      if (!am || !sel) { tsRefresh(); return false; }
-      if (sel.rte !== undefined) { var body = tsRteBody(sel.rte), did = body ? rteLook(body, change) : false; tsNote(body); return did; }
+      if (!am || !sel) { tsState.run = null; tsRefresh(); return false; }
+      if (sel.rte !== undefined) { tsState.run = null; var body = tsRteBody(sel.rte), did = body ? rteLook(body, change) : false; tsNote(body); return did; }
       var fld = tsField(am.blocks, sel.d), text = fld.text(), was = fld.fmt();
       var now = change === 'clear' ? TF.clear(was, text, sel.s, sel.e) : TF.apply(was, text, sel.s, sel.e, change);
       if (JSON.stringify(now) === JSON.stringify(TF.cleanFmt(was, text))) { tsRefresh(); return false; }   // nothing to change: no step
-      stepBoundary();   // typing still on its way is its own step; this press is one step of its own
+      var kept = !!(from && tsState.key && document.activeElement === from);   // the keyboard is on this control: it keeps the focus
+      var runOn = kept && from === tsState.els.size ? JSON.stringify([sel.d, sel.s, sel.e]) : null;
+      if (runOn && tsState.run === runOn) stepFold();   // the Size list stepped through by its arrow keys: every size on the way is applied, the run of them is one undo step (io.js)
+      else stepBoundary();   // typing still on its way is its own step; this press is one step of its own
+      tsState.run = runOn;
       fld.setFmt(now);
       save(true);
       renderPlannerPreview();
       var box = tsBox(sel.d);   // the selection stays where it was, so the next press needs no second selecting
-      if (box) { try { if (document.activeElement !== box) box.focus(); box.setSelectionRange(sel.s, sel.e); } catch (e) {} }
+      if (box) {
+          box._wpNativeDirty = false; box._wpFloor = box.value;   // Ctrl+Z in the field now takes this press back (the planner's history has it, after the typing): the browser's own undo would take the typed text away with its styling, and its redo bring it back plain (io.js fieldUndoChord; what is typed after this it may still take back, down to this text)
+          try { if (!kept && document.activeElement !== box) box.focus(); box.setSelectionRange(sel.s, sel.e); } catch (e) {}
+      }
       if (now && now.spans && now.spans.length >= TF.MAX_SPANS) toast('This field now holds the most styled parts it can (' + TF.MAX_SPANS + ').');
       tsRefresh();
+      return true;
+  }
+  // The editor was rebuilt (a row, a block, a node or an arrow added, deleted or moved; undo, redo; another document): what was remembered is a
+  // place by index, and every index may now name another text — so nothing stays remembered and the bar asks for a click in a field. (A box
+  // given the focus again after an undo is noted afresh as it takes it.)
+  function tsRebuilt() { tsState.sel = null; tsState.run = null; tsRefresh(); }
+  // Back from the bar to the field it acts on, its selection as it was. False when there is none.
+  function tsBack() {
+      var am = tsBlocksOf(), sel = tsState.sel;
+      if (!am || !sel || sel.map !== am.id || sel.none) return false;
+      if (sel.rte !== undefined) { var body = am.blocks[sel.rte] ? tsRteBody(sel.rte) : null; if (!body) return false; body.focus(); return true; }
+      var box = tsField(am.blocks, sel.d) ? tsBox(sel.d) : null; if (!box) return false;
+      try { box.focus(); box.setSelectionRange(sel.s, sel.e); } catch (e) {}
       return true;
   }
   // The bar as it stands: what it acts on (as text), which controls are lit, which cannot apply
@@ -325,17 +349,23 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       toggle.addEventListener('mousedown', function(e) { e.preventDefault(); });
       toggle.addEventListener('click', function() { tsState.open = !tsState.open; try { sessionStorage.setItem('wp_textStyleOpen', tsState.open ? '1' : '0'); } catch (e) {} show(); tsRefresh(); });
       // the buttons never take the focus: the field keeps its selection. The size list and the colour picker must take it; the press then acts on what was remembered
-      body.addEventListener('mousedown', function(e) { var t = e.target; if (t === E.size || t === E.custom || (t && t.tagName === 'OPTION')) { tsTarget(); return; } e.preventDefault(); });
+      body.addEventListener('mousedown', function(e) { tsState.key = false; var t = e.target; if (t === E.size || t === E.custom || (t && t.tagName === 'OPTION')) { tsTarget(); return; } e.preventDefault(); });
+      // the keyboard in the bar: a control pressed from it keeps the focus (tsPress), Escape — and Enter in the Size list — goes back to the field
+      body.addEventListener('keydown', function(e) {
+          tsState.key = true;
+          if ((e.key === 'Escape' || (e.key === 'Enter' && e.target === E.size)) && tsBack()) { e.preventDefault(); e.stopPropagation(); }
+      });
       body.addEventListener('click', function(e) {
           var t = e.target, btn = t && t.closest ? t.closest('button') : null; if (!btn || btn.disabled) return;
-          if (btn.dataset.color) tsPress({ color: btn.dataset.color });
-          else if (btn.dataset.ts === 'b') tsPress({ b: true });
-          else if (btn.dataset.ts === 'i') tsPress({ i: true });
-          else if (btn.dataset.ts === 'nocolor') tsPress({ color: null });
-          else if (btn.dataset.ts === 'clear') tsPress('clear');
+          if (btn.dataset.color) tsPress({ color: btn.dataset.color }, btn);
+          else if (btn.dataset.ts === 'b') tsPress({ b: true }, btn);
+          else if (btn.dataset.ts === 'i') tsPress({ i: true }, btn);
+          else if (btn.dataset.ts === 'nocolor') tsPress({ color: null }, btn);
+          else if (btn.dataset.ts === 'clear') tsPress('clear', btn);
       });
-      E.size.addEventListener('change', function() { tsPress({ size: E.size.value || null }); });
-      E.custom.addEventListener('change', function() { tsPress({ color: E.custom.value }); });   // once, when the picker closes: one undo step
+      E.size.addEventListener('change', function() { tsPress({ size: E.size.value || null }, E.size); });
+      E.size.addEventListener('blur', function() { tsState.run = null; });   // the list was left: the next size is a step of its own
+      E.custom.addEventListener('change', function() { tsPress({ color: E.custom.value }, E.custom); });   // once, when the picker closes: one undo step
       show(); tsRefresh();
   }
   // Ctrl+B / Ctrl+I in a plain box do what the buttons do (seen in the capture phase: a flowchart label stops its own keys)
@@ -725,8 +755,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       applyPlannerFullscreen();
 
-      if (tsState.sel && tsState.sel.map !== activeMap.id) tsState.sel = null;   // another document: nothing is remembered across
-      tsRefresh();
+      tsRebuilt();   // every box above is new: no place in the old ones is remembered
 
   }
 
@@ -925,6 +954,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (change !== 'clear' && !(change && (change.b === true || change.i === true))) body._wpNativeDirty = false;   // a colour or a size re-made nodes behind the browser's own text undo: Ctrl+Z goes to the planner's history (io.js fieldUndoChord), which has this press as a step
       return true;
   }
+  // [textcheck:rtewire-start]
   function wireRte(container) {
       Array.from(container.querySelectorAll('.rte-body')).forEach(function(body) {
           body.addEventListener('input', function() {
@@ -969,6 +999,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           });
       });
   }
+  // [textcheck:rtewire-end]
   function nl(content, para) {
       var c = String(content || '');
       if (!/\n/.test(c) || /<(p|br|div|ul|ol|li|h[1-6]|table|pre|blockquote)\b/i.test(c)) return c;
@@ -1187,41 +1218,63 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       });
   };
   /* ---- find in planner ----
-     Highlights in the rendered preview only (the editor boxes are left alone). Text nodes are
-     matched on a normalised copy (lower case, accents stripped) with an index map back to the
-     original, so "Selkath" is found by "selk" and "Sahrhie" by "sahr". The exact phrase wins;
-     with no phrase hit, every word is matched at word starts. */
-  var pfState = { q: '', hits: [], cur: -1 };
+     Highlights in the rendered preview only (the editor boxes are left alone). The text is read in
+     stretches — the text nodes of one run of inline content, joined — so a word drawn as several
+     runs (part of it coloured by the Text style bar) is found whole; each stretch is matched on a
+     normalised copy (lower case, accents stripped) with an index map back to the original, so
+     "Selkath" is found by "selk" and "Sahrhie" by "sahr". The exact phrase wins; with no phrase
+     hit, every word is matched at word starts. */
+  // [textcheck:find-start]
+  var pfState = { q: '', hits: [], cur: -1 };   // hits: each the list of its <mark>s — a found text may lie across several text nodes (a word styled in part is drawn as runs)
   function pfNorm(s) { return String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
   function pfClear() {
       var pv = document.getElementById('plannerPreview'); if (!pv) return;
       pv.querySelectorAll('mark.pf-hit').forEach(function(m) { var p = m.parentNode; while (m.firstChild) p.insertBefore(m.firstChild, m); p.removeChild(m); p.normalize(); });
       pfState.hits = []; pfState.cur = -1;
   }
-  function pfTextNodes(root) {
-      var out = [], w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: function(n) {
-          var p = n.parentNode; if (!p) return NodeFilter.FILTER_REJECT;
-          var tag = p.nodeName; if (tag === 'SCRIPT' || tag === 'STYLE' || p.closest('svg')) return NodeFilter.FILTER_REJECT;
-          return n.nodeValue.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
-      } });
-      var n; while ((n = w.nextNode())) out.push(n);
+  // Elements whose text runs on with the text around them, so a found text may cross them: the inline tags the page sanitiser writes, and a
+  // span with no class — a run of a styled field (docrender fmtHtml / fmtRich), a text block's colour or size. Anything else — a paragraph, a
+  // cell, a heading, a line break, a span with a class of the renderer's (a subtitle, a tag) — ends a stretch.
+  var PF_INLINE = { SPAN: 1, B: 1, STRONG: 1, I: 1, EM: 1, U: 1, S: 1, STRIKE: 1, A: 1, CODE: 1, FONT: 1, BIG: 1, SMALL: 1, MARK: 1 };
+  // The preview's text as stretches: each the text nodes of one run of inline content, in document order (nothing of a script, a style or a drawn chart)
+  function pfStretches(root) {
+      var out = [], cur = [];
+      var end = function() { if (cur.some(function(n) { return n.nodeValue.trim(); })) out.push(cur); cur = []; };
+      var walk = function(el) {
+          for (var n = el.firstChild; n; n = n.nextSibling) {
+              if (n.nodeType === 3) { if (n.nodeValue) cur.push(n); continue; }
+              if (n.nodeType !== 1) continue;
+              var tag = String(n.nodeName).toUpperCase();
+              if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'SVG') continue;
+              if (PF_INLINE[tag] && !(tag === 'SPAN' && n.className)) walk(n); else { end(); walk(n); end(); }
+          }
+      };
+      walk(root); end();
       return out;
   }
-  // ranges [start,end) in a text node's original string for a regex over its normalised form
-  function pfRanges(node, re) {
-      var orig = node.nodeValue, map = [], norm = '';
+  // ranges [start,end) in a stretch's joined text for a regex over its normalised form
+  function pfRanges(seg, re) {
+      var orig = seg.map(function(n) { return n.nodeValue; }).join(''), map = [], norm = '';
       for (var i = 0; i < orig.length; i++) { var ch = orig[i].toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); for (var k = 0; k < ch.length; k++) map.push(i); norm += ch; }
       map.push(orig.length);
       var out = [], m; re.lastIndex = 0;
       while ((m = re.exec(norm))) { if (!m[0]) { re.lastIndex++; continue; } out.push([map[m.index], map[m.index + m[0].length - 1] + 1]); }
       return out;
   }
-  function pfWrap(node, ranges) {
-      var hits = [];
-      for (var i = ranges.length - 1; i >= 0; i--) {   // from the end so earlier offsets stay valid
-          var r = ranges[i], rest = node.splitText(r[0]), after = rest.splitText(r[1] - r[0]);
-          var mk = document.createElement('mark'); mk.className = 'pf-hit'; rest.parentNode.insertBefore(mk, rest); mk.appendChild(rest);
-          hits.unshift(mk); void after;
+  // Each range gets a <mark> around its part of every text node it lies in; a hit is the list of its marks
+  function pfWrap(seg, ranges) {
+      var hits = [], starts = [], lens = [], at = 0;
+      seg.forEach(function(n) { starts.push(at); lens.push(n.nodeValue.length); at += n.nodeValue.length; });
+      for (var i = ranges.length - 1; i >= 0; i--) {   // from the end, and each range's nodes from the last, so earlier offsets stay valid
+          var r = ranges[i], marks = [];
+          for (var k = seg.length - 1; k >= 0; k--) {
+              var a = Math.max(r[0], starts[k]) - starts[k], z = Math.min(r[1], starts[k] + lens[k]) - starts[k];
+              if (a >= z) continue;
+              var rest = seg[k].splitText(a); rest.splitText(z - a);
+              var mk = document.createElement('mark'); mk.className = 'pf-hit'; rest.parentNode.insertBefore(mk, rest); mk.appendChild(rest);
+              marks.unshift(mk);
+          }
+          if (marks.length) hits.unshift(marks);
       }
       return hits;
   }
@@ -1232,34 +1285,23 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       pfClear();
       var q = pfNorm(box.value).trim(); pfState.q = q;
       if (!q) { if (cnt) cnt.textContent = ''; return; }
-      var nodes = pfTextNodes(pv), hits = [];
-      var phrase = new RegExp(pfEsc(q), 'g');
-      nodes.forEach(function(n) { var rs = pfRanges(n, phrase); if (rs.length) hits = hits.concat(pfWrap(n, rs)); });
-      if (!hits.length && /\s/.test(q)) {   // no phrase: every word, at word starts
-          var words = q.split(/\s+/).filter(Boolean).map(pfEsc);
-          var re = new RegExp('(?<![a-z0-9])(' + words.join('|') + ')[a-z0-9]*', 'g');
-          nodes = pfTextNodes(pv);
-          nodes.forEach(function(n) {
-              var rs = pfRanges(n, re).map(function(r) { return r; });
-              if (rs.length) hits = hits.concat(pfWrap(n, rs));
-          });
-      } else if (!hits.length) {   // one word: at word starts, any ending
-          var re1 = new RegExp('(?<![a-z0-9])(' + pfEsc(q) + ')[a-z0-9]*', 'g');
-          nodes = pfTextNodes(pv);
-          nodes.forEach(function(n) { var rs = pfRanges(n, re1); if (rs.length) hits = hits.concat(pfWrap(n, rs)); });
-      }
+      var find = function(re) { var found = []; pfStretches(pv).forEach(function(seg) { var rs = pfRanges(seg, re); if (rs.length) found = found.concat(pfWrap(seg, rs)); }); return found; };
+      var hits = find(new RegExp(pfEsc(q), 'g'));
+      if (!hits.length && /\s/.test(q)) hits = find(new RegExp('(?<![a-z0-9])(' + q.split(/\s+/).filter(Boolean).map(pfEsc).join('|') + ')[a-z0-9]*', 'g'));   // no phrase: every word, at word starts
+      else if (!hits.length) hits = find(new RegExp('(?<![a-z0-9])(' + pfEsc(q) + ')[a-z0-9]*', 'g'));   // one word: at word starts, any ending
       pfState.hits = hits;
       if (!hits.length) { if (cnt) cnt.textContent = '0'; pfState.cur = -1; return; }
       pfGo(wasCur >= 0 && wasCur < hits.length ? wasCur : 0, true);
   }
   function pfGo(i, quiet) {
       var hits = pfState.hits, cnt = document.getElementById('plannerFindCount'); if (!hits.length) return;
-      if (pfState.cur >= 0 && hits[pfState.cur]) hits[pfState.cur].classList.remove('pf-cur');
+      if (pfState.cur >= 0 && hits[pfState.cur]) hits[pfState.cur].forEach(function(m) { m.classList.remove('pf-cur'); });
       pfState.cur = ((i % hits.length) + hits.length) % hits.length;
-      var h = hits[pfState.cur]; h.classList.add('pf-cur');
-      h.scrollIntoView({ block: 'center', behavior: quiet ? 'auto' : 'smooth' });
+      var h = hits[pfState.cur]; h.forEach(function(m) { m.classList.add('pf-cur'); });
+      h[0].scrollIntoView({ block: 'center', behavior: quiet ? 'auto' : 'smooth' });
       if (cnt) cnt.textContent = (pfState.cur + 1) + ' / ' + hits.length;
   }
+  // [textcheck:find-end]
   (function wirePlannerFind() {
       var box = document.getElementById('plannerFind'); if (!box) return;
       var t = null;
@@ -1285,8 +1327,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // sanitiser (docrender sanitizeHtml: a typed <br> or &mdash; reads as before, nothing that runs survives), prose blocks read
   // as a page's do (proseHtml), a diagram's source is cleaned and loses its click directives before mermaid reads it, a
   // picture is the app's own (safecore picRef), and sizes are numbers. Only a Raw HTML block is the GM's HTML as written.
-  // A field with a format (textfmt.js) is drawn from its runs by docrender fmtHtml: the format cleaned against the text first,
-  // each run's text through the same sanitiser, in a span whose style is written from the cleaned values; with none, as before.
+  // A field with a format (textfmt.js) is drawn by docrender fmtRich: the format cleaned against the text first, the WHOLE field through
+  // the same sanitiser once — so a typed <b> or &mdash; reads as it does with no format, wherever a run begins — and the runs laid over its
+  // text by their offsets, each in a span whose style is written from the cleaned values; with none, as before. (A caption is escaped text: fmtHtml.)
   function plannerPreviewHtml(activeMap, camp) {
       var blocks = Array.isArray(activeMap.blocks) ? activeMap.blocks : [];
       var _pCss = docStyleCss(mergeDocStyle(camp && camp.docStyle, activeMap.meta && activeMap.meta.style));
@@ -1296,9 +1339,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           if (!b || typeof b !== 'object') return;
           html += '<div class="pv-blk" data-blk="' + _bi + '">';
           if (b.type === 'h1') {
-              html += '<h1>' + fmtHtml(b.title || '', fieldFmt(b, 'title'), sanitizeHtml) + (b.sub ? '<span class="sub">' + fmtHtml(b.sub, fieldFmt(b, 'sub'), sanitizeHtml) + '</span>' : '') + '</h1>';
+              html += '<h1>' + fmtRich(b.title || '', fieldFmt(b, 'title')) + (b.sub ? '<span class="sub">' + fmtRich(b.sub, fieldFmt(b, 'sub')) + '</span>' : '') + '</h1>';
           } else if (b.type === 'h2') {
-              html += '<h2>' + fmtHtml(b.title || '', fieldFmt(b, 'title'), sanitizeHtml) + '</h2>';
+              html += '<h2>' + fmtRich(b.title || '', fieldFmt(b, 'title')) + '</h2>';
           } else if (b.type === 'lede') {
               html += '<p class="lede">' + proseHtml(b.content) + '</p>';
           } else if (b.type === 'oneline') {
@@ -1319,8 +1362,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           } else if (b.type === 'node') {
               var plainPv = b.mode === 'table';
               html += '<div class="node' + (plainPv ? ' plain-table' : '') + '">';
-              if (!plainPv || b.title) html += '<h3>' + fmtHtml(b.title || '', fieldFmt(b, 'title'), sanitizeHtml) + (!plainPv && b.tag ? ' <span class="tag">' + fmtHtml(b.tag, fieldFmt(b, 'tag'), sanitizeHtml) + '</span>' : '') + '</h3>';
-              if (!plainPv && b.must) html += '<p class="must"><b>Must resolve:</b> ' + fmtHtml(b.must, fieldFmt(b, 'must'), sanitizeHtml) + '</p>';
+              if (!plainPv || b.title) html += '<h3>' + fmtRich(b.title || '', fieldFmt(b, 'title')) + (!plainPv && b.tag ? ' <span class="tag">' + fmtRich(b.tag, fieldFmt(b, 'tag')) + '</span>' : '') + '</h3>';
+              if (!plainPv && b.must) html += '<p class="must"><b>Must resolve:</b> ' + fmtRich(b.must, fieldFmt(b, 'must')) + '</p>';
               if (!plainPv && b.linkMapId) {
                   var mapP = camp && camp.items && typeof b.linkMapId === 'string' && Object.prototype.hasOwnProperty.call(camp.items, b.linkMapId) ? camp.items[b.linkMapId] : null;
                   if (mapP && typeof mapP === 'object') {
@@ -1330,9 +1373,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               }
               if (Array.isArray(b.rows) && b.rows.length > 0) {
                   var cols = (Array.isArray(b.cols) && b.cols.length > 0) ? b.cols.slice() : (plainPv ? ['Item', 'Detail', 'Notes'] : ['Action', 'Why', 'Cost', 'Returns via']);
-                  html += '<table><thead><tr>' + cols.map(function(c, ci) { return '<th>' + fmtHtml(c, colFmtOf(b, ci), sanitizeHtml) + '</th>'; }).join('') + '</tr></thead><tbody>';
+                  html += '<table><thead><tr>' + cols.map(function(c, ci) { return '<th>' + fmtRich(c, colFmtOf(b, ci)) + '</th>'; }).join('') + '</tr></thead><tbody>';
                   b.rows.forEach(function(r, ri) {
-                      html += '<tr>' + cols.map(function(c, ci) { return '<td>' + fmtHtml((r && r['col' + (ci + 1)]) || '', cellFmtOf(b, ri, ci), sanitizeHtml) + '</td>'; }).join('') + '</tr>';
+                      html += '<tr>' + cols.map(function(c, ci) { return '<td>' + fmtRich((r && r['col' + (ci + 1)]) || '', cellFmtOf(b, ri, ci)) + '</td>'; }).join('') + '</tr>';
                   });
                   html += '</tbody></table>';
               }

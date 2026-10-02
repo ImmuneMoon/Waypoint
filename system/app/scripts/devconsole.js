@@ -98,7 +98,7 @@
         wpDocMd: 'The pure Markdown half (scripts/docmd.js): markdownToBlocks(text, {kind, items}), docToMarkdown(item, {items}), htmlToMarkdown, flowchartFromMermaid, parseAttrs, detectBundle, LIMITS. No DOM.',
         wpDocReaderOpenId: 'Handbook reader: the id of the page open in the reader, or null.',
         wpDocReaderRefresh: 'Handbook reader: (campId, itemId) re-renders the reader when that page changed (keeps the scroll position).',
-        wpDocRender: 'The handbook renderer and sanitizer (scripts/docrender.js): sanitizeHtml(html), cleanDoc(doc, {keepHidden}), renderDoc(doc, {src, mermaid}), proseHtml, compileFlowchart, fmtHtml(text, fmt, put), cleanBlockFmts(block), LIMITS. Pure — no state, no DOM.',
+        wpDocRender: 'The handbook renderer and sanitizer (scripts/docrender.js): sanitizeHtml(html), cleanDoc(doc, {keepHidden}), renderDoc(doc, {src, mermaid}), proseHtml, compileFlowchart, fmtHtml(text, fmt, put), fmtRich(text, fmt), cleanBlockFmts(block), sanitizeBare(html), LIMITS. Pure — no state, no DOM.',
         wpDuplicateWb: 'Duplicate the selected play-map items (same as Ctrl+D).',
         wpEditTextBox: 'Open the in-place editor for a text box, by id.',
         wpEraserCursorHide: "Hide the eraser's circle cursor.",

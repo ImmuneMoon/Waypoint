@@ -1200,6 +1200,17 @@ Fog of war
   sets them, in a character's Senses section, so a new campaign plays as
   before until a range is entered. A campaign begun from a starter earlier
   keeps the system it has.
+- Height in the fog: with your system's Height clears low cover rule, a
+  creature behind a crate or a low wall is hidden from a player whose
+  tokens all stand below it, while it stands no higher than the piece. The
+  piece stops what a wall stops there; a sense that passes walls still
+  marks the creature, and one token of theirs that sees it keeps it.
+- True 3D sightline (the Combat card's Height box): a piece with a Height
+  stops a line of sight or cover only where the straight line from the
+  viewer's eye to the target runs at or below it, so a token sees a
+  creature over a low wall, and the ruler, target marks and blasts read
+  cover the same way. Standing height is how far above its elevation a
+  token's eye sits; a sight-blocker with no Height is full height.
 
 Drawing tools
 - Pen tips: the Draw menu adds a tip — Round (the default), Square (blocky

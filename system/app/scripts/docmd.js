@@ -20,7 +20,7 @@
      resolved against the files or zip dropped with the .md, `data:` decoded, `https:` kept as a
      link). Raw HTML from a file is never a raw block: unknown tags are dropped, their text kept. */
 'use strict';
-import { sanitizeHtml, DOC_BLOCKS } from './docrender.js';
+import { sanitizeHtml, sanitizeBare, DOC_BLOCKS } from './docrender.js';
 
 var VERSION = '1.5.0';
 var LIMITS = { text: 2 * 1024 * 1024, blocks: 300, picture: 8 * 1024 * 1024, cols: 8 };
@@ -233,7 +233,8 @@ function markdownToBlocks(text, opts) {
     var lines = text.split('\n');
 
     function push(b) { b.id = uid(); blocks.push(b); return b; }
-    function tidy(html) { return sanitizeHtml(html).replace(/<p>\s*<\/p>/g, ''); }   // an HTML block inside a paragraph leaves empty pairs behind
+    // What a file's inline HTML becomes: the page sanitiser's, less colour and size (sanitizeBare) — Markdown has neither and an export writes neither, so an import brings none
+    function tidy(html) { return sanitizeBare(html).replace(/<p>\s*<\/p>/g, ''); }   // an HTML block inside a paragraph leaves empty pairs behind
     function flushRun() { if (!run.length) return; var html = tidy(run.join('')); run = []; if (html.replace(/<[^>]+>/g, '').trim() || /<pre>/.test(html)) push({ type: 'text', content: html }); }
     function flushInlineImages() { var list = ctx.inlineImages; ctx.inlineImages = []; list.forEach(function(im) { addImage(im.caption, im.dest, im.ref, im.attrs, true); }); }
     function addImage(caption, dest, ref, attrs, wasInline) {
@@ -275,7 +276,7 @@ function markdownToBlocks(text, opts) {
             i++; scene = null; handleFence(info, body.join('\n')); continue;
         }
         var cf = /^:::\s*(lede|oneline|flare|callout)\s*$/i.exec(line);
-        if (cf) { var cb = []; i++; while (i < lines.length && !/^:::\s*$/.test(lines[i])) { cb.push(lines[i]); i++; } i++; flushRun(); scene = null; push({ type: cf[1].toLowerCase(), content: sanitizeHtml(paraHtml(cb.filter(function(x) { return x.trim(); }), ctx)) }); flushInlineImages(); continue; }
+        if (cf) { var cb = []; i++; while (i < lines.length && !/^:::\s*$/.test(lines[i])) { cb.push(lines[i]); i++; } i++; flushRun(); scene = null; push({ type: cf[1].toLowerCase(), content: sanitizeBare(paraHtml(cb.filter(function(x) { return x.trim(); }), ctx)) }); flushInlineImages(); continue; }
         if (!line.trim()) { i++; continue; }
         var h = /^(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line);
         if (h) {
@@ -306,7 +307,7 @@ function markdownToBlocks(text, opts) {
             var qt = 'callout', tm = /^\[!(lede|oneline|flare|callout)\]\s*/i.exec(qb[0] || '');
             if (tm) { qt = tm[1].toLowerCase(); qb[0] = qb[0].slice(tm[0].length); }
             if (qb.some(function(x) { return /^>/.test(x); })) notes.push('A nested quote was flattened.');
-            flushRun(); scene = null; push({ type: qt, content: sanitizeHtml(paraHtml(qb.map(function(x) { return x.replace(/^>\s?/, ''); }).filter(function(x) { return x.trim(); }), ctx)) }); flushInlineImages(); continue;
+            flushRun(); scene = null; push({ type: qt, content: sanitizeBare(paraHtml(qb.map(function(x) { return x.replace(/^>\s?/, ''); }).filter(function(x) { return x.trim(); }), ctx)) }); flushInlineImages(); continue;
         }
         if (/\|/.test(line) && isTableSep(next)) {
             var cols = splitRow(line).map(plainText), rows = []; i += 2;

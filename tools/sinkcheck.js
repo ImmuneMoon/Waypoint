@@ -85,8 +85,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     check('nothing picRef lets through leaves the app (WHATWG URL)', escaped.length === 0, escaped);
 
     /* ---- the planner preview (planner.js plannerPreviewHtml) ---- */
-    const plannerPreviewHtml = new Function('esc', 'sanitizeHtml', 'proseHtml', 'stripMermaidLinks', 'compileFlowchart', 'docStyleCss', 'mergeDocStyle', 'num', 'picRef',
-        slice('planner.js', 'planner-preview') + '\nreturn plannerPreviewHtml;')(SC.esc, DR.sanitizeHtml, DR.proseHtml, DR.stripMermaidLinks, DR.compileFlowchart, DR.docStyleCss, DR.mergeDocStyle, SC.num, SC.picRef);
+    const plannerPreviewHtml = new Function('esc', 'sanitizeHtml', 'proseHtml', 'stripMermaidLinks', 'compileFlowchart', 'docStyleCss', 'mergeDocStyle', 'num', 'picRef', 'fmtHtml', 'fmtRich', 'fieldFmt', 'colFmtOf', 'cellFmtOf',
+        slice('planner.js', 'planner-preview') + '\nreturn plannerPreviewHtml;')(SC.esc, DR.sanitizeHtml, DR.proseHtml, DR.stripMermaidLinks, DR.compileFlowchart, DR.docStyleCss, DR.mergeDocStyle, SC.num, SC.picRef, DR.fmtHtml, DR.fmtRich, DR.fieldFmt, DR.colFmtOf, DR.cellFmtOf);
     const camp = { id: 'c1', docStyle: { textColor: 'red;background:url(//evil.example/d)', bgImage: U }, items: {
         m2: { id: 'm2', type: 'map', meta: { title: T }, rooms: [{ id: P, name: T }] }
     } };
@@ -138,6 +138,106 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     check('planner preview: a library picture keeps its name and width', bHtml.indexOf('<figure class="planner-img" style="width:50%; margin-left:auto; margin-right:0;"><img src="/saves/images/m1/My Map (1).png" alt="cap"><figcaption>cap</figcaption></figure>') >= 0);
     check('planner preview: an empty planner shows the hint', plannerPreviewHtml({ blocks: [] }, null).indexOf('This is the live preview pane.') >= 0 && plannerPreviewHtml({ blocks: 'x' }, null).indexOf('This is the live preview pane.') >= 0);
 
+    /* ---- text style (1.5.0): a plain field's format in the planner preview — drawn from runs, hostile formats plain, none exactly as before ---- */
+    {
+        const RED = '#d9534f', GREEN = '#5cb87a';
+        const stPlain = () => ({ id: 'p3', type: 'planner', meta: {}, blocks: [
+            { type: 'h1', title: 'Tom &amp; Jerry', sub: 'a<br>b' },
+            { type: 'h2', title: 'Beats' },
+            { type: 'node', title: 'N', tag: 'Tag', must: 'Win <b>now</b>', cols: ['A', 'B'], rows: [{ col1: 'x<br>y', col2: '5 < 6' }] },
+            { type: 'node', mode: 'table', title: 'Loot', rows: [{ col1: 'gold', col2: '9' }] },
+            { type: 'image', src: '/saves/images/m1/ok.png', caption: 'cap & <b>' },
+            { type: 'flowchart', nodes: [{ id: 'a', text: 'buy milk\nwalk dog' }, { id: 'b', text: 'B' }], edges: [{ from: 'a', to: 'b', text: 'go' }] }
+        ] });
+        const st = stPlain();
+        st.blocks[0].fmt = { title: { color: RED }, sub: { i: true } };
+        st.blocks[1].fmt = { title: { size: 'large' } };
+        st.blocks[2].fmt = { title: { b: true }, tag: { color: GREEN }, must: { spans: [{ s: 0, e: 3, i: true }] } }; st.blocks[2].colFmt = [null, { b: true }]; st.blocks[2].rows[0].fmt = { col2: { spans: [{ s: 0, e: 1, color: RED }] } };
+        st.blocks[3].colFmt = [{ i: true }]; st.blocks[3].rows[0].fmt = { col1: { color: GREEN } };
+        st.blocks[4].fmt = { caption: { b: true } };
+        st.blocks[5].nodes[0].fmt = { color: RED, spans: [{ s: 9, e: 17, color: GREEN, b: true }] }; st.blocks[5].edges[0].fmt = { i: true };
+        const campS = { id: 'c1', items: {} }, sHtml = plannerPreviewHtml(st, campS), pHtml = plannerPreviewHtml(stPlain(), campS);
+        check('text style (planner preview): a title and a subtitle, a section, a scene node\'s title, tag and must-resolve are drawn from their runs — the field through the page sanitiser, its runs in spans the renderer writes (a run\'s span ends at a typed tag and goes on after it)',
+            sHtml.indexOf('<h1><span style="color:#d9534f;">Tom &amp; Jerry</span><span class="sub"><span style="font-style:italic;">a</span><br><span style="font-style:italic;">b</span></span></h1>') >= 0 && sHtml.indexOf('<h2><span style="font-size:1.2em;">Beats</span></h2>') >= 0
+            && sHtml.indexOf('<h3><span style="font-weight:bold;">N</span> <span class="tag"><span style="color:#5cb87a;">Tag</span></span></h3>') >= 0 && sHtml.indexOf('<p class="must"><b>Must resolve:</b> <span style="font-style:italic;">Win</span> <b>now</b></p>') >= 0, sHtml.slice(0, 900));
+        check('text style (planner preview): a table\'s heads (typed or the default ones) and cells, and a picture\'s caption (its alt text stays plain)',
+            sHtml.indexOf('<th>A</th><th><span style="font-weight:bold;">B</span></th>') >= 0 && sHtml.indexOf('<td>x<br>y</td><td><span style="color:#d9534f;">5</span> &lt; 6</td>') >= 0
+            && sHtml.indexOf('<th><span style="font-style:italic;">Item</span></th><th>Detail</th><th>Notes</th>') >= 0 && sHtml.indexOf('<td><span style="color:#5cb87a;">gold</span></td><td>9</td>') >= 0
+            && sHtml.indexOf('alt="cap &amp; &lt;b&gt;"><figcaption><span style="font-weight:bold;">cap &amp; &lt;b&gt;</span></figcaption>') >= 0, sHtml);
+        check('text style (planner preview): a flowchart node\'s label and an arrow\'s compile with their runs, as a page\'s do; nothing in the preview can run or call out',
+            mermaidReads(sHtml, 0) === DR.compileFlowchart(st.blocks[5]) && mermaidReads(sHtml, 0).indexOf('a["<font color=d9534f>buy milk<br></font><font color=5cb87a><b>walk dog</b></font>"]') >= 0 && mermaidReads(sHtml, 0).indexOf('|"<i>go</i>"|') >= 0 && risks(sHtml).length === 0, mermaidReads(sHtml, 0));
+        check('text style (planner preview): with no format the markup is exactly what it was (pinned), and never a span of the renderer\'s',
+            pHtml.indexOf('<h1>Tom &amp; Jerry<span class="sub">a<br>b</span></h1>') >= 0 && pHtml.indexOf('<h2>Beats</h2>') >= 0 && pHtml.indexOf('<h3>N <span class="tag">Tag</span></h3>') >= 0 && pHtml.indexOf('<p class="must"><b>Must resolve:</b> Win <b>now</b></p>') >= 0
+            && pHtml.indexOf('<table><thead><tr><th>A</th><th>B</th></tr></thead><tbody><tr><td>x<br>y</td><td>5 &lt; 6</td></tr></tbody></table>') >= 0 && pHtml.indexOf('<th>Item</th><th>Detail</th><th>Notes</th>') >= 0
+            && pHtml.indexOf('<figcaption>cap &amp; &lt;b&gt;</figcaption>') >= 0 && pHtml.indexOf('<span style') < 0 && mermaidReads(pHtml, 0).indexOf('a["buy milk<br>walk dog"]:::neutral') >= 0);
+        const hs = stPlain();
+        hs.blocks[0].fmt = { title: { color: 'red;background:url(//evil.example/t)', size: '40px;position:fixed', b: 'yes', spans: [{ s: 0, e: 3, color: P }, { s: -4, e: 2, b: true }, { s: 1, e: 1, i: true }] }, sub: T, __proto__: { title: { b: true } } };
+        hs.blocks[1].fmt = [{ title: { b: true } }];
+        hs.blocks[2].fmt = { title: { style: 'color:red', onclick: 'alert(1)' }, tag: null, must: { spans: 'x' } }; hs.blocks[2].colFmt = { 1: { b: true } }; hs.blocks[2].rows[0].fmt = { col2: { color: 'url(' + U + ')' }, constructor: { b: true } };
+        hs.blocks[3].colFmt = [U, T, P]; hs.blocks[3].rows[0].fmt = T;
+        hs.blocks[4].fmt = { caption: { color: 'expression(alert(1))' } };
+        hs.blocks[5].nodes[0].fmt = { color: '"]:::x\nclick a call alert()', size: '</big><img src=' + U + '>', spans: [{ s: 0, e: 4, color: 'd9534f onerror=alert(1)' }] }; hs.blocks[5].edges[0].fmt = { b: 1, i: 'true' };
+        let hsHtml = '';
+        check('text style (planner preview): hostile formats draw plain — the markup is exactly the unstyled planner\'s — and nothing in it can run or call out',
+            throwsNot(function() { hsHtml = plannerPreviewHtml(hs, campS); }) && hsHtml === pHtml && risks(hsHtml).length === 0 && ({}).title === undefined, hsHtml.slice(0, 600));
+        const mixed = stPlain(); mixed.blocks[0].title = T + ' and ' + T; mixed.blocks[0].fmt = { title: { color: RED, spans: [{ s: 5, e: 40, b: true }] } }; mixed.blocks[2].rows[0].col1 = '<a href="javascript:alert(1)">x</a><script>alert(1)</script>'; mixed.blocks[2].rows[0].fmt = { col1: { spans: [{ s: 3, e: 31, color: GREEN }] } };
+        const mxHtml = plannerPreviewHtml(mixed, campS);
+        check('text style (planner preview): a run boundary inside typed markup cannot make markup, and nothing of a dropped tag shows as text — the field is sanitised whole, exactly as with no format, and the runs are laid over the text that is left', risks(mxHtml).length === 0 && !/<(script|a)\b/i.test(mxHtml) && mxHtml.split('<img').length === 2 && mxHtml.indexOf('<h1><span style="color:#d9534f;font-weight:bold;"> and </span><span class="sub">a<br>b</span></h1>') > 0 && mxHtml.indexOf('<td><span style="color:#5cb87a;">x</span></td>') > 0 && mxHtml.indexOf('onerror') < 0 && mxHtml.indexOf('javascript') < 0, risks(mxHtml));   // the one <img is the picture block's own
+        // a planner's plain fields have always read typed markup: a format changes the look of the text, never how the markup reads
+        const typed = stPlain(); typed.blocks[2].rows[0].col1 = 'a <b>bold</b> &mdash; c'; typed.blocks[2].must = 'x &mdash; y'; typed.blocks[1].title = '<span style="font-size:1.728em">Beats</span>'; typed.blocks[0].title = '<span style="font-size:1.728em">T</span>';
+        const typedPlain = plannerPreviewHtml(typed, campS);
+        typed.blocks[2].rows[0].fmt = { col1: { spans: [{ s: 5, e: 9, color: GREEN }] } }; typed.blocks[2].fmt = { must: { spans: [{ s: 0, e: 5, color: RED }] } }; typed.blocks[1].fmt = { title: { size: 'huge' } }; typed.blocks[0].fmt = { title: { b: true } };
+        const tyHtml = plannerPreviewHtml(typed, campS), h2of = h => (/<h2>.*?<\/h2>/.exec(h) || [''])[0];
+        check('text style (planner preview): a run that begins inside typed markup leaves it reading as it did — a styled word inside a typed <b> is coloured and still bold, a dash typed as &mdash; is still a dash wherever a run ends',
+            typedPlain.indexOf('<td>a <b>bold</b> \u2014 c</td>') > 0 && tyHtml.indexOf('<td>a <b><span style="color:#5cb87a;">bold</span></b> \u2014 c</td>') > 0 && tyHtml.indexOf('<p class="must"><b>Must resolve:</b> <span style="color:#d9534f;">x \u2014</span> y</p>') > 0 && tyHtml.indexOf('&amp;mda') < 0 && risks(tyHtml).length === 0, tyHtml.slice(0, 1200));
+        check('text style (planner preview): a field with a size draws one size only — a size typed into it as a span is dropped (they would multiply); without a size on the field the typed one stands',
+            h2of(typedPlain) === '<h2><span style="font-size:1.728em">Beats</span></h2>' && h2of(tyHtml) === '<h2><span style="font-size:1.728em;">Beats</span></h2>' && h2of(tyHtml).split('font-size').length === 2
+            && tyHtml.indexOf('<h1><span style="font-size:1.728em"><span style="font-weight:bold;">T</span></span><span class="sub">a<br>b</span></h1>') > 0, h2of(tyHtml));
+        check('text style (planner preview, wired): every field that reads typed markup — a title, a subtitle, a section, a node\'s title, tag and must-resolve, a head, a cell — is drawn by fmtRich; only the caption (escaped text) by fmtHtml',
+            (() => { const s = slice('planner.js', 'planner-preview'); return (s.match(/fmtRich\(/g) || []).length === 8 && (s.match(/fmtHtml\(/g) || []).length === 1 && /fmtHtml\(b\.caption, fieldFmt\(b, 'caption'\), esc\)/.test(s) && !/fmtHtml\([^\n;]*sanitizeHtml\)/.test(s); })());
+
+        // the reader, a floating panel and a pop-out: a page as a player's app draws it (cleaned again there, then the one renderer)
+        const page = { id: 'd1', type: 'doc', meta: { title: 'P', players: true }, blocks: [
+            { id: 'b1', type: 'h1', title: 'Rules ' + T, sub: 'v1', fmt: { title: { color: RED, spans: [{ s: 0, e: 5, b: true }] }, sub: { color: 'red" onmouseover="alert(1)' } } },
+            { id: 'b2', type: 'table', title: 'T', cols: ['A', P], colFmt: [null, { i: true }], rows: [{ col1: T, col2: 'y', fmt: { col1: { color: GREEN }, col2: { color: 'url(' + U + ')' } } }] },
+            { id: 'b3', type: 'flowchart', nodes: [{ id: 'a', text: T, fmt: { color: GREEN, size: 'huge' } }], edges: [] }
+        ] };
+        const asPlayer = DR.cleanDoc(DR.cleanDoc(page), { keepHidden: true }), rHtml = DR.renderDoc(asPlayer, { src: function(p) { return 'blob:http://127.0.0.1:3999/1'; } });
+        const hbSrc = read('handbook.js'), dpSrc = fs.readFileSync(path.join(dir, 'docpanel.js'), 'latin1'), poSrc = fs.readFileSync(path.join(dir, 'popout.js'), 'latin1');
+        check('text style (reader): a styled page a player\'s app holds draws its runs as escaped text in spans the renderer writes; a hostile format beside them draws plain; nothing can run or call out',
+            rHtml.indexOf('<h1><span style="color:#d9534f;font-weight:bold;">Rules</span><span style="color:#d9534f;"> &lt;img src=x onerror=alert(1)&gt;</span><span class="sub">v1</span></h1>') >= 0
+            && rHtml.indexOf('<th><span style="font-style:italic;">x&quot; onmouseover=&quot;alert(1)&quot; y=&quot;</span></th>') >= 0 && rHtml.indexOf('<td><span style="color:#5cb87a;">&lt;img src=x onerror=alert(1)&gt;</span></td><td>y</td>') >= 0 && risks(rHtml).length === 0, rHtml.slice(0, 900));
+        check('text style (reader, wired): the reader, the floating panel and the pop-out window all draw a page through docrender\'s renderDoc, and a player\'s app stores a page only as cleanDoc rebuilt it',
+            /body\.innerHTML = renderDoc\(it, \{ src: srcOf, mermaid: !!window\.mermaid, docStyle: _camp && _camp\.docStyle \}\);/.test(hbSrc) && /body\.innerHTML = DR\.renderDoc\(it, /.test(dpSrc) && /body\.innerHTML = DR\.renderDoc\(it, /.test(poSrc)
+            && (read('net.js').match(/window\.wpDocRender\.cleanDoc\((incoming|itS|it), \{ keepHidden: true \}\)/g) || []).length === 3 && /if \(item\.type === 'doc'\) return window\.wpDocRender \? window\.wpDocRender\.cleanDoc\(item\) : null;/.test(read('net.js')));
+    }
+
+    /* ---- text style (1.5.0): a text block's own bar — its colour and size controls are markup too ---- */
+    {
+        const TFm = await import(modUrl('textfmt.js'));
+        const mkBar = (TFx, what) => new Function('TF', 'esc', 'sanitizeHtml', 'nl', slice('planner.js', 'rtebar') + '\nreturn ' + (what || 'rteHtml') + ';')(TFx, SC.esc, DR.sanitizeHtml, DR.nl);
+        const barHtml = mkBar(TFm)(3, { type: 'text', content: '<p><span style="color: rgb(217, 83, 79)">red</span><font color="#5cb87a">g</font><span style="font-size:99px;background:url(' + U + ')">x</span></p>' });
+        const sw = barHtml.match(/<button type="button" class="rte-sw" data-color="(#[0-9a-f]{6})" title="[^"<>]*" style="background:\1;" tabindex="-1"><\/button>/g) || [];
+        check('text style (text block): its own bar gains the seven inks, a custom colour, Default and the size steps — from the core\'s constants, with no handler attribute',
+            sw.length === 7 && TFm.PALETTE.every(function(p, k) { return sw[k].indexOf('data-color="' + p[0] + '"') > 0; }) && barHtml.indexOf('<input type="color" class="rte-colorpick"') > 0 && barHtml.indexOf('class="rte-btn rte-nocolor"') > 0
+            && /<select class="rte-size"[^>]*><option value="">Size\u2026<\/option><option value="default">Default<\/option><option value="small">Small<\/option><option value="large">Large<\/option><option value="larger">Larger<\/option><option value="huge">Huge<\/option><\/select>/.test(barHtml) && risks(barHtml).length === 0, barHtml.slice(0, 600));
+        check('text style (text block): the box holds the stored colour and size in the sanitiser\'s one form (what the editing commands left is read into it; anything else is gone)',
+            barHtml.indexOf('<p><span style="color:#d9534f">red</span><span style="color:#5cb87a">g</span>x</p>') > 0 && barHtml.indexOf('evil.example') < 0);
+        const cmds = mkBar(TFm, 'RTE_CMDS');
+        check('text style (text block): the command list the play map\'s text box shares is as it was — every entry a command, a separator or the symbol tray (the colour and size controls are the planner bar\'s own, not in the list)',
+            Array.isArray(cmds) && cmds.length === 11 && cmds.every(function(k) { return k.sep === true || k.sym === true || (typeof k.c === 'string' && typeof k.l === 'string' && typeof k.t === 'string'); }) && cmds.filter(function(k) { return k.c; }).map(function(k) { return k.c; }).join() === 'bold,italic,underline,strikeThrough,insertUnorderedList,insertOrderedList,removeFormat'
+            && /var _rteBar = RTE_CMDS\.map\(function\(k\) \{\n\s*if \(k\.sep\) return '<span class="rte-sep"><\/span>';\n\s*if \(k\.sym\) return /.test(read('inspector.js')) && barHtml.indexOf('data-cmd="undefined"') < 0 && (barHtml.match(/class="rte-btn" data-cmd="/g) || []).length === 7, cmds);
+        const evilBar = mkBar({ PALETTE: [[P, T]], SIZES: [P], SIZE_NAMES: {} })(0, { type: 'text', content: '' });
+        check('text style (text block): the bar\'s markup escapes whatever its constants hold', risks(evilBar).length === 0 && evilBar.indexOf('<img') < 0 && evilBar.indexOf('data-color="x&quot; onmouseover=&quot;alert(1)&quot; y=&quot;"') > 0);
+        const plannerAll = read('planner.js');
+        check('text style (text block): a colour or a size is applied by the browser\'s own commands and then written as a span through the element\'s style (never as markup); the stored box is still the page sanitiser\'s on every draw',
+            /rteExec\('foreColor', c \|\| MARK\);/.test(plannerAll) && /rteExec\('fontSize', '7'\);/.test(plannerAll) && /var sp = document\.createElement\('span'\); if \(color\) sp\.style\.color = color; if \(em\) sp\.style\.fontSize = em;/.test(plannerAll)
+            && /var em = key && Object\.prototype\.hasOwnProperty\.call\(TF\.SIZE_EM, key\) \? TF\.SIZE_EM\[key\] : '';/.test(plannerAll) && !/insertHTML/.test(plannerAll));
+        check('text style (text block): the selection is put back on the same characters after a colour or a size (so the next press needs no second selecting), and Ctrl+Z after one goes to the planner\'s own history',
+            (plannerAll.match(/\n      rteSelect\(body, off\);\n  \}/g) || []).length === 2 && /var off = rteOffsets\(body\);\n      if \(!off \|\| off\[0\] === off\[1\]\) return;/.test(plannerAll)
+            && /if \(change !== 'clear' && !\(change && \(change\.b === true \|\| change\.i === true\)\)\) body\._wpNativeDirty = false;/.test(plannerAll) && /if \(this\._wpQuiet\) return;/.test(plannerAll));
+    }
+
     /* ---- the planner editor's rich-text boxes (planner.js rteInitial): a contenteditable is markup too ---- */
     const rteInitial = new Function('nl', 'sanitizeHtml', slice('planner.js', 'rte') + '\nreturn rteInitial;')(DR.nl, DR.sanitizeHtml);
     const rteHostile = [{ type: 'lede', content: 'Lede ' + T }, { type: 'text', content: '<p onclick="x">t</p><img src="' + U + '">' }, { type: 'flare', content: '<div style="background:url(//evil.example/f)">f</div>' }, { type: 'callout', content: '<iframe src="//evil.example"></iframe>' }].map(rteInitial).join('');
@@ -159,6 +259,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         ft.indexOf('math') < 0 && ['mglyph', 'svg', 'style', 'img', 'image', 'picture', 'iframe', 'object', 'embed', 'link'].every(t => ft.indexOf(t) >= 0) && ['style', 'src', 'srcset', 'href', 'xlink:href'].every(a => fa.indexOf(a) >= 0), ft);
     check('mermaid config: a diagram\'s own %%{init}%% cannot change the label rules or the security level', ['dompurifyConfig', 'securityLevel', 'secure'].every(k => (mcfg.secure || []).indexOf(k) >= 0), mcfg.secure);
     check('mermaid config: the GM\'s own mode is unchanged (loose; players get strict from handbook.js)', mcfg.securityLevel === 'loose' && mcfg.startOnLoad === false && !!mcfg.flowchart);
+    check('mermaid config (text style): a styled flowchart label needs nothing new from it — the label rules still forbid the style attribute, and the plain tags a label\'s runs are written in (b, i, font with its color, big, small, br) are not forbidden and not cut down to an allow-list',
+        fa.indexOf('style') >= 0 && ['b', 'i', 'font', 'big', 'small', 'br'].every(t => ft.indexOf(t) < 0) && fa.indexOf('color') < 0 && !('ALLOWED_TAGS' in dp) && !('ALLOWED_ATTR' in dp), [ft, fa]);
 
     /* ---- cluster P of the outside audit: the page runs only the app's own files (the policy both servers send says so; a script written into the page or a handler attribute would simply stop working) ---- */
     {

@@ -13,11 +13,12 @@ var openId = '';        // the doc/planner item id currently shown; '' = closed
 var lastSig = '';
 var mmMode = '';
 var query = '';         // the live search query
-var hits = [], curHit = -1;   // in-page highlight <mark> nodes + the focused one
+var hits = [], curHit = -1;   // in-page hits, each the list of its <mark>s (a found text may lie across the runs of a styled word), + the focused one
 
 function activeCamp() { try { var s = state.appState; return s && s.campaigns ? s.campaigns[s.activeCampaignId] : null; } catch (e) { return null; } }
 
 /* ---------- search helpers (pure) ---------- */
+// [textcheck:panelfold-start]
 // Fold to a case- and accent-insensitive form, length-preserving so string indices still map to the original.
 function fold(s) { return String(s == null ? '' : s).replace(/[À-ɏḀ-ỿ]/g, function(c) { return c.normalize('NFD')[0] || c; }).toLowerCase(); }
 function escRe(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
@@ -55,6 +56,7 @@ function matchRanges(ft, nq, words) {
     }
     return ranges;
 }
+// [textcheck:panelfold-end]
 
 /* ---------- cross-page search (shared: the panel + the app-wide page search + Ctrl+K use this) ---------- */
 function searchAll(q, camp, types) {
@@ -98,38 +100,69 @@ function renderResults(list) {
 }
 
 /* ---------- in-page highlight ---------- */
+// [textcheck:panelfind-start]
+// The page's text is read in stretches: the text nodes of one run of inline content, joined. So a word drawn as several runs (part of it
+// coloured or bold by the Text style bar) is marked whole and a phrase is found across a run boundary, as the editor's Find reads its
+// preview (planner.js pfStretches). A hit is the list of its marks: one around its part of each text node it lies in.
 function clearMarks() {
     var body = ui('docPanelBody'); if (!body) return;
     var ms = body.querySelectorAll('mark.docpanel-hit');
-    ms.forEach(function(m) { m.replaceWith(document.createTextNode(m.textContent)); });
+    ms.forEach(function(m) { var p = m.parentNode; while (m.firstChild) p.insertBefore(m.firstChild, m); p.removeChild(m); });
     if (ms.length) body.normalize();
     hits = []; curHit = -1;
+}
+// Elements whose text runs on with the text around them, so a hit may cross them: the inline tags the page sanitiser and a flowchart label
+// write, and a span with no class (a run of a styled field, a text block's colour or size). Anything else ends a stretch: a paragraph, a
+// cell, a heading, a line break, a span with a class of the renderer's (a subtitle, a chart's label box). A script or a style sheet is not text.
+var HL_INLINE = { SPAN: 1, B: 1, STRONG: 1, I: 1, EM: 1, U: 1, S: 1, STRIKE: 1, A: 1, CODE: 1, FONT: 1, BIG: 1, SMALL: 1, MARK: 1 };
+function hlStretches(root) {
+    var out = [], cur = [];
+    var end = function() { if (cur.some(function(n) { return n.nodeValue.trim(); })) out.push(cur); cur = []; };
+    var walk = function(el) {
+        for (var n = el.firstChild; n; n = n.nextSibling) {
+            if (n.nodeType === 3) { if (n.nodeValue) cur.push(n); continue; }
+            if (n.nodeType !== 1) continue;
+            var tag = String(n.nodeName).toUpperCase();
+            if (tag === 'SCRIPT' || tag === 'STYLE') continue;
+            if (HL_INLINE[tag] && !(tag === 'SPAN' && n.className)) walk(n); else { end(); walk(n); end(); }
+        }
+    };
+    walk(root); end();
+    return out;
+}
+// Each range [start, end) of a stretch's joined text gets a <mark> around its part of every text node it lies in
+function hlWrap(seg, ranges) {
+    var found = [], starts = [], lens = [], at = 0;
+    seg.forEach(function(n) { starts.push(at); lens.push(n.nodeValue.length); at += n.nodeValue.length; });
+    for (var i = ranges.length - 1; i >= 0; i--) {   // from the end, and each range's nodes from the last, so earlier offsets stay valid
+        var r = ranges[i], marks = [];
+        for (var k = seg.length - 1; k >= 0; k--) {
+            var a = Math.max(r[0], starts[k]) - starts[k], z = Math.min(r[1], starts[k] + lens[k]) - starts[k];
+            if (a >= z) continue;
+            var rest = seg[k].splitText(a); rest.splitText(z - a);
+            var mk = document.createElement('mark'); mk.className = 'docpanel-hit'; rest.parentNode.insertBefore(mk, rest); mk.appendChild(rest);
+            marks.unshift(mk);
+        }
+        if (marks.length) found.unshift(marks);
+    }
+    return found;
 }
 function highlightBody(q) {
     clearMarks();
     var body = ui('docPanelBody'); if (!body) { updateCount(); return; }
     var nq = fold(q).trim(); if (!nq) { updateCount(); return; }
     var words = nq.split(/\s+/).filter(Boolean);
-    var walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT, null), nodes = [], n;
-    while ((n = walker.nextNode())) { if (n.nodeValue && n.nodeValue.trim() && !(n.parentNode && n.parentNode.tagName === 'SCRIPT')) nodes.push(n); }
-    nodes.forEach(function(node) {
-        var text = node.nodeValue, ranges = matchRanges(fold(text), nq, words);
-        if (!ranges.length) return;
-        var frag = document.createDocumentFragment(), last = 0;
-        ranges.forEach(function(r) {
-            if (r[0] > last) frag.appendChild(document.createTextNode(text.slice(last, r[0])));
-            var mk = document.createElement('mark'); mk.className = 'docpanel-hit'; mk.textContent = text.slice(r[0], r[1]);
-            frag.appendChild(mk); hits.push(mk); last = r[1];
-        });
-        if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
-        node.parentNode.replaceChild(frag, node);
+    hlStretches(body).forEach(function(seg) {
+        var ranges = matchRanges(fold(seg.map(function(n) { return n.nodeValue; }).join('')), nq, words);
+        if (ranges.length) hits = hits.concat(hlWrap(seg, ranges));
     });
     if (hits.length) { curHit = 0; markCur(false); }
     updateCount();
 }
-function markCur(scroll) { hits.forEach(function(m, k) { m.classList.toggle('cur', k === curHit); }); if (scroll !== false && hits[curHit]) hits[curHit].scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+function markCur(scroll) { hits.forEach(function(h, k) { h.forEach(function(m) { m.classList.toggle('cur', k === curHit); }); }); if (scroll !== false && hits[curHit]) hits[curHit][0].scrollIntoView({ block: 'center', behavior: 'smooth' }); }
 function step(dir) { if (!hits.length) return; curHit = (curHit + dir + hits.length) % hits.length; markCur(true); updateCount(); }
 function updateCount() { var c = ui('docPanelFindCount'); if (c) c.textContent = hits.length ? (curHit + 1) + '/' + hits.length : (query.trim() ? '0' : ''); }
+// [textcheck:panelfind-end]
 
 function runSearch() {
     var box = ui('docPanelSearchInput'); query = box ? box.value : '';

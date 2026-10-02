@@ -3,8 +3,9 @@
    of the pictures it referenced (the caller uploads those and fills in the URLs); docToMarkdown(item)
    writes a planner or page back in the same dialect so the guide is proven by the round trip;
    flowchartFromMermaid reads the simple mermaid subset into the builder's native flowchart block.
-   No DOM, no state: docrender.js's sanitizer is the only import, so tools/doccheck.js runs this
-   under Node. The dialog and the entry points live in docimport.js.
+   No DOM, no state: the only imports are docrender.js (the sanitizer; where a block keeps its formats)
+   and textfmt.js (a format's cleaner), both pure, so tools/doccheck.js runs this under Node. The dialog
+   and the entry points live in docimport.js.
 
    The dialect (also Help ▸ Handbook ▸ Import and export, and TEMPLATE below):
      front matter title / subtitle / status (planners) / players (pages); the first `#` is the title
@@ -18,9 +19,13 @@
      subset = a native flowchart, other fences = code; `---` = a rule on a page, a run boundary in a
      planner; `![caption](path){width=50 float=left dx=0 dy=0 span}` = a picture (a relative path
      resolved against the files or zip dropped with the .md, `data:` decoded, `https:` kept as a
-     link). Raw HTML from a file is never a raw block: unknown tags are dropped, their text kept. */
+     link). Raw HTML from a file is never a raw block: unknown tags are dropped, their text kept.
+     Text style travels: a text block keeps `<span style="color:#rrggbb">` / `<span style="font-size:1.2em">`
+     (the sanitizer's one span form); in a title, a cell, a caption or a flowchart label, bold, italic
+     and those spans are written from the field's format and read back into it ("text style" below). */
 'use strict';
-import { sanitizeHtml, sanitizeBare, DOC_BLOCKS } from './docrender.js';
+import { sanitizeHtml, DOC_BLOCKS, fieldFmt, colFmtOf, cellFmtOf } from './docrender.js';
+import { cleanFmt, runsOf, SIZE_EM, MAX_RAW } from './textfmt.js';
 
 var VERSION = '1.5.0';
 var LIMITS = { text: 2 * 1024 * 1024, blocks: 300, picture: 8 * 1024 * 1024, cols: 8 };
@@ -152,7 +157,132 @@ function splitRow(line) {
     return cells.map(function(c) { return c.trim(); });
 }
 function isTableSep(line) { return /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(line || ''); }
-function plainText(md) { return unent(inline(md, { inlineImages: [] }).replace(/<[^>]+>/g, '')); }   // cells and titles are plain text in the editor's inputs
+
+/* ---------- text style (1.5.0): a plain field's format, in and out of the dialect ----------
+   A title, a cell, a caption, a label is plain text with its format beside it (textfmt.js). In a Markdown file the format is written INTO
+   the field's inline text — bold as **…**, italic as *…* (as <b> / <i> where the marks would not read back, or inside a line that is itself
+   bold or italic syntax), a colour as the page sanitiser's one span form, the field's size as one span around everything — and read back
+   out of it. What is read is only ever what the sanitiser wrote (fmtFromInline), and only where its text is the very text the field is
+   given; anything else is the plain text, as before. A look that holds for the whole text is written once, around everything, and comes
+   back as the field's own look; every other look as a span. A field with no format is written exactly as it always was. */
+var SIZE_OF = {}; Object.keys(SIZE_EM).forEach(function(k) { SIZE_OF[SIZE_EM[k]] = k; });
+function ownKey(o, k) { return !!o && typeof o === 'object' && Object.prototype.hasOwnProperty.call(o, k); }
+// The looks of a text as it is walked in order: open(look) … close() around text(length). look: { color, b, i, size } or null (an element that has none)
+function lookWalk() {
+    var stack = [], els = [], runs = [], n = 0, cur = { color: '', b: false, i: false };
+    var wraps = function() { return els.filter(function(el) { return el.s === 0 && (el.e < 0 ? n : el.e) === n; }); };   // around the whole text, outermost first
+    return {
+        open: function(look) {
+            var el = { look: look || null, s: n, e: -1, prev: cur };
+            if (look) { cur = { color: look.color || cur.color, b: cur.b || look.b === true, i: cur.i || look.i === true }; els.push(el); }
+            stack.push(el);
+        },
+        close: function() { var el = stack.pop(); if (el) { el.e = n; cur = el.prev; } },
+        text: function(len) {
+            if (!(len > 0)) return;
+            var last = runs[runs.length - 1];
+            if (last && last.color === cur.color && last.b === cur.b && last.i === cur.i) last.e = n + len;
+            else runs.push({ s: n, e: n + len, color: cur.color, b: cur.b, i: cur.i });
+            n += len;
+        },
+        els: function() { return els; },
+        wraps: wraps,
+        // The format: what wraps the whole text is the field's own look (of two colours the inner one stands; a size only here: a field has one),
+        // every run a span over it — cleaned, so undefined when nothing is left. size: one the caller read itself (a label's <big> / <small>).
+        fmt: function(text, size) {
+            if (!n || text.length !== n) return undefined;
+            var f = { spans: [] };
+            wraps().forEach(function(el) { var l = el.look; if (l.size && !f.size) f.size = l.size; if (l.color) f.color = l.color; if (l.b) f.b = true; if (l.i) f.i = true; });
+            if (size) f.size = size;
+            for (var k = 0; k < runs.length && f.spans.length < MAX_RAW; k++) {
+                var r = runs[k]; if (!r.color && !r.b && !r.i) continue;
+                var sp = { s: r.s, e: r.e }; if (r.color) sp.color = r.color; if (r.b) sp.b = true; if (r.i) sp.i = true;
+                f.spans.push(sp);
+            }
+            return cleanFmt(f, text);
+        }
+    };
+}
+function unesc(s) { return String(s).replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&'); }   // the sanitiser's own escaping, undone
+// fmtFromInline(html) → { text, fmt }: a plain field read from inline HTML. Built on the page sanitiser's output, never on the input: the
+// html goes through sanitizeHtml first and only what that wrote is read — <b> / <strong>, <i> / <em> and its one span form (a strict
+// colour; a size step when it is around everything). Whatever else it kept (a link, an underline, code, a paragraph) is just its text,
+// and a line break no character. fmt is the cleaner's (textfmt.js cleanFmt): absent when nothing is left.
+function fmtFromInline(html) {
+    var clean = sanitizeHtml(html), w = lookWalk(), text = '', re = /<(\/?)([a-z0-9]+)([^>]*)>|([^<]+)/g, m;
+    while ((m = re.exec(clean))) {
+        if (m[4] !== undefined) { var t = unesc(m[4]); text += t; w.text(t.length); continue; }
+        if (m[2] === 'br') continue;
+        if (m[1]) { w.close(); continue; }
+        var look = null;
+        if (m[2] === 'b' || m[2] === 'strong') look = { b: true };
+        else if (m[2] === 'i' || m[2] === 'em') look = { i: true };
+        else if (m[2] === 'span') {
+            var st = /^ style="(?:color:(#[0-9a-f]{6}))?;?(?:font-size:([0-9.]+em))?"$/.exec(m[3]), size = st && st[2] && ownKey(SIZE_OF, st[2]) ? SIZE_OF[st[2]] : '';
+            if (st && (st[1] || size)) look = { color: st[1] || '', size: size };
+        }
+        w.open(look);
+    }
+    var out = { text: text }, fmt = w.fmt(text);
+    if (fmt) out.fmt = fmt;
+    return out;
+}
+// A plain field from the file's inline Markdown: its text exactly as before (the inline HTML less its tags, entities decoded: cells and
+// titles are plain text in the editor's inputs), and the format its bold, italic and colour / size
+// spans make — only where the sanitiser's reading of that inline HTML is the very same text (else the field is plain, as before).
+function fieldOf(md) {
+    var html = inline(md, { inlineImages: [] }), text = unent(html.replace(/<[^>]+>/g, ''));
+    if (html.indexOf('<') < 0) return { text: text };
+    var r = fmtFromInline(html);
+    return r.fmt && r.text === text ? { text: text, fmt: r.fmt } : { text: text };
+}
+// a field's format on its block (block.fmt.<key>): set, or taken off when there is none
+function setFmt(b, k, f) { if (f) { if (!ownKey(b, 'fmt')) b.fmt = {}; b.fmt[k] = f; } else if (ownKey(b, 'fmt')) { delete b.fmt[k]; if (!Object.keys(b.fmt).length) delete b.fmt; } }
+function looksOf(text, fmt) { var f = cleanFmt(fmt, text); return JSON.stringify([(f && f.size) || '', runsOf(text, f)]); }
+// The look the whole text has — written once, around everything, and read back as the field's own
+function wholeLook(f, runs) {
+    var c0 = runs.length ? runs[0].color : '';
+    return { size: f.size || '', b: runs.every(function(r) { return r.b; }), i: runs.every(function(r) { return r.i; }), color: c0 && runs.every(function(r) { return r.color === c0; }) ? c0 : (f.color || '') };
+}
+function spanOpen(color, size) {
+    var c = /^#[0-9a-f]{6}$/.test(color) ? color : '', z = size && ownKey(SIZE_EM, size) ? SIZE_EM[size] : '';
+    return c || z ? '<span style="' + (c ? 'color:' + c : '') + (c && z ? ';' : '') + (z ? 'font-size:' + z : '') + '">' : '';
+}
+function styledInline(runs, base, put, tags) {
+    var B = tags ? ['<b>', '</b>'] : ['**', '**'], I = tags ? ['<i>', '</i>'] : ['*', '*'];
+    var body = runs.map(function(r, k) {
+        var x = put(r.t, k === 0), sp = r.color && r.color !== base.color ? spanOpen(r.color, '') : '';
+        if (r.i && !base.i) x = I[0] + x + I[1];
+        if (r.b && !base.b) x = B[0] + x + B[1];
+        return sp ? sp + x + '</span>' : x;
+    }).join('');
+    if (base.i) body = I[0] + body + I[1];
+    if (base.b) body = B[0] + body + B[1];
+    var around = spanOpen(base.color, base.size);
+    return around ? around + body + '</span>' : body;
+}
+// A plain field with its format as the dialect's inline text — or null when it has none, or when it could not be read back (the caller then
+// writes the field exactly as before). o.put(text, first): a run's text escaped for its place; o.read(inline): how that place is read
+// (fieldOf by default); o.tags: only <b> / <i> (the line is itself bold or italic syntax); o.lines: the place takes a text with line breaks.
+function fieldMd(text, fmt, o) {
+    var t = text == null ? '' : String(text), f = t ? cleanFmt(fmt, t) : undefined;
+    if (!f || (!o.lines && /[\r\n]/.test(t))) return null;
+    var runs = runsOf(t, f), base = wholeLook(f, runs), read = o.read || fieldOf;
+    var out = styledInline(runs, base, o.put, true), back = read(out);
+    if (!back || !back.fmt || (back.text === t && looksOf(back.text, back.fmt) !== looksOf(t, f))) return null;
+    if (!o.tags) {   // Markdown's own marks where they read back as the tags do
+        var marked = styledInline(runs, base, o.put, false), mb = marked === out ? null : read(marked);
+        if (mb && mb.text === back.text && JSON.stringify(mb.fmt) === JSON.stringify(back.fmt)) out = marked;
+    }
+    return out;
+}
+var IN_LINE = { put: function(x, first) { return first ? mdEscapeText(x) : mdEscapeMarks(x); } };   // a heading, a scene node's tag and must-resolve, a caption
+var IN_BOLD = { put: IN_LINE.put, tags: true, read: function(s) { var m = /^\s*(\*\*|__)(.+?)\1\s*$/.exec('**' + s + '**'); return m ? fieldOf(m[2]) : null; } };   // a table's title: its line is bold syntax
+var IN_ITALIC = { put: IN_LINE.put, tags: true, read: function(s) { var m = /^\s*(\*|_)([^*_]+)\1\s*$/.exec('*' + s + '*'); return m ? fieldOf(m[2]) : null; } };   // the subtitle: its line is italic syntax
+var IN_CELL = { lines: true, put: function(x) { return mdEscapeMarks(String(x).replace(/\r?\n/g, ' ')).replace(/\|/g, '\\|'); }, read: function(s) { var c = splitRow('| ' + s + ' |'); return c.length === 1 ? fieldOf(c[0]) : null; } };
+// a scene node's title: read after "### Scene:", whose own trailing space takes any the title begins with
+var IN_SCENE = { put: IN_LINE.put, read: function(s) { var f = fieldOf(s), t = fieldOf('Scene: ' + s).text.replace(/^scene:\s*/i, ''); return f.text === t ? f : { text: t }; } };
+function fieldText(b, k, o) { return fieldMd(b[k], fieldFmt(b, k), o) || mdEscapeText(b[k] || ''); }
 
 /* ---------- the simple mermaid subset → a native flowchart block ---------- */
 var SHAPES = { '[': 'rect', '(': 'rounded', '([': 'pill', '{': 'diamond', '{{': 'hex' };
@@ -168,7 +298,7 @@ function flowchartFromMermaid(src) {
         var id = m[1];
         if (!nodes[id]) { nodes[id] = { id: id, text: id, shape: 'rect', color: 'neutral' }; order.push(id); }
         var nd = nodes[id];
-        if (m[2]) { if (SHAPES[m[2]] === undefined || !closes(m[2], m[5])) return null; nd.text = m[4].replace(/<br\s*\/?>/gi, '\n').replace(/#quot;/g, '"').replace(/#35;/g, '#'); nd.shape = SHAPES[m[2]]; }
+        if (m[2]) { if (SHAPES[m[2]] === undefined || !closes(m[2], m[5])) return null; var lf = mmRead(m[4]); if (lf) { nd.text = lf.text; nd.fmt = lf.fmt; } else { nd.text = m[4].replace(/<br\s*\/?>/gi, '\n').replace(/#quot;/g, '"').replace(/#35;/g, '#'); delete nd.fmt; } nd.shape = SHAPES[m[2]]; }
         if (m[6]) { if (!/^(gold|blue|green|red|violet|neutral)$/.test(m[6])) return null; nd.color = m[6]; }
         return { id: id, len: m[0].length };
     }
@@ -187,21 +317,73 @@ function flowchartFromMermaid(src) {
             var afterE = l.slice(pos).replace(/^\s+/, ''); pos = l.length - afterE.length;
             var nxt = defNode(afterE); if (!nxt) return null;
             pos += nxt.len;
-            edges.push({ from: cur.id, to: nxt.id, text: (e[3] || e[4] || e[5] || '').trim(), style: e[1] === '-.->' || e[5] !== undefined ? 'dotted' : 'solid' });
+            var ef = e[3] ? mmRead(e[3]) : null, edge = { from: cur.id, to: nxt.id, text: ef ? ef.text : (e[3] || e[4] || e[5] || '').trim(), style: e[1] === '-.->' || e[5] !== undefined ? 'dotted' : 'solid' };
+            if (ef) edge.fmt = ef.fmt;
+            edges.push(edge);
             cur = nxt;
         }
     }
     if (!order.length) return null;
     return { type: 'flowchart', dir: dir, space: 'normal', zoom: 1, nodes: order.map(function(id) { return nodes[id]; }), edges: edges };
 }
+// A label with a format (text style): written in the tags mermaid keeps in a label and a planner's flowchart already draws with — <b>, <i>,
+// <font color=rrggbb> (no quote and no # may stand in a mermaid string), <big> / <small> around everything for the field's size — the
+// look of the whole label once around everything, the parts inside it. Read back (mmRead) only when writing the format read gives the very
+// label again: any other label is its text, tags and all, exactly as before.
+var MM_SIZE = { small: ['<small>', '</small>'], large: ['<big>', '</big>'], larger: ['<big><big>', '</big></big>'], huge: ['<big><big><big>', '</big></big></big>'] };
+var MM_STEPS = { 'small': 'small', 'big': 'large', 'big big': 'larger', 'big big big': 'huge' };
+function mmStyled(text, fmt) {
+    var t = text == null ? '' : String(text), f = t ? cleanFmt(fmt, t) : undefined;
+    if (!f) return null;
+    var runs = runsOf(t, f), base = wholeLook(f, runs);
+    var font = function(c, x) { return /^#[0-9a-f]{6}$/.test(c) ? '<font color=' + c.slice(1) + '>' + x + '</font>' : x; };
+    var body = runs.map(function(r) {
+        var x = mmQuote(r.t).slice(1, -1);
+        if (r.i && !base.i) x = '<i>' + x + '</i>';
+        if (r.b && !base.b) x = '<b>' + x + '</b>';
+        return r.color && r.color !== base.color ? font(r.color, x) : x;
+    }).join('');
+    if (base.i) body = '<i>' + body + '</i>';
+    if (base.b) body = '<b>' + body + '</b>';
+    if (base.color) body = font(base.color, body);
+    return base.size && ownKey(MM_SIZE, base.size) ? MM_SIZE[base.size][0] + body + MM_SIZE[base.size][1] : body;
+}
+function mmRead(raw) {
+    raw = String(raw == null ? '' : raw);
+    if (raw.indexOf('<') < 0) return null;
+    var w = lookWalk(), text = '', open = [], at = 0, re = /<(\/?)(b|i|font|big|small|br)(\s[^<>]*|\/)?>/gi, m;
+    var put = function(s) { if (!s) return; var t = s.replace(/#quot;/g, '"').replace(/#35;/g, '#'); text += t; w.text(t.length); };
+    while ((m = re.exec(raw))) {
+        var tag = m[2].toLowerCase(), attr = m[3] || '', look;
+        if (tag === 'br') { if (m[1] || !/^\s*\/?$/.test(attr)) continue; put(raw.slice(at, m.index)); text += '\n'; w.text(1); at = re.lastIndex; continue; }
+        if (m[1]) { if (attr || open[open.length - 1] !== tag) return null; put(raw.slice(at, m.index)); open.pop(); w.close(); at = re.lastIndex; continue; }
+        if (tag === 'font') { var c = /^ color=([0-9a-f]{6})$/.exec(attr); if (!c) continue; look = { color: '#' + c[1] }; }
+        else if (attr) continue;   // not a tag of ours: it stays text
+        else look = tag === 'b' ? { b: true } : tag === 'i' ? { i: true } : { step: tag };
+        put(raw.slice(at, m.index)); open.push(tag); w.open(look); at = re.lastIndex;
+    }
+    put(raw.slice(at));
+    if (open.length) return null;
+    var steps = w.els().filter(function(el) { return el.look.step; }), full = w.wraps().filter(function(el) { return el.look.step; }), size = '';
+    if (steps.length !== full.length) return null;   // a size on part of a label is not a field's
+    if (full.length) { var steps2 = full.map(function(el) { return el.look.step; }).join(' '); if (!ownKey(MM_STEPS, steps2)) return null; size = MM_STEPS[steps2]; }   // <small>, or one to three <big>
+    var fmt = w.fmt(text, size);
+    return fmt && mmStyled(text, fmt) === raw ? { text: text, fmt: fmt } : null;
+}
+// What the export writes for a styled label — only when it reads back to the very text and looks; else null (the label is then written as before)
+function mmLabel(text, fmt) {
+    var s = mmStyled(text, fmt); if (s == null) return null;
+    var back = mmRead(s);
+    return back && back.text === String(text) && looksOf(back.text, back.fmt) === looksOf(back.text, fmt) ? '"' + s + '"' : null;
+}
 function mmQuote(t) { return '"' + String(t || '').replace(/"/g, '#quot;').replace(/#/g, function(c, k, s) { return s.slice(k, k + 6) === '#quot;' ? c : '#35;'; }).replace(/\r?\n/g, '<br>') + '"'; }
 function flowchartToMermaid(b) {
     var L = ['flowchart ' + (/^(TD|LR|BT|RL)$/.test(b.dir || '') ? b.dir : 'TD')];
     (b.nodes || []).forEach(function(nd) {
         var o = { rect: '[', rounded: '(', pill: '([', diamond: '{', hex: '{{' }[nd.shape] || '[', c = { '[': ']', '(': ')', '([': '])', '{': '}', '{{': '}}' }[o];
-        L.push(String(nd.id || 'n').replace(/[^A-Za-z0-9_]/g, '_') + o + mmQuote(nd.text || nd.id) + c + (nd.color && nd.color !== 'neutral' ? ':::' + nd.color : ''));
+        L.push(String(nd.id || 'n').replace(/[^A-Za-z0-9_]/g, '_') + o + (mmLabel(nd.text, ownKey(nd, 'fmt') ? nd.fmt : undefined) || mmQuote(nd.text || nd.id)) + c + (nd.color && nd.color !== 'neutral' ? ':::' + nd.color : ''));
     });
-    (b.edges || []).forEach(function(e) { if (!e.from || !e.to) return; L.push(String(e.from).replace(/[^A-Za-z0-9_]/g, '_') + ' ' + (e.style === 'dotted' ? '-.->' : '-->') + (e.text ? '|' + mmQuote(e.text) + '|' : '') + ' ' + String(e.to).replace(/[^A-Za-z0-9_]/g, '_')); });
+    (b.edges || []).forEach(function(e) { if (!e.from || !e.to) return; L.push(String(e.from).replace(/[^A-Za-z0-9_]/g, '_') + ' ' + (e.style === 'dotted' ? '-.->' : '-->') + (e.text ? '|' + (mmLabel(e.text, ownKey(e, 'fmt') ? e.fmt : undefined) || mmQuote(e.text)) + '|' : '') + ' ' + String(e.to).replace(/[^A-Za-z0-9_]/g, '_')); });
     return L.join('\n');
 }
 
@@ -235,18 +417,19 @@ function markdownToBlocks(text, opts) {
     var lines = text.split('\n');
 
     function push(b) { b.id = uid(); blocks.push(b); return b; }
-    // What a file's inline HTML becomes: the page sanitiser's, less colour and size (sanitizeBare) — Markdown has neither and an export writes neither, so an import brings none
-    function tidy(html) { return sanitizeBare(html).replace(/<p>\s*<\/p>/g, ''); }   // an HTML block inside a paragraph leaves empty pairs behind
+    // What a file's inline HTML becomes in a text block: the page sanitiser's — its allow-list of tags, and the one span form (a colour, a size step) an export writes
+    function tidy(html) { return sanitizeHtml(html).replace(/<p>\s*<\/p>/g, ''); }   // an HTML block inside a paragraph leaves empty pairs behind
     function flushRun() { if (!run.length) return; var html = tidy(run.join('')); run = []; if (html.replace(/<[^>]+>/g, '').trim() || /<pre>/.test(html)) push({ type: 'text', content: html }); }
     function flushInlineImages() { var list = ctx.inlineImages; ctx.inlineImages = []; list.forEach(function(im) { addImage(im.caption, im.dest, im.ref, im.attrs, true); }); }
     function addImage(caption, dest, ref, attrs, wasInline) {
         var target = dest != null ? dest : (ref != null ? refs[String(ref).toLowerCase()] : undefined);
-        caption = plainText(caption || '');
-        if (target === undefined) { flushRun(); push({ type: 'image', src: '', caption: caption }); notes.push('Picture "' + (caption || ref || '?') + '": no source given — an empty picture block was made.'); return; }
+        var capF = fieldOf(caption || ''); caption = capF.text;
+        if (target === undefined) { flushRun(); setFmt(push({ type: 'image', src: '', caption: caption }), 'caption', capF.fmt); notes.push('Picture "' + (caption || ref || '?') + '": no source given — an empty picture block was made.'); return; }
         target = String(target).trim();
         if (/^https?:\/\//i.test(target)) { run.push('<p><a href="' + esc(target) + '">' + esc(caption || target) + '</a></p>'); notes.push('Online picture kept as a link: ' + target.slice(0, 80)); return; }
         flushRun();
         var b = { type: 'image', src: '', caption: caption };
+        setFmt(b, 'caption', capF.fmt);
         var lay = layoutFromAttrs(attrs);
         if (kind === 'doc') { if (lay) b.layout = lay; }
         else if (lay) { if (lay.width) b.width = lay.width; if (lay.float === 'left' || lay.float === 'right') b.align = lay.float; }
@@ -260,13 +443,24 @@ function markdownToBlocks(text, opts) {
         if (info === 'html') { run.push('<pre><code>' + esc(body) + '</code></pre>'); notes.push('An html fence was kept as code, not as page markup.'); return; }
         run.push('<pre><code>' + esc(body) + '</code></pre>');
     }
-    function pushTable(cols, rows, title) {
+    // fm: the formats read with the texts — { title, cols: [fmt…], rows: [[fmt…]…] }, each undefined where there is none
+    function pushTable(cols, rows, title, fm) {
+        fm = fm || {};
+        var cf = fm.cols || [], rf = fm.rows || [];
         if (cols.length > LIMITS.cols) { notes.push('Table "' + (title || cols[0] || '') + '": ' + cols.length + ' columns cut to ' + LIMITS.cols + '.'); cols = cols.slice(0, LIMITS.cols); }
-        var objRows = rows.map(function(r) { var o = {}; cols.forEach(function(c, k) { o['col' + (k + 1)] = r[k] === undefined ? '' : r[k]; }); return o; });
-        if (scene && kind === 'planner') { scene.cols = cols; scene.rows = objRows; scene = null; return; }
+        var objRows = rows.map(function(r, ri) {
+            var o = {}, fo = {}, one = rf[ri] || [];
+            cols.forEach(function(c, k) { o['col' + (k + 1)] = r[k] === undefined ? '' : r[k]; if (one[k] && r[k] !== undefined) fo['col' + (k + 1)] = one[k]; });
+            if (Object.keys(fo).length) o.fmt = fo;
+            return o;
+        });
+        var colFmt = cols.map(function(c, k) { return cf[k] || null; });   // parallel to cols: null for a plain head, no trailing nulls
+        while (colFmt.length && !colFmt[colFmt.length - 1]) colFmt.pop();
+        if (scene && kind === 'planner') { scene.cols = cols; scene.rows = objRows; if (colFmt.length) scene.colFmt = colFmt; else delete scene.colFmt; scene = null; return; }
         flushRun();
-        if (kind === 'planner') push({ type: 'node', mode: 'table', title: title || '', cols: cols, rows: objRows });
-        else push({ type: 'table', title: title || '', cols: cols, rows: objRows });
+        var tb = kind === 'planner' ? push({ type: 'node', mode: 'table', title: title || '', cols: cols, rows: objRows }) : push({ type: 'table', title: title || '', cols: cols, rows: objRows });
+        if (colFmt.length) tb.colFmt = colFmt;
+        if (title) setFmt(tb, 'title', fm.title);
     }
     var i = 0;
     while (i < lines.length) {
@@ -278,24 +472,26 @@ function markdownToBlocks(text, opts) {
             i++; scene = null; handleFence(info, body.join('\n')); continue;
         }
         var cf = /^:::\s*(lede|oneline|flare|callout)\s*$/i.exec(line);
-        if (cf) { var cb = []; i++; while (i < lines.length && !/^:::\s*$/.test(lines[i])) { cb.push(lines[i]); i++; } i++; flushRun(); scene = null; push({ type: cf[1].toLowerCase(), content: sanitizeBare(paraHtml(cb.filter(function(x) { return x.trim(); }), ctx)) }); flushInlineImages(); continue; }
+        if (cf) { var cb = []; i++; while (i < lines.length && !/^:::\s*$/.test(lines[i])) { cb.push(lines[i]); i++; } i++; flushRun(); scene = null; push({ type: cf[1].toLowerCase(), content: sanitizeHtml(paraHtml(cb.filter(function(x) { return x.trim(); }), ctx)) }); flushInlineImages(); continue; }
         if (!line.trim()) { i++; continue; }
         var h = /^(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line);
         if (h) {
-            var level = h[1].length, ht = splitAttrTail(h[2]), title = plainText(ht.text);
+            var level = h[1].length, ht = splitAttrTail(h[2]), hf = fieldOf(ht.text), title = hf.text;
             flushRun(); scene = null; pendingTitle = null;
             if (level === 1 && !sawH1) {
-                sawH1 = true; h1Block = push({ type: 'h1', title: title, sub: meta.subtitle || '' });
+                sawH1 = true; h1Block = push({ type: 'h1', title: title, sub: meta.subtitle || '' }); setFmt(h1Block, 'title', hf.fmt);
                 if (!meta.title) meta.title = title;
                 var sm = /^\s*(\*|_)([^*_]+)\1\s*$/.exec(lines[i + 1] || '');   // an italic-only line right under the title is the subtitle (front matter wins when both are given)
-                if (sm) { if (!h1Block.sub) h1Block.sub = plainText(sm[2]); i++; }
+                if (sm) { var sf = fieldOf(sm[2]); if (!h1Block.sub) h1Block.sub = sf.text; if (sf.text === h1Block.sub) setFmt(h1Block, 'sub', sf.fmt); i++; }   // its format, where the line is the subtitle
             } else if (level <= 2) {
-                var h2 = push({ type: 'h2', title: title });
+                var h2 = push({ type: 'h2', title: title }); setFmt(h2, 'title', hf.fmt);
                 if (kind === 'doc' && ht.attrs && ht.attrs.cols) { var cn = parseInt(ht.attrs.cols, 10); if (cn >= 1 && cn <= 3) h2.cols = cn; else notes.push('Section "' + title + '": columns must be 1–3.'); }
             } else if (level === 3 && kind === 'planner' && /^scene:\s*/i.test(title)) {
-                scene = push({ type: 'node', title: title.replace(/^scene:\s*/i, ''), tag: '', must: '', cols: [], rows: [] });
+                var sceneRaw = /^scene:\s*/i.exec(ht.text), sceneF = sceneRaw ? fieldOf(ht.text.slice(sceneRaw[0].length)) : null, sceneT = title.replace(/^scene:\s*/i, '');
+                scene = push({ type: 'node', title: sceneT, tag: '', must: '', cols: [], rows: [] });
+                if (sceneF && sceneF.text === sceneT) setFmt(scene, 'title', sceneF.fmt);   // the title after "Scene:", its format with it
             } else if (level === 3 && kind === 'doc') {
-                push({ type: 'h3', title: title });
+                setFmt(push({ type: 'h3', title: title }), 'title', hf.fmt);
             } else {
                 run.push('<p><b>' + esc(title) + '</b></p>');
                 if (level === 3) notes.push('Heading "' + title + '" became a bold lead line (a planner has no sub-heading block; use "### Scene:" for a scene node).');
@@ -309,12 +505,13 @@ function markdownToBlocks(text, opts) {
             var qt = 'callout', tm = /^\[!(lede|oneline|flare|callout)\]\s*/i.exec(qb[0] || '');
             if (tm) { qt = tm[1].toLowerCase(); qb[0] = qb[0].slice(tm[0].length); }
             if (qb.some(function(x) { return /^>/.test(x); })) notes.push('A nested quote was flattened.');
-            flushRun(); scene = null; push({ type: qt, content: sanitizeBare(paraHtml(qb.map(function(x) { return x.replace(/^>\s?/, ''); }).filter(function(x) { return x.trim(); }), ctx)) }); flushInlineImages(); continue;
+            flushRun(); scene = null; push({ type: qt, content: sanitizeHtml(paraHtml(qb.map(function(x) { return x.replace(/^>\s?/, ''); }).filter(function(x) { return x.trim(); }), ctx)) }); flushInlineImages(); continue;
         }
         if (/\|/.test(line) && isTableSep(next)) {
-            var cols = splitRow(line).map(plainText), rows = []; i += 2;
-            while (i < lines.length && /\|/.test(lines[i]) && lines[i].trim()) { rows.push(splitRow(lines[i]).map(plainText)); i++; }
-            var tt = pendingTitle; pendingTitle = null; pushTable(cols, rows, tt); continue;
+            var textOf = function(c) { return c.text; }, fmtOf = function(c) { return c.fmt; };
+            var hc = splitRow(line).map(fieldOf), cols = hc.map(textOf), rows = [], rfm = []; i += 2;
+            while (i < lines.length && /\|/.test(lines[i]) && lines[i].trim()) { var rc = splitRow(lines[i]).map(fieldOf); rows.push(rc.map(textOf)); rfm.push(rc.map(fmtOf)); i++; }
+            var tt = pendingTitle; pendingTitle = null; pushTable(cols, rows, tt ? tt.text : tt, { title: tt ? tt.fmt : undefined, cols: hc.map(fmtOf), rows: rfm }); continue;
         }
         var imL = /^!\[([^\]]*)\]\(([^)]*)\)\s*(\{[^{}]*\})?\s*$/.exec(line) || /^!\[([^\]]*)\]\[([^\]]*)\]\s*(\{[^{}]*\})?\s*$/.exec(line);
         if (imL) {
@@ -330,14 +527,14 @@ function markdownToBlocks(text, opts) {
         if (scene && kind === 'planner') {
             var fld = /^\*\*(tag|must resolve|must):?\*\*:?\s*(.*)$/i.exec(line) || /^(map)\s*:\s*(.*)$/i.exec(line);
             if (fld) {
-                var key = fld[1].toLowerCase(), val = plainText(fld[2]);
-                if (key === 'tag') scene.tag = val;
+                var key = fld[1].toLowerCase(), vf = fieldOf(fld[2]), val = vf.text;
+                if (key === 'tag') { scene.tag = val; setFmt(scene, 'tag', vf.fmt); }
                 else if (key === 'map') {
                     var parts = val.split('/').map(function(x) { return x.trim(); }), mapT = parts[0].toLowerCase(), roomT = (parts[1] || '').toLowerCase();
                     var mp = Object.values(items).find(function(it) { return it && it.type === 'map' && String((it.meta && it.meta.title) || '').toLowerCase() === mapT; });
                     if (mp) { scene.linkMapId = mp.id; if (roomT) { var rm = (mp.rooms || []).find(function(r) { return String(r.name || '').toLowerCase() === roomT; }); if (rm) scene.linkRoomId = rm.id; else notes.push('Scene "' + scene.title + '": room "' + parts[1] + '" not found on ' + mp.meta.title + '.'); } }
                     else notes.push('Scene "' + scene.title + '": map "' + parts[0] + '" not found in this campaign.');
-                } else scene.must = val;
+                } else { scene.must = val; setFmt(scene, 'must', vf.fmt); }
                 i++; continue;
             }
         }
@@ -347,7 +544,7 @@ function markdownToBlocks(text, opts) {
         if (!pb.length) { i++; continue; }
         var boldOnly = pb.length === 1 && /^\s*(\*\*|__)(.+?)\1\s*$/.exec(pb[0]);
         var nextNonBlank = i; while (nextNonBlank < lines.length && !lines[nextNonBlank].trim()) nextNonBlank++;
-        if (boldOnly && nextNonBlank < lines.length && /\|/.test(lines[nextNonBlank]) && isTableSep(lines[nextNonBlank + 1])) { pendingTitle = plainText(boldOnly[2]); continue; }   // the table's title
+        if (boldOnly && nextNonBlank < lines.length && /\|/.test(lines[nextNonBlank]) && isTableSep(lines[nextNonBlank + 1])) { pendingTitle = fieldOf(boldOnly[2]); continue; }   // the table's title
         scene = null;
         run.push('<p>' + paraHtml(pb, ctx) + '</p>');
         flushInlineImages();
@@ -365,13 +562,29 @@ function markdownToBlocks(text, opts) {
 function mdEscapeMarks(s) { return String(s).replace(/([\\*_`~\[\]<>])/g, '\\$1').replace(/&(?=#?[A-Za-z0-9]+;)/g, '&amp;'); }
 function mdEscapeLineStart(s) { return String(s).replace(/^(\s*)([#+\-|])/, '$1\\$2').replace(/^(\s*):/, '$1&#58;').replace(/^(\s*)(\d+)([.)])(\s|$)/, '$1$2\\$3$4'); }
 function mdEscapeText(s) { return mdEscapeLineStart(mdEscapeMarks(s)); }
-// Sanitized prose HTML back to the dialect (p, br, b/strong, i/em, u, s, ul/ol/li, code, pre, a)
+// A text block's colour / size span as the sanitiser's one form, written anew from its two values ('' for any other span)
+function spanTag(attrs) {
+    var m = /^\s*style="(?:color:(#[0-9a-f]{6}))?;?(?:font-size:([0-9.]+em))?"\s*$/.exec(attrs || ''), size = m && m[2] && ownKey(SIZE_OF, m[2]) ? m[2] : '';
+    return m && (m[1] || size) ? '<span style="' + (m[1] ? 'color:' + m[1] : '') + (m[1] && size ? ';' : '') + (size ? 'font-size:' + size : '') + '">' : '';
+}
+// Sanitized prose HTML back to the dialect (p, br, b/strong, i/em, u, s, ul/ol/li, code, pre, a, and the colour / size span as itself)
 function htmlToMarkdown(html) {
     var out = '', hrefs = [], lists = [], inPre = false, inCode = false, re = /<(\/?)([a-z0-9]+)([^>]*)>|([^<]+)/gi, m;
+    // open colour / size spans: written when text follows, closed before a block ends and opened again after it (a span never crosses a paragraph in the file)
+    var spans = [];
+    var hold = function() { for (var k = spans.length - 1; k >= 0; k--) if (spans[k].live) { out += '</span>'; spans[k].live = false; } };
+    var resume = function() { for (var k = 0; k < spans.length; k++) if (!spans[k].live && spans[k].tag) { out += spans[k].tag; spans[k].live = true; } };
     while ((m = re.exec(html))) {
-        if (m[4] !== undefined) { var t = unent(m[4]); if (inPre) { out += t; continue; } var tx = t.replace(/\s+/g, ' '); out += inCode ? tx : (!out || /\n$/.test(out)) ? mdEscapeText(tx) : mdEscapeMarks(tx); continue; }   // F2a: a code span is read back raw (no escapes in it); a line start only where the run starts a line
+        if (m[4] !== undefined) {   // F2a: a code span is read back raw (no escapes in it); a line start only where the run starts a line
+            var t = unent(m[4]); if (inPre) { out += t; continue; }
+            var tx = t.replace(/\s+/g, ' '), atStart = !out || /\n$/.test(out);
+            if (spans.length && /\S/.test(tx)) resume();
+            out += inCode ? tx : atStart ? mdEscapeText(tx) : mdEscapeMarks(tx); continue;
+        }
         var close = !!m[1], tag = m[2].toLowerCase();
         if (inPre) { if (tag === 'pre' && close) { inPre = false; out += '\n```\n\n'; } continue; }
+        if (tag === 'span') { if (!close) spans.push({ tag: inCode ? '' : spanTag(m[3]), live: false }); else { var sp = spans.pop(); if (sp && sp.live) out += '</span>'; } continue; }
+        if (spans.length) { if (tag === 'p' || tag === 'ul' || tag === 'ol' || tag === 'li' || tag === 'pre') hold(); else if (!close && tag !== 'br') resume(); }
         switch (tag) {
             case 'p': if (close) out += '\n\n'; break;
             case 'br': out += '  \n'; break;
@@ -408,13 +621,15 @@ function rowCells(r, cols) {
     var a = []; for (var i = 1; i <= Math.max(cols.length, 1); i++) a.push(r['col' + i] == null ? '' : r['col' + i]);
     return a;
 }
-function tableMd(title, cols, rows) {
-    cols = (Array.isArray(cols) && cols.length ? cols : ['Item', 'Detail', 'Notes']).map(cellText);
+// b: the block the table is, for its formats (a title's, a head's, a cell's); with none, every cell is written as it always was
+function tableMd(title, cols, rows, b) {
+    var heads = Array.isArray(cols) && cols.length ? cols : ['Item', 'Detail', 'Notes'];
+    cols = heads.map(function(c, k) { return (b && fieldMd(c, colFmtOf(b, k), IN_CELL)) || cellText(c); });
     var L = [];
-    if (title) L.push('**' + mdEscapeText(title) + '**');
+    if (title) L.push('**' + ((b && fieldMd(title, fieldFmt(b, 'title'), IN_BOLD)) || mdEscapeText(title)) + '**');
     L.push('| ' + cols.join(' | ') + ' |');
     L.push('|' + cols.map(function() { return '---'; }).join('|') + '|');
-    (rows || []).forEach(function(r) { var c = rowCells(r, cols); L.push('| ' + cols.map(function(x, k) { return cellText(c[k]); }).join(' | ') + ' |'); });
+    (rows || []).forEach(function(r, ri) { var c = rowCells(r, cols); L.push('| ' + cols.map(function(x, k) { return (b && fieldMd(c[k], cellFmtOf(b, ri, k), IN_CELL)) || cellText(c[k]); }).join(' | ') + ' |'); });
     return L.join('\n');
 }
 // opts.items: the campaign's items (a scene node's map link is written as "Map: title / room");
@@ -434,10 +649,10 @@ function docToMarkdown(item, opts) {
         if (!b || typeof b !== 'object') return;
         switch (b.type) {
             case 'h1':
-                if (sawH1) { L.push('## ' + mdEscapeText(b.title || ''), ''); break; }
-                sawH1 = true; L.push('# ' + mdEscapeText(b.title || '')); if (b.sub) L.push('*' + mdEscapeText(b.sub) + '*'); L.push(''); break;
-            case 'h2': L.push('## ' + mdEscapeText(b.title || '') + (kind === 'doc' && b.cols > 1 ? ' {cols=' + Math.min(3, b.cols) + '}' : ''), ''); break;
-            case 'h3': L.push('### ' + mdEscapeText(b.title || ''), ''); break;
+                if (sawH1) { L.push('## ' + fieldText(b, 'title', IN_LINE), ''); break; }
+                sawH1 = true; L.push('# ' + fieldText(b, 'title', IN_LINE)); if (b.sub) L.push('*' + fieldText(b, 'sub', IN_ITALIC) + '*'); L.push(''); break;
+            case 'h2': L.push('## ' + fieldText(b, 'title', IN_LINE) + (kind === 'doc' && b.cols > 1 ? ' {cols=' + Math.min(3, b.cols) + '}' : ''), ''); break;
+            case 'h3': L.push('### ' + fieldText(b, 'title', IN_LINE), ''); break;
             case 'text': L.push(htmlToMarkdown(sanitizeHtml(b.content || '')), ''); break;
             case 'lede': case 'oneline': case 'flare': case 'callout': {
                 var md = htmlToMarkdown(sanitizeHtml(b.content || ''));
@@ -453,16 +668,16 @@ function docToMarkdown(item, opts) {
                     ref = 'images/' + item.id + '/' + name;
                 }
                 var lay = kind === 'doc' ? b.layout : (b.width && b.width !== 100 || (b.align && b.align !== 'center') ? { width: b.width, float: b.align === 'left' || b.align === 'right' ? b.align : 'none' } : null);
-                L.push('![' + mdEscapeText(b.caption || '') + '](' + ref + ')' + layoutTail(lay), ''); break;
+                L.push('![' + fieldText(b, 'caption', IN_LINE) + '](' + ref + ')' + layoutTail(lay), ''); break;
             }
-            case 'table': L.push(tableMd(b.title, b.cols, b.rows), ''); break;
+            case 'table': L.push(tableMd(b.title, b.cols, b.rows, b), ''); break;
             case 'node':
-                if (b.mode === 'table') { L.push(tableMd(b.title, b.cols, b.rows), ''); break; }
-                L.push('### Scene: ' + mdEscapeText(b.title || ''));
-                if (b.tag) L.push('**Tag:** ' + mdEscapeText(b.tag));
-                if (b.must) L.push('**Must resolve:** ' + mdEscapeText(b.must));
+                if (b.mode === 'table') { L.push(tableMd(b.title, b.cols, b.rows, b), ''); break; }
+                L.push('### Scene: ' + fieldText(b, 'title', IN_SCENE));
+                if (b.tag) L.push('**Tag:** ' + fieldText(b, 'tag', IN_LINE));
+                if (b.must) L.push('**Must resolve:** ' + fieldText(b, 'must', IN_LINE));
                 if (b.linkMapId && items[b.linkMapId]) { var mp = items[b.linkMapId], rm = b.linkRoomId && (mp.rooms || []).find(function(r) { return r.id === b.linkRoomId; }); L.push('Map: ' + ((mp.meta && mp.meta.title) || mp.id) + (rm ? ' / ' + (rm.name || rm.id) : '')); }
-                if ((b.cols && b.cols.length) || (b.rows && b.rows.length)) L.push(tableMd('', b.cols && b.cols.length ? b.cols : ['Action', 'Why', 'Cost', 'Returns via'], b.rows));
+                if ((b.cols && b.cols.length) || (b.rows && b.rows.length)) L.push(tableMd('', b.cols && b.cols.length ? b.cols : ['Action', 'Why', 'Cost', 'Returns via'], b.rows, b));
                 L.push(''); break;
             case 'rule': L.push('---', ''); break;
             case 'diagram': L.push('```mermaid', unent(String(b.content || '')).replace(/```/g, '` ` `'), '```', ''); break;
@@ -544,6 +759,6 @@ var TEMPLATE = [
 ''
 ].join('\n');
 
-var API = { VERSION: VERSION, LIMITS: LIMITS, PLANNER_BLOCKS: PLANNER_BLOCKS.slice(), DOC_BLOCKS: DOC_BLOCKS.slice(), markdownToBlocks: markdownToBlocks, docToMarkdown: docToMarkdown, htmlToMarkdown: htmlToMarkdown, flowchartFromMermaid: flowchartFromMermaid, flowchartToMermaid: flowchartToMermaid, parseAttrs: parseAttrs, detectBundle: detectBundle, TEMPLATE: TEMPLATE };
+var API = { VERSION: VERSION, LIMITS: LIMITS, PLANNER_BLOCKS: PLANNER_BLOCKS.slice(), DOC_BLOCKS: DOC_BLOCKS.slice(), markdownToBlocks: markdownToBlocks, docToMarkdown: docToMarkdown, htmlToMarkdown: htmlToMarkdown, fmtFromInline: fmtFromInline, flowchartFromMermaid: flowchartFromMermaid, flowchartToMermaid: flowchartToMermaid, parseAttrs: parseAttrs, detectBundle: detectBundle, TEMPLATE: TEMPLATE };
 if (typeof window !== 'undefined') window.wpDocMd = API;
-export { VERSION, LIMITS, PLANNER_BLOCKS, markdownToBlocks, docToMarkdown, htmlToMarkdown, mdEscapeText, mdEscapeMarks, yamlStr, flowchartFromMermaid, flowchartToMermaid, parseAttrs, detectBundle, TEMPLATE };
+export { VERSION, LIMITS, PLANNER_BLOCKS, markdownToBlocks, docToMarkdown, htmlToMarkdown, fmtFromInline, mdEscapeText, mdEscapeMarks, yamlStr, flowchartFromMermaid, flowchartToMermaid, parseAttrs, detectBundle, TEMPLATE };

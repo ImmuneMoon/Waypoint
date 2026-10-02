@@ -313,24 +313,6 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const got = strip(back.blocks);
         check('round trip: the same block types, titles, contents and layout come back', JSON.stringify(got.map(b => b.type)) === JSON.stringify(want.map(b => b.type)) && got[0].title === 'Rules' && got[0].sub === 'v2' && got[2].cols === 2 && got[3].content === want[3].content && got[5].caption === 'The map' && JSON.stringify(got[5].layout) === JSON.stringify(want[5].layout) && got[6].title === 'Pace' && got[6].cols.join('|') === 'A|B|C' && got[6].rows[1].col2 === 'y' && got[8].content === 'Note line one<br>line two' && got[9].content === 'graph TD\nA-->B' && got[10].nodes[0].text === 'Roll "it"' && got[10].edges[0].style === 'dotted' && back.meta.players === false, JSON.stringify(got) + '\n---\n' + JSON.stringify(want));
         check('round trip: the lede keeps its inline markup', got[1].content === 'Short <b>intro</b>', got[1].content);
-        // text style: Markdown has no colour and no size — an export writes the plain text, an import brings no format
-        {
-            const RED = '#d9534f';
-            const stPl = { type: 'planner', id: 'plan_s', meta: { title: 'Styled' }, blocks: [
-                { type: 'h1', title: 'Session', sub: 'one', fmt: { title: { color: RED, b: true }, sub: { i: true } } }, { type: 'h2', title: 'Beats', fmt: { title: { size: 'huge' } } },
-                { type: 'node', title: 'The docks', tag: 'Stealth', must: 'Who?', cols: ['Action', 'Why'], colFmt: [{ b: true }], fmt: { title: { color: RED }, tag: { i: true }, must: { spans: [{ s: 0, e: 3, b: true }] } }, rows: [{ col1: 'Bribe', col2: 'fast', fmt: { col1: { spans: [{ s: 0, e: 2, color: RED, i: true }] } } }] },
-                { type: 'text', content: '<p><span style="color:#d9534f">red</span> and <span style="font-size:1.44em"><b>big</b></span></p>' },
-                { type: 'flowchart', dir: 'LR', nodes: [{ id: 'a', text: 'buy milk', fmt: { color: RED, spans: [{ s: 0, e: 3, b: true }] } }, { id: 'b', text: 'done' }], edges: [{ from: 'a', to: 'b', text: 'then', fmt: { i: true } }] },
-                { type: 'image', src: '', caption: 'cap', fmt: { caption: { b: true } } } ] };
-            const plainPl = JSON.parse(JSON.stringify(stPl)); plainPl.blocks.forEach(b => { delete b.fmt; delete b.colFmt; (b.rows || []).forEach(r => delete r.fmt); (b.nodes || []).forEach(n => delete n.fmt); (b.edges || []).forEach(e => delete e.fmt); }); plainPl.blocks[3].content = '<p>red and <b>big</b></p>';
-            const mdS = docToMarkdown(stPl, {}).text, mdP = docToMarkdown(plainPl, {}).text;
-            check('text style and Markdown: a styled planner exports exactly the Markdown of the same planner unstyled — plain titles, cells and labels, no span, no colour, no size', mdS === mdP && !/span|color|font-size|fmt|#d9534f/.test(mdS) && mdS.indexOf('red and **big**') > 0 && mdS.indexOf('| Bribe | fast |') > 0 && mdS.indexOf('a["buy milk"]') > 0, mdS);
-            const backS = markdownToBlocks(mdS, { kind: 'planner' });
-            check('text style and Markdown: the round trip is plain — an import produces no format on any block, row, node or arrow', JSON.stringify(backS.blocks).indexOf('"fmt"') < 0 && JSON.stringify(backS.blocks).indexOf('Fmt"') < 0 && JSON.stringify(backS.blocks).indexOf('<span') < 0 && backS.blocks[0].title === 'Session' && types(backS).indexOf('flowchart') > 0, JSON.stringify(backS.blocks).slice(0, 400));
-            const pgS = cleanDoc({ type: 'doc', id: 'doc_s', meta: { title: 'P' }, blocks: [{ id: 'a', type: 'h1', title: 'P', sub: '', fmt: { title: { color: RED } } }, { id: 'b', type: 'table', title: 'T', cols: ['A'], colFmt: [{ b: true }], rows: [{ col1: 'x', fmt: { col1: { i: true } } }] }] });
-            const pgP = JSON.parse(JSON.stringify(pgS)); pgP.blocks.forEach(b => { delete b.fmt; delete b.colFmt; delete b.rowFmt; });
-            check('text style and Markdown: a styled page too (as a player\'s app holds it, formats beside its rows)', docToMarkdown(pgS, {}).text === docToMarkdown(pgP, {}).text && !!pgS.blocks[1].rowFmt);
-        }
         // a planner with a scene node and raw block round-trips its own way
         const plItems = { m1: { id: 'm1', type: 'map', meta: { title: 'Ahto East' }, rooms: [{ id: 'r9', name: 'Cargo lock' }] } };
         const pl = { type: 'planner', id: 'plan_1', meta: { title: 'Session', status: 'next' }, blocks: [{ type: 'h1', title: 'Session', sub: '' }, { type: 'node', title: 'The docks', tag: 'Stealth', must: 'Who?', linkMapId: 'm1', linkRoomId: 'r9', cols: ['Action', 'Why'], rows: [{ col1: 'Bribe', col2: 'fast' }] }, { type: 'node', mode: 'table', title: 'NPCs', cols: ['Name'], rows: [{ col1: 'Vane' }] }, { type: 'raw', content: '<b>raw</b>' }] };
@@ -338,6 +320,190 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('planner export: status, scene node with map line and table, raw as an html fence', /status: next/.test(plx.text) && plx.text.indexOf('### Scene: The docks\n**Tag:** Stealth\n**Must resolve:** Who?\nMap: Ahto East / Cargo lock\n| Action | Why |') > 0 && plx.text.indexOf('**NPCs**\n| Name |') > 0 && plx.text.indexOf('```html\n<b>raw</b>\n```') > 0, plx.text);
         const plb = markdownToBlocks(plx.text, { kind: 'planner', items: plItems });
         check('planner round trip: scene node, table node, html fence as code (never raw)', types(plb) === 'h1,node,node,text' && plb.blocks[1].linkRoomId === 'r9' && plb.blocks[1].rows[0].col1 === 'Bribe' && plb.blocks[2].mode === 'table' && /<pre><code>&lt;b&gt;raw/.test(plb.blocks[3].content) && plb.meta.status === 'next', types(plb) + ' ' + JSON.stringify(plb.blocks[3]));
+        // text style in Markdown: a format travels — bold and italic as the dialect's own marks, a colour and a size as the page sanitiser's one span form
+        {
+            const RED = '#d9534f', GREEN = '#5cb87a', cleanBlockFmtsD = D.cleanBlockFmts, sha = s => require('crypto').createHash('sha256').update(s, 'utf8').digest('hex');
+            const noIds = bs => bs.map(b => { const o = Object.assign({}, b); delete o.id; return o; });
+            const canon = v => JSON.stringify(v, (k, x) => x && typeof x === 'object' && !Array.isArray(x) ? Object.keys(x).sort().reduce((o, kk) => { o[kk] = x[kk]; return o; }, {}) : x);
+            const unstyle = it => { const p = JSON.parse(JSON.stringify(it)); p.blocks.forEach(b => { delete b.fmt; delete b.colFmt; delete b.rowFmt; (b.rows || []).forEach(r => { if (r && !Array.isArray(r)) delete r.fmt; }); (b.nodes || []).forEach(n => delete n.fmt); (b.edges || []).forEach(e => delete e.fmt); if (typeof b.content === 'string') b.content = b.content.replace(/<\/?span[^>]*>/g, ''); }); return p; };
+            // (1) with no format: written and read exactly as before (the hashes were taken on the code before this change)
+            const pageMd = docToMarkdown({ type: 'doc', id: 'doc_t', meta: { title: page.meta.title }, blocks: page.blocks }, {}).text, planMd = docToMarkdown({ type: 'planner', id: 'plan_t', meta: { title: plan.meta.title, status: 'next' }, blocks: plan.blocks }, {}).text;
+            const outHash = sha([pageMd, planMd, ex.text, plx.text].join('\u0000')), inHash = sha(JSON.stringify([noIds(page.blocks), page.meta, page.notes, page.images, noIds(plan.blocks), plan.meta, plan.notes, plan.images, noIds(back.blocks), noIds(plb.blocks), noIds(sc.blocks), noIds(gd.blocks)]));
+            check('Markdown (text style): a document with no format is written byte for byte as before, and a file with no style in it is read exactly as before (the template as a page and as a planner, a page of every block, a planner with a scene: pinned by hash on the code before this change)',
+                outHash === '99d3942aefbcd20c65c9fae5ee5692116e75d7b5795f35695acfdfbaf74520d2' && inHash === 'f0037bf9f4a52c805ee8923739c978f9990f6f595364609adb5740d4ba4213c5', [outHash, inHash]);
+
+            // (2) a styled planner: every field kind
+            const stPl = { type: 'planner', id: 'plan_s', meta: { title: 'Styled' }, blocks: [
+                { type: 'h1', title: 'Session', sub: 'one', fmt: { title: { color: RED, b: true }, sub: { i: true } } }, { type: 'h2', title: 'Beats', fmt: { title: { size: 'huge' } } },
+                { type: 'node', title: 'The docks', tag: 'Stealth', must: 'Who?', cols: ['Action', 'Why'], colFmt: [{ b: true }], fmt: { title: { color: RED }, tag: { i: true }, must: { spans: [{ s: 0, e: 3, b: true }] } }, rows: [{ col1: 'Bribe', col2: 'fast', fmt: { col1: { spans: [{ s: 0, e: 2, color: RED, i: true }] } } }] },
+                { type: 'text', content: '<p><span style="color:#d9534f">red</span> and <span style="font-size:1.44em"><b>big</b></span></p>' },
+                { type: 'flowchart', dir: 'LR', nodes: [{ id: 'a', text: 'buy milk', shape: 'rect', color: 'neutral', fmt: { color: RED, spans: [{ s: 0, e: 3, b: true }] } }, { id: 'b', text: 'done', shape: 'rect', color: 'neutral' }], edges: [{ from: 'a', to: 'b', text: 'then', style: 'solid', fmt: { i: true } }] },
+                { type: 'image', src: '', caption: 'cap', fmt: { caption: { b: true } } },
+                { type: 'node', mode: 'table', title: 'Loot', cols: ['Item'], rows: [{ col1: 'gold' }], fmt: { title: { b: true } } } ] };
+            const mdS = docToMarkdown(stPl, {}).text, mdP = docToMarkdown(unstyle(stPl), {}).text;
+            const wantS = ['---', 'title: Styled', 'subtitle: one', '---', '', '# <span style="color:#d9534f">**Session**</span>', '*<i>one</i>*', '', '## <span style="font-size:1.728em">Beats</span>', '',
+                '### Scene: <span style="color:#d9534f">The docks</span>', '**Tag:** *Stealth*', '**Must resolve:** **Who**?', '| **Action** | Why |', '|---|---|', '| <span style="color:#d9534f">*Br*</span>ibe | fast |', '',
+                '<span style="color:#d9534f">red</span> and <span style="font-size:1.44em">**big**</span>', '', '```flowchart', 'flowchart LR', 'a["<font color=d9534f><b>buy</b> milk</font>"]', 'b["done"]', 'a -->|"<i>then</i>"| b', '```', '', '![**cap**]()', '', '**<b>Loot</b>**', '| Item |', '|---|', '| gold |', ''].join('\n');
+            check('Markdown export (text style, a planner): a title, a subtitle, a section, a scene node\'s title, tag and must-resolve, a head, a cell, a text block, a node\'s label, an arrow\'s, a caption and a table\'s title each carry their format — bold and italic as ** and * (as <b> / <i> inside a line that is itself bold or italic syntax), a colour and a size as the one span, a label as the tags mermaid keeps',
+                mdS === wantS, mdS);
+            const wantP = ['---', 'title: Styled', 'subtitle: one', '---', '', '# Session', '*one*', '', '## Beats', '', '### Scene: The docks', '**Tag:** Stealth', '**Must resolve:** Who?', '| Action | Why |', '|---|---|', '| Bribe | fast |', '',
+                'red and **big**', '', '```flowchart', 'flowchart LR', 'a["buy milk"]', 'b["done"]', 'a -->|"then"| b', '```', '', '![cap]()', '', '**Loot**', '| Item |', '|---|', '| gold |', ''].join('\n');
+            check('Markdown export (text style): the same planner with no format is written exactly as it always was — no span, no mark it did not have', mdP === wantP, mdP);
+            const backS = markdownToBlocks(mdS, { kind: 'planner' }), strip2 = bs => noIds(bs).map(b => { delete b.zoom; delete b.space; return b; });
+            check('Markdown round trip (text style, a planner): export then import gives the same blocks — text, formats and structure — and exporting those gives the same Markdown again',
+                canon(strip2(backS.blocks)) === canon(strip2(stPl.blocks)) && docToMarkdown({ type: 'planner', id: 'plan_s', meta: { title: 'Styled' }, blocks: backS.blocks }, {}).text === mdS && backS.notes.length === 0, canon(strip2(backS.blocks)) + '\n' + canon(strip2(stPl.blocks)) + '\n' + JSON.stringify(backS.notes));
+
+            // (3) a styled page, in the editor's shape and as a player's app holds it (rows as lists, formats beside them)
+            const stPg = { type: 'doc', id: 'doc_s', meta: { title: 'P' }, blocks: [
+                { id: 'a', type: 'h1', title: 'Rules', sub: 'v2', fmt: { title: { color: RED }, sub: { b: true } } },
+                { id: 'b', type: 'h2', title: 'Combat now', cols: 2, fmt: { title: { size: 'large', color: RED, spans: [{ s: 0, e: 6, color: GREEN }] } } },
+                { id: 'c', type: 'h3', title: 'Sub', fmt: { title: { spans: [{ s: 0, e: 1, b: true, i: true }] } } },
+                { id: 'd', type: 'callout', content: 'Note <span style="color:#5cb87a">done</span><br><span style="color:#d9534f;font-size:1.2em">todo</span>' },
+                { id: 'e', type: 'table', title: 'Loot table', cols: ['Item', 'Worth | gp'], colFmt: [null, { i: true }], rows: [{ col1: 'buy milk', col2: '2', fmt: { col1: { spans: [{ s: 0, e: 4, b: true }] } } }, { col1: 'x*y', col2: '', fmt: { col1: { color: GREEN } } }], fmt: { title: { color: RED, spans: [{ s: 0, e: 4, b: true }] } } },
+                { id: 'f', type: 'image', src: '/saves/images/doc_s/ab12cd34_map.png', caption: 'The map', layout: { width: 33, float: 'left' }, fmt: { caption: { i: true } } },
+                { id: 'g', type: 'flowchart', dir: 'TD', nodes: [{ id: 'n1', text: 'buy milk\nwalk "dog" #1', shape: 'rect', color: 'gold', fmt: { size: 'larger', color: RED, spans: [{ s: 0, e: 8, color: GREEN }] } }, { id: 'n2', text: 'done', shape: 'pill', color: 'neutral', fmt: { b: true, i: true } }], edges: [{ from: 'n1', to: 'n2', text: 'go', style: 'dotted', fmt: { color: GREEN } }] } ] };
+            const mdG = docToMarkdown(stPg, {}).text;
+            const wantG = ['---', 'title: P', 'subtitle: v2', '---', '', '# <span style="color:#d9534f">Rules</span>', '*<b>v2</b>*', '', '## <span style="color:#d9534f;font-size:1.2em"><span style="color:#5cb87a">Combat</span> now</span> {cols=2}', '', '### ***S***ub', '',
+                '> [!callout] Note <span style="color:#5cb87a">done</span>  ', '> <span style="color:#d9534f;font-size:1.2em">todo</span>', '', '**<span style="color:#d9534f"><b>Loot</b> table</span>**', '| Item | *Worth \\| gp* |', '|---|---|', '| <b>buy </b>milk | 2 |', '| <span style="color:#5cb87a">x\\*y</span> |  |', '',
+                '![*The map*](images/doc_s/map.png){width=33 float=left}', '', '```flowchart', 'flowchart TD', 'n1["<big><big><font color=d9534f><font color=5cb87a>buy milk</font><br>walk #quot;dog#quot; #35;1</font></big></big>"]:::gold', 'n2(["<b><i>done</i></b>"])', 'n1 -.->|"<font color=5cb87a>go</font>"| n2', '```', ''].join('\n');
+            check('Markdown export (text style, a page): the field\'s own colour and size are one span around everything with the parts inside it; a bold part that ends in a space, a cell with a | or a * in it, a title inside its bold line and a label with a line break, a quote and a # are each written so they read back',
+                mdG === wantG, mdG);
+            const held = cleanDoc(stPg);
+            check('Markdown export (text style): a page as a player\'s app holds it — rows as lists, their formats beside them in rowFmt — is written the same', Array.isArray(held.blocks[4].rows[0]) && !!held.blocks[4].rowFmt && docToMarkdown(held, {}).text === mdG, docToMarkdown(held, {}).text);
+            const backG = markdownToBlocks(mdG, { kind: 'doc' }), stripG = bs => strip2(bs).map(b => { delete b.src; return b; });
+            const again = JSON.parse(JSON.stringify(backG.blocks)); again[5].src = stPg.blocks[5].src;
+            check('Markdown round trip (text style, a page): export then import gives the same blocks — a title\'s and a subtitle\'s format, a section\'s own colour and size with its coloured part, a table\'s title, heads and cells, a caption, a node\'s and an arrow\'s label, a quote\'s spans — and the same Markdown on a second export',
+                canon(stripG(backG.blocks)) === canon(stripG(JSON.parse(JSON.stringify(stPg.blocks)))) && backG.meta.subtitle === 'v2' && docToMarkdown({ type: 'doc', id: 'doc_s', meta: { title: 'P' }, blocks: again }, {}).text === mdG, canon(stripG(backG.blocks)) + '\n' + canon(stripG(JSON.parse(JSON.stringify(stPg.blocks)))));
+            check('Markdown round trip (text style): what comes in is clean and draws as the original does — every format is the cleaner\'s own, and the imported page renders exactly as the styled one',
+                (() => { const a = JSON.parse(JSON.stringify(backG.blocks)); a.forEach(cleanBlockFmtsD); return JSON.stringify(a) === JSON.stringify(backG.blocks); })()
+                && renderDoc({ type: 'doc', blocks: again.map((b, k) => Object.assign({}, b, { id: stPg.blocks[k].id })) }, { mermaid: false }) === renderDoc(stPg, { mermaid: false }), '');
+
+            // (4) what the dialect cannot carry is written plain or normalised, never broken
+            const one = (title, fmt) => docToMarkdown({ type: 'doc', id: 'd', meta: { title: 'T' }, blocks: [{ type: 'h2', title, fmt: { title: fmt } }] }, {}).text.split('\n')[4];
+            const h2back = line => { const b = markdownToBlocks(line, { kind: 'doc' }).blocks[0]; return [b.title, b.fmt && b.fmt.title]; };
+            check('Markdown export (text style): the marks are used only where they read back — a bold part ending in a space, an italic next to a bold, a part beside a literal * are written as <b> / <i>; each reads back to the same text and looks',
+                one('buy milk', { spans: [{ s: 0, e: 4, b: true }] }) === '## <b>buy </b>milk' && one('ab', { spans: [{ s: 0, e: 1, i: true }, { s: 1, e: 2, b: true }] }) === '## <i>a</i><b>b</b>' && one('a*b', { spans: [{ s: 0, e: 1, i: true }] }) === '## *a*\\*b'
+                && one('Bribe', { b: true, spans: [{ s: 0, e: 2, i: true }] }) === '## ***Br*ibe**' && one('# x - 1. y', { i: true }) === '## *\\# x - 1. y*'
+                && [['buy milk', { spans: [{ s: 0, e: 4, b: true }] }], ['ab', { spans: [{ s: 0, e: 1, i: true }, { s: 1, e: 2, b: true }] }], ['a*b', { spans: [{ s: 0, e: 1, i: true }] }], ['Bribe', { b: true, spans: [{ s: 0, e: 2, i: true }] }], ['# x - 1. y', { i: true }], ['a <b>typed</b> &mdash; x', { color: RED, spans: [{ s: 5, e: 10, b: true }] }], ['x_y [z] `q` ~w~', { size: 'small', spans: [{ s: 2, e: 7, color: GREEN, b: true, i: true }] }]]
+                    .every(c => JSON.stringify(h2back(one(c[0], c[1]))) === JSON.stringify([c[0], c[1]])), [one('buy milk', { spans: [{ s: 0, e: 4, b: true }] }), one('ab', { spans: [{ s: 0, e: 1, i: true }, { s: 1, e: 2, b: true }] }), one('a*b', { spans: [{ s: 0, e: 1, i: true }] }), one('Bribe', { b: true, spans: [{ s: 0, e: 2, i: true }] }), one('# x - 1. y', { i: true })]);
+            check('Markdown round trip (text style): a look that holds for the whole text comes back as the field\'s own — bold on every part is the field\'s bold, one colour on every part the field\'s colour — with the same looks and the same Markdown',
+                JSON.stringify(h2back(one('buy milk', { spans: [{ s: 0, e: 4, b: true, color: RED }, { s: 4, e: 8, b: true, color: GREEN }] }))) === JSON.stringify(['buy milk', { b: true, spans: [{ s: 0, e: 4, color: RED }, { s: 4, e: 8, color: GREEN }] }])
+                && JSON.stringify(h2back(one('ab', { color: RED, spans: [{ s: 0, e: 2, color: GREEN }] }))) === JSON.stringify(['ab', { color: GREEN }]) && one('ab', { color: RED, spans: [{ s: 0, e: 2, color: GREEN }] }) === one('ab', { color: GREEN }));
+            const h2md = (title, fmt) => docToMarkdown({ type: 'doc', id: 'd', meta: { title: 'T' }, blocks: [fmt ? { type: 'h2', title, fmt: { title: fmt } } : { type: 'h2', title }] }, {}).text;
+            check('Markdown export (text style): a subtitle that cannot stand on its italic line (it holds a * or a _), a one-line field whose text holds a line break and a hostile format are written as they always were — the plain text',
+                h2md('a\nb', { b: true }) === h2md('a\nb') && h2md('a\r\nb', { color: RED }) === h2md('a\r\nb') && h2md('ab', { b: true }) !== h2md('ab') &&
+                    docToMarkdown({ type: 'doc', id: 'd', meta: { title: 'T' }, blocks: [{ type: 'h1', title: 'T', sub: 'a_b', fmt: { sub: { color: RED } } }] }, {}).text === docToMarkdown({ type: 'doc', id: 'd', meta: { title: 'T' }, blocks: [{ type: 'h1', title: 'T', sub: 'a_b' }] }, {}).text
+                && one('T', { color: 'red;background:url(//evil.example/x)', size: '40px', onclick: 'x', spans: [{ s: 0, e: 9, color: 'url(x)' }] }) === '## T' && one('T', 'bold') === '## T');
+            const scene = (title, fmt) => { const md = docToMarkdown({ type: 'planner', id: 'p', meta: { title: 'T' }, blocks: [{ type: 'node', title, tag: '', must: '', fmt: { title: fmt } }] }, {}).text.split('\n')[4], b = markdownToBlocks(md, { kind: 'planner' }).blocks[0]; return [md, b.title, b.fmt && b.fmt.title]; };
+            check('Markdown export (text style): a scene node\'s title is checked against the way it is read — after "Scene:" — so one that begins with a space, which that reading would take, is written plain rather than styled and read back unstyled',
+                JSON.stringify(scene('The docks', { color: RED })) === JSON.stringify(['### Scene: <span style="color:#d9534f">The docks</span>', 'The docks', { color: RED }]) && JSON.stringify(scene(' x', { b: true })) === JSON.stringify(['### Scene:  x', 'x', undefined]), JSON.stringify([scene('The docks', { color: RED }), scene(' x', { b: true })]));
+            const fcOut = (text, fmt) => flowchartToMermaid({ nodes: [{ id: 'a', text, fmt }] }).split('\n')[1];
+            check('Markdown export (text style): a label whose own text holds the label tags is written plain (the flowchart still reads back), and a label with none exactly as before',
+                fcOut('a <b>x</b>', { color: RED }) === 'a["a <b>x</b>"]' && fcOut('plain "q" #1\nnext', undefined) === 'a["plain #quot;q#quot; #35;1<br>next"]' && fcOut('x', { color: 'red' }) === 'a["x"]' && fcOut('x', { size: 'small' }) === 'a["<small>x</small>"]' && fcOut('x', { size: 'huge', i: true }) === 'a["<big><big><big><i>x</i></big></big></big>"]');
+
+            const TFm = await import('file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', 'textfmt.js')).replace(/\\/g, '/'));
+            // (4b) seeded: a random format on a random text — marks, pipes, brackets, quotes, an ampersand, white space at the ends — in every kind of plain field
+            {
+                let a = 20261002; const Rn = () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+                const COL = [RED, GREEN, '#4db3d3'], ALPHA = 'ab c*_|#<>&[]\\`~"\'-+.1:{}()!', pick = l => l[Math.floor(Rn() * l.length)];
+                const cleanF = TFm.cleanFmt, looks = (t, f) => { const c = cleanF(f, t); return JSON.stringify([(c && c.size) || '', TFm.runsOf(t, c)]); };
+                const kinds = ['h1', 'sub', 'h2', 'h3', 'caption', 'ttitle', 'head', 'cell', 'stitle', 'tag', 'must', 'label', 'edge'], seen = {};
+                let n = 0, kept = 0, plainN = 0, trimmed = 0, lost = 0, bad = null;
+                for (let it = 0; it < 2600 && !bad; it++) {
+                    const kind = pick(kinds), planner = kind === 'stitle' || kind === 'tag' || kind === 'must' || (kind !== 'h3' && Rn() < 0.3), kd = planner ? 'planner' : 'doc';
+                    let t = Array.from({ length: 1 + Math.floor(Rn() * 13) }, () => pick(ALPHA)).join(''); if (kind === 'label' && Rn() < 0.4) t = t.replace(/ /g, '\n');
+                    const f = cleanF({ size: Rn() < 0.2 ? pick(['small', 'large', 'larger', 'huge']) : undefined, color: Rn() < 0.3 ? pick(COL) : undefined, b: Rn() < 0.15 ? true : undefined, i: Rn() < 0.15 ? true : undefined,
+                        spans: Array.from({ length: Math.floor(Rn() * 4) }, () => { const s = Math.floor(Rn() * t.length); return { s, e: s + 1 + Math.floor(Rn() * 5), color: Rn() < 0.5 ? pick(COL) : undefined, b: Rn() < 0.4 ? true : undefined, i: Rn() < 0.4 ? true : undefined }; }) }, t);
+                    if (!f) continue;
+                    const mk = fm => {   // a document holding the field, with or without its format
+                        const B = [{ type: 'h1', title: 'T', sub: 'S' }], put = (b, k) => { if (fm) (b.fmt = b.fmt || {})[k] = fm; };
+                        if (kind === 'h1') { B[0].title = t; put(B[0], 'title'); } else if (kind === 'sub') { B[0].sub = t; put(B[0], 'sub'); }
+                        else if (kind === 'h2' || kind === 'h3') { const b = { type: kind, title: t }; put(b, 'title'); B.push(b); }
+                        else if (kind === 'caption') { const b = { type: 'image', src: '', caption: t }; put(b, 'caption'); B.push(b); }
+                        else if (kind === 'ttitle' || kind === 'head' || kind === 'cell') {
+                            const b = planner ? { type: 'node', mode: 'table', title: 'Tt', cols: ['A', 'B'], rows: [{ col1: 'x', col2: 'y' }] } : { type: 'table', title: 'Tt', cols: ['A', 'B'], rows: [{ col1: 'x', col2: 'y' }] };
+                            if (kind === 'ttitle') { b.title = t; put(b, 'title'); } else if (kind === 'head') { b.cols[1] = t; if (fm) b.colFmt = [null, fm]; } else { b.rows[0].col1 = t; if (fm) b.rows[0].fmt = { col1: fm }; }
+                            B.push(b);
+                        } else if (kind === 'stitle' || kind === 'tag' || kind === 'must') { const b = { type: 'node', title: 'Sc', tag: 'tg', must: 'ms', cols: ['A'], rows: [{ col1: 'x' }] }, k = kind === 'stitle' ? 'title' : kind; b[k] = t; put(b, k); B.push(b); }
+                        else { const b = { type: 'flowchart', dir: 'TD', nodes: [{ id: 'a', text: 'A', shape: 'rect', color: 'neutral' }, { id: 'b', text: 'B', shape: 'rect', color: 'neutral' }], edges: [{ from: 'a', to: 'b', text: 'e', style: 'solid' }] };
+                            if (kind === 'label') { b.nodes[0].text = t; if (fm) b.nodes[0].fmt = fm; } else { b.edges[0].text = t; if (fm) b.edges[0].fmt = fm; } B.push(b); }
+                        return { type: kd, id: 'x', meta: { title: 'M' }, blocks: B };
+                    };
+                    const get = bs => {   // the field as it was read back
+                        const b1 = bs[1] || {}; let tx, fm;
+                        if (kind === 'h1') { tx = bs[0].title; fm = bs[0].fmt && bs[0].fmt.title; } else if (kind === 'sub') { tx = bs[0].sub; fm = bs[0].fmt && bs[0].fmt.sub; }
+                        else if (kind === 'h2' || kind === 'h3' || kind === 'ttitle' || kind === 'stitle') { tx = b1.title; fm = b1.fmt && b1.fmt.title; }
+                        else if (kind === 'caption') { tx = b1.caption; fm = b1.fmt && b1.fmt.caption; } else if (kind === 'tag' || kind === 'must') { tx = b1[kind]; fm = b1.fmt && b1.fmt[kind]; }
+                        else if (kind === 'head') { tx = (b1.cols || [])[1]; fm = (b1.colFmt || [])[1]; } else if (kind === 'cell') { const r = (b1.rows || [])[0] || {}; tx = r.col1; fm = r.fmt && r.fmt.col1; }
+                        else if (kind === 'label') { const nd = (b1.nodes || [])[0] || {}; tx = nd.text; fm = nd.fmt; } else { const e = (b1.edges || [])[0] || {}; tx = e.text; fm = e.fmt; }
+                        return { tx, fm: fm || undefined, types: bs.map(b => b.type).join(',') };
+                    };
+                    const mdP = docToMarkdown(mk(null), {}).text, mdF = docToMarkdown(mk(f), {}).text, read = markdownToBlocks(mdF, { kind: kd }).blocks, bP = get(markdownToBlocks(mdP, { kind: kd }).blocks), bF = get(read);
+                    const want = mk(null).blocks.map(b => b.type).join(','), core = x => String(x).replace(/\n/g, ' ').replace(/[\s#]+$/, '').trim(), say = why => { bad = { why, kind, kd, t, f, mdF, bF }; };
+                    n++;
+                    if (bP.types === want && bF.types !== want) { say('the structure broke'); continue; }
+                    if (bF.types !== want) { lost++; continue; }   // a structure the dialect loses with or without a format (a label beyond the flowchart subset)
+                    if (bF.tx !== t && bF.tx !== bP.tx && core(bF.tx) !== core(t)) { say('another text'); continue; }
+                    if (mdF === mdP) { plainN++; if (bP.fm === undefined && bF.fm !== undefined) say('a format from a plain file'); continue; }
+                    if (bF.fm === undefined) { say('a styled file read plain'); continue; }
+                    if (bF.tx !== t) { trimmed++; continue; }   // white space at the field's ends, or a heading's closing #, is the dialect's to trim
+                    if (looks(bF.tx, bF.fm) !== looks(t, f)) { say('other looks'); continue; }
+                    if (docToMarkdown({ type: kd, id: 'x', meta: { title: 'M' }, blocks: read }, {}).text !== mdF) { say('the second export differs'); continue; }
+                    kept++; seen[kind] = (seen[kind] || 0) + 1;
+                }
+                check('Markdown round trip (text style, seeded: ' + n + ' styled fields of every kind, their texts full of marks, pipes, brackets and quotes): the structure never breaks; the text is the true text (or the plain file\'s, or trimmed at its ends); a field written with its format reads back with exactly its looks (' + kept + ' times) and writes the same file again; one that could not be is written plain (' + plainN + ' times) — never another look',
+                    !bad && n > 2000 && kept > 1500 && plainN > 0 && kinds.every(k => seen[k] > 40), bad ? JSON.stringify(bad) : JSON.stringify({ n, kept, plainN, trimmed, lost, seen }));
+            }
+
+            // (5) the import of each form, and of hostile ones
+            const { fmtFromInline } = M;
+            check('fmtFromInline: text and format from inline HTML, read only from what the page sanitiser writes — b / strong, i / em, the one span (a colour, a size around everything); a link, an underline and a line break are their text; the result is the cleaner\'s',
+                JSON.stringify(fmtFromInline('a <b>b</b> <i>c</i>')) === JSON.stringify({ text: 'a b c', fmt: { spans: [{ s: 2, e: 3, b: true }, { s: 4, e: 5, i: true }] } })
+                && JSON.stringify(fmtFromInline('<strong>x</strong><em>y</em>').fmt) === JSON.stringify({ spans: [{ s: 0, e: 1, b: true }, { s: 1, e: 2, i: true }] })
+                && JSON.stringify(fmtFromInline('<span style="color: rgb(217, 83, 79); font-size: 1.2em">all <font color="#5CB87A">g</font></span>')) === JSON.stringify({ text: 'all g', fmt: { size: 'large', color: RED, spans: [{ s: 4, e: 5, color: GREEN }] } })
+                && JSON.stringify(fmtFromInline('a &amp; &lt;b&gt; <u>u</u> <a href="https://a.b/c">l</a><br>x')) === JSON.stringify({ text: 'a & <b> u lx' }) && JSON.stringify(fmtFromInline('')) === JSON.stringify({ text: '' }) && JSON.stringify(fmtFromInline(null)) === JSON.stringify({ text: '' })
+                && JSON.stringify(fmtFromInline('<b><i>x</i></b>').fmt) === JSON.stringify({ b: true, i: true }) && JSON.stringify(fmtFromInline('a<span style="font-size:1.2em">b</span>')) === JSON.stringify({ text: 'ab' }), JSON.stringify(fmtFromInline('<span style="color: rgb(217, 83, 79); font-size: 1.2em">all <font color="#5CB87A">g</font></span>')));
+            check('fmtFromInline: hostile inline HTML gives only what the sanitiser lets through — a colour or a size that is not the strict form is dropped while the text stays, a handler and every other property are gone, a script is dropped with its content',
+                JSON.stringify(fmtFromInline('<span style="color:red;background:url(//evil.example/x)" onclick="x()">a</span><span style="color:#00ff00;position:fixed" onmouseover=alert(1)>b</span><span style="font-size:40px">c</span><script>alert(1)</script><span style="color:expression(alert(1))">d</span>'))
+                    === JSON.stringify({ text: 'abcd', fmt: { spans: [{ s: 1, e: 2, color: '#00ff00' }] } })
+                && JSON.stringify(fmtFromInline('<img src=x onerror=alert(1)><b onclick="x">B</b><style>*{}</style>')) === JSON.stringify({ text: 'B', fmt: { b: true } })
+                && (() => { const many = fmtFromInline(Array.from({ length: 900 }, (_, k) => k % 2 ? 'x' : '<b>y</b>').join('')); return many.text.length === 900 && many.fmt.spans.length === 200 && risksNone(JSON.stringify(many)); })());
+            const imp = markdownToBlocks(['# **Big** <span style="color:#5cb87a">title</span>', '*a <b>sub</b>*', '', '## <span style="color:#d9534f;font-size:1.44em">Sec</span> {cols=2}', '', '### *Sub*', '', '**<span style="font-size:0.833em">Tab</span>**', '| **A** | B |', '|---|---|', '| <font color="#5cb87a">x</font>y | _z_ |', '',
+                '![a *cap*](pic.png)', '', '```flowchart', 'flowchart LR', 'a["<font color=5cb87a>go</font> on"] -->|"<b>yes</b>"| b["<i><b>not ours</b></i>"]', 'b --> c["<big>part</big> big"]', '```', '', 'Text <span style="color:#d9534f">red</span> and <span style="font-size:1.2em">large</span>.', '', '::: flare', '<span style="color:#5cb87a">g</span>o', ':::', '', '> <font color="#d9534f">q</font>uote'].join('\n'), { kind: 'doc' });
+            const ib = imp.blocks;
+            check('Markdown import (text style): **, *, _ and the span form in a place that becomes a plain field are read into its text and its format — a title, the italic line under it, a section (its {cols} still read), a sub-heading, a table\'s bold title line, its heads and cells, a caption',
+                types(imp) === 'h1,h2,h3,table,image,flowchart,text,flare,callout' && ib[0].title === 'Big title' && JSON.stringify(ib[0].fmt) === JSON.stringify({ title: { spans: [{ s: 0, e: 3, b: true }, { s: 4, e: 9, color: GREEN }] }, sub: { spans: [{ s: 2, e: 5, b: true }] } }) && ib[0].sub === 'a sub'
+                && ib[1].title === 'Sec' && ib[1].cols === 2 && JSON.stringify(ib[1].fmt) === JSON.stringify({ title: { size: 'larger', color: RED } }) && ib[2].title === 'Sub' && JSON.stringify(ib[2].fmt) === JSON.stringify({ title: { i: true } })
+                && ib[3].title === 'Tab' && JSON.stringify(ib[3].fmt) === JSON.stringify({ title: { size: 'small' } }) && JSON.stringify(ib[3].cols) === '["A","B"]' && JSON.stringify(ib[3].colFmt) === '[{"b":true}]' && JSON.stringify(ib[3].rows) === JSON.stringify([{ col1: 'xy', col2: 'z', fmt: { col1: { spans: [{ s: 0, e: 1, color: GREEN }] }, col2: { i: true } } }])
+                && ib[4].caption === 'a cap' && JSON.stringify(ib[4].fmt) === JSON.stringify({ caption: { spans: [{ s: 2, e: 5, i: true }] } }), JSON.stringify(ib.slice(0, 5)));
+            const fmSub = markdownToBlocks('---\nsubtitle: From the front matter\n---\n# T\n*<b>another</b> line*', { kind: 'doc' }).blocks[0], lineSub = markdownToBlocks('---\nsubtitle: a sub\n---\n# T\n*a <b>sub</b>*', { kind: 'doc' }).blocks[0];
+            check('Markdown import (text style): the italic line under the title gives the subtitle its format only where it is the subtitle — a front matter subtitle of another text keeps its text and takes no format',
+                fmSub.sub === 'From the front matter' && !('fmt' in fmSub) && lineSub.sub === 'a sub' && JSON.stringify(lineSub.fmt) === JSON.stringify({ sub: { spans: [{ s: 2, e: 5, b: true }] } }), JSON.stringify([fmSub, lineSub]));
+            check('Markdown import (text style): a flowchart label is read into text and format only in the very form the export writes (b, i, font color=rrggbb, big / small around everything); any other label is its text, tags and all, as before',
+                JSON.stringify(ib[5].nodes.map(n => [n.text, n.fmt])) === JSON.stringify([['go on', { spans: [{ s: 0, e: 2, color: GREEN }] }], ['<i><b>not ours</b></i>', undefined], ['<big>part</big> big', undefined]]) && JSON.stringify(ib[5].edges.map(e => [e.text, e.fmt])) === JSON.stringify([['yes', { b: true }], ['', undefined]]), JSON.stringify(ib[5]));
+            check('Markdown import (text style): in a place that becomes a text block the span form is kept as the sanitiser gives it (a paragraph, a fenced prose block, a quote; <font color> becomes the span)',
+                ib[6].content === '<p>Text <span style="color:#d9534f">red</span> and <span style="font-size:1.2em">large</span>.</p>' && ib[7].content === '<span style="color:#5cb87a">g</span>o' && ib[8].content === '<span style="color:#d9534f">q</span>uote', JSON.stringify(ib.slice(6)));
+            const hostile = markdownToBlocks(['# <span style="color:red;background:url(//evil.example/x)" onclick="x()">T</span><script>alert(1)</script>', '', '## <span style="color:#00ff00;position:fixed;top:0" onmouseover="alert(1)">S</span> <span style="font-size:99em">big</span>', '',
+                '| <b onclick="x()">A</b> | <span style="color:#abcdef&quot; onmouseover=&quot;alert(1)">B</span> |', '|---|---|', '| <img src=x onerror=alert(1)>c | <a href="javascript:alert(1)">d</a> |', '', '![<span style="color:url(x)">cap</span>](p.png)', '',
+                'P <span style="color:#00ff00;background:url(x)" onclick="x()">g</span> <span style="font-size:300px">h</span><iframe src="//evil.example"></iframe>', '', '### <b>B</b><script>x</script>y'].join('\n'), { kind: 'doc' });
+            const hb = hostile.blocks;
+            check('Markdown import (text style, hostile): only what the sanitiser lets through becomes a format or stays in a text block — a colour or size that is not the strict form is dropped while the text stays, every handler, property and URL is gone, and a field whose text the sanitiser reads differently takes no format at all',
+                hb[0].title === 'Talert(1)' && !('fmt' in hb[0]) && hb[1].title === 'S big' && JSON.stringify(hb[1].fmt) === JSON.stringify({ title: { spans: [{ s: 0, e: 1, color: '#00ff00' }] } })
+                && JSON.stringify(hb[2].cols) === '["A","B"]' && JSON.stringify(hb[2].colFmt) === '[{"b":true}]' && JSON.stringify(hb[2].rows) === '[{"col1":"c","col2":"d"}]' && hb[3].caption === 'cap' && !('fmt' in hb[3])
+                && hb[4].content === '<p>P <span style="color:#00ff00">g</span> h</p>' && hb[5].type === 'h3' && hb[5].title === 'Bxy' && !('fmt' in hb[5]) && risksNone(JSON.stringify(hb)) && !/onclick|onmouseover|onerror|url\(|evil|javascript|position|iframe/.test(JSON.stringify(hb)), JSON.stringify(hb));
+            check('Markdown export (text style, a text block): a colour or size span is written as the sanitiser\'s one form; one that runs across paragraphs is closed and opened again in each; one inside code is dropped; and the block reads back the same',
+                htmlToMarkdown(sanitizeHtml('<p><font color="#D9534F">red</font> <b><span style="font-size: 1.2em; color: rgb(92, 184, 122)">both</span></b></p>')) === '<span style="color:#d9534f">red</span> **<span style="color:#5cb87a;font-size:1.2em">both</span>**'
+                && htmlToMarkdown(sanitizeHtml('<span style="color:#d9534f"><p>one</p><p>two</p></span>')) === '<span style="color:#d9534f">one</span>\n\n<span style="color:#d9534f">two</span>'
+                && htmlToMarkdown(sanitizeHtml('<ul><li><span style="color:#5cb87a">done</span></li><li>todo</li></ul>')) === '- <span style="color:#5cb87a">done</span>\n- todo'
+                && htmlToMarkdown('<p><code><span style="color:#d9534f">x</span></code> <span style="color:#d9534f"></span><span style="color:red" onclick="x">y</span></p>') === '`x` y'
+                && ['<p><span style="color:#d9534f">red</span> <b><span style="color:#5cb87a;font-size:1.2em">both</span></b></p>', '<p><span style="color:#d9534f">one</span></p><p><span style="color:#d9534f">two</span></p>', '<ul><li><span style="color:#5cb87a">done</span></li><li>todo</li></ul>', '<p>a <span style="font-size:0.833em">- small</span><br>b</p>']
+                    .every(h => markdownToBlocks(docToMarkdown({ type: 'doc', id: 'd', meta: { title: 'T' }, blocks: [{ type: 'text', content: h }] }, {}).text, { kind: 'doc' }).blocks[0].content === h), htmlToMarkdown(sanitizeHtml('<span style="color:#d9534f"><p>one</p><p>two</p></span>')));
+            const guide = require('fs').readFileSync(path.join(__dirname, '..', 'CAMPAIGN_INTEGRATION.md'), 'utf8').replace(/\r\n/g, '\n'), ixH = require('fs').readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8').replace(/\r\n/g, '\n').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ');
+            check('said (the integration guide and Help): Markdown carries text style — how it is written, what is read back, and exactly what is not carried',
+                guide.indexOf('**Text style in Markdown:**') > 0 && ['bold as `**…**`, italic as `*…*`', '`<span style="color:#rrggbb">`', 'as `<b>` / `<i>` instead', '`<font color=rrggbb>`', 'Not carried:', 'a size on part of a field', 'underline, strike-through, a link or code inside a plain field', 'comes back as the field\'s own', 'A file with no style in it is read exactly as before'].every(w => guide.indexOf(w) > 0)
+                && guide.indexOf('an export writes the plain text and an import brings no format') < 0
+                && ['Save Markdown keeps text style and an import brings it back', 'Not carried: a size on part of a title or a cell', 'A file with none of this in it comes in exactly as before.'].every(w => ixH.indexOf(w) > 0) && ixH.indexOf('Markdown has no colour and no size') < 0, '');
+        }
         check('detectBundle: .md at the root or one folder down, __MACOSX and dotfiles ignored', (() => { const b = detectBundle([{ name: '__MACOSX/x.md', data: new Uint8Array() }, { name: 'Folder/.hidden.md', data: new Uint8Array() }, { name: 'Folder/page.md', data: new Uint8Array() }, { name: 'Folder/images/a.png', data: new Uint8Array() }]); return b && b.md.name === 'Folder/page.md' && b.base === 'Folder/' && b.files.length === 2; })() && detectBundle([{ name: 'a/b/c.md', data: new Uint8Array() }]) === null && detectBundle([{ name: 'data.json', data: new Uint8Array() }]) === null);
         check('htmlToMarkdown: code and pre', htmlToMarkdown('<p>use <code>x</code></p><pre>a\n b</pre>') === 'use `x`\n\n```\na\n b\n```');
         // Onboarding F2a: a line start that would open a block is escaped, and reads back exactly as written
@@ -532,19 +698,10 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             [['buy milk now', { color: RED, size: 'large', spans: [{ s: 4, e: 8, color: GREEN, b: true }, { s: 9, e: 12, i: true }] }], ['5 < 6 & 7', { spans: [{ s: 0, e: 3, color: RED }] }], ['ab', { b: true, spans: [{ s: 1, e: 2, color: GREEN }] }], ['x', { i: true }]].every(c => fmtRich(c[0], c[1]) === fmtHtml(c[0], c[1], sanitizeHtml))
             && fmtRich('t<b>x</b>', { color: 'url(x)', size: '40px', spans: [{ s: 0, e: 1, color: '" onmouseover="alert(1)' }, { s: 5, e: 99, style: 'x' }] }) === 't<b>x</b>');
 
-        // Markdown has no colour and no size: an import brings none
+        // sanitizeBare stays a published call (a page's markup less its look); a Markdown import no longer reads through it — it carries colour and size (the Markdown checks above)
         check('sanitizeBare: the page sanitiser less the look — a span or a font is just its text; everything else is what sanitizeHtml gives',
             sanitizeBare('<p>Plain <span style="color:#ff0000;font-size:1.728em">red <b>huge</b></span> and <font color="#00ff00">green</font> <a href="https://a.b/c">l</a><script>x</script></p>') === '<p>Plain red <b>huge</b> and green <a href="https://a.b/c" target="_blank" rel="noopener noreferrer">l</a></p>'
             && ['<p>a<br>b</p><ul><li>x</li></ul>', '<b>x</span>y</b>', '<p onclick="x()">t</p><img src=x onerror=alert(1)>', 'a &amp; b &mdash; <unknown>c</unknown>', '<div><i>x</div>y'].every(h => sanitizeBare(h) === sanitizeHtml(h)) && sanitizeBare(null) === '');
-        if (M) {
-            const mi = M.markdownToBlocks('Plain <span style="color:#ff0000;font-size:1.728em">red huge</span> and <font color="#00ff00">green</font> text.\n\n::: callout\n<span style="color:#ff0000">c</span>all\n:::\n\n> <font color="#00ff00">q</font>uote', { kind: 'doc' });
-            const guide = require('fs').readFileSync(path.join(__dirname, '..', 'CAMPAIGN_INTEGRATION.md'), 'utf8');
-            check('Markdown import (text style): a file\'s inline colour and size are not brought in — a paragraph, a fenced block and a quote come in as their plain text — as the guide says',
-                Jq(mi.blocks.map(b => [b.type, b.content])) === Jq([['text', '<p>Plain red huge and green text.</p>'], ['callout', 'call'], ['callout', 'quote']])
-                && guide.indexOf('Markdown has neither: an export writes the plain text and an import brings no format (a file\'s inline `<span style>` or `<font color>` comes in as its text)') > 0, Jq(mi.blocks.map(b => [b.type, b.content])));
-            const mdOut = M.docToMarkdown({ type: 'doc', id: 'd', meta: { title: 'T' }, blocks: [{ id: 'b', type: 'text', content: '<p><span style="color:#d9534f">red</span> <b>text</b></p>' }] }).text;
-            check('Markdown round trip (text style): an export writes no colour and an import of it brings none — the same both ways', !/span|color|d9534f/.test(mdOut) && /red \*\*text\*\*/.test(mdOut) && Jq(M.markdownToBlocks(mdOut, { kind: 'doc' }).blocks.map(b => b.content)) === Jq(['<p>red <b>text</b></p>']), mdOut);
-        }
 
         // a page's table title, a caption with no picture, the heads past the eighth
         const tdoc = { type: 'doc', id: 'd', meta: { title: 'T' }, blocks: [

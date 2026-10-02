@@ -26,16 +26,11 @@ A portable desktop companion for tabletop RPG campaigns: linked data maps for th
 
 Download `Waypoint_Setup.exe` from the latest release and run it. The installer puts Waypoint in your user folder, needs no admin rights, and offers a Start Menu and desktop shortcut.
 
-### "Windows protected your PC"
+### The Windows warning
 
-The installer isn't code-signed, so Windows shows a blue SmartScreen screen the first time you run it. It looks like this, and it is safe to continue:
+Windows may warn that it does not recognise the publisher: Waypoint's installer is not code-signed yet. Only run a `Waypoint_Setup.exe` you downloaded from Waypoint's own releases page, or through the app's own update button; if it came from anywhere else, do not run it.
 
-![SmartScreen: click More info, then Run anyway](docs/smartscreen.png)
-
-1. Click **More info** (the small link under the warning text).
-2. The app and publisher lines appear, and a **Run anyway** button shows up beside **Don't run**. Click **Run anyway**.
-
-That is all SmartScreen means here: the installer is new and unsigned, not flagged. You only see it once per download.
+One-click updates inside the app are signed: your copy takes an update only when its signature checks against the key the installer put there, and **Settings ▸ Updates & about ▸ Restore the previous version** puts the app back as it was before the last update. From 1.5.0 on an update that changes Waypoint's core installs itself the same way: the app downloads the installer, checks its signature, closes, updates and opens again.
 
 New versions install over old ones. Saves and settings are kept, and older saves are upgraded automatically after a backup is taken. When Setup finds a copy already installed it asks what to do: update it in place (the usual choice), do a clean install that rebuilds the program files but keeps your saves and settings unless you tick the box to delete them, or put a separate copy in a new folder and leave the existing one alone.
 

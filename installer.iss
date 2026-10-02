@@ -38,7 +38,7 @@ CloseApplications=no
 [Files]
 ; Everything except: build/dev files, the user's own saves and campaign notes,
 ; per-install settings (system\userdata), logs, and scratch.
-Source: "*"; DestDir: "{app}"; Excludes: "installer.iss,Not used,Not used\*,system\Dark Logo.ico,system\Globe Logo.ico,system\Temp-icon.ico,system\fcw_icon.ico,system\nucleus_icon.ico,Waypoint_Setup.exe,Waypoint.lnk,CAMPAIGN_INTEGRATION.md,log.txt,*.zip,*.sha256,manifest.json,RELEASE_NOTES.md,READ ME FIRST*,saves,saves\*,system\userdata,system\userdata\*,system\app.prev,system\app.prev\*,system\app.new,system\app.new\*,scratch,scratch\*,dist,dist\*,tools,tools\*,dev-saves,dev-saves\*,docs,docs\*,.git,.git\*,.gitignore"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "*"; DestDir: "{app}"; Excludes: "installer.iss,Not used,Not used\*,system\Dark Logo.ico,system\Globe Logo.ico,system\Temp-icon.ico,system\fcw_icon.ico,system\nucleus_icon.ico,Waypoint_Setup.exe,Waypoint.lnk,CAMPAIGN_INTEGRATION.md,log.txt,*.zip,*.sha256,*.sig,*.pem,manifest.json,RELEASE_NOTES.md,READ ME FIRST*,saves,saves\*,system\userdata,system\userdata\*,system\app.prev,system\app.prev\*,system\app.new,system\app.new\*,system\app.bad,system\app.bad\*,scratch,scratch\*,dist,dist\*,tools,tools\*,dev-saves,dev-saves\*,docs,docs\*,.git,.git\*,.gitignore"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{autoprograms}\Waypoint"; Filename: "{app}\Waypoint.exe"; Tasks: startmenuicon
@@ -50,6 +50,8 @@ Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription
 
 [Run]
 Filename: "{app}\Waypoint.exe"; Description: "Launch Waypoint"; Flags: nowait postinstall skipifsilent
+; an update the app started itself (silent, /UPDATE=1) closed Waypoint to make room: open it again
+Filename: "{app}\Waypoint.exe"; Flags: nowait; Check: AppDrivenUpdate
 
 [Code]
 procedure TaskKill(FileName: String);
@@ -59,11 +61,30 @@ begin
   Exec('taskkill.exe', '/f /im ' + '"' + FileName + '"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 end;
 
+{ An update the app started itself: Setup runs silently with /UPDATE=1 (Waypoint downloads the
+  installer, checks it, starts it this way and closes). }
+function AppDrivenUpdate(): Boolean;
+begin
+  Result := WizardSilent() and (ExpandConstant('{param:UPDATE|0}') = '1');
+end;
+
 { A running Waypoint may be hosting a live table. Never kill it silently:
-  a silent update aborts, an interactive one asks first. }
+  a silent update aborts, an interactive one asks first. An update the app started
+  itself waits for the app to close first: Waypoint starts Setup and then closes. }
 function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  Waited: Integer;
 begin
   Result := '';
+  if AppDrivenUpdate() then
+  begin
+    Waited := 0;
+    while (FindWindowByWindowName('Waypoint') <> 0) and (Waited < 30000) do
+    begin
+      Sleep(250);
+      Waited := Waited + 250;
+    end;
+  end;
   if FindWindowByWindowName('Waypoint') <> 0 then
   begin
     if WizardSilent() then

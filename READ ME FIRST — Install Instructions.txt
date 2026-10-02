@@ -7,10 +7,10 @@ online multiplayer where you join your GM's table with a room code.
 INSTALLING
 ----------
 1. Download Waypoint_Setup.exe from this folder and run it.
-2. Windows will likely show a blue "Windows protected your PC" screen.
-   That's Microsoft SmartScreen being cautious about independent apps that
-   aren't code-signed with a paid certificate — Waypoint is safe, just small.
-   Click "More info", then "Run anyway".
+2. Windows may warn that it does not recognise the publisher:
+   Waypoint's installer is not code-signed yet. Only run a
+   Waypoint_Setup.exe you got from this folder or from Waypoint's own
+   releases page; if it came from anywhere else, do not run it.
    (Google Drive may also say it "can't scan this file for viruses" because
    of its size — that's normal for a 110 MB download; choose Download anyway.)
 3. Follow the installer. It puts Waypoint in your user folder — no admin

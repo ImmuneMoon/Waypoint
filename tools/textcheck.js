@@ -6,7 +6,9 @@
    before, inside, after; a cut; a full replacement; a seeded walk in which every character that survives keeps its look),
    runsOf, apply / clear / stateAt.
    The editor: where each field's format lives, typing carrying it, the bar's presses, and a seeded sequence of structure
-   edits against a plain model.
+   edits against a plain model. Ctrl+Z after a press and the Size list stepped through by keyboard run io.js's own history and
+   undo chord (sliced by [textcheck:history] / [textcheck:undochord]); Find in the preview (planner.js [textcheck:find]) runs on a
+   tree of plain objects; the text blocks' own bar is wired by the real wireRte ([textcheck:rtewire]).
    Run: node tools/textcheck.js */
 'use strict';
 const fs = require('fs'), path = require('path');
@@ -275,14 +277,17 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     El.prototype.getAttribute = function(k) { return k in this.attrs ? this.attrs[k] : null; };
     El.prototype.all = function() { let out = []; this.children.forEach(c => { out.push(c); out = out.concat(c.all()); }); return out; };
     El.prototype.is = function(sel) {   // '.cls', '#id', 'tag', each with [data-x="v"] parts; a comma list is any of them
-        return sel.split(',').some(one => { one = one.trim(); const m = /^([a-zA-Z]*)((?:[.#][\w-]+)*)((?:\[data-[\w-]+="[^"]*"\])*)$/.exec(one); if (!m) throw new Error('selector not understood by the test page: ' + one);
+        return sel.split(',').some(one => { one = one.trim(); const m = /^([a-zA-Z]*)((?:[.#][\w-]+)*)((?:\[data-[\w-]+(?:="[^"]*")?\])*)$/.exec(one); if (!m) throw new Error('selector not understood by the test page: ' + one);
             if (m[1] && this.tagName !== m[1].toUpperCase()) return false;
             if (!(m[2].match(/[.#][\w-]+/g) || []).every(p => p[0] === '#' ? this.id === p.slice(1) : this.classList.contains(p.slice(1)))) return false;
-            return (m[3].match(/\[data-([\w-]+)="([^"]*)"\]/g) || []).every(p => { const k = /\[data-([\w-]+)="([^"]*)"\]/.exec(p); return String(this.dataset[k[1]]) === k[2]; }); });
+            return (m[3].match(/\[data-([\w-]+)(?:="([^"]*)")?\]/g) || []).every(p => { const k = /\[data-([\w-]+)(?:="([^"]*)")?\]/.exec(p); return k[2] === undefined ? this.dataset[k[1]] !== undefined : String(this.dataset[k[1]]) === k[2]; }); });   // [data-x] alone: the attribute is there
     };
     El.prototype.matches = El.prototype.is;
     El.prototype.closest = function(sel) { for (let n = this; n; n = n.parent) if (n.is(sel)) return n; return null; };
     El.prototype.querySelector = function(sel) { return this.all().find(n => n.is(sel)) || null; };
+    El.prototype.querySelectorAll = function(sel) { return this.all().filter(n => n.is(sel)); };
+    Object.defineProperty(El.prototype, 'parentNode', { get() { return this.parent; } });
+    El.prototype.dispatchEvent = function(e) { this.calls.push('dispatch ' + e.type); return true; };
     El.prototype.focus = function() { this.calls.push('focus'); this.page.active = this; };
     El.prototype.setSelectionRange = function(s, e) { this.calls.push('select ' + s + '-' + e); this.selectionStart = s; this.selectionEnd = e; };
     El.prototype.contains = function(n) { for (; n; n = n.parent) if (n === this) return true; return false; };
@@ -301,11 +306,13 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const deps = {
             TF, document: doc, window: { getSelection: () => page.sel }, sessionStorage: { getItem: k => { if (page.storeThrows) throw new Error('no storage here'); return k in page.store ? page.store[k] : null; }, setItem: (k, v) => { if (page.storeThrows) throw new Error('no storage here'); page.store[k] = String(v); } },
             getActiveMap: () => page.map, isDocLike: m => !!m && (m.type === 'planner' || m.type === 'doc'),
-            save: im => { page.log.push('save:' + im); }, renderPlannerPreview: () => { page.log.push('preview'); }, stepBoundary: () => { page.log.push('step'); }, toast: m => { page.toasts.push(m); },
+            // page.hist (when a check sets it): io.js's own history, so a save is its pass and a step boundary its own (save(true) is doSave: the pass, then nothing pending)
+            save: im => { page.log.push('save:' + im); if (page.hist) { page.hist.pushHistory(); page.hist.pending(false); } }, renderPlannerPreview: () => { page.log.push('preview'); },
+            stepBoundary: () => { page.log.push('step'); if (page.hist) page.hist.stepBoundary(); }, stepFold: () => { page.log.push('fold'); if (page.hist) page.hist.stepFold(); }, toast: m => { page.toasts.push(m); },
             rteLook: (b, change) => { page.rte.push([b.dataset.idx, change]); return true; }
         };
         const names = Object.keys(deps);
-        const api = new Function(...names, fieldsSrc + '\n' + barSrc + '\nreturn { tsDesc, tsField, tsType, tsName, tsSetColCount, tsRowsAsObjects, tsCols, TS_PLAIN, tsState, tsBox, tsNote, tsTarget, tsPress, tsRefresh, tsBuild, tsKey };')(...names.map(k => deps[k]));
+        const api = new Function(...names, fieldsSrc + '\n' + barSrc + '\nreturn { tsDesc, tsField, tsType, tsName, tsSetColCount, tsRowsAsObjects, tsCols, TS_PLAIN, tsState, tsBox, tsNote, tsTarget, tsPress, tsRebuilt, tsBack, tsRefresh, tsBuild, tsKey };')(...names.map(k => deps[k]));
         Object.assign(page, api, { blocksEl, root, toggle, body });
         // an editor box for a field, as renderPlanner writes it (its classes and data attributes)
         page.box = (cls, data, tag) => { const el = mk(tag || 'input', cls, Object.assign({}, data)); Object.keys(el.dataset).forEach(k => { el.dataset[k] = String(el.dataset[k]); }); el.selectionStart = 0; el.selectionEnd = 0; blocksEl.appendChild(el); return el; };
@@ -494,9 +501,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         pc.map.blocks[0].fmt = { title: { spans: many } };
         pc.sel0(tc, 600, 601); pc.tsPress({ i: true });
         check('bar: a field at its ' + MAX_SPANS + ' styled parts says so', pc.map.blocks[0].fmt.title.spans.length === 200 && pc.toasts.length === 1 && /200/.test(pc.toasts[0]));
-        check('undo: one step a press — the press closes whatever typing was on its way first (io.js stepBoundary), then saves at once; a redraw after undo keeps the bar in step',
-            /function stepBoundary\(\) \{ if \(savePending\) pushHistory\(\); closeChunk\(\); \}/.test(read('io.js')) && /\n\s*stepBoundary,\n/.test(read('io.js')) && /stepBoundary\(\);[^\n]*\n\s*fld\.setFmt\(now\);\n\s*save\(true\);/.test(barSrc)
-            && /if \(tsState\.sel && tsState\.sel\.map !== activeMap\.id\) tsState\.sel = null;[^\n]*\n\s*tsRefresh\(\);/.test(plannerSrc));
+        check('undo: one step a press — the press closes whatever typing was on its way first (io.js stepBoundary), then saves at once',
+            /function stepBoundary\(\) \{ if \(savePending\) pushHistory\(\); closeChunk\(\); \}/.test(read('io.js')) && /\n\s*stepBoundary,\n/.test(read('io.js')) && /\n\s*stepFold,\n/.test(read('io.js')) && /else stepBoundary\(\);[^\n]*\n\s*tsState\.run = runOn;\n\s*fld\.setFmt\(now\);\n\s*save\(true\);/.test(barSrc));
     }
 
     /* ---- structure: every format stays on its own text (a seeded sequence of edits against a plain model) ---- */
@@ -570,6 +576,177 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     }
 
 
+    /* ================= the review's follow-ups: Ctrl+Z after a press, a rebuilt editor, the keyboard in the bar, Find across runs, the text blocks' own bar ================= */
+    {
+        // io.js's history and its undo chord, sliced and run for real on a campaign of plain objects
+        const mkHist = (map, win) => {
+            const camp = { id: 'c', activeItemId: map.id, items: { [map.id]: map } }, calls = [], timers = [];
+            const api = new Function('window', 'state', 'getActiveCampaign', 'getActiveMap', 'localStorage', 'document', 'setTimeout', 'stepHistory',
+                slice('io.js', 'history') + '\n' + slice('io.js', 'undochord') + '\nreturn { pushHistory, stepBoundary, stepFold, fieldUndoChord, stack: function() { return histories["c/" + getActiveMap().id]; }, pending: function(v) { savePending = v; } };')(
+                win || {}, { appState: { campaigns: { c: camp } } }, () => camp, () => map, { getItem: () => null }, { getElementById: () => null }, fn => { timers.push(fn); }, d => { calls.push(d); });
+            api.pushHistory();   // the first pass seeds the baseline, as the app's first save does
+            return Object.assign(api, { calls, timers });
+        };
+        const chordOn = (H, el, o) => { const e = Object.assign({ key: 'z', ctrlKey: true, target: el, prevented: false, preventDefault() { this.prevented = true; }, stopPropagation() {} }, o || {}); return [H.fieldUndoChord(e), e.prevented]; };
+
+        /* ---- Ctrl+Z in a plain field after a press takes the press back, never the typing before it ---- */
+        const p1 = mkPage({ map: mapOf(B0()) }).build(), E1 = p1.tsState.els, H1 = mkHist(p1.map); p1.hist = H1;
+        const lab1 = p1.box('field fc-n-text fc-grow', { idx: 2, ni: 1 }, 'textarea'), d1 = { idx: 2, k: 'node', ni: 1 }, node1 = p1.map.blocks[2].nodes[1];
+        lab1.value = 'two abc'; lab1._wpNativeDirty = true; p1.tsType(p1.map.blocks, d1, 'two abc', 7); H1.pending(true);   // ' abc' typed: io.js's input listener marks the box, the save is on its timer
+        p1.sel0(lab1, 4, 7);
+        const before = chordOn(H1, lab1), armed0 = H1.timers.length, called0 = H1.calls.length;   // typing only: the browser's own undo answers (the chord is left to it, a probe is armed)
+        p1.click(E1.swatches[4]);
+        const st1 = H1.stack(), afterPress = { dirty: lab1._wpNativeDirty, floor: lab1._wpFloor, fmt: J(node1.fmt), steps: st1.undo.length, pressStep: J(JSON.parse(st1.undo[1]).c.blocks[2].nodes[1]) };
+        const undo1 = chordOn(H1, lab1), armed1 = H1.timers.length, calls1 = J(H1.calls);
+        const redo1 = chordOn(H1, lab1, { key: 'y' }), calls2 = J(H1.calls);
+        check('undo (Ctrl+Z in a plain field): while only typing is there the browser\'s own undo answers; after a press the box is spent — the chord goes to the planner\'s history, which holds the typing and the press as two steps, so the press is taken back and the typed text stays (io.js fieldUndoChord run for real)',
+            J(before) === '[false,false]' && armed0 === 1 && called0 === 0 && afterPress.dirty === false && afterPress.floor === 'two abc' && afterPress.fmt === J({ spans: [{ s: 4, e: 7, color: GREEN }] }) && afterPress.steps === 2
+            && afterPress.pressStep === J({ id: 'n3', text: 'two abc', shape: 'rect', color: 'gold' }) && J(undo1) === '[true,true]' && armed1 === 1 && calls1 === '["undo"]' && J(redo1) === '[true,true]' && calls2 === '["undo","redo"]', [before, afterPress, undo1, calls1]);
+        lab1.value = 'two abcd'; lab1._wpNativeDirty = true;                 // more typing after the press
+        const typedMore = chordOn(H1, lab1), armed2 = H1.timers.length;      // the browser may take that back…
+        lab1.value = 'two abc';                                              // …and has: the text is what it was at the press (the flag still says typing)
+        const atFloor = chordOn(H1, lab1), calls3 = J(H1.calls), spent = lab1._wpNativeDirty, armed3 = H1.timers.length;
+        lab1._wpNativeDirty = true; const redoAtFloor = chordOn(H1, lab1, { key: 'y' });
+        const never = p1.box('field b-title', { idx: 0 }); never.value = 'The Hill Road'; never._wpNativeDirty = true;
+        check('undo (Ctrl+Z in a plain field): what is typed after a press the browser may take back, down to the text as it was at the press and no further — there the chord goes to the planner\'s history again; a redo, and a box never styled, are as before',
+            J(typedMore) === '[false,false]' && armed2 === 2 && J(atFloor) === '[true,true]' && calls3 === '["undo","redo","undo"]' && spent === false && armed3 === 2 && J(redoAtFloor) === '[false,false]' && J(chordOn(H1, never)) === '[false,false]', [typedMore, atFloor, calls3, redoAtFloor]);
+        check('undo (Ctrl+Z in a plain field): every press marks its box — a colour, B, I, a size, Clear, and Ctrl+B', ['b', 'i', 'nocolor', 'clear'].every(k => { lab1._wpNativeDirty = true; lab1._wpFloor = undefined; p1.sel0(lab1, 4, 7); if (k === 'nocolor' || k === 'clear') p1.tsPress({ color: RED }); lab1._wpNativeDirty = true; p1.click(E1[k]); return lab1._wpNativeDirty === false && lab1._wpFloor === 'two abc'; })
+            && (() => { lab1._wpNativeDirty = true; E1.size.value = 'large'; E1.size.fire('change'); const a = lab1._wpNativeDirty === false; lab1._wpNativeDirty = true; p1.tsKey({ key: 'b', ctrlKey: true, target: lab1, preventDefault() {}, stopPropagation() {} }); return a && lab1._wpNativeDirty === false; })()
+            && (() => { lab1._wpNativeDirty = true; const r = p1.tsPress({ size: 'large' }); return r === false && lab1._wpNativeDirty === true; })());   // a press that changes nothing leaves the box as it was
+
+        /* ---- nothing is remembered across a rebuild of the editor ---- */
+        const p2 = mkPage({ map: mapOf(B0()) }).build(), E2 = p2.tsState.els, c2 = p2.box('r-col', { idx: 1, ri: 0, ci: 0 }); c2.value = 'Medicine';
+        p2.sel0(c2, 0, 3); p2.click(E2.swatches[4]);   // "Med" green, in row 1
+        const named2 = E2.target.textContent;
+        p2.map.blocks[1].rows.splice(0, 1); p2.blocksEl.children.length = 0; p2.active = null;   // the row's delete button: the row goes, renderPlanner writes every box anew…
+        p2.tsRebuilt();                                                                           // …and ends with this
+        p2.log.length = 0; const j2 = J(p2.map), pressed2 = p2.tsPress({ color: RED }); p2.click(E2.swatches[2]); p2.click(E2.b);
+        check('rebuild: after the editor is rebuilt (a row deleted above the place it remembered) the bar remembers nothing — a press styles no other text, the bar asks for a click in a field and every control is disabled',
+            named2 === 'Row 1, Check — 3 selected characters' && pressed2 === false && J(p2.map) === j2 && p2.log.length === 0 && !('fmt' in p2.map.blocks[1].rows[0]) && p2.map.blocks[1].rows[0].col1 === 'Insight' && p2.tsState.sel === null
+            && /^Click in a title, a label or a table cell/.test(E2.target.textContent) && [E2.b, E2.i, E2.custom, E2.nocolor, E2.size, E2.clear].concat(E2.swatches).every(c => c.disabled === true), [named2, pressed2, p2.map.blocks[1].rows[0], E2.target.textContent]);
+        const c2b = p2.box('r-col', { idx: 1, ri: 0, ci: 0 }); c2b.value = 'Insight'; p2.sel0(c2b, 0, 3); p2.click(E2.swatches[2]);
+        check('rebuild: a box clicked in afterwards is noted afresh and styled as ever', J(p2.map.blocks[1].rows[0].fmt) === J({ col1: { spans: [{ s: 0, e: 3, color: RED }] } }) && E2.target.textContent === 'Row 1, Check — 3 selected characters');
+        check('rebuild (wired): renderPlanner ends by forgetting — after the boxes are written and the preview drawn — whatever document it drew', /\n\s*renderPlannerPreview\(\);\s*\n\s*applyPlannerFullscreen\(\);\s*\n\s*tsRebuilt\(\);[^\n]*\n\s*\}/.test(plannerSrc) && (plannerSrc.match(/tsRebuilt\(\)/g) || []).length === 2 && !/tsState\.sel\.map !== activeMap\.id/.test(plannerSrc));
+
+        /* ---- typing: the caret tells respan where a run of equal characters was edited ---- */
+        const p3 = mkPage({ map: mapOf([{ id: 'b', type: 'h2', title: 'aaaa', fmt: { title: { spans: [{ s: 2, e: 4, b: true }] } } }]) });
+        p3.tsType(p3.map.blocks, { idx: 0, k: 'title' }, 'aaaaa', 2);   // an "a" typed after the first one: the bold ones are the last two still
+        const caretFmt = J(p3.map.blocks[0].fmt);
+        p3.tsType(p3.map.blocks, { idx: 0, k: 'title' }, 'aaaa', 0);    // the first one deleted
+        check('typing: the box\'s caret goes to respan, so an edit inside a run of equal characters moves the spans after it (without it the edit would be read at the end, and the look would sit on other characters)',
+            caretFmt === J({ title: { spans: [{ s: 3, e: 5, b: true }] } }) && J(p3.map.blocks[0].fmt) === J({ title: { spans: [{ s: 2, e: 4, b: true }] } }), [caretFmt, p3.map.blocks[0].fmt]);
+
+        /* ---- the keyboard in the bar: a control it reached keeps the focus; the Size list stepped through is one undo step ---- */
+        const p4 = mkPage({ map: mapOf(B0()) }).build(), E4 = p4.tsState.els, H4 = mkHist(p4.map); p4.hist = H4;
+        const lab4 = p4.box('field fc-n-text fc-grow', { idx: 2, ni: 0 }, 'textarea'), n4 = p4.map.blocks[2].nodes[0]; lab4.value = LBL;
+        p4.sel0(lab4, 9, 17); lab4.calls.length = 0; p4.log.length = 0;
+        const keyOn = (el, key) => p4.body.fire('keydown', { target: el, key });
+        p4.active = E4.size;                                                     // Tab reached the Size list
+        keyOn(E4.size, 'ArrowDown'); E4.size.value = 'small'; E4.size.fire('change');
+        const k1 = { focus: p4.active === E4.size, sel: J(p4.tsState.sel), fmt: J(n4.fmt), steps: H4.stack().undo.length, box: J(lab4.calls), log: J(p4.log) };
+        keyOn(E4.size, 'ArrowDown'); E4.size.value = 'large'; E4.size.fire('change');
+        keyOn(E4.size, 'ArrowDown'); E4.size.value = 'larger'; E4.size.fire('change');
+        const k3 = { focus: p4.active === E4.size, sel: J(p4.tsState.sel), fmt: J(n4.fmt), steps: H4.stack().undo.length, log: J(p4.log), back: J(JSON.parse(H4.stack().undo[0]).c.blocks[2].nodes[0]) };
+        check('keyboard (the Size list): its arrow keys step through the sizes — each is applied, the list keeps the focus, the field\'s remembered selection is unchanged (put back without the focus), and the whole run is ONE undo step back to how the field was (io.js pushHistory run for real)',
+            k1.focus && k1.fmt === J({ size: 'small' }) && k1.steps === 1 && k1.box === '["select 9-17"]' && k1.log === J(['step', 'save:true', 'preview']) && k3.focus && k3.sel === k1.sel && JSON.parse(k3.sel).s === 9 && JSON.parse(k3.sel).e === 17 && k3.fmt === J({ size: 'larger' }) && k3.steps === 1
+            && k3.log === J(['step', 'save:true', 'preview', 'fold', 'save:true', 'preview', 'fold', 'save:true', 'preview']) && k3.back === J({ id: 'n1', text: LBL, shape: 'rect', color: 'neutral' }) && lab4.calls.indexOf('focus') < 0, [k1, k3]);
+        E4.size.fire('blur'); p4.active = E4.size; keyOn(E4.size, 'ArrowDown'); E4.size.value = 'huge'; E4.size.fire('change');   // the list was left and come back to
+        const afterBlur = H4.stack().undo.length;
+        p4.active = E4.swatches[4]; keyOn(E4.swatches[4], ' '); p4.click(E4.swatches[4]);   // a colour by the keyboard: its own step, the swatch keeps the focus
+        const kc = { focus: p4.active === E4.swatches[4], fmt: J(n4.fmt), steps: H4.stack().undo.length };
+        p4.active = E4.size; keyOn(E4.size, 'ArrowUp'); E4.size.value = 'larger'; E4.size.fire('change');   // a size after another press is a step of its own again
+        const afterColour = H4.stack().undo.length;
+        keyOn(E4.size, 'ArrowUp'); p4.sel0(lab4, 0, 3); p4.active = E4.size; E4.size.value = 'large'; E4.size.fire('change');   // another selection: no run
+        check('keyboard (the bar): leaving the Size list, another press or another selection ends the run (the next size is a step of its own); a colour pressed by the keyboard is its own step and its swatch keeps the focus',
+            afterBlur === 2 && kc.focus && kc.fmt === J({ size: 'huge', spans: [{ s: 9, e: 17, color: GREEN }] }) && kc.steps === 3 && afterColour === 4 && H4.stack().undo.length === 5, [afterBlur, kc, afterColour, H4.stack().undo.length]);
+        const winF = {}, mF = mapOf([{ id: 'b', type: 'h2', title: 'one' }]), HF = mkHist(mF, winF);
+        mF.blocks[0].title = 'two'; HF.pushHistory();                           // a step
+        winF.wpStream = true; HF.stepFold(); delete winF.wpStream;              // a fold asked for where no save is recorded (a window that never owns a save): nothing is armed
+        mF.blocks[0].title = 'three'; HF.pushHistory(); const notArmed = HF.stack().undo.length;
+        HF.stepFold(); mF.blocks[0].title = 'four'; HF.pushHistory(); const folded = HF.stack().undo.length;
+        mF.blocks[0].title = 'five'; HF.pushHistory();
+        check('keyboard (the Size list): the fold is one shot and only armed where the save that follows is recorded — it joins the step before it once, the pass after is a step of its own, and it never waits for some later pass (io.js stepFold / pushHistory run for real)',
+            notArmed === 2 && folded === 2 && HF.stack().undo.length === 3 && JSON.parse(HF.stack().undo[1]).c.blocks[0].title === 'two' && JSON.parse(HF.stack().undo[2]).c.blocks[0].title === 'four', [notArmed, folded, HF.stack().undo.length]);
+        p4.sel0(lab4, 9, 17);
+        p4.body.fire('mousedown', { target: E4.size }); p4.active = E4.size; E4.size.value = 'small'; E4.size.fire('change');   // by the mouse, as before: the field has the focus again
+        const byMouse = p4.active === lab4 && lab4.selectionStart === 9 && lab4.selectionEnd === 17;
+        p4.body.fire('mousedown', { target: E4.b }); p4.active = null; p4.click(E4.b);
+        check('keyboard (the bar): a press by the mouse gives the field its focus and selection back, as before — the Size list and a button alike', byMouse && p4.active === lab4 && lab4.selectionStart === 9 && lab4.selectionEnd === 17);
+        p4.active = E4.swatches[2]; const esc = keyOn(E4.swatches[2], 'Escape'), escBack = p4.active === lab4 && lab4.selectionStart === 9 && lab4.selectionEnd === 17;
+        p4.active = E4.size; const ent = keyOn(E4.size, 'Enter'), entBack = p4.active === lab4;
+        p4.active = E4.b; const entBtn = keyOn(E4.b, 'Enter'), btnStays = p4.active === E4.b;
+        const p5 = mkPage({ map: mapOf(B0()) }).build(); p5.active = p5.tsState.els.size; const escNone = p5.body.fire('keydown', { target: p5.tsState.els.size, key: 'Escape' });
+        check('keyboard (the bar): Escape — and Enter in the Size list — goes back to the field with its selection as it was (the key taken); Enter on a button is the button\'s own; with no field to go back to the key is left alone',
+            esc.prevented === true && esc.stopped === true && escBack && ent.prevented === true && entBack && entBtn.prevented === false && btnStays && escNone.prevented === false && p5.active === p5.tsState.els.size);
+
+        /* ---- Find in the preview: a found text may lie across the runs of a styled word (planner.js, sliced and run on a tree of plain objects) ---- */
+        function TN(v) { this.nodeType = 3; this.nodeValue = v; this.parentNode = null; }
+        function EN(tag, cls, kids) { this.nodeType = 1; this.nodeName = tag === 'svg' ? 'svg' : tag.toUpperCase(); this.className = cls || ''; this.childNodes = []; this.parentNode = null; this.cls = {}; this.scrolled = 0; (kids || []).forEach(k => this.appendChild(typeof k === 'string' ? new TN(k) : k)); }
+        const sib = function() { const l = this.parentNode ? this.parentNode.childNodes : [], i = l.indexOf(this); return i >= 0 && i + 1 < l.length ? l[i + 1] : null; };
+        Object.defineProperty(TN.prototype, 'nextSibling', { get: sib }); Object.defineProperty(EN.prototype, 'nextSibling', { get: sib });
+        Object.defineProperty(EN.prototype, 'firstChild', { get() { return this.childNodes[0] || null; } });
+        Object.defineProperty(EN.prototype, 'classList', { get() { const el = this; return { add: c => { el.cls[c] = 1; }, remove: c => { delete el.cls[c]; }, contains: c => !!el.cls[c] }; } });
+        const detach = n => { if (n.parentNode) { const l = n.parentNode.childNodes; l.splice(l.indexOf(n), 1); n.parentNode = null; } };
+        EN.prototype.appendChild = function(c) { detach(c); c.parentNode = this; this.childNodes.push(c); return c; };
+        EN.prototype.insertBefore = function(c, ref) { detach(c); c.parentNode = this; this.childNodes.splice(this.childNodes.indexOf(ref), 0, c); return c; };
+        EN.prototype.removeChild = function(c) { detach(c); return c; };
+        EN.prototype.normalize = function() { for (let i = 0; i < this.childNodes.length; i++) { const n = this.childNodes[i]; if (n.nodeType !== 3) continue; if (!n.nodeValue) { this.childNodes.splice(i--, 1); continue; } const nx = this.childNodes[i + 1]; if (nx && nx.nodeType === 3) { n.nodeValue += nx.nodeValue; this.childNodes.splice(i + 1, 1); i--; } } };
+        EN.prototype.scrollIntoView = function() { this.scrolled++; };
+        EN.prototype.querySelectorAll = function(sel) { if (sel !== 'mark.pf-hit') throw new Error('selector not understood by the test tree: ' + sel); const out = []; (function walk(el) { el.childNodes.slice().forEach(n => { if (n.nodeType !== 1) return; if (n.nodeName === 'MARK' && n.className === 'pf-hit') out.push(n); walk(n); }); })(this); return out; };
+        TN.prototype.splitText = function(at) { const rest = new TN(this.nodeValue.slice(at)); this.nodeValue = this.nodeValue.slice(0, at); const l = this.parentNode.childNodes; l.splice(l.indexOf(this) + 1, 0, rest); rest.parentNode = this.parentNode; return rest; };
+        const shape = n => n.nodeType === 3 ? n.nodeValue : '<' + n.nodeName.toLowerCase() + (n.className ? '.' + n.className : '') + (n.cls['pf-cur'] ? '!' : '') + '>' + n.childNodes.map(shape).join('') + '</>';
+        const textOf = n => n.nodeType === 3 ? n.nodeValue : n.childNodes.map(textOf).join('');
+        const mkFind = pv => { const box = { value: '' }, cnt = { textContent: '' };
+            const api = new Function('document', slice('planner.js', 'find') + '\nreturn { pfState, pfClear, pfStretches, plannerFindApply, pfGo };')({ getElementById: id => ({ plannerPreview: pv, plannerFind: box, plannerFindCount: cnt })[id] || null, createElement: tag => new EN(tag) });
+            return Object.assign(api, { cnt, find: q => { box.value = q; api.plannerFindApply(false); return api.pfState.hits; } }); };
+        const hitsText = hits => hits.map(h => h.map(textOf));
+        {
+            const td = new EN('td', '', [new EN('span', '', ['Med']), 'icine']), pv = new EN('div', '', [new EN('table', '', [new EN('tr', '', [td, new EN('td', '', ['10'])])])]), F = mkFind(pv);
+            const h = F.find('medicine'), s1 = shape(td), c1 = F.cnt.textContent, t1 = J(hitsText(h)), sc = h.length ? h[0][0].scrolled : 0;
+            const h2 = F.find('med'), s2 = shape(td);
+            F.find(''); const s3 = shape(td);
+            check('find: a word styled in part (drawn as two runs) is found whole — one hit, a mark around its part of each text node, both lit as the current hit; a part of it is found as before; clearing puts the tree back as it was',
+                h.length === 1 && t1 === '[["Med","icine"]]' && c1 === '1 / 1' && s1 === '<td><span><mark.pf-hit!>Med</></><mark.pf-hit!>icine</></>' && sc === 1 && h2.length === 1 && s2 === '<td><span><mark.pf-hit!>Med</></>icine</>' && s3 === '<td><span>Med</>icine</>' && F.cnt.textContent === '', [t1, s1, s2, s3]);
+            const h1 = new EN('h1', '', [new EN('span', '', ['Session']), ' 1 — The Hill Road', new EN('span', 'sub', ['A one-evening adventure'])]), F2 = mkFind(new EN('div', 'wrap', [h1]));
+            check('find: a phrase that crosses a run boundary is one hit; a span with a class of the renderer\'s (a subtitle) is not run on into',
+                J(hitsText(F2.find('session 1'))) === '[["Session"," 1"]]' && F2.find('roada').length === 0 && F2.cnt.textContent === '0' && J(hitsText(F2.find('road'))) === '[["Road"]]' && J(hitsText(F2.find('one-evening'))) === '[["one-evening"]]');
+            const pv3 = new EN('div', '', [new EN('p', '', ['ab']), new EN('p', '', ['cd']), new EN('p', '', ['x', new EN('br'), 'y']), new EN('svg', '', [new EN('text', '', ['hidden'])]), new EN('script', '', ['secret']), new EN('style', '', ['.cd{}'])]), F3 = mkFind(pv3);
+            check('find: a paragraph, a cell and a line break end a stretch (nothing is found across them), and a drawn chart, a script and a style are not searched',
+                F3.find('bc').length === 0 && F3.find('xy').length === 0 && F3.find('hidden').length === 0 && F3.find('secret').length === 0 && J(hitsText(F3.find('cd'))) === '[["cd"]]' && J(F3.pfStretches(pv3).map(s => s.map(n => n.nodeValue))) === '[["ab"],["cd"],["x"],["y"]]');
+            const p = new EN('p', '', ['the cat and ', new EN('b', '', ['the']), ' hat']), F4 = mkFind(new EN('div', '', [p])), h4 = F4.find('the');
+            F4.pfGo(1); const sGo = shape(p), cGo = F4.cnt.textContent; F4.pfGo(2);
+            check('find: several hits in a stretch, each in its own node, and stepping through them — the current one alone is lit, the count follows, past the last it wraps',
+                h4.length === 2 && sGo === '<p><mark.pf-hit>the</> cat and <b><mark.pf-hit!>the</></> hat</>' && cGo === '2 / 2' && F4.cnt.textContent === '1 / 2' && shape(p) === '<p><mark.pf-hit!>the</> cat and <b><mark.pf-hit>the</></> hat</>', [sGo, cGo]);
+            const F5 = mkFind(new EN('div', '', [new EN('p', '', [new EN('span', '', ['Sé']), 'lkath elder']), new EN('p', '', ['The ', new EN('span', '', ['Hi']), 'll road'])]));
+            check('find: accents and word starts work over the joined text — "selk" finds "Sélk" across its runs, and with no phrase each word is found at a word start',
+                J(hitsText(F5.find('selk'))) === '[["Sé","lk"]]' && J(hitsText(F5.find('road hill'))) === '[["Hi","ll"],["road"]]' && F5.find('ill').length === 1 && J(hitsText(F5.find('lkath'))) === '[["lkath"]]');
+        }
+
+        /* ---- the text blocks' own bar: its colour and size controls, wired (planner.js wireRte, sliced and run on the test page) ---- */
+        {
+            const pg = mkPage({ map: mapOf(B0()) }), looks = [], cmds = [];
+            const container = pg.mk('div', 'blocks'), rte = pg.mk('div', 'rte', { idx: '4' }), bar = pg.mk('div', 'rte-bar'), body = pg.mk('div', 'field rte-body', { idx: '4' });
+            const bold = pg.mk('button', 'rte-btn', { cmd: 'bold' }), sw = pg.mk('button', 'rte-sw', { color: GREEN }), custom = pg.mk('label', 'rte-sw rte-custom'), pick = pg.mk('input', 'rte-colorpick'), nocolor = pg.mk('button', 'rte-btn rte-nocolor'), size = pg.mk('select', 'rte-size');
+            container.appendChild(rte); rte.appendChild(bar); rte.appendChild(body); [bold, sw, custom, nocolor, size].forEach(c => bar.appendChild(c)); custom.appendChild(pick);
+            const wireRte = new Function('getActiveMap', 'save', 'renderPlannerPreview', 'rteSyncBar', 'fieldUndoChord', 'rteLook', 'document', 'Event',
+                slice('planner.js', 'rtewire') + '\nreturn wireRte;')(() => pg.map, () => {}, () => {}, () => {}, () => false, (b, change) => { looks.push([b === body, change]); return true; }, { execCommand: c => { cmds.push(c); return true; } }, function(type) { this.type = type; });
+            wireRte(container);
+            bar.fire('click', { target: sw }); bar.fire('click', { target: nocolor });
+            const clicks = J(looks), noCmd = cmds.length;
+            size.value = 'huge'; size.fire('change'); const sizeBack = size.value; size.value = 'default'; size.fire('change'); size.value = ''; size.fire('change');
+            pick.value = '#123456'; pick.fire('change');
+            const all = J(looks);
+            bar.fire('click', { target: size }); bar.fire('click', { target: custom }); bar.fire('click', { target: pick });   // these answer by their own change events
+            const md = [size, pick, sw, bold, nocolor].map(t => bar.fire('mousedown', { target: t }).prevented);
+            bar.fire('click', { target: bold });
+            check('text block bar (wired): a swatch, Default, the Size list and the custom colour each reach the block\'s own command with their change — a swatch its colour, Default no colour (never a command of the list\'s), a size its step (Default none, the list put back on "Size…"), the picker its colour',
+                clicks === J([[true, { color: GREEN }], [true, { color: null }]]) && noCmd === 0 && sizeBack === '' && all === J([[true, { color: GREEN }], [true, { color: null }], [true, { size: 'huge' }], [true, { size: null }], [true, { color: '#123456' }]]) && looks.length === 5, all);
+            check('text block bar (wired): the Size list and the colour picker may take the focus (their mousedown is not swallowed, so they can open); a button\'s is, so the box keeps its selection; B is still the browser\'s own command',
+                J(md) === '[false,false,true,true,true]' && J(cmds) === '["bold"]' && looks.length === 5, [md, cmds]);
+        }
+    }
+
+
     /* ================= said: Help, the tour, the integration guide, the page ================= */
     {
         const rootDir = path.join(__dirname, '..'), rd = f => fs.readFileSync(path.join(rootDir, f), 'utf8').replace(/\r\n/g, '\n');
@@ -580,6 +757,10 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             /<h4>Text style<\/h4>/.test(hp) && ['closed until you click its', 'Select, then click.', 'so you can click green and then bold without selecting again', 'Ctrl + B', 'Nothing selected is the whole field.', 'then select the lines you have finished and pick green',
                 'is always the whole field\'s', 'Clear takes the styling off the selection, or off the whole field when nothing is selected', 'names what it will act on', 'a control that cannot apply is greyed out', 'Each click is one undo step',
                 'keep their own bar, which also has the colours, Default and a Size list for the selected text', 'A Markdown export writes the plain text: Markdown has no colour and no size'].every(w => words(hp).indexOf(w) >= 0), words(hp).slice(words(hp).indexOf('Text style'), words(hp).indexOf('Text style') + 400));
+        check('said (Help, Planners): Ctrl+Z in the field takes a click back and not the typing before it; after a row, a block, a node or an arrow is added, deleted or moved the bar asks for a click again; the keyboard in the bar — a control keeps the focus, the Size list stepped through is one undo step, Esc or Enter goes back; a Markdown import brings no colour or size in',
+            ['After you add, delete or move a row, a block, a node or an arrow it asks for a click again.', 'Ctrl + Z in the field takes the click back, not what you typed before it', 'From the keyboard: Tab to the bar. A control you press there keeps the focus',
+                'step through the Size list with the arrow keys (that whole run of sizes is one undo step)', 'or Enter in the Size list', 'takes you back to the field, its selection as you left it', 'Markdown has no colour and no size, and a Markdown import brings none in.'].every(w => words(hp).indexOf(w) >= 0)
+            && words(pane('handbook')).indexOf('Markdown has no colour and no size: a file brings none in, and Save Markdown writes none.') >= 0, words(hp).slice(words(hp).indexOf('The bar names'), words(hp).indexOf('The bar names') + 900));
         const hh = ix.slice(ix.indexOf('<h4>What a page is</h4>'), ix.indexOf('<h4>Players can read / GM only</h4>'));
         check('said (Help, Handbook): editing a page names the Text style bar and that players see a styled page as the GM does', /The <b>Text style<\/b> bar at the top of the editor colours, bolds, italicises and sizes a page's text just as in a planner/.test(hh) && /Players see a styled page exactly as you do\./.test(hh));
         const stepOf = title => { const a = tu.indexOf("title: '" + title + "'"); return a < 0 ? '' : tu.slice(a, tu.indexOf('before:', a)); };
@@ -593,7 +774,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             /<div id="textStyleBar" class="ts-bar">\n\s*<button type="button" id="textStyleToggle" class="ts-toggle" aria-expanded="false" aria-controls="textStyleBody" title="[^"<>]+"><span class="ts-caret" aria-hidden="true">&#9656;<\/span> Text style<\/button>\n\s*<div id="textStyleBody" class="ts-body" hidden><\/div>\n\s*<\/div>\n\s*<div id="plannerBlocks"><\/div>/.test(ix)
             && /\.ts-bar \{ position: sticky; top: -15px;/.test(css) && /\.ts-body\[hidden\] \{ display: none; \}/.test(css));
         check('CI runs this suite', /run: node tools\/textcheck\.js/.test(yml));
-        check('the console\'s list names the new module and the renderer\'s two new calls, as the code publishes them', /wpTextFmt: 'Text formats, pure \(scripts\/textfmt\.js\)/.test(rd('system/app/scripts/devconsole.js')) && /fmtHtml\(text, fmt, put\), cleanBlockFmts\(block\)/.test(rd('system/app/scripts/devconsole.js')) && ['cleanFmt', 'runsOf', 'respan', 'apply', 'clear', 'stateAt', 'SIZES', 'SIZE_EM', 'PALETTE', 'MAX_SPANS'].every(k => k in TF));
+        const DRX = await import(modUrl('docrender.js'));
+        check('the console\'s list names the new module and the renderer\'s new calls, as the code publishes them', /wpTextFmt: 'Text formats, pure \(scripts\/textfmt\.js\)/.test(rd('system/app/scripts/devconsole.js')) && /fmtHtml\(text, fmt, put\), fmtRich\(text, fmt\), cleanBlockFmts\(block\), sanitizeBare\(html\)/.test(rd('system/app/scripts/devconsole.js')) && typeof DRX.fmtRich === 'function' && typeof DRX.sanitizeBare === 'function' && ['cleanFmt', 'runsOf', 'respan', 'apply', 'clear', 'stateAt', 'SIZES', 'SIZE_EM', 'PALETTE', 'MAX_SPANS'].every(k => k in TF));
     }
 
     summed = true;

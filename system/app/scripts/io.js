@@ -397,6 +397,7 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
      log records nothing. A restore is applied in place on the same objects and persists through the
      normal save(). Nothing is recorded or restored while this window holds someone else's campaign. */
 
+  // [textcheck:history-start]
   var histories = {};   // key -> { campId, itemId, undo:[], redo:[], last:string, bytes:number, lru:number }
 
   var isUndoing = false;
@@ -408,6 +409,8 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
   var nativeProbe = null;    // the planner field whose Ctrl+Z / Ctrl+Y was handed to the browser first (one per document, like its undo stack)
 
   var nativeEdit = false;    // the browser's own text undo / redo changed a field: the next pass moves the baseline, never records a step
+
+  var foldNext = false;      // the next pass folds the open item's change into the step before it (stepFold)
 
   var HIST_BUDGET_BYTES = 64 * 1024 * 1024;
     // Undo/redo depth per map & per planner: user-configurable via wp_undoDepth (Settings), default 100 (doubled from the old 50), clamped 10..500. The 64 MB byte budget above still caps total memory.
@@ -585,6 +588,12 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
   // the debounce timer becomes its step first, and the chunk closes, so the save that follows is never folded into it.
   function stepBoundary() { if (savePending) pushHistory(); closeChunk(); }
 
+  // The save that follows belongs to the step before it: the open item's baseline moves and no step is added, so one undo takes the whole
+  // run back (the Text style bar's Size list stepped through by its arrow keys: every size on the way is applied, the run of them is one
+  // step). One shot — the next pass reads and clears it, whatever that pass decides — and armed only where the save that follows is recorded
+  // (this window may write to this disk), so it can never be left waiting for some later, unrelated pass.
+  function stepFold() { foldNext = canPersistLocal(); }
+
   // Wipe every history (no argument) or one campaign's; nothing can be popped until the next pass seeds again
   function resetHistory(campId) {
 
@@ -595,6 +604,8 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
       savePending = false;
 
       nativeEdit = false;
+
+      foldNext = false;
 
       closeChunk();
 
@@ -640,6 +651,10 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
 
       nativeEdit = false;
 
+      var fold = foldNext;
+
+      foldNext = false;
+
       if (!canPersistLocal()) return;   // someone else's campaign is never recorded
 
       var camp = getActiveCampaign();
@@ -670,6 +685,8 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
           // not new work — the baseline moves, redo is kept, and the field's chunk stays open for what follows
           if (native && id === camp.activeItemId) { h.last = cur; if (typeSlot.el) { typeSlot.key = key; typeSlot.lastT = now; typeSlot.chunkStart = now; } return; }
 
+          if (fold && id === camp.activeItemId && h.undo.length) { h.last = cur; return; }   // stepFold: part of the step before it (with no step to join, an ordinary one)
+
           if (canCoalesce(key, now)) { h.last = cur; typeSlot.lastT = now; return; }
 
           h.redo = [];
@@ -689,6 +706,7 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
       updateUndoBtn();
 
   }
+  // [textcheck:history-end]
 
 
 
@@ -951,10 +969,13 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
 
   function redo() { stepHistory('redo'); }
 
+  // [textcheck:undochord-start]
   // Ctrl+Z / Ctrl+Y with a planner field focused. The browser's own text undo runs while the field has
   // typing to take back; when it has none — nothing typed since the editor was last rebuilt, or the
   // native stack just ran dry — the chord reaches the planner's history instead. Returns true when the
-  // chord was taken over (callers that stop propagation check it first).
+  // chord was taken over (callers that stop propagation check it first). A field the Text style bar has styled (planner.js tsPress) is
+  // spent at that press, and again whenever its text is back to what it was then: the browser's undo may take back what was typed since, never
+  // reach behind the press — it would take the styled characters away and its redo would bring them back plain. The press is the planner's step.
   function fieldUndoChord(e) {
 
       if (!(e.ctrlKey || e.metaKey) || e.altKey) return false;
@@ -970,6 +991,8 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
       if (!t || !t.closest || !t.closest('#plannerBlocks')) return false;
 
       if (!canPersistLocal()) return false;
+
+      if (t._wpNativeDirty && dir === 'undo' && typeof t._wpFloor === 'string' && t.value === t._wpFloor) t._wpNativeDirty = false;
 
       if (t._wpNativeDirty) {
 
@@ -991,6 +1014,7 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
       return true;
 
   }
+  // [textcheck:undochord-end]
 
   /* Text coalescing, seen in the capture phase so fields that stop propagation (rich text boxes, flowchart
      labels) count too: an 'input' on a text field makes it the typing slot; a pointer down elsewhere, the
@@ -1796,6 +1820,8 @@ export {
     fieldUndoChord,
 
     stepBoundary,
+
+    stepFold,
 
     takeSafetyCopy,
 

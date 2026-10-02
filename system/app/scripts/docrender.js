@@ -13,6 +13,9 @@
      fmtHtml(text, fmt, put) a plain field with a format (textfmt.js) as markup: each run's text through put
                              (esc on a page) inside a span whose style is built from the cleaned values only;
                              with no format, exactly put(text).
+     fmtRich(text, fmt)      the same for a field that reads typed markup (a planner's): the whole field through
+                             sanitizeHtml once, the runs laid over its text; with no format, exactly sanitizeHtml(text).
+     sanitizeBare(html)      sanitizeHtml less the look: a span or a font is just its text (a Markdown import).
      cleanBlockFmts(block)   every format a planner or page block carries, cleaned in place against its text.
      cleanDoc(doc, opts)     the wire sanitizer (host) and the client-side normaliser (keepHidden):
                              a new object with only the known fields, every string capped, every
@@ -92,8 +95,8 @@ function tokenize(html) {
     var out = [], i = 0, n = html.length;
     while (i < n) {
         var lt = html.indexOf('<', i);
-        if (lt < 0) { out.push({ text: html.slice(i) }); break; }
-        if (lt > i) out.push({ text: html.slice(i, lt) });
+        if (lt < 0) { out.push({ text: html.slice(i), at: i }); break; }
+        if (lt > i) out.push({ text: html.slice(i, lt), at: i });   // at: where the text began in the input (fmtRich lays a field's runs over it)
         // comment / CDATA / processing instruction / doctype: dropped whole
         if (html.charAt(lt + 1) === '!' || html.charAt(lt + 1) === '?') {
             var endC;
@@ -103,7 +106,7 @@ function tokenize(html) {
         }
         // a tag: name, then attributes (quotes respected: an unclosed quote runs to the end of the input)
         var m = /^<(\/?)([a-zA-Z][a-zA-Z0-9-]*)/.exec(html.slice(lt, lt + 40));
-        if (!m) { out.push({ text: '<' }); i = lt + 1; continue; }
+        if (!m) { out.push({ text: '<', at: lt }); i = lt + 1; continue; }
         var j = lt + m[0].length, q = null, attrs = '';
         while (j < n) {
             var ch = html.charAt(j);
@@ -131,40 +134,49 @@ function safeHref(v) {
     if (/[\u0000-\u001f\u007f\s]/.test(v) || v.length > 2000) return null;
     return /^https?:\/\/.+/i.test(v) ? v : null;
 }
-function sanitizeHtml(html) {
+// One sanitiser. opt is this module's own, never a caller's (sanitizeHtml takes one argument): cut(text, at) gives a text token as pieces
+// [[text, css], …] — fmtRich's runs, each css written by runCss from cleaned values — and a piece that has one sits in a span of its own,
+// closed before any tag is written, so a run never crosses the field's own markup; sized: the field has a size, so no span in it keeps
+// one; bare: a span or a font carries nothing. With no opt every byte is what it always was.
+function sanitize(html, opt) {
     var s = String(html == null ? '' : html);
     if (s.length > LIMITS.html) s = s.slice(0, LIMITS.html);
-    var toks = tokenize(s), out = '', stack = [], skip = null, skipDepth = 0;
-    function openTag(name, extra) { stack.push(name); out += '<' + name + (extra || '') + '>'; }
+    var toks = tokenize(s), out = '', stack = [], skip = null, skipDepth = 0, runCssOpen = '';
+    function mark(x) { if (!x) return; if (runCssOpen) { out += '</span>'; runCssOpen = ''; } out += x; }   // markup: the open run's span ends first
+    function openTag(name, extra) { stack.push(name); mark('<' + name + (extra || '') + '>'); }
     function closeTo(name) {   // close everything above the nearest open `name`; drop the closer when it is not open
         var at = stack.lastIndexOf(name); if (at < 0) return;
-        while (stack.length > at) out += shut(stack.pop());
+        while (stack.length > at) mark(shut(stack.pop()));
     }
-    function closeSpan() { var at = stack.length - 1; while (at >= 0 && !isSpan(stack[at])) at--; if (at < 0) return; while (stack.length > at) out += shut(stack.pop()); }
+    function closeSpan() { var at = stack.length - 1; while (at >= 0 && !isSpan(stack[at])) at--; if (at < 0) return; while (stack.length > at) mark(shut(stack.pop())); }
     function inList() { return stack.some(function(t) { return LIST[t]; }); }
+    function piece(p) {
+        if (p[1] !== runCssOpen) { if (runCssOpen) out += '</span>'; runCssOpen = p[1]; if (runCssOpen) out += '<span style="' + runCssOpen + '">'; }
+        out += esc(decodeEntities(p[0]));
+    }
     for (var k = 0; k < toks.length; k++) {
         var t = toks[k];
         if (skip) {   // inside a dropped-content element: swallow until its closer
             if (t.tag === skip) { if (t.close) { if (--skipDepth <= 0) { skip = null; skipDepth = 0; } } else if (!t.self) skipDepth++; }
             continue;
         }
-        if (t.text !== undefined) { out += esc(decodeEntities(t.text)); continue; }
+        if (t.text !== undefined) { if (opt && opt.cut) opt.cut(t.text, t.at).forEach(piece); else out += esc(decodeEntities(t.text)); continue; }
         var name = t.tag;
         if (DROP_CONTENT[name]) { if (!t.close && !t.self) { skip = name; skipDepth = 1; } continue; }
         if (AS_P[name]) name = 'p';
         if (name === 'span' || name === 'font') {
             if (t.close) { closeSpan(); continue; }
             if (t.self) continue;
-            var look = spanLook(t);
-            if (look.size && stack.indexOf('span+') >= 0) look.size = '';   // sizes never nest: the outer one stands
+            var look = opt && opt.bare ? { color: '', size: '' } : spanLook(t);
+            if (look.size && (stack.indexOf('span+') >= 0 || (opt && opt.sized))) look.size = '';   // sizes never nest: the outer one stands
             if (!look.color && !look.size) { stack.push('#span'); continue; }   // nothing kept: just its text (its closer is still its own)
             stack.push(look.size ? 'span+' : 'span');
-            out += '<span style="' + (look.color ? 'color:' + look.color : '') + (look.color && look.size ? ';' : '') + (look.size ? 'font-size:' + look.size : '') + '">';
+            mark('<span style="' + (look.color ? 'color:' + look.color : '') + (look.color && look.size ? ';' : '') + (look.size ? 'font-size:' + look.size : '') + '">');
             continue;
         }
         if (!ALLOWED[name]) continue;                       // unknown tag: dropped, its text kept (img, table cells…)
         if (t.close) { if (!VOID[name]) closeTo(name); continue; }
-        if (VOID[name]) { out += '<br>'; continue; }
+        if (VOID[name]) { mark('<br>'); continue; }
         if (name === 'li' && !inList()) name = 'p';         // a list item outside a list reads as a paragraph
         if (name === 'p' && stack.indexOf('p') >= 0) closeTo('p');   // paragraphs never nest (the browser would not either)
         if (name === 'a') {
@@ -177,9 +189,14 @@ function sanitizeHtml(html) {
         openTag(name);
         if (t.self) closeTo(name);
     }
-    while (stack.length) out += shut(stack.pop());
+    while (stack.length) mark(shut(stack.pop()));
+    if (runCssOpen) out += '</span>';
     return out;
 }
+function sanitizeHtml(html) { return sanitize(html, null); }
+// The same, less the look: a span or a font is just its text. A Markdown import reads its inline HTML through this — Markdown has no colour
+// and no size, an export writes none, so an import brings none.
+function sanitizeBare(html) { return sanitize(html, { bare: true }); }
 
 /* ---------- a plain field with a format: drawn from runs (textfmt.js) ----------
    A title, a table cell, a caption is plain text with its styling stored beside it. Drawn here: the format is cleaned
@@ -201,6 +218,31 @@ function fmtHtml(text, fmt, put) {
     if (!f) return inner(t);
     var out = runsOf(t, f).map(function(r) { var css = runCss(r); return css ? '<span style="' + css + '">' + inner(r.t) + '</span>' : inner(r.t); }).join('');
     var size = f.size && own(SIZE_EM, f.size) ? SIZE_EM[f.size] : '';
+    return size ? '<span style="font-size:' + size + ';">' + out + '</span>' : out;
+}
+// A field that reads typed markup — a planner's titles, node fields and cells, which have always gone through the page sanitiser, so a typed
+// <b>, <br> or &mdash; reads as markup. The WHOLE field is sanitised once, exactly as it is with no format, and the format's runs are laid
+// over its text by their offsets in what was typed: a run that begins or ends inside the typed markup changes nothing about how that markup
+// reads (the bold stays bold, the dash a dash — an entity is one character and takes the look of the run it begins in), and a tag is never
+// made of two runs. A field with a size keeps no size of a typed span inside it (a size is a share of its parent's: they would multiply).
+var ENTITY = /&(#x[0-9a-f]{1,6}|#[0-9]{1,7}|[a-z][a-z0-9]{1,15});/gi;   // what decodeEntities reads as one character
+function fmtRich(text, fmt) {
+    var t = text == null ? '' : String(text), f = t ? cleanFmt(fmt, t) : undefined;
+    if (!f) return sanitizeHtml(t);
+    var at = 0, runs = runsOf(t, f).map(function(r) { var o = { e: at + r.t.length, css: runCss(r) }; at = o.e; return o; });
+    var size = f.size && own(SIZE_EM, f.size) ? SIZE_EM[f.size] : '';
+    var out = sanitize(t, { sized: !!size, cut: function(tx, off) {
+        var pieces = [], i = off, end = off + tx.length, ents = [], m;
+        ENTITY.lastIndex = 0;
+        while ((m = ENTITY.exec(tx))) ents.push([off + m.index, off + m.index + m[0].length]);
+        for (var k = 0; k < runs.length && i < end; k++) {
+            var z = Math.min(runs[k].e, end);
+            for (var j = 0; j < ents.length; j++) if (z > ents[j][0] && z < ents[j][1]) z = ents[j][1];
+            if (z > i) { pieces.push([tx.slice(i - off, z - off), runs[k].css]); i = z; }
+        }
+        if (i < end) pieces.push([tx.slice(i - off), '']);   // past the last run (a text longer than the sanitiser reads is cut there)
+        return pieces;
+    } });
     return size ? '<span style="font-size:' + size + ';">' + out + '</span>' : out;
 }
 // Where a block keeps the format of each of its plain fields (beside the value, so moving a row or a node moves its look with it):
@@ -688,6 +730,6 @@ function hbText(pages, q) {
     return { hits: hits.slice(0, HB_LIMIT), over: hits.length > HB_LIMIT };
 }
 
-var API = { VERSION: VERSION, hbFold: hbFold, hbSections: hbSections, hbHeadings: hbHeadings, hbText: hbText, HB_LIMIT: HB_LIMIT, LIMITS: LIMITS, DOC_BLOCKS: DOC_BLOCKS.slice(), sanitizeHtml: sanitizeHtml, fmtHtml: fmtHtml, cleanBlockFmts: cleanBlockFmts, fieldFmt: fieldFmt, colFmtOf: colFmtOf, cellFmtOf: cellFmtOf, cleanDoc: cleanDoc, renderDoc: renderDoc, proseHtml: proseHtml, nl: nl, compileFlowchart: compileFlowchart, stripMermaidLinks: stripMermaidLinks, esc: esc, cleanDocStyle: cleanDocStyle, mergeDocStyle: mergeDocStyle, docStyleCss: docStyleCss, docBgImage: docBgImage, DOC_FONTS: DOC_FONTS };
+var API = { VERSION: VERSION, hbFold: hbFold, hbSections: hbSections, hbHeadings: hbHeadings, hbText: hbText, HB_LIMIT: HB_LIMIT, LIMITS: LIMITS, DOC_BLOCKS: DOC_BLOCKS.slice(), sanitizeHtml: sanitizeHtml, sanitizeBare: sanitizeBare, fmtHtml: fmtHtml, fmtRich: fmtRich, cleanBlockFmts: cleanBlockFmts, fieldFmt: fieldFmt, colFmtOf: colFmtOf, cellFmtOf: cellFmtOf, cleanDoc: cleanDoc, renderDoc: renderDoc, proseHtml: proseHtml, nl: nl, compileFlowchart: compileFlowchart, stripMermaidLinks: stripMermaidLinks, esc: esc, cleanDocStyle: cleanDocStyle, mergeDocStyle: mergeDocStyle, docStyleCss: docStyleCss, docBgImage: docBgImage, DOC_FONTS: DOC_FONTS };
 if (typeof window !== 'undefined') window.wpDocRender = API;
-export { VERSION, hbFold, hbSections, hbHeadings, hbText, HB_LIMIT, LIMITS, DOC_BLOCKS, sanitizeHtml, fmtHtml, cleanBlockFmts, fieldFmt, colFmtOf, cellFmtOf, cleanDoc, renderDoc, proseHtml, nl, compileFlowchart, stripMermaidLinks, cleanDocStyle, mergeDocStyle, docStyleCss, docBgImage, DOC_FONTS };
+export { VERSION, hbFold, hbSections, hbHeadings, hbText, HB_LIMIT, LIMITS, DOC_BLOCKS, sanitizeHtml, sanitizeBare, fmtHtml, fmtRich, cleanBlockFmts, fieldFmt, colFmtOf, cellFmtOf, cleanDoc, renderDoc, proseHtml, nl, compileFlowchart, stripMermaidLinks, cleanDocStyle, mergeDocStyle, docStyleCss, docBgImage, DOC_FONTS };

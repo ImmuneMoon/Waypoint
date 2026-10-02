@@ -85,8 +85,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     check('nothing picRef lets through leaves the app (WHATWG URL)', escaped.length === 0, escaped);
 
     /* ---- the planner preview (planner.js plannerPreviewHtml) ---- */
-    const plannerPreviewHtml = new Function('esc', 'sanitizeHtml', 'proseHtml', 'stripMermaidLinks', 'compileFlowchart', 'docStyleCss', 'mergeDocStyle', 'num', 'picRef', 'fmtHtml', 'fieldFmt', 'colFmtOf', 'cellFmtOf',
-        slice('planner.js', 'planner-preview') + '\nreturn plannerPreviewHtml;')(SC.esc, DR.sanitizeHtml, DR.proseHtml, DR.stripMermaidLinks, DR.compileFlowchart, DR.docStyleCss, DR.mergeDocStyle, SC.num, SC.picRef, DR.fmtHtml, DR.fieldFmt, DR.colFmtOf, DR.cellFmtOf);
+    const plannerPreviewHtml = new Function('esc', 'sanitizeHtml', 'proseHtml', 'stripMermaidLinks', 'compileFlowchart', 'docStyleCss', 'mergeDocStyle', 'num', 'picRef', 'fmtHtml', 'fmtRich', 'fieldFmt', 'colFmtOf', 'cellFmtOf',
+        slice('planner.js', 'planner-preview') + '\nreturn plannerPreviewHtml;')(SC.esc, DR.sanitizeHtml, DR.proseHtml, DR.stripMermaidLinks, DR.compileFlowchart, DR.docStyleCss, DR.mergeDocStyle, SC.num, SC.picRef, DR.fmtHtml, DR.fmtRich, DR.fieldFmt, DR.colFmtOf, DR.cellFmtOf);
     const camp = { id: 'c1', docStyle: { textColor: 'red;background:url(//evil.example/d)', bgImage: U }, items: {
         m2: { id: 'm2', type: 'map', meta: { title: T }, rooms: [{ id: P, name: T }] }
     } };
@@ -157,8 +157,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         st.blocks[4].fmt = { caption: { b: true } };
         st.blocks[5].nodes[0].fmt = { color: RED, spans: [{ s: 9, e: 17, color: GREEN, b: true }] }; st.blocks[5].edges[0].fmt = { i: true };
         const campS = { id: 'c1', items: {} }, sHtml = plannerPreviewHtml(st, campS), pHtml = plannerPreviewHtml(stPlain(), campS);
-        check('text style (planner preview): a title and a subtitle, a section, a scene node\'s title, tag and must-resolve are drawn from their runs — each run through the page sanitiser, in a span the renderer writes',
-            sHtml.indexOf('<h1><span style="color:#d9534f;">Tom &amp; Jerry</span><span class="sub"><span style="font-style:italic;">a<br>b</span></span></h1>') >= 0 && sHtml.indexOf('<h2><span style="font-size:1.2em;">Beats</span></h2>') >= 0
+        check('text style (planner preview): a title and a subtitle, a section, a scene node\'s title, tag and must-resolve are drawn from their runs — the field through the page sanitiser, its runs in spans the renderer writes (a run\'s span ends at a typed tag and goes on after it)',
+            sHtml.indexOf('<h1><span style="color:#d9534f;">Tom &amp; Jerry</span><span class="sub"><span style="font-style:italic;">a</span><br><span style="font-style:italic;">b</span></span></h1>') >= 0 && sHtml.indexOf('<h2><span style="font-size:1.2em;">Beats</span></h2>') >= 0
             && sHtml.indexOf('<h3><span style="font-weight:bold;">N</span> <span class="tag"><span style="color:#5cb87a;">Tag</span></span></h3>') >= 0 && sHtml.indexOf('<p class="must"><b>Must resolve:</b> <span style="font-style:italic;">Win</span> <b>now</b></p>') >= 0, sHtml.slice(0, 900));
         check('text style (planner preview): a table\'s heads (typed or the default ones) and cells, and a picture\'s caption (its alt text stays plain)',
             sHtml.indexOf('<th>A</th><th><span style="font-weight:bold;">B</span></th>') >= 0 && sHtml.indexOf('<td>x<br>y</td><td><span style="color:#d9534f;">5</span> &lt; 6</td>') >= 0
@@ -180,9 +180,21 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         let hsHtml = '';
         check('text style (planner preview): hostile formats draw plain — the markup is exactly the unstyled planner\'s — and nothing in it can run or call out',
             throwsNot(function() { hsHtml = plannerPreviewHtml(hs, campS); }) && hsHtml === pHtml && risks(hsHtml).length === 0 && ({}).title === undefined, hsHtml.slice(0, 600));
-        const mixed = stPlain(); mixed.blocks[0].title = T + ' and ' + T; mixed.blocks[0].fmt = { title: { color: RED, spans: [{ s: 5, e: 40, b: true }] } }; mixed.blocks[2].rows[0].col1 = '<a href="javascript:alert(1)">x</a><script>alert(1)</script>'; mixed.blocks[2].rows[0].fmt = { col1: { spans: [{ s: 3, e: 30, color: GREEN }] } };
+        const mixed = stPlain(); mixed.blocks[0].title = T + ' and ' + T; mixed.blocks[0].fmt = { title: { color: RED, spans: [{ s: 5, e: 40, b: true }] } }; mixed.blocks[2].rows[0].col1 = '<a href="javascript:alert(1)">x</a><script>alert(1)</script>'; mixed.blocks[2].rows[0].fmt = { col1: { spans: [{ s: 3, e: 31, color: GREEN }] } };
         const mxHtml = plannerPreviewHtml(mixed, campS);
-        check('text style (planner preview): a run boundary inside typed markup cannot make markup — each run is sanitised on its own', risks(mxHtml).length === 0 && !/<(script|a)\b/i.test(mxHtml) && mxHtml.split('<img').length === 2 && mxHtml.indexOf('<span style="color:#d9534f;font-weight:bold;">src=x onerror=alert(1)&gt; and </span>') > 0 && mxHtml.indexOf('<td><span style="color:#5cb87a;">href=&quot;javascript:alert(1)&quot;&gt;</span>x</td>') > 0, risks(mxHtml));   // the one <img is the picture block's own
+        check('text style (planner preview): a run boundary inside typed markup cannot make markup, and nothing of a dropped tag shows as text — the field is sanitised whole, exactly as with no format, and the runs are laid over the text that is left', risks(mxHtml).length === 0 && !/<(script|a)\b/i.test(mxHtml) && mxHtml.split('<img').length === 2 && mxHtml.indexOf('<h1><span style="color:#d9534f;font-weight:bold;"> and </span><span class="sub">a<br>b</span></h1>') > 0 && mxHtml.indexOf('<td><span style="color:#5cb87a;">x</span></td>') > 0 && mxHtml.indexOf('onerror') < 0 && mxHtml.indexOf('javascript') < 0, risks(mxHtml));   // the one <img is the picture block's own
+        // a planner's plain fields have always read typed markup: a format changes the look of the text, never how the markup reads
+        const typed = stPlain(); typed.blocks[2].rows[0].col1 = 'a <b>bold</b> &mdash; c'; typed.blocks[2].must = 'x &mdash; y'; typed.blocks[1].title = '<span style="font-size:1.728em">Beats</span>'; typed.blocks[0].title = '<span style="font-size:1.728em">T</span>';
+        const typedPlain = plannerPreviewHtml(typed, campS);
+        typed.blocks[2].rows[0].fmt = { col1: { spans: [{ s: 5, e: 9, color: GREEN }] } }; typed.blocks[2].fmt = { must: { spans: [{ s: 0, e: 5, color: RED }] } }; typed.blocks[1].fmt = { title: { size: 'huge' } }; typed.blocks[0].fmt = { title: { b: true } };
+        const tyHtml = plannerPreviewHtml(typed, campS), h2of = h => (/<h2>.*?<\/h2>/.exec(h) || [''])[0];
+        check('text style (planner preview): a run that begins inside typed markup leaves it reading as it did — a styled word inside a typed <b> is coloured and still bold, a dash typed as &mdash; is still a dash wherever a run ends',
+            typedPlain.indexOf('<td>a <b>bold</b> \u2014 c</td>') > 0 && tyHtml.indexOf('<td>a <b><span style="color:#5cb87a;">bold</span></b> \u2014 c</td>') > 0 && tyHtml.indexOf('<p class="must"><b>Must resolve:</b> <span style="color:#d9534f;">x \u2014</span> y</p>') > 0 && tyHtml.indexOf('&amp;mda') < 0 && risks(tyHtml).length === 0, tyHtml.slice(0, 1200));
+        check('text style (planner preview): a field with a size draws one size only — a size typed into it as a span is dropped (they would multiply); without a size on the field the typed one stands',
+            h2of(typedPlain) === '<h2><span style="font-size:1.728em">Beats</span></h2>' && h2of(tyHtml) === '<h2><span style="font-size:1.728em;">Beats</span></h2>' && h2of(tyHtml).split('font-size').length === 2
+            && tyHtml.indexOf('<h1><span style="font-size:1.728em"><span style="font-weight:bold;">T</span></span><span class="sub">a<br>b</span></h1>') > 0, h2of(tyHtml));
+        check('text style (planner preview, wired): every field that reads typed markup — a title, a subtitle, a section, a node\'s title, tag and must-resolve, a head, a cell — is drawn by fmtRich; only the caption (escaped text) by fmtHtml',
+            (() => { const s = slice('planner.js', 'planner-preview'); return (s.match(/fmtRich\(/g) || []).length === 8 && (s.match(/fmtHtml\(/g) || []).length === 1 && /fmtHtml\(b\.caption, fieldFmt\(b, 'caption'\), esc\)/.test(s) && !/fmtHtml\([^\n;]*sanitizeHtml\)/.test(s); })());
 
         // the reader, a floating panel and a pop-out: a page as a player's app draws it (cleaned again there, then the one renderer)
         const page = { id: 'd1', type: 'doc', meta: { title: 'P', players: true }, blocks: [

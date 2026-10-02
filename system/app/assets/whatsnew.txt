@@ -935,6 +935,33 @@ ShadowBase sheets
   none, and the player is told which. The Lists tab's Rules box can let the
   levels, switches and quantities of rows they already carry apply at once.
 
+Text style in planners and pages
+- A Text style bar at the top of the planner and page editor (closed until
+  you click its ▸) colours, bolds and italicises the characters you select
+  in a title, a table heading or cell, a scene node's fields, a picture's
+  caption, a flowchart node's label or an arrow's label. Select, then
+  click; the selection stays, so green and then bold needs no second
+  selecting. Ctrl+B and Ctrl+I work in those boxes too.
+- With nothing selected the click is the whole field's: click in a node's
+  label and pick red, then select the lines you have finished and pick
+  green. Size (Small, Large, Larger, Huge) is always the whole field's.
+  Clear takes the styling off.
+- Text blocks have colours, Default and a Size list on their own bar, for
+  the selected text.
+- Each click is one undo step: Ctrl+Z right after a click takes that click
+  back and leaves what you typed. What you type afterwards leaves the
+  styling on the characters it was on, and moving or deleting rows,
+  columns, nodes and arrows keeps every style on its own text.
+- The bar works from the keyboard: Tab to it, the arrow keys step through
+  the Size list as one undo step, and Esc takes you back to the field.
+- Find in a planner's or a page's preview finds a word you coloured in
+  part.
+- Your players see a styled page exactly as you do. Styling is kept in the
+  campaign and its export file; Markdown has neither colour nor size, so a
+  Markdown export writes the plain text and an import brings none in.
+- Fixed: a handbook page's table brought in from a campaign file showed
+  empty boxes in the editor; its cells show again.
+
 Handbook
 - A sequence diagram on a page opened in its own window is drawn (it
   showed "Syntax error in text").

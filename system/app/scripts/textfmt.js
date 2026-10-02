@@ -1,5 +1,5 @@
 /* Text formats (1.5.0) — the styling of ONE plain text field, stored beside the text, never inside it.
-   A title, a table cell, a flowchart node's label stay the plain strings they always were; what the Text style bar
+   A title, a table cell, a flowchart node's label stay the plain strings they always were; what the bar on a field's box
    does to them is a small object kept next to the value it belongs to:
 
      { size?, color?, b?, i?, u?, st?, link?, spans? }      the base, for the whole field

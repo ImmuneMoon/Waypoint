@@ -2,8 +2,9 @@ const { app, BrowserWindow, shell } = require('electron');
 
 // ---- self-update ----
 // Releases are published on this public GitHub repository (see tools/release.js). The app
-// checks it on launch and from Settings; updates of the front end apply in place, updates
-// that need a newer shell fall back to the installer download.
+// checks it on launch and from Settings; updates of the front end apply in place, and an update
+// that needs a newer shell is fetched, checked and run by the shell itself where this copy was
+// put there by the installer (updater.js), with the walk-through in the browser as the fallback.
 const UPDATE_REPO = 'ImmuneMoon/Waypoint';   // <owner>/<repo> — change here and nowhere else
 const updater = require('./updater');
 const libstore = require('./libstore');   // Stage 6 library L1b: a campaign's pack files, shared with tools/dev-server.js
@@ -66,10 +67,20 @@ function appVersion() {
     } catch (e) { /* no version.json: the shell's own version stands */ }
     return v;
 }
+// Can this copy run the installer over itself? Only on Windows, and only a copy the installer put here: its uninstaller
+// lies beside Waypoint.exe. Never a portable copy or a checkout run from source — the installer would write over that folder.
+function installedCopy() {
+    try { return process.platform === 'win32' && fs.existsSync(path.join(rootDir, 'Waypoint.exe')) && fs.readdirSync(rootDir).some(f => /^unins\d{3}\.exe$/i.test(f)); }
+    catch (e) { return false; }
+}
 const updateCfg = {
     repo: UPDATE_REPO,
     shellVersion: SHELL_VERSION,
     systemDir: path.join(rootDir, 'system'),
+    selfInstall: installedCopy(),
+    appRoot: rootDir,
+    dataDir: path.join(rootDir, 'system', 'userdata'),
+    quit: () => app.quit(),
 };
 Object.defineProperty(updateCfg, 'currentVersion', { get: appVersion, enumerable: true });
 const updateHandler = updater.makeHandler(updateCfg);
@@ -108,7 +119,7 @@ const server = http.createServer((req, res) => {
 
     const url = new URL(req.url, 'http://localhost');
 
-    if (url.pathname === '/api/update-check' || url.pathname === '/api/update-apply') {
+    if (updater.UPDATE_ROUTES.includes(url.pathname)) {
         updateHandler(req, res, url);
         return;
     }

@@ -32,7 +32,7 @@ import { state, dom } from './state.js';
 
 import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap, isDocLike } from './models.js';
 
-import { renderDoc, compileFlowchart, DOC_BLOCKS, mergeDocStyle, docStyleCss, cleanDocStyle, sanitizeHtml, proseHtml, stripMermaidLinks, fmtHtml, fmtRich, fieldFmt, colFmtOf, cellFmtOf } from './docrender.js';
+import { renderDoc, compileFlowchart, DOC_BLOCKS, mergeDocStyle, docStyleCss, cleanDocStyle, sanitizeHtml, proseHtml, stripMermaidLinks, mermaidPre, fmtHtml, fmtRich, fieldFmt, colFmtOf, cellFmtOf } from './docrender.js';
 
 import * as TF from './textfmt.js';
 
@@ -449,6 +449,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   var TS_SCOPE = ' — the selected characters, or the whole field with nothing selected';
   var TS_LINK_TITLE = 'Link — a web address (https://…) for the selected characters, or the whole field with nothing selected. Enter sets it, Esc backs out; an empty box takes the link off.';
   var TS_LINK_LABEL = 'A flowchart label cannot hold a link: a chart never carries web addresses.';
+  var TS_LINK_BAD = 'A link is a web address: it starts with http:// or https:// and holds no spaces.';   // said for an address that is refused — by this bar's Link box and by a text block's
   function tsIsLabel(d) { return !!d && (d.k === 'node' || d.k === 'edge'); }
   function tsBlocksOf() { var am = getActiveMap(); return am && isDocLike(am) && Array.isArray(am.blocks) ? am : null; }
   // the editor box of a field, by its place
@@ -696,14 +697,13 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       tsRefresh(); tsPlace();
       return true;
   }
-  // The link box's address onto the field. A web address typed without its scheme ("example.com/page") is taken as https:// — one with a port
-  // too ("example.com:8080/page", "localhost:3000": a first word followed by one to five digits and then the end, a /, a ? or a # is a host and
-  // its port, not a scheme); anything that is still no link (textfmt.js cleanLink: the page sanitiser's rule — so whatever begins with another
-  // scheme) is refused in words and changes nothing ('bad'); an empty box takes the link off.
+  // The link box's address onto the field. What a typed address becomes is textfmt.js typedLink's to say — a text block's Link control reads it
+  // there too: one typed without its scheme ("example.com/page") is taken as https://, one with a port too ("example.com:8080/page",
+  // "localhost:3000"); an empty box takes the link off; anything that is still no link (textfmt.js cleanLink: the page sanitiser's rule — so
+  // whatever begins with another scheme) is refused in words and changes nothing ('bad').
   function tsLink() {
-      var E = tsState.els, v = String(E.link.value == null ? '' : E.link.value).trim();
-      if (v && !/^[a-z][a-z0-9+.-]*:(?!\d{1,5}(?:[\/?#]|$))/i.test(v)) v = 'https://' + v;
-      if (v && !TF.cleanLink(v)) { toast('A link is a web address: it starts with http:// or https:// and holds no spaces.'); return 'bad'; }
+      var E = tsState.els, v = TF.typedLink(E.link.value);
+      if (v === null) { toast(TS_LINK_BAD); return 'bad'; }
       return tsPress({ link: v || null }, E.link);
   }
   // The tray opens under its button and to its right; where that would leave the panel it opens to the left, and near the bottom of the window upward
@@ -1341,6 +1341,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       ['\u201C', 'open quote'], ['\u201D', 'close quote'], ['\u2018', 'open single'], ['\u2019', 'apostrophe'], ['\u00AB', 'guillemet open'], ['\u00BB', 'guillemet close'],
       ['\u2122', 'trademark'], ['\u00A9', 'copyright'], ['\u00AE', 'registered'], ['\u2699', 'gear'], ['\u2694', 'crossed swords'], ['\u2620', 'skull'], ['\u2691', 'flag'], ['\u2690', 'empty flag']
   ];
+  var RTE_LINK_TITLE = 'Link \u2014 a web address (https://\u2026) for the selected text, or for the link the caret is in. Enter sets it, Esc backs out; an empty box takes the link off. With nothing selected and the caret outside a link there is nothing to link: a text block styles a selection, not the whole block.';
   // [sinkcheck:rte-start]
   // The box holds what the preview renders — the page sanitiser's HTML — so a planner from a file runs and loads nothing here either
   function rteInitial(b) {
@@ -1355,7 +1356,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var look = TF.PALETTE.map(function(p) { return '<button type="button" class="rte-sw" data-color="' + esc(p[0]) + '" title="' + esc(p[1]) + ' \u2014 colour the selected text" style="background:' + esc(p[0]) + ';" tabindex="-1"></button>'; }).join('')
               + '<label class="rte-sw rte-custom" title="Custom colour for the selected text"><input type="color" class="rte-colorpick" value="#d9534f" tabindex="-1"></label>'
               + '<button type="button" class="rte-btn rte-nocolor" title="The default colour on the selected text" tabindex="-1">Default</button>'
-              + '<select class="rte-size" title="Size of the selected text" tabindex="-1"><option value="">Size\u2026</option><option value="default">Default</option>' + TF.SIZES.map(function(s) { return '<option value="' + esc(s) + '">' + esc(TF.SIZE_NAMES[s] || s) + '</option>'; }).join('') + '</select><span class="rte-sep"></span>';
+              + '<select class="rte-size" title="Size of the selected text" tabindex="-1"><option value="">Size\u2026</option><option value="default">Default</option>' + TF.SIZES.map(function(s) { return '<option value="' + esc(s) + '">' + esc(TF.SIZE_NAMES[s] || s) + '</option>'; }).join('') + '</select><span class="rte-sep"></span>'
+              // …and a Link box (the planner's own too): its address is read by textfmt.js typedLink and set by rteLinkDo
+              + '<label class="ts-linklab rte-linklab" title="' + esc(RTE_LINK_TITLE) + '">Link <input type="text" class="ts-link rte-link" placeholder="https://\u2026" spellcheck="false" autocomplete="off" aria-label="Link address" tabindex="-1"></label><span class="rte-sep"></span>';
       var bar = RTE_CMDS.map(function(k) {
           if (k.sep) return '<span class="rte-sep"></span>';
           if (k.sym) return look + '<span class="rte-symwrap"><button type="button" class="rte-btn rte-symbtn" title="' + k.t + '" tabindex="-1">' + k.l + '</button><div class="rte-syms">' + RTE_SYMS.map(function(s) { return '<button type="button" class="rte-sym" data-sym="' + s[0] + '" title="' + s[1] + '" tabindex="-1">' + s[0] + '</button>'; }).join('') + '</div></span>';
@@ -1376,7 +1379,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   document.addEventListener('pointerdown', function(e) { if (!(e.target.closest && e.target.closest('.rte-symwrap'))) document.querySelectorAll('.rte-symwrap.open').forEach(function(w) { w.classList.remove('open'); }); }, true);
   document.addEventListener('keydown', function(e) { if (e.key === 'Escape') document.querySelectorAll('.rte-symwrap.open').forEach(function(w) { w.classList.remove('open'); }); }, true);
   document.addEventListener('selectionchange', function() {
-      var a = document.activeElement; if (a && a.classList && a.classList.contains('rte-body')) { rteSyncBar(a); var gs = window.getSelection(); a._wpRange = gs && gs.rangeCount && a.contains(gs.anchorNode) ? gs.getRangeAt(0).cloneRange() : a._wpRange; }   // remembered for the controls that take the focus (the size list, the colour picker)
+      var a = document.activeElement; if (a && a.classList && a.classList.contains('rte-body')) { rteSyncBar(a); rteLinkSync(a); var gs = window.getSelection(); a._wpRange = gs && gs.rangeCount && a.contains(gs.anchorNode) ? gs.getRangeAt(0).cloneRange() : a._wpRange; }   // remembered for the controls that take the focus (the size list, the colour picker)
   });
   /* A text block's colour and size on the selection. The browser's own commands do the cutting (they split what the selection crosses
      and take a conflicting colour or size off it); what they leave — <font color>, a marker <font size> — is turned into the one form
@@ -1462,28 +1465,234 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (change !== 'clear' && !(change && (change.b === true || change.i === true || change.u === true || change.st === true))) body._wpNativeDirty = false;   // a colour or a size re-made nodes behind the browser's own text undo: Ctrl+Z goes to the planner's history (io.js fieldUndoChord), which has this press as a step
       return true;
   }
+  // [textcheck:rtelink-start]
+  /* ---- a text block's Link control ----
+     A Link box on the block's own bar, with the manners of the Link box on a plain field's bar: select text in the block, type an address,
+     and Enter — or leaving the box — sets it; the caret or the selection inside a link shows its address; an empty box and Enter takes the
+     link off; Escape drops what was typed. What a typed address becomes is textfmt.js typedLink's to say (the bar on the boxes reads it
+     there too): one without its scheme is taken as https://, and one that is still no link is refused in the same words and changes nothing.
+     A text block styles a selection, not the whole block: with nothing selected the control acts on the link the caret is INSIDE, and with
+     the caret outside any link it has nothing to act on and says so.
+     The block keeps its box's HTML, so a link is an <a> in the box — made here from elements and text nodes, on the selected CHARACTERS:
+     the text nodes are cut at the selection's ends, each one inside comes out of the link it was in (that link is cut around it; what lies
+     before and after keeps it) and goes into the new one, and neighbours of one link are joined again. Everything the box holds still
+     reaches the preview, a player and a file only through the page sanitiser, which rebuilds every <a> from its own rule. In the box a link
+     looks like one and is never followed (linkgate.js). One press is one undo step of the planner's. */
+  var RTE_LINK_NONE = 'Select the text to link first, or put the caret inside a link.';
+  var RTE_BLOCKS = { P: 1, LI: 1, DIV: 1, UL: 1, OL: 1, PRE: 1, BLOCKQUOTE: 1, H1: 1, H2: 1, H3: 1, H4: 1, H5: 1, H6: 1, TABLE: 1, TR: 1, TD: 1, TH: 1 };
+  var RTE_STYLED = { B: 1, STRONG: 1, I: 1, EM: 1, U: 1, S: 1, STRIKE: 1, SPAN: 1, FONT: 1, CODE: 1 };
+  function rteTag(n) { return String(n.nodeName || '').toUpperCase(); }
+  // every text node under a box, in order, with where its characters begin (len: how many there are in all)
+  function rteTexts(body) {
+      var out = [], at = 0;
+      (function go(n) { for (var i = 0; i < n.childNodes.length; i++) { var c = n.childNodes[i]; if (c.nodeType === 3) { out.push({ n: c, a: at }); at += c.nodeValue.length; } else if (c.nodeType === 1) go(c); } })(body);
+      out.len = at;
+      return out;
+  }
+  // a place of the selection (a node and an offset in it) as a character offset in the box's text; -1 when it is not in the box
+  function rteAt(body, node, offset) {
+      var at = 0, found = -1;
+      (function go(n) {
+          var k = n.childNodes, stop = n === node ? Math.min(k.length, offset) : -1;
+          for (var i = 0; i < k.length && found < 0; i++) {
+              if (i === stop) { found = at; return; }
+              var c = k[i];
+              if (c.nodeType === 3) { if (c === node) { found = at + Math.min(c.nodeValue.length, offset); return; } at += c.nodeValue.length; }
+              else if (c.nodeType === 1) go(c);
+          }
+          if (found < 0 && stop === k.length) found = at;
+      })(body);
+      return found;
+  }
+  // the box's selection as two character offsets [s, e]; null when it is not in the box
+  function rteSel(body) {
+      var gs = window.getSelection ? window.getSelection() : null;
+      if (!gs || !gs.rangeCount || !gs.anchorNode || !gs.focusNode || !body.contains(gs.anchorNode) || !body.contains(gs.focusNode)) return null;
+      var a = rteAt(body, gs.anchorNode, gs.anchorOffset), f = rteAt(body, gs.focusNode, gs.focusOffset);
+      return a < 0 || f < 0 ? null : [Math.min(a, f), Math.max(a, f)];
+  }
+  // the <a> a text node lies in (the nearest one, inside the box), and the paragraph it lies in
+  function rteAnchor(body, t) { for (var n = t.parentNode; n && n !== body; n = n.parentNode) if (n.nodeType === 1 && rteTag(n) === 'A') return n; return null; }
+  function rteBlock(body, t) { for (var n = t.parentNode; n && n !== body; n = n.parentNode) if (RTE_BLOCKS[rteTag(n)]) return n; return body; }
+  // the box's text as runs: [{ a, z, href, blk }] — the characters a to z of one text node, the address they link to as the link rule keeps it ('' for none), their paragraph
+  function rteRuns(body) {
+      return rteTexts(body).filter(function(x) { return x.n.nodeValue.length > 0; }).map(function(x) {
+          var an = rteAnchor(body, x.n), raw = an ? an.getAttribute('href') : null;
+          return { a: x.a, z: x.a + x.n.nodeValue.length, href: raw == null ? '' : TF.cleanLink(String(raw)), blk: rteBlock(body, x.n) };
+      });
+  }
+  // What the control acts on, and the link it shows: { s, e, link }. A selection: its characters, and the one address all of them link to
+  // ('' when none does, null when they differ). A caret: the whole link it is INSIDE — the character before it and the character after it
+  // are in the same link, in the same paragraph — and nothing (s === e) anywhere else: at a link's end, at its start, in plain text.
+  function rteLinkAt(body, s, e) {
+      var runs = rteRuns(body);
+      if (s < e) {
+          var seen = [];
+          runs.forEach(function(r) { if (r.z > s && r.a < e && seen.indexOf(r.href) < 0) seen.push(r.href); });
+          return { s: s, e: e, link: !seen.length ? '' : seen.length === 1 ? seen[0] : null };
+      }
+      var li = -1, ri = -1;
+      runs.forEach(function(r, i) { if (r.a < s && r.z >= s) li = i; if (r.a <= s && r.z > s) ri = i; });
+      if (li < 0 || ri < 0 || !runs[li].href || runs[li].href !== runs[ri].href || runs[li].blk !== runs[ri].blk) return { s: s, e: s, link: '' };
+      var one = function(x, y) { return x.href === y.href && x.blk === y.blk; };
+      while (li > 0 && one(runs[li - 1], runs[li])) li--;
+      while (ri < runs.length - 1 && one(runs[ri + 1], runs[ri])) ri++;
+      return { s: runs[li].a, e: runs[ri].z, link: runs[li].href };
+  }
+  function rteDrop(el) { var p = el.parentNode; if (!p) return; while (el.firstChild) p.insertBefore(el.firstChild, el); p.removeChild(el); }   // an element away, what it held in its place
+  // A text node alone in its link: every element from its parent up to the link is cut before and after the node's branch (the parts cut
+  // off keep their tags, and the link), then the link around what is left is taken away.
+  function rteLift(t, a) {
+      for (var n = t; n !== a; n = n.parentNode) {
+          var p = n.parentNode, after = [], before = [], c;
+          for (c = n.nextSibling; c; c = c.nextSibling) after.push(c);
+          for (c = p.firstChild; c && c !== n; c = c.nextSibling) before.push(c);
+          if (after.length) { var ca = p.cloneNode(false); after.forEach(function(x) { ca.appendChild(x); }); p.parentNode.insertBefore(ca, p.nextSibling); }
+          if (before.length) { var cb = p.cloneNode(false); before.forEach(function(x) { cb.appendChild(x); }); p.parentNode.insertBefore(cb, p); }
+      }
+      rteDrop(a);
+  }
+  // The characters s to e of the box linked to href — or, with href '', taken out of whatever link they are in. href: an address the link
+  // rule keeps (anything else is taken as none). True when the box changed.
+  function rteLinkSet(body, s, e, href) {
+      href = TF.cleanLink(href);
+      if (!(s < e)) return false;
+      var changed = false;
+      rteTexts(body).forEach(function(x) {   // the text nodes cut at s and e (from the back, so the earlier offset still holds)
+          var len = x.n.nodeValue.length;
+          [e - x.a, s - x.a].forEach(function(k) {
+              if (!(k > 0 && k < len)) return;
+              var rest = document.createTextNode(x.n.nodeValue.slice(k));
+              x.n.nodeValue = x.n.nodeValue.slice(0, k);
+              x.n.parentNode.insertBefore(rest, x.n.nextSibling);
+              len = k;
+          });
+      });
+      rteTexts(body).forEach(function(x) {
+          var len = x.n.nodeValue.length; if (!len || x.a < s || x.a + len > e) return;
+          var an = rteAnchor(body, x.n);
+          if (an && href && an.getAttribute('href') === href) return;   // already linked there
+          if (!an && !href) return;
+          if (an) rteLift(x.n, an);
+          if (href) { var a = document.createElement('a'); a.setAttribute('href', href); a.setAttribute('target', '_blank'); a.setAttribute('rel', 'noopener noreferrer'); x.n.parentNode.insertBefore(a, x.n); a.appendChild(x.n); }
+          changed = true;
+      });
+      var all = function() { return Array.prototype.slice.call(body.querySelectorAll('a')); };
+      all().forEach(function(a) {   // a link that is all its styled parent holds goes around that parent — a link across bold text is one link, not one for each piece
+          for (var p = a.parentNode; p && p !== body && RTE_STYLED[rteTag(p)] && p.childNodes.length === 1; p = a.parentNode) {
+              p.parentNode.insertBefore(a, p);
+              while (a.firstChild) p.appendChild(a.firstChild);
+              a.appendChild(p);
+          }
+      });
+      all().forEach(function(a) {   // neighbours of one link are one link; one left holding no text is none
+          if (!a.parentNode) return;
+          for (var nx = a.nextSibling; nx && nx.nodeType === 1 && rteTag(nx) === 'A' && nx.getAttribute('href') === a.getAttribute('href'); nx = a.nextSibling) { while (nx.firstChild) a.appendChild(nx.firstChild); nx.parentNode.removeChild(nx); }
+          if (!rteTexts(a).len) rteDrop(a);
+      });
+      if (changed && typeof body.normalize === 'function') body.normalize();   // the pieces of a cut text node that ended up side by side are one node again
+      return changed;
+  }
+  function rteLinkBox(body) { return body && body.parentNode ? body.parentNode.querySelector('.rte-link') : null; }
+  // The box's selection remembered for the Link box (which takes the focus), and the Link box showing what it would act on: the address of
+  // the link the selection or the caret is in — never over what is being typed there
+  function rteLinkSync(body) {
+      var box = rteLinkBox(body); if (!box) return;   // a box with no Link control (the play map's text box) is left alone
+      if (document.activeElement === body) { var sel = rteSel(body); if (sel) body._wpSel = sel; }   // only while the block has the focus: what it held selected when the Link box took it stays remembered
+      var cur = body._wpSel, at = cur ? rteLinkAt(body, cur[0], cur[1]) : null;
+      if (document.activeElement !== box) { box.value = at && at.link ? at.link : ''; box.placeholder = at && at.link === null ? 'several links' : 'https://…'; }
+      if (box.parentNode) box.parentNode.title = at && at.link ? RTE_LINK_TITLE + ' This link leads to ' + at.link : RTE_LINK_TITLE;
+  }
+  // The Link box's address onto the block. 'bad': refused, said in words, nothing changed; false: nothing to act on, or nothing to change; true: done — one undo step.
+  function rteLinkDo(body, box) {
+      var v = TF.typedLink(box.value);
+      if (v === null) { toast(TS_LINK_BAD); return 'bad'; }
+      var sel = body._wpSel, at = sel ? rteLinkAt(body, sel[0], sel[1]) : null;
+      if (!at || !(at.s < at.e)) { toast(RTE_LINK_NONE); return false; }   // nothing selected and the caret in no link
+      if (at.link === v) return false;
+      stepBoundary();   // typing still on its way is its own step
+      if (!rteLinkSet(body, at.s, at.e, v)) return false;
+      body.dispatchEvent(new Event('input', { bubbles: true }));
+      body._wpNativeDirty = false;   // nodes were made behind the browser's own text undo: Ctrl+Z goes to the planner's history (io.js fieldUndoChord), which has this press as a step
+      stepBoundary();   // …and this press is a step of its own: what is typed next does not fold into it
+      return true;
+  }
+  // Back from the Link box into the block, its selection as it was
+  function rteLinkBack(body) {
+      var sel = body._wpSel;   // read first: focusing the block makes the engine put a caret in it, and the block's own focus handler notes that
+      try { body.focus(); } catch (e) {}
+      if (sel) { rteSelect(body, sel); body._wpSel = sel; }
+  }
+  // What is typed right at the END of a link is not part of the link (the boxes' one rule, TS_LINK_GROWS). Before the engine inserts at a
+  // caret that stands at a link's end, the place and the text's length are noted; after the insertion, whatever landed inside a link there
+  // is taken out of it again and keeps the rest of its look. An engine that leaves such typing outside the link itself leaves nothing to do.
+  function rteLinkMark(body, inputType) {
+      body._wpEnd = null;
+      if (TS_LINK_GROWS || !/^insert/.test(String(inputType || ''))) return;
+      var sel = rteSel(body); if (!sel || sel[0] !== sel[1] || !(sel[0] > 0)) return;
+      var runs = rteRuns(body), at = sel[0], L = null, R = null;
+      runs.forEach(function(r) { if (r.a < at && r.z >= at) L = r; if (r.a <= at && r.z > at) R = r; });
+      if (!L || !L.href || (R && R.href === L.href && R.blk === L.blk)) return;   // not at a link's end
+      body._wpEnd = { at: at, len: rteTexts(body).len };
+  }
+  function rteLinkKeep(body) {
+      var m = body._wpEnd; body._wpEnd = null;
+      if (!m) return false;
+      var grown = rteTexts(body).len - m.len; if (!(grown > 0)) return false;
+      if (rteLinkAt(body, m.at, m.at + grown).link === '') return false;   // it is outside every link already
+      var sel = rteSel(body);
+      if (!rteLinkSet(body, m.at, m.at + grown, '')) return false;
+      rteSelect(body, sel || [m.at + grown, m.at + grown]);
+      return true;
+  }
+  // [textcheck:rtelink-end]
   // [textcheck:rtewire-start]
   function wireRte(container) {
       Array.from(container.querySelectorAll('.rte-body')).forEach(function(body) {
           body.addEventListener('input', function() {
               if (this._wpQuiet) return;   // a command half-way through (rteLook): the finished box follows
+              var kept = !this._wpComp && rteLinkKeep(this);   // what was just typed at a link's end is not part of the link
+              if (kept) this._wpNativeDirty = false;   // nodes were re-made behind the browser's own text undo: Ctrl+Z is the planner's
               var am = getActiveMap(); if (!am || !am.blocks) return;
               am.blocks[this.dataset.idx].content = this.innerHTML;
-              save(false); renderPlannerPreview(); rteSyncBar(this);
+              save(false); renderPlannerPreview(); rteSyncBar(this); rteLinkSync(this);
           });
-          body.addEventListener('keydown', function(e) { if (fieldUndoChord(e)) return; e.stopPropagation(); });
+          body.addEventListener('beforeinput', function(e) { if (!this._wpComp) rteLinkMark(this, e.inputType); });
+          body.addEventListener('compositionstart', function() { rteLinkMark(this, 'insertCompositionText'); this._wpComp = true; });   // a composition is judged once, at its end
+          body.addEventListener('compositionend', function() { this._wpComp = false; if (rteLinkKeep(this)) { this.dispatchEvent(new Event('input', { bubbles: true })); this._wpNativeDirty = false; } });
+          body.addEventListener('keydown', function(e) {
+              if (e.key === 'F10' && e.altKey && !e.ctrlKey && !e.metaKey) {   // from the keyboard into the bar's Link box (the one control there that takes typing), as Alt+F10 goes into the bar of a plain field's box
+                  var lb = rteLinkBox(this);
+                  if (lb) { e.preventDefault(); e.stopPropagation(); rteLinkSync(this); try { lb.focus(); lb.select(); } catch (err) {} return; }
+              }
+              if (fieldUndoChord(e)) return; e.stopPropagation();
+          });
           body.addEventListener('paste', function(e) {   // plain text only — no styles from elsewhere
               e.preventDefault();
               var t = (e.clipboardData || window.clipboardData).getData('text/plain');
               document.execCommand('insertText', false, t);
           });
-          body.addEventListener('focus', function() { rteSyncBar(this); });
+          body.addEventListener('focus', function() { rteSyncBar(this); rteLinkSync(this); });
       });
       Array.from(container.querySelectorAll('.rte-bar')).forEach(function(bar) {
           bar.addEventListener('mousedown', function(e) { if (e.target && e.target.closest && e.target.closest('select, input')) return; e.preventDefault(); });   // keep the selection in the box (the size list and the colour picker must take the focus: the box's selection is remembered for them)
           var pick = bar.querySelector('.rte-colorpick'), sizeSel = bar.querySelector('.rte-size');
           if (pick) pick.addEventListener('change', function() { rteLook(bar.parentNode.querySelector('.rte-body'), { color: this.value }); });
           if (sizeSel) sizeSel.addEventListener('change', function() { var v = this.value; this.value = ''; if (v) rteLook(bar.parentNode.querySelector('.rte-body'), { size: v === 'default' ? null : v }); });
+          // the Link box: Enter sets its address and goes back to the block; Escape goes back and drops what was typed; left for somewhere else with a new
+          // address in it, that address is set and the focus stays where it went (done: what Enter or Escape has already dealt with)
+          var linkBox = bar.querySelector('.rte-link');
+          if (linkBox) {
+              var blockOf = function() { return bar.parentNode.querySelector('.rte-body'); };
+              linkBox.addEventListener('keydown', function(e) {
+                  if (e.key !== 'Enter' && e.key !== 'Escape') return;
+                  e.preventDefault(); e.stopPropagation();
+                  this._wpDone = this.value;
+                  if (e.key === 'Escape' || rteLinkDo(blockOf(), this) !== 'bad') rteLinkBack(blockOf());
+              });
+              linkBox.addEventListener('change', function() { var done = this._wpDone; this._wpDone = null; if (done === this.value) return; rteLinkDo(blockOf(), this); });
+              linkBox.addEventListener('blur', function() { this._wpDone = null; rteLinkSync(blockOf()); });   // left: it shows the block's own link again
+          }
           bar.addEventListener('click', function(e) {
               var body = bar.parentNode.querySelector('.rte-body');
               var sym = e.target.closest && e.target.closest('.rte-sym');
@@ -1866,7 +2075,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           } else if (b.type === 'callout') {
               html += '<div class="callout">' + proseHtml(b.content) + '</div>';
           } else if (b.type === 'diagram') {
-              html += '<div class="diagram"><pre class="mermaid">' + sanitizeHtml(stripMermaidLinks(b.content)) + '</pre></div>';   // mermaid reads the pre's HTML and decodes it: typed source, <br> labels and an import's &lt; all read as before
+              html += '<div class="diagram"><pre class="mermaid">' + mermaidPre(b.content) + '</pre></div>';   // docrender.js: the sanitiser's output, judged once more as mermaid will read it (it reads the pre's HTML and decodes it: typed source, <br> labels and an import's &lt; all read as before)
           } else if (b.type === 'image') {
               var pSrc = picRef(b.src), pW = num(b.width, 0, 0, 100) || 100;
               html += pSrc ? '<figure class="planner-img" style="width:' + pW + '%; margin-left:' + ((b.align || 'center') === 'left' ? '0' : 'auto') + '; margin-right:' + ((b.align || 'center') === 'right' ? '0' : 'auto') + ';"><img src="' + esc(pSrc) + '" alt="' + esc(b.caption || '') + '">' + (b.caption ? '<figcaption>' + fmtHtml(b.caption, fieldFmt(b, 'caption'), esc) + '</figcaption>' : '') + '</figure>' : '';
@@ -1897,7 +2106,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               var m = compileFlowchart(b);   // docrender.js: one compiler for planners and pages
               var bw = num(b.boxW, 0), bh = num(b.boxH, 0);
               var boxStyle = (bw ? 'width:' + bw + 'px;' : '') + (bh ? 'height:' + bh + 'px;' : '');
-              html += '<div class="diagram fc-box" data-fc="' + _bi + '" style="' + boxStyle + '"><pre class="mermaid">' + esc(stripMermaidLinks(m)) + '</pre></div>';   // as a page renders it: labels are text, mermaid decodes them
+              html += '<div class="diagram fc-box" data-fc="' + _bi + '" style="' + boxStyle + '"><pre class="mermaid">' + esc(stripMermaidLinks(m, true)) + '</pre></div>';   // as a page renders it: labels are text, mermaid decodes them
           }
           html += '</div>';
       });

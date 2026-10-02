@@ -85,8 +85,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     check('nothing picRef lets through leaves the app (WHATWG URL)', escaped.length === 0, escaped);
 
     /* ---- the planner preview (planner.js plannerPreviewHtml) ---- */
-    const plannerPreviewHtml = new Function('esc', 'sanitizeHtml', 'proseHtml', 'stripMermaidLinks', 'compileFlowchart', 'docStyleCss', 'mergeDocStyle', 'num', 'picRef', 'fmtHtml', 'fmtRich', 'fieldFmt', 'colFmtOf', 'cellFmtOf',
-        slice('planner.js', 'planner-preview') + '\nreturn plannerPreviewHtml;')(SC.esc, DR.sanitizeHtml, DR.proseHtml, DR.stripMermaidLinks, DR.compileFlowchart, DR.docStyleCss, DR.mergeDocStyle, SC.num, SC.picRef, DR.fmtHtml, DR.fmtRich, DR.fieldFmt, DR.colFmtOf, DR.cellFmtOf);
+    const plannerPreviewHtml = new Function('esc', 'sanitizeHtml', 'proseHtml', 'stripMermaidLinks', 'compileFlowchart', 'docStyleCss', 'mergeDocStyle', 'num', 'picRef', 'fmtHtml', 'fmtRich', 'fieldFmt', 'colFmtOf', 'cellFmtOf', 'mermaidPre',
+        slice('planner.js', 'planner-preview') + '\nreturn plannerPreviewHtml;')(SC.esc, DR.sanitizeHtml, DR.proseHtml, DR.stripMermaidLinks, DR.compileFlowchart, DR.docStyleCss, DR.mergeDocStyle, SC.num, SC.picRef, DR.fmtHtml, DR.fmtRich, DR.fieldFmt, DR.colFmtOf, DR.cellFmtOf, DR.mermaidPre);
     const camp = { id: 'c1', docStyle: { textColor: 'red;background:url(//evil.example/d)', bgImage: U }, items: {
         m2: { id: 'm2', type: 'map', meta: { title: T }, rooms: [{ id: P, name: T }] }
     } };
@@ -260,6 +260,9 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && /<select class="rte-size"[^>]*><option value="">Size\u2026<\/option><option value="default">Default<\/option><option value="small">Small<\/option><option value="large">Large<\/option><option value="larger">Larger<\/option><option value="huge">Huge<\/option><\/select>/.test(barHtml) && risks(barHtml).length === 0, barHtml.slice(0, 600));
         check('text style (text block): the box holds the stored colour and size in the sanitiser\'s one form (what the editing commands left is read into it; anything else is gone)',
             barHtml.indexOf('<p><span style="color:#d9534f">red</span><span style="color:#5cb87a">g</span>x</p>') > 0 && barHtml.indexOf('evil.example') < 0);
+        check('text block Link (the bar\'s markup): the Link box is an input the planner\'s own bar writes — its title the control\'s own words, escaped; no handler attribute; never a command of the shared list',
+            /<label class="ts-linklab rte-linklab" title="[^"<>]*a text block styles a selection, not the whole block\.">Link <input type="text" class="ts-link rte-link" placeholder="https:\/\/\u2026" spellcheck="false" autocomplete="off" aria-label="Link address" tabindex="-1"><\/label>/.test(barHtml)
+            && risks(barHtml).length === 0 && (barHtml.match(/<input /g) || []).length === 2 && !/createLink|data-cmd="link/i.test(barHtml), barHtml.slice(barHtml.indexOf('rte-linklab') - 20, barHtml.indexOf('rte-linklab') + 400));
         const cmds = mkBar(TFm, 'RTE_CMDS');
         check('text style (text block): the command list the play map\'s text box shares is as it was — every entry a command, a separator or the symbol tray (the colour and size controls are the planner bar\'s own, not in the list)',
             Array.isArray(cmds) && cmds.length === 11 && cmds.every(function(k) { return k.sep === true || k.sym === true || (typeof k.c === 'string' && typeof k.l === 'string' && typeof k.t === 'string'); }) && cmds.filter(function(k) { return k.c; }).map(function(k) { return k.c; }).join() === 'bold,italic,underline,strikeThrough,insertUnorderedList,insertOrderedList,removeFormat'
@@ -415,7 +418,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const cssS = (() => { try { return fs.readFileSync(path.join(appDir, 'style.css'), 'utf8').replace(/\r\n/g, '\n'); } catch (e) { return ''; } })(), hideRule = (cssS.match(/\n\s*body\.popout-mode > \*[^{\n]*\{ display: none !important; \}/) || [''])[0].trim();
         const mmTxt = mmLib ? mmLib.toString('latin1') : '', bodyTop = idx.slice(idx.indexOf('<body>')).split('\n').filter(l => /^<[a-zA-Z]/.test(l)).map(l => (/^<([a-zA-Z0-9]+)/.exec(l) || [])[1].toLowerCase());
         check('mermaid in a page pop-out: the rule that hides the rest of the page leaves what the diagram library adds to the page while it draws — the bare <svg> it measures text in and its own layout element (id starting "dmermaid") — beside the pop-out\'s own wrap and the chat panel; the page itself holds no <svg> directly under its body, so nothing else shows; the bundled library still measures so (an svg appended to the body, an error when it is not rendered) and still names its element so ("d" + the id, the id "mermaid-" + a number)',
-            hideRule === 'body.popout-mode > *:not(#popoutWrap):not(#chatPanel):not(svg):not([id^="dmermaid"]) { display: none !important; }' && (cssS.match(/body\.popout-mode > \*/g) || []).length === 1
+            hideRule === 'body.popout-mode > *:not(#popoutWrap):not(#chatPanel):not(#customConfirm):not(svg):not([id^="dmermaid"]) { display: none !important; }' && (cssS.match(/body\.popout-mode > \*/g) || []).length === 1
             && bodyTop.length > 20 && bodyTop.indexOf('svg') < 0 && /=[A-Za-z_$]+\("body"\);if\(![A-Za-z_$]+\.remove\)return\{width:0,height:0,lineHeight:0\};const [A-Za-z_$]+=[A-Za-z_$]+\.append\("svg"\)/.test(mmTxt) && mmTxt.indexOf('throw new Error("svg element not in render tree")') > 0
             && /="d"\+[A-Za-z_$]+,/.test(mmTxt) && mmTxt.indexOf('`mermaid-${') > 0, [hideRule, bodyTop.length, bodyTop.indexOf('svg')]);
 
@@ -1971,6 +1974,287 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     }
     delete global.window;
 
+    /* ---- links (1.5.0): the Journal's addresses drawn as links, and asking before a link from someone else opens (linkgate.js sliced by its
+            linkgate markers, handouts.js by its viewer / journalopen / journalnote markers, the app's own question from dialogs.js — all run for
+            real on the page of plain objects, which throws on any markup written from a string) ---- */
+    {
+        const TFl = await import(modUrl('textfmt.js')), { makeDom } = require('./boxdom.js');
+        const gateSrc = slice('linkgate.js', 'linkgate'), hoAll = read('handouts.js'), dlgAll = read('dialogs.js'), dlgSrc = dlgAll.slice(dlgAll.indexOf('  var _confirmQueue = [];'), dlgAll.indexOf('  function isCampaignNameTaken'));
+        const J = v => JSON.stringify(v), OK = 'https://ok.example/p?a=1&b=2', ASK = 'Open this link in your web browser?';
+        const mkGate = () => new Function('cleanLink', 'linkParts', 'URL', gateSrc + '\nreturn { linkVerdict, linkWhere, readUrl, askBody, linkGate, wireLinks, fillLinked, atTable };')(TFl.cleanLink, TFl.linkParts, URL);
+        const G0 = mkGate();
+
+        // the rule, as a pure function: where the link is, whose the entry is, whether this app is a player -> none | open | ask
+        const V = (o) => G0.linkVerdict(Object.assign({ link: OK, editing: false, zone: 'other', own: false, player: false }, o));
+        const zones = ['viewer', 'app', 'page', 'other', 'x', undefined, null, 7], owns = [true, false, '1', 1, undefined, null], players = [true, false, null, undefined, 'no', 0];
+        let ruleBad = null, opens = 0, asks = 0;
+        zones.forEach(z => owns.forEach(o => players.forEach(p => { const got = V({ zone: z, own: o, player: p }), want = (z === 'app' || (z === 'viewer' && o === true) || (z === 'page' && p === false)) ? 'open' : 'ask'; if (got !== want) ruleBad = ruleBad || [z, o, p, got]; if (got === 'open') opens++; else asks++; })));
+        check('links (the rule, run for real over every combination of place, owner and role): a link opens directly only in the app\'s own words, in the handout viewer when the Journal says the entry is yours, and on a planner or a page while this app is known NOT to be a player at someone\'s table; everything else asks — a received entry on any machine, a page on a player\'s screen, a place the rule does not name, and whatever cannot be told (it fails closed)',
+            !ruleBad && opens === 36 + 6 + 6 && asks === zones.length * owns.length * players.length - opens && V({ zone: 'viewer', own: true, player: true }) === 'open' && V({ zone: 'viewer', own: false, player: false }) === 'ask' && V({ zone: 'page', player: null }) === 'ask' && V({ zone: 'page' , player: undefined }) === 'ask', ruleBad || [opens, asks]);
+        check('links (the rule): nothing opens at all for an address the link rule does not keep, for one in a box that is being edited, and for a context that is none',
+            ['', 'javascript:alert(1)', 'data:text/html,x', ' https://a.example/', 'https://a b', 'ftp://a.example/', '//a.example/', '/api/data', '#', 'mailto:a@b.example', 'https://' + 'a'.repeat(1993), 7, null, undefined, { toString() { return OK; } }].every(l => ['viewer', 'app', 'page', 'other'].every(z => V({ link: l, zone: z, own: true, player: false }) === 'none'))
+            && ['viewer', 'app', 'page', 'other'].every(z => V({ zone: z, own: true, editing: true }) === 'none' && V({ zone: z, own: true, editing: undefined }) === 'none' && V({ zone: z, own: true, editing: 0 }) === 'none') && [null, undefined, 'x', 7].every(c => G0.linkVerdict(c) === 'none'));
+
+        // a page of plain objects with the app's places, the app's own question, and the listener wired
+        const mkPage = (o) => {
+            o = o || {};
+            const dom = makeDom(), doc = dom.document, opened = [], W = { open: (u, t, f) => { opened.push([u, t, f]); return null; } };
+            if ('net' in o) W.wpNet = o.net;
+            if (o.popout) { W.wpPopout = true; if ('opener' in o) Object.defineProperty(W, 'opener', { get: typeof o.opener === 'function' ? o.opener : () => o.opener }); }
+            doc.removeEventListener = (ev, fn, cap) => { const l = dom.page.docHandlers[(cap ? 'c:' : 'b:') + ev] || [], i = l.indexOf(fn); if (i >= 0) l.splice(i, 1); };
+            const el = (tag, id, parent) => { const e = doc.createElement(tag); if (id) e.id = id; (parent || doc.body).appendChild(e); return e; };
+            const cc = el('div', 'customConfirm'), ccBox = el('div', '', cc), ccTitle = el('h3', 'customConfirmTitle', ccBox), ccRow = el('div', '', ccBox), ccNo = el('button', 'customConfirmCancel', ccRow), ccOk = el('button', 'customConfirmOk', ccRow);
+            const P = { dom, doc, W, opened, cc, ccBox, ccTitle, ccNo, ccOk, z: {} };
+            ['handoutModal', 'helpModal', 'aboutModal', 'settingsModal', 'plannerPreview', 'docReaderBody', 'docPanelBody', 'popoutBody', 'chatLog', 'whiteboard'].forEach(id => { P.z[id] = el('div', id); });
+            P.z.editing = el('div', 'rteBody'); P.z.editing.setAttribute('contenteditable', 'true'); P.z.editingIn = el('p', '', P.z.editing);
+            P.clock = { t: 1000000 };   // the question's own clock: nothing here waits for real
+            P.timers = [];   // a timer with no delay runs at once (the next question in the queue); one with a delay waits to be run by hand
+            P.dlg = new Function('document', 'setTimeout', 'clearTimeout', 'Date', dlgSrc + '\nreturn { showConfirm, showAlert };')(doc, (fn, ms) => { if (!ms) { fn(); return 0; } P.timers.push({ fn, ms, on: true }); return P.timers.length; }, id => { if (P.timers[id - 1]) P.timers[id - 1].on = false; }, { now: () => P.clock.t });
+            P.showConfirm = P.dlg.showConfirm;
+            P.api = mkGate(); P.api.wireLinks(W, doc, P.showConfirm);
+            P.link = (zone, href, attrs) => { const a = doc.createElement('a'); if (href !== undefined) a.setAttribute('href', href); Object.keys(attrs || {}).forEach(k => a.setAttribute(k, attrs[k])); a.appendChild(doc.createTextNode('the link')); (typeof zone === 'string' ? P.z[zone] : zone).appendChild(a); return a; };
+            P.click = (a, x) => dom.fire(a, 'click', Object.assign({ button: 0 }, x || {}));
+            P.mid = (a, x) => dom.fire(a, 'auxclick', Object.assign({ button: 1 }, x || {}));
+            P.asking = () => cc.style.display === 'flex';
+            P.body = () => ccBox.childNodes.filter(n => n.id === 'customConfirmBody')[0] || null;
+            P.lines = () => { const b = P.body(); return b ? b.firstChild.childNodes.map(n => [n.className, n.textContent]) : null; };
+            P.key = k => (dom.page.docHandlers['b:keydown'] || []).slice().forEach(h => h({ key: k }));
+            P.no = () => { if (typeof ccNo.onclick === 'function') ccNo.onclick(); }; P.press = ev => { if (typeof ccOk.onclick === 'function') ccOk.onclick(ev); }; P.yes = () => { P.clock.t += 1000; P.press({ detail: 1 }); };   // the question's own buttons (nothing when no question is up); Yes as a person gives it: one click, once the question has been up a moment
+            return P;
+        };
+        const GM = { active: true, role: 'host', foreign: false }, PLAYER = { active: true, role: 'client', foreign: true }, ALONE = { active: false, role: null, foreign: false };
+
+        {   // your own planners and pages: directly, the cleaned address, once
+            const P = mkPage({ net: ALONE }), a = P.link('plannerPreview', '  ' + OK + ' ', { target: '_blank', rel: 'noopener noreferrer' }), e1 = P.click(a), e2 = P.mid(a), e3 = P.click(a, { ctrlKey: true }), e4 = P.click(a.firstChild), e5 = P.mid(a, { button: 2 }), e6 = P.click(a, { button: 2 });
+            const H = mkPage({ net: GM }), ah = H.link('docReaderBody', OK); H.click(ah); H.click(H.link('docPanelBody', OK)); H.click(H.link('helpModal', OK)); H.click(H.link('aboutModal', OK));
+            check('links (your own): a link in your planner\'s preview, your handbook reader or panel and the app\'s own words opens directly while you are not a player — a click, the middle button, Ctrl+click and a click on the link\'s text each open exactly the cleaned address in a new window with no opener, the engine\'s own following stopped; the right button is left alone; nothing is asked',
+                J(P.opened) === J([[OK, '_blank', 'noopener,noreferrer'], [OK, '_blank', 'noopener,noreferrer'], [OK, '_blank', 'noopener,noreferrer'], [OK, '_blank', 'noopener,noreferrer']]) && [e1, e2, e3, e4].every(e => e.defaultPrevented) && !e5.defaultPrevented && !e6.defaultPrevented && !P.asking() && H.opened.length === 4 && !H.asking(), [P.opened, H.opened.length]);
+        }
+        {   // a player at a table: the GM's page asks
+            const P = mkPage({ net: PLAYER }), a = P.link('docReaderBody', OK), b = P.link('docPanelBody', 'https://other.example/'), e1 = P.click(a);
+            const up = P.asking(), title = P.ccTitle.textContent, lines = J(P.lines()), wide = P.ccBox.classList.contains('confirm-wide'), kids = P.body() ? P.body().all() : [];
+            P.click(b); P.mid(a); P.click(a); const still = [P.asking(), P.opened.length, ccCount(P)];
+            P.key('Enter'); const afterEnter = [P.asking(), P.opened.length];
+            P.no(); const afterNo = [P.asking(), P.opened.length, !!P.body(), P.ccBox.classList.contains('confirm-wide'), (P.dom.page.docHandlers['b:keydown'] || []).length];
+            P.click(a); const again = P.asking(); P.key('Escape'); const afterEsc = [P.asking(), P.opened.length];
+            P.click(b); const forB = J(P.lines()); P.yes(); const afterYes = [P.asking(), J(P.opened), !!P.body()];
+            P.click(a); P.yes(); P.click(a); P.no();
+            check('links (from someone else): on a player\'s screen a link on the GM\'s page opens nothing by itself — the click is stopped and the app\'s own question comes up, its words text nodes in elements the app makes: who it came from (the GM), the site on a line of its own, then the whole address; the box is widened for it',
+                e1.defaultPrevented && up && title === ASK && lines === J([['linkask-from', 'It came from the GM.'], ['linkask-label', 'It leads to the site'], ['linkask-site', 'ok.example'], ['linkask-label', 'The whole address'], ['linkask-url', OK]]) && wide
+                && kids.length === 6 && kids.every(n => n.nodeName === 'DIV' && !Object.keys(n.attrs).length && !Object.keys(n.handlers).length && n.childNodes.every(c => c.nodeType === 3 || c.nodeName === 'DIV')), [up, title, lines]);
+            check('links (from someone else): one question at a time — a click on another link, a middle click and a second click while it is up ask nothing more and open nothing; Enter does not answer it; No and Escape close it and open nothing (the box as it was, its key handler gone); a click after that asks again; Yes opens exactly the cleaned address of the link that was asked about, once',
+                J(still) === J([true, 0, 1]) && J(afterEnter) === J([true, 0]) && J(afterNo) === J([false, 0, false, false, 0]) && again && J(afterEsc) === J([false, 0]) && forB === J([['linkask-from', 'It came from the GM.'], ['linkask-label', 'It leads to the site'], ['linkask-site', 'other.example'], ['linkask-label', 'The whole address'], ['linkask-url', 'https://other.example/']])
+                && J(afterYes) === J([false, J([['https://other.example/', '_blank', 'noopener,noreferrer']]), false]) && J(P.opened) === J([['https://other.example/', '_blank', 'noopener,noreferrer'], [OK, '_blank', 'noopener,noreferrer']]), [still, afterEnter, afterNo, afterEsc, afterYes, P.opened]);
+        }
+        function ccCount(P) { return P.ccBox.childNodes.filter(n => n.id === 'customConfirmBody').length; }
+        {   // a refused address is never opened, whoever and wherever
+            const BAD = ['javascript:alert(1)', 'JaVaScRiPt:alert(1)', 'data:text/html,<script>alert(1)</script>', 'vbscript:x', 'file:///c:/x', 'ftp://a.example/x', 'mailto:a@b.example', '//evil.example/x', '/api/data', '/saves/data.json', '#', '', 'https://a b', 'https://' + 'a'.repeat(1993), 'https://javascript:alert(1)', 'https://a.example:99999/', 'http://[::1', 'https://'];
+            const res = [];
+            [ALONE, GM, PLAYER, undefined].forEach(net => { const P = mkPage(net === undefined ? {} : { net }); P.z.handoutModal.dataset.linksOwn = '1';
+                ['handoutModal', 'helpModal', 'plannerPreview', 'docReaderBody', 'chatLog'].forEach(z => BAD.forEach(h => { const a = P.link(z, h, { target: '_blank' }), e = [P.click(a), P.mid(a), P.click(a, { ctrlKey: true })]; res.push(e.every(x => x.defaultPrevented) && !P.asking() && P.opened.length === 0); })); });
+            const P = mkPage({ net: ALONE }), none = P.link('plannerPreview', undefined), eN = P.click(none), dl = P.link('whiteboard', 'blob:http://127.0.0.1:3999/1f2e', { download: 'campaign.json' }), eD = P.click(dl), dd = P.link('whiteboard', 'data:application/json,{}', { download: 'x.json' }), eDD = P.click(dd), dw = P.link('plannerPreview', OK, { download: 'x' }), eW = P.click(dw);
+            check('links (the second check, at the click): an address the link rule does not keep — a script address, data:, another scheme, a mail address, a local or protocol-relative one, one with a space, an over-long one — and one the URL parser cannot read is not opened at all: no window, no question, for a click, a middle click and Ctrl+click, in every place and role; an <a> with no href is not a link; a file the app itself hands over to be saved (download, blob: or data:) is left alone, and a download attribute on a web address changes nothing',
+                res.length === 4 * 5 * BAD.length && res.every(Boolean) && !eN.defaultPrevented && !eD.defaultPrevented && !eDD.defaultPrevented && eW.defaultPrevented && J(P.opened) === J([[OK, '_blank', 'noopener,noreferrer']]), [res.filter(x => !x).length, P.opened]);
+        }
+        {   // in a box that is being edited a link is never followed
+            const out = [GM, PLAYER, ALONE].map(net => { const P = mkPage({ net }), a = P.link(P.z.editingIn, OK), e = [P.click(a), P.mid(a), P.click(a, { ctrlKey: true }), P.click(a, { shiftKey: true })]; return e.every(x => x.defaultPrevented) && P.opened.length === 0 && !P.asking(); });
+            check('links (editing): in a box that is being edited a link is not followed — a click, a middle click, Ctrl+click and Shift+click open nothing and ask nothing', out.every(Boolean), out);
+        }
+        {   // who is asked: places and windows
+            const where = (net, zone, more) => { const P = mkPage(Object.assign(net === undefined ? {} : { net }, more || {})), a = P.link(zone, OK); P.click(a); return P.opened.length ? 'open' : P.asking() ? P.lines()[0][1] : 'nothing'; };
+            const GMsaid = 'It came from the GM.', UNK = 'It may have been written by someone else.';
+            const got = { gmPreview: where(GM, 'plannerPreview'), gmReader: where(GM, 'docReaderBody'), gmPanel: where(GM, 'docPanelBody'), gmElse: where(GM, 'whiteboard'), gmChat: where(GM, 'chatLog'), plReader: where(PLAYER, 'docReaderBody'), plPanel: where(PLAYER, 'docPanelBody'), plHelp: where(PLAYER, 'helpModal'), plAbout: where(PLAYER, 'aboutModal'), plSettings: where(PLAYER, 'settingsModal'), plElse: where(PLAYER, 'whiteboard'),
+                reconnecting: where({ active: false, role: 'client', foreign: true }, 'docReaderBody'), stream: where({ active: false, foreign: true, stream: true }, 'docReaderBody'), noNet: where(undefined, 'plannerPreview'), oddNet: where('yes', 'plannerPreview'),
+                popGm: where(undefined, 'popoutBody', { popout: true, opener: { wpNet: GM } }), popAlone: where(undefined, 'popoutBody', { popout: true, opener: { wpNet: ALONE } }), popPlayer: where(undefined, 'popoutBody', { popout: true, opener: { wpNet: PLAYER } }), popGone: where(undefined, 'popoutBody', { popout: true, opener: null }), popClosed: where(undefined, 'popoutBody', { popout: true, opener: { closed: true, wpNet: GM } }), popBarred: where(undefined, 'popoutBody', { popout: true, opener: () => { throw new Error('another origin'); } }), popOwnNet: where(GM, 'popoutBody', { popout: true, opener: { wpNet: PLAYER } }) };
+            check('links (who is asked, on the page): the GM and a player alone open their own preview, reader and panel directly; on a player\'s screen the same places ask and say the GM, also while the table is reconnecting; Help, About and Settings open directly for everyone; a place the rule does not name asks without naming anyone; the stream window asks; with no session state to read it asks; a pop-out goes by the window that opened it — and asks when that window is a player\'s, is gone, is closed or cannot be read',
+                J(got) === J({ gmPreview: 'open', gmReader: 'open', gmPanel: 'open', gmElse: UNK, gmChat: UNK, plReader: GMsaid, plPanel: GMsaid, plHelp: 'open', plAbout: 'open', plSettings: 'open', plElse: UNK, reconnecting: GMsaid, stream: GMsaid, noNet: UNK, oddNet: UNK, popGm: 'open', popAlone: 'open', popPlayer: GMsaid, popGone: UNK, popClosed: UNK, popBarred: UNK, popOwnNet: GMsaid }), got);
+        }
+        {   // the question's words: a hostile address, a look-alike site, a hostile sender
+            const HA = 'https://evil.example/"><img/src=x/onerror=alert(1)>?<script>alert(2)</script>', LOOK = 'https://\u0430\u0440\u0440\u04cf\u0435.example/login', USER = 'https://ok.example@evil.example:8443/x', NAME = '<img src=x onerror=alert(1)>"Mal';
+            const ask = (href, data) => { const P = mkPage({ net: ALONE }); Object.assign(P.z.handoutModal.dataset, data || {}); P.click(P.link('handoutModal', href)); return { l: P.lines(), P }; };
+            const h = ask(HA, { linksWho: NAME }), lk = ask(LOOK, { linksGm: '1' }), us = ask(USER, {}), long = ask('https://a.example/' + 'x'.repeat(1982), { linksWho: 'w'.repeat(200) }), own = ask(OK, { linksOwn: '1', linksGm: '1', linksWho: 'x' }), both = ask(OK, { linksGm: '1', linksWho: 'x' }), odd = ['true', 'yes', '0', ' 1'].map(v => ask(OK, { linksOwn: v }));
+            const BIDI = 'https://ok.example/\u202egnp.exe?\u2066x\u2069#\u200f', bd = ask(BIDI, {}), ascii = s => /^[\x21-\x7e]+$/.test(s);
+            check('links (the question\'s words): a hostile address and a hostile sender name are text in text nodes — never a tag; the site and the whole address are what the URL parser reads, in plain characters only: a look-alike name written in another alphabet shows in its xn-- form in both, a name in front of an @ is not the site, a port is shown, and a character that would turn the line round or hide in it (a direction override, a zero-width mark) or leave an attribute is percent-encoded; the whole address is shown uncut at its full ' + TFl.MAX_LINK + ' characters; a sender\'s name is cut to 60; what the Journal says is yours asks nothing',
+                J(h.l) === J([['linkask-from', 'It came from a player: ' + NAME], ['linkask-label', 'It leads to the site'], ['linkask-site', 'evil.example'], ['linkask-label', 'The whole address'], ['linkask-url', new URL(HA).href]]) && h.P.body().all().every(n => n.nodeName === 'DIV') && ascii(h.l[4][1]) && !/[<>"]/.test(h.l[4][1]) && h.l[4][1] !== HA
+                && bd.l && bd.l[2][1] === 'ok.example' && ascii(bd.l[4][1]) && bd.l[4][1] === new URL(BIDI).href && /%E2%80%AE/.test(bd.l[4][1]) && G0.readUrl('https://a.example:99999/') === null && G0.readUrl('ftp://a.example/') === null && JSON.stringify(G0.readUrl('HTTPS://A.example:443/x')) === JSON.stringify({ site: 'a.example', href: 'https://a.example/x' })
+                && lk.l[0][1] === 'It came from the GM.' && /^xn--[a-z0-9-]+\.example$/.test(lk.l[2][1]) && lk.l[2][1].indexOf('\u0430') < 0 && lk.l[4][1] === new URL(LOOK).href && ascii(lk.l[4][1]) && /^https:\/\/xn--/.test(lk.l[4][1]) && us.l[0][1] === 'It may have been written by someone else.' && us.l[2][1] === 'evil.example:8443' && us.l[4][1] === USER
+                && long.l[4][1].length === 2000 && long.l[0][1] === 'It came from a player: ' + 'w'.repeat(60) && own.l === null && own.P.opened.length === 1 && both.l[0][1] === 'It came from the GM.' && odd.every(x => x.l !== null && x.P.opened.length === 0), [h.l, lk.l && lk.l[2], us.l && us.l[2], own.l]);
+        }
+
+        // an SVG link as the diagram library draws one: an <a> around a shape and its label whose address is in xlink:href, not href
+        // ('bare': the namespaced attribute written without its prefix; 'plain': the prefixed name with no namespace)
+        const XL = 'http://www.w3.org/1999/xlink';
+        const svgLink = (P, zone, href, how) => { const a = P.doc.createElement('a'), g = P.doc.createElement('g'), lab = P.doc.createElement('span'); if (how === 'plain') a.setAttribute('xlink:href', href); else a.setAttributeNS(XL, how === 'bare' ? 'href' : 'xlink:href', href); lab.appendChild(P.doc.createTextNode('Free loot here')); g.appendChild(lab); a.appendChild(g); (typeof zone === 'string' ? P.z[zone] : zone).appendChild(a); return { a, lab }; };
+        {   // a diagram's link is a link like any other
+            const P = mkPage({ net: PLAYER }), L = svgLink(P, 'docReaderBody', OK), had = L.a.hasAttribute('href'), e1 = P.click(L.lab), up = P.asking(), lines = J(P.lines()); P.no();
+            const e2 = P.mid(L.lab.firstChild), up2 = P.asking(); P.yes(); const afterYes = J(P.opened);
+            const G = mkPage({ net: ALONE }), eg = ['ns', 'bare', 'plain'].map(how => G.click(svgLink(G, 'plannerPreview', OK, how).lab));
+            const BADX = ['mailto:a@b.example', 'tel:+15550100', 'ftp://a.example/x', '//evil.example/x', '/api/data', '/saves/data.json', 'javascript:alert(1)', 'data:text/html,x', '#', ''], res = [];
+            [ALONE, GM, PLAYER, undefined].forEach(net => { const Q = mkPage(net === undefined ? {} : { net }); ['plannerPreview', 'docReaderBody', 'docPanelBody', 'popoutBody', 'whiteboard'].forEach(z => BADX.forEach(h => ['ns', 'bare', 'plain'].forEach(how => { const X = svgLink(Q, z, h, how), ev = [Q.click(X.lab), Q.mid(X.lab), Q.click(X.lab, { ctrlKey: true })]; res.push(ev.every(x => x.defaultPrevented) && !Q.asking() && Q.opened.length === 0); }))); });
+            const N = mkPage({ net: PLAYER }), outer = svgLink(N, 'docReaderBody', OK), inner = N.doc.createElement('a'); inner.appendChild(N.doc.createTextNode('label')); outer.lab.appendChild(inner); const en = N.click(inner.firstChild), nUp = N.asking(), nSite = nUp ? N.lines()[2][1] : null;
+            const B = mkPage({ net: PLAYER }), none = B.doc.createElement('a'); none.appendChild(B.doc.createTextNode('x')); B.z.docReaderBody.appendChild(none); const e0 = B.click(none);
+            check('links (a diagram\'s link): a link the diagram library draws — an <a> whose address is in xlink:href and that has no href — is a link like any other: on a player\'s screen a click or a middle click on it or on its label is stopped and asks, with the site and the whole address, and Yes opens the cleaned address once; on your own page it opens directly, however the attribute is written; an address the link rule does not keep (a mail or phone address, another scheme, a local or protocol-relative one, a script address) opens nothing and asks nothing in every place and role, the engine\'s own following stopped; an <a> with no address inside one that has one goes by the one around it; an <a> with none at all is no link',
+                !had && e1.defaultPrevented && up && lines === J([['linkask-from', 'It came from the GM.'], ['linkask-label', 'It leads to the site'], ['linkask-site', 'ok.example'], ['linkask-label', 'The whole address'], ['linkask-url', OK]]) && e2.defaultPrevented && up2 && afterYes === J([[OK, '_blank', 'noopener,noreferrer']])
+                && eg.every(e => e.defaultPrevented) && J(G.opened) === J([[OK, '_blank', 'noopener,noreferrer'], [OK, '_blank', 'noopener,noreferrer'], [OK, '_blank', 'noopener,noreferrer']]) && !G.asking()
+                && res.length === 4 * 5 * BADX.length * 3 && res.every(Boolean) && en.defaultPrevented && nUp && nSite === 'ok.example' && !e0.defaultPrevented && !B.asking() && B.opened.length === 0, [had, e1.defaultPrevented, up, lines, afterYes, G.opened.length, res.filter(x => !x).length, en.defaultPrevented, nUp]);
+        }
+        {   // the question is answered only by a deliberate press of its button
+            const P = mkPage({ net: PLAYER }), a = P.link('docReaderBody', OK), st = () => [P.asking(), P.opened.length]; P.click(a);
+            const dim = [P.ccOk.disabled, P.timers.length, P.timers[0] && P.timers[0].ms, P.timers[0] && P.timers[0].on];
+            P.press({ detail: 2 }); const dbl = st();                                         // the second click of a double-click, landing where OK appeared
+            P.clock.t += 50; P.press({ detail: 1 }); const soon = st();                       // a single click 50 ms after the question came up
+            P.clock.t += 600; P.press({ detail: 1 }); const at650 = st();
+            P.clock.t += 50; P.press({ detail: 2 }); P.press({ detail: 3 }); const lateDbl = st();   // a multi-click is never an answer
+            P.press(); P.press(null); P.press({}); const noEvent = st();                         // nor a call that is no click at all
+            P.clock.t -= 5000; P.press({ detail: 1 }); const back = st(); P.clock.t += 5000;   // nor one when the clock has gone back
+            if (P.timers[0]) P.timers[0].fn(); const ready = P.ccOk.disabled;                                   // the moment has passed: the button is shown ready
+            P.press({ detail: 1 }); const yes = [P.asking(), J(P.opened)];
+            P.click(a); P.clock.t += 700; P.press({ detail: 0 }); const kb = st();             // the button pressed from the keyboard, once the question has been up
+            P.click(a); P.clock.t += 699; P.press({ detail: 1 }); const edge = st(), tOn = () => !!(P.timers[2] && P.timers[2].on), dim2 = [P.ccOk.disabled, P.timers.length, tOn()]; P.no(); const gone = [P.ccOk.disabled, tOn()];
+            let plain = null; P.showConfirm('Delete?', v => { plain = v; }); P.press({ detail: 2 }); const plainDone = [P.asking(), plain];
+            let ne = null; P.showConfirm('Start?', v => { ne = v; }, { noEnter: true }); const neDim = [P.ccOk.disabled, P.timers.length]; P.press(); const neDone = [P.asking(), ne];
+            check('links (the question is read before it is answered, dialogs.js run for real on an injected clock): the OK of the link question does nothing for a click that is part of a double-click or comes within 700 ms of the question appearing — the question stays up and nothing opens — nor for a call that is no click; a single press after that opens the cleaned address once, a press from the keyboard too; until then the button is shown as not ready, and a question answered sooner leaves it ready and its timer stopped; an ordinary question, and one only marked noEnter, are answered at once as ever and never dim the button',
+                J([dbl, soon, at650, lateDbl, noEvent, back]) === J([[true, 0], [true, 0], [true, 0], [true, 0], [true, 0], [true, 0]]) && J(yes) === J([false, J([[OK, '_blank', 'noopener,noreferrer']])]) && J(kb) === J([false, 2]) && J(edge) === J([true, 2])
+                && J(plainDone) === J([false, true]) && J(neDone) === J([false, true]) && J(dim) === J([true, 1, 700, true]) && ready === false && J(dim2) === J([true, 3, true]) && J(gone) === J([false, false]) && J(neDim) === J([false, 3]), [dbl, soon, at650, lateDbl, noEvent, back, yes, kb, edge, plainDone, neDone, dim, ready, dim2, gone, neDim]);
+        }
+        {   // a notice that arrives while a question is up waits its turn, and takes nothing from the question
+            const P = mkPage({ net: PLAYER }), a = P.link('docReaderBody', OK), got = []; P.click(a);
+            P.dlg.showAlert('The floor gives way.', v => got.push(v));
+            const during = [P.asking(), P.ccTitle.textContent, P.ccNo.style.display === 'none', !!P.body(), got.length];
+            P.no(); const then = [P.asking(), P.ccTitle.textContent, P.ccNo.style.display, !!P.body(), P.opened.length, got.length];
+            P.key('Enter'); const after = [P.asking(), P.ccNo.style.display === 'none', J(got)];
+            const Q = mkPage({ net: ALONE }); let q2 = null; Q.dlg.showAlert('one'); const alone = [Q.asking(), Q.ccTitle.textContent, Q.ccNo.style.display];
+            Q.showConfirm('two?', v => { q2 = v; }); const queued = [Q.ccTitle.textContent, Q.ccNo.style.display];
+            Q.press(); const next = [Q.asking(), Q.ccTitle.textContent, Q.ccNo.style.display === 'none']; Q.key('Escape'); const end = [Q.asking(), q2, Q.ccNo.style.display === 'none'];
+            check('links (a notice while the question is up, dialogs.js showAlert run for real): a one-button notice that arrives while a question is up waits its turn — the question keeps its Cancel button, its words and its body; the notice shows only once the question is answered, and only then is Cancel put away, and back again when the notice closes; a question waiting behind a notice gets its Cancel',
+                J(during) === J([true, ASK, false, true, 0]) && J(then) === J([true, 'The floor gives way.', 'none', false, 0, 0]) && J(after) === J([false, false, '[true]'])
+                && J(alone) === J([true, 'one', 'none']) && J(queued) === J(['one', 'none']) && J(next) === J([true, 'two?', false]) && J(end) === J([false, false, false]), [during, then, after, alone, queued, next, end]);
+        }
+        {   // a drag that begins on a link
+            const drag = (net, zone, o) => { o = o || {}; const Q = mkPage(net === undefined ? {} : { net }); Object.assign(Q.z.handoutModal.dataset, o.data || {}); const where = zone === 'editing' ? Q.z.editingIn : zone;
+                const a = o.svg ? svgLink(Q, where, 'href' in o ? o.href : OK).a : Q.link(where, o.bare ? undefined : 'href' in o ? o.href : OK), t = o.div ? Q.z[zone] : o.text ? a.firstChild : a, e = Q.dom.fire(t, 'dragstart'); return e.defaultPrevented && !Q.asking() && !Q.opened.length ? 'stopped' : !e.defaultPrevented && !Q.asking() && !Q.opened.length ? 'free' : 'odd'; };
+            const got = { handoutGm: drag(ALONE, 'handoutModal', { data: { linksGm: '1' } }), handoutShare: drag(GM, 'handoutModal', { data: { linksWho: 'Pat' } }), handoutOwn: drag(PLAYER, 'handoutModal', { data: { linksOwn: '1' } }), pagePlayer: drag(PLAYER, 'docReaderBody'), pagePlayerText: drag(PLAYER, 'docReaderBody', { text: true }), panelPlayer: drag(PLAYER, 'docPanelBody'), diagramPlayer: drag(PLAYER, 'docReaderBody', { svg: true }),
+                popPlayer: drag(undefined, 'popoutBody'), elsewhere: drag(GM, 'whiteboard'), chat: drag(ALONE, 'chatLog'), editing: drag(ALONE, 'editing'), badOwn: drag(ALONE, 'plannerPreview', { href: '/api/data' }), badDiagram: drag(GM, 'plannerPreview', { svg: true, href: 'mailto:a@b.example' }),
+                gmPreview: drag(GM, 'plannerPreview'), aloneReader: drag(ALONE, 'docReaderBody', { text: true }), gmDiagram: drag(GM, 'plannerPreview', { svg: true }), help: drag(PLAYER, 'helpModal'), noAddress: drag(PLAYER, 'docReaderBody', { bare: true }), noLink: drag(PLAYER, 'docReaderBody', { div: true }) };
+            check('links (a drag): a link is dragged only where a click on it opens it directly — in a handout or a share you received, on a page on a player\'s screen (its text and a diagram\'s link too), in a pop-out that cannot tell, anywhere the rule does not name, in a box that is being edited, and for an address the link rule does not keep, the drag does not begin, so the address cannot be dropped on another of the app\'s windows and followed there unasked; in your own preview and reader, the app\'s own words and your own handout a link drags as ever; what is not a link is left alone; a drag asks nothing and opens nothing',
+                J(got) === J({ handoutGm: 'stopped', handoutShare: 'stopped', handoutOwn: 'free', pagePlayer: 'stopped', pagePlayerText: 'stopped', panelPlayer: 'stopped', diagramPlayer: 'stopped', popPlayer: 'stopped', elsewhere: 'stopped', chat: 'stopped', editing: 'stopped', badOwn: 'stopped', badDiagram: 'stopped',
+                    gmPreview: 'free', aloneReader: 'free', gmDiagram: 'free', help: 'free', noAddress: 'free', noLink: 'free' }), got);
+        }
+        {   // the three lists of places, and the page as it is nested
+            const ixZ = fs.readFileSync(path.join(dir, '..', 'index.html'), 'utf8').replace(/\r\n/g, '\n');
+            const Z = mkPage({ net: PLAYER }), mk = (id, parent) => { const e = Z.doc.createElement('div'); e.id = id; parent.appendChild(e); return e; };
+            const readerModal = mk('docReaderModal', Z.doc.body); readerModal.appendChild(Z.z.docReaderBody); const hText = mk('handoutText', Z.z.handoutModal), journal = mk('journalModal', Z.doc.body), jList = mk('journalList', journal);
+            const inReader = Z.link(Z.z.docReaderBody, OK), inHandout = Z.link(hText, OK), inJournal = Z.link(jList, OK), W = Z.W;
+            const zones = [Z.api.linkWhere(inReader, W).zone, Z.api.linkWhere(inHandout, W).zone, Z.api.linkWhere(inJournal, W).zone, Z.api.linkWhere(Z.link('helpModal', OK), W).zone, Z.api.linkWhere(Z.link('aboutModal', OK), W).zone, Z.api.linkWhere(Z.link('settingsModal', OK), W).zone, Z.api.linkWhere(Z.link('plannerPreview', OK), W).zone, Z.api.linkWhere(Z.link('docPanelBody', OK), W).zone, Z.api.linkWhere(Z.link('popoutBody', OK), W).zone];
+            Z.click(inReader); const readerAsks = Z.asking() && Z.opened.length === 0 ? Z.lines()[0][1] : 'opened'; Z.no(); Z.click(inJournal); const journalAsks = Z.asking() && Z.opened.length === 0; Z.no();
+            check('links (the places, pinned and run on a page nested as the app\'s own): the handout viewer is #handoutModal alone, the app\'s own words are Help, About and Settings alone, and a planner or a page is read in the preview, the reader\'s body, the panel\'s body and the pop-out\'s body alone; the reader\'s body lies inside the reader\'s window and the handout\'s text inside the viewer, as in the page itself, and a link there is a page\'s and the viewer\'s — on a player\'s screen the reader asks; a window the lists do not name (the Journal\'s list) is nobody\'s place and asks',
+                /\nvar ZONE_VIEWER = '#handoutModal';/.test(gateSrc) && /\nvar ZONE_APP = '#helpModal, #aboutModal, #settingsModal';/.test(gateSrc) && /\nvar ZONE_PAGE = '#plannerPreview, #docReaderBody, #docPanelBody, #popoutBody';/.test(gateSrc)
+                && J(zones) === J(['page', 'viewer', 'other', 'app', 'app', 'app', 'page', 'page', 'page']) && readerAsks === 'It came from the GM.' && journalAsks
+                && /<div id="docReaderModal"[^>]*>[\s\S]{0,600}?<div id="docReaderBody"/.test(ixZ) && /<div id="handoutModal"[^>]*>[\s\S]{0,1600}?<div id="handoutText"[\s\S]{0,600}?<div id="handoutCaption"/.test(ixZ) && ['helpModal', 'aboutModal', 'settingsModal', 'plannerPreview', 'docPanelBody'].every(id => ixZ.split('id="' + id + '"').length === 2), [zones, readerAsks, journalAsks]);
+        }
+        {   // a diagram block in a planner's preview: judged as the diagram library will read it
+            const dec = h => h.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&');   // the pre's markup with its character references read once, as the diagram library reads it
+            const pre = (blk) => { const h = plannerPreviewHtml({ blocks: [blk] }, { id: 'c1', items: {} }), m = /<pre class="mermaid">([\s\S]*?)<\/pre>/.exec(h); return m ? m[1] : null; };
+            const directive = t => t.split('\n').some(l => l.split(';').some(s => /^\s*(click|callback|href|link|links)\b/i.test(s)));
+            const HID = ['graph TD\nQ[x]-->R\n&#99;lick Q call f("1")', 'graph TD\nQ[x]-->R\n&#x63;lick Q href "https://a.example/"', 'graph TD\nQ[x]-->R&#59; click Q call f()', 'graph TD\nQ[x]-->R&#10;click Q call f()', 'graph TD\nQ[x]-->R\ncl<x>ick Q call f()', 'graph TD\nQ[x]-->R\ncl<!-- -->ick Q "https://a.example/"',
+                'graph TD\nQ[x]-->R\n&#99;allback Q "f"', 'graph TD\nQ[x]-->R\n&amp;#99;lick Q call f()\n&#99;lick Q call f()', 'classDiagram\nclass Q[x]\n&#108;ink Q "https://a.example/"', 'graph TD; Q[x]-->R; click Q call f()', 'graph TD\nQ[x]-->R\nclick Q call f()'];
+            const outs = HID.map(src => pre({ type: 'diagram', content: src })), bad = outs.map((o, i) => o === null || directive(dec(o)) || dec(o).indexOf('Q[x]') < 0 ? i : -1).filter(i => i >= 0);
+            const HON = 'graph TD\nA[one<br>two] --> B{"a &amp; b"}\nB -->|x &lt; y| C\nC --> D["say #quot;click#quot; #35;1"]', honest = pre({ type: 'diagram', content: HON });
+            const lab = 'Wait; click the lever "now"; link it "up"', fcPre = pre({ type: 'flowchart', nodes: [{ id: 'a', text: lab }], edges: [{ from: 'a', to: 'a', text: 'go; callback x' }] });
+            check('planner preview (a diagram block, run for real): the block is judged as the diagram library will read it — a directive written with character references, split by a tag or a comment, or put after a ; reaches the library in no spelling (the rest of the diagram stays); a diagram that hides none is handed over byte for byte as before (a typed <br>, an &amp; and an &lt; read as they did); a flowchart made in the builder keeps a label that says "; click …" whole',
+                bad.length === 0 && honest === DR.sanitizeHtml(HON) && fcPre !== null && dec(fcPre).indexOf('a["Wait; click the lever #quot;now#quot;; link it #quot;up#quot;"]') > 0 && dec(fcPre).indexOf('a -->|"go; callback x"| a') > 0, [bad, bad.map(i => outs[i]), honest, fcPre]);
+        }
+
+        // the renderer: a plain text drawn with its addresses as links
+        {
+            const dom = makeDom(), doc = dom.document, el = doc.createElement('div'), T2 = '<img src=x onerror=alert(1)> see ' + OK + ', then javascript:alert(1) and <a href="https://evil.example/x" onclick="alert(2)">x</a>\nline two (https://b.example/a_(b)). www.c.example \u0430 https://\u0430\u0440\u0440\u04cf\u0435.example/';
+            const drew = throwsNot(() => G0.fillLinked(el, T2, doc)), kids = el.childNodes.slice(), as = kids.filter(n => n.nodeType === 1);
+            const okA = a => a.nodeName === 'A' && J(Object.keys(a.attrs)) === J(['href', 'target', 'rel']) && a.attrs.target === '_blank' && a.attrs.rel === 'noopener noreferrer' && TFl.cleanLink(a.attrs.href) === a.attrs.href && a.childNodes.length === 1 && a.firstChild.nodeType === 3 && a.firstChild.nodeValue === a.attrs.href && !a.className && !a.id && !Object.keys(a.dataset).length && !Object.keys(a.style).length && !Object.keys(a.handlers).length;
+            G0.fillLinked(el, 'second ' + OK, doc); const second = el.childNodes.map(n => n.textContent);
+            G0.fillLinked(el, '', doc); const empty = el.childNodes.length; G0.fillLinked(el, null, doc);
+            check('links (the renderer, on a page that throws on markup): a plain text is drawn as text nodes and, around each web address, an <a> the app makes — its href the cleaned address, the sanitiser\'s target and rel, its text the address itself and nothing else; markup in the text is its characters, a script address is text, a line break stays in its text node; drawn again it holds only the new text',
+                drew && kids.every(n => n.nodeType === 3 || okA(n)) && kids.map(n => n.textContent).join('') === T2 && J(as.map(a => a.attrs.href)) === J([OK, 'https://evil.example/x', 'https://b.example/a_(b)', 'https://\u0430\u0440\u0440\u04cf\u0435.example/']) && kids.some(n => n.nodeType === 3 && n.nodeValue.indexOf('\n') >= 0)
+                && J(second) === J(['second ', OK]) && empty === 0 && el.childNodes.length === 0, [drew, as.map(a => a.attrs.href)]);
+        }
+
+        // the handout viewer (handouts.js showHandout, run for real) and the gate on the same page
+        {
+            const viewerSrc = slice('handouts.js', 'viewer');
+            const mkViewer = (o) => {
+                const P = mkPage(o || { net: ALONE }), doc = P.doc, m = P.z.handoutModal, ids = {};
+                ['handoutTitle', 'handoutImg', 'handoutText', 'handoutCaption', 'handoutFresh', 'handoutNotesWrap', 'handoutNotes'].forEach(id => { const e = doc.createElement(id === 'handoutImg' ? 'img' : 'div'); e.id = id; m.appendChild(e); ids[id] = e; });
+                ids.handoutModal = m;
+                const wnd = { wpStream: !!(o && o.stream) };
+                P.show = new Function('ui', 'picRef', 'fillLinked', 'readIndex', 'window', 'document', viewerSrc + '\nreturn showHandout;')(id => ids[id] || null, SC.picRef, P.api.fillLinked, async () => ({ entries: [] }), wnd, doc);
+                P.ids = ids;
+                return P;
+            };
+            const TXT = 'Dear ' + T + ',\nmeet at ' + OK + ' or javascript:alert(1).\n<a href="' + U + '">x</a>', CAP = P + ' see https://cap.example/x.', TTL = T + ' https://title.example/';
+            const VW = mkViewer(), drew = throwsNot(() => VW.show({ title: TTL, text: TXT, caption: CAP, from: { who: T } })), tx = VW.ids.handoutText, cp = VW.ids.handoutCaption, ti = VW.ids.handoutTitle;
+            const shape = el => el.childNodes.map(n => n.nodeType === 3 ? 't' : n.nodeName + ':' + n.attrs.href + ':' + n.textContent).join('|');
+            const tAs = tx.all(), cAs = cp.all();
+            check('journal (the handout viewer, run for real): a hostile title, text and caption reach the viewer as text nodes and, around each web address in the text and the caption, an <a> whose href is the cleaned address and whose text is that address — no other element, no markup, no picture from a web address; the title stays plain text (an address in it is no link); line breaks are in the text',
+                drew && tx.textContent === TXT && cp.textContent === CAP && ti.textContent === TTL && ti.all().length === 0 && J(tAs.map(a => [a.nodeName, a.attrs.href, a.textContent, Object.keys(a.attrs).join()])) === J([['A', OK, OK, 'href,target,rel'], ['A', U, U, 'href,target,rel']]) && J(cAs.map(a => [a.nodeName, a.attrs.href, a.textContent])) === J([['A', 'https://cap.example/x', 'https://cap.example/x']])
+                && tx.childNodes.every(n => n.nodeType === 3 || n.nodeName === 'A') && VW.ids.handoutImg.attrs.src === undefined && tx.style.display === 'block' && cp.style.display === 'block', [drew, shape(tx), shape(cp)]);
+            const data = f => { const V2 = mkViewer(); V2.show({ title: 't', text: 'x', from: f }); const d = V2.z.handoutModal.dataset; return [d.linksOwn, d.linksGm, d.linksWho]; };
+            check('journal (the handout viewer): it is told whose the shown thing is and keeps that on itself for the links in it — yours only for exactly own: true; else the GM, or a player by a name cut to 60; anything else (nothing, a text, an odd value) is nobody\'s, which asks',
+                J(data({ own: true })) === J(['1', '', '']) && J(data({ own: true, gm: true, who: 'x' })) === J(['1', '', '']) && J(data({ gm: true, who: 'x' })) === J(['', '1', '']) && J(data({ who: 'w'.repeat(99) })) === J(['', '', 'w'.repeat(60)]) && J(data({ who: 7 })) === J(['', '', ''])
+                && [undefined, null, 'own', 7, {}, { own: 'true' }, { own: 1 }, { gm: 'yes' }, []].every(f => J(data(f)) === J(['', '', ''])), [data({ own: true }), data({ gm: true, who: 'x' }), data(null)]);
+            // the viewer and the gate together
+            const openIt = (net, from, text) => { const V3 = mkViewer({ net }); V3.show({ title: 't', text: text || ('go ' + OK), caption: '', from }); const a = V3.ids.handoutText.all()[0]; V3.click(a); return V3.opened.length ? 'open' : V3.asking() ? V3.lines()[0][1] : 'nothing'; };
+            const ends = { noteAlone: openIt(ALONE, { own: true }), notePlayer: openIt(PLAYER, { own: true }), previewGm: openIt(GM, { own: true }), gmHandoutPlayer: openIt(PLAYER, { gm: true }), gmHandoutLater: openIt(ALONE, { gm: true }), shareOnGm: openIt(GM, { who: 'Pat' }), shareLater: openIt(ALONE, { who: 'Pat' }), unknown: openIt(ALONE, null), unknownGm: openIt(GM, undefined) };
+            check('journal (the viewer and the click together): a note of your own and your own handout\'s preview open directly — a player\'s own note too, at a table; a handout from the GM asks, during the session and later with none; a player\'s share asks on the GM\'s machine too, and names the player; an entry the Journal cannot place asks without naming anyone',
+                J(ends) === J({ noteAlone: 'open', notePlayer: 'open', previewGm: 'open', gmHandoutPlayer: 'It came from the GM.', gmHandoutLater: 'It came from the GM.', shareOnGm: 'It came from a player: Pat', shareLater: 'It came from a player: Pat', unknown: 'It may have been written by someone else.', unknownGm: 'It may have been written by someone else.' }), ends);
+            const SW = mkViewer({ net: { foreign: true }, stream: true }); SW.show({ title: 't', text: 'go ' + OK, caption: OK, from: { own: true } });
+            check('journal (the stream window): a handout shown there stays plain text — one text node each, no link (nobody clicks there)',
+                SW.ids.handoutText.all().length === 0 && SW.ids.handoutCaption.all().length === 0 && SW.ids.handoutText.textContent === 'go ' + OK && SW.ids.handoutText.childNodes.length === 1 && SW.ids.handoutCaption.childNodes.length === 1);
+        }
+
+        // opening a Journal row, and saving the table's notepad (handouts.js, run for real on rows of plain objects)
+        {
+            const openSrc = slice('handouts.js', 'journalopen'), noteSrc = slice('handouts.js', 'journalnote');
+            const shown = [], idx = { c1: { entries: [{ id: 'h1', text: 'stored text ' + OK }] } };
+            const openRow = new Function('showHandout', 'readIndex', openSrc + '\nreturn openRow;')(h => shown.push(h), key => ({ then: fn => fn(idx[key] || { entries: [] }) }));
+            const row = (data, parts) => { const r = { dataset: data, querySelector: s => parts[s] || null }; return r; };
+            const hit = (r, cls, attrs) => ({ closest: s => (s === cls ? { closest: () => r, getAttribute: k => (attrs || {})[k] || null } : null) });
+            openRow(hit(row({ kind: 'note', mine: '1', camp: 'c1', id: 'n1' }, { '.journal-note-title': { value: 'My note' }, '.journal-note-body': { value: 'typed just now ' + OK } }), '.journal-open'));
+            openRow(hit(row({ kind: 'note', gm: '1', camp: 'c1', id: 'n2' }, { '.journal-note-title': { value: '' }, '.journal-note-body': { value: 'table words' } }), '.journal-open'));
+            openRow(hit(row({ kind: 'text', gm: '1', camp: 'c1', id: 'h1', text: 'from the row' }, { '.journal-title': { textContent: 'Letter \u00d7' }, '.journal-caption': { textContent: 'cap' } }), '.journal-thumb'));
+            openRow(hit(row({ kind: 'image', who: T, camp: 'c1', id: 'h2' }, { '.journal-title': { textContent: 'Pic' } }), '.journal-thumb', { src: '/saves/images/journal/c1/h2.png' }));
+            openRow(hit(row({ kind: 'text', sent: '1', mine: '1', text: 'my handout ' + OK }, { '.journal-title': { textContent: 'Mine' } }), '.journal-thumb'));
+            openRow(hit(row({ kind: 'text', sent: '1', who: 'Pat', text: 'passed on' }, { '.journal-title': { textContent: 'Theirs' } }), '.journal-thumb'));
+            openRow(hit(row({ kind: 'text', camp: 'c1', id: 'h9' }, { '.journal-title': { textContent: 'Old row' } }), '.journal-thumb'));
+            openRow({ closest: () => null });
+            check('journal (opening a row, run for real): a note opens to be read with what its boxes hold now and no notes box of its own; a received page opens with the text the index holds; each tells the viewer whose it is as its row says — yours, the GM\'s, a player\'s by name — and a row that says nothing is nobody\'s; a click elsewhere opens nothing',
+                shown.length === 7 && J(shown[0]) === J({ title: 'My note', caption: '', src: null, text: 'typed just now ' + OK, from: { own: true } }) && J(shown[1]) === J({ title: 'A note', caption: '', src: null, text: 'table words', from: { gm: true } })
+                && J(shown[2]) === J({ title: 'Letter', caption: 'cap', entry: { campId: 'c1', id: 'h1' }, from: { gm: true }, text: 'stored text ' + OK }) && J(shown[3]) === J({ title: 'Pic', caption: '', entry: { campId: 'c1', id: 'h2' }, from: { who: T }, src: '/saves/images/journal/c1/h2.png' })
+                && J(shown[4].from) === J({ own: true }) && shown[4].text === 'my handout ' + OK && J(shown[5].from) === J({ who: 'Pat' }) && shown[6].from === null, shown.map(s => s.from));
+            const saveAs = async (net) => { const ix = { entries: [] }, wnd = { wpNet: net }; new Function('window', 'ownCampaignKey', 'journalKey', 'withIndex', 'stampHead', 'registerJournal', 'badge', 'unseen', 'toast', 'Date', 'Math', noteSrc + '\nreturn 0;')(wnd, () => ({ key: 'c1__u_me' }), () => 'c1__u_gm', async (k, fn) => { fn(ix); return ix; }, () => {}, async () => {}, () => {}, 0, () => {}, { now: () => 5 }, { random: () => 0.5 }); await wnd.wpJournalAddNote({ campaign: 'C' }, 'Table notes', 'see ' + OK); return ix.entries[0]; };
+            const asPlayer = await saveAs({ active: true, role: 'client', foreign: true }), asHost = await saveAs({ active: true, role: 'host', foreign: false }), asNone = await saveAs(undefined), rejoining = await saveAs({ active: false, role: 'client', foreign: true });
+            check('journal (the table\'s notepad saved): a player who saves it keeps it as a note of their own that is marked as the table\'s — its words came from the GM, so a link in it asks first; the GM\'s own save and a note saved with no table carry no mark; the text is stored as the plain text it is',
+                asPlayer.table === true && rejoining.table === true && !('table' in asHost) && !('table' in asNone) && [asPlayer, asHost, asNone].every(e => e.kind === 'note' && e.text === 'see ' + OK && e.title === 'Table notes') && J(Object.keys(asHost)) === J(['id', 'kind', 'title', 'text', 'receivedAt', 'notes']), [asPlayer, asHost]);
+        }
+
+        // wired, and a scan of the new code
+        {
+            const gateAll = read('linkgate.js'), ix = fs.readFileSync(path.join(dir, '..', 'index.html'), 'utf8').replace(/\r\n/g, '\n');
+            check('links (wired, pinned): the listener is one, on the document, in the capture phase, for click and auxclick, added as the module loads in every window (the main one, the stream window and a pop-out are the same page); the question is the app\'s own and never answered by Enter; opening is window.open with no opener; handouts.js draws the viewer\'s text and caption through the one renderer and nowhere else; receiving, a row, a note\'s Open and the GM\'s Preview each tell the viewer whose the thing is',
+                /doc\.addEventListener\('click', h, true\);\n\s*doc\.addEventListener\('auxclick', h, true\);/.test(gateSrc) && /if \(typeof window !== 'undefined' && typeof document !== 'undefined'\) wireLinks\(window, document, showConfirm\);/.test(gateAll) && /import \{ showConfirm \} from '\.\/dialogs\.js';/.test(gateAll) && /import \{ cleanLink, linkParts \} from '\.\/textfmt\.js';/.test(gateAll)
+                && /\{ noEnter: true, careful: true, body: askBody\(doc, url, c\) \}/.test(gateSrc) && /doc\.addEventListener\('auxclick', h, true\);\n\s*doc\.addEventListener\('dragstart', dragGate\(win\), true\);/.test(gateSrc) && /mk\('linkask-site', url\.site\)/.test(gateSrc) && /mk\('linkask-url', url\.href\)/.test(gateSrc) && /win\.open\(link, '_blank', 'noopener,noreferrer'\)/.test(gateSrc) && (gateSrc.match(/\.open\(/g) || []).length === 1 && /<script type="module" src="scripts\/linkgate\.js"><\/script>/.test(ix)
+                && /import \{ fillLinked \} from '\.\/linkgate\.js';/.test(hoAll) && (hoAll.match(/fillLinked\(/g) || []).length === 2 && (hoAll.match(/from: cameFrom\(msg\)/g) || []).length === 2 && /from: atSomeonesTable\(\) \? null : \{ own: true \}/.test(hoAll) && /openRow\(e\.target\);/.test(hoAll)
+                && /<button class="tool ghost journal-open" title="[^"<>]*"[^>]*>Open<\/button>/.test(hoAll));
+            check('links (a scan of the new code — the gate, the renderer, the viewer, opening a row, the notepad\'s save): no innerHTML, outerHTML, insertAdjacentHTML or document.write; no handler attribute and none set by name; no eval, no Function; every element made by createElement with a fixed name (div, a), every text by createTextNode or textContent',
+                [gateSrc, slice('handouts.js', 'viewer'), slice('handouts.js', 'journalopen'), slice('handouts.js', 'journalnote')].every(s => !/innerHTML|outerHTML|insertAdjacentHTML|document\.write|\beval\(|new Function|Function\(|setAttribute\('on|\.on[a-z]+ = |javascript:/.test(s))
+                && J((gateSrc.match(/createElement\(([^)]*)\)/g) || []).sort()) === J(["createElement('a')", "createElement('div')", "createElement('div')"]) && !/createElement/.test(slice('handouts.js', 'viewer')));
+            const cssL = fs.readFileSync(path.join(dir, '..', 'style.css'), 'utf8').replace(/\r\n/g, '\n');
+            check('links (a pop-out window): the rule that hides the rest of the page in a pop-out leaves the app\'s own question, so a link that asks there can be answered — the question sits directly under the body (where the rule looks) and hides itself while it is closed',
+                /body\.popout-mode > \*:not\(#popoutWrap\):not\(#chatPanel\):not\(#customConfirm\)[^{\n]*\{ display: none !important; \}/.test(cssL) && /\n<div id="customConfirm" style="display:none; position:fixed;[^"]*z-index:100010;/.test(ix) && /p\.style\.display = 'none';/.test(dlgSrc));
+            const dq = dlgSrc;
+            check('links (the app\'s question, pinned): a question may carry a body — an element the caller built — put between the words and the buttons by appendChild and taken out again with the question; a question without one touches nothing new',
+                /var bodyEl = opts && opts\.body && typeof opts\.body === 'object' && opts\.body\.nodeType === 1 \? opts\.body : null, slot = null;/.test(dq) && /slot\.appendChild\(bodyEl\); row\.parentNode\.insertBefore\(slot, row\); row\.parentNode\.classList\.add\('confirm-wide'\);/.test(dq) && /slot\.parentNode\.classList\.remove\('confirm-wide'\); slot\.parentNode\.removeChild\(slot\);/.test(dq) && !/innerHTML/.test(dq));
+        }
+    }
+
     /* ---- the Journal window against an index read from disk (handouts.js, sliced by its journal and journalshare markers and run for real on a
        recording page) — the outside audit of 2026-10-01: a journal's index is a file under saves/, and a saves folder can come from anywhere ---- */
     {
@@ -1985,7 +2269,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const readIndex = async key => journals.find(x => x.campId === key) || { campId: key, entries: [] };
             const fetchS = async u => { w.fetched.push(String(u)); return { ok: true, arrayBuffer: async () => new Uint8Array([137, 80, 78, 71]).buffer }; };
             const names = ['ui', 'listJournals', 'ownCampaignKey', 'sentRecords', 'readIndex', 'withIndex', 'journalPage', 'journalDefaultPage', 'journalShow', 'journalShowDefault', 'chipOpensTo', 'journalFilter', 'badge', 'esc', 'picRef', 'window', 'fetch', 'toast', 'document'];
-            const vals = [ui, async () => journals, () => null, () => [], readIndex, async (k, fn) => { const ix = await readIndex(k); fn(ix); return ix; }, {}, () => 'all', {}, () => '', () => '', () => {}, () => {}, escApp, SC.picRef, wnd, fetchS, t => w.toasts.push(t), { querySelector: () => null }];
+            const vals = [ui, async () => journals, () => o.own || null, () => o.sent || [], readIndex, async (k, fn) => { const ix = await readIndex(k); fn(ix); return ix; }, {}, () => 'all', {}, () => '', () => '', () => {}, () => {}, escApp, SC.picRef, wnd, fetchS, t => w.toasts.push(t), { querySelector: () => null }];
             try { w.api = new Function(...names, '"use strict";\n' + tagLine + '\n' + ownSrcFn + '\n' + shSrc + '\n' + jSrc + '\nreturn { openJournal: openJournal, shareEntry: shareEntry, sentLine: sentLine };')(...vals); } catch (e) { w.err = String(e && e.message); w.api = { openJournal: async () => { throw new Error(w.err); }, shareEntry: async () => { throw new Error(w.err); } }; }
             return w;
         };
@@ -2008,6 +2292,19 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const htmlO = JO.list.innerHTML;
         check('journal (an index from disk): an honest index reads as before — the sent row keeps its id (sent:<page>:<time>) so the note written under that send is found, the page\'s picture is the Journal\'s own file, its notes are in its box',
             !threwO && /data-id="sent:n1:1700000000000" data-kind="text" data-sent="1"/.test(htmlO) && /Your notes about this send…">my note<\/textarea>/.test(htmlO) && /<img class="journal-thumb" src="\/saves\/images\/journal\/c1__u_gm\/h1\.png"/.test(htmlO) && />seen<\/textarea>/.test(htmlO) && /Sent to <b>GM<\/b>/.test(htmlO), [threwO, (/data-id="sent:[^"]*"/.exec(htmlO) || [''])[0]]);
+        // whose each row's page is (1.5.0: the links in a page opened from the Journal follow it), and a note's Open
+        const whoseIdx = [{ campId: 'c1__u_gm', campaign: 'C', gm: 'Gina', gmId: 'u_gm', entries: [
+            { id: 'n1', kind: 'note', title: 'Mine', text: 'see https://a.example/', receivedAt: 6 }, { id: 'n2', kind: 'note', title: 'Table notes', text: 'x', receivedAt: 5, table: true }, { id: 'n3', kind: 'note', title: 'odd', text: 'x', receivedAt: 4, table: 'true' },
+            { id: 'h1', kind: 'text', title: 'From GM', text: 't', receivedAt: 3 }, { id: 'h2', kind: 'text', title: 'GM shared', text: 't', receivedAt: 2, sharedBy: 'Gina', sharedById: 'u_gm' },
+            { id: 'h3', kind: 'text', title: 'From Mal', text: 't', receivedAt: 1, sharedBy: X + 'w'.repeat(80), sharedById: 'u_mal', sentTo: [{ to: 'gm', name: 'GM', at: 7 }] }] }];
+        const JW = mkJ(whoseIdx); let threwW = ''; try { await JW.api.openJournal(); } catch (e) { threwW = String(e && e.message); }
+        const htmlW = JW.list.innerHTML, whoA = ' data-who="' + SC.esc((X + 'w'.repeat(80)).slice(0, 60)) + '"';
+        const JS2 = mkJ([{ campId: 'c9__u_me', campaign: 'Mine', gm: 'Me', gmId: 'u_me', entries: [] }], { sent: [{ hid: 'h9', to: [{ pid: 'u_a', name: 'Ann', at: 5 }], last: 5, kind: 'text', text: 't https://a.example/', title: 'My handout', caption: '', src: '', tags: [] }] });
+        try { await JS2.api.openJournal(); } catch (e) { threwW = threwW || String(e && e.message); }
+        check('journal (whose a row is): each row says whose its page is, for the links in it once it is opened — a note of your own is yours; the table\'s notepad a player saved (table: exactly true) and everything from the GM are the GM\'s; a player\'s share is that player\'s, by a name escaped and cut to 60, on its sent row too; a handout the GM has shown is the GM\'s own; a note has an Open button and nothing else has',
+            !threwW && /data-id="n1" data-kind="note" data-mine="1">/.test(htmlW) && /data-id="n2" data-kind="note" data-gm="1">/.test(htmlW) && /data-id="n3" data-kind="note" data-mine="1">/.test(htmlW) && /data-id="h1" data-kind="text" data-gm="1" data-text="t">/.test(htmlW) && /data-id="h2" data-kind="text" data-gm="1" data-text="t">/.test(htmlW)
+            && htmlW.indexOf('data-id="h3" data-kind="text"' + whoA + ' data-text="t">') > 0 && htmlW.indexOf('data-id="sent:h3:7" data-kind="text" data-sent="1"' + whoA + ' data-text="t">') > 0 && (htmlW.match(/class="tool ghost journal-open"/g) || []).length === 3 && risks(htmlW).length === 0
+            && /data-id="sent:h9" data-kind="text" data-sent="1" data-mine="1" data-text="t https:\/\/a\.example\/">/.test(JS2.list.innerHTML) && !/journal-open/.test(JS2.list.innerHTML), [threwW, (htmlW.match(/data-id="[^"]*" data-kind="[^"]*"[^>]*>/g) || []).map(s => s.slice(0, 90))]);
         // Send: only the Journal's own picture is ever read and handed to the table
         const shareRun = async src => { const W = mkJ([{ campId: 'c1__u_gm', entries: [{ id: 'h1', kind: 'image', title: 'Pic', src: src, mime: 'image/png', notes: '' }] }], { net: { active: true, role: 'client' } }); try { await W.api.shareEntry('c1__u_gm', 'h1', 'gm', null); } catch (e) { W.err = String(e && e.message); } return W; };
         const badSrc = ['/api/data', '/saves/data.json', '/saves/preferences.json', '/saves/backups/data-2026-10-01-09-00-00.json', '/saves/images/m_abc/x.png', '/saves/images/journal/../data.json', '/saves/images/journal/c1__u_gm/journal.json', '/saves/images/journal/journals.json', '/saves/images/journal/c1__u_gm/../../m/x.png', '/saves/images/journal/c1__u_gm/sub/h.png', '/saves/images/Journal/c1__u_gm/h1.png', 'blob:http://localhost:3000/abc', 'data:text/html;base64,PGI+', 'data:image/svg+xml;base64,PHN2Zz4=', 'https://evil.example/x.png', '', 5, null];

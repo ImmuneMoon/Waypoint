@@ -419,8 +419,63 @@ function compileFlowchart(b) {
 }
 // Mermaid's link and callback directives never depend on its security mode: gone from anything a
 // player receives. Applied to diagram sources (cleanDoc) and again when rendering (renderDoc).
-function stripMermaidLinks(src) {
-    return String(src || '').split(/\r?\n/).filter(function(line) { return !/^\s*(click|callback|href|linkStyle)\b/i.test(line); }).join('\n');
+// A directive is a statement that begins with one of the library's words, and a statement ends at a line break or at a ';' (the
+// library reads both alike): a line that begins with one goes whole, as ever, and a line that holds one further on is cut there —
+// a directive's own text may hold a ';', so nothing after it is kept. The ';' that closes one of the library's own #…; entities
+// is part of the entity, as the library reads it. The rule fails closed: a ';' inside a hand-written label counts too, so a label
+// that says "…; click …" loses that part (the entity #59; writes a ';' that is the label's own).
+//   click / callback / href / linkStyle …   any diagram's
+//   link <name> "address"                   a class diagram's (a node, a class or a task that is merely called link is left alone)
+//   link / links <actor>: …                 a sequence diagram's, judged only in a source that names one
+// The source is judged as the library will read it: a NUL (which a page drops) is taken out, a lone carriage return (which a page
+// reads as a line break) is a line break, and the library's own %%{…}%% blocks — which it takes out before it reads a diagram,
+// wherever they stand — are taken out with its own pattern and what is left is judged again; a source that hides a directive that
+// way is handed over without its blocks. Any other source is returned as it always was.
+// compiled (exactly true): the app's own compiled flowchart (compileFlowchart). Every label there is one quoted string, so a ';'
+// in it is the label's own: only whole lines are judged, exactly as before.
+// A link the library still draws (another kind of diagram's own way of writing one) is an <a> in the drawing, and a click on it is
+// judged like any other link's (linkgate.js).
+var MM_DIRECTIVE = /\s*(?:click|callback|href|linkStyle)\b/iy;
+var MM_LINK = /\s*link\s+(?![-=.<>~&|:\s"'])[^"'\n;]*["']/iy;
+var MM_SEQ_LINK = /\s*links?\s+[^:;\n]*:/iy;
+var MM_BLOCK = /%{2}{\s*(?:(\w+)\s*:|(\w+))\s*(?:(\w+)|((?:(?!}%{2}).|\r?\n)*))?\s*(?:}%{2})?/gi;   // the library's own pattern for its %%{…}%% blocks
+function mmAt(re, s, at) { re.lastIndex = at; return re.test(s); }
+function mmCut(s) {
+    var seq = /sequenceDiagram/i.test(s), out = [];
+    function directive(line, at) { return mmAt(MM_DIRECTIVE, line, at) || mmAt(MM_LINK, line, at) || (seq && mmAt(MM_SEQ_LINK, line, at)); }
+    s.split(/\r\n|\n|\r/).forEach(function(line) {
+        if (directive(line, 0)) return;
+        for (var at = line.indexOf(';'); at >= 0; at = line.indexOf(';', at + 1)) {
+            var k = at - 1; while (k >= 0 && /\w/.test(line.charAt(k))) k--;
+            if (k < at - 1 && k >= 0 && line.charAt(k) === '#') continue;   // the ';' that closes a #…; entity
+            if (directive(line, at + 1)) { line = line.slice(0, at); if (!line.trim()) return; break; }
+        }
+        out.push(line);
+    });
+    return out.join('\n');
+}
+function mmStrip(s, depth) {
+    var r = mmCut(s);
+    if (r.indexOf('%%{') < 0) return r;
+    var once = r.replace(MM_BLOCK, ''), all = once;
+    for (var k = 0; k < 8 && all.indexOf('%%{') >= 0; k++) { var nx = all.replace(MM_BLOCK, ''); if (nx === all) break; all = nx; }
+    if (mmCut(once) === once && mmCut(all) === all) return r;
+    return depth >= 8 ? '' : mmStrip(mmCut(all), depth + 1);
+}
+function stripMermaidLinks(src, compiled) {
+    var s = String(src || '');
+    if (compiled === true) return s.split(/\r?\n/).filter(function(line) { return !mmAt(MM_DIRECTIVE, line, 0); }).join('\n');
+    return mmStrip(s.replace(/\u0000/g, ''), 0);
+}
+// What a planner's preview hands the diagram library for a diagram block. The library reads the <pre>'s markup with its character
+// references read once — and the sanitiser has by then read the typed ones and dropped the tags it does not keep — so the text the
+// library will read is judged here once more: where it holds a directive (one written with a character reference, split by a tag
+// or a comment, made by a separator written as a reference) that text is handed over stripped, escaped so that it reads back as
+// exactly itself. A block that hides none is the sanitiser's own output, byte for byte as before (a typed <br>, &amp; or &lt;
+// reads as it always did).
+function mermaidPre(src) {
+    var h = sanitizeHtml(stripMermaidLinks(src)), m = decodeEntities(h), c = stripMermaidLinks(m);
+    return c === m ? h : esc(c);
 }
 
 /* ---------- cleanDoc: the wire sanitizer and the client-side normaliser ---------- */
@@ -689,7 +744,7 @@ function renderDoc(doc, opts) {
                 var fdx = num(l.dx, -200, 200, 0), fdy = num(l.dy, -200, 200, 0);
                 if (fdx || fdy) boxStyle += 'position:relative;left:' + fdx + 'px;top:' + fdy + 'px;';
                 var fcls = 'diagram fc-box' + (l.float === 'left' ? ' fl-left' : l.float === 'right' ? ' fl-right' : '') + (l.span ? ' doc-span' : '');
-                blk += '<div class="' + fcls + '" data-fc="' + i + '" style="' + boxStyle + '"><pre class="mermaid">' + esc(stripMermaidLinks(compileFlowchart(b))) + '</pre></div>';
+                blk += '<div class="' + fcls + '" data-fc="' + i + '" style="' + boxStyle + '"><pre class="mermaid">' + esc(stripMermaidLinks(compileFlowchart(b), true)) + '</pre></div>';
                 break;
             }
             default: return;   // an unknown type renders nothing
@@ -767,6 +822,6 @@ function hbText(pages, q) {
     return { hits: hits.slice(0, HB_LIMIT), over: hits.length > HB_LIMIT };
 }
 
-var API = { VERSION: VERSION, hbFold: hbFold, hbSections: hbSections, hbHeadings: hbHeadings, hbText: hbText, HB_LIMIT: HB_LIMIT, LIMITS: LIMITS, DOC_BLOCKS: DOC_BLOCKS.slice(), sanitizeHtml: sanitizeHtml, sanitizeBare: sanitizeBare, fmtHtml: fmtHtml, fmtRich: fmtRich, cleanBlockFmts: cleanBlockFmts, labelFmt: labelFmt, fieldFmt: fieldFmt, colFmtOf: colFmtOf, cellFmtOf: cellFmtOf, cleanDoc: cleanDoc, renderDoc: renderDoc, proseHtml: proseHtml, nl: nl, compileFlowchart: compileFlowchart, stripMermaidLinks: stripMermaidLinks, esc: esc, cleanDocStyle: cleanDocStyle, mergeDocStyle: mergeDocStyle, docStyleCss: docStyleCss, docBgImage: docBgImage, DOC_FONTS: DOC_FONTS };
+var API = { VERSION: VERSION, hbFold: hbFold, hbSections: hbSections, hbHeadings: hbHeadings, hbText: hbText, HB_LIMIT: HB_LIMIT, LIMITS: LIMITS, DOC_BLOCKS: DOC_BLOCKS.slice(), sanitizeHtml: sanitizeHtml, sanitizeBare: sanitizeBare, fmtHtml: fmtHtml, fmtRich: fmtRich, cleanBlockFmts: cleanBlockFmts, labelFmt: labelFmt, fieldFmt: fieldFmt, colFmtOf: colFmtOf, cellFmtOf: cellFmtOf, cleanDoc: cleanDoc, renderDoc: renderDoc, proseHtml: proseHtml, nl: nl, compileFlowchart: compileFlowchart, stripMermaidLinks: stripMermaidLinks, mermaidPre: mermaidPre, esc: esc, cleanDocStyle: cleanDocStyle, mergeDocStyle: mergeDocStyle, docStyleCss: docStyleCss, docBgImage: docBgImage, DOC_FONTS: DOC_FONTS };
 if (typeof window !== 'undefined') window.wpDocRender = API;
-export { VERSION, hbFold, hbSections, hbHeadings, hbText, HB_LIMIT, LIMITS, DOC_BLOCKS, sanitizeHtml, sanitizeBare, fmtHtml, fmtRich, cleanBlockFmts, labelFmt, fieldFmt, colFmtOf, cellFmtOf, cleanDoc, renderDoc, proseHtml, nl, compileFlowchart, stripMermaidLinks, cleanDocStyle, mergeDocStyle, docStyleCss, docBgImage, DOC_FONTS };
+export { VERSION, hbFold, hbSections, hbHeadings, hbText, HB_LIMIT, LIMITS, DOC_BLOCKS, sanitizeHtml, sanitizeBare, fmtHtml, fmtRich, cleanBlockFmts, labelFmt, fieldFmt, colFmtOf, cellFmtOf, cleanDoc, renderDoc, proseHtml, nl, compileFlowchart, stripMermaidLinks, mermaidPre, cleanDocStyle, mergeDocStyle, docStyleCss, docBgImage, DOC_FONTS };

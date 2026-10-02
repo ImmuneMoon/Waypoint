@@ -193,11 +193,47 @@ Protecting your table
   for Allow/Deny as before. A player's app answers one challenge per
   connection, keeps a key only from the host it joined, and holds at most
   the 50 newest tables.
-- A player's app holds only the maps they have reached: the map they land
-  on, and each one they travel or are summoned to, which arrives whole the
-  moment they do. Every other map of the campaign is a name in their list
-  and nothing more, so a locked map or one the party has not found carries
-  no tokens, labels or room names to their machine until they get there.
+- A player's app holds only the map they are on. The map they land on, and
+  each one they travel or are summoned to, arrives whole the moment they
+  do, and the map they leave is taken back: their copy goes back to its
+  name and its lock, nothing you change there afterwards reaches them, and
+  the whole map is sent again when they return. Every other map of your
+  campaign is a name in their list and nothing more, so a locked map, one
+  the party has not found, or one they walked out of carries no tokens,
+  labels or room names on their machine.
+- Your players' apps know your table from anyone else's. Your app signs the
+  table it hands each player, and their apps remember your key the first
+  time they join. If someone else answers at your room code while you are
+  away, a reconnecting player is not shown that table: their app says so
+  once and keeps looking for you. A player who presses Join and finds a
+  different GM there is asked once whether to trust that table; say yes
+  only if your GM tells you they reinstalled or changed computers. This
+  begins with the first table hosted on this version; a table hosted on an
+  older version joins as before.
+- Reset Multiplayer Identity also gives your table a new signing key (to
+  your players' apps it is then a new GM's table), and Cancel on its
+  question now really cancels: it used to reset your identity either way.
+- Your room code is now ten characters, shown as XXXXX-XXXXX. Copy copies
+  it that way and your players can type it with or without the hyphen. It
+  is much harder to guess, and Help says plainly what a code gives away:
+  on a direct connection whoever dials it can see your network address;
+  with Firewall-friendly connections and a relay they see only the relay's.
+- If someone else takes your room code while your link to the matchmaking
+  service blinks, your table stays up: your players stay connected, you
+  are told once, and Waypoint takes the code back by itself when it is
+  free. Before, your own app ended the table and moved to a new code.
+- Firewall-friendly connections tells you the truth: with no relay set on
+  this computer it says it is connecting directly instead of claiming
+  relay-only, the switch stays in view so you can turn it off, and
+  removing the relay turns it off with it.
+- A returning player's key check is tied to the encrypted connection
+  itself. If their answer was made over a different connection you are
+  asked, in words that say so, instead of the player going straight in.
+- Someone who only knows your room code can no longer make your app hold
+  data without limit, flood it with connection attempts or cover your
+  screen with error banners. A player whose app stops keeping up no longer
+  makes yours queue everything for them: they are dropped and rejoin by
+  themselves.
 - The stream window shows the party's view: on a fogged map its fog is the
   union of what your players' own tokens see, creatures none of them sees
   are left out, and its Focus on menu lists players' characters alone.
@@ -233,6 +269,28 @@ Protecting your table
   a trigger zone's message reaches a player only when their own token
   enters it, the party strip's hover names only effects a teammate may see,
   and your other campaigns are never named to a table.
+Updates
+- Updates are signed. Your copy takes an update only when its signature
+  checks against a key that only Waypoint's maker holds; an update that is
+  not signed, or was changed after it was signed, is refused and your copy
+  stays exactly as it was.
+- Restore the previous version. After an update, Settings ▸ Updates &
+  about shows a button that puts the app back as it was before that
+  update. Your campaigns are not touched, and you can update again
+  afterwards.
+- An update that changes Waypoint's core is one click too. You no longer
+  download and run the installer yourself: press Update and Waypoint
+  downloads the new version, checks it, saves your campaign, closes,
+  updates itself and opens again. If that cannot be done on your copy, Get
+  Installer still shows the steps, and if a core update is started and
+  does not finish, Waypoint tells you at the next launch and offers both
+  ways on.
+- Coming from 1.4.9 or earlier, you install 1.5.0 with the installer one
+  last time; from then on every update installs itself.
+- The installer dialog no longer asks you to click past the Windows
+  warning. It says plainly that the installer is not code-signed yet, and
+  to run only a Waypoint_Setup.exe you got through the app's own button or
+  from Waypoint's releases page.
 Character sheets: the system
 - Character sheets start with the system: a System button in the Campaign
   pill opens an editor for the campaign's rules, with no code. Fields with a

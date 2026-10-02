@@ -235,15 +235,16 @@ pendingChecks.push((async () => {
     const cap2 = [Object.keys(JSON.parse(storage.getItem('wp_tableKeys'))).length, H.tableKeyFor('u_gm150'), H.tableKeyFor('u_gm151'), H.tableKeyFor('u_gm248')];
     check('table keys (client): at most 50 are kept, the oldest forgotten first; a key written again counts as the newest (a host sending snapshots under ever new GM ids cannot grow the store or the preferences file)', j(cap1) === j([50, 'k199', 'k150', '', '']) && j(cap2) === j([50, 'k150b', '', 'k248']), j([cap1, cap2]));
     const html = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8').replace(/\r\n/g, '\n');
-    const mergeLines = html.split('\n').filter(l => l.indexOf("if (k === 'wp_tableKeys') {") >= 0);
+    const bootPrefs = (() => { try { return fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'bootprefs.js'), 'utf8').replace(/\r\n/g, '\n'); } catch (e) { return ''; } })();   // the launch merge: the page's script directly after /api/prefs.js (it was written into index.html until the page's policy stopped running script written into a page)
+    const mergeLines = bootPrefs.split('\n').filter(l => l.indexOf("if (k === 'wp_tableKeys') {") >= 0);
     const runMerge = mergeLines.length === 1 ? new Function('k', 'f', 'localStorage', mergeLines[0].trim() + '\nreturn "fell through";') : () => 'no line';
     const mkStore = () => { const m = {}; const st = { refuse: false, getItem: k => (k in m ? m[k] : null), setItem: (k, v) => { if (st.refuse) throw new Error('quota'); m[k] = String(v); }, m }; return st; };
     const fileKeys = {}; for (let i = 0; i < 120; i++) fileKeys['u_f' + i] = 'f' + i; const localKeys = {}; for (let i = 0; i < 10; i++) localKeys['u_l' + i] = 'l' + i;
     const st1 = mkStore(); st1.setItem('wp_tableKeys', JSON.stringify(localKeys)); const m1 = runMerge('wp_tableKeys', { prefs: { wp_tableKeys: JSON.stringify(fileKeys) } }, st1); const merged = JSON.parse(st1.getItem('wp_tableKeys'));
     const st2 = mkStore(); st2.setItem('wp_tableKeys', JSON.stringify({ u_l0: 'l0' })); st2.refuse = true; const m2 = runMerge('wp_tableKeys', { prefs: { wp_tableKeys: JSON.stringify({ u_f0: 'f0' }) } }, st2);
     const st3 = mkStore(); st3.setItem('wp_tableKeys', JSON.stringify({ u_l0: 'l0' })); const m3 = runMerge('wp_tableKeys', { prefs: { wp_tableKeys: JSON.stringify({ u_f0: 'f0' }) } }, st3);
-    check('launch merge (index.html): the table keys of the file and this machine merge to at most 50, the file\'s newest kept and the oldest forgotten; a small merge keeps both sides whole; a storage refusal ends that key quietly instead of falling through to the raw file value',
-        m1 !== 'fell through' && m1 !== 'no line' && Object.keys(merged).length === 50 && merged.u_f119 === 'f119' && merged.u_f70 === 'f70' && !('u_f69' in merged) && !('u_l0' in merged) && m2 !== 'fell through' && st2.m.wp_tableKeys === JSON.stringify({ u_l0: 'l0' }) && m3 !== 'fell through' && j(JSON.parse(st3.m.wp_tableKeys)) === j({ u_l0: 'l0', u_f0: 'f0' }), j([m1, merged && Object.keys(merged).length, m2, m3]));
+    check('launch merge (scripts/bootprefs.js, which the page runs directly after /api/prefs.js and before its first module; index.html holds no copy): the table keys of the file and this machine merge to at most 50, the file\'s newest kept and the oldest forgotten; a small merge keeps both sides whole; a storage refusal ends that key quietly instead of falling through to the raw file value',
+        /<script src="\/api\/prefs\.js"><\/script>\n<script src="scripts\/bootprefs\.js"><\/script>\n<script type="module" src="scripts\/formula\.js"><\/script>/.test(html) && html.indexOf('<script type="module"') > html.indexOf('<script src="scripts/bootprefs.js">') && !/wp_tableKeys|wpFilePrefs/.test(html) && m1 !== 'fell through' && m1 !== 'no line' && Object.keys(merged).length === 50 && merged.u_f119 === 'f119' && merged.u_f70 === 'f70' && !('u_f69' in merged) && !('u_l0' in merged) && m2 !== 'fell through' && st2.m.wp_tableKeys === JSON.stringify({ u_l0: 'l0' }) && m3 !== 'fell through' && j(JSON.parse(st3.m.wp_tableKeys)) === j({ u_l0: 'l0', u_f0: 'f0' }), j([m1, merged && Object.keys(merged).length, m2, m3]));
     // #12: before the snapshot, or from a peer other than the synced host, no client branch applies anything (fromHost at every call site, the real branches run)
     const seg = (a, b, label) => { const i = src.indexOf(a), e = src.indexOf(b, i); if (i < 0 || e < 0 || src.indexOf(a, i + 1) >= 0) throw new Error('netcheck: the ' + label + ' branch not found once'); return src.slice(i, e); };
     const branches = [
@@ -9729,7 +9730,8 @@ pendingChecks.push((async () => {
         HCap.rememberGmPin('u_g10', sigW.pub); HCap.rememberGmPin('u_g60', sigW.pub);
         const capped = [Object.keys(JSON.parse(cap.m.wp_gmPins)).length, !!HCap.gmPinFor('u_g9'), !!HCap.gmPinFor('u_g10'), !!HCap.gmPinFor('u_g11'), !!HCap.gmPinFor('u_g12'), !!HCap.gmPinFor('u_g60'), Object.keys(JSON.parse(cap.m.wp_gmRooms)).length, HCap.gmRoomFor('code9'), HCap.gmRoomFor('CODE59'), HCap.rememberGmPin('constructor', sigW.pub), HCap.rememberGmPin('u_x', { kty: 'EC' }), HCap.rememberGmRoom('a b', 'u_x'), HCap.gmPinFor('__proto__')];
         const htmlS = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8').replace(/\r\n/g, '\n');
-        const mLines = htmlS.split('\n').filter(l => l.indexOf("if (k === 'wp_gmPins' || k === 'wp_gmRooms') {") >= 0);
+        const bootS = (() => { try { return fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'bootprefs.js'), 'utf8').replace(/\r\n/g, '\n'); } catch (e) { return ''; } })();   // the launch merge's file (the page runs it directly after /api/prefs.js)
+        const mLines = bootS.split('\n').filter(l => l.indexOf("if (k === 'wp_gmPins' || k === 'wp_gmRooms') {") >= 0);
         const runM = mLines.length === 1 ? new Function('k', 'f', 'localStorage', mLines[0].trim() + '\nreturn "fell through";') : () => 'no line';
         const fileP = {}; for (let i = 0; i < 120; i++) fileP['u_f' + i] = sigW.pub; const stM = mkStore(); stM.setItem('wp_gmPins', J({ u_l0: sigW.pub }));
         const mR = runM('wp_gmPins', { prefs: { wp_gmPins: J(fileP) } }, stM), mOut = JSON.parse(stM.m.wp_gmPins);
@@ -9748,7 +9750,7 @@ pendingChecks.push((async () => {
         chk('g', J(pubA2) === J(s1.gmPub) && typeof kept1 === 'string' && gone && !!pubA3 && pubA3.x !== s1.gmPub.x && typeof A.store.m.wp_gmSign === 'string' && A.store.m.wp_gmSign !== kept1
             && J(idRuns) === J([[], [], ['save:true', 'reset', 'toast'], ['save:true', 'rm:wp_gmSign', 'toast']])
             && /saveProfile\(np\);\n\s*if \(window\.wpNet\) window\.wpNet\.myId = np\.id;\n\s*if \(window\.wpNet && window\.wpNet\.gmSignReset\) window\.wpNet\.gmSignReset\(\); else \{ try \{ localStorage\.removeItem\('wp_gmSign'\); \} catch \(e\) \{\} \}/.test(setJs)
-            && /var keep = \{ wp_profile: 1, wp_version: 1, wp_lastHost: 1, wp_prefsStamp: 1, wp_gmSign: 1, wp_gmPins: 1, wp_gmRooms: 1 \};/.test(setJs) && /var KEEP = \{ wp_profile: 1, wp_tableKeys: 1, wp_gmSign: 1, wp_gmPins: 1, wp_gmRooms: 1 \};/.test(htmlS),
+            && /var keep = \{ wp_profile: 1, wp_version: 1, wp_lastHost: 1, wp_prefsStamp: 1, wp_gmSign: 1, wp_gmPins: 1, wp_gmRooms: 1 \};/.test(setJs) && /var KEEP = \{ wp_profile: 1, wp_tableKeys: 1, wp_gmSign: 1, wp_gmPins: 1, wp_gmRooms: 1 \};/.test(bootS) && !/var KEEP = /.test(htmlS) && /<script src="\/api\/prefs\.js"><\/script>\n<script src="scripts\/bootprefs\.js"><\/script>/.test(htmlS),
             J([J(pubA2) === J(s1.gmPub), gone, pubA3 && pubA3.x !== s1.gmPub.x, idRuns]));
 
         /* ---- (h) ---- */

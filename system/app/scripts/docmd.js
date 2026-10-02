@@ -252,7 +252,7 @@ function markdownToBlocks(text, opts) {
         if (wasInline) notes.push('Picture "' + (caption || b.src || target.slice(0, 40)) + '" was inside a paragraph; it became its own block after it.');
     }
     function handleFence(info, body) {
-        if (info === 'mermaid') { flushRun(); push({ type: 'diagram', content: kind === 'planner' ? body.replace(/</g, '&lt;').replace(/>/g, '&gt;') : body }); notes.push('A diagram draws with an internet connection; its source is kept either way.'); return; }
+        if (info === 'mermaid') { flushRun(); push({ type: 'diagram', content: kind === 'planner' ? body.replace(/</g, '&lt;').replace(/>/g, '&gt;') : body }); return; }
         if (info === 'flowchart' || info === 'graph') { var fc = flowchartFromMermaid(body); flushRun(); if (fc) { push(fc); } else { push({ type: 'diagram', content: kind === 'planner' ? body.replace(/</g, '&lt;').replace(/>/g, '&gt;') : body }); notes.push('A flowchart fence went beyond the simple subset; it was kept as a mermaid diagram.'); } return; }
         if (info === 'html') { run.push('<pre><code>' + esc(body) + '</code></pre>'); notes.push('An html fence was kept as code, not as page markup.'); return; }
         run.push('<pre><code>' + esc(body) + '</code></pre>');

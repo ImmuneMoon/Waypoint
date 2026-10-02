@@ -5,79 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Waypoint</title>
   <link rel="icon" type="image/x-icon" href="icon.ico">
-  <script>try { if (localStorage.getItem('wp_theme') === 'light') document.documentElement.setAttribute('data-theme', 'light'); } catch (e) {}</script>
+  <script src="scripts/boottheme.js"></script>
 <link rel="stylesheet" href="style.css">
-<script>
-function showErrorBanner(text, color, top) {
-    var errDiv = document.createElement('div');
-    errDiv.style.position = 'absolute';
-    errDiv.style.top = top;
-    errDiv.style.left = '0';
-    errDiv.style.backgroundColor = color;
-    errDiv.style.color = 'white';
-    errDiv.style.zIndex = '999999';
-    errDiv.style.padding = '12px 20px';
-    errDiv.style.cursor = 'pointer';
-    errDiv.style.fontSize = '13px';
-    errDiv.textContent = text + '  (click to dismiss)';
-    errDiv.addEventListener('click', function() { errDiv.remove(); });
-    setTimeout(function() { errDiv.remove(); }, 12000);
-    document.body.appendChild(errDiv);
-}
-window.addEventListener('error', function(e) {
-    showErrorBanner("ERROR: " + e.message + " in " + e.filename + ":" + e.lineno, '#c0392b', '0');
-});
-window.addEventListener('unhandledrejection', function(e) {
-    showErrorBanner("PROMISE REJECTION: " + (e.reason && e.reason.message ? e.reason.message : e.reason), '#d68910', '50px');
-});
-</script>
+<script src="scripts/booterror.js"></script>
 <script src="/api/prefs.js"></script>
-<script>
-/* Shared preferences (1.1.2): every wp_* setting in localStorage is mirrored to
-   saves/preferences.json through the shell, and a newer file wins on launch — so
-   settings follow the saves folder instead of one install's browser profile.
-   Nothing here runs when the file endpoint is absent (a plain browser client). */
-(function() {
-    var f = window.wpFilePrefs;
-    var stamp = 0; try { stamp = parseInt(localStorage.getItem('wp_prefsStamp'), 10) || 0; } catch (e) {}
-    if (f && f.prefs && typeof f.prefs === 'object' && (f.updated || 0) > stamp) {
-        try {
-            // Identity is never lost to the mirror: the profile (its id is what tokens are owned by) and the table keys
-            // (how a returning player proves that id) are kept when the file lacks them, a nameless file profile never
-            // blanks a typed name, and table keys from both sides are merged rather than replaced. The same for a GM's signing
-            // key (wp_gmSign: a file that lacks it never takes it away) and what a player's app knows of its GMs (wp_gmPins,
-            // wp_gmRooms: merged, at most 50 of each).
-            var KEEP = { wp_profile: 1, wp_tableKeys: 1, wp_gmSign: 1, wp_gmPins: 1, wp_gmRooms: 1 };
-            var local = []; for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (k && k.indexOf('wp_') === 0 && k !== 'wp_prefsStamp') local.push(k); }
-            local.forEach(function(k) { if (!(k in f.prefs) && !KEEP[k]) localStorage.removeItem(k); });
-            Object.keys(f.prefs).forEach(function(k) {
-                if (k.indexOf('wp_') !== 0) return;
-                if (k === 'wp_profile') { try { var fp = JSON.parse(f.prefs[k]), lp = JSON.parse(localStorage.getItem(k) || 'null'); if (fp && typeof fp === 'object') { if (lp && lp.id && !fp.id) fp.id = lp.id; if (lp && lp.name && !fp.name) fp.name = lp.name; localStorage.setItem(k, JSON.stringify(fp)); return; } } catch (e) {} }
-                if (k === 'wp_tableKeys') { try { var fk = JSON.parse(f.prefs[k]), lk = JSON.parse(localStorage.getItem(k) || 'null'); if (fk && typeof fk === 'object' && !Array.isArray(fk)) { var mk = Object.assign({}, lk && typeof lk === 'object' ? lk : {}, fk), mks = Object.keys(mk); while (mks.length > 50) delete mk[mks.shift()]; try { localStorage.setItem(k, JSON.stringify(mk)); } catch (e2) {} return; } } catch (e) {} }   // at most 50 (as net.js keeps them), the oldest out; a full store ends this key, not the whole merge
-                if (k === 'wp_gmPins' || k === 'wp_gmRooms') { try { var fg = JSON.parse(f.prefs[k]), lg = JSON.parse(localStorage.getItem(k) || 'null'); if (fg && typeof fg === 'object' && !Array.isArray(fg)) { var mg = Object.assign({}, lg && typeof lg === 'object' && !Array.isArray(lg) ? lg : {}, fg), mgs = Object.keys(mg); while (mgs.length > 50) delete mg[mgs.shift()]; try { localStorage.setItem(k, JSON.stringify(mg)); } catch (e2) {} return; } } catch (e) {} }   // the GMs a player's app knows, merged the same way (net.js cleans each entry again as it reads it)
-                localStorage.setItem(k, String(f.prefs[k]));
-            });
-            localStorage.setItem('wp_prefsStamp', String(f.updated));
-        } catch (e) {}
-    }
-    var timer = null;
-    function push() {
-        timer = null;
-        try {
-            var prefs = {}; for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (k && k.indexOf('wp_') === 0 && k !== 'wp_prefsStamp') prefs[k] = localStorage.getItem(k); }
-            var updated = Date.now();
-            localStorage.setItem('wp_prefsStamp', String(updated));
-            fetch('/api/prefs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ updated: updated, prefs: prefs }) }).catch(function() {});
-        } catch (e) {}
-    }
-    function schedule() { if (timer) clearTimeout(timer); timer = setTimeout(push, 400); }
-    var isPref = function(store, k) { return store === localStorage && typeof k === 'string' && k.indexOf('wp_') === 0 && k !== 'wp_prefsStamp'; };
-    var S = Storage.prototype, set = S.setItem, rem = S.removeItem;
-    S.setItem = function(k, v) { set.call(this, k, v); if (isPref(this, k)) schedule(); };
-    S.removeItem = function(k) { rem.call(this, k); if (isPref(this, k)) schedule(); };
-    window.wpPrefsPush = push;
-})();
-</script>
+<script src="scripts/bootprefs.js"></script>
 <script type="module" src="scripts/formula.js"></script>
 <script type="module" src="scripts/systemcore.js"></script>
 <script type="module" src="scripts/librarycore.js"></script>
@@ -116,24 +48,10 @@ window.addEventListener('unhandledrejection', function(e) {
 <script type="module" src="scripts/tutorial.js"></script>
 <script type="module" src="scripts/devconsole.js"></script>
 <script src="scripts/tooltips.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script>
-  // The full mermaid config is published: handbook.js re-initialises with securityLevel 'strict' while a
-  // joined player has someone else's campaign on screen (initialize() rebuilds the whole config from it).
-  // A diagram's labels are HTML that mermaid cleans itself (DOMPurify, in every security level): no picture, no inline style, no
-  // link in a label, so a diagram from a file or another table never makes this machine fetch an address (a picture or a url()).
-  // 'secure' keeps a diagram's own %%{init}%% directive from changing that.
-  window.wpMermaidConfig = { startOnLoad: false, securityLevel: 'loose', flowchart: { curve: 'basis', useMaxWidth: true },
-      dompurifyConfig: { FORBID_TAGS: ['style', 'img', 'image', 'picture', 'source', 'video', 'audio', 'track', 'iframe', 'object', 'embed', 'link', 'meta', 'base', 'svg', 'math', 'form', 'input', 'button'], FORBID_ATTR: ['style', 'src', 'srcset', 'href', 'xlink:href', 'background', 'poster', 'action', 'formaction', 'ping'] },
-      secure: ['secure', 'securityLevel', 'startOnLoad', 'maxTextSize', 'maxEdges', 'dompurifyConfig'] };
-  document.addEventListener("DOMContentLoaded", function() {
-      if (window.mermaid) {
-          mermaid.initialize(window.wpMermaidConfig);
-      }
-  });
-</script>
+<script src="assets/vendor/peerjs.min.js"></script>
+<script src="assets/vendor/mermaid.min.js"></script>
+<script src="assets/vendor/html2canvas.min.js"></script>
+<script src="scripts/bootdiagram.js"></script>
 </head>
 <body>
 <div class="app">
@@ -240,7 +158,7 @@ window.addEventListener('unhandledrejection', function(e) {
               <div style="font-size:11px; color:var(--ink-dim); margin-top:6px; line-height:1.5;">Found a bug? Email us what you were doing, what you expected, and what happened instead &mdash; screenshots welcome.</div>
           </div>
 
-          <div style="font-size:11px; color:var(--ink-dim); text-align:center; margin-bottom:10px;">Includes the Inter typeface (SIL Open Font License 1.1) and Font Awesome Free icons (CC BY 4.0).</div>
+          <div style="font-size:11px; color:var(--ink-dim); text-align:center; margin-bottom:10px;">Includes the Inter typeface (SIL Open Font License 1.1), Font Awesome Free icons (CC BY 4.0), and PeerJS, Mermaid and html2canvas (MIT License).</div>
           <div style="display:flex; justify-content:center; gap: 10px; flex-wrap:wrap;">
               <button class="tool ghost" id="aboutNotesBtn">What's New</button>
               <button class="tool ghost" id="aboutTermsBtn">Terms of Use</button>
@@ -311,7 +229,7 @@ window.addEventListener('unhandledrejection', function(e) {
                           <li><b>Restore the previous version</b> shows in the same place after an update: it puts the app back as it was before that update (one step back) and reloads. Your campaigns are not touched, and you can update again afterwards. Leave or end a multiplayer session first.</li>
                           <li>An update that changes Waypoint&rsquo;s core is one click too: <b>Update</b> downloads the new version, checks its signature the same way, closes Waypoint, installs it and opens Waypoint again. Your campaigns and settings are not touched; leave or end a multiplayer session first. Where that cannot be done (a copy older than 1.5.0, a copy the installer did not put there, a download that fails) <b>Get Installer</b> shows the steps before anything downloads: Windows may warn that it does not recognise the publisher, because the installer is not code-signed yet, so only run a <b>Waypoint_Setup.exe</b> you downloaded through that button or from Waypoint&rsquo;s own releases page.</li>
                       </ul>
-                      <div class="help-tip">Waypoint works fully offline. Internet is only needed for Multiplayer and for diagram blocks in Planners.</div>
+                      <div class="help-tip">Waypoint works fully offline. Internet is only needed for Multiplayer.</div>
                   </div>
 
                   <div class="help-pane" data-pane="tutorial" style="display:none;">
@@ -487,7 +405,7 @@ window.addEventListener('unhandledrejection', function(e) {
                       </ul>
                       <h4>Import and export</h4>
                       <p>A planner can come in from a <b>Markdown</b> file &mdash; the <b>import</b> button in the planner toolbar appends to the open planner, the file button on the Planners header&rsquo;s right-click menu makes a new one, and the header <b>Import</b> button takes a <code>.md</code> too &mdash; with a preview of every block before anything is written; <code>### Scene: Name</code> opens a scene node. <b>Save Markdown</b> on the Export menu writes it back out. The format is under <b>Handbook &rsaquo; Import and export</b>.</p>
-                      <div class="help-tip">Diagram blocks render with an internet connection. In multiplayer, planners are never sent to players &mdash; they are yours alone. For pages your players <i>can</i> read, see <b>Handbook</b>.</div>
+                      <div class="help-tip">In multiplayer, planners are never sent to players &mdash; they are yours alone. For pages your players <i>can</i> read, see <b>Handbook</b>.</div>
                       <h4>Appearance</h4>
                       <p>The <b>&#127912;</b> button in the planner toolbar gives the open page an optional <b>font</b>, <b>text color</b>, <b>background color</b> and <b>background image</b>. Each is an override, so anything you leave alone keeps the app&rsquo;s own style, and <b>Reset</b> clears them. Pick a background picture from your image library with <b>Choose picture&hellip;</b>; a <b>Dim</b> slider lays an adjustable dark scrim over it so your text stays readable (&times; removes the page&rsquo;s own picture; a campaign-default picture goes with <b>Clear default</b>, and a page can still re-dim it). <b>Use this page&rsquo;s look as the default</b> makes it the <b>campaign default</b> &mdash; inherited by every planner, Handbook page and character sheet that has no look of its own, and sent to your players&rsquo; Handbook &mdash; players already at the table get it the moment you change it &mdash; so their pages match yours (fonts come from a fixed list, colors are plain, and a background picture is a library reference, so a themed page can never carry anything unsafe to a player). <b>Clear default</b> removes it.</p>
                   </div>
@@ -540,10 +458,10 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           <li>Everything between two headings becomes <b>one</b> text block; a rule (<code>---</code>) splits it.</li>
                           <li>Raw HTML in a file never becomes a raw block: the tags a page allows (bold, italic, underline, lists, links to http(s)) survive, the rest is dropped and its text kept.</li>
                           <li>Scene nodes are planner-only: <code>### Scene: The docks</code> with <code>**Tag:**</code>, <code>**Must resolve:**</code> and <code>Map: title / room</code> lines under it, then a table of routes.</li>
-                          <li>Not read: footnotes, task boxes, setext (<code>====</code>) headings, nested quotes, links that are not http(s). Diagrams draw with an internet connection.</li>
+                          <li>Not read: footnotes, task boxes, setext (<code>====</code>) headings, nested quotes, links that are not http(s).</li>
                       </ul>
                       <h4>What players see</h4>
-                      <p>A joined player's left panel shows only the Handbook tree: the readable pages of your campaign, in your order and nesting. Clicking one opens it in a panel over the map; <kbd>Esc</kbd> or the &times; closes it; the map, tokens and chat keep working beside it. Players cannot edit, rename, move or save a page &mdash; it is a copy that lives only while they are at your table. Pictures on a page reach them the same way play-map images do. Flowcharts render as you arranged them; diagram blocks render with an internet connection, in a stricter mode that ignores link and click directives.</p>
+                      <p>A joined player's left panel shows only the Handbook tree: the readable pages of your campaign, in your order and nesting. Clicking one opens it in a panel over the map; <kbd>Esc</kbd> or the &times; closes it; the map, tokens and chat keep working beside it. Players cannot edit, rename, move or save a page &mdash; it is a copy that lives only while they are at your table. Pictures on a page reach them the same way play-map images do. Flowcharts render as you arranged them; diagram blocks render in a stricter mode that ignores link and click directives.</p>
                       <div class="help-tip">Pages are for rules and reference, not for secrets: a page a player can read is a page every player at the table can read. Keep the twist in a planner or a room note.</div>
                   </div>
 
@@ -797,7 +715,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           <li><b>&#129522; Snap</b> &nbsp; Toggle grid snapping (remembered between launches)</li>
                       </ul>
                       <h4 id="helpDevMode">Developer mode</h4>
-                      <p><b>Developer mode</b> (&#9881; Settings &#9656; Advanced; off unless you switch it on) unlocks two tools for debugging and scripting: <kbd>~</kbd> drops down the in-app console, and in the installed app <kbd>Ctrl + Shift + I</kbd> &mdash; or <b>Developer tools</b> on the View menu, which <kbd>Alt</kbd> shows &mdash; opens the developer tools. While it is off, neither opens. It asks before it turns on, because these tools can change or break your campaigns, your settings and Waypoint itself if they are used incorrectly: only type or paste something into them when you know what it does, never because someone asked you to. Switching it off closes both.</p>
+                      <p><b>Developer mode</b> (&#9881; Settings &#9656; Advanced; off unless you switch it on) unlocks two tools for debugging and scripting: <kbd>~</kbd> drops down the in-app console, and in the installed app <kbd>Ctrl + Shift + I</kbd> &mdash; or <b>Developer tools</b> on the View menu, which <kbd>Alt</kbd> shows &mdash; opens the developer tools. While it is off, neither opens. It asks before it turns on, because these tools can change or break your campaigns, your settings and Waypoint itself if they are used incorrectly: only type or paste something into them when you know what it does, never because someone asked you to. Switching it off closes both. Switching it on or off reloads Waypoint, so it cannot be switched during a multiplayer session.</p>
                   </div>
 
               </div>
@@ -1836,7 +1754,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         <div style="margin-bottom:12px;">
             <div class="set-field-label" style="display:flex; justify-content:space-between;">Developer mode <span id="setDevConsoleState" style="color:var(--dim);"></span></div>
             <button class="tool ghost" id="setDevConsoleBtn" style="width:100%;">Toggle Developer mode</button>
-            <div style="color:var(--dim); font-size:10.5px; line-height:1.5; margin-top:6px;">When on, <b>~</b> drops down a JavaScript console and, in the installed app, <b>Ctrl+Shift+I</b> opens the developer tools &mdash; for debugging and power users. It asks before it turns on: used incorrectly, these tools can change or break your campaigns and settings. Off by default.</div>
+            <div style="color:var(--dim); font-size:10.5px; line-height:1.5; margin-top:6px;">When on, <b>~</b> drops down a JavaScript console and, in the installed app, <b>Ctrl+Shift+I</b> opens the developer tools &mdash; for debugging and power users. It asks before it turns on: used incorrectly, these tools can change or break your campaigns and settings. Waypoint reloads when you switch it. Off by default.</div>
         </div>
             <div style="display:flex; flex-direction:column; gap:8px;">
             <button class="tool ghost" id="setResetLayoutBtn" title="Restore both side panels to their default widths">Reset Panel Layout</button>

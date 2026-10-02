@@ -1,0 +1,602 @@
+/* Offline check of text formats: the styling of a plain text field, stored beside the text (system/app/scripts/textfmt.js),
+   and the planner / page editor's Text style bar that writes it (planner.js, sliced by its [textcheck:...] markers and
+   run for real on a page of plain objects — never copied).
+   The core: every rule of cleanFmt (a seeded list of spans flattened to what painting them in order onto an array of
+   characters gives; surrogate pairs; hostile and prototype keys; the same twice; nothing left -> undefined), respan (an edit
+   before, inside, after; a cut; a full replacement; a seeded walk in which every character that survives keeps its look),
+   runsOf, apply / clear / stateAt.
+   The editor: where each field's format lives, typing carrying it, the bar's presses, and a seeded sequence of structure
+   edits against a plain model.
+   Run: node tools/textcheck.js */
+'use strict';
+const fs = require('fs'), path = require('path');
+const dir = path.join(__dirname, '..', 'system', 'app', 'scripts');
+const modUrl = f => 'file:///' + path.resolve(path.join(dir, f)).replace(/\\/g, '/');
+const read = f => fs.readFileSync(path.join(dir, f), 'utf8').replace(/\r\n/g, '\n');
+function slice(file, name) {
+    const src = read(file), a = '// [textcheck:' + name + '-start]', b = '// [textcheck:' + name + '-end]';
+    const i = src.indexOf(a), j = src.indexOf(b);
+    if (i < 0 || j < 0 || j <= i) throw new Error('textcheck: marker ' + name + ' not found in ' + file);
+    if (src.indexOf(a, i + 1) >= 0 || src.indexOf(b, j + 1) >= 0) throw new Error('textcheck: marker ' + name + ' is not unique in ' + file);
+    return src.slice(i + a.length, j);
+}
+
+let pass = 0, fail = 0;
+function check(name, ok, detail) { if (ok) { pass++; console.log('ok       ', name); } else { fail++; console.log('FAIL     ', name, detail !== undefined ? '-> ' + (typeof detail === 'string' ? detail : JSON.stringify(detail)).slice(0, 500) : ''); } }
+const J = v => JSON.stringify(v);
+function rng(seed) { let a = seed >>> 0; return function() { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const RED = '#d9534f', GREEN = '#5cb87a', BLUE = '#4db3d3';
+
+let summed = false;   // a check that never settles (a promise nothing answers) would let Node exit with no summary and code 0: that is a failure
+process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      the asynchronous checks never finished (a promise was left waiting)'); process.exitCode = 1; } });
+(async () => {
+    let TF = null, loadErr = null;
+    try { TF = await import(modUrl('textfmt.js')); } catch (e) { loadErr = e; }
+    check('textfmt.js loads in Node with no window (a pure leaf: no imports, no DOM)', !!TF && !loadErr && !/^\s*import\s/m.test(read('textfmt.js')) && !/\bdocument\b/.test(read('textfmt.js').replace(/\/\*[\s\S]*?\*\//, '')), loadErr && loadErr.message);
+    if (!TF) { console.log('\n' + pass + ' passed, ' + fail + ' failed.'); process.exit(1); }
+    const { cleanFmt, runsOf, respan, apply, clear, stateAt, SIZES, SIZE_EM, PALETTE, MAX_SPANS, MAX_RAW } = TF;
+
+    /* ================= cleanFmt ================= */
+    check('cleanFmt: only a plain object is a format (null, a string, a number, a list -> undefined)',
+        [null, undefined, 'bold', 7, true, [], [{ b: true }]].every(v => cleanFmt(v, 'text') === undefined));
+    check('cleanFmt: nothing left -> undefined, never an empty object',
+        [{}, { spans: [] }, { b: false, i: 0 }, { size: 'normal' }, { color: '' }, { spans: [{ s: 0, e: 3 }] }, { spans: [{ s: 2, e: 2, b: true }] }, { spans: 'x' }].every(v => cleanFmt(v, 'text') === undefined));
+    check('cleanFmt: the size is one of the fixed steps (keys, never a number of pixels)',
+        J(SIZES) === J(['small', 'large', 'larger', 'huge']) && SIZES.every(k => J(cleanFmt({ size: k }, 'x')) === J({ size: k }) && /^\d(\.\d+)?em$/.test(SIZE_EM[k]))
+        && ['Large', '20px', '2em', 20, 'huge;color:red', 'constructor', '__proto__', 'toString'].every(v => cleanFmt({ size: v }, 'x') === undefined));
+    check('cleanFmt: a colour is a strict #rrggbb, kept in lower case',
+        J(cleanFmt({ color: '#D9534F' }, 'x')) === J({ color: RED })
+        && ['#fff', 'red', '#d9534f80', 'rgb(1,2,3)', '#d9534f;background:url(//evil.example/x)', 'url(x)', ' #d9534f', '#d9534g', 0xd9534f, ['#d9534f']].every(v => cleanFmt({ color: v }, 'x') === undefined));
+    check('cleanFmt: bold and italic only as true',
+        J(cleanFmt({ b: true, i: true }, 'x')) === J({ b: true, i: true }) && [1, 'true', 'yes', {}, []].every(v => cleanFmt({ b: v, i: v }, 'x') === undefined));
+    check('cleanFmt: the keys come out in one fixed order (size, color, b, i, spans; s, e, color, b, i)',
+        J(cleanFmt({ spans: [{ i: true, b: true, color: GREEN, e: 2, s: 0 }], i: true, color: RED, size: 'large' }, 'text')) === J({ size: 'large', color: RED, i: true, spans: [{ s: 0, e: 2, color: GREEN, b: true }] }));
+    check('cleanFmt: a span needs whole-number offsets inside the text (a fraction, a string, a negative start, an empty or backward range, one past the end: dropped)',
+        [{ s: 0.5, e: 2 }, { s: 0, e: 2.5 }, { s: '0', e: 2 }, { s: 0, e: '2' }, { s: -1, e: 2 }, { s: 2, e: 2 }, { s: 3, e: 1 }, { s: 4, e: 9 }, { s: 9, e: 12 }, { s: NaN, e: 2 }, { s: 0, e: Infinity }, { e: 2 }, { s: 0 }, null, 'x', [0, 2]].every(sp => cleanFmt({ spans: [Object.assign({ b: true }, sp)] }, 'text') === undefined));
+    check('cleanFmt: a span that runs past the end is cut at the end',
+        J(cleanFmt({ spans: [{ s: 2, e: 99, b: true }] }, 'text')) === J({ spans: [{ s: 2, e: 4, b: true }] }) && J(cleanFmt({ spans: [{ s: 0, e: 1e300, i: true }] }, 'text')) === J({ spans: [{ s: 0, e: 4, i: true }] }));
+    check('cleanFmt: spans come out sorted',
+        J(cleanFmt({ spans: [{ s: 6, e: 8, b: true }, { s: 0, e: 2, i: true }, { s: 3, e: 4, color: RED }] }, 'abcdefghij')) === J({ spans: [{ s: 0, e: 2, i: true }, { s: 3, e: 4, color: RED }, { s: 6, e: 8, b: true }] }));
+    check('cleanFmt: overlapping spans are flattened, the later one winning on the keys it sets',
+        J(cleanFmt({ spans: [{ s: 0, e: 6, color: RED, b: true }, { s: 2, e: 4, color: GREEN }] }, 'abcdefgh')) === J({ spans: [{ s: 0, e: 2, color: RED, b: true }, { s: 2, e: 4, color: GREEN, b: true }, { s: 4, e: 6, color: RED, b: true }] })
+        && J(cleanFmt({ spans: [{ s: 2, e: 4, color: GREEN }, { s: 0, e: 6, color: RED }] }, 'abcdefgh')) === J({ spans: [{ s: 0, e: 6, color: RED }] }));
+    check('cleanFmt: neighbours of one look are merged',
+        J(cleanFmt({ spans: [{ s: 0, e: 2, b: true }, { s: 2, e: 5, b: true }, { s: 5, e: 6, b: true, color: RED }] }, 'abcdefgh')) === J({ spans: [{ s: 0, e: 5, b: true }, { s: 5, e: 6, color: RED, b: true }] }));
+    check('cleanFmt: a span that adds nothing to the base is dropped (the base colour again, bold under a bold base)',
+        J(cleanFmt({ color: RED, b: true, spans: [{ s: 0, e: 2, color: RED }, { s: 2, e: 4, b: true }, { s: 4, e: 6, color: '#D9534F', b: true }] }, 'abcdefgh')) === J({ color: RED, b: true })
+        && J(cleanFmt({ color: RED, spans: [{ s: 1, e: 3, color: RED, i: true }] }, 'abcd')) === J({ color: RED, spans: [{ s: 1, e: 3, i: true }] }));
+    {
+        const many = []; for (let k = 0; k < 300; k++) many.push({ s: k * 2, e: k * 2 + 1, b: true });
+        const c = cleanFmt({ spans: many }, 'x'.repeat(700));
+        check('cleanFmt: at most ' + MAX_SPANS + ' spans a field, the first ones in the text\'s order', MAX_SPANS === 200 && c.spans.length === 200 && c.spans[0].s === 0 && c.spans[199].s === 398, c.spans.length);
+        const split = many.slice(0, 199).concat([{ s: 500, e: 503, b: true }, { s: 503, e: 507, b: true }, { s: 600, e: 601, b: true }]), cs = cleanFmt({ spans: split }, 'x'.repeat(700));
+        check('cleanFmt: the cap counts whole spans — neighbours of one look are one span before they are counted', cs.spans.length === 200 && JSON.stringify(cs.spans[199]) === JSON.stringify({ s: 500, e: 507, b: true }), cs.spans[199]);
+        const raw = []; for (let k = 0; k < 1000; k++) raw.push({ s: 1500 - k, e: 1501 - k, i: true, color: k % 2 ? RED : GREEN });
+        const c2 = cleanFmt({ spans: raw }, 'y'.repeat(2000));
+        check('cleanFmt: only the first ' + MAX_RAW + ' entries of a stored list are read', MAX_RAW === 400 && c2.spans.length === 200 && c2.spans[0].s === 1101, c2.spans[0]);
+        let t0 = Date.now(); const big = []; for (let k = 0; k < 200000; k++) big.push({ s: k % 1900, e: (k % 1900) + 50, b: true, color: RED });
+        cleanFmt({ spans: big }, 'z'.repeat(2000));
+        check('cleanFmt: a list of 200,000 spans costs no more than a short one', Date.now() - t0 < 1500, Date.now() - t0);
+    }
+    {
+        const hostile = JSON.parse('{"b":true,"__proto__":{"i":true,"color":"#5cb87a"},"constructor":{"prototype":{"x":1}},"style":"color:red","onclick":"alert(1)","url":"//evil.example","spans":[{"s":0,"e":2,"color":"#d9534f","__proto__":{"b":true},"style":"x","href":"javascript:alert(1)"}]}');
+        const c = cleanFmt(hostile, 'text');
+        check('cleanFmt: every other key is ignored (a style, a handler, a URL, __proto__, constructor): only the known keys come out',
+            J(c) === J({ b: true, spans: [{ s: 0, e: 2, color: RED }] }) && Object.keys(c).join() === 'b,spans' && Object.keys(c.spans[0]).join() === 's,e,color' && ({}).i === undefined && ({}).x === undefined, c);
+        const inherited = Object.create({ b: true, color: RED, size: 'huge', spans: [{ s: 0, e: 2, i: true }] });
+        const spanInherit = Object.create({ s: 0, e: 2, b: true });
+        check('cleanFmt: a key a format or a span only inherits is not read', cleanFmt(inherited, 'text') === undefined && cleanFmt({ spans: [spanInherit] }, 'text') === undefined);
+        const frozen = Object.freeze({ color: RED, spans: Object.freeze([Object.freeze({ s: 0, e: 2, b: true })]) });
+        const out = cleanFmt(frozen, 'text');
+        check('cleanFmt: the result is a new object, the one given is left as it was', J(out) === J({ color: RED, spans: [{ s: 0, e: 2, b: true }] }) && out !== frozen && out.spans !== frozen.spans && out.spans[0] !== frozen.spans[0]);
+    }
+    {
+        const t = 'a😀b😁c';   // a, a pair (1-2), b (3), a pair (4-5), c (6)
+        check('cleanFmt: an offset inside a surrogate pair moves out to the pair\'s edge (never half a character)',
+            J(cleanFmt({ spans: [{ s: 2, e: 4, b: true }] }, t)) === J({ spans: [{ s: 1, e: 4, b: true }] })
+            && J(cleanFmt({ spans: [{ s: 0, e: 2, b: true }] }, t)) === J({ spans: [{ s: 0, e: 3, b: true }] })
+            && J(cleanFmt({ spans: [{ s: 2, e: 5, color: RED }] }, t)) === J({ spans: [{ s: 1, e: 6, color: RED }] })
+            && J(cleanFmt({ spans: [{ s: 1, e: 3, i: true }] }, t)) === J({ spans: [{ s: 1, e: 3, i: true }] })
+            && runsOf(t, { spans: [{ s: 2, e: 5, color: RED }] }).every(r => !/^[\udc00-\udfff]/.test(r.t) && !/[\ud800-\udbff]$/.test(r.t)));
+    }
+    // a seeded list of spans, flattened: what painting them in order onto an array of characters gives
+    {
+        const R = rng(20261002), colors = [RED, GREEN, BLUE, '#D9534F', 'red', '#fff'], sizes = ['small', 'large', 'nope', undefined];
+        let bad = null, twice = null, shape = null, n = 0;
+        for (let round = 0; round < 400 && !bad && !twice && !shape; round++) {
+            const len = 1 + Math.floor(R() * 40), text = Array.from({ length: len }, () => 'abcdef '[Math.floor(R() * 7)]).join('');
+            const fmt = {}; if (R() < 0.3) fmt.color = colors[Math.floor(R() * colors.length)]; if (R() < 0.3) fmt.b = true; if (R() < 0.2) fmt.i = R() < 0.8 ? true : 1; if (R() < 0.3) fmt.size = sizes[Math.floor(R() * sizes.length)];
+            fmt.spans = Array.from({ length: Math.floor(R() * 14) }, () => {
+                const s = Math.floor(R() * (len + 3)) - 1, e = s + Math.floor(R() * 12) - 1, sp = { s, e };
+                if (R() < 0.6) sp.color = colors[Math.floor(R() * colors.length)]; if (R() < 0.4) sp.b = R() < 0.9 ? true : 'yes'; if (R() < 0.3) sp.i = true;
+                return R() < 0.05 ? null : sp;
+            });
+            // the model: one cell per character, the base first, then each span painted in the list's order
+            const hexOf = v => typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v) ? v.toLowerCase() : '';
+            const cells = Array.from({ length: len }, () => ({ color: hexOf(fmt.color), b: fmt.b === true, i: fmt.i === true }));
+            fmt.spans.forEach(sp => {
+                if (!sp || !Number.isInteger(sp.s) || !Number.isInteger(sp.e) || sp.s < 0) return;
+                for (let k = sp.s; k < Math.min(sp.e, len); k++) { if (hexOf(sp.color)) cells[k].color = hexOf(sp.color); if (sp.b === true) cells[k].b = true; if (sp.i === true) cells[k].i = true; }
+            });
+            const want = cells.map(c => c.color + '|' + c.b + '|' + c.i);
+            const got = []; runsOf(text, fmt).forEach(r => { for (let k = 0; k < r.t.length; k++) got.push(r.color + '|' + r.b + '|' + r.i); });
+            if (J(got) !== J(want)) bad = { text, fmt, got, want };
+            const c1 = cleanFmt(fmt, text), c2 = cleanFmt(c1, text);
+            if (J(c1) !== J(c2)) twice = { fmt, c1, c2 };
+            if (c1 && c1.spans) { for (let k = 0; k < c1.spans.length; k++) { const sp = c1.spans[k], pv = c1.spans[k - 1]; if (!(sp.s >= 0 && sp.s < sp.e && sp.e <= len) || (pv && pv.e > sp.s) || (pv && pv.e === sp.s && J([pv.color, pv.b, pv.i]) === J([sp.color, sp.b, sp.i]))) shape = { c1 }; } }
+            if (c1 && J(Object.keys(c1).filter(k => ['size', 'color', 'b', 'i', 'spans'].indexOf(k) < 0)) !== '[]') shape = { c1 };
+            n++;
+        }
+        check('cleanFmt (seeded, 400 formats): the flattened spans paint each character as painting the list in order does', !bad && n === 400, bad);
+        check('cleanFmt (seeded): cleaned twice is the same as cleaned once', !twice, twice);
+        check('cleanFmt (seeded): what comes out is sorted, inside the text, never overlapping, no two neighbours alike, known keys only', !shape, shape);
+    }
+
+    /* ================= runsOf ================= */
+    check('runsOf: no format is one plain run; an empty text is no run',
+        J(runsOf('hello', undefined)) === J([{ t: 'hello', color: '', b: false, i: false }]) && J(runsOf('', { b: true })) === '[]' && J(runsOf(null, { b: true })) === '[]');
+    check('runsOf: the base lies under the spans, and the runs join back to the text',
+        J(runsOf('buy milk', { color: RED, i: true, spans: [{ s: 4, e: 8, color: GREEN, b: true }] })) === J([{ t: 'buy ', color: RED, b: false, i: true }, { t: 'milk', color: GREEN, b: true, i: true }])
+        && runsOf('a\nb c', { spans: [{ s: 1, e: 3, b: true }] }).map(r => r.t).join('') === 'a\nb c');
+    check('runsOf: a hostile format draws plain (one run, no colour) — and a size or a colour that is no colour never reaches a run',
+        J(runsOf('x<y', { color: 'red;background:url(//evil.example)', b: 'yes', spans: [{ s: 0, e: 2, color: 'url(x)' }] })) === J([{ t: 'x<y', color: '', b: false, i: false }]));
+    check('runsOf draws what cleanFmt keeps: past the 200th span the text is plain', (() => {
+        const many = []; for (let k = 0; k < 300; k++) many.push({ s: k * 2, e: k * 2 + 1, b: true });
+        const runs = runsOf('x'.repeat(700), { spans: many }); return runs.filter(r => r.b).length === 200 && runs[runs.length - 1].t.length === 700 - 399;
+    })());
+
+    /* ================= respan ================= */
+    const F1 = { color: RED, spans: [{ s: 4, e: 8, color: GREEN }] };   // 'buy milk now': milk
+    check('respan: unchanged text keeps the format as it is', J(respan('buy milk now', 'buy milk now', F1)) === J(F1));
+    check('respan: typing before a span moves it along', J(respan('buy milk now', 'do buy milk now', F1, 3)) === J({ color: RED, spans: [{ s: 7, e: 11, color: GREEN }] }));
+    check('respan: typing inside a span grows it', J(respan('buy milk now', 'buy miilk now', F1, 7)) === J({ color: RED, spans: [{ s: 4, e: 9, color: GREEN }] }));
+    check('respan: typing after a span leaves it where it is', J(respan('buy milk now', 'buy milk now!', F1, 13)) === J(F1));
+    check('respan: typing right at a span\'s end or right at its start is outside it',
+        J(respan('buy milk now', 'buy milks now', F1, 9)) === J(F1) && J(respan('buy milk now', 'buy xmilk now', F1, 5)) === J({ color: RED, spans: [{ s: 5, e: 9, color: GREEN }] }));
+    check('respan: a deletion that cuts into a span leaves what survives (its end, its start, its middle)',
+        J(respan('buy milk now', 'buy mi now', F1, 6)) === J({ color: RED, spans: [{ s: 4, e: 6, color: GREEN }] })
+        && J(respan('buy milk now', 'bulk now', F1, 2)) === J({ color: RED, spans: [{ s: 2, e: 4, color: GREEN }] })
+        && J(respan('buy milk now', 'buy mk now', F1, 5)) === J({ color: RED, spans: [{ s: 4, e: 6, color: GREEN }] }));
+    check('respan: a span wholly inside what was replaced goes; the base stays',
+        J(respan('buy milk now', 'buy tea now', F1, 7)) === J({ color: RED }) && J(respan('buy milk now', 'x', F1, 1)) === J({ color: RED }) && J(respan('buy milk now', '', F1, 0)) === J({ color: RED }));
+    check('respan: no format in, none out; a base alone needs no text', respan('a', 'b', undefined) === undefined && respan('a', 'b', { spans: [] }) === undefined && J(respan('abc', 'xyz', { b: true, size: 'large' })) === J({ size: 'large', b: true }));
+    check('respan: the caret tells where a run of equal characters was edited',
+        J(respan('xaay', 'xaaay', { spans: [{ s: 1, e: 2, b: true }] }, 2)) === J({ spans: [{ s: 2, e: 3, b: true }] })       // typed before the bold a
+        && J(respan('xaay', 'xaaay', { spans: [{ s: 1, e: 2, b: true }] }, 4)) === J({ spans: [{ s: 1, e: 2, b: true }] })    // typed after both
+        && J(respan('xaay', 'xaaay', { spans: [{ s: 1, e: 2, b: true }] })) === J({ spans: [{ s: 1, e: 2, b: true }] })       // no caret: still one bold a
+        && J(respan('xaay', 'xaaay', { spans: [{ s: 1, e: 2, b: true }] }, 99)) === J({ spans: [{ s: 1, e: 2, b: true }] }));  // a caret that cannot be: ignored
+    check('respan: an edit next to a surrogate pair never leaves half of it styled',
+        (() => { const o = 'a😀b', nw = 'a😁b', f = respan(o, nw, { spans: [{ s: 0, e: 4, color: RED }, { s: 1, e: 3, b: true }] }, 3); return runsOf(nw, f).every(r => !/^[\udc00-\udfff]/.test(r.t) && !/[\ud800-\udbff]$/.test(r.t)) && runsOf(nw, f).map(r => r.t).join('') === nw; })());
+    // a seeded walk: every character that survives an edit keeps its look, with and without the caret
+    {
+        const R = rng(7741), alpha = 'ab c\nd';
+        const look = (text, fmt) => { const out = []; runsOf(text, fmt).forEach(r => { for (let k = 0; k < r.t.length; k++) out.push(r.color + '|' + r.b + '|' + r.i); }); return out; };
+        let bad = null, steps = 0, styled = 0;
+        for (let round = 0; round < 60 && !bad; round++) {
+            let text = Array.from({ length: 6 + Math.floor(R() * 20) }, () => alpha[Math.floor(R() * alpha.length)]).join('');
+            let fmt = cleanFmt({ color: R() < 0.5 ? RED : undefined, spans: Array.from({ length: 5 }, () => { const s = Math.floor(R() * text.length); return { s, e: s + 1 + Math.floor(R() * 6), color: R() < 0.6 ? [GREEN, BLUE][Math.floor(R() * 2)] : undefined, b: R() < 0.5 ? true : undefined, i: R() < 0.3 ? true : undefined }; }) }, text);
+            for (let step = 0; step < 40 && !bad; step++) {
+                const a = Math.floor(R() * (text.length + 1)), del = R() < 0.5 ? 0 : Math.min(text.length - a, Math.floor(R() * 5));
+                const ins = R() < 0.3 ? '' : Array.from({ length: 1 + Math.floor(R() * 4) }, () => alpha[Math.floor(R() * alpha.length)]).join('');
+                const next = text.slice(0, a) + ins + text.slice(a + del), useCaret = R() < 0.6, caret = a + ins.length;
+                const before = look(text, fmt), nf = respan(text, next, fmt, useCaret ? caret : undefined), after = look(next, nf);
+                // which characters survived: the prefix before the change and the suffix after it (as the caret says, else the longest common ones)
+                let p, q;
+                if (useCaret) { q = next.length - caret; p = 0; const lim = Math.min(text.length - q, caret); while (p < lim && text[p] === next[p]) p++; }
+                else { p = 0; const lim = Math.min(text.length, next.length); while (p < lim && text[p] === next[p]) p++; q = 0; while (q < lim - p && text[text.length - 1 - q] === next[next.length - 1 - q]) q++; }
+                for (let k = 0; k < p; k++) if (before[k] !== after[k]) bad = { text, next, fmt, nf, k, where: 'prefix' };
+                for (let k = 0; k < q; k++) if (before[text.length - 1 - k] !== after[next.length - 1 - k]) bad = { text, next, fmt, nf, k, where: 'suffix' };
+                if (J(nf) !== J(cleanFmt(nf, next))) bad = { text, next, nf, where: 'not clean' };
+                if (nf && nf.spans) styled++;
+                text = next; fmt = nf; steps++;
+                if (!text) break;
+            }
+        }
+        check('respan (a seeded walk of ' + steps + ' edits): every character that survives keeps its look, and what comes out is clean', !bad && steps > 1000 && styled > 300, bad || { steps, styled });
+    }
+
+    /* ================= apply / clear / stateAt ================= */
+    const LBL = 'buy milk\nwalk dog\ncall mum';   // the request's own case: a node's label listing things to do
+    const allRed = apply(undefined, LBL, 3, 3, { color: RED });
+    const twoGreen = apply(apply(allRed, LBL, 0, 8, { color: GREEN }), LBL, 18, 26, { color: GREEN });
+    check('apply: with nothing selected a colour is the whole field\'s (the base)', J(allRed) === J({ color: RED }));
+    check('apply: a selection then takes its own colour over the base ("all my text red, then parts green")',
+        J(twoGreen) === J({ color: RED, spans: [{ s: 0, e: 8, color: GREEN }, { s: 18, e: 26, color: GREEN }] })
+        && J(runsOf(LBL, twoGreen).map(r => [r.t, r.color])) === J([['buy milk', GREEN], ['\nwalk dog\n', RED], ['call mum', GREEN]]));
+    check('apply: a colour with nothing selected changes the base and leaves the parts that have their own',
+        J(apply(twoGreen, LBL, 5, 5, { color: BLUE })) === J({ color: BLUE, spans: [{ s: 0, e: 8, color: GREEN }, { s: 18, e: 26, color: GREEN }] })
+        && J(apply(twoGreen, LBL, 5, 5, { color: null })) === J({ spans: [{ s: 0, e: 8, color: GREEN }, { s: 18, e: 26, color: GREEN }] }));
+    check('apply: a colour on a selection of the whole text paints everything', J(apply(twoGreen, LBL, 0, LBL.length, { color: BLUE })) === J({ color: BLUE }) && apply(twoGreen, LBL, 0, LBL.length, { color: null }) === undefined);
+    check('apply: the default colour on a part of a coloured field leaves the rest as it was',
+        J(apply(twoGreen, LBL, 9, 13, { color: null })) === J({ spans: [{ s: 0, e: 8, color: GREEN }, { s: 8, e: 9, color: RED }, { s: 13, e: 18, color: RED }, { s: 18, e: 26, color: GREEN }] }));
+    check('apply: B on a selection makes it bold; B again on a selection that is all bold takes it off',
+        J(apply(undefined, LBL, 0, 3, { b: true })) === J({ spans: [{ s: 0, e: 3, b: true }] }) && apply({ spans: [{ s: 0, e: 3, b: true }] }, LBL, 0, 3, { b: true }) === undefined
+        && J(apply({ spans: [{ s: 0, e: 3, b: true }] }, LBL, 1, 2, { b: true })) === J({ spans: [{ s: 0, e: 1, b: true }, { s: 2, e: 3, b: true }] })
+        && J(apply({ spans: [{ s: 0, e: 3, b: true }] }, LBL, 2, 6, { b: true })) === J({ spans: [{ s: 0, e: 6, b: true }] }));
+    check('apply: B and I with nothing selected switch the whole field (on unless all of it already is)',
+        J(apply(undefined, LBL, 4, 4, { b: true })) === J({ b: true }) && apply({ b: true }, LBL, 4, 4, { b: true }) === undefined
+        && J(apply({ spans: [{ s: 0, e: 3, b: true }] }, LBL, 4, 4, { b: true })) === J({ b: true }) && J(apply({ color: RED }, LBL, 0, 0, { i: true })) === J({ color: RED, i: true })
+        && J(apply(undefined, '', 0, 0, { b: true })) === J({ b: true }) && apply({ b: true }, '', 0, 0, { b: true }) === undefined);
+    check('apply: B off on a part of a bold field leaves the rest bold',
+        J(apply({ b: true }, 'abcdef', 2, 4, { b: true })) === J({ spans: [{ s: 0, e: 2, b: true }, { s: 4, e: 6, b: true }] }));
+    check('apply: the size is always the whole field\'s, whatever is selected; null takes it off; a size that is none is none',
+        J(apply(twoGreen, LBL, 2, 5, { size: 'large' })) === J(Object.assign({ size: 'large' }, twoGreen)) && J(apply({ size: 'huge', b: true }, LBL, 0, 0, { size: null })) === J({ b: true })
+        && apply(undefined, LBL, 0, 3, { size: '40px' }) === undefined && J(apply(undefined, LBL, 0, 0, { size: 'small' })) === J({ size: 'small' }));
+    check('apply: a selection is read in either direction, kept inside the text, and never splits a surrogate pair',
+        J(apply(undefined, 'abcdef', 4, 2, { b: true })) === J({ spans: [{ s: 2, e: 4, b: true }] }) && J(apply(undefined, 'abc', -5, 99, { i: true })) === J({ i: true })
+        && J(apply(undefined, 'a😀b', 2, 4, { b: true })) === J({ spans: [{ s: 1, e: 4, b: true }] }) && J(apply(undefined, 'abc', 'x', {}, { b: true })) === J({ b: true }));
+    check('apply: a change that is no change, or a hostile one, leaves a clean format',
+        J(apply(twoGreen, LBL, 0, 3, null)) === J(twoGreen) && J(apply(twoGreen, LBL, 0, 3, { b: 'yes', color: 'url(x)', nope: 1 })) === J(twoGreen)
+        && J(apply({ color: 'red', spans: [{ s: 0, e: 2, b: true, onclick: 'x' }] }, 'abc', 0, 0, {})) === J({ spans: [{ s: 0, e: 2, b: true }] }));
+    check('clear: with nothing selected, or the whole text, nothing is left; on a part, that part is plain and the size stays',
+        clear(Object.assign({ size: 'large', b: true }, twoGreen), LBL, 3, 3) === undefined && clear(twoGreen, LBL, 0, LBL.length) === undefined && clear(undefined, LBL, 0, 0) === undefined
+        && J(clear(Object.assign({ size: 'large' }, twoGreen), LBL, 4, 13)) === J({ size: 'large', spans: [{ s: 0, e: 4, color: GREEN }, { s: 13, e: 18, color: RED }, { s: 18, e: 26, color: GREEN }] }));
+    check('stateAt: what the controls show — all bold, all italic, one colour ("" the default, null when mixed), the size',
+        J(stateAt(twoGreen, LBL, 0, 8)) === J({ b: false, i: false, color: GREEN, size: '', any: true }) && J(stateAt(twoGreen, LBL, 4, 12)) === J({ b: false, i: false, color: null, size: '', any: true })
+        && J(stateAt({ size: 'huge', b: true, spans: [{ s: 0, e: 2, i: true }] }, 'abcd', 0, 2)) === J({ b: true, i: true, color: '', size: 'huge', any: true })
+        && J(stateAt({ spans: [{ s: 0, e: 2, b: true }] }, 'abcd', 1, 1)) === J({ b: false, i: false, color: '', size: '', any: true })
+        && J(stateAt(undefined, 'abcd', 1, 3)) === J({ b: false, i: false, color: '', size: '', any: false }) && J(stateAt({ b: true }, '', 0, 0)) === J({ b: true, i: false, color: '', size: '', any: true }));
+    {
+        const R = rng(99), ops = [{ b: true }, { i: true }, { color: RED }, { color: GREEN }, { color: null }, { size: 'large' }, { size: null }];
+        let bad = null, n = 0;
+        for (let round = 0; round < 300 && !bad; round++) {
+            const text = 'the quick brown fox'.slice(0, 4 + Math.floor(R() * 15)); let f;
+            for (let k = 0; k < 8 && !bad; k++) {
+                const s = Math.floor(R() * (text.length + 1)), e = R() < 0.3 ? s : Math.floor(R() * (text.length + 1)), op = ops[Math.floor(R() * ops.length)];
+                const before = J(f), wipe = R() < 0.1, nf = wipe ? clear(f, text, s, e) : apply(f, text, s, e, op);
+                if (J(f) !== before) bad = { why: 'the format given was changed', f };
+                if (J(nf) !== J(cleanFmt(nf, text))) bad = { why: 'not clean', nf, text };
+                if (nf !== undefined && !Object.keys(nf).length) bad = { why: 'an empty object', nf };
+                if (!wipe && op.b && !bad && stateAt(nf, text, s, e).b === stateAt(f, text, s, e).b) bad = { why: 'B did not switch', f, nf, s, e, text };   // a press on B reads back as the other state, on the range it was pressed for
+                if (wipe && !bad && (s === e ? nf !== undefined : (stateAt(nf, text, s, e).b || stateAt(nf, text, s, e).i || stateAt(nf, text, s, e).color !== ''))) bad = { why: 'clear left a look', f, nf, s, e, text };
+                f = nf; n++;
+            }
+        }
+        check('apply / clear (seeded, ' + n + ' presses): the format given is never changed, what comes back is clean and never an empty object, B always switches, and a cleared range is plain', !bad && n === 2400, bad);
+    }
+    check('the palette is the app\'s ink row (seven strict colours with names) and published with the steps', PALETTE.length === 7 && PALETTE.every(p => /^#[0-9a-f]{6}$/.test(p[0]) && typeof p[1] === 'string' && p[1]) && J(PALETTE.map(p => p[0])) === J(['#e9e9f0', '#1a1a1a', '#d9534f', '#e0a54f', '#5cb87a', '#4db3d3', '#b98cff']));
+    {
+        global.window = {};
+        const T2 = await import(modUrl('textfmt.js') + '?w');
+        const W = global.window.wpTextFmt;
+        check('window.wpTextFmt is published with the whole API', !!W && ['cleanFmt', 'runsOf', 'respan', 'apply', 'clear', 'stateAt'].every(k => typeof W[k] === 'function') && W.VERSION === T2.VERSION && J(W.SIZES) === J(SIZES) && W.SIZE_EM === T2.SIZE_EM && W.PALETTE === T2.PALETTE && W.MAX_SPANS === 200);
+        delete global.window;
+    }
+
+    /* ================= the editor: where a field's format lives, typing, the bar (planner.js, run for real) ================= */
+    const plannerSrc = read('planner.js'), fieldsSrc = slice('planner.js', 'fields'), barSrc = slice('planner.js', 'bar');
+    // a page of plain objects: elements that record what is done to them
+    function El(tag, cls, data) { this.tagName = String(tag).toUpperCase(); this.className = cls || ''; this.dataset = data || {}; this.style = {}; this.children = []; this.handlers = {}; this.attrs = {}; this.disabled = false; this.hidden = false; this.value = ''; this.textContent = ''; this.parent = null; this.id = ''; this.calls = []; }
+    Object.defineProperty(El.prototype, 'classList', { get() { const el = this, list = () => el.className.split(/\s+/).filter(Boolean); return { contains: c => list().indexOf(c) >= 0, add: c => { if (list().indexOf(c) < 0) el.className = list().concat(c).join(' '); }, remove: c => { el.className = list().filter(x => x !== c).join(' '); }, toggle: (c, on) => { const has = list().indexOf(c) >= 0, want = on === undefined ? !has : !!on; if (want && !has) el.className = list().concat(c).join(' '); if (!want && has) el.className = list().filter(x => x !== c).join(' '); return want; } }; } });
+    El.prototype.appendChild = function(c) { c.parent = this; this.children.push(c); return c; };
+    El.prototype.addEventListener = function(ev, fn) { (this.handlers[ev] = this.handlers[ev] || []).push(fn); };
+    El.prototype.fire = function(ev, extra) { const e = Object.assign({ type: ev, target: this, prevented: false, stopped: false, preventDefault() { this.prevented = true; }, stopPropagation() { this.stopped = true; } }, extra || {}); (this.handlers[ev] || []).forEach(fn => fn.call(this, e)); return e; };
+    El.prototype.setAttribute = function(k, v) { this.attrs[k] = String(v); };
+    El.prototype.getAttribute = function(k) { return k in this.attrs ? this.attrs[k] : null; };
+    El.prototype.all = function() { let out = []; this.children.forEach(c => { out.push(c); out = out.concat(c.all()); }); return out; };
+    El.prototype.is = function(sel) {   // '.cls', '#id', 'tag', each with [data-x="v"] parts; a comma list is any of them
+        return sel.split(',').some(one => { one = one.trim(); const m = /^([a-zA-Z]*)((?:[.#][\w-]+)*)((?:\[data-[\w-]+="[^"]*"\])*)$/.exec(one); if (!m) throw new Error('selector not understood by the test page: ' + one);
+            if (m[1] && this.tagName !== m[1].toUpperCase()) return false;
+            if (!(m[2].match(/[.#][\w-]+/g) || []).every(p => p[0] === '#' ? this.id === p.slice(1) : this.classList.contains(p.slice(1)))) return false;
+            return (m[3].match(/\[data-([\w-]+)="([^"]*)"\]/g) || []).every(p => { const k = /\[data-([\w-]+)="([^"]*)"\]/.exec(p); return String(this.dataset[k[1]]) === k[2]; }); });
+    };
+    El.prototype.matches = El.prototype.is;
+    El.prototype.closest = function(sel) { for (let n = this; n; n = n.parent) if (n.is(sel)) return n; return null; };
+    El.prototype.querySelector = function(sel) { return this.all().find(n => n.is(sel)) || null; };
+    El.prototype.focus = function() { this.calls.push('focus'); this.page.active = this; };
+    El.prototype.setSelectionRange = function(s, e) { this.calls.push('select ' + s + '-' + e); this.selectionStart = s; this.selectionEnd = e; };
+    El.prototype.contains = function(n) { for (; n; n = n.parent) if (n === this) return true; return false; };
+
+    function mkPage(opts) {
+        opts = opts || {};
+        const page = { active: null, log: [], toasts: [], store: Object.assign({}, opts.store || {}), sel: { rangeCount: 0, isCollapsed: true }, rte: [], storeThrows: !!opts.storeThrows };
+        const mk = (tag, cls, data, id) => { const el = new El(tag, cls, data); el.page = page; if (id) el.id = id; return el; };
+        page.mk = mk;
+        const blocksEl = mk('div', '', {}, 'plannerBlocks'), root = mk('div', 'ts-bar', {}, 'textStyleBar'), toggle = mk('button', 'ts-toggle', {}, 'textStyleToggle'), body = mk('div', 'ts-body', {}, 'textStyleBody');
+        body.hidden = true; root.appendChild(toggle); root.appendChild(body);
+        const byId = { plannerBlocks: blocksEl, textStyleBar: root, textStyleToggle: toggle, textStyleBody: body };
+        const doc = { createElement: tag => mk(tag), getElementById: id => byId[id] || null };
+        Object.defineProperty(doc, 'activeElement', { get: () => page.active });
+        page.map = opts.map || { id: 'p1', type: 'planner', meta: { title: 'P' }, blocks: [] };
+        const deps = {
+            TF, document: doc, window: { getSelection: () => page.sel }, sessionStorage: { getItem: k => { if (page.storeThrows) throw new Error('no storage here'); return k in page.store ? page.store[k] : null; }, setItem: (k, v) => { if (page.storeThrows) throw new Error('no storage here'); page.store[k] = String(v); } },
+            getActiveMap: () => page.map, isDocLike: m => !!m && (m.type === 'planner' || m.type === 'doc'),
+            save: im => { page.log.push('save:' + im); }, renderPlannerPreview: () => { page.log.push('preview'); }, stepBoundary: () => { page.log.push('step'); }, toast: m => { page.toasts.push(m); },
+            rteLook: (b, change) => { page.rte.push([b.dataset.idx, change]); return true; }
+        };
+        const names = Object.keys(deps);
+        const api = new Function(...names, fieldsSrc + '\n' + barSrc + '\nreturn { tsDesc, tsField, tsType, tsName, tsSetColCount, tsRowsAsObjects, tsCols, TS_PLAIN, tsState, tsBox, tsNote, tsTarget, tsPress, tsRefresh, tsBuild, tsKey };')(...names.map(k => deps[k]));
+        Object.assign(page, api, { blocksEl, root, toggle, body });
+        // an editor box for a field, as renderPlanner writes it (its classes and data attributes)
+        page.box = (cls, data, tag) => { const el = mk(tag || 'input', cls, Object.assign({}, data)); Object.keys(el.dataset).forEach(k => { el.dataset[k] = String(el.dataset[k]); }); el.selectionStart = 0; el.selectionEnd = 0; blocksEl.appendChild(el); return el; };
+        page.sel0 = (el, s, e) => { el.selectionStart = s; el.selectionEnd = e === undefined ? s : e; page.active = el; page.tsNote(el); };
+        page.btn = k => page.tsState.els[k];
+        page.click = el => page.body.fire('click', { target: el });
+        page.build = () => { page.tsBuild(root); return page; };
+        return page;
+    }
+    const mapOf = blocks => ({ id: 'p1', type: 'planner', meta: { title: 'P' }, blocks });
+    const B0 = () => [
+        { id: 'b0', type: 'h1', title: 'The Hill Road', sub: 'an evening' },
+        { id: 'b1', type: 'node', title: 'The inn', tag: 'social', must: 'learn the road', cols: ['Check', 'DC', 'Cost'], rows: [{ col1: 'Medicine', col2: '10', col3: 'free' }, { col1: 'Insight', col2: '13', col3: 'a coin' }] },
+        { id: 'b2', type: 'flowchart', nodes: [{ id: 'n1', text: LBL, shape: 'rect', color: 'neutral' }, { id: 'n3', text: 'two', shape: 'rect', color: 'gold' }], edges: [{ from: 'n1', to: 'n3', text: 'then', style: 'solid' }] },
+        { id: 'b3', type: 'image', src: '/saves/images/x.png', caption: 'the map' },
+        { id: 'b4', type: 'text', content: '<p>prose</p>' },
+        { id: 'b5', type: 'h2', title: 'Beats' },
+        { id: 'b6', type: 'node', mode: 'table', title: 'Loot', rows: [{ col1: 'gold' }] }
+    ];
+
+    /* ---- where each field's format lives ---- */
+    {
+        const pg = mkPage({ map: mapOf(B0()) }), bl = pg.map.blocks, F = d => pg.tsField(bl, d);
+        const put = (d, f) => F(d).setFmt(f);
+        put({ idx: 0, k: 'title' }, { b: true }); put({ idx: 0, k: 'sub' }, { i: true }); put({ idx: 1, k: 'title' }, { color: RED }); put({ idx: 1, k: 'sub' }, { color: GREEN }); put({ idx: 1, k: 'must' }, { color: BLUE });
+        put({ idx: 1, k: 'col', ci: 2 }, { b: true }); put({ idx: 1, k: 'cell', ri: 1, ci: 2 }, { i: true }); put({ idx: 2, k: 'node', ni: 1 }, { color: RED }); put({ idx: 2, k: 'edge', ei: 0 }, { size: 'large' }); put({ idx: 3, k: 'caption' }, { size: 'small' }); put({ idx: 5, k: 'title' }, { i: true });
+        check('storage: a block\'s own fields keep their formats on the block (fmt.title / sub / tag / must / caption) — a scene node\'s second box is its tag',
+            J(bl[0].fmt) === J({ title: { b: true }, sub: { i: true } }) && J(bl[1].fmt) === J({ title: { color: RED }, tag: { color: GREEN }, must: { color: BLUE } }) && J(bl[3].fmt) === J({ caption: { size: 'small' } }) && J(bl[5].fmt) === J({ title: { i: true } }), bl[1].fmt);
+        check('storage: a table\'s heads keep theirs in colFmt, a list parallel to cols; a row\'s cells on the row; a node\'s label on the node; an arrow\'s on the arrow',
+            J(bl[1].colFmt) === J([null, null, { b: true }]) && J(bl[1].rows[1].fmt) === J({ col3: { i: true } }) && bl[1].rows[0].fmt === undefined && J(bl[2].nodes[1].fmt) === J({ color: RED }) && bl[2].nodes[0].fmt === undefined && J(bl[2].edges[0].fmt) === J({ size: 'large' }));
+        check('storage: the text itself stays the plain string it was (no markup ever goes into a title, a label or a cell)',
+            bl[0].title === 'The Hill Road' && bl[1].cols[2] === 'Cost' && bl[1].rows[1].col3 === 'a coin' && bl[2].nodes[1].text === 'two' && bl[2].edges[0].text === 'then' && F({ idx: 1, k: 'cell', ri: 1, ci: 2 }).text() === 'a coin' && F({ idx: 1, k: 'sub' }).text() === 'social');
+        put({ idx: 0, k: 'title' }, undefined); put({ idx: 0, k: 'sub' }, undefined); put({ idx: 1, k: 'col', ci: 2 }, undefined); put({ idx: 1, k: 'cell', ri: 1, ci: 2 }, undefined); put({ idx: 2, k: 'node', ni: 1 }, undefined); put({ idx: 2, k: 'edge', ei: 0 }, undefined);
+        check('storage: a format taken off leaves no key behind (no empty object, no empty list)', !('fmt' in bl[0]) && !('colFmt' in bl[1]) && !('fmt' in bl[1].rows[1]) && !('fmt' in bl[2].nodes[1]) && !('fmt' in bl[2].edges[0]) && J(B0()[0]) === J(bl[0]));
+        check('storage: a field that is not there has no place (a wrong block, a row or a node that is gone, a text block, a box that is no field)',
+            [{ idx: 9, k: 'title' }, { idx: 4, k: 'title' }, { idx: 0, k: 'must' }, { idx: 5, k: 'sub' }, { idx: 1, k: 'cell', ri: 7, ci: 0 }, { idx: 1, k: 'col', ci: 3 }, { idx: 1, k: 'col', ci: -1 }, { idx: 2, k: 'node', ni: 5 }, { idx: 2, k: 'edge', ei: 1 }, { idx: 0, k: 'node', ni: 0 }, { idx: 3, k: 'title' }, { idx: 0, k: 'nope' }, null, { idx: '__proto__', k: 'title' }].every(d => F(d) === null));
+        const pg2 = mkPage({ map: mapOf(B0()) }), b6 = pg2.map.blocks[6];
+        pg2.tsField(pg2.map.blocks, { idx: 6, k: 'col', ci: 1 }).setFmt({ b: true });
+        check('storage: a head styled before the heads were ever typed makes them the block\'s own first, so colFmt always lies beside a real cols', J(b6.cols) === J(['Item', 'Detail', 'Notes']) && J(b6.colFmt) === J([null, { b: true }]));
+        const boxes = [['b-title', { idx: 1 }, { idx: 1, k: 'title' }], ['field b-sub', { idx: 1 }, { idx: 1, k: 'sub' }], ['b-must', { idx: 1 }, { idx: 1, k: 'must' }], ['b-caption', { idx: 3 }, { idx: 3, k: 'caption' }], ['b-colhead', { idx: 1, ci: 2 }, { idx: 1, k: 'col', ci: 2 }], ['r-col', { idx: 1, ri: 1, ci: 0 }, { idx: 1, k: 'cell', ri: 1, ci: 0 }], ['field fc-n-text fc-grow', { idx: 2, ni: 1 }, { idx: 2, k: 'node', ni: 1 }], ['fc-e-text', { idx: 2, ei: 0 }, { idx: 2, k: 'edge', ei: 0 }]];
+        check('storage: each editor box names its field by its place (tsDesc), and the bar finds the box again by it (tsBox); a box that holds no plain field names none',
+            boxes.every(x => { const el = pg.box(x[0], x[1]); return J(pg.tsDesc(el)) === J(x[2]) && pg.tsBox(x[2]) === el; }) && pg.tsDesc(pg.box('fc-n-id', { idx: 2, ni: 0 })) === null && pg.tsDesc(pg.box('field b-content', { idx: 4 }, 'textarea')) === null && pg.tsDesc(pg.box('b-title', {})) === null
+            && pg.TS_PLAIN.split(',').length === 8 && boxes.every(x => pg.box(x[0], x[1]).matches(pg.TS_PLAIN)));
+    }
+
+    /* ---- typing carries the spans ---- */
+    {
+        const pg = mkPage({ map: mapOf(B0()) }), bl = pg.map.blocks, n1 = bl[2].nodes[0], d = { idx: 2, k: 'node', ni: 0 };
+        n1.fmt = { color: RED, spans: [{ s: 9, e: 17, color: GREEN, b: true }] };   // walk dog
+        pg.tsType(bl, d, '- ' + LBL, 2);                       // at the start
+        const a1 = J(n1.fmt), t1 = n1.text;
+        pg.tsType(bl, d, t1.slice(0, 15) + 's' + t1.slice(15), 16);   // in the middle of the span ("walks dog")
+        const a2 = J(n1.fmt), t2 = n1.text;
+        pg.tsType(bl, d, t2 + '\nfeed cat', t2.length + 9);   // at the end
+        check('typing: an edit at the start, in the middle and at the end of a label carries its spans (respan on every input)',
+            a1 === J({ color: RED, spans: [{ s: 11, e: 19, color: GREEN, b: true }] }) && a2 === J({ color: RED, spans: [{ s: 11, e: 20, color: GREEN, b: true }] }) && J(n1.fmt) === a2 && n1.text === '- buy milk\nwalks dog\ncall mum\nfeed cat', [a1, a2, n1.fmt]);
+        pg.tsType(bl, { idx: 1, k: 'cell', ri: 0, ci: 0 }, 'Medicine!', 9); pg.tsType(bl, { idx: 6, k: 'col', ci: 0 }, 'Things', 6);
+        check('typing: a field with no format gets none (no key appears), a head typed for the first time makes the heads the block\'s own, as before',
+            bl[1].rows[0].col1 === 'Medicine!' && !('fmt' in bl[1].rows[0]) && J(bl[6].cols) === J(['Things', 'Detail', 'Notes']) && !('colFmt' in bl[6]) && pg.tsType(bl, { idx: 9, k: 'title' }, 'x', 1) === false);
+        bl[1].rows[1].fmt = { col3: { spans: [{ s: 2, e: 6, i: true }] } };
+        pg.tsType(bl, { idx: 1, k: 'cell', ri: 1, ci: 2 }, '', 0);
+        check('typing: emptying a field leaves no spans behind', !('fmt' in bl[1].rows[1]) && bl[1].rows[1].col3 === '');
+        const handlers = ['b-title', 'b-caption', 'b-sub', 'b-must', 'r-col', 'fc-n-text', 'fc-e-text'].every(c => new RegExp("querySelectorAll\\('\\." + c + "'\\)\\)\\.forEach\\(el => el\\.addEventListener\\('input', function\\(\\) \\{ tsType\\(activeMap\\.blocks, tsDesc\\(this\\), this\\.value, this\\.selectionStart\\);").test(plannerSrc));
+        check('typing (wired): every plain box\'s input handler goes through tsType with the box\'s caret — a title, a caption, a subtitle or tag, must-resolve, a cell, a node\'s label, an arrow\'s — and a head too',
+            handlers && /querySelectorAll\('\.b-colhead'\)\)\.forEach\(el => el\.addEventListener\('input', function\(\) \{\n\s*tsType\(activeMap\.blocks, tsDesc\(this\), this\.value, this\.selectionStart\);/.test(plannerSrc)
+            && !/\.(title|caption|must|text) = this\.value/.test(plannerSrc) && !/\['col' \+ \(parseInt\(this\.dataset\.ci, 10\) \+ 1\)\] = this\.value/.test(plannerSrc));
+    }
+
+    /* ---- the bar ---- */
+    {
+        const pg = mkPage({ map: mapOf(B0()) }).build(), E = pg.tsState.els;
+        check('bar: closed by default — the controls are hidden until the caret is clicked; open is remembered for the session, never in the document',
+            pg.body.hidden === true && pg.toggle.attrs['aria-expanded'] === 'false' && (() => { const before = J(pg.map); pg.toggle.fire('click'); const open = pg.body.hidden === false && pg.toggle.attrs['aria-expanded'] === 'true' && pg.store.wp_textStyleOpen === '1' && pg.root.classList.contains('open'); pg.toggle.fire('click'); return open && pg.body.hidden === true && pg.store.wp_textStyleOpen === '0' && J(pg.map) === before && pg.log.length === 0; })()
+            && mkPage({ store: { wp_textStyleOpen: '1' } }).build().body.hidden === false && mkPage({ store: { wp_textStyleOpen: 'yes' } }).build().body.hidden === true
+            && (() => { const pt = mkPage({ storeThrows: true }).build(), closed = pt.body.hidden === true; pt.toggle.fire('click'); return closed && pt.body.hidden === false; })());   // a session store that cannot be read: closed, and it still opens
+        check('bar: its controls are B, I, the seven inks, a custom colour, Default, the size steps and Clear — built as elements with text and values only',
+            E.b.textContent === 'B' && E.i.textContent === 'I' && J(E.swatches.map(s => s.dataset.color)) === J(PALETTE.map(p => p[0])) && E.swatches.every((s, k) => s.title === PALETTE[k][1] && s.style.background === PALETTE[k][0]) && E.custom.type === 'color'
+            && E.nocolor.textContent === 'Default' && J(E.size.children.map(o => [o.value, o.textContent])) === J([['', 'Default'], ['small', 'Small'], ['large', 'Large'], ['larger', 'Larger'], ['huge', 'Huge']]) && E.clear.textContent === 'Clear'
+            && !/innerHTML|insertAdjacentHTML|outerHTML|document\.write/.test(barSrc) && !/\bon[a-z]+\s*=\s*["']/.test(barSrc));
+        check('bar: with no field clicked every control is disabled and the bar says to click in one first',
+            [E.b, E.i, E.custom, E.nocolor, E.size, E.clear].concat(E.swatches).every(c => c.disabled === true) && /^Click in a title, a label or a table cell/.test(E.target.textContent));
+        const before = J(pg.map); pg.click(E.b); pg.click(E.swatches[2]); E.size.value = 'large'; E.size.fire('change'); E.custom.value = '#123456'; E.custom.fire('change');
+        check('bar: a press with nothing to act on changes nothing and saves nothing (and a click on a disabled control is not a press)', J(pg.map) === before && pg.log.length === 0);
+
+        // a selection in an input: the heading
+        const title = pg.box('field b-title', { idx: 0 }); title.value = 'The Hill Road';
+        pg.sel0(title, 4, 8);
+        const named = E.target.textContent, lit0 = E.b.classList.contains('on');
+        const md = pg.body.fire('mousedown', { target: E.b });
+        pg.click(E.b);
+        check('bar: a selection in an input — B makes those characters bold, in one save, with the selection left where it was',
+            named === 'Title — 4 selected characters' && lit0 === false && md.prevented === true && J(pg.map.blocks[0].fmt) === J({ title: { spans: [{ s: 4, e: 8, b: true }] } }) && J(pg.log) === J(['step', 'save:true', 'preview'])
+            && title.selectionStart === 4 && title.selectionEnd === 8 && title.calls.indexOf('select 4-8') >= 0 && pg.active === title && E.b.classList.contains('on') === true && pg.map.blocks[0].title === 'The Hill Road', [named, pg.log, pg.map.blocks[0].fmt]);
+        pg.log.length = 0; pg.click(E.b);
+        check('bar: B again on a selection that is all bold takes it off — one more step, and no key left behind', !('fmt' in pg.map.blocks[0]) && J(pg.log) === J(['step', 'save:true', 'preview']) && E.b.classList.contains('on') === false);
+
+        // the request's own case, in a textarea: all red, then two items green, the selection kept across two presses
+        const lab = pg.box('field fc-n-text fc-grow', { idx: 2, ni: 0 }, 'textarea'); lab.value = LBL;
+        pg.sel0(lab, 5); pg.log.length = 0;
+        const whole = E.target.textContent;
+        pg.click(E.swatches[2]);
+        const n1 = pg.map.blocks[2].nodes[0], s1 = J(n1.fmt), l1 = J(pg.log);
+        pg.sel0(lab, 9, 17); pg.log.length = 0;
+        pg.click(E.swatches[4]);
+        const s2 = J(n1.fmt), keep = [lab.selectionStart, lab.selectionEnd];
+        pg.active = null;   // the focus went elsewhere (the preview was clicked): the bar still knows the field and its selection
+        pg.click(E.b);
+        check('bar: with nothing selected a colour is the whole field\'s; a selection then takes its own; a second press needs no second selecting ("select, green, bold")',
+            whole === 'Node n1’s label — the whole field' && s1 === J({ color: RED }) && l1 === J(['step', 'save:true', 'preview']) && s2 === J({ color: RED, spans: [{ s: 9, e: 17, color: GREEN }] }) && J(keep) === '[9,17]'
+            && J(n1.fmt) === J({ color: RED, spans: [{ s: 9, e: 17, color: GREEN, b: true }] }) && pg.active === lab && lab.selectionStart === 9 && lab.selectionEnd === 17 && lab.calls.indexOf('focus') >= 0 && lab.calls.filter(c => c === 'select 9-17').length === 2 && n1.text === LBL
+            && E.swatches[4].classList.contains('active') && !E.swatches[2].classList.contains('active') && E.b.classList.contains('on'), [whole, s1, s2, n1.fmt]);
+        pg.log.length = 0; pg.click(E.swatches[4]);
+        check('bar: a press that changes nothing is no step (the same colour again)', pg.log.length === 0 && J(n1.fmt) === J({ color: RED, spans: [{ s: 9, e: 17, color: GREEN, b: true }] }));
+
+        // size: always the whole field, through a control that must take the focus
+        pg.sel0(lab, 9, 17); pg.log.length = 0;
+        const mdS = pg.body.fire('mousedown', { target: E.size });
+        pg.active = E.size; E.size.value = 'large'; E.size.fire('change');
+        const sized = J(n1.fmt), back = pg.active === lab && lab.selectionStart === 9 && lab.selectionEnd === 17;
+        E.size.value = ''; E.size.fire('change');
+        check('bar: the size is the whole field\'s whatever is selected; the size list may take the focus (its mousedown is not swallowed) and the selection comes back; Default takes the size off',
+            mdS.prevented === false && sized === J({ size: 'large', color: RED, spans: [{ s: 9, e: 17, color: GREEN, b: true }] }) && back && J(n1.fmt) === J({ color: RED, spans: [{ s: 9, e: 17, color: GREEN, b: true }] }) && J(pg.log) === J(['step', 'save:true', 'preview', 'step', 'save:true', 'preview']), [sized, pg.log]);
+        const mdC = pg.body.fire('mousedown', { target: E.custom }); pg.active = E.custom; E.custom.value = '#ABCDEF'; pg.log.length = 0; E.custom.fire('change');
+        check('bar: a custom colour is one press when the picker closes (a strict colour, lower case), on the selection that was there', mdC.prevented === false && J(n1.fmt.spans) === J([{ s: 9, e: 17, color: '#abcdef', b: true }]) && J(pg.log) === J(['step', 'save:true', 'preview']) && E.customWrap.classList.contains('active'));
+        pg.sel0(lab, 9, 13); pg.click(E.nocolor);
+        check('bar: Default on a selection gives it back the default colour and leaves the rest', J(n1.fmt) === J({ spans: [{ s: 0, e: 9, color: RED }, { s: 9, e: 13, b: true }, { s: 13, e: 17, color: '#abcdef', b: true }, { s: 17, e: 26, color: RED }] }), n1.fmt);
+        pg.sel0(lab, 13, 20); pg.log.length = 0; pg.click(E.clear);
+        const part = J(n1.fmt);
+        pg.sel0(lab, 3); pg.click(E.clear);
+        check('bar: Clear on a selection makes that part plain; with nothing selected it takes everything off the field — then Clear has nothing to do and is disabled',
+            part === J({ spans: [{ s: 0, e: 9, color: RED }, { s: 9, e: 13, b: true }, { s: 20, e: 26, color: RED }] }) && !('fmt' in n1) && J(pg.log) === J(['step', 'save:true', 'preview', 'step', 'save:true', 'preview']) && E.clear.disabled === true && E.b.disabled === false);
+
+        // what it names
+        const cell = pg.box('r-col', { idx: 1, ri: 1, ci: 2 }), names = [];
+        const say = (cls, data, s, e, tag) => { const el = pg.box(cls, data, tag); pg.sel0(el, s || 0, e); names.push(E.target.textContent); };
+        pg.sel0(cell, 2, 5); names.push(E.target.textContent);
+        say('b-colhead', { idx: 1, ci: 1 }); say('field b-sub', { idx: 0 }); say('field b-sub', { idx: 1 }); say('b-must', { idx: 1 }, 0, 1); say('b-caption', { idx: 3 }); say('field b-title', { idx: 5 }); say('field b-title', { idx: 1 }); say('field b-title', { idx: 6 });
+        say('fc-n-text', { idx: 2, ni: 1 }, 0, 0, 'textarea'); say('fc-e-text', { idx: 2, ei: 0 });
+        check('bar: it names what it will act on in a few words, as text',
+            J(names) === J(['Row 2, Cost — 3 selected characters', 'Heading of column 2 — the whole field', 'Subtitle — the whole field', 'Tag — the whole field', 'Must resolve — 1 selected character', 'Caption — the whole field', 'Section heading — the whole field', 'Scene title — the whole field', 'Table title — the whole field', 'Node n3’s label — the whole field', 'Arrow 1’s label — the whole field']), names);
+        pg.map.blocks[2].nodes[1].id = '<img src=x onerror=alert(1)>'; pg.map.blocks[1].cols[2] = '<script>alert(1)</script> and a very long column name indeed';
+        pg.sel0(pg.tsBox({ idx: 2, k: 'node', ni: 1 }), 0); const hn = E.target.textContent; pg.sel0(cell, 0); const hc = E.target.textContent;
+        check('bar: a hostile node id or column name is only ever text in it, and cut short', hn === 'Node <img src=x onerror=alert(1)>’s label — the whole field' && hc === 'Row 2, <script>alert(1)</script> and… — the whole field' && !('innerHTML' in E.target), [hn, hc]);
+
+        // a box that takes no styling; another document; a field that is gone
+        pg.sel0(pg.box('fc-n-id', { idx: 2, ni: 0 }), 0);
+        const noneSaid = E.target.textContent, noneOff = [E.b, E.i, E.nocolor, E.size, E.clear, E.custom].concat(E.swatches).every(c => c.disabled);
+        pg.log.length = 0; const j0 = J(pg.map); pg.click(E.b); pg.tsPress({ b: true }); pg.tsPress({ color: RED });
+        check('bar: a box that takes no styling (an id, a diagram\'s code) says so and disables every control: nothing is silently ignored, nothing is changed', noneSaid === 'This box takes no styling.' && noneOff && pg.log.length === 0 && J(pg.map) === j0);
+        pg.sel0(cell, 0, 3); pg.map = { id: 'other', type: 'planner', blocks: B0() }; pg.active = null; pg.log.length = 0;
+        const other = pg.tsPress({ b: true }), jo = J(pg.map.blocks[1]);
+        pg.map = mapOf(B0()); pg.sel0(cell, 0, 3); pg.map.blocks.splice(1, 1); pg.active = null;
+        let threw = null; try { pg.tsPress({ b: true }); pg.tsRefresh(); } catch (e) { threw = e.message; }
+        check('bar: nothing is remembered across documents, and a remembered field that is gone is no target (no error, no change)', other === false && jo === J(B0()[1]) && threw === null && pg.log.length === 0 && /^Click in a title/.test(E.target.textContent), threw);
+
+        // the keyboard
+        const pk = mkPage({ map: mapOf(B0()) }).build(), tk = pk.box('field b-title', { idx: 0 });
+        pk.sel0(tk, 0, 3);
+        const kev = (o) => Object.assign({ key: 'b', ctrlKey: true, target: tk, prevented: false, stopped: false, preventDefault() { this.prevented = true; }, stopPropagation() { this.stopped = true; } }, o);
+        const k1 = kev({}), r1 = pk.tsKey(k1), f1 = J(pk.map.blocks[0].fmt), k2 = kev({ key: 'I', metaKey: true, ctrlKey: false }), r2 = pk.tsKey(k2), f2 = J(pk.map.blocks[0].fmt);
+        const idBox = pk.box('fc-n-id', { idx: 2, ni: 0 }), rteBox = pk.box('field rte-body', { idx: 4 }, 'div');
+        const no = [kev({ shiftKey: true }), kev({ altKey: true }), kev({ ctrlKey: false }), kev({ key: 'x' }), kev({ target: idBox }), kev({ target: rteBox }), kev({ target: pk.root })].map(e => [pk.tsKey(e), e.prevented]);
+        check('keyboard: Ctrl+B and Ctrl+I in a plain box do what the buttons do (one step each, the key taken); with Shift or Alt, another key, or in a box that is no plain field the key is left alone',
+            r1 === true && k1.prevented && k1.stopped && f1 === J({ title: { spans: [{ s: 0, e: 3, b: true }] } }) && r2 === true && k2.prevented && f2 === J({ title: { spans: [{ s: 0, e: 3, b: true, i: true }] } })
+            && J(pk.log) === J(['step', 'save:true', 'preview', 'step', 'save:true', 'preview']) && no.every(x => x[0] === false && x[1] === false) && J(pk.map.blocks[0].fmt) === f2, [f1, f2, no]);
+        check('keyboard (wired): the key is seen in the capture phase on the document (a flowchart label stops its own keys), the selection is followed as it moves, and the bar is built from index.html\'s #textStyleBar',
+            /document\.addEventListener\('keydown', tsKey, true\);/.test(plannerSrc) && /\['focusin', 'select', 'keyup', 'mouseup', 'input'\]\.forEach\(function\(ev\) \{ document\.addEventListener\(ev, function\(e\) \{ var t = e\.target; if \(t && t\.closest && t\.closest\('#plannerBlocks'\)\) tsNote\(t\); \}, true\); \}\);/.test(plannerSrc)
+            && /var root = document\.getElementById\('textStyleBar'\); if \(!root\) return;\n\s*tsBuild\(root\);/.test(plannerSrc));
+
+        // a text block's own box: the bar drives its rich-text commands
+        const pr = mkPage({ map: mapOf(B0()) }).build(), R = pr.tsState.els, rb = pr.box('field rte-body', { idx: 4 }, 'div');
+        pr.sel = { rangeCount: 1, isCollapsed: true }; pr.active = rb; pr.tsNote(rb);
+        const caretSaid = R.target.textContent, caretOff = [R.nocolor.disabled, R.size.disabled, R.clear.disabled, R.b.disabled, R.i.disabled, R.swatches[0].disabled];
+        pr.click(R.nocolor); pr.click(R.clear);
+        const offPressed = pr.rte.length;   // disabled controls: no press reaches the block
+        pr.sel = { rangeCount: 1, isCollapsed: false }; pr.tsNote(rb);
+        const selSaid = R.target.textContent, selOff = [R.nocolor.disabled, R.size.disabled, R.clear.disabled, R.b.disabled];
+        pr.click(R.b); pr.click(R.swatches[4]); pr.click(R.nocolor); R.size.value = 'huge'; R.size.fire('change'); pr.click(R.clear);
+        check('bar: in a text block\'s box it drives that block\'s own commands (B, I, a colour, Default, a size, Clear) and writes no format beside the block; with only a caret there, Default, Size and Clear are disabled',
+            /^Text block — select text/.test(caretSaid) && J(caretOff) === J([true, true, true, false, false, false]) && offPressed === 0 && selSaid === 'Text block — the selected text' && J(selOff) === J([false, false, false, false])
+            && J(pr.rte) === J([['4', { b: true }], ['4', { color: GREEN }], ['4', { color: null }], ['4', { size: 'huge' }], ['4', 'clear']]) && J(pr.map.blocks[4]) === J(B0()[4]) && pr.log.length === 0, [caretSaid, caretOff, pr.rte]);
+
+        // the cap is said
+        const pc = mkPage({ map: mapOf([{ id: 'b', type: 'h2', title: 'x'.repeat(900) }]) }).build(), tc = pc.box('b-title', { idx: 0 });
+        const many = []; for (let k = 0; k < 199; k++) many.push({ s: k * 2, e: k * 2 + 1, b: true });
+        pc.map.blocks[0].fmt = { title: { spans: many } };
+        pc.sel0(tc, 600, 601); pc.tsPress({ i: true });
+        check('bar: a field at its ' + MAX_SPANS + ' styled parts says so', pc.map.blocks[0].fmt.title.spans.length === 200 && pc.toasts.length === 1 && /200/.test(pc.toasts[0]));
+        check('undo: one step a press — the press closes whatever typing was on its way first (io.js stepBoundary), then saves at once; a redraw after undo keeps the bar in step',
+            /function stepBoundary\(\) \{ if \(savePending\) pushHistory\(\); closeChunk\(\); \}/.test(read('io.js')) && /\n\s*stepBoundary,\n/.test(read('io.js')) && /stepBoundary\(\);[^\n]*\n\s*fld\.setFmt\(now\);\n\s*save\(true\);/.test(barSrc)
+            && /if \(tsState\.sel && tsState\.sel\.map !== activeMap\.id\) tsState\.sel = null;[^\n]*\n\s*tsRefresh\(\);/.test(plannerSrc));
+    }
+
+    /* ---- structure: every format stays on its own text (a seeded sequence of edits against a plain model) ---- */
+    {
+        const pg = mkPage({ map: mapOf([]) }), R = rng(4242);
+        // every text carries its own name; its format's colour is worked out from that name — so a format on the wrong text shows
+        let serial = 0; const fresh = p => p + (serial++);
+        const colourOf = name => { let h = 7; for (let k = 0; k < name.length; k++) h = (h * 31 + name.charCodeAt(k)) >>> 0; return '#' + ('000000' + (h & 0xffffff).toString(16)).slice(-6); };
+        const lookOf = name => ({ color: colourOf(name), spans: [{ s: 0, e: 1, b: true }] });
+        const styled = () => R() < 0.7;
+        const mkTable = () => { const b = { id: fresh('b'), type: 'node', title: fresh('T'), cols: [], rows: [] }; const n = 2 + Math.floor(R() * 3); for (let c = 0; c < n; c++) b.cols.push(fresh('H')); for (let r = 0; r < 3; r++) { const row = {}; for (let c = 0; c < n; c++) row['col' + (c + 1)] = fresh('C'); b.rows.push(row); } return b; };
+        const mkChart = () => ({ id: fresh('b'), type: 'flowchart', nodes: [0, 1, 2].map(() => ({ id: fresh('n'), text: fresh('N'), shape: 'rect', color: 'neutral' })), edges: [0, 1].map(() => ({ from: 'a', to: 'b', text: fresh('E'), style: 'solid' })) });
+        const blocks = pg.map.blocks; blocks.push({ id: 'h', type: 'h1', title: fresh('T'), sub: fresh('S') }, mkTable(), mkChart(), mkTable(), mkChart());
+        // every field there is, by descriptor
+        const fields = () => { const out = []; blocks.forEach((b, idx) => {
+            if (b.type === 'h1') out.push({ idx, k: 'title' }, { idx, k: 'sub' });
+            if (b.type === 'node') { out.push({ idx, k: 'title' }); pg.tsCols(b).forEach((c, ci) => out.push({ idx, k: 'col', ci })); b.rows.forEach((r, ri) => { for (let ci = 0; ci < 8; ci++) if (typeof r['col' + (ci + 1)] === 'string') out.push({ idx, k: 'cell', ri, ci }); }); }
+            if (b.type === 'flowchart') { b.nodes.forEach((n, ni) => out.push({ idx, k: 'node', ni })); b.edges.forEach((e, ei) => out.push({ idx, k: 'edge', ei })); }
+        }); return out; };
+        const nameOf = t => { const m = /^[A-Za-z]+\d+/.exec(t); return m ? m[0] : ''; };
+        const styleSome = () => fields().forEach(d => { const f = pg.tsField(blocks, d); if (!f) return; const nm = nameOf(f.text()); if (nm && f.fmt() === undefined && styled()) f.setFmt(lookOf(nm)); });
+        // the invariant: wherever a format is, it is the one made for the text beside it
+        const wrong = () => { let bad = null, seen = 0;
+            const judge = (text, fmt, where) => { if (fmt === undefined || fmt === null) return; seen++; const c = TF.cleanFmt(fmt, text); if (!nameOf(text) || !c || c.color !== colourOf(nameOf(text))) bad = { where, text, fmt }; };
+            blocks.forEach((b, idx) => {
+                if (b.fmt) Object.keys(b.fmt).forEach(k => judge(b[k], b.fmt[k], idx + '.' + k));
+                if (b.colFmt) { if (!Array.isArray(b.cols) || b.colFmt.length > b.cols.length || !b.colFmt[b.colFmt.length - 1]) bad = { where: idx + '.colFmt shape', colFmt: b.colFmt, cols: b.cols }; b.colFmt.forEach((f, ci) => judge(b.cols[ci], f, idx + '.col' + ci)); }
+                (b.rows || []).forEach((r, ri) => { if (r.fmt) Object.keys(r.fmt).forEach(k => judge(r[k], r.fmt[k], idx + '.row' + ri + '.' + k)); });
+                (b.nodes || []).forEach((n, ni) => judge(n.text, n.fmt, idx + '.node' + ni)); (b.edges || []).forEach((e, ei) => judge(e.text, e.fmt, idx + '.edge' + ei));
+            }); return bad; };
+        styleSome();
+        let bad = wrong(), steps = 0; const done = {};
+        const pick = list => list[Math.floor(R() * list.length)];
+        for (; steps < 600 && !bad; steps++) {
+            const idx = Math.floor(R() * blocks.length), b = blocks[idx], op = Math.floor(R() * 12); let name = '';
+            // each case does to the blocks exactly what the editor's handler does (the handlers are pinned below)
+            if (op === 0 && b && b.type === 'node') { b.rows.push({}); name = 'add row'; }
+            else if (op === 1 && b && b.type === 'node' && b.rows.length) { b.rows.splice(Math.floor(R() * b.rows.length), 1); name = 'delete row'; }
+            else if (op === 2 && b && b.type === 'node') { pg.tsSetColCount(b, 1 + Math.floor(R() * 8)); name = 'column count'; }
+            else if (op === 3 && b && b.type === 'flowchart') { b.nodes.push({ id: 'n' + (b.nodes.length + 1), text: 'Node', shape: 'rect', color: 'neutral' }); name = 'add node'; }
+            else if (op === 4 && b && b.type === 'flowchart' && b.nodes.length) { b.nodes.splice(Math.floor(R() * b.nodes.length), 1); name = 'delete node'; }
+            else if (op === 5 && b && b.type === 'flowchart') { b.edges.push({ from: '', to: '', text: '', style: 'solid' }); name = 'add arrow'; }
+            else if (op === 6 && b && b.type === 'flowchart' && b.edges.length) { b.edges.splice(Math.floor(R() * b.edges.length), 1); name = 'delete arrow'; }
+            else if (op === 7 && idx > 0) { const t = blocks[idx]; blocks[idx] = blocks[idx - 1]; blocks[idx - 1] = t; name = 'move up'; }
+            else if (op === 8 && idx < blocks.length - 1) { const t = blocks[idx]; blocks[idx] = blocks[idx + 1]; blocks[idx + 1] = t; name = 'move down'; }
+            else if (op === 9 && blocks.length > 3) { blocks.splice(idx, 1); name = 'delete block'; }
+            else if (op === 10) { blocks.push(R() < 0.5 ? mkTable() : mkChart()); name = 'add block'; }
+            else if (op === 11) { const d = pick(fields()); if (d) { const f = pg.tsField(blocks, d), t = f.text(); if (nameOf(t)) { pg.tsType(blocks, d, t + 'x', t.length + 1); name = 'type'; } else if (!t && R() < 0.5) { const nn = fresh('Z'); pg.tsType(blocks, d, nn, nn.length); name = 'type new'; } } }
+            if (!name) continue;
+            done[name] = (done[name] || 0) + 1;
+            if (R() < 0.3) styleSome();
+            bad = wrong(); if (bad) bad.after = name;
+        }
+        check('structure (seeded, ' + steps + ' edits): rows, columns, nodes, arrows and blocks added, deleted and moved, the column count changed, text typed — each format is still on its own text, and colFmt stays a list beside cols',
+            !bad && steps === 600 && ['add row', 'delete row', 'column count', 'add node', 'delete node', 'add arrow', 'delete arrow', 'move up', 'move down', 'delete block', 'add block', 'type'].every(k => done[k] > 5), bad || done);
+        check('structure (wired): the editor\'s handlers do exactly those list operations — a row, a node and an arrow are spliced or pushed as objects, blocks swap as objects, the Columns select goes through tsSetColCount',
+            /activeMap\.blocks\[this\.dataset\.idx\]\.rows\.push\(\{\}\); save\(true\)/.test(plannerSrc) && /activeMap\.blocks\[this\.dataset\.idx\]\.rows\.splice\(this\.dataset\.ri, 1\); save\(true\)/.test(plannerSrc)
+            && /\.nodes\.splice\(this\.dataset\.ni, 1\); save\(true\)/.test(plannerSrc) && /\.edges\.splice\(this\.dataset\.ei, 1\); save\(true\)/.test(plannerSrc) && /\.nodes\.push\(\{id: 'n'\+/.test(plannerSrc) && /\.edges\.push\(\{from: '', to: '', text: '', style: 'solid'\}\)/.test(plannerSrc)
+            && /var t=activeMap\.blocks\[i\]; activeMap\.blocks\[i\]=activeMap\.blocks\[i-1\]; activeMap\.blocks\[i-1\]=t;/.test(plannerSrc) && /var t=activeMap\.blocks\[i\]; activeMap\.blocks\[i\]=activeMap\.blocks\[i\+1\]; activeMap\.blocks\[i\+1\]=t;/.test(plannerSrc)
+            && /activeMap\.blocks\.splice\(this\.dataset\.idx, 1\); save\(true\)/.test(plannerSrc) && /tsSetColCount\(bb, n\);/.test(plannerSrc));
+        const t = { type: 'node', cols: ['A', 'B', 'C', 'D'], colFmt: [{ b: true }, null, null, { i: true }], rows: [{ col1: 'a', col4: 'd', fmt: { col4: { b: true } } }] };
+        pg.tsSetColCount(t, 2); const cut = J([t.cols, t.colFmt, t.rows]);
+        pg.tsSetColCount(t, 5);
+        check('structure: fewer columns cut the heads and their formats together (a cell past the last column keeps its text and its look, as before); more columns add plain heads',
+            cut === J([['A', 'B'], [{ b: true }], [{ col1: 'a', col4: 'd', fmt: { col4: { b: true } } }]]) && J(t.cols) === J(['A', 'B', 'Column 3', 'Column 4', 'Column 5']) && J(t.colFmt) === J([{ b: true }]));
+        const p = { type: 'table', cols: ['A', 'B'], rows: [['x', 'y'], { col1: 'kept', fmt: { col1: { b: true } } }, ['z']], rowFmt: [[null, { i: true }], null, [{ color: RED }]] };
+        const ch = pg.tsRowsAsObjects(p), again = pg.tsRowsAsObjects(p);
+        check('structure: a page\'s table that came in with its rows as lists (a file, another table) is put the way the editor reads it — rows as { col1, … }, each cell\'s format on its row — once',
+            ch === true && again === false && J(p.rows) === J([{ col1: 'x', col2: 'y', fmt: { col2: { i: true } } }, { col1: 'kept', fmt: { col1: { b: true } } }, { col1: 'z', fmt: { col1: { color: RED } } }]) && !('rowFmt' in p)
+            && /if \(b && typeof b === 'object' && \(b\.type === 'node' \|\| b\.type === 'table'\)\) tsRowsAsObjects\(b\);/.test(plannerSrc), p);
+    }
+
+
+    /* ================= said: Help, the tour, the integration guide, the page ================= */
+    {
+        const rootDir = path.join(__dirname, '..'), rd = f => fs.readFileSync(path.join(rootDir, f), 'utf8').replace(/\r\n/g, '\n');
+        const ix = rd('system/app/index.html'), tu = rd('system/app/scripts/tutorial.js'), ci = rd('CAMPAIGN_INTEGRATION.md'), css = rd('system/app/style.css'), yml = rd('.github/workflows/checks.yml');
+        const pane = name => { const a = ix.indexOf('<div class="help-pane" data-pane="' + name + '"'), b = ix.indexOf('<div class="help-pane"', a + 10); return a < 0 ? '' : ix.slice(a, b < 0 ? undefined : b); };
+        const hp = pane('planners'), words = s => s.replace(/<[^>]+>/g, '').replace(/&mdash;/g, '\u2014').replace(/&[a-z#0-9]+;/g, ' ').replace(/\s+/g, ' ');
+        check('said (Help, Planners): a Text style section — the bar closed until its caret is clicked, select then click, nothing selected is the whole field, size per field, Clear, what it names, one undo step, the text blocks\' colour and size, Markdown writes the plain text',
+            /<h4>Text style<\/h4>/.test(hp) && ['closed until you click its', 'Select, then click.', 'so you can click green and then bold without selecting again', 'Ctrl + B', 'Nothing selected is the whole field.', 'then select the lines you have finished and pick green',
+                'is always the whole field\'s', 'Clear takes the styling off the selection, or off the whole field when nothing is selected', 'names what it will act on', 'a control that cannot apply is greyed out', 'Each click is one undo step',
+                'keep their own bar, which also has the colours, Default and a Size list for the selected text', 'A Markdown export writes the plain text: Markdown has no colour and no size'].every(w => words(hp).indexOf(w) >= 0), words(hp).slice(words(hp).indexOf('Text style'), words(hp).indexOf('Text style') + 400));
+        const hh = ix.slice(ix.indexOf('<h4>What a page is</h4>'), ix.indexOf('<h4>Players can read / GM only</h4>'));
+        check('said (Help, Handbook): editing a page names the Text style bar and that players see a styled page as the GM does', /The <b>Text style<\/b> bar at the top of the editor colours, bolds, italicises and sizes a page's text just as in a planner/.test(hh) && /Players see a styled page exactly as you do\./.test(hh));
+        const stepOf = title => { const a = tu.indexOf("title: '" + title + "'"); return a < 0 ? '' : tu.slice(a, tu.indexOf('before:', a)); };
+        check('said (the tour): the planner step and the Handbook step both name the Text style bar (no step was added: the editors\' own steps cover it)',
+            /The <b>Text style<\/b> bar at the top of the editor \(click its <b>&#9656;<\/b>\) colours, bolds, italicises and sizes your text: select characters in a title, a table cell or a flowchart label and click a style, or click in the box with nothing selected to style the whole field/.test(stepOf('Writing a planner'))
+            && /the text blocks have the colours and a size list on their own bar/.test(stepOf('Writing a planner')) && /The same <b>Text style<\/b> bar colours and sizes a page&rsquo;s titles, table cells and flowchart labels, and players see them as you do\./.test(stepOf('Handbook')));
+        check('said (the integration guide): the keys and where each is stored, with the cleaner\'s own numbers and steps',
+            ci.indexOf('**Text style (1.5.0):**') > 0 && ci.indexOf('"size": "' + SIZES.join('|') + '"') > 0 && SIZES.every(k => ci.indexOf(k + ' ' + SIZE_EM[k].replace('em', '')) > 0) && Object.keys(SIZE_EM).map(k => SIZE_EM[k]).every(v => ci.indexOf(v) > 0)
+            && ci.indexOf('at most ' + MAX_SPANS + ' a field') > 0 && ci.indexOf('only the first ' + MAX_RAW + ' entries of a list are read') > 0 && ['"fmt": { "title": …, "sub": …, "tag": …, "must": …, "caption": … }', '`"colFmt"`, a list parallel to `cols`', '"fmt": { "col1": …, "col2": … }', '`"rowFmt"`, a list of lists parallel to `rows`', 'a strict `#rrggbb`', '<span style="color:#rrggbb">', 'an export writes the plain text and an import brings no format'].every(w => ci.indexOf(w) > 0));
+        check('the page: the bar\'s place is in index.html above the blocks, closed (its body hidden), with no handler attribute and no inline script; its styles keep it in view while the editor scrolls',
+            /<div id="textStyleBar" class="ts-bar">\n\s*<button type="button" id="textStyleToggle" class="ts-toggle" aria-expanded="false" aria-controls="textStyleBody" title="[^"<>]+"><span class="ts-caret" aria-hidden="true">&#9656;<\/span> Text style<\/button>\n\s*<div id="textStyleBody" class="ts-body" hidden><\/div>\n\s*<\/div>\n\s*<div id="plannerBlocks"><\/div>/.test(ix)
+            && /\.ts-bar \{ position: sticky; top: -15px;/.test(css) && /\.ts-body\[hidden\] \{ display: none; \}/.test(css));
+        check('CI runs this suite', /run: node tools\/textcheck\.js/.test(yml));
+        check('the console\'s list names the new module and the renderer\'s two new calls, as the code publishes them', /wpTextFmt: 'Text formats, pure \(scripts\/textfmt\.js\)/.test(rd('system/app/scripts/devconsole.js')) && /fmtHtml\(text, fmt, put\), cleanBlockFmts\(block\)/.test(rd('system/app/scripts/devconsole.js')) && ['cleanFmt', 'runsOf', 'respan', 'apply', 'clear', 'stateAt', 'SIZES', 'SIZE_EM', 'PALETTE', 'MAX_SPANS'].every(k => k in TF));
+    }
+
+    summed = true;
+    console.log('\n' + pass + ' passed, ' + fail + ' failed.');
+    if (fail) process.exit(1);
+})();

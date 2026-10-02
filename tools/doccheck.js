@@ -13,7 +13,9 @@ function check(name, ok, detail) { if (ok) { pass++; console.log('ok       ', na
 
 // Balanced-output checker: every opening tag has its closer, in order; only allowed names appear;
 // no attribute but the link trio; nothing that looks like an event handler or a script.
-const ALLOWED = new Set(['p', 'br', 'b', 'strong', 'i', 'em', 'u', 's', 'strike', 'ul', 'ol', 'li', 'code', 'pre', 'a']);
+const ALLOWED = new Set(['p', 'br', 'b', 'strong', 'i', 'em', 'u', 's', 'strike', 'ul', 'ol', 'li', 'code', 'pre', 'a', 'span']);
+// the one form a span may take (text style, 1.5.0): a colour, a size step, or both, written by the sanitiser itself
+const SPAN_OK = /^ style="(color:#[0-9a-f]{6}|font-size:(0\.833|1\.2|1\.44|1\.728)em|color:#[0-9a-f]{6};font-size:(0\.833|1\.2|1\.44|1\.728)em)"$/;
 function inert(html) {
     const stack = [];
     const re = /<(\/?)([a-z0-9]+)([^>]*)>/g; let m;
@@ -23,6 +25,7 @@ function inert(html) {
         if (m[1]) { if (stack.pop() !== name) return 'unbalanced ' + name; continue; }
         if (name === 'br') { if (attrs) return 'br attrs'; continue; }
         if (name === 'a') { if (!/^ href="https?:\/\/[^"]*" target="_blank" rel="noopener noreferrer"$/.test(attrs)) return 'a attrs ' + attrs; }
+        else if (name === 'span') { if (!SPAN_OK.test(attrs)) return 'span attrs ' + attrs; }
         else if (attrs) return 'attrs on ' + name + ': ' + attrs;
         stack.push(name);
     }
@@ -30,6 +33,12 @@ function inert(html) {
     if (/<[^a-z\/]/i.test(html)) return 'stray <';
     if (/on[a-z]+\s*=|javascript:|<script|<img|<svg|<iframe|<style|<object|<embed/i.test(html)) return 'dangerous text';
     return null;
+}
+// a rendered page: no tag that runs, no handler, and no style but the fixed words the renderer writes itself
+function risksNone(html) {
+    if (/<(script|iframe|object|embed|svg|math|style|link|meta|base|form)\b/i.test(html) || /\son[a-z]+\s*=/i.test(html)) return false;
+    const styles = html.match(/style="[^"]*"/g) || [];
+    return styles.every(s => /^style="((color:#[0-9a-f]{6};|font-weight:bold;|font-style:italic;|font-size:(0\.833|1\.2|1\.44|1\.728)em;|width:\d+%;|height:\d+px;|width:\d+px;|position:relative;left:-?\d+px;top:-?\d+px;)*)"$/.test(s));
 }
 
 let summed = false;   // a check that never settles (a promise nothing answers) would let Node exit with no summary and code 0: that is a failure
@@ -294,6 +303,24 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const got = strip(back.blocks);
         check('round trip: the same block types, titles, contents and layout come back', JSON.stringify(got.map(b => b.type)) === JSON.stringify(want.map(b => b.type)) && got[0].title === 'Rules' && got[0].sub === 'v2' && got[2].cols === 2 && got[3].content === want[3].content && got[5].caption === 'The map' && JSON.stringify(got[5].layout) === JSON.stringify(want[5].layout) && got[6].title === 'Pace' && got[6].cols.join('|') === 'A|B|C' && got[6].rows[1].col2 === 'y' && got[8].content === 'Note line one<br>line two' && got[9].content === 'graph TD\nA-->B' && got[10].nodes[0].text === 'Roll "it"' && got[10].edges[0].style === 'dotted' && back.meta.players === false, JSON.stringify(got) + '\n---\n' + JSON.stringify(want));
         check('round trip: the lede keeps its inline markup', got[1].content === 'Short <b>intro</b>', got[1].content);
+        // text style: Markdown has no colour and no size — an export writes the plain text, an import brings no format
+        {
+            const RED = '#d9534f';
+            const stPl = { type: 'planner', id: 'plan_s', meta: { title: 'Styled' }, blocks: [
+                { type: 'h1', title: 'Session', sub: 'one', fmt: { title: { color: RED, b: true }, sub: { i: true } } }, { type: 'h2', title: 'Beats', fmt: { title: { size: 'huge' } } },
+                { type: 'node', title: 'The docks', tag: 'Stealth', must: 'Who?', cols: ['Action', 'Why'], colFmt: [{ b: true }], fmt: { title: { color: RED }, tag: { i: true }, must: { spans: [{ s: 0, e: 3, b: true }] } }, rows: [{ col1: 'Bribe', col2: 'fast', fmt: { col1: { spans: [{ s: 0, e: 2, color: RED, i: true }] } } }] },
+                { type: 'text', content: '<p><span style="color:#d9534f">red</span> and <span style="font-size:1.44em"><b>big</b></span></p>' },
+                { type: 'flowchart', dir: 'LR', nodes: [{ id: 'a', text: 'buy milk', fmt: { color: RED, spans: [{ s: 0, e: 3, b: true }] } }, { id: 'b', text: 'done' }], edges: [{ from: 'a', to: 'b', text: 'then', fmt: { i: true } }] },
+                { type: 'image', src: '', caption: 'cap', fmt: { caption: { b: true } } } ] };
+            const plainPl = JSON.parse(JSON.stringify(stPl)); plainPl.blocks.forEach(b => { delete b.fmt; delete b.colFmt; (b.rows || []).forEach(r => delete r.fmt); (b.nodes || []).forEach(n => delete n.fmt); (b.edges || []).forEach(e => delete e.fmt); }); plainPl.blocks[3].content = '<p>red and <b>big</b></p>';
+            const mdS = docToMarkdown(stPl, {}).text, mdP = docToMarkdown(plainPl, {}).text;
+            check('text style and Markdown: a styled planner exports exactly the Markdown of the same planner unstyled — plain titles, cells and labels, no span, no colour, no size', mdS === mdP && !/span|color|font-size|fmt|#d9534f/.test(mdS) && mdS.indexOf('red and **big**') > 0 && mdS.indexOf('| Bribe | fast |') > 0 && mdS.indexOf('a["buy milk"]') > 0, mdS);
+            const backS = markdownToBlocks(mdS, { kind: 'planner' });
+            check('text style and Markdown: the round trip is plain — an import produces no format on any block, row, node or arrow', JSON.stringify(backS.blocks).indexOf('"fmt"') < 0 && JSON.stringify(backS.blocks).indexOf('Fmt"') < 0 && JSON.stringify(backS.blocks).indexOf('<span') < 0 && backS.blocks[0].title === 'Session' && types(backS).indexOf('flowchart') > 0, JSON.stringify(backS.blocks).slice(0, 400));
+            const pgS = cleanDoc({ type: 'doc', id: 'doc_s', meta: { title: 'P' }, blocks: [{ id: 'a', type: 'h1', title: 'P', sub: '', fmt: { title: { color: RED } } }, { id: 'b', type: 'table', title: 'T', cols: ['A'], colFmt: [{ b: true }], rows: [{ col1: 'x', fmt: { col1: { i: true } } }] }] });
+            const pgP = JSON.parse(JSON.stringify(pgS)); pgP.blocks.forEach(b => { delete b.fmt; delete b.colFmt; delete b.rowFmt; });
+            check('text style and Markdown: a styled page too (as a player\'s app holds it, formats beside its rows)', docToMarkdown(pgS, {}).text === docToMarkdown(pgP, {}).text && !!pgS.blocks[1].rowFmt);
+        }
         // a planner with a scene node and raw block round-trips its own way
         const plItems = { m1: { id: 'm1', type: 'map', meta: { title: 'Ahto East' }, rooms: [{ id: 'r9', name: 'Cargo lock' }] } };
         const pl = { type: 'planner', id: 'plan_1', meta: { title: 'Session', status: 'next' }, blocks: [{ type: 'h1', title: 'Session', sub: '' }, { type: 'node', title: 'The docks', tag: 'Stealth', must: 'Who?', linkMapId: 'm1', linkRoomId: 'r9', cols: ['Action', 'Why'], rows: [{ col1: 'Bribe', col2: 'fast' }] }, { type: 'node', mode: 'table', title: 'NPCs', cols: ['Name'], rows: [{ col1: 'Vane' }] }, { type: 'raw', content: '<b>raw</b>' }] };
@@ -363,6 +390,115 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const cap = hbText([{ id: 'd_big', title: 'Big', doc: many }], 'quick fox'), long = hbText([{ id: 'd_l', title: 'L', doc: { blocks: [{ type: 'text', content: 'x'.repeat(200) + ' needle ' + 'y'.repeat(200) }] } }], 'needle');
         check('H12 hbText: at most ' + HB_LIMIT + ' places (over: there were more), in page then heading order at one score; a long part is cut around the hit with an ellipsis each side',
             HB_LIMIT === 60 && cap.hits.length === 60 && cap.over === true && cap.hits[0].bi === 0 && cap.hits[1].bi === 2 && long.hits[0].before.startsWith('\u2026') && long.hits[0].before.length === 51 && long.hits[0].hit === 'needle' && long.hits[0].after.endsWith('\u2026'), JSON.stringify(long.hits[0]));
+    }
+
+    /* ---- text style (1.5.0): a text block's colour and size in the sanitiser; a plain field's format in the cleaner, the renderer and the flowchart compiler ---- */
+    {
+        const { fmtHtml, cleanBlockFmts } = D, RED = '#d9534f', GREEN = '#5cb87a';
+        const SP = [
+            ['a colour span is kept, rebuilt in the one form (lower case, no space, no trailing semicolon)', '<span style="color: #D9534F;">a</span>b', '<span style="color:#d9534f">a</span>b'],
+            ['a size span is kept when it is one of the fixed steps', '<span style="font-size:1.2em">a</span>', '<span style="font-size:1.2em">a</span>'],
+            ['colour and size together: colour first, then size', '<span style="font-size: 1.44em; color: #5CB87A">a</span>', '<span style="color:#5cb87a;font-size:1.44em">a</span>'],
+            ['what the colour command leaves — <font color> — becomes the span', 'x<font color="#ff0000">y</font>z', 'x<span style="color:#ff0000">y</span>z'],
+            ['what a browser writes back — rgb(r, g, b) — becomes the hex colour', '<span style="color: rgb(217, 83, 79);">a</span>', '<span style="color:#d9534f">a</span>'],
+            ['rgb with a small number pads to two digits', '<span style="color:rgb(0,5,255)">a</span>', '<span style="color:#0005ff">a</span>'],
+            ['every other property is dropped, the colour beside it kept', '<span style="background:url(//evil.example/x);color:#00ff00;position:fixed;top:0">t</span>', '<span style="color:#00ff00">t</span>'],
+            ['a url( as the colour: the span is just its text', '<span style="color:url(//evil.example/c)">t</span>', 't'],
+            ['an expression as the colour: just its text', '<span style="color:expression(alert(1))">t</span>', 't'],
+            ['a colour name, a short hex, an rgba, an rgb past 255: just the text', '<span style="color:red">a</span><span style="color:#f00">b</span><span style="color:rgba(1,2,3,0.5)">c</span><span style="color:rgb(256,0,0)">d</span>', 'abcd'],
+            ['an unknown size (a pixel size, a huge em, a step with a tail): just the text', '<span style="font-size:40px">a</span><span style="font-size:99em">b</span><span style="font-size:1.2em !important">c</span><span style="font-size:1.2em;font-size:300px">d</span>', 'abc<span style="font-size:1.2em">d</span>'],
+            ['an over-long style value is not read at all', '<span style="' + 'color:#111111;'.repeat(20) + '">t</span>', 't'],
+            ['an event attribute, a class, an id on the span are gone; the colour stays', '<span style="color:#112233" onclick="alert(1)" onmouseover=alert(2) class="x" id="y" data-z="1">t</span>', '<span style="color:#112233">t</span>'],
+            ['a nested hostile span is dropped while its text stays inside the kept one', '<span style="color:#112233">a<span style="background:url(x)" onclick="x()">b</span>c</span>d', '<span style="color:#112233">abc</span>d'],
+            ['a span with nothing kept still closes with its own closer (the outer colour runs on)', '<span style="color:#111111"><span>plain</span>still</span>after', '<span style="color:#111111">plainstill</span>after'],
+            ['a size inside a size keeps only its colour (a step is a share of its parent\'s: they never multiply)', '<span style="font-size:1.728em"><span style="font-size:1.728em;color:#112233">in</span>out</span>', '<span style="font-size:1.728em"><span style="color:#112233">in</span>out</span>'],
+            ['a size after a size has closed is its own', '<span style="font-size:1.2em">a</span><span style="font-size:0.833em">b</span>', '<span style="font-size:1.2em">a</span><span style="font-size:0.833em">b</span>'],
+            ['an entity-spelt colour is read after decoding', '<span style="color:&#35;abcdef">t</span>', '<span style="color:#abcdef">t</span>'],
+            ['a style that tries to leave its attribute cannot: the attribute is written anew', '<span style="color:#abcdef&quot; onmouseover=&quot;alert(1)">t</span>', 't'],
+            ['a font size, a font face and a named font colour are dropped', '<font size="7" face="Comic Sans MS" color="red">x</font>', 'x'],
+            ['a self-closed span writes nothing and opens nothing', 'a<span style="color:#abcdef"/>b', 'ab'],
+            ['an unclosed span is closed at the end', '<p><span style="color:#abcdef">a', '<p><span style="color:#abcdef">a</span></p>'],
+            ['a span closed by its paragraph does not swallow the next one', '<p><span style="color:#111111">a</p><p>b</span>c</p>', '<p><span style="color:#111111">a</span></p><p>bc</p>'],
+            ['bold inside a colour, closed in the wrong order, comes out balanced', '<span style="color:#111111"><b>x</span>y</b>', '<span style="color:#111111"><b>x</b></span>y'],
+            ['a script inside a styled span is dropped with its content', '<span style="color:#111111">a<script>alert(1)</script>b</span>', '<span style="color:#111111">ab</span>'],
+            ['a style attribute on any other tag is still dropped', '<p style="color:#111111">a</p><b style="font-size:1.2em">b</b>', '<p>a</p><b>b</b>'],
+            ['the text in a styled span is still escaped', '<span style="color:#111111">&lt;b&gt;x&lt;/b&gt; <unknown>y</unknown></span>', '<span style="color:#111111">&lt;b&gt;x&lt;/b&gt; y</span>']
+        ];
+        SP.forEach(function(c) { const h = sanitizeHtml(c[1]); check('sanitize (text style): ' + c[0], h === c[2] && inert(h) === null && sanitizeHtml(h) === h, h + ' / ' + inert(h)); });
+        check('sanitize (text style): the sizes the sanitiser keeps are exactly the core\'s steps', ['0.833em', '1.2em', '1.44em', '1.728em'].every(s => sanitizeHtml('<span style="font-size:' + s + '">a</span>') === '<span style="font-size:' + s + '">a</span>') && ['1em', '1.3em', '2em', '120%', 'larger', 'x-large', '1.2rem'].every(s => sanitizeHtml('<span style="font-size:' + s + '">a</span>') === 'a'));
+        check('sanitize (text style): proseHtml and a prose block on the wire carry the span; cleanDoc twice is the same', proseHtml('<span style="color: rgb(92, 184, 122)">done</span> todo', 'text') === '<p><span style="color:#5cb87a">done</span> todo</p>'
+            && (() => { const c = cleanDoc({ type: 'doc', id: 'd', meta: { title: 'T' }, blocks: [{ id: 'b1', type: 'callout', content: '<font color="#D9534F">x</font><span style="font-size:1.2em;background:url(x)">y</span>' }] }); return c.blocks[0].content === '<span style="color:#d9534f">x</span><span style="font-size:1.2em">y</span>' && JSON.stringify(cleanDoc(c)) === JSON.stringify(c); })());
+
+        // a plain field with a format: fmtHtml
+        check('fmtHtml: with no format the result is exactly the escaped text (nothing on a page changes until a field is styled)', fmtHtml('a <b> & "c"', undefined) === 'a &lt;b&gt; &amp; &quot;c&quot;' && fmtHtml('x', null) === 'x' && fmtHtml('x', {}) === 'x' && fmtHtml('', { b: true }) === '' && fmtHtml(null, { b: true }) === '');
+        check('fmtHtml: each run is escaped text in a span whose style is written from the cleaned values (colour, bold, italic), under one span for the size',
+            fmtHtml('buy <milk> now', { color: RED, size: 'large', spans: [{ s: 4, e: 10, color: GREEN, b: true }, { s: 11, e: 14, i: true }] }) === '<span style="font-size:1.2em;"><span style="color:#d9534f;">buy </span><span style="color:#5cb87a;font-weight:bold;">&lt;milk&gt;</span><span style="color:#d9534f;"> </span><span style="color:#d9534f;font-style:italic;">now</span></span>'
+            && fmtHtml('ab', { spans: [{ s: 0, e: 1, b: true }] }) === '<span style="font-weight:bold;">a</span>b');
+        check('fmtHtml: a hostile format draws plain — a colour that is no colour, a size that is none, a span outside the text, keys that are not the format\'s',
+            ['red;background:url(//evil.example/x)', 'url(x)', '#fff', '" onmouseover="alert(1)', 'expression(alert(1))'].every(c => fmtHtml('t<x', { color: c, spans: [{ s: 0, e: 1, color: c }] }) === 't&lt;x')
+            && fmtHtml('t', { size: '40px;position:fixed', style: 'color:red', onclick: 'x', spans: [{ s: 5, e: 9, b: true }, { s: 0, e: 1, style: 'x' }] }) === 't' && fmtHtml('t', 'bold') === 't' && fmtHtml('t', [{ b: true }]) === 't');
+        check('fmtHtml: the run\'s text goes through the function given (the planner\'s preview hands in the page sanitiser), never raw', fmtHtml('a<br>b<img src=x onerror=alert(1)>', { spans: [{ s: 0, e: 5, b: true }] }, sanitizeHtml) === '<span style="font-weight:bold;">a<br></span>b' && fmtHtml('x&y', undefined, sanitizeHtml) === 'x&amp;y');
+
+        // the page: every field kind drawn from runs; with no format exactly as before
+        const styled = { type: 'doc', id: 'd', meta: { title: 'T' }, blocks: [
+            { id: 'b1', type: 'h1', title: 'Rules', sub: 'v1', fmt: { title: { color: RED }, sub: { i: true }, evil: { b: true }, must: { b: true } } },
+            { id: 'b2', type: 'h2', title: 'Sec', fmt: { title: { size: 'huge' } } },
+            { id: 'b3', type: 'h3', title: 'Sub', fmt: { title: { spans: [{ s: 0, e: 1, b: true }] } } },
+            { id: 'b4', type: 'table', title: 'Tab', cols: ['A', 'B'], colFmt: [null, { b: true }, { i: true }], rows: [{ col1: 'x', col2: 'yy', fmt: { col2: { spans: [{ s: 0, e: 1, color: GREEN }] }, col9: { b: true }, nope: { b: true } } }, { col1: 'p' }] },
+            { id: 'b5', type: 'flowchart', nodes: [{ id: 'a', text: 'buy milk\nwalk "dog" #1', fmt: { color: RED, size: 'larger', spans: [{ s: 0, e: 8, color: GREEN, i: true }] } }, { id: 'b', text: 'plain' }], edges: [{ from: 'a', to: 'b', text: 'go', fmt: { b: true } }] },
+            { id: 'b6', type: 'image', src: '/saves/images/x.png', caption: 'cap', fmt: { caption: { size: 'small' } } }
+        ] };
+        const plain = JSON.parse(JSON.stringify(styled)); plain.blocks.forEach(b => { delete b.fmt; delete b.colFmt; (b.rows || []).forEach(r => delete r.fmt); (b.nodes || []).forEach(n => delete n.fmt); (b.edges || []).forEach(e => delete e.fmt); });
+        const hS = renderDoc(styled, { mermaid: false }), hP = renderDoc(plain, { mermaid: false });
+        check('render (text style): a title, a subtitle, a section, a sub-heading, a table\'s title, heads and cells and a caption are drawn from their runs',
+            hS.indexOf('<h1><span style="color:#d9534f;">Rules</span><span class="sub"><span style="font-style:italic;">v1</span></span></h1>') > 0 && hS.indexOf('<h2><span style="font-size:1.728em;">Sec</span></h2>') > 0 && hS.indexOf('<h3 class="doc-h3"><span style="font-weight:bold;">S</span>ub</h3>') > 0
+            && hS.indexOf('<th>A</th><th><span style="font-weight:bold;">B</span></th>') > 0 && hS.indexOf('<td>x</td><td><span style="color:#5cb87a;">y</span>y</td>') > 0 && hS.indexOf('<figcaption><span style="font-size:0.833em;">cap</span></figcaption>') > 0 && hS.indexOf('alt="cap"') > 0, hS);
+        check('render (text style): a page with no format is drawn exactly as before (the markup pinned), and a format object that cleans to nothing changes nothing',
+            hP.indexOf('<h1>Rules<span class="sub">v1</span></h1>') > 0 && hP.indexOf('<h2>Sec</h2>') > 0 && hP.indexOf('<th>A</th><th>B</th>') > 0 && hP.indexOf('<td>x</td><td>yy</td>') > 0 && hP.indexOf('<figcaption>cap</figcaption>') > 0 && hP.indexOf('<span style') < 0
+            && (() => { const h = JSON.parse(JSON.stringify(plain)); h.blocks[0].fmt = { title: { color: 'red', spans: [{ s: 0, e: 99 }] }, sub: 'x' }; h.blocks[3].colFmt = 'x'; h.blocks[3].rows[0].fmt = { col1: { size: 'nope' } }; h.blocks[3].rowFmt = [[{ b: true }]]; h.blocks[4].nodes[0].fmt = { color: 'url(x)' }; return renderDoc(h, { mermaid: false }) === hP; })(), hP);
+
+        // the flowchart label
+        const mm = compileFlowchart(styled.blocks[4]), mmP = compileFlowchart(plain.blocks[4]);
+        check('flowchart (text style): a label with a format compiles to the plain tags mermaid\'s own label cleaner keeps — b, i, font color without quote or #, big / small for the size — around the label\'s own escaping',
+            mm.indexOf('a["<big><big><font color=5cb87a><i>buy milk</i></font><font color=d9534f><br>walk #quot;dog#quot; #35;1</font></big></big>"]:::neutral') > 0 && mm.indexOf('b["plain"]:::neutral') > 0 && mm.indexOf('a -->|"<b>go</b>"| b') > 0, mm);
+        check('flowchart (text style): a label with no format compiles exactly as before; a hostile format too; the size steps are small, big, big big, big big big',
+            mmP.indexOf('a["buy milk<br>walk #quot;dog#quot; #35;1"]:::neutral') > 0 && mmP.indexOf('a -->|"go"| b') > 0
+            && compileFlowchart({ nodes: [{ id: 'a', text: 'x', fmt: { color: '"]:::x\nclick a call alert()', size: '</big>', spans: [{ s: 0, e: 1, color: 'red" onmouseover="x' }] } }] }) === compileFlowchart({ nodes: [{ id: 'a', text: 'x' }] })
+            && ['small', 'large', 'larger', 'huge'].map(s => /a\["(.*)"\]/.exec(compileFlowchart({ nodes: [{ id: 'a', text: 'x', fmt: { size: s } }] }))[1]).join(' ') === '<small>x</small> <big>x</big> <big><big>x</big></big> <big><big><big>x</big></big></big>'
+            && !/["#]/.test(/a\["(.*)"\]/.exec(compileFlowchart({ nodes: [{ id: 'a', text: 'x', fmt: { color: RED, b: true, i: true, size: 'huge' } }] }))[1]));
+        check('flowchart (text style): a run boundary adds no line break and no space — the label\'s text reads back as the plain label\'s', (() => { const body = /a\["(.*)"\]/.exec(mm)[1]; return body.replace(/<\/?(b|i|big|small|font)( color=[0-9a-f]{6})?>/g, '') === /a\["(.*)"\]/.exec(mmP)[1]; })());
+
+        // the wire: a host cleans what it sends, a player's app cleans it again
+        const sent = cleanDoc(styled), got = cleanDoc(sent, { keepHidden: true });
+        check('cleanDoc (text style): a page\'s formats travel with it — the block\'s own fields in fmt, a table\'s heads in colFmt, its cells in rowFmt beside the rows (rows travel as lists), a node\'s and an arrow\'s on them — cleaned, and only the keys in use',
+            JSON.stringify(sent.blocks[0].fmt) === JSON.stringify({ title: { color: RED }, sub: { i: true } }) && JSON.stringify(sent.blocks[3].colFmt) === JSON.stringify([null, { b: true }]) && JSON.stringify(sent.blocks[3].rows) === '[["x","yy"],["p"]]'
+            && JSON.stringify(sent.blocks[3].rowFmt) === JSON.stringify([[null, { spans: [{ s: 0, e: 1, color: GREEN }] }]]) && JSON.stringify(sent.blocks[4].nodes[0].fmt) === JSON.stringify({ size: 'larger', color: RED, spans: [{ s: 0, e: 8, color: GREEN, i: true }] })
+            && !('fmt' in sent.blocks[4].nodes[1]) && JSON.stringify(sent.blocks[4].edges[0].fmt) === '{"b":true}' && JSON.stringify(sent.blocks[5].fmt) === '{"caption":{"size":"small"}}' && JSON.stringify(sent.blocks[1].fmt) === '{"title":{"size":"huge"}}', JSON.stringify(sent.blocks));
+        check('cleanDoc (text style): cleaned again by a player\'s app it is the same, and it draws there exactly as on the GM\'s screen', JSON.stringify(got) === JSON.stringify(sent) && renderDoc(got, { mermaid: false }) === hS && compileFlowchart(got.blocks[4]) === mm);
+        check('cleanDoc (text style): a page with no format is sent exactly as before (no new key appears)', (() => { const c = cleanDoc(plain); return c.blocks.every(b => !('fmt' in b) && !('colFmt' in b) && !('rowFmt' in b)) && c.blocks[4].nodes.every(n => !('fmt' in n)) && JSON.stringify(Object.keys(c.blocks[3])) === '["type","id","title","cols","rows"]'; })());
+        const hostile = { type: 'doc', id: 'd', meta: { title: 'T' }, blocks: [
+            { id: 'b1', type: 'h1', title: 'T'.repeat(400), sub: 's', fmt: { title: { color: 'red', b: 1, spans: [{ s: 290, e: 399, color: RED }, { s: -1, e: 5, b: true }, { s: 0, e: 2, color: 'url(x)', onclick: 'x' }] }, sub: { size: '99em' }, __proto__: { caption: { b: true } } } },
+            { id: 'b2', type: 'table', title: 't', cols: ['A'], colFmt: { 0: { b: true } }, rows: [['x', 'y']], rowFmt: [[{ color: '#ABCDEF', evil: 1 }, 'nope', { b: true }], [{ b: true }]] },
+            { id: 'b3', type: 'table', title: 't', cols: ['A'], colFmt: [{ b: true }, { b: true }, { b: true }], rows: [{ col1: 'x', fmt: 'bold' }, { col1: 'y', fmt: [{ b: true }] }], rowFmt: 'x' },
+            { id: 'b4', type: 'flowchart', nodes: [{ id: 'a', text: 'x', fmt: { spans: new Array(5000).fill({ s: 0, e: 1, color: RED }) } }, { id: 'b', text: 'y', fmt: 7 }], edges: [{ from: 'a', to: 'b', text: 'e', fmt: { color: '#12345' } }] },
+            { id: 'b5', type: 'text', content: 'x', fmt: { title: { b: true } }, colFmt: [{ b: true }] }
+        ] };
+        const hc = cleanDoc(hostile), hc2 = cleanDoc(JSON.parse(JSON.stringify(hc)), { keepHidden: true });
+        check('cleanDoc (text style): what a hostile host sends is cleaned against the text as it is kept — a span past the cut title is cut with it, a colour that is none and a key that is not the format\'s go, a format on a block that has no such field is not carried',
+            JSON.stringify(hc.blocks[0].fmt) === JSON.stringify({ title: { spans: [{ s: 290, e: 300, color: RED }] } }) && hc.blocks[0].title.length === 300 && !('colFmt' in hc.blocks[1]) && JSON.stringify(hc.blocks[1].rowFmt) === JSON.stringify([[{ color: '#abcdef' }]])
+            && JSON.stringify(hc.blocks[2].colFmt) === '[{"b":true}]' && !('rowFmt' in hc.blocks[2]) && JSON.stringify(hc.blocks[3].nodes[0].fmt) === JSON.stringify({ spans: [{ s: 0, e: 1, color: RED }] }) && !('fmt' in hc.blocks[3].nodes[1]) && !('fmt' in hc.blocks[3].edges[0]) && !('fmt' in hc.blocks[4]) && !('colFmt' in hc.blocks[4])
+            && JSON.stringify(hc2) === JSON.stringify(hc) && risksNone(renderDoc(hc, { mermaid: false })), JSON.stringify(hc.blocks).slice(0, 900));
+
+        // a planner's block from a file: cleaned in place
+        const pb = cleanBlockFmts({ type: 'node', title: 'T', tag: 'g', must: 'm', cols: ['A', 'B'], fmt: { title: { color: '#D9534F', evil: 1 }, tag: { b: 'yes' }, must: { spans: [{ s: 0, e: 9, i: true }] }, nope: { b: true } }, colFmt: [{ b: true }, 'x', { i: true }],
+            rows: [{ col1: 'x', col2: 'yy', fmt: { col1: { color: 'red' }, col2: { spans: [{ s: 1, e: 2, b: true }] }, col7: { spans: [{ s: 0, e: 1, b: true }] }, col9: { b: true }, x: { b: true } } }, { col1: 'q', fmt: 'bold' }, null] });
+        const fb = cleanBlockFmts({ type: 'flowchart', nodes: [{ id: 'a', text: 'ab', fmt: { color: RED, spans: [{ s: 1, e: 5, b: true }] } }, { id: 'b', text: 'c', fmt: { color: 'red' } }, null], edges: [{ text: 'e', fmt: { i: true, x: 1 } }, { text: 5, fmt: { spans: [{ s: 0, e: 1, b: true }] } }] });
+        check('cleanBlockFmts: every format a block carries is cleaned in place against its own text; one that cleans to nothing, a key the app does not use and an empty holder go; twice is the same',
+            JSON.stringify(pb.fmt) === JSON.stringify({ title: { color: RED }, must: { spans: [{ s: 0, e: 1, i: true }] } }) && JSON.stringify(pb.colFmt) === '[{"b":true}]' && JSON.stringify(pb.rows[0].fmt) === JSON.stringify({ col2: { spans: [{ s: 1, e: 2, b: true }] } }) && !('fmt' in pb.rows[1]) && pb.rows[2] === null
+            && JSON.stringify(fb.nodes[0].fmt) === JSON.stringify({ color: RED, spans: [{ s: 1, e: 2, b: true }] }) && !('fmt' in fb.nodes[1]) && JSON.stringify(fb.edges[0].fmt) === '{"i":true}' && !('fmt' in fb.edges[1])
+            && JSON.stringify(cleanBlockFmts(JSON.parse(JSON.stringify(pb)))) === JSON.stringify(pb) && cleanBlockFmts(null) === null && cleanBlockFmts('x') === 'x'
+            && (() => { const c = cleanBlockFmts({ type: 'node', title: 'T', fmt: 'x', colFmt: [{ b: true }], rows: 'r', rowFmt: [[{ b: true }]] }); return !('fmt' in c) && !('colFmt' in c) && !('rowFmt' in c); })(), JSON.stringify([pb, fb]));
+        check('cleanBlockFmts: a block with no format is left exactly as it is', (() => { const b = { type: 'node', title: 'T', cols: ['A'], rows: [{ col1: 'x' }] }, j = JSON.stringify(b); return JSON.stringify(cleanBlockFmts(b)) === j; })());
     }
 
     /* ---- publication under a window ---- */

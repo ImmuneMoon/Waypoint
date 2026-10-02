@@ -824,6 +824,34 @@ const siSrc = () => {
     return (src.match(/function wireNum\(k, v\) \{[^\n]*\}/) || [''])[0] + '\n' + src.slice(a, b + 3);
 };
 const mkConn = (peer, open) => ({ peer, open: open !== false, sent: [], send(m) { this.sent.push(m); } });
+// text style (1.5.0): a page's formats on the wire — the look of a title, a table cell or a flowchart label, stored beside its text. The host's real
+// sanitizeItem sends them cleaned (docrender cleanDoc -> textfmt cleanFmt); a player's real applyItem cleans what a host sends again before it is stored
+pendingChecks.push((async () => {
+    const T = 'text style (wire): a page a host sends carries its plain fields\' formats cleaned against their texts, a GM-only page and a planner still never leave; a player\'s app cleans a page a hostile host sends again before storing it — a colour that is none, a span outside the text, a key that is not a format\'s and a format on a field that is not there are gone, what is valid stays and draws';
+    try {
+        const urlW = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+        const DRw = await import(urlW('docrender.js')), RED = '#d9534f', GREEN = '#5cb87a', Jw = JSON.stringify;
+        const [siW] = new Function('window', '"use strict";\n' + siSrc() + '\nreturn [sanitizeItem, wireWbItem];')({ wpDocRender: DRw });
+        const page = players => ({ id: 'dS', type: 'doc', meta: { title: 'Rules', players }, blocks: [
+            { id: 'b1', type: 'h1', title: 'Rules', sub: 'v1', fmt: { title: { color: '#D9534F', evil: 1, spans: [{ s: 0, e: 2, b: true, onclick: 'x' }, { s: 3, e: 99, color: 'url(//evil.example/c)' }] }, sub: { size: '99em' }, nope: { b: true } } },
+            { id: 'b2', type: 'table', title: 'T', cols: ['A', 'B'], colFmt: [null, { i: true }, { b: true }], rows: [{ col1: 'x', col2: 'yy', fmt: { col2: { spans: [{ s: 0, e: 1, color: GREEN }] }, col1: { color: 'red' } } }] },
+            { id: 'b3', type: 'flowchart', nodes: [{ id: 'n1', text: 'buy milk', fmt: { color: RED, spans: [{ s: 4, e: 40, color: GREEN }] } }, { id: 'n2', text: 'x', fmt: 'bold' }], edges: [{ from: 'n1', to: 'n2', text: 'go', fmt: { b: true, style: 'x' } }] }
+        ] });
+        const sent = siW(page(true)), want = Jw([
+            { type: 'h1', id: 'b1', title: 'Rules', sub: 'v1', fmt: { title: { color: RED, spans: [{ s: 0, e: 2, b: true }] } } },
+            { type: 'table', id: 'b2', title: 'T', cols: ['A', 'B'], rows: [['x', 'yy']], colFmt: [null, { i: true }], rowFmt: [[null, { spans: [{ s: 0, e: 1, color: GREEN }] }]] },
+            { type: 'flowchart', id: 'b3', dir: 'TD', space: 'normal', zoom: 1, nodes: [{ id: 'n1', text: 'buy milk', shape: 'rect', color: 'neutral', fmt: { color: RED, spans: [{ s: 4, e: 8, color: GREEN }] } }, { id: 'n2', text: 'x', shape: 'rect', color: 'neutral' }], edges: [{ from: 'n1', to: 'n2', text: 'go', style: 'solid', fmt: { b: true } }] }
+        ]);
+        const hostOk = !!sent && Jw(sent.blocks) === want && siW(page(false)) === null && siW({ id: 'p', type: 'planner', blocks: page(true).blocks }) === null;
+        // the player's side: the real applyItem, a host that sends the page raw
+        const ai = src.indexOf('function applyItem(msg) {'), ak = src.indexOf('\n}\n', ai);
+        const state = { appState: { activeCampaignId: 'k', campaigns: { k: { id: 'k', activeItemId: 'mA', items: { mA: { id: 'mA', type: 'map', whiteboard: [] } } } } } };
+        new Function('net', 'state', 'window', 'getActiveCampaign', 'render', 'updateSidebarNav', 'cleanHostMap', 'msg', ownKeySrc + src.slice(ai, ak) + '\n}\nreturn applyItem(msg);')({ applyingRemote: false }, state, { wpDocRender: DRw, wpFog: { invalidateVision() {}, redraw() {} } }, () => state.appState.campaigns.k, () => {}, () => {}, m => m, { type: 'item', campId: 'k', itemId: 'dS', item: page(true) });
+        const got = state.appState.campaigns.k.items.dS, html = got ? DRw.renderDoc(got, { mermaid: false }) : '';
+        const clientOk = ai > 0 && ak > ai && !!got && Jw(got.blocks) === want && html.indexOf('<h1><span style="color:#d9534f;font-weight:bold;">Ru</span><span style="color:#d9534f;">les</span><span class="sub">v1</span></h1>') > 0 && html.indexOf('<td>x</td><td><span style="color:#5cb87a;">y</span>y</td>') > 0 && html.indexOf('evil.example') < 0;
+        check(T, hostOk && clientOk, Jw([hostOk, clientOk, sent && sent.blocks, got && got.blocks]).slice(0, 1200));
+    } catch (e) { check(T, false, 'threw: ' + (e && e.stack || e)); }
+})());
 // conditions C1: a character token's effects on the wire — the real sanitizeItem and wireWbItem with fxbOf and fxbMoved, sliced and run
 pendingChecks.push((async () => {
     const Sx = await import('file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', 'systemcore.js')).split(String.fromCharCode(92)).join('/'));

@@ -583,7 +583,7 @@ function cleanupInfo() { return { lastRun: lastRun, tiers: lastTiers, ledgerSize
 
 /* ---- imports: a file someone else made ---- */
 // An import's items are content from another table: a planner's raw HTML is rebuilt by the wire's rich-text sanitiser, diagrams lose
-// their click directives, handbook pages go through cleanDoc, a play map's text items are rebuilt, and no id is ever a prototype key.
+// their click directives, the formats of its plain fields are cleaned against their texts, handbook pages go through cleanDoc, a play map's text items are rebuilt, and no id is ever a prototype key.
 // Fails closed: with no sanitiser on hand a raw block, a diagram and a text item come in empty and a page does not come in.
 // deps: { DR: docrender.js (cleanDoc, stripMermaidLinks), sanitize: net.js sanitizeRichText }. Merge runs it on each campaign.
 function cleanImportItems(ic, deps) {
@@ -609,6 +609,13 @@ function cleanImportItems(ic, deps) {
             if (!isObj(b)) return;
             if (b.type === 'raw') b.content = san ? san(String(b.content || '')) : '';
             if (b.type === 'diagram') b.content = DR && DR.stripMermaidLinks ? DR.stripMermaidLinks(String(b.content || '')) : '';
+            // text style: the look of a block's plain fields (stored beside their text) is cleaned against that text as the app reads it
+            // (docrender cleanBlockFmts -> textfmt cleanFmt); with no cleaner on hand no format comes in
+            if (DR && typeof DR.cleanBlockFmts === 'function') DR.cleanBlockFmts(b);
+            else {
+                delete b.fmt; delete b.colFmt; delete b.rowFmt;
+                ['rows', 'nodes', 'edges'].forEach(function(k) { if (Array.isArray(b[k])) b[k].forEach(function(x) { if (isObj(x)) delete x.fmt; }); });
+            }
         });
         if (it.type === 'map' && Array.isArray(it.whiteboard)) it.whiteboard.forEach(function(w) { if (isObj(w) && w.type === 'text') w.text = san ? san(String(w.text || '')) : ''; });
         if (it.type === 'map' && Array.isArray(it.whiteboard)) it.whiteboard = it.whiteboard.filter(function(w) { return !(isObj(w) && w.waiting); });   // Onboarding F1a: never a waiting token from a file

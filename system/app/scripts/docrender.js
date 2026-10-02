@@ -1,13 +1,19 @@
 /* Handbook pages: the sanitizer, the wire cleaner, the renderer and the flowchart compiler (1.5.0).
-   A pure leaf module — no imports, no DOM, no state — so net.js can clean a page for the wire, the
+   A pure module — no DOM, no state, and only two imports, both pure leaves (textfmt.js: the format of a
+   plain field; safecore.js: a colour that is a colour) — so net.js can clean a page for the wire, the
    GM's preview, the player's reader and the HTML export can render one through the same code, and
    tools/doccheck.js can run the whole thing under Node. Published as window.wpDocRender when a
    window exists (the same guard formula.js uses).
 
    The contract every caller relies on:
      sanitizeHtml(html)      the ONLY way rich-text content reaches a screen. Allow-list of tags,
-                             one attribute (href on a, http(s) only), text re-escaped, output
+                             two attributes (href on a, http(s) only; style on span, REBUILT from a parsed
+                             colour and a size step, never passed through), text re-escaped, output
                              re-serialised from a token list (never a slice of the input) and balanced.
+     fmtHtml(text, fmt, put) a plain field with a format (textfmt.js) as markup: each run's text through put
+                             (esc on a page) inside a span whose style is built from the cleaned values only;
+                             with no format, exactly put(text).
+     cleanBlockFmts(block)   every format a planner or page block carries, cleaned in place against its text.
      cleanDoc(doc, opts)     the wire sanitizer (host) and the client-side normaliser (keepHidden):
                              a new object with only the known fields, every string capped, every
                              number validated; null for a GM-only page unless opts.keepHidden.
@@ -16,6 +22,8 @@
      compileFlowchart(b)     the builder block → mermaid source (moved here from planner.js).
    Sizes: LIMITS below. Block ids: every block carries one ('b_…'); cleanDoc re-mints duplicates. */
 'use strict';
+import { cleanFmt, runsOf, SIZE_EM } from './textfmt.js';
+import { cssColor } from './safecore.js';
 
 var VERSION = '1.5.0';
 var LIMITS = { html: 65536, title: 300, cell: 2000, caption: 500, blocks: 500, bytes: 2 * 1024 * 1024, cols: 8, rows: 500, nodes: 200, edges: 400 };
@@ -42,7 +50,8 @@ function decodeEntities(s) {
 /* ---------- the sanitizer ----------
    A tokenizer, not a parser: the input is cut at LIMITS.html, split into tags and text, and then
    the output is written from scratch — allowed tags by name only, text re-escaped, one attribute
-   (href on a) rebuilt from its decoded value when it is an http(s) URL. Nothing from a tag token
+   (href on a) rebuilt from its decoded value when it is an http(s) URL, and a span's style written
+   anew from the one colour and the one size step read out of it. Nothing from a tag token
    is ever copied through, which is what makes <scr<script>ipt>, <!-->, unclosed quotes and tags
    inside <code> inert: they are either a recognised tag (emitted clean) or text (escaped). Tags are
    balanced on output with a stack: stray closers are dropped, open tags are closed at the end. */
@@ -51,6 +60,33 @@ var VOID = { br: 1 };
 var DROP_CONTENT = { script: 1, style: 1, template: 1, iframe: 1, object: 1, embed: 1, svg: 1, math: 1, noscript: 1, textarea: 1, select: 1, option: 1, button: 1, input: 1, form: 1, frame: 1, frameset: 1, title: 1, head: 1 };
 var AS_P = { div: 1, blockquote: 1, h1: 1, h2: 1, h3: 1, h4: 1, h5: 1, h6: 1, section: 1, article: 1 };   // block containers the RTE or a paste can produce: paragraphs, so line breaks survive
 var LIST = { ul: 1, ol: 1 };
+// A text block's colour and size (1.5.0): <span style="color:#rrggbb;font-size:<step>"> is the ONE form that is ever written, and it is
+// written from the parsed values. What an editing command leaves behind — <font color>, a span whose colour reads rgb(r, g, b) — is read
+// into that form; every other property, every other attribute and a value that is neither are dropped; a span left with nothing is
+// just its text. A size step is a share of its parent's size, so a sized span inside a sized span keeps only its colour.
+var SIZE_CSS = {}; Object.keys(SIZE_EM).forEach(function(k) { SIZE_CSS[SIZE_EM[k]] = 1; });
+function cssHex(v) {
+    v = String(v).trim().toLowerCase();
+    if (/^#[0-9a-f]{6}$/.test(v)) return v;
+    var m = /^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/.exec(v);
+    if (!m || +m[1] > 255 || +m[2] > 255 || +m[3] > 255) return '';
+    return '#' + [m[1], m[2], m[3]].map(function(n) { return (+n < 16 ? '0' : '') + (+n).toString(16); }).join('');
+}
+function spanLook(t) {
+    var color = '', size = '';
+    if (t.tag === 'font') { var fc = attrValue(t.attrs, 'color'); if (fc != null && fc.length <= 40) color = cssHex(decodeEntities(fc)); }
+    var st = attrValue(t.attrs, 'style');
+    if (st != null && st.length <= 200) decodeEntities(st).split(';').forEach(function(d) {
+        var at = d.indexOf(':'); if (at < 0) return;
+        var prop = d.slice(0, at).trim().toLowerCase(), val = d.slice(at + 1).trim().toLowerCase();
+        if (prop === 'color') { var c = cssHex(val); if (c) color = c; }
+        else if (prop === 'font-size' && Object.prototype.hasOwnProperty.call(SIZE_CSS, val)) size = val;
+    });
+    return { color: color, size: size };
+}
+// On the stack a span is 'span' (a colour), 'span+' (a size, with or without a colour) or '#span' (nothing kept: no tag was written)
+function isSpan(n) { return n === 'span' || n === 'span+' || n === '#span'; }
+function shut(n) { return n === '#span' ? '' : '</' + (n === 'span+' ? 'span' : n) + '>'; }
 
 function tokenize(html) {
     var out = [], i = 0, n = html.length;
@@ -102,8 +138,9 @@ function sanitizeHtml(html) {
     function openTag(name, extra) { stack.push(name); out += '<' + name + (extra || '') + '>'; }
     function closeTo(name) {   // close everything above the nearest open `name`; drop the closer when it is not open
         var at = stack.lastIndexOf(name); if (at < 0) return;
-        while (stack.length > at) out += '</' + stack.pop() + '>';
+        while (stack.length > at) out += shut(stack.pop());
     }
+    function closeSpan() { var at = stack.length - 1; while (at >= 0 && !isSpan(stack[at])) at--; if (at < 0) return; while (stack.length > at) out += shut(stack.pop()); }
     function inList() { return stack.some(function(t) { return LIST[t]; }); }
     for (var k = 0; k < toks.length; k++) {
         var t = toks[k];
@@ -115,7 +152,17 @@ function sanitizeHtml(html) {
         var name = t.tag;
         if (DROP_CONTENT[name]) { if (!t.close && !t.self) { skip = name; skipDepth = 1; } continue; }
         if (AS_P[name]) name = 'p';
-        if (!ALLOWED[name]) continue;                       // unknown tag: dropped, its text kept (span, font, img, table cells…)
+        if (name === 'span' || name === 'font') {
+            if (t.close) { closeSpan(); continue; }
+            if (t.self) continue;
+            var look = spanLook(t);
+            if (look.size && stack.indexOf('span+') >= 0) look.size = '';   // sizes never nest: the outer one stands
+            if (!look.color && !look.size) { stack.push('#span'); continue; }   // nothing kept: just its text (its closer is still its own)
+            stack.push(look.size ? 'span+' : 'span');
+            out += '<span style="' + (look.color ? 'color:' + look.color : '') + (look.color && look.size ? ';' : '') + (look.size ? 'font-size:' + look.size : '') + '">';
+            continue;
+        }
+        if (!ALLOWED[name]) continue;                       // unknown tag: dropped, its text kept (img, table cells…)
         if (t.close) { if (!VOID[name]) closeTo(name); continue; }
         if (VOID[name]) { out += '<br>'; continue; }
         if (name === 'li' && !inList()) name = 'p';         // a list item outside a list reads as a paragraph
@@ -130,8 +177,91 @@ function sanitizeHtml(html) {
         openTag(name);
         if (t.self) closeTo(name);
     }
-    while (stack.length) out += '</' + stack.pop() + '>';
+    while (stack.length) out += shut(stack.pop());
     return out;
+}
+
+/* ---------- a plain field with a format: drawn from runs (textfmt.js) ----------
+   A title, a table cell, a caption is plain text with its styling stored beside it. Drawn here: the format is cleaned
+   against the text first (a hostile one draws plain), each run's text goes through `put` (esc on a page; the planner's
+   preview hands in sanitizeHtml, as it reads its fields), and a run that has a look sits in a span whose style is
+   written from the cleaned values only: a colour through safecore's cssColor, fixed words for weight, slant and size.
+   With no format the result is exactly put(text): nothing on a page changes until a field is styled. */
+function own(o, k) { return !!o && typeof o === 'object' && Object.prototype.hasOwnProperty.call(o, k); }
+function runCss(r) {
+    var c = cssColor(r.color), css = '';
+    if (c && /^#[0-9a-f]{6}$/.test(c)) css += 'color:' + c + ';';
+    if (r.b === true) css += 'font-weight:bold;';
+    if (r.i === true) css += 'font-style:italic;';
+    return css;
+}
+function fmtHtml(text, fmt, put) {
+    var t = text == null ? '' : String(text), inner = typeof put === 'function' ? put : esc;
+    var f = t ? cleanFmt(fmt, t) : undefined;
+    if (!f) return inner(t);
+    var out = runsOf(t, f).map(function(r) { var css = runCss(r); return css ? '<span style="' + css + '">' + inner(r.t) + '</span>' : inner(r.t); }).join('');
+    var size = f.size && own(SIZE_EM, f.size) ? SIZE_EM[f.size] : '';
+    return size ? '<span style="font-size:' + size + ';">' + out + '</span>' : out;
+}
+// Where a block keeps the format of each of its plain fields (beside the value, so moving a row or a node moves its look with it):
+// block.fmt.{title, sub, tag, must, caption}; a table's heads in colFmt, a list parallel to cols; a row's cells on the row
+// (row.fmt.col1…) — or, for a page as a player holds it (rows are lists there), in rowFmt, a list of lists parallel to rows;
+// a flowchart node's label on the node, an arrow's on the arrow.
+var FMT_KEYS = ['title', 'sub', 'tag', 'must', 'caption'];
+function fieldFmt(b, k) { return own(b, 'fmt') && own(b.fmt, k) ? b.fmt[k] : undefined; }
+function colFmtOf(b, ci) { return Array.isArray(b.colFmt) ? b.colFmt[ci] : undefined; }
+function cellFmtOf(b, ri, ci) {
+    var r = Array.isArray(b.rows) ? b.rows[ri] : null;
+    if (r && typeof r === 'object' && !Array.isArray(r)) return own(r, 'fmt') && own(r.fmt, 'col' + (ci + 1)) ? r.fmt['col' + (ci + 1)] : undefined;
+    var rf = Array.isArray(b.rowFmt) ? b.rowFmt[ri] : null;
+    return Array.isArray(rf) ? rf[ci] : undefined;
+}
+function strOf(v) { return typeof v === 'string' ? v : ''; }
+// a list of formats parallel to a list of texts: null where there is none, no trailing nulls, undefined when all are
+function fmtList(texts, fmtAt) {
+    var out = [], last = -1;
+    for (var i = 0; i < texts.length; i++) { var f = cleanFmt(fmtAt(i), strOf(texts[i])); out.push(f || null); if (f) last = i; }
+    return last < 0 ? undefined : out.slice(0, last + 1);
+}
+// Every format a block carries, cleaned in place against the text it belongs to (a planner from a file; a load). A format whose text
+// is not there, a key the app does not use and an empty holder all go.
+function cleanBlockFmts(b) {
+    if (!b || typeof b !== 'object' || Array.isArray(b)) return b;
+    if (b.fmt !== undefined) {
+        var m = {}, any = false;
+        FMT_KEYS.forEach(function(k) { var f = cleanFmt(fieldFmt(b, k), strOf(b[k])); if (f) { m[k] = f; any = true; } });
+        if (any) b.fmt = m; else delete b.fmt;
+    }
+    if (b.colFmt !== undefined) {
+        var cf = Array.isArray(b.cols) ? fmtList(b.cols.slice(0, LIMITS.cols), function(i) { return colFmtOf(b, i); }) : undefined;
+        if (cf) b.colFmt = cf; else delete b.colFmt;
+    }
+    var rowsAreLists = false;
+    if (Array.isArray(b.rows)) b.rows.forEach(function(r) {
+        if (Array.isArray(r)) { rowsAreLists = true; return; }
+        if (!r || typeof r !== 'object' || r.fmt === undefined) return;
+        var rm = {}, rAny = false;
+        if (own(r, 'fmt') && r.fmt && typeof r.fmt === 'object' && !Array.isArray(r.fmt)) Object.keys(r.fmt).forEach(function(k) {
+            var km = /^col([1-9][0-9]?)$/.exec(k); if (!km || +km[1] > LIMITS.cols) return;
+            var f = cleanFmt(r.fmt[k], strOf(own(r, k) ? r[k] : '')); if (f) { rm[k] = f; rAny = true; }
+        });
+        if (rAny) r.fmt = rm; else delete r.fmt;
+    });
+    if (b.rowFmt !== undefined) {
+        var rfOut = null;
+        if (rowsAreLists && Array.isArray(b.rowFmt)) {
+            var lastR = -1, list = b.rows.slice(0, LIMITS.rows).map(function(r, ri) { var one = Array.isArray(r) ? fmtList(r.slice(0, LIMITS.cols), function(ci) { return cellFmtOf(b, ri, ci); }) : undefined; if (one) lastR = ri; return one || null; });
+            if (lastR >= 0) rfOut = list.slice(0, lastR + 1);
+        }
+        if (rfOut) b.rowFmt = rfOut; else delete b.rowFmt;
+    }
+    ['nodes', 'edges'].forEach(function(key) {
+        if (Array.isArray(b[key])) b[key].forEach(function(n) {
+            if (!n || typeof n !== 'object' || n.fmt === undefined) return;
+            var f = cleanFmt(own(n, 'fmt') ? n.fmt : undefined, strOf(n.text)); if (f) n.fmt = f; else delete n.fmt;
+        });
+    });
+    return b;
 }
 
 /* ---------- prose: the planner's line-break rule, shared ---------- */
@@ -157,7 +287,27 @@ function proseHtml(content, type) {
 /* ---------- the flowchart compiler (from planner.js) ---------- */
 // Mermaid reads ( ) [ ] { } | as shape and edge markers, so free text goes inside quotes; inside
 // quotes only " and # need escaping (mermaid's #quot; / #35; entities).
-function mmText(t) { return '"' + String(t || '').replace(/#/g, '#35;').replace(/"/g, '#quot;').replace(/\r?\n/g, '<br>') + '"'; }
+function mmEsc(t) { return String(t || '').replace(/#/g, '#35;').replace(/"/g, '#quot;').replace(/\r?\n/g, '<br>'); }
+function mmText(t) { return '"' + mmEsc(t) + '"'; }
+// A label with a format (textfmt.js): each run inside the plain tags mermaid's own label cleaner keeps (index.html: no style attribute,
+// no class of ours needed) — <b>, <i>, <font color=rrggbb> (no quote and no # may stand in a mermaid string: a colour without its #
+// reads as the same colour) and <big> / <small> for the size steps (a browser's own 1.2 step, the steps' ratio). Mermaid measures the
+// label as it will be drawn, so the box fits it; inline tags add no line break a plain label would not have. Built from the cleaned
+// values only; a label with no format compiles exactly as before.
+var MM_SIZE = { small: ['<small>', '</small>'], large: ['<big>', '</big>'], larger: ['<big><big>', '</big></big>'], huge: ['<big><big><big>', '</big></big></big>'] };
+function mmLabel(text, fmt) {
+    var t = String(text || ''), f = cleanFmt(fmt, t);
+    if (!f) return mmText(t);
+    var body = runsOf(t, f).map(function(r) {
+        var x = mmEsc(r.t), c = cssColor(r.color);
+        if (r.i === true) x = '<i>' + x + '</i>';
+        if (r.b === true) x = '<b>' + x + '</b>';
+        if (c && /^#[0-9a-f]{6}$/.test(c)) x = '<font color=' + c.slice(1) + '>' + x + '</font>';
+        return x;
+    }).join('');
+    var sz = f.size && own(MM_SIZE, f.size) ? MM_SIZE[f.size] : null;
+    return '"' + (sz ? sz[0] + body + sz[1] : body) + '"';
+}
 function mmId(t) { var v = String(t || '').trim().replace(/[^A-Za-z0-9_]/g, '_'); return v || 'n'; }
 function compileFlowchart(b) {
     var spc = { compact: [18, 28], normal: [50, 50], wide: [90, 90] }[b.space || 'normal'] || [50, 50];
@@ -172,7 +322,7 @@ function compileFlowchart(b) {
     (Array.isArray(b.nodes) ? b.nodes : []).forEach(function(n) {
         if (!n || typeof n !== 'object') return;
         var id = mmId(n.id || ('n' + Math.random().toString(36).substr(2, 5)));
-        var txt = mmText(n.text || 'Node');
+        var txt = mmLabel(n.text || 'Node', Object.prototype.hasOwnProperty.call(n, 'fmt') ? n.fmt : undefined);
         var s1 = '[', s2 = ']';
         if (n.shape === 'rounded') { s1 = '('; s2 = ')'; }
         else if (n.shape === 'pill') { s1 = '(['; s2 = '])'; }
@@ -183,7 +333,7 @@ function compileFlowchart(b) {
     (Array.isArray(b.edges) ? b.edges : []).forEach(function(e) {
         if (!e || typeof e !== 'object' || !e.from || !e.to) return;
         var line = e.style === 'dotted' ? '-.->' : '-->';
-        if (e.text) line += '|' + mmText(e.text) + '|';
+        if (e.text) line += '|' + mmLabel(e.text, Object.prototype.hasOwnProperty.call(e, 'fmt') ? e.fmt : undefined) + '|';
         m += mmId(e.from) + ' ' + line + ' ' + mmId(e.to) + '\n';
     });
     return m;
@@ -233,6 +383,8 @@ function effectiveLayout(b) {
     if ((!l || typeof l !== 'object') && b && b.type === 'image' && isFinite(Number(b.width)) && Number(b.width) > 0 && Number(b.width) < 100) l = { width: Number(b.width) };
     return l && typeof l === 'object' ? l : null;
 }
+// a plain field's format on the wire: cleaned against the text as it is sent (the capped one), kept only when something is left
+function keepFmt(o, b, k) { var f = cleanFmt(fieldFmt(b, k), o[k]); if (f) { if (!o.fmt) o.fmt = {}; o.fmt[k] = f; } }
 var LAYOUT_OK = { image: 1, callout: 1, flare: 1, table: 1, diagram: 1, flowchart: 1 };
 var NO_FLOAT_IN_COLS = { callout: 1, flare: 1 };
 function cleanBlock(b, used, ctx) {
@@ -241,15 +393,19 @@ function cleanBlock(b, used, ctx) {
     o.id = (typeof b.id === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(b.id) && !used[b.id]) ? b.id : newId(used);
     used[o.id] = 1;
     switch (b.type) {
-        case 'h1': o.title = str(b.title, LIMITS.title); o.sub = str(b.sub, LIMITS.title); break;
-        case 'h2': o.title = str(b.title, LIMITS.title); o.cols = Math.round(num(b.cols, 1, 3, 1)); ctx.cols = o.cols; break;
-        case 'h3': o.title = str(b.title, LIMITS.title); break;
+        case 'h1': o.title = str(b.title, LIMITS.title); o.sub = str(b.sub, LIMITS.title); keepFmt(o, b, 'title'); keepFmt(o, b, 'sub'); break;
+        case 'h2': o.title = str(b.title, LIMITS.title); o.cols = Math.round(num(b.cols, 1, 3, 1)); ctx.cols = o.cols; keepFmt(o, b, 'title'); break;
+        case 'h3': o.title = str(b.title, LIMITS.title); keepFmt(o, b, 'title'); break;
         case 'rule': break;
-        case 'image': o.src = safeSrc(b.src); o.caption = str(b.caption, LIMITS.caption); o.alt = str(b.alt, LIMITS.caption); break;
+        case 'image': o.src = safeSrc(b.src); o.caption = str(b.caption, LIMITS.caption); o.alt = str(b.alt, LIMITS.caption); keepFmt(o, b, 'caption'); break;
         case 'table':
             o.title = str(b.title, LIMITS.title);
             o.cols = (Array.isArray(b.cols) ? b.cols : []).slice(0, LIMITS.cols).map(function(c) { return str(c, LIMITS.title); });
             o.rows = (Array.isArray(b.rows) ? b.rows : []).slice(0, LIMITS.rows).map(function(r) { return rowCells(r).map(function(c) { return str(c, LIMITS.cell); }); });
+            keepFmt(o, b, 'title');
+            var cfT = fmtList(o.cols, function(ci) { return colFmtOf(b, ci); }); if (cfT) o.colFmt = cfT;
+            var lastRf = -1, rfT = o.rows.map(function(cells, ri) { var one = fmtList(cells, function(ci) { return cellFmtOf(b, ri, ci); }); if (one) lastRf = ri; return one || null; });   // rows travel as lists, so a row's cell formats travel beside them
+            if (lastRf >= 0) o.rowFmt = rfT.slice(0, lastRf + 1);
             break;
         case 'diagram': o.content = stripMermaidLinks(str(b.content, LIMITS.html)); break;
         case 'flowchart':
@@ -260,11 +416,15 @@ function cleanBlock(b, used, ctx) {
             if (isFinite(Number(b.boxH)) && Number(b.boxH) > 0) o.boxH = Math.round(num(b.boxH, 60, 4000, 0));
             o.nodes = (Array.isArray(b.nodes) ? b.nodes : []).slice(0, LIMITS.nodes).map(function(n) {
                 n = n && typeof n === 'object' ? n : {};
-                return { id: str(n.id, 40), text: str(n.text, LIMITS.cell), shape: /^(rect|rounded|pill|diamond|hex)$/.test(n.shape || '') ? n.shape : 'rect', color: /^(gold|blue|green|red|violet|neutral)$/.test(n.color || '') ? n.color : 'neutral' };
+                var on = { id: str(n.id, 40), text: str(n.text, LIMITS.cell), shape: /^(rect|rounded|pill|diamond|hex)$/.test(n.shape || '') ? n.shape : 'rect', color: /^(gold|blue|green|red|violet|neutral)$/.test(n.color || '') ? n.color : 'neutral' };
+                var nf = cleanFmt(own(n, 'fmt') ? n.fmt : undefined, on.text); if (nf) on.fmt = nf;
+                return on;
             });
             o.edges = (Array.isArray(b.edges) ? b.edges : []).slice(0, LIMITS.edges).map(function(e) {
                 e = e && typeof e === 'object' ? e : {};
-                return { from: str(e.from, 40), to: str(e.to, 40), text: str(e.text, LIMITS.caption), style: e.style === 'dotted' ? 'dotted' : 'solid' };
+                var oe = { from: str(e.from, 40), to: str(e.to, 40), text: str(e.text, LIMITS.caption), style: e.style === 'dotted' ? 'dotted' : 'solid' };
+                var ef = cleanFmt(own(e, 'fmt') ? e.fmt : undefined, oe.text); if (ef) oe.fmt = ef;
+                return oe;
             });
             // the GM's hand nudges and node sizes ride along (numbers only, keyed by node id) so players
             // see the chart as arranged: planner.js fcApplyNudges / fcApplySizes read nodePos, nodeSize, nodePosSig
@@ -413,9 +573,9 @@ function renderDoc(doc, opts) {
         }
         var blk = '<div class="pv-blk" data-blk="' + i + '">';
         switch (b.type) {
-            case 'h1': blk += '<h1>' + esc(b.title) + (b.sub ? '<span class="sub">' + esc(b.sub) + '</span>' : '') + '</h1>'; break;
-            case 'h2': blk += '<h2>' + esc(b.title) + '</h2>'; break;
-            case 'h3': blk += '<h3 class="doc-h3">' + esc(b.title) + '</h3>'; break;
+            case 'h1': blk += '<h1>' + fmtHtml(b.title, fieldFmt(b, 'title')) + (b.sub ? '<span class="sub">' + fmtHtml(b.sub, fieldFmt(b, 'sub')) + '</span>' : '') + '</h1>'; break;
+            case 'h2': blk += '<h2>' + fmtHtml(b.title, fieldFmt(b, 'title')) + '</h2>'; break;
+            case 'h3': blk += '<h3 class="doc-h3">' + fmtHtml(b.title, fieldFmt(b, 'title')) + '</h3>'; break;
             case 'rule': blk += '<hr class="doc-rule">'; break;
             case 'text': blk += proseHtml(b.content, 'text'); break;
             case 'lede': blk += '<p class="lede">' + proseHtml(b.content) + '</p>'; break;
@@ -424,19 +584,19 @@ function renderDoc(doc, opts) {
             case 'flare': blk += '<div' + layoutAttrs(b, 'flare') + '>' + proseHtml(b.content) + '</div>'; break;
             case 'image': {
                 var p = safeSrc(b.src);
-                if (p) blk += '<figure' + layoutAttrs(b, 'doc-img planner-img') + '><img src="' + esc(srcOf(p)) + '" data-path="' + esc(p) + '" alt="' + esc(b.alt || b.caption || '') + '">' + (b.caption ? '<figcaption>' + esc(b.caption) + '</figcaption>' : '') + '</figure>';
-                else blk += '<figure' + layoutAttrs(b, 'doc-img planner-img doc-img-empty') + '><div class="doc-noimg">No picture yet</div>' + (b.caption ? '<figcaption>' + esc(b.caption) + '</figcaption>' : '') + '</figure>';
+                if (p) blk += '<figure' + layoutAttrs(b, 'doc-img planner-img') + '><img src="' + esc(srcOf(p)) + '" data-path="' + esc(p) + '" alt="' + esc(b.alt || b.caption || '') + '">' + (b.caption ? '<figcaption>' + fmtHtml(b.caption, fieldFmt(b, 'caption')) + '</figcaption>' : '') + '</figure>';
+                else blk += '<figure' + layoutAttrs(b, 'doc-img planner-img doc-img-empty') + '><div class="doc-noimg">No picture yet</div>' + (b.caption ? '<figcaption>' + fmtHtml(b.caption, fieldFmt(b, 'caption')) + '</figcaption>' : '') + '</figure>';
                 break;
             }
             case 'table': {
                 var tcols = Array.isArray(b.cols) ? b.cols.slice(0, LIMITS.cols) : [], rows = (Array.isArray(b.rows) ? b.rows : []).map(rowCells);
                 var ncol = Math.max(tcols.length, rows.reduce(function(m, r) { return Math.max(m, r.length); }, 0), 1);
                 blk += '<div' + layoutAttrs(b, 'node plain-table doc-tablewrap') + '>';
-                if (b.title) blk += '<h3>' + esc(b.title) + '</h3>';
+                if (b.title) blk += '<h3>' + fmtHtml(b.title, fieldFmt(b, 'title')) + '</h3>';
                 blk += '<table class="doc-table">';
-                if (tcols.length) { blk += '<thead><tr>'; for (var c = 0; c < ncol; c++) blk += '<th>' + esc(tcols[c] || '') + '</th>'; blk += '</tr></thead>'; }
+                if (tcols.length) { blk += '<thead><tr>'; for (var c = 0; c < ncol; c++) blk += '<th>' + fmtHtml(tcols[c] || '', colFmtOf(b, c)) + '</th>'; blk += '</tr></thead>'; }
                 blk += '<tbody>';
-                rows.forEach(function(r) { blk += '<tr>'; for (var c2 = 0; c2 < ncol; c2++) blk += '<td>' + esc(r[c2] || '') + '</td>'; blk += '</tr>'; });
+                rows.forEach(function(r, ri) { blk += '<tr>'; for (var c2 = 0; c2 < ncol; c2++) blk += '<td>' + fmtHtml(r[c2] || '', cellFmtOf(b, ri, c2)) + '</td>'; blk += '</tr>'; });
                 blk += '</tbody></table></div>';
                 break;
             }
@@ -528,6 +688,6 @@ function hbText(pages, q) {
     return { hits: hits.slice(0, HB_LIMIT), over: hits.length > HB_LIMIT };
 }
 
-var API = { VERSION: VERSION, hbFold: hbFold, hbSections: hbSections, hbHeadings: hbHeadings, hbText: hbText, HB_LIMIT: HB_LIMIT, LIMITS: LIMITS, DOC_BLOCKS: DOC_BLOCKS.slice(), sanitizeHtml: sanitizeHtml, cleanDoc: cleanDoc, renderDoc: renderDoc, proseHtml: proseHtml, nl: nl, compileFlowchart: compileFlowchart, stripMermaidLinks: stripMermaidLinks, esc: esc, cleanDocStyle: cleanDocStyle, mergeDocStyle: mergeDocStyle, docStyleCss: docStyleCss, docBgImage: docBgImage, DOC_FONTS: DOC_FONTS };
+var API = { VERSION: VERSION, hbFold: hbFold, hbSections: hbSections, hbHeadings: hbHeadings, hbText: hbText, HB_LIMIT: HB_LIMIT, LIMITS: LIMITS, DOC_BLOCKS: DOC_BLOCKS.slice(), sanitizeHtml: sanitizeHtml, fmtHtml: fmtHtml, cleanBlockFmts: cleanBlockFmts, fieldFmt: fieldFmt, colFmtOf: colFmtOf, cellFmtOf: cellFmtOf, cleanDoc: cleanDoc, renderDoc: renderDoc, proseHtml: proseHtml, nl: nl, compileFlowchart: compileFlowchart, stripMermaidLinks: stripMermaidLinks, esc: esc, cleanDocStyle: cleanDocStyle, mergeDocStyle: mergeDocStyle, docStyleCss: docStyleCss, docBgImage: docBgImage, DOC_FONTS: DOC_FONTS };
 if (typeof window !== 'undefined') window.wpDocRender = API;
-export { VERSION, hbFold, hbSections, hbHeadings, hbText, HB_LIMIT, LIMITS, DOC_BLOCKS, sanitizeHtml, cleanDoc, renderDoc, proseHtml, nl, compileFlowchart, stripMermaidLinks, cleanDocStyle, mergeDocStyle, docStyleCss, docBgImage, DOC_FONTS };
+export { VERSION, hbFold, hbSections, hbHeadings, hbText, HB_LIMIT, LIMITS, DOC_BLOCKS, sanitizeHtml, fmtHtml, cleanBlockFmts, fieldFmt, colFmtOf, cellFmtOf, cleanDoc, renderDoc, proseHtml, nl, compileFlowchart, stripMermaidLinks, cleanDocStyle, mergeDocStyle, docStyleCss, docBgImage, DOC_FONTS };

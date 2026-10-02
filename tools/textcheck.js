@@ -1,6 +1,6 @@
 /* Offline check of text formats: the styling of a plain text field, stored beside the text (system/app/scripts/textfmt.js),
-   and the planner / page editor's Text style bar that writes it (planner.js, sliced by its [textcheck:...] markers and
-   run for real on a page of plain objects — never copied).
+   and the planner / page editor's boxes and the bar on them that write it (planner.js, sliced by its [textcheck:...] markers and
+   run for real on a page of plain objects, tools/boxdom.js — never copied).
    The core: every rule of cleanFmt (a seeded list of spans flattened to what painting them in order onto an array of
    characters gives — colour, bold, italic, underline, strike, a size and a link; a size and a link the field's own exactly
    when every character has that one; surrogate pairs; hostile and prototype keys; the same twice; nothing left -> undefined),
@@ -10,10 +10,18 @@
    break — and right before it not; a seeded walk in which every character that survives keeps its look and what was typed takes
    the look of the character on its left where a span styles it),
    runsOf, apply / clear / stateAt.
-   The editor: where each field's format lives, typing carrying it, the bar's presses (B, I, U, S, a colour, the Size list on a
-   selection and at a caret, the Link box — Enter, leaving it, Escape (what was typed is dropped), an address with a port and no scheme, an address that is refused, off for a flowchart label — Ctrl+B /
-   I / U), and a seeded sequence of structure edits against a plain model. Ctrl+Z after a press and the Size list stepped through by keyboard run io.js's own history and
-   undo chord (sliced by [textcheck:history] / [textcheck:undochord]); Find in the preview (planner.js [textcheck:find]) runs on a
+   The editor: where each field's format lives; typing carrying it (tsType: a link not grown by typing at its end, the one constant
+   flipped for the other setting; tsEditAt against respan); the box — the two pure maps between a character offset and a place in the
+   drawn nodes, on plain-object trees; what a box shows for a stored text (an input's value, a textarea's), drawn from runsOf as
+   elements and text nodes only, hostile formats plain, redrawn only where it differs; edits through the box (an engine written in
+   boxdom.js types, deletes, pastes, composes, cuts: the box is read back as text only), a seeded walk of them against the text an input
+   would hold and the look respan gives; the stored shape, an edit and a press through the box against the old boxes' handlers, pinned by
+   hash; undo and redo — io.js's own history, undo, chord and chunk listeners (sliced by [textcheck:history] / [textcheck:steps] /
+   [textcheck:undochord] / [textcheck:chunks]) run for real: steps, their selections, a seeded walk undone to the start and redone to
+   the end; the bar on the box — one, shown on focus, hidden on leaving both, its place, every control with and without a selection, the
+   Link box (Enter, leaving it, Escape, a port, a refusal, off for a flowchart label), the controls that take the focus, the keyboard
+   (Ctrl+B / I / U, Alt+F10, Tab along the bar, Escape), the symbol tray, a rebuilt editor; Tab into a box, a large planner; and a
+   seeded sequence of structure edits against a plain model. Find in the preview (planner.js [textcheck:find]) runs on a
    tree of plain objects, and so does the floating page panel's highlight (docpanel.js [textcheck:panelfold] / [textcheck:panelfind]:
    a word drawn as several runs is one hit of several marks); the text blocks' own bar is wired by the real wireRte ([textcheck:rtewire]).
    Run: node tools/textcheck.js */
@@ -408,62 +416,80 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         delete global.window;
     }
 
-    /* ================= the editor: where a field's format lives, typing, the bar (planner.js, run for real) ================= */
-    const plannerSrc = read('planner.js'), fieldsSrc = slice('planner.js', 'fields'), barSrc = slice('planner.js', 'bar');
-    // a page of plain objects: elements that record what is done to them
-    function El(tag, cls, data) { this.tagName = String(tag).toUpperCase(); this.className = cls || ''; this.dataset = data || {}; this.style = {}; this.children = []; this.handlers = {}; this.attrs = {}; this.disabled = false; this.hidden = false; this.value = ''; this.textContent = ''; this.parent = null; this.id = ''; this.calls = []; }
-    Object.defineProperty(El.prototype, 'classList', { get() { const el = this, list = () => el.className.split(/\s+/).filter(Boolean); return { contains: c => list().indexOf(c) >= 0, add: c => { if (list().indexOf(c) < 0) el.className = list().concat(c).join(' '); }, remove: c => { el.className = list().filter(x => x !== c).join(' '); }, toggle: (c, on) => { const has = list().indexOf(c) >= 0, want = on === undefined ? !has : !!on; if (want && !has) el.className = list().concat(c).join(' '); if (!want && has) el.className = list().filter(x => x !== c).join(' '); return want; } }; } });
-    El.prototype.appendChild = function(c) { c.parent = this; this.children.push(c); return c; };
-    El.prototype.addEventListener = function(ev, fn) { (this.handlers[ev] = this.handlers[ev] || []).push(fn); };
-    El.prototype.fire = function(ev, extra) { const e = Object.assign({ type: ev, target: this, prevented: false, stopped: false, preventDefault() { this.prevented = true; }, stopPropagation() { this.stopped = true; } }, extra || {}); (this.handlers[ev] || []).forEach(fn => fn.call(this, e)); return e; };
-    El.prototype.setAttribute = function(k, v) { this.attrs[k] = String(v); };
-    El.prototype.getAttribute = function(k) { return k in this.attrs ? this.attrs[k] : null; };
-    El.prototype.all = function() { let out = []; this.children.forEach(c => { out.push(c); out = out.concat(c.all()); }); return out; };
-    El.prototype.is = function(sel) {   // '.cls', '#id', 'tag', each with [data-x="v"] parts; a comma list is any of them
-        return sel.split(',').some(one => { one = one.trim(); const m = /^([a-zA-Z]*)((?:[.#][\w-]+)*)((?:\[data-[\w-]+(?:="[^"]*")?\])*)$/.exec(one); if (!m) throw new Error('selector not understood by the test page: ' + one);
-            if (m[1] && this.tagName !== m[1].toUpperCase()) return false;
-            if (!(m[2].match(/[.#][\w-]+/g) || []).every(p => p[0] === '#' ? this.id === p.slice(1) : this.classList.contains(p.slice(1)))) return false;
-            return (m[3].match(/\[data-([\w-]+)(?:="([^"]*)")?\]/g) || []).every(p => { const k = /\[data-([\w-]+)(?:="([^"]*)")?\]/.exec(p); return k[2] === undefined ? this.dataset[k[1]] !== undefined : String(this.dataset[k[1]]) === k[2]; }); });   // [data-x] alone: the attribute is there
-    };
-    El.prototype.matches = El.prototype.is;
-    El.prototype.closest = function(sel) { for (let n = this; n; n = n.parent) if (n.is(sel)) return n; return null; };
-    El.prototype.querySelector = function(sel) { return this.all().find(n => n.is(sel)) || null; };
-    El.prototype.querySelectorAll = function(sel) { return this.all().filter(n => n.is(sel)); };
-    Object.defineProperty(El.prototype, 'parentNode', { get() { return this.parent; } });
-    El.prototype.dispatchEvent = function(e) { this.calls.push('dispatch ' + e.type); return true; };
-    El.prototype.focus = function() { this.calls.push('focus'); this.page.active = this; };
-    El.prototype.setSelectionRange = function(s, e) { this.calls.push('select ' + s + '-' + e); this.selectionStart = s; this.selectionEnd = e; };
-    El.prototype.contains = function(n) { for (; n; n = n.parent) if (n === this) return true; return false; };
-
+    /* ================= the editor: where a field's format lives, typing, the box and the bar on it (planner.js, run for real) ================= */
+    const { makeDom } = require('./boxdom.js');
+    const plannerSrc = read('planner.js'), ioSrc = read('io.js'), fieldsSrc = slice('planner.js', 'fields'), boxSrc = slice('planner.js', 'box'), barSrc = slice('planner.js', 'bar');
+    const SYMS = [['→', 'right arrow'], ['—', 'em dash'], ['✓', 'check']];
+    const escH = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    // A page of plain objects (tools/boxdom.js): the editor panel, the element that holds the boxes, and the three slices run in it.
+    // opts.linkGrows: the one constant flipped (a link grows by typing at its end); opts.map: the open document.
     function mkPage(opts) {
         opts = opts || {};
-        const page = { active: null, log: [], toasts: [], store: Object.assign({}, opts.store || {}), sel: { rangeCount: 0, isCollapsed: true }, rte: [], storeThrows: !!opts.storeThrows };
-        const mk = (tag, cls, data, id) => { const el = new El(tag, cls, data); el.page = page; if (id) el.id = id; return el; };
-        page.mk = mk;
-        const blocksEl = mk('div', '', {}, 'plannerBlocks'), root = mk('div', 'ts-bar', {}, 'textStyleBar'), toggle = mk('button', 'ts-toggle', {}, 'textStyleToggle'), body = mk('div', 'ts-body', {}, 'textStyleBody');
-        body.hidden = true; root.appendChild(toggle); root.appendChild(body);
-        const byId = { plannerBlocks: blocksEl, textStyleBar: root, textStyleToggle: toggle, textStyleBody: body };
-        const doc = { createElement: tag => mk(tag), getElementById: id => byId[id] || null };
-        Object.defineProperty(doc, 'activeElement', { get: () => page.active });
+        const dom = makeDom(), doc = dom.document, page = { dom, doc, log: [], toasts: [], sels: [], hist: null, clock: { t: 1e6 } };
+        const editor = dom.mk('div', '', {}, 'plannerEditorWrap'), blocksEl = dom.mk('div', '', {}, 'plannerBlocks');
+        editor.rect = { left: 100, top: 50, right: 700, bottom: 650 }; editor.clientLeft = 0; editor.clientWidth = 588;
+        doc.body.appendChild(editor); editor.appendChild(blocksEl);
         page.map = opts.map || { id: 'p1', type: 'planner', meta: { title: 'P' }, blocks: [] };
         const deps = {
-            TF, document: doc, window: { getSelection: () => page.sel }, sessionStorage: { getItem: k => { if (page.storeThrows) throw new Error('no storage here'); return k in page.store ? page.store[k] : null; }, setItem: (k, v) => { if (page.storeThrows) throw new Error('no storage here'); page.store[k] = String(v); } },
+            TF, document: doc, window: dom.window, setTimeout: dom.setTimeout, esc: escH,
             getActiveMap: () => page.map, isDocLike: m => !!m && (m.type === 'planner' || m.type === 'doc'),
-            // page.hist (when a check sets it): io.js's own history, so a save is its pass and a step boundary its own (save(true) is doSave: the pass, then nothing pending)
-            save: im => { page.log.push('save:' + im); if (page.hist) { page.hist.pushHistory(); page.hist.pending(false); } }, renderPlannerPreview: () => { page.log.push('preview'); },
-            stepBoundary: () => { page.log.push('step'); if (page.hist) page.hist.stepBoundary(); }, stepFold: () => { page.log.push('fold'); if (page.hist) page.hist.stepFold(); }, toast: m => { page.toasts.push(m); },
-            rteLook: (b, change) => { page.rte.push([b.dataset.idx, change]); return true; }
+            // page.hist (when a check makes one): io.js's own history, so a save is its pass and a step boundary its own
+            save: im => { page.log.push('save:' + !!im); if (page.hist) page.hist.save(!!im); }, renderPlannerPreview: () => { page.log.push('preview'); },
+            stepBoundary: el => { page.log.push(el ? 'step+' : 'step'); if (page.hist) page.hist.stepBoundary(el); }, stepFold: () => { page.log.push('fold'); if (page.hist) page.hist.stepFold(); },
+            stepSel: (b, a) => { page.sels.push([b, a]); if (page.hist) page.hist.stepSel(b, a); }, toast: m => { page.toasts.push(m); },
+            fieldUndoChord: e => (page.hist ? page.hist.fieldUndoChord(e) : false), boxUndo: dir => { page.log.push(dir); if (page.hist) page.hist.boxUndo(dir); }
         };
-        const names = Object.keys(deps);
-        const api = new Function(...names, fieldsSrc + '\n' + barSrc + '\nreturn { tsDesc, tsField, tsType, tsName, tsSetColCount, tsRowsAsObjects, tsCols, TS_PLAIN, tsState, tsBox, tsNote, tsTarget, tsPress, tsRebuilt, tsBack, tsRefresh, tsBuild, tsKey };')(...names.map(k => deps[k]));
-        Object.assign(page, api, { blocksEl, root, toggle, body });
-        // an editor box for a field, as renderPlanner writes it (its classes and data attributes)
-        page.box = (cls, data, tag) => { const el = mk(tag || 'input', cls, Object.assign({}, data)); Object.keys(el.dataset).forEach(k => { el.dataset[k] = String(el.dataset[k]); }); el.selectionStart = 0; el.selectionEnd = 0; blocksEl.appendChild(el); return el; };
-        page.sel0 = (el, s, e) => { el.selectionStart = s; el.selectionEnd = e === undefined ? s : e; page.active = el; page.tsNote(el); };
-        page.btn = k => page.tsState.els[k];
-        page.click = el => page.body.fire('click', { target: el });
-        page.build = () => { page.tsBuild(root); return page; };
+        const names = Object.keys(deps), fsrc = opts.linkGrows ? fieldsSrc.replace('var TS_LINK_GROWS = false;', 'var TS_LINK_GROWS = true;') : fieldsSrc;
+        if (opts.linkGrows && fsrc === fieldsSrc) throw new Error('textcheck: the link rule\'s one line was not found');
+        const api = new Function(...names, fsrc + '\n' + boxSrc + '\n' + barSrc + '\nreturn { tsDesc, tsField, tsType, tsEditAt, tsName, tsSetColCount, tsRowsAsObjects, tsCols, TS_PLAIN, TS_LINK_GROWS, TS_EDIT, tsScan, tsPointAt, tsShown, tsIncoming, tsMulti, tsDraw, tsPaint, tsBoxHtml, tsFill, tsSelOf, tsSelect, tsState, tsBox, tsBoxOf, tsNote, tsTarget, tsShow, tsHide, tsPlaceAt, tsPlace, tsKind, tsCommit, tsInsertAt, tsPress, tsLink, tsSymbol, tsRebuilt, tsBack, tsRefresh, tsBuild, tsKey, tsWire, tsOrder, tsToBar };')(...names.map(k => deps[k]));
+        Object.assign(page, api, { editor, blocksEl, engine: dom.engine });
+        // an editor box for a field, as renderPlanner writes it (its classes and data attributes), empty until tsFill draws it
+        page.box = (cls, data, multi) => { const el = dom.mk('div', cls + ' ts-box' + (multi ? ' ts-multi' : ''), data); el.setAttribute('contenteditable', 'plaintext-only'); el.rect = { left: 140, top: 300, right: 520, bottom: 334 }; blocksEl.appendChild(el); return el; };
+        page.plain = (tag, cls, data) => { const el = dom.mk(tag, cls, data); blocksEl.appendChild(el); return el; };   // a box that is no plain field's (an id, a diagram's code)
+        page.mk = dom.mk; page.fill = () => { api.tsFill(blocksEl, page.map.blocks); return page; };
+        // every box the editor has for the open document, made anew (what renderPlanner does), then tsRebuilt
+        page.rebuild = () => {
+            if (dom.page.active && blocksEl.contains(dom.page.active)) dom.page.active = null;
+            blocksEl.childNodes.slice().forEach(c => blocksEl.removeChild(c));
+            page.map.blocks.forEach((b, idx) => {
+                if (b.type === 'h1') { page.box('field b-title', { idx }); page.box('field b-sub', { idx }); }
+                else if (b.type === 'h2' || b.type === 'h3') page.box('field b-title', { idx });
+                else if (b.type === 'image') page.box('field b-caption', { idx });
+                else if (b.type === 'node' || b.type === 'table') {
+                    page.box('field b-title', { idx });
+                    if (b.type === 'node' && b.mode !== 'table') { page.box('field b-sub', { idx }); page.box('field b-must', { idx }); }
+                    const cols = api.tsCols(b); cols.forEach((c, ci) => page.box('b-colhead', { idx, ci }));
+                    (b.rows || []).forEach((r, ri) => cols.forEach((c, ci) => page.box('r-col', { idx, ri, ci })));
+                } else if (b.type === 'flowchart') { (b.nodes || []).forEach((n, ni) => page.box('field fc-n-text fc-grow', { idx, ni }, true)); (b.edges || []).forEach((e, ei) => page.box('fc-e-text', { idx, ei })); }
+            });
+            page.fill(); api.tsRebuilt();
+            return page;
+        };
+        page.render = () => page.rebuild();
+        page.wire = () => { api.tsBuild(editor, SYMS); api.tsWire(blocksEl, editor); if (api.tsState.els) api.tsState.els.root.rect = { left: 0, top: 0, right: 420, bottom: 30 }; return page; };
+        page.focus = (box, s, e) => { box.focus(); dom.engine.caret(box, s === undefined ? 0 : s, e); return box; };
+        page.click = el => { dom.fire(el, 'mousedown'); return dom.fire(el, 'click'); };
+        page.textOf = box => dom.engine.textsOf(box).map(t => t.nodeValue).join('');
+        page.range = box => dom.engine.range(box);
+        // the box as drawn: each run's text and style, '+' for the line-break element after a final line break; null when it holds anything the app did not make
+        page.drawn = box => { const out = []; for (const c of box.childNodes) { if (c.nodeType === 1 && c.nodeName === 'BR' && c === box.lastChild) { out.push('+'); continue; } if (c.nodeType !== 1 || c.nodeName !== 'SPAN' || c.childNodes.length !== 1 || c.firstChild.nodeType !== 3 || !/^tsr( tsr-link)?$/.test(c.className)) return null; out.push([c.firstChild.nodeValue, Object.assign({}, c.style), c.className, c.title]); } return out; };
         return page;
+    }
+    // io.js's own history, its undo and redo, its chord and its chunk listeners, sliced and run for real on the page's document
+    function mkHist(page) {
+        const camp = { id: 'c', activeItemId: page.map.id, items: { [page.map.id]: page.map } }, toasts = [], H = { toasts, camp };
+        const names = ['window', 'state', 'getActiveCampaign', 'getActiveMap', 'localStorage', 'document', 'setTimeout', 'clearTimeout', 'Date', 'render', 'save', 'toast', 'saveTimeout', 'mergeLivePlayerState'];
+        const api = new Function(...names, slice('io.js', 'history') + '\n' + slice('io.js', 'steps') + '\n' + slice('io.js', 'undochord') + '\n' + slice('io.js', 'chunks')
+            + '\nreturn { pushHistory, stepBoundary, stepFold, stepSel, fieldUndoChord, boxUndo, undo, redo, stack: function() { return histories["c/" + getActiveMap().id]; }, pending: function(v) { if (v !== undefined) savePending = v; return savePending; }, slot: function() { return typeSlot; } };')(
+            page.dom.window, { appState: { campaigns: { c: camp } } }, () => camp, () => page.map, { getItem: () => null }, page.doc, page.dom.setTimeout, () => {}, { now: () => page.clock.t }, () => page.render(), im => H.save(im), m => { toasts.push(m); }, undefined, () => {});
+        Object.assign(H, api, {
+            save: im => { if (im) { api.pushHistory(); api.pending(false); } else api.pending(true); },   // save(true) is the pass at once; save(false) leaves it waiting on its timer
+            flush: () => { if (api.pending()) { api.pushHistory(); api.pending(false); } },                  // the timer fired
+            depth: () => [api.stack().undo.length, api.stack().redo.length]
+        });
+        api.pushHistory();   // the first pass seeds the baseline, as the app's first save does
+        page.hist = H;
+        return H;
     }
     const mapOf = blocks => ({ id: 'p1', type: 'planner', meta: { title: 'P' }, blocks });
     const B0 = () => [
@@ -475,6 +501,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         { id: 'b5', type: 'h2', title: 'Beats' },
         { id: 'b6', type: 'node', mode: 'table', title: 'Loot', rows: [{ col1: 'gold' }] }
     ];
+    const LINK = 'https://a.example/x';
+    const keyEv = o => Object.assign({ key: 'b', ctrlKey: false, metaKey: false, altKey: false, shiftKey: false }, o);
 
     /* ---- where each field's format lives ---- */
     {
@@ -495,13 +523,13 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const pg2 = mkPage({ map: mapOf(B0()) }), b6 = pg2.map.blocks[6];
         pg2.tsField(pg2.map.blocks, { idx: 6, k: 'col', ci: 1 }).setFmt({ b: true });
         check('storage: a head styled before the heads were ever typed makes them the block\'s own first, so colFmt always lies beside a real cols', J(b6.cols) === J(['Item', 'Detail', 'Notes']) && J(b6.colFmt) === J([null, { b: true }]));
-        const boxes = [['b-title', { idx: 1 }, { idx: 1, k: 'title' }], ['field b-sub', { idx: 1 }, { idx: 1, k: 'sub' }], ['b-must', { idx: 1 }, { idx: 1, k: 'must' }], ['b-caption', { idx: 3 }, { idx: 3, k: 'caption' }], ['b-colhead', { idx: 1, ci: 2 }, { idx: 1, k: 'col', ci: 2 }], ['r-col', { idx: 1, ri: 1, ci: 0 }, { idx: 1, k: 'cell', ri: 1, ci: 0 }], ['field fc-n-text fc-grow', { idx: 2, ni: 1 }, { idx: 2, k: 'node', ni: 1 }], ['fc-e-text', { idx: 2, ei: 0 }, { idx: 2, k: 'edge', ei: 0 }]];
-        check('storage: each editor box names its field by its place (tsDesc), and the bar finds the box again by it (tsBox); a box that holds no plain field names none',
-            boxes.every(x => { const el = pg.box(x[0], x[1]); return J(pg.tsDesc(el)) === J(x[2]) && pg.tsBox(x[2]) === el; }) && pg.tsDesc(pg.box('fc-n-id', { idx: 2, ni: 0 })) === null && pg.tsDesc(pg.box('field b-content', { idx: 4 }, 'textarea')) === null && pg.tsDesc(pg.box('b-title', {})) === null
-            && pg.TS_PLAIN.split(',').length === 8 && boxes.every(x => pg.box(x[0], x[1]).matches(pg.TS_PLAIN)));
+        const boxes = [['field b-title', { idx: 1 }, { idx: 1, k: 'title' }], ['field b-sub', { idx: 1 }, { idx: 1, k: 'sub' }], ['field b-must', { idx: 1 }, { idx: 1, k: 'must' }], ['field b-caption', { idx: 3 }, { idx: 3, k: 'caption' }], ['b-colhead', { idx: 1, ci: 2 }, { idx: 1, k: 'col', ci: 2 }], ['r-col', { idx: 1, ri: 1, ci: 0 }, { idx: 1, k: 'cell', ri: 1, ci: 0 }], ['field fc-n-text fc-grow', { idx: 2, ni: 1 }, { idx: 2, k: 'node', ni: 1 }], ['fc-e-text', { idx: 2, ei: 0 }, { idx: 2, k: 'edge', ei: 0 }]];
+        check('storage: each editor box names its field by its place (tsDesc), and the bar finds the box again by it (tsBox); a box that holds no plain field names none; only a node\'s label takes line breaks',
+            boxes.every(x => { const el = pg.box(x[0], x[1], x[2].k === 'node'); return J(pg.tsDesc(el)) === J(x[2]) && pg.tsBox(x[2]) === el && pg.tsMulti(x[2]) === (x[2].k === 'node'); }) && pg.tsDesc(pg.plain('input', 'fc-n-id', { idx: 2, ni: 0 })) === null && pg.tsDesc(pg.plain('textarea', 'field b-content', { idx: 4 })) === null && pg.tsDesc(pg.box('b-title', {})) === null
+            && pg.TS_PLAIN.split(',').length === 8 && pg.blocksEl.querySelectorAll(pg.TS_PLAIN).length === 9);
     }
 
-    /* ---- typing carries the spans ---- */
+    /* ---- typing carries the spans (tsType: what every edit of a box ends in) ---- */
     {
         const pg = mkPage({ map: mapOf(B0()) }), bl = pg.map.blocks, n1 = bl[2].nodes[0], d = { idx: 2, k: 'node', ni: 0 };
         n1.fmt = { color: RED, spans: [{ s: 9, e: 17, color: GREEN, b: true }] };   // walk dog
@@ -510,7 +538,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         pg.tsType(bl, d, t1.slice(0, 15) + 's' + t1.slice(15), 16);   // in the middle of the span ("walks dog")
         const a2 = J(n1.fmt), t2 = n1.text;
         pg.tsType(bl, d, t2 + '\nfeed cat', t2.length + 9);   // at the end
-        check('typing: an edit at the start, in the middle and at the end of a label carries its spans (respan on every input)',
+        check('typing: an edit at the start, in the middle and at the end of a label carries its spans (respan on every edit)',
             a1 === J({ color: RED, spans: [{ s: 11, e: 19, color: GREEN, b: true }] }) && a2 === J({ color: RED, spans: [{ s: 11, e: 20, color: GREEN, b: true }] }) && J(n1.fmt) === a2 && n1.text === '- buy milk\nwalks dog\ncall mum\nfeed cat', [a1, a2, n1.fmt]);
         {   // the owner's case, through the editor: everything red, one line green
             const pt = mkPage({ map: mapOf(B0()) }), bt = pt.map.blocks, nt = bt[2].nodes[0], dt = { idx: 2, k: 'node', ni: 0 };
@@ -524,48 +552,44 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             check('typing (the owner\'s case, through tsType to the stored format): everything red and one line green — typed at the end of the green line it is green, typed at its start it is red, and after Enter at its end the new line is red',
                 atEnd === J({ color: RED, spans: [{ s: 9, e: 18, color: GREEN }] }) && atStart === J({ color: RED, spans: [{ s: 10, e: 19, color: GREEN }] }) && J(nt.fmt) === atStart && nt.text === 'buy milk\nxwalk dogs\nf\ncall mum', [atEnd, atStart, nt.fmt]);
         }
-        {   // the browser's own undo and redo in a plain field (an 'input' of type historyUndo / historyRedo) put a text back with the look it had
-            const bold4 = J({ spans: [{ s: 0, e: 4, b: true }] });
-            const mkU = (text, fmt) => { const p = mkPage({ map: mapOf(B0()) }), b = p.map.blocks, e = b[2].edges[0]; e.text = text; if (fmt) e.fmt = fmt; return { p, b, e, d: { idx: 2, k: 'edge', ei: 0 }, type(v, c, it) { p.tsType(b, this.d, v, c, it); return J(e.fmt); } }; };
-            const u1 = mkU('then go', { spans: [{ s: 0, e: 4, b: true }] });
-            const cut = u1.type('then', 4, 'deleteContentForward'), undone = u1.type('then go', 7, 'historyUndo');   // " go" selected and deleted, then Ctrl+Z
-            const typed = u1.type('thens go', 5, 'insertText'), undone2 = u1.type('then go', 4, 'historyUndo'), redone = u1.type('thens go', 5, 'historyRedo');
-            check('typing (the browser\'s undo and redo, through tsType to the stored format): text a Ctrl+Z brings back right after a styled part comes back as it was, not styled — and a letter typed after the part, undone and redone, ends on the grown part',
-                cut === bold4 && undone === bold4 && typed === J({ spans: [{ s: 0, e: 5, b: true }] }) && undone2 === bold4 && redone === J({ spans: [{ s: 0, e: 5, b: true }] }) && u1.e.text === 'thens go', [cut, undone, typed, undone2, redone]);
-            // the same text twice with two looks: undo looks back from where the field stands, redo forward
-            const u2 = mkU('then go', { spans: [{ s: 0, e: 4, b: true }] });
-            u2.type('then', 4, 'deleteContentForward'); const retyped = u2.type('then go', 7, 'insertText');   // " go" typed again after the bold part: it joins
-            const b1 = u2.type('then', 4, 'historyUndo'), b2 = u2.type('then go', 7, 'historyUndo'), f1 = u2.type('then', 4, 'historyRedo'), f2 = u2.type('then go', 7, 'historyRedo');
-            check('typing (undo and redo): a text the field has held twice with two looks comes back with the look of that time — undo looks back from where the field stands, redo forward',
-                retyped === J({ spans: [{ s: 0, e: 7, b: true }] }) && b1 === bold4 && b2 === bold4 && f1 === bold4 && f2 === J({ spans: [{ s: 0, e: 7, b: true }] }), [retyped, b1, b2, f1, f2]);
-            // a styled part typed over and brought back; what is typed after an undo drops what the undo took back
-            const u3 = mkU('then go', { color: RED, spans: [{ s: 5, e: 7, color: GREEN, i: true }] });
-            const over = u3.type('x', 1, 'insertText'), restored = u3.type('then go', 7, 'historyUndo');
-            const u4 = mkU('ab', { spans: [{ s: 0, e: 2, b: true }] });
-            u4.type('abc', 3, 'insertText'); u4.type('ab', 2, 'historyUndo'); u4.type('abZ', 3, 'insertText'); const noRedo = u4.type('abc', 3, 'historyRedo');   // "abc" is no longer ahead: carried, nothing joins
-            check('typing (undo and redo): a styled part typed over comes back styled when the browser puts its text back, the field\'s own look with it; what is typed after an undo drops what the undo took back',
-                over === J({ color: RED }) && restored === J({ color: RED, spans: [{ s: 5, e: 7, color: GREEN, i: true }] }) && noRedo === J({ spans: [{ s: 0, e: 2, b: true }] }), [over, restored, noRedo]);
-            // a press of the bar between two edits: the look after the press is the one that comes back
-            const u5 = mkU('then go', { spans: [{ s: 0, e: 4, b: true }] });
-            u5.type('then go!', 8, 'insertText'); u5.e.fmt = { spans: [{ s: 0, e: 4, b: true }, { s: 5, e: 8, color: RED }] };   // as a press of Red on "go!" stores it
-            const afterPress = u5.type('then go!x', 9, 'insertText'), toPress = u5.type('then go!', 8, 'historyUndo');
-            check('typing (undo and redo): after a press of the bar an undo of what was typed since comes back to the look the press gave, not the one before it',
-                afterPress === J({ spans: [{ s: 0, e: 4, b: true }, { s: 5, e: 9, color: RED }] }) && toPress === J({ spans: [{ s: 0, e: 4, b: true }, { s: 5, e: 8, color: RED }] }), [afterPress, toPress]);
-            // nothing remembered: a rebuilt editor, a text the field never held, a field never styled
-            const u6 = mkU('then go', { spans: [{ s: 0, e: 4, b: true }, { s: 5, e: 7, color: RED }] });
-            u6.type('then', 4, 'deleteContentForward'); u6.p.tsRebuilt(); const forgot = u6.type('then go', 7, 'historyUndo');
-            const u7 = mkU('then', { spans: [{ s: 0, e: 4, b: true }] }), unknown = u7.type('then go', 7, 'historyUndo'), asTyping = mkU('then', { spans: [{ s: 0, e: 4, b: true }] }).type('then go', 7, 'insertText');
-            const u8 = mkU('then go'); u8.type('then', 4, 'deleteContentForward'); u8.type('then go', 7, 'historyUndo');
-            const u9 = mkU('then go', { spans: [{ s: 0, e: 4, b: true }] }), cell = { idx: 1, k: 'cell', ri: 0, ci: 0 };
-            u9.type('then', 4, 'deleteContentForward'); u9.p.tsType(u9.b, cell, 'then go', 7, 'historyUndo');   // another field given the same text: it takes nothing from the label's list
-            check('typing (undo and redo): nothing is remembered across a rebuild of the editor (a place is an index), and a text the field is not known to have held has its spans carried with nothing joined — never read as typing; a field never styled gets no format and another field takes nothing from this one\'s list',
-                forgot === bold4 && unknown === bold4 && asTyping === J({ spans: [{ s: 0, e: 7, b: true }] }) && !('fmt' in u8.e) && u8.e.text === 'then go' && !('fmt' in u9.b[1].rows[0]) && u9.b[1].rows[0].col1 === 'then go' && J(u9.e.fmt) === bold4, [forgot, unknown, asTyping, u8.e, u9.b[1].rows[0]]);
-            // the list is bounded
-            const u10 = mkU('a b.', { spans: [{ s: 0, e: 1, b: true }, { s: 2, e: 3, color: RED }] }); let tx = 'a b.';
-            for (let k = 0; k < 130; k++) { if (k === 10) u10.e.fmt = { spans: [{ s: 0, e: 1, b: true }] }; tx += ' x'; u10.type(tx, tx.length, 'insertText'); }   // the red taken off on the way, as a press of Default would
-            const gone = u10.type('q', 1, 'insertText'), late = u10.type(tx, tx.length, 'historyUndo'), early = u10.type('a b. x', 6, 'historyUndo');
-            check('typing (undo and redo): a field remembers its last 100 texts — one within them comes back as it was (a part typed over is styled again), one from before them is carried from the field as it stands, never given a look from a list without end',
-                gone === undefined && late === J({ spans: [{ s: 0, e: 1, b: true }] }) && early === J({ spans: [{ s: 0, e: 1, b: true }] }) && u10.e.text === 'a b. x', [gone, late, early]);
+        {   // the one rule for a link: it does not grow by typing at its end (the constant TS_LINK_GROWS, one line in planner.js)
+            const mk = grows => { const p = mkPage({ map: mapOf(B0()), linkGrows: grows }), b = p.map.blocks, e = b[2].edges[0]; return { p, e, set(text, fmt) { e.text = text; e.fmt = fmt; return this; }, type(v, c) { p.tsType(b, { idx: 2, k: 'edge', ei: 0 }, v, c, 'insertText'); return J(e.fmt); } }; };
+            const part = { spans: [{ s: 0, e: 4, size: 'large', color: GREEN, b: true, link: LINK }] };   // "then" of "then go": linked, green, bold, Large
+            const off = mk(false), on = mk(true);
+            const endOff = off.set('then go', part).type('thens go', 5), endOn = on.set('then go', part).type('thens go', 5);
+            const inOff = off.set('then go', part).type('thXen go', 3), overOff = off.set('then go', part).type('tXn go', 2), tailOff = off.set('then go', part).type('thX go', 3);
+            const startOff = off.set('then go', part).type('Xthen go', 1), afterOff = off.set('then go', part).type('then goX', 8);
+            const wholeOff = off.set('then', { link: LINK, b: true }).type('thens', 5), wholeIn = off.set('then', { link: LINK, b: true }).type('thXen', 3), wholeFront = off.set('then', { link: LINK }).type('Xthen', 1), wholeOn = on.set('then', { link: LINK, b: true }).type('thens', 5);
+            const twoOff = off.set('abcd', { spans: [{ s: 0, e: 2, link: LINK }, { s: 2, e: 4, link: 'https://b.example/' }] }).type('abXcd', 3);
+            check('typing (a link): what is typed right after a LINKED part takes that part\'s colour, bold and size and is not linked — the link ends where it ended; typed inside the link (or over part of it) it is linked; before it, or away from it, as ever. A field linked whole is the same: typed at its end is not linked, inside it is',
+                off.p.TS_LINK_GROWS === false && endOff === J({ spans: [{ s: 0, e: 4, size: 'large', color: GREEN, b: true, link: LINK }, { s: 4, e: 5, size: 'large', color: GREEN, b: true }] })
+                && inOff === J({ spans: [{ s: 0, e: 5, size: 'large', color: GREEN, b: true, link: LINK }] }) && overOff === J({ spans: [{ s: 0, e: 3, size: 'large', color: GREEN, b: true, link: LINK }] }) && tailOff === J({ spans: [{ s: 0, e: 3, size: 'large', color: GREEN, b: true, link: LINK }] })
+                && startOff === J({ spans: [{ s: 1, e: 5, size: 'large', color: GREEN, b: true, link: LINK }] }) && afterOff === J(part)
+                && wholeOff === J({ b: true, spans: [{ s: 0, e: 4, link: LINK }] }) && wholeIn === J({ b: true, link: LINK }) && wholeFront === J({ link: LINK })
+                && twoOff === J({ spans: [{ s: 0, e: 2, link: LINK }, { s: 3, e: 5, link: 'https://b.example/' }] }), [endOff, inOff, overOff, tailOff, startOff, afterOff, wholeOff, wholeIn, wholeFront, twoOff]);
+            check('typing (a link, the other setting): with the one constant true a link grows by typing at its end as its colour does — the rule is that one line, read by tsType (and by the bar\'s tsLinkAt, which says whether what is typed at the caret would be linked) and by nothing else',
+                on.p.TS_LINK_GROWS === true && endOn === J({ spans: [{ s: 0, e: 5, size: 'large', color: GREEN, b: true, link: LINK }] }) && wholeOn === J({ b: true, link: LINK })
+                && (fieldsSrc.match(/TS_LINK_GROWS/g) || []).length === 2 && /\n  var TS_LINK_GROWS = false;\n/.test(fieldsSrc) && /if \(now && !apart && !TS_LINK_GROWS\) \{/.test(fieldsSrc) && !/TS_LINK_GROWS/.test(boxSrc) && (barSrc.match(/TS_LINK_GROWS/g) || []).length === 2 && /\n      if \(TS_LINK_GROWS\) return left;\n/.test(barSrc), [endOn, wholeOn]);
+            // tsEditAt reads an edit exactly as respan does: a format of one bold span over the old text's prefix shows where respan saw the edit begin
+            const R = rng(31337), al = 'ab 😀😁\n'; let bad = null;
+            const chars = Array.from(al);
+            for (let k = 0; k < 3000 && !bad; k++) {
+                const o = Array.from({ length: 1 + Math.floor(R() * 8) }, () => chars[Math.floor(R() * chars.length)]).join(''), cut = Array.from(o), a = Math.floor(R() * (cut.length + 1)), dl = Math.min(cut.length - a, Math.floor(R() * 3));
+                const ins = Array.from({ length: Math.floor(R() * 3) }, () => chars[Math.floor(R() * chars.length)]).join(''), nw = cut.slice(0, a).join('') + ins + cut.slice(a + dl).join(''), caret = R() < 0.7 ? cut.slice(0, a).join('').length + ins.length : undefined;
+                const ed = off.p.tsEditAt(o, nw, caret), grown = respan(o, nw, { spans: cut.map((c, i) => ({ s: cut.slice(0, i).join('').length, e: cut.slice(0, i + 1).join('').length, color: [RED, GREEN, BLUE][i % 3] })) }, caret, true);   // every character of the old text in a part of its own (no two neighbours alike), nothing joined: what has no colour afterwards is what was typed
+                const plain = []; let at = 0; runsOf(nw, grown).forEach(r => { if (!r.color) plain.push([at, at + r.t.length]); at += r.t.length; });
+                const want = ed.typed > 0 ? [[ed.p, ed.p + ed.typed]] : [];
+                if (J(plain) !== J(want) || ed.oe < ed.p || ed.p + ed.typed > nw.length) bad = { o, nw, caret, ed, plain };
+            }
+            check('typing (tsEditAt): where an edit was — the old text\'s [p, oe) became the new text\'s [p, p + typed) — is read exactly as respan reads it (3,000 seeded edits with and without the caret, surrogate pairs and line breaks among them)', !bad, bad);
+        }
+        {   // an edit the engine calls its own undo or redo is carried with nothing joined; the boxes cancel both, so tsType keeps no texts of the past
+            const p = mkPage({ map: mapOf(B0()) }), b = p.map.blocks, e = b[2].edges[0]; e.text = 'then'; e.fmt = { spans: [{ s: 0, e: 4, b: true }] };
+            p.tsType(b, { idx: 2, k: 'edge', ei: 0 }, 'then go', 7, 'historyUndo'); const u = J(e.fmt);
+            p.tsType(b, { idx: 2, k: 'edge', ei: 0 }, 'then go!', 8, 'historyRedo'); const r = J(e.fmt);
+            p.tsType(b, { idx: 2, k: 'edge', ei: 0 }, 'thenX go!', 5, 'insertText');
+            check('typing: a text the engine\'s own undo or redo put there (should one ever arrive) is carried with nothing joined; typing joins; no list of a field\'s past texts is kept any more (every undo in a box is the planner\'s history)',
+                u === J({ spans: [{ s: 0, e: 4, b: true }] }) && r === u && J(e.fmt) === J({ spans: [{ s: 0, e: 5, b: true }] }) && !/\btsPast\b|tsForget|TS_PAST_MAX/.test(plannerSrc), [u, r, e.fmt]);
         }
         pg.tsType(bl, { idx: 1, k: 'cell', ri: 0, ci: 0 }, 'Medicine!', 9); pg.tsType(bl, { idx: 6, k: 'col', ci: 0 }, 'Things', 6);
         check('typing: a field with no format gets none (no key appears), a head typed for the first time makes the heads the block\'s own, as before',
@@ -573,240 +597,740 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         bl[1].rows[1].fmt = { col3: { spans: [{ s: 2, e: 6, i: true }] } };
         pg.tsType(bl, { idx: 1, k: 'cell', ri: 1, ci: 2 }, '', 0);
         check('typing: emptying a field leaves no spans behind', !('fmt' in bl[1].rows[1]) && bl[1].rows[1].col3 === '');
-        const handlers = ['b-title', 'b-caption', 'b-sub', 'b-must', 'r-col', 'fc-n-text', 'fc-e-text'].every(c => new RegExp("querySelectorAll\\('\\." + c + "'\\)\\)\\.forEach\\(el => el\\.addEventListener\\('input', function\\(e\\) \\{ tsType\\(activeMap\\.blocks, tsDesc\\(this\\), this\\.value, this\\.selectionStart, e\\.inputType\\);").test(plannerSrc));
-        check('typing (wired): every plain box\'s input handler goes through tsType with the box\'s caret and the input\'s own type (so the browser\'s undo and redo are told from typing) — a title, a caption, a subtitle or tag, must-resolve, a cell, a node\'s label, an arrow\'s — and a head too; a rebuild of the editor forgets every field\'s texts',
-            handlers && /querySelectorAll\('\.b-colhead'\)\)\.forEach\(el => el\.addEventListener\('input', function\(e\) \{\n\s*tsType\(activeMap\.blocks, tsDesc\(this\), this\.value, this\.selectionStart, e\.inputType\);/.test(plannerSrc)
-            && (plannerSrc.match(/tsType\(activeMap\.blocks, tsDesc\(this\), this\.value, this\.selectionStart, e\.inputType\)/g) || []).length === 8 && !/this\.selectionStart\);/.test(plannerSrc) && /function tsRebuilt\(\) \{ tsState\.sel = null; tsState\.run = null; tsForget\(\); tsRefresh\(\); \}/.test(plannerSrc)
-            && !/\.(title|caption|must|text) = this\.value/.test(plannerSrc) && !/\['col' \+ \(parseInt\(this\.dataset\.ci, 10\) \+ 1\)\] = this\.value/.test(plannerSrc));
+        const p3 = mkPage({ map: mapOf([{ id: 'b', type: 'h2', title: 'aaaa', fmt: { title: { spans: [{ s: 2, e: 4, b: true }] } } }]) });
+        p3.tsType(p3.map.blocks, { idx: 0, k: 'title' }, 'aaaaa', 2);   // an "a" typed after the first one: the bold ones are the last two still
+        const caretFmt = J(p3.map.blocks[0].fmt);
+        p3.tsType(p3.map.blocks, { idx: 0, k: 'title' }, 'aaaa', 0);    // the first one deleted
+        check('typing: the box\'s caret goes to respan, so an edit inside a run of equal characters moves the spans after it (without it the edit would be read at the end, and the look would sit on other characters)',
+            caretFmt === J({ title: { spans: [{ s: 3, e: 5, b: true }] } }) && J(p3.map.blocks[0].fmt) === J({ title: { spans: [{ s: 2, e: 4, b: true }] } }), [caretFmt, p3.map.blocks[0].fmt]);
     }
 
-    /* ---- the bar ---- */
+    /* ---- the box: the two maps between a character offset and a place in the drawn nodes (pure, on plain objects) ---- */
     {
-        const pg = mkPage({ map: mapOf(B0()) }).build(), E = pg.tsState.els;
-        check('bar: closed by default — the controls are hidden until the caret is clicked; open is remembered for the session, never in the document',
-            pg.body.hidden === true && pg.toggle.attrs['aria-expanded'] === 'false' && (() => { const before = J(pg.map); pg.toggle.fire('click'); const open = pg.body.hidden === false && pg.toggle.attrs['aria-expanded'] === 'true' && pg.store.wp_textStyleOpen === '1' && pg.root.classList.contains('open'); pg.toggle.fire('click'); return open && pg.body.hidden === true && pg.store.wp_textStyleOpen === '0' && J(pg.map) === before && pg.log.length === 0; })()
-            && mkPage({ store: { wp_textStyleOpen: '1' } }).build().body.hidden === false && mkPage({ store: { wp_textStyleOpen: 'yes' } }).build().body.hidden === true
-            && (() => { const pt = mkPage({ storeThrows: true }).build(), closed = pt.body.hidden === true; pt.toggle.fire('click'); return closed && pt.body.hidden === false; })());   // a session store that cannot be read: closed, and it still opens
-        check('bar: its controls are B, I, U, S, the seven inks, a custom colour, Default, the size steps, a link box and Clear — built as elements with text and values only',
-            E.u.textContent === 'U' && E.u.dataset.ts === 'u' && E.u.tagName === 'BUTTON' && E.s.textContent === 'S' && E.s.dataset.ts === 'st' && E.link.tagName === 'INPUT' && E.link.type === 'text' && E.link.parent === E.linkLab && E.linkLab.textContent === 'Link ' && /^Link — a web address/.test(E.linkLab.title)
-            && E.sizeMixed.value === 'mixed' && E.sizeMixed.disabled === true && E.sizeMixed.hidden === true &&
-            E.b.textContent === 'B' && E.i.textContent === 'I' && J(E.swatches.map(s => s.dataset.color)) === J(PALETTE.map(p => p[0])) && E.swatches.every((s, k) => s.title === PALETTE[k][1] && s.style.background === PALETTE[k][0]) && E.custom.type === 'color'
-            && E.nocolor.textContent === 'Default' && J(E.size.children.map(o => [o.value, o.textContent])) === J([['', 'Default'], ['small', 'Small'], ['large', 'Large'], ['larger', 'Larger'], ['huge', 'Huge'], ['mixed', 'Mixed']]) && E.clear.textContent === 'Clear'
-            && !/innerHTML|insertAdjacentHTML|outerHTML|document\.write/.test(barSrc) && !/\bon[a-z]+\s*=\s*["']/.test(barSrc));
-        check('bar: with no field clicked every control is disabled and the bar says to click in one first',
-            [E.b, E.i, E.u, E.s, E.custom, E.nocolor, E.size, E.link, E.clear].concat(E.swatches).every(c => c.disabled === true) && /^Click in a title, a label or a table cell/.test(E.target.textContent));
-        const before = J(pg.map); pg.click(E.b); pg.click(E.swatches[2]); E.size.value = 'large'; E.size.fire('change'); E.custom.value = '#123456'; E.custom.fire('change'); pg.click(E.u); pg.click(E.s); E.link.value = 'https://a.example/'; E.link.fire('change'); pg.body.fire('keydown', { target: E.link, key: 'Enter' });
-        check('bar: a press with nothing to act on changes nothing and saves nothing (and a click on a disabled control is not a press)', J(pg.map) === before && pg.log.length === 0);
-
-        // a selection in an input: the heading
-        const title = pg.box('field b-title', { idx: 0 }); title.value = 'The Hill Road';
-        pg.sel0(title, 4, 8);
-        const named = E.target.textContent, lit0 = E.b.classList.contains('on');
-        const md = pg.body.fire('mousedown', { target: E.b });
-        pg.click(E.b);
-        check('bar: a selection in an input — B makes those characters bold, in one save, with the selection left where it was',
-            named === 'Title — 4 selected characters' && lit0 === false && md.prevented === true && J(pg.map.blocks[0].fmt) === J({ title: { spans: [{ s: 4, e: 8, b: true }] } }) && J(pg.log) === J(['step', 'save:true', 'preview'])
-            && title.selectionStart === 4 && title.selectionEnd === 8 && title.calls.indexOf('select 4-8') >= 0 && pg.active === title && E.b.classList.contains('on') === true && pg.map.blocks[0].title === 'The Hill Road', [named, pg.log, pg.map.blocks[0].fmt]);
-        pg.log.length = 0; pg.click(E.b);
-        check('bar: B again on a selection that is all bold takes it off — one more step, and no key left behind', !('fmt' in pg.map.blocks[0]) && J(pg.log) === J(['step', 'save:true', 'preview']) && E.b.classList.contains('on') === false);
-
-        // the request's own case, in a textarea: all red, then two items green, the selection kept across two presses
-        const lab = pg.box('field fc-n-text fc-grow', { idx: 2, ni: 0 }, 'textarea'); lab.value = LBL;
-        pg.sel0(lab, 5); pg.log.length = 0;
-        const whole = E.target.textContent;
-        pg.click(E.swatches[2]);
-        const n1 = pg.map.blocks[2].nodes[0], s1 = J(n1.fmt), l1 = J(pg.log);
-        pg.sel0(lab, 9, 17); pg.log.length = 0;
-        pg.click(E.swatches[4]);
-        const s2 = J(n1.fmt), keep = [lab.selectionStart, lab.selectionEnd];
-        pg.active = null;   // the focus went elsewhere (the preview was clicked): the bar still knows the field and its selection
-        pg.click(E.b);
-        check('bar: with nothing selected a colour is the whole field\'s; a selection then takes its own; a second press needs no second selecting ("select, green, bold")',
-            whole === 'Node n1’s label — the whole field' && s1 === J({ color: RED }) && l1 === J(['step', 'save:true', 'preview']) && s2 === J({ color: RED, spans: [{ s: 9, e: 17, color: GREEN }] }) && J(keep) === '[9,17]'
-            && J(n1.fmt) === J({ color: RED, spans: [{ s: 9, e: 17, color: GREEN, b: true }] }) && pg.active === lab && lab.selectionStart === 9 && lab.selectionEnd === 17 && lab.calls.indexOf('focus') >= 0 && lab.calls.filter(c => c === 'select 9-17').length === 2 && n1.text === LBL
-            && E.swatches[4].classList.contains('active') && !E.swatches[2].classList.contains('active') && E.b.classList.contains('on'), [whole, s1, s2, n1.fmt]);
-        pg.log.length = 0; pg.click(E.swatches[4]);
-        check('bar: a press that changes nothing is no step (the same colour again)', pg.log.length === 0 && J(n1.fmt) === J({ color: RED, spans: [{ s: 9, e: 17, color: GREEN, b: true }] }));
-
-        // size: the selected characters, through a control that must take the focus
-        pg.sel0(lab, 9, 17); pg.log.length = 0;
-        const mdS = pg.body.fire('mousedown', { target: E.size });
-        pg.active = E.size; E.size.value = 'large'; E.size.fire('change');
-        const sized = J(n1.fmt), back = pg.active === lab && lab.selectionStart === 9 && lab.selectionEnd === 17, sizeShown = E.size.value;
-        E.size.value = ''; E.size.fire('change');
-        check('bar: with characters selected the Size list sizes those characters; the size list may take the focus (its mousedown is not swallowed) and the selection comes back; Default on the selection takes the size off that part',
-            mdS.prevented === false && sized === J({ color: RED, spans: [{ s: 9, e: 17, size: 'large', color: GREEN, b: true }] }) && back && sizeShown === 'large' && J(n1.fmt) === J({ color: RED, spans: [{ s: 9, e: 17, color: GREEN, b: true }] }) && J(pg.log) === J(['step', 'save:true', 'preview', 'step', 'save:true', 'preview']), [sized, pg.log]);
-        const mdC = pg.body.fire('mousedown', { target: E.custom }); pg.active = E.custom; E.custom.value = '#ABCDEF'; pg.log.length = 0; E.custom.fire('change');
-        check('bar: a custom colour is one press when the picker closes (a strict colour, lower case), on the selection that was there', mdC.prevented === false && J(n1.fmt.spans) === J([{ s: 9, e: 17, color: '#abcdef', b: true }]) && J(pg.log) === J(['step', 'save:true', 'preview']) && E.customWrap.classList.contains('active'));
-        pg.sel0(lab, 9, 13); pg.click(E.nocolor);
-        check('bar: Default on a selection gives it back the default colour and leaves the rest', J(n1.fmt) === J({ spans: [{ s: 0, e: 9, color: RED }, { s: 9, e: 13, b: true }, { s: 13, e: 17, color: '#abcdef', b: true }, { s: 17, e: 26, color: RED }] }), n1.fmt);
-        pg.sel0(lab, 13, 20); pg.log.length = 0; pg.click(E.clear);
-        const part = J(n1.fmt);
-        pg.sel0(lab, 3); pg.click(E.clear);
-        check('bar: Clear on a selection makes that part plain; with nothing selected it takes everything off the field — then Clear has nothing to do and is disabled',
-            part === J({ spans: [{ s: 0, e: 9, color: RED }, { s: 9, e: 13, b: true }, { s: 20, e: 26, color: RED }] }) && !('fmt' in n1) && J(pg.log) === J(['step', 'save:true', 'preview', 'step', 'save:true', 'preview']) && E.clear.disabled === true && E.b.disabled === false);
-
-
-        /* ---- U and S, the Size list on a selection and at a caret, the link box (the owner, 2026-10-02) ---- */
+        const pg = mkPage();
+        const T = v => ({ nodeType: 3, nodeName: '#text', nodeValue: v }), N = (name, kids) => ({ nodeType: 1, nodeName: name, childNodes: kids || [] });
+        const runs = list => { const texts = list.map(T); return { root: N('DIV', texts.map(t => N('SPAN', [t]))), texts }; };
+        const back = (root, o) => { const p = pg.tsPointAt(root, o); return pg.tsScan(root, p.node, p.offset).at; };
+        const one = runs(['hello']);
+        check('box maps: a field of one run — every offset is a place in its text node, and the place reads back as that offset',
+            pg.tsScan(one.root).text === 'hello' && [0, 1, 2, 3, 4, 5].every(o => { const p = pg.tsPointAt(one.root, o); return p.node === one.texts[0] && p.offset === o && back(one.root, o) === o; }));
+        const many = runs(['ab', 'cde', 'f']);
+        const at = o => { const p = pg.tsPointAt(many.root, o); return [many.texts.indexOf(p.node), p.offset]; };
+        check('box maps: a field of many runs — an offset inside a run is in that run\'s text node; at a boundary between two runs the place is the END OF THE LEFT one (what is typed there joins the part before it: the caret is drawn inside that part); the start is the first node\'s, the end the last one\'s',
+            pg.tsScan(many.root).text === 'abcdef' && J([0, 1, 2, 3, 4, 5, 6].map(at)) === J([[0, 0], [0, 1], [0, 2], [1, 1], [1, 2], [1, 3], [2, 1]]) && [0, 1, 2, 3, 4, 5, 6].every(o => back(many.root, o) === o), [0, 1, 2, 3, 4, 5, 6].map(at));
+        const br = runs(['red\n', 'plain', 'x\ny']);
+        const atB = o => { const p = pg.tsPointAt(br.root, o); return [br.texts.indexOf(p.node), p.offset]; };
+        check('box maps: a line break — after a run that ENDS with one the place is the start of the next run (a line begun after a styled line is not that line\'s); a line break inside a run is a character like any other',
+            pg.tsScan(br.root).text === 'red\nplainx\ny' && J(atB(4)) === J([1, 0]) && J(atB(3)) === J([0, 3]) && J(atB(9)) === J([1, 5]) && J(atB(10)) === J([2, 1]) && J(atB(11)) === J([2, 2]) && [0, 3, 4, 9, 10, 11, 12].every(o => back(br.root, o) === o), [atB(4), atB(3), atB(9)]);
+        const tailT = T('ab\n'), tailBr = N('BR'), tail = N('DIV', [N('SPAN', [tailT]), tailBr]);
+        const pt = pg.tsPointAt(tail, 3);
+        check('box maps: a label that ends with a line break — the line-break element drawn after its runs is no text (the box reads "ab\\n", never "ab\\n\\n"); the caret after the break is in the text node, and every place around that element reads as the end',
+            pg.tsScan(tail).text === 'ab\n' && pt.node === tailT && pt.offset === 3 && pg.tsScan(tail, tail, 1).at === 3 && pg.tsScan(tail, tail, 2).at === 3 && pg.tsScan(tail, tailBr, 0).at === 3 && pg.tsScan(tail, tailT, 2).at === 2);
+        const empty = N('DIV', []), pe = pg.tsPointAt(empty, 0), left = N('DIV', [N('BR')]);
+        check('box maps: an empty field — the place is the box itself, and it reads as offset 0; a box the engine emptied and left a line-break element in reads as empty too',
+            pe.node === empty && pe.offset === 0 && pg.tsScan(empty, empty, 0).at === 0 && pg.tsScan(empty).text === '' && pg.tsScan(left).text === '' && pg.tsScan(left, left, 1).at === 0 && pg.tsPointAt(left, 0).node === left && pg.tsPointAt(empty, 7).node === empty);
+        const pair = runs(['a😀', '😁b']);
+        check('box maps: a surrogate pair is two offsets of one node, never cut by a run boundary here — the offsets on each side of it read back',
+            pg.tsScan(pair.root).text === 'a😀😁b' && [0, 1, 3, 5, 6].every(o => back(pair.root, o) === o) && J([pair.texts.indexOf(pg.tsPointAt(pair.root, 3).node), pg.tsPointAt(pair.root, 3).offset]) === '[0,3]');
+        const aT = T('a'), bT = T('b'), stray = N('DIV', [N('SPAN', [aT]), N('BR'), N('SPAN', [bT])]), blocks = N('DIV', [T('one'), N('DIV', [T('two')]), N('DIV', [N('BR')])]), bare = T('typed'), dirty = N('DIV', [bare, N('SPAN', [T('')]), N('B', [N('I', [T('!')])])]);
+        check('box maps: whatever the engine may leave in a box is read as text only — a bare text node, an empty one, an element it nested; a line-break element between texts and a block it wrapped a line in are line breaks; an element\'s own offsets (a count of its children) read as the text before that child',
+            pg.tsScan(stray).text === 'a\nb' && pg.tsScan(stray, bT, 0).at === 2 && pg.tsScan(stray, stray, 1).at === 1 && pg.tsScan(stray, stray, 2).at === 2 && pg.tsPointAt(stray, 2).node === bT && pg.tsPointAt(stray, 1).node === aT
+            && pg.tsScan(blocks).text === 'one\ntwo\n' && pg.tsScan(dirty).text === 'typed!' && pg.tsScan(dirty, dirty, 1).at === 5 && pg.tsScan(dirty, dirty, 3).at === 6 && pg.tsScan(dirty, bare, 99).at === 5 && pg.tsScan(dirty, T('elsewhere'), 0).at === -1 && pg.tsScan(dirty, bare, NaN).at === 0 && pg.tsScan(dirty, bare, -3).at === 0);
+        check('box maps: an offset that cannot be (past the end, negative, no number) is the nearest place that can', J(at(99)) === '[2,1]' && J(at(-5)) === '[0,0]' && J(at(NaN)) === '[0,0]' && J(at(2.7)) === '[0,2]');
         {
-            const pu = mkPage({ map: mapOf(B0()) }).build(), U = pu.tsState.els, tu = pu.box('field b-title', { idx: 0 }); tu.value = 'The Hill Road';
-            const md0 = [pu.body.fire('mousedown', { target: U.u }).prevented, pu.body.fire('mousedown', { target: U.s }).prevented];
-            pu.sel0(tu, 4, 8);
-            pu.click(U.u); const u1 = J(pu.map.blocks[0].fmt), lit1 = U.u.classList.contains('on') && !U.s.classList.contains('on');
-            pu.click(U.s); const u2 = J(pu.map.blocks[0].fmt), lit2 = U.s.classList.contains('on'), kept2 = tu.selectionStart === 4 && tu.selectionEnd === 8 && pu.active === tu;
-            pu.click(U.u); const u3 = J(pu.map.blocks[0].fmt);
-            pu.sel0(tu, 2); pu.click(U.s); const u4 = J(pu.map.blocks[0].fmt); pu.click(U.s);
-            check('bar: U and S — a selection is underlined or struck through, each press one step with the selection left where it was and the button lit; again on a range that is all underlined takes it off; with nothing selected the whole field',
-                J(md0) === '[true,true]' && u1 === J({ title: { spans: [{ s: 4, e: 8, u: true }] } }) && lit1 && u2 === J({ title: { spans: [{ s: 4, e: 8, u: true, st: true }] } }) && lit2 && kept2 && u3 === J({ title: { spans: [{ s: 4, e: 8, st: true }] } })
-                && u4 === J({ title: { st: true } }) && !('fmt' in pu.map.blocks[0]) && pu.log.length === 15 && J(pu.log.slice(0, 3)) === J(['step', 'save:true', 'preview']) && pu.map.blocks[0].title === 'The Hill Road', [u1, u2, u3, u4, pu.log.length]);
-            const ku = { key: 'u', ctrlKey: true, target: tu, prevented: false, stopped: false, preventDefault() { this.prevented = true; }, stopPropagation() { this.stopped = true; } };
-            pu.sel0(tu, 0, 3); pu.log.length = 0; const rk = pu.tsKey(ku), ks = pu.tsKey(Object.assign({}, ku, { key: 's', prevented: false }));
-            check('keyboard: Ctrl+U in a plain box does what U does (one step, the key taken); Ctrl+S is not the bar\'s', rk === true && ku.prevented && ku.stopped && J(pu.map.blocks[0].fmt) === J({ title: { spans: [{ s: 0, e: 3, u: true }] } }) && J(pu.log) === J(['step', 'save:true', 'preview']) && ks === false);
-
-            const ps = mkPage({ map: mapOf(B0()) }).build(), Z = ps.tsState.els, ts = ps.box('field b-title', { idx: 0 }); ts.value = 'The Hill Road';
-            const pick = v => { ps.body.fire('mousedown', { target: Z.size }); ps.active = Z.size; Z.size.value = v; Z.size.fire('change'); };
-            ps.sel0(ts, 4, 8); pick('large'); const z1 = J(ps.map.blocks[0].fmt), sh1 = [Z.size.value, Z.sizeMixed.hidden], keptZ = ps.active === ts && ts.selectionStart === 4 && ts.selectionEnd === 8;
-            ps.sel0(ts, 2); const sh2 = [Z.size.value, Z.sizeMixed.hidden];   // a caret: the whole field, which now holds more than one size
-            ps.log.length = 0; pick('mixed'); const z2 = J(ps.map.blocks[0].fmt), noStep = ps.log.length === 0;   // "Mixed" is a word the list shows, never one to pick
-            ps.sel0(ts, 2); pick('huge'); const z3 = J(ps.map.blocks[0].fmt), sh3 = [Z.size.value, Z.sizeMixed.hidden];
-            ps.sel0(ts, 4, 8); pick(''); const z4 = J(ps.map.blocks[0].fmt);
-            ps.sel0(ts, 0, 4); const sh4 = Z.size.value; ps.sel0(ts, 4, 8); const sh5 = Z.size.value; ps.sel0(ts, 2, 6); const sh6 = Z.size.value;
-            ps.sel0(ts, 9); pick('');
-            check('bar (the Size list): with characters selected it sizes those characters; with nothing selected the whole field; Default on a selection takes the size off that part; it shows the size of what is selected — "Mixed" (a word it shows, never one to pick) where there is more than one',
-                z1 === J({ title: { spans: [{ s: 4, e: 8, size: 'large' }] } }) && J(sh1) === J(['large', true]) && keptZ && J(sh2) === J(['mixed', false]) && z2 === z1 && noStep && z3 === J({ title: { size: 'huge' } }) && J(sh3) === J(['huge', true])
-                && z4 === J({ title: { spans: [{ s: 0, e: 4, size: 'huge' }, { s: 8, e: 13, size: 'huge' }] } }) && sh4 === 'huge' && sh5 === '' && sh6 === 'mixed' && !('fmt' in ps.map.blocks[0]) && ts.selectionStart === 9, [z1, sh1, sh2, z2, z3, sh3, z4, sh4, sh5, sh6]);
-
-            const pl = mkPage({ map: mapOf(B0()) }).build(), L = pl.tsState.els, tl = pl.box('field b-title', { idx: 0 }); tl.value = 'The Hill Road';
-            // typing an address into the box: by the mouse it takes the focus; 'enter' ends with Enter, 'away' with a click somewhere else (the box loses the focus: its change, then its blur)
-            const type = (v, how) => { const md = pl.body.fire('mousedown', { target: L.link }); pl.active = L.link; pl.body.fire('keydown', { target: L.link, key: v.slice(-1) || 'Backspace' }); L.link.value = v;
-                if (how === 'enter') return [md, pl.body.fire('keydown', { target: L.link, key: 'Enter' })];
-                pl.active = null; L.link.fire('change'); L.link.fire('blur'); return [md]; };
-            pl.sel0(tl, 4, 8); pl.log.length = 0;
-            const e1 = type('https://a.example/hill', 'enter');
-            const l1 = J(pl.map.blocks[0].fmt), back1 = pl.active === tl && tl.selectionStart === 4 && tl.selectionEnd === 8, log1 = J(pl.log);
-            L.link.fire('change'); L.link.fire('blur'); const once = J(pl.log) === log1;   // the box's own change as it loses the focus after Enter: nothing left to do
-            pl.sel0(tl, 0, 3); const shown0 = [L.link.value, L.link.placeholder]; pl.sel0(tl, 5, 7); const shown1 = L.link.value; pl.sel0(tl, 2, 6); const shown2 = [L.link.value, L.link.placeholder];
-            check('bar (Link): the bar\'s own address box — with characters selected, Enter gives them the link (one step) and goes back to the field with its selection as it was; the box takes the focus by the mouse (its mousedown is not swallowed); it shows the address of the link under the selection, nothing where there is none, and "several links" where there is more than one',
-                e1[0].prevented === false && e1[1].prevented === true && e1[1].stopped === true && l1 === J({ title: { spans: [{ s: 4, e: 8, link: 'https://a.example/hill' }] } }) && back1 && log1 === J(['step', 'save:true', 'preview']) && once
-                && J(shown0) === J(['', 'https://…']) && shown1 === 'https://a.example/hill' && J(shown2) === J(['', 'several links']) && L.link.tagName === 'INPUT' && !('innerHTML' in L.link), [l1, back1, log1, shown0, shown1, shown2]);
-            pl.sel0(tl, 2); pl.log.length = 0; type('b.example/road', 'enter'); const l2 = J(pl.map.blocks[0].fmt), log2 = pl.log.length;   // nothing selected: the whole field; typed without its scheme: https://
-            pl.sel0(tl, 4, 8); type('', 'enter'); const l3 = J(pl.map.blocks[0].fmt);   // an empty box takes the link off the selection
-            pl.sel0(tl, 9); const callsBefore = tl.calls.length; type('  https://c.example/  ', 'away'); const l4 = J(pl.map.blocks[0].fmt), notPulled = tl.calls.slice(callsBefore).every(c => c !== 'focus' && !/^select/.test(c)) && pl.active === null, reset = L.link.value;
-            pl.sel0(tl, 9); type('', 'enter'); const l5 = 'fmt' in pl.map.blocks[0];
-            check('bar (Link): with nothing selected the link is the whole field\'s; an address typed without its scheme is taken as https://; an empty box takes the link off (the selection\'s, or everything\'s); leaving the box with a new address in it sets it too — and the focus stays where it went',
-                l2 === J({ title: { link: 'https://b.example/road' } }) && log2 === 3 && l3 === J({ title: { spans: [{ s: 0, e: 4, link: 'https://b.example/road' }, { s: 8, e: 13, link: 'https://b.example/road' }] } }) && l4 === J({ title: { link: 'https://c.example/' } }) && notPulled && reset === 'https://c.example/' && l5 === false, [l2, l3, l4, notPulled, reset, l5]);
-            pl.sel0(tl, 0, 3); pl.log.length = 0; pl.toasts.length = 0;
-            const bad = ['javascript:alert(1)', 'data:text/html,x', 'https://a b', 'ftp://a.example', 'JAVASCRIPT:alert(1)'].map(v => { type(v, 'enter'); return [J(pl.map.blocks[0].fmt), pl.active === L.link, L.link.value === v]; });
-            pl.tsRefresh(); const typing = L.link.value === 'JAVASCRIPT:alert(1)';   // the bar refreshed while the box is being typed in (the selection moved, a save went by): what is typed stays
-            pl.active = null; L.link.fire('change'); L.link.fire('blur'); const saidOnce = pl.toasts.length === 5 && L.link.value === '';   // the box left after the refused Enter: nothing is said again, and it shows the field's own link
-            type('vbscript:x', 'away'); const badAway = [J(pl.map.blocks[0].fmt), L.link.value];
-            check('bar (Link): an address that is no web address is refused in words — nothing changes, there is no step, and after Enter the box keeps the focus and what was typed so it can be put right (a refresh of the bar never writes over it); left that way, the box says nothing a second time and shows the field\'s own link again',
-                bad.every(x => x[0] === undefined && x[1] && x[2]) && typing && saidOnce && pl.toasts.length === 6 && pl.toasts.every(m => /http:\/\/ or https:\/\//.test(m)) && pl.log.length === 0 && badAway[0] === undefined && badAway[1] === '', [bad, pl.toasts.length, badAway]);
-            {   // Escape in the link box, and an address with a port (the read of the first build, 2026-10-02)
-                const pe = mkPage({ map: mapOf(B0()) }).build(), X = pe.tsState.els, te = pe.box('field b-title', { idx: 0 }); te.value = 'The Hill Road';
-                // as a browser does it: when the field takes the focus from the box, the box — its value changed since it was entered — fires its change, then its blur, before focus() returns
-                const focus0 = te.focus; te.focus = function() { const was = pe.active; focus0.call(this); if (was === X.link) { X.link.fire('change'); X.link.fire('blur'); } };
-                const typeE = (v, key) => { pe.body.fire('mousedown', { target: X.link }); pe.active = X.link; pe.body.fire('keydown', { target: X.link, key: v.slice(-1) || 'Backspace' }); X.link.value = v; return pe.body.fire('keydown', { target: X.link, key: key }); };
-                pe.sel0(te, 4, 8); pe.log.length = 0;
-                const k1 = typeE('https://esc.example/', 'Escape');
-                const e1 = [k1.prevented && k1.stopped, 'fmt' in pe.map.blocks[0], pe.log.length, pe.active === te && te.selectionStart === 4 && te.selectionEnd === 8, X.link.value, pe.toasts.length];
-                typeE('https://esc.example/', 'Enter');
-                const set = J(pe.map.blocks[0].fmt), setLog = J(pe.log);
-                pe.sel0(te, 4, 8); pe.log.length = 0;
-                const shown = X.link.value;
-                typeE('', 'Escape');   // linked text selected, the box emptied to type another address, then Escape: the link stays
-                const e2 = [J(pe.map.blocks[0].fmt), pe.log.length, X.link.value, pe.active === te];
-                pe.body.fire('mousedown', { target: X.link }); pe.active = X.link; X.link.value = 'https://away.example/'; pe.active = null; X.link.fire('change'); X.link.fire('blur');   // typed and the box left by a click somewhere else: that is no Escape
-                const away = J(pe.map.blocks[0].fmt);
-                check('bar (Link): Escape in the box backs out — what was typed is dropped, never set: the format is unchanged, there is no step, the field has the focus and its selection again and the box shows the field\'s own link; the same address with Enter still sets it; emptying the box of linked text and pressing Escape leaves the link; an address typed and the box left by a click still sets it',
-                    J(e1) === J([true, false, 0, true, '', 0]) && set === J({ title: { spans: [{ s: 4, e: 8, link: 'https://esc.example/' }] } }) && setLog === J(['step', 'save:true', 'preview']) && shown === 'https://esc.example/'
-                    && J(e2) === J([set, 0, 'https://esc.example/', true]) && away === J({ title: { spans: [{ s: 4, e: 8, link: 'https://away.example/' }] } }), [e1, set, setLog, shown, e2, away]);
-                const pp = mkPage({ map: mapOf(B0()) }).build(), P = pp.tsState.els, tp = pp.box('field b-title', { idx: 0 }); tp.value = 'The Hill Road';
-                const typeP = v => { pp.body.fire('mousedown', { target: P.link }); pp.active = P.link; P.link.value = v; pp.body.fire('keydown', { target: P.link, key: 'Enter' }); return J(pp.map.blocks[0].fmt); };
-                pp.sel0(tp, 0, 3); const port1 = typeP('example.com:8080/x'); pp.sel0(tp, 4, 8); const port2 = typeP('localhost:3000'); pp.sel0(tp, 9, 13); const port3 = typeP('HTTP://c.example:81/');
-                pp.sel0(tp, 0, 13); typeP(''); pp.sel0(tp, 0, 3); const port4 = typeP('javascript:80/x'); pp.sel0(tp, 0, 13); typeP(''); pp.sel0(tp, 0, 3); pp.log.length = 0; pp.toasts.length = 0;
-                const refused = ['javascript:alert(1)', 'data:text/html,x', 'mailto:a@b.example', 'tel:5551234', 'javascript:1+1', 'JAVASCRIPT:alert(1)', 'a b.example:80'].map(v => typeP(v));
-                check('bar (Link): an address typed without its scheme is taken as https:// when it names a port too (example.com:8080/x, localhost:3000) — a port is one to five digits and then the end, a /, a ? or a #, and what is set always begins https:// (a first word before such a port is the name of a host, whatever it spells); one that begins with any other scheme (javascript:, data:, mailto:, tel:) is still refused in words, with nothing changed and no step',
-                    port1 === J({ title: { spans: [{ s: 0, e: 3, link: 'https://example.com:8080/x' }] } }) && port2 === J({ title: { spans: [{ s: 0, e: 3, link: 'https://example.com:8080/x' }, { s: 4, e: 8, link: 'https://localhost:3000' }] } })
-                    && port3 === J({ title: { spans: [{ s: 0, e: 3, link: 'https://example.com:8080/x' }, { s: 4, e: 8, link: 'https://localhost:3000' }, { s: 9, e: 13, link: 'HTTP://c.example:81/' }] } })
-                    && port4 === J({ title: { spans: [{ s: 0, e: 3, link: 'https://javascript:80/x' }] } }) && refused.every(x => x === undefined) && pp.toasts.length === 7 && pp.toasts.every(m => /http:\/\/ or https:\/\//.test(m)) && pp.log.length === 0, [port1, port2, port3, port4, refused, pp.toasts.length, pp.log.length]);
+            const R = rng(60606), pool = ['a', 'b', ' ', '\n', '😀', '<', '&', '\t']; let bad = null, places = 0;
+            for (let k = 0; k < 400 && !bad; k++) {
+                const list = Array.from({ length: 1 + Math.floor(R() * 5) }, () => Array.from({ length: 1 + Math.floor(R() * 6) }, () => pool[Math.floor(R() * pool.length)]).join('')), tr = runs(list), text = list.join('');
+                if (pg.tsScan(tr.root).text !== text) bad = { list, read: pg.tsScan(tr.root).text };
+                let a = 0;
+                tr.texts.forEach((t, i) => { for (let o = 0; o <= t.nodeValue.length; o++) { places++; if (pg.tsScan(tr.root, t, o).at !== a + o) bad = { list, i, o }; } if (pg.tsScan(tr.root, tr.root, i).at !== a || pg.tsScan(tr.root, tr.root.childNodes[i], 0).at !== a || pg.tsScan(tr.root, tr.root.childNodes[i], 1).at !== a + t.nodeValue.length) bad = { list, i, el: true }; a += t.nodeValue.length; });
+                for (let o = 0; o <= text.length; o++) { const p = pg.tsPointAt(tr.root, o); if (pg.tsScan(tr.root, p.node, p.offset).at !== o || p.node.nodeType !== 3 || p.offset < 0 || p.offset > p.node.nodeValue.length) bad = { list, o, p: [tr.texts.indexOf(p.node), p.offset] }; }
             }
-            const lb = pl.box('field fc-n-text fc-grow', { idx: 2, ni: 0 }, 'textarea'); lb.value = LBL; pl.sel0(lb, 9, 17);
-            const offL = [L.link.disabled, L.linkLab.title, L.linkLab.classList.contains('off'), L.u.disabled, L.s.disabled, L.size.disabled];
-            pl.log.length = 0; const pressed = pl.tsPress({ link: 'https://a.example/' }), viaBox = (L.link.value = 'https://a.example/', L.link.fire('change'), pl.log.length);
-            const eb = pl.box('fc-e-text', { idx: 2, ei: 0 }); eb.value = 'then'; pl.sel0(eb, 0); const offE = L.link.disabled;
-            pl.sel0(tl, 0, 3); const onT = [L.link.disabled, L.linkLab.title, L.linkLab.classList.contains('off')];
-            pl.sel0(lb, 9, 17); pl.click(L.u); pl.click(L.s); pl.body.fire('mousedown', { target: L.size }); pl.active = L.size; L.size.value = 'large'; L.size.fire('change');
-            check('bar (Link): off for a flowchart node\'s label and an arrow\'s, with a title that says why in plain words — a press there changes nothing; on again in a title. U, S and a size on a selection work in a label as in any field',
-                J(offL) === J([true, 'A flowchart label cannot hold a link: a chart never carries web addresses.', true, false, false, false]) && pressed === false && viaBox === 0 && offE === true && J(onT.slice(0, 1).concat(onT[2])) === '[false,false]' && /^Link — a web address/.test(onT[1])
-                && J(pl.map.blocks[2].nodes[0].fmt) === J({ spans: [{ s: 9, e: 17, size: 'large', u: true, st: true }] }) && !('fmt' in pl.map.blocks[2].edges[0]), [offL, pressed, viaBox, offE, onT, pl.map.blocks[2].nodes[0].fmt]);
-            const pr2 = mkPage({ map: mapOf(B0()) }).build(), R2 = pr2.tsState.els, rb2 = pr2.box('field rte-body', { idx: 4 }, 'div');
-            pr2.sel = { rangeCount: 1, isCollapsed: false }; pr2.active = rb2; pr2.tsNote(rb2); pr2.click(R2.u); pr2.click(R2.s);
-            check('bar: in a text block\'s box U and S drive that block\'s own underline and strike-through (planner.js rteLook, pinned); the link box is off there and says what it is for',
-                J(pr2.rte) === J([['4', { u: true }], ['4', { st: true }]]) && R2.link.disabled === true && R2.linkLab.title === 'This box links titles, table cells and captions.' && pr2.log.length === 0
-                && /else if \(change && change\.u === true\) rteExec\('underline'\);\n\s*else if \(change && change\.st === true\) rteExec\('strikeThrough'\);/.test(plannerSrc), [pr2.rte, R2.linkLab.title]);
-            check('bar (wired): the link box is an input the bar builds itself — never a prompt — its address goes through the core\'s one link rule before anything is stored, and the label rule is the same everywhere (tsIsLabel)',
-                !/\bprompt\(/.test(barSrc) && /if \(v && !TF\.cleanLink\(v\)\) \{ toast\(/.test(barSrc) && /E\.link = mk\('input', 'ts-link'\); E\.link\.type = 'text';/.test(barSrc) && /function tsIsLabel\(d\) \{ return !!d && \(d\.k === 'node' \|\| d\.k === 'edge'\); \}/.test(barSrc)
-                && /if \(change !== 'clear' && tsOwn\(change, 'link'\) && tsIsLabel\(sel\.d\)\) \{ tsRefresh\(\); return false; \}/.test(barSrc));
+            check('box maps (seeded, 400 fields of one to five runs — spaces, tabs, line breaks, astral characters, markup characters): the box reads as its runs joined; every place in every text node, and every element offset, reads as its character offset (' + places + ' places); every offset is a place in a text node that reads back as that offset', !bad && places > 4000, bad);
         }
-        // what it names
-        const cell = pg.box('r-col', { idx: 1, ri: 1, ci: 2 }), names = [];
-        const say = (cls, data, s, e, tag) => { const el = pg.box(cls, data, tag); pg.sel0(el, s || 0, e); names.push(E.target.textContent); };
-        pg.sel0(cell, 2, 5); names.push(E.target.textContent);
-        say('b-colhead', { idx: 1, ci: 1 }); say('field b-sub', { idx: 0 }); say('field b-sub', { idx: 1 }); say('b-must', { idx: 1 }, 0, 1); say('b-caption', { idx: 3 }); say('field b-title', { idx: 5 }); say('field b-title', { idx: 1 }); say('field b-title', { idx: 6 });
-        say('fc-n-text', { idx: 2, ni: 1 }, 0, 0, 'textarea'); say('fc-e-text', { idx: 2, ei: 0 });
-        check('bar: it names what it will act on in a few words, as text',
-            J(names) === J(['Row 2, Cost — 3 selected characters', 'Heading of column 2 — the whole field', 'Subtitle — the whole field', 'Tag — the whole field', 'Must resolve — 1 selected character', 'Caption — the whole field', 'Section heading — the whole field', 'Scene title — the whole field', 'Table title — the whole field', 'Node n3’s label — the whole field', 'Arrow 1’s label — the whole field']), names);
-        pg.map.blocks[2].nodes[1].id = '<img src=x onerror=alert(1)>'; pg.map.blocks[1].cols[2] = '<script>alert(1)</script> and a very long column name indeed';
-        pg.sel0(pg.tsBox({ idx: 2, k: 'node', ni: 1 }), 0); const hn = E.target.textContent; pg.sel0(cell, 0); const hc = E.target.textContent;
-        check('bar: a hostile node id or column name is only ever text in it, and cut short', hn === 'Node <img src=x onerror=alert(1)>’s label — the whole field' && hc === 'Row 2, <script>alert(1)</script> and… — the whole field' && !('innerHTML' in E.target), [hn, hc]);
+    }
 
-        // a box that takes no styling; another document; a field that is gone
-        pg.sel0(pg.box('fc-n-id', { idx: 2, ni: 0 }), 0);
-        const noneSaid = E.target.textContent, noneOff = [E.b, E.i, E.nocolor, E.size, E.clear, E.custom].concat(E.swatches).every(c => c.disabled);
-        pg.log.length = 0; const j0 = J(pg.map); pg.click(E.b); pg.tsPress({ b: true }); pg.tsPress({ color: RED });
-        check('bar: a box that takes no styling (an id, a diagram\'s code) says so and disables every control: nothing is silently ignored, nothing is changed', noneSaid === 'This box takes no styling.' && noneOff && pg.log.length === 0 && J(pg.map) === j0);
-        pg.sel0(cell, 0, 3); pg.map = { id: 'other', type: 'planner', blocks: B0() }; pg.active = null; pg.log.length = 0;
-        const other = pg.tsPress({ b: true }), jo = J(pg.map.blocks[1]);
-        pg.map = mapOf(B0()); pg.sel0(cell, 0, 3); pg.map.blocks.splice(1, 1); pg.active = null;
-        let threw = null; try { pg.tsPress({ b: true }); pg.tsRefresh(); } catch (e) { threw = e.message; }
-        check('bar: nothing is remembered across documents, and a remembered field that is gone is no target (no error, no change)', other === false && jo === J(B0()[1]) && threw === null && pg.log.length === 0 && /^Click in a title/.test(E.target.textContent), threw);
+    /* ---- the box: what it shows, how it is drawn, what it reads back ---- */
+    {
+        const corpus = ['', 'a', 'two  spaces   here', ' lead', 'trail  ', 'tab\there', 'line\nbreak', '\nlead break', '\n\ntwo lead', 'a\r\nb\rc', 'emoji 😀 x 👩‍🔬', '<b>typed</b> &amp; &lt;i&gt; <img src=x onerror=alert(1)>', 'nul\u0000x', 'a b', 'ends\n', 'x\n\ny', '   ', '\t', 'a b'];
+        const asInput = t => t.replace(/\u0000/g, '�').replace(/[\r\n]/g, ''), asArea = t => t.replace(/\u0000/g, '�').replace(/\r\n?/g, '\n').replace(/^\n/, '');   // what an input held as its value; what a textarea did
+        const fmts = [undefined, { b: true }, { color: RED, spans: [{ s: 1, e: 3, color: GREEN, u: true }] }, { spans: [{ s: 0, e: 2, size: 'huge' }, { s: 2, e: 9, st: true, i: true }] }];
+        let bad = null, drawn = 0;
+        corpus.forEach(t => fmts.forEach(f => [false, true].forEach(multi => {
+            const pg = mkPage({ map: mapOf([{ id: 'h', type: 'h2', title: t }, { id: 'c', type: 'flowchart', nodes: [{ id: 'n1', text: t }], edges: [] }]) });
+            const fld = pg.tsField(pg.map.blocks, multi ? { idx: 1, k: 'node', ni: 0 } : { idx: 0, k: 'title' }); if (f) fld.setFmt(TF.cleanFmt(f, t));
+            const before = J(pg.map.blocks);
+            pg.rebuild();
+            const box = pg.tsBox(multi ? { idx: 1, k: 'node', ni: 0 } : { idx: 0, k: 'title' }), want = multi ? asArea(t) : asInput(t), d = pg.drawn(box);
+            drawn++;
+            if (pg.tsShown(t, multi) !== want || box._tsText !== want || pg.tsScan(box).text !== want || pg.textOf(box) !== want || !d || J(pg.map.blocks) !== before) bad = bad || { t, multi, want, got: pg.tsScan(box).text, d };
+            if (d && (d.filter(x => x === '+').length !== (multi && /\n$/.test(want) ? 1 : 0) || (!want && box.childNodes.length))) bad = bad || { t, multi, tail: d };
+        })));
+        check('box (read-back, ' + drawn + ' boxes drawn): for every text of a corpus — runs of spaces, tabs, line breaks, astral characters, typed tags and entities, a NUL — with and without a format, the box\'s text is exactly the value the input it replaces held (a one-line field without its line breaks, a label with \\r\\n as \\n and without one leading line break), with no character added or changed; drawing writes nothing to the document; an empty field\'s box holds nothing at all (its placeholder is the style sheet\'s)',
+            !bad && drawn === corpus.length * fmts.length * 2, bad);
+        // drawing = runsOf: one element per run, a text node in each, the look through the element's style from the cleaned values
+        const styleOf = r => { const s = {}; if (r.color) s.color = r.color; if (r.b) s.fontWeight = 'bold'; if (r.i) s.fontStyle = 'italic'; if (r.u || r.st || r.link) s.textDecoration = [r.u || r.link ? 'underline' : '', r.st ? 'line-through' : ''].filter(Boolean).join(' '); if (r.size) s.fontSize = SIZE_EM[r.size]; return s; };
+        const text = 'buy milk and walk dog', fmt = { color: RED, i: true, spans: [{ s: 0, e: 3, size: 'huge', b: true }, { s: 4, e: 8, color: GREEN, u: true, st: true }, { s: 9, e: 12, link: LINK }, { s: 13, e: 17, size: 'small', u: true }] };
+        const pg = mkPage({ map: mapOf([{ id: 'h', type: 'h2', title: text, fmt: { title: fmt } }]) }).rebuild(), box = pg.tsBox({ idx: 0, k: 'title' }), d = pg.drawn(box), rs = runsOf(text, fmt);
+        check('box (drawn from runs): one element per run of runsOf, in order, each holding one text node with the run\'s characters; its colour, bold, italic, underline, strike and size step are set through the element\'s style from the cleaned values — the same four size steps a reader sees',
+            !!d && d.length === rs.length && rs.length === 8 && d.every((x, k) => x[0] === rs[k].t && J(x[1]) === J(styleOf(rs[k]))) && J(d[0][1]) === J({ color: RED, fontWeight: 'bold', fontStyle: 'italic', fontSize: '1.728em' }) && J(d[2][1]) === J({ color: GREEN, fontStyle: 'italic', textDecoration: 'underline line-through' }), d);
+        check('box (a link): a linked part looks like a link — underlined, in the link colour\'s class — and is none: a span, never an anchor, with no address to follow; its address is its title',
+            d[4][0] === 'and' && d[4][2] === 'tsr tsr-link' && d[4][3] === 'Link: ' + LINK && d[4][1].textDecoration === 'underline' && box.childNodes[4].nodeName === 'SPAN' && !('href' in box.childNodes[4]) && box.childNodes[4].attrs.href === undefined && d.filter(x => x[2] === 'tsr tsr-link').length === 1 && box.all().every(n => n.nodeName !== 'A'));
+        const hostile = JSON.parse('{"b":1,"u":"true","st":{},"size":"99em","color":"red;background:url(//evil.example/x)","link":"javascript:alert(1)","style":"color:red","onclick":"alert(1)","__proto__":{"i":true,"color":"#5cb87a"},"spans":[{"s":0,"e":4,"color":"expression(alert(1))","size":"huge;position:fixed","link":"data:text/html,x","b":"yes"},{"s":"0","e":9,"b":true},"x",null]}');
+        const hT = '<img src=x onerror=alert(1)><script>alert(1)</script>&lt;', ph = mkPage({ map: mapOf([{ id: 'h', type: 'h2', title: hT, fmt: { title: hostile } }, { id: 'c', type: 'flowchart', nodes: [{ id: 'n', text: hT + '\n', fmt: hostile }], edges: [] }]) }).rebuild();
+        const hd = ph.drawn(ph.tsBox({ idx: 0, k: 'title' })), hl = ph.drawn(ph.tsBox({ idx: 1, k: 'node', ni: 0 }));
+        check('box (hostile): a format that holds nothing the cleaner keeps draws the unstyled text — one element, no style, no title — and markup in the text is its characters in a text node; no element the app did not make, and the test page refuses markup outright (innerHTML throws)',
+            J(hd) === J([[hT, {}, 'tsr', '']]) && J(hl) === J([[hT + '\n', {}, 'tsr', ''], '+']) && ph.blocksEl.all().every(n => n.nodeName === 'DIV' || n.nodeName === 'SPAN' || n.nodeName === 'BR')
+            && (() => { try { ph.blocksEl.innerHTML = 'x'; return false; } catch (e) { return /markup/.test(e.message); } })() && !/innerHTML|insertAdjacentHTML|outerHTML|document\.write/.test(boxSrc + barSrc), [hd, hl]);
+        // a redraw touches only what differs
+        const spans0 = box.childNodes.slice(), again = pg.tsPaint(box, pg.tsField(pg.map.blocks, { idx: 0, k: 'title' }), false);
+        box.childNodes[2].firstChild.nodeValue = 'milky'; box._tsText = 'buy milky and walk dog'; pg.map.blocks[0].title = box._tsText; pg.map.blocks[0].fmt.title = respan(text, box._tsText, fmt, 9);
+        const patched = pg.tsPaint(box, pg.tsField(pg.map.blocks, { idx: 0, k: 'title' }), false), sameEls = box.childNodes.every((c, k) => c === spans0[k]);
+        box.childNodes[1].firstChild.nodeValue = 'XX'; const fixed = pg.tsPaint(box, pg.tsField(pg.map.blocks, { idx: 0, k: 'title' }), false), stillSame = box.childNodes.every((c, k) => c === spans0[k]) && pg.textOf(box) === box._tsText;
+        box.appendChild(pg.dom.document.createTextNode('stray')); const rebuilt = pg.tsPaint(box, pg.tsField(pg.map.blocks, { idx: 0, k: 'title' }), false);
+        check('box (redraw): a box that already holds exactly its runs is not touched (typing into a run\'s own text node costs no redraw); a text node that differs is put right in place; anything the app did not make — a stray node — and the box is made anew',
+            again === false && patched === false && sameEls && fixed === true && stillSame && rebuilt === true && !!pg.drawn(box) && pg.textOf(box) === 'buy milky and walk dog' && box.childNodes[0] !== spans0[0], [again, patched, fixed, rebuilt]);
+        const html = ph.tsBoxHtml('field b-title', 'Title "x" <img src=x onerror=alert(1)>', 'data-idx="3"', 'width:100%;'), htmlM = ph.tsBoxHtml('field fc-n-text fc-grow', 'Label', 'data-idx="1" data-ni="0"', '', true, 'title="t"');
+        check('box (markup): renderPlanner writes an EMPTY box — its classes, its place, a placeholder that is escaped and no part of the text, plain-text editing, the role and the name a screen reader reads — and never the field\'s text; a label is marked multi-line',
+            html === '<div class="field b-title ts-box" contenteditable="plaintext-only" role="textbox" aria-multiline="false" spellcheck="true" data-placeholder="Title &quot;x&quot; &lt;img src=x onerror=alert(1)&gt;" aria-label="Title &quot;x&quot; &lt;img src=x onerror=alert(1)&gt;" data-idx="3" style="width:100%;"></div>'
+            && htmlM === '<div class="field fc-n-text fc-grow ts-box ts-multi" contenteditable="plaintext-only" role="textbox" aria-multiline="true" spellcheck="true" data-placeholder="Label" aria-label="Label" data-idx="1" data-ni="0" title="t"></div>' && ph.TS_EDIT === 'plaintext-only', [html, htmlM]);
+        check('box (wired): renderPlanner writes each of the eleven plain boxes through tsBoxHtml (no input or textarea is left for a plain field, and no field\'s text goes into the markup), draws them with tsFill once the editor is written, and adds no listener of its own to any of them',
+            (plannerSrc.match(/tsBoxHtml\(/g) || []).length === 12 && !/class="[^"]*\b(b-title|b-sub|b-must|b-caption|b-colhead|r-col|fc-n-text|fc-e-text)\b/.test(plannerSrc) && !/value="'\s*\+\s*esc\((b\.title|b\.sub|b\.tag|b\.must|b\.caption|c|e\.text|r\[)/.test(plannerSrc) && !/<textarea rows="1"/.test(plannerSrc)
+            && /blockContainer\.innerHTML = html;\n\n\s*tsFill\(blockContainer, activeMap\.blocks\);/.test(plannerSrc) && !/querySelectorAll\('\.(b-title|b-sub|b-must|b-caption|b-colhead|r-col|fc-n-text|fc-e-text|fc-grow)'\)/.test(plannerSrc)
+            && !/this\.selectionStart|setSelectionRange|\.(title|caption|must|text) = this\.value/.test(fieldsSrc + boxSrc + barSrc) && /tsBuild\(host, RTE_SYMS\);\n\s*tsWire\(root, host\);/.test(plannerSrc) && (plannerSrc.match(/tsWire\(/g) || []).length === 2);
+    }
+
+    /* ---- editing through the box: the engine edits it, the app reads it back as text and draws it again ---- */
+    {
+        const mkT = (text, fmt, multi) => { const pg = mkPage({ map: mapOf([{ id: 'h', type: 'h2', title: multi ? 'x' : text }, { id: 'c', type: 'flowchart', nodes: [{ id: 'n1', text: multi ? text : 'x' }], edges: [] }]) }), d = multi ? { idx: 1, k: 'node', ni: 0 } : { idx: 0, k: 'title' };
+            if (fmt) pg.tsField(pg.map.blocks, d).setFmt(fmt); pg.wire().rebuild(); const box = pg.tsBox(d), fld = () => pg.tsField(pg.map.blocks, d);
+            return { pg, d, box: () => pg.tsBox(d), text: () => fld().text(), fmt: () => J(fld().fmt()), E: pg.engine, first: box }; };
+        const t1 = mkT('The Hill Road'), b1 = t1.first;
+        t1.pg.focus(b1, 13); t1.pg.log.length = 0;
+        t1.E.type(b1, '!'); const log1 = J(t1.pg.log); t1.E.type(b1, '?'); const log2 = J(t1.pg.log.slice(3));
+        check('box (typing): a character typed by the engine is read back from the box as text and stored — the field\'s text is the box\'s, the preview is drawn again, the save is the typing kind (on its timer); a run of typing opens one step and the next character joins it',
+            t1.text() === 'The Hill Road!?' && b1._tsText === 'The Hill Road!?' && log1 === J(['step+', 'save:false', 'preview']) && log2 === J(['save:false', 'preview']) && J(t1.pg.range(b1)) === '[15,15]' && J(t1.pg.sels[0]) === J([{ d: t1.d, s: 13, e: 13 }, { d: t1.d, s: 14, e: 14 }]) && J(t1.pg.sels[1]) === J([{ d: t1.d, s: 14, e: 14 }, { d: t1.d, s: 15, e: 15 }]), [t1.text(), log1, log2, t1.pg.sels]);
+        // right after a styled part: the engine typed into the part's own text node; the store agrees (respan) and the caret stays inside that part
+        const t2 = mkT('buy milk now', { spans: [{ s: 4, e: 8, color: GREEN, b: true }] }), b2 = t2.first;
+        t2.pg.focus(b2, 8); const leftNode = t2.pg.dom.sel.anchorNode === b2.childNodes[1].firstChild && t2.pg.dom.sel.anchorOffset === 4;
+        t2.E.type(b2, 's');
+        const joined = t2.fmt(), inLeft = t2.pg.dom.sel.anchorNode === b2.childNodes[1].firstChild && t2.pg.dom.sel.anchorOffset === 5, shown2 = J(t2.pg.drawn(b2).map(x => x[0]));
+        t2.E.caret(b2, 4); t2.E.type(b2, 'x'); const before2 = t2.fmt(), shown3 = J(t2.pg.drawn(b2).map(x => x[0]));
+        check('box (typing at a boundary): right after a styled part the caret is drawn inside that part, what is typed there is in the part\'s element at once and in its span in the store; right before the part it is not (what you see while typing is what is stored)',
+            leftNode && joined === J({ spans: [{ s: 4, e: 9, color: GREEN, b: true }] }) && inLeft && shown2 === J(['buy ', 'milks', ' now']) && before2 === J({ spans: [{ s: 5, e: 10, color: GREEN, b: true }] }) && shown3 === J(['buy x', 'milks', ' now']), [joined, shown2, before2, shown3]);
+        // the engine may put the character in the node on the RIGHT of a boundary instead: the store still follows respan, the box is put right, the caret goes inside the left part
+        const t3 = mkT('buy milk now', { spans: [{ s: 4, e: 8, color: GREEN }] }), b3 = t3.first;
+        t3.pg.focus(b3, 8); t3.pg.dom.sel.setBaseAndExtent(b3.childNodes[2].firstChild, 0, b3.childNodes[2].firstChild, 0);   // the same place, held in the node on the right
+        t3.pg.dom.fire(b3, 'beforeinput', { inputType: 'insertText', data: 's' }); b3.childNodes[2].firstChild.nodeValue = 's now'; t3.pg.dom.sel.setBaseAndExtent(b3.childNodes[2].firstChild, 1, b3.childNodes[2].firstChild, 1); t3.pg.dom.fire(b3, 'input', { inputType: 'insertText', data: 's' });
+        check('box (typing at a boundary, the other node): a character the engine put into the node on the right of a styled part is stored as part of the styled part all the same (the rule is the text\'s, not the node\'s); the box is put right in place and the caret set inside the part',
+            t3.fmt() === J({ spans: [{ s: 4, e: 9, color: GREEN }] }) && J(t3.pg.drawn(b3).map(x => x[0])) === J(['buy ', 'milks', ' now']) && t3.pg.dom.sel.anchorNode === b3.childNodes[1].firstChild && t3.pg.dom.sel.anchorOffset === 5, [t3.fmt(), t3.pg.drawn(b3)]);
+        // an empty box: the engine makes a bare text node; the app draws its own
+        const t4 = mkT(''), b4 = t4.first; t4.pg.focus(b4, 0); t4.E.type(b4, 'a');
+        const drew4 = J(t4.pg.drawn(b4)), caret4 = t4.pg.dom.sel.anchorNode === b4.firstChild.firstChild && t4.pg.dom.sel.anchorOffset === 1;
+        t4.E.backspace(b4);
+        check('box (empty): the first character typed into an empty box — a bare text node of the engine\'s — is drawn again as a run of the app\'s, the caret after it; deleting it again leaves the box holding nothing (the line-break element the engine left is taken out, so the placeholder shows)',
+            drew4 === J([['a', {}, 'tsr', '']]) && caret4 && t4.text() === '' && b4.childNodes.length === 0 && b4._tsText === '', [drew4, b4.childNodes.length]);
+        // astral characters: whole, in the text and in the runs
+        const t5 = mkT('a😀b', { spans: [{ s: 1, e: 3, b: true }] }), b5 = t5.first; t5.pg.focus(b5, 3); t5.E.type(b5, '😁'); t5.E.caret(b5, 5); t5.E.backspace(b5); t5.E.backspace(b5);
+        check('box (astral characters): an emoji typed after a styled emoji joins it whole, one deleted goes whole — the text never holds half a pair and no run begins or ends inside one',
+            t5.text() === 'ab' && t5.fmt() === undefined && (() => { const t = mkT('a😀b', { spans: [{ s: 1, e: 3, b: true }] }), b = t.first; t.pg.focus(b, 3); t.E.type(b, '😁'); return t.text() === 'a😀😁b' && t.fmt() === J({ spans: [{ s: 1, e: 5, b: true }] }) && J(t.pg.drawn(b).map(x => x[0])) === J(['a', '😀😁', 'b']); })(), [t5.text(), t5.fmt()]);
+
+        // Enter
+        const t6 = mkT('one line'), b6 = t6.first; t6.pg.focus(b6, 3); t6.pg.log.length = 0;
+        const en = t6.E.enter(b6), sh = t6.E.edit(b6, 'insertLineBreak', null);
+        const t7 = mkT('buy milk', { spans: [{ s: 0, e: 8, color: GREEN }] }, true), b7 = t7.first; t7.pg.focus(b7, 8); t7.pg.log.length = 0;
+        const en7 = t7.E.enter(b7), d7 = J(t7.pg.drawn(b7).map(x => x === '+' ? x : x[0])), c7 = [t7.pg.dom.sel.anchorNode === b7.childNodes[1].firstChild, t7.pg.dom.sel.anchorOffset, J(t7.pg.range(b7))], log7 = J(t7.pg.log);
+        t7.E.type(b7, 'w'); const d7b = J(t7.pg.drawn(b7).map(x => x === '+' ? x : x[0])), f7 = t7.fmt();
+        t7.E.caret(b7, 9); t7.E.backspace(b7); const d7c = t7.text();
+        check('box (Enter): a one-line field takes no line break — Enter and Shift+Enter change nothing and save nothing; in a label Enter is a new line, worked out on the text (the engine never puts its own line break into the box): at the end one line-break element is drawn after the runs so the new line has a place, the caret stands after the break, what is typed next is on the new line and not the styled line\'s; Backspace at the start of a line joins it to the one before',
+            en.defaultPrevented && sh.defaultPrevented && t6.text() === 'one line' && t6.pg.log.length === 0
+            && en7.defaultPrevented && d7 === J(['buy milk', '\n', '+']) && J(c7) === J([true, 1, '[9,9]']) && log7 === J(['step', 'save:false', 'preview']) && d7b === J(['buy milk', '\nw']) && f7 === J({ spans: [{ s: 0, e: 8, color: GREEN }] }) && d7c === 'buy milkw', [d7, c7, log7, d7b, f7, d7c]);
+
+        // paste: plain text only, through the box's text
+        const flav = { 'text/plain': 'a <b>x</b>\r\nb\nc\rd', 'text/html': '<b>BOLD</b><img src=x onerror=alert(1)><script>alert(1)</script>' };
+        const t8 = mkT('ab', { spans: [{ s: 0, e: 1, i: true }] }), b8 = t8.first; t8.pg.focus(b8, 1); t8.pg.log.length = 0;
+        const p8 = t8.E.paste(b8, flav), log8 = J(t8.pg.log);
+        const t9 = mkT('ab', undefined, true), b9 = t9.first; t9.pg.focus(b9, 1); const p9 = t9.E.paste(b9, flav);
+        const t10 = mkT('abcd'), b10 = t10.first; t10.pg.focus(b10, 1, 3); t10.E.paste(b10, { 'text/plain': 'XY' }); const sel10 = J(t10.pg.range(b10));
+        t10.E.paste(b10, { 'text/plain': '', 'text/html': '<b>only markup</b>' });
+        check('box (paste): only the clipboard\'s plain text comes in, and it comes in as text — pasted markup is its characters, in the box as in the data, and nothing of the HTML flavour is read; a one-line field takes each line break as a space (as the input did), a label keeps them as \\n; what is pasted right after a styled part joins it; a paste is a step of its own; the engine\'s own insertion never happens',
+            p8.defaultPrevented && t8.text() === 'aa <b>x</b> b c db' && t8.fmt() === J({ spans: [{ s: 0, e: 17, i: true }] }) && log8 === J(['step', 'save:false', 'preview']) && J(t8.pg.range(b8)) === '[17,17]' && !!t8.pg.drawn(b8) && t8.pg.textOf(b8) === t8.text()
+            && p9.defaultPrevented && t9.text() === 'aa <b>x</b>\nb\nc\ndb' && t10.text() === 'aXYd' && sel10 === '[3,3]', [t8.text(), t8.fmt(), log8, t9.text(), t10.text()]);
+        // a paste or a drop that reaches the box only as the engine's own edit (no paste event): cancelled, and done on the text
+        const t11 = mkT('ab'), b11 = t11.first; t11.pg.focus(b11, 2);
+        const viaInput = t11.E.edit(b11, 'insertFromDrop', null, { dataTransfer: { getData: t => (t === 'text/plain' ? ' <i>d</i>\n' : '<i>d</i>') } });
+        const drop = t11.pg.dom.fire(b11, 'drop', { dataTransfer: { getData: t => (t === 'text/plain' ? 'Z' : '') }, clientX: 0, clientY: 0 });
+        const dragStart = t11.pg.dom.fire(b11.firstChild, 'dragstart', {}), filesOnly = t11.pg.dom.fire(b11, 'drop', { dataTransfer: { getData: () => '' } });
+        check('box (drop): text dropped on a box comes in as plain text through the box\'s text (never as the engine\'s own insertion); a drop with no text changes nothing; a box\'s own text is not dragged about',
+            viaInput.defaultPrevented && drop.defaultPrevented && t11.text() === 'ab <i>d</i> Z' && dragStart.defaultPrevented && filesOnly.defaultPrevented && t11.pg.textOf(b11) === t11.text(), t11.text());
+
+        // copy and cut
+        const t12 = mkT('buy milk now', { spans: [{ s: 4, e: 8, color: GREEN, b: true }] }), b12 = t12.first; t12.pg.focus(b12, 2, 10);
+        const cp = t12.E.copy(b12, 'copy'), afterCopy = t12.text(); t12.pg.log.length = 0;
+        const ct = t12.E.copy(b12, 'cut'), caretCut = J(t12.pg.range(b12)), none = (t12.E.caret(b12, 1), t12.E.copy(b12, 'copy'));
+        check('box (copy, cut): both give the selected characters as plain text and nothing else (no markup of the box\'s elements); a cut takes them out of the text as a step of its own, with the caret where they were; with nothing selected the engine is left alone',
+            cp.e.defaultPrevented && J(cp.got) === J({ 'text/plain': 'y milk n' }) && afterCopy === 'buy milk now' && ct.e.defaultPrevented && J(ct.got) === J({ 'text/plain': 'y milk n' }) && t12.text() === 'buow' && t12.fmt() === undefined && caretCut === '[2,2]' && J(t12.pg.log) === J(['step', 'save:false', 'preview']) && !none.e.defaultPrevented && J(none.got) === '{}', [cp.got, t12.text(), t12.pg.log]);
+
+        // a composition (an IME, a dead key, the emoji picker)
+        const t13 = mkT('ab', { spans: [{ s: 0, e: 2, b: true }] }), b13 = t13.first; t13.pg.focus(b13, 2); t13.pg.log.length = 0;
+        const sets0 = t13.pg.dom.sel.sets, kids0 = b13.childNodes.slice(); let midText = null, midLog = null, midKids = null;
+        t13.pg.dom.fire(b13, 'compositionstart', {});
+        ['k', 'ka', 'か'].forEach((t, k) => { t13.pg.dom.fire(b13, 'beforeinput', { inputType: 'insertCompositionText', data: t }); const tn = b13.childNodes[0].firstChild; tn.nodeValue = 'ab' + t; t13.pg.dom.sel.setBaseAndExtent(tn, 2 + t.length, tn, 2 + t.length); const s1 = t13.pg.dom.sel.sets; t13.pg.dom.fire(b13, 'input', { inputType: 'insertCompositionText', data: t, isComposing: true }); if (k === 1) { midText = t13.text(); midLog = t13.pg.log.length; midKids = b13.childNodes.every((c, i) => c === kids0[i]) && t13.pg.dom.sel.sets === s1; } });
+        t13.pg.dom.fire(b13, 'compositionend', { data: 'か' });
+        const afterEnd = [t13.text(), t13.fmt(), J(t13.pg.log)];
+        t13.pg.dom.fire(b13, 'input', { inputType: 'insertCompositionText', data: 'か' });   // some engines send one more input after the end: nothing is left to take
+        check('box (composition): between its start and its end the box is the engine\'s — nothing is read back, stored, saved or drawn while it composes; at the end it is applied ONCE (one edit, one save), and it joins the styled part it was typed after; an input that follows the end changes nothing more',
+            midText === 'ab' && midLog === 0 && midKids === true && J(afterEnd) === J(['abか', J({ spans: [{ s: 0, e: 3, b: true }] }), J(['step+', 'save:false', 'preview'])]) && t13.pg.log.length === 3 && t13.pg.tsState.comp === false, [midText, midLog, midKids, afterEnd, t13.pg.log]);
+
+        // the bar while a composition is under way: a press, a symbol and the key into the bar wait — nothing is drawn, nothing is stored
+        const t16 = mkT('ab', { spans: [{ s: 0, e: 2, b: true }] }), b16 = t16.first, E16 = t16.pg.tsState.els; t16.pg.focus(b16, 2); t16.pg.log.length = 0;
+        t16.pg.dom.fire(b16, 'compositionstart', {});
+        t16.pg.dom.fire(b16, 'beforeinput', { inputType: 'insertCompositionText', data: 'か' }); { const tn = b16.childNodes[0].firstChild; tn.nodeValue = 'abか'; t16.pg.dom.sel.setBaseAndExtent(tn, 3, tn, 3); } t16.pg.dom.fire(b16, 'input', { inputType: 'insertCompositionText', data: 'か', isComposing: true });
+        const kids16 = b16.childNodes.slice(), was16 = J(t16.pg.map.blocks);
+        t16.pg.click(E16.i); t16.pg.click(E16.swatches[2]); t16.pg.click(E16.clear); t16.pg.click(E16.symBtn); t16.pg.click(E16.symList[0]);
+        E16.size.value = 'large'; t16.pg.dom.fire(E16.size, 'change'); E16.custom.value = '#abcdef'; t16.pg.dom.fire(E16.custom, 'change');   // a list or a picker that changed without taking the focus (the keyboard, a wheel)
+        const kb16 = t16.pg.dom.fire(b16, 'keydown', keyEv({ key: 'b', ctrlKey: true })); t16.pg.dom.fire(b16, 'keydown', keyEv({ key: 'F10', altKey: true }));
+        const mid16 = [J(t16.pg.map.blocks) === was16, b16.childNodes.length === kids16.length && b16.childNodes.every((c, i) => c === kids16[i]), t16.pg.textOf(b16), t16.pg.log.length, t16.pg.sels.length, t16.pg.dom.page.active === b16, kb16.defaultPrevented];
+        t16.pg.dom.fire(b16, 'compositionend', { data: 'か' });
+        const end16 = [t16.text(), t16.fmt(), J(t16.pg.log)];
+        t16.E.caret(b16, 0, 2); t16.pg.click(E16.i); const after16 = t16.fmt();
+        check('box (composition, the bar): between a composition\'s start and its end a click on a control of the bar, a symbol from the tray, a change of the Size list or the custom colour, Ctrl+B and Alt+F10 change nothing — the box keeps the very nodes the engine is composing in (it is not drawn again), the stored block is untouched, no step is recorded and the focus stays in the box; at its end the composed text is stored ONCE, and the bar works as ever',
+            J(mid16) === J([true, true, 'abか', 0, 0, true, true]) && J(end16) === J(['abか', J({ spans: [{ s: 0, e: 3, b: true }] }), J(['step+', 'save:false', 'preview'])]) && after16 === J({ spans: [{ s: 0, e: 2, b: true, i: true }, { s: 2, e: 3, b: true }] }), [mid16, end16, after16]);
+
+        // before the engine edits, during a composition: nothing of the app's own — no line break put in, no paste, no undo, no selection noted afresh
+        const t17 = mkT('ab\ncd', { spans: [{ s: 0, e: 2, b: true }] }, true), b17 = t17.first; t17.pg.focus(b17, 2); t17.pg.log.length = 0;
+        t17.pg.dom.fire(b17, 'compositionstart', {});
+        const kids17 = b17.childNodes.slice();
+        { const tn = b17.childNodes[0].firstChild; tn.nodeValue = 'abか'; t17.pg.dom.sel.setBaseAndExtent(tn, 3, tn, 3); }   // the engine composes: its text is in the box, its caret after it
+        const during17 = ['insertCompositionText', 'insertParagraph', 'insertLineBreak', 'insertFromPaste', 'historyUndo', 'historyRedo', 'formatBold'].map(it => t17.pg.dom.fire(b17, 'beforeinput', { inputType: it, data: 'zz' }).defaultPrevented);
+        const mid17 = [t17.text(), t17.pg.log.length, b17.childNodes.length === kids17.length && b17.childNodes.every((c, i) => c === kids17[i]), t17.pg.textOf(b17), J(t17.pg.tsState.pre)];
+        t17.pg.dom.fire(b17, 'compositionend', { data: 'か' });
+        const end17 = [t17.text(), t17.fmt(), J(t17.pg.sels), J(t17.pg.log)];
+        check('box (composition, before the engine edits): while a composition is under way nothing the engine is about to do is cancelled or done by the app instead — a line break in a label, a paste, its undo and redo, its bold — the box keeps its nodes, nothing is stored, and the selection the composition began with stays the one its step is told (it is not read afresh from a box that holds composing text); at the end the text is stored once, with that selection before it',
+            during17.every(p => p === false) && J(mid17) === J(['ab\ncd', 0, true, 'abか\ncd', J({ s: 2, e: 2, back: false })]) && J(end17) === J(['abか\ncd', J({ spans: [{ s: 0, e: 3, b: true }] }), J([[{ d: t17.d, s: 2, e: 2 }, { d: t17.d, s: 3, e: 3 }]]), J(['step+', 'save:false', 'preview'])]), [during17, mid17, end17]);
+
+        // what the engine would do on its own that the app does itself: its undo, its redo, its bold
+        const t14 = mkT('abc'), b14 = t14.first; t14.pg.focus(b14, 3); t14.pg.log.length = 0;
+        const hu = t14.E.edit(b14, 'historyUndo', null), hr = t14.E.edit(b14, 'historyRedo', null), fb = t14.E.edit(b14, 'formatBold', null), fi = t14.E.edit(b14, 'formatItalic', null);
+        check('box (the engine\'s own undo, redo and styling): each is cancelled before it touches the box — its undo and redo become the planner\'s own, its bold and italic nothing at all (the bar\'s presses are the only styling)',
+            hu.defaultPrevented && hr.defaultPrevented && fb.defaultPrevented && fi.defaultPrevented && J(t14.pg.log) === J(['undo', 'redo']) && t14.text() === 'abc');
+
+        // keys
+        const t15 = mkT('abc'), b15 = t15.first; t15.pg.focus(b15, 1);
+        const idBox = t15.pg.plain('input', 'fc-n-id', { idx: 1, ni: 0 }), seen15 = [], named = seen => e => { seen.push((e.ctrlKey ? 'Ctrl+' : e.altKey ? 'Alt+' : '') + e.key + (e.target.classList.contains('ts-box') ? '' : ' (not a box)')); };
+        t15.pg.doc.addEventListener('keydown', named(seen15));   // a handler of the page's own, as Find's and the quick jump's are: on the document, after the editor's
+        const fire15 = (el, o) => t15.pg.dom.fire(el, 'keydown', keyEv(o));
+        ['x', 'Delete', 'ArrowRight', 'Enter'].forEach(k => fire15(b15, { key: k }));
+        const kf = fire15(b15, { key: 'f', ctrlKey: true }), kk = fire15(b15, { key: 'k', ctrlKey: true });
+        const f10 = fire15(b15, { key: 'F10', altKey: true }), barEsc = t15.pg.dom.fire(t15.pg.tsState.els.b, 'keydown', keyEv({ key: 'Escape' }));   // into the bar, and back
+        const esc15 = fire15(b15, { key: 'Escape' }), away15 = t15.pg.tsState.els.root.hidden, esc15b = fire15(b15, { key: 'Escape' });
+        fire15(idBox, { key: 'x' });
+        const pc15 = mkPage({ map: mapOf(B0()) }).wire().rebuild(), seenC = [], cell15 = pc15.tsBox({ idx: 1, k: 'cell', ri: 0, ci: 0 }), lab15 = pc15.tsBox({ idx: 2, k: 'node', ni: 0 }); pc15.doc.addEventListener('keydown', named(seenC));
+        pc15.focus(cell15, 2); pc15.dom.fire(cell15, 'keydown', keyEv({ key: 'f', ctrlKey: true })); pc15.dom.fire(cell15, 'keydown', keyEv({ key: 'k', ctrlKey: true }));
+        pc15.focus(lab15, 2); ['x', 'Enter'].forEach(k => pc15.dom.fire(lab15, 'keydown', keyEv({ key: k }))); pc15.dom.fire(lab15, 'keydown', keyEv({ key: 'f', ctrlKey: true })); pc15.dom.fire(lab15, 'keydown', keyEv({ key: 'k', metaKey: true }));
+        check('box (keys): a key pressed in a box goes on to the page as an input\'s does — Ctrl+F (Find) and Ctrl+K (the quick jump) reach the page\'s own handlers from a title, a table cell and a flowchart label, and so does every key the box does not take (the page\'s handlers tell typing by the element, as they do for an input); the box takes only Alt+F10 (into its bar), the Escape that puts its bar away (the next Escape goes on) and the undo chord; a key in a box that is no plain field\'s is left alone',
+            J(seen15) === J(['x', 'Delete', 'ArrowRight', 'Enter', 'Ctrl+f', 'Ctrl+k', 'Escape', 'x (not a box)']) && !kf.defaultPrevented && !kk.defaultPrevented && f10.stopped && f10.defaultPrevented && barEsc.stopped && esc15.stopped && away15 === true && esc15b.stopped === false
+            && J(seenC) === J(['Ctrl+f', 'Ctrl+k', 'x', 'Enter', 'Ctrl+f', 'k']), [seen15, seenC, away15]);
+
+        // a seeded walk through the box: type, delete, type over a selection, paste, Enter, cut — against the text an input would hold and the look respan gives
+        const R = rng(424242), alpha = 'ab c<&d', look = (text, fmt) => { const out = []; runsOf(text, fmt).forEach(r => { for (let k = 0; k < r.t.length; k++) out.push([r.color, r.b, r.i, r.u, r.st, r.size, r.link].join('|')); }); return out; };
+        const linkAt = (text, fmt, i) => look(text, fmt)[i].split('|')[6];
+        let bad = null, steps = 0, done = {}, styledSteps = 0, linkEnds = 0;
+        for (let round = 0; round < 40 && !bad; round++) {
+            const multi = round % 2 === 1, t0 = Array.from({ length: 4 + Math.floor(R() * 14) }, () => (multi && R() < 0.15 ? '\n' : alpha[Math.floor(R() * alpha.length)])).join('').replace(/^\n/, 'a');
+            const f0 = cleanFmt({ color: R() < 0.4 ? RED : undefined, link: R() < 0.1 ? LINK : undefined, spans: Array.from({ length: 4 }, () => { const s = Math.floor(R() * t0.length); return { s, e: s + 1 + Math.floor(R() * 5), color: R() < 0.5 ? [GREEN, BLUE][Math.floor(R() * 2)] : undefined, b: R() < 0.4 ? true : undefined, u: R() < 0.2 ? true : undefined, size: R() < 0.25 ? 'large' : undefined, link: !multi && R() < 0.4 ? LINK : undefined }; }) }, t0);
+            const t = mkT(t0, f0, multi); let box = t.first, text = t0, fmt = f0;
+            t.pg.focus(box, 0);
+            for (let step = 0; step < 40 && !bad; step++) {
+                const a = Math.floor(R() * (text.length + 1)), z = R() < 0.6 ? a : Math.min(text.length, a + Math.floor(R() * 4)), op = Math.floor(R() * 10);
+                t.E.caret(box, a, z);
+                let next = text, caret = a, name = '';
+                if (op < 4) { const ch = alpha[Math.floor(R() * alpha.length)]; t.E.type(box, ch); next = text.slice(0, a) + ch + text.slice(z); caret = a + 1; name = a === z ? 'type' : 'type over'; }
+                else if (op === 4) { t.E.backspace(box); if (a !== z) next = text.slice(0, a) + text.slice(z); else if (a > 0) { next = text.slice(0, a - 1) + text.slice(a); caret = a - 1; } name = 'backspace'; }
+                else if (op === 5) { t.E.del(box); if (a !== z) next = text.slice(0, a) + text.slice(z); else if (a < text.length) next = text.slice(0, a) + text.slice(a + 1); name = 'delete'; }
+                else if (op === 6) { const raw = ['x y', '<b>p</b>', 'l1\nl2', 'r\r\nn', ''][Math.floor(R() * 5)], ins = multi ? raw.replace(/\r\n?/g, '\n') : raw.replace(/\r\n?|\n/g, ' '); t.E.paste(box, { 'text/plain': raw, 'text/html': '<u>no</u>' }); if (ins) { next = text.slice(0, a) + ins + text.slice(z); caret = a + ins.length; } name = 'paste'; }
+                else if (op === 7) { t.E.enter(box); if (multi) { next = text.slice(0, a) + '\n' + text.slice(z); caret = a + 1; } name = multi ? 'enter' : 'enter (one line)'; }
+                else if (op === 8) { t.E.copy(box, 'cut'); if (a !== z) next = text.slice(0, a) + text.slice(z); name = 'cut'; }
+                else { t.pg.dom.fire(box, 'compositionstart', {}); t.E.cut(box, a, z); t.E.put(box, a, 'e'); t.pg.dom.fire(box, 'input', { inputType: 'insertCompositionText', isComposing: true }); t.pg.dom.fire(box, 'compositionend', {}); next = text.slice(0, a) + 'e' + text.slice(z); caret = a + 1; name = 'compose'; }
+                done[name] = (done[name] || 0) + 1; steps++;
+                // what an input would have given tsType: this text and this caret; the look respan gives for them (less a link at its end)
+                const q = next.length - caret; let p = 0; { const lim = Math.min(text.length - q, caret); while (p < lim && text[p] === next[p]) p++; }
+                const n = next.length - q - p; let want = next === text ? fmt : respan(text, next, fmt, caret);
+                if (next !== text && want && n > 0 && p > 0) { const L = linkAt(text, fmt, p - 1), Rr = p < text.length ? linkAt(text, fmt, p) : ''; if (L && L !== Rr) { want = apply(want, next, p, p + n, { link: null }); linkEnds++; } }
+                box = t.box();
+                const gotText = t.text(), gotFmt = t.pg.tsField(t.pg.map.blocks, t.d).fmt(), d = t.pg.drawn(box), rng2 = t.pg.range(box);
+                if (gotText !== next) bad = { name, text, next, gotText, a, z };
+                else if (t.pg.textOf(box) !== next || box._tsText !== next || !d) bad = { name, where: 'box', text, next, box: t.pg.textOf(box), d };
+                else if (J(gotFmt) !== J(want)) bad = { name, where: 'look', text, next, caret, fmt, want, gotFmt };
+                else if (J(d.filter(x => x !== '+').map(x => x[0])) !== J(runsOf(next, gotFmt).map(r => r.t))) bad = { name, where: 'runs', d };
+                else if (next !== text && J(rng2) !== J([caret, caret])) bad = { name, where: 'caret', caret, rng2 };
+                else { const bl = look(text, fmt), al = look(next, gotFmt); for (let k = 0; k < p; k++) if (bl[k] !== al[k]) bad = { name, where: 'prefix', k, text, next }; for (let k = 0; k < q; k++) if (bl[text.length - 1 - k] !== al[next.length - 1 - k]) bad = { name, where: 'suffix', k, text, next }; }
+                if (gotFmt) styledSteps++;
+                text = next; fmt = gotFmt;
+            }
+        }
+        check('box (a seeded walk of ' + steps + ' edits through the box — typing, typing over a selection, Backspace, Delete, pastes with markup and line breaks, Enter, cuts, compositions — in one-line fields and labels): after every edit the stored text is exactly what an input would hold, the box holds that text in runs of the app\'s own and nothing else, the caret is where the edit left it, every character that survived keeps its look, and the format is the one respan gives for that text and caret (a link not grown at its end: ' + linkEnds + ' times)',
+            !bad && steps === 1600 && styledSteps > 500 && linkEnds > 5 && ['type', 'type over', 'backspace', 'delete', 'paste', 'enter', 'enter (one line)', 'cut', 'compose'].every(k => done[k] > 20), bad || { steps, styledSteps, linkEnds, done });
+    }
+
+    /* ---- the stored shape is untouched: an edit through the box saves what the boxes it replaces saved ---- */
+    {
+        // the old path, written out: an input's handler was tsType(blocks, d, input.value, input.selectionStart) — the field's text set, its spans carried by respan —
+        // and a press was TF.apply / TF.clear on the field's text at the input's selection. (With the link constant true: the one rule that changed is off.)
+        const sha = v => require('crypto').createHash('sha256').update(JSON.stringify(v)).digest('hex'), PINS_BOX = ['3c0b1f8ca2aa67f1b83d14775eeaae3c8898ef5b956ff56aecde881ff6c4697a', '24e83e9b0abda075b77654722ac2766c2c2d25dc47e1cf019270828081fbdab7', 'e91dcd40e57f05fa52714a2a623e90a08a94747c0c60c9bd12a959871d8b08e8', '5d126ef5207163fea5a0f57044849b2e3f68de71c84fec0cf9cbda32e3ed5119'];
+        const start = () => [
+            { id: 'b0', type: 'h1', title: 'The Hill Road', sub: 'an evening', fmt: { title: { color: RED, spans: [{ s: 4, e: 8, b: true, link: LINK }] } } },
+            { id: 'b1', type: 'node', title: 'The inn', tag: 'social', must: 'learn the road', cols: ['Check', 'DC', 'Cost'], colFmt: [null, { b: true }], rows: [{ col1: 'Medicine', col2: '10', col3: 'free', fmt: { col1: { spans: [{ s: 0, e: 3, color: GREEN, u: true }] } } }, { col1: 'Insight', col2: '13', col3: 'a coin' }] },
+            { id: 'b2', type: 'flowchart', nodes: [{ id: 'n1', text: LBL, shape: 'rect', color: 'neutral', fmt: { color: RED, spans: [{ s: 9, e: 17, size: 'large', color: GREEN }] } }, { id: 'n3', text: 'two', shape: 'rect', color: 'gold' }], edges: [{ from: 'n1', to: 'n3', text: 'then', style: 'solid' }] },
+            { id: 'b3', type: 'image', src: '/saves/images/x.png', caption: 'the map', fmt: { caption: { i: true } } }
+        ];
+        const fields = [{ idx: 0, k: 'title' }, { idx: 0, k: 'sub' }, { idx: 1, k: 'title' }, { idx: 1, k: 'sub' }, { idx: 1, k: 'must' }, { idx: 1, k: 'col', ci: 1 }, { idx: 1, k: 'cell', ri: 0, ci: 0 }, { idx: 1, k: 'cell', ri: 1, ci: 2 }, { idx: 2, k: 'node', ni: 0 }, { idx: 2, k: 'node', ni: 1 }, { idx: 2, k: 'edge', ei: 0 }, { idx: 3, k: 'caption' }];
+        const pg = mkPage({ map: mapOf(start()), linkGrows: true }).wire().rebuild(), ref = start(), refPg = mkPage({ map: mapOf(ref) }), E = pg.engine, B = pg.tsState.els;
+        const R = rng(20261002), alpha = 'ab cé<&'; let bad = null, ops = 0, presses = 0;
+        const oldType = (d, value, caret) => { const f = refPg.tsField(ref, d), old = f.text(), fm = f.fmt(); f.setText(value); if (fm !== undefined) f.setFmt(respan(old, value, fm, caret)); };
+        const oldPress = (d, s, e, change) => { const f = refPg.tsField(ref, d), now = change === 'clear' ? clear(f.fmt(), f.text(), s, e) : apply(f.fmt(), f.text(), s, e, change); if (J(now) !== J(cleanFmt(f.fmt(), f.text()))) f.setFmt(now); };
+        for (let k = 0; k < 900 && !bad; k++) {
+            const d = fields[Math.floor(R() * fields.length)], box = pg.tsBox(d), multi = d.k === 'node', text = refPg.tsField(ref, d).text();
+            const a = Math.floor(R() * (text.length + 1)), z = R() < 0.5 ? a : Math.min(text.length, a + Math.floor(R() * 5)), op = Math.floor(R() * 12);
+            pg.focus(box, a, z);
+            if (op < 4) { const ch = alpha[Math.floor(R() * alpha.length)]; E.type(box, ch); oldType(d, text.slice(0, a) + ch + text.slice(z), a + 1); }
+            else if (op === 4) { E.backspace(box); if (a !== z) oldType(d, text.slice(0, a) + text.slice(z), a); else if (a > 0) oldType(d, text.slice(0, a - 1) + text.slice(a), a - 1); }
+            else if (op === 5) { const raw = ['x y', 'l1\nl2', '<b>p</b>'][Math.floor(R() * 3)], ins = multi ? raw : raw.replace(/\n/g, ' '); E.paste(box, { 'text/plain': raw }); oldType(d, text.slice(0, a) + ins + text.slice(z), a + ins.length); }
+            else if (op === 6) { E.enter(box); if (multi) oldType(d, text.slice(0, a) + '\n' + text.slice(z), a + 1); }
+            else { presses++;
+                const change = op === 7 ? { b: true } : op === 8 ? { color: [RED, GREEN, BLUE][Math.floor(R() * 3)] } : op === 9 ? { size: ['large', 'huge', null][Math.floor(R() * 3)] } : op === 10 ? (R() < 0.5 ? { u: true } : { st: true }) : (R() < 0.3 ? 'clear' : { link: R() < 0.7 ? LINK : null });
+                if (change === 'clear') pg.click(B.clear); else if (change.b) pg.click(B.b); else if (change.u) pg.click(B.u); else if (change.st) pg.click(B.s);
+                else if ('color' in change) pg.click(B.swatches[PALETTE.findIndex(p => p[0] === change.color)]);
+                else if ('size' in change) { pg.dom.fire(B.size, 'mousedown'); B.size.focus(); B.size.value = change.size || ''; pg.dom.fire(B.size, 'change'); }
+                else { pg.dom.fire(B.link, 'mousedown'); B.link.focus(); B.link.value = change.link || ''; pg.dom.fire(B.link, 'keydown', keyEv({ key: 'Enter' })); }
+                if (!(change !== 'clear' && 'link' in change && (d.k === 'node' || d.k === 'edge'))) oldPress(d, a, z, change);
+            }
+            ops++;
+            if (J(pg.map.blocks) !== J(ref)) bad = { k, d, op, a, z, box: pg.map.blocks[d.idx], ref: ref[d.idx] };
+        }
+        const hashes = pg.map.blocks.map(sha);
+        check('stored shape (a seeded walk of ' + ops + ' edits and presses over twelve fields — titles, a tag, a head, cells, labels, a caption — through the new boxes and their bar): after EVERY one the document is byte for byte what the old boxes\' handlers and the old bar stored for the same text, caret and selection (tsType on the input\'s value and selectionStart; apply / clear at its selection) — the same keys in the same order, no key added, nothing the box drew stored',
+            !bad && ops === 900 && presses > 250 && pg.map.blocks.every(b => !/tsr|<span|_ts/.test(J(b))), bad);
+        check('stored shape (pinned): the four blocks that walk ends on, by their SHA-256 — a change to what an edit or a press stores shows here',
+            J(hashes) === J(PINS_BOX), hashes);
+        // the editor draws without writing: opening a document saved before this fold changes nothing in it
+        const old = start(), page2 = mkPage({ map: mapOf(old) }).wire(), was = J(old); page2.rebuild(); page2.focus(page2.tsBox(fields[0]), 2, 5); page2.engine.caret(page2.tsBox(fields[0]), 1); page2.rebuild();
+        check('stored shape: a document saved before this fold opens, is drawn, focused and selected in, and is rebuilt without a byte of it changing (the box is a view; only an edit or a press writes)', J(page2.map.blocks) === was && page2.log.length === 0);
+    }
+
+    /* ---- undo and redo in a box: always the planner's own history, in steps, each with its selections (io.js run for real) ---- */
+    {
+        const mkU = (text, fmt, multi) => {
+            const pg = mkPage({ map: mapOf([{ id: 'h', type: 'h2', title: multi ? 'x' : text }, { id: 'c', type: 'flowchart', nodes: [{ id: 'n1', text: multi ? text : 'x' }], edges: [{ from: 'a', to: 'b', text: 'then', style: 'solid' }] }, { id: 't', type: 'h3', title: 'other' }]) }), d = multi ? { idx: 1, k: 'node', ni: 0 } : { idx: 0, k: 'title' };
+            if (fmt) pg.tsField(pg.map.blocks, d).setFmt(fmt);
+            pg.wire().rebuild(); const H = mkHist(pg);
+            const u = { pg, H, d, E: pg.engine, B: pg.tsState.els, box: () => pg.tsBox(d), text: () => pg.tsField(pg.map.blocks, d).text(), fmt: () => J(pg.tsField(pg.map.blocks, d).fmt()),
+                tick: ms => { pg.clock.t += ms; if (ms >= 500) H.flush(); },   // time passes: after half a second of quiet the save's timer fires
+                chord: (key, extra) => pg.dom.fire(pg.dom.page.active || pg.doc.body, 'keydown', keyEv(Object.assign({ key: key, ctrlKey: true }, extra || {}))),
+                undo: () => u.chord('z'), redo: () => u.chord('y'),
+                at: () => { const a = pg.dom.page.active; return a && pg.tsDesc(a) ? [pg.tsDesc(a).idx, J(pg.range(a))] : null; },   // the box that has the focus and its selection
+                state: () => J(pg.map.blocks) };
+            return u;
+        };
+        // a run of typing is one step; an undo puts the text and the caret back where the typing began, a redo where it ended
+        const u1 = mkU('The Hill Road'); u1.pg.focus(u1.box(), 13);
+        u1.E.type(u1.box(), 'a'); u1.tick(80); u1.E.type(u1.box(), 'b'); u1.tick(80); u1.E.type(u1.box(), 'c'); u1.tick(600);
+        const d1 = J(u1.H.depth()), z1 = u1.undo(), a1 = [u1.text(), J(u1.at()), !u1.B.root.hidden, J(u1.H.depth())], y1 = u1.redo(), r1 = [u1.text(), J(u1.at()), J(u1.H.depth())], noMore = (u1.redo(), u1.text());
+        check('undo (typing): a run of typing in a box is ONE step of the planner\'s history; Ctrl+Z takes it back — the text as it was, the caret where the typing began, in the box (drawn anew, the bar on it again) — and Ctrl+Y brings it back with the caret where the typing ended; the key is taken, never left to the engine',
+            d1 === '[1,0]' && z1.defaultPrevented && z1.stopped && J(a1) === J(['The Hill Road', J([0, '[13,13]']), true, '[0,1]']) && y1.defaultPrevented && J(r1) === J(['The Hill Roadabc', J([0, '[16,16]']), '[1,0]']) && noMore === 'The Hill Roadabc' && J(u1.H.toasts) === J(['Undo', 'Redo']), [d1, a1, r1, u1.H.toasts]);
+        // Ctrl+Shift+Z is redo too
+        u1.undo(); const sz = u1.chord('z', { shiftKey: true });
+        check('undo: Ctrl+Shift+Z is redo, as Ctrl+Y is', sz.defaultPrevented && u1.text() === 'The Hill Roadabc' && J(u1.at()) === J([0, '[16,16]']));
+        // what ends a step: a pause, a move of the caret, another kind of edit
+        const u2 = mkU('The Hill Road'); u2.pg.focus(u2.box(), 13);
+        u2.E.type(u2.box(), 'a'); u2.tick(600); u2.tick(700); u2.E.type(u2.box(), 'b'); u2.tick(600); const soon = u2.H.depth()[0];
+        u2.tick(2500); u2.E.type(u2.box(), 'c'); u2.tick(600); const paused = u2.H.depth()[0];
+        u2.E.caret(u2.box(), 0); u2.E.type(u2.box(), 'X'); u2.tick(100); u2.E.caret(u2.box(), 1); u2.E.type(u2.box(), 'Y'); u2.tick(600); const moved = u2.H.depth()[0];   // the caret put where it already was: no move
+        u2.E.caret(u2.box(), 5); u2.E.type(u2.box(), 'Z'); u2.tick(600); const moved2 = u2.H.depth()[0];
+        u2.E.backspace(u2.box()); u2.tick(100); u2.E.backspace(u2.box()); u2.tick(600); const deleted = u2.H.depth()[0], t2 = u2.text();
+        const back = []; for (let k = 0; k < 5; k++) { u2.undo(); back.push([u2.text(), u2.at()[1]]); }
+        check('undo (what ends a step): typing goes on in the same step across a short stop; a pause of two seconds, a move of the caret and a switch from typing to deleting each begin a new one (a run of deleting is one step too) — and each Ctrl+Z takes back exactly one of them, never more, with the selection as that step found it',
+            soon === 1 && paused === 2 && moved === 3 && moved2 === 4 && deleted === 5 && t2 === 'XYTh Hill Roadabc'
+            && J(back) === J([['XYTheZ Hill Roadabc', '[6,6]'], ['XYThe Hill Roadabc', '[5,5]'], ['The Hill Roadabc', '[0,0]'], ['The Hill Roadab', '[15,15]'], ['The Hill Road', '[13,13]']]), [soon, paused, moved, moved2, deleted, t2, back]);
+        // a press is one step with its selection; typing still on its way is never lost with it
+        const u3 = mkU('The Hill Road'); u3.pg.focus(u3.box(), 13);
+        u3.E.type(u3.box(), 'a'); u3.E.type(u3.box(), 'b');                       // typed, the save still on its timer
+        u3.E.caret(u3.box(), 0, 3); u3.pg.click(u3.B.b); const afterPress = [u3.fmt(), J(u3.H.depth()), J(u3.at())];
+        u3.E.caret(u3.box(), 15); u3.E.type(u3.box(), 'c');                       // typed after the press, not yet saved
+        const end3 = u3.state(), endAt = J(u3.at());
+        u3.undo(); const s1 = [u3.text(), u3.fmt(), J(u3.at())]; u3.undo(); const s2 = [u3.text(), u3.fmt(), J(u3.at())]; u3.undo(); const s3 = [u3.text(), u3.fmt(), J(u3.at())], dry = (u3.undo(), u3.text());
+        u3.redo(); const f1 = [u3.text(), u3.fmt(), J(u3.at())]; u3.redo(); const f2 = [u3.text(), u3.fmt(), J(u3.at())]; u3.redo();
+        check('undo (a press): a press of the bar is one step — what was typed before it is its own step first, and what is typed after it another; Ctrl+Z takes them back one at a time (the letter typed since, then the press with its characters selected again, then the typing before it), losing nothing in between; Ctrl+Y brings each back and ends exactly where the edits ended — text, look and selection',
+            J(afterPress) === J([J({ spans: [{ s: 0, e: 3, b: true }] }), '[2,0]', J([0, '[0,3]'])]) && J(s1) === J(['The Hill Roadab', J({ spans: [{ s: 0, e: 3, b: true }] }), J([0, '[15,15]'])]) && J(s2) === J(['The Hill Roadab', undefined, J([0, '[0,3]'])])
+            && J(s3) === J(['The Hill Road', undefined, J([0, '[13,13]'])]) && dry === 'The Hill Road' && J(f1) === J(['The Hill Roadab', undefined, J([0, '[15,15]'])]) && J(f2) === J(['The Hill Roadab', J({ spans: [{ s: 0, e: 3, b: true }] }), J([0, '[0,3]'])])
+            && u3.state() === end3 && J(u3.at()) === endAt && endAt === J([0, '[16,16]']), [afterPress, s1, s2, s3, f1, f2, u3.at()]);
+        // a selection typed over, a paste, Enter in a label, a cut
+        const u4 = mkU('The Hill Road'); u4.pg.focus(u4.box(), 4, 8); u4.E.type(u4.box(), 'x'); u4.tick(600); u4.undo(); const over = [u4.text(), J(u4.at())];
+        const u5 = mkU('ab\ncd', { spans: [{ s: 0, e: 2, color: GREEN }] }, true); u5.pg.focus(u5.box(), 2);
+        u5.E.type(u5.box(), 'x'); u5.E.enter(u5.box()); u5.E.type(u5.box(), 'y'); u5.E.paste(u5.box(), { 'text/plain': 'P\nQ' }); u5.E.caret(u5.box(), 0, 2); u5.E.copy(u5.box(), 'cut'); u5.tick(600);
+        const n5 = u5.H.depth()[0], end5 = [u5.text(), u5.fmt()], trail = []; for (let k = 0; k < 5; k++) { u5.undo(); trail.push([u5.text(), u5.fmt(), u5.at()[1]]); }
+        for (let k = 0; k < 5; k++) u5.redo();
+        check('undo (other edits): a selection typed over comes back selected; in a label a line break, a paste and a cut are each a step of their own between the runs of typing, and an undo of each puts back the text, the look of every character and the selection it found — then redo returns to the end exactly',
+            J(over) === J(['The Hill Road', J([0, '[4,8]'])]) && n5 === 5 && J(end5) === J(['x\nyP\nQ\ncd', J({ spans: [{ s: 0, e: 1, color: GREEN }] })])
+            && J(trail) === J([['abx\nyP\nQ\ncd', J({ spans: [{ s: 0, e: 3, color: GREEN }] }), '[0,2]'], ['abx\ny\ncd', J({ spans: [{ s: 0, e: 3, color: GREEN }] }), '[5,5]'], ['abx\n\ncd', J({ spans: [{ s: 0, e: 3, color: GREEN }] }), '[4,4]'], ['abx\ncd', J({ spans: [{ s: 0, e: 3, color: GREEN }] }), '[3,3]'], ['ab\ncd', J({ spans: [{ s: 0, e: 2, color: GREEN }] }), '[2,2]']])
+            && J([u5.text(), u5.fmt()]) === J(end5) && J(u5.at()) === J([1, '[0,0]']), [over, n5, end5, trail, u5.at()]);
+        // two boxes: an undo goes where its step was; the toolbar's buttons leave the focus alone
+        const u6 = mkU('The Hill Road'), other = { idx: 2, k: 'title' }; u6.pg.focus(u6.box(), 13); u6.E.type(u6.box(), 'a'); u6.tick(600);
+        u6.pg.focus(u6.pg.tsBox(other), 5); u6.E.type(u6.pg.tsBox(other), 'b'); u6.tick(600);
+        u6.undo(); const o1 = [u6.pg.map.blocks[2].title, J(u6.at())]; u6.undo(); const o2 = [u6.text(), J(u6.at())];
+        u6.redo(); u6.redo(); u6.pg.dom.page.active.blur(); u6.pg.dom.runTimers(); const hid = u6.B.root.hidden;
+        u6.H.undo(); const o3 = [u6.pg.map.blocks[2].title, u6.pg.dom.page.active, u6.B.root.hidden];
+        check('undo (where it lands): an undo puts the caret back in the box its step was in — the one in use, or another one, which takes the focus and the bar — and an undo from the toolbar\'s button, with the focus nowhere in the editor, takes the step back and leaves the focus alone (no box is entered, no bar comes up)',
+            J(o1) === J(['other', J([2, '[5,5]'])]) && J(o2) === J(['The Hill Road', J([0, '[13,13]'])]) && hid === true && J(o3) === J(['other', null, true]), [o1, o2, hid, o3]);
+        // the chord itself: a box never has the engine's undo; a text block's box still tries its own first
+        const u7 = mkU('abc'), b7 = u7.box(); u7.pg.focus(b7, 3); u7.E.type(b7, 'd');
+        const rte = u7.pg.plain('div', 'field rte-body', { idx: 9 }); rte.setAttribute('contenteditable', 'true'); rte._wpNativeDirty = true;
+        const kz = t => { const e = keyEv({ key: 'z', ctrlKey: true, target: t, prevented: false, preventDefault() { this.prevented = true; }, stopPropagation() {} }); return [u7.H.fieldUndoChord(e), e.prevented, u7.pg.dom.page.timers.length]; };
+        const dirty = b7._wpNativeDirty, onRte = kz(rte), onBox = kz(u7.box());
+        check('undo (the chord, io.js fieldUndoChord run for real): in a styled field\'s box every Ctrl+Z is the planner\'s history at once — the engine is never asked first, whatever was typed in the box — while a text block\'s own box still lets the engine try (a probe is armed, the key is left to it)',
+            dirty === true && J(onRte) === J([false, false, 1]) && onBox[0] === true && onBox[1] === true && u7.text() === 'abc' && /var own = !!\(t\.classList && t\.classList\.contains\('ts-box'\)\);/.test(ioSrc) && /if \(t\._wpNativeDirty && !own\) \{/.test(ioSrc) && !/_wpFloor/.test(ioSrc + plannerSrc), [dirty, onRte, onBox]);
+        // the page's own key handler stands behind a box's (io.js: a key in a field hands the undo chord to fieldUndoChord): the chord is taken ONCE
+        const twoSteps = u => { u.pg.focus(u.box(), 3); u.E.type(u.box(), 'd'); u.tick(600); u.tick(2500); u.E.type(u.box(), 'e'); u.tick(600); return u; };
+        const u9 = twoSteps(mkU('abc')); u9.pg.doc.addEventListener('keydown', e => { const t = e.target; if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) u9.H.fieldUndoChord(e); });
+        const d9 = J(u9.H.depth()), z9 = u9.undo(), once9 = [u9.text(), J(u9.H.depth()), z9.stopped, z9.defaultPrevented]; u9.undo(); const y9 = u9.redo(), once9b = [u9.text(), J(u9.H.depth()), y9.stopped];
+        check('undo (the chord is taken once): with the page\'s own key handler behind the editor\'s — the one that hands a field\'s Ctrl+Z to fieldUndoChord — a Ctrl+Z in a box takes exactly ONE step and a Ctrl+Y brings exactly one back: the chord the box took goes no further',
+            d9 === '[2,0]' && J(once9) === J(['abcd', '[1,1]', true, true]) && J(once9b) === J(['abcd', '[1,1]', true]) && /if \(typing\) \{ fieldUndoChord\(e\); return; \}/.test(ioSrc), [d9, once9, once9b]);
+        // a text block lets the browser try its own undo first (a probe is armed); the browser's ONE undo stack has a box's typing on top, so its undo is
+        // sent to the box, which hands it to the planner's history — and the probe's timer must not take a second step
+        const u10 = twoSteps(mkU('abc')), rte10 = u10.pg.plain('div', 'field rte-body', { idx: 9 }); rte10.setAttribute('contenteditable', 'true');
+        rte10.addEventListener('keydown', e => { if (u10.H.fieldUndoChord(e)) return; e.stopPropagation(); });   // as a text block is wired (wireRte)
+        rte10.focus(); u10.pg.dom.runTimers(); rte10._wpNativeDirty = true;   // something was typed into the text block and the browser has taken it back already
+        const kz10 = u10.pg.dom.fire(rte10, 'keydown', keyEv({ key: 'z', ctrlKey: true })), armed10 = [kz10.defaultPrevented, u10.pg.dom.page.timers.length];
+        const land10 = u10.E.edit(u10.box(), 'historyUndo', null); u10.pg.dom.runTimers();
+        const one10 = [land10.defaultPrevented, u10.text(), J(u10.H.depth()), rte10._wpNativeDirty];
+        const re10 = u10.E.edit(u10.box(), 'historyRedo', null); u10.pg.dom.runTimers(); const back10 = [re10.defaultPrevented, u10.text(), J(u10.H.depth())];
+        check('undo (the browser\'s own undo lands on a box): a Ctrl+Z pressed in a text block is left to the browser first; when the browser\'s undo then reaches a box\'s typing (its undo stack is one per document) the box cancels it and the planner\'s history takes ONE step — the timer that waits for a browser that stayed silent takes no second one — and that text block is spent (its next Ctrl+Z is the planner\'s at once); the browser\'s redo landing on a box is one step forward',
+            J(armed10) === J([false, 1]) && J(one10) === J([true, 'abcd', '[1,1]', false]) && J(back10) === J([true, 'abcde', '[2,0]']) && /boxUndo\(it === 'historyUndo' \? 'undo' : 'redo'\);/.test(barSrc) && /\n\s*boxUndo,\n/.test(ioSrc), [armed10, one10, back10]);
+        // the browser's undo in a field that saves nothing (the Find box, the chat): its flag is for the save that undo itself causes and for no other
+        const find = u => { const f = u.pg.mk('input', '', {}, 'plannerFind'); u.pg.doc.body.appendChild(f); return f; }, nativeUndo = (u, f) => { u.pg.dom.fire(f, 'input', { inputType: 'insertText', data: 'x' }); u.pg.dom.fire(f, 'input', { inputType: 'historyUndo' }); u.pg.dom.runTimers(); };
+        const u11 = mkU('abc'), f11 = find(u11); f11.focus(); nativeUndo(u11, f11);
+        u11.pg.focus(u11.box(), 3); u11.E.type(u11.box(), 'A'); u11.tick(600);
+        const a11 = [u11.text(), J(u11.H.depth())]; u11.undo(); const b11 = [u11.text(), J(u11.H.depth())];
+        const u12 = mkU('abc'), f12 = find(u12); u12.pg.focus(u12.box(), 3); u12.E.type(u12.box(), 'A');   // typed, the save still on its timer
+        f12.focus(); nativeUndo(u12, f12); u12.tick(600);
+        const a12 = J(u12.H.depth()); u12.H.undo(); const b12 = [u12.text(), J(u12.H.depth())];
+        check('undo (after the browser\'s undo somewhere else): x typed into the Find box and taken back by the browser saves nothing — what is typed into a box next is still a step of its own (Ctrl+Z takes it back, and only it); and typing in a box still on its save timer when the browser\'s undo comes in another field is its own step first, never folded away',
+            J(a11) === J(['abcA', '[1,0]']) && J(b11) === J(['abc', '[0,1]']) && a12 === '[1,0]' && J(b12) === J(['abc', '[0,1]']), [a11, b11, a12, b12]);
+        // a box's typing still on its save timer when the browser's undo comes in a text block (reached by Tab, no click between): its own step first
+        const u14 = mkU('abc'), rte14 = u14.pg.plain('div', 'field rte-body', { idx: 9 }); rte14.setAttribute('contenteditable', 'true');
+        u14.pg.focus(u14.box(), 3); u14.E.type(u14.box(), 'A');
+        rte14.focus(); u14.pg.dom.fire(rte14, 'input', { inputType: 'insertText', data: 'x' }); u14.pg.dom.fire(rte14, 'input', { inputType: 'historyUndo' }); u14.tick(600);
+        const a14 = J(u14.H.depth()); u14.H.undo(); const z14 = [u14.text(), J(u14.H.depth())];
+        check('undo (a box\'s typing on its timer, the browser\'s undo in a text block): typing in a box whose save is still waiting is recorded as its own step the moment the browser\'s undo changes a text block — it is never folded into the baseline with it, so the planner\'s undo still takes it back',
+            a14 === '[1,0]' && J(z14) === J(['abc', '[0,1]']) && /if \(t\.closest && t\.closest\('#plannerBlocks'\)\) \{ if \(selNote && savePending\) pushHistory\(\); nativeEdit = true; \}/.test(ioSrc), [a14, z14]);
+        // …while the browser's undo in a field that does save (a text block) is still the user's undo, not new work: the baseline moves, no step is added
+        const pg13 = mkPage({ map: mapOf([{ id: 'h', type: 'h2', title: 'abc' }, { id: 'tx', type: 'text', content: '<p>one</p>' }]) }).wire().rebuild(), H13 = mkHist(pg13), rte13 = pg13.plain('div', 'field rte-body', { idx: 1 }); rte13.setAttribute('contenteditable', 'true');
+        pg13.dom.fire(rte13, 'input', { inputType: 'insertText', data: 'x' }); pg13.map.blocks[1].content = '<p>onex</p>'; H13.save(false); pg13.clock.t += 600; H13.flush();
+        const d13 = J(H13.depth()); pg13.clock.t += 3000;   // well past the two seconds in which typing folds into its step: only the flag keeps the undo from being one
+        pg13.dom.fire(rte13, 'input', { inputType: 'historyUndo' }); pg13.map.blocks[1].content = '<p>one</p>'; H13.save(false); pg13.dom.runTimers(); pg13.clock.t += 600; H13.flush();   // the text block's own handler saves, on the timer
+        const e13 = [J(H13.depth()), JSON.parse(H13.stack().last).c.blocks[1].content];
+        check('undo (the browser\'s undo in a text block, as before): typing in a text block is a step; the browser\'s own undo of it there, seconds later — whose change the text block saves — moves the baseline and adds no step (it is the user\'s undo, not new work)',
+            d13 === '[1,0]' && J(e13) === J(['[1,0]', '<p>one</p>']), [d13, e13]);
+
+        // the Size list stepped through by the keyboard: every size applied, the run of them ONE step
+        const u8 = mkU(LBL, undefined, true), S8 = u8.B.size; u8.pg.focus(u8.box(), 9, 17);
+        S8.focus(); const keyOn = (el, key) => u8.pg.dom.fire(el, 'keydown', keyEv({ key }));
+        keyOn(S8, 'ArrowDown'); S8.value = 'small'; u8.pg.dom.fire(S8, 'change'); const k1 = [u8.pg.dom.page.active === S8, u8.fmt(), u8.H.depth()[0], J(u8.pg.tsState.sel)];
+        keyOn(S8, 'ArrowDown'); S8.value = 'large'; u8.pg.dom.fire(S8, 'change'); keyOn(S8, 'ArrowDown'); S8.value = 'larger'; u8.pg.dom.fire(S8, 'change');
+        const k3 = [u8.pg.dom.page.active === S8, u8.fmt(), u8.H.depth()[0], J(u8.pg.tsState.sel), J(u8.pg.log.filter(x => x === 'step' || x === 'fold'))];
+        S8.blur(); u8.pg.dom.runTimers(); u8.pg.focus(u8.box(), 9, 17); S8.focus(); keyOn(S8, 'ArrowDown'); S8.value = 'huge'; u8.pg.dom.fire(S8, 'change'); const afterBlur = u8.H.depth()[0];
+        const esc8 = keyOn(S8, 'Escape'), back8 = J(u8.at()); u8.undo(); u8.undo();
+        check('undo (the Size list by the keyboard): its arrow keys step through the sizes — each is applied to the selected characters, the list keeps the focus, the remembered selection is unchanged — and the whole run is ONE step back to how the field was; leaving the list ends the run (the next size is a step of its own); Escape goes back to the box with its selection',
+            J(k1) === J([true, J({ spans: [{ s: 9, e: 17, size: 'small' }] }), 1, k1[3]]) && JSON.parse(k1[3]).s === 9 && JSON.parse(k1[3]).e === 17 && J(k3) === J([true, J({ spans: [{ s: 9, e: 17, size: 'larger' }] }), 1, k1[3], J(['step', 'fold', 'fold'])]) && afterBlur === 2
+            && esc8.defaultPrevented && back8 === J([1, '[9,17]']) && u8.fmt() === undefined && J(u8.at()) === J([1, '[9,17]']), [k1, k3, afterBlur, back8, u8.fmt()]);
+        const winF = mkPage({ map: mapOf([{ id: 'b', type: 'h2', title: 'one' }]) }), HF = mkHist(winF), mF = winF.map;
+        mF.blocks[0].title = 'two'; HF.pushHistory();                           // a step
+        winF.dom.window.wpStream = true; HF.stepFold(); HF.stepSel({ s: 1 }, { s: 2 }); delete winF.dom.window.wpStream;   // a fold and a note asked for where no save is recorded (a window that never owns a save): nothing is armed
+        mF.blocks[0].title = 'three'; HF.pushHistory(); const notArmed = HF.stack().undo.length, noNote = HF.stack().undo[1].indexOf('"s":') < 0;
+        HF.stepFold(); mF.blocks[0].title = 'four'; HF.pushHistory(); const folded = HF.stack().undo.length;
+        mF.blocks[0].title = 'five'; HF.pushHistory();
+        check('undo (io.js stepFold / stepSel / pushHistory run for real): the fold and the selection note are one shot each and armed only where the save that follows is recorded — a fold joins the step before it once and the pass after is a step of its own; a state with no selection noted is stored exactly as before (no key added)',
+            notArmed === 2 && noNote && folded === 2 && HF.stack().undo.length === 3 && JSON.parse(HF.stack().undo[1]).c.blocks[0].title === 'two' && JSON.parse(HF.stack().undo[2]).c.blocks[0].title === 'four' && HF.stack().undo.every(s => J(Object.keys(JSON.parse(s))) === '["c","m"]'), [notArmed, folded, HF.stack().undo.length]);
+        check('undo (wired): an edit and a press both tell the history their selections (stepSel) and close the step before them (stepBoundary); a state goes on a stack with the selection that belongs to it and an undo or a redo puts that one back through the planner\'s own hook; the planner\'s spot keeps a box\'s selection',
+            /stepSel\(\{ d: d, s: before\.s, e: before\.e \}, \{ d: d, s: s, e: e \}\);/.test(barSrc) && /stepSel\(\{ d: sel\.d, s: sel\.s, e: sel\.e \}, \{ d: sel\.d, s: sel\.s, e: sel\.e \}\);/.test(barSrc) && /if \(!cont\) stepBoundary\(kind === 'one' \? null : box\);/.test(barSrc)
+            && /function stepBoundary\(el\) \{ if \(savePending\) pushHistory\(\); closeChunk\(\); if \(el\) typeSlot\.el = el; \}/.test(ioSrc) && /if \(dir === 'undo'\) h\.redo\.push\(withSel\(h\.last, h\.cur\)\); else pushStep\(h, withSel\(h\.last, h\.cur\)\);/.test(ioSrc)
+            && /if \(sel && window\.wpTextBox && window\.wpTextBox\.restore\(sel\)\) return;/.test(ioSrc) && /ts: window\.wpTextBox \? window\.wpTextBox\.selOf\(a\) : null/.test(ioSrc) && /\n\s*stepSel,\n/.test(ioSrc) && /window\.wpTextBox = \{/.test(barSrc));
+
+        // a seeded walk: edits and presses in three boxes with time passing, then Ctrl+Z to the start and Ctrl+Y to the end
+        const R = rng(777001), alpha = 'ab c<'; let bad = null, ops = 0, totalSteps = 0, pressSteps = 0;
+        for (let round = 0; round < 12 && !bad; round++) {
+            const u = mkU('buy milk\nwalk dog', { color: RED, spans: [{ s: 4, e: 8, color: GREEN, b: true }] }, true), ds = [u.d, { idx: 0, k: 'title' }, { idx: 2, k: 'title' }], start = u.state();
+            u.pg.focus(u.box(), 3); let startAt = null, endAt = null;   // the selection the first edit found, and the one the last edit left
+            for (let k = 0; k < 45 && !bad; k++) {
+                const d = R() < 0.7 ? ds[0] : ds[1 + Math.floor(R() * 2)], box = u.pg.tsBox(d), len = box._tsText.length, op = Math.floor(R() * 10);
+                if (u.pg.dom.page.active !== box || R() < 0.4) { const a = Math.floor(R() * (len + 1)); u.pg.focus(box, a, R() < 0.6 ? a : Math.min(len, a + Math.floor(R() * 4))); }
+                const before = u.state(), beforeAt = J(u.at());
+                if (op < 4) u.E.type(box, alpha[Math.floor(R() * alpha.length)]);
+                else if (op === 4) u.E.backspace(box);
+                else if (op === 5) u.E.paste(box, { 'text/plain': ['p q', 'l1\nl2'][Math.floor(R() * 2)] });
+                else if (op === 6) u.E.enter(box);
+                else {   // a press: exactly one step, taken back and brought back at once
+                    u.H.flush(); const n0 = u.H.depth()[0], pre = u.state(), preAt = J(u.at());
+                    u.pg.click([u.B.b, u.B.i, u.B.u, u.B.swatches[2 + Math.floor(R() * 3)], u.B.nocolor, u.B.clear][Math.floor(R() * 6)]);
+                    const post = u.state();
+                    if (post !== pre) { pressSteps++; if (u.H.depth()[0] !== n0 + 1) bad = { k, where: 'a press is not one step', n0, n: u.H.depth()[0] };
+                        u.undo(); if (u.state() !== pre || J(u.at()) !== preAt) bad = bad || { k, where: 'undo of a press', at: u.at(), preAt }; u.redo(); if (u.state() !== post || J(u.at()) !== preAt) bad = bad || { k, where: 'redo of a press', at: u.at(), preAt }; }
+                    else if (u.H.depth()[0] !== n0) bad = { k, where: 'a press that changed nothing made a step' };
+                }
+                ops++; u.tick([40, 120, 700, 2600][Math.floor(R() * 4)]);
+                if (u.state() !== before) { if (startAt === null) startAt = beforeAt; endAt = J(u.at()); }
+            }
+            if (bad) break;
+            u.H.flush();
+            const end = u.state(), n = u.H.depth()[0], down = [];
+            totalSteps += n;
+            for (let k = 0; k < n && !bad; k++) { const was = u.state(); if (u.pg.dom.page.active) u.undo(); else u.H.undo(); if (u.state() === was) bad = { round, k, where: 'an undo that took nothing back' }; down.push(u.state()); }
+            if (!bad && (u.state() !== start || u.H.depth()[0] !== 0 || J(u.at()) !== startAt)) bad = { round, where: 'undone to the start', at: u.at(), startAt, same: u.state() === start };
+            for (let k = n - 1; k >= 0 && !bad; k--) { if (u.pg.dom.page.active) u.redo(); else u.H.redo(); const want = k > 0 ? down[k - 1] : end; if (u.state() !== want) bad = { round, k, where: 'a redo that did not return exactly' }; }
+            if (!bad && (u.state() !== end || J(u.at()) !== endAt || u.H.depth()[1] !== 0)) bad = { round, where: 'redone to the end', at: u.at(), endAt };
+        }
+        check('undo (a seeded walk: ' + ops + ' edits and presses in three boxes — typing, Backspace, pastes, Enter, B / I / U, colours, Default, Clear — with pauses, in ' + totalSteps + ' steps): every press is exactly one step, undone and redone on the spot with its selection; then Ctrl+Z all the way takes something back each time and ends on the document and the selection as they were before the first edit, and Ctrl+Y all the way passes back through every state exactly and ends on the last text, look and selection',
+            !bad && ops === 540 && totalSteps > 150 && totalSteps < ops && pressSteps > 60, bad || { ops, totalSteps, pressSteps });
+    }
+
+    /* ---- the bar on the box ---- */
+    {
+        const pg = mkPage({ map: mapOf(B0()) }).wire().rebuild(), E = pg.tsState.els, D = pg.dom, title = () => pg.tsBox({ idx: 0, k: 'title' }), lab = () => pg.tsBox({ idx: 2, k: 'node', ni: 0 });
+        pg.tsBuild(pg.editor, SYMS);   // a second call builds nothing
+        check('bar: ONE bar for the editor, built inside the editor panel as elements with text and values only, hidden until a box has the focus — B, I, U, S, the seven inks, a custom colour, Default, the size steps, a link box, Clear and the symbol tray, in that order; no control is in the Tab order of the page (Tab still goes from box to box)',
+            pg.editor.querySelectorAll('#tsBar').length === 1 && E.root.parentNode === pg.editor && E.root.hidden === true && E.root.attrs.role === 'toolbar' && pg.doc.getElementById('textStyleBar') === null
+            && E.b.textContent === 'B' && E.b.firstChild.nodeName === 'B' && E.i.firstChild.nodeName === 'I' && E.u.firstChild.nodeName === 'U' && E.s.firstChild.nodeName === 'S' && E.s.dataset.ts === 'st'
+            && J(E.swatches.map(s => s.dataset.color)) === J(PALETTE.map(p => p[0])) && E.swatches.every((s, k) => s.title.indexOf(PALETTE[k][1]) === 0 && s.style.background === PALETTE[k][0]) && E.custom.type === 'color' && E.custom.parentNode === E.customWrap
+            && E.nocolor.textContent === 'Default' && J(E.size.children.map(o => [o.value, o.textContent])) === J([['', 'Default'], ['small', 'Small'], ['large', 'Large'], ['larger', 'Larger'], ['huge', 'Huge'], ['mixed', 'Mixed']]) && E.sizeMixed.disabled === true && E.sizeMixed.hidden === true
+            && E.link.tagName === 'INPUT' && E.link.type === 'text' && E.link.parentNode === E.linkLab && /^Link — a web address/.test(E.linkLab.title) && E.clear.dataset.ts === 'clear' && /^Clear/.test(E.clear.title)
+            && J(E.symList.map(b => [b.dataset.sym, b.textContent, b.title])) === J(SYMS.map(s => [s[0], s[0], s[1]])) && E.symBtn.textContent === 'Ω'
+            && J(E.root.children.filter(c => c.className !== 'rte-sep').map(c => c.className.replace(/ off$/, ''))) === J(['rte-btn', 'rte-btn', 'rte-btn', 'rte-btn'].concat(PALETTE.map(() => 'rte-sw'), ['rte-sw rte-custom ts-custom', 'rte-btn rte-nocolor', 'ts-sizelab', 'ts-linklab', 'rte-btn', 'rte-symwrap', 'ts-scope']))
+            && [E.b, E.i, E.u, E.s, E.custom, E.nocolor, E.size, E.link, E.clear, E.symBtn].concat(E.swatches, E.symList).every(c => c.tabIndex === -1) && [E.b, E.i, E.u, E.s, E.nocolor].every(c => /the selected characters, or the whole field with nothing selected$/.test(c.title)));
+        check('bar: with no box in use every control is disabled, and a press changes nothing and saves nothing',
+            [E.b, E.i, E.u, E.s, E.custom, E.nocolor, E.size, E.link, E.clear, E.symBtn].concat(E.swatches).every(c => c.disabled === true) && (() => { const before = J(pg.map); pg.click(E.b); pg.click(E.swatches[2]); E.size.value = 'large'; D.fire(E.size, 'change'); pg.click(E.symList[0]); pg.tsPress({ b: true }); return J(pg.map) === before && pg.log.length === 0; })());
+
+        // shown on focus, on the box; hidden when the focus leaves both
+        title().rect = { left: 140, top: 300, right: 520, bottom: 334 };
+        pg.focus(title(), 4, 8);
+        const shown = [E.root.hidden, E.root.style.left, E.root.style.top, E.root.style.visibility, E.root.attrs['aria-label'], E.scope.textContent, pg.tsState.box === title()];
+        pg.focus(title(), 2); const whole = E.scope.textContent;
+        const md = D.fire(E.b, 'mousedown'), stay = D.page.active === title();
+        const idBox = pg.plain('input', 'fc-n-id', { idx: 2, ni: 0 }); idBox.focus(); const gone = [E.root.hidden, pg.tsState.box, pg.tsState.sel];
+        pg.focus(title(), 2); D.fire(E.size, 'mousedown'); E.size.focus(); D.runTimers(); const inBar = [E.root.hidden, pg.tsState.box === title()];
+        E.size.blur(); D.runTimers(); const left = E.root.hidden;
+        pg.focus(title(), 2); pg.focus(lab(), 3); const moved = [E.root.hidden, pg.tsState.box === lab(), E.root.attrs['aria-label']];
+        check('bar: it comes up on the box that takes the focus — above it, from its left edge — names the field for a screen reader and says what a press will act on (the selected characters, or the whole field); a button\'s mousedown is swallowed, so the box keeps the focus and its selection; it goes away when the focus leaves both the box and the bar (another control, nothing at all) and stays while the focus is inside the bar; it moves to another box with the focus',
+            J(shown) === J([false, '140px', '264px', '', 'Text style — Title', '4 selected', true]) && whole === 'Whole field' && md.defaultPrevented && stay && J(gone) === J([true, null, null]) && J(inBar) === '[false,true]' && left === true && J(moved) === J([false, true, 'Text style — Node n1’s label']), [shown, whole, gone, inBar, left, moved]);
+        // where it goes
+        const P = { left: 100, top: 50, right: 688, bottom: 650 }, at = (b, w, h) => pg.tsPlaceAt(P, b, w === undefined ? 420 : w, h === undefined ? 30 : h);
+        check('bar (its place, tsPlaceAt): above the box with a small gap; under it when there is no room above inside the panel; from the box\'s left edge, pushed inside the panel for a narrow last column and for a bar wider than what is left; never shown for a box that has scrolled out of the panel',
+            J(at({ left: 140, top: 300, right: 520, bottom: 334 })) === J({ left: 140, top: 264, below: false, seen: true }) && J(at({ left: 140, top: 70, right: 520, bottom: 104 })) === J({ left: 140, top: 110, below: true, seen: true })
+            && J(at({ left: 640, top: 300, right: 686, bottom: 334 })) === J({ left: 262, top: 264, below: false, seen: true }) && at({ left: 140, top: 300, right: 520, bottom: 334 }, 700).left === 106 && at({ left: 140, top: 300, right: 520, bottom: 334 }, 420, 64).top === 230
+            && at({ left: 140, top: 10, right: 520, bottom: 44 }).seen === false && at({ left: 140, top: 660, right: 520, bottom: 694 }).seen === false && at({ left: 140, top: 40, right: 520, bottom: 60 }).seen === true && at({ left: 140, top: 88, right: 520, bottom: 122 }).below === false && at({ left: 140, top: 87, right: 520, bottom: 121 }).below === true);
+        // in a table: along the table's top edge, so that no cell is covered (the owner, 2026-10-02)
+        const TB = { left: 120, top: 200, right: 660, bottom: 520 }, inT = (b, tb, h) => pg.tsPlaceAt(P, b, 420, h === undefined ? 30 : h, tb === undefined ? TB : tb);
+        const cell3 = { left: 300, top: 320, right: 480, bottom: 354 }, head = { left: 120, top: 200, right: 300, bottom: 234 };
+        const gone1 = { left: 120, top: -300, right: 660, bottom: 620 };   // a long table whose top has scrolled out of the panel
+        check('bar (its place in a table, tsPlaceAt with the table): for a heading or a cell the bar sits just above the table\'s heading row, from the TABLE\'s left edge — the same place for every cell, so neither the row above a cell nor the row beneath it is covered; once the table\'s top has scrolled out of the panel it stays at the top of the panel\'s view; only where it would lie over its own box there does it go under the box; a box that is no table\'s is placed as before; tsPlace hands the table of a .b-colhead or .r-col box (its .b-table) and of no other',
+            J(inT(cell3)) === J({ left: 120, top: 164, below: false, seen: true, edge: 'table' }) && J(inT(head)) === J({ left: 120, top: 164, below: false, seen: true, edge: 'table' })
+            && J(inT({ left: 480, top: 440, right: 660, bottom: 474 })) === J(inT(cell3)) && inT(cell3, TB, 64).top === 130
+            && J(inT(cell3, gone1)) === J({ left: 120, top: 56, below: false, seen: true, edge: 'top' }) && J(inT({ left: 300, top: 92, right: 480, bottom: 126 }, gone1)) === J({ left: 120, top: 56, below: false, seen: true, edge: 'top' })
+            && J(inT({ left: 300, top: 91, right: 480, bottom: 125 }, gone1)) === J({ left: 120, top: 131, below: true, seen: true }) && J(inT({ left: 300, top: 60, right: 480, bottom: 94 }, gone1)) === J({ left: 120, top: 100, below: true, seen: true })
+            && inT(cell3, { left: 120, top: 80, right: 660, bottom: 520 }).edge === 'top' && inT(cell3, { left: 120, top: 88, right: 660, bottom: 520 }).edge === 'table'
+            && inT({ left: 300, top: 700, right: 480, bottom: 734 }).seen === false && J(inT(cell3, null)) === J(at(cell3)) && J(pg.tsPlaceAt(P, cell3, 420, 30)) === J({ left: 262, top: 284, below: false, seen: true })
+            && /function tsTableOf\(box\) \{ return box && box\.matches && box\.closest && box\.matches\('\.b-colhead, \.r-col'\) \? box\.closest\('\.b-table'\) : null; \}/.test(plannerSrc)
+            && /var tb = tsTableOf\(box\);\s+var at = tsPlaceAt\(\{ left: hr\.left, top: hr\.top, right: right, bottom: hr\.bottom \}, br, E\.root\.offsetWidth \|\| 0, E\.root\.offsetHeight \|\| 0, tb && tb\.getBoundingClientRect \? tb\.getBoundingClientRect\(\) : null\);/.test(plannerSrc)
+            && /<div class="grouped-fields b-table"><div class="row-h b-heads">/.test(plannerSrc));
+        pg.focus(title(), 2); title().rect = { left: 140, top: 60, right: 520, bottom: 94 }; D.fire(pg.editor, 'scroll'); const under = [E.root.style.top, E.root.classList.contains('ts-below')];
+        title().rect = { left: 140, top: -80, right: 520, bottom: -46 }; D.fire(pg.blocksEl, 'scroll'); const away = E.root.style.visibility;
+        title().rect = { left: 300, top: 400, right: 680, bottom: 434 }; D.window.fire('resize'); const again = [E.root.style.left, E.root.style.top, E.root.style.visibility, E.root.style.maxWidth];
+        check('bar (it follows its box): when the panel scrolls — or anything inside it does — and when the window is resized the bar is placed again on its box: under it once there is no room above, hidden while the box is out of the panel\'s view, back with it; it is never wider than the panel',
+            J(under) === J(['100px', true]) && away === 'hidden' && J(again) === J(['262px', '364px', '', '576px']), [under, away, again]);
+
+        // each control, with a selection and without
+        const fmtT = () => J(pg.map.blocks[0].fmt && pg.map.blocks[0].fmt.title), rg = b => J(pg.range(b));
+        pg.focus(title(), 4, 8); pg.log.length = 0;
+        pg.click(E.b); const b1 = [fmtT(), J(pg.log), rg(title()), D.page.active === title(), E.b.classList.contains('on')];
+        pg.click(E.b); const b2 = ['fmt' in pg.map.blocks[0], E.b.classList.contains('on')];
+        pg.click(E.i); pg.click(E.u); pg.click(E.s); const ius = [fmtT(), E.i.classList.contains('on') && E.u.classList.contains('on') && E.s.classList.contains('on'), rg(title())];
+        pg.click(E.swatches[4]); const col = [fmtT(), E.swatches[4].classList.contains('active'), E.swatches[2].classList.contains('active')];
+        pg.log.length = 0; pg.click(E.swatches[4]); const noStep = pg.log.length;
+        pg.click(E.nocolor); const def = fmtT();
+        pg.click(E.clear); const clr = ['fmt' in pg.map.blocks[0], E.clear.disabled];
+        pg.focus(title(), 6);
+        pg.click(E.swatches[2]); const wholeRed = fmtT(); pg.focus(title(), 4, 8); pg.click(E.swatches[4]); pg.click(E.b); const three = [fmtT(), rg(title()), J(pg.drawn(title()).map(x => [x[0], x[1].color, x[1].fontWeight]))];
+        pg.focus(title(), 9); pg.click(E.clear); const allGone = 'fmt' in pg.map.blocks[0];
+        check('bar (a press): with characters selected B makes them bold — one step, saved at once, the selection left where it was, the button lit, only that box drawn again — and B again takes it off, leaving no key behind; I, U and S likewise; a colour lights its swatch; the same colour again is no step; Default and Clear on the selection take the colour, or everything, off that part',
+            J(b1) === J([J({ spans: [{ s: 4, e: 8, b: true }] }), J(['step', 'save:true', 'preview']), '[4,8]', true, true]) && J(b2) === '[false,false]' && J(ius) === J([J({ spans: [{ s: 4, e: 8, i: true, u: true, st: true }] }), true, '[4,8]'])
+            && J(col) === J([J({ spans: [{ s: 4, e: 8, color: GREEN, i: true, u: true, st: true }] }), true, false]) && noStep === 0 && def === J({ spans: [{ s: 4, e: 8, i: true, u: true, st: true }] }) && J(clr) === '[false,true]', [b1, b2, ius, col, noStep, def, clr]);
+        check('bar (nothing selected is the whole field): a colour with only a caret in the box is the whole field\'s; a selection then takes its own, and a second press needs no second selecting ("select, green, bold") — the box shows it at once; Clear with nothing selected takes everything off',
+            wholeRed === J({ color: RED }) && J(three) === J([J({ color: RED, spans: [{ s: 4, e: 8, color: GREEN, b: true }] }), '[4,8]', J([['The ', RED, undefined], ['Hill', GREEN, 'bold'], [' Road', RED, undefined]])]) && allGone === false, [wholeRed, three, allGone]);
+        // the controls that must take the focus: the Size list, the custom colour, the link box
+        pg.focus(lab(), 9, 17); pg.log.length = 0;
+        const mdS = D.fire(E.size, 'mousedown'); E.size.focus(); D.runTimers(); E.size.value = 'large'; D.fire(E.size, 'change');
+        const n1 = pg.map.blocks[2].nodes[0], sized = [mdS.defaultPrevented, J(n1.fmt), D.page.active === lab(), rg(lab()), E.size.value, J(pg.log), E.root.hidden];
+        pg.focus(lab(), 3); const mixed = [E.size.value, E.sizeMixed.hidden]; E.size.focus(); E.size.value = 'mixed'; pg.log.length = 0; D.fire(E.size, 'change'); const mixedNo = pg.log.length;
+        pg.focus(lab(), 9, 17); E.size.focus(); E.size.value = ''; D.fire(E.size, 'change'); const unsized = 'fmt' in n1;
+        pg.focus(lab(), 9, 17); const mdC = D.fire(E.custom, 'mousedown'); E.custom.focus(); E.custom.value = '#ABCDEF'; pg.log.length = 0; D.fire(E.custom, 'change');
+        const cust = [mdC.defaultPrevented, J(n1.fmt), J(pg.log), E.customWrap.classList.contains('active'), D.page.active === lab(), rg(lab())];
+        check('bar (the Size list, the custom colour): each may take the focus (its mousedown is not swallowed) and the bar stays up while it has it; the press acts on the selection the box had, and the focus and that selection go back to the box. The Size list sizes the selected characters (the whole field with nothing selected), reads Mixed — a word it shows, never one to pick — where there is more than one size, and Default takes the size off; a custom colour is one press when the picker closes',
+            J(sized) === J([false, J({ spans: [{ s: 9, e: 17, size: 'large' }] }), true, '[9,17]', 'large', J(['step', 'save:true', 'preview']), false]) && J(mixed) === J(['mixed', false]) && mixedNo === 0 && unsized === false
+            && J(cust) === J([false, J({ spans: [{ s: 9, e: 17, color: '#abcdef' }] }), J(['step', 'save:true', 'preview']), true, true, '[9,17]']), [sized, mixed, mixedNo, unsized, cust]);
+        pg.focus(lab(), 0); pg.click(E.clear);
+
+        // the link box
+        const linkIn = (v, how) => { const m = D.fire(E.link, 'mousedown'); E.link.focus(); D.runTimers(); D.fire(E.link, 'keydown', keyEv({ key: v.slice(-1) || 'Backspace' })); E.link.value = v;
+            if (how === 'enter') return [m, D.fire(E.link, 'keydown', keyEv({ key: 'Enter' }))];
+            if (how === 'esc') return [m, D.fire(E.link, 'keydown', keyEv({ key: 'Escape' }))];
+            D.fire(E.link, 'change'); E.link.blur(); D.fire(E.link, 'blur'); D.runTimers(); return [m]; };   // left for nowhere: its change, then its blur
+        pg.focus(title(), 4, 8); pg.log.length = 0;
+        const e1 = linkIn('https://a.example/hill', 'enter'), l1 = [fmtT(), D.page.active === title(), rg(title()), J(pg.log), e1[0].defaultPrevented, e1[1].defaultPrevented];
+        D.fire(E.link, 'change'); const once = pg.log.length === 3;   // the box's own change as it loses the focus after Enter: nothing left to do
+        pg.focus(title(), 0, 3); const sh0 = [E.link.value, E.link.placeholder]; pg.focus(title(), 5, 7); const sh1 = E.link.value; pg.focus(title(), 2, 6); const sh2 = [E.link.value, E.link.placeholder];
+        pg.focus(title(), 6); const here = [E.link.value, E.link.placeholder, /The part at the caret links to https:\/\/a\.example\/hill$/.test(E.linkLab.title)]; pg.focus(title(), 2); const notHere = E.link.placeholder;
+        check('bar (Link): the bar\'s own address box — with characters selected, Enter gives them the link (one step) and goes back to the box with its selection as it was; it shows the address of the link under the selection, nothing where there is none, "several links" where there is more than one; with only a caret inside a linked part it says that part\'s address (the part is not followed in the editor: its address is here and in its title)',
+            J(l1) === J([J({ spans: [{ s: 4, e: 8, link: 'https://a.example/hill' }] }), true, '[4,8]', J(['step', 'save:true', 'preview']), false, true]) && once && J(sh0) === J(['', 'https://…']) && sh1 === 'https://a.example/hill' && J(sh2) === J(['', 'several links'])
+            && J(here) === J(['', 'here: https://a.example/hill', true]) && notHere === 'several links' && pg.drawn(title())[1][3] === 'Link: https://a.example/hill', [l1, once, sh0, sh1, sh2, here, notHere]);
+        pg.focus(title(), 2); pg.log.length = 0; linkIn('b.example/road', 'enter'); const l2 = [fmtT(), pg.log.length];   // nothing selected: the whole field; typed without its scheme: https://
+        pg.focus(title(), 4, 8); linkIn('', 'enter'); const l3 = fmtT();   // an empty box takes the link off the selection
+        pg.focus(title(), 9); const callsBefore = title().calls.length; linkIn('  https://c.example/  ', 'away'); const l4 = [fmtT(), title().calls.slice(callsBefore).indexOf('focus') < 0, D.page.active, E.root.hidden];
+        pg.focus(title(), 9); linkIn('', 'enter'); const l5 = 'fmt' in pg.map.blocks[0];
+        check('bar (Link): with nothing selected the link is the whole field\'s; an address typed without its scheme is taken as https://; an empty box takes the link off (the selection\'s, or everything\'s); leaving the box with a new address in it sets it too — and the focus stays where it went (the bar goes with it)',
+            J(l2) === J([J({ link: 'https://b.example/road' }), 3]) && l3 === J({ spans: [{ s: 0, e: 4, link: 'https://b.example/road' }, { s: 8, e: 13, link: 'https://b.example/road' }] }) && J(l4) === J([J({ link: 'https://c.example/' }), true, null, true]) && l5 === false, [l2, l3, l4, l5]);
+        pg.focus(title(), 0, 3); pg.log.length = 0; pg.toasts.length = 0;
+        const bad = ['javascript:alert(1)', 'data:text/html,x', 'https://a b', 'ftp://a.example', 'JAVASCRIPT:alert(1)', 'mailto:a@b.example', 'javascript:1+1'].map(v => { linkIn(v, 'enter'); return [fmtT(), D.page.active === E.link, E.link.value === v]; });
+        pg.tsRefresh(); const typing = E.link.value === 'javascript:1+1';   // the bar refreshed while the box is being typed in: what is typed stays
+        const k1 = linkIn('https://esc.example/', 'esc'), e2 = [k1[1].defaultPrevented && k1[1].stopped, fmtT(), pg.log.length, D.page.active === title(), rg(title()), E.link.value];
+        pg.focus(title(), 0, 3); linkIn('example.com:8080/x', 'enter'); const port1 = fmtT(); pg.focus(title(), 4, 8); linkIn('localhost:3000', 'enter'); const port2 = fmtT();
+        check('bar (Link): an address that is no web address is refused in words — nothing changes, there is no step, the box keeps the focus and what was typed so it can be put right (a refresh of the bar never writes over it); Escape backs out — what was typed is dropped, never set, and the box has the focus and its selection again; an address with a port and no scheme is taken as https://',
+            bad.every(x => x[0] === undefined && x[1] && x[2]) && typing && pg.toasts.length === 7 && pg.toasts.every(m => /http:\/\/ or https:\/\//.test(m)) && J(e2) === J([true, undefined, 0, true, '[0,3]', ''])
+            && port1 === J({ spans: [{ s: 0, e: 3, link: 'https://example.com:8080/x' }] }) && port2 === J({ spans: [{ s: 0, e: 3, link: 'https://example.com:8080/x' }, { s: 4, e: 8, link: 'https://localhost:3000' }] }), [bad, typing, pg.toasts.length, e2, port1, port2]);
+        pg.focus(title(), 0); pg.click(E.clear);
+        pg.focus(lab(), 9, 17); const offL = [E.link.disabled, E.linkLab.title, E.linkLab.classList.contains('off'), E.u.disabled, E.s.disabled, E.size.disabled, E.b.disabled, E.symBtn.disabled];
+        pg.log.length = 0; const pressed = pg.tsPress({ link: 'https://a.example/' }); E.link.value = 'https://a.example/'; D.fire(E.link, 'change'); const viaBox = pg.log.length;
+        pg.focus(pg.tsBox({ idx: 2, k: 'edge', ei: 0 }), 0); const offE = E.link.disabled; pg.focus(title(), 0, 3); const onT = [E.link.disabled, E.linkLab.classList.contains('off'), /^Link — a web address/.test(E.linkLab.title)];
+        pg.focus(lab(), 9, 17); pg.click(E.u); pg.click(E.s); pg.click(E.b); pg.click(E.swatches[4]); E.size.focus(); E.size.value = 'large'; D.fire(E.size, 'change');
+        check('bar (a flowchart label): Link is off for a node\'s label and an arrow\'s, with a title that says why in plain words — a press there changes nothing; on again in a title. Everything else a label can carry works there as anywhere: bold, a colour, underline, strike and a size on part of it, and a symbol',
+            J(offL) === J([true, 'A flowchart label cannot hold a link: a chart never carries web addresses.', true, false, false, false, false, false]) && pressed === false && viaBox === 0 && offE === true && J(onT) === '[false,false,true]'
+            && J(pg.map.blocks[2].nodes[0].fmt) === J({ spans: [{ s: 9, e: 17, size: 'large', color: GREEN, b: true, u: true, st: true }] }) && !('fmt' in pg.map.blocks[2].edges[0]), [offL, pressed, viaBox, offE, onT, pg.map.blocks[2].nodes[0].fmt]);
+        {   // the Link box at a caret: "here" only where what is typed would be linked
+            const lp = grows => {
+                const p = mkPage({ map: mapOf([{ id: 'h', type: 'h2', title: 'The Hill Road', fmt: { title: { spans: [{ s: 4, e: 8, link: LINK }] } } }, { id: 'g', type: 'h2', title: 'Hill', fmt: { title: { link: LINK } } }, { id: 'k', type: 'h2', title: 'abcd', fmt: { title: { spans: [{ s: 0, e: 2, link: LINK }, { s: 2, e: 4, link: 'https://b.example/' }] } } }]), linkGrows: grows }).wire().rebuild();
+                const EL = p.tsState.els, at = (idx, n) => { p.focus(p.tsBox({ idx, k: 'title' }), n); return [EL.link.placeholder, / The part at the caret links to https:\/\/a\.example\/x$/.test(EL.linkLab.title)]; };
+                return { inside: at(0, 6), end: at(0, 8), first: at(0, 5), before: at(0, 4), away: at(0, 11), wholeIn: at(1, 2), wholeEnd: at(1, 4), wholeStart: at(1, 0), seam: at(2, 2) };
+            };
+            const offL = lp(false), onL = lp(true), HERE = 'here: ' + LINK;
+            check('bar (Link, at a caret): the Link box says "here: <address>" — and its title names the part at the caret — only where what is typed at the caret would be linked: inside a link, the character after the caret linked to the same address. At a link\'s end, before its first character, between two links and away from one it does not (what is typed there is not linked); a field linked whole is the same at its end and its start. With the one constant true (a link grows) it says so at a link\'s end too',
+                J(offL) === J({ inside: [HERE, true], end: ['several links', false], first: [HERE, true], before: ['several links', false], away: ['several links', false], wholeIn: ['https://…', true], wholeEnd: ['https://…', false], wholeStart: ['https://…', false], seam: ['several links', false] })
+                && J(onL) === J({ inside: [HERE, true], end: [HERE, true], first: [HERE, true], before: ['several links', false], away: ['several links', false], wholeIn: ['https://…', true], wholeEnd: ['https://…', true], wholeStart: ['https://…', false], seam: [HERE, true] }), [offL, onL]);
+        }
+        {   // the symbol tray: under its button and to the right; to the left where that would leave the panel; upward near the bottom of the window
+            const pgT = mkPage({ map: mapOf(B0()) }).wire().rebuild(), ET = pgT.tsState.els; pgT.focus(pgT.tsBox({ idx: 0, k: 'title' }), 0);
+            const trayAt = (left, top, winH) => { ET.symWrap.classList.remove('open'); ET.symWrap.rect = { left: left, top: top, right: left + 26, bottom: top + 24 }; ET.syms.rect = { left: 0, top: 0, right: 264, bottom: 120 }; pgT.dom.window.innerHeight = winH; pgT.click(ET.symBtn); const s = ET.syms.style; return [ET.symWrap.classList.contains('open'), s.left, s.right, s.top, s.bottom, s.marginTop, s.marginBottom]; };
+            const toRight = trayAt(150, 100, 900), toLeft = trayAt(500, 100, 900), edge = [trayAt(432, 100, 900)[1], trayAt(433, 100, 900)[1]], up = trayAt(150, 800, 900), upLeft = trayAt(500, 800, 900), upEdge = [trayAt(150, 748, 900)[3], trayAt(150, 749, 900)[3]];
+            check('bar (the symbol tray\'s place): the tray opens under its button and to its right; where its width would pass the panel\'s right edge (less 4) it opens to the LEFT, its right edge on the button\'s; where its height would pass the bottom of the window it opens upward — each flip alone and both together, to the pixel',
+                J(toRight) === J([true, '0', 'auto', '100%', 'auto', '4px', '0']) && J(toLeft) === J([true, 'auto', '0', '100%', 'auto', '4px', '0']) && J(edge) === J(['0', 'auto']) && J(up) === J([true, '0', 'auto', 'auto', '100%', '0', '4px']) && J(upLeft) === J([true, 'auto', '0', 'auto', '100%', '0', '4px']) && J(upEdge) === J(['100%', 'auto']), [toRight, toLeft, edge, up, upLeft, upEdge]);
+        }
+        check('box (the source): the replacement character a NUL is shown as is written as its escape — the script holds no literal U+FFFD (an editor or a tool that re-encodes the file could not change what a box shows)',
+            /\.replace\(\/\\u0000\/g, '\\uFFFD'\);/.test(boxSrc) && plannerSrc.indexOf('\uFFFD') < 0 && mkPage().tsShown('a\u0000b', false) === 'a\uFFFDb' && mkPage().tsShown('a\u0000b', true) === 'a\uFFFDb');
+        check('bar (wired): the link box is an input the bar builds itself — never a prompt — its address goes through the core\'s one link rule before anything is stored, and the label rule is the same everywhere (tsIsLabel)',
+            !/\bprompt\(/.test(barSrc) && /if \(v && !TF\.cleanLink\(v\)\) \{ toast\(/.test(barSrc) && /E\.link = mk\('input', 'ts-link'\); E\.link\.type = 'text';/.test(barSrc) && /function tsIsLabel\(d\) \{ return !!d && \(d\.k === 'node' \|\| d\.k === 'edge'\); \}/.test(barSrc)
+            && /if \(change !== 'clear' && tsOwn\(change, 'link'\) && tsIsLabel\(sel\.d\)\) \{ tsRefresh\(\); return false; \}/.test(barSrc));
+
+        // the symbol tray: a symbol is text, typed at the caret
+        const ps = mkPage({ map: mapOf([{ id: 'h', type: 'h2', title: 'buy milk now', fmt: { title: { spans: [{ s: 4, e: 8, color: GREEN }] } } }]) }).wire().rebuild(), S = ps.tsState.els, sb = () => ps.tsBox({ idx: 0, k: 'title' });
+        ps.focus(sb(), 8); ps.click(S.symBtn); const open = S.symWrap.classList.contains('open'); ps.log.length = 0;
+        ps.click(S.symList[0]); const sy1 = [ps.map.blocks[0].title, J(ps.map.blocks[0].fmt.title), J(ps.range(sb())), ps.dom.page.active === sb(), S.symWrap.classList.contains('open'), J(ps.log)];
+        ps.focus(sb(), 0, 3); ps.click(S.symBtn); ps.click(S.symList[2]); const sy2 = [ps.map.blocks[0].title, J(ps.range(sb()))];
+        check('bar (symbols): the tray opens from its button; a symbol is TEXT — it goes into the field at the caret (over a selection), joins the styled part it follows as typing does, leaves the caret after it in the box, closes the tray, and is a step of its own',
+            open && J(sy1) === J(['buy milk→ now', J({ spans: [{ s: 4, e: 9, color: GREEN }] }), '[9,9]', true, false, J(['step', 'save:false', 'preview'])]) && J(sy2) === J(['✓ milk→ now', '[1,1]']) && /tsInsertAt\(box, ch, sel\.s, sel\.e, 'insertSymbol'\)/.test(barSrc), [open, sy1, sy2]);
 
         // the keyboard
-        const pk = mkPage({ map: mapOf(B0()) }).build(), tk = pk.box('field b-title', { idx: 0 });
-        pk.sel0(tk, 0, 3);
-        const kev = (o) => Object.assign({ key: 'b', ctrlKey: true, target: tk, prevented: false, stopped: false, preventDefault() { this.prevented = true; }, stopPropagation() { this.stopped = true; } }, o);
-        const k1 = kev({}), r1 = pk.tsKey(k1), f1 = J(pk.map.blocks[0].fmt), k2 = kev({ key: 'I', metaKey: true, ctrlKey: false }), r2 = pk.tsKey(k2), f2 = J(pk.map.blocks[0].fmt);
-        const idBox = pk.box('fc-n-id', { idx: 2, ni: 0 }), rteBox = pk.box('field rte-body', { idx: 4 }, 'div');
-        const no = [kev({ shiftKey: true }), kev({ altKey: true }), kev({ ctrlKey: false }), kev({ key: 'x' }), kev({ target: idBox }), kev({ target: rteBox }), kev({ target: pk.root })].map(e => [pk.tsKey(e), e.prevented]);
-        check('keyboard: Ctrl+B and Ctrl+I in a plain box do what the buttons do (one step each, the key taken); with Shift or Alt, another key, or in a box that is no plain field the key is left alone',
-            r1 === true && k1.prevented && k1.stopped && f1 === J({ title: { spans: [{ s: 0, e: 3, b: true }] } }) && r2 === true && k2.prevented && f2 === J({ title: { spans: [{ s: 0, e: 3, b: true, i: true }] } })
-            && J(pk.log) === J(['step', 'save:true', 'preview', 'step', 'save:true', 'preview']) && no.every(x => x[0] === false && x[1] === false) && J(pk.map.blocks[0].fmt) === f2, [f1, f2, no]);
-        check('keyboard (wired): the key is seen in the capture phase on the document (a flowchart label stops its own keys), the selection is followed as it moves, and the bar is built from index.html\'s #textStyleBar',
-            /document\.addEventListener\('keydown', tsKey, true\);/.test(plannerSrc) && /\['focusin', 'select', 'keyup', 'mouseup', 'input'\]\.forEach\(function\(ev\) \{ document\.addEventListener\(ev, function\(e\) \{ var t = e\.target; if \(t && t\.closest && t\.closest\('#plannerBlocks'\)\) tsNote\(t\); \}, true\); \}\);/.test(plannerSrc)
-            && /var root = document\.getElementById\('textStyleBar'\); if \(!root\) return;\n\s*tsBuild\(root\);/.test(plannerSrc));
+        const pk = mkPage({ map: mapOf(B0()) }).wire().rebuild(), K = pk.tsState.els, tk = () => pk.tsBox({ idx: 0, k: 'title' }), fk = () => J(pk.map.blocks[0].fmt && pk.map.blocks[0].fmt.title);
+        pk.focus(tk(), 0, 3); pk.log.length = 0;
+        const kb = pk.dom.fire(tk(), 'keydown', keyEv({ key: 'b', ctrlKey: true })), f1 = fk(), ki = pk.dom.fire(tk(), 'keydown', keyEv({ key: 'I', metaKey: true })), ku = pk.dom.fire(tk(), 'keydown', keyEv({ key: 'u', ctrlKey: true })), f2 = fk();
+        const idK = pk.plain('input', 'fc-n-id', { idx: 2, ni: 0 }), no = [keyEv({ key: 'b', ctrlKey: true, shiftKey: true }), keyEv({ key: 'b', ctrlKey: true, altKey: true }), keyEv({ key: 'b' }), keyEv({ key: 's', ctrlKey: true })].map(o => pk.dom.fire(tk(), 'keydown', o).defaultPrevented).concat(pk.dom.fire(idK, 'keydown', keyEv({ key: 'b', ctrlKey: true })).defaultPrevented);
+        check('keyboard: Ctrl+B, Ctrl+I and Ctrl+U in a box do what the buttons do (one step each, the key taken, the selection kept); with Shift or Alt, another key, or in a box that is no plain field the key is left alone',
+            kb.defaultPrevented && kb.stopped && f1 === J({ spans: [{ s: 0, e: 3, b: true }] }) && ki.defaultPrevented && ku.defaultPrevented && f2 === J({ spans: [{ s: 0, e: 3, b: true, i: true, u: true }] }) && J(pk.log) === J(['step', 'save:true', 'preview', 'step', 'save:true', 'preview', 'step', 'save:true', 'preview']) && no.every(x => x === false) && J(pk.range(tk())) === '[0,3]', [f1, f2, no]);
+        pk.focus(tk(), 4, 8);
+        const f10 = pk.dom.fire(tk(), 'keydown', keyEv({ key: 'F10', altKey: true })), in1 = [f10.defaultPrevented, pk.dom.page.active === K.b, pk.tsState.key, K.root.hidden];
+        const tab = el => pk.dom.fire(el, 'keydown', keyEv({ key: 'Tab' })), t1 = tab(K.b), on1 = pk.dom.page.active === K.i; pk.dom.fire(K.i, 'keydown', keyEv({ key: 'Tab', shiftKey: true })); const on2 = pk.dom.page.active === K.b;
+        pk.dom.fire(K.b, 'keydown', keyEv({ key: 'Tab', shiftKey: true })); const wrap = pk.dom.page.active === K.symBtn; tab(K.symBtn); const wrap2 = pk.dom.page.active === K.b;
+        pk.dom.fire(K.b, 'keydown', keyEv({ key: 'Enter' })); pk.dom.fire(K.b, 'click'); const kept = [pk.dom.page.active === K.b, fk(), J(pk.tsState.sel && [pk.tsState.sel.s, pk.tsState.sel.e])];
+        K.swatches[4].focus(); pk.dom.fire(K.swatches[4], 'keydown', keyEv({ key: ' ' })); pk.dom.fire(K.swatches[4], 'click'); const kept2 = [pk.dom.page.active === K.swatches[4], fk()];
+        const esc = pk.dom.fire(K.swatches[4], 'keydown', keyEv({ key: 'Escape' })), backTo = [esc.defaultPrevented, pk.dom.page.active === tk(), J(pk.range(tk()))];
+        pk.dom.fire(tk(), 'keydown', keyEv({ key: 'F10', altKey: true })); K.size.focus(); const ent = pk.dom.fire(K.size, 'keydown', keyEv({ key: 'Enter' })), entBack = pk.dom.page.active === tk();
+        pk.dom.fire(tk(), 'keydown', keyEv({ key: 'F10', altKey: true })); pk.dom.fire(K.symBtn, 'click'); const order = pk.tsOrder().length; pk.dom.fire(K.symBtn, 'keydown', keyEv({ key: 'Tab' })); const inTray = pk.dom.page.active === K.symList[0];
+        pk.dom.fire(K.symList[0], 'keydown', keyEv({ key: 'Enter' })); pk.dom.fire(K.symList[0], 'click'); const sym = [pk.map.blocks[0].title, pk.dom.page.active === K.symList[0], K.symWrap.classList.contains('open'), J([pk.tsState.sel.s, pk.tsState.sel.e])];
+        const p0 = mkPage({ map: mapOf(B0()) }).wire().rebuild(); p0.tsState.els.size.focus(); const escNone = p0.dom.fire(p0.tsState.els.size, 'keydown', keyEv({ key: 'Escape' }));
+        check('keyboard (into the bar and back): Alt+F10 in a box goes into its bar (the first control); Tab and Shift+Tab move along the bar and wrap round, never out of it; a control pressed from the keyboard keeps the focus — so B and then a colour need no going back — and acts on the box\'s remembered selection; Escape (and Enter in the Size list) goes back to the box with its selection as it was; with the tray open Tab reaches the symbols, and a symbol typed from there leaves the tray open and the focus on it; with no box to go back to Escape is left alone',
+            J(in1) === J([true, true, true, false]) && t1.defaultPrevented && on1 && on2 && wrap && wrap2 && J(kept) === J([true, J({ spans: [{ s: 0, e: 3, b: true, i: true, u: true }, { s: 4, e: 8, b: true }] }), '[4,8]']) && J(kept2) === J([true, J({ spans: [{ s: 0, e: 3, b: true, i: true, u: true }, { s: 4, e: 8, color: GREEN, b: true }] })])
+            && J(backTo) === J([true, true, '[4,8]']) && ent.defaultPrevented && entBack && order === 17 + SYMS.length && inTray && J(sym) === J(['The → Road', true, true, '[5,5]']) && escNone.defaultPrevented === false, [in1, on1, on2, wrap, wrap2, kept, kept2, backTo, entBack, order, inTray, sym]);
 
-        // a text block's own box: the bar drives its rich-text commands
-        const pr = mkPage({ map: mapOf(B0()) }).build(), R = pr.tsState.els, rb = pr.box('field rte-body', { idx: 4 }, 'div');
-        pr.sel = { rangeCount: 1, isCollapsed: true }; pr.active = rb; pr.tsNote(rb);
-        const caretSaid = R.target.textContent, caretOff = [R.nocolor.disabled, R.size.disabled, R.clear.disabled, R.b.disabled, R.i.disabled, R.swatches[0].disabled];
-        pr.click(R.nocolor); pr.click(R.clear);
-        const offPressed = pr.rte.length;   // disabled controls: no press reaches the block
-        pr.sel = { rangeCount: 1, isCollapsed: false }; pr.tsNote(rb);
-        const selSaid = R.target.textContent, selOff = [R.nocolor.disabled, R.size.disabled, R.clear.disabled, R.b.disabled];
-        pr.click(R.b); pr.click(R.swatches[4]); pr.click(R.nocolor); R.size.value = 'huge'; R.size.fire('change'); pr.click(R.clear);
-        check('bar: in a text block\'s box it drives that block\'s own commands (B, I, a colour, Default, a size, Clear) and writes no format beside the block; with only a caret there, Default, Size and Clear are disabled',
-            /^Text block — select text/.test(caretSaid) && J(caretOff) === J([true, true, true, false, false, false]) && offPressed === 0 && selSaid === 'Text block — the selected text' && J(selOff) === J([false, false, false, false])
-            && J(pr.rte) === J([['4', { b: true }], ['4', { color: GREEN }], ['4', { color: null }], ['4', { size: 'huge' }], ['4', 'clear']]) && J(pr.map.blocks[4]) === J(B0()[4]) && pr.log.length === 0, [caretSaid, caretOff, pr.rte]);
+        // what it names, as text
+        const names = [], say = d => { pk.focus(pk.tsBox(d), 0); names.push(K.root.attrs['aria-label'].replace('Text style — ', '')); };
+        [{ idx: 1, k: 'cell', ri: 1, ci: 2 }, { idx: 1, k: 'col', ci: 1 }, { idx: 0, k: 'sub' }, { idx: 1, k: 'sub' }, { idx: 1, k: 'must' }, { idx: 3, k: 'caption' }, { idx: 5, k: 'title' }, { idx: 1, k: 'title' }, { idx: 6, k: 'title' }, { idx: 2, k: 'node', ni: 1 }, { idx: 2, k: 'edge', ei: 0 }].forEach(say);
+        pk.map.blocks[2].nodes[1].id = '<img src=x onerror=alert(1)>'; pk.map.blocks[1].cols[2] = '<script>alert(1)</script> and a very long column name indeed';
+        say({ idx: 2, k: 'node', ni: 1 }); say({ idx: 1, k: 'cell', ri: 1, ci: 2 });
+        check('bar: it names the field it is on, in a few words, as a plain string (its name for a screen reader) — a hostile node id or column name is only ever text in it, and cut short',
+            J(names) === J(['Row 2, Cost', 'Heading of column 2', 'Subtitle', 'Tag', 'Must resolve', 'Caption', 'Section heading', 'Scene title', 'Table title', 'Node n3’s label', 'Arrow 1’s label', 'Node <img src=x onerror=alert(1)>’s label', 'Row 2, <script>alert(1)</script> and…']), names);
+
+        // a rebuilt editor; another document; a field that is gone
+        const p2 = mkPage({ map: mapOf(B0()) }).wire().rebuild(), E2 = p2.tsState.els, c2 = () => p2.tsBox({ idx: 1, k: 'cell', ri: 0, ci: 0 });
+        p2.focus(c2(), 0, 3); p2.click(E2.swatches[4]);   // "Med" green, in row 1
+        p2.map.blocks[1].rows.splice(0, 1); p2.rebuild();   // the row's delete button: the row goes, renderPlanner writes every box anew and ends with tsRebuilt
+        p2.log.length = 0; const j2 = J(p2.map), pressed2 = p2.tsPress({ color: RED }); p2.click(E2.swatches[2]); p2.click(E2.b);
+        const reb = [E2.root.hidden, p2.tsState.box, p2.tsState.sel, pressed2, J(p2.map) === j2, p2.log.length, 'fmt' in p2.map.blocks[1].rows[0], [E2.b, E2.i, E2.custom, E2.nocolor, E2.size, E2.clear].concat(E2.swatches).every(c => c.disabled === true)];
+        p2.focus(c2(), 0, 3); p2.click(E2.swatches[2]);
+        check('rebuild: after the editor is rebuilt (a row deleted above the place the bar was on) the bar is hidden, is on no box and remembers nothing — a press styles no other text; a box clicked in afterwards takes the bar afresh and is styled as ever',
+            J(reb) === J([true, null, null, false, true, 0, false, true]) && J(p2.map.blocks[1].rows[0].fmt) === J({ col1: { spans: [{ s: 0, e: 3, color: RED }] } }) && p2.map.blocks[1].rows[0].col1 === 'Insight' && E2.root.hidden === false, [reb, p2.map.blocks[1].rows[0]]);
+        p2.focus(c2(), 0, 3); p2.dom.page.active = null; p2.map = { id: 'other', type: 'planner', blocks: B0() }; p2.log.length = 0;   // another document is the open one (the app rebuilds the editor then; should a place be remembered all the same, it is this document's and no other's)
+        const otherDoc = p2.tsPress({ b: true }), jo = J(p2.map.blocks[1]);
+        p2.map = mapOf(B0()); p2.rebuild(); p2.focus(c2(), 0, 3); p2.map.blocks.splice(1, 1);
+        let threw = null; try { p2.tsPress({ b: true }); p2.tsRefresh(); p2.tsBack(); } catch (e) { threw = e.message; }
+        check('bar: nothing is remembered across documents, and a box whose field is gone is no target (no error, no change)', otherDoc === false && jo === J(B0()[1]) && threw === null && p2.log.length === 0, threw);
+        check('rebuild (wired): renderPlanner ends by forgetting — after the boxes are written and the preview drawn — whatever document it drew', /\n\s*renderPlannerPreview\(\);\s*\n\s*applyPlannerFullscreen\(\);\s*\n\s*tsRebuilt\(\);[^\n]*\n\s*\}/.test(plannerSrc) && /function tsRebuilt\(\) \{ tsHide\(\); \}/.test(barSrc));
+
+        // Esc puts the bar away while its box keeps the focus
+        const pa = mkPage({ map: mapOf(B0()) }).wire().rebuild(), A = pa.tsState.els, ta = pa.tsBox({ idx: 0, k: 'title' });
+        pa.focus(ta, 4, 8); const esc1 = pa.dom.fire(ta, 'keydown', keyEv({ key: 'Escape' })), putAway = [A.root.hidden, pa.dom.page.active === ta, pa.tsState.box === ta, J(pa.range(ta))];
+        pa.dom.fire(ta, 'keydown', keyEv({ key: 'b', ctrlKey: true })); pa.engine.caret(ta, 13); pa.engine.type(ta, '!'); pa.dom.fire(ta, 'focusout', {}); pa.dom.runTimers(); const still = [A.root.hidden, J(pa.map.blocks[0].fmt), pa.map.blocks[0].title];
+        pa.dom.fire(ta.firstChild, 'mousedown'); const back1 = A.root.hidden; pa.dom.fire(ta, 'keydown', keyEv({ key: 'Escape' })); pa.dom.fire(ta, 'keydown', keyEv({ key: 'F10', altKey: true })); const back2 = [A.root.hidden, pa.dom.page.active === A.b];
+        pa.dom.fire(A.b, 'keydown', keyEv({ key: 'Escape' })); pa.dom.fire(ta, 'keydown', keyEv({ key: 'Escape' })); pa.focus(pa.tsBox({ idx: 0, k: 'sub' }), 0); const other = A.root.hidden;
+        check('bar (Esc): the bar floats over whatever is right above its box, so Escape in the box puts it away — the box keeps the focus and its selection, Ctrl+B and typing still work, and it stays away while that box is in use; a click in the box brings it back, and so does Alt+F10 (into it); another box entered takes the bar as ever',
+            esc1.stopped && J(putAway) === J([true, true, true, '[4,8]']) && J(still) === J([true, J({ title: { spans: [{ s: 4, e: 8, b: true }] } }), 'The Hill Road!']) && back1 === false && J(back2) === '[false,true]' && other === false, [putAway, still, back1, back2, other]);
 
         // the cap is said
-        const pc = mkPage({ map: mapOf([{ id: 'b', type: 'h2', title: 'x'.repeat(900) }]) }).build(), tc = pc.box('b-title', { idx: 0 });
-        const many = []; for (let k = 0; k < 199; k++) many.push({ s: k * 2, e: k * 2 + 1, b: true });
-        pc.map.blocks[0].fmt = { title: { spans: many } };
-        pc.sel0(tc, 600, 601); pc.tsPress({ i: true });
+        const pc = mkPage({ map: mapOf([{ id: 'b', type: 'h2', title: 'x'.repeat(900) }]) }).wire(), many = []; for (let k = 0; k < 199; k++) many.push({ s: k * 2, e: k * 2 + 1, b: true });
+        pc.map.blocks[0].fmt = { title: { spans: many } }; pc.rebuild(); pc.focus(pc.tsBox({ idx: 0, k: 'title' }), 600, 601); pc.tsPress({ i: true });
         check('bar: a field at its ' + MAX_SPANS + ' styled parts says so', pc.map.blocks[0].fmt.title.spans.length === 200 && pc.toasts.length === 1 && /200/.test(pc.toasts[0]));
-        check('undo: one step a press — the press closes whatever typing was on its way first (io.js stepBoundary), then saves at once',
-            /function stepBoundary\(\) \{ if \(savePending\) pushHistory\(\); closeChunk\(\); \}/.test(read('io.js')) && /\n\s*stepBoundary,\n/.test(read('io.js')) && /\n\s*stepFold,\n/.test(read('io.js')) && /else stepBoundary\(\);[^\n]*\n\s*tsState\.run = runOn;\n\s*fld\.setFmt\(now\);\n\s*save\(true\);/.test(barSrc));
+        check('bar (wired): the boxes are wired once, on the element that holds them — the engine\'s edits before and after, a composition\'s start and end, paste, copy, cut, drop, the keys — and the page\'s part: Ctrl+B / I / U seen in the capture phase, the focus followed in and out, the selection as it moves, the panel\'s scroll and the window\'s size; a box hands the undo chord to the history and stops no key it does not take',
+            ['beforeinput', 'input', 'compositionstart', 'compositionend', 'paste', 'copy', 'cut', 'drop', 'dragstart', 'keydown'].every(ev => new RegExp("root\\.addEventListener\\('" + ev + "', ts[A-Za-z]+\\);").test(barSrc)) && /document\.addEventListener\('keydown', tsKey, true\);/.test(barSrc) && /document\.addEventListener\('focusin', /.test(barSrc) && /document\.addEventListener\('focusout', /.test(barSrc)
+            && /document\.addEventListener\('selectionchange', /.test(barSrc) && /host\.addEventListener\('scroll', tsPlace, true\);/.test(barSrc) && /window\.addEventListener\('resize', tsPlace\);/.test(barSrc) && /\n      fieldUndoChord\(e\);\n  \}\n/.test(barSrc) && !/fieldUndoChord\(e\)\) return;/.test(barSrc) && (barSrc.slice(barSrc.indexOf('function tsBoxKey(e)'), barSrc.indexOf('function tsToBar(box)')).match(/stopPropagation\(\)/g) || []).length === 2
+            && !/sessionStorage|wp_textStyleOpen|textStyleBar|textStyleToggle|textStyleBody/.test(plannerSrc));
+    }
+
+    /* ---- what an input did for free: Tab, the sideways scroll; a large planner ---- */
+    {
+        const pg = mkPage({ map: mapOf(B0()) }).wire().rebuild(), D = pg.dom, title = pg.tsBox({ idx: 0, k: 'title' }), sub = pg.tsBox({ idx: 0, k: 'sub' }), lab = pg.tsBox({ idx: 2, k: 'node', ni: 0 });
+        pg.focus(title, 3); D.fire(title, 'keydown', keyEv({ key: 'Tab' })); sub.focus(); const tabbed = [J(pg.range(sub)), J([pg.tsState.sel.s, pg.tsState.sel.e]), pg.tsState.box === sub, pg.tsState.els.scope.textContent];
+        D.fire(sub, 'keydown', keyEv({ key: 'Tab' })); lab.focus(); const intoLabel = J([pg.tsState.sel.s, pg.tsState.sel.e]);
+        D.fire(lab, 'keydown', keyEv({ key: 'Tab', shiftKey: true })); D.fire(pg.blocksEl, 'mousedown'); title.focus(); D.engine.caret(title, 5); const byMouse = J(pg.range(title));
+        D.fire(title, 'keydown', keyEv({ key: 'x' })); sub.focus(); const noTab = J(pg.tsState.sel && [pg.tsState.sel.s, pg.tsState.sel.e]), before = J(pg.map);
+        check('box (Tab): a one-line box reached by the Tab key has all its text selected, as an input has — typing replaces it, and the bar acts on those characters; a label, like the textarea it replaces, is not selected; a box entered by the mouse, or given the focus by anything but Tab, keeps the caret it is given; nothing is written by going from box to box',
+            J(tabbed) === J(['[0,10]', '[0,10]', true, '10 selected']) && intoLabel !== J([0, LBL.length]) && byMouse === '[5,5]' && noTab === '[10,10]' && J(pg.map) === before && pg.log.length === 0, [tabbed, intoLabel, byMouse, noTab]);
+        const long = pg.tsBox({ idx: 1, k: 'cell', ri: 1, ci: 2 }); long.scrollLeft = 80; pg.focus(long, 6); pg.click(pg.tsState.els.b); const kept = long.scrollLeft; long.scrollLeft = 55; D.fire(long, 'focusout', {});
+        check('box (sideways scroll): a one-line box scrolled sideways to its caret stays where it is when the box is drawn again (a press), and shows its start again when it is left, as an input does', kept === 80 && long.scrollLeft === 0);
+        // a large planner: a 40-row, 6-column table and a 30-node chart
+        const cols = ['A', 'B', 'C', 'D', 'E', 'F'], rows = Array.from({ length: 40 }, (x, r) => { const o = { fmt: {} }; cols.forEach((c, k) => { o['col' + (k + 1)] = 'row ' + r + ' cell ' + k + ' with some words in it'; if ((r + k) % 3 === 0) o.fmt['col' + (k + 1)] = { spans: [{ s: 0, e: 3, b: true }, { s: 4, e: 6, color: GREEN }] }; }); return o; });
+        const big = mkPage({ map: mapOf([{ id: 'h', type: 'h1', title: 'Big', sub: 's' }, { id: 't', type: 'node', mode: 'table', title: 'T', cols, rows }, { id: 'c', type: 'flowchart', nodes: Array.from({ length: 30 }, (x, k) => ({ id: 'n' + k, text: 'node ' + k + '\nsecond line', fmt: k % 2 ? { color: RED, spans: [{ s: 0, e: 4, size: 'large' }] } : undefined })), edges: Array.from({ length: 29 }, (x, k) => ({ from: 'n' + k, to: 'n' + (k + 1), text: 'to ' + k })) }]) }).wire();
+        const t0 = Date.now(); big.rebuild(); const built = Date.now() - t0, boxes = big.blocksEl.querySelectorAll('.ts-box');
+        const cell = big.tsBox({ idx: 1, k: 'cell', ri: 20, ci: 3 }), others = boxes.filter(b => b !== cell).map(b => b.childNodes.slice());
+        big.focus(cell, 10); const t1 = Date.now(); for (let k = 0; k < 200; k++) big.engine.type(cell, 'x'); const typed = Date.now() - t1;
+        big.engine.caret(cell, 0, 5); big.click(big.tsState.els.swatches[2]); big.click(big.tsState.els.b);
+        const untouched = boxes.filter(b => b !== cell).every((b, i) => b.childNodes.length === others[i].length && b.childNodes.every((c, k) => c === others[i][k]));
+        check('box (a large planner: a 40-row, 6-column table and a 30-node chart, ' + boxes.length + ' boxes): the editor is built and 200 characters are typed into a cell in the middle well inside a second each, and ONLY the box being edited is ever drawn again — after the typing and two presses every other box still holds the very nodes it was built with',
+            boxes.length === 2 + 1 + 6 + 240 + 30 + 29 && built < 1500 && typed < 1500 && untouched && big.map.blocks[1].rows[20].col4.length === 'row 20 cell 3 with some words in it'.length + 200 && J(big.map.blocks[1].rows[20].fmt.col4) === J({ spans: [{ s: 0, e: 5, color: RED, b: true }] }), { boxes: boxes.length, built, typed, untouched });
     }
 
     /* ---- structure: every format stays on its own text (a seeded sequence of edits against a plain model) ---- */
@@ -880,109 +1404,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     }
 
 
-    /* ================= the review's follow-ups: Ctrl+Z after a press, a rebuilt editor, the keyboard in the bar, Find across runs, the text blocks' own bar ================= */
+    /* ================= Find across runs, the floating panel's highlight, the text blocks' own bar ================= */
     {
-        // io.js's history and its undo chord, sliced and run for real on a campaign of plain objects
-        const mkHist = (map, win) => {
-            const camp = { id: 'c', activeItemId: map.id, items: { [map.id]: map } }, calls = [], timers = [];
-            const api = new Function('window', 'state', 'getActiveCampaign', 'getActiveMap', 'localStorage', 'document', 'setTimeout', 'stepHistory',
-                slice('io.js', 'history') + '\n' + slice('io.js', 'undochord') + '\nreturn { pushHistory, stepBoundary, stepFold, fieldUndoChord, stack: function() { return histories["c/" + getActiveMap().id]; }, pending: function(v) { savePending = v; } };')(
-                win || {}, { appState: { campaigns: { c: camp } } }, () => camp, () => map, { getItem: () => null }, { getElementById: () => null }, fn => { timers.push(fn); }, d => { calls.push(d); });
-            api.pushHistory();   // the first pass seeds the baseline, as the app's first save does
-            return Object.assign(api, { calls, timers });
-        };
-        const chordOn = (H, el, o) => { const e = Object.assign({ key: 'z', ctrlKey: true, target: el, prevented: false, preventDefault() { this.prevented = true; }, stopPropagation() {} }, o || {}); return [H.fieldUndoChord(e), e.prevented]; };
-
-        /* ---- Ctrl+Z in a plain field after a press takes the press back, never the typing before it ---- */
-        const p1 = mkPage({ map: mapOf(B0()) }).build(), E1 = p1.tsState.els, H1 = mkHist(p1.map); p1.hist = H1;
-        const lab1 = p1.box('field fc-n-text fc-grow', { idx: 2, ni: 1 }, 'textarea'), d1 = { idx: 2, k: 'node', ni: 1 }, node1 = p1.map.blocks[2].nodes[1];
-        lab1.value = 'two abc'; lab1._wpNativeDirty = true; p1.tsType(p1.map.blocks, d1, 'two abc', 7); H1.pending(true);   // ' abc' typed: io.js's input listener marks the box, the save is on its timer
-        p1.sel0(lab1, 4, 7);
-        const before = chordOn(H1, lab1), armed0 = H1.timers.length, called0 = H1.calls.length;   // typing only: the browser's own undo answers (the chord is left to it, a probe is armed)
-        p1.click(E1.swatches[4]);
-        const st1 = H1.stack(), afterPress = { dirty: lab1._wpNativeDirty, floor: lab1._wpFloor, fmt: J(node1.fmt), steps: st1.undo.length, pressStep: J(JSON.parse(st1.undo[1]).c.blocks[2].nodes[1]) };
-        const undo1 = chordOn(H1, lab1), armed1 = H1.timers.length, calls1 = J(H1.calls);
-        const redo1 = chordOn(H1, lab1, { key: 'y' }), calls2 = J(H1.calls);
-        check('undo (Ctrl+Z in a plain field): while only typing is there the browser\'s own undo answers; after a press the box is spent — the chord goes to the planner\'s history, which holds the typing and the press as two steps, so the press is taken back and the typed text stays (io.js fieldUndoChord run for real)',
-            J(before) === '[false,false]' && armed0 === 1 && called0 === 0 && afterPress.dirty === false && afterPress.floor === 'two abc' && afterPress.fmt === J({ spans: [{ s: 4, e: 7, color: GREEN }] }) && afterPress.steps === 2
-            && afterPress.pressStep === J({ id: 'n3', text: 'two abc', shape: 'rect', color: 'gold' }) && J(undo1) === '[true,true]' && armed1 === 1 && calls1 === '["undo"]' && J(redo1) === '[true,true]' && calls2 === '["undo","redo"]', [before, afterPress, undo1, calls1]);
-        lab1.value = 'two abcd'; lab1._wpNativeDirty = true;                 // more typing after the press
-        const typedMore = chordOn(H1, lab1), armed2 = H1.timers.length;      // the browser may take that back…
-        lab1.value = 'two abc';                                              // …and has: the text is what it was at the press (the flag still says typing)
-        const atFloor = chordOn(H1, lab1), calls3 = J(H1.calls), spent = lab1._wpNativeDirty, armed3 = H1.timers.length;
-        lab1._wpNativeDirty = true; const redoAtFloor = chordOn(H1, lab1, { key: 'y' });
-        const never = p1.box('field b-title', { idx: 0 }); never.value = 'The Hill Road'; never._wpNativeDirty = true;
-        check('undo (Ctrl+Z in a plain field): what is typed after a press the browser may take back, down to the text as it was at the press and no further — there the chord goes to the planner\'s history again; a redo, and a box never styled, are as before',
-            J(typedMore) === '[false,false]' && armed2 === 2 && J(atFloor) === '[true,true]' && calls3 === '["undo","redo","undo"]' && spent === false && armed3 === 2 && J(redoAtFloor) === '[false,false]' && J(chordOn(H1, never)) === '[false,false]', [typedMore, atFloor, calls3, redoAtFloor]);
-        check('undo (Ctrl+Z in a plain field): every press marks its box — a colour, B, I, U, S, a size, Clear, and Ctrl+B', ['b', 'i', 'u', 's', 'nocolor', 'clear'].every(k => { lab1._wpNativeDirty = true; lab1._wpFloor = undefined; p1.sel0(lab1, 4, 7); if (k === 'nocolor' || k === 'clear') p1.tsPress({ color: RED }); lab1._wpNativeDirty = true; p1.click(E1[k]); return lab1._wpNativeDirty === false && lab1._wpFloor === 'two abc'; })
-            && (() => { lab1._wpNativeDirty = true; E1.size.value = 'large'; E1.size.fire('change'); const a = lab1._wpNativeDirty === false; lab1._wpNativeDirty = true; p1.tsKey({ key: 'b', ctrlKey: true, target: lab1, preventDefault() {}, stopPropagation() {} }); return a && lab1._wpNativeDirty === false; })()
-            && (() => { lab1._wpNativeDirty = true; const r = p1.tsPress({ size: 'large' }); return r === false && lab1._wpNativeDirty === true; })());   // a press that changes nothing leaves the box as it was
-
-        /* ---- nothing is remembered across a rebuild of the editor ---- */
-        const p2 = mkPage({ map: mapOf(B0()) }).build(), E2 = p2.tsState.els, c2 = p2.box('r-col', { idx: 1, ri: 0, ci: 0 }); c2.value = 'Medicine';
-        p2.sel0(c2, 0, 3); p2.click(E2.swatches[4]);   // "Med" green, in row 1
-        const named2 = E2.target.textContent;
-        p2.map.blocks[1].rows.splice(0, 1); p2.blocksEl.children.length = 0; p2.active = null;   // the row's delete button: the row goes, renderPlanner writes every box anew…
-        p2.tsRebuilt();                                                                           // …and ends with this
-        p2.log.length = 0; const j2 = J(p2.map), pressed2 = p2.tsPress({ color: RED }); p2.click(E2.swatches[2]); p2.click(E2.b);
-        check('rebuild: after the editor is rebuilt (a row deleted above the place it remembered) the bar remembers nothing — a press styles no other text, the bar asks for a click in a field and every control is disabled',
-            named2 === 'Row 1, Check — 3 selected characters' && pressed2 === false && J(p2.map) === j2 && p2.log.length === 0 && !('fmt' in p2.map.blocks[1].rows[0]) && p2.map.blocks[1].rows[0].col1 === 'Insight' && p2.tsState.sel === null
-            && /^Click in a title, a label or a table cell/.test(E2.target.textContent) && [E2.b, E2.i, E2.custom, E2.nocolor, E2.size, E2.clear].concat(E2.swatches).every(c => c.disabled === true), [named2, pressed2, p2.map.blocks[1].rows[0], E2.target.textContent]);
-        const c2b = p2.box('r-col', { idx: 1, ri: 0, ci: 0 }); c2b.value = 'Insight'; p2.sel0(c2b, 0, 3); p2.click(E2.swatches[2]);
-        check('rebuild: a box clicked in afterwards is noted afresh and styled as ever', J(p2.map.blocks[1].rows[0].fmt) === J({ col1: { spans: [{ s: 0, e: 3, color: RED }] } }) && E2.target.textContent === 'Row 1, Check — 3 selected characters');
-        check('rebuild (wired): renderPlanner ends by forgetting — after the boxes are written and the preview drawn — whatever document it drew', /\n\s*renderPlannerPreview\(\);\s*\n\s*applyPlannerFullscreen\(\);\s*\n\s*tsRebuilt\(\);[^\n]*\n\s*\}/.test(plannerSrc) && (plannerSrc.match(/tsRebuilt\(\)/g) || []).length === 2 && !/tsState\.sel\.map !== activeMap\.id/.test(plannerSrc));
-
-        /* ---- typing: the caret tells respan where a run of equal characters was edited ---- */
-        const p3 = mkPage({ map: mapOf([{ id: 'b', type: 'h2', title: 'aaaa', fmt: { title: { spans: [{ s: 2, e: 4, b: true }] } } }]) });
-        p3.tsType(p3.map.blocks, { idx: 0, k: 'title' }, 'aaaaa', 2);   // an "a" typed after the first one: the bold ones are the last two still
-        const caretFmt = J(p3.map.blocks[0].fmt);
-        p3.tsType(p3.map.blocks, { idx: 0, k: 'title' }, 'aaaa', 0);    // the first one deleted
-        check('typing: the box\'s caret goes to respan, so an edit inside a run of equal characters moves the spans after it (without it the edit would be read at the end, and the look would sit on other characters)',
-            caretFmt === J({ title: { spans: [{ s: 3, e: 5, b: true }] } }) && J(p3.map.blocks[0].fmt) === J({ title: { spans: [{ s: 2, e: 4, b: true }] } }), [caretFmt, p3.map.blocks[0].fmt]);
-
-        /* ---- the keyboard in the bar: a control it reached keeps the focus; the Size list stepped through is one undo step ---- */
-        const p4 = mkPage({ map: mapOf(B0()) }).build(), E4 = p4.tsState.els, H4 = mkHist(p4.map); p4.hist = H4;
-        const lab4 = p4.box('field fc-n-text fc-grow', { idx: 2, ni: 0 }, 'textarea'), n4 = p4.map.blocks[2].nodes[0]; lab4.value = LBL;
-        p4.sel0(lab4, 9, 17); lab4.calls.length = 0; p4.log.length = 0;
-        const keyOn = (el, key) => p4.body.fire('keydown', { target: el, key });
-        p4.active = E4.size;                                                     // Tab reached the Size list
-        keyOn(E4.size, 'ArrowDown'); E4.size.value = 'small'; E4.size.fire('change');
-        const k1 = { focus: p4.active === E4.size, sel: J(p4.tsState.sel), fmt: J(n4.fmt), steps: H4.stack().undo.length, box: J(lab4.calls), log: J(p4.log) };
-        keyOn(E4.size, 'ArrowDown'); E4.size.value = 'large'; E4.size.fire('change');
-        keyOn(E4.size, 'ArrowDown'); E4.size.value = 'larger'; E4.size.fire('change');
-        const k3 = { focus: p4.active === E4.size, sel: J(p4.tsState.sel), fmt: J(n4.fmt), steps: H4.stack().undo.length, log: J(p4.log), back: J(JSON.parse(H4.stack().undo[0]).c.blocks[2].nodes[0]) };
-        check('keyboard (the Size list): its arrow keys step through the sizes — each is applied to the selected characters, the list keeps the focus, the field\'s remembered selection is unchanged (put back without the focus), and the whole run is ONE undo step back to how the field was (io.js pushHistory run for real)',
-            k1.focus && k1.fmt === J({ spans: [{ s: 9, e: 17, size: 'small' }] }) && k1.steps === 1 && k1.box === '["select 9-17"]' && k1.log === J(['step', 'save:true', 'preview']) && k3.focus && k3.sel === k1.sel && JSON.parse(k3.sel).s === 9 && JSON.parse(k3.sel).e === 17 && k3.fmt === J({ spans: [{ s: 9, e: 17, size: 'larger' }] }) && k3.steps === 1
-            && k3.log === J(['step', 'save:true', 'preview', 'fold', 'save:true', 'preview', 'fold', 'save:true', 'preview']) && k3.back === J({ id: 'n1', text: LBL, shape: 'rect', color: 'neutral' }) && lab4.calls.indexOf('focus') < 0, [k1, k3]);
-        E4.size.fire('blur'); p4.active = E4.size; keyOn(E4.size, 'ArrowDown'); E4.size.value = 'huge'; E4.size.fire('change');   // the list was left and come back to
-        const afterBlur = H4.stack().undo.length;
-        p4.active = E4.swatches[4]; keyOn(E4.swatches[4], ' '); p4.click(E4.swatches[4]);   // a colour by the keyboard: its own step, the swatch keeps the focus
-        const kc = { focus: p4.active === E4.swatches[4], fmt: J(n4.fmt), steps: H4.stack().undo.length };
-        p4.active = E4.size; keyOn(E4.size, 'ArrowUp'); E4.size.value = 'larger'; E4.size.fire('change');   // a size after another press is a step of its own again
-        const afterColour = H4.stack().undo.length;
-        keyOn(E4.size, 'ArrowUp'); p4.sel0(lab4, 0, 3); p4.active = E4.size; E4.size.value = 'large'; E4.size.fire('change');   // another selection: no run
-        check('keyboard (the bar): leaving the Size list, another press or another selection ends the run (the next size is a step of its own); a colour pressed by the keyboard is its own step and its swatch keeps the focus',
-            afterBlur === 2 && kc.focus && kc.fmt === J({ spans: [{ s: 9, e: 17, size: 'huge', color: GREEN }] }) && kc.steps === 3 && afterColour === 4 && H4.stack().undo.length === 5, [afterBlur, kc, afterColour, H4.stack().undo.length]);
-        const winF = {}, mF = mapOf([{ id: 'b', type: 'h2', title: 'one' }]), HF = mkHist(mF, winF);
-        mF.blocks[0].title = 'two'; HF.pushHistory();                           // a step
-        winF.wpStream = true; HF.stepFold(); delete winF.wpStream;              // a fold asked for where no save is recorded (a window that never owns a save): nothing is armed
-        mF.blocks[0].title = 'three'; HF.pushHistory(); const notArmed = HF.stack().undo.length;
-        HF.stepFold(); mF.blocks[0].title = 'four'; HF.pushHistory(); const folded = HF.stack().undo.length;
-        mF.blocks[0].title = 'five'; HF.pushHistory();
-        check('keyboard (the Size list): the fold is one shot and only armed where the save that follows is recorded — it joins the step before it once, the pass after is a step of its own, and it never waits for some later pass (io.js stepFold / pushHistory run for real)',
-            notArmed === 2 && folded === 2 && HF.stack().undo.length === 3 && JSON.parse(HF.stack().undo[1]).c.blocks[0].title === 'two' && JSON.parse(HF.stack().undo[2]).c.blocks[0].title === 'four', [notArmed, folded, HF.stack().undo.length]);
-        p4.sel0(lab4, 9, 17);
-        p4.body.fire('mousedown', { target: E4.size }); p4.active = E4.size; E4.size.value = 'small'; E4.size.fire('change');   // by the mouse, as before: the field has the focus again
-        const byMouse = p4.active === lab4 && lab4.selectionStart === 9 && lab4.selectionEnd === 17;
-        p4.body.fire('mousedown', { target: E4.b }); p4.active = null; p4.click(E4.b);
-        check('keyboard (the bar): a press by the mouse gives the field its focus and selection back, as before — the Size list and a button alike', byMouse && p4.active === lab4 && lab4.selectionStart === 9 && lab4.selectionEnd === 17);
-        p4.active = E4.swatches[2]; const esc = keyOn(E4.swatches[2], 'Escape'), escBack = p4.active === lab4 && lab4.selectionStart === 9 && lab4.selectionEnd === 17;
-        p4.active = E4.size; const ent = keyOn(E4.size, 'Enter'), entBack = p4.active === lab4;
-        p4.active = E4.b; const entBtn = keyOn(E4.b, 'Enter'), btnStays = p4.active === E4.b;
-        const p5 = mkPage({ map: mapOf(B0()) }).build(); p5.active = p5.tsState.els.size; const escNone = p5.body.fire('keydown', { target: p5.tsState.els.size, key: 'Escape' });
-        check('keyboard (the bar): Escape — and Enter in the Size list — goes back to the field with its selection as it was (the key taken); Enter on a button is the button\'s own; with no field to go back to the key is left alone',
-            esc.prevented === true && esc.stopped === true && escBack && ent.prevented === true && entBack && entBtn.prevented === false && btnStays && escNone.prevented === false && p5.active === p5.tsState.els.size);
-
         /* ---- Find in the preview: a found text may lie across the runs of a styled word (planner.js, sliced and run on a tree of plain objects) ---- */
         function TN(v) { this.nodeType = 3; this.nodeValue = v; this.parentNode = null; }
         function EN(tag, cls, kids) { this.nodeType = 1; this.nodeName = tag === 'svg' ? 'svg' : tag.toUpperCase(); this.className = cls || ''; this.childNodes = []; this.parentNode = null; this.cls = {}; this.scrolled = 0; (kids || []).forEach(k => this.appendChild(typeof k === 'string' ? new TN(k) : k)); }
@@ -1103,27 +1526,33 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const ix = rd('system/app/index.html'), tu = rd('system/app/scripts/tutorial.js'), ci = rd('CAMPAIGN_INTEGRATION.md'), css = rd('system/app/style.css'), yml = rd('.github/workflows/checks.yml');
         const pane = name => { const a = ix.indexOf('<div class="help-pane" data-pane="' + name + '"'), b = ix.indexOf('<div class="help-pane"', a + 10); return a < 0 ? '' : ix.slice(a, b < 0 ? undefined : b); };
         const hp = pane('planners'), words = s => s.replace(/<[^>]+>/g, '').replace(/&mdash;/g, '\u2014').replace(/&[a-z#0-9]+;/g, ' ').replace(/\s+/g, ' ');
-        check('said (Help, Planners): a Text style section — the bar closed until its caret is clicked, select then click (B, I, U, S, a colour), nothing selected is the whole field, a size on the selection or the whole field, the Link box and why a flowchart label takes none, Clear, what it names, one undo step, the text blocks\' colour and size, a Markdown file keeps the style',
-            /<h4>Text style<\/h4>/.test(hp) && ['closed until you click its', 'Select, then click.', 'so you can click green and then bold without selecting again', 'Ctrl + B', 'U (underline), S (strike through) or a colour', 'Ctrl + B, Ctrl + I and Ctrl + U do the same from the keyboard', 'Nothing selected is the whole field.', 'then select the lines you have finished and pick green',
+        check('said (Help, Planners): a Text style section — every plain box is an editor that shows its styling, the bar appears on the box you click into and goes when you leave it; select then click (B, I, U, S, a colour); nothing selected is the whole field and the bar says which; a size on the selection or the whole field; the Link box, a link not followed in the editor, and why a flowchart label takes none; Clear; the text blocks\' own bar; a Markdown file keeps the style',
+            /<h4>Text style<\/h4>/.test(hp) && ['Every plain box in the editor is a small editor of its own', 'The box shows its styling', 'when you click into one a bar appears on it, with the controls a text block has', 'The bar goes away when you leave the box; while it is up it floats over whatever is right above the box, so Esc puts it away and a click in the box brings it back. In a table it sits along the top of the table instead, so it never lies over a row.', 'Select, then click.', 'so you can click green and then bold without selecting again', 'Ctrl + B', 'U (underline), S (strike through) or a colour', 'Ctrl + B, Ctrl + I and Ctrl + U do the same from the keyboard', 'Nothing selected is the whole field.', 'then select the lines you have finished and pick green', 'The end of the bar says which it will be: Whole field, or how many characters are selected.',
                 'works the same way: on the characters you selected, or on the whole field with nothing selected', 'Default on a selection takes the size off that part', 'the list reads Mixed when what you selected holds more than one size', 'Link turns text into a link to a web page.', 'type the address in the bar\'s Link box and press Enter', 'one typed without that start (example.com/page, or with a port, example.com:8080) is taken as https://', 'anything else is refused and nothing changes',
-                'Select linked text and the box shows its address; empty the box and press Enter to take the link off', 'a click on the link opens it in the web browser, as a link in a text block does', 'A flowchart label cannot hold a link', 'so the box is greyed out there; underline, strike-through and a size on part of a label work as anywhere', 'Clear takes the styling off the selection, or off the whole field when nothing is selected', 'names what it will act on', 'a control that cannot apply is greyed out', 'Each click is one undo step',
-                'keep their own bar, which also has the colours, Default and a Size list for the selected text', 'Save Markdown keeps text style and an import brings it back'].every(w => words(hp).indexOf(w) >= 0), words(hp).slice(words(hp).indexOf('Text style'), words(hp).indexOf('Text style') + 400));
-        check('said (Help, Planners): Ctrl+Z in the field takes a click back and not the typing before it; after a row, a block, a node or an arrow is added, deleted or moved the bar asks for a click again; the keyboard in the bar — a control keeps the focus, the Size list stepped through is one undo step, Esc or Enter goes back; what is typed right after a styled part joins it; the Handbook pane says how Markdown carries text style',
-            ['After you add, delete or move a row, a block, a node or an arrow it asks for a click again.', 'Ctrl + Z in the field takes the click back, not what you typed before it', 'From the keyboard: Tab to the bar. A control you press there keeps the focus',
-                'step through the Size list with the arrow keys (that whole run of sizes is one undo step)', 'or Enter in the Size list', 'takes you back to the field, its selection as you left it; in the Link box Esc also drops what you typed there.', 'What you type right after a styled part joins it, as in a word processor; typed right before it, or on a new line you start with Enter, it does not.'].every(w => words(hp).indexOf(w) >= 0)
-            && ['Text style travels too. Save Markdown writes bold and italic as ** and *, strike-through as ~~, underline as', 'a link as [text](https://', 'and a colour or a size as a small tag around the text', 'around the whole field or around just the part that has it', 'an import reads all of those back, and you can write them by hand', 'A file with none of this in it comes in exactly as before.'].every(w => words(pane('handbook')).indexOf(w) >= 0), words(hp).slice(words(hp).indexOf('The bar names'), words(hp).indexOf('The bar names') + 900));
+                'Select linked text and the box shows its address; empty the box and press Enter to take the link off', 'In the editor a linked part looks like a link but is not followed: put the caret in it and the Link box says where it leads.', 'a click on the link opens it in the web browser, as a link in a text block does', 'What you type at the end of a link is not part of the link.', 'A flowchart label cannot hold a link', 'so the Link box is greyed out there; everything else works in a label as anywhere', 'Clear takes the styling off the selection, or off the whole field when nothing is selected',
+                'have the same controls on the bar fixed above their box, and lists as well', 'Save Markdown keeps text style and an import brings it back'].every(w => words(hp).indexOf(w) >= 0), words(hp).slice(words(hp).indexOf('Text style'), words(hp).indexOf('Text style') + 400));
+        check('said (Help, Planners): typing — what joins a styled part, a typed tag is its characters, paste is plain text, the symbol tray, Enter; undo — in a box Ctrl+Z is the planner\'s own, in steps, each with its text, styling and selection; the keyboard — Tab from box to box, Alt+F10 into the bar, a control keeps the focus, the Size list stepped through is one undo step, Esc or Enter goes back; the Handbook pane says how Markdown carries text style',
+            ['What you type right after a styled part joins it, as in a word processor; typed right before it, or on a new line you start with Enter, it does not.', 'A tag you type, such as', ', is just those characters in the box.', 'Paste brings in plain text only (in a one-line box each line break becomes a space)', 'tray types a symbol at the caret', 'Enter starts a new line in a flowchart node\'s label and does nothing in a one-line box.',
+                'In one of these boxes Ctrl + Z and Ctrl + Y (or Ctrl + Shift + Z) are the planner\'s own undo and redo.', 'A run of typing is one step', 'a pause, moving the caret, or switching between typing and deleting starts a new one', 'a paste, a line break and a symbol are a step each, and so is each click of the bar', 'Every step comes back with its text, its styling and its selection.',
+                'From the keyboard: Tab goes from box to box. Alt + F10 goes from a box into its bar, and Tab moves along it.', 'A control you press there keeps the focus', 'step through the Size list with the arrow keys (that whole run of sizes is one undo step)', 'or Enter in the Size list', 'takes you back to the box, its selection as you left it; in the Link box Esc also drops what you typed there.',
+                'In a title, a table cell, a caption or a label it is always the planner\'s history, which keeps your typing in steps'].every(w => words(hp).indexOf(w) >= 0) && /such as <code>&lt;b&gt;<\/code>, is just those characters in the box/.test(hp)
+            && ['Text style travels too. Save Markdown writes bold and italic as ** and *, strike-through as ~~, underline as', 'a link as [text](https://', 'and a colour or a size as a small tag around the text', 'around the whole field or around just the part that has it', 'an import reads all of those back, and you can write them by hand', 'A file with none of this in it comes in exactly as before.'].every(w => words(pane('handbook')).indexOf(w) >= 0), words(hp).slice(words(hp).indexOf('Typing.'), words(hp).indexOf('Typing.') + 900));
         const hh = ix.slice(ix.indexOf('<h4>What a page is</h4>'), ix.indexOf('<h4>Players can read / GM only</h4>'));
-        check('said (Help, Handbook): editing a page names the Text style bar and that players see a styled page as the GM does', /The <b>Text style<\/b> bar at the top of the editor colours, bolds, italicises, underlines, strikes through, sizes and links a page's text just as in a planner/.test(hh) && /Players see a styled page exactly as you do\./.test(hh) && words(hp).indexOf('is always the whole field') < 0 && tu.indexOf('size is always the whole field') < 0);
+        check('said (Help, Handbook): editing a page names the bar that appears on the box and that players see a styled page as the GM does; nothing anywhere still speaks of a Text style bar at the top of the editor',
+            /Click into a title, a table cell or a flowchart label and <b>a bar appears on the box<\/b> that colours, bolds, italicises, underlines, strikes through, sizes and links its text just as in a planner/.test(hh) && /Players see a styled page exactly as you do\./.test(hh)
+            && !/Text style<\/b> bar|bar at the top of the editor|closed until you click its|click its <b>&#9656;<\/b>/.test(ix + tu) && words(hp).indexOf('is always the whole field') < 0 && tu.indexOf('size is always the whole field') < 0);
         const stepOf = title => { const a = tu.indexOf("title: '" + title + "'"); return a < 0 ? '' : tu.slice(a, tu.indexOf('before:', a)); };
-        check('said (the tour): the planner step and the Handbook step both name the Text style bar (no step was added: the editors\' own steps cover it)',
-            /The <b>Text style<\/b> bar at the top of the editor \(click its <b>&#9656;<\/b>\) colours, bolds, italicises, underlines, strikes through, sizes and links your text: select characters in a title, a table cell or a flowchart label and click a style, or click in the box with nothing selected to style the whole field \(a link is a web address typed into the bar&rsquo;s <b>Link<\/b> box; a flowchart label cannot hold one\)/.test(stepOf('Writing a planner'))
-            && /the text blocks have the colours and a size list on their own bar/.test(stepOf('Writing a planner')) && /The same <b>Text style<\/b> bar styles a page&rsquo;s titles, table cells and flowchart labels &mdash; colour, size, underline, strike-through, and a link in a title or a cell &mdash; and players see them as you do\./.test(stepOf('Handbook')));
+        check('said (the tour): the planner step and the Handbook step both name the bar that appears on the box you click into (no step was added, and no step points at a bar at the top: the editors\' own steps cover it)',
+            /Click into a title, a table cell or a flowchart label and <b>a bar appears on the box<\/b> &mdash; bold, italic, underline, strike-through, the colours, a size, a link and symbols: select characters and click a style, or click with nothing selected to style the whole field \(a link is a web address typed into the bar&rsquo;s <b>Link<\/b> box; a flowchart label cannot hold one\)/.test(stepOf('Writing a planner'))
+            && /The box shows the styling as you type, and the text blocks have the same controls on their own bar\./.test(stepOf('Writing a planner')) && /<kbd>Ctrl<\/kbd>\+<kbd>Z<\/kbd> in a title, a cell or a label takes back your typing a step at a time through the same history/.test(stepOf('Writing a planner'))
+            && /The same bar on the box you click into styles a page&rsquo;s titles, table cells and flowchart labels &mdash; colour, size, underline, strike-through, and a link in a title or a cell &mdash; and players see them as you do\./.test(stepOf('Handbook')) && !/textStyle|tsBar/.test(tu));
         check('said (the integration guide): the keys and where each is stored, with the cleaner\'s own numbers and steps',
             ci.indexOf('**Text style (1.5.0):**') > 0 && ci.indexOf('"size": "' + SIZES.join('|') + '"') > 0 && SIZES.every(k => ci.indexOf(k + ' ' + SIZE_EM[k].replace('em', '')) > 0) && Object.keys(SIZE_EM).map(k => SIZE_EM[k]).every(v => ci.indexOf(v) > 0)
             && ci.indexOf('at most ' + MAX_SPANS + ' a field') > 0 && ci.indexOf('only the first ' + MAX_RAW + ' entries of a list are read') > 0 && ['"fmt": { "title": …, "sub": …, "tag": …, "must": …, "caption": … }', '`"colFmt"`, a list parallel to `cols`', '"fmt": { "col1": …, "col2": … }', '`"rowFmt"`, a list of lists parallel to `rows`', 'a strict `#rrggbb`', '<span style="color:#rrggbb">', '**Text style in Markdown:** an export carries it and an import reads it back', '"b": true, "i": true, "u": true, "st": true, "link": "https://…", "spans": [{ "s": 0, "e": 8, "size": "large", "color": "#5cb87a", "b": true, "i": true, "u": true, "st": true, "link": "https://…" }]', '`st` struck through (a span\'s `s` is its start)', '`b` / `i` / `u` / `st` only `true`', '`link` a web address by the very rule the page sanitiser has for an `a href`', 'it begins `http://` or `https://` (in any case) with something after it, holds no white space and no control character', 'at most ' + MAX_LINK.toLocaleString('en-US') + ' characters', 'a `size` or a `link` that every character of the field has is stored as the field\'s own', 'a size is never drawn inside a size', 'a flowchart label\'s format keeps no `link`'].every(w => ci.indexOf(w) > 0));
-        check('the page: the bar\'s place is in index.html above the blocks, closed (its body hidden), with no handler attribute and no inline script; its styles keep it in view while the editor scrolls',
-            /<div id="textStyleBar" class="ts-bar">\n\s*<button type="button" id="textStyleToggle" class="ts-toggle" aria-expanded="false" aria-controls="textStyleBody" title="[^"<>]+"><span class="ts-caret" aria-hidden="true">&#9656;<\/span> Text style<\/button>\n\s*<div id="textStyleBody" class="ts-body" hidden><\/div>\n\s*<\/div>\n\s*<div id="plannerBlocks"><\/div>/.test(ix)
-            && /\.ts-bar \{ position: sticky; top: -15px;/.test(css) && /\.ts-body\[hidden\] \{ display: none; \}/.test(css));
+        check('the page: the bar at the top of the editor is gone from index.html (no #textStyleBar, no toggle, no body) — the editor panel holds the boxes alone and the one bar is built by the script inside it; the style sheet styles the box as the input it replaces (one line, clipped; a label wraps; the placeholder while it is empty) and floats the bar without shifting anything',
+            !/textStyleBar|textStyleToggle|textStyleBody|ts-toggle|ts-caret/.test(ix + css + tu) && /<div id="plannerEditorWrap"[^>]*>\n\s*<div id="plannerBlocks"><\/div>/.test(ix)
+            && /\.ts-box \{[^}]*white-space: pre;[^}]*overflow: hidden;[^}]*\}/.test(css) && /\.ts-box\.ts-multi \{ white-space: pre-wrap;/.test(css) && /\.ts-box:empty::before \{ content: attr\(data-placeholder\);/.test(css) && /\.ts-box:focus \{ border-color: var\(--gold\); \}/.test(css)
+            && /\.ts-bar \{ position: fixed;/.test(css) && /\.ts-bar\[hidden\] \{ display: none; \}/.test(css) && !/\.ts-bar \{ position: sticky/.test(css) && /\.ts-box \.tsr-link \{ color: var\(--blue\); \}/.test(css));
         check('CI runs this suite', /run: node tools\/textcheck\.js/.test(yml));
         const DRX = await import(modUrl('docrender.js'));
         check('the console\'s list names the new module and the renderer\'s new calls, as the code publishes them', /wpTextFmt: 'Text formats, pure \(scripts\/textfmt\.js\)/.test(rd('system/app/scripts/devconsole.js')) && /cleanFmt\(fmt, text\), cleanLink\(address\), runsOf\(text, fmt\)/.test(rd('system/app/scripts/devconsole.js')) && /MAX_SPANS, MAX_LINK\. No DOM\./.test(rd('system/app/scripts/devconsole.js')) && /fmtHtml\(text, fmt, put\), fmtRich\(text, fmt\), cleanBlockFmts\(block\), labelFmt\(fmt, text\), sanitizeBare\(html\)/.test(rd('system/app/scripts/devconsole.js')) && /htmlToMarkdown, fmtFromInline\(html\), flowchartFromMermaid/.test(rd('system/app/scripts/devconsole.js')) && typeof DRX.fmtRich === 'function' && typeof DRX.sanitizeBare === 'function' && typeof DRX.labelFmt === 'function' && ['cleanFmt', 'cleanLink', 'runsOf', 'respan', 'apply', 'clear', 'stateAt', 'SIZES', 'SIZE_EM', 'PALETTE', 'MAX_SPANS', 'MAX_LINK'].every(k => k in TF));

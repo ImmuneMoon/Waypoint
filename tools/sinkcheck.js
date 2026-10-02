@@ -3,7 +3,7 @@
    reach markup, a style, a URL or a disk path only through a check: text escaped, formatted text through the page
    sanitiser, colours that are colours, numbers that are numbers, pictures that are the app's own (the owner's rule: a
    picture never loads from outside the app), and a category's files deleted only when they are that category's own.
-   Runs the REAL code: safecore.js and docrender.js as modules, the renderers sliced out of planner.js, inspector.js,
+   Runs the REAL code: safecore.js and docrender.js as modules, the renderers sliced out of planner.js (its editor boxes on the page of plain objects in tools/boxdom.js), inspector.js,
    whiteboard.js, sheets.js and music.js by their [sinkcheck:...] markers (never copied), and the page's mermaid config (scripts/bootdiagram.js),
    so a rewrite that drops a check fails here. Every built string is scanned for the markup it would create: no script-bearing tag, no on* attribute, no
    url() in a style, no src or href that leaves the app.
@@ -273,6 +273,71 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('text style (text block): the selection is put back on the same characters after a colour or a size (so the next press needs no second selecting), and Ctrl+Z after one goes to the planner\'s own history',
             (plannerAll.match(/\n      rteSelect\(body, off\);\n  \}/g) || []).length === 2 && /var off = rteOffsets\(body\);\n      if \(!off \|\| off\[0\] === off\[1\]\) return;/.test(plannerAll)
             && /if \(change !== 'clear' && !\(change && \(change\.b === true \|\| change\.i === true \|\| change\.u === true \|\| change\.st === true\)\)\) body\._wpNativeDirty = false;/.test(plannerAll) && /if \(this\._wpQuiet\) return;/.test(plannerAll));
+    }
+
+    /* ---- the planner editor's plain boxes (planner.js: the fields, the box and the bar on it, run for real on tools/boxdom.js): a campaign
+            from a file reaches a box as text nodes and fixed styles only ---- */
+    {
+        const TFb = await import(modUrl('textfmt.js')), { makeDom } = require('./boxdom.js');
+        const boxesSrc = slice('planner.js', 'boxes'), dom = makeDom(), doc = dom.document, saved = [];
+        const editor = dom.mk('div', '', {}, 'plannerEditorWrap'), blocksEl = dom.mk('div', '', {}, 'plannerBlocks'); doc.body.appendChild(editor); editor.appendChild(blocksEl);
+        const LNK = 'https://a.example/"onclick="alert(1)';   // a web address the link rule keeps: it is only ever a title's text
+        const dead = JSON.parse('{"b":1,"u":"true","size":"99em","color":"red;background:url(//evil.example/x)","link":"javascript:alert(1)","style":"color:red","onclick":"alert(1)","__proto__":{"i":true,"color":"#5cb87a"},"spans":[{"s":0,"e":4,"color":"expression(alert(1))","size":"huge;position:fixed","link":"data:text/html,x","b":"yes"},{"s":"0","e":9,"b":true},"x",null]}');
+        const live = () => ({ color: '#D9534F', b: true, onclick: 'alert(1)', style: 'position:fixed', spans: [{ s: 0, e: 4, size: 'huge', u: true, st: true, link: LNK, style: 'x', href: 'javascript:alert(1)' }, { s: 4, e: 9, color: 'red;background:url(' + U + ')', size: '99em;position:fixed', link: 'javascript:alert(1)', i: true }] });
+        const map = { id: 'p9', type: 'planner', meta: {}, blocks: [
+            { id: 'a', type: 'h1', title: T + '<script>alert(1)</script>&lt;b&gt;', sub: P, fmt: { title: live(), sub: dead } },
+            { id: 'b', type: 'node', title: T, tag: T, must: P, cols: [T, P], colFmt: [live(), dead], rows: [{ col1: T + P, col2: '<a href="javascript:alert(1)">x</a><style>*{display:none}</style>', fmt: { col1: live(), col2: dead } }] },
+            { id: 'c', type: 'flowchart', nodes: [{ id: T, text: T + '\n' + P + '\n', fmt: live() }], edges: [{ from: 'a', to: 'b', text: T, fmt: dead }] },
+            { id: 'd', type: 'image', src: U, caption: T + P, fmt: { caption: live() } }
+        ] };
+        const deps = { TF: TFb, document: doc, window: dom.window, setTimeout: dom.setTimeout, esc: SC.esc, getActiveMap: () => map, isDocLike: () => true, save: () => { saved.push(JSON.stringify(map.blocks)); }, renderPlannerPreview: () => {}, stepBoundary: () => {}, stepFold: () => {}, stepSel: () => {}, toast: () => {}, fieldUndoChord: () => false, boxUndo: () => {} };
+        const names = Object.keys(deps), api = new Function(...names, boxesSrc + '\nreturn { tsBoxHtml, tsFill, tsBuild, tsWire, tsBox, tsField };')(...names.map(k => deps[k]));
+        const box = (cls, data, multi) => { const el = dom.mk('div', cls + ' ts-box' + (multi ? ' ts-multi' : ''), data); el.setAttribute('contenteditable', 'plaintext-only'); blocksEl.appendChild(el); return el; };
+        const fields = [['field b-title', { idx: 0 }, { idx: 0, k: 'title' }], ['field b-sub', { idx: 0 }, { idx: 0, k: 'sub' }], ['field b-title', { idx: 1 }, { idx: 1, k: 'title' }], ['field b-sub', { idx: 1 }, { idx: 1, k: 'sub' }], ['field b-must', { idx: 1 }, { idx: 1, k: 'must' }],
+            ['b-colhead', { idx: 1, ci: 0 }, { idx: 1, k: 'col', ci: 0 }], ['b-colhead', { idx: 1, ci: 1 }, { idx: 1, k: 'col', ci: 1 }], ['r-col', { idx: 1, ri: 0, ci: 0 }, { idx: 1, k: 'cell', ri: 0, ci: 0 }], ['r-col', { idx: 1, ri: 0, ci: 1 }, { idx: 1, k: 'cell', ri: 0, ci: 1 }],
+            ['field fc-n-text fc-grow', { idx: 2, ni: 0 }, { idx: 2, k: 'node', ni: 0 }], ['fc-e-text', { idx: 2, ei: 0 }, { idx: 2, k: 'edge', ei: 0 }], ['field b-caption', { idx: 3 }, { idx: 3, k: 'caption' }]];
+        const els = fields.map(f => box(f[0], f[1], f[2].k === 'node')), before = JSON.stringify(map.blocks);
+        const drew = throwsNot(() => api.tsFill(blocksEl, map.blocks));   // the test page throws on any innerHTML, outerHTML or insertAdjacentHTML
+        const SIZES = Object.keys(TFb.SIZE_EM).map(k => TFb.SIZE_EM[k]), DECOS = ['underline', 'line-through', 'underline line-through'];
+        const styleOk = s => Object.keys(s).every(k => (k === 'color' && /^#[0-9a-f]{6}$/.test(s[k])) || (k === 'fontWeight' && s[k] === 'bold') || (k === 'fontStyle' && s[k] === 'italic') || (k === 'textDecoration' && DECOS.indexOf(s[k]) >= 0) || (k === 'fontSize' && SIZES.indexOf(s[k]) >= 0));
+        let bad = null, runs = 0, styled = 0, linked = 0;
+        els.forEach((el, k) => {
+            const want = api.tsField(map.blocks, fields[k][2]).text(), multi = fields[k][2].k === 'node';
+            let text = '';
+            el.childNodes.forEach((c, i) => {
+                if (multi && i === el.childNodes.length - 1 && c.nodeType === 1 && c.nodeName === 'BR' && !c.childNodes.length && !Object.keys(c.attrs).length) return;   // the one line-break element after a label's final line break
+                if (c.nodeType !== 1 || c.nodeName !== 'SPAN' || c.childNodes.length !== 1 || c.firstChild.nodeType !== 3 || !/^tsr( tsr-link)?$/.test(c.className) || Object.keys(c.attrs).length || Object.keys(c.dataset).length || c.id || !styleOk(c.style) || (c.title && c.title !== 'Link: ' + LNK) || Object.keys(c.handlers).length || Object.keys(c.capture).length) { bad = bad || { field: k, child: i, node: c.nodeName, cls: c.className, style: c.style, title: c.title }; return; }
+                runs++; if (Object.keys(c.style).length) styled++; if (c.title) linked++;
+                text += c.firstChild.nodeValue;
+            });
+            if (text !== want) bad = bad || { field: k, text, want };
+        });
+        check('planner editor boxes: a campaign from a file — hostile titles, a tag, heads, cells, a label, a caption, each with a format — reaches the boxes as text nodes inside elements the app makes and nothing else: every character of the text is in a text node as it is (markup is its characters), a run\'s element carries only its class, a style made of a strict colour and fixed words, and at most a title; no attribute, no handler, no element from the text; drawing writes nothing to the campaign',
+            drew && !bad && runs >= 20 && styled >= 8 && linked >= 4 && JSON.stringify(map.blocks) === before && saved.length === 0 && blocksEl.all().every(n => n.nodeName === 'DIV' || n.nodeName === 'SPAN' || n.nodeName === 'BR') && ({}).i === undefined, bad || { drew, runs, styled, linked });
+        const sub = els[1], head1 = els[6], cell1 = els[8], edge = els[10];
+        check('planner editor boxes: a format that holds nothing the cleaner keeps (a colour that is no colour, a size that is none, a script address, a style, a handler, inherited keys) draws the unstyled text — one element with no style and no title',
+            [sub, head1, cell1, edge].every(el => el.childNodes.length === 1 && Object.keys(el.firstChild.style).length === 0 && el.firstChild.className === 'tsr' && !el.firstChild.title) && cell1.firstChild.firstChild.nodeValue === '<a href="javascript:alert(1)">x</a><style>*{display:none}</style>');
+        check('planner editor boxes: a linked part is a span that looks like a link — its address, quotes and all, is the text of its title and of nothing else (no anchor, no href, nothing to follow)',
+            els[0].firstChild.title === 'Link: ' + LNK && els[0].firstChild.className === 'tsr tsr-link' && els[0].firstChild.nodeName === 'SPAN' && els[0].firstChild.attrs.href === undefined && blocksEl.all().every(n => n.nodeName !== 'A' && !('href' in n) && n.attrs.href === undefined && n.attrs.onclick === undefined));
+        // the markup renderPlanner writes for a box holds a placeholder from the file (a column's name) and never a field's text
+        const html = api.tsBoxHtml('r-col', P + T, 'data-idx="1" data-ri="0" data-ci="0"', ''), htmlL = api.tsBoxHtml('field fc-n-text fc-grow', T, 'data-idx="2" data-ni="0"', 'flex: 1;', true);
+        check('planner editor boxes: the markup of a box holds no field\'s text — only a placeholder, escaped whatever the file calls a column — and runs nothing',
+            risks(html).length === 0 && risks(htmlL).length === 0 && html.indexOf('<img') < 0 && htmlL.indexOf('<img') < 0 && html.indexOf('data-placeholder="x&quot; onmouseover=&quot;alert(1)&quot; y=&quot;&lt;img src=x onerror=alert(1)&gt;"') > 0 && /^<div class="r-col ts-box" contenteditable="plaintext-only" role="textbox"/.test(html) && /><\/div>$/.test(html), [html, risks(html)]);
+        // a paste and a drop of markup stay text
+        api.tsBuild(editor, [['→', 'right arrow']]); api.tsWire(blocksEl, editor);
+        const title = els[2]; title.focus(); dom.engine.caret(title, 0);
+        const flav = { 'text/plain': '<b onclick="alert(1)">B</b>\n<script>alert(2)</script>', 'text/html': '<b onclick="alert(1)">B</b><img src=x onerror=alert(3)><script>alert(2)</script>' };
+        const pasted = dom.engine.paste(title, flav), dropped = dom.fire(title, 'drop', { dataTransfer: { getData: t => (t === 'text/plain' ? '<iframe src=//evil.example>' : '<iframe src=//evil.example></iframe>') } });
+        const lab = els[9]; lab.focus(); dom.engine.caret(lab, 0); dom.engine.paste(lab, flav);
+        const onlyText = el => el.childNodes.every((c, i) => (c.nodeName === 'SPAN' && c.childNodes.length === 1 && c.firstChild.nodeType === 3 && !Object.keys(c.attrs).length) || (c.nodeName === 'BR' && i === el.childNodes.length - 1));
+        check('planner editor boxes: a paste of markup stays text — only the clipboard\'s plain text comes in, as its characters, in the box and in the campaign (a one-line field takes the line break as a space, a label keeps it); nothing of the HTML flavour is read; a drop likewise; the engine\'s own insertion is cancelled',
+            pasted.defaultPrevented && dropped.defaultPrevented && map.blocks[1].title === '<b onclick="alert(1)">B</b> <script>alert(2)</script>' + T + '<iframe src=//evil.example>' && onlyText(title) && dom.engine.textsOf(title).map(t => t.nodeValue).join('') === map.blocks[1].title
+            && map.blocks[2].nodes[0].text === '<b onclick="alert(1)">B</b>\n<script>alert(2)</script>' + T + '\n' + P + '\n' && onlyText(lab) && saved.length === 3 && saved.every(s => s.indexOf('alert(3)') < 0), [map.blocks[1].title, map.blocks[2].nodes[0].text, saved.length]);
+        // a scan of the boxes' whole code path: no markup is ever written from a string, every element is made by name
+        const made = (boxesSrc.match(/document\.createElement\(([^)]*)\)/g) || []).map(s => s.replace(/^document\.createElement\(/, '').replace(/\)$/, '')), mks = (boxesSrc.match(/\bmk\('([a-z]+)'/g) || []).map(s => s.slice(4, -1)), btns = (boxesSrc.match(/\bbtn\('[a-z]+', '([a-z]+)'/g) || []).map(s => s.replace(/^.*, '/, '').replace(/'$/, ''));
+        check('planner editor boxes (a scan of the fields, the box and the bar): no innerHTML, outerHTML, insertAdjacentHTML or document.write anywhere in that code; no handler attribute, no eval, no Function; every element is made by createElement with a fixed name (a run\'s span, the line-break element, the bar\'s own controls) and every text by createTextNode or textContent',
+            !/innerHTML|outerHTML|insertAdjacentHTML|document\.write|\beval\(|new Function|Function\(|setAttribute\('on|\.on[a-z]+ = /.test(boxesSrc) && made.slice().sort().join() === ["'br'", "'div'", "'span'", 'tag'].join() && mks.length >= 15 && mks.every(t => ['div', 'button', 'span', 'label', 'input', 'select', 'option'].indexOf(t) >= 0) && btns.join() === 'b,i,u,s'
+            && /el\.appendChild\(document\.createTextNode\(String\(r\.t\)\)\);/.test(boxesSrc) && /if \(typeof r\.color === 'string' && \/\^#\[0-9a-f\]\{6\}\$\/\.test\(r\.color\)\) el\.style\.color = r\.color;/.test(boxesSrc) && /if \(link\) el\.title = 'Link: ' \+ TF\.cleanLink\(r\.link\);/.test(boxesSrc), [made, mks, btns]);
     }
 
     /* ---- the planner editor's rich-text boxes (planner.js rteInitial): a contenteditable is markup too ---- */

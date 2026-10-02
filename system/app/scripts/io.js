@@ -103,12 +103,14 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
             if (m.type === 'planner') {
                 if (!Array.isArray(m.blocks)) { m.blocks = []; fix('planner blocks created'); }
                 if (!m.blocks.every(isPlain)) { m.blocks = m.blocks.filter(isPlain); fix('corrupt planner block dropped'); }
+                if (window.wpDocRender && window.wpDocRender.cleanBlockFmts) m.blocks.forEach(window.wpDocRender.cleanBlockFmts);   // text style (1.5.0): the look of a block's plain fields, cleaned against their texts on load (with the cleaner not loaded left as it is: every draw cleans again)
                 return;
             }
             if (m.type === 'doc') {   // a handbook page: blocks only, never the map arrays (the cleanup classifier tests !m.rooms)
                 if (!Array.isArray(m.blocks)) { m.blocks = []; fix('page blocks created'); }
                 if (!m.blocks.every(isPlain)) { m.blocks = m.blocks.filter(isPlain); fix('corrupt page block dropped'); }
                 m.blocks.forEach(function(b) { if (b && typeof b === 'object' && !b.id) { b.id = 'b_' + Math.random().toString(36).slice(2, 8); fix('block id added'); } });
+                if (window.wpDocRender && window.wpDocRender.cleanBlockFmts) m.blocks.forEach(window.wpDocRender.cleanBlockFmts);   // text style (1.5.0): as a planner's
                 return;
             }
             if (!Array.isArray(m.rooms)) { m.rooms = []; fix('rooms created'); }
@@ -578,6 +580,10 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
   }
 
   function closeChunk() { typeSlot.el = null; typeSlot.key = null; }
+
+  // A press that must be one undo step of its own while a text field has the focus (the planner's Text style bar by key): typing still on
+  // the debounce timer becomes its step first, and the chunk closes, so the save that follows is never folded into it.
+  function stepBoundary() { if (savePending) pushHistory(); closeChunk(); }
 
   // Wipe every history (no argument) or one campaign's; nothing can be popped until the next pass seeds again
   function resetHistory(campId) {
@@ -1788,6 +1794,8 @@ export {
     withoutHistory,
 
     fieldUndoChord,
+
+    stepBoundary,
 
     takeSafetyCopy,
 

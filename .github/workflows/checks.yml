@@ -93,6 +93,9 @@ jobs:
       - name: zipcheck — the export bundle's archive, at any size
         if: ${{ !cancelled() }}
         run: node tools/zipcheck.js
+      - name: textcheck — text formats (the look of a plain field, stored beside its text) and the editor's Text style bar
+        if: ${{ !cancelled() }}
+        run: node tools/textcheck.js
       - name: updatercheck — signed updates, the way back, the core updating itself, the key tool and the core's record (run on scratch installs; nothing downloaded is ever started)
         if: ${{ !cancelled() }}
         run: node tools/updatercheck.js

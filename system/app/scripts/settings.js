@@ -87,7 +87,8 @@ function syncPanel() {
     var dcState = ui('setDevConsoleState');
     if (dcState) dcState.textContent = localStorage.getItem('wp_devconsole') === 'on' ? 'on' : 'off';
     var ryState = ui('setRelayState');
-    if (ryState) ryState.textContent = localStorage.getItem('wp_relayOnly') === '1' ? 'on — relay only' : 'off — direct first';
+    if (ryState) ryState.textContent = localStorage.getItem('wp_relayOnly') !== '1' ? 'off — direct first' : (window.wpNet && window.wpNet.relayActive && window.wpNet.relayActive()) ? 'on — relay only' : 'on, but no relay set — connecting directly';   // the truth: the switch does nothing without a relay on this computer
+    var ryBlock = ui('setRelayBlock'); if (ryBlock && localStorage.getItem('wp_relayOnly') === '1') ryBlock.style.display = 'block';   // and the switch is in view whenever it is on (it follows the saves folder; the relay does not)
     var go = ui('setGridOpacity');
     var gpct = Math.round(gridOpacity() * 100);
     if (go) go.value = gpct;
@@ -216,8 +217,9 @@ function loadTurnFields() {
     } catch (e) {}
     var st = ui('setTurnState');
     if (st) st.textContent = (window.wpNet && window.wpNet.turnConfig && window.wpNet.turnConfig()) ? 'configured' : 'none \u2014 direct connections only';
-    var rb = ui('setRelayBlock');
-    if (rb) rb.style.display = (window.wpNet && window.wpNet.turnConfig && window.wpNet.turnConfig()) ? 'block' : 'none';
+    var rb = ui('setRelayBlock'), hasRelay = !!(window.wpNet && window.wpNet.turnConfig && window.wpNet.turnConfig()), relayFlag = false;
+    try { relayFlag = localStorage.getItem('wp_relayOnly') === '1'; } catch (e) {}
+    if (rb) rb.style.display = (hasRelay || relayFlag) ? 'block' : 'none';   // shown with a relay — and whenever the switch is on without one (it follows the saves folder; the relay does not), so it can be seen and switched off
 }
 function saveTurnFields() {
     var u = ui('setTurnUrls'), n = ui('setTurnUser'), p = ui('setTurnPass');
@@ -253,7 +255,8 @@ if (_turnHelp) _turnHelp.addEventListener('click', function(e) {
 var _turnClear = ui('setTurnClearBtn');
 if (_turnClear) _turnClear.addEventListener('click', function() {
     ['setTurnUrls', 'setTurnUser', 'setTurnPass'].forEach(function(id) { var el = ui(id); if (el) el.value = ''; });
-    saveTurnFields(); toast('Relay removed \u2014 direct connections only.');
+    try { localStorage.setItem('wp_relayOnly', '0'); } catch (e) {}   // the mode that depends on the relay goes with it
+    saveTurnFields(); syncPanel(); toast('Relay removed \u2014 direct connections only.');
 });
 loadTurnFields();
 

@@ -1038,7 +1038,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
       if (joinGo) joinGo.addEventListener('click', function() {
           var st = document.getElementById('wcJoinStatus');
           function say(msg, cls) { if (st) { st.textContent = msg; st.className = 'wc-join-status' + (cls ? ' ' + cls : ''); } }
-          var code = (document.getElementById('wcJoinCode').value || '').trim().toUpperCase();
+          var rawCode = document.getElementById('wcJoinCode').value || '', code = (window.wpNet && window.wpNet.typedCode ? window.wpNet.typedCode(rawCode) : rawCode.trim()).toUpperCase();   // the code as typed or pasted: its hyphen and spaces out (XXXXX-XXXXX and XXXXXXXXXX dial the same room)
           if (code.length < 4) { say('Enter the room code the GM shared.', 'err'); return; }
           var name = (document.getElementById('wcNameInput').value || '').trim();
           if (!name) { say('Enter your name — that’s how players know you.', 'err'); try { document.getElementById('wcNameInput').focus(); } catch (e) {} return; }

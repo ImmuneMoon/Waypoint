@@ -115,7 +115,18 @@ function rememberTableKey(gmId, key) { if (typeof gmId !== 'string' || !gmId || 
 // they dialled)); the host checks it over its own room id. A proof made at another room (a squatted generation of the code, another GM's table
 // relaying the challenge) or for another nonce never verifies here, and the key itself never travels. Without WebCrypto there is no proof:
 // the host then asks the GM and the player sends none (fail closed).
-function authData(nonce, roomId) { return 'wp-auth|' + nonce + '|' + roomId; }
+// Transport (2026-10-01): the proof is bound to the encrypted channel it travels on as well — the two DTLS certificate fingerprints of this
+// connection, the player's then the host's, each side reading them off its OWN RTCPeerConnection (the description it made and the one it was given).
+// Whoever sits between the two ends each leg with a certificate of its own, so the two sides hash different pairs and a proof passed along opens
+// nothing. With no readable fingerprint there is no proof (the player) and no admission on one (the host): the GM is asked.
+function dtlsPrint(desc) {
+    var sdp = desc && typeof desc.sdp === 'string' && desc.sdp.length <= 200000 ? desc.sdp : '', re = /^a=fingerprint:([A-Za-z0-9-]{1,20}) +([0-9A-Fa-f:]{2,200})[ \t\r]*$/gm, m, set = Object.create(null);
+    while ((m = re.exec(sdp)) !== null) set[m[1].toLowerCase() + ' ' + m[2].toUpperCase()] = 1;
+    return Object.keys(set).sort().join(',');   // every fingerprint line (session and media level) as one text: the hash named in lower case, the hex in upper, each once, in order
+}
+function chanPrints(conn) { try { var pc = conn && conn.peerConnection, mine = pc ? dtlsPrint(pc.localDescription) : '', theirs = pc ? dtlsPrint(pc.remoteDescription) : ''; return mine && theirs ? { mine: mine, theirs: theirs } : null; } catch (e) { return null; } }   // this side's certificate and the other's, or null when either cannot be read
+function saidPrints(v) { return Array.isArray(v) && v.length === 2 && typeof v[0] === 'string' && typeof v[1] === 'string' && !!v[0] && !!v[1] && v[0].length <= 400 && v[1].length <= 400 ? [v[0], v[1]] : null; }   // the pair a player's hello states its proof was made over: [the player's, the host's]
+function authData(nonce, roomId, playerFp, hostFp) { return 'wp-auth|' + nonce + '|' + roomId + '|' + playerFp + '|' + hostFp; }
 function hmacHex(key, data) {
     var sub = typeof crypto !== 'undefined' && crypto && crypto.subtle;
     if (!sub || typeof key !== 'string' || !key || typeof data !== 'string') return Promise.resolve(null);
@@ -140,9 +151,9 @@ function samePub(a, b) { return !!a && !!b && sameStr(a.x, b.x) && sameStr(a.y, 
 function validCn(v) { return typeof v === 'string' && /^[0-9a-f]{32}$/.test(v); }   // the player's nonce: 16 random bytes as hex, fresh per connection
 function snapData(cn, roomId, gmId, key, bind) { return 'wp-snap|' + cn + '|' + roomId + '|' + gmId + '|' + key + bind; }   // what a snapshot's signature covers: a signature made for another player's connection, another room or another key never verifies
 // What ties that signed text to the connection it travels on, read by both sides from their own end of it (asHost: the host's end). THE ONE PLACE
-// for it: a string appended to the signed text as it stands ('' today: the room id is the tie), or null when it cannot be read — the host then signs
+// for it: a string appended to the signed text as it stands (the connection's two certificate fingerprints, the player's then the host's, as the key proof names them), or null when it cannot be read — the host then signs
 // nothing for that connection, and a player's app verifies nothing on it (under a GM it knows, the table is not taken).
-function snapBind(conn, asHost) { return ''; }
+function snapBind(conn, asHost) { var ch = chanPrints(conn); return ch ? '|' + (asHost ? ch.theirs : ch.mine) + '|' + (asHost ? ch.mine : ch.theirs) : null; }
 var GM_ALG = { name: 'ECDSA', namedCurve: 'P-256' }, GM_SIG = { name: 'ECDSA', hash: 'SHA-256' };
 function gmSignHex(priv, data) {   // (host) → Promise of the signature as hex (r and s, 64 bytes), null when it cannot be made
     var sub = typeof crypto !== 'undefined' && crypto && crypto.subtle;
@@ -427,6 +438,23 @@ function unadmittedRoom(conn) {
     return true;
 }
 // [netcheck:conncap-end]
+// [netcheck:backlog-start]
+// Transport (2026-10-01): what the host has queued for a connection that is not taking it. The connection library holds every message past the
+// channel's own 8 MB in a list of its own with no bound, so a player whose app stops reading (or whose link is far too slow) had the GM's app
+// hold map copies and pictures for them without end. A sound waits for the list to empty and a picture is answered busy past ASSET_BACKLOG (the
+// asset gate); past BACKLOG_DEAD messages (each at most about 16 KB: some 130 MB) the connection is closed, which empties the list — their app
+// joins again by itself and takes a fresh copy of the table. Judged at each heartbeat.
+var BACKLOG_DEAD = 8192;
+function backlogSweep() {
+    if (net.role !== 'host') return;
+    net.conns.slice().forEach(function(c) {
+        if (!c || !c.open || connBacklog(c) <= BACKLOG_DEAD) return;
+        var p = own(net.roster, c.peer) ? net.roster[c.peer] : null;
+        if (p) toast((p.name || 'A player') + ' is not keeping up with the table \u2014 dropped. They can join again.');
+        try { c.close(); } catch (e) {}   // the close handler removes them from the roster
+    });
+}
+// [netcheck:backlog-end]
 var hbTimer = null, lastSeen = {}, hostLastSeen = 0;
 var holdUntil = {}, hostHoldUntil = 0, HOLD_MAX = 180000;   // Onboarding F2b: a side about to freeze in a print dialog asks the other to wait (3 minutes at most, until it speaks again)
 function noteSeen(peerId) { var now = Date.now(); lastSeen[peerId] = now; delete holdUntil[peerId]; if (net.role === 'client') { hostLastSeen = now; hostHoldUntil = 0; } }
@@ -475,6 +503,7 @@ function hbTick() {
         // every open connection, a peer still waiting for the GM's Allow too: a heartbeat carries nothing of the table, and without it a
         // waiting player takes the silence for a lost GM and reconnects every 20 s (the host keeps a waiting peer for a while: UNADMITTED_TTL)
         net.conns.forEach(function(c) { if (c.open) { try { c.send({ type: 'hb' }); } catch (e) { sendFailed(e); } } });
+        if (typeof backlogSweep === 'function') backlogSweep();   // transport: a connection far behind on what it is sent is dropped (it joins again and takes a fresh copy)
         var stale = 0;
         net.conns.slice().forEach(function(c) {
             if (!lastSeen[c.peer]) lastSeen[c.peer] = now;
@@ -2172,7 +2201,7 @@ function videoCap(ln, v) {
             var r = s.setParameters(p); if (r && r.catch) r.catch(function() {});
         } catch (e) {}
     };
-    var only = false; try { only = !!(relayOnly() && turnConfig()); } catch (e) {}
+    var only = false; try { only = relayActive(); } catch (e) {}
     apply(only);
     if (only || typeof ln.pc.getStats !== 'function') return;
     try {
@@ -4702,7 +4731,7 @@ function processNextApproval() {
     if (next.prof && own(bannedIds, next.prof.id)) { denyJoin(next.conn, 'You were removed from this session.'); processNextApproval(); return; }   // the words the hello gate gives, in its order
     if (next.prof && campQ && campQ.bannedPlayers && own(campQ.bannedPlayers, next.prof.id)) { denyJoin(next.conn, 'You are banned from this campaign.'); processNextApproval(); return; }
     approvalOpen = true;
-    var hint = next.why ? ' — a name this table already knows, but without its table key (a fresh install, or someone else using that name)' : '';
+    var hint = next.why === 'unbound' ? ' — they hold this table\u2019s key, but their answer did not match this connection: someone may be between you and them. Check with them another way before you let them in' : next.why ? ' — a name this table already knows, but without its table key (a fresh install, or someone else using that name)' : '';
     showConfirm('"' + (next.prof.name || 'A player') + '" wants to join your table' + hint + '. Let them in?', function(yes) {
         approvalOpen = false;
         if (!net.active || net.role !== 'host') return;
@@ -4933,15 +4962,17 @@ function handleMessage(msg, conn) {
         if (!cm.signed && validCn(msg.cn)) cm.signed = gmPresign(cm, msg.cn, keyed0 ? rec0.key : '', conn);   // security (2026-10-01): the snapshot this connection may be given is signed with the GM's key over the player's own nonce — made ready now (asynchronous), sent only on admission
         if (keyed0 && cm.nonce && typeof msg.proof === 'string') {
             var nonce0 = cm.nonce, key0 = rec0.key; cm.nonce = null;   // a nonce is good for one answer
-            hmacHex(key0, authData(nonce0, net.roomPeer)).then(function(want) { return cm.signed ? cm.signed.then(function() { return want; }) : want; }).then(function(want) {   // (the snapshot's signature, begun at the first hello, is ready before anyone is admitted on a proof)
+            var ch0 = chanPrints(conn), fp0 = saidPrints(msg.fp) || (ch0 ? [ch0.theirs, ch0.mine] : null);   // transport: this connection's two certificates as this side reads them, and the pair the player says the proof was made over (none stated: this side's own)
+            hmacHex(key0, fp0 ? authData(nonce0, net.roomPeer, fp0[0], fp0[1]) : null).then(function(want) { return cm.signed ? cm.signed.then(function() { return want; }) : want; }).then(function(want) {   // (the snapshot's signature, begun at the first hello, is ready before anyone is admitted on a proof)
                 // the check ran asynchronously: judge again what may have changed meanwhile
                 if (net.role !== 'host' || !conn.open || own(net.roster, conn.peer) || _connMeta[conn.peer] !== cm) return;   // the table ended, the connection closed or was admitted, or a new connection took this peer id
                 if (pendingJoins.some(function(q) { return q.conn === conn; })) return;   // the challenge timer already put this request to the GM: the GM's word stands (a second admit would re-issue the key under the player)
                 var dupV = net.conns.find(function(c) { return c !== conn && c.open && own(net.roster, c.peer) && net.roster[c.peer].id === prof.id && Date.now() - (lastSeen[c.peer] || 0) < HB_STALE; });
                 if (dupV) { denyJoin(conn, 'That player identity is already at the table.'); return; }
                 var campV = getActiveCampaign(), recV = (campV && campV.players && own(campV.players, prof.id)) ? campV.players[prof.id] : null;
-                if (want && recV && recV.key === key0 && sameStr(want, msg.proof)) admitPlayer(conn, prof, key0);   // the key still the one proven (the GM may have re-issued it meanwhile)
-                else queueJoin(conn, prof, 'nokey');
+                var keyOk0 = !!(want && recV && recV.key === key0 && sameStr(want, msg.proof)), bound0 = !!(ch0 && fp0 && fp0[0] === ch0.theirs && fp0[1] === ch0.mine);   // the key still the one proven (the GM may have re-issued it meanwhile) — and proven over THIS connection: the pair the proof covers is the pair this side reads
+                if (keyOk0 && bound0) admitPlayer(conn, prof, key0);
+                else queueJoin(conn, prof, keyOk0 ? 'unbound' : 'nokey');   // the right key over another channel (or one this side cannot read): never admitted on it — the GM is asked, and told which
             });
         } else if (keyed0 && !cm.authAsked) {
             cm.authAsked = true; cm.nonce = newKey();
@@ -4957,15 +4988,16 @@ function handleMessage(msg, conn) {
         // the proof) — a plain hello, and the GM is simply asked.
         if (!net.conns[0] || conn !== net.conns[0] || net.syncedPeer || conn.wpAuthDone) return;
         conn.wpAuthDone = true;
-        var keyA = tableKeyFor(String(msg.gmId || '').slice(0, 80)), nonceA = (typeof msg.nonce === 'string' && msg.nonce.length >= 16 && msg.nonce.length <= 128) ? msg.nonce : '';
+        var keyA = tableKeyFor(String(msg.gmId || '').slice(0, 80)), nonceA = (typeof msg.nonce === 'string' && msg.nonce.length >= 16 && msg.nonce.length <= 128) ? msg.nonce : '', chA = chanPrints(conn);   // chA (transport): this connection's two certificate fingerprints — none readable, no proof
         var sayA = function(proof) {
             if (!conn.open || net.conns[0] !== conn) return;
             var pwA = ui('netJoinPassInput'), helloA = { type: 'hello', profile: getProfile(), password: pwA ? pwA.value.trim() : '', version: APP_VERSION };
+            if (typeof proof === 'string' && proof && chA) helloA.fp = [chA.mine, chA.theirs];   // transport: the pair the proof was made over, as this side read it (the certificates are no secret): the host tells a right key over another channel from a wrong key
             if (typeof proof === 'string' && proof) helloA.proof = proof;
             if (validCn(conn.wpCn)) helloA.cn = conn.wpCn;   // the nonce this connection's snapshot is to be signed over (the same as in the first hello)
             try { conn.send(helloA); } catch (e) { sendFailed(e); }
         };
-        if (keyA && nonceA) hmacHex(keyA, authData(nonceA, conn.peer)).then(sayA); else sayA(null);
+        if (keyA && nonceA && chA) hmacHex(keyA, authData(nonceA, conn.peer, chA.mine, chA.theirs)).then(sayA); else sayA(null);
     // [netcheck:gate-end]
     } else if (msg.type === 'wait' && net.role === 'client') {
         setStatus('Connected — waiting for the GM to let you in…');
@@ -6195,11 +6227,109 @@ function scheduleReconnect() {
     reconn.timer = setTimeout(function() { joinSession(reconn.code, reconn.name, true); }, reconn.tries === 1 ? 1200 : 2500);
 }
 
+// [netcheck:transport-start]
+// Transport (2026-10-01): what reaches this machine BELOW handleMessage. The connection library decodes every data-channel message itself and puts
+// the pieces of a large one back together before the app hears a word, with no bound of its own: pieces could be held without end, a count could be
+// stated far past what the bytes hold, and a message that does not decode threw outside every handler of the app's. So each connection's own entry
+// point is wrapped (wireGuard), for a host and for a player alike, and judges first:
+//  - one raw message is bytes and at most RAW_MAX of them (the library never puts more than 16,300 and a small envelope in one);
+//  - its SHAPE, walked without decoding (packShapeOk): a map at the top, every stated length and count within the bytes that are there, at most
+//    PACK_DEPTH levels, every map key a string and none the one that names an object's prototype, nothing after the end;
+//  - a connection the GM has not admitted is read PIECES_PRE pieces a message and BYTES_PRE bytes in all (several hellos with a picture) and no more;
+//  - an admitted player's message is at most PIECES_HOST pieces (about 66 MB: eleven times the largest thing a player's app sends on purpose, a 6 MB
+//    shared picture) and a host's PIECES_CLIENT (about 133 MB: five times the largest picture, 26 MB, and far past any campaign's snapshot);
+//  - at most CHUNK_OPEN large messages under way at once (an honest sender finishes one before the next), the pieces of all of them counted together.
+// Anything else — and anything the library's own decoding throws on — closes the connection, and nothing of it reaches handleMessage or the page.
+var RAW_MAX = 17324, PACK_DEPTH = 64, CHUNK_OPEN = 2, PIECES_PRE = 32, BYTES_PRE = 1048576, PIECES_HOST = 4096, PIECES_CLIENT = 8192;
+function packKeyIsProto(u, at, len) {   // a key's bytes read the way the library's own decoder reads them (it takes malformed sequences too): is it "__proto__"?
+    if (len < 9 || len > 36) return false;
+    var s = '', j = 0, b, c, g = function(k) { return k < len ? u[at + k] : 0; };
+    while (j < len && s.length < 10) {
+        b = u[at + j];
+        if (b < 160) { c = b; j++; }
+        else if ((192 ^ b) < 32) { c = ((31 & b) << 6) | (63 & g(j + 1)); j += 2; }
+        else if ((224 ^ b) < 16) { c = ((15 & b) << 12) | ((63 & g(j + 1)) << 6) | (63 & g(j + 2)); j += 3; }
+        else { c = ((7 & b) << 18) | ((63 & g(j + 1)) << 12) | ((63 & g(j + 2)) << 6) | (63 & g(j + 3)); j += 4; }
+        s += c > 0 && c < 128 ? String.fromCharCode(c) : '?';
+    }
+    return j >= len && s === '__proto__';
+}
+function packShapeOk(data) {
+    var u = data instanceof ArrayBuffer ? new Uint8Array(data) : ArrayBuffer.isView(data) ? new Uint8Array(data.buffer, data.byteOffset, data.byteLength) : null;
+    if (!u || !u.length) return false;
+    var n = u.length, i = 0, stack = [], left = 1, map = false, key = false, t = u[0];
+    if (!((t >= 0x80 && t <= 0x8f) || t === 0xde || t === 0xdf)) return false;   // a message is a map
+    for (;;) {
+        while (left === 0) { if (!stack.length) return i === n; var f = stack.pop(); left = f[0]; map = f[1]; key = f[2]; }
+        if (i >= n) return false;
+        t = u[i++];
+        var len = -1, cnt = -1, isMap = false, isStr = false;
+        if (t < 0x80 || t >= 0xe0 || t === 0xc0 || t === 0xc2 || t === 0xc3) { /* a small number, nothing, false or true: the one byte */ }
+        else if (t <= 0x8f) { cnt = t & 15; isMap = true; }
+        else if (t <= 0x9f) cnt = t & 15;
+        else if (t <= 0xaf) len = t & 15;
+        else if (t <= 0xbf) { len = t & 15; isStr = true; }
+        else if (t === 0xcc || t === 0xd0) i += 1;
+        else if (t === 0xcd || t === 0xd1) i += 2;
+        else if (t === 0xca || t === 0xce || t === 0xd2) i += 4;
+        else if (t === 0xcb || t === 0xcf || t === 0xd3) i += 8;
+        else if (t >= 0xd8 && t <= 0xdf) {
+            var w = (t & 1) ? 4 : 2; if (i + w > n) return false;
+            var v = w === 2 ? u[i] * 256 + u[i + 1] : ((u[i] * 256 + u[i + 1]) * 256 + u[i + 2]) * 256 + u[i + 3]; i += w;
+            if (t <= 0xd9) { len = v; isStr = true; } else if (t <= 0xdb) len = v; else { cnt = v; isMap = t >= 0xde; }
+        } else return false;   // a type the packer never writes
+        if (i > n || (len >= 0 && len > n - i)) return false;   // a number, a text or bytes running past the end
+        if (key && (!isStr || packKeyIsProto(u, i, len))) return false;   // a map's key: a text, and never the one that names an object's prototype
+        if (len > 0) i += len;
+        if (map) { if (key) key = false; else { key = true; left--; } } else left--;
+        if (cnt >= 0) {   // nothing is made of a count: its entries are walked one by one, and the walk ends where the bytes do (the test above), so a count the bytes cannot hold is refused within the packet's own length
+            if (stack.length >= PACK_DEPTH) return false;
+            stack.push([left, map, key]); left = cnt; map = isMap; key = isMap;
+        }
+    }
+}
+// The public shape of a connection the app may wire: the library's own data connection, speaking the one encoding every Waypoint asks for.
+function connShapeOk(conn) { return !!conn && typeof conn === 'object' && typeof conn.on === 'function' && typeof conn.close === 'function' && typeof conn.send === 'function' && typeof conn.peer === 'string' && conn.peer.length >= 1 && conn.peer.length <= 128 && conn.serialization === 'binary'; }
+// Wraps conn's own entry point (the library calls it through the instance, so the wrapper is what runs); true once the guard is in place — false for
+// a connection that is not of the class this guard was written against, which the caller then refuses (fail closed). The library re-enters the
+// same entry point with a large message put back together: that inner call is judged for its shape too, and counted once.
+function wireGuard(conn) {
+    if (!conn) return false;
+    if (conn._wpGuard === true) return true;
+    var inner = conn._handleDataMessage;
+    if (typeof inner !== 'function' || !conn._chunkedData || typeof conn._chunkedData !== 'object') return false;
+    var depth = 0, spent = 0, shut = function() { try { conn.close(); } catch (e) {} };
+    conn._handleDataMessage = function(ev) {
+        var nested = depth > 0, data = ev ? ev.data : null;
+        if (!nested && !conn.open) return;   // closed (by this guard, or by the app): nothing more is read
+        var len = data instanceof ArrayBuffer ? data.byteLength : (nested && ArrayBuffer.isView(data)) ? data.byteLength : -1;
+        var host = net.role === 'host', seated = !host || own(net.roster, conn.peer);
+        if (len < 1 || (!nested && len > RAW_MAX)) { shut(); return; }
+        if (!nested && !seated && (spent += len) > BYTES_PRE) { shut(); return; }
+        if (!packShapeOk(data)) { shut(); return; }
+        depth++;
+        try { inner.call(conn, ev); } catch (e) { depth--; shut(); return; }
+        depth--;
+        if (nested) return;
+        var cd = conn._chunkedData, ids = cd && typeof cd === 'object' ? Object.keys(cd) : null, cap = !seated ? PIECES_PRE : host ? PIECES_HOST : PIECES_CLIENT, held = 0;
+        if (!ids || ids.length > CHUNK_OPEN) { shut(); return; }
+        for (var k = 0; k < ids.length; k++) {
+            var g = cd[ids[k]];
+            if (!g || !Array.isArray(g.data) || typeof g.total !== 'number' || !(g.total >= 1 && g.total <= cap) || Math.floor(g.total) !== g.total || !(g.count >= 1 && g.count <= g.total) || g.data.length > g.total) { shut(); return; }
+            held += g.count;
+        }
+        if (held > cap) shut();
+    };
+    conn._wpGuard = true;
+    return true;
+}
+// [netcheck:transport-end]
 function wireConn(conn) {
     conn.on('data', function(d) { wireDeliver(d, conn); });
     // The transport knows first: when the other side vanishes (app closed, cable pulled, Wi-Fi
     // gone) ICE goes 'disconnected' within seconds and 'failed' soon after, long before the
     // channel's own close event. Show it at once; treat 'failed' as the drop it is.
+    if (!wireGuard(conn)) { try { console.warn('connection refused: its transport cannot be guarded'); } catch (_) {} try { conn.close(); } catch (e) {} return false; }   // transport: no connection is listened to without the guard on its entry point (the host's handler has refused such a one before listing it)
     conn.on('iceStateChanged', function(st) {
         if (!net.active || !conn.open) return;
         if (st === 'disconnected') {
@@ -6268,12 +6398,23 @@ function wireConn(conn) {
 }
 
 /* ---------- host / join / leave ---------- */
+// [netcheck:roomcode-start]
+// A room code is the table's address on the signalling service, and whoever dials it learns this machine's network address before the GM is asked
+// anything (direct peer to peer cannot hide that; Firewall-friendly connections with a relay shows the relay's instead). So it is long, and drawn
+// from the system's own generator: CODE_LEN characters of a 31-letter alphabet (about 49.5 bits), a byte past the last whole multiple of 31 thrown
+// away so that every letter is as likely as another, and never the page's ordinary random numbers (those also make ids every player is sent).
+// Shown and copied in two groups, XXXXX-XXXXX; typed with or without the hyphen or spaces, in either case. A six-character code (one resumed from
+// the last session, or an older host's) is shown and dialled as it is.
+var CODE_LEN = 10, CODE_CHARS = 'abcdefghjkmnpqrstuvwxyz23456789';
 function makeCode() {
-    var chars = 'abcdefghjkmnpqrstuvwxyz23456789';
-    var c = '';
-    for (var i = 0; i < 6; i++) c += chars[Math.floor(Math.random() * chars.length)];
+    var c = '', buf = new Uint8Array(32);
+    while (c.length < CODE_LEN) { crypto.getRandomValues(buf); for (var i = 0; i < buf.length && c.length < CODE_LEN; i++) if (buf[i] < 248) c += CODE_CHARS[buf[i] % 31]; }
     return c;
 }
+function showCode(code) { var s = String(code === null || code === undefined ? '' : code).toUpperCase(); return s.length === CODE_LEN ? s.slice(0, 5) + '-' + s.slice(5) : s; }
+function typedCode(v) { return String(v === null || v === undefined ? '' : v).replace(/[\s\u00ad\u2010-\u2015\u2212-]+/g, '').toLowerCase().slice(0, 64); }   // what was typed or pasted: spaces and hyphens (a dash of any kind) out, lower case
+net.showCode = showCode; net.typedCode = typedCode;
+// [netcheck:roomcode-end]
 
 // Direct peer-to-peer is always tried first (STUN). The TURN entries are a
 // relay FALLBACK for strict-NAT networks where no direct path exists — the
@@ -6286,6 +6427,7 @@ function makeCode() {
    Waypoint once used has shut down, so the GM configures their own in Settings ▸ Relay server
    (stored under turn_* keys, which stay on this machine — never mirrored to the saves folder).
    One side with a relay is enough: the host's relayed address is reachable from anywhere. */
+// [netcheck:relay-start]
 var STUN_SERVERS = [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' }
@@ -6309,11 +6451,20 @@ function iceServers() {
 // some routers) flag as a port scan and block for minutes — dropping the player mid-join.
 // With relay-only ICE the only traffic the firewall sees is one relay endpoint.
 function relayOnly() { try { return localStorage.getItem('wp_relayOnly') === '1'; } catch (e) { return false; } }
+// Transport (2026-10-01): the switch does something only with a relay set on THIS machine (the switch follows the saves folder to another computer,
+// the relay does not). One judge for every reader: relay-only is ACTIVE when the switch is on and a relay is set — then the relay is the only server
+// named (no public address lookup beside it) and the only kind of path allowed. Otherwise connections go direct as ever, and the status line and a
+// notice say so instead of claiming a relay.
+function relayActive() { return relayOnly() && !!turnConfig(); }
+net.relayActive = relayActive;
+function relayNote() { return relayActive() ? ' (relay-only connections)' : relayOnly() ? ' (Firewall-friendly connections is on, but no relay server is set on this computer: connecting directly)' : ''; }
+function relayWarn() { if (relayOnly() && !relayActive()) toast('Firewall-friendly connections is on, but no relay server is set on this computer, so you are connecting directly. Set one under Settings \u25B8 Relay server, or switch the option off there.'); }
 function peerOpts() {
-    var cfg = { iceServers: iceServers() };
-    if (relayOnly() && turnConfig()) cfg.iceTransportPolicy = 'relay';   // relay-only means nothing without a relay
-    return { config: cfg };
+    var t = turnConfig();
+    if (relayOnly() && t) return { config: { iceServers: [t], iceTransportPolicy: 'relay' } };   // relay-only: the relay alone
+    return { config: { iceServers: iceServers() } };   // relay-only means nothing without a relay
 }
+// [netcheck:relay-end]
 /* Try the configured relay: gather with relay-only ICE and see whether a relay candidate
    arrives. Resolves { ok, detail }. Used by the Test button in Settings. */
 net.testRelay = function() {
@@ -6356,6 +6507,53 @@ net.recentHostCode = recentHostCode;   // sandbox testing hook
    generation of the SAME code at once, and players try each generation in turn. */
 var ROOM_GENS = 4;
 function roomPeerId(code, gen) { return 'waypoint-' + String(code).toLowerCase() + (gen ? '-r' + gen : ''); }
+// [netcheck:siggate-start]
+// Transport (2026-10-01): the signalling service passes this machine whatever anyone who knows the room id sends it, and the connection library
+// acts on each message at once — it builds a connection and answers every offer (gathering addresses, taking a place on the GM's relay), keeps
+// every answer and candidate for a connection it does not hold with no bound, and takes the connection's class from the dialler's own word. So each
+// message is judged before the library sees it (sigGate wraps the peer's own entry point; sigOk decides, and fails closed):
+//  - the service's own words (open, error, id taken, invalid key) pass only with no sender on them;
+//  - an offer passes only on a host, for a connection it does not hold yet, as a data connection in the one encoding every Waypoint asks for, with a
+//    session description of a sane size — and at most SIG_OFFERS in SIG_OFFERS_MS for the whole table (a stranger is nameless before hello), past
+//    which it is dropped before any connection exists: no answer, no address gathered, no place taken on the relay;
+//  - an answer or a candidate passes only for a connection this side holds, and on a player's app only from the room it dialled (an answer never
+//    on a host; an offer never on a player); "leave" and "expire" on a player's app only from that room, and "expire" never on a host (it dials no one).
+// Whatever the library throws on a message that passed stays out of the page's error banner.
+var SIG_OFFERS = 20, SIG_OFFERS_MS = 10000, SIG_SDP_MAX = 20000;
+function sigOk(peer, m, isHost, room, now, offers) {
+    if (!m || typeof m !== 'object') return false;
+    var t = m.type, src = m.src, p = m.payload;
+    if (t === 'OPEN' || t === 'ERROR' || t === 'ID-TAKEN' || t === 'INVALID-KEY') return src === undefined || src === null;
+    if (typeof src !== 'string' || !src || src.length > 128) return false;
+    if (t === 'LEAVE' || t === 'EXPIRE') return isHost ? t === 'LEAVE' : src === room;
+    if (!p || typeof p !== 'object') return false;
+    var cid = p.connectionId;
+    if (typeof cid !== 'string' || !cid || cid.length > 64) return false;
+    var held = peer.getConnection(src, cid);
+    if (t === 'OFFER') {
+        if (!isHost || held) return false;
+        if (p.type !== 'data' || p.serialization !== 'binary' || !p.sdp || typeof p.sdp !== 'object' || p.sdp.type !== 'offer' || typeof p.sdp.sdp !== 'string' || !p.sdp.sdp || p.sdp.sdp.length > SIG_SDP_MAX) return false;
+        while (offers.length && now - offers[0] >= SIG_OFFERS_MS) offers.shift();
+        if (offers.length >= SIG_OFFERS) return false;
+        offers.push(now);
+        return true;
+    }
+    if (t === 'ANSWER') return !isHost && src === room && !!held && !!held.peerConnection;
+    if (t === 'CANDIDATE') return (isHost || src === room) && !!held && !!held.peerConnection;
+    return false;
+}
+function sigGate(peer, isHost, room) {
+    var inner = peer && peer._handleMessage;
+    if (typeof inner !== 'function' || typeof peer.getConnection !== 'function') return false;   // not the library this gate was written against: nothing wrapped (the handler's own checks and the transport guard still stand)
+    var offers = [];
+    peer._handleMessage = function(m) {
+        var ok = false; try { ok = sigOk(peer, m, isHost, room, Date.now(), offers) === true; } catch (e) {}
+        if (!ok) return;
+        try { return inner.call(peer, m); } catch (e) { try { console.warn('a signalling message failed', m && m.type, e); } catch (_) {} }
+    };
+    return true;
+}
+// [netcheck:siggate-end]
 net._hostGen = 0;
 function startHosting(forceFresh) {
     _lastSent = {};   // a new table starts from the snapshot, not from anything sent before
@@ -6383,6 +6581,7 @@ function startHosting(forceFresh) {
     var gen = resumed ? net._hostGen : 0;
     gmSignArm();   // security (2026-10-01): this GM's signing key, read or made the first time, before anyone can connect
     var peer = new Peer(roomPeerId(code, gen), peerOpts());
+    sigGate(peer, true, roomPeerId(code, gen));   // transport: every signalling message is judged before the library acts on it
     net.peer = peer; net.role = 'host'; net.code = code; net.roomPeer = roomPeerId(code, gen);   // the room id players dial: what a player's proof of their table key is checked over
     net._lastStanceSig = null;   // the first save after hosting starts sends the ceiling
     net._lastSoundSig = null;    // and the sound list
@@ -6392,25 +6591,42 @@ function startHosting(forceFresh) {
     net._lastDocStyleSig = null; // and the campaign's document look
     net._lastNewPlayersSig = null; // and the rules for players without a character (Onboarding F1a)
     net._lastClockSig = null;    // and the campaign's clock (item 20 K2)
-    setStatus((resumed ? 'Resuming host with your last room code...' : 'Starting host...') + (relayOnly() ? ' (relay-only connections)' : ''));
+    setStatus((resumed ? 'Resuming host with your last room code...' : 'Starting host...') + relayNote());
+    relayWarn();   // transport: relay-only switched on with no relay on this machine connects directly — said, never implied otherwise
+    // [netcheck:hostpeer-start]
+    // Transport (2026-10-01): a room id is a first-come name on the signalling service. Once this table has OPENED, losing the name — the link to
+    // the service dropped, and someone else registered the id meanwhile — never ends the table: the players' connections do not run through the
+    // service, so they are left alone, the GM is told once, and the id is asked for again on a timer that backs off (at once, then 1 s, 2 s, 4 s …
+    // 30 s) until it is free. Only a registration that never opened takes the next generation or a new code. A peer this table has let go of
+    // (leaveSession nulls net.peer before it destroys it) is never registered again.
+    var opened = false, taken = false, closing = false, rereg = 0, reregTimer = null;
+    var codeLine = function() { return 'Hosting \u2014 room code: ' + showCode(code); };
     peer.on('open', function() {
+        if (net.peer !== peer) return;
+        rereg = 0;
+        rememberHostCode(code);
+        if (opened) {   // registered again after the link to the signalling service dropped: the table never stopped
+            setStatus(codeLine());
+            if (taken) { taken = false; toast('Your room code is yours again \u2014 new players can join.'); logEvent('table', 'Room code free again \u2014 new players can join'); }   // a 'table' line: the log reads a 'session' line that is no start as the session's end
+            return;
+        }
+        opened = true;
         net.active = true;
         net._hostGen = gen;   // a later crash resumes under the generation after this one
         startHeartbeat();
-        rememberHostCode(code);
-        setStatus('Hosting — room code: ' + code.toUpperCase());
+        setStatus(codeLine());
         var codeEl = ui('netCode');
-        if (codeEl) codeEl.textContent = code.toUpperCase();
+        if (codeEl) codeEl.textContent = showCode(code);
         ui('netHostInfo').style.display = 'block';
         syncSessionButtons();
         renderRoster();
         toast(resumed ? 'Hosting resumed with the same room code — players can rejoin as before.' : 'Hosting started. Share the room code.');
-        logEvent('session', (resumed ? 'Session resumed' : 'Session started') + ' — room ' + String(code).toUpperCase());
+        logEvent('session', (resumed ? 'Session resumed' : 'Session started') + ' — room ' + showCode(code));
         var campH = getActiveCampaign(), Sh = SC(); if (campH && campH.system && Sh && Sh.stampRows) Sh.stampRows(campH.system, campH.chars || {});   // Stage 6: a legacy row of a GM-only item gets its own id before anything is sent
         net.applyingRemote = true; save(true); net.applyingRemote = false;
     });
     peer.on('connection', function(conn) {
-        if (!unadmittedRoom(conn)) { try { conn.close(); } catch (e) {} return; }   // security (2026-10-01): no room among those waiting for the GM — refused unanswered, never listed
+        if (!connShapeOk(conn) || !wireGuard(conn) || !unadmittedRoom(conn)) { try { conn.close(); } catch (e) {} return; }   // security (2026-10-01): not the library's own data connection in the one encoding every Waypoint asks for, one whose transport cannot be guarded, or no room among those waiting for the GM — refused unanswered, never listed
         net.conns.push(conn);
         _connMeta[conn.peer] = { openedAt: Date.now(), hellos: 0 };
         assetNoteSends(conn);   // security (2026-10-01): what this connection is sent is noted, so the asset gate serves it only that
@@ -6419,9 +6635,22 @@ function startHosting(forceFresh) {
     peer.on('call', function(call) { try { call.close(); } catch (e) {} });   // item 21 V2: no media call is used (a video's link is agreed over the table's own connection): any that comes is closed
     // Signaling-server blips don't touch open data channels; quietly re-register
     // so NEW players can still join after the blip.
-    peer.on('disconnected', function() { if (net.active) { try { peer.reconnect(); } catch (e) {} } });
+    peer.on('disconnected', function() {
+        if (closing || net.peer !== peer || !net.active || reregTimer) return;   // being torn down, let go of, never opened — or a try already waiting
+        var wait = rereg ? Math.min(30000, 500 * Math.pow(2, rereg)) : 0;
+        rereg++;
+        var again = function() { reregTimer = null; if (closing || net.peer !== peer || !net.active || peer.destroyed) return; try { peer.reconnect(); } catch (e) {} };
+        if (wait) reregTimer = setTimeout(again, wait); else again();
+    });
     peer.on('error', function(err) {
-        if (err.type === 'unavailable-id') {
+        var type = err && err.type;
+        if (type === 'unavailable-id') {
+            if (opened) {   // the table is live: its name was registered by someone else while the link to the service was down
+                setStatus('Hosting \u2014 your room code is in use somewhere else: players at the table stay connected, but new players cannot join until it is free.');
+                if (!taken) { taken = true; toast('Your room code is in use somewhere else. Players at the table stay connected; new players cannot join until it is free. For a new code, end the session and host again.'); logEvent('table', 'Room code in use elsewhere \u2014 new players cannot join until it is free'); }
+                return;
+            }
+            closing = true;
             try { peer.destroy(); } catch (e) {}
             if (resumed && gen + 1 < ROOM_GENS) {
                 // The crashed session still holds this generation: take the next one, same code.
@@ -6435,13 +6664,19 @@ function startHosting(forceFresh) {
             setTimeout(function() { startHosting(true); }, 300);
             return;
         }
-        setStatus('Host error: ' + err.type);
+        if (opened) {   // a live table: the room code stays in the status line — a stranger's bad dial is nothing of the GM's, and a dropped signalling link is said beside the code
+            if (type === 'network' || type === 'server-error' || type === 'socket-error' || type === 'socket-closed') setStatus(codeLine() + ' \u2014 the link that lets new players find you dropped; reconnecting. Players at the table are not affected.');
+            return;
+        }
+        setStatus('Host error: ' + type);
     });
+    // [netcheck:hostpeer-end]
 }
 
 var JOIN_ATTEMPT_MS = 7000;   // per generation; a dead generation's registration answers nothing
 function joinSession(code, name, isRetry, probe) {
     if (typeof Peer === 'undefined') { toast('Multiplayer needs an internet connection.'); return; }
+    code = typedCode(code);   // transport: a code typed or pasted in its two groups dials the same room (hyphen and spaces out, lower case)
     probe = probe || 0;                       // which generation this attempt targets
     if (!isRetry && !probe) cancelReconnect();
     if (!isRetry && !probe) ringReset();   // HF3: a new table's HUD history starts empty (a retry or a probe keeps it)
@@ -6460,8 +6695,9 @@ function joinSession(code, name, isRetry, probe) {
         net.active = true;
         renderRoster(); syncSessionButtons();
     }
-    if (!isRetry && !probe) setStatus('Connecting to ' + code.toUpperCase() + '...');
+    if (!isRetry && !probe) { setStatus('Connecting to ' + showCode(code) + '...'); relayWarn(); }
     var gen = isRetry ? genNotRefused(code, retryGen(reconn.gen, reconn.tries, ROOM_GENS), ROOM_GENS, roomPeerId) : probe;   // a blip reconnects to the generation that last answered at once; a crashed GM's next generation follows in turn
+    sigGate(peer, false, roomPeerId(code, gen));   // transport: a player's peer hears the signalling service and the room it dialled, for the connection it holds — never an offer
     peer.on('open', function() {
         var conn = peer.connect(roomPeerId(code, gen), { reliable: true });
         conn.wpCn = newKey(); conn.wpRetry = !!isRetry;   // security (2026-10-01): this connection's own nonce — the snapshot it is given must be signed over it — and whether the player began this join
@@ -6544,8 +6780,8 @@ function leaveSession(silent) {
     if (!silent) cancelReconnect();
     if (window.wpVideo && window.wpVideo.tableLeft) { try { window.wpVideo.tableLeft(); } catch (e) {} }   // item 21 V2: a showing stops while the table still hears it; a player's panel closes
     net.videoStop(); videoOver();
-    if (net.peer) { try { net.peer.destroy(); } catch (e) {} }
-    net.peer = null; net.conns = []; net.roster = Object.create(null); if (!silent) net.away = Object.create(null); net.active = false; net.role = null; net.code = null; net.roomPeer = null; net.lastStage = null;   // a reconnect retry (silent) keeps the away map: tokens stay on their last-known maps while it retries
+    var peerL = net.peer; net.peer = null; if (peerL) { try { peerL.destroy(); } catch (e) {} }   // transport: let go of first — destroy() says "disconnected" on its way down, and a peer this table has let go of is never registered again
+    net.conns = []; net.roster = Object.create(null); if (!silent) net.away = Object.create(null); net.active = false; net.role = null; net.code = null; net.roomPeer = null; net.lastStage = null;   // a reconnect retry (silent) keeps the away map: tokens stay on their last-known maps while it retries
     diceSessionReset(!silent);   // a deliberate leave or end clears the chat panel too; a retry keeps it
     // do not null net.stance / net.stanceCamps / net.gmId here — joinSession calls leaveSession(true) on every retry,
     // and the GM's campaign stays on screen until load() brings the player's own back; load() is the one clear point
@@ -6631,6 +6867,11 @@ function assetBody(r, peer) {
 var assetBytes = Object.create(null), ASSET_BUDGET = 150 * 1024 * 1024, ASSET_BUDGET_MS = 60000;   // host: peer -> { t, n }: the bytes read for that connection since t
 function assetSpent(peer) { var b = assetBytes[peer]; return b && Date.now() - b.t <= ASSET_BUDGET_MS ? b.n : 0; }
 function assetCharge(peer, n) { var b = assetBytes[peer], now = Date.now(); if (!b || now - b.t > ASSET_BUDGET_MS) b = assetBytes[peer] = { t: now, n: 0 }; b.n += n; }
+// Transport (2026-10-01): what the connection library holds for a connection beyond the channel's own 8 MB — its count of queued messages (each at
+// most about 16 KB), 0 while the peer keeps up. A sound's next part waits while there is any; a picture is answered busy past ASSET_BACKLOG (about
+// 32 MB), judged before the file is read and again before it is sent (a burst of requests all pass the first test before any is answered).
+var ASSET_BACKLOG = 2048;
+function connBacklog(conn) { var n = conn ? Number(conn.bufferSize) : 0; return n > 0 ? n : 0; }
 var assetInflight = {}; // host: peer -> path, one sound transfer at a time per peer
 var ASSET_PART = 256 * 1024, AUDIO_CAP = 26 * 1024 * 1024, ASSET_WAIT = 45000, MAX_PARTS = 130;   // AUDIO_CAP covers full music tracks (musiccore caps a track at 25 MB); SFX stay small — soundcore caps them at 4 MB at upload. MAX_PARTS (130×256 KB ≈ 33 MB) > cap so a legit transfer never trips the part guard.
 function isAudioPath(p) { return typeof p === 'string' && p.indexOf('/saves/images/audio/') === 0; }
@@ -6700,6 +6941,7 @@ function handleAssetRequest(msg, conn) {
             var n = Math.max(1, Math.ceil(buf.byteLength / ASSET_PART)), i = 0;
             (function pump() {
                 if (!conn.open) { done(); return; }
+                if (connBacklog(conn) > 0) { setTimeout(pump, 50); return; }   // transport: the peer is behind on what it was already sent — the next part waits (the link is the limit, so an honest slow one loses nothing)
                 var end = Math.min(buf.byteLength, (i + 1) * ASSET_PART);
                 try { conn.send({ type: 'asset-part', path: msg.path, i: i, n: n, data: new Uint8Array(buf.slice(i * ASSET_PART, end)) }); }
                 catch (e) { answerAsset(conn, msg.path, 'busy'); done(); return; }
@@ -6709,11 +6951,13 @@ function handleAssetRequest(msg, conn) {
         }).catch(function() { answerAsset(conn, msg.path, 'missing'); done(); });
         return;
     }
+    if (connBacklog(conn) > ASSET_BACKLOG) { answerAsset(conn, msg.path, 'busy'); return; }   // transport: this connection is far behind on what it was already sent — nothing more is read for it yet (the player's app asks again)
     fetch(reqPath).then(function(r) { return assetBody(r, conn.peer); }).then(function(buf) {
         if (!conn.open) return;
         if (!buf) { answerAsset(conn, msg.path, 'missing'); return; }
         if (buf === 'busy') { answerAsset(conn, msg.path, 'busy'); return; }   // past this connection's byte budget: not read
         if (buf === 'big' || buf.byteLength > AUDIO_CAP) { answerAsset(conn, msg.path, 'too-big'); return; }   // a picture past the cap is never sent whole — nor read whole where the server states its length
+        if (connBacklog(conn) > ASSET_BACKLOG) { answerAsset(conn, msg.path, 'busy'); return; }   // transport: judged again once read
         try { conn.send({ type: 'asset', path: msg.path, mime: assetMime(msg.path), data: new Uint8Array(buf) }); } catch (e) { sendFailed(e); }
     }).catch(function() { answerAsset(conn, msg.path, 'missing'); });
 }
@@ -6759,7 +7003,7 @@ function handleAssetArrival(msg) {
     if (typeof msg.path === 'string' && typeof msg.error === 'string' && own(assetPending, msg.path)) {   // a picture the host would not send
         delete assetPending[msg.path];
         var tries = (_assetRetries[msg.path] = (_assetRetries[msg.path] || 0) + 1);
-        if (msg.error === 'busy' && tries <= 5) setTimeout(function() { if (!assetCache[msg.path]) net.assetSrc(msg.path); }, 800 * tries);   // the host was busy: ask again, backing off
+        if (msg.error === 'busy' && tries <= 40) setTimeout(function() { if (!assetCache[msg.path]) net.assetSrc(msg.path); }, Math.min(800 * tries, 4000));   // the host was busy: ask again, backing off to 4 s — for some two and a half minutes, so a slow link the host is waiting on (transport: a picture is answered busy while much is still queued for it) does not settle on placeholders
         else assetCache[msg.path] = ASSET_PLACEHOLDER;   // missing / too big / kept refusing: settle on the placeholder, never ask again this session
         return;
     }
@@ -7292,7 +7536,7 @@ var _hostBtn = ui('netHostBtn');
 if (_hostBtn) _hostBtn.addEventListener('click', function() { if (!ensureNamed()) return; startHosting(false); });   // (passing the event made every host "force fresh": the old code was never resumed)
 var _joinBtn = ui('netJoinBtn');
 if (_joinBtn) _joinBtn.addEventListener('click', function() {
-    var code = (ui('netCodeInput').value || '').trim();
+    var code = typedCode(ui('netCodeInput').value);
     if (code.length < 4) { toast('Enter the room code.'); return; }
     if (!ensureNamed()) return;
     joinSession(code, (ui('netNameInput').value || '').trim());
@@ -7562,7 +7806,7 @@ if (_summonBtn) _summonBtn.addEventListener('click', function() {
 });
 var _copyBtn = ui('netCopyBtn');
 if (_copyBtn) _copyBtn.addEventListener('click', function() {
-    if (net.code && navigator.clipboard) { navigator.clipboard.writeText(net.code.toUpperCase()); toast('Room code copied.'); }
+    if (net.code && navigator.clipboard) { navigator.clipboard.writeText(showCode(net.code)); toast('Room code copied.'); }
 });
 
 export { net };

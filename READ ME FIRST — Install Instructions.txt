@@ -23,7 +23,7 @@ REQUIREMENTS
 
 JOINING YOUR GM'S TABLE
 -----------------------
-1. Get the 6-character room code from your GM.
+1. Get the room code from your GM (ten characters, like AB2CD-EF3GH).
 2. Open Waypoint and click the globe button (top right).
 3. Type your name, enter the code, press Join. That's it — no account.
 4. Optional: click the gear (Settings) to set a profile picture for the table.

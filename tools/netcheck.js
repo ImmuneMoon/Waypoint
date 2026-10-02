@@ -54,6 +54,13 @@ const RC = new Function('localStorage', 'crypto', helpersSrc + '\n' + rosterClea
 const ENV_NAMES = ['net', 'own', 'validProfileId', 'cleanFace', '_connMeta', 'UNADMITTED_TTL', 'noteSeen', 'denyJoin', 'lastSeen', 'HB_STALE', 'bannedIds', 'getActiveCampaign', 'APP_VERSION', 'versionCmp', 'updateMessage', 'toast', 'logEvent', 'newerSeen', 'ui', '_pwFails', 'PW_LOCK_FAILS', 'PW_LOCK_MS', 'admitPlayer', 'queueJoin', 'setTimeout', 'clearTimeout', 'tableKeyFor', 'getProfile', 'showConfirm', 'pendingJoins', 'processNextApproval', 'allow', 'pushChat', 'broadcast', 'safeAvatar', 'cleanRosterName', 'awayMap', 'validKey', 'sendFailed', 'newKey', 'hmacHex', 'authData', 'sameStr', 'validCn', 'gmPresign'];
 // the env supplies every name a slice references — except the function the slice itself DEFINES (a var of the same name would overwrite the hoisted declaration)
 const pre = (except) => 'var ' + ENV_NAMES.filter(n => except.indexOf(n) < 0).map(n => n + ' = env.' + n).join(', ') + ';\n';
+// transport T (2026-10-01): the proof names the two certificate fingerprints of the connection it travels on (the player's, then the host's). Every harness
+// connection carries a stub RTCPeerConnection whose two descriptions hold one each — a host's connection the host's as its own and the player's as the
+// other side's, a player's the reverse — and the suite's reference proofs name the same pair (FPTAIL)
+const HT = new Function('localStorage', 'crypto', helpersSrc + '\nreturn { dtlsPrint: typeof dtlsPrint === "function" ? dtlsPrint : null, chanPrints: typeof chanPrints === "function" ? chanPrints : null, saidPrints: typeof saidPrints === "function" ? saidPrints : null };')(storage, globalThis.crypto);
+const FPP = 'sha-256 0A:1B:2C:3D', FPH = 'sha-256 4E:5F:60:71', FPTAIL = '|' + FPP + '|' + FPH;
+const pcStub = (mine, theirs) => { const d = f => ({ type: 'x', sdp: 'v=0\r\ns=-\r\nm=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\na=fingerprint:' + f + '\r\n' }); return { localDescription: d(mine), remoteDescription: d(theirs) }; };
+ENV_NAMES.push('chanPrints', 'saidPrints');
 const runGate = new Function('env', 'msg', 'conn', pre([]) + gateSrc + '\nreturn "ran";');
 const runQueue = new Function('env', 'conn', 'prof', 'why', pre(['queueJoin']) + queueSrc + '\nreturn queueJoin(conn, prof, why);');
 const runBroadcast = new Function('env', 'msg', 'exceptConn', pre(['broadcast']) + broadcastSrc + '\nreturn broadcast(msg, exceptConn);');
@@ -93,8 +100,9 @@ function harness(opts) {
         validCn: HS.validCn || (() => false), gmPresign: () => null,   // security S: no signing key in a plain harness (a snapshot goes unsigned, as to an older app); the S checks give a host its real one
     };
     env.queueJoin = (conn, prof, why) => runQueue(env, conn, prof, why);
+    env.chanPrints = HT.chanPrints || (() => null); env.saidPrints = HT.saidPrints || (() => null);   // transport T: the gate reads a connection's two fingerprints through the real helpers
     h.env = env;
-    h.conn = (peer) => { const c = { peer, open: true, send: m => { packCheck(m); h.sent.push({ peer, m }); }, close: () => { c.open = false; h.closed.push(peer); } }; env.net.conns.push(c); env._connMeta[peer] = { openedAt: Date.now(), hellos: 0 }; return c; };
+    h.conn = (peer, pc) => { const c = { peer, open: true, send: m => { packCheck(m); h.sent.push({ peer, m }); }, close: () => { c.open = false; h.closed.push(peer); } }; if (pc !== null) c.peerConnection = pc || (env.net.role === 'client' ? pcStub(FPP, FPH) : pcStub(FPH, FPP)); env.net.conns.push(c); env._connMeta[peer] = { openedAt: Date.now(), hellos: 0 }; return c; };
     h.hello = (conn, profile, extra) => runGate(env, Object.assign({ type: 'hello', profile, version: '1.5.0' }, extra || {}), conn);
     h.fireTimers = () => { const t = h.timers.splice(0); t.forEach(x => x.fn()); return t.length; };
     h.lastSent = (peer, type) => h.sent.filter(s => s.peer === peer && s.m.type === type).pop();
@@ -138,7 +146,7 @@ check('table keys (client): remembered per GM id, absent → empty string, a pro
 // with HMAC-SHA256(key, 'wp-auth|' + nonce + '|' + the room id THEY dialled); the host checks it over its own room id. A key in clear (an older
 // client) is ignored, so a proof relayed through a squatted room generation or another GM's table never opens the real one.
 pendingChecks.push((async () => {
-    const j = JSON.stringify, K32 = 'k'.repeat(32), PROOF = (key, nonce, room) => hmacRef(key, 'wp-auth|' + nonce + '|' + room);
+    const j = JSON.stringify, K32 = 'k'.repeat(32), PROOF = (key, nonce, room) => hmacRef(key, 'wp-auth|' + nonce + '|' + room + FPTAIL);
     const h = harness({ players: { u_known: { name: 'Kay', key: K32 } } }); const c = h.conn('p2');
     h.hello(c, { id: 'u_known', name: 'Kay' }, { key: K32 }); await h.settle();
     const a = h.lastSent('p2', 'auth');
@@ -203,7 +211,7 @@ pendingChecks.push((async () => {
     const none = H.hmacHex ? await Promise.all([H.hmacHex('', 'x'), H.hmacHex(null, 'x'), H.hmacHex('k', 5)]) : [1];
     const noSub = H.hmacHex ? await (new Function('localStorage', 'crypto', helpersSrc + '\nreturn hmacHex;')(storage, {}))('key', 'x') : 1;
     check('auth proof: hmacHex is HMAC-SHA256 as hex (the known vector), null with no key, no text or no WebCrypto (the host then asks the GM; the player sends no proof); authData binds the nonce to the room dialled; sameStr compares whole strings only — a prefix, another length or another type never equal',
-        vec === 'f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8' && none.every(x => x === null) && noSub === null && !!H.authData && H.authData('n1', 'waypoint-ab') === 'wp-auth|n1|waypoint-ab' && !!H.sameStr && H.sameStr('abc', 'abc') === true && !H.sameStr('abc', 'ab') && !H.sameStr('abc', 'abd') && !H.sameStr('', 'a') && !H.sameStr(undefined, undefined) && !H.sameStr(1, 1), j([vec, none, noSub]));
+        vec === 'f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8' && none.every(x => x === null) && noSub === null && !!H.authData && H.authData('n1', 'waypoint-ab', 'P', 'H') === 'wp-auth|n1|waypoint-ab|P|H' && !!H.sameStr && H.sameStr('abc', 'abc') === true && !H.sameStr('abc', 'ab') && !H.sameStr('abc', 'abd') && !H.sameStr('', 'a') && !H.sameStr(undefined, undefined) && !H.sameStr(1, 1), j([vec, none, noSub]));
     const firstHello = (src.match(/conn\.send\(\{ type: 'hello'[^\n]*/g) || []).filter(l => /before the first heartbeat/.test(l));
     check('joinSession: the first hello carries no key and no proof — nothing of a previous table reaches the next host unasked (a known player is challenged for a proof instead); tableKeyFor(net.gmId) is gone', firstHello.length === 1 && !/\bkey\b|tableKeyFor|proof/.test(firstHello[0].split(');')[0]) && src.indexOf('tableKeyFor(net.gmId)') < 0, j(firstHello));
     check('reconnect: a retry dials the generation that last answered first, then the others in turn (retryGen, wired into joinSession and recorded at each open)', !!H.retryGen && H.retryGen(0, 1, 4) === 0 && H.retryGen(0, 2, 4) === 1 && H.retryGen(2, 1, 4) === 2 && H.retryGen(2, 3, 4) === 0 && H.retryGen(3, 2, 4) === 0 && H.retryGen(undefined, 1, 4) === 0 && H.retryGen('x', 7, 4) === 2 && /var gen = isRetry \? genNotRefused\(code, retryGen\(reconn\.gen, reconn\.tries, ROOM_GENS\), ROOM_GENS, roomPeerId\) : probe;/.test(src) && /reconn\.gen = gen;/.test(src));
@@ -473,7 +481,7 @@ pendingChecks.push((async () => {
 pendingChecks.push((async () => {
     const h = harness({ players: { u_k: { name: 'K', key: 'z'.repeat(32) } } }); const c = h.conn('w1');   // admitted on the proof of the table key (a key is proven, never sent: see the proof flow above)
     h.hello(c, { id: 'u_k', name: 'K' }); await h.settle(); const nonce = h.lastSent('w1', 'auth').m.nonce;
-    h.hello(c, { id: 'u_k', name: 'K', color: '#12ab34', avatar: 'data:text/html;base64,AAAA', location: 'map_secret', evil: { deep: 1 }, gm: true }, { key: 'z'.repeat(32), proof: hmacRef('z'.repeat(32), 'wp-auth|' + nonce + '|waypoint-c1') }); await h.settle();
+    h.hello(c, { id: 'u_k', name: 'K', color: '#12ab34', avatar: 'data:text/html;base64,AAAA', location: 'map_secret', evil: { deep: 1 }, gm: true }, { key: 'z'.repeat(32), proof: hmacRef('z'.repeat(32), 'wp-auth|' + nonce + '|waypoint-c1' + FPTAIL) }); await h.settle();
     const prof = h.admitted[0] && h.admitted[0].prof;
     check('hello: only id/name/color survive from the profile (a bad avatar and any extra field are dropped)', prof && Object.keys(prof).sort().join() === 'color,id,name' && prof.color === '#12ab34', JSON.stringify(h.admitted));
 })());
@@ -534,7 +542,7 @@ pendingChecks.push((async () => {
 /* ================= asset requests ================= */
 check('asset-req: the picture limiter has NO per-request spacing (a map\'s pictures arrive in one burst) and answers a refusal', /allow\('asset', \{ perMs: 0, burst: \d+, windowMs: \d+, table: \d+ \}, conn\.peer\)\) \{ answerAsset\(conn, msg\.path, 'busy'\); return; \}/.test(src));
 check('asset-req: a missing or over-cap picture is answered, never dropped silently', /answerAsset\(conn, msg\.path, 'missing'\)/.test(src) && /answerAsset\(conn, msg\.path, 'too-big'\)/.test(src));
-check('asset arrival (client): a refused picture clears its pending flag and retries on busy, settles on missing', /msg\.error === 'busy' && tries <= 5/.test(src) && /assetCache\[msg\.path\] = ASSET_PLACEHOLDER/.test(src));
+check('asset arrival (client): a refused picture clears its pending flag and retries on busy, settles on missing', /msg\.error === 'busy' && tries <= 40/.test(src) && /assetCache\[msg\.path\] = ASSET_PLACEHOLDER/.test(src));
 
 /* ================= what a client accepts from a host ================= */
 check('client: every campaign/item lookup from a host message is an own-key lookup (campOf/validKey) in applyStage, applyItem, applyItemDelta, handlePos, itemGone, chars, system', (src.match(/campOf\(/g) || []).length >= 8 && /function applyItem\(msg\) \{\n\s*var camp = campOf\(msg\.campId\);\n\s*if \(!camp \|\| !validKey\(msg\.itemId\)\) return;/.test(src) && /function applyItemDelta\(msg\) \{\n\s*var camp = campOf\(msg\.campId\); if \(!camp \|\| !validKey\(msg\.itemId\)\) return;/.test(src));
@@ -623,7 +631,7 @@ const j = JSON.stringify;
 pendingChecks.push((async () => {
     const h = harness({ players: { u_q: { name: 'Q', key: 'q'.repeat(32) }, u_r: { name: 'R', key: 'r'.repeat(32) } } });   // admitted on the proof of their table keys (a key is proven, never sent)
     const cq = h.conn('q1'), cr = h.conn('r1'); h.hello(cq, { id: 'u_q', name: 'Q' }); h.hello(cr, { id: 'u_r', name: 'R' }); await h.settle();
-    const nq = h.lastSent('q1', 'auth').m.nonce, nr = h.lastSent('r1', 'auth').m.nonce, PR = (k, n) => hmacRef(k, 'wp-auth|' + n + '|waypoint-c1');
+    const nq = h.lastSent('q1', 'auth').m.nonce, nr = h.lastSent('r1', 'auth').m.nonce, PR = (k, n) => hmacRef(k, 'wp-auth|' + n + '|waypoint-c1' + FPTAIL);
     h.hello(cq, { id: 'u_q', name: ' Q\u202e\u0007 ', avatar: 'data:image/png;base64,AAAA" onerror="alert(1)' }, { proof: PR('q'.repeat(32), nq) });
     h.hello(cr, { id: 'u_r', name: 'R', avatar: 'data:image/png;base64,iVBORw0KGgo=' }, { proof: PR('r'.repeat(32), nr) }); await h.settle();
     const pq = h.admitted.find(a => a.prof.id === 'u_q'), pr = h.admitted.find(a => a.prof.id === 'u_r');
@@ -7588,9 +7596,9 @@ pendingChecks.push((async () => {
         const conns = [mkConn('pA'), mkConn('pA2'), mkConn('pB'), mkConn('pWait'), mkConn('constructor'), mkConn('pShut', false), mkConn('pC')];
         const net = { active: o.active !== false, role: o.role || 'host', conns, roster: { pA: { id: 'u_a', name: 'Ann' }, pA2: { id: 'u_a', name: 'Ann' }, pB: { id: 'u_b', name: 'Bo\u0000b' }, pShut: { id: 'u_s', name: 'Shut' }, pC: { id: 'u_c', name: 'Cy' } } };
         const win = { wpVideoCore: o.noCore ? undefined : VCv, wpDiceCore: o.noLimit ? {} : DCv, wpVideo: { audienceChanged: () => { world.told++; } } };
-        const api = new Function('net', 'own', 'window', 'validProfileId', 'cleanRosterName', 'logEvent', 'sendFailed', 'peerOpts', 'newKey', 'relayOnly', 'turnConfig', 'RTCPeerConnection', 'setTimeout', 'clearTimeout', 'Date',
+        const api = new Function('net', 'own', 'window', 'validProfileId', 'cleanRosterName', 'logEvent', 'sendFailed', 'peerOpts', 'newKey', 'relayActive', 'RTCPeerConnection', 'setTimeout', 'clearTimeout', 'Date',
             candS + hostS + '\nreturn { videoLink: videoLink, videoHang: videoHang, videoUp: videoUp, vid: function() { return _vid; } };')(
-            net, H.own, win, H.validProfileId, H.cleanRosterName, (k, t) => world.log.push([k, t]), e => world.failed.push(e.message), () => ({ config: { iceServers: [{ urls: 'stun:x' }] } }), H.newKey, () => world.relay, () => (world.relay ? { urls: 'turn:x' } : null), o.noRtc ? undefined : mkRtc(world), tm.set, tm.clear, { now: () => world.clock });
+            net, H.own, win, H.validProfileId, H.cleanRosterName, (k, t) => world.log.push([k, t]), e => world.failed.push(e.message), () => ({ config: { iceServers: [{ urls: 'stun:x' }] } }), H.newKey, () => world.relay, o.noRtc ? undefined : mkRtc(world), tm.set, tm.clear, { now: () => world.clock });
         const conn = p => conns.find(c => c.peer === p), vids = p => conn(p).sent.filter(m => m.type === 'video');
         return { net, world, tm, api, conn, vids, got: () => conns.filter(c => c.sent.some(m => m.type === 'video')).map(c => c.peer).join() };
     };
@@ -7714,7 +7722,7 @@ pendingChecks.push((async () => {
         /^\s*\/\/[^\n]*\n\s*\/\/[^\n]*\n\s*videoUp\(msg, conn\);\s*$/.test(upS) && /\} else if \(msg\.type === 'video-up' && net\.role === 'host'\) \{\n\s*\/\/ \[netcheck:videoup-start\]/.test(src)
         && /if \(snapOk && typeof videoLink === 'function'\) videoLink\(conn\);[^\n]*\n    broadcastRoster\(\);\n\}/.test(src)
         && /if \(net\.role === 'host' && typeof videoHang === 'function'\) \{ videoHang\(conn\.peer\); videoTold\(\); \}/.test(src) && /if \(typeof videoHang === 'function'\) \{ keys\.forEach\(videoHang\); videoTold\(\); \}/.test(src)
-        && /window\.wpVideo\.tableLeft\(\); \} catch \(e\) \{\} \}[^\n]*\n    net\.videoStop\(\); videoOver\(\);\n    if \(net\.peer\) \{ try \{ net\.peer\.destroy\(\); \}/.test(src) && /videoOver\(\); if \(window\.wpVideo && window\.wpVideo\.tableLeft\) window\.wpVideo\.tableLeft\(\);/.test(src)
+        && /window\.wpVideo\.tableLeft\(\); \} catch \(e\) \{\} \}[^\n]*\n    net\.videoStop\(\); videoOver\(\);\n    var peerL = net\.peer; net\.peer = null; if \(peerL\) \{ try \{ peerL\.destroy\(\); \}/.test(src) && /videoOver\(\); if \(window\.wpVideo && window\.wpVideo\.tableLeft\) window\.wpVideo\.tableLeft\(\);/.test(src)
         && (src.match(/peer\.on\('call', function\(call\) \{ try \{ call\.close\(\); \} catch \(e\) \{\} \}\);/g) || []).length === 2 && !/\.answer\(|peer\.call\(/.test(src));
 
     /* ---- the player ---- */
@@ -8448,11 +8456,513 @@ pendingChecks.push((async () => {
             /<li><b>What reaches a player[^\n]*A map they leave is taken back until they return/.test(html) && /id="ctxLockItem"[^\n]*again once they leave/.test(html) && /si-lock" title="[^"]*A player who is not here holds only its name/.test(sbSrc));
     }
 })());
+// the transport (2026-10-01, the outside audit's cluster T): what stands between a table and whoever knows its room code, below the wire's own gates —
+// the room code itself, a room id registered by someone else, relay-only that says what it does, the connection library's decoding and reassembly
+// before admission, what the host queues for a peer that does not read, the signalling path into the library, and the key proof bound to the
+// encrypted channel. Each slice is the real code; the connection library is not in the repository, so a stand-in written from its 1.5.2 source
+// (entry points, chunk reassembly, the offer handling) carries the checks — and where its bundled file is found the real one runs them too.
+pendingChecks.push((async () => {
+    const J = JSON.stringify, sl = name => tryBetween('// [netcheck:' + name + '-start]', '// [netcheck:' + name + '-end]');
+    const noThrow = fn => { try { fn(); return ''; } catch (e) { return String(e && e.message); } };
+    const rd = rel => fs.readFileSync(path.join(__dirname, '..', rel), 'utf8').replace(/\r\n/g, '\n');
+    const noCm = s => String(s || '').replace(/\/\/[^\n]*/g, '');
+    const lineOfT = start => { const i = src.indexOf(start); return i < 0 ? '' : src.slice(i, src.indexOf('\n', i)); };
+    const html = rd('system/app/index.html'), settingsSrc = rd('system/app/scripts/settings.js'), tipsSrc = rd('system/app/scripts/tips.js'), mainSrc = rd('system/app/scripts/main.js');
+
+    /* ---- T1 (TRANSPORT-9): the room code ---- */
+    {
+        const rcSrc = sl('roomcode'); let r = {}, err = 'no slice';
+        if (rcSrc) err = noThrow(() => {
+            const mk = (cryptoStub, mathStub) => new Function('net', 'crypto', 'Math', rcSrc + '\nreturn { makeCode: makeCode, showCode: showCode, typedCode: typedCode, CODE_LEN: CODE_LEN };')({}, cryptoStub, mathStub);
+            const noRandom = Object.create(Math); noRandom.random = () => { throw new Error('Math.random was called'); };
+            let calls = 0; const api = mk({ getRandomValues: a => { calls++; return globalThis.crypto.getRandomValues(a); } }, noRandom);
+            const codes = []; for (let i = 0; i < 2000; i++) codes.push(api.makeCode());
+            const tally = {}; codes.join('').split('').forEach(ch => { tally[ch] = (tally[ch] || 0) + 1; });
+            const feed = [248, 249, 250, 251, 252, 253, 254, 255, 0, 30, 31, 61, 247, 255, 62, 1, 2, 3, 4, 5]; let at = 0;
+            const fed = mk({ getRandomValues: a => { for (let k = 0; k < a.length; k++) a[k] = at < feed.length ? feed[at++] : 7; return a; } }, noRandom).makeCode();
+            const CH = 'abcdefghjkmnpqrstuvwxyz23456789';
+            r = { len: api.CODE_LEN, calls, shape: codes.every(c => /^[a-hjkmnp-z2-9]{10}$/.test(c)), distinct: new Set(codes).size, letters: Object.keys(tally).length, spread: Object.keys(tally).every(k => tally[k] > 400 && tally[k] < 950),
+                fed, want: [0, 30, 31, 61, 247, 62, 1, 2, 3, 4].map(b => CH[b % 31]).join(''), room: new Function(lineOfT('function roomPeerId(code, gen) {') + '\nreturn roomPeerId;')()(codes[0]) === 'waypoint-' + codes[0],
+                show: [api.showCode('abcdefghjk'), api.showCode('ABCDE23456'), api.showCode('abc234'), api.showCode(''), api.showCode(null)],
+                typed: ['ABCDE-FGHJK', 'abcde fghjk', '  AbCdE – fGhJk\t', 'ABCDE‑FGHJK', 'abcdefghjk', 'AB2 3CD', 'ab23cd', null, undefined, 7].map(v => api.typedCode(v)) };
+        });
+        check('transport T1 (the room code, makeCode run for real): ten characters drawn from crypto.getRandomValues and never from Math.random (which throws here) — 2,000 codes all of the 31-letter alphabet in lower case, no two alike, every letter in use about as often as another; a byte of 248 or more is thrown away and the next taken, so the letters are exactly those of the bytes kept; the room id is waypoint-<code>',
+            err === '' && r.len === 10 && r.calls >= 1 && r.shape === true && r.distinct === 2000 && r.letters === 31 && r.spread === true && r.fed === r.want && r.room === true && !/Math\.random/.test(noCm(rcSrc)), J([err, r.len, r.calls, r.shape, r.distinct, r.letters, r.spread, r.fed, r.want, r.room]));
+        check('transport T1 (shown and typed): a ten-character code is shown and copied in two groups, XXXXX-XXXXX, and an older six-character one as it is; what is typed or pasted loses its hyphen (of any kind) and spaces and its capitals, so both groupings dial the same room, and a six-character code dials as typed',
+            err === '' && J(r.show) === J(['ABCDE-FGHJK', 'ABCDE-23456', 'ABC234', '', '']) && J(r.typed) === J(['abcdefghjk', 'abcdefghjk', 'abcdefghjk', 'abcdefghjk', 'abcdefghjk', 'ab23cd', 'ab23cd', '', '', '7']), J([err, r.show, r.typed]));
+        check('transport T1 (wired, and said): the Multiplayer panel\'s Join box and the join itself read the code through typedCode, the welcome screen\'s Join through it too; the code on screen, in the status line, the session log and the Copy button through showCode; the tooltip, Help and the placeholders speak of ten characters in two groups',
+            /var code = typedCode\(ui\('netCodeInput'\)\.value\);/.test(src) && /function joinSession\(code, name, isRetry, probe\) \{\n[^\n]*\n\s*code = typedCode\(code\);/.test(src) && /codeEl\.textContent = showCode\(code\);/.test(src) && /navigator\.clipboard\.writeText\(showCode\(net\.code\)\)/.test(src)
+            && /'Connecting to ' \+ showCode\(code\)/.test(src) && !/code\.toUpperCase\(\)/.test(noCm(src)) && /wpNet\.typedCode\(/.test(mainSrc) && !/six-character/.test(tipsSrc) && /XXXXX-XXXXX/.test(tipsSrc)
+            && !/AB12CD/.test(html) && (html.match(/AB2CD-EF3GH/g) || []).length >= 2 && /id="wcJoinCode" placeholder="e\.g\. AB2CD-EF3GH"/.test(html) && /with or without the hyphen/.test(html));
+    }
+
+    /* ---- T2 (TRANSPORT-2): a room id taken by someone else never ends a live table ---- */
+    {
+        const hpSrc = sl('hostpeer');
+        const mkPeer = () => { const p = { h: {}, destroyed: false, reconnects: 0, destroys: 0, on(ev, fn) { (p.h[ev] = p.h[ev] || []).push(fn); }, emit(ev, a) { (p.h[ev] || []).slice().forEach(f => f(a)); }, destroy() { p.destroys++; p.emit('disconnected'); p.destroyed = true; }, reconnect() { p.reconnects++; } }; return p; };
+        const mkHost = o => {
+            o = o || {}; const w = { status: [], toasts: [], logs: [], timers: [], hosted: [], forgot: 0, hb: 0, remembered: 0, saves: 0, threw: '' };
+            const net = { peer: null, active: false, role: 'host', conns: [], roster: Object.create(null), code: 'abcde23456', _hostGen: o.gen || 0, applyingRemote: false }, peer = mkPeer(); net.peer = peer; w.net = net; w.peer = peer; w.meta = Object.create(null);
+            const names = ['net', 'peer', 'code', 'gen', 'resumed', 'setStatus', 'showCode', 'rememberHostCode', 'toast', 'logEvent', 'startHeartbeat', 'ui', 'syncSessionButtons', 'renderRoster', 'getActiveCampaign', 'SC', 'save', 'connShapeOk', 'wireGuard', 'unadmittedRoom', '_connMeta', 'assetNoteSends', 'wireConn', 'setTimeout', 'ROOM_GENS', 'startHosting', 'forgetHostCode', 'Date'];
+            const vals = [net, peer, 'abcde23456', o.gen || 0, o.resumed ? 'abcde23456' : null, s => w.status.push(s), c => 'SHOWN:' + c, () => { w.remembered++; }, t => w.toasts.push(t), (k, t) => w.logs.push(k + '|' + t), () => { w.hb++; }, () => ({ style: {}, textContent: '' }), () => {}, () => {}, () => null, () => null, () => { w.saves++; },
+                o.shape || (() => true), o.guard || (() => true), () => true, w.meta, () => {}, c => { w.wired = (w.wired || 0) + 1; }, (fn, ms) => { w.timers.push({ fn, ms }); return w.timers.length; }, 4, fresh => w.hosted.push(fresh), () => { w.forgot++; }, Date];
+            try { new Function(...names, hpSrc)(...vals); } catch (e) { w.threw = String(e && e.message); }
+            w.fire = () => { const t = w.timers.splice(0); t.forEach(x => x.fn()); return t.map(x => x.ms); };
+            w.conn = id => ({ peer: id, open: true, serialization: 'binary', on() {}, close() { this.open = false; }, send() {} });
+            return w;
+        };
+        let a = {}, b = {}, c = {}, d = {}, err = 'no slice';
+        if (hpSrc) err = noThrow(() => {
+            // (1) taken after open keeps the table
+            const A = mkHost(); A.peer.emit('open'); const c1 = A.conn('p1'), c2 = A.conn('p2'); A.peer.emit('connection', c1); A.peer.emit('connection', c2);
+            const t0 = A.toasts.length, hb0 = A.hb;
+            for (let i = 0; i < 3; i++) { A.peer.emit('error', { type: 'unavailable-id' }); A.peer.emit('disconnected'); A.fire(); }
+            a = { threw: A.threw, destroys: A.peer.destroys, open: [c1.open, c2.open], conns: A.net.conns.length, code: A.net.code, same: A.net.peer === A.peer, hosted: A.hosted.length, told: A.toasts.slice(t0).filter(t => /in use somewhere else/.test(t)).length, toastsMore: A.toasts.length - t0, status: A.status[A.status.length - 1], active: A.net.active, logged: A.logs.filter(t => /in use elsewhere/.test(t)).length };
+            A.peer.emit('open'); A.fire();
+            a.back = { status: A.status[A.status.length - 1], again: A.toasts.filter(t => /yours again/.test(t)).length, started: A.toasts.filter(t => /Hosting started/.test(t)).length, hb: A.hb - hb0, startedLog: A.logs.filter(t => /Session started/.test(t)).length, kinds: A.logs.map(t => t.split('|')[0] + (/in use elsewhere/.test(t) ? ':taken' : /free again/.test(t) ? ':free' : '')) };
+            A.peer.emit('open'); a.back2 = A.toasts.filter(t => /yours again/.test(t)).length;
+            // (2) the re-registration backs off
+            const B = mkHost(); B.peer.emit('open'); const seq = [];
+            B.peer.emit('disconnected'); seq.push([B.peer.reconnects, B.timers.length]);            // at once
+            B.peer.emit('disconnected'); seq.push([B.peer.reconnects, B.timers.map(t => t.ms)]);     // from a timer
+            B.peer.emit('disconnected'); seq.push([B.peer.reconnects, B.timers.length]);            // one try waiting: no second timer
+            const waits = [B.timers[0].ms]; B.fire(); seq.push(B.peer.reconnects);
+            for (let i = 0; i < 7; i++) { B.peer.emit('disconnected'); waits.push(B.timers[0].ms); B.fire(); }
+            const after = B.peer.reconnects; B.peer.emit('open'); B.peer.emit('disconnected'); const reset = [B.peer.reconnects - after, B.timers.length];
+            B.peer.emit('disconnected'); B.net.peer = { other: true }; const before = B.peer.reconnects; B.fire(); B.peer.emit('disconnected'); const letGo = [B.peer.reconnects - before, B.timers.length];
+            const B2 = mkHost(); B2.peer.emit('open'); B2.net.active = false; B2.peer.emit('disconnected'); const ended = [B2.peer.reconnects, B2.timers.length];
+            const B3 = mkHost(); B3.peer.emit('disconnected'); const neverOpen = [B3.peer.reconnects, B3.timers.length];
+            b = { threw: B.threw, seq, waits, reset, letGo, ended, neverOpen };
+            // (3) a registration that never opened: as before
+            const C1 = mkHost({ resumed: true, gen: 0 }); C1.peer.emit('error', { type: 'unavailable-id' }); const c1t = C1.timers.map(t => t.ms); C1.fire();
+            const C2 = mkHost(); C2.peer.emit('error', { type: 'unavailable-id' }); const c2t = C2.timers.map(t => t.ms); C2.fire();
+            const C3 = mkHost({ resumed: true, gen: 3 }); C3.peer.emit('error', { type: 'unavailable-id' }); C3.fire();
+            c = { one: [C1.peer.destroys, C1.peer.reconnects, C1.net._hostGen, c1t, C1.hosted, C1.forgot, C1.toasts.length], two: [C2.peer.destroys, C2.peer.reconnects, c2t, C2.hosted, C2.forgot, C2.toasts], three: [C3.peer.destroys, C3.peer.reconnects, C3.hosted, C3.forgot, C3.toasts.length, /could not be resumed/.test(C3.toasts[0] || '')] };
+            // (4) other errors: before the table opened the status says so; once open the room code stays in the status line
+            const D = mkHost(); D.peer.emit('error', { type: 'network' }); const pre = D.status[D.status.length - 1];
+            D.peer.emit('open'); const live = D.status[D.status.length - 1]; D.peer.emit('error', { type: 'webrtc' }); D.peer.emit('error', { type: 'peer-unavailable' }); const kept = D.status[D.status.length - 1];
+            D.peer.emit('error', { type: 'network' }); const net2 = D.status[D.status.length - 1];
+            d = { pre, live, kept, net2 };
+        });
+        check('transport T2 (the host\'s peer wiring, run for real): once the table has opened, an "id is taken" from the signalling service — however often it repeats — destroys nothing: both players\' connections stay open and listed, the code, the room and the peer are the same, no new hosting is started, and the GM is told once (a toast, the status line, a table line in the session log — never a session line, which the log reads as the end of the session); when the id comes back the status line shows the code again and says so once, with no second "Hosting started", heartbeat or log line',
+            err === '' && a.threw === '' && a.destroys === 0 && J(a.open) === J([true, true]) && a.conns === 2 && a.code === 'abcde23456' && a.same === true && a.hosted === 0 && a.told === 1 && a.toastsMore === 1 && /in use somewhere else/.test(a.status) && a.active === true && a.logged === 1
+            && a.back && a.back.status === 'Hosting — room code: SHOWN:abcde23456' && a.back.again === 1 && a.back.started === 1 && a.back.hb === 0 && a.back.startedLog === 1 && a.back2 === 1 && J(a.back.kinds) === J(['session', 'table:taken', 'table:free']), J([err, a]));
+        check('transport T2 (the re-registration backs off): the first lost link asks for the id again at once; each one after that from a timer — 1 s, 2 s, 4 s, 8 s, 16 s, then 30 s at most — never two tries waiting, starting over once the id is held again; a peer the table has let go of, a table that ended and one that never opened ask for nothing',
+            err === '' && b.threw === '' && J(b.seq) === J([[1, 0], [1, [1000]], [1, 1], 2]) && J(b.waits) === J([1000, 2000, 4000, 8000, 16000, 30000, 30000, 30000]) && J(b.reset) === J([1, 0]) && J(b.letGo) === J([0, 0]) && J(b.ended) === J([0, 0]) && J(b.neverOpen) === J([0, 0]), J([err, b]));
+        check('transport T2 (a registration that never opened, as before): a resumed code whose generation is held takes the next generation of the same code; a fresh code that is held, or a resumed one with no generation left, takes a new code (the old one forgotten, the GM told); the peer is destroyed once and never asked to register again on its way down',
+            err === '' && J(c.one) === J([1, 0, 1, [200], [false], 0, 0]) && J(c.two) === J([1, 0, [300], [true], 1, ['Code collision — trying another code.']]) && J(c.three) === J([1, 0, [true], 1, 1, true]), J([err, c]));
+        check('transport T2 (the status line of a live table): an error before the table opened is said as before; once it is open the room code stays in the status line — a stranger\'s bad dial changes nothing on the GM\'s screen, and a dropped signalling link is said beside the code',
+            err === '' && d.pre === 'Host error: network' && d.live === 'Hosting — room code: SHOWN:abcde23456' && d.kept === d.live && d.net2.indexOf(d.live) === 0 && /reconnecting/.test(d.net2), J([err, d]));
+        check('transport T2 (teardown): leaveSession lets go of the peer before it destroys it, so the "disconnected" a peer says on its way down never registers it again',
+            /var peerL = net\.peer; net\.peer = null; if \(peerL\) \{ try \{ peerL\.destroy\(\); \} catch \(e\) \{\} \}/.test(src) && !/if \(net\.peer\) \{ try \{ net\.peer\.destroy\(\); \} catch \(e\) \{\} \}\n/.test(src));
+    }
+
+    /* ---- T3 (TRANSPORT-8): relay-only says what it does ---- */
+    {
+        const rlSrc = sl('relay'); let r = {}, err = 'no slice';
+        if (rlSrc) err = noThrow(() => {
+            const run = st => { const toasts = [], ls = { getItem: k => (k in st ? st[k] : null) }; const api = new Function('localStorage', 'net', 'toast', rlSrc + '\nreturn { peerOpts: peerOpts, relayActive: relayActive, relayNote: relayNote, relayWarn: relayWarn, netActive: net.relayActive };')(ls, {}, t => toasts.push(t));
+                const cfg = api.peerOpts().config; api.relayWarn(); return { active: api.relayActive(), same: api.netActive === api.relayActive, policy: cfg.iceTransportPolicy, urls: cfg.iceServers.map(s => [].concat(s.urls).join('+')), note: api.relayNote(), toasts }; };
+            r.onNone = run({ wp_relayOnly: '1' }); r.onBad = run({ wp_relayOnly: '1', turn_urls: 'relay.example.org:3478' });
+            r.onSet = run({ wp_relayOnly: '1', turn_urls: 'turn:relay.example.org:3478', turn_user: 'u', turn_pass: 'p' }); r.offSet = run({ wp_relayOnly: '0', turn_urls: 'turns:relay.example.org:5349' }); r.off = run({});
+        });
+        const direct = x => x && x.active === false && x.policy === undefined && J(x.urls) === J(['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302']);
+        check('transport T3 (relay-only, run for real): switched on with no relay on this computer — none set, or an address that is no relay\'s — the connection is an ordinary direct one and the app SAYS so: the status note names the missing relay and never reads "relay-only connections", and a notice tells you once per host or join',
+            err === '' && direct(r.onNone) && direct(r.onBad) && [r.onNone, r.onBad].every(x => !/relay-only connections/.test(x.note) && /no relay server is set on this computer: connecting directly/.test(x.note) && x.toasts.length === 1 && /no relay server is set on this computer/.test(x.toasts[0]) && x.same === true), J([err, r.onNone, r.onBad]));
+        check('transport T3 (relay-only, run for real): switched on with a relay set, the relay is the ONLY server named — no public address lookup beside it — and the only kind of path allowed, the note reads "relay-only connections" and nothing is warned; switched off, direct first with the relay as a fallback, as before',
+            err === '' && r.onSet.active === true && r.onSet.policy === 'relay' && J(r.onSet.urls) === J(['turn:relay.example.org:3478']) && r.onSet.note === ' (relay-only connections)' && r.onSet.toasts.length === 0
+            && r.offSet.active === false && r.offSet.policy === undefined && J(r.offSet.urls) === J(['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'turns:relay.example.org:5349']) && r.offSet.note === '' && r.offSet.toasts.length === 0 && r.off.note === '' && r.off.toasts.length === 0, J([err, r.onSet, r.offSet, r.off]));
+        const outside = rlSrc ? noCm(src.replace(rlSrc, '')) : 'relayOnly(';
+        check('transport T3 (wired): one judge everywhere — the host\'s status line reads relayNote and warns, a join the player began warns, the video cap reads relayActive, and the raw switch is read nowhere outside the relay slice; Settings shows the switch whenever it is on (so one that came with the saves folder can be seen and switched off), says "on, but no relay set", and removing the relay switches it off',
+            !!rlSrc && !/relayOnly\(/.test(outside) && /'Starting host\.\.\.'\) \+ relayNote\(\)\);\n\s*relayWarn\(\);/.test(src) && /setStatus\('Connecting to ' \+ showCode\(code\) \+ '\.\.\.'\); relayWarn\(\); \}/.test(src) && /only = relayActive\(\);/.test(src)
+            && /try \{ localStorage\.setItem\('wp_relayOnly', '0'\); \} catch \(e\) \{\}[^\n]*\n\s*saveTurnFields\(\); syncPanel\(\);/.test(settingsSrc) && /on, but no relay set/.test(settingsSrc) && /wpNet\.relayActive\(\)/.test(settingsSrc) && /rb\.style\.display = \(hasRelay \|\| relayFlag\) \? 'block' : 'none';/.test(settingsSrc) && /if \(ryBlock && localStorage\.getItem\('wp_relayOnly'\) === '1'\) ryBlock\.style\.display = 'block';/.test(settingsSrc));
+    }
+
+    /* ---- T4 (TRANSPORT-5): the transport guard ---- */
+    // the wire format the connection library's packer writes (BinaryPack), written here independently
+    const tp = v => {
+        const out = [], u16 = n => out.push((n >>> 8) & 255, n & 255), u32 = n => out.push((n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255);
+        const bytes = b => { for (let k = 0; k < b.length; k++) out.push(b[k]); };
+        const str = s => { const b = Buffer.from(s, 'utf8'); if (b.length <= 15) out.push(0xb0 + b.length); else if (b.length <= 65535) { out.push(0xd8); u16(b.length); } else { out.push(0xd9); u32(b.length); } bytes(b); };
+        const raw = b => { if (b.length <= 15) out.push(0xa0 + b.length); else if (b.length <= 65535) { out.push(0xda); u16(b.length); } else { out.push(0xdb); u32(b.length); } bytes(b); };
+        const int = e => { if (e >= -32 && e <= 127) out.push(e & 255); else if (e >= 0 && e <= 255) out.push(0xcc, e); else if (e >= -128 && e <= 127) out.push(0xd0, e & 255); else if (e >= 0 && e <= 65535) { out.push(0xcd); u16(e); } else if (e >= -32768 && e <= 32767) { out.push(0xd1); u16(e & 65535); }
+            else if (e >= 0 && e <= 4294967295) { out.push(0xce); u32(e); } else if (e >= -2147483648 && e <= 2147483647) { out.push(0xd2); u32(e >>> 0); } else { out.push(e >= 0 ? 0xcf : 0xd3); u32(Math.floor(Math.abs(e) / 4294967296)); u32(Math.abs(e) % 4294967296); } };
+        const go = x => {
+            if (typeof x === 'string') str(x);
+            else if (typeof x === 'number') { if (Math.floor(x) === x) int(x); else { out.push(0xcb); const b = Buffer.alloc(8); b.writeDoubleBE(x); bytes(b); } }
+            else if (typeof x === 'boolean') out.push(x ? 0xc3 : 0xc2);
+            else if (x === undefined || x === null) out.push(0xc0);
+            else if (Array.isArray(x)) { if (x.length <= 15) out.push(0x90 + x.length); else if (x.length <= 65535) { out.push(0xdc); u16(x.length); } else { out.push(0xdd); u32(x.length); } x.forEach(go); }
+            else if (x instanceof ArrayBuffer) raw(new Uint8Array(x));
+            else if (ArrayBuffer.isView(x)) raw(new Uint8Array(x.buffer, x.byteOffset, x.byteLength));
+            else { const ks = Object.keys(x); if (ks.length <= 15) out.push(0x80 + ks.length); else if (ks.length <= 65535) { out.push(0xde); u16(ks.length); } else { out.push(0xdf); u32(ks.length); } ks.forEach(k => { str(k); go(x[k]); }); }
+        };
+        go(v); return new Uint8Array(out).buffer;
+    };
+    // … and its decoder, as the library's own reads (a count is believed, a byte past the end reads as 0, a length past the end throws); a step limit keeps a runaway decode from hanging the suite
+    const tu = data => {
+        const u = data instanceof ArrayBuffer ? new Uint8Array(data) : new Uint8Array(data.buffer, data.byteOffset, data.byteLength); let i = 0, steps = 0;
+        const need = k => { if (i + k > u.length) throw new Error('BinaryPackFailure'); }, num = k => { need(k); let v = 0; for (let q = 0; q < k; q++) v = v * 256 + u[i++]; return v; };
+        const rawOf = k => { need(k); const b = u.slice(i, i + k); i += k; return b.buffer; }, strOf = k => { need(k); const s = Buffer.from(u.buffer, u.byteOffset + i, k).toString('utf8'); i += k; return s; };
+        const arrOf = k => { const a = []; for (let q = 0; q < k; q++) a[q] = go(); return a; }, mapOf = k => { const m = {}; for (let q = 0; q < k; q++) { const key = go(); m[key] = go(); } return m; };
+        const go = () => {
+            if (++steps > 3e6) throw new Error('RUNAWAY');
+            const t = (u[i++] | 0) & 255;
+            if (t < 0x80) return t; if (t >= 0xe0) return t - 256;
+            if (t <= 0x8f) return mapOf(t & 15); if (t <= 0x9f) return arrOf(t & 15); if (t <= 0xaf) return rawOf(t & 15); if (t <= 0xbf) return strOf(t & 15);
+            switch (t) {
+                case 0xc0: return null; case 0xc2: return false; case 0xc3: return true;
+                case 0xca: num(4); return 0; case 0xcb: { need(8); const dv = Buffer.from(u.buffer, u.byteOffset + i, 8).readDoubleBE(0); i += 8; return dv; }
+                case 0xcc: return num(1); case 0xcd: return num(2); case 0xce: return num(4); case 0xcf: return num(8);
+                case 0xd0: { const x = num(1); return x < 128 ? x : x - 256; } case 0xd1: { const x = num(2); return x < 32768 ? x : x - 65536; } case 0xd2: { const x = num(4); return x < 2147483648 ? x : x - 4294967296; } case 0xd3: return -num(8);
+                case 0xd8: return strOf(num(2)); case 0xd9: return strOf(num(4)); case 0xda: return rawOf(num(2)); case 0xdb: return rawOf(num(4));
+                case 0xdc: return arrOf(num(2)); case 0xdd: return arrOf(num(4)); case 0xde: return mapOf(num(2)); case 0xdf: return mapOf(num(4));
+            }
+            return undefined;
+        };
+        return go();
+    };
+    const MTU = 16300, piecesOf = (buf, id) => { const u = new Uint8Array(buf), total = Math.ceil(u.length / MTU), out = []; for (let k = 0; k < total; k++) out.push(tp({ __peerData: id, n: k, data: u.slice(k * MTU, (k + 1) * MTU), total })); return out; };
+    const B = (...xs) => { const out = []; xs.forEach(x => { if (typeof x === 'number') out.push(x); else if (typeof x === 'string') Buffer.from(x, 'latin1').forEach(y => out.push(y)); else x.forEach(y => out.push(y)); }); return new Uint8Array(out).buffer; };
+    const trSrc = sl('transport');
+    const mkT = (role, roster) => {   // the transport slice on a net of its own
+        const net = { role, roster: roster || Object.create(null) }; let api = null, threw = '';
+        try { api = new Function('net', 'own', trSrc + '\nreturn { packShapeOk: packShapeOk, wireGuard: wireGuard, connShapeOk: connShapeOk, RAW_MAX: RAW_MAX, PIECES_PRE: PIECES_PRE, BYTES_PRE: BYTES_PRE, PIECES_HOST: PIECES_HOST, PIECES_CLIENT: PIECES_CLIENT, CHUNK_OPEN: CHUNK_OPEN };')(net, H.own); } catch (e) { threw = String(e && e.message); }
+        return { net, api, threw };
+    };
+    // a stand-in for the library's binary data connection (its 1.5.2 source: the entry point, the chunk reassembly, close emptying the pieces)
+    const mkC = peer => {
+        const c = { peer, open: true, serialization: 'binary', _chunkedData: {}, h: {}, got: [], closed: 0, innerCalls: 0 };
+        c.on = (ev, fn) => { (c.h[ev] = c.h[ev] || []).push(fn); }; c.emit = (ev, x) => (c.h[ev] || []).forEach(f => f(x)); c.send = () => {};
+        c.close = () => { if (!c.open) return; c.open = false; c.closed++; c._chunkedData = {}; c.emit('close'); };
+        c._handleDataMessage = function(ev) { c.innerCalls++; const t = tu(ev.data), n = t.__peerData; if (n) { if (n.type === 'close') { this.close(); return; } this._handleChunk(t); return; } this.emit('data', t); };
+        c._handleChunk = function(e) { const id = e.__peerData, g = this._chunkedData[id] || { data: [], count: 0, total: e.total }; g.data[e.n] = new Uint8Array(e.data); g.count++; this._chunkedData[id] = g;
+            if (g.total === g.count) { delete this._chunkedData[id]; let len = 0; for (const p of g.data) len += p.byteLength; const all = new Uint8Array(len); let at = 0; for (const p of g.data) { all.set(p, at); at += p.byteLength; } this._handleDataMessage({ data: all }); } };
+        c.on('data', m => c.got.push(m));
+        c.deliver = buf => c._handleDataMessage({ data: buf });   // as the library's own listener calls it: through the instance
+        return c;
+    };
+    {
+        const T = trSrc ? mkT('host') : null, ok = T && T.api ? T.api.packShapeOk : null;
+        const AV = 'data:image/png;base64,' + 'A'.repeat(199000);
+        const helloMsg = { type: 'hello', profile: { id: 'u_kay', name: 'Kay — éè 😀', color: '#12ab34', avatar: AV, face: 'default' }, password: '', version: '1.5.0', fp: ['sha-256 AA', 'sha-256 BB'], proof: 'f'.repeat(64) };
+        const honest = [{ type: 'hb' }, { type: 'hello', profile: { id: 'u_a', name: 'A' }, password: 'pw', version: '1.5.0' }, {}, { type: 'x', a: [1, -1, 127, 128, 255, 256, -32, -33, -129, 65535, 65536, -32769, 4294967295, 4294967296, -2147483649, 1.5, -0.25], b: [true, false, null], c: { d: { e: [[], {}, ''] } }, s: 'x'.repeat(70000), big: new Array(70).fill('k') },
+            { type: 'asset-part', path: '/saves/images/audio/c/x.mp3', i: 0, n: 2, data: new Uint8Array(40000) }, { type: 'asset', data: new Uint8Array(0).buffer, many: Object.fromEntries(new Array(20).fill(0).map((x, k) => ['k' + k, k])) }];
+        let deep = { v: 1 }; for (let k = 0; k < 62; k++) deep = { a: deep }; const deepOk = { type: 'd', a: deep };   // 64 levels of containers in all
+        let deeper = { v: 1 }; for (let k = 0; k < 63; k++) deeper = { a: deeper }; const deepBad = { type: 'd', a: deeper };   // 65
+        const r = {};
+        if (ok) {
+            r.honest = honest.map(m => ok(tp(m))).concat(piecesOf(tp(helloMsg), 7).map(p => ok(p))).every(x => x === true) && ok(tp(helloMsg)) === true && ok(new Uint8Array(tp({ type: 'hb' }))) === true && ok(tp(deepOk)) === true;
+            const t0 = Date.now();
+            r.counts = [B(0x81, 0xb1, 'a', 0xdd, 0xff, 0xff, 0xff, 0xff), B(0x81, 0xb1, 'a', 0xdc, 0xff, 0xff), B(0xdf, 0xff, 0xff, 0xff, 0xff), B(0xde, 0x00, 0x03, 0xb1, 'a', 1), B(0x81, 0xb1, 'a', 0x93, 1, 2), B(0x82, 0xb1, 'a', 1), B(0x81, 0xb1, 'a', 0x9f, 1, 2, 3)].map(ok);
+            r.lengths = [B(0x81, 0xb1, 'a', 0xd9, 0xff, 0xff, 0xff, 0xff, 'x'), B(0x81, 0xb1, 'a', 0xd8, 0x00, 0x05, 'abcd'), B(0x81, 0xb1, 'a', 0xdb, 0x00, 0x00, 0x01, 0x00, 'x'), B(0x81, 0xb1, 'a', 0xa5, 'abcd'), B(0x81, 0xb5, 'abcd', 1), B(0x81, 0xb1, 'a', 0xcd, 1), B(0x81, 0xb1, 'a', 0xcb, 1, 2, 3, 4, 5, 6, 7), B(0x81, 0xb1, 'a', 0xcc), B(0x81, 0xb1, 'a', 0xd8, 0x00), B(0x81, 0xb1, 'a')].map(ok);
+            r.ms = Date.now() - t0;
+            r.depth = [ok(tp(deepBad)), ok(tp(deepOk))];
+            r.top = [tp([1, 2]), tp('hello'), tp(null), tp(5), tp(true), B(0xa1, 'x'), new ArrayBuffer(0)].map(ok).concat([ok(null), ok('x'), ok({ byteLength: 4 }), ok([0x80])]);
+            r.keys = [B(0x81, 0xb9, '__proto__', 0x80), B(0x81, 0xd8, 0x00, 0x09, '__proto__', 1), B(0x81, 0xb1, 'a', 0x81, 0xb9, '__proto__', 0x81, 0xb1, 'x', 1),
+                B(0x81, 0xba, 0xc1, 0x1f, '_proto__', 1), B(0x81, 0xbb, 0xc1, 0x9f, 0xc1, 0x5f, 'proto__', 1), B(0x81, 0xbb, 0xe0, 0x01, 0x1f, '_proto__', 1),      // "_" written in two bytes and in three: read as "_" all the same
+                B(0x81, 0x91, 0xb9, '__proto__', 1), B(0x81, 0x05, 1), B(0x81, 0xc0, 1), B(0x81, 0x80, 1), B(0x81, 0xa1, 'k', 1)].map(ok);
+            r.keysOk = [B(0x81, 0xba, '__proto__x', 1), B(0x81, 0xb8, '_proto__', 1), B(0x82, 0xbb, 'constructor', 1, 0xb9, 'prototype', 2), B(0x81, 0xb1, 'a', 0xb9, '__proto__')].map(ok);   // a longer or shorter key, other names, and "__proto__" as a VALUE
+            r.rest = [B(0x81, 0xb1, 'a', 1, 0), B(0x80, 0x80), B(0x81, 0xb1, 'a', 0xc1), B(0x81, 0xb1, 'a', 0xc4), B(0x81, 0xb1, 'a', 0xd4), B(0x81, 0xb1, 'a', 0xc9)].map(ok);
+        }
+        check('transport T4 (packShapeOk, run for real): every packet the library\'s packer makes for the app\'s own messages passes — a heartbeat, a hello, an empty message, numbers of every size and sign, long texts, lists and maps past sixteen entries, bytes, 64 levels of nesting, and each piece of a hello with a picture — as a buffer or a view of one',
+            !!ok && r.honest === true, J([T && T.threw, r.honest]));
+        check('transport T4 (packShapeOk): a count or a length the bytes cannot hold is refused — a list of four thousand million entries in eight bytes, a map of as many, a text, bytes or a number running past the end — in no time at all, without anything being made of it; 65 levels of nesting are refused',
+            !!ok && r.counts.every(x => x === false) && r.lengths.every(x => x === false) && r.ms < 200 && J(r.depth) === J([false, true]), J([r.counts, r.lengths, r.ms, r.depth]));
+        check('transport T4 (packShapeOk): a message is a map — a list, a text, a number, nothing, bytes, an empty buffer and anything that is no buffer are refused; a map\'s key is a text and never "__proto__", however its bytes are written (two- and three-byte forms the library\'s decoder reads as the same name), at any depth — a key that is a list, a number, nothing, a map or bytes is refused; "__proto__" as a value, a longer or shorter key and other names pass; bytes after the end and types the packer never writes are refused',
+            !!ok && r.top.every(x => x === false) && r.keys.every(x => x === false) && r.keysOk.every(x => x === true) && r.rest.every(x => x === false), J([r.top, r.keys, r.keysOk, r.rest]));
+    }
+    {
+        const run = (role, roster, fn) => { const T = mkT(role, roster); if (!T.api) return { threw: T.threw || 'no slice' }; const c = mkC('pX'); const out = { c, T, installed: T.api.wireGuard(c), threw: '' }; out.threw = noThrow(() => fn(c, T, out)); return out; };
+        const HB = tp({ type: 'hb' }), r = {};
+        const pad = n => tp({ type: 'pad', s: 'x'.repeat(n) });
+        if (trSrc) {
+            const seatedRoster = () => { const ro = Object.create(null); ro.pX = { id: 'u_x', name: 'X' }; return ro; };
+            r.plain = run('host', null, c => { c.deliver(HB); c.deliver(tp({ type: 'hello', profile: { id: 'u_a' } })); });
+            r.big = run('host', seatedRoster(), (c, T, o) => { const p = pad(T.api.RAW_MAX); o.size = [p.byteLength > T.api.RAW_MAX, T.api.packShapeOk(p)]; c.deliver(p); c.deliver(HB); });   // well formed, and a few bytes past the size
+            r.edge = run('host', seatedRoster(), (c, T) => { c.deliver(pad(T.api.RAW_MAX - 20)); });
+            r.notBytes = ['text', new Uint8Array(tp({ type: 'hb' })), null, { byteLength: 3 }, 7].map(x => { const o = run('host', seatedRoster(), c => { c.deliver(x); }); return [o.threw, o.c.closed, o.c.got.length, o.c.innerCalls]; });
+            r.shape = run('host', seatedRoster(), c => { c.deliver(B(0x81, 0xb1, 'a', 0xdd, 0xff, 0xff, 0xff, 0xff)); c.deliver(HB); });
+            r.throws = (() => { const T = mkT('host', seatedRoster()); const c = mkC('pX'); c._handleDataMessage = function() { c.innerCalls++; throw new Error('decode failed'); }; T.api.wireGuard(c); const e = noThrow(() => { c.deliver(HB); c.deliver(HB); }); return [e, c.closed, c.got.length, c.innerCalls]; })();
+            const first = (id, total, extra) => tp(Object.assign({ __peerData: id, n: 0, data: new Uint8Array(10), total }, extra || {}));
+            r.groups = run('host', seatedRoster(), (c, T, o) => { c.deliver(first(1, 5)); c.deliver(first(2, 5)); o.two = [c.closed, Object.keys(c._chunkedData).length]; c.deliver(first(3, 5)); });
+            r.totalPre = [32, 33].map(t => { const o = run('host', null, c => { c.deliver(first(1, t)); }); return o.c.closed; });
+            r.totalHost = [4096, 4097].map(t => { const o = run('host', seatedRoster(), c => { c.deliver(first(1, t)); }); return o.c.closed; });
+            r.totalClient = [8192, 8193].map(t => { const o = run('client', null, c => { c.deliver(first(1, t)); }); return o.c.closed; });
+            r.totalBad = [0, -1, 2.5, '5', null, 1e12].map(t => { const o = run('host', seatedRoster(), c => { c.deliver(first(1, t)); }); return [o.threw, o.c.closed]; });
+            r.past = run('host', seatedRoster(), c => { c.deliver(tp({ __peerData: 1, n: 9, data: new Uint8Array(4), total: 3 })); });   // a piece numbered past the total
+            r.sum = run('host', null, (c, T, o) => { for (let k = 0; k < 20; k++) c.deliver(tp({ __peerData: 1, n: k, data: new Uint8Array(4), total: 32 })); o.mid = c.closed; for (let k = 0; k < 20 && c.open; k++) c.deliver(tp({ __peerData: 2, n: k, data: new Uint8Array(4), total: 32 })); o.held = c.open ? -1 : 0; });   // two messages under way: their pieces counted together (32 before admission)
+            r.budget = run('host', null, (c, T, o) => { let k = 0; const p = pad(16000); for (; k < 200 && c.open; k++) c.deliver(p); o.sent = k; o.bytes = p.byteLength; c.deliver(HB); });
+            r.budgetSeated = run('host', seatedRoster(), (c, T, o) => { const p = pad(16000); for (let k = 0; k < 200 && c.open; k++) c.deliver(p); });
+            const AV = 'data:image/png;base64,' + 'B'.repeat(199000), hello = { type: 'hello', profile: { id: 'u_kay', name: 'Kay', avatar: AV }, password: '', version: '1.5.0' };
+            r.hello = run('host', null, (c, T, o) => { const ps = piecesOf(tp(hello), 1); o.pieces = ps.length; ps.forEach(p => c.deliver(p)); c.deliver(HB); });
+            r.closeWord = run('host', seatedRoster(), c => { c.deliver(tp({ __peerData: { type: 'close' } })); });
+            const inPieces = bad => run('host', seatedRoster(), c => { const u = new Uint8Array(bad), h = Math.ceil(u.length / 2); c.deliver(tp({ __peerData: 9, n: 0, data: u.slice(0, h), total: 2 })); c.deliver(tp({ __peerData: 9, n: 1, data: u.slice(h), total: 2 })); c.deliver(HB); });   // honest pieces, a hostile whole
+            r.inside = [B(0x81, 0xb9, '__proto__', 0x81, 0xb1, 'x', 1), B(0x81, 0xb1, 'a', 0xdd, 0xff, 0xff, 0xff, 0xff), B(0x93, 1, 2, 3)].map(bad => { const o = inPieces(bad); return [o.threw, o.c.closed, o.c.got.length, o.c.innerCalls]; });
+            r.insideOk = (() => { const o = inPieces(tp({ type: 'chat', text: 'hello there' })); return [o.threw, o.c.closed, o.c.got.map(m => m.type)]; })();
+            r.client = run('client', null, (c, T, o) => { c.deliver(tp({ type: 'snapshot', gmId: 'u_gm' })); c.deliver(B(0x81, 0xb9, '__proto__', 0x80)); c.deliver(HB); });
+            r.twice = run('host', seatedRoster(), (c, T, o) => { o.again = T.api.wireGuard(c); c.deliver(HB); });
+            const T0 = mkT('host'); r.noClass = T0.api ? [T0.api.wireGuard({ peer: 'p', open: true, on() {}, close() {} }), T0.api.wireGuard({ peer: 'p', _handleDataMessage() {} }), T0.api.wireGuard(null), T0.api.wireGuard({ peer: 'p', _handleDataMessage() {}, _chunkedData: 5 })] : null;
+            const S = T0.api ? T0.api.connShapeOk : null, okC = mkC('p');
+            r.shapeOf = S ? [S(okC), S(new Object('stranger')), S(Object.assign(mkC('p'), { serialization: 'json' })), S(Object.assign(mkC('p'), { serialization: 'raw' })), S(Object.assign(mkC('p'), { peer: 5 })), S(Object.assign(mkC('p'), { peer: '' })), S(Object.assign(mkC('p'), { peer: 'x'.repeat(129) })), S(Object.assign(mkC('p'), { on: null })), S(null), S('conn'), S({})] : null;
+        }
+        const closedQuietly = o => o && o.threw === '' && o.c.closed === 1 && o.c.got.length === 0;
+        check('transport T4 (the guard on a connection, run for real on a stand-in for the library\'s connection): honest messages reach the app; a raw message past the size the library ever sends closes the connection and nothing of it — or after it — is read; one just under the size passes; a message that is not bytes (a text, a typed view, nothing) closes it without the library being called; a packet whose count the bytes cannot hold closes it before anything decodes it',
+            !!trSrc && r.plain.installed === true && r.plain.threw === '' && r.plain.c.closed === 0 && J(r.plain.c.got.map(m => m.type)) === J(['hb', 'hello']) && closedQuietly(r.big) && r.big.c.innerCalls === 0 && J(r.big.size) === J([true, true]) && r.edge.c.closed === 0 && r.edge.c.got.length === 1
+            && r.notBytes.every(x => J(x) === J(['', 1, 0, 0])) && closedQuietly(r.shape) && r.shape.c.innerCalls === 0, J([r.plain && [r.plain.threw, r.plain.installed, r.plain.c.closed, r.plain.c.got.length], r.big && [r.big.threw, r.big.c.closed, r.big.c.innerCalls], r.edge && r.edge.c.closed, r.notBytes, r.shape && [r.shape.threw, r.shape.c.closed, r.shape.c.innerCalls]]));
+        check('transport T4 (the guard): whatever the library\'s own decoding throws closes the connection and never leaves the listener (nothing reaches the page\'s error banner), and nothing more is handed to it; the library\'s own "close" word still closes',
+            !!trSrc && J(r.throws) === J(['', 1, 0, 1]) && r.closeWord.threw === '' && r.closeWord.c.closed === 1, J([r.throws, r.closeWord && [r.closeWord.threw, r.closeWord.c.closed]]));
+        check('transport T4 (the guard, pieces of large messages): two large messages may be under way at once, a third closes the connection; before admission a message is at most 32 pieces and the pieces of every message under way are counted together; an admitted player\'s is at most 4,096 pieces (about 66 MB) and a host\'s at most 8,192 (about 133 MB); a total that is no whole number of at least one, or a piece numbered past the total, closes it; a large message put back together is judged for its shape as any other — honest pieces that add up to a key naming the prototype, a count the bytes cannot hold or a list are closed on before the whole is decoded',
+            !!trSrc && r.inside.every(x => J(x) === J(['', 1, 0, 2])) && J(r.insideOk) === J(['', 0, ['chat', 'hb']]) && r.groups.threw === '' && J(r.groups.two) === J([0, 2]) && r.groups.c.closed === 1 && J(r.totalPre) === J([0, 1]) && J(r.totalHost) === J([0, 1]) && J(r.totalClient) === J([0, 1]) && r.totalBad.every(x => J(x) === J(['', 1])) && closedQuietly(r.past) && r.sum.threw === '' && r.sum.mid === 0 && r.sum.c.closed === 1,
+            J([r.groups && [r.groups.threw, r.groups.two, r.groups.c.closed], r.totalPre, r.totalHost, r.totalClient, r.totalBad, r.past && r.past.c.closed, r.sum && [r.sum.threw, r.sum.mid, r.sum.c.closed]]));
+        check('transport T4 (the guard, before admission): a connection the GM has not admitted is read one megabyte in all — past it the connection is closed and the message that crossed the line never reaches handleMessage — while an admitted player\'s is not counted; a hello with a 200,000-character picture, sent in the library\'s own pieces, arrives whole and once',
+            !!trSrc && r.budget.threw === '' && r.budget.c.closed === 1 && r.budget.sent === Math.floor(1048576 / r.budget.bytes) + 1 && r.budget.c.got.length === r.budget.sent - 1 && r.budgetSeated.c.closed === 0 && r.budgetSeated.c.got.length === 200
+            && r.hello.threw === '' && r.hello.c.closed === 0 && r.hello.pieces === 13 && r.hello.c.got.length === 2 && r.hello.c.got[0].type === 'hello' && r.hello.c.got[0].profile.avatar.length === 199022 && r.hello.c.got[1].type === 'hb' && Object.keys(r.hello.c._chunkedData).length === 0,
+            J([r.budget && [r.budget.threw, r.budget.c.closed, r.budget.sent, r.budget.bytes, r.budget.c.got.length], r.budgetSeated && [r.budgetSeated.c.closed, r.budgetSeated.c.got.length], r.hello && [r.hello.threw, r.hello.c.closed, r.hello.pieces, r.hello.c.got.length]]));
+        check('transport T4 (the guard, a player\'s side): the same for the host a player\'s app dialled — its messages reach the app, a packet naming the prototype closes the connection and nothing after it is read; the guard is put on once (a second call wraps nothing more), and refuses a connection that is not of the library\'s class (no entry point, no pieces table); a connection the app may wire is the library\'s own in the binary encoding, with a plain peer id — anything else is not',
+            !!trSrc && r.client.threw === '' && r.client.c.closed === 1 && J(r.client.c.got.map(m => m.type)) === J(['snapshot']) && r.twice.again === true && r.twice.c.got.length === 1 && r.twice.c.innerCalls === 1 && J(r.noClass) === J([false, false, false, false])
+            && J(r.shapeOf) === J([true, false, false, false, false, false, false, false, false, false, false]), J([r.client && [r.client.threw, r.client.c.closed, r.client.c.got.length], r.twice && [r.twice.again, r.twice.c.got.length, r.twice.c.innerCalls], r.noClass, r.shapeOf]));
+        const wcA = src.indexOf('function wireConn(conn) {'), wcS = wcA >= 0 ? src.slice(wcA, src.indexOf("conn.on('close', function() {", wcA)) : '';
+        check('transport T4 (wired): wireConn listens to no connection without the guard — it refuses and closes one it cannot guard before any state or close handler is attached; the host\'s handler refuses a connection that is not the library\'s binary one, or cannot be guarded, before it is listed; nothing else wires a connection',
+            /if \(!wireGuard\(conn\)\) \{[^\n]*try \{ conn\.close\(\); \} catch \(e\) \{\} return false; \}[^\n]*\n\s*conn\.on\('iceStateChanged'/.test(wcS) && (noCm(src).match(/wireConn\(conn\)/g) || []).length === 3
+            && /peer\.on\('connection', function\(conn\) \{\s*if \(!connShapeOk\(conn\) \|\| !wireGuard\(conn\) \|\| !unadmittedRoom\(conn\)\) \{ try \{ conn\.close\(\); \} catch \(e\) \{\} return; \}[^\n]*\n\s*net\.conns\.push\(conn\);/.test(src));
+    }
+    // where the library's own file is in the repository (or named by WP_PEERJS), the same guard runs on its real connection class
+    {
+        const findPeer = () => { if (process.env.WP_PEERJS && fs.existsSync(process.env.WP_PEERJS)) return process.env.WP_PEERJS; const root = path.join(__dirname, '..', 'system', 'app'), stack = [root]; let n = 0;
+            while (stack.length && n < 5000) { const d = stack.pop(); let ents = []; try { ents = fs.readdirSync(d, { withFileTypes: true }); } catch (e) {} for (const e of ents) { n++; const p = path.join(d, e.name); if (e.isDirectory()) { if (e.name !== 'node_modules') stack.push(p); } else if (/^peerjs(\.min)?\.js$/i.test(e.name)) return p; } }
+            return null; };
+        const pjPath = findPeer();
+        if (pjPath && trSrc) {
+            let r = {}, err = '';
+            err = noThrow(() => {
+                const vm = require('vm');
+                class FakeWS { constructor() { this.readyState = 0; } send() {} close() {} }
+                class FakePC { constructor() { this.iceConnectionState = 'new'; this.signalingState = 'stable'; } createDataChannel() { return new EventTarget(); } addEventListener() {} close() {} setRemoteDescription() { return new Promise(() => {}); } createOffer() { return new Promise(() => {}); } createAnswer() { return new Promise(() => {}); } setLocalDescription() { return new Promise(() => {}); } addIceCandidate() { return Promise.resolve(); } addTransceiver() {} getSenders() { return []; } }
+                const win = { navigator: { userAgent: 'Mozilla/5.0 Chrome/128.0.0.0', platform: 'Win32', mediaDevices: {} }, WebSocket: FakeWS, RTCPeerConnection: FakePC, RTCSessionDescription: function(x) { return x; }, RTCIceCandidate: function(x) { return x; }, setTimeout, clearTimeout, setInterval, clearInterval, console: { log() {}, warn() {}, error() {} },
+                    TextEncoder, TextDecoder, Blob, fetch: () => new Promise(() => {}), location: { protocol: 'https:', hostname: 'localhost' }, document: {}, EventTarget, MessageEvent };
+                win.window = win; win.self = win; win.globalThis = win;
+                const ctx = vm.createContext(win), inVm = o => vm.runInContext('(' + JSON.stringify(o) + ')', ctx), piece = (id, total) => vm.runInContext('({ __peerData: ' + id + ', n: 0, data: new Uint8Array(8).buffer, total: ' + total + ' })', ctx);   // the library's packer knows only objects of its own context: what it packs is made there
+                vm.runInContext(fs.readFileSync(pjPath, 'utf8'), ctx, { filename: 'peerjs.js' });
+                const Peer = win.Peer; const peer = new Peer('wp-netcheck', { config: { iceServers: [] } });
+                const util = win.peerjs.util, same = u => { const b = new Uint8Array(u.byteLength); b.set(new Uint8Array(u)); return b.buffer; };   // a buffer of this realm, as the page's own channel hands one over
+                const mkReal = (role, roster) => { const T = mkT(role, roster); const c = new peer._serializers.binary('stranger', peer, { connectionId: 'dc_t' + Math.random(), _payload: { sdp: { type: 'offer', sdp: '' }, type: 'data', serialization: 'binary' }, serialization: 'binary', reliable: true });
+                    const dc = new EventTarget(); c._initializeDataChannel(dc); dc.onopen(); const got = []; let closed = 0; c.on('data', m => got.push(m)); c.on('close', () => { closed++; }); c.on('error', () => {});
+                    return { T, c, got, closed: () => closed, shape: T.api.connShapeOk(c), installed: T.api.wireGuard(c), send: buf => dc.dispatchEvent(new MessageEvent('message', { data: buf })) }; };
+                const AV = 'data:image/png;base64,' + 'C'.repeat(199000), hello = { type: 'hello', profile: { id: 'u_kay', name: 'Kay é', avatar: AV }, password: '', version: '1.5.0' };
+                const packed = same(util.pack(inVm(hello))), pieces = util.chunk(util.pack(inVm(hello))).map(p => same(util.pack(p))), hbR = () => same(util.pack(inVm({ type: 'hb' })));
+                r.packerAgrees = Buffer.from(packed).equals(Buffer.from(tp(hello))) && pieces.length === 13;
+                const A = mkReal('host'); pieces.forEach(p => A.send(p)); A.send(hbR());
+                r.honest = [A.shape, A.installed, A.closed(), A.got.length, A.got[0] && A.got[0].type, A.got[0] && A.got[0].profile.avatar === AV, A.got[1] && A.got[1].type, Object.keys(A.c._chunkedData).length];
+                const Bc = mkReal('host'); const eb = noThrow(() => { Bc.send(B(0x81, 0xb1, 'a', 0xdd, 0xff, 0xff, 0xff, 0xff)); Bc.send(hbR()); }); r.count = [eb, Bc.closed(), Bc.got.length];
+                const Cc = mkReal('host'); const ec = noThrow(() => { Cc.send(B(0x81, 0xb9, '__proto__', 0x81, 0xb1, 'x', 1)); }); r.proto = [ec, Cc.closed(), Cc.got.length];
+                const Dc = mkReal('host'); const ed = noThrow(() => { for (let k = 1; k <= 3; k++) Dc.send(same(util.pack(piece(k, 4)))); }); r.groups = [ed, Dc.closed()];
+                const Ec = mkReal('host'); const ee = noThrow(() => { Ec.send(same(util.pack(inVm({ type: 'pad', s: 'x'.repeat(Ec.T.api.RAW_MAX) })))); Ec.send(hbR()); }); const Gc = mkReal('host'); const eg = noThrow(() => { Gc.send('text'); }); r.big = [ee, Ec.closed(), Ec.got.length, eg, Gc.closed(), Gc.got.length];
+                const Fc = mkReal('client'); const ef = noThrow(() => { Fc.send(same(util.pack(inVm({ type: 'snapshot', gmId: 'u_gm' })))); Fc.send(same(util.pack(piece(1, 8193)))); }); r.client = [ef, Fc.closed(), Fc.got.length];
+                const sgS = sl('siggate'), sp = new Peer('wp-netcheck-sig', { config: { iceServers: [] } }); let made = 0; sp.on('connection', () => { made++; }); sp.on('error', () => {});
+                const offR = (from, id, ser) => inVm({ type: 'OFFER', src: from, payload: { sdp: { type: 'offer', sdp: 'v=0\r\n' }, type: 'data', connectionId: id, label: id, serialization: ser, reliable: true } });
+                if (sgS) { const on = new Function('Date', 'console', sgS + '\nreturn sigGate;')(Date, { warn() {} })(sp, true, 'wp-netcheck-sig');
+                    const es = noThrow(() => { for (let k = 0; k < 500; k++) sp._handleMessage(inVm({ type: 'CANDIDATE', src: 's', payload: { connectionId: 'dc_' + k, candidate: {} } })); sp._handleMessage(offR('s', 'dc_bad', 'constructor')); sp._handleMessage(offR('s', 'dc_bad2', 'json')); sp._handleMessage(offR('kay', 'dc_kay', 'binary')); sp._handleMessage(inVm({ type: 'CANDIDATE', src: 'kay', payload: { connectionId: 'dc_kay', candidate: { candidate: 'x' } } })); });
+                    const kc = sp.getConnection('kay', 'dc_kay'); r.sig = [on, es, sp._lostMessages.size, made, !!kc && kc.serialization === 'binary' && sp.getConnection('s', 'dc_bad') === null && sp.getConnection('s', 'dc_bad2') === null]; }
+                try { peer.destroy(); sp.destroy(); } catch (e) {}
+            });
+            check('transport T4 (the real connection library, ' + path.basename(pjPath) + '): its own packer writes the format this suite writes; on its own data connection class the guard goes on, a hello in thirteen of its pieces arrives whole and once, and a count the bytes cannot hold, a key naming the prototype, a third large message under way, an oversized or non-binary message and (a player\'s side) a message past the host\'s ceiling each close the connection with nothing thrown out of the listener and nothing handed to the app; on its own peer the signalling gate goes on — five hundred candidates for connections nobody holds are not kept, an offer naming another connection class is dropped without a throw, and a Waypoint\'s offer builds its connection',
+                err === '' && r.packerAgrees === true && J(r.honest) === J([true, true, 0, 2, 'hello', true, 'hb', 0]) && J(r.count) === J(['', 1, 0]) && J(r.proto) === J(['', 1, 0]) && J(r.groups) === J(['', 1]) && J(r.big) === J(['', 1, 0, '', 1, 0]) && J(r.client) === J(['', 1, 1]) && J(r.sig) === J([true, '', 0, 1, true]), J([err, r]));
+        }
+    }
+
+    /* ---- T5 (TRANSPORT-6): backpressure ---- */
+    {
+        const aqSrc = sl('assetreq'), blSrc = sl('backlog'), tick = ms => new Promise(res => setTimeout(res, ms || 30));
+        const mkW = () => {
+            const w = { fetched: 0, files: {}, threw: '', onFetch: null };
+            const fetch = reqPath => { w.fetched++; let dec; try { dec = decodeURIComponent(reqPath); } catch (e) { dec = reqPath; } const f = w.files[dec]; if (!f) return Promise.resolve({ ok: false }); if (w.onFetch) w.onFetch(dec);
+                return Promise.resolve({ ok: true, headers: { get: h => (h === 'content-length' ? String(f.byteLength) : null) }, body: { cancel() {} }, arrayBuffer: () => Promise.resolve(f.buffer.slice(0)) }); };
+            try { w.api = new Function('net', 'location', 'sendFailed', 'allow', 'fetch', 'setTimeout', 'Date', aqSrc + '\nreturn { handleAssetRequest: handleAssetRequest, assetNoteSends: assetNoteSends, connBacklog: typeof connBacklog === "function" ? connBacklog : null, ASSET_BACKLOG: typeof ASSET_BACKLOG === "number" ? ASSET_BACKLOG : null };')({ active: true, role: 'host', conns: [], stream: false }, { origin: 'http://localhost:3999' }, e => { throw e; }, () => true, fetch, setTimeout, Date); }
+            catch (e) { w.threw = String(e && e.message); w.api = null; }
+            w.conn = peer => { const c = { peer, open: true, bufferSize: 0, sent: [], send: m => { packCheck(m); c.sent.push(m.type === 'asset' ? (m.error ? 'refused:' + m.error : 'asset') : m.type === 'asset-part' ? 'part' + m.i + '/' + m.n : m.type); } }; if (w.api) w.api.assetNoteSends(c); return c; };
+            return w;
+        };
+        const W = aqSrc ? mkW() : null, r = {};
+        if (W && W.api) {
+            const PIC = '/saves/images/m1/pic.png', PIC2 = '/saves/images/m1/pic2.png', SND = '/saves/images/audio/c1/song.mp3', SND2 = '/saves/images/audio/c1/song2.mp3';
+            W.files[PIC] = new Uint8Array(64); W.files[PIC2] = new Uint8Array(64); W.files[SND] = new Uint8Array(300 * 1024); W.files[SND2] = new Uint8Array(1000);
+            const A = W.conn('pA'); A.send({ type: 'item', item: { whiteboard: [{ id: 'a', src: PIC }, { id: 'b', src: PIC2 }] } }); A.send({ type: 'sounds', list: [{ id: 's', path: SND }, { id: 's2', path: SND2 }] }); const n0 = A.sent.length;
+            const cb = W.api.connBacklog; r.backlogOf = cb ? [cb({ bufferSize: 0 }), cb({ bufferSize: 12 }), cb({}), cb({ bufferSize: 'x' }), cb({ bufferSize: -4 }), cb(null), cb({ bufferSize: '7' })] : null; r.cap = W.api.ASSET_BACKLOG;
+            A.bufferSize = 2049; W.api.handleAssetRequest({ type: 'asset-req', path: PIC }, A); await tick(); r.before = [A.sent.slice(n0), W.fetched];
+            A.bufferSize = 2048; W.api.handleAssetRequest({ type: 'asset-req', path: PIC }, A); await tick(); r.atCap = [A.sent.slice(n0 + 1), W.fetched];
+            A.bufferSize = 0; const n1 = A.sent.length; W.onFetch = () => { A.bufferSize = 5000; }; W.api.handleAssetRequest({ type: 'asset-req', path: PIC2 }, A); await tick(); W.onFetch = null; r.during = [A.sent.slice(n1), W.fetched];
+            A.bufferSize = 1; const n2 = A.sent.length; W.api.handleAssetRequest({ type: 'asset-req', path: SND }, A); await tick(120); r.held = A.sent.slice(n2);
+            W.api.handleAssetRequest({ type: 'asset-req', path: SND2 }, A); await tick(); r.second = A.sent.slice(n2);   // one sound in flight: the second is answered busy
+            A.bufferSize = 0; await tick(160); r.sent = A.sent.slice(n2);
+            const n3 = A.sent.length; W.api.handleAssetRequest({ type: 'asset-req', path: SND2 }, A); await tick(60); r.next = A.sent.slice(n3);
+        }
+        check('transport T5 (the asset gate, run for real on a connection with a queue): a picture asked for while the library holds more than 2,048 messages for that connection is answered busy and nothing is fetched or read; at 2,048 it is served; one whose queue passes the line while the file is being read is answered busy and its bytes are not sent',
+            !!W && W.threw === '' && J(r.backlogOf) === J([0, 12, 0, 0, 0, 0, 7]) && r.cap === 2048 && J(r.before) === J([['refused:busy'], 0]) && J(r.atCap) === J([['asset'], 1]) && J(r.during) === J([['refused:busy'], 2]), J([W && W.threw, r.backlogOf, r.cap, r.before, r.atCap, r.during]));
+        check('transport T5 (a sound\'s parts): while anything is queued for the connection no part of a sound is sent — it waits, still the one in flight; once the queue is empty its parts go out in order, and the next sound is taken',
+            !!W && J(r.held) === J([]) && J(r.second) === J(['refused:busy']) && J(r.sent) === J(['refused:busy', 'part0/2', 'part1/2']) && J(r.next) === J(['part0/1']), J([r.held, r.second, r.sent, r.next]));
+        let hb = null, hbErr = 'no slice';
+        if (blSrc && W && W.api && W.api.connBacklog) hbErr = noThrow(() => {
+            const hbSrc = fnSrc('function hbTick() {', '\n// Where each player was last seen', 'hbTick'), toasts = [], now = Date.now();
+            const mk = (peer, q) => { const c = { peer, open: true, bufferSize: q, sent: [], closed: 0, send: m => c.sent.push(m), close: () => { c.open = false; c.closed++; } }; return c; };
+            const far = mk('pFar', 8193), edge = mk('pEdge', 8192), fine = mk('pFine', 0), waiting = mk('pWait', 9000);
+            const net = { active: true, role: 'host', conns: [far, edge, fine, waiting], roster: Object.create(null) }; net.roster.pFar = { id: 'u_f', name: 'Farah' }; net.roster.pEdge = { id: 'u_e', name: 'Ed' }; net.roster.pFine = { id: 'u_o', name: 'Ola' };
+            new Function('net', 'own', 'toast', 'connBacklog', 'setIndicator', 'lastSeen', 'HB_DEAD', 'HB_STALE', 'renderRoster', 'sendFailed', 'holdUntil', blSrc + '\n' + hbSrc + '\nreturn hbTick();')(net, H.own, t => toasts.push(t), W.api.connBacklog, () => {}, { pFar: now, pEdge: now, pFine: now, pWait: now }, 20000, 8000, () => {}, () => {}, {});
+            const second = () => new Function('net', 'own', 'toast', 'connBacklog', blSrc + '\nreturn backlogSweep();')(Object.assign({}, net, { role: 'client' }), H.own, t => toasts.push('client:' + t), W.api.connBacklog);
+            const edgeBefore = edge.closed; edge.bufferSize = 9000; second();
+            hb = { closed: [far.closed, edge.closed, fine.closed, waiting.closed], toasts, hbs: [fine.sent.length, edge.sent.length], edgeBefore };
+        });
+        check('transport T5 (the hard stop, hbTick and backlogSweep run for real): at a heartbeat a connection the library holds more than 8,192 messages for is closed once — the GM told by name for an admitted player, silently for one still waiting — while one at 8,192 and one with nothing queued are kept and still hear the heartbeat; a player\'s app sweeps nothing',
+            hbErr === '' && J(hb.closed) === J([1, 0, 0, 1]) && hb.toasts.length === 1 && /^Farah is not keeping up/.test(hb.toasts[0]) && J(hb.hbs) === J([1, 1]) && hb.edgeBefore === 0, J([hbErr, hb]));
+        const aq = aqSrc || '', pumpAt = aq.indexOf('(function pump() {'), pumpS = pumpAt >= 0 ? aq.slice(pumpAt, aq.indexOf('})();', pumpAt)) : '', picS = aq.slice(aq.lastIndexOf('if (connBacklog(conn) > ASSET_BACKLOG) { answerAsset(conn, msg.path, \'busy\'); return; }', aq.lastIndexOf('fetch(reqPath)')));
+        check('transport T5 (source): the pump tests the queue before it sends a part; the picture branch tests it before the fetch and again before the send; the heartbeat runs the sweep; a player\'s app asks a busy host again for some two and a half minutes (up to forty times, four seconds apart at most) before it settles on the placeholder',
+            pumpS.indexOf('connBacklog(conn) > 0') > 0 && pumpS.indexOf('connBacklog(conn) > 0') < pumpS.indexOf('conn.send(') && /if \(connBacklog\(conn\) > ASSET_BACKLOG\) \{ answerAsset\(conn, msg\.path, 'busy'\); return; \}[^\n]*\n\s*fetch\(reqPath\)/.test(aq) && /if \(connBacklog\(conn\) > ASSET_BACKLOG\) \{ answerAsset\(conn, msg\.path, 'busy'\); return; \}[^\n]*\n\s*try \{ conn\.send\(\{ type: 'asset', path: msg\.path, mime:/.test(aq)
+            && /if \(typeof backlogSweep === 'function'\) backlogSweep\(\);/.test(fnSrc('function hbTick() {', '\n// Where each player was last seen', 'hbTick')) && /msg\.error === 'busy' && tries <= 40\) setTimeout\(function\(\) \{ if \(!assetCache\[msg\.path\]\) net\.assetSrc\(msg\.path\); \}, Math\.min\(800 \* tries, 4000\)\);/.test(src), J([pumpS.length, picS.length]));
+    }
+
+    /* ---- T6 (TRANSPORT-7): the signalling gate ---- */
+    {
+        const sgSrc = sl('siggate'), r = {}; let err = 'no slice';
+        // a stand-in for the library's peer: its 1.5.2 offer and default cases (the connection's class taken from the offer's own word; anything for a connection it does not hold kept)
+        const mkP = () => { const p = { built: 0, conns: new Map(), _lostMessages: new Map(), emitted: [], inner: 0, handled: [] };
+            class DC { constructor(peerId, prov, o) { p.built++; this.peer = peerId; this.connectionId = o.connectionId; this.serialization = 'binary'; this.peerConnection = {}; this.open = false; } handleMessage(m) { p.handled.push(m.type + ':' + this.connectionId); } close() {} on() {} send() {} }
+            p._serializers = { raw: DC, json: DC, binary: DC, 'binary-utf8': DC, default: DC };
+            p.getConnection = (src, id) => { const l = p.conns.get(src); if (!l) return null; for (const c of l) if (c.connectionId === id) return c; return null; };
+            p._handleMessage = function(e) { p.inner++; const t = e.type, n = e.payload, s = e.src;
+                switch (t) { case 'OPEN': p.emitted.push('open'); break; case 'ID-TAKEN': p.emitted.push('taken'); break; case 'ERROR': p.emitted.push('error'); break; case 'INVALID-KEY': p.emitted.push('badkey'); break; case 'LEAVE': p.emitted.push('leave:' + s); break; case 'EXPIRE': p.emitted.push('expire:' + s); break;
+                    case 'OFFER': { const id = n.connectionId; if (n.type === 'media') { p.built++; p.emitted.push('call'); } else if (n.type === 'data') { const c = new p._serializers[n.serialization](s, p, { connectionId: id }); if (!p.conns.has(s)) p.conns.set(s, []); p.conns.get(s).push(c); p.emitted.push('connection'); } break; }
+                    default: { if (!n) return; const id = n.connectionId, c = p.getConnection(s, id); if (c && c.peerConnection) c.handleMessage(e); else if (id) { if (!p._lostMessages.has(id)) p._lostMessages.set(id, []); p._lostMessages.get(id).push(e); } } } };
+            return p; };
+        const offer = (src, id, o) => ({ type: 'OFFER', src, dst: 'waypoint-room', payload: Object.assign({ sdp: { type: 'offer', sdp: 'v=0\r\n' }, type: 'data', connectionId: id, label: id, reliable: true, serialization: 'binary' }, o || {}) });
+        if (sgSrc) err = noThrow(() => {
+            const mkG = (isHost, room) => { const clock = { now: 1e6 }, warns = []; const p = mkP(); const api = new Function('Date', 'console', sgSrc + '\nreturn { sigGate: sigGate, sigOk: sigOk, SIG_OFFERS: SIG_OFFERS, SIG_OFFERS_MS: SIG_OFFERS_MS };')({ now: () => clock.now }, { warn: (...a) => warns.push(a.length) }); const on = api.sigGate(p, isHost, room); return { p, api, on, clock, warns, say: m => noThrow(() => p._handleMessage(m)) }; };
+            // (1) nothing kept for a connection nobody holds
+            const A = mkG(true, 'waypoint-room'); let e1 = '';
+            for (let k = 0; k < 1000; k++) { e1 += A.say({ type: 'CANDIDATE', src: 'stranger', payload: { connectionId: 'dc_none' + (k % 7), candidate: { candidate: 'x'.repeat(2000) } } }); e1 += A.say({ type: 'ANSWER', src: 'stranger', payload: { connectionId: 'dc_none' + k, sdp: { type: 'answer', sdp: 'v=0' } } }); }
+            r.kept = [A.on, e1, A.p.inner, A.p._lostMessages.size, A.p.built];
+            // (2) bad offers dropped quietly
+            const Bg = mkG(true, 'waypoint-room'), bad = [offer('s', 'c1', { serialization: 'constructor' }), offer('s', 'c2', { serialization: 'toString' }), offer('s', 'c3', { serialization: '__proto__' }), offer('s', 'c4', { serialization: 'nope' }), offer('s', 'c5', { serialization: 'raw' }), offer('s', 'c6', { serialization: 'json' }), offer('s', 'c6b', { serialization: 'binary-utf8' }),
+                { type: 'OFFER', src: 's' }, { type: 'OFFER', src: 's', payload: 'x' }, offer('s', 5), offer('s', ''), offer('s', 'x'.repeat(65)), offer('s', 'c7', { type: 'media' }), offer('s', 'c8', { sdp: 'v=0' }), offer('s', 'c9', { sdp: null }), offer('s', 'c10', { sdp: { type: 'answer', sdp: 'v=0' } }), offer('s', 'c11', { sdp: { type: 'offer', sdp: 'x'.repeat(20001) } }), offer('s', 'c11b', { sdp: { type: 'offer', sdp: '' } }),
+                offer(undefined, 'c12'), offer(7, 'c13'), offer('', 'c14'), offer('y'.repeat(129), 'c15'), null, 'OFFER', 7, { type: 'NOPE', src: 's', payload: { connectionId: 'c' } }, { type: 'HEARTBEAT' }, { src: 's' }];
+            let e2 = ''; bad.forEach(m => { e2 += Bg.say(m); }); r.bad = [e2, Bg.p.inner, Bg.p.built, Bg.p.emitted.length];
+            // (3) the arrival window
+            const Cg = mkG(true, 'waypoint-room'); for (let k = 0; k < 25; k++) { Cg.clock.now += 300; Cg.say(offer('s' + k, 'dc_' + k)); } const inWin = Cg.p.built; Cg.clock.now += 2600; Cg.say(offer('late', 'dc_late')); const stillFull = Cg.p.built; Cg.clock.now += 400; Cg.say(offer('later', 'dc_later'));
+            r.window = [Cg.api.SIG_OFFERS, Cg.api.SIG_OFFERS_MS, inWin, stillFull, Cg.p.built];
+            // (4) the honest path
+            const Dg = mkG(true, 'waypoint-room'); Dg.say(offer('kay', 'dc_kay')); Dg.say({ type: 'CANDIDATE', src: 'kay', payload: { connectionId: 'dc_kay', candidate: {} } }); Dg.say({ type: 'CANDIDATE', src: 'mallory', payload: { connectionId: 'dc_kay', candidate: {} } }); Dg.say(offer('kay', 'dc_kay')); Dg.say({ type: 'ANSWER', src: 'kay', payload: { connectionId: 'dc_kay', sdp: {} } });
+            Dg.say({ type: 'OPEN' }); Dg.say({ type: 'ID-TAKEN' }); Dg.say({ type: 'ERROR', payload: { msg: 'x' } }); Dg.say({ type: 'OPEN', src: 'mallory' }); Dg.say({ type: 'ID-TAKEN', src: 'mallory' }); Dg.say({ type: 'LEAVE', src: 'kay' }); Dg.say({ type: 'EXPIRE', src: 'mallory' });
+            r.honest = [Dg.p.built, Dg.p.handled, Dg.p.emitted, Dg.p._lostMessages.size];
+            // (5) what the library throws stays inside
+            const thrower = mkP(); thrower._handleMessage = () => { throw new Error('inside the library'); }; const tApi = new Function('Date', 'console', sgSrc + '\nreturn sigGate;')(Date, { warn() {} }); tApi(thrower, true, 'r');
+            r.contained = noThrow(() => thrower._handleMessage({ type: 'OPEN' }));
+            const getThrows = mkP(); getThrows.getConnection = () => { throw new Error('boom'); }; tApi(getThrows, true, 'r'); r.failClosed = [noThrow(() => getThrows._handleMessage(offer('s', 'c'))), getThrows.inner];
+            r.noLib = [tApi({}, true, 'r'), tApi({ _handleMessage() {} }, true, 'r'), tApi(null, true, 'r')];
+            // (6) a player's peer
+            const Fg = mkG(false, 'waypoint-room'); Fg.p.conns.set('waypoint-room', [{ connectionId: 'dc_mine', peerConnection: {}, handleMessage(m) { Fg.p.handled.push(m.type); } }]);
+            Fg.p.conns.set('stranger', [{ connectionId: 'dc_theirs', peerConnection: {}, handleMessage(m) { Fg.p.handled.push('STRAY:' + m.type); } }]);   // a connection held under another sender: still not the room this app dialled
+            Fg.say({ type: 'ANSWER', src: 'stranger', payload: { connectionId: 'dc_theirs', sdp: {} } }); Fg.say({ type: 'CANDIDATE', src: 'stranger', payload: { connectionId: 'dc_theirs' } });
+            Fg.say(offer('stranger', 'dc_x')); Fg.say(offer('waypoint-room', 'dc_y')); Fg.say({ type: 'ANSWER', src: 'stranger', payload: { connectionId: 'dc_mine', sdp: {} } }); Fg.say({ type: 'CANDIDATE', src: 'stranger', payload: { connectionId: 'dc_mine' } }); Fg.say({ type: 'ANSWER', src: 'waypoint-room', payload: { connectionId: 'dc_other', sdp: {} } });
+            Fg.say({ type: 'LEAVE', src: 'stranger' }); Fg.say({ type: 'EXPIRE', src: 'stranger' }); const quiet = [Fg.p.inner, Fg.p.built, Fg.p._lostMessages.size];
+            Fg.say({ type: 'ANSWER', src: 'waypoint-room', payload: { connectionId: 'dc_mine', sdp: {} } }); Fg.say({ type: 'CANDIDATE', src: 'waypoint-room', payload: { connectionId: 'dc_mine' } }); Fg.say({ type: 'EXPIRE', src: 'waypoint-room' }); Fg.say({ type: 'LEAVE', src: 'waypoint-room' }); Fg.say({ type: 'OPEN' });
+            r.client = [quiet, Fg.p.handled, Fg.p.emitted];
+        });
+        check('transport T6 (the signalling gate, run for real on a stand-in for the library\'s peer): two thousand answers and candidates for connections the host does not hold never reach the library — nothing is kept, nothing built; an offer naming another connection class (a prototype\'s name, raw, json), a call, a malformed or oversized session description, a missing, empty, non-text or over-long connection id or sender, and a message of no known kind are dropped without a throw, the library not called',
+            err === '' && J(r.kept) === J([true, '', 0, 0, 0]) && J(r.bad) === J(['', 0, 0, 0]), J([err, r.kept, r.bad]));
+        check('transport T6 (the arrival window): of 25 honest offers inside ten seconds exactly 20 build a connection — the rest are dropped before anything exists — and once the oldest has left the window the next is taken',
+            err === '' && J(r.window) === J([20, 10000, 20, 20, 21]), J([err, r.window]));
+        check('transport T6 (the honest path): a Waypoint\'s offer reaches the library and its connection is built; its candidate reaches that connection, the same candidate from another sender does not; a second offer for a connection already held, and an answer on a host, are dropped; the service\'s own words pass only with no sender on them; "leave" passes, "expire" never on a host',
+            err === '' && J(r.honest) === J([1, ['CANDIDATE:dc_kay'], ['connection', 'open', 'taken', 'error', 'leave:kay'], 0]), J([err, r.honest]));
+        check('transport T6 (contained, and failing closed): a throw inside the library does not leave the wrapper; a judge that throws lets nothing through; a peer without the library\'s entry points is not wrapped (the handler\'s own checks and the transport guard still stand)',
+            err === '' && r.contained === '' && J(r.failClosed) === J(['', 0]) && J(r.noLib) === J([false, false, false]), J([err, r.contained, r.failClosed, r.noLib]));
+        check('transport T6 (a player\'s peer): every offer is dropped; an answer, a candidate, "leave" and "expire" pass only from the room this app dialled, and an answer or candidate only for the connection it holds — from anyone else, or for another connection, nothing reaches the library and nothing is kept',
+            err === '' && J(r.client) === J([[0, 0, 0], ['ANSWER', 'CANDIDATE'], ['expire:waypoint-room', 'leave:waypoint-room', 'open']]), J([err, r.client]));
+        // the host's handler, run for real with the real shape check
+        let hd = null, hdErr = 'no slice';
+        const hpSrc = sl('hostpeer');
+        if (hpSrc && trSrc) hdErr = noThrow(() => {
+            const T = mkT('host'), net = T.net; net.peer = { h: {}, on(ev, fn) { this.h[ev] = fn; } }; net.conns = []; net.active = true; const meta = Object.create(null), wired = [];
+            const names = ['net', 'peer', 'code', 'gen', 'resumed', 'setStatus', 'showCode', 'rememberHostCode', 'toast', 'logEvent', 'startHeartbeat', 'ui', 'syncSessionButtons', 'renderRoster', 'getActiveCampaign', 'SC', 'save', 'connShapeOk', 'wireGuard', 'unadmittedRoom', '_connMeta', 'assetNoteSends', 'wireConn', 'setTimeout', 'ROOM_GENS', 'startHosting', 'forgetHostCode', 'Date'];
+            new Function(...names, hpSrc)(net, net.peer, 'abcde23456', 0, null, () => {}, c => c, () => {}, () => {}, () => {}, () => {}, () => ({ style: {} }), () => {}, () => {}, () => null, () => null, () => {}, T.api.connShapeOk, T.api.wireGuard, () => true, meta, () => {}, c => wired.push(c.peer), () => 0, 4, () => {}, () => {}, Date);
+            const good = mkC('kay'), json = Object.assign(mkC('jay'), { serialization: 'json' }), noClass = { peer: 'ray', open: true, serialization: 'binary', on() {}, send() {}, close() { this.shut = true; } };
+            const e = noThrow(() => { net.peer.h.connection(new Object('stranger')); net.peer.h.connection(json); net.peer.h.connection(noClass); net.peer.h.connection(null); net.peer.h.connection(good); });
+            hd = { e, listed: net.conns.map(c => c.peer), meta: Object.keys(meta), wired, jsonClosed: json.closed, noClassShut: noClass.shut === true, guarded: good._wpGuard === true };
+        });
+        check('transport T6 (the host\'s handler, run for real with the real shape check and guard): a thing that is no connection (what the library builds from a prototype\'s name), a connection in another encoding and one whose transport cannot be guarded are closed and never listed, recorded or wired — nothing throws; the library\'s own binary connection is listed, recorded, guarded and wired',
+            hdErr === '' && hd.e === '' && J(hd.listed) === J(['kay']) && J(hd.meta) === J(['kay']) && J(hd.wired) === J(['kay']) && hd.jsonClosed === 1 && hd.noClassShut === true && hd.guarded === true, J([hdErr, hd]));
+        check('transport T6 (wired): the gate goes on the host\'s peer as soon as it is made, before anything is listened to, and on a player\'s peer for the room and generation it dials',
+            /var peer = new Peer\(roomPeerId\(code, gen\), peerOpts\(\)\);\n\s*sigGate\(peer, true, roomPeerId\(code, gen\)\);/.test(src) && /\n    var gen = isRetry \? [^\n]*\n\s*sigGate\(peer, false, roomPeerId\(code, gen\)\);/.test(src));
+    }
+
+    /* ---- T7 (TRANSPORT-4, SERVER-9, FILESYSTEM-12): the key proof bound to the encrypted channel ---- */
+    {
+        const j = J, KB = 'b'.repeat(32), sdp = (...fps) => ({ type: 'offer', sdp: 'v=0\r\no=- 1 2 IN IP4 127.0.0.1\r\ns=-\r\n' + fps.map(f => 'a=fingerprint:sha-256 ' + f + '\r\n').join('') + 'm=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\n' });
+        const pcOf = (mine, theirs) => ({ localDescription: sdp(mine), remoteDescription: sdp(theirs) });
+        const FH = 'AA:01', FC = 'CC:03', FM1 = 'EE:05', FM2 = 'EE:06', P = f => 'sha-256 ' + f;
+        const r = {};
+        r.helpers = !!(HT.dtlsPrint && HT.chanPrints && HT.saidPrints) && [
+            H.authData('n1', 'waypoint-ab', 'P', 'H') === 'wp-auth|n1|waypoint-ab|P|H',
+            HT.dtlsPrint({ sdp: 'v=0\r\na=fingerprint:sha-256 ab:cd:ef\r\nm=application\r\n' }) === 'sha-256 AB:CD:EF',
+            HT.dtlsPrint({ sdp: 'v=0\nm=application\na=fingerprint:SHA-256 AB:CD\n' }) === 'sha-256 AB:CD',
+            HT.dtlsPrint({ sdp: 'a=fingerprint:sha-256 BB:02\r\nm=x\r\na=fingerprint:sha-256 aa:01\r\na=fingerprint:sha-256 bb:02\r\n' }) === 'sha-256 AA:01,sha-256 BB:02',
+            HT.dtlsPrint({ sdp: 'v=0\r\nm=application\r\n' }) === '' && HT.dtlsPrint(null) === '' && HT.dtlsPrint({ sdp: 7 }) === '' && HT.dtlsPrint({}) === '' && HT.dtlsPrint({ sdp: 'x a=fingerprint:sha-256 AB\r\n' }) === '' && HT.dtlsPrint({ sdp: 'a=fingerprint:sha-256 zz\r\n' }) === '',
+            j(HT.chanPrints({ peerConnection: pcOf('aa:01', 'CC:03') })) === j({ mine: 'sha-256 AA:01', theirs: 'sha-256 CC:03' }),
+            HT.chanPrints({}) === null && HT.chanPrints(null) === null && HT.chanPrints({ peerConnection: { localDescription: sdp('AA:01'), remoteDescription: sdp() } }) === null && HT.chanPrints({ peerConnection: { localDescription: null, remoteDescription: sdp('AA:01') } }) === null && HT.chanPrints({ get peerConnection() { throw new Error('gone'); } }) === null,
+            j(HT.saidPrints(['a', 'b'])) === j(['a', 'b']) && [null, 'ab', ['a'], ['a', 'b', 'c'], ['a', 7], ['', 'b'], ['a', ''], ['x'.repeat(401), 'b'], { 0: 'a', 1: 'b', length: 2 }].every(v => HT.saidPrints(v) === null)
+        ].every(Boolean);
+        // the middle, end to end: Alice hosts waypoint-alice and knows Bob; Bob's app dials waypoint-alice but its connection ends at a third party, which holds its own connection to Alice and passes her challenge and his answer along
+        const mkA = () => harness({ players: { u_bob: { name: 'Bob', key: KB } }, roomPeer: 'waypoint-alice' });
+        const mkB = (peer, pc) => { const hc = harness({ role: 'client' }); storage.clear(); H.rememberTableKey('u_alice', KB); const cc = hc.conn(peer, pc); return { h: hc, c: cc, hellos: () => hc.sent.filter(s => s.m.type === 'hello').map(s => s.m) }; };
+        const relay = async (edit) => {
+            const A = mkA(), mAtA = A.conn('m-peer', pcOf(FH, FM1)); A.hello(mAtA, { id: 'u_bob', name: 'Bob' }); await A.settle(); const nA = A.lastSent('m-peer', 'auth').m.nonce;
+            const Bb = mkB('waypoint-alice', pcOf(FC, FM2)); runGate(Bb.h.env, { type: 'auth', gmId: 'u_alice', nonce: nA }, Bb.c); await Bb.h.settle(); const said = Bb.hellos()[0] || {};
+            const fwd = { proof: said.proof, fp: said.fp }; if (edit) edit(fwd);
+            A.hello(mAtA, { id: 'u_bob', name: 'Bob' }, fwd); await A.settle();
+            return { adm: A.admitted.length, q: A.env.pendingJoins.map(x => x.why), said, keySent: j(Bb.h.sent).indexOf(KB) >= 0 };
+        };
+        r.passed = await relay(); r.rewritten = await relay(f => { f.fp = [P(FM1), P(FH)]; }); r.stripped = await relay(f => { delete f.fp; });
+        // the direct channel
+        const A2 = mkA(), bAtA = A2.conn('bob-peer', pcOf(FH, FC)); A2.hello(bAtA, { id: 'u_bob', name: 'Bob' }); await A2.settle(); const nA2 = A2.lastSent('bob-peer', 'auth').m.nonce;
+        const B2 = mkB('waypoint-alice', pcOf(FC, FH)); runGate(B2.h.env, { type: 'auth', gmId: 'u_alice', nonce: nA2 }, B2.c); await B2.h.settle(); const said2 = B2.hellos()[0] || {};
+        A2.hello(bAtA, { id: 'u_bob', name: 'Bob' }, { proof: said2.proof, fp: said2.fp }); await A2.settle();
+        r.direct = { adm: A2.admitted.length, key: A2.admitted[0] && A2.admitted[0].key === KB, q: A2.env.pendingJoins.length, fp: said2.fp, proof: said2.proof === hmacRef(KB, 'wp-auth|' + nA2 + '|waypoint-alice|' + P(FC) + '|' + P(FH)) };
+        // fail closed, both sides
+        const N = H.newKey();
+        const noPc = mkB('waypoint-alice', null); runGate(noPc.h.env, { type: 'auth', gmId: 'u_alice', nonce: N }, noPc.c); await noPc.h.settle();
+        const noFp = mkB('waypoint-alice', { localDescription: sdp(), remoteDescription: sdp(FH) }); runGate(noFp.h.env, { type: 'auth', gmId: 'u_alice', nonce: N }, noFp.c); await noFp.h.settle();
+        r.clientClosed = [noPc.hellos(), noFp.hellos()].map(s => s.length === 1 && !('proof' in s[0]) && !('fp' in s[0]) && j(s).indexOf(KB) < 0);
+        const hostBlind = async (mk) => { const A = mkA(), c = A.conn('x-peer', null); A.hello(c, { id: 'u_bob', name: 'Bob' }); await A.settle(); const n = A.lastSent('x-peer', 'auth').m.nonce; A.hello(c, { id: 'u_bob', name: 'Bob' }, mk(n)); await A.settle(); return [A.admitted.length, A.env.pendingJoins.map(x => x.why)]; };
+        r.hostBlind = [await hostBlind(n => ({ proof: hmacRef(KB, 'wp-auth|' + n + '|waypoint-alice|' + P(FC) + '|' + P(FH)), fp: [P(FC), P(FH)] })), await hostBlind(n => ({ proof: hmacRef(KB, 'wp-auth|' + n + '|waypoint-alice') })), await hostBlind(n => ({ proof: hmacRef(KB, 'wp-auth|' + n + '|waypoint-alice||') }))];
+        const wrongKey = await (async () => { const A = mkA(), c = A.conn('y-peer', pcOf(FH, FC)); A.hello(c, { id: 'u_bob', name: 'Bob' }); await A.settle(); const n = A.lastSent('y-peer', 'auth').m.nonce; A.hello(c, { id: 'u_bob', name: 'Bob' }, { proof: hmacRef('x'.repeat(32), 'wp-auth|' + n + '|waypoint-alice|' + P(FC) + '|' + P(FH)), fp: [P(FC), P(FH)] }); await A.settle(); return [A.admitted.length, A.env.pendingJoins.map(x => x.why)]; })();
+        const oldForm = await (async () => { const A = mkA(), c = A.conn('z-peer', pcOf(FH, FC)); A.hello(c, { id: 'u_bob', name: 'Bob' }); await A.settle(); const n = A.lastSent('z-peer', 'auth').m.nonce; A.hello(c, { id: 'u_bob', name: 'Bob' }, { proof: hmacRef(KB, 'wp-auth|' + n + '|waypoint-alice') }); await A.settle(); return [A.admitted.length, A.env.pendingJoins.map(x => x.why)]; })();
+        r.other = [wrongKey, oldForm];
+        check('transport T7 (the helpers, run for real): the proof\'s text names the nonce, the room and the two fingerprints, the player\'s then the host\'s; a description\'s fingerprints are read from every line, session or media level, the hash named in lower case and the hex in upper, each once and in order — none for a description that has none, is missing or is no text; a connection\'s pair is this side\'s and the other\'s, or nothing when either cannot be read; a stated pair is two short texts or nothing',
+            r.helpers === true, j([r.helpers, H.authData('n1', 'waypoint-ab', 'P', 'H')]));
+        check('transport T7 (someone between, end to end on both sides\' real code): Bob dials Alice\'s own room id, but each leg of his connection ends at a third party with its own certificates, which passes her challenge and his answer along unchanged — Alice\'s host admits nobody: the join goes to the GM flagged "unbound" (the right key, not this connection); with the stated pair rewritten to match her side, or left out, the proof no longer verifies and the GM is asked as for a name without its key; the key itself never left Bob\'s machine',
+            r.passed.adm === 0 && j(r.passed.q) === j(['unbound']) && r.rewritten.adm === 0 && j(r.rewritten.q) === j(['nokey']) && r.stripped.adm === 0 && j(r.stripped.q) === j(['nokey']) && [r.passed, r.rewritten, r.stripped].every(x => x.keySent === false && typeof x.said.proof === 'string' && j(x.said.fp) === j([P(FC), P(FM2)])), j([r.passed, r.rewritten, r.stripped]));
+        check('transport T7 (the direct channel): each side reading the other\'s certificate as the other reads its own, the player\'s answer — a proof over the nonce, the room dialled and the two fingerprints, with the pair stated beside it — goes straight in, the key kept, nobody asked',
+            r.direct.adm === 1 && r.direct.key === true && r.direct.q === 0 && j(r.direct.fp) === j([P(FC), P(FH)]) && r.direct.proof === true, j(r.direct));
+        check('transport T7 (fail closed): a player\'s app that cannot read its connection\'s fingerprints sends a plain hello — no proof, no pair, never the key; a host that cannot read its own connection admits nobody on a proof — a right key over a stated pair is put to the GM as unbound, a proof in the form from before the binding as a name without its key; a wrong key over the right pair, or the old form on a readable connection, is a name without its key',
+            j(r.clientClosed) === j([true, true]) && j(r.hostBlind) === j([[0, ['unbound']], [0, ['nokey']], [0, ['nokey']]]) && j(r.other) === j([[0, ['nokey']], [0, ['nokey']]]), j([r.clientClosed, r.hostBlind, r.other]));
+        // the GM's words
+        const apSrc = sl('approval'); let asks = null, apErr = 'no slice';
+        if (apSrc) apErr = noThrow(() => {
+            const ask = why => { const out = []; const env = { approvalOpen: false, pendingJoins: [{ conn: { open: true }, prof: { id: 'u_bob', name: 'Bob' }, why }], getActiveCampaign: () => null, own: H.own, bannedIds: {}, denyJoin: () => {}, showConfirm: t => out.push(t), net: { active: true, role: 'host' }, admitPlayer: () => {}, toast: () => {} };
+                new Function(...Object.keys(env), apSrc + '\nprocessNextApproval();')(...Object.keys(env).map(k => env[k])); return out[0]; };
+            asks = [ask('unbound'), ask('nokey'), ask('')];
+        });
+        check('transport T7 (the GM\'s question): a join whose proof was right but not made over this connection is put in words of its own — they hold the key, the answer did not match this connection, someone may be between, check another way first — apart from the routine "a name this table already knows, but without its table key", and a stranger\'s plain question',
+            apErr === '' && asks[0] === '"Bob" wants to join your table — they hold this table’s key, but their answer did not match this connection: someone may be between you and them. Check with them another way before you let them in. Let them in?'
+            && asks[1] === '"Bob" wants to join your table — a name this table already knows, but without its table key (a fresh install, or someone else using that name). Let them in?' && asks[2] === '"Bob" wants to join your table. Let them in?', j([apErr, asks]));
+        check('transport T7 (wired): the gate reads the fingerprints of the connection being judged and admits only when the key is right AND the pair the proof covers is the pair this side reads; the player\'s answer is made over its own connection\'s pair, and with none readable no proof is sent',
+            /var ch0 = chanPrints\(conn\), fp0 = saidPrints\(msg\.fp\) \|\| \(ch0 \? \[ch0\.theirs, ch0\.mine\] : null\);/.test(gateSrc) && /if \(keyOk0 && bound0\) admitPlayer\(conn, prof, key0\);\n\s*else queueJoin\(conn, prof, keyOk0 \? 'unbound' : 'nokey'\);/.test(gateSrc)
+            && /if \(keyA && nonceA && chA\) hmacHex\(keyA, authData\(nonceA, conn\.peer, chA\.mine, chA\.theirs\)\)\.then\(sayA\); else sayA\(null\);/.test(gateSrc) && (gateSrc.match(/admitPlayer\(/g) || []).length === 1);
+    }
+})());
 // security R2 cluster J (2026-10-01), the host side: what the fuzz harness (tools/fuzzcheck.js) still found on the GM's machine — a yes to a dropped join,
 // the Start-combat offers a player can queue, the table-wide password lockout, unadmitted connections held without bound, pictures read without a
 // byte budget, a stranger's close costing a save, and saves that write nothing new. Each run on the real code (sliced) and pinned where it is wired
 pendingChecks.push((async () => {
-    const J = JSON.stringify, PROOF = (key, nonce, room) => hmacRef(key, 'wp-auth|' + nonce + '|' + room);
+    const J = JSON.stringify, PROOF = (key, nonce, room) => hmacRef(key, 'wp-auth|' + nonce + '|' + room + FPTAIL);
     const slice = (a, b) => { try { return between(a, b, a); } catch (e) { return null; } };
     /* ---- J1: a yes the GM gives to a join whose connection dropped admits nobody later (processNextApproval, run for real; the gate) ---- */
     {
@@ -8531,7 +9041,7 @@ pendingChecks.push((async () => {
         check('cluster J #4 (host, unadmittedRoom run for real): with fewer than 32 connections waiting for admission a newcomer has room and nothing is closed (admitted connections never count); at 32, the oldest that never said hello (held open on heartbeats alone) is closed and taken out of the list and its records, and the newcomer has room; with 32 waiting that all said hello, the newcomer is refused; the handler closes a refused connection before it is listed or wired',
             !!ccSrc && rA === true && A.closed.length === 0 && A.threw === '' && rB === true && J(B.closed) === J(['s0']) && !B.net.conns.some(c => c.peer === 's0') && !('s0' in B.meta) && !('s0' in B.lastSeen) && B.net.conns.length === 34
             && rC === false && C.closed.length === 0 && rD === true && rD2 === true && J(D.closed) === J(['s0', 's1']) && D.net.conns.length === 31
-            && /peer\.on\('connection', function\(conn\) \{\s*if \(!unadmittedRoom\(conn\)\) \{ try \{ conn\.close\(\); \} catch \(e\) \{\} return; \}[^\n]*\n\s*net\.conns\.push\(conn\);/.test(src), J([rA, A && A.closed, rB, B && B.closed, rC, rD, rD2, D && D.closed, A && A.threw]));
+            && /peer\.on\('connection', function\(conn\) \{\s*if \(!connShapeOk\(conn\) \|\| !wireGuard\(conn\) \|\| !unadmittedRoom\(conn\)\) \{ try \{ conn\.close\(\); \} catch \(e\) \{\} return; \}[^\n]*\n\s*net\.conns\.push\(conn\);/.test(src), J([rA, A && A.closed, rB, B && B.closed, rC, rD, rD2, D && D.closed, A && A.threw]));
     }
     /* ---- J5: a byte budget on the pictures and sounds read for one connection (the asset gate, run for real on a clock of its own) ---- */
     {
@@ -8761,7 +9271,7 @@ pendingChecks.push((async () => {
         h: 'security S (h): a room code this app has joined belongs to the GM id it synced with there — a snapshot naming another GM id at that code is refused however well signed; at the end of a join the player began they are asked ONCE (the app\'s own words, never on Enter), and nothing when the answer is no; a yes joins again and holds for that code, that GM id and that very key alone — the table is then taken, its key pinned, the code now its GM\'s — while another key under the same name, and that key shown without a signature of its own, are refused again',
         i: 'security S (i): while a snapshot\'s signature is checked at most 256 messages wait behind it; a snapshot from a connection other than the one this app dialled is not judged at all; an automatic reconnect never pins a key (an unpinned GM that shows one is taken as before, nothing remembered against the real GM)',
         j: 'security S (j, host): a hello with no nonce (an older app) or a malformed one gets the snapshot as before — unsigned, a new table key; the first nonce a connection sent is the one signed (a later hello cannot change it); a host with no WebCrypto hosts unsigned and says so once',
-        l: 'security S (l): the signed text is made in one place (snapData) and what ties it to the connection in one more (snapBind, read by each side from its own end — nothing today beyond the room id): whatever it gives is signed by the host and read back by the player\'s app alike — a snapshot signed over one tie is taken and pinned by a player whose connection reads the same and refused, with no question, by one whose connection reads another; a connection whose tie cannot be read is signed nothing by the host, and under a pinned GM a player\'s app that cannot read its own takes nothing',
+        l: 'security S (l): the signed text is made in one place (snapData) and what ties it to the connection in one more (snapBind, read by each side from its own end: the connection\'s two certificate fingerprints, the player\'s then the host\'s, null when either cannot be read): whatever it gives is signed by the host and read back by the player\'s app alike — a snapshot signed over one tie is taken and pinned by a player whose connection reads the same and refused, with no question, by one whose connection reads another; a connection whose tie cannot be read is signed nothing by the host, and under a pinned GM a player\'s app that cannot read its own takes nothing',
         m: 'security S (m): an automatic reconnect is held to the GM this session took its table from, in memory — on a player\'s app whose storage refuses every write (no pin, no room code kept) a first join is taken as ever, and on the reconnect a snapshot naming another GM id, one under the GM\'s id from another key and one under it with no key are each refused (said once, no question), the GM\'s own taken; a join the player begins is judged by what is stored alone',
         k: 'security S (k, wired): handleMessage holds a player\'s messages behind a snapshot being checked and judges a snapshot before its branch applies anything; the join sends a fresh nonce in both hellos, marks an automatic reconnect, keeps where the reconnect stood and tries the next generation after a refusal; hosting loads the key; admitPlayer hands over the key the signature was made for and signs the snapshot; the proof path waits for the signatures; Help says it on both panes'
     };
@@ -8776,7 +9286,7 @@ pendingChecks.push((async () => {
         const helpers = (store, cr) => new Function('localStorage', 'crypto', helpersSrc + '\nreturn { ' + HN.map(n => n + ': ' + n).join(', ') + ' };')(store, cr || globalThis.crypto);
         const nodeOk = (pub, sig, data) => { try { return nodeCrypto.verify('sha256', Buffer.from(data), { key: nodeCrypto.createPublicKey({ key: pub, format: 'jwk' }), dsaEncoding: 'ieee-p1363' }, Buffer.from(sig, 'hex')); } catch (e) { return false; } };
         const mkSigner = () => { const kp = nodeCrypto.generateKeyPairSync('ec', { namedCurve: 'P-256' }), jwk = kp.publicKey.export({ format: 'jwk' }); return { pub: { kty: jwk.kty, crv: jwk.crv, x: jwk.x, y: jwk.y }, sign: data => nodeCrypto.sign('sha256', Buffer.from(data), { key: kp.privateKey, dsaEncoding: 'ieee-p1363' }).toString('hex') }; };   // a host the suite builds itself: its signatures owe nothing to the app's code
-        const dataOf = (cn, room, gm, key, bind) => 'wp-snap|' + cn + '|' + room + '|' + gm + '|' + key + (bind || '');   // the suite's own reading of the signed text (bind: what ties it to the connection — nothing today)
+        const dataOf = (cn, room, gm, key, bind) => 'wp-snap|' + cn + '|' + room + '|' + gm + '|' + key + (bind === undefined ? FPTAIL : bind);   // the suite's own reading of the signed text (bind: what ties it to the connection — the stub connections' two fingerprints, the player's then the host's)
 
         /* ---- the GM's machine: the real hello gate, the real signing slice; admission as admitPlayer does it (its two lines are pinned in k) ---- */
         const mkHost = async o => {
@@ -8799,7 +9309,7 @@ pendingChecks.push((async () => {
             const c = X.h.conn(peer), extra = cn === undefined ? {} : { cn };
             X.h.hello(c, prof, extra); await X.h.settle();
             const a = X.h.lastSent(peer, 'auth');
-            if (a && key) { X.h.hello(c, prof, Object.assign({ proof: hmacRef(key, 'wp-auth|' + a.m.nonce + '|' + X.h.env.net.roomPeer) }, cn2 === undefined ? extra : { cn: cn2 })); await X.h.settle(); }
+            if (a && key) { X.h.hello(c, prof, Object.assign({ proof: hmacRef(key, 'wp-auth|' + a.m.nonce + '|' + X.h.env.net.roomPeer + FPTAIL) }, cn2 === undefined ? extra : { cn: cn2 })); await X.h.settle(); }
             else if (a) X.h.fireTimers();
             const before = X.h.sent.filter(s => s.peer === peer).map(s => s.m.type), q = X.h.env.pendingJoins.find(x => x.conn === c);
             if (q) X.h.env.admitPlayer(c, q.prof);
@@ -8824,7 +9334,7 @@ pendingChecks.push((async () => {
             env.wireDeliver = deliver;
             const names = Object.keys(env);
             S = new Function(...names, stSrc + '\nreturn { snapHeld, snapArrived, snapRefuse, snapAsk, joinTrustReset, genNotRefused: typeof genNotRefused === "function" ? genNotRefused : null, trust: function() { return _joinTrust; }, words: { refused: SNAP_REFUSED, ask: SNAP_ASK, max: SNAP_HOLD_MAX } };')(...names.map(n => env[n]));
-            const connect = p => { p = p || {}; const conn = { peer: p.peer || 'waypoint-c1c1', open: true, closedN: 0, wpCn: p.cn || HC.newKey(), wpRetry: !!p.retry, wpBefore: p.before || null, close() { conn.closedN++; conn.open = false; }, wpNext() { c.next++; } }; net.conns = [conn]; net.active = true; net.syncedPeer = null; return conn; };
+            const connect = p => { p = p || {}; const conn = { peer: p.peer || 'waypoint-c1c1', open: true, closedN: 0, wpCn: p.cn || HC.newKey(), wpRetry: !!p.retry, wpBefore: p.before || null, peerConnection: pcStub(FPP, FPH), close() { conn.closedN++; conn.open = false; }, wpNext() { c.next++; } }; net.conns = [conn]; net.active = true; net.syncedPeer = null; return conn; };
             const settle = async conn => { for (let i = 0; i < 400 && conn.wpSnapWait; i++) await new Promise(r => setImmediate(r)); await new Promise(r => setImmediate(r)); };
             return { c, net, reconn, S, HC, store, deliver, connect, settle };
         };
@@ -8987,7 +9497,7 @@ pendingChecks.push((async () => {
         const lBlind = [ln.c.log.indexOf('snapshot') >= 0, cn1.wpSnapDead === true, ln.c.next, ln.c.confirms.length, ln.HC.tableKeyFor('u_gm') === s1.key];
         const nCalls = (s, re) => (s.match(re) || []).length;
         chk('l', lSigned && J(lTaken) === J(['snapshot', true, 0]) && J(lOther) === J([true, false, true, 1, 0, true]) && plain(sn0) && J(lBlind) === J([false, true, 1, 0, true])
-            && A.HH.snapBind({}, true) === '' && A.HH.snapBind({}, false) === '' && A.HH.snapData('c', 'r', 'g', 'k', '') === 'wp-snap|c|r|g|k' && A.HH.snapData('c', 'r', 'g', 'k', '|a|b') === 'wp-snap|c|r|g|k|a|b'
+            && A.HH.snapBind({}, true) === null && A.HH.snapBind({}, false) === null && A.HH.snapBind({ peerConnection: pcStub(FPH, FPP) }, true) === FPTAIL && A.HH.snapBind({ peerConnection: pcStub(FPP, FPH) }, false) === FPTAIL && A.HH.snapBind({ peerConnection: pcStub(FPP, FPH) }, true) !== FPTAIL && A.HH.snapData('c', 'r', 'g', 'k', '') === 'wp-snap|c|r|g|k' && A.HH.snapData('c', 'r', 'g', 'k', '|a|b') === 'wp-snap|c|r|g|k|a|b'
             && nCalls(src, /snapData\(/g) === 3 && nCalls(src, /snapBind\(/g) === 3 && nCalls(gmSrc, /snapData\(cn, room, gm, key, bind\)/g) === 1 && /bind = snapBind\(conn, true\); if \(!kp \|\| !cm \|\| typeof bind !== 'string'\) return null;/.test(gmSrc)
             && /var bindS = snapBind\(conn, false\), data = typeof bindS === 'string' \? snapData\(validCn\(conn\.wpCn\) \? conn\.wpCn : '', conn\.peer, gmIdS, typeof msg\.key === 'string' \? msg\.key : '', bindS\) : null;/.test(stSrc),
             J([lSigned, lTaken, lOther, plain(sn0), lBlind, nCalls(src, /snapData\(/g), nCalls(src, /snapBind\(/g)]));
@@ -9020,7 +9530,7 @@ pendingChecks.push((async () => {
             /nextGen = conn\.wpNext = function\(\) \{[^\n]*\n\s*clearTimeout\(joinTimer\);\n\s*if \(net\.peer !== peer\) return;\n\s*net\.active = false;\n\s*try \{ peer\.destroy\(\); \} catch \(e\) \{\}\n\s*if \(probe \+ 1 < ROOM_GENS\) \{ joinSession\(code, name, false, probe \+ 1\); return; \}\n\s*joinFailed\(''\);/.test(src) && /if \(rfJ\) snapAsk\(code, name\);/.test(src) && /if \(rfJ\) setStatus\(SNAP_REFUSED \+ ' You have not joined\.'/.test(src),
             /gmSignArm\(\);[^\n]*\n\s*var peer = new Peer\(roomPeerId\(code, gen\), peerOpts\(\)\);/.test(src),
             /rec\.key = \(provenKey && rec\.key === provenKey\) \? rec\.key : gmFreshKey\(conn\);/.test(src) && /notepad: notepadMsg\(\) \}; gmSignSnap\(snap, conn\); \};/.test(src),
-            /if \(!cm\.signed && validCn\(msg\.cn\)\) cm\.signed = gmPresign\(cm, msg\.cn, keyed0 \? rec0\.key : '', conn\);/.test(src) && /hmacHex\(key0, authData\(nonce0, net\.roomPeer\)\)\.then\(function\(want\) \{ return cm\.signed \? cm\.signed\.then\(function\(\) \{ return want; \}\) : want; \}\)\.then\(function\(want\) \{/.test(src),
+            /if \(!cm\.signed && validCn\(msg\.cn\)\) cm\.signed = gmPresign\(cm, msg\.cn, keyed0 \? rec0\.key : '', conn\);/.test(src) && /hmacHex\(key0, fp0 \? authData\(nonce0, net\.roomPeer, fp0\[0\], fp0\[1\]\) : null\)\.then\(function\(want\) \{ return cm\.signed \? cm\.signed\.then\(function\(\) \{ return want; \}\) : want; \}\)\.then\(function\(want\) \{/.test(src),
             /<li><b>Your GM, and no one else:<\/b> the first time you join a table your app remembers its GM&rsquo;s key[^\n]*you are asked once whether to trust the table that answered[^\n]*This protection begins with the first table your GM hosts on this version\.<\/li>/.test(htmlS) && /<li><b>Your table is signed:<\/b>[^\n]*Reset Multiplayer Identity<\/b> makes a new one with your new identity &mdash; to your players&rsquo; apps your table is then a new GM&rsquo;s\.<\/li>/.test(htmlS)
         ];
         chk('k', wired.every(Boolean), J(wired));

@@ -328,7 +328,8 @@ Protecting your table
   picture export's renderer). Nothing is fetched from a CDN when you start
   Waypoint, and diagrams and Save as Image work with no internet
   connection. Multiplayer still needs it, to reach the matchmaking
-  service.
+  service. If that part of Waypoint ever fails to load, the app says
+  so and what to do.
 - The diagram library is updated to a version that closes a published
   flaw: a diagram on a page from another table, or in a campaign file you
   import, can no longer run code on your machine.
@@ -935,6 +936,8 @@ ShadowBase sheets
   levels, switches and quantities of rows they already carry apply at once.
 
 Handbook
+- A sequence diagram on a page opened in its own window is drawn (it
+  showed "Syntax error in text").
 - A third kind of item beside maps and planners: Handbook pages — rules,
   quick reference, a setting primer — written in the same block editor as a
   planner (plus sub-headings, plain tables and a horizontal line; no scene
@@ -1345,6 +1348,10 @@ Fog of war
   creature over a low wall, and the ruler, target marks and blasts read
   cover the same way. Standing height is how far above its elevation a
   token's eye sits; a sight-blocker with no Height is full height.
+- A ground piece you hid (a hill, a ledge, a pit) changes nothing your
+  players get: not what the fog shows or hides for them, not their rolls,
+  not the stream window. Your own screen, your own rolls and your blast
+  tool still read it.
 
 Drawing tools
 - Pen tips: the Draw menu adds a tip — Round (the default), Square (blocky

@@ -667,7 +667,8 @@ function revealedCellList(map, camp, ownerId) {
 // Lighting (L4): the light one token sees another in, for the ruler's line and a target mark's tag — 0 dark, 1 dim, 2 clear (bright, a cell the
 // GM revealed by hand, or within its own sight in the dark). null where no light is read: lighting or fog off, fog not on Auto for the map, no
 // grid, the target where this map draws no fog (outside its play areas) or hidden by hand, or out of the viewer's arc, line of sight or reach —
-// so a lit level is read only for the cells a player's copy is given lit cells for (fogLitFor), and the GM's screen and the player's agree.
+// so a lit level is read only for the cells a player's copy is given lit cells for (fogLitFor), and the GM's screen and the player's agree —
+// except where a ground piece the GM hid lifts either token, which only the GM's own screen reads (the height stop below).
 // A point query on what is already kept (the map's walls, its fog areas, its lights' lit cells), never a viewer's whole disc; on a player's
 // copy the lit cells the host sent count too (litFor). A target in a wall's or a closed door's own cell reads the light on its near face, as
 // seenCells shows it: the brightest of the open cells beside it this viewer sees, at least the map's own

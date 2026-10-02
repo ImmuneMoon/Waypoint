@@ -793,6 +793,8 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           <li><b>&#127919; Center</b> &nbsp; Recenter on the canvas or your items, or <b>Fit to Content</b> to zoom-and-pan everything into view (also <kbd>Shift</kbd>+<kbd>1</kbd>)</li>
                           <li><b>&#129522; Snap</b> &nbsp; Toggle grid snapping (remembered between launches)</li>
                       </ul>
+                      <h4 id="helpDevMode">Developer mode</h4>
+                      <p><b>Developer mode</b> (&#9881; Settings &#9656; Advanced; off unless you switch it on) unlocks two tools for debugging and scripting: <kbd>~</kbd> drops down the in-app console, and in the installed app <kbd>Ctrl + Shift + I</kbd> &mdash; or <b>Developer tools</b> on the View menu, which <kbd>Alt</kbd> shows &mdash; opens the developer tools. While it is off, neither opens. It asks before it turns on, because these tools can change or break your campaigns, your settings and Waypoint itself if they are used incorrectly: only type or paste something into them when you know what it does, never because someone asked you to. Switching it off closes both.</p>
                   </div>
 
               </div>
@@ -1828,9 +1830,9 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <div style="font-size:10.5px; color:var(--dim); line-height:1.4;">Steps kept per map &amp; planner (default 100). More gives deeper Undo but uses more memory on this computer &mdash; all maps share a 64&nbsp;MB cap, and the oldest steps on maps you&rsquo;re not using are dropped first. This computer only.</div>
         </div>
         <div style="margin-bottom:12px;">
-            <div class="set-field-label" style="display:flex; justify-content:space-between;">Developer console <span id="setDevConsoleState" style="color:var(--dim);"></span></div>
-            <button class="tool ghost" id="setDevConsoleBtn" style="width:100%;">Toggle Developer Console</button>
-            <div style="color:var(--dim); font-size:10.5px; line-height:1.5; margin-top:6px;">When on, press <b>~</b> to drop a JavaScript console for inspecting and scripting the app &mdash; for debugging and power users. Off by default.</div>
+            <div class="set-field-label" style="display:flex; justify-content:space-between;">Developer mode <span id="setDevConsoleState" style="color:var(--dim);"></span></div>
+            <button class="tool ghost" id="setDevConsoleBtn" style="width:100%;">Toggle Developer mode</button>
+            <div style="color:var(--dim); font-size:10.5px; line-height:1.5; margin-top:6px;">When on, <b>~</b> drops down a JavaScript console and, in the installed app, <b>Ctrl+Shift+I</b> opens the developer tools &mdash; for debugging and power users. It asks before it turns on: used incorrectly, these tools can change or break your campaigns and settings. Off by default.</div>
         </div>
             <div style="display:flex; flex-direction:column; gap:8px;">
             <button class="tool ghost" id="setResetLayoutBtn" title="Restore both side panels to their default widths">Reset Panel Layout</button>
@@ -2208,7 +2210,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     <div class="menu-item danger" id="ctxDeleteItem" style="padding:8px 16px; cursor:pointer; color:var(--red);">Delete</div>
 </div>
 
-<!-- Developer console — press ~ to drop it down; type JS (page globals in scope) and Enter to run. See scripts/devconsole.js -->
+<!-- Developer console — in Developer mode (Settings ▸ Advanced) press ~ to drop it down; type JS (page globals in scope) and Enter to run. See scripts/devconsole.js -->
 <div id="devConsole" style="display:none;">
     <div id="devConsoleLog" role="log" aria-live="polite"></div>
     <div id="devConsoleRow">

@@ -1014,6 +1014,33 @@ Text style in planners and pages
 - Fixed: a handbook page's table brought in from a campaign file showed
   empty boxes in the editor; its cells show again.
 
+Links
+- Text blocks (text, lead text, one-line summary, callout, flare) have a
+  Link box on their bar: select the words, type the address and press
+  Enter. Put the caret in a link to see where it leads, change it, or
+  empty the box to take it off. While you edit, a link is never followed.
+- In the Journal, a web address in a handout's text, its caption or a
+  note is a link where you read it. Notes have an Open button for
+  reading. The link's text is always the address itself.
+- A link from someone else asks first. When you click a link on your GM's
+  page, in a handout or in a page another player shared, you are shown
+  the site it leads to and the whole address, and nothing opens until you
+  say so. OK becomes ready a moment after the question appears, so a
+  double-click cannot answer it by accident. Links in your own planners,
+  pages and notes open directly.
+- A link from someone else cannot be dragged out of a page or a handout.
+- A link inside a diagram on a GM's page asks first too, and an address
+  that is not a web address opens nothing.
+- Diagrams: statements that attach an action to a diagram are removed
+  wherever they stand in the source, also in a planner from a file.
+- A message from the table that arrives while a question is open waits
+  its turn and no longer takes the question's Cancel button away.
+- Save Markdown keeps a text block's link even when its address holds an
+  unusual bracket.
+- Help says that dragging selected text is off in the editor's boxes (cut
+  and paste instead), and that a second Esc goes on to the page.
+- Fixed: a question asked inside a popped-out page could not be seen.
+
 Handbook
 - A Markdown file's one-letter bold (**b**) comes in as bold; it came in
   as a stray asterisk and an italic, and swallowed the next bold on the

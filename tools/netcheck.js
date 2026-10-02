@@ -10076,6 +10076,29 @@ pendingChecks.push((async () => {
         chk('u', wiredU.every(Boolean), J(wiredU));
     } catch (e) { Object.keys(T).forEach(k => { if (!done.has(k)) check(T[k], false, 'threw: ' + (e && e.stack || e)); }); }
 })());
+// The Multiplayer panel's two parts (the owner, 2026-10-02): Host and Join each behind its own button, one shown at a time.
+{
+    const paneSrc = between('// [netcheck:netpane-start]', '// [netcheck:netpane-end]', 'netpane');
+    const mk = () => { const el = () => ({ style: { display: '?' }, cls: new Set(), attrs: {}, disabled: null, classList: null, setAttribute(k, v) { this.attrs[k] = v; } }); const els = { netPaneHost: el(), netPaneJoin: el(), netPaneHostBtn: el(), netPaneJoinBtn: el() }; Object.values(els).forEach(e => { e.classList = { toggle: (n, on) => { if (on) e.cls.add(n); else e.cls.delete(n); } }; }); const net = { active: false, role: null }; const api = new Function('net', 'ui', paneSrc + '\nreturn { netPaneWant, netPaneSync, netPanePick, netPaneShow, pane: function() { return _netPane; } };')(net, id => els[id] || null); return { els, net, api }; };
+    const view = w => [w.els.netPaneHost.style.display, w.els.netPaneJoin.style.display, w.els.netPaneHostBtn.cls.has('on'), w.els.netPaneJoinBtn.cls.has('on'), w.els.netPaneHostBtn.attrs['aria-expanded'], w.els.netPaneJoinBtn.attrs['aria-expanded'], w.els.netPaneHostBtn.disabled, w.els.netPaneJoinBtn.disabled].join(',');
+    const w = mk(), seen = [];
+    w.api.netPaneSync(); seen.push(view(w));                       // nothing pressed: both closed
+    w.api.netPanePick('host'); seen.push(view(w));                 // Host a table
+    w.api.netPanePick('join'); seen.push(view(w));                 // Join a table: the other closes
+    w.api.netPanePick('join'); seen.push(view(w));                 // the open one's button again: closed
+    w.api.netPaneShow('join'); w.net.active = true; w.net.role = 'host'; w.api.netPaneSync(); seen.push(view(w));   // hosting: the host's part, whatever was picked, and Join is off
+    w.api.netPanePick('join'); seen.push(view(w));                 // a press in a session changes nothing
+    w.net.role = 'client'; w.api.netPaneSync(); seen.push(view(w)); // at someone's table: the join part, Host off
+    w.net.active = false; w.net.role = null; w.api.netPaneSync(); seen.push(view(w));   // the session over: the part last picked again
+    const want = ['none,none,false,false,false,false,false,false', 'block,none,true,false,true,false,false,false', 'none,block,false,true,false,true,false,false', 'none,none,false,false,false,false,false,false', 'block,none,true,false,true,false,false,true', 'block,none,true,false,true,false,false,true', 'none,block,false,true,false,true,true,false', 'none,block,false,true,false,true,false,false'];
+    const html = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8').replace(/\r\n/g, '\n');
+    const iBar = html.indexOf('id="netPaneBar"'), iName = html.indexOf('id="netNameInput"'), iHost = html.indexOf('<div id="netPaneHost" style="display:none;'), iJoin = html.indexOf('<div id="netPaneJoin" style="display:none;'), iHostBtn = html.indexOf('id="netHostBtn"'), iJoinBtn = html.indexOf('id="netJoinBtn"');
+    const wired = /\['netPaneHostBtn', 'netPaneJoinBtn'\]\.forEach\(function\(id\) \{ var b = ui\(id\); if \(b\) b\.addEventListener\('click', function\(\) \{ netPanePick\(b\.dataset\.pane\); \}\); \}\);/.test(src) && /function syncSessionButtons\(\) \{\n    netPaneSync\(\);/.test(src) && /netPaneShow\('host'\); if \(!ensureNamed\(\)\) return; startHosting\(false\);/.test(src) && /addEventListener\('click', function\(\) \{\n    netPaneShow\('join'\);\n    var code = typedCode\(/.test(src);
+    check('the Multiplayer panel shows one part at a time, each behind its own button (the netpane slice run for real on a page of plain objects): nothing pressed, both closed; Host a table opens the host\'s part, Join a table opens the join part and closes the other, the open one\'s button again closes it; in a session the part of this app\'s role is shown whatever was picked — the room code and the table\'s controls for a GM, the join fields for a player — and the other button is off, a press changing nothing; after the session the part last picked again; the open part\'s button marked on and expanded; in the page both parts start closed, the name sits above the two buttons (it is needed to host and to join) and each part holds its own action; Host and Join presses keep their own part shown, and every refresh of the session buttons refreshes the parts',
+        JSON.stringify(seen) === JSON.stringify(want) && w.api.netPaneWant(false, null, 'x') === null && w.api.netPaneWant(true, undefined, 'host') === 'join'
+        && iName > 0 && iBar > iName && iHost > iBar && iHostBtn > iHost && iJoin > iHostBtn && iJoinBtn > iJoin && html.split('id="netNameInput"').length === 2 && html.split('id="netJoinAvatar"').length === 2 && /data-pane="host" aria-expanded="false" aria-controls="netPaneHost"/.test(html) && /data-pane="join" aria-expanded="false" aria-controls="netPaneJoin"/.test(html) && wired,
+        JSON.stringify([seen, iName, iBar, iHost, iHostBtn, iJoin, iJoinBtn, wired]));
+}
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');

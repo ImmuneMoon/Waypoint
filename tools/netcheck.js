@@ -8067,7 +8067,7 @@ pendingChecks.push((async () => {
         fnSrc('function freeSpotNear(', '\n}\n', 'freeSpotNear') + '\n}\n', fnSrc('function stepOffPortal(', '\n}\n', 'stepOffPortal') + '\n}\n', fnSrc('function portalUnder(', '\n}\n', 'portalUnder') + '\n}\n', trSrc,
         lineOf('var _saveSoon = null;'), lineOf('function saveRemoteSoon()'), bw('bpos'), src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem(')), bw('pos'), bw('patch'), bw('fogmove'),
         'return { snapshot: sanitizeAppState, travel: hostTravel, stageConn: stageConn, relay: broadcastPos, seedSnap: fogSeedSnapshot, catchUp: fogCatchUp, fire: fogMoveFire, arm: fogArm, forgetConn: fogForgetConn, forgetAll: fogForgetAll, ackTook: ackTook, fogHeld: function() { return _fogHeld; },',
-        'held: typeof mapHeld === "function" ? mapHeld : null, heldNote: typeof mapHeldNote === "function" ? mapHeldNote : null, heldOf: typeof mapHeldOf === "function" ? mapHeldOf : null, give: typeof mapGive === "function" ? mapGive : null, stub: typeof mapStub === "function" ? mapStub : null, store: function() { return typeof _mapHeld === "object" ? _mapHeld : null; }, take: typeof mapTake === "function" ? mapTake : null, left: typeof mapLeft === "function" ? mapLeft : null, follow: typeof followConns === "function" ? followConns : null, pend: function(p, m) { return typeof hidPendOf === "function" ? hidPendOf(p, m) : null; },',
+        'held: typeof mapHeld === "function" ? mapHeld : null, heldNote: typeof mapHeldNote === "function" ? mapHeldNote : null, heldOf: typeof mapHeldOf === "function" ? mapHeldOf : null, give: typeof mapGive === "function" ? mapGive : null, stub: typeof mapStub === "function" ? mapStub : null, store: function() { return typeof _mapHeld === "object" ? _mapHeld : null; }, take: typeof mapTake === "function" ? mapTake : null, left: typeof mapLeft === "function" ? mapLeft : null, follow: typeof followConns === "function" ? followConns : null, pend: function(p, m) { return typeof hidPendOf === "function" ? hidPendOf(p, m) : null; }, posIn: typeof handlePos === "function" ? handlePos : null, patchIn: typeof applyClientItemFiltered === "function" ? applyClientItemFiltered : null,',
         'needItem: function(msg, conn) {', niBody, '} };'].join('\n');
     const NAMES9 = ['net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'sendFailed', 'peerProfileId', 'lim', 'pushChat', 'state', 'broadcast', '_lastSent', 'setTimeout', 'clearTimeout', 'save', 'toast', 'logEvent', 'renderRoster', 'dropWaitingFor', 'allow', 'render', 'broadcastRoster', 'checkRoomHandouts', 'applyPosToDom', 'bellOut', 'renderNotepad', 'fogNow', 'ensurePlayerToken', 'findLandingRoom', 'landingPoint'];
     const build9 = new Function(...NAMES9, modSrc);
@@ -8307,6 +8307,23 @@ pendingChecks.push((async () => {
             ret === true && J(rT) === J(['item:mA', 'stage', 'mapBack:mB']) && J(rPage) === J([true, false, true]) && J(rHeld) === J([true, false]) && J(rDelta) === J({ a1: ['itemDelta:mA'], b: ['itemDelta:mA'], eq: true, asked: 0 })
             && J(again) === J({ t: ['item:mB', 'stage', 'mapBack:mA'], held: [false, true], pages: [true, true] }), J([ret, rT, rPage, rHeld, rDelta, again]));
     }
+    // (11c) the drop: a player's own token dropped on a portal travels through the real pos gate — the take-back follows the same order, and
+    // nothing the gate or its timers send afterwards names the map for that connection
+    {
+        const W = mkW(); delete W.camp.items.mB.meta.playerLock; W.join(W.a1, 'mA'); W.join(W.a2, 'mA'); W.join(W.b1, 'mA'); W.clear();
+        const tA = W.camp.items.mA.whiteboard[0], door = W.camp.items.mA.whiteboard[3];
+        W.net.tokenDropped = (item, map) => item === tA && map === W.camp.items.mA ? W.api.travel(W.a1, W.net.roster.pA1, door, map) : false;   // as net.tokenDropped: the dropper's connection, the portal under the token
+        if (W.api.posIn) W.api.posIn({ type: 'pos', campId: 'k', itemId: 'mA', wbId: 'tA', x: 300, y: 300, rot: 0, front: 0, final: true, a: 3 }, W.a1);
+        W.timers.slice().forEach(t => { if (t.fn) { const f = t.fn; t.fn = null; f(); } });   // whatever the drop armed (the save, the room check, a catch-up)
+        const a1T = W.types(W.a1), backAt = a1T.indexOf('mapBack:mA'), onDoor = tA.x < door.x + door.w && tA.x + tA.w > door.x && tA.y < door.y + door.h && tA.y + tA.h > door.y;
+        const drop = { tail: a1T.slice(Math.max(0, backAt - 2), backAt + 1), backs: a1T.filter(t => t === 'mapBack:mA').length, after: backAt >= 0 ? a1T.slice(backAt + 1).filter(t => /:mA$/.test(t)) : ['none'], held: [W.held(W.a1, 'mA'), W.held(W.a1, 'mB')], page: [J(W.a1.page.map('mA')) === J(STUB('mA', 'The mA')), J(W.a1.page.map('mB')) === J(W.cleanOf('mB'))], loc: W.net.roster.pA1.location, onDoor,
+            others: [W.a2, W.b1].map(c => [c.sent.some(m => m.type === 'pos' && m.itemId === 'mA' && m.wbId === 'tA'), c.sent.some(m => m.type === 'mapBack'), W.held(c, 'mA'), J(c.page.map('mA')) === J(W.cleanOf('mA'))]) };
+        W.clear(); const stood = [tA.x, tA.y];
+        if (W.api.posIn) W.api.posIn({ type: 'pos', campId: 'k', itemId: 'mA', wbId: 'tA', x: 400, y: 400, rot: 0, front: 0, final: true, a: 4 }, W.a1);   // her app's late move on the map she left
+        const late = { moved: tA.x !== stood[0] || tA.y !== stood[1], sent: W.ev.filter(e => !/^roster/.test(e)) };
+        check('possession (take-back): a drop of her own token on the portal, through the real pos gate (handlePos, then hostTravel as net.tokenDropped calls it), takes mA back in the same order — mB whole, her stage word, then one take-back word — and nothing the gate or its timers send afterwards names mA for her connection; her token is left beside the door on the host\'s map, her other window and Bo see the move and keep mA whole (pages equal to the host\'s copy); a late move of hers on mA, the map she left, moves nothing and is sent to no one',
+            !!W.api.posIn && J(drop) === J({ tail: ['item:mB', 'stage', 'mapBack:mA'], backs: 1, after: [], held: [false, true], page: [true, true], loc: 'mB', onDoor: false, others: [[true, false, true, true], [true, false, true, true]] }) && J(late) === J({ moved: false, sent: [] }), J([a1T, drop, late]));
+    }
     // (12) the GM's stage moving the table takes the map back from every connection it moved, never from a wanderer it left behind
     {
         const W = mkW(); W.join(W.a1, 'mA'); W.join(W.a2, 'mA'); W.join(W.b1, 'mA'); W.net.roster.pB.detached = true; W.clear();
@@ -8356,6 +8373,23 @@ pendingChecks.push((async () => {
         W.net.summonPlayerToMap('u_a', 'mA'); const p2 = [J(W.api.pend('pA1', 'mA')), W.a1.page.map('mA').whiteboard.some(w => w.id === 'strA')];
         check('possession (take-back): the host\'s note of a drawing of hers the GM hid on mA goes with her copy when she leaves (her other window, still there, keeps its own) and is made afresh when mA is given whole again — the hidden drawing itself on no copy',
             J(p0) === J(['{"strA":1}', '{"strA":1}']) && J(p1) === J(['null', '{"strA":1}']) && J(p2) === J(['{"strA":1}', false]), J([p0, p1, p2]));
+    }
+    // (14c) a note of a hidden drawing is kept only for a connection holding the map whole: none comes back while its player is away, so a drawing
+    // the GM hid and showed again meanwhile is theirs to erase at once when they return
+    {
+        const W = mkW(), strA = { id: 'strA', type: 'path', byPlayer: true, ownerId: 'u_a', hidden: true, pts: [[0, 0], [5, 5]], x: 0, y: 0, w: 5, h: 5 }; W.camp.items.mA.whiteboard.push(strA);
+        W.join(W.a1, 'mA'); W.join(W.a2, 'mA'); W.net.sendItem('k', 'mA');
+        W.net.summonPlayerToMap('u_a', 'mC');   // her first window leaves mA
+        W.camp.items.mA.whiteboard[2].x = 321; W.net.sendItem('k', 'mA'); W.net.pushItems(['mA']);   // the GM works on mA while she is away, the drawing still hidden
+        const away = [J(W.api.pend('pA1', 'mA')), J(W.api.pend('pA2', 'mA'))];
+        delete strA.hidden; W.net.sendItem('k', 'mA');   // the GM shows it again: her other window gets it
+        W.net.summonPlayerToMap('u_a', 'mA');   // she returns: the whole map, the shown drawing on it
+        const back = [J(W.api.pend('pA1', 'mA')), W.a1.page.map('mA').whiteboard.some(w => w.id === 'strA')];
+        const copy = JSON.parse(J(W.a1.page.map('mA'))); copy.whiteboard = copy.whiteboard.filter(w => w.id !== 'strA');   // her first copy after returning: she erased it
+        const out = { conn: W.a1 }, changed = W.api.patchIn ? W.api.patchIn({ type: 'item', campId: 'k', itemId: 'mA', item: copy }, W.net.roster.pA1, out) : null;
+        const erased = { changed, whole: out.whole === true, onHost: W.camp.items.mA.whiteboard.some(w => w.id === 'strA') };
+        check('possession (take-back): the host\'s note of a hidden drawing is kept only for a connection holding the map whole — while she is away no send or push of mA notes it again for the connection that left (her other window, still there, keeps its note) — so a drawing of hers the GM hid and showed again while she was away is on the whole map she gets back with no note left, and her first copy without it erases it at once (no whole map sent back to put it right)',
+            J(away) === J(['null', '{"strA":1}']) && J(back) === J(['null', true]) && J(erased) === J({ changed: true, whole: false, onHost: false }), J([away, back, erased]));
     }
     // (15) the player's side, run for real: the word from the synced host alone, for a map this copy holds, and nothing of the word but its cleaned meta
     {

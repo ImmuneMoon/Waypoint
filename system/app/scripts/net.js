@@ -127,6 +127,71 @@ function hmacHex(key, data) {
 }
 function sameStr(a, b) { if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false; var d = 0; for (var i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i); return d === 0; }   // every character, whatever the first difference
 function retryGen(last, tries, gens) { return (((last | 0) + Math.max(0, (tries | 0) - 1)) % gens + gens) % gens; }   // a reconnect dials the generation that last answered first, then the others in turn
+// The GM's signing key (security, 2026-10-01): trust on first use. A host holds a long-lived ECDSA P-256 pair (wp_gmSign, made the first time it
+// hosts; only its public half ever travels) and signs the snapshot it gives a player over that player's own fresh nonce (cn, sent in the hello),
+// the room id, its GM id and the table key it hands over. A player's app pins the public key a GM id first showed it (wp_gmPins), remembers which
+// GM id a room code belongs to (wp_gmRooms), and from then on takes a table under that GM id, or at that code, only when the snapshot verifies
+// against what it knows — so whoever holds another generation of a room code is no GM to a player who knows the real one.
+function cleanGmPub(v) {   // by whitelist: the four fields of a P-256 public key as JWK — nothing else a host sends is kept, stored or verified with
+    if (!v || typeof v !== 'object' || v.kty !== 'EC' || v.crv !== 'P-256' || typeof v.x !== 'string' || typeof v.y !== 'string') return null;
+    return (/^[A-Za-z0-9_-]{43}$/.test(v.x) && /^[A-Za-z0-9_-]{43}$/.test(v.y)) ? { kty: 'EC', crv: 'P-256', x: v.x, y: v.y } : null;
+}
+function samePub(a, b) { return !!a && !!b && sameStr(a.x, b.x) && sameStr(a.y, b.y); }
+function validCn(v) { return typeof v === 'string' && /^[0-9a-f]{32}$/.test(v); }   // the player's nonce: 16 random bytes as hex, fresh per connection
+function snapData(cn, roomId, gmId, key, bind) { return 'wp-snap|' + cn + '|' + roomId + '|' + gmId + '|' + key + bind; }   // what a snapshot's signature covers: a signature made for another player's connection, another room or another key never verifies
+// What ties that signed text to the connection it travels on, read by both sides from their own end of it (asHost: the host's end). THE ONE PLACE
+// for it: a string appended to the signed text as it stands ('' today: the room id is the tie), or null when it cannot be read — the host then signs
+// nothing for that connection, and a player's app verifies nothing on it (under a GM it knows, the table is not taken).
+function snapBind(conn, asHost) { return ''; }
+var GM_ALG = { name: 'ECDSA', namedCurve: 'P-256' }, GM_SIG = { name: 'ECDSA', hash: 'SHA-256' };
+function gmSignHex(priv, data) {   // (host) → Promise of the signature as hex (r and s, 64 bytes), null when it cannot be made
+    var sub = typeof crypto !== 'undefined' && crypto && crypto.subtle;
+    if (!sub || !priv || typeof data !== 'string') return Promise.resolve(null);
+    try {
+        return sub.sign(GM_SIG, priv, new TextEncoder().encode(data)).then(function(s) { return Array.prototype.map.call(new Uint8Array(s), function(b) { return ('0' + b.toString(16)).slice(-2); }).join(''); }).catch(function() { return null; });
+    } catch (e) { return Promise.resolve(null); }
+}
+function gmVerify(pub, sig, data) {   // (client) → Promise of true only when the signature is this key's over this text; false without WebCrypto, a usable key or a whole signature (fail closed)
+    var sub = typeof crypto !== 'undefined' && crypto && crypto.subtle, p = cleanGmPub(pub);
+    if (!sub || !p || typeof sig !== 'string' || !/^[0-9a-f]{128}$/.test(sig) || typeof data !== 'string') return Promise.resolve(false);
+    try {
+        var bytes = new Uint8Array(64); for (var i = 0; i < 64; i++) bytes[i] = parseInt(sig.substr(i * 2, 2), 16);
+        return sub.importKey('jwk', p, GM_ALG, false, ['verify']).then(function(k) { return sub.verify(GM_SIG, k, bytes, new TextEncoder().encode(data)); }).then(function(ok) { return ok === true; }).catch(function() { return false; });
+    } catch (e) { return Promise.resolve(false); }
+}
+// (host) the pair: read from this machine, or made and kept the first time. The private half stays here (wp_gmSign, mirrored to this machine's own
+// preferences file like the profile); what is handed on is { priv: a key that can only sign, pub: the four public fields }. null without WebCrypto.
+function gmKeyLoad() {
+    var sub = typeof crypto !== 'undefined' && crypto && crypto.subtle;
+    if (!sub) return Promise.resolve(null);
+    var st = null; try { st = JSON.parse(localStorage.getItem('wp_gmSign') || 'null'); } catch (e) {}
+    var jwk = (st && typeof st === 'object' && st.priv && typeof st.priv === 'object') ? st.priv : null, pub = jwk ? cleanGmPub(jwk) : null, read;
+    try {
+        read = (pub && typeof jwk.d === 'string' && /^[A-Za-z0-9_-]{43}$/.test(jwk.d))
+            ? sub.importKey('jwk', { kty: 'EC', crv: 'P-256', x: pub.x, y: pub.y, d: jwk.d }, GM_ALG, false, ['sign']).then(function(k) { return { priv: k, pub: pub }; })
+            : Promise.reject(new Error('no key kept'));
+    } catch (e) { read = Promise.reject(e); }
+    return read.catch(function() {   // none kept, or one that does not read: a new pair
+        return sub.generateKey(GM_ALG, true, ['sign', 'verify']).then(function(kp) {
+            return sub.exportKey('jwk', kp.privateKey).then(function(j) {
+                var p = cleanGmPub(j); if (!p || typeof j.d !== 'string') return null;
+                try { localStorage.setItem('wp_gmSign', JSON.stringify({ v: 1, priv: { kty: 'EC', crv: 'P-256', x: p.x, y: p.y, d: j.d } })); } catch (e) {}
+                return { priv: kp.privateKey, pub: p };
+            });
+        });
+    }).catch(function() { return null; });
+}
+function gmSignForget() { try { localStorage.removeItem('wp_gmSign'); } catch (e) {} }   // a new multiplayer identity: the next hosting makes a new pair
+// (client) what this player's app knows: the public key pinned per GM id, and the GM id each room code belongs to — the 50 newest of each
+var GM_KNOWN_MAX = 50;
+function gmStore(name) { try { var k = JSON.parse(localStorage.getItem(name) || 'null'); return k && typeof k === 'object' && !Array.isArray(k) ? k : {}; } catch (e) { return {}; } }
+function gmStoreSet(name, o, key, val) { delete o[key]; if (val !== undefined) o[key] = val; var ks = Object.keys(o); for (var i = 0; i < ks.length - GM_KNOWN_MAX; i++) delete o[ks[i]]; try { localStorage.setItem(name, JSON.stringify(o)); return true; } catch (e) { return false; } }   // newest last, the oldest forgotten
+function gmPinFor(gmId) { var p = gmStore('wp_gmPins'); return (validProfileId(gmId) && own(p, gmId)) ? cleanGmPub(p[gmId]) : null; }
+function rememberGmPin(gmId, pub) { var c = cleanGmPub(pub); return (validProfileId(gmId) && c) ? gmStoreSet('wp_gmPins', gmStore('wp_gmPins'), gmId, c) : false; }
+function forgetGmPin(gmId) { var p = gmStore('wp_gmPins'); if (validProfileId(gmId) && own(p, gmId)) gmStoreSet('wp_gmPins', p, gmId); }
+function roomCodeOf(code) { var c = String(code == null ? '' : code).toLowerCase(); return /^[a-z0-9]{4,16}$/.test(c) ? c : ''; }
+function gmRoomFor(code) { var r = gmStore('wp_gmRooms'), c = roomCodeOf(code); return (c && own(r, 'c_' + c) && validProfileId(r['c_' + c])) ? r['c_' + c] : ''; }
+function rememberGmRoom(code, gmId) { var c = roomCodeOf(code); return (c && validProfileId(gmId)) ? gmStoreSet('wp_gmRooms', gmStore('wp_gmRooms'), 'c_' + c, gmId) : false; }
 // A profile picture a peer may show: a small inline image whose WHOLE string is base64. A prefix check let a quote-breaking tail
 // (x" onerror=…) ride into an src="…" — script on the GM's screen, and through the roster on every player's.
 function safeAvatar(v) { return typeof v === 'string' && v.length <= 200000 && /^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+\/=]+$/.test(v); }
@@ -4487,6 +4552,40 @@ var bannedIds = {};        // profile id -> true, for this session only
 var pendingJoins = [];     // [{conn, prof}] awaiting the GM's Allow/Deny
 var approvalOpen = false;
 
+// [netcheck:gmsign-start]
+// (host) Security (2026-10-01): this GM's signing key. Loaded (or made) as hosting starts; a player's hello that carries their nonce has the
+// signatures for the snapshot it may be given made ready then — one per table key that snapshot could hand over (a fresh one, the one their
+// record holds, none) — because signing is asynchronous and admission is not. Nothing signed is sent before admission; the private key never is.
+var _gmSign = null, _gmSignP = null, _gmSignSaid = false;
+function gmSignArm() {
+    _gmSign = null;
+    var p = _gmSignP = gmKeyLoad().then(function(k) {
+        if (_gmSignP !== p) return k;   // hosting began again meanwhile: that start's own load stands
+        _gmSign = k;
+        if (!k && !_gmSignSaid) { _gmSignSaid = true; toast('This device cannot sign your table, so your players\u2019 apps cannot check that it is yours.'); }   // no WebCrypto here: hosted as before, said once
+        return k;
+    });
+    return p;
+}
+function gmPresign(cm, cn, heldKey, conn) {
+    var kp = _gmSignP, bind = snapBind(conn, true); if (!kp || !cm || typeof bind !== 'string') return null;   // (a connection whose tie cannot be read is signed nothing)
+    var fresh = newKey(), sigs = Object.create(null), room = net.roomPeer, gm = getProfile().id, keys = ['', fresh].concat(heldKey ? [heldKey] : []);
+    cm.cn = cn; cm.fresh = fresh; cm.sigs = sigs;
+    return kp.then(function(k) {
+        if (!k) return null;
+        return Promise.all(keys.map(function(key) { return gmSignHex(k.priv, snapData(cn, room, gm, key, bind)).then(function(s) { if (s) sigs[key] = s; }); }));
+    }).then(function() { return null; }, function() { return null; });
+}
+function gmFreshKey(conn) { var cm = _connMeta[conn.peer]; return (cm && typeof cm.fresh === 'string' && cm.fresh) ? cm.fresh : newKey(); }   // the fresh table key this connection's signature was made for; a plain new one for a player whose app sent no nonce
+function gmSignSnap(snap, conn) {   // the snapshot gains the GM's public key (its four public fields, by name) and the signature made ready for the key it hands over; with none ready it goes as it was
+    var cm = _connMeta[conn.peer], k = typeof snap.key === 'string' ? snap.key : '';
+    if (!cm || !cm.sigs || !_gmSign || !_gmSign.pub || typeof cm.sigs[k] !== 'string') return snap;
+    snap.gmPub = { kty: 'EC', crv: 'P-256', x: _gmSign.pub.x, y: _gmSign.pub.y }; snap.sig = cm.sigs[k];
+    return snap;
+}
+net.gmSignReset = function() { gmSignForget(); _gmSign = null; _gmSignP = null; };   // Settings ▸ Reset Multiplayer Identity: a new identity is a new GM
+// [netcheck:gmsign-end]
+
 function denyJoin(conn, reason) {
     try { conn.send({ type: 'denied', reason: reason }); } catch (e) { sendFailed(e); }
     setTimeout(function() { try { conn.close(); } catch (e) {} }, 400);
@@ -4515,7 +4614,7 @@ function admitPlayer(conn, prof, provenKey) {
         // merge: keep the charName binding and anything else the GM has set
         delete net.forgotten[prof.id];   // the GM let them in again: their record is back
         var rec = camp.players[prof.id] = Object.assign({}, own(camp.players, prof.id) ? camp.players[prof.id] : null, { name: prof.name || prof.id });
-        rec.key = (provenKey && rec.key === provenKey) ? rec.key : newKey();   // the table key: kept when the player proved it, fresh when the GM let them in (revokes whoever held the old one). camp.players never ships (sanitizeAppState).
+        rec.key = (provenKey && rec.key === provenKey) ? rec.key : gmFreshKey(conn);   // the table key: kept when the player proved it, fresh when the GM let them in (revokes whoever held the old one). camp.players never ships (sanitizeAppState).
         issuedKey = rec.key;
         // player history: recorded per campaign, shown in the Players panel
         rec.firstSeen = rec.firstSeen || Date.now();
@@ -4532,7 +4631,7 @@ function admitPlayer(conn, prof, provenKey) {
     if (window.wpFog) window.wpFog.invalidateVision();   // fog: this admit may follow token moves; compute a fresh per-recipient view
     var snapOk = false;
     try {
-        var snap, mkSnap = function() { snap = { type: 'snapshot', gmId: getProfile().id, key: issuedKey, appState: sanitizeAppState(state.appState, prof.id, typeof mapHeldOf === 'function' ? mapHeldOf(conn) : null), stage: land.stage, paused: net.paused, pausedSelf: !!(net.pausedPlayers && net.pausedPlayers[prof.id]), travelLocked: net.travelLocked, snap: typeof window.wpSnapOn === 'function' && window.wpSnapOn() === true, stance: net.stanceFlags(), stanceCamps: window.wpVtt ? window.wpVtt.hostCamps() : null, targets: targetsFor(prof.id), combats: combatsFor(prof.id), notepad: notepadMsg() }; };
+        var snap, mkSnap = function() { snap = { type: 'snapshot', gmId: getProfile().id, key: issuedKey, appState: sanitizeAppState(state.appState, prof.id, typeof mapHeldOf === 'function' ? mapHeldOf(conn) : null), stage: land.stage, paused: net.paused, pausedSelf: !!(net.pausedPlayers && net.pausedPlayers[prof.id]), travelLocked: net.travelLocked, snap: typeof window.wpSnapOn === 'function' && window.wpSnapOn() === true, stance: net.stanceFlags(), stanceCamps: window.wpVtt ? window.wpVtt.hostCamps() : null, targets: targetsFor(prof.id), combats: combatsFor(prof.id), notepad: notepadMsg() }; gmSignSnap(snap, conn); };   // (signed with the GM's key when this player's app sent its nonce: gmSignSnap)
         if (typeof fogLanded === 'function') fogLanded(null, mkSnap); else mkSnap();   // fold M4: judged with every open drag at its start
         conn.send(snap); snapOk = true;
     } catch (e) { sendFailed(e, 'snapshot'); toast('Could not send the campaign to ' + (prof.name || 'the player') + ' \u2014 something in it cannot be sent (the console has the details).'); if (typeof mapForgetConn === 'function') mapForgetConn(conn.peer); }
@@ -4639,9 +4738,87 @@ function wireShapeOk(msg) {
 }
 // [netcheck:wireshape-end]
 // [netcheck:fromhost-end]
+// [netcheck:snaptrust-start]
+// (client) Security (2026-10-01): a snapshot is taken only from the host this app dialled, and only as the GM this app knows. Known: the GM id a
+// room code belongs to (the one last synced there) and the public key pinned for a GM id (first use, from a signed snapshot, never on an
+// automatic reconnect). A snapshot under a pinned GM id must verify against the pin over this player's own nonce, the room id this app dialled,
+// the GM id and the table key it hands over; one naming another GM id at a known code is not that code's GM. Refused: nothing synced, nothing
+// applied, no key stored, nothing more read from that host. An automatic reconnect then goes on to the other generations of the code without a
+// word from the host being shown; a join the player began tries the other generations too and, if none is their GM, says so in the app's own
+// words and asks ONCE whether to trust the table that answered (never on Enter) — a yes holds for the next join of that code alone.
+// The check is asynchronous (WebCrypto): while it runs, what the host sends behind its snapshot waits in order (bounded), and is read after it.
+var SNAP_HOLD_MAX = 256;
+var SNAP_REFUSED = 'This table\u2019s GM is not the one you know from this room code \u2014 the GM may have reinstalled, or someone else is at that code.';
+var SNAP_ASK = 'This table\u2019s GM is not the one you know from this room code. The GM may have reinstalled or moved to another computer \u2014 or someone else is at that code. If you are not sure, ask your GM before you say yes. Trust this table\u2019s GM from now on, and join?';
+var _joinTrust = { refused: null, asked: false, accept: null, said: false, was: null, bad: Object.create(null) }, _snapAccept = null;   // bad: the room ids whose host this join or reconnect refused
+function joinTrustReset() { _joinTrust = { refused: null, asked: false, accept: _snapAccept, said: false, was: null, bad: Object.create(null) }; _snapAccept = null; }   // a join the player began: what the last one refused is forgotten; a yes just given is good for this join
+function snapHeld(msg, conn) {
+    if (conn.wpSnapDead) return true;   // a host this app refused: nothing more it says is read
+    if (!conn.wpSnapWait) return false;
+    if (conn.wpSnapWait.length < SNAP_HOLD_MAX) conn.wpSnapWait.push(msg);
+    return true;
+}
+function snapArrived(msg, conn) {   // true: take it now. false: refused, or held while its signature is checked (it comes back through wireDeliver once it has passed)
+    if (!net.conns[0] || conn !== net.conns[0] || conn.wpSnapWait) return false;
+    var gmIdS = String(msg.gmId || (msg.notepad && msg.notepad.gmId) || '').slice(0, 80);
+    var pubS = cleanGmPub(msg.gmPub), sigS = (typeof msg.sig === 'string' && /^[0-9a-f]{128}$/.test(msg.sig)) ? msg.sig : '';
+    if (!pubS || !sigS) { pubS = null; sigS = ''; }   // a key with no signature, or a signature with no key, is neither
+    var code = roomCodeOf(net.code), roomGm = gmRoomFor(code), retry = conn.wpRetry === true, was = retry ? (_joinTrust.was || null) : null;   // was: the GM id and key this session took its table from — an automatic reconnect is held to them in memory, whatever storage could keep
+    var pin = gmPinFor(gmIdS) || (was && was.gmId === gmIdS ? was.pub : null);
+    var acc = _joinTrust.accept; if (!(acc && !retry && acc.code === code && acc.gmId === gmIdS && (acc.pub ? samePub(acc.pub, pubS) : !pubS))) acc = null;   // the player's yes: for this code, this GM id and this very key (or, said of a table with no key, one with no key)
+    var other = !acc && ((!!roomGm && roomGm !== gmIdS) || (!!was && was.gmId !== gmIdS));   // this code is another GM's, as far as this app knows — or, on a reconnect, this is not the GM the session was with
+    var took = function(pub) { rememberGmRoom(code, gmIdS); _joinTrust.refused = null; _joinTrust.accept = null; _joinTrust.said = false; _joinTrust.was = { gmId: gmIdS, pub: pub || null }; };
+    if (acc && !acc.pub) { forgetGmPin(gmIdS); took(null); return true; }   // yes to a table that has no key: what was pinned for that GM id is forgotten
+    if (!acc && !other && !pin && !pubS) { took(null); return true; }   // a host from before the signing key, and nothing known against it: as before (nothing to pin)
+    var bindS = snapBind(conn, false), data = typeof bindS === 'string' ? snapData(validCn(conn.wpCn) ? conn.wpCn : '', conn.peer, gmIdS, typeof msg.key === 'string' ? msg.key : '', bindS) : null;   // (null: this connection's tie cannot be read, so nothing verifies)
+    conn.wpSnapWait = [];
+    Promise.all([(pin && !acc && !other) ? gmVerify(pin, sigS, data) : false, pubS ? gmVerify(pubS, sigS, data) : false]).then(function(r) { return r; }, function() { return [false, false]; }).then(function(r) {
+        var held = conn.wpSnapWait || []; conn.wpSnapWait = null;
+        if (net.role !== 'client' || net.conns[0] !== conn || !conn.open) return;   // the join ended while the signature was checked: nothing applies
+        var okPin = r[0] === true, okSelf = r[1] === true;
+        if (acc) { if (!okSelf) { snapRefuse(conn, gmIdS, null); return; } rememberGmPin(gmIdS, pubS); }   // the key the player said yes to, proven: pinned in place of the old one
+        else if (other) { snapRefuse(conn, gmIdS, okSelf ? { pub: pubS } : !pubS ? { pub: null } : null); return; }
+        else if (pin && !okPin) { snapRefuse(conn, gmIdS, (okSelf && !samePub(pin, pubS)) ? { pub: pubS } : !pubS ? { pub: null } : null); return; }   // (a signature that fails under the pinned key itself — a replay, a changed key — is nothing to say yes to)
+        else if (!pin && okSelf && !retry) rememberGmPin(gmIdS, pubS);   // first use: pinned from a signed snapshot only, and never on an automatic reconnect
+        took(acc ? pubS : pin ? pin : (okSelf && !retry) ? pubS : null);   // the key this table was taken under (none for a table with no key, and none learnt on a reconnect)
+        conn.wpSnapOk = msg; wireDeliver(msg, conn);   // back through the snapshot branch, which now takes it
+        held.forEach(function(m) { wireDeliver(m, conn); });   // then what the host sent behind it, in order
+    }).catch(function(e) { try { console.warn('snapshot check failed', e); } catch (_) {} });
+    return false;
+}
+function genNotRefused(code, gen, gens, idOf) {   // (a reconnect) the generation to dial: the one asked for, or the next whose host this reconnect has not refused — a refused host would only keep the attempt waiting; all refused: the one asked for
+    for (var i = 0; i < gens; i++) { var g = (gen + i) % gens; if (!_joinTrust.bad[idOf(code, g)]) return g; }
+    return gen;
+}
+function snapRefuse(conn, gmIdS, offer) {   // offer: { pub } when the player may be asked to trust this table (its own key proven, or no key at all), null when there is nothing to say yes to
+    conn.wpSnapDead = true; _joinTrust.bad[String(conn.peer)] = true;
+    if (conn.wpRetry === true) {
+        var b = conn.wpBefore; if (b) { reconn.tries = b.tries; reconn.gen = b.gen; }   // as if this generation had not answered: the attempts are not started over, and the next dials the generation after it
+        if (!_joinTrust.said) { _joinTrust.said = true; toast(SNAP_REFUSED + ' Still looking for your GM\u2026'); }
+        try { conn.close(); } catch (e) {}   // its close handler schedules the next attempt, as for a dropped connection
+        return;
+    }
+    if (!_joinTrust.refused) _joinTrust.refused = { gmId: gmIdS, offer: offer || null };
+    net.active = false;   // never at this table: the close that follows is no dropped connection
+    stopHeartbeat();
+    setStatus('Looking for your GM at this room code\u2026');
+    if (typeof conn.wpNext === 'function') conn.wpNext(); else { try { conn.close(); } catch (e) {} }
+}
+function snapAsk(code, name) {   // at the end of a join the player began, when a table answered but not as the GM this app knows: once per join
+    var rf = _joinTrust.refused; if (!rf || !rf.offer || _joinTrust.asked) return;
+    _joinTrust.asked = true;
+    showConfirm(SNAP_ASK, function(yes) {
+        if (!yes || net.active) return;   // (a table joined or hosted meanwhile stands)
+        _snapAccept = { code: roomCodeOf(code), gmId: rf.gmId, pub: rf.offer.pub || null };
+        joinSession(code, name);
+    }, { noEnter: true });
+}
+// [netcheck:snaptrust-end]
+function wireDeliver(d, conn) { try { handleMessage(d, conn); } catch (e) { try { console.warn('wire message failed', d && d.type, e); } catch (_) {} } finally { net.applyingRemote = false; } }   // a malformed message throws here and nowhere else; applyingRemote is never left on (it would silently stop this machine's own saves syncing)
 function handleMessage(msg, conn) {
     if (!msg || !msg.type) return;
     if (net.role === 'client' && !wireShapeOk(msg)) return;   // security (2026-10-01): a host's message past the app's own sizes or depth is dropped whole, before any branch reads it
+    if (net.role === 'client' && snapHeld(msg, conn)) return;   // security (2026-10-01): while a snapshot's signature is checked what follows it waits its turn; from a host this app refused nothing more is read
     // Host-side gate: until a connection has been admitted (passed the version check, any
     // password, and the GM's approval) the only thing it may say is 'hello'. Anything else —
     // an old build, a hand-rolled client, a probe — is dropped without a reply and the
@@ -4725,9 +4902,10 @@ function handleMessage(msg, conn) {
         var camp0 = getActiveCampaign();
         var rec0 = (camp0 && camp0.players && own(camp0.players, prof.id)) ? camp0.players[prof.id] : null;
         var keyed0 = !!(rec0 && typeof rec0.key === 'string' && rec0.key);
+        if (!cm.signed && validCn(msg.cn)) cm.signed = gmPresign(cm, msg.cn, keyed0 ? rec0.key : '', conn);   // security (2026-10-01): the snapshot this connection may be given is signed with the GM's key over the player's own nonce — made ready now (asynchronous), sent only on admission
         if (keyed0 && cm.nonce && typeof msg.proof === 'string') {
             var nonce0 = cm.nonce, key0 = rec0.key; cm.nonce = null;   // a nonce is good for one answer
-            hmacHex(key0, authData(nonce0, net.roomPeer)).then(function(want) {
+            hmacHex(key0, authData(nonce0, net.roomPeer)).then(function(want) { return cm.signed ? cm.signed.then(function() { return want; }) : want; }).then(function(want) {   // (the snapshot's signature, begun at the first hello, is ready before anyone is admitted on a proof)
                 // the check ran asynchronously: judge again what may have changed meanwhile
                 if (net.role !== 'host' || !conn.open || own(net.roster, conn.peer) || _connMeta[conn.peer] !== cm) return;   // the table ended, the connection closed or was admitted, or a new connection took this peer id
                 if (pendingJoins.some(function(q) { return q.conn === conn; })) return;   // the challenge timer already put this request to the GM: the GM's word stands (a second admit would re-issue the key under the player)
@@ -4756,6 +4934,7 @@ function handleMessage(msg, conn) {
             if (!conn.open || net.conns[0] !== conn) return;
             var pwA = ui('netJoinPassInput'), helloA = { type: 'hello', profile: getProfile(), password: pwA ? pwA.value.trim() : '', version: APP_VERSION };
             if (typeof proof === 'string' && proof) helloA.proof = proof;
+            if (validCn(conn.wpCn)) helloA.cn = conn.wpCn;   // the nonce this connection's snapshot is to be signed over (the same as in the first hello)
             try { conn.send(helloA); } catch (e) { sendFailed(e); }
         };
         if (keyA && nonceA) hmacHex(keyA, authData(nonceA, conn.peer)).then(sayA); else sayA(null);
@@ -4777,6 +4956,7 @@ function handleMessage(msg, conn) {
         setTimeout(function() { try { conn.close(); } catch (e) {} }, 400);   // the honest host closes it too, 400 ms after its word; one that keeps the line open is not waited for
         // [netcheck:denied-end]
     } else if (msg.type === 'snapshot' && net.role === 'client') {
+        if (conn.wpSnapOk === msg) conn.wpSnapOk = null; else if (!snapArrived(msg, conn)) return;   // security (2026-10-01): judged first — from the host this app dialled only, and as the GM this app knows (snapArrived); one whose signature was being checked comes back here once it has passed
         net.syncedPeer = conn.peer;   // from now on only this host's 'stance' counts (a table-hop or a waiting join hears others)
     if (typeof actForget === 'function') actForget();   // 14c: a whole campaign from the host: nothing of theirs is still on its way
         // [netcheck:snapkey-start]
@@ -5968,7 +6148,7 @@ function scheduleReconnect() {
 }
 
 function wireConn(conn) {
-    conn.on('data', function(d) { try { handleMessage(d, conn); } catch (e) { try { console.warn('wire message failed', d && d.type, e); } catch (_) {} } finally { net.applyingRemote = false; } });   // a malformed message throws here and nowhere else; applyingRemote is never left on (it would silently stop this machine's own saves syncing)
+    conn.on('data', function(d) { wireDeliver(d, conn); });
     // The transport knows first: when the other side vanishes (app closed, cable pulled, Wi-Fi
     // gone) ICE goes 'disconnected' within seconds and 'failed' soon after, long before the
     // channel's own close event. Show it at once; treat 'failed' as the drop it is.
@@ -6153,6 +6333,7 @@ function startHosting(forceFresh) {
     var resumed = !forceFresh ? recentHostCode() : null;
     var code = resumed || makeCode();
     var gen = resumed ? net._hostGen : 0;
+    gmSignArm();   // security (2026-10-01): this GM's signing key, read or made the first time, before anyone can connect
     var peer = new Peer(roomPeerId(code, gen), peerOpts());
     net.peer = peer; net.role = 'host'; net.code = code; net.roomPeer = roomPeerId(code, gen);   // the room id players dial: what a player's proof of their table key is checked over
     net._lastStanceSig = null;   // the first save after hosting starts sends the ceiling
@@ -6217,6 +6398,8 @@ function joinSession(code, name, isRetry, probe) {
     if (!isRetry && !probe) cancelReconnect();
     if (!isRetry && !probe) ringReset();   // HF3: a new table's HUD history starts empty (a retry or a probe keeps it)
     leaveSession(true);
+    if (!isRetry && !probe) joinTrustReset();   // security (2026-10-01): a join the player began — what the last one refused is forgotten (a yes the player just gave holds for this one)
+    var nextGen = null;   // (set once this attempt's connection exists) on to the next generation of the code, or the end of the join
     var profile = setProfileName(name || getProfile().name || 'Player');
     net.myId = profile.id;
     var peer = new Peer(peerOpts());
@@ -6230,9 +6413,10 @@ function joinSession(code, name, isRetry, probe) {
         renderRoster(); syncSessionButtons();
     }
     if (!isRetry && !probe) setStatus('Connecting to ' + code.toUpperCase() + '...');
-    var gen = isRetry ? retryGen(reconn.gen, reconn.tries, ROOM_GENS) : probe;   // a blip reconnects to the generation that last answered at once; a crashed GM's next generation follows in turn
+    var gen = isRetry ? genNotRefused(code, retryGen(reconn.gen, reconn.tries, ROOM_GENS), ROOM_GENS, roomPeerId) : probe;   // a blip reconnects to the generation that last answered at once; a crashed GM's next generation follows in turn
     peer.on('open', function() {
         var conn = peer.connect(roomPeerId(code, gen), { reliable: true });
+        conn.wpCn = newKey(); conn.wpRetry = !!isRetry;   // security (2026-10-01): this connection's own nonce — the snapshot it is given must be signed over it — and whether the player began this join
         net.conns = [conn];
         // Nothing within a few seconds: this generation is dead or unreachable. A first join
         // moves on to the next generation (a resumed room lives under one), then gives up with
@@ -6252,18 +6436,30 @@ function joinSession(code, name, isRetry, probe) {
             try { peer.destroy(); } catch (e) {}
             net.peer = null; net.conns = []; net.active = false; net.role = null; net.code = null;
             setIndicator(null);
-            setStatus(why + ' This usually means your connection is behind carrier-grade NAT and the table needs a relay server: ask the GM to set one under Settings \u25B8 Relay server, then try again.');
+            var rfJ = _joinTrust.refused;   // security (2026-10-01): a table answered at this code, but not as the GM this app knows: that is what is said (in the app's own words), not the network advice
+            if (rfJ) setStatus(SNAP_REFUSED + ' You have not joined.' + (rfJ.offer ? ' Join again to be asked whether to trust this table\u2019s GM.' : ''));
+            else setStatus(why + ' This usually means your connection is behind carrier-grade NAT and the table needs a relay server: ask the GM to set one under Settings \u25B8 Relay server, then try again.');
             if (net.fromWelcome) { if (window.wpJoinFailed) window.wpJoinFailed(); }   // joined from the welcome screen: the error shows there; re-enable its Join button
-            else { toast('Could not reach the GM\'s table \u2014 see the Multiplayer panel.'); var nmJ = ui('netModal'); if (nmJ) nmJ.style.display = 'flex'; }
+            else { toast(rfJ ? 'You have not joined \u2014 see the Multiplayer panel.' : 'Could not reach the GM\'s table \u2014 see the Multiplayer panel.'); var nmJ = ui('netModal'); if (nmJ) nmJ.style.display = 'flex'; }
             if (net.foreign && !window.wpStream) load();   // a previous table is still on screen: bring the own campaign back
+            if (rfJ) snapAsk(code, name);
         }
+        nextGen = conn.wpNext = function() {   // security (2026-10-01): a host this app refused, or (after one) a generation that is not there: on to the next generation of the code, as for one that never answered
+            clearTimeout(joinTimer);
+            if (net.peer !== peer) return;
+            net.active = false;
+            try { peer.destroy(); } catch (e) {}
+            if (probe + 1 < ROOM_GENS) { joinSession(code, name, false, probe + 1); return; }
+            joinFailed('');
+        };
         conn.on('open', function() {
             var wasRetry = reconn.pending;
+            conn.wpBefore = wasRetry ? { tries: reconn.tries, gen: reconn.gen } : null;   // security (2026-10-01): where the reconnect stood, should this host turn out not to be the GM (snapRefuse)
             cancelReconnect();
             reconn.gen = gen;
             net.active = true;
             var pwIn = ui('netJoinPassInput');
-            conn.send({ type: 'hello', profile: profile, password: pwIn ? pwIn.value.trim() : '', version: APP_VERSION });   // before the first heartbeat: the host admits nothing that speaks first; no key rides here — a known id is challenged and answers with a proof (the auth branch), so nothing of a previous table reaches a host unasked
+            conn.send({ type: 'hello', profile: profile, password: pwIn ? pwIn.value.trim() : '', version: APP_VERSION, cn: conn.wpCn });   // before the first heartbeat: the host admits nothing that speaks first; no key rides here — a known id is challenged and answers with a proof (the auth branch), so nothing of a previous table reaches a host unasked
             startHeartbeat();
             renderRoster();
             setStatus('Connected — waiting for campaign snapshot...');
@@ -6278,6 +6474,7 @@ function joinSession(code, name, isRetry, probe) {
             scheduleReconnect();
             return;
         }
+        if (_joinTrust.refused && nextGen && net.peer === peer && !net.active) { nextGen(); return; }   // security (2026-10-01): after a host this app refused, a generation that is not there is passed over at once (its seven seconds are for a host that may yet answer)
         setStatus('Connection error: ' + err.type);
         if (net.fromWelcome && window.wpJoinFailed) window.wpJoinFailed();   // re-enable the welcome Join button (the error shows on that screen)
         toast('Could not reach that room (' + err.type + ').');

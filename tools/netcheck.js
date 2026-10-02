@@ -48,9 +48,10 @@ const storage = (() => { let m = {}; return { getItem: k => (k in m ? m[k] : nul
 const H = new Function('localStorage', 'crypto', helpersSrc + '\nreturn { own, validProfileId, newKey, tableKeys, tableKeyFor, rememberTableKey, safeAvatar, cleanRosterName, cleanWaitingItem, cleanFace, faceView, FACE_PICS, charFacePlan, hmacHex: typeof hmacHex === "function" ? hmacHex : null, authData: typeof authData === "function" ? authData : null, sameStr: typeof sameStr === "function" ? sameStr : null, retryGen: typeof retryGen === "function" ? retryGen : null };')(storage, globalThis.crypto);
 const hmacRef = (key, data) => require('crypto').createHmac('sha256', key).update(data).digest('hex');   // the suite's own HMAC: the app's proof is checked against it, never against itself
 const tryBetween = (a, b) => { try { return between(a, b, a); } catch (e) { return null; } };   // a slice whose markers may be missing: the check fails instead of the suite dying
+const HS = new Function('localStorage', 'crypto', helpersSrc + '\nreturn { validCn: typeof validCn === "function" ? validCn : null };')(storage, globalThis.crypto);   // security S: the nonce rule the hello gate reads
 const RC = new Function('localStorage', 'crypto', helpersSrc + '\n' + rosterCleanSrc + '\nreturn { cleanHostRoster, cleanHostAway, validKey };')(storage, globalThis.crypto);
 
-const ENV_NAMES = ['net', 'own', 'validProfileId', 'cleanFace', '_connMeta', 'UNADMITTED_TTL', 'noteSeen', 'denyJoin', 'lastSeen', 'HB_STALE', 'bannedIds', 'getActiveCampaign', 'APP_VERSION', 'versionCmp', 'updateMessage', 'toast', 'logEvent', 'newerSeen', 'ui', '_pwFails', 'PW_LOCK_FAILS', 'PW_LOCK_MS', 'admitPlayer', 'queueJoin', 'setTimeout', 'clearTimeout', 'tableKeyFor', 'getProfile', 'showConfirm', 'pendingJoins', 'processNextApproval', 'allow', 'pushChat', 'broadcast', 'safeAvatar', 'cleanRosterName', 'awayMap', 'validKey', 'sendFailed', 'newKey', 'hmacHex', 'authData', 'sameStr'];
+const ENV_NAMES = ['net', 'own', 'validProfileId', 'cleanFace', '_connMeta', 'UNADMITTED_TTL', 'noteSeen', 'denyJoin', 'lastSeen', 'HB_STALE', 'bannedIds', 'getActiveCampaign', 'APP_VERSION', 'versionCmp', 'updateMessage', 'toast', 'logEvent', 'newerSeen', 'ui', '_pwFails', 'PW_LOCK_FAILS', 'PW_LOCK_MS', 'admitPlayer', 'queueJoin', 'setTimeout', 'clearTimeout', 'tableKeyFor', 'getProfile', 'showConfirm', 'pendingJoins', 'processNextApproval', 'allow', 'pushChat', 'broadcast', 'safeAvatar', 'cleanRosterName', 'awayMap', 'validKey', 'sendFailed', 'newKey', 'hmacHex', 'authData', 'sameStr', 'validCn', 'gmPresign'];
 // the env supplies every name a slice references — except the function the slice itself DEFINES (a var of the same name would overwrite the hoisted declaration)
 const pre = (except) => 'var ' + ENV_NAMES.filter(n => except.indexOf(n) < 0).map(n => n + ' = env.' + n).join(', ') + ';\n';
 const runGate = new Function('env', 'msg', 'conn', pre([]) + gateSrc + '\nreturn "ran";');
@@ -89,6 +90,7 @@ function harness(opts) {
         pushChat: m => h.pushed.push(m),
         broadcast: (m, ex) => { packCheck(m); h.bcast.push({ m, ex }); },
         safeAvatar: H.safeAvatar, cleanRosterName: H.cleanRosterName, cleanFace: H.cleanFace, awayMap: () => ({ u_a: 'map_1' }), validKey: RC.validKey, sendFailed: () => {},
+        validCn: HS.validCn || (() => false), gmPresign: () => null,   // security S: no signing key in a plain harness (a snapshot goes unsigned, as to an older app); the S checks give a host its real one
     };
     env.queueJoin = (conn, prof, why) => runQueue(env, conn, prof, why);
     h.env = env;
@@ -204,7 +206,7 @@ pendingChecks.push((async () => {
         vec === 'f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8' && none.every(x => x === null) && noSub === null && !!H.authData && H.authData('n1', 'waypoint-ab') === 'wp-auth|n1|waypoint-ab' && !!H.sameStr && H.sameStr('abc', 'abc') === true && !H.sameStr('abc', 'ab') && !H.sameStr('abc', 'abd') && !H.sameStr('', 'a') && !H.sameStr(undefined, undefined) && !H.sameStr(1, 1), j([vec, none, noSub]));
     const firstHello = (src.match(/conn\.send\(\{ type: 'hello'[^\n]*/g) || []).filter(l => /before the first heartbeat/.test(l));
     check('joinSession: the first hello carries no key and no proof — nothing of a previous table reaches the next host unasked (a known player is challenged for a proof instead); tableKeyFor(net.gmId) is gone', firstHello.length === 1 && !/\bkey\b|tableKeyFor|proof/.test(firstHello[0].split(');')[0]) && src.indexOf('tableKeyFor(net.gmId)') < 0, j(firstHello));
-    check('reconnect: a retry dials the generation that last answered first, then the others in turn (retryGen, wired into joinSession and recorded at each open)', !!H.retryGen && H.retryGen(0, 1, 4) === 0 && H.retryGen(0, 2, 4) === 1 && H.retryGen(2, 1, 4) === 2 && H.retryGen(2, 3, 4) === 0 && H.retryGen(3, 2, 4) === 0 && H.retryGen(undefined, 1, 4) === 0 && H.retryGen('x', 7, 4) === 2 && /var gen = isRetry \? retryGen\(reconn\.gen, reconn\.tries, ROOM_GENS\) : probe;/.test(src) && /reconn\.gen = gen;/.test(src));
+    check('reconnect: a retry dials the generation that last answered first, then the others in turn (retryGen, wired into joinSession and recorded at each open)', !!H.retryGen && H.retryGen(0, 1, 4) === 0 && H.retryGen(0, 2, 4) === 1 && H.retryGen(2, 1, 4) === 2 && H.retryGen(2, 3, 4) === 0 && H.retryGen(3, 2, 4) === 0 && H.retryGen(undefined, 1, 4) === 0 && H.retryGen('x', 7, 4) === 2 && /var gen = isRetry \? genNotRefused\(code, retryGen\(reconn\.gen, reconn\.tries, ROOM_GENS\), ROOM_GENS, roomPeerId\) : probe;/.test(src) && /reconn\.gen = gen;/.test(src));
     // #11: the key store — a snapshot's key taken once per connection, at most 50 kept, the launch merge capped alike
     const snapKeySrc = tryBetween('// [netcheck:snapkey-start]', '// [netcheck:snapkey-end]');
     if (!snapKeySrc) check('snapshot: the snapkey slice is marked', false, 'markers missing');
@@ -8571,6 +8573,287 @@ pendingChecks.push((async () => {
             !cErr && during === 0 && pending === 1 && fired1 === 1 && after1 === 1 && fired2 === 1 && after2 === 2 && capi.log().length === 200 && capi.log()[199].text === 'more' && C.toasts === 501
             && /\n    renderChatSoon\(\);[^\n]*\n    if \(m\.roll && window\.wpDice\) window\.wpDice\.landed\(m\);/.test(fnK('function pushChat(m) {', '\n}\n')) && !/\n    renderChat\(\);/.test(fnK('function pushChat(m) {', '\n}\n')), J([cErr, during, pending, fired1, after1, fired2, after2, capi && capi.log().length, C.toasts]));
     }
+})());
+// security S (2026-10-01): the GM's signing key, trust on first use — a player's app takes a table only from the GM it knows. The host's hello gate
+// with its signing slice, and the player's snapshot gate, run for real on both sides (each machine its own storage, real WebCrypto); Node's own
+// crypto is the reference for every signature the app makes (verified here) and for the hostile hosts' signatures the app is given (made here)
+pendingChecks.push((async () => {
+    const J = JSON.stringify, nodeCrypto = require('crypto');
+    const T = {
+        a: 'security S (a, both sides\' real code): a first join — the GM allows a stranger whose hello carried a fresh nonce, and the snapshot they are given carries the GM\'s public key (four fields) and a signature Node\'s own crypto verifies over that nonce, the host\'s room id, the GM id and the table key handed over; nothing but "wait" went out before admission. The player\'s app holds what follows the snapshot while the signature is checked, then takes the snapshot and reads the rest in order: the key pinned for that GM id, the table key stored, the room code remembered as that GM\'s, no question asked',
+        b: 'security S (b): on an automatic reconnect, a snapshot from the holder of another generation of the room code — its own key pair, naming the GM\'s id — is refused: nothing synced, nothing applied or read after it, the stored table key and the pin untouched, the connection closed from the player\'s side, no question raised, the words the app\'s own (said once however many such hosts answer, nothing of the host\'s text), and the reconnect put back where it stood so the next attempt dials the generation after it; a generation refused is not dialled again by that reconnect while another is left (genNotRefused)',
+        c: 'security S (c): the real GM\'s snapshot on a reconnect — signed over the new connection\'s nonce and the room id, the table key the one the player proved — is taken with no question and no notice, the reconnect\'s count left as the open handler set it',
+        d: 'security S (d): against a pinned GM a snapshot replayed from another connection of the same player (another nonce), one signed for another room id than the one this app dialled, and one whose table key was changed all fail — not taken, the stored key and pin untouched, the next generation tried, and no question (there is nothing to say yes to); the same host\'s snapshot made for this connection is taken',
+        e: 'security S (e): a snapshot with no key at all (a host from before the signing key) is taken at once, as before, only when nothing is known against it — no pin for its GM id and the room code not another GM\'s; nothing is pinned from it. Under a pinned GM id it is refused — and taken, the pin forgotten, only after the player\'s yes to that table as it stands; refused too is a rightly signed one on a player\'s app with no WebCrypto (it cannot check). A key shown with a signature that does not verify pins nothing',
+        f: 'security S (f): the private key never travels — no send of either host holds its private field or a "d" — and stays on the GM\'s machine (wp_gmSign); a snapshot\'s gmPub is rebuilt by whitelist (a hostile host\'s extra fields are not kept; another curve, another key type or a malformed coordinate is no key); the pins and the room codes kept are the 50 newest each, here and in the launch merge (index.html)',
+        g: 'security S (g): the GM\'s pair is made once and kept (a second hosting signs with the same key); net.gmSignReset forgets it, so the next hosting makes a new pair; Settings ▸ Reset Multiplayer Identity (its confirm run for real) changes the identity and forgets the key on Yes alone — Cancel keeps both; Reset Preferences and the launch merge keep wp_gmSign, wp_gmPins and wp_gmRooms',
+        h: 'security S (h): a room code this app has joined belongs to the GM id it synced with there — a snapshot naming another GM id at that code is refused however well signed; at the end of a join the player began they are asked ONCE (the app\'s own words, never on Enter), and nothing when the answer is no; a yes joins again and holds for that code, that GM id and that very key alone — the table is then taken, its key pinned, the code now its GM\'s — while another key under the same name, and that key shown without a signature of its own, are refused again',
+        i: 'security S (i): while a snapshot\'s signature is checked at most 256 messages wait behind it; a snapshot from a connection other than the one this app dialled is not judged at all; an automatic reconnect never pins a key (an unpinned GM that shows one is taken as before, nothing remembered against the real GM)',
+        j: 'security S (j, host): a hello with no nonce (an older app) or a malformed one gets the snapshot as before — unsigned, a new table key; the first nonce a connection sent is the one signed (a later hello cannot change it); a host with no WebCrypto hosts unsigned and says so once',
+        l: 'security S (l): the signed text is made in one place (snapData) and what ties it to the connection in one more (snapBind, read by each side from its own end — nothing today beyond the room id): whatever it gives is signed by the host and read back by the player\'s app alike — a snapshot signed over one tie is taken and pinned by a player whose connection reads the same and refused, with no question, by one whose connection reads another; a connection whose tie cannot be read is signed nothing by the host, and under a pinned GM a player\'s app that cannot read its own takes nothing',
+        m: 'security S (m): an automatic reconnect is held to the GM this session took its table from, in memory — on a player\'s app whose storage refuses every write (no pin, no room code kept) a first join is taken as ever, and on the reconnect a snapshot naming another GM id, one under the GM\'s id from another key and one under it with no key are each refused (said once, no question), the GM\'s own taken; a join the player begins is judged by what is stored alone',
+        k: 'security S (k, wired): handleMessage holds a player\'s messages behind a snapshot being checked and judges a snapshot before its branch applies anything; the join sends a fresh nonce in both hellos, marks an automatic reconnect, keeps where the reconnect stood and tries the next generation after a refusal; hosting loads the key; admitPlayer hands over the key the signature was made for and signs the snapshot; the proof path waits for the signatures; Help says it on both panes'
+    };
+    const done = new Set(), chk = (k, ok, detail) => { done.add(k); check(T[k], ok, detail); };
+    try {
+        const tb = n => tryBetween('// [netcheck:' + n + '-start]', '// [netcheck:' + n + '-end]');
+        const gmSrc = tb('gmsign'), stSrc = tb('snaptrust'), skSrc = tb('snapkey');
+        if (!gmSrc || !stSrc || !skSrc) throw new Error('the gmsign / snaptrust / snapkey slices are not marked in net.js');
+        const mkStore = () => { const m = {}; return { m, getItem: k => (Object.prototype.hasOwnProperty.call(m, k) ? m[k] : null), setItem: (k, v) => { m[k] = String(v); }, removeItem: k => { delete m[k]; } }; };
+        const cloneStore = s => { const n = mkStore(); Object.assign(n.m, s.m); return n; };
+        const HN = ['own', 'validProfileId', 'newKey', 'sameStr', 'tableKeyFor', 'rememberTableKey', 'cleanGmPub', 'samePub', 'validCn', 'snapData', 'snapBind', 'gmSignHex', 'gmVerify', 'gmKeyLoad', 'gmSignForget', 'gmPinFor', 'rememberGmPin', 'forgetGmPin', 'roomCodeOf', 'gmRoomFor', 'rememberGmRoom'];
+        const helpers = (store, cr) => new Function('localStorage', 'crypto', helpersSrc + '\nreturn { ' + HN.map(n => n + ': ' + n).join(', ') + ' };')(store, cr || globalThis.crypto);
+        const nodeOk = (pub, sig, data) => { try { return nodeCrypto.verify('sha256', Buffer.from(data), { key: nodeCrypto.createPublicKey({ key: pub, format: 'jwk' }), dsaEncoding: 'ieee-p1363' }, Buffer.from(sig, 'hex')); } catch (e) { return false; } };
+        const mkSigner = () => { const kp = nodeCrypto.generateKeyPairSync('ec', { namedCurve: 'P-256' }), jwk = kp.publicKey.export({ format: 'jwk' }); return { pub: { kty: jwk.kty, crv: jwk.crv, x: jwk.x, y: jwk.y }, sign: data => nodeCrypto.sign('sha256', Buffer.from(data), { key: kp.privateKey, dsaEncoding: 'ieee-p1363' }).toString('hex') }; };   // a host the suite builds itself: its signatures owe nothing to the app's code
+        const dataOf = (cn, room, gm, key, bind) => 'wp-snap|' + cn + '|' + room + '|' + gm + '|' + key + (bind || '');   // the suite's own reading of the signed text (bind: what ties it to the connection — nothing today)
+
+        /* ---- the GM's machine: the real hello gate, the real signing slice; admission as admitPlayer does it (its two lines are pinned in k) ---- */
+        const mkHost = async o => {
+            o = o || {}; const store = o.store || mkStore(), HH = helpers(store), h = harness({ players: o.players || {}, roomPeer: o.roomPeer || 'waypoint-c1c1' });
+            h.env.getProfile = () => ({ id: 'u_gm', name: 'GM' });
+            const names = ['net', '_connMeta', 'newKey', 'getProfile', 'toast', 'gmKeyLoad', 'gmSignForget', 'gmSignHex', 'snapData', 'snapBind'];
+            const e2 = { net: h.env.net, _connMeta: h.env._connMeta, newKey: HH.newKey, getProfile: h.env.getProfile, toast: m => h.toasts.push(String(m)), gmKeyLoad: o.noCrypto ? helpers(store, {}).gmKeyLoad : HH.gmKeyLoad, gmSignForget: HH.gmSignForget, gmSignHex: HH.gmSignHex, snapData: HH.snapData, snapBind: o.bind || HH.snapBind };   // (o.bind: a stand-in for the connection's tie, to run the seam)
+            const G = new Function(...names, gmSrc + '\nreturn { gmSignArm, gmPresign, gmFreshKey, gmSignSnap, key: function() { return _gmSign; } };')(...names.map(n => e2[n]));
+            await G.gmSignArm();
+            h.env.validCn = HH.validCn; h.env.gmPresign = (cm, cn, held, conn) => { const p = G.gmPresign(cm, cn, held, conn); if (p) h.pending.push(p); return p; };
+            h.env.admitPlayer = (conn, prof, provenKey) => {
+                const rec = h.camp.players[prof.id] = Object.assign({}, h.camp.players[prof.id], { name: prof.name });
+                rec.key = (provenKey && rec.key === provenKey) ? rec.key : G.gmFreshKey(conn);
+                h.env.net.roster[conn.peer] = prof; h.admitted.push({ peer: conn.peer, prof, key: rec.key });
+                conn.send(G.gmSignSnap({ type: 'snapshot', gmId: 'u_gm', key: rec.key, appState: { campaigns: {} } }, conn));
+            };
+            return { h, G, store, HH };
+        };
+        const join = async (X, peer, prof, cn, key, cn2) => {   // a player's join as their app runs it: a hello (with the nonce), the challenge answered with the proof when a key is held, else the GM's yes
+            const c = X.h.conn(peer), extra = cn === undefined ? {} : { cn };
+            X.h.hello(c, prof, extra); await X.h.settle();
+            const a = X.h.lastSent(peer, 'auth');
+            if (a && key) { X.h.hello(c, prof, Object.assign({ proof: hmacRef(key, 'wp-auth|' + a.m.nonce + '|' + X.h.env.net.roomPeer) }, cn2 === undefined ? extra : { cn: cn2 })); await X.h.settle(); }
+            else if (a) X.h.fireTimers();
+            const before = X.h.sent.filter(s => s.peer === peer).map(s => s.m.type), q = X.h.env.pendingJoins.find(x => x.conn === c);
+            if (q) X.h.env.admitPlayer(c, q.prof);
+            const s = X.h.lastSent(peer, 'snapshot');
+            return { c, snap: s ? s.m : null, before, viaGm: !!q };
+        };
+
+        /* ---- a player's machine: the real snapshot gate; handleMessage's head and its snapshot branch as net.js has them (pinned in k), the snapkey slice run for real ---- */
+        const runSnapKey = new Function('net', 'msg', 'conn', 'rememberTableKey', skSrc);
+        const mkClient = o => {
+            o = o || {}; const store = o.store || mkStore(), HC = helpers(store, o.noCrypto ? {} : null);
+            const c = { status: [], toasts: [], confirms: [], log: [], next: 0, hb: 0, joins: [], warn: [] };
+            const net = { role: 'client', conns: [], code: o.code || 'C1C1', active: true, gmId: '', syncedPeer: null }, reconn = { tries: 0, gen: 0, pending: false };
+            const env = Object.assign({}, HC, { net, reconn, toast: t => c.toasts.push(String(t)), setStatus: s => c.status.push(String(s)), stopHeartbeat: () => { c.hb++; }, showConfirm: (t, cb, opts) => c.confirms.push({ t: String(t), cb, opts }), joinSession: (code, name) => c.joins.push([code, name]), console: { warn: (...a) => c.warn.push(a.map(String).join(' ')) } }, o.bind ? { snapBind: o.bind } : {});
+            let S = null;
+            const deliver = (m, conn) => {
+                if (S.snapHeld(m, conn)) return 'held';
+                if (m.type !== 'snapshot') { c.log.push(m.type); return 'read'; }
+                if (conn.wpSnapOk === m) conn.wpSnapOk = null; else if (!S.snapArrived(m, conn)) return 'judging';
+                net.syncedPeer = conn.peer; runSnapKey(net, m, conn, HC.rememberTableKey); c.log.push('snapshot'); return 'taken';
+            };
+            env.wireDeliver = deliver;
+            const names = Object.keys(env);
+            S = new Function(...names, stSrc + '\nreturn { snapHeld, snapArrived, snapRefuse, snapAsk, joinTrustReset, genNotRefused: typeof genNotRefused === "function" ? genNotRefused : null, trust: function() { return _joinTrust; }, words: { refused: SNAP_REFUSED, ask: SNAP_ASK, max: SNAP_HOLD_MAX } };')(...names.map(n => env[n]));
+            const connect = p => { p = p || {}; const conn = { peer: p.peer || 'waypoint-c1c1', open: true, closedN: 0, wpCn: p.cn || HC.newKey(), wpRetry: !!p.retry, wpBefore: p.before || null, close() { conn.closedN++; conn.open = false; }, wpNext() { c.next++; } }; net.conns = [conn]; net.active = true; net.syncedPeer = null; return conn; };
+            const settle = async conn => { for (let i = 0; i < 400 && conn.wpSnapWait; i++) await new Promise(r => setImmediate(r)); await new Promise(r => setImmediate(r)); };
+            return { c, net, reconn, S, HC, store, deliver, connect, settle };
+        };
+
+        /* ---- (a) ---- */
+        const A = await mkHost();                                  // the real GM, hosting at waypoint-c1c1
+        const pat = mkClient({ code: 'C1C1' });                      // Pat's app
+        const c1 = pat.connect({ peer: 'waypoint-c1c1' });
+        const j1 = await join(A, 'pat-1', { id: 'u_pat', name: 'Pat' }, c1.wpCn), s1 = j1.snap;
+        const hostOk = !!s1 && j1.viaGm && J(Object.keys(s1.gmPub || {}).sort()) === J(['crv', 'kty', 'x', 'y']) && /^[0-9a-f]{128}$/.test(s1.sig || '') && /^[0-9a-f]{32}$/.test(s1.key) && nodeOk(s1.gmPub, s1.sig, dataOf(c1.wpCn, 'waypoint-c1c1', 'u_gm', s1.key)) && A.h.camp.players.u_pat.key === s1.key && J(j1.before) === J(['wait']);
+        const r1 = [pat.deliver(s1, c1), pat.deliver({ type: 'sounds' }, c1), pat.deliver({ type: 'roster' }, c1)], mid1 = [pat.c.log.slice(), pat.net.syncedPeer];
+        await pat.settle(c1);
+        chk('a', hostOk && J(r1) === J(['judging', 'held', 'held']) && J(mid1) === J([[], null]) && J(pat.c.log) === J(['snapshot', 'sounds', 'roster']) && pat.net.syncedPeer === 'waypoint-c1c1' && pat.net.gmId === 'u_gm' && J(pat.HC.gmPinFor('u_gm')) === J(s1.gmPub) && pat.HC.tableKeyFor('u_gm') === s1.key && pat.HC.gmRoomFor('C1C1') === 'u_gm' && pat.c.confirms.length === 0 && pat.c.toasts.length === 0 && c1.open === true,
+            J([hostOk, j1.before, r1, mid1, pat.c.log, pat.net.syncedPeer, pat.HC.gmPinFor('u_gm'), pat.HC.tableKeyFor('u_gm'), pat.HC.gmRoomFor('C1C1')]));
+
+        /* ---- (b) ---- */
+        const keys0 = pat.store.m.wp_tableKeys, pins0 = pat.store.m.wp_gmPins;
+        const SQ = await mkHost({ roomPeer: 'waypoint-c1c1-r1' });   // whoever registered the code's next generation: another machine, so another key pair; it names itself u_gm
+        const c2 = pat.connect({ peer: 'waypoint-c1c1-r1', retry: true, before: { tries: 2, gen: 0 } }); pat.reconn.tries = 0; pat.reconn.gen = 1;   // an automatic reconnect that reached generation 1 on its second attempt (the open handler began the count again)
+        const j2 = await join(SQ, 'pat-2', { id: 'u_pat', name: 'Pat' }, c2.wpCn);
+        const sq = Object.assign({}, j2.snap, { appState: { campaigns: { fake: { id: 'fake' } } }, reason: 'Trust me <b>now</b>', notepad: { gmId: 'u_gm', text: 'Trust me' } });
+        const sqSigned = nodeOk(sq.gmPub, sq.sig, dataOf(c2.wpCn, 'waypoint-c1c1-r1', 'u_gm', sq.key)) && sq.gmPub.x !== s1.gmPub.x;
+        const n2 = pat.c.log.length, r2 = [pat.deliver(sq, c2), pat.deliver({ type: 'chat' }, c2)];
+        await pat.settle(c2);
+        const r2b = pat.deliver({ type: 'stage' }, c2), rc1 = [pat.reconn.tries, pat.reconn.gen];
+        const sig3 = mkSigner(), c2b = pat.connect({ peer: 'waypoint-c1c1-r2', retry: true, before: { tries: 3, gen: 0 } });   // and a second one, at the generation after
+        pat.deliver({ type: 'snapshot', gmId: 'u_gm', key: 'e'.repeat(32), gmPub: sig3.pub, sig: sig3.sign(dataOf(c2b.wpCn, 'waypoint-c1c1-r2', 'u_gm', 'e'.repeat(32))), appState: {} }, c2b); await pat.settle(c2b);
+        const idOfB = (code, g) => 'waypoint-' + code + (g ? '-r' + g : ''), gnr = pat.S.genNotRefused || (() => -1), badB = Object.keys(pat.S.trust().bad || {});
+        const skipB = [gnr('c1c1', 0, 4, idOfB), gnr('c1c1', 1, 4, idOfB), gnr('c1c1', 2, 4, idOfB), gnr('c1c1', 3, 4, idOfB), gnr('zzzz', 1, 4, idOfB), gnr('c1c1', 1, 2, (c, g) => idOfB(c, g + 1))];   // (the last: every generation refused — the one asked for stands)
+        chk('b', sqSigned && J(badB) === J(['waypoint-c1c1-r1', 'waypoint-c1c1-r2']) && J(skipB) === J([0, 3, 3, 3, 1, 1]) && J(r2) === J(['judging', 'held']) && r2b === 'held' && pat.c.log.length === n2 && pat.net.syncedPeer === null && pat.store.m.wp_tableKeys === keys0 && pat.store.m.wp_gmPins === pins0 && c2.open === false && c2.closedN === 1 && c2.wpSnapDead === true && c2b.open === false
+            && J(rc1) === J([2, 0]) && J([pat.reconn.tries, pat.reconn.gen]) === J([3, 0]) && J(pat.c.toasts) === J([pat.S.words.refused + ' Still looking for your GM\u2026']) && pat.S.words.refused === 'This table\u2019s GM is not the one you know from this room code \u2014 the GM may have reinstalled, or someone else is at that code.'
+            && pat.c.confirms.length === 0 && pat.c.next === 0 && pat.c.status.length === 0 && pat.net.active === true && !/Trust me/.test(J(pat.c.toasts)),
+            J([sqSigned, badB, skipB, r2, r2b, pat.c.log.length - n2, pat.net.syncedPeer, pat.store.m.wp_tableKeys === keys0, pat.store.m.wp_gmPins === pins0, c2.open, c2.closedN, c2b.open, pat.reconn, pat.c.toasts, pat.c.confirms.length, pat.c.next]));
+
+        /* ---- (c) ---- */
+        const c3 = pat.connect({ peer: 'waypoint-c1c1', retry: true, before: { tries: 4, gen: 0 } }); pat.reconn.tries = 0; pat.reconn.gen = 0;
+        const j3 = await join(A, 'pat-3', { id: 'u_pat', name: 'Pat' }, c3.wpCn, s1.key);   // known now: challenged, the key proven (the suite's own HMAC), straight in
+        const nT = pat.c.toasts.length, r3 = pat.deliver(j3.snap, c3); await pat.settle(c3);
+        chk('c', !!j3.snap && !j3.viaGm && j3.snap.key === s1.key && J(j3.snap.gmPub) === J(s1.gmPub) && j3.snap.sig !== s1.sig && nodeOk(j3.snap.gmPub, j3.snap.sig, dataOf(c3.wpCn, 'waypoint-c1c1', 'u_gm', s1.key)) && r3 === 'judging' && pat.c.log[pat.c.log.length - 1] === 'snapshot' && pat.net.syncedPeer === 'waypoint-c1c1'
+            && pat.c.confirms.length === 0 && pat.c.toasts.length === nT && c3.open === true && J([pat.reconn.tries, pat.reconn.gen]) === J([0, 0]) && pat.HC.tableKeyFor('u_gm') === s1.key && pat.store.m.wp_gmPins === pins0,
+            J([j3.viaGm, j3.snap && j3.snap.key === s1.key, r3, pat.c.log.slice(-1), pat.net.syncedPeer, pat.c.confirms.length, pat.c.toasts.length - nT, c3.open, pat.reconn]));
+
+        /* ---- (d) and the rest: each a join the player began, on a copy of Pat's storage ---- */
+        const first = async (o, snapOf) => {
+            const P = mkClient(Object.assign({ store: cloneStore(pat.store), code: 'C1C1' }, o)), c = P.connect({ peer: o.peer || 'waypoint-c1c1' }), snap = await snapOf(c), r = P.deliver(snap, c);
+            await P.settle(c); P.S.snapAsk('C1C1', 'Pat'); P.S.snapAsk('C1C1', 'Pat');
+            const rf = P.S.trust().refused;
+            return { P, c, r, taken: P.c.log.indexOf('snapshot') >= 0, next: P.c.next, hb: P.c.hb, active: P.net.active, asks: P.c.confirms.length, offer: rf ? rf.offer : undefined, key: P.HC.tableKeyFor('u_gm'), pin: P.HC.gmPinFor('u_gm'), synced: P.net.syncedPeer, dead: c.wpSnapDead === true };
+        };
+        const fromGm = async (c, peer) => (await join(A, peer, { id: 'u_pat', name: 'Pat' }, c.wpCn, s1.key)).snap;
+        const dOther = await first({}, async () => s1);                                                             // the snapshot of Pat's first connection, replayed
+        const dRoom = await first({ peer: 'waypoint-c1c1-r2' }, c => fromGm(c, 'pat-d2'));                           // the GM's own snapshot for this nonce, shown at another room id
+        const dKey = await first({}, async c => Object.assign({}, await fromGm(c, 'pat-d3'), { key: 'f'.repeat(32) }));   // its table key changed on the way
+        const dGood = await first({}, c => fromGm(c, 'pat-d4'));
+        const refusedQuiet = x => x.r === 'judging' && !x.taken && x.next === 1 && x.hb === 1 && x.active === false && x.asks === 0 && x.offer === null && x.key === s1.key && J(x.pin) === J(s1.gmPub) && x.synced === null && x.dead;
+        chk('d', refusedQuiet(dOther) && refusedQuiet(dRoom) && refusedQuiet(dKey) && dGood.taken && dGood.next === 0 && dGood.asks === 0 && dGood.offer === undefined && dGood.synced === 'waypoint-c1c1' && dGood.active === true,
+            J([dOther, dRoom, dKey, dGood].map(x => [x.r, x.taken, x.next, x.hb, x.active, x.asks, x.offer, x.key === s1.key, x.synced, x.dead])));
+
+        /* ---- (e) ---- */
+        const old = mkClient({ code: 'OLD1' }), co = old.connect({ peer: 'waypoint-old1' });
+        const eOld = [old.deliver({ type: 'snapshot', gmId: 'u_old', key: 'o'.repeat(32), appState: {} }, co), old.c.log.slice(), old.HC.gmPinFor('u_old'), old.HC.tableKeyFor('u_old'), old.HC.gmRoomFor('old1'), old.store.m.wp_gmPins];
+        const co2 = old.connect({ peer: 'waypoint-old1' }), eOld2 = old.deliver({ type: 'snapshot', gmId: 'u_old', key: 'p'.repeat(32), appState: {} }, co2);   // the same older host again
+        const eUnsigned = await first({}, async () => ({ type: 'snapshot', gmId: 'u_gm', key: 'g'.repeat(32), appState: {} }));   // an older host naming the pinned GM
+        eUnsigned.P.c.confirms[0].cb(true); eUnsigned.P.S.joinTrustReset();   // the player says yes to that table as it stands (no key): the join begins again
+        const cu = eUnsigned.P.connect({ peer: 'waypoint-c1c1' }), eYes = [eUnsigned.asks, J(eUnsigned.P.c.joins), eUnsigned.P.deliver({ type: 'snapshot', gmId: 'u_gm', key: 'g'.repeat(32), appState: {} }, cu), eUnsigned.P.HC.gmPinFor('u_gm'), eUnsigned.P.HC.tableKeyFor('u_gm')];
+        const eBlind = await first({ noCrypto: true }, c => fromGm(c, 'pat-e2'));   // rightly signed, but this app cannot check it
+        const sigBad = mkSigner(), bad = mkClient({ code: 'BAD1' }), cb = bad.connect({ peer: 'waypoint-bad1' });
+        const rBad = bad.deliver({ type: 'snapshot', gmId: 'u_bad', key: 'b'.repeat(32), gmPub: sigBad.pub, sig: sigBad.sign(dataOf('0'.repeat(32), 'waypoint-bad1', 'u_bad', 'b'.repeat(32))), appState: {} }, cb); await bad.settle(cb);
+        chk('e', J(eOld) === J(['taken', ['snapshot'], null, 'o'.repeat(32), 'u_old', undefined]) && eOld2 === 'taken' && !eUnsigned.taken && eUnsigned.next === 1 && eUnsigned.key === s1.key && J(eUnsigned.pin) === J(s1.gmPub) && J(eUnsigned.offer) === J({ pub: null }) && J(eYes) === J([1, J([['C1C1', 'Pat']]), 'taken', null, 'g'.repeat(32)])
+            && !eBlind.taken && eBlind.next === 1 && eBlind.offer === null && eBlind.asks === 0 && rBad === 'judging' && bad.c.log[0] === 'snapshot' && bad.HC.gmPinFor('u_bad') === null && bad.HC.tableKeyFor('u_bad') === 'b'.repeat(32),
+            J([eOld, eOld2, [eUnsigned.taken, eUnsigned.next, eUnsigned.offer], eYes, [eBlind.taken, eBlind.next, eBlind.offer, eBlind.asks], rBad, bad.c.log, bad.HC.gmPinFor('u_bad')]));
+
+        /* ---- (f) ---- */
+        const privA = JSON.parse(A.store.m.wp_gmSign || '{}').priv || {}, allSent = J(A.h.sent.concat(SQ.h.sent));
+        const sigW = mkSigner(), wl = mkClient({ code: 'WL01' }), cw = wl.connect({ peer: 'waypoint-wl01' });
+        wl.deliver({ type: 'snapshot', gmId: 'u_wl', key: 'w'.repeat(32), gmPub: Object.assign({ d: 'PRIVATE', ext: true, key_ops: ['verify'], alg: 'ES256', evil: '<svg onload=1>' }, sigW.pub), sig: sigW.sign(dataOf(cw.wpCn, 'waypoint-wl01', 'u_wl', 'w'.repeat(32))), appState: {} }, cw); await wl.settle(cw);
+        const kept = JSON.parse(wl.store.m.wp_gmPins || '{}').u_wl, HW = wl.HC;
+        const noKey = [Object.assign({}, sigW.pub, { crv: 'P-384' }), Object.assign({}, sigW.pub, { kty: 'RSA' }), Object.assign({}, sigW.pub, { x: sigW.pub.x + 'A' }), Object.assign({}, sigW.pub, { y: { a: 1 } }), Object.assign({}, sigW.pub, { x: sigW.pub.x.slice(0, 42) + '+' }), null, 'x', []].map(v => HW.cleanGmPub(v));
+        const cap = mkStore(), HCap = helpers(cap); for (let i = 0; i < 60; i++) { HCap.rememberGmPin('u_g' + i, sigW.pub); HCap.rememberGmRoom('code' + i, 'u_g' + i); }
+        HCap.rememberGmPin('u_g10', sigW.pub); HCap.rememberGmPin('u_g60', sigW.pub);
+        const capped = [Object.keys(JSON.parse(cap.m.wp_gmPins)).length, !!HCap.gmPinFor('u_g9'), !!HCap.gmPinFor('u_g10'), !!HCap.gmPinFor('u_g11'), !!HCap.gmPinFor('u_g12'), !!HCap.gmPinFor('u_g60'), Object.keys(JSON.parse(cap.m.wp_gmRooms)).length, HCap.gmRoomFor('code9'), HCap.gmRoomFor('CODE59'), HCap.rememberGmPin('constructor', sigW.pub), HCap.rememberGmPin('u_x', { kty: 'EC' }), HCap.rememberGmRoom('a b', 'u_x'), HCap.gmPinFor('__proto__')];
+        const htmlS = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8').replace(/\r\n/g, '\n');
+        const mLines = htmlS.split('\n').filter(l => l.indexOf("if (k === 'wp_gmPins' || k === 'wp_gmRooms') {") >= 0);
+        const runM = mLines.length === 1 ? new Function('k', 'f', 'localStorage', mLines[0].trim() + '\nreturn "fell through";') : () => 'no line';
+        const fileP = {}; for (let i = 0; i < 120; i++) fileP['u_f' + i] = sigW.pub; const stM = mkStore(); stM.setItem('wp_gmPins', J({ u_l0: sigW.pub }));
+        const mR = runM('wp_gmPins', { prefs: { wp_gmPins: J(fileP) } }, stM), mOut = JSON.parse(stM.m.wp_gmPins);
+        chk('f', typeof privA.d === 'string' && privA.d.length === 43 && allSent.indexOf(privA.d) < 0 && allSent.indexOf('"d":') < 0 && allSent.indexOf('priv') < 0 && J(kept) === J({ kty: 'EC', crv: 'P-256', x: sigW.pub.x, y: sigW.pub.y }) && wl.c.log[0] === 'snapshot' && noKey.every(v => v === null)
+            && J(capped) === J([50, false, true, false, true, true, 50, '', 'u_g59', false, false, false, null]) && mR !== 'fell through' && mR !== 'no line' && Object.keys(mOut).length === 50 && J(mOut.u_f119) === J(sigW.pub) && !('u_l0' in mOut) && !('u_f69' in mOut),
+            J([typeof privA.d, allSent.indexOf('"d":'), kept, noKey, capped, mR, Object.keys(mOut).length]));
+
+        /* ---- (g) ---- */
+        const A2 = await mkHost({ store: A.store }), pubA2 = A2.G.key() && A2.G.key().pub, kept1 = A.store.m.wp_gmSign;
+        A2.h.env.net.gmSignReset(); const gone = A.store.m.wp_gmSign === undefined && A2.G.key() === null;
+        const A3 = await mkHost({ store: A.store }), pubA3 = A3.G.key() && A3.G.key().pub;
+        const setJs = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'settings.js'), 'utf8').replace(/\r\n/g, '\n');
+        const mId = setJs.match(/d\.showConfirm\('Reset your multiplayer identity\?[^\n']*', (function\(yes\) \{\n[\s\S]*?toast\('New identity generated\.'\);\n\s*\})\);/);   // the confirm's own callback, run for real
+        const runId = (yes, win) => { const calls = []; if (!mId) return null; new Function('getProfile', 'saveProfile', 'window', 'toast', 'localStorage', 'return ' + mId[1])(() => ({ id: 'u_old', name: 'N' }), p => calls.push('save:' + (p.id !== 'u_old' && p.name === 'N')), win || { wpNet: { gmSignReset: () => calls.push('reset') } }, () => calls.push('toast'), { removeItem: k => calls.push('rm:' + k) })(yes); return calls; };
+        const idRuns = [runId(false), runId(undefined), runId(true), runId(true, {})];
+        chk('g', J(pubA2) === J(s1.gmPub) && typeof kept1 === 'string' && gone && !!pubA3 && pubA3.x !== s1.gmPub.x && typeof A.store.m.wp_gmSign === 'string' && A.store.m.wp_gmSign !== kept1
+            && J(idRuns) === J([[], [], ['save:true', 'reset', 'toast'], ['save:true', 'rm:wp_gmSign', 'toast']])
+            && /saveProfile\(np\);\n\s*if \(window\.wpNet\) window\.wpNet\.myId = np\.id;\n\s*if \(window\.wpNet && window\.wpNet\.gmSignReset\) window\.wpNet\.gmSignReset\(\); else \{ try \{ localStorage\.removeItem\('wp_gmSign'\); \} catch \(e\) \{\} \}/.test(setJs)
+            && /var keep = \{ wp_profile: 1, wp_version: 1, wp_lastHost: 1, wp_prefsStamp: 1, wp_gmSign: 1, wp_gmPins: 1, wp_gmRooms: 1 \};/.test(setJs) && /var KEEP = \{ wp_profile: 1, wp_tableKeys: 1, wp_gmSign: 1, wp_gmPins: 1, wp_gmRooms: 1 \};/.test(htmlS),
+            J([J(pubA2) === J(s1.gmPub), gone, pubA3 && pubA3.x !== s1.gmPub.x, idRuns]));
+
+        /* ---- (h) ---- */
+        const mal = mkSigner(), malSnap = c => ({ type: 'snapshot', gmId: 'u_mallory', key: 'm'.repeat(32), gmPub: mal.pub, sig: mal.sign(dataOf(c.wpCn, c.peer, 'u_mallory', 'm'.repeat(32))), appState: {} });
+        const hNo = await first({ peer: 'waypoint-c1c1-r1' }, async c => malSnap(c));
+        const ask = hNo.P.c.confirms[0] || {}; if (ask.cb) ask.cb(false);
+        const noSaid = [hNo.taken, hNo.next, hNo.asks, J(hNo.offer) === J({ pub: mal.pub }), ask.t === hNo.P.S.words.ask, !!(ask.opts && ask.opts.noEnter === true), hNo.P.c.joins.length, hNo.key === s1.key, hNo.P.HC.gmRoomFor('c1c1')];
+        const hYes = await first({ peer: 'waypoint-c1c1-r1' }, async c => malSnap(c));
+        hYes.P.net.active = false; hYes.P.c.confirms[0].cb(true); const joined = J(hYes.P.c.joins);
+        hYes.P.S.joinTrustReset();                                       // as joinSession begins the join the yes started
+        const other2 = mkSigner(), cy0 = hYes.P.connect({ peer: 'waypoint-c1c1' });   // on the way another key answers under the same name: not what the player said yes to
+        const ry0 = hYes.P.deliver({ type: 'snapshot', gmId: 'u_mallory', key: 'n'.repeat(32), gmPub: other2.pub, sig: other2.sign(dataOf(cy0.wpCn, 'waypoint-c1c1', 'u_mallory', 'n'.repeat(32))), appState: {} }, cy0); await hYes.P.settle(cy0);
+        const y0 = [ry0, hYes.P.c.log.indexOf('snapshot') >= 0, cy0.wpSnapDead === true, hYes.P.HC.gmPinFor('u_mallory')];
+        const cyb = hYes.P.connect({ peer: 'waypoint-c1c1-r1' });   // and the very key the player said yes to, shown by a host that cannot sign with it
+        const ryb = hYes.P.deliver({ type: 'snapshot', gmId: 'u_mallory', key: 'n'.repeat(32), gmPub: mal.pub, sig: other2.sign(dataOf(cyb.wpCn, 'waypoint-c1c1-r1', 'u_mallory', 'n'.repeat(32))), appState: {} }, cyb); await hYes.P.settle(cyb);
+        const yb = [ryb, hYes.P.c.log.indexOf('snapshot') >= 0, cyb.wpSnapDead === true, hYes.P.HC.gmPinFor('u_mallory'), hYes.P.HC.tableKeyFor('u_mallory')];
+        const cy1 = hYes.P.connect({ peer: 'waypoint-c1c1-r1' }), ry1 = hYes.P.deliver(malSnap(cy1), cy1); await hYes.P.settle(cy1);
+        const y1 = [ry1, hYes.P.c.log.indexOf('snapshot') >= 0, J(hYes.P.HC.gmPinFor('u_mallory')) === J(mal.pub), hYes.P.HC.gmRoomFor('c1c1'), hYes.P.HC.tableKeyFor('u_mallory'), hYes.P.S.trust().accept, hYes.P.c.confirms.length, J(hYes.P.HC.gmPinFor('u_gm')) === J(s1.gmPub)];
+        chk('h', J(noSaid) === J([false, 1, 1, true, true, true, 0, true, 'u_gm']) && hNo.P.S.words.ask === 'This table\u2019s GM is not the one you know from this room code. The GM may have reinstalled or moved to another computer \u2014 or someone else is at that code. If you are not sure, ask your GM before you say yes. Trust this table\u2019s GM from now on, and join?'
+            && joined === J([['C1C1', 'Pat']]) && J(y0) === J(['judging', false, true, null]) && J(yb) === J(['judging', false, true, null, '']) && J(y1) === J(['judging', true, true, 'u_mallory', 'm'.repeat(32), null, 1, true]), J([noSaid, joined, y0, yb, y1]));
+
+        /* ---- (i) ---- */
+        const fl = mkClient({ store: cloneStore(pat.store), code: 'C1C1' }), cf = fl.connect({ peer: 'waypoint-c1c1' }), sf = await fromGm(cf, 'pat-i1');
+        fl.deliver(sf, cf); for (let i = 0; i < 300; i++) fl.deliver({ type: 'pos' }, cf); await fl.settle(cf);
+        const stray = { peer: 'waypoint-c1c1', open: true, wpCn: cf.wpCn, close() {} }, rStray = fl.deliver(sf, stray), nStray = fl.c.log.filter(x => x === 'snapshot').length;
+        const rt = mkClient({ code: 'RT01' }), cr0 = rt.connect({ peer: 'waypoint-rt01' }); rt.deliver({ type: 'snapshot', gmId: 'u_rt', key: 'r'.repeat(32), appState: {} }, cr0);   // a table hosted before the signing key: synced, nothing pinned
+        const sigR = mkSigner(), cr1 = rt.connect({ peer: 'waypoint-rt01-r1', retry: true, before: { tries: 1, gen: 0 } });
+        const rRt = rt.deliver({ type: 'snapshot', gmId: 'u_rt', key: 's'.repeat(32), gmPub: sigR.pub, sig: sigR.sign(dataOf(cr1.wpCn, 'waypoint-rt01-r1', 'u_rt', 's'.repeat(32))), appState: {} }, cr1); await rt.settle(cr1);
+        chk('i', fl.S.words.max === 256 && fl.c.log.length === 257 && fl.c.log[0] === 'snapshot' && rStray === 'judging' && nStray === 1 && stray.wpSnapWait === undefined && rRt === 'judging' && rt.c.log.filter(x => x === 'snapshot').length === 2 && rt.HC.gmPinFor('u_rt') === null && rt.store.m.wp_gmPins === undefined,
+            J([fl.S.words.max, fl.c.log.length, rStray, nStray, rRt, rt.c.log, rt.HC.gmPinFor('u_rt')]));
+
+        /* ---- (j) ---- */
+        const B = await mkHost();
+        const jOld = await join(B, 'old-1', { id: 'u_o1', name: 'O' }), jBad = [];
+        for (const v of ['zz', 'A'.repeat(32), 'a'.repeat(33), 12, { a: 1 }, null]) jBad.push((await join(B, 'bad-' + jBad.length, { id: 'u_b' + jBad.length, name: 'B' }, v)).snap);
+        const plain = s => !!s && !('gmPub' in s) && !('sig' in s) && /^[0-9a-f]{32}$/.test(s.key);
+        const cnA = 'a'.repeat(32), cnB = 'b'.repeat(32); B.h.camp.players.u_k = { name: 'K', key: 'k'.repeat(32) };
+        const jTwo = await join(B, 'two-1', { id: 'u_k', name: 'K' }, cnA, 'k'.repeat(32), cnB);   // the answer to the challenge carries another nonce: the first one stands
+        const NC = await mkHost({ noCrypto: true }); await NC.G.gmSignArm(); const jNc = await join(NC, 'nc-1', { id: 'u_n1', name: 'N' }, 'c'.repeat(32));
+        chk('j', plain(jOld.snap) && jBad.every(plain) && !!jTwo.snap && !jTwo.viaGm && nodeOk(jTwo.snap.gmPub, jTwo.snap.sig, dataOf(cnA, 'waypoint-c1c1', 'u_gm', 'k'.repeat(32))) && !nodeOk(jTwo.snap.gmPub, jTwo.snap.sig, dataOf(cnB, 'waypoint-c1c1', 'u_gm', 'k'.repeat(32)))
+            && NC.G.key() === null && plain(jNc.snap) && NC.h.toasts.filter(t => /cannot sign your table/.test(t)).length === 1 && NC.store.m.wp_gmSign === undefined && B.h.toasts.filter(t => /cannot sign/.test(t)).length === 0,
+            J([plain(jOld.snap), jBad.map(plain), jTwo.snap && Object.keys(jTwo.snap), NC.h.toasts, jNc.snap && Object.keys(jNc.snap)]));
+
+        /* ---- (l) the seam the connection's tie goes through: one function, read by both sides ---- */
+        const bindOf = b => () => b;
+        const L = await mkHost({ bind: bindOf('|H1|P1') }), lp = mkClient({ code: 'C1C1', bind: bindOf('|H1|P1') }), cl = lp.connect({ peer: 'waypoint-c1c1' });
+        const sl = (await join(L, 'lp-1', { id: 'u_lp', name: 'Lp' }, cl.wpCn)).snap;
+        const lSigned = !!sl && nodeOk(sl.gmPub, sl.sig, dataOf(cl.wpCn, 'waypoint-c1c1', 'u_gm', sl.key, '|H1|P1')) && !nodeOk(sl.gmPub, sl.sig, dataOf(cl.wpCn, 'waypoint-c1c1', 'u_gm', sl.key));
+        if (sl) lp.deliver(sl, cl); await lp.settle(cl);
+        const lTaken = [lp.c.log[0], !!sl && J(lp.HC.gmPinFor('u_gm')) === J(sl.gmPub), lp.c.confirms.length];
+        const lx = mkClient({ code: 'C1C1', store: cloneStore(lp.store), bind: bindOf('|H1|PX') }), cx = lx.connect({ peer: 'waypoint-c1c1' });   // the same player, the same GM, a connection that reads another tie
+        const sx = sl ? (await join(L, 'lp-2', { id: 'u_lp', name: 'Lp' }, cx.wpCn, sl.key)).snap : null;
+        if (sx) lx.deliver(sx, cx); await lx.settle(cx); lx.S.snapAsk('C1C1', 'Lp');
+        const lOther = [!!sx && nodeOk(sx.gmPub, sx.sig, dataOf(cx.wpCn, 'waypoint-c1c1', 'u_gm', sl.key, '|H1|P1')), lx.c.log.indexOf('snapshot') >= 0, cx.wpSnapDead === true, lx.c.next, lx.c.confirms.length, !!sl && lx.HC.tableKeyFor('u_gm') === sl.key];
+        const LN = await mkHost({ bind: bindOf(null) }), sn0 = (await join(LN, 'ln-1', { id: 'u_ln', name: 'Ln' }, 'd'.repeat(32))).snap;   // the host cannot read the tie: nothing is signed
+        const ln = mkClient({ code: 'C1C1', store: cloneStore(pat.store), bind: bindOf(null) }), cn1 = ln.connect({ peer: 'waypoint-c1c1' });   // Pat's app cannot read it: the real GM's rightly signed snapshot verifies nothing
+        ln.deliver(await fromGm(cn1, 'pat-l3'), cn1); await ln.settle(cn1); ln.S.snapAsk('C1C1', 'Pat');
+        const lBlind = [ln.c.log.indexOf('snapshot') >= 0, cn1.wpSnapDead === true, ln.c.next, ln.c.confirms.length, ln.HC.tableKeyFor('u_gm') === s1.key];
+        const nCalls = (s, re) => (s.match(re) || []).length;
+        chk('l', lSigned && J(lTaken) === J(['snapshot', true, 0]) && J(lOther) === J([true, false, true, 1, 0, true]) && plain(sn0) && J(lBlind) === J([false, true, 1, 0, true])
+            && A.HH.snapBind({}, true) === '' && A.HH.snapBind({}, false) === '' && A.HH.snapData('c', 'r', 'g', 'k', '') === 'wp-snap|c|r|g|k' && A.HH.snapData('c', 'r', 'g', 'k', '|a|b') === 'wp-snap|c|r|g|k|a|b'
+            && nCalls(src, /snapData\(/g) === 3 && nCalls(src, /snapBind\(/g) === 3 && nCalls(gmSrc, /snapData\(cn, room, gm, key, bind\)/g) === 1 && /bind = snapBind\(conn, true\); if \(!kp \|\| !cm \|\| typeof bind !== 'string'\) return null;/.test(gmSrc)
+            && /var bindS = snapBind\(conn, false\), data = typeof bindS === 'string' \? snapData\(validCn\(conn\.wpCn\) \? conn\.wpCn : '', conn\.peer, gmIdS, typeof msg\.key === 'string' \? msg\.key : '', bindS\) : null;/.test(stSrc),
+            J([lSigned, lTaken, lOther, plain(sn0), lBlind, nCalls(src, /snapData\(/g), nCalls(src, /snapBind\(/g)]));
+
+        /* ---- (m) a reconnect is judged by what this session took its table from, whatever storage kept ---- */
+        const fullS = mkStore(); fullS.setItem = () => { throw new Error('QuotaExceededError'); };
+        const fm = mkClient({ code: 'M1M1', store: fullS }), M = await mkHost({ roomPeer: 'waypoint-m1m1' });
+        const cm1 = fm.connect({ peer: 'waypoint-m1m1' }), sm1 = (await join(M, 'fm-1', { id: 'u_fm', name: 'Fm' }, cm1.wpCn)).snap;
+        if (sm1) fm.deliver(sm1, cm1); await fm.settle(cm1);
+        const m1 = [fm.c.log[0], fm.HC.gmPinFor('u_gm'), fm.HC.gmRoomFor('m1m1'), Object.keys(fullS.m).length];
+        const retryAt = (gen, tries, snapOf) => { const c = fm.connect({ peer: 'waypoint-m1m1' + (gen ? '-r' + gen : ''), retry: true, before: { tries, gen: 0 } }); return { c, r: fm.deliver(snapOf(c), c) }; };
+        const sgM = mkSigner();
+        const mA = retryAt(1, 1, () => ({ type: 'snapshot', gmId: 'u_else', key: 'x'.repeat(32), appState: {} })); await fm.settle(mA.c);   // another GM id, no key
+        const mB = retryAt(2, 2, c => ({ type: 'snapshot', gmId: 'u_gm', key: 'y'.repeat(32), gmPub: sgM.pub, sig: sgM.sign(dataOf(c.wpCn, c.peer, 'u_gm', 'y'.repeat(32))), appState: {} })); await fm.settle(mB.c);   // the GM's id, another key
+        const mC = retryAt(3, 3, () => ({ type: 'snapshot', gmId: 'u_gm', key: 'z'.repeat(32), appState: {} })); await fm.settle(mC.c);   // the GM's id, no key
+        const nM = fm.c.log.length, cm4 = fm.connect({ peer: 'waypoint-m1m1', retry: true, before: { tries: 4, gen: 0 } }), sm4 = sm1 ? (await join(M, 'fm-2', { id: 'u_fm', name: 'Fm' }, cm4.wpCn, sm1.key)).snap : null;
+        if (sm4) fm.deliver(sm4, cm4); await fm.settle(cm4);
+        const mGm = [fm.c.log.length - nM, fm.c.log[fm.c.log.length - 1], cm4.open, fm.c.confirms.length, fm.c.toasts.length];
+        fm.S.joinTrustReset(); const cm5 = fm.connect({ peer: 'waypoint-m1m1' }), m5 = fm.deliver({ type: 'snapshot', gmId: 'u_else', key: 'x'.repeat(32), appState: {} }, cm5);   // a join the player begins: only what is stored counts (here nothing)
+        chk('m', J(m1) === J(['snapshot', null, '', 0]) && [mA, mB, mC].every(x => x.r === 'judging' && x.c.wpSnapDead === true && x.c.open === false) && nM === 1 && J(mGm) === J([1, 'snapshot', true, 0, 1]) && m5 === 'taken',
+            J([m1, [mA, mB, mC].map(x => [x.r, x.c.wpSnapDead === true, x.c.open]), nM, mGm, m5]));
+
+        /* ---- (k) ---- */
+        const wired = [
+            /function handleMessage\(msg, conn\) \{\n\s*if \(!msg \|\| !msg\.type\) return;\n\s*if \(net\.role === 'client' && !wireShapeOk\(msg\)\) return;[^\n]*\n\s*if \(net\.role === 'client' && snapHeld\(msg, conn\)\) return;/.test(src),
+            /\} else if \(msg\.type === 'snapshot' && net\.role === 'client'\) \{\n\s*if \(conn\.wpSnapOk === msg\) conn\.wpSnapOk = null; else if \(!snapArrived\(msg, conn\)\) return;[^\n]*\n\s*net\.syncedPeer = conn\.peer;/.test(src),
+            /conn\.on\('data', function\(d\) \{ wireDeliver\(d, conn\); \}\);/.test(src) && /function wireDeliver\(d, conn\) \{ try \{ handleMessage\(d, conn\); \} catch/.test(src),
+            /conn\.wpCn = newKey\(\); conn\.wpRetry = !!isRetry;/.test(src) && /var gen = isRetry \? genNotRefused\(code, retryGen\(reconn\.gen, reconn\.tries, ROOM_GENS\), ROOM_GENS, roomPeerId\) : probe;/.test(src) && /version: APP_VERSION, cn: conn\.wpCn \}\);[^\n]*before the first heartbeat/.test(src) && /if \(validCn\(conn\.wpCn\)\) helloA\.cn = conn\.wpCn;/.test(src),
+            /var wasRetry = reconn\.pending;\n\s*conn\.wpBefore = wasRetry \? \{ tries: reconn\.tries, gen: reconn\.gen \} : null;[^\n]*\n\s*cancelReconnect\(\);/.test(src) && /if \(!isRetry && !probe\) joinTrustReset\(\);/.test(src),
+            /nextGen = conn\.wpNext = function\(\) \{[^\n]*\n\s*clearTimeout\(joinTimer\);\n\s*if \(net\.peer !== peer\) return;\n\s*net\.active = false;\n\s*try \{ peer\.destroy\(\); \} catch \(e\) \{\}\n\s*if \(probe \+ 1 < ROOM_GENS\) \{ joinSession\(code, name, false, probe \+ 1\); return; \}\n\s*joinFailed\(''\);/.test(src) && /if \(rfJ\) snapAsk\(code, name\);/.test(src) && /if \(rfJ\) setStatus\(SNAP_REFUSED \+ ' You have not joined\.'/.test(src),
+            /gmSignArm\(\);[^\n]*\n\s*var peer = new Peer\(roomPeerId\(code, gen\), peerOpts\(\)\);/.test(src),
+            /rec\.key = \(provenKey && rec\.key === provenKey\) \? rec\.key : gmFreshKey\(conn\);/.test(src) && /notepad: notepadMsg\(\) \}; gmSignSnap\(snap, conn\); \};/.test(src),
+            /if \(!cm\.signed && validCn\(msg\.cn\)\) cm\.signed = gmPresign\(cm, msg\.cn, keyed0 \? rec0\.key : '', conn\);/.test(src) && /hmacHex\(key0, authData\(nonce0, net\.roomPeer\)\)\.then\(function\(want\) \{ return cm\.signed \? cm\.signed\.then\(function\(\) \{ return want; \}\) : want; \}\)\.then\(function\(want\) \{/.test(src),
+            /<li><b>Your GM, and no one else:<\/b> the first time you join a table your app remembers its GM&rsquo;s key[^\n]*you are asked once whether to trust the table that answered[^\n]*This protection begins with the first table your GM hosts on this version\.<\/li>/.test(htmlS) && /<li><b>Your table is signed:<\/b>[^\n]*Reset Multiplayer Identity<\/b> makes a new one with your new identity &mdash; to your players&rsquo; apps your table is then a new GM&rsquo;s\.<\/li>/.test(htmlS)
+        ];
+        chk('k', wired.every(Boolean), J(wired));
+    } catch (e) { Object.keys(T).forEach(k => { if (!done.has(k)) check(T[k], false, 'threw: ' + (e && e.stack || e)); }); }
 })());
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
     summed = true;

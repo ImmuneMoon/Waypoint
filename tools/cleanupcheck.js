@@ -641,6 +641,37 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const plainPl = () => ({ id: 'pp', type: 'planner', meta: { title: 'Plain' }, blocks: [{ id: 'b1', type: 'h1', title: 'T', sub: '' }, { id: 'b2', type: 'node', title: 'N', cols: ['A'], rows: [{ col1: 'x' }] }, { id: 'b3', type: 'flowchart', nodes: [{ id: 'a', text: 'x' }], edges: [] }] });
             const icP = { items: { pp: plainPl() } }; cleanImportItems(icP, deps);
             check('text style import: a planner with no format comes in exactly as it was', JSON.stringify(icP.items.pp) === JSON.stringify(plainPl()));
+            // a size on a part, underline, strike and a link (the owner, 2026-10-02): a hostile link in a file is dropped on Merge, on Replace and on a load — the text and the rest of its look kept
+            {
+                const OK = 'https://ok.example/p?a=1&b=2', J = JSON.stringify;
+                const BADL = ['javascript:alert(1)', 'JAVASCRIPT:alert(1)', 'data:text/html,<script>alert(1)</script>', 'vbscript:x', 'https://a.example/' + String.fromCharCode(0), 'https://a.example/' + String.fromCharCode(10) + 'x', 'https://a b', '//evil.example/x', 'https://' + 'a'.repeat(2000), 7];
+                const linkPlanner = v => ({ id: 'pl', type: 'planner', meta: { title: 'L' }, blocks: [
+                    { id: 'b1', type: 'h1', title: 'Title', sub: 'sub', fmt: { title: { link: v, u: true, spans: [{ s: 0, e: 2, size: 'large', link: OK }] }, sub: { link: v } } },
+                    { id: 'b2', type: 'node', title: 'N', tag: 't', must: 'm', cols: ['A'], colFmt: [{ link: v, st: 1 }], fmt: { tag: { link: v, st: true } }, rows: [{ col1: 'cell', fmt: { col1: { spans: [{ s: 0, e: 2, link: v, size: '9em' }, { s: 2, e: 4, link: OK }] } } }] },
+                    { id: 'b3', type: 'flowchart', nodes: [{ id: 'n1', text: 'label', fmt: { link: OK, spans: [{ s: 0, e: 2, link: v, u: true }] } }], edges: [{ from: 'n1', to: 'n1', text: 'go', fmt: { link: v } }] },
+                    { id: 'b4', type: 'image', src: '/saves/images/x.png', caption: 'cap', fmt: { caption: { link: v } } } ] });
+                const linkPage = v => ({ id: 'dl', type: 'doc', meta: { title: 'Page', players: true }, blocks: [{ id: 'c1', type: 'h2', title: 'Sec', fmt: { title: { link: v, spans: [{ s: 0, e: 1, link: OK, st: true }] } } }, { id: 'c2', type: 'table', title: 'T', cols: ['A'], colFmt: [{ link: v }], rows: [{ col1: 'x', fmt: { col1: { link: v, u: true } } }] }] });
+                const wantL = J([
+                    { id: 'b1', type: 'h1', title: 'Title', sub: 'sub', fmt: { title: { u: true, spans: [{ s: 0, e: 2, size: 'large', link: OK }] } } },
+                    { id: 'b2', type: 'node', title: 'N', tag: 't', must: 'm', cols: ['A'], fmt: { tag: { st: true } }, rows: [{ col1: 'cell', fmt: { col1: { spans: [{ s: 2, e: 4, link: OK }] } } }] },
+                    { id: 'b3', type: 'flowchart', nodes: [{ id: 'n1', text: 'label', fmt: { spans: [{ s: 0, e: 2, u: true }] } }], edges: [{ from: 'n1', to: 'n1', text: 'go' }] },
+                    { id: 'b4', type: 'image', src: '/saves/images/x.png', caption: 'cap' } ]);
+                const pageL = c => !!c && J(c.blocks[0].fmt) === J({ title: { spans: [{ s: 0, e: 1, st: true, link: OK }] } }) && c.blocks[0].title === 'Sec' && !('colFmt' in c.blocks[1]) && J(c.blocks[1].rowFmt) === '[[{"u":true}]]' && J(c.blocks[1].rows) === '[["x"]]';
+                const quiet = o => !/javascript|vbscript|data:text|evil\.example|"link":(?!"https:\/\/ok\.example\/p\?a=1&b=2")/i.test(J(o));   // no link left but the allowed one
+                const merged = BADL.map(v => { const ic = JSON.parse(J({ items: { pl: linkPlanner(v), dl: linkPage(v) } })); cleanImportItems(ic, deps); return ic; });
+                check('text style import (Merge, a hostile link): javascript:, data:, a control character, white space inside, a protocol-relative one, an over-long one, one that is no string — dropped from every field of a planner and a page, the text and the rest of the look kept, the allowed link beside it kept; a flowchart label keeps no link at all',
+                    merged.every(ic => J(ic.items.pl.blocks) === wantL && pageL(ic.items.dl) && quiet(ic)), J(merged.filter(ic => J(ic.items.pl.blocks) !== wantL).map(ic => ic.items.pl.blocks)[0]));
+                const replaced = BADL.map(v => cleanImport(JSON.parse(J({ activeCampaignId: 'cL', campaigns: { cL: { id: 'cL', name: 'L', items: { pl: linkPlanner(v), dl: linkPage(v) } } } })), deps));
+                check('text style import (Replace, a hostile link): the same, after the load\'s normaliser', replaced.every(o => !!o && J(o.campaigns.cL.items.pl.blocks) === wantL && pageL(o.campaigns.cL.items.dl) && quiet(o)), J(replaced[0] && replaced[0].campaigns.cL.items.pl.blocks));
+                const loaded = BADL.map(v => mkMig({ wpSystemCore: S, wpFormula: F, wpDocRender: DOC })(JSON.parse(J({ activeCampaignId: 'cL', campaigns: { cL: { id: 'cL', name: 'L', items: { pl: linkPlanner(v), dl: linkPage(v) } } } }))));
+                check('text style load (a hostile link): a save that holds one is cleaned as the app reads it — the planner\'s and the page\'s formats lose the link, keep the text and the rest',
+                    loaded.every(o => J(o.campaigns.cL.items.pl.blocks) === wantL && J(o.campaigns.cL.items.dl.blocks[0].fmt) === J({ title: { spans: [{ s: 0, e: 1, st: true, link: OK }] } }) && !('colFmt' in o.campaigns.cL.items.dl.blocks[1]) && J(o.campaigns.cL.items.dl.blocks[1].rows) === J([{ col1: 'x', fmt: { col1: { u: true } } }]) && quiet(o)), J(loaded[0].campaigns.cL.items.dl.blocks));
+                const kept = JSON.parse(J({ items: { pl: linkPlanner(OK), dl: linkPage(OK) } })); cleanImportItems(kept, deps);
+                check('text style import (a link that is allowed): kept in a title, a tag, a head, a cell and a caption — and still never on a flowchart label',
+                    J(kept.items.pl.blocks[0].fmt) === J({ title: { u: true, link: OK, spans: [{ s: 0, e: 2, size: 'large' }] }, sub: { link: OK } }) && J(kept.items.pl.blocks[1].fmt) === J({ tag: { st: true, link: OK } }) && J(kept.items.pl.blocks[1].colFmt) === J([{ link: OK }])
+                    && J(kept.items.pl.blocks[1].rows[0].fmt) === J({ col1: { link: OK } }) && J(kept.items.pl.blocks[3].fmt) === J({ caption: { link: OK } }) && J(kept.items.pl.blocks[2].nodes[0].fmt) === J({ spans: [{ s: 0, e: 2, u: true }] }) && !('fmt' in kept.items.pl.blocks[2].edges[0])
+                    && J(kept.items.dl.blocks[0].fmt) === J({ title: { link: OK, spans: [{ s: 0, e: 1, st: true }] } }) && J(kept.items.dl.blocks[1].colFmt) === J([{ link: OK }]) && J(kept.items.dl.blocks[1].rowFmt) === J([[{ u: true, link: OK }]]), J(kept.items.pl.blocks));
+            }
         }
         // a page cleanDoc refuses takes nobody with it: its child comes in at the top of the tree
         const pages = { campaigns: { cP: { id: 'cP', name: 'P', items: { d1: { id: 'd1', type: 'doc', meta: { title: 'refuse me' }, blocks: [] }, d2: { id: 'd2', type: 'doc', meta: { title: 'Child', parentId: 'd1' }, blocks: [] } } } } };

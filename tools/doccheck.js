@@ -1242,6 +1242,34 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && D.linkLine('a'.repeat(64), okA) !== '' && D.linkLine('a'.repeat(65), okA) === '' && D.diagramLink('https://' + 'a'.repeat(TFs.MAX_LINK - 8)) !== '' && D.diagramLink('https://' + 'a'.repeat(TFs.MAX_LINK - 7)) === '' && TFs.MAX_LINK === 2000);
     }
 
+    /* ---- a diagram's names (1.5.0): the diagram library keeps a diagram's shapes, classes, entities and states in plain objects keyed by the
+            name the source gives them — a shape called __proto__ would write onto the prototype every object of the page shares; the name never
+            reaches the library ---- */
+    {
+        const sP = stripMermaidLinks, Jp = JSON.stringify, P = '__proto__';
+        const NAMED = [
+            ['graph TD\n' + P + '["x"] --> B', 'graph TD\n_proto_["x"] --> B'],
+            ['flowchart LR\nA --> ' + P + '\n' + P + ' -.-> C; ' + P + '{{"hex"}}', 'flowchart LR\nA --> _proto_\n_proto_ -.-> C; _proto_{{"hex"}}'],
+            ['graph TD\nA["the ' + P + ' word"] --> B', 'graph TD\nA["the _proto_ word"] --> B'],
+            ['classDiagram\nclass ' + P + '\nclass `' + P + '`\n' + P + ' <|-- Dog\nclass Cat~' + P + '~', 'classDiagram\nclass _proto_\nclass `_proto_`\n_proto_ <|-- Dog\nclass Cat~_proto_~'],
+            ['erDiagram\n' + P + ' ||--o{ B : has\n' + P + ' { string id }', 'erDiagram\n_proto_ ||--o{ B : has\n_proto_ { string id }'],
+            ['stateDiagram-v2\n[*] --> ' + P + '\n' + P + ' --> [*]', 'stateDiagram-v2\n[*] --> _proto_\n_proto_ --> [*]'],
+            ['sequenceDiagram\nparticipant ' + P + '\n' + P + '->>B: hi', 'sequenceDiagram\nparticipant _proto_\n_proto_->>B: hi'],
+            ['gitGraph\ncommit\nbranch ' + P + '\ncheckout ' + P, 'gitGraph\ncommit\nbranch _proto_\ncheckout _proto_'],
+            ['gantt\nsection S\nT :' + P + ', 2024-01-01, 1d', 'gantt\nsection S\nT :_proto_, 2024-01-01, 1d']
+        ];
+        const SAME = ['graph TD\nmy__proto__x --> a__proto__ --> __proto__b --> __proto___\nA["___proto___"]', 'graph TD\nA-->B\nclick A href "https://ok.example/' + P + '"', 'graph TD\nA-->B', ''];
+        const namedBad = NAMED.filter(c => sP(c[0]) !== c[1] || sP(c[1]) !== c[1]), sameBad = SAME.filter(s => sP(s) !== s);
+        const hid = [sP('graph TD\n__pro%%{a}%%to__["x"] --> B'), sP('graph TD\nA --> __pr%%{x}%%oto__')], mpP = D.mermaidPre, decP = h => h.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&');
+        const pre = [decP(mpP('graph TD\n&#95;_proto__["x"] --> B')), decP(mpP('graph TD\n__proto&#95;&#95;["x"] --> B')), decP(mpP('graph TD\n' + P + '["x"] --> B'))];
+        const fcP = compileFlowchart({ nodes: [{ id: P, text: P }, { id: 'b', text: 'B', link: 'https://ok.example/b' }, { id: 'constructor', text: 'c' }], edges: [{ from: P, to: 'b', text: P }, { from: 'b', to: P }] });
+        const pageP = cleanDoc({ type: 'doc', id: 'dp', meta: { title: 'P', players: true }, blocks: [{ id: 'q1', type: 'diagram', content: 'graph TD\n' + P + '["x"] --> B' }, { id: 'q2', type: 'flowchart', nodes: [{ id: P, text: 'x' }], edges: [{ from: P, to: P }] }] }), htmlP = pageP ? renderDoc(pageP) : '';
+        check('a diagram\'s names: a name the diagram library would key a plain object by — __proto__, standing as a word of its own — is written _proto_ in everything handed to it: a flowchart\'s shape and its arrows, a label that says the word, a class (backticked or generic too), an ER entity, a state, a sequence diagram\'s participant, a branch, a task; behind one of the library\'s blocks and behind a character reference in a planner\'s preview too; a built flowchart\'s node and the arrows to it compile under _proto_ (its label is its own text); a page drawn holds the name nowhere; a longer name that merely holds the word, a link\'s address and a diagram without it are as they were; stripped again it is itself',
+            namedBad.length === 0 && sameBad.length === 0 && hid[0] === 'graph TD\n_proto_["x"] --> B' && hid[1] === 'graph TD\nA --> _proto_' && pre.every(x => x === 'graph TD\n_proto_["x"] --> B')
+            && fcP.indexOf('\n_proto_["' + P + '"]:::neutral\n') > 0 && fcP.indexOf('\n_proto_ -->|"' + P + '"| b\n') > 0 && fcP.indexOf('\nb --> _proto_\n') > 0 && fcP.indexOf('\n' + P + '[') < 0 && fcP.indexOf('click b href "https://ok.example/b"') > 0
+            && !!pageP && htmlP.indexOf('__proto__') < 0 && htmlP.indexOf('_proto_[&quot;x&quot;] --&gt; B') > 0, Jp([namedBad.map(c => sP(c[0])), sameBad, hid, pre, fcP]));
+    }
+
     /* ---- publication under a window ---- */
     global.window = {};
     const D2 = await import(url + '?x');

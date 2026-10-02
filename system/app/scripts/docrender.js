@@ -394,7 +394,7 @@ function mmLabel(text, fmt) {
     }).join('');
     return '"' + (sz ? sz[0] + body + sz[1] : body) + '"';
 }
-function mmId(t) { var v = String(t || '').trim().replace(/[^A-Za-z0-9_]/g, '_'); return v || 'n'; }
+function mmId(t) { var v = String(t || '').trim().replace(/[^A-Za-z0-9_]/g, '_'); return v === '__proto__' ? '_proto_' : v || 'n'; }   // (a diagram's names: see mmKey)
 function compileFlowchart(b) {
     var spc = { compact: [18, 28], normal: [50, 50], wide: [90, 90] }[b.space || 'normal'] || [50, 50];
     var m = '%%{init: {"flowchart": {"nodeSpacing": ' + spc[0] + ', "rankSpacing": ' + spc[1] + ', "htmlLabels": true}}}%%\n';
@@ -485,6 +485,13 @@ var MM_SEQ_LINK = /\s*links?\s+[^:;\n]*:/iy;
 var MM_BLOCK = /%{2}{\s*(?:(\w+)\s*:|(\w+))\s*(?:(\w+)|((?:(?!}%{2}).|\r?\n)*))?\s*(?:}%{2})?/gi;   // the library's own pattern for its %%{…}%% blocks
 var MM_COMMENT = /^\s*%%(?!{)[^\n]+\n?/gm;   // the library's own pattern for a comment line
 function mmAt(re, s, at) { re.lastIndex = at; return re.test(s); }
+// A DIAGRAM'S NAMES. The diagram library keeps a diagram's shapes, classes, entities, states and the rest in plain objects keyed by the name
+// the source gives them, as it stands: a shape called __proto__ would write onto the prototype every object of the page shares (and the app
+// and the library would then misread everything they hold). So that name never reaches it: wherever __proto__ stands as a word of its own
+// — no letter, digit or _ next to it — it is written _proto_ (a label that says the word reads _proto_; a longer name that holds it, and the
+// address of a canonical line, are left as they are). A built flowchart's node with that id compiles under _proto_ too (mmId).
+var MM_PROTO = /(^|[^A-Za-z0-9_])__proto__(?![A-Za-z0-9_])/g;
+function mmKey(line) { return line.indexOf('__proto__') < 0 ? line : line.replace(MM_PROTO, '$1_proto_'); }
 // The kind of diagram a source is, as the library will tell it: 'flow', 'class' or '' (any other kind, and whatever cannot be told)
 function mmKind(s) {
     var t = String(s).replace(/\r\n?/g, '\n');
@@ -512,7 +519,7 @@ function mmCut(s, kind) {
             if (k < at - 1 && k >= 0 && line.charAt(k) === '#') continue;   // the ';' that closes a #…; entity
             if (directive(line, at + 1)) { canon = mmCanon(line.slice(at + 1), kind); line = line.slice(0, at); cut = true; break; }
         }
-        if (!cut || line.trim()) out.push(line);
+        if (!cut || line.trim()) out.push(mmKey(line));
         if (canon) out.push(canon);
     });
     return out.join('\n');

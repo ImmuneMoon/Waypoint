@@ -4713,6 +4713,7 @@ function denyJoin(conn, reason) {
 
 function admitPlayer(conn, prof, provenKey) {
     if (!conn.open) return;
+    if (typeof net.syncMapStubs === 'function') net.syncMapStubs();   // possession: tell before reading — a map renamed, re-nested or made whose save has not run yet (this admission's own save, a remote one, takes its place) reaches the players already at the table now, before the newcomer is on the roster; below, what the stubs say is read for the snapshot
     if (_waitGrace[prof.id]) { clearTimeout(_waitGrace[prof.id]); delete _waitGrace[prof.id]; }   // Onboarding F1a: back inside the grace, their waiting token is where they left it
     var issuedKey = null;
     var land = landingFor(prof);   // their own last map or the fallback under "Player's last location", else the GM's stage
@@ -4889,8 +4890,14 @@ function wireShapeOk(msg) {
 var SNAP_HOLD_MAX = 256;
 var SNAP_REFUSED = 'This table\u2019s GM is not the one you know from this room code \u2014 the GM may have reinstalled, or someone else is at that code.';
 var SNAP_ASK = 'This table\u2019s GM is not the one you know from this room code. The GM may have reinstalled or moved to another computer \u2014 or someone else is at that code. If you are not sure, ask your GM before you say yes. Trust this table\u2019s GM from now on, and join?';
-var _joinTrust = { refused: null, asked: false, accept: null, said: false, was: null, bad: Object.create(null) }, _snapAccept = null;   // bad: the room ids whose host this join or reconnect refused
-function joinTrustReset() { _joinTrust = { refused: null, asked: false, accept: _snapAccept, said: false, was: null, bad: Object.create(null) }; _snapAccept = null; }   // a join the player began: what the last one refused is forgotten; a yes just given is good for this join
+// A host that did not PROVE itself in time is not a host that proved itself as someone else: the GM's own app may only be slow (its link, a busy
+// moment). So it has words of its own, it is never marked as refused (an automatic reconnect's round comes back to it), and a yes to its question
+// is a yes to waiting for it with no clock on the join that follows (the player is at the keyboard, and a GM's Allow takes a person's time) —
+// never to a table with no key: whatever answers is still judged by what this app knows.
+var HOST_LATE = 'A table answered at this room code but did not show in time that it is your GM\u2019s.';
+var HOST_LATE_ASK = 'The table at this room code did not show in time that it is your GM\u2019s. It may only be slow \u2014 or someone else is at that code. Join again and wait for it as long as it takes? Your app still checks that it is your GM before you are joined.';
+var _joinTrust = { refused: null, asked: false, accept: null, said: false, saidLate: false, was: null, bad: Object.create(null) }, _snapAccept = null;   // bad: the room ids whose host this join or reconnect refused
+function joinTrustReset() { _joinTrust = { refused: null, asked: false, accept: _snapAccept, said: false, saidLate: false, was: null, bad: Object.create(null) }; _snapAccept = null; }   // a join the player began: what the last one refused is forgotten; a yes just given is good for this join
 function snapHeld(msg, conn) {
     if (conn.wpSnapDead) return true;   // a host this app refused: nothing more it says is read
     if (!conn.wpSnapWait) return false;
@@ -4903,7 +4910,7 @@ function snapHeld(msg, conn) {
 function hostKnown(conn, gmIdS, pubS) {
     var code = roomCodeOf(net.code), roomGm = gmRoomFor(code), retry = conn.wpRetry === true, was = retry ? (_joinTrust.was || null) : null;   // was: the GM id and key this session took its table from — an automatic reconnect is held to them in memory, whatever storage could keep
     var pin = gmPinFor(gmIdS) || (was && was.gmId === gmIdS ? was.pub : null);
-    var acc = _joinTrust.accept; if (!(acc && !retry && acc.code === code && acc.gmId === gmIdS && (acc.pub ? samePub(acc.pub, pubS) : !pubS))) acc = null;   // the player's yes: for this code, this GM id and this very key (or, said of a table with no key, one with no key)
+    var acc = _joinTrust.accept; if (!(acc && !acc.late && !retry && acc.code === code && acc.gmId === gmIdS && (acc.pub ? samePub(acc.pub, pubS) : !pubS))) acc = null;   // the player's yes: for this code, this GM id and this very key (or, said of a table with no key, one with no key) — never their yes to a late table, which is a yes to waiting
     var other = !acc && ((!!roomGm && roomGm !== gmIdS) || (!!was && was.gmId !== gmIdS));   // this code is another GM's, as far as this app knows — or, on a reconnect, this is not the GM the session was with
     return { code: code, retry: retry, pin: pin, acc: acc, other: other };
 }
@@ -4926,7 +4933,7 @@ function snapArrived(msg, conn) {   // true: take it now. false: refused, or hel
     var pubS = cleanGmPub(msg.gmPub), sigS = (typeof msg.sig === 'string' && /^[0-9a-f]{128}$/.test(msg.sig)) ? msg.sig : '';
     if (!pubS || !sigS) { pubS = null; sigS = ''; }   // a key with no signature, or a signature with no key, is neither
     var k = hostKnown(conn, gmIdS, pubS), acc = k.acc, pin = k.pin, retry = k.retry;
-    var took = function(pub) { rememberGmRoom(k.code, gmIdS); _joinTrust.refused = null; _joinTrust.accept = null; _joinTrust.said = false; _joinTrust.was = { gmId: gmIdS, pub: pub || null }; _joinTrust.bad = Object.create(null); conn.wpHostOk = true; };   // (wpHostOk: this host's word is believed from here — its table was taken by the rules; bad: a table taken ends the reconnect that passed generations over — the next one starts with none refused, so a GM back at one of them is dialled again)
+    var took = function(pub) { rememberGmRoom(k.code, gmIdS); _joinTrust.refused = null; _joinTrust.accept = null; _joinTrust.said = false; _joinTrust.saidLate = false; _joinTrust.was = { gmId: gmIdS, pub: pub || null }; _joinTrust.bad = Object.create(null); conn.wpHostOk = true; };   // (wpHostOk: this host's word is believed from here — its table was taken by the rules; bad: a table taken ends the reconnect that passed generations over — the next one starts with none refused, so a GM back at one of them is dialled again)
     if (acc && !acc.pub) { forgetGmPin(gmIdS); took(null); return true; }   // yes to a table that has no key: what was pinned for that GM id is forgotten
     if (!acc && !k.other && !pin && !pubS) { took(null); return true; }   // a host from before the signing key, and nothing known against it: as before (nothing to pin)
     var bindS = snapBind(conn, false), data = typeof bindS === 'string' ? snapData(validCn(conn.wpCn) ? conn.wpCn : '', conn.peer, gmIdS, typeof msg.key === 'string' ? msg.key : '', bindS) : null;   // (null: this connection's tie cannot be read, so nothing verifies)
@@ -4954,18 +4961,18 @@ function snapRefuse(conn, gmIdS, offer) {   // offer: { pub } when the player ma
         try { conn.close(); } catch (e) {}   // its close handler schedules the next attempt, as for a dropped connection
         return;
     }
-    if (!_joinTrust.refused) _joinTrust.refused = { gmId: gmIdS, offer: offer || null };
+    if (!_joinTrust.refused || (_joinTrust.refused.late && offer)) _joinTrust.refused = { gmId: gmIdS, offer: offer || null };   // the first refusal is the one the join's end speaks of — but a host that can be said yes to outranks one that was only late
     net.active = false;   // never at this table: the close that follows is no dropped connection
     stopHeartbeat();
     setStatus('Looking for your GM at this room code\u2026');
     if (typeof conn.wpNext === 'function') conn.wpNext(); else { try { conn.close(); } catch (e) {} }
 }
 function snapAsk(code, name) {   // at the end of a join the player began, when a table answered but not as the GM this app knows: once per join
-    var rf = _joinTrust.refused; if (!rf || !rf.offer || _joinTrust.asked) return;
+    var rf = _joinTrust.refused; if (!rf || (!rf.offer && !rf.late) || _joinTrust.asked) return;
     _joinTrust.asked = true;
-    showConfirm(SNAP_ASK, function(yes) {
+    showConfirm(rf.late ? HOST_LATE_ASK : SNAP_ASK, function(yes) {
         if (!yes || net.active) return;   // (a table joined or hosted meanwhile stands)
-        _snapAccept = { code: roomCodeOf(code), gmId: rf.gmId, pub: rf.offer.pub || null };
+        _snapAccept = rf.late ? { code: roomCodeOf(code), late: true } : { code: roomCodeOf(code), gmId: rf.gmId, pub: rf.offer.pub || null };   // (late: a yes to waiting longer for the proof, and to nothing else)
         joinSession(code, name);
     }, { noEnter: true });
 }
@@ -4975,28 +4982,67 @@ function snapAsk(code, name) {   // at the end of a join the player began, when 
 // by (hostKnown, hostRuling) — it pins nothing and stores nothing: it only decides whether this app keeps waiting on this host.
 // When this app HOLDS the host to a GM (hostHeld: a key pinned for the GM this room code belongs to; the player's yes to a key at this code;
 // on an automatic reconnect, the GM and key this session took its table from), a host that has not proven itself HOST_PROOF_MS after the
-// hello, or that proves itself as someone else, is not waited on — it is refused as a snapshot from it would be (snapRefuse): an automatic
-// reconnect passes that generation over (said once, no question, the count put back), a join the player began goes on to the next generation
-// and ends in the one question. With nothing known against the table (a first join, a host from before the signing key) no proof is expected
-// and the wait is as it was. Five seconds: the proof costs one round trip on a channel already open and one signature (milliseconds) — the
-// rest is room for a slow or relayed link and a GM's app busy with a save, still under the eight seconds after which a silent link reads as lost.
-var HOST_PROOF_MS = 5000;
+// hello, or that proves itself as someone else, is not waited on. One that proves itself as someone else is refused as a snapshot from it would
+// be (snapRefuse): an automatic reconnect passes that generation over and does not dial it again (said once, no question, the count put back), a
+// join the player began goes on to the next generation and ends in the one question. One that only proved nothing in time (hostSlow) is passed
+// over the same way but NOT marked — the round comes back to it — and said in words of its own; the join's question is then whether to give it
+// longer. With nothing known against the table (a first join, a host from before the signing key) no proof is expected and the wait is as it was.
+// Five seconds: the proof costs one round trip on a channel already open and one signature (milliseconds) — the rest is room for a slow or
+// relayed link and a GM's app busy with a save, still under the eight seconds after which a silent link reads as lost. They begin once the hello
+// has LEFT this machine: it carries the player's picture, and on a slow uplink its sending would otherwise be counted against the host — the
+// channel's own queue and the connection library's are looked at every HOST_SENT_MS, HOST_SENT_LOOKS times at most (15 s: a host that reads
+// nothing cannot hold the clock back longer), and where neither can be read the clock starts at once.
+var HOST_PROOF_MS = 5000, HOST_SENT_MS = 250, HOST_SENT_LOOKS = 60;
 function hostHeld(conn) {   // the GM this app holds the host on this connection to — { gmId, pub } — or null when it knows nothing to hold it to
-    var retry = conn.wpRetry === true, was = retry ? (_joinTrust.was || null) : null, code = roomCodeOf(net.code), acc = (!retry && _joinTrust.accept && _joinTrust.accept.code === code) ? _joinTrust.accept : null;
+    var retry = conn.wpRetry === true, was = retry ? (_joinTrust.was || null) : null, code = roomCodeOf(net.code), acc = (!retry && _joinTrust.accept && !_joinTrust.accept.late && _joinTrust.accept.code === code) ? _joinTrust.accept : null;
     var gm = was ? was.gmId : acc ? acc.gmId : gmRoomFor(code); if (!gm) return null;
     var k = hostKnown(conn, gm, acc ? acc.pub : null), pub = k.acc ? k.acc.pub : k.other ? null : k.pin;   // by the one reading: the player's yes (that very key — a yes to a table with no key expects no proof), else the pin; never while the code is another GM's
     return pub ? { gmId: gm, pub: pub } : null;
 }
 function hostWaitEnd(conn) { if (conn && conn.wpProofT) { clearTimeout(conn.wpProofT); conn.wpProofT = null; } }
-function hostWait(conn) {   // as this connection's hello goes out: the time the host has to prove itself begins — only where this app holds it to a GM
+function helloQueued(conn) { try { return (!!conn.dataChannel && conn.dataChannel.bufferedAmount > 0) || conn.bufferSize > 0; } catch (e) { return false; } }   // what this connection has still to send: the channel's own queue, and the pieces the connection library holds beyond it
+function hostWait(conn) {   // as this connection's hello goes out: the time the host has to prove itself begins once the hello has left — only where this app holds it to a GM
     hostWaitEnd(conn);
     if (!hostHeld(conn)) return;
-    conn.wpProofT = setTimeout(function() { conn.wpProofT = null; hostLate(conn); }, HOST_PROOF_MS);
+    var a = _joinTrust.accept; if (conn.wpRetry !== true && a && a.late === true && a.code === roomCodeOf(net.code)) return;   // the player's yes to a late table: this join waits on it with no clock (what it then shows is judged as ever)
+    var looks = 0, look = function() {
+        if (helloQueued(conn) && looks++ < HOST_SENT_LOOKS) { conn.wpProofT = setTimeout(look, HOST_SENT_MS); return; }
+        conn.wpProofT = setTimeout(function() { conn.wpProofT = null; hostLate(conn); }, HOST_PROOF_MS);
+    };
+    look();
 }
 function hostLate(conn) {   // the time is up: no proof came (silence, a wait word, a challenge — whatever else it said)
     if (net.role !== 'client' || net.conns[0] !== conn || !conn.open || conn.wpSnapDead || conn.wpHostOk === true || conn.wpSnapWait || net.syncedPeer) return;
     var h = hostHeld(conn); if (!h) return;
-    snapRefuse(conn, h.gmId, conn.wpRetry === true ? null : { pub: null });   // a join the player began: what they may say yes to, at its end, is this table as it stands — one that shows no key
+    hostSlow(conn, h.gmId);
+}
+// A host that proved nothing in time, or whose connection closed before it did. Passed over — and NOT marked as refused (genNotRefused): the GM's
+// own app may only have been slow, so an automatic reconnect's round comes back to that generation, each time with a fresh clock (a stand-in
+// gains those seconds once a round, and the attempts still run out). Said once, in words of its own. A join the player began goes on to the
+// next generation; at its end the question is whether to join again and give the table longer — nothing about a key.
+function hostSlow(conn, gmIdS) {
+    hostWaitEnd(conn); conn.wpSnapDead = true;   // nothing more it says is read
+    if (conn.wpRetry === true) {
+        var b = conn.wpBefore; if (b) { reconn.tries = b.tries; reconn.gen = b.gen; }   // as if this generation had not answered: the attempts are not started over, and the next dials the generation after it
+        if (!_joinTrust.saidLate) { _joinTrust.saidLate = true; toast(HOST_LATE + ' Still looking for your GM\u2026'); }
+        try { conn.close(); } catch (e) {}   // its close handler schedules the next attempt, as for a dropped connection
+        return;
+    }
+    if (!_joinTrust.refused) _joinTrust.refused = { gmId: gmIdS, offer: null, late: true };
+    net.active = false;   // never at this table: the close that follows is no dropped connection
+    stopHeartbeat();
+    setStatus('Looking for your GM at this room code\u2026');
+    if (typeof conn.wpNext === 'function') conn.wpNext(); else { try { conn.close(); } catch (e) {} }
+}
+// (the close handler) A join the player began, under a GM this app holds the host to: a connection that closes before the host proved itself is
+// as one whose host did not prove itself in time — true: passed over (hostSlow), and no automatic reconnect starts at the generation that
+// closed it. False — the close is a dropped connection as ever — for a reconnect's connection (the close handler puts its count back), a host
+// that had proven itself, a table already synced, nothing held, or a join already torn down (a new one has begun).
+function hostGone(conn) {
+    if (conn.wpRetry === true || conn.wpHostOk === true || conn.wpSnapDead || net.syncedPeer || !net.peer || typeof conn.wpNext !== 'function') return false;
+    var h = hostHeld(conn); if (!h) return false;
+    hostSlow(conn, h.gmId);
+    return true;
 }
 function hostHail(msg, conn) {   // the host's early proof, as it arrives
     if (!net.conns[0] || conn !== net.conns[0] || net.syncedPeer || conn.wpHailed || conn.wpSnapDead) return;   // from the host this app dialled, before the snapshot, once per connection
@@ -5187,7 +5233,8 @@ function handleMessage(msg, conn) {
         applySnapshot(msg);   // after gmId: the settings refresh inside it keys this table's off-list by campaign + GM
         syncSessionButtons();
         setStatus('Connected — campaign synced from host.');
-        toast('Campaign synced from host.');
+        var backS = conn.wpRetry === true && !conn.wpBackSaid; conn.wpBackSaid = true;
+        toast(backS ? 'Reconnected ✓' : 'Campaign synced from host.');   // security (2026-10-01): a reconnect is said when the table is taken — once per connection, in place of the synced notice (the app shows one notice at a time) — never for a connection that merely opened (whoever answers at the code could raise it at every dial)
         if (window.wpVtt) window.wpVtt.joined();   // seed this table's off-list and queue the join notice
         net.videoWake();   // item 21 V2: a video the GM is showing, offered before this snapshot, is asked for now
     } else if (msg.type === 'item') {
@@ -6507,6 +6554,7 @@ function wireConn(conn) {
     });
     conn.on('close', function() {
         // [netcheck:connclose-start]
+        var cur = net.conns[0] === conn;   // (a player's app) the connection this app holds — not one a later dial has replaced
         net.conns = net.conns.filter(function(c) { return c !== conn; });
         delete assetInflight[conn.peer]; delete assetRefs[conn.peer]; delete assetBytes[conn.peer];
         if (diceLimit) diceLimit.forget(conn.peer);
@@ -6549,6 +6597,15 @@ function wireConn(conn) {
                 load();   // the 'end' handler already told the player what happened
             }
         } else if (net.active && net.code) {
+            // Security (2026-10-01): only a table taken — or a host proven as the GM — ends a reconnect, never a connection that merely opened.
+            // One that closes with neither (whoever answers at the code can open each dial and close it, with a "wait" or without) is as a
+            // generation that did not answer: an automatic reconnect's count goes back where it stood before this connection opened, so the
+            // attempts count on (and run out) and the next dials the generation after it; a join the player began, under a GM this app holds
+            // the host to, goes on as from a host that did not prove itself in time (hostGone) and starts no reconnect.
+            if (conn.wpHostOk !== true && cur) {
+                if (conn.wpBefore) { reconn.tries = conn.wpBefore.tries; reconn.gen = conn.wpBefore.gen; }
+                else if (hostGone(conn)) return;
+            }
             // unexpected drop: keep the session context and retry
             reconn.code = net.code;
             reconn.name = getProfile().name;
@@ -6883,7 +6940,7 @@ function joinSession(code, name, isRetry, probe) {
             net.peer = null; net.conns = []; net.active = false; net.role = null; net.code = null;
             setIndicator(null);
             var rfJ = _joinTrust.refused;   // security (2026-10-01): a table answered at this code, but not as the GM this app knows: that is what is said (in the app's own words), not the network advice
-            if (rfJ) setStatus(SNAP_REFUSED + ' You have not joined.' + (rfJ.offer ? ' Join again to be asked whether to trust this table\u2019s GM.' : ''));
+            if (rfJ) setStatus(rfJ.late ? HOST_LATE + ' You have not joined.' : SNAP_REFUSED + ' You have not joined.' + (rfJ.offer ? ' Join again to be asked whether to trust this table\u2019s GM.' : ''));
             else setStatus(why + ' This usually means your connection is behind carrier-grade NAT and the table needs a relay server: ask the GM to set one under Settings \u25B8 Relay server, then try again.');
             if (net.fromWelcome) { if (window.wpJoinFailed) window.wpJoinFailed(); }   // joined from the welcome screen: the error shows there; re-enable its Join button
             else { toast(rfJ ? 'You have not joined \u2014 see the Multiplayer panel.' : 'Could not reach the GM\'s table \u2014 see the Multiplayer panel.'); var nmJ = ui('netModal'); if (nmJ) nmJ.style.display = 'flex'; }
@@ -6910,7 +6967,6 @@ function joinSession(code, name, isRetry, probe) {
             startHeartbeat();
             renderRoster();
             setStatus('Connected — waiting for campaign snapshot...');
-            if (wasRetry) toast('Reconnected ✓');
         });
         wireConn(conn);
     });

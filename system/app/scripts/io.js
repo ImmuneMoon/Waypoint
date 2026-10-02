@@ -408,7 +408,7 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
 
   var nativeProbe = null;    // the planner field whose Ctrl+Z / Ctrl+Y was handed to the browser first (one per document, like its undo stack)
 
-  var nativeEdit = false;    // the browser's own text undo / redo changed a field: the next pass moves the baseline, never records a step
+  var nativeEdit = false;    // the browser's own text undo / redo changed a field of the planner editor: the next pass moves the baseline, never records a step
 
   var foldNext = false;      // the next pass folds the open item's change into the step before it (stepFold)
 
@@ -1050,6 +1050,23 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
       return true;
 
   }
+
+  // The browser's own undo or redo landed on a styled field's box. Its undo stack is one per document, so a Ctrl+Z left to the browser in a
+  // text block (or any field with typing of its own) reaches a box's typing once that field's own has run out. The box cancels it
+  // (planner.js tsBefore) and calls this: the planner's history takes ONE step, and the probe waiting for a browser that stays silent is
+  // answered here — no 'input' follows a cancelled edit — so its timer takes no second step. The field that asked is spent, as when the
+  // browser stays silent: its next Ctrl+Z is the planner's at once (a redo leaves it, as there).
+  function boxUndo(dir) {
+
+      var t = nativeProbe;
+
+      nativeProbe = null;
+
+      if (t && dir !== 'redo') t._wpNativeDirty = false;
+
+      stepHistory(dir === 'redo' ? 'redo' : 'undo');
+
+  }
   // [textcheck:undochord-end]
 
   // [textcheck:chunks-start]
@@ -1073,7 +1090,17 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
 
       if (!t) return;
 
-      if (e.inputType === 'historyUndo' || e.inputType === 'historyRedo') { nativeProbe = null; nativeEdit = true; }   // the browser answered the chord, whichever field it landed on
+      if (e.inputType === 'historyUndo' || e.inputType === 'historyRedo') {
+
+          nativeProbe = null;   // the browser answered the chord, whichever field it landed on
+
+          // Only a field of the planner editor saves what the browser's undo did to it, and only that save is "the user's undo, not new
+          // work". Anywhere else (the Find box, the chat) nothing is saved, and a flag set there would wait for the next save of all — and
+          // swallow real work: typing in a styled field's box, which has no undo but the planner's history. A box's typing still on its
+          // save timer (it noted its selection: selNote) becomes its own step first, so it is never folded into the baseline either.
+          if (t.closest && t.closest('#plannerBlocks')) { if (selNote && savePending) pushHistory(); nativeEdit = true; }
+
+      }
 
       if (!isTextField(t)) { closeChunk(); return; }
 
@@ -1856,6 +1883,8 @@ export {
     withoutHistory,
 
     fieldUndoChord,
+
+    boxUndo,
 
     stepBoundary,
 

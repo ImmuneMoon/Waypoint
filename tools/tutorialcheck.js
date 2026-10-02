@@ -106,6 +106,29 @@ for (const t of targets) {
     if (startPinned && importPinned && endPinned) console.log('ok        the welcome\'s Start a campaign on a fresh, unseen save enters Waypoint and owes the naming prompt (wpCampaignAfterTour) instead of opening it; endTour — the last step, Keep, Discard, Skip and Esc all go through it — opens that prompt once, after the tour; Import from the welcome holds the tour until the file is chosen or dropped; wpTutorial.pending published');
     else { bad++; console.log('FAIL      the welcome\'s Start a campaign / the prompt after the tour / Import\'s hold pinned', JSON.stringify({ startPinned, importPinned, endPinned })); }
 }
+// The tour's keys (the keys slice run for real): while the tour is up Right arrow and Enter go on and Left arrow goes back — never from a field. A
+// planner's boxes are editable as plain text only, so a field is told by the element itself (isContentEditable), not by one word of an attribute.
+{
+    const nl = String.fromCharCode(10), lf = src.replace(/\r\n/g, nl), a = lf.indexOf('// [tutorialcheck:keys-start]'), z = lf.indexOf('// [tutorialcheck:keys-end]');
+    let res = null, why = '';
+    if (a < 0 || z < a) why = 'the keys slice is not marked in tutorial.js';
+    else {
+        const world = () => { const calls = [], tour = { active: true }, tourKey = new Function('tour', 'next', 'endTour', '"use strict";' + nl + lf.slice(a, z) + nl + 'return tourKey;')(tour, d => { calls.push('next ' + d); }, () => { calls.push('end'); }); return { calls, tour, tourKey }; };
+        // an element as the page has it: the selectors it answers to itself, whether it is being edited in place, what it lies in
+        const el = (own, editable, parent) => ({ own, parent: parent || null, isContentEditable: !!editable, closest(sel) { const alts = sel.split(',').map(s => s.trim()); for (let n = this; n; n = n.parent) if (alts.some(x => n.own.indexOf(x) >= 0)) return n; return null; } });
+        const box = el(['div', '.ts-box', '[contenteditable]', '[contenteditable="plaintext-only"]'], true), run = el(['span', '.tsr'], true, box), rte = el(['div', '.rte-body', '[contenteditable]', '[contenteditable="true"]'], true), bold = el(['b'], true, rte);
+        const input = el(['input'], false), area = el(['textarea'], false), list = el(['select'], false), button = el(['button'], false), page = el(['body'], false);
+        const press = (w, key, target) => { const e = { key, target, prevented: false, stopped: false, preventDefault() { this.prevented = true; }, stopPropagation() { this.stopped = true; } }; w.tourKey(e); return e; };
+        const w1 = world(), spared = [box, run, rte, bold, input, area, list].every(t => ['ArrowRight', 'Enter', 'ArrowLeft', 'a', 'Home'].every(k => !press(w1, k, t).prevented)) && w1.calls.length === 0;
+        const w2 = world(), moved = [press(w2, 'ArrowRight', page), press(w2, 'Enter', button), press(w2, 'ArrowLeft', page), press(w2, 'ArrowLeft', button)].every(e => e.prevented) && !press(w2, 'a', page).prevented && JSON.stringify(w2.calls) === JSON.stringify(['next 1', 'next 1', 'next -1', 'next -1']);
+        const w3 = world(), esc = press(w3, 'Escape', box), ended = esc.prevented && esc.stopped && JSON.stringify(w3.calls) === JSON.stringify(['end']);
+        const w4 = world(); w4.tour.active = false; const off = ['Escape', 'ArrowRight', 'Enter', 'ArrowLeft'].every(k => !press(w4, k, page).prevented) && w4.calls.length === 0;
+        const wired = /document\.addEventListener\('keydown', tourKey, true\);/.test(lf);
+        res = spared && moved && ended && off && wired; why = JSON.stringify({ spared, moved, ended, off, wired, calls: w1.calls });
+    }
+    if (res) console.log('ok        the tour\'s keys (run for real): while the tour is up, Right arrow, Enter and Left arrow pressed in a field are the field\'s — a planner\'s box (editable as plain text only) and a run inside it, a text block, an input, a textarea, a list — and the tour does not move; anywhere else they go on and back; Esc ends the tour from anywhere; with the tour off no key is touched');
+    else { bad++; console.log('FAIL      the tour\'s keys: Right arrow, Enter and Left arrow in a field (a planner\'s box among them) must be left to the field', why); }
+}
 const ver = (src.match(/TUTORIAL_VERSION = '([^']+)'/) || [])[1];
 const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'system', 'resources', 'app', 'package.json'), 'utf8')).version;
 if (ver !== pkg) console.log('note      tutorial version ' + ver + ' vs app ' + pkg + ' — bump TUTORIAL_VERSION if the tour or demo changed this release');

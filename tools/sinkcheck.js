@@ -1115,6 +1115,32 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('range box and words (wiring): the Combat card builds the Range box before the Light box and hands its events on after the Senses box; the ruler and a target mark add the range only through rulerRangeText and targetRangeHtml',
             /\n    rangeBox\(box, cm\);[^\n]*\n    heightBox\(box, cm\);[^\n]*\n    lightBox\(box, cm\);/.test(shL) && /if \(onSensesInput\(t\)\) return;[^\n]*\n\s*if \(onRangeInput\(t\)\) return;/.test(shL) && /if \(sensesClick\(b\)\) return;[^\n]*\n\s*if \(rangeClick\(b\)\) return;/.test(shL)
             && (wbL.match(/rulerRangeText\(/g) || []).length === 2 && (wbL.match(/targetRangeHtml\(/g) || []).length === 2 && !/rgR\.mod|trng\[ti\]\.mod/.test(wbL));
+        // item 19b H4: the Height box's True 3D sightline row (sheets.js heightBox, sliced by its heightbox2 markers) on a recording page
+        const hb4Src = slice('sheets.js', 'heightbox2');
+        const mkHeight4 = (draft0, win) => {
+            const made = [], htmlSet = [], calls = { dirty: 0, patched: 0, all: 0 };
+            const fake = tag => { const e = { tag, children: [], childNodes: [], style: {}, dataset: {}, className: '', textContent: '', appendChild(k) { this.children.push(k); this.childNodes.push(k); return k; }, addEventListener() {} }; ['innerHTML', 'outerHTML'].forEach(p => Object.defineProperty(e, p, { set(v) { htmlSet.push(v); }, get() { return ''; } })); e.insertAdjacentHTML = (w, v) => { htmlSet.push(v); }; made.push(e); return e; };
+            const doc = { createElement: fake, createTextNode: t => { const n = { tag: '#text', textContent: String(t) }; made.push(n); return n; } };
+            const env = { draft: draft0, document: doc, LIMITS: SYl.LIMITS, HEIGHT_UNITS: SYl.HEIGHT_UNITS, markDirty: () => { calls.dirty++; }, patchErrors: () => { calls.patched++; }, renderAll: () => { calls.all++; }, toast: () => {}, window: win };
+            const api = new Function('env', "'use strict';\nvar draft = env.draft, document = env.document, LIMITS = env.LIMITS, HEIGHT_UNITS = env.HEIGHT_UNITS, markDirty = env.markDirty, patchErrors = env.patchErrors, renderAll = env.renderAll, toast = env.toast, window = env.window;\n"
+                + lineAt('function el(tag, cls, text) {') + '\n' + lineAt('function opt(value, text, selected) {') + '\n' + lineAt('function input(cls, value, title, placeholder) {') + '\n' + lineAt('function select(cls, options, value, title) {') + '\n' + lineAt('function labeledSelect(cls, cap, options, value, title) {') + '\n'
+                + "function errorCell(id) { return el('div', 'sys-err'); }\n"
+                + hb4Src + '\nreturn { heightBox: heightBox, onHeightInput: onHeightInput, onHeightChange: onHeightChange };')(env);
+            api.made = made; api.htmlSet = htmlSet; api.calls = calls; api.fake = fake; return api;
+        };
+        const cmH4 = { height: { line3d: true, eye: T, formula: T, unit: P } }, BH4 = mkHeight4({ combat: cmH4 }, { wpStance: { lenUnit: () => T, ydOut: v => v, ydIn: v => Number(v) } }), rootH4 = BH4.fake('div'); BH4.heightBox(rootH4, cmH4);
+        const cmH5 = { height: { line3d: P, eye: 3 } }, BH5 = mkHeight4({ combat: cmH5 }, {}), rootH5 = BH5.fake('div'); BH5.heightBox(rootH5, cmH5);
+        const tkH4 = byCls(BH4, 'sys-height-3d'), eyH4 = byCls(BH4, 'sys-height-eye'), tkH5 = byCls(BH5, 'sys-height-3d'), eyH5 = byCls(BH5, 'sys-height-eye');
+        check('item 19b H4 height box: the True 3D sightline row writes no markup — the tick is checked only for true (a hostile value leaves it off and draws no Standing height box), a hostile standing height shows an empty number box, its caption one of the app\'s two fixed texts whatever a unit helper says; nothing is written through innerHTML',
+            !/innerHTML|insertAdjacentHTML|outerHTML/.test(hb4Src) && BH4.htmlSet.length === 0 && BH5.htmlSet.length === 0 && tkH4.length === 1 && tkH4[0].type === 'checkbox' && tkH4[0].checked === true && eyH4.length === 1 && eyH4[0].type === 'number' && eyH4[0].value === ''
+            && BH4.made.some(e => e.className === 'sys-num-cap' && e.textContent === 'Standing height (yards)') && !BH4.made.some(e => typeof e.textContent === 'string' && e.textContent.indexOf(T) >= 0)
+            && tkH5.length === 1 && tkH5[0].checked === false && eyH5.length === 0 && BH4.made.concat(BH5.made).every(e => e.tag !== 'script' && e.tag !== 'img' && e.tag !== 'a' && String(e.title || '').indexOf('<') < 0),
+            j([BH4.htmlSet, tkH4.map(e => e.checked), eyH4.map(e => e.value), tkH5.map(e => e.checked), eyH5.length]));
+        const dH6 = { combat: { height: {} } }, BH6 = mkHeight4(dH6, {});
+        BH6.onHeightChange({ className: 'sys-height-3d', checked: P }); const offH6 = j(dH6.combat); BH6.onHeightChange({ className: 'sys-height-3d', checked: true }); BH6.onHeightInput({ className: 'field sys-height-eye', value: T, dataset: {} }); const hostH6 = j(dH6.combat.height);
+        BH6.onHeightInput({ className: 'field sys-height-eye', value: '1e400', dataset: {} }); const infH6 = j(dH6.combat.height); BH6.onHeightInput({ className: 'field sys-height-eye', value: '1.5', dataset: {} });
+        check('item 19b H4 height box: its handlers take the tick only as true and the standing height only as a finite number (hostile text, or a number past every bound, takes the key away); Save cleans both again',
+            offH6 === j({}) && hostH6 === j({ line3d: true }) && infH6 === j({ line3d: true }) && j(dH6.combat.height) === j({ line3d: true, eye: 1.5 }) && SYl.cleanHeightRules({ line3d: T, eye: 1 }, FRl) === null && j(SYl.cleanHeightRules({ line3d: true, eye: T }, FRl)) === j({ line3d: true }), j([offH6, hostH6, infH6, dH6.combat.height]));
     }
     /* ---- Senses S2b: a token's Senses block in its Properties — a sense's name comes from a system file, a token's own ranges from a save ---- */
     {

@@ -402,6 +402,75 @@ function coverRole(w) {
     return w.cover === 'yes' ? 'soft' : null;
 }
 
+/* ---------- heights (item 19b, the owner's answers of 2026-10-01) ----------
+   Pure, as the rest: fog.js gathers a map's pieces that have a height ({ cells: { cellKey: H }, lines: [{ segs, h }] }, yards) and asks here
+   whether one of them stops the line between an eye and a target, so the host's drop, a player's own overlay and the cover readout agree.
+   H4, the true 3D sightline: a piece stops a line only where the line runs AT OR BELOW its height where it passes the piece.
+   H3, the rule "clears" (the cover readout's own, fog.js heightCover): a see-over piece stops it when looked at from below with the target
+   no higher than the piece (eye < target <= piece), wherever on the line it stands. */
+// The height of the straight line from (ax, ay) at ha to (bx, by) at hb where it passes (px, py): at the point of the line nearest that point,
+// never past either end
+function lineHeightAt(ax, ay, ha, bx, by, hb, px, py) {
+    var dx = bx - ax, dy = by - ay, d2 = dx * dx + dy * dy, t = d2 > 0 ? ((px - ax) * dx + (py - ay) * dy) / d2 : 0;
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    return ha + (hb - ha) * t;
+}
+// Whether that line runs ABOVE height H there (at H exactly it does not: a piece blocks a line at or below its height). An end's height that
+// is no number reads 0; a piece's that is no finite number is full height (never passed over); a place that is no number passes nothing
+function lineOverHeight(ax, ay, ha, bx, by, hb, px, py, H) {
+    if (!fin(H) || !fin(ax) || !fin(ay) || !fin(bx) || !fin(by) || !fin(px) || !fin(py)) return false;
+    return lineHeightAt(ax, ay, fin(ha) ? ha : 0, bx, by, fin(hb) ? hb : 0, px, py) > H + 1e-9;
+}
+// ...and above a thin wall s = [x1, y1, x2, y2] of height H: judged where the line meets the wall's own line (a wall that runs along the line:
+// at the wall's middle)
+function lineOverWall(ax, ay, ha, bx, by, hb, s, H) {
+    if (!Array.isArray(s) || s.length !== 4 || !fin(s[0]) || !fin(s[1]) || !fin(s[2]) || !fin(s[3])) return false;
+    var rx = bx - ax, ry = by - ay, sx = s[2] - s[0], sy = s[3] - s[1], den = rx * sy - ry * sx, px = (s[0] + s[2]) / 2, py = (s[1] + s[3]) / 2;
+    if (Math.abs(den) >= 1e-12) { var t = ((s[0] - ax) * sy - (s[1] - ay) * sx) / den; px = ax + rx * t; py = ay + ry * t; }
+    return lineOverHeight(ax, ay, ha, bx, by, hb, px, py, H);
+}
+// Where along (ax, ay) -> (bx, by) the line crosses wall s, strictly between the line's ends (crossesWall's own test): 0..1, or -1 for none
+function crossAt(ax, ay, bx, by, s) {
+    var rx = bx - ax, ry = by - ay, sx = s[2] - s[0], sy = s[3] - s[1], den = rx * sy - ry * sx;
+    if (Math.abs(den) < 1e-12) return -1;
+    var qx = s[0] - ax, qy = s[1] - ay, t = (qx * sy - qy * sx) / den, u = (qx * ry - qy * rx) / den;
+    return t > 1e-9 && t < 1 - 1e-9 && u >= -1e-9 && u <= 1 + 1e-9 ? t : -1;
+}
+// Whether a piece with a height stops the straight line of sight from cell a (the eye at height ha) to cell b (the target at hb). The line as
+// lineClear walks it (centre to centre, every half cell, both end cells skipped: a viewer beside a crate sees out, a target in a piece's own
+// cell is not hidden by it), each cell's piece judged once, at the cell's centre; a thin wall where the line crosses it. rule 'clears': H3's
+// rule; anything else: the true 3D line. A height that is no number reads 0; a piece whose height is no number is no piece
+function heightStops(a, b, grid, ha, hb, hs, rule) {
+    if (!isObj(hs) || !isObj(grid) || !isObj(a) || !isObj(b)) return false;
+    ha = fin(ha) ? ha : 0; hb = fin(hb) ? hb : 0;
+    var below = rule === 'clears';
+    if (below && !(ha < hb)) return false;   // only looked at from below
+    var ak = cellKey(a, grid), bk = cellKey(b, grid); if (ak === bk) return false;
+    var pa = cellCenter(a, grid), pb = cellCenter(b, grid), dx = pb.x - pa.x, dy = pb.y - pa.y, cells = isObj(hs.cells) ? hs.cells : null;
+    if (cells) {
+        var steps = Math.max(1, Math.ceil(Math.sqrt(dx * dx + dy * dy) / ((grid.type === 'square' ? grid.size : grid.s) / 2))), last = null;
+        for (var i = 1; i < steps; i++) {
+            var t = i / steps, c = cellOf(pa.x + dx * t, pa.y + dy * t, grid), k = cellKey(c, grid);
+            if (k === last) continue; last = k;
+            if (k === ak || k === bk) continue;
+            var H = cells[k]; if (typeof H !== 'number' || !fin(H)) continue;
+            if (below) { if (hb <= H) return true; continue; }
+            var ctr = cellCenter(c, grid); if (!lineOverHeight(pa.x, pa.y, ha, pb.x, pb.y, hb, ctr.x, ctr.y, H)) return true;
+        }
+    }
+    var lines = Array.isArray(hs.lines) ? hs.lines : [];
+    for (var L = 0; L < lines.length; L++) {
+        var g = lines[L]; if (!isObj(g) || !Array.isArray(g.segs) || typeof g.h !== 'number' || !fin(g.h)) continue;
+        if (below && !(hb <= g.h)) continue;
+        for (var j = 0; j < g.segs.length; j++) {
+            var s = g.segs[j]; if (!Array.isArray(s) || s.length !== 4 || !fin(s[0]) || !fin(s[1]) || !fin(s[2]) || !fin(s[3])) continue;
+            var tc = crossAt(pa.x, pa.y, pb.x, pb.y, s); if (tc < 0) continue;
+            if (below || !(ha + (hb - ha) * tc > g.h + 1e-9)) return true;
+        }
+    }
+    return false;
+}
+
 /* ---------- one viewer's visible cells ----------
    viewer: { x, y, front(deg), range(cells), arc(deg) }. Returns an array of { key, cell }. The vision SHAPE is the
    grid's (square = Euclidean radius disc; hex = the flat-top ring within hex distance), but the ARC is DECOUPLED from
@@ -582,7 +651,7 @@ function markCells(viewers, creatures, grid, blockers, found, smoke) {
         if (!isObj(cr) || !fin(cr.x) || !fin(cr.y) || cr.skip === true) return;
         var cell = cellOf(cr.x, cr.y, grid), d = Infinity;
         vs.forEach(function(o) { var dd = cellDist(o.cell, cell, grid); if (dd < d) d = dd; });
-        cs.push({ cell: cell, key: cellKey(cell, grid), d: d, skip: isObj(cr.skip) ? cr.skip : null, id: cr.id });
+        cs.push({ cell: cell, key: cellKey(cell, grid), d: d, skip: isObj(cr.skip) ? cr.skip : null, id: cr.id, open: cr.open === true });   // item 19b: open — a piece hides it in a cell its player sees (fog.js)
     });
     var byKey = function(a, b) { return a.key < b.key ? -1 : a.key > b.key ? 1 : 0; };
     cs.sort(function(a, b) { return a.d - b.d || byKey(a, b); });
@@ -593,22 +662,23 @@ function markCells(viewers, creatures, grid, blockers, found, smoke) {
             var v = o.v, g = got[cr.key], better = !g || v.k < g.k;
             if (!better && !(found && typeof cr.id === 'string' && found[cr.id] !== 1)) return;
             if (cr.skip && typeof v.sid === 'string' && cr.skip[v.sid] === 1) return;
+            if (isObj(v.hid) && !Array.isArray(v.hid) && typeof cr.id === 'string' && v.hid[cr.id] === 1) return;   // item 19b: a piece hides this creature from this viewer's token at their heights (fog.js heightVeto), as a wall would
             if (!(cellDist(o.cell, cr.cell, grid) <= o.range + 1e-9) || !cellInArc(v, cr.cell, grid)) return;
             var smk = !v.pass && withSmoke && !v.veil;   // senses S7b: smoke hides a creature in it and past it from such a sense
             if (smk && smoke[cr.key] === 1) return;
             var bl = smk ? withSmoke : blockers;
             if (!v.pass && bl) { if (tests >= LIMITS.markTests) { out.capped = true; return; } tests++; if (!lineClear(o.cell, cr.cell, grid, bl)) return; }
             if (found && typeof cr.id === 'string') found[cr.id] = 1;
-            if (better) got[cr.key] = { cell: cr.cell, key: cr.key, d: cr.d, k: v.k };
+            if (better) got[cr.key] = { cell: cr.cell, key: cr.key, d: cr.d, k: v.k, s: cr.open || !!(g && g.s) };
         });
     });
     var list = Object.keys(got).map(function(key) { return got[key]; });
     if (list.length > LIMITS.marks) { out.capped = true; list.sort(function(a, b) { return a.d - b.d || byKey(a, b); }); list = list.slice(0, LIMITS.marks); }
     list.sort(byKey);
-    out.marks = list.map(function(o) { return o.cell.q !== undefined ? { q: o.cell.q, r: o.cell.r, k: o.k } : { c: o.cell.c, r: o.cell.r, k: o.k }; });
+    out.marks = list.map(function(o) { var m = o.cell.q !== undefined ? { q: o.cell.q, r: o.cell.r, k: o.k } : { c: o.cell.c, r: o.cell.r, k: o.k }; if (o.s) m.s = 1; return m; });   // item 19b: s — the creature stands in a cell its player sees, hidden by a piece: the mark is drawn there all the same
     return out;
 }
-// Senses S4: a player's marks as their app takes them from the host — a whole cell and a glyph number 1-4, nothing else; the first mark of a cell;
+// Senses S4: a player's marks as their app takes them from the host — a whole cell and a glyph number 1-4, nothing else (item 19b: and s, only as 1); the first mark of a cell;
 // none on a cell of one of this player's own tokens (ownKeys: their cells' keys); at most LIMITS.marks; null for none
 function cleanFogMarks(v, ownKeys) {
     if (!Array.isArray(v)) return null;
@@ -616,7 +686,7 @@ function cleanFogMarks(v, ownKeys) {
     for (var i = 0; i < v.length && out.length < LIMITS.marks; i++) {
         var e = v[i], c = cleanCell(e); if (!c || !(e.k === 1 || e.k === 2 || e.k === 3 || e.k === 4)) continue;
         var key = c.q !== undefined ? c.q + ':' + c.r : c.c + ',' + c.r; if (seen[key] === 1 || (ownKeys && ownKeys[key] === 1)) continue;
-        seen[key] = 1; c.k = e.k; out.push(c);
+        seen[key] = 1; c.k = e.k; if (e.s === 1) c.s = 1; out.push(c);
     }
     return out.length ? out : null;
 }
@@ -744,6 +814,6 @@ function cleanCampFog(cf) {   // campaign-level: { fields:{sight, sightUnit?}, d
     return out;
 }
 
-var API = { VERSION: VERSION, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, itemCells: itemCells, pathSegs: pathSegs, pathCells: pathCells, withWalls: withWalls, wallsOf: wallsOf, copyWalls: copyWalls, lineClear: lineClear, moveClear: moveClear, cellCorners: cellCorners, coverBetween: coverBetween, coverFromPoint: coverFromPoint, openSeat: openSeat, coverRole: coverRole, visibleCells: visibleCells, seenCells: seenCells, cellDist: cellDist, cleanLight: cleanLight, cleanTokSenses: cleanTokSenses, cleanUnsensed: cleanUnsensed, cleanNulls: cleanNulls, cleanTerrain: cleanTerrain, cleanHeight: cleanHeight, cleanTokFx: cleanTokFx, terrainFactor: terrainFactor, cleanFogOff: cleanFogOff, markCells: markCells, cleanFogMarks: cleanFogMarks, lightUnit: lightUnit, unitCells: unitCells, cellInArc: cellInArc, litLevels: litLevels, neighbourCells: neighbourCells, cleanFogLit: cleanFogLit, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog };
+var API = { VERSION: VERSION, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, itemCells: itemCells, pathSegs: pathSegs, pathCells: pathCells, withWalls: withWalls, wallsOf: wallsOf, copyWalls: copyWalls, lineClear: lineClear, moveClear: moveClear, cellCorners: cellCorners, coverBetween: coverBetween, coverFromPoint: coverFromPoint, openSeat: openSeat, coverRole: coverRole, visibleCells: visibleCells, seenCells: seenCells, cellDist: cellDist, cleanLight: cleanLight, cleanTokSenses: cleanTokSenses, cleanUnsensed: cleanUnsensed, cleanNulls: cleanNulls, cleanTerrain: cleanTerrain, cleanHeight: cleanHeight, cleanTokFx: cleanTokFx, terrainFactor: terrainFactor, cleanFogOff: cleanFogOff, markCells: markCells, lineOverHeight: lineOverHeight, lineOverWall: lineOverWall, heightStops: heightStops, cleanFogMarks: cleanFogMarks, lightUnit: lightUnit, unitCells: unitCells, cellInArc: cellInArc, litLevels: litLevels, neighbourCells: neighbourCells, cleanFogLit: cleanFogLit, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog };
 if (typeof window !== 'undefined') window.wpFogCore = API;
-export { VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, itemCells, pathSegs, pathCells, withWalls, wallsOf, copyWalls, lineClear, moveClear, cellCorners, coverBetween, coverFromPoint, openSeat, coverRole, visibleCells, seenCells, cellDist, cleanLight, cleanTokSenses, cleanUnsensed, cleanNulls, cleanTerrain, cleanHeight, cleanTokFx, terrainFactor, cleanFogOff, markCells, cleanFogMarks, lightUnit, unitCells, cellInArc, litLevels, neighbourCells, cleanFogLit, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog };
+export { VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, itemCells, pathSegs, pathCells, withWalls, wallsOf, copyWalls, lineClear, moveClear, cellCorners, coverBetween, coverFromPoint, openSeat, coverRole, visibleCells, seenCells, cellDist, cleanLight, cleanTokSenses, cleanUnsensed, cleanNulls, cleanTerrain, cleanHeight, cleanTokFx, terrainFactor, cleanFogOff, markCells, lineOverHeight, lineOverWall, heightStops, cleanFogMarks, lightUnit, unitCells, cellInArc, litLevels, neighbourCells, cleanFogLit, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog };

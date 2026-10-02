@@ -4148,6 +4148,10 @@ function refreshErrors() {
         });
         if (!hKept) hErr.push({ message: 'Height: add a step, or Save drops the table.' });
     }
+    if (hgE && hgE.line3d === true && hgE.eye !== undefined) {   // item 19b H4: the standing height, as the cleaner reads it (yards)
+        if (typeof hgE.eye !== 'number' || !isFinite(hgE.eye) || Math.abs(hgE.eye) > 1e15 || !(Math.round(Math.min(hgE.eye, 100) * 100) / 100 > 0)) hErr.push({ message: 'Standing height needs a number above 0: Save drops it, and the eye is at the token\u2019s elevation.' });
+        else if (hgE.eye > 100) hErr.push({ message: 'Standing height: at most 100 yards (91.44 metres), so Save keeps the nearest.' });
+    }
     if (hErr.length) errorsById.height = hErr;
     // item 20 K1: what Save drops or changes of the calendar, said under the Calendar tab — each name read by calendarcore cleanCalendar itself
     var calE = draft.calendar && typeof draft.calendar === 'object' && !Array.isArray(draft.calendar) ? draft.calendar : null, cErr = [];
@@ -5050,6 +5054,9 @@ function rangeClick(b) {
 // roller stands than the target (HeightDiff, negative looking up): a table of signed steps (up to that difference; below the first row its
 // modifier, past the last row its modifier) or a formula reading HeightDiff, in yards, feet or metres. Rolls read HeightMod; the ruler and a
 // target mark show it. It keeps combat.height's rule (H1) whatever is chosen here. Every text lands as a value or a text node
+// Item 19b H4 (the owner's answer of 2026-10-01): its last row is the True 3D sightline (line3d, true only) and, with it, the Standing height
+// (eye): how far above its elevation a token's eye sits, shown and typed in the viewer's own unit (wpStance), kept in yards. Unticked, the
+// number waits in the draft (_e) as a table waits behind a formula
 // [sinkcheck:heightbox2-start]
 function heightDraft() { var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }); return cm.height && typeof cm.height === 'object' && !Array.isArray(cm.height) ? cm.height : (cm.height = {}); }
 function heightBy(hg) { return !hg || typeof hg !== 'object' || Array.isArray(hg) ? '' : typeof hg.formula === 'string' ? 'formula' : Array.isArray(hg.steps) ? 'table' : ''; }
@@ -5078,13 +5085,30 @@ function heightBox(box, cm) {
         });
         var ad = el('button', 'tool ghost sys-btn sys-height-add', '+ Step'); ad.dataset.act = 'htadd'; ad.disabled = st.length >= LIMITS.heightSteps; ad.title = ad.disabled ? 'At most ' + LIMITS.heightSteps : 'A height difference and its modifier; Save puts the steps in order'; wrap.appendChild(ad);
     }
+    var St = heightStance(), on3 = !!hg && hg.line3d === true, r3 = el('div', 'sys-flags sys-height-3drow'), l3 = el('label', 'sys-hover'), c3 = el('input', 'sys-height-3d'); c3.type = 'checkbox'; c3.checked = on3;
+    l3.appendChild(c3); l3.appendChild(document.createTextNode(' True 3D sightline'));
+    l3.title = 'With Token elevation on, a piece with a Height (a crate, a low wall, a sight-blocker you gave one) stops a line only where the straight line from the viewer\u2019s eye to the target runs at or below it: in the fog, on the ruler, at target marks and for blasts. A sight-blocker with no Height is full height. It takes the place of Height clears low cover'; r3.appendChild(l3);
+    if (on3) {
+        var n3 = el('label', 'sys-num'); n3.appendChild(el('span', 'sys-num-cap', 'Standing height (' + (St && St.lenUnit() === 'm' ? 'metres' : 'yards') + ')')); r3.appendChild(n3);
+        var e3 = el('input', 'field sys-height-eye'), ev = typeof hg.eye === 'number' && isFinite(hg.eye) ? hg.eye : null; e3.type = 'number'; e3.min = '0'; e3.step = 'any'; e3.placeholder = 'none';
+        e3.value = ev === null ? '' : String(Math.round((St ? St.ydOut(ev) : ev) * 100) / 100);
+        e3.title = 'How far above its elevation a token\u2019s eye sits. Blank: the eye is at the token\u2019s elevation. The target is judged at its own elevation'; n3.appendChild(e3);
+    }
+    wrap.appendChild(r3);
     var err = errorCell('height'); err.dataset.errFor = 'height'; wrap.appendChild(err);
     box.appendChild(wrap);
 }
+function heightStance() { var St = typeof window !== 'undefined' && window && window.wpStance ? window.wpStance : null; return St && typeof St.lenUnit === 'function' && typeof St.ydOut === 'function' && typeof St.ydIn === 'function' ? St : null; }   // the viewer's unit for a height (whiteboard.js); none: yards
 function onHeightInput(t) {
     var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-height-') < 0) return false;
-    if (c.indexOf('sys-height-by') >= 0 || c.indexOf('sys-height-unit') >= 0) return true;   // their change events do the work
+    if (c.indexOf('sys-height-by') >= 0 || c.indexOf('sys-height-unit') >= 0 || c.indexOf('sys-height-3d') >= 0) return true;   // their change events do the work
     var hg = heightDraft();
+    if (c.indexOf('sys-height-eye') >= 0) {   // item 19b H4: typed in the viewer's unit, kept in yards; empty or no number: none
+        var St = heightStance(), raw = typeof t.value === 'string' ? t.value.trim() : '', ne = raw ? Number(raw) : NaN, yd = isFinite(ne) ? (St ? St.ydIn(ne) : ne) : NaN;
+        if (typeof yd === 'number' && isFinite(yd)) hg.eye = yd; else delete hg.eye;
+        if (!Object.keys(hg).length) delete draft.combat.height;
+        markDirty(); patchErrors(); return true;
+    }
     if (c.indexOf('sys-height-formula') >= 0) hg.formula = t.value.slice(0, LIMITS.formula);
     else {
         var rw = t.closest('.sys-height-row'), i = rw ? +rw.dataset.hi : -1, s = Array.isArray(hg.steps) && hg.steps[i] && typeof hg.steps[i] === 'object' ? hg.steps[i] : null; if (!s) return true;
@@ -5095,6 +5119,12 @@ function onHeightInput(t) {
 }
 function onHeightChange(t) {
     var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-height-') < 0) return false;
+    if (c.indexOf('sys-height-3d') >= 0) {   // item 19b H4: the True 3D sightline, true only; its standing height waits in the draft while it is off
+        var h3 = heightDraft();
+        if (t.checked === true) { h3.line3d = true; if (typeof h3._e === 'number') h3.eye = h3._e; delete h3._e; }
+        else { delete h3.line3d; if (typeof h3.eye === 'number') h3._e = h3.eye; delete h3.eye; if (!Object.keys(h3).length) delete draft.combat.height; }
+        markDirty(); renderAll(); return true;
+    }
     if (c.indexOf('sys-height-by') < 0 && c.indexOf('sys-height-unit') < 0) return true;   // the boxes' change events (their input events did the work)
     if (c.indexOf('sys-height-unit') >= 0) { var hu = heightDraft(); if (typeof t.value === 'string' && Object.prototype.hasOwnProperty.call(HEIGHT_UNITS, t.value)) hu.unit = t.value; else delete hu.unit; markDirty(); patchErrors(); return true; }
     var want = t.value === 'table' || t.value === 'formula' ? t.value : '', hg = heightDraft(), was = heightBy(hg);

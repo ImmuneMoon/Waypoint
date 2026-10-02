@@ -937,15 +937,27 @@ ShadowBase sheets
 
 Text style in planners and pages
 - A Text style bar at the top of the planner and page editor (closed until
-  you click its ▸) colours, bolds and italicises the characters you select
-  in a title, a table heading or cell, a scene node's fields, a picture's
-  caption, a flowchart node's label or an arrow's label. Select, then
-  click; the selection stays, so green and then bold needs no second
-  selecting. Ctrl+B and Ctrl+I work in those boxes too.
+  you click its ▸) colours, bolds, italicises, underlines and strikes
+  through the characters you select in a title, a table heading or cell, a
+  scene node's fields, a picture's caption, a flowchart node's label or an
+  arrow's label. Select, then click; the selection stays, so green and
+  then bold needs no second selecting. Ctrl+B, Ctrl+I and Ctrl+U work in
+  those boxes too.
 - With nothing selected the click is the whole field's: click in a node's
   label and pick red, then select the lines you have finished and pick
-  green. Size (Small, Large, Larger, Huge) is always the whole field's.
-  Clear takes the styling off.
+  green. Size (Small, Large, Larger, Huge) works the same way: on the
+  characters you selected, or on the whole field with nothing selected;
+  Default on a selection takes the size off that part. Clear takes the
+  styling off, a part's size included.
+- Link: select text in a title, a table cell or a caption, type a web
+  address into the bar's Link box and press Enter. Select linked text and
+  the box shows its address; empty the box and press Enter to take the
+  link off, and Esc backs out without changing anything. An address
+  starts with http:// or https:// (one typed without it is taken as
+  https://); anything else is refused. Your players can click the link on
+  a page.
+- A flowchart label takes underline, strike-through and a size on one of
+  its lines. It cannot hold a link, so the Link box is greyed out there.
 - Text blocks have colours, Default and a Size list on their own bar, for
   the selected text.
 - Each click is one undo step: Ctrl+Z right after a click takes that click
@@ -963,18 +975,27 @@ Text style in planners and pages
   opened over the map, find a word you coloured in part and a phrase that
   runs across a styled part.
 - Your players see a styled page exactly as you do. Styling is kept in the
-  campaign and its export file, and Save Markdown keeps it too: bold and
-  italic as ** and *, a colour or a size as a small <span> tag around the
-  text (in a flowchart label as <b>, <i>, <font color> and <big> /
-  <small>), and an import brings it back. You can write these by hand; a
-  tag belongs to one paragraph. Not carried: a size on part of a title or
-  a cell, and underline, strike-through or a link inside a title, a cell
-  or a caption.
-- A Markdown file's **bold** or *italic* in a heading, a table cell or a
-  caption comes in as that field's text style (the marks were dropped
-  before). A text block whose bold and italic overlap in a way Markdown's
-  marks cannot say is saved with <b> and <i>, and reads back as you made
-  it.
+  campaign and its export file, and Save Markdown keeps it too: bold,
+  italic and strike-through as **, * and ~~, underline as <u>, a link as
+  [text](address), a colour or a size as a small <span> tag around the
+  text or around just the part that has it (in a flowchart label as <b>,
+  <i>, <u>, <s>, <font color> and <big> / <small>), and an import brings
+  it back. You can write these by hand; a tag belongs to one paragraph.
+  Not carried: a link on a flowchart label (a label cannot hold one); and
+  a few fields are written as their plain text because their line would
+  not read back styled: a subtitle that holds a * or a _, a title with a
+  line break in it, a scene title that begins with a space.
+- A Markdown file's **bold**, *italic*, ~~strike~~, <u>underline</u> or
+  [link](https://…) in a heading, a table cell or a caption comes in as
+  that field's text style (the marks were dropped before), and a
+  one-letter ~~x~~ comes in struck through. A text block whose bold and
+  italic overlap in a way Markdown's marks cannot say is saved with <b>
+  and <i>, and reads back as you made it.
+- Save Markdown: a styled flowchart label whose own text holds a <b>, an
+  & or a bracket keeps its style and the chart reads back the same; a
+  label you wrote by hand may hold a % or a |, and an arrow's label with a
+  quote or a # reads back as you wrote it. A picture's caption that holds
+  a ] comes back as the picture it was, with its styling.
 - Fixed: a handbook page's table brought in from a campaign file showed
   empty boxes in the editor; its cells show again.
 

@@ -22,8 +22,12 @@
    emulation of BinaryPack's refusals), a video showing (no RTCPeerConnection media), a GM's second connection from one
    peer id, and the outside half of item 24 (Electron, IPC, the local HTTP server, the updater, WebRTC itself).
    The two known players are admitted through the real key proof: the host challenges each hello with a nonce (the auth message) and the
-   suite answers as the player's app does, with HMAC-SHA256(key, 'wp-auth|' + nonce + '|' + the room id dialled) computed by Node's own
-   crypto, so the host's WebCrypto check is judged against an independent implementation; the player's app's own answer is checked the same way.
+   suite answers as the player's app does, with HMAC-SHA256(key, 'wp-auth|' + nonce + '|' + the room id dialled + '|' + the player's certificate
+   fingerprint + '|' + the host's) computed by Node's own crypto, so the host's WebCrypto check is judged against an independent implementation; the
+   player's app's own answer is checked the same way. Every stub connection carries a stub RTCPeerConnection whose two descriptions hold one
+   fingerprint each (a host-side connection the host's as its own, a player's the reverse), the library's entry point and pieces table (the
+   transport guard wraps them) and its encoding's name; the stub peer has the library's signalling entry point (the gate wraps it). The transport
+   probes hand the guard raw messages and the gate signalling messages, and replay a right proof over another connection's certificates.
    The GM's signing key (trust on first use) is judged the same way: each known player's hello carries a nonce, and the snapshot the host signs
    over it is verified by Node's own ECDSA; the private half is looked for in every send. On the player's side the real join is run — a first
    join, an automatic reconnect, a join that walks every generation of the code — against hosts the suite builds with Node's own key pairs: a
@@ -42,9 +46,12 @@ const T0 = Date.now();
 const SKIP_KNOWN = [];
 function acceptedBy(line) { return SKIP_KNOWN.find(s => s && typeof s.prefix === 'string' && s.prefix && line.indexOf(s.prefix) === 0) || null; }
 /* the table-key proof, as the player's app computes it (hmacHex in net.js over WebCrypto), here by Node's crypto: the two must agree */
-const proofFor = (key, nonce, room) => nodeCrypto.createHmac('sha256', key).update('wp-auth|' + nonce + '|' + room).digest('hex');
+const FP_P = 'sha-256 AB:01:23', FP_H = 'sha-256 CD:45:67';   // the player's certificate fingerprint and the host's, on every honest stub connection
+const sdpWith = f => ({ type: 'x', sdp: 'v=0\r\ns=-\r\nm=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\na=fingerprint:' + f + '\r\n' });
+const pcStub = (mine, theirs) => ({ localDescription: sdpWith(mine), remoteDescription: sdpWith(theirs) });
+const proofFor = (key, nonce, room, playerFp, hostFp) => nodeCrypto.createHmac('sha256', key).update('wp-auth|' + nonce + '|' + room + '|' + (playerFp || FP_P) + '|' + (hostFp || FP_H)).digest('hex');
 /* the GM's signing key: what a snapshot's signature covers, Node's own ECDSA to verify what the host's WebCrypto signs, and a host of the suite's own making */
-const snapText = (cn, room, gmId, key) => 'wp-snap|' + cn + '|' + room + '|' + gmId + '|' + key;
+const snapText = (cn, room, gmId, key) => 'wp-snap|' + cn + '|' + room + '|' + gmId + '|' + key + '|' + FP_P + '|' + FP_H;   // (the honest stub connection's two fingerprints, the player's then the host's)
 const sigOk = (pub, sig, text) => { try { return !!pub && typeof sig === 'string' && /^[0-9a-f]{128}$/.test(sig) && nodeCrypto.verify('sha256', Buffer.from(text), { key: nodeCrypto.createPublicKey({ key: { kty: pub.kty, crv: pub.crv, x: pub.x, y: pub.y }, format: 'jwk' }), dsaEncoding: 'ieee-p1363' }, Buffer.from(sig, 'hex')); } catch (e) { return false; } };
 const mkSigner = () => { const kp = nodeCrypto.generateKeyPairSync('ec', { namedCurve: 'P-256' }), j = kp.publicKey.export({ format: 'jwk' }); return { pub: { kty: j.kty, crv: j.crv, x: j.x, y: j.y }, sign: text => nodeCrypto.sign('sha256', Buffer.from(text), { key: kp.privateKey, dsaEncoding: 'ieee-p1363' }).toString('hex') }; };
 const hasOwn = (o, k) => !!o && Object.prototype.hasOwnProperty.call(o, k);
@@ -186,18 +193,21 @@ function packCheck(v, depth) {
 /* ---------- PeerJS stubs ---------- */
 const peers = [];
 class Conn {
-    constructor(peer) { this.peer = peer; this.open = true; this._h = {}; this.sent = []; this.closedBy = 0; }
+    constructor(peer, side) { this.peer = peer; this.open = true; this._h = {}; this.sent = []; this.closedBy = 0; this.serialization = 'binary'; this._chunkedData = {}; this.inner = 0; this.peerConnection = side === 'client' ? pcStub(FP_P, FP_H) : pcStub(FP_H, FP_P); }
+    _handleDataMessage() { this.inner++; }   // the library's own entry point (the transport guard wraps it on the instance): counted, so a probe can tell a raw message that reached the decoder from one that did not
     on(ev, fn) { (this._h[ev] = this._h[ev] || []).push(fn); }
     emit(ev, ...a) { (this._h[ev] || []).forEach(f => f(...a)); }
     send(m) { packCheck(m); if (!this.open) throw new Error('connection closed'); this.sent.push(m); sentLog.push({ to: this.peer, m }); }
-    close() { if (!this.open) return; this.open = false; this.closedBy++; this.emit('close'); }
+    close() { if (!this.open) return; this.open = false; this.closedBy++; this._chunkedData = {}; this.emit('close'); }
 }
 const sentLog = [];
 class PeerStub {
-    constructor(id, opts) { if (typeof id === 'object') { opts = id; id = 'anon_' + peers.length; } this.id = id; this.opts = opts; this._h = {}; this.conns = []; peers.push(this); }
+    constructor(id, opts) { if (typeof id === 'object') { opts = id; id = 'anon_' + peers.length; } this.id = id; this.opts = opts; this._h = {}; this.conns = []; this.sigIn = 0; peers.push(this); }
+    _handleMessage() { this.sigIn++; }   // the library's signalling entry point (the gate wraps it on the instance): counted
+    getConnection() { return null; }
     on(ev, fn) { (this._h[ev] = this._h[ev] || []).push(fn); }
     emit(ev, ...a) { (this._h[ev] || []).forEach(f => f(...a)); }
-    connect(id) { const c = new Conn(id); this.conns.push(c); return c; }
+    connect(id) { const c = new Conn(id, 'client'); this.conns.push(c); return c; }
     destroy() { this.destroyed = true; } reconnect() {} disconnect() {}
 }
 globalThis.Peer = PeerStub;
@@ -237,7 +247,7 @@ function mkFogStub() {
 }
 
 /* ---------- the world ---------- */
-const K1 = 'a'.repeat(32), K2 = 'b'.repeat(32);
+const K1 = 'a'.repeat(32), K2 = 'b'.repeat(32), K3 = 'c'.repeat(32);   // K3: a known player who is never at the table (the transport probe's)
 function mkCampaign(SC, F) {
     const fx = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'hud-d20.json'), 'utf8'));
     fx.rolls.push({ id: 'r_heal', label: 'Heal', apply: [{ f: 'f_hp', formula: '2', add: true }] });
@@ -246,7 +256,7 @@ function mkCampaign(SC, F) {
     const tok = (id, o) => Object.assign({ id, type: 'circle', isChar: true, w: 50, h: 50, layer: 'middle' }, o);
     const camp = {
         id: 'c1', name: 'Fuzz Campaign', activeItemId: 'm_open', system: sys,
-        players: { u_p1: { name: 'Ayla', key: K1 }, u_p2: { name: 'Bram', key: K2 } }, bannedPlayers: {}, sessionLog: [], turnRules: {},
+        players: { u_p1: { name: 'Ayla', key: K1 }, u_p2: { name: 'Bram', key: K2 }, u_p3: { name: 'Cato', key: K3 } }, bannedPlayers: {}, sessionLog: [], turnRules: {},
         chars: {
             c_p1: { id: 'c_p1', name: 'Ayla', ownerId: 'u_p1', npc: false, values: { f_str: 14, f_dex: 12, f_gmfig: 7, f_hp: { cur: 10, max: 12 }, f_inv: [] }, updated: 1 },
             c_p2: { id: 'c_p2', name: 'Bram', ownerId: 'u_p2', npc: false, values: { f_str: 9, f_gmfig: 3 }, updated: 1 },
@@ -434,7 +444,7 @@ function mutations(tpl) {
         net._handleMessage({ type: 'hello', profile, version: '1.5.0', cn: c.cn }, c);   // no flushTimers here: the challenge's 2.5 s timer would hand the join to the GM before the answer
         const ch = c.sent.slice(n0).find(m => m.type === 'auth');
         if (!ch || typeof ch.nonce !== 'string' || !ch.nonce) { flushTimers(); return { ok: false, why: 'no challenge', sent: c.sent.slice(n0).map(m => m.type) }; }
-        net._handleMessage({ type: 'hello', profile, version: '1.5.0', proof: proofFor(key, ch.nonce, hostPeer.id), cn: c.cn }, c);   // the answer clears the challenge timer
+        net._handleMessage({ type: 'hello', profile, version: '1.5.0', proof: proofFor(key, ch.nonce, hostPeer.id), fp: [FP_P, FP_H], cn: c.cn }, c);   // the answer clears the challenge timer; the pair the proof was made over is stated beside it, as the app does
         await settle(() => !!net.roster[c.peer] || c.sent.slice(n0).some(m => m.type === 'wait' || m.type === 'denied'));
         flushTimers(); await drain();
         return { ok: !!net.roster[c.peer], why: net.roster[c.peer] ? '' : 'not admitted', sent: c.sent.slice(n0).map(m => m.type), gm: ch.gmId };
@@ -469,7 +479,7 @@ function mutations(tpl) {
     const host = {
         pid: { p1: 'u_p1', p2: 'u_p2' },
         tpl: {
-            'hello': { type: 'hello', profile: { id: 'u_new', name: 'Newcomer', color: '#123456', avatar: 'data:image/png;base64,iVBORw0KGgo=', face: '🙂' }, version: '1.5.0', password: '', proof: '', cn: 'c'.repeat(32) },   // no key rides in a hello since the proof (a known id is challenged; the answer is a proof)
+            'hello': { type: 'hello', profile: { id: 'u_new', name: 'Newcomer', color: '#123456', avatar: 'data:image/png;base64,iVBORw0KGgo=', face: '🙂' }, version: '1.5.0', password: '', proof: '', fp: [FP_P, FP_H], cn: 'c'.repeat(32) },   // no key rides in a hello since the proof (a known id is challenged; the answer is a proof, with the pair of fingerprints it was made over)
             'hold': { type: 'hold', ms: 1000 },
             'hb': { type: 'hb' },
             'item': { type: 'item', campId: 'c1', itemId: 'm_open', item: { whiteboard: [{ id: 'tok_p1', x: 120, y: 130, rot: 0, front: 0, elevation: 0, posture: '' }, { id: 'stroke_p1', type: 'path', ownerId: 'u_p1', pts: [[0, 0], [10, 10], [20, 5]], color: '#ffffff', strokeWidth: 3, x: 0, y: 0, w: 20, h: 10, baseW: 20, baseH: 10, opacity: 1 }] }, a: 1 },
@@ -798,6 +808,39 @@ function mutations(tpl) {
         if (saves >= 50) finding('resource: a stranger\'s junk message costs the GM a disk save and a roster broadcast (the close handler\'s)', '50 junk messages from 50 connections → ' + saves + ' saves, ' + rosters + ' roster messages', { type: 'item' });
         check('host: a stranger\'s junk message does not cost a disk save', saves < 50);
     }
+    {   // the transport, below handleMessage (the outside audit's cluster T): the guard on a connection's entry point, the handler's shape check, the gate on the peer's, and a right proof replayed over another connection's certificates
+        await resetWorld(); resetRec(); drainDialogs(); const before = net.conns.length; let threwT = '';
+        const tryIt = fn => { try { fn(); } catch (e) { threwT += String(e && e.message) + '; '; } };
+        const bigRaw = (() => { const n = 39990, u = new Uint8Array(8 + n); u.set([0x81, 0xb1, 0x61, 0xd9, 0, 0, (n >> 8) & 255, n & 255]); u.fill(0x78, 8); return u.buffer; })();   // a well-formed packet ({ a: 'xxx…' }) of 40,000 bytes: only its size is wrong
+        const raws = [['oversized', bigRaw], ['a list at the top', new Uint8Array([0x93, 1, 2, 3]).buffer], ['a count its bytes cannot hold', new Uint8Array([0x81, 0xb1, 0x61, 0xdd, 0xff, 0xff, 0xff, 0xff]).buffer], ['a key naming the prototype', new Uint8Array([0x81, 0xb9, 0x5f, 0x5f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x5f, 0x5f, 0x80]).buffer], ['a text', 'text'], ['a third large message under way', null]];
+        const rawOut = raws.map((r, i) => { const c = connect('peer_raw' + i); if (r[1] === null) { for (let k = 1; k <= 3; k++) { c._chunkedData = {}; for (let q = 1; q <= k; q++) c._chunkedData[q] = { data: [new Uint8Array(4)], count: 1, total: 4 }; tryIt(() => c._handleDataMessage({ data: new Uint8Array([0x81, 0xb1, 0x61, 0x01]).buffer })); } } else tryIt(() => c._handleDataMessage({ data: r[1] })); flushTimers(); return { what: r[0], closed: !c.open, decoded: c.inner, listed: net.conns.includes(c) }; });
+        rawOut.filter(o => !o.closed || o.listed || (o.what !== 'a third large message under way' && o.decoded > 0)).forEach(o => finding('transport: a raw message the guard should refuse is decoded, or its connection kept', 'raw message (' + o.what + ') from a stranger → closed ' + o.closed + ', decoded ' + o.decoded + ', still listed ' + o.listed, { raw: o.what }));
+        const okRaw = connect('peer_rawok'); tryIt(() => okRaw._handleDataMessage({ data: new Uint8Array([0x81, 0xb4, 0x74, 0x79, 0x70, 0x65, 0xb2, 0x68, 0x62]).buffer }));
+        check('host: a stranger\'s raw message the transport guard refuses — oversized, no map at the top, a count its bytes cannot hold, a key naming the prototype, not bytes at all, a third large message under way — closes the connection (the first five before the library decodes anything) and leaves nothing listed; an honest packet reaches the library', rawOut.every(o => o.closed && !o.listed) && rawOut.slice(0, 5).every(o => o.decoded === 0) && okRaw.open && okRaw.inner === 1 && threwT === '', { rawOut, threwT });
+        okRaw.close(); flushTimers();
+        // what the library hands the handler that is no binary data connection of its own class
+        const cj = new Conn('peer_json'); cj.serialization = 'json'; const cn = new Conn('peer_noclass'); cn._handleDataMessage = null; const n1 = net.conns.length;
+        tryIt(() => hostPeer.emit('connection', new Object('stranger'))); tryIt(() => hostPeer.emit('connection', cj)); tryIt(() => hostPeer.emit('connection', cn)); tryIt(() => hostPeer.emit('connection', null));
+        if (net.conns.length !== n1) finding('transport: the host lists a thing that is no binary data connection', 'connection events with a String object, a json-encoded connection, one with no entry point and null → ' + (net.conns.length - n1) + ' listed', { type: 'connection' });
+        check('host: a thing that is no connection, a connection in another encoding and one whose transport cannot be guarded are closed and never listed — nothing thrown', net.conns.length === n1 && !cj.open && !cn.open && threwT === '', { listed: net.conns.length - n1, threwT });
+        // the signalling path: nothing a stranger can send reaches the library, a Waypoint's offer does
+        const sig0 = hostPeer.sigIn;
+        for (let i = 0; i < 200; i++) tryIt(() => hostPeer._handleMessage({ type: i % 2 ? 'CANDIDATE' : 'ANSWER', src: 'stranger', payload: { connectionId: 'dc_' + i, candidate: { candidate: BIG }, sdp: { type: 'answer', sdp: BIG } } }));
+        ['constructor', 'toString', '__proto__', 'nope', 'json', 'raw'].forEach(ser => tryIt(() => hostPeer._handleMessage({ type: 'OFFER', src: 'stranger', payload: { type: 'data', connectionId: 'dc_o', serialization: ser, sdp: { type: 'offer', sdp: 'v=0' } } })));
+        [{ type: 'OFFER', src: 'stranger', payload: { type: 'media', connectionId: 'mc_1', sdp: { type: 'offer', sdp: 'v=0' } } }, { type: 'OFFER', src: 'stranger', payload: { type: 'data', connectionId: 'dc_big', serialization: 'binary', sdp: { type: 'offer', sdp: BIG } } }, { type: 'ID-TAKEN', src: 'stranger' }, { type: 'EXPIRE', src: 'stranger' }, { type: 'OFFER' }, null, 'OFFER', { type: 'OFFER', src: {}, payload: [] }, ownProto()].forEach(m => tryIt(() => hostPeer._handleMessage(m)));
+        const sigQuiet = hostPeer.sigIn - sig0; tryIt(() => hostPeer._handleMessage({ type: 'OFFER', src: 'kay', payload: { type: 'data', connectionId: 'dc_kay', serialization: 'binary', reliable: true, sdp: { type: 'offer', sdp: 'v=0\r\n' } } }));
+        if (sigQuiet) finding('transport: a signalling message a stranger can send reaches the library', sigQuiet + ' of 215 hostile signalling messages passed the gate', { type: 'CANDIDATE / ANSWER / OFFER' });
+        check('host: answers and candidates for connections nobody holds, offers naming another connection class, a call, an oversized description, the service\'s words with a sender on them and malformed messages never reach the library — a Waypoint\'s offer does; nothing thrown', sigQuiet === 0 && hostPeer.sigIn === sig0 + 1 && threwT === '', { sigQuiet, passed: hostPeer.sigIn - sig0, threwT });
+        // a right proof made over ANOTHER connection's certificates (whoever sits between ends each leg with its own): never admitted
+        resetRec(); const cm = new Conn('peer_between'); cm.peerConnection = pcStub(FP_H, 'sha-256 EE:05:99'); hostPeer.emit('connection', cm);
+        const admM = await admit(cm, { id: 'u_p3', name: 'Cato' }, K3); const dlgM = rec.confirms[rec.confirms.length - 1];
+        if (admM.ok) finding('identity: a proof passed along from another channel admits (the proof is not bound to the connection it travels on)', 'hello from peer_between as u_p3 with the right proof over the player\'s own leg → admitted', { type: 'hello', proof: '…', fp: [FP_P, FP_H] });
+        const between = !admM.ok && !net.roster.peer_between && !!dlgM && /did not match this connection/.test(dlgM.text);
+        cm.close(); flushTimers(); if (dlgM) { dlgM.answered = true; dlgM.cb(true); } flushTimers(); drainDialogs();   // the connection is gone before the GM answers: nobody is let in, nobody barred
+        const c3 = connect('peer_p3'), nDlg = rec.confirms.length, adm3 = await admit(c3, { id: 'u_p3', name: 'Cato' }, K3);
+        check('host: a right proof made over another connection\'s certificates admits nobody — the GM is asked, in the words for a proof that did not match the connection; the same player over their own connection\'s pair goes straight in, nobody asked', between && adm3.ok && rec.confirms.length === nDlg, { admM, dlg: dlgM && dlgM.text, adm3 });
+        c3.close(); flushTimers(); await drain(); flushTimers();
+    }
     {   // the GM-only field through the players' paths: a roll naming it, an edit of it, an apply reading it
         await resetWorld(); const sb = sentLog.length;
         await fireHost('p1', 'roll-req GM field', 'expr names the GM-only field', { type: 'roll-req', rid: 'g1', expr: '1d20 + GMFig', charId: 'c_p1' });
@@ -967,8 +1010,8 @@ function mutations(tpl) {
         if (outK.length) finding('client: a table key this player holds is sent (the key never travels: a proof over it does)', tag + ' → ' + outK[0].m.type + ' carrying a held key, for gmId ' + short(msg.gmId), msg);
         if (msg && msg.type === 'auth') sentLog.slice(sb).filter(s => s.m.type === 'hello' && 'proof' in s.m).forEach(s => {   // a proof, when one goes out, is over the key held for the GM named, the host's nonce and the room THIS app dialled — never over a room or a text the host chose
             const held = { u_gm: K1, u_victim: 'VICTIMKEY'.repeat(3) }, k = typeof msg.gmId === 'string' && Object.prototype.hasOwnProperty.call(held, msg.gmId) ? held[msg.gmId] : null;
-            const want = k && typeof msg.nonce === 'string' && msg.nonce.length >= 16 && msg.nonce.length <= 128 ? proofFor(k, msg.nonce, conn.peer) : null;
-            if (s.m.proof !== want) finding('client: the auth answer\'s proof is not the one over the room this app dialled (or one is sent with no usable key or nonce)', tag + ' → proof ' + short(s.m.proof) + ' for gmId ' + short(msg.gmId), msg, mut);
+            const want = k && typeof msg.nonce === 'string' && msg.nonce.length >= 16 && msg.nonce.length <= 128 ? proofFor(k, msg.nonce, conn.peer) : null;   // … and over this connection's two certificate fingerprints, the pair stated beside it
+            if (s.m.proof !== want || JSON.stringify(s.m.fp) !== JSON.stringify([FP_P, FP_H])) finding('client: the auth answer\'s proof is not the one over the room this app dialled (or one is sent with no usable key or nonce)', tag + ' → proof ' + short(s.m.proof) + ' for gmId ' + short(msg.gmId), msg, mut);
         });
         if (rec.saves.length) finding('client: a message reaches save()', tag + (rec.saves.some(s => s.persist) ? ' AND it would persist' : ' (io.js refuses it while foreign)'), msg, mut);
         rec.fetches.forEach(f => finding('client: a message causes a fetch', tag + ' → ' + f.url.slice(0, 80), msg, mut));

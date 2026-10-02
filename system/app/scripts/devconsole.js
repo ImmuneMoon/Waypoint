@@ -1,4 +1,4 @@
-// In-app developer console. OFF by default — enable it in Settings ▸ Advanced (which sets wp_devconsole=on);
+// In-app developer console. OFF by default — switch Developer mode on in Settings ▸ Advanced (which sets wp_devconsole=on, after a warning);
 // then press ~ (backtick) anywhere outside a text field to drop it down. Type JavaScript and Enter runs it,
 // with the page's globals in scope — window.wpDebug.getState(), window.wpReloadFromDisk(), window.wpFitView(),
 // window.wpNet, and the rest. Meta-commands: /help (or /help <name>), /roll 2d6+3 (the full formula syntax, via wpFormula), /state, /fit, /reload,
@@ -70,7 +70,7 @@
         { name: 'wpAppVersion', short: 'the running app version string',
           detail: 'e.g.  "1.4.8"  in the packaged app, or  "1.4.8-dev"  on the dev server.' },
         { name: 'wpDevConsole', short: 'control this console from code',
-          detail: 'wpDevConsole.open() · .close() · .toggle() · .clear() · .help()\nThe ~ key is gated by Settings ▸ Advanced, but these methods work whether or not the toggle is on.' }
+          detail: 'wpDevConsole.open() · .close() · .toggle() · .clear() · .help()\nThe ~ key works only in Developer mode (Settings ▸ Advanced), but these methods work whether or not it is on.' }
     ];
 
     // One-liners for every other wp* global, so /help <name> explains it. Anything here but absent at runtime
@@ -315,7 +315,7 @@
     // handler owns the key.
     window.addEventListener('keydown', function (e) {
         if (e.code !== 'Backquote' || e.ctrlKey || e.metaKey || e.altKey) return;
-        if (!enabled()) return;                          // gated behind the Settings ▸ Advanced toggle (off by default)
+        if (!enabled()) return;                          // only in Developer mode (Settings ▸ Advanced, off by default)
         var t = e.target;
         if (t && t.id === 'devConsoleInput') return;
         if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;

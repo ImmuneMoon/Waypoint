@@ -10,6 +10,7 @@ const updater = require('./updater');
 const libstore = require('./libstore');   // Stage 6 library L1b: a campaign's pack files, shared with tools/dev-server.js
 const servefile = require('./servefile');   // item 21 V1: a media file's type and byte ranges, shared with tools/dev-server.js
 const reqguard = require('./reqguard');   // what the local server takes and refuses (the launch secret, names, sizes, bodies, backups), shared with tools/dev-server.js
+const shellguard = require('./shellguard');   // the rules for the shell's windows (links, permissions, Developer mode, the loopback listen), as plain functions tools/servercheck.js runs
 const SHELL_VERSION = require('./package.json').version;
 const http = require('http');
 const fs = require('fs');
@@ -127,15 +128,15 @@ const server = http.createServer((req, res) => {
         updateHandler(req, res, url);
         return;
     }
-    // Open a release page or installer link in the system browser — GitHub URLs for our repo only
+    // Open a release page or installer link in the system browser — this project's own release pages on github.com only
+    // (shellguard.releaseLink: no other host, no other part of the project, no port, no user name)
     if (url.pathname === '/api/open-external' && req.method === 'POST') {
         reqguard.readBody(req, res, reqguard.BODY.small, (body) => {   // read with a cap (413 past 64 KB), decoded as UTF-8 across chunks
             let target = null;
             try { target = JSON.parse(body).url; } catch (e) {}
-            let okHost = false;   // parsed, not substring-matched: exactly our repo on github.com, or GitHub's own download hosts
-            try { const u = new URL(String(target)); okHost = u.protocol === 'https:' && ((u.hostname === 'github.com' && u.pathname.startsWith('/' + UPDATE_REPO + '/')) || u.hostname === 'objects.githubusercontent.com' || u.hostname === 'release-assets.githubusercontent.com'); } catch (e) {}
-            if (!okHost) { res.writeHead(400); return res.end('{"error":"not allowed"}'); }
-            shell.openExternal(target);
+            const link = shellguard.releaseLink(target, UPDATE_REPO);   // the address as the parser made it, or nothing: never the request's own value
+            if (!link) { res.writeHead(400); return res.end('{"error":"not allowed"}'); }
+            shell.openExternal(link);
             res.writeHead(200, { 'Content-Type': 'application/json' }); res.end('{"ok":true}');
         });
         return;
@@ -178,6 +179,7 @@ const server = http.createServer((req, res) => {
                     const tmp = prefsFile + '.tmp';
                     fs.writeFileSync(tmp, JSON.stringify(parsed, null, 1), 'utf8');
                     fs.renameSync(tmp, prefsFile);
+                    if (guard) guard.refresh();   // Developer mode is read from this file: the menu and any open developer tools follow the switch at once
                     res.writeHead(200, { 'Content-Type': 'application/json' });
                     res.end('{"success":true}');
                 } catch (e) { res.writeHead(500); res.end('{"error":"write failed"}'); }
@@ -379,17 +381,25 @@ const server = http.createServer((req, res) => {
 
 server.requestTimeout = 0;   // a large video copied in (an import, an upload) may take longer than the five minutes Node gives a request by default; this server answers this machine only
 
+// The window loads http://localhost:<port>, and "localhost" names both loopback addresses, so the server holds both on its
+// port (a second server hands its requests to the first) or moves to the next port: another program on either address of a
+// port means that port is taken (shellguard.listenLoopback). Loopback only: never reachable from the network.
+const server6 = http.createServer((req, res) => server.emit('request', req, res));
+server6.requestTimeout = 0;
+
 let port = 3000;
-server.on('error', (e) => {
-    if (e.code === 'EADDRINUSE') {
-        port++;
-        server.listen(port, '127.0.0.1');
-    }
-});
+let guard = null;   // the windows' rules, once the app is ready (shellguard.install)
 
 waitForInstanceLock(8000, function() {
-    server.listen(port, '127.0.0.1', () => {   // loopback only: never reachable from the network (a LAN peer could otherwise forge the Host header)
+    shellguard.listenLoopback(server, server6, port, (held) => {
+        if (!held) return app.quit();   // no port could be held on this machine: nothing to show
+        port = held;
         app.whenReady().then(() => {
+            // Every window of the app — this one, the stream window, a pop-out, anything one of them opens — shows the app's
+            // own pages and nothing else; a web link goes to the system browser; a page is granted only what the app's own
+            // pages use; the menu is Waypoint's own, and the developer tools open only in Developer mode. Installed before
+            // the first window is made, so that window is covered as every later one is.
+            guard = shellguard.install(require('electron'), { port: port, prefsFile: path.join(savesDir, 'preferences.json'), icon: path.join(__dirname, 'icon.ico') });
             const win = new BrowserWindow({
                 width: 1200,
                 height: 800,
@@ -401,26 +411,6 @@ waitForInstanceLock(8000, function() {
                 // quietly change them — content from another table or an imported file runs with web powers only.
                 webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true, webviewTag: false }
             });
-            // External links (target=_blank, e.g. the About panel) open in the
-            // user's default browser instead of a new Electron window.
-            const own = `http://localhost:${port}`;   // this app's own origin, exactly (http://localhost.evil.example/ is not it)
-            const isOwn = (url) => url === own || url.startsWith(own + '/') || url.startsWith(own + '?') || url.startsWith(own + '#');
-            // Only a web link ever reaches the system browser: never file:, a program, or a custom protocol —
-            // a link inside content a hostile host sent (a text item, a page, a chat line) must not launch anything here.
-            const openWebLink = (url) => { if (/^(https?:|mailto:)/i.test(url)) require('electron').shell.openExternal(url); };
-            win.webContents.setWindowOpenHandler(({ url }) => {
-                if (isOwn(url)) {
-                    // Waypoint's own child windows: same look as the main one, no menu bar. A popped-out doc/sheet
-                    // (?popout=) opens PORTRAIT (a reading/reference column for a second monitor); the stream window stays landscape.
-                    var portrait = /[?&]popout=/.test(url);
-                    return { action: 'allow', overrideBrowserWindowOptions: { autoHideMenuBar: true, icon: path.join(__dirname, 'icon.ico'), width: portrait ? 840 : 1280, height: portrait ? 1000 : 720, backgroundColor: '#15151c' } };
-                }
-                openWebLink(url);
-                return { action: 'deny' };
-            });
-            // The app window never navigates away from its own pages (a plain link in hostile content would otherwise
-            // replace Waypoint with any site): a web link goes to the system browser instead, anything else is dropped.
-            win.webContents.on('will-navigate', (e, url) => { if (!isOwn(url)) { e.preventDefault(); openWebLink(url); } });
             win.loadURL(`http://localhost:${port}`);
         });
     });

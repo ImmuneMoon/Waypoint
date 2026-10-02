@@ -22,7 +22,12 @@
    (Waypoint_Setup.exe.sig: its name, its digest, the version): an install that updates its own core
    checks it before running it.
    The installer is code-signed only when WAYPOINT_SIGNTOOL is set: a whole command line, in which
-   {file} stands for the installer's path (the path is appended when the command has no {file}). */
+   {file} stands for the installer's path (the path is appended when the command has no {file}).
+
+   The runtime. The Electron under system/ is not in the repository and reaches an install only through
+   the installer. Which version that is is recorded as "electron" in system/resources/app/package.json
+   and published in the manifest. The build compares the record with system/version and says so in one
+   line when they differ — a warning, never a refusal, and nothing is looked up on the network. */
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -44,6 +49,20 @@ const signkey = require('./signkey.js');
 const shellrev = require('./shellrev.js');
 const updater = require('../system/resources/app/updater.js');
 const { UPDATE_PUBKEY } = require('../system/resources/app/updatekey.js');
+
+// The Electron this build packs (system/version, written by the runtime's own package) against the one the shell's
+// package.json records: null when they agree, else one plain line for the builder to read.
+// [servercheck:runtime-start]
+function runtimeNote(recorded, bundled) {
+    const rec = typeof recorded === 'string' ? recorded.trim() : '', got = typeof bundled === 'string' ? bundled.trim() : '';
+    if (!rec) return 'Warning: system/resources/app/package.json records no "electron" version' + (got ? ' (system/version says ' + got + ')' : '') + ': record the one the installer packs.';
+    if (!got) return 'Warning: system/version could not be read, so the Electron this build packs cannot be compared with the recorded ' + rec + '.';
+    if (rec !== got) return 'Warning: this build packs Electron ' + got + ' (system/version) but system/resources/app/package.json records ' + rec + ': correct the record, or the runtime under system/.';
+    return null;
+}
+// [servercheck:runtime-end]
+function bundledElectron() { try { return fs.readFileSync(path.join(SYSTEM, 'version'), 'utf8'); } catch (e) { return null; } }
+const RUNTIME_NOTE = runtimeNote(pkg.electron, bundledElectron());
 
 // Before the first thing this build writes: the update signing key is the committed public key's own pair, or nothing is built.
 let SIGNKEY = null;
@@ -100,7 +119,7 @@ if (!updater.verifyUpdate(UPDATE_PUBKEY, zipName, sha, VERSION, sig)) { console.
 fs.writeFileSync(zipPath + '.sig', sig + '\n');
 
 // 2. manifest
-fs.writeFileSync(path.join(dist, 'manifest.json'), JSON.stringify({ version: VERSION, minShell: SHELL_SINCE, built: new Date().toISOString() }, null, 2));
+fs.writeFileSync(path.join(dist, 'manifest.json'), JSON.stringify({ version: VERSION, minShell: SHELL_SINCE, built: new Date().toISOString(), electron: typeof pkg.electron === 'string' ? pkg.electron : null }, null, 2));   // electron: the runtime the installer packs, as package.json records it
 
 // 3. installer
 console.log('Compiling installer with Inno Setup...');
@@ -145,6 +164,7 @@ fs.writeFileSync(path.join(dist, 'RELEASE_NOTES.md'), notes);
 
 console.log('\nBuilt', dist);
 console.log('  ' + fs.readdirSync(dist).join('\n  '));
+if (RUNTIME_NOTE) console.warn(RUNTIME_NOTE);   // said last, where it is read: the build goes on either way
 
 if (!PUBLISH) {
     console.log('\nTo publish: create a GitHub Release tagged', VERSION, 'on', REPO || '<set UPDATE_REPO in main.js>', 'and attach every file above,\nor run again with --publish and GITHUB_TOKEN set.');

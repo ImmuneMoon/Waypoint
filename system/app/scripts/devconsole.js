@@ -167,7 +167,7 @@
         wpTurnToken: "Rotate a token's facing by N steps (+1 = clockwise).",
         wpUploadBlob: 'Upload a picture into an item\'s folder: (mapId, name, blob) → Promise of the /saves/images/… URL (whiteboard.js; the play-map drop, the planner Upload button and the Markdown importer all use it).',
         wpSystemCore: 'The rules model, pure (scripts/systemcore.js): cleanSystem / cleanChar / cleanCharEdit, validateSystem, makeResolver (a vars function for wpFormula), resolveAll, hoverLines, charFor, applyEdit, autoLayout, aliasFromShadowBase, LIMITS, KINDS; the combat rules: cleanCombat, cleanCover, coverOutcome / coverDamage, and the light rules cleanLightRules, lightName(sys, level), lightPresets(sys), LIGHT_UNITS.',
-        wpTextFmt: 'Text formats, pure (scripts/textfmt.js): the look of one plain field, stored beside its text — cleanFmt(fmt, text), runsOf(text, fmt), respan(old, new, fmt, caret), apply(fmt, text, s, e, change), clear, stateAt, SIZES, SIZE_EM, PALETTE, MAX_SPANS. No DOM.',
+        wpTextFmt: 'Text formats, pure (scripts/textfmt.js): the look of one plain field, stored beside its text — cleanFmt(fmt, text), runsOf(text, fmt), respan(old, new, fmt, caret, apart), apply(fmt, text, s, e, change), clear, stateAt, SIZES, SIZE_EM, PALETTE, MAX_SPANS. No DOM.',
         wpTutorial: 'The interactive tutorial controller (ensure / start / rebuild / discard).',
         wpUpdateHandles: 'Reposition the resize/rotate handles on the current selection.',
         wpUpdateSelToolbar: 'Re-render and counter-scale the floating selection toolbar.',

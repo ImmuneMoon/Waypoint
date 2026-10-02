@@ -498,11 +498,65 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 && htmlToMarkdown('<p><code><span style="color:#d9534f">x</span></code> <span style="color:#d9534f"></span><span style="color:red" onclick="x">y</span></p>') === '`x` y'
                 && ['<p><span style="color:#d9534f">red</span> <b><span style="color:#5cb87a;font-size:1.2em">both</span></b></p>', '<p><span style="color:#d9534f">one</span></p><p><span style="color:#d9534f">two</span></p>', '<ul><li><span style="color:#5cb87a">done</span></li><li>todo</li></ul>', '<p>a <span style="font-size:0.833em">- small</span><br>b</p>']
                     .every(h => markdownToBlocks(docToMarkdown({ type: 'doc', id: 'd', meta: { title: 'T' }, blocks: [{ type: 'text', content: h }] }, {}).text, { kind: 'doc' }).blocks[0].content === h), htmlToMarkdown(sanitizeHtml('<span style="color:#d9534f"><p>one</p><p>two</p></span>')));
+            {   // beside a span's tag Markdown's own marks can pair up wrongly on the way back in: the block is read back before it is written
+                const C = '<span style="color:#d9534f">', E = '</span>', mdOf = (h, type) => docToMarkdown({ type: 'doc', id: 'd', meta: { title: 'T' }, blocks: [{ type: type || 'text', content: h }] }, {}).text, bodyOf = t => t.slice(t.indexOf('\n---\n\n') + 6);
+                const backOf = (h, type) => markdownToBlocks(mdOf(h, type), { kind: 'doc' }).blocks.map(b => b.type + ':' + b.content).join('|');
+                const garbled = ['<p>x <i>' + C + '<b>w</b>' + E + '</i> y <b>z</b></p>', '<p><i>' + C + 'a <b>w</b>' + E + '</i></p>'];
+                // I, a colour and B pressed on one word, in each of their six orders
+                const orders = ['<p>x <i><b>' + C + 'w' + E + '</b></i> y <b>z</b></p>', '<p>x <b><i>' + C + 'w' + E + '</i></b> y <b>z</b></p>', '<p>x <i>' + C + '<b>w</b>' + E + '</i> y <b>z</b></p>', '<p>x <b>' + C + '<i>w</i>' + E + '</b> y <b>z</b></p>', '<p>x ' + C + '<i><b>w</b></i>' + E + ' y <b>z</b></p>', '<p>x ' + C + '<b><i>w</i></b>' + E + ' y <b>z</b></p>'];
+                check('Markdown round trip (text style, a text block): an italic around a coloured part that starts bold, and I, a colour and B pressed on one word in each of their six orders, come back as the very block — no stray mark, no bold running on into the rest of the paragraph',
+                    garbled.concat(orders).every(h => backOf(h) === 'text:' + h) && backOf('<i>' + C + 'a <b>w</b>' + E + '</i> then <b>z</b>', 'callout') === 'callout:<i>' + C + 'a <b>w</b>' + E + '</i> then <b>z</b>', garbled.concat(orders).map(h => backOf(h)).filter((b, k) => b !== 'text:' + garbled.concat(orders)[k]).join(' / '));
+                check('Markdown export (text style, a text block): beside a span the marks are used only where they read back as the tags do — else the block\'s bold and italic are written as <b> / <i>; inside code nothing changes; a block with no span is written exactly as it always was',
+                    bodyOf(mdOf(garbled[0])) === 'x <i>' + C + '<b>w</b>' + E + '</i> y <b>z</b>\n' && bodyOf(mdOf(orders[3])) === 'x **' + C + '*w*' + E + '** y **z**\n' && bodyOf(mdOf(orders[5])) === 'x ' + C + '***w***' + E + ' y **z**\n'
+                    && bodyOf(mdOf('<i>' + C + 'a <b>w</b>' + E + '</i>', 'lede')) === '> [!lede] <i>' + C + 'a <b>w</b>' + E + '</i>\n'
+                    && htmlToMarkdown('<p><i>' + C + 'a <b>w</b>' + E + '</i> <code>c</code> <s>s</s></p>', { tags: true }) === '<i>' + C + 'a <b>w</b>' + E + '</i> `c` ~~s~~' && htmlToMarkdown('<p><i>a</i> <b>b</b></p>', { tags: false }) === '*a* **b**' && htmlToMarkdown('<p><i>a</i> <b>b</b></p>', 1) === '*a* **b**'
+                    && htmlToMarkdown('<p><code><b>x <code>y</code></b> z</code> <b><i>w</i></b></p>', { tags: true }) === htmlToMarkdown('<p><code><b>x <code>y</code></b> z</code> </p>') + ' <b><i>w</i></b>'   // one opened inside code closes as the mark it was
+                    && bodyOf(mdOf('<p><i>a <b>w</b></i></p>')) === '*a **w***\n' && bodyOf(mdOf('<p>x <i><b>w</b></i> y <b>z</b></p>')) === 'x ***w*** y **z**\n', [bodyOf(mdOf(garbled[0])), bodyOf(mdOf(orders[3])), bodyOf(mdOf('<i>' + C + 'a <b>w</b>' + E + '</i>', 'lede'))]);
+                // a seeded walk: nested i / b / span content, in paragraphs and in a list, the words full of marks
+                let a = 90210; const R = () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+                const pick = l => l[Math.floor(R() * l.length)], WORDS = ['a', 'w', 'the fort', 'x*y', 'two words', '_u_', '1.', 'red', '**', 'a ', ' b', '&', '<', 'it\'s'];
+                const SPANS = ['<span style="color:#d9534f">', '<span style="color:#5cb87a">', '<span style="font-size:1.2em">', '<span style="color:#4db3d3;font-size:0.833em">'];
+                const gen = depth => { let s = ''; const n = 1 + Math.floor(R() * 3);
+                    for (let k = 0; k < n; k++) { const r = R();
+                        if (depth > 2 || r < 0.55) s += pick(WORDS).replace(/&/g, '&amp;').replace(/</g, '&lt;') + (R() < 0.5 ? ' ' : '');
+                        else if (r < 0.7) s += '<i>' + gen(depth + 1) + '</i>'; else if (r < 0.85) s += '<b>' + gen(depth + 1) + '</b>'; else s += pick(SPANS) + gen(depth + 1) + '</span>'; }
+                    return s; };
+                // the look of every visible character: bold, italic, the colour and the size that reach it
+                const looks = html => { const out = [], st = []; let m; const re = /<(\/?)([a-z0-9]+)([^>]*)>|([^<]+)/g;
+                    while ((m = re.exec(html))) {
+                        if (m[4] !== undefined) { const col = st.map(t => /color:(#[0-9a-f]{6})/.exec(t)).filter(Boolean).pop(), siz = st.map(t => /font-size:([0-9.]+em)/.exec(t)).filter(Boolean).map(x => x[1]).join('*');
+                            const lk = (st.indexOf('b') >= 0 ? 'B' : '') + (st.indexOf('i') >= 0 ? 'I' : '') + (col ? col[1] : '') + siz;
+                            m[4].replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/\s+/g, '').split('').forEach(ch => out.push(ch + lk)); continue; }
+                        if (m[2] === 'p' || m[2] === 'ul' || m[2] === 'li' || m[2] === 'br') { if (!m[1] || m[2] === 'br') out.push('<' + m[2] + '>'); continue; }
+                        if (m[1]) st.pop(); else st.push(m[2] === 'span' ? m[3] : m[2]); }
+                    return out.join(' '); };
+                let bad = null, n = 0, tagged = 0, marked = 0, twice = 0, saved = 0;
+                for (let k = 0; k < 4000 && !bad; k++) {
+                    const shape = R(), raw = shape < 0.7 ? '<p>' + gen(0) + '</p>' + (R() < 0.3 ? '<p>' + gen(0) + '</p>' : '') : shape < 0.85 ? '<ul><li>' + gen(0) + '</li><li>' + gen(0) + '</li></ul>' : gen(0), type = shape < 0.85 ? 'text' : 'callout';
+                    const h = sanitizeHtml(raw); if (h.indexOf('<span') < 0 || !h.replace(/<[^>]+>/g, '').trim()) continue;
+                    const md = mdOf(h, type), back = markdownToBlocks(md, { kind: 'doc' }).blocks;
+                    n++; if (/<[bi]>/.test(md)) tagged++; else if (/\*/.test(md.replace(/\\\*/g, ''))) marked++;
+                    if (type === 'text') { const mk = markdownToBlocks(htmlToMarkdown(h), { kind: 'doc' }).blocks, wrong = mk.length !== 1 || looks(mk[0].content) !== looks(h);   // the marks alone, as they were written before
+                        if (wrong) { saved++; if (!/<[bi]>/.test(md)) { bad = { h, md, why: 'the marks were kept though they read back wrong' }; break; } } }
+                    if (back.length !== 1 || back[0].type !== type) { bad = { h, md, back: back.map(b => b.type), why: 'blocks' }; break; }
+                    if (looks(back[0].content) !== looks(h)) { bad = { h, md, back: back[0].content, why: 'looks' }; break; }
+                    if (inert(back[0].content) !== null) { bad = { h, md, back: back[0].content, why: inert(back[0].content) }; break; }
+                    const md2 = mdOf(back[0].content, type); if (md2 === md) twice++; else if (looks(markdownToBlocks(md2, { kind: 'doc' }).blocks[0].content) !== looks(h)) { bad = { h, md, md2, why: 'second export' }; break; }
+                }
+                check('Markdown round trip (text style, seeded: ' + n + ' text and prose blocks of nested bold, italic, colour and size, their words full of marks): every visible character comes back with its look — bold, italic, colour, size — in one block of the same type, inert; ' + tagged + ' of them are written with <b> / <i> (' + saved + ' text blocks would have come back garbled with the marks), ' + marked + ' kept the marks',
+                    !bad && n > 1500 && tagged > 1000 && saved > 900 && marked > 100 && twice > n * 0.9, JSON.stringify(bad || { n, tagged, marked, twice, saved }));
+            }
+            check('Markdown import (text style): a span that holds nothing — opened on a line of its own, closed on a later one, left open at the end, nested in another — leaves no empty paragraph and no empty span behind (a span lives inside one paragraph); a coloured space keeps its space, a span with text is kept',
+                (() => { const cont = (t, kind) => markdownToBlocks(t, { kind: kind || 'doc' }).blocks.map(b => b.type + ':' + b.content).join('|'), S = '<span style="color:#ff0000">';
+                    return cont(S + '\n\npara\n\n</span>') === 'text:<p>para</p>' && cont('x\n\n' + S) === 'text:<p>x</p>' && cont(S + '\n\npara\n\n</span>', 'planner') === 'text:<p>para</p>'
+                        && cont('a' + S + ' </span>b\n\n' + S + '<span style="font-size:1.2em"></span></span>\n\n' + S + 'c</span>') === 'text:<p>a b</p><p>' + S + 'c</span></p>'
+                        && cont('> ' + S + '</span>q' + S) === 'callout:q' && cont('::: lede\n' + S + '</span>l ' + S + 'm</span>\n:::') === 'lede:l ' + S + 'm</span>' && cont(S) === ''; })(),
+                JSON.stringify(markdownToBlocks('<span style="color:#ff0000">\n\npara\n\n</span>', { kind: 'doc' }).blocks.map(b => b.content)));
             const guide = require('fs').readFileSync(path.join(__dirname, '..', 'CAMPAIGN_INTEGRATION.md'), 'utf8').replace(/\r\n/g, '\n'), ixH = require('fs').readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8').replace(/\r\n/g, '\n').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ');
             check('said (the integration guide and Help): Markdown carries text style — how it is written, what is read back, and exactly what is not carried',
-                guide.indexOf('**Text style in Markdown:**') > 0 && ['bold as `**…**`, italic as `*…*`', '`<span style="color:#rrggbb">`', 'as `<b>` / `<i>` instead', '`<font color=rrggbb>`', 'Not carried:', 'a size on part of a field', 'underline, strike-through, a link or code inside a plain field', 'comes back as the field\'s own', 'A file with no style in it is read exactly as before'].every(w => guide.indexOf(w) > 0)
+                guide.indexOf('**Text style in Markdown:**') > 0 && ['bold as `**…**`, italic as `*…*`', '`<span style="color:#rrggbb">`', 'as `<b>` / `<i>` instead', '`<font color=rrggbb>`', 'Not carried:', 'a size on part of a field', 'underline, strike-through, a link or code inside a plain field', 'comes back as the field\'s own', 'A file with no style in it is read exactly as before', 'beside a span the block\'s bold and italic are written as `<b>` / `<i>` wherever the marks would not read back', 'a span lives inside one paragraph'].every(w => guide.indexOf(w) > 0)
                 && guide.indexOf('an export writes the plain text and an import brings no format') < 0
-                && ['Save Markdown keeps text style and an import brings it back', 'Not carried: a size on part of a title or a cell', 'A file with none of this in it comes in exactly as before.'].every(w => ixH.indexOf(w) > 0) && ixH.indexOf('Markdown has no colour and no size') < 0, '');
+                && ['Save Markdown keeps text style and an import brings it back', 'Not carried: a size on part of a title or a cell', 'A file with none of this in it comes in exactly as before.', 'where ** or * would not read back (beside a coloured part, say) &lt;b&gt; and &lt;i&gt; are written instead', 'a tag opens and closes inside one paragraph: it does not reach across a blank line'].every(w => ixH.indexOf(w) > 0) && ixH.indexOf('Markdown has no colour and no size') < 0, '');
         }
         check('detectBundle: .md at the root or one folder down, __MACOSX and dotfiles ignored', (() => { const b = detectBundle([{ name: '__MACOSX/x.md', data: new Uint8Array() }, { name: 'Folder/.hidden.md', data: new Uint8Array() }, { name: 'Folder/page.md', data: new Uint8Array() }, { name: 'Folder/images/a.png', data: new Uint8Array() }]); return b && b.md.name === 'Folder/page.md' && b.base === 'Folder/' && b.files.length === 2; })() && detectBundle([{ name: 'a/b/c.md', data: new Uint8Array() }]) === null && detectBundle([{ name: 'data.json', data: new Uint8Array() }]) === null);
         check('htmlToMarkdown: code and pre', htmlToMarkdown('<p>use <code>x</code></p><pre>a\n b</pre>') === 'use `x`\n\n```\na\n b\n```');

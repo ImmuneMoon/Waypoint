@@ -29,6 +29,11 @@
                                      that begins http:// or https:// (any case) with something after it, holds no white space
                                      and no control character, and is at most MAX_LINK long; anything else is '' (no link: the
                                      text stays).
+     typedLink(typed)                what an address typed into a Link box becomes, in one place: trimmed, one without its scheme
+                                     taken as https:// (a name with a port too); '' for an empty box; null for what cleanLink refuses.
+     linkParts(text)                 the web addresses in a plain text, for a view that reads it (the Journal): parts [{ t }, { t, href }],
+                                     a link's text exactly the characters typed and its href what cleanLink keeps of them; the parts
+                                     joined are the text; at most MAX_TEXT_LINKS links. The edges are written above the function.
      runsOf(text, fmt)               the text cut into runs [{ t, color, b, i, u, st, size, link }] with the base applied — what
                                      every renderer draws from (text nodes, or escaped text in elements it builds). A run has one
                                      size: its span's, or else the field's.
@@ -61,6 +66,7 @@ var VERSION = '1.5.0';
 var MAX_SPANS = 200;     // kept per field
 var MAX_RAW = 400;       // read from a stored list (a longer one is a file's or a host's, never the app's own)
 var MAX_LINK = 2000;     // a link's length (the page sanitiser's own cap for an <a href>)
+var MAX_TEXT_LINKS = 200; // links made of one plain text by linkParts (the addresses after them stay text)
 // Size steps: keys, not pixels — each a share of the field's own size, so a page's look and a heading's size still scale.
 // Powers of 1.2, the step a browser's own "larger" / "smaller" takes (a flowchart label is sized with those).
 var SIZES = ['small', 'large', 'larger', 'huge'];
@@ -84,6 +90,78 @@ function cleanLink(v) {
     return /^https?:\/\/.+/i.test(v) ? v : '';
 }
 // [textcheck:linkrule-end]
+// What a typed address becomes — the ONE reading, for every box an address is typed into (the Link box of the bar on a planner field's
+// box, and of a text block's own bar). Trimmed. An address typed without its scheme ("example.com/page") is taken as the secure web
+// scheme — one with a port too ("example.com:8080/page", "localhost:3000": a first word followed by one to five digits and then the end,
+// a /, a ? or a # is a host and its port, not a scheme). '' for an empty box (the link comes off); null for anything that is still no
+// link by cleanLink (so whatever begins with another scheme): the caller says so and changes nothing.
+function typedLink(v) {
+    v = txt(v).trim();
+    if (v && !/^[a-z][a-z0-9+.-]*:(?!\d{1,5}(?:[\/?#]|$))/i.test(v)) v = 'https://' + v;
+    return v && !cleanLink(v) ? null : v;
+}
+// [textcheck:linkparts-start]
+// The web addresses in a plain text, for a view that reads it (the Journal): the text cut into parts [{ t }, { t, href }] — a part with
+// an href is an address, its text exactly the characters that were typed, its href that same string as cleanLink keeps it. The parts
+// joined are the text. Nothing here says what a link is: an address is the letters and digits right before a "://" and everything after
+// it up to the first character an address cannot hold, and it is a link only when cleanLink keeps that whole string.
+//   - Where it ends: at the first character cleanLink refuses inside an address (asked of cleanLink itself, once per character), and at
+//     < or > (an address in angle brackets is the address alone).
+//   - What trails it and is not part of it: . , ; : ! ? and a closing bracket or quote that was not opened inside the address — so
+//     "(see <address>)." and an address in quotes link the address alone, and one that holds its own (…) keeps it.
+//   - What begins it: the scheme is the run of letters and digits right before "://". One glued to a letter or a digit before it is that
+//     longer word, which is no scheme the rule knows; a bare name with no scheme is never a link.
+//   - Two addresses with nothing between them are one address: the second is part of the first, as an address bar would read it.
+//   - An address longer than the rule allows is no link at all (never a link to its first part); at most MAX_TEXT_LINKS links a text —
+//     the first ones — and the addresses after them stay text.
+// One pass: every character is looked at a fixed number of times, whatever the text holds.
+var TRAIL = '.,;:!?';
+var OPENER = { ')': '(', ']': '[', '}': '{', '”': '“', '’': '‘', '»': '«' };   // a closer and what opens it
+var EITHER = '"\'';                                                             // a quote that opens and closes alike
+var _ends = Object.create(null);
+function endsAddress(code) {
+    if (code === 60 || code === 62) return true;   // < and >
+    var k = _ends[code];
+    if (k === undefined) k = _ends[code] = cleanLink('http://a' + String.fromCharCode(code) + 'a') === '';
+    return k;
+}
+function schemeChar(code) { return (code >= 48 && code <= 57) || (code >= 65 && code <= 90) || (code >= 97 && code <= 122); }
+// where the address that begins at s really ends, given the run [s, e): less what trails it
+function addressEnd(text, s, e) {
+    var counts = null;
+    while (e > s) {
+        var ch = text.charAt(e - 1);
+        if (TRAIL.indexOf(ch) >= 0) { e--; continue; }
+        var closer = own(OPENER, ch), quote = EITHER.indexOf(ch) >= 0;
+        if (!closer && !quote) break;
+        if (!counts) { counts = Object.create(null); for (var i = s; i < e; i++) { var c = text.charAt(i); counts[c] = (counts[c] || 0) + 1; } }
+        var unopened = quote ? counts[ch] % 2 === 1 : (counts[OPENER[ch]] || 0) < counts[ch];
+        if (!unopened) break;
+        counts[ch]--; e--;
+    }
+    return e;
+}
+function linkParts(text) {
+    text = txt(text);
+    var n = text.length, parts = [], last = 0, from = 0, links = 0;
+    while (from < n && links < MAX_TEXT_LINKS) {
+        var k = text.indexOf('://', from);
+        if (k < 0) break;
+        var s = k, e = k + 3;
+        while (s > last && schemeChar(text.charCodeAt(s - 1))) s--;
+        while (e < n && !endsAddress(text.charCodeAt(e))) e++;
+        from = e;
+        if (s === k) continue;   // no scheme before it
+        var z = addressEnd(text, s, e), cand = text.slice(s, z);
+        if (cleanLink(cand) !== cand) continue;
+        if (s > last) parts.push({ t: text.slice(last, s) });
+        parts.push({ t: cand, href: cand });
+        last = z; links++;
+    }
+    if (last < n) parts.push({ t: text.slice(last) });
+    return parts;
+}
+// [textcheck:linkparts-end]
 function txt(t) { return t == null ? '' : String(t); }
 function whole(v) { return typeof v === 'number' && isFinite(v) && Math.floor(v) === v; }
 function isBreak(code) { return code === 10 || code === 13; }   // a line break (a flowchart label's \n; \r for a text from elsewhere)
@@ -308,6 +386,6 @@ function stateAt(fmt, text, s, e) {
     return { b: all('b'), i: all('i'), u: all('u'), st: all('st'), color: one('color'), size: one('size'), link: one('link'), any: !!f };
 }
 
-var API = { VERSION: VERSION, MAX_SPANS: MAX_SPANS, MAX_RAW: MAX_RAW, MAX_LINK: MAX_LINK, SIZES: SIZES.slice(), SIZE_EM: SIZE_EM, SIZE_NAMES: SIZE_NAMES, PALETTE: PALETTE, cleanFmt: cleanFmt, cleanLink: cleanLink, runsOf: runsOf, respan: respan, apply: apply, clear: clear, stateAt: stateAt };
+var API = { VERSION: VERSION, MAX_SPANS: MAX_SPANS, MAX_RAW: MAX_RAW, MAX_LINK: MAX_LINK, SIZES: SIZES.slice(), SIZE_EM: SIZE_EM, SIZE_NAMES: SIZE_NAMES, PALETTE: PALETTE, cleanFmt: cleanFmt, cleanLink: cleanLink, typedLink: typedLink, linkParts: linkParts, MAX_TEXT_LINKS: MAX_TEXT_LINKS, runsOf: runsOf, respan: respan, apply: apply, clear: clear, stateAt: stateAt };
 if (typeof window !== 'undefined') window.wpTextFmt = API;
-export { VERSION, MAX_SPANS, MAX_RAW, MAX_LINK, SIZES, SIZE_EM, SIZE_NAMES, PALETTE, cleanFmt, cleanLink, runsOf, respan, apply, clear, stateAt };
+export { VERSION, MAX_SPANS, MAX_RAW, MAX_LINK, MAX_TEXT_LINKS, SIZES, SIZE_EM, SIZE_NAMES, PALETTE, cleanFmt, cleanLink, typedLink, linkParts, runsOf, respan, apply, clear, stateAt };

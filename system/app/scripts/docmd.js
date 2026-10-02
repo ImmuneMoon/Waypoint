@@ -637,6 +637,9 @@ function spanTag(attrs) {
 }
 // Sanitized prose HTML back to the dialect (p, br, b/strong, i/em, u, s, ul/ol/li, code, pre, a, and the colour / size span as itself).
 // opts.tags === true: bold, italic and strike-through as <b> / <i> / <s> instead of the marks (proseMd: where the marks would not read back).
+// Does [text](address) read back to that very address? The reader takes a destination with balanced parentheses and strips an angle
+// bracket at either end, so an address with a lone ( or ), or one that ends in >, would come back as another address — or as no link.
+function bracketLinkOk(href) { var lk = matchLink('[x](' + href + ')', 0); return !!lk && lk.dest === href && lk.end === href.length + 5 && safeUrl(lk.dest) === href; }
 function htmlToMarkdown(html, opts) {
     var tags = !!opts && opts.tags === true, out = '', hrefs = [], lists = [], inPre = false, inCode = false, re = /<(\/?)([a-z0-9]+)([^>]*)>|([^<]+)/gi, m;
     // open colour / size spans: written when text follows, closed before a block ends and opened again after it (a span never crosses a paragraph in the file)
@@ -667,7 +670,11 @@ function htmlToMarkdown(html, opts) {
             case 'pre': inPre = true; out += '\n```\n'; break;
             case 'ul': case 'ol': if (!close) { lists.push({ t: tag, n: 0 }); if (lists.length === 1 && out && !/\n$/.test(out)) out += '\n'; } else { lists.pop(); if (!lists.length) out += '\n'; } break;
             case 'li': if (!close) { var L = lists[lists.length - 1] || { t: 'ul', n: 0 }; L.n++; if (out && !/\n$/.test(out)) out += '\n'; out += new Array(Math.max(0, lists.length - 1) + 1).join('  ') + (L.t === 'ol' ? L.n + '. ' : '- '); } else if (!/\n$/.test(out)) out += '\n'; break;
-            case 'a': if (!close) { var hm = /href="([^"]*)"/.exec(m[3]); hrefs.push(hm ? unent(hm[1]) : ''); out += '['; } else out += '](' + (hrefs.pop() || '') + ')'; break;
+            // a link: [text](address) where that reads back to the very address; else the tag, its address escaped as a plain field's is (hrefAttr)
+            case 'a':
+                if (!close) { var hm = /href="([^"]*)"/.exec(m[3]), hv = hm ? unent(hm[1]) : '', asA = !!hv && !bracketLinkOk(hv); hrefs.push([hv, asA]); out += asA ? '<a href="' + hrefAttr(hv) + '">' : '['; }
+                else { var ha = hrefs.pop() || ['', false]; out += ha[1] ? '</a>' : '](' + ha[0] + ')'; }
+                break;
         }
     }
     // a <code> inside <pre> was swallowed with the pre; stray backticks from <code> inside pre never happen

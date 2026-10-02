@@ -118,17 +118,32 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
   var _confirmQueue = [];
 
+  var CONFIRM_CAREFUL_MS = 700;   // a question marked careful: how long it must have been up before its OK answers it
+
   function showConfirm(title, callback, opts) {   // opts.noEnter: a question Enter must not answer — its buttons alone (the Start-combat offer: a key pressed for something else said Yes)
 
       var p = document.getElementById('customConfirm');
 
       var noEnter = !!(opts && opts.noEnter === true);
 
+      // opts.careful: a question that must be read before it is answered (a link from someone else: linkgate.js). Its OK takes only a
+      // single press — a click that is not part of a double-click, or the button pressed from the keyboard — and only once the question
+      // has been up CONFIRM_CAREFUL_MS: the second click of a double-click lands where OK appears. Anything else leaves the question up.
+      // Until then the button is shown as not ready (disabled), so a press that will not count is not taken for a broken button.
+      // opts.alert: the one-button notice (showAlert): Cancel is put away while it — and only it — is the question shown.
+      var careful = !!(opts && opts.careful === true), isAlert = !!(opts && opts.alert === true), shownAt = 0, readyT = null;
+
+      // opts.body: an element the caller built from text nodes, shown between the question and its buttons and taken out again with it
+      // (a link's site and whole address: linkgate.js). A question without one is drawn exactly as before.
+      var bodyEl = opts && opts.body && typeof opts.body === 'object' && opts.body.nodeType === 1 ? opts.body : null, slot = null;
+
       if (p.style.display === 'flex') { _confirmQueue.push([title, callback, opts]); return; }   // one question at a time: a second waits its turn instead of silently replacing the first (whose answer would then never arrive)
 
       document.getElementById('customConfirmTitle').textContent = title;
 
       p.style.display = 'flex';
+
+      shownAt = Date.now();
 
       
 
@@ -146,7 +161,13 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
           cancelBtn.onclick = null;
 
+          if (isAlert) cancelBtn.style.display = '';
+
+          if (careful) { clearTimeout(readyT); okBtn.disabled = false; }
+
           document.removeEventListener('keydown', handleKey);
+
+          if (slot) { if (slot.parentNode) { slot.parentNode.classList.remove('confirm-wide'); slot.parentNode.removeChild(slot); } slot = null; }
 
           var nx = _confirmQueue.shift(); if (nx) setTimeout(function() { showConfirm(nx[0], nx[1], nx[2]); }, 0);
 
@@ -154,7 +175,21 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       
 
-      okBtn.onclick = function() { cleanup(); callback(true); };
+      var row = bodyEl ? okBtn.parentNode : null;
+
+      if (row && row.parentNode) { slot = document.createElement('div'); slot.id = 'customConfirmBody'; slot.appendChild(bodyEl); row.parentNode.insertBefore(slot, row); row.parentNode.classList.add('confirm-wide'); }
+
+      if (isAlert) cancelBtn.style.display = 'none';
+
+      if (careful) { okBtn.disabled = true; readyT = setTimeout(function() { okBtn.disabled = false; }, CONFIRM_CAREFUL_MS); }
+
+      okBtn.onclick = function(e) {
+
+          if (careful && !(e && (e.detail === 0 || e.detail === 1) && Date.now() - shownAt >= CONFIRM_CAREFUL_MS)) return;
+
+          cleanup(); callback(true);
+
+      };
 
       cancelBtn.onclick = function() { cleanup(); callback(false); };
 
@@ -178,17 +213,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
   function showAlert(message, callback) {
 
-      var cancelBtn = document.getElementById('customConfirmCancel');
-
-      cancelBtn.style.display = 'none';
-
-      showConfirm(message, function(ok) {
-
-          cancelBtn.style.display = '';
-
-          if (callback) callback(ok);
-
-      });
+      // Cancel is put away by showConfirm when this notice is the question shown, never before: a notice that has to wait behind a
+      // question must not take that question's Cancel button away
+      showConfirm(message, function(ok) { if (callback) callback(ok); }, { alert: true });
 
   }
 

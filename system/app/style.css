@@ -492,8 +492,9 @@
   /* keep #chatPanel for the chat kind, and what the diagram library adds to the page while it draws: the bare <svg> it measures a label's text in
      (added to the body and taken away again at once; hidden, the text measured as nothing and a sequence diagram failed with "Syntax error in
      text") and the element it lays a diagram out in when it is given no place of its own (id "dmermaid-…"). Nothing else of the page is an
-     <svg> directly under the body */
-  body.popout-mode > *:not(#popoutWrap):not(#chatPanel):not(svg):not([id^="dmermaid"]) { display: none !important; }
+     <svg> directly under the body. The app's own question (#customConfirm) is kept too: a link in a popped-out page may ask before it opens
+     (linkgate.js), and a question nobody can see cannot be answered — closed, it hides itself */
+  body.popout-mode > *:not(#popoutWrap):not(#chatPanel):not(#customConfirm):not(svg):not([id^="dmermaid"]) { display: none !important; }
   body.popout-mode #popoutWrap { display: flex; flex-direction: column; position: fixed; inset: 0; background: var(--bg); }
   /* chat kind: the dock bar at top, the existing #chatPanel filling the rest of the window */
   body.popout-chat #popoutWrap { position: fixed; left: 0; right: 0; top: 0; bottom: auto; height: 44px; }
@@ -2802,6 +2803,18 @@
   .ts-sizelab, .ts-linklab { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--dim); }
   .ts-link { font: inherit; font-size: 12px; height: 24px; width: 150px; box-sizing: border-box; padding: 0 6px; border: 1px solid var(--edge); border-radius: 4px; background: var(--panel); color: var(--ink); }
   .ts-link:focus { border-color: var(--gold); outline: none; }
+  .rte-bar .ts-linklab { margin: 0 2px; }
+  /* a link in a text block's box looks like one and is not followed there; the line under it is a border, not an underline — the engine would report an underline as the bar's U being on */
+  #plannerBlocks .rte-body a { color: var(--blue); text-decoration: none; border-bottom: 1px solid currentColor; cursor: text; }
+  /* a link from someone else asks first (linkgate.js): the site on a line of its own, the whole address wrapped, never cut */
+  #customConfirm > .confirm-wide { width: min(88vw, 560px) !important; max-height: 88vh; overflow-y: auto; box-sizing: border-box; }
+  .linkask { margin: 0 0 16px; font-size: 13px; line-height: 1.5; color: var(--ink); text-align: left; }
+  .linkask-from { margin-bottom: 10px; }
+  .linkask-label { color: var(--dim); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+  .linkask-site { font-size: 17px; font-weight: 700; margin: 1px 0 10px; overflow-wrap: anywhere; word-break: break-all; user-select: text; }
+  .linkask-url { font-family: Consolas, 'Courier New', monospace; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-all; margin-top: 2px; padding: 6px 8px; border: 1px solid var(--edge); border-radius: 4px; background: var(--bg); user-select: text; }
+  /* the handout viewer: a web address in a text or a caption is a link there (linkgate.js fillLinked) */
+  #handoutText a, #handoutCaption a { color: var(--blue); text-decoration: underline; overflow-wrap: anywhere; }
   .ts-scope { margin-left: 6px; font-size: 11px; color: var(--dim); white-space: nowrap; }
 
   /* Planner editor: symbol tray */

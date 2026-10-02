@@ -126,6 +126,75 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     check('cleanFmt: a link that is not allowed is dropped and the text keeps the rest of its look — on the base and on a span; an over-long one too; a kept one is stored trimmed',
         LINK_NO.concat(['https://' + 'a'.repeat(1993)]).every(v => J(cleanFmt({ b: true, link: v, spans: [{ s: 0, e: 2, color: RED, link: v }] }, 'text')) === J({ b: true, spans: [{ s: 0, e: 2, color: RED }] }) && cleanFmt({ link: v, spans: [{ s: 0, e: 2, link: v }] }, 'text') === undefined)
         && J(cleanFmt({ spans: [{ s: 0, e: 2, link: ' https://a.example/x ' }] }, 'text')) === J({ spans: [{ s: 0, e: 2, link: 'https://a.example/x' }] }));
+    /* ---- web addresses in a plain text (linkParts): what the Journal's read views draw as links; and the one reading of a typed address (typedLink) ---- */
+    {
+        const linkParts = TF.linkParts, typedLink = TF.typedLink, CAP = TF.MAX_TEXT_LINKS, has = typeof linkParts === 'function' && typeof typedLink === 'function';
+        const parts = t => (has ? linkParts(t) : [{ t: 'linkParts is not there' }]);
+        const links = t => parts(t).filter(p => p.href !== undefined).map(p => p.t);
+        // every part is { t } or { t, href }; a link's href is its own text and the one rule keeps it; the parts joined are the text
+        const sound = t => { const ps = parts(t); return ps.map(p => p.t).join('') === (t == null ? '' : String(t)) && ps.every(p => typeof p.t === 'string' && p.t.length > 0 && Object.keys(p).every(k => k === 't' || k === 'href') && (p.href === undefined || (p.href === p.t && cleanLink(p.t) === p.t && !/\s/.test(p.t)))); };
+        const A = 'https://a.example/x';
+        const plannerSrcL = read('planner.js');
+        check('linkParts: a plain text comes back as parts — text, and a link for each web address, whose text and href are exactly the characters typed; the parts joined are the text',
+            J(parts('See ' + A + ' and http://b.example now')) === J([{ t: 'See ' }, { t: A, href: A }, { t: ' and ' }, { t: 'http://b.example', href: 'http://b.example' }, { t: ' now' }])
+            && J(parts(A)) === J([{ t: A, href: A }]) && J(parts('no address here')) === J([{ t: 'no address here' }]) && J(parts('')) === '[]' && J(parts(null)) === '[]' && J(parts(undefined)) === '[]' && J(parts(7)) === J([{ t: '7' }])
+            && J(links('HTTPS://A.example/X and hTtP://b.example')) === J(['HTTPS://A.example/X', 'hTtP://b.example']) && sound('See ' + A + ' and http://b.example now'), parts('See ' + A + ' and http://b.example now'));
+        const NOT = ['www.example.com', 'example.com/page', 'a.example:8080/x', 'ftp://a.example/x', 'mailto:someone@a.example', 'javascript:alert(1)', 'javascript://a.example/%0aalert(1)', 'JAVASCRIPT://x', 'data:text/html,<b>x</b>', 'data://x', 'vbscript://x', 'file:///c:/x', 'xhttps://a.example', '9http://a.example', 'https://', 'http:// a.example', 'https://.', 'https://)', 'https:/a.example', 'https:a.example', '//a.example/x', '://a.example', 'h ttps://a.example'];
+        check('linkParts: only a written http:// or https:// makes a link — a bare www. name, a name with a port, another scheme, a scheme glued to a letter or a digit before it, a scheme with nothing after it: all stay text',
+            NOT.every(t => links('go ' + t + ' now').length === 0 && sound('go ' + t + ' now')), NOT.filter(t => links('go ' + t + ' now').length));
+        check('linkParts: punctuation after an address is not part of it (. , ; : ! ? and runs of them); the same characters inside it are',
+            ['.', ',', ';', ':', '!', '?', '...', '?!', '.,;:!?'].every(p => J(links('go to ' + A + p)) === J([A]) && J(links('go to ' + A + p + ' next')) === J([A]) && sound('go to ' + A + p))
+            && J(links('https://a.example/a.b,c;d:e!f?g=1&h=2#i.')) === J(['https://a.example/a.b,c;d:e!f?g=1&h=2#i']) && J(links('https://a.example:8080/x.')) === J(['https://a.example:8080/x']), links('go to ' + A + '?!'));
+        check('linkParts: a closing bracket or quote that was not opened inside the address is not part of it — an address in parentheses, square or curly brackets, straight or curly quotes, guillemets; one that was opened inside stays',
+            J(links('(' + A + ')')) === J([A]) && J(links('(see ' + A + ').')) === J([A]) && J(links('[' + A + ']')) === J([A]) && J(links('{' + A + '}')) === J([A]) && J(links('"' + A + '"')) === J([A]) && J(links('\'' + A + '\'')) === J([A])
+            && J(links('\u201c' + A + '\u201d')) === J([A]) && J(links('\u2018' + A + '\u2019')) === J([A]) && J(links('\u00ab' + A + '\u00bb')) === J([A]) && J(links('say "' + A + '", then')) === J([A])
+            && J(links('https://a.example/wiki/A_(b)')) === J(['https://a.example/wiki/A_(b)']) && J(links('(https://a.example/wiki/A_(b))')) === J(['https://a.example/wiki/A_(b)']) && J(links('(https://a.example/wiki/A_(b)).')) === J(['https://a.example/wiki/A_(b)'])
+            && J(links('https://a.example/?q="x"')) === J(['https://a.example/?q="x"']) && J(links('https://a.example/[1]')) === J(['https://a.example/[1]']) && J(links('https://a.example/x)))')) === J([A]) && J(links('https://a.example/(x')) === J(['https://a.example/(x']),
+            [links('(https://a.example/wiki/A_(b)).'), links('https://a.example/?q="x"')]);
+        check('linkParts: an address ends at white space, at a control character and at < or > — so one in angle brackets is the address alone, and markup around one is text',
+            J(links('<' + A + '>')) === J([A]) && J(parts('<' + A + '>')) === J([{ t: '<' }, { t: A, href: A }, { t: '>' }]) && J(links('<a href="' + A + '">x</a>')) === J([A]) && J(links('https://a.example/a<b')) === J(['https://a.example/a'])
+            && J(links(A + '\n' + A + '\t' + A + '\r\n' + A + '\u00a0' + A + '\u2028' + A + '\u3000' + A)) === J([A, A, A, A, A, A, A]) && J(links('https://a.example/\u0000x')) === J(['https://a.example/']) && J(links('https://a.example/\u007fx')) === J(['https://a.example/'])
+            && J(links('https://a.example/\u200b')) === J(['https://a.example/\u200b']) && sound('<a href="' + A + '">x</a>\n' + A + '\u0000'), links('<a href="' + A + '">x</a>'));
+        check('linkParts: two addresses with nothing between them are ONE address (the second is part of the first, as an address bar reads it); with a space or a line break between them they are two',
+            J(links('https://a.example/https://b.example/')) === J(['https://a.example/https://b.example/']) && J(links('https://a.example/?u=https://b.example/c')) === J(['https://a.example/?u=https://b.example/c'])
+            && J(links('https://a.examplehttps://b.example')) === J(['https://a.examplehttps://b.example']) && J(links('https://a.example https://b.example')) === J(['https://a.example', 'https://b.example']) && J(links('ftp://a.example/https://b.example')) === '[]');
+        check('linkParts: an address is at most ' + MAX_LINK + ' characters — a longer one is no link at all (never a link to its first part) and the text is whole',
+            (links('x https://' + 'a'.repeat(1992) + ' y')[0] || '').length === 2000 && links('x https://' + 'a'.repeat(1993) + ' y').length === 0 && sound('x https://' + 'a'.repeat(1993) + ' y') && J(links('https://' + 'a'.repeat(1992) + '.')) === J(['https://' + 'a'.repeat(1992)]) && J(links('https://' + 'a'.repeat(3000) + ' ' + A)) === J([A]));
+        {
+            const many = Array.from({ length: 300 }, (x, k) => 'https://a.example/' + k).join(' '), got = links(many);
+            check('linkParts: at most ' + CAP + ' links a text — the first ones; the addresses after them stay text, and the text is whole',
+                CAP === 200 && got.length === 200 && got[0] === 'https://a.example/0' && got[199] === 'https://a.example/199' && sound(many) && parts(many)[parts(many).length - 1].t.indexOf('https://a.example/299') > 0, got.length);
+        }
+        {
+            const N = 60000, big = ['h'.repeat(N), '/'.repeat(N), ':'.repeat(N), 'https://' + '/'.repeat(N), '://'.repeat(N / 3), 'http://'.repeat(Math.floor(N / 7)), 'a'.repeat(N - 4) + '://x', 'https://a' + ')'.repeat(N), 'https://a' + '"'.repeat(N), 'https://a' + '.'.repeat(N), '('.repeat(N / 2) + 'https://a' + ')'.repeat(N / 2),
+                'https://a.example/x '.repeat(N / 20), ('a://' + ' ').repeat(N / 5), 'h://' + 'ttp'.repeat(N / 3), ('https://a.example/' + 'x'.repeat(1990) + ' ').repeat(30)];
+            const t0 = Date.now(), ok = big.every(sound), ms = Date.now() - t0;
+            check('linkParts: a text of 60,000 characters is walked once — long lines of one letter, of slashes, of colons, of "://", of schemes, of closing brackets, quotes and full stops after an address, of many addresses: each read in bounded time and whole',
+                ok && ms < 1500 && links('https://a' + ')'.repeat(N))[0] === 'https://a' && links('https://a' + '.'.repeat(N))[0] === 'https://a' && links('https://a.example/x '.repeat(N / 20)).length === 200, { ok, ms });
+        }
+        {
+            const R = rng(2026), bits = ['https://', 'http://', 'HTTP://', 'ftp://', 'javascript:', '://', ':', '/', 'a.example', 'b.example/x', '?q=1', '#f', ' ', '\n', '\t', '\u00a0', '\u0000', '.', ',', ';', '!', '?', '(', ')', '[', ']', '{', '}', '"', '\'', '\u201c', '\u201d', '<', '>', '&', 'x', '9', '\u00e9', '\ud83d\ude00', '\u0430\u0440\u0440\u04cf\u0435.example', '@', '\\'];
+            let bad = null, n = 0;
+            for (let k = 0; k < 6000 && !bad; k++) { const t = Array.from({ length: 1 + Math.floor(R() * 12) }, () => bits[Math.floor(R() * bits.length)]).join(''); if (!sound(t)) bad = t; n += links(t).length; }
+            check('linkParts (a seeded corpus of 6,000 texts made of schemes, hosts, punctuation, brackets, quotes, white space, control characters, look-alike letters and emoji): for every one the parts joined are the text, every link is an address the one rule keeps and its href is its own text (' + n + ' links)', !bad && n > 800, bad || n);
+        }
+        check('linkParts: a look-alike name and a name with a user part are links to exactly what was typed — nothing is rewritten here (the question a link from someone else asks shows the real site)',
+            J(links('https://\u0430\u0440\u0440\u04cf\u0435.example/login')) === J(['https://\u0430\u0440\u0440\u04cf\u0435.example/login']) && J(links('https://a.example@evil.example/x')) === J(['https://a.example@evil.example/x']) && J(links('https://a.example\\@evil.example')) === J(['https://a.example\\@evil.example']));
+        {
+            const code = slice('textfmt.js', 'linkparts');
+            check('linkParts does not restate the link rule (pinned): it finds the letters before "://" and what follows up to the end of the address, and asks cleanLink — both for where an address ends and for whether it is one; no scheme name and no white-space class of its own',
+                /cleanLink\(cand\)/.test(code) && /cleanLink\('[a-z]+:\/\/[a-z]' \+ String\.fromCharCode\(code\) \+ '[a-z]'\) === ''/.test(code) && !/https|\\s|\\u[0-9a-f]{4}|\\t|\\n|\\r/i.test(code) && (code.match(/cleanLink\(/g) || []).length === 2, code.slice(0, 300));
+        }
+        check('typedLink: what a typed address becomes, in one place — trimmed; one without its scheme taken as https:// (a name with a port too); an address as it is; an empty box nothing (the link comes off); anything the link rule refuses null',
+            has && typedLink('') === '' && typedLink('   ') === '' && typedLink(null) === '' && typedLink(undefined) === '' && typedLink('example.com/page') === 'https://example.com/page' && typedLink('  example.com/page \n') === 'https://example.com/page'
+            && typedLink('example.com:8080/x') === 'https://example.com:8080/x' && typedLink('localhost:3000') === 'https://localhost:3000' && typedLink('a.example:80?x') === 'https://a.example:80?x' && typedLink('a.example:80#x') === 'https://a.example:80#x'
+            && typedLink('https://a.example/x') === 'https://a.example/x' && typedLink('HTTP://a.example') === 'HTTP://a.example' && typedLink('www.example.com') === 'https://www.example.com'
+            && ['javascript:alert(1)', 'JaVaScRiPt:alert(1)', 'data:text/html,x', 'vbscript:x', 'ftp://a.example', 'mailto:a@b.example', 'file:///c:/x', 'a b', 'https://a b', 'x:123456', 'https://' + 'a'.repeat(1993), 'a'.repeat(1993)].every(v => typedLink(v) === null)
+            && ['example.com', 'a.example:1/x', 'https://a.example', '9.example'].every(v => cleanLink(typedLink(v)) === typedLink(v)), has && [typedLink('example.com:8080/x'), typedLink('x:123456')]);
+        check('typedLink is the one place (pinned): the bar on the boxes and a text block\'s Link control both read a typed address through it, and neither holds the scheme test or the refusal\'s test itself',
+            /function tsLink\(\) \{\n\s*var E = tsState\.els, v = TF\.typedLink\(E\.link\.value\);\n\s*if \(v === null\) \{ toast\(TS_LINK_BAD\); return 'bad'; \}/.test(plannerSrcL) && /var v = TF\.typedLink\(box\.value\);\n\s*if \(v === null\) \{ toast\(TS_LINK_BAD\); return 'bad'; \}/.test(plannerSrcL)
+            && (plannerSrcL.match(/TF\.typedLink\(/g) || []).length === 2 && !/'https:\/\/' \+ v/.test(plannerSrcL) && (plannerSrcL.match(/A link is a web address: it starts with/g) || []).length === 1);
+    }
     {
         const many = []; for (let k = 0; k < 300; k++) many.push({ s: k * 2, e: k * 2 + 1, b: true });
         const c = cleanFmt({ spans: many }, 'x'.repeat(700));
@@ -1234,7 +1303,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('box (the source): the replacement character a NUL is shown as is written as its escape — the script holds no literal U+FFFD (an editor or a tool that re-encodes the file could not change what a box shows)',
             /\.replace\(\/\\u0000\/g, '\\uFFFD'\);/.test(boxSrc) && plannerSrc.indexOf('\uFFFD') < 0 && mkPage().tsShown('a\u0000b', false) === 'a\uFFFDb' && mkPage().tsShown('a\u0000b', true) === 'a\uFFFDb');
         check('bar (wired): the link box is an input the bar builds itself — never a prompt — its address goes through the core\'s one link rule before anything is stored, and the label rule is the same everywhere (tsIsLabel)',
-            !/\bprompt\(/.test(barSrc) && /if \(v && !TF\.cleanLink\(v\)\) \{ toast\(/.test(barSrc) && /E\.link = mk\('input', 'ts-link'\); E\.link\.type = 'text';/.test(barSrc) && /function tsIsLabel\(d\) \{ return !!d && \(d\.k === 'node' \|\| d\.k === 'edge'\); \}/.test(barSrc)
+            !/\bprompt\(/.test(barSrc) && /var E = tsState\.els, v = TF\.typedLink\(E\.link\.value\);\n\s*if \(v === null\) \{ toast\(TS_LINK_BAD\); return 'bad'; \}/.test(barSrc) && /return v && !cleanLink\(v\) \? null : v;/.test(read('textfmt.js')) && /E\.link = mk\('input', 'ts-link'\); E\.link\.type = 'text';/.test(barSrc) && /function tsIsLabel\(d\) \{ return !!d && \(d\.k === 'node' \|\| d\.k === 'edge'\); \}/.test(barSrc)
             && /if \(change !== 'clear' && tsOwn\(change, 'link'\) && tsIsLabel\(sel\.d\)\) \{ tsRefresh\(\); return false; \}/.test(barSrc));
 
         // the symbol tray: a symbol is text, typed at the caret
@@ -1517,6 +1586,151 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             check('text block bar (wired): the Size list and the colour picker may take the focus (their mousedown is not swallowed, so they can open); a button\'s is, so the box keeps its selection; B is still the browser\'s own command',
                 J(md) === '[false,false,true,true,true]' && J(cmds) === '["bold"]' && looks.length === 5, [md, cmds]);
         }
+
+        /* ---- a text block's Link control (planner.js [textcheck:rtelink] and the real wireRte, run on the test page with io.js's own history) ---- */
+        {
+            const linkSrc = slice('planner.js', 'rtelink'), wireSrc = slice('planner.js', 'rtewire');
+            const TITLE = 'Link (the control\'s title)', BAD = 'A link is a web address: it starts with http:// or https:// and holds no spaces.';
+            const A1 = 'https://a.example/x', B1 = 'https://b.example/';
+            const AT = h => ({ href: h, target: '_blank', rel: 'noopener noreferrer' }), OPEN = h => '<a href="' + escH(h) + '" target="_blank" rel="noopener noreferrer">';
+            const PLAIN = () => [['p', {}, 'see the map here']], LINKED = () => [['p', {}, 'see ', ['a', AT(A1), 'the map'], ' here']];
+            // a text block on the test page: its bar with the Link box, its box, the two slices wired. grows: the one constant flipped.
+            function mkBlock(content, grows) {
+                const pg = mkPage({ map: mapOf([{ id: 't', type: 'text', content: '' }]) }), dom = pg.dom, doc = pg.doc, B = { pg, toasts: pg.toasts, selects: [], cmds: [] };
+                const container = pg.mk('div', 'blocks'), rte = pg.mk('div', 'rte', { idx: '0' }), bar = pg.mk('div', 'rte-bar'), body = pg.mk('div', 'field rte-body', { idx: '0' }), lab = pg.mk('label', 'ts-linklab rte-linklab'), box = pg.mk('input', 'ts-link rte-link');
+                body.setAttribute('contenteditable', 'true'); pg.blocksEl.appendChild(container); container.appendChild(rte); rte.appendChild(bar); rte.appendChild(body); bar.appendChild(lab); lab.appendChild(box);
+                const build = (parent, list) => list.forEach(x => { if (typeof x === 'string') { parent.appendChild(doc.createTextNode(x)); return; } const el = doc.createElement(x[0]); Object.keys(x[1] || {}).forEach(k => el.setAttribute(k, x[1][k])); parent.appendChild(el); build(el, x.slice(2)); });
+                build(body, content);
+                const ser = n => n.nodeType === 3 ? escH(n.nodeValue) : '<' + n.nodeName.toLowerCase() + Object.keys(n.attrs).map(k => ' ' + k + '="' + escH(n.attrs[k]) + '"').join('') + '>' + n.childNodes.map(ser).join('') + '</' + n.nodeName.toLowerCase() + '>';
+                Object.defineProperty(body, 'innerHTML', { get() { return body.childNodes.map(ser).join(''); } });   // this one box may be read as markup: the block keeps its box's HTML
+                pg.map.blocks[0].content = body.innerHTML;
+                const H = B.H = mkHist(pg);   // the history's baseline: the block as it was built
+                doc.execCommand = (c, x, v) => { B.cmds.push([c, v]); return true; };
+                const caret = (s, e) => dom.engine.caret(body, s, e);
+                const deps = { TF, document: doc, window: dom.window, toast: m => pg.toasts.push(m), stepBoundary: el => H.stepBoundary(el), rteSelect: (b, off) => { B.selects.push(off.slice()); if (dom.page.active === body) caret(off[0], off[1]); }, Event: function(type) { this.type = type; },
+                    TS_LINK_BAD: BAD, TS_LINK_GROWS: !!grows, RTE_LINK_TITLE: TITLE, getActiveMap: () => pg.map, save: im => H.save(im), renderPlannerPreview: () => {}, rteSyncBar: () => {}, fieldUndoChord: () => false, rteLook: () => true };
+                const names = Object.keys(deps);
+                const api = new Function(...names, linkSrc + '\n' + wireSrc + '\nreturn { wireRte, rteTexts, rteAt, rteSel, rteLinkAt, rteLinkSet, rteLinkSync, rteLinkDo, rteLinkMark, rteLinkKeep, RTE_LINK_NONE };')(...names.map(k => deps[k]));
+                body.dispatchEvent = e => { dom.fire(body, e.type, {}); return true; };   // the app's own 'input' reaches the box's listeners, as on a page
+                api.wireRte(container);
+                // the block taking the focus, as an engine does it: a caret at its start, then its 'focus' event (the block's own handler notes the selection for the Link box)
+                const focus0 = body.focus.bind(body), boxFocus0 = box.focus.bind(box);
+                box.focus = () => { if (dom.page.active !== box) box._atFocus = box.value; boxFocus0(); };
+                body.focus = () => { const was = dom.page.active; if (was === box) { dom.page.active = null; if (box.value !== box._atFocus) dom.fire(box, 'change'); dom.fire(box, 'blur'); } focus0(); if (was !== body) { caret(0); dom.fire(body, 'focus', {}); } };
+                doc.addEventListener('selectionchange', () => { if (dom.page.active === body) api.rteLinkSync(body); });   // as planner.js's own listener does (pinned below)
+                // the selection put on the characters s to e and noticed, as the page's selectionchange listener does it (a start goes to the front of the node that holds its character)
+                B.sel = (s, e) => { const ts = dom.engine.textsOf(body).filter(t => t.nodeValue.length); let a = 0, S = null, Z = null; ts.forEach(t => { const z = a + t.nodeValue.length; if (!S && s < z) S = [t, s - a]; if (!Z && e <= z) Z = [t, e - a]; a = z; }); const l = ts[ts.length - 1]; S = S || [l, l.nodeValue.length]; Z = Z || [l, l.nodeValue.length]; if (s === e) Z = S;
+                    body.focus(); dom.sel.setBaseAndExtent(S[0], S[1], Z[0], Z[1]); api.rteLinkSync(body); };
+                B.caret = at => { body.focus(); caret(at); api.rteLinkSync(body); };   // a caret where the engine leaves one: at the end of the node on its left
+                B.key = (k, o) => dom.fire(box, 'keydown', Object.assign({ key: k }, o || {}));
+                B.typeIn = v => { box.focus(); box.value = v; };
+                B.enter = v => { B.typeIn(v); return B.key('Enter'); };
+                B.html = () => body.innerHTML; B.stored = () => pg.map.blocks[0].content; B.depth = () => { H.flush(); return H.depth()[0]; };
+                return Object.assign(B, { api, body, box, lab, dom, doc });
+            }
+            const haveLink = /function rteLinkDo\(/.test(linkSrc);
+            {
+                const B = mkBlock(PLAIN()); B.sel(4, 11); const d0 = B.depth(), ev = B.enter('example.com/map'), want = '<p>see ' + OPEN('https://example.com/map') + 'the map</a> here</p>';
+                check('text block Link: select text, type an address, Enter — the selected characters are a link, an <a> the app makes with the sanitiser\'s target and rel, in the box and in the stored block; an address without its scheme is taken as https://; the focus is back in the block with the same characters selected; nothing is said; Ctrl+Z after it is the planner\'s',
+                    haveLink && B.html() === want && B.stored() === want && ev.defaultPrevented && ev.stopped && B.toasts.length === 0 && B.dom.page.active === B.body && J(B.selects) === '[[4,11]]' && B.body._wpNativeDirty === false && B.depth() === d0 + 1, [B.html(), B.selects, B.depth() - d0]);
+                B.H.undo(); const undone = B.stored(); B.H.redo();
+                check('text block Link: one press is one undo step — undo puts the block back as it was, redo links it again',
+                    undone === '<p>see the map here</p>' && B.stored() === want, [undone, B.stored()]);
+            }
+            {
+                const B = mkBlock(LINKED()), v = [], t = [];
+                [[6, 6], [5, 8], [4, 11]].forEach(r => { B.sel(r[0], r[1]); v.push(B.box.value); t.push(B.lab.title); });
+                B.sel(2, 8); const mixed = [B.box.value, B.box.placeholder];
+                B.caret(11); const atEndIn = [B.box.value, B.lab.title];   // the engine's caret at the link's end: inside the link's own text node
+                B.sel(11, 11); const atEndOut = B.box.value; B.sel(4, 4); const atStart = B.box.value; B.sel(1, 1); const plain = [B.box.value, B.box.placeholder, B.lab.title];
+                B.sel(6, 6); B.typeIn('typed so far'); B.dom.sel.setBaseAndExtent(B.body.firstChild.firstChild, 1, B.body.firstChild.firstChild, 1); B.api.rteLinkSync(B.body);
+                check('text block Link: the caret or the selection inside a link shows its address in the Link box (and the control\'s title says where it leads); a selection that holds a link and plain text shows none ("several links"); at a link\'s end, at its start and in plain text the box is empty; it is never written over while you type in it',
+                    haveLink && J(v) === J([A1, A1, A1]) && t.every(x => x === TITLE + ' This link leads to ' + A1) && J(mixed) === J(['', 'several links']) && J(atEndIn) === J(['', TITLE]) && atEndOut === '' && atStart === '' && J(plain) === J(['', 'https://…', TITLE]) && B.box.value === 'typed so far', [v, mixed, atEndIn, atEndOut, atStart, plain, B.box.value]);
+            }
+            {
+                const B = mkBlock(LINKED()); B.sel(6, 6); const d0 = B.depth(); B.enter(B1); const changed = B.html(), d1 = B.depth();
+                B.sel(6, 6); B.enter(''); const off = B.html(), d2 = B.depth();
+                const C = mkBlock(LINKED()); C.sel(4, 7); C.enter(''); const part = C.html();
+                const D = mkBlock(LINKED()); D.sel(6, 6); D.enter(A1); const same = [D.html(), D.depth()], d3 = mkBlock(LINKED()).depth();
+                check('text block Link: with the caret inside a link the control acts on that whole link — a new address changes it, an empty box takes it off; with a selection an empty box takes the link off the selected characters alone; each is one step, and the address it already has is no step',
+                    haveLink && changed === '<p>see ' + OPEN(B1) + 'the map</a> here</p>' && d1 === d0 + 1 && off === '<p>see the map here</p>' && d2 === d1 + 1 && part === '<p>see the' + OPEN(A1) + ' map</a> here</p>' && same[0] === '<p>see ' + OPEN(A1) + 'the map</a> here</p>' && same[1] === d3, [changed, off, part, same]);
+            }
+            {
+                const B = mkBlock(LINKED()); B.sel(6, 6); const d0 = B.depth(), before = B.html(); B.typeIn('https://zzz.example/'); const ev = B.key('Escape');
+                const backIn = B.dom.page.active === B.body, sel = J(B.selects); B.dom.fire(B.box, 'change'); B.dom.fire(B.box, 'blur');
+                check('text block Link: Escape drops what was typed — nothing changes, no step, the focus goes back to the block with its selection, the box\'s own change event sets nothing, and the box shows the block\'s own link again',
+                    haveLink && ev.defaultPrevented && ev.stopped && backIn && sel === '[[6,6]]' && B.html() === before && B.stored() === before && B.depth() === d0 && B.toasts.length === 0 && B.box.value === A1, [B.html(), sel, B.box.value]);
+            }
+            {
+                const R = ['javascript:alert(1)', 'JaVaScRiPt:alert(1)', 'data:text/html,<script>alert(1)</script>', 'vbscript:x', 'ftp://a.example/x', 'mailto:a@b.example', 'https://a b', 'https://' + 'a'.repeat(1993)].map(v => { const B = mkBlock(PLAIN()); B.sel(4, 11); const d0 = B.depth(); B.enter(v); return B.html() === '<p>see the map here</p>' && B.stored() === B.html() && J(B.toasts) === J([BAD]) && B.depth() === d0 && B.dom.page.active === B.box && B.selects.length === 0; });
+                const L = mkBlock(PLAIN()); L.sel(4, 11); L.box.focus(); L.box.value = 'javascript:alert(1)'; L.dom.page.active = null; L.dom.fire(L.box, 'change');
+                check('text block Link: an address the link rule refuses (another scheme, white space inside, over-long) changes nothing and is said once, in the words the bar on the boxes uses; the focus stays in the Link box; leaving the box with one sets nothing either',
+                    haveLink && R.every(Boolean) && L.html() === '<p>see the map here</p>' && J(L.toasts) === J([BAD]), R);
+                const P = mkBlock(PLAIN()); P.sel(4, 11); P.enter('example.com:8080/x?y=1#z'); const Q = mkBlock(PLAIN()); Q.sel(4, 11); Q.enter('  HTTP://A.example/x  ');
+                check('text block Link: an address typed without its scheme is taken as https:// — a name with a port too; one typed with its scheme is kept as typed, trimmed (the one reading: textfmt.js typedLink)',
+                    haveLink && P.html() === '<p>see ' + OPEN('https://example.com:8080/x?y=1#z') + 'the map</a> here</p>' && Q.html() === '<p>see ' + OPEN('HTTP://A.example/x') + 'the map</a> here</p>', [P.html(), Q.html()]);
+            }
+            {
+                const B = mkBlock(PLAIN()); B.sel(2, 2); const d0 = B.depth(); B.enter(A1); const N = mkBlock(PLAIN()); N.enter(A1);   // N: the block never had the selection
+                const E = mkBlock(LINKED()); E.caret(11); E.enter(B1);   // at a link's end the caret is in no link
+                check('text block Link: with nothing selected and the caret outside any link there is nothing to act on — nothing changes, no step, and it is said (a text block styles a selection, not the whole block); a caret at a link\'s end is outside it',
+                    haveLink && B.html() === '<p>see the map here</p>' && B.depth() === d0 && J(B.toasts) === J([B.api.RTE_LINK_NONE]) && /^Select the text to link first/.test(B.api.RTE_LINK_NONE) && N.html() === '<p>see the map here</p>' && J(N.toasts) === J([N.api.RTE_LINK_NONE])
+                    && E.html() === '<p>see ' + OPEN(A1) + 'the map</a> here</p>' && J(E.toasts) === J([E.api.RTE_LINK_NONE]), [B.html(), B.toasts, E.html()]);
+            }
+            {
+                const B = mkBlock(PLAIN()); B.sel(4, 11); const d0 = B.depth(); B.typeIn(A1); const other = B.pg.mk('input', 'elsewhere'); B.pg.blocksEl.appendChild(other); const calls = B.body.calls.length;
+                B.dom.page.active = other; B.dom.fire(B.box, 'change'); B.dom.fire(B.box, 'blur');
+                const left = [B.html(), B.depth(), B.dom.page.active === other, B.body.calls.slice(calls).indexOf('focus') < 0, B.selects.length];
+                B.caret(16); B.dom.engine.type(B.body, '!'); const dT = B.depth(); B.H.undo(); const uT = B.stored();   // typed in the block right afterwards: a step of its own, never folded into the link's
+                check('text block Link: leaving the Link box with a new address in it sets the link on the remembered selection — and the focus stays where it went (the block is not focused, no selection is set); what is typed in the block right afterwards is a step of its own (one undo takes the typing, the link stays)',
+                    haveLink && left[0] === '<p>see ' + OPEN(A1) + 'the map</a> here</p>' && left[1] === d0 + 1 && left[2] && left[3] && left[4] === 0 && dT === d0 + 2 && uT === left[0], [left, dT - d0, uT]);
+            }
+            {
+                const S = () => [['p', {}, 'a ', ['b', {}, 'bold'], ' c']];
+                const B = mkBlock(S()); B.sel(0, 8); B.enter(A1); const C = mkBlock(S()); C.sel(3, 5); C.enter(A1);
+                const D = mkBlock([['p', {}, 'one'], ['p', {}, 'two']]); D.sel(1, 5); D.enter(A1);
+                const E = mkBlock([['p', {}, ['a', AT(A1), 'abcdef']]]); E.sel(2, 4); E.enter(B1);
+                const F = mkBlock([['p', {}, ['a', AT(A1), ['b', {}, 'abcdef']]]]); F.sel(2, 4); F.enter('');
+                const G = mkBlock([['p', {}, ['a', AT(A1), 'ab'], ['a', AT(B1), 'cd'], 'ef']]); G.sel(0, 6); G.enter(A1);
+                check('text block Link: the link is made on the selected CHARACTERS whatever tags they lie in — across bold text it is one link around it, inside a bold word the link is inside the bold, across two paragraphs each paragraph has its own; set inside another link, that link is cut around it and keeps the rest; taken off part of a styled link, the styling stays; two links made one',
+                    haveLink && B.html() === '<p>' + OPEN(A1) + 'a <b>bold</b> c</a></p>' && C.html() === '<p>a <b>b' + OPEN(A1) + 'ol</a>d</b> c</p>' && D.html() === '<p>o' + OPEN(A1) + 'ne</a></p><p>' + OPEN(A1) + 'tw</a>o</p>'
+                    && E.html() === '<p>' + OPEN(A1) + 'ab</a>' + OPEN(B1) + 'cd</a>' + OPEN(A1) + 'ef</a></p>' && F.html() === '<p>' + OPEN(A1) + '<b>ab</b></a><b>cd</b>' + OPEN(A1) + '<b>ef</b></a></p>' && G.html() === '<p>' + OPEN(A1) + 'abcdef</a></p>'
+                    && [B, C, D, E, F, G].every(x => x.body.all().every(n => ['P', 'B', 'A'].indexOf(n.nodeName) >= 0 && (n.nodeName !== 'A' || (J(Object.keys(n.attrs)) === J(['href', 'target', 'rel']) && TF.cleanLink(n.attrs.href) === n.attrs.href)))), [B.html(), C.html(), D.html(), E.html(), F.html(), G.html()]);
+            }
+            {
+                const B = mkBlock([['p', {}, ['a', { href: 'javascript:alert(1)' }, 'bad'], ' and ', ['a', { href: 'data:text/html,x' }, 'worse']]]); B.sel(1, 1); const shown = B.box.value; B.sel(0, 3); const shown2 = B.box.value;
+                const e = B.dom.fire(B.body, 'paste', { clipboardData: { getData: t => (t === 'text/plain' ? '<a href="javascript:alert(1)">x</a>' : '<a href="javascript:alert(2)">y</a>') } });
+                check('text block Link: an <a> in the box whose address the link rule refuses is no link to the control (nothing is shown for it), and a paste brings in the clipboard\'s plain text only — markup pasted into a block is its characters',
+                    haveLink && shown === '' && shown2 === '' && e.defaultPrevented && J(B.cmds) === J([['insertText', '<a href="javascript:alert(1)">x</a>']]), [shown, shown2, B.cmds]);
+            }
+            {
+                const B = mkBlock(LINKED()); B.caret(11); B.dom.engine.type(B.body, 'x'); const one = B.html(), st = B.stored(), sel1 = J(B.selects), und = B.body._wpNativeDirty; B.dom.engine.type(B.body, 'yz'); const more = B.html();
+                const C = mkBlock(LINKED()); C.caret(6); C.dom.engine.type(C.body, 'Z'); const inside = C.html();
+                const D = mkBlock(LINKED()); D.caret(4); D.dom.engine.type(D.body, 'q'); const beforeIt = D.html();
+                const G = mkBlock(LINKED(), true); G.caret(11); G.dom.engine.type(G.body, 'x'); const grows = G.html();
+                const K = mkBlock(LINKED()); K.caret(11); K.dom.engine.compose(K.body, ['k', 'ka', 'か']); const comp = [K.html(), K.stored()];
+                const X = mkBlock(LINKED()); X.caret(11); X.dom.engine.backspace(X.body); const del = X.html();
+                check('text block Link: what is typed right at the END of a link is not part of the link (the boxes\' one rule) — an engine that puts it into the link\'s own text has it taken out again, in the box and in the stored block, the caret after it and Ctrl+Z the planner\'s; typed inside the link it is linked (and still the browser\'s own typing), typed before the link it is not; a composition is judged once, at its end; a deletion there changes nothing else; with the one constant flipped the link grows',
+                    haveLink && one === '<p>see ' + OPEN(A1) + 'the map</a>x here</p>' && st === one && sel1 === '[[12,12]]' && und === false && C.body._wpNativeDirty === true && more === '<p>see ' + OPEN(A1) + 'the map</a>xyz here</p>' && inside === '<p>see ' + OPEN(A1) + 'thZe map</a> here</p>' && beforeIt === '<p>see q' + OPEN(A1) + 'the map</a> here</p>'
+                    && grows === '<p>see ' + OPEN(A1) + 'the mapx</a> here</p>' && comp[0] === '<p>see ' + OPEN(A1) + 'the map</a>か here</p>' && comp[1] === comp[0] && del === '<p>see ' + OPEN(A1) + 'the ma</a> here</p>', [one, sel1, more, inside, beforeIt, grows, comp, del]);
+            }
+            {
+                const B = mkBlock(PLAIN()); B.caret(16); const d0 = B.depth(); B.dom.engine.type(B.body, '!');   // typing still on its way…
+                B.sel(4, 11); B.enter(A1); const d1 = B.depth(); B.caret(17); B.dom.engine.type(B.body, '?'); const d2 = B.depth();
+                B.H.undo(); const u1 = B.stored(); B.H.undo(); const u2 = B.stored(); B.H.undo(); const u3 = B.stored();
+                check('text block Link: the press is a step of its own — typing still on its way becomes its own step first, and what is typed right after the press does not fold into it (three undos: the typing after, the link, the typing before)',
+                    haveLink && d1 === d0 + 2 && d2 === d0 + 3 && u1 === '<p>see ' + OPEN(A1) + 'the map</a> here!</p>' && u2 === '<p>see the map here!</p>' && u3 === '<p>see the map here</p>', [d1 - d0, d2 - d0, u1, u2, u3]);
+            }
+            {
+                const B = mkBlock(LINKED()); B.sel(5, 8); const ev = B.dom.fire(B.body, 'keydown', keyEv({ key: 'F10', altKey: true })), other = B.dom.fire(B.body, 'keydown', keyEv({ key: 'F10' }));
+                const bar = slice('planner.js', 'rtewire'), all = plannerSrc;
+                check('text block Link (wired, pinned): Alt+F10 in the block goes into its Link box, which shows the link under the selection (no new shortcut: Ctrl+K stays the quick jump); the Link box is in rteHtml — the planner\'s own, never in the list the play map\'s text box shares — with no handler attribute; the page\'s selectionchange notices the selection for it; a box with no Link control is left alone',
+                    haveLink && ev.defaultPrevented && B.dom.page.active === B.box && B.box.value === A1 && !other.defaultPrevented && !/ctrlKey[^\n]*['"]k['"]/i.test(linkSrc + bar)
+                    && /\+ '<label class="ts-linklab rte-linklab" title="' \+ esc\(RTE_LINK_TITLE\) \+ '">Link <input type="text" class="ts-link rte-link" placeholder="https:\/\/\\u2026" spellcheck="false" autocomplete="off" aria-label="Link address" tabindex="-1"><\/label><span class="rte-sep"><\/span>';/.test(all)
+                    && !/link/i.test(all.slice(all.indexOf('var RTE_CMDS = ['), all.indexOf('// Symbols the bar can drop in at the cursor.'))) && /if \(a && a\.classList && a\.classList\.contains\('rte-body'\)\) \{ rteSyncBar\(a\); rteLinkSync\(a\); var gs = window\.getSelection\(\);/.test(all)
+                    && /function rteLinkSync\(body\) \{\n\s*var box = rteLinkBox\(body\); if \(!box\) return;/.test(linkSrc) && /a text block styles a selection, not the whole block/.test(all), [ev.defaultPrevented, B.box.value]);
+            }
+        }
     }
 
 
@@ -1544,8 +1758,31 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const stepOf = title => { const a = tu.indexOf("title: '" + title + "'"); return a < 0 ? '' : tu.slice(a, tu.indexOf('before:', a)); };
         check('said (the tour): the planner step and the Handbook step both name the bar that appears on the box you click into (no step was added, and no step points at a bar at the top: the editors\' own steps cover it)',
             /Click into a title, a table cell or a flowchart label and <b>a bar appears on the box<\/b> &mdash; bold, italic, underline, strike-through, the colours, a size, a link and symbols: select characters and click a style, or click with nothing selected to style the whole field \(a link is a web address typed into the bar&rsquo;s <b>Link<\/b> box; a flowchart label cannot hold one\)/.test(stepOf('Writing a planner'))
-            && /The box shows the styling as you type, and the text blocks have the same controls on their own bar\./.test(stepOf('Writing a planner')) && /<kbd>Ctrl<\/kbd>\+<kbd>Z<\/kbd> in a title, a cell or a label takes back your typing a step at a time through the same history/.test(stepOf('Writing a planner'))
+            && /The box shows the styling as you type, and the text blocks have the same controls on their own bar &mdash; their <b>Link<\/b> box links the words you select\./.test(stepOf('Writing a planner')) && /<kbd>Ctrl<\/kbd>\+<kbd>Z<\/kbd> in a title, a cell or a label takes back your typing a step at a time through the same history/.test(stepOf('Writing a planner'))
             && /The same bar on the box you click into styles a page&rsquo;s titles, table cells and flowchart labels &mdash; colour, size, underline, strike-through, and a link in a title or a cell &mdash; and players see them as you do\./.test(stepOf('Handbook')) && !/textStyle|tsBar/.test(tu));
+        {
+            const hg = pane('mp-gm'), hpl = pane('mp-player');
+            check('said (Help, links): Planners > Text style has the tip that was missing — dragging selected text to move it is off in these boxes (cut and paste instead), and after Esc has put the bar away a second Esc goes on to the page — and a text block\'s Link box (select, type, Enter or leaving the box; the caret in a link shows its address; an empty box takes it off; Esc; nothing selected is nothing to link; Alt+F10; not followed in the block; the end of a link); Handouts and the Journal say an address is a link where it is read; players are told that a link from someone else asks first and shows where it leads',
+                ['Dragging selected text to move it is switched off in these boxes: cut it (Ctrl + X) and paste it where it belongs instead.', 'After Esc has put the bar away, a second Esc goes on to the page and does there what Esc always does.',
+                    'Their Link box works on what you selected: select the words, type the address and press Enter (leaving the box sets it too).', 'Put the caret inside a link and the box shows its address', 'type another to change it, or empty the box and press Enter to take the link off; Esc drops what you typed.',
+                    'A text block styles a selection, never the whole block, so with nothing selected and the caret outside a link there is nothing to link, and it says so.', 'Alt + F10 goes from the block into its Link box.', 'In the block a link looks like one and is not followed, and what you type at the end of a link is not part of it.',
+                    'On a page your players read, the click asks them first and shows the site and the whole address: a link that came from someone else never opens unasked.'].every(w => words(hp).indexOf(w) >= 0)
+                && ['A web address in a handout\'s text or caption is a link wherever it is read: in Preview it opens for you directly, and on a player\'s screen the click asks them first and shows where it leads.', 'A page a player shares with you asks you the same way.'].every(w => words(hg).indexOf(w) >= 0)
+                && ['A web address in a handout\'s text, its caption or a note is a link where you read it: click a thumbnail to open a handout or a shared page, or Open on a note of your own.', 'In the boxes where you write, an address stays plain text.', 'A link from someone else asks first.',
+                    'never opens by itself: the click asks you, and shows the site it leads to on a line of its own, then the whole address, and who it came from.', 'OK opens it in your web browser; Cancel or Esc opens nothing, and Enter does not answer it.', 'OK becomes ready a moment after the question appears, so a double-click on a link cannot answer it before you have read it.', 'is shown in its plain xn-- form',
+                    'asks the same way when you read it later from your Journal, with no session running; links in your own notes open directly.'].every(w => words(hpl).indexOf(w) >= 0), [words(hp).indexOf('Dragging selected text'), words(hg).indexOf('A web address in a handout'), words(hpl).indexOf('A link from someone else asks first.')]);
+            check('said (Help, links — what it says is so, pinned on the code): a box cancels the start of a drag of its text, and a box\'s Escape is taken only while its bar is up (the next one goes on to the page)',
+                /function tsDragStart\(e\) \{ if \(tsBoxOf\(e\.target\)\) e\.preventDefault\(\); \}/.test(barSrc) && /root\.addEventListener\('dragstart', tsDragStart\);/.test(barSrc)
+                && /if \(e\.key === 'Escape' && tsState\.box === box && tsState\.els && !tsState\.els\.root\.hidden\) \{[^\n]*\n\s*tsState\.away = true; tsState\.els\.root\.hidden = true;[^\n]*\n\s*e\.stopPropagation\(\);\n\s*return;\n\s*\}\n\s*fieldUndoChord\(e\);/.test(barSrc));
+            check('said (the tour, links): the planner step names a text block\'s Link box, the Handouts step says an address is a link where it is read and asks first on a player\'s screen, and the Multiplayer step says a link on a page or in a handout asks the player before it opens',
+                /The box shows the styling as you type, and the text blocks have the same controls on their own bar &mdash; their <b>Link<\/b> box links the words you select\./.test(stepOf('Writing a planner'))
+                && stepOf('Handouts and the journal').indexOf('A web address in a handout&rsquo;s text or caption is a link where it is read; on a player&rsquo;s screen a click on it asks first and shows where it leads.') > 0
+                && stepOf('Multiplayer').indexOf('(a link on one of those pages, or in a handout, asks the player before it opens and shows the site and the whole address)') > 0);
+            check('the page (links): the style sheet wraps the question\'s address and never cuts it, puts the site on a line of its own, widens the question\'s box only while it carries one, and draws a link in the handout viewer and in a text block\'s box',
+                /\.linkask-url \{[^}]*white-space: pre-wrap;[^}]*overflow-wrap: anywhere;[^}]*word-break: break-all;[^}]*\}/.test(css) && !/\.linkask-url \{[^}]*(text-overflow|overflow: hidden|max-height)/.test(css) && /\.linkask-site \{[^}]*font-weight: 700;[^}]*overflow-wrap: anywhere;/.test(css)
+                && /#customConfirm > \.confirm-wide \{ width: min\(88vw, 560px\) !important; max-height: 88vh; overflow-y: auto;/.test(css) && /#handoutText a, #handoutCaption a \{ color: var\(--blue\);/.test(css) && /\n\s*#plannerBlocks \.rte-body a \{ color: var\(--blue\); text-decoration: none; border-bottom: 1px solid currentColor; cursor: text; \}/.test(css) && !/[,}]\s*\.rte-body a \{/.test(css)
+                && /<h3 id="customConfirmTitle"/.test(ix) && !/customConfirmBody|confirm-wide/.test(ix));
+        }
         check('said (the integration guide): the keys and where each is stored, with the cleaner\'s own numbers and steps',
             ci.indexOf('**Text style (1.5.0):**') > 0 && ci.indexOf('"size": "' + SIZES.join('|') + '"') > 0 && SIZES.every(k => ci.indexOf(k + ' ' + SIZE_EM[k].replace('em', '')) > 0) && Object.keys(SIZE_EM).map(k => SIZE_EM[k]).every(v => ci.indexOf(v) > 0)
             && ci.indexOf('at most ' + MAX_SPANS + ' a field') > 0 && ci.indexOf('only the first ' + MAX_RAW + ' entries of a list are read') > 0 && ['"fmt": { "title": …, "sub": …, "tag": …, "must": …, "caption": … }', '`"colFmt"`, a list parallel to `cols`', '"fmt": { "col1": …, "col2": … }', '`"rowFmt"`, a list of lists parallel to `rows`', 'a strict `#rrggbb`', '<span style="color:#rrggbb">', '**Text style in Markdown:** an export carries it and an import reads it back', '"b": true, "i": true, "u": true, "st": true, "link": "https://…", "spans": [{ "s": 0, "e": 8, "size": "large", "color": "#5cb87a", "b": true, "i": true, "u": true, "st": true, "link": "https://…" }]', '`st` struck through (a span\'s `s` is its start)', '`b` / `i` / `u` / `st` only `true`', '`link` a web address by the very rule the page sanitiser has for an `a href`', 'it begins `http://` or `https://` (in any case) with something after it, holds no white space and no control character', 'at most ' + MAX_LINK.toLocaleString('en-US') + ' characters', 'a `size` or a `link` that every character of the field has is stored as the field\'s own', 'a size is never drawn inside a size', 'a flowchart label\'s format keeps no `link`'].every(w => ci.indexOf(w) > 0));

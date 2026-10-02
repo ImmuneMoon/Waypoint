@@ -1342,7 +1342,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
 <div id="docSearchModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
     <div style="background:var(--panel2); padding:20px; border:1px solid var(--gold); border-radius:8px; width: 400px; max-height: 80vh; display: flex; flex-direction: column;">
         <h3 style="margin-top:0; color:var(--gold);">Search Pages</h3>
-        <input type="text" id="docSearchInput" placeholder="Type to search..." style="width:100%; box-sizing:border-box; margin-bottom:15px;" />
+        <input type="text" id="docSearchInput" class="field" placeholder="Type to search..." style="width:100%; box-sizing:border-box; margin-bottom:15px;" />
         <div id="docSearchResults" style="overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:5px; max-height: 50vh;"></div>
         <div style="display:flex; justify-content:flex-end; margin-top:15px;">
             <button class="tool ghost" id="docSearchClose">Close</button>
@@ -1574,7 +1574,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         </div>
         <div style="margin-top:6px;">
             <div class="set-field-label">Welcome screen on launch</div>
-            <select id="setWelcomePref" style="width:100%; box-sizing:border-box;"><option value="always">Every time</option><option value="first">First run only</option><option value="never">Never</option></select>
+            <select id="setWelcomePref" class="field" style="width:100%; box-sizing:border-box;"><option value="always">Every time</option><option value="first">First run only</option><option value="never">Never</option></select>
         </div>
             </div>
         </details>

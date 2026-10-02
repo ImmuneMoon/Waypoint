@@ -269,6 +269,34 @@ Protecting your table
   a trigger zone's message reaches a player only when their own token
   enters it, the party strip's hover names only effects a teammate may see,
   and your other campaigns are never named to a table.
+- Only Waypoint's own windows can read or change your save. Another
+  program on your computer, another account on the same PC, or a browser
+  pointed at Waypoint's address gets nothing.
+- A campaign file from someone else can leave only pictures, sounds and
+  videos in your saves folder, never a script or a shortcut, and can no
+  longer write into your Journal or delete its pages. An export carries
+  only your campaign's own files: never your whole save or your table
+  keys, whatever a player calls themselves.
+- Deleting a launch backup in Settings now sets it aside
+  (saves/backups/removed, the ten newest kept) instead of erasing it, and
+  Cancel on the Delete and Restore questions now really cancels. Before,
+  it went ahead.
+- A handout is saved only if it really is a picture, removing a Journal
+  page removes its picture file too, and your Journal stops taking
+  handouts at 1 GB instead of filling your disk.
+- Every Waypoint window, the stream window and pop-outs included, keeps to
+  Waypoint: a link you click there opens in your browser, never inside the
+  app, and no page in a Waypoint window can use your camera, your
+  microphone or read your clipboard.
+- The developer tools and the ~ console sit behind one switch, Developer
+  mode (Settings ▸ Advanced; off unless you switch it on). It asks before
+  it turns on, because those tools run whatever is typed or pasted into
+  them: only ever do that when you know what it does. If you had the
+  Developer console on, it stays on.
+- Waypoint has its own short View menu (press Alt): Reload, zoom and Full
+  screen, with their usual keys.
+- If another program is already using Waypoint's port on your computer,
+  Waypoint moves to the next one instead of showing that program's page.
 Updates
 - Updates are signed. Your copy takes an update only when its signature
   checks against a key that only Waypoint's maker holds; an update that is

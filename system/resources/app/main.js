@@ -9,6 +9,7 @@ const UPDATE_REPO = 'ImmuneMoon/Waypoint';   // <owner>/<repo> — change here a
 const updater = require('./updater');
 const libstore = require('./libstore');   // Stage 6 library L1b: a campaign's pack files, shared with tools/dev-server.js
 const servefile = require('./servefile');   // item 21 V1: a media file's type and byte ranges, shared with tools/dev-server.js
+const reqguard = require('./reqguard');   // what the local server takes and refuses (the launch secret, names, sizes, bodies, backups), shared with tools/dev-server.js
 const SHELL_VERSION = require('./package.json').version;
 const http = require('http');
 const fs = require('fs');
@@ -52,6 +53,7 @@ function backupOnLaunch() {
         libstore.snapshot(savesDir, bkDir, 'data-' + stamp);   // and the library's files as they are (L1b)
         const old = fs.readdirSync(bkDir).filter(f => /^data-.*\.json$/.test(f)).sort().reverse().slice(10);
         old.forEach(f => { fs.unlinkSync(path.join(bkDir, f)); libstore.dropSnapshot(bkDir, f.replace(/\.json$/, '')); });
+        reqguard.pruneRemoved(bkDir, libstore);   // the launch backups a "delete" set aside (backups/removed): the newest ten stay
     } catch (e) { /* backups must never block startup */ }
 }
 backupOnLaunch();
@@ -90,16 +92,12 @@ const updateHandler = updater.makeHandler(updateCfg);
 // save) or overwrite it with a plain POST. So: no CORS is granted (the renderer and its child windows are
 // same-origin and need none), a request carrying an Origin from anywhere else is refused, the browser's
 // own Sec-Fetch-Site must say same-origin (or none: a direct navigation), and the Host must be this
-// machine's own name (a DNS-rebinding page arrives under its own host name). Tools with no such headers
-// (curl, the app's main process) still pass.
+// machine's own name (a DNS-rebinding page arrives under its own host name). And before any of that, the
+// launch secret (below): a request that does not carry it — another program on this machine, another account
+// signed in here, a browser — is refused whatever its headers say.
 const LOCAL_HOSTS = ['localhost', '127.0.0.1', '[::1]'];
-// Names that become disk paths: a map id is one plain segment (audio lives one folder deeper: audio/<camp>), a file
-// name has no separators and is never a page or a script (the static branch would serve it as one).
-const SAFE_MAP_ID = /^[A-Za-z0-9_.-]{1,80}(\/[A-Za-z0-9_.-]{1,80})?$/;
-const FILE_EXT_BAD = /\.(html?|xhtml|xml|js|mjs|cjs|css|php|exe|bat|cmd|ps1|vbs|hta|jar|msi|dll|scr|lnk|url|com|pif)$/i;
-function safeSeg(s) { return typeof s === 'string' && s.length > 0 && s.length <= 200 && s !== '.' && s !== '..' && !/[\/\\\0:*?"<>|]/.test(s) && !s.includes('..'); }
-function safeMapId(m) { return SAFE_MAP_ID.test(m) && m.split('/').every(safeSeg); }
-function safeFileName(n) { return safeSeg(n) && !n.startsWith('.') && !FILE_EXT_BAD.test(n); }
+// Names that become disk paths (a map id, a file name, an upload's kind and size, what may be deleted) are judged
+// by reqguard.js, the same rules the dev server runs.
 // A request that throws must not take the whole app (and every joined player) down with it.
 process.on('uncaughtException', (e) => { try { console.error('[waypoint] uncaught exception (kept running):', e && e.stack || e); } catch (_) {} });
 function localRequest(req) {
@@ -112,8 +110,14 @@ function localRequest(req) {
     let o; try { o = new URL(origin); } catch (e) { return false; }
     return o.protocol === 'http:' && LOCAL_HOSTS.some(h => o.host.toLowerCase() === h + ':' + port);
 }
+// The launch secret: 32 random bytes made at each launch and held only here. The session adds it, as a request header, to every
+// request this app's own windows make to the app's own origin (never to another address, never where a page's script could read it),
+// and the server answers nothing without it — so the save, the profile store and every write are this launch's alone on this machine.
+const launchSecret = reqguard.newSecret();
+app.whenReady().then(() => reqguard.sendLaunch(require('electron').session.defaultSession, () => 'http://localhost:' + port, launchSecret));   // set before the window exists: this step is queued before the one that opens it
 
 const server = http.createServer((req, res) => {
+    if (!reqguard.launchOk(req, launchSecret)) { res.writeHead(403, { 'Content-Type': 'text/plain' }); return res.end('Forbidden'); }   // first: nothing is read, written or answered for a request that is not this launch's own
     if (!localRequest(req)) { res.writeHead(403, { 'Content-Type': 'text/plain' }); return res.end('Forbidden'); }
     if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
 
@@ -125,9 +129,7 @@ const server = http.createServer((req, res) => {
     }
     // Open a release page or installer link in the system browser — GitHub URLs for our repo only
     if (url.pathname === '/api/open-external' && req.method === 'POST') {
-        let body = '';
-        req.setEncoding('utf8'); req.on('data', c => body += c);   // 1.5.0: decoded as UTF-8 across chunks (a character split between two chunks was saved as \uFFFD)
-        req.on('end', () => {
+        reqguard.readBody(req, res, reqguard.BODY.small, (body) => {   // read with a cap (413 past 64 KB), decoded as UTF-8 across chunks
             let target = null;
             try { target = JSON.parse(body).url; } catch (e) {}
             let okHost = false;   // parsed, not substring-matched: exactly our repo on github.com, or GitHub's own download hosts
@@ -168,9 +170,7 @@ const server = http.createServer((req, res) => {
             return res.end(json);
         }
         if (req.method === 'POST') {
-            let body = '';
-            req.setEncoding('utf8'); req.on('data', chunk => body += chunk);   // 1.5.0: decoded as UTF-8 across chunks (a character split between two chunks was saved as \uFFFD)
-            req.on('end', () => {
+            reqguard.readBody(req, res, reqguard.BODY.prefs, (body) => {   // read with a cap (413 past 2 MB, before it is held), decoded as UTF-8 across chunks
                 let parsed;
                 try { parsed = JSON.parse(body); } catch (e) { res.writeHead(400); return res.end('{"error":"invalid json"}'); }
                 if (!parsed || typeof parsed !== 'object' || typeof parsed.prefs !== 'object' || body.length > 2 * 1024 * 1024) { res.writeHead(400); return res.end('{"error":"bad prefs"}'); }
@@ -205,15 +205,13 @@ const server = http.createServer((req, res) => {
         } catch (e) { res.writeHead(500); return res.end('{"error":"snapshot failed"}'); }
     }
     if ((url.pathname === '/api/restore-backup' || url.pathname === '/api/delete-backup') && req.method === 'POST') {
-        let body = '';
-        req.setEncoding('utf8'); req.on('data', c => body += c);   // 1.5.0: decoded as UTF-8 across chunks (a character split between two chunks was saved as \uFFFD)
-        req.on('end', () => {
+        reqguard.readBody(req, res, reqguard.BODY.small, (body) => {   // read with a cap (413 past 64 KB), decoded as UTF-8 across chunks
             try {
                 const file = String((JSON.parse(body || '{}') || {}).file || '');
                 if (!/^(data|keep)-[A-Za-z0-9_-]+\.json$/.test(file)) { res.writeHead(400); return res.end('{"error":"bad name"}'); }
                 const bkDir = path.join(savesDir, 'backups'), src = path.join(bkDir, file);
                 if (!fs.existsSync(src)) { res.writeHead(404); return res.end('{"error":"no such snapshot"}'); }
-                if (url.pathname === '/api/delete-backup') { fs.unlinkSync(src); libstore.dropSnapshot(bkDir, file.replace(/\.json$/, '')); res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end('{"ok":true}'); }
+                if (url.pathname === '/api/delete-backup') { reqguard.removeBackup(bkDir, file, libstore); res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end('{"ok":true}'); }   // a snapshot taken by hand goes; a launch backup is moved into backups/removed, never erased (no route reaches it there)
                 const text = fs.readFileSync(src, 'utf8');
                 JSON.parse(text);   // a snapshot that does not parse is not restored
                 if (fs.existsSync(dataFile) && fs.statSync(dataFile).size > 2) { const bf = 'keep-' + new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19) + '-before-restore'; fs.copyFileSync(dataFile, path.join(bkDir, bf + '.json')); libstore.snapshot(savesDir, bkDir, bf); }
@@ -234,9 +232,7 @@ const server = http.createServer((req, res) => {
             return res.end(json);
         }
         if (req.method === 'POST') {
-            let body = '';
-            req.setEncoding('utf8'); req.on('data', chunk => body += chunk);   // 1.5.0: decoded as UTF-8 across chunks (a character split between two chunks was saved as \uFFFD)
-            req.on('end', () => {
+            reqguard.readBody(req, res, reqguard.BODY.data, (body) => {   // read with a cap (413 past 512 MB: no save the app could load again is longer), decoded as UTF-8 across chunks
                 // Atomic save: validate, write to a temp file, then rename —
                 // a crash mid-write can never leave a truncated data.json.
                 try { JSON.parse(body); } catch (e) {
@@ -278,12 +274,8 @@ const server = http.createServer((req, res) => {
         return res.end(JSON.stringify(out));
     }
     if (url.pathname === '/api/log' && req.method === 'POST') {
-        let body = '';
-        req.setEncoding('utf8'); req.on('data', chunk => body += chunk);   // 1.5.0: decoded as UTF-8 across chunks (a character split between two chunks was saved as \uFFFD)
-        req.on('end', () => {
-            fs.appendFileSync(path.join(savesDir, 'error.log'), new Date().toISOString() + ': ' + body + '\n');
-            res.writeHead(200);
-            res.end();
+        reqguard.readBody(req, res, reqguard.BODY.small, (body) => {   // a line of at most 64 KB onto a log kept under 4 MB (one older file beside it); a failed append is answered, never left hanging
+            try { reqguard.appendLog(savesDir, body); res.writeHead(200); res.end(); } catch (e) { res.writeHead(500); res.end(); }
         });
         return;
     }
@@ -291,15 +283,14 @@ const server = http.createServer((req, res) => {
     if (url.pathname === '/api/delete-image' && req.method === 'POST') {
         // Delete one picture file under saves/images (the Image Library's Delete picture). The save itself is
         // untouched: anything still referencing the path simply shows a broken picture until re-pointed.
-        let body = '';
-        req.setEncoding('utf8'); req.on('data', c => body += c);   // 1.5.0: decoded as UTF-8 across chunks (a character split between two chunks was saved as \uFFFD)
-        req.on('end', () => {
+        reqguard.readBody(req, res, reqguard.BODY.small, (body) => {   // read with a cap (413 past 64 KB), decoded as UTF-8 across chunks
             try {
-                const p = String((JSON.parse(body || '{}') || {}).path || '').replace(/^\/saves\//, '');
-                const segs = p.split('/').filter(Boolean);
-                const bad = segs.length < 2 || segs[0] !== 'images' || segs.some(s => s === '.' || s === '..' || s.includes('\\') || s.includes(':'));
-                if (bad) { res.writeHead(400); return res.end('{"error":"bad path"}'); }
-                const file = path.join(savesDir, ...segs);
+                // never a file of the Journal's by the Image Library's word; by the Journal's own (journal: true) only a page's picture, never an index
+                const want = JSON.parse(body || '{}') || {};
+                const segs = reqguard.deleteTarget(want.path, want.journal === true);
+                if (!segs) { res.writeHead(400); return res.end('{"error":"bad path"}'); }
+                const file = path.resolve(savesDir, ...segs), imagesRoot = path.resolve(savesDir, 'images');
+                if (!file.startsWith(imagesRoot + path.sep)) { res.writeHead(400); return res.end('{"error":"bad path"}'); }   // and inside images/, whatever the segments spelled
                 if (!fs.existsSync(file) || !fs.statSync(file).isFile()) { res.writeHead(404); return res.end('{"error":"no such picture"}'); }
                 fs.unlinkSync(file);
                 res.writeHead(200, { 'Content-Type': 'application/json' }); res.end('{"ok":true}');
@@ -313,29 +304,31 @@ const server = http.createServer((req, res) => {
         const relRaw = url.searchParams.get('path') || '';
         let rel = relRaw; try { rel = decodeURIComponent(relRaw); } catch (e) { rel = relRaw; }   // a name with a bare % is itself, never an exception that leaves the request unanswered
         const segs = rel.split('/').filter(Boolean);
-        const bad = !segs.length || segs[0] !== 'images' || segs.length < 2 || segs.length > 6 ||
-            segs.some(s => !safeSeg(s)) || FILE_EXT_BAD.test(segs[segs.length - 1]);   // never a page or a script under saves/
-        if (bad) { res.writeHead(400); res.end('bad path'); return; }
+        // only what the app itself writes: a picture, a sound, a video, the Journal's own two index files — plain segments, never a
+        // script, a shortcut or any other kind of file under saves/ — and an import's copy (keep=1) never into the Journal
+        const keep = url.searchParams.get('keep') === '1', kind = reqguard.exactKind(segs, keep);
+        if (!kind) { res.writeHead(400); res.end('bad path'); return; }
         const savePath = path.resolve(savesDir, ...segs), imagesRoot = path.resolve(savesDir, 'images');
         if (!savePath.startsWith(imagesRoot + path.sep)) { res.writeHead(400); res.end('bad path'); return; }   // and inside images/, whatever the segments spelled
         try {
             fs.mkdirSync(path.dirname(savePath), { recursive: true });
-            servefile.saveUpload(req, res, savePath, JSON.stringify({ url: '/saves/' + segs.join('/') }), { keep: url.searchParams.get('keep') === '1' });   // whole or not at all: a copy cut short never replaces a good file; keep=1 (an import): never over a file already there (409)
+            servefile.saveUpload(req, res, savePath, JSON.stringify({ url: '/saves/' + segs.join('/') }), { keep: keep, max: reqguard.UPLOAD_MAX[kind] });   // whole or not at all: a copy cut short never replaces a good file; keep=1 (an import): never over a file already there (409); past its kind's size: 413
         } catch (e) { res.writeHead(500); res.end('{"error":"upload failed"}'); }
         return;
     }
     if (url.pathname === '/api/upload' && req.method === 'POST') {
         // the folder is a map id (audio: audio/<camp>) and the name a file name — plain segments, nothing that walks,
-        // never a page or a script — and the result must sit under saves/images whatever the parts spelled
+        // only a picture, a sound or a video — and the result must sit under saves/images whatever the parts spelled
         const mapId = url.searchParams.get('mapId') || 'unknown';
         const rawName = url.searchParams.get('filename') || 'image.png';
-        if (!safeMapId(mapId) || !safeFileName(rawName)) { res.writeHead(400); return res.end('{"error":"bad name"}'); }
+        const kind = reqguard.freshKind(mapId, rawName);
+        if (!kind) { res.writeHead(400); return res.end('{"error":"bad name"}'); }
         const filename = (Math.random().toString(36).substring(2, 10)) + '_' + rawName;
         const imagesRoot = path.resolve(savesDir, 'images'), mapDir = path.resolve(imagesRoot, mapId), savePath = path.resolve(mapDir, filename);
         if (!mapDir.startsWith(imagesRoot + path.sep) || !savePath.startsWith(mapDir + path.sep)) { res.writeHead(400); return res.end('{"error":"bad path"}'); }
         try {
             if (!fs.existsSync(mapDir)) fs.mkdirSync(mapDir, { recursive: true });
-            servefile.saveUpload(req, res, savePath, JSON.stringify({ url: '/saves/images/' + mapId + '/' + filename }));   // answered once the bytes are on disk, whole; an upload cut short leaves no file
+            servefile.saveUpload(req, res, savePath, JSON.stringify({ url: '/saves/images/' + mapId + '/' + filename }), { max: reqguard.UPLOAD_MAX[kind] });   // answered once the bytes are on disk, whole; an upload cut short leaves no file; past its kind's size: 413 (a video: any size)
         } catch (e) { res.writeHead(500); res.end('{"error":"upload failed"}'); }
         return;
     }
@@ -344,6 +337,7 @@ const server = http.createServer((req, res) => {
     let pathname;
     try { pathname = decodeURIComponent(url.pathname); } catch (e) { pathname = url.pathname; }
     if (pathname.includes('..') || pathname.includes('\0')) { res.writeHead(400); return res.end('Bad path'); }
+    if (reqguard.savesHidden(pathname)) { res.writeHead(404); return res.end('Not Found'); }   // the save, the profile store and the log are read through their own routes, never as files
     let filePath, root;
     if (pathname.startsWith('/saves/')) {
         root = savesDir;

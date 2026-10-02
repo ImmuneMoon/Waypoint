@@ -1463,10 +1463,21 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
   function collectImagePaths(payload) {
       var found = {};
       JSON.stringify(payload).replace(/\/saves\/images\/[^"\\]+/g, function(m) {
-          found[m.replace(/['")>,;]+$/, '')] = 1;
+          var p = m.replace(/['")>,;]+$/, '');
+          if (exportPathOk(p)) found[p] = 1;
           return m;
       });
       return Object.keys(found);
+  }
+  // Is this string a file to bundle? Any text in a campaign can hold "/saves/images/…" (a player's name is enough), and the export fetches
+  // what it names — so only a plain path under saves/images counts: no segment that walks or is empty (the browser collapses dot segments:
+  // "/saves/images/../data.json" would fetch the save itself, with every table key), no query, fragment, drive or stream, and nothing in a
+  // player's Journal (images/journal/, in any spelling the disk reads as it), which no export carries
+  function exportPathOk(p) {
+      if (typeof p !== 'string' || p.indexOf('/saves/images/') !== 0 || /[\\:?#\x00-\x1f]/.test(p)) return false;
+      var segs = p.slice(14).split('/');
+      if (segs.some(function(s) { return s === '' || /^[. ]+$/.test(s); })) return false;
+      return !/^journal[. ]*$/i.test(segs[0]);
   }
 
   // [zipcheck:exportfile-start]

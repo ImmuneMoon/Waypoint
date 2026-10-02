@@ -24,12 +24,21 @@ var safeId = function(s) { return String(s || '').replace(/[^A-Za-z0-9_-]/g, '')
 function journalPath(campId, file) { return '/saves/' + JOURNAL_DIR + '/' + safeId(campId) + '/' + file; }
 function lsKey(campId) { return 'journal_' + safeId(campId); }   // fallback store (no shell endpoint) — not a wp_ key, never mirrored
 
+// An index is a file on disk (this app wrote it, but a saves folder can be copied from anywhere): what is read back is taken as data.
+// Its rows are objects, its names are text, and it is the journal of the key it was read by, whatever it says of itself
+function cleanIndex(j, campId) {
+    j.entries = j.entries.filter(function(e) { return e && typeof e === 'object' && !Array.isArray(e); });
+    ['gm', 'campaign', 'gmId'].forEach(function(k) { if (j[k] !== undefined && typeof j[k] !== 'string') j[k] = ''; });
+    if (j.sentNotes !== undefined && (!j.sentNotes || typeof j.sentNotes !== 'object' || Array.isArray(j.sentNotes))) delete j.sentNotes;
+    j.campId = campId;
+    return j;
+}
 async function readIndex(campId) {
     try {
         var r = await fetch(journalPath(campId, 'journal.json'), { cache: 'no-store' });
-        if (r.ok) { var j = await r.json(); if (j && Array.isArray(j.entries)) return j; }
+        if (r.ok) { var j = await r.json(); if (j && Array.isArray(j.entries)) return cleanIndex(j, campId); }
     } catch (e) {}
-    try { var l = localStorage.getItem(lsKey(campId)); if (l) { var lj = JSON.parse(l); if (lj && Array.isArray(lj.entries)) return lj; } } catch (e) {}
+    try { var l = localStorage.getItem(lsKey(campId)); if (l) { var lj = JSON.parse(l); if (lj && Array.isArray(lj.entries)) return cleanIndex(lj, campId); } } catch (e) {}
     return { campId: campId, gm: '', entries: [] };
 }
 async function writeIndex(campId, idx) {
@@ -38,7 +47,7 @@ async function writeIndex(campId, idx) {
         var r = await fetch('/api/upload-exact?path=' + encodeURIComponent(JOURNAL_DIR + '/' + safeId(campId) + '/journal.json'), { method: 'POST', body: body });
         ok = r.ok;
     } catch (e) {}
-    if (ok) { try { localStorage.removeItem(lsKey(campId)); } catch (e) {} return true; }   // the file holds it: a copy here would only fill the browser's storage (readIndex never reaches it while the file is there)
+    if (ok) { journalWrote(campId, body.length); try { localStorage.removeItem(lsKey(campId)); } catch (e) {} return true; }   // the file holds it: a copy here would only fill the browser's storage (readIndex never reaches it while the file is there)
     if (body.length <= 256 * 1024) { try { localStorage.setItem(lsKey(campId), body); ok = true; } catch (e) {} }   // no shell endpoint: the browser's storage keeps a small index
     return ok;
 }
@@ -60,11 +69,75 @@ function withIndex(campId, change) {
 async function putFile(campId, file, bytes, mime) {
     try {
         var r = await fetch('/api/upload-exact?path=' + encodeURIComponent(JOURNAL_DIR + '/' + safeId(campId) + '/' + file), { method: 'POST', headers: { 'Content-Type': mime }, body: bytes });
-        if (r.ok) return journalPath(campId, file);
+        if (r.ok) { if (_jDisk) _jDisk.n += bytes.length; return journalPath(campId, file); }
     } catch (e) {}
     // fallback: keep the picture inside the index as a data URL (small ones only)
     if (bytes.length > 1500000) return null;
     return await new Promise(function(res) { var fr = new FileReader(); fr.onload = function() { res(fr.result); }; fr.onerror = function() { res(null); }; fr.readAsDataURL(new Blob([bytes], { type: mime })); });
+}
+// What the Journal holds on this disk, every journal together: its pictures (the saves folder's own list) and each journal's index (its
+// length, by a HEAD), measured at the first handout of a run and kept in step after that. What one run accepts from a table (the budgets
+// below) starts afresh with every run of the app; this total does not — so a table that keeps sending, run after run or under a new
+// campaign each time, stops filling the disk at the cap. Past it a handout is refused, said once a run, until pages are cleared.
+// Your own notes are never refused.
+var JOURNAL_DISK_MAX = 1024 * 1024 * 1024, JOURNAL_INDEX_MAX = 16 * 1024 * 1024, JOURNALS_MAX = 500;   // every journal together, in bytes; one journal's index, in characters; journals on one machine
+var _jDisk = null, _jDiskP = null, _jFullSaid = false;
+function journalDisk() {
+    if (!_jDiskP) _jDiskP = (async function() {
+        var d = { n: 0, idx: Object.create(null) };
+        try { var imgs = await (await fetch('/api/list-images')).json(); (Array.isArray(imgs) ? imgs : []).forEach(function(i) { var sz = i ? Number(i.size) : 0; if (i && /^journal(\/|$)/.test(String(i.folder || '')) && sz > 0 && isFinite(sz)) d.n += sz; }); } catch (e) {}
+        try {
+            var keys = Object.keys(await readRegistry());
+            for (var k = 0; k < keys.length; k++) {
+                var len = 0;
+                try { var h = await fetch(journalPath(keys[k], 'journal.json'), { method: 'HEAD', cache: 'no-store' }); if (h.ok) len = Number(h.headers.get('content-length')) || 0; } catch (e) {}
+                d.idx[keys[k]] = len; d.n += len;
+            }
+        } catch (e) {}
+        _jDisk = d;
+    })();
+    return _jDiskP;
+}
+// Is there room for this much more — bytes of picture on disk, characters into the journal's index?
+function journalRoom(campId, bytes, chars) {
+    var d = _jDisk; if (!d) return true;
+    var key = safeId(campId);
+    if (!(key in d.idx) && Object.keys(d.idx).length >= JOURNALS_MAX) return false;
+    if ((d.idx[key] || 0) + chars > JOURNAL_INDEX_MAX) return false;
+    return d.n + bytes + chars <= JOURNAL_DISK_MAX;
+}
+function journalFull() { if (_jFullSaid) return; _jFullSaid = true; toast('Your Journal on this computer is full. Nothing more is saved to it until you clear some pages: open the Journal and use Clear.'); }
+function journalWrote(campId, len) { var d = _jDisk; if (!d) return; var key = safeId(campId); d.n += len - (d.idx[key] || 0); d.idx[key] = len; }
+// A picture's type is read from its own first bytes, never from what the sender calls it: a PNG, a JPEG or a WebP, or it is no handout
+function picKind(b) {
+    if (b.length >= 8 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4E && b[3] === 0x47 && b[4] === 0x0D && b[5] === 0x0A && b[6] === 0x1A && b[7] === 0x0A) return { mime: 'image/png', ext: 'png' };
+    if (b.length >= 3 && b[0] === 0xFF && b[1] === 0xD8 && b[2] === 0xFF) return { mime: 'image/jpeg', ext: 'jpg' };
+    if (b.length >= 12 && b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) return { mime: 'image/webp', ext: 'webp' };
+    return null;
+}
+// The picture file of a journal page, by the page's own id and type — never the address the page carries
+function entryFile(campId, en) {
+    if (!en || typeof en !== 'object' || en.kind === 'text' || en.kind === 'note') return '';
+    var id = safeId(en.id), ext = en.mime === 'image/png' ? 'png' : en.mime === 'image/webp' ? 'webp' : en.mime === 'image/jpeg' ? 'jpg' : '';
+    return id && ext && safeId(campId) ? journalPath(campId, id + '.' + ext) : '';
+}
+// Pages removed from a journal take their picture files with them (the Journal's own word to the saves folder: only a page's picture
+// under images/journal is ever deleted this way). The disk total is measured afresh at the next handout
+async function dropEntryFiles(campId, entries) {
+    var n = 0, list = Array.isArray(entries) ? entries : [];
+    for (var i = 0; i < list.length; i++) {
+        var p = entryFile(campId, list[i]); if (!p) continue;
+        try { var r = await fetch('/api/delete-image', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: p, journal: true }) }); if (r.ok) n++; } catch (e) {}
+    }
+    if (n) { _jDisk = null; _jDiskP = null; _jFullSaid = false; }
+    return n;
+}
+// The picture a page may send on: the Journal's own — its file in this machine's journal folder, or the small picture kept inside the
+// index — never any other address an index names (a planted index could name the save itself, and Send would hand it to the table)
+function ownPicSrc(src) {
+    if (typeof src !== 'string') return '';
+    if (/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+\/=]+$/.test(src)) return src;
+    return /^\/saves\/images\/journal\/[A-Za-z0-9_-]{1,60}\/[A-Za-z0-9_-]{1,60}\.(png|jpg|webp)$/.test(src) ? src : '';
 }
 // Registry of journals on this machine: a file beside them, mirrored in localStorage. (Scanning for
 // pictures is not enough — a text-only handout has no picture file.)
@@ -142,29 +215,32 @@ function stampHead(idx, msg) {
     if (g && idx.gmId && g !== idx.gmId) return;   // a message naming another GM renames nothing here
     idx.gm = String(msg.gm || idx.gm || '').slice(0, 60); idx.campaign = String(msg.campaign || idx.campaign || '').slice(0, 120);
 }
+var _hoSaid = false, _shSaid = false;   // each budget's refusal is said once a run, not once per refused handout
 var _hoCount = 0, _hoBytes = 0, _shCount = 0, _shBytes = 0;   // what one run of the app accepts from tables — the GM's handouts and, apart from them, the pages players share: a host that keeps sending fills no disk, and a player who keeps sharing never spends what the GM's handouts live on
 function handoutBudget(msg) {
     var n = (msg && msg.data && msg.data.byteLength) || (msg && typeof msg.text === 'string' ? msg.text.length : 0) || 0;
     if (msg && typeof msg.sharedBy === 'string' && msg.sharedBy) {
-        if (_shCount >= 200 || _shBytes + n > 100 * 1024 * 1024) { toast('Players are sharing more than this session can hold — the rest are skipped.'); return false; }
+        if (_shCount >= 200 || _shBytes + n > 100 * 1024 * 1024) { if (!_shSaid) { _shSaid = true; toast('Players are sharing more than this session can hold — the rest are skipped.'); } return false; }
         _shCount++; _shBytes += n; return true;
     }
-    if (_hoCount >= 1000 || _hoBytes + n > 500 * 1024 * 1024) { toast('The GM is sending more handouts than this session can hold — the rest are skipped.'); return false; }
+    if (_hoCount >= 1000 || _hoBytes + n > 500 * 1024 * 1024) { if (!_hoSaid) { _hoSaid = true; toast('The GM is sending more handouts than this session can hold — the rest are skipped.'); } return false; }
     _hoCount++; _hoBytes += n; return true;
 }
 async function receiveHandout(msg) {
     var campId = journalKey(msg), id = safeId(msg.id);
     if (!campId || !id) return;
     if (!handoutBudget(msg)) return;
+    await journalDisk();
     if (msg.kind === 'text') return receiveTextHandout(msg, campId, id);
     if (!(msg.data && msg.data.byteLength !== undefined)) return;
     var bytes = msg.data instanceof Uint8Array ? msg.data : new Uint8Array(msg.data);
     if (bytes.length > MAX_BYTES) return;
-    var mime = ({ 'image/png': 1, 'image/jpeg': 1, 'image/webp': 1 })[msg.mime] ? msg.mime : 'image/jpeg';
-    var ext = mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : 'jpg';
+    var kind = picKind(bytes); if (!kind) return;   // bytes that are no picture are not stored under a picture's name, whatever the sender calls them
+    var mime = kind.mime, ext = kind.ext;
     var title = String(msg.title || 'Handout').slice(0, 120), caption = String(msg.caption || '').slice(0, 4000);
+    if (!journalRoom(campId, bytes.length, title.length + caption.length + 1024)) { journalFull(); return; }
     var hash = hashBytes(bytes);
-    var existing, added = false, failed = false, src, shownId = id;
+    var existing, added = false, failed = false, src, shownId = id, stale = [];
     await withIndex(campId, async function(idx) {
         stampHead(idx, msg);
         existing = latestOf(idx, id, sharerOf(msg));
@@ -172,6 +248,7 @@ async function receiveHandout(msg) {
             // first time this entry meets a hash (journal from before versions): same picture assumed, file refreshed
             src = await putFile(campId, existing.id + '.' + ext, bytes, mime);
             if (!src) { failed = true; return false; }
+            if (existing.mime && existing.mime !== mime) stale.push({ id: existing.id, mime: existing.mime });   // the file under its old type is no page's any more
             existing.hash = hash; existing.src = src; existing.mime = mime;
         }
         var hasNotes = existing && String(existing.notes || '').trim() !== '';
@@ -180,6 +257,7 @@ async function receiveHandout(msg) {
             if (existing.hash !== hash) {
                 src = await putFile(campId, existing.id + '.' + ext, bytes, mime);
                 if (!src) { failed = true; return false; }
+                if (existing.mime && existing.mime !== mime) stale.push({ id: existing.id, mime: existing.mime });
                 existing.hash = hash; existing.src = src; existing.mime = mime; added = true;
             } else src = existing.src;
             existing.title = title; existing.caption = caption; existing.updatedAt = Date.now(); existing.notes = '';
@@ -204,6 +282,7 @@ async function receiveHandout(msg) {
         idx.entries.push(en); added = true; shownId = nid;
     });
     if (failed) { toast('The GM showed you something, but it could not be saved.'); return; }
+    if (stale.length) await dropEntryFiles(campId, stale);
     await registerJournal(campId);
     if (msg.replay && !added) return;   // already in the journal, unchanged: refreshed, no fanfare
     badge(unseen + 1);
@@ -213,6 +292,7 @@ async function receiveHandout(msg) {
 async function receiveTextHandout(msg, campId, id) {
     var title = String(msg.title || 'Handout').slice(0, 120), caption = String(msg.caption || '').slice(0, 4000);
     var text = String(msg.text || '').slice(0, 60000);
+    if (!journalRoom(campId, 0, text.length + title.length + caption.length + 1024)) { journalFull(); return; }
     var existing, added = false, shownId = id;
     await withIndex(campId, function(idx) {
         stampHead(idx, msg);
@@ -297,6 +377,7 @@ var _hClose = ui('handoutCloseBtn');
 if (_hClose) _hClose.addEventListener('click', function() { ui('handoutModal').style.display = 'none'; });
 
 /* ---------- the Journal window ---------- */
+// [sinkcheck:journal-start]
 async function openJournal() {
     var m = ui('journalModal'); if (!m) return;
     m.style.display = 'flex';
@@ -321,7 +402,7 @@ async function openJournal() {
         var nMine = j.entries.length - inbox.length;
         // sent: players from each entry's sentTo, the GM from the delivery log — one record per send
         var mySent = [];
-        j.entries.forEach(function(e) { (e.sentTo || []).forEach(function(t) { mySent.push({ e: e, to: t.to, name: t.name, at: t.at }); }); });
+        j.entries.forEach(function(e) { (Array.isArray(e.sentTo) ? e.sentTo : []).forEach(function(t) { if (!t || typeof t !== 'object') return; mySent.push({ e: e, to: t.to, name: t.name, at: Number(t.at) || 0 }); }); });   // from the index on disk: a time is a number, a row an object
         mySent.sort(function(a, b) { return b.at - a.at; });
         var nSent = sent.length + mySent.length, nAll = j.entries.length + nSent;
         function tab(id, label, count, title) { return '<button class="tool ghost journal-tab' + (page === id ? ' active' : '') + '" data-tab="' + id + '" title="' + title + '">' + label + ' <span class="journal-count">' + count + '</span></button>'; }
@@ -331,7 +412,7 @@ async function openJournal() {
             + tab('inbox', 'Inbox', inbox.length, iRunIt ? 'Pages players shared with you' : 'Handouts from the GM and pages other players shared with you')
             + tab('sent', 'Sent', nSent, iRunIt ? 'Every handout you have shown, to whom and when' : 'Every page you have shared, with whom and when') + '</span>';
         // people: who sent you things (From) and whom you sent things (To)
-        var senders = {}, recips = {};
+        var senders = Object.create(null), recips = Object.create(null);   // keyed by ids from the index: no inherited name is ever a sender
         function bump(map, id, name, n) { if (!id) return; var m = map[id] || (map[id] = { id: id, name: name || id, n: 0 }); if (name && (m.name === id || !m.name)) m.name = name; m.n += (n || 1); }
         // who a received page is from: the GM (a handout, or a page the GM shared) or one player
         var fromOf = function(e) { return !e.sharedBy || (e.sharedById && e.sharedById === j.gmId) ? 'gm' : (e.sharedById || e.sharedBy); };
@@ -344,7 +425,7 @@ async function openJournal() {
         var show = journalShow[j.campId] !== undefined ? journalShow[j.campId] : journalShowDefault(), from = chipOpensTo('inbox', j.campId, senders), to = chipOpensTo('sent', j.campId, recips);
         function chips(forKey, label, items, current, attr, allLabel, allCount, keepOrder) {
             var list = Object.values(items); if (!list.length) return '';
-            if (!keepOrder) list.sort(function(a, b) { return a.id === 'gm' ? -1 : b.id === 'gm' ? 1 : a.id === '*' ? 1 : b.id === '*' ? -1 : a.name.localeCompare(b.name); });
+            if (!keepOrder) list.sort(function(a, b) { return a.id === 'gm' ? -1 : b.id === 'gm' ? 1 : a.id === '*' ? 1 : b.id === '*' ? -1 : String(a.name).localeCompare(String(b.name)); });
             return '<div class="journal-from-row" data-for="' + forKey + '"><span class="journal-chip-label">' + label + '</span>'
                 + '<button class="journal-from' + (!current ? ' active' : '') + '" data-for="' + forKey + '" data-' + attr + '="">' + allLabel + ' <span class="journal-count">' + allCount + '</span></button>'
                 + list.map(function(p) { return '<button class="journal-from' + (current === p.id ? ' active' : '') + '" data-for="' + forKey + '" data-' + attr + '="' + esc(p.id) + '">' + esc(p.name) + ' <span class="journal-count">' + p.n + '</span></button>'; }).join('') + '</div>';
@@ -359,7 +440,7 @@ async function openJournal() {
         var mySentRows = mySent.map(function(s) {
             var e = s.e, kind = e.kind === 'note' || e.kind === 'text' ? 'text' : 'image', text = e.text || '';
             var thumb = kind === 'text' ? '<div class="journal-thumb journal-thumb-text" title="Open">' + esc(String(text).slice(0, 160)) + '</div>' : '<img class="journal-thumb" src="' + esc(picRef(e.src)) + '" alt="" title="Open">';
-            return '<div class="journal-entry journal-sentrow" data-page="sent" data-to="' + esc(s.to) + '" data-camp="' + esc(j.campId) + '" data-id="sent:' + esc(e.id) + ':' + s.at + '" data-kind="' + kind + '" data-sent="1"' + (kind === 'text' ? ' data-text="' + esc(String(text)) + '"' : '') + '>' + thumb +
+            return '<div class="journal-entry journal-sentrow" data-page="sent" data-to="' + esc(s.to) + '" data-camp="' + esc(j.campId) + '" data-id="sent:' + esc(e.id) + ':' + esc(s.at) + '" data-kind="' + kind + '" data-sent="1"' + (kind === 'text' ? ' data-text="' + esc(String(text)) + '"' : '') + '>' + thumb +
                 '<div class="journal-body"><div class="journal-title">' + esc(e.title || (e.kind === 'note' ? 'A note' : 'Handout')) + '</div>' + (e.caption ? '<div class="journal-caption">' + esc(e.caption) + '</div>' : '') +
                 '<div class="journal-when">Sent to <b>' + esc(s.to === 'gm' ? 'GM' : s.to === '*' ? 'everyone at once' : s.name) + '</b> <span style="opacity:.7;">' + new Date(s.at).toLocaleString() + '</span>' + (e.kind !== 'note' && e.notes ? ' · with your notes' : '') + '</div>' +
                 '<textarea class="journal-notes" placeholder="Your notes about this send…">' + esc((j.sentNotes || {})['sent:' + e.id + ':' + s.at] || '') + '</textarea></div></div>';
@@ -398,6 +479,7 @@ async function openJournal() {
     }).join('');
     journalFilter();
 }
+// [sinkcheck:journal-end]
 // Search: forgiving rather than literal. Every word of the query has to be found somewhere in the
 // entry (any order), a word matches by prefix ("sel" finds Selkath), accents and punctuation are
 // ignored, and a word of four letters or more survives one typo (two from eight letters up).
@@ -443,8 +525,10 @@ function wordScore(term, words) {
     return best;
 }
 // "Share with…" + Send on every entry, for a player in a session: one party member, everyone, or the GM
+// [sinkcheck:journalshare-start]
 function sentLine(e, inner) {
-    var s = e && e.sentTo && e.sentTo.length ? 'Sent to ' + e.sentTo.slice().reverse().map(function(t) { return esc(t.name) + ' <span style="opacity:.7;">' + new Date(t.at).toLocaleString() + '</span>'; }).join(', ') : '';
+    var to = e && Array.isArray(e.sentTo) ? e.sentTo.filter(function(t) { return t && typeof t === 'object'; }) : [];
+    var s = to.length ? 'Sent to ' + to.slice().reverse().map(function(t) { return esc(t.name) + ' <span style="opacity:.7;">' + new Date(Number(t.at) || 0).toLocaleString() + '</span>'; }).join(', ') : '';
     return inner ? s : '<div class="journal-when journal-sent">' + s + '</div>';
 }
 function shareControls() {
@@ -463,8 +547,8 @@ async function shareEntry(campId, id, to, btn) {
     else if (e.kind === 'text') entry = { id: e.id, kind: 'text', title: e.title || 'Handout', caption: e.caption || '', text: e.text || '', notes: e.notes || '', tags: e.tags || [] };
     else {
         var bytes = null;
-        var eSrc = picRef(e.src);
-        try { var r = eSrc ? await fetch(/^(data:|blob:)/.test(eSrc) ? eSrc : encodeURI(eSrc), { cache: 'no-store' }) : null; if (r && r.ok) bytes = new Uint8Array(await r.arrayBuffer()); } catch (err) {}
+        var eSrc = ownPicSrc(picRef(e.src));   // only the Journal's own picture is ever read and sent
+        try { var r = eSrc ? await fetch(/^data:/.test(eSrc) ? eSrc : encodeURI(eSrc), { cache: 'no-store' }) : null; if (r && r.ok) bytes = new Uint8Array(await r.arrayBuffer()); } catch (err) {}
         if (!bytes || !bytes.length) { toast('That picture could not be read from your journal.'); return; }
         entry = { id: e.id, kind: 'image', title: e.title || 'Handout', caption: e.caption || '', mime: e.mime || 'image/jpeg', data: bytes, notes: e.notes || '', tags: e.tags || [] };
     }
@@ -473,13 +557,14 @@ async function shareEntry(campId, id, to, btn) {
         toast('"' + (entry.title || 'Note') + '" sent to ' + who + '.');
         await withIndex(campId, function(idx) {
             var x = idx.entries.find(function(y) { return y.id === id; }); if (!x) return false;
-            x.sentTo = (x.sentTo || []).concat([{ to: to, name: who, at: Date.now() }]).slice(-40);
+            x.sentTo = (Array.isArray(x.sentTo) ? x.sentTo : []).concat([{ to: to, name: who, at: Date.now() }]).slice(-40);
         });
         var line = document.querySelector('.journal-entry[data-camp="' + campId + '"][data-id="' + id + '"] .journal-sent');
         if (line) line.innerHTML = sentLine(await readIndex(campId).then(function(ix) { return ix.entries.find(function(y) { return y.id === id; }); }), true);
     }
     if (btn) { btn.disabled = true; var s = btn.parentNode.querySelector('.journal-share'); if (s) s.value = ''; }
 }
+// [sinkcheck:journalshare-end]
 // Save a page of text (the table notepad) to the journal: the campaign's section for a player, the GM's own
 window.wpJournalAddNote = async function(meta, title, text) {
     var n = window.wpNet, key;
@@ -683,11 +768,15 @@ if (_jList) {
                 + (nSent ? '\nYour sent record for ' + nSent + ' send' + (nSent === 1 ? '' : 's') + ' goes too.' : '')
                 + '\n\nThis computer only. Senders keep their copies, and the GM can show a handout again.';
             if (!confirm(msg)) return;
+            var goneC = [];
             await withIndex(campC, function(idx) {
+                var before = idx.entries;
                 if (scope === 'all') idx.entries = [];
                 else if (scope === 'mine') idx.entries = idx.entries.filter(function(x) { return x.kind !== 'note'; });
                 else idx.entries = idx.entries.filter(function(x) { return x.kind === 'note' || (fromC ? senderOf(x) !== fromC : false); });
+                goneC = before.filter(function(x) { return idx.entries.indexOf(x) < 0; });
             });
+            await dropEntryFiles(campC, goneC);   // the pages' picture files go with them
             if (scope === 'all' || scope === 'inbox') { journalFrom[campC] = undefined; }
             toast(scope === 'all' ? 'Journal cleared.' : scope === 'mine' ? 'Your pages are gone.' : 'Inbox cleared.');
             await openJournal();
@@ -729,7 +818,9 @@ if (_jList) {
                 var hasNotes = ((row.querySelector('.journal-notes') || {}).value || '').trim();
                 if (!confirm('Remove "' + nm + '" from your journal?' + (hasNotes ? ' Your notes under it go with it.' : '') + ' The GM can show it again later.')) return;
             }
-            var ix = await withIndex(cId, function(idx) { idx.entries = idx.entries.filter(function(x) { return x.id !== nId; }); });
+            var goneD = [];
+            var ix = await withIndex(cId, function(idx) { goneD = idx.entries.filter(function(x) { return x.id === nId; }); idx.entries = idx.entries.filter(function(x) { return x.id !== nId; }); });
+            dropEntryFiles(cId, goneD);   // the page's picture file goes with it
             row.remove();
             if (!ix.entries.length) await openJournal();
         }

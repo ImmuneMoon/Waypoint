@@ -600,6 +600,48 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('S1 import: a file\'s senses come in cleaned — on Replace by the load\'s own normaliser (junk keys cut, a name cleaned, a sense or blind on a GM-only value gone, a bad id gone) and on Merge by the same cleaner main.js runs on a new campaign and on one already here',
             !!outS && JSON.stringify(outS.campaigns.cS.system.combat.senses) === sensesWant && JSON.stringify(mergeS.combat.senses) === sensesWant
             && (mainSrc.match(/window\.wpSystemCore\.cleanSystem\(ic\.system, \{ F: window\.wpFormula, gmView: true \}\)/g) || []).length === 2, outS && JSON.stringify(outS.campaigns.cS.system.combat));
+        // text style: a planner's and a page's formats (the look of a plain field, stored beside its text) come in cleaned against their texts — on Merge, on Replace and on a load
+        {
+            const RED = '#d9534f';
+            const styledPlanner = () => ({ id: 'pf', type: 'planner', meta: { title: 'Styled' }, blocks: [
+                { id: 'b1', type: 'h1', title: 'Title', sub: 'sub', fmt: { title: { color: '#D9534F', b: 'yes', onclick: 'alert(1)', spans: [{ s: 0, e: 2, b: true, style: 'x' }, { s: 3, e: 99, color: 'url(//evil.example/c)' }, { s: -1, e: 4, i: true }] }, sub: { size: '99em;position:fixed' }, evil: { b: true } } },
+                { id: 'b2', type: 'node', title: 'N', tag: 't', must: 'm', cols: ['A', 'B'], colFmt: [{ b: true }, 'x', { i: true }], fmt: { tag: { i: true }, must: 'bold' },
+                  rows: [{ col1: 'cell', col2: 'y', fmt: { col1: { spans: [{ s: 1, e: 3, color: RED }] }, col2: { color: 'red' }, col9: { b: true }, junk: { b: true } } }, { col1: 'q', fmt: [{ b: true }] }] },
+                { id: 'b3', type: 'flowchart', nodes: [{ id: 'n1', text: 'label', fmt: { size: 'huge', spans: [{ s: 2, e: 400, i: true }] } }, { id: 'n2', text: 'x', fmt: { color: 'javascript:alert(1)' } }], edges: [{ from: 'n1', to: 'n2', text: 'go', fmt: { b: true, x: 1 } }, { from: 'n2', to: 'n1', text: '', fmt: { spans: [{ s: 0, e: 1, b: true }] } }] },
+                { id: 'b4', type: 'image', src: '/saves/images/x.png', caption: 'cap', fmt: { caption: { size: 'small', color: '#fff' } } }
+            ] });
+            const styledPage = () => ({ id: 'df', type: 'doc', meta: { title: 'Page', players: true }, blocks: [
+                { id: 'c1', type: 'h2', title: 'Sec', fmt: { title: { color: '#D9534F', spans: [{ s: 0, e: 9, b: true }, { s: 1, e: 2, color: 'red' }] } } },
+                { id: 'c2', type: 'table', title: 'T', cols: ['A'], colFmt: [{ i: true, evil: 1 }], rows: [{ col1: 'x', fmt: { col1: { b: true, onclick: 'x' } } }] }
+            ] });
+            const wantPlanner = JSON.stringify([
+                { id: 'b1', type: 'h1', title: 'Title', sub: 'sub', fmt: { title: { color: RED, spans: [{ s: 0, e: 2, b: true }] } } },
+                { id: 'b2', type: 'node', title: 'N', tag: 't', must: 'm', cols: ['A', 'B'], colFmt: [{ b: true }], fmt: { tag: { i: true } }, rows: [{ col1: 'cell', col2: 'y', fmt: { col1: { spans: [{ s: 1, e: 3, color: RED }] } } }, { col1: 'q' }] },
+                { id: 'b3', type: 'flowchart', nodes: [{ id: 'n1', text: 'label', fmt: { size: 'huge', spans: [{ s: 2, e: 5, i: true }] } }, { id: 'n2', text: 'x' }], edges: [{ from: 'n1', to: 'n2', text: 'go', fmt: { b: true } }, { from: 'n2', to: 'n1', text: '' }] },
+                { id: 'b4', type: 'image', src: '/saves/images/x.png', caption: 'cap', fmt: { caption: { size: 'small' } } }
+            ]);
+            const icF = JSON.parse(JSON.stringify({ items: { pf: styledPlanner(), df: styledPage() } }));
+            cleanImportItems(icF, deps);
+            const pageOk = c => !!c && JSON.stringify(c.blocks[0].fmt) === JSON.stringify({ title: { color: RED, spans: [{ s: 0, e: 3, b: true }] } }) && JSON.stringify(c.blocks[1].colFmt) === '[{"i":true}]' && JSON.stringify(c.blocks[1].rowFmt) === '[[{"b":true}]]' && JSON.stringify(c.blocks[1].rows) === '[["x"]]';
+            check('text style import (Merge): every format a planner\'s blocks carry is cleaned against its own text — a title\'s, a tag\'s, a head\'s, a cell\'s, a node\'s label\'s, an arrow\'s, a caption\'s — hostile keys and values gone, an emptied holder gone; a page\'s through cleanDoc',
+                JSON.stringify(icF.items.pf.blocks) === wantPlanner && pageOk(icF.items.df), JSON.stringify(icF.items.pf.blocks));
+            const outF = cleanImport(JSON.parse(JSON.stringify({ activeCampaignId: 'cF', campaigns: { cF: { id: 'cF', name: 'F', items: { pf: styledPlanner(), df: styledPage() } } } })), deps);
+            check('text style import (Replace): the same, after the load\'s normaliser', !!outF && JSON.stringify(outF.campaigns.cF.items.pf.blocks) === wantPlanner && pageOk(outF.campaigns.cF.items.df), outF && JSON.stringify(outF.campaigns.cF.items.pf.blocks));
+            const bare = b => JSON.stringify(b).indexOf('"fmt"') < 0 && JSON.stringify(b).indexOf('"colFmt"') < 0 && JSON.stringify(b).indexOf('"rowFmt"') < 0;
+            const icN = JSON.parse(JSON.stringify({ items: { pf: styledPlanner(), df: styledPage() } })); cleanImportItems(icN, { sanitize });
+            const icO = JSON.parse(JSON.stringify({ items: { pf: styledPlanner(), df: styledPage() } })); cleanImportItems(icO, { sanitize, DR: { cleanDoc: DOC.cleanDoc, stripMermaidLinks: DOC.stripMermaidLinks } });
+            check('text style import: none without the core — with no cleaner on hand a planner comes in with no format at all (its text as it was), and a page does not come in',
+                bare(icN.items.pf.blocks) && icN.items.pf.blocks[0].title === 'Title' && icN.items.pf.blocks[1].rows[0].col1 === 'cell' && icN.items.pf.blocks[2].nodes[0].text === 'label' && !icN.items.df && bare(icO.items.pf.blocks) && icO.items.pf.blocks.length === 4, JSON.stringify(icN.items.pf.blocks));
+            const mkMig = win => new Function('window', 'CATS', 'CURRENT_SCHEMA', 'createNewCampaign', '"use strict";\n' + ioSrc.slice(mi, mk) + '\nreturn function(d) { return migrateAppState(d).data; };')(win, { default: { label: 'Default', color: '#ccc' } }, 2, nm => ({ id: 'camp_v0', name: nm, items: {} }));
+            const loadF = mkMig({ wpSystemCore: S, wpFormula: F, wpDocRender: DOC })({ activeCampaignId: 'cF', campaigns: { cF: { id: 'cF', name: 'F', items: { pf: styledPlanner(), df: styledPage() } } } });
+            const loadN = mkMig({ wpSystemCore: S, wpFormula: F })({ activeCampaignId: 'cF', campaigns: { cF: { id: 'cF', name: 'F', items: { pf: styledPlanner() } } } });
+            check('text style load: a save\'s planner and page formats are cleaned in place as the app reads them (a page keeps its rows as the editor wrote them); with the cleaner not loaded they are left as they are (never lost — every draw cleans again)',
+                JSON.stringify(loadF.campaigns.cF.items.pf.blocks) === wantPlanner && JSON.stringify(loadF.campaigns.cF.items.df.blocks[0].fmt) === JSON.stringify({ title: { color: RED, spans: [{ s: 0, e: 3, b: true }] } }) && JSON.stringify(loadF.campaigns.cF.items.df.blocks[1].rows) === JSON.stringify([{ col1: 'x', fmt: { col1: { b: true } } }])
+                && JSON.stringify(loadN.campaigns.cF.items.pf.blocks) === JSON.stringify(styledPlanner().blocks), JSON.stringify(loadF.campaigns.cF.items.df.blocks));
+            const plainPl = () => ({ id: 'pp', type: 'planner', meta: { title: 'Plain' }, blocks: [{ id: 'b1', type: 'h1', title: 'T', sub: '' }, { id: 'b2', type: 'node', title: 'N', cols: ['A'], rows: [{ col1: 'x' }] }, { id: 'b3', type: 'flowchart', nodes: [{ id: 'a', text: 'x' }], edges: [] }] });
+            const icP = { items: { pp: plainPl() } }; cleanImportItems(icP, deps);
+            check('text style import: a planner with no format comes in exactly as it was', JSON.stringify(icP.items.pp) === JSON.stringify(plainPl()));
+        }
         // a page cleanDoc refuses takes nobody with it: its child comes in at the top of the tree
         const pages = { campaigns: { cP: { id: 'cP', name: 'P', items: { d1: { id: 'd1', type: 'doc', meta: { title: 'refuse me' }, blocks: [] }, d2: { id: 'd2', type: 'doc', meta: { title: 'Child', parentId: 'd1' }, blocks: [] } } } } };
         const outP = cleanImport(pages, { migrate, sanitize, DR: { cleanDoc: (d, o) => d.meta && d.meta.title === 'refuse me' ? null : DOC.cleanDoc(d, o), stripMermaidLinks: DOC.stripMermaidLinks } });

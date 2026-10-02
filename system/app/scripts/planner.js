@@ -32,11 +32,13 @@ import { state, dom } from './state.js';
 
 import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap, isDocLike } from './models.js';
 
-import { renderDoc, compileFlowchart, DOC_BLOCKS, mergeDocStyle, docStyleCss, cleanDocStyle, sanitizeHtml, proseHtml, stripMermaidLinks } from './docrender.js';
+import { renderDoc, compileFlowchart, DOC_BLOCKS, mergeDocStyle, docStyleCss, cleanDocStyle, sanitizeHtml, proseHtml, stripMermaidLinks, fmtHtml, fmtRich, fieldFmt, colFmtOf, cellFmtOf } from './docrender.js';
+
+import * as TF from './textfmt.js';
 
 import { num, picRef } from './safecore.js';
 
-import { load, updateUndoBtn, pushHistory, undo, redo, save, download, getBase64Image, rebaseHistory, withoutHistory, fieldUndoChord } from './io.js';
+import { load, updateUndoBtn, pushHistory, undo, redo, save, download, getBase64Image, rebaseHistory, withoutHistory, fieldUndoChord, stepBoundary, stepFold } from './io.js';
 
 import { updateCampaignSelect, updateSidebarNav, navigateToMap } from './sidebar.js';
 
@@ -74,6 +76,315 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (b.type === 'image') h += '<span class="lay-note">Or drag the picture in the preview to nudge it, and its bottom-right corner to resize it.</span>';
       return h + '</div>';
   }
+
+  /* ---- text style: the look of a plain field, kept beside its text (textfmt.js) ----
+     A title, a tag, a table cell, a flowchart label are the plain strings they always were. What the Text style bar does to one
+     is stored next to the value it belongs to, so moving, deleting or re-ordering rows, columns, nodes and arrows can never
+     leave a look pointing at another text: block.fmt.{title, sub, tag, must, caption}; a table's heads in colFmt (a list
+     parallel to cols, kept in step by the Columns select); a row's cells on the row (row.fmt.col1…); a node's label on the
+     node, an arrow's on the arrow. A block with none of these is saved, sent and drawn exactly as before. */
+  // [textcheck:fields-start]
+  var TS_PLAIN = '.b-title, .b-sub, .b-must, .b-caption, .b-colhead, .r-col, .fc-n-text, .fc-e-text';   // the editor boxes that hold a plain field
+  function tsDefaultCols(b) { return (b.mode === 'table' || b.type === 'table') ? ['Item', 'Detail', 'Notes'] : ['Action', 'Why', 'Cost', 'Returns via']; }
+  function tsCols(b) { return (Array.isArray(b.cols) && b.cols.length > 0) ? b.cols : tsDefaultCols(b); }
+  function tsOwnCols(b) { if (!Array.isArray(b.cols) || !b.cols.length) b.cols = tsDefaultCols(b).slice(); }
+  function tsInt(v) { var n = parseInt(v, 10); return n >= 0 ? n : -1; }
+  // Which field an editor box is: { idx, k, ri, ci, ni, ei } — its place in the blocks, never its text
+  function tsDesc(el) {
+      if (!el || !el.classList || !el.dataset) return null;
+      var c = el.classList, d = { idx: tsInt(el.dataset.idx) };
+      if (d.idx < 0) return null;
+      if (c.contains('b-title')) d.k = 'title';
+      else if (c.contains('b-sub')) d.k = 'sub';   // a scene node's second box is its tag: tsField reads the block
+      else if (c.contains('b-must')) d.k = 'must';
+      else if (c.contains('b-caption')) d.k = 'caption';
+      else if (c.contains('b-colhead')) { d.k = 'col'; d.ci = tsInt(el.dataset.ci); }
+      else if (c.contains('r-col')) { d.k = 'cell'; d.ri = tsInt(el.dataset.ri); d.ci = tsInt(el.dataset.ci); }
+      else if (c.contains('fc-n-text')) { d.k = 'node'; d.ni = tsInt(el.dataset.ni); }
+      else if (c.contains('fc-e-text')) { d.k = 'edge'; d.ei = tsInt(el.dataset.ei); }
+      else return null;
+      return d;
+  }
+  function tsOwn(o, k) { return !!o && typeof o === 'object' && Object.prototype.hasOwnProperty.call(o, k); }
+  // a text at o[key] whose format sits in a map on the same object (host[mapName][mapKey])
+  function tsMapField(o, key, host, mapName, mapKey) {
+      return {
+          text: function() { return typeof o[key] === 'string' ? o[key] : ''; },
+          fmt: function() { var m = host[mapName]; return m && typeof m === 'object' && !Array.isArray(m) && tsOwn(m, mapKey) ? m[mapKey] : undefined; },
+          setFmt: function(f) { var m = host[mapName]; if (!m || typeof m !== 'object' || Array.isArray(m)) m = {}; if (f) m[mapKey] = f; else delete m[mapKey]; if (Object.keys(m).length) host[mapName] = m; else delete host[mapName]; },
+          setText: function(v) { o[key] = v; }
+      };
+  }
+  // The field a descriptor names in these blocks — { text(), fmt(), setFmt(f), setText(v) } — or null when it is not there (any more)
+  function tsField(blocks, d) {
+      var b = d && Array.isArray(blocks) ? blocks[d.idx] : null;
+      if (!b || typeof b !== 'object') return null;
+      var grid = b.type === 'node' || b.type === 'table';
+      if (d.k === 'title') return (b.type === 'h1' || b.type === 'h2' || b.type === 'h3' || grid) ? tsMapField(b, 'title', b, 'fmt', 'title') : null;
+      if (d.k === 'sub') return b.type === 'h1' ? tsMapField(b, 'sub', b, 'fmt', 'sub') : b.type === 'node' ? tsMapField(b, 'tag', b, 'fmt', 'tag') : null;
+      if (d.k === 'must') return b.type === 'node' ? tsMapField(b, 'must', b, 'fmt', 'must') : null;
+      if (d.k === 'caption') return b.type === 'image' ? tsMapField(b, 'caption', b, 'fmt', 'caption') : null;
+      if (d.k === 'col') {
+          if (!grid || !(d.ci >= 0) || d.ci >= tsCols(b).length) return null;
+          return {
+              text: function() { var cs = tsCols(b); return typeof cs[d.ci] === 'string' ? cs[d.ci] : ''; },
+              fmt: function() { return Array.isArray(b.colFmt) && b.colFmt[d.ci] ? b.colFmt[d.ci] : undefined; },
+              setFmt: function(f) {   // parallel to cols: a head styled before it was ever typed makes the heads the block's own first
+                  tsOwnCols(b);
+                  var l = Array.isArray(b.colFmt) ? b.colFmt.slice() : [];
+                  while (l.length <= d.ci) l.push(null);
+                  l[d.ci] = f || null;
+                  while (l.length && !l[l.length - 1]) l.pop();
+                  if (l.length) b.colFmt = l; else delete b.colFmt;
+              },
+              setText: function(v) { tsOwnCols(b); b.cols[d.ci] = v; }
+          };
+      }
+      if (d.k === 'cell') {
+          var r = grid && Array.isArray(b.rows) ? b.rows[d.ri] : null;
+          if (!r || typeof r !== 'object' || Array.isArray(r) || !(d.ci >= 0) || d.ci >= 99) return null;
+          return tsMapField(r, 'col' + (d.ci + 1), r, 'fmt', 'col' + (d.ci + 1));
+      }
+      if (d.k === 'node' || d.k === 'edge') {
+          var list = b.type === 'flowchart' ? (d.k === 'node' ? b.nodes : b.edges) : null, n = Array.isArray(list) ? list[d.k === 'node' ? d.ni : d.ei] : null;
+          if (!n || typeof n !== 'object') return null;
+          return {
+              text: function() { return typeof n.text === 'string' ? n.text : ''; },
+              fmt: function() { return tsOwn(n, 'fmt') ? n.fmt : undefined; },
+              setFmt: function(f) { if (f) n.fmt = f; else delete n.fmt; },
+              setText: function(v) { n.text = v; }
+          };
+      }
+      return null;
+  }
+  // Typing in a field: the text takes the new value and its spans are carried across the edit (caret: the box's selectionStart)
+  function tsType(blocks, d, value, caret) {
+      var fld = tsField(blocks, d); if (!fld) return false;
+      var old = fld.text(), f = fld.fmt();
+      value = String(value == null ? '' : value);
+      fld.setText(value);
+      if (f !== undefined) fld.setFmt(TF.respan(old, value, f, caret));
+      return true;
+  }
+  // What the bar says it will act on, in a few words (plain text: the caller sets it as textContent)
+  function tsName(blocks, d) {
+      var b = d && Array.isArray(blocks) ? blocks[d.idx] : null; if (!b || !tsField(blocks, d)) return '';
+      var cut = function(s) { s = String(s == null ? '' : s).replace(/\s+/g, ' ').trim(); return s.length > 30 ? s.slice(0, 29) + '\u2026' : s; };
+      var plain = b.mode === 'table' || b.type === 'table';
+      if (d.k === 'title') return b.type === 'h1' ? 'Title' : b.type === 'h2' ? 'Section heading' : b.type === 'h3' ? 'Sub-heading' : plain ? 'Table title' : 'Scene title';
+      if (d.k === 'sub') return b.type === 'node' ? 'Tag' : 'Subtitle';
+      if (d.k === 'must') return 'Must resolve';
+      if (d.k === 'caption') return 'Caption';
+      if (d.k === 'col') return 'Heading of column ' + (d.ci + 1);
+      if (d.k === 'cell') { var cn = cut(tsCols(b)[d.ci]); return 'Row ' + (d.ri + 1) + ', ' + (cn || 'column ' + (d.ci + 1)); }
+      if (d.k === 'node') { var id = cut(b.nodes[d.ni].id); return 'Node ' + (id || (d.ni + 1)) + '\u2019s label'; }
+      if (d.k === 'edge') return 'Arrow ' + (d.ei + 1) + '\u2019s label';
+      return '';
+  }
+  // The Columns select: the heads cut or grown, and the heads' formats with them (a cell past the last column keeps its text and its look, as before)
+  function tsSetColCount(b, n) {
+      var cols = tsCols(b).slice();
+      while (cols.length < n) cols.push('Column ' + (cols.length + 1));
+      b.cols = cols.slice(0, n);
+      if (b.colFmt !== undefined) {
+          var l = Array.isArray(b.colFmt) ? b.colFmt.slice(0, n) : [];
+          while (l.length && !l[l.length - 1]) l.pop();
+          if (l.length) b.colFmt = l; else delete b.colFmt;
+      }
+  }
+  // A page's table from a file or from another table holds its rows as lists (docrender cleanDoc), their cells' formats beside them in
+  // rowFmt. The editor works on rows as { col1, col2, … }: each list becomes that once, its formats moving onto the row. True when it changed.
+  function tsRowsAsObjects(b) {
+      if (!b || !Array.isArray(b.rows)) return false;
+      var changed = false, rf = Array.isArray(b.rowFmt) ? b.rowFmt : [];
+      b.rows = b.rows.map(function(r, ri) {
+          if (!Array.isArray(r)) return r;
+          var o = {}, fm = {}, one = Array.isArray(rf[ri]) ? rf[ri] : [];
+          r.forEach(function(c, ci) { o['col' + (ci + 1)] = c == null ? '' : String(c); if (one[ci] && typeof one[ci] === 'object') fm['col' + (ci + 1)] = one[ci]; });
+          if (Object.keys(fm).length) o.fmt = fm;
+          changed = true;
+          return o;
+      });
+      if (changed || b.rowFmt !== undefined) { if (b.rowFmt !== undefined) changed = true; delete b.rowFmt; }
+      return changed;
+  }
+  // [textcheck:fields-end]
+
+  /* ---- the Text style bar ----
+     One bar at the top of the editor, closed until its caret is clicked (remembered for the session, never saved). It acts on the field
+     that holds the selection: for a plain box (an input or a textarea) the selection is its selectionStart / selectionEnd, read at the
+     press — the bar's buttons never take the focus (mousedown is swallowed, as the text blocks' own bar does) — and remembered for the
+     two controls that must take it (the size list, the custom colour). With nothing selected B, I and a colour are the whole field's;
+     the size always is. In a text block's box the bar drives that block's own rich-text commands. Each press is one undo step, and Ctrl+Z
+     in the field takes the press back (never the typing before it). A control the keyboard reached keeps the focus while it is pressed, so
+     the Size list can be stepped through by its arrow keys — that run of sizes is one step — and Escape (Enter in the Size list) goes back
+     to the field. Nothing is remembered across a rebuild of the editor: a place is an index, and every index may have moved. */
+  // [textcheck:bar-start]
+  var tsState = { open: false, sel: null, els: null, key: false, run: null };   // key: the bar was last touched by the keyboard; run: the field and selection a run of Size list steps is on
+  try { tsState.open = sessionStorage.getItem('wp_textStyleOpen') === '1'; } catch (e) {}
+  function tsBlocksOf() { var am = getActiveMap(); return am && isDocLike(am) && Array.isArray(am.blocks) ? am : null; }
+  // the editor box of a field, by its place
+  function tsBox(d) {
+      var root = document.getElementById('plannerBlocks'); if (!root || !d) return null;
+      var at = '[data-idx="' + d.idx + '"]';
+      var q = d.k === 'title' ? '.b-title' + at : d.k === 'sub' ? '.b-sub' + at : d.k === 'must' ? '.b-must' + at : d.k === 'caption' ? '.b-caption' + at
+          : d.k === 'col' ? '.b-colhead' + at + '[data-ci="' + d.ci + '"]' : d.k === 'cell' ? '.r-col' + at + '[data-ri="' + d.ri + '"][data-ci="' + d.ci + '"]'
+          : d.k === 'node' ? '.fc-n-text' + at + '[data-ni="' + d.ni + '"]' : d.k === 'edge' ? '.fc-e-text' + at + '[data-ei="' + d.ei + '"]' : null;
+      return q ? root.querySelector(q) : null;
+  }
+  // Remember what a box in the editor holds selected (called as the selection moves, and again at every press)
+  function tsNote(el) {
+      var am = tsBlocksOf(); if (!am || !el || !el.closest || !el.closest('#plannerBlocks')) return;
+      if (el.matches && el.matches(TS_PLAIN)) {
+          var d = tsDesc(el);
+          tsState.sel = d && tsField(am.blocks, d) ? { map: am.id, d: d, s: typeof el.selectionStart === 'number' ? el.selectionStart : 0, e: typeof el.selectionEnd === 'number' ? el.selectionEnd : 0 } : null;
+      } else if (el.classList && el.classList.contains('rte-body')) {
+          var gs = window.getSelection ? window.getSelection() : null;
+          tsState.sel = { map: am.id, rte: tsInt(el.dataset.idx), some: !!(gs && gs.rangeCount && !gs.isCollapsed) };
+      } else if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+          tsState.sel = { map: am.id, none: true };   // a box that takes no styling (an id, raw HTML, a diagram's code)
+      } else return;
+      tsRefresh();
+  }
+  // The field the bar acts on now: the focused box as it stands, else the one last remembered — null when there is none (or it is gone)
+  function tsTarget() {
+      var am = tsBlocksOf(); if (!am) return null;
+      var a = document.activeElement;
+      if (a && a.closest && a.closest('#plannerBlocks')) tsNote(a);
+      var sel = tsState.sel;
+      if (!sel || sel.map !== am.id || sel.none) return null;
+      if (sel.rte !== undefined) { var bb = am.blocks[sel.rte]; return bb && tsRteBody(sel.rte) ? sel : null; }
+      return tsField(am.blocks, sel.d) ? sel : null;
+  }
+  function tsRteBody(idx) { var root = document.getElementById('plannerBlocks'); return root ? root.querySelector('.rte-body[data-idx="' + idx + '"]') : null; }
+  // One press of a control. change: { b: true } | { i: true } | { color: '#rrggbb' | null } | { size: key | null } | 'clear'. True when something changed.
+  // from: the bar's control the press came from. One the keyboard reached and holds keeps the focus; after any other press the field has it.
+  function tsPress(change, from) {
+      var am = tsBlocksOf(), sel = tsTarget();
+      if (!am || !sel) { tsState.run = null; tsRefresh(); return false; }
+      if (sel.rte !== undefined) { tsState.run = null; var body = tsRteBody(sel.rte), did = body ? rteLook(body, change) : false; tsNote(body); return did; }
+      var fld = tsField(am.blocks, sel.d), text = fld.text(), was = fld.fmt();
+      var now = change === 'clear' ? TF.clear(was, text, sel.s, sel.e) : TF.apply(was, text, sel.s, sel.e, change);
+      if (JSON.stringify(now) === JSON.stringify(TF.cleanFmt(was, text))) { tsRefresh(); return false; }   // nothing to change: no step
+      var kept = !!(from && tsState.key && document.activeElement === from);   // the keyboard is on this control: it keeps the focus
+      var runOn = kept && from === tsState.els.size ? JSON.stringify([sel.d, sel.s, sel.e]) : null;
+      if (runOn && tsState.run === runOn) stepFold();   // the Size list stepped through by its arrow keys: every size on the way is applied, the run of them is one undo step (io.js)
+      else stepBoundary();   // typing still on its way is its own step; this press is one step of its own
+      tsState.run = runOn;
+      fld.setFmt(now);
+      save(true);
+      renderPlannerPreview();
+      var box = tsBox(sel.d);   // the selection stays where it was, so the next press needs no second selecting
+      if (box) {
+          box._wpNativeDirty = false; box._wpFloor = box.value;   // Ctrl+Z in the field now takes this press back (the planner's history has it, after the typing): the browser's own undo would take the typed text away with its styling, and its redo bring it back plain (io.js fieldUndoChord; what is typed after this it may still take back, down to this text)
+          try { if (!kept && document.activeElement !== box) box.focus(); box.setSelectionRange(sel.s, sel.e); } catch (e) {}
+      }
+      if (now && now.spans && now.spans.length >= TF.MAX_SPANS) toast('This field now holds the most styled parts it can (' + TF.MAX_SPANS + ').');
+      tsRefresh();
+      return true;
+  }
+  // The editor was rebuilt (a row, a block, a node or an arrow added, deleted or moved; undo, redo; another document): what was remembered is a
+  // place by index, and every index may now name another text — so nothing stays remembered and the bar asks for a click in a field. (A box
+  // given the focus again after an undo is noted afresh as it takes it.)
+  function tsRebuilt() { tsState.sel = null; tsState.run = null; tsRefresh(); }
+  // Back from the bar to the field it acts on, its selection as it was. False when there is none.
+  function tsBack() {
+      var am = tsBlocksOf(), sel = tsState.sel;
+      if (!am || !sel || sel.map !== am.id || sel.none) return false;
+      if (sel.rte !== undefined) { var body = am.blocks[sel.rte] ? tsRteBody(sel.rte) : null; if (!body) return false; body.focus(); return true; }
+      var box = tsField(am.blocks, sel.d) ? tsBox(sel.d) : null; if (!box) return false;
+      try { box.focus(); box.setSelectionRange(sel.s, sel.e); } catch (e) {}
+      return true;
+  }
+  // The bar as it stands: what it acts on (as text), which controls are lit, which cannot apply
+  function tsRefresh() {
+      var E = tsState.els; if (!E) return;
+      var am = tsBlocksOf(), sel = tsState.sel, kind = 'none', words = 'Click in a title, a label or a table cell, then pick a style.', st = null;
+      if (am && sel && sel.map === am.id) {
+          if (sel.none) words = 'This box takes no styling.';
+          else if (sel.rte !== undefined) { if (am.blocks[sel.rte]) { kind = 'rte'; words = 'Text block \u2014 ' + (sel.some ? 'the selected text' : 'select text to colour or size it; B and I also set what you type next'); } }
+          else {
+              var fld = tsField(am.blocks, sel.d);
+              if (fld) { kind = 'plain'; st = TF.stateAt(fld.fmt(), fld.text(), sel.s, sel.e); var n = Math.abs(sel.e - sel.s); words = tsName(am.blocks, sel.d) + ' \u2014 ' + (n ? n + ' selected character' + (n === 1 ? '' : 's') : 'the whole field'); }
+          }
+      }
+      E.target.textContent = words;
+      var needSel = kind === 'rte' && !sel.some;   // in a text block a colour, a size and Clear need a selection
+      E.b.disabled = E.i.disabled = kind === 'none';
+      E.b.classList.toggle('on', !!(st && st.b)); E.i.classList.toggle('on', !!(st && st.i));
+      E.swatches.forEach(function(sw) { sw.disabled = kind === 'none'; sw.classList.toggle('active', !!(st && st.color === sw.dataset.color)); });
+      E.custom.disabled = kind === 'none';
+      E.customWrap.classList.toggle('active', !!(st && st.color && !E.swatches.some(function(sw) { return sw.dataset.color === st.color; })));
+      E.customWrap.classList.toggle('off', kind === 'none');
+      E.nocolor.disabled = kind === 'none' || needSel;
+      E.size.disabled = kind === 'none' || needSel;
+      E.size.value = st && st.size ? st.size : '';
+      E.clear.disabled = kind === 'none' || needSel || (kind === 'plain' && !st.any);
+  }
+  // Build the bar's controls (text nodes and values only) and wire them. root: #textStyleBar from index.html.
+  function tsBuild(root) {
+      var toggle = root && root.querySelector('#textStyleToggle'), body = root && root.querySelector('#textStyleBody'); if (!toggle || !body) return;
+      var mk = function(tag, cls, text, title) { var el = document.createElement(tag); if (cls) el.className = cls; if (text) el.textContent = text; if (title) el.title = title; return el; };
+      var E = { root: root, toggle: toggle, body: body };
+      var row = mk('div', 'ts-row');
+      E.b = mk('button', 'ts-btn ts-b', 'B', 'Bold (Ctrl+B) \u2014 the selected characters, or the whole field with nothing selected'); E.b.type = 'button'; E.b.dataset.ts = 'b';
+      E.i = mk('button', 'ts-btn ts-i', 'I', 'Italic (Ctrl+I) \u2014 the selected characters, or the whole field with nothing selected'); E.i.type = 'button'; E.i.dataset.ts = 'i';
+      row.appendChild(E.b); row.appendChild(E.i); row.appendChild(mk('span', 'ts-sep'));
+      E.swatches = TF.PALETTE.map(function(p) { var sw = mk('button', 'ts-sw', '', p[1]); sw.type = 'button'; sw.dataset.color = p[0]; sw.style.background = p[0]; row.appendChild(sw); return sw; });
+      E.customWrap = mk('label', 'ts-sw ts-custom', '', 'Custom colour');
+      E.custom = mk('input', 'ts-colorpick'); E.custom.type = 'color'; E.custom.value = '#d9534f';
+      E.customWrap.appendChild(E.custom); row.appendChild(E.customWrap);
+      E.nocolor = mk('button', 'ts-btn ts-word', 'Default', 'The default colour'); E.nocolor.type = 'button'; E.nocolor.dataset.ts = 'nocolor';
+      row.appendChild(E.nocolor); row.appendChild(mk('span', 'ts-sep'));
+      var sizeLab = mk('label', 'ts-sizelab', 'Size ', 'Size \u2014 always the whole field; in a text block, the selected text');
+      E.size = mk('select', 'ts-size');
+      [['', 'Default']].concat(TF.SIZES.map(function(k) { return [k, TF.SIZE_NAMES[k] || k]; })).forEach(function(o) { var op = mk('option', '', o[1]); op.value = o[0]; E.size.appendChild(op); });
+      sizeLab.appendChild(E.size); row.appendChild(sizeLab); row.appendChild(mk('span', 'ts-sep'));
+      E.clear = mk('button', 'ts-btn ts-word', 'Clear', 'Take the styling off: the selected characters, or the whole field with nothing selected'); E.clear.type = 'button'; E.clear.dataset.ts = 'clear';
+      row.appendChild(E.clear);
+      E.target = mk('div', 'ts-target');
+      body.appendChild(row); body.appendChild(E.target);
+      tsState.els = E;
+      var show = function() { body.hidden = !tsState.open; toggle.setAttribute('aria-expanded', tsState.open ? 'true' : 'false'); root.classList.toggle('open', tsState.open); };
+      toggle.addEventListener('mousedown', function(e) { e.preventDefault(); });
+      toggle.addEventListener('click', function() { tsState.open = !tsState.open; try { sessionStorage.setItem('wp_textStyleOpen', tsState.open ? '1' : '0'); } catch (e) {} show(); tsRefresh(); });
+      // the buttons never take the focus: the field keeps its selection. The size list and the colour picker must take it; the press then acts on what was remembered
+      body.addEventListener('mousedown', function(e) { tsState.key = false; var t = e.target; if (t === E.size || t === E.custom || (t && t.tagName === 'OPTION')) { tsTarget(); return; } e.preventDefault(); });
+      // the keyboard in the bar: a control pressed from it keeps the focus (tsPress), Escape — and Enter in the Size list — goes back to the field
+      body.addEventListener('keydown', function(e) {
+          tsState.key = true;
+          if ((e.key === 'Escape' || (e.key === 'Enter' && e.target === E.size)) && tsBack()) { e.preventDefault(); e.stopPropagation(); }
+      });
+      body.addEventListener('click', function(e) {
+          var t = e.target, btn = t && t.closest ? t.closest('button') : null; if (!btn || btn.disabled) return;
+          if (btn.dataset.color) tsPress({ color: btn.dataset.color }, btn);
+          else if (btn.dataset.ts === 'b') tsPress({ b: true }, btn);
+          else if (btn.dataset.ts === 'i') tsPress({ i: true }, btn);
+          else if (btn.dataset.ts === 'nocolor') tsPress({ color: null }, btn);
+          else if (btn.dataset.ts === 'clear') tsPress('clear', btn);
+      });
+      E.size.addEventListener('change', function() { tsPress({ size: E.size.value || null }, E.size); });
+      E.size.addEventListener('blur', function() { tsState.run = null; });   // the list was left: the next size is a step of its own
+      E.custom.addEventListener('change', function() { tsPress({ color: E.custom.value }, E.custom); });   // once, when the picker closes: one undo step
+      show(); tsRefresh();
+  }
+  // Ctrl+B / Ctrl+I in a plain box do what the buttons do (seen in the capture phase: a flowchart label stops its own keys)
+  function tsKey(e) {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return false;
+      var k = String(e.key || '').toLowerCase(); if (k !== 'b' && k !== 'i') return false;
+      var t = e.target; if (!t || !t.matches || !t.matches(TS_PLAIN) || !t.closest || !t.closest('#plannerBlocks')) return false;
+      e.preventDefault(); e.stopPropagation();
+      tsPress(k === 'b' ? { b: true } : { i: true });
+      return true;
+  }
+  // [textcheck:bar-end]
+  (function wireTextStyle() {
+      var root = document.getElementById('textStyleBar'); if (!root) return;
+      tsBuild(root);
+      document.addEventListener('keydown', tsKey, true);
+      ['focusin', 'select', 'keyup', 'mouseup', 'input'].forEach(function(ev) { document.addEventListener(ev, function(e) { var t = e.target; if (t && t.closest && t.closest('#plannerBlocks')) tsNote(t); }, true); });
+      document.addEventListener('selectionchange', function() { var a = document.activeElement; if (a && a.closest && a.closest('#plannerBlocks')) tsNote(a); });
+  })();
 
   function renderPlanner() {
       var activeMap = getActiveMap();
@@ -143,6 +454,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (!activeMap.blocks) activeMap.blocks = [];
 
       
+
+      activeMap.blocks.forEach(function(b) { if (b && typeof b === 'object' && (b.type === 'node' || b.type === 'table')) tsRowsAsObjects(b); });   // a page's table from a file: rows as the editor reads them, their formats on the rows (a clean-up, never an undo step)
 
       // Render editor
 
@@ -305,7 +618,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       // Attach listeners
 
-      Array.from(blockContainer.querySelectorAll('.b-title')).forEach(el => el.addEventListener('input', function() { activeMap.blocks[this.dataset.idx].title = this.value; save(false); renderPlannerPreview(); }));
+      Array.from(blockContainer.querySelectorAll('.b-title')).forEach(el => el.addEventListener('input', function() { tsType(activeMap.blocks, tsDesc(this), this.value, this.selectionStart); save(false); renderPlannerPreview(); }));
 
       Array.from(blockContainer.querySelectorAll('.b-img-pick')).forEach(el => el.addEventListener('click', function() {
           var idx = +this.dataset.idx;
@@ -322,7 +635,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       }));
       Array.from(blockContainer.querySelectorAll('.b-imgw')).forEach(el => el.addEventListener('change', function() { activeMap.blocks[this.dataset.idx].width = +this.value; save(true); renderPlannerPreview(); }));
       Array.from(blockContainer.querySelectorAll('.b-imga')).forEach(el => el.addEventListener('change', function() { activeMap.blocks[this.dataset.idx].align = this.value; save(true); renderPlannerPreview(); }));
-      Array.from(blockContainer.querySelectorAll('.b-caption')).forEach(el => el.addEventListener('input', function() { activeMap.blocks[this.dataset.idx].caption = this.value; save(true); renderPlannerPreview(); }));
+      Array.from(blockContainer.querySelectorAll('.b-caption')).forEach(el => el.addEventListener('input', function() { tsType(activeMap.blocks, tsDesc(this), this.value, this.selectionStart); save(true); renderPlannerPreview(); }));
       // Page layout row (pages only). Selects and the checkbox are one undo step each; the nudge boxes coalesce like text.
       var layOf = function(el) { var bb = activeMap.blocks[el.dataset.idx]; if (!bb.layout || typeof bb.layout !== 'object') bb.layout = blockLayout(bb); return bb; };
       Array.from(blockContainer.querySelectorAll('.b-lay-w')).forEach(el => el.addEventListener('change', function() { layOf(this).layout.width = +this.value; save(true); renderPlannerPreview(); }));
@@ -330,9 +643,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       Array.from(blockContainer.querySelectorAll('.b-lay-dx, .b-lay-dy')).forEach(el => el.addEventListener('input', function() { var bb = layOf(this); bb.layout[this.classList.contains('b-lay-dx') ? 'dx' : 'dy'] = Math.max(-200, Math.min(200, Math.round(+this.value || 0))); save(false); renderPlannerPreview(); }));
       Array.from(blockContainer.querySelectorAll('.b-lay-span')).forEach(el => el.addEventListener('change', function() { var bb = layOf(this); bb.layout.span = this.checked; if (this.checked) bb.layout.float = 'none'; save(true); renderPlanner(); }));
       Array.from(blockContainer.querySelectorAll('.b-h2cols')).forEach(el => el.addEventListener('change', function() { activeMap.blocks[this.dataset.idx].cols = Math.max(1, Math.min(3, parseInt(this.value, 10) || 1)); save(true); renderPlanner(); }));
-      Array.from(blockContainer.querySelectorAll('.b-sub')).forEach(el => el.addEventListener('input', function() { activeMap.blocks[this.dataset.idx][activeMap.blocks[this.dataset.idx].type==='node'?'tag':'sub'] = this.value; save(false); renderPlannerPreview(); }));
+      Array.from(blockContainer.querySelectorAll('.b-sub')).forEach(el => el.addEventListener('input', function() { tsType(activeMap.blocks, tsDesc(this), this.value, this.selectionStart); save(false); renderPlannerPreview(); }));
 
-      Array.from(blockContainer.querySelectorAll('.b-must')).forEach(el => el.addEventListener('input', function() { activeMap.blocks[this.dataset.idx].must = this.value; save(false); renderPlannerPreview(); }));
+      Array.from(blockContainer.querySelectorAll('.b-must')).forEach(el => el.addEventListener('input', function() { tsType(activeMap.blocks, tsDesc(this), this.value, this.selectionStart); save(false); renderPlannerPreview(); }));
 
       Array.from(blockContainer.querySelectorAll('.b-linkmap')).forEach(el => el.addEventListener('change', function() {
           var bb = activeMap.blocks[this.dataset.idx];
@@ -352,22 +665,17 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       }));
       Array.from(blockContainer.querySelectorAll('.b-ncols')).forEach(el => el.addEventListener('change', function() {
           var bb = activeMap.blocks[this.dataset.idx], n = Math.max(1, Math.min(8, parseInt(this.value, 10) || 1));
-          var cols = (Array.isArray(bb.cols) && bb.cols.length > 0) ? bb.cols.slice() : ((bb.mode === 'table' || bb.type === 'table') ? ['Item', 'Detail', 'Notes'] : ['Action', 'Why', 'Cost', 'Returns via']);
-          while (cols.length < n) cols.push('Column ' + (cols.length + 1));
-          cols = cols.slice(0, n);
-          bb.cols = cols;
+          tsSetColCount(bb, n);   // the heads, and their formats in step
           save(true); renderPlanner();
       }));
       Array.from(blockContainer.querySelectorAll('.b-colhead')).forEach(el => el.addEventListener('input', function() {
-          var bb = activeMap.blocks[this.dataset.idx];
-          if (!Array.isArray(bb.cols) || !bb.cols.length) bb.cols = (bb.mode === 'table' || bb.type === 'table') ? ['Item', 'Detail', 'Notes'] : ['Action', 'Why', 'Cost', 'Returns via'];
-          bb.cols[this.dataset.ci] = this.value;
+          tsType(activeMap.blocks, tsDesc(this), this.value, this.selectionStart);   // the heads become the block's own at the first typed one, as before
           save(false); renderPlannerPreview();
       }));
       Array.from(blockContainer.querySelectorAll('.b-content')).forEach(el => el.addEventListener('input', function() { activeMap.blocks[this.dataset.idx].content = this.value; save(false); if(activeMap.blocks[this.dataset.idx].type !== 'diagram') renderPlannerPreview(); }));
       wireRte(blockContainer);
 
-      Array.from(blockContainer.querySelectorAll('.r-col')).forEach(el => el.addEventListener('input', function() { activeMap.blocks[this.dataset.idx].rows[this.dataset.ri]['col' + (parseInt(this.dataset.ci, 10) + 1)] = this.value; save(false); renderPlannerPreview(); }));
+      Array.from(blockContainer.querySelectorAll('.r-col')).forEach(el => el.addEventListener('input', function() { tsType(activeMap.blocks, tsDesc(this), this.value, this.selectionStart); save(false); renderPlannerPreview(); }));
 
       
 
@@ -417,7 +725,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       Array.from(blockContainer.querySelectorAll('.fc-reset-pos')).forEach(el => el.addEventListener('click', function() {
           var bb = activeMap.blocks[this.dataset.idx]; delete bb.nodePos; delete bb.nodeSize; delete bb.nodePosSig; save(true); renderPlanner(); renderPlannerPreview();
       }));
-      Array.from(blockContainer.querySelectorAll('.fc-n-text')).forEach(el => el.addEventListener('input', function() { activeMap.blocks[this.dataset.idx].nodes[this.dataset.ni].text = this.value; save(false); renderPlannerPreview(); }));
+      Array.from(blockContainer.querySelectorAll('.fc-n-text')).forEach(el => el.addEventListener('input', function() { tsType(activeMap.blocks, tsDesc(this), this.value, this.selectionStart); save(false); renderPlannerPreview(); }));
 
       Array.from(blockContainer.querySelectorAll('.fc-n-shape')).forEach(el => el.addEventListener('change', function() { activeMap.blocks[this.dataset.idx].nodes[this.dataset.ni].shape = this.value; save(true); renderPlannerPreview(); }));
 
@@ -433,7 +741,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       Array.from(blockContainer.querySelectorAll('.fc-e-to')).forEach(el => el.addEventListener('input', function() { activeMap.blocks[this.dataset.idx].edges[this.dataset.ei].to = this.value; save(false); renderPlannerPreview(); }));
 
-      Array.from(blockContainer.querySelectorAll('.fc-e-text')).forEach(el => el.addEventListener('input', function() { activeMap.blocks[this.dataset.idx].edges[this.dataset.ei].text = this.value; save(false); renderPlannerPreview(); }));
+      Array.from(blockContainer.querySelectorAll('.fc-e-text')).forEach(el => el.addEventListener('input', function() { tsType(activeMap.blocks, tsDesc(this), this.value, this.selectionStart); save(false); renderPlannerPreview(); }));
 
       Array.from(blockContainer.querySelectorAll('.fc-e-style')).forEach(el => el.addEventListener('change', function() { activeMap.blocks[this.dataset.idx].edges[this.dataset.ei].style = this.value; save(true); renderPlannerPreview(); }));
 
@@ -446,6 +754,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       renderPlannerPreview();
 
       applyPlannerFullscreen();
+
+      tsRebuilt();   // every box above is new: no place in the old ones is remembered
 
   }
 
@@ -504,6 +814,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
      typed next when nothing is selected (the browser's own toggle behaviour); Ctrl+B/I/U work as
      usual. The block keeps the box's HTML. Old content — raw newlines, or tags typed by hand —
      is shown as it always rendered. */
+  // [sinkcheck:rtebar-start]
   var RTE_CMDS = [
       { c: 'bold', l: '<b>B</b>', t: 'Bold (Ctrl+B)' }, { c: 'italic', l: '<i>I</i>', t: 'Italic (Ctrl+I)' },
       { c: 'underline', l: '<u>U</u>', t: 'Underline (Ctrl+U)' }, { c: 'strikeThrough', l: '<s>S</s>', t: 'Strikethrough' },
@@ -534,14 +845,20 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   }
   // [sinkcheck:rte-end]
   function rteHtml(idx, b) {
+      // a planner's and a page's text blocks also get colour and size (the list above is shared with the play map's text box, which does not): the app's ink row, then Custom, Default and the size steps — constants from textfmt.js, written before the symbol tray
+      var look = TF.PALETTE.map(function(p) { return '<button type="button" class="rte-sw" data-color="' + esc(p[0]) + '" title="' + esc(p[1]) + ' \u2014 colour the selected text" style="background:' + esc(p[0]) + ';" tabindex="-1"></button>'; }).join('')
+              + '<label class="rte-sw rte-custom" title="Custom colour for the selected text"><input type="color" class="rte-colorpick" value="#d9534f" tabindex="-1"></label>'
+              + '<button type="button" class="rte-btn rte-nocolor" title="The default colour on the selected text" tabindex="-1">Default</button>'
+              + '<select class="rte-size" title="Size of the selected text" tabindex="-1"><option value="">Size\u2026</option><option value="default">Default</option>' + TF.SIZES.map(function(s) { return '<option value="' + esc(s) + '">' + esc(TF.SIZE_NAMES[s] || s) + '</option>'; }).join('') + '</select><span class="rte-sep"></span>';
       var bar = RTE_CMDS.map(function(k) {
           if (k.sep) return '<span class="rte-sep"></span>';
-          if (k.sym) return '<span class="rte-symwrap"><button type="button" class="rte-btn rte-symbtn" title="' + k.t + '" tabindex="-1">' + k.l + '</button><div class="rte-syms">' + RTE_SYMS.map(function(s) { return '<button type="button" class="rte-sym" data-sym="' + s[0] + '" title="' + s[1] + '" tabindex="-1">' + s[0] + '</button>'; }).join('') + '</div></span>';
+          if (k.sym) return look + '<span class="rte-symwrap"><button type="button" class="rte-btn rte-symbtn" title="' + k.t + '" tabindex="-1">' + k.l + '</button><div class="rte-syms">' + RTE_SYMS.map(function(s) { return '<button type="button" class="rte-sym" data-sym="' + s[0] + '" title="' + s[1] + '" tabindex="-1">' + s[0] + '</button>'; }).join('') + '</div></span>';
           return '<button type="button" class="rte-btn" data-cmd="' + k.c + '" title="' + k.t + '" tabindex="-1">' + k.l + '</button>';
       }).join('');
       return '<div class="rte" data-idx="' + idx + '"><div class="rte-bar">' + bar + '</div>'
           + '<div class="field rte-body" contenteditable="true" data-idx="' + idx + '" data-placeholder="Write here — select text and use the bar, or Ctrl+B / I / U" spellcheck="true">' + rteInitial(b) + '</div></div>';
   }
+  // [sinkcheck:rtebar-end]
   function rteSyncBar(body) {
       var bar = body.parentNode.querySelector('.rte-bar'); if (!bar) return;
       bar.querySelectorAll('.rte-btn').forEach(function(btn) {
@@ -553,11 +870,95 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   document.addEventListener('pointerdown', function(e) { if (!(e.target.closest && e.target.closest('.rte-symwrap'))) document.querySelectorAll('.rte-symwrap.open').forEach(function(w) { w.classList.remove('open'); }); }, true);
   document.addEventListener('keydown', function(e) { if (e.key === 'Escape') document.querySelectorAll('.rte-symwrap.open').forEach(function(w) { w.classList.remove('open'); }); }, true);
   document.addEventListener('selectionchange', function() {
-      var a = document.activeElement; if (a && a.classList && a.classList.contains('rte-body')) rteSyncBar(a);
+      var a = document.activeElement; if (a && a.classList && a.classList.contains('rte-body')) { rteSyncBar(a); var gs = window.getSelection(); a._wpRange = gs && gs.rangeCount && a.contains(gs.anchorNode) ? gs.getRangeAt(0).cloneRange() : a._wpRange; }   // remembered for the controls that take the focus (the size list, the colour picker)
   });
+  /* A text block's colour and size on the selection. The browser's own commands do the cutting (they split what the selection crosses
+     and take a conflicting colour or size off it); what they leave — <font color>, a marker <font size> — is turned into the one form
+     the page sanitiser writes (docrender sanitizeHtml): <span style="color:#rrggbb"> and <span style="font-size:<step>">. A size is a
+     share of its parent's: the command takes a sized span that the selection sits in apart around it, a size inside the selection is
+     taken off here, and the sanitiser keeps only the outer size should one ever be left inside another. */
+  function rteExec(cmd, val) { try { document.execCommand('styleWithCSS', false, false); return document.execCommand(cmd, false, val === undefined ? null : val); } catch (e) { return false; } }
+  function rteUnwrap(el) { var p = el.parentNode; if (!p) return; while (el.firstChild) p.insertBefore(el.firstChild, el); p.removeChild(el); }
+  function rteBare(el) { if (el.getAttribute('style') !== null && !el.getAttribute('style').trim()) el.removeAttribute('style'); return !el.attributes.length; }
+  // The selection as two character offsets into the box's text, and back. Turning what a command left into spans moves nodes about (a moved
+  // node drops the selection), but never changes the text: the same characters are selected again afterwards, so a second press needs no second selecting.
+  function rteOffsets(body) {
+      var gs = window.getSelection(); if (!gs || !gs.rangeCount) return null;
+      var r = gs.getRangeAt(0); if (!body.contains(r.startContainer) || !body.contains(r.endContainer)) return null;
+      var pre = document.createRange(); pre.selectNodeContents(body); pre.setEnd(r.startContainer, r.startOffset);
+      var s = pre.toString().length; pre.setEnd(r.endContainer, r.endOffset);
+      return [s, pre.toString().length];
+  }
+  function rteSelect(body, off) {
+      if (!off) return;
+      var w = document.createTreeWalker(body, NodeFilter.SHOW_TEXT), n, at = 0, a = null, z = null, last = null;
+      while ((n = w.nextNode())) {
+          var len = n.nodeValue.length;
+          if (!a && off[0] < at + len) a = [n, off[0] - at];        // a start goes to the front of the node that holds its character
+          if (!z && off[1] <= at + len) z = [n, off[1] - at];       // an end stays at the back of the node that holds its last one
+          at += len; last = n;
+      }
+      if (!last) return;
+      if (!a) a = [last, last.nodeValue.length]; if (!z) z = [last, last.nodeValue.length];
+      try { var r = document.createRange(); r.setStart(a[0], a[1]); r.setEnd(z[0], z[1]); var gs = window.getSelection(); gs.removeAllRanges(); gs.addRange(r); body._wpRange = r.cloneRange(); } catch (e) {}
+  }
+  function rteColor(body, c) {
+      var MARK = '#010203';
+      rteExec('foreColor', c || MARK);
+      var off = rteOffsets(body);
+      if (!off || off[0] === off[1]) return;   // a caret: the colour is for what is typed next — nothing to turn into spans, and the caret must stay as it is
+      Array.from(body.querySelectorAll('font[color]')).forEach(function(f) {
+          var col = String(f.getAttribute('color') || '').toLowerCase(), sz = f.getAttribute('size');
+          if (col === MARK) {   // the default colour: whatever the command wrapped loses its colour, and so does anything inside it
+              Array.from(f.querySelectorAll('span, font')).forEach(function(x) { if (x.style) x.style.color = ''; x.removeAttribute('color'); if (rteBare(x)) rteUnwrap(x); });
+              f.removeAttribute('color'); if (!f.attributes.length) rteUnwrap(f);
+              return;
+          }
+          if (sz) return;   // a size marker with a colour: rteSize turns it into a span
+          var sp = document.createElement('span'); sp.style.color = col;
+          while (f.firstChild) sp.appendChild(f.firstChild);
+          f.parentNode.replaceChild(sp, f);
+      });
+      rteSelect(body, off);
+  }
+  function rteSize(body, key) {
+      var em = key && Object.prototype.hasOwnProperty.call(TF.SIZE_EM, key) ? TF.SIZE_EM[key] : '';
+      rteExec('fontSize', '7');
+      var off = rteOffsets(body);
+      Array.from(body.querySelectorAll('font[size="7"]')).forEach(function(f) {
+          Array.from(f.querySelectorAll('span, font')).forEach(function(x) { if (x.style) x.style.fontSize = ''; x.removeAttribute('size'); if (rteBare(x)) rteUnwrap(x); });   // a size inside this one would multiply
+          var color = f.getAttribute('color');
+          if (!em && !color) { rteUnwrap(f); return; }
+          var sp = document.createElement('span'); if (color) sp.style.color = color; if (em) sp.style.fontSize = em;
+          while (f.firstChild) sp.appendChild(f.firstChild);
+          f.parentNode.replaceChild(sp, f);
+      });
+      rteSelect(body, off);
+  }
+  // One change of look in a text block's box: change as tsPress takes it. False (with a word why) when it needs a selection and has none.
+  function rteLook(body, change) {
+      body.focus();
+      var gs = window.getSelection();
+      if (body._wpRange && (!gs.rangeCount || !body.contains(gs.anchorNode))) { try { gs.removeAllRanges(); gs.addRange(body._wpRange); } catch (e) {} }   // the size list or the colour picker took the focus
+      var none = !gs.rangeCount || gs.isCollapsed || !body.contains(gs.anchorNode);
+      body._wpQuiet = true;   // the commands below fire their own 'input' mid-way: only the finished box is stored
+      try {
+          if (change === 'clear') { if (none) { toast('Select the text to clear first.'); return false; } rteExec('removeFormat'); }
+          else if (change && change.b === true) rteExec('bold');
+          else if (change && change.i === true) rteExec('italic');
+          else if (change && Object.prototype.hasOwnProperty.call(change, 'color')) { if (none && !change.color) { toast('Select the text first.'); return false; } rteColor(body, change.color); }
+          else if (change && Object.prototype.hasOwnProperty.call(change, 'size')) { if (none) { toast('Select the text to size first.'); return false; } rteSize(body, change.size); }
+          else return false;
+      } finally { body._wpQuiet = false; }
+      body.dispatchEvent(new Event('input', { bubbles: true }));
+      if (change !== 'clear' && !(change && (change.b === true || change.i === true))) body._wpNativeDirty = false;   // a colour or a size re-made nodes behind the browser's own text undo: Ctrl+Z goes to the planner's history (io.js fieldUndoChord), which has this press as a step
+      return true;
+  }
+  // [textcheck:rtewire-start]
   function wireRte(container) {
       Array.from(container.querySelectorAll('.rte-body')).forEach(function(body) {
           body.addEventListener('input', function() {
+              if (this._wpQuiet) return;   // a command half-way through (rteLook): the finished box follows
               var am = getActiveMap(); if (!am || !am.blocks) return;
               am.blocks[this.dataset.idx].content = this.innerHTML;
               save(false); renderPlannerPreview(); rteSyncBar(this);
@@ -571,7 +972,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           body.addEventListener('focus', function() { rteSyncBar(this); });
       });
       Array.from(container.querySelectorAll('.rte-bar')).forEach(function(bar) {
-          bar.addEventListener('mousedown', function(e) { e.preventDefault(); });   // keep the selection in the box
+          bar.addEventListener('mousedown', function(e) { if (e.target && e.target.closest && e.target.closest('select, input')) return; e.preventDefault(); });   // keep the selection in the box (the size list and the colour picker must take the focus: the box's selection is remembered for them)
+          var pick = bar.querySelector('.rte-colorpick'), sizeSel = bar.querySelector('.rte-size');
+          if (pick) pick.addEventListener('change', function() { rteLook(bar.parentNode.querySelector('.rte-body'), { color: this.value }); });
+          if (sizeSel) sizeSel.addEventListener('change', function() { var v = this.value; this.value = ''; if (v) rteLook(bar.parentNode.querySelector('.rte-body'), { size: v === 'default' ? null : v }); });
           bar.addEventListener('click', function(e) {
               var body = bar.parentNode.querySelector('.rte-body');
               var sym = e.target.closest && e.target.closest('.rte-sym');
@@ -582,6 +986,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                   body.dispatchEvent(new Event('input', { bubbles: true }));
                   return;
               }
+              var swC = e.target.closest && e.target.closest('.rte-sw[data-color]');
+              if (swC) { rteLook(body, { color: swC.dataset.color }); return; }
+              if (e.target.closest && e.target.closest('.rte-nocolor')) { rteLook(body, { color: null }); return; }
+              if (e.target.closest && e.target.closest('.rte-custom, .rte-size')) return;   // their own change events
               var symBtn = e.target.closest && e.target.closest('.rte-symbtn');
               if (symBtn) { symBtn.parentNode.classList.toggle('open'); return; }
               var btn = e.target.closest && e.target.closest('.rte-btn'); if (!btn) return;
@@ -591,6 +999,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           });
       });
   }
+  // [textcheck:rtewire-end]
   function nl(content, para) {
       var c = String(content || '');
       if (!/\n/.test(c) || /<(p|br|div|ul|ol|li|h[1-6]|table|pre|blockquote)\b/i.test(c)) return c;
@@ -809,41 +1218,63 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       });
   };
   /* ---- find in planner ----
-     Highlights in the rendered preview only (the editor boxes are left alone). Text nodes are
-     matched on a normalised copy (lower case, accents stripped) with an index map back to the
-     original, so "Selkath" is found by "selk" and "Sahrhie" by "sahr". The exact phrase wins;
-     with no phrase hit, every word is matched at word starts. */
-  var pfState = { q: '', hits: [], cur: -1 };
+     Highlights in the rendered preview only (the editor boxes are left alone). The text is read in
+     stretches — the text nodes of one run of inline content, joined — so a word drawn as several
+     runs (part of it coloured by the Text style bar) is found whole; each stretch is matched on a
+     normalised copy (lower case, accents stripped) with an index map back to the original, so
+     "Selkath" is found by "selk" and "Sahrhie" by "sahr". The exact phrase wins; with no phrase
+     hit, every word is matched at word starts. */
+  // [textcheck:find-start]
+  var pfState = { q: '', hits: [], cur: -1 };   // hits: each the list of its <mark>s — a found text may lie across several text nodes (a word styled in part is drawn as runs)
   function pfNorm(s) { return String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
   function pfClear() {
       var pv = document.getElementById('plannerPreview'); if (!pv) return;
       pv.querySelectorAll('mark.pf-hit').forEach(function(m) { var p = m.parentNode; while (m.firstChild) p.insertBefore(m.firstChild, m); p.removeChild(m); p.normalize(); });
       pfState.hits = []; pfState.cur = -1;
   }
-  function pfTextNodes(root) {
-      var out = [], w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: function(n) {
-          var p = n.parentNode; if (!p) return NodeFilter.FILTER_REJECT;
-          var tag = p.nodeName; if (tag === 'SCRIPT' || tag === 'STYLE' || p.closest('svg')) return NodeFilter.FILTER_REJECT;
-          return n.nodeValue.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
-      } });
-      var n; while ((n = w.nextNode())) out.push(n);
+  // Elements whose text runs on with the text around them, so a found text may cross them: the inline tags the page sanitiser writes, and a
+  // span with no class — a run of a styled field (docrender fmtHtml / fmtRich), a text block's colour or size. Anything else — a paragraph, a
+  // cell, a heading, a line break, a span with a class of the renderer's (a subtitle, a tag) — ends a stretch.
+  var PF_INLINE = { SPAN: 1, B: 1, STRONG: 1, I: 1, EM: 1, U: 1, S: 1, STRIKE: 1, A: 1, CODE: 1, FONT: 1, BIG: 1, SMALL: 1, MARK: 1 };
+  // The preview's text as stretches: each the text nodes of one run of inline content, in document order (nothing of a script, a style or a drawn chart)
+  function pfStretches(root) {
+      var out = [], cur = [];
+      var end = function() { if (cur.some(function(n) { return n.nodeValue.trim(); })) out.push(cur); cur = []; };
+      var walk = function(el) {
+          for (var n = el.firstChild; n; n = n.nextSibling) {
+              if (n.nodeType === 3) { if (n.nodeValue) cur.push(n); continue; }
+              if (n.nodeType !== 1) continue;
+              var tag = String(n.nodeName).toUpperCase();
+              if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'SVG') continue;
+              if (PF_INLINE[tag] && !(tag === 'SPAN' && n.className)) walk(n); else { end(); walk(n); end(); }
+          }
+      };
+      walk(root); end();
       return out;
   }
-  // ranges [start,end) in a text node's original string for a regex over its normalised form
-  function pfRanges(node, re) {
-      var orig = node.nodeValue, map = [], norm = '';
+  // ranges [start,end) in a stretch's joined text for a regex over its normalised form
+  function pfRanges(seg, re) {
+      var orig = seg.map(function(n) { return n.nodeValue; }).join(''), map = [], norm = '';
       for (var i = 0; i < orig.length; i++) { var ch = orig[i].toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); for (var k = 0; k < ch.length; k++) map.push(i); norm += ch; }
       map.push(orig.length);
       var out = [], m; re.lastIndex = 0;
       while ((m = re.exec(norm))) { if (!m[0]) { re.lastIndex++; continue; } out.push([map[m.index], map[m.index + m[0].length - 1] + 1]); }
       return out;
   }
-  function pfWrap(node, ranges) {
-      var hits = [];
-      for (var i = ranges.length - 1; i >= 0; i--) {   // from the end so earlier offsets stay valid
-          var r = ranges[i], rest = node.splitText(r[0]), after = rest.splitText(r[1] - r[0]);
-          var mk = document.createElement('mark'); mk.className = 'pf-hit'; rest.parentNode.insertBefore(mk, rest); mk.appendChild(rest);
-          hits.unshift(mk); void after;
+  // Each range gets a <mark> around its part of every text node it lies in; a hit is the list of its marks
+  function pfWrap(seg, ranges) {
+      var hits = [], starts = [], lens = [], at = 0;
+      seg.forEach(function(n) { starts.push(at); lens.push(n.nodeValue.length); at += n.nodeValue.length; });
+      for (var i = ranges.length - 1; i >= 0; i--) {   // from the end, and each range's nodes from the last, so earlier offsets stay valid
+          var r = ranges[i], marks = [];
+          for (var k = seg.length - 1; k >= 0; k--) {
+              var a = Math.max(r[0], starts[k]) - starts[k], z = Math.min(r[1], starts[k] + lens[k]) - starts[k];
+              if (a >= z) continue;
+              var rest = seg[k].splitText(a); rest.splitText(z - a);
+              var mk = document.createElement('mark'); mk.className = 'pf-hit'; rest.parentNode.insertBefore(mk, rest); mk.appendChild(rest);
+              marks.unshift(mk);
+          }
+          if (marks.length) hits.unshift(marks);
       }
       return hits;
   }
@@ -854,34 +1285,23 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       pfClear();
       var q = pfNorm(box.value).trim(); pfState.q = q;
       if (!q) { if (cnt) cnt.textContent = ''; return; }
-      var nodes = pfTextNodes(pv), hits = [];
-      var phrase = new RegExp(pfEsc(q), 'g');
-      nodes.forEach(function(n) { var rs = pfRanges(n, phrase); if (rs.length) hits = hits.concat(pfWrap(n, rs)); });
-      if (!hits.length && /\s/.test(q)) {   // no phrase: every word, at word starts
-          var words = q.split(/\s+/).filter(Boolean).map(pfEsc);
-          var re = new RegExp('(?<![a-z0-9])(' + words.join('|') + ')[a-z0-9]*', 'g');
-          nodes = pfTextNodes(pv);
-          nodes.forEach(function(n) {
-              var rs = pfRanges(n, re).map(function(r) { return r; });
-              if (rs.length) hits = hits.concat(pfWrap(n, rs));
-          });
-      } else if (!hits.length) {   // one word: at word starts, any ending
-          var re1 = new RegExp('(?<![a-z0-9])(' + pfEsc(q) + ')[a-z0-9]*', 'g');
-          nodes = pfTextNodes(pv);
-          nodes.forEach(function(n) { var rs = pfRanges(n, re1); if (rs.length) hits = hits.concat(pfWrap(n, rs)); });
-      }
+      var find = function(re) { var found = []; pfStretches(pv).forEach(function(seg) { var rs = pfRanges(seg, re); if (rs.length) found = found.concat(pfWrap(seg, rs)); }); return found; };
+      var hits = find(new RegExp(pfEsc(q), 'g'));
+      if (!hits.length && /\s/.test(q)) hits = find(new RegExp('(?<![a-z0-9])(' + q.split(/\s+/).filter(Boolean).map(pfEsc).join('|') + ')[a-z0-9]*', 'g'));   // no phrase: every word, at word starts
+      else if (!hits.length) hits = find(new RegExp('(?<![a-z0-9])(' + pfEsc(q) + ')[a-z0-9]*', 'g'));   // one word: at word starts, any ending
       pfState.hits = hits;
       if (!hits.length) { if (cnt) cnt.textContent = '0'; pfState.cur = -1; return; }
       pfGo(wasCur >= 0 && wasCur < hits.length ? wasCur : 0, true);
   }
   function pfGo(i, quiet) {
       var hits = pfState.hits, cnt = document.getElementById('plannerFindCount'); if (!hits.length) return;
-      if (pfState.cur >= 0 && hits[pfState.cur]) hits[pfState.cur].classList.remove('pf-cur');
+      if (pfState.cur >= 0 && hits[pfState.cur]) hits[pfState.cur].forEach(function(m) { m.classList.remove('pf-cur'); });
       pfState.cur = ((i % hits.length) + hits.length) % hits.length;
-      var h = hits[pfState.cur]; h.classList.add('pf-cur');
-      h.scrollIntoView({ block: 'center', behavior: quiet ? 'auto' : 'smooth' });
+      var h = hits[pfState.cur]; h.forEach(function(m) { m.classList.add('pf-cur'); });
+      h[0].scrollIntoView({ block: 'center', behavior: quiet ? 'auto' : 'smooth' });
       if (cnt) cnt.textContent = (pfState.cur + 1) + ' / ' + hits.length;
   }
+  // [textcheck:find-end]
   (function wirePlannerFind() {
       var box = document.getElementById('plannerFind'); if (!box) return;
       var t = null;
@@ -907,6 +1327,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // sanitiser (docrender sanitizeHtml: a typed <br> or &mdash; reads as before, nothing that runs survives), prose blocks read
   // as a page's do (proseHtml), a diagram's source is cleaned and loses its click directives before mermaid reads it, a
   // picture is the app's own (safecore picRef), and sizes are numbers. Only a Raw HTML block is the GM's HTML as written.
+  // A field with a format (textfmt.js) is drawn by docrender fmtRich: the format cleaned against the text first, the WHOLE field through
+  // the same sanitiser once — so a typed <b> or &mdash; reads as it does with no format, wherever a run begins — and the runs laid over its
+  // text by their offsets, each in a span whose style is written from the cleaned values; with none, as before. (A caption is escaped text: fmtHtml.)
   function plannerPreviewHtml(activeMap, camp) {
       var blocks = Array.isArray(activeMap.blocks) ? activeMap.blocks : [];
       var _pCss = docStyleCss(mergeDocStyle(camp && camp.docStyle, activeMap.meta && activeMap.meta.style));
@@ -916,9 +1339,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           if (!b || typeof b !== 'object') return;
           html += '<div class="pv-blk" data-blk="' + _bi + '">';
           if (b.type === 'h1') {
-              html += '<h1>' + sanitizeHtml(b.title || '') + (b.sub ? '<span class="sub">' + sanitizeHtml(b.sub) + '</span>' : '') + '</h1>';
+              html += '<h1>' + fmtRich(b.title || '', fieldFmt(b, 'title')) + (b.sub ? '<span class="sub">' + fmtRich(b.sub, fieldFmt(b, 'sub')) + '</span>' : '') + '</h1>';
           } else if (b.type === 'h2') {
-              html += '<h2>' + sanitizeHtml(b.title || '') + '</h2>';
+              html += '<h2>' + fmtRich(b.title || '', fieldFmt(b, 'title')) + '</h2>';
           } else if (b.type === 'lede') {
               html += '<p class="lede">' + proseHtml(b.content) + '</p>';
           } else if (b.type === 'oneline') {
@@ -933,14 +1356,14 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               html += '<div class="diagram"><pre class="mermaid">' + sanitizeHtml(stripMermaidLinks(b.content)) + '</pre></div>';   // mermaid reads the pre's HTML and decodes it: typed source, <br> labels and an import's &lt; all read as before
           } else if (b.type === 'image') {
               var pSrc = picRef(b.src), pW = num(b.width, 0, 0, 100) || 100;
-              html += pSrc ? '<figure class="planner-img" style="width:' + pW + '%; margin-left:' + ((b.align || 'center') === 'left' ? '0' : 'auto') + '; margin-right:' + ((b.align || 'center') === 'right' ? '0' : 'auto') + ';"><img src="' + esc(pSrc) + '" alt="' + esc(b.caption || '') + '">' + (b.caption ? '<figcaption>' + esc(b.caption) + '</figcaption>' : '') + '</figure>' : '';
+              html += pSrc ? '<figure class="planner-img" style="width:' + pW + '%; margin-left:' + ((b.align || 'center') === 'left' ? '0' : 'auto') + '; margin-right:' + ((b.align || 'center') === 'right' ? '0' : 'auto') + ';"><img src="' + esc(pSrc) + '" alt="' + esc(b.caption || '') + '">' + (b.caption ? '<figcaption>' + fmtHtml(b.caption, fieldFmt(b, 'caption'), esc) + '</figcaption>' : '') + '</figure>' : '';
           } else if (b.type === 'raw') {
               html += (b.content||'');   // the GM's own HTML, as written (an import rebuilds a raw block)
           } else if (b.type === 'node') {
               var plainPv = b.mode === 'table';
               html += '<div class="node' + (plainPv ? ' plain-table' : '') + '">';
-              if (!plainPv || b.title) html += '<h3>' + sanitizeHtml(b.title || '') + (!plainPv && b.tag ? ' <span class="tag">' + sanitizeHtml(b.tag) + '</span>' : '') + '</h3>';
-              if (!plainPv && b.must) html += '<p class="must"><b>Must resolve:</b> ' + sanitizeHtml(b.must) + '</p>';
+              if (!plainPv || b.title) html += '<h3>' + fmtRich(b.title || '', fieldFmt(b, 'title')) + (!plainPv && b.tag ? ' <span class="tag">' + fmtRich(b.tag, fieldFmt(b, 'tag')) + '</span>' : '') + '</h3>';
+              if (!plainPv && b.must) html += '<p class="must"><b>Must resolve:</b> ' + fmtRich(b.must, fieldFmt(b, 'must')) + '</p>';
               if (!plainPv && b.linkMapId) {
                   var mapP = camp && camp.items && typeof b.linkMapId === 'string' && Object.prototype.hasOwnProperty.call(camp.items, b.linkMapId) ? camp.items[b.linkMapId] : null;
                   if (mapP && typeof mapP === 'object') {
@@ -950,9 +1373,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               }
               if (Array.isArray(b.rows) && b.rows.length > 0) {
                   var cols = (Array.isArray(b.cols) && b.cols.length > 0) ? b.cols.slice() : (plainPv ? ['Item', 'Detail', 'Notes'] : ['Action', 'Why', 'Cost', 'Returns via']);
-                  html += '<table><thead><tr>' + cols.map(function(c) { return '<th>' + sanitizeHtml(c) + '</th>'; }).join('') + '</tr></thead><tbody>';
-                  b.rows.forEach(function(r) {
-                      html += '<tr>' + cols.map(function(c, ci) { return '<td>' + sanitizeHtml((r && r['col' + (ci + 1)]) || '') + '</td>'; }).join('') + '</tr>';
+                  html += '<table><thead><tr>' + cols.map(function(c, ci) { return '<th>' + fmtRich(c, colFmtOf(b, ci)) + '</th>'; }).join('') + '</tr></thead><tbody>';
+                  b.rows.forEach(function(r, ri) {
+                      html += '<tr>' + cols.map(function(c, ci) { return '<td>' + fmtRich((r && r['col' + (ci + 1)]) || '', cellFmtOf(b, ri, ci)) + '</td>'; }).join('') + '</tr>';
                   });
                   html += '</tbody></table>';
               }

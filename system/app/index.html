@@ -403,6 +403,16 @@
                           <li><b>Not undoable:</b> renaming, re-ordering, re-parenting, the scene status, creating a page, and deleting one. Deleting takes a <b>safety copy</b> of your save first (Settings &rarr; Advanced &rarr; Snapshots), so nothing is lost for good.</li>
                           <li><b>How far back:</b> Undo keeps the last <b>100</b> steps per map and per planner by default; set it from <b>10 to 500</b> in <b>Settings &rarr; Advanced &rarr; Undo history size</b>. Deeper history uses more memory on this computer.</li>
                       </ul>
+                      <h4>Text style</h4>
+                      <ul>
+                          <li>At the top of the editor sits a <b>Text style</b> bar, closed until you click its <b>&#9656;</b>. It works on the text you type in plain boxes: a title or subtitle, a section heading, a scene node's title, tag and must-resolve, a table's headings and cells, a picture's caption, a flowchart node's label and an arrow's label.</li>
+                          <li><b>Select, then click.</b> Select some characters in a box and click <b>B</b>, <b><i>I</i></b> or a colour &mdash; the seven inks, a custom colour, or <b>Default</b>. Only those characters change, and the preview beside the editor shows it. The selection stays where it was, so you can click green and then bold without selecting again. <kbd>Ctrl + B</kbd> and <kbd>Ctrl + I</kbd> do the same from the keyboard.</li>
+                          <li><b>Nothing selected is the whole field.</b> Click in a node's label and pick red and all of it turns red; then select the lines you have finished and pick green. <b>Size</b> &mdash; Small, Large, Larger, Huge or Default &mdash; is always the whole field's. <b>Clear</b> takes the styling off the selection, or off the whole field when nothing is selected.</li>
+                          <li>The bar names what it will act on (&ldquo;Node n3&rsquo;s label&rdquo;, &ldquo;Row 2, Cost&rdquo;) or asks you to click in a field first; a control that cannot apply is greyed out. After you add, delete or move a row, a block, a node or an arrow it asks for a click again. Each click is one undo step &mdash; <kbd>Ctrl + Z</kbd> in the field takes the click back, not what you typed before it &mdash; and whatever you type afterwards leaves the styling on the characters it was on.</li>
+                          <li><b>From the keyboard:</b> <kbd>Tab</kbd> to the bar. A control you press there keeps the focus, so you can pick a colour and then bold, or step through the <b>Size</b> list with the arrow keys (that whole run of sizes is one undo step); <kbd>Esc</kbd> &mdash; or <kbd>Enter</kbd> in the Size list &mdash; takes you back to the field, its selection as you left it.</li>
+                          <li><b>Text blocks</b> (text, lead text, one-line summary, callout, flare) keep their own bar, which also has the <b>colours</b>, <b>Default</b> and a <b>Size</b> list for the selected text.</li>
+                          <li>Styling is kept in the campaign and in its export file. A <b>Markdown</b> export writes the plain text: Markdown has no colour and no size, and a Markdown import brings none in.</li>
+                      </ul>
                       <h4>Import and export</h4>
                       <p>A planner can come in from a <b>Markdown</b> file &mdash; the <b>import</b> button in the planner toolbar appends to the open planner, the file button on the Planners header&rsquo;s right-click menu makes a new one, and the header <b>Import</b> button takes a <code>.md</code> too &mdash; with a preview of every block before anything is written; <code>### Scene: Name</code> opens a scene node. <b>Save Markdown</b> on the Export menu writes it back out. The format is under <b>Handbook &rsaquo; Import and export</b>.</p>
                       <div class="help-tip">In multiplayer, planners are never sent to players &mdash; they are yours alone. For pages your players <i>can</i> read, see <b>Handbook</b>.</div>
@@ -417,6 +427,7 @@
                           <li>Right-click <b>Handbook</b> in the left panel, press <b>+</b> and name the page.</li>
                           <li>Add blocks from <b>+ Add Block&hellip;</b>: title, sections and sub-headings, prose, lead text, callouts, pictures, plain tables, a horizontal line, flowcharts and diagrams. Everything on a page is player-safe by design &mdash; there are no scene nodes, raw HTML or GM notes on a page; keep those in planners.</li>
                           <li>The preview on the right shows exactly what a player gets. Double-click a block in it to jump to that block in the editor.</li>
+                          <li>The <b>Text style</b> bar at the top of the editor colours, bolds, italicises and sizes a page's text just as in a planner (Help &#9656; Planners &#9656; Text style): select characters in a title, a table cell or a flowchart label and click a style, or click in the box with nothing selected to style the whole field; the text blocks have the colours and a Size list on their own bar. Players see a styled page exactly as you do.</li>
                       </ol>
                       <h4>Players can read / GM only</h4>
                       <ul>
@@ -434,7 +445,7 @@
                           <li>A large upward nudge on a floated picture can overlap the text above it; the preview shows exactly what players get, so look before you leave it.</li>
                       </ul>
                       <h4 id="helpMdGuide">Import and export</h4>
-                      <p>A page or a planner can come in from a <b>Markdown</b> file and go back out as one. Three ways in: the <b>import</b> button in the planner toolbar appends to the open document; the file button on the Planners and Handbook headers&rsquo; right-click menus makes a new one; the header <b>Import</b> button takes a <code>.md</code> (or a zip that holds one) and asks which it becomes. Pictures come along when you pick them together with the file, or zip the file with its <code>images</code> folder; Google Docs&rsquo; <b>File &rsaquo; Download &rsaquo; Markdown</b> embeds them and works as is. A preview lists every block first &mdash; flip a type, untick what you don&rsquo;t want &mdash; and nothing is written until you press Import (one undo step). <b>Save Markdown</b> on the Export menu writes the open planner or page back out, as a zip when it has pictures. Word users: export to Markdown first (Google Docs does it directly).</p>
+                      <p>A page or a planner can come in from a <b>Markdown</b> file and go back out as one. Three ways in: the <b>import</b> button in the planner toolbar appends to the open document; the file button on the Planners and Handbook headers&rsquo; right-click menus makes a new one; the header <b>Import</b> button takes a <code>.md</code> (or a zip that holds one) and asks which it becomes. Pictures come along when you pick them together with the file, or zip the file with its <code>images</code> folder; Google Docs&rsquo; <b>File &rsaquo; Download &rsaquo; Markdown</b> embeds them and works as is. A preview lists every block first &mdash; flip a type, untick what you don&rsquo;t want &mdash; and nothing is written until you press Import (one undo step). <b>Save Markdown</b> on the Export menu writes the open planner or page back out, as a zip when it has pictures. Word users: export to Markdown first (Google Docs does it directly). Markdown has no colour and no size: a file brings none in, and <b>Save Markdown</b> writes none.</p>
                       <pre class="help-code" style="font-size:12px; line-height:1.45; white-space:pre-wrap;">---
 title: House rules              # the title (else the first heading, else the file name)
 subtitle: What the table agreed on
@@ -1161,6 +1172,10 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
 
       <div id="plannerWrap">
         <div id="plannerEditorWrap" style="width: 50%; border-right: 1px solid var(--edge); display: flex; flex-direction: column; overflow-y: auto; background: var(--bg2); padding: 15px;">
+          <div id="textStyleBar" class="ts-bar">
+              <button type="button" id="textStyleToggle" class="ts-toggle" aria-expanded="false" aria-controls="textStyleBody" title="Colour, bold, italic and size for the text in titles, labels and table cells. Click in a field (or select some of its characters), then pick a style."><span class="ts-caret" aria-hidden="true">&#9656;</span> Text style</button>
+              <div id="textStyleBody" class="ts-body" hidden></div>
+          </div>
           <div id="plannerBlocks"></div>
           <div style="margin-top: 15px; display: flex; gap: 8px;">
               <select id="addBlockSelect" class="tool">

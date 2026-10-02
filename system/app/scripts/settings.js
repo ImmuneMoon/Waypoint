@@ -638,9 +638,15 @@ function appVersionPromise() {   // the newer of the shell's version and the app
    /api/update-check asks the shell to look at the newest GitHub Release. If the front end alone
    changed, Update Now downloads it, the shell swaps system/app in place and we reload. If the
    release needs a newer shell, the button becomes Get Installer instead. A quiet check runs a
-   few seconds after launch; a newer version raises the header Update button and a notice. */
-var _upd = { info: null, shellOld: null, shell: null };
-var SHELL_WANTED = '1.5.0';   // 1.5.0 adds /api/library (the item library's pack files beside the save) and serves a file in byte ranges under its media type (servefile.js: a video seeks without being read whole); 1.4.6 added /api/delete-image (Image Library → Delete picture)   // the core this app expects; older cores are walked through the installer
+   few seconds after launch; a newer version raises the header Update button and a notice.
+   The shell takes an update only when it is signed by the key it carries (updater.js); the page
+   hands it nothing to judge by. The shell keeps the app as it was before the last update, and
+   says so (hasPrev): Restore the previous version asks it to put that back (/api/update-rollback).
+   From 1.5.0 on a release that needs a newer shell is one click too where the shell says this copy
+   can take it (canSelfInstall): the shell downloads the installer, checks it, runs it and Waypoint
+   reopens; Get Installer and its steps remain for every case where that cannot be done. */
+var _upd = { info: null, shellOld: null, shell: null, selfBusy: false, selfFailed: false, selfText: '', failNote: '', failSeen: '' };
+var SHELL_WANTED = '1.5.0';   // 1.5.0 adds /api/library (the item library's pack files beside the save), serves a file in byte ranges under its media type (servefile.js: a video seeks without being read whole), takes only signed updates, keeps a way back and updates its own core; 1.4.6 added /api/delete-image (Image Library → Delete picture)   // the core this app expects; older cores are walked through the installer. It is the version tools/shellrev.json records as the core's last change: updatercheck holds the two together, and a release's manifest says the same as minShell
 var RELEASES_PAGE = 'https://github.com/ImmuneMoon/Waypoint/releases/latest';
 function vcmp(x, y) { var p = String(x).split('-')[0].split('.').map(Number), q = String(y).split('-')[0].split('.').map(Number); for (var k = 0; k < 3; k++) { if ((p[k] || 0) !== (q[k] || 0)) return (p[k] || 0) - (q[k] || 0); } return 0; }
 // Is the core older than this app wants? The shell says so itself from 1.3.6 on; before that, the
@@ -683,15 +689,34 @@ function coreNudge(firstTime) {
         if (seen !== cur) { try { localStorage.setItem(seenKey, cur); } catch (e) {} setTimeout(function() { showInstallerSteps(coreInfo()); }, 800); }
     }
 }
+// [updatercheck:updates-start]
+// A version as plain words, or nothing: what the shell or a release says is never passed on as it came.
+function cleanVer(v) { return (typeof v === 'string' && /^[0-9A-Za-z][0-9A-Za-z.-]{0,39}$/.test(v)) ? v : ''; }
+// One plain line of what the shell said: no markup, no control characters, 200 characters at most.
+function plainLine(s) { return (typeof s === 'string' ? s : '').replace(/[\u0000-\u001f\u007f<>]/g, ' ').replace(/ +/g, ' ').trim().slice(0, 200); }
+// A count of bytes as whole megabytes for the words on the page (0: not a size).
+function mbOf(n) { return (typeof n === 'number' && isFinite(n) && n > 0) ? Math.max(1, Math.round(n / 1048576)) : 0; }
+// An update that changes Waypoint's core: can this copy take it by itself? Only when the shell says so (true, nothing
+// else), and not again in a run where that was tried and failed (the walk-through takes over then).
+function selfCan(i) { return !!(i && i.newer === true && i.needsInstaller === true && i.canSelfInstall === true && !_upd.selfFailed); }
+var INST_TITLE = "This update changes the app's core: download the installer and run it over your copy";
+var SELF_TITLE = "This update changes Waypoint's core too: one click downloads it, Waypoint closes, updates itself and opens again";
 function updateUI() {
-    var st = ui('setUpdateState'), row = ui('setUpdateRow'), now = ui('setUpdateNowBtn'), inst = ui('setUpdateInstallerBtn');
+    var st = ui('setUpdateState'), row = ui('setUpdateRow'), now = ui('setUpdateNowBtn'), inst = ui('setUpdateInstallerBtn'), back = ui('setUpdateRestoreBtn');
     var i = _upd.info;
+    if (back) {   // the way back shows only when the shell itself says it kept the previous version (true, nothing else) — also when the release list could not be reached
+        var has = !!(i && i.hasPrev === true), pv = has ? cleanVer(i.prevVersion) : '';
+        back.style.display = has ? 'block' : 'none';
+        back.textContent = 'Restore the previous version' + (pv ? ' (' + pv + ')' : '');
+    }
+    var self = selfCan(i);
+    if (inst) { inst.textContent = self ? 'Update' : 'Get Installer'; inst.title = self ? SELF_TITLE : INST_TITLE; }
     if (!st || !row) return;
     if (!i) { st.textContent = ''; row.style.display = 'none'; return; }
     if (i.error) { st.textContent = 'could not check (' + (i.error.length > 40 ? 'offline?' : i.error) + ')'; row.style.display = 'none'; return; }
     if (!i.newer && _upd.shellOld) { st.textContent = 'app ' + (window.wpAppVersion || i.current) + ' — core needs the installer'; row.style.display = 'flex'; if (now) now.style.display = 'none'; if (inst) inst.style.display = 'block'; return; }
     if (!i.newer) { st.textContent = 'up to date (' + i.current + ')'; row.style.display = 'none'; return; }
-    st.textContent = i.latest + ' available';
+    st.textContent = _upd.selfText || (i.latest + ' available');
     row.style.display = 'flex';
     if (now) now.style.display = i.canHotUpdate ? 'block' : 'none';
     if (inst) inst.style.display = i.needsInstaller ? 'block' : 'none';
@@ -708,7 +733,8 @@ function checkUpdates(force, quiet) {
         }
         _upd.info = i; updateUI();
         showUpdateButton(i);
-        if (i && i.newer) showUpdateBanner(i); else if (_upd.shellOld) coreNudge(false); else hideUpdateBanner();
+        if (!_upd.failNote) { if (i && i.newer) showUpdateBanner(i); else if (_upd.shellOld) coreNudge(false); else hideUpdateBanner(); }
+        showFailNote(i);   // a core update that was started and did not finish takes the notice bar
         if (i && i.newer && !quiet) toast('Waypoint ' + i.latest + ' is available.');
         return i;
     }).catch(function(e) { _upd.info = { error: String(e) }; updateUI(); });
@@ -719,7 +745,8 @@ function runHotUpdate() {
     var i = _upd.info; if (!i || !i.canHotUpdate) return;
     if (window.wpNet && window.wpNet.active) { toast('Leave or end the multiplayer session first.'); return; }
     import('./dialogs.js').then(function(d) {
-        d.showConfirm('Update Waypoint from ' + i.current + ' to ' + i.latest + '? The new version downloads (a couple of MB), replaces the app files, and Waypoint reloads. Your campaigns and settings are untouched.', function() {
+        d.showConfirm('Update Waypoint from ' + i.current + ' to ' + i.latest + '? The new version downloads (a couple of MB), replaces the app files, and Waypoint reloads. Your campaigns and settings are untouched.', function(yes) {
+            if (!yes) return;   // No means no: nothing downloads
             toast('Downloading Waypoint ' + i.latest + '…');
             var btns = [ui('setUpdateNowBtn'), ui('updateBannerGo'), ui('updateBtn')];
             btns.forEach(function(b) { if (b) b.disabled = true; });
@@ -734,52 +761,179 @@ function runHotUpdate() {
 }
 var _updNow = ui('setUpdateNowBtn');
 if (_updNow) _updNow.addEventListener('click', runHotUpdate);
+// Restore the previous version: the shell puts back the app as it was before the last update (one step), and Waypoint reloads.
+// Campaigns live in the saves folder, which no update and no restore touches. The newer release stays on offer afterwards.
+function runRestore() {
+    var i = _upd.info; if (!i || i.hasPrev !== true) return;
+    if (window.wpNet && window.wpNet.active) { toast('Leave or end the multiplayer session first.'); return; }
+    var cur = cleanVer(i.current) || cleanVer(String(window.wpAppVersion || '').split('-')[0]), prev = cleanVer(i.prevVersion);
+    import('./dialogs.js').then(function(d) {
+        d.showConfirm('Go back ' + (cur ? 'from Waypoint ' + cur + ' ' : '') + 'to ' + (prev ? 'Waypoint ' + prev : 'the previous version of Waypoint') + '? Your campaigns are not touched. You can update again afterwards.', function(yes) {
+            if (!yes) return;
+            var b = ui('setUpdateRestoreBtn'); if (b) b.disabled = true;
+            fetch('/api/update-rollback', { method: 'POST' }).then(function(r) { return r.json(); }).then(function(r) {
+                if (!r || r.ok !== true) throw new Error((r && typeof r.error === 'string' && r.error) || 'nothing was restored');
+                var v = cleanVer(r.version);
+                toast('Restored ' + (v ? 'Waypoint ' + v : 'the previous version') + ' — reloading… If you had a Stream window open, close and reopen it.');
+                try { new BroadcastChannel('waypoint').postMessage({ type: 'reload' }); } catch (e) {}   // a stream window reloads itself onto the restored code
+                setTimeout(function() { location.reload(); }, 900);
+            }).catch(function(e) { if (b) b.disabled = false; toast('Could not restore the previous version: ' + String(e && e.message || e).slice(0, 200)); });
+        });
+    });
+}
+var _updBack = ui('setUpdateRestoreBtn');
+if (_updBack) _updBack.addEventListener('click', runRestore);
+
+/* ---------- an update that changes Waypoint's core, in one click ----------
+   Where the shell says this copy can (canSelfInstall): it downloads the installer, checks it against the update key,
+   and — once the campaign is saved — starts it and closes Waypoint; the installer opens Waypoint again. The page only
+   asks and shows how it stands: it hands the shell nothing to download, nowhere to put it and nothing to run.
+   Anything that goes wrong is said in one line and the walk-through (Get Installer, the steps, the browser) takes over. */
+function selfButtons(off) { [ui('setUpdateInstallerBtn'), ui('setUpdateNowBtn'), ui('setUpdateRestoreBtn'), ui('setUpdateCheckBtn'), ui('updateBannerGo'), ui('updateBtn')].forEach(function(b) { if (b) b.disabled = off; }); }
+// How it stands, as text: beside the Updates heading in Settings and on the header's Update button.
+function selfSay(text) {
+    _upd.selfText = text;
+    var st = ui('setUpdateState'); if (st) st.textContent = text;
+    var b = ui('updateBtn'); if (b && text) b.textContent = text;
+}
+function selfFail(why, i) {
+    _upd.selfBusy = false; _upd.selfFailed = true; _upd.selfText = '';
+    selfButtons(false); updateUI(); showUpdateButton(i); hideUpdateBanner();
+    var line = plainLine(why);
+    toast('Waypoint could not update itself' + (line ? ': ' + line : '') + '. Get Installer shows the steps instead.');
+    showInstallerSteps(i);
+}
+// Nothing unsaved may be lost when the app closes. io.js says how a save stands in the save note ("Saving..." until it is
+// answered): a save already under way ends first, then the campaign is saved now, and its own answer is waited for.
+function savedThen(cb) {
+    var note = ui('saveNote');
+    var busy = function() { return !!note && /^Saving/.test(String(note.textContent || '')); };
+    var wait = function(n, then) { if (!busy()) { then(true); return; } if (n <= 0) { then(false); return; } setTimeout(function() { wait(n - 1, then); }, 150); };
+    wait(100, function(quiet) {
+        if (!quiet) { cb(false); return; }
+        try { if (typeof window.wpSave === 'function') window.wpSave(true); } catch (e) { cb(false); return; }
+        wait(100, function(done) { cb(done && !(note && /error/i.test(String(note.textContent || '')))); });
+    });
+}
+function selfInstall(i, to) {
+    selfSay('Saving your campaign…');
+    savedThen(function(saved) {
+        if (!saved) { selfFail('your campaign could not be saved, so nothing was installed', i); return; }
+        selfSay('Waypoint is closing to update…'); toast('Waypoint is closing to update…');
+        fetch('/api/update-installer-run', { method: 'POST' }).then(function(r) { return r.json(); }).then(function(r) {
+            if (!r || r.ok !== true) throw new Error((r && typeof r.error === 'string' && r.error) || 'the installer did not start');
+            // still here a minute later: Waypoint did not close, so the update could not go on — the next check says what came of it
+            setTimeout(function() { _upd.selfBusy = false; _upd.selfText = ''; selfButtons(false); checkUpdates(true, true); }, 60000);
+        }).catch(function(e) { selfFail(e && e.message, i); });
+    });
+}
+function selfPoll(i, to, misses) {
+    setTimeout(function() {
+        fetch('/api/update-installer-status', { cache: 'no-store' }).then(function(r) { return r.json(); }).then(function(s) {
+            var state = s && s.state, got = (s && typeof s.got === 'number' && s.got > 0) ? s.got : 0, total = (s && typeof s.total === 'number' && s.total > 0) ? s.total : 0;
+            if (state === 'downloading') { selfSay('Downloading Waypoint ' + to + '… ' + (total ? Math.min(100, Math.floor(got * 100 / total)) + '%' : mbOf(got) + ' MB')); selfPoll(i, to, 0); }
+            else if (state === 'verifying') { selfSay('Checking the download…'); selfPoll(i, to, 0); }
+            else if (state === 'ready') selfInstall(i, to);
+            else selfFail(state === 'failed' ? ((s && typeof s.error === 'string' && s.error) || 'the download failed') : 'the download stopped', i);
+        }, function() { if (misses >= 2) selfFail('Waypoint stopped answering', i); else selfPoll(i, to, misses + 1); })
+        .catch(function(e) { selfFail(e && e.message, i); });
+    }, 1000);
+}
+function runSelfUpdate() {
+    var i = _upd.info; if (!selfCan(i) || _upd.selfBusy) return;
+    if (window.wpNet && window.wpNet.active) { toast('Leave or end the multiplayer session first.'); return; }
+    var from = cleanVer(i.current) || cleanVer(String(window.wpAppVersion || '').split('-')[0]), to = cleanVer(i.latest), mb = mbOf(i.installerSize);
+    if (!to) { selfFail('the release names no plain version', i); return; }
+    import('./dialogs.js').then(function(d) {
+        d.showConfirm('Update Waypoint' + (from ? ' from ' + from : '') + ' to ' + to + "? This one updates Waypoint's core too: the new version downloads" + (mb ? ' (about ' + mb + ' MB)' : '') + ', Waypoint closes, updates itself and opens again. Your campaigns and settings are untouched.', function(yes) {
+            if (!yes || _upd.selfBusy) return;   // No means no: nothing downloads
+            _upd.selfBusy = true; selfButtons(true); hideUpdateBanner();
+            selfSay('Downloading Waypoint ' + to + '…'); toast('Downloading Waypoint ' + to + '…');
+            fetch('/api/update-installer', { method: 'POST' }).then(function(r) { return r.json(); }).then(function(r) {
+                if (!r || r.ok !== true) throw new Error((r && typeof r.error === 'string' && r.error) || 'the download did not start');
+                selfPoll(i, to, 0);
+            }).catch(function(e) { selfFail(e && e.message, i); });
+        });
+    });
+}
 
 /* ---------- the update notice and the header Update button ----------
    A check that finds a newer version does two things: the header grows a gold Update button
    that stays until the update is actually applied, and a notice bar appears once under the
-   header (Later just hides the bar for this run). Update runs the one-click update, or fetches
-   the installer when the release changed the app's core. */
+   header (Later just hides the bar for this run). Update runs the one-click update — of the app
+   files, or of the core too where this copy can install it by itself — and otherwise shows the
+   steps for the installer. */
 var _bannerSeen = null;   // version the notice has already been shown for, this run
 function showUpdateButton(i) {
     var b = ui('updateBtn'); if (!b) return;
     if (!i || !i.newer) { b.style.display = 'none'; return; }
     b.textContent = '⬆️ Update to ' + i.latest;
-    b.title = 'Waypoint ' + i.latest + ' is available' + (i.canHotUpdate ? ' — click to update in place (a few seconds, saves and settings kept)' : ' — this one comes as an installer; click to see the steps (nothing downloads until you say so)');
+    b.title = 'Waypoint ' + i.latest + ' is available' + (i.canHotUpdate ? ' — click to update in place (a few seconds, saves and settings kept)' : selfCan(i) ? " — click to update: this one updates Waypoint's core too (it downloads, Waypoint closes, updates itself and opens again; saves and settings kept)" : ' — this one comes as an installer; click to see the steps (nothing downloads until you say so)');
     b.style.display = 'inline-block';
 }
 function showUpdateBanner(i) {
     var bar = ui('updateBanner'); if (!bar || !i || !i.newer) return;
     if (_bannerSeen === i.latest) return;
     _bannerSeen = i.latest;
+    var one = !!(i.canHotUpdate || selfCan(i));
     var txt = ui('updateBannerText');
-    if (txt) txt.textContent = 'Waypoint ' + i.latest + ' is available' + (i.canHotUpdate ? ' — one click to update.' : ' — this one comes as an installer; Update shows the steps first.');
-    var go = ui('updateBannerGo'); if (go) go.textContent = i.canHotUpdate ? 'Update' : 'Get Installer';
+    if (txt) txt.textContent = 'Waypoint ' + i.latest + ' is available' + (one ? ' — one click to update.' : ' — this one comes as an installer; Update shows the steps first.');
+    var go = ui('updateBannerGo'); if (go) go.textContent = one ? 'Update' : 'Get Installer';
     var hdr = document.querySelector('header'); if (hdr) bar.style.top = (hdr.getBoundingClientRect().bottom + 8) + 'px';
     bar.style.display = 'flex';
 }
 function hideUpdateBanner() { var bar = ui('updateBanner'); if (bar) bar.style.display = 'none'; }
+// A core update that was started and did not finish (the shell kept a mark of it, and its core is still the older one):
+// said once per run in the notice bar, with both ways on from here and a way to put the notice away.
+function showFailNote(i) {
+    var v = i ? cleanVer(i.installFailed) : ''; if (!v || _upd.failSeen === v) return;
+    var bar = ui('updateBanner'), txt = ui('updateBannerText'); if (!bar || !txt) return;
+    _upd.failSeen = v; _upd.failNote = v;
+    txt.textContent = 'The update to ' + v + ' did not finish. Try Update again, or use Get Installer.';
+    var go = ui('updateBannerGo'), notes = ui('updateBannerNotes'), later = ui('updateBannerLater');
+    if (go) go.textContent = 'Update'; if (notes) notes.textContent = 'Get Installer'; if (later) later.textContent = 'Dismiss';
+    var hdr = document.querySelector('header'); if (hdr) bar.style.top = (hdr.getBoundingClientRect().bottom + 8) + 'px';
+    bar.style.display = 'flex';
+}
+// The notice is answered (either way on, or put away): the bar's buttons are their usual selves again and the shell forgets the mark.
+function endFailNote() {
+    var v = _upd.failNote; if (!v) return '';
+    _upd.failNote = '';
+    var notes = ui('updateBannerNotes'), later = ui('updateBannerLater');
+    if (notes) notes.textContent = 'Notes'; if (later) later.textContent = 'Later';
+    hideUpdateBanner();
+    try { fetch('/api/update-installer-dismiss', { method: 'POST' }).catch(function() {}); } catch (e) {}
+    return v;
+}
+function failSteps(v) { var i = _upd.info || {}; showInstallerSteps({ latest: v, installer: i.installer || i.page || RELEASES_PAGE }); }
 var _bGo = ui('updateBannerGo');
 if (_bGo) _bGo.addEventListener('click', function() {
     var i = _upd.info;
+    if (_upd.failNote) { var v = endFailNote(); if (selfCan(i)) runSelfUpdate(); else if (i && i.canHotUpdate) runHotUpdate(); else failSteps(v); return; }
     if (!(i && i.newer) && _upd.shellOld) { hideUpdateBanner(); showInstallerSteps(coreInfo()); return; }
     if (!i) return;
     if (i.canHotUpdate) runHotUpdate();
+    else if (selfCan(i)) runSelfUpdate();
     else { hideUpdateBanner(); var b = ui('setUpdateInstallerBtn'); if (b) b.click(); }
 });
 var _hdrUpd = ui('updateBtn');
-if (_hdrUpd) _hdrUpd.addEventListener('click', function() { hideUpdateBanner(); if (_bGo) _bGo.click(); });
+if (_hdrUpd) _hdrUpd.addEventListener('click', function() { if (!_upd.failNote) hideUpdateBanner(); if (_bGo) _bGo.click(); });
 var _bNotes = ui('updateBannerNotes');
-if (_bNotes) _bNotes.addEventListener('click', function() { var n = ui('setUpdateNotesBtn'); if (n) n.click(); });
+if (_bNotes) _bNotes.addEventListener('click', function() {
+    if (_upd.failNote) { failSteps(endFailNote()); return; }
+    var n = ui('setUpdateNotesBtn'); if (n) n.click();
+});
 var _bLater = ui('updateBannerLater');
 if (_bLater) _bLater.addEventListener('click', function() {
+    if (_upd.failNote) { endFailNote(); return; }
     hideUpdateBanner();
     toast('The Update button stays in the top bar until you update.');
 });
-// An update that changes the app's core cannot install in place. Before anything downloads, say so
+// An update that changes the app's core and cannot install itself here. Before anything downloads, say so
 // and spell out the steps; the download starts only when the person presses Continue.
 function showInstallerSteps(i) {
     var m = ui('installerModal'), v = ui('installerVersion'); if (!m) return;
+    i = i || {};
     if (v) v.textContent = i.latest ? 'Waypoint ' + i.latest : 'This update';
     var n = ui('installerIntroNormal'), c = ui('installerIntroCore'), t = ui('installerTitle');
     if (n) n.style.display = i.core ? 'none' : '';
@@ -790,7 +944,7 @@ function showInstallerSteps(i) {
 }
 window.wpShowInstallerSteps = showInstallerSteps;
 var _updInst = ui('setUpdateInstallerBtn');
-if (_updInst) _updInst.addEventListener('click', function() { var i = _upd.info; if (i && i.newer) showInstallerSteps(i); else if (_upd.shellOld) showInstallerSteps(coreInfo()); });
+if (_updInst) _updInst.addEventListener('click', function() { var i = _upd.info; if (i && i.newer) { if (selfCan(i)) runSelfUpdate(); else showInstallerSteps(i); } else if (_upd.shellOld) showInstallerSteps(coreInfo()); });
 (function() {
     var m = ui('installerModal'); if (!m) return;
     var go = ui('installerGoBtn'), later = ui('installerLaterBtn'), close = ui('installerCloseBtn');
@@ -800,10 +954,11 @@ if (_updInst) _updInst.addEventListener('click', function() { var i = _upd.info;
     if (go) go.addEventListener('click', function() {
         var target = m.dataset.url; if (!target) { hide(); return; }
         fetch('/api/open-external', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: target }) })
-            .then(function(r) { if (!r.ok) throw new Error(); hide(); toast('Downloading in your browser. When it finishes: close Waypoint, run Waypoint_Setup.exe, and open Waypoint again.'); })
+            .then(function(r) { if (!r.ok) throw new Error(); hide(); toast('Downloading in your browser. When it finishes: close Waypoint, run the Waypoint_Setup.exe you just downloaded (never one from anywhere else), and open Waypoint again.'); })
             .catch(function() { hide(); toast('Open this in a browser: ' + target); });
     });
 })();
+// [updatercheck:updates-end]
 var _updNotes = ui('setUpdateNotesBtn');
 if (_updNotes) _updNotes.addEventListener('click', function() {
     var i = _upd.info; if (!i) return;

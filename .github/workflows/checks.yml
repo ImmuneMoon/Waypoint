@@ -93,3 +93,6 @@ jobs:
       - name: zipcheck — the export bundle's archive, at any size
         if: ${{ !cancelled() }}
         run: node tools/zipcheck.js
+      - name: updatercheck — signed updates, the way back, the core updating itself, the key tool and the core's record (run on scratch installs; nothing downloaded is ever started)
+        if: ${{ !cancelled() }}
+        run: node tools/updatercheck.js

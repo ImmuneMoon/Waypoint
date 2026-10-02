@@ -245,13 +245,19 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
      One bar at the top of the editor, closed until its caret is clicked (remembered for the session, never saved). It acts on the field
      that holds the selection: for a plain box (an input or a textarea) the selection is its selectionStart / selectionEnd, read at the
      press — the bar's buttons never take the focus (mousedown is swallowed, as the text blocks' own bar does) — and remembered for the
-     two controls that must take it (the size list, the custom colour). With nothing selected B, I and a colour are the whole field's;
-     the size always is. In a text block's box the bar drives that block's own rich-text commands. Each press is one undo step, and Ctrl+Z
+     controls that must take it (the size list, the custom colour, the link box). With nothing selected B, I, U, S, a colour, a size
+     and a link are the whole field's; with characters selected, theirs. A link is a web address typed into the bar's own box (Enter, or
+     leaving the box for somewhere else, sets it; Escape backs out and sets nothing; an empty box takes the link off) — never for a flowchart label, which cannot hold one: the box is off
+     there and says why. In a text block's box the bar drives that block's own rich-text commands. Each press is one undo step, and Ctrl+Z
      in the field takes the press back (never the typing before it). A control the keyboard reached keeps the focus while it is pressed, so
      the Size list can be stepped through by its arrow keys — that run of sizes is one step — and Escape (Enter in the Size list) goes back
      to the field. Nothing is remembered across a rebuild of the editor: a place is an index, and every index may have moved. */
   // [textcheck:bar-start]
-  var tsState = { open: false, sel: null, els: null, key: false, run: null };   // key: the bar was last touched by the keyboard; run: the field and selection a run of Size list steps is on
+  var tsState = { open: false, sel: null, els: null, key: false, run: null, linkDone: null };   // key: the bar was last touched by the keyboard; run: the field and selection a run of Size list steps is on; linkDone: the address Enter has just set, or Escape has just dropped (the box's own change event then has nothing left to do)
+  var TS_LINK_TITLE = 'Link \u2014 a web address (https://\u2026) for the selected characters, or the whole field with nothing selected. Enter sets it, Esc backs out; an empty box takes the link off.';
+  var TS_LINK_LABEL = 'A flowchart label cannot hold a link: a chart never carries web addresses.';
+  var TS_LINK_RTE = 'This box links titles, table cells and captions.';
+  function tsIsLabel(d) { return !!d && (d.k === 'node' || d.k === 'edge'); }
   try { tsState.open = sessionStorage.getItem('wp_textStyleOpen') === '1'; } catch (e) {}
   function tsBlocksOf() { var am = getActiveMap(); return am && isDocLike(am) && Array.isArray(am.blocks) ? am : null; }
   // the editor box of a field, by its place
@@ -288,16 +294,18 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       return tsField(am.blocks, sel.d) ? sel : null;
   }
   function tsRteBody(idx) { var root = document.getElementById('plannerBlocks'); return root ? root.querySelector('.rte-body[data-idx="' + idx + '"]') : null; }
-  // One press of a control. change: { b: true } | { i: true } | { color: '#rrggbb' | null } | { size: key | null } | 'clear'. True when something changed.
+  // One press of a control. change: { b: true } | { i: true } | { u: true } | { st: true } | { color: '#rrggbb' | null } | { size: key | null } | { link: address | null } | 'clear'. True when something changed.
   // from: the bar's control the press came from. One the keyboard reached and holds keeps the focus; after any other press the field has it.
   function tsPress(change, from) {
       var am = tsBlocksOf(), sel = tsTarget();
       if (!am || !sel) { tsState.run = null; tsRefresh(); return false; }
       if (sel.rte !== undefined) { tsState.run = null; var body = tsRteBody(sel.rte), did = body ? rteLook(body, change) : false; tsNote(body); return did; }
       var fld = tsField(am.blocks, sel.d), text = fld.text(), was = fld.fmt();
+      if (change !== 'clear' && tsOwn(change, 'link') && tsIsLabel(sel.d)) { tsRefresh(); return false; }   // a flowchart label never holds a link
       var now = change === 'clear' ? TF.clear(was, text, sel.s, sel.e) : TF.apply(was, text, sel.s, sel.e, change);
       if (JSON.stringify(now) === JSON.stringify(TF.cleanFmt(was, text))) { tsRefresh(); return false; }   // nothing to change: no step
       var kept = !!(from && tsState.key && document.activeElement === from);   // the keyboard is on this control: it keeps the focus
+      var left = !!(from && from === tsState.els.link && document.activeElement !== from);   // the link box was left for somewhere else (its change came as it lost the focus): the focus stays where it went
       var runOn = kept && from === tsState.els.size ? JSON.stringify([sel.d, sel.s, sel.e]) : null;
       if (runOn && tsState.run === runOn) stepFold();   // the Size list stepped through by its arrow keys: every size on the way is applied, the run of them is one undo step (io.js)
       else stepBoundary();   // typing still on its way is its own step; this press is one step of its own
@@ -308,11 +316,21 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var box = tsBox(sel.d);   // the selection stays where it was, so the next press needs no second selecting
       if (box) {
           box._wpNativeDirty = false; box._wpFloor = box.value;   // Ctrl+Z in the field now takes this press back (the planner's history has it, after the typing): the browser's own undo would take the typed text away with its styling, and its redo bring it back plain (io.js fieldUndoChord; what is typed after this it may still take back, down to this text)
-          try { if (!kept && document.activeElement !== box) box.focus(); box.setSelectionRange(sel.s, sel.e); } catch (e) {}
+          try { if (!left) { if (!kept && document.activeElement !== box) box.focus(); box.setSelectionRange(sel.s, sel.e); } } catch (e) {}
       }
       if (now && now.spans && now.spans.length >= TF.MAX_SPANS) toast('This field now holds the most styled parts it can (' + TF.MAX_SPANS + ').');
       tsRefresh();
       return true;
+  }
+  // The link box's address onto the field. A web address typed without its scheme ("example.com/page") is taken as https:// — one with a port
+  // too ("example.com:8080/page", "localhost:3000": a first word followed by one to five digits and then the end, a /, a ? or a # is a host and
+  // its port, not a scheme); anything that is still no link (textfmt.js cleanLink: the page sanitiser's rule — so whatever begins with another
+  // scheme) is refused in words and changes nothing ('bad'); an empty box takes the link off.
+  function tsLink() {
+      var E = tsState.els, v = String(E.link.value == null ? '' : E.link.value).trim();
+      if (v && !/^[a-z][a-z0-9+.-]*:(?!\d{1,5}(?:[\/?#]|$))/i.test(v)) v = 'https://' + v;
+      if (v && !TF.cleanLink(v)) { toast('A link is a web address: it starts with http:// or https:// and holds no spaces.'); return 'bad'; }
+      return tsPress({ link: v || null }, E.link);
   }
   // The editor was rebuilt (a row, a block, a node or an arrow added, deleted or moved; undo, redo; another document): what was remembered is a
   // place by index, and every index may now name another text — so nothing stays remembered and the bar asks for a click in a field. (A box
@@ -341,15 +359,25 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       }
       E.target.textContent = words;
       var needSel = kind === 'rte' && !sel.some;   // in a text block a colour, a size and Clear need a selection
-      E.b.disabled = E.i.disabled = kind === 'none';
-      E.b.classList.toggle('on', !!(st && st.b)); E.i.classList.toggle('on', !!(st && st.i));
+      E.b.disabled = E.i.disabled = E.u.disabled = E.s.disabled = kind === 'none';
+      E.b.classList.toggle('on', !!(st && st.b)); E.i.classList.toggle('on', !!(st && st.i)); E.u.classList.toggle('on', !!(st && st.u)); E.s.classList.toggle('on', !!(st && st.st));
       E.swatches.forEach(function(sw) { sw.disabled = kind === 'none'; sw.classList.toggle('active', !!(st && st.color === sw.dataset.color)); });
       E.custom.disabled = kind === 'none';
       E.customWrap.classList.toggle('active', !!(st && st.color && !E.swatches.some(function(sw) { return sw.dataset.color === st.color; })));
       E.customWrap.classList.toggle('off', kind === 'none');
       E.nocolor.disabled = kind === 'none' || needSel;
       E.size.disabled = kind === 'none' || needSel;
-      E.size.value = st && st.size ? st.size : '';
+      var mixed = !!st && st.size === null;   // the range holds more than one size: the list says so (a word it shows, never one to pick)
+      E.sizeMixed.hidden = !mixed;
+      E.size.value = mixed ? 'mixed' : st && st.size ? st.size : '';
+      var label = kind === 'plain' && tsIsLabel(sel.d);
+      E.link.disabled = kind !== 'plain' || label;
+      E.linkLab.classList.toggle('off', E.link.disabled);
+      E.linkLab.title = label ? TS_LINK_LABEL : kind === 'rte' ? TS_LINK_RTE : TS_LINK_TITLE;
+      if (document.activeElement !== E.link) {   // never over what is being typed
+          E.link.value = st && st.link && !E.link.disabled ? st.link : '';
+          E.link.placeholder = st && st.link === null && !E.link.disabled ? 'several links' : 'https://\u2026';
+      }
       E.clear.disabled = kind === 'none' || needSel || (kind === 'plain' && !st.any);
   }
   // Build the bar's controls (text nodes and values only) and wire them. root: #textStyleBar from index.html.
@@ -360,17 +388,23 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var row = mk('div', 'ts-row');
       E.b = mk('button', 'ts-btn ts-b', 'B', 'Bold (Ctrl+B) \u2014 the selected characters, or the whole field with nothing selected'); E.b.type = 'button'; E.b.dataset.ts = 'b';
       E.i = mk('button', 'ts-btn ts-i', 'I', 'Italic (Ctrl+I) \u2014 the selected characters, or the whole field with nothing selected'); E.i.type = 'button'; E.i.dataset.ts = 'i';
-      row.appendChild(E.b); row.appendChild(E.i); row.appendChild(mk('span', 'ts-sep'));
+      E.u = mk('button', 'ts-btn ts-u', 'U', 'Underline (Ctrl+U) \u2014 the selected characters, or the whole field with nothing selected'); E.u.type = 'button'; E.u.dataset.ts = 'u';
+      E.s = mk('button', 'ts-btn ts-s', 'S', 'Strike through \u2014 the selected characters, or the whole field with nothing selected'); E.s.type = 'button'; E.s.dataset.ts = 'st';
+      row.appendChild(E.b); row.appendChild(E.i); row.appendChild(E.u); row.appendChild(E.s); row.appendChild(mk('span', 'ts-sep'));
       E.swatches = TF.PALETTE.map(function(p) { var sw = mk('button', 'ts-sw', '', p[1]); sw.type = 'button'; sw.dataset.color = p[0]; sw.style.background = p[0]; row.appendChild(sw); return sw; });
       E.customWrap = mk('label', 'ts-sw ts-custom', '', 'Custom colour');
       E.custom = mk('input', 'ts-colorpick'); E.custom.type = 'color'; E.custom.value = '#d9534f';
       E.customWrap.appendChild(E.custom); row.appendChild(E.customWrap);
       E.nocolor = mk('button', 'ts-btn ts-word', 'Default', 'The default colour'); E.nocolor.type = 'button'; E.nocolor.dataset.ts = 'nocolor';
       row.appendChild(E.nocolor); row.appendChild(mk('span', 'ts-sep'));
-      var sizeLab = mk('label', 'ts-sizelab', 'Size ', 'Size \u2014 always the whole field; in a text block, the selected text');
+      var sizeLab = mk('label', 'ts-sizelab', 'Size ', 'Size \u2014 the selected characters, or the whole field with nothing selected');
       E.size = mk('select', 'ts-size');
       [['', 'Default']].concat(TF.SIZES.map(function(k) { return [k, TF.SIZE_NAMES[k] || k]; })).forEach(function(o) { var op = mk('option', '', o[1]); op.value = o[0]; E.size.appendChild(op); });
+      E.sizeMixed = mk('option', '', 'Mixed'); E.sizeMixed.value = 'mixed'; E.sizeMixed.disabled = true; E.sizeMixed.hidden = true; E.size.appendChild(E.sizeMixed);   // shown, never picked: the range holds more than one size
       sizeLab.appendChild(E.size); row.appendChild(sizeLab); row.appendChild(mk('span', 'ts-sep'));
+      E.linkLab = mk('label', 'ts-linklab', 'Link ', TS_LINK_TITLE);
+      E.link = mk('input', 'ts-link'); E.link.type = 'text'; E.link.placeholder = 'https://\u2026'; E.link.setAttribute('spellcheck', 'false'); E.link.setAttribute('autocomplete', 'off'); E.link.setAttribute('aria-label', 'Link address');
+      E.linkLab.appendChild(E.link); row.appendChild(E.linkLab); row.appendChild(mk('span', 'ts-sep'));
       E.clear = mk('button', 'ts-btn ts-word', 'Clear', 'Take the styling off: the selected characters, or the whole field with nothing selected'); E.clear.type = 'button'; E.clear.dataset.ts = 'clear';
       row.appendChild(E.clear);
       E.target = mk('div', 'ts-target');
@@ -379,11 +413,15 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var show = function() { body.hidden = !tsState.open; toggle.setAttribute('aria-expanded', tsState.open ? 'true' : 'false'); root.classList.toggle('open', tsState.open); };
       toggle.addEventListener('mousedown', function(e) { e.preventDefault(); });
       toggle.addEventListener('click', function() { tsState.open = !tsState.open; try { sessionStorage.setItem('wp_textStyleOpen', tsState.open ? '1' : '0'); } catch (e) {} show(); tsRefresh(); });
-      // the buttons never take the focus: the field keeps its selection. The size list and the colour picker must take it; the press then acts on what was remembered
-      body.addEventListener('mousedown', function(e) { tsState.key = false; var t = e.target; if (t === E.size || t === E.custom || (t && t.tagName === 'OPTION')) { tsTarget(); return; } e.preventDefault(); });
-      // the keyboard in the bar: a control pressed from it keeps the focus (tsPress), Escape — and Enter in the Size list — goes back to the field
+      // the buttons never take the focus: the field keeps its selection. The size list, the colour picker and the link box must take it; the press then acts on what was remembered
+      body.addEventListener('mousedown', function(e) { tsState.key = false; var t = e.target; if (t === E.size || t === E.custom || t === E.link || (t && t.tagName === 'OPTION')) { tsTarget(); return; } e.preventDefault(); });
+      // the keyboard in the bar: a control pressed from it keeps the focus (tsPress), Escape — and Enter in the Size list — goes back to the field;
+      // Enter in the link box sets the link and goes back to the field; Escape there backs out: the field takes the focus, the box loses it with
+      // what was typed still in it, and its change event — which would set that — is told there is nothing left to do (linkDone)
       body.addEventListener('keydown', function(e) {
           tsState.key = true;
+          if (e.key === 'Enter' && e.target === E.link) { e.preventDefault(); e.stopPropagation(); tsState.linkDone = E.link.value; if (tsLink() !== 'bad') tsBack(); return; }
+          if (e.key === 'Escape' && e.target === E.link) tsState.linkDone = E.link.value;
           if ((e.key === 'Escape' || (e.key === 'Enter' && e.target === E.size)) && tsBack()) { e.preventDefault(); e.stopPropagation(); }
       });
       body.addEventListener('click', function(e) {
@@ -391,21 +429,25 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           if (btn.dataset.color) tsPress({ color: btn.dataset.color }, btn);
           else if (btn.dataset.ts === 'b') tsPress({ b: true }, btn);
           else if (btn.dataset.ts === 'i') tsPress({ i: true }, btn);
+          else if (btn.dataset.ts === 'u') tsPress({ u: true }, btn);
+          else if (btn.dataset.ts === 'st') tsPress({ st: true }, btn);
           else if (btn.dataset.ts === 'nocolor') tsPress({ color: null }, btn);
           else if (btn.dataset.ts === 'clear') tsPress('clear', btn);
       });
-      E.size.addEventListener('change', function() { tsPress({ size: E.size.value || null }, E.size); });
+      E.size.addEventListener('change', function() { tsPress({ size: E.size.value || null }, E.size); });   // "Mixed" is no size: the core changes nothing for it
+      E.link.addEventListener('change', function() { var done = tsState.linkDone; tsState.linkDone = null; if (done === E.link.value) return; tsLink(); });   // the box was left with a new address in it (Enter has its own way, above)
+      E.link.addEventListener('blur', function() { tsState.linkDone = null; tsRefresh(); });   // left: it shows the field's own link again
       E.size.addEventListener('blur', function() { tsState.run = null; });   // the list was left: the next size is a step of its own
       E.custom.addEventListener('change', function() { tsPress({ color: E.custom.value }, E.custom); });   // once, when the picker closes: one undo step
       show(); tsRefresh();
   }
-  // Ctrl+B / Ctrl+I in a plain box do what the buttons do (seen in the capture phase: a flowchart label stops its own keys)
+  // Ctrl+B / Ctrl+I / Ctrl+U in a plain box do what the buttons do (seen in the capture phase: a flowchart label stops its own keys)
   function tsKey(e) {
       if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return false;
-      var k = String(e.key || '').toLowerCase(); if (k !== 'b' && k !== 'i') return false;
+      var k = String(e.key || '').toLowerCase(); if (k !== 'b' && k !== 'i' && k !== 'u') return false;
       var t = e.target; if (!t || !t.matches || !t.matches(TS_PLAIN) || !t.closest || !t.closest('#plannerBlocks')) return false;
       e.preventDefault(); e.stopPropagation();
-      tsPress(k === 'b' ? { b: true } : { i: true });
+      tsPress(k === 'b' ? { b: true } : k === 'i' ? { i: true } : { u: true });
       return true;
   }
   // [textcheck:bar-end]
@@ -977,12 +1019,14 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           if (change === 'clear') { if (none) { toast('Select the text to clear first.'); return false; } rteExec('removeFormat'); }
           else if (change && change.b === true) rteExec('bold');
           else if (change && change.i === true) rteExec('italic');
+          else if (change && change.u === true) rteExec('underline');
+          else if (change && change.st === true) rteExec('strikeThrough');
           else if (change && Object.prototype.hasOwnProperty.call(change, 'color')) { if (none && !change.color) { toast('Select the text first.'); return false; } rteColor(body, change.color); }
           else if (change && Object.prototype.hasOwnProperty.call(change, 'size')) { if (none) { toast('Select the text to size first.'); return false; } rteSize(body, change.size); }
           else return false;
       } finally { body._wpQuiet = false; }
       body.dispatchEvent(new Event('input', { bubbles: true }));
-      if (change !== 'clear' && !(change && (change.b === true || change.i === true))) body._wpNativeDirty = false;   // a colour or a size re-made nodes behind the browser's own text undo: Ctrl+Z goes to the planner's history (io.js fieldUndoChord), which has this press as a step
+      if (change !== 'clear' && !(change && (change.b === true || change.i === true || change.u === true || change.st === true))) body._wpNativeDirty = false;   // a colour or a size re-made nodes behind the browser's own text undo: Ctrl+Z goes to the planner's history (io.js fieldUndoChord), which has this press as a step
       return true;
   }
   // [textcheck:rtewire-start]

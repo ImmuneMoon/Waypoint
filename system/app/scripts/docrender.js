@@ -11,12 +11,15 @@
                              colour and a size step, never passed through), text re-escaped, output
                              re-serialised from a token list (never a slice of the input) and balanced.
      fmtHtml(text, fmt, put) a plain field with a format (textfmt.js) as markup: each run's text through put
-                             (esc on a page) inside a span whose style is built from the cleaned values only;
+                             (esc on a page) inside a span whose style is built from the cleaned values only — a
+                             colour, fixed words for weight, slant, underline and strike, a fixed step for its size —
+                             and a run with a link inside an <a href> written exactly as the sanitiser writes one;
                              with no format, exactly put(text).
      fmtRich(text, fmt)      the same for a field that reads typed markup (a planner's): the whole field through
                              sanitizeHtml once, the runs laid over its text; with no format, exactly sanitizeHtml(text).
      sanitizeBare(html)      sanitizeHtml less the look: a span or a font is just its text.
      cleanBlockFmts(block)   every format a planner or page block carries, cleaned in place against its text.
+     labelFmt(fmt, text)     a flowchart label's format: the cleaner's, less every link (a label never carries one).
      cleanDoc(doc, opts)     the wire sanitizer (host) and the client-side normaliser (keepHidden):
                              a new object with only the known fields, every string capped, every
                              number validated; null for a GM-only page unless opts.keepHidden.
@@ -134,15 +137,23 @@ function safeHref(v) {
     if (/[\u0000-\u001f\u007f\s]/.test(v) || v.length > 2000) return null;
     return /^https?:\/\/.+/i.test(v) ? v : null;
 }
+// What every link is written with — a text block's typed one and a styled field's (fmtHtml, fmtRich) alike
+function aAttrs(href) { return ' href="' + esc(href) + '" target="_blank" rel="noopener noreferrer"'; }
+// A format's link (textfmt.js cleanLink keeps the same addresses: tools/textcheck.js runs both rules on one corpus) through the sanitiser's
+// own rule once more, read exactly as it would be read back from the href it is about to be written in. '' when it is no link.
+function runHref(link) { return (typeof link === 'string' && link && safeHref(esc(link))) || ''; }
 // One sanitiser. opt is this module's own, never a caller's (sanitizeHtml takes one argument): cut(text, at) gives a text token as pieces
-// [[text, css], …] — fmtRich's runs, each css written by runCss from cleaned values — and a piece that has one sits in a span of its own,
-// closed before any tag is written, so a run never crosses the field's own markup; sized: the field has a size, so no span in it keeps
-// one; bare: a span or a font carries nothing. With no opt every byte is what it always was.
+// [[text, css, href], …] — fmtRich's runs, each css written by runCss from cleaned values, each href one runHref passed — and a piece that
+// has a css sits in a span of its own, one that has a link in an <a> of its own (around its span; the same link runs on across pieces),
+// both closed before any tag is written, so a run never crosses the field's own markup, and never opened inside a link the field's own
+// markup has open (links never nest: the typed one stands); sized: the field has a size, so no span in it keeps one; bare: a span or a
+// font carries nothing. With no opt every byte is what it always was.
 function sanitize(html, opt) {
     var s = String(html == null ? '' : html);
     if (s.length > LIMITS.html) s = s.slice(0, LIMITS.html);
-    var toks = tokenize(s), out = '', stack = [], skip = null, skipDepth = 0, runCssOpen = '';
-    function mark(x) { if (!x) return; if (runCssOpen) { out += '</span>'; runCssOpen = ''; } out += x; }   // markup: the open run's span ends first
+    var toks = tokenize(s), out = '', stack = [], skip = null, skipDepth = 0, runCssOpen = '', runHrefOpen = '';
+    function runShut(a) { if (runCssOpen) { out += '</span>'; runCssOpen = ''; } if (a && runHrefOpen) { out += '</a>'; runHrefOpen = ''; } }
+    function mark(x) { if (!x) return; runShut(true); out += x; }   // markup: the open run's span (and its link) ends first
     function openTag(name, extra) { stack.push(name); mark('<' + name + (extra || '') + '>'); }
     function closeTo(name) {   // close everything above the nearest open `name`; drop the closer when it is not open
         var at = stack.lastIndexOf(name); if (at < 0) return;
@@ -151,7 +162,9 @@ function sanitize(html, opt) {
     function closeSpan() { var at = stack.length - 1; while (at >= 0 && !isSpan(stack[at])) at--; if (at < 0) return; while (stack.length > at) mark(shut(stack.pop())); }
     function inList() { return stack.some(function(t) { return LIST[t]; }); }
     function piece(p) {
-        if (p[1] !== runCssOpen) { if (runCssOpen) out += '</span>'; runCssOpen = p[1]; if (runCssOpen) out += '<span style="' + runCssOpen + '">'; }
+        var href = p[2] && stack.indexOf('a') < 0 ? p[2] : '';
+        if (href !== runHrefOpen) { runShut(true); runHrefOpen = href; if (href) out += '<a' + aAttrs(href) + '>'; }
+        if (p[1] !== runCssOpen) { runShut(false); runCssOpen = p[1]; if (runCssOpen) out += '<span style="' + runCssOpen + '">'; }
         out += esc(decodeEntities(p[0]));
     }
     for (var k = 0; k < toks.length; k++) {
@@ -183,14 +196,14 @@ function sanitize(html, opt) {
             var href = safeHref(attrValue(t.attrs, 'href'));
             if (!href) continue;                            // a link without a safe target is just its text
             if (stack.indexOf('a') >= 0) closeTo('a');
-            openTag('a', ' href="' + esc(href) + '" target="_blank" rel="noopener noreferrer"');
+            openTag('a', aAttrs(href));
             continue;
         }
         openTag(name);
         if (t.self) closeTo(name);
     }
     while (stack.length) mark(shut(stack.pop()));
-    if (runCssOpen) out += '</span>';
+    runShut(true);
     return out;
 }
 function sanitizeHtml(html) { return sanitize(html, null); }
@@ -202,45 +215,57 @@ function sanitizeBare(html) { return sanitize(html, { bare: true }); }
    A title, a table cell, a caption is plain text with its styling stored beside it. Drawn here: the format is cleaned
    against the text first (a hostile one draws plain), each run's text goes through `put` (esc on a page; the planner's
    preview hands in sanitizeHtml, as it reads its fields), and a run that has a look sits in a span whose style is
-   written from the cleaned values only: a colour through safecore's cssColor, fixed words for weight, slant and size.
+   written from the cleaned values only: a colour through safecore's cssColor, fixed words for weight, slant, underline,
+   strike and size. A size is never inside a size: a field of one size has one span around everything (as it always had), and
+   where its parts differ each run carries its own. A run with a link sits in an <a> written as the sanitiser writes a text
+   block's (aAttrs), its address through the sanitiser's own rule once more (runHref); neighbours of one link share the <a>.
    With no format the result is exactly put(text): nothing on a page changes until a field is styled. */
 function own(o, k) { return !!o && typeof o === 'object' && Object.prototype.hasOwnProperty.call(o, k); }
-function runCss(r) {
+// sized: the field's one size is written around everything, so no run writes its own
+function runCss(r, sized) {
     var c = cssColor(r.color), css = '';
     if (c && /^#[0-9a-f]{6}$/.test(c)) css += 'color:' + c + ';';
     if (r.b === true) css += 'font-weight:bold;';
     if (r.i === true) css += 'font-style:italic;';
+    if (r.u === true || r.st === true) css += 'text-decoration:' + (r.u === true ? 'underline' : '') + (r.u === true && r.st === true ? ' ' : '') + (r.st === true ? 'line-through' : '') + ';';
+    if (!sized && own(SIZE_EM, r.size)) css += 'font-size:' + SIZE_EM[r.size] + ';';
     return css;
 }
 function fmtHtml(text, fmt, put) {
     var t = text == null ? '' : String(text), inner = typeof put === 'function' ? put : esc;
     var f = t ? cleanFmt(fmt, t) : undefined;
     if (!f) return inner(t);
-    var out = runsOf(t, f).map(function(r) { var css = runCss(r); return css ? '<span style="' + css + '">' + inner(r.t) + '</span>' : inner(r.t); }).join('');
-    var size = f.size && own(SIZE_EM, f.size) ? SIZE_EM[f.size] : '';
+    var size = f.size && own(SIZE_EM, f.size) ? SIZE_EM[f.size] : '', out = '', open = '';
+    runsOf(t, f).forEach(function(r) {
+        var css = runCss(r, !!size), href = runHref(r.link);
+        if (href !== open) { if (open) out += '</a>'; if (href) out += '<a' + aAttrs(href) + '>'; open = href; }
+        out += css ? '<span style="' + css + '">' + inner(r.t) + '</span>' : inner(r.t);
+    });
+    if (open) out += '</a>';
     return size ? '<span style="font-size:' + size + ';">' + out + '</span>' : out;
 }
 // A field that reads typed markup — a planner's titles, node fields and cells, which have always gone through the page sanitiser, so a typed
 // <b>, <br> or &mdash; reads as markup. The WHOLE field is sanitised once, exactly as it is with no format, and the format's runs are laid
 // over its text by their offsets in what was typed: a run that begins or ends inside the typed markup changes nothing about how that markup
 // reads (the bold stays bold, the dash a dash — an entity is one character and takes the look of the run it begins in), and a tag is never
-// made of two runs. A field with a size keeps no size of a typed span inside it (a size is a share of its parent's: they would multiply).
+// made of two runs. A field with a size — its own, or one on any part — keeps no size of a typed span inside it (a size is a share of its
+// parent's: they would multiply). A run's link is not written inside a link the typed markup has open (the typed one stands).
 var ENTITY = /&(#x[0-9a-f]{1,6}|#[0-9]{1,7}|[a-z][a-z0-9]{1,15});/gi;   // what decodeEntities reads as one character
 function fmtRich(text, fmt) {
     var t = text == null ? '' : String(text), f = t ? cleanFmt(fmt, t) : undefined;
     if (!f) return sanitizeHtml(t);
-    var at = 0, runs = runsOf(t, f).map(function(r) { var o = { e: at + r.t.length, css: runCss(r) }; at = o.e; return o; });
-    var size = f.size && own(SIZE_EM, f.size) ? SIZE_EM[f.size] : '';
-    var out = sanitize(t, { sized: !!size, cut: function(tx, off) {
+    var size = f.size && own(SIZE_EM, f.size) ? SIZE_EM[f.size] : '', anySize = !!size;
+    var at = 0, runs = runsOf(t, f).map(function(r) { var o = { e: at + r.t.length, css: runCss(r, !!size), href: runHref(r.link) }; at = o.e; if (r.size) anySize = true; return o; });
+    var out = sanitize(t, { sized: anySize, cut: function(tx, off) {
         var pieces = [], i = off, end = off + tx.length, ents = [], m;
         ENTITY.lastIndex = 0;
         while ((m = ENTITY.exec(tx))) ents.push([off + m.index, off + m.index + m[0].length]);
         for (var k = 0; k < runs.length && i < end; k++) {
             var z = Math.min(runs[k].e, end);
             for (var j = 0; j < ents.length; j++) if (z > ents[j][0] && z < ents[j][1]) z = ents[j][1];
-            if (z > i) { pieces.push([tx.slice(i - off, z - off), runs[k].css]); i = z; }
+            if (z > i) { pieces.push([tx.slice(i - off, z - off), runs[k].css, runs[k].href]); i = z; }
         }
-        if (i < end) pieces.push([tx.slice(i - off), '']);   // past the last run (a text longer than the sanitiser reads is cut there)
+        if (i < end) pieces.push([tx.slice(i - off), '', '']);   // past the last run (a text longer than the sanitiser reads is cut there)
         return pieces;
     } });
     return size ? '<span style="font-size:' + size + ';">' + out + '</span>' : out;
@@ -250,6 +275,15 @@ function fmtRich(text, fmt) {
 // (row.fmt.col1…) — or, for a page as a player holds it (rows are lists there), in rowFmt, a list of lists parallel to rows;
 // a flowchart node's label on the node, an arrow's on the arrow.
 var FMT_KEYS = ['title', 'sub', 'tag', 'must', 'caption'];
+// A flowchart label's format: the cleaner's, less every link. A diagram's labels never carry a web address (the label rules forbid href,
+// so one would never be drawn): none is kept from a file or a host, sent, or written into a Markdown file.
+function labelFmt(fmt, text) {
+    var f = cleanFmt(fmt, text);
+    if (!f || !(f.link || (f.spans || []).some(function(sp) { return !!sp.link; }))) return f;
+    delete f.link;
+    (f.spans || []).forEach(function(sp) { delete sp.link; });
+    return cleanFmt(f, text);
+}
 function fieldFmt(b, k) { return own(b, 'fmt') && own(b.fmt, k) ? b.fmt[k] : undefined; }
 function colFmtOf(b, ci) { return Array.isArray(b.colFmt) ? b.colFmt[ci] : undefined; }
 function cellFmtOf(b, ri, ci) {
@@ -300,7 +334,7 @@ function cleanBlockFmts(b) {
     ['nodes', 'edges'].forEach(function(key) {
         if (Array.isArray(b[key])) b[key].forEach(function(n) {
             if (!n || typeof n !== 'object' || n.fmt === undefined) return;
-            var f = cleanFmt(own(n, 'fmt') ? n.fmt : undefined, strOf(n.text)); if (f) n.fmt = f; else delete n.fmt;
+            var f = labelFmt(own(n, 'fmt') ? n.fmt : undefined, strOf(n.text)); if (f) n.fmt = f; else delete n.fmt;
         });
     });
     return b;
@@ -331,23 +365,26 @@ function proseHtml(content, type) {
 // quotes only " and # need escaping (mermaid's #quot; / #35; entities).
 function mmEsc(t) { return String(t || '').replace(/#/g, '#35;').replace(/"/g, '#quot;').replace(/\r?\n/g, '<br>'); }
 function mmText(t) { return '"' + mmEsc(t) + '"'; }
-// A label with a format (textfmt.js): each run inside the plain tags mermaid's own label cleaner keeps (index.html: no style attribute,
-// no class of ours needed) — <b>, <i>, <font color=rrggbb> (no quote and no # may stand in a mermaid string: a colour without its #
-// reads as the same colour) and <big> / <small> for the size steps (a browser's own 1.2 step, the steps' ratio). Mermaid measures the
-// label as it will be drawn, so the box fits it; inline tags add no line break a plain label would not have. Built from the cleaned
-// values only; a label with no format compiles exactly as before.
+// A label with a format (textfmt.js): each run inside the plain tags mermaid's own label cleaner keeps (bootdiagram.js: no style attribute,
+// no class of ours needed) — <b>, <i>, <u>, <s>, <font color=rrggbb> (no quote and no # may stand in a mermaid string: a colour without
+// its # reads as the same colour) and <big> / <small> for the size steps (a browser's own 1.2 step, the steps' ratio): around everything
+// where the label has one size, around a run where its parts differ — never one inside another. No link: the label rules forbid href,
+// and a label's format holds none (labelFmt). Mermaid measures the label as it will be drawn, so the box fits it; inline tags add no
+// line break a plain label would not have. Built from the cleaned values only; a label with no format compiles exactly as before.
 var MM_SIZE = { small: ['<small>', '</small>'], large: ['<big>', '</big>'], larger: ['<big><big>', '</big></big>'], huge: ['<big><big><big>', '</big></big></big>'] };
 function mmLabel(text, fmt) {
-    var t = String(text || ''), f = cleanFmt(fmt, t);
+    var t = String(text || ''), f = labelFmt(fmt, t);
     if (!f) return mmText(t);
+    var sz = f.size && own(MM_SIZE, f.size) ? MM_SIZE[f.size] : null;
     var body = runsOf(t, f).map(function(r) {
-        var x = mmEsc(r.t), c = cssColor(r.color);
+        var x = mmEsc(r.t), c = cssColor(r.color), rz = !sz && own(MM_SIZE, r.size) ? MM_SIZE[r.size] : null;
         if (r.i === true) x = '<i>' + x + '</i>';
         if (r.b === true) x = '<b>' + x + '</b>';
+        if (r.u === true) x = '<u>' + x + '</u>';
+        if (r.st === true) x = '<s>' + x + '</s>';
         if (c && /^#[0-9a-f]{6}$/.test(c)) x = '<font color=' + c.slice(1) + '>' + x + '</font>';
-        return x;
+        return rz ? rz[0] + x + rz[1] : x;
     }).join('');
-    var sz = f.size && own(MM_SIZE, f.size) ? MM_SIZE[f.size] : null;
     return '"' + (sz ? sz[0] + body + sz[1] : body) + '"';
 }
 function mmId(t) { var v = String(t || '').trim().replace(/[^A-Za-z0-9_]/g, '_'); return v || 'n'; }
@@ -459,13 +496,13 @@ function cleanBlock(b, used, ctx) {
             o.nodes = (Array.isArray(b.nodes) ? b.nodes : []).slice(0, LIMITS.nodes).map(function(n) {
                 n = n && typeof n === 'object' ? n : {};
                 var on = { id: str(n.id, 40), text: str(n.text, LIMITS.cell), shape: /^(rect|rounded|pill|diamond|hex)$/.test(n.shape || '') ? n.shape : 'rect', color: /^(gold|blue|green|red|violet|neutral)$/.test(n.color || '') ? n.color : 'neutral' };
-                var nf = cleanFmt(own(n, 'fmt') ? n.fmt : undefined, on.text); if (nf) on.fmt = nf;
+                var nf = labelFmt(own(n, 'fmt') ? n.fmt : undefined, on.text); if (nf) on.fmt = nf;
                 return on;
             });
             o.edges = (Array.isArray(b.edges) ? b.edges : []).slice(0, LIMITS.edges).map(function(e) {
                 e = e && typeof e === 'object' ? e : {};
                 var oe = { from: str(e.from, 40), to: str(e.to, 40), text: str(e.text, LIMITS.caption), style: e.style === 'dotted' ? 'dotted' : 'solid' };
-                var ef = cleanFmt(own(e, 'fmt') ? e.fmt : undefined, oe.text); if (ef) oe.fmt = ef;
+                var ef = labelFmt(own(e, 'fmt') ? e.fmt : undefined, oe.text); if (ef) oe.fmt = ef;
                 return oe;
             });
             // the GM's hand nudges and node sizes ride along (numbers only, keyed by node id) so players
@@ -730,6 +767,6 @@ function hbText(pages, q) {
     return { hits: hits.slice(0, HB_LIMIT), over: hits.length > HB_LIMIT };
 }
 
-var API = { VERSION: VERSION, hbFold: hbFold, hbSections: hbSections, hbHeadings: hbHeadings, hbText: hbText, HB_LIMIT: HB_LIMIT, LIMITS: LIMITS, DOC_BLOCKS: DOC_BLOCKS.slice(), sanitizeHtml: sanitizeHtml, sanitizeBare: sanitizeBare, fmtHtml: fmtHtml, fmtRich: fmtRich, cleanBlockFmts: cleanBlockFmts, fieldFmt: fieldFmt, colFmtOf: colFmtOf, cellFmtOf: cellFmtOf, cleanDoc: cleanDoc, renderDoc: renderDoc, proseHtml: proseHtml, nl: nl, compileFlowchart: compileFlowchart, stripMermaidLinks: stripMermaidLinks, esc: esc, cleanDocStyle: cleanDocStyle, mergeDocStyle: mergeDocStyle, docStyleCss: docStyleCss, docBgImage: docBgImage, DOC_FONTS: DOC_FONTS };
+var API = { VERSION: VERSION, hbFold: hbFold, hbSections: hbSections, hbHeadings: hbHeadings, hbText: hbText, HB_LIMIT: HB_LIMIT, LIMITS: LIMITS, DOC_BLOCKS: DOC_BLOCKS.slice(), sanitizeHtml: sanitizeHtml, sanitizeBare: sanitizeBare, fmtHtml: fmtHtml, fmtRich: fmtRich, cleanBlockFmts: cleanBlockFmts, labelFmt: labelFmt, fieldFmt: fieldFmt, colFmtOf: colFmtOf, cellFmtOf: cellFmtOf, cleanDoc: cleanDoc, renderDoc: renderDoc, proseHtml: proseHtml, nl: nl, compileFlowchart: compileFlowchart, stripMermaidLinks: stripMermaidLinks, esc: esc, cleanDocStyle: cleanDocStyle, mergeDocStyle: mergeDocStyle, docStyleCss: docStyleCss, docBgImage: docBgImage, DOC_FONTS: DOC_FONTS };
 if (typeof window !== 'undefined') window.wpDocRender = API;
-export { VERSION, hbFold, hbSections, hbHeadings, hbText, HB_LIMIT, LIMITS, DOC_BLOCKS, sanitizeHtml, sanitizeBare, fmtHtml, fmtRich, cleanBlockFmts, fieldFmt, colFmtOf, cellFmtOf, cleanDoc, renderDoc, proseHtml, nl, compileFlowchart, stripMermaidLinks, cleanDocStyle, mergeDocStyle, docStyleCss, docBgImage, DOC_FONTS };
+export { VERSION, hbFold, hbSections, hbHeadings, hbText, HB_LIMIT, LIMITS, DOC_BLOCKS, sanitizeHtml, sanitizeBare, fmtHtml, fmtRich, cleanBlockFmts, labelFmt, fieldFmt, colFmtOf, cellFmtOf, cleanDoc, renderDoc, proseHtml, nl, compileFlowchart, stripMermaidLinks, cleanDocStyle, mergeDocStyle, docStyleCss, docBgImage, DOC_FONTS };

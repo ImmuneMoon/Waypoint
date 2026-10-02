@@ -855,6 +855,40 @@ pendingChecks.push((async () => {
         check(T, hostOk && clientOk, Jw([hostOk, clientOk, sent && sent.blocks, got && got.blocks]).slice(0, 1200));
     } catch (e) { check(T, false, 'threw: ' + (e && e.stack || e)); }
 })());
+// text style, a size on a part, underline, strike and a link (the owner, 2026-10-02): a link is a web address by the page sanitiser's own rule (textfmt.js cleanLink). The host's
+// real sanitizeItem and a player's real applyItem, on a page whose formats hold links that are not allowed
+pendingChecks.push((async () => {
+    const T = 'text style (wire, a link): a link that is not allowed — javascript:, data:, a control character, white space inside, a protocol-relative one, an over-long one, one that is no string — in a page\'s formats is dropped by the host before the page leaves, and again by a player\'s app before a page a hostile host sends is stored; the text and the rest of its look stay, the one allowed link beside it is kept, a flowchart label keeps none, and what the player\'s app draws holds no link but that one';
+    try {
+        const urlW = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+        const DRw = await import(urlW('docrender.js')), OK = 'https://ok.example/p?a=1&b=2', Jw = JSON.stringify;
+        const [siW] = new Function('window', '"use strict";\n' + siSrc() + '\nreturn [sanitizeItem, wireWbItem];')({ wpDocRender: DRw });
+        const BADL = ['javascript:alert(1)', 'JAVASCRIPT:alert(1)', 'data:text/html,<script>alert(1)</script>', 'vbscript:x', 'https://a.example/' + String.fromCharCode(0), 'https://a.example/' + String.fromCharCode(10) + 'x', 'https://a b', '//evil.example/x', 'https://' + 'a'.repeat(2000), 7, { href: OK }];
+        const page = v => ({ id: 'dL', type: 'doc', meta: { title: 'Rules', players: true }, blocks: [
+            { id: 'b1', type: 'h1', title: 'Rules', sub: 'v1', fmt: { title: { link: v, u: true, spans: [{ s: 0, e: 2, size: 'large', link: OK }] }, sub: { link: v, size: '99em' } } },
+            { id: 'b2', type: 'table', title: 'T', fmt: { title: { link: v } }, cols: ['A', 'B'], colFmt: [{ link: v }, { st: true, link: v }], rows: [{ col1: 'x', col2: 'yy', fmt: { col2: { spans: [{ s: 0, e: 1, link: v, size: 'huge' }] }, col1: { link: v } } }] },
+            { id: 'b3', type: 'flowchart', nodes: [{ id: 'n1', text: 'buy milk', fmt: { link: OK, spans: [{ s: 0, e: 3, u: true, link: v }] } }], edges: [{ from: 'n1', to: 'n1', text: 'go', fmt: { link: v } }] }
+        ] });
+        const want = Jw([
+            { type: 'h1', id: 'b1', title: 'Rules', sub: 'v1', fmt: { title: { u: true, spans: [{ s: 0, e: 2, size: 'large', link: OK }] } } },
+            { type: 'table', id: 'b2', title: 'T', cols: ['A', 'B'], rows: [['x', 'yy']], colFmt: [null, { st: true }], rowFmt: [[null, { spans: [{ s: 0, e: 1, size: 'huge' }] }]] },
+            { type: 'flowchart', id: 'b3', dir: 'TD', space: 'normal', zoom: 1, nodes: [{ id: 'n1', text: 'buy milk', shape: 'rect', color: 'neutral', fmt: { spans: [{ s: 0, e: 3, u: true }] } }], edges: [{ from: 'n1', to: 'n1', text: 'go', style: 'solid' }] }
+        ]);
+        const ai = src.indexOf('function applyItem(msg) {'), ak = src.indexOf('\n}\n', ai);
+        const A = '<a href="https://ok.example/p?a=1&amp;b=2" target="_blank" rel="noopener noreferrer">';
+        const bad = BADL.filter(v => {
+            const sent = siW(page(v)), hostOk = !!sent && Jw(sent.blocks) === want;
+            const state = { appState: { activeCampaignId: 'k', campaigns: { k: { id: 'k', activeItemId: 'mA', items: { mA: { id: 'mA', type: 'map', whiteboard: [] } } } } } };
+            new Function('net', 'state', 'window', 'getActiveCampaign', 'render', 'updateSidebarNav', 'cleanHostMap', 'msg', ownKeySrc + src.slice(ai, ak) + '\n}\nreturn applyItem(msg);')({ applyingRemote: false }, state, { wpDocRender: DRw, wpFog: { invalidateVision() {}, redraw() {} } }, () => state.appState.campaigns.k, () => {}, () => {}, m => m, { type: 'item', campId: 'k', itemId: 'dL', item: page(v) });
+            const got = state.appState.campaigns.k.items.dL, html = got ? DRw.renderDoc(got, { mermaid: false }) : '';
+            const clientOk = ai > 0 && ak > ai && !!got && Jw(got.blocks) === want && (html.match(/<a\b/g) || []).length === 1 && html.indexOf('<h1>' + A + '<span style="text-decoration:underline;font-size:1.2em;">Ru</span></a><span style="text-decoration:underline;">les</span><span class="sub">v1</span></h1>') > 0
+                && html.indexOf('<th>A</th><th><span style="text-decoration:line-through;">B</span></th>') > 0 && html.indexOf('<td>x</td><td><span style="font-size:1.728em;">y</span>y</td>') > 0 && !/javascript|vbscript|data:text|evil\.example|99em/i.test(html) && !/href|https?:/.test(DRw.compileFlowchart(got.blocks[2]));
+            return !(hostOk && clientOk);
+        });
+        const keptAll = siW(page(OK));
+        check(T, bad.length === 0 && !!keptAll && Jw(keptAll.blocks[0].fmt) === Jw({ title: { u: true, link: OK, spans: [{ s: 0, e: 2, size: 'large' }] }, sub: { link: OK } }) && Jw(keptAll.blocks[1].colFmt) === Jw([{ link: OK }, { st: true, link: OK }]) && Jw(keptAll.blocks[2].nodes[0].fmt) === Jw({ spans: [{ s: 0, e: 3, u: true }] }) && !('fmt' in keptAll.blocks[2].edges[0]), Jw([bad, keptAll && keptAll.blocks]).slice(0, 1200));
+    } catch (e) { check(T, false, 'threw: ' + (e && e.stack || e)); }
+})());
 // conditions C1: a character token's effects on the wire — the real sanitizeItem and wireWbItem with fxbOf and fxbMoved, sliced and run
 pendingChecks.push((async () => {
     const Sx = await import('file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', 'systemcore.js')).split(String.fromCharCode(92)).join('/'));

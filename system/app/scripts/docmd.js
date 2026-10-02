@@ -23,10 +23,11 @@
      Text style travels: a text block keeps `<span style="color:#rrggbb">` / `<span style="font-size:1.2em">`
      (the sanitizer's one span form; beside one, the block's bold and italic are written as <b> / <i>
      wherever the marks would not read back; a span lives inside one paragraph); in a title, a cell, a
-     caption or a flowchart label, bold, italic and those spans are written from the field's format and
-     read back into it ("text style" below). */
+     caption or a flowchart label, bold, italic, underline, strike-through, a link and those spans — on
+     the whole field or on a part of it — are written from the field's format and read back into it
+     ("text style" below). */
 'use strict';
-import { sanitizeHtml, DOC_BLOCKS, fieldFmt, colFmtOf, cellFmtOf } from './docrender.js';
+import { sanitizeHtml, DOC_BLOCKS, fieldFmt, colFmtOf, cellFmtOf, labelFmt } from './docrender.js';
 import { cleanFmt, runsOf, SIZE_EM, MAX_RAW } from './textfmt.js';
 
 var VERSION = '1.5.0';
@@ -107,7 +108,8 @@ function inline(src, ctx) {
             m = new RegExp('^(\\' + ch + ')(?=\\S)([^' + (ch === '*' ? '*' : '_') + ']+?\\S|\\S)\\1(?!' + (ch === '*' ? '\\*' : '\\w') + ')').exec(rest);
             if (m) { out += '<i>' + inline(m[2], ctx) + '</i>'; i += m[0].length; continue; }
         }
-        if (ch === '~' && src[i + 1] === '~') { m = /^~~(?=\S)([\s\S]+?\S)~~/.exec(rest); if (m) { out += '<s>' + inline(m[1], ctx) + '</s>'; i += m[0].length; continue; } }
+        // one character between the markers is a strike too ("~~5~~"), as it is a bold
+        if (ch === '~' && src[i + 1] === '~') { m = /^~~(?=\S)([\s\S]*?\S)~~/.exec(rest); if (m) { out += '<s>' + inline(m[1], ctx) + '</s>'; i += m[0].length; continue; } }
         if (ch === '&') { m = /^&(#x[0-9a-f]+|#\d+|[a-z]+);/i.exec(rest); if (m) { out += m[0]; i += m[0].length; continue; } }
         out += esc(ch); i++;
     }
@@ -162,43 +164,44 @@ function isTableSep(line) { return /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|
 
 /* ---------- text style (1.5.0): a plain field's format, in and out of the dialect ----------
    A title, a cell, a caption, a label is plain text with its format beside it (textfmt.js). In a Markdown file the format is written INTO
-   the field's inline text — bold as **…**, italic as *…* (as <b> / <i> where the marks would not read back, or inside a line that is itself
-   bold or italic syntax), a colour as the page sanitiser's one span form, the field's size as one span around everything — and read back
+   the field's inline text — bold as **…**, italic as *…*, strike-through as ~~…~~, a link as [text](address) (as <b> / <i> / <s> /
+   <a href="…"> where those would not read back, or inside a line that is itself bold or italic syntax), underline as <u>, a colour and a
+   size as the page sanitiser's one span form (the field's own once around everything, a part's around that part) — and read back
    out of it. What is read is only ever what the sanitiser wrote (fmtFromInline), and only where its text is the very text the field is
    given; anything else is the plain text, as before. A look that holds for the whole text is written once, around everything, and comes
    back as the field's own look; every other look as a span. A field with no format is written exactly as it always was. */
 var SIZE_OF = {}; Object.keys(SIZE_EM).forEach(function(k) { SIZE_OF[SIZE_EM[k]] = k; });
 function ownKey(o, k) { return !!o && typeof o === 'object' && Object.prototype.hasOwnProperty.call(o, k); }
-// The looks of a text as it is walked in order: open(look) … close() around text(length). look: { color, b, i, size } or null (an element that has none)
+// The looks of a text as it is walked in order: open(look) … close() around text(length). look: { color, b, i, u, st, size, link } or null (an element that has none)
 function lookWalk() {
-    var stack = [], els = [], runs = [], n = 0, cur = { color: '', b: false, i: false };
+    var stack = [], els = [], runs = [], n = 0, cur = { color: '', b: false, i: false, u: false, st: false, size: '', link: '' };
+    var same = function(x, y) { return x.color === y.color && x.b === y.b && x.i === y.i && x.u === y.u && x.st === y.st && x.size === y.size && x.link === y.link; };
     var wraps = function() { return els.filter(function(el) { return el.s === 0 && (el.e < 0 ? n : el.e) === n; }); };   // around the whole text, outermost first
     return {
         open: function(look) {
             var el = { look: look || null, s: n, e: -1, prev: cur };
-            if (look) { cur = { color: look.color || cur.color, b: cur.b || look.b === true, i: cur.i || look.i === true }; els.push(el); }
+            if (look) { cur = { color: look.color || cur.color, b: cur.b || look.b === true, i: cur.i || look.i === true, u: cur.u || look.u === true, st: cur.st || look.st === true, size: look.size || cur.size, link: look.link || cur.link }; els.push(el); }
             stack.push(el);
         },
         close: function() { var el = stack.pop(); if (el) { el.e = n; cur = el.prev; } },
         text: function(len) {
             if (!(len > 0)) return;
             var last = runs[runs.length - 1];
-            if (last && last.color === cur.color && last.b === cur.b && last.i === cur.i) last.e = n + len;
-            else runs.push({ s: n, e: n + len, color: cur.color, b: cur.b, i: cur.i });
+            if (last && same(last, cur)) last.e = n + len;
+            else runs.push({ s: n, e: n + len, color: cur.color, b: cur.b, i: cur.i, u: cur.u, st: cur.st, size: cur.size, link: cur.link });
             n += len;
         },
         els: function() { return els; },
         wraps: wraps,
-        // The format: what wraps the whole text is the field's own look (of two colours the inner one stands; a size only here: a field has one),
-        // every run a span over it — cleaned, so undefined when nothing is left. size: one the caller read itself (a label's <big> / <small>).
-        fmt: function(text, size) {
+        // The format: what wraps the whole text is the field's own look (of two colours the inner one stands), every run a span over it — a
+        // size and a link too: the cleaner makes the one every character has the field's own. Cleaned, so undefined when nothing is left.
+        fmt: function(text) {
             if (!n || text.length !== n) return undefined;
             var f = { spans: [] };
-            wraps().forEach(function(el) { var l = el.look; if (l.size && !f.size) f.size = l.size; if (l.color) f.color = l.color; if (l.b) f.b = true; if (l.i) f.i = true; });
-            if (size) f.size = size;
+            wraps().forEach(function(el) { var l = el.look; if (l.color) f.color = l.color; if (l.b) f.b = true; if (l.i) f.i = true; if (l.u) f.u = true; if (l.st) f.st = true; });
             for (var k = 0; k < runs.length && f.spans.length < MAX_RAW; k++) {
-                var r = runs[k]; if (!r.color && !r.b && !r.i) continue;
-                var sp = { s: r.s, e: r.e }; if (r.color) sp.color = r.color; if (r.b) sp.b = true; if (r.i) sp.i = true;
+                var r = runs[k]; if (!r.color && !r.b && !r.i && !r.u && !r.st && !r.size && !r.link) continue;
+                var sp = { s: r.s, e: r.e }; if (r.size) sp.size = r.size; if (r.color) sp.color = r.color; if (r.b) sp.b = true; if (r.i) sp.i = true; if (r.u) sp.u = true; if (r.st) sp.st = true; if (r.link) sp.link = r.link;
                 f.spans.push(sp);
             }
             return cleanFmt(f, text);
@@ -207,9 +210,10 @@ function lookWalk() {
 }
 function unesc(s) { return String(s).replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&'); }   // the sanitiser's own escaping, undone
 // fmtFromInline(html) → { text, fmt }: a plain field read from inline HTML. Built on the page sanitiser's output, never on the input: the
-// html goes through sanitizeHtml first and only what that wrote is read — <b> / <strong>, <i> / <em> and its one span form (a strict
-// colour; a size step when it is around everything). Whatever else it kept (a link, an underline, code, a paragraph) is just its text,
-// and a line break no character. fmt is the cleaner's (textfmt.js cleanFmt): absent when nothing is left.
+// html goes through sanitizeHtml first and only what that wrote is read — <b> / <strong>, <i> / <em>, <u>, <s> / <strike>, its one span
+// form (a strict colour, a size step: around everything or around a part) and its <a href> (an address the sanitiser let through, then
+// the format's own link rule — the same rule — in the cleaner). Whatever else it kept (code, a paragraph, a list) is just its text, and
+// a line break no character. fmt is the cleaner's (textfmt.js cleanFmt): absent when nothing is left.
 function fmtFromInline(html) {
     var clean = sanitizeHtml(html), w = lookWalk(), text = '', re = /<(\/?)([a-z0-9]+)([^>]*)>|([^<]+)/g, m;
     while ((m = re.exec(clean))) {
@@ -219,6 +223,9 @@ function fmtFromInline(html) {
         var look = null;
         if (m[2] === 'b' || m[2] === 'strong') look = { b: true };
         else if (m[2] === 'i' || m[2] === 'em') look = { i: true };
+        else if (m[2] === 'u') look = { u: true };
+        else if (m[2] === 's' || m[2] === 'strike') look = { st: true };
+        else if (m[2] === 'a') { var hr = /^ href="([^"]*)" target="_blank" rel="noopener noreferrer"$/.exec(m[3]); if (hr) look = { link: unesc(hr[1]) }; }
         else if (m[2] === 'span') {
             var st = /^ style="(?:color:(#[0-9a-f]{6}))?;?(?:font-size:([0-9.]+em))?"$/.exec(m[3]), size = st && st[2] && ownKey(SIZE_OF, st[2]) ? SIZE_OF[st[2]] : '';
             if (st && (st[1] || size)) look = { color: st[1] || '', size: size };
@@ -230,7 +237,7 @@ function fmtFromInline(html) {
     return out;
 }
 // A plain field from the file's inline Markdown: its text exactly as before (the inline HTML less its tags, entities decoded: cells and
-// titles are plain text in the editor's inputs), and the format its bold, italic and colour / size
+// titles are plain text in the editor's inputs), and the format its bold, italic, underline, strike, links and colour / size
 // spans make — only where the sanitiser's reading of that inline HTML is the very same text (else the field is plain, as before).
 function fieldOf(md) {
     var html = inline(md, { inlineImages: [] }), text = unent(html.replace(/<[^>]+>/g, ''));
@@ -243,42 +250,77 @@ function setFmt(b, k, f) { if (f) { if (!ownKey(b, 'fmt')) b.fmt = {}; b.fmt[k] 
 function looksOf(text, fmt) { var f = cleanFmt(fmt, text); return JSON.stringify([(f && f.size) || '', runsOf(text, f)]); }
 // The look the whole text has — written once, around everything, and read back as the field's own
 function wholeLook(f, runs) {
-    var c0 = runs.length ? runs[0].color : '';
-    return { size: f.size || '', b: runs.every(function(r) { return r.b; }), i: runs.every(function(r) { return r.i; }), color: c0 && runs.every(function(r) { return r.color === c0; }) ? c0 : (f.color || '') };
+    var c0 = runs.length ? runs[0].color : '', all = function(k) { return runs.every(function(r) { return r[k]; }); };
+    return { size: f.size || '', link: f.link || '', b: all('b'), i: all('i'), u: all('u'), st: all('st'), color: c0 && runs.every(function(r) { return r.color === c0; }) ? c0 : (f.color || '') };
 }
 function spanOpen(color, size) {
     var c = /^#[0-9a-f]{6}$/.test(color) ? color : '', z = size && ownKey(SIZE_EM, size) ? SIZE_EM[size] : '';
     return c || z ? '<span style="' + (c ? 'color:' + c : '') + (c && z ? ';' : '') + (z ? 'font-size:' + z : '') + '">' : '';
 }
-function styledInline(runs, base, put, tags) {
-    var B = tags ? ['<b>', '</b>'] : ['**', '**'], I = tags ? ['<i>', '</i>'] : ['*', '*'];
-    var body = runs.map(function(r, k) {
-        var x = put(r.t, k === 0), sp = r.color && r.color !== base.color ? spanOpen(r.color, '') : '';
+// A link's address inside an <a href="…"> the export writes: escaped, and the characters a line of the dialect reads for itself (a cell's
+// |, a caption's ] and ), a mark) as numeric entities, which the sanitiser reads back as the characters they are
+function hrefAttr(link) { return esc(link).replace(/[|\[\]()*_~`\\]/g, function(c) { return '&#' + c.charCodeAt(0) + ';'; }); }
+// m: which of Markdown's own forms are used — { bi: ** and *, st: ~~, link: [text](address) } — each written as its tag where it is false
+// (<b> <i>, <s>, <a href>). Underline is always <u>; a colour and a size always the one span. A size is never inside a size: the field's
+// own (every character has it) is around everything, a part's around that part. Neighbours of one link share it.
+var TAGS = { bi: false, st: false, link: false };
+var MARKS = [[1, 1, 1], [1, 1, 0], [1, 0, 1], [0, 1, 1], [1, 0, 0], [0, 1, 0], [0, 0, 1]].map(function(x) { return { bi: !!x[0], st: !!x[1], link: !!x[2] }; });   // most of Markdown's own first
+function styledInline(runs, base, put, m) {
+    var B = m.bi ? ['**', '**'] : ['<b>', '</b>'], I = m.bi ? ['*', '*'] : ['<i>', '</i>'], X = m.st ? ['~~', '~~'] : ['<s>', '</s>'];
+    var linked = function(link, x) { return m.link ? '[' + x + '](' + link + ')' : '<a href="' + hrefAttr(link) + '">' + x + '</a>'; };
+    var one = function(r, k) {
+        var x = put(r.t, k === 0), sp = spanOpen(r.color && r.color !== base.color ? r.color : '', r.size && r.size !== base.size ? r.size : '');
         if (r.i && !base.i) x = I[0] + x + I[1];
         if (r.b && !base.b) x = B[0] + x + B[1];
+        if (r.u && !base.u) x = '<u>' + x + '</u>';
+        if (r.st && !base.st) x = X[0] + x + X[1];
         return sp ? sp + x + '</span>' : x;
-    }).join('');
+    };
+    var body = '', k = 0;
+    while (k < runs.length) {
+        var link = runs[k].link && runs[k].link !== base.link ? runs[k].link : '', seg = '';
+        do { seg += one(runs[k], k); k++; } while (link && k < runs.length && runs[k].link === link);
+        body += link ? linked(link, seg) : seg;
+    }
     if (base.i) body = I[0] + body + I[1];
     if (base.b) body = B[0] + body + B[1];
+    if (base.u) body = '<u>' + body + '</u>';
+    if (base.st) body = X[0] + body + X[1];
     var around = spanOpen(base.color, base.size);
-    return around ? around + body + '</span>' : body;
+    if (around) body = around + body + '</span>';
+    return base.link ? linked(base.link, body) : body;
 }
 // A plain field with its format as the dialect's inline text — or null when it has none, or when it could not be read back (the caller then
 // writes the field exactly as before). o.put(text, first): a run's text escaped for its place; o.read(inline): how that place is read
-// (fieldOf by default); o.tags: only <b> / <i> (the line is itself bold or italic syntax); o.lines: the place takes a text with line breaks.
+// (fieldOf by default); o.tags: only tags (the line is itself bold or italic syntax); o.lines: the place takes a text with line breaks.
+// The tags form is written first and read back: it is the reference. Then Markdown's own forms — the bold and italic marks, the strike
+// marks and the bracket link, each on its own, the most of them first — and the first that reads back to the very same text and format
+// is the one written.
 function fieldMd(text, fmt, o) {
     var t = text == null ? '' : String(text), f = t ? cleanFmt(fmt, t) : undefined;
     if (!f || (!o.lines && /[\r\n]/.test(t))) return null;
     var runs = runsOf(t, f), base = wholeLook(f, runs), read = o.read || fieldOf;
-    var out = styledInline(runs, base, o.put, true), back = read(out);
+    var tagged = styledInline(runs, base, o.put, TAGS), back = read(tagged);
     if (!back || !back.fmt || (back.text === t && looksOf(back.text, back.fmt) !== looksOf(t, f))) return null;
-    if (!o.tags) {   // Markdown's own marks where they read back as the tags do
-        var marked = styledInline(runs, base, o.put, false), mb = marked === out ? null : read(marked);
-        if (mb && mb.text === back.text && JSON.stringify(mb.fmt) === JSON.stringify(back.fmt)) out = marked;
+    if (o.tags) return tagged;
+    var tried = [tagged];   // Markdown's own marks where they read back as the tags do
+    for (var k = 0; k < MARKS.length; k++) {
+        var marked = styledInline(runs, base, o.put, MARKS[k]);
+        if (tried.indexOf(marked) >= 0) continue;
+        tried.push(marked);
+        var mb = read(marked);
+        if (mb && mb.text === back.text && JSON.stringify(mb.fmt) === JSON.stringify(back.fmt)) return marked;
     }
-    return out;
+    return tagged;
 }
-var IN_LINE = { put: function(x, first) { return first ? mdEscapeText(x) : mdEscapeMarks(x); } };   // a heading, a scene node's tag and must-resolve, a caption
+var IN_LINE = { put: function(x, first) { return first ? mdEscapeText(x) : mdEscapeMarks(x); } };   // a heading, a scene node's tag and must-resolve
+// A picture's line: ![caption](path){tail} or ![caption][ref]{tail}. The caption is read with its escapes — a \] (which the export writes for
+// a ] in a caption) is part of it, not its end; where that reading does not fit (a caption written by hand that ends in a backslash) it is
+// read up to the first ], as it always was.
+var PIC_ESC = /^!\[((?:\\[\s\S]|[^\]\\])*)\]\(([^)]*)\)\s*(\{[^{}]*\})?\s*$/, PIC_RAW = /^!\[([^\]]*)\]\(([^)]*)\)\s*(\{[^{}]*\})?\s*$/, PIC_REF = /^!\[([^\]]*)\]\[([^\]]*)\]\s*(\{[^{}]*\})?\s*$/;
+function picLine(line) { return PIC_ESC.exec(line) || PIC_RAW.exec(line) || PIC_REF.exec(line); }
+// a caption: read as the picture line reads it — between ![ and ]( — so a link written [text](address) there, which would end the caption early, is written <a href> instead
+var IN_CAPTION = { put: IN_LINE.put, read: function(s) { var m = picLine('![' + s + '](x)'); return m && m[1] === s && m[2] === 'x' ? fieldOf(s) : null; } };
 var IN_BOLD = { put: IN_LINE.put, tags: true, read: function(s) { var m = /^\s*(\*\*|__)(.+?)\1\s*$/.exec('**' + s + '**'); return m ? fieldOf(m[2]) : null; } };   // a table's title: its line is bold syntax
 var IN_ITALIC = { put: IN_LINE.put, tags: true, read: function(s) { var m = /^\s*(\*|_)([^*_]+)\1\s*$/.exec('*' + s + '*'); return m ? fieldOf(m[2]) : null; } };   // the subtitle: its line is italic syntax
 var IN_CELL = { lines: true, put: function(x) { return mdEscapeMarks(String(x).replace(/\r?\n/g, ' ')).replace(/\|/g, '\\|'); }, read: function(s) { var c = splitRow('| ' + s + ' |'); return c.length === 1 ? fieldOf(c[0]) : null; } };
@@ -319,7 +361,7 @@ function flowchartFromMermaid(src) {
             var afterE = l.slice(pos).replace(/^\s+/, ''); pos = l.length - afterE.length;
             var nxt = defNode(afterE); if (!nxt) return null;
             pos += nxt.len;
-            var ef = e[3] ? mmRead(e[3]) : null, edge = { from: cur.id, to: nxt.id, text: ef ? ef.text : (e[3] || e[4] || e[5] || '').trim(), style: e[1] === '-.->' || e[5] !== undefined ? 'dotted' : 'solid' };
+            var ef = e[3] ? mmRead(e[3]) : null, edge = { from: cur.id, to: nxt.id, text: ef ? ef.text : (e[3] || e[4] || e[5] || '').trim().replace(/#quot;/g, '"').replace(/#35;/g, '#'), style: e[1] === '-.->' || e[5] !== undefined ? 'dotted' : 'solid' };
             if (ef) edge.fmt = ef.fmt;
             edges.push(edge);
             cur = nxt;
@@ -329,54 +371,75 @@ function flowchartFromMermaid(src) {
     return { type: 'flowchart', dir: dir, space: 'normal', zoom: 1, nodes: order.map(function(id) { return nodes[id]; }), edges: edges };
 }
 // A label with a format (text style): written in the tags mermaid keeps in a label and a planner's flowchart already draws with — <b>, <i>,
-// <font color=rrggbb> (no quote and no # may stand in a mermaid string), <big> / <small> around everything for the field's size — the
-// look of the whole label once around everything, the parts inside it. Read back (mmRead) only when writing the format read gives the very
-// label again: any other label is its text, tags and all, exactly as before.
+// <u>, <s>, <font color=rrggbb> (no quote and no # may stand in a mermaid string), <big> / <small> (around everything for the label's one
+// size, around a part for a part's; never one inside another) — the look of the whole label once around everything, the parts inside it.
+// No link: a label's format holds none (docrender labelFmt). The label's OWN text is written escaped inside that form (mmEscStyled), so a
+// typed <b> is text and the styling tags are tags. Read back (mmRead) only when writing the format read gives the very label again — but
+// for a % and a | standing as themselves, which a label written by hand may hold (a lone % opens no comment, and a | that reached a label
+// did not end it): any other label is its text, tags and all, exactly as before — and a label with no format is written exactly as
+// before (mmQuote).
 var MM_SIZE = { small: ['<small>', '</small>'], large: ['<big>', '</big>'], larger: ['<big><big>', '</big></big>'], huge: ['<big><big><big>', '</big></big></big>'] };
-var MM_STEPS = { 'small': 'small', 'big': 'large', 'big big': 'larger', 'big big big': 'huge' };
+var MM_STEPS = { 'small': 'small', 'big': 'large', 'big big': 'larger', 'big big big': 'huge' };   // the open size tags, outermost first: the size of what they hold
+// A styled label's own text, escaped as mermaid's entity codes: the two a mermaid string cannot hold (" and #, as ever), the < that
+// would otherwise be read as one of the form's tags, and every character the fence's own reading would take for structure — & (a line
+// of several nodes), ] ) } (the end of a node's shape), | (the end of an arrow's label), % (a comment). A line break is <br>, as ever.
+var MM_ENT = { '#': '#35;', '"': '#quot;', '<': '#60;', '&': '#38;', ']': '#93;', ')': '#41;', '}': '#125;', '|': '#124;', '%': '#37;' };
+var MM_UNENT = { quot: '"', '35': '#', '60': '<', '38': '&', '93': ']', '41': ')', '125': '}', '124': '|', '37': '%' };
+function mmEscStyled(t) { return String(t).replace(/[#"<&\])}|%]/g, function(c) { return MM_ENT[c]; }).replace(/\r?\n/g, '<br>'); }
+function mmUnescStyled(s) { return String(s).replace(/#(quot|35|60|38|93|41|125|124|37);/g, function(m, k) { return MM_UNENT[k]; }); }
 function mmStyled(text, fmt) {
-    var t = text == null ? '' : String(text), f = t ? cleanFmt(fmt, t) : undefined;
+    var t = text == null ? '' : String(text), f = t ? labelFmt(fmt, t) : undefined;
     if (!f) return null;
     var runs = runsOf(t, f), base = wholeLook(f, runs);
     var font = function(c, x) { return /^#[0-9a-f]{6}$/.test(c) ? '<font color=' + c.slice(1) + '>' + x + '</font>' : x; };
+    var sized = function(z, x) { return ownKey(MM_SIZE, z) ? MM_SIZE[z][0] + x + MM_SIZE[z][1] : x; };
     var body = runs.map(function(r) {
-        var x = mmQuote(r.t).slice(1, -1);
+        var x = mmEscStyled(r.t);
         if (r.i && !base.i) x = '<i>' + x + '</i>';
         if (r.b && !base.b) x = '<b>' + x + '</b>';
-        return r.color && r.color !== base.color ? font(r.color, x) : x;
+        if (r.u && !base.u) x = '<u>' + x + '</u>';
+        if (r.st && !base.st) x = '<s>' + x + '</s>';
+        if (r.color && r.color !== base.color) x = font(r.color, x);
+        return r.size && r.size !== base.size ? sized(r.size, x) : x;
     }).join('');
     if (base.i) body = '<i>' + body + '</i>';
     if (base.b) body = '<b>' + body + '</b>';
+    if (base.u) body = '<u>' + body + '</u>';
+    if (base.st) body = '<s>' + body + '</s>';
     if (base.color) body = font(base.color, body);
-    return base.size && ownKey(MM_SIZE, base.size) ? MM_SIZE[base.size][0] + body + MM_SIZE[base.size][1] : body;
+    return base.size ? sized(base.size, body) : body;
 }
 function mmRead(raw) {
     raw = String(raw == null ? '' : raw);
     if (raw.indexOf('<') < 0) return null;
-    var w = lookWalk(), text = '', open = [], at = 0, re = /<(\/?)(b|i|font|big|small|br)(\s[^<>]*|\/)?>/gi, m;
-    var put = function(s) { if (!s) return; var t = s.replace(/#quot;/g, '"').replace(/#35;/g, '#'); text += t; w.text(t.length); };
+    var w = lookWalk(), text = '', norm = '', open = [], at = 0, re = /<(\/?)(b|i|u|s|font|big|small|br)(\s[^<>]*|\/)?>/gi, m;
+    // norm: the label as it was written, a % and a | of its own text as the codes the export writes for them
+    var put = function(s) { if (!s) return; var t = mmUnescStyled(s); text += t; norm += s.replace(/[%|]/g, function(c) { return MM_ENT[c]; }); w.text(t.length); };
     while ((m = re.exec(raw))) {
         var tag = m[2].toLowerCase(), attr = m[3] || '', look;
-        if (tag === 'br') { if (m[1] || !/^\s*\/?$/.test(attr)) continue; put(raw.slice(at, m.index)); text += '\n'; w.text(1); at = re.lastIndex; continue; }
-        if (m[1]) { if (attr || open[open.length - 1] !== tag) return null; put(raw.slice(at, m.index)); open.pop(); w.close(); at = re.lastIndex; continue; }
+        if (tag === 'br') { if (m[1] || !/^\s*\/?$/.test(attr)) continue; put(raw.slice(at, m.index)); text += '\n'; norm += m[0]; w.text(1); at = re.lastIndex; continue; }
+        if (m[1]) { if (attr || open[open.length - 1] !== tag) return null; put(raw.slice(at, m.index)); norm += m[0]; open.pop(); w.close(); at = re.lastIndex; continue; }
         if (tag === 'font') { var c = /^ color=([0-9a-f]{6})$/.exec(attr); if (!c) continue; look = { color: '#' + c[1] }; }
         else if (attr) continue;   // not a tag of ours: it stays text
-        else look = tag === 'b' ? { b: true } : tag === 'i' ? { i: true } : { step: tag };
-        put(raw.slice(at, m.index)); open.push(tag); w.open(look); at = re.lastIndex;
+        else if (tag === 'big' || tag === 'small') {   // a size step: <small>, or one to three <big> — the innermost count is the size of what it holds
+            var steps = open.filter(function(x) { return x === 'big' || x === 'small'; }).concat(tag).join(' ');
+            if (!ownKey(MM_STEPS, steps)) return null;
+            look = { size: MM_STEPS[steps] };
+        }
+        else look = tag === 'b' ? { b: true } : tag === 'i' ? { i: true } : tag === 'u' ? { u: true } : { st: true };
+        put(raw.slice(at, m.index)); norm += m[0]; open.push(tag); w.open(look); at = re.lastIndex;
     }
     put(raw.slice(at));
     if (open.length) return null;
-    var steps = w.els().filter(function(el) { return el.look.step; }), full = w.wraps().filter(function(el) { return el.look.step; }), size = '';
-    if (steps.length !== full.length) return null;   // a size on part of a label is not a field's
-    if (full.length) { var steps2 = full.map(function(el) { return el.look.step; }).join(' '); if (!ownKey(MM_STEPS, steps2)) return null; size = MM_STEPS[steps2]; }   // <small>, or one to three <big>
-    var fmt = w.fmt(text, size);
-    return fmt && mmStyled(text, fmt) === raw ? { text: text, fmt: fmt } : null;
+    var fmt = w.fmt(text);
+    return fmt && mmStyled(text, fmt) === norm ? { text: text, fmt: fmt } : null;
 }
-// What the export writes for a styled label — only when it reads back to the very text and looks; else null (the label is then written as before)
+// What the export writes for a styled label — only when it reads back to the very text and looks; else null (the label is then written as before).
+// A label that holds a carriage return never does: the fence is read line by line and its carriage returns dropped.
 function mmLabel(text, fmt) {
-    var s = mmStyled(text, fmt); if (s == null) return null;
+    var s = /\r/.test(String(text == null ? '' : text)) ? null : mmStyled(text, fmt); if (s == null) return null;
     var back = mmRead(s);
-    return back && back.text === String(text) && looksOf(back.text, back.fmt) === looksOf(back.text, fmt) ? '"' + s + '"' : null;
+    return back && back.text === String(text) && looksOf(back.text, back.fmt) === looksOf(back.text, labelFmt(fmt, back.text)) ? '"' + s + '"' : null;   // a label's looks: its format less any link
 }
 function mmQuote(t) { return '"' + String(t || '').replace(/"/g, '#quot;').replace(/#/g, function(c, k, s) { return s.slice(k, k + 6) === '#quot;' ? c : '#35;'; }).replace(/\r?\n/g, '<br>') + '"'; }
 function flowchartToMermaid(b) {
@@ -394,7 +457,7 @@ function flowchartToMermaid(b) {
 // paragraph — is dropped, the white space it held kept (so it leaves no empty paragraph behind and no empty tag in a block)
 function dropEmptySpans(html) { var prev; do { prev = html; html = html.replace(/<span[^>]*>(\s*)<\/span>/g, '$1'); } while (html !== prev); return html; }
 function isBlockStart(line, next) {
-    return /^(```+|~~~+)/.test(line) || /^:::\s*(lede|oneline|flare|callout)\s*$/i.test(line) || /^#{1,6}\s/.test(line) || /^(?:-{3,}|\*{3,}|_{3,})\s*$/.test(line) || /^>/.test(line) || LIST_RE.test(line) || (/\|/.test(line) && isTableSep(next)) || /^!\[[^\]]*\](\([^)]*\)|\[[^\]]*\])\s*(\{[^{}]*\})?\s*$/.test(line);
+    return /^(```+|~~~+)/.test(line) || /^:::\s*(lede|oneline|flare|callout)\s*$/i.test(line) || /^#{1,6}\s/.test(line) || /^(?:-{3,}|\*{3,}|_{3,})\s*$/.test(line) || /^>/.test(line) || LIST_RE.test(line) || (/\|/.test(line) && isTableSep(next)) || !!picLine(line);
 }
 // opts.kind: 'doc' (default) | 'planner'; opts.items: the campaign's items (a planner's "Map: title / room" lines resolve against them)
 function markdownToBlocks(text, opts) {
@@ -518,7 +581,7 @@ function markdownToBlocks(text, opts) {
             while (i < lines.length && /\|/.test(lines[i]) && lines[i].trim()) { var rc = splitRow(lines[i]).map(fieldOf); rows.push(rc.map(textOf)); rfm.push(rc.map(fmtOf)); i++; }
             var tt = pendingTitle; pendingTitle = null; pushTable(cols, rows, tt ? tt.text : tt, { title: tt ? tt.fmt : undefined, cols: hc.map(fmtOf), rows: rfm }); continue;
         }
-        var imL = /^!\[([^\]]*)\]\(([^)]*)\)\s*(\{[^{}]*\})?\s*$/.exec(line) || /^!\[([^\]]*)\]\[([^\]]*)\]\s*(\{[^{}]*\})?\s*$/.exec(line);
+        var imL = picLine(line);
         if (imL) {
             var byRef = line.indexOf('](') < 0, dest = byRef ? null : imL[2].replace(/\s+"[^"]*"$/, '').replace(/^<|>$/g, ''), ref = byRef ? (imL[2] || imL[1]) : null;
             var at = imL[3] ? parseAttrs(imL[3]) : null; if (imL[3] && !at) notes.push('Picture attributes "' + imL[3] + '" not understood (use width, float, dx, dy, span).');
@@ -689,7 +752,7 @@ function docToMarkdown(item, opts) {
                     ref = 'images/' + item.id + '/' + name;
                 }
                 var lay = kind === 'doc' ? b.layout : (b.width && b.width !== 100 || (b.align && b.align !== 'center') ? { width: b.width, float: b.align === 'left' || b.align === 'right' ? b.align : 'none' } : null);
-                L.push('![' + fieldText(b, 'caption', IN_LINE) + '](' + ref + ')' + layoutTail(lay), ''); break;
+                L.push('![' + fieldText(b, 'caption', IN_CAPTION) + '](' + ref + ')' + layoutTail(lay), ''); break;
             }
             case 'table': L.push(tableMd(b.title, b.cols, b.rows, b), ''); break;
             case 'node':

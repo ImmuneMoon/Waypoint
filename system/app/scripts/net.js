@@ -3043,7 +3043,7 @@ function broadcastPos(msg, exceptConn, camp, map, w) {
     net.conns.forEach(function(c) {
         if (c === exceptConn || !c.open || (typeof mapHeld === 'function' && !mapHeld(c, map.id))) return;   // possession: as above
         var pr = net.roster[c.peer]; if (!pr) return;
-        if ((w && w.ownerId === pr.id) || (window.wpFog && window.wpFog.canSeePoint(pr.id, camp, map, cx, cy))) { try { c.send(msg); } catch (e) { sendFailed(e); } }
+        if ((w && w.ownerId === pr.id) || (window.wpFog && window.wpFog.canSeePoint(pr.id, camp, map, cx, cy, w))) { try { c.send(msg); } catch (e) { sendFailed(e); } }   // item 19b: w — a creature's place is judged at its height, as its drop is
     });
 }
 // [netcheck:bpos-end]

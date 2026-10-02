@@ -925,7 +925,7 @@ function mutations(tpl) {
         'docStyle': { type: 'docStyle', campId: 'c1', docStyle: { font: 'serif', textColor: '#112233' } },
         'campFog': { type: 'campFog', campId: 'c1', fog: { sight: 'f_dsv', emptyFog: true } },
         'clock': { type: 'clock', campId: 'c1', clock: { t: 3600, notes: [{ id: 'n_1', day: 1, text: 'Market' }] } },
-        'fogDiff': { type: 'fogDiff', campId: 'c1', itemId: 'm_fog', add: [{ item: { id: 'tok_new', type: 'circle', isChar: true, x: 1, y: 1, w: 50, h: 50 }, after: null }], drop: ['tok_far'], lit: [], capped: false },
+        'fogDiff': { type: 'fogDiff', campId: 'c1', itemId: 'm_fog', add: [{ item: { id: 'tok_new', type: 'circle', isChar: true, x: 1, y: 1, w: 50, h: 50 }, after: null }], drop: ['tok_far'], lit: [], capped: false, marks: [{ c: 3, r: 3, k: 1, s: 1 }] },   // item 19b: a mark's word s (a creature hidden in a seen cell), cleaned by the player's app
         'campName': { type: 'campName', campId: 'c1', name: 'Renamed' },
         'libManifest': { type: 'libManifest', campId: 'c1', packs: [{ id: 'p_core', name: 'Core', n: 1, hash: 'abcdef12' }] },
         'lib-idx-ans': { type: 'lib-idx-ans', rid: 'q1', packId: 'p_core', hash: 'abcdef12', page: 0, pages: 1, rows: [] },

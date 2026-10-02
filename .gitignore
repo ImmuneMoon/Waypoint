@@ -17,6 +17,9 @@ Waypoint_Setup.exe
 *_Drive_Package.zip
 *.zip
 
+# --- a private key never enters the repository (the update signing key is kept outside it: tools/signkey.js) ---
+*.pem
+
 # --- local clutter ---
 Not used/
 scratch/

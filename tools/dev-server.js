@@ -55,7 +55,7 @@ const server = http.createServer((req, res) => {
     if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
 
     const url = new URL(req.url, 'http://localhost');
-    if (url.pathname === '/api/update-check' || url.pathname === '/api/update-apply') { updateHandler(req, res, url); return; }
+    if (updater.UPDATE_ROUTES.includes(url.pathname)) { updateHandler(req, res, url); return; }   // the shell's own list (a core update's routes too: here they answer that this copy cannot install one)
     if (url.pathname === '/api/open-external' && req.method === 'POST') { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end('{"ok":true,"note":"dev server: not opening a browser"}'); }
     if (url.pathname === '/api/ping') { res.writeHead(200); return res.end(); }
     if (url.pathname === '/api/version') {

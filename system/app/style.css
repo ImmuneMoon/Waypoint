@@ -1336,6 +1336,10 @@
   /* per-node resize handle: shows on hover, bottom-right corner of the node's box */
   .doc-view .diagram.fc-box g.node rect.fc-handle { fill: #e0a54f; stroke: var(--bg); stroke-width: 1; cursor: nwse-resize; opacity: 0; transition: opacity .12s; }
   .doc-view .diagram.fc-box g.node:hover rect.fc-handle { opacity: 1; }
+  /* A linked shape of a diagram (a flowchart node with a link, a class with one): it reads as a link wherever a diagram is drawn — the
+     pointer, and its label underlined. An underline is the label's own ink, so it shows on a light page, on a dark one and in print. */
+  .diagram svg a:any-link, .diagram svg a:any-link g.node { cursor: pointer !important; }
+  .diagram svg a:any-link .nodeLabel, .diagram svg a:any-link text { text-decoration: underline; }
   .doc-view .node { margin: 26px 0; }
   .doc-view .node h3 { margin: 0 0 3px; font-size: 18px; color: var(--ink); }
   .doc-view .node h3 .tag { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--gold); border: 1px solid var(--gold); border-radius: 20px; padding: 2px 9px; margin-left: 9px; vertical-align: middle; }

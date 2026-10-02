@@ -11,7 +11,9 @@
 
    What opens:  only an address textfmt.js cleanLink keeps (the page sanitiser's own rule for an <a href>) that the URL parser reads
                 as http or https. Anything else under an <a href> opens nothing at all — the second check, at the click.
-   Never:       a link inside a box that is being edited (a text block's box, a play-map text box): there a click places the caret.
+   Never:       a link inside a box that is being edited (a text block's box, a play-map text box): there a click places the caret. And a
+                link that has just been dragged: a flowchart node with a link is moved and resized in the planner's preview, and the click
+                that ends that gesture is no click on the link (planner.js marks the link while it is on its way: data-held).
    Directly:    the app's own words (Help, About, Settings); what the Journal says is yours in the handout viewer (your own note,
                 your own handout's preview); a planner or a page where it is drawn to be read (the preview, the reader, the floating
                 panel, a pop-out) while this app is not a player at someone's table.
@@ -52,12 +54,12 @@ function atTable(win) {
         return !!(n.foreign || (n.active && n.role === 'client'));
     } catch (e) { return null; }
 }
-// Where a link is, and whose: { editing, zone, own, gm, who, player }.
-//   editing: it lies in a box that is being edited;  zone: 'viewer' | 'app' | 'page' | 'other';
+// Where a link is, and whose: { editing, held, zone, own, gm, who, player }.
+//   editing: it lies in a box that is being edited;  held: it was just dragged (the app's own mark on the link);  zone: 'viewer' | 'app' | 'page' | 'other';
 //   own: the handout viewer shows something of your own (handouts.js says so, on the viewer's element);  gm / who: who it came from, where
 //   that is known — the GM, or a player's name as the Journal shows it;  player: atTable.
 function linkWhere(a, win) {
-    var c = { editing: false, zone: 'other', own: false, gm: false, who: '', player: atTable(win) };
+    var c = { editing: false, held: !!(a.hasAttribute && a.hasAttribute('data-held')), zone: 'other', own: false, gm: false, who: '', player: atTable(win) };
     for (var n = a; n; n = n.parentNode) if (n.isContentEditable === true) { c.editing = true; break; }
     var v = a.closest(ZONE_VIEWER);
     if (v) {
@@ -74,6 +76,7 @@ function linkWhere(a, win) {
 function linkVerdict(c) {
     if (!c || typeof c !== 'object' || typeof c.link !== 'string' || !c.link || cleanLink(c.link) !== c.link) return 'none';   // no web address
     if (c.editing !== false) return 'none';                                 // a box that is being edited
+    if (c.held === true) return 'none';                                     // the end of a drag or a resize of a linked shape: no click on its link
     if (c.zone === 'app') return 'open';                                    // the app's own words
     if (c.zone === 'viewer') return c.own === true ? 'open' : 'ask';        // the handout viewer: only what the Journal knows to be yours
     if (c.zone === 'page') return c.player === false ? 'open' : 'ask';      // your planners and pages, while you are not at someone's table

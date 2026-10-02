@@ -27,7 +27,7 @@
      the whole field or on a part of it — are written from the field's format and read back into it
      ("text style" below). */
 'use strict';
-import { sanitizeHtml, DOC_BLOCKS, fieldFmt, colFmtOf, cellFmtOf, labelFmt } from './docrender.js';
+import { sanitizeHtml, DOC_BLOCKS, fieldFmt, colFmtOf, cellFmtOf, labelFmt, stripMermaidLinks, linkLine, readLinkLine } from './docrender.js';
 import { cleanFmt, runsOf, SIZE_EM, MAX_RAW } from './textfmt.js';
 
 var VERSION = '1.5.0';
@@ -336,7 +336,7 @@ function flowchartFromMermaid(src) {
     var lines = String(src || '').replace(/\r/g, '').split('\n').map(function(l) { return l.replace(/%%.*$/, '').trim(); }).filter(Boolean);
     var head = /^(flowchart|graph)\s*(TD|TB|LR|RL|BT)?\s*;?$/i.exec(lines[0] || ''); if (!head) return null;
     var dir = head[2] ? head[2].toUpperCase() : 'TD'; if (dir === 'TB') dir = 'TD';
-    var nodes = {}, order = [], edges = [];
+    var nodes = Object.create(null), order = [], edges = [];   // keyed by a node's id, which a file chooses: a map with no prototype, so no id names anything but a node
     function defNode(tok) {
         var m = NODE_RE.exec(tok); if (!m) return null;
         var id = m[1];
@@ -350,7 +350,9 @@ function flowchartFromMermaid(src) {
     for (var i = 1; i < lines.length; i++) {
         var l = lines[i].replace(/;$/, '').trim();
         var d = /^direction\s+(TD|TB|LR|RL|BT)$/i.exec(l); if (d) { dir = d[1].toUpperCase() === 'TB' ? 'TD' : d[1].toUpperCase(); continue; }
-        if (/^(classDef|class|style|linkStyle|click|subgraph|end|href|callback)\b/i.test(l) || l.indexOf('&') >= 0) return null;   // beyond the subset: a mermaid block instead
+        var lk = readLinkLine(lines[i]);   // a node's link, exactly as the export writes it (docrender.js linkLine: click <id> href "<address>") — the whole node is the link
+        if (lk) { if (!nodes[lk.id]) return null; nodes[lk.id].link = lk.link; continue; }
+        if (/^(classDef|class|style|linkStyle|click|subgraph|end|href|callback)\b/i.test(l) || l.indexOf('&') >= 0) return null;   // beyond the subset: a mermaid block instead (any other click statement too: the strip judges it there)
         var pos = 0, cur = defNode(l); if (!cur) return null;
         pos = cur.len;
         while (pos < l.length) {
@@ -449,6 +451,8 @@ function flowchartToMermaid(b) {
         L.push(String(nd.id || 'n').replace(/[^A-Za-z0-9_]/g, '_') + o + (mmLabel(nd.text, ownKey(nd, 'fmt') ? nd.fmt : undefined) || mmQuote(nd.text || nd.id)) + c + (nd.color && nd.color !== 'neutral' ? ':::' + nd.color : ''));
     });
     (b.edges || []).forEach(function(e) { if (!e.from || !e.to) return; L.push(String(e.from).replace(/[^A-Za-z0-9_]/g, '_') + ' ' + (e.style === 'dotted' ? '-.->' : '-->') + (e.text ? '|' + (mmLabel(e.text, ownKey(e, 'fmt') ? e.fmt : undefined) || mmQuote(e.text)) + '|' : '') + ' ' + String(e.to).replace(/[^A-Za-z0-9_]/g, '_')); });
+    // a node's link: the one line a diagram's link is ever written in (docrender.js linkLine), after the arrows — nothing for a node without one, or with an address or an id the rule refuses
+    (b.nodes || []).forEach(function(nd) { var ll = nd && ownKey(nd, 'link') ? linkLine(String(nd.id || 'n').replace(/[^A-Za-z0-9_]/g, '_'), nd.link) : ''; if (ll) L.push(ll); });
     return L.join('\n');
 }
 
@@ -506,8 +510,9 @@ function markdownToBlocks(text, opts) {
         if (wasInline) notes.push('Picture "' + (caption || b.src || target.slice(0, 40)) + '" was inside a paragraph; it became its own block after it.');
     }
     function handleFence(info, body) {
-        if (info === 'mermaid') { flushRun(); push({ type: 'diagram', content: kind === 'planner' ? body.replace(/</g, '&lt;').replace(/>/g, '&gt;') : body }); return; }
-        if (info === 'flowchart' || info === 'graph') { var fc = flowchartFromMermaid(body); flushRun(); if (fc) { push(fc); } else { push({ type: 'diagram', content: kind === 'planner' ? body.replace(/</g, '&lt;').replace(/>/g, '&gt;') : body }); notes.push('A flowchart fence went beyond the simple subset; it was kept as a mermaid diagram.'); } return; }
+        var dsrc = function() { var d = stripMermaidLinks(body); return kind === 'planner' ? d.replace(/</g, '&lt;').replace(/>/g, '&gt;') : d; };   // a diagram from a file: its link statements as canonical lines, nothing else about a click (docrender.js)
+        if (info === 'mermaid') { flushRun(); push({ type: 'diagram', content: dsrc() }); return; }
+        if (info === 'flowchart' || info === 'graph') { var fc = flowchartFromMermaid(body); flushRun(); if (fc) { push(fc); } else { push({ type: 'diagram', content: dsrc() }); notes.push('A flowchart fence went beyond the simple subset; it was kept as a mermaid diagram.'); } return; }
         if (info === 'html') { run.push('<pre><code>' + esc(body) + '</code></pre>'); notes.push('An html fence was kept as code, not as page markup.'); return; }
         run.push('<pre><code>' + esc(body) + '</code></pre>');
     }
@@ -771,7 +776,7 @@ function docToMarkdown(item, opts) {
                 if ((b.cols && b.cols.length) || (b.rows && b.rows.length)) L.push(tableMd('', b.cols && b.cols.length ? b.cols : ['Action', 'Why', 'Cost', 'Returns via'], b.rows, b));
                 L.push(''); break;
             case 'rule': L.push('---', ''); break;
-            case 'diagram': L.push('```mermaid', unent(String(b.content || '')).replace(/```/g, '` ` `'), '```', ''); break;
+            case 'diagram': L.push('```mermaid', stripMermaidLinks(unent(String(b.content || ''))).replace(/```/g, '` ` `'), '```', ''); break;   // as it is drawn: its links as canonical lines
             case 'flowchart': L.push('```flowchart', flowchartToMermaid(b), '```', ''); break;
             case 'raw': L.push('```html', String(b.content || '').replace(/```/g, '` ` `'), '```', ''); break;
         }

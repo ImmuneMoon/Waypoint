@@ -1486,6 +1486,14 @@ pendingChecks.push((async () => {
     check('hidden pieces (door-req, run for real with the real fogcore): a player\'s request naming a visible door next to their token opens it (saved, nothing sent); one naming a hidden door — locked or not, hidden as true or as 1 — opens nothing, saves nothing and answers nothing, like one naming nothing on the map; a visible locked door still answers locked',
         j(runDoor({})) === j({ open: true, sent: [], saves: 1 }) && j(runDoor({ hidden: true })) === j({ open: false, sent: [], saves: 0 }) && j(runDoor({ hidden: true, doorLock: true })) === j({ open: false, sent: [], saves: 0 }) && j(runDoor({ hidden: 1 })) === j({ open: false, sent: [], saves: 0 })
         && j(runDoor({}, { itemId: 'nope' })) === j({ open: false, sent: [], saves: 0 }) && j(runDoor({ doorLock: true })) === j({ open: false, sent: ['door-deny:locked'], saves: 0 }), j([runDoor({}), runDoor({ hidden: true }), runDoor({ doorLock: true })]));
+    // see-through barriers (1.5.1): a barrier's door is a door to the same request — the piece carries barrier and no blocksSight
+    const runBar = (over, o) => runDoor(Object.assign({ blocksSight: undefined, barrier: true }, over), o), quietD = j({ open: false, sent: [], saves: 0 });
+    const lineGate = { type: 'path', x: 50, y: 50, w: 10, h: 50, baseW: 10, baseH: 50, pts: [[0, 0], [0, 50]] };
+    check('barriers (door-req, run for real with the real fogcore): a player\'s request naming a see-through barrier\'s door next to their token opens it (saved, nothing sent) and closes an open one; a locked one answers locked and stays shut; a hidden one — locked or not — answers nothing, like none; too far answers far; a line gate is found on the cells its line passes; a barrier that is no door, one flagged by anything but true, and a piece with a door type and neither flag are no door at all',
+        j(runBar({})) === j({ open: true, sent: [], saves: 1 }) && j(runBar({ doorOpen: true })) === j({ open: false, sent: [], saves: 1 }) && j(runBar({ doorLock: true })) === j({ open: false, sent: ['door-deny:locked'], saves: 0 })
+        && j(runBar({ hidden: true })) === quietD && j(runBar({ hidden: true, doorLock: true })) === quietD && j(runBar({ x: 300 })) === j({ open: false, sent: ['door-deny:far'], saves: 0 }) && j(runBar(lineGate)) === j({ open: true, sent: [], saves: 1 })
+        && j(runBar({ sightType: 'wall' })) === quietD && j(runBar({ sightType: undefined })) === quietD && j(runBar({ barrier: 1 })) === quietD && j(runBar({ barrier: 'true' })) === quietD && j(runDoor({ blocksSight: undefined })) === quietD && j(runDoor({ blocksSight: 1 })) === quietD,
+        j([runBar({}), runBar({ doorOpen: true }), runBar({ doorLock: true }), runBar({ hidden: true }), runBar({ x: 300 }), runBar(lineGate), runBar({ barrier: 1 })]));
 })());
 // Forget: asked first, and whole — a player at the table plays on, but nothing brings their record back until the GM's next Allow
 {
@@ -7202,6 +7210,63 @@ pendingChecks.push((async () => {
         check('senses S7b (host): a visible smoke piece reaches each player with its tick (their screen hides by it as the host does); a player\'s token walks into and through smoke, the move never refused (smoke blocks sight, never movement)',
             !!smA && smA.smoke === true && !!smB && smB.smoke === true && tEnd.x !== sx0 && Math.abs(tEnd.x - (sx0 + 300)) <= 50 && refused === false, J([smA, smB, tEnd.x - sx0, refused]));
     }
+    // see-through barriers (1.5.1, host; the owner's ruling of 2026-10-03: "active force fields are see through and impassible"): a piece flagged barrier stops a
+    // player's token as a wall does and stops no sight — the real pos gate, patch path and sends over the real fog.js (moveBlocked, moveSetFor) and fogcore,
+    // one module; the flag on the wire both ways
+    {
+        const NOTE = 'A wall is in the way: your token goes back.', WARN = 'That move went through a wall.';
+        const bW = (rules, piece) => { const W = S7({ rules: rules }); W.winRef.wpFog.moveBlocked = W.fog.moveBlocked;   // the real judge (the world's own only records what is asked)
+            const m = W.camp.items.mA; m.whiteboard.push(Object.assign({ id: 'ff', type: 'rect', x: 250, y: 100, w: 50, h: 50, barrier: true }, piece || {}), { id: 'imp', type: 'image', isChar: true, charName: 'imp', x: 400, y: 100, w: 50, h: 50, rot: 0, front: 0 });
+            m.meta = Object.assign({}, m.meta, { updated: (m.meta && m.meta.updated || 0) + 1 }); W.clearSent(); return W; };
+        const notes = c => c.sent.filter(x => x.type === 'turn-note').map(x => x.text), backs = c => c.sent.filter(x => x.type === 'pos' && x.wbId === 'tA' && x.final === true).map(x => [x.x, x.y]), at = W => W.place('tA').slice(0, 2);
+        // the pos gate: Ana's tA stands at (100,100), the barrier in the cell at (250,100), her drop two cells past it
+        const R = bW({}); R.move(R.a1, 'tA', 350, 100, false); const midR = at(R); R.move(R.a1, 'tA', 350, 100, true); const endR = at(R), notesR = notes(R.a1), backR = backs(R.a1), othersR = notes(R.b1).length;
+        R.clearSent(); R.move(R.a1, 'tA', 250, 100, true); const inR = [at(R), notes(R.a1)]; R.clearSent(); R.move(R.a1, 'tA', 200, 100, true); const freeR = [at(R), notes(R.a1)];
+        const Wn = bW({ walls: 'warn' }); Wn.move(Wn.a1, 'tA', 350, 100, false); Wn.move(Wn.a1, 'tA', 350, 100, true); const warn = [at(Wn), notes(Wn.a1), Wn.toasts.filter(t => /wall/.test(t))];
+        const Of = bW({ walls: 'off' }); Of.move(Of.a1, 'tA', 350, 100, true); const off = [at(Of), notes(Of.a1), Of.toasts.filter(t => /wall/.test(t))];
+        const through = [{ hidden: true }, { barrier: 1 }, { barrier: 'true' }, { sightType: 'door', doorOpen: true }, { gmNoteFor: 'u_a' }].map(p => { const W = bW({}, p); W.move(W.a1, 'tA', 350, 100, true); return [at(W), notes(W.a1).length]; });
+        const stopped = [{ sightType: 'door' }, { sightType: 'door', doorLock: true }, { type: 'circle' }, { type: 'image' }, { rot: 30 }].map(p => { const W = bW({}, p); W.move(W.a1, 'tA', 350, 100, true); return [at(W), notes(W.a1)]; });
+        const Ln = bW({}, { type: 'path', x: 275, y: 0, w: 10, h: 400, baseW: 10, baseH: 400, pts: [[0, 0], [0, 400]] }); Ln.move(Ln.a1, 'tA', 350, 100, true); const lineStop = [at(Ln), notes(Ln.a1)]; Ln.clearSent(); Ln.move(Ln.a1, 'tA', 200, 100, true); const lineFree = [at(Ln), notes(Ln.a1)];
+        check('barriers (host, the real pos gate over the real fog.js): a player\'s token may not land in or cross a see-through barrier — mid-drag nothing is applied, and at the drop the token goes back where its drag began with the wall\'s own note, to its player alone; a drop short of it lands with no note; with the walls\' mode on Warn the move lands with the wall\'s warning to the player and the GM, on Off it lands unremarked',
+            J(midR) === J([100, 100]) && J(endR) === J([100, 100]) && J(notesR) === J([NOTE]) && J(backR) === J([[100, 100]]) && othersR === 0 && J(inR) === J([[100, 100], [NOTE]]) && J(freeR) === J([[200, 100], []])
+            && J(warn) === J([[350, 100], [WARN], ['tA moved through a wall.']]) && J(off) === J([[350, 100], [], []]), J([midR, endR, notesR, backR, inR, freeR, warn, off]));
+        check('barriers (host): what stops and what does not, at the same gate — a barrier the GM hid, one flagged by anything but true, an open barrier door and a GM-note card let the token through; a closed barrier door (locked or not), a circle, an image and a turned rectangle stop it; a pen-line barrier stops a drop across the line and lets one short of it land',
+            through.every(t => J(t) === J([[350, 100], 0])) && stopped.every(t => J(t) === J([[100, 100], [NOTE]])) && J(lineStop) === J([[100, 100], [NOTE]]) && J(lineFree) === J([[200, 100], []]), J([through, stopped, lineStop, lineFree]));
+        // the patch path: the map copy her app saves after a drop never lands the move a Refuse rule stops
+        const copyOf = (W, x, y) => ({ type: 'item', campId: 'k', itemId: 'mA', item: { id: 'mA', type: 'map', whiteboard: [Object.assign({}, W.tok('tA'), { x: x, y: y })] } });
+        const P = bW({}); P.api.item(copyOf(P, 350, 100), P.a1); const patR = [at(P), backs(P.a1)]; P.clearSent(); P.api.item(copyOf(P, 200, 100), P.a1); const patFree = at(P);
+        const Pw = bW({ walls: 'warn' }); Pw.api.item(copyOf(Pw, 350, 100), Pw.a1); const Po = bW({ walls: 'off' }); Po.api.item(copyOf(Po, 350, 100), Po.a1);
+        const mrf = new Function('window', 'net', 'own', lineOf('function moveMode(') + '\n' + fnSrc('function turnCombatOf(', '\n}\n', 'turnCombatOf') + '\n}\n' + fnSrc('function moveRefused(', '\n}\n', 'moveRefused') + '\n}\nreturn moveRefused;');
+        const why = rules => { const W = bW(rules); return mrf({ wpFog: W.fog, wpVtt: { on: () => true } }, { combats: {}, turnMove: {} }, (o, k) => Object.prototype.hasOwnProperty.call(o, k))(W.camp, W.camp.items.mA, 'mA', W.tok('tA'), 100, 100, 350, 100); };
+        check('barriers (host, the real patch path): a map copy carrying her token across a barrier is put back where it stood, for her and everyone, under Refuse — its note the wall\'s own (moveRefused over the real fog.js) — and lands under Warn and under Off, as a wall\'s; a copy that moves it short of the barrier lands',
+            J(patR) === J([[100, 100], [[100, 100]]]) && J(patFree) === J([200, 100]) && J(at(Pw)) === J([350, 100]) && J(at(Po)) === J([350, 100]) && why({}) === NOTE && why({ walls: 'warn' }) === '' && why({ walls: 'off' }) === '', J([patR, patFree, at(Pw), at(Po), why({})]));
+        // sight: the creature two cells past the barrier stays on her copy; the same piece as a wall takes it off
+        const idsWith = piece => { const W = bW({}, piece); W.net.sendItem('k', 'mA'); return W.ids(W.a1); };
+        const seeBar = idsWith(), seeWall = idsWith({ barrier: undefined, blocksSight: true }), seeBoth = idsWith({ blocksSight: true });
+        check('barriers (host): a barrier stops no sight — the creature standing past it stays on the player\'s copy of the fogged map, where the same piece flagged Blocks sight takes it off (and a piece with both flags is that wall)',
+            seeBar.indexOf('imp') >= 0 && seeBar.indexOf('ff') >= 0 && seeWall.indexOf('imp') < 0 && seeBoth.indexOf('imp') < 0, J([seeBar, seeWall, seeBoth]));
+        // the wire, host to player: a shown barrier travels with its flag and its door keys, a hidden one not at all
+        const Wr = bW({}); Wr.camp.items.mA.whiteboard.push({ id: 'ffHid', type: 'rect', x: 5000, y: 5000, w: 50, h: 50, barrier: true, hidden: true }, { id: 'gate', type: 'rect', x: 100, y: 600, w: 50, h: 50, barrier: true, sightType: 'door', doorOpen: true, doorLock: true });
+        Wr.camp.items.mA.meta = Object.assign({}, Wr.camp.items.mA.meta, { updated: 99 }); Wr.clearSent(); Wr.net.sendItem('k', 'mA');
+        const cA = Wr.last(Wr.a1), cB = Wr.last(Wr.b1), allW = J(Wr.a1.sent.concat(Wr.a2.sent, Wr.b1.sent)), cloneW = Wr.api.clean(Wr.camp.items.mA), pick = (m, id) => { const w = m && m.whiteboard.find(x => x.id === id); return w ? [w.barrier, w.sightType, w.doorOpen, w.doorLock] : null; };
+        check('barriers (host, the wire): a shown barrier reaches each player with its flag (a door with its type, open and locked as they are, so a player\'s app can offer the click); a barrier the GM hid reaches no one — no item, no id — on a player\'s copy or the shared clone',
+            J(pick(cA, 'ff')) === J([true, undefined, undefined, undefined]) && J(pick(cB, 'ff')) === J([true, undefined, undefined, undefined]) && J(pick(cA, 'gate')) === J([true, 'door', true, true]) && J(pick(cloneW, 'gate')) === J([true, 'door', true, true]) && pick(cloneW, 'ff')[0] === true
+            && !/ffHid/.test(allW) && !/ffHid/.test(J(cloneW)), J([pick(cA, 'ff'), pick(cA, 'gate'), /ffHid/.test(allW)]));
+        // the wire, player to host: a copy can neither set the flag nor clear it
+        const Pt = bW({}); Pt.camp.items.mA.whiteboard.push({ id: 'pl1', type: 'path', byPlayer: true, ownerId: 'u_a', x: 600, y: 600, w: 10, h: 10, baseW: 10, baseH: 10, z: 35, pts: [[0, 0], [10, 10]], color: '#e9e9f0', strokeWidth: 3, barrier: true });
+        Pt.api.item({ type: 'item', campId: 'k', itemId: 'mA', item: { id: 'mA', type: 'map', whiteboard: [{ id: 'ff', type: 'rect', x: 250, y: 100, w: 50, h: 50 }, Object.assign({}, Pt.tok('tA'), { barrier: true, sightType: 'door' }),
+            { id: 'pl1', type: 'path', byPlayer: true, ownerId: 'u_a', x: 600, y: 600, w: 10, h: 10, baseW: 10, baseH: 10, pts: [[0, 0], [5, 9]], barrier: false },
+            { id: 'wbnew1', type: 'path', ownerId: 'u_a', x: 0, y: 0, w: 10, h: 10, pts: [[0, 0], [5, 5]], barrier: true, blocksSight: true, sightType: 'door', doorOpen: true }] } }, Pt.a1);
+        const drew = Pt.tok('wbnew1'), redrew = Pt.tok('pl1'), has = (w, k) => !!w && Object.prototype.hasOwnProperty.call(w, k);
+        check('barriers (host, a player\'s map copy): nothing a copy says sets the flag or clears it — the GM\'s barrier sent back without it is a barrier still, her own token sent flagged takes no flag and no door type, a new drawing of hers sent as a barrier, a wall and an open door is taken as the drawing alone, and a drawing of hers the GM made a barrier stays one when she redraws it',
+            Pt.tok('ff').barrier === true && !has(Pt.tok('tA'), 'barrier') && !has(Pt.tok('tA'), 'sightType') && !!drew && !has(drew, 'barrier') && !has(drew, 'blocksSight') && !has(drew, 'sightType') && !has(drew, 'doorOpen')
+            && !!redrew && redrew.barrier === true && J(redrew.pts) === J([[0, 0], [5, 9]]), J([Pt.tok('ff'), drew, redrew]));
+        check('barriers (source): the walls\' rule has one judge, asked in two places and both for a player\'s move — the pos gate and the patch path — so the GM\'s own moves are never stopped; a player\'s door request takes a wall\'s door or a barrier\'s, each flag only as true; a player\'s app keeps the flag only as true; nothing strips it from a shown piece on its way out, and a hidden piece is not sent',
+            (src.match(/window\.wpFog\.moveBlocked\(/g) || []).length === 2 && /if \(wlM !== 'off' && window\.wpFog && window\.wpFog\.moveBlocked && window\.wpFog\.moveBlocked\(map, w, frW\.x, frW\.y, msg\.x, msg\.y\)\) \{/.test(src)
+            && /if \(moveMode\(camp, 'walls'\) === 'refuse' && window\.wpFog && window\.wpFog\.moveBlocked && window\.wpFog\.moveBlocked\(map, w, fx, fy, tx, ty\)\) return 'A wall is in the way: your token goes back\.';/.test(src)
+            && src.includes("if (!doorEl || (doorEl.blocksSight !== true && doorEl.barrier !== true) || doorEl.sightType !== 'door' || doorEl.hidden) return;") && src.includes('if (w.barrier !== undefined && w.barrier !== true) delete w.barrier;')
+            && !/delete w\.barrier/.test(fnSrc('function wireWbItem(', '\n}\n', 'wireWbItem')) && /if \(w\.gmNoteFor \|\| w\.hidden\) return null;/.test(fnSrc('function wireWbItem(', '\n}\n', 'wireWbItem')));
+    }
     // difficult terrain T1 (host): a shown piece reaches every player with its cost (their ruler reads it), a hidden one not at all
     {
         const tW = S7({}), mT = tW.camp.items.mA, tT = tW.tok('tA');
@@ -7671,6 +7736,12 @@ pendingChecks.push((async () => {
         && fxGot[1] === 'none' && fxGot[2] === 'none' && fxGot[3] === 'none' && J(fxNo) === J([false, false, false, false]), J([fxGot, fxNo]));
     check('senses S7b (client): a player\'s app keeps a smoke tick from its host only as true, with or without a cleaner or a profile; any other value is dropped, item by item and in a whole map',
         J(smCli) === J([[true, 0, 0, 0, 0, 0], [true, 0, 0, 0, 0, 0], [true, 0, 0, 0, 0, 0]]) && J(smMapC) === J(smCli[0]), J([smCli, smMapC]));
+    // see-through barriers (1.5.1, client): the flag from a host, only as true
+    const brToks = () => [true, 'yes', 1, { on: true }, false, null, undefined].map((v, i) => Object.assign({ id: 'b' + i, type: 'rect', x: 0, y: 0, w: 50, h: 50, sightType: 'door' }, v === undefined ? {} : { barrier: v })).concat([{ id: 'wt', waiting: 1, type: 'circle', ownerId: 'u_me', x: 1, y: 1, w: 5, h: 5, barrier: true }]);
+    const brCli = [cli('u_me'), cli('u_me', {}), cli('', { wpFogCore: FCx })].map(K => brToks().map(w => K.item(w)).map(w => (has(w, 'barrier') ? w.barrier : 0)));
+    const brMapC = C.map({ id: 'm1', type: 'map', whiteboard: brToks(), rooms: [], links: [] }).whiteboard.map(w => (has(w, 'barrier') ? w.barrier : 0));
+    check('barriers (client): a player\'s app keeps a piece\'s barrier flag from its host only as true, with or without a cleaner or a profile; a word, a number, an object, false or nothing is dropped (the key gone), item by item and in a whole map; a waiting token is rebuilt without it',
+        J(brCli) === J([[true, 0, 0, 0, 0, 0, 0, 0], [true, 0, 0, 0, 0, 0, 0, 0], [true, 0, 0, 0, 0, 0, 0, 0]]) && J(brMapC) === J(brCli[0]), J([brCli, brMapC]));
     check('senses S7a (client): a map caught up in place takes its word of what fails in a null area for its own tokens only (cleaned again), an empty word takes it away, a word that is no plain object is refused whole (the whole map asked for)',
         J(pgO1) === J({ me: ['sn_hear0001'] }) && pgO2 === false && pgO3 === 1, J([pgO1, pgO2, pgO3]));
     check('senses S4a (client): a map caught up in place takes its marks the same way (cleaned, none on its own token), an empty list takes them away, marks that are no list are refused whole (the whole map asked for)',

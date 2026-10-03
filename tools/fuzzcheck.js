@@ -299,6 +299,8 @@ function mkCampaign(SC, F) {
                 { id: 'door1', type: 'rect', blocksSight: true, sightType: 'door', doorOpen: false, x: 150, y: 150, w: 50, h: 50 },
                 { id: 'door_locked', type: 'rect', blocksSight: true, sightType: 'door', doorOpen: false, doorLock: true, x: 50, y: 150, w: 50, h: 50 },
                 { id: 'wall1', type: 'rect', blocksSight: true, x: 600, y: 0, w: 10, h: 400 },
+                { id: 'gate1', type: 'rect', barrier: true, sightType: 'door', doorOpen: false, x: 150, y: 50, w: 50, h: 50 },   // see-through barriers (1.5.1): a barrier's door beside tok_p1, and a plain barrier — no message but a door request may change either
+                { id: 'bars1', type: 'rect', barrier: true, x: 650, y: 0, w: 10, h: 400 },
                 { id: 'text1', type: 'text', text: '<b>Welcome</b>', x: 20, y: 20, w: 100, h: 30 },
                 { id: 'note1', type: 'rect', gmNoteFor: 'tok_npc', x: 300, y: 260, w: 40, h: 20, gmInfo: 'the orc lies' },
                 { id: 'light1', type: 'light', light: { bright: 2, dim: 4, unit: 'yd' }, x: 700, y: 700, w: 20, h: 20 },
@@ -513,7 +515,8 @@ function mutations(tpl) {
             'hello': { type: 'hello', profile: { id: 'u_new', name: 'Newcomer', color: '#123456', avatar: 'data:image/png;base64,iVBORw0KGgo=', face: '🙂' }, version: '1.5.0', password: '', proof: '', fp: [FP_P, FP_H], cn: 'c'.repeat(32) },   // no key rides in a hello since the proof (a known id is challenged; the answer is a proof, with the pair of fingerprints it was made over)
             'hold': { type: 'hold', ms: 1000 },
             'hb': { type: 'hb' },
-            'item': { type: 'item', campId: 'c1', itemId: 'm_open', item: { whiteboard: [{ id: 'tok_p1', x: 120, y: 130, rot: 0, front: 0, elevation: 0, posture: '' }, { id: 'stroke_p1', type: 'path', ownerId: 'u_p1', pts: [[0, 0], [10, 10], [20, 5]], color: '#ffffff', strokeWidth: 3, x: 0, y: 0, w: 20, h: 10, baseW: 20, baseH: 10, opacity: 1 }] }, a: 1 },
+            'item': { type: 'item', campId: 'c1', itemId: 'm_open', item: { whiteboard: [{ id: 'tok_p1', x: 120, y: 130, rot: 0, front: 0, elevation: 0, posture: '', barrier: true, blocksSight: true }, { id: 'stroke_p1', type: 'path', ownerId: 'u_p1', pts: [[0, 0], [10, 10], [20, 5]], color: '#ffffff', strokeWidth: 3, x: 0, y: 0, w: 20, h: 10, baseW: 20, baseH: 10, opacity: 1, barrier: true, blocksSight: true },
+                { id: 'gate1', type: 'rect', sightType: 'door', doorOpen: true, x: 150, y: 50, w: 50, h: 50 }, { id: 'bars1', type: 'rect', x: 650, y: 0, w: 10, h: 400 }] }, a: 1 },   // see-through barriers (1.5.1): a copy that sends the GM's gate back unflagged and open, the bars unflagged, and its own token and drawing flagged — a host takes none of it
             'threats': { type: 'threats', campId: 'c1', itemId: 'm_open', wbId: 'tok_p1', threats: [90, 180], a: 2 },
             'needItem': { type: 'needItem', campId: 'c1', itemId: 'm_open' },
             'travel': { type: 'travel', viaItemId: 'portal_vis' },
@@ -600,6 +603,7 @@ function mutations(tpl) {
             if (!m[3]) { const obj = tokA || tokB; return !!obj && ((obj.type === 'path' && obj.byPlayer === true && obj.ownerId === pid) || (msg.type === 'hello' && obj.ownerId === pid) || ((msg.type === 'travel' || msg.type === 'pos' || msg.type === 'item' || msg.type === 'char-token' || msg.type === 'char-done') && (obj.ownerId === pid || obj.waiting))); }
             const tok = tokB || tokA; if (!tok) return false;
             const key = m[3].split(/[.[]/)[0];
+            if (key === 'barrier' || key === 'blocksSight') return false;   // what stops movement or sight is the GM's alone, on a player's own drawing too
             if (tok.type === 'path' && tok.byPlayer === true && tok.ownerId === pid) return true;
             if (tok.ownerId === pid && !tok.hidden && !tok.locked && /^(x|y|rot|front|elevation|posture|threats|light|face|isChar|charName|name|charStats|waiting|color|charId)$/.test(key)) return true;
             if (tok.ownerId === pid && (msg.type === 'tok-pic' || msg.type === 'char-pic') && /^(src|pic|face|frame)$/.test(key)) return true;

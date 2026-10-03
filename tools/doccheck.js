@@ -1126,12 +1126,16 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             has && formsBad.length === 0, J(formsBad.slice(0, 2).map(f => [f[0], strip(f[0])])));
 
         // statements of a text, as the strip counts them: one ends at a line break or at a ; that does not close one of the library's #…; codes
-        const WORD = /^\s*(?:click|callback|href|linkStyle)\b/i, CLASSLINK = /^\s*link\s+(?![-=.<>~&|:\s"'])[^"'\n;]*["']/i;
-        // … and after a } (the end of an accDescr { … } block) and after the statements that need nothing after them — a flowchart's end, a
-        // Gantt chart's gantt, inclusiveEndDates, topAxis, weekday <day> and a date — however many stand in a row (the library's own grammar)
+        const WORD = /^\s*(?:click|callback|href|linkStyle)\b/i, CLASSLINK = /^\s*link\s+(?![-=.<>~&|:\s"'])[^"'\n;]*["']/i, SEQLINK = /^\s*(?:links?|details|properties)\s+[^:;\n]*:/i;
+        // … and after a } that closes something a statement may follow (an accDescr { … } block; in a class diagram a class's or a namespace's
+        // body too — a source with no such opener has none), and after the statements that need nothing after them, by the kind of diagram as the
+        // library tells it (its own lexers): a flowchart's and a sequence diagram's end; a Gantt chart's gantt, inclusiveEndDates, topAxis,
+        // weekday <day> and a date; a class diagram's none; all of them, and every }, where the kind is any other or cannot be told
         const NOSEP = /^(?:\s*(?:end|gantt|inclusiveEndDates|topAxis|weekday\s+\w+|\d{4}-\d\d-\d\d)\b)+/i;
-        const stmts = line => { const out = []; let from = 0; for (let at = line.indexOf(';'); at >= 0; at = line.indexOf(';', at + 1)) { if (/#\w+$/.test(line.slice(0, at))) continue; out.push(line.slice(from, at)); from = at + 1; } out.push(line.slice(from)); return [].concat(...out.map(s => s.split('}'))).map(s => s.replace(NOSEP, '')); };
-        const onlyCanon = t => has && String(t).split(/\r\n|\n|\r/).every(line => !!rl(line) || stmts(line).every(s => !WORD.test(s) && !CLASSLINK.test(s)));   // no click statement but the canonical line, whole
+        const NOSEP_OF = { flow: /^(?:\s*end\b)+/i, sequence: /^(?:\s*end\b)+/i, gantt: /^(?:\s*(?:gantt|inclusiveEndDates|topAxis|weekday\s+\w+|\d{4}-\d\d-\d\d)\b)+/i, class: /^(?!)/ };
+        const braceOpens = (t, k) => k === 'class' ? t.indexOf('{') >= 0 : k === 'flow' || k === 'sequence' || k === 'gantt' ? /accDescr\s*\{/i.test(t) : true;
+        const stmts = (line, k, br) => { const out = []; let from = 0; for (let at = line.indexOf(';'); at >= 0; at = line.indexOf(';', at + 1)) { if (/#\w+$/.test(line.slice(0, at))) continue; out.push(line.slice(from, at)); from = at + 1; } out.push(line.slice(from)); return [].concat(...out.map(s => br ? s.split('}') : [s])).map(s => s.replace(NOSEP_OF[k] || NOSEP, '')); };
+        const onlyCanon = t => { const s = String(t), k = LIB.kind(s), br = braceOpens(s, k), seqd = /sequenceDiagram/i.test(s); return has && s.split(/\r\n|\n|\r/).every(line => !!rl(line) || stmts(line, k, br).every(x => !WORD.test(x) && !CLASSLINK.test(x) && !(seqd && SEQLINK.test(x)))); };   // no click statement but the canonical line, whole
         const noClick = t => onlyCanon(t) && canonOf(t).length === 0;
         const G = 'graph TD\nA-->B\n', C = 'classDiagram\nclass S\n';
         const HOSTILE = [
@@ -1152,7 +1156,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
 
         // a statement the library reads with nothing before it: after a } (the end of an accDescr { … } block) and after a statement that needs
         // no separator — a flowchart's end, a Gantt chart's gantt, inclusiveEndDates, topAxis, weekday <day>, a date — on the same line
-        const GT = 'gantt\ndateFormat YYYY-MM-DD\nsection S\nTask :t1, 2024-01-01, 3d\n', PRE = ['inclusiveEndDates ', 'topAxis ', 'weekday friday ', 'WEEKDAY  Monday\t', '2024-01-01 ', 'accDescr { x } ', 'accDescr { x }', 'inclusiveEndDates topAxis ', 'accDescr { x } inclusiveEndDates ', 'end ', 'accDescr {\n x\n} ', 'accDescr {\n x\n}', 'x; inclusiveEndDates '];
+        const GT = 'gantt\ndateFormat YYYY-MM-DD\nsection S\nTask :t1, 2024-01-01, 3d\n', PRE = ['inclusiveEndDates ', 'topAxis ', 'weekday friday ', 'WEEKDAY  Monday\t', '2024-01-01 ', 'accDescr { x } ', 'accDescr { x }', 'inclusiveEndDates topAxis ', 'accDescr { x } inclusiveEndDates ', 'accDescr {\n x\n} ', 'accDescr {\n x\n}', 'x; inclusiveEndDates '];
         const TAILS = ['click t1 href "https://ok.example/g"', 'CLICK t1 HREF "https://ok.example/g"', 'click t1 "https://ok.example/g"', 'click t1 call f()', 'click t1 href "/api/prefs.js"'];
         const ganttBad = [];
         PRE.forEach(p => TAILS.forEach(t => { const s = GT + p + t, o = strip(s); if (/click|href|call/i.test(o) || strip(o) !== o || LIB.kind(o) !== 'gantt' || !onlyCanon(o)) ganttBad.push([s, o]); }));
@@ -1171,6 +1175,33 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const nsBad = NOSEPF.filter(f => strip(f[0]) !== f[1] || strip(f[1]) !== f[1] || !onlyCanon(f[1]));
         check('a diagram\'s link (a flowchart\'s or a class diagram\'s link after a statement that needs no separator): a link statement standing on a line after a subgraph\'s end (one or several, behind a ;), after an accDescr { … } block closed on that line or on an earlier one, or after a class\'s closing } becomes the canonical line on a line of its own, the statements before it kept — its tooltip and target dropped; a call, a callback, a refused address or an id that is no id there is removed; stripped again it is itself',
             has && nsBad.length === 0, J(nsBad.slice(0, 2).map(f => [f[0], strip(f[0])])));
+        // the statements that need no separator are each diagram's own, and a } begins a statement only where it can close something: a Gantt
+        // chart's task that begins with End, a flowchart's label that holds a }, a sequence diagram's message or a Gantt chart's task with braces
+        // in it, a class diagram's note — each drew before and draws as it is
+        const KINDKEEP = ['gantt\ndateFormat YYYY-MM-DD\nsection S\nEnd click tracking :e1, after a1, 2d', 'gantt\ndateFormat YYYY-MM-DD\nsection S\nEnd link review "Q3" :e2, after a1, 2d', 'flowchart TD\nA{Is it}-->|yes| B["{json} link to docs"]', 'flowchart TD\nE["} click me"] --> F',
+            'graph LR\nA["a } b; c"] --> B{"} end click"}', 'sequenceDiagram\nA->>B: see {x} click here', 'gantt\nsection S\nParse {json} click handler :t1, 2024-01-01, 1d', 'classDiagram\nnote for Duck "see } link to docs"', 'classDiagram\nclass Duck\nDuck : +end click()'];
+        const keepBad = KINDKEEP.filter(s => strip(s) !== s);
+        const KINDCUT = [
+            ['flowchart TD\nsubgraph S\nA-->B\nend click A href "' + OKA + '" _self', 'flowchart TD\nsubgraph S\nA-->B\nend\n' + FL],
+            ['sequenceDiagram\nloop L\nA->>B: hi\nend link A: x @ https://ok.example/x', 'sequenceDiagram\nloop L\nA->>B: hi\nend'],
+            [GT + 'inclusiveEndDates click t1 href "https://ok.example/g"', GT + 'inclusiveEndDates'], [GT + 'weekday friday click t1 call f()', GT + 'weekday friday'],
+            ['flowchart TD\nA["{json}"] --> B\naccDescr { x } click A call f()', 'flowchart TD\nA["{json}"] --> B\naccDescr { x }'], ['flowchart TD\nA["} click A call f()"] --> B\naccDescr {\nx\n}', 'flowchart TD\nA["}\naccDescr {\nx\n}'],
+            ['classDiagram\nclass S {\n+x\n} click S href "' + OKA + '"', 'classDiagram\nclass S {\n+x\n}\nclick S href "' + OKA + '"'], ['classDiagram\nclass S {\n+x\n}\nnote for S "} link S \'x\'"', 'classDiagram\nclass S {\n+x\n}\nnote for S "}'],
+            ['sequenceDiagram\naccDescr { x } link A: x @ https://ok.example/x', 'sequenceDiagram\naccDescr { x }'], [GT + 'accDescr {\nx\n} click t1 href "https://ok.example/g"', GT + 'accDescr {\nx\n}'],
+            ['---\ntitle: x\n---\ngantt\nsection S\nEnd click t1 href "https://ok.example/g"', '---\ntitle: x\n---\ngantt\nsection S\nEnd'], ['erDiagram\nA ||--o{ B : x } click A href "https://ok.example/"', 'erDiagram\nA ||--o{ B : x }'],
+            ['%%{init: {"theme":"dark"}}%%\nclassDiagram\nnote for S "} link S \'x\'"', '%%{init: {"theme":"dark"}}%%\nclassDiagram\nnote for S "}'], ['flowchart TD\nA-->B\nacc%%{a}%%Descr {\nx\n} click A call f()', 'flowchart TD\nA-->B\naccDescr {\nx\n}']];
+        const cutBad = KINDCUT.filter(f => strip(f[0]) !== f[1] || strip(f[1]) !== f[1] || !onlyCanon(f[1]));
+        check('a diagram\'s link (each kind\'s own statements): a statement that needs no separator is judged by the kind of diagram as the library tells it — a flowchart\'s and a sequence diagram\'s end, a Gantt chart\'s gantt, inclusiveEndDates, topAxis, weekday <day> and a date, a class diagram\'s none — and a } begins a statement only in a source that can close something with it (an accDescr { … } block; a class diagram\'s { … }); so a Gantt task that begins with End, a flowchart label holding a }, a sequence message or a Gantt task with braces, a class note and a member called end click come out byte for byte, while a link after a subgraph\'s end, a sequence diagram\'s end or an accDescr block, a Gantt chart\'s click after inclusiveEndDates or weekday, a class\'s closing } and any } or any of those words where the kind cannot be told or is another are judged as before',
+            has && keepBad.length === 0 && cutBad.length === 0, J([keepBad.map(s => [s, strip(s)]), cutBad.slice(0, 2).map(f => [f[0], strip(f[0])])]));
+        // a sequence diagram's other statements that attach a menu of links or a picture to an actor: details (its menu read from an element of
+        // the page) and properties (a picture by address) are removed as its link and links are, wherever a statement begins
+        const SQ = 'sequenceDiagram\nparticipant A\n', SEQOUT = [
+            [SQ + 'details A: t9-text', SQ.slice(0, -1)], [SQ + 'properties A: {"icon":"https://ok.example/track.png"}', SQ.slice(0, -1)], [SQ + 'A->>A: hi; details A: t9-text', SQ + 'A->>A: hi'],
+            [SQ + 'DETAILS A: x\nProperties A: {"class":"x"}', SQ.slice(0, -1)], [SQ + 'loop L\nA->>A: hi\nend details A: t9-text', SQ + 'loop L\nA->>A: hi\nend'], [SQ + 'accDescr { x } properties A: {"icon":"https://ok.example/i.png"}', SQ + 'accDescr { x }'],
+            ['%%{init: {"sequence": {"forceMenus": true}}}%%\n' + SQ + 'details A: t9-text\nlinks A: {"Vault": "https://ok.example/vault"}', '%%{init: {"sequence": {"forceMenus": true}}}%%\n' + SQ.slice(0, -1)]];
+        const seqBad = SEQOUT.filter(f => strip(f[0]) !== f[1] || strip(f[1]) !== f[1] || !onlyCanon(f[1]));
+        check('a diagram\'s link (a sequence diagram\'s actor menus): its details <actor>: <element> (a menu of links read from an element of the page) and properties <actor>: {…} (a picture by address) are removed whole as its link and links are — at a line\'s start, behind a ;, after end or an accDescr block, in any case —, the rest of the diagram kept; stripped again it is itself',
+            has && seqBad.length === 0, J(seqBad.map(f => [f[0], strip(f[0])])));
 
         // the library's blocks: a link line is never one it would put together, and a block does not take a chart's links away
         const asm = strip('graph TD\nA-->B\ncl%%{a}%%ick A href "https://ok.example/"'), asm2 = strip('classDiagram\nclass S\n%%{x}%%link S "https://ok.example/"'), asm3 = strip('graph TD\nA-->B\nclick A href "https://ok.example/%%{a}%%x"'), swallowed = strip('%%{a: {\nclick q }%%\ngraph TD\n}%% gantt\nsection S\nT :A, 2024-01-01, 1d\nclick A href "https://ok.example/"');
@@ -1294,6 +1325,28 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             namedBad.length === 0 && sameBad.length === 0 && hid[0] === 'graph TD\n_proto_["x"] --> B' && hid[1] === 'graph TD\nA --> _proto_' && pre.every(x => x === 'graph TD\n_proto_["x"] --> B')
             && fcP.indexOf('\n_proto_["' + P + '"]:::neutral\n') > 0 && fcP.indexOf('\n_proto_ -->|"' + P + '"| b\n') > 0 && fcP.indexOf('\nb --> _proto_\n') > 0 && fcP.indexOf('\n' + P + '[') < 0 && fcP.indexOf('click b href "https://ok.example/b"') > 0
             && !!pageP && htmlP.indexOf('__proto__') < 0 && htmlP.indexOf('_proto_[&quot;x&quot;] --&gt; B') > 0, Jp([namedBad.map(c => sP(c[0])), sameBad, hid, pre, fcP]));
+
+        // a name in pieces: a class diagram's lexer skips white space (and a comment to its line's end, the line break with it) between the pieces
+        // of a name and joins them, so `Duck --> __pro to__` names __proto__ as surely as the word itself. Judged as the library joins: no run of
+        // pieces split only by white space, a backtick or a comment to its line's end (any %% on a line may be where one begins), standing at a
+        // name's edges, reads __proto__ in anything handed over — a regular expression of the test's own, unlike the strip's scanner
+        const SEPR = '(?:[\\s`]|%%[^\\n]*(?:\\n|$))', pieceRe = new RegExp('(?:^|[^A-Za-z0-9_])' + P.split('').join(SEPR + '*') + '(?![A-Za-z0-9_])');
+        const rlP = D.readLinkLine, bare = t => String(t).split('\n').map(l => rlP(l) ? '#' : l).join('\n');   // the canonical lines' addresses are no names
+        const PIECES = ['classDiagram\nDuck --> __pro to__', 'classDiagram\nclass __proto __ {\n+x\n}', 'classDiagram\n__ proto __ : +x', 'classDiagram\nAnimal <|-- __pr oto__', 'classDiagram\nDuck --> __pro %% a note\nto__', 'classDiagram\nDuck --> `__pro`to__',
+            'classDiagram\nDuck --> _ _ p r o t o _ _', 'classDiagram\nDuck --> _\t_proto__', 'classDiagram\nclass Duck~__pro to__~', 'classDiagram\nnamespace __pro to__ {\nclass A\n}', 'classDiagram\nnote for __pro to__ "x"', 'classDiagram\nDuck --> _ _ __pro to__ _ _', 'classDiagram\nDuck --> __\nproto__ : x',
+            'classDiagram\nDuck --> _ %% a\n_ %% b\nproto_ %% c\n_', 'classDiagram\nFoo `x%%` --> __pro %% c\nto__', 'classDiagram\nDuck --> __pro\n%% a whole line\nto__', 'graph TD\nA["the __ proto __ word"] --> B', 'classDiagram\nclass __pro to__\nclick __pro to__ href "https://ok.example/__proto__"\nclick Duck href "https://ok.example/__proto__"'];
+        const piecesBad = PIECES.filter(s => { const o = sP(s); return pieceRe.test(bare(o)) || sP(o) !== o || o.split('\n').length !== s.split('\n').length - (/click __pro/.test(s) ? 1 : 0); });
+        const PINP = [['classDiagram\nDuck --> __pro to__', 'classDiagram\nDuck --> __Pro to__'], ['classDiagram\nclass __proto __ {\n+x\n}', 'classDiagram\nclass __Proto __ {\n+x\n}'], ['classDiagram\n__ proto __ : +x', 'classDiagram\n__ Proto __ : +x'], ['classDiagram\nAnimal <|-- __pr oto__', 'classDiagram\nAnimal <|-- __Pr oto__'],
+            ['classDiagram\nDuck --> __pro %% a note\nto__', 'classDiagram\nDuck --> __Pro %% a note\nto__'], ['classDiagram\nDuck --> _ _ ' + P + ' _ _', 'classDiagram\nDuck --> _ _ _Proto_ _ _']], pinBad = PINP.filter(c => sP(c[0]) !== c[1]);
+        const SAMEP = ['classDiagram\nDuck --> x__pro to__', 'classDiagram\nDuck --> __pro to__x', 'classDiagram\nDuck --> __pro to___', 'classDiagram\nDuck --> ___pro to__', 'classDiagram\nDuck --> __proto__proto__ : x', 'classDiagram\nclick Duck href "https://ok.example/__proto__"'], samePBad = SAMEP.filter(s => sP(s) !== s);
+        let seedP = 20261003; const rndP = n => { seedP = (Math.imul(seedP, 1664525) + 1013904223) >>> 0; return (seedP >>> 8) % n; };
+        const ALP = ['_', '__', '___', 'p', 'r', 'o', 't', 'pro', 'to', 'proto', 'proto_', '_proto', ' ', '  ', '\t', '\n', '`', '%% c\n', '%%', 'x', '1', '-', '>', ':', '~', '{', '}', '"', ';', 'Duck --> ', 'class ', 'click Duck href "https://ok.example/__proto__"\n'];
+        let fuzzP = null, ms = Date.now();
+        for (let i = 0; i < 3000 && !fuzzP; i++) { let s = 'classDiagram\n'; for (let k = 1 + rndP(16); k > 0; k--) s += ALP[rndP(ALP.length)]; const o = sP(s); if (pieceRe.test(bare(o)) || sP(o) !== o) fuzzP = [s, o]; }
+        ms = Date.now() - ms;
+        const longP = 'classDiagram\nDuck --> ' + '_ '.repeat(30000) + '__pro to__' + ' _'.repeat(2000), t0 = Date.now(), longO = sP(longP), longMs = Date.now() - t0;
+        check('a diagram\'s names (in pieces): a name the diagram library would join from pieces — split by white space, a tab, a line break, a backtick or a comment to its line\'s end, wherever on the line a comment may begin (Duck --> __pro to__, class __proto __ { … }, __ proto __ : +x, Animal <|-- __pr oto__, _ _ p r o t o _ _, a generic, a namespace, a note, a whole comment line between, underscores round the word written _proto_) — has its p written P (Duck --> __Pro to__), so nothing handed over reads __proto__ in pieces in any reading; its pieces, its lines and the rest stay where they were; a longer name that merely holds them, a canonical line\'s address and the canonical line itself stay; 3,000 seeded sources the same, and stripped again it is itself; 64 K of pieces in well under a second',
+            piecesBad.length === 0 && pinBad.length === 0 && samePBad.length === 0 && !fuzzP && !pieceRe.test(longO) && sP(longO) === longO && longMs < 1000, Jp([piecesBad.map(s => [s, sP(s)]), pinBad.map(c => [c[0], sP(c[0])]), samePBad.map(s => [s, sP(s)]), fuzzP, longMs, ms]));
     }
 
     /* ---- publication under a window ---- */

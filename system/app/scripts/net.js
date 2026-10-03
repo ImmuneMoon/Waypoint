@@ -379,7 +379,7 @@ function sanitizeRichText(html) {
 }
 net.sanitizeRichText = sanitizeRichText;
 // A play map as a client keeps it: text items rebuilt, category colors that are colors, collections bounded.
-function cleanHostWbItem(w) { if (!w || typeof w !== 'object' || typeof w.id !== 'string') return null; if (w.waiting) return cleanWaitingItem(w); for (var gi = 0; gi < 6; gi++) { var gk = ['x', 'y', 'w', 'h', 'rot', 'front'][gi], gv = w[gk], gc = gi < 4 ? 1e7 : 1e6; if (gv === undefined) continue; if (typeof gv !== 'number' || !isFinite(gv)) delete w[gk]; else if (gv > gc) w[gk] = gc; else if (gv < -gc) w[gk] = -gc; } if (w.type === 'text') w.text = sanitizeRichText(w.text); if (w.light !== undefined) cleanHostLight(w); if (w.senses !== undefined || w.blind !== undefined) cleanHostTokSenses(w); if (w.fxb !== undefined) cleanHostFxb(w); if (w.smoke !== undefined && w.smoke !== true) delete w.smoke; if (w.barrier !== undefined && w.barrier !== true) delete w.barrier; if (w.terrain !== undefined) { var FCt = window.wpFogCore, tr = FCt && FCt.cleanTerrain ? FCt.cleanTerrain(w.terrain) : null; if (tr) w.terrain = tr; else delete w.terrain; } if (w.height !== undefined) { var FCh = window.wpFogCore, ht = FCh && FCh.cleanHeight ? FCh.cleanHeight(w.height) : null; if (ht) w.height = ht; else delete w.height; } if (w.ground !== undefined) { var FCg = window.wpFogCore, gr = FCg && FCg.cleanGround ? FCg.cleanGround(w.ground) : null; if (gr) w.ground = gr; else delete w.ground; } return w; }   // senses S7b: smoke only as true; see-through barriers (1.5.1): barrier only as true; difficult terrain T1: its cost, 2-10, or none; item 19 H1: a piece's height, yards; item 19b H5: a piece's ground height, yards (a pit below 0)
+function cleanHostWbItem(w) { if (!w || typeof w !== 'object' || typeof w.id !== 'string') return null; if (w.waiting) return cleanWaitingItem(w); for (var gi = 0; gi < 6; gi++) { var gk = ['x', 'y', 'w', 'h', 'rot', 'front'][gi], gv = w[gk], gc = gi < 4 ? 1e7 : 1e6; if (gv === undefined) continue; if (typeof gv !== 'number' || !isFinite(gv)) delete w[gk]; else if (gv > gc) w[gk] = gc; else if (gv < -gc) w[gk] = -gc; } if (w.type === 'text') w.text = sanitizeRichText(w.text); if (w.light !== undefined) cleanHostLight(w); if (w.senses !== undefined || w.blind !== undefined) cleanHostTokSenses(w); if (w.fxb !== undefined) cleanHostFxb(w); if (w.smoke !== undefined && w.smoke !== true) delete w.smoke; if (w.barrier !== undefined && w.barrier !== true) delete w.barrier; if (w.portalLock !== undefined && w.portalLock !== true) delete w.portalLock; if (w.terrain !== undefined) { var FCt = window.wpFogCore, tr = FCt && FCt.cleanTerrain ? FCt.cleanTerrain(w.terrain) : null; if (tr) w.terrain = tr; else delete w.terrain; } if (w.height !== undefined) { var FCh = window.wpFogCore, ht = FCh && FCh.cleanHeight ? FCh.cleanHeight(w.height) : null; if (ht) w.height = ht; else delete w.height; } if (w.ground !== undefined) { var FCg = window.wpFogCore, gr = FCg && FCg.cleanGround ? FCg.cleanGround(w.ground) : null; if (gr) w.ground = gr; else delete w.ground; } return w; }   // senses S7b: smoke only as true; see-through barriers (1.5.1): barrier only as true; a portal's own lock: portalLock only as true; difficult terrain T1: its cost, 2-10, or none; item 19 H1: a piece's height, yards; item 19b H5: a piece's ground height, yards (a pit below 0)
 // Senses S2b: a token's own ranges, kept on a token of this player's alone (the host sends no other), cleaned again; none from a hostile host
 // on anyone else's token, and none with no cleaner on hand. S3: the GM's Blind tick likewise, and only as true
 function cleanHostTokSenses(w) { var FCs = window.wpFogCore, mine = !!w.ownerId && w.ownerId === net.myId, ts = FCs && FCs.cleanTokSenses && mine ? FCs.cleanTokSenses(w.senses) : null; if (ts) w.senses = ts; else delete w.senses; if (!(mine && w.blind === true)) delete w.blind; }
@@ -731,6 +731,7 @@ function wireWbItem(w, cloned) {
     if (w.isChar && typeof fxbOf === 'function') { var fxb = fxbOf(w); if (fxb) w.fxb = fxb; }   // C2: a token with no sheet, from its own
     if (w.fx !== undefined) delete w.fx;   // conditions C2: a token's own rows are the GM's (their GM-only ids and names): the table gets fxb
     if (w.eventMessage !== undefined) delete w.eventMessage;   // secrets (R2): a trigger zone's message is GM prep until a token lands in it — the host says it then, to the dropper alone (triggerFire)
+    if (w.portalLock !== undefined && w.portalLock !== true) delete w.portalLock;   // a portal's own lock: it travels with a shown portal (a hidden piece is not sent at all) and only as true, the one value the host judges by (travelBar)
     return w;
 }
 // Conditions C1 (docs/CONDITIONS_PLAN.md): the effects the table sees on a token, the host's list ([{ n, i, t }], never a GM-only effect) or
@@ -3134,15 +3135,19 @@ function applyPosToDom(msg) {
 /* Host: send a player through a portal. Validates that the portal is a visible
    item on their current map, linked to a room with a warp target; then moves
    their location, spawns/adopts their token on the far side, and tells only
-   that player to change map. Returns true when the travel happened. */
-function hostTravel(conn, traveler, portal, fromMap) {
+   that player to change map. Returns true when the travel happened.
+   What refuses a player, in this order (pinned by netcheck): Lock Travel Between Maps, a destination closed to players (the map's Lock for
+   players), then whatever travelBar says — the map they stand on being locked for players (a locked map is closed both ways), then this
+   portal's own lock. gmHand (true only, from net.tokenDropped's third argument: the GM's
+   own drop of that player's token on the board) is never asked travelBar: a portal locked for players does not stop the GM's own hand. */
+function hostTravel(conn, traveler, portal, fromMap, gmHand) {
     var tCamp = getActiveCampaign();
     if (!traveler || !tCamp || !fromMap || !portal) return false;
     if ((portal.hidden && !portal.trap) || !(portal.nodeId || portal.targetMapId)) return false;   // a hidden decorative portal stays inert; a hidden TRAP still fires (the locks below still stop it, in silence)
     var quiet = !!portal.hidden;   // hidden pieces (owner, 2026-10-01): a trap tile that cannot fire tells its player nothing — a denial would give its place, and its destination's name, away; the GM is told instead
     if (net.travelLocked) {
         var k = traveler.id || 'x', now = Date.now();
-        if (quiet) toast((traveler.name || 'A player') + ' stepped on a hidden trap tile, but travel is locked: nothing happened, and they were told nothing.');
+        if (quiet) trapToast(traveler, portal, (traveler.name || 'A player') + ' stepped on a hidden trap tile, but travel is locked: nothing happened, and they were told nothing.');
         else if (conn && now - (_travelDenyLast[k] || 0) > 4000) { _travelDenyLast[k] = now; try { conn.send({ type: 'travelDenied' }); } catch (e) { sendFailed(e); } }
         return false;
     }
@@ -3153,8 +3158,15 @@ function hostTravel(conn, traveler, portal, fromMap) {
     if (destLockM.type !== 'map' || destLockM === fromMap) return false;   // a play map, and another one (as offlinePlayerTravel and npcTravel have it): a portal to a page, or to the map it stands on, moves nobody
     if (destLockM.meta && destLockM.meta.playerLock) {   // closed to players until the GM opens it (summon and bring still work)
         var kL = (traveler.id || 'x') + '|' + pRoom.targetMapId, nowL = Date.now();
-        if (quiet) toast((traveler.name || 'A player') + ' stepped on a hidden trap tile to ' + String((destLockM.meta || {}).title || 'a closed map').slice(0, 120) + ', which is closed to players: nothing happened, and they were told nothing.');
+        if (quiet) trapToast(traveler, portal, (traveler.name || 'A player') + ' stepped on a hidden trap tile to ' + String((destLockM.meta || {}).title || 'a closed map').slice(0, 120) + ', which is closed to players: nothing happened, and they were told nothing.');
         else if (conn && nowL - (_travelDenyLast[kL] || 0) > 4000) { _travelDenyLast[kL] = nowL; try { conn.send({ type: 'travelDenied', reason: 'closed', map: String((destLockM.meta || {}).title || '').slice(0, 120) }); } catch (e) { sendFailed(e); } }
+        return false;
+    }
+    var barT = gmHand === true ? null : travelBar(traveler, portal, fromMap, destLockM);   // a portal's own lock (the owner, 2026-10-03), asked last: the two older locks answer first, as before; never asked of the GM's own hand
+    if (barT) {   // refused as the others are: its player told why at most once in 4 s per player and portal; a hidden trap tile tells its player nothing and the GM what happened
+        var kB = (traveler.id || 'x') + '|' + barT.reason + '|' + String(portal.id).slice(0, 160), nowB = Date.now();
+        if (quiet) trapToast(traveler, portal, (traveler.name || 'A player') + ' stepped on a hidden trap tile ' + barT.gm + ': nothing happened, and they were told nothing.');
+        else if (conn && nowB - (_travelDenyLast[kB] || 0) > 4000) { _travelDenyLast[kB] = nowB; try { conn.send({ type: 'travelDenied', reason: barT.reason }); } catch (e) { sendFailed(e); } }
         return false;
     }
     var destMap = tCamp.items[pRoom.targetMapId];
@@ -3188,6 +3200,28 @@ function hostTravel(conn, traveler, portal, fromMap) {
     toast((traveler.name || 'A player') + ' traveled to ' + destTitle + '.');
     logEvent('travel', (traveler.name || 'A player') + ' traveled to ' + destTitle + (pRoom && pRoom.name ? ' via ' + pRoom.name : ''));
     return true;
+}
+// [netcheck:travelbar-start]
+// A portal's own lock (the owner, 2026-10-03: "if the map is locked they shouldnt be able to. maybe add the ability to lock a portal from the
+// play map if we dont have one too"). The ONE place that answers "may this player travel through this portal now, and if not why": null
+// when they may, else { reason, gm } — reason the word the player's denial carries (travelDenied's reason; their app words it), gm what the
+// GM is told when a hidden trap tile could not fire. Two rules, in this order: the map the player stands on is locked for players (its
+// meta.playerLock, as the Maps list writes it: the owner, 2026-10-03, "Closed both ways" — a locked map lets no player in, which hostTravel
+// asks of the destination, and no player out, which is asked here), then a portal the GM locked for players (portalLock, only as true; fogcore
+// cleanPortalLock). hostTravel asks it for every player's crossing — a travel request and a drop alike — after Lock Travel Between Maps and
+// a closed destination, and never for the GM's own hand; summon, Bring, the stage, npcTravel and offlinePlayerTravel never ask it. A further
+// rule is added in this function and nowhere else
+function travelBar(traveler, portal, fromMap, destMap) {
+    if (fromMap && fromMap.meta && fromMap.meta.playerLock) return { reason: 'here', gm: 'on a map that is locked for players' };   // closed both ways (the owner, 2026-10-03): no player leaves a locked map through a portal
+    if (portal && portal.portalLock === true) return { reason: 'portal', gm: 'that is locked for players' };
+    return null;
+}
+// [netcheck:travelbar-end]
+// A hidden trap tile that could not fire tells the GM what happened, at most once in 4 s per player and tile, under every lock: a token
+// resting on a locked tile sends a final for every turn in place, and each would say it again
+function trapToast(traveler, portal, text) {
+    var k = 'trap|' + (traveler.id || 'x') + '|' + String(portal.id).slice(0, 160), now = Date.now();
+    if (now - (_travelDenyLast[k] || 0) > 4000) { _travelDenyLast[k] = now; toast(text); }
 }
 
 // The portal item under a token's center, if any (visible, room-linked, warp target set)
@@ -3253,8 +3287,10 @@ function portalUnder(item, map) {
 
 /* Dropping a player's token onto a portal sends that player through — no
    double-click needed. Called by the host for its own drops (a GM can push a
-   player's token through a door) and for player drops arriving over the wire. */
-net.tokenDropped = function(item, map) {
+   player's token through a door) and for player drops arriving over the wire.
+   gmHand: true only from the board's own drag on this machine (datamap.js), never from a message — the pos gate passes nothing, so a
+   player's drop is judged in full; the GM's own drop passes a portal locked for players (hostTravel), as every act of the GM's does. */
+net.tokenDropped = function(item, map, gmHand) {
     if (!item || !item.isChar || !map) return false;
     if (!item.ownerId) return npcTravel(item, map);                                   // an NPC: the GM's own token, moves through
     var atTable = net.active && net.role === 'host' && Object.keys(net.roster).some(function(k) { return net.roster[k] && net.roster[k].id === item.ownerId; });
@@ -3265,7 +3301,7 @@ net.tokenDropped = function(item, map) {
     var peerId = Object.keys(net.roster).find(function(k) { return net.roster[k] && net.roster[k].id === item.ownerId; });
     if (!peerId) return false;
     var conn = net.conns.find(function(c) { return c.peer === peerId; });
-    return hostTravel(conn, net.roster[peerId], portal, map);
+    return hostTravel(conn, net.roster[peerId], portal, map, gmHand === true);
 };
 
 // The GM walks a player's character through a portal without that player at the table: their
@@ -5365,6 +5401,8 @@ function handleMessage(msg, conn) {
     } else if (msg.type === 'travelDenied' && net.role === 'client') {
         if (!fromHost(conn)) return;
         if (msg.reason === 'closed') toast((msg.map ? String(msg.map).slice(0, 120) : 'That map') + " isn't open yet — the GM will let you through when it's time.");
+        else if (msg.reason === 'here') toast('This map is locked — nobody leaves it until the GM opens it.');   // the map they stand on is locked for players (closed both ways): fixed words
+        else if (msg.reason === 'portal') toast('That way is locked — the GM will unlock it when the time comes.');   // a portal's own lock: fixed words, nothing of the message in them
         else toast('Travel between maps is locked right now — the GM will open it when the time comes.');
     } else if (msg.type === 'travel' && net.role === 'host') {
         // [netcheck:travelmsg-start]

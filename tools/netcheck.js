@@ -7471,6 +7471,30 @@ pendingChecks.push((async () => {
             J(afterFull) === J([true, false, false, false]) && !!drewP && !hasK(drewP, 'portalLock') && !hasK(drewP, 'targetMapId') && !hasK(drewP, 'nodeId') && !!redrewP && redrewP.portalLock === true && redrewP.targetMapId === 'mB' && J(redrewP.pts) === J([[0, 0], [5, 9]])
             && !!plainP && J(plainP.pts) === J([[0, 0], [7, 7]]) && !hasK(plainP, 'portalLock') && !hasK(plainP, 'targetMapId') && J(afterLean) === J([true, false, true]) && !/portalLock/.test(bw('patch')) && !/portalLock/.test(fnSrc('function playerStroke(', '\n}\n', 'playerStroke')), J([afterFull, drewP, redrewP, plainP, afterLean]));
     }
+    // a barrier's Stops blasts tick (the owner, 2026-10-03: "A tick per barrier") on the wire, in the same one-module world: host to player with a
+    // shown barrier and only as true; player to host nothing sets it and nothing clears it
+    {
+        const bW = () => { const W = S7({}); const m = W.camp.items.mA;
+            m.whiteboard.push({ id: 'bStop', type: 'rect', x: 600, y: 800, w: 50, h: 50, barrier: true, blastStop: true }, { id: 'bPlain', type: 'rect', x: 700, y: 800, w: 50, h: 50, barrier: true },
+                { id: 'bWord', type: 'rect', x: 800, y: 800, w: 50, h: 50, barrier: true, blastStop: 'yes' }, { id: 'bHidB', type: 'rect', x: 5000, y: 5200, w: 50, h: 50, barrier: true, blastStop: true, hidden: true },
+                { id: 'bsDraw', type: 'path', byPlayer: true, ownerId: 'u_a', x: 600, y: 900, w: 10, h: 10, baseW: 10, baseH: 10, pts: [[0, 0], [5, 9]] });
+            m.meta = Object.assign({}, m.meta, { updated: (m.meta && m.meta.updated || 0) + 1 }); W.clearSent(); return W; };
+        const hasK = (w, k) => !!w && Object.prototype.hasOwnProperty.call(w, k), bk = (m, id) => { const w = m && m.whiteboard.find(x => x.id === id); return w ? (hasK(w, 'blastStop') ? w.blastStop : 'none') : null; };
+        const Wb = bW(); Wb.net.sendItem('k', 'mA');
+        const bcA = Wb.last(Wb.a1), bcB = Wb.last(Wb.b1), cloneB = Wb.api.clean(Wb.camp.items.mA), allB = J(Wb.a1.sent.concat(Wb.a2.sent, Wb.b1.sent));
+        const Wc = bW();
+        Wc.api.item({ type: 'item', campId: 'k', itemId: 'mA', item: { id: 'mA', type: 'map', whiteboard: [
+            { id: 'bStop', type: 'rect', x: 600, y: 800, w: 50, h: 50, barrier: true },                       // the GM's ticked barrier sent back without its tick
+            { id: 'bPlain', type: 'rect', x: 700, y: 800, w: 50, h: 50, barrier: true, blastStop: true },     // the GM's plain barrier sent back ticked
+            Object.assign({}, Wc.tok('tA'), { barrier: true, blastStop: true }),                               // her own token as a ticked barrier
+            { id: 'bsDraw', type: 'path', byPlayer: true, ownerId: 'u_a', x: 600, y: 900, w: 10, h: 10, baseW: 10, baseH: 10, pts: [[0, 0], [6, 6]], barrier: true, blastStop: true },   // her own drawing redrawn as one
+            { id: 'wbnewB', type: 'path', ownerId: 'u_a', x: 0, y: 0, w: 10, h: 10, pts: [[0, 0], [5, 5]], barrier: true, blastStop: true }] } }, Wc.a1);   // a new drawing as one
+        const afterB = [Wc.tok('bStop').blastStop, hasK(Wc.tok('bPlain'), 'blastStop'), hasK(Wc.tok('tA'), 'blastStop'), hasK(Wc.tok('tA'), 'barrier'), !!Wc.tok('bsDraw') && J(Wc.tok('bsDraw').pts) === J([[0, 0], [6, 6]]), hasK(Wc.tok('bsDraw'), 'blastStop'), hasK(Wc.tok('bsDraw'), 'barrier'), !!Wc.tok('wbnewB'), hasK(Wc.tok('wbnewB'), 'blastStop'), hasK(Wc.tok('wbnewB'), 'barrier')];
+        check('a barrier\'s Stops blasts tick (host, the wire and a player\'s map copy — the real sends and patch path): a shown ticked barrier reaches each player with its tick, on a player\'s own copy and on the shared clone; an unticked one carries no key; a word on the host\'s own map is sent as nothing (its own map untouched); a hidden one reaches no one. Nothing a player\'s copy says sets the tick or clears it: the GM\'s ticked barrier sent back without it keeps it, the plain one sent back ticked takes none, her own token, her redrawn drawing (the redraw itself lands) and a new drawing take neither the tick nor the barrier; the patch path and playerStroke never name the key',
+            bk(bcA, 'bStop') === true && bk(bcB, 'bStop') === true && bk(cloneB, 'bStop') === true && bk(bcA, 'bPlain') === 'none' && bk(bcA, 'bWord') === 'none' && bk(cloneB, 'bWord') === 'none' && !/bHidB/.test(allB) && !/bHidB/.test(J(cloneB)) && Wb.tok('bWord').blastStop === 'yes'
+            && J(afterB) === J([true, false, false, false, true, false, false, true, false, false]) && fnSrc('function wireWbItem(', '\n}\n', 'wireWbItem').includes('    if (w.blastStop !== undefined && w.blastStop !== true) delete w.blastStop;') && !/blastStop/.test(bw('patch')) && !/blastStop/.test(fnSrc('function playerStroke(', '\n}\n', 'playerStroke')),
+            J([bk(bcA, 'bStop'), bk(cloneB, 'bStop'), bk(bcA, 'bPlain'), bk(bcA, 'bWord'), /bHidB/.test(allB), afterB]));
+    }
     // difficult terrain T1 (host): a shown piece reaches every player with its cost (their ruler reads it), a hidden one not at all
     {
         const tW = S7({}), mT = tW.camp.items.mA, tT = tW.tok('tA');
@@ -7988,6 +8012,10 @@ pendingChecks.push((async () => {
     check('portal lock (client): a player\'s app keeps a portal\'s lock from its host only as true, with or without a cleaner or a profile; a hostile host\'s word ("yes"), a number, an object, false or nothing is dropped (the key gone, the portal itself kept), item by item and in a whole map; a waiting token is rebuilt without it',
         J(plCli) === J([[true, 0, 0, 0, 0, 0, 0, 0], [true, 0, 0, 0, 0, 0, 0, 0], [true, 0, 0, 0, 0, 0, 0, 0]]) && J(plMapC) === J(plCli[0]) && !!plKept && plKept.targetMapId === 'm2' && !has(plKept, 'portalLock') && plNode.every(w => !!w) && !has(plNode[0], 'portalLock') && !has(plNode[1], 'portalLock') && plNode[2].portalLock === true   // a portal through the node it is linked to (no Portal to Map of its own): the same rule
         && src.includes('if (w.portalLock !== undefined && w.portalLock !== true) delete w.portalLock; if (w.terrain !== undefined) {'), J([plCli, plMapC]));
+    // a barrier's Stops blasts tick (the owner, 2026-10-03; client): the tick from a host, only as true
+    const bsCli = [true, 'yes', 1, { on: true }, false, null, undefined].map(v => C.item(Object.assign({ id: 'qb', type: 'rect', x: 0, y: 0, w: 50, h: 50, barrier: true }, v === undefined ? {} : { blastStop: v }))).map(w => (!w ? 'gone' : has(w, 'blastStop') ? w.blastStop : 0));
+    check('a barrier\'s Stops blasts tick (client): a player\'s app keeps it from its host only as true; a hostile host\'s word, a number, an object, false or nothing is dropped (the key gone, the barrier kept)',
+        J(bsCli) === J([true, 0, 0, 0, 0, 0, 0]) && src.includes('if (w.blastStop !== undefined && w.blastStop !== true) delete w.blastStop; if (w.barrier !== undefined && w.barrier !== true) delete w.barrier;'), J(bsCli));
     check('senses S7a (client): a map caught up in place takes its word of what fails in a null area for its own tokens only (cleaned again), an empty word takes it away, a word that is no plain object is refused whole (the whole map asked for)',
         J(pgO1) === J({ me: ['sn_hear0001'] }) && pgO2 === false && pgO3 === 1, J([pgO1, pgO2, pgO3]));
     check('senses S4a (client): a map caught up in place takes its marks the same way (cleaned, none on its own token), an empty list takes them away, marks that are no list are refused whole (the whole map asked for)',

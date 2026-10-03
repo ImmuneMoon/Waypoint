@@ -1029,10 +1029,31 @@ Links
   double-click cannot answer it by accident. Links in your own planners,
   pages and notes open directly.
 - A link from someone else cannot be dragged out of a page or a handout.
-- A link inside a diagram on a GM's page asks first too, and an address
-  that is not a web address opens nothing.
-- Diagrams: statements that attach an action to a diagram are removed
-  wherever they stand in the source, also in a planner from a file.
+- A flowchart node can carry a link: click into a node's label and type
+  the address in the bar's Link box. The whole node becomes the link, and
+  its label is underlined in the chart. A click on the node opens it; in
+  the preview a drag still moves the node and its corner still resizes
+  it, and only a plain click opens the link. An arrow cannot hold one.
+- A diagram block can link a shape to a web page with one line of its
+  own: click A href "https://…" in a flowchart, and the same line, or
+  link Animal "https://…", in a class diagram. Anything after the address
+  (a tooltip, a target) is dropped.
+- A link in a diagram is a link like any other: yours opens directly, and
+  on a player's screen a click asks first and shows the site and the
+  whole address. Click actions that call a function never run on
+  anyone's screen. Diagrams now draw in their strict mode for everyone
+  and look exactly as they did.
+- Every other click statement in a diagram is removed wherever it stands,
+  even after another statement on the same line, and so are a sequence
+  diagram's actor menus and pictures. Nothing a diagram does can take the
+  app's own window to another address. A Gantt task that begins with End,
+  or a label, message or task with braces in it, draws as you wrote it.
+- Save Markdown writes a node's link into the flowchart's fence, and an
+  import reads it back.
+- A diagram that names a shape __proto__, whether written whole or split
+  into pieces, can no longer unsettle your app or a player's. The whole
+  word is written _proto_, and a name split into pieces has its p written
+  P.
 - A message from the table that arrives while a question is open waits
   its turn and no longer takes the question's Cancel button away.
 - Save Markdown keeps a text block's link even when its address holds an

@@ -3137,7 +3137,8 @@ function applyPosToDom(msg) {
    their location, spawns/adopts their token on the far side, and tells only
    that player to change map. Returns true when the travel happened.
    What refuses a player, in this order (pinned by netcheck): Lock Travel Between Maps, a destination closed to players (the map's Lock for
-   players), then whatever travelBar says of this portal — its own lock. gmHand (true only, from net.tokenDropped's third argument: the GM's
+   players), then whatever travelBar says — the map they stand on being locked for players (a locked map is closed both ways), then this
+   portal's own lock. gmHand (true only, from net.tokenDropped's third argument: the GM's
    own drop of that player's token on the board) is never asked travelBar: a portal locked for players does not stop the GM's own hand. */
 function hostTravel(conn, traveler, portal, fromMap, gmHand) {
     var tCamp = getActiveCampaign();
@@ -3146,7 +3147,7 @@ function hostTravel(conn, traveler, portal, fromMap, gmHand) {
     var quiet = !!portal.hidden;   // hidden pieces (owner, 2026-10-01): a trap tile that cannot fire tells its player nothing — a denial would give its place, and its destination's name, away; the GM is told instead
     if (net.travelLocked) {
         var k = traveler.id || 'x', now = Date.now();
-        if (quiet) toast((traveler.name || 'A player') + ' stepped on a hidden trap tile, but travel is locked: nothing happened, and they were told nothing.');
+        if (quiet) trapToast(traveler, portal, (traveler.name || 'A player') + ' stepped on a hidden trap tile, but travel is locked: nothing happened, and they were told nothing.');
         else if (conn && now - (_travelDenyLast[k] || 0) > 4000) { _travelDenyLast[k] = now; try { conn.send({ type: 'travelDenied' }); } catch (e) { sendFailed(e); } }
         return false;
     }
@@ -3157,14 +3158,14 @@ function hostTravel(conn, traveler, portal, fromMap, gmHand) {
     if (destLockM.type !== 'map' || destLockM === fromMap) return false;   // a play map, and another one (as offlinePlayerTravel and npcTravel have it): a portal to a page, or to the map it stands on, moves nobody
     if (destLockM.meta && destLockM.meta.playerLock) {   // closed to players until the GM opens it (summon and bring still work)
         var kL = (traveler.id || 'x') + '|' + pRoom.targetMapId, nowL = Date.now();
-        if (quiet) toast((traveler.name || 'A player') + ' stepped on a hidden trap tile to ' + String((destLockM.meta || {}).title || 'a closed map').slice(0, 120) + ', which is closed to players: nothing happened, and they were told nothing.');
+        if (quiet) trapToast(traveler, portal, (traveler.name || 'A player') + ' stepped on a hidden trap tile to ' + String((destLockM.meta || {}).title || 'a closed map').slice(0, 120) + ', which is closed to players: nothing happened, and they were told nothing.');
         else if (conn && nowL - (_travelDenyLast[kL] || 0) > 4000) { _travelDenyLast[kL] = nowL; try { conn.send({ type: 'travelDenied', reason: 'closed', map: String((destLockM.meta || {}).title || '').slice(0, 120) }); } catch (e) { sendFailed(e); } }
         return false;
     }
     var barT = gmHand === true ? null : travelBar(traveler, portal, fromMap, destLockM);   // a portal's own lock (the owner, 2026-10-03), asked last: the two older locks answer first, as before; never asked of the GM's own hand
     if (barT) {   // refused as the others are: its player told why at most once in 4 s per player and portal; a hidden trap tile tells its player nothing and the GM what happened
         var kB = (traveler.id || 'x') + '|' + barT.reason + '|' + String(portal.id).slice(0, 160), nowB = Date.now();
-        if (quiet) toast((traveler.name || 'A player') + ' stepped on a hidden trap tile ' + barT.gm + ': nothing happened, and they were told nothing.');
+        if (quiet) trapToast(traveler, portal, (traveler.name || 'A player') + ' stepped on a hidden trap tile ' + barT.gm + ': nothing happened, and they were told nothing.');
         else if (conn && nowB - (_travelDenyLast[kB] || 0) > 4000) { _travelDenyLast[kB] = nowB; try { conn.send({ type: 'travelDenied', reason: barT.reason }); } catch (e) { sendFailed(e); } }
         return false;
     }
@@ -3204,15 +3205,24 @@ function hostTravel(conn, traveler, portal, fromMap, gmHand) {
 // A portal's own lock (the owner, 2026-10-03: "if the map is locked they shouldnt be able to. maybe add the ability to lock a portal from the
 // play map if we dont have one too"). The ONE place that answers "may this player travel through this portal now, and if not why": null
 // when they may, else { reason, gm } — reason the word the player's denial carries (travelDenied's reason; their app words it), gm what the
-// GM is told when a hidden trap tile could not fire. Today one rule: a portal the GM locked for players (portalLock, only as true; fogcore
+// GM is told when a hidden trap tile could not fire. Two rules, in this order: the map the player stands on is locked for players (its
+// meta.playerLock, as the Maps list writes it: the owner, 2026-10-03, "Closed both ways" — a locked map lets no player in, which hostTravel
+// asks of the destination, and no player out, which is asked here), then a portal the GM locked for players (portalLock, only as true; fogcore
 // cleanPortalLock). hostTravel asks it for every player's crossing — a travel request and a drop alike — after Lock Travel Between Maps and
 // a closed destination, and never for the GM's own hand; summon, Bring, the stage, npcTravel and offlinePlayerTravel never ask it. A further
-// rule (a map whose Lock for players also keeps its players in: fromMap is here for it) is added in this function and nowhere else
+// rule is added in this function and nowhere else
 function travelBar(traveler, portal, fromMap, destMap) {
+    if (fromMap && fromMap.meta && fromMap.meta.playerLock) return { reason: 'here', gm: 'on a map that is locked for players' };   // closed both ways (the owner, 2026-10-03): no player leaves a locked map through a portal
     if (portal && portal.portalLock === true) return { reason: 'portal', gm: 'that is locked for players' };
     return null;
 }
 // [netcheck:travelbar-end]
+// A hidden trap tile that could not fire tells the GM what happened, at most once in 4 s per player and tile, under every lock: a token
+// resting on a locked tile sends a final for every turn in place, and each would say it again
+function trapToast(traveler, portal, text) {
+    var k = 'trap|' + (traveler.id || 'x') + '|' + String(portal.id).slice(0, 160), now = Date.now();
+    if (now - (_travelDenyLast[k] || 0) > 4000) { _travelDenyLast[k] = now; toast(text); }
+}
 
 // The portal item under a token's center, if any (visible, room-linked, warp target set)
 // A free top-left for a w×h token near (cx, cy): spiral outwards until it overlaps no other
@@ -5391,6 +5401,7 @@ function handleMessage(msg, conn) {
     } else if (msg.type === 'travelDenied' && net.role === 'client') {
         if (!fromHost(conn)) return;
         if (msg.reason === 'closed') toast((msg.map ? String(msg.map).slice(0, 120) : 'That map') + " isn't open yet — the GM will let you through when it's time.");
+        else if (msg.reason === 'here') toast('This map is locked — nobody leaves it until the GM opens it.');   // the map they stand on is locked for players (closed both ways): fixed words
         else if (msg.reason === 'portal') toast('That way is locked — the GM will unlock it when the time comes.');   // a portal's own lock: fixed words, nothing of the message in them
         else toast('Travel between maps is locked right now — the GM will open it when the time comes.');
     } else if (msg.type === 'travel' && net.role === 'host') {

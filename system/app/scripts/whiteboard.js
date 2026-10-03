@@ -2669,7 +2669,7 @@ window.wpFitToGrid = fitToGrid;
       var ps = (Array.isArray(items) ? items : []).filter(function(w) { return !!(w && FC && typeof FC.isPortal === 'function' && FC.isPortal(w, map)); });
       if (!ps.length) return null;
       var lock = ps.some(function(w) { return w.portalLock !== true; });
-      return { lock: lock, items: ps, html: '<div class="menu-item cm-portal-lock" title="' + (lock ? 'No player travels through it until you unlock it: their double-click and a token they drop on it are refused, and they see a small lock on it. Dropping a player&rsquo;s token on it yourself, a summon and Bring still take them through.' : 'Players may travel through it again.') + '">' + (lock ? '&#128682; Lock portal for players' : '&#128682; Unlock portal') + '</div>' };
+      return { lock: lock, items: ps, html: '<div class="menu-item cm-portal-lock" title="' + (lock ? 'No player travels through it until you unlock it: their double-click and a token they drop on it are refused, and where they can see it it wears a small lock. Your own drop of a player&rsquo;s token on it still sends them through.' : 'Players may travel through it again.') + '">' + (lock ? '&#128682; Lock portal for players' : '&#128682; Unlock portal') + '</div>' };
   }
   function portalLockSet(items, map) {
       var row = portalLockRow(items, map); if (!row) return '';

@@ -637,6 +637,21 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             check('signkey.js --replace makes a new pair over a committed key, warning that every install then needs a new installer; the old private key no longer checks against it',
                 rep.status === 0 && !!priv2Key && typeof pub2 === 'string' && pub2 !== pub && pairs(priv2Key, pub2) && /installer/i.test(String(rep.stdout) + String(rep.stderr)) && node(tool, ['--check', priv]).status === 1 && node(tool, ['--check', priv2]).status === 0, j([rep.status, rep.stderr]));
 
+            /* ---- the release notes: plain text, never read as markup on the release page ---- */
+            {
+                const nRepo = scratchRepo(''), weird = 'Bold as **b**, italic as *i* and _i_, strike as ~~s~~, a tag <u>u</u> <span style="x">s</span>, a [link](https://example.com/a_b), `code`, #1 | a pipe, a \\ backslash, &lt; an entity, ![pic](x.png)';
+                fs.writeFileSync(path.join(nRepo, 'WHATSNEW.txt'), 'WAYPOINT 0.0.0' + NL + '====' + NL + NL + 'Text **style**' + NL + '- ' + weird + NL + '  and a wrapped ~~line~~' + NL + NL + 'WAYPOINT 0.0.0-old' + NL + '====' + NL + '- old' + NL);
+                const nr = node(path.join(nRepo, 'tools', 'release.js'), ['--notes-only'], cleanEnv());
+                const vOf = JSON.parse(fs.readFileSync(path.join(nRepo, 'system/resources/app/package.json'), 'utf8')).version;
+                const notesFile = path.join(nRepo, 'dist', vOf, 'RELEASE_NOTES.md'), md = fs.existsSync(notesFile) ? fs.readFileSync(notesFile, 'utf8') : '';
+                const lines = md.split('\n'), bul = lines.find(l => l.startsWith('- ')) || '', head = lines.find(l => l.startsWith('### ')) || '';
+                const un = s => s.replace(/\\([\\`*_~\[\]<>#|&!])/g, '$1');   // Markdown's own reading of a backslash escape
+                const bare = s => s.replace(/\\./g, '');   // what is left once every escaped character is taken out
+                check('release.js writes the release notes as text: every character Markdown or its HTML would read as markup (* _ ~ ` [ ] < > # | & ! and the backslash) is escaped in a heading and a bullet, wrapped lines joined first, so the page shows **, ~~, <u>, a [link](…) exactly as the notes write them; --notes-only builds them without the key and writes nothing else',
+                    nr.status === 0 && un(bul.slice(2)) === weird + ' and a wrapped ~~line~~' && un(head.slice(4)) === 'Text **style**' && !/[\\`*_~\[\]<>#|&!]/.test(bare(bul.slice(2))) && !/[\\`*_~\[\]<>#|&!]/.test(bare(head.slice(4)))
+                    && md.startsWith('# Waypoint ' + vOf) && !/^- olds*$/m.test(md) && !fs.existsSync(path.join(nRepo, 'Waypoint_Setup.exe')) && fs.readdirSync(path.join(nRepo, 'dist', vOf)).join() === 'RELEASE_NOTES.md', j([nr.status, String(nr.stderr).slice(0, 200), bul.slice(0, 200), head]));
+            }
+
             /* ---- the release build refuses to build without the key ---- */
             const rel = path.join(repo, 'tools', 'release.js'), readme = () => fs.readFileSync(path.join(repo, 'README.md'), 'utf8'), ver = () => fs.readFileSync(path.join(repo, 'system', 'app', 'version.json'), 'utf8');
             const readme0 = readme(), ver0 = ver();

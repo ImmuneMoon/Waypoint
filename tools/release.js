@@ -143,18 +143,23 @@ fs.writeFileSync(path.join(dist, 'Waypoint_Setup.exe.sig'), setupSig + '\n');
 
 // 4. notes: the top section of WHATSNEW.txt, turned into markdown for the GitHub Release body.
 //    Just this version's notes — installing and updating are documented once, in the README.
+//    The notes are plain text and name Markdown's own marks and tags as examples (**, ~~, <u>, [text](address)): every character
+//    Markdown or its HTML would read as markup is escaped, so the release page shows the words exactly as written.
+// [updatercheck:notes-start]
+function mdText(s) { return String(s).replace(/[\\`*_~\[\]<>#|&!]/g, '\\$&'); }
+// [updatercheck:notes-end]
 function buildNotes() {
     const all = fs.readFileSync(path.join(ROOT, 'WHATSNEW.txt'), 'utf8').replace(/\r\n/g, '\n');
     const top = (all.split(/\n(?=WAYPOINT \d)/)[0] || '').trim().split('\n');
     const out = ['# Waypoint ' + VERSION];
     let bullet = null;
-    const flush = () => { if (bullet) { out.push('- ' + bullet); bullet = null; } };
+    const flush = () => { if (bullet) { out.push('- ' + mdText(bullet)); bullet = null; } };
     for (const raw of top.slice(2)) {                       // skip the title and its ==== underline
         const line = raw.replace(/\s+$/, '');
         if (!line) { flush(); continue; }
         if (/^- /.test(line)) { flush(); bullet = line.slice(2).trim(); continue; }
         if (/^\s/.test(line) && bullet) { bullet += ' ' + line.trim(); continue; }   // wrapped bullet line
-        flush(); out.push('', '### ' + line.trim(), '');
+        flush(); out.push('', '### ' + mdText(line.trim()), '');
     }
     flush();
     return out.join('\n') + '\n';

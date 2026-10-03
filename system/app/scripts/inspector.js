@@ -1035,6 +1035,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
               '</select></div>'+
               '<div class="field check-row"><input type="checkbox" id="wbLock" '+(w.locked?'checked':'')+'> <label for="wbLock">Locked (Prevent drag & resize)</label></div>'+
               (['rect','hexagon','circle','diamond','image','path'].indexOf(w.type) >= 0 && !w.hidden && !w.isChar && !w.waiting ? '<div class="field check-row"><input type="checkbox" id="wbBlocksSight" '+(w.blocksSight?'checked':'')+'> <label for="wbBlocksSight">'+(w.type === 'path' ? 'Blocks sight (a wall along the line)' : 'Blocks sight (wall / pillar)')+'</label></div><div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">'+(w.type === 'path' ? 'Fog vision (and each player&rsquo;s view), light, cover and players&rsquo; moves stop at the line itself, a thin wall between cells.' : 'Fog vision (and each player&rsquo;s view) stops at the cells its outline covers, turned as it is drawn.')+' Needs fog on for the map.</div>' : '')+   // item 18 W2: a pen line
+              barrierFieldHtml(w)+   // see-through barriers (1.5.1): Stops movement only, with a barrier's own door rows
               (['rect','hexagon','circle','diamond'].indexOf(w.type) >= 0 && !w.hidden && !w.isChar && !w.waiting ? '<div class="field check-row"><input type="checkbox" id="wbSmoke" '+(w.smoke===true?'checked':'')+'> <label for="wbSmoke">Smoke (hides what is in it and past it)</label></div><div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">The eyes do not see into or through it, nor a sense the walls stop unless it sees through smoke. Tokens walk through it, it gives no cover and light passes.</div>' : '')+   // senses S7b
               (['rect','hexagon','circle','diamond'].indexOf(w.type) >= 0 && !w.hidden && !w.isChar && !w.waiting ? terrainFieldHtml(w) : '')+   // difficult terrain T1
               (['rect','hexagon','circle','diamond','image','path'].indexOf(w.type) >= 0 && !w.hidden && w.blocksSight ? '<div class="field"><label for="wbSightType">Type</label><select id="wbSightType"><option value="wall"'+(w.sightType!=='door'?' selected':'')+'>Wall / pillar (always blocks)</option><option value="door"'+(w.sightType==='door'?' selected':'')+'>Door (can open)</option></select></div>' : '')+
@@ -1298,9 +1299,12 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             var _el_wbBlocksSight = document.getElementById('wbBlocksSight');
             if(_el_wbBlocksSight) _el_wbBlocksSight.addEventListener('change', function() {
                 if (this.checked) { w.blocksSight = true; if (!w.sightType) w.sightType = 'wall'; } else { delete w.blocksSight; delete w.sightType; delete w.doorOpen; delete w.doorLock; }
+                delete w.barrier;   // see-through barriers: exclusive with Stops movement only (a wall stops tokens anyway)
                 save(); render(); renderInspector();
                 if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
             });
+            var _el_wbBarrier = document.getElementById('wbBarrier');   // see-through barriers: true or no key
+            if (_el_wbBarrier) _el_wbBarrier.addEventListener('change', function() { setItemBarrier(w, this.checked); });
             var _el_wbCover = document.getElementById('wbCover');
             if(_el_wbCover) _el_wbCover.addEventListener('change', function() {
                 if (this.value === 'yes' || this.value === 'no') w.cover = this.value; else delete w.cover;   // cover follow-ups (owner 2026-09-28): what this piece gives as cover
@@ -1832,6 +1836,29 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
       if (window.wpRefreshBlasts) window.wpRefreshBlasts();   // the rulers and blasts placed read the heights of the tokens there
   }
   // [sinkcheck:groundbox-end]
+  // [sinkcheck:barrierbox-start]
+  // See-through barriers (1.5.1; the owner's ruling of 2026-10-03: "active force fields are see through and impassible"): a piece's Stops
+  // movement only tick, under Blocks sight and exclusive with it — a force field, bars, a window, a railing: a player's token cannot land in or
+  // cross it, and sight, light and senses pass (item.barrier, true or no key). A barrier may be a door as a wall may, with the same keys; its
+  // Type, Open and Locked rows are drawn here with words that fit, under the ids the wall's own rows use (the two are never drawn together),
+  // so one handler serves each. On the kinds of piece Blocks sight is offered on; never a hidden piece, a token, a waiting token or a GM-note
+  // card (none of them is ever a barrier: fogcore barrierOn). Its markup holds fixed words only
+  function barrierFieldOk(w) { return !!w && typeof w === 'object' && ['rect', 'hexagon', 'circle', 'diamond', 'image', 'path'].indexOf(w.type) >= 0 && !w.hidden && !w.isChar && !w.waiting && !w.gmNoteFor; }
+  function barrierFieldHtml(w) {
+      if (!barrierFieldOk(w)) return '';
+      var on = w.barrier === true && !w.blocksSight, line = w.type === 'path', door = on && w.sightType === 'door';
+      return '<div class="field check-row"><input type="checkbox" id="wbBarrier" ' + (on ? 'checked' : '') + '> <label for="wbBarrier">' + (line ? 'Stops movement only (a see-through barrier along the line)' : 'Stops movement only (a see-through barrier)') + '</label></div>'
+          + '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">A force field, bars, a window, a railing: players&rsquo; tokens cannot land in or cross ' + (line ? 'the line' : 'the cells its outline covers') + ', while sight, light and senses pass through. Your own moves are never stopped; it follows the Walls stop player tokens setting and needs no fog on the map.</div>'
+          + (on ? '<div class="field"><label for="wbSightType">Type</label><select id="wbSightType"><option value="wall"' + (door ? '' : ' selected') + '>Barrier (always stops)</option><option value="door"' + (door ? ' selected' : '') + '>Door or gate (can open)</option></select></div>' : '')
+          + (door ? '<div class="field check-row"><input type="checkbox" id="wbDoorOpen" ' + (w.doorOpen ? 'checked' : '') + '> <label for="wbDoorOpen">Open (tokens pass through)</label></div><div class="field check-row"><input type="checkbox" id="wbDoorLock" ' + (w.doorLock ? 'checked' : '') + '> <label for="wbDoorLock">GM-locked (players can&rsquo;t open it)</label></div>' : '');
+  }
+  function setItemBarrier(w, on) {
+      if (on === true && barrierFieldOk(w)) { w.barrier = true; delete w.blocksSight; if (w.sightType !== 'door') w.sightType = 'wall'; }   // exclusive with Blocks sight; a door stays a door
+      else { delete w.barrier; if (!w.blocksSight) { delete w.sightType; delete w.doorOpen; delete w.doorLock; } }
+      save(); render(); renderInspector();
+      if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
+  }
+  // [sinkcheck:barrierbox-end]
 
   /* ---------- roster characters ↔ board tokens ----------
      A character added to a node's roster gets a token immediately: a stand-in

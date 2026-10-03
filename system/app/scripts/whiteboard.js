@@ -821,9 +821,13 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
           el.classList.toggle('wb-hidden-gm', !!item.hidden && !clientView);
 
           el.classList.toggle('wb-trap', !!item.trap && !!el.dataset.portal && !!item.hidden && !clientView);   // GM-only: an armed hidden trap portal
+          // [fogcheck:boardcue-start]
           el.classList.toggle('wb-blocks-sight', !!item.blocksSight && item.sightType !== 'door' && !clientView);
-          el.classList.toggle('wb-door', item.blocksSight === true && item.sightType === 'door');
-          el.classList.toggle('wb-door-open', item.blocksSight === true && item.sightType === 'door' && !!item.doorOpen);
+          var barrierIt = item.barrier === true && !item.blocksSight, doorIt = (item.blocksSight === true || barrierIt) && item.sightType === 'door';   // see-through barriers (1.5.1): a piece that stops movement and not sight; a door is a wall's or a barrier's
+          el.classList.toggle('wb-barrier', barrierIt && (doorIt || !clientView));   // the GM's cue, as a wall's; a barrier's door is shown to everyone, as any door
+          el.classList.toggle('wb-door', doorIt);
+          el.classList.toggle('wb-door-open', doorIt && !!item.doorOpen);
+          // [fogcheck:boardcue-end]
 
           el.classList.toggle('wb-hidden-ph', hideFromMe);
           el.classList.toggle('wb-waiting', !!item.waiting && !hideFromMe);   // Onboarding F1a: the dashed ring — never on a hidden stub (an element is reused when an item is hidden)
@@ -2603,7 +2607,9 @@ window.wpFitToGrid = fitToGrid;
           var el = e.target.closest('#whiteboard .wb-item'); if (!el) return;
           var am = getActiveMap(); if (!am || am.type !== 'map' || state.viewMode !== 'visual') return;
           var item = am.whiteboard.find(function(x) { return x.id === el.dataset.id; });
-          if (item && item.blocksSight && item.sightType === 'door' && !item.hidden) down = { doorId: item.id, mapId: am.id, x: e.clientX, y: e.clientY };   // a client clicks a door to request opening/closing it
+          // [fogcheck:doorclick-start]
+          if (item && (item.blocksSight || item.barrier === true) && item.sightType === 'door' && !item.hidden) down = { doorId: item.id, mapId: am.id, x: e.clientX, y: e.clientY };   // a client clicks a door (a wall's or a see-through barrier's) to request opening/closing it
+          // [fogcheck:doorclick-end]
       }, true);
       document.addEventListener('pointerup', function(e) {
           if (!down) return;

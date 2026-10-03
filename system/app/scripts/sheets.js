@@ -4219,6 +4219,11 @@ function refreshErrors() {
         if (!blF) sErr.push({ message: 'The blind switch names no field here: Save leaves it out.' });
         else if (!secS || secS[blF.id]) sErr.push({ message: 'The blind switch reads ' + (blF.label || blF.key) + ', which its owner cannot read (a GM-only value, or one worked out from one): Save drops it.' });
     }
+    if (snO && snO.arc !== undefined) {   // the eyes' arc: a number or formula field its owner can read, as the cleaner reads it
+        var arcF = senseArcOf(snO.arc);
+        if (!arcF) sErr.push({ message: 'The sight arc names no number or formula field here: Save leaves it out.' });
+        else if (!secS || secS[arcF.id]) sErr.push({ message: 'The sight arc reads ' + (arcF.label || arcF.key) + ', which its owner cannot read (a GM-only value, or one worked out from one): Save drops it.' });
+    }
     if (sErr.length) errorsById.senses = sErr;
     // conditions C4: what Save drops of an automatic effect's formula, under the effect's row — read as the cleaner reads it (systemcore
     // cleanEffectDef and the public rule: the owner's "Only public ones"); a token's name read there is 0, a warning
@@ -5296,6 +5301,8 @@ function calendarClick(b) {
 // else the last picked here, else it waits for one and Save leaves it out), whether walls stop it, whether it sees all round and whether it
 // sees the dark as dim; each row ends in one plain sentence of what it does. Every text lands as a value or a text node. Save cleans them (a
 // sense on a value its owner cannot read is dropped for everyone); refreshErrors says what it would drop
+// The eyes' arc (the owner's ruling of 2026-10-03): under the blind switch, "Sight arc from" names the number or formula field that gives a
+// character's own sight arc in degrees (combat.senses.arc), or the map's arc for none, with its sentence (arcSentence)
 // [sinkcheck:sensesbox-start]
 var _senseUnit = '', SENSE_WORDS = { yd: 'yards', ft: 'feet', m: 'metres', cells: 'grid cells' };
 // senses S4: a mark sense's mark, as its player sees it (the shape the fog draws, and the word shown while the pointer is on it); none: a presence
@@ -5342,6 +5349,16 @@ function blindSentence(sn) {
     if (!secret || secret[f.id]) return 'Save drops the blind switch: its owner cannot read ' + nm + ' (a GM-only value, or one worked out from one). Make that value visible to its owner.';
     return 'A character is blind while ' + nm + ' is ticked or above 0: its eyes see only its own cell, a sense of the eyes is off, and a sense that does not use the eyes still works.' + (f.edit === 'owner' && f.kind !== 'formula' ? ' Its owner can change this on their sheet.' : '');
 }
+// the eyes' arc: the fields it may read (a number or a formula, as the cleaner takes them) and the sentence under "Sight arc from"
+function senseArcFields() { return (draft.fields || []).filter(function(f) { return !!f && (f.kind === 'number' || f.kind === 'formula'); }); }
+function senseArcOf(v) { var id = v && typeof v === 'object' && typeof v.field === 'string' ? v.field : '', out = null; if (id) senseArcFields().forEach(function(f) { if (f.id === id) out = f; }); return out; }
+function arcSentence(sn) {
+    var a = sn && typeof sn === 'object' ? sn.arc : undefined; if (a === undefined) return 'Every character’s eyes see through the map’s vision arc (the fog menu’s Vision).';
+    var f = senseArcOf(a); if (!f) return 'Pick the number or formula field that gives a character’s sight arc: Save leaves it out.';
+    var nm = f.label || f.key, secret = senseSecrets();
+    if (!secret || secret[f.id]) return 'Save drops the sight arc: its owner cannot read ' + nm + ' (a GM-only value, or one worked out from one). Make that value visible to its owner.';
+    return 'A character’s eyes see through an arc of ' + nm + ' degrees (1 to 360) wherever the map’s Vision is a facing cone, wider or narrower than the map’s own. A value of 0 or less: the map’s arc. A map set to All around still sees all round, as every token does while Token facing is off.' + (f.edit === 'owner' && f.kind !== 'formula' ? ' Its owner can change this on their sheet.' : '');
+}
 function sensesBox(box, cm) {
     var sn = cm.senses && typeof cm.senses === 'object' && !Array.isArray(cm.senses) ? cm.senses : {}, arr = Array.isArray(sn.list) ? sn.list : [], wrap = el('div', 'sys-light sys-senses');
     var fieldsR = senseRangeFields(), secret = senseSecrets(), swF = senseSwitchFields();
@@ -5358,7 +5375,7 @@ function sensesBox(box, cm) {
         rw.appendChild(select('sys-sense-from', ropts, byField ? r.field : '#n', 'Where its range comes from: a field of the character (worked out for each character, effects and all) or one number every character has'));
         if (!byField) { var nl = el('label', 'sys-num'); nl.appendChild(el('span', 'sys-num-cap', 'Range')); var ni = el('input', 'field sys-sense-n'); ni.type = 'number'; ni.min = '0'; ni.max = '100000'; ni.step = 'any'; ni.value = typeof r.n === 'number' ? String(r.n) : ''; ni.title = 'How far it reaches, for every character (0: no one has it)'; nl.appendChild(ni); rw.appendChild(nl); }
         rw.appendChild(select('sys-sense-unit', (s.unit === '?' ? [['?', '— pick a unit —']] : []).concat([['yd', 'yards'], ['ft', 'feet'], ['m', 'metres'], ['cells', 'grid cells']]), s.unit === '?' ? '?' : (typeof s.unit === 'string' && Object.prototype.hasOwnProperty.call(LIGHT_UNITS, s.unit) ? s.unit : 'yd'), 'What its range counts in: each map’s scale converts it (60 ft on 5 ft squares is 12 squares)'));
-        [['walls', 'Walls stop it', s.walls !== 'pass', 'Ticked: whatever blocks sight stops it, as it stops the eyes. Unticked: it passes walls'], ['arc', 'All round (ignores facing)', s.arc === 'all', 'Ticked: it sees in every direction, whatever the map’s vision arc'], ['dim', 'What it sees in the dark it sees as dim', s.shows === 'dim', 'Ticked: in the dark it shows cells dim (the dim name shows on the ruler and at a target mark), in light as the light is. Unticked: clear'], ['eyes', 'Uses the eyes (off while blind)', s.eyes === true, 'Ticked: a sense of the eyes, off while the character is blind (darkvision, truesight). Unticked: it works blind (blindsight, a sense of the Force)'], ['veil', 'Sees through smoke', s.veil === true, 'Ticked: smoke hides nothing from it. Unticked: it does not see into or through smoke (a sense that passes walls always does)']].filter(function(g) { return !(mark && g[0] === 'dim'); }).forEach(function(g) {   // a mark sees no cells: no dim
+        [['walls', 'Walls stop it', s.walls !== 'pass', 'Ticked: whatever blocks sight stops it, as it stops the eyes. Unticked: it passes walls'], ['arc', 'All round (ignores facing)', s.arc === 'all', 'Ticked: it sees in every direction, whatever arc its token’s eyes see through'], ['dim', 'What it sees in the dark it sees as dim', s.shows === 'dim', 'Ticked: in the dark it shows cells dim (the dim name shows on the ruler and at a target mark), in light as the light is. Unticked: clear'], ['eyes', 'Uses the eyes (off while blind)', s.eyes === true, 'Ticked: a sense of the eyes, off while the character is blind (darkvision, truesight). Unticked: it works blind (blindsight, a sense of the Force)'], ['veil', 'Sees through smoke', s.veil === true, 'Ticked: smoke hides nothing from it. Unticked: it does not see into or through smoke (a sense that passes walls always does)']].filter(function(g) { return !(mark && g[0] === 'dim'); }).forEach(function(g) {   // a mark sees no cells: no dim
             var tl = el('label', 'sys-hover'), tc = el('input', 'sys-sense-tick'); tc.type = 'checkbox'; tc.checked = g[2]; tc.dataset.tick = g[0]; tl.appendChild(tc); tl.appendChild(document.createTextNode(' ' + g[1])); tl.title = g[3]; rw.appendChild(tl);
         });
         var offId = s.off && typeof s.off === 'object' && typeof s.off.field === 'string' ? s.off.field : '', oopts = [['', 'Never switched off']].concat(swF.map(function(f) { return [f.id, 'Off while ' + (f.label || f.key)]; }));   // senses S3
@@ -5376,6 +5393,10 @@ function sensesBox(box, cm) {
     if (blId && !swF.some(function(f) { return f.id === blId; })) bopts.push([blId, 'Blind by a field no longer here']);
     var brow = el('div', 'sys-flags'); brow.appendChild(el('span', 'sys-num-cap', 'Blind when')); brow.appendChild(select('sys-sense-blind', bopts, blId, 'A field of the character that makes it blind while it is ticked or above 0 (Blinded): its eyes see only its own cell, and a sense of the eyes is off; toggles first')); wrap.appendChild(brow);
     wrap.appendChild(el('div', 'sys-note sys-blind-says', blindSentence(sn)));
+    var arF = senseArcFields(), arId = sn.arc && typeof sn.arc === 'object' && typeof sn.arc.field === 'string' ? sn.arc.field : '', aopts = [['', 'The map’s arc']].concat(arF.map(function(f) { return [f.id, 'From ' + (f.label || f.key)]; }));   // the eyes' arc, from the sheet
+    if (arId && !arF.some(function(f) { return f.id === arId; })) aopts.push([arId, 'From a field no longer here']);
+    var arow = el('div', 'sys-flags'); arow.appendChild(el('span', 'sys-num-cap', 'Sight arc from')); arow.appendChild(select('sys-sense-eyearc', aopts, arId, 'A number or formula field of the character that gives its own sight arc in degrees (1 to 360) on a map with a facing cone: 300 for one who sees to the sides, 360 for one who sees all round. The map’s arc: every character sees through the map’s')); wrap.appendChild(arow);
+    wrap.appendChild(el('div', 'sys-note sys-arc-says', arcSentence(sn)));
     var err = errorCell('senses'); err.dataset.errFor = 'senses'; wrap.appendChild(err);
     box.appendChild(wrap);
 }
@@ -5391,7 +5412,8 @@ function onSensesInput(t) {
 }
 function onSensesChange(t) {
     var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-sense-') < 0) return false;
-    if (c.indexOf('sys-sense-from') < 0 && c.indexOf('sys-sense-unit') < 0 && c.indexOf('sys-sense-tick') < 0 && c.indexOf('sys-sense-off') < 0 && c.indexOf('sys-sense-blind') < 0 && c.indexOf('sys-sense-grade') < 0 && c.indexOf('sys-sense-glyph') < 0) return true;   // the boxes' change events (their input events did the work)
+    if (c.indexOf('sys-sense-from') < 0 && c.indexOf('sys-sense-unit') < 0 && c.indexOf('sys-sense-tick') < 0 && c.indexOf('sys-sense-off') < 0 && c.indexOf('sys-sense-blind') < 0 && c.indexOf('sys-sense-eyearc') < 0 && c.indexOf('sys-sense-grade') < 0 && c.indexOf('sys-sense-glyph') < 0) return true;   // the boxes' change events (their input events did the work)
+    if (c.indexOf('sys-sense-eyearc') >= 0) { var sna = sensesDraft(); if (t.value && typeof t.value === 'string') sna.arc = { field: t.value }; else delete sna.arc; markDirty(); renderAll(); return true; }   // the eyes' arc: the field it comes from, or the map's arc (its sentence redrawn)
     if (c.indexOf('sys-sense-blind') >= 0) { var snd = sensesDraft(); if (t.value) snd.blind = { field: t.value }; else delete snd.blind; markDirty(); renderAll(); return true; }   // senses S3: the blind switch (its sentence redrawn)
     var at = senseAt(t); if (!at) return true;
     var s = at.s;

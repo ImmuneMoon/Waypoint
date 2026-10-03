@@ -600,6 +600,12 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('S1 import: a file\'s senses come in cleaned — on Replace by the load\'s own normaliser (junk keys cut, a name cleaned, a sense or blind on a GM-only value gone, a bad id gone) and on Merge by the same cleaner main.js runs on a new campaign and on one already here',
             !!outS && JSON.stringify(outS.campaigns.cS.system.combat.senses) === sensesWant && JSON.stringify(mergeS.combat.senses) === sensesWant
             && (mainSrc.match(/window\.wpSystemCore\.cleanSystem\(ic\.system, \{ F: window\.wpFormula, gmView: true \}\)/g) || []).length === 2, outS && JSON.stringify(outS.campaigns.cS.system.combat));
+        // the eyes' arc: a file's arc key comes in cleaned the same way — kept on a number its player can read, gone on a GM-only one, a junk one or a field of another kind
+        const arcSysOf = arc => { const s = sensesSys(); s.fields.push({ id: 'f_tg', key: 'Tog', label: 'T', kind: 'toggle', vis: 'all' }); s.combat.senses.arc = arc; return s; };
+        const arcIn = arc => { const o = cleanImport({ campaigns: { cS: { id: 'cS', name: 'S', items: {}, system: arcSysOf(arc) } } }, deps), m = S.cleanSystem(arcSysOf(arc), { F, gmView: true }); return [o && JSON.stringify(o.campaigns.cS.system.combat.senses.arc), JSON.stringify(m.combat.senses.arc), o && o.campaigns.cS.system.combat.senses.list.length]; };
+        const arcFile = [{ field: 'f_st', vis: 'gm', n: 300 }, { field: 'f_gm' }, { field: 'f_tg' }, { field: 'f_nothere' }, 'f_st', 300, null].map(arcIn);
+        check('eyes\' arc import: a file\'s arc key comes in cleaned on Replace and on Merge alike — the field it names kept with its junk cut where that is a number its player can read; dropped where it is GM-only, a toggle, a field that is not there, text, a number or null — and the senses beside it stay',
+            JSON.stringify(arcFile) === JSON.stringify([['{"field":"f_st"}', '{"field":"f_st"}', 1]].concat([1, 2, 3, 4, 5, 6].map(() => [undefined, undefined, 1]))), JSON.stringify(arcFile));
         // text style: a planner's and a page's formats (the look of a plain field, stored beside its text) come in cleaned against their texts — on Merge, on Replace and on a load
         {
             const RED = '#d9534f';

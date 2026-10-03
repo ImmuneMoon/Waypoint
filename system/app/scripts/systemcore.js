@@ -508,15 +508,18 @@ function rangeOf(sys, mp, a, b, opts) {
 // Senses S1 (docs/SENSES_PLAN.md 3.1): camp.system.combat.senses, the system's senses besides the eyes, absent when it holds none. list: each
 // sense an id (sn_ + 8), a name (cut by code points; text sinks only), a range (a field of the character, or a number every character has; a
 // range of 0 or less is not having it), the unit it counts in when not yards (ft, m or cells), its grade (full: sees the cells; mark: shows a
-// nameless mark where a creature is), walls: 'pass' (absent: the sight blockers stop it), arc: 'all' (absent: the map's vision arc), eyes: a
+// nameless mark where a creature is), walls: 'pass' (absent: the sight blockers stop it), arc: 'all' (absent: its token's eyes' arc), eyes: a
 // sense of the eyes (off while blind), off: a field that switches it off (Deafened), shows: 'dim' (a full sense sees the dark as dim), glyph
 // (a mark sense's mark) and veil (it sees through smoke). blind: a field whose tick (or a value above 0) switches the eyes off. The schema is
 // whole from S1 so no saved shape changes later. A range, an off or a blind that reads a value its player cannot read truthfully
 // (secretFieldIds) takes the sense (or blind) with it in BOTH views, so host and player judge by one rule; fieldIds: id -> kind, as the GM's
 // view has them; no secretIds (fail closed): every field counts as secret
+// The eyes' arc (the owner's ruling of 2026-10-03: ordinary sight the front arc, a wider one for a character whose traits give it): arc, a
+// number or formula field that gives a character's own sight arc in degrees (fog.js tokenSenses reads it, eyesArc says where it counts).
+// Kept as blind is: one field of an allowed kind its player can read truthfully, the same in both views; anything else leaves it out
 var SENSE_ID = /^sn_[a-z0-9]{8}$/;
 var SENSE_GRADES = Object.freeze({ full: 1, mark: 1 }), SENSE_GLYPHS = Object.freeze({ sound: 1, tremor: 1, presence: 1, heat: 1 });
-var SENSE_RANGE_KINDS = Object.freeze({ number: 1, formula: 1, skill: 1, resource: 1 }), SENSE_SWITCH_KINDS = Object.freeze({ toggle: 1, number: 1, formula: 1 });
+var SENSE_RANGE_KINDS = Object.freeze({ number: 1, formula: 1, skill: 1, resource: 1 }), SENSE_SWITCH_KINDS = Object.freeze({ toggle: 1, number: 1, formula: 1 }), SENSE_ARC_KINDS = Object.freeze({ number: 1, formula: 1 });
 function senseField(v, kinds, fieldIds, secretIds) {   // { field }: its id; '' when it names no field of an allowed kind; null when its player cannot read it truthfully
     if (!isObj(v) || typeof v.field !== 'string' || !FIELD_ID.test(v.field)) return '';
     if (!isObj(secretIds) || hasOwn(secretIds, v.field)) return null;
@@ -526,6 +529,7 @@ function cleanSenses(s, fieldIds, secretIds) {
     if (!isObj(s)) return null;
     var out = {}, list = [], seen = map();
     if (s.blind !== undefined) { var bf = senseField(s.blind, SENSE_SWITCH_KINDS, fieldIds, secretIds); if (bf) out.blind = { field: bf }; }
+    if (s.arc !== undefined) { var af = senseField(s.arc, SENSE_ARC_KINDS, fieldIds, secretIds); if (af) out.arc = { field: af }; }   // the eyes' own arc, from the sheet
     (Array.isArray(s.list) ? s.list : []).forEach(function(x) {
         if (list.length >= LIMITS.senses || !isObj(x) || typeof x.id !== 'string' || !SENSE_ID.test(x.id) || seen[x.id]) return;
         var name = cutPoints(x.name, LIMITS.label, ' '); if (!name) return;

@@ -1018,8 +1018,9 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                         '</div>' +
                         (w.targetMapId ? landingRoomFieldHtml({ targetMapId: w.targetMapId, targetRoomId: w.targetRoomId, id: null, name: w.name }, 'wbPortalRoom') : '');
             }
-            html += (w.targetMapId && w.hidden ? '<div class="field check-row"><input type="checkbox" id="wbTrapPortal" ' + (w.trap ? 'checked' : '') + '> <label for="wbTrapPortal">⚠️ Trap — fires while hidden</label></div><div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">Players never see it, but a token that lands on this tile is still teleported. A locked destination map still blocks it.</div>' : '');
+            html += (w.targetMapId && w.hidden ? '<div class="field check-row"><input type="checkbox" id="wbTrapPortal" ' + (w.trap ? 'checked' : '') + '> <label for="wbTrapPortal">⚠️ Trap — fires while hidden</label></div><div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">Players never see it, but a token that lands on this tile is still teleported. A locked destination map, locked travel or the tile&rsquo;s own lock (Locked for players) still blocks it.</div>' : '');
             html += '<div class="field"><label for="wbNodeLink">Link Node</label><select id="wbNodeLink">'+nodeOpts+'</select></div>'+
+              portalLockFieldHtml(w, activeMap)+   // a portal's own lock: Locked for players, on a piece that is a portal (its own Portal to Map, or its linked node's)
               (w.type !== 'image' && w.type !== 'trigger' && w.type !== 'light' ? '<div class="field"><label>' + (w.type === 'text' ? 'Text Color' : w.type === 'path' ? 'Pen Color' : 'Fill Color') + '</label><div class="color-row">' + ((w.type === 'path' || w.type === 'text') ? penHtml : colorHtml) + '</div></div>' : '') +
               (w.type === 'text' ? textStyleHtml(w) : '') +
               (w.type !== 'path' && w.type !== 'text' ? '<div class="field check-row"><input type="checkbox" id="wbLockRatio" '+(w.lockRatio?'checked':'')+'> <label for="wbLockRatio">Lock proportions when resizing</label></div>' : '') +
@@ -1140,13 +1141,14 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
 
             var _el_wbNodeLink = document.getElementById('wbNodeLink');
             if(_el_wbNodeLink) _el_wbNodeLink.addEventListener('change', function() {
-                w.nodeId = this.value || null; save(); render();
+                w.nodeId = this.value || null; portalLockTidy(w, activeMap); save(); render();
             });
             var _el_wbFitGrid = document.getElementById('wbFitGrid');
             if (_el_wbFitGrid) { _el_wbFitGrid.addEventListener('click', function() { if (window.wpFitToGrid) window.wpFitToGrid([w]); }); if (window.wpFitWouldChange && !window.wpFitWouldChange([w])) { _el_wbFitGrid.disabled = true; _el_wbFitGrid.title = w.locked ? 'Locked — unlock it to fit to the grid' : 'Already aligned to the grid'; } }
             var _el_wbPortalMap = document.getElementById('wbPortalMap');
             if (_el_wbPortalMap) _el_wbPortalMap.addEventListener('change', function() {
                 if (this.value) w.targetMapId = this.value; else { delete w.targetMapId; delete w.portalIcon; }
+                portalLockTidy(w, activeMap);   // no longer a portal: its lock goes with it
                 save(); render();
                 if (w.targetMapId) import('./io.js').then(function(io) { io.toast('Portal set — double-click it (or drop a player token on it) to travel.'); });
             });
@@ -1154,6 +1156,8 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             if (_el_wbPortalIcon) _el_wbPortalIcon.addEventListener('change', function() { w.portalIcon = this.value; save(); render(); });
             var _el_wbTrapPortal = document.getElementById('wbTrapPortal');
             if (_el_wbTrapPortal) _el_wbTrapPortal.addEventListener('change', function() { if (this.checked) w.trap = true; else delete w.trap; save(); render(); import('./io.js').then(function(io) { io.toast(w.trap ? 'Armed as a trap — it fires while hidden.' : 'No longer a trap — hidden means inert again.'); }); });
+            var _el_wbPortalLock = document.getElementById('wbPortalLock');   // a portal's own lock: true or no key
+            if (_el_wbPortalLock) _el_wbPortalLock.addEventListener('change', function() { setItemPortalLock(w, this.checked, activeMap); });
             var _el_wbPortalRoom = document.getElementById('wbPortalRoom');
             if (_el_wbPortalRoom) _el_wbPortalRoom.addEventListener('change', function() { if (this.value) w.targetRoomId = this.value; else delete w.targetRoomId; save(); });
             var _el_wbTrigShape = document.getElementById('wbTrigShape');
@@ -1859,6 +1863,29 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
       if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
   }
   // [sinkcheck:barrierbox-end]
+  // [sinkcheck:portallockbox-start]
+  // A portal's own lock (the owner, 2026-10-03: "maybe add the ability to lock a portal from the play map"): a portal piece's Locked for
+  // players tick — no player travels through it until the GM unlocks it (item.portalLock, true or no key; the host is the judge: net.js
+  // travelBar). Shown only on a piece that IS a portal (fogcore isPortal: its own Portal to Map, or the node it is linked to leads to a map),
+  // hidden or not (a hidden trap tile may be locked: it then fires for nobody), and only for the GM — never in a player's app or the stream
+  // window. Its markup holds fixed words only, nothing of the piece
+  function portalLockGm() { var n = window.wpNet; return !(window.wpStream || (n && n.active && n.role === 'client')); }
+  function portalLockFieldOk(w, map) { var FC = window.wpFogCore; return portalLockGm() && !!(FC && typeof FC.isPortal === 'function' && FC.isPortal(w, map)); }
+  function portalLockFieldHtml(w, map) {
+      if (!portalLockFieldOk(w, map)) return '';
+      return '<div class="field check-row"><input type="checkbox" id="wbPortalLock" ' + (w.portalLock === true ? 'checked' : '') + '> <label for="wbPortalLock">&#128274; Locked for players</label></div>'
+          + '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">No player travels through this portal until you unlock it: their double-click and a token they drop on it are refused, and they see a small lock on it. Dropping a player&rsquo;s token on it yourself, a summon and Bring still take them through.</div>';
+  }
+  function setItemPortalLock(w, on, map) {
+      if (!w || typeof w !== 'object' || !portalLockGm()) return;   // the GM's alone: elsewhere nothing is set and nothing is taken away
+      if (on === true && portalLockFieldOk(w, map)) w.portalLock = true; else delete w.portalLock;
+      save(); render(); renderInspector();
+      toast(w.portalLock === true ? 'Portal locked for players.' : 'Portal unlocked.');
+  }
+  // A piece that stops being a portal (Portal to Map set to None, its node unlinked) loses its lock: a lock nobody can see is no lock to keep.
+  // Only where the rule can be asked: with no core on hand nothing is taken away
+  function portalLockTidy(w, map) { var FC = window.wpFogCore; if (w && w.portalLock !== undefined && FC && typeof FC.isPortal === 'function' && !FC.isPortal(w, map)) delete w.portalLock; }
+  // [sinkcheck:portallockbox-end]
 
   /* ---------- roster characters ↔ board tokens ----------
      A character added to a node's roster gets a token immediately: a stand-in

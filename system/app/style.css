@@ -1179,12 +1179,13 @@
   .handout-auto { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink); cursor: pointer; }
   .handout-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
   .handout-actions .tool { padding: 4px 10px; font-size: 12px; }
-  .handout-actions .handout-who { font-size: 12px; padding: 4px 8px; height: 28px; }
-  .handout-actions .handout-who, #streamBar select { background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; min-width: 0; cursor: pointer; }
-  .handout-actions .handout-who:focus, #streamBar select:focus { outline: none; border-color: var(--gold); }
-  .handout-actions .handout-who option, #streamBar select option { background: var(--panel); color: var(--ink); }
+  .handout-actions .handout-give { font-size: 12px; padding: 4px 8px; height: 28px; max-width: 220px; color-scheme: dark; }
+  .handout-actions .handout-give, #streamBar select { background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; min-width: 0; cursor: pointer; }
+  .handout-actions .handout-give:hover { border-color: var(--gold); }
+  .handout-actions .handout-give:focus, #streamBar select:focus { outline: none; border-color: var(--gold); }
+  .handout-actions .handout-give option, #streamBar select option { background: var(--panel); color: var(--ink); }
   .handout-actions .handout-send { margin-left: auto; }
-  .handout-actions .handout-send:disabled { opacity: 0.4; cursor: default; }
+  .handout-actions .handout-send:disabled, .handout-actions .handout-give-btn:disabled { opacity: 0.4; cursor: default; }
   #handoutPick { flex-direction: column; flex: 0 0 auto; max-height: 46%; min-height: 0; border: 1px solid var(--edge); border-radius: 6px; padding: 8px; margin-bottom: 10px; background: rgba(0,0,0,0.15); }
   #handoutPickGrid { overflow-y: auto; flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); grid-auto-rows: max-content; gap: 8px; align-content: start; }
   #handoutPickGrid .handout-pick-cell { cursor: pointer; border: 1px solid var(--edge); border-radius: 6px; overflow: hidden; background: #000; }

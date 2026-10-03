@@ -1,14 +1,3 @@
-WAYPOINT 1.5.1 — What's New
-============================
-
-Fixes
-- Handouts: the "Give to…" list beside each handout wears the app's own look
-  again (it showed as a plain white box), and its Give button stays dimmed
-  until someone is chosen.
-- Handouts: the window, its button and Help say what a handout is — a picture
-  or a written page (a letter, a briefing, a recap) — where they read as
-  pictures only.
-
 WAYPOINT 1.5.0 — What's New
 ============================
 
@@ -198,6 +187,10 @@ Running the table
   table, and shows one part at a time; your name sits above both, since it
   is needed either way. While you host or play, the panel shows the part
   you are using.
+- Handouts: the "Give to…" list beside each handout wears the app's own look
+  (it showed as a plain white box), and its Give button stays dimmed until
+  someone is chosen. The window, its button and Help say what a handout is:
+  a picture or a written page (a letter, a briefing, a recap).
 
 Protecting your table
 - Your table key is never sent again. A player your table already knows is

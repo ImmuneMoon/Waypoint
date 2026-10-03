@@ -112,6 +112,17 @@
   .wb-item.path.wb-door svg path { filter: drop-shadow(0 0 3px var(--gold)); }
   .wb-item.path.wb-door.wb-door-open svg path { stroke-dasharray: 4 6; filter: drop-shadow(0 0 3px #4caf7d); }
   body.net-client .wb-item.path.wb-door svg path { pointer-events: visiblePainted; }   /* a pen line's stroke, or a nib's or a region's painted body (their outline alone is a pixel wide) */
+  /* 1.5.1 see-through barriers: a piece that stops movement and not sight (a force field, bars, a window, a railing). The GM's cue, as a wall's: a dashed
+     cyan outline and a no-entry mark. A barrier that is a door is shown to everyone, as any door: cyan when shut, green and dashed when open. */
+  .wb-item.wb-barrier { outline: 2px dashed #4dd0e1; outline-offset: -2px; }
+  .wb-item.wb-barrier::after { content: '\26D4'; position: absolute; top: -12px; right: -10px; font-size: 13px; z-index: 101; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.8)); transform: scale(var(--wbz, 1)); transform-origin: 0% 100%; }
+  .wb-item.wb-barrier.wb-door { outline: 2px solid #4dd0e1; outline-offset: -2px; }
+  .wb-item.wb-barrier.wb-door::after { content: '\1F6AA'; }
+  .wb-item.wb-barrier.wb-door.wb-door-open { outline-style: dashed; outline-color: #4caf7d; }
+  .wb-item.path.wb-barrier, .wb-item.path.wb-barrier.wb-door, .wb-item.path.wb-barrier.wb-door.wb-door-open { outline: none; }
+  .wb-item.path.wb-barrier svg path { stroke-dasharray: 2 6; filter: drop-shadow(0 0 2px #4dd0e1); }
+  .wb-item.path.wb-barrier.wb-door svg path { stroke-dasharray: none; filter: drop-shadow(0 0 3px #4dd0e1); }
+  .wb-item.path.wb-barrier.wb-door.wb-door-open svg path { stroke-dasharray: 4 6; filter: drop-shadow(0 0 3px #4caf7d); }
   /* player's view: an opaque grey placeholder */
   .wb-item.wb-hidden-ph {
       background: #3a3a4a !important; border: 1px solid #4a4a5c !important; border-radius: 8px;

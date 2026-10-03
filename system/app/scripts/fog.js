@@ -461,14 +461,54 @@ function blastSeat(map, x, y, tx, ty) {
 }
 function coverOn(sys) { return !!(sys && sys.combat && sys.combat.cover && sys.combat.cover.on === true); }
 // Turn-based combat T3a (D11): whether a token's straight move from (fx, fy) to (tx, ty) — its stored top-left — lands in or crosses a cell a
-// sight-blocker occupies on this map (the same blocker cells fog uses: a closed door blocks, an open one or a hidden item never). The host's
-// pos gate asks it for a player's move; no grid (and no fog cell): never
+// sight-blocker occupies on this map (the same blocker cells fog uses: a closed door blocks, an open one or a hidden item never), or one a
+// see-through barrier does (moveSetFor, below). The host's pos gate asks it for a player's move; no grid (and no fog cell): never
 function moveBlocked(map, w, fx, fy, tx, ty) {
     var C = core(); if (!C || !C.moveClear || !map || map.type !== 'map') return false;
     var grid = gridForMap(map); if (!grid) return false;
-    var bl = blockersFor(map, grid); if (!bl) return false;
+    var bl = moveSetFor(map, grid, blockersFor(map, grid)); if (!bl) return false;   // what stops a token: the walls, and the barriers with them
     var hw = ((w && w.w) || 60) / 2, hh = ((w && w.h) || 52) / 2;
     return !C.moveClear(fx + hw, fy + hh, tx + hw, ty + hh, grid, bl);
+}
+// See-through barriers (1.5.1; the owner's ruling of 2026-10-03: "active force fields are see through and impassible"): what stops a player's
+// token on a map — the walls (the fog's own sight-blocker set, handed in) and every barrier, a piece flagged barrier that stops movement and
+// nothing else (fogcore barrierOn: never a hidden piece, a token or an open door). Asked by moveBlocked alone: sight, light, senses, marks,
+// cover, smoke and the height rules never see this set. No barrier on the map: the walls' own set, the very object (exactly as before).
+// With barriers: a new set of the walls' cells and thin walls plus each barrier's cells (its outline, turned as it is drawn) or, for a pen
+// line, its line as thin walls. The caps are the walls' own, shared: barrier cells count after the walls' cells, barrier lines after the
+// walls' lines, a piece judged on its box first (as smoke is); past either cap, or where the walls are over theirs, no barrier stops anything
+// (the walls do what they did) and the GM is told once. Kept per map on its save stamp, its grid, the walls' set and the barriers themselves
+// (barrierSig), so a door opened, a piece moved, hidden or unflagged is read at once
+var _moveCache = Object.create(null), _moveWarned = Object.create(null);
+function barrierSig(w) {
+    var s = w.id + ':' + w.type + (w.fill ? 'f' : '') + ':' + w.x + ',' + w.y + ',' + (w.w || 0) + ',' + (w.h || 0) + ',' + (w.rot || 0);
+    if (w.type === 'path') { var p = Array.isArray(w.pts) ? w.pts : [], a = p[0], z = p[p.length - 1]; s += ',' + (w.baseW || 0) + ',' + (w.baseH || 0) + ',' + (w.tip || '') + ',' + p.length + ',' + (Array.isArray(a) ? a[0] + ' ' + a[1] : '') + ',' + (Array.isArray(z) ? z[0] + ' ' + z[1] : '') + ',' + (Array.isArray(w.holes) ? w.holes.length : 0); }
+    return s + ';';
+}
+function moveSetFor(map, grid, walls) {
+    var C = core(), wb = map && map.whiteboard, bars = [], sig = '';
+    if (!C || typeof C.barrierOn !== 'function' || !Array.isArray(wb)) return walls;
+    for (var i = 0; i < wb.length; i++) { var w = wb[i]; if (C.barrierOn(w)) { bars.push(w); sig += barrierSig(w); } }
+    if (!bars.length) return walls;   // no barrier on this map: the walls' own set, exactly as before
+    var stamp = ((map.meta && map.meta.updated) || 0) + '|' + grid.type + ':' + (grid.size || grid.s) + '|' + sig, hit = _moveCache[map.id];
+    if (hit && hit.stamp === stamp && hit.walls === walls) return hit.set;
+    var cap = C.LIMITS.blockerCells, capS = C.LIMITS.wallSegs, set = Object.create(null), n = 0, ns = 0, segs = [], k, over = !!_blockerOver[map.id];   // the walls over their cap: the shared cap is spent
+    var cw = grid.type === 'square' ? grid.size : 1.5 * grid.s, ch = grid.type === 'square' ? grid.size : grid.h;
+    if (walls) for (k in walls) { set[k] = 1; n++; }
+    (C.wallsOf(walls) || []).forEach(function(ix) { ns += ix.segs.length; });
+    for (var b = 0; b < bars.length && !over; b++) {
+        var p = bars[b];
+        if (p.type === 'path') { var ps = C.pathSegs(p); for (var q = 0; q < ps.length; q++) { segs.push(ps[q]); if (++ns > capS) { over = true; break; } } continue; }   // a pen line stops a token as its line
+        var bw = Math.abs(Number(p.w) || 0), bh = Math.abs(Number(p.h) || 0);
+        if (!p.fill && (!isFinite(bw) || !isFinite(bh) || (bw / cw + 2) * (bh / ch + 2) > cap)) { over = true; break; }   // judged on its box before its cells are listed
+        var cells = C.itemCells(p, grid);
+        for (var j = 0; j < cells.length; j++) { k = C.cellKey(cells[j], grid); if (!set[k]) { set[k] = 1; if (++n > cap) { over = true; break; } } }
+    }
+    var res = walls;
+    if (over) { if (!_moveWarned[map.id] && !isClientView()) { _moveWarned[map.id] = 1; toast('Too many barriers on this map — they are not stopping tokens here.'); } }
+    else { _moveWarned[map.id] = 0; C.copyWalls(walls, set); res = C.withWalls(set, segs, grid); }
+    _moveCache[map.id] = { stamp: stamp, walls: walls, set: res };
+    return res;
 }
 // Turn-based combat T3b: how far a token's straight move goes, in this map's cells — whole cells on a grid (owner, 2026-10-01: "Moved 2.1
 // squares" for a token standing off the grid was wrong): a hex grid counts hex steps between the token's centre cells; a square grid the
@@ -506,7 +546,7 @@ function toggleDoorAt(boardX, boardY) {
     var key = C.cellKey(C.cellOf(boardX, boardY, grid), grid), wb = map.whiteboard || [];
     for (var i = wb.length - 1; i >= 0; i--) {
         var w = wb[i];
-        if (!w || w.blocksSight !== true || w.sightType !== 'door' || w.hidden) continue;
+        if (!w || !C.isDoor(w) || w.hidden) continue;   // a wall's door or a see-through barrier's (fogcore isDoor)
         var cells = w.type === 'path' ? C.pathCells(w, grid) : footprintCells(w, grid, C);   // item 18 W2: a line door is found on the cells its line passes
         for (var j = 0; j < cells.length; j++) {
             if (C.cellKey(cells[j], grid) === key) { w.doorOpen = !w.doorOpen; save(); if (window.appRender) window.appRender(); invalidateVision(); redraw(); toast(w.doorOpen ? 'Door opened.' : 'Door closed.'); return true; }

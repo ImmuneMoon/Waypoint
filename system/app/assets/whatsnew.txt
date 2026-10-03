@@ -928,6 +928,17 @@ ShadowBase sheets
   linked (its differences held as that copy's own values), or else made a
   custom row; the toast says what did not come across. Copy from a fresh
   export: the website mends older sheets when it opens them.
+- A ranged weapon brings its own range: where the Weapons list has Half and
+  MaxRange stats (half and maxrange on the website's keys), a blaster with a
+  Focusing Emitter or Magnetic Accelerator Coils shows the 1/2D and Max the
+  website works out with its fitted parts, not the barrel's printed pair. A
+  weapon that prints one figure takes it as its Max and never halves. The
+  row stays linked to its library entry and holds as its own only a figure
+  that differs from the entry's, so a later change to the entry still
+  reaches the rest. A sheet exported before its weapon's card was opened
+  carries no such range and reads the entry's pair, as before. In a player's
+  Import the range is part of the weapon's own values in Review, and when a
+  part is taken off again the figure is offered back to the entry's.
 - Attaching a sheet also turns its token to the sheet's facing and marks its
   threats while it is engaged (with token facing on), and a skill level the
   website exports as text now comes across.
@@ -1311,6 +1322,26 @@ Fog of war
   tied to the grid type — a square map can use a cone, a hex map can see all
   around — with a "use for new maps" campaign default that never changes
   maps you already made.
+- Sight arc: a character can see through a sight arc of its own. In the
+  System editor's Senses box (the Items tab, on the Combat card), "Sight arc
+  from" names a number or formula field; its value on a character's sheet,
+  in degrees from 1 to 360, replaces the map's facing cone for that
+  character's tokens, wider or narrower: 300 to see to the sides too, 360
+  to see all round. A map set to All around still sees all round, a value
+  of 0 keeps the map's arc, and a field its player cannot read is never
+  used. A token's Properties say the arc when it is the token's own.
+- See-through barriers: a piece can now stop players' tokens without
+  blocking sight — a force field, bars, a window, a railing. Tick "Stops
+  movement only" in its Properties (under Blocks sight; ticking one unticks
+  the other) and players' tokens cannot land in or cross it, under the same
+  "Walls stop player tokens" setting and with the same notes as a wall,
+  while sight, light and senses pass through it. It works on the same pieces
+  as a wall (a fill cell, a shape, an image, or a pen line as the line
+  itself) and needs no fog on the map. Set its type to "Door or gate" and it
+  opens, closes and locks like any door: you toggle it from its Properties
+  or by clicking it in fog mode, and a player can open one their token
+  stands next to unless you lock it. On your board a barrier wears a dashed
+  cyan outline.
 - Lighting, a VTT feature on by default: a fogged map is lit until you place
   a light source, so every token sees what is in its line of sight (walls
   and closed doors still stop it), and a token's sight becomes how far it

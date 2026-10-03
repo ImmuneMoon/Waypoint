@@ -5535,6 +5535,154 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && /fc = sc && sc\.sbFacing && st\.on\('turning'\) \? sc\.sbFacing\(d, item\.front\) : null;/.test(sbSrc), j([fc1, fc2, fc3, fc4]));
     }
 
+    /* ---- the ShadowBase bridge reads a ranged weapon's derived range (a blaster row's finalHalfDamageRange; owner, 2026-10-03) ---- */
+    {
+        const crypto = require('crypto');
+        const n = (id, key, extra) => Object.assign({ id: 'f_' + id, key, label: key, kind: 'number', vis: 'all' }, extra || {});
+        const lst = (id, key, list) => ({ id: 'f_' + id, key, label: key, kind: 'item-list', vis: 'all', edit: 'owner', list });
+        const wStats = [{ key: 'wsk', kind: 'pick', opts: [{ label: 'Guns', name: 'DX' }, { label: 'Liquid Projector', name: 'DX' }, { label: 'Shortsword', name: 'DX' }] }, { key: 'acc' }, { key: 'pm' }, { key: 'minst' }, { key: 'wt' }, { key: 'cr' }, { key: 'dd' }, { key: 'da' }, { key: 'db' }, { key: 'half', label: '1/2D' }, { key: 'maxrange', label: 'Max' }];
+        const mkG = stats => cleanSystem({ v: 1, name: 'G', rolls: [], fields: [n('dx', 'DX', { def: 10 }),
+            lst('gear', 'Gear', { custom: true, multi: true, on: { label: 'Stowed' }, stats: [{ key: 'wt' }, { key: 'cr' }] }),
+            lst('wp', 'Weapons', { cats: ['Ranged Weapon', 'Melee Weapon', 'Explosive'], custom: true, multi: true, on: { label: 'Readied' }, stats })],
+            items: [{ id: 'i_rifle', name: 'Long Rifle', key: 'LongRifle', category: 'Ranged Weapon', stats: { wsk: 'Guns', acc: 5, wt: 10, cr: 1000, dd: 4, half: 500, maxrange: 1800 } },
+                { id: 'i_flamer', name: 'Flamer', key: 'Flamer', category: 'Ranged Weapon', stats: { wsk: 'Liquid Projector', acc: 2, wt: 18, cr: 900, maxrange: 20 } },
+                { id: 'i_sword', name: 'Shortsword', key: 'Shortsword', category: 'Melee Weapon', stats: { wsk: 'Shortsword', wt: 2, cr: 300, da: -2, db: 1 } },
+                { id: 'i_proto', name: 'Prototype', key: 'Prototype', category: 'Ranged Weapon', vis: 'gm', stats: { wsk: 'Guns', acc: 6, wt: 9, cr: 9000, dd: 5, half: 800, maxrange: 3200 } }] }, { F, gmView: true });
+        const sG = mkG(wStats), vG = cleanSystem(sG, { F, gmView: false });
+        const finder = sys => { const by = {}; (sys.items || []).forEach(e => { (by[e.name.toLowerCase()] = by[e.name.toLowerCase()] || []).push(e); }); return nm => by[String(nm).trim().toLowerCase()] || []; };
+        const findG = finder(sG), findV = finder(vG);
+        // the website's export shape (inventory.weapons.blasters = customBlasters as stored; the last-but-one a 2025 row; the last one stored in a box)
+        const gun = (customName, baseType, more) => Object.assign({ customName, baseType, baseSkill: 'Guns (Rifle)', finalDamage: '4d', finalDamageType: 'energy', finalAccuracy: 5, finalRateOfFire: '1', finalShots: 20, finalRecoil: 2, finalWeight: 10, finalCost: 1000, equipped: false }, more || {});
+        const fileG = () => ({ name: 'Vex', inventory: { weapons: {
+            blasters: [gun('Long Rifle', 'Long Rifle', { equipped: true }), gun('Emitter Rifle', 'Long Rifle', { finalWeight: 10.5, finalCost: 1250 }), gun('Coil Rifle', 'Long Rifle', { finalWeight: 11, finalCost: 1600 }),
+                gun('Flamer', 'Flamer', { baseSkill: 'Liquid Projector', finalDamage: 'By Ammo', finalDamageType: 'burn', finalAccuracy: 2, finalWeight: 18, finalCost: 900 }),
+                gun('Prototype', 'Prototype', { finalDamage: '5d', finalAccuracy: 6, finalWeight: 9, finalCost: 9000 }),
+                { customName: 'Zabrak Battle Cannon', name: 'Zabrak Battle Cannon', baseType: 'Heavy Rifle', baseSkill: 'Guns (Rifle)', finalDamage: '5d6+1', finalDamageType: 'burn(2)', finalAccuracy: 8, baseStrength: 12, baseWeight: 14, baseCost: 4500, baseHalfDamageRange: 700, finalWeight: 15, finalRateOfFire: '3' },
+                gun('Boxed Pistol', 'Pistol', { finalWeight: 2, finalCost: 300, storageLocationId: 'b1' })],
+            melee: [{ customName: 'Short Sword', name: 'Short Sword', baseType: 'Shortsword', baseSkill: 'Shortsword', finalDamage: 'sw-2', finalDamageType: 'cut', finalReach: '1', finalWeight: 2, finalCost: 300 }] } } });
+        // a row id is made afresh at every reading: each as its place of first appearance
+        const norm = v => { const seen = {}; let k = 0; return j(v).replace(/"w_sb[a-z0-9]+"/g, m => seen[m] || (seen[m] = '"w_' + (++k) + '"')); };
+        const gmCopy = (file, sys, find) => { const ro = S.sbRowOps(file, sys, find), ch = { id: 'c_g', name: 'G', ownerId: 'u_a', npc: false, values: {} }, refused = []; ro.ops.forEach(o => { const r = S.applyRowOp(sys, ch, o.f, o.q, F, {}); if (r.ok) ch.values[o.f] = r.value; else refused.push(o.q.op + ':' + r.reason); }); return { ro, ch, refused }; };
+        const making = () => ({ id: 'c_m', name: 'Vex', ownerId: 'u_a', npc: false, making: 1, values: {} });
+        const fillOf = file => S.fillMaking(sG, making(), S.sbFill(file, vG, F, findV), F, { view: vG, lib: null, now: 1000 });
+        const before = file => { const g = gmCopy(file, sG, findG), fl = fillOf(file); return crypto.createHash('sha256').update(norm([g.ro, g.ch.values, g.refused, S.sbFill(file, vG, F, findV), fl])).digest('hex'); };
+        const PIN = '0196b4726b3ef4a83804e394a655e055756606a5be9dbc389131a911a4126051';   // taken on the tree before the range was read (2026-10-03)
+        // the file with a range on each blaster, in its own order (undefined: no field), and one on the melee row
+        const withR = (rs, melee) => { const f = fileG(); rs.forEach((r, i) => { if (r !== undefined) f.inventory.weapons.blasters[i].finalHalfDamageRange = r; }); if (melee !== undefined) f.inventory.weapons.melee[0].finalHalfDamageRange = melee; return f; };
+        const rd = v => { const r = S.sbRange(v); return r ? r.half + '/' + r.max : null; };
+        // the first four blasters as the catalogue prints them, with an Emitter and the Coils fitted, and with the Emitter and the Coils' Max taken off again
+        const plain = ['500/1800', '500/1800', '500/1800', '20'], fitted = ['500/1800', '625/1800', '625/2250', '25'], off = ['500/1800', '500/1800', '625/1800', '20'];
+
+        // the parser
+        const good = ['500/1800', '625/1800', ' 500 / 1800 ', '500/\t1800\n', '10', ' 20 ', '0', '0/0', '1000000/1000000', '1000000', '0500/01800', '1800/500', ' '.repeat(39) + '5'];
+        check('bridge range, the parser (sbRange): a pair reads as 1/2D and Max, one figure as Max alone with 1/2D 0 (it never halves) — whole numbers from 0 to 1,000,000, white space allowed around a figure, a pair taken as written',
+            j(good.map(rd)) === j(['500/1800', '625/1800', '500/1800', '500/1800', '0/10', '0/20', '0/0', '0/0', '1000000/1000000', '0/1000000', '500/1800', '1800/500', '0/5']) && j(S.sbRange('625/1800')) === j({ half: 625, max: 1800 }) && j(S.sbRange('20')) === j({ half: 0, max: 20 }), j(good.map(rd)));
+        const hostile = [null, '', ' ', 'far', 'By Ammo', '500/1800 yd', 'Range 500/1800', '-5/100', '500/-1', '-10', '+500/1800', '500/1800/3000', '500//1800', '/1800', '500/', '/', '1000001', '1000001/5', '500/1000001', '99999999', '12345678/5', '5e2/1800', '500.5/1800', '500/1800.0', '0x10', '1,800', '500/1,800', '500\\1800', '500|1800', '500-1800',
+            '５００/1800', '٥٠٠', '500/1800\u0000', ' '.repeat(40) + '5', 700, 0, 500.5, NaN, Infinity, true, false, ['500/1800'], [500, 1800], { half: 500, max: 1800 }, { toString() { return '500/1800'; } }, Object('500/1800')];
+        const readH = hostile.map(rd).concat([rd(undefined)]);
+        check('bridge range, the parser: anything else is nothing, never a partial read — not a string (a 2025 sheet\'s bare number, a list, an object that would print as a pair), empty, text before or after, a sign, a third figure, a missing figure, a figure past the bound, a decimal, an exponent, a comma, another separator, digits of another script, a string past 40 characters',
+            readH.length === 47 && readH.every(x => x === null), j(hostile.map((h, i) => [i, rd(h)]).filter(x => x[1] !== null)));
+
+        // a file without the field: byte for byte what it gave before
+        const g0 = gmCopy(fileG(), sG, findG), w0 = g0.ch.values.f_wp || [], f0 = fillOf(fileG());
+        check('bridge range: a file whose weapons carry no finalHalfDamageRange gives exactly what it gave before the range was read — the ops, the GM\'s copy, the players\'-view fill and its result (SHA-256 taken on the tree before the change; a 2025 row\'s baseHalfDamageRange is not read)',
+            before(fileG()) === PIN && !g0.refused.length && w0.length === 7 && !g0.ro.ops.some(o => o.q.op === 'ov' && o.q.ov.stats && ('half' in o.q.ov.stats || 'maxrange' in o.q.ov.stats)), before(fileG()));
+        check('bridge range: every form the parser does not read, on every blaster of the file, leaves the rows exactly as a file without the field (the entry\'s pair stands; never an error, never a refused op)',
+            hostile.every(h => before(withR([h, h, h, h, h, h, h], h)) === PIN), j(hostile.map((h, i) => [i, before(withR([h, h, h, h, h, h, h], h)) === PIN]).filter(x => !x[1])));
+
+        // the GM's copy: present and different, present and equal, one figure, a custom row
+        const A = withR(['500/1800', '625/1800', '625/2250', '25', '900/3200', '700/2100', '50/150'], '5/10'), gA = gmCopy(A, sG, findG), wA = gA.ch.values.f_wp || [];
+        const ovOps = ro => ro.ops.filter(o => o.q.op === 'ov').map(o => o.q.ov);
+        const sG2 = JSON.parse(j(sG)); sG2.items[0].stats.half = 550; sG2.items[0].stats.maxrange = 2000;   // the entry changed later
+        const rs = (sys, row) => { const d = (S.rowDef(sys, row) || {}).def || {}, st = d.stats || {}; return [st.half, st.maxrange]; };
+        check('bridge range, the GM\'s copy: a figure that differs from the entry\'s is that copy\'s own value (a Focusing Emitter\'s 1/2D alone; the Coils\' both), GM-set as its weight and cost are; one that equals the entry\'s is not — the bridge writes it null, the entry\'s own — so the row whose pair is its entry\'s is the plain linked row it is without the field; the range rides in an op of its own after the row\'s (every other op as without the field)',
+            !gA.refused.length && wA.length === 7 && norm(wA[0]) === norm(w0[0]) && !('ov' in wA[0]) && j(wA[1].ov) === j({ name: 'Emitter Rifle', stats: { wt: 10.5, cr: 1250, half: 625 }, held: ['wt', 'cr', 'half'] })
+            && j(wA[2].ov) === j({ name: 'Coil Rifle', stats: { wt: 11, cr: 1600, half: 625, maxrange: 2250 }, held: ['wt', 'cr', 'half', 'maxrange'] })
+            && j(ovOps(gA.ro).slice(0, 5)) === j([{ stats: { half: null, maxrange: null } }, { name: 'Emitter Rifle', stats: { wt: 10.5, cr: 1250 } }, { stats: { half: 625, maxrange: null } }, { name: 'Coil Rifle', stats: { wt: 11, cr: 1600 } }, { stats: { half: 625, maxrange: 2250 } }])
+            && j(ovOps(gA.ro).filter(o => !('half' in (o.stats || {})))) === j(ovOps(g0.ro)) && gA.ro.rows === g0.ro.rows
+            && j([rs(sG, wA[0]), rs(sG, wA[1]), rs(sG, wA[2])]) === j([[500, 1800], [625, 1800], [625, 2250]]), j([gA.refused, wA.slice(0, 3), ovOps(gA.ro).slice(0, 5)]));
+        check('bridge range: a later change to the library entry still reaches what the copy does not hold as its own (the plain row both figures, the Emitter\'s row its Max; the Coils\' row keeps its own pair)',
+            j([rs(sG2, wA[0]), rs(sG2, wA[1]), rs(sG2, wA[2])]) === j([[550, 2000], [625, 2000], [625, 2250]]), j([rs(sG2, wA[0]), rs(sG2, wA[1]), rs(sG2, wA[2])]));
+        const one = gmCopy(withR(['300', undefined, undefined, '20', undefined, '10']), sG, findG).ch.values.f_wp || [], zero = gmCopy(withR(['0', undefined, undefined, '0/0', undefined, '0']), sG, findG).ch.values.f_wp || [];
+        check('bridge range, one figure: it is the Max and the 1/2D reads 0 — on an entry that prints a pair both become the copy\'s own (1/2D 0: it never halves), on a one-figure entry only a Max that differs (the same Max: the plain row), on a custom row the Max alone; a pair on a custom row both; a 0 is read as any figure (a row of its own stores none: it reads 0 already)',
+            j(wA[3].ov) === j({ stats: { maxrange: 25 }, held: ['maxrange'] }) && j(ovOps(gA.ro)[5]) === j({ stats: { half: null, maxrange: 25 } }) && j(one[0].ov) === j({ stats: { half: 0, maxrange: 300 }, held: ['half', 'maxrange'] }) && j(rs(sG, one[0])) === j([0, 300])
+            && norm(one[3]) === norm(w0[3]) && !('ov' in one[3]) && j(one[5].def.stats) === j({ wt: 15, cr: 0, wsk: 'Guns', acc: 8, minst: 12, dd: 5, da: 1, maxrange: 10 })
+            && j(wA[5].def.stats) === j({ wt: 15, cr: 0, wsk: 'Guns', acc: 8, minst: 12, dd: 5, da: 1, half: 700, maxrange: 2100 }) && !wA[5].defId
+            && j(zero[0].ov) === j({ stats: { half: 0, maxrange: 0 }, held: ['half', 'maxrange'] }) && j(zero[3].ov) === j({ stats: { maxrange: 0 }, held: ['maxrange'] }) && j(zero[5].def.stats) === j(w0[5].def.stats), j([wA[3], one, zero]));
+        check('bridge range: only a ranged row reads it — a melee row carrying the field and a stored weapon (stowed gear) are made as without it',
+            norm(wA[6]) === norm(w0[6]) && j(wA[6].ov) === j({ name: 'Short Sword' }) && j((gA.ch.values.f_gear || []).map(r => r.def.stats)) === j([{ wt: 2, cr: 300 }]) && norm(gA.ch.values.f_gear) === norm(g0.ch.values.f_gear), j([wA[6], gA.ch.values.f_gear]));
+
+        // only where the list has both stats
+        const drop = ks => wStats.filter(s => ks.indexOf(s.key) < 0), asPick = wStats.map(s => s.key === 'half' ? { key: 'half', kind: 'pick', opts: [{ label: 'Near', name: 'DX' }] } : s);
+        const others = [drop(['half', 'maxrange']), drop(['half']), drop(['maxrange']), asPick].map(st => { const sy = mkG(st), fd = finder(sy), a = gmCopy(A, sy, fd), b = gmCopy(fileG(), sy, fd); return [a.refused.length, norm([a.ro, a.ch.values]) === norm([b.ro, b.ch.values]), j(((a.ch.values.f_wp || [])[1] || {}).ov)]; });
+        const sCap = mkG(wStats.map(s => s.key === 'half' ? { key: 'Half' } : s.key === 'maxrange' ? { key: 'MaxRange', label: 'Max' } : s)), wCap = gmCopy(A, sCap, finder(sCap)).ch.values.f_wp || [];
+        const capP = S.sbProposal(sCap, gmCopy(withR(fitted), sCap, finder(sCap)).ch, withR(off), F, finder(sCap));
+        const sLean = mkG(drop(['wt', 'cr'])), gLean = gmCopy(A, sLean, finder(sLean)), wLean = gLean.ch.values.f_wp || [];
+        check('bridge range: only where the Weapons list has both numbers, half and maxrange — a list with neither, with one of the two, or with one of them a choice reads nothing (the rows exactly as without the field, no op refused: the copy keeps its own name and build); the keys are the list\'s own spelling (Half, MaxRange), in the row, in a custom row and in a proposal that takes one back; the range needs no other stat of the list (one without weight and cost takes it)',
+            j(others) === j([0, 1, 2, 3].map(() => [0, true, j({ name: 'Emitter Rifle', stats: { wt: 10.5, cr: 1250 }, held: ['wt', 'cr'] })])) && j(wCap[1].ov) === j({ name: 'Emitter Rifle', stats: { wt: 10.5, cr: 1250, Half: 625 }, held: ['wt', 'cr', 'Half'] })
+            && wCap[5].def.stats.Half === 700 && wCap[5].def.stats.MaxRange === 2100 && !('half' in wCap[5].def.stats)
+            && j(((wLean[1] || {}).ov || {}).stats) === j({ half: 625 }) && j(((wLean[2] || {}).ov || {}).stats) === j({ half: 625, maxrange: 2250 }) && !('ov' in (wLean[0] || { ov: 1 }))
+            && j(capP.changes.map(c => [c.label, c.from, c.to, c.ov])) === j([['Weapons: Emitter Rifle', 'Half 625', 'Half 500', { stats: { Half: null } }], ['Weapons: Coil Rifle', 'MaxRange 2250', 'MaxRange 1800', { stats: { MaxRange: null } }], ['Weapons: Flamer', 'MaxRange 25', 'MaxRange 20', { stats: { MaxRange: null } }]]), j([others, wCap[1], wCap[5], capP.changes]));
+
+        // a fill while making: the owner's rights, the players' view
+        const fA = fillOf(A), wF = fA.values.f_wp || [], wF0 = f0.values.f_wp || [];
+        check('bridge range, a fill while making (the players\' view, the owner\'s rights): the same figures as the copy\'s own values, theirs (none GM-set); the row whose pair is its entry\'s plain; nothing left out, the counts as without the field',
+            fA.ok === true && fA.left === 0 && fA.done === f0.done && f0.left === 0 && wF.length === 7 && norm(wF[0]) === norm(wF0[0]) && !('ov' in wF[0]) && j(wF[1].ov) === j({ name: 'Emitter Rifle', stats: { wt: 10.5, cr: 1250, half: 625 } })
+            && j(wF[2].ov) === j({ name: 'Coil Rifle', stats: { wt: 11, cr: 1600, half: 625, maxrange: 2250 } }) && j(wF[3].ov) === j({ stats: { maxrange: 25 } }) && j(wF[5].def.stats) === j(wA[5].def.stats), j([fA.done, fA.left, wF]));
+
+        // GM-only: nothing of a GM-only entry is read on the players' view; on the host its owner is shown the row's own figures
+        const sG3 = JSON.parse(j(sG)); sG3.items[3].stats.half = 111; sG3.items[3].stats.maxrange = 222; const vG3 = cleanSystem(sG3, { F, gmView: false });
+        const fill3 = S.fillMaking(sG3, making(), S.sbFill(A, vG3, F, finder(vG3)), F, { view: vG3, lib: null, now: 1000 });
+        const items = {}; sG.items.forEach(e => { items[e.id] = e; });
+        const ownSees = file => { const g = gmCopy(file, sG, findG), row = (g.ch.values.f_wp || [])[4] || {}, mine = ((S.charFor(g.ch, vG, 'u_a', { items }) || { values: {} }).values.f_wp || []).filter(r => r.def && r.def.name === 'Prototype')[0] || { def: {} }; return [row.defId, j(row.ov), j(mine.def.stats)]; };
+        check('bridge range and what is GM-only: on the players\' view a weapon named like a GM-only entry is a row of its own with the file\'s figures, the same whatever that entry holds (nothing of it is there to read); on the host the GM\'s copy links it and holds only what differs, and its owner is shown the file\'s own figures either way',
+            !S.sbFill(A, vG, F, findV).ops.some(o => o.q.defId === 'i_proto') && !wF[4].defId && wF[4].def.stats.half === 900 && wF[4].def.stats.maxrange === 3200 && norm(S.sbFill(A, vG3, F, finder(vG3))) === norm(S.sbFill(A, vG, F, findV)) && norm(fill3) === norm(fA)
+            && j(ownSees(A)) === j(['i_proto', j({ stats: { half: 900 }, held: ['half'] }), j({ wsk: 'Guns', acc: 6, wt: 9, cr: 9000, dd: 5, half: 900, maxrange: 3200 })])
+            && j(ownSees(withR([undefined, undefined, undefined, undefined, '800/3200']))) === j(['i_proto', undefined, j({ wsk: 'Guns', acc: 6, wt: 9, cr: 9000, dd: 5, half: 800, maxrange: 3200 })]), j([wF[4], ownSees(A), ownSees(withR([undefined, undefined, undefined, undefined, '800/3200']))]));
+
+        // a player's upload: proposed changes, applied only where ticked
+        const ch0 = gmCopy(withR(plain), sG, findG).ch, was0 = j(ch0.values);
+        const lines = p => p.changes.map(c => [c.kind, c.label, c.from, c.to, c.accept, c.held === true, c.ov]);
+        const p0 = S.sbProposal(sG, ch0, withR(plain), F, findG), p1 = S.sbProposal(sG, ch0, withR(fitted), F, findG);
+        check('bridge range, a player\'s upload: the file a character was copied from proposes nothing; a file whose weapons now carry fitted parts proposes each weapon\'s range as a change to that copy\'s own values, like any other stat, ticked (the GM did not set it)',
+            p0.changes.length === 0 && j(lines(p1)) === j([['stat', 'Weapons: Emitter Rifle', 'half 500', 'half 625', true, false, { stats: { half: 625 } }], ['stat', 'Weapons: Coil Rifle', 'half 500, maxrange 1800', 'half 625, maxrange 2250', true, false, { stats: { half: 625, maxrange: 2250 } }],
+                ['stat', 'Weapons: Flamer', 'maxrange 20', 'maxrange 25', true, false, { stats: { maxrange: 25 } }]]), j([p0.changes, lines(p1)]));
+        const stored = S.cleanUploads(JSON.parse(j([{ id: 'up_1', charId: 'c_g', from: 'u_a', name: 'Pat', at: 1, changes: p1.changes }])))[0];   // as the GM's queue keeps it (saved, cleaned on load)
+        const tick1 = {}; tick1[p1.changes[0].id] = true; const ap1 = S.sbApplyProposal(sG, ch0, stored, tick1, F), w1 = ap1.values.f_wp || [];
+        const tickAll = {}; p1.changes.forEach(c => { tickAll[c.id] = true; }); const apAll = S.sbApplyProposal(sG, ch0, stored, tickAll, F), ch1 = Object.assign({}, ch0, { values: apAll.values }), wAll = apAll.values.f_wp || [];
+        check('bridge range, Review: only what is ticked applies — one tick moves that weapon alone (the others as they were, still proposed afterwards), every tick leaves nothing to propose; the character itself is never touched; a second upload of the same file proposes nothing',
+            stored.changes.length === 3 && ap1.done === 1 && ap1.failed === 0 && j(w1[1].ov) === j({ name: 'Emitter Rifle', stats: { wt: 10.5, cr: 1250, half: 625 }, held: ['wt', 'cr', 'half'] }) && j(w1[2]) === j(ch0.values.f_wp[2]) && j(w1[3]) === j(ch0.values.f_wp[3])
+            && j(S.sbProposal(sG, Object.assign({}, ch0, { values: ap1.values }), withR(fitted), F, findG).changes.map(c => c.label)) === j(['Weapons: Coil Rifle', 'Weapons: Flamer'])
+            && apAll.done === 3 && apAll.failed === 0 && j(wAll[2].ov.stats) === j({ wt: 11, cr: 1600, half: 625, maxrange: 2250 }) && j(wAll[3].ov) === j({ stats: { maxrange: 25 }, held: ['maxrange'] }) && wAll.length === 7
+            && S.sbProposal(sG, ch1, withR(fitted), F, findG).changes.length === 0 && j(ch0.values) === was0, j([ap1, apAll.done, apAll.failed, wAll.slice(1, 4)]));
+        // the parts taken off again: the file's pair is the entry's, the copy still holds its own
+        const p2 = S.sbProposal(sG, ch1, withR(off), F, findG), tick2 = {}; p2.changes.forEach(c => { tick2[c.id] = true; });
+        const ap2 = S.sbApplyProposal(sG, ch1, S.cleanUploads(JSON.parse(j([{ id: 'up_2', charId: 'c_g', from: 'u_a', name: 'Pat', at: 2, changes: p2.changes }])))[0], tick2, F), w2 = ap2.values.f_wp || [];
+        const apNone = S.sbApplyProposal(sG, ch1, p2, {}, F), apDef = {}; p2.changes.forEach(c => { if (c.accept) apDef[c.id] = true; });
+        check('bridge range, a part taken off again: a figure the file states as its entry\'s own, on a copy that holds one of its own, is offered back to the entry\'s (null) — a value the GM set (here: applied in Review) unticked and marked; ticked, the row holds it no longer (the Emitter\'s row as it was, the Coils\' row keeping the 1/2D the file still has, the flamer plain), and nothing is left to propose',
+            j(lines(p2)) === j([['stat', 'Weapons: Emitter Rifle', 'half 625', 'half 500', false, true, { stats: { half: null } }], ['stat', 'Weapons: Coil Rifle', 'maxrange 2250', 'maxrange 1800', false, true, { stats: { maxrange: null } }], ['stat', 'Weapons: Flamer', 'maxrange 25', 'maxrange 20', false, true, { stats: { maxrange: null } }]])
+            && Object.keys(apDef).length === 0 && apNone.done === 0 && j(apNone.values) === j(ch1.values) && ap2.done === 3 && ap2.failed === 0 && j(w2[1]) === j(ch0.values.f_wp[1]) && j(w2[2].ov) === j({ name: 'Coil Rifle', stats: { wt: 11, cr: 1600, half: 625 }, held: ['wt', 'cr', 'half'] }) && !('ov' in w2[3])
+            && S.sbProposal(sG, Object.assign({}, ch1, { values: ap2.values }), withR(off), F, findG).changes.length === 0, j([lines(p2), ap2.done, ap2.failed, w2.slice(1, 4)]));
+        // a character filled while making holds the figures as its owner's own: an upload's change to them is ticked; a new weapon comes as a new row with its range
+        const mini = r => { const f = withR(r); f.inventory.weapons.blasters.length = 4; f.inventory.weapons.melee = []; return f; };
+        const chF = { id: 'c_g', name: 'G', ownerId: 'u_a', npc: false, values: S.fillMaking(sG, making(), S.sbFill(mini(fitted), vG, F, findV), F, { view: vG, lib: null, now: 1000 }).values };
+        const p3 = S.sbProposal(sG, chF, mini(off), F, findG), bare = { id: 'c_g', name: 'G', ownerId: 'u_a', npc: false, values: {} }, p4 = S.sbProposal(sG, bare, mini(fitted), F, findG), tick4 = {}; p4.changes.forEach(c => { tick4[c.id] = true; });
+        const ap4 = S.sbApplyProposal(sG, bare, S.cleanUploads(JSON.parse(j([{ id: 'up_4', charId: 'c_g', from: 'u_a', name: 'Pat', at: 4, changes: p4.changes }])))[0], tick4, F);
+        check('bridge range, an upload on a character filled from a file: the figures are its owner\'s own, so taking them back is ticked; a weapon the character lacks is proposed as a new row and arrives with its range (the same rows as the GM\'s own copy of that file)',
+            j(lines(p3).map(x => [x[1], x[2], x[3], x[4], x[5]])) === j([['Weapons: Emitter Rifle', 'half 625', 'half 500', true, false], ['Weapons: Coil Rifle', 'maxrange 2250', 'maxrange 1800', true, false], ['Weapons: Flamer', 'maxrange 25', 'maxrange 20', true, false]])
+            && j(p4.changes.map(c => c.kind)) === j(['add', 'add', 'add', 'add']) && ap4.done === 4 && ap4.failed === 0 && norm(ap4.values) === norm(gmCopy(mini(fitted), sG, findG).ch.values), j([lines(p3), p4.changes.map(c => c.kind), ap4]));
+
+        // a second copy never piles values up (sheets.js fromShadowBase: each list the file fills is emptied, then the ops)
+        const again = (ch, file) => { const ro = S.sbRowOps(file, sG, findG); ro.lists.forEach(fid => { ch.values[fid] = (Array.isArray(ch.values[fid]) ? ch.values[fid] : []).filter(x => x && x.hid === 1); }); ro.ops.forEach(o => { const r = S.applyRowOp(sG, ch, o.f, o.q, F, {}); if (r.ok) ch.values[o.f] = r.value; }); return ch; };
+        const twice = again(JSON.parse(j(gA.ch)), A), other = again(JSON.parse(j(gA.ch)), withR(['500/1800', '700/1800', '625/2250', '25', '900/3200', '700/2100', '50/150'], '5/10')), back = again(JSON.parse(j(gA.ch)), fileG());
+        check('bridge range, copying again: the same file twice gives the same rows (seven weapons, each figure once); another range replaces the first; a file without the field gives the plain rows again',
+            norm(twice.values) === norm(gA.ch.values) && twice.values.f_wp.length === 7 && j(other.values.f_wp[1].ov) === j({ name: 'Emitter Rifle', stats: { wt: 10.5, cr: 1250, half: 700 }, held: ['wt', 'cr', 'half'] }) && other.values.f_wp.length === 7 && norm(back.values) === norm(g0.ch.values), j([twice.values.f_wp, other.values.f_wp[1]]));
+
+        const ixB = fs.readFileSync(path.join(app, 'index.html'), 'utf8');
+        check('bridge range: Help\'s ShadowBase paragraph says a ranged weapon\'s range comes across',
+            ixB.includes('weapons (by their own name, else their base type; readied; a ranged weapon&rsquo;s range with its fitted parts counted, where the list has Half and MaxRange stats), explosives,'));
+    }
+
     /* ---- Stage 6 F8: the roll outcomes option ---- */
     {
         const base = { v: 1, name: 'O', rolls: [], fields: [] };

@@ -131,6 +131,22 @@ for (const t of targets) {
 }
 const ver = (src.match(/TUTORIAL_VERSION = '([^']+)'/) || [])[1];
 const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'system', 'resources', 'app', 'package.json'), 'utf8')).version;
+// The tour's version is the app's version of the release its STEPS last changed in, and Help shows it ("Tour version …"): it is a version, and never
+// ahead of the app that carries it. A branch cut while a later number was open and folded into an earlier one (1.5.1 opened, then the changes went
+// out as 1.5.0 again) would otherwise say "Tour version 1.5.1" inside a 1.5.0 app. Behind the app stays a note: the tour may not have changed.
+{
+    const parts = v => (/^\d{1,4}\.\d{1,4}\.\d{1,4}$/.test(String(v)) ? String(v).split('.').map(Number) : null);
+    const ahead = (a, b) => { for (let i = 0; i < 3; i++) { if (a[i] !== b[i]) return a[i] > b[i]; } return false; };
+    const isAhead = (a, b) => ahead(parts(a), parts(b));
+    // the comparison itself, by number and not by text (1.10.0 is ahead of 1.9.9), an equal version never ahead
+    const cmpOk = isAhead('1.5.1', '1.5.0') && !isAhead('1.5.0', '1.5.0') && !isAhead('1.4.9', '1.5.0') && isAhead('1.10.0', '1.9.9') && !isAhead('1.9.9', '1.10.0') && isAhead('2.0.0', '1.99.99') && !isAhead('1.5.0', '1.5.1')
+        && parts('1.5') === null && parts('1.5.x') === null && parts(undefined) === null && parts('1.5.0 ') === null;
+    const tv = parts(ver), pv = parts(String(pkg).split('-')[0]);
+    if (!cmpOk) { bad++; console.log('FAIL      the tour\'s version: the comparison of two versions is wrong'); }
+    else if (!tv || !pv) { bad++; console.log('FAIL      the tour\'s version: TUTORIAL_VERSION (' + ver + ') and the app\'s version (' + pkg + ') must each be three numbers, as 1.5.0'); }
+    else if (ahead(tv, pv)) { bad++; console.log('FAIL      the tour\'s version ' + ver + ' is ahead of the app\'s ' + pkg + ' — Help would say "Tour version ' + ver + '" inside Waypoint ' + pkg + ': set TUTORIAL_VERSION in scripts/tutorial.js to ' + pkg + ' (the number this change goes out under)'); }
+    else console.log('ok        the tour\'s version (' + ver + ') is a version and not ahead of the app\'s (' + pkg + '), compared by number');
+}
 if (ver !== pkg) console.log('note      tutorial version ' + ver + ' vs app ' + pkg + ' — bump TUTORIAL_VERSION if the tour or demo changed this release');
 if (bad) { console.log('\n' + bad + ' tutorial target(s) missing.'); process.exit(1); }
 console.log('\nTutorial targets all present (' + targets.length + ' steps checked).');

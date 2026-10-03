@@ -15,7 +15,7 @@ import { save, toast, canPersistLocal, resetHistory, takeSafetyCopy, withoutHist
 import { updateCampaignSelect, updateSidebarNav, navigateToMap } from './sidebar.js';
 import { showConfirm } from './dialogs.js';
 
-var TUTORIAL_VERSION = '1.5.1';          // bump when STEPS or the demo campaign change
+var TUTORIAL_VERSION = '1.5.0';          // bump when STEPS or the demo campaign change
 var TUTORIAL_CAMP_ID = 'camp_tutorial';  // one Tutorial campaign per save
 var TUTORIAL_NAME = 'Tutorial';
 var TUTORIAL_ART_CAT = 'Default';   // the category every tutorial picture sits in (its own shelf, not under All)

@@ -484,7 +484,7 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
 
                           if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') {
 
-                              if (!wItem.hidden) { window.wpNet.requestTravel(wItem.id); toast('Traveling...'); }
+                              if (!wItem.hidden) { window.wpNet.requestTravel(wItem.id); if (wItem.portalLock !== true) toast('Traveling...'); }   // a portal locked for players: the request still goes (the host is the judge, and its answer says why), without the promise
 
                               return;
 
@@ -615,10 +615,11 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
                       var campP = getActiveCampaign();
                       var destP = campP && campP.items[wItem.targetMapId];
                       var isClientP = window.wpNet && window.wpNet.active && window.wpNet.role === 'client';
+                      var lockTipP = portalLockTip(wItem, getActiveMap(), !!isClientP);   // a portal's own lock: said under where it leads
                       tt.innerHTML = '<div class="room" style="border-left-color:var(--gold); margin:0; pointer-events:none;">' +
                                      '<div class="rn">' + esc(wItem.name || (wItem.type === 'trigger' ? 'Portal zone' : 'Portal')) + '</div>' +
                                      '<div class="rc" style="color:var(--gold)">&rarr; ' + esc(destP && destP.meta && destP.meta.title || 'another map') + '</div>' +
-                                     '<div class="rc" style="color:var(--dim); font-size:11px;">' + (isClientP ? 'Drop your token here (or double-click) to travel' : 'Double-click to travel · drop a player\'s token here to send them through') + '</div>' +
+                                     lockTipP + (lockTipP && isClientP ? '' : '<div class="rc" style="color:var(--dim); font-size:11px;">' + (isClientP ? 'Drop your token here (or double-click) to travel' : 'Double-click to travel · drop a player\'s token here to send them through') + '</div>') +
                                      '</div>';
                       tt.style.display = 'block';
                       return;
@@ -647,7 +648,8 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
                   var destRoomTT = destTT && r.targetRoomId ? (destTT.rooms || []).find(function(x) { return x.id === r.targetRoomId; }) : null;
                   var lockTT = destTT && destTT.meta && destTT.meta.playerLock ? ' \u00b7 \uD83D\uDD12 ' + (isClientTT ? 'closed for now' : 'locked for players') : '';
                   var destLine = destTT ? '<div class="rn" style="color:var(--gold);">\u2192 ' + esc(destTT.meta && destTT.meta.title || r.targetMapId) + (destRoomTT ? ' \u00b7 ' + esc(destRoomTT.name || '') : '') + lockTT + '</div>' : '';
-                  var travelHint = r.targetMapId ? destLine + '<div class="rc" style="color:var(--gold)">' + (isClientTT ? 'Drop your token here (or double-click) to travel' : 'Double-click to travel · drop a player\'s token here to send them through') + '</div>' : '';
+                  var lockTipTT = portalLockTip(wItem, activeMap, !!isClientTT);   // a portal's own lock: a player is told it is locked in place of how to travel
+                  var travelHint = r.targetMapId ? destLine + (lockTipTT && isClientTT ? '' : '<div class="rc" style="color:var(--gold)">' + (isClientTT ? 'Drop your token here (or double-click) to travel' : 'Double-click to travel · drop a player\'s token here to send them through') + '</div>') : '';
 
                   var thumb = r.image ? '<img src="'+esc(resolveImg(r.image))+'" loading="lazy" decoding="async" style="width:100%; height:90px; object-fit:cover; border-radius:4px; margin-bottom:6px; display:block;">' : '';
 
@@ -661,7 +663,7 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
                                  '<div class="rc" style="color:'+ccol+'">'+esc(c.label)+'</div>' +
                                  (!isClientTT && r.notes ? '<div class="rc" style="color:var(--ink); font-size:11px; white-space:pre-wrap; margin-top:4px; text-transform:none; letter-spacing:0;">' + esc(String(r.notes).slice(0, 320)) + (String(r.notes).length > 320 ? '\u2026' : '') + '</div>' : '') +   // GM only: the room's notes ride the hover card
 
-                                 travelHint +
+                                 travelHint + lockTipTT +
 
                                  '<div class="badges">'+badgesHtml+'</div>' +
 
@@ -821,6 +823,9 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
           el.classList.toggle('wb-hidden-gm', !!item.hidden && !clientView);
 
           el.classList.toggle('wb-trap', !!item.trap && !!el.dataset.portal && !!item.hidden && !clientView);   // GM-only: an armed hidden trap portal
+          // [sinkcheck:portalcue-start]
+          el.classList.toggle('wb-portal-locked', item.portalLock === true && !!el.dataset.portal && !hideFromMe);   // a portal's own lock: a small lock beside its marker, for the GM and for players alike (style.css)
+          // [sinkcheck:portalcue-end]
           // [fogcheck:boardcue-start]
           el.classList.toggle('wb-blocks-sight', !!item.blocksSight && item.sightType !== 'door' && !clientView);
           var barrierIt = item.barrier === true && !item.blocksSight, doorIt = (item.blocksSight === true || barrierIt) && item.sightType === 'door';   // see-through barriers (1.5.1): a piece that stops movement and not sight; a door is a wall's or a barrier's
@@ -2647,6 +2652,31 @@ window.wpFitToGrid = fitToGrid;
       return true;
   }
   // [sinkcheck:targetmenu-end]
+  // [sinkcheck:portallock-start]
+  // A portal's own lock (the owner, 2026-10-03: "maybe add the ability to lock a portal from the play map") on the board: what a hover says of
+  // a locked portal, and the GM's menu row. A portal is fogcore isPortal's (its own Portal to Map, or its linked node's); only portalLock true
+  // counts. The hover's line is fixed words through esc — to a player that it is locked, to the GM how to unlock it. The row is the GM's alone
+  // (never a player's app, never the stream window), on a selection that holds a portal: Lock portal for players while any of them is
+  // unlocked, else Unlock portal; its markup holds fixed words only. The host is the judge of a crossing (net.js travelBar)
+  function portalLockOn(item, map) { var FC = window.wpFogCore; return !!(item && item.portalLock === true && FC && typeof FC.isPortal === 'function' && FC.isPortal(item, map)); }
+  function portalLockTip(item, map, client) {
+      if (!portalLockOn(item, map)) return '';
+      return '<div class="rc" style="color:var(--gold); font-size:11px;">' + esc(client === true ? '\uD83D\uDD12 Locked \u2014 the GM will unlock it when the time comes' : '\uD83D\uDD12 Locked for players \u2014 right-click it to unlock') + '</div>';
+  }
+  function portalLockRow(items, map) {
+      var n = window.wpNet, FC = window.wpFogCore;
+      if (window.wpStream || (n && n.active && n.role === 'client')) return null;
+      var ps = (Array.isArray(items) ? items : []).filter(function(w) { return !!(w && FC && typeof FC.isPortal === 'function' && FC.isPortal(w, map)); });
+      if (!ps.length) return null;
+      var lock = ps.some(function(w) { return w.portalLock !== true; });
+      return { lock: lock, items: ps, html: '<div class="menu-item cm-portal-lock" title="' + (lock ? 'No player travels through it until you unlock it: their double-click and a token they drop on it are refused, and they see a small lock on it. Dropping a player&rsquo;s token on it yourself, a summon and Bring still take them through.' : 'Players may travel through it again.') + '">' + (lock ? '&#128682; Lock portal for players' : '&#128682; Unlock portal') + '</div>' };
+  }
+  function portalLockSet(items, map) {
+      var row = portalLockRow(items, map); if (!row) return '';
+      row.items.forEach(function(w) { if (row.lock) w.portalLock = true; else delete w.portalLock; });
+      return row.lock ? 'locked' : 'unlocked';
+  }
+  // [sinkcheck:portallock-end]
   /* ---- click-away deselect ----
      Clicking anywhere that isn't the board, the Properties/Elements sidebar,
      the selection toolbar, a menu, or a dialog drops the selection, so the
@@ -6417,6 +6447,8 @@ document.addEventListener('contextmenu', function(e) {
                     return it && !it.aboveGrid;
                 });
                 html += '<div class="menu-item cm-grid">' + (anyUnderGrid ? '&#9650; Show Above Grid' : '&#9660; Put Under Grid') + '</div>';
+                var plRow = portalLockRow(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }), am);   // a portal's own lock: the GM's row, only where the selection holds a portal
+                if (plRow) html += plRow.html;
                 html += '<div class="menu-divider"></div>';
             }
             html += '<div class="menu-item cm-front">Bring to Front</div>';
@@ -6610,6 +6642,9 @@ document.addEventListener('contextmenu', function(e) {
                 } else if (action.includes('cm-dup')) {
                     duplicateWbItems(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }).filter(Boolean));
                     return;   // saved + rendered inside
+                } else if (action.includes('cm-portal-lock')) {   // a portal's own lock: the selected portals locked or unlocked together (saved and drawn again below, so the table gets it at once)
+                    var wentPL = portalLockSet(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }), am);
+                    if (wentPL) toast(wentPL === 'locked' ? 'Portal locked for players.' : 'Portal unlocked.');
                 } else if (action.includes('cm-lock')) {
                     var lockThem = selectedIds.some(function(sid) {
                         var it = am.whiteboard.find(function(x) { return x.id === sid; });

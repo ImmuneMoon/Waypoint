@@ -77,6 +77,10 @@ var GLYPH_K = { sound: 1, tremor: 2, presence: 3, heat: 4 };
 // from one: secretFieldIds, as for a sense's range) is the campaign's default on both sides, so the host never judges what a player sees by a
 // number their own screen cannot paint by. Unjudgeable (no system core or formula engine, or it throws): the default. One slot, kept on the
 // system object and its stamp
+// The eyes' arc (the owner's ruling of 2026-10-03): where the system names a field for it (combat.senses.arc, a number or a formula its player
+// can read: systemcore cleanSenses) a character's own sight arc is that field's value on its sheet, read by the very rule a sense's range is
+// (its player's own whole character, or waived; never a waiting token's): arc, whole degrees 1 to 360 (rounded, more than 360 is 360).
+// Absent where it gives 0, less or no number: the map's arc. What the arc is worth on a map is eyesArc's to say
 var _sightSec = { sys: null, u: null, sec: null };
 function sightSecret(camp, fid) {
     var S0 = window.wpSystemCore, F = window.wpFormula, sys = camp && camp.system;
@@ -108,6 +112,7 @@ function tokenSenses(token, map, camp, waived) {
     if (!sn) { if (tick) out.blind = true; return out; }
     var own = !!ch && (waived === true || (ch.npc !== true && ch.partial !== true && !!ch.ownerId && ch.ownerId === token.ownerId));
     out.sheet = own;
+    if (own && !token.waiting && sn.arc && typeof sn.arc === 'object') { var av = read(sn.arc.field), an = av === null ? 0 : Math.round(av); if (an >= 1) out.arc = Math.min(360, an); }   // the eyes' own arc, from the sheet (eyesArc)
     if (tick || (own && sn.blind && set(sn.blind))) out.blind = true;
     var list = campSenses(camp).concat(campMarkSenses(camp)), offs = [], marks = [], nul = nullsAt(map, token);   // senses S4: the mark senses after the full ones; S7a: what a null area switches off where it stands
     var ov = !token.waiting ? C.cleanTokSenses(token.senses) : null, byTok = Object.create(null);   // senses S2b: the token's own ranges come first (never a waiting token's)
@@ -201,13 +206,23 @@ function visionOf(map) {
     if (v && v.mode === 'all') return { mode: 'all', arc: 360 };
     return gridIsHexMap(map) ? { mode: 'arc', arc: def } : { mode: 'all', arc: 360 };
 }
+// The arc a token's eyes see through on a map (the owner's ruling of 2026-10-03), the one rule every reader of the eyes' arc asks: viewersFor,
+// lightSeen, the marks' viewers and the text of sight. Token facing off: all round (nothing can aim a cone; host and client agree through the
+// shared turning flag). A map whose Vision is All around: all round for every token (the map overrides). A map with a facing cone: the
+// character's own arc where its sheet gives one (ts.arc, tokenSenses), wider or narrower than the map's, else the map's. ts: that token's
+// tokenSenses, or nothing for the map's own arc
+function eyesArc(map, ts) {
+    if (window.wpVtt && !window.wpVtt.on('turning')) return 360;
+    var v = visionOf(map);
+    return v.mode === 'arc' && ts && typeof ts.arc === 'number' && ts.arc >= 1 ? ts.arc : v.arc;
+}
 function viewersFor(map, camp, ownerId, withH) {   // withH (item 19b): each viewer carries its token's height (h, yards)
-    var turningOn = !window.wpVtt || window.wpVtt.on('turning'); var out = [], arc = turningOn ? visionOf(map).arc : 360;   // facing feature off ⇒ the cone falls back to all-around (nothing can aim it); host + client agree via the shared turning flag
+    var out = [];   // each token's eyes by its own arc (eyesArc): facing feature off ⇒ all-around, as a map set All around; else the character's own, else the map's
     var waitSight = !!(camp && camp.newPlayers && typeof camp.newPlayers === 'object' && camp.newPlayers.sight === true);   // Onboarding F1a: a waiting token sees only when the campaign says so
     (map.whiteboard || []).forEach(function(w) {
         if (!w || w.hidden || w.type === 'light' || !(w.isChar || (w.waiting && waitSight))) return;
         if (ownerId && ownerId !== '*' && w.ownerId !== ownerId && !(ownerId === PARTY && playerTok(w))) return;   // R2 #14: the party sees by every player's token
-        var x = w.x + (w.w || 60) / 2, y = w.y + (w.h || 52) / 2, front = (w.rot || 0) + (w.front || 0), ts = tokenSenses(w, map, camp, !ownerId || ownerId === '*'), n0 = out.length;
+        var x = w.x + (w.w || 60) / 2, y = w.y + (w.h || 52) / 2, front = (w.rot || 0) + (w.front || 0), ts = tokenSenses(w, map, camp, !ownerId || ownerId === '*'), arc = eyesArc(map, ts), n0 = out.length;
         out.push(ts.blind ? { x: x, y: y, front: front, range: 0, arc: arc, blind: true } : { x: x, y: y, front: front, range: ts.sight, arc: arc });   // world facing = rot + front, so the arc follows the token's rotation; senses S3: blind eyes, their own cell
         if (ts.full.length) senseViewers(ts, arc).forEach(function(s) { var v = { x: x, y: y, front: front, range: s.range, arc: s.arc, sense: true }; if (s.pass) v.pass = true; if (s.dim) v.dim = true; if (s.veil) v.veil = true; out.push(v); });   // senses S2a: a viewer per full sense, after its token's eyes
         if (withH === true) { var hh = tokHeight(w, map, forPlayers(ownerId)); for (var hi = n0; hi < out.length; hi++) out[hi].h = hh; }   // for a player or the party: from the pieces players hold only
@@ -677,14 +692,15 @@ function lightSeen(from, to, map, camp) {
     var mf = mapFog(map); if (!mf.on || mf.mode !== 'auto') return null;
     var C = core(), grid = gridForMap(map); if (!C || !grid) return null;
     var lvl = mapLevel(map); if (lvl === null) return null;
-    var blk = blockersFor(map, grid), over = !!_blockerOver[map.id], turningOn = !window.wpVtt || window.wpVtt.on('turning');
-    var v = { x: from.x + (from.w || 60) / 2, y: from.y + (from.h || 52) / 2, front: (from.rot || 0) + (from.front || 0), arc: turningOn ? visionOf(map).arc : 360 };
+    var blk = blockersFor(map, grid), over = !!_blockerOver[map.id];
+    var v = { x: from.x + (from.w || 60) / 2, y: from.y + (from.h || 52) / 2, front: (from.rot || 0) + (from.front || 0) };   // its arc below, once its senses are read
     var a = C.cellOf(v.x, v.y, grid), b = C.cellOf(to.x + (to.w || 60) / 2, to.y + (to.h || 52) / 2, grid), bk = C.cellKey(b, grid);
     var mask = fogMask(map, camp, grid); if (mask.mode === 'none' || !inMask(mask, bk)) return null;   // no fog is drawn there
     var byHand = function(list) { return (list || []).some(function(c) { return C.cellKey(c, grid) === bk; }); };
     if (byHand(mf.manual.cuts)) return null;
     if (byHand(mf.manual.adds)) return 2;
     var d = C.cellDist(a, b, grid), ts = tokenSenses(from, map, camp, !from.ownerId), lit = null, litRead = false, sense = null;
+    v.arc = eyesArc(map, ts);   // the viewer's own arc, as its viewers have it (viewersFor)
     var litAt = function() { if (!litRead) { litRead = true; var lc = over ? null : litFor(map, grid, blk); lit = lc ? lc.lit : null; } return lit; };
     // senses S7b: smoke stops the eyes and a sense the walls stop that does not see through it — a target in it (but the viewer's own cell) or past it
     // item 19b: with heights judged, the target's own line is read past the walls the heights are judged against (under the 3D line a wall with a
@@ -910,11 +926,13 @@ function sightSigFor(recipientId, camp, map) {
     var lvl = mapLevel(map), lit = lvl !== null && lvl >= 1;
     if (lit) { blockersFor(map, grid); lit = !_blockerOver[map.id]; }   // the walls are counted only where their cap can change the answer
     // senses S2a: a full sense by its cells, whether it passes walls and whether it sees all round (never whether it shows the dark as dim:
-    // that changes how clear a cell shows, never whether it is seen); on a lit or a dim map one the walls stop in the map's arc sees nothing
+    // that changes how clear a cell shows, never whether it is seen); on a lit or a dim map one the walls stop in the eyes' arc sees nothing
     // the eyes do not, and is left out
-    var out = [], blindNow = false;   // senses S3: blind eyes read 'B' anywhere (they see their own cell alone), and then every sense counts
+    // the eyes' arc: a token whose arc is not the map's own (its character's, eyesArc) is named with it after a slash ('12/300', 'L/300', 'B/300'):
+    // the cells it sees, the senses that take the eyes' arc and its marks all move with it. One whose arc is the map's reads as it always did
+    var out = [], blindNow = false, mapArc = eyesArc(map, null);   // senses S3: blind eyes read 'B' anywhere (they see their own cell alone), and then every sense counts
     viewersFor(map, camp, recipientId).forEach(function(v) {
-        if (!v.sense) { blindNow = !!v.blind; out.push(blindNow ? 'B' : lit ? 'L' : v.range); }
+        if (!v.sense) { blindNow = !!v.blind; var ey = blindNow ? 'B' : lit ? 'L' : v.range; out.push(v.arc === mapArc ? ey : ey + '/' + v.arc); }
         else if (!lit || blindNow || v.pass || v.arc >= 360 || v.veil) out.push('s' + v.range + (v.pass ? 'p' : '') + (v.arc >= 360 ? 'a' : '') + (v.veil ? 'v' : ''));   // S7b: one that sees through smoke sees what the eyes do not
     });
     // senses S4: each mark sense of theirs, by its cells, whether it passes walls, whether it is all round and its glyph (a change moves marks, never cells)
@@ -964,7 +982,7 @@ function marksInputs(recipientId, camp, map, drop) {
     var mf = mapFog(map); if (!mf.on || mf.mode !== 'auto') return null;
     var C = core(), grid = gridForMap(map); if (!C || !grid) return null;
     if (!campMarkSenses(camp).length || fogMask(map, camp, grid).mode === 'none') return null;
-    var turningOn = !window.wpVtt || window.wpVtt.on('turning'), arc = turningOn ? visionOf(map).arc : 360, vs = [], cs = [];
+    var vs = [], cs = [];
     var waitSight = !!(camp && camp.newPlayers && typeof camp.newPlayers === 'object' && camp.newPlayers.sight === true);
     var hr = typeof heightRules === 'function' ? heightRules(map, camp, grid, recipientId) : null, hidOf = hr && typeof _dropHid !== 'undefined' && _dropHid ? _dropHid.get(drop) : null;   // item 19b: with heights judged, each viewer and creature carries its height (hh); open: a creature a piece hides in a cell this player sees
     (map.whiteboard || []).forEach(function(w) {
@@ -972,7 +990,8 @@ function marksInputs(recipientId, camp, map, drop) {
         if (w.ownerId === recipientId) {
             if (!(w.isChar || (w.waiting && waitSight))) return;
             var x = w.x + (w.w || 60) / 2, y = w.y + (w.h || 52) / 2, front = (w.rot || 0) + (w.front || 0);
-            (tokenSenses(w, map, camp, false).marks || []).forEach(function(m) { var vm = { x: x, y: y, front: front, range: m.cells, arc: m.all ? 360 : arc, pass: m.pass, k: m.k, sid: m.id }; if (m.veil) vm.veil = true; if (hr) vm.hh = tokHeight(w, map, hr.shown); vs.push(vm); });
+            var mts = tokenSenses(w, map, camp, false), arc = eyesArc(map, mts);   // a mark sense that is not all round takes its token's eyes' arc
+            (mts.marks || []).forEach(function(m) { var vm = { x: x, y: y, front: front, range: m.cells, arc: m.all ? 360 : arc, pass: m.pass, k: m.k, sid: m.id }; if (m.veil) vm.veil = true; if (hr) vm.hh = tokHeight(w, map, hr.shown); vs.push(vm); });
             return;
         }
         if (drop[w.id] !== 1 || !(w.isChar || w.waiting)) return;
@@ -1584,6 +1603,7 @@ window.wpFog = {
     lightLevel: mapLevel, lightCount: lightCount,
     lightSeen: lightSeen,
     tokenSenses: tokenSenses, campSenses: campSenses,   // senses S2b: a token's Properties show its senses as the host reads them
+    eyesArc: eyesArc,   // the eyes' arc: the arc a token sees through on a map (its Properties say when it is its own)
     fogMarksFor: fogMarksFor, campMarkSenses: campMarkSenses,   // senses S4: a player's marks (the host's, for their copy)
     marksHold: marksHold, marksForget: marksForget, marksStrictOn: marksStrictOn,   // senses S4b: a refresh of what is held, forgetting it, and whether a map plays it
     fogOffFor: fogOffFor, nullsAt: nullsAt,   // senses S7a: a player's word of their own tokens' senses a null area switches off, and what is off where a token stands

@@ -1727,6 +1727,9 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
   // plain token's; 0: off for this token; empty: the sheet's or the system's again). A sense's name comes from a system file: through esc.
   // Senses S3: a sense held but off (its switch on the sheet, or one of the eyes while blind) says so, naming the switch; the Blind tick,
   // for any character token, system or none, and a note when its sheet makes it blind
+  // The eyes' arc (the owner's ruling of 2026-10-03): where the token's character gives a sight arc of its own (fog.js tokenSenses, the system's
+  // combat.senses.arc field) one line above the Blind tick says the arc it sees through, or that this map sees all round all the same
+  // (fog.js eyesArc); nothing when it sees through the map's arc. A number and fixed words, through esc; no override: the sheet's alone
   function sensesFieldHtml(w, map) {
       var camp = getActiveCampaign(), F = window.wpFog, C = window.wpFogCore; if (!camp || !F || !C) return '';
       var marksL = F.campMarkSenses(camp), list = F.campSenses(camp).concat(marksL), SCi = window.wpSystemCore;   // senses S4: the mark senses after the full ones
@@ -1734,7 +1737,10 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
       ts.full.concat(ts.marks || []).forEach(function(e) { got[e.id] = e; });
       (ts.offs || []).forEach(function(e) { off[e.id] = e; });
       (C.cleanTokSenses(w.senses) || []).forEach(function(e) { ov[e.id] = e.n; });
-      var tick = '<div class="field check-row"><input type="checkbox" id="wbBlindTick" ' + (w.blind === true ? 'checked' : '') + '> <label for="wbBlindTick" title="Its eyes see only its own cell, whatever the light; a sense that does not use the eyes still works. Only its player receives this.">Blind</label></div>'
+      var arcOwn = typeof ts.arc === 'number' && ts.arc >= 1 ? Math.min(360, Math.round(ts.arc)) : 0, arcNow = arcOwn && typeof F.eyesArc === 'function' ? F.eyesArc(map, ts) : 0;
+      var arcSay = !arcOwn || !arcNow ? '' : arcNow === arcOwn ? 'Sight arc ' + arcOwn + ' degrees, from its sheet.' : 'Sight arc ' + arcOwn + ' degrees on its sheet; on this map it sees all round (the map’s Vision is All around, or Token facing is off).';
+      var tick = (arcSay ? '<div class="muted wb-sight-arc" style="margin:0 0 6px; font-size:10.5px;">' + esc(arcSay) + '</div>' : '')
+          + '<div class="field check-row"><input type="checkbox" id="wbBlindTick" ' + (w.blind === true ? 'checked' : '') + '> <label for="wbBlindTick" title="Its eyes see only its own cell, whatever the light; a sense that does not use the eyes still works. Only its player receives this.">Blind</label></div>'
           + (ts.blind && w.blind !== true ? '<div class="muted" style="margin:-4px 0 6px; font-size:10.5px;">Blind by its character&rsquo;s sheet.</div>' : '');
       var un = C.cleanUnsensed(w.unsensed);   // senses S4: the mark senses that never mark this token (the GM's)
       var unHtml = marksL.length ? '<div class="field"><label>Never shown as a mark by</label>' + marksL.map(function(s, i) { var on = un === true || (Array.isArray(un) && un.indexOf(s.id) >= 0); return '<div class="field check-row" style="margin-bottom:4px;"><input type="checkbox" class="wb-unsensed" id="wbUnsensed' + i + '" data-mi="' + i + '" ' + (on ? 'checked' : '') + '> <label for="wbUnsensed' + i + '">' + esc(s.name) + '</label></div>'; }).join('')

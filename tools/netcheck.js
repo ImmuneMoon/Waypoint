@@ -3830,6 +3830,11 @@ pendingChecks.push((async () => {
         const msgKeep = msgS; msgS = null; const s10 = runS(); msgS = msgKeep;
         check('senses S2a: a change to the system\'s senses sends the system first and then every fogged map; nothing again while they stand still, even as the rest of the system changes (the system goes by its own sync); a change of campaign counts; nothing from a client, off a session or with no system',
             j([s1, s2, s3, s4, s5, s6, s7, s8, s9, s10]) === j([['system', 'maps'], [], [], ['system', 'maps'], ['system', 'maps'], [], ['system', 'maps'], [], [], []]), j([s1, s2, s3, s4, s5, s6, s7, s8, s9, s10]));
+        // the eyes' arc: the key is part of the senses the signature holds, so naming the field, changing it or taking it away sends the system and then every fogged map
+        const arcMsg = sn => ({ type: 'system', campId: 'k_s', system: { fields: [], combat: sn ? { senses: sn } : {} } });
+        msgS = arcMsg(null); runS(); msgS = arcMsg({ arc: { field: 'f_arc' } }); const e1 = runS(), e2 = runS(); msgS = arcMsg({ arc: { field: 'f_other' } }); const e3 = runS(); msgS = arcMsg({ arc: { field: 'f_other' }, list: [{ id: 'sn_force001' }] }); const e4 = runS(); msgS = arcMsg({ list: [{ id: 'sn_force001' }] }); const e5 = runS(), e6 = runS();
+        check('eyes\' arc: the system\'s arc key moves the senses\' signature — naming the field, naming another, with senses beside it and taking it away each send the system and then every fogged map; nothing while it stands still',
+            j([e1, e2, e3, e4, e5, e6]) === j([['system', 'maps'], [], ['system', 'maps'], ['system', 'maps'], ['system', 'maps'], []]), j([e1, e2, e3, e4, e5, e6]));
         check('senses S2a (source): every host save runs it right after the system\'s own sync; the snapshot sets its signature with the system\'s, and hosting afresh clears it',
             /net\.syncSystem\(\);   \/\/ and the system \(character sheets\), the same way\r?\n\s*net\.syncSenses\(\);/.test(src)
             && /var sysm = net\.systemMessage\(\); if \(sysm\) \{ net\._lastSystemSig = quickHash\(JSON\.stringify\(sysm\.system\)\); net\._lastSensesSig = sensesSigOf\(sysm\); \}/.test(src)
@@ -7347,6 +7352,41 @@ pendingChecks.push((async () => {
     check('senses S2a (host): a sense read from Ana\'s sheet that grows to reach the orc catches both her copies of each map it stands on up in place (a fogDiff per map, the orc added on both, Bo sent nothing); asked again with nothing moved, nothing is armed or sent; back to 0, the orc goes again',
         J(before2) === J({ a: false, a2: false, b: false, relay: false, relayB: false }) && pend2 >= 1 && J(got2.a1.sort()) === J(['fogDiff:mA', 'fogDiff:mB']) && J(got2.a2.sort()) === J(['fogDiff:mA', 'fogDiff:mB']) && got2.b === 0 && got2.mB && J(got2.seen) === J({ a: true, a2: true, b: false, relay: true, relayB: false })
         && quiet2 === 0 && bQuiet === 0 && J(back2.a1.sort()) === J(['fogDiff:mA', 'fogDiff:mB']) && back2.seen.a === false && back2.seen.relay === false, J([before2, pend2, got2, quiet2, bQuiet, back2]));
+    // the eyes' arc from the sheet (the owner's ruling of 2026-10-03) on the host's judgement — the real fog.js vision half over the real sends and
+    // catch-up, a real player page per connection. mC is dark with a facing cone of 90 degrees: Ana's tC at (6,6) faces up, the bat stands 4 cells to
+    // her right (90 degrees round), a rat 3 cells straight behind her. The system names her sheet's Sight arc as the eyes' arc; mA and mB see all round
+    {
+        const sysArc = field => Sx.cleanSystem({ v: 1, name: 'S', rolls: [], fields: [{ id: 'f_sight', key: 'Sight', label: 'Sight', kind: 'number', def: 60, edit: 'owner', vis: 'all' }, { id: 'f_arc', key: 'SightArc', label: 'Sight arc', kind: 'number', def: 0, vis: 'all' }, { id: 'f_garc', key: 'GmArc', label: 'GM arc', kind: 'number', def: 0, vis: 'gm' }], combat: { senses: { arc: { field: field } } } }, { F: Fx, gmView: true });
+        const arcWorld = field => { const W = mk4({ system: sysArc(field) }); W.camp.items.mC.whiteboard.push(T('rat', '', 'c_n', 6, 9)); W.net.conns.forEach(c => { ['mA', 'mB', 'mO', 'mC'].forEach(id => W.net.sendItem('k', id, c)); c.sent.length = 0; }); return W; };
+        const midOf = (W, id) => { const t = W.tok(id, 'mC'); return [t.x + 25, t.y + 25]; }, relayOf = (W, id) => W.fog.canSeePoint('u_a', W.camp, W.camp.items.mC, midOf(W, id)[0], midOf(W, id)[1]);
+        const arcSeen = W => ({ a: W.view(W.a1, 'mC').ids.slice().sort(), a2: W.view(W.a2, 'mC').ids.slice().sort(), bat: relayOf(W, 'bat'), rat: relayOf(W, 'rat'), arcs: W.fog.viewersFor(W.camp.items.mC, W.camp, 'u_a').map(v => v.arc), round: W.fog.viewersFor(W.camp.items.mA, W.camp, 'u_a').map(v => v.arc) });
+        const sentOf = c => c.sent.map(m => m.type + ':' + m.itemId).sort(), armed = W => W.timers.filter(t => t.fn && t.ms === 500).length, setArc = (W, f, v) => { W.camp.chars.c_a.values[f] = v; W.clearSent(); W.net.sensesMoved('c_a'); const n = armed(W); W.fire(500); return n; };
+        const pageArc = (W, c, pid) => {   // the player's own app: the real fog.js over their copy of mC, the owner's copy of their character and the players' view of the system
+            const hc = W.camp, campP = { id: 'k', system: Sx.cleanSystem(hc.system, { F: Fx, gmView: false }), fog: JSON.parse(J(hc.fog)), chars: { c_a: Sx.charFor(hc.chars.c_a, hc.system, pid) }, items: c.page.camp().items };
+            const F = new Function('window', 'document', 'getActiveMap', 'getActiveCampaign', 'state', "'use strict';\n" + fogSrc + '\nreturn { revealedTiers: revealedTiers, viewersFor: viewersFor };')(
+                { wpFogCore: FCx, wpSystemCore: Sx, wpFormula: Fx, wpVtt: { on: () => true, mode: () => 'client' }, wpNet: { myId: pid } }, { getElementById: () => null }, () => null, () => campP, { appState: { activeCampaignId: 'k', campaigns: { k: campP } } });
+            const map = campP.items.mC, t = F.revealedTiers(map, campP, pid);
+            return { arcs: F.viewersFor(map, campP, pid).map(v => v.arc), bat: t.keys['10,6'], rat: t.keys['6,9'], key: J(campP.system.combat.senses), whole: !!campP.chars.c_a && campP.chars.c_a.partial === false };
+        };
+        const wArc = arcWorld('f_arc'), arc0 = arcSeen(wArc), page0 = pageArc(wArc, wArc.a1, 'u_a');
+        const armedWide = setArc(wArc, 'f_arc', 300), wide = { a1: sentOf(wArc.a1), a2: sentOf(wArc.a2), b: wArc.b1.sent.length, w: wArc.w1.sent.length, seen: arcSeen(wArc) }, page300 = pageArc(wArc, wArc.a1, 'u_a');
+        wArc.clearSent(); wArc.net.sensesMoved('c_a'); const armedAgain = armed(wArc); wArc.fire(500);
+        const armedRound = setArc(wArc, 'f_arc', 300.4); wArc.net.sensesMoved(null); const armedAny = armed(wArc); wArc.fire(500);
+        const quiet = wArc.a1.sent.length + wArc.a2.sent.length + wArc.b1.sent.length + wArc.w1.sent.length;
+        const armedAll = setArc(wArc, 'f_arc', 360), all = { a1: sentOf(wArc.a1), seen: arcSeen(wArc) };
+        const armedBack = setArc(wArc, 'f_arc', 0), back = { a1: sentOf(wArc.a1), a2: sentOf(wArc.a2), b: wArc.b1.sent.length, seen: arcSeen(wArc) };
+        check('eyes\' arc (host): on a map with a facing cone of 90 degrees a creature to Ana\'s side and one behind her are left out of both her copies and of her live relay; her sheet\'s arc widened to 300 arms one catch-up for that map alone and catches both her copies up in place (a fogDiff each, the creature in the widened arc added, the one behind still left out, Bo and a stranger sent nothing); the maps that see all round are untouched',
+            J(arc0) === J({ a: ['tC'], a2: ['tC'], bat: false, rat: false, arcs: [90], round: [360] }) && armedWide === 1 && J(wide.a1) === J(['fogDiff:mC']) && J(wide.a2) === J(['fogDiff:mC']) && wide.b === 0 && wide.w === 0
+            && J(wide.seen) === J({ a: ['bat', 'tC'], a2: ['bat', 'tC'], bat: true, rat: false, arcs: [300], round: [360] }), J([arc0, armedWide, wide]));
+        check('eyes\' arc (host): nothing is armed or sent when the arc did not move — asked again as it stands, a value that rounds to the same degrees, any character at all; all round at 360 the creature behind comes too; back at 0 both leave again, in place',
+            armedAgain === 0 && armedRound === 0 && armedAny === 0 && quiet === 0 && armedAll === 1 && J(all.a1) === J(['fogDiff:mC']) && J(all.seen) === J({ a: ['bat', 'rat', 'tC'], a2: ['bat', 'rat', 'tC'], bat: true, rat: true, arcs: [360], round: [360] })
+            && armedBack === 1 && J(back.a1) === J(['fogDiff:mC']) && J(back.a2) === J(['fogDiff:mC']) && back.b === 0 && J(back.seen) === J(arc0), J([armedAgain, armedRound, armedAny, quiet, armedAll, all, armedBack, back]));
+        check('eyes\' arc (the player\'s own screen, the real fog.js over their copy): the key reaches a player with the system (the same in both views) and their own app reads the arc the host judged by from their own copy of the character — the map\'s 90 before, 300 after — so their overlay shows the cell of the creature the host sent them and still fogs the one behind',
+            J(page0) === J({ arcs: [90], key: '{"arc":{"field":"f_arc"}}', whole: true }) && J(page300) === J({ arcs: [300], bat: 2, key: '{"arc":{"field":"f_arc"}}', whole: true }) && J(wArc.camp.system.combat.senses) === '{"arc":{"field":"f_arc"}}', J([page0, page300]));
+        const wSec = arcWorld('f_garc'), armedSec = setArc(wSec, 'f_garc', 300), sec = { senses: 'senses' in wSec.camp.system.combat, sent: wSec.a1.sent.length + wSec.a2.sent.length, seen: arcSeen(wSec) };
+        check('eyes\' arc (host): an arc named on a field its player cannot read never reaches the system either side holds, so the host judges nobody by it — the number set on the sheet arms nothing, sends nothing and leaves her copies as the map\'s arc has them',
+            sec.senses === false && armedSec === 0 && sec.sent === 0 && J(sec.seen) === J(arc0), J([armedSec, sec]));
+    }
 
     // item 19b (the owner's answers of 2026-10-01): heights in the fog, on the host's judgement — the real fog.js vision half over the real sends,
     // the real patch path and catch-up, and a real player page per connection. mA is dark, 5 ft squares; Ana's tA stands at (2,2), Bo's tB at (2,4);

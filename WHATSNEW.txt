@@ -1364,6 +1364,13 @@ Fog of war
   or by clicking it in fog mode, and a player can open one their token
   stands next to unless you lock it. On your board a barrier wears a dashed
   cyan outline.
+- Stops blasts: a see-through barrier has a tick of its own for thrown
+  blasts. Tick "Stops blasts" under "Stops movement only" for a force field
+  or a window, and leave it off for bars or a railing: a thrown blast then
+  never goes off inside the barrier, and it shields what is behind it from
+  the blast as a wall does, where your system has cover switched on. An open
+  barrier door stops no blast, and the ruler's cover between two tokens is
+  not changed by it.
 - Lighting, a VTT feature on by default: a fogged map is lit until you place
   a light source, so every token sees what is in its line of sight (walls
   and closed doors still stop it), and a token's sight becomes how far it

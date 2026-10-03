@@ -327,7 +327,7 @@ if(_el_fNotes) _el_fNotes.addEventListener('input',function(){r.notes=this.value
 
       if(fTargetMap) {
 
-          fTargetMap.addEventListener('change', function(){ r.targetMapId = this.value || null; delete r.targetRoomId; save(); renderInspector(); });
+          fTargetMap.addEventListener('change', function(){ r.targetMapId = this.value || null; delete r.targetRoomId; var mapT = getActiveMap(); if (mapT) (mapT.whiteboard || []).forEach(function(w) { portalLockTidy(w, mapT); }); save(); renderInspector(); });   // a piece that was a portal through this room and is one no longer loses its lock (portalLockTidy)
 
       }
 
@@ -1867,14 +1867,14 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
   // A portal's own lock (the owner, 2026-10-03: "maybe add the ability to lock a portal from the play map"): a portal piece's Locked for
   // players tick — no player travels through it until the GM unlocks it (item.portalLock, true or no key; the host is the judge: net.js
   // travelBar). Shown only on a piece that IS a portal (fogcore isPortal: its own Portal to Map, or the node it is linked to leads to a map),
-  // hidden or not (a hidden trap tile may be locked: it then fires for nobody), and only for the GM — never in a player's app or the stream
+  // hidden or not (a hidden trap tile may be locked: it then fires for no player who lands on it), and only for the GM — never in a player's app or the stream
   // window. Its markup holds fixed words only, nothing of the piece
   function portalLockGm() { var n = window.wpNet; return !(window.wpStream || (n && n.active && n.role === 'client')); }
   function portalLockFieldOk(w, map) { var FC = window.wpFogCore; return portalLockGm() && !!(FC && typeof FC.isPortal === 'function' && FC.isPortal(w, map)); }
   function portalLockFieldHtml(w, map) {
       if (!portalLockFieldOk(w, map)) return '';
       return '<div class="field check-row"><input type="checkbox" id="wbPortalLock" ' + (w.portalLock === true ? 'checked' : '') + '> <label for="wbPortalLock">&#128274; Locked for players</label></div>'
-          + '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">No player travels through this portal until you unlock it: their double-click and a token they drop on it are refused, and they see a small lock on it. Dropping a player&rsquo;s token on it yourself, a summon and Bring still take them through.</div>';
+          + '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">No player travels through this portal until you unlock it: their double-click and a token they drop on it are refused, and where they can see the portal it wears a small lock. Your own drop of a player&rsquo;s token on it still sends them through; a summon and Bring move players as ever.</div>';
   }
   function setItemPortalLock(w, on, map) {
       if (!w || typeof w !== 'object' || !portalLockGm()) return;   // the GM's alone: elsewhere nothing is set and nothing is taken away
@@ -1882,7 +1882,7 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
       save(); render(); renderInspector();
       toast(w.portalLock === true ? 'Portal locked for players.' : 'Portal unlocked.');
   }
-  // A piece that stops being a portal (Portal to Map set to None, its node unlinked) loses its lock: a lock nobody can see is no lock to keep.
+  // A piece that stops being a portal (Portal to Map set to None, its node unlinked, its node's room no longer leading to a map) loses its lock: a lock nobody can see is no lock to keep.
   // Only where the rule can be asked: with no core on hand nothing is taken away
   function portalLockTidy(w, map) { var FC = window.wpFogCore; if (w && w.portalLock !== undefined && FC && typeof FC.isPortal === 'function' && !FC.isPortal(w, map)) delete w.portalLock; }
   // [sinkcheck:portallockbox-end]

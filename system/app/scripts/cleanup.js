@@ -614,7 +614,7 @@ function cleanImportItems(ic, deps) {
             if (DR && typeof DR.cleanBlockFmts === 'function') DR.cleanBlockFmts(b);
             else {
                 delete b.fmt; delete b.colFmt; delete b.rowFmt;
-                ['rows', 'nodes', 'edges'].forEach(function(k) { if (Array.isArray(b[k])) b[k].forEach(function(x) { if (isObj(x)) delete x.fmt; }); });
+                ['rows', 'nodes', 'edges'].forEach(function(k) { if (Array.isArray(b[k])) b[k].forEach(function(x) { if (isObj(x)) { delete x.fmt; delete x.link; } }); });   // nor a flowchart node's link (cleanBlockFmts cleans it by the diagram's rule)
             }
         });
         if (it.type === 'map' && Array.isArray(it.whiteboard)) it.whiteboard.forEach(function(w) { if (isObj(w) && w.type === 'text') w.text = san ? san(String(w.text || '')) : ''; });

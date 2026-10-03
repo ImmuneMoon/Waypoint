@@ -54,6 +54,7 @@ function makeDom() {
     El.prototype.setAttributeNS = function(ns, q, v) { this.attrs[q] = String(v); (this.nsAttrs = this.nsAttrs || {})[ns + ' ' + String(q).split(':').pop()] = q; };
     El.prototype.hasAttributeNS = function(ns, local) { const q = this.nsAttrs && this.nsAttrs[ns + ' ' + local]; return !!q && q in this.attrs; };
     El.prototype.getAttributeNS = function(ns, local) { return this.hasAttributeNS(ns, local) ? this.attrs[this.nsAttrs[ns + ' ' + local]] : null; };
+    El.prototype.removeAttributeNS = function(ns, local) { const k = ns + ' ' + local, q = this.nsAttrs && this.nsAttrs[k]; if (q) { delete this.attrs[q]; delete this.nsAttrs[k]; } };
     El.prototype.addEventListener = function(ev, fn, cap) { const m = cap ? this.capture : this.handlers; (m[ev] = m[ev] || []).push(fn); };
     Object.defineProperty(El.prototype, 'isConnected', { get() { for (let n = this; n; n = n.parentNode) if (n === doc.body) return true; return false; } });
     Object.defineProperty(El.prototype, 'isContentEditable', { get() { const v = this.attrs.contenteditable; return v !== undefined && v !== 'false'; } });
@@ -113,6 +114,7 @@ function makeDom() {
     const doc = {
         body: body,
         createElement: tag => new El(tag),
+        createElementNS: (ns, tag) => { const e = new El(tag); e.namespaceURI = ns; return e; },
         createTextNode: v => new Text(v),
         getElementById: id => body.all().find(n => n.id === id) || null,
         querySelectorAll: s => query(body, s),

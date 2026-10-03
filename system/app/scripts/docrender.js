@@ -18,7 +18,8 @@
      fmtRich(text, fmt)      the same for a field that reads typed markup (a planner's): the whole field through
                              sanitizeHtml once, the runs laid over its text; with no format, exactly sanitizeHtml(text).
      sanitizeBare(html)      sanitizeHtml less the look: a span or a font is just its text.
-     cleanBlockFmts(block)   every format a planner or page block carries, cleaned in place against its text.
+     cleanBlockFmts(block)   every format a planner or page block carries, cleaned in place against its text — and a
+                             flowchart node's link (diagramLink).
      labelFmt(fmt, text)     a flowchart label's format: the cleaner's, less every link (a label never carries one).
      cleanDoc(doc, opts)     the wire sanitizer (host) and the client-side normaliser (keepHidden):
                              a new object with only the known fields, every string capped, every
@@ -26,9 +27,13 @@
      renderDoc(doc, opts)    the page as HTML built from escaped text and sanitized content only.
      proseHtml(content, t)   the planner's line-break rule, shared so pages and planners read alike.
      compileFlowchart(b)     the builder block → mermaid source (moved here from planner.js).
+     diagramLink(v)          the one rule for a diagram's link: a web address the link rule keeps (textfmt.js cleanLink)
+                             that the diagram library reads back exactly as written; '' for anything else.
+     linkLine(id, link)      the ONE line a diagram's link reaches the diagram library in — click <id> href "<address>" —
+                             or '' (an id or an address the rule refuses); readLinkLine(line) reads exactly that line back.
    Sizes: LIMITS below. Block ids: every block carries one ('b_…'); cleanDoc re-mints duplicates. */
 'use strict';
-import { cleanFmt, runsOf, SIZE_EM } from './textfmt.js';
+import { cleanFmt, cleanLink, runsOf, SIZE_EM } from './textfmt.js';
 import { cssColor } from './safecore.js';
 
 var VERSION = '1.5.0';
@@ -333,7 +338,9 @@ function cleanBlockFmts(b) {
     }
     ['nodes', 'edges'].forEach(function(key) {
         if (Array.isArray(b[key])) b[key].forEach(function(n) {
-            if (!n || typeof n !== 'object' || n.fmt === undefined) return;
+            if (!n || typeof n !== 'object') return;
+            if (n.link !== undefined) { var lk = key === 'nodes' && own(n, 'link') ? diagramLink(n.link) : ''; if (lk) n.link = lk; else delete n.link; }   // a node's link by the one rule; an arrow carries none
+            if (n.fmt === undefined) return;
             var f = labelFmt(own(n, 'fmt') ? n.fmt : undefined, strOf(n.text)); if (f) n.fmt = f; else delete n.fmt;
         });
     });
@@ -387,7 +394,7 @@ function mmLabel(text, fmt) {
     }).join('');
     return '"' + (sz ? sz[0] + body + sz[1] : body) + '"';
 }
-function mmId(t) { var v = String(t || '').trim().replace(/[^A-Za-z0-9_]/g, '_'); return v || 'n'; }
+function mmId(t) { var v = String(t || '').trim().replace(/[^A-Za-z0-9_]/g, '_'); return v === '__proto__' ? '_proto_' : v || 'n'; }   // (a diagram's names: see mmKey)
 function compileFlowchart(b) {
     var spc = { compact: [18, 28], normal: [50, 50], wide: [90, 90] }[b.space || 'normal'] || [50, 50];
     var m = '%%{init: {"flowchart": {"nodeSpacing": ' + spc[0] + ', "rankSpacing": ' + spc[1] + ', "htmlLabels": true}}}%%\n';
@@ -398,9 +405,11 @@ function compileFlowchart(b) {
     m += 'classDef red fill:#361f1e,stroke:#d9534f,color:#fff\n';
     m += 'classDef violet fill:#281f3b,stroke:#b98cff,color:#fff\n';
     m += 'classDef neutral fill:#26262a,stroke:#c9c9d4,color:#fff\n';
+    var links = [];   // a linked node's line (linkLine): the whole node is the link — written after everything else, so a chart with none compiles exactly as before
     (Array.isArray(b.nodes) ? b.nodes : []).forEach(function(n) {
         if (!n || typeof n !== 'object') return;
         var id = mmId(n.id || ('n' + Math.random().toString(36).substr(2, 5)));
+        var ll = Object.prototype.hasOwnProperty.call(n, 'link') ? linkLine(id, n.link) : ''; if (ll) links.push(ll);
         var txt = mmLabel(n.text || 'Node', Object.prototype.hasOwnProperty.call(n, 'fmt') ? n.fmt : undefined);
         var s1 = '[', s2 = ']';
         if (n.shape === 'rounded') { s1 = '('; s2 = ')'; }
@@ -415,56 +424,182 @@ function compileFlowchart(b) {
         if (e.text) line += '|' + mmLabel(e.text, Object.prototype.hasOwnProperty.call(e, 'fmt') ? e.fmt : undefined) + '|';
         m += mmId(e.from) + ' ' + line + ' ' + mmId(e.to) + '\n';
     });
+    links.forEach(function(l) { m += l + '\n'; });
     return m;
 }
-// Mermaid's link and callback directives never depend on its security mode: gone from anything a
-// player receives. Applied to diagram sources (cleanDoc) and again when rendering (renderDoc).
+// A DIAGRAM'S LINK — one rule. A diagram link is a web address the link rule keeps (textfmt.js cleanLink), attached to a shape by its
+// id, and it reaches the diagram library in ONE form only, a line this file writes itself:
+//     click <id> href "<address>"
+// Nothing else about a click is ever kept: no function call, no callback, no tooltip, no target. The library runs in its strict mode
+// for everyone (bootdiagram.js), where an action that calls a function does nothing, and a click on the drawn link is judged like any
+// other link's (linkgate.js: your own opens, one from someone else asks first).
+//   <address>  cleanLink's output, less what the library would not read back exactly as it is written — it reads a few sequences of
+//              its own inside any text: a " ends the string; < and > (it rewrites tags); %% (its comments and its %%{…}%% blocks);
+//              &# and &newline; / &tab; (it decodes them in an address); a ; after a # (its #…; codes, and a ; it takes off such a
+//              line); the characters U+0080 to U+009F and U+200B to U+200D (it drops them); and its own two placeholders. An address
+//              that holds one of those is no diagram link (diagramLink gives '').
+//   <id>       1 to 64 letters, digits, _ or -, and never a name every object carries (constructor, __proto__, toString …): the
+//              library keeps its shapes in a plain object keyed by id. (The library itself takes any run of characters with no space
+//              in it, and a list a,b: neither is taken here.)
+var MM_LINK_NO = /["<>\u0080-\u009f\u200b-\u200d]|%%|&#|&(?:newline|tab);|#.*;|\ufb02\u00b0|\u00b6\u00df/i;
+function diagramLink(v) { var l = cleanLink(v); return l && !MM_LINK_NO.test(l) ? l : ''; }
+function linkId(id) { return typeof id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(id) && !(id in Object.prototype) ? id : ''; }
+function linkLine(id, link) { var i = linkId(id), l = diagramLink(link); return i && l ? 'click ' + i + ' href "' + l + '"' : ''; }
+// the line read back: { id, link } — or null for anything that is not exactly the line linkLine writes
+function readLinkLine(line) { var m = /^click ([A-Za-z0-9_-]{1,64}) href "([^"]*)"$/.exec(String(line)); return m && linkLine(m[1], m[2]) === m[0] ? { id: m[1], link: m[2] } : null; }
+
+// Mermaid's link and callback directives never depend on its security mode: none reaches the library as it was written. Applied to
+// diagram sources (cleanDoc) and again when rendering (renderDoc).
 // A directive is a statement that begins with one of the library's words, and a statement ends at a line break or at a ';' (the
-// library reads both alike): a line that begins with one goes whole, as ever, and a line that holds one further on is cut there —
+// library reads both alike): a line that begins with one goes whole, and a line that holds one further on is cut there —
 // a directive's own text may hold a ';', so nothing after it is kept. The ';' that closes one of the library's own #…; entities
 // is part of the entity, as the library reads it. The rule fails closed: a ';' inside a hand-written label counts too, so a label
 // that says "…; click …" loses that part (the entity #59; writes a ';' that is the label's own).
+// A statement also begins, with nothing before it, after a '}' that closes something a statement may follow, and after the library's
+// statements that need no separator after them, however many stand in a row — each kind of diagram's own, as its lexer reads it
+// (MM_NOSEP_OF): a flowchart's and a sequence diagram's end; a Gantt chart's gantt, inclusiveEndDates, topAxis, weekday <day> and a date;
+// a class diagram's none. A '}' closes such a thing only where the source opens one (mmBrace): an accDescr { … } block in a flowchart, a
+// sequence diagram or a Gantt chart, and in a class diagram any { (a class's or a namespace's body too) — so a '}' in a label, a message
+// or a task's name is the text's own. Where the kind cannot be told, or is any other, every '}' and every one of those words counts. A
+// directive there is judged as one at the start of a line — the line is cut where it begins, the statements before it stay. That too
+// fails closed: where a '}' counts, one inside a label counts too.
 //   click / callback / href / linkStyle …   any diagram's
 //   link <name> "address"                   a class diagram's (a node, a class or a task that is merely called link is left alone)
-//   link / links <actor>: …                 a sequence diagram's, judged only in a source that names one
+//   link / links / details / properties <actor>: …   a sequence diagram's (a menu of links on an actor, one read from an element of the
+//                                           page, a picture by address), judged only in a source that names one
+// ONE kind of directive is written back instead of removed: a link statement of a flowchart or of a class diagram, as the library
+// itself reads it (its words in lower case, an id by the rule above, an address the rule above keeps), becomes the canonical line —
+// a line of its own, in the directive's place:
+//   flowchart / graph    click <id> href "<address>" …     and     click <id> "<address>" …
+//   classDiagram         click <Class> href "<address>" …  and     link <Class> "<address>" …
+// Whatever follows the address on that line (a tooltip, a target, anything else) is dropped. Every other directive — a callback,
+// call, a link that is not one of those forms, a sequence diagram's menus, a link statement in any other kind of diagram — is removed
+// exactly as before. The kind of diagram is told as the library tells it (mmKind): after its %%{…}%% blocks and its comment lines the
+// source begins with flowchart, graph or classDiagram; a source that begins with front matter, or holds a block inside a block, has
+// no kind and keeps no link. (In a Gantt chart the library would steer the app's own window to a link's address: no link is ever
+// written for one — and linkgate.js refuses any script's window.open that would load an address into the window it is made from.)
 // The source is judged as the library will read it: a NUL (which a page drops) is taken out, a lone carriage return (which a page
 // reads as a line break) is a line break, and the library's own %%{…}%% blocks — which it takes out before it reads a diagram,
 // wherever they stand — are taken out with its own pattern and what is left is judged again; a source that hides a directive that
-// way is handed over without its blocks. Any other source is returned as it always was.
+// way — a link too: the canonical line is always one this strip wrote, never one the library would put together — is handed over
+// without its blocks. Any other source is returned as it always was.
 // compiled (exactly true): the app's own compiled flowchart (compileFlowchart). Every label there is one quoted string, so a ';'
-// in it is the label's own: only whole lines are judged, exactly as before.
+// in it is the label's own: only whole lines are judged, and of the lines that begin with a directive only one that is exactly the
+// canonical line stays.
 // A link the library still draws (another kind of diagram's own way of writing one) is an <a> in the drawing, and a click on it is
 // judged like any other link's (linkgate.js).
 var MM_DIRECTIVE = /\s*(?:click|callback|href|linkStyle)\b/iy;
 var MM_LINK = /\s*link\s+(?![-=.<>~&|:\s"'])[^"'\n;]*["']/iy;
-var MM_SEQ_LINK = /\s*links?\s+[^:;\n]*:/iy;
+var MM_SEQ_LINK = /\s*(?:links?|details|properties)\s+[^:;\n]*:/iy;
+var MM_NOSEP = /(?:\s*(?:end|gantt|inclusiveEndDates|topAxis|weekday\s+\w+|\d{4}-\d\d-\d\d)\b)+/iy;   // the statements that need no separator after them, any kind's
+var MM_NOSEP_OF = { flow: /(?:\s*end\b)+/iy, seq: /(?:\s*end\b)+/iy, gantt: /(?:\s*(?:gantt|inclusiveEndDates|topAxis|weekday\s+\w+|\d{4}-\d\d-\d\d)\b)+/iy, class: null };   // … each kind's own
+// does a '}' in this source close something a statement may follow? (by its kind: see above)
+function mmBrace(s, kind) { return kind === 'class' ? s.indexOf('{') >= 0 : kind === 'flow' || kind === 'seq' || kind === 'gantt' ? /accDescr\s*\{/i.test(s) : true; }
 var MM_BLOCK = /%{2}{\s*(?:(\w+)\s*:|(\w+))\s*(?:(\w+)|((?:(?!}%{2}).|\r?\n)*))?\s*(?:}%{2})?/gi;   // the library's own pattern for its %%{…}%% blocks
+var MM_COMMENT = /^\s*%%(?!{)[^\n]+\n?/gm;   // the library's own pattern for a comment line
 function mmAt(re, s, at) { re.lastIndex = at; return re.test(s); }
-function mmCut(s) {
-    var seq = /sequenceDiagram/i.test(s), out = [];
-    function directive(line, at) { return mmAt(MM_DIRECTIVE, line, at) || mmAt(MM_LINK, line, at) || (seq && mmAt(MM_SEQ_LINK, line, at)); }
-    s.split(/\r\n|\n|\r/).forEach(function(line) {
-        if (directive(line, 0)) return;
-        for (var at = line.indexOf(';'); at >= 0; at = line.indexOf(';', at + 1)) {
-            var k = at - 1; while (k >= 0 && /\w/.test(line.charAt(k))) k--;
-            if (k < at - 1 && k >= 0 && line.charAt(k) === '#') continue;   // the ';' that closes a #…; entity
-            if (directive(line, at + 1)) { line = line.slice(0, at); if (!line.trim()) return; break; }
+// A DIAGRAM'S NAMES. The diagram library keeps a diagram's shapes, classes, entities, states and the rest in plain objects keyed by the name
+// the source gives them, as it stands: a shape called __proto__ would write onto the prototype every object of the page shares (and the app
+// and the library would then misread everything they hold). So that name never reaches it: wherever __proto__ stands as a word of its own
+// — no letter, digit or _ next to it — it is written _proto_ (a label that says the word reads _proto_; a longer name that holds it, and the
+// address of a canonical line, are left as they are). A built flowchart's node with that id compiles under _proto_ too (mmId).
+// The library also joins a name from pieces: a class diagram's lexer skips white space between them, and a comment from a %% to its
+// line's end takes the line break with it — so Duck --> __pro to__ names __proto__ as surely as the word itself. So the text is read
+// the way the library joins (mmPieces): every run of characters that spells __proto__ with nothing but white space, backticks or a comment
+// to the line's end between them (any %% on a line may be where a comment begins, so the text after one is read both ways), standing at
+// a name's edges as the word itself must, has its p written P (Duck --> __Pro to__). Nothing moves and no line changes; a P never makes
+// a new one, so once is enough. It fails closed: such a run in a label is written P too.
+var MM_PROTO = /(^|[^A-Za-z0-9_])__proto__(?![A-Za-z0-9_])/g;
+function mmKey(text) { return mmPieces(text.indexOf('__proto__') < 0 ? text : text.replace(MM_PROTO, '$1_proto_')); }
+function mmPieces(t) {
+    if (t.indexOf('p') < 0 || t.indexOf('_') < 0) return t;
+    var W = '__proto__', n = t.length, ch = [], at = [], before = new Int32Array(n + 1), i, k, w, q;
+    for (i = 0; i < n; i++) { before[i] = ch.length; var x = t.charAt(i); if (x !== '`' && !/\s/.test(x)) { ch.push(x); at.push(i); } }
+    before[n] = ch.length;
+    var m = ch.length, jump = [];   // jump[k]: the characters a comment joins to character k — the last before its %%, to the first after its line break
+    for (var r = t.indexOf('%%'); r >= 0; r = t.indexOf('%%', r + 1)) {
+        var nl = t.indexOf('\n', r); if (nl < 0) break;
+        var src = before[r] - 1, dst = before[nl + 1];
+        if (src >= 0 && dst < m) (jump[dst] || (jump[dst] = [])).push(src);
+    }
+    function word(c) { return /[A-Za-z0-9_]/.test(c); }
+    var mask = new Uint16Array(m), need = new Uint16Array(m);   // mask[k]: bit w — a run spelling W's first w + 1 characters ends at character k
+    for (k = 0; k < m; k++) {
+        var from = k > 0 ? mask[k - 1] : 0, js = jump[k], bits = 0;
+        if (js) for (q = 0; q < js.length; q++) from |= mask[js[q]];
+        for (w = 0; w < 9; w++) if (W.charAt(w) === ch[k] && (w === 0 ? at[k] === 0 || !word(t.charAt(at[k] - 1)) : (from >> (w - 1)) & 1)) bits |= 1 << w;
+        mask[k] = bits;
+    }
+    var out = null;
+    for (k = m - 1; k >= 0; k--) {   // back from every whole run that ends at a name's edge, marking the characters on it
+        if ((mask[k] >> 8) & 1 && (at[k] === n - 1 || !word(t.charAt(at[k] + 1)))) need[k] |= 1 << 8;
+        var nb = need[k] & mask[k]; if (!nb) continue;
+        if ((nb >> 2) & 1) { out = out || t.split(''); out[at[k]] = 'P'; }
+        for (w = 1; w < 9; w++) if ((nb >> w) & 1) {
+            if (k > 0 && (mask[k - 1] >> (w - 1)) & 1) need[k - 1] |= 1 << (w - 1);
+            if (jump[k]) for (q = 0; q < jump[k].length; q++) if ((mask[jump[k][q]] >> (w - 1)) & 1) need[jump[k][q]] |= 1 << (w - 1);
         }
-        out.push(line);
-    });
-    return out.join('\n');
+    }
+    return out ? out.join('') : t;
 }
+// The kind of diagram a source is, as the library will tell it: 'flow', 'class', 'seq', 'gantt' or '' (any other kind, and whatever cannot be told)
+function mmKind(s) {
+    var t = String(s).replace(/\r\n?/g, '\n');
+    if (/^\s*---/.test(t)) return '';
+    t = t.replace(MM_BLOCK, '');
+    if (t.indexOf('%%{') >= 0) return '';
+    t = t.replace(MM_COMMENT, '').replace(/^\s+/, '');
+    return /^(?:flowchart|graph)/.test(t) ? 'flow' : /^classDiagram/.test(t) ? 'class' : /^sequenceDiagram/.test(t) ? 'seq' : /^gantt/.test(t) ? 'gantt' : '';
+}
+// A directive statement (from its first word to the end of its line) as the canonical line — '' when it is not a link of this kind of diagram
+function mmCanon(stmt, kind) {
+    var m;
+    if (kind === 'flow') { m = /^\s*click\s+(\S+)\s+(?:href\s+)?"([^"]*)"/.exec(stmt); return m ? linkLine(m[1], m[2]) : ''; }
+    if (kind === 'class') { m = /^\s*(?:click\s+(\S+)\s+href|link\s+(\S+))\s+"([^"]*)"/.exec(stmt); return m ? linkLine(m[1] || m[2], m[3]) : ''; }
+    return '';
+}
+function mmCut(s, kind) {
+    var seq = /sequenceDiagram/i.test(s), out = [], mine = [], brace = mmBrace(s, kind), nosep = Object.prototype.hasOwnProperty.call(MM_NOSEP_OF, kind) ? MM_NOSEP_OF[kind] : MM_NOSEP;
+    function directive(line, at) { return mmAt(MM_DIRECTIVE, line, at) || mmAt(MM_LINK, line, at) || (seq && mmAt(MM_SEQ_LINK, line, at)); }
+    function past(line, at) { if (!nosep) return at; nosep.lastIndex = at; return nosep.test(line) ? nosep.lastIndex : at; }   // where a statement begins, past those that need no separator
+    function next(line, i) { var a = line.indexOf(';', i), b = brace ? line.indexOf('}', i) : -1; return a < 0 ? b : b < 0 ? a : Math.min(a, b); }
+    function put(l, m) { out.push(l); mine.push(m); }
+    s.split(/\r\n|\n|\r/).forEach(function(line) {
+        if (directive(line, 0)) { var whole = mmCanon(line, kind); if (whole) put(whole, true); return; }
+        var canon = '', cut = false;
+        // where a statement begins: the line's start, after a ';' (not one that closes a #…; entity) and after a '}' that counts — in the line's order
+        for (var at = 0; at >= 0 && !cut; at = next(line, at + 1)) {
+            var semi = line.charAt(at) === ';', from = at === 0 && !semi && !(brace && line.charAt(0) === '}') ? 0 : at + 1;
+            if (semi) { var k = at - 1; while (k >= 0 && /\w/.test(line.charAt(k))) k--; if (k < at - 1 && k >= 0 && line.charAt(k) === '#') continue; }   // the ';' that closes a #…; entity
+            var p = past(line, from);
+            if (!directive(line, p)) continue;
+            canon = mmCanon(line.slice(p), kind); cut = true;
+            line = p === from && semi ? line.slice(0, at) : line.slice(0, p).replace(/\s+$/, '');   // after a ';' as before; after the others, they stay
+        }
+        if (!cut || line.trim()) put(line, false);
+        if (canon) put(canon, true);
+    });
+    // a diagram's names (mmKey), read across the lines between the canonical ones — a name's pieces may stand on several
+    var res = [], run = [];
+    function flush() { if (run.length) res.push(mmKey(run.join('\n'))); run = []; }
+    for (var j = 0; j < out.length; j++) { if (mine[j]) { flush(); res.push(out[j]); } else run.push(out[j]); }
+    flush();
+    return res.join('\n');
+}
+function mmOwn(s) { return s.split('\n').filter(function(l) { return !!readLinkLine(l); }).join('\n'); }   // a source's canonical lines, in order
 function mmStrip(s, depth) {
-    var r = mmCut(s);
+    var kind = mmKind(s), r = mmCut(s, kind);
+    if (kind && mmKind(r) !== kind) r = mmCut(s, '');   // a link is kept only where what is handed over is still that kind of diagram
     if (r.indexOf('%%{') < 0) return r;
-    var once = r.replace(MM_BLOCK, ''), all = once;
+    var once = r.replace(MM_BLOCK, ''), all = once, mine = mmOwn(r);
     for (var k = 0; k < 8 && all.indexOf('%%{') >= 0; k++) { var nx = all.replace(MM_BLOCK, ''); if (nx === all) break; all = nx; }
-    if (mmCut(once) === once && mmCut(all) === all) return r;
-    return depth >= 8 ? '' : mmStrip(mmCut(all), depth + 1);
+    function still(x) { return mmCut(x, mmKind(x)) === x && mmOwn(x) === mine; }   // nothing to strip, and no link line but the ones written here
+    if (still(once) && still(all)) return r;
+    return depth >= 8 ? '' : mmStrip(mmCut(all, mmKind(all)), depth + 1);
 }
 function stripMermaidLinks(src, compiled) {
     var s = String(src || '');
-    if (compiled === true) return s.split(/\r?\n/).filter(function(line) { return !mmAt(MM_DIRECTIVE, line, 0); }).join('\n');
+    if (compiled === true) return s.split(/\r?\n/).filter(function(line) { return !mmAt(MM_DIRECTIVE, line, 0) || !!readLinkLine(line); }).join('\n');
     return mmStrip(s.replace(/\u0000/g, ''), 0);
 }
 // What a planner's preview hands the diagram library for a diagram block. The library reads the <pre>'s markup with its character
@@ -552,6 +687,7 @@ function cleanBlock(b, used, ctx) {
                 n = n && typeof n === 'object' ? n : {};
                 var on = { id: str(n.id, 40), text: str(n.text, LIMITS.cell), shape: /^(rect|rounded|pill|diamond|hex)$/.test(n.shape || '') ? n.shape : 'rect', color: /^(gold|blue|green|red|violet|neutral)$/.test(n.color || '') ? n.color : 'neutral' };
                 var nf = labelFmt(own(n, 'fmt') ? n.fmt : undefined, on.text); if (nf) on.fmt = nf;
+                var nl = own(n, 'link') ? diagramLink(n.link) : ''; if (nl) on.link = nl;   // the whole node's link, by the one rule (an arrow carries none)
                 return on;
             });
             o.edges = (Array.isArray(b.edges) ? b.edges : []).slice(0, LIMITS.edges).map(function(e) {
@@ -822,6 +958,6 @@ function hbText(pages, q) {
     return { hits: hits.slice(0, HB_LIMIT), over: hits.length > HB_LIMIT };
 }
 
-var API = { VERSION: VERSION, hbFold: hbFold, hbSections: hbSections, hbHeadings: hbHeadings, hbText: hbText, HB_LIMIT: HB_LIMIT, LIMITS: LIMITS, DOC_BLOCKS: DOC_BLOCKS.slice(), sanitizeHtml: sanitizeHtml, sanitizeBare: sanitizeBare, fmtHtml: fmtHtml, fmtRich: fmtRich, cleanBlockFmts: cleanBlockFmts, labelFmt: labelFmt, fieldFmt: fieldFmt, colFmtOf: colFmtOf, cellFmtOf: cellFmtOf, cleanDoc: cleanDoc, renderDoc: renderDoc, proseHtml: proseHtml, nl: nl, compileFlowchart: compileFlowchart, stripMermaidLinks: stripMermaidLinks, mermaidPre: mermaidPre, esc: esc, cleanDocStyle: cleanDocStyle, mergeDocStyle: mergeDocStyle, docStyleCss: docStyleCss, docBgImage: docBgImage, DOC_FONTS: DOC_FONTS };
+var API = { VERSION: VERSION, hbFold: hbFold, hbSections: hbSections, hbHeadings: hbHeadings, hbText: hbText, HB_LIMIT: HB_LIMIT, LIMITS: LIMITS, DOC_BLOCKS: DOC_BLOCKS.slice(), sanitizeHtml: sanitizeHtml, sanitizeBare: sanitizeBare, fmtHtml: fmtHtml, fmtRich: fmtRich, cleanBlockFmts: cleanBlockFmts, labelFmt: labelFmt, fieldFmt: fieldFmt, colFmtOf: colFmtOf, cellFmtOf: cellFmtOf, cleanDoc: cleanDoc, renderDoc: renderDoc, proseHtml: proseHtml, nl: nl, compileFlowchart: compileFlowchart, stripMermaidLinks: stripMermaidLinks, mermaidPre: mermaidPre, diagramLink: diagramLink, linkLine: linkLine, readLinkLine: readLinkLine, esc: esc, cleanDocStyle: cleanDocStyle, mergeDocStyle: mergeDocStyle, docStyleCss: docStyleCss, docBgImage: docBgImage, DOC_FONTS: DOC_FONTS };
 if (typeof window !== 'undefined') window.wpDocRender = API;
-export { VERSION, hbFold, hbSections, hbHeadings, hbText, HB_LIMIT, LIMITS, DOC_BLOCKS, sanitizeHtml, sanitizeBare, fmtHtml, fmtRich, cleanBlockFmts, labelFmt, fieldFmt, colFmtOf, cellFmtOf, cleanDoc, renderDoc, proseHtml, nl, compileFlowchart, stripMermaidLinks, mermaidPre, cleanDocStyle, mergeDocStyle, docStyleCss, docBgImage, DOC_FONTS };
+export { VERSION, hbFold, hbSections, hbHeadings, hbText, HB_LIMIT, LIMITS, DOC_BLOCKS, sanitizeHtml, sanitizeBare, fmtHtml, fmtRich, cleanBlockFmts, labelFmt, fieldFmt, colFmtOf, cellFmtOf, cleanDoc, renderDoc, proseHtml, nl, compileFlowchart, stripMermaidLinks, mermaidPre, diagramLink, linkLine, readLinkLine, cleanDocStyle, mergeDocStyle, docStyleCss, docBgImage, DOC_FONTS };

@@ -11,7 +11,9 @@
 
    What opens:  only an address textfmt.js cleanLink keeps (the page sanitiser's own rule for an <a href>) that the URL parser reads
                 as http or https. Anything else under an <a href> opens nothing at all — the second check, at the click.
-   Never:       a link inside a box that is being edited (a text block's box, a play-map text box): there a click places the caret.
+   Never:       a link inside a box that is being edited (a text block's box, a play-map text box): there a click places the caret. And a
+                link that has just been dragged: a flowchart node with a link is moved and resized in the planner's preview, and the click
+                that ends that gesture is no click on the link (planner.js marks the link while it is on its way: data-held).
    Directly:    the app's own words (Help, About, Settings); what the Journal says is yours in the handout viewer (your own note,
                 your own handout's preview); a planner or a page where it is drawn to be read (the preview, the reader, the floating
                 panel, a pop-out) while this app is not a player at someone's table.
@@ -26,6 +28,12 @@
    How:         window.open(address, '_blank', 'noopener,noreferrer') — in the shell that is handed to the system browser by the
                 window rules (shellguard.js webLinkOk), in a browser it is a new tab. The engine's own following is always stopped.
    A file the app itself hands over to be saved (an <a download> to a blob: or data: address, clicked by the app) is left alone.
+   A script's window.open never steers the window it is made from (openGuard): the diagram library binds a click on a Gantt chart's task
+                to window.open(address, '_self') whatever its mode — and it finds the task by its id on the whole page, so the click it
+                binds can land on an element of the app's own that shares that id. The target is made into a string once, as the engine
+                would, and that string is judged and passed on: one that names this window — _self, _parent, _top, _unfencedTop or any
+                other of the engine's own names that begin with _ (in any case, with spaces round it), all but _blank, or the window's own
+                name — opens nothing; every other call (a new window, a pop-out) goes through as it was made.
    A drag:      a link is dragged only where a click on it opens it directly. Anywhere else the drag does not begin (a second listener,
                 for dragstart): a dragged address dropped on another of the app's windows would be followed there with no question.
 
@@ -52,12 +60,12 @@ function atTable(win) {
         return !!(n.foreign || (n.active && n.role === 'client'));
     } catch (e) { return null; }
 }
-// Where a link is, and whose: { editing, zone, own, gm, who, player }.
-//   editing: it lies in a box that is being edited;  zone: 'viewer' | 'app' | 'page' | 'other';
+// Where a link is, and whose: { editing, held, zone, own, gm, who, player }.
+//   editing: it lies in a box that is being edited;  held: it was just dragged (the app's own mark on the link);  zone: 'viewer' | 'app' | 'page' | 'other';
 //   own: the handout viewer shows something of your own (handouts.js says so, on the viewer's element);  gm / who: who it came from, where
 //   that is known — the GM, or a player's name as the Journal shows it;  player: atTable.
 function linkWhere(a, win) {
-    var c = { editing: false, zone: 'other', own: false, gm: false, who: '', player: atTable(win) };
+    var c = { editing: false, held: !!(a.hasAttribute && a.hasAttribute('data-held')), zone: 'other', own: false, gm: false, who: '', player: atTable(win) };
     for (var n = a; n; n = n.parentNode) if (n.isContentEditable === true) { c.editing = true; break; }
     var v = a.closest(ZONE_VIEWER);
     if (v) {
@@ -74,6 +82,7 @@ function linkWhere(a, win) {
 function linkVerdict(c) {
     if (!c || typeof c !== 'object' || typeof c.link !== 'string' || !c.link || cleanLink(c.link) !== c.link) return 'none';   // no web address
     if (c.editing !== false) return 'none';                                 // a box that is being edited
+    if (c.held === true) return 'none';                                     // the end of a drag or a resize of a linked shape: no click on its link
     if (c.zone === 'app') return 'open';                                    // the app's own words
     if (c.zone === 'viewer') return c.own === true ? 'open' : 'ask';        // the handout viewer: only what the Journal knows to be yours
     if (c.zone === 'page') return c.player === false ? 'open' : 'ask';      // your planners and pages, while you are not at someone's table
@@ -146,7 +155,24 @@ function dragGate(win) {
         if (linkVerdict(c) !== 'open') e.preventDefault();
     };
 }
+// A script's window.open, guarded (see the comment at the top). The guard is put in once per window.
+function openGuard(win) {
+    var open = win && win.open;
+    if (typeof open !== 'function' || open.wpGuarded === true) return;
+    var guarded = function(url, target) {
+        var t, own = '', args = Array.prototype.slice.call(arguments);
+        try { t = target === undefined ? undefined : String(target); own = typeof win.name === 'string' ? win.name : ''; } catch (e) { return null; }   // read once: an object is never asked twice
+        var k = t === undefined ? '' : t.trim();
+        if (k.charAt(0) === '_' && k.toLowerCase() !== '_blank') return null;   // _self, _parent, _top, _unfencedTop, any other of the engine's own: this window, never steered
+        if (own && t !== undefined && (t === own || k === own)) return null;   // the window's own name
+        if (args.length > 1) args[1] = t;   // the very string judged here is what the engine reads
+        return open.apply(win, args);
+    };
+    guarded.wpGuarded = true;
+    try { win.open = guarded; } catch (e) {}
+}
 function wireLinks(win, doc, ask) {
+    openGuard(win);
     var h = linkGate(win, doc, ask);
     doc.addEventListener('click', h, true);
     doc.addEventListener('auxclick', h, true);

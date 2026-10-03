@@ -295,6 +295,7 @@ function mkCampaign(SC, F) {
                 tok('tok_npc2', { charName: 'Goblin', name: 'Goblin', x: 350, y: 300 }), tok('tok_npc3', { charName: 'Wolf', name: 'Wolf', x: 400, y: 300 }), tok('tok_npc4', { charName: 'Bat', name: 'Bat', x: 450, y: 300 }),
                 tok('tok_hidden', { charName: 'Assassin', name: 'Assassin', hidden: true, x: 400, y: 400, gmInfo: 'secret plan' }),
                 { id: 'portal_vis', type: 'rect', targetMapId: 'm_fog', name: 'Stairs', x: 500, y: 500, w: 50, h: 50, layer: 'bottom' },
+                { id: 'portal_locked', type: 'rect', targetMapId: 'm_fog', portalLock: true, name: 'Barred stairs', x: 250, y: 100, w: 50, h: 50, layer: 'bottom' },   // a portal's own lock (the owner, 2026-10-03): a portal the GM locked for players, three clear cells from tok_p1 — no message of a player's may move anyone through it, set its lock or clear it
                 { id: 'trap1', type: 'rect', hidden: true, trap: true, targetMapId: 'm_fog', x: 200, y: 100, w: 50, h: 50, layer: 'bottom' },
                 { id: 'door1', type: 'rect', blocksSight: true, sightType: 'door', doorOpen: false, x: 150, y: 150, w: 50, h: 50 },
                 { id: 'door_locked', type: 'rect', blocksSight: true, sightType: 'door', doorOpen: false, doorLock: true, x: 50, y: 150, w: 50, h: 50 },
@@ -515,7 +516,8 @@ function mutations(tpl) {
             'hello': { type: 'hello', profile: { id: 'u_new', name: 'Newcomer', color: '#123456', avatar: 'data:image/png;base64,iVBORw0KGgo=', face: '🙂' }, version: '1.5.0', password: '', proof: '', fp: [FP_P, FP_H], cn: 'c'.repeat(32) },   // no key rides in a hello since the proof (a known id is challenged; the answer is a proof, with the pair of fingerprints it was made over)
             'hold': { type: 'hold', ms: 1000 },
             'hb': { type: 'hb' },
-            'item': { type: 'item', campId: 'c1', itemId: 'm_open', item: { whiteboard: [{ id: 'tok_p1', x: 120, y: 130, rot: 0, front: 0, elevation: 0, posture: '', barrier: true, blocksSight: true }, { id: 'stroke_p1', type: 'path', ownerId: 'u_p1', pts: [[0, 0], [10, 10], [20, 5]], color: '#ffffff', strokeWidth: 3, x: 0, y: 0, w: 20, h: 10, baseW: 20, baseH: 10, opacity: 1, barrier: true, blocksSight: true },
+            'item': { type: 'item', campId: 'c1', itemId: 'm_open', item: { whiteboard: [{ id: 'tok_p1', x: 120, y: 130, rot: 0, front: 0, elevation: 0, posture: '', barrier: true, blocksSight: true, portalLock: true, targetMapId: 'm_fog' }, { id: 'stroke_p1', type: 'path', ownerId: 'u_p1', pts: [[0, 0], [10, 10], [20, 5]], color: '#ffffff', strokeWidth: 3, x: 0, y: 0, w: 20, h: 10, baseW: 20, baseH: 10, opacity: 1, barrier: true, blocksSight: true, portalLock: true, targetMapId: 'm_fog' },
+                { id: 'portal_locked', type: 'rect', targetMapId: 'm_fog', name: 'Barred stairs', x: 250, y: 100, w: 50, h: 50, layer: 'bottom' }, { id: 'portal_vis', type: 'rect', targetMapId: 'm_fog', name: 'Stairs', x: 500, y: 500, w: 50, h: 50, layer: 'bottom', portalLock: true },   // a portal's own lock: the GM's locked portal sent back unlocked, the open one sent back locked, the player's own token and drawing sent as locked portals — a host takes none of it
                 { id: 'gate1', type: 'rect', sightType: 'door', doorOpen: true, x: 150, y: 50, w: 50, h: 50 }, { id: 'bars1', type: 'rect', x: 650, y: 0, w: 10, h: 400 }] }, a: 1 },   // see-through barriers (1.5.1): a copy that sends the GM's gate back unflagged and open, the bars unflagged, and its own token and drawing flagged — a host takes none of it
             'threats': { type: 'threats', campId: 'c1', itemId: 'm_open', wbId: 'tok_p1', threats: [90, 180], a: 2 },
             'needItem': { type: 'needItem', campId: 'c1', itemId: 'm_open' },
@@ -600,10 +602,12 @@ function mutations(tpl) {
         if ((m = p.match(/^\.app\.campaigns\.c1\.items\.([^.]+)\.whiteboard\[id=([^\]]+)\](?:\.(.+))?$/))) {
             const mapB = before.app.campaigns.c1.items[m[1]], mapA = after.app.campaigns.c1.items[m[1]];
             const tokA = mapA && (mapA.whiteboard || []).find(x => x.id === m[2]), tokB = mapB && (mapB.whiteboard || []).find(x => x.id === m[2]);
+            if (!m[3] && tokA && !tokB && tokA.type === 'path' && ['portalLock', 'targetMapId', 'barrier', 'blocksSight'].some(k => Object.prototype.hasOwnProperty.call(tokA, k))) return false;   // a drawing a player hands the host is the drawing alone: never a portal, a locked one, a wall or a barrier (a new piece arrives whole, so its keys are judged here)
             if (!m[3]) { const obj = tokA || tokB; return !!obj && ((obj.type === 'path' && obj.byPlayer === true && obj.ownerId === pid) || (msg.type === 'hello' && obj.ownerId === pid) || ((msg.type === 'travel' || msg.type === 'pos' || msg.type === 'item' || msg.type === 'char-token' || msg.type === 'char-done') && (obj.ownerId === pid || obj.waiting))); }
             const tok = tokB || tokA; if (!tok) return false;
             const key = m[3].split(/[.[]/)[0];
             if (key === 'barrier' || key === 'blocksSight') return false;   // what stops movement or sight is the GM's alone, on a player's own drawing too
+            if (key === 'portalLock' || key === 'targetMapId') return false;   // a portal's own lock (and what makes a piece a portal) is the GM's alone: no message of a player's sets it or clears it, on their own token or drawing too
             if (tok.type === 'path' && tok.byPlayer === true && tok.ownerId === pid) return true;
             if (tok.ownerId === pid && !tok.hidden && !tok.locked && /^(x|y|rot|front|elevation|posture|threats|light|face|isChar|charName|name|charStats|waiting|color|charId)$/.test(key)) return true;
             if (tok.ownerId === pid && (msg.type === 'tok-pic' || msg.type === 'char-pic') && /^(src|pic|face|frame)$/.test(key)) return true;
@@ -761,6 +765,26 @@ function mutations(tpl) {
         await resetWorld(); const sb = conns.p1.sent.length;
         await fireHost('p1', 'travel naming the trap', 'hidden portal id', { type: 'travel', viaItemId: 'trap1' });
         check('host: naming a hidden trap tile in a travel moves nobody and answers nothing', net.roster.peer_p1.location === 'm_open' && conns.p1.sent.length === sb);
+    }
+    {   // a portal's own lock (the owner, 2026-10-03): a travel naming the locked portal and a drop on it, against the whole of net.js
+        await resetWorld(); const den = () => conns.p1.sent.filter(m => m.type === 'travelDenied' && m.reason === 'portal'), stages = () => conns.p1.sent.filter(m => m.type === 'stage').length, s0 = stages(), d0 = den().length;
+        await fireHost('p1', 'travel through the locked portal', 'the locked portal\'s id', { type: 'travel', viaItemId: 'portal_locked' }); const d1 = den().length - d0;
+        await fireHost('p1', 'travel through the locked portal', 'again within 4 s', { type: 'travel', viaItemId: 'portal_locked' }); const d2 = den().length - d0;
+        await fireHost('p1', 'pos onto the locked portal', 'final on the locked portal', { type: 'pos', campId: 'c1', itemId: 'm_open', wbId: 'tok_p1', x: 250, y: 100, rot: 0, front: 0, final: true, a: 9 }); const d3 = den().length - d0;
+        const tkL = stubs.getActiveCampaign().items.m_open.whiteboard.find(w => w.id === 'tok_p1'), landed = !!tkL && tkL.x === 250 && tkL.y === 100;
+        clockOff += 4001; await fireHost('p1', 'travel through the locked portal', 'after 4 s', { type: 'travel', viaItemId: 'portal_locked' }); const d4 = den().length - d0;
+        const pl = stubs.getActiveCampaign().items.m_open.whiteboard.find(w => w.id === 'portal_locked');
+        check('host: a travel naming the portal the GM locked, and a drop of the player\'s own token on it, move nobody (no stage word, their location kept, the token resting where it was dropped) and are answered with one travelDenied of reason "portal" in 4 s — nothing but the reason in it — and again after 4 s; the portal stays locked',
+            net.roster.peer_p1.location === 'm_open' && stages() === s0 && landed && d1 === 1 && d2 === 1 && d3 === 1 && d4 === 2 && den().every(m => Object.keys(m).length === 2) && !!pl && pl.portalLock === true, { d: [d1, d2, d3, d4], loc: net.roster.peer_p1.location, landed });
+        await resetWorld(); const sU = stages();
+        await fireHost('p1', 'travel through the open portal', 'the open portal beside it', { type: 'travel', viaItemId: 'portal_vis' });
+        check('host: the open portal beside it still lets the same player through (one stage word, their location moved)', net.roster.peer_p1.location === 'm_fog' && stages() === sU + 1);
+        await resetWorld();   // a drawing of the player's own, drawn and then redrawn as a locked portal: the host takes the redraw and nothing else (the write oracle judges each key that changed)
+        await fireHost('p1', 'item', 'the well-formed copy (it adds the drawing)', clone(host.tpl.item));
+        const redraw = clone(host.tpl.item), stR = redraw.item.whiteboard.find(w => w.id === 'stroke_p1'); stR.pts = [[0, 0], [12, 12], [30, 5]]; stR.x = 5; stR.portalLock = true; stR.targetMapId = 'm_fog';
+        await fireHost('p1', 'item redraw as a locked portal', 'the drawing redrawn and sent as a locked portal', redraw);
+        const stH = stubs.getActiveCampaign().items.m_open.whiteboard.find(w => w.id === 'stroke_p1');
+        check('host: a player\'s own drawing redrawn and sent as a locked portal lands as the redraw alone — the write oracle sees the drawing change and no key a player may not write', !!stH && JSON.stringify(stH.pts) === JSON.stringify([[0, 0], [12, 12], [30, 5]]) && !openFindings().some(f => /item redraw as a locked portal/.test(f.detail)), stH && Object.keys(stH));
     }
     {   // needItem with a prototype key as the item id (the inventory's worry 5)
         await resetWorld(); const sb = sentLog.length; let threw = null;
@@ -1209,7 +1233,8 @@ function mutations(tpl) {
         const muts = mutations(snapshotForClient).filter(m => !/appState=|\.campaigns/.test(m.name) || /appState=\{\}|appState=null|appState=\[\]/.test(m.name)).slice(0, 80);
         resetClient();
         for (const m of muts) { localStorage.setItem('wp_tableKeys', JSON.stringify({ u_victim: 'VICTIMKEY'.repeat(3), u_gm: snapshotForClient.key })); await fireClient('host', 'snapshot', m.name, m.msg); if (stateMod.state.appState.activeCampaignId !== 'c1') resetClient(); }
-        const hostile = clone(snapshotForClient); hostile.appState.campaigns.c1.items.m_open.whiteboard.push({ id: 'evil', type: 'text', text: '<img src=x onerror=alert(1)>' + CANARY, x: 0, y: 0, w: 1, h: 1 }, { id: 'evil2', type: 'circle', isChar: true, x: '1e3', y: {}, w: NaN, light: { bright: 1e300 }, senses: [{ id: 'x', r: 1 }], blind: true, ownerId: 'u_p1', fxb: [{ n: CANARY, i: 'x', t: 'buff' }] });
+        const hostile = clone(snapshotForClient); hostile.appState.campaigns.c1.items.m_open.whiteboard.push({ id: 'evil', type: 'text', text: '<img src=x onerror=alert(1)>' + CANARY, x: 0, y: 0, w: 1, h: 1 }, { id: 'evil2', type: 'circle', isChar: true, x: '1e3', y: {}, w: NaN, light: { bright: 1e300 }, senses: [{ id: 'x', r: 1 }], blind: true, ownerId: 'u_p1', fxb: [{ n: CANARY, i: 'x', t: 'buff' }] },
+            { id: 'evil3', type: 'rect', targetMapId: 'm_fog', portalLock: 'yes', x: 0, y: 0, w: 10, h: 10 }, { id: 'evil4', type: 'rect', targetMapId: 'm_fog', portalLock: 1, x: 0, y: 0, w: 10, h: 10 }, { id: 'evil5', type: 'rect', targetMapId: 'm_fog', portalLock: { on: true }, x: 0, y: 0, w: 10, h: 10 });   // a portal's own lock: only true is kept
         hostile.appState.campaigns.c1.items.__proto__ = { polluted: 1 }; hostile.appState.campaigns.constructor = { id: 'constructor', type: 'map', items: {} };
         hostile.appState.campaigns.c1.players = { u_p1: { key: 'STOLEN' } };
         await fireClient('host', 'snapshot', 'hostile items, a players record, prototype keys as campaign ids', hostile);
@@ -1218,6 +1243,8 @@ function mutations(tpl) {
         check('client: a hostile snapshot keeps no players record, no prototype-keyed campaign, and its text item is rebuilt by the sanitiser (escaped here: no DOMParser under node)', camp && !camp.players && !Object.prototype.hasOwnProperty.call(stateMod.state.appState.campaigns, 'constructor') && (!txt || txt.text.indexOf(CANARY) < 0), txt && txt.text.slice(0, 80));
         const ev2 = camp && camp.items.m_open.whiteboard.find(w => w.id === 'evil2');
         check('client: a token\'s senses, blind tick and effects from the host are cleaned again on its own token (fxb bounded with a cleaned icon, senses the cleaner\'s or gone, blind only as true)', !!ev2 && (!ev2.fxb || ev2.fxb.every(e => typeof e.n === 'string' && e.n.length <= 60 && typeof e.i === 'string')) && (ev2.senses === undefined || Array.isArray(ev2.senses)) && (ev2.blind === undefined || ev2.blind === true), ev2 && { fxb: ev2.fxb, senses: ev2.senses, blind: ev2.blind });
+        const plC = id => { const w = camp && camp.items.m_open.whiteboard.find(x => x.id === id); return w ? (Object.prototype.hasOwnProperty.call(w, 'portalLock') ? w.portalLock : 'none') : 'gone'; };
+        check('client: a portal\'s lock from the host is kept only as true — the host\'s own locked portal with its lock, a hostile "yes", 1 or object dropped while the portal itself stays', plC('portal_locked') === true && plC('evil3') === 'none' && plC('evil4') === 'none' && plC('evil5') === 'none' && plC('portal_vis') === 'none', [plC('portal_locked'), plC('evil3'), plC('evil4'), plC('evil5')]);
         resetClient();
     }
     {   // ordering on the client: a roll replayed, a delta before its item, chat-history from.id unbounded, a stale drag
@@ -1241,6 +1268,12 @@ function mutations(tpl) {
         resetClient(); resetRec();
         await fireClient('host', 'denied', 'update dialog with host text', { type: 'denied', reason: 'Run this command to fix your install: ' + CANARY, update: true });
         check('client: a "denied" with update:true raises a dialog with the host\'s own text (an avenue for a phishing-style prompt)', rec.confirms.length === 0, rec.confirms.map(c => c.text.slice(0, 60)));
+        resetClient();
+    }
+    {   // a portal's own lock: the host's refusal is said in the app's own fixed words, whatever rides beside the reason
+        resetClient(); resetRec();
+        await fireClient('host', 'travelDenied', 'reason portal with host text beside it', { type: 'travelDenied', reason: 'portal', map: CANARY, text: CANARY, portal: CANARY });
+        check('client: a travelDenied of reason "portal" is said in the app\'s own fixed words — nothing of the message in them', rec.toasts.some(t => t === 'That way is locked — the GM will unlock it when the time comes.') && !rec.toasts.some(t => t.indexOf(CANARY) >= 0), rec.toasts.slice(0, 3));
         resetClient();
     }
     {   // the player's own moves are never undone by a host's pos for their token with a pending action? (actPos) — and a host's pos geometry is typed

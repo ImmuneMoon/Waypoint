@@ -1063,7 +1063,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                   }
               }
               // A portal under the token? Travel first, so the room note below only fires when the token actually stays put.
-              var traveled = !!(window.wpNet && window.wpNet.tokenDropped && window.wpNet.tokenDropped(item, am));
+              var traveled = !!(window.wpNet && window.wpNet.tokenDropped && window.wpNet.tokenDropped(item, am, true));   // true: this machine's own hand — on the host, the GM's (a portal locked for players does not stop it); a player's app travels nobody from here
               var toRoom = window.wpAutoRoom ? window.wpAutoRoom(item, am) : null;
               if (toRoom && !traveled) import('./io.js').then(function(m) { m.toast((item.charName || 'Character') + ' is now in ' + (toRoom.name || 'that room') + '.'); });
           }

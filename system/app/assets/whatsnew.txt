@@ -79,6 +79,28 @@ Tokens and portals
   "⚠️ Trap — fires while hidden" in its Properties. Players never see the
   tile, but a token that lands on it is teleported; you see a red ⚠️ and a
   dashed outline, and a locked destination map still stops it.
+- Locking a portal: a portal can now be locked for players. Right-click a
+  portal on the play map and pick "Lock portal for players" (or tick "Locked
+  for players" in its Properties): no player travels through it, by
+  double-click or by dropping their token on it, until you pick "Unlock
+  portal". You and your players see a small lock beside the portal's marker,
+  its hover says it is locked, and a player who tries is told "That way is
+  locked". Every other way off the map stays as it was. A summon, Bring and
+  the table following your map are never stopped, and dropping a player's
+  token on a locked portal yourself still sends them through. A hidden trap
+  tile you locked fires for no player who lands on it, and tells only you. A
+  lock is the piece's own: where two pieces lead through the same room, lock
+  each.
+- A locked map is closed both ways: "Lock for players" on a map (right-click
+  it in the Maps list) used to stop players arriving on it; now no player who
+  is on it leaves it through a portal either, and one who tries is told "This
+  map is locked". Your summon, Bring, the table following your map and your
+  own drop of a player's token on a portal still move them. That makes three
+  locks on travel: one portal, one map (both ways), and "Lock Travel Between
+  Maps" for everything; Help lists them side by side.
+- A hidden trap tile that cannot fire (it is locked, its map or its
+  destination is locked, or all travel is) tells you once, and not again at
+  every turn of a token resting on it.
 - On a player's screen, a picture token whose picture is still arriving
   shows the character's initials in a dashed circle instead of an empty box.
 

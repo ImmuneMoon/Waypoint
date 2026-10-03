@@ -5357,7 +5357,7 @@ function arcSentence(sn) {
     var f = senseArcOf(a); if (!f) return 'Pick the number or formula field that gives a character’s sight arc: Save leaves it out.';
     var nm = f.label || f.key, secret = senseSecrets();
     if (!secret || secret[f.id]) return 'Save drops the sight arc: its owner cannot read ' + nm + ' (a GM-only value, or one worked out from one). Make that value visible to its owner.';
-    return 'A character’s eyes see through an arc of ' + nm + ' degrees (1 to 360) wherever the map’s Vision is a facing cone, wider or narrower than the map’s own. A value of 0 or less: the map’s arc. A map set to All around still sees all round, as every token does while Token facing is off.' + (f.edit === 'owner' && f.kind !== 'formula' ? ' Its owner can change this on their sheet.' : '');
+    return 'A character sees through an arc of its own, the character’s ' + nm + ' in degrees (1 to 360), wherever the map’s Vision is a facing cone: wider or narrower than the map’s. A value of 0 or less: the map’s arc. A map set to All around still sees all round, as every token does while Token facing is off.' + (f.edit === 'owner' && f.kind !== 'formula' ? ' Its owner can change this on their sheet.' : '');
 }
 function sensesBox(box, cm) {
     var sn = cm.senses && typeof cm.senses === 'object' && !Array.isArray(cm.senses) ? cm.senses : {}, arr = Array.isArray(sn.list) ? sn.list : [], wrap = el('div', 'sys-light sys-senses');

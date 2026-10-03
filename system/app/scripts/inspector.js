@@ -1303,12 +1303,14 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             var _el_wbBlocksSight = document.getElementById('wbBlocksSight');
             if(_el_wbBlocksSight) _el_wbBlocksSight.addEventListener('change', function() {
                 if (this.checked) { w.blocksSight = true; if (!w.sightType) w.sightType = 'wall'; } else { delete w.blocksSight; delete w.sightType; delete w.doorOpen; delete w.doorLock; }
-                delete w.barrier;   // see-through barriers: exclusive with Stops movement only (a wall stops tokens anyway)
+                delete w.barrier; delete w.blastStop;   // see-through barriers: exclusive with Stops movement only (a wall stops tokens anyway, and blasts)
                 save(); render(); renderInspector();
                 if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
             });
             var _el_wbBarrier = document.getElementById('wbBarrier');   // see-through barriers: true or no key
             if (_el_wbBarrier) _el_wbBarrier.addEventListener('change', function() { setItemBarrier(w, this.checked); });
+            var _el_wbBlastStop = document.getElementById('wbBlastStop');   // a barrier's Stops blasts tick: true or no key
+            if (_el_wbBlastStop) _el_wbBlastStop.addEventListener('change', function() { setItemBlastStop(w, this.checked); });
             var _el_wbCover = document.getElementById('wbCover');
             if(_el_wbCover) _el_wbCover.addEventListener('change', function() {
                 if (this.value === 'yes' || this.value === 'no') w.cover = this.value; else delete w.cover;   // cover follow-ups (owner 2026-09-28): what this piece gives as cover
@@ -1854,11 +1856,21 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
       return '<div class="field check-row"><input type="checkbox" id="wbBarrier" ' + (on ? 'checked' : '') + '> <label for="wbBarrier">' + (line ? 'Stops movement only (a see-through barrier along the line)' : 'Stops movement only (a see-through barrier)') + '</label></div>'
           + '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">A force field, bars, a window, a railing: players&rsquo; tokens cannot land in or cross ' + (line ? 'the line' : 'the cells its outline covers') + ', while sight, light and senses pass through. Your own moves are never stopped; it follows the Walls stop player tokens setting and needs no fog on the map.</div>'
           + (on ? '<div class="field"><label for="wbSightType">Type</label><select id="wbSightType"><option value="wall"' + (door ? '' : ' selected') + '>Barrier (always stops)</option><option value="door"' + (door ? ' selected' : '') + '>Door or gate (can open)</option></select></div>' : '')
-          + (door ? '<div class="field check-row"><input type="checkbox" id="wbDoorOpen" ' + (w.doorOpen ? 'checked' : '') + '> <label for="wbDoorOpen">Open (tokens pass through)</label></div><div class="field check-row"><input type="checkbox" id="wbDoorLock" ' + (w.doorLock ? 'checked' : '') + '> <label for="wbDoorLock">GM-locked (players can&rsquo;t open it)</label></div>' : '');
+          + (door ? '<div class="field check-row"><input type="checkbox" id="wbDoorOpen" ' + (w.doorOpen ? 'checked' : '') + '> <label for="wbDoorOpen">Open (tokens pass through)</label></div><div class="field check-row"><input type="checkbox" id="wbDoorLock" ' + (w.doorLock ? 'checked' : '') + '> <label for="wbDoorLock">GM-locked (players can&rsquo;t open it)</label></div>' : '')
+          + (on ? '<div class="field check-row"><input type="checkbox" id="wbBlastStop" ' + (w.blastStop === true ? 'checked' : '') + '> <label for="wbBlastStop">Stops blasts</label></div>'
+              + '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">On for a force field or a window, off for bars or a railing. A thrown blast then never goes off inside it, and it shields what is behind it as a wall does (where your system has cover switched on). An open door stops no blast.</div>' : '');
+  }
+  // A barrier's Stops blasts tick (the owner, 2026-10-03: "A tick per barrier"): item.blastStop, true or no key, only on a piece that is a
+  // barrier now (fogcore blastStopOn reads both); it goes with the barrier when that is unticked or the piece is made a wall
+  function setItemBlastStop(w, on) {
+      if (!w || typeof w !== 'object') return;
+      if (on === true && barrierFieldOk(w) && w.barrier === true && !w.blocksSight) w.blastStop = true; else delete w.blastStop;
+      save(); render(); renderInspector();
+      if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
   }
   function setItemBarrier(w, on) {
       if (on === true && barrierFieldOk(w)) { w.barrier = true; delete w.blocksSight; if (w.sightType !== 'door') w.sightType = 'wall'; }   // exclusive with Blocks sight; a door stays a door
-      else { delete w.barrier; if (!w.blocksSight) { delete w.sightType; delete w.doorOpen; delete w.doorLock; } }
+      else { delete w.barrier; delete w.blastStop; if (!w.blocksSight) { delete w.sightType; delete w.doorOpen; delete w.doorLock; } }
       save(); render(); renderInspector();
       if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
   }

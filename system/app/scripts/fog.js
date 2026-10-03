@@ -379,15 +379,19 @@ function coverBetween(x1, y1, x2, y2, hA, hB) {   // item 19 H1: hA, hB — the 
 // fogcore coverRole (never a token, a hidden piece or an open door; a piece set to no cover gives none). Memoised like blockersFor (map.id +
 // its saved stamp); none, or the walls over the cells cap: null (no cover: fail open, as blockersFor)
 var _coverCache = Object.create(null), _coverStamp = Object.create(null);
-function coverSetsFor(map, grid) {
+// blast (true only; coverAt and blastSeat ask it): the sets a BLAST reads — the same, with each barrier ticked Stops blasts (fogcore blastStopOn)
+// counted as a wall. A map with no such barrier answers with the map's own sets, the very object; nothing else ever passes blast
+function coverSetsFor(map, grid, blast) {
     if (!map || !grid) return null;
-    var stamp = (map.meta && map.meta.updated) || 0;
-    if (_coverCache[map.id] !== undefined && _coverStamp[map.id] === stamp) return _coverCache[map.id];
-    var C = core(), wb = map.whiteboard || [], cap = C.LIMITS.blockerCells, hard = Object.create(null), soft = Object.create(null), nh = 0, ns = 0, over = false, hs = [], ss = [];
+    var C = core(), wb = map.whiteboard || [];
+    if (blast === true) { var anyB = false; for (var bi = 0; bi < wb.length && !anyB; bi++) anyB = !!(C && C.blastStopOn && C.blastStopOn(wb[bi])); if (!anyB) return coverSetsFor(map, grid); }
+    var stamp = (map.meta && map.meta.updated) || 0, ck = blast === true ? map.id + '\u0000blast' : map.id;
+    if (_coverCache[ck] !== undefined && _coverStamp[ck] === stamp) return _coverCache[ck];
+    var cap = C.LIMITS.blockerCells, hard = Object.create(null), soft = Object.create(null), nh = 0, ns = 0, over = false, hs = [], ss = [];
     var softH = Object.create(null), softLines = [];   // item 19 H1: each see-over cell's height (its tallest piece; 1 yard where none is given) and each see-over line's
     var hardH = Object.create(null), hardLines = [], fullW = null, lowW = false;   // item 19b H4: each wall cell's height (Infinity where a piece with none stands in it) and each wall line's; fullW: the walls with no height; lowW: some wall has a height
     for (var i = 0; i < wb.length && !over; i++) {
-        var role = C.coverRole(wb[i]); if (!role) continue;
+        var role = C.coverRole(wb[i]) || (blast === true && C.blastStopOn(wb[i]) ? 'hard' : null); if (!role) continue;   // a barrier ticked Stops blasts: a wall to a blast
         var hW = C.cleanHeight(wb[i].height) || 1, hR = role === 'hard' ? C.cleanHeight(wb[i].height) || Infinity : 0; if (role === 'hard' && hR < Infinity) lowW = true;
         if (wb[i].type === 'path') { var pz = C.pathSegs(wb[i]), into = role === 'hard' ? hs : ss; for (var q = 0; q < pz.length; q++) { into.push(pz[q]); if (hs.length > C.LIMITS.wallSegs) { over = true; break; } } if (ss.length > C.LIMITS.wallSegs) ss.length = C.LIMITS.wallSegs; if (role === 'soft' && pz.length) softLines.push({ segs: pz, h: hW }); if (role === 'hard' && pz.length) hardLines.push({ segs: pz, h: hR }); continue; }   // item 18 W2: a pen line's cover is its line
         var cells = footprintCells(wb[i], grid, C);
@@ -402,7 +406,7 @@ function coverSetsFor(map, grid) {
     if (hasH) C.withWalls(hard, hs, grid); if (hasS) { C.withWalls(soft, ss, grid); if (all !== hard) C.withWalls(all, hs.concat(ss), grid); }
     if (!over && hardLines.some(function(g) { return g.h < Infinity; })) { var fsg = []; hardLines.forEach(function(g) { if (!(g.h < Infinity)) g.segs.forEach(function(s) { fsg.push(s); }); }); fullW = C.withWalls(Object.create(null), fsg, grid); }
     var result = over || !(hasH || hasS) ? null : { hard: hasH ? hard : null, soft: hasS ? soft : null, all: all, softH: softH, softLines: softLines, hardH: hardH, hardLines: hardLines, fullW: fullW, lowW: lowW };
-    _coverStamp[map.id] = stamp; _coverCache[map.id] = result;
+    _coverStamp[ck] = stamp; _coverCache[ck] = result;
     return result;
 }
 // [fogcheck:heightcover-start]
@@ -447,7 +451,7 @@ function coverAt(x, y, tok, map, hFrom, hTok) {   // item 19 H1: hFrom, hTok —
     var C = core(), camp = activeCamp(); if (!C || !C.coverFromPoint || !map || !tok) return null;
     var sys = camp && camp.system; if (!coverOn(sys) || !window.wpSystemCore) return null;
     var grid = gridForMap(map); if (!grid) return null;
-    var cs = coverSetsFor(map, grid); if (!cs) return null;
+    var cs = coverSetsFor(map, grid, true); if (!cs) return null;   // a blast's own sets: the barriers ticked Stops blasts with the walls
     var h3 = typeof heightSightOf === 'function' ? heightSightOf(sys) : null;
     if (h3 && h3.mode === '3d') { cs = cover3d(cs, grid, x, y, hNum(hFrom), tok.x + (tok.w || 60) / 2, tok.y + (tok.h || 52) / 2, hNum(hTok)); if (!cs) return null; }   // item 19b H4: a blast has no eye: from its own height to the token's
     else if (heightRuleOf(sys) === 'clears') { cs = heightCover(cs, hFrom, hTok, grid); if (!cs) return null; }
@@ -471,7 +475,7 @@ function blastSeat(map, x, y, tx, ty) {
     var C = core(), camp = activeCamp(); if (!C || !C.openSeat || !map) return null;
     if (!coverOn(camp && camp.system)) return null;
     var grid = gridForMap(map); if (!grid) return null;
-    var cs = coverSetsFor(map, grid); if (!cs || !cs.hard) return null;
+    var cs = coverSetsFor(map, grid, true); if (!cs || !cs.hard) return null;   // never inside a barrier ticked Stops blasts either
     return C.openSeat(x, y, tx, ty, grid, cs.hard);
 }
 function coverOn(sys) { return !!(sys && sys.combat && sys.combat.cover && sys.combat.cover.on === true); }

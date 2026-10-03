@@ -32,7 +32,7 @@ import { state, dom } from './state.js';
 
 import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap, isDocLike } from './models.js';
 
-import { renderDoc, compileFlowchart, DOC_BLOCKS, mergeDocStyle, docStyleCss, cleanDocStyle, sanitizeHtml, proseHtml, stripMermaidLinks, mermaidPre, fmtHtml, fmtRich, fieldFmt, colFmtOf, cellFmtOf } from './docrender.js';
+import { renderDoc, compileFlowchart, DOC_BLOCKS, mergeDocStyle, docStyleCss, cleanDocStyle, sanitizeHtml, proseHtml, stripMermaidLinks, mermaidPre, fmtHtml, fmtRich, fieldFmt, colFmtOf, cellFmtOf, diagramLink } from './docrender.js';
 
 import * as TF from './textfmt.js';
 
@@ -149,12 +149,15 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (d.k === 'node' || d.k === 'edge') {
           var list = b.type === 'flowchart' ? (d.k === 'node' ? b.nodes : b.edges) : null, n = Array.isArray(list) ? list[d.k === 'node' ? d.ni : d.ei] : null;
           if (!n || typeof n !== 'object') return null;
-          return {
+          var lf = {
               text: function() { return typeof n.text === 'string' ? n.text : ''; },
               fmt: function() { return tsOwn(n, 'fmt') ? n.fmt : undefined; },
               setFmt: function(f) { if (f) n.fmt = f; else delete n.fmt; },
               setText: function(v) { n.text = v; }
           };
+          // a NODE's label has the node's own link beside it (the whole node is the link: docrender.js diagramLink); an arrow's has none
+          if (d.k === 'node') { lf.link = function() { return tsOwn(n, 'link') ? diagramLink(n.link) : ''; }; lf.setLink = function(v) { if (v) n.link = v; else delete n.link; }; }
+          return lf;
       }
       return null;
   }
@@ -431,8 +434,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
      Default, Size, Link, Clear and the symbol tray. A press acts on the selected characters, or on the whole field with nothing selected. The
      buttons never take the focus (mousedown is swallowed, as the text blocks' bar does it); the Size list, the custom colour and the Link box
      must, so the box's selection is remembered for them and comes back with the focus. A link is a web address typed into the Link box
-     (Enter, or leaving the box, sets it; Escape drops what was typed; an empty box takes the link off) — never for a flowchart label, which
-     cannot hold one: the box is off there and says why. A symbol is text: it goes where typing goes. From the keyboard: Ctrl+B / I / U in a
+     (Enter, or leaving the box, sets it; Escape drops what was typed; an empty box takes the link off). A flowchart label never holds one:
+     on a NODE's label the Link box links the whole node — the node's own link, whatever is selected in the label, and its title says so —
+     and on an arrow's label it is off and says why. A symbol is text: it goes where typing goes. From the keyboard: Ctrl+B / I / U in a
      box; Alt+F10 goes from the box into its bar, Tab moves along it, a control pressed there keeps the focus (the Size list stepped by its
      arrow keys is one undo step) and Escape — or Enter in the Size list — goes back to the box with its selection as it was. The bar floats
      over whatever is right above its box: Escape in the box puts it away (the box keeps the focus, the keys still work), and a click in the
@@ -448,7 +452,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   var tsState = { box: null, sel: null, els: null, key: false, run: null, linkDone: null, comp: false, pre: null, last: null, tab: false, away: false };   // away: Esc put the bar away while its box keeps the focus; tab: the last key pressed was Tab (a one-line box it lands in has its text selected, as an input has); box: the box the bar is on; sel: its selection { map, d, s, e, back }; key: the bar was last touched by the keyboard; run: the field and selection a run of Size list steps is on; linkDone: the address Enter has just set, or Escape has just dropped (the Link box's own change event then has nothing left to do); comp: a composition is under way; pre: the selection an edit of the engine's is about to act on; last: the last edit { box, kind, s, e }
   var TS_SCOPE = ' — the selected characters, or the whole field with nothing selected';
   var TS_LINK_TITLE = 'Link — a web address (https://…) for the selected characters, or the whole field with nothing selected. Enter sets it, Esc backs out; an empty box takes the link off.';
-  var TS_LINK_LABEL = 'A flowchart label cannot hold a link: a chart never carries web addresses.';
+  var TS_LINK_NODE = 'Links the whole node: a click on the node opens it. Type a web address (https://…) and press Enter; Esc backs out; an empty box takes the link off.';
+  var TS_LINK_ARROW = 'An arrow cannot hold a link: in a flowchart a link belongs to a node (the Link box on a node’s label links the whole node).';
+  var TS_LINK_NODE_BAD = 'A node’s link is a plain web address: it cannot hold a quote, < or >, %%, &# or a ; after a #.';   // said for an address the link rule keeps but a diagram cannot carry (docrender.js diagramLink)
   var TS_LINK_BAD = 'A link is a web address: it starts with http:// or https:// and holds no spaces.';   // said for an address that is refused — by this bar's Link box and by a text block's
   function tsIsLabel(d) { return !!d && (d.k === 'node' || d.k === 'edge'); }
   function tsBlocksOf() { var am = getActiveMap(); return am && isDocLike(am) && Array.isArray(am.blocks) ? am : null; }
@@ -677,9 +683,12 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var am = tsBlocksOf(), sel = tsTarget(), box = tsState.box;
       if (!am || !sel) { tsState.run = null; tsRefresh(); return false; }
       var fld = tsField(am.blocks, sel.d), text = fld.text(), was = fld.fmt();
-      if (change !== 'clear' && tsOwn(change, 'link') && tsIsLabel(sel.d)) { tsRefresh(); return false; }   // a flowchart label never holds a link
-      var now = change === 'clear' ? TF.clear(was, text, sel.s, sel.e) : TF.apply(was, text, sel.s, sel.e, change);
-      if (JSON.stringify(now) === JSON.stringify(TF.cleanFmt(was, text))) { tsRefresh(); return false; }   // nothing to change: no step
+      // a flowchart label never holds a link: on a node's label a link is the WHOLE NODE's (its own link, by the diagram's rule), whatever is selected; an arrow carries none
+      var whole = change !== 'clear' && tsOwn(change, 'link') && tsIsLabel(sel.d);
+      if (whole && !fld.setLink) { tsRefresh(); return false; }
+      var now = whole ? (change.link ? diagramLink(change.link) : '') : change === 'clear' ? TF.clear(was, text, sel.s, sel.e) : TF.apply(was, text, sel.s, sel.e, change);
+      if (whole && change.link && !now) { tsRefresh(); return false; }   // an address a diagram cannot carry: nothing changes (tsLink says so in words)
+      if (whole ? now === fld.link() : JSON.stringify(now) === JSON.stringify(TF.cleanFmt(was, text))) { tsRefresh(); return false; }   // nothing to change: no step
       var kept = !!(from && tsState.key && document.activeElement === from);   // the keyboard is on this control: it keeps the focus
       var left = !!(from && from === tsState.els.link && document.activeElement !== from);   // the link box was left for somewhere else (its change came as it lost the focus): the focus stays where it went
       var runOn = kept && from === tsState.els.size ? JSON.stringify([sel.d, sel.s, sel.e]) : null;
@@ -687,7 +696,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       else stepBoundary();   // typing still on its way is its own step; this press is one step of its own
       tsState.run = runOn;
       tsState.last = null;   // what is typed next is a step of its own
-      fld.setFmt(now);
+      if (whole) fld.setLink(now); else fld.setFmt(now);
       stepSel({ d: sel.d, s: sel.s, e: sel.e }, { d: sel.d, s: sel.s, e: sel.e });   // an undo of the press, and its redo, leave the same characters selected
       save(true);
       renderPlannerPreview();
@@ -704,6 +713,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   function tsLink() {
       var E = tsState.els, v = TF.typedLink(E.link.value);
       if (v === null) { toast(TS_LINK_BAD); return 'bad'; }
+      if (v && tsState.sel && tsState.sel.d && tsState.sel.d.k === 'node' && !diagramLink(v)) { toast(TS_LINK_NODE_BAD); return 'bad'; }   // a node's link: the diagram's rule
       return tsPress({ link: v || null }, E.link);
   }
   // The tray opens under its button and to its right; where that would leave the panel it opens to the left, and near the bottom of the window upward
@@ -764,13 +774,13 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var mixed = !!st && st.size === null;   // the range holds more than one size: the list says so (a word it shows, never one to pick)
       E.sizeMixed.hidden = !mixed;
       E.size.value = mixed ? 'mixed' : st && st.size ? st.size : '';
-      var label = !!fld && tsIsLabel(sel.d), here = fld && !n && !label ? tsLinkAt(fld, sel.s) : '';
-      E.link.disabled = off || label;
+      var label = !!fld && tsIsLabel(sel.d), node = label && !!fld.setLink, nodeAt = node ? fld.link() : '', here = fld && !n && !label ? tsLinkAt(fld, sel.s) : '';
+      E.link.disabled = off || (label && !node);   // on a node's label the box links the whole node; on an arrow's it is off
       E.linkLab.classList.toggle('off', E.link.disabled);
-      E.linkLab.title = label ? TS_LINK_LABEL : here ? TS_LINK_TITLE + ' The part at the caret links to ' + here : TS_LINK_TITLE;
+      E.linkLab.title = node ? TS_LINK_NODE + (nodeAt ? ' This node leads to ' + nodeAt : '') : label ? TS_LINK_ARROW : here ? TS_LINK_TITLE + ' The part at the caret links to ' + here : TS_LINK_TITLE;
       if (document.activeElement !== E.link) {   // never over what is being typed
-          E.link.value = st && st.link && !E.link.disabled ? st.link : '';
-          E.link.placeholder = E.link.disabled ? 'https://…' : here && !(st && st.link) ? 'here: ' + here : st && st.link === null ? 'several links' : 'https://…';
+          E.link.value = node ? nodeAt : st && st.link && !E.link.disabled ? st.link : '';
+          E.link.placeholder = E.link.disabled || node ? 'https://…' : here && !(st && st.link) ? 'here: ' + here : st && st.link === null ? 'several links' : 'https://…';
       }
       E.clear.disabled = off || !st.any;
       E.symBtn.disabled = off;
@@ -1735,9 +1745,46 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
      units) together with a signature of the node ids, and thrown away when the set of nodes
      changes, since the chart is laid out afresh then. Edges touching a nudged node are redrawn
      as straight lines between node centres. */
+  // [textcheck:fcdrag-start]
   function fcBlockOf(box) { var am = box._fcDoc || getActiveMap(); var i = parseInt(box.dataset.fc, 10); return am && am.blocks ? am.blocks[i] : null; }   // _fcDoc: the reader's page (handbook.js)
   function fcNodeId(g) { return String(g.id || '').replace(/^flowchart-/, '').replace(/-\d+$/, ''); }
-  function fcTranslate(g) { var m = /translate\(\s*([-\d.]+)[ ,]+([-\d.]+)/.exec(g.getAttribute('transform') || ''); return m ? { x: parseFloat(m[1]), y: parseFloat(m[2]) } : { x: 0, y: 0 }; }
+  // A linked node is drawn inside an <a> — the diagram library's own way: <a xlink:href="…"><g class="node">…</g></a> — and the library
+  // seats such a node by a transform on that <a>, not on the node's own group. fcSeat is the element that carries a node's place.
+  function fcLinkOf(g) { var p = g ? g.parentNode : null; return p && String(p.nodeName).toLowerCase() === 'a' ? p : null; }
+  function fcSeat(g) { return fcLinkOf(g) || g; }
+  // The end of a drag or of a resize of a linked node is no click on its link. The node's <a> is marked while that gesture's own click is
+  // on its way — linkgate.js opens nothing for a marked link — and the mark comes off at the next press on the node, and by itself a
+  // moment after the gesture ends. on: true — marked, and off again by itself; 'down' — marked until told otherwise (a resize under way);
+  // false — off.
+  function fcHold(g, on) {
+      var a = fcLinkOf(g); if (!a) return;
+      clearTimeout(a._fcHeld); a._fcHeld = 0;
+      if (!on) { a.removeAttribute('data-held'); return; }
+      a.setAttribute('data-held', '1');
+      if (on === true) a._fcHeld = setTimeout(function() { a.removeAttribute('data-held'); a._fcHeld = 0; }, 400);
+  }
+  // [sinkcheck:diagramlinks-start]
+  // A linked shape of a drawn diagram, in every place one is drawn (the preview, the reader, a sheet's handbook page, the floating panel, a
+  // pop-out: each runs this once the diagram library has drawn). Its <a> carries only an address the link rule keeps (textfmt.js cleanLink)
+  // — with any other it is no link — and never a target: a click is linkgate.js's to judge, and the library's own target would steer the
+  // app's window. It says where it leads in a <title> this makes, whose text is the cleaned address: a text node, never markup.
+  var FC_XLINK = 'http://www.w3.org/1999/xlink', FC_SVGNS = 'http://www.w3.org/2000/svg';
+  function fcLinks(root) {
+      if (!root || !root.querySelectorAll) return;
+      Array.from(root.querySelectorAll('.diagram svg a')).forEach(function(a) {
+          var raw = a.hasAttributeNS(FC_XLINK, 'href') ? a.getAttributeNS(FC_XLINK, 'href') : a.hasAttribute('xlink:href') ? a.getAttribute('xlink:href') : a.hasAttribute('href') ? a.getAttribute('href') : null;
+          a.removeAttribute('target');
+          Array.from(a.childNodes).forEach(function(c) { if (c.nodeType === 1 && String(c.nodeName).toLowerCase() === 'title') a.removeChild(c); });
+          if (raw === null) return;
+          var link = TF.cleanLink(raw);
+          if (!link || link !== raw) { a.removeAttributeNS(FC_XLINK, 'href'); a.removeAttribute('xlink:href'); a.removeAttribute('href'); return; }
+          var t = document.createElementNS(FC_SVGNS, 'title');
+          t.textContent = link;
+          a.insertBefore(t, a.firstChild);
+      });
+  }
+  // [sinkcheck:diagramlinks-end]
+  function fcTranslate(g) { var m = /translate\(\s*([-\d.]+)[ ,]+([-\d.]+)/.exec(fcSeat(g).getAttribute('transform') || ''); return m ? { x: parseFloat(m[1]), y: parseFloat(m[2]) } : { x: 0, y: 0 }; }
   function fcSig(b) { return (b.nodes || []).map(function(n) { return n.id; }).sort().join(','); }
   function fcApplyZoom(idx) { var box = document.querySelector('#plannerPreview .fc-box[data-fc="' + idx + '"]'); if (box) fcApplyZoomBox(box); }
   function fcApplyZoomBox(box) {
@@ -1808,6 +1855,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           hd.addEventListener('pointerdown', function(e) {
               if (e.button !== 0) return;
               e.preventDefault(); e.stopPropagation();   // not a nudge
+              fcHold(g, 'down');   // nor a click on a linked node's link: the handle never opens it, moved or not
+              window.addEventListener('pointerup', function fcUp() { window.removeEventListener('pointerup', fcUp); fcHold(g, true); });
               var nid = fcNodeId(g), sh = fcShape(g); if (!sh) return;
               var m0 = svg.getScreenCTM(); if (!m0) return; inv = m0.inverse();
               svg.style.overflow = 'visible';
@@ -1839,7 +1888,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (b.nodePosSig !== fcSig(b)) { withoutHistory(getActiveMap(), function() { delete b.nodePos; delete b.nodeSize; delete b.nodePosSig; }); save(true); return; }   // the chart changed shape: fresh layout (a clean-up, not a step)
       Object.keys(b.nodePos).forEach(function(nid) {
           var g = svg.querySelector('g.node[id^="flowchart-' + nid + '-"]'); if (!g) return;
-          var p = b.nodePos[nid]; g.setAttribute('transform', 'translate(' + p.x + ', ' + p.y + ')');
+          var p = b.nodePos[nid]; fcSeat(g).setAttribute('transform', 'translate(' + p.x + ', ' + p.y + ')');
           fcRedrawEdges(svg, nid);
       });
   }
@@ -1848,23 +1897,25 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var inv = null;   // screen→SVG matrix captured when a drag starts, so the mapping cannot shift under the pointer
       var toSvg = function(e) { pt.x = e.clientX; pt.y = e.clientY; return inv ? pt.matrixTransform(inv) : { x: 0, y: 0 }; };
       Array.from(svg.querySelectorAll('g.node')).forEach(function(g) {
-          g.style.cursor = 'move';
+          g.style.cursor = fcLinkOf(g) ? 'pointer' : 'move';   // a linked node reads as a link here too: a plain click opens it, a drag still moves it
           g.addEventListener('pointerdown', function(e) {
               if (e.button !== 0) return;
               e.preventDefault(); e.stopPropagation();
+              fcHold(g, false);   // a new press: whatever the last gesture left is off (a plain click on a linked node opens its link)
               var m0 = svg.getScreenCTM(); if (!m0) return; inv = m0.inverse();
               svg.style.overflow = 'visible';
               var nid = fcNodeId(g), start = toSvg(e), origin = fcTranslate(g), moved = false;
               var onMove = function(ev) {
                   var q = toSvg(ev); var nx = origin.x + (q.x - start.x), ny = origin.y + (q.y - start.y);
                   if (Math.abs(nx - origin.x) > 1 || Math.abs(ny - origin.y) > 1) moved = true;
-                  g.setAttribute('transform', 'translate(' + nx + ', ' + ny + ')');
+                  fcSeat(g).setAttribute('transform', 'translate(' + nx + ', ' + ny + ')');
                   fcRedrawEdges(svg, nid);
               };
               var onUp = function(ev) {
                   window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp);
                   svg.style.overflow = ''; inv = null;
                   if (!moved) return;
+                  fcHold(g, true);   // the node was dragged: the click that ends the drag opens nothing
                   fcFitViewBox(svg); fcApplyZoom(box.dataset.fc);
                   var p = fcTranslate(g);
                   b.nodePos = b.nodePos || {}; b.nodePos[nid] = { x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10 }; b.nodePosSig = fcSig(b);
@@ -1908,6 +1959,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       svg.dataset.fitW = String(Math.round(w));
   }
   function fcPostProcess() {
+      fcLinks(document.getElementById('plannerPreview'));   // every diagram of the preview, a hand-written one too
       Array.from(document.querySelectorAll('#plannerPreview .fc-box')).forEach(function(box) {
           var svg = box.querySelector('svg'); var b = fcBlockOf(box); if (!svg || !b) return;
           fcFitViewBox(svg);
@@ -1924,6 +1976,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // The reader (handbook.js) shows a page's flowcharts as the GM arranged them: fit, zoom, sizes and
   // nudges applied from the block, nothing wired (no handles, no dragging, no saving).
   window.wpFcPostProcess = function(root, doc) {
+      fcLinks(root);   // every diagram drawn there, a hand-written one too
       Array.from(root.querySelectorAll('.fc-box')).forEach(function(box) {
           box._fcDoc = doc;
           var svg = box.querySelector('svg'); var b = fcBlockOf(box); if (!svg || !b) return;
@@ -1932,13 +1985,14 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           fcApplySizes(svg, b);
           if (b.nodePos && b.nodePosSig === fcSig(b)) Object.keys(b.nodePos).forEach(function(nid) {
               var g = svg.querySelector('g.node[id^="flowchart-' + nid + '-"]'); if (!g) return;
-              var p = b.nodePos[nid]; g.setAttribute('transform', 'translate(' + p.x + ', ' + p.y + ')');
+              var p = b.nodePos[nid]; fcSeat(g).setAttribute('transform', 'translate(' + p.x + ', ' + p.y + ')');
               fcRedrawEdges(svg, nid);
           });
           fcFitViewBox(svg);
           fcApplyZoomBox(box);
       });
   };
+  // [textcheck:fcdrag-end]
   /* ---- find in planner ----
      Highlights in the rendered preview only (the editor boxes are left alone). The text is read in
      stretches — the text nodes of one run of inline content, joined — so a word drawn as several

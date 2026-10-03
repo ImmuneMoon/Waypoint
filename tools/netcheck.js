@@ -889,6 +889,42 @@ pendingChecks.push((async () => {
         check(T, bad.length === 0 && !!keptAll && Jw(keptAll.blocks[0].fmt) === Jw({ title: { u: true, link: OK, spans: [{ s: 0, e: 2, size: 'large' }] }, sub: { link: OK } }) && Jw(keptAll.blocks[1].colFmt) === Jw([{ link: OK }, { st: true, link: OK }]) && Jw(keptAll.blocks[2].nodes[0].fmt) === Jw({ spans: [{ s: 0, e: 3, u: true }] }) && !('fmt' in keptAll.blocks[2].edges[0]), Jw([bad, keptAll && keptAll.blocks]).slice(0, 1200));
     } catch (e) { check(T, false, 'threw: ' + (e && e.stack || e)); }
 })());
+// a diagram's link (the owner, 2026-10-02): a flowchart node may carry a link, and a diagram block's link statements reach the diagram library
+// as ONE canonical line (docrender.js). The host's real sanitizeItem and a player's real applyItem, on a page whose node links and link lines are hostile
+pendingChecks.push((async () => {
+    const T = 'a diagram\'s link (wire): a page a host sends carries a flowchart node\'s link only by the one rule — a script or data: address, a protocol-relative one, one that tries to end the statement, one with a space, one that is no string, one the diagram library would not read back as written are dropped while the node stays, an arrow\'s is never kept — and a diagram block\'s link statements only as canonical lines (a flowchart\'s, a class diagram\'s; a Gantt chart keeps none; a callback, a call, a tooltip, a target, a list of ids, an id every object carries are gone); a player\'s app cleans a page a hostile host sends the same way before it is stored, and what it draws hands the diagram library those lines and no other click statement; 10,000 link lines come in as canonical lines only, within the page\'s size';
+    try {
+        const urlW = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+        const DRw = await import(urlW('docrender.js')), OKL = 'https://ok.example/a?b=1&c=2#f', Jw = JSON.stringify;
+        const [siW] = new Function('window', '"use strict";\n' + siSrc() + '\nreturn [sanitizeItem, wireWbItem];')({ wpDocRender: DRw });
+        const BADL = ['javascript:alert(1)', 'JaVaScRiPt:alert(1)', 'data:text/html,<script>alert(1)</script>', 'vbscript:x', '//evil.example/x', '/saves/data.json', 'https://ok.example/"\nclick a call alert(1)', 'https://ok.example/" onclick="alert(1)', 'https://a b', 'https://ok.example/<b>', 'https://ok.example/#a;b', 'https://ok.example/%%{init}%%', 'https://ok.example/?a=&#104;', 'https://' + 'a'.repeat(2000), 7, { href: OKL }, [OKL]];
+        const page = v => ({ id: 'dD', type: 'doc', meta: { title: 'Rules', players: true }, blocks: [
+            { id: 'b1', type: 'flowchart', nodes: [{ id: 'a', text: 'A', link: '  ' + OKL + ' ' }, { id: 'b', text: 'B', link: v }], edges: [{ from: 'a', to: 'b', text: 'go', link: OKL }] },
+            { id: 'b2', type: 'diagram', content: ['graph TD', 'A-->B', 'click A "' + OKL + '" "tip <img src=x onerror=alert(1)>" _top', 'click B call alert(1)', 'click B href "javascript:alert(1)"', 'click B href "data:text/html,x"', 'click A,B "' + OKL + '"', 'click __proto__ "' + OKL + '"', 'click B "//evil.example/x"', 'callback B "f"'].join('\n') },
+            { id: 'b3', type: 'diagram', content: ['classDiagram', 'class S', 'link S "' + OKL + '" "tip"', 'callback S "f"', 'click S call f()'].join('\n') },
+            { id: 'b4', type: 'diagram', content: ['gantt', 'section S', 'T :A, 2024-01-01, 1d', 'click A href "' + OKL + '"'].join('\n') }
+        ] });
+        const want = Jw([
+            { type: 'flowchart', id: 'b1', dir: 'TD', space: 'normal', zoom: 1, nodes: [{ id: 'a', text: 'A', shape: 'rect', color: 'neutral', link: OKL }, { id: 'b', text: 'B', shape: 'rect', color: 'neutral' }], edges: [{ from: 'a', to: 'b', text: 'go', style: 'solid' }] },
+            { type: 'diagram', id: 'b2', content: 'graph TD\nA-->B\nclick A href "' + OKL + '"' },
+            { type: 'diagram', id: 'b3', content: 'classDiagram\nclass S\nclick S href "' + OKL + '"' },
+            { type: 'diagram', id: 'b4', content: 'gantt\nsection S\nT :A, 2024-01-01, 1d' }
+        ]);
+        const ai = src.indexOf('function applyItem(msg) {'), ak = src.indexOf('\n}\n', ai);
+        const apply = item => { const state = { appState: { activeCampaignId: 'k', campaigns: { k: { id: 'k', activeItemId: 'mA', items: { mA: { id: 'mA', type: 'map', whiteboard: [] } } } } } };
+            new Function('net', 'state', 'window', 'getActiveCampaign', 'render', 'updateSidebarNav', 'cleanHostMap', 'msg', ownKeySrc + src.slice(ai, ak) + '\n}\nreturn applyItem(msg);')({ applyingRemote: false }, state, { wpDocRender: DRw, wpFog: { invalidateVision() {}, redraw() {} } }, () => state.appState.campaigns.k, () => {}, () => {}, m => m, { type: 'item', campId: 'k', itemId: item.id, item: item });
+            return state.appState.campaigns.k.items[item.id]; };
+        const bad = BADL.filter(v => {
+            const sent = siW(page(v)), hostOk = !!sent && Jw(sent.blocks) === want;
+            const got = apply(page(v)), html = got ? DRw.renderDoc(got, {}) : '';
+            const clientOk = ai > 0 && ak > ai && !!got && Jw(got.blocks) === want && (html.match(/click [A-Za-z]+ href &quot;https:\/\/ok\.example\/a\?b=1&amp;c=2#f&quot;/g) || []).length === 3 && (html.match(/\bclick\b/g) || []).length === 3 && !/javascript|vbscript|data:text|evil\.example|onerror|onclick|call |callback|_top|__proto__/i.test(html);
+            return !(hostOk && clientOk);
+        });
+        const both = siW(page('https://second.example/x')), many = { id: 'dM', type: 'doc', meta: { title: 'M', players: true }, blocks: [{ id: 'm1', type: 'diagram', content: 'graph TD\nA-->B\n' + Array.from({ length: 10000 }, (x, i) => i % 2 ? 'click N' + i + ' "https://ok.example/' + i + '" "tip"' : 'click N' + i + ' call f' + i + '()').join('\n') }] };
+        const manyS = siW(many), manyG = apply(many), linesOf = it => it ? it.blocks[0].content.split('\n') : [], lineOk = it => { const l = linesOf(it); return l.length > 500 && l[0] === 'graph TD' && l[1] === 'A-->B' && l.slice(2).every(x => !!DRw.readLinkLine(x)) && it.blocks[0].content.length <= 65536; };
+        check(T, bad.length === 0 && !!both && both.blocks[0].nodes[1].link === 'https://second.example/x' && !('link' in both.blocks[0].edges[0]) && lineOk(manyS) && lineOk(manyG) && Jw(manyG.blocks) === Jw(manyS.blocks), Jw([bad.slice(0, 2), both && both.blocks[0], linesOf(manyS).length]).slice(0, 1200));
+    } catch (e) { check(T, false, 'threw: ' + (e && e.stack || e)); }
+})());
 // conditions C1: a character token's effects on the wire — the real sanitizeItem and wireWbItem with fxbOf and fxbMoved, sliced and run
 pendingChecks.push((async () => {
     const Sx = await import('file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', 'systemcore.js')).split(String.fromCharCode(92)).join('/'));

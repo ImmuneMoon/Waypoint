@@ -36,9 +36,10 @@ function sigOf(it) {
 }
 function srcOf(p) { return net.assetSrc ? net.assetSrc(p) : p; }
 
-// Mermaid's security mode: strict while the campaign on screen is someone else's (click / href /
-// callback directives are dead; docrender strips those lines anyway), the app's own config again
-// once load() brings this machine's campaign back. initialize() rebuilds the whole config, so the
+// Mermaid's security mode: strict for everyone — the app's own config says so (bootdiagram.js), the GM's screen too. This switch is
+// kept and now changes nothing: it asks for strict while the campaign on screen is someone else's (a callback or a call is dead there
+// whatever the config; docrender takes those lines out anyway, and writes a diagram's link as its one canonical line) and for the app's
+// own config — strict as well — once load() brings this machine's campaign back. initialize() rebuilds the whole config, so the
 // full object is passed. The diagram library is a file of the app (bundled), run by the page
 // before any module, so it is there from the first render on; where that file is missing (a damaged
 // install) window.mermaid is not set, nothing here runs and pages draw without their diagrams.

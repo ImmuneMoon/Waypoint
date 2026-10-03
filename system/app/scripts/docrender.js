@@ -455,13 +455,18 @@ function readLinkLine(line) { var m = /^click ([A-Za-z0-9_-]{1,64}) href "([^"]*
 // a directive's own text may hold a ';', so nothing after it is kept. The ';' that closes one of the library's own #…; entities
 // is part of the entity, as the library reads it. The rule fails closed: a ';' inside a hand-written label counts too, so a label
 // that says "…; click …" loses that part (the entity #59; writes a ';' that is the label's own).
-// A statement also begins, with nothing before it, after a '}' (the end of an accDescr { … } block, on its own line or the block's
-// first) and after the library's statements that need no separator after them, however many stand in a row (MM_NOSEP): a flowchart's
-// end, a Gantt chart's gantt, inclusiveEndDates, topAxis, weekday <day> and a date. A directive there is judged as one at the start
-// of a line — the line is cut where it begins, the statements before it stay. That too fails closed: a '}' inside a label counts.
+// A statement also begins, with nothing before it, after a '}' that closes something a statement may follow, and after the library's
+// statements that need no separator after them, however many stand in a row — each kind of diagram's own, as its lexer reads it
+// (MM_NOSEP_OF): a flowchart's and a sequence diagram's end; a Gantt chart's gantt, inclusiveEndDates, topAxis, weekday <day> and a date;
+// a class diagram's none. A '}' closes such a thing only where the source opens one (mmBrace): an accDescr { … } block in a flowchart, a
+// sequence diagram or a Gantt chart, and in a class diagram any { (a class's or a namespace's body too) — so a '}' in a label, a message
+// or a task's name is the text's own. Where the kind cannot be told, or is any other, every '}' and every one of those words counts. A
+// directive there is judged as one at the start of a line — the line is cut where it begins, the statements before it stay. That too
+// fails closed: where a '}' counts, one inside a label counts too.
 //   click / callback / href / linkStyle …   any diagram's
 //   link <name> "address"                   a class diagram's (a node, a class or a task that is merely called link is left alone)
-//   link / links <actor>: …                 a sequence diagram's, judged only in a source that names one
+//   link / links / details / properties <actor>: …   a sequence diagram's (a menu of links on an actor, one read from an element of the
+//                                           page, a picture by address), judged only in a source that names one
 // ONE kind of directive is written back instead of removed: a link statement of a flowchart or of a class diagram, as the library
 // itself reads it (its words in lower case, an id by the rule above, an address the rule above keeps), becomes the canonical line —
 // a line of its own, in the directive's place:
@@ -485,8 +490,11 @@ function readLinkLine(line) { var m = /^click ([A-Za-z0-9_-]{1,64}) href "([^"]*
 // judged like any other link's (linkgate.js).
 var MM_DIRECTIVE = /\s*(?:click|callback|href|linkStyle)\b/iy;
 var MM_LINK = /\s*link\s+(?![-=.<>~&|:\s"'])[^"'\n;]*["']/iy;
-var MM_SEQ_LINK = /\s*links?\s+[^:;\n]*:/iy;
-var MM_NOSEP = /(?:\s*(?:end|gantt|inclusiveEndDates|topAxis|weekday\s+\w+|\d{4}-\d\d-\d\d)\b)+/iy;   // the statements that need no separator after them
+var MM_SEQ_LINK = /\s*(?:links?|details|properties)\s+[^:;\n]*:/iy;
+var MM_NOSEP = /(?:\s*(?:end|gantt|inclusiveEndDates|topAxis|weekday\s+\w+|\d{4}-\d\d-\d\d)\b)+/iy;   // the statements that need no separator after them, any kind's
+var MM_NOSEP_OF = { flow: /(?:\s*end\b)+/iy, seq: /(?:\s*end\b)+/iy, gantt: /(?:\s*(?:gantt|inclusiveEndDates|topAxis|weekday\s+\w+|\d{4}-\d\d-\d\d)\b)+/iy, class: null };   // … each kind's own
+// does a '}' in this source close something a statement may follow? (by its kind: see above)
+function mmBrace(s, kind) { return kind === 'class' ? s.indexOf('{') >= 0 : kind === 'flow' || kind === 'seq' || kind === 'gantt' ? /accDescr\s*\{/i.test(s) : true; }
 var MM_BLOCK = /%{2}{\s*(?:(\w+)\s*:|(\w+))\s*(?:(\w+)|((?:(?!}%{2}).|\r?\n)*))?\s*(?:}%{2})?/gi;   // the library's own pattern for its %%{…}%% blocks
 var MM_COMMENT = /^\s*%%(?!{)[^\n]+\n?/gm;   // the library's own pattern for a comment line
 function mmAt(re, s, at) { re.lastIndex = at; return re.test(s); }
@@ -495,16 +503,53 @@ function mmAt(re, s, at) { re.lastIndex = at; return re.test(s); }
 // and the library would then misread everything they hold). So that name never reaches it: wherever __proto__ stands as a word of its own
 // — no letter, digit or _ next to it — it is written _proto_ (a label that says the word reads _proto_; a longer name that holds it, and the
 // address of a canonical line, are left as they are). A built flowchart's node with that id compiles under _proto_ too (mmId).
+// The library also joins a name from pieces: a class diagram's lexer skips white space between them, and a comment from a %% to its
+// line's end takes the line break with it — so Duck --> __pro to__ names __proto__ as surely as the word itself. So the text is read
+// the way the library joins (mmPieces): every run of characters that spells __proto__ with nothing but white space, backticks or a comment
+// to the line's end between them (any %% on a line may be where a comment begins, so the text after one is read both ways), standing at
+// a name's edges as the word itself must, has its p written P (Duck --> __Pro to__). Nothing moves and no line changes; a P never makes
+// a new one, so once is enough. It fails closed: such a run in a label is written P too.
 var MM_PROTO = /(^|[^A-Za-z0-9_])__proto__(?![A-Za-z0-9_])/g;
-function mmKey(line) { return line.indexOf('__proto__') < 0 ? line : line.replace(MM_PROTO, '$1_proto_'); }
-// The kind of diagram a source is, as the library will tell it: 'flow', 'class' or '' (any other kind, and whatever cannot be told)
+function mmKey(text) { return mmPieces(text.indexOf('__proto__') < 0 ? text : text.replace(MM_PROTO, '$1_proto_')); }
+function mmPieces(t) {
+    if (t.indexOf('p') < 0 || t.indexOf('_') < 0) return t;
+    var W = '__proto__', n = t.length, ch = [], at = [], before = new Int32Array(n + 1), i, k, w, q;
+    for (i = 0; i < n; i++) { before[i] = ch.length; var x = t.charAt(i); if (x !== '`' && !/\s/.test(x)) { ch.push(x); at.push(i); } }
+    before[n] = ch.length;
+    var m = ch.length, jump = [];   // jump[k]: the characters a comment joins to character k — the last before its %%, to the first after its line break
+    for (var r = t.indexOf('%%'); r >= 0; r = t.indexOf('%%', r + 1)) {
+        var nl = t.indexOf('\n', r); if (nl < 0) break;
+        var src = before[r] - 1, dst = before[nl + 1];
+        if (src >= 0 && dst < m) (jump[dst] || (jump[dst] = [])).push(src);
+    }
+    function word(c) { return /[A-Za-z0-9_]/.test(c); }
+    var mask = new Uint16Array(m), need = new Uint16Array(m);   // mask[k]: bit w — a run spelling W's first w + 1 characters ends at character k
+    for (k = 0; k < m; k++) {
+        var from = k > 0 ? mask[k - 1] : 0, js = jump[k], bits = 0;
+        if (js) for (q = 0; q < js.length; q++) from |= mask[js[q]];
+        for (w = 0; w < 9; w++) if (W.charAt(w) === ch[k] && (w === 0 ? at[k] === 0 || !word(t.charAt(at[k] - 1)) : (from >> (w - 1)) & 1)) bits |= 1 << w;
+        mask[k] = bits;
+    }
+    var out = null;
+    for (k = m - 1; k >= 0; k--) {   // back from every whole run that ends at a name's edge, marking the characters on it
+        if ((mask[k] >> 8) & 1 && (at[k] === n - 1 || !word(t.charAt(at[k] + 1)))) need[k] |= 1 << 8;
+        var nb = need[k] & mask[k]; if (!nb) continue;
+        if ((nb >> 2) & 1) { out = out || t.split(''); out[at[k]] = 'P'; }
+        for (w = 1; w < 9; w++) if ((nb >> w) & 1) {
+            if (k > 0 && (mask[k - 1] >> (w - 1)) & 1) need[k - 1] |= 1 << (w - 1);
+            if (jump[k]) for (q = 0; q < jump[k].length; q++) if ((mask[jump[k][q]] >> (w - 1)) & 1) need[jump[k][q]] |= 1 << (w - 1);
+        }
+    }
+    return out ? out.join('') : t;
+}
+// The kind of diagram a source is, as the library will tell it: 'flow', 'class', 'seq', 'gantt' or '' (any other kind, and whatever cannot be told)
 function mmKind(s) {
     var t = String(s).replace(/\r\n?/g, '\n');
     if (/^\s*---/.test(t)) return '';
     t = t.replace(MM_BLOCK, '');
     if (t.indexOf('%%{') >= 0) return '';
     t = t.replace(MM_COMMENT, '').replace(/^\s+/, '');
-    return /^(?:flowchart|graph)/.test(t) ? 'flow' : /^classDiagram/.test(t) ? 'class' : '';
+    return /^(?:flowchart|graph)/.test(t) ? 'flow' : /^classDiagram/.test(t) ? 'class' : /^sequenceDiagram/.test(t) ? 'seq' : /^gantt/.test(t) ? 'gantt' : '';
 }
 // A directive statement (from its first word to the end of its line) as the canonical line — '' when it is not a link of this kind of diagram
 function mmCanon(stmt, kind) {
@@ -514,25 +559,32 @@ function mmCanon(stmt, kind) {
     return '';
 }
 function mmCut(s, kind) {
-    var seq = /sequenceDiagram/i.test(s), out = [];
+    var seq = /sequenceDiagram/i.test(s), out = [], mine = [], brace = mmBrace(s, kind), nosep = Object.prototype.hasOwnProperty.call(MM_NOSEP_OF, kind) ? MM_NOSEP_OF[kind] : MM_NOSEP;
     function directive(line, at) { return mmAt(MM_DIRECTIVE, line, at) || mmAt(MM_LINK, line, at) || (seq && mmAt(MM_SEQ_LINK, line, at)); }
-    function past(line, at) { MM_NOSEP.lastIndex = at; return MM_NOSEP.test(line) ? MM_NOSEP.lastIndex : at; }   // where a statement begins, past those that need no separator
+    function past(line, at) { if (!nosep) return at; nosep.lastIndex = at; return nosep.test(line) ? nosep.lastIndex : at; }   // where a statement begins, past those that need no separator
+    function next(line, i) { var a = line.indexOf(';', i), b = brace ? line.indexOf('}', i) : -1; return a < 0 ? b : b < 0 ? a : Math.min(a, b); }
+    function put(l, m) { out.push(l); mine.push(m); }
     s.split(/\r\n|\n|\r/).forEach(function(line) {
-        if (directive(line, 0)) { var whole = mmCanon(line, kind); if (whole) out.push(whole); return; }
+        if (directive(line, 0)) { var whole = mmCanon(line, kind); if (whole) put(whole, true); return; }
         var canon = '', cut = false;
-        // where a statement begins: the line's start, after a ';' (not one that closes a #…; entity) and after a '}' — in the line's order
-        for (var at = 0; at >= 0 && !cut; at = (function(i) { var a = line.indexOf(';', i), b = line.indexOf('}', i); return a < 0 ? b : b < 0 ? a : Math.min(a, b); })(at + 1)) {
-            var semi = line.charAt(at) === ';', from = at === 0 && !semi && line.charAt(0) !== '}' ? 0 : at + 1;
+        // where a statement begins: the line's start, after a ';' (not one that closes a #…; entity) and after a '}' that counts — in the line's order
+        for (var at = 0; at >= 0 && !cut; at = next(line, at + 1)) {
+            var semi = line.charAt(at) === ';', from = at === 0 && !semi && !(brace && line.charAt(0) === '}') ? 0 : at + 1;
             if (semi) { var k = at - 1; while (k >= 0 && /\w/.test(line.charAt(k))) k--; if (k < at - 1 && k >= 0 && line.charAt(k) === '#') continue; }   // the ';' that closes a #…; entity
             var p = past(line, from);
             if (!directive(line, p)) continue;
             canon = mmCanon(line.slice(p), kind); cut = true;
             line = p === from && semi ? line.slice(0, at) : line.slice(0, p).replace(/\s+$/, '');   // after a ';' as before; after the others, they stay
         }
-        if (!cut || line.trim()) out.push(mmKey(line));
-        if (canon) out.push(canon);
+        if (!cut || line.trim()) put(line, false);
+        if (canon) put(canon, true);
     });
-    return out.join('\n');
+    // a diagram's names (mmKey), read across the lines between the canonical ones — a name's pieces may stand on several
+    var res = [], run = [];
+    function flush() { if (run.length) res.push(mmKey(run.join('\n'))); run = []; }
+    for (var j = 0; j < out.length; j++) { if (mine[j]) { flush(); res.push(out[j]); } else run.push(out[j]); }
+    flush();
+    return res.join('\n');
 }
 function mmOwn(s) { return s.split('\n').filter(function(l) { return !!readLinkLine(l); }).join('\n'); }   // a source's canonical lines, in order
 function mmStrip(s, depth) {

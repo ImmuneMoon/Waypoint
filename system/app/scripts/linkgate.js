@@ -30,8 +30,10 @@
    A file the app itself hands over to be saved (an <a download> to a blob: or data: address, clicked by the app) is left alone.
    A script's window.open never steers the window it is made from (openGuard): the diagram library binds a click on a Gantt chart's task
                 to window.open(address, '_self') whatever its mode — and it finds the task by its id on the whole page, so the click it
-                binds can land on an element of the app's own that shares that id. A call whose target is _self, _parent or _top (in any
-                case), or the window's own name, opens nothing; every other call (a new window, a pop-out) goes through as it was made.
+                binds can land on an element of the app's own that shares that id. The target is made into a string once, as the engine
+                would, and that string is judged and passed on: one that names this window — _self, _parent, _top, _unfencedTop or any
+                other of the engine's own names that begin with _ (in any case, with spaces round it), all but _blank, or the window's own
+                name — opens nothing; every other call (a new window, a pop-out) goes through as it was made.
    A drag:      a link is dragged only where a click on it opens it directly. Anywhere else the drag does not begin (a second listener,
                 for dragstart): a dragged address dropped on another of the app's windows would be followed there with no question.
 
@@ -158,10 +160,13 @@ function openGuard(win) {
     var open = win && win.open;
     if (typeof open !== 'function' || open.wpGuarded === true) return;
     var guarded = function(url, target) {
-        var t = '', own = '';
-        try { t = target == null ? '' : String(target).trim().toLowerCase(); own = typeof win.name === 'string' ? win.name : ''; } catch (e) { return null; }
-        if (t === '_self' || t === '_parent' || t === '_top' || (own && target === own)) return null;   // this window, never steered
-        return open.apply(win, arguments);
+        var t, own = '', args = Array.prototype.slice.call(arguments);
+        try { t = target === undefined ? undefined : String(target); own = typeof win.name === 'string' ? win.name : ''; } catch (e) { return null; }   // read once: an object is never asked twice
+        var k = t === undefined ? '' : t.trim();
+        if (k.charAt(0) === '_' && k.toLowerCase() !== '_blank') return null;   // _self, _parent, _top, _unfencedTop, any other of the engine's own: this window, never steered
+        if (own && t !== undefined && (t === own || k === own)) return null;   // the window's own name
+        if (args.length > 1) args[1] = t;   // the very string judged here is what the engine reads
+        return open.apply(win, args);
     };
     guarded.wpGuarded = true;
     try { win.open = guarded; } catch (e) {}

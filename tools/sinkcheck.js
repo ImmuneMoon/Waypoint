@@ -2114,6 +2114,17 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 refused.every(r => r === null) && wired === null && same && passed.every(r => r === null) && J(P.opened) === J([[OK, '_blank', 'noopener,noreferrer'], ['http://127.0.0.1:3999/?popout=chat:', 'wpPopout_chat', 'width=440,height=760'], [OK, null, null], [OK, '_blank', 'noopener,noreferrer']]) && !P.asking()
                 && /function wireLinks\(win, doc, ask\) \{\n\s*openGuard\(win\);/.test(gateSrc), P.opened);
         }
+        {   // the target as the engine reads it: a string made once from whatever was passed, and every name of the engine's own but _blank
+            const P = mkPage({ net: ALONE }), W = P.W; W.name = 'wpMainProbe';
+            let flips = 0; const flip = { toString() { flips++; return flips === 1 ? 'wpPopout_ok' : '_self'; } };
+            const REF = [['/?probe=unfenced', '_unfencedTop'], ['/?probe=u2', '_UNFENCEDTOP'], ['/?probe=u3', ' _unfencedtop '], ['/?probe=own', { toString() { return 'wpMainProbe'; } }], ['/?probe=own2', 'wpMainProbe'], ['/?probe=own3', ' wpMainProbe '],
+                ['/?probe=fut', '_someFutureName'], ['/?probe=sl', '_self\t'], ['/?probe=arr', ['_top']]];
+            const refused = REF.map(c => W.open(c[0], c[1]));
+            const ok1 = W.open(OK, flip, 'noopener'), ok2 = W.open(OK, '_BLANK'), ok3 = W.open(OK, null), ok4 = W.open(OK, 'wpPopout_chat');
+            check('links (a script\'s window.open, the target as the engine reads it): the target is made into a string once, and that string is what is judged and what is passed on — _unfencedTop in any case or with spaces round it, any other name that begins with _ but _blank, the window\'s own name given as a string or as an object that turns into it, and an array holding _top each open nothing and answer null; an object that names a new window when first asked opens that window under that name and is never asked again; _blank in any case, null (a window called "null") and a pop-out\'s name open as asked',
+                refused.every(r => r === null) && ok1 === null && ok2 === null && ok3 === null && ok4 === null && flips === 1
+                && JSON.stringify(P.opened) === JSON.stringify([[OK, 'wpPopout_ok', 'noopener'], [OK, '_BLANK', null], [OK, 'null', null], [OK, 'wpPopout_chat', null]]) && !P.asking(), JSON.stringify([refused, P.opened, flips]));
+        }
         {   // the question is answered only by a deliberate press of its button
             const P = mkPage({ net: PLAYER }), a = P.link('docReaderBody', OK), st = () => [P.asking(), P.opened.length]; P.click(a);
             const dim = [P.ccOk.disabled, P.timers.length, P.timers[0] && P.timers[0].ms, P.timers[0] && P.timers[0].on];
@@ -2242,6 +2253,23 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             check('a diagram\'s link (the diagram library\'s own reading, pinned against the bundled file): the patterns the one rule is built on are the library\'s own, as bundled — the address cleaner it runs in strict mode (what it drops and decodes), its #…; codes and placeholders, its %%{…}%% blocks, front matter and comments, the tags it rewrites, how it reads a click statement, that a function is called only in loose mode, that a linked node is an <a xlink:href>, and that a Gantt chart\'s link would steer the window (the strip writes none there); docrender.js carries the library\'s block and comment patterns character for character',
                 missing.length === 0 && drAll.indexOf(String.raw`var MM_BLOCK = /%{2}{\s*(?:(\w+)\s*:|(\w+))\s*(?:(\w+)|((?:(?!}%{2}).|\r?\n)*))?\s*(?:}%{2})?/gi;`) > 0 && drAll.indexOf(String.raw`var MM_COMMENT = /^\s*%%(?!{)[^\n]+\n?/gm;`) > 0
                 && (drAll.match(/^var MM_LINK_NO = .*$/m) || [''])[0].length > 60 && DR.diagramLink('https://ok.example/#a;b') === '' && DR.diagramLink('https://ok.example/a;b#c') === 'https://ok.example/a;b#c' && (lib.match(/window\.open\(/g) || []).length >= 1, missing);
+            // … and what the strip's statement starts and a diagram's names rest on, lexer by lexer
+            const LEX = {
+                'a class diagram skips a comment with the line breaks after it': String.raw`/^(?:%%(?!\{)*[^\n]*(\r?\n?)+)/,/^(?:%%[^\n]*(\r?\n)*)/,/^(?:accTitle\s*:\s*)/`,
+                'a class diagram skips white space': String.raw`/^(?:\s*(\r?\n)+)/,/^(?:\s+)/,/^(?:classDiagram-v2\b)/`,
+                '… its two comment rules and its white space return nothing': String.raw`case 4:break;case 5:break;case 6:return this.begin("acc_title"),31;`,
+                '… nor does its white space': String.raw`case 13:return 8;case 14:break;case 15:return 7;`,
+                'a class\'s name is joined from its pieces': String.raw`case 10:case 13:this.$=gt[dn-1]+gt[dn];break;case 14:case 15:this.$=gt[dn-1]+"~"+gt[dn]+"~";break;case 16:zn.addRelation(gt[dn]);`,
+                'a sequence diagram\'s links, link, properties and details are its own words': String.raw`/^(?:links\b)/i,/^(?:link\b)/i,/^(?:properties\b)/i,/^(?:details\b)/i`,
+                'a Gantt task\'s name is any text up to a colon': String.raw`/^(?:[^:\n]+)/i,/^(?::[^#\n;]+)/i`,
+                'an accDescr { … } block, closed by a }': String.raw`/^(?:accDescr\s*\{\s*)/,/^(?:[\}])/,/^(?:[^\}]*)/`
+            };
+            const lexMissing = Object.keys(LEX).filter(k => !hasL(LEX[k]));
+            const initOf = head => { const j = lib.indexOf(head); return j < 0 ? null : JSON.parse(lib.slice(lib.indexOf('[', j), lib.indexOf(']', j) + 1)); };
+            const flowInit = initOf('INITIAL:{rules:[0,2,4,7,15,18,19,'), ganttInit = initOf('INITIAL:{rules:[0,1,3,5,8,9,10,11,12,13,14,17,23,26,'), classInit = initOf('INITIAL:{rules:[0,1,2,3,4,5,6,8,10,13,14,15,16,17,18,26,27,28,37,'), seqInit = initOf('INITIAL:{rules:[0,1,3,4,5,6,7,8,9,10,11,15,');
+            check('a diagram\'s link (the library\'s statements, by kind, pinned against the bundled file): a class diagram\'s lexer skips white space and a comment with the line breaks after it, and its parser joins a class\'s name from the pieces between them; a sequence diagram\'s properties and details are words of its own; a Gantt task\'s name is any text up to a colon (a line that begins with End is a task); and in a flowchart, a sequence diagram, a Gantt chart and a class diagram no } is read outside the states that open with a { (a flowchart\'s first state reads none, its } closes an accDescr block or a shape\'s text; a sequence diagram\'s and a Gantt chart\'s only an accDescr block; a class diagram\'s a body, a namespace or an accDescr block) — what the strip\'s statement starts and a diagram\'s names are built on',
+                lexMissing.length === 0 && !!flowInit && !!ganttInit && !!classInit && [5, 106].every(r => flowInit.indexOf(r) < 0) && flowInit.indexOf(4) >= 0 && ganttInit.indexOf(6) < 0 && ganttInit.indexOf(5) >= 0 && [11, 32, 40, 42].every(r => classInit.indexOf(r) < 0) && classInit.indexOf(10) >= 0 && !!seqInit && seqInit.indexOf(45) < 0 && seqInit.indexOf(44) >= 0
+                && hasL(String.raw`/^(?:(\}))/,/^(?:\{)/,/^(?:[^\[\]\(\)\{\}\|\"]+)/`), [lexMissing, flowInit && flowInit.length, ganttInit && ganttInit.length, classInit && classInit.length]);
         }
 
         }

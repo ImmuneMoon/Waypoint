@@ -24,6 +24,12 @@ Character sheets
   and on its row of the Characters tab, which has a box to find a
   character by name.
 
+Fog of war
+- Players remember what they have seen is on until you untick it (the
+  fog menu): each player's own screen keeps the ground they have walked
+  past, dimmed, with the creatures there still hidden. It was off until
+  ticked; a campaign that never touched it now has it on.
+
 Fixes
 - A notice (that door is locked, that way is closed, a move was put
   back) is drawn over the fog of war. On a player's screen the dark

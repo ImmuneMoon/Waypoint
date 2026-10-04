@@ -117,6 +117,9 @@ Fixes
 - A tooltip on a large area (a whole card or a wide row, as in the System
   editor's Items tab) appears beside the pointer. It used to appear at the
   area's bottom or top edge, far from where you were pointing.
+- A token's right-click menu always fits the window: when it is too tall
+  its rows close up, and past that it scrolls inside itself (its first rows
+  used to end up above the top of a small window).
 
 WAYPOINT 1.5.0 — What's New
 ============================

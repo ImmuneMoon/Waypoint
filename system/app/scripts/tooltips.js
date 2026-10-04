@@ -3,7 +3,7 @@
    data-tip on first hover so the browser's own bubble does not appear as well; an element whose
    title changes later (e.g. a caret's Expand / Collapse) is re-read on the next hover. */
 (function() {
-    var DELAY = 150, tip, timer, current;
+    var DELAY = 150, tip, timer, current, px = null, py = null;   // px, py: where the pointer is
     function box() {
         if (tip) return tip;
         tip = document.createElement('div');
@@ -23,8 +23,11 @@
         t.style.display = 'block';
         t.style.left = '0px'; t.style.top = '0px';
         var r = el.getBoundingClientRect(), tw = t.offsetWidth, th = t.offsetHeight, vw = window.innerWidth, vh = window.innerHeight;
-        var x = r.left + r.width / 2 - tw / 2, y = r.bottom + 8;
-        if (y + th > vh - 6) y = r.top - th - 8;              // no room below: above
+        // A small control: under it, centred. A large area (a card, a wide row, a whole box that carries one tip): beside the pointer, since its
+        // bottom edge may be far from where the pointer is — the tip used to appear at the top or the bottom of the area.
+        var big = (r.height > 56 || r.width > 420) && px !== null && px >= r.left && px <= r.right && py >= r.top && py <= r.bottom;
+        var x = (big ? px : r.left + r.width / 2) - tw / 2, y = big ? py + 20 : r.bottom + 8;
+        if (y + th > vh - 6) y = (big ? py : r.top) - th - 8;              // no room below: above
         if (y < 6) y = 6;
         x = Math.max(6, Math.min(x, vw - tw - 6));
         t.style.left = x + 'px'; t.style.top = y + 'px';
@@ -35,7 +38,9 @@
         clearTimeout(timer); timer = null; current = null;
         if (tip) { tip.classList.remove('show'); tip.style.display = 'none'; }
     }
+    document.addEventListener('mousemove', function(e) { px = e.clientX; py = e.clientY; }, { passive: true });
     document.addEventListener('mouseover', function(e) {
+        px = e.clientX; py = e.clientY;
         var el = e.target && e.target.closest && e.target.closest('[title], [data-tip]');
         if (!el || el === current) return;
         clearTimeout(timer);
@@ -58,7 +63,7 @@
 // Right-click menus close as soon as the page scrolls or the wheel turns (they are positioned for where the pointer was).
 (function closeMenusOnScroll() {
     function close(e) {
-        var t = e && e.target; if (t && t.closest && t.closest("#partyMenu")) return;   // scrolling a long party menu (Give a character…) keeps it open
+        var t = e && e.target; if (t && t.closest && t.closest("#partyMenu, #contextMenu.tall")) return;   // scrolling a long party menu (Give a character…) keeps it open
         var a = document.getElementById("sidebarContextMenu"); if (a && a.style.display !== "none") a.style.display = "none";
         var b = document.getElementById("contextMenu"); if (b && b.style.display !== "none") b.style.display = "none";
         var c = document.getElementById("partyMenu"); if (c) c.classList.remove("show");

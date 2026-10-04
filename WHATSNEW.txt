@@ -8,6 +8,13 @@ Fog of war
   for whichever token you select until you press it again, works on a map
   with no fog, never dims the map, and is drawn for you alone.
 
+Combat
+- Combat from a token: at your table a character token's right-click menu
+  has Target (your own pointer: your NPCs' rolls read the range to it, and
+  T while pointing at a token sets it too), Start combat with the tokens
+  you picked ticked, and while a fight runs Add to the fight and Remove
+  from the fight. Starting a fight no longer needs the empty-map menu.
+
 The Music panel
 - Double-click a song in the library to play it at once (each song has a
   play button too), and double-click a song inside a playlist to play the

@@ -1378,14 +1378,20 @@ function blindCaptionsFor(map, camp, ownerId) {
     return out;
 }
 // drawn as drawCaptions draws a light's name, but above the token (a light's name sits under it), found by its board id
+// Each viewer's own choice (the owner, 2026-10-04: "the effects over a players head should be able to be hidden from view if they dont want to see
+// them all the time"): wp_senseCaps on this machine is always (as ever), hover (only above the token under the pointer, or a selected one) or
+// never; any other value, and no storage at all, is always
 function drawSenseCaptions(ctx, s, caps) {
     if (!caps.length || !ctx.fillText) return;
+    var mode = 'always'; try { var mv = typeof localStorage !== 'undefined' && localStorage ? localStorage.getItem('wp_senseCaps') : null; if (mv === 'hover' || mv === 'never') mode = mv; } catch (e) {}
+    if (mode === 'never') return;
     var want = Object.create(null); caps.forEach(function(c) { want[c.id] = c.text; });
     var els = document.querySelectorAll('#whiteboardWrap .wb-item[data-id]'), sr = s.getBoundingClientRect(), n = 0;
     ctx.save();
     ctx.font = '600 11px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     for (var i = 0; i < els.length && n < CAPTIONS_MOST; i++) {
         var t0 = want[els[i].dataset.id]; if (t0 === undefined) continue;   // a map with no prototype: a prototype's name names nothing
+        if (mode === 'hover' && !((els[i].matches && els[i].matches(':hover')) || (els[i].classList && els[i].classList.contains('sel')))) continue;   // only above the token under the pointer, or a selected one
         var t = String(t0).slice(0, 200), r = els[i].getBoundingClientRect(), cx = r.left + r.width / 2 - sr.left, cy = r.top - sr.top - 12, w = Math.min(ctx.measureText(t).width + 14, 360), h = 17;
         if (cx + w / 2 < 0 || cy + h < 0 || cx - w / 2 > sr.width || cy - h > sr.height) continue;   // off the board's view
         n++;

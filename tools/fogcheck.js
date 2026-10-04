@@ -3318,8 +3318,28 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && ['revealedTiers', 'revealedCellList', 'fogDropIds', 'canSeePoint'].every(noRuleIn)
             && fogE.includes("    if (!isStreamView() && typeof wallEdged === 'function') tiers = wallEdged(tiers, map, grid);")
             && fogE.includes("    if (typeof wallEdged === 'function') t = wallEdged(t, map, grid);")
-            && wnE.every(t => t.includes('- Fog along a wall: a wall drawn across the grid cuts the cells it runs')) && wnE[0].slice(0, wnE[0].indexOf('WAYPOINT 1.5.2')) === wnE[1].slice(0, wnE[1].indexOf('WAYPOINT 1.5.2')) && wnE[0].indexOf('WAYPOINT 1.5.3') === 0,
+            && wnE.every(t => t.includes('- Fog along a wall: a wall drawn across the grid cuts the cells it runs')) && wnE[0].slice(0, wnE[0].indexOf('WAYPOINT 1.5.2')) === wnE[1].slice(0, wnE[1].indexOf('WAYPOINT 1.5.2')) && wnE[0].indexOf('WAYPOINT 1.5.3') >= 0 && wnE[0].indexOf('WAYPOINT 1.5.3') < wnE[0].indexOf('WAYPOINT 1.5.2'),
             jj([party, mk]));
+    }
+
+    /* ---- 1.5.4: a notice is drawn over the fog; the fog canvas is cleared in its own pixels ---- */
+    {
+        const rd4 = f => require('fs').readFileSync(path.join(__dirname, '..', f), 'utf8').replace(/\r\n/g, NL);
+        const css4 = rd4('system/app/style.css'), fog4 = rd4('system/app/scripts/fog.js');
+        const z4 = id => { const m = css4.match(new RegExp('#' + id + '\\s*\\{[^}]*z-index:\\s*(\\d+)')); return m ? +m[1] : NaN; };
+        check('a notice is drawn over the fog of war and the screen effects (style.css: #toast above #fogScreen and #fxScreen; on a player\'s screen the dark covered "The GM has that door locked.")',
+            z4('toast') > z4('fogScreen') && z4('toast') > z4('fxScreen'), JSON.stringify({ toast: z4('toast'), fog: z4('fogScreen'), fx: z4('fxScreen') }));
+        const a4 = fog4.indexOf(NL + 'function clearCanvas()'), line4 = fog4.slice(a4 + 1, fog4.indexOf(NL, a4 + 1));
+        const cleared = dpr => {
+            const c = { width: Math.round(1000 * dpr), height: Math.round(600 * dpr) }, st = []; let k = dpr, got = null;
+            const x = { save() { st.push(k); }, restore() { k = st.pop(); }, setTransform(a) { k = a; }, clearRect(x0, y0, w, h) { got = [x0 * k, y0 * k, w * k, h * k]; } };
+            c.getContext = () => x;
+            new Function('screenEl', "'use strict';" + NL + line4 + NL + 'return clearCanvas;')(() => ({ querySelector: () => c }))();
+            return { whole: !!got && got[0] <= 0 && got[1] <= 0 && got[0] + got[2] >= c.width && got[1] + got[3] >= c.height, kept: k === dpr && st.length === 0 };
+        };
+        const r4 = [0.8, 1, 1.5, 0.5].map(cleared);
+        check('fog switched off clears the whole canvas at any page zoom (fog.js clearCanvas, run on a recording context: in the canvas\'s own pixels, the screen\'s scale put back; under 100% the old clear left the right and bottom edges)',
+            a4 > 0 && r4.every(r => r.whole && r.kept), JSON.stringify(r4));
     }
 
     summed = true;

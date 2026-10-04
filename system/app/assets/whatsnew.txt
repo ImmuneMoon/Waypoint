@@ -1,3 +1,14 @@
+WAYPOINT 1.5.4 — What's New
+============================
+
+Fixes
+- A notice (that door is locked, that way is closed, a move was put
+  back) is drawn over the fog of war. On a player's screen the dark
+  covered it.
+- Fog switched off clears the whole map when the app is zoomed out
+  below 100%: a strip of fog could stay along the right and bottom
+  edges.
+
 WAYPOINT 1.5.3 — What's New
 ============================
 

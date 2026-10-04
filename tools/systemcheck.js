@@ -5488,6 +5488,10 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const vI = aliasFromShadowBase(dosI, sI, F).values;
         check('F7c the crystal: the best multiplier and the best bonus a saber\'s installed parts read as (not its frame: a sleeve\'s +3 is not a crystal\'s), onto the keys a system has',
             vI.f_cm === 1.25 && vI.f_cf === 2, j(vI));
+        const dosD = c => { const d = JSON.parse(JSON.stringify(dosI)); d.inventory.lightsaberModifications.forEach(p => { if (c[p.name]) p.condition = c[p.name]; }); const v = aliasFromShadowBase(d, sI, F).values; return [v.f_cm, v.f_cf]; };
+        check('F7c the crystal, destroyed (the website\'s note of 2026-10-03): a fitted saber part whose condition is Destroyed gives the Force pool nothing, though the file still flags it as fitted — the multiplier falls back to the next best part\'s, the bonus too; any other condition reads as ever',
+            j(dosD({ Stone: 'Destroyed' })) === j([1, 2]) && j(dosD({ Chip: 'Destroyed' })) === j([1.25, 0]) && j(dosD({ Stone: 'Destroyed', Chip: 'Destroyed' })) === j([1, 0]) && j(dosD({ Stone: 'Worn', Chip: 'Damaged' })) === j([1.25, 2]) && j(dosD({ Stone: 'destroyed' })) === j([1.25, 2]) && j(dosD({})) === j([1.25, 2]),
+            j([dosD({ Stone: 'Destroyed' }), dosD({ Chip: 'Destroyed' }), dosD({ Stone: 'Destroyed', Chip: 'Destroyed' })]));
         const tb = S.sbTextBag('+15 lbs carry weight capacity. -1 DX, +2 to Force Points and +1 ST; Hit Points +3 (x2 when rested); halved 1/2'), tb2 = S.sbTextBag({ toString: 1 });
         check('F7c sbTextBag reads gear text the website\'s way: the first stat a clause names wins (carry, DX, FP, ST, HP), a number in brackets, after an x or in a fraction is no bonus; anything not text reads as nothing',
             j(Object.assign({}, tb)) === j({ carryCapacity: 15, dexterity: -1, forcePoints: 2, strength: 1, hitPoints: 3 }) && j(Object.assign({}, tb2)) === '{}' && S.sbFpText('x1.5 Force points').mult === 1.5, j(Object.assign({}, tb)));

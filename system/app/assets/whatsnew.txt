@@ -72,6 +72,9 @@ ShadowBase sheets
   is); a magazine weighs and costs its own figures plus the rounds in it; a
   part marked Destroyed is left out; and an older blaster that carries no
   final cost costs its base cost plus its upgrades, where it read as free.
+- The gauntlet or boot left on a severed limb (the website marks it as
+  wreckage) comes across as carried gear with its weight and cost, never as
+  armour that can be worn.
 
 The tutorial
 - The tour's cards always fit the window: a long step scrolls inside its
@@ -108,6 +111,15 @@ Fixes
 - The middle mouse button pans the board from every tool, as Help always
   said: in the fog and fill tools it did nothing, and elsewhere a pan with
   it dropped the selection.
+- System editor: the seven lists of the Layout tab's Sheet look (numbers,
+  band, arrows, results, effects, item rows and the palette) wear the
+  app's look; they showed as plain white boxes.
+- A tooltip on a large area (a whole card or a wide row, as in the System
+  editor's Items tab) appears beside the pointer. It used to appear at the
+  area's bottom or top edge, far from where you were pointing.
+- A token's right-click menu always fits the window: when it is too tall
+  its rows close up, and past that it scrolls inside itself (its first rows
+  used to end up above the top of a small window).
 
 WAYPOINT 1.5.0 — What's New
 ============================

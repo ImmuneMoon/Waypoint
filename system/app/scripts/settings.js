@@ -203,6 +203,17 @@ if (_streamSnd) {
 // Visual effects (1.5.0): reduce motion on this machine (wp_fxReduced), and whether the stream window shows effects (wp_streamFx, on by default).
 var _fxRed = ui('setFxReduced');
 if (_fxRed) { try { _fxRed.checked = localStorage.getItem('wp_fxReduced') === '1'; } catch (e) {} _fxRed.addEventListener('change', function() { try { localStorage.setItem('wp_fxReduced', _fxRed.checked ? '1' : '0'); } catch (e) {} toast(_fxRed.checked ? 'Reduced motion: shake off, flashes shortened.' : 'Full motion restored.'); }); }
+// The sense captions over tokens (the fog's "Blind · …" line): always, only on hover or for a selected token, or never, on this machine (wp_senseCaps)
+var _capSel = ui('setSenseCaps');
+if (_capSel) {
+    try { var cv0 = localStorage.getItem('wp_senseCaps'); _capSel.value = cv0 === 'hover' || cv0 === 'never' ? cv0 : 'always'; } catch (e) {}
+    _capSel.addEventListener('change', function() {
+        var cv = _capSel.value === 'hover' || _capSel.value === 'never' ? _capSel.value : 'always';
+        try { localStorage.setItem('wp_senseCaps', cv); } catch (e) {}
+        if (window.wpFog && window.wpFog.redraw) window.wpFog.redraw();
+        toast(cv === 'never' ? 'Sense captions over tokens: never shown on this machine.' : cv === 'hover' ? 'Sense captions over tokens: only on hover or for a selected token.' : 'Sense captions over tokens: always shown.');
+    });
+}
 var _streamFx = ui('setStreamFxChk');
 if (_streamFx) { try { _streamFx.checked = localStorage.getItem('wp_streamFx') !== '0'; } catch (e) {} _streamFx.addEventListener('change', function() { try { localStorage.setItem('wp_streamFx', _streamFx.checked ? '1' : '0'); } catch (e) {} toast(_streamFx.checked ? 'The stream window shows effects.' : 'The stream window hides effects.'); }); }
 

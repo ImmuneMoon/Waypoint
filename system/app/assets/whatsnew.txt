@@ -28,6 +28,9 @@ The Music panel
 - Double-click a song in the library to play it at once (each song has a
   play button too), and double-click a song inside a playlist to play the
   playlist from there.
+- The panel's play button with nothing loaded plays this map's music, or
+  the playlist you picked, and the panel says which. It used to do
+  nothing until a song had been started some other way.
 
 Sheets
 - A player's sheet upload no longer passes with a toast: a gold Review
@@ -65,6 +68,12 @@ Fixes
 - The song a map is set to play (Remember on this map) changes at once,
   for you and for the players on that map. It used to wait until someone
   left the map and came back.
+- A map's own music starts for the GM when the table opens. It used to
+  wait until the map was drawn again, so a GM who had just started
+  hosting sat in silence.
+- The Music panel, left open while you went to another map, kept showing
+  the map you came from, and Remember on this map then set that map's
+  music. It now follows the map on screen.
 - A right-click menu on the play map is no longer cut off at the board's
   top edge. A character token's menu, opened low on the screen, lost its
   first rows (Sheet, HUD) under the header, in a tall window too. The menu

@@ -159,7 +159,28 @@ function stop(fadeSec) {
     if (cur) { var old = cur; cur = null; if (ctx) ramp(old.gain, 0.0001, fadeSec === undefined ? 0.6 : fadeSec); setTimeout(function() { try { old.src.stop(); } catch (e) {} }, ((fadeSec === undefined ? 0.6 : fadeSec) * 1000) + 120); }
     emit(); broadcastControl();
 }
-function togglePlay() { if (!source) return; if (cur) { stopLane(0.3); } else { playCurrent(0.3); } emit(); broadcastControl(); }
+// [musiccheck:idle-start]
+// The transport's play button with nothing loaded (no song or playlist started yet, or Stop pressed) used to do nothing. It plays this map's
+// own music when the map has one the library still holds, else the playlist picked in the panel, else it says what to press.
+function mapPreset() {
+    var it = activeMapItem(), cfg = it && it.music ? cleanMapMusic(it.music, idSets()) : null; if (!cfg) return null;
+    var kind = cfg.playlist ? 'playlist' : 'track', id = cfg.playlist || cfg.track, e = kind === 'playlist' ? playlistById(id) : trackById(id);
+    return e ? { kind: kind, id: id, loop: cfg.loop, shuffle: !!cfg.shuffle, name: String(e.name == null ? '' : e.name) } : null;
+}
+function idlePlan() {
+    var mp = mapPreset(); if (mp) return { src: mp, words: 'this map’s music (' + mp.name + ')' };
+    var pl = selPl ? playlistById(selPl) : null;
+    if (pl && pl.tracks.some(function(id) { return !!trackById(id); })) return { src: { kind: 'playlist', id: pl.id, loop: 'list', shuffle: false }, words: 'the playlist ' + String(pl.name == null ? '' : pl.name) };
+    return null;
+}
+function idleNow() { var p = idlePlan(); return p ? 'Stopped — ▶ plays ' + p.words : 'Stopped'; }
+function startIdle() {
+    var p = idlePlan();
+    if (!p) { toast(musicNow().tracks.length ? 'Nothing is picked to play: double-click a song, or press a playlist’s ▶.' : 'No music yet: add songs in the library below.'); return; }
+    play({ kind: p.src.kind, id: p.src.id, loop: p.src.loop, shuffle: p.src.shuffle }, { fresh: true, fade: 0.25 });
+}
+function togglePlay() { if (!source) { startIdle(); return; } if (cur) { stopLane(0.3); } else { playCurrent(0.3); } emit(); broadcastControl(); }
+// [musiccheck:idle-end]
 function stopLane(fadeSec) { if (!cur) return; var old = cur; cur = null; if (ctx) ramp(old.gain, 0.0001, fadeSec || 0.3); setTimeout(function() { try { old.src.stop(); } catch (e) {} }, (fadeSec || 0.3) * 1000 + 120); }
 function next() { if (!source || !order.length) return; if (qi < order.length - 1) qi++; else if (source.loop !== 'off') qi = 0; else return; playCurrent(0.25); }
 function prev() { if (!source || !order.length) return; if (position() > 3) { seek(0); return; } if (qi > 0) qi--; else if (source.loop !== 'off') qi = order.length - 1; else return; playCurrent(0.25); }
@@ -192,7 +213,14 @@ function soloAutoOn() { return pref('wp_musicSolo', 'off') === 'on'; }   // GM o
 // Runs on every render() — MUST be cheap in the common case (zoom / pan re-renders on the same map). It only does
 // real work when the active MAP changes, and only auto-plays while a multiplayer session is live (solo prep can
 // still play from the panel; that music is left alone here).
+var panelFor = null;   // the map the open panel was last drawn for: its "On this map" part belongs to that map alone
+function panelFollow() {
+    var camp = getActiveCampaign(), it = camp && camp.items ? camp.items[camp.activeItemId] : null, id = it && it.type === 'map' ? camp.activeItemId : null;
+    if (id === panelFor) return;
+    panelFor = id; if (panelOpen()) renderPanel();
+}
 function tick() {
+    panelFollow();   // an open panel shows the map on screen
     if (controlling || controlled) return;   // the GM is driving the table's music (or we are following it): map auto-play is suspended
     if (!featureOn() || (!sessionLive() && !soloAutoOn())) { if (autoStarted && (cur || source)) { stop(0.5); autoStarted = false; } lastKey = ''; lastMapId = null; return; }   // no auto-play unless a session is live or the GM opted into solo auto-play
     var camp = getActiveCampaign(), it = camp && camp.items ? camp.items[camp.activeItemId] : null;
@@ -211,6 +239,10 @@ function tick() {
     play({ kind: kind, id: id, loop: cfg.loop, shuffle: cfg.shuffle });
     autoStarted = true;
 }
+// A session that begins or ends redraws nothing, and tick() runs on a redraw: the map's music is asked for on the app's own clock too
+// (boot: once a second; all it does in the common case is ask whether a session is live). A table that opens plays its map's music.
+var liveWas = false;
+function watchLive() { var live = sessionLive(); if (live === liveWas) return; liveWas = live; tick(); if (panelOpen()) renderPanel(); }   // the panel too: Take control is offered only at a table
 // [musiccheck:tick-end]
 
 /* ---------- multiplayer: the music library travels like sounds; the GM can take control of the table's music ---------- */
@@ -344,7 +376,7 @@ function closePanel() { var p = ui('musicPanel'); if (p) p.style.display = 'none
 function refreshTransport() {
     var p = ui('musicPanel'); if (!p || p.style.display === 'none') return;
     var st = status(), q = function(s) { return p.querySelector(s); };
-    var now = q('.music-now'); if (now) now.textContent = st.entry ? st.entry.name : (campMusic().tracks.length ? 'Stopped' : 'No tracks yet');
+    var now = q('.music-now'); if (now) now.textContent = st.entry ? st.entry.name : (campMusic().tracks.length ? (source ? 'Stopped' : idleNow()) : 'No tracks yet');
     var bar = q('.music-seekbar'); if (bar && document.activeElement !== bar) { bar.max = Math.max(1, Math.floor(st.dur)); bar.value = Math.floor(st.pos); bar.disabled = !st.entry; }
     var ts = p.querySelectorAll('.music-seek .music-t'); if (ts[0]) ts[0].textContent = fmtTime(st.pos); if (ts[1]) ts[1].textContent = fmtTime(st.dur);
     var play = q('.music-play'); if (play) { play.textContent = cur ? '⏸' : '▶'; play.title = cur ? 'Pause' : 'Play'; }
@@ -426,7 +458,7 @@ function renderPanel() {
 
     // transport
     var tp = el('div', 'music-transport');
-    var now = st.entry ? st.entry.name : (m.tracks.length ? 'Stopped' : 'No tracks yet');
+    var now = st.entry ? st.entry.name : (m.tracks.length ? (source ? 'Stopped' : idleNow()) : 'No tracks yet');
     tp.appendChild(el('div', 'music-now', now));
     var seekRow = el('div', 'music-seek');
     var t0 = el('span', 'music-t', fmtTime(st.pos));
@@ -465,7 +497,7 @@ function renderPanel() {
     }
     var soloRow = el('label', 'music-solo-opt');
     var soloChk = el('input'); soloChk.type = 'checkbox'; soloChk.className = 'music-solo-chk'; soloChk.checked = soloAutoOn();
-    soloChk.addEventListener('change', function() { setPref('wp_musicSolo', soloChk.checked ? 'on' : 'off'); lastKey = ''; lastMapId = ''; tick(); });
+    soloChk.addEventListener('change', function() { setPref('wp_musicSolo', soloChk.checked ? 'on' : 'off'); lastKey = ''; lastMapId = ''; tick(); renderPanel(); });
     soloRow.appendChild(soloChk); soloRow.appendChild(document.createTextNode(' Auto-play map music while solo (no session)'));
     soloRow.title = 'Off by default: map music starts for players in a session. Turn on to also hear it while prepping alone.';
     tp.appendChild(soloRow);
@@ -508,7 +540,7 @@ function renderPanel() {
     var it = activeMapItem();
     if (it) {
         var bindWrap = el('div', 'music-section');
-        bindWrap.appendChild(el('div', 'music-sec-head', 'On this map (' + (it.name || 'map') + ')'));
+        bindWrap.appendChild(el('div', 'music-sec-head', 'On this map (' + ((it.meta && typeof it.meta.title === 'string' && it.meta.title) || it.name || 'map') + ')'));
         var cfg = cleanMapMusic(it.music, idSets());
         var bsel = el('select', 'music-bindpl'); bsel.appendChild(new Option('— nothing —', ''));
         m.playlists.forEach(function(pl) { var o = new Option('▶ ' + pl.name, 'pl:' + pl.id); if (cfg && cfg.playlist === pl.id) o.selected = true; bsel.appendChild(o); });
@@ -517,11 +549,13 @@ function renderPanel() {
         var loopSel = el('select', 'music-bindloop'); [['list', 'Loop list'], ['one', 'Loop one'], ['off', 'No loop']].forEach(function(o) { var op = new Option(o[1], o[0]); if (cfg && cfg.loop === o[0]) op.selected = true; loopSel.appendChild(op); }); bindWrap.appendChild(loopSel);
         var shufL = el('label', 'music-bindshuf'); var shc = el('input'); shc.type = 'checkbox'; shc.checked = !!(cfg && cfg.shuffle); shufL.appendChild(shc); shufL.appendChild(document.createTextNode(' Shuffle')); bindWrap.appendChild(shufL);
         var setB = el('button', 'tool music-bindset', 'Remember on this map'); setB.addEventListener('click', function() {
+            if (activeMapItem() !== it) { renderPanel(); toast('Another map is open now: the panel shows it. Pick its music and press again.'); return; }   // never the map this part was drawn for
             var v = bsel.value;
             if (!v) { delete it.music; }
             else { var mm = { loop: loopSel.value, shuffle: shc.checked }; if (v.indexOf('pl:') === 0) mm.playlist = v.slice(3); else mm.track = v.slice(3); it.music = mm; }
             save(true); toast(v ? 'Saved this map’s music.' : 'Cleared this map’s music.'); lastKey = ''; tick(); renderPanel();
         }); bindWrap.appendChild(setB);
+        if (cfg) bindWrap.appendChild(el('div', 'music-empty music-bindnote', 'It starts by itself while a session is live' + (soloAutoOn() ? ', and while you are alone (ticked above).' : '. Alone, press ▶ above, or tick “Auto-play map music while solo”.')));
         p.appendChild(bindWrap);
     }
 
@@ -573,5 +607,6 @@ window.wpMusic = { play: play, stop: stop, next: next, prev: prev, seek: seek, t
     }
     var g = ui('musicGate'); if (g) g.addEventListener('click', tryResume);
     setInterval(function() { if (panelOpen() && cur) refreshTransport(); }, 500);
+    setInterval(watchLive, 1000);
     renderPill();
 })();

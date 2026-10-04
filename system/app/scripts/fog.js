@@ -1408,6 +1408,79 @@ function tick() {
 function kick() { if (!raf) raf = requestAnimationFrame(tick); }
 function redraw() { if (active()) { lastDraw = 0; kick(); } else clearCanvas(); }
 
+// The GM's sight outline (the owner, 2026-10-04: "for npc characters, id like to be able to track their line of sight for when i have them
+// selected", by prompt as an outline, never a veil). The area ONE token sees — its eyes by its own arc, then each full sense, walls and smoke
+// counted exactly as the fog counts them, its own sheet read whoever owns it (the GM's reading) — drawn as a line round that area on a layer
+// of its own over the board. The fog's own drawing is not touched: the layer is a second canvas, it works on a map whose fog is off, and it
+// is the GM's screen alone (never a player's app or the stream window). Heights are not counted (the 3D sightline, Height clears low cover).
+// [fogcheck:outline-start]
+var outlineId = null, _olSig = '', _olEdges = null;
+function outlineCells(map, camp, w) {   // the cells this one token sees, each once
+    var C = core(), grid = gridForMap(map); if (!C || !grid || !w) return null;
+    _viewPass++;
+    var blk = blockersFor(map, grid), over = !!_blockerOver[map.id], lvl = mapLevel(map);
+    if (over && lvl !== null) lvl = 0;
+    var lc = lvl === null || over ? null : litFor(map, grid, blk);
+    var x = w.x + (w.w || 60) / 2, y = w.y + (w.h || 52) / 2, front = (w.rot || 0) + (w.front || 0), ts = tokenSenses(w, map, camp, true), arc = eyesArc(map, ts);
+    var vs = [ts.blind ? { x: x, y: y, front: front, range: 0, arc: arc, blind: true } : { x: x, y: y, front: front, range: ts.sight, arc: arc }];
+    if (ts.full.length) senseViewers(ts, arc).forEach(function(s) { var v = { x: x, y: y, front: front, range: s.range, arc: s.arc, sense: true }; if (s.pass) v.pass = true; if (s.dim) v.dim = true; if (s.veil) v.veil = true; vs.push(v); });
+    var keys = Object.create(null), list = [];
+    vs.forEach(function(v) { var s = viewSeen(map, grid, blk, lvl, v, lc); for (var i = 0; i < s.length; i++) if (keys[s[i].key] === undefined) { keys[s[i].key] = 1; list.push(s[i].cell); } });
+    return { grid: grid, keys: keys, list: list };
+}
+// the edges of that area, in board coordinates ([ax, ay, bx, by] each): a cell's side is drawn when the cell across it is not seen
+function outlineEdges(seen) {
+    var C = core(), grid = seen.grid, out = [], sq = grid.type === 'square', n = sq ? 4 : 6, half = sq ? grid.size / 2 : 0, SQ = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+    for (var i = 0; i < seen.list.length; i++) {
+        var ctr = C.cellCenter(seen.list[i], grid);
+        for (var e = 0; e < n; e++) {
+            var f = (e + 1) % n, ax, ay, bx, by;
+            if (sq) { ax = ctr.x + SQ[e][0] * half; ay = ctr.y + SQ[e][1] * half; bx = ctr.x + SQ[f][0] * half; by = ctr.y + SQ[f][1] * half; }
+            else { ax = ctr.x + grid.s * HEX_COS[e]; ay = ctr.y + grid.s * HEX_SIN[e]; bx = ctr.x + grid.s * HEX_COS[f]; by = ctr.y + grid.s * HEX_SIN[f]; }
+            if (seen.keys[C.cellKey(C.cellOf(ax + bx - ctr.x, ay + by - ctr.y, grid), grid)] !== 1) out.push([ax, ay, bx, by]);   // the point is the centre of the cell across this side
+        }
+    }
+    return out;
+}
+function canOutline() { var map = activeMap(); return state.viewMode === 'visual' && isGmView() && !!map && !!gridForMap(map); }
+function outlineNow() {   // the edges to draw now, or null; worked out again only when something they depend on changed
+    if (!outlineId || !canOutline()) return null;
+    var map = activeMap(), camp = activeCamp(), w = (map.whiteboard || []).find(function(x) { return !!x && x.id === outlineId; });
+    if (!w || !w.isChar || w.waiting) return null;
+    var grid = gridForMap(map), ch = camp && camp.chars && typeof w.charId === 'string' && Object.prototype.hasOwnProperty.call(camp.chars, w.charId) ? camp.chars[w.charId] : null;
+    var sig = [map.id, w.id, w.x, w.y, w.w, w.h, w.rot || 0, w.front || 0, w.blind === true ? 1 : 0, JSON.stringify(w.senses || null), w.elevation || 0, w.posture || '', (map.meta && map.meta.updated) || 0, (camp && camp.system && camp.system.updated) || 0, ch ? ch.updated || 0 : 0, grid.type, grid.size || grid.s, window.wpVtt && !window.wpVtt.on('turning') ? 0 : 1, String(mapLevel(map))].join('|');
+    if (sig !== _olSig || !_olEdges) { var seen = outlineCells(map, camp, w); _olEdges = seen ? outlineEdges(seen) : []; _olSig = sig; }
+    return _olEdges;
+}
+function clearOutline() { var s = screenEl(), c = s && s.querySelector('canvas.sight-canvas'); if (c) { var x = c.getContext('2d'); if (x) { x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, c.width, c.height); } } }
+function drawOutline() {
+    var s = screenEl(), wrap = ui('whiteboardWrap'); if (!s || !wrap) return;
+    var edges = outlineNow(); if (!edges) { clearOutline(); return; }
+    placeScreen();   // the screen stands over the board (the fog's own canvas keeps what it holds)
+    var c = s.querySelector('canvas.sight-canvas'); if (!c) { c = document.createElement('canvas'); c.className = 'sight-canvas'; s.appendChild(c); }
+    var dpr = Math.min(1.5, window.devicePixelRatio || 1), W = s.clientWidth, H = s.clientHeight;
+    if (c.width !== Math.round(W * dpr) || c.height !== Math.round(H * dpr)) { c.width = Math.max(1, Math.round(W * dpr)); c.height = Math.max(1, Math.round(H * dpr)); }
+    c.style.width = W + 'px'; c.style.height = H + 'px';
+    var ctx = c.getContext('2d'); if (!ctx) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
+    var z = state.zoomLevel || 1, sx = wrap.scrollLeft, sy = wrap.scrollTop;
+    ctx.save(); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    for (var pass = 0; pass < 2; pass++) {   // a dark line under a bright one: it reads on a light floor and on a dark one
+        ctx.lineWidth = pass ? 2 : 4; ctx.strokeStyle = pass ? 'rgba(255,214,102,0.95)' : 'rgba(0,0,0,0.55)'; ctx.beginPath();
+        for (var i = 0; i < edges.length; i++) {
+            var e = edges[i], ax = e[0] * z - sx, ay = e[1] * z - sy, bx = e[2] * z - sx, by = e[3] * z - sy;
+            if ((ax < -40 && bx < -40) || (ay < -40 && by < -40) || (ax > W + 40 && bx > W + 40) || (ay > H + 40 && by > H + 40)) continue;   // off the view
+            ctx.moveTo(ax, ay); ctx.lineTo(bx, by);
+        }
+        ctx.stroke();
+    }
+    ctx.restore();
+}
+var olRaf = null, olLast = 0;
+function olTick() { olRaf = null; if (!outlineId) { clearOutline(); return; } var now = Date.now(); if (now - olLast >= 60) { olLast = now; drawOutline(); } olRaf = requestAnimationFrame(olTick); }
+function setOutline(id) { var was = outlineId; outlineId = typeof id === 'string' && id ? id : null; if (!outlineId) { if (was) clearOutline(); return; } if (outlineId !== was) olLast = 0; if (!olRaf) olRaf = requestAnimationFrame(olTick); }
+// [fogcheck:outline-end]
+
 /* ---------- the manual brush (whiteboard.js calls paintAt in fog mode) ---------- */
 var brush = 'reveal', _saveTimer = null;
 function queueSave() { if (_saveTimer) clearTimeout(_saveTimer); _saveTimer = setTimeout(function() { _saveTimer = null; save(); }, 400); }
@@ -1646,6 +1719,7 @@ window.wpFog = {
     tableLeft: tableLeft, onSnapshot: onSnapshot, foreign: foreign,
     lightLevel: mapLevel, lightCount: lightCount,
     lightSeen: lightSeen,
+    setOutline: setOutline, canOutline: canOutline,   // the GM's sight outline: the selected token's line of sight, as a line round what it sees
     tokenSenses: tokenSenses, campSenses: campSenses,   // senses S2b: a token's Properties show its senses as the host reads them
     eyesArc: eyesArc,   // the eyes' arc: the arc a token sees through on a map (its Properties say when it is its own)
     fogMarksFor: fogMarksFor, campMarkSenses: campMarkSenses,   // senses S4: a player's marks (the host's, for their copy)

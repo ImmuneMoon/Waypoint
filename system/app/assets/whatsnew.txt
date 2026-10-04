@@ -1,7 +1,26 @@
 WAYPOINT 1.5.2 — What's New
 ============================
 
+The Music panel
+- Double-click a song in the library to play it at once (each song has a
+  play button too), and double-click a song inside a playlist to play the
+  playlist from there.
+
+Sheets
+- A player's sheet upload no longer passes with a toast: a gold Review
+  button stays in the header for as long as an upload waits, shows how
+  many do, and opens the oldest one's Review.
+
 Fixes
+- A player could lose the table's music when the GM changed songs quickly:
+  their app asked for the new song while the last one was still arriving,
+  was told to wait, and gave up after three tries. It now keeps asking
+  until the song the GM is on has arrived and joins it where the GM's is
+  by then. A song still arriving over a slow link is no longer cut off
+  after 45 seconds.
+- The song a map is set to play (Remember on this map) changes at once,
+  for you and for the players on that map. It used to wait until someone
+  left the map and came back.
 - A right-click menu on the play map is no longer cut off at the board's
   top edge. A character token's menu, opened low on the screen, lost its
   first rows (Sheet, HUD) under the header, in a tall window too. The menu

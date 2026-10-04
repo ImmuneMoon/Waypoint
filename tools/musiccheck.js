@@ -222,6 +222,75 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         && wnM.includes('- Music from another campaign: From another campaign… in the Music panel\'s' + NL) && wnM.includes('- A campaign file merged into a campaign already here brings its music too') && wnM.includes('  or a playlist the campaign already holds is updated by the file\'s, as a' + NL + '  merged map is, so merging a newer copy never leaves two of a playlist.')
         && wnM.slice(wnM.indexOf(NL + 'Music' + NL), wnM.indexOf(NL + 'Video' + NL)) === waM.slice(waM.indexOf(NL + 'Music' + NL), waM.indexOf(NL + 'Video' + NL)));
 
+    /* ---- 1.5.2: the song a player's app keeps asking for, a map's changed setting, double-click (music.js sliced by its markers, run for real) ---- */
+    {
+        const cut = name => { const a = muSrc.indexOf('// [musiccheck:' + name + '-start]'), z = muSrc.indexOf('// [musiccheck:' + name + '-end]'); if (a < 0 || z < a) throw new Error('music.js: the ' + name + ' slice is not marked'); return muSrc.slice(a, z); };
+        const settle = async () => { for (let i = 0; i < 6; i++) await new Promise(r => setImmediate(r)); };
+        const mkLane = answers => {   // each ask of the file answered in turn: 'busy', 'timeout', 'missing' or a decoded song
+            const w = { timers: [], waits: [], toasts: [], started: [], asks: [], client: true, now: 1000 };
+            w.api = new Function('bufferFor', 'ac', 'ramp', 'emit', 'broadcastControl', 'showGate', 'isClient', 'toast', 'setTimeout', 'onTrackEnd', 'Date',
+                '"use strict"; var loadGen = 0, cur = null, pending = null, rate = 1, controlled = false; function effGain() { return 1; }' + NL + cut('playtrack') + NL + 'return { playTrackAt: playTrackAt, follow: function(v) { controlled = v; }, playing: function() { return cur ? cur.entry.id : null; } };')(
+                e => { w.asks.push(e.id); const a = answers.shift(); return a && a.duration ? Promise.resolve(a) : Promise.reject(new Error(a || 'missing')); },
+                () => ({ state: 'running', currentTime: 0, destination: {}, createGain: () => ({ gain: { value: 0 }, connect() {} }), createBufferSource: () => ({ playbackRate: { value: 1 }, connect() {}, start(when, off) { w.started.push(Math.round(off * 100) / 100); } }) }),
+                () => {}, () => {}, () => {}, () => {}, () => w.client, t => w.toasts.push(t), (fn, ms) => { w.timers.push(fn); w.waits.push(ms); return w.timers.length; }, () => {}, { now: () => w.now });
+            w.fire = async () => { const f = w.timers.shift(); if (f) f(); await settle(); };
+            return w;
+        };
+        const A = { id: 't_a', name: 'A' }, B = { id: 't_b', name: 'B' }, song = { duration: 200 };
+        const w1 = mkLane(['busy', 'busy', 'busy', 'busy', 'busy', song]); w1.api.playTrackAt(A, 0, 0.4, false); await settle();
+        for (let i = 0; i < 5; i++) await w1.fire();
+        const w2 = mkLane(['busy', song]); w2.api.playTrackAt(A, 0, 0.4, false); await settle(); w2.api.playTrackAt(B, 0, 0.4, false); await settle(); await w2.fire();
+        const w3 = mkLane(new Array(60).fill('busy')); w3.api.playTrackAt(A, 0, 0.4, false); await settle();
+        for (let i = 0; i < 60; i++) await w3.fire();
+        const w4 = mkLane(['timeout', 'missing']); w4.api.playTrackAt(A, 0, 0.4, false); await settle(); await w4.fire();
+        const w5 = mkLane(['busy']); w5.client = false; w5.api.playTrackAt(A, 0, 0.4, false); await settle();
+        check('a player\'s app keeps asking for the song the GM is on (playTrackAt run for real): told busy five times it asks five times more, 0.5 s to 2.5 s apart, and plays; a song a later change replaced is never asked for again; a host busy forty times over is given up on and said once, the waits backing off to 4 s; a request that timed out is asked again, a file that is not there is said at once; the GM\'s own machine never asks twice',
+            w1.asks.length === 6 && j(w1.waits) === j([500, 1000, 1500, 2000, 2500]) && j(w1.started) === j([0]) && w1.api.playing() === 't_a' && w1.toasts.length === 0
+            && j(w2.asks) === j(['t_a', 't_b']) && w2.api.playing() === 't_b' && w2.toasts.length === 0
+            && w3.asks.length === 41 && w3.toasts.length === 1 && /could not be loaded from the GM \(A\)/.test(w3.toasts[0]) && w3.waits.length === 40 && Math.max(...w3.waits) === 4000 && w3.timers.length === 0 && w3.api.playing() === null
+            && j(w4.asks) === j(['t_a', 't_a']) && w4.toasts.length === 1 && w4.timers.length === 0
+            && w5.asks.length === 1 && w5.timers.length === 0 && j(w5.toasts) === j(['Could not play "A": busy']),
+            j([w1.asks.length, w1.waits, w1.started, w2.asks, w3.asks.length, w3.toasts, w3.waits.length, w4.asks, w4.toasts, w5.toasts]));
+        const w6 = mkLane(['busy', song]); w6.api.follow(true); w6.api.playTrackAt(A, 30, 0.4, false); await settle(); w6.now = 6000; await w6.fire();
+        const w7 = mkLane([song]); w7.api.follow(true); w7.api.playTrackAt(A, 190, 0.4, true); w7.now = 21000; await settle();
+        const w8 = mkLane(['busy', song]); w8.api.playTrackAt(A, 30, 0.4, false); await settle(); w8.now = 6000; await w8.fire();
+        check('following the GM\'s music, the time the file took is added to where the song starts (5 s late: from 35 s, not 30), round its length for a looped song; a map\'s own music starts where it was asked to',
+            j(w6.started) === j([35]) && j(w7.started) === j([10]) && j(w8.started) === j([30]), j([w6.started, w7.started, w8.started]));
+        const mkTick = () => {
+            const w = { calls: [], live: true, solo: false, on: true, camp: null };
+            w.tick = new Function('getActiveCampaign', 'net', 'pref', 'featureOn', 'cleanMapMusic', 'idSets', 'W',
+                '"use strict"; var cur = null, source = null, controlling = false, controlled = false; function play(s) { W.calls.push(["play", s.kind, s.id, s.loop, !!s.shuffle]); source = s; cur = {}; } function stop() { W.calls.push(["stop"]); source = null; cur = null; }' + NL + cut('tick') + NL + 'return tick;')(
+                () => w.camp, () => ({ active: w.live }), (k, d) => (k === 'wp_musicSolo' ? (w.solo ? 'on' : 'off') : d), () => w.on, cleanMapMusic, () => ({ trackIds: { t_a: 1, t_b: 1 }, playlistIds: { pl_1: 1 } }), w);
+            return w;
+        };
+        const T = mkTick(), m1 = { type: 'map', music: { track: 't_a', loop: 'one', shuffle: false } }, m2 = { type: 'map' };
+        T.camp = { activeItemId: 'm1', items: { m1: m1, m2: m2 } };
+        T.tick(); T.tick(); const tFirst = j(T.calls);
+        m1.music = { track: 't_b', loop: 'one', shuffle: false }; T.tick(); T.tick(); const tChanged = j(T.calls.slice(1));
+        m1.music = { track: 't_b', loop: 'list', shuffle: false }; T.tick(); const tLoop = j(T.calls.slice(2));
+        T.camp.activeItemId = 'm2'; T.tick(); const tMoved = T.calls.length;
+        T.camp.activeItemId = 'm1'; T.tick(); const tBack = T.calls.length;
+        delete m1.music; T.tick(); T.tick(); const tCleared = j(T.calls.slice(3));
+        const S = mkTick(); S.live = false; S.camp = { activeItemId: 'm1', items: { m1: { type: 'map', music: { track: 't_a', loop: 'one' } } } }; S.tick(); const tSolo = S.calls.length; S.solo = true; S.tick(); const tSoloOn = j(S.calls);
+        check('a map\'s set song (tick run for real): it starts as the map is entered and is not started again by a redraw; changed while the map is on screen it plays at once, once; a changed loop on the same song reaches the player; a map with no song leaves the music alone, and coming back to a song still playing starts nothing; the setting cleared on the map on screen ends what it started; alone and without the solo tick nothing auto-plays',
+            tFirst === j([['play', 'track', 't_a', 'one', false]]) && tChanged === j([['play', 'track', 't_b', 'one', false]]) && tLoop === j([['play', 'track', 't_b', 'list', false]]) && tMoved === 3 && tBack === 3 && tCleared === j([['stop']])
+            && tSolo === 0 && tSoloOn === j([['play', 'track', 't_a', 'one', false]]),
+            j([tFirst, tChanged, tLoop, tMoved, tBack, tCleared, tSolo, tSoloOn]));
+        const netM = read('system/app/scripts/net.js');
+        check('double-click: a song in the library and a song inside a playlist are wired to play from the beginning (and each library song has its play button), never from a press on one of the row\'s buttons; a song already playing is started again only when asked afresh; a file still arriving is not timed out (the wait is for the next part); Help, the tour and both release notes say it, the 1.5.2 notes alike in both files',
+            muSrc.includes("row.addEventListener('dblclick', function(e) { if (e.target && e.target.closest && e.target.closest('button')) return; playTrack(tr.id); });")
+            && muSrc.includes("pb.addEventListener('click', function() { playTrack(tr.id); }); row.appendChild(pb);")
+            && muSrc.includes("trow.addEventListener('dblclick', function(e) { if (e.target && e.target.closest && e.target.closest('button')) return; playListFrom(pl.id, tid); });")
+            && muSrc.includes("function playTrack(id) { if (trackById(id)) play({ kind: 'track', id: id, loop: 'list', shuffle: false }, { fresh: true, fade: 0.25 }); }")
+            && muSrc.includes("shuffle: false }, { fresh: true, index: i > 0 ? i : 0, fade: 0.25 });")
+            && muSrc.includes("if (!opts.pos && !opts.fresh && source && cur && source.kind === src.kind && source.id === src.id) {")
+            && netM.includes("clearTimeout(w.timer); w.timer = setTimeout(function() { if (own(assetWaiters, msg.path) && assetWaiters[msg.path] === w) delete assetWaiters[msg.path]; w.reject(new Error('timeout')); }, ASSET_WAIT);")
+            && ixM.includes('changed while players are on the map, it changes for them at once. Double-click a song in the library (or press its &#9654;) to play it at once, and double-click a song inside a playlist to play the playlist from there.')
+            && tuM.includes('Double-click a song in the library to play it at once.')
+            && wnM.includes('- Double-click a song in the library to play it at once') && wnM.includes('- A player could lose the table\'s music when the GM changed songs quickly:') && wnM.includes('- The song a map is set to play (Remember on this map) changes at once,')
+            && wnM.indexOf('WAYPOINT 1.5.1') > 0 && wnM.slice(0, wnM.indexOf('WAYPOINT 1.5.1')) === waM.slice(0, waM.indexOf('WAYPOINT 1.5.1')));
+    }
+
     /* ---- publication ---- */
     global.window = {};
     const M2 = await import(url('musiccore.js') + '?x');

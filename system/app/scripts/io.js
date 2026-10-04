@@ -1231,6 +1231,22 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
 
 
 
+  // The camera: where a map was last looked at, and how close. It is no change to the campaign. A pan or a zoom used to go through save(): every
+  // scroll step stamped the map as changed (meta.updated: the fog then built its walls and its play area again on its next frame, many times a
+  // second while the view moved), and half a second after the view came to rest the whole pipeline ran: the undo pass over every item, the
+  // table's sync, the file. saveView stamps nothing, records nothing and tells no one. The view reaches the disk with the next real save, or by
+  // itself a moment after it comes to rest, on a machine that owns this save; a player's app, the stream window and a pop-out write nothing.
+  var viewTimeout;
+
+  function saveView() {
+    clearTimeout(viewTimeout);
+    if (!canPersistLocal()) return;
+    viewTimeout = setTimeout(function() {
+        if (savePending || !canPersistLocal()) return;   // a real save is on its way and carries the view; or the table changed hands meanwhile
+        fetch('/api/data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(state.appState) }).then(function() {}, function() {});
+    }, 2000);
+  }
+
   /* ---------- mode toggling ---------- */
 
   var _segBtns = modeSelect ? Array.prototype.slice.call(modeSelect.querySelectorAll('.seg-btn')) : [];
@@ -1865,6 +1881,8 @@ export {
     redo,
 
     save,
+
+    saveView,
 
     download,
 

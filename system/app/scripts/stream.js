@@ -20,13 +20,17 @@ if (on) {
     net.active = true; net.role = 'client'; net.foreign = true; net.stream = true; net.myId = 'stream';
     window.isPanMode = true;   // left-drag pans the view
     var focus = '', charFocus = '';
+    // Where each player was last seen, from the GM's own save: the party view holds no player records (sanitizeAppState takes them out), so the
+    // table of player id to map id is read before it and handed to net.whereIs. Nothing of it is drawn or sent.
+    function lastSeen(raw) { var out = Object.create(null), ps = raw && raw.players; if (ps && typeof ps === 'object' && !Array.isArray(ps)) Object.keys(ps).forEach(function(pid) { var r = ps[pid]; if (r && typeof r === 'object' && typeof r.lastMap === 'string' && r.lastMap) out[pid] = r.lastMap; }); return out; }
+    function whoOf(camp) { return function(pid) { return window.wpPlayerNow ? window.wpPlayerNow(camp, pid) : null; }; }
     // [videocheck:streamchar-start]
     // R2 #14: the "Focus on" menu names the players' characters alone (characterList owned-only: a token that carries a player's id), never an NPC
     // on a fogged map; a focus — kept from before or picked — is only ever one of theirs ('o:' and a name), anything else is no one
     var ownKey = function(k) { return typeof k === 'string' && k.slice(0, 2) === 'o:' && k.length > 2 ? k : ''; };
     function refreshCharSelect(camp) {
         if (!charSel) return;
-        var list = characterList(camp, true);
+        var list = characterList(camp, true, null, whoOf(camp));   // each player's chip is the token on the map they are on
         var sig = list.map(function(c) { return c.key + ':' + c.name + '@' + c.map; }).join('|') + '#' + charFocus;
         if (charSel.dataset.sig === sig) return;
         charSel.dataset.sig = sig;
@@ -66,11 +70,13 @@ if (on) {
         var data;
         try { data = await (await fetch('/api/data', { cache: 'no-store' })).json(); } catch (e) { return; }
         if (!data || !data.campaigns || !Object.keys(data.campaigns).length) return;
+        var seenBy = Object.create(null); Object.keys(data.campaigns).forEach(function(id) { seenBy[id] = lastSeen(data.campaigns[id]); });
         var clean = net.sanitizeAppState(data);
         var campId = clean.activeCampaignId && clean.campaigns[clean.activeCampaignId] ? clean.activeCampaignId : Object.keys(clean.campaigns)[0];
         var camp = clean.campaigns[campId];
         var gmItem = camp.items[camp.activeItemId];
-        var loc = charFocus && charFocus.charAt(0) === 'o' ? locateCharacter(camp, charFocus) : null;   // R2 #14: a player's character alone is followed
+        net.streamWhere = seenBy[campId] || Object.create(null);
+        var loc = charFocus && charFocus.charAt(0) === 'o' ? (window.wpCharNow ? window.wpCharNow(camp, charFocus).loc : locateCharacter(camp, charFocus)) : null;   // R2 #14: a player's character alone is followed, on the map that player is on
         var want = loc ? loc.map.id
                  : (focus && camp.items[focus] && camp.items[focus].type === 'map') ? focus
                  : (gmItem && gmItem.type === 'map') ? camp.activeItemId

@@ -2282,7 +2282,7 @@ window.wpFitToGrid = fitToGrid;
       var strip = document.getElementById('partyStrip'); if (!strip) return;
       var camp = getActiveCampaign(), am = getActiveMap();
       if (!camp || !am || am.type !== 'map' || state.viewMode !== 'visual') { strip.innerHTML = ''; strip.dataset.sig = ''; return; }
-      var list = characterList(camp, true, am.id);
+      var list = characterList(camp, true, am.id, function(pid) { return playerNow(camp, pid); }).map(function(c) { return chipPlace(camp, c); });   // a player's chip is the token on the map they are on
       // [sinkcheck:partyface-start]
       list.forEach(function(c) { if (c.src || !c.face || !window.wpNet || !window.wpNet.faceView || !window.wpNet.cleanFace || !window.wpNet.cleanFace(c.face)) return; var fvT = window.wpNet.faceView({ face: c.face }, cssColor(c.tcolor || '#4db3d3')); if (fvT.emoji) c.emoji = fvT.emoji; else if (fvT.img) { c.src = fvT.img; c.avatar = true; } });   // Onboarding F1c: a character's own face (an emoji, a bundled picture, the default in its token's colour)
       // [sinkcheck:partyface-end]
@@ -2394,14 +2394,42 @@ window.wpFitToGrid = fitToGrid;
       var t = window.wpSystemCore.waitingTokensOf(camp, key.slice(2))[0];
       return t && camp.items[t.mapId] ? { map: camp.items[t.mapId], tok: t.w } : null;
   }
+  // [systemcheck:charnow-start]
+  /* Where a character is NOW, for the party's Jump, its chips, their menu and the stream window's follow. A player's character ('o:' key) is on the
+     map that player is on: at a table their app's own place, after they left the place they were last seen (net.whereIs). Of their tokens there
+     the one of the character they play comes first; the map on screen comes after that map. `sure` says a token of theirs on any other map is
+     not where they are: always on a player's app (it draws no such token), on the GM's only while that player is connected (the GM may have
+     moved a token since they left), never in the stream window. Anything else, and a player nobody can place, is found as it always was. */
+  function playerNow(camp, pid) {
+      var n = window.wpNet, S = window.wpSystemCore, w = n && n.whereIs ? n.whereIs(pid) : null, isMap = function(id) { return typeof id === 'string' && !!camp && !!camp.items && Object.prototype.hasOwnProperty.call(camp.items, id) && !!camp.items[id] && camp.items[id].type === 'map'; };
+      var client = !!(n && n.active && n.role === 'client' && !n.stream);
+      var at = client && pid === n.myId && isMap(camp.activeItemId) ? camp.activeItemId : w && isMap(w.map) ? w.map : null;   // a player's own place is the map on their screen
+      var plays = S && S.activeCharOf && camp && camp.chars ? S.activeCharOf(camp, pid).id : null;
+      return { map: at, char: typeof plays === 'string' && plays ? plays : null, sure: !!(at && n && n.active && !n.stream && (client || (w && w.live === true))) };
+  }
+  function charNow(camp, key) {
+      if (!camp || typeof key !== 'string' || !key) return { loc: null, left: null, at: null, sure: false };
+      var who = key.charAt(0) === 'o' ? playerNow(camp, key.slice(2)) : null;
+      var loc = locateCharacter(camp, key, camp.activeItemId, who), left = null;
+      if (who && who.sure && loc && loc.map.id !== who.map) { left = loc; loc = null; }   // a token they left behind on another map: its name and its sheet, never their place
+      return { loc: loc, left: left, at: who ? who.map : null, sure: !!(who && who.sure) };
+  }
+  // a chip whose player is on a map with no token of theirs says that map, never the one a token was left on
+  function chipPlace(camp, c) {
+      var pn = c && c.ownerId ? playerNow(camp, c.ownerId) : null;
+      if (pn && pn.sure && c.mapId !== pn.map) { c.mapId = pn.map; c.map = (camp.items[pn.map].meta && camp.items[pn.map].meta.title) || pn.map; }
+      return c;
+  }
+  window.wpPlayerNow = playerNow; window.wpCharNow = charNow;
+  // [systemcheck:charnow-end]
   function focusCharacter(key) {
       var camp = getActiveCampaign(); if (!camp) return;
       if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client' && !window.wpStream) {
-          var amC = getActiveMap(), locC = locateCharacter(camp, key, camp.activeItemId) || waitingLoc(camp, key);
+          var amC = getActiveMap(), nowC = charNow(camp, key), locC = nowC.loc || waitingLoc(camp, key);
           if (!locC) {
               var plC = Object.values(window.wpNet.roster || {}).find(function(p) { return p && p.id === key.slice(2); });
-              var whereC = plC && plC.location && camp.items[plC.location] ? (camp.items[plC.location].meta || {}).title : null;
-              toast((plC && plC.name || 'They') + (whereC ? ' is on ' + whereC + '.' : ' is not on any map right now.'));
+              var atC = nowC.at || (plC && plC.location), whereC = atC && camp.items[atC] ? (camp.items[atC].meta || {}).title : null;
+              toast(((nowC.left && (nowC.left.tok.charName || nowC.left.tok.name)) || (plC && plC.name) || 'They') + (whereC ? ' is on ' + whereC + '.' : ' is not on any map right now.'));
               return;
           }
           var nameC = locC.tok.charName || locC.tok.name || 'They';
@@ -2425,7 +2453,16 @@ window.wpFitToGrid = fitToGrid;
           toast(pl.name + ' is on this map but has no token yet \u2014 give them one from a character token\'s Properties.');
           return;
       }
-      var loc = wlG || locateCharacter(camp, key, camp.activeItemId);
+      var nowG = wlG ? null : charNow(camp, key), loc = wlG || nowG.loc;
+      if (!loc && nowG && nowG.sure) {
+          // their player is on a map with no token of theirs to show: that map, never a token they left behind on another
+          if (camp.activeItemId !== nowG.at) { camp.activeItemId = nowG.at; updateSidebarNav(); }
+          state.viewMode = 'visual'; render();
+          if (window.appRestoreCamera) window.appRestoreCamera();
+          save();
+          toast(((nowG.left && (nowG.left.tok.charName || nowG.left.tok.name)) || 'That player') + ' is on this map, with no token of theirs to show.');
+          return;
+      }
       if (!loc) { toast('That character is not on any map right now.'); return; }
       if (camp.activeItemId !== loc.map.id) { camp.activeItemId = loc.map.id; updateSidebarNav(); }
       state.viewMode = 'visual';
@@ -2511,16 +2548,17 @@ window.wpFitToGrid = fitToGrid;
           var cmOld = document.getElementById('contextMenu'); if (cmOld) cmOld.style.display = 'none';   // an item menu left open never sits beside this one
           var camp = getActiveCampaign(); var am = getActiveMap();
           var isPlayerOnly = key.charAt(0) === 'p';
-          var loc = isPlayerOnly ? null : locateCharacter(camp, key, camp && camp.activeItemId);
+          var nowM = isPlayerOnly ? null : charNow(camp, key), loc = nowM ? nowM.loc || nowM.left : null;   // the token the rows act on: where they are, else one they left behind (its name, its sheet)
+          var atM = nowM && nowM.loc ? nowM.loc.map : nowM && nowM.sure ? camp.items[nowM.at] : null;   // the map they are on, when anyone can say
           var ownerId = (key.charAt(0) === 'o' || isPlayerOnly) ? key.slice(2) : null;
           var rosterP = ownerId && window.wpNet && Object.values(window.wpNet.roster || {}).find(function(p) { return p && p.id === ownerId; });
           var waitN = ownerId && window.wpSystemCore && window.wpSystemCore.waitingTokensOf ? window.wpSystemCore.waitingTokensOf(camp, ownerId)[0] : null;   // Onboarding F1a: a player away inside the grace has only their waiting token's name
           var name = loc ? (loc.tok.charName || loc.tok.name || 'this character') : (rosterP && rosterP.name) || (waitN && waitN.w.name) || 'this player';
           var hosting = window.wpNet && window.wpNet.active && window.wpNet.role === 'host';
           var connected = hosting && ownerId && window.wpNet.isConnected(ownerId);
-          var here = loc && am && loc.map.id === am.id;
+          var here = !!(atM && am && atM.id === am.id);
           var items = [];
-          var whereName = loc ? (loc.map.meta && loc.map.meta.title || 'their map') : (rosterP && rosterP.location && camp.items[rosterP.location] && camp.items[rosterP.location].meta && camp.items[rosterP.location].meta.title) || 'their map';
+          var whereName = atM ? (atM.meta && atM.meta.title || 'their map') : (rosterP && rosterP.location && camp.items[rosterP.location] && camp.items[rosterP.location].meta && camp.items[rosterP.location].meta.title) || 'their map';
           var isClientM = window.wpNet && window.wpNet.active && window.wpNet.role === 'client' && !window.wpStream;
           if (isClientM && !here) items.push({ act: 'none', label: name + ' \u2014 on ' + whereName, dim: true });
           else items.push({ act: 'jump', label: '\uD83C\uDFAF ' + (isClientM ? 'Find ' : 'Jump to ') + name + (here ? '' : ' (' + whereName + ')') });
@@ -2603,11 +2641,11 @@ window.wpFitToGrid = fitToGrid;
           else if (act === 'joinCard') { if (window.wpJoinCard) window.wpJoinCard.show(); }
           else if (act === 'invite') { if (window.wpSheets && window.wpSheets.inviteMaking) window.wpSheets.inviteMaking(key.slice(2)); }
           else if (act === 'bring') { var ctrB = viewCentre(); bringKeyHere(key, ctrB.x, ctrB.y); }
-          else if (act === 'sheet') { var campS = getActiveCampaign(), locS = locateCharacter(campS, key, campS && campS.activeItemId); if (locS && locS.tok && window.wpSheets) { if (!locS.tok.charId && !(window.wpNet && window.wpNet.active && window.wpNet.role === 'client')) window.wpSheets.newFromToken(locS.tok); if (locS.tok.charId) window.wpSheets.openSheet(locS.tok.charId); } }
-          else if (act === 'hud') { var campH = getActiveCampaign(), locH = locateCharacter(campH, key, campH && campH.activeItemId); if (locH && locH.tok && locH.tok.charId && window.wpSheets && window.wpSheets.openHud) window.wpSheets.openHud(locH.tok.charId); }   // HUD frame (HF2b)
+          else if (act === 'sheet') { var campS = getActiveCampaign(), nS = charNow(campS, key), locS = nS.loc || nS.left; if (locS && locS.tok && window.wpSheets) { if (!locS.tok.charId && !(window.wpNet && window.wpNet.active && window.wpNet.role === 'client')) window.wpSheets.newFromToken(locS.tok); if (locS.tok.charId) window.wpSheets.openSheet(locS.tok.charId); } }
+          else if (act === 'hud') { var campH = getActiveCampaign(), nH = charNow(campH, key), locH = nH.loc || nH.left; if (locH && locH.tok && locH.tok.charId && window.wpSheets && window.wpSheets.openHud) window.wpSheets.openHud(locH.tok.charId); }   // HUD frame (HF2b)
           else if (act === 'chars') { if (window.wpSheets) window.wpSheets.open('chars'); }
           else if (act === 'target') {
-              var camp = getActiveCampaign(); var loc = locateCharacter(camp, key, camp && camp.activeItemId);
+              var camp = getActiveCampaign(); var loc = charNow(camp, key).loc;   // where they are: never a token a teammate left behind on this map (a player's app does not draw it)
               var am = getActiveMap();
               if (loc && am && loc.map.id === am.id && loc.tok.ownerId !== window.wpNet.myId) window.wpNet.setTarget(loc.tok.id, am.id, loc.tok.charName || loc.tok.name);
               else toast('You can only target a character on the map you are on.');

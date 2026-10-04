@@ -46,6 +46,13 @@ Fixes
 - The left panel's right-click menu (on a map, a page or a planner) is
   placed for the rows it shows, and in a window shorter than the menu it
   scrolls inside itself.
+- Jump to a player's character goes where that player is. A player with a
+  token on several maps was looked for on the map you had open first and
+  then map by map, so the jump, the chip's highlight and the menu's Jump
+  row could land on a token they had left behind. They now ask where the
+  player is: their place at your table, or where they were last seen. The
+  stream window's Focus on follows the same rule, and on a player's app a
+  teammate on another map is no longer "found" on the map on screen.
 
 WAYPOINT 1.5.1 — What's New
 ============================

@@ -8279,6 +8279,36 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && ixS2.includes('You have the same <b>Import</b> on every sheet, an NPC&rsquo;s too') && rdx('scripts/tutorial.js').includes('As the GM you have the same <b>Import</b> on every sheet, an NPC&rsquo;s too')
             && ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8').includes('- Import on every sheet for the GM')),
             j([gi1, giPlayer, giNoWrite, giFile, giBad, giSame, giNoSys]));
+        // (i) the GM's own Target, Start combat and Add to the fight on a character token's menu (whiteboard.js sliced by its gmfight markers, run for real)
+        const gfW = { net: { active: true, role: 'host', myId: 'gm1', targets: {}, combats: {}, calls: [], setTarget(id, mid, nm) { this.calls.push(['target', id, mid, nm]); }, combatSet(mid, c) { this.calls.push(['set', mid, c]); }, combatEnd(mid) { this.calls.push(['end', mid]); } }, stream: false, opened: [] };
+        const GF = new Function('window', 'openCombatModal', '"use strict";' + NLx + cutX(wbS2, 'gmfight') + NLx + 'return { model: gmFightModel, html: gmFightHtml, act: gmFightDo, can: gmCanTarget, key: gmTarget };')({ get wpNet() { return gfW.net; }, get wpStream() { return gfW.stream; } }, (mid, o) => gfW.opened.push([mid, o]));
+        const gfMap = { id: 'm1' }, npc = { id: 't_npc', isChar: true, charName: 'Molab <b>', src: '/saves/images/x.png' }, pc = { id: 't_pc', isChar: true, charName: 'Sahrhie', ownerId: 'u_1' }, hid = { id: 't_hid', isChar: true, hidden: true, charName: 'Lurker' }, wall = { id: 'w1', type: 'rect' };
+        const gf1 = GF.model(gfMap, [npc]), gfH1 = GF.html(gf1);
+        GF.act(gfMap, gf1, 'target'); GF.act(gfMap, gf1, 'start'); const gfT = j(gfW.net.calls);
+        gfW.net.targets.gm1 = { id: 't_npc', mapId: 'm1' }; const gfMine = GF.html(GF.model(gfMap, [npc])); gfW.net.targets = {};
+        const gf2 = GF.model(gfMap, [npc, pc, wall]), gfH2 = GF.html(gf2); GF.act(gfMap, gf2, 'start');
+        const gfNone = [GF.model(gfMap, [wall]), GF.model(gfMap, []), (() => { gfW.net.role = 'client'; const r = GF.model(gfMap, [npc]); gfW.net.role = 'host'; return r; })(), (() => { gfW.stream = true; const r = GF.model(gfMap, [npc]); gfW.stream = false; return r; })(), (() => { gfW.net.active = false; const r = GF.model(gfMap, [npc]); gfW.net.active = true; return r; })()];
+        const gfHid = GF.model(gfMap, [hid]), gfHidH = GF.html(gfHid);
+        gfW.net.combats.m1 = { round: 3, turn: 1, rows: [{ id: 'rt_a', name: 'A', tokId: 't_a', init: 14, rolled: 1 }, { id: 'rt_pc', name: 'Sahrhie', tokId: 't_pc', init: 12, held: 1 }, { id: 'c9', name: 'Custom', tokId: null, init: 3 }] };
+        const gf3 = GF.model(gfMap, [npc, pc]), gfH3 = GF.html(gf3), gfHidRun = GF.html(GF.model(gfMap, [hid])); gfW.net.calls = [];
+        GF.act(gfMap, gf3, 'add'); const gfAdd = gfW.net.calls.pop();
+        GF.act(gfMap, gf3, 'drop'); const gfDrop = gfW.net.calls.pop();
+        const gfStartRunning = GF.act(gfMap, gf3, 'start'), gfBad = GF.act(gfMap, gf3, 'nonsense');
+        gfW.net.combats.m1 = { round: 1, turn: 0, rows: [{ id: 'rt_pc', name: 'Sahrhie', tokId: 't_pc', init: 12 }] }; const gfLast = GF.model(gfMap, [pc]); gfW.net.calls = []; GF.act(gfMap, gfLast, 'drop'); const gfEnd = j(gfW.net.calls);
+        check('the GM\'s own rows on a character token\'s menu (run for real): one token offers Target (Clear target when it is the GM\'s target already) and Start combat, several offer Start combat alone, and the roster opens with the picked tokens ticked; while a fight runs on the map a token outside it is offered Add to the fight and one inside it Remove from the fight, the order kept by its rows, the round kept, the turn following the row that was on turn, an added row last with no number; removing the last row ends the fight; a hidden token is offered neither Target nor Add; never on a player\'s app, the stream window, offline or for a piece that is no character token; the menu\'s markup holds fixed words only; T is the GM\'s too',
+            gfH1.includes('&#9678; Target') && gfH1.includes('&#9876; Start combat&hellip;') && !gfH1.includes('Molab') && gfT === j([['target', 't_npc', 'm1', 'Molab <b>']]) && gfMine.includes('&#9711; Clear target')
+            && !gfH2.includes('Target') && gfH2.includes('these tokens') && j(gfW.opened) === j([['m1', { pre: ['t_npc'] }], ['m1', { pre: ['t_npc', 't_pc'] }]]) && gfNone.every(x => x === null)
+            && gfHid.target === null && !gfHidH.includes('Target') && gfHidH.includes('Start combat')
+            && gfH3.includes('Add to the fight') && gfH3.includes('Remove from the fight') && !gfH3.includes('Start combat') && gfHidRun === ''
+            && gfAdd[0] === 'set' && gfAdd[2].round === 3 && gfAdd[2].turn === 1 && j(gfAdd[2].rows.map(r => r.id)) === j(['rt_a', 'rt_pc', 'c9', 'rt_npc']) && gfAdd[2].rows[3].init === 0 && gfAdd[2].rows[3].rolled === undefined && gfAdd[2].rows[0].rolled === 1 && gfAdd[2].rows[1].held === 1
+            && gfDrop[0] === 'set' && j(gfDrop[2].rows.map(r => r.id)) === j(['rt_a', 'c9']) && gfDrop[2].turn === 1 && gfStartRunning === false && gfBad === false && gfEnd === j([['end', 'm1']])
+            && GF.can(npc) === true && GF.can(hid) === false && GF.can(wall) === false && (() => { gfW.net.calls = []; const a = GF.key(npc, 'm1'), b = GF.key(hid, 'm1'), c = GF.key(npc, 5); return a === true && b === false && c === false && j(gfW.net.calls) === j([['target', 't_npc', 'm1', 'Molab <b>']]); })()
+            && wbS2.includes("var gmF = isWb ? gmFightModel(am, selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }).filter(Boolean)) : null; html += gmFightHtml(gmF);")
+            && wbS2.includes("Array.prototype.forEach.call(cMenu.querySelectorAll('.cm-gm-fight'), function(rw) { rw.addEventListener('click', function(ce) { ce.stopPropagation(); cMenu.style.display = 'none'; gmFightDo(am, gmF, rw.dataset.fight); }); });")
+            && wbS2.includes("else if (tok && gmCanTarget(tok)) { e.preventDefault(); gmTarget(tok, am.id); }")
+            && ixS2.includes('<li><b>Combat from a token (GM):</b> right-click a character token at your table') && rdx('scripts/tutorial.js').includes('You target too: right-click a character token &#9656; <b>Target</b> is your own pointer')
+            && ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8').includes('- Combat from a token: at your table a character token')),
+            j([gfH1.length, gfW.opened, gfNone, gfHidH, gfAdd, gfDrop, gfEnd]));
         // (d) the left panel: Handbook, then Planners, then Maps
         const iH = ixS2.indexOf('data-section="handbook"'), iP = ixS2.indexOf('data-section="planners"'), iM = ixS2.indexOf('data-section="maps"');
         check('the left panel lists Handbook, then Planners, then Maps, each once', iH > 0 && iP > iH && iM > iP && ixS2.split('data-section="handbook"').length === 2 && ixS2.split('data-section="planners"').length === 2 && ixS2.split('data-section="maps"').length === 2, j([iH, iP, iM]));

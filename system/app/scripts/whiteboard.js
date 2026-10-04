@@ -2642,12 +2642,13 @@ window.wpFitToGrid = fitToGrid;
           if (el && el.dataset.id === d.doorId && window.wpNet.doorReq) window.wpNet.doorReq(d.mapId, d.doorId);   // door open/close request (host validates adjacency + lock)
       }, true);
       document.addEventListener('keydown', function(e) {
-          if (e.key === 'Escape') { if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client' && window.wpNet.targets && window.wpNet.targets[window.wpNet.myId]) window.wpNet.clearMyTarget(); return; }
+          if (e.key === 'Escape') { if (window.wpNet && window.wpNet.active && (window.wpNet.role === 'client' || window.wpNet.role === 'host') && window.wpNet.targets && window.wpNet.targets[window.wpNet.myId]) window.wpNet.clearMyTarget(); return; }
           if (e.key !== 't' && e.key !== 'T') return;
           if (e.ctrlKey || e.metaKey || e.altKey || !e.target || (e.target.tagName && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) || e.target.isContentEditable) return;   // typing, or a shortcut of the browser's
           var hov = document.querySelector('#whiteboard .wb-item:hover'), am = getActiveMap();
           var tok = hov && am && am.type === 'map' && state.viewMode === 'visual' ? (am.whiteboard || []).find(function(x) { return x.id === hov.dataset.id; }) : null;
           if (tok && canTarget(tok)) { e.preventDefault(); toggleTarget(tok, am.id); }
+          else if (tok && gmCanTarget(tok)) { e.preventDefault(); gmTarget(tok, am.id); }   // the GM's own pointer
       });
   })();
   // [sinkcheck:targetmenu-start]
@@ -6337,6 +6338,46 @@ function tableMenuParts(e, role) {
     }
     return { html: html, wire: wire };
 }
+// [systemcheck:gmfight-start]
+// The GM's own rows on a character token's menu at a hosted table (the owner, 2026-10-04: "theres no way for me to target a player as an NPC
+// and start combat, or join combat"): Target (the GM's one pointer, which an NPC's rolls read the range by and which ticks its token when a
+// fight starts), Start combat with the tokens picked, and for a fight already running on this map Add to the fight / Remove from the fight.
+// Fixed words only: nothing of a token is written into the menu.
+function gmFightModel(map, items) {
+    var n = window.wpNet; if (!n || !n.active || n.role !== 'host' || window.wpStream || !map || !Array.isArray(items)) return null;
+    var toks = items.filter(function(w) { return !!(w && w.isChar && !w.waiting); }); if (!toks.length) return null;
+    var c = n.combats && Object.prototype.hasOwnProperty.call(n.combats, map.id) ? n.combats[map.id] : null, inIds = {};
+    if (c && Array.isArray(c.rows)) c.rows.forEach(function(r) { if (r && typeof r.tokId === 'string') inIds[r.tokId] = 1; });
+    var one = toks.length === 1 && items.length === 1 && !toks[0].hidden ? toks[0] : null, t = n.targets && n.myId ? n.targets[n.myId] : null;
+    return { toks: toks, running: !!c, add: toks.filter(function(w) { return inIds[w.id] !== 1 && !w.hidden; }), drop: toks.filter(function(w) { return inIds[w.id] === 1; }), target: one, mine: !!(one && t && t.id === one.id && t.mapId === map.id) };
+}
+function gmFightHtml(m) {
+    if (!m) return '';
+    var h = '';
+    if (m.target) h += '<div class="menu-item cm-gm-fight" data-fight="target" title="' + (m.mine ? 'Stop targeting it (Esc does too)' : 'Point at it as the GM: your NPCs&rsquo; rolls read the range to it, and it is ticked when you start a fight (T while pointing at a token does the same)') + '">' + (m.mine ? '&#9711; Clear target' : '&#9678; Target') + '</div>';
+    if (!m.running) h += '<div class="menu-item cm-gm-fight" data-fight="start" title="Open the roster with ' + (m.toks.length === 1 ? 'this token' : 'these tokens') + ' ticked, and whoever is targeted">&#9876; Start combat&hellip;</div>';
+    else {
+        if (m.add.length) h += '<div class="menu-item cm-gm-fight" data-fight="add" title="Into the fight running on this map, at the end of the order (its initiative is given or rolled in the roster)">&#9876; Add to the fight</div>';
+        if (m.drop.length) h += '<div class="menu-item cm-gm-fight" data-fight="drop" title="Out of the fight running on this map">&#9876; Remove from the fight</div>';
+    }
+    return h;
+}
+function gmFightDo(map, m, act) {
+    var n = window.wpNet; if (!m || !n || !map) return false;
+    if (act === 'target') { if (!m.target || !n.setTarget) return false; n.setTarget(m.target.id, map.id, m.target.charName || m.target.name); return true; }
+    if (act === 'start') { if (m.running) return false; openCombatModal(map.id, { pre: m.toks.filter(function(w) { return !w.hidden; }).map(function(w) { return w.id; }) }); return true; }
+    var c = n.combats && Object.prototype.hasOwnProperty.call(n.combats, map.id) ? n.combats[map.id] : null; if (!c || !Array.isArray(c.rows) || (act !== 'add' && act !== 'drop')) return false;
+    var rows = c.rows.map(function(r) { var o = { id: r.id, name: r.name, tokId: r.tokId, init: r.init, src: r.src }; if (r.rolled === 1) o.rolled = 1; if (Array.isArray(r.tb)) o.tb = r.tb; if (r.held === 1) o.held = 1; return o; }), curId = (c.rows[c.turn] || {}).id;
+    if (act === 'add') { if (!m.add.length) return false; m.add.forEach(function(w) { rows.push({ id: 'r' + w.id, name: w.charName || w.name || 'Unnamed', tokId: w.id, init: 0, src: w.src || null }); }); }
+    else { if (!m.drop.length) return false; var out = {}; m.drop.forEach(function(w) { out[w.id] = 1; }); rows = rows.filter(function(r) { return !(typeof r.tokId === 'string' && out[r.tokId] === 1); }); if (!rows.length) { n.combatEnd(map.id); return true; } }
+    var at = rows.findIndex(function(r) { return r.id === curId; });
+    n.combatSet(map.id, { mapId: map.id, round: c.round, turn: at >= 0 ? at : Math.min(c.turn, rows.length - 1), rows: rows });
+    return true;
+}
+// T while pointing at a token, for the GM at a hosted table: the same pointer as the menu's Target
+function gmCanTarget(tok) { var n = window.wpNet; return !!(tok && tok.isChar && !tok.hidden && !tok.waiting && n && n.active && n.role === 'host' && !window.wpStream); }
+function gmTarget(tok, mapId) { var n = window.wpNet; if (!gmCanTarget(tok) || !n.setTarget || typeof mapId !== 'string') return false; n.setTarget(tok.id, mapId, tok.charName || tok.name); return true; }
+// [systemcheck:gmfight-end]
 function tableRole() { var n = window.wpNet; if (!n) return 'offline'; if (n.active && n.role === 'host') return 'host'; if (n.active && n.role === 'client') return 'client'; return 'offline'; }
 // Standing alone, on empty play-map space
 function showSessionMenu(e, role) {
@@ -6423,6 +6464,7 @@ document.addEventListener('contextmenu', function(e) {
             // one character token: its sheet (and HUD) first, where a GM looks for them (they sat far down the menu)
             var sheetTop = !!(isWb && selectedIds.length === 1 && firstItem && (firstItem.isChar || firstItem.charId) && window.wpSheets);
             if (sheetTop) { html += '<div class="menu-item cm-sheet">&#128203; ' + (firstItem.charId ? 'Sheet&hellip;' : 'New character sheet&hellip;') + '</div>'; if (firstItem.charId && window.wpSheets.hudFor && window.wpSheets.hudFor(firstItem.charId)) html += '<div class="menu-item cm-hud">&#12336; HUD&hellip;</div>'; }
+            var gmF = isWb ? gmFightModel(am, selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }).filter(Boolean)) : null; html += gmFightHtml(gmF);   // the GM's own Target, Start combat, Add to the fight
             
             if (isWb) {
                 if (selectedIds.length > 1) {
@@ -6523,6 +6565,7 @@ document.addEventListener('contextmenu', function(e) {
             cMenu.innerHTML = html;
             cMenu.style.display = 'flex';
             placeMenu(cMenu, e);
+            Array.prototype.forEach.call(cMenu.querySelectorAll('.cm-gm-fight'), function(rw) { rw.addEventListener('click', function(ce) { ce.stopPropagation(); cMenu.style.display = 'none'; gmFightDo(am, gmF, rw.dataset.fight); }); });
 
             // Elevation / posture rows (character tokens, when the toggles are on)
             if (isWb) wireStanceMenu(cMenu, selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }), function() { save(); render(); });

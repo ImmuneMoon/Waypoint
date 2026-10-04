@@ -11,6 +11,10 @@ Multiplayer
   arrive at > Follow me still makes the whole table move with you. The
   first time your players stay behind, a line says so and how to bring
   them.
+- A feature you switched off for yourself keeps its icon: Music and
+  Sound stay in the top bar, struck through, and a click offers Turn
+  back on for me. The Music icon used to vanish, with no sign of where
+  the music had gone.
 
 Fixes
 - A notice (that door is locked, that way is closed, a move was put

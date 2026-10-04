@@ -339,19 +339,42 @@ function removeTrack(id) {
 function sync() { var b = ui('musicBtn'); if (b) b.style.display = ''; if (!featureOn()) { stop(0.3); lastKey = ''; } renderPill(); if (panelOpen()) renderPanel(); }
 
 /* ---------- the player's pill (its own volume / mute, separate from Sound) ---------- */
+// [musiccheck:offmine-start]
+// Music this player switched off for THEMSELVES at this table (their own Turn music off for me, or their own Waypoint's default carried in):
+// the icon used to go, and with it every sign of where the music went (the owner's table, 2026-10-04: "some characters have no music, and say
+// the music button disappears for them"). It stays, struck through, and its menu offers the one thing that matters: the way back. Off by
+// the GM's word (or, away from a table, by the campaign's own setting) there is nothing to turn on, and the icon is hidden as before.
+function offMine() { return !!(window.wpVtt && typeof window.wpVtt.whyOff === 'function' && window.wpVtt.whyOff('music') === 'local'); }
 function renderPill() {
     var ind = ui('musicInd'); if (!ind) return;
-    ind.style.display = featureOn() ? '' : 'none';
-    ind.classList.toggle('playing', !!cur);   // NOT 'on' — that class triggers the toolbar's gold active-background
-    ind.classList.toggle('muted', mmuted);
+    var mine = offMine();
+    ind.style.display = featureOn() || mine ? '' : 'none';
+    ind.classList.toggle('off-mine', mine);
+    ind.classList.toggle('playing', !!cur && !mine);   // NOT 'on' — that class triggers the toolbar's gold active-background
+    ind.classList.toggle('muted', mmuted && !mine);
     var e = nowPlaying();
-    ind.title = 'Music — your volume and mute' + (e ? ' · now playing: ' + e.name : '');
+    ind.title = mine ? 'Music is off for you at this table \u2014 click to turn it back on' : 'Music — your volume and mute' + (e ? ' · now playing: ' + e.name : '');
 }
+// The icon's menu while music is off for this player: fixed words and the way back
+function offPill(pop) {
+    pop.appendChild(el('div', 'music-pillpop-t', 'Music'));
+    pop.appendChild(el('div', 'music-pillpop-now', 'Off for you at this table'));
+    var back = el('button', 'tool ghost music-pillpop-open', 'Turn music back on for me'); back.title = 'Also under Settings \u25B8 VTT features';
+    back.addEventListener('click', function() { if (window.wpVtt && window.wpVtt.setLocal) window.wpVtt.setLocal('music', false); closePill(); });
+    pop.appendChild(back);
+}
+// [musiccheck:offmine-end]
 var pillPop = null;
 function closePill() { if (pillPop) { pillPop.remove(); pillPop = null; document.removeEventListener('pointerdown', onPillOut, true); } }
 function onPillOut(e) { if (pillPop && !pillPop.contains(e.target) && e.target !== ui('musicInd')) closePill(); }
+function showPill(pop) {
+    document.body.appendChild(pop);
+    var r = ui('musicInd').getBoundingClientRect(); pop.style.right = Math.max(8, window.innerWidth - r.right) + 'px'; pop.style.top = (r.bottom + 6) + 'px';
+    setTimeout(function() { document.addEventListener('pointerdown', onPillOut, true); }, 0);
+}
 function openPill() {
     closePill();
+    if (offMine()) { var popO = el('div', 'music-pillpop'); pillPop = popO; offPill(popO); showPill(popO); return; }
     var pop = el('div', 'music-pillpop'); pillPop = pop;
     pop.appendChild(el('div', 'music-pillpop-t', 'Music'));
     var e = nowPlaying(); if (e) pop.appendChild(el('div', 'music-pillpop-now', e.name));
@@ -361,9 +384,7 @@ function openPill() {
     row.appendChild(mute); row.appendChild(slider); pop.appendChild(row);
     if (canWrite()) { var open = el('button', 'tool ghost music-pillpop-open', 'Open music panel'); open.addEventListener('click', function() { closePill(); openPanel(); }); pop.appendChild(open); }
     var off = el('button', 'tool ghost music-pillpop-off', 'Turn music off for me'); off.title = 'Settings ▸ VTT features'; off.addEventListener('click', function() { if (window.wpVtt && window.wpVtt.setLocal) { window.wpVtt.setLocal('music', true); } closePill(); }); pop.appendChild(off);
-    document.body.appendChild(pop);
-    var r = ui('musicInd').getBoundingClientRect(); pop.style.right = Math.max(8, window.innerWidth - r.right) + 'px'; pop.style.top = (r.bottom + 6) + 'px';
-    setTimeout(function() { document.addEventListener('pointerdown', onPillOut, true); }, 0);
+    showPill(pop);
 }
 
 /* ---------- the GM panel: playlists, transport, per-map binding ---------- */

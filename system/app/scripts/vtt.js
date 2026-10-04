@@ -318,6 +318,7 @@ function setLocal(id, off) {
     if (window.appRender) window.appRender();
     if (window.wpRefreshBlasts) window.wpRefreshBlasts();
     if (window.wpSoundSync) window.wpSoundSync();
+    if (window.wpMusicSync) window.wpMusicSync();
     if (window.wpDiceSync) window.wpDiceSync();
     if (window.wpSheetsSync) window.wpSheetsSync();
     if (window.wpFxSync) window.wpFxSync();
@@ -360,6 +361,7 @@ function joined() {
     _localCache.raw = undefined;
     if (window.appRender) window.appRender();
     if (window.wpSoundSync) window.wpSoundSync();
+    if (window.wpMusicSync) window.wpMusicSync();
     if (window.wpDiceSync) window.wpDiceSync();
     if (window.wpSheetsSync) window.wpSheetsSync();
     if (window.wpFxSync) window.wpFxSync();
@@ -442,6 +444,7 @@ function syncToTable() {
     if (window.appRender) window.appRender();
     if (window.wpRefreshBlasts) window.wpRefreshBlasts();
     if (window.wpSoundSync) window.wpSoundSync();
+    if (window.wpMusicSync) window.wpMusicSync();
     if (window.wpDiceSync) window.wpDiceSync();
     if (window.wpSheetsSync) window.wpSheetsSync();
     if (window.wpFxSync) window.wpFxSync();
@@ -485,6 +488,7 @@ function ceilingChanged(prev, campId) {
     if (window.appRender) window.appRender();
     if (window.wpRefreshBlasts) window.wpRefreshBlasts();
     if (window.wpSoundSync) window.wpSoundSync();
+    if (window.wpMusicSync) window.wpMusicSync();
     if (window.wpDiceSync) window.wpDiceSync();
     if (window.wpSheetsSync) window.wpSheetsSync();
     if (window.wpFxSync) window.wpFxSync();
@@ -499,6 +503,7 @@ function changed(reason) {
     if (window.appRender) window.appRender();
     if (window.wpRefreshBlasts) window.wpRefreshBlasts();
     if (window.wpSoundSync) window.wpSoundSync();
+    if (window.wpMusicSync) window.wpMusicSync();
     if (window.wpDiceSync) window.wpDiceSync();
     if (window.wpSheetsSync) window.wpSheetsSync();
     if (window.wpFxSync) window.wpFxSync();

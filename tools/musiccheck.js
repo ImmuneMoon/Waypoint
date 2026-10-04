@@ -353,6 +353,32 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         && ['folderOf', 'isRefPath', 'newId', 'musicView', 'bringPlan', 'mergePlan', 'applyMerge', 'remapMapMusic'].every(k => typeof global.window.wpMusicCore[k] === 'function'));
     delete global.window;
 
+    /* ---- 1.5.4: Music a player switched off for themselves keeps its icon, struck through, with the way back ---- */
+    {
+        const jj = JSON.stringify, rd4 = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8').replace(/\r\n/g, NL), mu4 = rd4('system/app/scripts/music.js'), so4 = rd4('system/app/scripts/sound.js'), ix4 = rd4('system/app/index.html'), css4 = rd4('system/app/style.css');
+        const sl4 = mu4.slice(mu4.indexOf('// [musiccheck:offmine-start]'), mu4.indexOf('// [musiccheck:offmine-end]'));
+        const run4 = (on, why, playing, muted, noVtt) => {
+            const ind = { style: { display: 'x' }, title: '', cls: {}, classList: { toggle(k, v) { ind.cls[k] = !!v; } } }, sets = [];
+            const elF = (tag, cls, text) => ({ tag, cls: cls || '', text: text || '', title: '', kids: [], on: {}, appendChild(x) { this.kids.push(x); return x; }, addEventListener(t, fn) { this.on[t] = fn; } });
+            const api = new Function('ui', 'window', 'featureOn', 'nowPlaying', 'el', 'closePill', 'cur', 'mmuted', "'use strict';" + NL + sl4 + NL + 'return { offMine, renderPill, offPill };')(
+                id => (id === 'musicInd' ? ind : null), noVtt ? {} : { wpVtt: { whyOff: id => (id === 'music' ? why : ''), setLocal: (id, off) => { sets.push([id, off]); return true; } } }, () => on, () => (playing ? { name: 'Song' } : null), elF, () => sets.push('closed'), playing ? {} : null, !!muted);
+            api.renderPill(); const pop = elF('div'); api.offPill(pop); pop.kids[pop.kids.length - 1].on.click({});
+            return [ind.style.display, ind.cls['off-mine'], ind.cls.playing, ind.cls.muted, ind.title, api.offMine(), pop.kids.map(k => k.tag + ':' + k.text), sets];
+        };
+        const R4 = { on: run4(true, '', true, true), mine: run4(false, 'local', true, true), gm: run4(false, 'gm', false, false), own: run4(false, 'own', false, false), none: run4(false, 'local', false, false, true) };
+        check('1.5.4 Music a player switched off for themselves keeps its icon (music.js sliced by its offmine markers, run for real): the icon stays and is marked off-mine, neither playing nor muted, its title says how to bring it back; its menu is fixed words and one button that switches Music back on for them and closes; with Music on the icon is as ever; off by the GM\'s word, or by the campaign\'s own setting away from a table, it is hidden as before',
+            jj(R4.on.slice(0, 6)) === jj(['', false, true, true, 'Music — your volume and mute · now playing: Song', false])
+            && jj(R4.mine) === jj(['', true, false, false, 'Music is off for you at this table \u2014 click to turn it back on', true, ['div:Music', 'div:Off for you at this table', 'button:Turn music back on for me'], [['music', false], 'closed']])
+            && R4.gm[0] === 'none' && R4.gm[1] === false && R4.own[0] === 'none' && R4.own[1] === false && R4.none[0] === 'none' && R4.none[5] === false, jj(R4));
+        check('1.5.4 the icon\'s click opens that menu while Music is off for them, Sound marks its own icon the same way and offers Turn sound back on for me, both icons are struck through by the stylesheet, the music module is told of every feature change as the sound module is (its icon was left as it was until a song started or stopped), and Help says so',
+            mu4.includes("    if (offMine()) { var popO = el('div', 'music-pillpop'); pillPop = popO; offPill(popO); showPill(popO); return; }")
+            && so4.includes("var mine = !st.on && !!(window.wpVtt && typeof window.wpVtt.whyOff === 'function' && window.wpVtt.whyOff('sound') === 'local');") && so4.includes("b.classList.toggle('off-mine', mine);")
+            && so4.includes("var onB = ui('soundOnBtn'); if (onB) onB.style.display = mine ? '' : 'none';") && so4.includes("if (e.target.id === 'soundOnBtn') { if (window.wpVtt) window.wpVtt.setLocal('sound', false); pop.style.display = 'none'; refresh(); }")
+            && ix4.includes('<button type="button" class="tool ghost" id="soundOnBtn" style="display:none; width:100%; margin:4px 0 2px;">Turn sound back on for me</button>')
+            && css4.includes('#musicInd.off-mine::after, #soundInd.off-mine::after {') && css4.includes('#musicInd.off-mine, #soundInd.off-mine { opacity: .7; }')
+            && rd4('system/app/scripts/vtt.js').split('    if (window.wpSoundSync) window.wpSoundSync();' + NL + '    if (window.wpMusicSync) window.wpMusicSync();' + NL).length === 6 && mu4.includes('window.wpMusicSync = sync;')
+            && ix4.includes('A feature you switched off for yourself keeps its icon: <b>Music</b> and <b>Sound</b> stay in the top bar, struck through, and a click offers <b>Turn back on for me</b>.'));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

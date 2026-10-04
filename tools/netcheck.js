@@ -393,7 +393,7 @@ pendingChecks.push((async () => {
     check('M1: a Ban from the Players panel (its branch run for real) calls net.kickPlayer exactly once, with the first roster key of the profile, and that one call takes both of Pat\'s connections (told, closed, forgotten once); a profile not at the table and a player\'s machine call it not at all; in the source the Ban branch calls it once and never in a loop, net.js calls it twice (the roster\'s kick button, the Ban branch) and no other script does, and kickPlayer is the only place that sends \'kicked\'; the host has 25 message branches (the one new one is video-up, item 21)',
         js(ban1) === js({ threw: '', calls: ['pA1'], roster: ['pB', 'pX', 'pY'], kicked: ['pA1', 'pA2'], timers: 2, forgot: ['forget:u_a'], banned: ['u_a'], session: ['u_a'], saves: 1 }) && js(banAway.calls) === js([]) && banAway.kicked.length === 0 && banAway.threw === '' && js(banClient.calls) === js([]) && banClient.kicked.length === 0 && banClient.threw === ''
         && (noCom(banBody).match(/net\.kickPlayer\(/g) || []).length === 1 && !/forEach|\bfor \(|\bwhile \(/.test(noCom(banBody)) && js(kickCalls) === js([['net.js', 2]]) && (noCom(src).match(/net\.kickPlayer\(/g) || []).length === 2
-        && js(kickedSends) === js([['net.js', 1]]) && kickSrc.indexOf("conn.send({ type: 'kicked' });") >= 0 && (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 25, js([ban1, banAway, banClient, kickCalls, kickedSends]));
+        && js(kickedSends) === js([['net.js', 1]]) && kickSrc.indexOf("conn.send({ type: 'kicked' });") >= 0 && (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 26, js([ban1, banAway, banClient, kickCalls, kickedSends]));
 
     /* round 2: the review's three older gaps — a removed player's pointer and roster row, a second connection under one key, a queued request */
     const tg = { u_a: { mapId: 'm1', id: 'orc' }, u_b: { mapId: 'm1', id: 'gob' } }, withT = t => h => { h.env.net.targets = JSON.parse(js(t)); };
@@ -3532,7 +3532,7 @@ pendingChecks.push((async () => {
     check('fold M0 (source): combatHidden is defined once and read only by combatsFor and net.syncCombatHidden, inside the combats slice; net.syncCombatHidden is called once, from the host\'s save; the GM\'s own strip (whiteboard.js) reads neither; the host\'s message handler has the same number of branches as before',
         (src.match(/function combatHidden\(/g) || []).length === 1 && (src.match(/combatHidden\(/g) || []).length === 3 && (cbSrc.match(/combatHidden\(/g) || []).length === 3
         && (src.match(/syncCombatHidden/g) || []).length === 3 && (cbSrc.match(/syncCombatHidden/g) || []).length === 1 && (olsSrc.match(/syncCombatHidden/g) || []).length === 2 && (cbSrc.match(/_combatHidSig = combatHidSigNow\(\);/g) || []).length === 1
-        && !/combatsFor|combatHidden|syncCombatHidden/.test(wbAll) && (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 25,
+        && !/combatsFor|combatHidden|syncCombatHidden/.test(wbAll) && (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 26,
         j([(src.match(/combatHidden\(/g) || []).length, (src.match(/syncCombatHidden/g) || []).length, (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length]));
 }
 
@@ -4663,7 +4663,7 @@ pendingChecks.push((async () => {
     const aOk = mkAns({ rid: 'k1', ok: true, charId: 'c_ab12' }), aBadId = mkAns({ rid: 'k1', ok: true, charId: '<img>' }), aHave = mkAns({ rid: 'k1', reason: 'have' }), aProto = ['__proto__', 'constructor', 'toString', 'nope', 5].map(r => mkAns({ rid: 'k1', reason: r }).got[0].error), aNo = mkAns({ rid: 'k9', ok: true }), aProtoRid = mkAns({ rid: '__proto__', ok: true }), aKept = mkAns({ rid: 'k1', ok: true, kept: true }), aKeptStr = mkAns({ rid: 'k1', ok: true, kept: 'yes' });
     check('F3a char-make / char-name / char-done answers (player, run for real): ok with a well-formed id only (else none), a reason of ours in words, a prototype-named or unknown reason a plain refusal; an answer to no question of ours does nothing',
         j(aOk.got) === j([{ ok: true, charId: 'c_ab12' }]) && aOk.left === 0 && aOk.cleared === 1 && j(aBadId.got) === j([{ ok: true, charId: null }]) && aHave.got[0].error === 'You already play a character here.' && aProto.every(e => e === 'The GM could not do that.')
-        && aNo.got.length === 0 && aNo.left === 1 && aProtoRid.got.length === 0 && j(aKept.got) === j([{ ok: true, charId: null, kept: true }]) && j(aKeptStr.got) === j([{ ok: true, charId: null }]) && /\} else if \(\(msg\.type === 'char-make-ans' \|\| msg\.type === 'char-name-ans' \|\| msg\.type === 'char-done-ans' \|\| msg\.type === 'char-token-ans' \|\| msg\.type === 'tok-pic-ans' \|\| msg\.type === 'tok-light-ans'\) && net\.role === 'client'\) \{[^\n]*\n\s*\/\/ \[netcheck:charmakeans-start\]/.test(src), j([aOk, aBadId, aHave, aProto]));
+        && aNo.got.length === 0 && aNo.left === 1 && aProtoRid.got.length === 0 && j(aKept.got) === j([{ ok: true, charId: null, kept: true }]) && j(aKeptStr.got) === j([{ ok: true, charId: null }]) && /\} else if \(\(msg\.type === 'char-make-ans' \|\| msg\.type === 'char-name-ans' \|\| msg\.type === 'char-done-ans' \|\| msg\.type === 'char-delete-ans' \|\| msg\.type === 'char-token-ans' \|\| msg\.type === 'tok-pic-ans' \|\| msg\.type === 'tok-light-ans'\) && net\.role === 'client'\) \{[^\n]*\n\s*\/\/ \[netcheck:charmakeans-start\]/.test(src), j([aOk, aBadId, aHave, aProto]));
     {   // the token creator's review: tok-pic's answers read in a token's words (the table chosen by what we asked, never by the host)
         const tw = r => mkAns({ rid: 'k1', reason: r }, 'tok-pic').got[0].error, cw = r => mkAns({ rid: 'k1', reason: r }).got[0].error, ckw = r => mkAns({ rid: 'k1', reason: r }, 'char-make').got[0].error;
         check('token creator review: tok-pic answers (player, run for real) read as a token\'s — gone (it may have moved to another map), not yours, locked, a picture that could not be used, the GM cannot take pictures, could not save it, a moment between pictures — the same reasons to char-make still read as a character\'s; a prototype-named reason a plain refusal either way; ok is ok',
@@ -6187,7 +6187,7 @@ pendingChecks.push((async () => {
             && /if \(hosting\) \{ window\.wpNet\.applyingRemote = true; save\(true\); window\.wpNet\.applyingRemote = false; if \(window\.wpFog\) window\.wpFog\.invalidateVision\(\); if \(window\.wpNet\.sendItem\) window\.wpNet\.sendItem\(camp\.id, item\.id\);/.test(ioT));
         const dmT = read('datamap.js'), posCode = posS2.replace(/\/\/[^\n]*/g, ''), patCode = patS2.replace(/\/\/[^\n]*/g, '');
         check('senses S0 (source): nothing new comes in from a player — no branch of the host\'s message handler was added or names sight or senses, the hook and its timer read nothing of a message or of a connection\'s word, and what is kept (what a copy was made by, the text last known, the sends that wait) is never saved or sent: it lives in the host\'s memory, named nowhere else',
-            hostBranches.length === 25 && !hostBranches.some(b => /sens|sight/i.test(b)) && !/msg\.type === '[^']*(sens|sight)/i.test(src) && !/\bmsg\b/.test(smCode) && !/\bconn\b/.test(smCode) && !/type: '(?!combats'|targets')/.test(smCode)
+            hostBranches.length === 26 && !hostBranches.some(b => /sens|sight/i.test(b)) && !/msg\.type === '[^']*(sens|sight)/i.test(src) && !/\bmsg\b/.test(smCode) && !/\bconn\b/.test(smCode) && !/type: '(?!combats'|targets')/.test(smCode)
             && count(src, /_sensesSig/g) === count(flS + smS, /_sensesSig/g) && count(src, /_sensesPend/g) === count(smS, /_sensesPend/g) && count(smS, /_sensesPend/g) > 0 && count(flS, /_sensesSig/g) > 0 && !/_senses(Sig|Pend|At)/.test(sheetsT + ioT + fogT + dmT + read('main.js'))
             && count(src, /_sensesAt/g) === count(flS + smS, /_sensesAt/g) && count(flS, /_sensesAt/g) > 0 && count(smS, /_sensesAt/g) > 0
             && !/sensesReads|sensesHidden/.test(src) && count(smCode, /setTimeout\(/g) === 1 && count(smCode, /SENSES_RESEND_MS/g) === 2, j([hostBranches.length, count(src, /_sensesSig/g), count(src, /_sensesPend/g), count(src, /_sensesAt/g), count(smCode, /setTimeout\(/g)]));
@@ -6227,7 +6227,7 @@ pendingChecks.push((async () => {
         const cnt = (s, re) => (s.match(re) || []).length, hostB = cnt(src, /msg\.type === '[a-z-]+' && net\.role === 'host'/g);
         check('fold M0 (source): no pointer message goes to all outside broadcastTargets — net.js broadcasts one only there, in its branch for a table without fog, and (hidden pieces) that one too is built by targetsFor; every other pointer message is a player\'s own copy built by targetsFor; the combats slice now defines broadcastTargets, and the host\'s message handler has the same number of branches as before',
             btSrc.length > 0 && cnt(src, /broadcast\(\{ type: 'targets'/g) === 1 && cnt(btSrc, /broadcast\(\{ type: 'targets'/g) === 1 && cnt(src, /targets: net\.targets/g) === 0 && /broadcast\(\{ type: 'targets', targets: targetsFor\(null\) \}, null\)/.test(btSrc)
-            && cnt(src, /type: 'targets'/g) === cnt(src, /type: 'targets', targets: targetsFor\(/g) && cbS.indexOf(btSrc) >= 0 && cbS.indexOf('function targetsFor(') >= 0 && hostB === 25,
+            && cnt(src, /type: 'targets'/g) === cnt(src, /type: 'targets', targets: targetsFor\(/g) && cbS.indexOf(btSrc) >= 0 && cbS.indexOf('function targetsFor(') >= 0 && hostB === 26,
             j([btSrc.length, cnt(src, /broadcast\(\{ type: 'targets'/g), cnt(src, /type: 'targets'/g), cbS.indexOf(btSrc), hostB]));
 
         // (c) the live position relay and the drag that feeds it
@@ -6384,7 +6384,7 @@ pendingChecks.push((async () => {
     check('a file with one entry twice: the gates are as before — past the rate a fill and an upload are refused and answered slow, a file over the size is dropped unanswered, and nothing is changed, kept, saved, said or sent; the host still reads a file through its one branch (no branch added)',
         j(mSlow.answer) === j([{ reason: 'slow', type: 'char-upload-ans', rid: 'e1' }]) && still(mSlow) && j(mSlow.allowed) === j(['charfill']) && j(pSlow.answer) === j([{ reason: 'slow', type: 'char-upload-ans', rid: 'e1' }]) && still(pSlow)
         && mBig.answer.length === 0 && still(mBig) && mBig.allowed.length === 0 && pBig.answer.length === 0 && still(pBig) && Sx.cleanCharUpload({ type: 'char-upload', rid: 'e1', charId: 'c_m', sheet: twice }) !== null
-        && hostBr.length === 25 && hostBr.filter(b => /'char-upload'/.test(b)).length === 1, j([mSlow.answer, pSlow.answer, mBig.answer, pBig.answer, hostBr.length]));
+        && hostBr.length === 26 && hostBr.filter(b => /'char-upload'/.test(b)).length === 1, j([mSlow.answer, pSlow.answer, mBig.answer, pBig.answer, hostBr.length]));
     // (d) F11b: a twin's changes are its entry's as the host holds it, a GM-only field's included (the players' copy a fill reads lacks them); a later
     // upload sends a row of its own whole (every stat, a dropped one as null, the changes where they differ, a twin's entry by id); a GM-only pack's
     // entry reaches the GM's finder as its GM-only copy, so it lends a row of its own nothing
@@ -6779,8 +6779,8 @@ pendingChecks.push((async () => {
         J([pF.map('mA').whiteboard.length, pF.rec.asked, pB.rec, threw, pT.net.applyingRemote]));
 
     // (8) where it sits: a client branch (the host's branches still 25), and nothing sends the message yet
-    check('fold M3: the catch-up is a client branch only (the host\'s branches stay 25, none new but video-up of item 21); the host builds it in one place only, its catch-up of a copy (fold M7)',
-        (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 25 && /\} else if \(msg\.type === 'fogDiff' && net\.role === 'client'\) \{\n\s*\/\/ \[netcheck:fogdiff-start\]/.test(src)
+    check('fold M3: the catch-up is a client branch only (the host\'s branches are 26: none new but video-up of item 21 and char-delete of 1.5.4); the host builds it in one place only, its catch-up of a copy (fold M7)',
+        (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 26 && /\} else if \(msg\.type === 'fogDiff' && net\.role === 'client'\) \{\n\s*\/\/ \[netcheck:fogdiff-start\]/.test(src)
         && (src.match(/msg\.type === 'fogDiff'/g) || []).length === 1 && (src.match(/type: 'fogDiff'/g) || []).length === 1 && /function fogCatchUp\([^]*?type: 'fogDiff'/.test(between('// [netcheck:fogmove-start]', '// [netcheck:fogmove-end]', 'fogmove')));
 })());
 // fold M4: an open drag is judged where it began. The real pos gate, patch path, relay, sends, kick, senses and the fogmove slice are compiled as
@@ -10686,6 +10686,34 @@ Promise.all(pendingChecks).then(() => {   // the async checks land before the su
             && ixF.includes('<b>Player\'s last location</b> is the default: each player comes back to the map they were last on and stays put until they travel or you summon them') && ixF.includes('nobody is moved because you open another map')
             && ixF.includes("'Player's last location' (the default) sends each player back to the map they were last on") && ixF.includes("'Follow me' puts them on the map you are on when they join, once: they do not follow you afterwards")
             && tuF.includes('nobody is moved because you open another map, unless you set <b>Players arrive at</b> to <b>Follow me</b>'));
+    }
+    /* ---- 1.5.4: a player deletes an extra sheet of their own (char-delete) ---- */
+    {
+        const NL = '\n', delSrc = src.slice(src.indexOf('// [netcheck:chardelete-start]'), src.indexOf('// [netcheck:chardelete-end]'));
+        const runX = o => { o = o || {};
+            const camp = { id: 'k', chars: { c_play: { id: 'c_play', name: 'Ror', ownerId: 'u_a', npc: false }, c_mk: { id: 'c_mk', name: 'Ror', ownerId: 'u_a', npc: false, making: 1 }, c_kept: { id: 'c_kept', name: 'Old', ownerId: 'u_a', npc: false }, c_b: { id: 'c_b', name: 'Bea', ownerId: 'u_b', npc: false }, c_npc: { id: 'c_npc', name: 'N', npc: true, ownerId: 'u_a' } } };
+            const out = { ans: [], deleted: [], toasts: [], flushed: 0, allowed: [] };
+            const conn = { peer: o.from || 'pA', send: m => out.ans.push(JSON.parse(JSON.stringify(m))) };
+            const net = { role: 'host', paused: !!o.paused, roster: { pA: { id: 'u_a', name: 'Pat' }, pB: { id: 'u_b', name: 'Bea' } } };
+            const win = { wpSheets: o.noSheets ? null : { deleteCharacter: id => { out.deleted.push([id, out.flushed]); delete camp.chars[id]; } }, wpHistFlush: () => { out.flushed++; } };
+            new Function('msg', 'conn', 'net', 'own', 'getActiveCampaign', 'SC', 'window', 'peerPaused', 'allow', 'toast', 'sendFailed', 'cleanCharName', "'use strict';" + NL + delSrc)(
+                o.msg, conn, net, H.own, () => camp, () => (o.noCore ? null : { activeCharOf: (c, pid) => ({ id: o.active || (pid === 'u_a' ? 'c_play' : 'c_b') }) }), win, () => !!o.peerPaused, (k, lim, peer) => { out.allowed.push([k, peer]); return o.slow !== true; }, t => out.toasts.push(t), () => {}, n => String(n || '').slice(0, 40));
+            return out; };
+        const mX = (id, rid) => ({ type: 'char-delete', rid: rid === undefined ? 'r1' : rid, charId: id }), why = o => (o.ans[0] ? o.ans[0].reason || (o.ans[0].ok ? 'ok' : '?') : 'silent');
+        const mk = runX({ msg: mX('c_mk') }), kept = runX({ msg: mX('c_kept') }), play = runX({ msg: mX('c_play') }), mkOnly = runX({ msg: mX('c_mk'), active: 'c_mk' });
+        check('a player deletes an extra sheet of their own (the host\'s char-delete, sliced by its chardelete markers and run for real): one still being made, or one they do not play, is deleted by the host\'s own delete after the GM\'s pending edit is flushed, the GM is told whose and which and that Undo brings it back, and the player is answered; the one they play is refused and stays, while one still being made goes even where it counts as the one in play',
+            j(mk.deleted) === j([['c_mk', 1]]) && j(mk.ans) === j([{ ok: true, type: 'char-delete-ans', rid: 'r1' }]) && j(mk.toasts) === j(['Pat deleted their sheet Ror (it was still being made). Undo brings it back.']) && j(mk.allowed) === j([['chardel', 'pA']])
+            && j(kept.deleted) === j([['c_kept', 1]]) && j(kept.toasts) === j(['Pat deleted their sheet Old. Undo brings it back.']) && why(play) === 'inplay' && play.deleted.length === 0 && play.toasts.length === 0 && play.allowed.length === 0 && j(mkOnly.deleted) === j([['c_mk', 1]]) && why(mkOnly) === 'ok', j([mk, kept, play, mkOnly]));
+        const refs = { other: runX({ msg: mX('c_b') }), npc: runX({ msg: mX('c_npc') }), gone: runX({ msg: mX('c_zz') }), proto: runX({ msg: mX('__proto__') }), ctor: runX({ msg: mX('constructor') }), notText: runX({ msg: mX({ toString: () => 'c_mk' }) }),
+            paused: runX({ msg: mX('c_mk'), paused: true }), pPaused: runX({ msg: mX('c_mk'), peerPaused: true }), off: runX({ msg: mX('c_mk'), noSheets: true }), noCore: runX({ msg: mX('c_mk'), noCore: true }), slow: runX({ msg: mX('c_mk'), slow: true }),
+            badRid: runX({ msg: mX('c_mk', 'bad rid!') }), noRid: runX({ msg: mX('c_mk', 7) }), stranger: runX({ msg: mX('c_mk'), from: 'pZ' }), another: runX({ msg: mX('c_mk'), from: 'pB' }) };
+        const whys = Object.keys(refs).map(k => k + ':' + why(refs[k]));
+        check('char-delete refuses everything else and deletes nothing: another player\'s sheet and an NPC\'s (owner), one that is not there or named by a prototype\'s key or by a value that is no text (missing), a paused table or player, sheets off, a request past the rate; a request with no usable id of its own and one from a connection that is not admitted are not answered at all',
+            j(whys) === j(['other:owner', 'npc:owner', 'gone:missing', 'proto:missing', 'ctor:missing', 'notText:missing', 'paused:paused', 'pPaused:paused', 'off:off', 'noCore:missing', 'slow:slow', 'badRid:silent', 'noRid:silent', 'stranger:silent', 'another:owner'])
+            && Object.keys(refs).every(k => refs[k].deleted.length === 0 && refs[k].toasts.length === 0 && refs[k].flushed === 0), j(whys));
+        check('char-delete on the player\'s side: one request through the same sender as the other character requests, its answer taken with theirs, the refusal for the character in play in the app\'s own words',
+            src.includes("net.charDelete = function(charId, done) { return mkSend('char-delete', { charId: String(charId) }, done); };") && src.includes("msg.type === 'char-done-ans' || msg.type === 'char-delete-ans' || msg.type === 'char-token-ans'")
+            && src.includes("inplay: 'That is the character you play: only your GM can delete it.'") && src.split("msg.type === 'char-delete'").length === 2);
     }
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');

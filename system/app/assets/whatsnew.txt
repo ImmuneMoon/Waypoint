@@ -16,6 +16,14 @@ Multiplayer
   back on for me. The Music icon used to vanish, with no sign of where
   the music had gone.
 
+Character sheets
+- Delete a sheet from the sheet itself: Delete in its head (asked
+  first). You may delete any sheet; a player may delete one of their own
+  that they are still making or do not play, and you are told, with Undo
+  to bring it back. A sheet still being made says so in the sheet's list
+  and on its row of the Characters tab, which has a box to find a
+  character by name.
+
 Fixes
 - A notice (that door is locked, that way is closed, a move was put
   back) is drawn over the fog of war. On a player's screen the dark

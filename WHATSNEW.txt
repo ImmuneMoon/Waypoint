@@ -25,6 +25,20 @@ Character sheets
   character by name.
 
 Fog of war
+- The fog button says whether this map's fog is on: it wears ON and a
+  ring while it is, whatever tool you hold, and its tooltip names the
+  switch (Fog on this map, the first tick in its menu). The button now
+  opens the menu and nothing else, so leaving the fog tool no longer
+  looks like switching fog off.
+- Paint fog by hand starts from the menu: press Reveal or Hide there,
+  then click or drag cells on the map; press the lit brush again, or
+  pick another tool, to stop.
+- Hide the fog on my screen (the fog menu): your own screen draws no
+  dark veil. Your players' fog does not change; a preview of the party
+  or of a player still shows, and so does the veil while you paint.
+  Kept on this machine.
+- Rest the pointer on a dark cell on your screen and it says why it is
+  dark: no token on the map sees it, or you hid it by hand.
 - Players remember what they have seen is on until you untick it (the
   fog menu): each player's own screen keeps the ground they have walked
   past, dimmed, with the creatures there still hidden. It was off until

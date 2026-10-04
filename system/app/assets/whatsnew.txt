@@ -82,6 +82,10 @@ Fixes
   built only when the map's box changes size.
 - A player who joins a table is told that their own campaigns are
   untouched and come back when they leave the session.
+- A sheet read from a ShadowBase file: a lightsaber crystal destroyed by
+  an overload no longer adds to the character's Force Points. The file
+  still lists it as fitted, marked Destroyed; it is now passed over, as a
+  destroyed part already was in the parts list.
 
 WAYPOINT 1.5.1 — What's New
 ============================

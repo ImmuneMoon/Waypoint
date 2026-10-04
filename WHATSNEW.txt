@@ -36,6 +36,16 @@ Sheets
 - Import on every sheet for the GM: the Import button is on every
   character's sheet for you, an NPC's too. The ShadowBase file is read on
   your machine and opens the Review, where you tick what to apply.
+- Export for ShadowBase: the way back to the website. In a sheet's
+  Download menu, pick the character's ShadowBase file (the website's
+  Export JSON) and Waypoint saves a copy of it with this session written
+  in: the current Hit Points, Endurance Points and Force Points, the
+  credits, the Force alignment, and the token's posture and elevation.
+  Everything else in the file stays exactly as the website wrote it, so
+  the website's Import Character takes the copy as a whole character.
+  A list shows what will be written before anything is saved. Items,
+  conditions, notes and character points are not carried: change those
+  on the website, then import the character into Waypoint again.
 
 The effects panel
 - A button that is on stays lit, and a second press puts it away: an

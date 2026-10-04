@@ -4958,8 +4958,8 @@ pendingChecks.push((async () => {
         && junkU.every(s => s === j({ type: 'campFog', campId: 'k_1', fog: { fields: { sight: 'f_sight' }, defaults: { sight: 6 } } }))
         && j(hostL({ id: 'k_1', fog: { fields: { sightUnit: 'cells' } } }).net.campFogMessage().fog) === j({ fields: { sightUnit: 'cells' }, defaults: { sight: 0 } }), j([unitsOk, junkU]));
     const rmOf = (d) => hostL({ id: 'k_1', fog: { defaults: Object.assign({ sight: 2 }, d) } }).net.campFogMessage().fog.defaults;
-    check('senses S4b and S6: the campaign\'s fog defaults carry "Marks in a fight" only as On your own turn and "Players remember what they have seen" only as true; anything else never travels',
-        j(rmOf({ marks: 'turn', remember: true })) === j({ sight: 2, marks: 'turn', remember: true }) && [{ marks: 'move' }, { marks: true }, { remember: 'yes' }, { remember: 1 }, { marks: 'TURN', remember: false }].every(d => j(rmOf(d)) === j({ sight: 2 })), j(rmOf({ marks: 'turn', remember: true })));
+    check('senses S4b and S6: the campaign\'s fog defaults carry "Marks in a fight" only as On your own turn and "Players remember what they have seen" only as false (the tick taken away: on is the default); anything else never travels',
+        j(rmOf({ marks: 'turn', remember: false })) === j({ sight: 2, marks: 'turn', remember: false }) && [{ marks: 'move' }, { marks: true }, { remember: 'yes' }, { remember: 1 }, { remember: 0 }, { marks: 'TURN', remember: true }].every(d => j(rmOf(d)) === j({ sight: 2 })), j(rmOf({ marks: 'turn', remember: false })));
     const campU = { id: 'k_1', fog: { defaults: { sight: 6 }, fields: { sight: 'f_sight' } } }, hU = hostL(campU), stepsU = [], stepU = () => { hU.net.syncCampFog(); stepsU.push([hU.sent.a.length, hU.resent.length]); };
     stepU(); stepU(); campU.fog.fields.sightUnit = 'ft'; stepU(); stepU(); campU.fog.fields.sightUnit = 'cells'; stepU(); campU.fog.fields.sightUnit = 'yd'; stepU(); campU.fog.fields.sightUnit = 'leagues'; stepU(); delete campU.fog.fields.sightUnit; stepU();
     hU.net.role = 'client'; campU.fog.fields.sightUnit = 'm'; stepU();

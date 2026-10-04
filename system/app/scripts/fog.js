@@ -1183,7 +1183,7 @@ function drawOwner() {
 // of another campaign empty it. At most 60,000 cells a map and 200,000 in all (the oldest map goes first); a full map stops adding, said once
 // [fogcheck:memory-start]
 var MEM_MAP = 60000, MEM_ALL = 200000, _mem = Object.create(null), _memOrder = [], _memTotal = 0, _memVer = 0, _memFullSaid = Object.create(null), _memCamp = null, _memCanvas = null, _memSig = '';
-function rememberOn(camp) { var d = camp && camp.fog && typeof camp.fog === 'object' && camp.fog.defaults && typeof camp.fog.defaults === 'object' ? camp.fog.defaults : null; return !!d && d.remember === true; }
+function rememberOn(camp) { var d = camp && camp.fog && typeof camp.fog === 'object' && camp.fog.defaults && typeof camp.fog.defaults === 'object' ? camp.fog.defaults : null; return !(d && d.remember === false); }   // on unless the GM unticked it
 function memDrop(id) { var m = _mem[id]; if (m) _memTotal -= m.n; delete _mem[id]; _memOrder = _memOrder.filter(function(x) { return x !== id; }); delete _memFullSaid[id]; _memVer++; }
 function memForget() { _mem = Object.create(null); _memOrder = []; _memTotal = 0; _memFullSaid = Object.create(null); _memVer++; }
 function memFor(map, grid) {   // this map's store, emptied when its grid, its cell size or its fog epoch changed
@@ -1579,7 +1579,7 @@ function syncMenu() {
     var arcIn = ui('fogVisionArc'); if (arcIn && document.activeElement !== arcIn) arcIn.value = vis.arc;
     var vdef = ui('fogVisionDefault'); if (vdef) { var dv = cf.defaults.vision; vdef.checked = !!(dv && dv.mode === vis.mode && (dv.mode === 'all' || dv.arc === vis.arc)); }
     var fDef = ui('fogOnDefault'); if (fDef) fDef.checked = !!cf.defaults.on;   // "new maps start with fog on" (campaign default)
-    var frem = ui('fogRemember'); if (frem) frem.checked = cf.defaults.remember === true;   // senses S6: players remember what they have seen
+    var frem = ui('fogRemember'); if (frem) frem.checked = cf.defaults.remember !== false;   // senses S6: players remember what they have seen
     var lrow = ui('fogLightRow'); if (lrow) lrow.style.display = lightingOn() ? '' : 'none';   // lighting: the map's light
     var lsel = ui('fogLight'); if (lsel && document.activeElement !== lsel) lsel.value = mf.light === 'bright' || mf.light === 'dim' || mf.light === 'dark' ? mf.light : 'auto';
     var fEmpty = ui('fogEmptyScope'); if (fEmpty && document.activeElement !== fEmpty) fEmpty.value = cf.defaults.emptyFog === 'none' ? 'none' : 'whole';   // what a map with no play area marked does
@@ -1694,7 +1694,7 @@ var LIGHT_SAID = {
     var frem = ui('fogRemember');   // senses S6: "Players remember what they have seen" (each on their own screen)
     if (frem) frem.addEventListener('change', function() {
         var camp = activeCamp(); if (!camp) return; var cf = campFog(camp);
-        if (frem.checked) cf.defaults.remember = true; else delete cf.defaults.remember;
+        if (frem.checked) delete cf.defaults.remember; else cf.defaults.remember = false;   // on is the default: only the tick taken away is stored
         save(); syncMenu();
         toast(frem.checked ? 'Players now keep the ground they have seen, dimmed, each on their own screen.' : 'Players no longer keep the ground they have seen.');
     });

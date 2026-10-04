@@ -975,7 +975,7 @@ function cleanCampFog(cf) {   // campaign-level: { fields:{sight, sightUnit?}, d
     if (d.on === true) out.defaults.on = true;   // "new maps start with fog on" — stamped onto new maps only, never retroactive (stored only when true)
     if (d.emptyFog === 'none') out.defaults.emptyFog = 'none';   // a map with NO play-area item marked: 'none' = no fog; default (absent) = fog the whole map
     if (d.marks === 'turn') out.defaults.marks = 'turn';   // senses S4b: "Marks in a fight" On your own turn; absent = as they move
-    if (d.remember === true) out.defaults.remember = true;   // senses S6: "Players remember what they have seen"; absent = off
+    if (d.remember === false) out.defaults.remember = false;   // senses S6: "Players remember what they have seen" is ON unless the GM unticked it (the owner, 2026-10-04: "on by default"): only the tick taken away is stored; an older save's true means what an absent key means now
     return out;
 }
 

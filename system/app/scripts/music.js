@@ -80,12 +80,19 @@ function evictCache(keep) {
 }
 function ramp(g, to, sec) { var a = ac(), t = a.currentTime; g.gain.cancelScheduledValues(t); g.gain.setValueAtTime(Math.max(0.0001, g.gain.value), t); g.gain.exponentialRampToValueAtTime(Math.max(0.0001, to), t + Math.max(0.02, sec)); }
 // play one track at an offset, crossfading out whatever is on the lane. loopOne = repeat this one track (loop 'one').
-function playTrackAt(entry, offset, fadeSec, loopOne, tries) {
-    var myGen = ++loadGen;   // this is now the intended track; any earlier in-flight fetch is stale
+// A player's app gets the file from the GM's machine, which sends one sound file at a time to each player: asked while another is still
+// arriving it answers busy. The app keeps asking for the track that is STILL wanted (never one a later change replaced), backing off to 4 s,
+// for some two and a half minutes; then it says so once. It used to give up after three tries in three seconds, so a GM changing songs
+// quickly left the player in silence. While it follows the GM's music, the time the file took is added to where it starts.
+// [musiccheck:playtrack-start]
+var MUSIC_TRIES = 40;
+function playTrackAt(entry, offset, fadeSec, loopOne, tries, since) {
+    var myGen = ++loadGen, began = since || Date.now();   // this is now the intended track; any earlier in-flight fetch is stale
     return bufferFor(entry).then(function(buf) {
         var a = ac(); if (!a) return;
         if (myGen !== loadGen) return;   // superseded while fetching/decoding: do not touch the lane
         if (a.state === 'suspended') { pending = { entry: entry, offset: offset, loopOne: loopOne }; showGate(); return; }
+        if (controlled) { offset = (offset || 0) + (Date.now() - began) / 1000 * rate; if (loopOne && buf.duration > 0) offset = offset % buf.duration; }   // following the GM: join the song where the GM's is by now
         var old = cur;
         var g = a.createGain(); g.gain.value = 0.0001; g.connect(a.destination);
         var src = a.createBufferSource(); src.buffer = buf; src.loop = !!loopOne; src.playbackRate.value = rate; src.connect(g);
@@ -98,9 +105,13 @@ function playTrackAt(entry, offset, fadeSec, loopOne, tries) {
         emit(); broadcastControl();   // if the GM is taking control, clients follow this track + position
     }).catch(function(e) {
         if (!isClient()) { toast('Could not play "' + entry.name + '": ' + (e && e.message || e)); return; }
-        if (myGen === loadGen && (tries | 0) < 3 && /busy/.test(e && e.message || '')) setTimeout(function() { if (myGen === loadGen) playTrackAt(entry, offset, fadeSec, loopOne, (tries | 0) + 1); }, 500 * ((tries | 0) + 1));   // the host's one-in-flight lane was busy; retry the still-intended track
+        if (myGen !== loadGen) return;   // another track is wanted by now: its own request speaks for it
+        var t = tries | 0;
+        if (t < MUSIC_TRIES && /busy|timeout/.test(e && e.message || '')) { setTimeout(function() { if (myGen === loadGen) playTrackAt(entry, offset, fadeSec, loopOne, t + 1, began); }, Math.min(500 * (t + 1), 4000)); return; }
+        toast('The music could not be loaded from the GM (' + entry.name + '). It starts again at the next song.');
     });
 }
+// [musiccheck:playtrack-end]
 function onTrackEnd() {   // a track played through to its end (never fires for loop 'one', which loops the source)
     if (controlled) return;   // following the GM: do not advance on our own — the host sends the next track
     if (!source) return;
@@ -125,7 +136,7 @@ function play(src, opts) {
     opts = opts || {};
     autoStarted = false;   // any play() is manual by default; tick() re-marks its own call as auto-started
     src = { kind: src.kind, id: src.id, loop: src.loop || 'list', shuffle: !!src.shuffle };
-    if (!opts.pos && source && cur && source.kind === src.kind && source.id === src.id) {   // the same playlist / song is already playing → keep it going
+    if (!opts.pos && !opts.fresh && source && cur && source.kind === src.kind && source.id === src.id) {   // the same playlist / song is already playing → keep it going
         var reorder = source.shuffle !== src.shuffle && src.kind === 'playlist';
         source.loop = src.loop; if (cur) cur.loopOne = source.loop === 'one', cur.src.loop = source.loop === 'one';
         if (reorder) { source.shuffle = src.shuffle; order = resolveOrder(source); qi = Math.max(0, order.indexOf(cur.entry.id)); }
@@ -134,6 +145,14 @@ function play(src, opts) {
     source = src; order = resolveOrder(src); qi = (opts.index > 0 && opts.index < order.length) ? opts.index : 0;
     if (!order.length) { stop(0.3); toast(src.kind === 'playlist' ? 'That playlist has no tracks yet.' : 'That track is missing.'); return; }
     playCurrent(opts.fade, opts.pos);
+}
+// A song from the library, or a playlist from one of its songs: what a double-click on its row (or the row's own play button) starts, from
+// the beginning, whatever is playing
+function playTrack(id) { if (trackById(id)) play({ kind: 'track', id: id, loop: 'list', shuffle: false }, { fresh: true, fade: 0.25 }); }
+function playListFrom(plId, tid) {
+    var pl = playlistById(plId); if (!pl) return;
+    var i = pl.tracks.filter(function(x) { return !!trackById(x); }).indexOf(tid);
+    play({ kind: 'playlist', id: plId, loop: (source && source.kind === 'playlist' && source.id === plId && source.loop) || 'list', shuffle: false }, { fresh: true, index: i > 0 ? i : 0, fade: 0.25 });
 }
 function stop(fadeSec) {
     source = null; order = []; qi = 0; pending = null;
@@ -165,7 +184,8 @@ document.addEventListener('pointerdown', function() { if (gateShown || (ctx && c
 document.addEventListener('keydown', function() { if (gateShown || (ctx && ctx.state === 'suspended' && pending)) tryResume(); }, true);
 
 /* ---------- per-viewer local auto-play as the map changes (baseline) ---------- */
-var lastKey = '', lastMapId = null, autoStarted = false;   // what auto-play last did; autoStarted = the current music was started by auto-play (not the panel)
+// [musiccheck:tick-start]
+var lastKey = '', lastMapId = null, lastSet = '', autoStarted = false;   // what auto-play last did (lastSet: the map's setting it read); autoStarted = the current music was started by auto-play (not the panel)
 function activeMapItem() { var camp = getActiveCampaign(); if (!camp) return null; var it = camp.items && camp.items[camp.activeItemId]; return (it && it.type === 'map') ? it : null; }
 function sessionLive() { var n = net(); return !!(n && n.active); }
 function soloAutoOn() { return pref('wp_musicSolo', 'off') === 'on'; }   // GM option: auto-play map music even when NOT in a session (off by default)
@@ -177,18 +197,21 @@ function tick() {
     if (!featureOn() || (!sessionLive() && !soloAutoOn())) { if (autoStarted && (cur || source)) { stop(0.5); autoStarted = false; } lastKey = ''; lastMapId = null; return; }   // no auto-play unless a session is live or the GM opted into solo auto-play
     var camp = getActiveCampaign(), it = camp && camp.items ? camp.items[camp.activeItemId] : null;
     it = (it && it.type === 'map') ? it : null;
-    var mapId = it ? camp.activeItemId : null;
-    if (mapId === lastMapId) return;   // same map (or still no map): nothing to do — the cheap path for zoom/pan
-    lastMapId = mapId;
-    if (!it || !it.music) return;      // no map open, or a map with no preset: leave the current music alone (seamless)
+    var mapId = it ? camp.activeItemId : null, mm = it && it.music && typeof it.music === 'object' ? it.music : null;
+    var set = mm ? [mm.playlist || '', mm.track || '', mm.loop || '', mm.shuffle ? 1 : 0].join('|') : '';   // what this map is set to play, as written (cheap: this runs on every render)
+    if (mapId === lastMapId && set === lastSet) return;   // same map, same setting (or still no map): nothing to do — the cheap path for zoom/pan
+    var same = mapId === lastMapId;   // the map on screen had its setting changed (Remember on this map, or the GM's change arriving on a player's app): it plays at once
+    lastMapId = mapId; lastSet = set;
+    if (!it || !it.music) { if (same && autoStarted && (cur || source)) { stop(0.5); autoStarted = false; lastKey = ''; } return; }   // no map open, or a map with no preset: leave the current music alone (seamless) — but a setting cleared on this very map ends what it started
     var cfg = cleanMapMusic(it.music, idSets());
     if (!cfg) return;
     var kind = cfg.playlist ? 'playlist' : 'track', id = cfg.playlist || cfg.track, key = kind + ':' + id;
-    if (key === lastKey && source && source.kind === kind && source.id === id) return;   // already playing this one
+    if (!same && key === lastKey && source && source.kind === kind && source.id === id) return;   // already playing this one
     lastKey = key;
     play({ kind: kind, id: id, loop: cfg.loop, shuffle: cfg.shuffle });
     autoStarted = true;
 }
+// [musiccheck:tick-end]
 
 /* ---------- multiplayer: the music library travels like sounds; the GM can take control of the table's music ---------- */
 // The current playback as a control message (host -> clients). on:false means nothing is playing / release.
@@ -463,6 +486,7 @@ function renderPanel() {
             var tl = el('div', 'music-pl-tracks');
             pl.tracks.forEach(function(tid, i) {
                 var tr = trackById(tid), trow = el('div', 'music-pl-track');
+                trow.title = 'Double-click to play the playlist from this song'; trow.addEventListener('dblclick', function(e) { if (e.target && e.target.closest && e.target.closest('button')) return; playListFrom(pl.id, tid); });
                 trow.appendChild(el('span', 'music-pl-tname', (tr ? tr.name : '(missing)')));
                 var up = el('button', 'tool ghost', '↑'); up.addEventListener('click', function() { if (i > 0) { pl.tracks.splice(i, 1); pl.tracks.splice(i - 1, 0, tid); save(true); renderPanel(); } }); trow.appendChild(up);
                 var dn = el('button', 'tool ghost', '↓'); dn.addEventListener('click', function() { if (i < pl.tracks.length - 1) { pl.tracks.splice(i, 1); pl.tracks.splice(i + 1, 0, tid); save(true); renderPanel(); } }); trow.appendChild(dn);
@@ -522,7 +546,9 @@ function renderPanel() {
     if (picking) renderPicker(lib);
     else if (!m.tracks.length) lib.appendChild(el('div', 'music-empty', 'No music tracks yet. Add songs (MP3 / OGG, up to ' + fmtMB(LIMITS.file) + ') above; a playlist plays tracks from here.'));
     else m.tracks.forEach(function(tr) {
-        var row = el('div', 'music-libtrack');
+        var row = el('div', 'music-libtrack'); row.title = 'Double-click to play this song';
+        row.addEventListener('dblclick', function(e) { if (e.target && e.target.closest && e.target.closest('button')) return; playTrack(tr.id); });
+        var pb = el('button', 'tool ghost music-libplay', '▶'); pb.title = 'Play this song'; pb.addEventListener('click', function() { playTrack(tr.id); }); row.appendChild(pb);
         row.appendChild(el('span', 'music-libtrack-name', tr.name));
         if (campL && isRefPath(campL.id, tr.path)) { var fr = el('span', 'music-from', 'from ' + campNameOfFolder(folderOf(tr.path))); fr.title = 'Brought in from another campaign: this campaign lists that campaign’s file'; row.appendChild(fr); }
         var rm = el('button', 'tool ghost music-del', '×'); rm.title = 'Remove this track (and from every playlist)'; rm.addEventListener('click', function() { removeTrack(tr.id); });

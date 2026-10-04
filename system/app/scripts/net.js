@@ -5741,7 +5741,7 @@ function handleMessage(msg, conn) {
             var upsU = (Array.isArray(campU.uploads) ? campU.uploads : []).filter(function(u) { return u && u.charId !== qu.charId; });   // a newer upload of the same character replaces the older
             upsU.push({ id: 'up_' + nowU.toString(36) + Math.random().toString(36).slice(2, 6), charId: qu.charId, from: profU.id, name: String(profU.name || 'A player').slice(0, 60), at: nowU, changes: prU.changes });
             campU.uploads = upsU.slice(-Su.LIMITS.uploads);
-            var tU = (profU.name || 'A player') + ' sent a sheet update for ' + (chU.name || 'their character') + ': ' + prU.changes.length + (prU.changes.length === 1 ? ' change' : ' changes') + ' to review (Review on the character\u2019s sheet).';
+            var tU = (profU.name || 'A player') + ' sent a sheet update for ' + (chU.name || 'their character') + ': ' + prU.changes.length + (prU.changes.length === 1 ? ' change' : ' changes') + ' to review (the gold Review button in the header).';
             toast(tU); logEvent('char', tU);
             if (window.wpSheets && window.wpSheets.uploadsChanged) window.wpSheets.uploadsChanged(qu.charId);
             wroteU = true;
@@ -7259,6 +7259,7 @@ function handleAssetPart(msg) {
     w.n = n; if (!w.parts[i]) w.bytes += len;
     if (w.bytes > AUDIO_CAP) { clearTimeout(w.timer); delete assetWaiters[msg.path]; w.reject(new Error('too-big')); return; }
     w.parts[i] = data;
+    clearTimeout(w.timer); w.timer = setTimeout(function() { if (own(assetWaiters, msg.path) && assetWaiters[msg.path] === w) delete assetWaiters[msg.path]; w.reject(new Error('timeout')); }, ASSET_WAIT);   // the wait is for the NEXT part: a file still arriving over a slow link is never cut off
     for (var k = 0; k < n; k++) if (!w.parts[k]) return;
     clearTimeout(w.timer); delete assetWaiters[msg.path];
     try { w.resolve(new Blob(w.parts, { type: assetMime(msg.path) })); } catch (e) { w.reject(e); }

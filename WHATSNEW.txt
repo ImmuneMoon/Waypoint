@@ -1,3 +1,78 @@
+WAYPOINT 1.5.1 — What's New
+============================
+
+Fog of war
+- Sight arc: a character can see through a sight arc of its own. In the
+  System editor's Senses box (the Items tab, on the Combat card), "Sight arc
+  from" names a number or formula field; its value on a character's sheet,
+  in degrees from 1 to 360, replaces the map's facing cone for that
+  character's tokens, wider or narrower: 300 to see to the sides too, 360
+  to see all round. A map set to All around still sees all round, a value
+  of 0 keeps the map's arc, and a field its player cannot read is never
+  used. A token's Properties say the arc when it is the token's own.
+- See-through barriers: a piece can now stop players' tokens without
+  blocking sight — a force field, bars, a window, a railing. Tick "Stops
+  movement only" in its Properties (under Blocks sight; ticking one unticks
+  the other) and players' tokens cannot land in or cross it, under the same
+  "Walls stop player tokens" setting and with the same notes as a wall,
+  while sight, light and senses pass through it. It works on the same pieces
+  as a wall (a fill cell, a shape, an image, or a pen line as the line
+  itself) and needs no fog on the map. Set its type to "Door or gate" and it
+  opens, closes and locks like any door: you toggle it from its Properties
+  or by clicking it in fog mode, and a player can open one their token
+  stands next to unless you lock it. On your board a barrier wears a dashed
+  cyan outline.
+- Stops blasts: a see-through barrier has a tick of its own for thrown
+  blasts. Tick "Stops blasts" under "Stops movement only" for a force field
+  or a window, and leave it off for bars or a railing: a thrown blast then
+  never goes off inside the barrier, and it shields what is behind it from
+  the blast as a wall does, where your system has cover switched on. An open
+  barrier door stops no blast, and the ruler's cover between two tokens is
+  not changed by it.
+
+Tokens and portals
+- Locking a portal: a portal can now be locked for players. Right-click a
+  portal on the play map and pick "Lock portal for players" (or tick "Locked
+  for players" in its Properties): no player travels through it, by
+  double-click or by dropping their token on it, until you pick "Unlock
+  portal". You and your players see a small lock beside the portal's marker,
+  its hover says it is locked, and a player who tries is told "That way is
+  locked". Every other way off the map stays as it was. A summon, Bring and
+  the table following your map are never stopped, and dropping a player's
+  token on a locked portal yourself still sends them through. A hidden trap
+  tile you locked fires for no player who lands on it, and tells only you. A
+  lock is the piece's own: where two pieces lead through the same room, lock
+  each.
+- A locked map is closed both ways: "Lock for players" on a map (right-click
+  it in the Maps list) used to stop players arriving on it; now no player who
+  is on it leaves it through a portal either, and one who tries is told "This
+  map is locked". Your summon, Bring, the table following your map and your
+  own drop of a player's token on a portal still move them. That makes three
+  locks on travel: one portal, one map (both ways), and "Lock Travel Between
+  Maps" for everything; Help lists them side by side.
+- A hidden trap tile that cannot fire (it is locked, its map or its
+  destination is locked, or all travel is) tells you once, and not again at
+  every turn of a token resting on it.
+
+ShadowBase sheets
+- A ranged weapon brings its own range: where the Weapons list has Half and
+  MaxRange stats (half and maxrange on the website's keys), a blaster with a
+  Focusing Emitter or Magnetic Accelerator Coils shows the 1/2D and Max the
+  website works out with its fitted parts, not the barrel's printed pair. A
+  weapon that prints one figure takes it as its Max and never halves. The
+  row stays linked to its library entry and holds as its own only a figure
+  that differs from the entry's, so a later change to the entry still
+  reaches the rest. A sheet exported before its weapon's card was opened
+  carries no such range and reads the entry's pair, as before. In a player's
+  Import the range is part of the weapon's own values in Review, and when a
+  part is taken off again the figure is offered back to the entry's.
+
+Fixes
+- Handouts: the "Give to…" list beside each handout wears the app's own look
+  (it showed as a plain white box), and its Give button stays dimmed until
+  someone is chosen. The window, its button and Help say what a handout is:
+  a picture or a written page (a letter, a briefing, a recap).
+
 WAYPOINT 1.5.0 — What's New
 ============================
 
@@ -79,28 +154,6 @@ Tokens and portals
   "⚠️ Trap — fires while hidden" in its Properties. Players never see the
   tile, but a token that lands on it is teleported; you see a red ⚠️ and a
   dashed outline, and a locked destination map still stops it.
-- Locking a portal: a portal can now be locked for players. Right-click a
-  portal on the play map and pick "Lock portal for players" (or tick "Locked
-  for players" in its Properties): no player travels through it, by
-  double-click or by dropping their token on it, until you pick "Unlock
-  portal". You and your players see a small lock beside the portal's marker,
-  its hover says it is locked, and a player who tries is told "That way is
-  locked". Every other way off the map stays as it was. A summon, Bring and
-  the table following your map are never stopped, and dropping a player's
-  token on a locked portal yourself still sends them through. A hidden trap
-  tile you locked fires for no player who lands on it, and tells only you. A
-  lock is the piece's own: where two pieces lead through the same room, lock
-  each.
-- A locked map is closed both ways: "Lock for players" on a map (right-click
-  it in the Maps list) used to stop players arriving on it; now no player who
-  is on it leaves it through a portal either, and one who tries is told "This
-  map is locked". Your summon, Bring, the table following your map and your
-  own drop of a player's token on a portal still move them. That makes three
-  locks on travel: one portal, one map (both ways), and "Lock Travel Between
-  Maps" for everything; Help lists them side by side.
-- A hidden trap tile that cannot fire (it is locked, its map or its
-  destination is locked, or all travel is) tells you once, and not again at
-  every turn of a token resting on it.
 - On a player's screen, a picture token whose picture is still arriving
   shows the character's initials in a dashed circle instead of an empty box.
 
@@ -209,10 +262,6 @@ Running the table
   table, and shows one part at a time; your name sits above both, since it
   is needed either way. While you host or play, the panel shows the part
   you are using.
-- Handouts: the "Give to…" list beside each handout wears the app's own look
-  (it showed as a plain white box), and its Give button stays dimmed until
-  someone is chosen. The window, its button and Help say what a handout is:
-  a picture or a written page (a letter, a briefing, a recap).
 
 Protecting your table
 - Your table key is never sent again. A player your table already knows is
@@ -950,17 +999,6 @@ ShadowBase sheets
   linked (its differences held as that copy's own values), or else made a
   custom row; the toast says what did not come across. Copy from a fresh
   export: the website mends older sheets when it opens them.
-- A ranged weapon brings its own range: where the Weapons list has Half and
-  MaxRange stats (half and maxrange on the website's keys), a blaster with a
-  Focusing Emitter or Magnetic Accelerator Coils shows the 1/2D and Max the
-  website works out with its fitted parts, not the barrel's printed pair. A
-  weapon that prints one figure takes it as its Max and never halves. The
-  row stays linked to its library entry and holds as its own only a figure
-  that differs from the entry's, so a later change to the entry still
-  reaches the rest. A sheet exported before its weapon's card was opened
-  carries no such range and reads the entry's pair, as before. In a player's
-  Import the range is part of the weapon's own values in Review, and when a
-  part is taken off again the figure is offered back to the entry's.
 - Attaching a sheet also turns its token to the sheet's facing and marks its
   threats while it is engaged (with token facing on), and a skill level the
   website exports as text now comes across.
@@ -1344,33 +1382,6 @@ Fog of war
   tied to the grid type — a square map can use a cone, a hex map can see all
   around — with a "use for new maps" campaign default that never changes
   maps you already made.
-- Sight arc: a character can see through a sight arc of its own. In the
-  System editor's Senses box (the Items tab, on the Combat card), "Sight arc
-  from" names a number or formula field; its value on a character's sheet,
-  in degrees from 1 to 360, replaces the map's facing cone for that
-  character's tokens, wider or narrower: 300 to see to the sides too, 360
-  to see all round. A map set to All around still sees all round, a value
-  of 0 keeps the map's arc, and a field its player cannot read is never
-  used. A token's Properties say the arc when it is the token's own.
-- See-through barriers: a piece can now stop players' tokens without
-  blocking sight — a force field, bars, a window, a railing. Tick "Stops
-  movement only" in its Properties (under Blocks sight; ticking one unticks
-  the other) and players' tokens cannot land in or cross it, under the same
-  "Walls stop player tokens" setting and with the same notes as a wall,
-  while sight, light and senses pass through it. It works on the same pieces
-  as a wall (a fill cell, a shape, an image, or a pen line as the line
-  itself) and needs no fog on the map. Set its type to "Door or gate" and it
-  opens, closes and locks like any door: you toggle it from its Properties
-  or by clicking it in fog mode, and a player can open one their token
-  stands next to unless you lock it. On your board a barrier wears a dashed
-  cyan outline.
-- Stops blasts: a see-through barrier has a tick of its own for thrown
-  blasts. Tick "Stops blasts" under "Stops movement only" for a force field
-  or a window, and leave it off for bars or a railing: a thrown blast then
-  never goes off inside the barrier, and it shields what is behind it from
-  the blast as a wall does, where your system has cover switched on. An open
-  barrier door stops no blast, and the ruler's cover between two tokens is
-  not changed by it.
 - Lighting, a VTT feature on by default: a fogged map is lit until you place
   a light source, so every token sees what is in its line of sight (walls
   and closed doors still stop it), and a token's sight becomes how far it

@@ -5221,6 +5221,7 @@ if(_el_toggleLeftBtn) _el_toggleLeftBtn.addEventListener('click', function() {
       sb.classList.toggle('collapsed');
 
       this.textContent = sb.classList.contains('collapsed') ? '▶' : '◀';
+      this.dataset.tip = sb.classList.contains('collapsed') ? 'Show the left panel' : 'Hide the left panel'; this.removeAttribute('title');   // what a press does now (tooltips.js reads data-tip: one tooltip, never two)
 
   });
 

@@ -3329,6 +3329,10 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const z4 = id => { const m = css4.match(new RegExp('#' + id + '\\s*\\{[^}]*z-index:\\s*(\\d+)')); return m ? +m[1] : NaN; };
         check('a notice is drawn over the fog of war and the screen effects (style.css: #toast above #fogScreen and #fxScreen; on a player\'s screen the dark covered "The GM has that door locked.")',
             z4('toast') > z4('fogScreen') && z4('toast') > z4('fxScreen'), JSON.stringify({ toast: z4('toast'), fog: z4('fogScreen'), fx: z4('fxScreen') }));
+        const zPane = (() => { const m = css4.match(/\.pane-toggle \{[^}]*z-index:\s*(\d+)/); return m ? +m[1] : NaN; })(), wb4 = rd4('system/app/scripts/whiteboard.js');
+        check('the panes\' handles are drawn over the fog of war and the screen effects (style.css: .pane-toggle above #fogScreen and #fxScreen, under the combat strip; on a player\'s screen the opaque fog covered the left panel\'s handle), and the left one says what a press does',
+            zPane > z4('fogScreen') && zPane > z4('fxScreen') && zPane < z4('combatStrip') && rd4('system/app/index.html').includes('<div id="toggleLeftBtn" class="pane-toggle left" title="Hide the left panel">')
+            && wb4.includes("this.dataset.tip = sb.classList.contains('collapsed') ? 'Show the left panel' : 'Hide the left panel'; this.removeAttribute('title');"), JSON.stringify({ pane: zPane, fog: z4('fogScreen'), fx: z4('fxScreen'), strip: z4('combatStrip') }));
         const a4 = fog4.indexOf(NL + 'function clearCanvas()'), line4 = fog4.slice(a4 + 1, fog4.indexOf(NL, a4 + 1));
         const cleared = dpr => {
             const c = { width: Math.round(1000 * dpr), height: Math.round(600 * dpr) }, st = []; let k = dpr, got = null;

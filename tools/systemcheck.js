@@ -8239,6 +8239,28 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && rdx('scripts/tooltips.js').includes('if (t && t.closest && t.closest("#partyMenu, #contextMenu.tall, .menu-tall")) return;')
             && /#contextMenu\.tall \{ overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; \}\n#contextMenu\.tall > \* \{ flex-shrink: 0; \}/.test(rdx('style.css')) && rdx('style.css').includes('#contextMenu .menu-divider + .menu-divider { display: none; }') && rdx('style.css').includes('#contextMenu.compact .menu-item { padding: 5px 16px; font-size: 13px; }'),
             j({ short: [...short.cls], mid: [[...mid.cls], mid.m.style.maxHeight, mid.m.getBoundingClientRect()], tall: [[...tall.cls], tall.m.style.maxHeight, tall.m.getBoundingClientRect()], wheel: wheel.length, stopped }));
+        // (g) the header's Review button for a player's sheet upload (sheets.js sliced by its reviewchip markers, run for real)
+        const shS3 = rdx('scripts/sheets.js'), rvW = { els: { reviewChip: { style: { display: 'none' }, title: '' }, reviewChipN: { textContent: '' } }, gm: true, client: false, on: true, camp: { chars: { c_a: { name: 'Sahrhie' }, c_b: { name: 'Hshif <b>' } }, uploads: [] }, opened: [] };
+        const RV = new Function('ui', 'getActiveCampaign', 'canWrite', 'isClient', 'featureOn', 'uploadsOf', 'charById', 'openSheet', 'openReview', '"use strict";' + NLx + cutX(shS3, 'reviewchip') + NLx + 'return { render: renderReviewChip, next: reviewNext };')(
+            id => rvW.els[id] || null, () => rvW.camp, () => rvW.gm, () => rvW.client, () => rvW.on, (camp, cid) => camp.uploads.filter(u => !cid || u.charId === cid), (id, camp) => (Object.prototype.hasOwnProperty.call(camp.chars, id) ? camp.chars[id] : null), id => rvW.opened.push(['sheet', id]), id => rvW.opened.push(['review', id]));
+        const rvState = () => [rvW.els.reviewChip.style.display, rvW.els.reviewChipN.textContent, rvW.els.reviewChip.title];
+        RV.render(); const rv0 = j(rvState());
+        rvW.camp.uploads = [{ charId: 'c_b', changes: [1, 2, 3] }, { charId: 'c_gone', changes: [1] }, { charId: 'c_a', changes: [1] }]; RV.render(); const rv2 = j(rvState());
+        RV.next(); const rvOpen = j(rvW.opened);
+        rvW.client = true; RV.render(); const rvClient = rvW.els.reviewChip.style.display; rvW.client = false;
+        rvW.gm = false; RV.render(); const rvNoWrite = rvW.els.reviewChip.style.display; rvW.gm = true;
+        rvW.on = false; RV.render(); const rvOff = rvW.els.reviewChip.style.display; rvW.on = true;
+        rvW.camp.uploads = [{ charId: 'c_a', changes: [1] }]; RV.render(); const rv1 = j(rvState());
+        rvW.camp.uploads = []; rvW.opened = []; RV.next(); const rvNone = j([rvW.opened, rvW.els.reviewChip.style.display]);
+        check('the header\'s Review button (run for real): hidden while nothing waits; there with the number of uploads waiting and, as its tooltip\'s text, each character\'s name and count, an upload whose character is gone not counted; a press opens the oldest one\'s sheet and its Review; never on a player\'s app, a machine that cannot write or with sheets off; a press with nothing waiting opens nothing; wired once, repainted when an upload arrives, when a Review closes and every second; in the page it starts hidden; Help, the tour and the GM\'s toast name it',
+            rv0 === j(['none', '', '']) && rv2 === j(['', '2', '2 sheet updates wait for your review: Hshif <b> (3), Sahrhie (1)']) && rvOpen === j([['sheet', 'c_b'], ['review', 'c_b']]) && rvClient === 'none' && rvNoWrite === 'none' && rvOff === 'none'
+            && rv1 === j(['', '1', 'A sheet update waits for your review: Sahrhie (1)']) && rvNone === j([[], 'none'])
+            && shS3.includes("var rvChip = ui('reviewChip'); if (rvChip) rvChip.addEventListener('click', reviewNext);") && shS3.split("addEventListener('click', reviewNext)").length === 2
+            && shS3.includes("function uploadsChanged(charId) { renderViews(typeof charId === 'string' ? charId : null); renderReviewChip(); }") && shS3.includes("_review = null; renderReviewChip(); }") && shS3.includes("try { renderReviewChip(); } catch (e) { console.error(e); }")
+            && ixS2.includes('<button class="tool" id="reviewChip" style="display:none;" title="A player sent a sheet update: review what changes">&#128203; Review <span id="reviewChipN"></span></button>')
+            && ixS2.includes('you press <b>Review</b> (a gold button in the header for as long as an upload waits, and on the character&rsquo;s sheet)') && rdx('scripts/tutorial.js').includes('you <b>Review</b> from the gold button in the header or on the character&rsquo;s sheet')
+            && rdx('scripts/net.js').includes("' to review (the gold Review button in the header).';"),
+            j([rv0, rv2, rvOpen, rvClient, rvNoWrite, rvOff, rv1, rvNone]));
         // (d) the left panel: Handbook, then Planners, then Maps
         const iH = ixS2.indexOf('data-section="handbook"'), iP = ixS2.indexOf('data-section="planners"'), iM = ixS2.indexOf('data-section="maps"');
         check('the left panel lists Handbook, then Planners, then Maps, each once', iH > 0 && iP > iH && iM > iP && ixS2.split('data-section="handbook"').length === 2 && ixS2.split('data-section="planners"').length === 2 && ixS2.split('data-section="maps"').length === 2, j([iH, iP, iM]));

@@ -1,3 +1,16 @@
+WAYPOINT 1.5.2 — What's New
+============================
+
+Fixes
+- A right-click menu on the play map is no longer cut off at the board's
+  top edge. A character token's menu, opened low on the screen, lost its
+  first rows (Sheet, HUD) under the header, in a tall window too. The menu
+  now uses the whole window, and the Effects list opened from it is fitted
+  again.
+- The left panel's right-click menu (on a map, a page or a planner) is
+  placed for the rows it shows, and in a window shorter than the menu it
+  scrolls inside itself.
+
 WAYPOINT 1.5.1 — What's New
 ============================
 

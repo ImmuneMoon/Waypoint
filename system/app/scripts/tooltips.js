@@ -63,7 +63,7 @@
 // Right-click menus close as soon as the page scrolls or the wheel turns (they are positioned for where the pointer was).
 (function closeMenusOnScroll() {
     function close(e) {
-        var t = e && e.target; if (t && t.closest && t.closest("#partyMenu, #contextMenu.tall")) return;   // scrolling a long party menu (Give a character…) keeps it open
+        var t = e && e.target; if (t && t.closest && t.closest("#partyMenu, #contextMenu.tall, .menu-tall")) return;   // scrolling a long party menu (Give a character…) keeps it open
         var a = document.getElementById("sidebarContextMenu"); if (a && a.style.display !== "none") a.style.display = "none";
         var b = document.getElementById("contextMenu"); if (b && b.style.display !== "none") b.style.display = "none";
         var c = document.getElementById("partyMenu"); if (c) c.classList.remove("show");
@@ -74,9 +74,15 @@
 
 // Place a fixed-position menu at the pointer, but keep it on screen: when there is no room below,
 // it opens above the pointer; when there is no room to the right, it opens to the left.
+// A menu taller than the window takes a height limit and its own scroll (the class menu-tall keeps its own wheel from closing it).
+// [systemcheck:clampmenu-start]
 window.wpClampMenu = function(menu, x, y) {
+    var W = window.innerWidth, H = window.innerHeight;
+    if (menu._wpCapped) { menu._wpCapped = false; menu.style.maxHeight = ''; menu.style.overflowY = ''; menu.classList.remove('menu-tall'); }   // judged afresh each time
     menu.style.left = x + 'px'; menu.style.top = y + 'px';
-    var r = menu.getBoundingClientRect(), W = window.innerWidth, H = window.innerHeight;
+    var r = menu.getBoundingClientRect();
+    if (r.height > H - 12) { menu._wpCapped = true; menu.style.maxHeight = (H - 12) + 'px'; menu.style.overflowY = 'auto'; menu.classList.add('menu-tall'); r = menu.getBoundingClientRect(); }
     if (r.bottom > H - 6) menu.style.top = Math.max(6, (y - r.height - 2 >= 6) ? y - r.height - 2 : H - r.height - 6) + 'px';
     if (r.right > W - 6) menu.style.left = Math.max(6, (x - r.width - 2 >= 6) ? x - r.width - 2 : W - r.width - 6) + 'px';
 };
+// [systemcheck:clampmenu-end]

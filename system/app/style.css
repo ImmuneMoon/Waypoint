@@ -1378,6 +1378,7 @@
   .doc-view table { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 14px; background: var(--panel); border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.4); }
   .doc-view th { background: var(--panel2); color: var(--gold); text-align: left; font-size: 11px; letter-spacing: .8px; text-transform: uppercase; padding: 9px 12px; }
   .doc-view td { padding: 10px 12px; border-top: 1px solid var(--edge); vertical-align: top; }
+  .doc-view .doc-table th, .doc-view .doc-table td { white-space: pre-line; }   /* a cell's own line breaks are drawn (a Markdown file brings them); runs of spaces still fold */
   .doc-view td:first-child { font-weight: 600; color: var(--ink); }
   .doc-view .flare { background: var(--panel); border: 1px solid var(--edge); border-left: 3px solid var(--violet); border-radius: 7px; padding: 10px 13px; margin-top: 10px; font-size: 13.5px; color: var(--dim); }
   .doc-view .flare b { color: var(--ink); }

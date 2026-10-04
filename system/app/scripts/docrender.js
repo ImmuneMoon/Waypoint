@@ -204,6 +204,10 @@ function sanitize(html, opt) {
             openTag('a', aAttrs(href));
             continue;
         }
+        if (name === 'ol') {   // a numbered list that starts past 1 keeps its first number: digits only, written from the parsed number, nothing else of the tag
+            var st = attrValue(t.attrs, 'start'), sn = typeof st === 'string' && /^\d{1,5}$/.test(st) ? Number(st) : 1;
+            openTag('ol', sn !== 1 ? ' start="' + sn + '"' : ''); if (t.self) closeTo('ol'); continue;
+        }
         openTag(name);
         if (t.self) closeTo(name);
     }

@@ -8,6 +8,13 @@ Fixes
 - Fog switched off clears the whole map when the app is zoomed out
   below 100%: a strip of fog could stay along the right and bottom
   edges.
+- Importing a Markdown file: a list that began indented and then went
+  back to the margin lost every line after that point; a numbered
+  sub-list under a bullet was pulled out of its bullet; a numbered list
+  that starts past 1 (3. 4. 5.) came out numbered from 1; and a long
+  file kept 300 blocks where a page holds 500. All four are fixed, and
+  the same lists go back out to Markdown as they came in.
+- A page table's cell shows its own line breaks.
 
 WAYPOINT 1.5.3 — What's New
 ============================

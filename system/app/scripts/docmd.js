@@ -31,7 +31,7 @@ import { sanitizeHtml, DOC_BLOCKS, fieldFmt, colFmtOf, cellFmtOf, labelFmt, stri
 import { cleanFmt, runsOf, SIZE_EM, MAX_RAW } from './textfmt.js';
 
 var VERSION = '1.5.0';
-var LIMITS = { text: 2 * 1024 * 1024, blocks: 300, picture: 8 * 1024 * 1024, cols: 8 };
+var LIMITS = { text: 2 * 1024 * 1024, blocks: 500, picture: 8 * 1024 * 1024, cols: 8 };   // blocks: what a page holds (docrender LIMITS.blocks; it was 300, and a long file lost its end)
 var PLANNER_BLOCKS = ['h1', 'h2', 'lede', 'oneline', 'text', 'flare', 'callout', 'node', 'image', 'diagram', 'flowchart'];   // raw is never created by an import
 var PROSE = { lede: 1, oneline: 1, flare: 1, callout: 1 };
 var ATTR_KEYS = { cols: 1, width: 1, float: 1, dx: 1, dy: 1, span: 1 };
@@ -129,15 +129,21 @@ function listHtml(lines, ctx) {
     var items = [];
     lines.forEach(function(l) {
         var m = LIST_RE.exec(l);
-        if (m) items.push({ indent: m[1].replace(/\t/g, '  ').length, ordered: /\d/.test(m[2]), text: m[3] });
+        if (m) items.push({ indent: m[1].replace(/\t/g, '  ').length, ordered: /\d/.test(m[2]), num: /\d/.test(m[2]) ? parseInt(m[2], 10) : 1, text: m[3] });
         else if (items.length) items[items.length - 1].text += ' ' + l.trim();   // a continuation line
     });
+    if (!items.length) return '';
+    // The list's own level is its SHALLOWEST item. A list that opens deeper than a later item (two indented bullets, then one at the margin)
+    // used to end at that item and lose every line after it: its opening run is moved out to that level, keeping its own nesting.
+    var base = items.reduce(function(lo, it) { return Math.min(lo, it.indent); }, Infinity), first = 0;
+    while (items[first].indent !== base) first++;
+    if (first > 0) { var lead = items.slice(0, first).reduce(function(lo, it) { return Math.min(lo, it.indent); }, Infinity); for (var q = 0; q < first; q++) items[q].indent -= lead - base; }
     function build(start, indent) {   // consecutive items at this indent; a change of bullet ↔ number starts a new list
         var html = '', k = start;
         while (k < items.length && items[k].indent >= indent) {
-            var ordered = items[k].ordered;
-            html += ordered ? '<ol>' : '<ul>';
-            while (k < items.length && items[k].indent >= indent && items[k].ordered === ordered) {
+            var ordered = items[k].ordered, from = items[k].indent === indent ? items[k].num : 1;   // a numbered list that starts past 1 keeps its first number (the sanitiser's own form)
+            html += ordered ? (from !== 1 ? '<ol start="' + from + '">' : '<ol>') : '<ul>';
+            while (k < items.length && (items[k].indent > indent || (items[k].indent === indent && items[k].ordered === ordered))) {   // a deeper item is the last item's own, whatever its kind
                 if (items[k].indent > indent) {
                     var sub = build(k, items[k].indent);
                     if (/<\/li>$/.test(html)) html = html.replace(/<\/li>$/, '') + sub.html + '</li>'; else html += '<li>' + sub.html + '</li>';
@@ -149,7 +155,7 @@ function listHtml(lines, ctx) {
         }
         return { html: html, next: k };
     }
-    return items.length ? build(0, items[0].indent).html : '';
+    return build(0, base).html;
 }
 
 /* ---------- tables ---------- */
@@ -673,7 +679,7 @@ function htmlToMarkdown(html, opts) {
             case 'u': out += close ? '</u>' : '<u>'; break;
             case 'code': out += '`'; inCode = !close; break;
             case 'pre': inPre = true; out += '\n```\n'; break;
-            case 'ul': case 'ol': if (!close) { lists.push({ t: tag, n: 0 }); if (lists.length === 1 && out && !/\n$/.test(out)) out += '\n'; } else { lists.pop(); if (!lists.length) out += '\n'; } break;
+            case 'ul': case 'ol': if (!close) { var sm = tag === 'ol' ? /\sstart="(\d{1,5})"/.exec(m[3]) : null; lists.push({ t: tag, n: sm ? Number(sm[1]) - 1 : 0 }); if (lists.length === 1 && out && !/\n$/.test(out)) out += '\n'; } else { lists.pop(); if (!lists.length) out += '\n'; } break;
             case 'li': if (!close) { var L = lists[lists.length - 1] || { t: 'ul', n: 0 }; L.n++; if (out && !/\n$/.test(out)) out += '\n'; out += new Array(Math.max(0, lists.length - 1) + 1).join('  ') + (L.t === 'ol' ? L.n + '. ' : '- '); } else if (!/\n$/.test(out)) out += '\n'; break;
             // a link: [text](address) where that reads back to the very address; else the tag, its address escaped as a plain field's is (hrefAttr)
             case 'a':

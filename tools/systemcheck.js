@@ -3048,7 +3048,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const hs = sh5.slice(sh5.indexOf('// [systemcheck:hud-start]'), sh5.indexOf('// [systemcheck:hud-end]')), rd = (ftSrc.match(/function rolled\(m, cid\) \{[\s\S]*?\n\}/) || [''])[0];
         check('HUD frame HF3: the footer is inside the HUD slice and writes no markup (el/textContent and the dice card only); the hook repaints the foot, never the body; renderHud gives the panel the look\'s accent (the foot is the body\'s sibling) and ends by drawing its foot; makeHud starts the drawer closed; wpSheets exports rolled; the tour and Help name it',
             hs.indexOf('function renderHudFoot(v)') > 0 && !/innerHTML|outerHTML|insertAdjacentHTML/.test(ftSrc) && /D\.renderCard\(m\)/.test(ftSrc) && rd.length > 50 && /renderHudFoot\(v\)/.test(rd) && !/renderHud\(|renderViews\(/.test(rd)
-            && /    syncFramePad\(v\.body\);\n    \['--sheet-accent', '--sheet-accent-ink'\]\.forEach\(function\(k\) \{ var a = v\.body\.style\.getPropertyValue\(k\); if \(a\) v\.panel\.style\.setProperty\(k, a\); else v\.panel\.style\.removeProperty\(k\); \}\);[^\n]*\n    restoreFocus\(v\.body, fk\);\n    renderHudFoot\(v\);\n    try \{ syncEndTurn\(\); \} catch \(e\) \{\}[^\n]*\n\}/.test(hs)
+            && /    syncFramePad\(v\.body\);\n    \['--sheet-accent', '--sheet-accent-ink'\]\.forEach\(function\(k\) \{ var a = v\.body\.style\.getPropertyValue\(k\); if \(a\) v\.panel\.style\.setProperty\(k, a\); else v\.panel\.style\.removeProperty\(k\); \}\);[^\n]*\n    if \(v\.body\.scrollTop !== stH\) v\.body\.scrollTop = stH;[^\n]*\n    restoreFocus\(v\.body, fk\);\n    renderHudFoot\(v\);\n    try \{ syncEndTurn\(\); \} catch \(e\) \{\}[^\n]*\n\}/.test(hs)
             && /v\.foot = q\('hud-foot'\); v\.histOpen = false;/.test(hs) && /hudFor: hudFor, rolled: rolled,/.test(sh5)
             && /When the system has rolls, its <b>Roll history<\/b> drawer/.test(fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8')) && /<b>Roll history<\/b> \(when the system has rolls\)/.test(fs.readFileSync(path.join(app, 'index.html'), 'utf8')));
         const css5 = fs.readFileSync(path.join(app, 'style.css'), 'utf8').replace(/\r\n/g, '\n'), b5 = css5.slice(css5.indexOf('/* ---- Stage 6 HUD frame:')), rx5 = (b5.match(/\.hud-hist-list \.roll-expr \{([^}]*)\}/) || [])[1];
@@ -8458,6 +8458,14 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         // (d) the left panel: Handbook, then Planners, then Maps
         const iH = ixS2.indexOf('data-section="handbook"'), iP = ixS2.indexOf('data-section="planners"'), iM = ixS2.indexOf('data-section="maps"');
         check('the left panel lists Handbook, then Planners, then Maps, each once', iH > 0 && iP > iH && iM > iP && ixS2.split('data-section="handbook"').length === 2 && ixS2.split('data-section="planners"').length === 2 && ixS2.split('data-section="maps"').length === 2, j([iH, iP, iM]));
+    }
+    /* ---- 1.5.4: a redraw keeps the sheet's place ---- */
+    {
+        const sh9 = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL);
+        check('1.5.4 a redraw puts the sheet and a HUD back where they were scrolled to, before the focus is restored (a guard: every redraw rebuilds the whole body)',
+            sh9.includes("    if (body.scrollTop !== st0) body.scrollTop = st0;   // a redraw never moves the sheet: where it was read is where it stays\n    restoreFocus(body, fk);")
+            && sh9.includes("    if (v.body.scrollTop !== stH) v.body.scrollTop = stH;   // as the sheet: a redraw never moves the HUD\n    restoreFocus(v.body, fk);")
+            && sh9.includes("fk = focusKeyOf(body), st0 = body ? body.scrollTop : 0;") && sh9.includes("fk = focusKeyOf(v.body), stH = v.body.scrollTop, gm = !isClient()"));
     }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');

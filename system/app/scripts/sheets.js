@@ -719,7 +719,7 @@ function restoreFocus(root, k) { if (!k) return; if (k.reset) { if (!/^s_[A-Za-z
 function renderSheet() {
     var p = ui('sheetPanel'); if (!p || p.style.display === 'none') return;
     var camp = getActiveCampaign(), sys = systemOf(camp), c = charById(sheetOpen, camp);
-    var body = ui('sheetBody'), head = ui('sheetTitle'), sub = ui('sheetSub'), fk = focusKeyOf(body);
+    var body = ui('sheetBody'), head = ui('sheetTitle'), sub = ui('sheetSub'), fk = focusKeyOf(body), st0 = body ? body.scrollTop : 0;
     if (!c || !sys || !F()) { closeSheet(); return; }
     var gm = !isClient(), own = !!(c.ownerId && c.ownerId === myId());
     head.textContent = c.name;
@@ -747,6 +747,7 @@ function renderSheet() {
     // document appearance (1.5.0): the campaign default themes the sheet too. Reset first so turning it off restores the app style.
     applySheetLookTo(body, sheetLook(camp, sys));
     syncFramePad(body);   // the width (and the look's font) may have changed the sticky frame's height
+    if (body.scrollTop !== st0) body.scrollTop = st0;   // a redraw never moves the sheet: where it was read is where it stays
     restoreFocus(body, fk);
 }
 // The campaign default's background picture + readability scrim on a sheet body (same rendering as a page:
@@ -867,7 +868,7 @@ function renderHud(charId) {
     var v = huds[charId]; if (!v) return;
     var camp = getActiveCampaign(), full = systemOf(camp), c = charById(charId, camp);
     if (!c || !full || !F() || !canOpen(charId) || !hudHasContent(full)) { closeHud(charId); return; }   // the HUD removed, the feature off, the character gone or no longer theirs
-    var sys = hudView(full), fk = focusKeyOf(v.body), gm = !isClient(), own = !!(c.ownerId && c.ownerId === myId());
+    var sys = hudView(full), fk = focusKeyOf(v.body), stH = v.body.scrollTop, gm = !isClient(), own = !!(c.ownerId && c.ownerId === myId());
     v.name.textContent = c.name; v.sub.textContent = (full.sheet.hud.title || 'HUD') + (c.npc ? ' \u00b7 NPC' : '');
     v.panel.setAttribute('aria-label', 'HUD: ' + c.name);
     if (c.portrait) { v.por.src = imgSrc(c.portrait); v.por.style.display = ''; } else { v.por.removeAttribute('src'); v.por.style.display = 'none'; }
@@ -879,6 +880,7 @@ function renderHud(charId) {
     applySheetLookTo(v.body, sheetLook(camp, sys));
     syncFramePad(v.body);
     ['--sheet-accent', '--sheet-accent-ink'].forEach(function(k) { var a = v.body.style.getPropertyValue(k); if (a) v.panel.style.setProperty(k, a); else v.panel.style.removeProperty(k); });   // HF3: the foot (the body's sibling) wears the look's accent too (applyLook set a checked hex or nothing)
+    if (v.body.scrollTop !== stH) v.body.scrollTop = stH;   // as the sheet: a redraw never moves the HUD
     restoreFocus(v.body, fk);
     renderHudFoot(v);
     try { syncEndTurn(); } catch (e) {}   // turn-based combat T2: a HUD opened on its turn

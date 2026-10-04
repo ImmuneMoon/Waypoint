@@ -1772,6 +1772,9 @@
   #soundGate { position: fixed; left: 50%; top: 62px; transform: translateX(-50%); z-index: 100001; background: var(--panel2); border: 1px solid var(--gold); border-radius: 20px; padding: 6px 14px; font-size: 12.5px; color: var(--gold); box-shadow: var(--shadow); cursor: pointer; align-items: center; }
   body.stream-mode #soundGate { top: 48px; }
   /* Music (1.5.0): its own pill, panel, transport and gate, separate from Sound */
+  /* a feature this player switched off for themselves at this table: its icon stays, struck through, and its menu offers the way back */
+  #musicInd.off-mine, #soundInd.off-mine { opacity: .7; }
+  #musicInd.off-mine::after, #soundInd.off-mine::after { content: ''; position: absolute; left: 4px; right: 4px; top: 50%; height: 2px; margin-top: -1px; background: var(--red); border-radius: 1px; transform: rotate(-45deg); pointer-events: none; }
   #musicInd .ico circle { fill: currentColor; stroke: none; }   /* filled note-heads read cleanly at 16px; the stems/beam stay stroked */
   #musicInd .ico path { stroke-width: 1.7; }
   #musicInd.playing { color: var(--gold); }   /* playing: gold (idle inherits the same look as the other header icons; mute is shown in the popover, not by dimming). 'playing', not 'on' — 'on' triggers the toolbar's gold active background */

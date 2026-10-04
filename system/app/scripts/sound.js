@@ -395,11 +395,14 @@ function renderInd() {
     b.classList.toggle('playing', !!(st.ambient || st.cues) && !muted);
     b.classList.toggle('muted', muted || local === 0);
     b.classList.toggle('sound-off', !st.on);
+    var mine = !st.on && !!(window.wpVtt && typeof window.wpVtt.whyOff === 'function' && window.wpVtt.whyOff('sound') === 'local');   // off by this player's own switch: struck through, and its menu offers the way back
+    b.classList.toggle('off-mine', mine);
     b.classList.toggle('gate', !!gateShown);
-    b.title = !st.on ? 'Sound is off ' + (isClient() ? 'for you at this table' : 'for this campaign') : gateShown ? 'Click to enable sound at this table' : st.ambient ? 'Playing: ' + st.ambient.name + (muted ? ' (muted for you)' : '') : muted ? 'Sound muted for you' : 'Sound — your volume and mute' + (atTable ? '' : ' (nothing playing)');
+    b.title = !st.on ? (mine ? 'Sound is off for you at this table \u2014 click to turn it back on' : 'Sound is off ' + (isClient() ? 'for you at this table' : 'for this campaign')) : gateShown ? 'Click to enable sound at this table' : st.ambient ? 'Playing: ' + st.ambient.name + (muted ? ' (muted for you)' : '') : muted ? 'Sound muted for you' : 'Sound — your volume and mute' + (atTable ? '' : ' (nothing playing)');
     var pop = ui('soundPop'); if (!pop || pop.style.display === 'none') return;
     var vol = ui('soundVolume'); if (vol && document.activeElement !== vol) vol.value = Math.round(local * 100);
     var mu = ui('soundMuteChk'); if (mu) mu.checked = muted;
+    var onB = ui('soundOnBtn'); if (onB) onB.style.display = mine ? '' : 'none';
     var offRow = ui('soundOffRow'), offChk = ui('soundOffChk');
     if (offRow) { var client = isClient() && window.wpVtt && window.wpVtt.mode && window.wpVtt.mode() === 'client'; offRow.style.display = client ? '' : 'none'; if (offChk && client) { offChk.checked = !!window.wpVtt.localOff('sound'); offChk.disabled = !(window.wpVtt.ceiling() && window.wpVtt.ceiling().sound === true); } }
     var now = ui('soundNow'); if (now) now.textContent = st.ambient ? 'Playing: ' + st.ambient.name : (st.on ? 'Nothing playing' : 'Sound is off here');
@@ -410,6 +413,7 @@ function renderInd() {
     document.addEventListener('pointerdown', function(e) { if (pop.style.display !== 'none' && !e.target.closest('#soundPop') && !e.target.closest('#soundInd')) pop.style.display = 'none'; }, true);
     pop.addEventListener('input', function(e) { if (e.target.id === 'soundVolume') setLocalVolume(Number(e.target.value) / 100); });
     pop.addEventListener('change', function(e) { if (e.target.id === 'soundMuteChk') setMute(e.target.checked); else if (e.target.id === 'soundOffChk') { if (window.wpVtt) window.wpVtt.setLocal('sound', e.target.checked); refresh(); } });
+    pop.addEventListener('click', function(e) { if (e.target.id === 'soundOnBtn') { if (window.wpVtt) window.wpVtt.setLocal('sound', false); pop.style.display = 'none'; refresh(); } });
 })();
 
 /* ---------- the stream window (same machine as the GM: plays the ambient it is told about) ---------- */

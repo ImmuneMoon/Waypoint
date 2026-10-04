@@ -15,6 +15,7 @@ var LIMITS = Object.freeze({
     hours: 100, minutes: 1000, seconds: 1000,   // a day's hours, an hour's minutes, a minute's seconds
     leapEvery: 1000, leapDays: 100,     // a leap rule: every 2 to 1000 years, 1 to 100 days more
     notes: 500, noteChars: 400,         // item 20 K3: a clock's dated notes, and a note's text (code points, one line)
+    rates: Object.freeze([1, 2, 5, 10, 60]),   // 1.5.4: how fast a clock may run by itself, times real time (1 is the absent default)
     time: 1e15                          // world time, in seconds (about 31 million years of 24-hour days)
 });
 var DAY = Object.freeze({ hours: 24, minutes: 60, seconds: 60 });   // a day's shape when the calendar says nothing
@@ -150,6 +151,8 @@ function fmtSpan(cal, secs) {
 function cleanClock(v) {
     if (!isObj(v)) return null;
     var o = { t: clampT(v.t) }, seen = Object.create(null), ns = []; if (v.hide === true) o.hide = true;
+    if (v.hold === true) o.hold = true;   // 1.5.4, the running clock: only the GM's hold is stored (absent: it runs while a session is open)
+    if (typeof v.rate === 'number' && v.rate !== 1 && LIMITS.rates.indexOf(v.rate) >= 0) o.rate = v.rate;   // and only a speed other than real time
     (Array.isArray(v.notes) ? v.notes : []).forEach(function(n) {
         if (ns.length >= LIMITS.notes || !isObj(n) || typeof n.id !== 'string' || !NOTE_ID.test(n.id) || seen[n.id] === 1) return;
         var day = whole(n.day, 0, LIMITS.time), tx = cutName(n.text, LIMITS.noteChars); if (day === null || !tx) return;

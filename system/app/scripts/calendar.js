@@ -1,12 +1,12 @@
 /* Game calendar (1.5.0, backlog item 20) — the DOM half: the campaign's clock in the header (a chip with the date and time) and the
    Calendar window (the period in view as a grid of days by the week, the steps that move time on, a day and a time to set the clock
-   to, whether players see the date). World time lives on the campaign (camp.clock: { t, hide? }); the pure half (calendarcore.js)
+   to, whether players see the date). World time lives on the campaign (camp.clock: { t, hide?, hold?, rate? }); the pure half (calendarcore.js)
    turns it into a date by the system's calendar. Each round of a combat moves it on by the system's round length (net.js calls
    rounds()). A player's app shows the clock the host sends (net.js 'clock'), read-only, and a player may hide it for themselves (the
    Calendar feature's own per-player switch). Every text reaches the page as a text node or a value. Design of record:
    docs/CALENDAR_PLAN.md. */
 import { getActiveCampaign } from './models.js';
-import { save, toast } from './io.js';
+import { save, saveView, toast } from './io.js';
 import { roundSecs } from './systemcore.js';
 import { cleanCalendar, cleanClock, cleanAcc, ruleFires, dateOf, timeOf, periodDays, dayLength, fmtDate, fmtWhen, fmtSpan, CAL_LIMITS } from './calendarcore.js';
 
@@ -14,7 +14,7 @@ function net() { return window.wpNet || null; }
 function sysNow() { var sh = window.wpSheets; return sh && sh.systemOf ? sh.systemOf() : null; }
 // [sinkcheck:calendarwin-start]
 var restMode = false, pend = null, roundPend = 0;   // item 20 K5: time moved on as Rest (else Active), the time rules waiting for the GM's word, a fight's rounds not yet counted
-var view = null, pick = null, winSig = '', winCamp = '';   // the window's period in view ({ yi, period }, or { page } with no periods), the day picked (a day number from 0) or null, what it last drew and for which campaign
+var view = null, pick = null, winSig = '', winCamp = '', winBase = '', winDay = -1;   // the window's period in view ({ yi, period }, or { page } with no periods), the day picked (a day number from 0) or null, what it last drew and for which campaign
 function sysCal() { var s = sysNow(); return s && s.calendar ? s.calendar : null; }
 function isPlayer() { var n = net(); return !!(n && n.foreign); }
 function clockOn() { var n = net(); if (n && n.stream) return false; return !!(window.wpVtt && window.wpVtt.on('calendar')); }
@@ -69,7 +69,8 @@ function notesOf(ck) { return ck && Array.isArray(ck.notes) ? ck.notes : []; }
 function noteDays(notes) { var m = Object.create(null); notes.forEach(function(n) { m[n.day] = (m[n.day] || 0) + 1; }); return m; }
 function newNoteId() { var s = ''; while (s.length < 8) s += 'abcdefghijklmnopqrstuvwxyz0123456789'.charAt(Math.floor(Math.random() * 36)); return 'n_' + s; }
 function notesReached(notes, t0, t1, dl) { if (!(t1 > t0) || !(dl > 0)) return []; var d0 = Math.floor(t0 / dl), d1 = Math.floor(t1 / dl); return notes.filter(function(n) { return n.day > d0 && n.day <= d1; }); }
-function winSigOf(camp, ck, cal) { return camp.id + '|' + ck.t + '|' + (ck.hide ? 1 : 0) + '|' + JSON.stringify(notesOf(ck)) + '|' + JSON.stringify(cleanCalendar(cal)); }
+function winBaseOf(camp, ck, cal) { return camp.id + '|' + (ck.hide ? 1 : 0) + '|' + (ck.hold ? 1 : 0) + '|' + liveRate(ck) + '|' + (isPlayer() ? '' : liveHeld(camp)) + '|' + (pend ? 1 : 0) + '|' + JSON.stringify(notesOf(ck)) + '|' + JSON.stringify(cleanCalendar(cal)); }   // all the window shows but the time of day
+function winSigOf(camp, ck, cal) { return winBaseOf(camp, ck, cal) + '|' + ck.t; }
 // Item 20 K5 (the owner's answers of 2026-09-30): the time rules — rolls and apply actions that also run every so often by this clock. Rest adds
 // up per character and rule, activity breaks it (calendarcore ruleFires); the steps and any amount run them as Rest or Active, a Set forward
 // always asks (the GM's choice), a fight's rounds count as activity and are asked about when it ends. What is due waits in the window: players'
@@ -82,26 +83,30 @@ function tablePaused() { var n = net(); return !!(n && n.active && n.paused); }
 function isPc(ch) { return !!ch && ch.npc !== true && typeof ch.ownerId === 'string' && !!ch.ownerId; }
 function clockRules(sys) { return sys && Array.isArray(sys.rolls) ? sys.rolls.filter(function(r) { return r && r.every; }) : []; }
 function sysUnits(sys) { return sys && sys.combat && sys.combat.turn && Array.isArray(sys.combat.turn.units) ? sys.combat.turn.units : []; }
-function commitAcc(acc) {
+function commitAcc(acc, live) {   // live (1.5.4): the clock ran by itself — written quietly, and not at all when the counts did not move
     var camp = getActiveCampaign(); if (!camp || isPlayer()) return;
-    var ck = clockOf(camp) || { t: 0 }, nc = Object.assign({}, ck), a = cleanAcc(acc); if (a) nc.acc = a; else delete nc.acc; camp.clock = nc; save();
+    var ck = clockOf(camp) || { t: 0 }, nc = Object.assign({}, ck), a = cleanAcc(acc);
+    if (live === true && JSON.stringify(a) === JSON.stringify(ck.acc || null)) return;
+    if (a) nc.acc = a; else delete nc.acc; camp.clock = nc; if (live === true) saveView(); else save();
 }
-function timePassed(secs, rest, ask) {   // ask: always ask (a Set forward: the GM's choice)
+function timePassed(secs, rest, ask, live) {   // ask: always ask (a Set forward: the GM's choice); live (1.5.4): the clock ran by itself
     var camp = getActiveCampaign(), sys = sysNow(); if (!camp || isPlayer() || typeof secs !== 'number' || !(secs > 0) || !sys || timeMode(camp) === 'off' || tablePaused()) return false;
     var rules = clockRules(sys); if (!rules.length) return false;
     var ck = clockOf(camp) || { t: 0 }, res = ruleFires(sysCal(), sysUnits(sys), rules, camp.chars ? Object.keys(camp.chars) : [], ck.acc, secs, !!rest);
-    if (!res.fires.length) { commitAcc(res.acc); return false; }
+    if (!res.fires.length) { commitAcc(res.acc, live); return false; }
     var on = Object.create(null); res.fires.forEach(function(f) { on[f.c] = isPc(camp.chars[f.c]); });
     if (!ask && timeMode(camp) === 'auto') {   // K5b: Automatic — players' characters' rules run now, the counts kept
         var go = res.fires.filter(function(f) { return on[f.c] === true; });
-        if (go.length && window.wpSheets && window.wpSheets.runTimeRules) window.wpSheets.runTimeRules(go, fmtSpan(sysCal(), secs) + (rest ? ' of rest' : ' of activity'));
-        commitAcc(res.acc); return false;
+        if (go.length && window.wpSheets && window.wpSheets.runTimeRules) window.wpSheets.runTimeRules(go, spanWords(sysCal(), secs, rest, live));
+        commitAcc(res.acc, live); return false;
     }
-    pend = { secs: secs, rest: !!rest, fires: res.fires, acc: res.acc, on: on, camp: camp.id };
+    pend = { secs: secs, rest: !!rest, fires: res.fires, acc: res.acc, on: on, camp: camp.id }; if (live === true) pend.live = true;
+    if (live === true && !winOpen()) { refresh(); toast('Time rules are due: click the date in the header to apply or skip them.'); return true; }   // never a window opened under the GM's hands
     if (!winOpen()) openWin(); else renderWin();
     return true;
 }
-function pendWords(cal) { return pend ? fmtSpan(cal, pend.secs) + (pend.rest ? ' of rest' : ' of activity') : ''; }
+function spanWords(cal, secs, rest, live) { return live === true ? 'The clock ran' : fmtSpan(cal, secs) + (rest ? ' of rest' : ' of activity'); }   // what a summary is headed with (1.5.4: the running clock is no stretch the GM chose)
+function pendWords(cal) { return pend ? (pend.live === true ? 'as the clock ran' : spanWords(cal, pend.secs, pend.rest)) : ''; }
 function pendPanel(body, cal) {
     var box = cel('div', 'cal-pend'), camp = getActiveCampaign(), sys = sysNow(), byC = Object.create(null), order = [];
     box.appendChild(cel('div', 'cal-pend-head', 'Time rules due \u2014 ' + pendWords(cal)));
@@ -122,8 +127,10 @@ function pendDone(apply) {
     if (!pend) return false;
     var p = pend, cal = sysCal(); pend = null;
     var camp = getActiveCampaign(); if (!camp || camp.id !== p.camp) { renderWin(); return false; }
-    if (apply) { var go = p.fires.filter(function(f) { return p.on[f.c] === true; }); if (go.length && window.wpSheets && window.wpSheets.runTimeRules) window.wpSheets.runTimeRules(go, fmtSpan(cal, p.secs) + (p.rest ? ' of rest' : ' of activity')); }
-    commitAcc(p.acc); renderWin(); return true;
+    if (apply) { var go = p.fires.filter(function(f) { return p.on[f.c] === true; }); if (go.length && window.wpSheets && window.wpSheets.runTimeRules) window.wpSheets.runTimeRules(go, spanWords(cal, p.secs, p.rest, p.live)); }
+    commitAcc(p.acc);
+    if (livePend > 0) { var lp = livePend; livePend = 0; timePassed(lp, false, false, true); }   // 1.5.4: the time that passed while this list waited (the clock running, a fight's rounds)
+    renderWin(); refresh(); return true;
 }
 function comingUp(body, cal, notes, today, gm) {   // the next five notes from today on (a player's app holds only those it may see)
     var next = notes.filter(function(n) { return n.day >= today; }).slice(0, 5); if (!next.length) return;
@@ -158,10 +165,11 @@ function renderWin() {
     var cal = sysCal(), ck = clockOf(camp) || { t: 0 }, t = ck.t, gm = !isPlayer(), sys = sysNow(), dl = dayLength(cal), now = dateOf(cal, t);
     if (camp.id !== winCamp) { view = null; pick = null; winCamp = camp.id; if (pend && pend.camp !== camp.id) pend = null; }   // another campaign on screen: its own calendar, from the clock
     if (!view) view = viewOf(cal, t);
-    winSig = winSigOf(camp, ck, cal);
+    winSig = winSigOf(camp, ck, cal); winBase = winBaseOf(camp, ck, cal); winDay = Math.floor(t / dl);
     body.textContent = '';
     body.appendChild(cel('div', 'cal-now', fmtWhen(cal, t, now.s !== 0)));
     if (gm && pend) pendPanel(body, cal);   // K5: what the time rules have due, first
+    if (gm) liveRow(body, camp, ck);   // 1.5.4: the clock runs by itself, or is held
     var notes = notesOf(ck), g = gridOf(cal, view, t, pick, noteDays(notes)), nav = cel('div', 'cal-nav');
     nav.appendChild(cbtn('cal-prev', '\u25c0', 'The period before', 'calprev')); nav.appendChild(cel('span', 'cal-title', g.title)); nav.appendChild(cbtn('cal-next', '\u25b6', 'The period after', 'calnext'));
     nav.appendChild(cbtn('cal-back', 'Today', 'Back to the period the clock is in', 'caltoday'));
@@ -203,9 +211,85 @@ function renderWin() {
     hl.appendChild(hc); hl.appendChild(document.createTextNode(' Players see the date')); body.appendChild(hl);
     body.appendChild(cel('div', 'sys-note cal-round', 'Each round of a combat moves the clock on ' + fmtSpan(cal, roundSecs(sys)) + ' (the round\u2019s length: the Combat card\u2019s Turns box).'));
 }
+// The running clock (1.5.4; the owner, 2026-10-04: "id like it to run by default", and by prompt: while a session is open, held in a fight —
+// rounds move it — and "both real time and a speed i can set should be available, real time by default"). On the GM's machine, while it
+// hosts a table, game time moves on with real time times the campaign's speed (camp.clock.rate: stored only when it is not 1), a whole game
+// minute at a time, kept on whole minutes. It waits while the table is paused, while a fight runs on any map (each round moves the clock, as
+// ever), and while the GM holds it (camp.clock.hold: only the hold is stored, so a campaign that never touched it runs). Two looks more than
+// two minutes apart (the machine slept) count as two minutes. A minute that passes is no change of the GM's own hand: no log line, no undo
+// pass and no stamp on the map — the table is told (net.syncClock), timed effects run, a dated note reached is said, and the file is written
+// by the quiet save a moved view uses (io.js saveView). To the time rules it is Active time: Run at once runs them as it passes; Ask me
+// counts it and, when a rule comes due, marks the chip and says so once, never opening the window under the GM's hands
+// [calendarcheck:live-start]
+var LIVE_GAP = 120000, LIVE_EVERY = 5000, liveAt = 0, liveMs = 0, liveBankAt = 0, livePend = 0, liveWas = null, liveSaid = false;
+function liveRate(ck) { return ck && typeof ck.rate === 'number' && CAL_LIMITS.rates.indexOf(ck.rate) > 0 ? ck.rate : 1; }
+function liveHeld(camp) {   // '' while the clock runs by itself, else why it does not: off, hold, solo, paused, fight
+    var n = net(), ck = clockOf(camp);
+    if (!camp || isPlayer() || !clockOn()) return 'off';   // clockOn: the Calendar is on, and this is not the stream window
+    if (ck && ck.hold === true) return 'hold';
+    if (!(n && n.active && n.role === 'host')) return 'solo';
+    if (n.paused) return 'paused';
+    if (n.combats && typeof n.combats === 'object' && Object.keys(n.combats).some(function(k) { return !!n.combats[k]; })) return 'fight';
+    return '';
+}
+function liveWords(why, rate) {
+    if (why === '') return rate === 1 ? 'Running in real time while your table is open.' : 'Running at \u00d7' + rate + ' while your table is open: ' + rate + ' seconds of the game to each second at the table.';
+    if (why === 'hold') return 'Held: the clock moves only by your steps and by a fight\u2019s rounds.';
+    if (why === 'solo') return 'It runs by itself while you host a session: no table is open now.';
+    if (why === 'paused') return 'Waiting: the table is paused.';
+    if (why === 'fight') return 'Waiting: a fight is on, and each round moves the clock.';
+    return '';
+}
+function liveRow(body, camp, ck) {   // the GM's window: Runs / Held, the speed, and what the clock is doing now
+    var held = ck.hold === true, rate = liveRate(ck), row = cel('div', 'cal-live');
+    row.appendChild(cel('span', 'sys-num-cap', 'The clock'));
+    [['run', '\u25b6 Runs', 'The clock runs by itself while a session is open: it waits while the table is paused and while a fight is on'], ['hold', '\u23f8 Held', 'The clock moves only by your steps and by a fight\u2019s rounds']].forEach(function(k) {
+        var b = cbtn('cal-live-btn' + ((k[0] === 'hold') === held ? ' cal-kind-on' : ''), k[1], k[2], 'callive'); b.dataset.live = k[0]; row.appendChild(b);
+    });
+    var sel = cel('select', 'field cal-live-rate'); sel.title = 'How fast the clock runs by itself';
+    CAL_LIMITS.rates.forEach(function(r) { var o = cel('option', '', r === 1 ? 'Real time' : '\u00d7' + r); o.value = String(r); sel.appendChild(o); });
+    sel.value = String(rate); row.appendChild(sel);
+    body.appendChild(row);
+    body.appendChild(cel('div', 'sys-note cal-live-note', liveWords(liveHeld(camp), rate)));
+}
+function setHold(hold) {
+    var camp = getActiveCampaign(); if (!camp || isPlayer()) return false;
+    var ck = clockOf(camp) || { t: 0 }; if ((ck.hold === true) === (hold === true)) return false;
+    var nc = Object.assign({}, ck); if (hold === true) nc.hold = true; else delete nc.hold; camp.clock = nc;
+    liveAt = 0; liveMs = 0;
+    if (net() && net().logEvent) net().logEvent('time', hold === true ? 'The clock is held' : 'The clock runs by itself again');
+    save(); refresh(); return true;
+}
+function setRate(r) {
+    var camp = getActiveCampaign(); if (!camp || isPlayer() || CAL_LIMITS.rates.indexOf(r) < 0) return false;
+    var ck = clockOf(camp) || { t: 0 }; if (liveRate(ck) === r) return false;
+    var nc = Object.assign({}, ck); if (r === 1) delete nc.rate; else nc.rate = r; camp.clock = nc;
+    save(); refresh(); return true;
+}
+function liveRules(secs) {   // live time is Active time (timePassed: run at once under Run at once, counted and asked about under Ask me, nothing under Off)
+    livePend += secs; if (pend) return;   // a list waits for the GM's word: the time since is counted once they have answered
+    var s = livePend; livePend = 0; timePassed(s, false, false, true);
+}
+function liveTick(now) {   // one look at the wall clock, about once a second on the GM's machine
+    var camp = getActiveCampaign(), why = liveHeld(camp);
+    if (why !== liveWas) { liveWas = why; refresh(); }   // the chip's mark and an open window say what the clock is doing
+    if (why) { liveAt = 0; return false; }
+    if (!liveAt) { liveAt = now; return false; }
+    var dt = now - liveAt; liveAt = now; if (!(dt > 0)) return false;
+    var ck = clockOf(camp) || { t: 0 }, S = (cleanCalendar(sysCal()) || {}).seconds || 60;
+    liveMs += Math.min(dt, LIVE_GAP) * liveRate(ck);
+    if (liveBankAt && now - liveBankAt < LIVE_EVERY) return false;   // at a fast speed: at most one move in five seconds
+    var off = ck.t % S, mins = Math.floor((liveMs / 1000 + off) / S); if (mins < 1) return false;
+    var secs = mins * S - off; liveMs -= secs * 1000; liveBankAt = now;
+    if (!moveTo(ck.t + secs, null, true)) return false;
+    if (!liveSaid) { liveSaid = true; toast('The game clock runs by itself while your table is open. Click the date in the header to hold it or change its speed.'); }
+    liveRules(secs);
+    return true;
+}
+// [calendarcheck:live-end]
 // The GM moves the clock to a moment (clamped to the calendar's range): saved, sent to the table with the save, and said in the
 // session log unless it came from a combat round
-function moveTo(t1, why) {
+function moveTo(t1, why, live) {   // live (1.5.4): the clock ran by itself — the table is told and the file written quietly, with no save of the GM's own
     var camp = getActiveCampaign(); if (!camp || isPlayer() || typeof t1 !== 'number' || !isFinite(t1)) return false;
     var ck = clockOf(camp) || { t: 0 }, cal = sysCal(); t1 = Math.max(0, Math.min(CAL_LIMITS.time, Math.floor(t1)));
     if (t1 === ck.t) return false;
@@ -215,7 +299,8 @@ function moveTo(t1, why) {
     if (why && net() && net().logEvent) net().logEvent('time', why + ' \u2014 now ' + fmtWhen(cal, t1));
     hits.forEach(function(n) { if (net() && net().logEvent) net().logEvent('time', 'Note reached \u2014 ' + fmtDate(cal, n.day * dayLength(cal)) + ': ' + n.text); });
     if (hits.length) toast(hits.length === 1 ? 'Today: ' + hits[0].text : hits.length + ' dated notes reached: ' + hits.slice(0, 3).map(function(n) { return n.text; }).join('; ') + (hits.length > 3 ? '; \u2026' : ''));
-    save(); refresh(); return true;
+    if (live === true) { if (net() && net().syncClock) net().syncClock(); saveView(); } else save();
+    refresh(live === true); return true;
 }
 // K3: the GM's edits to the notes — cleaned as a load reads them, saved, the window redrawn
 function editNotes(fn) {
@@ -248,6 +333,7 @@ function onWinClick(e) {
     if (isPlayer()) { if (act === 'calhideme' && window.wpVtt && window.wpVtt.setLocal('calendar', true)) { closeWin(); toast('The clock is hidden for you. Settings \u25b8 VTT features brings it back.'); } return; }
     var body = document.getElementById('calendarBody'), q = function(c) { return body ? body.querySelector('.' + c) : null; };
     if (act === 'calkind') { restMode = b.dataset.kind === 'rest'; renderWin(); return; }   // K5
+    if (act === 'callive') { setHold(b.dataset.live === 'hold'); return; }   // 1.5.4: Runs / Held
     if (act === 'calpendapply') { pendDone(true); return; }
     if (act === 'calpendskip') { pendDone(false); return; }
     if (pend && (act === 'calstep' || act === 'calany' || act === 'calset')) { toast('Apply or skip the time rules first.'); return; }
@@ -268,6 +354,7 @@ function onWinClick(e) {
 function onWinChange(e) {
     var tg = e.target; if (!tg || !tg.classList) return;
     if (tg.classList.contains('cal-hide')) setHidden(tg.checked !== true);
+    else if (tg.classList.contains('cal-live-rate')) { if (!isPlayer()) setRate(Number(tg.value)); }   // 1.5.4: the running clock's speed
     else if (tg.classList.contains('cal-note-vis') && tg.dataset) noteVis(tg.dataset.note, tg.checked === true);   // K3
     else if (tg.classList.contains('cal-pend-tick') && tg.dataset && pend && typeof tg.dataset.char === 'string' && Object.prototype.hasOwnProperty.call(pend.on, tg.dataset.char)) pend.on[tg.dataset.char] = tg.checked === true;   // K5
 }
@@ -277,15 +364,23 @@ function closeWin() { var m = document.getElementById('calendarModal'); if (m) m
 function winOpen() { var m = document.getElementById('calendarModal'); return !!m && m.style.display !== 'none'; }
 // The header's chip (every render): the date and time, for the GM with a mark while players do not see it; the open window redrawn
 // only when what it shows changed (a render never takes a half-typed amount away)
-function refresh() {
+function refresh(live) {   // live (1.5.4): the clock ran by itself, or a host's word of it arrived
     var chip = document.getElementById('clockChip'); if (!chip) return;
     var camp = getActiveCampaign(), on = shown(camp); chip.style.display = on ? '' : 'none';
     if (!on) { if (winOpen()) closeWin(); return; }
     var cal = sysCal(), ck = clockOf(camp) || { t: 0 }, txt = chip.querySelector('.clock-txt'), words = fmtWhen(cal, ck.t);
     if (txt && txt.textContent !== words) txt.textContent = words;
     var off = !isPlayer() && !!ck.hide; chip.classList.toggle('clock-private', off);
-    chip.title = isPlayer() ? 'The date and time at this table \u2014 click for the calendar' : 'The campaign\u2019s date and time' + (off ? ' (players do not see it)' : '') + ' \u2014 click for the calendar';
-    if (winOpen() && winSig !== winSigOf(camp, ck, cal)) renderWin();
+    var why = isPlayer() ? 'off' : liveHeld(camp), run = chip.querySelector('.clock-run'), mark = why === '' ? '\u25b6' : why === 'hold' || why === 'paused' || why === 'fight' ? '\u23f8' : '';   // 1.5.4: the GM sees whether the clock is running
+    if (run && run.textContent !== mark) run.textContent = mark;
+    chip.classList.toggle('clock-due', !isPlayer() && !!pend);   // time rules wait for the GM's word
+    var tip = isPlayer() ? 'The date and time at this table \u2014 click for the calendar' : 'The campaign\u2019s date and time' + (off ? ' (players do not see it)' : '') + (why === '' ? ', running' : why === 'hold' ? ', held' : why === 'paused' || why === 'fight' ? ', waiting' : '') + (pend ? ' \u2014 time rules are due' : '') + ' \u2014 click for the calendar';
+    if (!(chip.dataset && chip.dataset.tip === tip) && chip.title !== tip) chip.title = tip;   // tooltips.js moves a title into data-tip: never written back while it says the same
+    if (!winOpen()) return;
+    var sig = winSigOf(camp, ck, cal); if (winSig === sig) return;
+    var body = document.getElementById('calendarBody'), nl = (live === true || isPlayer()) && body && winBase === winBaseOf(camp, ck, cal) && Math.floor(ck.t / dayLength(cal)) === winDay ? body.querySelector('.cal-now') : null;
+    if (nl) { winSig = sig; nl.textContent = fmtWhen(cal, ck.t, dateOf(cal, ck.t).s !== 0); }   // the clock ran on within the day: its line alone, so a half-typed note or amount stays
+    else renderWin();
 }
 // Item 20 K2 (the Foundry model: a round moves world time on by the round's length): n rounds of a combat on the GM's side, forward or back
 function rounds(n) {
@@ -294,10 +389,11 @@ function rounds(n) {
     if (ok && s > 0) { var cmp = getActiveCampaign(); if (timeMode(cmp) === 'auto') timePassed(s, false); else if (timeMode(cmp) !== 'off' && !tablePaused()) roundPend += s; }   // K5 (the owner's answer): a fight's rounds count as activity — run as they pass when Automatic, else asked about when it ends
     return ok;
 }
-function fightEnded() { if (isPlayer() || !(roundPend > 0)) { roundPend = 0; return false; } var s = roundPend; roundPend = 0; return timePassed(s, false); }
+function fightEnded() { if (isPlayer() || !(roundPend > 0)) { roundPend = 0; return false; } var s = roundPend; roundPend = 0; if (pend) { livePend += s; return false; } return timePassed(s, false); }   // 1.5.4: a list already waiting is never written over — the rounds are counted once it is answered
 (function wire() {
     var chip = document.getElementById('clockChip'); if (chip) chip.addEventListener('click', openWin);
     var m = document.getElementById('calendarModal'); if (m) { m.addEventListener('click', onWinClick); m.addEventListener('change', onWinChange); m.addEventListener('mousedown', function(e) { if (e.target === m) closeWin(); }); }
+    if (typeof setInterval === 'function') setInterval(function() { try { liveTick(Date.now()); } catch (e) {} }, 1000);   // 1.5.4: the running clock's look at the wall clock
 })();
 
 window.wpCalendar = { refresh: refresh, rounds: rounds, fightEnded: fightEnded, open: openWin, close: closeWin, moveTo: moveTo };

@@ -650,11 +650,15 @@ function closeSettingsForTour() {
     _vttGroupWas = null;
 }
 function openItem(id) { var camp = getActiveCampaign(); if (!camp || !camp.items[id]) return; if (camp.items[id].type === 'map') navigateToMap(id); else { camp.activeItemId = id; state.selId = null; state.selWbId = null; state.selWbIds = []; updateSidebarNav(); render(); } }
+// The Properties step spotlights the right panel: unfold it when it is folded away, and fold it again when the tour moves on or ends.
+var _rightWasFolded = false;
+function openRightForTour() { var sb = document.getElementById('sidebar'), t = document.getElementById('toggleRightBtn'); if (sb && t && sb.classList.contains('collapsed')) { t.click(); _rightWasFolded = true; } }
+function closeRightForTour() { if (!_rightWasFolded) return; _rightWasFolded = false; var sb = document.getElementById('sidebar'), t = document.getElementById('toggleRightBtn'); if (sb && t && !sb.classList.contains('collapsed')) t.click(); }
 function openLeft() { var sb = document.getElementById('campaignSidebar'); if (sb && sb.classList.contains('collapsed')) { var t = document.getElementById('toggleLeftBtn'); if (t) t.click(); } }
 
 var STEPS = [
     { section: 'Getting started', target: null, title: 'Welcome to Waypoint',
-      html: 'This tour uses a small campaign called <b>Tutorial</b> that was just added to your save: an elven realm with a city (throne room, temple, forge, inn), a hill road, a three-floor raiders\' hideout, an old fort, and a session plan \u2014 hex and square grids and no grid at all, drawn maps and maps built from shapes. It is a real campaign \u2014 <b>keep it and build on it</b>, or discard it at the end (or any time from Help \u2192 Tutorial). Use <b>Next</b> and <b>Back</b>; <b>Esc</b> leaves the tour.',
+      html: 'This tour uses a small campaign called <b>Tutorial</b> that was just added to your save: an elven realm with a city (throne room, temple, forge, inn), a hill road, a three-floor raiders\' hideout, an old fort, and a session plan \u2014 hex and square grids and no grid at all, drawn maps and maps built from shapes. It is a real campaign \u2014 <b>keep it and build on it</b>, or discard it at the end (or any time from Help \u2192 Tutorial). Use <b>Next</b> and <b>Back</b>. The app is held still while a card is up: <b>Try it yourself</b> puts the card away so you can use what it describes, and <b>Resume tour</b> brings the step back. <b>Esc</b> asks before it ends the tour, and your place is kept.',
       before: function() { ensureTutorialCampaign(false); openLeft(); openItem('map_tut_realm'); goView('data'); } },
     { target: '#campaignSelect', title: 'Campaigns',
       html: 'Everything belongs to a campaign. This picker switches between them; the buttons beside it add, rename, search and delete campaigns. Your own campaigns are untouched by the tutorial. The <b>Waypoint</b> logo (top-left) opens the <b>Welcome</b> screen &mdash; start, import or continue a campaign, or <b>Join a game</b> (which opens its own screen for your name, color, picture (framed first: drag and zoom to the part that shows) and token face &mdash; what your token shows until your GM gives you a character &mdash; plus the GM&rsquo;s room code, and shows the connection); set your profile any time in <b>Settings &#9656; Profile</b>, and choose when the screen appears there too.' },
@@ -664,13 +668,14 @@ var STEPS = [
       html: 'The <b>Data Map</b> is the node view for your notes and connections; the <b>Play Map</b> is the battle map with tokens. This switch flips between them, and each map remembers which face you left it on.',
       before: function() { openItem('map_tut_city'); goView('data'); } },
     { section: 'The data map', target: '#dataFloatingToolbar', title: 'Data map tools',
-      html: '<b>Add Room</b> drops a node. <b>\u2194 Link Mode</b> connects two rooms \u2014 pick the line type first: a solid <b>path</b>, a dashed <b>route</b>, a dotted <b>secret</b> way or a <b>one-way</b> arrow. Hover a line and a small chip appears at its middle (a labelled line keeps its chip). Click the line or the chip to open it in <b>Properties</b>: a label that is drawn on the line (players see it), GM-only notes about the journey (never sent), the type, a swap for the direction, and Remove. <kbd>Delete</kbd> removes the selected link; right-click the chip for a quick type menu. Eldara\'s lines are already labelled \u2014 one of each type.' },
+      html: '<b>Add Room</b> drops a node. <b>\u2194 Link Mode</b> connects two rooms \u2014 pick the line type first: a solid <b>path</b>, a dashed <b>route</b>, a dotted <b>secret</b> way or a <b>one-way</b> arrow. Hover over a line and a small chip appears at its middle (a labelled line keeps its chip). Click the line or the chip to open it in <b>Properties</b>: a label that is drawn on the line (players see it), GM-only notes about the journey (never sent), the type, a swap for the direction, and Remove. <kbd>Delete</kbd> removes the selected link; right-click the chip for a quick type menu. Eldara\'s lines are already labelled \u2014 one of each type.',
+      before: function() { openItem('map_tut_city'); goView('data'); } },
     { target: '#canvasWrap', title: 'Rooms and portals',
       html: 'Drag rooms around; click one to edit it on the right. The <b>Palace</b> carries a scene image and a king with a portrait; hover its shape on the Play Map to see both. <b>The Inn</b> carries a door icon because it is a <b>portal</b>: double-click it to travel into the inn\'s battle map, and use the breadcrumb at the top to climb back out. In multiplayer, players travel by dropping their token on a portal. To keep players from travelling there are three locks: right-click a portal on the Play Map for <b>Lock portal for players</b> (that one portal: players see a small lock on it and are refused until you pick <b>Unlock portal</b>; it is also the <b>Locked for players</b> tick in the portal&rsquo;s Properties), right-click a map in the Maps list for <b>Lock for players</b> (closed both ways: no player arrives on that map, and none who is on it leaves through a portal), and <b>Lock Travel Between Maps</b> in the Multiplayer panel (no player travels at all). A summon and Bring still move players under all three, and dropping a player&rsquo;s token on a portal you locked still sends them through. Hide a portal and it goes inert; tick <b>Trap</b> in its Properties to arm a hidden tile that still teleports whoever steps on it (you see a red ⚠️ on it).',
       before: function() { openItem('map_tut_city'); goView('data'); } },
     { target: '#sidebar', title: 'The Properties panel',
       html: 'Whatever you select is edited here: a room\'s name, category color, scene image, GM-only notes and the characters found there, each with a portrait. Room notes and character info are <b>never sent to players</b>. The panel opens with a selection and closes when it clears; the arrow on its edge toggles it by hand.',
-      before: function() { openItem('map_tut_city'); goView('data'); state.selId = 'tut_palace'; render(); if (window.wpSyncRightPanel) window.wpSyncRightPanel(); } },
+      before: function() { openItem('map_tut_city'); goView('data'); state.selId = 'tut_palace'; render(); if (window.wpSyncRightPanel) window.wpSyncRightPanel(); openRightForTour(); } },
     { section: 'Play map & VTT features', target: '#wbFloatingToolbar', title: 'Play map tools',
       html: 'Now inside the hideout, on its ground floor Play Map. Left to right: centre, <b>undo and redo for this map</b> (every map and planner keeps its own history — <kbd>Ctrl</kbd>+<kbd>Z</kbd> takes back the last edit on the one you are looking at, never a pan, a click or another map), then <b>grid</b> (square, hex or none \u2014 each map remembers its own) and <b>snap</b>, then the tools \u2014 move, pan, draw, erase, <b>fill</b> (&#129699; color grid cells beneath the tokens; turn on <b>Flood-fill inside lines</b> in its menu and one click fills the whole area your pen strokes enclose &mdash; grid cells on a grid, or a smooth freeform shape with the grid off; tick <b>Difficult terrain</b> there, with its cost, and the cells you paint cost that many times as much to move into &mdash; a shape takes the same mark in its Properties; a turn&rsquo;s move counts them at their cost and the ruler shows a move&rsquo;s <b>Move cost</b>), <b>measure</b> (rulers; between two tokens at different heights it also prints the 3D figure, and with your system&rsquo;s range penalty the modifier) and <b>blast</b> (click a cell to drop a grenade radius: tokens in range light up with their distance, height included; drag a blast to move it, right-click it to remove it), then text, shapes, images and the picture library, <b>Import Character</b> for a shadow-base.com sheet, and &#127925; <b>Sound</b> (next). <i>The blast button is a quick ad-hoc radius; explosives are the campaign\u2019s own items, thrown from a character\u2019s sheet.</i> <b>Framing &amp; panning:</b> the &#127919; centre button includes <b>Fit to Content</b> (<kbd>Shift</kbd>+<kbd>1</kbd>) to zoom-and-pan the whole map into view &mdash; or just your selection when something is selected; hold <kbd>Space</kbd> and drag to pan from any tool, and middle-drag or the hand tool pan too.',
       before: function() { openItem('map_tut_ground'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); } },
@@ -717,7 +722,7 @@ var STEPS = [
       html: 'Pictures and text to show your players \u2014 a letter, a face, a place. The Tutorial campaign has two ready: <b>Grukk\'s ledger</b> and <b>The hideout</b>. In a session you show one to everyone or to one player, and it lands in their <b>Journal</b> (the book icon beside this), where they keep notes on it and can share it with the party. A room can carry a handout that arrives when a player reaches it. A web address in a handout&rsquo;s text or caption is a link where it is read; on a player&rsquo;s screen a click on it asks first and shows where it leads.' },
     { section: 'Sharing & finding', target: '#saveAsBtn', title: 'Export and import',
       html: 'Share or back up at any scope: this map or planner, all maps, all play maps, all planners, this campaign, or everything. Exports that use pictures arrive as a <b>.zip</b> with the pictures bundled; <b>Import</b> takes those zips or plain .json and <b>merges by id</b> or replaces. It also takes a <b>Markdown</b> file (or a zip of one with its pictures) and turns it into a planner or a handbook page through a preview, and any planner or page saves back as Markdown from this menu. Merging is how another author hands you a module without touching the rest of your campaign.' },
-    { target: '#searchMapsSidebarBtn', title: 'Finding things',
+    { target: '#mapNavList', title: 'Finding things',
       html: 'Right-click <b>Planners</b> or <b>Maps</b> for a search that filters its list. <kbd>Ctrl</kbd> + <kbd>K</kbd> is faster: type any map, planner or room name from any campaign and press Enter to go straight there. The <b>Recent</b> chips above the Maps tree remember where you have been, and a pinned map (right-click the play map) stays at the top.' },
     { section: 'Character system', target: '#systemBtn', title: 'The system',
       html: 'Your game&rsquo;s rules, with no code: the <b>System</b> editor holds the campaign&rsquo;s <b>fields</b> &mdash; attributes with defaults and ranges (a ranged number can show as a <b>slider</b> on a two-colour track, for an alignment), formulas computed from them (<code>floor((STR - 10) / 2)</code>), resources with a formula for their max (HP), skills as ranks plus a base, toggles for conditions, text, notes and selects &mdash; and its <b>rolls</b> (<code>d20 + STRmod</code>), or <b>apply</b> buttons that move pools and numbers by an amount (<b>Apply costs</b>: FP &minus; 3; <b>Apply wounds</b>: HP &minus; Injury), or by themselves each round of a combat or at a character&rsquo;s turn (automatically, or as a reminder to press), and a roll can make changes after it lands (<b>On success</b>: Hits + 1), and malfunction at its <b>Malf</b>. With the Calendar on, a roll or an apply action can also run <b>by the clock</b> (every day of rest: an HT roll that heals). Errors show under the field as you type, with a caret; <b>Start from&hellip;</b> gives you Basic d20 or Basic 3d6 to edit; Export and Import move a system between campaigns. Its <b>Calendar</b> tab is the calendar your game keeps: months and festival weeks, the week, the day&rsquo;s hours, how years are numbered (counting down, if yours do) and leap years. Players get every field you leave visible; GM-only fields never leave your machine. The <b>Layout</b> tab <b>designs the sheet</b> (next); the <b>Characters</b> tab holds the campaign&rsquo;s characters; a token points at one through its Properties, and right-click &#9656; <b>Sheet&hellip;</b> opens the sheet over the play map &mdash; yours for any character, a player&rsquo;s for their own, where they fill in what you left editable.',
@@ -741,7 +746,7 @@ var STEPS = [
       html: 'The <b>Effects</b> tab is a library of <b>status effects</b>, each with the numbers it changes (+2 ST, HP max +5) or a toggle it switches on (Prone). On a sheet a <b>Status effects</b> field carries them: add one in a click from the library, or make one on the spot with <b>New&hellip;</b>. The change reaches every formula built on that field &mdash; Poisoned&rsquo;s &minus;2 STR moves the STR modifier and every roll that uses it &mdash; and the sheet shows where each number came from. An effect that is on shows as a small icon on its character&rsquo;s token, for everyone who sees the token; a GM-only effect only for you. Right-click a token &#9656; <b>Effects&hellip;</b> to add or end one from the map, even on a token with no sheet. An effect with <b>Applies itself when</b> (<code>HP &lt;= 0</code>) turns itself on while that is true, marked <b>Automatic</b>.',
       before: function() { var camp = tutorialCampaign(); if (camp && ensureTutorialSheet(camp)) save(true); if (window.wpSheets) { window.wpSheets.closeSheet(); window.wpSheets.open('effects'); } } },
     { target: '#sheetPanel', title: 'A character sheet',
-      html: 'Bren&rsquo;s sheet, over the play map. Characters live in the editor&rsquo;s <b>Characters</b> tab and any token can point at one (right-click a token &#9656; <b>Sheet&hellip;</b>): numbers and skills with their totals, HP as a bar with &minus; and +, conditions, notes &mdash; the <b>header block</b> under the name says who Bren is (Fighter, his STR modifier, Sight) and the <b>band</b> keeps HP, AC, Prone and Initiative in reach on every tab &mdash; and the roll buttons roll at the table with the sheet&rsquo;s values. Drag its head to move it and its bottom-right corner to resize it; both are remembered. Text, select, number and yes/no rows under the name are changed right there by whoever may edit them, so a field is never on the sheet twice. Bren is <b>Blessed</b>: the &#9650; beside his Sword total is the effect &mdash; hover it for the source. A player opens their own the same way and edits what you left editable; fields marked <b>Hover</b> show on the hover card and in the party strip. Bren&rsquo;s <b>Kit</b> holds a <b>Firepot</b> with a &#128165; <b>Throw</b> &mdash; press it, then click the map. Rows show their stats and what was paid. On a list shaped in Lists, <b>&#9998;</b> opens a copy&rsquo;s own values: an empty box follows the library (its value shows faintly), a value you type is this copy&rsquo;s own (a dot marks it), <b>&#8634;</b> takes one back and <b>Follow the library</b> all of them; a copy can have its own removal and switch-off lock. Saving an item a character carries says how far it reaches. <b>+ Custom&hellip;</b> in a list&rsquo;s picker adds a row of your own &mdash; a name, an icon, a category, notes, stats and a key formulas read it by &mdash; and its &#9998; changes it. The <b>download</b> arrow in the sheet&rsquo;s head saves it as a character file (.json) or a readable page (.md), or prints it exactly as it shows (every tab in turn); a player&rsquo;s holds only what their sheet shows them.',
+      html: 'Bren&rsquo;s sheet, over the play map. Characters live in the editor&rsquo;s <b>Characters</b> tab and any token can point at one (select the token and press <b>&#128203;</b> on its toolbar, or right-click it &#9656; <b>Sheet&hellip;</b>): numbers and skills with their totals, HP as a bar with &minus; and +, conditions, notes &mdash; the <b>header block</b> under the name says who Bren is (Fighter, his STR modifier, Sight) and the <b>band</b> keeps HP, AC, Prone and Initiative in reach on every tab &mdash; and the roll buttons roll at the table with the sheet&rsquo;s values. Drag its head to move it and its bottom-right corner to resize it; both are remembered. Text, select, number and yes/no rows under the name are changed right there by whoever may edit them, so a field is never on the sheet twice. Bren is <b>Blessed</b>: the &#9650; beside his Sword total is the effect &mdash; hover it for the source. A player opens their own the same way and edits what you left editable; fields marked <b>Hover</b> show on the hover card and in the party strip. Bren&rsquo;s <b>Kit</b> holds a <b>Firepot</b> with a &#128165; <b>Throw</b> &mdash; press it, then click the map. Rows show their stats and what was paid. On a list shaped in Lists, <b>&#9998;</b> opens a copy&rsquo;s own values: an empty box follows the library (its value shows faintly), a value you type is this copy&rsquo;s own (a dot marks it), <b>&#8634;</b> takes one back and <b>Follow the library</b> all of them; a copy can have its own removal and switch-off lock. Saving an item a character carries says how far it reaches. <b>+ Custom&hellip;</b> in a list&rsquo;s picker adds a row of your own &mdash; a name, an icon, a category, notes, stats and a key formulas read it by &mdash; and its &#9998; changes it. The <b>download</b> arrow in the sheet&rsquo;s head saves it as a character file (.json) or a readable page (.md), or prints it exactly as it shows (every tab in turn); a player&rsquo;s holds only what their sheet shows them.',
       before: function() { if (window.wpSheets) window.wpSheets.close(true); var camp = tutorialCampaign(); if (camp && ensureTutorialSheet(camp)) save(true); openItem('map_tut_inn'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); if (window.wpSheets) window.wpSheets.openSheet('c_tut_bren'); } },
     { target: '#hudLayer .hud-panel', opens: true, title: 'The HUD',
       html: 'A <b>HUD</b> is a second, compact window for the same character &mdash; laid out by you on the Layout tab (switch <b>Sheet</b> to <b>HUD</b>) with its own tabs, sections, band and ledger, so a value can sit on the sheet <em>and</em> in the HUD. Open it from <b>HUD</b> in the sheet&rsquo;s title bar. Each character has its own window and several can be open at once; drag its head, resize from its corner, and click one to bring it to the front &mdash; the place and size are remembered. A change made in either shows in both. A player opens their own character&rsquo;s; a system with no HUD shows no button. It also opens from a token&rsquo;s right-click menu, the party strip, Properties, the Characters tab, or a <b>HUD button</b> placed on the sheet (which can open it at one of its tabs). When the system has rolls, its <b>Roll history</b> drawer at the bottom lists this session&rsquo;s rolls made as the character, newest first (a roll with a target in green or red); <b>Clear</b> empties it for you. The <b>bell</b> beside it keeps the character&rsquo;s notes (an action applied, an effect on or off, a reminder, a turn note); pin one to keep it on this computer. A section can show its fields as <b>inline rows</b> &mdash; label and value on the left, Roll on the right &mdash; and a number can be a <b>counter</b> with &minus; and + either side. A section can carry <b>Reset all</b> (or your own words, like <i>Long rest</i>) in its header: its pools back to full, its counters back to their start. A roll&rsquo;s label can show a value: <code>Attack ({&plusmn;AtkBonus})</code>. Formulas can read <b>CombatRound</b>, the round of the combat on the character&rsquo;s map, and <b>RangeMod</b> and <b>TargetDistance</b>, the range penalty and the distance to the target its player has marked (such a roll stays private while another player there cannot see that target). A section, or one placement, can <b>Show if</b> a formula is true (<code>Stun &gt; 0</code>): a stunned banner that comes and goes.',
@@ -770,63 +775,194 @@ var STEPS = [
 function sectionSpans() { var out = []; STEPS.forEach(function(s, i) { if (s.section) out.push({ label: s.section, start: i }); }); return out; }
 function sectionAt(i) { var sp = sectionSpans(), idx = 0; for (var k = 0; k < sp.length; k++) if (sp[k].start <= i) idx = k; return { spans: sp, idx: idx }; }
 
-var tour = { i: -1, overlay: null, spot: null, card: null, active: false };
+var tour = { i: -1, overlay: null, spot: null, card: null, shield: null, chip: null, active: false, paused: false, asking: false, pos: null };
+
+// [tutorialcheck:place-start]
+// Where a tour ended part-way is kept on this computer, so it can be picked up there (Help's Resume): a step past the first and before the
+// last. Anything else stored reads as "from the start".
+function tourAt() {
+    try { var o = JSON.parse(localStorage.getItem('wp_tourAt') || 'null'); return (o && typeof o.i === 'number' && Math.floor(o.i) === o.i && o.i > 0 && o.i < STEPS.length - 1) ? o.i : 0; } catch (e) { return 0; }
+}
+function rememberAt(i) {
+    try { if (typeof i === 'number' && i > 0 && i < STEPS.length - 1) localStorage.setItem('wp_tourAt', JSON.stringify({ v: TUTORIAL_VERSION, i: i })); else localStorage.removeItem('wp_tourAt'); } catch (e) {}
+}
+// [tutorialcheck:place-end]
+
+// [tutorialcheck:blocks-start]
+// A step's text, laid out to be read: a short lead, then one point per sentence, and past a screenful the rest behind "More about this". The
+// text itself is never changed (the suites pin its sentences): it is cut only between sentences, never inside a tag or a bracket, and a
+// sentence too long to read as one point is cut again at its semicolons. A point that then begins in lower case gets its capital.
+function tourLen(html) { return String(html).replace(/<[^>]*>/g, '').replace(/&[#\w]{1,8};/g, 'x').length; }
+function tourPieces(html, semi) {
+    var out = [], cur = '', tag = 0, par = 0, i = 0, n = html.length;
+    var opens = function(k) { var c = html.charAt(k); return (c >= 'A' && c <= 'Z') || c === '&' || (c === '<' && html.charAt(k + 1) !== '/'); };   // a sentence begins: a capital, a symbol's entity, a tag that opens
+    while (i < n) {
+        var c = html.charAt(i);
+        if (c === '<') {
+            var j = html.indexOf('>', i); if (j < 0) j = n - 1;
+            var t = html.slice(i, j + 1);
+            if (t.charAt(1) === '/') tag = Math.max(0, tag - 1); else if (!/^<br\b/i.test(t) && t.slice(-2) !== '/>') tag++;
+            cur += t; i = j + 1; continue;
+        }
+        if (c === '&') { var s = html.indexOf(';', i); if (s > i && s - i <= 9) { cur += html.slice(i, s + 1); i = s + 1; continue; } }
+        if (c === '(') par++; else if (c === ')') par = Math.max(0, par - 1);
+        cur += c; i++;
+        if (tag || par || html.charAt(i) !== ' ') continue;
+        if (((c === '.' || c === '?' || c === '!') && opens(i + 1)) || (semi && c === ';')) { out.push(cur); cur = ''; i++; }
+    }
+    if (cur.trim()) out.push(cur);
+    return out;
+}
+function tourPoint(p) {
+    p = p.trim(); if (p.charAt(p.length - 1) === ';' && !/&[#\w]{1,8};$/.test(p)) p = p.slice(0, -1);
+    var c = p.charAt(0); return (c >= 'a' && c <= 'z') ? c.toUpperCase() + p.slice(1) : p;
+}
+function tourBlocks(html) {
+    var whole = String(html == null ? '' : html), sents = tourPieces(whole, false);
+    if (tourLen(whole) <= 380 || sents.length < 3) return '<p>' + whole + '</p>';
+    var pts = [];
+    sents.forEach(function(s) { if (tourLen(s) > 300) tourPieces(s, true).forEach(function(p) { pts.push(tourPoint(p)); }); else pts.push(tourPoint(s)); });
+    var lead = pts.shift(), used = tourLen(lead), shown = [], more = [];
+    pts.forEach(function(p) { if (!more.length && (!shown.length || used + tourLen(p) <= 640)) { shown.push(p); used += tourLen(p); } else more.push(p); });
+    if (more.length === 1) shown.push(more.pop());   // never a fold of one
+    var li = function(a) { return a.map(function(p) { return '<li>' + p + '</li>'; }).join(''); };
+    return '<p class="tour-lead">' + lead + '</p>' + (shown.length ? '<ul class="tour-pts">' + li(shown) + '</ul>' : '')
+        + (more.length ? '<details class="tour-more"><summary>More about this (' + more.length + ')</summary><ul class="tour-pts">' + li(more) + '</ul></details>' : '');
+}
+// [tutorialcheck:blocks-end]
 
 function ensureDom() {
     if (tour.overlay) return;
     var ov = document.createElement('div'); ov.id = 'tourOverlay';
-    ov.innerHTML = '<div id="tourSpot"></div><div id="tourCard"></div>';
+    ov.innerHTML = '<div id="tourShield"></div><div id="tourSpot"></div><div id="tourCard" role="dialog" aria-label="Tutorial"></div>';
     document.body.appendChild(ov);
-    tour.overlay = ov; tour.spot = ov.querySelector('#tourSpot'); tour.card = ov.querySelector('#tourCard');
-    window.addEventListener('resize', function() { if (tour.active) place(); });
+    tour.overlay = ov; tour.shield = ov.querySelector('#tourShield'); tour.spot = ov.querySelector('#tourSpot'); tour.card = ov.querySelector('#tourCard');
+    // the chip a paused tour leaves on screen: Resume puts the step back as it was
+    var chip = document.createElement('div'); chip.id = 'tourChip'; chip.style.display = 'none';
+    chip.innerHTML = '<span class="tour-chip-txt"></span><button class="tool" id="tourResume">&#9654; Resume tour</button><button class="tool ghost" id="tourChipEnd" title="End the tour. Help &#9656; Tutorial resumes it at this step.">End</button>';
+    document.body.appendChild(chip); tour.chip = chip;
+    chip.querySelector('#tourResume').addEventListener('click', resumeTour);
+    chip.querySelector('#tourChipEnd').addEventListener('click', endTour);
+    // The shield: while a card is up the pointer reaches the card and nothing else, so a stray click cannot put away what the step set up
+    // (a toolbar flyout closes on any click anywhere) nor wander off its map. Seen first, at the window: no handler of the page's runs for a
+    // press on the shield. A press on the card stays in the tour too (the page's own click handlers never hear it). Try it yourself lifts it.
+    ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click', 'dblclick', 'auxclick', 'contextmenu'].forEach(function(t) {
+        window.addEventListener(t, function(e) { if (tour.active && !tour.paused && e.target === tour.shield) { e.stopPropagation(); e.preventDefault(); } }, true);
+        [ov, chip].forEach(function(n) { n.addEventListener(t, function(e) { e.stopPropagation(); }); });   // the chip too: Resume's own click must not reach the page (it would close the flyout the step just opened)
+    });
+    window.addEventListener('click', function() { if (tour.active) setTimeout(heal, 0); }, true);   // judged when it runs: a click that resumes the tour heals too
+    window.addEventListener('keyup', function() { if (tour.active) setTimeout(heal, 0); }, true);
+    // the card is dragged by its heading (never by a button in it); it goes back beside its target at the next step
+    tour.card.addEventListener('pointerdown', function(e) {
+        if (e.button || !e.target.closest || !e.target.closest('.tour-grip') || e.target.closest('button')) return;
+        var r = tour.card.getBoundingClientRect(), dx = e.clientX - r.left, dy = e.clientY - r.top;
+        var move = function(ev) { tour.pos = { x: ev.clientX - dx, y: ev.clientY - dy }; place(); };
+        var up = function() { window.removeEventListener('pointermove', move, true); window.removeEventListener('pointerup', up, true); window.removeEventListener('pointercancel', up, true); };
+        window.addEventListener('pointermove', move, true); window.addEventListener('pointerup', up, true); window.addEventListener('pointercancel', up, true);
+        e.preventDefault();
+    });
+    window.addEventListener('resize', function() { if (tour.active && !tour.paused) place(); });
     document.addEventListener('keydown', tourKey, true);
 }
 
 // [tutorialcheck:keys-start]
-// The tour's keys, seen before any handler of the page's: Esc ends the tour from anywhere; Right arrow and Enter go on, Left arrow goes back —
-// never from a field. Nothing is locked while the tour runs, so in a field those keys are the field's: the caret moves, Enter is a new line in
-// a flowchart label. A field is an input, a textarea, a list, or anything being edited in place — told by the element itself
-// (isContentEditable), since a planner's boxes are editable as plain text only and no one word of the attribute names them all.
+// The tour's keys, seen before any handler of the page's: Esc asks whether to end the tour (its place is kept either way), and Esc again
+// keeps going; Right arrow and Enter go on, Left arrow goes back — never from a field, where those keys are the field's: the caret moves,
+// Enter is a new line in a flowchart label. A field is an input, a textarea, a list, or anything being edited in place — told by the
+// element itself (isContentEditable), since a planner's boxes are editable as plain text only and no one word of the attribute names them
+// all. While the question is up the arrows and Enter move nothing (Enter is its focused button's), and while the tour is paused (Try it
+// yourself) every key is the app's.
 function tourField(t) { return !!t && (t.isContentEditable === true || !!(t.closest && t.closest('input, textarea, select'))); }
 function tourKey(e) {
-    if (!tour.active) return;
-    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); endTour(); return; }
+    if (!tour.active || tour.paused) return;
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); askEnd(); return; }
     if (e.key !== 'ArrowRight' && e.key !== 'Enter' && e.key !== 'ArrowLeft') return;
     if (tourField(e.target)) return;
+    if (tour.asking) return;
     e.preventDefault();
     next(e.key === 'ArrowLeft' ? -1 : 1);
 }
 // [tutorialcheck:keys-end]
 
 function targetEl(step) { return step.target ? document.querySelector(step.target) : null; }
+function shownRect(el) { var r = el ? el.getBoundingClientRect() : null; return (r && (r.width || r.height)) ? r : null; }   // null: not on screen now
 
 function place() {
     var step = STEPS[tour.i]; if (!step) return;
-    var el = targetEl(step), card = tour.card, spot = tour.spot;
-    var W = window.innerWidth, H = window.innerHeight, pad = 6;
-    if (el) {
-        var r = el.getBoundingClientRect();
+    var card = tour.card, spot = tour.spot, r = shownRect(targetEl(step));
+    var W = window.innerWidth, H = window.innerHeight, pad = 6, cw = Math.min(r && !tour.wide ? 380 : 460, W - 24), x, y;
+    card.style.width = cw + 'px';   // before its height is read: the text wraps to this width
+    var ch = card.offsetHeight || 200;
+    if (r) {
         spot.style.display = 'block'; spot.className = '';
         spot.style.left = (r.left - pad) + 'px'; spot.style.top = (r.top - pad) + 'px';
         spot.style.width = (r.width + pad * 2) + 'px'; spot.style.height = (r.height + pad * 2) + 'px';
         // the card sits beside the target on whichever side has room
-        var cw = Math.min(380, W - 24), ch = card.offsetHeight || 200, x, y;
         if (r.right + 16 + cw <= W) { x = r.right + 16; y = r.top; }
         else if (r.left - 16 - cw >= 0) { x = r.left - 16 - cw; y = r.top; }
         else if (r.bottom + 16 + ch <= H) { x = r.left; y = r.bottom + 16; }
         else { x = r.left; y = r.top - 16 - ch; }
-        x = Math.max(12, Math.min(x, W - cw - 12)); y = Math.max(12, Math.min(y, H - ch - 12));
-        card.style.width = cw + 'px'; card.style.left = x + 'px'; card.style.top = y + 'px';
     } else {
-        // no target: a zero-size spot in the middle still dims the whole screen
+        // no target (or one that is not on screen): a zero-size spot in the middle still dims the whole screen
         spot.style.display = 'block'; spot.className = 'nospot';
         spot.style.left = Math.round(W / 2) + 'px'; spot.style.top = Math.round(H / 2) + 'px'; spot.style.width = '0px'; spot.style.height = '0px';
-        var cw2 = Math.min(460, W - 24);
-        card.style.width = cw2 + 'px';
-        card.style.left = Math.round((W - cw2) / 2) + 'px';
-        card.style.top = Math.round(Math.max(12, (H - (card.offsetHeight || 240)) / 2)) + 'px';
+        x = (W - cw) / 2; y = (H - ch) / 2;
     }
+    if (tour.pos) { x = tour.pos.x; y = tour.pos.y; }   // moved by hand: where it was put, kept on screen
+    x = Math.max(12, Math.min(x, W - cw - 12)); y = Math.max(12, Math.min(y, H - ch - 12));
+    card.style.left = Math.round(x) + 'px'; card.style.top = Math.round(y) + 'px';
 }
+
+// [tutorialcheck:stage-start]
+// What a step's own setup opens, told by its target: the System editor, a sheet (or a HUD), Settings, Table Chat, the fog preview.
+function stageFor(step) { var t = step.target || ''; return { editor: /^#sys(?!temBtn)/.test(t), sheet: t === '#sheetPanel' || !!step.opens, settings: t === '#setVttCampBlock', chat: t === '#diceBtn', fog: t === '#fogModeBtn', right: t === '#sidebar' }; }
+// [tutorialcheck:stage-end]
+// Before a step's setup runs, everything another step (or the user, in Try it yourself) may have left open is put away, the Tutorial
+// campaign is the one on screen and the left panel is open — so a step reads the same wherever it is reached from: Next, Back, a jump to
+// another part, or Resume. Only what this step itself needs is left as it is.
+function clearStage(step) {
+    var need = stageFor(step);
+    if (!hosting() && (state.appState.activeCampaignId !== TUTORIAL_CAMP_ID || !tutorialCampaign())) ensureTutorialCampaign(false);
+    openLeft();
+    var hm = document.getElementById('helpModal'); if (hm) hm.style.display = 'none';
+    if (!need.settings) closeSettingsForTour();
+    if (!need.right) closeRightForTour();
+    if (!need.chat) { var cp = document.getElementById('chatPanel'); if (cp) cp.style.display = 'none'; if (window.wpDice) window.wpDice.closePanel(); }
+    if (window.wpSheets) { if (!need.editor) window.wpSheets.close(true); if (!need.sheet) window.wpSheets.closeSheet(); }
+    if (!need.fog && window.wpFog) window.wpFog.setPreview('off');
+    if (window.wpSound) window.wpSound.closePanel(); if (window.wpMusic) window.wpMusic.closePanel(); if (window.wpFx) window.wpFx.closePanel();
+}
+// A step whose target is no longer on screen (something put it away) has its setup run again.
+function heal() {
+    if (!tour.active || tour.paused) return;
+    var step = STEPS[tour.i]; if (!step || !step.target || shownRect(targetEl(step))) return;
+    try { if (step.before) step.before(); } catch (e) { console.warn('[tutorial] step setup failed', e); }
+    place(); setTimeout(place, 250);
+}
+
+function drawButtons() {
+    var box = tour.card.querySelector('.tour-btns'), step = STEPS[tour.i]; if (!box || !step) return;
+    var html = '';
+    if (tour.asking) {
+        html = '<span class="tour-ask">End the tour here? Your place is kept: <b>Help &#9656; Tutorial</b> resumes it at this step.</span><span style="flex:1"></span><button class="tool" id="tourStay">Keep going</button><button class="tool ghost" id="tourEndNow">End the tour</button>';
+    } else if (step.finish) {
+        html = '<button class="tool ghost" id="tourDiscardEnd">Discard the Tutorial campaign</button><button class="tool" id="tourKeepEnd">Keep it &amp; finish</button>';
+    } else {
+        html = '<button class="tool ghost" id="tourSkip">Skip tour</button><button class="tool ghost" id="tourTry" title="Put this card away and use the app yourself. Resume tour brings this step back, set up as it is now.">Try it yourself</button><span style="flex:1"></span>' + (tour.i > 0 ? '<button class="tool ghost" id="tourBack">&larr; Back</button>' : '') + '<button class="tool" id="tourNext">Next &rarr;</button>';
+    }
+    box.innerHTML = html;
+    var q = function(id) { return tour.card.querySelector('#' + id); };
+    if (q('tourNext')) q('tourNext').addEventListener('click', function() { next(1); });
+    if (q('tourBack')) q('tourBack').addEventListener('click', function() { next(-1); });
+    if (q('tourSkip')) q('tourSkip').addEventListener('click', endTour);
+    if (q('tourTry')) q('tourTry').addEventListener('click', pauseTour);
+    if (q('tourStay')) { q('tourStay').addEventListener('click', askEnd); try { q('tourStay').focus(); } catch (e) {} }
+    if (q('tourEndNow')) q('tourEndNow').addEventListener('click', endTour);
+    if (q('tourKeepEnd')) q('tourKeepEnd').addEventListener('click', function() { endTour(); toast('The Tutorial campaign is yours to build on. Help → Tutorial can discard or rebuild it.'); });
+    if (q('tourDiscardEnd')) q('tourDiscardEnd').addEventListener('click', function() { endTour(); discardTutorialCampaign(); });
+}
+// Esc (or the question's own Keep going): ask whether to end, or take the question away again.
+function askEnd() { if (!tour.active || tour.paused) return; tour.asking = !tour.asking; drawButtons(); place(); }
 
 function show(i, dir) {
     dir = dir || 1;
@@ -837,9 +973,13 @@ function show(i, dir) {
     }
     if (i < 0) i = 0;
     if (i >= STEPS.length) { endTour(); return; }
-    tour.i = i;
+    if (i !== tour.i) tour.pos = null;   // a card moved by hand goes back beside its next step
+    tour.i = i; tour.asking = false;
+    rememberAt(i);
     var step = STEPS[i];
+    tour.wide = tourLen(step.html) > 900;   // a long step gets the wider card
     document.querySelectorAll('#wbFloatingToolbar .shape-menu.show').forEach(function(m) { m.classList.remove('show'); });   // each step re-opens a toolbar flyout only if it needs it
+    try { clearStage(step); } catch (e) { console.warn('[tutorial] stage reset failed', e); }
     if (!step.opens && window.wpSheets && window.wpSheets.closeHuds) window.wpSheets.closeHuds();   // no HUD left floating on another step (Back, a section jump)
     try { if (step.before) step.before(); } catch (e) { console.warn('[tutorial] step setup failed', e); }
     var sec = sectionAt(i), sp = sec.spans, secLabel = sp[sec.idx] ? sp[sec.idx].label : '';
@@ -847,28 +987,19 @@ function show(i, dir) {
     // bar under the header with one segment per part (weighted by its length) — parts done are filled, the current
     // one fills as you go. The part jump on the left already carries the 1/7.
     var secStart = sp[sec.idx] ? sp[sec.idx].start : 0, secEnd = sp[sec.idx + 1] ? sp[sec.idx + 1].start : STEPS.length, inSec = i - secStart + 1, secLen = Math.max(1, secEnd - secStart);
-    var html = '<div class="tour-step"><button class="tour-secbtn" id="tourSecBtn" title="Jump to a section">' + esc(secLabel) + ' · ' + (sec.idx + 1) + '/' + sp.length + ' ▾</button><span class="tour-stepn">' + inSec + ' of ' + secLen + ' in this part</span></div>';
+    var html = '<div class="tour-step tour-grip"><button class="tour-secbtn" id="tourSecBtn" title="Jump to a section">' + esc(secLabel) + ' · ' + (sec.idx + 1) + '/' + sp.length + ' ▾</button><span class="tour-stepn">' + inSec + ' of ' + secLen + ' in this part</span></div>';
     html += '<div class="tour-bar" aria-hidden="true">' + sp.map(function(s, k) {
         var len = Math.max(1, (sp[k + 1] ? sp[k + 1].start : STEPS.length) - s.start), pct = k < sec.idx ? 100 : k > sec.idx ? 0 : Math.round(100 * inSec / secLen);
         return '<span class="tour-seg' + (k < sec.idx ? ' done' : k === sec.idx ? ' on' : '') + '" style="flex:' + len + '" title="' + esc(s.label) + '"><i style="width:' + pct + '%"></i></span>';
     }).join('') + '</div>';
     html += '<div class="tour-secmenu" id="tourSecMenu" style="display:none;">' + sp.map(function(s, k) { return '<button class="tour-secitem' + (k === sec.idx ? ' on' : '') + '" data-secstart="' + s.start + '">' + esc(s.label) + '</button>'; }).join('') + '</div>';
-    html += '<h3>' + esc(step.title) + '</h3><div class="tour-body">' + step.html + '</div><div class="tour-btns">';
-    if (step.finish) {
-        html += '<button class="tool ghost" id="tourDiscardEnd">Discard the Tutorial campaign</button><button class="tool" id="tourKeepEnd">Keep it &amp; finish</button>';
-    } else {
-        html += '<button class="tool ghost" id="tourSkip">Skip tour</button><span style="flex:1"></span>' + (i > 0 ? '<button class="tool ghost" id="tourBack">&larr; Back</button>' : '') + '<button class="tool" id="tourNext">Next &rarr;</button>';
-    }
-    html += '</div>';
+    html += '<h3 class="tour-grip" title="Drag to move this card">' + esc(step.title) + '</h3><div class="tour-body">' + tourBlocks(step.html) + '</div><div class="tour-btns"></div>';
     tour.card.innerHTML = html;
+    drawButtons();
     var q = function(id) { return tour.card.querySelector('#' + id); };
-    if (q('tourNext')) q('tourNext').addEventListener('click', function() { next(1); });
-    if (q('tourBack')) q('tourBack').addEventListener('click', function() { next(-1); });
-    if (q('tourSkip')) q('tourSkip').addEventListener('click', endTour);
-    if (q('tourKeepEnd')) q('tourKeepEnd').addEventListener('click', function() { endTour(); toast('The Tutorial campaign is yours to build on. Help → Tutorial can discard or rebuild it.'); });
-    if (q('tourDiscardEnd')) q('tourDiscardEnd').addEventListener('click', function() { endTour(); discardTutorialCampaign(); });
     if (q('tourSecBtn')) q('tourSecBtn').addEventListener('click', function(e) { e.stopPropagation(); var m = q('tourSecMenu'); if (m) { m.style.display = m.style.display === 'none' ? 'flex' : 'none'; place(); } });
     if (q('tourSecMenu')) q('tourSecMenu').querySelectorAll('.tour-secitem').forEach(function(b) { b.addEventListener('click', function() { var s = parseInt(b.dataset.secstart, 10); if (s >= 0 && s < STEPS.length) show(s, 1); }); });
+    tour.card.querySelectorAll('details').forEach(function(d) { d.addEventListener('toggle', place); });   // unfolding More changes the card's height
     var el = targetEl(step);
     if (el && el.scrollIntoView) { try { el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) {} }
     // two passes: the card's height is only known once its content is in the DOM
@@ -876,15 +1007,40 @@ function show(i, dir) {
 }
 function next(dir) { show(tour.i + dir, dir); }
 
+// Try it yourself: the card, the dimming and the shield go, the app is the user's, and a chip stays to come back by. Resume shows the same
+// step again from its setup, so whatever was opened, closed or travelled to meanwhile, the step reads as it did.
+function pauseTour() {
+    if (!tour.active || tour.paused) return;
+    var step = STEPS[tour.i];
+    tour.paused = true; tour.asking = false;
+    tour.overlay.style.display = 'none';
+    document.body.classList.remove('tour-on');
+    var t = tour.chip.querySelector('.tour-chip-txt'); if (t) t.textContent = 'Tour paused' + (step ? ' at “' + step.title + '”' : '');
+    tour.chip.style.display = 'flex';
+}
+function resumeTour() {
+    if (!tour.active || !tour.paused) return;
+    if (!canPersistLocal()) { toast('The tutorial runs on your own campaigns — leave the session first.'); return; }
+    guardSwitch(hosting() && state.appState.activeCampaignId !== TUTORIAL_CAMP_ID, function() {   // the step opens the Tutorial campaign again
+        if (state.appState.activeCampaignId !== TUTORIAL_CAMP_ID || !tutorialCampaign()) ensureTutorialCampaign(false);
+        tour.paused = false;
+        tour.chip.style.display = 'none';
+        tour.overlay.style.display = 'block';
+        document.body.classList.add('tour-on');
+        show(tour.i, 1);
+    });
+}
+
 function startTour(at) {
-    var start = (typeof at === 'number' && at > 0 && at < STEPS.length) ? at : 0;   // Help can start at a section
+    var start = (typeof at === 'number' && at > 0 && at < STEPS.length) ? at : 0;   // Help can start at a section, or resume where a tour ended
     if (!canPersistLocal()) { toast('The tutorial runs on your own campaigns — leave the session first.'); return; }
     guardSwitch(hosting() && state.appState.activeCampaignId !== TUTORIAL_CAMP_ID, function() {   // the tour opens the Tutorial campaign
         ensureDom();
         ensureTutorialCampaign(false);   // starting at a section needs the demo campaign present (Welcome usually does this first)
         try { localStorage.setItem('wp_tourSeen', '1'); } catch (e) {}
         var hm = document.getElementById('helpModal'); if (hm) hm.style.display = 'none';
-        tour.active = true;
+        tour.active = true; tour.paused = false; tour.asking = false; tour.pos = null;
+        tour.chip.style.display = 'none';
         tour.overlay.style.display = 'block';
         document.body.classList.add('tour-on');
         show(start, 1);
@@ -892,14 +1048,21 @@ function startTour(at) {
 }
 function endTour() {
     if (!tour.active) return;
-    tour.active = false; tour.i = -1;
+    var at = tour.i, wasPaused = tour.paused, partWay = at > 0 && at < STEPS.length - 1;   // ended part-way: its place is kept (rememberAt) and said
+    tour.active = false; tour.paused = false; tour.asking = false; tour.pos = null; tour.i = -1;
     if (tour.overlay) tour.overlay.style.display = 'none';
+    if (tour.chip) tour.chip.style.display = 'none';
     document.body.classList.remove('tour-on');
-    closeSettingsForTour();   // the VTT step may have left Settings open
-    var cp = document.getElementById('chatPanel'); if (cp) cp.style.display = 'none'; if (window.wpDice) window.wpDice.closePanel();   // and the Dice step the chat panel
-    if (window.wpSheets) { window.wpSheets.closeSheet(); if (window.wpSheets.closeHuds) window.wpSheets.closeHuds(); window.wpSheets.close(true); }   // and the sheet step Bren's sheet (and the HUD step his HUD) + the layout step's System editor
-    if (window.wpFog) window.wpFog.setPreview('off');   // and the fog step its player-view preview
-    document.querySelectorAll('#wbFloatingToolbar .shape-menu.show').forEach(function(m) { m.classList.remove('show'); });   // and any toolbar flyout a step opened (Add, Scene)
+    if (!wasPaused) {   // ended from Try it yourself: what is open is the user's own, and stays
+        closeRightForTour();   // the Properties step may have unfolded the right panel
+        closeSettingsForTour();   // the VTT step may have left Settings open
+        var cp = document.getElementById('chatPanel'); if (cp) cp.style.display = 'none'; if (window.wpDice) window.wpDice.closePanel();   // and the Dice step the chat panel
+        if (window.wpSheets) { window.wpSheets.closeSheet(); if (window.wpSheets.closeHuds) window.wpSheets.closeHuds(); window.wpSheets.close(true); }   // and the sheet step Bren's sheet (and the HUD step his HUD) + the layout step's System editor
+        if (window.wpFog) window.wpFog.setPreview('off');   // and the fog step its player-view preview
+        document.querySelectorAll('#wbFloatingToolbar .shape-menu.show').forEach(function(m) { m.classList.remove('show'); });   // and any toolbar flyout a step opened (Add, Scene)
+    }
+    if (partWay) toast('The tour stopped at “' + STEPS[at].title + '”. Help ▸ Tutorial resumes it there.');
+    syncPane();
     if (window.wpCampaignAfterTour === true) { window.wpCampaignAfterTour = false; var nbT = document.getElementById('newCampBtn'); if (nbT) setTimeout(function() { nbT.click(); }, 300); }   // the welcome's Start a campaign on a fresh save: the naming prompt now, after the tour or its Skip (the owner's word, 2026-10-01)
 }
 
@@ -913,6 +1076,7 @@ function syncPane() {
     var d = document.getElementById('tourDiscardBtn'); if (d) d.style.display = has ? '' : 'none';
     var r = document.getElementById('tourRebuildBtn'); if (r) r.style.display = has ? '' : 'none';
     var o = document.getElementById('tourOpenBtn'); if (o) o.style.display = has ? '' : 'none';
+    var rs = document.getElementById('tourResumeBtn'), at = tourAt(); if (rs) { rs.style.display = at ? '' : 'none'; if (at) rs.textContent = '\u25b6 Resume at \u201c' + STEPS[at].title + '\u201d'; }   // a tour ended part-way: its place
     var v = document.getElementById('tourVersion'); if (v) v.textContent = 'Tour version ' + TUTORIAL_VERSION + ' · ' + STEPS.length + ' steps · ' + sectionSpans().length + ' sections';
     var secWrap = document.getElementById('tourSections');
     if (secWrap) {
@@ -926,6 +1090,7 @@ function syncPane() {
 }
 (function wire() {
     var s = document.getElementById('tourStartBtn'); if (s) s.addEventListener('click', function() { startTour(); });
+    var rs = document.getElementById('tourResumeBtn'); if (rs) rs.addEventListener('click', function() { startTour(tourAt()); });
     var o = document.getElementById('tourOpenBtn'); if (o) o.addEventListener('click', function() {
         guardSwitch(hosting() && state.appState.activeCampaignId !== TUTORIAL_CAMP_ID, function() { ensureTutorialCampaign(false); var hm = document.getElementById('helpModal'); if (hm) hm.style.display = 'none'; toast('Tutorial campaign opened.'); });
     });
@@ -1008,4 +1173,4 @@ function tourPending() { var seen = false; try { seen = localStorage.getItem('wp
 })();
 // [tutorialcheck:autostart-end]
 
-window.wpTutorial = { start: startTour, fresh: saveIsFresh, pending: tourPending, end: endTour, steps: STEPS, version: TUTORIAL_VERSION, ensure: ensureTutorialCampaign, discard: discardTutorialCampaign, build: buildTutorialCampaign, system: tutorialSystem, ensureSheet: ensureTutorialSheet };
+window.wpTutorial = { start: startTour, fresh: saveIsFresh, pending: tourPending, end: endTour, pause: pauseTour, resume: resumeTour, at: tourAt, blocks: tourBlocks, steps: STEPS, version: TUTORIAL_VERSION, ensure: ensureTutorialCampaign, discard: discardTutorialCampaign, build: buildTutorialCampaign, system: tutorialSystem, ensureSheet: ensureTutorialSheet };

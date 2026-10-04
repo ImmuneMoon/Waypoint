@@ -3620,6 +3620,8 @@ window.wpFitToGrid = fitToGrid;
   // Visual effects (1.5.0): the ✨ panel arms a burst, a click on the map places it (its own Measure sub-mode)
   var _fxArm = null;
   window.wpArmFxBurst = function(look, rPx) { _fxArm = { look: look, r: Math.max(20, Math.min(6000, Math.round(rPx || 160))) }; window.isMeasureMode = true; window.wpMeasureKind = 'fx'; toast(look === 'ping' ? 'Click the map to ping that spot.' : 'Click the map to place the ' + look + ' burst.'); };
+  window.wpFxArmed = function() { return _fxArm && window.isMeasureMode && window.wpMeasureKind === 'fx' ? _fxArm.look : ''; };   // the look the panel armed, while the map still waits for its click
+  window.wpDisarmFxBurst = function() { if (!_fxArm) return false; _fxArm = null; if (window.wpMeasureKind === 'fx') { window.isMeasureMode = false; window.wpMeasureKind = 'ruler'; } return true; };   // the panel's second press on an armed button
   function placeFx(e) {
       var map = getActiveMap(); if (!map || !_fxArm) { window.isMeasureMode = false; window.wpMeasureKind = 'ruler'; return; }
       var box = wbWrap.getBoundingClientRect();

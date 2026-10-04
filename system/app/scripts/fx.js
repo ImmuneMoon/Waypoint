@@ -42,20 +42,25 @@ function canvasEl() {
     if (!c) { c = el('canvas', 'fx-canvas'); s.appendChild(c); }
     return c;
 }
+// [fxcheck:place-start]
+var _placed = '';
 function placeScreen() {
     var s = screenEl(), wrap = ui('whiteboardWrap'); if (!s || !wrap) return;
-    var r = wrap.getBoundingClientRect();
+    var r = wrap.getBoundingClientRect(), k = r.left + '|' + r.top + '|' + r.width + '|' + r.height;
+    if (k === _placed) return;   // the board's box stands where it stood: this is asked on every scroll, and a pan of the board moves nothing here
+    _placed = k;
     s.style.left = r.left + 'px'; s.style.top = r.top + 'px'; s.style.width = r.width + 'px'; s.style.height = r.height + 'px';
     sizeCanvas();
 }
 function sizeCanvas() {
     var s = screenEl(), c = s && s.querySelector('canvas.fx-canvas'); if (!c) return;
     var dpr = Math.min(1.5, window.devicePixelRatio || 1);
-    var w = s.clientWidth, h = s.clientHeight;
-    c.width = Math.max(1, Math.round(w * dpr)); c.height = Math.max(1, Math.round(h * dpr));
+    var w = s.clientWidth, h = s.clientHeight, cw = Math.max(1, Math.round(w * dpr)), ch = Math.max(1, Math.round(h * dpr));
+    if (c.width !== cw || c.height !== ch) { c.width = cw; c.height = ch; }   // only when the size moved: setting either one empties the canvas and builds it again
     c.style.width = w + 'px'; c.style.height = h + 'px';
     var ctx = c.getContext('2d'); if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
+// [fxcheck:place-end]
 
 /* ---------- render one effect ---------- */
 function apply(fx) {
@@ -169,21 +174,21 @@ function renderPing(f) {
 
 /* ---------- weather (one canvas, one rAF loop) ---------- */
 function renderWeather(f) {
+    var keep = !!weatherFx && weatherFx.look === f.look && canvasMap === f.mapId && particles.length > 0;   // the same weather at another density: it thins or thickens where it stands
     weatherFx = f; canvasMap = f.mapId;
     if (f.mapId) { running[f.mapId] = running[f.mapId] || {}; running[f.mapId].weather = f; }   // persists for arrivals / the map poll
     var c = canvasEl(); if (!c) return;
     sizeCanvas();
-    seedWeather(f);
+    seedWeather(f, keep);
     if (!raf) loop();
 }
 function stopWeather() { weatherFx = null; particles = []; canvasMap = null; if (raf) { cancelAnimationFrame(raf); raf = null; } var c = screenEl() && screenEl().querySelector('canvas.fx-canvas'); if (c) { var x = c.getContext('2d'); if (x) x.clearRect(0, 0, c.width, c.height); } }
-function seedWeather(f) {
+function seedWeather(f, keep) {
     var s = screenEl(); if (!s) return;
-    var w = s.clientWidth, h = s.clientHeight;
-    var base = f.look === 'haze' ? 40 : f.look === 'embers' ? 60 : 120;
-    var count = Math.min(220, Math.round(base * (f.density || 0.6)));
-    particles = [];
-    for (var i = 0; i < count; i++) particles.push(newParticle(f.look, w, h, true));
+    var w = s.clientWidth, h = s.clientHeight, count = weatherCount(f.look, f.density);
+    if (!keep) particles = [];
+    if (particles.length > count) particles.length = count;
+    for (var i = particles.length; i < count; i++) particles.push(newParticle(f.look, w, h, true));
 }
 function newParticle(look, w, h, seed) {
     var p = { x: Math.random() * w, y: seed ? Math.random() * h : (look === 'embers' ? h + 10 : -10) };
@@ -229,12 +234,12 @@ function receive(fx) { apply(fx); }   // the wire entry (net.js has already clea
 function armBurst(look, rPx) {
     if (LOOKS.burst.indexOf(look) < 0 || !window.wpArmFxBurst) return;
     window.wpArmFxBurst(look, rPx);
-    var chips = ui('fxPanel'); if (chips) chips.querySelectorAll('.fx-burst-btn').forEach(function(b) { b.classList.toggle('armed', b.dataset.look === look); });
+    syncButtons();
 }
 function placeBurst(x, y, look, rPx) {   // whiteboard.js calls this on a click in the 'fx' measure mode
     var id = mapNow(); if (!id) return;
     if (look === 'ping') ping(x, y); else play({ kind: 'burst', mapId: id, x: x, y: y, look: look, r: rPx });
-    var chips = ui('fxPanel'); if (chips) chips.querySelectorAll('.fx-burst-btn').forEach(function(b) { b.classList.remove('armed'); });
+    syncButtons();
 }
 function blastBoom(x, y, rPx) { var id = mapNow(); if (!id) return; play({ kind: 'burst', mapId: id, x: x, y: y, look: 'boom', r: Math.min(rPx, LIMITS.r[1]) }); }
 
@@ -303,6 +308,7 @@ var _pollMap = null;
 setInterval(function() {
     var id = mapNow();
     pingPoll();
+    syncButtons();
     if (id === _pollMap) return;
     _pollMap = id;
     stopWeather();
@@ -317,6 +323,46 @@ function closePanel() { var p = ui('fxPanel'); if (p) p.style.display = 'none'; 
 function placePanel() { var p = ui('fxPanel'); if (!p) return; try { var pos = JSON.parse(pref('wp_fxPanel', 'null')); if (pos && isFinite(pos.x) && isFinite(pos.y)) { p.style.left = Math.max(0, Math.min(window.innerWidth - 60, pos.x)) + 'px'; p.style.top = Math.max(0, Math.min(window.innerHeight - 40, pos.y)) + 'px'; p.style.right = 'auto'; } } catch (e) {} }
 function soundEntries() { try { return window.wpSound && window.wpSound.entries ? window.wpSound.entries() : []; } catch (e) { return []; } }
 function playersHere() { var n = net(), id = mapNow(); if (!(n && n.active && n.role === 'host') || !id) return -1; var c = 0; Object.values(n.roster || {}).forEach(function(p) { if (p && p.location === id) c++; }); return c; }
+// [fxcheck:press-start]
+// What a press on one of the panel's buttons does, from what is armed and what runs on the map on screen: a second press on the one that is on
+// puts it away (the owner, 2026-10-04: "when I click a button a second time they should deselect"). b: { cls, look, id }, a button as btnOf
+// reads it; st: { armed, light, weather, wash, density, mapId }, the panel as panelState reads it
+function sameWash(w, fx) { return !!w && !!fx && fx.kind === 'wash' && w.color === fx.color && w.alpha === fx.alpha; }
+function pressOf(b, st) {
+    if (!b || !st) return null;
+    if (b.cls === 'burst') return st.armed && st.armed === b.look ? { act: 'disarm' } : { act: 'arm', look: b.look };
+    if (b.cls === 'light') return st.light ? { act: 'unlight' } : { act: 'light' };
+    var pr = PRESETS.find(function(x) { return x.id === b.id; }); if (!pr) return null;
+    if (b.cls === 'weather' && pr.row === 'weather') return st.weather && st.weather.look === pr.fx.look ? { act: 'stop', what: 'weather' } : { act: 'play', fx: Object.assign({ mapId: st.mapId }, pr.fx, typeof st.density === 'number' ? { density: st.density } : {}) };
+    if (b.cls === 'screen' && pr.row === 'screen') return sameWash(st.wash, pr.fx) ? { act: 'stop', what: 'wash' } : { act: 'play', fx: Object.assign({ mapId: st.mapId }, pr.fx), cue: true };
+    return null;
+}
+// Which buttons are lit: the armed burst or ping, the armed light, the weather that runs on this map, the wash that is held on it
+function litOf(b, st) {
+    if (!b || !st) return false;
+    if (b.cls === 'burst') return !!st.armed && st.armed === b.look;
+    if (b.cls === 'light') return !!st.light;
+    var pr = PRESETS.find(function(x) { return x.id === b.id; }); if (!pr) return false;
+    if (b.cls === 'weather') return pr.row === 'weather' && !!st.weather && st.weather.look === pr.fx.look;
+    if (b.cls === 'screen') return pr.row === 'screen' && sameWash(st.wash, pr.fx);
+    return false;
+}
+// How many particles a weather draws: its look's own number at full density, a fifth of it at the least; never more than 240
+function weatherCount(look, density) { var base = look === 'haze' ? 44 : look === 'embers' ? 80 : look === 'snow' ? 180 : 220, d = typeof density === 'number' && isFinite(density) ? density : 0.6; return Math.max(1, Math.min(240, Math.round(base * d))); }
+// The running weather at the slider's density, or null where none runs here
+function densityFx(st) { return st && st.weather && typeof st.density === 'number' ? Object.assign({}, st.weather, { mapId: st.mapId, density: st.density }) : null; }
+// [fxcheck:press-end]
+function panelState() {
+    var id = mapNow(), r = (id && running[id]) || {}, dn = ui('fxDensity');
+    return { armed: window.wpFxArmed ? window.wpFxArmed() : '', light: !!(window.wpPlace && window.wpPlace.type === 'light'), weather: r.weather || null, wash: r.wash || null, density: dn ? +dn.value / 100 : undefined, mapId: id };
+}
+function btnOf(btn) { var c = btn.classList; return { cls: c.contains('fx-burst-btn') ? 'burst' : c.contains('fx-light-btn') ? 'light' : c.contains('fx-weather-btn') ? 'weather' : c.contains('fx-screen-btn') ? 'screen' : '', look: btn.dataset.look, id: btn.dataset.id }; }
+function syncButtons() {   // the panel's buttons say what is armed and what runs here; asked after every press and by the map poll (Esc, a tool picked, a burst placed, a map left)
+    var p = ui('fxPanel'); if (!p || !panelOpen) return;
+    var st = panelState();
+    p.querySelectorAll('.fx-burst-btn, .fx-light-btn, .fx-weather-btn, .fx-screen-btn').forEach(function(b) { var on = litOf(btnOf(b), st); b.classList.toggle('armed', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+}
+
 function renderPanel() {
     var body = ui('fxBody'); if (!body) return;
     if (!featureOn()) { body.innerHTML = '<div class="snd-none">Visual effects are off for this campaign — switch them on in &#9881; Settings &#9656; VTT features.</div>'; return; }
@@ -325,18 +371,20 @@ function renderPanel() {
     var here = playersHere();
     var html = '';
     if (here >= 0) html += '<div class="fx-here' + (here === 0 ? ' none' : '') + '">' + (here === 0 ? 'No players on this map — they will not see it' : here + ' player' + (here === 1 ? '' : 's') + ' on this map') + '</div>';
-    html += '<div class="snd-row"><span class="snd-label">Screen</span>' + byRow('screen').map(function(p) { return chip('fx-screen-btn', p.id, p.label, ' data-id="' + p.id + '"'); }).join('') + '<button class="journal-from fx-stop" data-act="stop-wash" title="Clear the color wash">Clear</button></div>';
+    html += '<div class="snd-row"><span class="snd-label">Screen</span>' + byRow('screen').map(function(p) { return chip('fx-screen-btn', p.id, p.label, ' data-id="' + p.id + '"' + (p.fx.kind === 'wash' ? ' title="Held until you clear it: press it again, or Clear"' : '')); }).join('') + '<button class="journal-from fx-stop" data-act="stop-wash" title="Clear the color wash">Clear</button></div>';
     html += '<div class="snd-row"><span class="snd-label">Burst</span>' + byRow('burst').map(function(p) { return chip('fx-burst-btn', p.fx.look, p.label, ' title="Click, then click the map"'); }).join('') + '</div>';
     html += '<div class="snd-row fx-slider"><span class="snd-label"></span><label title="Burst radius">Radius <input type="range" id="fxRadius" min="20" max="1200" value="160"><span id="fxRadiusVal" class="fx-dim"></span></label></div>';
     html += '<div class="snd-row"><span class="snd-label">Ping</span><button class="journal-from fx-burst-btn fx-ping-btn" data-look="ping" title="Click, then click the map: a ring marks that cell for a moment. Alt+click on the map pings at once.">Ping</button><select id="fxPingTo" class="field"></select></div>';   // the list is filled with text nodes (syncPingTo)
     if (window.wpVtt && window.wpVtt.on('lighting') && window.wpVtt.on('fog')) html += '<div class="snd-row"><span class="snd-label">Light</span><button class="journal-from fx-light-btn" title="Click, then click the map: a light source that lights the fog (its radii in its Properties). On a map whose Light is Auto, placing one makes it dark outside its lights.">Light source</button></div>';   // lighting (L2)
-    html += '<div class="snd-row"><span class="snd-label">Weather</span>' + byRow('weather').map(function(p) { return chip('fx-weather-btn', p.fx.look, p.label, ' data-id="' + p.id + '"'); }).join('') + '<button class="journal-from fx-stop" data-act="stop-weather" title="Stop the weather">Stop</button></div>';
-    html += '<div class="snd-row fx-slider"><span class="snd-label"></span><label title="Weather thickness">Density <input type="range" id="fxDensity" min="20" max="100" value="60"></label></div>';
+    html += '<div class="snd-row"><span class="snd-label">Weather</span>' + byRow('weather').map(function(p) { return chip('fx-weather-btn', p.fx.look, p.label, ' data-id="' + p.id + '" title="Runs until you stop it: press it again, or Stop"'); }).join('') + '<button class="journal-from fx-stop" data-act="stop-weather" title="Stop the weather">Stop</button></div>';
+    var rwNow = (running[mapNow()] || {}).weather;   // the slider stands where the weather that runs here is
+    html += '<div class="snd-row fx-slider"><span class="snd-label"></span><label title="Weather thickness: move it while a weather runs and the weather thins or thickens at once">Density <input type="range" id="fxDensity" min="20" max="100" value="' + Math.round(((rwNow && rwNow.density) || 0.6) * 100) + '"></label></div>';
     html += '<div class="snd-row"><span class="snd-label">Banner</span><input type="text" id="fxBanner" class="field" maxlength="120" placeholder="Round 3 &middot; Enter to send" style="flex:1;"></div>';
     var cues = soundEntries().filter(function(e) { return e.kind === 'cue'; });
     if (cues.length && (!window.wpVtt || window.wpVtt.on('sound'))) html += '<div class="snd-row"><span class="snd-label">Sound with it</span><select id="fxCue" class="field"><option value="">none</option>' + cues.map(function(e) { return '<option value="' + esc(e.id) + '">' + esc(e.name) + '</option>'; }).join('') + '</select></div>';
     body.innerHTML = html;
     syncPingTo();
+    syncButtons();
     var rv = ui('fxRadius'), rvl = ui('fxRadiusVal'); if (rv && rvl) { var upd = function() { var y = window.wpMeasure ? window.wpMeasure.pxToYards(+rv.value) : null; rvl.textContent = y != null ? '~' + y + ' yd' : (rv.value + ' px'); }; rv.addEventListener('input', upd); upd(); }
 }
 function withCue(fn) { fn(); var sel = ui('fxCue'); if (sel && sel.value && window.wpSound && window.wpSound.play) { var e = soundEntries().find(function(x) { return x.id === sel.value; }); if (e) { try { window.wpSound.play(e.id); } catch (er) {} } } }
@@ -349,13 +397,21 @@ function withCue(fn) { fn(); var sel = ui('fxCue'); if (sel && sel.value && wind
     p.addEventListener('click', function(e) {
         var btn = e.target.closest && e.target.closest('button'); if (!btn) return;
         var act = btn.dataset.act;
-        if (act === 'stop-wash') { play({ kind: 'stop', what: 'wash' }); return; }
-        if (act === 'stop-weather') { play({ kind: 'stop', what: 'weather' }); return; }
-        if (btn.classList.contains('fx-screen-btn')) { var pr = PRESETS.find(function(x) { return x.id === btn.dataset.id; }); if (pr) withCue(function() { play(Object.assign({ mapId: mapNow() }, pr.fx)); }); return; }
-        if (btn.classList.contains('fx-weather-btn')) { var pw = PRESETS.find(function(x) { return x.id === btn.dataset.id; }); if (pw) { var dn = ui('fxDensity'); play(Object.assign({ mapId: mapNow(), density: dn ? +dn.value / 100 : 0.6 }, pw.fx, { density: dn ? +dn.value / 100 : pw.fx.density })); } return; }
-        if (btn.classList.contains('fx-light-btn')) { if (window.wpArmLight) window.wpArmLight(); return; }
-        if (btn.classList.contains('fx-burst-btn')) { var rv = ui('fxRadius'); armBurst(btn.dataset.look, rv ? +rv.value : 160); }
+        if (act === 'stop-wash') { play({ kind: 'stop', what: 'wash' }); syncButtons(); return; }
+        if (act === 'stop-weather') { play({ kind: 'stop', what: 'weather' }); syncButtons(); return; }
+        var pz = pressOf(btnOf(btn), panelState()); if (!pz) return;   // a second press on a lit button puts it away
+        if (pz.act === 'disarm') { if (window.wpDisarmFxBurst) window.wpDisarmFxBurst(); }
+        else if (pz.act === 'arm') { var rv = ui('fxRadius'); armBurst(pz.look, rv ? +rv.value : 160); }
+        else if (pz.act === 'unlight') { if (window.wpPlaceDisarm) window.wpPlaceDisarm(); }
+        else if (pz.act === 'light') { if (window.wpArmLight) window.wpArmLight(); }
+        else if (pz.act === 'stop') play({ kind: 'stop', what: pz.what });
+        else if (pz.cue) withCue(function() { play(pz.fx); });
+        else play(pz.fx);
+        syncButtons();
     });
+    // Density moves the weather that runs here: on this screen while the slider moves, for the table when it is let go
+    p.addEventListener('input', function(e) { if (!e.target || e.target.id !== 'fxDensity') return; var C = core(), d = densityFx(panelState()), clean = C && d ? C.cleanFx(d) : null; if (clean) apply(clean); });
+    p.addEventListener('change', function(e) { if (!e.target || e.target.id !== 'fxDensity') return; var d = densityFx(panelState()); if (d) play(d); });
     p.addEventListener('change', function(e) {
         if (!e.target || e.target.id !== 'fxPingTo') return;
         var v = e.target.value; pingTo = pingPlayers().some(function(q) { return q.id === v; }) ? v : ''; syncPingTo();

@@ -1105,6 +1105,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
   function attachPanning(wrapEl) {
 
+      wrapEl.addEventListener('mousedown', function(e) { if (e.button === 1) e.preventDefault(); });   // the middle button pans: never the browser's own scroll anchor
+
       var isPanning = false, startX, startY, scrollLeft, scrollTop;
 
       var currentDrawItem = null;
@@ -1122,7 +1124,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           // Space held: pan from any tool over any target, reusing the shared pan closure below
           // (pointermove/pointerup already consume isPanning/startX/startY/scrollLeft/scrollTop). This
           // runs before the eraser/draw/marquee/place branches so Space overrides whatever tool is active.
-          if (window.wpSpacePan && e.button === 0) {
+          // The middle button pans the same way, whatever tool is active (fog, fill, draw, measure, the eraser): the tool's own gesture never
+          // starts for it, and nothing is deselected.
+          if ((window.wpSpacePan && e.button === 0) || e.button === 1) {
               isPanning = true;
               startX = e.pageX - wrapEl.offsetLeft; startY = e.pageY - wrapEl.offsetTop;
               scrollLeft = wrapEl.scrollLeft; scrollTop = wrapEl.scrollTop;

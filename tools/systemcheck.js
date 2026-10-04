@@ -8171,6 +8171,43 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             ixC.includes('Right-click a token &#9656; <b>Effects&hellip;</b> to add or end an effect without opening the sheet') && ixC.includes('A token with <b>no character sheet</b> keeps effects of its own') && ixC.includes('A player gets <b>Effects&hellip;</b> on their own character&rsquo;s token wherever its sheet lets them change its effects.')
             && tuC.includes('Right-click a token &#9656; <b>Effects&hellip;</b> to add or end one from the map, even on a token with no sheet.') && giC.includes('A token with no character sheet may carry `fx`, its own effects: up to 12 rows'));
     }
+    /* ---- 1.5.1: Enter ticks a focused checkbox; a character token's sheet button; the middle button pans from any tool ---- */
+    {
+        const NLx = String.fromCharCode(10), rdx = f => fs.readFileSync(path.join(__dirname, '..', 'system', 'app', f), 'utf8').replace(/\r\n/g, NLx);
+        const mainS = rdx('scripts/main.js'), wbS2 = rdx('scripts/whiteboard.js'), dmS = rdx('scripts/datamap.js'), ixS2 = rdx('index.html');
+        const cutX = (s, name) => { const a = s.indexOf('// [systemcheck:' + name + '-start]'), z = s.indexOf('// [systemcheck:' + name + '-end]'); if (a < 0 || z < a) throw new Error('systemcheck: the ' + name + ' slice is not marked'); return s.slice(a, z); };
+        // (a) Enter on a checkbox, run for real on plain objects
+        const wiredE = []; new Function('document', '"use strict";' + NLx + cutX(mainS, 'checkenter') + NLx + 'return checkEnter;')({ addEventListener: (t, f, c) => wiredE.push([t, f && f.name, c]) });
+        const CE = new Function('document', '"use strict";' + NLx + cutX(mainS, 'checkenter') + NLx + 'return checkEnter;')({ addEventListener() {} });
+        const box = o => Object.assign({ tagName: 'INPUT', type: 'checkbox', disabled: false, clicks: 0, click() { this.clicks++; } }, o || {});
+        const key = (t, o) => { const e = Object.assign({ key: 'Enter', target: t, defaultPrevented: false, repeat: false, ctrlKey: false, altKey: false, metaKey: false, shiftKey: false, prevented: 0, preventDefault() { this.prevented++; } }, o || {}); CE(e); return e; };
+        const b1 = box(), e1 = key(b1), ticked = b1.clicks === 1 && e1.prevented === 1;
+        const spared = [['a text box', box({ type: 'text' }), {}], ['a button', box({ tagName: 'BUTTON' }), {}], ['a disabled box', box({ disabled: true }), {}], ['another key', box(), { key: ' ' }], ['a key something took', box(), { defaultPrevented: true }], ['a held key', box(), { repeat: true }],
+            ['with Ctrl', box(), { ctrlKey: true }], ['with Alt', box(), { altKey: true }], ['with Shift', box(), { shiftKey: true }], ['with Meta', box(), { metaKey: true }]].filter(c => { const e = key(c[1], c[2]); return c[1].clicks !== 0 || e.prevented !== 0; }).map(c => c[0]);
+        let quietE = true; try { CE(null); CE({ key: 'Enter', target: null }); } catch (e) { quietE = false; }
+        check('Enter ticks the checkbox that has the focus (run for real): one click through the box itself and the key taken; never a text box, a button, a disabled box, another key, a key something else took, a held key or one with a modifier; a missing target is no error; wired on the document, in the bubble phase',
+            ticked && spared.length === 0 && quietE && j(wiredE) === j([['keydown', 'checkEnter', undefined]]), j({ ticked, spared, quietE, wiredE }));
+        // (b) the sheet button: one selected token whose character's sheet this screen may open
+        const shRun = (its, canOpen) => { const btn = { style: { display: 'x' } }, sep = { style: { display: 'x' } }, bar = { querySelector: q => (q === '.st-sheet' ? btn : q === '.st-sheet-sep' ? sep : null) };
+            new Function('bar', 'its', 'window', '"use strict";' + NLx + cutX(wbS2, 'sheetbtn'))(bar, its, { wpSheets: canOpen === undefined ? undefined : { canOpen: id => canOpen.indexOf(id) >= 0 } }); return [btn.style.display, sep.style.display]; };
+        const shown = j(shRun([{ charId: 'c_a' }], ['c_a'])) === j(['', '']);
+        const hiddenAll = [shRun([{ charId: 'c_a' }], []), shRun([{ charId: 'c_a' }, { charId: 'c_b' }], ['c_a', 'c_b']), shRun([{}], ['c_a']), shRun([{ charId: '' }], ['']), shRun([{ charId: 7 }], [7]), shRun([{ charId: 'c_a' }], undefined)].every(r => j(r) === j(['none', 'none']));
+        check('a character token\'s sheet in one click: the selection toolbar\'s sheet button shows only for one selected token whose character\'s sheet this screen may open (run for real: never for two tokens, a token with no character, a character id that is no text, a sheet that is not theirs to open, or with sheets off), and opens it through the sheet\'s own gate; the GM\'s right-click menu on one character token begins with Sheet (and HUD), not listed a second time further down',
+            shown && hiddenAll && /if \(act === 'sheet'\) \{ if \(its\.length === 1 && its\[0\]\.charId && window\.wpSheets && window\.wpSheets\.canOpen\(its\[0\]\.charId\)\) window\.wpSheets\.openSheet\(its\[0\]\.charId\); return; \}/.test(wbS2)
+            && ixS2.includes('<button data-st="sheet" class="st-sheet" title="Open this character\'s sheet" style="display:none;">&#128203;</button>')
+            && /var sheetTop = !!\(isWb && selectedIds\.length === 1 && firstItem && \(firstItem\.isChar \|\| firstItem\.charId\) && window\.wpSheets\);\n\s*if \(sheetTop\) \{ html \+= '<div class="menu-item cm-sheet">/.test(wbS2)
+            && /if \(!sheetTop\) \{[^\n]*\n\s*if \(isWb && firstItem && \(firstItem\.isChar \|\| firstItem\.charId\) && window\.wpSheets\) html \+= '<div class="menu-item cm-sheet">[^\n]*\n\s*if \(isWb && firstItem && firstItem\.charId && window\.wpSheets && window\.wpSheets\.hudFor[^\n]*\n\s*\}\n/.test(wbS2), j({ shown, hiddenAll }));
+        check('Help and the tour say the sheet button and the checkbox key: Help names the toolbar\'s button and the menu\'s first row, and lists Enter beside Space for a focused checkbox; the tour\'s sheet step names the button',
+            ixS2.includes('select a character&rsquo;s token and press the <b>&#128203;</b> button on its toolbar, or right-click the token &#9656; <b>Sheet&hellip;</b> (the first row of its menu)') && ixS2.includes('<li><kbd>Enter</kbd> or <kbd>Space</kbd> &nbsp; Tick or untick the checkbox that has the focus')
+            && rdx('scripts/tutorial.js').includes('select the token and press <b>&#128203;</b> on its toolbar, or right-click it &#9656; <b>Sheet&hellip;</b>'));
+        // (c) the middle button pans before any tool's own branch, and before a selection is cleared
+        const iPan = dmS.indexOf("if ((window.wpSpacePan && e.button === 0) || e.button === 1) {"), iTool = dmS.indexOf("if ((window.isFogMode || window.isFillMode) && wrapEl === wbWrap) return;"), iClear = dmS.indexOf("else { state.selWbId = null; state.selWbIds = []; }   // empty-board click clears a multi-selection too"), iGate = dmS.indexOf("if (e.button !== undefined && e.button !== 0 && e.button !== 1) return;");
+        check('the middle button pans the board from any tool: its branch stands after the button gate and before the fog and fill tools\' own return, before the eraser\'s and the ruler\'s, and before a selection is cleared; the browser\'s own scroll anchor never starts; an item\'s own press ignores every button but the left',
+            iGate > 0 && iPan > iGate && iTool > iPan && iClear > iTool && dmS.includes("wrapEl.addEventListener('mousedown', function(e) { if (e.button === 1) e.preventDefault(); });") && /el\.addEventListener\('pointerdown',function\(e\)\{\n\s*if\(e\.button!==undefined && e\.button!==0\) return;/.test(dmS.replace(/\n\n/g, NLx)), j([iGate, iPan, iTool, iClear]));
+        // (d) the left panel: Handbook, then Planners, then Maps
+        const iH = ixS2.indexOf('data-section="handbook"'), iP = ixS2.indexOf('data-section="planners"'), iM = ixS2.indexOf('data-section="maps"');
+        check('the left panel lists Handbook, then Planners, then Maps, each once', iH > 0 && iP > iH && iM > iP && ixS2.split('data-section="handbook"').length === 2 && ixS2.split('data-section="planners"').length === 2 && ixS2.split('data-section="maps"').length === 2, j([iH, iP, iM]));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

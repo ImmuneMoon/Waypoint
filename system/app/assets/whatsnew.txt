@@ -92,11 +92,22 @@ The tutorial
   unfolds the right panel when it is folded away, the Data map tools step
   opens a data map itself, and Finding things points at the Maps list.
 
+Play map
+- A character token's sheet is one click away: a selected token's toolbar
+  has a sheet button (the clipboard), and the right-click menu of a single
+  character token begins with Sheet and HUD, where they sat far down it.
+- The left panel lists Handbook first, then Planners and Maps.
+- Enter ticks the checkbox that has the focus, as Space does, so a form
+  walked with Tab can be filled without the mouse.
+
 Fixes
 - Handouts: the "Give to…" list beside each handout wears the app's own look
   (it showed as a plain white box), and its Give button stays dimmed until
   someone is chosen. The window, its button and Help say what a handout is:
   a picture or a written page (a letter, a briefing, a recap).
+- The middle mouse button pans the board from every tool, as Help always
+  said: in the fog and fill tools it did nothing, and elsewhere a pan with
+  it dropped the selection.
 
 WAYPOINT 1.5.0 — What's New
 ============================

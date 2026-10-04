@@ -72,6 +72,9 @@ ShadowBase sheets
   is); a magazine weighs and costs its own figures plus the rounds in it; a
   part marked Destroyed is left out; and an older blaster that carries no
   final cost costs its base cost plus its upgrades, where it read as free.
+- The gauntlet or boot left on a severed limb (the website marks it as
+  wreckage) comes across as carried gear with its weight and cost, never as
+  armour that can be worn.
 
 The tutorial
 - The tour's cards always fit the window: a long step scrolls inside its

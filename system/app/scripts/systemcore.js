@@ -3874,6 +3874,7 @@ function sbRowOps(json, sys, find) {
     if (fA) arm.forEach(function(a) {
         var wt = num(typeof a.finalWeight === 'number' ? a.finalWeight : a.weight), cr = num(typeof a.finalCost === 'number' ? a.finalCost : a.cost);
         if (a.storageLocationId) { if (fG) gearRow(fG, a, { wt: wt, cr: cr }); return; }   // in storage: carried nowhere, kept as stowed gear
+        if (a.isSeveredRemnant === true) { if (fG) gearRow(fG, a, { wt: wt, cr: cr }); return; }   // wreckage left on a severed limb (the website, 2026-10-03): carried, with its weight and cost, and never worn again — a gear row, not armour
         var m2 = function(x, y) { return Math.max(num(x), num(y)); }, st2 = { wt: wt, cr: cr };
         if (typeof a.drValue === 'number' && Array.isArray(a.locations)) a.locations.forEach(function(l) { var k = SLOT[lower(String(l)).replace(/^(left|right)\s+/, '').trim()]; if (k) st2[k] = Math.max(st2[k] || 0, num(a.drValue)); });   // an older sheet: one DR over its locations
         else {

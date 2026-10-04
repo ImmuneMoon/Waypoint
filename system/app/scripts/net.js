@@ -1231,6 +1231,7 @@ net.stageMode = null;        // 'last', or null for the stage select's other cho
 net.stageFallback = null;    // map id, or null for Follow me
 net.stagePicked = {};        // campaign id -> { mode, fallback } the GM chose for it this session
 
+// [netcheck:landing-start]
 // The map this player was last on in the hosted campaign, if it still exists and is open to
 // players: a map the GM has locked counts as gone, like a deleted one, so the player lands on the
 // fallback instead of behind the lock. The host reads only its own record here — never a
@@ -1250,7 +1251,7 @@ function hasLastLocations(camp) {
 function defaultStageMode(camp) {
     if (!camp || (net.active && net.role === 'host')) return;
     var pick = net.stagePicked[camp.id];
-    net.stageMode = pick ? pick.mode : (hasLastLocations(camp) ? 'last' : null);
+    net.stageMode = pick ? pick.mode : 'last';   // the owner's ruling of 2026-10-04: "players should never follow me automatically" — a table follows the GM only when the GM sets it to (it began on Follow me while the campaign had had no player)
     net.stageFallback = pick ? pick.fallback : null;
 }
 // Where a joining player lands: under "Player's last location" their own last map, else the
@@ -1262,9 +1263,11 @@ function landingFor(prof) {
         if (own) return { stage: { campId: camp.id, itemId: own }, detached: true };
         var fb = net.stageFallback ? camp.items[net.stageFallback] : null;
         if (fb && fb.type === 'map') return { stage: { campId: camp.id, itemId: fb.id }, detached: true };
+        return { stage: currentStage(), detached: true };   // a first-timer under "Follow me": on the map the GM is on, ONCE — they do not follow the GM's browsing afterwards (they did, from map to map, until they rejoined)
     }
     return { stage: currentStage(), detached: false };
 }
+// [netcheck:landing-end]
 
 function currentStage() {
     var camp = getActiveCampaign();
@@ -1326,7 +1329,7 @@ function refreshStageSelect() {
     var mapOpts = maps.map(function(m) { return '<option value="' + escAttr(m.id) + '">' + escText((m.meta && m.meta.title) || m.id) + '</option>'; }).join('');
     defaultStageMode(camp);
     // the mode in force stays listed even if the last map it relied on has since been deleted
-    var lastOpt = (hasLastLocations(camp) || net.stageMode === 'last') ? '<option value="last">Player\'s last location</option>' : '';
+    var lastOpt = '<option value="last">Player\'s last location</option>';   // always offered: it is the mode a table starts in
     sel.innerHTML = lastOpt + '<option value="">Follow me — ' + escText(followTitle) + '</option>' + mapOpts;
     sel.value = net.stageMode === 'last' ? 'last' : (net.stageOverride && camp.items[net.stageOverride]) ? net.stageOverride : '';
     // "New players start at" shows only under "Player's last location"
@@ -1963,7 +1966,7 @@ net.onLocalSave = function() {
    a quick detour to another map (to fetch a stray token, check a note) no longer drags
    the whole party along and back. Pinning a map in the Host panel bypasses this entirely. */
 var STAGE_GRACE_MS = 3000;
-var _stageTimer = null, _stageHintShown = false;
+var _stageTimer = null, _stageHintShown = false, _stayHintShown = false;
 function scheduleStageFollow() {
     var stage = currentStage();
     var key = stage ? stage.campId + '/' + stage.itemId : '';
@@ -1980,9 +1983,13 @@ function scheduleStageFollow() {
         var moved = followConns(s2);   // only admitted players still following the GM are moved; detached wanderers stay put
         renderRoster();
         broadcastRoster();
+        if (!moved && net.stageMode === 'last' && !_stayHintShown && net.conns.some(function(c) { var pS = own(net.roster, c.peer) ? net.roster[c.peer] : null; return !!pS && pS.location !== s2.itemId; })) {
+            _stayHintShown = true;   // said once a session: the GM opened another map and the players did not come
+            toast('Your players stay where they are. Summon All brings them to this map; Players arrive at \u25B8 Follow me makes the table move with you.');
+        }
         if (moved && !net.stageOverride && !_stageHintShown) {
             _stageHintShown = true;
-            toast('The table followed you here (' + moved + ' player' + (moved > 1 ? 's' : '') + '). To browse maps without moving them, pin a map under Players arrive at.');
+            toast('The table followed you here (' + moved + ' player' + (moved > 1 ? 's' : '') + '). To browse maps without moving them, set Players arrive at to Player\'s last location.');
         }
     }, STAGE_GRACE_MS);
 }
@@ -7920,7 +7927,7 @@ syncSessionButtons();
 function stageConn(c, stage, personal) {
     var p = own(net.roster, c.peer) ? net.roster[c.peer] : null;
     if (!p) return null;
-    if (personal) p.detached = false;
+    if (personal) p.detached = net.stageMode === 'last';   // a summon ends a detour; under "Player's last location" nobody is attached to the GM's browsing, so they stay where they were brought (the owner's ruling of 2026-10-04)
     p.location = stage.itemId; ensurePlayerToken(p.id, stage.itemId);
     if (typeof mapGive === 'function') mapGive(c, stage.campId, stage.itemId);   // possession: the map they arrive on, whole, before the word that they are on it
     if (c.open) { try { c.send(personal ? { type: 'stage', stage: stage, personal: true } : { type: 'stage', stage: stage }); } catch (e) { sendFailed(e); } }
@@ -7979,16 +7986,19 @@ net.summonAllToMap = function(mapId) {
     if (!net.active || net.role !== 'host') return false;
     var camp = getActiveCampaign();
     if (!camp || !camp.items[mapId] || camp.items[mapId].type !== 'map') { toast('Open a play map first.'); return false; }
-    net.stageMode = null;
-    net.stageOverride = mapId;                                              // pin the table to this map
-    net.stagePicked[camp.id] = { mode: null, fallback: net.stageFallback }; // the GM chose; stop defaulting
-    Object.values(net.roster).forEach(function(p) { if (p) p.detached = false; });   // everyone follows again
-    refreshStageSelect();
+    var stay = net.stageMode === 'last';   // under "Player's last location" everyone is brought here once and the table stays as it was set: no pin, nobody attached
+    if (!stay) {
+        net.stageMode = null;
+        net.stageOverride = mapId;                                              // pin the table to this map
+        net.stagePicked[camp.id] = { mode: null, fallback: net.stageFallback }; // the GM chose; stop defaulting
+        Object.values(net.roster).forEach(function(p) { if (p) p.detached = false; });   // everyone follows again
+        refreshStageSelect();
+    }
     var stage = { campId: camp.id, itemId: mapId };
     net.conns.forEach(function(c) { summonConn(c, stage); });
     renderRoster();
     broadcastRoster();
-    toast('Everyone summoned to ' + ((camp.items[mapId].meta && camp.items[mapId].meta.title) || 'this map') + '; table pinned here.');
+    toast('Everyone summoned to ' + ((camp.items[mapId].meta && camp.items[mapId].meta.title) || 'this map') + (stay ? '.' : '; table pinned here.'));
     return true;
 };
 // Host: send the players a fresh copy of these maps (after a lock change, say)

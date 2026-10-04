@@ -3816,7 +3816,7 @@ function importJson() {   // the owner sends their sheet file to the GM (the GM 
     inp.click();
 }
 var _review = null;   // { upId }
-function closeReview() { var m = ui('uploadModal'); if (m) m.style.display = 'none'; _review = null; }
+function closeReview() { var m = ui('uploadModal'); if (m) m.style.display = 'none'; _review = null; renderReviewChip(); }
 // [sinkcheck:uploadreview-start]
 function openReview(charId) {
     var camp = getActiveCampaign(), up = uploadsOf(camp, charId)[0], m = ui('uploadModal'); if (!up || !m || isClient()) return;
@@ -3860,7 +3860,21 @@ function openReview(charId) {
     m.style.display = 'flex';
 }
 // [sinkcheck:uploadreview-end]
-function uploadsChanged(charId) { renderViews(typeof charId === 'string' ? charId : null); }   // the Review button on its sheet
+// [systemcheck:reviewchip-start]
+// The header's Review button: there for as long as a player's sheet upload waits for the GM, whatever is open (the toast that tells of an
+// upload fades). Its number is the uploads waiting; a press opens the oldest one's sheet and its Review. Never on a player's app.
+function reviewWaiting() { var camp = getActiveCampaign(); return camp && canWrite() && !isClient() && featureOn() ? uploadsOf(camp, null).filter(function(u) { return !!charById(u.charId, camp); }) : []; }
+function renderReviewChip() {
+    var chip = ui('reviewChip'); if (!chip) return;
+    var ups = reviewWaiting(), camp = getActiveCampaign();
+    chip.style.display = ups.length ? '' : 'none';
+    if (!ups.length) return;
+    var nEl = ui('reviewChipN'); if (nEl) nEl.textContent = String(ups.length);
+    chip.title = (ups.length === 1 ? 'A sheet update waits' : ups.length + ' sheet updates wait') + ' for your review: ' + ups.map(function(u) { var c = charById(u.charId, camp); return (c ? c.name : 'a character') + ' (' + u.changes.length + ')'; }).join(', ');
+}
+function reviewNext() { var up = reviewWaiting()[0]; if (!up) { renderReviewChip(); return; } openSheet(up.charId); openReview(up.charId); }
+// [systemcheck:reviewchip-end]
+function uploadsChanged(charId) { renderViews(typeof charId === 'string' ? charId : null); renderReviewChip(); }   // the Review button on its sheet, and the header's
 // Stage 6 F7: the GM's own entries by name — the system's items, then the library's packs in their order (lower-case name -> entries)
 function sbFinder(camp, sys) {
     var by = Object.create(null), add = function(e) { if (e && typeof e.name === 'string' && typeof e.id === 'string') { var k = e.name.trim().toLowerCase(); (by[k] = by[k] || []).push(e); } };
@@ -6054,6 +6068,7 @@ function importFile(file) {
     var nmBt = ui('sheetName'); if (nmBt) nmBt.addEventListener('click', renameMaking);
     var ulBt = ui('sheetUnlock'); if (ulBt) ulBt.addEventListener('click', function() { if (sheetOpen) unlockChar(sheetOpen); });
     var rvBt = ui('sheetReview'); if (rvBt) rvBt.addEventListener('click', function() { if (sheetOpen) openReview(sheetOpen); });
+    var rvChip = ui('reviewChip'); if (rvChip) rvChip.addEventListener('click', reviewNext);
     var rvC = ui('uploadClose'); if (rvC) rvC.addEventListener('click', closeReview);
     var etB = ui('sheetEndTurn'); if (etB) etB.addEventListener('click', endTurn);   // turn-based combat T2: the player on turn ends it   // HUD frame (HF2a): the reference's header button
     p.addEventListener('pointerdown', function() { raisePanel(p); }, true);
@@ -6085,7 +6100,7 @@ function sync() {
     var chS = window.wpChat; if (chS && chS.lookSync) chS.lookSync();   // chat cards: their colours follow the system's look
 }
 var _lastCamp = null;
-setInterval(function() { var c = getActiveCampaign(), id = c ? c.id : null; if (_lastCamp !== null && id !== _lastCamp) { if (sheetOpen) closeSheet(); closeHuds(); } _lastCamp = id; try { bellFx(null); } catch (e) { console.error(e); } var chI = window.wpChat; if (chI && chI.lookSync) chI.lookSync(); }, 1000);   // (and the bell's effects feed, for a change no repaint followed)
+setInterval(function() { var c = getActiveCampaign(), id = c ? c.id : null; if (_lastCamp !== null && id !== _lastCamp) { if (sheetOpen) closeSheet(); closeHuds(); } _lastCamp = id; try { bellFx(null); } catch (e) { console.error(e); } try { renderReviewChip(); } catch (e) { console.error(e); } var chI = window.wpChat; if (chI && chI.lookSync) chI.lookSync(); }, 1000);   // (and the bell's effects feed, for a change no repaint followed)
 window.wpSheetsSync = sync;
 setTimeout(sync, 0);
 window.wpSheets = { bellNote: bellNote, runTimeRules: runTimeRules, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },

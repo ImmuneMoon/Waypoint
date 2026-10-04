@@ -8309,6 +8309,76 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && ixS2.includes('<li><b>Combat from a token (GM):</b> right-click a character token at your table') && rdx('scripts/tutorial.js').includes('You target too: right-click a character token &#9656; <b>Target</b> is your own pointer')
             && ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8').includes('- Combat from a token: at your table a character token')),
             j([gfH1.length, gfW.opened, gfNone, gfHidH, gfAdd, gfDrop, gfEnd]));
+        // (j) the party's Jump goes where that player is (models.js locateCharacter / characterList, net.js whereIs sliced by its whereis markers, whiteboard.js by its charnow markers, run for real)
+        const mdJ = rdx('scripts/models.js'), netJ = rdx('scripts/net.js'), stJ = rdx('scripts/stream.js'), mA = mdJ.indexOf('export function characterList('), mB = mdJ.indexOf('export function locateCharacter('), mC = mdJ.indexOf(NLx + '}' + NLx, mB);
+        if (mA < 0 || mB < mA || mC < mB) throw new Error('systemcheck: models.js characterList / locateCharacter not found');
+        const MJ = new Function('"use strict";' + NLx + mdJ.slice(mA, mC + 2).replace(/export function/g, 'function') + NLx + 'return { list: characterList, locate: locateCharacter };')();
+        const lineJ = (src, re) => { const m = src.match(re); if (!m) throw new Error('systemcheck: line not found: ' + re); return m[0]; };
+        const jw = { net: { active: true, role: 'host', stream: false, myId: 'gm', roster: {}, streamWhere: null }, away: {}, camp: null, plays: { u_s: 'c_s' } };
+        const WI = new Function('net', 'awayMap', 'getActiveCampaign', '"use strict";' + NLx + lineJ(netJ, /^function own\(o, k\) \{[^\n]*$/m) + NLx + lineJ(netJ, /^function validKey\(k\) \{[^\n]*$/m) + NLx + cutX(netJ, 'whereis') + NLx + 'return net.whereIs;')(jw.net, () => jw.away, () => jw.camp);
+        const CN = new Function('window', 'locateCharacter', '"use strict";' + NLx + cutX(wbS2, 'charnow') + NLx + 'return { player: playerNow, char: charNow, chip: chipPlace };')({ get wpNet() { return jw.net; }, wpSystemCore: { activeCharOf: (camp, pid) => ({ id: Object.prototype.hasOwnProperty.call(jw.plays, pid) ? jw.plays[pid] : null }) } }, MJ.locate);
+        const tokJ = (id, o) => Object.assign({ id, isChar: true, x: 0, y: 0, w: 60, h: 52 }, o);
+        const campJ = () => ({ id: 'c1', activeItemId: 'm1', chars: { c_s: { id: 'c_s' }, c_pet: { id: 'c_pet' } }, players: { u_s: { name: 'Sam', lastMap: 'm3' } }, items: {
+            m1: { id: 'm1', type: 'map', meta: { title: 'Cantina' }, whiteboard: [tokJ('tS1', { ownerId: 'u_s', charId: 'c_s', charName: 'Sahrhie' }), tokJ('tN', { charName: 'Molab' })] },
+            m2: { id: 'm2', type: 'map', meta: { title: 'Docks <b>' }, whiteboard: [tokJ('tP2', { ownerId: 'u_s', charId: 'c_pet', charName: 'Pet' }), tokJ('tS2', { ownerId: 'u_s', charId: 'c_s', charName: 'Sahrhie' })] },
+            m3: { id: 'm3', type: 'map', meta: { title: 'Hangar' }, whiteboard: [tokJ('tH3', { ownerId: 'u_s', charId: 'c_s', charName: 'Sahrhie', hidden: true }), tokJ('tS3', { ownerId: 'u_s', charId: 'c_s', charName: 'Sahrhie' })] },
+            m4: { id: 'm4', type: 'map', meta: { title: 'Vault' }, whiteboard: [] },
+            p1: { id: 'p1', type: 'planner', meta: { title: 'Notes' } } } });
+        const setJ = o => { jw.camp = campJ(); jw.net.active = true; jw.net.role = 'host'; jw.net.stream = false; jw.net.myId = 'gm'; jw.net.roster = {}; jw.net.streamWhere = null; jw.away = {}; jw.plays = { u_s: 'c_s' }; if (o) o(jw); };
+        const nowJ = (key, o) => { setJ(o); const r = CN.char(jw.camp, key); return [r.loc ? r.loc.map.id + '/' + r.loc.tok.id : null, r.left ? r.left.map.id + '/' + r.left.tok.id : null, r.at, r.sure]; };
+        const liveAt = id => w => { w.net.roster = { peerA: { id: 'u_s', name: 'Sam', location: id } }; };
+        // the GM at a table: the player's own place, whatever map is on screen; the character they play before a pet; a map with no token of theirs
+        const jHost = [nowJ('o:u_s', liveAt('m2')), nowJ('o:u_s', w => { liveAt('m2')(w); w.camp.activeItemId = 'm3'; }), nowJ('o:u_s', w => { liveAt('m2')(w); w.plays = {}; }), nowJ('o:u_s', w => { liveAt('m2')(w); w.plays = { u_s: 'c_pet' }; }), nowJ('o:u_s', liveAt('m4')), nowJ('o:u_s', liveAt('m3'))];
+        // a player who left: the place they were last seen first, and no more than first (the GM may have moved a token since); nobody can say: as before
+        const jAway = [nowJ('o:u_s', w => { w.away = { u_s: 'm3' }; }), nowJ('o:u_s', w => { w.away = { u_s: 'm4' }; }), nowJ('o:u_s'), nowJ('o:u_s', w => { w.away = { u_s: 'm2' }; w.camp.activeItemId = 'm4'; })];
+        // away from any table: the GM's own record; a record that names no map of the campaign is no place
+        const solo = fn => w => { w.net.active = false; w.net.role = null; if (fn) fn(w); };
+        const jSolo = [nowJ('o:u_s', solo()), nowJ('o:u_s', solo(w => { w.camp.players.u_s.lastMap = 'm2'; })), nowJ('o:u_s', solo(w => { w.camp.players.u_s.lastMap = 'p1'; })), nowJ('o:u_s', solo(w => { w.camp.players.u_s.lastMap = 'gone'; })), nowJ('o:u_s', solo(w => { w.camp.players.u_s.lastMap = 'constructor'; })), nowJ('o:u_s', solo(w => { w.camp.players.u_s.lastMap = 7; })), nowJ('o:u_s', solo(w => { delete w.camp.players; }))];
+        // a player's app: a teammate on another map is not on this one, whatever token they left here; their own place is the map on their screen
+        const client = fn => w => { w.net.role = 'client'; w.net.myId = 'u_me'; w.camp.items.m2.whiteboard = []; w.camp.items.m3.whiteboard = []; delete w.camp.players; if (fn) fn(w); };
+        const jClient = [nowJ('o:u_s', client(liveAt('m2'))), nowJ('o:u_s', client(liveAt('m1'))), nowJ('o:u_s', client(w => { w.away = { u_s: 'm3' }; })), nowJ('o:u_s', client(w => { w.away = { u_s: 'm1' }; })), nowJ('o:u_s', client(w => { liveAt('m2')(w); w.net.myId = 'u_s'; }))];
+        // the stream window: what the GM's save said when it was last read
+        const jStream = [nowJ('o:u_s', w => { w.net.role = 'client'; w.net.stream = true; w.net.streamWhere = Object.assign(Object.create(null), { u_s: 'm2' }); }), nowJ('o:u_s', w => { w.net.role = 'client'; w.net.stream = true; })];
+        // anything that is no player's character, and a hostile place, as before
+        const jOther = [nowJ('i:tN', liveAt('m2')), nowJ('i:tN', w => { liveAt('m2')(w); w.camp.activeItemId = 'm2'; }), nowJ('o:u_s', liveAt(7)), nowJ('o:u_s', liveAt('toString')), nowJ('o:nobody', liveAt('m2')), nowJ('', liveAt('m2')), nowJ(null)];
+        setJ(liveAt('m2'));
+        const jWhere = [WI('u_s'), WI('__proto__'), WI('constructor'), WI(7), WI(''), WI('u_x')];
+        setJ(w => { w.away = { u_s: 'm3', u_bad: 'hasOwnProperty' }; }); jWhere.push(WI('u_s'), WI('u_bad'));
+        setJ(liveAt(7)); jWhere.push(WI('u_s')); setJ(liveAt('toString')); jWhere.push(WI('u_s'));
+        setJ(solo(w => { w.camp.players.u_s.lastMap = 'constructor'; })); jWhere.push(WI('u_s')); setJ(solo(w => { w.camp.players.u_s.lastMap = 7; })); jWhere.push(WI('u_s')); setJ(solo()); jWhere.push(WI('u_s'));
+        // the chips: one per player, the token on the map that player is on; the place asked once per player; a chip whose player is on a map with no token of theirs says that map
+        setJ(liveAt('m2')); let asked = 0;
+        const chipOf = (list) => list.filter(c => c.key === 'o:u_s').map(c => [c.tokId, c.mapId, c.map]);
+        const jList = [chipOf(MJ.list(jw.camp, true, 'm1', pid => { asked++; return CN.player(jw.camp, pid); })), chipOf(MJ.list(jw.camp, true, 'm1')), chipOf(MJ.list(jw.camp, true, 'm3')), chipOf(MJ.list(jw.camp, true))];
+        setJ(liveAt('m4')); const jChip = chipOf(MJ.list(jw.camp, true, 'm1', pid => CN.player(jw.camp, pid)).map(c => CN.chip(jw.camp, c)));
+        setJ(w => { w.away = { u_s: 'm4' }; }); const jChipAway = chipOf(MJ.list(jw.camp, true, 'm1', pid => CN.player(jw.camp, pid)).map(c => CN.chip(jw.camp, c)));
+        // without a place both readers answer as they always did
+        setJ(); const locJ = (...a) => { const r = MJ.locate(jw.camp, ...a); return r ? r.map.id + '/' + r.tok.id : null; };
+        const jOld = [locJ('o:u_s'), locJ('o:u_s', 'm3'), locJ('o:u_s', 'm2'), locJ('o:u_s', 'm4'), locJ('o:u_s', 'm3', null), locJ('o:u_s', 'm1', { map: 'nope' }), locJ('o:u_s', 'm1', { map: 'constructor' }), locJ('o:u_s', 'm1', { map: 7, char: 7 }), locJ('o:u_s', 'm1', { map: 'm2', char: 'c_s' }), locJ('o:u_s', 'm1', { map: 'm2' })];
+        const LS = new Function('"use strict";' + NLx + lineJ(stJ, /^\s*function lastSeen\(raw\) \{[^\n]*$/m) + NLx + 'return lastSeen;')();
+        const jSeen = [LS({ players: { u_s: { lastMap: 'm2' }, u_n: { lastMap: 7 }, u_e: { lastMap: '' }, u_z: null, u_q: 'x' } }), LS({ players: [{ lastMap: 'm1' }] }), LS({}), LS(null), LS(JSON.parse('{"players":{"__proto__":{"lastMap":"m9"}}}'))].map(o => [Object.getPrototypeOf(o) === null, Object.keys(o).map(k => k + '=' + o[k]).join(',')]);
+        check('the party\'s Jump goes where that player is (run for real): at the GM\'s table a player\'s character is found on the map their app is on, whatever map the GM has open, and of their tokens there the one of the character they play before a pet; on a map with no token of theirs the answer is that map and no token, never one they left behind elsewhere; a hidden token is no place',
+            j(jHost) === j([['m2/tS2', null, 'm2', true], ['m2/tS2', null, 'm2', true], ['m2/tP2', null, 'm2', true], ['m2/tP2', null, 'm2', true], [null, 'm1/tS1', 'm4', true], ['m3/tS3', null, 'm3', true]]), j(jHost));
+        check('the party\'s Jump after a player left, away from a table, on a player\'s app and in the stream window (run for real): the place they were last seen comes first and no more than first, the GM\'s own record away from a table, a record that names no map no place; on a player\'s app a teammate on another map is not on this one whatever token they left here, and the player\'s own place is the map on their screen; the stream window reads what the GM\'s save said; a piece that is no player\'s, a place that is no text and a key that is none are found as before',
+            j(jAway) === j([['m3/tS3', null, 'm3', false], ['m1/tS1', null, 'm4', false], ['m1/tS1', null, null, false], ['m2/tS2', null, 'm2', false]])
+            && j(jSolo) === j([['m3/tS3', null, 'm3', false], ['m2/tS2', null, 'm2', false], ['m1/tS1', null, null, false], ['m1/tS1', null, null, false], ['m1/tS1', null, null, false], ['m1/tS1', null, null, false], ['m1/tS1', null, null, false]])
+            && j(jClient) === j([[null, 'm1/tS1', 'm2', true], ['m1/tS1', null, 'm1', true], [null, 'm1/tS1', 'm3', true], ['m1/tS1', null, 'm1', true], ['m1/tS1', null, 'm1', true]])
+            && j(jStream) === j([['m2/tS2', null, 'm2', false], ['m1/tS1', null, null, false]])
+            && j(jOther) === j([['m1/tN', null, null, false], ['m1/tN', null, null, false], ['m1/tS1', null, null, false], ['m1/tS1', null, null, false], [null, null, null, false], [null, null, null, false], [null, null, null, false]]),
+            j([jAway, jSolo, jClient, jStream, jOther]));
+        check('where a player is (net.whereIs run for real with the app\'s own key rules): the roster\'s place and live (a place that is no text or a prototype\'s name: live and nowhere), the away map\'s after they left, the GM\'s own record away from a table (checked alike), nothing for an id that is no text, an empty one, a prototype\'s name or a place that is one; the stream window\'s table of last places is read from the save as a prototype-free table of text to text',
+            j(jWhere) === j([{ map: 'm2', live: true }, { map: null, live: false }, { map: null, live: false }, { map: null, live: false }, { map: null, live: false }, { map: null, live: false }, { map: 'm3', live: false }, { map: null, live: false }, { map: null, live: true }, { map: null, live: true }, { map: null, live: false }, { map: null, live: false }, { map: 'm3', live: false }])
+            && j(jSeen) === j([[true, 'u_s=m2'], [true, ''], [true, ''], [true, ''], [true, '__proto__=m9']]), j([jWhere, jSeen]));
+        check('the party\'s chips and both readers (run for real): a player\'s chip is the token on the map they are on, their place asked once per player however many tokens they have; with no place given the chip is the token on the map on screen and the readers answer exactly as before; a chip whose connected player is on a map with no token of theirs names that map, one whose player left is left as found; every caller in the play map reads through the one rule, the stream window too; both release notes say it',
+            j(jList) === j([[['tS2', 'm2', 'Docks <b>']], [['tS1', 'm1', 'Cantina']], [['tS3', 'm3', 'Hangar']], [['tS1', 'm1', 'Cantina']]]) && asked === 1 && j(jChip) === j([['tS1', 'm4', 'Vault']]) && j(jChipAway) === j([['tS1', 'm1', 'Cantina']])
+            && j(jOld) === j(['m1/tS1', 'm3/tS3', 'm2/tP2', 'm1/tS1', 'm3/tS3', 'm1/tS1', 'm1/tS1', 'm1/tS1', 'm2/tS2', 'm2/tP2'])
+            && wbS2.split('locateCharacter(').length === 3 && wbS2.split('charNow(').length === 8
+            && wbS2.includes("var list = characterList(camp, true, am.id, function(pid) { return playerNow(camp, pid); }).map(function(c) { return chipPlace(camp, c); });")
+            && wbS2.includes("var amC = getActiveMap(), nowC = charNow(camp, key), locC = nowC.loc || waitingLoc(camp, key);") && wbS2.includes("var nowG = wlG ? null : charNow(camp, key), loc = wlG || nowG.loc;") && wbS2.includes("if (!loc && nowG && nowG.sure) {")
+            && wbS2.includes("var nowM = isPlayerOnly ? null : charNow(camp, key), loc = nowM ? nowM.loc || nowM.left : null;") && wbS2.includes("var here = !!(atM && am && atM.id === am.id);") && wbS2.includes("var camp = getActiveCampaign(); var loc = charNow(camp, key).loc;")
+            && stJ.includes("net.streamWhere = seenBy[campId] || Object.create(null);") && stJ.includes("var list = characterList(camp, true, null, whoOf(camp));")
+            && ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8').includes('- Jump to a player\'s character goes where that player is.')),
+            j([jList, asked, jChip, jChipAway, jOld]));
         // (d) the left panel: Handbook, then Planners, then Maps
         const iH = ixS2.indexOf('data-section="handbook"'), iP = ixS2.indexOf('data-section="planners"'), iM = ixS2.indexOf('data-section="maps"');
         check('the left panel lists Handbook, then Planners, then Maps, each once', iH > 0 && iP > iH && iM > iP && ixS2.split('data-section="handbook"').length === 2 && ixS2.split('data-section="planners"').length === 2 && ixS2.split('data-section="maps"').length === 2, j([iH, iP, iM]));

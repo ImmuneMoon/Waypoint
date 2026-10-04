@@ -346,7 +346,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             check('Markdown export, a text block with no colour: where its own bold and italic marks would not read back (a bold part inside an italic, a strike-through ending in a space) the tags are written and the block reads back exactly; where the marks do read back they are written as ever (no tag appears)',
                 rN.every((r, i) => r.back === nest[i]) && rP.every((r, i) => r.back === plainOnes[i] && !/<[bis]>/.test(r.md)), JSON.stringify([rN.map((r, i) => r.back === nest[i] ? null : [nest[i], r.md, r.back]).filter(Boolean), rP.map((r, i) => r.back === plainOnes[i] && !/<[bis]>/.test(r.md) ? null : [plainOnes[i], r.md, r.back]).filter(Boolean)]));
         }
-        check('block cap 300 with a note', (() => { const r = markdownToBlocks(Array.from({ length: 320 }, (_, i) => '## S' + i).join('\n\n'), { kind: 'doc' }); return r.blocks.length === 300 && r.notes.some(n => /first 300/.test(n)); })());
+        check('block cap 500 with a note', (() => { const r = markdownToBlocks(Array.from({ length: 520 }, (_, i) => '## S' + i).join('\n\n'), { kind: 'doc' }); return r.blocks.length === 500 && r.notes.some(n => /first 500/.test(n)); })());
         check('flowchartFromMermaid: beyond the subset → null (classDef, subgraph, &)', flowchartFromMermaid('flowchart TD\nclassDef x fill:#fff\nA-->B') === null && flowchartFromMermaid('graph LR\nsubgraph s\nA-->B\nend') === null && flowchartFromMermaid('flowchart LR\nA & B --> C') === null && flowchartFromMermaid('pie\nA: 1') === null);
         check('flowchartFromMermaid: chains, labels, dotted, shapes', (() => { const f = flowchartFromMermaid('graph TB\n  A[Start] --> B{Choice?} -.->|no| C([End]):::red\n  B -- yes --> D{{Hex}}'); return f && f.dir === 'TD' && f.nodes.map(n => n.id + ':' + n.shape).join(',') === 'A:rect,B:diamond,C:pill,D:hex' && f.nodes[2].color === 'red' && f.edges.length === 3 && f.edges[1].style === 'dotted' && f.edges[1].text === 'no' && f.edges[2].text === 'yes'; })());
         // export and the round trip
@@ -1355,6 +1355,36 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     check('window.wpDocRender published with the API', !!(global.window.wpDocRender && global.window.wpDocRender.cleanDoc && global.window.wpDocRender.renderDoc && global.window.wpDocRender.sanitizeHtml && global.window.wpDocRender.VERSION === D2.VERSION));
     delete global.window;
 
+    /* ---- 1.5.4: the Markdown import keeps every bullet and a numbered list's first number; a page table's cell draws its line breaks ---- */
+    {
+        const jj = JSON.stringify, md = t => (M.markdownToBlocks(t, { kind: 'doc' }).blocks || []).map(b => b.content || '').join('|');
+        const deep = md('  - a\n  - b\n- c\n- d'), nest = md('    - a\n      - a1\n- b'), odd = md('      - x\n    - y\n- z'), plain = md('- a\n  - a1\n- b');
+        check('1.5.4 a Markdown list that opens deeper than a later bullet keeps every line (it ended at that bullet and lost the rest): its opening run is moved out to the list\'s own level with its nesting; a list written from the margin reads as before',
+            deep === '<ul><li>a</li><li>b</li><li>c</li><li>d</li></ul>' && nest === '<ul><li>a<ul><li>a1</li></ul></li><li>b</li></ul>' && ['x', 'y', 'z'].every(w => odd.includes('<li>' + w)) && odd.indexOf('<li>x') < odd.indexOf('<li>y') && odd.indexOf('<li>y') < odd.indexOf('<li>z')
+            && plain === '<ul><li>a<ul><li>a1</li></ul></li><li>b</li></ul>', jj([deep, nest, odd, plain]));
+        const o3 = md('3. three\n4. four'), o1 = md('1. one\n2. two'), sub = md('- a\n  5. five\n  6. six'), o0 = md('0. zero'), mix = md('  7. seven\n- b');
+        check('1.5.4 a numbered list that starts past 1 keeps its first number (it came out numbered from 1): the import writes it as the list\'s start, a list from 1 is written as ever, a nested one alike',
+            o3 === '<ol start="3"><li>three</li><li>four</li></ol>' && o1 === '<ol><li>one</li><li>two</li></ol>' && sub === '<ul><li>a<ol start="5"><li>five</li><li>six</li></ol></li></ul>' && o0 === '<ol start="0"><li>zero</li></ol>'
+            && mix === '<ol start="7"><li>seven</li></ol><ul><li>b</li></ul>' && md('    3. x\n  - y\n- z') === '<ol><li><ol start="3"><li>x</li></ol></li></ol><ul><li>y</li><li>z</li></ul>', jj([o3, o1, sub, o0, mix, md('    3. x\n  - y\n- z')]));
+        const sz = D.sanitizeHtml, hostile = ['<ol start="3" onclick="x()"><li>a</li></ol>', '<ol start="-1"><li>a</li></ol>', '<ol start="3x"><li>a</li></ol>', '<ol start="999999"><li>a</li></ol>', '<ol start=\'" onmouseover="x\'><li>a</li></ol>', '<ol start="1"><li>a</li></ol>', '<ol START=7 type="a" style="x"><li>a</li></ol>', '<ul start="3"><li>a</li></ul>', '<ol start="007"><li>a</li></ol>'].map(sz);
+        check('1.5.4 the page sanitiser keeps a numbered list\'s start only as a number it writes itself (digits, at most five, never 1) and nothing else of the tag; a bulleted list takes none; cleaned twice it is the same',
+            jj(hostile) === jj(['<ol start="3"><li>a</li></ol>', '<ol><li>a</li></ol>', '<ol><li>a</li></ol>', '<ol><li>a</li></ol>', '<ol><li>a</li></ol>', '<ol><li>a</li></ol>', '<ol start="7"><li>a</li></ol>', '<ul><li>a</li></ul>', '<ol start="7"><li>a</li></ol>'])
+            && sz(sz('<ol start="12"><li>a</li></ol>')) === '<ol start="12"><li>a</li></ol>' && D.sanitizeBare('<ol start="4"><li>a</li></ol>') === '<ol start="4"><li>a</li></ol>', jj(hostile));
+        const back = M.htmlToMarkdown('<ol start="3"><li>a</li><li>b</li></ol>'), nested = M.htmlToMarkdown('<ul><li>a<ol start="5"><li>five</li></ol></li></ul>'), from1 = M.htmlToMarkdown('<ol><li>a</li><li>b</li></ol>');
+        const mixed = md('- a\n  1. one\n  2. two\n- b\n  - b1'), mixBack = M.htmlToMarkdown(mixed);
+        check('1.5.4 a numbered sub-list under a bullet stays under its bullet (it was pulled out into a list of its own), and comes back the same through Markdown',
+            mixed === '<ul><li>a<ol><li>one</li><li>two</li></ol></li><li>b<ul><li>b1</li></ul></li></ul>' && md(mixBack) === mixed, jj([mixed, mixBack, md(mixBack)]));
+        check('1.5.4 Markdown both ways: a list that starts at 3 is written 3. 4. and reads back as the same list, a nested one keeps its number, a list from 1 is written 1. 2. as ever',
+            /^3\. a\n4\. b\s*$/.test(back) && md(back) === '<ol start="3"><li>a</li><li>b</li></ol>' && /\n  5\. five/.test(nested) && md(nested) === '<ul><li>a<ol start="5"><li>five</li></ol></li></ul>' && /^1\. a\n2\. b\s*$/.test(from1), jj([back, md(back), nested, md(nested), from1]));
+        const big = M.markdownToBlocks(Array.from({ length: 520 }, (_, i) => '## S' + i).join('\n\n'), { kind: 'doc' });
+        check('1.5.4 the Markdown import keeps as many blocks as a page holds (500; it kept 300) and says what it left out', big.blocks.length === 500 && M.LIMITS.blocks === D.LIMITS.blocks && big.notes.some(n => /first 500/.test(n)), big.blocks.length);
+        const cssT = require('fs').readFileSync(path.join(__dirname, '..', 'system', 'app', 'style.css'), 'utf8');
+        const cellD = D.cleanDoc({ type: 'doc', id: 'doc_c', meta: { title: 'T' }, blocks: [{ id: 'b_1', type: 'table', cols: ['A\nB'], rows: [['one\ntwo <b>x</b>'], [new Array(5000).join('\n')]] }] });
+        const cellH = D.renderDoc(cellD);
+        check('1.5.4 a page table\'s cell draws its own line breaks (they were folded into spaces): the cell is still escaped text, the break is the stylesheet\'s (pre-line on a page table\'s heading and cell), and a hostile cell is as long as any cell may be (2,000 characters)',
+            cellH.includes('<td>one\ntwo &lt;b&gt;x&lt;/b&gt;</td>') && cellH.includes('<th>A\nB</th>') && cellD.blocks[0].rows[1][0].length === D.LIMITS.cell
+            && cssT.includes('.doc-view .doc-table th, .doc-view .doc-table td { white-space: pre-line; }'), cellH.slice(0, 300));
+    }
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

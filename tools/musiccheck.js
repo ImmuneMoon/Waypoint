@@ -259,7 +259,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const mkTick = () => {
             const w = { calls: [], live: true, solo: false, on: true, camp: null };
             w.tick = new Function('getActiveCampaign', 'net', 'pref', 'featureOn', 'cleanMapMusic', 'idSets', 'W',
-                '"use strict"; var cur = null, source = null, controlling = false, controlled = false; function play(s) { W.calls.push(["play", s.kind, s.id, s.loop, !!s.shuffle]); source = s; cur = {}; } function stop() { W.calls.push(["stop"]); source = null; cur = null; }' + NL + cut('tick') + NL + 'return tick;')(
+                '"use strict"; var cur = null, source = null, controlling = false, controlled = false; function play(s) { W.calls.push(["play", s.kind, s.id, s.loop, !!s.shuffle]); source = s; cur = {}; } function stop() { W.calls.push(["stop"]); source = null; cur = null; } function panelOpen() { return W.panel === true; } function renderPanel() { W.calls.push(["panel"]); }' + NL + cut('tick') + NL + 'tick.watch = watchLive; return tick;')(
                 () => w.camp, () => ({ active: w.live }), (k, d) => (k === 'wp_musicSolo' ? (w.solo ? 'on' : 'off') : d), () => w.on, cleanMapMusic, () => ({ trackIds: { t_a: 1, t_b: 1 }, playlistIds: { pl_1: 1 } }), w);
             return w;
         };
@@ -276,6 +276,61 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             tFirst === j([['play', 'track', 't_a', 'one', false]]) && tChanged === j([['play', 'track', 't_b', 'one', false]]) && tLoop === j([['play', 'track', 't_b', 'list', false]]) && tMoved === 3 && tBack === 3 && tCleared === j([['stop']])
             && tSolo === 0 && tSoloOn === j([['play', 'track', 't_a', 'one', false]]),
             j([tFirst, tChanged, tLoop, tMoved, tBack, tCleared, tSolo, tSoloOn]));
+        const H = mkTick(); H.live = false; H.camp = { activeItemId: 'm1', items: { m1: { type: 'map', music: { track: 't_a', loop: 'one' } } } };
+        H.tick.watch(); H.tick.watch(); const wIdle = H.calls.length;
+        H.live = true; H.tick.watch(); H.tick.watch(); const wOpen = j(H.calls);
+        H.live = false; H.tick.watch(); H.tick.watch(); const wEnd = j(H.calls.slice(1));
+        check('a table that opens plays its map\'s music with no redraw (watchLive run for real): nothing while no session is live, the map\'s song once when one begins and nothing more while it lasts, what it started ended with the session; the boot asks once a second',
+            wIdle === 0 && wOpen === j([['play', 'track', 't_a', 'one', false]]) && wEnd === j([['stop']]) && muSrc.includes('    setInterval(watchLive, 1000);'),
+            j([wIdle, wOpen, wEnd]));
+        const PF = mkTick(); PF.panel = true; PF.live = false; PF.camp = { activeItemId: 'm1', items: { m1: { type: 'map' }, m2: { type: 'map' }, d1: { type: 'planner' } } };
+        PF.tick(); PF.tick(); const pfFirst = j(PF.calls);
+        PF.camp.activeItemId = 'm2'; PF.tick(); PF.tick(); const pfMoved = PF.calls.length;
+        PF.camp.activeItemId = 'd1'; PF.tick(); const pfPage = PF.calls.length;
+        PF.camp.items.d2 = { type: 'planner' }; PF.camp.activeItemId = 'd2'; PF.tick(); const pfPage2 = PF.calls.length;   // from one page to another: still no map, nothing to draw again
+        PF.panel = false; PF.camp.activeItemId = 'm1'; PF.tick(); const pfShut = PF.calls.length;
+        const PW = mkTick(); PW.panel = true; PW.live = false; PW.camp = { activeItemId: 'm1', items: { m1: { type: 'map', music: { track: 't_a', loop: 'one' } } } };
+        PW.tick.watch(); const pwIdle = PW.calls.length; PW.live = true; PW.tick.watch(); const pwOpen = j(PW.calls);
+        check('an open Music panel follows the map on screen (tick and watchLive run for real): drawn again when another map is opened and when the item on screen is no map, once each, never while the same map stays, never while it is shut; drawn again when a session begins (Take control is offered only at a table); Remember on this map never writes to a map the panel was drawn for earlier',
+            pfFirst === j([['panel']]) && pfMoved === 2 && pfPage === 3 && pfPage2 === 3 && pfShut === 3
+            && pwIdle === 0 && pwOpen === j([['panel'], ['play', 'track', 't_a', 'one', false], ['panel']])
+            && muSrc.includes("            if (activeMapItem() !== it) { renderPanel(); toast('Another map is open now: the panel shows it. Pick its music and press again.'); return; }")
+            && muSrc.includes('    panelFollow();   // an open panel shows the map on screen'),
+            j([pfFirst, pfMoved, pfPage, pfShut, pwIdle, pwOpen]));
+        const mkIdle = o => {   // the panel's play button, on a library and a map of plain objects
+            const w = { calls: [], toasts: [] };
+            w.api = new Function('activeMapItem', 'cleanMapMusic', 'idSets', 'playlistById', 'trackById', 'musicNow', 'toast', 'W',
+                '"use strict"; var source = null, cur = null, selPl = null; function play(s, op) { W.calls.push(["play", s.kind, s.id, s.loop, s.shuffle, !!(op && op.fresh === true)]); } function stopLane() { W.calls.push(["pause"]); } function playCurrent() { W.calls.push(["resume"]); } function emit() {} function broadcastControl() {}' + NL + cut('idle') + NL + 'return { toggle: togglePlay, now: idleNow, set: function(s, c, p) { source = s; cur = c; selPl = p; } };')(
+                () => o.map, cleanMapMusic, () => ({ trackIds: o.tracks.reduce((a, t) => (a[t.id] = 1, a), {}), playlistIds: o.lists.reduce((a, p) => (a[p.id] = 1, a), {}) }),
+                id => o.lists.find(p => p.id === id) || null, id => o.tracks.find(t => t.id === id) || null, () => ({ tracks: o.tracks, playlists: o.lists }), t => w.toasts.push(t), w);
+            return w;
+        };
+        const libT = [{ id: 't_a', name: 'Song A' }, { id: 't_b', name: 'Song B' }], libP = [{ id: 'pl_1', name: 'Night', tracks: ['t_gone', 't_b'] }, { id: 'pl_0', name: 'Empty', tracks: ['t_gone'] }];
+        const I1 = mkIdle({ map: { type: 'map', music: { track: 't_a', loop: 'one', shuffle: false } }, tracks: libT, lists: libP }); const i1Now = I1.api.now(); I1.api.set(null, null, 'pl_1'); I1.api.toggle();
+        const I2 = mkIdle({ map: { type: 'map', music: { playlist: 'pl_1', loop: 'list', shuffle: true } }, tracks: libT, lists: libP }); const i2Now = I2.api.now(); I2.api.toggle();
+        const I3 = mkIdle({ map: { type: 'map', music: { track: 't_gone', loop: 'one' } }, tracks: libT, lists: libP }); I3.api.set(null, null, 'pl_1'); const i3Now = I3.api.now(); I3.api.toggle();
+        const I4 = mkIdle({ map: { type: 'map' }, tracks: libT, lists: libP }); const i4Now = I4.api.now(); I4.api.toggle(); I4.api.set(null, null, 'pl_0'); I4.api.toggle(); I4.api.set(null, null, 'pl_none'); I4.api.toggle();
+        const I5 = mkIdle({ map: null, tracks: [], lists: [] }); I5.api.toggle();
+        const I6 = mkIdle({ map: { type: 'map', music: { track: 't_a', loop: 'one' } }, tracks: libT, lists: libP }); I6.api.set({ kind: 'track', id: 't_b' }, { entry: libT[1] }, null); I6.api.toggle(); I6.api.set({ kind: 'track', id: 't_b' }, null, null); I6.api.toggle();
+        const I7 = mkIdle({ map: { type: 'map', music: { track: 't_a', loop: 'one' } }, tracks: [{ id: 't_a', name: null }], lists: [] }); const i7Now = I7.api.now();
+        check('the panel\'s play button with nothing loaded (the idle slice run for real): it plays this map\'s music as the map is set (its song, or its playlist with its loop and shuffle), afresh; a map whose song the library no longer holds, or a map with none, the playlist picked in the panel when it holds a song that is there; with nothing to play it says what to press (a library with no songs: add some) and starts nothing; a song that is paused is resumed and one that plays is paused, as before; the panel\'s line says what the button will play',
+            j(I1.calls) === j([['play', 'track', 't_a', 'one', false, true]]) && i1Now === 'Stopped — ▶ plays this map’s music (Song A)'
+            && j(I2.calls) === j([['play', 'playlist', 'pl_1', 'list', true, true]]) && i2Now === 'Stopped — ▶ plays this map’s music (Night)'
+            && j(I3.calls) === j([['play', 'playlist', 'pl_1', 'list', false, true]]) && i3Now === 'Stopped — ▶ plays the playlist Night'
+            && i4Now === 'Stopped' && I4.calls.length === 0 && I4.toasts.length === 3 && I4.toasts.every(t => t === 'Nothing is picked to play: double-click a song, or press a playlist’s ▶.')
+            && I5.calls.length === 0 && j(I5.toasts) === j(['No music yet: add songs in the library below.'])
+            && j(I6.calls) === j([['pause'], ['resume']]) && I6.toasts.length === 0
+            && i7Now === 'Stopped — ▶ plays this map’s music ()',
+            j([I1.calls, i1Now, I2.calls, i2Now, I3.calls, i3Now, i4Now, I4.calls, I4.toasts, I5.toasts, I6.calls, i7Now]));
+        check('the panel says it: the transport\'s line asks the idle words in both places it is written (never while a song is loaded), this map\'s part is headed by the map\'s own title as text and says when its music starts, the solo tick draws the panel again; Help and both release notes say it',
+            muSrc.includes("    var now = st.entry ? st.entry.name : (m.tracks.length ? (source ? 'Stopped' : idleNow()) : 'No tracks yet');")
+            && muSrc.includes("if (now) now.textContent = st.entry ? st.entry.name : (campMusic().tracks.length ? (source ? 'Stopped' : idleNow()) : 'No tracks yet');")
+            && muSrc.includes("bindWrap.appendChild(el('div', 'music-sec-head', 'On this map (' + ((it.meta && typeof it.meta.title === 'string' && it.meta.title) || it.name || 'map') + ')'));")
+            && muSrc.includes("if (cfg) bindWrap.appendChild(el('div', 'music-empty music-bindnote', 'It starts by itself while a session is live' + (soloAutoOn() ? ', and while you are alone (ticked above).' : '. Alone, press ▶ above, or tick “Auto-play map music while solo”.')));")
+            && muSrc.includes("lastKey = ''; lastMapId = ''; tick(); renderPanel(); });")
+            && ixM.includes('A map&rsquo;s music starts by itself while a session is live (alone, only with <b>Auto-play map music while solo</b> ticked); with nothing playing, the panel&rsquo;s &#9654; plays this map&rsquo;s music, or the playlist you picked, and the panel says which.')
+            && wnM.includes('- The panel\'s play button with nothing loaded plays this map\'s music, or') && wnM.includes('- A map\'s own music starts for the GM when the table opens.') && wnM.includes('- The Music panel, left open while you went to another map, kept showing')
+            && waM.includes('- The panel\'s play button with nothing loaded plays this map\'s music, or') && waM.includes('- A map\'s own music starts for the GM when the table opens.'));
         const netM = read('system/app/scripts/net.js');
         check('double-click: a song in the library and a song inside a playlist are wired to play from the beginning (and each library song has its play button), never from a press on one of the row\'s buttons; a song already playing is started again only when asked afresh; a file still arriving is not timed out (the wait is for the next part); Help, the tour and both release notes say it, the 1.5.2 notes alike in both files',
             muSrc.includes("row.addEventListener('dblclick', function(e) { if (e.target && e.target.closest && e.target.closest('button')) return; playTrack(tr.id); });")

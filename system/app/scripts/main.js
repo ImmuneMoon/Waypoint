@@ -1584,5 +1584,19 @@ document.addEventListener('click', function(e) {
     }
 });
 
+// [systemcheck:checkenter-start]
+// Enter ticks the checkbox that has the focus, as Space does: a form walked with Tab can be filled without the mouse. Only a plain Enter, on
+// a checkbox that is not disabled, and only when nothing took the key first (a dialog answers Enter itself; the tour leaves a field's keys
+// alone). The tick goes through the box's own click, so whatever listens for its change hears it.
+function checkEnter(e) {
+    if (!e || e.key !== 'Enter' || e.defaultPrevented || e.repeat || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
+    var t = e.target;
+    if (!t || t.tagName !== 'INPUT' || t.type !== 'checkbox' || t.disabled) return;
+    e.preventDefault();
+    t.click();
+}
+document.addEventListener('keydown', checkEnter);
+// [systemcheck:checkenter-end]
+
 
 

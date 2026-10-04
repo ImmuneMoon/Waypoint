@@ -1198,6 +1198,13 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
       var z = state.zoomLevel || 1;
       var anyUnlocked = its.some(function(i) { return !i.locked; });
       var anyVisible = its.some(function(i) { return !i.hidden; });
+      // [systemcheck:sheetbtn-start]
+      // The sheet button: only for one selected token whose character's sheet this screen may open.
+      var shBtn = bar.querySelector('.st-sheet'), shSep = bar.querySelector('.st-sheet-sep'), shOne = its.length === 1 ? its[0] : null;
+      var shOk = !!(shOne && typeof shOne.charId === 'string' && shOne.charId && window.wpSheets && window.wpSheets.canOpen && window.wpSheets.canOpen(shOne.charId));
+      if (shBtn) shBtn.style.display = shOk ? '' : 'none';
+      if (shSep) shSep.style.display = shOk ? '' : 'none';
+      // [systemcheck:sheetbtn-end]
       // Group button: a toggle — lit when the selection IS a group (click ungroups),
       // plain when several ungrouped/mixed items are selected (click groups them),
       // hidden for a single ungrouped item where it can't do anything.
@@ -1449,6 +1456,7 @@ window.wpFitToGrid = fitToGrid;
           var act = btn.dataset.st;
           var its = selToolbarItems();
           if (!its.length) return;
+          if (act === 'sheet') { if (its.length === 1 && its[0].charId && window.wpSheets && window.wpSheets.canOpen(its[0].charId)) window.wpSheets.openSheet(its[0].charId); return; }
           if (act === 'color') {
               // Second click on the swatch closes the palette
               var pop = bar.querySelector('.st-color-pop');
@@ -6391,6 +6399,9 @@ document.addEventListener('contextmenu', function(e) {
             // Items selected
             var html = '';
             var firstItem = isWb ? am.whiteboard.find(x => x.id === selectedIds[0]) : am.rooms.find(x => x.id === selectedIds[0]);
+            // one character token: its sheet (and HUD) first, where a GM looks for them (they sat far down the menu)
+            var sheetTop = !!(isWb && selectedIds.length === 1 && firstItem && (firstItem.isChar || firstItem.charId) && window.wpSheets);
+            if (sheetTop) { html += '<div class="menu-item cm-sheet">&#128203; ' + (firstItem.charId ? 'Sheet&hellip;' : 'New character sheet&hellip;') + '</div>'; if (firstItem.charId && window.wpSheets.hudFor && window.wpSheets.hudFor(firstItem.charId)) html += '<div class="menu-item cm-hud">&#12336; HUD&hellip;</div>'; }
             
             if (isWb) {
                 if (selectedIds.length > 1) {
@@ -6471,8 +6482,10 @@ document.addEventListener('contextmenu', function(e) {
                 html += stanceMenuHtml(firstItem);
                 html += tokenSensesLine(firstItem);   // senses S3: its senses, read-only
             }
+            if (!sheetTop) {   // several pieces selected: where the two rows always stood (one character token lists them first, above)
             if (isWb && firstItem && (firstItem.isChar || firstItem.charId) && window.wpSheets) html += '<div class="menu-item cm-sheet">&#128203; ' + (firstItem.charId ? 'Sheet&hellip;' : 'New character sheet&hellip;') + '</div>';
             if (isWb && firstItem && firstItem.charId && window.wpSheets && window.wpSheets.hudFor && window.wpSheets.hudFor(firstItem.charId)) html += '<div class="menu-item cm-hud">&#12336; HUD&hellip;</div>';   // HUD frame (HF2b)
+            }
             if (isWb && firstItem && selectedIds.length === 1 && window.wpSheets && window.wpSheets.tokenFxModel && window.wpSheets.tokenFxModel(firstItem)) html += '<div class="menu-item cm-effects">&#10022; Effects&hellip;</div>';   // conditions C2
             if (isWb && firstItem && firstItem.isChar && !firstItem.waiting && firstItem.type === 'image' && firstItem.src && window.wpFrame && window.wpSheets && window.wpSheets.applyTokenFrame) html += '<div class="menu-item cm-frame-pic">&#128444;&#65039; Frame picture&hellip;</div>';   // the token creator: the selected tokens (a character's change together)
             var gmLit = isWb ? gmLightToggle(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); })) : null;   // lighting L5: the selected lights, switched together

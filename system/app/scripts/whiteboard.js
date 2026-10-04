@@ -1182,6 +1182,9 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
       rHandle.style.left = rx + 'px'; rHandle.style.top = ry + 'px';
       rotHandle.style.left = ox + 'px'; rotHandle.style.top = oy + 'px';
   }
+  // the sight outline's eye (fog.js setOutline): this machine's own choice, kept from one selection to the next
+  function sightPref() { try { return localStorage.getItem('wp_sightOutline') === 'on'; } catch (e) { return false; } }
+  function sightSync(id) { var F = window.wpFog; if (F && F.setOutline) F.setOutline(id); }
   function updateSelToolbar(am) {
       var bar = document.getElementById('selToolbar');
       if (!bar) return;
@@ -1190,6 +1193,7 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
       var its = ids.map(function(id) { return am.whiteboard.find(function(x) { return x.id === id; }); }).filter(Boolean);
       if (clientView || state.viewMode !== 'visual' || !its.length || window.isDrawingMode || window.isEraserMode) {
           bar.style.display = 'none';
+          sightSync(null);
           return;
       }
       var minX = Math.min.apply(null, its.map(function(i) { return i.x; }));
@@ -1205,6 +1209,11 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
       if (shBtn) shBtn.style.display = shOk ? '' : 'none';
       if (shSep) shSep.style.display = shOk ? '' : 'none';
       // [systemcheck:sheetbtn-end]
+      // The eye: the GM's toggle for the sight outline. While it is on, the one selected character token has the area in its line of sight
+      // outlined by the fog module; anything else selected, nothing.
+      var eyeBtn = bar.querySelector('.st-sight'), eyeOne = its.length === 1 && its[0].isChar && !its[0].waiting ? its[0] : null, eyeCan = !!(eyeOne && window.wpFog && window.wpFog.canOutline && window.wpFog.canOutline()), eyeOn = sightPref();
+      if (eyeBtn) { eyeBtn.style.display = eyeCan ? '' : 'none'; eyeBtn.classList.toggle('on', eyeCan && eyeOn); eyeBtn.title = eyeOn ? 'Sight outline is on: the area this token sees is outlined. Press to switch it off' : 'Show what this token sees: an outline around the area in its line of sight'; }
+      sightSync(eyeCan && eyeOn ? eyeOne.id : null);
       // Group button: a toggle — lit when the selection IS a group (click ungroups),
       // plain when several ungrouped/mixed items are selected (click groups them),
       // hidden for a single ungrouped item where it can't do anything.
@@ -1457,6 +1466,7 @@ window.wpFitToGrid = fitToGrid;
           var its = selToolbarItems();
           if (!its.length) return;
           if (act === 'sheet') { if (its.length === 1 && its[0].charId && window.wpSheets && window.wpSheets.canOpen(its[0].charId)) window.wpSheets.openSheet(its[0].charId); return; }
+          if (act === 'sight') { try { localStorage.setItem('wp_sightOutline', sightPref() ? 'off' : 'on'); } catch (e) {} var amS = getActiveMap(); if (amS) updateSelToolbar(amS); return; }
           if (act === 'color') {
               // Second click on the swatch closes the palette
               var pop = bar.querySelector('.st-color-pop');

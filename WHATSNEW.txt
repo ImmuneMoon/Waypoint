@@ -1,6 +1,13 @@
 WAYPOINT 1.5.2 — What's New
 ============================
 
+Fog of war
+- Sight outline: an eye on a selected token's toolbar outlines the area
+  that one token sees — its sight arc, walls, smoke and its sheet's
+  senses counted — so you can follow an NPC's line of sight. It stays on
+  for whichever token you select until you press it again, works on a map
+  with no fog, never dims the map, and is drawn for you alone.
+
 The Music panel
 - Double-click a song in the library to play it at once (each song has a
   play button too), and double-click a song inside a playlist to play the

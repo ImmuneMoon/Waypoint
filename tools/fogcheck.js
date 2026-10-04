@@ -2824,11 +2824,11 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                     lj(hexRing) === lj({ map: { ring: 6, seen: 3, ahead: true, rear: false, own: 2 }, peripheral: { ring: 6, seen: 5, ahead: false, rear: false, own: 2 }, allRound: { ring: 6, seen: 6, ahead: false, rear: true, own: 2 } }), lj(hexRing));
                 // (10) the source: one rule, asked by every reader; the map's arc read nowhere else for the eyes
                 const eaBody = cut('function eyesArc('), nOf = (src, re) => (src.match(re) || []).length;
-                check('eyes\' arc (the source): eyesArc is the one place the eyes take an arc — facing off all round, a map set All around all round, else the character\'s own, else the map\'s; viewersFor, lightSeen, the marks\' viewers and the text of sight ask it; nothing else reads the map\'s arc for a token (visionOf is read by eyesArc and the fog menu alone); published for the Properties panel',
+                check('eyes\' arc (the source): eyesArc is the one place the eyes take an arc — facing off all round, a map set All around all round, else the character\'s own, else the map\'s; viewersFor, lightSeen, the marks\' viewers, the text of sight and the GM\'s sight outline ask it; nothing else reads the map\'s arc for a token (visionOf is read by eyesArc and the fog menu alone); published for the Properties panel',
                     /\n    if \(window\.wpVtt && !window\.wpVtt\.on\('turning'\)\) return 360;\n    var v = visionOf\(map\);\n    return v\.mode === 'arc' && ts && typeof ts\.arc === 'number' && ts\.arc >= 1 \? ts\.arc : v\.arc;\n\}$/.test(eaBody)
                     && /ts = tokenSenses\(w, map, camp, !ownerId \|\| ownerId === '\*'\), arc = eyesArc\(map, ts\), n0 = out\.length;/.test(cut('function viewersFor(')) && /\n    v\.arc = eyesArc\(map, ts\);/.test(cut('function lightSeen(')) && /var mts = tokenSenses\(w, map, camp, false\), arc = eyesArc\(map, mts\);/.test(cut('function marksInputs('))
                     && /mapArc = eyesArc\(map, null\);/.test(cut('function sightSigFor(')) && /out\.push\(v\.arc === mapArc \? ey : ey \+ '\/' \+ v\.arc\);/.test(cut('function sightSigFor('))
-                    && nOf(fogSrc, /\beyesArc\(/g) === 5 && nOf(fogSrc, /\bvisionOf\(/g) === 4 && nOf(fogSrc, /visionOf\(map\)\.arc/g) === 0 && nOf(fogSrc, /\bturningOn\b/g) === 0 && nOf(fogSrc, /\n    eyesArc: eyesArc,/g) === 1 && /, eyesArc\(map, tokenSenses\) \(the arc a token\\'s eyes see through on that map: its own on a facing cone, the map\\'s otherwise\), campSenses\(camp\)/.test(require('fs').readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'devconsole.js'), 'utf8'))
+                    && /ts = tokenSenses\(w, map, camp, true\), arc = eyesArc\(map, ts\);/.test(cut('function outlineCells(')) && nOf(fogSrc, /\beyesArc\(/g) === 6 && nOf(fogSrc, /\bvisionOf\(/g) === 4 && nOf(fogSrc, /visionOf\(map\)\.arc/g) === 0 && nOf(fogSrc, /\bturningOn\b/g) === 0 && nOf(fogSrc, /\n    eyesArc: eyesArc,/g) === 1 && /, eyesArc\(map, tokenSenses\) \(the arc a token\\'s eyes see through on that map: its own on a facing cone, the map\\'s otherwise\), campSenses\(camp\)/.test(require('fs').readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'devconsole.js'), 'utf8'))
                     && /if \(own && !token\.waiting && sn\.arc && typeof sn\.arc === 'object'\) \{ var av = read\(sn\.arc\.field\), an = av === null \? 0 : Math\.round\(av\); if \(an >= 1\) out\.arc = Math\.min\(360, an\); \}/.test(cut('function tokenSenses(')), eaBody);
                 // (11) Help, the tour and the integration guide say it
                 const rdA = p => require('fs').readFileSync(path.join(__dirname, '..', p), 'utf8').replace(/\r\n/g, NL), ixA = rdA('system/app/index.html'), tuA = rdA('system/app/scripts/tutorial.js'), ciA = rdA('CAMPAIGN_INTEGRATION.md');
@@ -3147,6 +3147,77 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && ixB.includes('Tick <b>Stops blasts</b> under it for a force field or a window, and leave it off for bars or a railing: a thrown blast then never goes off inside the barrier, and it shields what is behind it from the blast as a wall does (where your system has cover switched on).')
             && ciB.includes('A piece may instead carry `barrier: true` (1.5.1; only `true` counts): a **see-through barrier**') && ciB.includes('and the same door keys (`sightType: "door"`, `doorOpen`, `doorLock`: closed it stops tokens, open nothing)')
             && ciB.includes('toward the same caps (' + X.LIMITS.blockerCells + ' cells, ' + X.LIMITS.wallSegs + ' line pieces): past them no barrier stops anything') && ciB.includes('a cell a sight-blocker or a see-through barrier (a piece\'s "barrier": true, 1.5.1; with "blastStop": true, only as true and only on a barrier, it is also a wall to a thrown blast) occupies;'));
+    }
+    /* ---- 1.5.2: the GM's sight outline (fog.js sliced by its outline markers, run for real) ---- */
+    {
+        const fsO = require('fs'), rdO = f => fsO.readFileSync(path.join(__dirname, '..', 'system', 'app', f), 'utf8').replace(/\r\n/g, NL);
+        const fogO = rdO('scripts/fog.js'), wbO = rdO('scripts/whiteboard.js'), ixO = rdO('index.html'), cssO = rdO('style.css');
+        const a0 = fogO.indexOf('// [fogcheck:outline-start]'), z0 = fogO.indexOf('// [fogcheck:outline-end]');
+        const olSrc = a0 > 0 && z0 > a0 ? fogO.slice(a0, z0) : '';
+        const mkWorld = () => {
+            const w = { gm: true, view: 'visual', map: null, camp: { chars: {} }, senses: null, seen: [], asked: [], rafs: [], calls: [], canvas: null, zoom: 1 };
+            const ctx = { setTransform() { w.calls.push('transform'); }, clearRect() { w.calls.push('clear'); }, save() {}, restore() {}, beginPath() { w.calls.push('begin'); }, moveTo() { w.calls.push('m'); }, lineTo() { w.calls.push('l'); }, stroke() { w.calls.push('stroke'); } };
+            const mkCanvas = () => ({ className: '', width: 0, height: 0, style: {}, getContext: () => ctx });
+            const screen = { clientWidth: 800, clientHeight: 600, querySelector: q => (q === 'canvas.sight-canvas' ? w.canvas : null), appendChild(c) { w.canvas = c; } };
+            w.api = new Function('core', 'gridForMap', 'blockersFor', '_blockerOver', 'mapLevel', 'litFor', 'tokenSenses', 'eyesArc', 'senseViewers', 'viewSeen', 'HEX_COS', 'HEX_SIN', 'activeMap', 'activeCamp', 'state', 'isGmView', 'visionOf', 'screenEl', 'ui', 'placeScreen', 'requestAnimationFrame', 'document', 'window', 'Date',
+                '"use strict"; var _viewPass = 0;' + NL + olSrc + NL + 'return { cells: outlineCells, edges: outlineEdges, can: canOutline, now: outlineNow, set: setOutline, id: function() { return outlineId; } };')(
+                () => X, m => (m ? m.grid : null), () => null, {}, () => null, () => null,
+                (tok, m, c, waived) => { w.asked.push(waived); return w.senses; }, () => 180, (ts, arc) => ts.full.map(s => ({ range: s.cells, arc: s.all ? 360 : arc, pass: s.pass, veil: s.veil })),
+                (m, g, blk, lvl, v) => { w.seen.push(v); return (v.sense ? w.senseCells : w.eyeCells).map(c => ({ key: cellKey(c, g), cell: c })); },
+                [0, 1, 2, 3, 4, 5].map(i => Math.cos(Math.PI / 180 * 60 * i)), [0, 1, 2, 3, 4, 5].map(i => Math.sin(Math.PI / 180 * 60 * i)),
+                () => w.map, () => w.camp, { get viewMode() { return w.view; }, get zoomLevel() { return w.zoom; } }, () => w.gm, () => ({ mode: 'arc', arc: 180 }), () => screen, id => (id === 'whiteboardWrap' ? { scrollLeft: 0, scrollTop: 0 } : null), () => { w.calls.push('place'); },
+                fn => { w.rafs.push(fn); return w.rafs.length; }, { createElement: () => mkCanvas() }, { devicePixelRatio: 1 }, { now: () => w.now });
+            w.now = 1000; w.frame = () => { const f = w.rafs.shift(); w.now += 100; if (f) f(); };
+            return w;
+        };
+        // (a) the edges of a seen area, with the real fogcore
+        const E = mkWorld().api.edges, hx = gridFor('hex'), sqO = squareGrid(50);
+        const seenOf = (g, cells) => { const keys = Object.create(null); cells.forEach(c => { keys[cellKey(c, g)] = 1; }); return { grid: g, keys: keys, list: cells }; };
+        const h0 = { q: 10, r: 10 }, hc = cellCenter(h0, hx), ring = [0, 1, 2, 3, 4, 5].map(i => cellOf(hc.x + hx.s * Math.sqrt(3) * Math.cos(Math.PI / 180 * (60 * i + 30)), hc.y + hx.s * Math.sqrt(3) * Math.sin(Math.PI / 180 * (60 * i + 30)), hx));
+        const e1 = E(seenOf(hx, [h0])), e2 = E(seenOf(hx, [h0, ring[0]])), e7 = E(seenOf(hx, [h0].concat(ring)));
+        const sqCells = (cs) => cs.map(p => ({ c: p[0], r: p[1] })), s1 = E(seenOf(sqO, sqCells([[3, 3]]))), s4 = E(seenOf(sqO, sqCells([[3, 3], [4, 3], [3, 4], [4, 4]]))), s8 = E(seenOf(sqO, sqCells([[0, 0], [1, 0], [2, 0], [0, 1], [2, 1], [0, 2], [1, 2], [2, 2]])));
+        const len = e => Math.round(Math.hypot(e[2] - e[0], e[3] - e[1]) * 100) / 100, ringDistinct = new Set(ring.map(c => cellKey(c, hx))).size;
+        check('the sight outline\'s edges (run for real on the real grid): a side is drawn only where the cell across it is not seen — one hexagon six sides of the cell\'s own length, two neighbours ten, a hexagon and its six neighbours eighteen; one square four, a block of four eight, a ring of eight with a hole in it sixteen (the hole is outlined too)',
+            ringDistinct === 6 && e1.length === 6 && e1.every(e => Math.abs(len(e) - hx.s) < 0.01) && e2.length === 10 && e7.length === 18 && s1.length === 4 && s1.every(e => len(e) === 50) && s4.length === 8 && s8.length === 16,
+            JSON.stringify([ringDistinct, e1.length, e2.length, e7.length, s1.length, s4.length, s8.length]));
+        // (b) the cells one token sees: its eyes, then each full sense, read as the GM reads them
+        const wC = mkWorld(), mapC = { id: 'm1', grid: sqO, whiteboard: [] }, tokC = { id: 't1', isChar: true, x: 100, y: 100, w: 50, h: 50, rot: 90, front: 0 };
+        wC.eyeCells = sqCells([[1, 1], [2, 1]]); wC.senseCells = sqCells([[2, 1], [3, 1]]);
+        wC.senses = { sight: 6, full: [{ id: 'sn', cells: 25, all: true, pass: true, veil: true }] }; const cA = wC.api.cells(mapC, wC.camp, tokC), vA = wC.seen.slice();
+        wC.seen = []; wC.senses = { sight: 6, blind: true, full: [] }; const cB = wC.api.cells(mapC, wC.camp, tokC), vB = wC.seen.slice();
+        check('the cells one token sees (outlineCells run for real): its sheet is read as the GM reads it (never by whose token it is); its eyes look from its centre by its own arc and facing, each full sense after them with its own reach, all round where it is, through walls and smoke where it does; a cell two of them see is counted once; blind eyes see their own cell alone; a gridless map none',
+            wC.asked.every(a => a === true) && wC.asked.length === 2 && cA.list.length === 3 && vA.length === 2 && vA[0].x === 125 && vA[0].y === 125 && vA[0].front === 90 && vA[0].range === 6 && vA[0].arc === 180 && !vA[0].sense
+            && vA[1].sense === true && vA[1].range === 25 && vA[1].arc === 360 && vA[1].pass === true && vA[1].veil === true && vB.length === 1 && vB[0].blind === true && vB[0].range === 0 && wC.api.cells({ id: 'm2', grid: null }, wC.camp, tokC) === null,
+            JSON.stringify([wC.asked, cA.list.length, vA, vB]));
+        // (c) the layer: drawn for the GM's selected character token, kept while nothing changed, cleared when it is switched off
+        const wD = mkWorld(); wD.eyeCells = sqCells([[1, 1], [2, 1]]); wD.senseCells = []; wD.senses = { sight: 6, full: [] };
+        const tokD = { id: 't1', isChar: true, x: 100, y: 100, w: 50, h: 50 }; wD.map = { id: 'm1', grid: sqO, meta: { updated: 1 }, whiteboard: [tokD, { id: 'r1', type: 'rect' }] };
+        wD.api.set('t1'); const rafs1 = wD.rafs.length; wD.frame(); const d1 = wD.calls.slice(), asked1 = wD.asked.length; wD.calls = [];
+        wD.frame(); const asked2 = wD.asked.length, d2 = wD.calls.slice(); wD.calls = [];
+        tokD.x = 150; wD.frame(); const asked3 = wD.asked.length; wD.calls = [];
+        wD.gm = false; wD.frame(); const dPlayer = wD.calls.slice(); wD.gm = true; wD.calls = [];
+        wD.api.set('r1'); wD.frame(); const dRect = wD.calls.slice(); wD.calls = [];
+        wD.view = 'data'; wD.api.set('t1'); wD.frame(); const dData = wD.calls.slice(); wD.view = 'visual'; wD.calls = [];
+        wD.api.set(null); const dOff = wD.calls.slice(), idOff = wD.api.id(); wD.frame(); const stopped = wD.rafs.length;
+        wD.api.set(42); const idBad = wD.api.id();
+        const strokes = a => a.filter(x => x === 'stroke').length, moves = a => a.filter(x => x === 'm').length;
+        check('the sight outline\'s layer (run for real on a recording canvas): switched on it draws on a canvas of its own, twice over (a dark line under a bright one), one stroke of each for the six sides of two squares side by side; the next frame draws again without working the area out again, and a moved token has it worked out again; on a player\'s app, for a piece that is no character token and on the data map it draws nothing and wipes the layer; switched off it wipes the layer and its loop ends; only a text id switches it on',
+            rafs1 === 1 && strokes(d1) === 2 && moves(d1) === 12 && d1[0] === 'place' && asked1 === 1 && asked2 === 1 && strokes(d2) === 2 && asked3 === 2
+            && strokes(dPlayer) === 0 && dPlayer.includes('clear') && strokes(dRect) === 0 && dRect.includes('clear') && strokes(dData) === 0 && dData.includes('clear')
+            && dOff.includes('clear') && idOff === null && stopped === 0 && idBad === null,
+            JSON.stringify([rafs1, d1.length, strokes(d1), moves(d1), asked1, asked2, asked3, dPlayer, dRect, dData, dOff, idOff, stopped, idBad]));
+        // (d) the wiring and the words
+        const drawA = fogO.indexOf('function draw() {'), drawZ = fogO.indexOf('// Lighting L4 (owner answer 7)', drawA);
+        check('the sight outline is wired and said: the fog\'s own draw never mentions it (its frames are recorded elsewhere, unchanged); the fog module publishes setOutline and canOutline; the eye on a selected token\'s toolbar shows only for one character token on a screen that may draw it, wears its state, tells the fog which token, and clears it when nothing is selected; its click flips this machine\'s own choice; the page, the style, Help, the tour and both release notes carry it',
+            drawA > 0 && drawZ > drawA && !/outlineId|setOutline|drawOutline|sight-canvas/.test(fogO.slice(drawA, drawZ)) && fogO.includes('setOutline: setOutline, canOutline: canOutline,')
+            && wbO.includes("var eyeBtn = bar.querySelector('.st-sight'), eyeOne = its.length === 1 && its[0].isChar && !its[0].waiting ? its[0] : null, eyeCan = !!(eyeOne && window.wpFog && window.wpFog.canOutline && window.wpFog.canOutline()), eyeOn = sightPref();")
+            && wbO.includes("sightSync(eyeCan && eyeOn ? eyeOne.id : null);") && wbO.includes("          bar.style.display = 'none';\n          sightSync(null);\n          return;")
+            && wbO.includes("if (act === 'sight') { try { localStorage.setItem('wp_sightOutline', sightPref() ? 'off' : 'on'); } catch (e) {} var amS = getActiveMap(); if (amS) updateSelToolbar(amS); return; }")
+            && wbO.includes("function sightPref() { try { return localStorage.getItem('wp_sightOutline') === 'on'; } catch (e) { return false; } }")
+            && ixO.includes('<button data-st="sight" class="st-sight" title="Show what this token sees: an outline around the area in its line of sight" style="display:none;">&#128065;</button>')
+            && cssO.includes('#fogScreen canvas.sight-canvas { position: absolute; inset: 0; }') && cssO.includes('#selToolbar .st-sight.on { color: var(--gold); background: rgba(224,165,79,0.15); }')
+            && ixO.includes('The <b>&#128065;</b> eye on a selected token&rsquo;s toolbar outlines the area that one token sees') && rdO('scripts/tutorial.js').includes('The &#128065; eye on a selected token&rsquo;s toolbar outlines what that one token sees')
+            && ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(f => fsO.readFileSync(path.join(__dirname, '..', f), 'utf8').replace(/\r\n/g, NL).includes('- Sight outline: an eye on a selected token\'s toolbar outlines the area')));
     }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');

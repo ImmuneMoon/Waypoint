@@ -5285,9 +5285,9 @@ function handleMessage(msg, conn) {
         // [netcheck:snapkey-end]
         applySnapshot(msg);   // after gmId: the settings refresh inside it keys this table's off-list by campaign + GM
         syncSessionButtons();
-        setStatus('Connected — campaign synced from host.');
+        setStatus('Connected — you are at the GM’s table. Your own campaigns are untouched and come back when you leave the session.');   // the owner, 2026-10-04: a player asked where their own campaigns had gone
         var backS = conn.wpRetry === true && !conn.wpBackSaid; conn.wpBackSaid = true;
-        toast(backS ? 'Reconnected ✓' : 'Campaign synced from host.');   // security (2026-10-01): a reconnect is said when the table is taken — once per connection, in place of the synced notice (the app shows one notice at a time) — never for a connection that merely opened (whoever answers at the code could raise it at every dial)
+        toast(backS ? 'Reconnected ✓' : 'Campaign synced from host. Your own campaigns come back when you leave.');   // security (2026-10-01): a reconnect is said when the table is taken — once per connection, in place of the synced notice (the app shows one notice at a time) — never for a connection that merely opened (whoever answers at the code could raise it at every dial)
         if (window.wpVtt) window.wpVtt.joined();   // seed this table's off-list and queue the join notice
         net.videoWake();   // item 21 V2: a video the GM is showing, offered before this snapshot, is asked for now
     } else if (msg.type === 'item') {

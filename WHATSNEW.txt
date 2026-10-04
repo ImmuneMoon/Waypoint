@@ -7,6 +7,11 @@ Fog of war
   senses counted — so you can follow an NPC's line of sight. It stays on
   for whichever token you select until you press it again, works on a map
   with no fog, never dims the map, and is drawn for you alone.
+- Doors say what they do: right-click a door for Open door / Close door
+  and Lock door for players. A door locked for players wears a small
+  lock, for you and for them, and a player's click on it is refused. The
+  padlock on a selected piece is now worded Lock in place (no drag or
+  resize) on its menu and its toolbar: it never was the door's lock.
 
 Combat
 - Combat from a token: at your table a character token's right-click menu
@@ -71,6 +76,8 @@ Fixes
 - Once a weather had run, the effects layer was built again on every
   step of a scroll, which added to the drag while panning. It is now
   built only when the map's box changes size.
+- A player who joins a table is told that their own campaigns are
+  untouched and come back when they leave the session.
 
 WAYPOINT 1.5.1 — What's New
 ============================

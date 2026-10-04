@@ -1363,7 +1363,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             var _el_wbDoorLock = document.getElementById('wbDoorLock');
             if(_el_wbDoorLock) _el_wbDoorLock.addEventListener('change', function() {
                 if (this.checked) w.doorLock = true; else delete w.doorLock;
-                save();
+                save(); render();
             });
             var _el_wbDup = document.getElementById('wbDup');
             if (_el_wbDup) _el_wbDup.addEventListener('click', function() { if (window.wpDuplicateWb) window.wpDuplicateWb([w]); });

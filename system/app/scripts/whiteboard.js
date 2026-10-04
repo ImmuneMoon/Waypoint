@@ -833,6 +833,9 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
           el.classList.toggle('wb-door', doorIt);
           el.classList.toggle('wb-door-open', doorIt && !!item.doorOpen);
           // [fogcheck:boardcue-end]
+          // [sinkcheck:doorcue-start]
+          el.classList.toggle('wb-door-locked', doorIt === true && item.doorLock === true && !hideFromMe);   // a door the GM locked against players: a small lock beside its door mark, for the GM and for players alike (style.css)
+          // [sinkcheck:doorcue-end]
 
           el.classList.toggle('wb-hidden-ph', hideFromMe);
           el.classList.toggle('wb-waiting', !!item.waiting && !hideFromMe);   // Onboarding F1a: the dashed ring — never on a hidden stub (an element is reused when an item is hidden)
@@ -1237,7 +1240,8 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
       var lockBtn = bar.querySelector('.st-lock');
       lockBtn.textContent = anyUnlocked ? '🔓' : '🔒';
       lockBtn.classList.toggle('on', !anyUnlocked);
-      lockBtn.title = anyUnlocked ? 'Unlocked — click to lock (no drag or resize)' : 'Locked — click to unlock';
+      var doorSel = !!(window.wpFogCore && window.wpFogCore.isDoor && its.some(function(i) { return window.wpFogCore.isDoor(i); }));
+      lockBtn.title = (anyUnlocked ? 'Not locked in place: it can be dragged and resized. Click to lock it in place' : 'Locked in place: no drag or resize. Click to unlock') + (doorSel ? '. This is not the lock of the door itself: right-click the door for Lock door for players' : '');
       var visBtn = bar.querySelector('.st-vis');
       visBtn.textContent = anyVisible ? '👁' : '🚫';
       visBtn.classList.toggle('st-hidden', !anyVisible);
@@ -2734,6 +2738,29 @@ window.wpFitToGrid = fitToGrid;
       return row.lock ? 'locked' : 'unlocked';
   }
   // [sinkcheck:portallock-end]
+  // [sinkcheck:doorrow-start]
+  // A door's own rows on the GM's menu (the owner, 2026-10-04: "it seemed the visible button locked and unlocked the door ... the options need to
+  // be more obvious for what something does"): Open door / Close door, and Lock door for players / Unlock door for players. That lock is the one
+  // that refuses a player's click on the door (net.js door-req); it is not the piece's Lock in place. A door is fogcore isDoor's (a wall's or a
+  // barrier's, set to Door); only doorLock true counts, and the padlock shows how the doors stand. The GM's alone (never a player's app, never
+  // the stream window); the markup holds fixed words only.
+  function doorRows(items) {
+      var n = window.wpNet, FC = window.wpFogCore;
+      if (window.wpStream || (n && n.active && n.role === 'client')) return null;
+      var ds = (Array.isArray(items) ? items : []).filter(function(w) { return !!(w && FC && typeof FC.isDoor === 'function' && FC.isDoor(w)); });
+      if (!ds.length) return null;
+      var open = ds.some(function(w) { return !w.doorOpen; }), lock = ds.some(function(w) { return w.doorLock !== true; }), s = ds.length > 1 ? 's' : '';
+      return { open: open, lock: lock, items: ds, html:
+          '<div class="menu-item cm-door-open" title="' + (open ? 'Open: sight and tokens pass through. A player whose token stands next to an unlocked door can do this by clicking it.' : 'Closed: it blocks as a wall does.') + '">&#128682; ' + (open ? 'Open door' : 'Close door') + s + '</div>'
+          + '<div class="menu-item cm-door-lock" title="' + (lock ? 'No player opens or closes it until you unlock it: their click on it is refused, and it wears a small lock. You still open and close it yourself. This is the lock of the door itself, not Lock in place.' : 'Players next to it may open and close it again.') + '">' + (lock ? '&#128275; Lock door' + s + ' for players' : '&#128274; Unlock door' + s + ' for players') + '</div>' };
+  }
+  function doorRowsDo(items, act) {
+      var row = doorRows(items); if (!row) return '';
+      if (act === 'open') { row.items.forEach(function(w) { if (row.open) w.doorOpen = true; else delete w.doorOpen; }); return row.open ? 'opened' : 'closed'; }
+      if (act === 'lock') { row.items.forEach(function(w) { if (row.lock) w.doorLock = true; else delete w.doorLock; }); return row.lock ? 'locked' : 'unlocked'; }
+      return '';
+  }
+  // [sinkcheck:doorrow-end]
   /* ---- click-away deselect ----
      Clicking anywhere that isn't the board, the Properties/Elements sidebar,
      the selection toolbar, a menu, or a dialog drops the selection, so the
@@ -6550,7 +6577,8 @@ document.addEventListener('contextmenu', function(e) {
                     var it = am.whiteboard.find(function(x) { return x.id === sid; });
                     return it && !it.locked;
                 });
-                html += '<div class="menu-item cm-lock">' + (anyUnlocked ? '&#128274; Lock' : '&#128275; Unlock') + '</div>';
+                // the piece's own lock, worded as what it does; the padlock shows how the piece stands, as the toolbar's does (a door's lock for players is a row of its own: doorRows)
+                html += '<div class="menu-item cm-lock" title="' + (anyUnlocked ? 'It stays where it is: no drag and no resize until you unlock it, and a player&rsquo;s token is frozen for its player too. On a door this is not the lock of the door itself.' : 'It can be dragged and resized again.') + '">' + (anyUnlocked ? '&#128275; Lock in place' : '&#128274; Unlock (free to move)') + '</div>';
                 var anyVisible = selectedIds.some(function(sid) {
                     var it = am.whiteboard.find(function(x) { return x.id === sid; });
                     return it && !it.hidden;
@@ -6561,6 +6589,8 @@ document.addEventListener('contextmenu', function(e) {
                     return it && !it.aboveGrid;
                 });
                 html += '<div class="menu-item cm-grid">' + (anyUnderGrid ? '&#9650; Show Above Grid' : '&#9660; Put Under Grid') + '</div>';
+                var drRow = doorRows(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));   // a door's own rows: open or close it, lock it for players
+                if (drRow) html += drRow.html;
                 var plRow = portalLockRow(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }), am);   // a portal's own lock: the GM's row, only where the selection holds a portal
                 if (plRow) html += plRow.html;
                 html += '<div class="menu-divider"></div>';
@@ -6759,6 +6789,9 @@ document.addEventListener('contextmenu', function(e) {
                 } else if (action.includes('cm-dup')) {
                     duplicateWbItems(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }).filter(Boolean));
                     return;   // saved + rendered inside
+                } else if (action.includes('cm-door-open') || action.includes('cm-door-lock')) {   // a door's own rows (saved and drawn again below): an open door lets sight through, so the fog works its vision out again
+                    var wentD = doorRowsDo(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }), action.includes('cm-door-open') ? 'open' : 'lock');
+                    if (wentD) { if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); } toast(wentD === 'opened' ? 'Door opened.' : wentD === 'closed' ? 'Door closed.' : wentD === 'locked' ? 'Door locked for players.' : 'Door unlocked for players.'); }
                 } else if (action.includes('cm-portal-lock')) {   // a portal's own lock: the selected portals locked or unlocked together (saved and drawn again below, so the table gets it at once)
                     var wentPL = portalLockSet(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }), am);
                     if (wentPL) toast(wentPL === 'locked' ? 'Portal locked for players.' : 'Portal unlocked.');
@@ -6771,7 +6804,7 @@ document.addEventListener('contextmenu', function(e) {
                         var it = am.whiteboard.find(function(x) { return x.id === sid; });
                         if (it) it.locked = lockThem;
                     });
-                    import('./io.js').then(m => m.toast(lockThem ? 'Locked.' : 'Unlocked.'));
+                    import('./io.js').then(m => m.toast(lockThem ? 'Locked in place.' : 'Unlocked: free to move.'));
                 } else if (action.includes('cm-light')) {
                     var gmLitNow = gmLightToggle(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));
                     if (gmLitNow) { var wentL = gmLitNow.apply(); if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); } import('./io.js').then(m => m.toast(wentL === 'off' ? 'Light off.' : 'Light on.')); }

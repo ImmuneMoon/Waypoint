@@ -2,7 +2,7 @@ import { state, dom } from './state.js';
 
 import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap, getMapAncestors, isDocLike } from './models.js';
 
-import { load, updateUndoBtn, pushHistory, undo, save, download, getBase64Image, toast, historyDepth, resetHistory, migrateAppState } from './io.js';
+import { load, updateUndoBtn, pushHistory, undo, save, saveView, download, getBase64Image, toast, historyDepth, resetHistory, migrateAppState } from './io.js';
 
 import { classifyState, askOwnership, cleanupInfo, cleanImport, cleanImportItems } from './cleanup.js';
 
@@ -1426,7 +1426,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
             renderRulers();
             if (fromScroll === true) {
                 var am = typeof getActiveMap === 'function' ? getActiveMap() : null;
-                if (am && typeof save === 'function' && !window.isAppLoading) {
+                if (am && typeof saveView === 'function' && !window.isAppLoading) {
                     if (state.viewMode === 'visual') {
                         am.meta.lastWbX = cx;
                         am.meta.lastWbY = cy;
@@ -1436,7 +1436,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
                         am.meta.lastY = cy;
                         am.meta.lastZoom = state.zoomLevel;
                     }
-                    save(false);
+                    saveView();   // the camera is no change to the campaign: nothing stamped, recorded or sent (io.js)
                 }
             }
         }

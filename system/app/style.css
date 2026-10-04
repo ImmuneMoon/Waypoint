@@ -2851,6 +2851,11 @@
   #plannerBlocks .rte-body a { color: var(--blue); text-decoration: none; border-bottom: 1px solid currentColor; cursor: text; }
   /* a link from someone else asks first (linkgate.js): the site on a line of its own, the whole address wrapped, never cut */
   #customConfirm > .confirm-wide { width: min(88vw, 560px) !important; max-height: 88vh; overflow-y: auto; box-sizing: border-box; }
+  /* Export for ShadowBase: what will be written, before anything is saved (sheets.js builds it from text nodes) */
+  .sb-export-list { display: flex; flex-direction: column; gap: 4px; margin: 0 0 14px; font-size: 13px; line-height: 1.4; }
+  .sb-export-row { color: var(--ink); overflow-wrap: anywhere; }
+  .sb-export-warn { color: var(--gold); overflow-wrap: anywhere; }
+  .sb-export-dim { color: var(--dim); font-size: 12px; overflow-wrap: anywhere; }
   .linkask { margin: 0 0 16px; font-size: 13px; line-height: 1.5; color: var(--ink); text-align: left; }
   .linkask-from { margin-bottom: 10px; }
   .linkask-label { color: var(--dim); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }

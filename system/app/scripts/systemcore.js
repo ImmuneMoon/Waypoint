@@ -3609,6 +3609,7 @@ function sbCrystal(j) {
     var out = { mult: 1, flat: 0 };
     parts.slice(0, 500).forEach(function(p) {
         if (!isObj(p) || typeof p.installedInSaberId !== 'string' || !p.installedInSaberId || stored[p.installedInSaberId] === 1 || p.storageLocationId) return;
+        if (p.condition === 'Destroyed') return;   // vaporised by an overload (the website, 2026-10-03): the row is still flagged as fitted, and it is no working part
         if (/^(emitter|switch|sleeve|pommel|coupler)\s+part$/i.test(String(p.category || '').trim())) return;
         var r = sbFpText(typeof p.notes === 'string' && p.notes ? p.notes : p.effect);
         if (r.mult > out.mult) out.mult = r.mult; if (r.flat > out.flat) out.flat = r.flat;

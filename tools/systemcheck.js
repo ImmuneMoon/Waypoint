@@ -6538,7 +6538,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && /other = Object\.keys\(cs\)\.some\(function\(k\) \{ var x = cs\[k\]; return x && x\.id !== id && x\.ownerId === me && !x\.npc && !x\.partial && x\.making !== 1; \}\);/.test(mkS) && /\(a\.kept \? nm \+ ' is finished and kept: you go on playing the character your GM gave you\.' : nm \+ ' is in play\.'\)/.test(mkS)
             && /\(c\.making === 1 \? ' · making' : c\.unlocked === 1 \? ' · unlocked' : ''\)/.test(shF)
             && /var dnOn = isClient\(\) && own && !c\.partial && \(c\.making === 1 \|\| c\.unlocked === 1\);/.test(shF) && /nmB\.style\.display = isClient\(\) && own && !c\.partial && c\.making === 1 \? '' : 'none';/.test(shF)
-            && /upB\.style\.display = isClient\(\) && own && !c\.partial && \(c\.making !== 1 \|\| fillOk\(\)\) \? '' : 'none';/.test(shF) && /if \(making && !fillOk\(\)\) \{ toast\('Starting a character from a file is not open at this table\.'\); return; \}/.test(shF) && /var ulOn = gm && !!c\.ownerId && !c\.npc && c\.making !== 1 && c\.review !== 1;/.test(shF) && /renderReviewBar\(c, camp, gm\);/.test(shF));
+            && /upB\.style\.display = gmUp \|\| \(isClient\(\) && own && !c\.partial && \(c\.making !== 1 \|\| fillOk\(\)\)\) \? '' : 'none';/.test(shF) && /if \(making && !fillOk\(\)\) \{ toast\('Starting a character from a file is not open at this table\.'\); return; \}/.test(shF) && /var ulOn = gm && !!c\.ownerId && !c\.npc && c\.making !== 1 && c\.review !== 1;/.test(shF) && /renderReviewBar\(c, camp, gm\);/.test(shF));
         const jcA = wbF.indexOf("  (function() {\n      var had = '', dismissed = false;"), jcB = wbF.indexOf('  })();', jcA) + 7;
         const card = o => {
             const els = {}; ['joinCard', 'joinCardStatus', 'joinCardMake', 'joinCardOpen', 'joinCardFaceBtn', 'joinCardToken'].forEach(id => { els[id] = { id, style: { display: /^joinCard(Make|Open|Token)?$/.test(id) ? 'none' : '' }, textContent: '' }; });
@@ -8261,6 +8261,24 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && ixS2.includes('you press <b>Review</b> (a gold button in the header for as long as an upload waits, and on the character&rsquo;s sheet)') && rdx('scripts/tutorial.js').includes('you <b>Review</b> from the gold button in the header or on the character&rsquo;s sheet')
             && rdx('scripts/net.js').includes("' to review (the gold Review button in the header).';"),
             j([rv0, rv2, rvOpen, rvClient, rvNoWrite, rvOff, rv1, rvNone]));
+        // (h) the GM's own Import (sheets.js sliced by its gmimport markers, run for real)
+        const giW = { client: false, write: true, sys: { v: 1 }, file: false, changes: [{ id: 'a', kind: 'value' }, { id: 'b', kind: 'add' }], asked: [] };
+        const GI = new Function('getActiveCampaign', 'systemOf', 'isClient', 'canWrite', 'F', 'isCharFile', 'sbFinder', 'window', 'Date', '"use strict";' + NLx + cutX(shS3, 'gmimport') + NLx + 'return gmImportRead;')(
+            () => ({ id: 'camp' }), () => giW.sys, () => giW.client, () => giW.write, () => ({}), jj => !!(jj && jj.format === 'waypoint-character'), () => 'FIND',
+            { wpSystemCore: { sbProposal: (sys, c, jj, F, find) => { giW.asked.push([c.id, jj.name, find]); return { changes: giW.changes }; } } }, { now: () => 1700000000000 });
+        const giC = { id: 'c_npc1', name: 'Molab', npc: true }, giJ = { name: 'Molab', attributes: {} };
+        const gi1 = GI(giC, giJ);
+        giW.client = true; const giPlayer = GI(giC, giJ); giW.client = false; giW.write = false; const giNoWrite = GI(giC, giJ); giW.write = true;
+        const giFile = GI(giC, { format: 'waypoint-character', name: 'X' }), giBad = [GI(giC, null), GI(giC, []), GI(giC, { type: 'vehicle', name: 'X' }), GI(giC, { foo: 1 })];
+        giW.changes = []; const giSame = GI(giC, giJ); giW.changes = [{ id: 'a' }]; giW.sys = null; const giNoSys = GI(giC, giJ);
+        check('the GM\'s own Import on any sheet (gmImportRead run for real): a ShadowBase file read against the character with the GM\'s finder gives the record the Review reads, marked as the GM\'s own (never queued, nobody told); a player\'s app, a machine that cannot write, a campaign with no system, a Waypoint character file, a file that is no sheet and a file that changes nothing are each refused in words; the Import button stands on every sheet for the GM; the Review takes the GM\'s own record and tells no player of it; Help, the tour and both release notes say it',
+            !!gi1.up && gi1.up.own === true && gi1.up.charId === 'c_npc1' && gi1.up.changes.length === 2 && gi1.up.from === '' && j(giW.asked[0]) === j(['c_npc1', 'Molab', 'FIND'])
+            && /Only the GM/.test(giPlayer.error) && /Only the GM/.test(giNoWrite.error) && /Waypoint character file/.test(giFile.error) && giBad.every(x => /does not look like a ShadowBase/.test(x.error)) && /Nothing to change/.test(giSame.error) && /no system yet/.test(giNoSys.error)
+            && shS3.includes("if (!isClient()) { gmImportJson(c); return; }") && shS3.includes("var gmUp = gm && canWrite(); upB.style.display = gmUp || (isClient() && own && !c.partial && (c.making !== 1 || fillOk())) ? '' : 'none';")
+            && shS3.includes("up = mine && mine.own === true && mine.charId === charId ? mine : uploadsOf(camp, charId)[0]") && shS3.split("if (up.own !== true && n2 && n2.uploadDone)").length === 3
+            && ixS2.includes('You have the same <b>Import</b> on every sheet, an NPC&rsquo;s too') && rdx('scripts/tutorial.js').includes('As the GM you have the same <b>Import</b> on every sheet, an NPC&rsquo;s too')
+            && ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8').includes('- Import on every sheet for the GM')),
+            j([gi1, giPlayer, giNoWrite, giFile, giBad, giSame, giNoSys]));
         // (d) the left panel: Handbook, then Planners, then Maps
         const iH = ixS2.indexOf('data-section="handbook"'), iP = ixS2.indexOf('data-section="planners"'), iM = ixS2.indexOf('data-section="maps"');
         check('the left panel lists Handbook, then Planners, then Maps, each once', iH > 0 && iP > iH && iM > iP && ixS2.split('data-section="handbook"').length === 2 && ixS2.split('data-section="planners"').length === 2 && ixS2.split('data-section="maps"').length === 2, j([iH, iP, iM]));

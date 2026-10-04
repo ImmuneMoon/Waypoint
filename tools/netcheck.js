@@ -4274,6 +4274,27 @@ pendingChecks.push((async () => {
         solo: runSaveE(null), host: runSaveE({ active: true, role: 'host', foreign: false }) };
     check('R2 E: a save while waiting for the GM (io.js save, run for real: a client with no snapshot, the state unmarked) writes the player\'s own campaign to their own disk and says so, and calls the wire hook not at all; seated or between a reconnect\'s attempts it goes to the wire hook as before (Synced to host) and never to disk; a state marked as another table\'s, the stream and pop-out windows and a restore under way write nothing; solo and the GM save as ever',
         /^(history,)?disk:\/api\/data:mine \/ Saved to disk &#10003;$/.test(sv.wait) && !/wire/.test(sv.wait) && sv.seated === 'wire / Synced to host &#10003;' && sv.retry === 'wire / Synced to host &#10003;' && !/disk/.test(sv.marked) && !/disk/.test(sv.stream) && !/disk/.test(sv.streamNet) && !/disk/.test(sv.popout) && sv.noSave === ' / ' && /^history,disk:\/api\/data:mine \/ Saved to disk/.test(sv.solo) && /^history,wire,disk:/.test(sv.host), j(sv));
+    // The camera is no change to the campaign (the owner, 2026-10-04: "seems the whole map lags at a distance"): io.js saveView, run for real, and
+    // main.js's scroll handler pinned to it
+    const viewSrc = ['var saveTimeout, viewTimeout, savePending = false;', fnIo('  function canPersistLocal() {', '\n  }\n', 'canPersistLocal'), fnIo('  function saveView() {', '\n  }\n', 'saveView'), 'return { saveView: saveView, pending: function(v) { savePending = v; } };'].join('\n');
+    const runViewE = (netS, o) => { o = o || {}; const log = [], timers = [], map = { meta: { updated: 111 } }, st = { appState: Object.assign({ activeCampaignId: 'mine', campaigns: { mine: { id: 'mine' } } }, o.marked ? { _foreign: { at: 1 } } : {}) }, note = { innerHTML: 'as it was' };
+        if (netS) netS.onLocalSave = () => log.push('wire');
+        const win = { wpNet: netS, wpStream: !!o.stream, wpPopout: !!o.popout, __wpNoSave: !!o.noSave };
+        const api = new Function('window', 'state', 'getActiveMap', 'saveNote', 'pushHistory', 'fetch', 'setTimeout', 'clearTimeout', viewSrc)(
+            win, st, () => map, note, () => log.push('history'), (url, opts) => { log.push('disk:' + url + ':' + JSON.parse(opts.body).activeCampaignId); return { then() {} }; }, (fn, ms) => { timers.push({ fn, ms, on: true }); return timers.length; }, id => { if (timers[id - 1]) timers[id - 1].on = false; });
+        const moves = o.moves || 1; for (let i = 0; i < moves; i++) api.saveView();
+        const armed = timers.filter(t => t.on), wait = armed.map(t => t.ms).join();
+        if (o.pending) api.pending(true); if (o.handOver) { win.wpNet = { active: true, role: 'client', foreign: true }; }
+        armed.forEach(t => t.fn());
+        return [log.join(), wait, map.meta.updated, note.innerHTML].join(' / '); };
+    const vw = { solo: runViewE(null), host: runViewE({ active: true, role: 'host', foreign: false }), many: runViewE({ active: true, role: 'host', foreign: false }, { moves: 40 }), pending: runViewE(null, { pending: true }), handOver: runViewE(null, { handOver: true }),
+        seated: runViewE(cliS()), waiting: runViewE(cliS({ foreign: false, syncedPeer: null })), retry: runViewE(cliS({ syncedPeer: null })), marked: runViewE(null, { marked: true }), stream: runViewE(null, { stream: true }), popout: runViewE(null, { popout: true }), noSave: runViewE(null, { noSave: true }) };
+    const mainE = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'main.js'), 'utf8').replace(/\r\n/g, '\n'), ufA = mainE.indexOf('    function updateFocusCoord(fromScroll) {'), ufB = mainE.indexOf("    document.getElementById('canvasWrap').addEventListener('scroll'", ufA), ufSrc = ufA >= 0 && ufB > ufA ? mainE.slice(ufA, ufB) : '';
+    check('the camera is no change to the campaign (io.js saveView, run for real): a pan or a zoom on the GM\'s machine, solo or hosting, stamps nothing on the map, runs no undo pass, calls the table\'s hook not at all and leaves the save note alone; the view is written to this machine\'s own file once, two seconds after the last of any number of moves, and not at all while a real save is on its way or once the table has changed hands; a player\'s app (seated, waiting for the GM or between a reconnect\'s attempts), a state marked as another table\'s, the stream and pop-out windows and a restore under way arm no timer and write nothing; the play map\'s and the data map\'s scroll go through it and never through save()',
+        vw.solo === 'disk:/api/data:mine / 2000 / 111 / as it was' && vw.host === 'disk:/api/data:mine / 2000 / 111 / as it was' && vw.many === 'disk:/api/data:mine / 2000 / 111 / as it was' && vw.pending === ' / 2000 / 111 / as it was' && vw.handOver === ' / 2000 / 111 / as it was'
+        && [vw.seated, vw.waiting, vw.retry, vw.marked, vw.stream, vw.popout, vw.noSave].every(x => x === ' /  / 111 / as it was')
+        && ufSrc.includes('saveView();') && !/\bsave\(/.test(ufSrc) && ufSrc.includes('am.meta.lastWbX = cx;') && /import \{[^}]*\bsaveView\b[^}]*\} from '\.\/io\.js';/.test(mainE) && /\n    saveView,\n/.test(ioE.replace(/\n\n/g, '\n'))
+        && ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8').includes('- Moving around a map no longer lags it.')), j(vw));
 }
 
 let summed = false;   // a check that never settles (a promise nothing answers) would let Node exit with no summary and code 0: that is a failure

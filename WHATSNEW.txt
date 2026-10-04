@@ -53,6 +53,13 @@ Fixes
   player is: their place at your table, or where they were last seen. The
   stream window's Focus on follows the same rule, and on a player's app a
   teammate on another map is no longer "found" on the map on screen.
+- Moving around a map no longer lags it. Every step of a pan or a zoom
+  used to mark the map as changed: the fog then worked out its walls and
+  its play area again, many times a second while the view moved, and a
+  moment after the view came to rest the whole campaign was saved, gone
+  over for undo and synced to the table. On a large fogged map, most of
+  all zoomed out, the whole map dragged. Where you last looked is now
+  remembered by itself, and is no change to the campaign.
 
 WAYPOINT 1.5.1 — What's New
 ============================

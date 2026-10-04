@@ -727,7 +727,7 @@ function renderSheet() {
     var revert = ui('sheetRevert'); if (revert) revert.style.display = gm && lastChange && lastChange.charId === c.id ? '' : 'none';
     var pick = ui('sheetPick'); if (pick) { pick.textContent = ''; var pickL = gm ? charList(camp) : charList(camp).filter(function(x) { return !x.partial && x.ownerId === myId(); }); if (gm || pickL.length > 1) { pickL.forEach(function(x) { pick.appendChild(opt(x.id, x.name + (x.npc ? ' (NPC)' : ''), x.id === c.id)); }); pick.style.display = ''; } else pick.style.display = 'none'; }
     var por = ui('sheetPortrait'); if (por) { if (c.portrait) { por.src = imgSrc(c.portrait); por.style.display = ''; } else por.style.display = 'none'; }
-    var upB = ui('sheetUpload'); if (upB) { upB.style.display = isClient() && own && !c.partial && (c.making !== 1 || fillOk()) ? '' : 'none'; upB.title = c.making === 1 ? 'Fill this character from a file: your own sheet download (.wpchar.json) or a ShadowBase sheet' : 'Import JSON: send your ShadowBase sheet file to the GM, who approves what changes'; }   // Stage 6 U3: the owner's Import JSON (to the GM, as proposed changes); Onboarding F4: while making, a file fills it
+    var upB = ui('sheetUpload'); if (upB) { var gmUp = gm && canWrite(); upB.style.display = gmUp || (isClient() && own && !c.partial && (c.making !== 1 || fillOk())) ? '' : 'none'; upB.title = gmUp ? 'Import JSON: fill or update this sheet from a ShadowBase character file. You review what changes before anything is applied' : c.making === 1 ? 'Fill this character from a file: your own sheet download (.wpchar.json) or a ShadowBase sheet' : 'Import JSON: send your ShadowBase sheet file to the GM, who approves what changes'; }   // Stage 6 U3: the owner's Import JSON (to the GM, as proposed changes); Onboarding F4: while making, a file fills it
     var picB = ui('sheetPic'); if (picB) picB.style.display = isClient() && own && !c.partial ? '' : 'none';   // Onboarding F1c: the owner's own picture for it
     var dlB = ui('sheetDownload'); if (dlB) dlB.style.display = canOpen(c.id) && !c.partial ? '' : 'none';   // Onboarding F2a: whoever may open it takes it away
     var dnB = ui('sheetDone'); if (dnB) { var dnOn = isClient() && own && !c.partial && (c.making === 1 || c.unlocked === 1); dnB.style.display = dnOn ? '' : 'none'; }   // Onboarding F3: the owner's Done
@@ -3784,8 +3784,38 @@ function startFromFile() {
     });
     inp.click();
 }
+// The GM's own Import, on any character's sheet (an NPC's too): the ShadowBase file is read on this machine and what it would change opens in
+// the Review a player's upload opens, so nothing changes until Apply. It is never queued and nobody is told.
+// [systemcheck:gmimport-start]
+function gmImportRead(c, j) {   // { error } or { up }: the record the Review reads
+    var camp = getActiveCampaign(), sys = systemOf(camp), SCo = window.wpSystemCore;
+    if (isClient() || !canWrite()) return { error: 'Only the GM imports a file here.' };
+    if (!c || !sys || !F() || !SCo || !SCo.sbProposal) return { error: 'The campaign has no system yet (System in the Campaign pill).' };
+    if (isCharFile(j)) return { error: 'That is a Waypoint character file: it fills a character a player is still making. Import here reads a ShadowBase character JSON.' };
+    if (!j || typeof j !== 'object' || Array.isArray(j) || (j.type && j.type !== 'character') || (!j.name && !j.attributes && !j.points)) return { error: 'That does not look like a ShadowBase character JSON.' };
+    var pr = SCo.sbProposal(sys, c, j, F(), sbFinder(camp, sys));
+    if (!pr || !Array.isArray(pr.changes) || !pr.changes.length) return { error: 'Nothing to change: the sheet already matches that file.' };
+    return { up: { id: 'up_gm' + Date.now().toString(36), charId: c.id, from: '', name: 'Your file', at: Date.now(), changes: pr.changes, own: true } };
+}
+// [systemcheck:gmimport-end]
+function gmImportJson(c) {
+    var id = c.id, inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json';
+    inp.addEventListener('change', function() {
+        var file = inp.files && inp.files[0]; if (!file) return;
+        if (file.size > 8 * 1024 * 1024) { toast('That file is too large.'); return; }
+        file.text().then(function(txt) {
+            var j = null; try { j = JSON.parse(txt); } catch (e) { toast('That file is not valid JSON.'); return; }
+            var cNow = charById(id), r = cNow ? gmImportRead(cNow, j) : { error: 'That character is no longer here.' };
+            if (r.error) { toast(r.error); return; }
+            openReview(id, r.up);
+        });
+    });
+    inp.click();
+}
 function importJson() {   // the owner sends their sheet file to the GM (the GM approves what changes); Onboarding F4: while they are making it, the file fills it at once
-    var c = sheetOpen ? charById(sheetOpen) : null; if (!c || !isClient() || c.partial || c.ownerId !== myId()) return;
+    var c = sheetOpen ? charById(sheetOpen) : null; if (!c) return;
+    if (!isClient()) { gmImportJson(c); return; }   // the GM's own Import: read and reviewed on this machine
+    if (c.partial || c.ownerId !== myId()) return;
     var making = c.making === 1, id = c.id, nm = c.name;
     if (making && !fillOk()) { toast('Starting a character from a file is not open at this table.'); return; }
     var inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json';
@@ -3818,12 +3848,12 @@ function importJson() {   // the owner sends their sheet file to the GM (the GM 
 var _review = null;   // { upId }
 function closeReview() { var m = ui('uploadModal'); if (m) m.style.display = 'none'; _review = null; renderReviewChip(); }
 // [sinkcheck:uploadreview-start]
-function openReview(charId) {
-    var camp = getActiveCampaign(), up = uploadsOf(camp, charId)[0], m = ui('uploadModal'); if (!up || !m || isClient()) return;
+function openReview(charId, mine) {   // mine: the GM's own file, read on this machine (gmImportRead): never queued, nobody told
+    var camp = getActiveCampaign(), up = mine && mine.own === true && mine.charId === charId ? mine : uploadsOf(camp, charId)[0], m = ui('uploadModal'); if (!up || !m || isClient()) return;
     var c = charById(up.charId, camp); if (!c) return;
     _review = { upId: up.id }; var ticks = {};
     up.changes.forEach(function(ch) { ticks[ch.id] = ch.accept === true; });
-    var head = ui('uploadHead'), list = ui('uploadList'); head.textContent = up.name + '\u2019s sheet update for ' + c.name + ' \u2014 ' + up.changes.length + (up.changes.length === 1 ? ' change' : ' changes');
+    var head = ui('uploadHead'), list = ui('uploadList'); head.textContent = (up.own === true ? 'Your file for ' : up.name + '\u2019s sheet update for ') + c.name + ' \u2014 ' + up.changes.length + (up.changes.length === 1 ? ' change' : ' changes');
     list.textContent = '';
     var KIND = { value: 'Value', add: 'New row', fact: 'Row', stat: 'Its own values', def: 'Its numbers', remove: 'Not in the file' };
     up.changes.forEach(function(ch) {
@@ -3848,13 +3878,13 @@ function openReview(charId) {
         ch2.values = r.values; lastChange = null;   // the values are replaced whole: no single field to Revert
         cmp.uploads = (Array.isArray(cmp.uploads) ? cmp.uploads : []).filter(function(u) { return !u || u.id !== up.id; });
         afterCharChange(ch2, true);
-        var n2 = net(); if (n2 && n2.uploadDone) n2.uploadDone(up.charId, r.done, up.changes.length);
+        var n2 = net(); if (up.own !== true && n2 && n2.uploadDone) n2.uploadDone(up.charId, r.done, up.changes.length);
         toast(r.done + ' of ' + up.changes.length + ' changes applied to ' + ch2.name + (r.failed ? ' (' + r.failed + ' no longer applied)' : '') + '.');
         closeReview();
     };
     rej.onclick = function() {
         var cmp = getActiveCampaign(); cmp.uploads = (Array.isArray(cmp.uploads) ? cmp.uploads : []).filter(function(u) { return !u || u.id !== up.id; });
-        save(true); var n2 = net(); if (n2 && n2.uploadDone) n2.uploadDone(up.charId, 0, up.changes.length);
+        save(true); var n2 = net(); if (up.own !== true && n2 && n2.uploadDone) n2.uploadDone(up.charId, 0, up.changes.length);
         toast('Kept ' + c.name + ' as it was.'); closeReview(); renderViews(c.id);
     };
     m.style.display = 'flex';

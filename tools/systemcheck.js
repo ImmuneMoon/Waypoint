@@ -8467,6 +8467,33 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && sh9.includes("    if (v.body.scrollTop !== stH) v.body.scrollTop = stH;   // as the sheet: a redraw never moves the HUD\n    restoreFocus(v.body, fk);")
             && sh9.includes("fk = focusKeyOf(body), st0 = body ? body.scrollTop : 0;") && sh9.includes("fk = focusKeyOf(v.body), stH = v.body.scrollTop, gm = !isClient()"));
     }
+    /* ---- 1.5.4: Delete on the sheet itself, the being-made mark, the Characters tab's filter ---- */
+    {
+        const jj = JSON.stringify, shX = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL), ixX = fs.readFileSync(path.join(app, 'index.html'), 'utf8').replace(/\r\n/g, NL), tuX = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8');
+        const slX = shX.slice(shX.indexOf('// [systemcheck:sheetdelete-start]'), shX.indexOf('// [systemcheck:sheetdelete-end]'));
+        const runD = o => { const out = { asked: [], deleted: [], sent: [], toasts: [], redrawn: 0 }, chars = { c_1: { id: 'c_1', name: 'Vex', ownerId: 'u_me' }, c_mk: { id: 'c_mk', name: 'Vex', ownerId: 'u_me', making: 1 }, c_o: { id: 'c_o', name: 'Bo', ownerId: 'u_b' }, c_p: { id: 'c_p', name: 'Part', ownerId: 'u_me', partial: true } };
+            const rows = ['Vex', 'Bo', 'vexing', ''].map(n => ({ style: { display: 'x' }, querySelector: s => (s === '.sys-char-name' ? { value: n } : null) })), els = { sysCharFilter: { value: o.q }, sysCharRows: { children: rows } };
+            const api = new Function('getActiveCampaign', 'charById', 'isClient', 'canWrite', 'myId', 'showConfirm', 'deleteCharacter', 'renderAll', 'net', 'toast', 'ui', "'use strict';" + NL + slX + NL + 'return { askDeleteSheet, charFilter };')(
+                () => ({}), id => chars[id] || null, () => !!o.client, () => o.write !== false, () => 'u_me', (q, cb) => { out.asked.push(q); cb(o.yes !== false); }, id => out.deleted.push(id), () => { out.redrawn++; },
+                () => (o.noNet ? null : { charDelete: (id, done) => { out.sent.push(id); if (o.answer) done(o.answer); return o.ret || { ok: true, pending: true }; } }), t => out.toasts.push(t), id => els[id] || null);
+            if (o.id) api.askDeleteSheet(o.id); if (o.q !== undefined) { api.charFilter(); out.rows = rows.map(r => r.style.display); } return out; };
+        const D = { gm: runD({ id: 'c_1' }), gmNo: runD({ id: 'c_1', yes: false }), gmMk: runD({ id: 'c_mk' }), gmRo: runD({ id: 'c_1', write: false }), gmGone: runD({ id: 'c_x' }),
+            pl: runD({ id: 'c_mk', client: true, answer: { ok: true } }), plNo: runD({ id: 'c_mk', client: true, yes: false }), plRef: runD({ id: 'c_1', client: true, answer: { error: 'That is the character you play: only your GM can delete it.' } }), plErr: runD({ id: 'c_1', client: true, ret: { error: 'Not at a table.' } }),
+            plOther: runD({ id: 'c_o', client: true }), plPart: runD({ id: 'c_p', client: true }) };
+        check('1.5.4 Delete on the sheet (sheets.js sliced by its sheetdelete markers, run for real): the GM is asked and a yes deletes that sheet and redraws, a no does nothing, a window that may not write is not asked; a half-made sheet is named as one; a player is asked the same and a yes sends ONE request for a sheet of their own — the host\'s answer or refusal is said in its words — and never for another\'s sheet or a teammate\'s hover copy',
+            jj([D.gm.asked, D.gm.deleted, D.gm.redrawn, D.gm.sent]) === jj([['Delete Vex? Its values are gone; tokens keep their name and lose the link.'], ['c_1'], 1, []]) && jj([D.gmNo.asked.length, D.gmNo.deleted]) === jj([1, []])
+            && D.gmMk.asked[0] === 'Delete Vex (still being made)? Its values are gone; tokens keep their name and lose the link.' && D.gmRo.asked.length === 0 && D.gmGone.asked.length === 0
+            && jj([D.pl.asked.length, D.pl.sent, D.pl.deleted, D.pl.toasts]) === jj([1, ['c_mk'], [], ['Deleted.']]) && jj([D.plNo.sent, D.plNo.toasts]) === jj([[], []]) && jj(D.plRef.toasts) === jj(['That is the character you play: only your GM can delete it.'])
+            && jj(D.plErr.toasts) === jj(['Not at a table.']) && D.plOther.asked.length === 0 && D.plPart.asked.length === 0, jj(D));
+        const F = [runD({ q: 'vex' }).rows, runD({ q: '' }).rows, runD({ q: '  BO ' }).rows, runD({ q: 'zzz' }).rows];
+        check('1.5.4 the Characters tab\'s filter (run for real): rows whose name holds the letters typed, whatever their case, an empty box showing every row', jj(F) === jj([['', 'none', '', 'none'], ['', '', '', ''], ['none', '', 'none', 'none'], ['none', 'none', 'none', 'none']]), jj(F));
+        check('1.5.4 the Delete button, the being-made marks and the filter are wired and said: the sheet\'s head shows Delete to the GM on every sheet and to a player on a sheet of their own when they have more than one; a half-made sheet says so in the sheet\'s list and on its Characters row; the rows are filtered again whenever they are drawn; Help and the tour say it',
+            ixX.includes('<button class="tool ghost notepad-btn sheet-delete" id="sheetDelete" title="Delete this sheet" style="display:none;">Delete</button>') && ixX.includes('<input type="search" id="sysCharFilter" class="field" placeholder="Find a character by name&hellip;"')
+            && shX.includes("var dlX = ui('sheetDelete'); if (dlX) { var mineX = isClient() && own && !c.partial && charList(camp).filter(function(x) { return !x.partial && x.ownerId === myId(); }).length > 1; dlX.style.display = (gm && canWrite()) || mineX ? '' : 'none';")
+            && shX.includes("x.name + (x.npc ? ' (NPC)' : '') + (x.making === 1 ? ' (being made)' : '')") && shX.includes("(c.making === 1 ? 'Still being made by its player \\u00b7 ' : '') + (tokens ? tokens + ' token'")
+            && shX.includes("list.forEach(function(c) { cr.appendChild(charRow(c, camp)); }); charFilter(); }") && shX.includes("var dlBt = ui('sheetDelete'); if (dlBt) dlBt.addEventListener('click', function() { if (sheetOpen) askDeleteSheet(sheetOpen); });") && shX.includes("var cfI = ui('sysCharFilter'); if (cfI) cfI.addEventListener('input', charFilter);")
+            && ixX.includes('<li><b>Deleting a sheet</b>: <b>Delete</b> in a sheet&rsquo;s head removes that sheet after asking') && tuX.includes('<b>Delete</b> in the sheet&rsquo;s head removes that sheet: you may delete any, a player one of their own that they are still making or do not play.'));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

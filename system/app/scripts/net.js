@@ -4640,7 +4640,7 @@ net.charPic = function(charId, face, img, done) {
 // Onboarding F3: a player's own character — start one (in the making: theirs alone, every field they can see theirs to set), name it while it is,
 // say it is done (it goes live; an unlocked one locks again). done({ ok, charId? } | { error }); a GM whose Waypoint has none of this never answers
 var _mkPending = {};
-var MK_WHY = { making: 'Finish the character you are making first (press Done on its sheet).', nomap: 'Wait until your GM brings you to a map.', paused: 'The table is paused.', closed: 'Making a character is not open at this table.', have: 'You already play a character here.', busy: 'Too many characters are being made at this table right now.', slow: 'A moment, please.', missing: 'That character is gone.', owner: 'That character is not yours.', notmaking: 'That character is finished already.', bad: 'That name cannot be used.', off: 'Character sheets are off here.' };
+var MK_WHY = { making: 'Finish the character you are making first (press Done on its sheet).', nomap: 'Wait until your GM brings you to a map.', paused: 'The table is paused.', closed: 'Making a character is not open at this table.', have: 'You already play a character here.', busy: 'Too many characters are being made at this table right now.', slow: 'A moment, please.', missing: 'That character is gone.', owner: 'That character is not yours.', notmaking: 'That character is finished already.', inplay: 'That is the character you play: only your GM can delete it.', bad: 'That name cannot be used.', off: 'Character sheets are off here.' };
 var TOK_WHY = { paused: 'The table is paused.', slow: 'A moment between pictures, please.', missing: 'That token is no longer here (it may have moved to another map).', tokowner: 'That token is not yours.', locked: 'The GM has locked that token.', bad: 'That picture could not be used.', off: 'The GM cannot take pictures here.', failed: 'The GM could not save that picture.' };   // tok-pic's answers, read by what we asked
 var LIGHT_WHY = { paused: 'The table is paused.', slow: 'A moment between changes of light, please.', missing: 'That token is no longer here (it may have moved to another map).', tokowner: 'That token is not yours.', locked: 'The GM has locked that token.', lightlock: 'The GM has locked that token\u2019s light.', preset: 'That light is no longer on offer (the GM changed the list).', nolight: 'That token carries no light to switch.', cap: 'This map already has the most light sources it can hold.', off: 'The GM cannot take a light here.' };   // tok-light's answers, read by what we asked
 function mkSend(type, m, done) {
@@ -4656,6 +4656,7 @@ function mkSend(type, m, done) {
 net.charMake = function(name, done) { return mkSend('char-make', { name: cleanCharName(name) }, done); };
 net.charName = function(charId, name, done) { var nm = cleanCharName(name); if (!nm) return { error: 'That name cannot be used.' }; return mkSend('char-name', { charId: String(charId), name: nm }, done); };
 net.charDone = function(charId, done) { return mkSend('char-done', { charId: String(charId) }, done); };
+net.charDelete = function(charId, done) { return mkSend('char-delete', { charId: String(charId) }, done); };   // an extra sheet of our own: the host judges which
 // Onboarding F3b: Just a token — a name and their face, and they play at once (sheets on: an empty character, unlocked; off: a plain token)
 net.charToken = function(name, done) { return mkSend('char-token', { name: cleanCharName(name) }, done); };
 // The token creator (owner, 2026-09-27): a player's framed picture for their own plain token (a character's goes through char-pic)
@@ -5524,7 +5525,7 @@ function handleMessage(msg, conn) {
         var PIC_WHY = { paused: 'The table is paused.', off: 'Character sheets are off here.', slow: 'A moment between pictures, please.', missing: 'That character is gone.', owner: 'That character is not yours.', bad: 'That picture could not be used.', failed: 'The GM could not save that picture.' };
         if (typeof pP.done === 'function') pP.done(msg.ok === true ? { ok: true } : { error: typeof msg.reason === 'string' && Object.prototype.hasOwnProperty.call(PIC_WHY, msg.reason) ? PIC_WHY[msg.reason] : 'The GM could not take it.' });   // only a reason of our own is shown
         // [netcheck:charpicans-end]
-    } else if ((msg.type === 'char-make-ans' || msg.type === 'char-name-ans' || msg.type === 'char-done-ans' || msg.type === 'char-token-ans' || msg.type === 'tok-pic-ans' || msg.type === 'tok-light-ans') && net.role === 'client') {   // Onboarding F3: the host's answer to one of ours
+    } else if ((msg.type === 'char-make-ans' || msg.type === 'char-name-ans' || msg.type === 'char-done-ans' || msg.type === 'char-delete-ans' || msg.type === 'char-token-ans' || msg.type === 'tok-pic-ans' || msg.type === 'tok-light-ans') && net.role === 'client') {   // Onboarding F3: the host's answer to one of ours
         // [netcheck:charmakeans-start]
         if (typeof msg.rid !== 'string' || !Object.prototype.hasOwnProperty.call(_mkPending, msg.rid)) return;
         var pK = _mkPending[msg.rid]; delete _mkPending[msg.rid]; clearTimeout(pK.timer);
@@ -6078,6 +6079,29 @@ function handleMessage(msg, conn) {
         if (window.wpSheets && window.wpSheets.charChanged) window.wpSheets.charChanged(chD.id);
         if (window.wpRenderPartyStrip) window.wpRenderPartyStrip();
         // [netcheck:chardone-end]
+    } else if (msg.type === 'char-delete' && net.role === 'host') {
+        // [netcheck:chardelete-start]
+        // A player deletes an EXTRA sheet of their own (the owner, 2026-10-04: a player who joined from a second computer had two sheets under one
+        // name, "both I and the player should be able to just delete these"): one still in the making, or one that is not the character they play.
+        // Never the one in play (they would sit at the table with nothing: that one is the GM's to delete), never an NPC's or another player's.
+        // It is the host's own delete: tokens keep their name and lose the link, the GM is told, and it is one step of the GM's undo.
+        var ridX = typeof msg.rid === 'string' && /^[A-Za-z0-9_-]{1,24}$/.test(msg.rid) ? msg.rid : null; if (!ridX) return;
+        var ansX = function(o) { o.type = 'char-delete-ans'; o.rid = ridX; try { conn.send(o); } catch (e) { sendFailed(e); } };
+        var prX = own(net.roster, conn.peer) ? net.roster[conn.peer] : null; if (!prX) return;
+        if (net.paused || peerPaused(conn.peer)) { ansX({ reason: 'paused' }); return; }
+        var campX = getActiveCampaign(), SX = SC(), chX = campX && campX.chars && typeof msg.charId === 'string' && own(campX.chars, msg.charId) ? campX.chars[msg.charId] : null;
+        if (!chX || !SX) { ansX({ reason: 'missing' }); return; }
+        if (chX.npc || chX.ownerId !== prX.id) { ansX({ reason: 'owner' }); return; }
+        if (!window.wpSheets || !window.wpSheets.deleteCharacter) { ansX({ reason: 'off' }); return; }
+        var mkX = chX.making === 1;
+        if (!mkX && SX.activeCharOf(campX, prX.id).id === chX.id) { ansX({ reason: 'inplay' }); return; }
+        if (!allow('chardel', { perMs: 2000, burst: 2, windowMs: 30000, table: 30 }, conn.peer)) { ansX({ reason: 'slow' }); return; }
+        if (window.wpHistFlush) window.wpHistFlush();   // the GM's pending edit is its own step before the sheet goes
+        var nmX = cleanCharName(chX.name) || 'a sheet';
+        window.wpSheets.deleteCharacter(chX.id);
+        toast((prX.name || 'A player') + ' deleted their sheet ' + nmX + (mkX ? ' (it was still being made).' : '.') + ' Undo brings it back.');
+        ansX({ ok: true });
+        // [netcheck:chardelete-end]
     } else if (msg.type === 'char-token' && net.role === 'host') {
         // [netcheck:chartoken-start]
         // Onboarding F3b: Just a token — a player with nothing of their own takes a name and their face and plays at once (the GM's rules: where

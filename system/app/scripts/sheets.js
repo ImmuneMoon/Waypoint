@@ -351,6 +351,30 @@ function afterCharChange(c, whole, values) {
     if (window.appRender) window.appRender();
     renderViews(c.id);   // HUD frame (HF2a): the sheet and every HUD of this character
 }
+// [systemcheck:sheetdelete-start]
+// Delete on the sheet itself (the owner, 2026-10-04: a player who joined from a second computer had two sheets under one name and the only
+// Delete was a small x on a row of the System editor's Characters tab: "both I and the player should be able to just delete these"). The GM
+// deletes any sheet; a player asks the host to delete one of their own, and the host judges it (one still being made, or one they do not
+// play). Asked first, both ways.
+function askDeleteSheet(charId) {
+    var camp = getActiveCampaign(), c = charById(charId, camp); if (!c) return;
+    var gm = !isClient();
+    if (gm ? !canWrite() : !(c.ownerId && c.ownerId === myId() && !c.partial)) return;
+    showConfirm('Delete ' + c.name + (c.making === 1 ? ' (still being made)' : '') + '? Its values are gone; tokens keep their name and lose the link.', function(yes) {
+        if (!yes) return;
+        if (gm) { deleteCharacter(c.id); renderAll(); return; }
+        var n = net(); if (!n || !n.charDelete) return;
+        var r = n.charDelete(c.id, function(a) { toast(a && a.ok ? 'Deleted.' : (a && a.error) || 'The GM could not do that.'); });
+        if (r && r.error) toast(r.error);
+    });
+}
+// The Characters tab's filter: rows whose name holds the letters typed (113 rows in the owner's campaign)
+function charFilter() {
+    var f = ui('sysCharFilter'), cr = ui('sysCharRows'); if (!cr) return;
+    var q = String((f && f.value) || '').trim().toLowerCase();
+    Array.prototype.forEach.call(cr.children, function(row) { var nm = row.querySelector ? row.querySelector('.sys-char-name') : null; row.style.display = !q || !nm || String(nm.value || '').toLowerCase().indexOf(q) >= 0 ? '' : 'none'; });
+}
+// [systemcheck:sheetdelete-end]
 function deleteCharacter(id) {
     var camp = getActiveCampaign(), c = charById(id, camp); if (!c) return;
     var prev = c.ownerId || '';
@@ -725,7 +749,7 @@ function renderSheet() {
     head.textContent = c.name;
     sub.textContent = (c.npc ? 'NPC' : c.ownerId ? ownerName(c, camp) : 'unassigned') + (c.partial ? ' · hover fields only' : '') + (c.making === 1 ? ' · making' : c.unlocked === 1 ? ' · unlocked' : '') + (gm && c.review === 1 ? ' · new' : '');   // Onboarding F3: its state
     var revert = ui('sheetRevert'); if (revert) revert.style.display = gm && lastChange && lastChange.charId === c.id ? '' : 'none';
-    var pick = ui('sheetPick'); if (pick) { pick.textContent = ''; var pickL = gm ? charList(camp) : charList(camp).filter(function(x) { return !x.partial && x.ownerId === myId(); }); if (gm || pickL.length > 1) { pickL.forEach(function(x) { pick.appendChild(opt(x.id, x.name + (x.npc ? ' (NPC)' : ''), x.id === c.id)); }); pick.style.display = ''; } else pick.style.display = 'none'; }
+    var pick = ui('sheetPick'); if (pick) { pick.textContent = ''; var pickL = gm ? charList(camp) : charList(camp).filter(function(x) { return !x.partial && x.ownerId === myId(); }); if (gm || pickL.length > 1) { pickL.forEach(function(x) { pick.appendChild(opt(x.id, x.name + (x.npc ? ' (NPC)' : '') + (x.making === 1 ? ' (being made)' : ''), x.id === c.id)); }); pick.style.display = ''; } else pick.style.display = 'none'; }
     var por = ui('sheetPortrait'); if (por) { if (c.portrait) { por.src = imgSrc(c.portrait); por.style.display = ''; } else por.style.display = 'none'; }
     var upB = ui('sheetUpload'); if (upB) { var gmUp = gm && canWrite(); upB.style.display = gmUp || (isClient() && own && !c.partial && (c.making !== 1 || fillOk())) ? '' : 'none'; upB.title = gmUp ? 'Import JSON: fill or update this sheet from a ShadowBase character file. You review what changes before anything is applied' : c.making === 1 ? 'Fill this character from a file: your own sheet download (.wpchar.json) or a ShadowBase sheet' : 'Import JSON: send your ShadowBase sheet file to the GM, who approves what changes'; }   // Stage 6 U3: the owner's Import JSON (to the GM, as proposed changes); Onboarding F4: while making, a file fills it
     var picB = ui('sheetPic'); if (picB) picB.style.display = isClient() && own && !c.partial ? '' : 'none';   // Onboarding F1c: the owner's own picture for it
@@ -733,6 +757,7 @@ function renderSheet() {
     var dnB = ui('sheetDone'); if (dnB) { var dnOn = isClient() && own && !c.partial && (c.making === 1 || c.unlocked === 1); dnB.style.display = dnOn ? '' : 'none'; }   // Onboarding F3: the owner's Done
     var nmB = ui('sheetName'); if (nmB) nmB.style.display = isClient() && own && !c.partial && c.making === 1 ? '' : 'none';   // renamed only while in the making (owner)
     var ulB = ui('sheetUnlock'); if (ulB) { var ulOn = gm && !!c.ownerId && !c.npc && c.making !== 1 && c.review !== 1; ulB.style.display = ulOn ? '' : 'none'; if (ulOn) { ulB.textContent = c.unlocked === 1 ? 'Lock' : 'Unlock'; ulB.title = c.unlocked === 1 ? 'Lock it again: its player keeps only the fields they may always change' : 'Let its player fill in every field they can see (they press Done when finished)'; } }
+    var dlX = ui('sheetDelete'); if (dlX) { var mineX = isClient() && own && !c.partial && charList(camp).filter(function(x) { return !x.partial && x.ownerId === myId(); }).length > 1; dlX.style.display = (gm && canWrite()) || mineX ? '' : 'none'; dlX.title = gm ? 'Delete this sheet: its values are gone; its tokens keep their name and lose the link' : 'Delete this sheet of yours: one you are still making, or one you do not play (your GM is told)'; }
     renderReviewBar(c, camp, gm);
     var rvB = ui('sheetReview'), rvN = gm ? uploadsOf(camp, c.id) : []; if (rvB) { rvB.style.display = rvN.length ? '' : 'none'; if (rvN.length) rvB.textContent = 'Review (' + rvN[0].changes.length + ')'; }   // U3: the GM's review of it
     var hb = ui('sheetHud'); if (hb) { var hOn = hudHasContent(sys) && canOpen(c.id); hb.style.display = hOn ? '' : 'none'; if (hOn) hb.title = 'Open ' + (sys.sheet.hud.title || 'the HUD'); }   // HUD frame (HF2a): only when the saved system has a HUD they can see
@@ -4570,7 +4595,7 @@ function charRow(c, camp) {
     top.appendChild(btnRow([['delchar', 'Delete this character (tokens keep their name, lose the link)', '&times;']]));
     row.appendChild(top);
     var tokens = 0; Object.values(camp.items || {}).forEach(function(m) { if (m && m.type === 'map') (m.whiteboard || []).forEach(function(w) { if (w && w.charId === c.id) tokens++; }); });
-    row.appendChild(el('div', 'sys-note', (tokens ? tokens + ' token' + (tokens === 1 ? '' : 's') + ' on the maps' : 'No token yet: pick this character in a token\'s Properties, or drop it from the Cast') + (c.ownerId ? ' · played by ' + (pn[c.ownerId] || c.ownerId) + (several ? (active === c.id ? ' (in play)' : ' (kept: you move its tokens)') : '') : c.npc ? ' · NPC' : ' · unassigned (players cannot see it until a player is set)') + (c.making === 1 ? ' · being made by its player (theirs alone until Done)' : c.unlocked === 1 ? ' · unlocked for its player' : '') + (c.review === 1 ? ' · new: review it on its sheet' : '')));
+    row.appendChild(el('div', 'sys-note', (c.making === 1 ? 'Still being made by its player \u00b7 ' : '') + (tokens ? tokens + ' token' + (tokens === 1 ? '' : 's') + ' on the maps' : 'No token yet: pick this character in a token\'s Properties, or drop it from the Cast') + (c.ownerId ? ' · played by ' + (pn[c.ownerId] || c.ownerId) + (several ? (active === c.id ? ' (in play)' : ' (kept: you move its tokens)') : '') : c.npc ? ' · NPC' : ' · unassigned (players cannot see it until a player is set)') + (c.making === 1 ? ' · being made by its player (theirs alone until Done)' : c.unlocked === 1 ? ' · unlocked for its player' : '') + (c.review === 1 ? ' · new: review it on its sheet' : '')));
     return row;
 }
 // 5h: one library effect in the editor: name, icon, tone, duration note, its changes (a field and an amount, or a toggle switched on),
@@ -5679,7 +5704,7 @@ function renderAll() {
     if (!draft.rolls.length) rr.appendChild(el('div', 'sys-empty', 'No rolls yet. A roll is a formula with dice, as a button on the sheet: d20 + STRmod. Set its Kind to Apply for a button that moves pools or numbers instead (Apply costs, Apply wounds).'));
     draft.rolls.forEach(function(r) { rr.appendChild(rollRow(r)); });
     var itr = ui('sysItemRows'); if (itr) { itr.textContent = ''; if (!draft.items || !draft.items.length) itr.appendChild(el('div', 'sys-empty', 'No items yet. Add weapons, gear or explosives your characters can carry — an item with a blast area can be thrown from the sheet.')); (draft.items || []).forEach(function(it) { itr.appendChild(itemRow(it)); }); renderCombat(); }
-    var cr = ui('sysCharRows'); if (cr) { cr.textContent = ''; var camp = getActiveCampaign(), list = charList(camp); if (!list.length) cr.appendChild(el('div', 'sys-empty', 'No characters yet. New character here, or "New character from this token" in a token\'s Properties.')); list.forEach(function(c) { cr.appendChild(charRow(c, camp)); }); }
+    var cr = ui('sysCharRows'); if (cr) { cr.textContent = ''; var camp = getActiveCampaign(), list = charList(camp); if (!list.length) cr.appendChild(el('div', 'sys-empty', 'No characters yet. New character here, or "New character from this token" in a token\'s Properties.')); list.forEach(function(c) { cr.appendChild(charRow(c, camp)); }); charFilter(); }
     var note = ui('sysFeatureNote'); if (note) note.style.display = featureOn() ? 'none' : '';
     patchErrors();
 }
@@ -6154,6 +6179,8 @@ function importFile(file) {
     var dnBt = ui('sheetDone'); if (dnBt) dnBt.addEventListener('click', doneMaking);   // Onboarding F3
     var nmBt = ui('sheetName'); if (nmBt) nmBt.addEventListener('click', renameMaking);
     var ulBt = ui('sheetUnlock'); if (ulBt) ulBt.addEventListener('click', function() { if (sheetOpen) unlockChar(sheetOpen); });
+    var dlBt = ui('sheetDelete'); if (dlBt) dlBt.addEventListener('click', function() { if (sheetOpen) askDeleteSheet(sheetOpen); });
+    var cfI = ui('sysCharFilter'); if (cfI) cfI.addEventListener('input', charFilter);
     var rvBt = ui('sheetReview'); if (rvBt) rvBt.addEventListener('click', function() { if (sheetOpen) openReview(sheetOpen); });
     var rvChip = ui('reviewChip'); if (rvChip) rvChip.addEventListener('click', reviewNext);
     var rvC = ui('uploadClose'); if (rvC) rvC.addEventListener('click', closeReview);

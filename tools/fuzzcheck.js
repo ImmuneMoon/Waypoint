@@ -416,7 +416,7 @@ function mutations(tpl) {
         playerSystem: camp => SC.cleanSystem(camp.system, { F, gmView: false, libCats: {} }), readablePages: () => [],
         charChanged() {}, charGone() {}, renderSheet() {}, sheetRefsChanged: () => false, tokenTurned() {}, uploadsChanged() {},
         applyCharFace(id, plan) { rec.pics.push({ id, plan: plan && plan.kind }); return Promise.resolve(true); }, applyTokenFace(mapId, wbId, plan) { rec.pics.push({ wbId, plan: plan && plan.kind }); return Promise.resolve(true); },
-        giveCharacter(pid, cid, o) { rec.gives.push({ pid, cid }); }, sbFinder: () => null, playerFinder: () => null, charFromJson: () => null,
+        giveCharacter(pid, cid, o) { rec.gives.push({ pid, cid }); }, deleteCharacter(cid) { rec.gives.push({ deleted: cid }); }, sbFinder: () => null, playerFinder: () => null, charFromJson: () => null,
         bellNote() {}, editResult() {}, rollInit: () => ({ error: 'no dice here' }), rolled() {}, roundHook() {}, turnHook() {}, systemOf: () => null, tokenCtxFor: () => null
     });
     function installStubs() {
@@ -543,6 +543,7 @@ function mutations(tpl) {
             'char-make': { type: 'char-make', rid: 'r10', name: 'Hero' },
             'char-name': { type: 'char-name', rid: 'r11', charId: 'c_p1', name: 'Ayla the Bold' },
             'char-done': { type: 'char-done', rid: 'r12', charId: 'c_p1' },
+            'char-delete': { type: 'char-delete', rid: 'r12d', charId: 'c_p1' },
             'char-token': { type: 'char-token', rid: 'r13', name: 'Just Tok' },
             'tok-pic': { type: 'tok-pic', rid: 'r14', mapId: 'm_open', wbId: 'tok_p1plain', img: 'data:image/png;base64,iVBORw0KGgo=' },
             'tok-light': { type: 'tok-light', rid: 'r15', mapId: 'm_open', wbId: 'tok_p1', on: true, preset: 0, name: 'Torch' },
@@ -700,6 +701,7 @@ function mutations(tpl) {
         'char-make': o => o.p1.some(m => m.type === 'char-make-ans' && m.reason === 'have'),
         'char-name': o => o.p1.some(m => m.type === 'char-name-ans' && m.reason === 'notmaking'),
         'char-done': o => o.p1.some(m => m.type === 'char-done-ans' && m.reason === 'notmaking'),
+        'char-delete': o => o.p1.some(m => m.type === 'char-delete-ans' && m.reason === 'inplay'),
         'char-token': o => o.p1.some(m => m.type === 'char-token-ans' && m.reason === 'have'),
         'tok-pic': o => rec.pics.length === 1 && o.p1.some(m => m.type === 'tok-pic-ans' && m.ok === true),
         'tok-light': o => tokH('tok_p1').light && tokH('tok_p1').light.name === 'Torch' && o.p1.some(m => m.type === 'tok-light-ans' && m.ok === true) && o.p2.some(m => m.type === 'item' || m.type === 'itemDelta'),

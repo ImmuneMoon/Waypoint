@@ -4444,6 +4444,19 @@ net.isPresent = function(ownerId, mapId) {
     if (live) return live.location === mapId;
     return awayMap()[ownerId] === mapId;                            // left the table: their character stays where they were, nowhere else
 };
+// [systemcheck:whereis-start]
+// Where a player is NOW, for the party's Jump, its chips and the stream window's follow: { map, live }. At a table it is their app's own place (the
+// roster: live); after they left, the place they were last seen (the away map, as isPresent reads it). Away from any table it is the GM's own record
+// of where each was last seen; in the stream window, what that record said in the save it last read (stream.js). A map id or null, never a guess.
+net.whereIs = function(pid) {
+    if (typeof pid !== 'string' || !pid) return { map: null, live: false };
+    var live = Object.values(net.roster || {}).find(function(p) { return p && p.id === pid; });
+    if (live) return { map: validKey(live.location) ? live.location : null, live: true };
+    if (!net.stream && !net.active) { var camp = getActiveCampaign(), rec = camp && camp.players && typeof camp.players === 'object' && own(camp.players, pid) ? camp.players[pid] : null; return { map: rec && typeof rec === 'object' && validKey(rec.lastMap) ? rec.lastMap : null, live: false }; }
+    var tab = net.stream ? net.streamWhere : awayMap();
+    return { map: tab && typeof tab === 'object' && own(tab, pid) && validKey(tab[pid]) ? tab[pid] : null, live: false };
+};
+// [systemcheck:whereis-end]
 
 // A host-side heal: a player whose record names no character they still own has the one they play written down (their only one, or a
 // guess that goes in the Session Log) — the same rule syncOwners heals with (systemcore migrateBindings, binding only)

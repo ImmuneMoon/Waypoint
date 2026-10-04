@@ -56,6 +56,10 @@ Fog of war
   ticked; a campaign that never touched it now has it on.
 
 Fixes
+- The handle that closes the left panel is drawn over the fog of war. On
+  a player's screen the fog could cover it, so a player could not find
+  the way to close the Handbook. It is easier to see, and its tooltip
+  says what a press does.
 - A notice (that door is locked, that way is closed, a move was put
   back) is drawn over the fog of war. On a player's screen the dark
   covered it.

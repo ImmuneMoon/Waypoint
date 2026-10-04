@@ -3681,26 +3681,27 @@ window.wpFitToGrid = fitToGrid;
       if (_armedThrow || _fxArm) { _armedThrow = null; _fxArm = null; document.body.classList.remove('placing'); window.isMeasureMode = false; window.wpMeasureKind = 'ruler'; var mvE = document.getElementById('moveModeBtn'); if (mvE) mvE.click(); }
   });
   window.wpMeasure = { config: mapMeasureConfig, cellYards: cellYards, pxToYards: function(px) { var c = cellYards(), ppy = c ? mapMeasureConfig().cellPx / c : 0; return ppy ? Math.round(px / ppy * 10) / 10 : null; } };
-  // Fog of war (1.5.0): a play-map mode. The button enters fog mode and opens its menu (fog.js owns the menu +
-  // overlay); a click or drag paints reveal/hide cells. datamap.js suppresses token drag/pan/selection while
-  // window.isFogMode is on. Right-click (or the Hide brush) paints the opposite of the current brush.
+  // Fog of war (1.5.0): a play-map mode. fog.js owns the menu and the overlay. The toolbar's button opens and closes the menu and nothing
+  // else (1.5.4, the owner's pick "Paint only when asked": leaving the fog tool looked like switching fog off); the brush starts from the
+  // menu's Paint fog row, which asks wpEnterFogMode. While window.isFogMode is on a click or drag paints reveal/hide cells, datamap.js
+  // suppresses token drag/pan/selection, and right-click paints the opposite of the brush in hand.
+  // [fogcheck:fogtool-start]
   var _el_fogModeBtn = document.getElementById('fogModeBtn');
   if (_el_fogModeBtn) _el_fogModeBtn.addEventListener('click', function(e) {
       e.stopPropagation();
-      if (!window.isFogMode) {
-          window.isDrawingMode = false; window.isEraserMode = false; window.isMeasureMode = false;
-          if (wbWrap) wbWrap.style.cursor = 'crosshair';
-          updateWbToolbar('fogModeBtn');
-          closeDrawMenu();
-          state.selWbId = null; state.selWbIds = []; render();
-          if (window.wpFog) window.wpFog.openMenu();
-      } else {
-          var fm = document.getElementById('fogMenu');
-          if (fm && fm.classList.contains('show')) { if (window.wpFog) window.wpFog.closeMenu(); var mv = document.getElementById('moveModeBtn'); if (mv) mv.click(); }   // menu open → back to the arrow
-          else if (window.wpFog) window.wpFog.openMenu();
-      }
+      var fm = document.getElementById('fogMenu'); if (!window.wpFog) return;
+      if (fm && fm.classList.contains('show')) window.wpFog.closeMenu(); else { closeDrawMenu(); window.wpFog.openMenu(); }
   });
-  // fog.js calls this when the fog feature switches off while the GM is in fog mode
+  window.wpEnterFogMode = function() {   // a brush of the fog menu was pressed: the fog tool in hand
+      if (window.isFogMode) return;
+      window.isDrawingMode = false; window.isEraserMode = false; window.isMeasureMode = false;
+      if (wbWrap) wbWrap.style.cursor = 'crosshair';
+      updateWbToolbar('fogModeBtn');
+      closeDrawMenu();
+      state.selWbId = null; state.selWbIds = []; render();
+  };
+  // [fogcheck:fogtool-end]
+  // fog.js calls this when the fog tool is put down: the lit brush pressed again, the map's fog or the feature switched off
   window.wpExitFogMode = function() {
       window.isDrawingMode = false; window.isEraserMode = false; window.isMeasureMode = false;
       if (wbWrap) wbWrap.style.cursor = 'default';

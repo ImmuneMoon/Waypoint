@@ -1263,6 +1263,10 @@ function draw() {
     var map = activeMap(), camp = activeCamp(), grid = gridForMap(map);
     var mask = fogMask(map, camp, grid);
     if (mask.mode === 'none') return;                              // no play area marked + default 'none': nothing to fog
+    if (typeof gmFogHidden === 'function' && gmFogHidden()) {      // 1.5.4: the GM's own switch — no veil on this screen; the captions stay
+        if (mapFog(map).mode !== 'reveal') { drawCaptions(ctx, s); drawSenseCaptions(ctx, s, blindCaptionsFor(map, camp, drawOwner())); }
+        return;
+    }
     var tiers = isStreamView() ? partyTiers(map, grid) : revealedTiers(map, camp, drawOwner());   // R2 #14: the stream window draws the host's word
     if (tiers === null) return;                                    // reveal-all: no fog
     if (!isStreamView() && typeof wallEdged === 'function') tiers = wallEdged(tiers, map, grid);   // the cells a wall runs through (the stream window's come with the host's word)
@@ -1306,6 +1310,7 @@ function draw() {
     drawMarks(ctx, s, marksToDraw(map, camp), tiers.keys, grid, Date.now(), marksStill(), marksStrictOn(camp, map), tiers.edge || null);   // senses S4: the marks, over the fog
     drawCaptions(ctx, s);
     drawSenseCaptions(ctx, s, blindCaptionsFor(map, camp, drawOwner()));   // senses S3: why a blind token's screen is dark
+    if (typeof drawWhyDark === 'function') drawWhyDark(ctx, s, map, grid, mask, tiers, Date.now());   // 1.5.4: why the cell under a resting pointer is dark (the GM's screen)
 }
 // Lighting L4 (owner answer 7): the name of the light a targeted token stands in, under the token. Drawn here, over the fog: the board's own
 // layers lie under it, and on a player's screen the cells beneath a token are often dark. whiteboard.js marks the token with the words it
@@ -1377,10 +1382,58 @@ function drawMarks(ctx, s, marks, seenKeys, grid, now, still, held, edge) {   //
     w.addEventListener('pointermove', function(e) {
         var map = activeMap(), grid = map ? gridForMap(map) : null, C = core(); if (!grid || !C) { _markHover = null; return; }
         var r = w.getBoundingClientRect(), z = state.zoomLevel || 1;
-        _markHover = C.cellKey(C.cellOf((e.clientX - r.left + w.scrollLeft) / z, (e.clientY - r.top + w.scrollTop) / z, grid), grid);
+        var bx = (e.clientX - r.left + w.scrollLeft) / z, by = (e.clientY - r.top + w.scrollTop) / z, k = C.cellKey(C.cellOf(bx, by, grid), grid);
+        if (k !== _markHover) _whySince = Date.now();   // 1.5.4: a word over a dark cell waits for the pointer to rest on it
+        _markHover = k; _whyPt = { x: bx, y: by }; _whyHeld = e.buttons > 0;
     }, { passive: true });
-    w.addEventListener('pointerleave', function() { _markHover = null; });
+    w.addEventListener('pointerleave', function() { _markHover = null; _whyPt = null; });
+    w.addEventListener('pointerdown', function() { _whyHeld = true; }, { passive: true });
+    document.addEventListener('pointerup', function() { _whyHeld = false; _whySince = Date.now(); });
+    w.addEventListener('wheel', function() { _whyPt = null; }, { passive: true });   // the board moved under the pointer: the word waits for the pointer's next move
 })();
+// [fogcheck:whydark-start]
+// "Say why a cell is dark" (the owner, 2026-10-04, of dark cells taken for stuck tiles: "they seem darker than the fog of war normally is"): on
+// the GM's own screen a word is drawn over the cell the pointer has rested on when the veil draws it dark. Fixed words, and a previewed
+// player's name as canvas text (never markup). Never on a player's app or in the stream window; not while a button is held (a drag, a brush
+// stroke) and not with the pointer on a token, whose own hover card is the thing to read there
+var WHY_REST = 600, _whySince = 0, _whyHeld = false, _whyPt = null;
+function previewName() {
+    var n = net(), r = n && n.roster && typeof n.roster === 'object' ? n.roster : null, nm = '';
+    if (r) Object.keys(r).forEach(function(k) { var p = r[k]; if (p && p.id === previewMode && typeof p.name === 'string' && p.name) nm = p.name; });
+    return nm ? Array.from(nm).slice(0, 40).join('') : 'this player';
+}
+function whyDark(map, grid, mask, tiers, key) {   // why the veil draws this cell dark, or '' when it does not
+    var C = core(); if (!C || !map || !grid || !tiers || !tiers.keys || typeof key !== 'string' || tiers.keys[key] !== undefined) return '';
+    if (mask && !inMask(mask, key)) return '';   // outside the play area: no fog is drawn there
+    var mf = mapFog(map), cuts = mf.manual.cuts || [];
+    for (var i = 0; i < cuts.length; i++) if (C.cellKey(cuts[i], grid) === key) return 'Hidden by hand (the Hide brush)';
+    if (mf.mode === 'cover') return 'Covered: Cover all hides every cell you have not revealed by hand';
+    if (previewMode !== 'off' && previewMode !== 'party') return 'None of ' + previewName() + '\u2019s tokens sees this cell';
+    return 'No token on this map sees this cell';
+}
+function onToken(map, pt) {   // the pointer is on a character token, or on one waiting for its player
+    var wb = (map && map.whiteboard) || [];
+    for (var i = 0; i < wb.length; i++) {
+        var w = wb[i]; if (!w || w.type === 'light' || !(w.isChar || w.waiting)) continue;
+        if (pt.x >= w.x && pt.x <= w.x + (w.w || 60) && pt.y >= w.y && pt.y <= w.y + (w.h || 52)) return true;
+    }
+    return false;
+}
+function drawWhyDark(ctx, s, map, grid, mask, tiers, now) {
+    if (!isGmView() || !ctx.fillText || _markHover === null || _whyHeld || !_whyPt || now - _whySince < WHY_REST) return;
+    var words = whyDark(map, grid, mask, tiers, _markHover); if (!words || onToken(map, _whyPt)) return;
+    var C = core(), wrap = ui('whiteboardWrap'), z = state.zoomLevel || 1, sx = wrap ? wrap.scrollLeft : 0, sy = wrap ? wrap.scrollTop : 0, W = s.clientWidth;
+    var ctr = C.cellCenter(C.cellOf(_whyPt.x, _whyPt.y, grid), grid), half = (grid.type === 'square' ? grid.size / 2 : grid.s) * z;
+    ctx.save();
+    ctx.font = '600 11px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    var w = Math.min(ctx.measureText(words).width + 14, 360), h = 17, cx = Math.max(w / 2 + 4, Math.min(W - w / 2 - 4, ctr.x * z - sx)), cy = ctr.y * z - sy - half - 12;
+    if (cy < h) cy = ctr.y * z - sy + half + 12;   // no room above the cell: under it
+    ctx.fillStyle = 'rgba(18,16,34,0.9)'; ctx.strokeStyle = 'rgba(232,230,245,0.3)'; ctx.lineWidth = 1;
+    ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(cx - w / 2, cy - h / 2, w, h, 8); else ctx.rect(cx - w / 2, cy - h / 2, w, h); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#e8e6f5'; ctx.fillText(words, cx, cy + 0.5, 346);
+    ctx.restore();
+}
+// [fogcheck:whydark-end]
 // Senses S3: why a blind token's screen is dark and what still works — "Blind", then each sense of its that still sees with its range — above
 // each character token of the viewer's that is blind (a player's own; on the GM's screen the player previewed, or every token), worked out from
 // this app's own system, characters and tokens (the host sends no word of it). A sense's name is a system file's text: drawn as text, never markup
@@ -1424,6 +1477,37 @@ function drawSenseCaptions(ctx, s, caps) {
     ctx.restore();
 }
 
+// [fogcheck:gmhide-start]
+// "Hide the fog on my screen" (the owner, 2026-10-04): the GM's own switch, kept on this machine (wp_fogHideMine '1'): their screen draws no
+// dark veil. Only the GM's own drawing: what the host judges and sends, a player's own fog and the stream window's are untouched. A preview
+// of the party or of a player still draws (that is what a preview is), and so does the veil while the GM paints fog by hand
+function hideMineOn() { try { return typeof localStorage !== 'undefined' && !!localStorage && localStorage.getItem('wp_fogHideMine') === '1'; } catch (e) { return false; } }
+function gmFogHidden() { return isGmView() && previewMode === 'off' && !window.isFogMode && hideMineOn(); }
+function setHideMine(on) { try { if (on === true) localStorage.setItem('wp_fogHideMine', '1'); else localStorage.removeItem('wp_fogHideMine'); } catch (e) {} }
+// [fogcheck:gmhide-end]
+// [fogcheck:fogbtn-start]
+// The toolbar's fog button says this map's own fog state (the owner, 2026-10-04, of the veil: it "stuck around when i turned it off" — leaving
+// the fog tool looked like switching fog off): a ring and ON while this map's fog is on, whatever tool is in hand, and a tooltip that says
+// which and names the switch. The tooltip goes into data-tip (tooltips.js reads it), never back into title: one tooltip, not two. The fog
+// tool is put down on a map whose fog is off: nothing painted there would show
+function fogBtnWords(isMap, on, mine) {
+    if (!isMap) return 'Fog of war \u2014 the fog menu (open a play map to use it)';
+    return on ? 'Fog of war: ON for this map' + (mine ? ' (hidden on your screen)' : '') + ' \u2014 click for the fog menu. Its first tick, Fog on this map, is the switch.'
+        : 'Fog of war: off for this map \u2014 click for the fog menu and tick Fog on this map to switch it on.';
+}
+var _btnMapId = null;
+function btnSync() {
+    var b = ui('fogModeBtn'); if (!b || !b.classList) return;
+    var map = activeMap(), on = !!(map && fogFeatureOn() && mapFog(map).on), words = fogBtnWords(!!map, on, on && hideMineOn());
+    if (b.classList.contains('fog-on') !== on) b.classList.toggle('fog-on', on);
+    if (b.dataset && b.dataset.tip !== words) b.dataset.tip = words;
+    if (b.hasAttribute && b.hasAttribute('title')) b.removeAttribute('title');
+    var stop = !on && !!window.isFogMode && isGmView() && !!window.wpExitFogMode, moved = (map ? map.id : null) !== _btnMapId;
+    _btnMapId = map ? map.id : null;
+    if (stop) window.wpExitFogMode();
+    if (stop || moved) { var fm = ui('fogMenu'); if (fm && fm.classList && fm.classList.contains('show')) syncMenu(); }   // an open menu follows the tool put down and the map on screen
+}
+// [fogcheck:fogbtn-end]
 /* ---------- the throttled redraw loop (runs only while the overlay is active) ---------- */
 var raf = null, lastDraw = 0;
 function tick() {
@@ -1434,7 +1518,7 @@ function tick() {
     raf = requestAnimationFrame(tick);
 }
 function kick() { if (!raf) raf = requestAnimationFrame(tick); }
-function redraw() { if (active()) { lastDraw = 0; kick(); } else clearCanvas(); }
+function redraw() { if (typeof btnSync === 'function') btnSync(); if (active()) { lastDraw = 0; kick(); } else clearCanvas(); }   // the toolbar's button follows the map on screen
 
 // The GM's sight outline (the owner, 2026-10-04: "for npc characters, id like to be able to track their line of sight for when i have them
 // selected", by prompt as an outline, never a veil). The area ONE token sees — its eyes by its own arc, then each full sense, walls and smoke
@@ -1533,7 +1617,7 @@ function paintAt(boardX, boardY, opposite) {
 function fillPreviewOptions() {
     var sel = ui('fogPreview'); if (!sel) return;
     var cur = previewMode, n = net(), hosting = !!(n && n.active && n.role === 'host');
-    var opts = '<option value="off">Off &mdash; whole board</option><option value="party">Party &mdash; all tokens</option>';
+    var opts = '<option value="off">Off &mdash; your own view</option><option value="party">Party &mdash; all tokens</option>';
     if (hosting && n.roster) Object.keys(n.roster).forEach(function(k) { var p = n.roster[k]; if (p && p.id) opts += '<option value="' + esc(p.id) + '">' + esc(p.name || p.id) + '</option>'; });
     sel.innerHTML = opts;
     var ok = Array.prototype.some.call(sel.options, function(o) { return o.value === cur; });
@@ -1557,6 +1641,7 @@ function syncMenu() {
     var map = activeMap(); if (!map) return;
     var mf = mapFog(map), camp = activeCamp(), cf = campFog(camp);
     var on = ui('fogOn'); if (on) on.checked = !!mf.on;
+    var fhm = ui('fogHideMine'); if (fhm) fhm.checked = hideMineOn();   // 1.5.4: the GM's own screen, kept on this machine
     var gridless = ((map.meta && map.meta.gridType) || 'off') === 'off';
     var gr = ui('fogGridlessRow'); if (gr) gr.style.display = gridless ? '' : 'none';
     if (gridless) {
@@ -1583,7 +1668,9 @@ function syncMenu() {
     var lrow = ui('fogLightRow'); if (lrow) lrow.style.display = lightingOn() ? '' : 'none';   // lighting: the map's light
     var lsel = ui('fogLight'); if (lsel && document.activeElement !== lsel) lsel.value = mf.light === 'bright' || mf.light === 'dim' || mf.light === 'dark' ? mf.light : 'auto';
     var fEmpty = ui('fogEmptyScope'); if (fEmpty && document.activeElement !== fEmpty) fEmpty.value = cf.defaults.emptyFog === 'none' ? 'none' : 'whole';   // what a map with no play area marked does
-    document.querySelectorAll('#fogMenu .fog-brush-btn').forEach(function(b) { b.classList.toggle('active', b.dataset.fbrush === brush); });
+    var painting = !!window.isFogMode;   // 1.5.4: a brush is lit only while the fog tool is in hand
+    document.querySelectorAll('#fogMenu .fog-brush-btn').forEach(function(b) { b.classList.toggle('active', painting && b.dataset.fbrush === brush); });
+    var pnote = ui('fogPaintNote'); if (pnote) pnote.textContent = paintWords(painting, !!mf.on);
     fillPreviewOptions();
     var note = ui('fogNote'); if (note) note.textContent = gridForMap(map) ? '' : 'Gridless map: pick a measurement grid above so fog can compute cells.';
 }
@@ -1600,6 +1687,22 @@ function fitMenu(m) {
 // [fogcheck:fitmenu-end]
 function openMenu() { var m = ui('fogMenu'); if (!m || !canWrite()) return; syncMenu(); m.classList.add('show'); fitMenu(m); redraw(); }
 function closeMenu() { var m = ui('fogMenu'); if (m) m.classList.remove('show'); }
+// [fogcheck:brushpress-start]
+// The menu's Paint fog row (the owner's pick "Paint only when asked", 2026-10-04): a brush pressed takes the fog tool in hand with that brush;
+// the lit brush pressed again puts the tool down (back to the arrow); the other brush pressed while painting only changes the brush. Nothing
+// is painted on a map whose fog is off: the veil is not drawn there, so the strokes would not show
+function paintWords(painting, fogOn) {
+    if (painting) return 'Painting: click or drag cells on the map; right-click paints the other brush. Press the lit brush again, or pick another tool, to stop.';
+    return fogOn ? 'Press a brush, then click or drag cells on the map.' : 'Tick Fog on this map first: there is no fog to paint while it is off.';
+}
+function brushPress(which) {
+    var want = which === 'hide' ? 'hide' : 'reveal', map = activeMap(); if (!map || !isGmView() || !canWrite()) return;
+    if (window.isFogMode && brush === want) { if (window.wpExitFogMode) window.wpExitFogMode(); }
+    else if (!window.isFogMode && !mapFog(map).on) { toast('Fog is off on this map: tick Fog on this map (the top of this menu) first, so that you see what you paint.'); return; }
+    else { brush = want; if (!window.isFogMode && window.wpEnterFogMode) window.wpEnterFogMode(); }
+    syncMenu(); redraw();
+}
+// [fogcheck:brushpress-end]
 
 var LIGHT_SAID = {
     auto: 'This map is lit until you place a light source on it (the \u2728 effects panel).',
@@ -1620,6 +1723,11 @@ var LIGHT_SAID = {
         if (mf.on && ((map.meta && map.meta.gridType) || 'off') === 'off' && !mf.cell) mf.cell = { grid: 'square', len: 60 };
         save(); syncMenu(); redraw();
         toast(mf.on ? 'Fog on for this map.' : 'Fog off for this map — the whole map shows.');
+    });
+    var fhide = ui('fogHideMine');   // 1.5.4: "Hide the fog on my screen" — the GM's own drawing alone, kept on this machine
+    if (fhide) fhide.addEventListener('change', function() {
+        setHideMine(fhide.checked === true); syncMenu(); redraw();
+        toast(fhide.checked ? 'The fog is hidden on your screen. Your players’ fog is unchanged.' : 'The fog shows on your screen again.');
     });
     document.querySelectorAll('#fogMenu .fog-grid-btn').forEach(function(b) {
         b.addEventListener('click', function() { var map = activeMap(); if (!map) return; var mf = mapFog(map); mf.cell = { grid: b.dataset.fgrid, len: (mf.cell && mf.cell.len) || 60 }; save(); syncMenu(); redraw(); });
@@ -1705,7 +1813,7 @@ var LIGHT_SAID = {
         save(); invalidateVision(); syncMenu(); redraw();
         toast(fEmpty.value === 'none' ? 'Maps with no play area marked now show no fog.' : 'Maps with no play area marked fog the whole map.');
     });
-    document.querySelectorAll('#fogMenu .fog-brush-btn').forEach(function(b) { b.addEventListener('click', function() { brush = b.dataset.fbrush === 'hide' ? 'hide' : 'reveal'; syncMenu(); }); });
+    document.querySelectorAll('#fogMenu .fog-brush-btn').forEach(function(b) { b.addEventListener('click', function() { brushPress(b.dataset.fbrush); }); });
     var rev = ui('fogRevealAll');
     if (rev) rev.addEventListener('click', function() { var map = activeMap(); if (!map) return; var mfR = mapFog(map); mfR.mode = 'reveal'; mfR.epoch = (mfR.epoch || 0) + 1; save(); syncMenu(); redraw(); toast('Whole map revealed. Paint or pick a preview to fog again.'); });   // senses S6: a new epoch empties every player's memory of it
     var cov = ui('fogCoverAll');
@@ -1715,7 +1823,7 @@ var LIGHT_SAID = {
     var wrap = ui('whiteboardWrap');
     if (wrap && window.ResizeObserver) { try { new ResizeObserver(function() { if (active()) draw(); }).observe(wrap); } catch (e) {} }
     window.addEventListener('resize', function() { if (active()) draw(); });
-    window.addEventListener('scroll', function() { if (active()) { lastDraw = 0; kick(); } }, true);
+    window.addEventListener('scroll', function() { _whyPt = null; if (active()) { lastDraw = 0; kick(); } }, true);
     document.addEventListener('click', function(e) {
         if (menu.classList.contains('show') && !e.target.closest('#fogMenu') && !e.target.closest('#fogModeBtn') && !window.isFogMode) closeMenu();
     });

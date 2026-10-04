@@ -24,6 +24,17 @@ Character sheets
   and on its row of the Characters tab, which has a box to find a
   character by name.
 
+Calendar
+- The game clock runs by itself while you host a session: a second of
+  the game to each second at the table, a whole minute at a time. It
+  waits while the table is paused and while a fight is on (each round
+  moves it, as before), and never moves while you prepare with no table
+  open. Runs / Held at the top of the Calendar window switches it, and
+  the list beside them sets its speed: real time, or x2, x5, x10, x60.
+  The chip in the header shows whether it is running. Timed effects
+  outside a fight and your time rules follow it (as Active time; with
+  Ask me, the chip gets a dot when a rule comes due).
+
 Fog of war
 - The fog button says whether this map's fog is on: it wears ON and a
   ring while it is, whatever tool you hold, and its tooltip names the

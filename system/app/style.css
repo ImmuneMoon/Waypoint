@@ -1953,6 +1953,9 @@
   .hdr-clock { display: inline-flex; align-items: center; gap: 6px; max-width: 320px; white-space: nowrap; font-size: 12px; margin-right: 6px; }   /* item 20 K2: the campaign's clock in the header */
   .hdr-clock .clock-txt { overflow: hidden; text-overflow: ellipsis; }
   .hdr-clock.clock-private { opacity: .75; border: 1px dashed var(--edge); }
+  .hdr-clock .clock-run { font-size: 9px; color: var(--gold); }   /* 1.5.4, the GM's own mark: the clock is running (a triangle) or waiting (two bars) */
+  .hdr-clock .clock-run:empty { display: none; }
+  .hdr-clock.clock-due::after { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--gold); flex: 0 0 auto; }   /* time rules wait for the GM's word */
   .cal-now { font-size: 16px; font-weight: 600; color: var(--ink); }
   .cal-nav { display: flex; align-items: center; gap: 6px; }
   .cal-nav .cal-title { flex: 1; text-align: center; font-weight: 600; }
@@ -1974,7 +1977,9 @@
   .cal-pend-name { font-weight: 600; }
   .cal-pend-rules { color: var(--dim); overflow-wrap: anywhere; }
   .cal-pend-bar, .cal-kind { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-  .cal-kind-btn.cal-kind-on { border-color: var(--gold); color: var(--gold); font-weight: 700; }
+  .cal-kind-btn.cal-kind-on, .cal-live-btn.cal-kind-on { border-color: var(--gold); color: var(--gold); font-weight: 700; }
+  .cal-live { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 6px; }   /* 1.5.4: Runs / Held and the speed */
+  .cal-live .field { width: auto; flex: 0 0 auto; }
   .sys-roll-everyrow input.sys-roll-evn { width: 70px; }
   .cal-notes, .cal-coming { display: flex; flex-direction: column; gap: 4px; }
   .cal-note, .cal-note-add { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }

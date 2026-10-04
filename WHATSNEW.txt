@@ -1,3 +1,15 @@
+WAYPOINT 1.5.3 — What's New
+============================
+
+Fixes
+- Fog along a wall: a wall drawn across the grid cuts the cells it runs
+  through, and the cells whose middle lay just past the wall stayed dark
+  from inside the room, however close a character stood: dark bites out
+  of the floor along every wall. Such a cell now shows with the seen
+  cell beside it, for the GM, for each player and in the stream window.
+  What a player's tokens are sent is unchanged: a creature standing past
+  the wall is still not seen.
+
 WAYPOINT 1.5.2 — What's New
 ============================
 

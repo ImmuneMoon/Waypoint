@@ -807,7 +807,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             check('Lighting: the name of the light under a targeted token is drawn on the fog\'s overlay, over the fog — under the token where it is on screen now (centred, a little below its box), as text and nothing else (words that look like markup are drawn as they are), for the tokens the board marked and no others; nothing for a blank mark or one off the board\'s view, at most forty, a long one cut; the overlay draws them after the fog, once',
                 lj(one.asked) === lj(['#whiteboardWrap .wb-item[data-light-cap]']) && lj(one.rec) === lj([['rect', 163, 206, 134, 17], ['text', 'Dim light (-1 to -8)', 230, 214.5, 346]]) && one.align === 'center' && /11px/.test(one.font)
                 && hostile.rec.length === 2 && hostile.rec[1][1] === HOST && none.rec.length === 0 && blank.rec.length === 0 && off.rec.length === 0 && many.rec.filter(r => r[0] === 'text').length === 40 && long.rec[1][1].length === 200 && long.rec[0][3] === 360 && noText.rec.length === 0
-                && /\n    ctx\.restore\(\);\n    drawMarks\(ctx, s, marksToDraw\(map, camp\), tiers\.keys, grid, Date\.now\(\), marksStill\(\), marksStrictOn\(camp, map\)\);[^\n]*\n    drawCaptions\(ctx, s\);\n    drawSenseCaptions\(ctx, s, blindCaptionsFor\(map, camp, drawOwner\(\)\)\);[^\n]*\n\}\n/.test(fogSrc) && (fogSrc.match(/drawCaptions\(/g) || []).length === 2 && (() => { drawRun({ list: [], keys: {} }); return lj(drawRun.captions) === lj([{ captions: true, marks: [['marks of', 'amap', 'acamp'], true, true, 1234, 'still?', ['strict?', 'acamp', 'amap']] }, { captions: true }, { captions: true, senses: ['amap', 'acamp', '*'] }]); })(), lj([one.rec, hostile.rec, off.rec.length, many.rec.length]));
+                && /\n    ctx\.restore\(\);\n    drawMarks\(ctx, s, marksToDraw\(map, camp\), tiers\.keys, grid, Date\.now\(\), marksStill\(\), marksStrictOn\(camp, map\), tiers\.edge \|\| null\);[^\n]*\n    drawCaptions\(ctx, s\);\n    drawSenseCaptions\(ctx, s, blindCaptionsFor\(map, camp, drawOwner\(\)\)\);[^\n]*\n\}\n/.test(fogSrc) && (fogSrc.match(/drawCaptions\(/g) || []).length === 2 && (() => { drawRun({ list: [], keys: {} }); return lj(drawRun.captions) === lj([{ captions: true, marks: [['marks of', 'amap', 'acamp'], true, true, 1234, 'still?', ['strict?', 'acamp', 'amap']] }, { captions: true }, { captions: true, senses: ['amap', 'acamp', '*'] }]); })(), lj([one.rec, hostile.rec, off.rec.length, many.rec.length]));
         }
         {   // the play area's clip, kept from the frame before while nothing moves (fog.js maskClip, sliced by its maskclip markers, and the real draw)
             const clipSrc = fogSrc.slice(fogSrc.indexOf('// [fogcheck:maskclip-start]'), fogSrc.indexOf('// [fogcheck:maskclip-end]')), hexSrc = lineOf('var HEX_COS = ') + lineOf('function hexPath(');
@@ -1722,7 +1722,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 && sgOf(CL) === sg0 + ',hc' && sgOf(CL, { cover: false }) === sg0 && sgOf(D3e) === sg0 + ',h3d2s' && sgOf(D3, { cover: false }) === sg0 + ',h3d0' && sg0.indexOf('h') < 0, lj([hso, sg0, sgOf(CL), sgOf(D3e), sgOf(D3, { cover: false })]));
             check('item 19b wired (fog.js, pinned): the overlay adds the cell of a creature seen over a low wall after the memory has taken the cells seen (it is no ground seen) and never in the stream window, which draws the host\'s word; the party\'s cells take it on the host; a mark drawn on a seen cell only with the host\'s word (s: 1); the drop remembers which hidden creatures stand in a seen cell; the cover readout asks the 3D line first',
                 /\n    var mem = isClientView\(\) && rememberOn\(camp\) \? memRemember\(map, grid, tiers\) : null,[^\n]*\n    if \(!isStreamView\(\) && typeof heightShown === 'function'\) tiers = heightShown\(tiers, map, camp, drawOwner\(\), grid, mask\);/.test(fogSrc)
-                && /if \(typeof heightShown === 'function'\) t = heightShown\(t, map, camp, PARTY, grid, mask\);/.test(cut('function fogPartyCells(')) && /if \(!MARK_WORD\[m\.k\] \|\| \(seenKeys && seenKeys\[key\] && m\.s !== 1\)\) continue;/.test(fogSrc)
+                && /if \(typeof heightShown === 'function'\) t = heightShown\(t, map, camp, PARTY, grid, mask\);/.test(cut('function fogPartyCells(')) && /if \(!MARK_WORD\[m\.k\] \|\| \(seenKeys && seenKeys\[key\] && !\(edge && edge\[key\]\) && m\.s !== 1\)\) continue;/.test(fogSrc)
                 && /if \(any && hj && typeof _dropHid !== 'undefined' && _dropHid\) _dropHid\.set\(drop, hj\.hide\);/.test(cut('function fogDropIds(')) && /if \(h3 && h3\.mode === '3d'\) \{[^\n]*cover3d\([^\n]*\n    else if \(heightRuleOf\(sys\) === 'clears'\) cs = heightCover\(cs, hA, hB, grid\);/.test(cut('function coverBetween(x1'))
                 && /if \(h3 && h3\.mode === '3d'\) \{ cs = cover3d\(cs, grid, x, y, hNum\(hFrom\), [^\n]*\n    else if \(heightRuleOf\(sys\) === 'clears'\)/.test(cut('function coverAt(')));
         }
@@ -3234,6 +3234,94 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && ixO.includes('The <b>&#128065;</b> eye on a selected token&rsquo;s toolbar outlines the area that one token sees') && rdO('scripts/tutorial.js').includes('The &#128065; eye on a selected token&rsquo;s toolbar outlines what that one token sees')
             && ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(f => fsO.readFileSync(path.join(__dirname, '..', f), 'utf8').replace(/\r\n/g, NL).includes('- Sight outline: an eye on a selected token\'s toolbar outlines the area')));
     }
+    /* ---- 1.5.3: a cell a thin wall runs through is drawn with the seen cell beside it (the owner, 2026-10-04: the dark cells along a room's
+       walls "doesnt go away when a character is nearby"). fogcore wallEdgeCells; fog.js wallEdged, draw, fogPartyCells and drawMarks, run strict ---- */
+    {
+        const fsE = require('fs'), rdE = f => fsE.readFileSync(path.join(__dirname, '..', f), 'utf8').replace(/\r\n/g, NL), fogE = rdE('system/app/scripts/fog.js'), jj = JSON.stringify;
+        const cutE = a => { const i = fogE.indexOf(a), k = fogE.indexOf(NL + '}' + NL, i); if (i < 0 || k < 0) throw new Error('fogcheck: ' + a + ' not found'); return fogE.slice(i, k + 2); };
+        const lineE = a => { const i = fogE.indexOf(a), k = fogE.indexOf(NL, i); if (i < 0 || k < 0) throw new Error('fogcheck: ' + a + ' not found'); return fogE.slice(i, k + 1); };
+        const markE = n => { const a = fogE.indexOf('// [fogcheck:' + n + '-start]'), z = fogE.indexOf('// [fogcheck:' + n + '-end]'); if (a < 0 || z < a) throw new Error('fog.js: the ' + n + ' slice is not marked'); return fogE.slice(a, z); };
+        const E = await import(url('fogcore.js') + '?edge'), sqG = E.squareGrid(50), hxG = E.hexGrid(30, 52);
+        const seenOf = (cells, g, t) => { const o = Object.create(null); cells.forEach(c => { o[E.cellKey(c, g)] = t === undefined ? 2 : t; }); return o; };
+        const names = list => list.map(o => o.key + '=' + o.tier).sort().join(' ');
+        // squares of 50, centres at 25, 75, 125 …: a wall at x = 110 runs through column 2 (x 100 to 150), whose centre (125) is past it; from
+        // column 1's centre (75) it lies at 0.7 of the way
+        const wallAt = (x, g) => E.withWalls(Object.create(null), [[x, -500, x, 500]], g), s1 = seenOf([{ c: 1, r: 0 }, { c: 0, r: 0 }], sqG);
+        const got = {
+            in2: names(E.wallEdgeCells(s1, sqG, wallAt(110, sqG))), deep: names(E.wallEdgeCells(s1, sqG, wallAt(124, sqG))), just: names(E.wallEdgeCells(s1, sqG, wallAt(103, sqG))),
+            thin: names(E.wallEdgeCells(s1, sqG, wallAt(102, sqG))), in1: names(E.wallEdgeCells(s1, sqG, wallAt(90, sqG))), side: names(E.wallEdgeCells(s1, sqG, wallAt(100, sqG))), centre: names(E.wallEdgeCells(s1, sqG, wallAt(125, sqG))),
+            noWall: names(E.wallEdgeCells(s1, sqG, Object.create(null))), noSet: names(E.wallEdgeCells(s1, sqG, null)),
+            both: names(E.wallEdgeCells(seenOf([{ c: 1, r: 0 }, { c: 2, r: 0 }], sqG), sqG, wallAt(110, sqG))),
+            dim: names(E.wallEdgeCells(seenOf([{ c: 1, r: 0 }], sqG, 1), sqG, wallAt(110, sqG))),
+            mixed: names(E.wallEdgeCells(Object.assign(seenOf([{ c: 1, r: 0 }], sqG, 1), seenOf([{ c: 1, r: 1 }], sqG, 2)), sqG, wallAt(110, sqG))),
+            skip: names(E.wallEdgeCells(s1, sqG, wallAt(110, sqG), { skip: { '2,0': 1 } })), through: names(E.wallEdgeCells(s1, sqG, wallAt(110, sqG), { through: { '1,0': 1 } })),
+            solid: names(E.wallEdgeCells(s1, sqG, E.withWalls(Object.assign(Object.create(null), { '2,0': 1 }), [[110, -500, 110, 500]], sqG))),
+            solidLender: names(E.wallEdgeCells(seenOf([{ c: 1, r: 0 }], sqG), sqG, E.withWalls(Object.assign(Object.create(null), { '1,0': 1 }), [[110, -500, 110, 500]], sqG))),
+            elsewhere: names(E.wallEdgeCells(s1, sqG, E.withWalls(Object.create(null), [[110, 200, 110, 400]], sqG))),
+            corner: names(E.wallEdgeCells(seenOf([{ c: 1, r: 0 }], sqG), sqG, wallAt(110, sqG))),   // (2,1) and (2,-1) touch (1,0) at a corner only
+            twoLenders: names(E.wallEdgeCells(Object.assign(seenOf([{ c: 1, r: 0 }], sqG, 1), seenOf([{ c: 2, r: 1 }], sqG, 2)), sqG, E.withWalls(Object.create(null), [[110, -500, 110, 500], [-500, 40, 500, 40]], sqG))),   // (2,0): from the dim (1,0) across x = 110 and from the clear (2,1) across y = 40
+            twoWalls: names(E.wallEdgeCells(s1, sqG, E.withWalls(Object.create(null), [[90, -500, 90, 500], [110, -500, 110, 500]], sqG))),   // the first wall lies in the seen cell's half: the next cell is wholly past it
+        };
+        // one set of walls asked twice, then given a second wall: the list is worked out again
+        const grow = wallAt(110, sqG), g1 = names(E.wallEdgeCells(s1, sqG, grow)), g1b = names(E.wallEdgeCells(s1, sqG, grow)); E.withWalls(grow, [[-500, 60, 500, 60]], sqG); const g2 = names(E.wallEdgeCells(s1, sqG, grow));
+        const hA = { q: 0, r: 0 }, hB = { q: 1, r: 0 }, pA = E.cellCenter(hA, hxG), pB = E.cellCenter(hB, hxG);
+        const across = t => { const mx = pA.x + (pB.x - pA.x) * t, my = pA.y + (pB.y - pA.y) * t, dx = pB.x - pA.x, dy = pB.y - pA.y, L = Math.hypot(dx, dy), nx = -dy / L, ny = dx / L; return E.withWalls(Object.create(null), [[mx - nx * 12, my - ny * 12, mx + nx * 12, my + ny * 12]], hxG); };
+        const hexFar = names(E.wallEdgeCells(seenOf([hA], hxG), hxG, across(0.8))), hexNear = names(E.wallEdgeCells(seenOf([hA], hxG), hxG, across(0.3)));
+        const odd = [E.wallEdgeCells(null, sqG, wallAt(110, sqG)), E.wallEdgeCells(s1, null, wallAt(110, sqG)), E.wallEdgeCells(s1, sqG, 7), E.wallEdgeCells(s1, sqG, wallAt(110, sqG), 7)].map(x => x.length);
+        check('a cell a thin wall runs through (fogcore wallEdgeCells): beside a seen cell it is added when the first wall between their centres lies past 0.55 of the way (well inside its own half), right up to its centre; never for a strip too thin to see, a wall in the seen cell\'s half (the next cell is wholly past it), along their shared side, through its centre (the centre rule sees that cell itself), where no wall lies between those two cells or the set has none; never a cell already seen, one cut by hand, a solid blocker\'s own cell, nor from a seen cell that is a solid blocker, was seen only through walls, or touches it at a corner; the first wall on the line decides; it takes the brightest tier that lends it; the walls\' geometry is read once a set and again when the set gains a wall; a hex grid alike; odd input gives none',
+            jj(got) === jj({ in2: '2,0=2', deep: '2,0=2', just: '2,0=2', thin: '', in1: '', side: '', centre: '', noWall: '', noSet: '', both: '', dim: '2,0=1', mixed: '2,0=1 2,1=2', skip: '', through: '', solid: '', solidLender: '', elsewhere: '', corner: '2,0=2', twoLenders: '2,0=2', twoWalls: '' })
+            && g1 === '2,0=2' && g1b === g1 && g2 === '0,1=2 1,1=2 2,0=2' && hexFar === '1:0=2' && hexNear === '' && jj(odd) === jj([0, 0, 0, 1]),
+            jj([got, g1, g1b, g2, hexFar, hexNear, odd]));
+        // a room drawn across the grid, and a viewer in it: the centre rule sees the cells whose centres are inside; the rule adds the cells the
+        // room's walls cut on each side, and what the viewer's tokens are sent by (the centre rule's own cells) is not changed by it
+        const room = E.withWalls(Object.create(null), [[130, 130, 270, 130], [270, 130, 270, 220], [270, 220, 130, 220], [130, 220, 130, 130]], sqG);
+        const inRoom = E.visibleCells({ x: 175, y: 175, range: 6, arc: 360 }, sqG, room), roomKeys = Object.create(null); inRoom.forEach(s => { roomKeys[s.key] = 2; });
+        const roomSeen = Object.keys(roomKeys).sort().join(' '), roomAdd = names(E.wallEdgeCells(roomKeys, sqG, room)), roomAfter = Object.keys(roomKeys).sort().join(' ');
+        check('a room drawn across the grid (the real visibleCells and wallEdgeCells): from inside it the centre rule sees only the two cells whose centres are in the room; the rule adds the six cells its walls cut along its four sides, each at the seen cell\'s tier, and not the cells past them nor the four at its corners (no side is shared with a seen cell); the seen cells themselves are left as they were',
+            roomSeen === '3,3 4,3' && roomAdd === '2,3=2 3,2=2 3,4=2 4,2=2 4,4=2 5,3=2' && roomAfter === roomSeen, jj([roomSeen, roomAdd, roomAfter]));
+        // fog.js wallEdged, sliced by its markers and run strict
+        const mkWE = o => new Function('core', 'mapFog', 'blockersFor', '_blockerOver', "'use strict';" + NL + markE('walledge') + NL + 'return wallEdged;')(() => (o.core === undefined ? E : o.core), () => o.mf, () => o.blk, o.over || {});
+        const tiersOf = more => Object.assign({ list: [{ key: '0,0', cell: { c: 0, r: 0 } }, { key: '1,0', cell: { c: 1, r: 0 } }], keys: Object.assign(Object.create(null), { '0,0': 2, '1,0': 1 }) }, more || {});
+        const mapW = { id: 'mw' }, mfOf = (mode, cuts) => ({ on: true, mode: mode, manual: { adds: [], cuts: cuts || [] } }), shape = t => (t ? [t.list.map(o => o.key).join(' '), jj(t.keys), jj(t.edge || null)] : t);
+        const wA = tiersOf(), rA = mkWE({ mf: mfOf('auto'), blk: wallAt(110, sqG) })(wA, mapW, sqG);
+        const same = o => { const t = tiersOf(o.tiers), r = mkWE(o)(t, mapW, sqG); return r === t && jj(shape(t)) === jj(shape(tiersOf(o.tiers))); };
+        const weSame = { cover: same({ mf: mfOf('cover'), blk: wallAt(110, sqG) }), over: same({ mf: mfOf('auto'), blk: wallAt(110, sqG), over: { mw: true } }), noWalls: same({ mf: mfOf('auto'), blk: null }),
+            cutByHand: same({ mf: mfOf('auto', [{ c: 2, r: 0 }]), blk: wallAt(110, sqG) }), through: same({ mf: mfOf('auto'), blk: wallAt(110, sqG), tiers: { through: { '1,0': 1 } } }), noRule: same({ mf: mfOf('auto'), blk: wallAt(110, sqG), core: {} }) };
+        const weOdd = [mkWE({ mf: mfOf('auto'), blk: wallAt(110, sqG) })(null, mapW, sqG), mkWE({ mf: mfOf('auto'), blk: wallAt(110, sqG) })(wA, mapW, null) === wA];
+        check('fog.js wallEdged (sliced by its walledge markers, run strict with the real fogcore): on Auto the cell the wall cuts joins the tiers it was handed — in its list, at the tier of the seen cell that lends it — and is named in tiers.edge; the very object comes back; nothing is added on Cover all, where the walls are over their cap, where the map has no wall, for a cell the GM hid by hand, from a cell seen only through walls, nor without the rule in the core; no tiers or no grid: handed back as it came',
+            rA === wA && jj(shape(wA)) === jj(['0,0 1,0 2,0', '{"0,0":2,"1,0":1,"2,0":1}', '{"2,0":1}']) && Object.keys(weSame).every(k => weSame[k] === true) && weOdd[0] === null && weOdd[1] === true,
+            jj([shape(wA), weSame, weOdd]));
+        // the real draw with the rule at hand: asked after the tiers are made and before the memory takes them; the marks are told which cells are the edge; the stream window never asks
+        const drawE = stream => { const order = [], rec = [], cx = { save() {}, restore() {}, clearRect() {}, fillRect() {}, beginPath() { this._n = 0; }, rect() { this._n++; }, moveTo() {}, lineTo() {}, closePath() {}, clip() {}, fill() { rec.push([this.globalCompositeOperation, this.fillStyle, this._n]); }, drawImage() {} };
+            const canvas = { getContext: () => cx }, scr = { clientWidth: 2000, clientHeight: 2000, querySelector: () => canvas }, base = () => ({ list: [{ key: '0,0', cell: { c: 0, r: 0 } }], keys: Object.assign(Object.create(null), { '0,0': 2 }) });
+            new Function('screenEl', 'placeScreen', 'ui', 'core', 'active', 'activeMap', 'activeCamp', 'gridForMap', 'fogMask', 'revealedTiers', 'drawOwner', 'isClientView', 'isStreamView', 'partyTiers', 'state', 'hexPath', 'drawCaptions', 'drawSenseCaptions', 'blindCaptionsFor', 'drawMarks', 'marksToDraw', 'marksStill', 'marksStrictOn', 'rememberOn', 'memRemember', 'memLayer', 'maskClip', 'wallEdged', 'Date', "'use strict';" + NL + cutE('function draw(') + NL + 'return draw;')(
+                () => scr, () => {}, () => ({ scrollLeft: 0, scrollTop: 0 }), () => E, () => true, () => ({ id: 'amap' }), () => ({ id: 'acamp' }), () => sqG, () => ({ mode: 'all' }), () => { order.push('tiers'); return base(); }, () => 'u_p', () => !stream, () => !!stream, () => { order.push('party'); return base(); }, { zoomLevel: 1 }, () => {}, () => {}, () => {}, () => [],
+                (c, s, mk, seen, g, now, still, held, edge) => { order.push('marks:' + jj(edge)); }, () => [], () => false, () => false, () => true, (m, g, t) => { order.push('mem:' + Object.keys(t.keys).sort().join(' ')); return null; }, () => null, () => null,
+                (t, m, g) => { order.push('edge:' + m.id + ':' + g.type); t.keys['1,0'] = 2; t.list.push({ key: '1,0', cell: { c: 1, r: 0 } }); t.edge = { '1,0': 1 }; return t; }, { now: () => 1 })();
+            return { order, punched: rec.filter(r => r[0] === 'destination-out').map(r => r[2]) }; };
+        const dOwn = drawE(false), dStream = drawE(true);
+        check('the real draw with the rule at hand (a recording canvas): the cells a wall cuts are asked for once the tiers are made and before the memory takes them, so a player remembers them with the room; they are punched with the seen cells; the marks are told which cells are the edge; the stream window asks for none (its cells come with the host\'s word)',
+            jj(dOwn.order) === jj(['tiers', 'edge:amap:square', 'mem:0,0 1,0', 'marks:{"1,0":1}']) && jj(dOwn.punched) === jj([2]) && jj(dStream.order) === jj(['party', 'marks:null']) && jj(dStream.punched) === jj([1]),
+            jj([dOwn, dStream]));
+        // the stream window's cells on the host, and a mark in an edge cell
+        const party = new Function('fogFeatureOn', 'mapFog', 'gridForMap', 'fogMask', 'revealedTiers', 'wallEdged', "'use strict';" + NL + lineE('var PARTY = ') + cutE('function fogPartyCells(') + NL + 'return fogPartyCells;')(
+            () => true, () => ({ on: true }), () => sqG, () => ({ mode: 'all' }), () => ({ list: [{ key: '0,0', cell: { c: 0, r: 0 } }], keys: Object.assign(Object.create(null), { '0,0': 2 }) }),
+            (t, m, g) => { t.keys['1,0'] = 1; t.list.push({ key: '1,0', cell: { c: 1, r: 0 } }); return t; })({ id: 'c' }, { type: 'map', id: 'm' });
+        const dmSrcE = lineE('var MARK_WORD = ') + lineE('function marksStill()') + cutE('function marksToDraw(') + cutE('function glyphPath(') + cutE('function drawMarks(');
+        const DM = new Function('core', 'ui', 'state', 'isClientView', 'fogMarksFor', 'fogDropIds', 'window', 'localStorage', "'use strict';" + NL + "var previewMode = 'off';" + NL + dmSrcE + NL + 'return drawMarks;')(() => E, () => ({ scrollLeft: 0, scrollTop: 0 }), { zoomLevel: 1 }, () => true, () => null, () => ({}), {}, { getItem: () => null });
+        const strokes = (seen, edge) => { let n = 0; const cx = { save() {}, restore() {}, beginPath() {}, moveTo() {}, lineTo() {}, arc() {}, quadraticCurveTo() {}, stroke() { n++; }, fill() {}, rect() {}, measureText: t => ({ width: t.length * 6 }), fillText() {} }; DM(cx, { clientWidth: 2000, clientHeight: 1000 }, [{ c: 3, r: 2, k: 2 }], seen, sqG, 0, true, false, edge); return n > 0; };
+        const mk = [strokes({ '3,2': 2 }, null), strokes({ '3,2': 2 }, { '3,2': 1 }), strokes({ '3,2': 2 }, { '9,9': 1 }), strokes({}, null)];
+        const noRuleIn = n => !/wallEdged/.test(cutE('function ' + n + '('));
+        const wnE = ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].map(rdE);
+        check('the stream window\'s cells take the cut cells on the host (fogPartyCells run strict); a creature heard in a cell that is drawn only because a wall runs through it is still marked there, and never in a cell truly seen (drawMarks run for real); what a player\'s tokens are sent by never asks the rule (revealedTiers, revealedCellList, fogDropIds, canSeePoint); both release notes say it, alike',
+            jj(party) === jj({ list: [{ c: 0, r: 0, t: 2 }, { c: 1, r: 0, t: 1 }] }) && jj(mk) === jj([false, true, false, true])
+            && ['revealedTiers', 'revealedCellList', 'fogDropIds', 'canSeePoint'].every(noRuleIn)
+            && fogE.includes("    if (!isStreamView() && typeof wallEdged === 'function') tiers = wallEdged(tiers, map, grid);")
+            && fogE.includes("    if (typeof wallEdged === 'function') t = wallEdged(t, map, grid);")
+            && wnE.every(t => t.includes('- Fog along a wall: a wall drawn across the grid cuts the cells it runs')) && wnE[0].slice(0, wnE[0].indexOf('WAYPOINT 1.5.2')) === wnE[1].slice(0, wnE[1].indexOf('WAYPOINT 1.5.2')) && wnE[0].indexOf('WAYPOINT 1.5.3') === 0,
+            jj([party, mk]));
+    }
+
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

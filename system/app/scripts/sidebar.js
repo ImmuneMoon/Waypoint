@@ -381,7 +381,6 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                 var menu = document.getElementById('sidebarContextMenu');
                 if(!menu) return;
                 menu.style.display = 'block';
-                window.wpClampMenu(menu, e.clientX, e.clientY);   // above the pointer when the bottom is near
                 menu.dataset.id = this.dataset.id;
                 var activeC = getActiveCampaign();
                 var it = activeC && activeC.items[this.dataset.id];
@@ -429,6 +428,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                 menu.querySelectorAll('.ctx-docwin-only').forEach(function(x) { x.style.display = (isPlCtx || isDocCtx) ? 'block' : 'none'; });   // Open in new window — planners + handbook pages
                 var plBtn = document.getElementById('ctxDocPlayers');
                 if (plBtn && isDocCtx) plBtn.innerHTML = (it.meta && it.meta.players === false) ? '&#128065; Show to players' : '&#128274; Hide from players';
+                window.wpClampMenu(menu, e.clientX, e.clientY);   // placed once its rows are the item's own: above the pointer when the bottom is near
             });
             el.addEventListener('click', function(e) {
 

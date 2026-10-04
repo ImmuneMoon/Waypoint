@@ -861,6 +861,7 @@
   #selToolbar button:disabled:hover { background: none; }
   #selToolbar .st-sep { width: 1px; height: 16px; background: var(--edge); margin: 0 2px; }
   #selToolbar .st-group.on { color: var(--gold); background: rgba(224,165,79,0.15); }
+  #selToolbar .st-sight.on { color: var(--gold); background: rgba(224,165,79,0.15); }
   #selToolbar .st-fog.on { color: var(--gold); background: rgba(224,165,79,0.15); }   /* item marked as a play area (fog covers only marked items) */
   /* Color button + palette popover. The chip shows the current color; for text
      the chip is an "A" over a color bar so it reads as ink, not fill. */
@@ -2745,6 +2746,7 @@
   /* Fog of war (1.5.0): the see-through vision overlay — over the board, under the coordinate rulers, effects, the minimap and the party strip */
   #fogScreen { position: fixed; z-index: 3950; pointer-events: none; overflow: hidden; }
   #fogScreen canvas.fog-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #fogScreen canvas.sight-canvas { position: absolute; inset: 0; }
   #fxLayer { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; z-index: 15000; overflow: visible; }
   .fx-flash { position: absolute; inset: 0; opacity: 0; animation: fxFlash linear forwards; }
   @keyframes fxFlash { 0% { opacity: 0; } 15% { opacity: 0.85; } 100% { opacity: 0; } }

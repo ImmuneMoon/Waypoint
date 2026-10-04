@@ -123,6 +123,8 @@
   .wb-item.path.wb-barrier svg path { stroke-dasharray: 2 6; filter: drop-shadow(0 0 2px #4dd0e1); }
   .wb-item.path.wb-barrier.wb-door svg path { stroke-dasharray: none; filter: drop-shadow(0 0 3px #4dd0e1); }
   .wb-item.path.wb-barrier.wb-door.wb-door-open svg path { stroke-dasharray: 4 6; filter: drop-shadow(0 0 3px #4caf7d); }
+  /* a door the GM locked against players (the owner, 2026-10-04): a small lock beside its door mark, for the GM and for players alike (whiteboard.js sets the class) */
+  .wb-item.wb-door.wb-door-locked::after { content: '\1F6AA\1F512'; }
   /* player's view: an opaque grey placeholder */
   .wb-item.wb-hidden-ph {
       background: #3a3a4a !important; border: 1px solid #4a4a5c !important; border-radius: 8px;

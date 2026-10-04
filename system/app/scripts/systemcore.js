@@ -3862,7 +3862,10 @@ function sbRowOps(json, sys, find) {
     var fin2 = function(a2, b2) { return typeof a2 === 'number' && fin(a2) ? a2 : typeof b2 === 'number' && fin(b2) ? b2 : undefined; };
     var qtyOp = function(f, q) { var id = out.ops.length ? out.ops[out.ops.length - 1].q.rowId : ''; var n2 = Math.max(1, Math.min(LIMITS.maxQty, Math.round(num(q) || 1))); if (id && n2 > 1 && !(isObj(f.list) && f.list.noQty)) push(f, { op: 'setQty', rowId: id, qty: n2 }); };
     var gearRow = function(f, g, st2) { var e = entry(f, cutText(g.name, LIMITS.name)); if (e) addLib(f, e, facts(f, undefined, !!g.storageLocationId), build(e, g, st2.wt, st2.cr)); else addCustom(f, { name: g.name, category: cutText(g.category, LIMITS.category), notes: cutText(typeof g.notes === 'string' && g.notes ? g.notes : g.description, LIMITS.text), stats: st2 }, facts(f, undefined, !!g.storageLocationId)); qtyOp(f, g.quantity); };
-    var fG = list('gear'), gear = rowsAt(inv.general).filter(own);
+    // a power cell loaded in a blaster is inside that blaster's own weight and cost (the website, 2026-10-03): never a gear row beside it. One
+    // loaded in a suit is not inside the suit's figures, and stays
+    var inBlaster = function(x) { return x.isInstalled === true && typeof x.installedInBlasterId === 'string' && !!x.installedInBlasterId; };
+    var fG = list('gear'), gear = rowsAt(inv.general).filter(function(x) { return own(x) && !inBlaster(x); });
     if (gear.length && !fG) skip('gear');
     if (fG) gear.forEach(function(g) { gearRow(fG, g, { wt: g.weightless === true ? 0 : num(g.weight), cr: num(g.cost) }); });
     var fA = list('armor'), arm = rowsAt(inv.armor).filter(own);
@@ -3900,9 +3903,11 @@ function sbRowOps(json, sys, find) {
         var e = entry(fW, cutText(s.name, LIMITS.name)); if (e) addLib(fW, e, facts(fW, undefined, s.equipped === true), build(e, s, wt, cr)); else addCustom(fW, { name: s.name, category: 'Lightsaber', notes: cutText(s.calculatedDamage || '', LIMITS.text), stats: st2 }, facts(fW, undefined, s.equipped === true));
         qtyOp(fW, s.quantity);
     });
-    var fM = list('ammo'), loose = [].concat(rowsAt(inv.ammunition), rowsAt(inv.weaponModifications), rowsAt(inv.armorModifications), rowsAt(inv.lightsaberModifications)).filter(function(x) { return own(x) && x.isInstalled !== true && x.equipped !== true; });   // a part in place is part of its weapon (weighed with it)
+    var fM = list('ammo'), loose = [].concat(rowsAt(inv.ammunition), rowsAt(inv.weaponModifications), rowsAt(inv.armorModifications), rowsAt(inv.lightsaberModifications)).filter(function(x) { return own(x) && x.isInstalled !== true && x.equipped !== true && x.condition !== 'Destroyed'; });   // a part in place is part of its weapon (weighed with it); a destroyed one is neither stock nor a working part
+    // a magazine (isContainer) weighs and costs its own figures plus each round it holds (the website, 2026-10-03): the row's are the empty vessel's
+    var mag = function(x, k) { var v = num(x[k]); if (x.isContainer !== true || !Array.isArray(x.contents)) return v; x.contents.slice(0, 500).forEach(function(c) { if (isObj(c)) v += num(c[k]); }); return Math.round(v * 10000) / 10000; };
     if (loose.length && !fM) skip('ammo');
-    if (fM) loose.forEach(function(x) { var e = entry(fM, cutText(x.name, LIMITS.name)); var fx = facts(fM, typeof x.currentCharges === 'number' ? x.currentCharges : undefined); if (e) addLib(fM, e, fx, build(e, x, num(x.weight), num(x.cost))); else addCustom(fM, { name: x.name, category: cutText(x.category || x.type, LIMITS.category), notes: cutText(x.effect || x.notes || '', LIMITS.text), stats: { wt: num(x.weight), cr: num(x.cost) } }, fx); qtyOp(fM, x.quantity); });
+    if (fM) loose.forEach(function(x) { var e = entry(fM, cutText(x.name, LIMITS.name)); var fx = facts(fM, typeof x.currentCharges === 'number' ? x.currentCharges : undefined); if (e) addLib(fM, e, fx, build(e, x, mag(x, 'weight'), mag(x, 'cost'))); else addCustom(fM, { name: x.name, category: cutText(x.category || x.type, LIMITS.category), notes: cutText(x.effect || x.notes || '', LIMITS.text), stats: { wt: mag(x, 'weight'), cr: mag(x, 'cost') } }, fx); qtyOp(fM, x.quantity); });
     // hit locations: each by its type's entry (penalty, cripple divisor, armour slot), its own name and size; its innate DR less wear the level; not
     // healthy reads Crippled; an amputated one is left out
     var fLc = list('locations'), locs = isObj(json.characteristics) && Array.isArray(json.characteristics.locations) ? json.characteristics.locations.slice(0, LIMITS.carried).filter(function(l) { return isObj(l) && typeof l.name === 'string' && l.name.trim(); }) : [];
@@ -3915,7 +3920,8 @@ function sbRowOps(json, sys, find) {
     });
     // weapons and vehicles (F7c2): matched by their own name, else their base type / chassis / explosive (the library's catalogue), that copy keeping
     // its own name and build (weight, cost); none: a custom row with the figures an older sheet carries. A cost is the final one, as the website
-    // totals it (an older row with none costs nothing there)
+    // totals it; a ranged weapon with none (the 2025 shape, no parts behind it) costs its base cost plus its upgrades, as the website now counts
+    // it (2026-10-03); a melee row with none costs nothing
     var rowsOf = function(v) { return Array.isArray(v) ? v.slice(0, LIMITS.carried).filter(function(x) { return isObj(x) && ownName(x); }) : []; };
     var byBase = function(f, x, base) { return entry(f, ownName(x)) || (typeof base === 'string' ? entry(f, cutText(base, LIMITS.name)) : null); };
     var wpn = isObj(inv.weapons) ? inv.weapons : {}, arms = rowsOf(wpn.blasters).map(function(x) { return [x, 'Ranged Weapon']; }).concat(rowsOf(wpn.melee).map(function(x) { return [x, 'Melee Weapon']; })), bombs = rowsOf(inv.explosives);
@@ -3931,7 +3937,7 @@ function sbRowOps(json, sys, find) {
     var rgOf = function(x) { var r = rgK ? sbRange(x.finalHalfDamageRange) : null; return r ? [r.half, r.max] : null; };
     var rgOp = function(e, rg) { if (!rg) return; var os = {}; rg.forEach(function(v, i) { os[rgK[i]] = v !== rowStat(fW.list, e, rgK[i]) ? v : null; }); push(fW, { op: 'ov', rowId: out.ops[out.ops.length - 1].q.rowId, ov: { stats: os } }); };   // the row addLib just made
     if (fW) arms.forEach(function(p2) {
-        var x = p2[0], wt = fin2(x.finalWeight, x.baseWeight), cr = nvl(x.finalCost), e = byBase(fW, x, x.baseType), fx = facts(fW, undefined, x.equipped === true), rg = p2[1] === 'Ranged Weapon' ? rgOf(x) : null;
+        var x = p2[0], wt = fin2(x.finalWeight, x.baseWeight), cr = (p2[1] === 'Ranged Weapon' && !(typeof x.finalCost === 'number' && fin(x.finalCost))) ? nvl(x.baseCost) + nvl(x.totalUpgradesCost) : nvl(x.finalCost), e = byBase(fW, x, x.baseType), fx = facts(fW, undefined, x.equipped === true), rg = p2[1] === 'Ranged Weapon' ? rgOf(x) : null;
         if (x.storageLocationId) { if (fG) gearRow(fG, { name: ownName(x), quantity: x.quantity, storageLocationId: x.storageLocationId }, { wt: nvl(wt), cr: nvl(cr) }); return; }
         if (e) { addLib(fW, e, fx, build(e, x, wt, cr)); rgOp(e, rg); }
         else { var s2 = { wt: nvl(wt), cr: nvl(cr) }, dm = dmgOf(x.finalDamage || x.baseDamage), pk = pickOf(fW, 'wsk', x.baseSkill), mst = fin2(x.finalStRequirement, typeof x.baseStrength === 'number' ? x.baseStrength : parseInt(x.baseStrength, 10));

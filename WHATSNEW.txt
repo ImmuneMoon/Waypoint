@@ -66,6 +66,12 @@ ShadowBase sheets
   carries no such range and reads the entry's pair, as before. In a player's
   Import the range is part of the weapon's own values in Review, and when a
   part is taken off again the figure is offered back to the entry's.
+- A sheet exported after the website's update of 3 October reads as the
+  website counts it: a power cell loaded in a blaster is part of that
+  blaster and no longer a gear row beside it (one loaded in a suit still
+  is); a magazine weighs and costs its own figures plus the rounds in it; a
+  part marked Destroyed is left out; and an older blaster that carries no
+  final cost costs its base cost plus its upgrades, where it read as free.
 
 The tutorial
 - The tour's cards always fit the window: a long step scrolls inside its

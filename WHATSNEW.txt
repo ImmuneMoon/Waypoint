@@ -67,6 +67,25 @@ ShadowBase sheets
   Import the range is part of the weapon's own values in Review, and when a
   part is taken off again the figure is offered back to the entry's.
 
+The tutorial
+- The tour's cards always fit the window: a long step scrolls inside its
+  card and Next, Back and Skip stay in view. Three long steps used to push
+  their buttons off the screen, so the tour could not be continued.
+- Easier to read: a step opens with a short lead, then one point per line,
+  and a long step keeps the rest behind "More about this".
+- While a card is up the rest of the app is held still, so a stray click no
+  longer puts away the tool a step is showing. "Try it yourself" puts the
+  card away and frees the app; the "Resume tour" chip at the bottom of the
+  screen brings the same step back, set up again as it was.
+- Esc asks before it ends the tour, and a tour ended part-way keeps its
+  place: Help ▸ Tutorial ▸ Resume picks it up at that step.
+- Drag a card by its heading to move it out of the way.
+- Every step sets its own stage wherever it is reached from (Next, Back, a
+  jump to another part, Resume): Settings, the System editor, a sheet or the
+  chat left open by another step are put away first. The Properties step
+  unfolds the right panel when it is folded away, the Data map tools step
+  opens a data map itself, and Finding things points at the Maps list.
+
 Fixes
 - Handouts: the "Give to…" list beside each handout wears the app's own look
   (it showed as a plain white box), and its Give button stays dimmed until

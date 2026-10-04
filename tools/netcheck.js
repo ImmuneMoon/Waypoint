@@ -10646,6 +10646,47 @@ pendingChecks.push((async () => {
         JSON.stringify([seen, iName, iBar, iHost, iHostBtn, iJoin, iJoinBtn, wired]));
 }
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
+    /* ---- 1.5.4: the follow ruling (the owner, 2026-10-04): nobody follows the GM around unless the table is set to ---- */
+    {
+        const NL = '\n', landSrc = src.slice(src.indexOf('// [netcheck:landing-start]'), src.indexOf('// [netcheck:landing-end]'));
+        const stSrcF = src.slice(src.indexOf('// [netcheck:stage-start]'), src.indexOf('// [netcheck:stage-end]'));
+        const wholeF = k => { const i = src.indexOf(k), e = src.indexOf('\n};\n', i); if (i < 0 || e < 0) throw new Error('netcheck: ' + k + ' not found'); return src.slice(i, e) + '\n};'; };
+        const campF = () => ({ id: 'c1', items: { m1: { id: 'm1', type: 'map', meta: { title: 'One' } }, m2: { id: 'm2', type: 'map', meta: { title: 'Two' } }, m3: { id: 'm3', type: 'map', meta: { title: 'Locked', playerLock: true } }, p1: { id: 'p1', type: 'planner' } }, players: { u_old: { lastMap: 'm2' }, u_gone: { lastMap: 'm9' }, u_lock: { lastMap: 'm3' } } });
+        const land = (mode, fallback, pid, over) => { const camp = campF(), net = Object.assign({ stageMode: mode, stageFallback: fallback, stagePicked: {}, active: true, role: 'host' }, over || {});
+            const api = new Function('net', 'getActiveCampaign', 'currentStage', "'use strict';" + NL + landSrc + NL + 'return { landingFor, defaultStageMode, hasLastLocations };')(net, () => camp, () => ({ campId: 'c1', itemId: 'm1' }));
+            return { api, net, camp, out: api.landingFor({ id: pid }) }; };
+        const L = { back: land('last', null, 'u_old').out, fresh: land('last', null, 'u_new').out, gone: land('last', null, 'u_gone').out, locked: land('last', null, 'u_lock').out, parked: land('last', 'm2', 'u_new').out, badFb: land('last', 'p1', 'u_new').out, follow: land(null, null, 'u_old').out };
+        check('the follow ruling (landingFor, run for real): under Player\'s last location a returning player lands on their own last map, a first-timer on the map the GM is on (or the map New players start at names) — and every one of them stays put there: none is attached to the GM\'s browsing (a first-timer under Follow me was, and followed from map to map); a last map that is gone or locked for players counts as none; under Follow me a joiner lands with the GM and follows, as ever',
+            j(L.back) === j({ stage: { campId: 'c1', itemId: 'm2' }, detached: true }) && j(L.fresh) === j({ stage: { campId: 'c1', itemId: 'm1' }, detached: true }) && j(L.gone) === j(L.fresh) && j(L.locked) === j(L.fresh)
+            && j(L.parked) === j({ stage: { campId: 'c1', itemId: 'm2' }, detached: true }) && j(L.badFb) === j(L.fresh) && j(L.follow) === j({ stage: { campId: 'c1', itemId: 'm1' }, detached: false }), j(L));
+        const dflt = (camp, picked, hosting) => { const net = { stageMode: 'x', stageFallback: 'x', stagePicked: picked || {}, active: !!hosting, role: 'host' };
+            new Function('net', 'getActiveCampaign', 'currentStage', "'use strict';" + NL + landSrc + NL + 'return defaultStageMode;')(net, () => camp, () => null)(camp); return [net.stageMode, net.stageFallback]; };
+        const D = [dflt({ id: 'c_new', items: {}, players: {} }), dflt(campF()), dflt(campF(), { c1: { mode: null, fallback: 'm2' } }), dflt(campF(), {}, true), dflt(null)];
+        check('the follow ruling: Player\'s last location is the mode a table starts in, for a campaign that has never had a player too (it began on Follow me, and every joiner followed the GM from map to map); what the GM picked for a campaign this session stands; a table already hosting keeps its mode',
+            j(D) === j([['last', null], ['last', null], [null, 'm2'], ['x', 'x'], ['x', 'x']]), j(D));
+        const mkC = peer => ({ peer, open: true, sent: [], send(m) { this.sent.push(m); } });
+        const stage = mode => { const c = mkC('pA'), net = { stageMode: mode, roster: { pA: { id: 'u_p', location: 'm1', detached: true } }, conns: [c] };
+            const api = new Function('net', 'own', 'ensurePlayerToken', 'sendFailed', stSrcF + NL + 'return { summonConn, followConns };')(net, H.own, () => {}, () => {});
+            api.summonConn(c, { campId: 'c1', itemId: 'm2' }); const after = net.roster.pA.detached, at = net.roster.pA.location, moved = api.followConns({ campId: 'c1', itemId: 'm3' });
+            return [after, at, moved, net.roster.pA.location, c.sent.map(m => m.type + ':' + m.stage.itemId + ':' + (m.personal === true))]; };
+        const S = [stage('last'), stage(null)];
+        check('the follow ruling (stageConn and followConns, run for real): under Player\'s last location a summon moves the player once and they stay where they were brought — the GM opening another map moves nobody (a summoned player was attached, and followed from then on: "multiple players at different points arbitrarily followed me"); under Follow me a summon ends a detour and the table\'s follow moves them, as ever',
+            j(S[0]) === j([true, 'm2', 0, 'm2', ['stage:m2:true']]) && j(S[1]) === j([false, 'm2', 1, 'm3', ['stage:m2:true', 'stage:m3:false']]), j(S));
+        const all = mode => { const conns = [mkC('pA'), mkC('pB')], toasts = [], camp = campF(); let sel = 0;
+            const net = { active: true, role: 'host', stageMode: mode, stageOverride: null, stageFallback: null, stagePicked: {}, conns, roster: { pA: { id: 'u_a', location: 'm1', detached: true }, pB: { id: 'u_b', location: 'm1', detached: mode === 'last' } } };
+            new Function('net', 'own', 'ensurePlayerToken', 'sendFailed', 'getActiveCampaign', 'toast', 'refreshStageSelect', 'renderRoster', 'broadcastRoster', stSrcF + NL + wholeF('net.summonAllToMap = function(') + NL + 'return net.summonAllToMap;')(net, H.own, () => {}, () => {}, () => camp, t => toasts.push(t), () => { sel++; }, () => {}, () => {})('m2');
+            return [net.stageMode, net.stageOverride, j(net.stagePicked), Object.values(net.roster).map(p => p.location + ':' + p.detached).join(), conns.map(c => c.sent.length).join(), toasts[0], sel]; };
+        const A = [all('last'), all(null)];
+        check('the follow ruling (net.summonAllToMap, run for real): under Player\'s last location Summon everyone here brings every player to that map once and leaves the table as it was set — no pin, nobody attached; under Follow me or a pin it pins the table there and everyone follows, as ever',
+            j(A[0]) === j(['last', null, '{}', 'm2:true,m2:true', '1,1', 'Everyone summoned to Two.', 0]) && j(A[1]) === j([null, 'm2', j({ c1: { mode: null, fallback: null } }), 'm2:false,m2:false', '1,1', 'Everyone summoned to Two; table pinned here.', 1]), j(A));
+        const ixF = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8'), tuF = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'tutorial.js'), 'utf8');
+        check('the follow ruling is wired and said: the choice is always offered; the GM is told once when players stayed behind and how to bring them; Help, the two tooltips and the tour say who moves when',
+            src.includes("    var lastOpt = '<option value=\"last\">Player\\'s last location</option>';") && !/hasLastLocations\(camp\) \|\| net\.stageMode === 'last'\) \?/.test(src)
+            && src.includes("if (!moved && net.stageMode === 'last' && !_stayHintShown && net.conns.some(function(c) { var pS = own(net.roster, c.peer) ? net.roster[c.peer] : null; return !!pS && pS.location !== s2.itemId; })) {")
+            && ixF.includes('<b>Player\'s last location</b> is the default: each player comes back to the map they were last on and stays put until they travel or you summon them') && ixF.includes('nobody is moved because you open another map')
+            && ixF.includes("'Player's last location' (the default) sends each player back to the map they were last on") && ixF.includes("'Follow me' puts them on the map you are on when they join, once: they do not follow you afterwards")
+            && tuF.includes('nobody is moved because you open another map, unless you set <b>Players arrive at</b> to <b>Follow me</b>'));
+    }
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

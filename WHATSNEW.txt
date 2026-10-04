@@ -1,6 +1,17 @@
 WAYPOINT 1.5.4 — What's New
 ============================
 
+Multiplayer
+- Players no longer follow you from map to map unless you set the table
+  to. Player's last location is now how every table starts: each player
+  comes back to the map they were last on, a first-timer lands on the
+  map you are on, and nobody is moved because you open another map. A
+  Summon moves a player once and they stay there (a summoned player
+  used to follow you from then on, and so did a first-timer). Players
+  arrive at > Follow me still makes the whole table move with you. The
+  first time your players stay behind, a line says so and how to bring
+  them.
+
 Fixes
 - A notice (that door is locked, that way is closed, a move was put
   back) is drawn over the fog of war. On a player's screen the dark

@@ -3023,6 +3023,7 @@ window.wpFitToGrid = fitToGrid;
       cMenu.onclick = null;   // its lines answer for themselves: the item menu's handler never sees them
       cMenu.innerHTML = tokenFxMenuHtml(tok, m);
       cMenu.style.display = 'flex';
+      placeMenu(cMenu);   // its rows changed while it was up: fitted again where it stands
       var again = function() { setTimeout(function() { if (cMenu.style.display !== 'none') showTokenFxMenu(tok); }, 0); };
       cMenu.querySelectorAll('.cm-fx').forEach(function(line) {
           line.addEventListener('click', function(ce) { ce.stopPropagation(); var r = m.rows[Number(line.dataset.fi)]; if (!r) return; tokenFxOp(tok, m, r.rowId ? { op: 'remove', rowId: r.rowId } : { op: 'add', ref: r.ref }); again(); });
@@ -6200,24 +6201,25 @@ var _castClose = document.getElementById('castCloseBtn');
 if (_castClose) _castClose.addEventListener('click', function() { document.getElementById('castModal').style.display = 'none'; });
 
 // Session menu on empty play-map space (only while a session is running)
-// Place the context menu under the pointer. It lives inside the scrolled whiteboard container, so
-// page coordinates would put it thousands of pixels away; position relative to its offset parent.
+// Place the context menu under the pointer, in the window's own coordinates (position: fixed). It used to be placed inside the
+// board's box, which cuts whatever reaches past its edges: a tall menu opened low on the screen lost its first rows under the header.
 // [systemcheck:placemenu-start]
 function placeMenu(cMenu, e) {
     // A menu taller than the window (a character token's has twenty rows): compact rows first, and when that is not enough its own height
-    // limit and scroll — never rows off screen. Judged afresh each time the menu is placed.
+    // limit and scroll — never rows off screen. Judged afresh each time the menu is placed; called with no event (its rows changed while it
+    // was up) it is fitted again where it stands.
     var room = window.innerHeight - 12;
+    cMenu.style.position = 'fixed';
     cMenu.classList.remove('compact', 'tall'); cMenu.style.maxHeight = '';
     if (cMenu.offsetHeight > room) cMenu.classList.add('compact');
     if (cMenu.offsetHeight > room) { cMenu.classList.add('tall'); cMenu.style.maxHeight = room + 'px'; }
     if (!cMenu._wheelKept) { cMenu._wheelKept = true; cMenu.addEventListener('wheel', function(we) { if (cMenu.classList.contains('tall')) we.stopPropagation(); }, { passive: true }); }   // scrolling a tall menu never zooms the board under it
-    var op = cMenu.offsetParent || document.body, pr = op.getBoundingClientRect();
-    var x = e.clientX - pr.left + op.scrollLeft, y = e.clientY - pr.top + op.scrollTop;
+    var x = e ? e.clientX : parseFloat(cMenu.style.left) || 0, y = e ? e.clientY : parseFloat(cMenu.style.top) || 0;
     cMenu.style.left = x + 'px'; cMenu.style.top = y + 'px';
     // keep it on screen
     var r = cMenu.getBoundingClientRect();
-    if (r.right > window.innerWidth - 6) cMenu.style.left = (x - (r.right - window.innerWidth + 6)) + 'px';
-    if (r.bottom > window.innerHeight - 6) cMenu.style.top = (y - (r.bottom - window.innerHeight + 6)) + 'px';
+    if (r.right > window.innerWidth - 6) cMenu.style.left = Math.max(6, x - (r.right - window.innerWidth + 6)) + 'px';
+    if (r.bottom > window.innerHeight - 6) cMenu.style.top = Math.max(6, y - (r.bottom - window.innerHeight + 6)) + 'px';
 }
 // [systemcheck:placemenu-end]
 // The table menu: Campaign Cast, Players ("Bring here"), Session actions. Returns the html and a

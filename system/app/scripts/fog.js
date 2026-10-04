@@ -1160,7 +1160,7 @@ function placeScreen() {
     c.style.width = w + 'px'; c.style.height = h + 'px';
     var ctx = c.getContext('2d'); if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
-function clearCanvas() { var c = screenEl() && screenEl().querySelector('canvas.fog-canvas'); if (c) { var x = c.getContext('2d'); if (x) x.clearRect(0, 0, c.width, c.height); } }
+function clearCanvas() { var c = screenEl() && screenEl().querySelector('canvas.fog-canvas'); if (c) { var x = c.getContext('2d'); if (x) { x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, c.width, c.height); x.restore(); } } }   // in the canvas's own pixels: under the screen's scale a page zoom below 100% cleared only its top-left part
 function isFogMode() { return !!window.isFogMode; }
 function active() {
     if (state.viewMode !== 'visual') return false;

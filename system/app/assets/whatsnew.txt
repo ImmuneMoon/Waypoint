@@ -28,6 +28,14 @@ Sheets
   character's sheet for you, an NPC's too. The ShadowBase file is read on
   your machine and opens the Review, where you tick what to apply.
 
+The effects panel
+- A button that is on stays lit, and a second press puts it away: an
+  armed burst, ping or light source is disarmed, a running weather stops,
+  a held wash clears.
+- Density works on the weather that is running: move the slider and it
+  thins or thickens at once, on your screen while it moves and for the
+  table when you let go. Heavy rain is heavier than it was.
+
 Fixes
 - A player could lose the table's music when the GM changed songs quickly:
   their app asked for the new song while the last one was still arriving,
@@ -60,6 +68,9 @@ Fixes
   over for undo and synced to the table. On a large fogged map, most of
   all zoomed out, the whole map dragged. Where you last looked is now
   remembered by itself, and is no change to the campaign.
+- Once a weather had run, the effects layer was built again on every
+  step of a scroll, which added to the drag while panning. It is now
+  built only when the map's box changes size.
 
 WAYPOINT 1.5.1 — What's New
 ============================

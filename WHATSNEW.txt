@@ -12,6 +12,10 @@ Fog of war
   lock, for you and for them, and a player's click on it is refused. The
   padlock on a selected piece is now worded Lock in place (no drag or
   resize) on its menu and its toolbar: it never was the door's lock.
+- The line above a blind token (Blind, then the senses that still work)
+  is yours to show always, only on hover or for a selected token, or
+  never: Settings > VTT features > Sense captions over tokens, on your
+  own machine. Nobody else's screen changes.
 
 Combat
 - Combat from a token: at your table a character token's right-click menu

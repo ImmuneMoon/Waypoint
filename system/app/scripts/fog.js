@@ -716,6 +716,26 @@ function revealedTiers(map, camp, ownerId) {
     if (passed) { var th = null; list.forEach(function(o) { if (passed[o.key] && !plain[o.key]) (th || (th = Object.create(null)))[o.key] = 1; }); if (th) out.through = th; }
     return out;
 }
+// [fogcheck:walledge-start]
+// The cells a thin wall runs through, for the DRAWN fog alone (fogcore wallEdgeCells): each is added to the tiers at the light of the seen
+// cell that lends it, and named in tiers.edge. Asked by the overlay (the GM's screen, a player's own, the GM's preview of a player) and by the
+// stream window's cells (fogPartyCells) — never by revealedTiers itself, which is what a player's tokens are SENT by (revealedCellList,
+// fogDropIds): a creature standing in such a cell, past the wall, stays unseen, and a mark for it is still drawn there (drawMarks' edge).
+// Only on Auto (Cover all shows what the GM revealed by hand and nothing else), never a cell the GM hid by hand, never from a cell seen
+// only by a sense that passes walls; nothing where the walls are over their cap. The tiers object is revealedTiers' own, new at every call
+function wallEdged(tiers, map, grid) {
+    var C = core(); if (!tiers || !tiers.keys || !Array.isArray(tiers.list) || !grid || !C || typeof C.wallEdgeCells !== 'function') return tiers;
+    var mf = mapFog(map); if (mf.mode !== 'auto') return tiers;
+    var blk = blockersFor(map, grid); if (!blk || _blockerOver[map.id]) return tiers;
+    var cut = null; (mf.manual.cuts || []).forEach(function(c) { (cut || (cut = Object.create(null)))[C.cellKey(c, grid)] = 1; });
+    var add = C.wallEdgeCells(tiers.keys, grid, blk, { skip: cut, through: tiers.through || null });
+    if (!add.length) return tiers;
+    var edge = Object.create(null);
+    for (var i = 0; i < add.length; i++) { var o = add[i]; tiers.keys[o.key] = o.tier; tiers.list.push({ key: o.key, cell: o.cell }); edge[o.key] = 1; }
+    tiers.edge = edge;
+    return tiers;
+}
+// [fogcheck:walledge-end]
 // The cells revealed to ownerId at any tier (what host enforcement drops by). null = the whole map (reveal mode)
 function revealedCellList(map, camp, ownerId) {
     if (!gridForMap(map)) return [];
@@ -954,6 +974,7 @@ function fogPartyCells(camp, map) {
     var grid = gridForMap(map); if (!grid) return null;
     var mask = fogMask(map, camp, grid); if (mask.mode === 'none') return null;
     var t = revealedTiers(map, camp, PARTY); if (t === null) return { all: true };
+    if (typeof wallEdged === 'function') t = wallEdged(t, map, grid);   // the cells a wall runs through, as every screen draws them
     if (typeof heightShown === 'function') t = heightShown(t, map, camp, PARTY, grid, mask);   // item 19b H4
     return { list: t.list.map(function(o) { var c = o.cell, k = t.keys[o.key]; return c.q !== undefined ? { q: c.q, r: c.r, t: k } : { c: c.c, r: c.r, t: k }; }) };
 }
@@ -1244,6 +1265,7 @@ function draw() {
     if (mask.mode === 'none') return;                              // no play area marked + default 'none': nothing to fog
     var tiers = isStreamView() ? partyTiers(map, grid) : revealedTiers(map, camp, drawOwner());   // R2 #14: the stream window draws the host's word
     if (tiers === null) return;                                    // reveal-all: no fog
+    if (!isStreamView() && typeof wallEdged === 'function') tiers = wallEdged(tiers, map, grid);   // the cells a wall runs through (the stream window's come with the host's word)
     var z = state.zoomLevel || 1, sx = wrap.scrollLeft, sy = wrap.scrollTop;
     var pad = 80 + (grid.type === 'square' ? grid.size * z / 2 : grid.s * z * 1.02);   // keep a cell whose CENTRE is off-view but whose body reaches the viewport (else a sliver of the clip edge stays unfogged at high zoom)
     var traceOn = function(cx2, cell) {                            // add one cell's outline to a path (screen space); off-view cells are skipped
@@ -1281,7 +1303,7 @@ function draw() {
     ctx.fill();                                                    // punch every clear or bright cell in one pass
     ctx.globalCompositeOperation = 'source-over';
     ctx.restore();
-    drawMarks(ctx, s, marksToDraw(map, camp), tiers.keys, grid, Date.now(), marksStill(), marksStrictOn(camp, map));   // senses S4: the marks, over the fog
+    drawMarks(ctx, s, marksToDraw(map, camp), tiers.keys, grid, Date.now(), marksStill(), marksStrictOn(camp, map), tiers.edge || null);   // senses S4: the marks, over the fog
     drawCaptions(ctx, s);
     drawSenseCaptions(ctx, s, blindCaptionsFor(map, camp, drawOwner()));   // senses S3: why a blind token's screen is dark
 }
@@ -1323,7 +1345,7 @@ function glyphPath(ctx, k, x, y, R) {
     if (k === 3) { ctx.moveTo(x + R * 0.8, y); ctx.arc(x, y, R * 0.8, 0, Math.PI * 2); return; }
     ctx.moveTo(x, y - R); ctx.quadraticCurveTo(x + R * 0.9, y + R * 0.2, x, y + R * 0.85); ctx.quadraticCurveTo(x - R * 0.9, y + R * 0.2, x, y - R);
 }
-function drawMarks(ctx, s, marks, seenKeys, grid, now, still, held) {   // held: the table plays On your own turn and a fight runs here (S4b)
+function drawMarks(ctx, s, marks, seenKeys, grid, now, still, held, edge) {   // held: the table plays On your own turn and a fight runs here (S4b); edge: cells drawn seen only because a wall runs through them — a creature past the wall there is still marked
     var C = core(); if (!marks || !marks.length || !C || !grid || !ctx.fillText) return;
     var wrap = ui('whiteboardWrap'), z = state.zoomLevel || 1, sx = wrap ? wrap.scrollLeft : 0, sy = wrap ? wrap.scrollTop : 0, W = s.clientWidth, H = s.clientHeight;
     var R = Math.max(6, (grid.type === 'square' ? grid.size : grid.s * 1.7) * z * 0.3), count = { 1: 0, 2: 0, 3: 0, 4: 0 }, hoverAt = null;
@@ -1331,7 +1353,7 @@ function drawMarks(ctx, s, marks, seenKeys, grid, now, still, held) {   // held:
     ctx.strokeStyle = '#e8e6f5'; ctx.fillStyle = '#e8e6f5'; ctx.lineWidth = Math.max(1.5, R * 0.18); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     for (var i = 0; i < marks.length; i++) {
         var m = marks[i], cell = m.q !== undefined ? { q: m.q, r: m.r } : { c: m.c, r: m.r }, key = C.cellKey(cell, grid);
-        if (!MARK_WORD[m.k] || (seenKeys && seenKeys[key] && m.s !== 1)) continue;   // item 19b: s — a creature a piece hides in a cell this player sees: its mark is drawn there
+        if (!MARK_WORD[m.k] || (seenKeys && seenKeys[key] && !(edge && edge[key]) && m.s !== 1)) continue;   // item 19b: s — a creature a piece hides in a cell this player sees: its mark is drawn there
         count[m.k]++;
         var ctr = C.cellCenter(cell, grid), x = ctr.x * z - sx, y = ctr.y * z - sy;
         if (x < -2 * R || y < -2 * R || x > W + 2 * R || y > H + 2 * R) continue;   // off the board's view

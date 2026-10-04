@@ -266,6 +266,70 @@ function lineClear(a, b, grid, blockers) {
     return segClear(pa.x, pa.y, pb.x, pb.y, grid, blockers, skip);
 }
 
+// A cell a thin wall runs through (the owner, 2026-10-04, of the dark cells along a room's walls: "it doesnt go away when a character is
+// nearby"). A cell is seen by its centre, so the cells of a room whose centres lie just past its wall were never seen from inside it: a bite
+// out of the floor along every wall drawn across the grid. For DRAWING the fog only — what a player is sent is still judged by the centre —
+// a cell that is not seen, beside a seen one, is drawn with it when the first wall on the line between their centres lies in the unseen
+// cell's own half: the wall runs through that cell, and the part of it on this side is ground the viewer stands beside. keys: { cell key:
+// tier } (the seen cells); opts.skip: cell keys never added (cut by hand); opts.through: seen cells that lend nothing (seen only by a sense
+// that passes walls). Returns [{ key, cell, tier }], each with the highest tier of the seen cells that lend it, at most LIMITS.cells; none
+// where the set has no thin wall. A solid blocker's own cell is never added and never lends (its near face is seenCells' own business).
+// How far towards the unseen cell's centre the wall must lie: past 0.55 of the way from the seen cell's centre. Measured on six of the owner's
+// walled maps (14,000 unseen cells beside walls, each cell's truly visible share sampled at 61 points): at 0.5 a cell is drawn for a strip
+// too thin to see, at 0.65 one cell in eight with a real share seen stays dark; 0.55 leaves 6% of those dark — corners, and cells at the
+// edge of sight round a wall's end, which no wall cuts — and draws the fewest cells of which next to nothing is seen.
+var EDGE = typeof WeakMap === 'function' ? new WeakMap() : null, EDGE_AT = 0.55;
+function firstWallAt(ax, ay, bx, by, lists, ka, kb) {   // how far along a -> b (0 to 1) the first wall it crosses lies; null where it crosses none
+    var best = null, rx = bx - ax, ry = by - ay;
+    for (var L = 0; L < lists.length; L++) {
+        var idx = lists[L], two = [idx.cells[ka], idx.cells[kb]], tried = Object.create(null);
+        for (var w = 0; w < 2; w++) {
+            var ws = two[w]; if (!ws) continue;
+            for (var j = 0; j < ws.length; j++) {
+                var n = ws[j]; if (tried[n]) continue; tried[n] = 1;
+                var s = idx.segs[n], sx = s[2] - s[0], sy = s[3] - s[1], den = rx * sy - ry * sx; if (Math.abs(den) < 1e-12) continue;   // along the wall: no crossing
+                var qx = s[0] - ax, qy = s[1] - ay, t = (qx * sy - qy * sx) / den, u = (qx * ry - qy * rx) / den;
+                if (t > 1e-9 && t < 1 - 1e-9 && u >= -1e-9 && u <= 1 + 1e-9 && (best === null || t < best)) best = t;   // crossesWall's own test
+            }
+        }
+    }
+    return best;
+}
+// The cells of a set that a thin wall cuts, each with the neighbours it shares a side with (never a corner) on whose side part of it lies:
+// the walls' own geometry, so it is worked out once a set (and a grid) and every draw only walks the list
+function wallCutCells(blockers, grid) {
+    var wl = wallsOf(blockers); if (!wl) return [];
+    var sq = grid.type === 'square', sig = grid.type + ':' + (sq ? grid.size : grid.s + '/' + grid.h), kept = EDGE ? EDGE.get(blockers) : null;
+    if (kept && kept.n === wl.length && kept.sig === sig) return kept.list;
+    var out = [], done = Object.create(null);
+    for (var L = 0; L < wl.length; L++) for (var k in wl[L].cells) {
+        if (done[k]) continue; done[k] = 1;
+        var sp = k.split(sq ? ',' : ':'); if (sp.length !== 2 || !fin(+sp[0]) || !fin(+sp[1])) continue;
+        var uc = sq ? { c: +sp[0], r: +sp[1] } : { q: +sp[0], r: +sp[1] }; if (cellKey(uc, grid) !== k) continue;   // a key that is no cell's
+        var pu = cellCenter(uc, grid), lend = [];
+        var nb = sq ? [{ c: uc.c + 1, r: uc.r }, { c: uc.c - 1, r: uc.r }, { c: uc.c, r: uc.r + 1 }, { c: uc.c, r: uc.r - 1 }] : neighbourCells(uc, grid);
+        for (var j = 0; j < nb.length; j++) {
+            var ks = cellKey(nb[j], grid), ps = cellCenter(nb[j], grid), t = firstWallAt(ps.x, ps.y, pu.x, pu.y, wl, ks, k);
+            if (t !== null && t > EDGE_AT) lend.push(ks);   // the first wall lies well inside this cell's half: it runs through this cell
+        }
+        if (lend.length) out.push({ key: k, cell: uc, lend: lend });
+    }
+    if (EDGE) EDGE.set(blockers, { n: wl.length, sig: sig, list: out });
+    return out;
+}
+function wallEdgeCells(keys, grid, blockers, opts) {
+    var out = []; if (!isObj(keys) || !isObj(grid) || !isObj(blockers)) return out;
+    if (!wallsOf(blockers)) return out;
+    var skip = isObj(opts) && isObj(opts.skip) ? opts.skip : null, th = isObj(opts) && isObj(opts.through) ? opts.through : null, cut = wallCutCells(blockers, grid);
+    for (var i = 0; i < cut.length && out.length < LIMITS.cells; i++) {
+        var U = cut[i]; if (keys[U.key] !== undefined || blockers[U.key] || (skip && skip[U.key])) continue;
+        var tier = 0;
+        for (var j = 0; j < U.lend.length; j++) { var ks = U.lend[j], ts = keys[ks]; if (ts > tier && !(th && th[ks]) && !blockers[ks]) tier = ts; }
+        if (tier) out.push({ key: U.key, cell: U.cell, tier: tier });
+    }
+    return out;
+}
+
 // Turn-based combat T3a (D11, owner 2026-09-26): a token's straight move from one point to another is clear unless it lands in, or crosses, a
 // cell a sight-blocker occupies. Its start cell never counts (a token the GM left in a wall can step out). No blockers or no grid: clear
 function moveClear(x1, y1, x2, y2, grid, blockers) {
@@ -915,6 +979,6 @@ function cleanCampFog(cf) {   // campaign-level: { fields:{sight, sightUnit?}, d
     return out;
 }
 
-var API = { VERSION: VERSION, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, itemCells: itemCells, pathSegs: pathSegs, pathCells: pathCells, withWalls: withWalls, wallsOf: wallsOf, copyWalls: copyWalls, lineClear: lineClear, moveClear: moveClear, cellCorners: cellCorners, coverBetween: coverBetween, coverFromPoint: coverFromPoint, openSeat: openSeat, coverRole: coverRole, barrierOn: barrierOn, isDoor: isDoor, cleanBarrier: cleanBarrier, blastStopOn: blastStopOn, cleanBlastStop: cleanBlastStop, isPortal: isPortal, cleanPortalLock: cleanPortalLock, visibleCells: visibleCells, seenCells: seenCells, cellDist: cellDist, cleanLight: cleanLight, cleanTokSenses: cleanTokSenses, cleanUnsensed: cleanUnsensed, cleanNulls: cleanNulls, cleanTerrain: cleanTerrain, cleanHeight: cleanHeight, cleanGround: cleanGround, itemCovers: itemCovers, groundAt: groundAt, cleanTokFx: cleanTokFx, terrainFactor: terrainFactor, cleanFogOff: cleanFogOff, markCells: markCells, lineOverHeight: lineOverHeight, lineOverWall: lineOverWall, heightStops: heightStops, cleanFogMarks: cleanFogMarks, lightUnit: lightUnit, unitCells: unitCells, cellInArc: cellInArc, litLevels: litLevels, neighbourCells: neighbourCells, cleanFogLit: cleanFogLit, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog };
+var API = { VERSION: VERSION, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, itemCells: itemCells, pathSegs: pathSegs, pathCells: pathCells, withWalls: withWalls, wallsOf: wallsOf, copyWalls: copyWalls, wallEdgeCells: wallEdgeCells, lineClear: lineClear, moveClear: moveClear, cellCorners: cellCorners, coverBetween: coverBetween, coverFromPoint: coverFromPoint, openSeat: openSeat, coverRole: coverRole, barrierOn: barrierOn, isDoor: isDoor, cleanBarrier: cleanBarrier, blastStopOn: blastStopOn, cleanBlastStop: cleanBlastStop, isPortal: isPortal, cleanPortalLock: cleanPortalLock, visibleCells: visibleCells, seenCells: seenCells, cellDist: cellDist, cleanLight: cleanLight, cleanTokSenses: cleanTokSenses, cleanUnsensed: cleanUnsensed, cleanNulls: cleanNulls, cleanTerrain: cleanTerrain, cleanHeight: cleanHeight, cleanGround: cleanGround, itemCovers: itemCovers, groundAt: groundAt, cleanTokFx: cleanTokFx, terrainFactor: terrainFactor, cleanFogOff: cleanFogOff, markCells: markCells, lineOverHeight: lineOverHeight, lineOverWall: lineOverWall, heightStops: heightStops, cleanFogMarks: cleanFogMarks, lightUnit: lightUnit, unitCells: unitCells, cellInArc: cellInArc, litLevels: litLevels, neighbourCells: neighbourCells, cleanFogLit: cleanFogLit, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog };
 if (typeof window !== 'undefined') window.wpFogCore = API;
-export { VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, itemCells, pathSegs, pathCells, withWalls, wallsOf, copyWalls, lineClear, moveClear, cellCorners, coverBetween, coverFromPoint, openSeat, coverRole, barrierOn, isDoor, cleanBarrier, blastStopOn, cleanBlastStop, isPortal, cleanPortalLock, visibleCells, seenCells, cellDist, cleanLight, cleanTokSenses, cleanUnsensed, cleanNulls, cleanTerrain, cleanHeight, cleanGround, itemCovers, groundAt, cleanTokFx, terrainFactor, cleanFogOff, markCells, lineOverHeight, lineOverWall, heightStops, cleanFogMarks, lightUnit, unitCells, cellInArc, litLevels, neighbourCells, cleanFogLit, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog };
+export { VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, itemCells, pathSegs, pathCells, withWalls, wallsOf, copyWalls, wallEdgeCells, lineClear, moveClear, cellCorners, coverBetween, coverFromPoint, openSeat, coverRole, barrierOn, isDoor, cleanBarrier, blastStopOn, cleanBlastStop, isPortal, cleanPortalLock, visibleCells, seenCells, cellDist, cleanLight, cleanTokSenses, cleanUnsensed, cleanNulls, cleanTerrain, cleanHeight, cleanGround, itemCovers, groundAt, cleanTokFx, terrainFactor, cleanFogOff, markCells, lineOverHeight, lineOverWall, heightStops, cleanFogMarks, lightUnit, unitCells, cellInArc, litLevels, neighbourCells, cleanFogLit, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog };

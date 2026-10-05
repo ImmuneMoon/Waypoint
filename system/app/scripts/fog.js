@@ -1379,6 +1379,7 @@ function draw() {
     var ctx = c.getContext('2d'); if (!ctx) return;
     var W = s.clientWidth, H = s.clientHeight;
     ctx.clearRect(0, 0, W, H);
+    if (!(W > 0) || !(H > 0)) return;                              // a screen of no size (a window not laid out yet, a board squeezed to nothing) shows nothing: nothing is worked out, and no layer of no size is drawn (a browser refuses a canvas of no size with an error)
     if (!active()) return;
     var map = activeMap(), camp = activeCamp(), grid = gridForMap(map);
     var mask = fogMask(map, camp, grid);

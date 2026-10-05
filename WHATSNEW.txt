@@ -168,6 +168,10 @@ Fixes
   time to open grew much faster than the table did: a page of two
   thousand cells took several seconds. It now opens in a fraction of a
   second.
+- With Players remember what they have seen switched on, a player's
+  screen could show a red error line while the board had no size for a
+  moment, as when a window is still opening. The fog of war now draws
+  nothing until the board has a size.
 
 WAYPOINT 1.5.3 — What's New
 ============================

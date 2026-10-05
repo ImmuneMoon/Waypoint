@@ -2184,10 +2184,37 @@ function onCtl(entry, c, f, spec, editable, labelled) {
 function noteBits(entry, def, c, f, editable, ovc) {   // ovc (F4c2): what the copy holds of its own (ovCtx), for the dots
     var box = el('div', 'sheet-item-noteline'), spec = f.list || null;
     if (spec && Array.isArray(spec.stats) && spec.stats.length) { var sln = statLineNode(entry, def, spec, ovc); if (sln) box.appendChild(sln); }   // F4c1: every stat (1.5.4: but a Hidden one), and what one cost
-    if (def.notes) box.appendChild(el('div', 'sheet-item-notes', def.notes));
+    var ab = descBits(entry, def, spec);   // 1.5.4: what the entry does, and what each of its levels gives
+    if (def.notes && !(ab && noteInDesc(def.notes, def.desc))) box.appendChild(el('div', 'sheet-item-notes', def.notes));   // a note that only begins the description is not said twice
+    if (ab) box.appendChild(ab);
     if (editable) { var ni = el('input', 'field sheet-item-note'); ni.type = 'text'; ni.dataset.fid = f.id; ni.dataset.part = 'note-' + rowIdOf(entry); ni.maxLength = LIMITS.rowNote; ni.placeholder = 'A note on this one'; ni.value = entry.note || ''; ni.addEventListener('change', function() { commitItem(c, f, { op: 'set', rowId: rowIdOf(entry), facts: { note: ni.value } }); }); box.appendChild(ni); }
     else if (entry.note) box.appendChild(el('div', 'sheet-item-rownote', entry.note));
     return box.childNodes.length ? box : null;
+}
+// 1.5.4 (the owner, of a power's details: "theres no actually useful info here about the ability"; by prompt: "On the row itself"): what
+// the entry does, read in a row's details on the sheet — its description, and what each of its levels gives as a small table with the
+// row's own level marked. Text nodes only. The HUD's rows have no details line, so none of it is ever drawn there
+function noteInDesc(note, desc) {   // the note is the description's own beginning (white space aside, and the dots a cut note ends with)
+    var n = String(note || '').replace(/\s+/g, ' ').trim().replace(/(\.\.\.|\u2026)$/, '').trim(), d = typeof desc === 'string' ? desc.replace(/\s+/g, ' ').trim() : '';
+    return !!n && !!d && d.indexOf(n) === 0;
+}
+function descBits(entry, def, spec) {
+    var d = typeof def.desc === 'string' && def.desc.trim() ? def.desc : '', L = (Array.isArray(def.lvls) ? def.lvls : []).filter(function(r) { return !!r && typeof r === 'object' && typeof r.lvl === 'number' && typeof r.text === 'string' && !!r.text; });
+    if (!d && !L.length) return null;
+    var box = el('div', 'sheet-item-about'), LS = spec && spec.lvl && typeof spec.lvl === 'object' ? spec.lvl : null;
+    if (d) box.appendChild(el('div', 'sheet-item-desc', d));
+    if (L.length) {
+        var at = LS ? rowLvl(spec, entry, def) : null, t = el('table', 'sheet-item-lvls'), hd = el('thead'), hr = el('tr'), tb = el('tbody');
+        hr.appendChild(el('th', null, (LS && LS.label) || 'Level')); hr.appendChild(el('th', null, 'What it gives')); hd.appendChild(hr); t.appendChild(hd);
+        L.forEach(function(r) {
+            var tr = el('tr', at !== null && r.lvl === at ? 'is-now' : null), td = el('td');
+            tr.appendChild(el('th', null, LS ? lvlText(LS, r.lvl) : fmtNum(r.lvl)));
+            if (typeof r.tag === 'string' && r.tag) td.appendChild(el('span', 'sheet-item-lvltag', r.tag));
+            td.appendChild(el('span', 'sheet-item-lvltext', r.text)); tr.appendChild(td); tb.appendChild(tr);
+        });
+        t.appendChild(tb); box.appendChild(t);
+    }
+    return box;
 }
 var _noteOpen = Object.create(null);   // F4b: the rows whose 📝 line is open (kept across a redraw)
 function noteToggle(line, entry, c, f) {

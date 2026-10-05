@@ -5,7 +5,7 @@
    (gmNotes: never in the players' view). Everything that enters goes through here — a pack file read from disk, an imported
    .wppack.json, a manifest in a loaded save, and later (L3) every message on the wire — and comes out as plain arrays and objects
    (prototype-free maps inside). Build plan: docs/STAGE_6_LIBRARY_BUILD.md. */
-import { cleanItemDef, statKeys, statPicks, cleanIcon, fieldKinds } from './systemcore.js';
+import { cleanItemDef, statKeys, statPicks, cleanIcon, fieldKinds, cleanLvls } from './systemcore.js';
 
 export var VERSION = 1;
 export var LIB = Object.freeze({
@@ -35,6 +35,7 @@ export function cleanLibEntry(e, ctx) {
     ctx = ctx || {};
     var out = cleanItemDef(e, ctx.F, !!ctx.gmView, ctx.keys, ctx.picks, ctx.kinds); if (!out) return null;
     var d = prose(e.desc, LIB.desc); if (d.trim()) out.desc = d;
+    var lv = cleanLvls(e.lvls); if (lv) out.lvls = lv;   // 1.5.4: what each of its levels gives (a row's details show it as a small table)
     if (Array.isArray(e.tags)) { var seen = map(), tg = []; e.tags.forEach(function(t) { var x = line(t, LIB.tag); if (x && !seen[x.toLowerCase()] && tg.length < LIB.tags) { seen[x.toLowerCase()] = 1; tg.push(x); } }); if (tg.length) out.tags = tg; }
     var r = line(e.ref, LIB.ref); if (r) out.ref = r;
     if (ctx.gmView) { var g = prose(e.gmNotes, LIB.gmNotes); if (g.trim()) out.gmNotes = g; }
@@ -140,10 +141,24 @@ export function searchEntries(entries, q) {
     var list = Array.isArray(entries) ? entries : [], words = queryWords(q); if (!words.length) return list.slice();
     return list.filter(function(e) { if (!isObj(e)) return false; var hay = entryHay(e); return words.every(function(w) { return hay.indexOf(w) >= 0; }); });
 }
+// 1.5.4: an entry's levels as the Library window's box holds them, one level a line: "2: what it gives", or "2 (a few words): what it
+// gives" for the words shown beside the level; a word before the number is passed over ("Level 2: ..."). A line that is not written so
+// is passed over whole. And back, for the box
+export function lvlsFromText(text) {
+    var out = [];
+    String(text == null ? '' : text).split(/\r\n?|\n/).forEach(function(ln) {
+        var m = /^\s*(?:[A-Za-z]{1,12}\.?\s*)?(-?\d+(?:\.\d+)?)\s*(?:\((.*?)\)\s*)?:\s*(.*\S)\s*$/.exec(ln); if (!m) return;
+        var o = { lvl: Number(m[1]), text: m[3] }; if (m[2] && m[2].trim()) o.tag = m[2].trim();
+        out.push(o);
+    });
+    return out;
+}
+export function lvlsToText(lvls) { return (Array.isArray(lvls) ? lvls : []).filter(isObj).map(function(r) { return String(r.lvl) + (r.tag ? ' (' + r.tag + ')' : '') + ': ' + String(r.text == null ? '' : r.text); }).join('\n'); }
 export function entryFromForm(f) {
     f = isObj(f) ? f : {}; var s = function(v) { return typeof v === 'string' ? v : v == null ? '' : String(v); };
     var out = { id: s(f.id), name: s(f.name), key: s(f.key).trim(), category: s(f.category), icon: s(f.icon), vis: f.vis === 'gm' ? 'gm' : 'all', notes: s(f.notes), desc: s(f.desc), ref: s(f.ref), gmNotes: s(f.gmNotes), damage: s(f.damage), cost: s(f.cost), throwSkill: s(f.throwSkill).trim() };
     var tags = s(f.tags).split(',').map(function(t) { return t.trim(); }).filter(Boolean); if (tags.length) out.tags = tags;
+    var lvs = lvlsFromText(s(f.lvls)); if (lvs.length) out.lvls = lvs;   // 1.5.4: one level a line
     var lv = s(f.lvl).trim(); if (/^-?\d+$/.test(lv)) out.lvl = Number(lv);
     if (isObj(f.stats)) { var st = {}, n = 0; Object.keys(f.stats).forEach(function(k) { var v = s(f.stats[k]).trim(); if (!v) return; st[k] = /^-?\d+(\.\d+)?$/.test(v) ? Number(v) : v; n++; }); if (n) out.stats = st; }
     var ft = s(f.areaFt).trim(); if (/^\d+$/.test(ft) && Number(ft) > 0) out.area = { ft: Number(ft), shape: s(f.areaShape) || 'circle', name: s(f.areaName) };   // the shape as it was (the cleaner keeps a known one)

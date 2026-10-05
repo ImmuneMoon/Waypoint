@@ -729,12 +729,12 @@ function canOpen(charId) {
 }
 function openSheet(charId) {
     if (!canOpen(charId)) { toast(featureOn() ? 'That sheet is not yours to open.' : 'Character sheets are off here.'); return; }
-    if (sheetOpen !== charId) closeDownloadMenu();   // Onboarding F2a: its menu names the character it was opened for
+    if (sheetOpen !== charId) { closeDownloadMenu(); _sheetEdit = null; }   // Onboarding F2a: its menu names the character it was opened for; another character's sheet opens locked
     sheetOpen = charId;
     var p = ui('sheetPanel'); if (!p) return;
     p.style.display = 'flex'; placeSheet(); raisePanel(p); renderSheet();
 }
-function closeSheet() { closeDownloadMenu(); sheetOpen = null; var p = ui('sheetPanel'); if (p) p.style.display = 'none'; }
+function closeSheet() { closeDownloadMenu(); sheetOpen = null; _sheetEdit = null; var p = ui('sheetPanel'); if (p) p.style.display = 'none'; }
 function placeSheet() { var p = ui('sheetPanel'); if (!p) return; try { var pos = JSON.parse(pref('wp_sheetPanel', 'null')); if (pos && isFinite(pos.x) && isFinite(pos.y)) { p.style.left = Math.max(0, Math.min(window.innerWidth - 160, pos.x)) + 'px'; p.style.top = Math.max(0, Math.min(window.innerHeight - 80, pos.y)) + 'px'; p.style.right = 'auto'; } if (pos && isFinite(pos.w) && isFinite(pos.h)) sizePanel(p, pos.w, pos.h); } catch (e) {} }
 // Fold B: the panel's own size (its corner grip), clamped to the window; the saved record keeps the position and the size together
 function sizePanel(p, w, h) { var r = p.getBoundingClientRect(); w = Math.max(360, Math.min(window.innerWidth - Math.max(0, r.left) - 8, Math.round(w))); h = Math.max(240, Math.min(window.innerHeight - Math.max(0, r.top) - 8, Math.round(h))); p.style.width = w + 'px'; p.style.height = h + 'px'; p.classList.add('sheet-sized'); }   // clamped to the room left of/below where the panel is, so the grip and the last rows stay on screen
@@ -746,18 +746,22 @@ function renderSheet() {
     var camp = getActiveCampaign(), sys = systemOf(camp), c = charById(sheetOpen, camp);
     var body = ui('sheetBody'), head = ui('sheetTitle'), sub = ui('sheetSub'), fk = focusKeyOf(body), st0 = body ? body.scrollTop : 0;
     if (!c || !sys || !F()) { closeSheet(); return; }
-    var gm = !isClient(), own = !!(c.ownerId && c.ownerId === myId());
+    var gm = !isClient(), own = !!(c.ownerId && c.ownerId === myId()), lockedS = viewLocked(c, { view: 'sheet' });   // the sheet's lock, as buildSections will read it
     head.textContent = c.name;
-    sub.textContent = (c.npc ? 'NPC' : c.ownerId ? ownerName(c, camp) : 'unassigned') + (c.partial ? ' · hover fields only' : '') + (c.making === 1 ? ' · making' : c.unlocked === 1 ? ' · unlocked' : '') + (gm && c.review === 1 ? ' · new' : '');   // Onboarding F3: its state
+    sub.textContent = (c.npc ? 'NPC' : c.ownerId ? ownerName(c, camp) : 'unassigned') + (c.partial ? ' · hover fields only' : '') + (c.making === 1 ? ' · making' : c.unlocked === 1 ? (gm ? ' · open to its player' : ' · yours to fill in') : '') + (gm && c.review === 1 ? ' · new' : '');   // Onboarding F3: its state
     var revert = ui('sheetRevert'); if (revert) revert.style.display = gm && lastChange && lastChange.charId === c.id ? '' : 'none';
     var pick = ui('sheetPick'); if (pick) { pick.textContent = ''; var pickL = gm ? charList(camp) : charList(camp).filter(function(x) { return !x.partial && x.ownerId === myId(); }); if (gm || pickL.length > 1) { pickL.forEach(function(x) { pick.appendChild(opt(x.id, x.name + (x.npc ? ' (NPC)' : '') + (x.making === 1 ? ' (being made)' : ''), x.id === c.id)); }); pick.style.display = ''; } else pick.style.display = 'none'; }
     var por = ui('sheetPortrait'); if (por) { if (c.portrait) { por.src = imgSrc(c.portrait); por.style.display = ''; } else por.style.display = 'none'; }
-    var upB = ui('sheetUpload'); if (upB) { var gmUp = gm && canWrite(); upB.style.display = gmUp || (isClient() && own && !c.partial && (c.making !== 1 || fillOk())) ? '' : 'none'; upB.title = gmUp ? 'Import JSON: fill or update this sheet from a ShadowBase character file. You review what changes before anything is applied' : c.making === 1 ? 'Fill this character from a file: your own sheet download (.wpchar.json) or a ShadowBase sheet' : 'Import JSON: send your ShadowBase sheet file to the GM, who approves what changes'; }   // Stage 6 U3: the owner's Import JSON (to the GM, as proposed changes); Onboarding F4: while making, a file fills it
-    var picB = ui('sheetPic'); if (picB) picB.style.display = isClient() && own && !c.partial ? '' : 'none';   // Onboarding F1c: the owner's own picture for it
+    var upB = ui('sheetUpload'); if (upB) { var gmUp = gm && canWrite(); upB.style.display = !lockedS && (gmUp || (isClient() && own && !c.partial && (c.making !== 1 || fillOk()))) ? '' : 'none'; upB.title = gmUp ? 'Import JSON: fill or update this sheet from a ShadowBase character file. You review what changes before anything is applied' : c.making === 1 ? 'Fill this character from a file: your own sheet download (.wpchar.json) or a ShadowBase sheet' : 'Import JSON: send your ShadowBase sheet file to the GM, who approves what changes'; }   // Stage 6 U3: the owner's Import JSON (to the GM, as proposed changes); Onboarding F4: while making, a file fills it
+    var picB = ui('sheetPic'); if (picB) picB.style.display = !lockedS && isClient() && own && !c.partial ? '' : 'none';   // Onboarding F1c: the owner's own picture for it
     var dlB = ui('sheetDownload'); if (dlB) dlB.style.display = canOpen(c.id) && !c.partial ? '' : 'none';   // Onboarding F2a: whoever may open it takes it away
     var dnB = ui('sheetDone'); if (dnB) { var dnOn = isClient() && own && !c.partial && (c.making === 1 || c.unlocked === 1); dnB.style.display = dnOn ? '' : 'none'; }   // Onboarding F3: the owner's Done
     var nmB = ui('sheetName'); if (nmB) nmB.style.display = isClient() && own && !c.partial && c.making === 1 ? '' : 'none';   // renamed only while in the making (owner)
-    var ulB = ui('sheetUnlock'); if (ulB) { var ulOn = gm && !!c.ownerId && !c.npc && c.making !== 1 && c.review !== 1; ulB.style.display = ulOn ? '' : 'none'; if (ulOn) { ulB.textContent = c.unlocked === 1 ? 'Lock' : 'Unlock'; ulB.title = c.unlocked === 1 ? 'Lock it again: its player keeps only the fields they may always change' : 'Let its player fill in every field they can see (they press Done when finished)'; } }
+    var ulB = ui('sheetUnlock'); if (ulB) { var ulOn = gm && !!c.ownerId && !c.npc && c.making !== 1 && c.review !== 1; ulB.style.display = ulOn ? '' : 'none'; if (ulOn) { ulB.textContent = c.unlocked === 1 ? 'Lock for player' : 'Unlock for player'; ulB.title = c.unlocked === 1 ? 'Lock it again: its player keeps only the fields they may always change' : 'Let its player fill in every field they can see (they press Done when finished)'; } }
+    // [systemcheck:sheetedit-start]
+    var edB = ui('sheetEdit'); if (edB) { var edOn = !c.partial && c.making !== 1 && (gm ? canWrite() : own); edB.style.display = edOn ? '' : 'none'; if (edOn) { edB.textContent = lockedS ? 'Edit sheet' : 'Lock sheet'; edB.classList.toggle('on', !lockedS); edB.title = lockedS ? 'This sheet is locked. Rolls, pools, switches, effects and what you carry still work. Edit sheet lets you change its stats, levels, lists and notes' : 'Lock the sheet again, so that a slip while you play changes none of its stats'; } }
+    p.classList.toggle('sheet-editing', !lockedS);
+    // [systemcheck:sheetedit-end]
     var dlX = ui('sheetDelete'); if (dlX) { var mineX = isClient() && own && !c.partial && charList(camp).filter(function(x) { return !x.partial && x.ownerId === myId(); }).length > 1; dlX.style.display = (gm && canWrite()) || mineX ? '' : 'none'; dlX.title = gm ? 'Delete this sheet: its values are gone; its tokens keep their name and lose the link' : 'Delete this sheet of yours: one you are still making, or one you do not play (your GM is told)'; }
     renderReviewBar(c, camp, gm);
     var rvB = ui('sheetReview'), rvN = gm ? uploadsOf(camp, c.id) : []; if (rvB) { rvB.style.display = rvN.length ? '' : 'none'; if (rvN.length) rvB.textContent = 'Review (' + rvN[0].changes.length + ')'; }   // U3: the GM's review of it
@@ -1188,7 +1192,8 @@ function headerBlocks(head, sys, c, all, gm, own) {
         var nm = el('div', 'sheet-head-name', c.name || ''); nm.title = c.name || ''; main.appendChild(nm);
     }
     var IDN_EDIT = { text: 1, select: 1, number: 1, toggle: 1 };   // Stage 6 look fold: identity rows edited in place
-    var idnOk = function(f) { return !c.partial && (gm || (own && f.vis === 'all' && (f.edit === 'owner' || c.making === 1 || c.unlocked === 1))); };   // the section's own rule
+    var openF = function(f) { return typeof fieldOpen !== 'function' || fieldOpen(f); };   // the sheet's lock (through typeof, as in fieldNodeBody)
+    var idnOk = function(f) { return !c.partial && openF(f) && (gm || (own && f.vis === 'all' && (f.edit === 'owner' || c.making === 1 || c.unlocked === 1))); };   // the section's own rule, under the sheet's lock
     function block(list, cls, itemCls, ledger) {
         if (!Array.isArray(list) || !list.length) return;
         var box = el('div', cls);
@@ -1199,7 +1204,7 @@ function headerBlocks(head, sys, c, all, gm, own) {
             var it = el('div', itemCls + (f.vis === 'gm' ? ' sheet-gm' : ''));
             var lab = el('span', 'sheet-label', f.label); lab.title = f.key; it.appendChild(lab);
             var tone = en.neg ? ' sheet-hdr-neg' : en.pos ? ' sheet-hdr-pos' : '';
-            if (ledger && f.kind === 'number' && !f.labels && !en.error && !c.partial && (gm || (own && f.vis === 'all' && (f.edit === 'owner' || c.making === 1 || c.unlocked === 1)))) {
+            if (ledger && f.kind === 'number' && !f.labels && !en.error && !c.partial && openF(f) && (gm || (own && f.vis === 'all' && (f.edit === 'owner' || c.making === 1 || c.unlocked === 1)))) {
                 var raw = c.values ? c.values[f.id] : undefined;
                 var inp = el('input', 'field sheet-num sheet-hdr-input' + tone); inp.type = 'number'; inp.dataset.fid = f.id; inp.dataset.part = 'hdr';
                 inp.value = raw === undefined ? String(f.def) : String(raw); inp.step = String(f.step || 1); inp.title = f.label + (f.unit ? ' (' + f.unit + ')' : '');
@@ -1477,13 +1482,15 @@ function glyphPicker(inp, anchor, repaint) {
 function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerender: the caller's own render fn (renderSheet for the live panel, renderPreview for the Layout preview) so a tab click repaints THIS container, not the wrong one
     var previewV = !!(vctx && vctx.preview);   // Stage 6 HUD C8: the Layout preview draws a part whose show-if is false, dimmed (the sheet leaves it out)
     var hudV = !!(vctx && vctx.view === 'hud'); _fxView = hudV ? 'hud' : 'sheet';   // Stage 6 HUD frame (HF1): which view this draws (sys is then hudView's projection)
+    _lockNow = viewLocked(c, vctx);   // the sheet's lock: the HUD always, the sheet until Edit sheet
     var printV = !!(vctx && vctx.print);   // Onboarding F2b: printed — every tab in turn, every section open, nothing that only works on screen
     var sheet = (hudV || (sys.sheet && sys.sheet.sections && sys.sheet.sections.length)) ? sys.sheet : autoLayout(sys);   // the HUD has no automatic layout of its own
     var layout = sheet.sections || [];
     var tabs = (sheet.tabs && sheet.tabs.length) ? sheet.tabs : null;   // the auto layout has no tabs
     var byId = {}; sys.fields.forEach(function(f) { byId[f.id] = f; }); var rollById = {}; sys.rolls.forEach(function(r) { rollById[r.id] = r; });
     _rfClearing = true; try { body.textContent = ''; } finally { _rfClearing = false; }   // F4c2 review: clearing blurs a focused box — its change must not commit half-typed (the form keeps it)
-    _fxView = hudV ? 'hud' : 'sheet';   // ...and a redraw that blur started (another view) leaves this one's view as it was
+    _fxView = hudV ? 'hud' : 'sheet'; _lockNow = viewLocked(c, vctx);   // ...and a redraw that blur started (another view) leaves this one's view, and its lock, as they were
+    body.classList.toggle('sheet-locked', _lockNow);   // a stat that needs Edit sheet reads as a value, not as a greyed box (style.css)
     var look = (sys.sheet && sys.sheet.look) || {};   // Stage 5g: the sheet's shape — absent = today's look (no class, no variable)
     body.classList.toggle('sheet-titles-headline', look.titles === 'headline');
     body.classList.toggle('sheet-labels-caps', look.labels === 'caps');   // Fold B
@@ -2265,8 +2272,9 @@ function paidCtl(entry, def, c, f, spec, editable, gm, labelled) {
     var pc = el('span', 'sheet-chip sheet-item-paid', (labelled ? 'Paid ' : '') + statFmt(has ? entry.paid : lp)); pc.title = has ? 'Price paid for one (list price ' + statFmt(lp) + ')' : 'Not recorded: the list price';
     return pc;
 }
-function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, res) {   // empty (F4b): the note when nothing shows; res (F5a1): the field's resolved entry (its columns' cells and totals)
+function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, res, edit) {   // empty (F4b): the note when nothing shows; res (F5a1): the field's resolved entry (its columns' cells and totals); edit (the sheet's lock): may the character be CHANGED here — a level, a note, a row made, removed or given values of its own (absent: as editable) — where editable is what is used in play: the switch, a count, a use
     editable = editable && _fxLive; canThrow = canThrow && _fxLive;   // the Layout preview and a pop-out draw their controls inert
+    var chg = edit === undefined ? editable : !!edit && _fxLive, hudRow = _fxView === 'hud';   // hudRow (the owner, 2026-10-04): the HUD's rows stay short — a description is read on the sheet
     var spec = f.list || null, seenCat = Object.create(null), nCat = 0, unseenL = gm ? unseenKeys(c, f, carried, sysI) : null;   // F4b: a list with options draws its rows' facts, and a category chip while its rows span more than one; F4c3: the keys of rows its owner cannot see (the GM's sheet)
     if (spec) carried.forEach(function(r) { var d0 = rowDef(sysI, r), cc = d0 && d0.def && d0.def.category ? String(d0.def.category).toLowerCase() : ''; if (cc && !seenCat[cc]) { seenCat[cc] = 1; nCat++; } });
     var chips = nCat > 1;
@@ -2278,14 +2286,14 @@ function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, 
         var ovc = ovCtx(entry, rd, gm);   // F4c2: what this copy holds of its own (a dot on each)
         var nm = el('span', 'sheet-item-name', def.name); if (def.area) nm.appendChild(el('span', 'sheet-item-area-tag', ' ' + def.area.ft + ' ft')); if (def.notes) nm.title = def.notes; ovNameDot(nm, ovc, true); line.appendChild(nm);
         if (chips && def.category) line.appendChild(el('span', 'sheet-chip', def.category));
-        lostBits(line, rd, entry, c, f, gm, editable); gmItemBits(line, def, entry, gm, !!(spec && spec.on)); keyShareChip(line, entry, rd, unseenL); modsBits(line, def, entry, spec, sysI);
+        lostBits(line, rd, entry, c, f, gm, chg); gmItemBits(line, def, entry, gm, !!(spec && spec.on)); keyShareChip(line, entry, rd, unseenL); modsBits(line, def, entry, spec, sysI);
         var noteLn = null;
-        if (spec) { statChips(line, def, spec, ovc); colChips(line, spec, res && res.cells ? res.cells[rid] : null); ctCtl(line, entry, c, f, spec, editable, res && res.cts ? res.cts[rid] : null); var lc = lvlCtl(entry, def, c, f, spec, editable); if (lc) line.appendChild(lc); var oc = onCtl(entry, c, f, spec, editable, true); if (oc) line.appendChild(oc); var pcL = paidCtl(entry, def, c, f, spec, editable, gm, true); if (pcL) line.appendChild(pcL); noteLn = noteBits(entry, def, c, f, editable, ovc); }   // F4c1: the stats shown On the row, what one cost
+        if (spec) { statChips(line, def, spec, ovc); colChips(line, spec, res && res.cells ? res.cells[rid] : null); ctCtl(line, entry, c, f, spec, editable, res && res.cts ? res.cts[rid] : null); var lc = lvlCtl(entry, def, c, f, spec, chg); if (lc) line.appendChild(lc); var oc = onCtl(entry, c, f, spec, editable, true); if (oc) line.appendChild(oc); var pcL = paidCtl(entry, def, c, f, spec, chg, gm, true); if (pcL) line.appendChild(pcL); noteLn = hudRow ? null : noteBits(entry, def, c, f, chg, ovc); }   // F4c1: the stats shown On the row, what one cost
         if (def.area && canThrow && (gm || def.vis !== 'gm') && entry.hid !== 1) line.appendChild(itemThrowBtn(def, c, f, rid));   // a GM-only item: the GM's throw only (a player's copy never carries its area)
         rowRollBtns(line, spec, entry, def, c, f, res);   // F5b: the list's rolls on this row
         if (noteLn) line.appendChild(noteToggle(noteLn, entry, c, f));
-        var rr = editable ? rowRights(entry, rd, spec, gm, sysI) : ''; if (rr) line.appendChild(editBtn(entry, c, f, rr, rd.src === 'custom'));   // F4c2: ✎ — on a list shaped in the Lists tab, where the row can be changed (never the Layout preview or a pop-out)
-        if (editable) { var ub = undoBtn(entry, c, f); if (ub) line.appendChild(ub); if (!(spec && spec.noQty)) line.appendChild(itemQtyCell(entry, c, f)); line.appendChild(itemRmBtn(entry, def, c, f)); }
+        var rr = chg ? rowRights(entry, rd, spec, gm, sysI) : ''; if (rr) line.appendChild(editBtn(entry, c, f, rr, rd.src === 'custom'));   // F4c2: ✎ — on a list shaped in the Lists tab, where the row can be changed (never the Layout preview or a pop-out)
+        if (editable) { var ub = undoBtn(entry, c, f); if (ub) line.appendChild(ub); if (!(spec && spec.noQty)) line.appendChild(itemQtyCell(entry, c, f)); if (chg) line.appendChild(itemRmBtn(entry, def, c, f)); }
         else if (!(spec && spec.noQty)) line.appendChild(el('span', 'sheet-item-qtyn', '×' + entry.qty));
         wrap.appendChild(line);
         if (noteLn) wrap.appendChild(noteLn);
@@ -2348,8 +2356,9 @@ function totalsLine(wrap, spec, foot) {
     parts.forEach(function(p) { var sp = el('span', 'sheet-chip sheet-item-total'); sp.appendChild(el('small', null, p.lab)); sp.appendChild(document.createTextNode(' ' + p.t.text + (p.unit && !p.t.error ? ' ' + p.unit : ''))); if (p.t.error) sp.title = p.t.error; tl.appendChild(sp); });
     wrap.appendChild(tl);
 }
-function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, res) {   // res (F5a1): the field's resolved entry
+function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, res, edit) {   // res (F5a1): the field's resolved entry; edit (the sheet's lock): as itemListInto's
     editable = editable && _fxLive; canThrow = canThrow && _fxLive;   // the Layout preview and a pop-out draw their controls inert
+    var chg = edit === undefined ? editable : !!edit && _fxLive, hudRow = _fxView === 'hud';
     var tbl = f.table, cols = (tbl.columns || []).slice(), spec = f.list || null, hasL = !!(spec && spec.lvl), hasO = !!(spec && spec.on), hasQ = !(spec && spec.noQty);   // F4b: a level and a switch column; no quantity
     var shownSt = spec && Array.isArray(spec.stats) ? spec.stats.filter(function(s) { return s && s.show === true; }) : [], nStat = shownSt.length, hasP = !!(spec && spec.price);   // F4c1: a column per stat shown On the row, and Paid
     var shownCl = spec && Array.isArray(spec.cols) ? spec.cols.map(function(cc, i) { return { c: cc, i: i }; }).filter(function(x) { return x.c && x.c.hide !== true; }) : [], nCol = shownCl.length;   // F5a1: a column per list column not Hidden
@@ -2379,25 +2388,25 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty,
         if (def.area) nameTd.appendChild(el('span', 'sheet-item-area-tag', ' ' + def.area.ft + ' ft'));
         var ovT = ovCtx(entry, rd, gm); ovNameDot(nameTd, ovT);   // F4c2: a dot when the copy holds values of its own
         if (tbl.chips && def.category) nameTd.appendChild(el('span', 'sheet-chip', def.category));
-        lostBits(nameTd, rd, entry, c, f, gm, editable); gmItemBits(nameTd, def, entry, gm, hasO); keyShareChip(nameTd, entry, rd, unseenT); modsBits(nameTd, def, entry, spec, sysI);
+        lostBits(nameTd, rd, entry, c, f, gm, chg); gmItemBits(nameTd, def, entry, gm, hasO); keyShareChip(nameTd, entry, rd, unseenT); modsBits(nameTd, def, entry, spec, sysI);
         tr.appendChild(nameTd);
         cols.forEach(function(col) { tr.appendChild(el('td', 'sheet-itcol-' + col, itemCellText(col, def))); });
         shownSt.forEach(function(s) { var sTd = el('td', 'sheet-itcol-stat', statText(s, rowStat(spec, def, s.key))), sDt = statDot(s, spec, ovT); if (sDt) sTd.appendChild(sDt); tr.appendChild(sTd); });
         var cellsT = res && res.cells ? res.cells[rid] : null; shownCl.forEach(function(x) { var v = cellsT ? cellsT[x.i] : null, cTd = el('td', 'sheet-itcol-col' + (v && v.error ? ' sheet-item-colerr' : ''), v ? v.text + (x.c.unit && !v.error ? ' ' + x.c.unit : '') : ''); if (v && v.error) cTd.title = v.error; tr.appendChild(cTd); });   // F5a1: its columns
-        if (hasL) { var lTd = el('td', 'sheet-itcol-lvl'), lcT = lvlCtl(entry, def, c, f, spec, editable); if (lcT) lTd.appendChild(lcT); tr.appendChild(lTd); }
+        if (hasL) { var lTd = el('td', 'sheet-itcol-lvl'), lcT = lvlCtl(entry, def, c, f, spec, chg); if (lcT) lTd.appendChild(lcT); tr.appendChild(lTd); }
         if (hasO) { var oTd = el('td', 'sheet-itcol-on'), ocT = onCtl(entry, c, f, spec, editable, false); if (ocT) oTd.appendChild(ocT); tr.appendChild(oTd); }
         if (hasQ) {
             var qtyTd = el('td', 'sheet-itcol-qty');
             qtyTd.appendChild(editable ? itemQtyCell(entry, c, f) : el('span', 'sheet-item-qtyn', '×' + entry.qty));
             tr.appendChild(qtyTd);
         }
-        if (hasP) { var pTd = el('td', 'sheet-itcol-paid'), pcT = paidCtl(entry, def, c, f, spec, editable, gm, false); if (pcT) pTd.appendChild(pcT); tr.appendChild(pTd); }
-        var notesRow = null, rrT = editable ? rowRights(entry, rd, spec, gm, sysI) : '';   // F4c2: who may change this copy's own values here
+        if (hasP) { var pTd = el('td', 'sheet-itcol-paid'), pcT = paidCtl(entry, def, c, f, spec, chg, gm, false); if (pcT) pTd.appendChild(pcT); tr.appendChild(pTd); }
+        var notesRow = null, rrT = chg ? rowRights(entry, rd, spec, gm, sysI) : '';   // F4c2: who may change this copy's own values here
         if (hasAct) {
             var actTd = el('td', 'sheet-itcol-act');
             if (def.area && canThrow && (gm || def.vis !== 'gm') && entry.hid !== 1) actTd.appendChild(itemThrowBtn(def, c, f, rid));
-            if (spec) {   // F4b: 📝 — the item's notes and the row's own note
-                var nbT = noteBits(entry, def, c, f, editable, ovT);
+            if (hudRow) { /* no details line in the HUD */ } else if (spec) {   // F4b: 📝 — the item's notes and the row's own note
+                var nbT = noteBits(entry, def, c, f, chg, ovT);
                 if (nbT) { notesRow = el('tr', 'sheet-itemtable-notes'); var ntdS = el('td'); ntdS.colSpan = span; ntdS.appendChild(nbT); notesRow.appendChild(ntdS); actTd.appendChild(noteToggle(notesRow, entry, c, f)); }
             } else if (wantNotes && def.notes) {
                 notesRow = el('tr', 'sheet-itemtable-notes'); var ntd = el('td', null, def.notes); ntd.colSpan = span; notesRow.appendChild(ntd); notesRow.style.display = 'none';
@@ -2408,7 +2417,7 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty,
             ctCtl(actTd, entry, c, f, spec, editable, res && res.cts ? res.cts[rowIdOf(entry)] : null);   // Stage 6 HUD R2: its counters
             rowRollBtns(actTd, spec, entry, def, c, f, res);   // F5b: the list's rolls
             if (rrT) actTd.appendChild(editBtn(entry, c, f, rrT, rd.src === 'custom'));   // F4c2: ✎
-            if (editable) { var ubT = undoBtn(entry, c, f); if (ubT) actTd.appendChild(ubT); actTd.appendChild(itemRmBtn(entry, def, c, f)); }
+            if (editable) { var ubT = undoBtn(entry, c, f); if (ubT) actTd.appendChild(ubT); if (chg) actTd.appendChild(itemRmBtn(entry, def, c, f)); }
             tr.appendChild(actTd);
         }
         tbody.appendChild(tr);
@@ -2705,6 +2714,29 @@ function fxMark(e, max) {
 }
 // 5h: a character's status effects — each row with its switch, icon, name, tone, duration and what it changes; add one from the library
 // in a click, or make one on the spot (New…). Rights are the list field's (the host judges every change again).
+// [systemcheck:sheetlock-start]
+/* The sheet's lock (the owner, 2026-10-04 and 05; backlog 115 and 116): "lets not let characters edit their sheet in the tactical hud" and
+   "an edit sheet and lock sheet button that keeps you from changing the characters stats at all unless editing is active". By prompt:
+   "Play stays live" and "Players and you". A sheet opens LOCKED on every screen, the GM's too, and the HUD is always locked. Locked,
+   what a character does in play still works; what a character IS needs Edit sheet. The lock is each viewer's own switch: the host still
+   judges every change by the field's rights, exactly as before. */
+var _sheetEdit = null, _lockNow = false;   // the character whose sheet is in editing in the panel; whether the view being drawn is locked (buildSections sets it, as it sets _fxView)
+// A view is locked unless it is the Layout preview or a print (they act on nothing, and draw as they always did), a character still being
+// made, or the sheet panel after Edit sheet (_sheetEdit is null or the id of the sheet that is open)
+function viewLocked(c, vctx) {
+    if (vctx && (vctx.preview || vctx.print)) return false;
+    if (vctx && vctx.view === 'hud') return true;
+    return !(c && (c.making === 1 || _sheetEdit === c.id));
+}
+// What stays live while locked: what changes in play — a pool, a switch, a counter, a named state (a number with value names) — unless the
+// system says otherwise for that field (live: true | false, the System editor's On a locked sheet)
+function liveField(f) {
+    if (!f) return false; if (f.live === true) return true; if (f.live === false) return false;
+    return f.kind === 'resource' || f.kind === 'toggle' || (f.kind === 'number' && (f.counter === true || (Array.isArray(f.labels) && f.labels.length > 0)));
+}
+function fieldOpen(f) { return !_lockNow || liveField(f); }   // may this field's own control be used in the view being drawn (its rights are the caller's)
+function lockedNow() { return _lockNow; }
+// [systemcheck:sheetlock-end]
 var _fxLive = true, _fxForm = null, _fxView = 'sheet';   // _fxView (HUD frame HF1): the view being drawn, so an open New… form shows in one view only   // live: false while drawing the Layout preview or a pop-out (their controls act on nothing real); the open New… form's state
 // Turn-based combat T5a: what a timed effect has left — in a combat (its clock stopped) the rounds its character's turns will take, out of it
 // the time by the clock (a ticker keeps each such chip current), paused: the time, held
@@ -2751,8 +2783,9 @@ function autoFxInto(wrap, f, c, rows, sys, labels) {
     });
 }
 // [sinkcheck:autofx-end]
-function effectsInto(wrap, f, c, rows, sys, editable) {
+function effectsInto(wrap, f, c, rows, sys, editable, edit) {   // edit (the sheet's lock): may an effect be MADE here (New…); editable is what play needs: one applied from the system's list, switched, timed and ended
     editable = editable && _fxLive;
+    var mk = edit === undefined ? editable : !!edit && _fxLive;
     var lib = {}, labels = {};
     ((sys && sys.effects) || []).forEach(function(d) { lib[d.id] = d; });
     ((sys && sys.fields) || []).forEach(function(x) { labels[x.id] = x.label || x.key; });
@@ -2786,6 +2819,7 @@ function effectsInto(wrap, f, c, rows, sys, editable) {
         add.addEventListener('change', function() { if (add.value) commitEffect(c, f, { op: 'add', rowId: uid('x_'), ref: add.value }); });
         bar.appendChild(add);
     }
+    if (!mk) { if (defs.length) wrap.appendChild(bar); return; }   // a locked view: an effect made on the spot needs Edit sheet
     var nb = el('button', 'tool ghost sys-btn sheet-fx-new', 'New\u2026'); nb.title = 'An effect made on the spot, with its own numbers';
     nb.addEventListener('click', function() { _fxForm = { charId: c.id, fieldId: f.id, name: '', tone: '', dur: '', lines: null, view: fxV }; nb.style.display = 'none'; wrap.appendChild(effectForm(f, c, sys, function() { nb.style.display = ''; })); });
     bar.appendChild(nb);
@@ -2918,6 +2952,8 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
     var lab = el('label', 'sheet-label', f.label); lab.title = f.key + (f.vis === 'gm' ? ' (GM only)' : ''); box.appendChild(lab);
     if (f.roll) { var rb = el('button', 'tool ghost sheet-field-roll', String.fromCharCode(55356, 57266)); rb.title = 'Roll ' + f.roll + ' · shift-click to add a modifier'; rb.disabled = !canRoll(c); rb.addEventListener('click', function(e) { sheetRoll(e, c.id, f.roll, f.label || f.key, f.vis === 'gm' ? { gmOnly: true } : undefined); }); lab.appendChild(rb); }   // the field's own roll (1.5.0); a GM-only field's stays the GM's
     var editable = gm || (own && f.vis === 'all' && (f.edit === 'owner' || c.making === 1 || c.unlocked === 1));
+    var lk = typeof lockedNow === 'function' && lockedNow(), use = editable && (typeof fieldOpen !== 'function' || fieldOpen(f));   // the sheet's lock: this field's own control in the view being drawn (locked, only what changes in play). Asked through typeof: a harness that slices this function alone draws it unlocked
+    var playOk = editable && (!lk || f.live !== false), editOk = editable && (!lk || f.live === true);   // a list's two halves: what is used in play (a switch, a count, a use), and what changes the character (a level, a row, a note)
     var raw = c.values ? c.values[f.id] : undefined;
     var k = f.kind;
     if (k === 'formula') { var v = el('div', 'sheet-value' + (e && e.error ? ' sheet-err' : '') + signTone(f, e), e && e.error ? '—' : e ? e.text + (f.unit && e.text !== '' && !e.label ? ' ' + f.unit : '') : ''); v.title = e && e.error ? e.error : f.formula || ''; if (f.badge && e && !e.error) { var tnB = valueTone(f, e), bd = el('span', 'sheet-badge' + (Object.prototype.hasOwnProperty.call(TONE_CLASS, tnB) ? TONE_CLASS[tnB] : ''), v.textContent); v.textContent = ''; v.appendChild(bd); } var fmF = fxMark(e); if (fmF) { v.appendChild(fmF); v.title += '\n' + fmF.title; } box.appendChild(v); return box; }
@@ -2925,7 +2961,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
         var rowL = el('div', 'sheet-ctl'), ls = el('select', 'field sheet-select'), curL = Number(raw === undefined ? f.def : raw);
         ls.dataset.fid = f.id; f.labels.forEach(function(t, i) { ls.appendChild(opt(String(i), t || String(i), curL === i)); });
         if (!(curL === Math.floor(curL) && curL >= 0 && curL < f.labels.length)) { var ob = opt(String(curL), fmtNum(curL), true); ob.disabled = true; ls.insertBefore(ob, ls.firstChild); }   // a stored value past the names shows as its number (what formulas read) until a name is picked
-        ls.disabled = !editable; ls.addEventListener('change', function() { commit(c, f, Number(ls.value)); });
+        ls.disabled = !use; ls.addEventListener('change', function() { commit(c, f, Number(ls.value)); });
         rowL.appendChild(ls);
         if (e && e.mods && e.mods.length) { var fbL0 = fxMark(e); if (fbL0) { fbL0.textContent = '\u2192 ' + (e.text || fmtNum(e.value)); rowL.appendChild(fbL0); } }   // 5h: an effect moved it — the effective value beside the choice
         box.appendChild(rowL); return box;
@@ -2933,12 +2969,12 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
     if (k === 'number' || k === 'skill') {
         var row = el('div', 'sheet-ctl');
         var inp = el('input', 'field sheet-num'); inp.type = 'number'; inp.dataset.fid = f.id; inp.value = raw === undefined ? String(f.def) : String(raw);
-        if (f.min !== undefined) inp.min = String(f.min); if (f.max !== undefined) inp.max = String(f.max); inp.step = String(f.step || 1); inp.disabled = !editable;
+        if (f.min !== undefined) inp.min = String(f.min); if (f.max !== undefined) inp.max = String(f.max); inp.step = String(f.step || 1); inp.disabled = !use;
         inp.addEventListener('change', function() { commit(c, f, Number(inp.value)); });
         if (k === 'number' && f.slider && f.min !== undefined && f.max !== undefined) {   // Stage 5e: a gradient slider — the same number as a range on a two-colour track with end labels
             var sw = el('div', 'sheet-slider'); box.classList.add('sheet-has-slider');
             var ends = el('div', 'sheet-slider-ends'); ends.appendChild(el('span', 'sheet-slider-low', f.slider.low || '')); ends.appendChild(el('span', 'sheet-slider-high', f.slider.high || '')); sw.appendChild(ends);
-            var rg = el('input', 'sheet-range'); rg.type = 'range'; rg.min = String(f.min); rg.max = String(f.max); rg.step = String(f.step || 1); rg.value = inp.value; rg.disabled = !editable; rg.dataset.fid = f.id; rg.dataset.part = 'range';
+            var rg = el('input', 'sheet-range'); rg.type = 'range'; rg.min = String(f.min); rg.max = String(f.max); rg.step = String(f.step || 1); rg.value = inp.value; rg.disabled = !use; rg.dataset.fid = f.id; rg.dataset.part = 'range';
             rg.style.background = 'linear-gradient(90deg, ' + (f.slider.lowColor || 'var(--blue)') + ', ' + (f.slider.highColor || 'var(--gold)') + ')';   // colours are hex-validated by cleanSlider
             rg.title = (f.slider.low || String(f.min)) + ' \u2026 ' + (f.slider.high || String(f.max));   // "Dark Side … Light Side", or "-100 … 100"
             // arrow keys fire a change per step: one commit after the last step, so a player's nudges reach the GM as one edit (inside the
@@ -2950,8 +2986,8 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
         }
         if (k === 'number') inp.className += signTone(f, { value: Number(inp.value) });   // Stage 5g (a skill colours its total instead); 5h: by the number the box shows
         var lkS = (sysArg && sysArg.sheet && sysArg.sheet.look) || {};
-        if (f.counter) row.appendChild(stepWrap(inp, f, c, editable, true));   // HUD frame (HF4a, H8): a counter, minus and plus either side (the cleaner never keeps one with value names or a slider)
-        else if (lkS.steppers === 'inside' && !(k === 'number' && f.slider && f.min !== undefined && f.max !== undefined)) row.appendChild(stepWrap(inp, f, c, editable));   // Stage 6 look fold (L8)
+        if (f.counter) row.appendChild(stepWrap(inp, f, c, use, true));   // HUD frame (HF4a, H8): a counter, minus and plus either side (the cleaner never keeps one with value names or a slider)
+        else if (lkS.steppers === 'inside' && !(k === 'number' && f.slider && f.min !== undefined && f.max !== undefined)) row.appendChild(stepWrap(inp, f, c, use));   // Stage 6 look fold (L8)
         else row.appendChild(inp);
         if (k === 'number' && e && e.mods && e.mods.length) { var fb = fxMark(e); if (fb) { fb.textContent = '\u2192 ' + fmtNum(e.value); row.appendChild(fb); } }   // 5h: the box edits the base; the effective value beside it
         if (k === 'skill') { var tot = el('span', 'sheet-total' + (e && e.error ? ' sheet-err' : '') + signTone(f, e), e && e.error ? '—' : '= ' + (e ? e.text : '')); tot.title = e && e.error ? e.error : (f.base ? 'ranks + ' + f.base : 'ranks'); row.appendChild(tot); var fmS = fxMark(e); if (fmS) { row.appendChild(fmS); tot.title += '\n' + fmS.title; } }
@@ -2964,9 +3000,9 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
         if (typeof f.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(f.color)) { box.classList.add('sheet-pool-colored'); box.style.setProperty('--sheet-pool', f.color); }   // Stage 6 look fold (L7): the pool's own colour
         if (f.icon) r.appendChild(iconNode(f.icon, 'sheet-pool-icon'));   // Fold B (Stage 6: or a bundled glyph)
         if (f.icon || f.reset) r.classList.add('sheet-ctl-wrap');   // the extra controls wrap to a second line in a narrow cell, never into the next column
-        var minus = el('button', 'tool ghost sheet-pm', '−'); minus.dataset.fid = f.id; minus.dataset.part = 'minus'; minus.title = 'One less'; minus.disabled = !editable;
-        var ci = el('input', 'field sheet-num sheet-cur num-stepped'); ci.type = 'number'; ci.dataset.fid = f.id; ci.value = String(cur); ci.disabled = !editable; if (f.min !== undefined) ci.min = String(f.min); if (max !== null) ci.max = String(max);
-        var plus = el('button', 'tool ghost sheet-pm', '+'); plus.dataset.fid = f.id; plus.dataset.part = 'plus'; plus.title = 'One more'; plus.disabled = !editable;
+        var minus = el('button', 'tool ghost sheet-pm', '−'); minus.dataset.fid = f.id; minus.dataset.part = 'minus'; minus.title = 'One less'; minus.disabled = !use;
+        var ci = el('input', 'field sheet-num sheet-cur num-stepped'); ci.type = 'number'; ci.dataset.fid = f.id; ci.value = String(cur); ci.disabled = !use; if (f.min !== undefined) ci.min = String(f.min); if (max !== null) ci.max = String(max);
+        var plus = el('button', 'tool ghost sheet-pm', '+'); plus.dataset.fid = f.id; plus.dataset.part = 'plus'; plus.title = 'One more'; plus.disabled = !use;
         var mx = el('span', 'sheet-total' + (e && e.error ? ' sheet-err' : ''), '/ ' + (max === null ? '—' : fmtNum(max)) + (f.unit ? ' ' + f.unit : '')); mx.title = e && e.error ? e.error : (f.maxFormula || 'no max'); var fmR = fxMark(e, true); if (fmR) mx.title += '\n' + fmR.title;
         minus.addEventListener('click', function() { commit(c, f, { cur: cur - 1 }); });
         plus.addEventListener('click', function() { commit(c, f, { cur: cur + 1 }); });
@@ -2974,7 +3010,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
         r.appendChild(minus); r.appendChild(ci); r.appendChild(plus); r.appendChild(mx);
         if (f.reset) {   // Fold B: fill back to the max (the host clamps it like any edit)
             var rs = el('button', 'tool ghost sheet-pm sheet-reset', '\u21bb'); rs.dataset.fid = f.id; rs.dataset.part = 'reset';
-            var fb = typeof fillBarred === 'function' && fillBarred(); rs.title = fb ? 'The GM fills pools at this table' : max === null ? 'No max to fill to' : 'Back to full (' + fmtNum(max) + ')'; rs.disabled = !editable || max === null || cur === max || fb;   // K5b
+            var fb = typeof fillBarred === 'function' && fillBarred(); rs.title = fb ? 'The GM fills pools at this table' : max === null ? 'No max to fill to' : 'Back to full (' + fmtNum(max) + ')'; rs.disabled = !use || max === null || cur === max || fb;   // K5b
             rs.addEventListener('click', function() { if (max !== null) commit(c, f, { cur: max }); });
             r.appendChild(rs);
         }
@@ -2983,13 +3019,13 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
         var bar = el('div', 'sheet-bar'); var fill = el('div', 'sheet-bar-fill'); var pct = max ? Math.max(0, Math.min(100, (cur - (f.min || 0)) / Math.max(1, max - (f.min || 0)) * 100)) : 0; fill.style.width = pct + '%'; bar.appendChild(fill); box.appendChild(bar);
         return box;
     }
-    if (k === 'toggle') { var lb = el('label', 'sheet-toggle'); var cb = el('input'); cb.type = 'checkbox'; cb.dataset.fid = f.id; cb.checked = raw === undefined ? f.def === true : raw === true; cb.disabled = !editable; cb.addEventListener('change', function() { commit(c, f, cb.checked); }); lb.appendChild(cb); lb.appendChild(document.createTextNode(' ' + (cb.checked ? 'on' : 'off'))); box.appendChild(lb); if (e && e.value === true && !cb.checked && e.mods && e.mods.length) { var ft = el('span', 'sheet-eff sheet-eff-same', 'on (' + e.mods.map(function(m) { return m.name; }).join(', ') + ')'); ft.title = 'Switched on by ' + e.mods.map(function(m) { return m.name; }).join(', '); box.appendChild(ft); } return box; }
-    if (k === 'text') { var ti = el('input', 'field sheet-text'); ti.type = 'text'; ti.dataset.fid = f.id; ti.maxLength = f.max || 200; ti.value = raw === undefined ? String(f.def || '') : String(raw); ti.disabled = !editable; ti.addEventListener('change', function() { commit(c, f, ti.value); }); box.appendChild(ti); return box; }
-    if (k === 'notes') { var ta = el('textarea', 'field sheet-notes'); ta.dataset.fid = f.id; ta.rows = 4; ta.value = raw === undefined ? '' : String(raw); ta.disabled = !editable; var tmr = null; ta.addEventListener('input', function() { clearTimeout(tmr); tmr = setTimeout(function() { commit(c, f, ta.value); }, 600); }); ta.addEventListener('change', function() { clearTimeout(tmr); commit(c, f, ta.value); }); box.appendChild(ta); return box; }
-    if (k === 'select') { var se = el('select', 'field sheet-select'); se.dataset.fid = f.id; (f.options || []).forEach(function(o) { se.appendChild(opt(o, o, (raw === undefined ? f.def : raw) === o)); }); se.disabled = !editable; se.addEventListener('change', function() { commit(c, f, se.value); }); box.appendChild(se); return box; }
+    if (k === 'toggle') { var lb = el('label', 'sheet-toggle'); var cb = el('input'); cb.type = 'checkbox'; cb.dataset.fid = f.id; cb.checked = raw === undefined ? f.def === true : raw === true; cb.disabled = !use; cb.addEventListener('change', function() { commit(c, f, cb.checked); }); lb.appendChild(cb); lb.appendChild(document.createTextNode(' ' + (cb.checked ? 'on' : 'off'))); box.appendChild(lb); if (e && e.value === true && !cb.checked && e.mods && e.mods.length) { var ft = el('span', 'sheet-eff sheet-eff-same', 'on (' + e.mods.map(function(m) { return m.name; }).join(', ') + ')'); ft.title = 'Switched on by ' + e.mods.map(function(m) { return m.name; }).join(', '); box.appendChild(ft); } return box; }
+    if (k === 'text') { var ti = el('input', 'field sheet-text'); ti.type = 'text'; ti.dataset.fid = f.id; ti.maxLength = f.max || 200; ti.value = raw === undefined ? String(f.def || '') : String(raw); ti.disabled = !use; ti.addEventListener('change', function() { commit(c, f, ti.value); }); box.appendChild(ti); return box; }
+    if (k === 'notes') { var ta = el('textarea', 'field sheet-notes'); ta.dataset.fid = f.id; ta.rows = 4; ta.value = raw === undefined ? '' : String(raw); ta.disabled = !use; var tmr = null; ta.addEventListener('input', function() { clearTimeout(tmr); tmr = setTimeout(function() { commit(c, f, ta.value); }, 600); }); ta.addEventListener('change', function() { clearTimeout(tmr); commit(c, f, ta.value); }); box.appendChild(ta); return box; }
+    if (k === 'select') { var se = el('select', 'field sheet-select'); se.dataset.fid = f.id; (f.options || []).forEach(function(o) { se.appendChild(opt(o, o, (raw === undefined ? f.def : raw) === o)); }); se.disabled = !use; se.addEventListener('change', function() { commit(c, f, se.value); }); box.appendChild(se); return box; }
     if (k === 'effects') {   // 5h: status effects (the host judges every change; a teammate's copy is names only)
         var wrapE = el('div', 'sheet-fx-list');
-        effectsInto(wrapE, f, c, Array.isArray(raw) ? raw : [], sysArg || systemOf(getActiveCampaign()), editable && !c.partial);
+        effectsInto(wrapE, f, c, Array.isArray(raw) ? raw : [], sysArg || systemOf(getActiveCampaign()), playOk && !c.partial, editOk && !c.partial);
         box.appendChild(wrapE); return box;
     }
     if (k === 'item-list') {
@@ -2999,12 +3035,12 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
         var gmThrows = sysI && sysI.combat && sysI.combat.blastRoller === 'gm';
         var canThrow = (gm || (own && !gmThrows && !!facingTarget(c))) && !c.partial;   // who-rolls='gm' means only the GM throws; a player throws from the character whose token they hold here (never a kept one)
         var wrap = el('div', 'sheet-items' + (f.table ? ' sheet-items-table' : ''));
-        if (f.table) itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, emptyI, e);   // Stage 4: rich table (F5a1: e, its columns' cells and totals)
-        else itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, emptyI, e);            // the plain carried list (as before)
+        if (f.table) itemTableInto(wrap, f, c, carried, sysI, canThrow, playOk, gm, emptyI, e, editOk);   // Stage 4: rich table (F5a1: e, its columns' cells and totals)
+        else itemListInto(wrap, f, c, carried, sysI, canThrow, playOk, gm, emptyI, e, editOk);            // the plain carried list (as before)
         var custOK = !!specI && (gm || specI.custom === true);   // F4c3: + Custom… — the GM's on any list shaped in the Lists tab, a player's where it takes custom rows
         var libOK = gm && !!window.wpLibPicker && !!(window.wpLibrary && window.wpLibrary.size && window.wpLibrary.size() > 0);   // Stage 6 library L2c: the GM's machine offers the campaign's library too
         if (!gm && window.wpLibPicker && window.wpNet && window.wpNet.libManifest) { var lmP = window.wpNet.libManifest(); libOK = !!lmP && lmP.packs.some(function(p) { return p.count > 0; }); }   // L3b: a player, the packs the host lets them see
-        if (editable && _fxLive && sysI && ((sysI.items && sysI.items.length) || custOK || libOK) && !onOnly) {
+        if (editOk && _fxLive && sysI && ((sysI.items && sysI.items.length) || custOK || libOK) && !onOnly) {
             var add = el('select', 'field sheet-item-add'), nPick = -1, vwP = _fxView; add.appendChild(opt('', '+ Add item…', true));
             if (specI) nPick = pickerInto(add, sysI.items || [], specI, carried);   // F4b: the list's categories, grouped
             else sysI.items.forEach(function(it) { add.appendChild(opt(it.id, (iconText(it.icon) ? iconText(it.icon) + ' ' : '') + it.name + (it.category ? ' — ' + it.category : ''))); });
@@ -4459,6 +4495,7 @@ function fieldRow(f) {
     if (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill' || f.kind === 'resource') { var tl = el('label', 'sys-hover'); var tc = el('input'); tc.type = 'checkbox'; tc.checked = !!f.tile; tc.className = 'sys-tile-chk'; tl.appendChild(tc); tl.appendChild(document.createTextNode(' Tile')); tl.title = 'Show this field as a stat tile (big value, small label)'; flags.appendChild(tl); }   // Stage 3
     if (f.kind === 'number' && (!f.counter || f.slider)) { var sl = el('label', 'sys-hover'); var sc = el('input'); sc.type = 'checkbox'; sc.checked = !!f.slider; sc.className = 'sys-slider-chk'; sl.appendChild(sc); sl.appendChild(document.createTextNode(' Slider')); sl.title = 'Show this number as a range on a two-colour track with end labels (needs a min and a max)'; flags.appendChild(sl); }   // Stage 5e (a counter is not a slider: hidden while Counter is on, shown while a slider is set so it can be turned off)
     if ((f.kind === 'number' && !f.slider && !(Array.isArray(f.labels) && f.labels.length)) || f.kind === 'skill') { var cnl = el('label', 'sys-hover'); var cnc = el('input'); cnc.type = 'checkbox'; cnc.checked = !!f.counter; cnc.className = 'sys-counter-chk'; cnl.appendChild(cnc); cnl.appendChild(document.createTextNode(' Counter')); cnl.title = 'Draw \u2212 and + either side of the box (a turn counter, death saves, ammo, slots used)'; flags.appendChild(cnl); }   // HUD frame (HF4a, H8): never with a slider or value names
+    if (f.kind !== 'formula') { var lvL = el('label', 'sys-hover sys-live'); lvL.appendChild(document.createTextNode('Locked: ')); var lvS = el('select', 'sys-live-sel'); [['', 'automatic'], ['on', 'stays live'], ['off', 'needs Edit sheet']].forEach(function(o) { lvS.appendChild(opt(o[0], o[1], (f.live === true ? 'on' : f.live === false ? 'off' : '') === o[0])); }); lvL.appendChild(lvS); lvL.title = 'On a locked sheet and in the HUD. Automatic: a pool, a switch, a counter and a number with value names keep working, and everything else needs Edit sheet. Choose here to say otherwise for this field'; flags.appendChild(lvL); }   // the sheet's lock: this field's own word on it
     if (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill' || f.kind === 'resource') flags.appendChild(input('sys-unit field', f.unit, 'A short unit after the value, on the sheet and in the header (pts, kg, ft)', 'Unit'));   // Stage 5g
     if (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill') { var sgl = el('label', 'sys-hover'); var sgc = el('input'); sgc.type = 'checkbox'; sgc.checked = !!f.sign; sgc.className = 'sys-sign-chk'; sgl.appendChild(sgc); sgl.appendChild(document.createTextNode(' \u00b1 colour')); sgl.title = 'Colour the value by its sign: green above zero, red below (points remaining, a modifier)'; flags.appendChild(sgl); }   // Stage 5g
     if (f.kind !== 'notes' && f.kind !== 'text' && f.kind !== 'select' && f.kind !== 'item-list' && f.kind !== 'effects') flags.appendChild(input('sys-roll field', f.roll, 'A roll button for this field (dice allowed): d20 + ' + (f.key || 'Key'), 'Roll (optional)'));
@@ -5936,6 +5973,7 @@ function onChange(e) {
         if (c.indexOf('sys-edit') >= 0) f.edit = t.value;
         else if (c.indexOf('sys-vis') >= 0) f.vis = t.value;
         else if (c.indexOf('sys-hover-chk') >= 0) f.hover = t.checked;
+        else if (c.indexOf('sys-live-sel') >= 0) { if (t.value === 'on') f.live = true; else if (t.value === 'off') f.live = false; else delete f.live; }   // the sheet's lock
         else if (c.indexOf('sys-tile-chk') >= 0) { if (t.checked) f.tile = true; else delete f.tile; }   // Stage 3: stat-tile display
         else if (c.indexOf('sys-sign-chk') >= 0) { if (t.checked) f.sign = true; else delete f.sign; }   // Stage 5g: colour by sign
         else if (c.indexOf('sys-badge-chk') >= 0) { if (t.checked) f.badge = true; else delete f.badge; markDirty(); renderAll(); return; }   // L7: the tones row follows
@@ -6181,6 +6219,7 @@ function importFile(file) {
     var dnBt = ui('sheetDone'); if (dnBt) dnBt.addEventListener('click', doneMaking);   // Onboarding F3
     var nmBt = ui('sheetName'); if (nmBt) nmBt.addEventListener('click', renameMaking);
     var ulBt = ui('sheetUnlock'); if (ulBt) ulBt.addEventListener('click', function() { if (sheetOpen) unlockChar(sheetOpen); });
+    var edBt = ui('sheetEdit'); if (edBt) edBt.addEventListener('click', function() { if (!sheetOpen) return; _sheetEdit = _sheetEdit === sheetOpen ? null : sheetOpen; renderSheet(); });   // the sheet's lock: this viewer's own switch, for the sheet that is open
     var dlBt = ui('sheetDelete'); if (dlBt) dlBt.addEventListener('click', function() { if (sheetOpen) askDeleteSheet(sheetOpen); });
     var cfI = ui('sysCharFilter'); if (cfI) cfI.addEventListener('input', charFilter);
     var rvBt = ui('sheetReview'); if (rvBt) rvBt.addEventListener('click', function() { if (sheetOpen) openReview(sheetOpen); });

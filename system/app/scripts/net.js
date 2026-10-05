@@ -5542,7 +5542,7 @@ function handleMessage(msg, conn) {
     } else if (msg.type === 'char-review' && net.role === 'client') {   // Onboarding F3: what the GM did with our character
         // [netcheck:charreview-start]
         if (!net.foreign || net.stream || conn.peer !== net.syncedPeer) return;
-        var OUT_R = { back: 'Your GM sent back ', removed: 'Your GM removed ', locked: 'Your GM locked ', invited: 'Your GM asked you to make a character: ' }, TAIL_R = { back: ' to fill in (press Done when it is finished)', invited: ' \u2014 open it from your card' };
+        var OUT_R = { back: 'Your GM sent back ', removed: 'Your GM removed ', locked: 'Your GM closed ', invited: 'Your GM asked you to make a character: ' }, TAIL_R = { back: ' to fill in (press Edit sheet, then Done when it is finished)', locked: ' again: you change only the fields that are always yours', invited: ' \u2014 open it from your card' };
         if (typeof msg.outcome !== 'string' || !Object.prototype.hasOwnProperty.call(OUT_R, msg.outcome)) return;
         var nmR = cleanCharName(msg.name) || 'your character', ntR = typeof msg.note === 'string' ? msg.note.replace(/[\u0000-\u001f\u007f\u200b\u200e\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 300) : '';
         toast(OUT_R[msg.outcome] + nmR + (Object.prototype.hasOwnProperty.call(TAIL_R, msg.outcome) ? TAIL_R[msg.outcome] : '') + (ntR ? ': ' + ntR : '.'));

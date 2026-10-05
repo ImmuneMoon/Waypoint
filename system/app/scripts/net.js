@@ -1638,6 +1638,22 @@ function playerStroke(w, pid) {
     return out;
 }
 
+// [netcheck:snapitems-start]
+// A snapshot's items, as a player's app keeps them: a map and a page, each cleaned as a whole item of its kind is, and NOTHING of any other
+// kind. A planner never ships, and until 1.5.4 one a host named in its snapshot was kept as sent (a whole item of another kind was already
+// refused: applyItem). No id a prototype holds; items that are no plain object are none; a prototype of the host's choosing is taken off
+function snapItems(cS) {
+    if (!cS.items || typeof cS.items !== 'object' || Array.isArray(cS.items)) { cS.items = {}; return; }
+    if (Object.getPrototypeOf(cS.items) !== Object.prototype) Object.setPrototypeOf(cS.items, Object.prototype);
+    Object.keys(cS.items).forEach(function(id) {
+        var itS = cS.items[id];
+        if (id in Object.prototype) { delete cS.items[id]; return; }
+        if (itS && itS.type === 'doc') { var cd = window.wpDocRender ? window.wpDocRender.cleanDoc(itS, { keepHidden: true }) : null; if (cd) cS.items[id] = cd; else delete cS.items[id]; }
+        else if (itS && itS.type === 'map') cleanHostMap(itS);
+        else delete cS.items[id];
+    });
+}
+// [netcheck:snapitems-end]
 function applySnapshot(msg) {
     if (!msg || !msg.appState || typeof msg.appState !== 'object' || !msg.appState.campaigns || typeof msg.appState.campaigns !== 'object') return;   // a host that sends no state gets nothing applied — and nothing left half-set
     // BinaryPack decodes a map by ASSIGNING its keys, so a packed "__proto__" re-parents the decoded object: the state and the campaign map get
@@ -1657,12 +1673,7 @@ function applySnapshot(msg) {
         if (!cS || typeof cS !== 'object') return;
         if (Object.getPrototypeOf(cS) !== Object.prototype) Object.setPrototypeOf(cS, Object.prototype);   // (see above) or the delete below is a no-op for an inherited players map
         delete cS.players;   // names and table keys are the host's (sanitizeAppState strips them); the Players panel and the owner pickers must never draw a hostile snapshot's
-        Object.keys(cS.items || {}).forEach(function(id) {
-            var itS = cS.items[id];
-            if (id in Object.prototype) { delete cS.items[id]; return; }
-            if (itS && itS.type === 'doc') { var cd = window.wpDocRender ? window.wpDocRender.cleanDoc(itS, { keepHidden: true }) : null; if (cd) cS.items[id] = cd; else delete cS.items[id]; }
-            else if (itS && itS.type === 'map') cleanHostMap(itS);
-        });
+        snapItems(cS);   // a map and a page, each cleaned, and nothing of any other kind
         var actS = cS.items && cS.items[cS.activeItemId];
         if (!actS || actS.type !== 'map') cS.activeItemId = Object.keys(cS.items || {}).find(function(id) { return cS.items[id].type === 'map'; }) || null;
     });

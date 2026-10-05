@@ -197,7 +197,9 @@ function draw(force) {
     var DR = window.wpDocRender; if (!DR || !DR.renderDoc) return;
     setMermaidStrict();
     var keep = body.scrollTop;
-    body.innerHTML = DR.renderDoc(it, { mermaid: !!window.mermaid, docStyle: camp.docStyle, empty: '<div class="docpanel-msg">This page has no content yet.</div>' });
+    var ph = it.type === 'planner' && typeof window.wpPlannerRead === 'function' ? window.wpPlannerRead(it, camp, '<div class="docpanel-msg">This planner has no content yet.</div>') : null;   // 1.5.4: a planner by its own renderer (a node table and a Raw HTML block are a planner's alone); null for a campaign from someone else's table
+    if (typeof ph === 'string') body.innerHTML = ph;
+    else body.innerHTML = DR.renderDoc(it, { mermaid: !!window.mermaid, docStyle: camp.docStyle, empty: '<div class="docpanel-msg">This page has no content yet.</div>' });
     body.scrollTop = keep;
     if (window.mermaid) {
         var mnodes = Array.prototype.slice.call(body.querySelectorAll('pre.mermaid'));

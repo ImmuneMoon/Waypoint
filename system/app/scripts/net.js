@@ -3705,6 +3705,8 @@ window.wpRenderNotepad = renderNotepad;
 net.notepadToggle = function() {
     if (net.role !== 'host') return;
     if (net.notepad.on) {
+        var npF = ui('notepadPanel');
+        if (npF && window.wpFloats && window.wpFloats.away(npF)) { window.wpFloats.reveal(npF); return; }   // 1.5.4 (floats.js): it is up, on another view: asked for here it shows here, and nobody is asked to put it away
         var has = String(net.notepad.text || '').trim();
         showConfirm('Put the table notepad away? ' + (has ? 'Its text goes for everyone who has not saved it to their Journal.' : 'It is empty.'), function(yes) {
             if (!yes) return;
@@ -6490,7 +6492,7 @@ function handleMessage(msg, conn) {
         chatLog.sort(function(a, b) { return (a.ts || 0) - (b.ts || 0); });
         while (chatLog.length > 200) chatLog.shift();
         if (addedR) ringRepaint();
-        if (added) { renderChat(); var cp = ui('chatPanel'); if (!cp || cp.style.display === 'none') { chatUnread += added; var cb = ui('chatBadge'); if (cb) { cb.textContent = chatUnread; cb.style.display = 'block'; } } }
+        if (added) { renderChat(); var cp = ui('chatPanel'); if (!cp || cp.style.display === 'none' || (window.wpFloats && window.wpFloats.away(cp))) { chatUnread += added; var cb = ui('chatBadge'); if (cb) { cb.textContent = chatUnread; cb.style.display = 'block'; } } }
     } else if (msg.type === 'roster' && net.role === 'client') {   // the host owns the roster; a player's copy never replaces it
         if (conn.peer !== net.syncedPeer) return;   // only the table this player is synced to
         net.roster = cleanHostRoster(msg.roster);   // rebuilt field by field (renderRoster, the party strip, hover cards and owner names draw it)
@@ -7619,6 +7621,8 @@ function renderChat() {
 }
 var _chatRenderTimer = null;   // one pending draw of the chat panel (renderChatSoon): a burst of lines costs one render
 function renderChatSoon() { if (_chatRenderTimer) return; _chatRenderTimer = setTimeout(function() { _chatRenderTimer = null; renderChat(); }, 40); }
+// 1.5.4 (floats.js): Table Chat put away on a view it was not asked for on counts as closed, so its button, a dock and a roll bring it up where you are
+function chatHidden(p) { return !p || p.style.display === 'none' || !!(window.wpFloats && window.wpFloats.away(p)); }
 /* Chat pop-out relay: the chat lives in memory here (chatLog) over the live session, so a pop-out window
    (which has no session) mirrors it over BroadcastChannel — the main window broadcasts the log on every
    render, answers a new pop-out's request, and sends on the pop-out's behalf; the pop-out relays its input. */
@@ -7631,22 +7635,30 @@ if (_chatBC) _chatBC.addEventListener('message', function(e) {
     } else {
         if (d.type === 'chatReq') broadcastChatSync();
         else if (d.type === 'chatSend') { var ci = ui('chatInput'); if (ci) { ci.value = String(d.text || ''); sendChat(); } }
-        else if (d.type === 'dock' && d.kind === 'chat') { var cp = ui('chatPanel'); if (cp && cp.style.display === 'none') { var cb = ui('chatBtn'); if (cb) cb.click(); else cp.style.display = 'flex'; } }
+        else if (d.type === 'dock' && d.kind === 'chat') { var cp = ui('chatPanel'); if (cp && chatHidden(cp)) { var cb = ui('chatBtn'); if (cb) cb.click(); else cp.style.display = 'flex'; } }
     }
 });
-window.wpChat = { openPanel: function() { var cp = ui('chatPanel'); if (cp && cp.style.display === 'none') { var cb = ui('chatBtn'); if (cb) cb.click(); else cp.style.display = 'flex'; } },
+window.wpChat = { openPanel: function() { var cp = ui('chatPanel'); if (cp && chatHidden(cp)) { var cb = ui('chatBtn'); if (cb) cb.click(); else cp.style.display = 'flex'; } },
     lookSync: function() { if (window.wpPopout) return; var cl = cardLookNow(), sg = JSON.stringify(cl); if (sg === _cardSig) return; _cardSig = sg; _cardLook = cl; var lg = ui('chatLog'); if (lg) paintCardLook(lg, cl); broadcastChatSync(); } };   // the system or the sheets switch changed: the cards' colours follow (no card rebuilt)
 // A roll opens Table Chat if it was closed; that auto-open dismisses itself after a few seconds (a fresh roll extends
 // it). If the chat was already open, or the user opens/touches it, it stays — cancelChatDismiss() clears the flag.
-var _chatRollOpened = false, _chatDismissTimer = null;
+var _chatRollOpened = false, _chatDismissTimer = null;   // false; true: a roll opened it; a view's name: a roll borrowed it for that view while it was up on another (1.5.4)
 function cancelChatDismiss() { if (_chatDismissTimer) { clearTimeout(_chatDismissTimer); _chatDismissTimer = null; } _chatRollOpened = false; }
+// [floatcheck:chatback-start]
+// 1.5.4 (floats.js): a chat a roll only borrowed for this view is given back to where it was up, as it was left, instead of being closed. True when it was.
+function chatGiveBack(p) {
+    var v = typeof _chatRollOpened === 'string' ? _chatRollOpened : '', fl = window.wpFloats;
+    if (!v || !p || !fl || !fl.leave) return false;
+    fl.leave(p, v); return true;
+}
+// [floatcheck:chatback-end]
 function armChatDismiss() {
     if (_chatDismissTimer) clearTimeout(_chatDismissTimer);
     _chatDismissTimer = setTimeout(function() {
         _chatDismissTimer = null;
         if (!_chatRollOpened) return;
         var p = ui('chatPanel');
-        if (p && p.style.display !== 'none') { p.style.display = 'none'; if (window.wpDice) window.wpDice.closePanel(); }
+        if (p && p.style.display !== 'none' && !chatGiveBack(p)) { p.style.display = 'none'; if (window.wpDice) window.wpDice.closePanel(); }
         _chatRollOpened = false;
     }, 6000);
 }
@@ -7654,10 +7666,13 @@ function pushChat(m) {
     chatLog.push(m);
     if (chatLog.length > 200) chatLog.shift();
     var panel = ui('chatPanel');
-    var closed = !panel || panel.style.display === 'none';
-    if ((m.roll || (m.due && !m.due.theirs)) && panel && closed) {   // T2b: a reminder to press surfaces it too (never dismissed by itself)   // a roll always surfaces Table Chat so everyone sees the result (no toast needed then)
+    var fl = window.wpFloats || null, view = fl && fl.view ? fl.view() : '';   // 1.5.4 (floats.js): the view on screen; a chat put away on it counts as closed
+    var closed = !panel || panel.style.display === 'none' || !!(fl && fl.away(panel));
+    var rise = !view || view === 'play' || !m.roll || m.from.id === net.myId;   // someone else's roll raises the chat only on the play map: on another view it is a notice and a count on the button
+    if ((m.roll || (m.due && !m.due.theirs)) && panel && closed && rise) {   // T2b: a reminder to press surfaces it too (never dismissed by itself)   // a roll always surfaces Table Chat so everyone sees the result (no toast needed then)
+        var lent = fl && fl.reveal ? fl.reveal(panel) : '';   // up on another view: borrowed for this one, and given back when the roll's few seconds are over
         panel.style.display = 'flex'; chatUnread = 0; refreshChatRecipients(); closed = false;
-        _chatRollOpened = true;
+        _chatRollOpened = lent || true;
     }
     if (m.roll && _chatRollOpened) armChatDismiss();   // dismiss the roll-opened chat after a few seconds; a fresh roll re-arms it
     if (closed) {
@@ -7710,14 +7725,18 @@ function sendChat() {
 
 var _chatBtn = ui('chatBtn');
 if (_chatBtn) _chatBtn.addEventListener('click', function() {
-    cancelChatDismiss();   // the user is driving the chat now — no auto-dismiss
     var panel = ui('chatPanel');
-    var opening = panel.style.display === 'none';
+    var opening = chatHidden(panel), back = !opening && chatGiveBack(panel);   // 1.5.4 (floats.js): put away on this view counts as closed; one a roll only borrowed is given back, not closed
+    cancelChatDismiss();   // the user is driving the chat now — no auto-dismiss
+    if (back) return;
     panel.style.display = opening ? 'flex' : 'none';
+    if (opening && window.wpFloats) window.wpFloats.reveal(panel);   // asked for here: it shows on this view
     if (opening) { chatUnread = 0; refreshChatRecipients(); renderChat(); var i = ui('chatInput'); if (i) i.focus(); }
 });
 // touching the chat or the dice roller cancels the roll auto-dismiss (the player is reading / rolling)
 ['chatPanel', 'dicePanel'].forEach(function(id) { var p = ui(id); if (p) { p.addEventListener('pointerdown', cancelChatDismiss); p.addEventListener('focusin', cancelChatDismiss); } });
+// 1.5.4 (floats.js): the chat is back on screen after being put away with another view. What came meanwhile is on show: nothing is unread, and the newest line is in view
+var _chatBackEl = ui('chatPanel'); if (_chatBackEl) _chatBackEl.addEventListener('wpfloatback', function() { chatUnread = 0; renderChat(); });
 var _chatClose = ui('chatCloseBtn');
 if (_chatClose) _chatClose.addEventListener('click', function() { cancelChatDismiss(); ui('chatPanel').style.display = 'none'; });
 var _chatSend = ui('chatSendBtn');

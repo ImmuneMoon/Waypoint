@@ -229,6 +229,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       document.getElementById('sidebar').style.display = isPlanner ? 'none' : 'flex';
 
       document.getElementById('toggleRightBtn').style.display = isPlanner ? 'none' : 'flex';
+      if (window.wpFloats) window.wpFloats.sync();   // 1.5.4 (floats.js): a floating box shows on the play map, and on another view only if it was asked for there
 
       // Breadcrumb trail for nested maps (world > region > city > ...)
 

@@ -1789,6 +1789,7 @@
   .combat-row .tool { padding: 1px 7px; font-size: 11px; }
 
   /* Table notepad */
+  .wp-away { display: none !important; }   /* 1.5.4 (floats.js): a floating box put away on a view it was not asked for on. Nothing is closed: back on the play map it is as it was left */
   #notepadPanel { position: fixed; right: 18px; top: 140px; width: 320px; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
   #notepadHead { display: flex; align-items: center; gap: 6px; padding: 6px 8px; cursor: move; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); user-select: none; }
   .notepad-title { color: var(--gold); font-weight: 700; font-size: 12.5px; white-space: nowrap; }

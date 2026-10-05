@@ -110,12 +110,18 @@ function landed(m) {
 /* ---------- the roller ---------- */
 var history = [], histAt = -1, lastSource = 'panel';
 function panelOpen() { var p = ui('dicePanel'); return !!(p && p.style.display !== 'none'); }
+// [floatcheck:dice-start]
+// 1.5.4 (floats.js): a box put away on a view it was not asked for on is up but not shown. The roller's button, the Esc key and its
+// place against Table Chat go by what is shown; what keeps it in step with the table (panelOpen) goes by what is up
+function awayNow(el) { return !!(el && window.wpFloats && window.wpFloats.away(el)); }
+function panelShown() { return panelOpen() && !awayNow(ui('dicePanel')); }
 function placePanel() {
     var p = ui('dicePanel'), c = ui('chatPanel'); if (!p) return;
-    var r = c && c.style.display !== 'none' ? c.getBoundingClientRect() : null;
+    var r = c && c.style.display !== 'none' && !awayNow(c) ? c.getBoundingClientRect() : null;
     if (r) { p.style.right = Math.max(8, window.innerWidth - r.right) + 'px'; p.style.bottom = Math.max(8, window.innerHeight - r.top + 8) + 'px'; }
     else { p.style.right = '20px'; p.style.bottom = '90px'; }
 }
+// [floatcheck:dice-end]
 function showErr(message, expr, pos, len) {
     var e = ui('diceErr'); if (!e) return;
     e.textContent = '';
@@ -197,8 +203,9 @@ function rollWithMod(charId, expr, label, opts, anchor) {
 }
 function openPanel() {
     var p = ui('dicePanel'); if (!p || !featureOn()) return;
-    var c = ui('chatPanel'); if (c && c.style.display === 'none') { var cb = ui('chatBtn'); if (cb) cb.click(); }
-    p.style.display = 'flex'; placePanel(); syncRoleLabels(); syncChars(); clearErr();
+    var c = ui('chatPanel'); if (c && (c.style.display === 'none' || awayNow(c))) { var cb = ui('chatBtn'); if (cb) cb.click(); }
+    p.style.display = 'flex'; if (window.wpFloats) window.wpFloats.reveal(p);   // 1.5.4 (floats.js): asked for here, so it shows on this view
+    placePanel(); syncRoleLabels(); syncChars(); clearErr();
     var f = ui('diceExpr'); if (f) { f.focus(); f.select(); }
 }
 function closePanel() { var p = ui('dicePanel'); if (p) p.style.display = 'none'; }
@@ -238,7 +245,7 @@ function sync() {
 }
 (function wire() {
     var b = ui('diceBtn'), p = ui('dicePanel'); if (!b || !p) return;
-    b.addEventListener('click', function() { if (panelOpen()) closePanel(); else openPanel(); });
+    b.addEventListener('click', function() { if (panelShown()) closePanel(); else openPanel(); });
     var cl = ui('diceCloseBtn'); if (cl) cl.addEventListener('click', closePanel);
     var hb = ui('diceHelpBtn'); if (hb) hb.addEventListener('click', function() { if (window.wpOpenHelp) window.wpOpenHelp('dice'); });
     var rb = ui('diceRollBtn'); if (rb) rb.addEventListener('click', rollFromPanel);
@@ -260,9 +267,10 @@ function sync() {
     var sc = ui('diceSoundChk'); if (sc) sc.addEventListener('change', function() { setPref('wp_diceSound', sc.checked ? 'on' : 'off'); });
     // the chat panel closing takes the roller with it
     var cc = ui('chatCloseBtn'); if (cc) cc.addEventListener('click', closePanel);
-    var cb = ui('chatBtn'); if (cb) cb.addEventListener('click', function() { setTimeout(function() { var c = ui('chatPanel'); if (c && c.style.display === 'none') closePanel(); else if (panelOpen()) placePanel(); }, 0); });
-    window.addEventListener('resize', function() { if (panelOpen()) placePanel(); });
-    document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && panelOpen()) closePanel(); }, true);
+    var cb = ui('chatBtn'); if (cb) cb.addEventListener('click', function() { setTimeout(function() { var c = ui('chatPanel'); if (c && c.style.display === 'none') closePanel(); else if (panelShown()) placePanel(); }, 0); });
+    window.addEventListener('resize', function() { if (panelShown()) placePanel(); });
+    p.addEventListener('wpfloatback', function() { if (panelShown()) placePanel(); });   // 1.5.4 (floats.js): back on screen with Table Chat, its place against the chat is worked out again
+    document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && panelShown()) closePanel(); }, true);   // a roller put away with its view is not closed by a key
 })();
 window.wpDiceSync = sync;
 setTimeout(sync, 0);

@@ -391,7 +391,7 @@ function openPill() {
 var selPl = null;   // the selected playlist id in the panel
 var picking = null; // bringing music in from another campaign: { to: this campaign's id, from: campaign id, pl: { playlist id: 1 }, tr: { track id: 1 } } while the picker is open
 function panelOpen() { var p = ui('musicPanel'); return !!(p && p.style.display !== 'none'); }
-function openPanel() { if (!canWrite()) { toast('Only the GM manages music.'); return; } var p = ui('musicPanel'); if (!p) return; p.style.display = 'flex'; try { var pos = JSON.parse(pref('wp_musicPanel', '')); if (pos && typeof pos.x === 'number') { p.style.left = Math.max(0, Math.min(pos.x, window.innerWidth - 60)) + 'px'; p.style.top = Math.max(0, Math.min(pos.y, window.innerHeight - 40)) + 'px'; p.style.right = 'auto'; } } catch (e) {} renderPanel(); }
+function openPanel() { if (!canWrite()) { toast('Only the GM manages music.'); return; } var p = ui('musicPanel'); if (!p) return; p.style.display = 'flex'; if (window.wpFloats) window.wpFloats.reveal(p); try { var pos = JSON.parse(pref('wp_musicPanel', '')); if (pos && typeof pos.x === 'number') { p.style.left = Math.max(0, Math.min(pos.x, window.innerWidth - 60)) + 'px'; p.style.top = Math.max(0, Math.min(pos.y, window.innerHeight - 40)) + 'px'; p.style.right = 'auto'; } } catch (e) {} renderPanel(); }
 function closePanel() { var p = ui('musicPanel'); if (p) p.style.display = 'none'; picking = null; }
 // Light update of the transport display without rebuilding the panel (so a slider being dragged is never yanked).
 function refreshTransport() {
@@ -618,7 +618,7 @@ window.wpMusicTick = tick;
 window.wpMusic = { play: play, stop: stop, next: next, prev: prev, seek: seek, togglePlay: togglePlay, setLoop: setLoop, setShuffle: setShuffle, setVolume: setVolume, setMute: setMute, setSpeed: setSpeed, status: status, nowPlaying: nowPlaying, openPanel: openPanel, closePanel: closePanel, tick: tick, sync: sync, onListeners: listeners,
     listMessage: listMessage, onList: onList, onControl: onControl, onSnapshot: onSnapshot, tableLeft: tableLeft, controlSnapshot: controlSnapshot, idSets: idSets, setControlling: setControlling, isControlling: function() { return controlling; }, addFiles: uploadTracks };
 (function wire() {
-    var b = ui('musicBtn'); if (b) b.addEventListener('click', function() { if (panelOpen()) closePanel(); else openPanel(); });
+    var b = ui('musicBtn'); if (b) b.addEventListener('click', function() { if (panelOpen() && !(window.wpFloats && window.wpFloats.away(ui('musicPanel')))) closePanel(); else openPanel(); });
     var ind = ui('musicInd'); if (ind) ind.addEventListener('click', function() { if (pillPop) closePill(); else openPill(); });
     var mp = ui('musicPanel'), drag = null;   // drag the panel by its header (the head is rebuilt each render, so listen on the persistent panel)
     if (mp) {

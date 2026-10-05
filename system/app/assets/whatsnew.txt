@@ -39,6 +39,11 @@ Character sheets
 - A list's stat can be Hidden, in the System editor's Lists tab. Use it
   for a figure a row only works with, such as a cost per level. It is
   left off the row and out of its details. Formulas still read it.
+- A row's details show what the entry does: its description, and what
+  each level gives as a small table with the row's own level marked.
+  Write them in the Library, in an entry's Description and By level
+  boxes. A player reads them on their own sheet for an entry players
+  can see. A GM-only entry's text stays with you.
 
 Calendar
 - The game clock runs by itself while you host a session: a second of

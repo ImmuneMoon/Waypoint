@@ -2200,6 +2200,9 @@
   .lib-pick-v { color: var(--ink); overflow-wrap: anywhere; min-width: 0; }
   .lib-pick-notes { color: var(--ink); margin-top: 4px; overflow-wrap: anywhere; }
   .lib-pick-desc { white-space: pre-wrap; color: var(--ink); line-height: 1.45; overflow-wrap: anywhere; }
+  .lib-pick-lvls { margin-top: 6px; }
+  .lib-pick-lvl { margin-top: 3px; color: var(--ink); line-height: 1.4; overflow-wrap: anywhere; }
+  .lib-pick-lvl b { color: var(--dim); font-weight: 600; margin-right: 5px; }
   .lib-pick-foot { display: flex; align-items: center; gap: 8px; flex: none; }
   .lib-pick .lib-pick-qty { width: 64px; }
   .lib-pick-hint { color: var(--dim); font-size: 11px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -2491,6 +2494,17 @@
   .sheet-chip.sheet-item-stat { white-space: nowrap; font-size: 11px; color: var(--ink); font-variant-numeric: tabular-nums; }
   .sheet-item-stat small { color: var(--dim); font-size: 10px; }
   .sheet-item-statline { margin-bottom: 2px; font-variant-numeric: tabular-nums; }
+  /* 1.5.4: what the entry does, in a row's details: its description, and what each level gives as a small table (the row's own level marked) */
+  .sheet-item-about { margin: 5px 0 3px; }
+  .sheet-item-desc { white-space: pre-line; color: var(--ink); line-height: 1.45; overflow-wrap: anywhere; }
+  .sheet-item-lvls { margin-top: 6px; border-collapse: collapse; width: 100%; font-size: 12px; }
+  .sheet-item-lvls th, .sheet-item-lvls td { padding: 3px 8px; border-top: 1px solid var(--edge); text-align: left; vertical-align: top; }
+  .sheet-item-lvls thead th { border-top: 0; color: var(--dim); font-weight: 600; font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase; }
+  .sheet-item-lvls tbody th { width: 1%; white-space: nowrap; color: var(--dim); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .sheet-item-lvls td { color: var(--ink); overflow-wrap: anywhere; }
+  .sheet-item-lvls tr.is-now th { color: var(--gold); }
+  .sheet-item-lvls tr.is-now td { background: color-mix(in srgb, var(--gold) 9%, transparent); }
+  .sheet-item-lvltag { display: inline-block; margin-right: 6px; padding: 0 5px; border: 1px solid var(--edge); border-radius: 4px; color: var(--dim); font-size: 10.5px; white-space: nowrap; }
   .sheet-item-paidl { display: inline-flex; align-items: center; gap: 4px; flex: none; font-size: 11px; color: var(--dim); }
   .sheet-item-paidl input.sheet-item-paid, .sheet-itcol-paid input.sheet-item-paid { width: 72px; flex: none; padding: 2px 4px; text-align: right; }
   .sheet-chip.sheet-item-paid { white-space: nowrap; font-variant-numeric: tabular-nums; }

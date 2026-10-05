@@ -149,6 +149,7 @@ function preview() {
     if (st.opts.gm) { line(box, 'Damage', e.damage); line(box, 'Cost', e.cost); }
     if (e.notes) box.appendChild(el('div', 'lib-pick-notes', e.notes));
     if (e.desc) box.appendChild(el('div', 'lib-pick-desc', e.desc));
+    if (Array.isArray(e.lvls) && e.lvls.length) { var lt = el('div', 'lib-pick-lvls'); e.lvls.forEach(function(r) { if (!r || typeof r.text !== 'string') return; var ln = el('div', 'lib-pick-lvl'); ln.appendChild(el('b', null, String(r.lvl) + (typeof r.tag === 'string' && r.tag ? ' (' + r.tag + ')' : ''))); ln.appendChild(el('span', null, r.text)); lt.appendChild(ln); }); box.appendChild(lt); }   // 1.5.4: what each level gives
     if (Array.isArray(e.tags) && e.tags.length) line(box, 'Tags', e.tags.join(', '));
     line(box, 'Reference', e.ref);
     if (st.opts.gm && e.gmNotes) { box.appendChild(el('div', 'lib-fsub', 'GM notes')); box.appendChild(el('div', 'lib-pick-desc', e.gmNotes)); }

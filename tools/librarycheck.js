@@ -156,7 +156,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             j(coK.core.map(e => e.id)) === j(['i_4', 'i_1']) && j((gmK.core || []).map(e => e.id)) === j(['i_4', 'i_1']) && j((plK.core || []).map(e => e.id)) === j(['i_1']) && JSON.stringify(plK).indexOf('i_4') < 0, j([coK.core, plK.core]));
         const fs = require('fs');
         const winS = fs.readFileSync(path.join(app, 'scripts', 'librarywin.js'), 'utf8').replace(/\r\n/g, '\n'), lbS = fs.readFileSync(path.join(app, 'scripts', 'library.js'), 'utf8').replace(/\r\n/g, '\n');
-        const hmS = fs.readFileSync(path.join(app, 'index.html'), 'utf8').replace(/\r\n/g, '\n'), tuS = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8');
+        const hmS = fs.readFileSync(path.join(app, 'index.html'), 'utf8').replace(/\r\n/g, '\n');
         const fk = /var ROW_H = 28, FLUSH_MS = 1000, FORM_KEYS = (\[[^\]]*\]);/.exec(winS), FK = fk ? JSON.parse(fk[1].replace(/'/g, '"')) : [];
         const full = entryFromForm({ id: 'i_z', name: 'n', key: 'K', category: 'c', icon: 'x', vis: 'gm', lvl: '1', stats: { Rank: '2' }, notes: 'n', desc: 'd', tags: 't', ref: 'r', damage: '1', cost: '1', throwSkill: 'T', areaFt: '5', gmNotes: 'g', rm: 'bound', rmMsg: 'm', eq: 'curse', eqMsg: 'e', mods: [{ f: 'f_x', op: 'add', v: 1 }], modsOn: true });
         check('L2a the Library window: text nodes only (nothing from an entry, a pack name or a file becomes markup); it never writes a pack it has not read (still loading or unreadable: writing it would leave nothing); a save replaces every field the form holds (each one entryFromForm makes) and keeps the rest (a bound item\'s secrets); it acts on the campaign it opened on',
@@ -173,11 +173,11 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && /after\(\);\n\s*if \(window\.wpLibraryWin && window\.wpLibraryWin\.refresh\) \{ try \{ window\.wpLibraryWin\.refresh\(\); \} catch \(e\) \{ console\.error\(e\); \} \}[^\n]*\n(\s*if \(mine\.state === 'ready'\) migrateItems\(camp\);[^\n]*\n)?\s*return mine;/.test(lbS)
             && /window\.wpLibrary = \{[^\n]*, ready: ready, setMeta: setMeta[, ]/.test(lbS));
         const zOf = id => { const m = new RegExp('<div id="' + id + '" style="[^"]*z-index:(\\d+)').exec(hmS); return m ? Number(m[1]) : NaN; };
-        check('L2a the window sits above the System editor and below its questions, loads after the store, opens from the Items tab, and Help and the tour describe it',
+        check('L2a the window sits above the System editor and below its questions, loads after the store, opens from the Items tab, and Help describes it',
             zOf('libraryModal') > zOf('systemModal') && zOf('libraryModal') < zOf('customConfirm') && zOf('libraryModal') < zOf('customPrompt')
             && hmS.indexOf('scripts/librarywin.js') > hmS.indexOf('scripts/library.js') && hmS.indexOf('scripts/library.js') > 0
             && /<div id="sysItems"[\s\S]*?id="sysOpenLibrary"[\s\S]*?<div id="sysItemRows"/.test(hmS)
-            && /<div id="helpModal"[\s\S]*<li><b>&#128218; Library&hellip;<\/b> \(on the Items tab\)/.test(hmS) && /<b>&#128218; Library&hellip;<\/b> opens the campaign&rsquo;s <b>library<\/b>/.test(tuS), j([zOf('libraryModal'), zOf('systemModal'), zOf('customConfirm')]));
+            && /<div id="helpModal"[\s\S]*<li><b>&#128218; Library&hellip;<\/b> \(on the Items tab\)/.test(hmS), j([zOf('libraryModal'), zOf('systemModal'), zOf('customConfirm')]));
     }
 
     /* ---- L2a2: a pack as a file, the import's dry run, bulk changes ---- */
@@ -240,9 +240,9 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && /var pid = st\.packId, ids = chosen\(\); if \(!ids\.length \|\| !ready\(pid\)\) return;\n\s*var before = workOf\(pid\), r = bulkSet\(/.test(winT) && /if \(!ids\.length \|\| !ready\(src\) \|\| !ready\(dst\) \|\| src === dst\) return;/.test(winT)
             && /if \(!yes \|\| !st\.open \|\| !ready\(pid\)\) return; var gone = map\(\);/.test(winT) && !/innerHTML|outerHTML|insertAdjacentHTML/.test(winT));
         const hmT = fs.readFileSync(path.join(app, 'index.html'), 'utf8');
-        check('L2a2 Help and the tour describe choosing several, import with its dry run and export; the window has its Import button and a list that takes the keys',
+        check('L2a2 Help describes choosing several, import with its dry run and export; the window has its Import button and a list that takes the keys',
             /id="libImport"/.test(hmT) && /<div id="libList" class="lib-list" tabindex="0">/.test(hmT) && /<b>Import&hellip;<\/b> reads a <code>\.wppack\.json<\/code> file and shows what it would do before anything changes/.test(hmT) && /<b>Ctrl-click<\/b>, <b>Shift-click<\/b> or <b>Ctrl\+A<\/b> chooses several entries/.test(hmT)
-            && /packs import and export as <code>\.wppack\.json<\/code> files/.test(fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8')));
+);
     }
 
     /* ---- L2c: the picker — its search, its safety, the sheet's option ---- */
@@ -306,13 +306,13 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     /* ---- L3b: the players' picker ---- */
     {
         const fs = require('fs'), shB = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), pkB = fs.readFileSync(path.join(app, 'scripts', 'libpicker.js'), 'utf8').replace(/\r\n/g, '\n');
-        const hmB = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), tuB = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8');
-        check('L3b a player\'s "From the library…": offered when the host\'s manifest has a pack with entries; the picker loads it a page at a time and fetches an entry in full a moment after it is highlighted; a pick is fetched before it is sent (one that cannot be is said, never sent), on the character and field looked up again; Help and the tour say players get it',
+        const hmB = fs.readFileSync(path.join(app, 'index.html'), 'utf8');
+        check('L3b a player\'s "From the library…": offered when the host\'s manifest has a pack with entries; the picker loads it a page at a time and fetches an entry in full a moment after it is highlighted; a pick is fetched before it is sent (one that cannot be is said, never sent), on the character and field looked up again; Help says players get it',
             /if \(!gm && window\.wpLibPicker && window\.wpNet && window\.wpNet\.libManifest\) \{ var lmP = window\.wpNet\.libManifest\(\); libOK = !!lmP && lmP\.packs\.some\(function\(p\) \{ return p\.count > 0; \}\); \}/.test(shB)
             && /if \(isClient\(\)\) \{ openLibPickerPlayer\(anchor, c, f, spec\); return; \}/.test(shB) && /for \(var pid in byPack\) await N\.libGet\(pid, byPack\[pid\]\);/.test(shB)
             && /if \(cp !== camp \|\| !ch \|\| !ff\) return;\n\s*var miss = 0; ids\.forEach\(function\(id\) \{ if \(!N\.libEntry\(id\)\) \{ miss\+\+; return; \} commitItem\(ch, ff, \{ op: 'add', defId: id, rowId: uid\('w_'\), qty: qty \}\); \}\);/.test(shB)
             && /Promise\.resolve\(opts\.source\.load\(function\(\) \{ if \(st !== mine\) return;/.test(pkB) && /st\.getTimer = setTimeout\(function\(\) \{ if \(st !== mine\) return; src\.get\(x\.e, x\.p, function\(full\) \{ if \(st !== mine \|\| !full \|\| full\.id !== want\) return;/.test(pkB)
-            && /<b>Players<\/b> get the same picker on the lists they may change, over the packs you let them see/.test(hmB) && /players get it too, over the packs you let them see/.test(tuB));
+            && /<b>Players<\/b> get the same picker on the lists they may change, over the packs you let them see/.test(hmB));
     }
 
     /* ---- L2b: the system's items move into the library (lossless) and the form edits what the Items tab does ---- */

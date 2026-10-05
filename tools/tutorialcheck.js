@@ -136,6 +136,8 @@ for (const t of targets) {
 }
 // The tour's engine (1.5.1): where a tour ended is kept, a step's text is laid out to be read without a word of it changing, each step's
 // stage is reset before its own setup, and the card, the shield and Try it yourself are wired. Slices run for real; the rest pinned.
+// The short tour (1.5.4): every step is held to the plain-words rule, names the Help entry that holds the rest of it (More in Help, run
+// for real), and sets nothing in bold that Help does not know.
 {
     const nl = String.fromCharCode(10), lf = src.replace(/\r\n/g, nl), css = fs.readFileSync(path.join(app, 'style.css'), 'utf8').replace(/\r\n/g, nl), page = html.replace(/\r\n/g, nl);
     const cut = name => { const a = lf.indexOf('// [tutorialcheck:' + name + '-start]'), z = lf.indexOf('// [tutorialcheck:' + name + '-end]'); if (a < 0 || z < a) throw new Error('tutorialcheck: the ' + name + ' slice is not marked in tutorial.js'); return lf.slice(a, z); };
@@ -149,24 +151,46 @@ for (const t of targets) {
     const thrower = mk({ getItem() { throw new Error('no'); }, setItem() { throw new Error('no'); }, removeItem() { throw new Error('no'); } });
     let quiet = true; try { quiet = thrower.tourAt() === 0; thrower.rememberAt(3); thrower.rememberAt(0); } catch (e) { quiet = false; }
     const placeOk = kept && first && last && word && hostile && quiet;
-    // (b) the text: cut only between sentences, never inside a tag or a bracket; every step's words, tags and their order exactly its own
-    const B = new Function('"use strict";' + nl + cut('blocks') + nl + 'return { blocks: tourBlocks, pieces: tourPieces, len: tourLen };')();
-    const piecesOk = JSON.stringify(B.pieces('One. Two (a. B) three. <b>Four. Five</b> six. Seven e.g. this. Eight', false)) === JSON.stringify(['One.', 'Two (a. B) three.', '<b>Four. Five</b> six.', 'Seven e.g. this.', 'Eight'])
-        && JSON.stringify(B.pieces('A &amp; b; c. &#9654; D; e', true)) === JSON.stringify(['A &amp; b;', 'c.', '&#9654; D;', 'e'])
-        && JSON.stringify(B.pieces('A; b. C', false)) === JSON.stringify(['A; b.', 'C']) && B.pieces('', false).length === 0 && B.len('<b>a&amp;b</b> c') === 5;
+    // (b) the text: a short step stands as it is, a longer one is a lead and one point a sentence, cut only between sentences and never inside a
+    // tag; every step's words, tags and their order exactly its own; no fold (no step is long enough for one: see the plain-words rule below)
+    const J = JSON.stringify, B = new Function('"use strict";' + nl + cut('blocks') + nl + 'return { blocks: tourBlocks, pieces: tourPieces, len: tourLen };')();
+    const piecesOk = J(B.pieces('One. Two three. <b>Four. Five</b> six. Seven e.g. this. Eight')) === J(['One.', 'Two three.', '<b>Four. Five</b> six.', 'Seven e.g. this.', 'Eight'])
+        && J(B.pieces('A &amp; b. &#9654; D. e')) === J(['A &amp; b.', '&#9654; D. e']) && J(B.pieces('Is it? Yes! Done: a, b.')) === J(['Is it?', 'Yes!', 'Done: a, b.']) && B.pieces('').length === 0 && B.len('<b>a&amp;b</b> c') === 5;
     const shortOk = B.blocks('One. Two. Three.') === '<p>One. Two. Three.</p>' && B.blocks(null) === '<p></p>';
-    const xs = 'X' + 'x'.repeat(199), ys = 'Y' + 'y'.repeat(199), zs = 'Z' + 'z'.repeat(199), ws = 'w'.repeat(200);   // the fourth sentence is too long for one point: cut at its semicolon, its second half given a capital
-    const longOut = B.blocks('Lead sentence here. ' + xs + '. ' + ys + '. ' + zs + '; ' + ws + '. Tail one. Tail two.');
-    const longOk = longOut === '<p class="tour-lead">Lead sentence here.</p><ul class="tour-pts"><li>' + xs + '.</li><li>' + ys + '.</li><li>' + zs + '</li></ul><details class="tour-more"><summary>More about this (3)</summary><ul class="tour-pts"><li>W' + ws.slice(1) + '.</li><li>Tail one.</li><li>Tail two.</li></ul></details>';
+    const xs = 'X' + 'x'.repeat(149), ys = 'Y' + 'y'.repeat(149), zs = 'Z' + 'z'.repeat(149), at380 = 'A' + 'a'.repeat(124) + '. B' + 'b'.repeat(124) + '. C' + 'c'.repeat(124) + '.';
+    const longOk = B.blocks('Lead sentence here. ' + xs + '. ' + ys + '. ' + zs + '.') === '<p class="tour-lead">Lead sentence here.</p><ul class="tour-pts"><li>' + xs + '.</li><li>' + ys + '.</li><li>' + zs + '.</li></ul>'
+        && B.blocks(' Lead sentence here. ' + xs + '. ' + ys + '. ' + zs + '. ') === '<p class="tour-lead">Lead sentence here.</p><ul class="tour-pts"><li>' + xs + '.</li><li>' + ys + '.</li><li>' + zs + '.</li></ul>'      // a space before or after the text is no part of a point
+        && B.blocks(xs + xs + '. ' + ys + ys + '.') === '<p>' + xs + xs + '. ' + ys + ys + '.</p>'      // long, but two sentences: one paragraph
+        && B.len(at380) === 380 && B.blocks(at380) === '<p>' + at380 + '</p>' && B.blocks('A' + at380).indexOf('<p class="tour-lead">') === 0      // 380 characters stand, 381 are a lead and points
+        && !/details|summary|More about/.test(cut('blocks'));
     const lits = [...lf.matchAll(/^\s*html: ('(?:[^'\\]|\\.)*')/gm)].map(m => new Function('return ' + m[1] + ';')());
     const stepCount = (lf.match(/^\s*\{ (?:section: '[^']*', )?target: /gm) || []).length;
-    const norm = h => h.replace(/<summary>[^<]*<\/summary>/g, ' ').replace(/<[^>]*>/g, ' ').replace(/[;.]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
-    const inline = h => (h.replace(/<summary>[^<]*<\/summary>/g, '').match(/<\/?(?!p\b|ul\b|li\b|details\b)[a-z]+[^>]*>/gi) || []).join('');
+    const norm = h => h.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+    const inline = h => (h.match(/<\/?(?!p\b|ul\b|li\b)[a-z]+[^>]*>/gi) || []).join('');
     const formed = h => { const st = []; for (const m of h.matchAll(/<(\/?)([a-z0-9]+)[^>]*>/gi)) { const t = m[2].toLowerCase(); if (t === 'br') continue; if (m[1]) { if (st.pop() !== t) return false; } else st.push(t); } return st.length === 0; };
     const wrong = [];
-    lits.forEach((h, i) => { const o = B.blocks(h); if (norm(o) !== norm(h) || inline(o) !== inline(h) || !formed(o) || /<(script|style|iframe|img|a)\b|\son[a-z]+\s*=/i.test(o)) wrong.push(i); });
-    const laidOut = lits.filter(h => /^<p class="tour-lead">/.test(B.blocks(h))).length, longest = Math.max(...lits.map(h => B.len(B.blocks(h).replace(/<details[\s\S]*$/, ''))));
-    const blocksOk = piecesOk && shortOk && longOk && lits.length === stepCount && stepCount >= 39 && wrong.length === 0 && laidOut >= 30 && longest <= 1400;
+    lits.forEach((h, i) => { const o = B.blocks(h); if (norm(o) !== norm(h) || inline(o) !== inline(h) || !formed(o) || /<(script|style|iframe|img|a|details)\b|\son[a-z]+\s*=/i.test(o)) wrong.push(i); });
+    const laidOut = lits.filter(h => /^<p class="tour-lead">/.test(B.blocks(h))).length;
+    const blocksOk = piecesOk && shortOk && longOk && lits.length === stepCount && stepCount >= 39 && wrong.length === 0;
+    // the plain-words rule (the owner, 2026-10-04, of a tour card: "too many parenthesis, em dashes, its just a bunch of run on information"; by
+    // prompt: "Short tour, detail in Help"). A step says what a thing is and the few things you do with it: no bracket, no dash, no semicolon,
+    // at most 450 characters and seven sentences, no sentence past 140. The rule is tried first on text that breaks it, one way at a time.
+    const plain = h => { const v = h.replace(/<[^>]*>/g, ''), out = [], ss = B.pieces(h);
+        if (/[()\[\]]/.test(v)) out.push('bracket');
+        if (/[\u2012-\u2015]|&[mn]dash;|&#821[0-3];|&#x201[2-5];| - | -- /i.test(v)) out.push('dash');
+        if (/;/.test(v.replace(/&[#\w]{1,8};/g, ''))) out.push('semicolon');
+        if (B.len(h) > 450) out.push('long');
+        if (ss.length > 7) out.push('sentences');
+        if (ss.some(s => B.len(s.trim()) > 140)) out.push('run-on');
+        return out; };
+    const ruleOk = plain('A plain step. It says two things.').length === 0 && plain('Press <b>Go</b> &#9656; <kbd>Ctrl</kbd> + <kbd>K</kbd>, a right-click, then wait&hellip; It&rsquo;s done: all of it.').length === 0
+        && J(plain('A step (with an aside).')) === J(['bracket']) && J(plain('A step [so].')) === J(['bracket']) && J(plain('A step \u2014 with a dash.')) === J(['dash']) && J(plain('A step \u2013 so.')) === J(['dash']) && J(plain('A step &mdash; so.')) === J(['dash'])
+        && J(plain('A step &ndash; so.')) === J(['dash']) && J(plain('A step &#8212; so.')) === J(['dash']) && J(plain('A step &#x2014; so.')) === J(['dash']) && J(plain('A step - so.')) === J(['dash']) && J(plain('One thing; another.')) === J(['semicolon'])
+        && J(plain('A' + 'a'.repeat(140) + '.')) === J(['run-on']) && plain('A' + 'a'.repeat(138) + '.').length === 0 && J(plain('Ab cd ef. '.repeat(8))) === J(['sentences']) && plain('Ab cd ef. '.repeat(7)).length === 0
+        && J(plain(('L' + 'l'.repeat(118) + '. ').repeat(4))) === J(['long']) && plain(('L' + 'l'.repeat(109) + '. ').repeat(4)).length === 0 && B.len(('L' + 'l'.repeat(109) + '. ').repeat(4)) === 448;
+    const rough = lits.map((h, i) => i + ' ' + plain(h).join('+')).filter(x => / ./.test(x));
+    const longest = Math.max(...lits.map(h => B.len(h))), longestS = Math.max(...lits.map(h => Math.max(...B.pieces(h).map(s => B.len(s.trim())))));
+    const plainOk = ruleOk && rough.length === 0 && lits.length >= 39;
     // (c) the stage: what a step's setup opens is told by its target, everything else is put away first — and every real step that opens the
     // System editor, a sheet or Settings is recognised (else its own stage would be closed under it)
     const S = new Function('"use strict";' + nl + cut('stage') + nl + 'return stageFor;')();
@@ -186,14 +210,59 @@ for (const t of targets) {
         && /ov\.innerHTML = '<div id="tourShield"><\/div><div id="tourSpot"><\/div><div id="tourCard"/.test(lf)
         && /\[ov, chip\]\.forEach\(function\(n\) \{ n\.addEventListener\(t, function\(e\) \{ e\.stopPropagation\(\); \}\); \}\);/.test(lf) && /window\.addEventListener\('click', function\(\) \{ if \(tour\.active\) setTimeout\(heal, 0\); \}, true\);/.test(lf)
         && /if \(q\('tourTry'\)\) q\('tourTry'\)\.addEventListener\('click', pauseTour\);/.test(lf) && /chip\.querySelector\('#tourResume'\)\.addEventListener\('click', resumeTour\);/.test(lf) && /if \(q\('tourEndNow'\)\) q\('tourEndNow'\)\.addEventListener\('click', endTour\);/.test(lf)
-        && /tour\.i = i; tour\.asking = false;\n\s*rememberAt\(i\);/.test(lf) && /if \(!wasPaused\) \{/.test(lf) && /if \(partWay\) toast\(/.test(lf) && /<div class="tour-body">' \+ tourBlocks\(step\.html\) \+ '<\/div><div class="tour-btns"><\/div>'/.test(lf)
-        && /if \(tour\.pos\) \{ x = tour\.pos\.x; y = tour\.pos\.y; \}[^\n]*\n\s*x = Math\.max\(12, Math\.min\(x, W - cw - 12\)\); y = Math\.max\(12, Math\.min\(y, H - ch - 12\)\);/.test(lf)
+        && /tour\.i = i; tour\.asking = false;\n\s*rememberAt\(i\);/.test(lf) && /if \(!wasPaused\) \{/.test(lf) && /if \(partWay\) toast\(/.test(lf) && /<div class="tour-body">' \+ tourBlocks\(step\.html\) \+ '<\/div>'/.test(lf)
+        && /cw = Math\.min\(r \? 380 : 460, W - 24\), x, y;/.test(lf) && /if \(tour\.pos\) \{ x = tour\.pos\.x; y = tour\.pos\.y; \}[^\n]*\n\s*x = Math\.max\(12, Math\.min\(x, W - cw - 12\)\); y = Math\.max\(12, Math\.min\(y, H - ch - 12\)\);/.test(lf)
         && /rs\.addEventListener\('click', function\(\) \{ startTour\(tourAt\(\)\); \}\);/.test(lf) && page.includes('id="tourResumeBtn"')
         && /#tourShield \{ position:fixed; inset:0; pointer-events:auto; \}/.test(css) && /#tourCard \{ position:fixed; pointer-events:auto; display:flex; flex-direction:column; max-height:calc\(100vh - 24px\);/.test(css) && /#tourCard \.tour-body \{ flex:1 1 auto; min-height:56px; overflow-y:auto;/.test(css) && /#tourCard > \* \{ flex:0 0 auto; \}/.test(css);
-    const wordsOk = page.includes('Press <b>Try it yourself</b> to put the card away and use the app') && page.includes('<kbd>Esc</kbd> asks before it ends the tour') && page.includes('keeps its place')
-        && lf.includes('<b>Try it yourself</b> puts the card away') && lf.includes('<b>Esc</b> asks before it ends the tour, and your place is kept.') && lf.includes('Hover over a line and a small chip appears') && page.includes('Hover over a line and a small chip appears');
-    if (placeOk && blocksOk && stageOk && stagePinned && wiredOk && wordsOk) console.log('ok        the tour\'s engine: where a tour ended part-way is kept (a whole step past the first and before the last; anything else stored reads as the start; a store that throws is no error); a step\'s text is laid out as a lead, points and a fold with every word, tag and their order its own (' + lits.length + ' steps, ' + laidOut + ' laid out, at most ' + longest + ' characters before the fold), cut only between sentences and never inside a tag or a bracket; what a step\'s setup opens is told by its target and everything else is put away first, every real step recognised; the shield, Try it yourself, Resume, the question before the end, the card that fits the window and Help\'s words pinned');
-    else { bad++; console.log('FAIL      the tour\'s engine', JSON.stringify({ placeOk, kept, first, last, word, hostile, quiet, blocksOk, piecesOk, shortOk, longOk, lits: lits.length, stepCount, wrong, laidOut, longest, stageOk, stagePinned, unknown, wiredOk, wordsOk })); }
+    const wordsOk = page.includes('Press <b>Try it yourself</b> to put the card away and use the app') && page.includes('<kbd>Esc</kbd> asks before it ends the tour') && page.includes('keeps its place') && page.includes('<b>More in Help</b> under a card puts the card away and opens the part of Help that holds the rest.')
+        && lf.includes('<b>Try it yourself</b> puts the card away') && lf.includes('<b>Esc</b> asks before it ends the tour, and your place is kept.') && lf.includes('<b>More in Help</b> under a card opens the part of Help that says the rest.') && !/More about this/.test(page + lf + css) && !/tour\.wide/.test(lf);
+    if (placeOk && blocksOk && stageOk && stagePinned && wiredOk && wordsOk) console.log('ok        the tour\'s engine: where a tour ended part-way is kept (a whole step past the first and before the last; anything else stored reads as the start; a store that throws is no error); a step\'s text stands as it is, or as a lead and one point a sentence when it is long, with every word, tag and their order its own (' + lits.length + ' steps, ' + laidOut + ' as points), cut only between sentences and never inside a tag, and never folded; what a step\'s setup opens is told by its target and everything else is put away first, every real step recognised; the shield, Try it yourself, Resume, the question before the end, the card that fits the window and Help\'s words pinned');
+    else { bad++; console.log('FAIL      the tour\'s engine', JSON.stringify({ placeOk, kept, first, last, word, hostile, quiet, blocksOk, piecesOk, shortOk, longOk, lits: lits.length, stepCount, wrong, laidOut, stageOk, stagePinned, unknown, wiredOk, wordsOk })); }
+    if (plainOk) console.log('ok        the tour is short and plain (the owner, 2026-10-04): no step has a bracket, a dash or a semicolon, none is past 450 characters or seven sentences, and no sentence is past 140 (the longest step ' + longest + ', the longest sentence ' + longestS + '); the rule is tried on text that breaks it each way, and on text that is at each limit');
+    else { bad++; console.log('FAIL      the tour is short and plain: a step breaks the rule (step number from 0, and how) ' + JSON.stringify({ ruleOk, rough, longest, longestS }) + ' — say it in short sentences and move the detail to Help'); }
+    // More in Help: a step names the Help entry that holds the rest of it, and the card offers it. helpName, helpFind and tourHelp (the helpat
+    // slice) run for real: on made-up panes for the rule, and on Help as index.html writes it for every pointer the steps hold.
+    const ENT = { amp: '&', rsquo: '\u2019', lsquo: '\u2018', hellip: '\u2026', mdash: '\u2014', ndash: '\u2013', nbsp: ' ', times: '\u00d7', rarr: '\u2192', larr: '\u2190', lt: '<', gt: '>', quot: '"', middot: '\u00b7', minus: '\u2212', plusmn: '\u00b1', ldquo: '\u201c', rdquo: '\u201d' };
+    const dec = s => s.replace(/&#(\d+);/g, (m, n) => String.fromCodePoint(+n)).replace(/&#x([0-9a-f]+);/gi, (m, n) => String.fromCodePoint(parseInt(n, 16))).replace(/&([a-z]+);/gi, (m, n) => (n in ENT ? ENT[n] : m));
+    const textOf = s => dec(s.replace(/<[^>]*>/g, ''));
+    const helpA = page.indexOf('id="helpModal"'), helpZ = page.indexOf('<div class="layout-wrapper">', helpA), helpSrc = helpA > 0 && helpZ > helpA ? page.slice(helpA, helpZ) : '', panes = {};
+    helpSrc.split('<div class="help-pane" data-pane="').slice(1).forEach(p => {
+        const id = p.slice(0, p.indexOf('"')), opens = [], re = /<(h4|li|p|div class="help-tip")\b[^>]*>/g; let m;
+        while ((m = re.exec(p))) opens.push({ tag: m[1] === 'h4' ? 'H4' : m[1] === 'li' ? 'LI' : m[1] === 'p' ? 'P' : 'DIV', at: m.index, end: m.index + m[0].length });
+        panes[id] = opens.map((o, i) => { const body = p.slice(o.end, i + 1 < opens.length ? opens[i + 1].at : p.length), b = /<b>([\s\S]*?)<\/b>/.exec(body);
+            return { tagName: o.tag, textContent: textOf(o.tag === 'H4' ? body.slice(0, body.indexOf('</h4>')) : body), querySelector: q => (q === 'b' && b ? { textContent: textOf(b[1]) } : null) }; });
+    });
+    const docOf = map => ({ querySelector: sel => { const m = /^#helpModal \.help-pane\[data-pane="([^"]*)"\]$/.exec(sel), list = m && Object.prototype.hasOwnProperty.call(map, m[1]) ? map[m[1]] : null; return list ? { querySelectorAll: q => (q === 'h4, li, p, .help-tip' ? list : []) } : null; } });
+    const mkH = (doc, STEPS, tour, pause, clear, win, later) => new Function('document', 'STEPS', 'tour', 'pauseTour', 'clearStage', 'window', 'setTimeout', 'console', '"use strict";' + nl + cut('helpat') + nl + 'return { name: helpName, find: helpFind, go: tourHelp };')(doc, STEPS || [], tour || {}, pause || (() => {}), clear || (() => {}), win || {}, later || (() => {}), { warn() {} });
+    const h0 = mkH(docOf(panes));
+    const nameOk = h0.name('\ud83c\udfb5 Sound') === 'Sound' && h0.name('Layout:') === 'Layout' && h0.name('  The   HUD. ') === 'The HUD' && h0.name('Edit sheet and Lock sheet.') === 'Edit sheet and Lock sheet' && h0.name(null) === '' && h0.name('Linked maps (doors, stairs, warps)') === 'Linked maps (doors, stairs, warps)' && h0.name('2 x 4') === '2 x 4';
+    const mkEl = (tag, text, bold) => ({ tagName: tag, textContent: text, querySelector: q => (q === 'b' && bold !== undefined ? { textContent: bold } : null) });
+    const fake = [mkEl('LI', 'Sound: an entry', 'Sound:'), mkEl('H4', 'Other'), mkEl('LI', 'x', 'Twice'), mkEl('LI', 'y', 'Twice'), mkEl('H4', 'Sound'), mkEl('P', 'no bold here'), mkEl('LI', 'z', '\u2728 Sparks.'), mkEl('H4', 'Sound'), mkEl('LI', 'a bullet for its bold words', '\u2022')], hf = mkH(docOf({ p: fake }));
+    const findOk = hf.find('p', 'Sound') === fake[4] && hf.find('p', 'Twice') === fake[2] && hf.find('p', 'Sparks') === fake[6] && hf.find('p', 'Other') === fake[1] && hf.find('p', 'Nothing') === null && hf.find('q', 'Sound') === null && hf.find('p', '') === null && hf.find('p', 'no bold here') === null && hf.find('__proto__', 'Sound') === null;
+    // the press, run for real: the card goes as for Try it yourself, the stage is cleared as for a step that needs nothing, Help opens at the pane, the entry is brought into view and marked
+    const press = (step, st, win) => { const calls = [], el = { tagName: 'H4', textContent: 'Fog of war', offsetWidth: 1, classList: { add: c => calls.push('add ' + c), remove: c => calls.push('remove ' + c) }, scrollIntoView: () => calls.push('scroll') }, tour = Object.assign({ i: 0, active: true, paused: false }, st);
+        mkH(docOf({ whiteboard: [el] }), [step], tour, () => { calls.push('pause'); tour.paused = true; }, s => calls.push('clear ' + J(s)), win === undefined ? { wpOpenHelp: p => calls.push('open ' + p) } : win, fn => { calls.push('later'); fn(); }).go(); return calls; };
+    const fogAt = { help: ['whiteboard', 'Fog of war'] };
+    const goOk = J(press(fogAt)) === J(['pause', 'clear {}', 'open whiteboard', 'later', 'scroll', 'remove help-hit', 'add help-hit', 'later', 'remove help-hit'])
+        && press({}).length === 0 && press(fogAt, { active: false }).length === 0 && press(fogAt, { paused: true }).length === 0 && press(fogAt, { i: 3 }).length === 0
+        && J(press({ help: ['whiteboard', 'Not there'] })) === J(['pause', 'clear {}', 'open whiteboard']) && J(press({ help: ['nopane', 'Fog of war'] })) === J(['pause', 'clear {}', 'open nopane']) && J(press(fogAt, {}, {}).slice(0, 3)) === J(['pause', 'clear {}', 'later']);
+    // every pointer the steps hold, against Help as written: found, in one place only (one heading of that name; with none, one entry), and every step has one but the Help step and the last
+    const helps = [...lf.matchAll(/^\s*help: \['([^']*)', '([^']*)'\]/gm)].map(m => [m[1], m[2]]);
+    const count = (p, n, head) => (panes[p] || []).filter(e => (e.tagName === 'H4') === head && (head ? h0.name(e.textContent) : (e.querySelector('b') ? h0.name(e.querySelector('b').textContent) : null)) === h0.name(n)).length;
+    const lost = helps.filter(([p, n]) => !/^[a-z-]+$/.test(p) || !h0.find(p, n) || count(p, n, true) > 1 || (count(p, n, true) === 0 && count(p, n, false) !== 1)).map(x => x.join(' > '));
+    const bare = steps.filter(s => !/^\s*help: \[/m.test(s.text)).map(s => s.target), paneIds = Object.keys(panes);
+    const cardOk = /'<\/h3><div class="tour-body">' \+ tourBlocks\(step\.html\) \+ '<\/div>' \+ \(step\.help \? '<button class="tour-help" id="tourHelp"[^\n]*>More in Help &#9656; ' \+ esc\(step\.help\[1\]\) \+ '<\/button>' : ''\) \+ '<div class="tour-btns"><\/div>';/.test(lf)
+        && /if \(q\('tourHelp'\)\) q\('tourHelp'\)\.addEventListener\('click', tourHelp\);/.test(lf) && /#tourCard \.tour-help \{[^}]*cursor:pointer;[^}]*\}/.test(css) && /#tourChip \{[^}]*z-index:100001;/.test(css) && /id="helpModal" style="[^"]*z-index:99999;/.test(page);
+    const helpOk = nameOk && findOk && goOk && paneIds.length >= 12 && helps.length === stepCount - 2 && lost.length === 0 && J(bare) === J(['#helpBtn', null]) && cardOk;
+    if (helpOk) console.log('ok        More in Help (the helpat slice run for real): a step names the Help entry that holds the rest of it — a heading by its own words, any other entry by its first bold words, read without a leading symbol and a closing colon or full stop; a heading is taken before an entry, the first entry before a later one — and all ' + helps.length + ' pointers land on Help as index.html writes it, each in one place only; every step has one but the Help step and the last; the card shows the button only for such a step; its press puts the card away as Try it yourself does, clears the stage as for a step that needs nothing (the System editor and Settings sit over Help), opens Help at the pane and brings the entry into view, marked; nothing for a step with no pointer, a tour that is off or paused; an entry or a pane that is not there still opens Help; the chip sits over Help');
+    else { bad++; console.log('FAIL      More in Help', JSON.stringify({ nameOk, findOk, goOk, panes: paneIds.length, helps: helps.length, stepCount, lost, bare, cardOk })); }
+    // nothing the tour names has gone stale: every name a step sets in bold is in Help's own text, or is one of the Tutorial campaign's own
+    // names (what this file builds and says outside its steps)
+    const flat = s => textOf(s).replace(/[\u2019\u2018']/g, "'").replace(/\u2026/g, '...').replace(/\s+/g, ' ').trim().toLowerCase();
+    const stepsA = lf.indexOf('var STEPS = ['), stepsZ = lf.indexOf(nl + '];', stepsA), helpFlat = flat(helpSrc), demoFlat = flat(lf.slice(0, stepsA) + lf.slice(stepsZ));
+    const names = [], strange = []; lits.forEach((h, i) => { for (const m of h.matchAll(/<b>([\s\S]*?)<\/b>/g)) { const t = flat(m[1]).replace(/\.\.\.$/, ''); if (t.length < 2) continue; names.push(t); if (helpFlat.indexOf(t) < 0 && demoFlat.indexOf(t) < 0) strange.push(i + ' ' + t); } });
+    if (stepsA > 0 && stepsZ > stepsA && helpFlat.length > 50000 && names.length > 100 && strange.length === 0) console.log('ok        nothing the tour names is unknown: every name a step sets in bold (' + names.length + ' of them) is in Help\'s own text, or is one of the Tutorial campaign\'s own names — so a control that is renamed, or a feature Help no longer tells of, fails here until its step is put right');
+    else { bad++; console.log('FAIL      the tour names something Help does not (step number from 0, and the name): ' + JSON.stringify(strange) + ' — Help holds every feature, so name it as Help does, or tell of it in Help'); }
 }
 const ver = (src.match(/TUTORIAL_VERSION = '([^']+)'/) || [])[1];
 const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'system', 'resources', 'app', 'package.json'), 'utf8')).version;

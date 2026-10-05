@@ -78,6 +78,19 @@ Planners and pages
   drag anywhere, onto another screen too. Open over the map is still
   there for the floating panel.
 
+The tour
+- The tour is short now. Each step says what a thing is and the few
+  things you do with it, in short plain sentences. The whole tour is
+  about a quarter of its old length, and no card has a fold.
+- More in Help, under a card, opens Help at the entry that holds the
+  rest of that step. The card is put away while you read, and Resume
+  tour brings the step back as it was.
+- Help tells of four things the old tour said and Help did not: the
+  Campaign Cast, a planner's Next, Played and Skipped status, Sound
+  with it in the effects panel, and the tools on a right-click of
+  Maps, Planners or Handbook in the left panel. Visual effects moved
+  to the Play Map part of Help, beside Sound, Music and Video.
+
 Fixes
 - The fog of war is lighter on a busy map. It read every character's
   sheet again for each frame it drew, sixteen times a second; it now

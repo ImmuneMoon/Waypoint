@@ -101,6 +101,10 @@ Fixes
   row for each weapon. Nothing was left out, and it is no longer
   counted. The review of an uploaded sheet no longer offers a change
   that changes nothing, such as 1/2D 625 to 625.
+- On a hex map, a picture or shape the size of one cell sat 15 pixels
+  off centre when Snap dropped it. Its corner went to a corner of the
+  hexagon. It now seats in its cell, as a token does, when you drop it
+  and when you resize it to that size.
 - A planner or page with large tables opens quickly in your editor. The
   time to open grew much faster than the table did: a page of two
   thousand cells took several seconds. It now opens in a fraction of a

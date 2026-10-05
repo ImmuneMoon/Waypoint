@@ -222,8 +222,8 @@ for (const t of targets) {
     else { bad++; console.log('FAIL      the tour is short and plain: a step breaks the rule (step number from 0, and how) ' + JSON.stringify({ ruleOk, rough, longest, longestS }) + ' — say it in short sentences and move the detail to Help'); }
     // More in Help: a step names the Help entry that holds the rest of it, and the card offers it. helpName, helpFind and tourHelp (the helpat
     // slice) run for real: on made-up panes for the rule, and on Help as index.html writes it for every pointer the steps hold.
-    const ENT = { amp: '&', rsquo: '\u2019', lsquo: '\u2018', hellip: '\u2026', mdash: '\u2014', ndash: '\u2013', nbsp: ' ', times: '\u00d7', rarr: '\u2192', larr: '\u2190', lt: '<', gt: '>', quot: '"', middot: '\u00b7', minus: '\u2212', plusmn: '\u00b1', ldquo: '\u201c', rdquo: '\u201d' };
-    const dec = s => s.replace(/&#(\d+);/g, (m, n) => String.fromCodePoint(+n)).replace(/&#x([0-9a-f]+);/gi, (m, n) => String.fromCodePoint(parseInt(n, 16))).replace(/&([a-z]+);/gi, (m, n) => (n in ENT ? ENT[n] : m));
+    const ENT = { amp: '&', rsquo: '\u2019', lsquo: '\u2018', hellip: '\u2026', mdash: '\u2014', ndash: '\u2013', nbsp: ' ', times: '\u00d7', rarr: '\u2192', larr: '\u2190', lt: '<', gt: '>', quot: '"', middot: '\u00b7', minus: '\u2212', plusmn: '\u00b1', ldquo: '\u201c', rdquo: '\u201d', deg: '\u00b0', frac12: '\u00bd', frac34: '\u00be', sup2: '\u00b2', divide: '\u00f7', radic: '\u221a', bull: '\u2022', rsaquo: '\u203a', uarr: '\u2191', darr: '\u2193', Omega: '\u03a9' };
+    const dec = s => s.replace(/&#(\d+);/g, (m, n) => String.fromCodePoint(+n)).replace(/&#x([0-9a-f]+);/gi, (m, n) => String.fromCodePoint(parseInt(n, 16))).replace(/&([a-z][a-z0-9]*);/gi, (m, n) => (n in ENT ? ENT[n] : m));
     const textOf = s => dec(s.replace(/<[^>]*>/g, ''));
     const helpA = page.indexOf('id="helpModal"'), helpZ = page.indexOf('<div class="layout-wrapper">', helpA), helpSrc = helpA > 0 && helpZ > helpA ? page.slice(helpA, helpZ) : '', panes = {};
     helpSrc.split('<div class="help-pane" data-pane="').slice(1).forEach(p => {
@@ -266,15 +266,21 @@ for (const t of targets) {
     // Help in plain words (backlog 121; the owner, 2026-10-04, of a tour card: "too many parenthesis, em dashes, its just a bunch of run on
     // information", and by prompt, 2026-10-05: "A part at a time"). A part of Help that has had its reading is held to the rule from then
     // on: no bracket, no dash, no semicolon, no sentence past 160 characters, no entry past 800. What is set as code or as a key (a formula,
-    // Ctrl + K) is no prose and is not judged. HELP_PLAIN names the parts done so far. The rule is tried first on text that breaks it.
-    const HELP_PLAIN = ['start'];
+    // Ctrl + K) is no prose and is not judged. HELP_PLAIN names the parts done so far (the count below is raised with each part, so that a
+    // part cannot drop out of the list unseen). The rule is tried first on text that breaks it.
+    // A named entity is read as its character (a half, a degree sign); one the decoder does not know is said as such, for its closing
+    // mark would otherwise read as a semicolon and send the writer after the wrong thing. A sentence is measured as it is read (hLen):
+    // an entry's lead is followed by a line break, indentation and its nested list's tag, and none of that is the sentence's length.
+    const HELP_PLAIN = ['start', 'whiteboard'];
     const proseOf = h => h.replace(/<(code|kbd)\b[^>]*>[\s\S]*?<\/\1>/g, '<i>x</i>');
+    const hLen = s => B.len(s.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim());   // a sentence as it is read: no tag, and the line break and indentation before a nested list are not its length
     const helpRule = h => { const p = proseOf(h), v = dec(p.replace(/<[^>]*>/g, '')).replace(/\s+/g, ' ').trim(), out = [];
         if (/[()\[\]]/.test(v)) out.push('bracket');
         if (/[\u2012-\u2015]| - | -- /.test(v)) out.push('dash');
         if (/;/.test(v)) out.push('semicolon');
         if (v.length > 800) out.push('long');
-        if (B.pieces(p).some(s => B.len(s.trim()) > 160)) out.push('run-on');
+        if (B.pieces(p).some(s => hLen(s) > 160)) out.push('run-on');
+        if (/&[a-z][a-z0-9]*;/i.test(v)) out.push('entity');   // one the decoder does not know: add it to ENT
         return out; };
     const entriesOf = id => { const a = helpSrc.indexOf('<div class="help-pane" data-pane="' + id + '"'); if (a < 0) return null; const z = helpSrc.indexOf('<div class="help-pane" data-pane="', a + 10), p = helpSrc.slice(a, z < 0 ? helpSrc.length : z), opens = [], re = /<(h4|li|p)\b[^>]*>|<(div) class="help-tip">/g; let m;
         while ((m = re.exec(p))) opens.push([m.index, m.index + m[0].length, m[1] || m[2]]);
@@ -282,12 +288,37 @@ for (const t of targets) {
     const hRuleOk = helpRule('A plain entry. It says two things: one, and the other.').length === 0 && helpRule('Press <kbd>Ctrl + K</kbd>, then read <code>max(a; b) - (c)</code>. It&rsquo;s done &#9656; next.').length === 0
         && J(helpRule('An entry (with an aside).')) === J(['bracket']) && J(helpRule('An entry [so].')) === J(['bracket']) && J(helpRule('An entry &mdash; so.')) === J(['dash']) && J(helpRule('An entry \u2013 so.')) === J(['dash']) && J(helpRule('An entry &#8212; so.')) === J(['dash']) && J(helpRule('An entry - so.')) === J(['dash'])
         && J(helpRule('One thing; another.')) === J(['semicolon']) && J(helpRule('A' + 'a'.repeat(160) + '.')) === J(['run-on']) && helpRule('A' + 'a'.repeat(158) + '.').length === 0
-        && J(helpRule(('L' + 'l'.repeat(97) + '. ').repeat(8) + 'Tail.')) === J(['long']) && helpRule(('L' + 'l'.repeat(97) + '. ').repeat(8)).length === 0 && J(helpRule('<code>(x)</code> and (y).')) === J(['bracket']);
+        && J(helpRule(('L' + 'l'.repeat(97) + '. ').repeat(8) + 'Tail.')) === J(['long']) && helpRule(('L' + 'l'.repeat(97) + '. ').repeat(8)).length === 0 && J(helpRule('<code>(x)</code> and (y).')) === J(['bracket'])
+        && helpRule('Half is &frac12;, a quarter turn 90&deg;, a floor of 5 m&sup2;, up &uarr; and 6 &divide; 2.').length === 0 && J(helpRule('A sign &nosuchname; here.')) === J(['semicolon', 'entity'])
+        && helpRule('L' + 'l'.repeat(158) + '.' + nl + ' '.repeat(30) + '<ul>' + nl + ' '.repeat(34)).length === 0 && J(helpRule('L' + 'l'.repeat(160) + '.' + nl + ' '.repeat(30) + '<ul>' + nl)) === J(['run-on']) && hLen('  A <b>bold</b>   word &amp; one.  ') === 18;
     const hRough = [], hSizes = []; let hLongS = 0, hLongE = 0;
     HELP_PLAIN.forEach(id => { const es = entriesOf(id); if (!es || es.length < 3) { hRough.push(id + ': the part was not found'); return; } hSizes.push(id + ' ' + es.length);
-        es.forEach((h, i) => { const r = helpRule(h), t = dec(proseOf(h).replace(/<[^>]*>/g, '')).replace(/\s+/g, ' ').trim(); hLongE = Math.max(hLongE, t.length); B.pieces(proseOf(h)).forEach(s => { hLongS = Math.max(hLongS, B.len(s.trim())); }); if (r.length) hRough.push(id + ' entry ' + i + ' ' + r.join('+') + ': ' + t.slice(0, 70)); }); });
-    if (hRuleOk && hRough.length === 0 && HELP_PLAIN.length >= 1 && HELP_PLAIN.every(id => paneIds.indexOf(id) >= 0)) console.log('ok        Help in plain words, a part at a time (the owner, by prompt): each part that has had its reading (' + hSizes.join(', ') + ' entries) has no bracket, no dash and no semicolon outside what is set as code or as a key, no sentence past 160 characters and no entry past 800 (the longest sentence ' + hLongS + ', the longest entry ' + hLongE + '); the rule is tried on text that breaks it each way, and on text at each limit');
+        es.forEach((h, i) => { const r = helpRule(h), t = dec(proseOf(h).replace(/<[^>]*>/g, '')).replace(/\s+/g, ' ').trim(); hLongE = Math.max(hLongE, t.length); B.pieces(proseOf(h)).forEach(s => { hLongS = Math.max(hLongS, hLen(s)); }); if (r.length) hRough.push(id + ' entry ' + i + ' ' + r.join('+') + ': ' + t.slice(0, 70)); }); });
+    if (hRuleOk && hRough.length === 0 && HELP_PLAIN.length >= 2 && new Set(HELP_PLAIN).size === HELP_PLAIN.length && HELP_PLAIN.every(id => paneIds.indexOf(id) >= 0)) console.log('ok        Help in plain words, a part at a time (the owner, by prompt): each part that has had its reading (' + hSizes.join(', ') + ' entries) has no bracket, no dash and no semicolon outside what is set as code or as a key, no sentence past 160 characters and no entry past 800 (the longest sentence ' + hLongS + ', the longest entry ' + hLongE + '); the rule is tried on text that breaks it each way, and on text at each limit; a named entity is read as its character, and one the decoder does not know is said as such');
     else { bad++; console.log('FAIL      Help in plain words: a part that has had its reading breaks the rule (the part, the entry counted from 0, how, and its first words) ' + JSON.stringify({ hRuleOk, hRough }) + ' — say it in short plain sentences, and split a long entry into points'); }
+    // Help's own search, now that an entry may hold points nested under its lead: helpOwnText and helpWhere (whiteboard.js, the helpsearch
+    // slice) run for real on a tree of plain objects. An entry is found by its own words, so one match is one result; a point's result
+    // names the entry it stands under. Help as written: an entry has a lead before its points, and points are nested one level only.
+    const hsWb = fs.readFileSync(path.join(app, 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, nl), hsA = hsWb.indexOf('// [tutorialcheck:helpsearch-start]'), hsZ = hsWb.indexOf('// [tutorialcheck:helpsearch-end]');
+    const HS = hsA > 0 && hsZ > hsA ? new Function('"use strict";' + nl + hsWb.slice(hsA, hsZ) + nl + 'return { own: helpOwnText, where: helpWhere };')() : null;
+    const hsTx = s => ({ nodeType: 3, nodeValue: s }), hsEl = (tag, ...kids) => { kids.forEach((k, i) => { k.nextSibling = kids[i + 1] || null; }); return { nodeType: 1, tagName: tag, firstChild: kids[0] || null, nextSibling: null }; };
+    const hsPt1 = hsEl('LI', hsTx('Point one.')), hsPt2 = hsEl('LI', hsTx('Point '), hsEl('B', hsTx('two')), hsTx('.')), hsEntry = hsEl('LI', hsEl('B', hsTx('* Sound')), hsTx(' is the panel. '), hsEl('UL', hsPt1, hsPt2), hsTx('tail')), hsGt = String.fromCharCode(0x203a);
+    const hsOwnOk = !!HS && HS.own(hsEntry) === '* Sound is the panel. tail' && HS.own(hsPt1) === 'Point one.' && HS.own(hsPt2) === 'Point two.' && HS.own(hsEl('P', hsTx('a '), hsEl('I', hsTx('b')), hsTx(' c'))) === 'a b c'
+        && HS.own(hsEl('LI', hsEl('OL', hsEl('LI', hsTx('x'))))) === '' && HS.own(hsEl('DIV')) === '' && HS.own(hsEl('LI', hsTx('1'), { nodeType: 8, nodeValue: 'a comment' }, hsTx('2'))) === '12';
+    const hsWhereOk = !!HS && HS.where('Placing things', '* Sound') === 'Placing things ' + hsGt + ' Sound' && HS.where('Fog of war', ' Light   sources: ') === 'Fog of war ' + hsGt + ' Light sources' && HS.where('H', '') === 'H' && HS.where('H', null) === 'H' && HS.where('H', '***') === 'H' && HS.where('H', 'Three locks on travel.') === 'H ' + hsGt + ' Three locks on travel';
+    const hsWiredOk = /\n {18}var text = helpOwnText\(el\)\.replace\(\/\\s\+\/g, ' '\)\.trim\(\);\n/.test(hsWb) && !/el\.textContent \|\| ''\)\.replace/.test(hsWb.slice(hsZ, hsZ + 1500))
+        && /var up = el\.tagName === 'LI' && el\.parentElement \? el\.parentElement\.closest\('li'\) : null, lead = up \? up\.querySelector\('b'\) : null;\n {18}if \(lead && lead\.closest\('li'\) !== up\) lead = null;/.test(hsWb)
+        && /where: helpWhere\(heading, lead \? lead\.textContent : ''\), el: el, text: text,/.test(hsWb) && /esc\(e\.where\) \+ '<\/span><div class="hr-snip">'/.test(hsWb) && /e\.heading\.toLowerCase\(\)\.indexOf\(phrase\) >= 0 \? 0 : 8/.test(hsWb);
+    // Help as written: the depth of lists under each entry, read tag by tag. The rule is tried first on markup that breaks it each way.
+    const hsShape = s => { let d = 0, deepest = 0, lists = 0; const out = []; for (const m of s.matchAll(/<(\/?)(ul|ol)\b[^>]*>/g)) { if (m[1]) d--; else { d++; if (d > 1) lists++; deepest = Math.max(deepest, d); } }
+        if (d !== 0) out.push('unbalanced'); if (deepest > 2) out.push('deep'); if (/<li>\s*<(ul|ol)\b/.test(s)) out.push('no lead'); if (/<\/(ul|ol)>\s*[^<\s]/.test(s)) out.push('words after'); return { out, lists, deepest }; };
+    const hsGood = '<ul><li><b>Lead.</b> Words.' + nl + '  <ul>' + nl + '    <li>Point.</li>' + nl + '  </ul>' + nl + '</li><li>Plain.</li></ul><ol><li>One.</li></ol>';
+    const hsRuleOk = J(hsShape(hsGood)) === J({ out: [], lists: 1, deepest: 2 }) && J(hsShape(hsGood.replace('<li>Point.</li>', '<li>Point.<ul><li>Deeper.</li></ul></li>'))) === J({ out: ['deep'], lists: 2, deepest: 3 })
+        && J(hsShape(hsGood.replace('<b>Lead.</b> Words.', '')).out) === J(['no lead']) && J(hsShape(hsGood.replace('  </ul>' + nl, '  </ul> And more.' + nl)).out) === J(['words after']) && J(hsShape(hsGood.replace('</ul><ol>', '<ol>')).out) === J(['unbalanced'])
+        && J(hsShape('<p>No list at all.</p>')) === J({ out: [], lists: 0, deepest: 0 });
+    const hsHelp = hsShape(helpSrc), hsShapeOk = hsRuleOk && hsHelp.out.length === 0 && hsHelp.deepest === 2 && hsHelp.lists >= 10, hsLists = hsHelp.lists;
+    if (hsOwnOk && hsWhereOk && hsWiredOk && hsShapeOk) console.log('ok        Help search with nested points (whiteboard.js, run for real on plain objects): an entry is found by its own words, never by the words of the points nested under it, so one match is one result; a point\'s result names its heading and the entry it stands under, read without a leading symbol or a closing colon; the ranking still reads the heading alone; Help as written nests points one level and no deeper (' + hsLists + ' nested lists), every entry has a lead before its points and no words after them; that rule is tried on markup that breaks it each way');
+    else { bad++; console.log('FAIL      Help search with nested points', JSON.stringify({ hsOwnOk, hsWhereOk, hsWiredOk, hsRuleOk, hsShapeOk, hsHelp })); }
 }
 const ver = (src.match(/TUTORIAL_VERSION = '([^']+)'/) || [])[1];
 const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'system', 'resources', 'app', 'package.json'), 'utf8')).version;

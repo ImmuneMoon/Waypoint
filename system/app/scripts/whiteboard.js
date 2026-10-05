@@ -5402,16 +5402,33 @@ if(_el_helpCloseBtn) _el_helpCloseBtn.addEventListener('click', function() {
           var b = nav.querySelector('[data-help="' + id + '"]');
           return b ? b.textContent.replace(/^[^A-Za-z0-9]+/, '').trim() : id;   // drop the leading emoji
       }
+      // [tutorialcheck:helpsearch-start]
+      // An entry's own words. An entry may hold a list of points nested under its lead: the lead is found by its own words and each point by
+      // its own, so one match is one result, never the point and again the whole entry around it.
+      function helpOwnText(el) {
+          var out = '';
+          (function walk(n) { for (var c = n.firstChild; c; c = c.nextSibling) { if (c.nodeType === 3) out += c.nodeValue; else if (c.nodeType === 1 && c.tagName !== 'UL' && c.tagName !== 'OL') walk(c); } })(el);
+          return out;
+      }
+      // Where a result is: its heading, and for a point nested under an entry that entry's name too (its first bold words, read as the tour
+      // reads a Help entry's name: no leading symbol, no closing colon or full stop).
+      function helpWhere(heading, lead) {
+          var name = String(lead == null ? '' : lead).replace(/\s+/g, ' ').replace(/^[^A-Za-z0-9]+/, '').replace(/[\s:.]+$/, '');
+          return name ? heading + ' \u203a ' + name : heading;
+      }
+      // [tutorialcheck:helpsearch-end]
       function buildIndex() {
           index = [];
           document.querySelectorAll('#helpModal .help-pane').forEach(function(pane) {
               var id = pane.dataset.pane, label = paneLabel(id), heading = label;
               pane.querySelectorAll('h4, p, li, .help-tip').forEach(function(el) {
-                  var text = (el.textContent || '').replace(/\s+/g, ' ').trim();
+                  var text = helpOwnText(el).replace(/\s+/g, ' ').trim();
                   if (!text) return;
                   var isH4 = el.tagName === 'H4';
                   if (isH4) heading = text;
-                  index.push({ paneId: id, paneLabel: label, heading: heading, el: el, text: text, lc: text.toLowerCase(), isH4: isH4 });
+                  var up = el.tagName === 'LI' && el.parentElement ? el.parentElement.closest('li') : null, lead = up ? up.querySelector('b') : null;
+                  if (lead && lead.closest('li') !== up) lead = null;   // a bold word of one of its points is no name of the entry
+                  index.push({ paneId: id, paneLabel: label, heading: heading, where: helpWhere(heading, lead ? lead.textContent : ''), el: el, text: text, lc: text.toLowerCase(), isH4: isH4 });
               });
           });
       }
@@ -5458,7 +5475,7 @@ if(_el_helpCloseBtn) _el_helpCloseBtn.addEventListener('click', function() {
               results.innerHTML = shown.map(function(e, i) {
                   var body = e.isH4
                       ? '<span class="hr-heading">' + highlight(e.text, terms) + '</span>'
-                      : '<span class="hr-heading">' + esc(e.heading) + '</span><div class="hr-snip">' + snippet(e.text, terms) + '</div>';
+                      : '<span class="hr-heading">' + esc(e.where) + '</span><div class="hr-snip">' + snippet(e.text, terms) + '</div>';
                   return '<div class="help-result" data-i="' + i + '"><span class="hr-pane">' + esc(e.paneLabel) + '</span>' + body + '</div>';
               }).join('') + (current.length > max ? '<div class="help-noresult">Showing the first ' + max + ' of ' + current.length + ' matches — keep typing to narrow.</div>' : '');
           }

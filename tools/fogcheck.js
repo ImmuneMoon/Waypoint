@@ -3162,6 +3162,16 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && !!wMix && Object.keys(wMix).length === 0 && sMix !== wMix && keysOf(sMix) === '8,2' && (X.wallsOf(sMix) || []).length === 1 && (X.wallsOf(wMix) || []).length === 1 && mv(mMix, 4, 2, 5, 2) === true && mv(mMix, 7, 2, 9, 2) === true && mv(mMix, 5, 2, 7, 2) === false
             && s1 === s2 && keysOf(s1) === '4,2' && s3 !== s1 && keysOf(s3) === '6,2' && J(mvMoved) === J([false, true]) && s4 !== s3 && keysOf(s4) === '6,2' && s5 === null, J([keysOf(hexSet), HX(mHex), mv(offGrid, 2, 2, 6, 2), mv(offCell, 2, 2, 6, 2), mv(noFog, 2, 2, 6, 2), keysOf(sMix), keysOf(s3), mvMoved]));
 
+        // owed tests (found by review, 2026-10-03): the set is built afresh when a barrier is TURNED with no save, and when it is asked with another walls' set;
+        // a hex map's box is counted with the hex cell's own width and height
+        const mTurn = bmap([{ id: 'bar', type: 'rect', x: 100, y: 100, w: 250, h: 50, barrier: true }]), tr1 = keysOf(BF.moveSetFor(mTurn, sqG, null)); mTurn.whiteboard[0].rot = 90; const tr2 = keysOf(BF.moveSetFor(mTurn, sqG, null));
+        const mTwoW = bmap([rectAt('bar', 4, 2, { barrier: true })]), wOne = Object.create(null), wTwo = Object.create(null); wOne['9,9'] = 1; wTwo['7,7'] = 1;
+        const kOne = keysOf(BF.moveSetFor(mTwoW, sqG, wOne)), kTwo = keysOf(BF.moveSetFor(mTwoW, sqG, wTwo)), kOneKept = BF.moveSetFor(mTwoW, sqG, wOne) === BF.moveSetFor(mTwoW, sqG, wOne);
+        const hxL = [], HF = mkBF('host', Object.assign({}, X, { itemCells: (w, g) => { hxL.push(w.id); return X.itemCells(w, g); } })), hexBox = rows => bmap([{ id: 'hx', type: 'rect', x: 0, y: 0, w: 45 * 398, h: 52 * rows, barrier: true }], { meta: { updated: 1, gridType: 'hex' } });
+        HF.moveSetFor(hexBox(598), hxG, null); const hxIn = hxL.slice(); hxL.length = 0; HF.moveSetFor(hexBox(599), hxG, null); const hxOut = hxL.slice();
+        check('barriers owed tests (run strict): a barrier turned with no save is read at once (its turn is in what the set is kept on: five cells across become five cells down); the set kept for one walls\' set is not handed out for another (each holds its own walls\' cells) and the same walls\' set gets the kept one; on a hex map the box is counted with the hex cell\'s own width and height — a piece of 400 by 600 cells with the margin is listed, one row more is not',
+            tr1 === '2,2 3,2 4,2 5,2 6,2' && tr2 === '4,0 4,1 4,2 4,3 4,4' && kOne === '4,2 9,9' && kTwo === '4,2 7,7' && kOneKept === true && J(hxIn) === J(['hx']) && J(hxOut) === J([]), J([tr1, tr2, kOne, kTwo, kOneKept, hxIn, hxOut]));
+
         // (h) the source: one reader of the movement set, the sight rule untouched, the board's classes and cues, the words
         const rd = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8').replace(/\r\n/g, NL);
         const wbB = rd('system/app/scripts/whiteboard.js'), cssB = rd('system/app/style.css'), inB = rd('system/app/scripts/inspector.js'), ixB = rd('system/app/index.html'), tuB = rd('system/app/scripts/tutorial.js'), ciB = rd('CAMPAIGN_INTEGRATION.md'), coreB = rd('system/app/scripts/fogcore.js');

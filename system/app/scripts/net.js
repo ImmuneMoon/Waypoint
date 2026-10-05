@@ -3435,7 +3435,13 @@ function handlePos(msg, conn) {
         var wlM = moveMode(camp, 'walls');
         if (msg.final) delete _dragFrom[dkW];
         if (turnOrderCheck(camp, map, w, frW, msg, conn) === 'stop') return;   // T3b: out of turn, first
-        if (wlM !== 'off' && window.wpFog && window.wpFog.moveBlocked && window.wpFog.moveBlocked(map, w, frW.x, frW.y, msg.x, msg.y)) {   // T3a: a wall in the way, from where the drag began
+        // A drop is judged where it will be SEATED (found by review, 2026-10-03). The host seats a final below (the snap rule), and on a square grid
+        // the seat is the lattice corner nearest the token's own: a token wider than a cell could be sent to a place clear of a wall, be seated
+        // with its centre in the wall's cell, and leave on the far side with a second drop (a move's start cell never counts). A COPY is seated
+        // first and that seat is what the wall rule judges. Mid-drag nothing is seated, so the place sent is judged, as before
+        var seatX = msg.x, seatY = msg.y;
+        if (msg.final && wlM !== 'off' && window.wpSeatDrop) { var trialW = Object.assign({}, w, { x: msg.x, y: msg.y }); if (window.wpSeatDrop(trialW, map, w.gridFit === true)) { seatX = trialW.x; seatY = trialW.y; } }
+        if (wlM !== 'off' && window.wpFog && window.wpFog.moveBlocked && window.wpFog.moveBlocked(map, w, frW.x, frW.y, seatX, seatY)) {   // T3a: a wall in the way, from where the drag began to where the drop is seated
             if (wlM === 'refuse') {
                 if (!msg.final) return;   // mid-drag: not applied (nothing past the wall reaches them meanwhile)
                 snapBack(camp, map, w, msg, frW, conn); turnNote(conn, 'A wall is in the way: your token goes back.', w.charId);
@@ -5878,7 +5884,9 @@ function handleMessage(msg, conn) {
         // a player opens/closes a door a token of theirs is adjacent to; validated on the host's OWN copy, then resynced to all
         if (typeof msg.mapId !== 'string' || typeof msg.itemId !== 'string') return;
         if (net.paused || peerPaused(conn.peer)) return;                              // frozen table (or this player is paused): no board mutation
-        if (window.wpVtt && !window.wpVtt.on('fog')) return;                           // fog off -> doors are meaningless
+        // A door decides nothing only with the Fog of war feature off AND the walls rule Off. With the feature off alone a wall's door and a barrier's
+        // still stop a token (fog.js moveBlocked reads no feature), so the request is answered (found by review, 2026-10-03: it was dropped unanswered)
+        if (window.wpVtt && !window.wpVtt.on('fog') && moveMode(getActiveCampaign(), 'walls') === 'off') return;
         if (!_doorLimit && window.wpDiceCore) _doorLimit = window.wpDiceCore.RateLimit({ perMs: 100, burst: 3, windowMs: 3000, table: 200 });
         if (_doorLimit && _doorLimit.allow(conn.peer, Date.now()) !== true) return;    // a toggle triggers a per-recipient resend, so keep it tight; silent drop
         var denyDR = function(reason) { try { conn.send({ type: 'door-deny', reason: reason }); } catch (e) { sendFailed(e); } };
@@ -5893,7 +5901,7 @@ function handleMessage(msg, conn) {
         var gridDR = Cdr.gridFor((amDR.meta && amDR.meta.gridType) || 'off', amDR.fog && amDR.fog.cell); if (!gridDR) return;   // gridless: can't judge adjacency -> ignore
         var dCellsR = doorEl.type === 'path' ? Cdr.pathCells(doorEl, gridDR) : Cdr.itemCells(doorEl, gridDR);   // item 18: the door's own cells, by its outline (a turned door as it is drawn); W2: a line door's, the cells its line passes
         var adjacentR = (amDR.whiteboard || []).some(function(w) {
-            if (!w || !w.isChar || w.hidden || w.ownerId !== profDR.id) return false;
+            if (!w || !(w.isChar || w.waiting) || w.hidden || w.ownerId !== profDR.id) return false;   // a shown token of theirs: a character's or a waiting one (the same walls stop it, so it opens the same doors)
             var tc = Cdr.cellOf(w.x + (w.w || 60) / 2, w.y + (w.h || 52) / 2, gridDR);
             return dCellsR.some(function(dc) { return gridDR.type === 'square' ? (Math.max(Math.abs((dc.c || 0) - (tc.c || 0)), Math.abs((dc.r || 0) - (tc.r || 0))) <= 1) : (Cdr.hexDist(dc, tc) <= 1); });
         });

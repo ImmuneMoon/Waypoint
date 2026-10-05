@@ -23,6 +23,19 @@ Character sheets
   to bring it back. A sheet still being made says so in the sheet's list
   and on its row of the Characters tab, which has a box to find a
   character by name.
+- A sheet opens locked. Rolls, pools, switches, counters, effects and
+  what you carry still work. Edit sheet, in the sheet's head, lets you
+  change its stats, levels, lists and notes, and Lock sheet shuts it
+  again. It is the same for you and for your players, and each of you
+  has your own switch. A character still being made opens in editing.
+- The HUD never changes a character's stats. It is for play: an
+  attribute placed there reads as a value, a list shows its levels as
+  text, and a row's details are read on the sheet.
+- In the System editor, each field has a Locked list. Automatic keeps
+  pools, switches, counters and named values working on a locked sheet.
+  Stays live and Needs Edit sheet say otherwise for that one field.
+- The button that lets a player fill in their whole sheet now reads
+  Unlock for player, and Lock for player to close it again.
 
 Calendar
 - The game clock runs by itself while you host a session: a second of

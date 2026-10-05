@@ -2183,7 +2183,7 @@ function onCtl(entry, c, f, spec, editable, labelled) {
 // F4b: 📝 — the item's notes and the row's own note (a box for whoever may change the row); null when there is nothing to show
 function noteBits(entry, def, c, f, editable, ovc) {   // ovc (F4c2): what the copy holds of its own (ovCtx), for the dots
     var box = el('div', 'sheet-item-noteline'), spec = f.list || null;
-    if (spec && Array.isArray(spec.stats) && spec.stats.length) box.appendChild(statLineNode(entry, def, spec, ovc));   // F4c1: every stat, and what one cost
+    if (spec && Array.isArray(spec.stats) && spec.stats.length) { var sln = statLineNode(entry, def, spec, ovc); if (sln) box.appendChild(sln); }   // F4c1: every stat (1.5.4: but a Hidden one), and what one cost
     if (def.notes) box.appendChild(el('div', 'sheet-item-notes', def.notes));
     if (editable) { var ni = el('input', 'field sheet-item-note'); ni.type = 'text'; ni.dataset.fid = f.id; ni.dataset.part = 'note-' + rowIdOf(entry); ni.maxLength = LIMITS.rowNote; ni.placeholder = 'A note on this one'; ni.value = entry.note || ''; ni.addEventListener('change', function() { commitItem(c, f, { op: 'set', rowId: rowIdOf(entry), facts: { note: ni.value } }); }); box.appendChild(ni); }
     else if (entry.note) box.appendChild(el('div', 'sheet-item-rownote', entry.note));
@@ -2246,16 +2246,17 @@ function statChips(host, def, spec, ovc) {   // the stats shown On the row: a ch
     (Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (s.show !== true) return; var ch = el('span', 'sheet-chip sheet-item-stat'); ch.appendChild(el('small', null, s.label)); ch.appendChild(document.createTextNode(' ' + statText(s, rowStat(spec, def, s.key)))); var dt = statDot(s, spec, ovc); if (dt) ch.appendChild(dt); host.appendChild(ch); });
 }
 function statLine(entry, def, spec) {   // every stat, then what one cost: "Acc 2 · Wt 0.0001 · Paid 500" (the 📝 line: a player reads every stat there)
-    var parts = (Array.isArray(spec.stats) ? spec.stats : []).map(function(s) { return s.label + ' ' + statText(s, rowStat(spec, def, s.key)); });
+    var parts = (Array.isArray(spec.stats) ? spec.stats : []).filter(function(s) { return s.hide !== true; }).map(function(s) { return s.label + ' ' + statText(s, rowStat(spec, def, s.key)); });   // 1.5.4: a Hidden stat is worked with, never listed
     if (spec.price) parts.push('Paid ' + statFmt(rowPaid(spec, entry, def)));
     return parts.join(' · ');
 }
 function statLineNode(entry, def, spec, ovc) {   // F4c2: the line as text (as before), with a dot after each value the copy holds of its own
-    var dots = spec.stats.map(function(s) { return statDot(s, spec, ovc); });
+    var sts = spec.stats.filter(function(s) { return s.hide !== true; }), dots = sts.map(function(s) { return statDot(s, spec, ovc); });   // 1.5.4: never a Hidden stat
+    if (!sts.length && !spec.price) return null;   // every stat Hidden and nothing paid to say: no line
     if (!dots.some(Boolean)) return el('div', 'sheet-item-statline', statLine(entry, def, spec));
     var box = el('div', 'sheet-item-statline');
-    spec.stats.forEach(function(s, i) { if (i) box.appendChild(document.createTextNode(' · ')); box.appendChild(document.createTextNode(s.label + ' ' + statText(s, rowStat(spec, def, s.key)))); if (dots[i]) box.appendChild(dots[i]); });
-    if (spec.price) box.appendChild(document.createTextNode(' · Paid ' + statFmt(rowPaid(spec, entry, def))));
+    sts.forEach(function(s, i) { if (i) box.appendChild(document.createTextNode(' · ')); box.appendChild(document.createTextNode(s.label + ' ' + statText(s, rowStat(spec, def, s.key)))); if (dots[i]) box.appendChild(dots[i]); });
+    if (spec.price) box.appendChild(document.createTextNode(' · Paid ' + statFmt(rowPaid(spec, entry, def))));   // a dot sits on a listed stat, so one comes before
     return box;
 }
 // F4c1: what one of a row cost — the GM's box (blank: the list price, shown faintly; one set op per change, the host judges it again); text for
@@ -3059,7 +3060,7 @@ function openLibPicker(anchor, c, f, spec, carried) {
     if (isClient()) { openLibPickerPlayer(anchor, c, f, spec); return; }
     var LB = window.wpLibrary, LP = window.wpLibPicker, camp = getActiveCampaign(); if (!LB || !LP || !camp || !camp.library) return;
     var once = null; if (spec && spec.noQty && !spec.multi) { once = Object.create(null); carried.forEach(function(r) { if (r && typeof r.defId === 'string' && r.hid !== 1) once[r.defId] = 1; }); }
-    var labels = {}; (spec && Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (s && typeof s.key === 'string') labels[s.key] = s.label || s.key; });
+    var labels = {}; (spec && Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (s && typeof s.key === 'string' && s.hide !== true) labels[s.key] = s.label || s.key; });
     LP.open({ anchor: anchor, title: 'Add to ' + (f.label || f.key || 'the list'), cats: spec && Array.isArray(spec.cats) && spec.cats.length ? spec.cats : null, once: once, noQty: !!(spec && spec.noQty), labels: labels, gm: true,
         source: { packs: function() { return (camp.library && camp.library.packs) || []; }, entries: function(pid) { return LB.entriesOf(pid); } },
         onAdd: function(ids, qty) { var cp = getActiveCampaign(), ch = cp && cp.chars ? cp.chars[c.id] : null, sy = systemOf(cp), ff = sy ? fieldById(sy, f.id) : null; if (cp !== camp || !ch || !ff) return; ids.forEach(function(id) { commitItem(ch, ff, { op: 'add', defId: id, rowId: uid('w_'), qty: qty }); }); } });
@@ -3070,7 +3071,7 @@ function openLibPicker(anchor, c, f, spec, carried) {
 function openLibPickerPlayer(anchor, c, f, spec) {
     var N = window.wpNet, LP = window.wpLibPicker, camp = getActiveCampaign(), man = N && N.libManifest ? N.libManifest() : null; if (!LP || !camp || !man) return;
     var packs = man.packs.filter(function(p) { return p.count > 0; }), total = packs.reduce(function(n, p) { return n + p.count; }, 0), done = false;
-    var labels = {}; (spec && Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (s && typeof s.key === 'string') labels[s.key] = s.label || s.key; });
+    var labels = {}; (spec && Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (s && typeof s.key === 'string' && s.hide !== true) labels[s.key] = s.label || s.key; });
     var asEntry = function(r) { return { id: r[0], key: r[1], name: r[2], category: r[3], icon: r[4], tags: r[5] }; };
     LP.open({ anchor: anchor, title: 'Add to ' + (f.label || f.key || 'the list'), cats: spec && Array.isArray(spec.cats) ? spec.cats : null, once: null, noQty: !!(spec && spec.noQty), labels: labels, gm: false,
         source: {
@@ -4763,6 +4764,16 @@ function renderLists() {
     var tgL = draft.fields.filter(function(x) { return x && (x.kind === 'resource' || x.kind === 'number'); });   // R2b: what a list's actions may move (APPLY_KINDS)
     lists.forEach(function(f) { box.appendChild(listCard(f, cats, tgL, draft.combat && draft.combat.turn && Array.isArray(draft.combat.turn.acts) ? draft.combat.turn.acts.filter(function(a) { return a && typeof a.key === 'string' && a.key; }) : [])); var le = errorCell('list:' + f.id); le.dataset.errFor = 'list:' + f.id; box.appendChild(le); });   // F4c1: the list's stat messages under its card
 }
+// [systemcheck:stattick-start]
+// A list stat's two ticks (1.5.4): On the row and Hidden are one or the other, in the draft and in the card's own boxes
+function statTick(d, which, on, row) {
+    if (!d || typeof d !== 'object' || (which !== 'show' && which !== 'hide')) return;
+    if (!on) { delete d[which]; return; }
+    var other = which === 'show' ? 'hide' : 'show';
+    d[which] = true; delete d[other];
+    var ob = row && typeof row.querySelector === 'function' ? row.querySelector('.sys-list-stat' + other) : null; if (ob) ob.checked = false;
+}
+// [systemcheck:stattick-end]
 function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1): the actions a list roll may cost   // targets (R2b): the pools and numbers an action or a consequence may move
     var sp = f.list && typeof f.list === 'object' ? f.list : {}, card = el('div', 'sys-list-card'); card.dataset.lid = f.id;
     card.appendChild(el('div', 'sys-list-title', (f.label || f.key || 'Item list') + (f.key ? ' (' + f.key + ')' : '')));
@@ -4813,7 +4824,8 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
             sr.appendChild(numField('sys-list-statdef', typeof s.def === 'number' ? s.def : '', 'What an item without its own value reads (blank: 0)', 'default', 'any'));
             sr.appendChild(input('sys-list-statnames field', Array.isArray(s.labels) ? s.labels.join(', ') : '', 'Names for the values 0, 1, 2… separated by commas (E, A, H, VH): a row shows the name, Items a dropdown; the value stays a number', 'Value names (optional)'));
         }
-        sr.appendChild(checkLabel('sys-list-statshow', s.show === true, 'On the row', 'Shown beside the name on each row (a column in a rich table); every stat reads in the row’s 📝 line'));
+        sr.appendChild(checkLabel('sys-list-statshow', s.show === true && s.hide !== true, 'On the row', 'Shown beside the name on each row (a column in a rich table); every stat that is not Hidden reads in the row’s 📝 line'));
+        sr.appendChild(checkLabel('sys-list-stathide', s.hide === true, 'Hidden', 'A figure the row only works with, such as a cost per level. It is never shown on a row or in its 📝 details. Formulas still read it, and ✎ still shows it. It is no secret: use a GM-only list for that'));
         [['statup', '▲', 'Move up'], ['statdown', '▼', 'Move down'], ['statdel', '×', 'Remove this stat (Save drops its values)']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; sr.appendChild(bb); });
         sb.appendChild(sr);
     });
@@ -5948,7 +5960,7 @@ function onChange(e) {
         else if (c.indexOf('sys-list-colhide') >= 0 || c.indexOf('sys-list-colfoot') >= 0) { var chr = t.closest('.sys-list-col'), chD = chr && Array.isArray(lsc.cols) ? lsc.cols[+chr.dataset.ci] : null; if (!chD || typeof chD !== 'object') return; var chK = c.indexOf('sys-list-colhide') >= 0 ? 'hide' : 'foot'; if (t.checked) chD[chK] = true; else delete chD[chK]; }   // Stage 6 F5a1
         else if (c.indexOf('sys-list-statkind') >= 0) { var skr = t.closest('.sys-list-stat'), skD = skr && Array.isArray(lsc.stats) ? lsc.stats[+skr.dataset.si] : null; if (!skD || typeof skD !== 'object') return; delete skD.def; delete skD.labels; if (t.value === 'pick') { skD.kind = 'pick'; skD.opts = Array.isArray(skD.opts) ? skD.opts : []; if (typeof lsc.price === 'string' && skD.key && lsc.price.toLowerCase() === String(skD.key).toLowerCase()) delete lsc.price; } else { delete skD.kind; delete skD.opts; } markDirty(); renderAll(); return; }   // Stage 6 F5a2: a number or a choice (a choice is never the price)
         else if (c.indexOf('sys-list-statpdef') >= 0) { var spr = t.closest('.sys-list-stat'), spD = spr && Array.isArray(lsc.stats) ? lsc.stats[+spr.dataset.si] : null; if (!spD || typeof spD !== 'object') return; if (t.value) spD.def = t.value; else delete spD.def; }   // Stage 6 F5a2: a choice's default
-        else if (c.indexOf('sys-list-statshow') >= 0) { var ssr = t.closest('.sys-list-stat'), ssD = ssr && Array.isArray(lsc.stats) ? lsc.stats[+ssr.dataset.si] : null; if (!ssD || typeof ssD !== 'object') return; if (t.checked) ssD.show = true; else delete ssD.show; }   // Stage 6 F4c1
+        else if (c.indexOf('sys-list-statshow') >= 0 || c.indexOf('sys-list-stathide') >= 0) { var ssr = t.closest('.sys-list-stat'), ssD = ssr && Array.isArray(lsc.stats) ? lsc.stats[+ssr.dataset.si] : null; if (!ssD || typeof ssD !== 'object') return; statTick(ssD, c.indexOf('sys-list-stathide') >= 0 ? 'hide' : 'show', t.checked, ssr); }   // Stage 6 F4c1; 1.5.4: Hidden
         else if (c.indexOf('sys-list-dmg') >= 0) { var rdr = t.closest('.sys-list-roll'), rdD = rdr && Array.isArray(lsc.rolls) ? lsc.rolls[+rdr.dataset.ri] : null; if (!rdD || typeof rdD !== 'object') return; if (t.checked) rdD.dmg = true; else delete rdD.dmg; }   // chat cards: a damage roll
         else if (c.indexOf('sys-list-rollcost') >= 0) { var rcr = t.closest('.sys-list-roll'), rcD = rcr && Array.isArray(lsc.rolls) ? lsc.rolls[+rcr.dataset.ri] : null; if (!rcD || typeof rcD !== 'object') return; if (t.value) rcD.cost = t.value; else delete rcD.cost; }   // turn-based combat T1
         else if (c.indexOf('sys-list-rollkind') >= 0) { var rkr = t.closest('.sys-list-roll'), rkD = rkr && Array.isArray(lsc.rolls) ? lsc.rolls[+rkr.dataset.ri] : null; if (!rkD || typeof rkD !== 'object') return; if (t.value === 'apply') { if (!Array.isArray(rkD.apply)) rkD.apply = [{ f: '', formula: '' }]; } else delete rkD.apply; }   // Stage 6 HUD H7b: Roll | Apply (a formula typed before stays in the draft)

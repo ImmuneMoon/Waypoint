@@ -897,7 +897,8 @@ function cleanListSpec(v, gmView, F) {   // F (F4c1): the engine, for a stat key
             var sd = statNum(s.def); if (sd !== undefined && sd !== 0) so.def = sd;
             var slb = cleanLabels(s.labels); if (slb) so.labels = slb;
             }   // names for the values 0, 1, 2... (a value past them shows as the number: no clamp, so lists sharing a key never fight)
-            if (s.show === true) so.show = true;   // On the row: a chip beside the name, a column in a rich table
+            if (s.hide === true) so.hide = true;   // 1.5.4 Hidden: a figure the row only works with (a cost per level, a step) — never drawn on a row, in its details, in a table or in the picker; formulas read it and the row's own-values form shows it. It wins over On the row, and it is no secret (the players' view holds it alike)
+            else if (s.show === true) so.show = true;   // On the row: a chip beside the name, a column in a rich table
             sts.push(so);
         }
         if (sts.length) out.stats = sts;

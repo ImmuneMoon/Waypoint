@@ -1000,6 +1000,9 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
                   pathEl.setAttribute('stroke-linecap', _sp.linecap); pathEl.setAttribute('stroke-linejoin', _sp.linejoin);
                   pathEl.removeAttribute('fill-rule');
               }
+              // [fogcheck:doorline-start]
+              if (doorIt && !_sp.fill) pathEl.setAttribute('pathLength', '100'); else pathEl.removeAttribute('pathLength');   // a door line's length counts as 100: the stylesheet draws its two ends alone while it is open
+              // [fogcheck:doorline-end]
 
           }
 

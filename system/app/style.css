@@ -519,6 +519,30 @@
   @keyframes pageNavHit { from { background: color-mix(in srgb, var(--gold) 32%, transparent); } to { background: transparent; } }
   @media (prefers-reduced-motion: reduce) { .doc-view .pagenav-hit, #popoutBody .pagenav-hit { animation: none; outline: 2px solid var(--gold); } }
   #docPanelOutline { flex: none; }
+  #pageNavMenu .pagenav-foot { display: flex; gap: 6px; margin-top: 4px; padding: 6px 10px 4px; border-top: 1px solid var(--edge); }
+  #pageNavMenu .pagenav-act { flex: 1; background: var(--panel); border: 1px solid var(--border); border-radius: 5px; color: var(--ink); padding: 4px 8px; cursor: pointer; font-size: 12px; font-family: inherit; white-space: nowrap; }
+  #pageNavMenu .pagenav-act:hover, #pageNavMenu .pagenav-act:focus-visible { border-color: var(--gold); outline: none; }
+  /* Folds (pagenav.js). A part's arrow sits in the page's left margin. A folded heading says how much it put away, a folded part goes by its first words.
+     All of it lives under .pv-folds, the class the folds put on the page's box, and on screen only: without the class, and on paper, the page is as it was
+     drawn. An open block is never positioned (a positioned block would be painted after the blocks before it, and its background over a picture floated
+     beside it): the arrow is the block's first child, floated into the margin with a margin box of no width and no height, so it moves and clears nothing.
+     What is put away keeps its width (no display: none), so a chart drawn while it is folded is laid out as it will be shown. */
+  .pv-fold-btn { display: none; }
+  @media screen {
+    .pv-folds .pv-fold-btn { display: block; float: left; width: 16px; height: 18px; margin: 3px 1px -21px -17px; padding: 0; border: 0; background: none; color: var(--dim); font-size: 11px; line-height: 18px; text-align: center; cursor: pointer; opacity: .3; }
+    .pv-folds .pv-fold-btn::before { content: '\25BE'; }
+    .pv-folds .pv-fold-shut > .pv-fold-btn::before { content: '\25B8'; }
+    .pv-folds .pv-blk:hover > .pv-fold-btn, .pv-folds .pv-fold-btn:focus-visible, .pv-folds .pv-fold-shut > .pv-fold-btn { opacity: 1; color: var(--gold); outline: none; }
+    .pv-folds .pv-fold-head.pv-fold-shut { cursor: pointer; }
+    .pv-folds .pv-fold-head.pv-fold-shut > .pv-fold-btn + * ~ * { height: 0; overflow: hidden; visibility: hidden; margin: 0; padding: 0; border: 0; }   /* a block that holds more than its heading (Raw HTML): the rest goes with the section */
+    .pv-folds .pv-fold-head.pv-fold-shut::after { content: attr(data-fold-hint); display: block; margin: -2px 0 12px; color: var(--dim); font-size: 12px; font-style: italic; }
+    .pv-folds .pv-fold-body.pv-fold-shut { position: relative; display: flow-root; height: 26px; overflow-x: visible; overflow-y: clip; visibility: hidden; margin: 4px 0; cursor: pointer; }   /* clipped downwards only: its arrow sits in the margin beside it */
+    .pv-folds .pv-fold-body.pv-fold-shut > .pv-fold-btn { float: none; position: absolute; left: -17px; top: 4px; margin: 0; visibility: visible; }
+    .pv-folds .pv-fold-body.pv-fold-shut::after { visibility: visible; content: attr(data-fold-hint); position: absolute; left: 0; right: 0; top: 0; height: 26px; line-height: 24px; padding: 0 8px; box-sizing: border-box; border: 1px dashed var(--edge); border-radius: 5px; color: var(--dim); font-size: 12.5px; font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pv-folds .pv-blk.pv-fold-hid { height: 0; overflow: hidden; visibility: hidden; margin: 0; padding: 0; }
+    .pv-folds .pv-blk.pv-fold-hid > .pv-fold-btn { visibility: hidden; }
+    .pv-folds .pv-blk.pv-fold-hid::after { content: none; }
+  }
   #plannerPreview .pv-blk { scroll-margin-top: 58px; }   /* a heading jumped to lands under the planner's sticky bar, not behind it */
   #docPanelResults { flex: none; max-height: 46%; overflow: auto; border-bottom: 1px solid var(--edge); background: var(--panel); }
   .docpanel-res { padding: 7px 10px; cursor: pointer; border-bottom: 1px solid var(--edge); }

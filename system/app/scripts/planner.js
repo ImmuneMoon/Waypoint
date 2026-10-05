@@ -2106,11 +2106,11 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // A field with a format (textfmt.js) is drawn by docrender fmtRich: the format cleaned against the text first, the WHOLE field through
   // the same sanitiser once — so a typed <b> or &mdash; reads as it does with no format, wherever a run begins — and the runs laid over its
   // text by their offsets, each in a span whose style is written from the cleaned values; with none, as before. (A caption is escaped text: fmtHtml.)
-  function plannerPreviewHtml(activeMap, camp) {
+  function plannerPreviewHtml(activeMap, camp, empty) {   // empty: what a planner with no block reads where it is only read (the panel over the map, a window of its own); absent: the editor's hint
       var blocks = Array.isArray(activeMap.blocks) ? activeMap.blocks : [];
       var _pCss = docStyleCss(mergeDocStyle(camp && camp.docStyle, activeMap.meta && activeMap.meta.style));
       var html = '<div class="wrap"' + (_pCss ? ' style="' + _pCss + '"' : '') + '>';
-      if (blocks.length === 0) html += '<div style="color:var(--dim); font-style:italic; text-align:center; padding-top: 100px;">This is the live preview pane.<br><br>Add blocks in the editor on the left to start building your document.</div>';
+      if (blocks.length === 0) html += typeof empty === 'string' ? empty : '<div style="color:var(--dim); font-style:italic; text-align:center; padding-top: 100px;">This is the live preview pane.<br><br>Add blocks in the editor on the left to start building your document.</div>';
       blocks.forEach(function(b, _bi) {
           if (!b || typeof b !== 'object') return;
           html += '<div class="pv-blk" data-blk="' + _bi + '">';
@@ -2167,6 +2167,17 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       return html + '</div>';
   }
   // [sinkcheck:planner-preview-end]
+  // [sinkcheck:planner-read-start]
+  // A planner drawn to be READ outside its editor: the panel over the map (docpanel.js) and a window of its own (popout.js). Until 1.5.4 both
+  // drew it as a page, and a page has no node table and no Raw HTML block: a planner's beats were missing there. A planner is the GM's own
+  // and never travels, so only this machine's own campaign is drawn this way: null for a campaign that came from someone else's table (the
+  // caller then draws it as a page, which shows nothing a page cannot hold), for a page and for no item
+  function plannerRead(it, camp, empty) {
+      if (!it || it.type !== 'planner' || !camp || camp._foreign || (window.wpNet && window.wpNet.foreign)) return null;
+      return plannerPreviewHtml(it, camp, typeof empty === 'string' ? empty : '');
+  }
+  // [sinkcheck:planner-read-end]
+  window.wpPlannerRead = plannerRead;
   function renderPlannerPreview() {
       renderPlannerPreviewCore();
       var box = document.getElementById('plannerFind');
@@ -2314,11 +2325,41 @@ if(_el_renderPlannerBtn) _el_renderPlannerBtn.addEventListener('click', function
   // Double-click anywhere in the rendered preview to jump the editor to that block
 
   var _el_plannerPreviewEl = document.getElementById('plannerPreview');
-  if (_el_plannerPreviewEl) _el_plannerPreviewEl.addEventListener('click', function(e) {
+  // A node's Open map link (.pv-link): in the planner's own preview and in the panel over the map, which draws a planner with this file's
+  // renderer (1.5.4). From a planner in a window of its own the link reaches the main window: that window posts the campaign it shows, the
+  // link's map and its room on the app's own channel, and the main window opens the map only when it is a map of the campaign it has open
+  var pvLinkGo = function(e) {
       var a = e.target.closest && e.target.closest('.pv-link'); if (!a) return;
       e.preventDefault(); e.stopPropagation();
       navigateToMap(a.dataset.map, a.dataset.room || null);
+  };
+  if (_el_plannerPreviewEl) _el_plannerPreviewEl.addEventListener('click', pvLinkGo);
+  var _el_docPanelBodyEl = document.getElementById('docPanelBody');
+  if (_el_docPanelBodyEl) _el_docPanelBodyEl.addEventListener('click', pvLinkGo);
+  // [sinkcheck:pvgoto-start]
+  // what a window of its own posts for a map link: null unless the window shows a page of a campaign and the link names a map. The
+  // campaign is read from the window's own address as popout.js reads it (the query's value, decoded once by the browser)
+  function pvGotoMsg(search, a) {
+      var spec = new URLSearchParams(search || '').get('popout') || '', m = /^doc:([^/]+)\//.exec(spec), ds = a && a.dataset ? a.dataset : null;
+      if (!m || !ds || typeof ds.map !== 'string' || !ds.map) return null;
+      return { type: 'goto', camp: m[1], map: ds.map, room: typeof ds.room === 'string' ? ds.room : '' };
+  }
+  // the main window: only for the campaign it has open, only a map it holds under its own id, a room that is text or absent
+  function pvGotoOk(d, camp) {
+      if (!d || typeof d !== 'object' || d.type !== 'goto' || !camp || typeof camp.id !== 'string' || d.camp !== camp.id || typeof d.map !== 'string') return false;
+      if (d.room !== undefined && typeof d.room !== 'string') return false;
+      var it = camp.items && Object.prototype.hasOwnProperty.call(camp.items, d.map) ? camp.items[d.map] : null;
+      return !!it && typeof it === 'object' && it.type === 'map';
+  }
+  // [sinkcheck:pvgoto-end]
+  var _qsP = new URLSearchParams(location.search), _isPopP = _qsP.has('popout'), _isStreamP = _qsP.has('stream');
+  if (_isPopP) document.addEventListener('click', function(e) {
+      var a = e.target && e.target.closest ? e.target.closest('#popoutBody .pv-link') : null; if (!a) return;
+      e.preventDefault();
+      var msg = pvGotoMsg(location.search, a); if (!msg) return;
+      try { new BroadcastChannel('waypoint').postMessage(msg); } catch (err) {}
   });
+  else if (!_isStreamP) { try { new BroadcastChannel('waypoint').addEventListener('message', function(e) { if (pvGotoOk(e.data, getActiveCampaign())) navigateToMap(e.data.map, e.data.room || null); }); } catch (e) {} }
   // Page layout by hand (pages only): drag a picture in the preview to nudge it (dx / dy), drag its
   // bottom-right corner to resize it (the width snaps to the select's steps). One save at pointerup is
   // one undo step per drag; io.js's capture listener closes any typing chunk at the pointerdown.

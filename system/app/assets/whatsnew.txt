@@ -90,6 +90,10 @@ Planners and pages
   Open in a new window. It opens in a window of its own that you can
   drag anywhere, onto another screen too. Open over the map is still
   there for the floating panel.
+- A planner read over the map, or in a window of its own, shows its
+  node tables. They were missing there: only its headings and text
+  showed. A node's Open map link works in both places too, and from
+  the window it opens the map in the main window.
 
 The tour
 - The tour is short now. Each step says what a thing is and the few

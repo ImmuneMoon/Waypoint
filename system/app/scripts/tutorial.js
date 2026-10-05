@@ -797,7 +797,7 @@ var STEPS = [
     { target: '#diceBtn', title: 'Dice',
       html: 'Roll from <b>Table Chat</b>: type <b>/roll 2d6 + 3</b>, or open this roller. At a table the GM&rsquo;s machine makes every roll, and everyone sees the same card. <b>Private</b> keeps a roll between you and the GM. Pick a <b>character</b> in the roller and names like <b>STR</b> come from its sheet. <b>Shift-click</b> a sheet&rsquo;s roll button for a bonus or a penalty before the roll.',
       help: ['dice', 'Rolling at the table'],
-      before: function() { var cp = document.getElementById('chatPanel'); if (cp && cp.style.display === 'none') { var cb = document.getElementById('chatBtn'); if (cb) cb.click(); } } },
+      before: function() { if (window.wpChat && window.wpChat.openPanel) window.wpChat.openPanel(); } },   // the chat's own opener: closed or put away with another view, it comes up here (1.5.4)
     { target: '#settingsBtn', title: 'Settings',
       html: 'Your name and table picture, the light or dark theme, measurement units, and the <b>VTT features</b>, which come next. <b>Check for Updates</b> looks for a newer Waypoint, and <b>Restore the previous version</b> puts the app back as it was. <b>Developer mode</b> is off unless you switch it on. Table settings travel with your saves folder.',
       help: ['start', 'Updates'],

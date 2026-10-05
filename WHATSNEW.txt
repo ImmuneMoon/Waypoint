@@ -109,6 +109,16 @@ Planners and pages
   Fold all and Open all are at the foot of the Outline menu. A page
   opens as you left it on this computer. Find and the Outline open
   what they lead to. An export or a print shows the whole page.
+- Floating boxes stay with the play map. A sheet, a HUD, the page
+  panel, Table Chat, the table notepad and the Sound, Music, Video and
+  Visual effects panels are put away while you look at a planner, a
+  handbook page or the data map. Nothing is closed, and back on the
+  play map they are as you left them. A box you ask for on another
+  view shows there too. A window of its own always stays.
+- On a planner, a handbook page or the data map, someone else's roll
+  no longer opens Table Chat over what you read. You get a notice, and
+  a count on the chat button. Your own roll opens the chat where you
+  are for a few seconds.
 
 The tour
 - The tour is short now. Each step says what a thing is and the few

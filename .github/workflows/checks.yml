@@ -99,6 +99,9 @@ jobs:
       - name: pagecheck — the page's own navigation (the Outline of a planner or a page, and its menu)
         if: ${{ !cancelled() }}
         run: node tools/pagecheck.js
+      - name: floatcheck — floating boxes and the views they show on (put away off the play map, back as left)
+        if: ${{ !cancelled() }}
+        run: node tools/floatcheck.js
       - name: updatercheck — signed updates, the way back, the core updating itself, the key tool and the core's record (run on scratch installs; nothing downloaded is ever started)
         if: ${{ !cancelled() }}
         run: node tools/updatercheck.js

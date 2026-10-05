@@ -732,7 +732,8 @@ function openSheet(charId) {
     if (sheetOpen !== charId) { closeDownloadMenu(); _sheetEdit = null; }   // Onboarding F2a: its menu names the character it was opened for; another character's sheet opens locked
     sheetOpen = charId;
     var p = ui('sheetPanel'); if (!p) return;
-    p.style.display = 'flex'; placeSheet(); raisePanel(p); renderSheet();
+    p.style.display = 'flex'; if (window.wpFloats) window.wpFloats.reveal(p);   // 1.5.4 (floats.js): asked for here, so it shows on this view
+    placeSheet(); raisePanel(p); renderSheet();
 }
 function closeSheet() { closeDownloadMenu(); sheetOpen = null; _sheetEdit = null; var p = ui('sheetPanel'); if (p) p.style.display = 'none'; }
 function placeSheet() { var p = ui('sheetPanel'); if (!p) return; try { var pos = JSON.parse(pref('wp_sheetPanel', 'null')); if (pos && isFinite(pos.x) && isFinite(pos.y)) { p.style.left = Math.max(0, Math.min(window.innerWidth - 160, pos.x)) + 'px'; p.style.top = Math.max(0, Math.min(window.innerHeight - 80, pos.y)) + 'px'; p.style.right = 'auto'; } if (pos && isFinite(pos.w) && isFinite(pos.h)) sizePanel(p, pos.w, pos.h); } catch (e) {} }
@@ -852,6 +853,7 @@ function openHud(charId, opts) {
     if (!v) { var ids = Object.keys(huds); if (ids.length >= HUD_CAP) closeHud(ids[0]); v = makeHud(charId); if (!v) return; huds[charId] = v; placeHud(v); }   // opening it again brings it forward (the reference's open())
     var was = v.body.dataset.wpTab || '', stuck = existed && v.body.scrollTop > frameFlowTop(v.body);   // HF2b: measured before the tab changes
     if (opts && typeof opts.tab === 'string' && HUD_TAB.test(opts.tab)) v.body.dataset.wpTab = opts.tab;   // buildSections falls back to the first tab if it is not one
+    if (typeof window !== 'undefined' && window.wpFloats) window.wpFloats.reveal(v.panel);   // 1.5.4 (floats.js): asked for here, so it shows on this view
     raisePanel(v.panel); renderHud(charId);
     if (stuck && huds[charId] === v && v.body.dataset.wpTab !== was) v.body.scrollTop = frameFlowTop(v.body);   // another tab asked of an open, scrolled HUD starts at its own top, as the HUD's own strip does
 }

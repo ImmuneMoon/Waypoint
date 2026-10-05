@@ -213,7 +213,7 @@ function open(id) {
     if (!it || (it.type !== 'doc' && it.type !== 'planner')) return;
     openId = id; lastSig = '';
     var p = ui('docPanel'); if (!p) return;
-    p.style.display = 'flex'; place();
+    p.style.display = 'flex'; if (window.wpFloats) window.wpFloats.reveal(p); place();   // 1.5.4 (floats.js): asked for here, so it shows on this view
     clearSearch(); draw(true);
 }
 function close() { openId = ''; lastSig = ''; clearMarks(); var box = ui('docPanelSearchInput'); if (box) box.value = ''; query = ''; renderResults([]); var p = ui('docPanel'); if (p) p.style.display = 'none'; }
@@ -268,7 +268,7 @@ function popOut(id) {
     });
     // Esc closes the panel when focus is on it or nowhere (never steals Esc from a dialog/menu/input elsewhere)
     document.addEventListener('keydown', function(e) {
-        if (e.key !== 'Escape' || !openId) return;
+        if (e.key !== 'Escape' || !openId || (window.wpFloats && window.wpFloats.away(ui('docPanel')))) return;   // 1.5.4 (floats.js): a panel put away with its view is not closed by a key
         var ae = document.activeElement;
         if (ae && ae.id === 'docPanelSearchInput') return;   // the input's own handler deals with Esc
         if (!ae || ae === document.body || (ae.closest && ae.closest('#docPanel'))) close();

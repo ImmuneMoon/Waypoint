@@ -80,6 +80,13 @@ Fixes
   file kept 300 blocks where a page holds 500. All four are fixed, and
   the same lists go back out to Markdown as they came in.
 - A page table's cell shows its own line breaks.
+- On a square grid, a player's token two squares wide could be dropped
+  so that it came to rest inside a wall or a see-through barrier. The
+  table now judges a drop at the place where the token will be seated.
+- With Fog of war switched off for the table, a player's click on a door
+  did nothing, though walls and barriers still stopped their token. The
+  door now opens and shuts for them. A waiting token beside a door can
+  open it too.
 - A planner or page with large tables opens quickly in your editor. The
   time to open grew much faster than the table did: a page of two
   thousand cells took several seconds. It now opens in a fraction of a

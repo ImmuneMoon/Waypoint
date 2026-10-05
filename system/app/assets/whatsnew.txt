@@ -50,6 +50,10 @@ Fog of war
   Kept on this machine.
 - Rest the pointer on a dark cell on your screen and it says why it is
   dark: no token on the map sees it, or you hid it by hand.
+- A door shows whether it is shut or open. Shut, its shape is crossed
+  with lines. Open, its body is cleared and its mark says open. A door
+  drawn as a pen line is a solid bar when shut and only its two ends
+  when open. You and your players see the same, on every shape.
 - Players remember what they have seen is on until you untick it (the
   fog menu): each player's own screen keeps the ground they have walked
   past, dimmed, with the creatures there still hidden. It was off until

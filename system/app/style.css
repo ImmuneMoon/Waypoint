@@ -110,7 +110,7 @@
   .wb-item.path.wb-blocks-sight, .wb-item.path.wb-door { outline: none; }
   .wb-item.path.wb-blocks-sight svg path { stroke-dasharray: 10 5; filter: drop-shadow(0 0 2px var(--gold)); }
   .wb-item.path.wb-door svg path { filter: drop-shadow(0 0 3px var(--gold)); }
-  .wb-item.path.wb-door.wb-door-open svg path { stroke-dasharray: 4 6; filter: drop-shadow(0 0 3px #4caf7d); }
+  .wb-item.path.wb-door.wb-door-open svg path { stroke-dasharray: 14 72 14 0; filter: drop-shadow(0 0 3px #4caf7d); }   /* of a length counted as 100: its two ends alone */
   body.net-client .wb-item.path.wb-door svg path { pointer-events: visiblePainted; }   /* a pen line's stroke, or a nib's or a region's painted body (their outline alone is a pixel wide) */
   /* 1.5.1 see-through barriers: a piece that stops movement and not sight (a force field, bars, a window, a railing). The GM's cue, as a wall's: a dashed
      cyan outline and a no-entry mark. A barrier that is a door is shown to everyone, as any door: cyan when shut, green and dashed when open. */
@@ -122,9 +122,24 @@
   .wb-item.path.wb-barrier, .wb-item.path.wb-barrier.wb-door, .wb-item.path.wb-barrier.wb-door.wb-door-open { outline: none; }
   .wb-item.path.wb-barrier svg path { stroke-dasharray: 2 6; filter: drop-shadow(0 0 2px #4dd0e1); }
   .wb-item.path.wb-barrier.wb-door svg path { stroke-dasharray: none; filter: drop-shadow(0 0 3px #4dd0e1); }
-  .wb-item.path.wb-barrier.wb-door.wb-door-open svg path { stroke-dasharray: 4 6; filter: drop-shadow(0 0 3px #4caf7d); }
+  .wb-item.path.wb-barrier.wb-door.wb-door-open svg path { stroke-dasharray: 14 72 14 0; filter: drop-shadow(0 0 3px #4caf7d); }
   /* a door the GM locked against players (the owner, 2026-10-04): a small lock beside its door mark, for the GM and for players alike (whiteboard.js sets the class) */
   .wb-item.wb-door.wb-door-locked::after { content: '\1F6AA\1F512'; }
+  /* A door says whether it is shut or open by its body (Hydragal, 2026-10-04; the owner: "Hatched closed, clear open"), for everyone and for
+     every shape: a hexagon or a diamond is cut to its outline, so the outline round its box and its corner mark never showed. Shut: crossed
+     with lines, gold (a barrier's door cyan). Open: the body cleared to a faint green and a picture faded, and the corner mark says open. A
+     pen-line door is a solid bar shut and its two ends alone open (whiteboard.js counts a door line's length as 100). The lines keep their
+     width on screen at any zoom. A door hidden from players and a trap tile keep the mark the GM already reads there. */
+  .wb-item.wb-door:not(.path):not(.wb-door-open):not(.wb-hidden-gm):not(.wb-trap)::before {
+      content: ''; position: absolute; inset: 0; pointer-events: none;
+      background: repeating-linear-gradient(45deg, rgba(224,165,79,0.9) 0 calc(3px * var(--wbz, 1)), transparent calc(3px * var(--wbz, 1)) calc(11px * var(--wbz, 1)));
+  }
+  .wb-item.wb-barrier.wb-door:not(.path):not(.wb-door-open):not(.wb-hidden-gm):not(.wb-trap)::before { background: repeating-linear-gradient(45deg, rgba(77,208,225,0.9) 0 calc(3px * var(--wbz, 1)), transparent calc(3px * var(--wbz, 1)) calc(11px * var(--wbz, 1))); }
+  .wb-item.wb-door.wb-door-open:not(.path) { opacity: 1; background-color: rgba(76,175,125,0.14) !important; }
+  .wb-item.wb-door.wb-door-open:not(.path) > img { opacity: 0.25; }
+  .wb-item.path.wb-door.wb-door-open svg path:not([fill="none"]) { fill-opacity: 0.25; }
+  .wb-item.wb-door.wb-door-open::after { content: '\1F6AA  open'; font-size: 11px; font-weight: 700; color: #4caf7d; white-space: nowrap; }
+  .wb-item.wb-door.wb-door-open.wb-door-locked::after { content: '\1F6AA\1F512  open'; }
   /* player's view: an opaque grey placeholder */
   .wb-item.wb-hidden-ph {
       background: #3a3a4a !important; border: 1px solid #4a4a5c !important; border-radius: 8px;

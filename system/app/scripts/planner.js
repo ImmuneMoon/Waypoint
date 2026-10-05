@@ -369,7 +369,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           for (i = 0; i < runs.length; i++) { var tn = tsKids(kids[i])[0]; if (tn.nodeValue !== runs[i].t) { tn.nodeValue = runs[i].t; changed = true; } }
           return changed;
       }
-      var left = box.scrollLeft;   // a one-line box scrolled sideways to its caret stays there (an emptied box would spring back to its start)
+      var left = kids.length ? box.scrollLeft : 0;   // a one-line box scrolled sideways to its caret stays there (an emptied box would spring back to its start). An EMPTY box is not asked: it has no scroll to keep, and the question makes the browser lay the page out again — once for every box of a first fill, which is what made a large table slow to open
       while (box.firstChild) box.removeChild(box.firstChild);
       runs.forEach(function(r) { box.appendChild(tsRunEl(r)); });
       if (tail) box.appendChild(document.createElement('br'));

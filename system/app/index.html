@@ -45,6 +45,7 @@
 <script type="module" src="scripts/handbook.js"></script>
 <script type="module" src="scripts/docpanel.js"></script>
 <script type="module" src="scripts/popout.js"></script>
+<script type="module" src="scripts/pagenav.js"></script>
 <script type="module" src="scripts/docimport.js"></script>
 <script type="module" src="scripts/tutorial.js"></script>
 <script type="module" src="scripts/devconsole.js"></script>
@@ -408,6 +409,7 @@
                           <li>Use the planner toolbar to add blocks: headings, prose, callouts, tables, and flowcharts. Blocks can be reordered and edited in place.</li>
                           <li>Planners nest under planners just like maps, and <b>re-order</b> the same way &mdash; drag onto the top or bottom of a row, or right-click &rarr; <b>&#8593; Move Up</b> / <b>&#8595; Move Down</b>. Keep one parent per module with a child page per scene.</li>
                           <li>The toolbar&rsquo;s <b>Status&hellip;</b> list says where a scene stands. <b>Next</b> is the one you play next: the play map&rsquo;s right-click menu then offers it as <b>&#9654; Next scene</b>. <b>Played</b> and <b>Skipped</b> mark a scene done.</li>
+                          <li><b>Outline</b>, beside the Find box, lists the page&rsquo;s headings. Click one to jump to it. The panel over the map, a page in its own window and a player&rsquo;s reader have the same button.</li>
                       </ol>
                       <h4>Undo and redo</h4>
                       <ul>
@@ -1238,6 +1240,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
       <button class="tool ghost icon" id="plannerImportBtn" title="Import a Markdown file (pick its pictures with it, or a zip of both) into this document" aria-label="Import document"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6zM14 3v6h6M12 11v7M9 15l3 3 3-3"/></svg></button>
       <button class="tool ghost icon" id="plannerAppearanceBtn" title="Appearance &mdash; font, colors &amp; a background image for this page, and a campaign-wide default" aria-label="Appearance">&#127912;</button>
     </span><span id="plannerFindWrap" title="Find in this planner — the exact phrase first, then each word at word starts; case and accents ignored. Enter / Shift+Enter jump between hits, Esc clears.">
+        <button class="tool ghost" id="plannerOutlineBtn" title="Outline: the headings of this page. Click one to jump to it."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M8 12h12M12 18h8"/></svg> Outline</button>
         <input type="search" id="plannerFind" placeholder="Find (Ctrl+F)" autocomplete="off" spellcheck="false">
         <span id="plannerFindCount"></span>
         <button class="tool ghost icon" id="plannerFindPrev" title="Previous hit (Shift+Enter)">&#9650;</button>
@@ -1901,7 +1904,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
 <!-- The Handbook reader: a page open over the play map for a joined player (handbook.js). The id ends in
      "Modal" on purpose: the play map's click-away guard exempts [id$="Modal"], so reading keeps the selection. -->
 <div id="docReaderModal" style="display:none;">
-    <div class="doc-reader-head"><h3 id="docReaderTitle">Page</h3><button id="docReaderClose" class="tool ghost modal-close" title="Close (Esc)" aria-label="Close"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="doc-reader-head"><h3 id="docReaderTitle">Page</h3><button id="docReaderOutline" class="tool ghost" title="Outline: the headings of this page. Click one to jump to it."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M8 12h12M12 18h8"/></svg> Outline</button><button id="docReaderClose" class="tool ghost modal-close" title="Close (Esc)" aria-label="Close"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <div id="docReaderBody" class="doc-view"></div>
 </div>
 
@@ -1991,6 +1994,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
 <div id="docPanel" style="display:none;">
     <div id="docPanelHead"><span class="docpanel-title" id="docPanelTitle">Document</span><button class="tool ghost notepad-btn" id="docPanelPop" title="Pop out into its own window (drag it to another monitor); dock it back from there"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 3.5H3.2A1.2 1.2 0 0 0 2 4.7v8.1A1.2 1.2 0 0 0 3.2 14h8.1a1.2 1.2 0 0 0 1.2-1.2V9.5"/><path d="M9.5 2.5H14v4.5"/><path d="M14 2.5 7.5 9"/></svg></button><button class="tool ghost notepad-btn" id="docPanelClose" title="Close (Esc)">&times;</button></div>
     <div id="docPanelSearchRow">
+        <button class="tool ghost notepad-btn" id="docPanelOutline" title="Outline: the headings of this page. Click one to jump to it.">Outline</button>
         <input id="docPanelSearchInput" type="text" placeholder="Search all pages&hellip;" autocomplete="off" spellcheck="false" title="Search the CONTENT of every page (results below), and highlight matches on this one. Enter / Shift+Enter jump between matches; Esc clears.">
         <span id="docPanelFindCount" class="docpanel-count"></span>
         <button class="tool ghost notepad-btn" id="docPanelFindPrev" title="Previous match (Shift+Enter)">&#9650;</button>

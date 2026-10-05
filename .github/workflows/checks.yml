@@ -96,6 +96,9 @@ jobs:
       - name: textcheck — text formats (the look of a plain field, stored beside its text), the editor's boxes and the bar on them
         if: ${{ !cancelled() }}
         run: node tools/textcheck.js
+      - name: pagecheck — the page's own navigation (the Outline of a planner or a page, and its menu)
+        if: ${{ !cancelled() }}
+        run: node tools/pagecheck.js
       - name: updatercheck — signed updates, the way back, the core updating itself, the key tool and the core's record (run on scratch installs; nothing downloaded is ever started)
         if: ${{ !cancelled() }}
         run: node tools/updatercheck.js

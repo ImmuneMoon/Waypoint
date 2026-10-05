@@ -94,6 +94,10 @@ Planners and pages
   node tables. They were missing there: only its headings and text
   showed. A node's Open map link works in both places too, and from
   the window it opens the map in the main window.
+- Outline, wherever you read a planner or a page: the button lists
+  the page's headings, and a click on one jumps to it. It is in the
+  planner's own view, the panel over the map, a page's own window and
+  a player's reader.
 
 The tour
 - The tour is short now. Each step says what a thing is and the few

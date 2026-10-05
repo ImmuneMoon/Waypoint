@@ -217,15 +217,23 @@ function open(id) {
 function close() { openId = ''; lastSig = ''; clearMarks(); var box = ui('docPanelSearchInput'); if (box) box.value = ''; query = ''; renderResults([]); var p = ui('docPanel'); if (p) p.style.display = 'none'; }
 function refresh() { if (openId) draw(false); }   // called from the app's render cycle — sig-checked, cheap no-op when unchanged
 
+// [textcheck:panelpop-start]
+// A page or a planner in a window of its own (read-only: popout.js draws it, follows the GM's edits and can dock it back). One address, the
+// only one the shell lets a page open for a page. Asked by the panel's own button and by the left panel's menu (Open in a new window)
+function popOut(id) {
+    var camp = activeCamp(); if (!camp || typeof camp.id !== 'string' || typeof id !== 'string' || !id) return false;
+    window.open(location.origin + '/?popout=doc:' + encodeURIComponent(camp.id) + '/' + encodeURIComponent(id), 'wpPopout_' + id, 'width=820,height=1000');
+    return true;
+}
+// [textcheck:panelpop-end]
+
 /* ---------- wiring ---------- */
 (function wire() {
     var p = ui('docPanel'), head = ui('docPanelHead'); if (!p || !head) return;
     var cl = ui('docPanelClose'); if (cl) cl.addEventListener('click', close);
     var pop = ui('docPanelPop');
     if (pop) pop.addEventListener('click', function() {   // pop out into its own window; dock-back there reopens this panel
-        if (!openId) return; var camp = activeCamp(); if (!camp) return;
-        window.open(location.origin + '/?popout=doc:' + encodeURIComponent(camp.id) + '/' + encodeURIComponent(openId), 'wpPopout_' + openId, 'width=820,height=1000');
-        close();
+        if (openId && popOut(openId)) close();
     });
     // A popped-out doc window that "docks back" reopens the in-app panel here.
     try { new BroadcastChannel('waypoint').addEventListener('message', function(e) {
@@ -265,7 +273,7 @@ function refresh() { if (openId) draw(false); }   // called from the app's rende
     });
 })();
 
-window.wpDocPanel = { open: open, close: close, refresh: refresh };
+window.wpDocPanel = { open: open, close: close, refresh: refresh, popOut: popOut };
 // Shared content search for the app-wide page search + Ctrl+K: ranked page results with a highlighted snippet.
 // (q, campaign?=active, types?=['doc','planner']) -> [{ id, title, type, score, snippet /* escaped HTML + <mark> */ }].
 window.wpDocSearch = function(q, camp, types) { return searchAll(q, camp, types); };

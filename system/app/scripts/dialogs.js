@@ -613,6 +613,16 @@ if(_el_ctxRenameItem) _el_ctxRenameItem.addEventListener('click', function() {
       if (!it || (it.type !== 'doc' && it.type !== 'planner')) return;
       if (window.wpDocPanel) window.wpDocPanel.open(id);
   });
+  // …or straight in a window of its own (the owner, 2026-10-04: "if i could right click a planner or handbook to open it in a new window i
+  // can drag outside the app"): the window the floating panel's own button opens, in one step
+  var _el_ctxDocPopout = document.getElementById('ctxDocPopout');
+  if (_el_ctxDocPopout) _el_ctxDocPopout.addEventListener('click', function() {
+      var menu = document.getElementById('sidebarContextMenu'); if (menu) menu.style.display = 'none';
+      var id = menu && menu.dataset.id; var camp = getActiveCampaign();
+      var it = camp && id && camp.items[id];
+      if (!it || (it.type !== 'doc' && it.type !== 'planner')) return;
+      if (window.wpDocPanel && window.wpDocPanel.popOut) window.wpDocPanel.popOut(id);
+  });
 
   var _el_ctxDeleteItem = document.getElementById('ctxDeleteItem');
   if(_el_ctxDeleteItem) _el_ctxDeleteItem.addEventListener('click', function() {

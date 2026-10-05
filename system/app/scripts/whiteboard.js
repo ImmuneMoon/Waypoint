@@ -1088,6 +1088,7 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
               if (!fxEl) { fxEl = document.createElement('div'); fxEl.className = 'token-fx'; el.appendChild(fxEl); }
               if (fxEl.dataset.sig !== fxHtml) { fxEl.dataset.sig = fxHtml; fxEl.innerHTML = fxHtml; }
           } else if (fxEl) fxEl.remove();
+          pagePinSync(el, item, hideFromMe);   // 1.5.4 (pageshelf.js): a pin's mark, on the GM's screen alone
           if (item.id === state.selWbId && (!state.selWbIds || state.selWbIds.length === 1) && !item.locked) {
 
               el.classList.add('sel');
@@ -3072,6 +3073,30 @@ window.wpFitToGrid = fitToGrid;
   function targetLightHtml(markHtml, l) { return l ? '<span class="target-pair">' + markHtml + '<span class="target-light' + (l.lv === 0 ? ' dark' : '') + '" title="' + esc(l.name) + '">' + TARGET_LIGHT_GLYPH[l.lv === 0 ? 0 : 1] + '</span></span>' : markHtml; }
   function targetLightCaption(list) { var seen = Object.create(null), out = []; (Array.isArray(list) ? list : []).forEach(function(l) { if (l && typeof l.name === 'string' && l.name && !seen[l.name]) { seen[l.name] = 1; out.push(l.name); } }); return out.join(' \u00b7 '); }
   // [sinkcheck:lightlabel-end]
+  // [shelfcheck:pagepin-start]
+  // A pin (1.5.4, pageshelf.js; the owner by prompt: "Pins on the map"): a piece of the play map that opens a page. The GM's alone: the
+  // module says whether this screen sees pins and which page a piece opens. Here are the mark on the piece and the row of its right-click
+  // menu. A page's name is text everywhere: escaped in the row, a data value and a tooltip's text on the mark
+  function pagePinOf(item) { var PS = window.wpPageShelf; return PS && typeof PS.mapPin === 'function' ? PS.mapPin(item) : null; }
+  function pagePinRow(items) {
+      var its = (Array.isArray(items) ? items : []).filter(Boolean); if (its.length !== 1) return null;
+      var pin = pagePinOf(its[0]); if (!pin) return null;
+      return { id: pin.id, html: '<div class="menu-item cm-open-page" title="A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the page itself.">&#128209; Open page: ' + esc(pin.title) + '</div>' };
+  }
+  // The mark: a small button at the piece's corner. A press on it is no press on the piece: nothing is selected or dragged, and the page opens by the one rule
+  function pagePinMark() {
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'wb-pin';
+      ['pointerdown', 'mousedown', 'dblclick'].forEach(function(ev) { b.addEventListener(ev, function(e) { e.stopPropagation(); }); });
+      b.addEventListener('click', function(e) { e.stopPropagation(); e.preventDefault(); var PS = window.wpPageShelf; if (PS && b.dataset.page) PS.open(b.dataset.page, PS.wayNow(e)); });
+      return b;
+  }
+  function pagePinSync(el, item, hidden) {
+      var mark = el.querySelector(':scope > .wb-pin'), pin = hidden ? null : pagePinOf(item);
+      if (!pin) { if (mark) mark.remove(); return; }
+      if (!mark) { mark = pagePinMark(); el.appendChild(mark); }
+      if (mark.dataset.page !== pin.id || mark.dataset.name !== pin.title) { mark.dataset.page = pin.id; mark.dataset.name = pin.title; mark.dataset.tip = 'Opens ' + pin.title + '. A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the page itself.'; mark.setAttribute('aria-label', 'Open ' + pin.title); }
+  }
+  // [shelfcheck:pagepin-end]
   // [sinkcheck:tokenfx-start]
   // Conditions C1 (docs/CONDITIONS_PLAN.md): a token's effects as a row of small icons at its top left (6 drawn, then "+N"), ringed by tone, a
   // GM-only one dashed, their names in the row's title. A glyph is a mask whose URL is built only from glyphPath's answer (the fixed table);
@@ -6637,6 +6662,8 @@ document.addEventListener('contextmenu', function(e) {
                     return it && !it.aboveGrid;
                 });
                 html += '<div class="menu-item cm-grid">' + (anyUnderGrid ? '&#9650; Show Above Grid' : '&#9660; Put Under Grid') + '</div>';
+                var ppRow = pagePinRow(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));   // 1.5.4: a pin's row, where the one piece selected opens a page
+                if (ppRow) html += ppRow.html;
                 var drRow = doorRows(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));   // a door's own rows: open or close it, lock it for players
                 if (drRow) html += drRow.html;
                 var plRow = portalLockRow(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }), am);   // a portal's own lock: the GM's row, only where the selection holds a portal
@@ -6845,6 +6872,9 @@ document.addEventListener('contextmenu', function(e) {
                 } else if (action.includes('cm-door-open') || action.includes('cm-door-lock')) {   // a door's own rows (saved and drawn again below): an open door lets sight through, so the fog works its vision out again
                     var wentD = doorRowsDo(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }), action.includes('cm-door-open') ? 'open' : 'lock');
                     if (wentD) { if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); } toast(wentD === 'opened' ? 'Door opened.' : wentD === 'closed' ? 'Door closed.' : wentD === 'locked' ? 'Door locked for players.' : 'Door unlocked for players.'); }
+                } else if (action.includes('cm-open-page')) {   // 1.5.4 (pageshelf.js): a pin's page, opened by the one rule (over the map by a plain click)
+                    var ppDo = pagePinRow(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));
+                    if (ppDo && window.wpPageShelf) window.wpPageShelf.open(ppDo.id, window.wpPageShelf.wayNow(ce));
                 } else if (action.includes('cm-portal-lock')) {   // a portal's own lock: the selected portals locked or unlocked together (saved and drawn again below, so the table gets it at once)
                     var wentPL = portalLockSet(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }), am);
                     if (wentPL) toast(wentPL === 'locked' ? 'Portal locked for players.' : 'Portal unlocked.');

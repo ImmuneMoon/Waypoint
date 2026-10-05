@@ -100,8 +100,38 @@ function natCmp(a, b) {
     }
     return x.length === y.length ? 0 : x.length < y.length ? -1 : 1;
 }
-// What the shelf shows, in order: the planners of the map on screen and of the maps it is nested in, the planner marked Next, the pinned
-// pages, the last ones opened. A page stands once, in the first place it belongs; its row says whether it is pinned and whether it is Next
+/* Pins on the map (the owner by prompt: "Pins on the map", as map notes do in Foundry and pins do in Fantasy Grounds). A piece of the play
+   map may open a page: its own key, page, holds the id of a planner or a handbook page of the same campaign. The link is the GM's alone:
+   net.js sends no piece with it (wireWbItem deletes the key) and a player's app keeps none (cleanHostWbItem); an import keeps it only as a
+   plain id (cleanup.js). It is read only here: a link to a page that is gone, or to what is no page, is no link. */
+var PIN_ID = /^[A-Za-z0-9_.:-]{1,80}$/, PIN_KINDS = { image: 1, rect: 1, circle: 1, hexagon: 1, diamond: 1 };
+// Which pieces may carry one: a picture (a token is one) or a plain shape; never a waiting token or a GM note card. A text box, a pen
+// line, a trigger zone and a light source carry none
+function mapPinMay(w) { return !!w && typeof w === 'object' && typeof w.id === 'string' && PIN_KINDS[w.type] === 1 && !w.waiting && !w.gmNoteFor; }
+// The page a piece opens, or null
+function mapPinOf(camp, w) { return mapPinMay(w) && typeof w.page === 'string' && PIN_ID.test(w.page) ? pageOf(camp, w.page) : null; }
+// Set a piece's page, or take it off (an id that names no page takes it off). Says what it did: 'set', 'cleared' or '' (nothing changed)
+function mapPinPut(camp, w, id) {
+    if (!w || typeof w !== 'object') return '';
+    if (mapPinMay(w) && typeof id === 'string' && PIN_ID.test(id) && pageOf(camp, id)) { if (w.page === id) return ''; w.page = id; return 'set'; }
+    if (w.page === undefined) return '';
+    delete w.page; return 'cleared';
+}
+// The pages a pin may name, for a list: planners first, then handbook pages, each by its name
+function mapPinChoices(camp) {
+    var out = []; if (!camp || !camp.items) return out;
+    Object.keys(camp.items).forEach(function(id) { var it = PIN_ID.test(id) ? pageOf(camp, id) : null; if (it) out.push({ id: id, title: pageTitle(it), kind: it.type }); });
+    return out.sort(function(a, b) { return (a.kind === b.kind ? 0 : a.kind === 'planner' ? -1 : 1) || natCmp(a.title, b.title); });
+}
+// The pages pinned to pieces of a map, each once, in the pieces' order
+function mapPinsOn(camp, mapId) {
+    var map = mapOf(camp, mapId), out = [], seen = Object.create(null);
+    (map && Array.isArray(map.whiteboard) ? map.whiteboard : []).forEach(function(w) { if (mapPinOf(camp, w) && !seen[w.page]) { seen[w.page] = 1; out.push(w.page); } });
+    return out;
+}
+// What the shelf shows, in order: the planners of the map on screen (and the pages pinned to its pieces) and those of the maps it is nested
+// in, the planner marked Next, the pinned pages, the last ones opened. A page stands once, in the first place it belongs; its row says
+// whether it is pinned and whether it is Next
 function shelfModel(camp, mapId, recentRaw) {
     var m = { where: [], next: [], pinned: [], recent: [] }; if (!camp || !camp.items) return m;
     var seen = Object.create(null), take = function(id) { if (seen[id]) return false; seen[id] = 1; return true; };
@@ -112,6 +142,7 @@ function shelfModel(camp, mapId, recentRaw) {
     mapChain(camp, mapId).forEach(function(mid, k) {
         if (room <= 0) return;
         var rows = pagesFor(camp, mid).filter(function(r) { return take(r.id); }).map(function(r) { return row(r.id, r.node && r.node !== pageTitle(camp.items[r.id]) ? r.node + (r.n > 1 ? ' +' + (r.n - 1) : '') : ''); });
+        if (k === 0) mapPinsOn(camp, mid).forEach(function(id) { if (take(id)) rows.push(row(id, 'pinned on this map')); });   // a page a piece of this map opens belongs here too
         rows.sort(function(a, b) { return (a.next ? 0 : 1) - (b.next ? 0 : 1) || natCmp(a.title, b.title); });
         if (rows.length) { m.where.push({ map: mid, title: pageTitle(camp.items[mid]), here: k === 0, rows: rows.slice(0, room) }); room -= Math.min(room, rows.length); }
     });
@@ -206,6 +237,17 @@ function pinPage(id) {
 }
 // [shelfcheck:pins-end]
 
+/* ---------- pins on the map: what the board and Properties ask ---------- */
+// [shelfcheck:mappin-start]
+// Whose screen sees and sets pins: the GM's own. Never a player's app, the stream window or a window of its own
+function mapPinGm() { var n = window.wpNet; return !(window.wpStream || window.wpPopout || (n && (n.foreign || (n.active && n.role === 'client')))); }
+// The page a piece opens, for the board: its id and its name, or null
+function mapPin(w) { var camp = mapPinGm() ? getActiveCampaign() : null, it = camp ? mapPinOf(camp, w) : null; return it ? { id: w.page, title: pageTitle(it) } : null; }
+// What Properties shows for a piece: the page it opens now and the pages on offer, or null where there is nothing to show
+function mapPinField(w) { var camp = mapPinGm() ? getActiveCampaign() : null; if (!camp || !mapPinMay(w)) return null; var it = mapPinOf(camp, w); return { cur: it ? w.page : '', choices: mapPinChoices(camp) }; }
+function mapPinSet(w, id) { return mapPinGm() ? mapPinPut(getActiveCampaign(), w, id) : ''; }
+// [shelfcheck:mappin-end]
+
 /* ---------- the shelf on the play map's toolbar ---------- */
 function shelfMenu() { return document.getElementById('pagesMenu'); }
 function shelfIsOpen() { var m = shelfMenu(); return !!(m && m.classList.contains('show')); }
@@ -245,5 +287,5 @@ function shelfWire() {
 }
 // [shelfcheck:wire-end]
 
-window.wpPageShelf = { way: pageWay, wayNow: function(ev) { return pageWay(viewNow(), ev); }, open: openPage, isPinned: isPinned, pinLabel: pinLabel, pin: pinPage, opened: pageOpened, noteActive: noteActive, close: shelfClose };
+window.wpPageShelf = { way: pageWay, wayNow: function(ev) { return pageWay(viewNow(), ev); }, open: openPage, isPinned: isPinned, pinLabel: pinLabel, pin: pinPage, opened: pageOpened, noteActive: noteActive, close: shelfClose, mapPin: mapPin, mapPinField: mapPinField, mapPinSet: mapPinSet };
 shelfWire();

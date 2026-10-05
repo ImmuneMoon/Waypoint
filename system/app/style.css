@@ -671,6 +671,11 @@
   .token-stance .chip.post { color: #8fd6ec; }
   /* Conditions C1: a token's effects, small icons at its top left ringed by tone (a GM-only one dashed), counter-scaled so they read at
      any zoom. The row carries the names as its title. */
+  /* 1.5.4 (pageshelf.js): a pin, a piece of the play map that opens a page. Its mark is drawn on the GM's screen alone and keeps its size at any zoom.
+     It is centred on the piece's corner (half its size out each way, scaled about its own middle), so it takes a corner of a small token and no more */
+  .wb-item > .wb-pin { position: absolute; right: -11px; top: -11px; z-index: 6; width: 22px; height: 22px; padding: 0; border: 1px solid var(--gold); border-radius: 50%; background: var(--deep); font-size: 11px; line-height: 20px; text-align: center; cursor: pointer; transform: scale(var(--wbz, 1)); transform-origin: 50% 50%; box-shadow: 0 1px 4px rgba(0,0,0,0.5); }
+  .wb-item > .wb-pin::before { content: '\1F4D1'; }
+  .wb-item > .wb-pin:hover, .wb-item > .wb-pin:focus-visible { background: var(--gold); outline: none; }
   .token-fx { position: absolute; left: 2px; top: 2px; z-index: 5; transform: scale(var(--wbz, 1)); transform-origin: 0 0; }
   .token-fx .tfx-row { display: flex; flex-wrap: wrap; gap: 2px; max-width: 70px; }
   .token-fx .tfx { width: 14px; height: 14px; border-radius: 50%; background: rgba(0,0,0,0.82); color: #e9e9f0; box-shadow: 0 0 0 1.5px #9aa0a6; display: inline-flex; align-items: center; justify-content: center; font: 700 9px/1 Inter, sans-serif; overflow: hidden; white-space: nowrap; }

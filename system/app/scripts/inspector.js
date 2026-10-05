@@ -1021,6 +1021,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             html += (w.targetMapId && w.hidden ? '<div class="field check-row"><input type="checkbox" id="wbTrapPortal" ' + (w.trap ? 'checked' : '') + '> <label for="wbTrapPortal">⚠️ Trap — fires while hidden</label></div><div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">Players never see it, but a token that lands on this tile is still teleported. A locked destination map, locked travel or the tile&rsquo;s own lock (Locked for players) still blocks it.</div>' : '');
             html += '<div class="field"><label for="wbNodeLink">Link Node</label><select id="wbNodeLink">'+nodeOpts+'</select></div>'+
               portalLockFieldHtml(w, activeMap)+   // a portal's own lock: Locked for players, on a piece that is a portal (its own Portal to Map, or its linked node's)
+              pagePinFieldHtml(w)+   // 1.5.4: a pin, the page this piece opens (the GM's alone)
               (w.type !== 'image' && w.type !== 'trigger' && w.type !== 'light' ? '<div class="field"><label>' + (w.type === 'text' ? 'Text Color' : w.type === 'path' ? 'Pen Color' : 'Fill Color') + '</label><div class="color-row">' + ((w.type === 'path' || w.type === 'text') ? penHtml : colorHtml) + '</div></div>' : '') +
               (w.type === 'text' ? textStyleHtml(w) : '') +
               (w.type !== 'path' && w.type !== 'text' ? '<div class="field check-row"><input type="checkbox" id="wbLockRatio" '+(w.lockRatio?'checked':'')+'> <label for="wbLockRatio">Lock proportions when resizing</label></div>' : '') +
@@ -1157,6 +1158,8 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             if (_el_wbPortalIcon) _el_wbPortalIcon.addEventListener('change', function() { w.portalIcon = this.value; save(); render(); });
             var _el_wbTrapPortal = document.getElementById('wbTrapPortal');
             if (_el_wbTrapPortal) _el_wbTrapPortal.addEventListener('change', function() { if (this.checked) w.trap = true; else delete w.trap; save(); render(); import('./io.js').then(function(io) { io.toast(w.trap ? 'Armed as a trap — it fires while hidden.' : 'No longer a trap — hidden means inert again.'); }); });
+            var _el_wbPagePin = document.getElementById('wbPagePin');   // 1.5.4: a pin: the id of a page that is there, or no key
+            if (_el_wbPagePin) _el_wbPagePin.addEventListener('change', function() { setItemPagePin(w, this.value); });
             var _el_wbPortalLock = document.getElementById('wbPortalLock');   // a portal's own lock: true or no key
             if (_el_wbPortalLock) _el_wbPortalLock.addEventListener('change', function() { setItemPortalLock(w, this.checked, activeMap); });
             var _el_wbPortalRoom = document.getElementById('wbPortalRoom');
@@ -1900,6 +1903,21 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
       toast((w.fogHand === 'hide' ? 'Under fog: players see nothing under it.' : w.fogHand === 'show' ? 'Always revealed: players always see what is under it.' : 'Fog mark taken off.') + (note ? ' ' + note : ''));
   }
   // [sinkcheck:foghandbox-end]
+  // [shelfcheck:pagepinbox-start]
+  // A pin (1.5.4, pageshelf.js): the page a piece of the play map opens. The GM's alone, and never sent. The list offers the campaign's
+  // planners and handbook pages by name, escaped, and the piece keeps only the id of one that is there: pageshelf.js is the judge of both
+  function pagePinFieldHtml(w) {
+      var PS = window.wpPageShelf, f = PS && typeof PS.mapPinField === 'function' ? PS.mapPinField(w) : null; if (!f) return '';
+      var opt = function(c) { return '<option value="' + esc(c.id) + '"' + (c.id === f.cur ? ' selected' : '') + '>' + esc(c.title) + '</option>'; };
+      var grp = function(label, kind) { var l = f.choices.filter(function(c) { return c.kind === kind; }); return l.length ? '<optgroup label="' + label + '">' + l.map(opt).join('') + '</optgroup>' : ''; };
+      return '<div class="field"><label for="wbPagePin" title="A click on the mark this piece then wears opens that page over the map. The link is yours alone: players never get it.">&#128209; Opens page</label><select id="wbPagePin"><option value="">None</option>' + grp('Planners', 'planner') + grp('Handbook', 'doc') + '</select></div>';
+  }
+  function setItemPagePin(w, id) {
+      var PS = window.wpPageShelf, did = PS && typeof PS.mapPinSet === 'function' ? PS.mapPinSet(w, id) : ''; if (!did) return;
+      save(); render();
+      toast(did === 'set' ? 'This piece opens that page now. The link is yours alone.' : 'This piece opens no page now.');
+  }
+  // [shelfcheck:pagepinbox-end]
   // [sinkcheck:portallockbox-start]
   // A portal's own lock (the owner, 2026-10-03: "maybe add the ability to lock a portal from the play map"): a portal piece's Locked for
   // players tick — no player travels through it until the GM unlocks it (item.portalLock, true or no key; the host is the judge: net.js

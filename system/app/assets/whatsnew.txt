@@ -141,6 +141,13 @@ Planners and pages
   page, and so does the middle mouse button. The window button sends
   the page in front to a window of its own and keeps the other tabs.
   The panel holds eight pages.
+- A piece of the play map can open a page. Select a picture, a token
+  or a plain shape and pick the page under Opens page in its
+  Properties. The piece then wears a small mark: a click on it opens
+  the page over the map, and Ctrl+click opens a window of its own.
+  The piece's right-click menu has Open page too, and the Pages shelf
+  lists the page under Here on that map. The link is yours alone:
+  players get the piece without it.
 
 The tour
 - The tour is short now. Each step says what a thing is and the few

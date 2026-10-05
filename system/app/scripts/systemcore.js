@@ -4106,7 +4106,8 @@ function sbProposal(sys, char, dossier, F, find) {
                     var qs = isObj(q) && q.op === 'ov' && isObj(q.ov) && isObj(q.ov.stats) ? q.ov.stats : null; if (!qs || !isObj(cov.stats)) return;
                     Object.keys(qs).forEach(function(k) {
                         if (qs[k] !== null || !Object.prototype.hasOwnProperty.call(cov.stats, k) || Object.prototype.hasOwnProperty.call(pst, k)) return;
-                        pst[k] = null; fr.push(k + ' ' + sbShow(null, cov.stats[k])); to.push(k + ' ' + sbShow(null, rowStat(isObj(f && f.list) ? f.list : null, base, k))); if (held.indexOf(k) >= 0) gmHeld = true;
+                        var ev = rowStat(isObj(f && f.list) ? f.list : null, base, k); if (cov.stats[k] === ev) return;   // the copy's own figure already reads as its entry's (the entry came to read it since): nothing to show
+                        pst[k] = null; fr.push(k + ' ' + sbShow(null, cov.stats[k])); to.push(k + ' ' + sbShow(null, ev)); if (held.indexOf(k) >= 0) gmHeld = true;
                     });
                 });
                 if (Object.keys(pst).length) patch.stats = pst;
@@ -4202,7 +4203,7 @@ function fillMaking(sys, char, fill, F, opts) {
             if (!ok) return;
             var q = JSON.parse(JSON.stringify(q0));
             if (q.op === 'custom' && isObj(q.def)) { var d = {}; Object.keys(q.def).forEach(function(k) { if (CUSTOM_OWN[k] === 1) d[k] = q.def[k]; }); var s2 = listStats(d.stats); if (s2) d.stats = s2; else delete d.stats; q.def = d; }   // the players' fields; the list's own stats
-            if (q.op === 'ov') { var p = {}; if (isObj(q.ov) && typeof q.ov.name === 'string') p.name = q.ov.name; var s3 = listStats(isObj(q.ov) ? q.ov.stats : null); if (s3) p.stats = s3; if (!Object.keys(p).length) return; q.ov = p; }
+            if (q.op === 'ov') { var p = {}; if (isObj(q.ov) && typeof q.ov.name === 'string') p.name = q.ov.name; var s3 = listStats(isObj(q.ov) ? q.ov.stats : null); if (s3) p.stats = s3; if (!Object.keys(p).length || (p.name === undefined && Object.keys(p.stats).every(function(k) { return p.stats[k] === null; }))) return; q.ov = p; }   // a patch that states nothing — none of the list's stats, or each of them null, the entry's own (the bridge writes a ranged weapon's range so) — changes no row a fill made: passed over, never counted as left out
             if (q.op === 'set' && isObj(q.facts) && q.facts.ct !== undefined) { var ctc = cleanCt(q.facts.ct, aspec); if (ctc) q.facts.ct = ctc; else delete q.facts.ct; if (!Object.keys(q.facts).length) return; }   // the list's own counters
             var r = applyTwin(sys, work, g.f, q, F, opts);
             if (!r.ok && q.op === 'custom' && (r.why === 'badkey' || r.why === 'key') && isObj(q.def) && q.def.key !== undefined) { delete q.def.key; r = applyTwin(sys, work, g.f, q, F, opts); }   // a key taken: the row without it

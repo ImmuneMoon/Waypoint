@@ -65,7 +65,7 @@ const W = new Function(waySrc + '\nreturn { way: pageWay, pageOf: pageOf };')();
     check('at someone else\'s table a handbook page is read in the reader whatever way is asked, never opened to edit and never in a window, and a planner is not opened at all',
         fDoc.every(r => r.how === 'reader' && J(r.read) === J(['d1']) && kept(r) && r.opened.length === 0 && r.popped.length === 0) && fPlan.every(r => r.how === '' && kept(r) && r.read.length === 0 && r.opened.length === 0 && r.popped.length === 0), J([fDoc.map(r => r.how), fPlan.map(r => r.how)]));
     check('the module publishes the rule, the rule for the view on screen, the opener and the shelf\'s few calls, and wires the shelf once; the view is asked of the one place that knows it (floats.js), and nothing in the module draws markup or opens a window by itself',
-        /\nwindow\.wpPageShelf = \{ way: pageWay, wayNow: function\(ev\) \{ return pageWay\(viewNow\(\), ev\); \}, open: openPage, isPinned: isPinned, pinLabel: pinLabel, pin: pinPage, opened: pageOpened, noteActive: noteActive, close: shelfClose \};\nshelfWire\(\);\n$/.test(ps)
+        /\nwindow\.wpPageShelf = \{ way: pageWay, wayNow: function\(ev\) \{ return pageWay\(viewNow\(\), ev\); \}, open: openPage, isPinned: isPinned, pinLabel: pinLabel, pin: pinPage, opened: pageOpened, noteActive: noteActive, close: shelfClose, mapPin: mapPin, mapPinField: mapPinField, mapPinSet: mapPinSet \};\nshelfWire\(\);\n$/.test(ps)
         && /\nfunction viewNow\(\) \{ var fl = window\.wpFloats; return fl && fl\.view \? fl\.view\(\) : ''; \}\n/.test(ps)
         && /\nfunction pageOpened\(id\) \{ recentNote\(id\); panelSync\(\); \}\n/.test(ps) && /\n    var camp = getActiveCampaign\(\); if \(camp && pageOf\(camp, camp\.activeItemId\)\) recentNote\(camp\.activeItemId\);\n    if \(shelfIsOpen\(\) && viewNow\(\) !== 'play'\) shelfClose\(\);/.test(ps)
         && /\nfunction shelfClose\(\) \{ var m = shelfMenu\(\); if \(m && m\.classList\.contains\('show'\)\) \{ m\.classList\.remove\('show'\); m\.textContent = ''; \} \}/.test(ps)
@@ -409,6 +409,108 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
         && count(dpS, "        case 'node': return stripMarkup(") === 1 && count(dpS, "        case 'flowchart': return stripMarkup(") === 1 && /window\.wpDocSearch = function\(q, camp, types\) \{ return searchAll\(q, camp, types\); \};/.test(dpS), J([r1, r2, r3.map(r => r.id), r4.map(r => r.id)]));
 }
 
+/* ---------- map pins: a piece of the play map that opens a page ---------- */
+{
+    const M = new Function(waySrc + '\n' + shelfSrc + '\nreturn { may: mapPinMay, of: mapPinOf, put: mapPinPut, choices: mapPinChoices, on: mapPinsOn, model: shelfModel };')();
+    const camp = mkCamp(), pc = (o) => Object.assign({ id: 'w1', type: 'image', x: 0, y: 0, w: 50, h: 50 }, o || {});
+    check('a pin may sit on a picture (a token is one) or a plain shape, and on nothing else: not a text box, a pen line, a trigger zone or a light source, not a waiting token or a GM note card, and not what is no piece',
+        ['image', 'rect', 'circle', 'hexagon', 'diamond'].every(t => M.may(pc({ type: t }))) && M.may(pc({ isChar: true })) && ['text', 'path', 'trigger', 'light', 'toString', 'constructor', undefined, ''].every(t => !M.may(pc({ type: t })))
+        && !M.may(pc({ waiting: true })) && !M.may(pc({ gmNoteFor: 'x' })) && !M.may(pc({ id: 7 })) && !M.may(null) && !M.may('image') && !M.may(undefined));
+    check('the page a piece opens is the planner or handbook page its key names, and nothing else is a link: a page that is gone, a map, a name a prototype holds, an id with a space or markup in it or past 80 characters, a number, a list; a piece that may carry none opens none whatever its key says',
+        M.of(camp, pc({ page: 'p_bar' })) === camp.items.p_bar && M.of(camp, pc({ type: 'rect', page: 'd_rules' })) === camp.items.d_rules && M.of(camp, pc({ page: 'gone' })) === null && M.of(camp, pc({ page: 'm_bar' })) === null && M.of(camp, pc({ page: 'constructor' })) === null
+        && M.of(camp, pc({ page: 'p bar' })) === null && M.of(camp, pc({ page: '<b>' })) === null && M.of(camp, pc({ page: 'x'.repeat(81) })) === null && M.of(camp, pc({ page: 7 })) === null && M.of(camp, pc({ page: ['p_bar'] })) === null && M.of(camp, pc({})) === null
+        && M.of(camp, pc({ type: 'text', page: 'p_bar' })) === null && M.of(camp, pc({ waiting: true, page: 'p_bar' })) === null && M.of(null, pc({ page: 'p_bar' })) === null
+        && (() => { const o = mkCamp(); o.items['bad id'] = { type: 'planner', meta: { title: 'There, under an id no link may hold' } }; o.items['x'.repeat(81)] = { type: 'doc', meta: {} }; return M.of(o, pc({ page: 'bad id' })) === null && M.of(o, pc({ page: 'x'.repeat(81) })) === null && M.put(o, pc(), 'bad id') === ''; })());
+    const a = pc(), r1 = M.put(camp, a, 'p_bar'), v1 = a.page, r2 = M.put(camp, a, 'p_bar'), r3 = M.put(camp, a, 'd_rules'), v3 = a.page, r4 = M.put(camp, a, ''), has4 = 'page' in a, r5 = M.put(camp, a, '');
+    const b = pc({ page: 'p_bar' }), r6 = M.put(camp, b, 'gone'), has6 = 'page' in b, t = pc({ type: 'text', page: 'p_bar' }), r7 = M.put(camp, t, 'd_rules'), has7 = 'page' in t, t2 = pc({ type: 'text' }), r8 = M.put(camp, t2, 'p_bar');
+    check('a pin is set and taken off by one call that says what it did: set, cleared, or nothing when nothing changed; an id that names no page takes the link off; a piece that may carry none takes none and loses a stale one; what is no piece is left alone',
+        r1 === 'set' && v1 === 'p_bar' && r2 === '' && r3 === 'set' && v3 === 'd_rules' && r4 === 'cleared' && has4 === false && r5 === '' && r6 === 'cleared' && has6 === false && r7 === 'cleared' && has7 === false && r8 === '' && !('page' in t2)
+        && M.put(camp, null, 'p_bar') === '' && M.put(camp, 'x', 'p_bar') === '' && M.put(camp, pc(), 'm_bar') === '' && M.put(camp, pc(), 'constructor') === '' && M.put(camp, pc(), 5) === '', J([r1, r2, r3, r4, r5, r6, r7, r8]));
+    const odd = mkCamp(); odd.items['bad id'] = { type: 'planner', meta: { title: 'Aaa first by name' } }; const ch = M.choices(odd);
+    check('the pages a pin may name are every planner and handbook page of the campaign, planners first, each kind in the order a reader expects; a map is not on the list, nor a page whose id could not be kept as a link',
+        J(ch.map(c => c.id)) === J(['p_bar', 'p_fight', 'p_city', 'p_free', 'p_table', 'd_rules']) && J(ch.map(c => c.kind)) === J(['planner', 'planner', 'planner', 'planner', 'planner', 'doc']) && ch[0].title === '3.10 The Bar' && ch[5].title === 'House rules' && M.choices(null).length === 0 && M.choices({}).length === 0, J(ch.map(c => c.id + ':' + c.title)));
+    const pm = mkCamp(); pm.items.m_bar.whiteboard = [pc({ id: 'a', page: 'd_rules' }), pc({ id: 'b', type: 'rect', page: 'p_free' }), pc({ id: 'c', page: 'd_rules' }), pc({ id: 'd', type: 'text', page: 'p_city' }), pc({ id: 'e', page: 'gone' }), null, 'junk', pc({ id: 'f', hidden: true, page: 'p_city' })];
+    pm.items.m_city.whiteboard = [pc({ id: 'g', page: 'p_table' })];
+    const on = M.on(pm, 'm_bar'), model = M.model(pm, 'm_bar', []), here = model.where[0], around = model.where[1];
+    check('the pages pinned on a map are read from its pieces, each once, in the pieces\' order, a hidden piece\'s too (the shelf is the GM\'s own); the shelf lists them under Here beside the planners that play there, and a pin on a map this one is nested in is not listed for this one',
+        J(on) === J(['d_rules', 'p_free', 'p_city']) && M.on(pm, 'm_world').length === 0 && M.on(pm, 'nope').length === 0 && M.on(null, 'm_bar').length === 0
+        && here.here === true && J(here.rows.map(r => r.id)) === J(['p_fight', 'p_bar', 'p_city', 'd_rules', 'p_free']) && J(here.rows.slice(2).map(r => r.sub)) === J(['pinned on this map', 'pinned on this map', 'pinned on this map']) && here.rows[3].kind === 'doc'
+        && model.where.length === 1 && around === undefined && !J(model).includes('p_table'), J([on, here.rows.map(r => r.id + ':' + r.sub), model.where.length]));
+}
+{
+    // the GM's gate: what the board and Properties ask
+    const src = waySrc + '\n' + shelfSrc + '\n' + sliceOf(ps, 'mappin');
+    const mk = win => { const camp = mkCamp(); return { camp, api: new Function('window', 'getActiveCampaign', src + '\nreturn { gm: mapPinGm, pin: mapPin, field: mapPinField, set: mapPinSet };')(win, () => camp) }; };
+    const piece = () => ({ id: 'w1', type: 'image', page: 'p_bar' });
+    const gm = mk({}), host = mk({ wpNet: { active: true, role: 'host', foreign: false } }), idle = mk({ wpNet: { active: false, role: null } });
+    const others = [{ wpNet: { active: true, role: 'client' } }, { wpNet: { foreign: true, active: false } }, { wpStream: true }, { wpPopout: true }, { wpStream: true, wpNet: { active: true, role: 'host' } }].map(mk);
+    check('pins are the GM\'s alone: on the GM\'s own screen, hosting or not, a piece that opens a page says which, by id and name; on a player\'s app, at someone else\'s table, in the stream window and in a window of its own there is none, nothing to show in Properties and nothing can be set',
+        [gm, host, idle].every(w => w.api.gm() === true && J(w.api.pin(piece())) === J({ id: 'p_bar', title: '3.10 The Bar' })) && gm.api.pin({ id: 'w1', type: 'image' }) === null && gm.api.pin({ id: 'w1', type: 'image', page: 'gone' }) === null
+        && others.every(w => { const p = piece(); return w.api.gm() === false && w.api.pin(p) === null && w.api.field(p) === null && w.api.set(p, 'd_rules') === '' && w.api.set(p, '') === '' && p.page === 'p_bar'; }));
+    const f1 = gm.api.field(piece()), f2 = gm.api.field({ id: 'w1', type: 'rect' }), f3 = gm.api.field({ id: 'w1', type: 'rect', page: 'gone' }), p2 = piece(), s1 = gm.api.set(p2, 'd_rules'), s2 = gm.api.set(p2, '');
+    check('Properties is told the page a piece opens now and the pages on offer; a piece with no link, or with one to a page that is gone, shows None; a piece that may carry no pin has no row at all; the setter is the one call and says what it did',
+        f1.cur === 'p_bar' && f1.choices.length === 6 && f2.cur === '' && f2.choices.length === 6 && f3.cur === '' && gm.api.field({ id: 'w1', type: 'text', page: 'p_bar' }) === null && gm.api.field(null) === null && s1 === 'set' && s2 === 'cleared' && !('page' in p2), J([f1.cur, f2.cur, f3.cur, s1, s2]));
+}
+{
+    // the board (whiteboard.js): the menu row, the mark, and the mark kept across redraws
+    const wbS = sliceOf(wb, 'pagepin'), esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const mk = pins => { const dom = makeDom(), R = { opened: [] };
+        const win = { wpPageShelf: pins === null ? undefined : { mapPin: w => (w && Object.prototype.hasOwnProperty.call(pins, w.id) ? pins[w.id] : null), open: (id, way) => { R.opened.push(id + ':' + way); }, wayNow: e => W.way('play', e) } };
+        const api = new Function('window', 'document', 'esc', wbS + '\nreturn { of: pagePinOf, row: pagePinRow, mark: pagePinMark, sync: pagePinSync };')(win, dom.document, esc);
+        const host = () => { const kids = []; return { kids, querySelector: s => (s === ':scope > .wb-pin' ? kids.find(k => k.className === 'wb-pin') || null : null), appendChild: k => { kids.push(k); k.remove = () => { kids.splice(kids.indexOf(k), 1); }; return k; } }; };
+        return { dom, R, api, host }; };
+    const HOSTILE = '<img src=x onerror=alert(1)> "Bar" & grill';
+    const A = mk({ a: { id: 'p_bar', title: HOSTILE }, b: { id: 'd_rules', title: 'Rules' } });
+    const row = A.api.row([{ id: 'a' }]), two = A.api.row([{ id: 'a' }, { id: 'b' }]), none = [A.api.row([{ id: 'z' }]), A.api.row([]), A.api.row(null), A.api.row([null, { id: 'a' }]) && A.api.row([null, { id: 'a' }]).id];
+    check('the right-click menu of one selected piece that opens a page has an Open page row, the page\'s name escaped in it; several pieces, or a piece with no link, have none; the row carries the page for its press',
+        row.id === 'p_bar' && row.html === '<div class="menu-item cm-open-page" title="A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the page itself.">&#128209; Open page: &lt;img src=x onerror=alert(1)&gt; &quot;Bar&quot; &amp; grill</div>'
+        && two === null && J(none) === J([null, null, null, 'p_bar']) && mk(null).api.row([{ id: 'a' }]) === null, J([row, two, none]));
+    const h = A.host(); A.api.sync(h, { id: 'a' }, false); const m1 = h.kids[0], d1 = m1 ? [m1.tagName, m1.type, m1.className, m1.dataset.page, m1.dataset.name, m1.dataset.tip, m1.attrs['aria-label'], m1.childNodes.length] : null;
+    A.api.sync(h, { id: 'a' }, false); const same = h.kids.length === 1 && h.kids[0] === m1;
+    check('a piece that opens a page wears a mark: one button at its corner, empty (its sign is the style sheet\'s), carrying the page and, as plain text, its name in a tooltip and a label; drawn again it is the same mark, not a second one',
+        !!m1 && J(d1) === J(['BUTTON', 'button', 'wb-pin', 'p_bar', HOSTILE, 'Opens ' + HOSTILE + '. A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the page itself.', 'Open ' + HOSTILE, 0]) && same, J(d1));
+    const stops = ['pointerdown', 'mousedown', 'dblclick'].map(ev => A.dom.fire(m1, ev).stopped), c1 = A.dom.fire(m1, 'click'), c2 = A.dom.fire(m1, 'click', { ctrlKey: true }), c3 = A.dom.fire(m1, 'click', { altKey: true });
+    const ctx = A.dom.fire(m1, 'contextmenu').stopped;
+    check('a press on the mark is no press on the piece, so nothing is selected, dragged or opened but the page: the mark stops the press, and a click opens the page by the one rule with the keys held; a right-click goes on to the piece\'s own menu',
+        J(stops) === J([true, true, true]) && c1.stopped === true && c1.prevented === true && J(A.R.opened) === J(['p_bar:panel', 'p_bar:window', 'p_bar:go']) && ctx === false, J([stops, A.R.opened, ctx]));
+    const pins = { a: { id: 'p_bar', title: 'Old name' } }, B = mk(pins), hb = B.host(); B.api.sync(hb, { id: 'a' }, false); const mark = hb.kids[0];
+    pins.a = { id: 'p_bar', title: 'New name' }; B.api.sync(hb, { id: 'a' }, false); const renamed = [hb.kids.length, hb.kids[0] === mark, mark.dataset.name, mark.dataset.tip.slice(0, 15)];
+    pins.a = { id: 'd_rules', title: 'Rules' }; B.api.sync(hb, { id: 'a' }, false); const moved = [mark.dataset.page, mark.attrs['aria-label']]; B.dom.fire(mark, 'click'); const after = J(B.R.opened);
+    pins.a = { id: 'p_twin', title: 'Rules' }; B.api.sync(hb, { id: 'a' }, false); const twin = [hb.kids.length, hb.kids[0] === mark, mark.dataset.page, mark.dataset.name]; B.dom.fire(mark, 'click'); const afterTwin = J(B.R.opened);
+    B.api.sync(hb, { id: 'a' }, true); const hid = hb.kids.length; B.api.sync(hb, { id: 'a' }, false); const back = hb.kids.length; delete pins.a; B.api.sync(hb, { id: 'a' }, false); const gone = hb.kids.length; B.api.sync(hb, { id: 'a' }, false);
+    check('the mark follows its piece across redraws: a page renamed or another page picked changes the same mark, a press then opens the page it names now, another page of the very same name too; a piece hidden from this screen wears none, and the mark is taken off when the link is',
+        J(renamed) === J([1, true, 'New name', 'Opens New name.']) && J(moved) === J(['d_rules', 'Open Rules']) && after === J(['d_rules:panel']) && J(twin) === J([1, true, 'p_twin', 'Rules']) && afterTwin === J(['d_rules:panel', 'p_twin:panel'])
+        && hid === 0 && back === 1 && gone === 0 && hb.kids.length === 0, J([renamed, moved, after, twin, afterTwin, hid, back, gone]));
+    check('the board asks these and nothing else: the mark is synced for every piece as the map is drawn, after its effect icons; the row is built from the selection and its press opens by the rule with the keys held; the mark keeps its size at any zoom and is centred on the piece\'s corner, so it takes a corner of a small token and no more',
+        count(wb, "          } else if (fxEl) fxEl.remove();\n          pagePinSync(el, item, hideFromMe);") === 1
+        && count(wb, "                var ppRow = pagePinRow(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));") === 1 && count(wb, "                if (ppRow) html += ppRow.html;\n                var drRow = doorRows(") === 1
+        && count(wb, "                } else if (action.includes('cm-open-page')) {") === 1 && count(wb, "                    if (ppDo && window.wpPageShelf) window.wpPageShelf.open(ppDo.id, window.wpPageShelf.wayNow(ce));") === 1
+        && /\n\s*\.wb-item > \.wb-pin \{ position: absolute; right: -11px; top: -11px; z-index: 6; width: 22px; height: 22px; [^\n]*transform: scale\(var\(--wbz, 1\)\); transform-origin: 50% 50%;/.test(css) && /\n\s*\.wb-item > \.wb-pin::before \{ content: '\\1F4D1'; \}/.test(css) && !/innerHTML/.test(wbS));
+}
+{
+    // Properties (inspector.js): the row and its setter
+    const insS = read('scripts/inspector.js'), boxS = sliceOf(insS, 'pagepinbox'), esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const mk = o => { const R = { saved: 0, drawn: 0, toasts: [], set: [] };
+        const win = { wpPageShelf: o.none ? undefined : { mapPinField: w => o.field || null, mapPinSet: (w, id) => { R.set.push(id); return o.did === undefined ? 'set' : o.did; } } };
+        const api = new Function('window', 'esc', 'save', 'render', 'toast', boxS + '\nreturn { html: pagePinFieldHtml, set: setItemPagePin };')(win, esc, () => { R.saved++; }, () => { R.drawn++; }, t => { R.toasts.push(t); });
+        return { api, R }; };
+    const field = { cur: 'p"2', choices: [{ id: 'p1', title: '<script>alert(1)</script>', kind: 'planner' }, { id: 'p"2', title: 'Bar & "grill"', kind: 'planner' }, { id: 'd1', title: "Rules' page", kind: 'doc' }] };
+    const html = mk({ field }).api.html({ id: 'w' });
+    check('the Opens page row in Properties lists None, then the planners and the handbook pages in two groups, the page the piece opens picked; a page\'s name and its id are escaped, so a name from a campaign file is text and an id cannot leave its attribute',
+        html === '<div class="field"><label for="wbPagePin" title="A click on the mark this piece then wears opens that page over the map. The link is yours alone: players never get it.">&#128209; Opens page</label><select id="wbPagePin"><option value="">None</option>'
+            + '<optgroup label="Planners"><option value="p1">&lt;script&gt;alert(1)&lt;/script&gt;</option><option value="p&quot;2" selected>Bar &amp; &quot;grill&quot;</option></optgroup><optgroup label="Handbook"><option value="d1">Rules&#39; page</option></optgroup></select></div>', html);
+    const noPl = mk({ field: { cur: '', choices: [{ id: 'd1', title: 'Rules', kind: 'doc' }] } }).api.html({}), empty = mk({ field: { cur: '', choices: [] } }).api.html({});
+    check('a campaign with no planner shows no empty group, one with no page at all still offers None; where the module says there is nothing to show, or is not there, the row is not drawn',
+        !/Planners/.test(noPl) && /<optgroup label="Handbook"><option value="d1">Rules<\/option><\/optgroup>/.test(noPl) && !/selected/.test(noPl) && /<option value="">None<\/option><\/select>/.test(empty) && !/optgroup/.test(empty) && mk({ field: null }).api.html({}) === '' && mk({ none: true }).api.html({}) === '');
+    const S1 = mk({ did: 'set' }); S1.api.set({ id: 'w' }, 'p1'); const S2 = mk({ did: 'cleared' }); S2.api.set({ id: 'w' }, ''); const S3 = mk({ did: '' }); S3.api.set({ id: 'w' }, 'p1'); const S4 = mk({ none: true }); S4.api.set({ id: 'w' }, 'p1');
+    check('picking a page saves the campaign, draws the map again and says what happened; a pick that changed nothing, or one made where pins are not this screen\'s, does none of the three',
+        J(S1.R) === J({ saved: 1, drawn: 1, toasts: ['This piece opens that page now. The link is yours alone.'], set: ['p1'] }) && J(S2.R) === J({ saved: 1, drawn: 1, toasts: ['This piece opens no page now.'], set: [''] }) && J(S3.R) === J({ saved: 0, drawn: 0, toasts: [], set: ['p1'] }) && J(S4.R) === J({ saved: 0, drawn: 0, toasts: [], set: [] }));
+    const cuS = read('scripts/cleanup.js');
+    check('Properties draws the row and wires its list; an import keeps a piece\'s link only as a short plain id that no prototype holds (cleanupcheck runs it)',
+        count(insS, "              pagePinFieldHtml(w)+   // 1.5.4: a pin, the page this piece opens (the GM's alone)\n") === 1 && count(insS, "            if (_el_wbPagePin) _el_wbPagePin.addEventListener('change', function() { setItemPagePin(w, this.value); });") === 1
+        && count(cuS, "            if (w.page !== undefined && !(typeof w.page === 'string' && /^[A-Za-z0-9_.:-]{1,80}$/.test(w.page) && !(w.page in Object.prototype))) delete w.page;") === 1);
+}
+
 /* ---------- said ---------- */
 {
     const wn = [fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8'), fs.readFileSync(path.join(app, 'assets', 'whatsnew.txt'), 'utf8')].map(t => t.replace(/\r\n/g, '\n'));
@@ -437,6 +539,14 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
         && plan.includes('<li>The &times; on a tab closes that page, and so does the middle mouse button. The panel&rsquo;s own &times; closes every tab.</li>')
         && plan.includes('<li>The window button sends the page in front to a window of its own and closes its tab. The other tabs stay.</li>')
         && plan.includes('<li>The panel holds eight pages. A ninth takes the place of the oldest.</li>') && wn.every(t => count(t, NOTE3) === 1 && count(t, FIX3) === 1));
+    const NOTE4 = "- A piece of the play map can open a page. Select a picture, a token\n  or a plain shape and pick the page under Opens page in its\n  Properties. The piece then wears a small mark: a click on it opens\n  the page over the map, and Ctrl+click opens a window of its own.\n  The piece's right-click menu has Open page too, and the Pages shelf\n  lists the page under Here on that map. The link is yours alone:\n  players get the piece without it.\n";
+    const guide = fs.readFileSync(path.join(root, 'CAMPAIGN_INTEGRATION.md'), 'utf8').replace(/\r\n/g, '\n');
+    check('Help says the map pin, in the Planners part under In a session: what it is and where it is set; the mark and what a click, Ctrl+click and Alt+click on it do; the menu row; the shelf\'s Here; and that players get the piece without its link. Both release notes carry it, alike; the integration guide gives the two keys, their limits and that neither is sent',
+        plan.includes('<li>A <b>map pin</b> is a piece of the play map that opens a page. Select a picture, a token or a plain shape and pick the page under <b>Opens page</b> in its Properties.\n')
+        && plan.includes('<li>The piece then wears a small mark at its corner. A click on the mark opens the page over the map. <kbd>Ctrl</kbd>+click opens it in a window of its own, and <kbd>Alt</kbd>+click opens the page itself.</li>')
+        && plan.includes('<li>The piece&rsquo;s right-click menu has <b>Open page</b> too.</li>') && plan.includes('<li>The Pages shelf lists the page under <b>Here</b> while you are on that map.</li>')
+        && plan.includes('<li>A map pin is yours alone. Players get the piece without its link, and they never see the mark.</li>') && wn.every(t => count(t, NOTE4) === 1)
+        && guide.includes("may carry `page`, the id of a planner or a handbook page of the same campaign.") && guide.includes("at most 80 characters from `A-Z a-z 0-9 _ . : -`.") && guide.includes("A campaign may carry `pinnedPages`, an array of planner and handbook page ids kept on the GM's Pages shelf, 24 at most. Both keys are GM prep and are never sent to players."));
     check('Help\'s Planners part says a click on Next scene opens it over the map; both release notes carry the line, alike; the suite is one of those CI runs',
         plan.includes('the play map&rsquo;s right-click menu then offers it as <b>&#9654; Next scene</b>. A click there opens it over the map. <b>Played</b> and <b>Skipped</b> mark a scene done.</li>')
         && wn.every(t => count(t, NOTE) === 1) && fs.readFileSync(path.join(root, '.github/workflows/checks.yml'), 'utf8').replace(/\r\n/g, '\n').includes('        if: ${{ !cancelled() }}\n        run: node tools/shelfcheck.js\n'));

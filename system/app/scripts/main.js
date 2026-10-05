@@ -1312,6 +1312,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
                     '<span class="cmdk-sub">' + (en.snippet ? en.snippet : esc(en.sub)) + '</span></div>';
               }).join('')
             : '<div class="cmdk-empty">No matches.</div>';
+        cmdkHintSync();
     }
 
     function cmdkOpen() {
@@ -1326,9 +1327,29 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
 
     function cmdkClose() { document.getElementById('cmdkModal').style.display = 'none'; }
 
-    function cmdkGo(en) {
+    // [shelfcheck:cmdkway-start]
+    // 1.5.4 (pageshelf.js): where the picked row opens. A page of the campaign on screen opens over the map, in a window of its own or as the
+    // page itself, by the one rule for the view on screen and the keys held. A map, a room and a page of another campaign are gone to, as before
+    function cmdkWay(en, ev) {
+        var ps = window.wpPageShelf;
+        if (!en || (en.kind !== 'planner' && en.kind !== 'doc') || en.campId !== state.appState.activeCampaignId || !ps || !ps.wayNow) return 'go';
+        return ps.wayNow(ev);
+    }
+    // What Enter and its keys do for the row in front, in words under the list
+    function cmdkHint(en) {
+        if (!en) return '';
+        if (cmdkWay(en, { shiftKey: true }) === 'go') return 'Enter goes there.';
+        return cmdkWay(en, null) === 'panel' ? 'Enter opens it over the map. Ctrl+Enter opens a new window. Alt+Enter opens the page itself.' : 'Enter opens the page. Shift+Enter opens it in a panel here. Ctrl+Enter opens a new window.';
+    }
+    // [shelfcheck:cmdkway-end]
+    function cmdkHintSync() { var h = document.getElementById('cmdkHint'); if (h) h.textContent = cmdkHint(_cmdkShown[_cmdkIdx]); }
+    function cmdkFront(i) { if (i === _cmdkIdx || !_cmdkShown[i]) return; _cmdkIdx = i; document.getElementById('cmdkList').querySelectorAll('.cmdk-row').forEach(function(r, k) { r.classList.toggle('active', k === _cmdkIdx); }); cmdkHintSync(); }
+
+    function cmdkGo(en, ev) {
         if (!en) return;
         cmdkClose();
+        var way = cmdkWay(en, ev);
+        if (way !== 'go') { window.wpPageShelf.open(en.itemId, way); return; }   // 1.5.4: over the map or in a window of its own, and the map stays on screen
         // A jump into another campaign while hosting is a campaign switch: the session ends first (asked)
         if (en.campId !== state.appState.activeCampaignId && window.wpConfirmCampaignSwitch) { window.wpConfirmCampaignSwitch(function() { cmdkGoNow(en); }); return; }
         cmdkGoNow(en);
@@ -1367,19 +1388,21 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
         inp.addEventListener('keydown', function(e) {
             e.stopPropagation();
             if (e.key === 'Escape') { cmdkClose(); return; }
-            if (e.key === 'Enter') { cmdkGo(_cmdkShown[_cmdkIdx]); return; }
+            if (e.key === 'Enter') { e.preventDefault(); cmdkGo(_cmdkShown[_cmdkIdx], e); return; }   // the keys held go with it: Ctrl a new window, Alt the page itself, Shift a panel
             if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
                 e.preventDefault();
                 _cmdkIdx = Math.max(0, Math.min(_cmdkShown.length - 1, _cmdkIdx + (e.key === 'ArrowDown' ? 1 : -1)));
                 list.querySelectorAll('.cmdk-row').forEach(function(r, i) { r.classList.toggle('active', i === _cmdkIdx); });
                 var act = list.querySelector('.cmdk-row.active');
                 if (act) act.scrollIntoView({ block: 'nearest' });
+                cmdkHintSync();
             }
         });
         list.addEventListener('click', function(e) {
             var row = e.target.closest('.cmdk-row');
-            if (row) cmdkGo(_cmdkShown[+row.dataset.i]);
+            if (row) cmdkGo(_cmdkShown[+row.dataset.i], e);
         });
+        list.addEventListener('mousemove', function(e) { var row = e.target.closest('.cmdk-row'); if (row) cmdkFront(+row.dataset.i); });   // the row under the pointer is the row in front, so the line under the list speaks of the row a click opens
         modal.addEventListener('pointerdown', function(e) { if (e.target === modal) cmdkClose(); });
         document.addEventListener('keydown', function(e) {
             if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {

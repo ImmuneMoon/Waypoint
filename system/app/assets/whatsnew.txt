@@ -119,6 +119,12 @@ Planners and pages
   no longer opens Table Chat over what you read. You get a notice, and
   a count on the chat button. Your own roll opens the chat where you
   are for a few seconds.
+- Quick-jump keeps you on the play map. Press Ctrl+K and pick a
+  planner or a handbook page: Enter opens it over the map, Ctrl+Enter
+  opens it in a window of its own, and Alt+Enter opens the page itself
+  to edit. A map or a room is still gone to. A click works the same
+  way, and the line under the list says what Enter will do. Next
+  scene, on the play map's right-click menu, opens over the map too.
 
 The tour
 - The tour is short now. Each step says what a thing is and the few

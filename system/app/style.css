@@ -870,6 +870,8 @@
   .cmdk-row.active, .cmdk-row:hover { background: var(--panel); }
   .cmdk-row .cmdk-sub { color: var(--dim); font-size: 11px; margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 45%; }
   .cmdk-empty { padding: 18px 16px; color: var(--dim); font-size: 13px; }
+  .cmdk-hint { padding: 7px 16px; border-top: 1px solid var(--edge); color: var(--dim); font-size: 11.5px; }   /* 1.5.4: what Enter and its keys do for the row in front */
+  .cmdk-hint:empty { display: none; }
   
   /* Grids draw over content (z 15000), but text must stay readable — lift text
      items above the grid whenever one is active. */

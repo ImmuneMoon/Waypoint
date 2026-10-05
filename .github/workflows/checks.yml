@@ -102,6 +102,9 @@ jobs:
       - name: floatcheck — floating boxes and the views they show on (put away off the play map, back as left)
         if: ${{ !cancelled() }}
         run: node tools/floatcheck.js
+      - name: shelfcheck — pages in a session (where a page opens: over the map, a window of its own, the page itself)
+        if: ${{ !cancelled() }}
+        run: node tools/shelfcheck.js
       - name: updatercheck — signed updates, the way back, the core updating itself, the key tool and the core's record (run on scratch installs; nothing downloaded is ever started)
         if: ${{ !cancelled() }}
         run: node tools/updatercheck.js

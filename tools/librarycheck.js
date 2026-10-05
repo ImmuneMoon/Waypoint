@@ -196,7 +196,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             zOf('libraryModal') > zOf('systemModal') && zOf('libraryModal') < zOf('customConfirm') && zOf('libraryModal') < zOf('customPrompt')
             && hmS.indexOf('scripts/librarywin.js') > hmS.indexOf('scripts/library.js') && hmS.indexOf('scripts/library.js') > 0
             && /<div id="sysItems"[\s\S]*?id="sysOpenLibrary"[\s\S]*?<div id="sysItemRows"/.test(hmS)
-            && /<div id="helpModal"[\s\S]*<li><b>&#128218; Library&hellip;<\/b> \(on the Items tab\)/.test(hmS), j([zOf('libraryModal'), zOf('systemModal'), zOf('customConfirm')]));
+            && /<div id="helpModal"[\s\S]*<li><b>&#128218; Library&hellip;<\/b>, on the Items tab, opens the campaign&rsquo;s <b>library<\/b>\./.test(hmS), j([zOf('libraryModal'), zOf('systemModal'), zOf('customConfirm')]));
     }
 
     /* ---- L2a2: a pack as a file, the import's dry run, bulk changes ---- */
@@ -280,7 +280,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('L2c the sheet offers "From the library…" only on the GM\'s machine with a library loaded; each pick is an ordinary add with a fresh row id, the character and field looked up again (never another campaign\'s)',
             /var libOK = gm && !!window\.wpLibPicker && !!\(window\.wpLibrary && window\.wpLibrary\.size && window\.wpLibrary\.size\(\) > 0\);/.test(shS) && /if \(libOK\) add\.appendChild\(opt\('__lib', /.test(shS) && /if \(add\.value === '__lib'\) \{ add\.value = ''; openLibPicker\(add, c, f, specI, carried\); return; \}/.test(shS)
             && /if \(cp !== camp \|\| !ch \|\| !ff\) return; ids\.forEach\(function\(id\) \{ commitItem\(ch, ff, \{ op: 'add', defId: id, rowId: uid\('w_'\), qty: qty \}\); \}\);/.test(shS)
-            && /scripts\/libpicker\.js/.test(fs.readFileSync(path.join(app, 'index.html'), 'utf8')) && /<b>&#128218; From the library&hellip;<\/b>: a picker over the campaign&rsquo;s library packs/.test(fs.readFileSync(path.join(app, 'index.html'), 'utf8')));
+            && /scripts\/libpicker\.js/.test(fs.readFileSync(path.join(app, 'index.html'), 'utf8')) && /<b>&#128218; From the library&hellip;<\/b>, a picker over the campaign&rsquo;s library packs/.test(fs.readFileSync(path.join(app, 'index.html'), 'utf8')));
     }
 
     /* ---- L3: the library as players see it (pure) ---- */

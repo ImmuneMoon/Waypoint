@@ -263,6 +263,31 @@ for (const t of targets) {
     const names = [], strange = []; lits.forEach((h, i) => { for (const m of h.matchAll(/<b>([\s\S]*?)<\/b>/g)) { const t = flat(m[1]).replace(/\.\.\.$/, ''); if (t.length < 2) continue; names.push(t); if (helpFlat.indexOf(t) < 0 && demoFlat.indexOf(t) < 0) strange.push(i + ' ' + t); } });
     if (stepsA > 0 && stepsZ > stepsA && helpFlat.length > 50000 && names.length > 100 && strange.length === 0) console.log('ok        nothing the tour names is unknown: every name a step sets in bold (' + names.length + ' of them) is in Help\'s own text, or is one of the Tutorial campaign\'s own names — so a control that is renamed, or a feature Help no longer tells of, fails here until its step is put right');
     else { bad++; console.log('FAIL      the tour names something Help does not (step number from 0, and the name): ' + JSON.stringify(strange) + ' — Help holds every feature, so name it as Help does, or tell of it in Help'); }
+    // Help in plain words (backlog 121; the owner, 2026-10-04, of a tour card: "too many parenthesis, em dashes, its just a bunch of run on
+    // information", and by prompt, 2026-10-05: "A part at a time"). A part of Help that has had its reading is held to the rule from then
+    // on: no bracket, no dash, no semicolon, no sentence past 160 characters, no entry past 800. What is set as code or as a key (a formula,
+    // Ctrl + K) is no prose and is not judged. HELP_PLAIN names the parts done so far. The rule is tried first on text that breaks it.
+    const HELP_PLAIN = ['start'];
+    const proseOf = h => h.replace(/<(code|kbd)\b[^>]*>[\s\S]*?<\/\1>/g, '<i>x</i>');
+    const helpRule = h => { const p = proseOf(h), v = dec(p.replace(/<[^>]*>/g, '')).replace(/\s+/g, ' ').trim(), out = [];
+        if (/[()\[\]]/.test(v)) out.push('bracket');
+        if (/[\u2012-\u2015]| - | -- /.test(v)) out.push('dash');
+        if (/;/.test(v)) out.push('semicolon');
+        if (v.length > 800) out.push('long');
+        if (B.pieces(p).some(s => B.len(s.trim()) > 160)) out.push('run-on');
+        return out; };
+    const entriesOf = id => { const a = helpSrc.indexOf('<div class="help-pane" data-pane="' + id + '"'); if (a < 0) return null; const z = helpSrc.indexOf('<div class="help-pane" data-pane="', a + 10), p = helpSrc.slice(a, z < 0 ? helpSrc.length : z), opens = [], re = /<(h4|li|p)\b[^>]*>|<(div) class="help-tip">/g; let m;
+        while ((m = re.exec(p))) opens.push([m.index, m.index + m[0].length, m[1] || m[2]]);
+        return opens.map((o, i) => { const body = p.slice(o[1], i + 1 < opens.length ? opens[i + 1][0] : p.length), end = body.indexOf('</' + o[2] + '>'); return end < 0 ? body : body.slice(0, end); }); };   // each entry up to its own closing tag
+    const hRuleOk = helpRule('A plain entry. It says two things: one, and the other.').length === 0 && helpRule('Press <kbd>Ctrl + K</kbd>, then read <code>max(a; b) - (c)</code>. It&rsquo;s done &#9656; next.').length === 0
+        && J(helpRule('An entry (with an aside).')) === J(['bracket']) && J(helpRule('An entry [so].')) === J(['bracket']) && J(helpRule('An entry &mdash; so.')) === J(['dash']) && J(helpRule('An entry \u2013 so.')) === J(['dash']) && J(helpRule('An entry &#8212; so.')) === J(['dash']) && J(helpRule('An entry - so.')) === J(['dash'])
+        && J(helpRule('One thing; another.')) === J(['semicolon']) && J(helpRule('A' + 'a'.repeat(160) + '.')) === J(['run-on']) && helpRule('A' + 'a'.repeat(158) + '.').length === 0
+        && J(helpRule(('L' + 'l'.repeat(97) + '. ').repeat(8) + 'Tail.')) === J(['long']) && helpRule(('L' + 'l'.repeat(97) + '. ').repeat(8)).length === 0 && J(helpRule('<code>(x)</code> and (y).')) === J(['bracket']);
+    const hRough = [], hSizes = []; let hLongS = 0, hLongE = 0;
+    HELP_PLAIN.forEach(id => { const es = entriesOf(id); if (!es || es.length < 3) { hRough.push(id + ': the part was not found'); return; } hSizes.push(id + ' ' + es.length);
+        es.forEach((h, i) => { const r = helpRule(h), t = dec(proseOf(h).replace(/<[^>]*>/g, '')).replace(/\s+/g, ' ').trim(); hLongE = Math.max(hLongE, t.length); B.pieces(proseOf(h)).forEach(s => { hLongS = Math.max(hLongS, B.len(s.trim())); }); if (r.length) hRough.push(id + ' entry ' + i + ' ' + r.join('+') + ': ' + t.slice(0, 70)); }); });
+    if (hRuleOk && hRough.length === 0 && HELP_PLAIN.length >= 1 && HELP_PLAIN.every(id => paneIds.indexOf(id) >= 0)) console.log('ok        Help in plain words, a part at a time (the owner, by prompt): each part that has had its reading (' + hSizes.join(', ') + ' entries) has no bracket, no dash and no semicolon outside what is set as code or as a key, no sentence past 160 characters and no entry past 800 (the longest sentence ' + hLongS + ', the longest entry ' + hLongE + '); the rule is tried on text that breaks it each way, and on text at each limit');
+    else { bad++; console.log('FAIL      Help in plain words: a part that has had its reading breaks the rule (the part, the entry counted from 0, how, and its first words) ' + JSON.stringify({ hRuleOk, hRough }) + ' — say it in short plain sentences, and split a long entry into points'); }
 }
 const ver = (src.match(/TUTORIAL_VERSION = '([^']+)'/) || [])[1];
 const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'system', 'resources', 'app', 'package.json'), 'utf8')).version;

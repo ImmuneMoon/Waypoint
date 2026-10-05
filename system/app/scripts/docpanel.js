@@ -159,7 +159,7 @@ function highlightBody(q) {
     if (hits.length) { curHit = 0; markCur(false); }
     updateCount();
 }
-function markCur(scroll) { hits.forEach(function(h, k) { h.forEach(function(m) { m.classList.toggle('cur', k === curHit); }); }); if (scroll !== false && hits[curHit]) hits[curHit][0].scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+function markCur(scroll) { hits.forEach(function(h, k) { h.forEach(function(m) { m.classList.toggle('cur', k === curHit); }); }); if (hits[curHit] && typeof window !== 'undefined' && window.wpPageNav && typeof window.wpPageNav.reveal === 'function') window.wpPageNav.reveal(hits[curHit][0]); if (scroll !== false && hits[curHit]) hits[curHit][0].scrollIntoView({ block: 'center', behavior: 'smooth' }); }   // a hit inside a folded part: the fold is opened first (pagenav.js)
 function step(dir) { if (!hits.length) return; curHit = (curHit + dir + hits.length) % hits.length; markCur(true); updateCount(); }
 function updateCount() { var c = ui('docPanelFindCount'); if (c) c.textContent = hits.length ? (curHit + 1) + '/' + hits.length : (query.trim() ? '0' : ''); }
 // [textcheck:panelfind-end]
@@ -275,7 +275,7 @@ function popOut(id) {
     });
 })();
 
-window.wpDocPanel = { open: open, close: close, refresh: refresh, popOut: popOut };
+window.wpDocPanel = { open: open, close: close, refresh: refresh, popOut: popOut, openId: function() { return openId; } };
 // Shared content search for the app-wide page search + Ctrl+K: ranked page results with a highlighted snippet.
 // (q, campaign?=active, types?=['doc','planner']) -> [{ id, title, type, score, snippet /* escaped HTML + <mark> */ }].
 window.wpDocSearch = function(q, camp, types) { return searchAll(q, camp, types); };

@@ -361,7 +361,10 @@ if(_el_exportHtmlBtn) _el_exportHtmlBtn.addEventListener('click', function() {
       var title = exportTitle();
       var run = window.wpWithRenderedPlanner || function(fn) { return fn(); };
       run(function() { return fetch('style.css').then(r => r.text()).then(function(css) {
-          var content = document.getElementById('plannerPreview').innerHTML;
+          var pvX = document.getElementById('plannerPreview'), navX = window.wpPageNav;
+          if (navX && navX.strip) navX.strip(pvX);   // the page as drawn: an export carries no fold and no fold arrow (pagenav.js)
+          var content = pvX.innerHTML;
+          if (navX && navX.apply) navX.apply(pvX);
 
           var htmlOutput = '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>' + title + '</title>' +
 
@@ -422,7 +425,10 @@ if(_el_exportImgBtn) _el_exportImgBtn.addEventListener('click', function() {
 
       toast('Rendering image...');
 
+      var pvI = isDocLike(activeMap) ? document.getElementById('plannerPreview') : null, navI = window.wpPageNav, refoldI = function() { if (pvI && navI && navI.apply) navI.apply(pvI); };
+      if (pvI && navI && navI.strip) navI.strip(pvI);   // a picture of the page shows all of it: the folds come off, and go back on when it is taken (pagenav.js)
       html2canvas(target, opts).then(function(cv) {
+          refoldI();
 
           cv.toBlob(function(blob) {
 
@@ -436,6 +442,7 @@ if(_el_exportImgBtn) _el_exportImgBtn.addEventListener('click', function() {
 
       }).catch(function() {
 
+          refoldI();
           toast('Image export failed.');
 
       });

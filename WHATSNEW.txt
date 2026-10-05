@@ -98,6 +98,12 @@ Planners and pages
   the page's headings, and a click on one jumps to it. It is in the
   planner's own view, the panel over the map, a page's own window and
   a player's reader.
+- Fold a page down to what you need. An arrow in the left margin folds
+  a section, from its heading to the next heading. Each text, table and
+  chart has a small arrow of its own. Click a folded part to open it.
+  Fold all and Open all are at the foot of the Outline menu. A page
+  opens as you left it on this computer. Find and the Outline open
+  what they lead to. An export or a print shows the whole page.
 
 The tour
 - The tour is short now. Each step says what a thing is and the few

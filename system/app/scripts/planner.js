@@ -2074,6 +2074,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (pfState.cur >= 0 && hits[pfState.cur]) hits[pfState.cur].forEach(function(m) { m.classList.remove('pf-cur'); });
       pfState.cur = ((i % hits.length) + hits.length) % hits.length;
       var h = hits[pfState.cur]; h.forEach(function(m) { m.classList.add('pf-cur'); });
+      if (typeof window !== 'undefined' && window.wpPageNav && typeof window.wpPageNav.reveal === 'function') window.wpPageNav.reveal(h[0]);   // a hit inside a folded part: the fold is opened first (pagenav.js)
       h[0].scrollIntoView({ block: 'center', behavior: quiet ? 'auto' : 'smooth' });
       if (cnt) cnt.textContent = (pfState.cur + 1) + ' / ' + hits.length;
   }

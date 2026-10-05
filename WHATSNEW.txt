@@ -60,6 +60,9 @@ Fog of war
   ticked; a campaign that never touched it now has it on.
 
 Fixes
+- The fog of war is lighter on a busy map. It read every character's
+  sheet again for each frame it drew, sixteen times a second; it now
+  keeps what it read until the token, its sheet or the system changes.
 - The handle that closes the left panel is drawn over the fog of war. On
   a player's screen the fog could cover it, so a player could not find
   the way to close the Handbook. It is easier to see, and its tooltip

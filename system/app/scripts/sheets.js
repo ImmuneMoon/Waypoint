@@ -344,6 +344,7 @@ function newCharacter(o) {
 function afterCharChange(c, whole, values) {
     var camp = getActiveCampaign(); if (!camp) return;
     c.updated = Date.now();
+    if (typeof window !== 'undefined' && window.wpFog && window.wpFog.sensesForget) window.wpFog.sensesForget();   // the fog's kept senses are read again from the sheet
     syncOwners(camp);
     save(true);
     var n = net();
@@ -4026,6 +4027,7 @@ function fromShadowBase(w) {
 }
 // net.js hooks: a character arrived, changed or went
 function charChanged(id) {
+    if (typeof window !== 'undefined' && window.wpFog && window.wpFog.sensesForget) window.wpFog.sensesForget();   // the fog's kept senses are read again from the sheet
     var lost = {};   // HUD frame (HF2a): one notice per character, however many of its views close
     if (sheetOpen && isClient() && (id === null || sheetOpen === id)) { var gone = charById(sheetOpen); if (gone && (gone.partial || gone.ownerId !== myId())) { var nmG = gone.name; lost[gone.id] = 1; closeSheet(); toast(nmG + ' is no longer your character.'); var nG = net(); if (nG && nG.dropPending) nG.dropPending(gone.id); } }
     if (isClient()) Object.keys(huds).forEach(function(hid) { if (id !== null && id !== undefined && hid !== id) return; var gh = charById(hid); if (gh && !gh.partial && gh.ownerId === myId()) return; closeHud(hid); if (!lost[hid]) { lost[hid] = 1; toast((gh ? gh.name : 'That character') + ' is no longer your character.'); var nH = net(); if (nH && nH.dropPending) nH.dropPending(hid); } });

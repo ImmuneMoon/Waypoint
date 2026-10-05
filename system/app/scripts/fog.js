@@ -93,6 +93,7 @@ function sightSecret(camp, fid) {
     return !_sightSec.sec || Object.prototype.hasOwnProperty.call(_sightSec.sec, fid);
 }
 function tokenSenses(token, map, camp, waived) {
+    if (typeof sensesKept === 'function') { var kept = sensesKept(token, map, camp, waived); if (kept) return kept; }   // 1.5.4: while the overlay draws, a token's senses are kept until what they read changes
     var C = core(), out = { sight: 0, full: [] }; if (!C || !token) return out;
     var cf = campFog(camp), yards = cf.defaults.sight || 0, per = cellYardsForMap(map), S0 = window.wpSystemCore, F = window.wpFormula;
     var ch = camp && camp.system && camp.chars && typeof camp.chars === 'object' && typeof token.charId === 'string' && Object.prototype.hasOwnProperty.call(camp.chars, token.charId) ? camp.chars[token.charId] : null;   // a character of the campaign's own: a name the list only inherits ('constructor') stands for none, and sees by the default
@@ -133,6 +134,36 @@ function tokenSenses(token, map, camp, waived) {
 }
 // One token's sight, in cells (tokenSenses's eyes)
 function tokenSightCells(token, map, camp) { return tokenSenses(token, map, camp, false).sight; }
+// [fogcheck:sensesmemo-start]
+// A token's senses, remembered while the overlay draws (the owner, 2026-10-04: "Remember senses"). The overlay redraws about sixteen times a
+// second and read every character token's senses from its sheet each time: a resolver a token, 18 ms a frame on a map of 47 tokens of which
+// 20 have sheets. While a frame is drawn (tick sets _sensesDraw) a token's result is kept until something it reads changes: the token's own
+// place, facing, stance, blind tick and ranges; its character (the object, its values object, its stamp); the system; the campaign's fog
+// settings; the map's stamp and grid; the features that feed a formula; the role. And until anything says a sheet or what is seen changed
+// (sensesForget: the sheet's own two funnels, invalidateVision, invalidateSeen). A second is the longest a result is kept whatever happens,
+// for a change that reaches none of those. ONLY the drawing: a judgement the host makes for a player (fogDropIds, canSeePoint, sightSigFor,
+// the marks) is never made inside a frame, so it reads the sheet afresh every time, as before. A kept result is frozen: nothing writes to it
+var SENSES_KEEP_MS = 1000, _sensesDraw = false, _sensesBusy = false, _sensesEpoch = 0, _sensesMemo = typeof WeakMap === 'function' ? new WeakMap() : null;
+function sensesForget() { _sensesEpoch++; }
+function sensesSig(token, map, camp) {
+    var mm = map && map.meta && typeof map.meta === 'object' ? map.meta : null, js = function(v) { return v === undefined || v === null ? '' : JSON.stringify(v); };
+    var fo = map && map.fogOff && typeof map.fogOff === 'object' && typeof token.id === 'string' && Object.prototype.hasOwnProperty.call(map.fogOff, token.id) ? map.fogOff[token.id] : null;
+    var vt = window.wpVtt, rf = function(k) { return !vt || (vt.rulesOn ? vt.rulesOn(k) : vt.on(k)) ? 1 : 0; };
+    return [_sensesEpoch, roleNow(), js(token.x), js(token.y), js(token.w), js(token.h), js(token.rot), js(token.front), js(token.elevation), js(token.posture), token.blind === true ? 1 : 0, token.waiting ? 1 : 0, js(token.ownerId), js(token.senses), js(token.threats), js(fo),
+        map ? js(map.id) : '', mm ? js(mm.updated) : '', mm ? js(mm.gridType) : '', js(map && map.fog && map.fog.cell), js(camp && camp.fog), rf('turning'), rf('posture'), rf('elevation')].join('|');
+}
+function sensesKept(token, map, camp, waived) {   // the kept result while a frame is drawn (worked out afresh when the kept one is no longer good); null outside a frame
+    if (!_sensesDraw || _sensesBusy || !_sensesMemo || !token || typeof token !== 'object') return null;
+    var ch = camp && camp.chars && typeof camp.chars === 'object' && typeof token.charId === 'string' && Object.prototype.hasOwnProperty.call(camp.chars, token.charId) ? camp.chars[token.charId] : null, vals = ch ? ch.values : null, sys = camp ? camp.system : null;
+    var slot = _sensesMemo.get(token); if (!slot) { slot = {}; _sensesMemo.set(token, slot); }
+    var k = waived === true ? 'w' : 'o', hit = slot[k], now = Date.now(), sig = sensesSig(token, map, camp) + '|' + (ch ? JSON.stringify(ch.updated) : '-') + '|' + (sys ? JSON.stringify(sys.updated) : '-');
+    if (hit && hit.sig === sig && hit.ch === ch && hit.vals === vals && hit.sys === sys && now >= hit.at && now - hit.at < SENSES_KEEP_MS) return hit.out;
+    var out; _sensesBusy = true; try { out = tokenSenses(token, map, camp, waived); } finally { _sensesBusy = false; }
+    [out.full, out.marks, out.offs].forEach(function(l) { if (Array.isArray(l)) { l.forEach(function(e) { Object.freeze(e); }); Object.freeze(l); } }); Object.freeze(out);
+    slot[k] = { sig: sig, at: now, out: out, ch: ch, vals: vals, sys: sys };
+    return out;
+}
+// [fogcheck:sensesmemo-end]
 // Senses S7a: null areas — an item that is no token, light or GM-note card and carries nulls (the GM's) switches those senses off for a token
 // whose centre's cell is under it. Read on the host only: a player's copy never carries nulls (a hidden area is dropped from it whole), so an
 // area works hidden too; the host tells a player of their own tokens instead (map.fogOff, on their copy only), which their app reads here
@@ -1095,6 +1126,7 @@ function fogMarksFor(recipientId, camp, map, drop, peek) {   // peek: the GM's p
 // profile id holds none; a map's id, from a file, may)
 var _keyCache = Object.create(null);
 function invalidateSeen(mapId, recipientId) {
+    if (typeof sensesForget === 'function') sensesForget();   // what is seen is judged afresh: the overlay's kept senses with it
     if (typeof mapId !== 'string' || !mapId) { _keyCache = Object.create(null); return; }
     if (typeof recipientId === 'string' && recipientId) { delete _keyCache[recipientId + '|' + mapId]; return; }
     Object.keys(_keyCache).forEach(function(k) { var i = k.indexOf('|'); if (i >= 0 && k.slice(i + 1) === mapId) delete _keyCache[k]; });
@@ -1122,7 +1154,7 @@ function lightMoves(map) {
     blockersFor(map, grid);
     return !_blockerOver[map.id];
 }
-function invalidateVision() { _coverCache = Object.create(null); _coverStamp = Object.create(null); _keyCache = Object.create(null); _blockerCache = Object.create(null); _blockerStamp = Object.create(null); _maskCache = Object.create(null); _maskStamp = Object.create(null); }
+function invalidateVision() { _coverCache = Object.create(null); _coverStamp = Object.create(null); _keyCache = Object.create(null); _blockerCache = Object.create(null); _blockerStamp = Object.create(null); _maskCache = Object.create(null); _maskStamp = Object.create(null); if (typeof sensesForget === 'function') sensesForget(); }   // and the overlay's kept senses are read again
 function canSeePoint(recipientId, camp, map, x, y, w) {   // w (item 19b): the piece whose place this is — a creature is judged at its height, as its drop is
     if (!fogFeatureOn() || !map) return true;
     var mf = mapFog(map); if (!mf.on) return true;
@@ -1514,7 +1546,7 @@ function tick() {
     raf = null;
     if (!active()) { clearCanvas(); return; }
     var now = Date.now();
-    if (now - lastDraw >= 60) { lastDraw = now; draw(); }
+    if (now - lastDraw >= 60) { lastDraw = now; _sensesDraw = true; try { draw(); } finally { _sensesDraw = false; } }   // a frame: the tokens' senses are kept while nothing they read changed
     raf = requestAnimationFrame(tick);
 }
 function kick() { if (!raf) raf = requestAnimationFrame(tick); }
@@ -1857,6 +1889,7 @@ window.wpFog = {
     lightSeen: lightSeen,
     setOutline: setOutline, canOutline: canOutline,   // the GM's sight outline: the selected token's line of sight, as a line round what it sees
     tokenSenses: tokenSenses, campSenses: campSenses,   // senses S2b: a token's Properties show its senses as the host reads them
+    sensesForget: sensesForget,   // a sheet changed: the overlay's kept senses are read again (sheets.js)
     eyesArc: eyesArc,   // the eyes' arc: the arc a token sees through on a map (its Properties say when it is its own)
     fogMarksFor: fogMarksFor, campMarkSenses: campMarkSenses,   // senses S4: a player's marks (the host's, for their copy)
     marksHold: marksHold, marksForget: marksForget, marksStrictOn: marksStrictOn,   // senses S4b: a refresh of what is held, forgetting it, and whether a map plays it

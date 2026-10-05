@@ -123,9 +123,9 @@ The tour
   Maps, Planners or Handbook in the left panel. Visual effects moved
   to the Play Map part of Help, beside Sound, Music and Video.
 - Help is being put into short plain sentences, a part at a time.
-  Getting Started and the Play Map part are done: the same facts,
-  without brackets and dashes, and a long entry split into a lead and
-  its points.
+  Getting Started, the Play Map part and Multiplayer: Hosting are
+  done: the same facts, without brackets and dashes, and a long entry
+  split into a lead and its points.
 - Help's search finds a point by its own words, once, and names the
   entry it stands under.
 

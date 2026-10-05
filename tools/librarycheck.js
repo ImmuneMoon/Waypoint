@@ -169,7 +169,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('L2a the store: a pack is ready only once read for the campaign on screen; a pack\'s name, icon or visibility changes in the manifest, is saved and works the core out again; the core is drawn through keyIndex; an open window hears when the library has been read',
             /function ready\(packId\) \{ var camp = getActiveCampaign\(\); return !!camp && cur\.campId === camp\.id && typeof packId === 'string' && Object\.prototype\.hasOwnProperty\.call\(cur\.packs, packId\); \}/.test(lbS)
             && /var m = setPackMeta\(camp\.library, packId, meta\); if \(!m\) return \{ error: 'No such pack\.' \};\n\s*camp\.library = m; cur\.sig = manifestSig\(camp\);\n\s*save\(true\); after\(\);/.test(lbS)
-            && /function byKey\(camp\) \{ return keyIndex\(camp && camp\.library, entriesOf\); \}/.test(lbS) && /var idx = byKey\(camp\), res = coreOf\(/.test(lbS)
+            && /function byKey\(camp\) \{ return keyIndex\(camp && camp\.library, entriesOf\); \}/.test(lbS) && /var idx = bare \? ownCore\(camp\.system\) : byKey\(camp\), res = coreOf\(/.test(lbS)
             && /after\(\);\n\s*if \(window\.wpLibraryWin && window\.wpLibraryWin\.refresh\) \{ try \{ window\.wpLibraryWin\.refresh\(\); \} catch \(e\) \{ console\.error\(e\); \} \}[^\n]*\n(\s*if \(mine\.state === 'ready'\) migrateItems\(camp\);[^\n]*\n)?\s*return mine;/.test(lbS)
             && /window\.wpLibrary = \{[^\n]*, ready: ready, setMeta: setMeta[, ]/.test(lbS));
         const zOf = id => { const m = new RegExp('<div id="' + id + '" style="[^"]*z-index:(\\d+)').exec(hmS); return m ? Number(m[1]) : NaN; };

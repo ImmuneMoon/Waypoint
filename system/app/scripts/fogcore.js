@@ -11,6 +11,7 @@ var LIMITS = Object.freeze({
     rangeCells: 60,     // a viewer's sight, in cells, after conversion — hard cap so a bad field can't sweep the board
     cells: 12000,       // the most visible cells one recompute yields (the whole disc at rangeCells: 11,289 on square, 10,981 on hex)
     manual: 4000,       // manual reveal/hide cells stored per map
+    hand: 12000,        // 1.5.4: the cells all of a map's pieces marked Always revealed may add (a piece that would pass it is left out whole)
     blockerCells: 6000, // sight-blocker cells resolved per map — over this, occlusion falls open (no blocking)
     wallSegs: 8000,     // item 18 W2: the straight pieces of the pen lines that block, per map — over this, occlusion falls open as for cells
     wallSamples: 400000, // item 18 W2: the samples all of a set's walls may take to index (a quarter cell each) — past this the rest are left out, on every side alike
@@ -487,6 +488,27 @@ function cleanBarrier(v) { return v === true; }
 // read it. A wall needs no tick: it is hard cover already
 function blastStopOn(w) { return barrierOn(w) && w.blastStop === true; }
 function cleanBlastStop(v) { return v === true; }
+
+// A fog mark on a piece (1.5.4; the owner, 2026-10-04: "having a way to fill fog for a whole image would be good too", by prompt "A mark on
+// the image"): fogHand 'hide' keeps every cell under the piece under fog for every player, 'show' keeps them revealed, whatever their tokens
+// see — the Hide and the Reveal brush for a whole piece, following it as it moves. Only on a picture, a plain shape or a painted cell; never
+// a hidden piece (no player holds it, so its mark counts for no one), a token, a waiting token or a GM-note card. Sight, light, movement and
+// cover never read it: it is fog set by hand, read where the brushes' own cells are (fog.js pieceHand)
+function fogHandOf(w) {
+    if (!isObj(w) || (w.fogHand !== 'hide' && w.fogHand !== 'show') || w.hidden || w.isChar || w.waiting || w.gmNoteFor) return null;
+    return (!!w.fill || w.type === 'image' || w.type === 'rect' || w.type === 'circle' || w.type === 'hexagon' || w.type === 'diamond') ? w.fogHand : null;
+}
+// The mark as a file or a host may give it: one of its two words, or nothing
+function cleanFogHand(v) { return v === 'hide' || v === 'show' ? v : undefined; }
+// The cells a hand brush of that width covers around one cell: the cell alone (r 0), or every cell within one or two cells of it — a block
+// 3 or 5 cells wide on squares, 7 or 19 hexagons. Any other r is 0; a cell of the other grid's shape gives none
+function cellsNear(cell, r, grid) {
+    var c = cleanCell(cell), n = r === 1 || r === 2 ? r : 0, out = []; if (!c || !isObj(grid)) return out;
+    if (grid.type === 'square') { if (c.c === undefined) return out; for (var dc = -n; dc <= n; dc++) for (var dr = -n; dr <= n; dr++) out.push({ c: c.c + dc, r: c.r + dr }); return out; }
+    if (c.q === undefined) return out;
+    for (var dq = -n; dq <= n; dq++) for (var d2 = Math.max(-n, -dq - n); d2 <= Math.min(n, -dq + n); d2++) out.push({ q: c.q + dq, r: c.r + d2 });
+    return out;
+}
 
 /* ---------- a portal's own lock (the owner, 2026-10-03) ----------
    A portal is a play-map piece that leads to another map: by its own targetMapId, or through the room it is linked to (nodeId) when that
@@ -979,6 +1001,6 @@ function cleanCampFog(cf) {   // campaign-level: { fields:{sight, sightUnit?}, d
     return out;
 }
 
-var API = { VERSION: VERSION, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, itemCells: itemCells, pathSegs: pathSegs, pathCells: pathCells, withWalls: withWalls, wallsOf: wallsOf, copyWalls: copyWalls, wallEdgeCells: wallEdgeCells, lineClear: lineClear, moveClear: moveClear, cellCorners: cellCorners, coverBetween: coverBetween, coverFromPoint: coverFromPoint, openSeat: openSeat, coverRole: coverRole, barrierOn: barrierOn, isDoor: isDoor, cleanBarrier: cleanBarrier, blastStopOn: blastStopOn, cleanBlastStop: cleanBlastStop, isPortal: isPortal, cleanPortalLock: cleanPortalLock, visibleCells: visibleCells, seenCells: seenCells, cellDist: cellDist, cleanLight: cleanLight, cleanTokSenses: cleanTokSenses, cleanUnsensed: cleanUnsensed, cleanNulls: cleanNulls, cleanTerrain: cleanTerrain, cleanHeight: cleanHeight, cleanGround: cleanGround, itemCovers: itemCovers, groundAt: groundAt, cleanTokFx: cleanTokFx, terrainFactor: terrainFactor, cleanFogOff: cleanFogOff, markCells: markCells, lineOverHeight: lineOverHeight, lineOverWall: lineOverWall, heightStops: heightStops, cleanFogMarks: cleanFogMarks, lightUnit: lightUnit, unitCells: unitCells, cellInArc: cellInArc, litLevels: litLevels, neighbourCells: neighbourCells, cleanFogLit: cleanFogLit, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog };
+var API = { VERSION: VERSION, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, itemCells: itemCells, pathSegs: pathSegs, pathCells: pathCells, withWalls: withWalls, wallsOf: wallsOf, copyWalls: copyWalls, wallEdgeCells: wallEdgeCells, lineClear: lineClear, moveClear: moveClear, cellCorners: cellCorners, coverBetween: coverBetween, coverFromPoint: coverFromPoint, openSeat: openSeat, coverRole: coverRole, barrierOn: barrierOn, isDoor: isDoor, cleanBarrier: cleanBarrier, blastStopOn: blastStopOn, cleanBlastStop: cleanBlastStop, fogHandOf: fogHandOf, cleanFogHand: cleanFogHand, cellsNear: cellsNear, isPortal: isPortal, cleanPortalLock: cleanPortalLock, visibleCells: visibleCells, seenCells: seenCells, cellDist: cellDist, cleanLight: cleanLight, cleanTokSenses: cleanTokSenses, cleanUnsensed: cleanUnsensed, cleanNulls: cleanNulls, cleanTerrain: cleanTerrain, cleanHeight: cleanHeight, cleanGround: cleanGround, itemCovers: itemCovers, groundAt: groundAt, cleanTokFx: cleanTokFx, terrainFactor: terrainFactor, cleanFogOff: cleanFogOff, markCells: markCells, lineOverHeight: lineOverHeight, lineOverWall: lineOverWall, heightStops: heightStops, cleanFogMarks: cleanFogMarks, lightUnit: lightUnit, unitCells: unitCells, cellInArc: cellInArc, litLevels: litLevels, neighbourCells: neighbourCells, cleanFogLit: cleanFogLit, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog };
 if (typeof window !== 'undefined') window.wpFogCore = API;
-export { VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, itemCells, pathSegs, pathCells, withWalls, wallsOf, copyWalls, wallEdgeCells, lineClear, moveClear, cellCorners, coverBetween, coverFromPoint, openSeat, coverRole, barrierOn, isDoor, cleanBarrier, blastStopOn, cleanBlastStop, isPortal, cleanPortalLock, visibleCells, seenCells, cellDist, cleanLight, cleanTokSenses, cleanUnsensed, cleanNulls, cleanTerrain, cleanHeight, cleanGround, itemCovers, groundAt, cleanTokFx, terrainFactor, cleanFogOff, markCells, lineOverHeight, lineOverWall, heightStops, cleanFogMarks, lightUnit, unitCells, cellInArc, litLevels, neighbourCells, cleanFogLit, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog };
+export { VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, itemCells, pathSegs, pathCells, withWalls, wallsOf, copyWalls, wallEdgeCells, lineClear, moveClear, cellCorners, coverBetween, coverFromPoint, openSeat, coverRole, barrierOn, isDoor, cleanBarrier, blastStopOn, cleanBlastStop, fogHandOf, cleanFogHand, cellsNear, isPortal, cleanPortalLock, visibleCells, seenCells, cellDist, cleanLight, cleanTokSenses, cleanUnsensed, cleanNulls, cleanTerrain, cleanHeight, cleanGround, itemCovers, groundAt, cleanTokFx, terrainFactor, cleanFogOff, markCells, lineOverHeight, lineOverWall, heightStops, cleanFogMarks, lightUnit, unitCells, cellInArc, litLevels, neighbourCells, cleanFogLit, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog };

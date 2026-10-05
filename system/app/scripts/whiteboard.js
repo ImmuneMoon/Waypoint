@@ -2766,6 +2766,30 @@ window.wpFitToGrid = fitToGrid;
       return '';
   }
   // [sinkcheck:doorrow-end]
+  // [sinkcheck:foghandrow-start]
+  // A fog mark on a piece, on the GM's menu (1.5.4; the owner, 2026-10-04: "having a way to fill fog for a whole image would be good too"; by
+  // prompt "A mark on the image"): Under fog and Always revealed, each ticked while every piece of the selection that may carry a mark has
+  // that one; a ticked row takes the mark off. Only where the selection holds a shown picture, plain shape or painted cell (the kinds fogcore
+  // fogHandOf reads; a token, a text, a pen line and a hidden piece never carry one). The GM's alone: never a player's app, never the stream
+  // window. The markup holds fixed words only
+  function fogHandOk(w) { return !!w && typeof w === 'object' && (!!w.fill || ['image', 'rect', 'circle', 'hexagon', 'diamond'].indexOf(w.type) >= 0) && !w.hidden && !w.isChar && !w.waiting && !w.gmNoteFor; }
+  function fogHandRows(items) {
+      var n = window.wpNet;
+      if (window.wpStream || (n && n.active && n.role === 'client')) return null;
+      var ps = (Array.isArray(items) ? items : []).filter(fogHandOk);
+      if (!ps.length) return null;
+      var hide = ps.every(function(w) { return w.fogHand === 'hide'; }), show = ps.every(function(w) { return w.fogHand === 'show'; });
+      return { hide: hide, show: show, items: ps, html:
+          '<div class="menu-item cm-fog-hide" title="Every cell under it stays hidden from players, whatever their tokens see, wherever you move it. Pick it again to take the mark off.">' + (hide ? '&#10003; ' : '') + '&#127787; Under fog</div>'
+          + '<div class="menu-item cm-fog-show" title="Every cell under it stays shown to players, wherever their tokens are and wherever you move it. Pick it again to take the mark off.">' + (show ? '&#10003; ' : '') + '&#128065; Always revealed</div>' };
+  }
+  function fogHandSet(items, which) {
+      var row = fogHandRows(items); if (!row || (which !== 'hide' && which !== 'show')) return '';
+      var off = which === 'hide' ? row.hide : row.show;
+      row.items.forEach(function(w) { if (off) delete w.fogHand; else w.fogHand = which; });
+      return off ? 'off' : which;
+  }
+  // [sinkcheck:foghandrow-end]
   /* ---- click-away deselect ----
      Clicking anywhere that isn't the board, the Properties/Elements sidebar,
      the selection toolbar, a menu, or a dialog drops the selection, so the
@@ -3721,16 +3745,16 @@ window.wpFitToGrid = fitToGrid;
           if (e.button === 0 && window.wpFog && window.wpFog.toggleDoorAt && window.wpFog.toggleDoorAt(pt.x, pt.y)) { _fogPaintBtn = -1; e.preventDefault(); return; }   // clicked a door -> toggled it, do not paint
           _fogPaintBtn = e.button;
           hostGestureStart();   // fold M6: a stroke is open until the pointer comes up
-          if (window.wpFog) window.wpFog.paintAt(pt.x, pt.y, e.button === 2);
+          if (window.wpFog) window.wpFog.strokeStart(pt.x, pt.y, e.button === 2);   // 1.5.4: a stroke of the brush in hand (cells, a box, a whole piece)
           e.preventDefault();
       });
       wbWrap.addEventListener('pointermove', function(e) {
           if (!window.isFogMode || _fogPaintBtn < 0) return;
-          var pt = _fogBoard(e); if (window.wpFog) window.wpFog.paintAt(pt.x, pt.y, _fogPaintBtn === 2);
+          var pt = _fogBoard(e); if (window.wpFog) window.wpFog.strokeMove(pt.x, pt.y, _fogPaintBtn === 2);
       });
       wbWrap.addEventListener('contextmenu', function(e) { if (window.isFogMode) e.preventDefault(); });
-      document.addEventListener('pointerup', function() { if (_fogPaintBtn >= 0) hostGestureEnd(); _fogPaintBtn = -1; });   // fold M6: the stroke is over
-      document.addEventListener('pointercancel', function() { if (_fogPaintBtn >= 0) hostGestureEnd(); _fogPaintBtn = -1; });
+      document.addEventListener('pointerup', function() { if (_fogPaintBtn >= 0) { hostGestureEnd(); if (window.wpFog && window.wpFog.strokeEnd) window.wpFog.strokeEnd(); } _fogPaintBtn = -1; });   // fold M6: the stroke is over (a dragged box is painted now)
+      document.addEventListener('pointercancel', function() { if (_fogPaintBtn >= 0) { hostGestureEnd(); if (window.wpFog && window.wpFog.strokeEnd) window.wpFog.strokeEnd(true); } _fogPaintBtn = -1; });   // taken away by the system: a box half dragged paints nothing
   }
   // Fill bucket (1.5.0, GM): click or drag grid cells to drop a cell-sized colored shape (hexagon on hex maps,
   // square on square maps) seated in the cell at layer 'back' (below tokens); right-click a cell clears its fill.
@@ -6600,6 +6624,8 @@ document.addEventListener('contextmenu', function(e) {
                 if (drRow) html += drRow.html;
                 var plRow = portalLockRow(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }), am);   // a portal's own lock: the GM's row, only where the selection holds a portal
                 if (plRow) html += plRow.html;
+                var fhRow = fogHandRows(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));   // 1.5.4: a piece's fog mark, only where the selection holds a piece that may carry one
+                if (fhRow) html += fhRow.html;
                 html += '<div class="menu-divider"></div>';
             }
             html += '<div class="menu-item cm-front">Bring to Front</div>';
@@ -6796,6 +6822,9 @@ document.addEventListener('contextmenu', function(e) {
                 } else if (action.includes('cm-dup')) {
                     duplicateWbItems(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }).filter(Boolean));
                     return;   // saved + rendered inside
+                } else if (action.includes('cm-fog-hide') || action.includes('cm-fog-show')) {   // a piece's fog mark (saved and drawn again below, so the table gets it at once)
+                    var wentFH = fogHandSet(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }), action.includes('cm-fog-hide') ? 'hide' : 'show');
+                    if (wentFH) { if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); } var noteFH = wentFH !== 'off' && window.wpFog && typeof window.wpFog.handNote === 'function' ? window.wpFog.handNote(am) : ''; toast((wentFH === 'hide' ? 'Under fog: players see nothing under it.' : wentFH === 'show' ? 'Always revealed: players always see what is under it.' : 'Fog mark taken off.') + (noteFH ? ' ' + noteFH : '')); }
                 } else if (action.includes('cm-door-open') || action.includes('cm-door-lock')) {   // a door's own rows (saved and drawn again below): an open door lets sight through, so the fog works its vision out again
                     var wentD = doorRowsDo(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }), action.includes('cm-door-open') ? 'open' : 'lock');
                     if (wentD) { if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); } toast(wentD === 'opened' ? 'Door opened.' : wentD === 'closed' ? 'Door closed.' : wentD === 'locked' ? 'Door locked for players.' : 'Door unlocked for players.'); }

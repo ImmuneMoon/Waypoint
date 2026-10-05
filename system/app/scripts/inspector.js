@@ -1037,6 +1037,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
               '<div class="field check-row"><input type="checkbox" id="wbLock" '+(w.locked?'checked':'')+'> <label for="wbLock">Locked (Prevent drag & resize)</label></div>'+
               (['rect','hexagon','circle','diamond','image','path'].indexOf(w.type) >= 0 && !w.hidden && !w.isChar && !w.waiting ? '<div class="field check-row"><input type="checkbox" id="wbBlocksSight" '+(w.blocksSight?'checked':'')+'> <label for="wbBlocksSight">'+(w.type === 'path' ? 'Blocks sight (a wall along the line)' : 'Blocks sight (wall / pillar)')+'</label></div><div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">'+(w.type === 'path' ? 'Fog vision (and each player&rsquo;s view), light, cover and players&rsquo; moves stop at the line itself, a thin wall between cells.' : 'Fog vision (and each player&rsquo;s view) stops at the cells its outline covers, turned as it is drawn.')+' Needs fog on for the map.</div>' : '')+   // item 18 W2: a pen line
               barrierFieldHtml(w)+   // see-through barriers (1.5.1): Stops movement only, with a barrier's own door rows
+              fogHandFieldHtml(w)+   // 1.5.4: a piece's fog mark (Under fog, Always revealed)
               (['rect','hexagon','circle','diamond'].indexOf(w.type) >= 0 && !w.hidden && !w.isChar && !w.waiting ? '<div class="field check-row"><input type="checkbox" id="wbSmoke" '+(w.smoke===true?'checked':'')+'> <label for="wbSmoke">Smoke (hides what is in it and past it)</label></div><div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">The eyes do not see into or through it, nor a sense the walls stop unless it sees through smoke. Tokens walk through it, it gives no cover and light passes.</div>' : '')+   // senses S7b
               (['rect','hexagon','circle','diamond'].indexOf(w.type) >= 0 && !w.hidden && !w.isChar && !w.waiting ? terrainFieldHtml(w) : '')+   // difficult terrain T1
               (['rect','hexagon','circle','diamond','image','path'].indexOf(w.type) >= 0 && !w.hidden && w.blocksSight ? '<div class="field"><label for="wbSightType">Type</label><select id="wbSightType"><option value="wall"'+(w.sightType!=='door'?' selected':'')+'>Wall / pillar (always blocks)</option><option value="door"'+(w.sightType==='door'?' selected':'')+'>Door (can open)</option></select></div>' : '')+
@@ -1311,6 +1312,8 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             if (_el_wbBarrier) _el_wbBarrier.addEventListener('change', function() { setItemBarrier(w, this.checked); });
             var _el_wbBlastStop = document.getElementById('wbBlastStop');   // a barrier's Stops blasts tick: true or no key
             if (_el_wbBlastStop) _el_wbBlastStop.addEventListener('change', function() { setItemBlastStop(w, this.checked); });
+            var _el_wbFogHand = document.getElementById('wbFogHand');   // a piece's fog mark: 'hide', 'show' or no key
+            if (_el_wbFogHand) _el_wbFogHand.addEventListener('change', function() { setItemFogHand(w, this.value); });
             var _el_wbCover = document.getElementById('wbCover');
             if(_el_wbCover) _el_wbCover.addEventListener('change', function() {
                 if (this.value === 'yes' || this.value === 'no') w.cover = this.value; else delete w.cover;   // cover follow-ups (owner 2026-09-28): what this piece gives as cover
@@ -1875,6 +1878,28 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
       if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
   }
   // [sinkcheck:barrierbox-end]
+  // [sinkcheck:foghandbox-start]
+  // A fog mark on a piece (1.5.4; the owner, 2026-10-04: "having a way to fill fog for a whole image would be good too"; by prompt "A mark on
+  // the image"): a picture, a plain shape or a painted cell may be Under fog (every cell under it stays hidden from players, whatever their
+  // tokens see) or Always revealed (they always show): item.fogHand, 'hide' | 'show' or no key, read by fogcore fogHandOf. The GM's alone
+  // (never a player's app, never the stream window); never on a hidden piece (its mark would count for no one), a token, a waiting token, a
+  // GM-note card, a text, a pen line, a trigger or a light. Its markup holds fixed words only
+  function fogHandFieldOk(w) { var n = window.wpNet; return !(window.wpStream || (n && n.active && n.role === 'client')) && !!w && typeof w === 'object' && (!!w.fill || ['image', 'rect', 'circle', 'hexagon', 'diamond'].indexOf(w.type) >= 0) && !w.hidden && !w.isChar && !w.waiting && !w.gmNoteFor; }
+  function fogHandFieldHtml(w) {
+      if (!fogHandFieldOk(w)) return '';
+      var v = w.fogHand === 'hide' || w.fogHand === 'show' ? w.fogHand : '';
+      return '<div class="field"><label for="wbFogHand">Fog mark</label><select id="wbFogHand"><option value=""' + (v === '' ? ' selected' : '') + '>None</option><option value="hide"' + (v === 'hide' ? ' selected' : '') + '>Under fog</option><option value="show"' + (v === 'show' ? ' selected' : '') + '>Always revealed</option></select></div>'
+          + '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">Under fog keeps every cell under this piece hidden from players, whatever their tokens see. Always revealed keeps them shown. The mark moves with the piece. It needs fog on the map.</div>';
+  }
+  function setItemFogHand(w, v) {
+      if (!w || typeof w !== 'object') return;
+      if ((v === 'hide' || v === 'show') && fogHandFieldOk(w)) w.fogHand = v; else delete w.fogHand;
+      save(); render(); renderInspector();
+      if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
+      var note = w.fogHand && window.wpFog && typeof window.wpFog.handNote === 'function' ? window.wpFog.handNote() : '';   // said where the mark cannot show yet
+      toast((w.fogHand === 'hide' ? 'Under fog: players see nothing under it.' : w.fogHand === 'show' ? 'Always revealed: players always see what is under it.' : 'Fog mark taken off.') + (note ? ' ' + note : ''));
+  }
+  // [sinkcheck:foghandbox-end]
   // [sinkcheck:portallockbox-start]
   // A portal's own lock (the owner, 2026-10-03: "maybe add the ability to lock a portal from the play map"): a portal piece's Locked for
   // players tick — no player travels through it until the GM unlocks it (item.portalLock, true or no key; the host is the judge: net.js

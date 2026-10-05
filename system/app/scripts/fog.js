@@ -743,6 +743,62 @@ function viewSeen(map, grid, blk, lvl, v, lc, tag) {   // tag (item 19b): the ce
     mc.m[k] = { hit: cells, used: ++_viewTick, pass: _viewPass }; mc.cells += cells.length; _viewCells += cells.length;
     return cells;
 }
+// [fogcheck:piecehand-start]
+// A fog mark on a piece (1.5.4; the owner: "having a way to fill fog for a whole image would be good too", by prompt "A mark on the image"): a
+// shown picture, plain shape or painted cell flagged fogHand 'show' (Always revealed) or 'hide' (Under fog) — fogcore fogHandOf — is the Reveal
+// or the Hide brush for every cell under it, wherever it is moved. Every reader of hand fog asks here after the brushes' own cells, on the
+// host and on a player's app alike: null when the map has no such piece (the common case: nothing changes), else
+//   shows: [{ key, cell }], show: { key: 1 }   the cells of the pieces marked Always revealed, each once, in the board's order
+//   hides: n, under(key, cell) -> bool         whether a piece marked Under fog covers that cell (asked, never listed: its size costs nothing)
+//   sig                                        how the marked pieces stand (what the answers are kept by)
+// Under fog beats Always revealed and the Reveal brush; Always revealed never shows a cell the Hide brush hid. The cells of the Always
+// revealed pieces are listed, LIMITS.hand of them a map at most: a piece that would pass that is left out whole (judged on its box before
+// its cells are walked), and the GM is told once for the map.
+var _handMemo = Object.create(null), _handSaid = Object.create(null), HAND_ASKED = 60000;
+function pieceHand(map, grid) {
+    var C = core(), wb = map && Array.isArray(map.whiteboard) ? map.whiteboard : null; if (!C || !wb || !grid || typeof C.fogHandOf !== 'function') return null;
+    var shows = null, hides = null, sig = '';
+    for (var i = 0; i < wb.length; i++) {
+        var w = wb[i], h = C.fogHandOf(w); if (!h) continue;
+        (h === 'show' ? (shows || (shows = [])) : (hides || (hides = []))).push(w);
+        sig += h + ':' + w.id + ':' + w.type + (w.fill ? 'f' : '') + ':' + w.x + ',' + w.y + ',' + (w.w || 0) + ',' + (w.h || 0) + ',' + (w.rot || 0) + ';';
+    }
+    if (!shows && !hides) return null;
+    sig = grid.type + ':' + (grid.size || grid.s) + '|' + sig;
+    var m = _handMemo[map.id];
+    if (!m || m.sig !== sig) {
+        m = _handMemo[map.id] = { sig: sig, shows: [], show: Object.create(null), hid: Object.create(null), asked: 0, over: false };
+        var cap = C.LIMITS.hand, cw = grid.type === 'square' ? grid.size : 1.5 * grid.s, ch = grid.type === 'square' ? grid.size : grid.h;
+        for (var s = 0; shows && s < shows.length; s++) {
+            var p = shows[s], cells = p.fill || barBox(p, cw, ch) <= cap * 4 ? C.itemCells(p, grid) : null;   // judged on its box before its cells are walked
+            if (!cells || m.shows.length + cells.length > cap) { m.over = true; continue; }   // too large: left out whole
+            for (var j = 0; j < cells.length; j++) { var k = C.cellKey(cells[j], grid); if (m.show[k] !== 1) { m.show[k] = 1; m.shows.push({ key: k, cell: cells[j] }); } }
+        }
+        if (m.over && _handSaid[map.id] !== 1 && !isClientView() && !isStreamView()) { _handSaid[map.id] = 1; toast('A piece marked Always revealed is too large for the fog to follow (' + cap + ' cells a map). Use Reveal all, or mark smaller pieces.'); }
+        if (!m.over) _handSaid[map.id] = 0;
+    }
+    var hs = hides || [];
+    return { shows: m.shows, show: m.show, hides: hs.length, sig: sig, under: function(key, cell) {
+        if (!hs.length) return false;
+        var v = m.hid[key]; if (v !== undefined) return v === 1;
+        var ctr = C.cellCenter(cell, grid), yes = false;
+        for (var q = 0; q < hs.length && !yes; q++) yes = C.itemCovers(hs[q], ctr.x, ctr.y, grid) === true;
+        if (m.asked >= HAND_ASKED) { m.hid = Object.create(null); m.asked = 0; }   // a long session's answers do not pile up
+        m.hid[key] = yes ? 1 : 0; m.asked++;
+        return yes;
+    } };
+}
+// What the GM is told when a fog mark is set where it cannot show yet: the feature off, this map's fog off, or the map on Reveal all
+// (a mark is not the brush: it never changes the map's fog mode by itself, which would fog a whole map for the table at a right-click)
+function handNote(map) {
+    map = map || activeMap(); if (!map || map.type !== 'map') return '';
+    if (!fogFeatureOn()) return 'Fog of war is switched off for this campaign, so the mark does nothing yet.';
+    var mf = mapFog(map);
+    if (!mf.on) return 'Fog is off on this map: the mark shows once you tick Fog on this map.';
+    if (mf.mode === 'reveal') return 'This map is on Reveal all: the mark shows once it is back on Auto.';
+    return '';
+}
+// [fogcheck:piecehand-end]
 // The cells revealed to ownerId, each with its tier (2 clear or bright, 1 dim): their tokens' vision ∪ manual adds (clear) − manual cuts.
 // null = the whole map (reveal mode); else { list: [{key, cell}], keys: {key: tier}, through? }. Senses S2a: through, { key: 1 } for a cell
 // only a sense that passes walls gave (read from S6 on); absent when no such sense sees anything of its own
@@ -765,6 +821,11 @@ function revealedTiers(map, camp, ownerId) {
     (mf.manual.adds || []).forEach(function(c) { var k = C.cellKey(c, grid); put(k, c, 2); plain[k] = 1; });
     var cut = Object.create(null); (mf.manual.cuts || []).forEach(function(c) { cut[C.cellKey(c, grid)] = 1; });
     list = list.filter(function(o) { if (cut[o.key]) { delete keys[o.key]; return false; } return true; });
+    var ph = typeof pieceHand === 'function' ? pieceHand(map, grid) : null;   // 1.5.4: the pieces marked Always revealed or Under fog, after the brushes' own cells
+    if (ph) {
+        ph.shows.forEach(function(o) { if (!cut[o.key]) { put(o.key, o.cell, 2); plain[o.key] = 1; } });
+        if (ph.hides) list = list.filter(function(o) { if (ph.under(o.key, o.cell)) { delete keys[o.key]; return false; } return true; });
+    }
     var out = { list: list, keys: keys };
     if (passed) { var th = null; list.forEach(function(o) { if (passed[o.key] && !plain[o.key]) (th || (th = Object.create(null)))[o.key] = 1; }); if (th) out.through = th; }
     return out;
@@ -782,6 +843,7 @@ function wallEdged(tiers, map, grid) {
     var blk = blockersFor(map, grid); if (!blk || _blockerOver[map.id]) return tiers;
     var cut = null; (mf.manual.cuts || []).forEach(function(c) { (cut || (cut = Object.create(null)))[C.cellKey(c, grid)] = 1; });
     var add = C.wallEdgeCells(tiers.keys, grid, blk, { skip: cut, through: tiers.through || null });
+    var phE = typeof pieceHand === 'function' ? pieceHand(map, grid) : null; if (phE && phE.hides) add = add.filter(function(o) { return !phE.under(o.key, o.cell); });   // never a cell a piece marked Under fog covers
     if (!add.length) return tiers;
     var edge = Object.create(null);
     for (var i = 0; i < add.length; i++) { var o = add[i]; tiers.keys[o.key] = o.tier; tiers.list.push({ key: o.key, cell: o.cell }); edge[o.key] = 1; }
@@ -814,8 +876,9 @@ function lightSeen(from, to, map, camp) {
     var a = C.cellOf(v.x, v.y, grid), b = C.cellOf(to.x + (to.w || 60) / 2, to.y + (to.h || 52) / 2, grid), bk = C.cellKey(b, grid);
     var mask = fogMask(map, camp, grid); if (mask.mode === 'none' || !inMask(mask, bk)) return null;   // no fog is drawn there
     var byHand = function(list) { return (list || []).some(function(c) { return C.cellKey(c, grid) === bk; }); };
-    if (byHand(mf.manual.cuts)) return null;
-    if (byHand(mf.manual.adds)) return 2;
+    var phL = typeof pieceHand === 'function' ? pieceHand(map, grid) : null;   // 1.5.4: a piece marked Under fog or Always revealed is hand fog too
+    if (byHand(mf.manual.cuts) || (phL && phL.under(bk, b))) return null;
+    if (byHand(mf.manual.adds) || (phL && phL.show[bk] === 1)) return 2;
     var d = C.cellDist(a, b, grid), ts = tokenSenses(from, map, camp, !from.ownerId), lit = null, litRead = false, sense = null;
     v.arc = eyesArc(map, ts);   // the viewer's own arc, as its viewers have it (viewersFor)
     var litAt = function() { if (!litRead) { litRead = true; var lc = over ? null : litFor(map, grid, blk); lit = lc ? lc.lit : null; } return lit; };
@@ -938,7 +1001,8 @@ function heightCtx(map, camp, ownerId, grid) {
     var vs = viewersFor(map, camp, ownerId, true); if (!vs.length) return null;
     var C = hr.C, lvl = mapLevel(map), lc = lvl === null ? null : litFor(map, grid, hr.blk), mf = mapFog(map), man = Object.create(null), cut = Object.create(null);
     (mf.manual.adds || []).forEach(function(c) { man[C.cellKey(c, grid)] = 1; }); (mf.manual.cuts || []).forEach(function(c) { cut[C.cellKey(c, grid)] = 1; });
-    return { C: C, hm: hr.hm, hs: hr.hs, base: hr.base, tag: hr.tag, vs: vs, lvl: lvl, lc: lc, man: man, cut: cut, map: map, grid: grid, idx: [], shown: hr.shown };
+    var phH = typeof pieceHand === 'function' ? pieceHand(map, grid) : null; if (phH) phH.shows.forEach(function(o) { man[o.key] = 1; });   // 1.5.4: a marked piece's cells are shown or hidden by hand too
+    return { C: C, hm: hr.hm, hs: hr.hs, base: hr.base, tag: hr.tag, vs: vs, lvl: lvl, lc: lc, man: man, cut: cut, under: phH && phH.hides ? phH.under : null, map: map, grid: grid, idx: [], shown: hr.shown };
 }
 // The tier at which those tokens see a creature standing in that cell at that height (2 clear, 1 dim), 0 when none does: a viewer must
 // see the cell past the walls (its light, its reach, its arc, smoke: its own seen cells, viewSeen) and have no piece stop its line — a sense
@@ -963,7 +1027,7 @@ function heightJudge(map, camp, ownerId, grid, mask, flat) {
         if (!w || w.type === 'light' || !(w.isChar || w.waiting) || typeof w.id !== 'string') return;
         if (w.ownerId === ownerId || (ownerId === PARTY && playerTok(w))) return;
         var cell = C.cellOf(w.x + (w.w || 60) / 2, w.y + (w.h || 52) / 2, grid), key = C.cellKey(cell, grid);
-        if (!inMask(mask, key) || ctx.man[key] === 1 || ctx.cut[key] === 1) return;
+        if (!inMask(mask, key) || ctx.man[key] === 1 || ctx.cut[key] === 1 || (ctx.under && ctx.under(key, cell))) return;
         var tier = heightSees(ctx, cell, key, tokHeight(w, map, ctx.shown)), was = !!flat[key];
         if (was && !tier) (hide || (hide = Object.create(null)))[w.id] = 1;
         else if (!was && tier) (show || (show = Object.create(null)))[w.id] = { key: key, cell: cell, tier: tier };
@@ -1195,7 +1259,7 @@ function canSeePoint(recipientId, camp, map, x, y, w) {   // w (item 19b): the p
     if (w && typeof w === 'object' && (w.isChar || w.waiting) && w.type !== 'light' && typeof heightCtx === 'function') {
         if (ce.hc === undefined) ce.hc = heightCtx(map, camp, recipientId, grid);   // kept with the set: both are emptied together
         var hc = ce.hc;
-        if (hc && hc.man[pk] !== 1 && hc.cut[pk] !== 1) { var live = {}; for (var lk in w) live[lk] = w[lk]; live.x = x - (w.w || 60) / 2; live.y = y - (w.h || 52) / 2; return heightSees(hc, hc.C.cellOf(x, y, grid), pk, tokHeight(live, map, hc.shown)) > 0; }
+        if (hc && hc.man[pk] !== 1 && hc.cut[pk] !== 1 && !(hc.under && hc.under(pk, hc.C.cellOf(x, y, grid)))) { var live = {}; for (var lk in w) live[lk] = w[lk]; live.x = x - (w.w || 60) / 2; live.y = y - (w.h || 52) / 2; return heightSees(hc, hc.C.cellOf(x, y, grid), pk, tokHeight(live, map, hc.shown)) > 0; }
     }
     return !!ce.keys[pk];
 }
@@ -1250,6 +1314,8 @@ function memFor(map, grid) {   // this map's store, emptied when its grid, its c
 function memRemember(map, grid, tiers) {   // what is seen now, kept: never a cell only a wall-passing sense gave, never one the GM cut
     var C = core(), m = memFor(map, grid), cut = Object.create(null), th = tiers.through || null, changed = false;
     (mapFog(map).manual.cuts || []).forEach(function(c) { var k = C.cellKey(c, grid); cut[k] = 1; if (m.cells[k]) { delete m.cells[k]; m.n--; _memTotal--; changed = true; } });
+    var phM = typeof pieceHand === 'function' ? pieceHand(map, grid) : null;   // 1.5.4: ground under a piece marked Under fog is forgotten too, swept once for each way the marked pieces stand
+    if (phM && phM.hides) { if (m.handSig !== phM.sig) { m.handSig = phM.sig; for (var mk in m.cells) if (phM.under(mk, m.cells[mk])) { delete m.cells[mk]; m.n--; _memTotal--; changed = true; } } } else if (m.handSig) m.handSig = '';
     for (var i = 0; i < tiers.list.length; i++) {
         var o = tiers.list[i]; if (m.cells[o.key] || cut[o.key] === 1 || (th && th[o.key] === 1)) continue;
         if (m.n >= MEM_MAP) { if (!_memFullSaid[map.id]) { _memFullSaid[map.id] = 1; toast('Your memory of this map is full: ground you see from now on is not kept.'); } break; }
@@ -1456,11 +1522,12 @@ function previewName() {
     if (r) Object.keys(r).forEach(function(k) { var p = r[k]; if (p && p.id === previewMode && typeof p.name === 'string' && p.name) nm = p.name; });
     return nm ? Array.from(nm).slice(0, 40).join('') : 'this player';
 }
-function whyDark(map, grid, mask, tiers, key) {   // why the veil draws this cell dark, or '' when it does not
+function whyDark(map, grid, mask, tiers, key, cell) {   // why the veil draws this cell dark, or '' when it does not
     var C = core(); if (!C || !map || !grid || !tiers || !tiers.keys || typeof key !== 'string' || tiers.keys[key] !== undefined) return '';
     if (mask && !inMask(mask, key)) return '';   // outside the play area: no fog is drawn there
     var mf = mapFog(map), cuts = mf.manual.cuts || [];
     for (var i = 0; i < cuts.length; i++) if (C.cellKey(cuts[i], grid) === key) return 'Hidden by hand (the Hide brush)';
+    var phW = cell && typeof pieceHand === 'function' ? pieceHand(map, grid) : null; if (phW && phW.under(key, cell)) return 'Hidden by hand (a piece here is marked Under fog)';
     if (mf.mode === 'cover') return 'Covered: Cover all hides every cell you have not revealed by hand';
     if (previewMode !== 'off' && previewMode !== 'party') return 'None of ' + previewName() + '\u2019s tokens sees this cell';
     return 'No token on this map sees this cell';
@@ -1475,7 +1542,7 @@ function onToken(map, pt) {   // the pointer is on a character token, or on one 
 }
 function drawWhyDark(ctx, s, map, grid, mask, tiers, now) {
     if (!isGmView() || !ctx.fillText || _markHover === null || _whyHeld || !_whyPt || now - _whySince < WHY_REST) return;
-    var words = whyDark(map, grid, mask, tiers, _markHover); if (!words || onToken(map, _whyPt)) return;
+    var words = whyDark(map, grid, mask, tiers, _markHover, core().cellOf(_whyPt.x, _whyPt.y, grid)); if (!words || onToken(map, _whyPt)) return;
     var C = core(), wrap = ui('whiteboardWrap'), z = state.zoomLevel || 1, sx = wrap ? wrap.scrollLeft : 0, sy = wrap ? wrap.scrollTop : 0, W = s.clientWidth;
     var ctr = C.cellCenter(C.cellOf(_whyPt.x, _whyPt.y, grid), grid), half = (grid.type === 'square' ? grid.size / 2 : grid.s) * z;
     ctx.save();
@@ -1568,7 +1635,7 @@ function tick() {
     raf = null;
     if (!active()) { clearCanvas(); return; }
     var now = Date.now();
-    if (now - lastDraw >= 60) { lastDraw = now; _sensesDraw = true; try { draw(); } finally { _sensesDraw = false; } }   // a frame: the tokens' senses are kept while nothing they read changed
+    if (now - lastDraw >= 60) { lastDraw = now; _sensesDraw = true; try { draw(); if (typeof drawBox === 'function') drawBox(); } finally { _sensesDraw = false; } }   // a frame: the tokens' senses are kept while nothing they read changed
     raf = requestAnimationFrame(tick);
 }
 function kick() { if (!raf) raf = requestAnimationFrame(tick); }
@@ -1647,25 +1714,100 @@ function olTick() { olRaf = null; if (!outlineId) { clearOutline(); return; } va
 function setOutline(id) { var was = outlineId; outlineId = typeof id === 'string' && id ? id : null; if (!outlineId) { if (was) clearOutline(); return; } if (outlineId !== was) olLast = 0; if (!olRaf) olRaf = requestAnimationFrame(olTick); }
 // [fogcheck:outline-end]
 
-/* ---------- the manual brush (whiteboard.js calls paintAt in fog mode) ---------- */
-var brush = 'reveal', _saveTimer = null;
+/* ---------- the manual brush (whiteboard.js hands it the pointer while the fog tool is in hand) ---------- */
+// [fogcheck:brush-start]
+// Fog painted by hand (1.5.4; the owner, 2026-10-04: "being able to draw fog directly onto something would be useful"; by prompt all four of
+// Drag a box, Click a whole piece, a Clear brush, Brush sizes). The brush in hand says what a cell becomes — Reveal, Hide, or Clear (its hand
+// mark taken off: back to what the tokens see) — and the stroke says which cells: the one under the pointer, a block 3 or 5 cells wide round
+// it, every cell of a dragged box (at the release), or every cell under the picture or shape pressed on. A cell is in one list at most; each
+// list holds LIMITS.manual cells, and a stroke that would pass that says so once.
+var brush = 'reveal', stroke = '1', _saveTimer = null, _box = null, _capSaid = false;
+var STROKES = { '1': 1, '3': 1, '5': 1, box: 1, piece: 1 }, PIECE_LAYER = { back: 10, 'back-mid': 15, middle: 20, 'front-mid': 25, front: 30 };
 function queueSave() { if (_saveTimer) clearTimeout(_saveTimer); _saveTimer = setTimeout(function() { _saveTimer = null; save(); }, 400); }
-function withoutKey(list, key, grid, C) { return (list || []).filter(function(c) { return C.cellKey(c, grid) !== key; }); }
-function paintAt(boardX, boardY, opposite) {
-    if (!isGmView() || !canWrite()) return;
-    var map = activeMap(), C = core(); if (!map || !C) return;
+function paintHow(opposite) { return brush === 'clear' ? 'clear' : ((brush === 'reveal') !== !!opposite ? 'reveal' : 'hide'); }
+// every cell given leaves both lists, then joins the list of what it becomes (neither for 'clear'); -> how many found no room
+function paintCells(mf, cells, how, grid, C) {
+    var keys = Object.create(null), list = [], lost = 0, cap = C.LIMITS.manual;
+    for (var i = 0; i < cells.length; i++) { var k = C.cellKey(cells[i], grid); if (keys[k] !== 1) { keys[k] = 1; list.push(cells[i]); } }
+    if (!list.length) return 0;
+    var keep = function(c) { return keys[C.cellKey(c, grid)] !== 1; };
+    mf.manual.adds = (mf.manual.adds || []).filter(keep); mf.manual.cuts = (mf.manual.cuts || []).filter(keep);
+    if (how !== 'reveal' && how !== 'hide') return 0;
+    var into = how === 'reveal' ? mf.manual.adds : mf.manual.cuts;
+    for (var j = 0; j < list.length; j++) { if (into.length < cap) into.push(list[j]); else lost++; }
+    return lost;
+}
+function paintGrid() {   // the map and grid a stroke paints on, or null (said why where there is something to say)
+    if (!isGmView() || !canWrite()) return null;
+    var map = activeMap(), C = core(); if (!map || !C) return null;
     var grid = gridForMap(map);
-    if (!grid) { toast('This is a gridless map — choose a measurement grid in the fog menu first.'); return; }
-    var mf = mapFog(map);
+    if (!grid) { toast('This is a gridless map — choose a measurement grid in the fog menu first.'); return null; }
+    return { map: map, grid: grid, C: C, cw: grid.type === 'square' ? grid.size : 1.5 * grid.s, ch: grid.type === 'square' ? grid.size : grid.h };
+}
+function paintDo(g, cells, opposite) {
+    var mf = mapFog(g.map);
     if (mf.mode !== 'auto') { mf.mode = 'auto'; syncMenu(); }
-    var cell = C.cellOf(boardX, boardY, grid), key = C.cellKey(cell, grid);
-    var reveal = (brush === 'reveal') !== !!opposite;
-    mf.manual.adds = withoutKey(mf.manual.adds, key, grid, C);
-    mf.manual.cuts = withoutKey(mf.manual.cuts, key, grid, C);
-    var into = reveal ? mf.manual.adds : mf.manual.cuts, cap = C.LIMITS.manual;
-    if (into.length < cap) into.push(cell); else toast('That map already has the most manual fog cells it can hold.');
+    var lost = paintCells(mf, cells, paintHow(opposite), g.grid, g.C);
+    if (lost && !_capSaid) { _capSaid = true; toast('This map keeps no more cells painted by hand (' + g.C.LIMITS.manual + ' revealed, as many hidden). For a large area mark a picture Under fog or Always revealed, or use Cover all or Reveal all.'); }
     queueSave(); redraw();
 }
+function paintAt(boardX, boardY, opposite) {   // the cell under the pointer, widened by the stroke in hand
+    var g = paintGrid(); if (!g) return;
+    paintDo(g, g.C.cellsNear(g.C.cellOf(boardX, boardY, g.grid), stroke === '3' ? 1 : stroke === '5' ? 2 : 0, g.grid), opposite);
+}
+// the topmost picture or plain shape the point lies on, as the board stacks them (Whole piece): never a token, a waiting token, a GM-note
+// card, a painted cell, a text, a pen line, a trigger or a light
+function pieceUnder(map, grid, x, y, C) {
+    var wb = Array.isArray(map.whiteboard) ? map.whiteboard : [], best = null, bz = -Infinity;
+    for (var i = 0; i < wb.length; i++) {
+        var w = wb[i]; if (!w || typeof w !== 'object' || w.isChar || w.waiting || w.gmNoteFor || w.fill) continue;
+        if (w.type !== 'image' && w.type !== 'rect' && w.type !== 'circle' && w.type !== 'hexagon' && w.type !== 'diamond') continue;
+        if (C.itemCovers(w, x, y, grid) !== true) continue;
+        var lz = typeof w.layer === 'string' && Object.prototype.hasOwnProperty.call(PIECE_LAYER, w.layer) ? PIECE_LAYER[w.layer] : 0;
+        var z = (lz || (typeof w.z === 'number' && isFinite(w.z) && w.z ? w.z : 10)) + (w.aboveGrid ? 15020 : 0);
+        if (z >= bz) { bz = z; best = w; }   // the later of two on one level lies on top, as the board draws them
+    }
+    return best;
+}
+function paintPiece(x, y, opposite) {
+    var g = paintGrid(); if (!g) return;
+    var p = pieceUnder(g.map, g.grid, x, y, g.C);
+    if (!p) { toast('Whole piece: click a picture or a shape. There is none under the pointer.'); return; }
+    var cap = g.C.LIMITS.manual, cells = barBox(p, g.cw, g.ch) <= cap * 8 ? g.C.itemCells(p, g.grid) : null;   // judged on its box before its cells are walked
+    if (!cells || (paintHow(opposite) !== 'clear' && cells.length > cap)) { toast('That piece covers more cells than a map keeps by hand (' + cap + '). Mark it instead: right-click it for Under fog or Always revealed.'); return; }
+    if (!cells.length) { toast('That piece covers no cell: a cell counts when its centre lies under the piece.'); return; }
+    paintDo(g, cells, opposite);
+}
+function paintBox(b) {
+    var g = paintGrid(); if (!g) return;
+    var x = Math.min(b.x0, b.x1), y = Math.min(b.y0, b.y1), w = Math.abs(b.x1 - b.x0), h = Math.abs(b.y1 - b.y0), cap = g.C.LIMITS.manual;
+    if (w < 3 && h < 3) { paintDo(g, [g.C.cellOf(b.x1, b.y1, g.grid)], b.opp); return; }   // a click with no drag: its one cell
+    var cells = (w / g.cw + 2) * (h / g.ch + 2) <= cap * 8 ? g.C.cellsUnderRect(x, y, w, h, g.grid) : null;
+    if (!cells || (paintHow(b.opp) !== 'clear' && cells.length > cap)) { toast('That box holds more cells than a map keeps by hand (' + cap + '). Drag a smaller one, or use Cover all or Reveal all.'); return; }
+    if (cells.length) paintDo(g, cells, b.opp);
+}
+// A stroke, from the press to the release (whiteboard.js): by cells, every cell the pointer passes; a box, nothing until the release; a
+// whole piece, at the press alone. A stroke that is cancelled (the pointer taken away by the system) paints no box
+function strokeStart(x, y, opposite) {
+    _capSaid = false; _box = null;
+    if (stroke === 'box') { if (paintGrid()) { _box = { x0: x, y0: y, x1: x, y1: y, opp: !!opposite }; redraw(); } return; }
+    if (stroke === 'piece') { paintPiece(x, y, opposite); return; }
+    paintAt(x, y, opposite);
+}
+function strokeMove(x, y, opposite) {
+    if (_box) { _box.x1 = x; _box.y1 = y; redraw(); return; }
+    if (stroke !== 'box' && stroke !== 'piece') paintAt(x, y, opposite);
+}
+function strokeEnd(cancel) { var b = _box; _box = null; if (!b) return; if (cancel !== true) paintBox(b); redraw(); }
+function strokePick(which) { if (typeof which !== 'string' || STROKES[which] !== 1) return; stroke = which; _box = null; syncMenu(); }
+// the box being dragged, drawn over the fog after the overlay's own frame
+function drawBox() {
+    if (!_box) return;
+    var s = screenEl(), wrap = ui('whiteboardWrap'), c = s && s.querySelector('canvas.fog-canvas'), ctx = c && c.getContext('2d'); if (!ctx || !wrap) return;
+    var z = state.zoomLevel || 1, x = Math.min(_box.x0, _box.x1) * z - wrap.scrollLeft, y = Math.min(_box.y0, _box.y1) * z - wrap.scrollTop, w = Math.abs(_box.x1 - _box.x0) * z, h = Math.abs(_box.y1 - _box.y0) * z;
+    ctx.save(); ctx.setLineDash([6, 4]); ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(244,196,48,0.95)'; ctx.fillStyle = 'rgba(244,196,48,0.12)'; ctx.fillRect(x, y, w, h); ctx.strokeRect(x, y, w, h); ctx.restore();
+}
+// [fogcheck:brush-end]
 
 /* ---------- the fog menu (#fogMenu) ---------- */
 function fillPreviewOptions() {
@@ -1724,6 +1866,7 @@ function syncMenu() {
     var fEmpty = ui('fogEmptyScope'); if (fEmpty && document.activeElement !== fEmpty) fEmpty.value = cf.defaults.emptyFog === 'none' ? 'none' : 'whole';   // what a map with no play area marked does
     var painting = !!window.isFogMode;   // 1.5.4: a brush is lit only while the fog tool is in hand
     document.querySelectorAll('#fogMenu .fog-brush-btn').forEach(function(b) { b.classList.toggle('active', painting && b.dataset.fbrush === brush); });
+    document.querySelectorAll('#fogMenu .fog-stroke-btn').forEach(function(b) { b.classList.toggle('active', b.dataset.fstroke === stroke); });   // the stroke in hand is a setting: lit whether or not a brush is
     var pnote = ui('fogPaintNote'); if (pnote) pnote.textContent = paintWords(painting, !!mf.on);
     fillPreviewOptions();
     var note = ui('fogNote'); if (note) note.textContent = gridForMap(map) ? '' : 'Gridless map: pick a measurement grid above so fog can compute cells.';
@@ -1746,11 +1889,12 @@ function closeMenu() { var m = ui('fogMenu'); if (m) m.classList.remove('show');
 // the lit brush pressed again puts the tool down (back to the arrow); the other brush pressed while painting only changes the brush. Nothing
 // is painted on a map whose fog is off: the veil is not drawn there, so the strokes would not show
 function paintWords(painting, fogOn) {
-    if (painting) return 'Painting: click or drag cells on the map; right-click paints the other brush. Press the lit brush again, or pick another tool, to stop.';
+    if (painting) return (stroke === 'box' ? 'Painting: drag a box on the map, and every cell in it changes when you let go.' : stroke === 'piece' ? 'Painting: click a picture or a shape, and every cell under it changes.' : 'Painting: click or drag cells on the map.')
+        + (brush === 'clear' ? ' Clear takes your own marks off, back to what the tokens see.' : ' Right-click paints the other brush.') + ' Press the lit brush again, or pick another tool, to stop.';
     return fogOn ? 'Press a brush, then click or drag cells on the map.' : 'Tick Fog on this map first: there is no fog to paint while it is off.';
 }
 function brushPress(which) {
-    var want = which === 'hide' ? 'hide' : 'reveal', map = activeMap(); if (!map || !isGmView() || !canWrite()) return;
+    var want = which === 'hide' || which === 'clear' ? which : 'reveal', map = activeMap(); if (!map || !isGmView() || !canWrite()) return;
     if (window.isFogMode && brush === want) { if (window.wpExitFogMode) window.wpExitFogMode(); }
     else if (!window.isFogMode && !mapFog(map).on) { toast('Fog is off on this map: tick Fog on this map (the top of this menu) first, so that you see what you paint.'); return; }
     else { brush = want; if (!window.isFogMode && window.wpEnterFogMode) window.wpEnterFogMode(); }
@@ -1868,6 +2012,7 @@ var LIGHT_SAID = {
         toast(fEmpty.value === 'none' ? 'Maps with no play area marked now show no fog.' : 'Maps with no play area marked fog the whole map.');
     });
     document.querySelectorAll('#fogMenu .fog-brush-btn').forEach(function(b) { b.addEventListener('click', function() { brushPress(b.dataset.fbrush); }); });
+    document.querySelectorAll('#fogMenu .fog-stroke-btn').forEach(function(b) { b.addEventListener('click', function() { strokePick(b.dataset.fstroke); }); });
     var rev = ui('fogRevealAll');
     if (rev) rev.addEventListener('click', function() { var map = activeMap(); if (!map) return; var mfR = mapFog(map); mfR.mode = 'reveal'; mfR.epoch = (mfR.epoch || 0) + 1; save(); syncMenu(); redraw(); toast('Whole map revealed. Paint or pick a preview to fog again.'); });   // senses S6: a new epoch empties every player's memory of it
     var cov = ui('fogCoverAll');
@@ -1904,7 +2049,8 @@ window.wpFog = {
     fogDropIds: fogDropIds, fogLitFor: fogLitFor, canSeePoint: canSeePoint, coverAt: coverAt, blastSeat: blastSeat, moveBlocked: moveBlocked, moveCells: moveCells, moveCost: moveCost, invalidateVision: invalidateVision, invalidateSeen: invalidateSeen, seenKeyOf: seenKeyOf, lightMoves: lightMoves, sightSigFor: sightSigFor, tokenSightCells: tokenSightCells, coverBetween: coverBetween,
     PARTY: PARTY, fogPartyCells: fogPartyCells,   // R2 #14: the stream window's standpoint (the players' tokens together) and the cells it draws by, for its copy (net.js fogPartyCopy)
     // GM tools
-    paintAt: paintAt, toggleDoorAt: toggleDoorAt, openMenu: openMenu, closeMenu: closeMenu, sync: sync, redraw: redraw,
+    handNote: handNote,   // 1.5.4: what to say when a piece's fog mark cannot show yet (inspector.js, whiteboard.js)
+    paintAt: paintAt, strokeStart: strokeStart, strokeMove: strokeMove, strokeEnd: strokeEnd, stroke: function() { return stroke; }, toggleDoorAt: toggleDoorAt, openMenu: openMenu, closeMenu: closeMenu, sync: sync, redraw: redraw,
     setPreview: function(p) { previewMode = p || 'off'; redraw(); }, preview: function() { return previewMode; }, brush: function() { return brush; }, active: active,
     tableLeft: tableLeft, onSnapshot: onSnapshot, foreign: foreign,
     lightLevel: mapLevel, lightCount: lightCount,

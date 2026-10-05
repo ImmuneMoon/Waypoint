@@ -7518,6 +7518,31 @@ pendingChecks.push((async () => {
             J(afterFull) === J([true, false, false, false]) && !!drewP && !hasK(drewP, 'portalLock') && !hasK(drewP, 'targetMapId') && !hasK(drewP, 'nodeId') && !!redrewP && redrewP.portalLock === true && redrewP.targetMapId === 'mB' && J(redrewP.pts) === J([[0, 0], [5, 9]])
             && !!plainP && J(plainP.pts) === J([[0, 0], [7, 7]]) && !hasK(plainP, 'portalLock') && !hasK(plainP, 'targetMapId') && J(afterLean) === J([true, false, true]) && !/portalLock/.test(bw('patch')) && !/portalLock/.test(fnSrc('function playerStroke(', '\n}\n', 'playerStroke')), J([afterFull, drewP, redrewP, plainP, afterLean]));
     }
+    // a piece's fog mark (1.5.4: Under fog, Always revealed) on the wire, in the same one-module world: host to player with a shown piece and only
+    // as its two words; player to host nothing sets it and nothing clears it
+    {
+        const fW = () => { const W = S7({}); const m = W.camp.items.mA;
+            m.whiteboard.push({ id: 'fHide', type: 'image', x: 600, y: 800, w: 100, h: 100, fogHand: 'hide' }, { id: 'fShow', type: 'rect', x: 800, y: 800, w: 50, h: 50, fogHand: 'show' }, { id: 'fPlain', type: 'rect', x: 900, y: 800, w: 50, h: 50 },
+                { id: 'fWord', type: 'rect', x: 1000, y: 800, w: 50, h: 50, fogHand: 'yes' }, { id: 'fGone', type: 'image', x: 5000, y: 5200, w: 50, h: 50, fogHand: 'hide', hidden: true },
+                { id: 'fhDraw', type: 'path', byPlayer: true, ownerId: 'u_a', x: 600, y: 900, w: 10, h: 10, baseW: 10, baseH: 10, pts: [[0, 0], [5, 9]] });
+            m.meta = Object.assign({}, m.meta, { updated: (m.meta && m.meta.updated || 0) + 1 }); W.clearSent(); return W; };
+        const hasK = (w, k) => !!w && Object.prototype.hasOwnProperty.call(w, k), fk = (m, id) => { const w = m && m.whiteboard.find(x => x.id === id); return w ? (hasK(w, 'fogHand') ? w.fogHand : 'none') : null; };
+        const Wf = fW(); Wf.net.sendItem('k', 'mA');
+        const fcA = Wf.last(Wf.a1), fcB = Wf.last(Wf.b1), cloneF = Wf.api.clean(Wf.camp.items.mA), allF = J(Wf.a1.sent.concat(Wf.a2.sent, Wf.b1.sent));
+        const Wg = fW();
+        Wg.api.item({ type: 'item', campId: 'k', itemId: 'mA', item: { id: 'mA', type: 'map', whiteboard: [
+            { id: 'fHide', type: 'image', x: 600, y: 800, w: 100, h: 100 },                                   // the GM's Under fog picture sent back with no mark
+            { id: 'fShow', type: 'rect', x: 800, y: 800, w: 50, h: 50, fogHand: 'hide' },                     // the Always revealed one sent back as Under fog
+            { id: 'fPlain', type: 'rect', x: 900, y: 800, w: 50, h: 50, fogHand: 'show' },                    // a plain piece sent back marked
+            Object.assign({}, Wg.tok('tA'), { fogHand: 'show' }),                                              // her own token marked
+            { id: 'fhDraw', type: 'path', byPlayer: true, ownerId: 'u_a', x: 600, y: 900, w: 10, h: 10, baseW: 10, baseH: 10, pts: [[0, 0], [6, 6]], fogHand: 'hide' },   // her own drawing redrawn with a mark
+            { id: 'wbnewF', type: 'path', ownerId: 'u_a', x: 0, y: 0, w: 10, h: 10, pts: [[0, 0], [5, 5]], fogHand: 'show' }] } }, Wg.a1);   // a new drawing with one
+        const afterF = [Wg.tok('fHide').fogHand, Wg.tok('fShow').fogHand, hasK(Wg.tok('fPlain'), 'fogHand'), hasK(Wg.tok('tA'), 'fogHand'), !!Wg.tok('fhDraw') && J(Wg.tok('fhDraw').pts) === J([[0, 0], [6, 6]]), hasK(Wg.tok('fhDraw'), 'fogHand'), !!Wg.tok('wbnewF'), hasK(Wg.tok('wbnewF'), 'fogHand')];
+        check('a piece\'s fog mark (host, the wire and a player\'s map copy — the real sends and patch path): a shown piece marked Under fog or Always revealed reaches each player with its mark, on a player\'s own copy and on the shared clone, so their own overlay reads what the host judges by; an unmarked one carries no key; a word that is no mark on the host\'s own map is sent as nothing (its own map untouched); a hidden one reaches no one. Nothing a player\'s copy says sets a mark, changes it or clears it: the GM\'s Under fog picture sent back without it keeps it, the Always revealed one sent back as Under fog stays as it was, a plain piece sent back marked takes none, and her own token, her redrawn drawing (the redraw itself lands) and a new drawing take none; the patch path and playerStroke never name the key',
+            fk(fcA, 'fHide') === 'hide' && fk(fcB, 'fHide') === 'hide' && fk(cloneF, 'fHide') === 'hide' && fk(fcA, 'fShow') === 'show' && fk(cloneF, 'fShow') === 'show' && fk(fcA, 'fPlain') === 'none' && fk(fcA, 'fWord') === 'none' && fk(cloneF, 'fWord') === 'none' && !/fGone/.test(allF) && !/fGone/.test(J(cloneF)) && Wf.tok('fWord').fogHand === 'yes'
+            && J(afterF) === J(['hide', 'show', false, false, true, false, true, false]) && fnSrc('function wireWbItem(', '\n}\n', 'wireWbItem').includes("    if (w.fogHand !== undefined && w.fogHand !== 'hide' && w.fogHand !== 'show') delete w.fogHand;") && !/fogHand/.test(bw('patch')) && !/fogHand/.test(fnSrc('function playerStroke(', '\n}\n', 'playerStroke')),
+            J([fk(fcA, 'fHide'), fk(cloneF, 'fHide'), fk(fcA, 'fShow'), fk(fcA, 'fPlain'), fk(fcA, 'fWord'), /fGone/.test(allF), afterF]));
+    }
     // a barrier's Stops blasts tick (the owner, 2026-10-03: "A tick per barrier") on the wire, in the same one-module world: host to player with a
     // shown barrier and only as true; player to host nothing sets it and nothing clears it
     {
@@ -8063,6 +8088,10 @@ pendingChecks.push((async () => {
     const bsCli = [true, 'yes', 1, { on: true }, false, null, undefined].map(v => C.item(Object.assign({ id: 'qb', type: 'rect', x: 0, y: 0, w: 50, h: 50, barrier: true }, v === undefined ? {} : { blastStop: v }))).map(w => (!w ? 'gone' : has(w, 'blastStop') ? w.blastStop : 0));
     check('a barrier\'s Stops blasts tick (client): a player\'s app keeps it from its host only as true; a hostile host\'s word, a number, an object, false or nothing is dropped (the key gone, the barrier kept)',
         J(bsCli) === J([true, 0, 0, 0, 0, 0, 0]) && src.includes('if (w.blastStop !== undefined && w.blastStop !== true) delete w.blastStop; if (w.barrier !== undefined && w.barrier !== true) delete w.barrier;'), J(bsCli));
+    // a piece's fog mark (1.5.4; client): the mark from a host, only as one of its two words
+    const fhCli = ['hide', 'show', 'Hide', 'yes', 1, true, { a: 1 }, null, undefined].map(v => C.item(Object.assign({ id: 'qf', type: 'image', x: 0, y: 0, w: 50, h: 50 }, v === undefined ? {} : { fogHand: v }))).map(w => (!w ? 'gone' : has(w, 'fogHand') ? w.fogHand : 0));
+    check('a piece\'s fog mark (client): a player\'s app keeps it from its host only as one of its two words; a hostile host\'s other word, a number, true, an object, null or nothing is dropped (the key gone, the piece kept)',
+        J(fhCli) === J(['hide', 'show', 0, 0, 0, 0, 0, 0, 0]) && src.includes("if (w.fogHand !== undefined && w.fogHand !== 'hide' && w.fogHand !== 'show') delete w.fogHand; if (w.blastStop !== undefined && w.blastStop !== true) delete w.blastStop;"), J(fhCli));
     check('senses S7a (client): a map caught up in place takes its word of what fails in a null area for its own tokens only (cleaned again), an empty word takes it away, a word that is no plain object is refused whole (the whole map asked for)',
         J(pgO1) === J({ me: ['sn_hear0001'] }) && pgO2 === false && pgO3 === 1, J([pgO1, pgO2, pgO3]));
     check('senses S4a (client): a map caught up in place takes its marks the same way (cleaned, none on its own token), an empty list takes them away, marks that are no list are refused whole (the whole map asked for)',
@@ -8093,7 +8122,7 @@ pendingChecks.push((async () => {
         && /handle\.addEventListener\('pointercancel', hostGestureEnd\); handle\.addEventListener\('lostpointercapture', hostGestureEnd\);/.test(s);
     check('fold M6 (source): the resize and rotate handles publish the gesture once they hold the pointer and clear it at their pointerup, a cancel or a lost capture; a fog-brush stroke publishes it only when it paints (a door click does not) and clears it when the pointer comes up or is cancelled; a board drag publishes it on the play map only, once it holds the pointer, and clears it first thing at its pointerup (which a cancel, a lost capture and a lost focus reach through abortDrag); datamap.js names none of the host\'s senses',
         handle(resS, 'isResizing') && handle(rotS, 'isRotating') && fogS.indexOf('toggleDoorAt') >= 0 && fogS.indexOf('toggleDoorAt') < fogS.indexOf('hostGestureStart();') && /_fogPaintBtn = e\.button;\n\s*hostGestureStart\(\);/.test(fogS)
-        && /document\.addEventListener\('pointerup', function\(\) \{ if \(_fogPaintBtn >= 0\) hostGestureEnd\(\); _fogPaintBtn = -1; \}\);/.test(fogS) && /document\.addEventListener\('pointercancel', function\(\) \{ if \(_fogPaintBtn >= 0\) hostGestureEnd\(\); _fogPaintBtn = -1; \}\);/.test(fogS)
+        && /document\.addEventListener\('pointerup', function\(\) \{ if \(_fogPaintBtn >= 0\) \{ hostGestureEnd\(\); if \(window\.wpFog && window\.wpFog\.strokeEnd\) window\.wpFog\.strokeEnd\(\); \} _fogPaintBtn = -1; \}\);/.test(fogS) && /document\.addEventListener\('pointercancel', function\(\) \{ if \(_fogPaintBtn >= 0\) \{ hostGestureEnd\(\); if \(window\.wpFog && window\.wpFog\.strokeEnd\) window\.wpFog\.strokeEnd\(true\); \} _fogPaintBtn = -1; \}\);/.test(fogS)
         && /el\.classList\.add\('dragging'\);\n\s*if \(modeStr === 'visual' && window\.wpHostGestureStart\) window\.wpHostGestureStart\(\);/.test(dragS) && (dmT.match(/wpHostGestureStart\(\)/g) || []).length === 1
         && /if\(!dragging\) return;\n\s*if \(window\.wpHostGestureEnd\) window\.wpHostGestureEnd\(\);/.test(upS) && /function abortDrag\(e\) \{\n\s*if \(!dragging\) return;\n\s*el\.dispatchEvent\(new PointerEvent\('pointerup'/.test(dmT)
         && !/senses|amL|invalidateSeen|sightSigFor/.test(dmT), j([resS.length, rotS.length, fogS.length, dragS.length, upS.length]));

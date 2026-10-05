@@ -57,6 +57,16 @@ Fog of war
 - Paint fog by hand starts from the menu: press Reveal or Hide there,
   then click or drag cells on the map; press the lit brush again, or
   pick another tool, to stop.
+- Paint fog by hand has more reach. A Clear brush takes your own marks
+  off a cell, so it shows what the tokens see again. The row under the
+  brushes sets what one stroke covers: 1, 3 or 5 cells wide, Box for
+  every cell in a rectangle you drag, or Piece for every cell under
+  the picture or shape you click.
+- A fog mark on a picture or a shape: right-click it for Under fog or
+  Always revealed, or pick one under Fog mark in its Properties.
+  Under fog keeps every cell under it hidden from players, whatever
+  their tokens see. Always revealed keeps those cells shown. The mark
+  moves with the piece.
 - Hide the fog on my screen (the fog menu): your own screen draws no
   dark veil. Your players' fog does not change; a preview of the party
   or of a player still shows, and so does the veil while you paint.

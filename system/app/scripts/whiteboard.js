@@ -1689,6 +1689,8 @@ window.wpFitToGrid = fitToGrid;
 
           try { handle.releasePointerCapture(e.pointerId); } catch(e){}
 
+          // a picture or a shape resized to the size of one hex cell seats in that cell, as its drop does (datamap.js wpSeatSized: Snap on, a hex map; one piece, never a group, which keeps its shape)
+          if (!groupMembers && window.wpSeatSized && window.wpSeatSized(item)) { var elZ = state.wbEls[item.id]; if (elZ) { elZ.style.left = item.x + 'px'; elZ.style.top = item.y + 'px'; } if (window.wpUpdateSelToolbar) window.wpUpdateSelToolbar(); }
           save();
           refreshStanceChips();   // item 19b H5: a ground piece resized under a token (or away from one) changes its chip with no redraw
 

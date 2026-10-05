@@ -527,6 +527,23 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       }
       return !force && window.wpSeatDot(item);
   };
+  // A picture or a plain shape the size of ONE hex cell seats in its cell by its centre, as a token does (the owner, 2026-10-03: "images when
+  // resized to the correct hex size or square size sit slightly off of center in the x axis if theyre not tokens"). Its drop used to put its
+  // CORNER on a hex vertex, and a cell's box has no vertex at its corner: the nearest is 15 px along. About one cell: 39 to 64 px each way
+  // (three quarters of a cell's height, up to the app's own bound for one cell). A bar or a railing, thinner, and anything larger keep
+  // their corner on a vertex, where walls and floors line up; a text, a pen line, a trigger and a light are no pieces of this kind
+  window.wpHexCellSized = function(it) {
+      if (!it || ['image', 'rect', 'circle', 'diamond'].indexOf(it.type) < 0) return false;
+      return typeof it.w === 'number' && typeof it.h === 'number' && it.w >= 39 && it.w <= 64 && it.h >= 39 && it.h <= 64;
+  };
+  // …and when a piece is RESIZED to that size (it pauses at a token's beside it): it seats in its cell at once. true when it moved
+  window.wpSeatSized = function(item, map) {
+      map = map || getActiveMap();
+      var g = map && map.meta && map.meta.gridType;
+      if (!g && map === getActiveMap()) g = state.gridType;
+      if (g !== 'hex' || !window.wpSnapOn() || !window.wpHexCellSized(item)) return false;
+      return window.wpSeatHex(item, map, true);
+  };
   // [systemcheck:snaprule-end]
 
   function getSnapCoords(x, y) {
@@ -1004,7 +1021,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               renderDataMap();
           }
           var snapOn = window.wpSnapOn(), fitDrag = multiDrag.some(function(md) { return md.item.gridFit; });   // the snap rule: Snap decides on every grid (a player's is the GM's); a fitted item stays fitted
-          if (modeStr === 'visual' && state.gridType === 'hex' && multiDrag.some(function(md) { return md.item.gridFit || (snapOn && (md.item.isChar || md.item.waiting || md.item.type === 'hexagon' || md.item.shape === 'hexagon')); })) {
+          var cellRef = snapOn && window.wpHexCellSized(item);   // the piece under the pointer is a picture or a shape the size of one hex cell: it seats in its cell, as a token does (it is the reference below; any other such piece in the drag follows it, so a group never loosens)
+          if (modeStr === 'visual' && state.gridType === 'hex' && (cellRef || multiDrag.some(function(md) { return md.item.gridFit || (snapOn && (md.item.isChar || md.item.waiting || md.item.type === 'hexagon' || md.item.shape === 'hexagon')); }))) {
               // With Snap on, hex-shaped items and character tokens seat into a cell on hex
               // maps — every one in the drag, not just the one under the pointer.
               // One hex item in the drag is the reference (the one under the pointer if it is one, else the
@@ -1012,7 +1030,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               // point, a floor, a prop) follows by the same correction, and the other hex items seat
               // into their own cells. The group never loosens, whichever member was dragged.
               var isHexy = function(it) { return it.gridFit || (snapOn && (it.isChar || it.waiting || it.type === 'hexagon' || it.shape === 'hexagon')); };   // gridFit images seat by centre too (forced below)
-              var refMd = multiDrag.find(function(md) { return md.item === item && isHexy(item); }) || multiDrag.find(function(md) { return isHexy(md.item); });
+              var refMd = multiDrag.find(function(md) { return md.item === item && (cellRef || isHexy(item)); }) || multiDrag.find(function(md) { return isHexy(md.item); });
               var seatBefore = { x: refMd.item.x, y: refMd.item.y };
               window.wpSeatHex(refMd.item, null, true);   // force: a fitted (non-char) image centres on its hex cell too
               var seatDx = refMd.item.x - seatBefore.x, seatDy = refMd.item.y - seatBefore.y;

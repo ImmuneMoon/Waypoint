@@ -215,6 +215,7 @@ function open(id) {
     var p = ui('docPanel'); if (!p) return;
     p.style.display = 'flex'; if (window.wpFloats) window.wpFloats.reveal(p); place();   // 1.5.4 (floats.js): asked for here, so it shows on this view
     clearSearch(); draw(true);
+    if (window.wpPageShelf && window.wpPageShelf.opened) window.wpPageShelf.opened(id);   // 1.5.4 (pageshelf.js): one of the last pages opened, and the head's pin follows it
 }
 function close() { openId = ''; lastSig = ''; clearMarks(); var box = ui('docPanelSearchInput'); if (box) box.value = ''; query = ''; renderResults([]); var p = ui('docPanel'); if (p) p.style.display = 'none'; }
 function refresh() { if (openId) draw(false); }   // called from the app's render cycle — sig-checked, cheap no-op when unchanged
@@ -225,6 +226,7 @@ function refresh() { if (openId) draw(false); }   // called from the app's rende
 function popOut(id) {
     var camp = activeCamp(); if (!camp || typeof camp.id !== 'string' || typeof id !== 'string' || !id) return false;
     window.open(location.origin + '/?popout=doc:' + encodeURIComponent(camp.id) + '/' + encodeURIComponent(id), 'wpPopout_' + id, 'width=820,height=1000');
+    if (window.wpPageShelf && window.wpPageShelf.opened) window.wpPageShelf.opened(id);   // 1.5.4 (pageshelf.js): one of the last pages opened
     return true;
 }
 // [textcheck:panelpop-end]

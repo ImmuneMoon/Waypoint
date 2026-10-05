@@ -51,6 +51,7 @@ function sanitizeAppState(s) {
         delete camp.handoutLog;
         delete camp.cast;
         delete camp.pinnedMaps;
+        delete camp.pinnedPages;
         delete camp.sessionLog;
         delete camp.pictures; delete camp.imageCats;
         delete camp.sounds;

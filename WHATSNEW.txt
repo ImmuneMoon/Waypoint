@@ -125,6 +125,16 @@ Planners and pages
   to edit. A map or a room is still gone to. A click works the same
   way, and the line under the list says what Enter will do. Next
   scene, on the play map's right-click menu, opens over the map too.
+- A Pages button on the play map's toolbar keeps the right pages one
+  click away in a session. Here lists the planners that play on the
+  map on screen, read from the map links your planners' nodes already
+  have, and Around those of the maps it is nested in. Then come Next
+  scene, the pages you pinned and the last ones you opened. A click
+  opens a page over the map, Ctrl+click or the row's window button
+  opens it in a window of its own, and Alt+click opens the page
+  itself. Pin a page from its right-click menu in the left panel, from
+  the pin in the page panel's head or from its row. Players never get
+  the list.
 
 The tour
 - The tour is short now. Each step says what a thing is and the few

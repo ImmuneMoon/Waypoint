@@ -87,6 +87,9 @@ Fixes
   did nothing, though walls and barriers still stopped their token. The
   door now opens and shuts for them. A waiting token beside a door can
   open it too.
+- A system file brings the library entries its formulas use. Saving in
+  the System editor before any pack was imported threw them away and
+  showed a warning for each. They are now kept until the packs arrive.
 - A planner or page with large tables opens quickly in your editor. The
   time to open grew much faster than the table did: a page of two
   thousand cells took several seconds. It now opens in a fraction of a

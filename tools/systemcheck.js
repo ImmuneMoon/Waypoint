@@ -5223,7 +5223,29 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('L1d the GM machine keeps the core current after every library change and every System save (the draft then carries it; never mid-load or at another\'s table), stored only when it changed and cleaned as a system; the players\' view is worked out once per exact system text and page set and handed out as a copy',
             /function after\(\) \{   \/\/ [^\n]*\n\s*try \{ refreshCore\(\); \}/.test(lbD) && /if \(!camp \|\| !camp\.system \|\| !gmHere\(\) \|\| cur\.campId !== camp\.id \|\| cur\.state === 'loading'\) return false;/.test(lbD) && /if \(before === nowT\) return false;/.test(lbD)
             && /var pages = readablePages\(camp\), key = JSON\.stringify\(camp\.system\) \+ '\\n' \+ pages\.join\(','\) \+ '\\n' \+ JSON\.stringify\(lcs\);\n\s*if \(_pvMemo\.key !== key\) \{ var v = cleanSystem\(camp\.system, \{ F: F\(\), gmView: false, pages: pages, libCats: lcs \}\);/.test(shD) && /return _pvMemo\.text === null \? null : JSON\.parse\(_pvMemo\.text\);/.test(shD)
-            && /if \(window\.wpLibrary && window\.wpLibrary\.refreshCore\) \{ try \{ if \(window\.wpLibrary\.refreshCore\(camp\)\) clean = camp\.system; \}[^\n]*\n\s*draft = clone\(clean\);/.test(shD));
+            && /if \(window\.wpLibrary && window\.wpLibrary\.refreshCore\) \{ try \{ if \(window\.wpLibrary\.refreshCore\(camp, true\)\) clean = camp\.system; \}[^\n]*\n\s*draft = clone\(clean\);/.test(shD)
+            && (lbD.match(/refreshCore\(/g) || []).length === 3 && /try \{ refreshCore\(\); \} catch/.test(lbD) && /refreshCore\(camp\); save\(true\); after\(\);/.test(lbD) && (shD.match(/refreshCore\(/g) || []).length === 1);   // one caller says this is the editor's Save
+        // the System editor's Save while the library holds no pack (found at the import of 2026-10-03): library.js refreshCore, sliced by its libcore markers
+        // and run for real with the real keyIndex, coreOf and cleanSystem. The file's core: the three entries rawC's formulas address (Lockpick, Stealth, Swim)
+        {
+            const LCc = await import(url('librarycore.js')), cA = lbD.indexOf('// [systemcheck:libcore-start]'), cB = lbD.indexOf('// [systemcheck:libcore-end]');
+            const runCore = o => {
+                const camp = { id: 'k', system: cleanSystem(Object.assign({}, rawC, o.sys || {}, { core: o.core || co.core }), { F, gmView: true }) }; if (o.library !== undefined) camp.library = o.library;
+                const out = { saves: 0 }, cur = Object.assign({ campId: 'k', state: 'none' }, o.cur || {}), before = j(camp.system.core || null);
+                const fn = new Function('getActiveCampaign', 'gmHere', 'cur', 'keyIndex', 'entriesOf', 'coreOf', 'cleanSystem', 'F', 'toast', 'save', 'map', lbD.slice(cA, cB) + '\nreturn refreshCore;')(
+                    () => camp, () => o.gm !== false, cur, LCc.keyIndex, pid => (o.packs && o.packs[pid]) || [], S.coreOf, cleanSystem, () => F, () => {}, () => { out.saves++; }, () => Object.create(null));
+                const ret = 'atSave' in o ? fn(camp, o.atSave) : fn(camp);
+                return [ret, out.saves, (camp.system.core || []).map(e => e.id).sort().join(','), j(camp.system.core || null) === before, 'core' in camp.system];
+            };
+            const ALL = 'i_lp,i_stl,i_swim', KEPT = j([false, 0, ALL, true, true]), GONE = j([true, 1, '', false, false]);
+            const pack1 = { library: { packs: [{ id: 'p1', vis: 'all' }] }, packs: { p1: [{ id: 'i_stl2', name: 'Stealth', key: 'Stealth', category: 'Skill', stats: { Rank: 3 } }] } };
+            const kept = [runCore({ atSave: true }), runCore({ atSave: true, library: { packs: [] } }), runCore({ atSave: true, library: {} })], gone = [runCore({}), runCore({ atSave: 1 }), runCore({ atSave: 'yes' }), runCore({ atSave: {} }), runCore({ atSave: false })];
+            const fewer = runCore({ atSave: true, sys: { fields: rawC.fields.filter(f => f.id !== 'f_note') } }), extra = runCore({ atSave: true, core: co.core.concat([{ id: 'i_x', name: 'Extra', key: 'Xtra', category: 'Skill' }]) }), turned = runCore({ atSave: true, core: co.core.slice().reverse() });
+            const withLib = [runCore(Object.assign({ atSave: true }, pack1)), runCore(pack1)], held = [runCore({ atSave: true, gm: false }), runCore({ atSave: true, cur: { campId: 'other' } }), runCore({ atSave: true, cur: { state: 'loading' } })];
+            check('L1d the System editor\'s Save while the library holds no pack (library.js refreshCore, run for real): the core a system file came with is worked out again from itself — every entry a formula still addresses stays, nothing is saved, the core is the very text it was (no library, a manifest with no pack, a manifest with no list); an entry no formula names any more goes, and so does one nothing ever addressed; a core in another order is put in the order the core is always worked out in, with the same entries; only at that Save (true only): any other caller empties the core as before; with a pack in the library the library alone is read, at Save or not (the file\'s entries it does not hold go, its own entry of the key is taken); never on another machine, for another campaign or mid-load',
+                cA > 0 && cB > cA && kept.every(r => j(r) === KEPT) && gone.every(r => j(r) === GONE) && j(fewer) === j([true, 1, 'i_lp,i_stl', false, true]) && j(extra) === j([true, 1, ALL, false, true]) && j(turned.slice(0, 3)) === j([true, 1, ALL]) && turned[4] === true
+                && withLib.every(r => j(r) === j([true, 1, 'i_stl2', false, true])) && held.every(r => j(r) === KEPT), j([kept, gone, fewer, extra, turned, withLib, held]));
+        }
     }
 
     /* ---- Stage 6 library L2c: the GM adds a library entry (its row carries the copy); the copies kept current ---- */

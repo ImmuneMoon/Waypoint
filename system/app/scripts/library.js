@@ -22,10 +22,20 @@ function F() { return window.wpFormula; }
 function oldCore() { if (!saidOld) { saidOld = true; toast('This Waypoint core cannot store a library yet: update Waypoint to use it.'); } }
 // L1d: the system's core — the library entries its formulas address by key (systemcore coreOf), recomputed after the library or the
 // system changes on the GM's machine; stored (and so sent to the table) only when it changed
+// [systemcheck:libcore-start]
 function byKey(camp) { return keyIndex(camp && camp.library, entriesOf); }   // L2a: in the manifest's pack order; a GM-only pack's entries count as GM-only
-function refreshCore(camp) {
+// the system's own core by key (lower case), in the shape byKey gives the library's
+function ownCore(sys) { var m = map(); (sys && Array.isArray(sys.core) ? sys.core : []).forEach(function(e) { var k = e && typeof e.key === 'string' ? e.key.toLowerCase() : ''; if (k) (m[k] = m[k] || []).push(e); }); return m; }
+// atSave (the System editor's Save, and only it — true only): while the library holds no pack, the core is worked out again from ITSELF. A
+// system that came from a file carries the entries its formulas address as its core, and with no pack there is nothing else to read them
+// from: an entry still addressed stays, one no formula names any more goes. It used to be emptied there, with a warning for every addressed
+// entry until the packs were imported (seen at the import of 2026-10-03). Every other caller (a pack written or deleted, its settings
+// changed, the items moved in) reads the library alone, as before: a library that exists is the authority, and deleting its last pack
+// still empties the core
+function refreshCore(camp, atSave) {
     camp = camp || getActiveCampaign(); if (!camp || !camp.system || !gmHere() || cur.campId !== camp.id || cur.state === 'loading') return false;
-    var idx = byKey(camp), res = coreOf(camp.system, function(k) { return idx[k] || []; }), before = JSON.stringify(camp.system.core || []), nowT = JSON.stringify(res.core);
+    var bare = atSave === true && !(camp.library && Array.isArray(camp.library.packs) && camp.library.packs.length);
+    var idx = bare ? ownCore(camp.system) : byKey(camp), res = coreOf(camp.system, function(k) { return idx[k] || []; }), before = JSON.stringify(camp.system.core || []), nowT = JSON.stringify(res.core);
     if (before === nowT) return false;
     if (res.core.length) camp.system.core = res.core; else delete camp.system.core;
     var clean = F() ? cleanSystem(camp.system, { F: F(), gmView: true }) : null; if (clean) camp.system = clean;   // cleaned as any system is
@@ -33,6 +43,7 @@ function refreshCore(camp) {
     save(true);
     return true;
 }
+// [systemcheck:libcore-end]
 // L2c: the copies library rows carry kept current (systemcore libSnaps) on the GM's machine, never mid-load or at another's table; saved
 // only when one changed (a row whose entry is gone, or whose pack could not be read, keeps its copy)
 function syncSnaps(camp) {

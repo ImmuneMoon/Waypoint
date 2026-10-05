@@ -59,6 +59,12 @@ Fog of war
   past, dimmed, with the creatures there still hidden. It was off until
   ticked; a campaign that never touched it now has it on.
 
+Planners and pages
+- Right-click a planner or a handbook page in the left panel and choose
+  Open in a new window. It opens in a window of its own that you can
+  drag anywhere, onto another screen too. Open over the map is still
+  there for the floating panel.
+
 Fixes
 - The fog of war is lighter on a busy map. It read every character's
   sheet again for each frame it drew, sixteen times a second; it now

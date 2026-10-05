@@ -360,6 +360,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       // A joined player with nothing to read: the whole left panel steps aside (style.css body.net-client.no-handbook)
       document.body.classList.toggle('no-handbook', !!(window.wpNet && window.wpNet.foreign) && !Object.values(camp.items).some(function(it) { return it.type === 'doc'; }));
 
+      if (window.wpPageShelf && window.wpPageShelf.noteActive) window.wpPageShelf.noteActive();   // 1.5.4 (pageshelf.js): a page that is the item on screen is one of the last pages opened
       mNav.innerHTML = mapQuickHtml(camp) + (treeHtml('map') || '<div class="nav-empty">No maps yet — press + above to create your first location.</div>');
 
 
@@ -425,7 +426,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                 // Handbook page: the players switch (the same flip as the editor's button)
                 var isDocCtx = !!(it && it.type === 'doc');
                 menu.querySelectorAll('.ctx-doc-only').forEach(function(x) { x.style.display = isDocCtx ? 'block' : 'none'; });
-                menu.querySelectorAll('.ctx-docwin-only').forEach(function(x) { x.style.display = (isPlCtx || isDocCtx) ? 'block' : 'none'; });   // Open in new window — planners + handbook pages
+                menu.querySelectorAll('.ctx-docwin-only').forEach(function(x) { x.style.display = (isPlCtx || isDocCtx) ? 'block' : 'none'; }); var pinRowS = document.getElementById('ctxPinPage'); if (pinRowS && it && window.wpPageShelf && window.wpPageShelf.pinLabel) pinRowS.textContent = window.wpPageShelf.pinLabel(it.id);   // Open in new window — planners + handbook pages
                 var plBtn = document.getElementById('ctxDocPlayers');
                 if (plBtn && isDocCtx) plBtn.innerHTML = (it.meta && it.meta.players === false) ? '&#128065; Show to players' : '&#128274; Hide from players';
                 window.wpClampMenu(menu, e.clientX, e.clientY);   // placed once its rows are the item's own: above the pointer when the bottom is near

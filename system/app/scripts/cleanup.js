@@ -10,7 +10,7 @@
    classifyState offline. Dialogs are built here in the DOM; the app's markup is not needed. */
 
 var STUB_KEYS = { id: 1, type: 1, hidden: 1, x: 1, y: 1, w: 1, h: 1, rot: 1, layer: 1, locked: 1 };   // a hidden item as hosts before 1.5.0 sent it (a position-only box; a host now sends nothing of one): a save an older table left still holds them
-var STRIPPED = ['players', 'bannedPlayers', 'handouts', 'handoutReveals', 'handoutLog', 'cast', 'pinnedMaps', 'sessionLog', 'pictures', 'imageCats', 'sounds', 'library'];   // never on the wire (imageCats here = the campaign's own categories; sounds = the sound index, 1.5.0)
+var STRIPPED = ['players', 'bannedPlayers', 'handouts', 'handoutReveals', 'handoutLog', 'cast', 'pinnedMaps', 'pinnedPages', 'sessionLog', 'pictures', 'imageCats', 'sounds', 'library'];   // never on the wire (imageCats here = the campaign's own categories; sounds = the sound index, 1.5.0)
 var TUTORIAL_ID = 'camp_tutorial';          // one id on every install: never recorded, never judged by name
 var RECOVERED_ID = 'camp_recovered';        // where a removed campaign's planner pages land
 var NAME_RE = /^(data|keep)-[A-Za-z0-9_-]+\.json$/;   // the shell's own rule for backup names
@@ -571,10 +571,10 @@ async function runSweep(hooks) {
 
 /* ---------- recents sweep (every load) ---------- */
 
-// wp_recent_<campId> keys whose campaign is not in the loaded save go, with plain removeItem (no prefs push when nothing is removed)
+// wp_recent_<campId> keys (recent maps) and wp_recentp_<campId> keys (recent pages, 1.5.4) whose campaign is not in the loaded save go, with plain removeItem (no prefs push when nothing is removed)
 function sweepRecents(appState) {
     var camps = campaignsOf(appState), gone = [];
-    try { for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (k && k.indexOf('wp_recent_') === 0 && !camps[k.slice(10)]) gone.push(k); } } catch (e) {}
+    try { for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (k && ((k.indexOf('wp_recent_') === 0 && !camps[k.slice(10)]) || (k.indexOf('wp_recentp_') === 0 && !camps[k.slice(11)]))) gone.push(k); } } catch (e) {}
     gone.forEach(function(k) { try { localStorage.removeItem(k); } catch (e) {} });
     return gone.length;
 }

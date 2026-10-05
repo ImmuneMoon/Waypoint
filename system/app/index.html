@@ -682,6 +682,20 @@
                           <li><b>Outline</b>, beside the Find box, lists the page&rsquo;s headings. Click one to jump to it. The panel over the map, a page in its own window and a player&rsquo;s reader have the same button.</li>
                           <li><b>Folds</b>: an arrow in the page&rsquo;s left margin folds a section, from its heading down to the next heading. Each text, table and chart has a small arrow of its own. Click a folded part to open it. <b>Fold all</b> and <b>Open all</b> are at the foot of the Outline menu. A page opens as you left it on this computer, and each person&rsquo;s folds are their own. Find and the Outline open what they lead to. An export or a print shows the whole page.</li>
                       </ol>
+                      <h4>In a session</h4>
+                      <ul>
+                          <li>The tree is for prep. In a session the <b>Pages</b> button on the play map&rsquo;s toolbar keeps the right pages one click away.
+                              <ul>
+                                  <li><b>Here</b> lists the planners that play on the map on screen. A planner plays on a map when one of its nodes has that map as its <b>Map</b>. <b>Around</b> lists the planners of the maps this one is nested in.</li>
+                                  <li><b>Next scene</b> is the planner marked Next.</li>
+                                  <li><b>Pinned</b> holds the pages you pinned for the session. Pin a page from its right-click menu in the left panel, from the pin in the page panel&rsquo;s head, or from its row on the shelf. You can pin 24 pages.</li>
+                                  <li><b>Recent</b> holds the last pages you opened on this computer.</li>
+                                  <li>A click on a row opens the page over the map. <kbd>Ctrl</kbd>+click opens it in a window of its own, and so does the row&rsquo;s window button. <kbd>Alt</kbd>+click opens the page itself, to edit.</li>
+                                  <li><b>Find a page</b> opens quick-jump.</li>
+                                  <li>The shelf is yours alone. Players never get the list of pinned pages.</li>
+                              </ul>
+                          </li>
+                      </ul>
                       <h4>Undo and redo</h4>
                       <ul>
                           <li>Every planner keeps <b>its own</b> history. The <b>&#8617; &#8618;</b> buttons in the planner toolbar take back the last edit on this page, and never touch another planner or a map. A deleted block, row or node comes back where it was, at the same scroll position.</li>
@@ -1939,6 +1953,10 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                   <button class="wb-tool-btn" id="videoBtn" style="width:100%; height:auto; border-radius:6px; font-size:12px; padding:8px 12px; justify-content:flex-start; gap:10px;" title="Video &mdash; the campaign&rsquo;s videos, watched in a panel you move, resize and put full screen (a VTT feature, per campaign)"><span style="width:20px; text-align:center;">&#127902;</span> Video</button>
               </div>
           </div>
+          <div style="position:relative; display:inline-block;" class="gm-only">
+              <button class="wb-tool-btn" id="pagesBtn" title="Pages for this session. The planners that play on this map, the next scene, the pages you pinned and the last ones you opened. A click opens one over the map.">&#128209;</button>
+              <div class="shape-menu page-shelf" id="pagesMenu"></div>
+          </div>
 
           <div class="wb-tool-sep"></div>
 
@@ -2837,7 +2855,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
 <template id="hudTpl"><div class="hud-panel" role="dialog" aria-label="HUD"><div class="hud-head"><img class="hud-portrait" alt="" style="display:none;"><span class="hud-titles"><span class="hud-namerow"><span class="wp-glyph hud-ico-wave" aria-hidden="true"></span><span class="hud-name notepad-title"></span></span><span class="hud-sub notepad-who"></span></span><button class="tool ghost notepad-btn sheet-endturn hud-endturn" title="End your turn: play moves on to the next in the order" style="display:none;">End turn</button><button class="tool ghost notepad-btn hud-sheet" title="Open the character sheet"><span class="wp-glyph hud-ico-user" aria-hidden="true"></span></button><button class="tool ghost notepad-btn hud-close" title="Close (Esc)">&times;</button></div><div class="hud-body"></div><div class="hud-foot"></div><div class="sheet-resize hud-resize" title="Drag to resize (double-click: the default size)"></div></div></template>
 <!-- Doc panel (1.5.0): a planner/handbook popped over the map, read-only + live (docpanel.js) -->
 <div id="docPanel" style="display:none;">
-    <div id="docPanelHead"><span class="docpanel-title" id="docPanelTitle">Document</span><button class="tool ghost notepad-btn" id="docPanelPop" title="Pop out into its own window (drag it to another monitor); dock it back from there"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 3.5H3.2A1.2 1.2 0 0 0 2 4.7v8.1A1.2 1.2 0 0 0 3.2 14h8.1a1.2 1.2 0 0 0 1.2-1.2V9.5"/><path d="M9.5 2.5H14v4.5"/><path d="M14 2.5 7.5 9"/></svg></button><button class="tool ghost notepad-btn" id="docPanelClose" title="Close (Esc)">&times;</button></div>
+    <div id="docPanelHead"><span class="docpanel-title" id="docPanelTitle">Document</span><button class="tool ghost notepad-btn" id="docPanelPin" aria-pressed="false" title="Pin this page for the session: it goes on the Pages shelf of the play map">&#128204;</button><button class="tool ghost notepad-btn" id="docPanelPop" title="Pop out into its own window (drag it to another monitor); dock it back from there"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 3.5H3.2A1.2 1.2 0 0 0 2 4.7v8.1A1.2 1.2 0 0 0 3.2 14h8.1a1.2 1.2 0 0 0 1.2-1.2V9.5"/><path d="M9.5 2.5H14v4.5"/><path d="M14 2.5 7.5 9"/></svg></button><button class="tool ghost notepad-btn" id="docPanelClose" title="Close (Esc)">&times;</button></div>
     <div id="docPanelSearchRow">
         <button class="tool ghost notepad-btn" id="docPanelOutline" title="Outline: the headings of this page. Click one to jump to it.">Outline</button>
         <input id="docPanelSearchInput" type="text" placeholder="Search all pages&hellip;" autocomplete="off" spellcheck="false" title="Search the CONTENT of every page (results below), and highlight matches on this one. Enter / Shift+Enter jump between matches; Esc clears.">
@@ -3025,6 +3043,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     <div class="menu-divider ctx-docwin-only" style="height:1px; background:var(--border); margin:4px 0;"></div>
     <div class="menu-item ctx-docwin-only" id="ctxDocWindow" style="padding:8px 16px; cursor:pointer;" title="Pop this open in a floating panel over the map (read-only), so you can read it while you play. Drag its header to move it, drag a corner to resize; it updates live as you edit the original.">&#128203; Open over the map</div>
     <div class="menu-item ctx-docwin-only" id="ctxDocPopout" style="padding:8px 16px; cursor:pointer;" title="Open this in a window of its own (read-only). Drag that window anywhere, onto another screen too. It follows your edits, and its Dock back button brings it back over the map.">&#10697; Open in a new window</div>
+    <div class="menu-item ctx-docwin-only" id="ctxPinPage" style="padding:8px 16px; cursor:pointer;" title="Keep this page on the Pages shelf of the play map, one click away in a session. Yours alone: players never get the list.">&#128204; Pin for the session</div>
     <div class="menu-divider ctx-map-only" style="height:1px; background:var(--border); margin:4px 0;"></div>
     <div class="menu-item ctx-map-only" id="ctxLockItem" style="padding:8px 16px; cursor:pointer;" title="A locked map is closed both ways: players cannot travel to it — portals, warps and room links into it are refused — and players who are on it cannot leave it through a portal. You can still summon or bring them. A map a player is not on is not on their machine: they hold its name alone until they arrive, and again once they leave.">&#128274; Lock for players</div>
     <div class="menu-item ctx-map-only" id="ctxLockNest" style="padding:8px 16px; cursor:pointer;" title="Lock this map together with every map nested under it — a whole module at once.">&#128274; Lock this and every map under it</div>

@@ -998,6 +998,19 @@ pendingChecks.push((async () => {
         !('videos' in forPv.campaigns.k1) && !('videos' in forSv.campaigns.k1) && !/The reveal|reveal\.mp4|v_abcdefgh/.test(JSON.stringify([forPv, forSv])) && JSON.stringify(keptV.campaigns.k1.videos) === JSON.stringify(vids())
         && /        delete camp\.uploads;[^\n]*\n        delete camp\.videos;/.test(src) && !/\.videos\b/.test(netNoDelete), JSON.stringify(forPv.campaigns.k1));
 }
+// backlog 125 (pageshelf.js): the pages pinned for the session name planners, which are the GM's alone — the real sanitizeAppState leaves the list (and the pinned maps) out of the join snapshot and the stream window
+{
+    const saSrcS = src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState');
+    const SAs = new Function('own', 'window', 'fxLib', 'itemLib', 'withHoverLines', 'fogCopyFor', 'fogPartyCopy', "'use strict';\n" + saSrcS + '\nreturn sanitizeAppState;')(H.own, {}, () => ({}), () => ({}), v => v, (it) => it, (it) => it);
+    const gmS = () => ({ activeCampaignId: 'k1', _schema: 2, campaigns: { k1: { id: 'k1', name: 'Hosted', activeItemId: 'm1', pinnedMaps: ['m1'], pinnedPages: ['plan_secret_twist', 'doc_rules'],
+        items: { m1: { id: 'm1', type: 'map', meta: { title: 'm1' }, rooms: [], links: [], whiteboard: [] }, plan_secret_twist: { id: 'plan_secret_twist', type: 'planner', meta: { title: 'The twist' }, blocks: [] }, doc_rules: { id: 'doc_rules', type: 'doc', meta: { title: 'Rules' }, blocks: [] } } } } });
+    const forPs = SAs(gmS(), 'u_p'), forSs = SAs(gmS()), keptS = gmS(); SAs(keptS, 'u_p');
+    const netNoPins = src.replace(/        delete camp\.pinnedPages;[^\n]*\n/, '');
+    check('backlog 125 the pages pinned for the session never leave the host: the join snapshot and the stream window carry no pinnedPages key and no pinnedMaps key, and the id of a pinned planner is nowhere in either; the GM\'s own campaign keeps both lists; net.js names camp.pinnedPages nowhere but where it strips it (no message carries it)',
+        !('pinnedPages' in forPs.campaigns.k1) && !('pinnedPages' in forSs.campaigns.k1) && !('pinnedMaps' in forPs.campaigns.k1) && !('pinnedMaps' in forSs.campaigns.k1) && !/plan_secret_twist|The twist/.test(JSON.stringify([forPs, forSs]))
+        && JSON.stringify(keptS.campaigns.k1.pinnedPages) === '["plan_secret_twist","doc_rules"]' && JSON.stringify(keptS.campaigns.k1.pinnedMaps) === '["m1"]'
+        && /        delete camp\.pinnedMaps;\n        delete camp\.pinnedPages;/.test(src) && !/pinnedPages/.test(netNoPins), JSON.stringify(forPs.campaigns.k1).slice(0, 300));
+}
 // hidden pieces (owner, 2026-10-01: players see nothing where something is hidden): the join snapshot and the stream window, by the real sanitizeAppState
 {
     const saSrcH = src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState');

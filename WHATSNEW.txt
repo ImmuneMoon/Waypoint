@@ -135,6 +135,12 @@ Planners and pages
   itself. Pin a page from its right-click menu in the left panel, from
   the pin in the page panel's head or from its row. Players never get
   the list.
+- The panel over the map has tabs. Open a second page and both stay
+  open, each on a tab under the panel's head. Click a tab to bring its
+  page to the front, where you left it. The x on a tab closes that
+  page, and so does the middle mouse button. The window button sends
+  the page in front to a window of its own and keeps the other tabs.
+  The panel holds eight pages.
 
 The tour
 - The tour is short now. Each step says what a thing is and the few
@@ -216,6 +222,10 @@ Fixes
   system's True 3D sightline is on and the wall has a Height. The
   choice is Off. A token's height reads in yards or metres, as you
   chose under Measuring, where Help said yards only.
+- Searching page text now reads a planner's node tables and a
+  flowchart's labels. A word that stood only in a node's table was
+  found by no search: not quick-jump, not the panel's search, not the
+  search of the Planners list.
 
 WAYPOINT 1.5.3 — What's New
 ============================

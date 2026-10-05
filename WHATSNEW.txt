@@ -124,9 +124,9 @@ The tour
   to the Play Map part of Help, beside Sound, Music and Video.
 - Help is being put into short plain sentences, a part at a time.
   Getting Started, the Play Map part, Multiplayer: Hosting, Grids &
-  Measuring and Character sheets are done: the same facts, without
-  brackets and dashes, and a long entry split into a lead and its
-  points.
+  Measuring, Character sheets and Planners are done: the same facts,
+  without brackets and dashes, and a long entry split into a lead and
+  its points.
 - Help's search finds a point by its own words, once, and names the
   entry it stands under.
 

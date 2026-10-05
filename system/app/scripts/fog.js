@@ -526,10 +526,21 @@ function moveBlocked(map, w, fx, fy, tx, ty) {
 // cover, smoke and the height rules never see this set. No barrier on the map: the walls' own set, the very object (exactly as before).
 // With barriers: a new set of the walls' cells and thin walls plus each barrier's cells (its outline, turned as it is drawn) or, for a pen
 // line, its line as thin walls. The caps are the walls' own, shared: barrier cells count after the walls' cells, barrier lines after the
-// walls' lines, a piece judged on its box first (as smoke is); past either cap, or where the walls are over theirs, no barrier stops anything
-// (the walls do what they did) and the GM is told once. Kept per map on its save stamp, its grid, the walls' set and the barriers themselves
-// (barrierSig), so a door opened, a piece moved, hidden or unflagged is read at once
-var _moveCache = Object.create(null), _moveWarned = Object.create(null);
+// walls' lines; past either cap, or where the walls are over theirs, no barrier stops anything (the walls do what they did) and the GM is told
+// once. A piece too large BY ITSELF is passed over alone, the others stopping as they did (found by review, 2026-10-03: one such piece used to
+// switch every barrier on its map off): one whose box, turned as it is drawn, is past BAR_BOX times the cap — its cells are never listed, the
+// box being what a listing walks — or whose own cells are more than the cap (a round or a diamond piece is judged by the cells it covers, as
+// a wall is, never by the box around it). The GM is told how many; past BAR_BIG of them the map is taken as over its cap. Kept per map on its
+// save stamp, its grid, the walls' set and the barriers themselves (barrierSig), so a door opened, a piece moved, hidden or unflagged is read
+// at once
+var _moveCache = Object.create(null), _moveWarned = Object.create(null), _moveBig = Object.create(null), _barAsked = Object.create(null), BAR_BOX = 40, BAR_BIG = 8;
+// How many cells a piece's cells are picked from: its box in cells, turned as the board draws it (what fogcore itemCells walks), two cells of
+// margin each way. A size that is no finite number gives no finite answer, and the caller's "within the bound" is then false
+function barBox(p, cw, ch) {
+    var bw = Math.abs(Number(p.w) || 0), bh = Math.abs(Number(p.h) || 0), rot = typeof p.rot === 'number' && isFinite(p.rot) ? p.rot % 360 : 0;
+    if (rot) { var rad = rot * Math.PI / 180, co = Math.abs(Math.cos(rad)), si = Math.abs(Math.sin(rad)), tw = bw * co + bh * si; bh = bw * si + bh * co; bw = tw; }
+    return (bw / cw + 2) * (bh / ch + 2);
+}
 function barrierSig(w) {
     var s = w.id + ':' + w.type + (w.fill ? 'f' : '') + ':' + w.x + ',' + w.y + ',' + (w.w || 0) + ',' + (w.h || 0) + ',' + (w.rot || 0);
     if (w.type === 'path') { var p = Array.isArray(w.pts) ? w.pts : [], a = p[0], z = p[p.length - 1]; s += ',' + (w.baseW || 0) + ',' + (w.baseH || 0) + ',' + (w.tip || '') + ',' + p.length + ',' + (Array.isArray(a) ? a[0] + ' ' + a[1] : '') + ',' + (Array.isArray(z) ? z[0] + ' ' + z[1] : '') + ',' + (Array.isArray(w.holes) ? w.holes.length : 0); }
@@ -542,23 +553,34 @@ function moveSetFor(map, grid, walls) {
     if (!bars.length) return walls;   // no barrier on this map: the walls' own set, exactly as before
     var stamp = ((map.meta && map.meta.updated) || 0) + '|' + grid.type + ':' + (grid.size || grid.s) + '|' + sig, hit = _moveCache[map.id];
     if (hit && hit.stamp === stamp && hit.walls === walls) return hit.set;
-    var cap = C.LIMITS.blockerCells, capS = C.LIMITS.wallSegs, set = Object.create(null), n = 0, ns = 0, segs = [], k, over = !!_blockerOver[map.id];   // the walls over their cap: the shared cap is spent
+    var cap = C.LIMITS.blockerCells, capS = C.LIMITS.wallSegs, set = Object.create(null), n = 0, ns = 0, segs = [], k, big = 0, over = !!_blockerOver[map.id];   // the walls over their cap: the shared cap is spent
     var cw = grid.type === 'square' ? grid.size : 1.5 * grid.s, ch = grid.type === 'square' ? grid.size : grid.h;
     if (walls) for (k in walls) { set[k] = 1; n++; }
     (C.wallsOf(walls) || []).forEach(function(ix) { ns += ix.segs.length; });
     for (var b = 0; b < bars.length && !over; b++) {
         var p = bars[b];
         if (p.type === 'path') { var ps = C.pathSegs(p); for (var q = 0; q < ps.length; q++) { segs.push(ps[q]); if (++ns > capS) { over = true; break; } } continue; }   // a pen line stops a token as its line
-        var bw = Math.abs(Number(p.w) || 0), bh = Math.abs(Number(p.h) || 0);
-        if (!p.fill && (!isFinite(bw) || !isFinite(bh) || (bw / cw + 2) * (bh / ch + 2) > cap)) { over = true; break; }   // judged on its box before its cells are listed
-        var cells = C.itemCells(p, grid);
+        var cells = p.fill || barBox(p, cw, ch) <= cap * BAR_BOX ? C.itemCells(p, grid) : null;   // judged on its box before its cells are listed (a painted cell is its one cell whatever its box)
+        if (!cells || cells.length > cap) { if (++big > BAR_BIG) over = true; continue; }   // too large by itself: passed over alone
         for (var j = 0; j < cells.length; j++) { k = C.cellKey(cells[j], grid); if (!set[k]) { set[k] = 1; if (++n > cap) { over = true; break; } } }
     }
     var res = walls;
     if (over) { if (!_moveWarned[map.id] && !isClientView()) { _moveWarned[map.id] = 1; toast('Too many barriers on this map — they are not stopping tokens here.'); } }
-    else { _moveWarned[map.id] = 0; C.copyWalls(walls, set); res = C.withWalls(set, segs, grid); }
+    else {
+        _moveWarned[map.id] = 0; C.copyWalls(walls, set); res = C.withWalls(set, segs, grid);
+        if (big && _moveBig[map.id] !== big && !isClientView()) toast((big === 1 ? 'A barrier on this map is' : big + ' barriers on this map are') + ' too large to stop tokens.' + (bars.length > big ? ' The other barriers still do.' : ''));   // said once for each count
+        _moveBig[map.id] = big;
+    }
     _moveCache[map.id] = { stamp: stamp, walls: walls, set: res };
     return res;
+}
+// The GM is told of barriers that stop nothing when they are made, not at a player's next move (found by review, 2026-10-03): the map on
+// screen is judged once for each of its save stamps, on the GM's own screen only. The notices are the judge's own, each said once
+function barrierAsk() {
+    if (!isGmView()) return;
+    var map = activeMap(); if (!map) return;
+    var stamp = (map.meta && map.meta.updated) || 0; if (_barAsked[map.id] === stamp) return; _barAsked[map.id] = stamp;
+    var grid = gridForMap(map); if (grid) moveSetFor(map, grid, blockersFor(map, grid));
 }
 // Turn-based combat T3b: how far a token's straight move goes, in this map's cells — whole cells on a grid (owner, 2026-10-01: "Moved 2.1
 // squares" for a token standing off the grid was wrong): a hex grid counts hex steps between the token's centre cells; a square grid the
@@ -1550,7 +1572,7 @@ function tick() {
     raf = requestAnimationFrame(tick);
 }
 function kick() { if (!raf) raf = requestAnimationFrame(tick); }
-function redraw() { if (typeof btnSync === 'function') btnSync(); if (active()) { lastDraw = 0; kick(); } else clearCanvas(); }   // the toolbar's button follows the map on screen
+function redraw() { if (typeof btnSync === 'function') btnSync(); if (typeof barrierAsk === 'function') barrierAsk(); if (active()) { lastDraw = 0; kick(); } else clearCanvas(); }   // the toolbar's button follows the map on screen
 
 // The GM's sight outline (the owner, 2026-10-04: "for npc characters, id like to be able to track their line of sight for when i have them
 // selected", by prompt as an outline, never a veil). The area ONE token sees — its eyes by its own arc, then each full sense, walls and smoke

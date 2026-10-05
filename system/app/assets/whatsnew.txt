@@ -90,6 +90,12 @@ Fixes
 - A system file brings the library entries its formulas use. Saving in
   the System editor before any pack was imported threw them away and
   showed a warning for each. They are now kept until the packs arrive.
+- One see-through barrier too large to count, more than 6,000 cells,
+  used to switch every barrier on its map off, and you learned of it
+  only when a player next moved. It is now passed over by itself. The
+  other barriers keep stopping tokens, and you are told as soon as you
+  make it. A round or diamond barrier is judged by the cells it covers,
+  as a wall is, not by the box around it.
 - A planner or page with large tables opens quickly in your editor. The
   time to open grew much faster than the table did: a page of two
   thousand cells took several seconds. It now opens in a fraction of a

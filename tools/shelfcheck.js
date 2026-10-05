@@ -274,7 +274,7 @@ const drawSrc = sliceOf(ps, 'draw');
         count(sb, "      if (window.wpPageShelf && window.wpPageShelf.noteActive) window.wpPageShelf.noteActive();") === 1 && sb.indexOf('window.wpPageShelf.noteActive();') < sb.indexOf("mNav.innerHTML = mapQuickHtml(camp)")
         && count(sb, "var pinRowS = document.getElementById('ctxPinPage'); if (pinRowS && it && window.wpPageShelf && window.wpPageShelf.pinLabel) pinRowS.textContent = window.wpPageShelf.pinLabel(it.id);") === 1
         && count(dp, "    clearSearch(); draw(true);\n    if (window.wpPageShelf && window.wpPageShelf.opened) window.wpPageShelf.opened(id);") === 1
-        && count(dp, "'wpPopout_' + id, 'width=820,height=1000');\n    if (window.wpPageShelf && window.wpPageShelf.opened) window.wpPageShelf.opened(id);") === 1 && count(dp, 'wpPageShelf') === 6 && !dp.includes('\r') && count(dp, '\0') === 3);
+        && count(dp, "'wpPopout_' + id, 'width=820,height=1000');\n    if (window.wpPageShelf && window.wpPageShelf.opened) window.wpPageShelf.opened(id);") === 1 && count(dp, 'wpPageShelf') === 12 && !dp.includes('\r') && count(dp, '\0') === 3);
     check('the page: the Pages button and its shelf sit on the play map\'s toolbar in a part of it that is the GM\'s alone, the shelf empty until it is drawn; the tree\'s menu has the pin where Open over the map is; the page panel\'s head has its pin before the window button',
         /<div style="position:relative; display:inline-block;" class="gm-only">\n\s*<button class="wb-tool-btn" id="pagesBtn" title="[^"<>]+">&#128209;<\/button>\n\s*<div class="shape-menu page-shelf" id="pagesMenu"><\/div>\n\s*<\/div>/.test(ix)
         && />&#10697; Open in a new window<\/div>\n    <div class="menu-item ctx-docwin-only" id="ctxPinPage" style="padding:8px 16px; cursor:pointer;" title="[^"<>]+">&#128204; Pin for the session<\/div>/.test(ix)
@@ -318,6 +318,97 @@ const drawSrc = sliceOf(ps, 'draw');
         && count(wb, 'title="The planner marked Next. A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the planner itself.">&#9654; Next scene: ') === 1 && /it\.addEventListener\('click', function\(ce\) \{/.test(wb));
 }
 
+/* ---------- the page panel's tabs (docpanel.js) ---------- */
+const dpS = fs.readFileSync(path.join(app, 'scripts', 'docpanel.js'), 'utf8');
+const dpSlice = n => { const a = dpS.indexOf('// [shelfcheck:' + n + '-start]'), z = dpS.indexOf('// [shelfcheck:' + n + '-end]'); if (a < 0 || z < a) throw new Error('shelfcheck: the ' + n + ' slice of docpanel.js is not marked'); return dpS.slice(a, z); };
+const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
+{
+    const dom = makeDom(), T = new Function('document', tabsSrc + '\nreturn { MAX: TAB_MAX, wth: tabsWith, without: tabsWithout, kept: tabsKept, title: tabTitle, draw: tabsDraw };')(dom.document);
+    const nine = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'], list = ['a', 'b', 'c'];
+    check('a page opened in the panel takes a tab at the end; one that is open already keeps its place; the panel holds eight, and a ninth takes the place of the oldest; the list handed in is never changed',
+        J(T.wth([], 'a')) === J(['a']) && J(T.wth(list, 'd')) === J(['a', 'b', 'c', 'd']) && J(T.wth(list, 'b')) === J(['a', 'b', 'c']) && T.wth(list, 'b') !== list && J(list) === J(['a', 'b', 'c']) && T.MAX === 8 && J(T.wth(nine, 'i')) === J(['b', 'c', 'd', 'e', 'f', 'g', 'h', 'i']) && J(T.wth(nine, 'c')) === J(nine));
+    check('a tab that closes: when it was in front, the page that took its place comes to the front, or the one before it when it was the last; when another tab closes the one in front stays; the last tab leaves none; a tab that is not there changes nothing',
+        J(T.without(list, 'b', 'b')) === J({ tabs: ['a', 'c'], front: 'c' }) && J(T.without(list, 'c', 'c')) === J({ tabs: ['a', 'b'], front: 'b' }) && J(T.without(list, 'a', 'a')) === J({ tabs: ['b', 'c'], front: 'b' }) && J(T.without(list, 'a', 'c')) === J({ tabs: ['b', 'c'], front: 'c' })
+        && J(T.without(['a'], 'a', 'a')) === J({ tabs: [], front: '' }) && J(T.without(list, 'z', 'b')) === J({ tabs: ['a', 'b', 'c'], front: 'b' }) && J(T.without(list, 'z', 'z')) === J({ tabs: ['a', 'b', 'c'], front: '' }) && J(T.without(list, 'b', 'gone')) === J({ tabs: ['a', 'c'], front: '' }));
+    const camp = mkCamp(), protoC = { items: Object.assign(Object.create({ p_ghost: { type: 'planner', meta: { title: 'Ghost' } } }), camp.items) };
+    check('only pages that are still there keep a tab: a page that was deleted, a map, a name the list only inherits and an id that is no text have none; with no campaign there is none',
+        J(T.kept(['p_bar', 'gone', 'm_bar', 'd_rules', 'toString', 7, null, 'p_free'], camp)) === J(['p_bar', 'd_rules', 'p_free']) && J(T.kept(['p_ghost', 'p_bar'], protoC)) === J(['p_bar']) && J(T.kept(['p_bar'], null)) === '[]' && J(T.kept(['p_bar'], {})) === '[]');
+    check('a tab is named by its page\'s title as text, one line, eighty characters at most; a page with no title by its kind',
+        T.title({ type: 'planner', meta: { title: '  The <b>Bar</b>\n scene ' } }) === 'The <b>Bar</b> scene' && T.title({ type: 'doc', meta: {} }) === 'Page' && T.title({ type: 'planner' }) === 'Planner' && T.title({ type: 'doc', meta: { title: 7 } }) === 'Page' && T.title({ type: 'doc', meta: { title: 'x'.repeat(200) } }).length === 80 && T.title(null) === 'Page');
+    const strip = dom.document.createElement('div'); strip.style.display = 'none';
+    const one = T.draw(strip, ['p_bar'], 'p_bar', camp), oneState = [one, strip.style.display, strip.children.length];
+    camp.items.p_free.meta.title = '<img src=x onerror=alert(1)>';
+    let threw = ''; let n = 0; try { n = T.draw(strip, ['p_bar', 'p_free', 'd_rules'], 'p_free', camp); } catch (e) { threw = e.message; }
+    const tabsEl = strip.children, shape = tabsEl.map(t => t.className + ':' + t.dataset.id + ':' + t.children.map(c => c.tagName + '.' + c.className).join('+')), names = tabsEl.map(t => t.children[0].textContent);
+    check('the strip is hidden while one page is open, so the panel looks as it always did; with more it is drawn with elements and text nodes on a page that refuses markup: a tab for each page with its name and a close button, the one in front marked; a hostile title is text',
+        J(oneState) === J([0, 'none', 0]) && threw === '' && n === 3 && strip.style.display === 'flex' && J(shape) === J(['docpanel-tab:p_bar:BUTTON.docpanel-tab-name+BUTTON.docpanel-tab-x', 'docpanel-tab on:p_free:BUTTON.docpanel-tab-name+BUTTON.docpanel-tab-x', 'docpanel-tab:d_rules:BUTTON.docpanel-tab-name+BUTTON.docpanel-tab-x'])
+        && J(names) === J(['3.10 The Bar', '<img src=x onerror=alert(1)>', 'House rules']) && tabsEl[1].all().length === 2, J([oneState, threw, n, shape, names]));
+    check('a tab says what it is: the one in front is pressed, the others are not; the name is also its tooltip, cut names can be read; the close button says which page it closes; drawn again the strip holds only the new tabs',
+        J(tabsEl.map(t => t.children[0].attrs['aria-pressed'])) === J(['false', 'true', 'false']) && tabsEl[0].children[0].title === '3.10 The Bar' && tabsEl[0].children[1].title === 'Close this tab' && tabsEl[0].children[1].attrs['aria-label'] === 'Close 3.10 The Bar' && tabsEl[0].children[1].textContent === ''
+        && tabsEl.every(t => t.children.every(b => b.type === 'button')) && (T.draw(strip, ['p_bar', 'd_rules'], 'd_rules', camp), strip.children.length) === 2 && (T.draw(strip, ['d_rules'], 'd_rules', camp), strip.children.length) === 0 && strip.style.display === 'none');
+}
+{
+    // the tab functions run for real, beside a draw and a close of the suite's own that record what they are asked
+    const mk = () => { const dom = makeDom(), strip = dom.mk('div', '', null, 'docPanelTabs'), body = { scrollTop: 0 }, camp = mkCamp(), R = { drawn: [], closed: 0, told: [], stripDraws: 0 };
+        const ui = id => id === 'docPanelTabs' ? strip : id === 'docPanelBody' ? body : null;
+        const api = new Function('ui', 'activeCamp', 'window', 'document', 'R', "var openId = '', lastSig = 'old', tabs = [], tabTop = Object.create(null), tabSig = '';\n" + tabsSrc.replace('function tabsDraw(strip, list, front, camp) {', 'function tabsDraw(strip, list, front, camp) { R.stripDraws++;') + '\n' + tabdoSrc
+            + "\nfunction draw(force) { R.drawn.push(openId + (force ? '!' : '') + ':' + lastSig); tabsSync(activeCamp()); }\nfunction close() { R.closed++; openId = ''; tabs = []; }\n"
+            + "return { keep: tabKeep, sync: tabsSync, front: tabFront, shut: tabClose, get: function() { return { front: openId, tabs: tabs.slice(), top: Object.assign({}, tabTop) }; }, set: function(f, t) { openId = f; tabs = t.slice(); } };")(
+            ui, () => camp, { wpPageShelf: { opened: id => { R.told.push(id); } } }, dom.document, R);
+        return { api, R, strip, body, camp }; };
+    const A = mk(); A.api.set('p_bar', ['p_bar', 'p_free', 'd_rules']); A.body.scrollTop = 320; A.api.front('d_rules'); const a1 = A.api.get(), d1 = A.R.drawn.slice(), t1 = A.R.told.slice();
+    A.body.scrollTop = 90; A.api.front('p_bar'); const a2 = A.api.get(); A.api.front('p_bar'); A.api.front('nope'); A.api.front('m_bar'); const a3 = [A.R.drawn.length, A.R.told.length];
+    A.api.shut('d_rules'); const a4 = J(A.api.get().top);
+    check('a press on a tab brings its page to the front: where the page in front was scrolled to is kept, the page is drawn anew, and the shelf is told so that the head\'s pin follows; a press on the tab in front, or for a page that has no tab, does nothing; a tab that is closed forgets where its page was scrolled to',
+        a1.front === 'd_rules' && J(a1.top) === J({ p_bar: 320 }) && J(d1) === J(['d_rules!:']) && J(t1) === J(['d_rules']) && a2.front === 'p_bar' && J(a2.top) === J({ p_bar: 320, d_rules: 90 }) && J(a3) === J([2, 2]) && a4 === J({ p_bar: 320 }), J([a1, d1, t1, a2, a3, a4]));
+    const B = mk(); B.api.set('p_free', ['p_bar', 'p_free', 'd_rules']); B.api.sync(B.camp); const before = B.R.stripDraws; B.api.shut('p_bar'); const b1 = B.api.get(), bd1 = [B.R.drawn.length, B.R.told.length, B.R.stripDraws - before];
+    B.api.shut('p_free'); const b2 = B.api.get(), bd2 = [J(B.R.drawn), J(B.R.told)]; B.api.shut('d_rules'); const b3 = [B.api.get().front, J(B.api.get().tabs), B.R.closed];
+    check('a tab that is closed: one that is not in front only redraws the strip and the page stays; the one in front hands the front to the page beside it, which is drawn and told to the shelf; the last one closes the panel',
+        b1.front === 'p_free' && J(b1.tabs) === J(['p_free', 'd_rules']) && J(bd1) === J([0, 0, 1]) && b2.front === 'd_rules' && J(b2.tabs) === J(['d_rules']) && J(bd2) === J([J(['d_rules!:']), J(['d_rules'])]) && J(b3) === J(['', '[]', 1]), J([b1, bd1, b2, bd2, b3]));
+    const C = mk(); C.api.set('p_free', ['p_bar', 'p_free', 'd_rules']); delete C.camp.items.p_free; delete C.camp.items.d_rules; C.api.shut('p_free'); const c1 = C.api.get();
+    const D = mk(); D.api.set('p_free', ['p_free', 'p_bar']); delete D.camp.items.p_free; delete D.camp.items.p_bar; D.api.shut('p_free'); const d2 = [D.api.get().front, D.R.closed];
+    check('a page that was deleted while it had a tab: its tab goes, a tab whose page is gone too is not brought forward, and the panel closes when none is left',
+        c1.front === 'p_bar' && J(c1.tabs) === J(['p_bar']) && J(d2) === J(['', 1]), J([c1, d2]));
+    const E = mk(); E.api.set('p_bar', ['p_bar', 'p_free']); E.api.sync(E.camp); E.api.sync(E.camp); const e1 = E.R.stripDraws; E.camp.items.p_free.meta.title = 'Renamed'; E.api.sync(E.camp); const e2 = [E.R.stripDraws, E.strip.children[1].children[0].textContent];
+    E.api.set('d_rules', ['p_bar', 'p_free']); E.api.sync(E.camp); const e3 = [J(E.api.get().tabs), E.R.stripDraws]; delete E.camp.items.p_bar; E.api.sync(E.camp); const e4 = J(E.api.get().tabs); E.api.sync(null); const e5 = E.R.stripDraws;
+    check('the strip is drawn only when its pages, one of their names or the page in front changed, so a redraw of the app costs it nothing; a page shown that has no tab yet gets one; a page that is gone loses its tab; with no campaign nothing is drawn',
+        e1 === 1 && J(e2) === J([2, 'Renamed']) && J(e3) === J([J(['p_bar', 'p_free', 'd_rules']), 3]) && e4 === J(['p_free', 'd_rules']) && e5 === 4, J([e1, e2, e3, e4, e5]));
+    const F = mk(); F.api.set('', []); F.body.scrollTop = 50; F.api.keep(); F.api.set('p_bar', ['p_bar']); F.api.keep(); const f1 = J(F.api.get().top);
+    check('where a page is scrolled to is kept under its own id, and nothing is kept while the panel is closed', f1 === J({ p_bar: 50 }), f1);
+    check('the panel\'s own code asks these and nothing else: a page opened takes a tab before it becomes the page in front; a page that is gone has its tab closed; the strip follows each draw; a page drawn again keeps its place and a tab brought forward comes back where it was left; closing the panel closes every tab and empties the strip; the window button closes the tab of the page it sent away; a press, and the middle button, on the strip; the module publishes its tabs',
+        count(dpS, "    tabKeep(); tabs = tabsWith(tabsKept(tabs, camp), id);") === 1 && dpS.indexOf("tabKeep(); tabs = tabsWith(tabsKept(tabs, camp), id);") < dpS.indexOf("    openId = id; lastSig = '';\n    var p = ui('docPanel'); if (!p) return;")
+        && count(dpS, "    if (!it || (it.type !== 'doc' && it.type !== 'planner')) { tabClose(openId); return; }") === 1 && count(dpS, "    var t = ui('docPanelTitle'); if (t) t.textContent = title;\n    tabsSync(camp);") === 1
+        && count(dpS, "    var keep = drawnId === openId ? body.scrollTop : (tabTop[openId] || 0); drawnId = openId;") === 1
+        && count(dpS, "function close() { openId = ''; lastSig = ''; tabs = []; tabTop = Object.create(null); tabSig = ''; drawnId = ''; var strip = ui('docPanelTabs'); if (strip) { strip.textContent = ''; strip.style.display = 'none'; } clearMarks();") === 1
+        && count(dpS, "        if (openId && popOut(openId)) tabClose(openId);") === 1
+        && count(dpS, "strip.addEventListener('click', function(e) { var tab = e.target.closest ? e.target.closest('.docpanel-tab') : null; if (!tab) return; if (e.target.closest('.docpanel-tab-x')) tabClose(tab.dataset.id); else tabFront(tab.dataset.id); });") === 1
+        && count(dpS, "strip.addEventListener('auxclick', function(e) { var tab = e.button === 1 && e.target.closest ? e.target.closest('.docpanel-tab') : null; if (tab) { e.preventDefault(); tabClose(tab.dataset.id); } });") === 1
+        && count(dpS, "openId: function() { return openId; }, tabs: function() { return tabs.slice(); } };") === 1 && !/innerHTML = [^;]*tab/i.test(dpS));
+    check('the page: the strip stands under the panel\'s head, empty and hidden until a second page is open; its close mark is drawn by the style sheet, so the script stays plain ASCII beside its NUL bytes; the head\'s close button says it closes every tab',
+        /id="docPanelClose" title="Close the panel and every tab in it \(Esc\)">&times;<\/button><\/div>\n    <div id="docPanelTabs" class="docpanel-tabs" role="toolbar" aria-label="Pages open in this panel" style="display:none;"><\/div>\n    <div id="docPanelSearchRow">/.test(ix)
+        && /\n\s*\.docpanel-tab-x::before \{ content: "\\00d7"; \}/.test(css) && /\n\s*\.docpanel-tab\.on \{ background: var\(--panel2\); border-color: var\(--gold\); opacity: 1; \}/.test(css) && /\n\s*\.docpanel-tabs \{ display: flex; [^\n]*overflow-x: auto;/.test(css)
+        && !/[^\x00-\x7f]/.test(tabsSrc + tabdoSrc) && !dpS.includes('\r') && count(dpS, '\0') === 3);
+}
+
+/* ---------- the page-text search reads a planner's nodes ---------- */
+{
+    const fold = dpS.slice(dpS.indexOf('// [textcheck:panelfold-start]'), dpS.indexOf('// [textcheck:panelfold-end]'));
+    const srch = dpS.slice(dpS.indexOf('function searchAll(q, camp, types) {'), dpS.indexOf('function renderResults(list) {'));
+    const X = new Function('activeCamp', "var openId = '';\n" + fold + '\n' + srch + '\nreturn { blockText: blockText, docText: docText, searchAll: searchAll };')(() => null);
+    const node = { type: 'node', title: 'The <b>Undertow</b>', tag: 'cantina', must: 'find the <i>ledger</i>', cols: ['Action', 7, 'Why'], rows: [{ col1: 'Bribe the barkeep', col2: 'he knows Osk', col9: 42 }, null, { col1: 'Wait', col3: ['x'] }], linkMapId: 'm_bar' };
+    const chart = { type: 'flowchart', nodes: [{ id: 'a', text: 'Arrive at the dock' }, null, { id: 'b', text: 9 }, { id: 'c' }], edges: [{ from: 'a', to: 'b', text: 'if followed' }, { from: 'b', to: 'c' }, 'junk'] };
+    check('a planner\'s node is page text: its name, its tag, its Must resolve line, its column headings and every cell of its rows, typed markup left out and anything that is no text passed over; a flowchart\'s labels are page text too, the boxes\' and the arrows\'',
+        X.blockText(node) === 'The Undertow cantina find the ledger Action Why Bribe the barkeep he knows Osk Wait' && X.blockText(chart) === 'Arrive at the dock if followed' && X.blockText({ type: 'node' }) === '' && X.blockText({ type: 'flowchart' }) === '' && X.blockText({ type: 'node', rows: 'x', cols: 'y', title: 5 }) === '', J([X.blockText(node), X.blockText(chart)]));
+    check('what was read before is read as before: a heading, a text, a picture\'s caption, a plain table; a diagram written as source is still skipped',
+        X.blockText({ type: 'h1', title: 'Title', sub: 'Sub' }) === 'Title Sub' && X.blockText({ type: 'text', content: '<p>Some <b>bold</b> words</p>' }) === 'Some bold words' && X.blockText({ type: 'image', caption: 'A map', alt: 'alt' }) === 'A map alt'
+        && X.blockText({ type: 'table', title: 'T', cols: ['A', 'B'], rows: [['x', 'y'], { cells: ['z'] }] }) === 'T A B x y z' && X.blockText({ type: 'diagram', content: 'graph TD; a-->b' }) === '' && X.blockText(null) === '' && X.blockText({ type: 'unknown' }) === '');
+    const camp = { id: 'c', items: { p1: { type: 'planner', meta: { title: 'Session 3' }, blocks: [{ type: 'h1', title: 'Session 3' }, node] }, p2: { type: 'planner', meta: { title: 'Other' }, blocks: [{ type: 'text', content: 'nothing here' }, chart] }, d1: { type: 'doc', meta: { title: 'Rules' }, blocks: [{ type: 'text', content: 'the barkeep rule' }] } } };
+    const r1 = X.searchAll('barkeep', camp, ['planner']), r2 = X.searchAll('ledger', camp), r3 = X.searchAll('if followed', camp), r4 = X.searchAll('barkeep', camp);
+    check('so a word that stands only in a node\'s table finds its planner, with the word marked in the snippet: in the search of the Planners list, in quick-jump and in the panel, which all ask this one search; a flowchart\'s label finds its page too',
+        r1.length === 1 && r1[0].id === 'p1' && /<mark>barkeep<\/mark>/i.test(r1[0].snippet) && r2.length === 1 && r2[0].id === 'p1' && /<mark>ledger<\/mark>/.test(r2[0].snippet) && r3.length === 1 && r3[0].id === 'p2' && J(r4.map(r => r.id).sort()) === J(['d1', 'p1'])
+        && count(dpS, "        case 'node': return stripMarkup(") === 1 && count(dpS, "        case 'flowchart': return stripMarkup(") === 1 && /window\.wpDocSearch = function\(q, camp, types\) \{ return searchAll\(q, camp, types\); \};/.test(dpS), J([r1, r2, r3.map(r => r.id), r4.map(r => r.id)]));
+}
+
 /* ---------- said ---------- */
 {
     const wn = [fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8'), fs.readFileSync(path.join(app, 'assets', 'whatsnew.txt'), 'utf8')].map(t => t.replace(/\r\n/g, '\n'));
@@ -338,6 +429,14 @@ const drawSrc = sliceOf(ps, 'draw');
         && plan.includes('<li><b>Recent</b> holds the last pages you opened on this computer.</li>')
         && plan.includes('<li>A click on a row opens the page over the map. <kbd>Ctrl</kbd>+click opens it in a window of its own, and so does the row&rsquo;s window button. <kbd>Alt</kbd>+click opens the page itself, to edit.</li>')
         && plan.includes('<li><b>Find a page</b> opens quick-jump.</li>') && plan.includes('<li>The shelf is yours alone. Players never get the list of pinned pages.</li>') && count(ix, '<h4>In a session</h4>') === 1 && wn.every(t => count(t, NOTE2) === 1));
+    const NOTE3 = "- The panel over the map has tabs. Open a second page and both stay\n  open, each on a tab under the panel's head. Click a tab to bring its\n  page to the front, where you left it. The x on a tab closes that\n  page, and so does the middle mouse button. The window button sends\n  the page in front to a window of its own and keeps the other tabs.\n  The panel holds eight pages.\n";
+    const FIX3 = "- Searching page text now reads a planner's node tables and a\n  flowchart's labels. A word that stood only in a node's table was\n  found by no search: not quick-jump, not the panel's search, not the\n  search of the Planners list.\n";
+    check('Help says the tabs, in the Planners part under In a session: several pages in the panel, a tab each; a click brings a page to the front where it was left; what closes a tab and what the panel\'s own close does; the window button; eight pages. Both release notes carry the tabs and the search fix, alike',
+        plan.includes('<li>The panel over the map holds several pages at once. Open a second page and each one gets a <b>tab</b> under the panel&rsquo;s head.\n')
+        && plan.includes('<li>Click a tab to bring its page to the front. Each page comes back where you left it.</li>')
+        && plan.includes('<li>The &times; on a tab closes that page, and so does the middle mouse button. The panel&rsquo;s own &times; closes every tab.</li>')
+        && plan.includes('<li>The window button sends the page in front to a window of its own and closes its tab. The other tabs stay.</li>')
+        && plan.includes('<li>The panel holds eight pages. A ninth takes the place of the oldest.</li>') && wn.every(t => count(t, NOTE3) === 1 && count(t, FIX3) === 1));
     check('Help\'s Planners part says a click on Next scene opens it over the map; both release notes carry the line, alike; the suite is one of those CI runs',
         plan.includes('the play map&rsquo;s right-click menu then offers it as <b>&#9654; Next scene</b>. A click there opens it over the map. <b>Played</b> and <b>Skipped</b> mark a scene done.</li>')
         && wn.every(t => count(t, NOTE) === 1) && fs.readFileSync(path.join(root, '.github/workflows/checks.yml'), 'utf8').replace(/\r\n/g, '\n').includes('        if: ${{ !cancelled() }}\n        run: node tools/shelfcheck.js\n'));

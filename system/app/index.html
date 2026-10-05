@@ -695,6 +695,14 @@
                                   <li>The shelf is yours alone. Players never get the list of pinned pages.</li>
                               </ul>
                           </li>
+                          <li>The panel over the map holds several pages at once. Open a second page and each one gets a <b>tab</b> under the panel&rsquo;s head.
+                              <ul>
+                                  <li>Click a tab to bring its page to the front. Each page comes back where you left it.</li>
+                                  <li>The &times; on a tab closes that page, and so does the middle mouse button. The panel&rsquo;s own &times; closes every tab.</li>
+                                  <li>The window button sends the page in front to a window of its own and closes its tab. The other tabs stay.</li>
+                                  <li>The panel holds eight pages. A ninth takes the place of the oldest.</li>
+                              </ul>
+                          </li>
                       </ul>
                       <h4>Undo and redo</h4>
                       <ul>
@@ -2855,7 +2863,8 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
 <template id="hudTpl"><div class="hud-panel" role="dialog" aria-label="HUD"><div class="hud-head"><img class="hud-portrait" alt="" style="display:none;"><span class="hud-titles"><span class="hud-namerow"><span class="wp-glyph hud-ico-wave" aria-hidden="true"></span><span class="hud-name notepad-title"></span></span><span class="hud-sub notepad-who"></span></span><button class="tool ghost notepad-btn sheet-endturn hud-endturn" title="End your turn: play moves on to the next in the order" style="display:none;">End turn</button><button class="tool ghost notepad-btn hud-sheet" title="Open the character sheet"><span class="wp-glyph hud-ico-user" aria-hidden="true"></span></button><button class="tool ghost notepad-btn hud-close" title="Close (Esc)">&times;</button></div><div class="hud-body"></div><div class="hud-foot"></div><div class="sheet-resize hud-resize" title="Drag to resize (double-click: the default size)"></div></div></template>
 <!-- Doc panel (1.5.0): a planner/handbook popped over the map, read-only + live (docpanel.js) -->
 <div id="docPanel" style="display:none;">
-    <div id="docPanelHead"><span class="docpanel-title" id="docPanelTitle">Document</span><button class="tool ghost notepad-btn" id="docPanelPin" aria-pressed="false" title="Pin this page for the session: it goes on the Pages shelf of the play map">&#128204;</button><button class="tool ghost notepad-btn" id="docPanelPop" title="Pop out into its own window (drag it to another monitor); dock it back from there"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 3.5H3.2A1.2 1.2 0 0 0 2 4.7v8.1A1.2 1.2 0 0 0 3.2 14h8.1a1.2 1.2 0 0 0 1.2-1.2V9.5"/><path d="M9.5 2.5H14v4.5"/><path d="M14 2.5 7.5 9"/></svg></button><button class="tool ghost notepad-btn" id="docPanelClose" title="Close (Esc)">&times;</button></div>
+    <div id="docPanelHead"><span class="docpanel-title" id="docPanelTitle">Document</span><button class="tool ghost notepad-btn" id="docPanelPin" aria-pressed="false" title="Pin this page for the session: it goes on the Pages shelf of the play map">&#128204;</button><button class="tool ghost notepad-btn" id="docPanelPop" title="Pop out into its own window (drag it to another monitor); dock it back from there"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 3.5H3.2A1.2 1.2 0 0 0 2 4.7v8.1A1.2 1.2 0 0 0 3.2 14h8.1a1.2 1.2 0 0 0 1.2-1.2V9.5"/><path d="M9.5 2.5H14v4.5"/><path d="M14 2.5 7.5 9"/></svg></button><button class="tool ghost notepad-btn" id="docPanelClose" title="Close the panel and every tab in it (Esc)">&times;</button></div>
+    <div id="docPanelTabs" class="docpanel-tabs" role="toolbar" aria-label="Pages open in this panel" style="display:none;"></div>
     <div id="docPanelSearchRow">
         <button class="tool ghost notepad-btn" id="docPanelOutline" title="Outline: the headings of this page. Click one to jump to it.">Outline</button>
         <input id="docPanelSearchInput" type="text" placeholder="Search all pages&hellip;" autocomplete="off" spellcheck="false" title="Search the CONTENT of every page (results below), and highlight matches on this one. Enter / Shift+Enter jump between matches; Esc clears.">

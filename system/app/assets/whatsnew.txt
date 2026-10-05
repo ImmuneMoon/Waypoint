@@ -36,6 +36,9 @@ Character sheets
   Stays live and Needs Edit sheet say otherwise for that one field.
 - The button that lets a player fill in their whole sheet now reads
   Unlock for player, and Lock for player to close it again.
+- A list's stat can be Hidden, in the System editor's Lists tab. Use it
+  for a figure a row only works with, such as a cost per level. It is
+  left off the row and out of its details. Formulas still read it.
 
 Calendar
 - The game clock runs by itself while you host a session: a second of

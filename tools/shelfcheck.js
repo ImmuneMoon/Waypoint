@@ -552,5 +552,28 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
         && wn.every(t => count(t, NOTE) === 1) && fs.readFileSync(path.join(root, '.github/workflows/checks.yml'), 'utf8').replace(/\r\n/g, '\n').includes('        if: ${{ !cancelled() }}\n        run: node tools/shelfcheck.js\n'));
 }
 
+/* ---------- the CI file ---------- */
+{
+    // GitHub reads .github/workflows/checks.yml as YAML, and a name there is written plain, with no quotes. A plain name ends at a colon
+    // followed by a space, which makes the whole file invalid: every run then fails at once and NO suite runs, with nothing said by any
+    // suite. This suite's own step did that for four pushes on 2026-10-05 ("where a page opens: over the map"). A space followed by a #
+    // would cut a name short without a word. No YAML reader comes with Node, so the names are held to the rule line by line.
+    const yml = fs.readFileSync(path.join(root, '.github/workflows/checks.yml'), 'utf8').replace(/\r\n/g, '\n');
+    const nameBad = v => (v.trim() === '' ? 'no name' : /: |:$/.test(v) ? 'a colon that ends the name' : / #/.test(v) ? 'a # that cuts the name short' : /^[\[\]{}>|*&!%@`'"#,?-]/.test(v) ? 'a first character YAML reads as its own' : '');
+    const names = yml.split('\n').map((l, i) => { const m = /^\s*(?:- )?name:\s?(.*)$/.exec(l); return m ? { line: i + 1, bad: nameBad(m[1]) } : null; }).filter(Boolean);
+    const suites = fs.readdirSync(__dirname).filter(f => /check\.js$/.test(f)).sort();
+    const runs = (yml.match(/^ +run: node tools\/\S+$/gm) || []).map(l => l.trim().slice('run: node tools/'.length));
+    check('the rule for a name in the CI file, tried on names that break it each way and on names that keep it: the very line that stopped CI (a colon and a space inside it), a colon at the end, a # after a space, a quote or a bracket first, no name; a colon inside a time and a # inside a word are fine',
+        nameBad('shelfcheck — pages in a session (where a page opens: over the map, a window of its own, the page itself)') === 'a colon that ends the name' && nameBad('a name that ends with a colon:') === 'a colon that ends the name'
+        && nameBad('a name # and a note') === 'a # that cuts the name short' && nameBad('"a quoted name"') === 'a first character YAML reads as its own' && nameBad('[a list]') === 'a first character YAML reads as its own' && nameBad('') === 'no name' && nameBad('   ') === 'no name'
+        && nameBad('Test suites (Node ${{ matrix.node }})') === '' && nameBad('doccheck — handbook renderer, sanitizer, Markdown') === '' && nameBad('a run at 10:30 in C#') === '');
+    const badNames = names.filter(n => n.bad).map(n => 'line ' + n.line + ': ' + n.bad);
+    check('every name in the CI file keeps the rule, the workflow\'s, the job\'s and one for each suite\'s step, so the file is one GitHub can read and the suites run',
+        names.length === runs.length + 2 && badNames.length === 0, J([names.length, runs.length, badNames]));
+    const missing = suites.filter(s => s !== 'fuzzcheck.js' && count(yml, '        run: node tools/' + s + '\n') !== 1);
+    check('CI runs every suite once: each tools/*check.js but fuzzcheck, the diagnostic one, has exactly one step, and every step names a suite that is there',
+        missing.length === 0 && runs.every(r => suites.includes(r)) && !runs.includes('fuzzcheck.js') && runs.length === suites.length - 1 && new Set(runs).size === runs.length, J([missing, runs.filter(r => !suites.includes(r))]));
+}
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

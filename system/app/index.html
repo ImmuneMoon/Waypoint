@@ -1152,32 +1152,71 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                   <div class="help-pane" data-pane="dice" style="display:none;">
                       <h4>Rolling at the table</h4>
                       <ul>
-                          <li>Type <b>/roll 2d6 + 3</b> (or <b>/r</b>) in <b>Table Chat</b>, or press <b>&#127922;</b> beside the message box for the roller: a formula field (<kbd>Enter</kbd> rolls, <kbd>&uarr;</kbd> and <kbd>&darr;</kbd> walk your last twenty rolls), quick buttons for d4 to d100, and <b>Roll</b>. A bare <b>/roll</b> is a d20.</li>
-                          <li><b>One roll, one card for everyone.</b> The GM's machine makes every roll at the table; each player's Waypoint replays the same dice and shows the same card &mdash; the formula, every die with what was kept, dropped, rerolled or exploded, and the total, or for a check the margin ("success by 3"). A lone d20 showing 20 or 1 is marked. Rolls work without a session too, as a card only you see.</li>
-                          <li>Every table roll is written to the <b>session log</b> under <b>Dice</b> (on the GM's side). A character&rsquo;s HUD keeps its own roll history.</li>
+                          <li>Type <b>/roll 2d6 + 3</b> in <b>Table Chat</b>. <b>/r</b> is the short form. A bare <b>/roll</b> is a d20.</li>
+                          <li>Or press <b>&#127922;</b> beside the message box for the roller.
+                              <ul>
+                                  <li>Its formula field rolls on <kbd>Enter</kbd>. <kbd>&uarr;</kbd> and <kbd>&darr;</kbd> walk your last twenty rolls.</li>
+                                  <li>It has quick buttons for d4 to d100, and <b>Roll</b>.</li>
+                              </ul>
+                          </li>
+                          <li><b>One roll, one card for everyone.</b> The GM's machine makes every roll at the table. Each player's Waypoint replays the same dice and shows the same card.
+                              <ul>
+                                  <li>The card shows the formula, every die with what was kept, dropped, rerolled or exploded, and the total.</li>
+                                  <li>A check shows its margin in place of the total, such as "success by 3".</li>
+                                  <li>A lone d20 showing 20 or 1 is marked.</li>
+                                  <li>Rolls work without a session too, as a card only you see.</li>
+                              </ul>
+                          </li>
+                          <li>Every table roll is written to the <b>session log</b> under <b>Dice</b>, on the GM's side. A character&rsquo;s HUD keeps its own roll history.</li>
                       </ul>
                       <h4>The syntax</h4>
                       <ul>
-                          <li><code>2d6 + 3</code> &mdash; two six-sided dice plus three. <code>d20</code>, <code>d%</code> (percentile), <code>4dF</code> (fudge dice).</li>
-                          <li><code>4d6kh3</code> keep the highest 3 &middot; <code>2d20kl1</code> keep the lowest &middot; <code>dh1</code> / <code>dl1</code> drop the highest / lowest.</li>
-                          <li><code>2d6!</code> exploding (a top face rolls again and adds) &middot; <code>d20r1</code> reroll a 1 once &middot; <code>d6rr&lt;=2</code> reroll while 2 or under.</li>
-                          <li><code>10d6cs&gt;=5</code> count the dice showing 5 or more (successes).</li>
-                          <li><code>d20 + 5 &gt;= 16</code> a check: the card says success or failure and by how much &middot; <code>3d6 &lt;= 12</code> roll-under.</li>
-                          <li><code>floor</code>, <code>ceil</code>, <code>round</code>, <code>abs</code>, <code>min</code>, <code>max</code>, <code>clamp</code>, <code>mod</code>, <code>if(cond, a, b)</code>, <code>and</code> / <code>or</code> / <code>not</code>; <code>(Level)d6</code> and <code>d(Faces)</code> take a computed count or faces. Case does not matter; modifiers must touch the dice (<code>4d6kh3</code>, not <code>4d6 kh3</code>).</li>
-                          <li>Names such as <b>STR</b> or <b>Skill.Stealth</b> are the fields of the campaign&rsquo;s system (Help &#9656; Character sheets). Pick a <b>character</b> in the roller (your own; the GM any of the campaign&rsquo;s) and the roll reads its sheet: <code>d20 + Skill.Stealth</code> shows <i>Skill.Stealth (12)</i> on the card, and the sheet&rsquo;s roll buttons set the picker for you. A roll with names and no character is refused with a note. A GM&rsquo;s roll that names a GM-only field, or uses a value worked out from one (a formula or a skill&rsquo;s base built on it, or a pool whose maximum is, full or not), is kept private. So are a GM-only field&rsquo;s own roll, a GM-only roll, and the damage of an item that is GM-only or thrown from a GM-only list. A table roll is at most 300 characters and 200 dice.</li>
-                          <li><b>Shift-click a sheet roll button</b> (or a field&rsquo;s &#127922;) for a quick <b>situational modifier</b>: a small popover to add a bonus or penalty before you roll. It lands where it should &mdash; lifting the roll, or raising the target on a roll-under check &mdash; so a bonus always helps, and the card shows the adjusted formula. When the roll is a single die (a lone <code>d20</code>), the popover also offers <b>Advantage / Disadvantage</b> &mdash; roll it twice and keep the better or worse (<code>2d20kh1</code> / <code>2d20kl1</code>), which combines with the modifier. A plain click rolls straight away.</li>
+                          <li><code>2d6 + 3</code> is two six-sided dice plus three. <code>d20</code> is one twenty-sided die. <code>d%</code> is percentile. <code>4dF</code> is four fudge dice.</li>
+                          <li><code>4d6kh3</code> keeps the highest 3. <code>2d20kl1</code> keeps the lowest. <code>dh1</code> and <code>dl1</code> drop the highest and the lowest.</li>
+                          <li><code>2d6!</code> is exploding: a top face rolls again and adds. <code>d20r1</code> rerolls a 1 once. <code>d6rr&lt;=2</code> rerolls while 2 or under.</li>
+                          <li><code>10d6cs&gt;=5</code> counts the dice showing 5 or more, as successes.</li>
+                          <li><code>d20 + 5 &gt;= 16</code> is a check: the card says success or failure and by how much. <code>3d6 &lt;= 12</code> is roll-under.</li>
+                          <li>A formula can use <code>floor</code>, <code>ceil</code>, <code>round</code>, <code>abs</code>, <code>min</code>, <code>max</code>, <code>clamp</code>, <code>mod</code>, <code>if(cond, a, b)</code>, and <code>and</code> / <code>or</code> / <code>not</code>.</li>
+                          <li><code>(Level)d6</code> and <code>d(Faces)</code> take a computed count or faces.</li>
+                          <li>Case does not matter. Modifiers must touch the dice: write <code>4d6kh3</code>, not <code>4d6 kh3</code>.</li>
+                          <li>Names such as <b>STR</b> or <b>Skill.Stealth</b> are the fields of the campaign&rsquo;s system. Help &#9656; Character sheets tells of them.
+                              <ul>
+                                  <li>Pick a <b>character</b> in the roller and the roll reads its sheet. You pick from your own, and the GM from any of the campaign&rsquo;s.</li>
+                                  <li><code>d20 + Skill.Stealth</code> shows <code>Skill.Stealth (12)</code> on the card.</li>
+                                  <li>The sheet&rsquo;s roll buttons set the picker for you.</li>
+                                  <li>A roll with names and no character is refused with a note.</li>
+                                  <li>A table roll is at most 300 characters and 200 dice.</li>
+                              </ul>
+                          </li>
+                          <li>A GM&rsquo;s roll that names a GM-only field is kept private. So is one that uses a value worked out from a GM-only field.
+                              <ul>
+                                  <li>Such a value is a formula or a skill&rsquo;s base built on the field, or a pool whose maximum is, full or not.</li>
+                                  <li>A GM-only field&rsquo;s own roll and a GM-only roll are kept private too.</li>
+                                  <li>So is the damage of an item that is GM-only or thrown from a GM-only list.</li>
+                              </ul>
+                          </li>
+                          <li><b>Shift-click a sheet roll button</b>, or a field&rsquo;s &#127922;, for a quick <b>situational modifier</b>: a small popover to add a bonus or penalty before you roll.
+                              <ul>
+                                  <li>It lands where it should, so a bonus always helps. It lifts the roll, or raises the target on a roll-under check.</li>
+                                  <li>The card shows the adjusted formula.</li>
+                                  <li>When the roll is a single die, such as a lone <code>d20</code>, the popover also offers <b>Advantage / Disadvantage</b>.</li>
+                                  <li>That rolls it twice and keeps the better or the worse, as <code>2d20kh1</code> or <code>2d20kl1</code>. It combines with the modifier.</li>
+                                  <li>A plain click rolls straight away.</li>
+                              </ul>
+                          </li>
                       </ul>
                       <h4>Private rolls</h4>
                       <ul>
-                          <li><b>/gmroll</b> (or <b>/gr</b>): the GM rolls for their eyes only (still logged); a player rolls <b>to the GM</b> &mdash; the player and the GM see it, the table does not. The roller's <b>Private</b> / <b>To the GM only</b> box does the same.</li>
+                          <li><b>/gmroll</b>, or <b>/gr</b> for short: the GM rolls for their eyes only, and the roll is still logged. A player rolls <b>to the GM</b>: the player and the GM see it, the table does not. The roller's <b>Private</b> / <b>To the GM only</b> box does the same.</li>
                           <li>With a whisper target picked in the chat panel, the GM's <b>/roll</b> goes to that one player.</li>
                       </ul>
                       <h4>Sound and settings</h4>
                       <ul>
-                          <li>The bundled <b>Dice</b> cue plays on your own machine on every roll while the roller's <b>Sound</b> box is ticked and Sound is on for you; nothing travels the wire for it.</li>
-                          <li><b>Dice</b> is a VTT feature (<b>&#9881; Settings &#9656; VTT features</b>): off for the campaign, nobody rolls at that table and the roller is hidden. At a table a player may switch it <b>off for themselves</b>: their roller and dice sound go, the cards still show. Table chat clears when a session ends or a new one starts.</li>
+                          <li>The bundled <b>Dice</b> cue plays on your own machine on every roll while the roller's <b>Sound</b> box is ticked and Sound is on for you. Nothing travels the wire for it.</li>
+                          <li><b>Dice</b> is a VTT feature, switched in <b>&#9881; Settings &#9656; VTT features</b>. Off for the campaign, nobody rolls at that table and the roller is hidden. At a table a player may switch it <b>off for themselves</b>: their roller and dice sound go, the cards still show. Table chat clears when a session ends or a new one starts.</li>
                       </ul>
                   </div>
+
                   <div class="help-pane" data-pane="sheets" style="display:none;">
                       <h4>The system</h4>
                       <ul>

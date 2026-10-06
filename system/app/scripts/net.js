@@ -1539,6 +1539,11 @@ function applyItem(msg) {
 // whiteboard items owned by that player. Everything else is ignored.
 // [netcheck:patch-start]
 var STROKE_CAP = 600, STROKE_PTS_CAP = 60000;   // a player's drawings on one map: their count, and their points in all (a drawing is 4000 points at most) — what bounds the GM's save and every copy of the map
+// 49 (c) (the owner, by prompt, 2026-10-06: "Lock it for its player"): a player's drawing the GM made a wall (Blocks sight) or a see-through
+// barrier (Stops movement only) is the GM's piece from then on — its player neither redraws nor erases it, as with one the GM locked, until
+// the GM unticks it. fogcore strokeHeld is the one judge (a player's own eraser asks it too). A copy of theirs that would change or drop
+// such a drawing changes nothing here and is answered with the map whole (out.whole), so their screen holds the line again
+function strokeHeldOn(w) { var FCh = window.wpFogCore; return !!(FCh && typeof FCh.strokeHeld === 'function' && FCh.strokeHeld(w)); }
 function applyClientItemFiltered(msg, profile, out) {   // fold M10: out.strokes, set when a drawing of theirs was added, redrawn or erased
     if (!profile) return false;
     if (typeof profile.location === 'string' && msg.itemId !== profile.location) return false;   // the map they are on, as the pos gate and the threats branch have it: a copy of another map — one they left a token on, one closed to players — moves nothing there, draws nothing and finds no room's handout (and a stale copy of the map the GM just moved them from is dropped, as a final pos is)
@@ -1570,6 +1575,7 @@ function applyClientItemFiltered(msg, profile, out) {   // fold M10: out.strokes
         if (lw.locked) return;   // the GM locked it: frozen for its player — no move, turn, facing, stance or redrawn stroke (their app stops them too)
         if (lw.type === 'path' && lw.byPlayer) {
             var re = playerStroke(w, profile.id), hadPts = Array.isArray(lw.pts) ? lw.pts.length : 0;
+            if (strokeHeldOn(lw)) { if (out && re && (JSON.stringify(re.pts) !== JSON.stringify(lw.pts) || re.x !== lw.x || re.y !== lw.y)) out.whole = true; return; }   // 49 (c): a wall or a barrier now — a redraw of it is refused, and their screen is put right
             if (re && ownPts - hadPts + re.pts.length > STROKE_PTS_CAP) return;   // a redraw that would take their points past the budget is refused whole
             if (re && JSON.stringify(re.pts) !== JSON.stringify(lw.pts) || (re && (re.x !== lw.x || re.y !== lw.y))) { ownPts += re.pts.length - hadPts; Object.assign(lw, re); changed = true; if (out) out.strokes = true; }
             return;
@@ -1613,6 +1619,7 @@ function applyClientItemFiltered(msg, profile, out) {   // fold M10: out.strokes
     liveItem.whiteboard = liveItem.whiteboard.filter(function(w) {
         if (!(w.type === 'path' && w.byPlayer && w.ownerId === profile.id) || w.locked || w.hidden || sentIds[w.id]) return true;   // a locked one stays, and one the GM hid: it left their copy by the GM's hand, not theirs
         if (pend && pend[w.id] === 1) { delete pend[w.id]; if (out) out.whole = true; return true; }   // ...and one the GM hid and has shown again, this once: this copy may be older than the showing (their app may have dropped the shown drawing meanwhile: the whole map puts it right, and a later copy without it is an erase)
+        if (strokeHeldOn(w)) { if (out) out.whole = true; return true; }   // 49 (c): one the GM made a wall or a barrier stays, and the copy that left it out gets the map back
         return false;
     });
     if (typeof hidNamed === 'function' && out && out.conn) hidNamed(out.conn.peer, msg.itemId, sentIds);   // the drawings this copy names are on their copy: a later copy without one is an erase

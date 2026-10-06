@@ -15,6 +15,9 @@ Multiplayer
   Sound stay in the top bar, struck through, and a click offers Turn
   back on for me. The Music icon used to vanish, with no sign of where
   the music had gone.
+- A player's line that you tick Blocks sight or Stops movement only is
+  yours from then on. Its player can no longer erase or redraw it, and
+  their eraser says why. Untick it to hand the line back.
 
 Character sheets
 - Delete a sheet from the sheet itself: Delete in its head (asked

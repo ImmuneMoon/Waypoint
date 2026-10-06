@@ -173,7 +173,16 @@ The tour
 The play map
 - The play map's toolbar has new icons, drawn as lines in the style of
   the top bar's. The tool in your hand is gold, and so is a setting
-  that is on. Every button is where it was and does what it did.
+  that is on.
+- The toolbar is laid out anew, and no tool is gone. Undo and redo
+  lead, then the tools in groups. Centre, the grid and snap stand in a
+  column at the map's right edge. More, the last button, holds Clear
+  board. In a narrow window the bar tightens, then wraps into even
+  rows, so no tool is ever cut off.
+- The box at the top right of a map wears the toolbar's look. Its
+  pointer location and its zoom buttons can each be hidden on their
+  own. Tick them under Show in the centre menu, or press their buttons
+  in Settings > Table. The rulers have a tick there too.
 
 Fixes
 - The fog of war is lighter on a busy map. It read every character's

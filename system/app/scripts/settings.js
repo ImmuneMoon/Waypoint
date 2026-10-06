@@ -83,6 +83,9 @@ function syncPanel() {
     });
     var rlState = ui('setRulersState');
     if (rlState) rlState.textContent = localStorage.getItem('wp_rulers') === 'off' ? 'hidden' : 'shown';
+    var zcState = ui('setZoomCtlState'), ppState = ui('setPointerPosState');   // 107: the zoom buttons and the pointer location, each its own switch
+    if (zcState) zcState.textContent = viewShown('wp_zoomCtl') ? 'shown' : 'hidden';
+    if (ppState) ppState.textContent = viewShown('wp_pointerPos') ? 'shown' : 'hidden';
     syncVttPanel();   // elevation, posture, minimap: per campaign, the default, or the GM's ceiling at a table
     var dcState = ui('setDevConsoleState');
     if (dcState) dcState.textContent = localStorage.getItem('wp_devconsole') === 'on' ? 'on' : 'off';
@@ -308,15 +311,29 @@ if (_ud) _ud.addEventListener('input', function() {
     if (udv) udv.textContent = v + ' steps';
 });
 
-var _rlBtn = ui('setRulersBtn');
-if (_rlBtn) _rlBtn.addEventListener('click', function() {
-    var off = localStorage.getItem('wp_rulers') === 'off';
-    try { localStorage.setItem('wp_rulers', off ? 'on' : 'off'); } catch (e) {}
-    state.showRulers = off;
-    if (window.appRender) window.appRender();
+// [lookcheck:viewswitch-start]
+// 107: what stands around a map and can be put away, each by a switch of this computer's own: the coordinate rulers, the zoom buttons and the pointer
+// location (the owner, 2026-10-06, of the last two: "optionally hide both independently"). ONE function switches each, whether it is pressed in
+// Settings (Table) or ticked in the play map's View menu. A thing is shown unless its key says off. viewSwitch answers what is so now: true shown,
+// false hidden, null for a name it does not know
+var VIEW_SWITCHES = { rulers: ['wp_rulers', 'Rulers'], zoom: ['wp_zoomCtl', 'Zoom buttons'], pointer: ['wp_pointerPos', 'Pointer location'] };
+function viewShown(key) { try { return localStorage.getItem(key) !== 'off'; } catch (e) { return true; } }
+function viewSwitchOf(which) { return typeof which === 'string' && Object.prototype.hasOwnProperty.call(VIEW_SWITCHES, which) ? VIEW_SWITCHES[which] : null; }
+function viewSwitch(which) {
+    var sw = viewSwitchOf(which);
+    if (!sw) return null;
+    try { localStorage.setItem(sw[0], viewShown(sw[0]) ? 'off' : 'on'); } catch (e) {}
+    var shown = viewShown(sw[0]);   // read back: what is said is what is so, also where the store took no write
+    if (which === 'rulers') { state.showRulers = shown; if (window.appRender) window.appRender(); }
+    else if (window.wpApplyCorner) window.wpApplyCorner();
     syncPanel();
-    toast(off ? 'Rulers shown.' : 'Rulers hidden.');
-});
+    toast(sw[1] + (shown ? ' shown.' : ' hidden.'));
+    return shown;
+}
+window.wpViewSwitch = viewSwitch;
+window.wpViewShown = function(which) { var sw = viewSwitchOf(which); return sw ? viewShown(sw[0]) : null; };
+// [lookcheck:viewswitch-end]
+[['setRulersBtn', 'rulers'], ['setZoomCtlBtn', 'zoom'], ['setPointerPosBtn', 'pointer']].forEach(function(r) { var b = ui(r[0]); if (b) b.addEventListener('click', function() { viewSwitch(r[1]); }); });
 
 /* ---------- VTT features (vtt.js): per campaign, the default for new campaigns, and a player's view at a table ----------
    Token elevation and posture (the chips and the blast tool's 3D figure) and the minimap. The rows keep their
@@ -668,6 +685,7 @@ if (_prefs) _prefs.addEventListener('click', function() {
     keys.forEach(function(k) { try { localStorage.removeItem(k); } catch (e) {} });
     if (window.wpPrefsPush) window.wpPrefsPush();   // the saves folder's preferences.json follows
     applyGridOpacity();
+    if (window.wpApplyCorner) window.wpApplyCorner();   // 107: the zoom buttons and the pointer location are back at once
     document.documentElement.style.removeProperty('--leftw');
     document.documentElement.style.removeProperty('--rightw');
     if (window.wpVtt) window.wpVtt.changed('reset');   // the VTT default is back to the 1.4.6 keys, then on; campaigns carry their own and are untouched

@@ -179,6 +179,11 @@ The play map
   column at the map's right edge. More, the last button, holds Clear
   board. In a narrow window the bar tightens, then wraps into even
   rows, so no tool is ever cut off.
+- A tool that has options has a small arrow beside its icon. The icon
+  takes the tool, and a second press puts it away. The arrow opens the
+  tool's options, and they stay up while you work, until you press the
+  arrow again or take another tool. Snap's icon switches snapping, and
+  its arrow opens what it snaps to.
 - The box at the top right of a map wears the toolbar's look. Its
   pointer location and its zoom buttons can each be hidden on their
   own. Tick them under Show in the centre menu, or press their buttons

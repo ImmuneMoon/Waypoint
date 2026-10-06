@@ -37,7 +37,9 @@ const INVENTORY = ['wbFloatingToolbar', 'wbCenterBtn', 'wbCenterMenu', 'wbCenter
     'rulerCursorX', 'rulerCursorY', 'fxScreen', 'fogScreen', 'partyStrip', 'combatStrip', 'partyMenu', 'joinCard', 'joinCardStatus', 'joinCardMake', 'joinCardFile', 'joinCardToken', 'joinCardOpen', 'joinCardFaceBtn', 'joinCardClose',
     'wbStubNote', 'zoomBox', 'cursorPos', 'zoomOutBtn', 'zoomLbl', 'zoomInBtn', 'toggleLeftBtn', 'toggleRightBtn', 'minimap', 'minimapCanvas', 'minimapToggle',
     // built with the layout (2026-10-06): the column at the map's right edge, More and its menu, and the View menu's three ticks
-    'wbEdgeTools', 'wbMoreBtn', 'wbMoreMenu', 'wbRulersBtn', 'wbZoomCtlBtn', 'wbPointerPosBtn'];
+    'wbEdgeTools', 'wbMoreBtn', 'wbMoreMenu', 'wbRulersBtn', 'wbZoomCtlBtn', 'wbPointerPosBtn',
+    // built with the presses (2026-10-06): the small arrow beside each tool that has options, and beside each button that opens a menu
+    'drawOptBtn', 'eraserOptBtn', 'fillOptBtn', 'measureOptBtn', 'blastOptBtn', 'snapOptBtn', 'shapeOptBtn', 'addOptBtn', 'fogOptBtn', 'sceneOptBtn', 'viewOptBtn', 'gridOptBtn'];
 // The choices inside the menus that have no id: found by the attribute their handler reads
 const ROWS = { mode: ['grid', 'items', 'both'], straight: ['false', 'true'], tip: ['round', 'square', 'flat'], size: ['2', '3', '6', '10', '16'], emode: ['precise', 'segment'], unit: ['imperial', 'metric'],
     fgrid: ['square', 'hex'], fbrush: ['reveal', 'hide', 'clear'], fstroke: ['1', '3', '5', 'box', 'piece'], shapesize: ['free', 'cell'] };
@@ -54,7 +56,7 @@ const board = (() => { const a = ix.indexOf('<div id="wbFloatingToolbar"'), z = 
     const idN = id => count(ix, ' id="' + id + '"'), ALL = INVENTORY.concat(HEADER, SETTINGS);
     const gone = ALL.filter(id => idN(id) !== 1).map(id => id + ' x' + idN(id)), out = INVENTORY.filter(id => count(board, ' id="' + id + '"') !== 1);
     check('nothing is removed (the owner: "lets not remove functionality with these updates, that critical."): each of the ' + INVENTORY.length + ' controls of the play map\'s toolbar, its menus and what stands around the map is in the page exactly once and still around the map, and so is each of the ' + HEADER.length + ' of the top bar with Import and every kind of Export, and each of the ' + SETTINGS.length + ' of the three switches in Settings',
-        board.length > 1000 && gone.length === 0 && out.length === 0 && INVENTORY.length === 150 && HEADER.length === 42 && SETTINGS.length === 6 && new Set(ALL).size === 198, J([gone, out]));
+        board.length > 1000 && gone.length === 0 && out.length === 0 && INVENTORY.length === 162 && HEADER.length === 42 && SETTINGS.length === 6 && new Set(ALL).size === 210, J([gone, out]));
     const rowsBad = Object.keys(ROWS).filter(k => J((board.match(new RegExp('<button[^>]* data-' + k + '="([^"]*)"', 'g')) || []).map(m => m.slice(m.lastIndexOf('="') + 2, -1))) !== J(ROWS[k]));
     const sw = (board.match(/<button class="draw-swatch" data-color="(#[0-9a-f]{6})"/g) || []).map(m => m.slice(-8, -1));
     check('nothing is removed, the choices inside the menus: Snap\'s three modes, the pen\'s two styles, three tips and five sizes, the eraser\'s two modes, the two measuring systems, the fog\'s two gridless grids, three brushes and five strokes, the two shape sizes, each in its order, and the seven colours of the pen and of the fill with a custom colour for each',
@@ -157,7 +159,7 @@ const barKids = kidsOf(ix, BAR_OPEN) || [], edgeKids = kidsOf(ix, EDGE_OPEN) || 
     check('the bar is laid out as the owner passed it ("As drawn"): undo and redo, then select and pan, then pen, eraser and fill, then shapes and Add, then measure and blast, then fog, Scene and Pages, then More, with a separator between the groups and none at either end',
         J(seq) === J(['wbUndoBtn', 'wbRedoBtn', '|', 'moveModeBtn', 'panModeBtn', '|', 'drawModeBtn', 'eraserModeBtn', 'fillModeBtn', '|', 'shapeMenuBtn', 'addMenuBtn', '|', 'measureModeBtn', 'blastModeBtn', '|', 'fogModeBtn', 'sceneFxBtn', 'pagesBtn', '|',
             'wbMoreBtn']), J(seq));
-    const col = edgeKids.map(k => k.ids.slice(0, 2)), at = (a, b) => ix.indexOf(a) >= 0 && ix.indexOf(a) < ix.indexOf(b);
+    const col = edgeKids.map(k => k.ids.filter(id => !/OptBtn$/.test(id)).slice(0, 2)), at = (a, b) => ix.indexOf(a) >= 0 && ix.indexOf(a) < ix.indexOf(b);   // the button and its menu (its small arrow is held with the presses)
     const render = mainSrc.slice(mainSrc.indexOf('export function render() {'), mainSrc.indexOf('// Breadcrumb trail for nested maps'));
     check('View, Grid and Snap stand in a column at the map\'s right edge: a second box of the same toolbar, right after the bar in the page, that holds the three buttons with their menus and nothing else, shown with the bar by the one render and hidden with it in the stream window, clear of the right panel\'s grip and above the bar, its menus opening to its left as wide as their words',
         J(col) === J([['wbCenterBtn', 'wbCenterMenu'], ['wbGridBtn', 'gridMenu'], ['wbSnapBtn', 'snapMenu']]) && at(BAR_OPEN, EDGE_OPEN) && ix.slice(elementEnd(ix, ix.indexOf(BAR_OPEN)), ix.indexOf(EDGE_OPEN)).trim() === ''
@@ -172,7 +174,7 @@ const barKids = kidsOf(ix, BAR_OPEN) || [], edgeKids = kidsOf(ix, EDGE_OPEN) || 
         J(more.ids) === J(['wbMoreBtn', 'wbMoreMenu', 'clearWbBtn']) && more.open === '<div style="position:relative; display:inline-block;" class="gm-only">' && more.text.includes('<button class="wb-tool-btn" id="wbMoreBtn" title="More">')
         && more.text.includes('<div class="shape-menu" id="wbMoreMenu" style="bottom:100%; top:auto; flex-direction:column; min-width:200px; left:auto; right:0; transform:none; margin-bottom:10px;">')
         && /<button class="wb-tool-btn" style="color:var\(--red\);[^"]*" id="clearWbBtn" title="Clear Board">/.test(more.text) && /^<span style="width:20px; text-align:center;"><svg class="ico"[^>]*>.*<\/svg><\/span> Clear board$/.test(clear)
-        && css.includes('  body.net-client #shapeMenuBtn, body.net-client #addImageBtn, body.net-client #clearWbBtn,') && css.includes('  body.net-client .gm-only { display: none !important; }'), J([more.ids, more.open, clear]));
+        && css.includes(' body.net-client #addImageBtn, body.net-client #clearWbBtn,\n') && css.includes('  body.net-client .gm-only { display: none !important; }'), J([more.ids, more.open, clear]));
 }
 
 /* ---------- a page of plain objects, for the code that is run for real ---------- */
@@ -186,36 +188,45 @@ Object.defineProperty(El.prototype, 'offsetLeft', { get() { return this.x; } });
 El.prototype.add = function(k) { k.parentElement = this; this.children.push(k); return k; };
 El.prototype.addEventListener = function(type, fn, cap) { this.on.push([type, fn, !!cap]); };
 El.prototype.setAttribute = function(k, v) { this.attrs[k] = String(v); };
-El.prototype.is = function(sel) { return sel[0] === '#' ? this.id === sel.slice(1) : sel[0] === '.' ? sel.slice(1).split('.').every(c => this.cls.has(c)) : this.tag === sel; };
+El.prototype.getAttribute = function(k) { return Object.prototype.hasOwnProperty.call(this.attrs, k) ? this.attrs[k] : null; };
+El.prototype.is = function(sel) {   // '#id', '.a.b', 'tag', and '.a[attr]' for an element that has the attribute
+    const m = /^(.*)\[([a-z-]+)\]$/.exec(sel); if (m) return this.is(m[1]) && this.getAttribute(m[2]) !== null;
+    return sel[0] === '#' ? this.id === sel.slice(1) : sel[0] === '.' ? sel.slice(1).split('.').every(c => this.cls.has(c)) : this.tag === sel; };
 El.prototype.closest = function(sel) { for (let n = this; n; n = n.parentElement) if (n.is(sel)) return n; return null; };
 El.prototype.all = function() { const out = []; (function walk(n) { n.children.forEach(k => { out.push(k); walk(k); }); })(this); return out; };
 El.prototype.querySelectorAll = function(sel) { return this.all().filter(n => n.is(sel)); };
 El.prototype.querySelector = function(sel) { return this.querySelectorAll(sel)[0] || null; };
-// The toolbar as the page has it: a button of its own, or a wrapper that holds a button and its menu; a separator between the groups. In the
-// tight bar a button is 32 wide, two things stand 2 apart, a separator is 1 wide with 2 of air each side, and the skin adds 10 around a row
-const LAY = ['wbUndoBtn', 'wbRedoBtn', '|', 'moveModeBtn', 'panModeBtn', '|', 'drawModeBtn+drawMenu', 'eraserModeBtn+eraserMenu', 'fillModeBtn+fillMenu', '|', 'shapeMenuBtn+shapeMenu', 'addMenuBtn+addMenu', '|', 'measureModeBtn+measureMenu',
+// The toolbar as the page has it: a button of its own, or a wrapper that holds a button, its small arrow where it has one, and its menu; a
+// separator between the groups. In the tight bar a button is 32 wide and a pair 41 (its arrow is 12 and tucks 3 under the button), two things
+// stand 2 apart, a separator is 1 wide with 2 of air each side, and the skin adds 10 around a row
+const ARROW = { drawModeBtn: 'drawOptBtn', eraserModeBtn: 'eraserOptBtn', fillModeBtn: 'fillOptBtn', measureModeBtn: 'measureOptBtn', blastModeBtn: 'blastOptBtn', wbSnapBtn: 'snapOptBtn', shapeMenuBtn: 'shapeOptBtn', addMenuBtn: 'addOptBtn',
+    fogModeBtn: 'fogOptBtn', sceneFxBtn: 'sceneOptBtn', wbCenterBtn: 'viewOptBtn', wbGridBtn: 'gridOptBtn' };
+const MENU_ONLY = { shapeMenuBtn: 1, addMenuBtn: 1, fogModeBtn: 1, sceneFxBtn: 1, wbCenterBtn: 1, wbGridBtn: 1 };   // a button that only opens a menu: its arrow presses it
+const LAY =['wbUndoBtn', 'wbRedoBtn', '|', 'moveModeBtn', 'panModeBtn', '|', 'drawModeBtn+drawMenu', 'eraserModeBtn+eraserMenu', 'fillModeBtn+fillMenu', '|', 'shapeMenuBtn+shapeMenu', 'addMenuBtn+addMenu', '|', 'measureModeBtn+measureMenu',
     'blastModeBtn+blastMenu', '|', 'fogModeBtn+fogMenu', 'sceneFxBtn+sceneFxMenu', 'pagesBtn+pagesMenu', '|', 'wbMoreBtn+wbMoreMenu'];
 const GM_HAS = { wbUndoBtn: 1, wbRedoBtn: 1, fillModeBtn: 1, shapeMenuBtn: 1, blastModeBtn: 1, fogModeBtn: 1, sceneFxBtn: 1, pagesBtn: 1, wbMoreBtn: 1 };   // what a player's bar does not show (and no separator)
 function toolbarPage(player) {
-    const byId = {}, docOn = [], doc = { getElementById: id => byId[id] || null, addEventListener: (t, f) => { docOn.push([t, f]); } };
-    const mk = (tag, id, cls, parent) => { const e = new El(tag, id, cls); if (id) byId[id] = e; if (parent) parent.add(e); return e; };
+    const byId = {}, docOn = [], doc = { getElementById: id => byId[id] || null, addEventListener: (t, f) => { docOn.push([t, f]); }, querySelectorAll: sel => main.all().filter(n => n.is(sel)) };
+    // a press, as a page gives it: down through the boxes it is in (the capture listeners), then up from the target, and on to the page unless a listener stops it
+    const click = target => { const way = []; for (let n = target; n; n = n.parentElement) way.push(n); const ev = { target, stopped: false, stopPropagation() { this.stopped = true; } };
+        way.slice().reverse().forEach(n => n.on.forEach(l => { if (l[0] === 'click' && l[2]) l[1].call(n, ev); }));
+        for (const n of way) { n.on.forEach(l => { if (l[0] === 'click' && !l[2]) l[1].call(n, ev); }); if (ev.stopped) return; }
+        docOn.forEach(l => { if (l[0] === 'click') l[1](ev); }); };
+    const mk = (tag, id, cls, parent) => { const e = new El(tag, id, cls); e.click = () => click(e); if (id) byId[id] = e; if (parent) parent.add(e); return e; };
     const main = mk('div', 'main', ''), bar = mk('div', 'wbFloatingToolbar', 'floating-toolbar', main), edge = mk('div', 'wbEdgeTools', 'floating-toolbar', main);
+    const wrap = (box, btnId, menuId) => { const wr = mk('div', '', ARROW[btnId] ? 'tool-pair' : '', box); mk('button', btnId, 'wb-tool-btn', wr);
+        if (ARROW[btnId]) { const c = mk('button', ARROW[btnId], 'wb-tool-btn tool-chev', wr); if (MENU_ONLY[btnId]) c.setAttribute('data-for', btnId); }
+        const m = mk('div', menuId, 'shape-menu', wr); mk('button', menuId + 'Row', 'wb-tool-btn', m); return wr; };
     let x = 4;
     LAY.forEach(name => {
         if (name === '|') { const s = mk('div', '', 'wb-tool-sep', bar); if (player) return; s.w = 1; s.x = x + 2; x = s.x + 1 + 2 + 2; return; }
-        const ids = name.split('+'), shown = !(player && GM_HAS[ids[0]]);
-        const top = ids[1] ? mk('div', '', '', bar) : mk('button', ids[0], 'wb-tool-btn', bar);
-        if (ids[1]) { mk('button', ids[0], 'wb-tool-btn', top); const m = mk('div', ids[1], 'shape-menu', top); mk('button', ids[1] + 'Row', 'wb-tool-btn', m); }
-        if (shown) { top.w = 32; top.x = x; x += 32 + 2; }
+        const ids = name.split('+'), shown = !(player && GM_HAS[ids[0]]), top = ids[1] ? wrap(bar, ids[0], ids[1]) : mk('button', ids[0], 'wb-tool-btn', bar), w = ARROW[ids[0]] ? 41 : 32;
+        if (shown) { top.w = w; top.x = x; x += w + 2; }
     });
     const tight = x - 2 + 4 + 2;
-    bar.w = () => bar.cls.has('tb-wrap') ? -1 : bar.cls.has('tb-tight') ? tight : (player ? 278 : 758);
-    ['wbCenterBtn+wbCenterMenu', 'wbGridBtn+gridMenu', 'wbSnapBtn+snapMenu'].forEach(name => { const ids = name.split('+'), wr = mk('div', '', '', edge); mk('button', ids[0], 'wb-tool-btn', wr); const m = mk('div', ids[1], 'shape-menu', wr); mk('button', ids[1] + 'Row', 'wb-tool-btn', m); });
+    bar.w = () => bar.cls.has('tb-wrap') ? -1 : bar.cls.has('tb-tight') ? tight : (player ? 312 : 848);
+    [['wbCenterBtn', 'wbCenterMenu'], ['wbGridBtn', 'gridMenu'], ['wbSnapBtn', 'snapMenu']].forEach(p => wrap(edge, p[0], p[1]));
     const vm = byId.wbCenterMenu; ['wbRulersBtn', 'wbZoomCtlBtn', 'wbPointerPosBtn'].forEach(id => mk('button', id, 'wb-tool-btn view-tick on', vm));
-    const click = target => { const way = []; for (let n = target; n; n = n.parentElement) way.push(n); const ev = { target };
-        way.slice().reverse().forEach(n => n.on.forEach(l => { if (l[0] === 'click' && l[2]) l[1].call(n, ev); }));
-        way.forEach(n => n.on.forEach(l => { if (l[0] === 'click' && !l[2]) l[1].call(n, ev); }));
-        docOn.forEach(l => { if (l[0] === 'click') l[1](ev); }); };
     return { doc, byId, main, bar, edge, click, tight, open: () => main.all().filter(n => n.is('.shape-menu.show')).map(n => n.id).sort() };
 }
 const barSrc = sliceOf(wbSrc, 'bar');
@@ -248,6 +259,85 @@ function runBar(P, win) {
         && P.bar.on.some(l => l[0] === 'click' && l[2]) && P.edge.on.some(l => l[0] === 'click' && l[2]), R.err || J(seen));
 }
 
+/* ---------- the presses (the owner: "Chevron opens them") ---------- */
+const pressSrc = sliceOf(wbSrc, 'press');
+function runPress(P, win) {
+    let api = null, err = '';
+    try { api = new Function('document', 'window', pressSrc + '\nreturn { TOOL_OPTS: TOOL_OPTS, toolPress: toolPress, toolOptsOnly: toolOptsOnly, wireTool: wireTool, wireMenuArrows: wireMenuArrows };')(P.doc, win); } catch (e) { err = String(e && e.message || e); }
+    return { api, err };
+}
+{
+    const CHEV_D = '<path d="M6 9.5l6 6 6-6"/>';
+    const TOOLS = [['drawModeBtn', 'drawOptBtn', 'drawMenu', 'Pen options'], ['eraserModeBtn', 'eraserOptBtn', 'eraserMenu', 'Eraser options'], ['fillModeBtn', 'fillOptBtn', 'fillMenu', 'Fill options'],
+        ['measureModeBtn', 'measureOptBtn', 'measureMenu', 'Measure options'], ['blastModeBtn', 'blastOptBtn', 'blastMenu', 'Blast options'], ['wbSnapBtn', 'snapOptBtn', 'snapMenu', 'Snap options']];
+    const MENUS = [['shapeMenuBtn', 'shapeOptBtn', 'shapeMenu', 'Shapes menu'], ['addMenuBtn', 'addOptBtn', 'addMenu', 'Add menu'], ['fogModeBtn', 'fogOptBtn', 'fogMenu', 'Fog of war menu'], ['sceneFxBtn', 'sceneOptBtn', 'sceneFxMenu', 'Scene menu'],
+        ['wbCenterBtn', 'viewOptBtn', 'wbCenterMenu', 'View menu'], ['wbGridBtn', 'gridOptBtn', 'gridMenu', 'Grid menu']];
+    const pairOf = id => barKids.concat(edgeKids).filter(k => k.ids[0] === id)[0] || null;
+    const arrow = (cid, title, forId) => '<button class="wb-tool-btn tool-chev" id="' + cid + '"' + (forId ? ' data-for="' + forId + '"' : '') + ' title="' + title + '" aria-haspopup="true">' + SVG + CHEV_D + '</svg></button>';
+    const bad = TOOLS.map(t => [t, '']).concat(MENUS.map(t => [t, t[0]])).filter(p => { const t = p[0], k = pairOf(t[0]);
+        return !k || J(k.ids.filter(id => !/Indicator$/.test(id)).slice(0, 3)) !== J([t[0], t[1], t[2]]) || !/^<div (class="tool-pair" style="position:relative;[^"]*"|style="position:relative;[^"]*" class="tool-pair gm-only")>$/.test(k.open)
+            || count(k.text, '</button>' + arrow(t[1], t[3], p[1]) + '\n') !== 1; }).map(p => p[0][0]);
+    const plain = ['wbUndoBtn', 'wbRedoBtn', 'moveModeBtn', 'panModeBtn', 'pagesBtn', 'wbMoreBtn'].filter(id => { const k = pairOf(id); return !k || /tool-pair|tool-chev/.test(k.text); });
+    check('a tool that has options is a pair (the owner: "Chevron opens them"): the pen, the eraser, fill, measure, blast and Snap each stand in a pair with a small arrow right after the icon, the arrow the passed sheet drew for "a tool has options", named for the options it opens; a button that only opens a menu is the same pair, and its arrow names the button it presses; undo, redo, select, pan, Pages and More have no arrow, having nothing to open beside themselves',
+        bad.length === 0 && plain.length === 0 && count(ix, 'class="wb-tool-btn tool-chev"') === 12 && MENUS.every(m => count(ix, ' id="' + m[1] + '" data-for="' + m[0] + '"') === 1)
+        && TOOLS.every(t => !new RegExp(' id="' + t[1] + '" data-for=').test(ix)), J([bad, plain]));
+    const tp = (pressSrc && runPress(toolbarPage(false), {}).api || {}).toolPress || (() => null), T = (a, b, c) => { const r = tp(a, b, c); return r ? r.tool + '/' + r.opts : 'none'; };
+    check('what a press does (toolPress, run for real): the icon takes a tool that is not in hand and never opens its options, and puts a tool in hand away with its options; the small arrow opens the options and takes the tool with them, leaves the tool where it is when it is already in hand, and closes options that are up without putting the tool away',
+        J([T('icon', false, false), T('icon', false, true), T('icon', true, false), T('icon', true, true), T('chev', false, false), T('chev', true, false), T('chev', false, true), T('chev', true, true)])
+        === J(['take/', 'take/', 'away/close', 'away/close', 'take/open', '/open', '/close', '/close']), J([T('icon', false, false), T('icon', true, true), T('chev', false, false), T('chev', true, true)]));
+    // the wiring, run on the page of plain objects: two tools that have options, the arrow tool, and a hand that the stand-in tools set
+    const P = toolbarPage(false), R = runPress(P, {}), b = P.byId, log = [], seen = [], page = []; let hand = 'move';
+    P.doc.addEventListener('click', e => page.push(e.target.id));   // what reaches the page: a press on a tool or its arrow is the tool's own and does not
+    if (R.api) {
+        b.moveModeBtn.addEventListener('click', () => { hand = 'move'; R.api.toolOptsOnly('moveModeBtn'); });
+        [['drawModeBtn', 'drawOptBtn', 'pen'], ['eraserModeBtn', 'eraserOptBtn', 'eraser']].forEach(t => R.api.wireTool({ id: t[0], chev: t[1], inHand: () => hand === t[2], sync: () => log.push('sync ' + t[2] + ' ' + P.open().join(',')), take: () => { hand = t[2]; R.api.toolOptsOnly(t[0]); log.push('take ' + t[2]); } }));
+        const st = () => hand + ' | ' + P.open().join(',');
+        P.click(b.drawModeBtn); seen.push(st()); P.click(b.drawModeBtn); seen.push(st());                 // the icon takes the pen and opens nothing; again, and it is put away
+        P.click(b.drawOptBtn); seen.push(st()); P.click(P.main); P.click(P.bar); seen.push(st());          // the arrow: the pen and its options; a press elsewhere leaves them up
+        P.click(b.drawOptBtn); seen.push(st());                                                           // the arrow again: the options go, the pen stays
+        P.click(b.drawOptBtn); P.click(b.eraserOptBtn); seen.push(st());                                  // another tool's arrow: that tool and its options, and the pen's are away
+        P.click(b.eraserModeBtn); seen.push(st());                                                        // the icon of the tool in hand: away, options and all
+        P.click(b.eraserOptBtn); P.click(b.drawModeBtn); seen.push(st());                                 // another tool's icon: that tool, and no options up
+        b.shapeMenu.classList.add('show'); b.eraserMenu.classList.add('show'); b.blastMenu.classList.add('show'); R.api.toolOptsOnly('blastModeBtn'); seen.push(P.open().join(','));   // only a tool's options are put away, never another menu
+    }
+    check('the presses, run for real on a page of plain objects (wireTool, toolOptsOnly): an icon takes its tool and opens nothing, and a second press puts it away; the arrow takes the tool with its options, brought up to date before they show; a press on the map or the bar leaves them up, for they stay while they are wanted; the arrow again closes them and the tool stays; another tool taken, by its icon or its arrow, puts them away, since options belong to the tool in hand',
+        !!R.api && pressSrc.length > 800 && J(R.api.TOOL_OPTS) === J({ drawModeBtn: 'drawMenu', eraserModeBtn: 'eraserMenu', fillModeBtn: 'fillMenu', measureModeBtn: 'measureMenu', blastModeBtn: 'blastMenu' })
+        && J(seen) === J(['pen | ', 'move | ', 'pen | drawMenu', 'pen | drawMenu', 'pen | ', 'eraser | eraserMenu', 'move | ', 'pen | ', 'blastMenu,shapeMenu'])
+        && J(log) === J(['take pen', 'take pen', 'sync pen ', 'sync pen ', 'take eraser', 'sync eraser ', 'take eraser', 'sync eraser ', 'take pen'])
+        && J(page) === J(['moveModeBtn', 'main', 'wbFloatingToolbar', 'moveModeBtn']), R.err || J([seen, log, page]));
+    // a button that only opens a menu: its arrow presses it, once, and no other
+    const Q = toolbarPage(false), S = runPress(Q, {}), hits = {}, docHits = [];
+    MENUS.forEach(m => Q.byId[m[0]].addEventListener('click', () => { hits[m[0]] = (hits[m[0]] || 0) + 1; }));
+    Q.doc.addEventListener('click', e => docHits.push(e.target.id));
+    if (S.api) { MENUS.forEach(m => Q.click(Q.byId[m[1]])); Q.click(Q.byId.drawOptBtn); Q.click(Q.byId.snapOptBtn); }
+    check('a button that only opens a menu and its small arrow are one control (wireMenuArrows, run for real): a press on the arrow presses its own button once and no other, and reaches the page as that button\'s press, so every rule of the button holds for the arrow; the arrow of a tool that has options is no such arrow',
+        !!S.api && J(hits) === J({ shapeMenuBtn: 1, addMenuBtn: 1, fogModeBtn: 1, sceneFxBtn: 1, wbCenterBtn: 1, wbGridBtn: 1 }) && J(docHits) === J(['shapeMenuBtn', 'addMenuBtn', 'fogModeBtn', 'sceneFxBtn', 'wbCenterBtn', 'wbGridBtn', 'drawOptBtn', 'snapOptBtn']), S.err || J([hits, docHits]));
+    const wired = [["wireTool({ id: 'drawModeBtn', chev: 'drawOptBtn', inHand: function() { return !!window.isDrawingMode; }, sync: syncDrawMenu, take: function() {", "updateWbToolbar('drawModeBtn');"],
+        ["wireTool({ id: 'eraserModeBtn', chev: 'eraserOptBtn', inHand: function() { return !!window.isEraserMode; }, sync: syncEraserMenu, take: function() {", "updateWbToolbar('eraserModeBtn');"],
+        ["wireTool({ id: 'fillModeBtn', chev: 'fillOptBtn', inHand: function() { return !!window.isFillMode; }, sync: syncFillMenu, take: function() {", "updateWbToolbar('fillModeBtn');"],
+        ["wireTool({ id: 'measureModeBtn', chev: 'measureOptBtn', inHand: function() { return !!window.isMeasureMode && window.wpMeasureKind === 'ruler'; }, sync: syncMeasureMenu, take: function() {", "updateWbToolbar('measureModeBtn');"],
+        ["wireTool({ id: 'blastModeBtn', chev: 'blastOptBtn', inHand: function() { return !!window.isMeasureMode && window.wpMeasureKind === 'blast'; }, sync: syncBlastMenu, take: function() {", "updateWbToolbar('blastModeBtn');"]];
+    const notWired = wired.filter(w => { const a = wbSrc.indexOf(w[0]), z = wbSrc.indexOf('  } });', a); return count(wbSrc, w[0]) !== 1 || z < 0 || z - a > 900 || !wbSrc.slice(a, z).includes(w[1]); }).map(w => w[0].slice(15, 32));
+    const OLD = ["wbWrap.addEventListener('pointerdown', closeDrawMenu)", "!e.target.closest('#drawMenu')", "!e.target.closest('#eraserMenu')", "!e.target.closest('#measureMenu')", "!e.target.closest('#fillMenu')", "!e.target.closest('#blastMenu')", 'click again for pen options', 'click again for size', 'click again for units', 'Click again for the color', 'Click the tool again for options', 'click for options'];
+    check('each of the five tools is wired through the one wiring, with what it means for it to be in hand, and taking any tool puts the others\' options away; nothing closes a tool\'s options at a press elsewhere or when a stroke begins any more, so they stay up while they are wanted; no tooltip still says to click again for options',
+        notWired.length === 0 && count(wbSrc, 'wireTool({') === 5 && wbSrc.includes("      toolOptsOnly(activeId);   // 107: a tool's options belong to the tool in hand\n  }\n")
+        && OLD.every(o => count(wbSrc, o) + count(ix, o) === 0), J([notWired, OLD.filter(o => count(wbSrc, o) + count(ix, o) > 0)]));
+    check('Snap: its icon switches snapping on and off and says so, and its small arrow opens what it snaps to; the button\'s tooltip says how it stands and what a press does; the Snap To menu still has its own switch row',
+        wbSrc.includes("    _el_wbSnapBtn.addEventListener('click', function(e) { e.stopPropagation(); setSnap(!state.snap); toast(state.snap ? 'Snapping on.' : 'Snapping off.'); });\n")
+        && wbSrc.includes("    if (_el_snapOptBtn) _el_snapOptBtn.addEventListener('click', function(e) { e.stopPropagation(); if (_el_snapMenu) { syncSnapMenu(); _el_snapMenu.classList.toggle('show'); } });\n")
+        && wbSrc.includes("? 'Snap is on, aligning to ' + ({ grid: 'grid cells', items: 'other items', both: 'grid cells and other items' })[state.snapMode] + '. Press to turn it off.'\n            : 'Snap is off. Press to turn it on.';")
+        && wbSrc.includes("!e.target.closest('#snapMenu') && !e.target.closest('#snapOptBtn')) _el_snapMenu.classList.remove('show');") && count(wbSrc, "setSnap(true); if (_el_snapMenu) _el_snapMenu.classList.add('show');") === 0
+        && innerOfBtn('id="snapOffBtn"') === '&#9211; Turn snapping off');
+    check('the pairs in the style sheet: a pair sets its icon and its small arrow side by side, the arrow is slim, quiet and tucked under the icon\'s edge, gold while the pointer is on it and while its options are up, in either theme; an arrow goes with its button where the button is hidden, for the fog button and on a player\'s bar; the tight bar slims the arrow too',
+        css.includes('    .floating-toolbar .tool-pair { display: inline-flex !important; align-items: center; }\n    .wb-tool-btn.tool-chev { width: 13px; margin-left: -3px; border-radius: 0 8px 8px 0; color: var(--dim); }\n    .wb-tool-btn.tool-chev > .ico { width: 10px; height: 10px; stroke-width: 2.6; }\n')
+        && css.includes('    .wb-tool-btn.tool-chev:hover { background: transparent; color: var(--gold); }\n    .floating-toolbar .tool-pair:has(> .shape-menu.show) > .tool-chev { color: var(--gold); }\n    .tool-pair > .wb-tool-btn[style*="none"] + .tool-chev { display: none; }')
+        && css.includes('  html[data-theme="light"] .wb-tool-btn.tool-chev { color: var(--dim); }')
+        && css.includes('  html[data-theme="light"] .wb-tool-btn.tool-chev:hover, html[data-theme="light"] .floating-toolbar .tool-pair:has(> .shape-menu.show) > .tool-chev { color: var(--gold); }\n')
+        && css.includes('body.net-client #wbGridBtn, body.net-client #wbSnapBtn, body.net-client #gridOptBtn, body.net-client #snapOptBtn,\n') && css.includes('  body.net-client #shapeMenuBtn, body.net-client #shapeOptBtn, body.net-client #addImageBtn,')
+        && css.includes('    body.net-client .floating-toolbar .tool-pair:has(> #shapeMenuBtn) { display: none !important; }')
+        && /id="fogModeBtn" style="display:none;"/.test(ix));
+}
+
 /* ---------- the bar never runs off the map: it tightens, then wraps between groups ---------- */
 {
     const R = runBar(toolbarPage(false), {}), A = R.api || {}, BF = A.barFit || (() => null), BB = A.barBreaks || (() => undefined), G = [66, 66, 100, 66, 66, 100, 32];
@@ -266,12 +356,12 @@ function runBar(P, win) {
     const state = () => [[...P.bar.cls].filter(c => c !== 'floating-toolbar').sort().join(' '), P.bar.style.width || '', seps.map((s, i) => s.cls.has('tb-brk') ? i : -1).filter(i => i >= 0)];
     const at = w => { P.main.clientWidth = w; fit(); return state(); }, got = [];
     const g = A.barGroups ? A.barGroups((P.bar.classList.add('tb-tight'), P.bar)) : null; P.bar.classList.remove('tb-tight');
-    got.push(at(1000), at(782), at(781), at(584), at(583), at(550), at(325), at(324), at(310), at(1000));
+    got.push(at(1000), at(872), at(871), at(665), at(664), at(550), at(379), at(378), at(310), at(1000));
     P.bar.style.display = 'none'; got.push(at(310)); P.bar.style.display = 'inline-flex'; got.push(at(0), at(24), at(NaN));
-    check('the bar is fitted to the room the map has (fitBar and barGroups, run for real on a bar measured as the tight bar is: 560 wide, seven groups, 9 between two, 10 of skin): 12 kept clear each side; as it is from 782, tight down to 584, then two even rows of whole groups 303 wide, then three rows 228 wide; a wider map takes every mark back; a bar that is not shown and a map with no width are left alone',
-        P.tight === 560 && J(g && [g.widths, g.gap, g.chrome, g.seps.length]) === J([[66, 66, 100, 66, 66, 100, 32], 9, 10, 6])
-        && J(got) === J([['', '', []], ['', '', []], ['tb-tight', '', []], ['tb-tight', '', []], ['tb-tight tb-wrap', '303px', [2]], ['tb-tight tb-wrap', '303px', [2]], ['tb-tight tb-wrap', '303px', [2]], ['tb-tight tb-wrap', '228px', [1, 3]],
-            ['tb-tight tb-wrap', '228px', [1, 3]], ['', '', []], ['', '', []], ['', '', []], ['', '', []], ['', '', []]]), R.err || J([g && [g.widths, g.gap, g.chrome], got]));
+    check('the bar is fitted to the room the map has (fitBar and barGroups, run for real on a bar measured as the tight bar is: 641 wide, seven groups, 9 between two, 10 of skin): 12 kept clear each side; as it is from 872, tight down to 665, then two even rows of whole groups 357 wide, then three rows 264 wide; a wider map takes every mark back; a bar that is not shown and a map with no width are left alone',
+        P.tight === 641 && J(g && [g.widths, g.gap, g.chrome, g.seps.length]) === J([[66, 66, 127, 84, 84, 118, 32], 9, 10, 6])
+        && J(got) === J([['', '', []], ['', '', []], ['tb-tight', '', []], ['tb-tight', '', []], ['tb-tight tb-wrap', '357px', [2]], ['tb-tight tb-wrap', '357px', [2]], ['tb-tight tb-wrap', '357px', [2]], ['tb-tight tb-wrap', '264px', [1, 3]],
+            ['tb-tight tb-wrap', '264px', [1, 3]], ['', '', []], ['', '', []], ['', '', []], ['', '', []], ['', '', []]]), R.err || J([g && [g.widths, g.gap, g.chrome], got]));
     // only what shows is a group, and only a separator between two groups parts them: with Undo and Redo not shown the first separator leads
     // the bar, and with Measure and Blast not shown too two separators stand in a row
     const H = toolbarPage(false), SH = runBar(H, {}), hs = H.bar.children.filter(k => k.is('.wb-tool-sep')), BG = (SH.api || {}).barGroups || (() => null);
@@ -279,18 +369,18 @@ function runBar(P, win) {
     H.byId.measureModeBtn.parentElement.w = 0; H.byId.blastModeBtn.parentElement.w = 0; const g2 = BG(H.bar);
     H.bar.children.forEach(k => { k.w = 0; }); const g3 = BG(H.bar);
     check('a group is what shows between two separators (barGroups, run for real): a separator that leads the bar parts nothing, nor does one that follows another, so a row of a wrapped bar always ends at the separator after its last group; a bar that shows nothing has no groups',
-        !!g1 && J(g1.widths) === J([66, 100, 66, 66, 100, 32]) && g1.seps.length === 5 && g1.seps.every((s, i) => s === hs[i + 1])
-        && !!g2 && J(g2.widths) === J([66, 100, 66, 100, 32]) && J(g2.seps.map(s => hs.indexOf(s))) === J([1, 2, 3, 5]) && g3 === null, J([g1 && g1.widths, g2 && [g2.widths, g2.seps.map(s => hs.indexOf(s))], g3]));
+        !!g1 && J(g1.widths) === J([66, 127, 84, 84, 118, 32]) && g1.seps.length === 5 && g1.seps.every((s, i) => s === hs[i + 1])
+        && !!g2 && J(g2.widths) === J([66, 127, 84, 118, 32]) && J(g2.seps.map(s => hs.indexOf(s))) === J([1, 2, 3, 5]) && g3 === null, J([g1 && g1.widths, g2 && [g2.widths, g2.seps.map(s => hs.indexOf(s))], g3]));
     const Q = toolbarPage(true), S = runBar(Q, {}), fitQ = (S.api || {}).fitBar || (() => {}), qs =() => [[...Q.bar.cls].filter(c => c !== 'floating-toolbar').sort().join(' '), Q.bar.style.width || '', Q.bar.children.filter(k => k.cls.has('tb-brk')).length];
     const gq = S.api ? S.api.barGroups((Q.bar.classList.add('tb-tight'), Q.bar)) : null; Q.bar.classList.remove('tb-tight');
-    const qat = w => { Q.main.clientWidth = w; fitQ(); return qs(); }, gotQ = [qat(400), qat(301), qat(236), qat(235), qat(120)];
+    const qat = w => { Q.main.clientWidth = w; fitQ(); return qs(); }, gotQ = [qat(400), qat(335), qat(272), qat(271), qat(120)];
     check('a player\'s bar is fitted too: it has fewer buttons and no separator, so it is one group, counted by what shows alone; it tightens like the GM\'s, and where even the tight bar is too wide it wraps wherever it must, with no row marked and no width set',
-        Q.tight === 212 && J(gq && [gq.widths, gq.gap, gq.chrome, gq.seps.length]) === J([[202], 0, 10, 0]) && J(gotQ) === J([['', '', 0], ['tb-tight', '', 0], ['tb-tight', '', 0], ['tb-tight tb-wrap', '', 0], ['tb-tight tb-wrap', '', 0]]), S.err || J([gq, gotQ]));
+        Q.tight === 248 && J(gq && [gq.widths, gq.gap, gq.chrome, gq.seps.length]) === J([[238], 0, 10, 0]) && J(gotQ) === J([['', '', 0], ['tb-tight', '', 0], ['tb-tight', '', 0], ['tb-tight tb-wrap', '', 0], ['tb-tight tb-wrap', '', 0]]), S.err || J([gq, gotQ]));
     const render = mainSrc.slice(mainSrc.indexOf('export function render() {'), mainSrc.indexOf('// Breadcrumb trail for nested maps')), iT = render.indexOf("document.getElementById('toggleRightBtn').style.display"), iF = render.indexOf('if (window.wpFitBar) window.wpFitBar();');
     check('the bar is fitted whenever the map\'s room changes: by render() once the panes are switched, so it measures the room the map has, and by an observer of the map\'s own box, the bar\'s parent; the style sheet tightens only the bar\'s own buttons, breaks a wrapped bar at the separators fitBar marks, and lifts the column above a wrapped bar',
         R.RO.made.length === 1 && R.RO.made[0].el === P.main && typeof R.RO.made[0].cb === 'function' && count(render, 'window.wpFitBar()') === 1 && iT > 0 && iF > iT && iF < render.indexOf('if (window.wpFloats) window.wpFloats.sync();')
         && wbSrc.includes('window.wpFitBar = fitBar;\n')
-        && css.includes('    .floating-toolbar.tb-tight { gap: 2px; padding: 4px; }\n    .floating-toolbar.tb-tight > .wb-tool-btn, .floating-toolbar.tb-tight > div > .wb-tool-btn { width: 32px; height: 32px; }\n    .floating-toolbar.tb-tight > .wb-tool-sep { margin: 0 2px; }\n')
+        && css.includes('    .floating-toolbar.tb-tight { gap: 2px; padding: 4px; }\n    .floating-toolbar.tb-tight > .wb-tool-btn, .floating-toolbar.tb-tight > div > .wb-tool-btn { width: 32px; height: 32px; }\n    .floating-toolbar.tb-tight > div > .wb-tool-btn.tool-chev { width: 12px; }\n    .floating-toolbar.tb-tight > .wb-tool-sep { margin: 0 2px; }\n')
         && css.includes('    .floating-toolbar.tb-wrap { flex-wrap: wrap; justify-content: center; row-gap: 2px; width: max-content; max-width: calc(100% - 24px); }')
         && css.includes('    .floating-toolbar.tb-wrap > .wb-tool-sep.tb-brk { flex-basis: 100%; width: auto; height: 0; margin: 0; }') && css.includes('    .floating-toolbar.tb-wrap ~ #wbEdgeTools { bottom: 156px; }'), J([R.RO.made.length, iT, iF]));
 }
@@ -406,6 +496,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
     const NOTE = "The play map\n"
         + "- The play map's toolbar has new icons, drawn as lines in the style of\n  the top bar's. The tool in your hand is gold, and so is a setting\n  that is on.\n"
         + "- The toolbar is laid out anew, and no tool is gone. Undo and redo\n  lead, then the tools in groups. Centre, the grid and snap stand in a\n  column at the map's right edge. More, the last button, holds Clear\n  board. In a narrow window the bar tightens, then wraps into even\n  rows, so no tool is ever cut off.\n"
+        + "- A tool that has options has a small arrow beside its icon. The icon\n  takes the tool, and a second press puts it away. The arrow opens the\n  tool's options, and they stay up while you work, until you press the\n  arrow again or take another tool. Snap's icon switches snapping, and\n  its arrow opens what it snaps to.\n"
         + "- The box at the top right of a map wears the toolbar's look. Its\n  pointer location and its zoom buttons can each be hidden on their\n  own. Tick them under Show in the centre menu, or press their buttons\n  in Settings > Table. The rulers have a tick there too.\n\n";
     const wn = [rootRead('WHATSNEW.txt'), read('assets/whatsnew.txt')];
     check('both release notes carry the same lines, and the suite is one of the CI runs',
@@ -416,6 +507,13 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         && count(ix, '<li>Click the grid button at the right edge of the play map and pick <b>Off, Square or Hex</b>.') === 1
         && count(tourSrc, 'From the left: undo and redo for this map, then move and pan, the pen, eraser and fill. Next come shapes and <b>+ Add</b> for text and pictures, then <b>measure</b>, <b>blast</b>, fog and &#127916; <b>Scene</b>. Centre, the <b>grid</b> and <b>snap</b> stand at the map&rsquo;s right edge.') === 1
         && count(tourSrc, "'#wbFloatingToolbar .shape-menu.show, #wbEdgeTools .shape-menu.show'") === 2 && count(ix, 'the minimap fold, rulers, the zoom buttons, the pointer location, panel sizes,') === 1);
+    check('Help says how a press works now: a tip of its own on tool options (the small arrow, the icon, a second press, options that stay up), the Snap entry and the Measure entry in the new words, and the four tools\' own tooltips say what a press does',
+        count(ix, '<div class="help-tip"><b>Tool options:</b> a tool that has options has a <b>small arrow</b> beside its icon. The icon takes the tool, and a second press puts it away. The arrow opens the tool&rsquo;s options. They stay up while you work, until you press the arrow again or take another tool. The pen, the eraser, fill, measure and blast work this way. A button that only opens a menu has the same small arrow, and either of the two opens the menu.</div>') === 1
+        && count(ix, '<b>Snap To</b> picks what a drag aligns to. The Snap button switches snapping on and off, and the small arrow beside it opens Snap To.') === 1
+        && count(ix, 'drag across the map to place a ruler. Press the small arrow beside the tool for its options.</li>') === 1
+        && count(ix, ' id="drawModeBtn" title="Pen. Press again to put it away.">') === 1 && count(ix, ' id="eraserModeBtn" title="Eraser. Click or drag over strokes to erase them. Press again to put it away.">') === 1
+        && count(ix, ' id="measureModeBtn" title="Measure. Drag to place a ruler. Press again to put it away.">') === 1
+        && count(ix, ' id="fillModeBtn" title="Fill. Click or drag grid cells to fill them with a color: a hexagon on hex maps, a square on square maps. Right-click a cell to clear it. Press again to put it away.">') === 1);
 }
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');

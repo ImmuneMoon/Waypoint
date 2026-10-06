@@ -2069,6 +2069,41 @@ window.wpFitToGrid = fitToGrid;
   var _el_panModeBtn = document.getElementById('panModeBtn');
   var _el_eraserModeBtn = document.getElementById('eraserModeBtn');
 
+  // [lookcheck:press-start]
+  // 107, the presses (the owner, 2026-10-06, of a tool that has options: "Chevron opens them"): the icon only takes the tool, and the small arrow
+  // beside it opens the tool's options, which stay up while they are wanted. Options belong to the tool in hand: another tool taken puts them away.
+  var TOOL_OPTS = { drawModeBtn: 'drawMenu', eraserModeBtn: 'eraserMenu', fillModeBtn: 'fillMenu', measureModeBtn: 'measureMenu', blastModeBtn: 'blastMenu' };   // a tool that has options, and the menu that holds them
+  // What a press does. part: 'icon', or 'chev' for the small arrow. inHand: the tool is the one in hand. open: its options are up.
+  // It answers what becomes of the tool ('take' it, put it 'away' for the arrow, or '' leave it) and of its options ('open', 'close', or '' leave them)
+  function toolPress(part, inHand, open) {
+      if (part === 'chev') return open ? { tool: '', opts: 'close' } : { tool: inHand ? '' : 'take', opts: 'open' };
+      return inHand ? { tool: 'away', opts: 'close' } : { tool: 'take', opts: '' };
+  }
+  // Only the tool in hand keeps its options up. updateWbToolbar asks, so a tool taken by a key or by the app itself counts as well as a press
+  function toolOptsOnly(activeId) {
+      Object.keys(TOOL_OPTS).forEach(function(id) { if (id !== activeId) { var m = document.getElementById(TOOL_OPTS[id]); if (m) m.classList.remove('show'); } });
+  }
+  // The one wiring of a tool that has options. o: { id: its button, chev: its small arrow, inHand(), take(), sync(): bring its options up to date }
+  function wireTool(o) {
+      var btn = document.getElementById(o.id), chev = document.getElementById(o.chev), menu = document.getElementById(TOOL_OPTS[o.id]);
+      function press(part) {
+          var p = toolPress(part, !!o.inHand(), !!(menu && menu.classList.contains('show')));
+          if (p.tool === 'take') o.take();
+          if (p.tool === 'away') { var mv = document.getElementById('moveModeBtn'); if (mv) mv.click(); }
+          if (menu && p.opts === 'open') { if (o.sync) o.sync(); menu.classList.add('show'); }
+          if (menu && p.opts === 'close') menu.classList.remove('show');
+      }
+      if (btn) btn.addEventListener('click', function(e) { e.stopPropagation(); press('icon'); });
+      if (chev) chev.addEventListener('click', function(e) { e.stopPropagation(); press('chev'); });
+  }
+  // A button that only opens a menu (Shapes, Add, Fog, Scene, View, Grid) is a pair too, and the two are one control: its small arrow presses it
+  function wireMenuArrows() {
+      Array.prototype.forEach.call(document.querySelectorAll('.tool-chev[data-for]'), function(c) {
+          c.addEventListener('click', function(e) { e.stopPropagation(); var b = document.getElementById(c.getAttribute('data-for')); if (b) b.click(); });
+      });
+  }
+  wireMenuArrows();
+  // [lookcheck:press-end]
   function updateWbToolbar(activeId) {
       ['moveModeBtn', 'panModeBtn', 'drawModeBtn', 'eraserModeBtn', 'measureModeBtn', 'blastModeBtn', 'fogModeBtn', 'fillModeBtn'].forEach(id => {
           var el = document.getElementById(id);
@@ -2084,6 +2119,7 @@ window.wpFitToGrid = fitToGrid;
       // Per-tool cursors (style.css `body.mode-*`): the class beats every item's own cursor
       ['mode-move', 'mode-pan', 'mode-draw', 'mode-eraser', 'mode-measure', 'mode-blast', 'mode-fog', 'mode-fill'].forEach(function(c) { document.body.classList.remove(c); });
       document.body.classList.add('mode-' + String(activeId || 'moveModeBtn').replace('ModeBtn', ''));
+      toolOptsOnly(activeId);   // 107: a tool's options belong to the tool in hand
   }
 
   var _el_drawMenu = document.getElementById('drawMenu');
@@ -2139,22 +2175,15 @@ window.wpFitToGrid = fitToGrid;
       if (bar) bar.style.display = 'none';
   });
 
-  if(_el_drawModeBtn) _el_drawModeBtn.addEventListener('click', function(e) {
-      e.stopPropagation();
-      if(!window.isDrawingMode) {
-          window.isDrawingMode = true;
-          window.isEraserMode = false;
-          window.isMeasureMode = false;
-          var wbWrap = document.getElementById('whiteboardWrap');
-          if(wbWrap) wbWrap.style.cursor = 'crosshair';
-          updateWbToolbar('drawModeBtn');
-          state.selWbId = null; render();
-          if(_el_drawMenu) { syncDrawMenu(); _el_drawMenu.classList.add('show'); }
-      } else if(_el_drawMenu) {
-          if (_el_drawMenu.classList.contains('show')) { var mv = document.getElementById('moveModeBtn'); if (mv) mv.click(); }   // menu open → put the tool away (back to the arrow)
-          else { syncDrawMenu(); _el_drawMenu.classList.add('show'); }   // menu hidden → reopen options
-      }
-  });
+  wireTool({ id: 'drawModeBtn', chev: 'drawOptBtn', inHand: function() { return !!window.isDrawingMode; }, sync: syncDrawMenu, take: function() {
+      window.isDrawingMode = true;
+      window.isEraserMode = false;
+      window.isMeasureMode = false;
+      var wbWrap = document.getElementById('whiteboardWrap');
+      if(wbWrap) wbWrap.style.cursor = 'crosshair';
+      updateWbToolbar('drawModeBtn');
+      state.selWbId = null; render();
+  } });
 
   /* Eraser size (radius, board px) is a local preference; the circle that
      follows the pointer in eraser mode shows exactly what a click will touch. */
@@ -2186,28 +2215,16 @@ window.wpFitToGrid = fitToGrid;
       });
       ['pointerdown', 'click'].forEach(function(ev) { _el_eraserMenu && _el_eraserMenu.addEventListener(ev, function(e) { e.stopPropagation(); }); });
   }
-  document.addEventListener('click', function(e) {
-      if (_el_eraserMenu && _el_eraserMenu.classList.contains('show') && !e.target.closest('#eraserMenu') && !e.target.closest('#eraserModeBtn')) _el_eraserMenu.classList.remove('show');
-  });
-
-  if(_el_eraserModeBtn) _el_eraserModeBtn.addEventListener('click', function(e) {
-      e.stopPropagation();
-      if (!window.isEraserMode) {
-          window.isDrawingMode = false;
-          window.isEraserMode = true;
-          window.isMeasureMode = false;
-          var wbWrap = document.getElementById('whiteboardWrap');
-          if(wbWrap) wbWrap.style.cursor = 'none';   // the size circle is the cursor
-          updateWbToolbar('eraserModeBtn');
-          closeDrawMenu();
-          state.selWbId = null; state.selWbIds = []; render();
-          syncEraserMenu();
-          if (_el_eraserMenu) _el_eraserMenu.classList.add('show');
-      } else if (_el_eraserMenu) {
-          if (_el_eraserMenu.classList.contains('show')) { var mv = document.getElementById('moveModeBtn'); if (mv) mv.click(); }   // menu open → back to the arrow
-          else { syncEraserMenu(); _el_eraserMenu.classList.add('show'); }   // menu hidden → reopen options
-      }
-  });
+  wireTool({ id: 'eraserModeBtn', chev: 'eraserOptBtn', inHand: function() { return !!window.isEraserMode; }, sync: syncEraserMenu, take: function() {
+      window.isDrawingMode = false;
+      window.isEraserMode = true;
+      window.isMeasureMode = false;
+      var wbWrap = document.getElementById('whiteboardWrap');
+      if(wbWrap) wbWrap.style.cursor = 'none';   // the size circle is the cursor
+      updateWbToolbar('eraserModeBtn');
+      closeDrawMenu();
+      state.selWbId = null; state.selWbIds = []; render();
+  } });
 
   // The eraser circle lives inside the scaled whiteboard so it tracks zoom.
   var _eraserCursor = null, _eraserLast = null;
@@ -3401,38 +3418,16 @@ window.wpFitToGrid = fitToGrid;
 
   });
 
-  if(_el_measureModeBtn) _el_measureModeBtn.addEventListener('click', function(e) {
-
-      e.stopPropagation();
-
-      if (!window.isMeasureMode || window.wpMeasureKind !== 'ruler') {
-          window.wpMeasureKind = 'ruler'; closeBlastMenu();
-
-          window.isMeasureMode = true;
-
-          window.isDrawingMode = false;
-
-          window.isEraserMode = false;
-
-          if(wbWrap) wbWrap.style.cursor = 'crosshair';
-
-          updateWbToolbar('measureModeBtn');
-
-          closeDrawMenu();
-
-          state.selWbId = null; state.selWbIds = []; render();
-
-          if(_el_measureMenu) { syncMeasureMenu(); _el_measureMenu.classList.add('show'); }
-
-      } else if(_el_measureMenu) {
-
-          if (_el_measureMenu.classList.contains('show')) { var mv = document.getElementById('moveModeBtn'); if (mv) mv.click(); }   // menu open → back to the arrow
-
-          else { syncMeasureMenu(); _el_measureMenu.classList.add('show'); }   // menu hidden → reopen options
-
-      }
-
-  });
+  wireTool({ id: 'measureModeBtn', chev: 'measureOptBtn', inHand: function() { return !!window.isMeasureMode && window.wpMeasureKind === 'ruler'; }, sync: syncMeasureMenu, take: function() {
+      window.wpMeasureKind = 'ruler'; closeBlastMenu();
+      window.isMeasureMode = true;
+      window.isDrawingMode = false;
+      window.isEraserMode = false;
+      if(wbWrap) wbWrap.style.cursor = 'crosshair';
+      updateWbToolbar('measureModeBtn');
+      closeDrawMenu();
+      state.selWbId = null; state.selWbIds = []; render();
+  } });
 
   document.querySelectorAll('#measureUnitRow .draw-style-btn').forEach(function(b) {
 
@@ -3451,18 +3446,6 @@ window.wpFitToGrid = fitToGrid;
   var _el_measureClearBtn = document.getElementById('measureClearBtn');
 
   if(_el_measureClearBtn) _el_measureClearBtn.addEventListener('click', clearMeasures);
-
-  document.addEventListener('click', function(e) {
-
-      if(_el_measureMenu && _el_measureMenu.classList.contains('show') &&
-
-         !e.target.closest('#measureMenu') && !e.target.closest('#measureModeBtn')) {
-
-          _el_measureMenu.classList.remove('show');
-
-      }
-
-  });
 
   if (wbWrap) {
 
@@ -3817,26 +3800,18 @@ window.wpFitToGrid = fitToGrid;
   }
   ['fillTerrainChk', 'fillTerrainCost'].forEach(function(id) { var e0 = document.getElementById(id); if (e0) e0.addEventListener('change', fillTerrainSet); });
   // [fogcheck:fillmenu-end]
-  if (_el_fillModeBtn) _el_fillModeBtn.addEventListener('click', function(e) {
-      e.stopPropagation();
-      if (!window.isFillMode) {
-          window.isDrawingMode = false; window.isEraserMode = false; window.isMeasureMode = false; window.isFogMode = false;
-          if (wbWrap) wbWrap.style.cursor = 'crosshair';
-          updateWbToolbar('fillModeBtn'); closeDrawMenu();
-          state.selWbId = null; state.selWbIds = []; render();
-          syncFillMenu(); if (_el_fillMenu) _el_fillMenu.classList.add('show');
-      } else if (_el_fillMenu) {
-          if (_el_fillMenu.classList.contains('show')) { var mv = document.getElementById('moveModeBtn'); if (mv) mv.click(); }
-          else { syncFillMenu(); _el_fillMenu.classList.add('show'); }
-      }
-  });
+  wireTool({ id: 'fillModeBtn', chev: 'fillOptBtn', inHand: function() { return !!window.isFillMode; }, sync: syncFillMenu, take: function() {
+      window.isDrawingMode = false; window.isEraserMode = false; window.isMeasureMode = false; window.isFogMode = false;
+      if (wbWrap) wbWrap.style.cursor = 'crosshair';
+      updateWbToolbar('fillModeBtn'); closeDrawMenu();
+      state.selWbId = null; state.selWbIds = []; render();
+  } });
   document.querySelectorAll('#fillColorRow .draw-swatch[data-color]').forEach(function(sw) {
       sw.addEventListener('click', function() { state.fillColor = this.dataset.color; var fi = document.getElementById('fillColorInput'); if (fi) fi.value = this.dataset.color; try { localStorage.setItem('wp_fillColor', state.fillColor); } catch (e) {} syncFillMenu(); });
   });
   var _fillColorInput = document.getElementById('fillColorInput');
   if (_fillColorInput) _fillColorInput.addEventListener('input', function() { state.fillColor = this.value; try { localStorage.setItem('wp_fillColor', state.fillColor); } catch (e) {} syncFillMenu(); });
   syncFillMenu();   // show the loaded fill color on the toolbar button at startup
-  document.addEventListener('click', function(e) { if (_el_fillMenu && _el_fillMenu.classList.contains('show') && !e.target.closest('#fillMenu') && !e.target.closest('#fillModeBtn')) _el_fillMenu.classList.remove('show'); });
   var _fillDirty = false;
   // Snap a board point to its grid cell (square 50px, or hex). One source of truth for fill + flood-fill.
   function cellSnap(x, y) {
@@ -4119,18 +4094,14 @@ window.wpFitToGrid = fitToGrid;
       var b = lastBlast(); if (b) { b.ft = ft; b.name = name || ''; renderMeasures(); }
       syncBlastMenu();
   }
-  if (_el_blastModeBtn) _el_blastModeBtn.addEventListener('click', function(e) {
-      e.stopPropagation();
-      if (!window.isMeasureMode || window.wpMeasureKind !== 'blast') {
-          window.isMeasureMode = true; window.wpMeasureKind = 'blast';
-          window.isDrawingMode = false; window.isEraserMode = false;
-          if (wbWrap) wbWrap.style.cursor = 'crosshair';
-          updateWbToolbar('blastModeBtn');
-          closeDrawMenu(); if (_el_measureMenu) _el_measureMenu.classList.remove('show');
-          state.selWbId = null; state.selWbIds = []; render();
-          if (_el_blastMenu) { syncBlastMenu(); _el_blastMenu.classList.add('show'); }
-      } else if (_el_blastMenu) { if (_el_blastMenu.classList.contains('show')) { var mv = document.getElementById('moveModeBtn'); if (mv) mv.click(); } else { syncBlastMenu(); _el_blastMenu.classList.add('show'); } }
-  });
+  wireTool({ id: 'blastModeBtn', chev: 'blastOptBtn', inHand: function() { return !!window.isMeasureMode && window.wpMeasureKind === 'blast'; }, sync: syncBlastMenu, take: function() {
+      window.isMeasureMode = true; window.wpMeasureKind = 'blast';
+      window.isDrawingMode = false; window.isEraserMode = false;
+      if (wbWrap) wbWrap.style.cursor = 'crosshair';
+      updateWbToolbar('blastModeBtn');
+      closeDrawMenu(); if (_el_measureMenu) _el_measureMenu.classList.remove('show');
+      state.selWbId = null; state.selWbIds = []; render();
+  } });
   document.querySelectorAll('#blastPresetRow .draw-style-btn').forEach(function(b) { b.addEventListener('click', function() { setBlastShape(this.dataset.ft, this.dataset.name); }); });
   var _el_blastFt = document.getElementById('blastFt');
   if (_el_blastFt) _el_blastFt.addEventListener('change', function() { setBlastShape(this.value, ''); });
@@ -4141,9 +4112,6 @@ window.wpFitToGrid = fitToGrid;
   var _el_blastUndoThrow = document.getElementById('blastUndoThrow');
   if (_el_blastUndoThrow) _el_blastUndoThrow.addEventListener('click', function() { if (window.wpUndoThrow) window.wpUndoThrow(); });
   if (_el_blastMenu) ['pointerdown', 'click'].forEach(function(ev) { _el_blastMenu.addEventListener(ev, function(e) { e.stopPropagation(); }); });
-  document.addEventListener('click', function(e) {
-      if (_el_blastMenu && _el_blastMenu.classList.contains('show') && !e.target.closest('#blastMenu') && !e.target.closest('#blastModeBtn')) closeBlastMenu();
-  });
 
   // Pen preferences survive restarts: color, width, freehand/line (wp_drawColor / wp_drawWidth / wp_drawStraight)
   try { var _dc0 = localStorage.getItem('wp_drawColor'); if (_dc0 && /^#[0-9a-f]{6}$/i.test(_dc0)) state.drawColor = _dc0; } catch (e) {}
@@ -4191,17 +4159,6 @@ window.wpFitToGrid = fitToGrid;
           saveDrawPrefs();
           syncDrawMenu();
       });
-  });
-
-  // Close the pen options when drawing starts on the board
-  if(wbWrap) wbWrap.addEventListener('pointerdown', closeDrawMenu);
-
-  // Close the pen options when clicking outside the menu
-  document.addEventListener('click', function(e) {
-      if(_el_drawMenu && _el_drawMenu.classList.contains('show') &&
-         !e.target.closest('#drawMenu') && e.target !== _el_drawModeBtn && !e.target.closest('#drawModeBtn')) {
-          closeDrawMenu();
-      }
   });
 
   syncDrawMenu();
@@ -6109,8 +6066,8 @@ if(_el_wbSnapBtn) {
         var ds = document.getElementById('snapBtn');
         if (ds) ds.classList.toggle('active', !!state.snap);
         _el_wbSnapBtn.title = state.snap
-            ? 'Snap is on — aligning to ' + ({ grid: 'grid cells', items: 'other items', both: 'grid cells and other items' })[state.snapMode] + ' (click for options)'
-            : 'Snap is off — click to turn on';
+            ? 'Snap is on, aligning to ' + ({ grid: 'grid cells', items: 'other items', both: 'grid cells and other items' })[state.snapMode] + '. Press to turn it off.'
+            : 'Snap is off. Press to turn it on.';
     }
     function setSnap(on) {
         state.snap = !!on;
@@ -6118,11 +6075,10 @@ if(_el_wbSnapBtn) {
         syncSnapMenu();
         if (window.wpNet && window.wpNet.syncSnap) window.wpNet.syncSnap();   // the snap rule: a host's Snap is the table's
     }
-    _el_wbSnapBtn.addEventListener('click', function(e) {
-        e.stopPropagation();
-        if (!state.snap) { setSnap(true); if (_el_snapMenu) _el_snapMenu.classList.add('show'); }
-        else if (_el_snapMenu) { syncSnapMenu(); _el_snapMenu.classList.toggle('show'); }
-    });
+    // 107, the presses: the icon switches snapping, and the small arrow beside it opens what it snaps to
+    _el_wbSnapBtn.addEventListener('click', function(e) { e.stopPropagation(); setSnap(!state.snap); toast(state.snap ? 'Snapping on.' : 'Snapping off.'); });
+    var _el_snapOptBtn = document.getElementById('snapOptBtn');
+    if (_el_snapOptBtn) _el_snapOptBtn.addEventListener('click', function(e) { e.stopPropagation(); if (_el_snapMenu) { syncSnapMenu(); _el_snapMenu.classList.toggle('show'); } });
     document.querySelectorAll('.snap-mode-btn').forEach(function(b) {
         b.addEventListener('click', function(e) {
             e.stopPropagation();
@@ -6138,7 +6094,7 @@ if(_el_wbSnapBtn) {
     if (_snapOff) _snapOff.addEventListener('click', function(e) { e.stopPropagation(); setSnap(!state.snap); if (!state.snap && _el_snapMenu) _el_snapMenu.classList.remove('show'); toast(state.snap ? 'Snapping on.' : 'Snapping off.'); });
     if (_el_snapMenu) ['pointerdown', 'click'].forEach(function(ev) { _el_snapMenu.addEventListener(ev, function(e) { e.stopPropagation(); }); });
     document.addEventListener('click', function(e) {
-        if (_el_snapMenu && _el_snapMenu.classList.contains('show') && !e.target.closest('#snapMenu') && !e.target.closest('#wbSnapBtn')) _el_snapMenu.classList.remove('show');
+        if (_el_snapMenu && _el_snapMenu.classList.contains('show') && !e.target.closest('#snapMenu') && !e.target.closest('#snapOptBtn')) _el_snapMenu.classList.remove('show');
     });
     syncSnapMenu();
 }

@@ -86,10 +86,10 @@
   body.net-client #saveAsDropdownWrap, body.net-client #importBtn,
   body.net-client #searchCampBtn, body.net-client #newCampBtn, body.net-client #renameCampBtn, body.net-client #systemBtn, body.net-client #delCampBtn,
   body.net-client #campaignSelect, body.net-client #plannerTools,
-  body.net-client #wbUndoBtn, body.net-client #wbRedoBtn, body.net-client #wbGridBtn, body.net-client #wbSnapBtn,
+  body.net-client #wbUndoBtn, body.net-client #wbRedoBtn, body.net-client #wbGridBtn, body.net-client #wbSnapBtn, body.net-client #gridOptBtn, body.net-client #snapOptBtn,
   body.net-client #handoutsBtn,
   body.net-client #shapeTextBtn,
-  body.net-client #shapeMenuBtn, body.net-client #addImageBtn, body.net-client #clearWbBtn,
+  body.net-client #shapeMenuBtn, body.net-client #shapeOptBtn, body.net-client #addImageBtn, body.net-client #clearWbBtn,
   body.net-client .wb-tool-sep {
       display: none !important;
   }
@@ -306,6 +306,15 @@
     .ico.ico-note circle { fill: currentColor; stroke: none; }   /* the music note's two heads, as in the top bar */
     .floating-toolbar input[type=range], .floating-toolbar input[type=checkbox] { accent-color: var(--gold); }   /* one accent: as every other slider and tick */
     .ico.ico-dots { stroke-width: 2.6; }   /* three dots read as dots */
+    /* 107, the presses (the owner: "Chevron opens them"): a tool that has options is a pair, its icon and a small arrow. The icon takes the tool,
+       the arrow opens its options, and the arrow is gold while they are up. A button that only opens a menu is the same pair: its arrow presses it */
+    .floating-toolbar .tool-pair { display: inline-flex !important; align-items: center; }
+    .wb-tool-btn.tool-chev { width: 13px; margin-left: -3px; border-radius: 0 8px 8px 0; color: var(--dim); }
+    .wb-tool-btn.tool-chev > .ico { width: 10px; height: 10px; stroke-width: 2.6; }
+    .wb-tool-btn.tool-chev:hover { background: transparent; color: var(--gold); }
+    .floating-toolbar .tool-pair:has(> .shape-menu.show) > .tool-chev { color: var(--gold); }
+    .tool-pair > .wb-tool-btn[style*="none"] + .tool-chev { display: none; }   /* an arrow goes with its button: the fog button shows only while the feature is on */
+    body.net-client .floating-toolbar .tool-pair:has(> #shapeMenuBtn) { display: none !important; }   /* a player has no Shapes: its pair takes no room on their bar */
     /* 107, the layout: View, Grid and Snap stand in a column at the map's right edge, clear of the pane's grip and above the bar. It is a second
        box of the same toolbar (so it has the bar's looks and its menus' looks), and its menus open to its left */
     #wbEdgeTools.floating-toolbar { left: auto; right: 26px; bottom: 96px; transform: none; flex-direction: column; gap: 2px; padding: 5px; }
@@ -323,6 +332,7 @@
     /* The bar never runs off the map (whiteboard.js fitBar): it tightens, then wraps. Only the bar's own buttons shrink, never a menu's */
     .floating-toolbar.tb-tight { gap: 2px; padding: 4px; }
     .floating-toolbar.tb-tight > .wb-tool-btn, .floating-toolbar.tb-tight > div > .wb-tool-btn { width: 32px; height: 32px; }
+    .floating-toolbar.tb-tight > div > .wb-tool-btn.tool-chev { width: 12px; }
     .floating-toolbar.tb-tight > .wb-tool-sep { margin: 0 2px; }
     .floating-toolbar.tb-wrap { flex-wrap: wrap; justify-content: center; row-gap: 2px; width: max-content; max-width: calc(100% - 24px); }   /* max-content: or a box centred from its left edge is fitted to half the map */
     .floating-toolbar.tb-wrap > .wb-tool-sep.tb-brk { flex-basis: 100%; width: auto; height: 0; margin: 0; }   /* a row of the wrapped bar ends here (fitBar picks where): a group is never split */
@@ -3066,6 +3076,8 @@
   /* light-mode toolbar glyphs: the play-map and drawing toolbars used a fixed light grey that washes out on a light ground */
   html[data-theme="light"] .wb-tool-btn, html[data-theme="light"] .draw-size-btn, html[data-theme="light"] .draw-style-btn { color: var(--ink); }
   html[data-theme="light"] .wb-tool-btn.active, html[data-theme="light"] .draw-size-btn.active, html[data-theme="light"] .draw-style-btn.active { color: #fff; }
+  html[data-theme="light"] .wb-tool-btn.tool-chev { color: var(--dim); }   /* the small arrows stay quiet in the light theme too */
+  html[data-theme="light"] .wb-tool-btn.tool-chev:hover, html[data-theme="light"] .floating-toolbar .tool-pair:has(> .shape-menu.show) > .tool-chev { color: var(--gold); }
   html[data-theme="light"] .zoom-btn { color: var(--ink); }   /* the zoom box wears the bar's looks in the light theme too */
   html[data-theme="light"] .draw-swatch.active { border-color: var(--ink); }
 

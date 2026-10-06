@@ -105,6 +105,9 @@ jobs:
       - name: shelfcheck — pages in a session (where a page opens, the Pages shelf, tabs in the panel, map pins) and the names in this file
         if: ${{ !cancelled() }}
         run: node tools/shelfcheck.js
+      - name: lookcheck — the look of the play map (no control removed, the toolbar's line icons, gold for the tool in hand)
+        if: ${{ !cancelled() }}
+        run: node tools/lookcheck.js
       - name: updatercheck — signed updates, the way back, the core updating itself, the key tool and the core's record (run on scratch installs; nothing downloaded is ever started)
         if: ${{ !cancelled() }}
         run: node tools/updatercheck.js

@@ -296,9 +296,15 @@
         color: var(--ink);
     }
     .wb-tool-btn.active {
-        background: #4A90E2;
-        color: #fff;
+        background: var(--gold);
+        color: #1a1a1a;
     }
+    /* 107 (the owner, 2026-10-06: line icons for the play map's tools, shown first, and gold for what is in hand or on): the bar and its menus
+       wear the app's own line icons (.ico). A lone icon on a bar button is a little larger than one beside a word */
+    .wb-tool-btn > .ico { width: 19px; height: 19px; vertical-align: 0; }
+    .draw-style-btn > .ico { width: 14px; height: 14px; vertical-align: -2px; margin-right: 4px; }
+    .ico.ico-note circle { fill: currentColor; stroke: none; }   /* the music note's two heads, as in the top bar */
+    .floating-toolbar input[type=range], .floating-toolbar input[type=checkbox] { accent-color: var(--gold); }   /* one accent: as every other slider and tick */
     /* The fog button says this map's own fog state (fog.js btnSync): a ring and ON while its fog is on, whatever tool is in hand */
     #fogModeBtn { position: relative; }
     #fogModeBtn.fog-on { box-shadow: inset 0 0 0 2px var(--gold); }
@@ -407,7 +413,7 @@
         transition: background 0.15s;
     }
     .draw-size-btn:hover { background: var(--plate); }
-    .draw-size-btn.active { background: #4A90E2; color: #fff; }
+    .draw-size-btn.active { background: var(--gold); color: #1a1a1a; }
     .draw-size-dot { border-radius: 50%; background: currentColor; flex: 0 0 auto; }
     .draw-style-btn {
         flex: 1; height: 30px; border-radius: 8px; background: transparent; border: none;
@@ -415,7 +421,7 @@
         transition: background 0.15s;
     }
     .draw-style-btn:hover { background: var(--plate); }
-    .draw-style-btn.active { background: #4A90E2; color: #fff; }
+    .draw-style-btn.active { background: var(--gold); color: #1a1a1a; }
 
   #whiteboardWrap {
     display: none; position: relative; flex: 1 1 auto; overflow: hidden;

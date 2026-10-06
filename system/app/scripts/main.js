@@ -88,6 +88,16 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   }
   window._wpSizeZoomScroller = _sizeZoomScroller;
 
+  // [lookcheck:corner-start]
+  // 107 (the owner, 2026-10-06: "optionally hide both independently"): the box at a map's top right holds the pointer location and the zoom buttons.
+  // Each is put away by a switch of this computer's own (settings.js viewSwitch: Settings, Table, and the play map's View menu), kept as wp_pointerPos
+  // and wp_zoomCtl. A half is shown unless its key says off, and a store that cannot be read shows both. The style sheet does the rest
+  function cornerOff(key) { try { return localStorage.getItem(key) === 'off'; } catch (e) { return false; } }
+  function applyCorner() { var cl = document.body.classList; cl.toggle('no-pointerpos', cornerOff('wp_pointerPos')); cl.toggle('no-zoomctl', cornerOff('wp_zoomCtl')); }
+  window.wpApplyCorner = applyCorner;
+  // [lookcheck:corner-end]
+  applyCorner();
+
   var _el_zoomInBtn = document.getElementById('zoomInBtn');
 
   // Zoom -/+ buttons: a single click steps once; press-and-hold auto-repeats (350ms before it kicks in, then every 70ms).
@@ -206,6 +216,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       document.getElementById('wbFloatingToolbar').style.display = (!isPlanner && state.viewMode === 'visual') ? 'inline-flex' : 'none';
 
+      var edgeTools = document.getElementById('wbEdgeTools'); if (edgeTools) edgeTools.style.display = (!isPlanner && state.viewMode === 'visual') ? 'flex' : 'none';   // 107: View, Grid and Snap stand at the map's right edge, and show with the bar
+
       document.getElementById('plannerTools').style.display = isPlanner ? 'inline-flex' : 'none';
 
       
@@ -229,6 +241,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       document.getElementById('sidebar').style.display = isPlanner ? 'none' : 'flex';
 
       document.getElementById('toggleRightBtn').style.display = isPlanner ? 'none' : 'flex';
+      if (window.wpFitBar) window.wpFitBar();   // 107: the bar never runs off the map (it tightens, then wraps). Asked once the panes are switched: it measures the room the map has
       if (window.wpFloats) window.wpFloats.sync();   // 1.5.4 (floats.js): a floating box shows on the play map, and on another view only if it was asked for there
 
       // Breadcrumb trail for nested maps (world > region > city > ...)

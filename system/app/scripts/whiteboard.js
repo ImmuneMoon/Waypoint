@@ -5683,18 +5683,88 @@ if (_el_sceneFxBtn) _el_sceneFxBtn.addEventListener('click', function() {
 var _sceneFxEl = document.getElementById('sceneFxMenu');
 if (_sceneFxEl) _sceneFxEl.addEventListener('click', function(e) { if (e.target.closest('button')) this.classList.remove('show'); });
 
-// One toolbar popup at a time: pressing any tool button closes every other button's open menu,
-// so a flyout only shows while its own button is the one in hand. Capture phase, ahead of each
-// button's own toggle, and it never closes the menu the click landed in (a row) or opens on.
-var _wbTb = document.getElementById('wbFloatingToolbar');
-if (_wbTb) _wbTb.addEventListener('click', function(e) {
+// [lookcheck:bar-start]
+// 107, the toolbar's layout (the owner, 2026-10-06: the tools on one bar; View, Grid and Snap in a column at the map's right edge; More, the last
+// button, with Clear board; and of the zoom box, "Leave the box as it is"). The bar and the column are the two boxes of the one toolbar.
+var _wbTb = document.getElementById('wbFloatingToolbar'), _wbEdge = document.getElementById('wbEdgeTools');
+// One toolbar popup at a time, across both boxes: pressing any tool button closes every other button's open menu, so a flyout only shows while its
+// own button is the one in hand. Capture phase, ahead of each button's own toggle, and it never closes the menu the click landed in (a row) or opens on.
+function wbOneMenu(e) {
     var btn = e.target.closest('.wb-tool-btn');
     if (!btn) return;
     var insideMenu = btn.closest('.shape-menu');
     var wrap = btn.closest('div');
-    var own = (wrap && wrap !== _wbTb) ? wrap.querySelector('.shape-menu') : null;
-    _wbTb.querySelectorAll('.shape-menu.show').forEach(function(m) { if (m !== own && m !== insideMenu) m.classList.remove('show'); });
-}, true);
+    var own = (wrap && wrap !== _wbTb && wrap !== _wbEdge) ? wrap.querySelector('.shape-menu') : null;
+    [_wbTb, _wbEdge].forEach(function(box) { if (box) box.querySelectorAll('.shape-menu.show').forEach(function(m) { if (m !== own && m !== insideMenu) m.classList.remove('show'); }); });
+}
+[_wbTb, _wbEdge].forEach(function(box) { if (box) box.addEventListener('click', wbOneMenu, true); });
+// More, the last button of the bar: its menu holds Clear board. A press on a row puts the menu away, and so does a press anywhere else
+var _el_wbMoreBtn = document.getElementById('wbMoreBtn'), _el_wbMoreMenu = document.getElementById('wbMoreMenu');
+if (_el_wbMoreBtn && _el_wbMoreMenu) {
+    _el_wbMoreBtn.addEventListener('click', function() { _el_wbMoreMenu.classList.toggle('show'); });
+    _el_wbMoreMenu.addEventListener('click', function(e) { if (e.target.closest('button')) _el_wbMoreMenu.classList.remove('show'); });
+    document.addEventListener('click', function(e) { if (_el_wbMoreMenu.classList.contains('show') && !e.target.closest('#wbMoreMenu') && !e.target.closest('#wbMoreBtn')) _el_wbMoreMenu.classList.remove('show'); });
+}
+// The View menu's Show group: the rulers, the zoom buttons and the pointer location, each ticked while it is shown. A row presses the very switch
+// Settings has (settings.js viewSwitch), so one place switches each. The menu stays open: several can be ticked in one visit
+var VIEW_TICKS = [['wbRulersBtn', 'rulers'], ['wbZoomCtlBtn', 'zoom'], ['wbPointerPosBtn', 'pointer']];   // a row of the View menu, and the switch it ticks
+function syncViewTicks() {
+    VIEW_TICKS.forEach(function(r) {
+        var b = document.getElementById(r[0]); if (!b) return;
+        var on = !(typeof window.wpViewShown === 'function' && window.wpViewShown(r[1]) === false);   // shown unless its switch says hidden
+        b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false');
+    });
+}
+VIEW_TICKS.forEach(function(r) { var b = document.getElementById(r[0]); if (b) b.addEventListener('click', function() { if (typeof window.wpViewSwitch === 'function') window.wpViewSwitch(r[1]); syncViewTicks(); }); });
+var _viewBtn = document.getElementById('wbCenterBtn'); if (_viewBtn) _viewBtn.addEventListener('click', syncViewTicks);   // Settings may have switched one since
+syncViewTicks();
+// The bar never runs off the map. Where it is wider than the room it has, it tightens (smaller buttons, less air between them); where that is still
+// too wide, it wraps onto a second row. Nothing folds away: every tool keeps its own button and its own menu at any width
+function barFit(wide, tight, room) { return wide <= room ? '' : (tight <= room ? 'tight' : 'wrap'); }
+// Where a wrapped bar breaks. A group (the buttons between two separators) is never split: the bar takes the fewest rows that fit the room, and of
+// the ways to fill that many rows the one whose widest row is narrowest, so the rows come out even. widths: each group's width. gap: what a
+// separator adds between two groups of one row. Answers { cuts: the groups a row ends with, width: the widest row }, or null where a group alone is
+// wider than the room (the bar then wraps wherever it must)
+function barBreaks(widths, gap, room) {
+    var n = Array.isArray(widths) ? widths.length : 0, best = null;
+    if (!n || n > 12 || !(room > 0) || !(gap >= 0) || widths.some(function(w) { return !(w > 0); })) return null;   // a group wider than the room fits no row below: nothing is answered for it either
+    var rowW = function(a, z) { var s = 0; for (var i = a; i <= z; i++) s += widths[i] + (i > a ? gap : 0); return s; };
+    var pick = function(start, left, cuts, worst) {
+        if (left === 1) { var last = rowW(start, n - 1), all = Math.max(worst, last); if (last <= room && (!best || all < best.width)) best = { cuts: cuts, width: all }; return; }
+        for (var end = start; end <= n - left; end++) { var w = rowW(start, end); if (w > room) break; pick(end + 1, left - 1, cuts.concat([end]), Math.max(worst, w)); }
+    };
+    for (var rows = 1; rows <= n && !best; rows++) pick(0, rows, [], 0);   // the fewest rows first
+    return best;
+}
+// The bar as it stands in one row: its groups, the separators between them, what a separator adds, and what the bar's own skin adds around a row.
+// Only what shows is counted (a player's bar has fewer buttons and no separators: one group)
+function barGroups(bar) {
+    var groups = [], seps = [], cur = null, gap = 0;
+    Array.prototype.forEach.call(bar.children, function(k) {
+        if (!(k.offsetWidth > 0)) return;
+        if (k.classList.contains('wb-tool-sep')) { if (cur) { seps.push(k); cur = null; } return; }   // one that leads the bar or follows another parts nothing
+        if (!cur) { cur = { a: k.offsetLeft, z: 0 }; groups.push(cur); }
+        cur.z = k.offsetLeft + k.offsetWidth;
+    });
+    if (!groups.length) return null;
+    for (var i = 1; i < groups.length; i++) gap = Math.max(gap, groups[i].a - groups[i - 1].z);
+    return { widths: groups.map(function(g) { return g.z - g.a; }), seps: seps.slice(0, groups.length - 1), gap: gap, chrome: bar.offsetWidth - (groups[groups.length - 1].z - groups[0].a) };
+}
+function fitBar() {
+    if (!_wbTb || !_wbTb.parentElement || _wbTb.style.display === 'none') return;
+    var room = _wbTb.parentElement.clientWidth - 24; if (!(room > 0)) return;
+    _wbTb.classList.remove('tb-tight'); _wbTb.classList.remove('tb-wrap'); _wbTb.style.width = '';
+    Array.prototype.forEach.call(_wbTb.children, function(k) { k.classList.remove('tb-brk'); });
+    var wide = _wbTb.offsetWidth; if (barFit(wide, 0, room) === '') return;
+    _wbTb.classList.add('tb-tight');
+    if (barFit(wide, _wbTb.offsetWidth, room) !== 'wrap') return;
+    var g = barGroups(_wbTb), br = g ? barBreaks(g.widths, g.gap, room - g.chrome) : null;   // measured while the tight bar is still one row
+    _wbTb.classList.add('tb-wrap');
+    if (br) { br.cuts.forEach(function(c) { g.seps[c].classList.add('tb-brk'); }); _wbTb.style.width = (br.width + g.chrome + 2) + 'px'; }   // a row ends at its separator, and the bar is as wide as its widest row
+}
+window.wpFitBar = fitBar;
+if (_wbTb && _wbTb.parentElement && typeof ResizeObserver === 'function') new ResizeObserver(function() { fitBar(); }).observe(_wbTb.parentElement);
+// [lookcheck:bar-end]
 
 // Picking a shape arms placement: the next click on the board drops it there
 // (default size), and a drag draws the exact box it should fill. Esc cancels.

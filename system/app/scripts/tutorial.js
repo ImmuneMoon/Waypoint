@@ -690,7 +690,7 @@ var STEPS = [
       help: ['datamap', 'Rooms'],
       before: function() { openItem('map_tut_city'); goView('data'); state.selId = 'tut_palace'; render(); if (window.wpSyncRightPanel) window.wpSyncRightPanel(); openRightForTour(); } },
     { section: 'Play map & VTT features', target: '#wbFloatingToolbar', title: 'Play map tools',
-      html: 'Now inside the hideout, on its Play Map. From the left: centre, undo and redo for this map, the <b>grid</b> and <b>snap</b>. Then move and pan, the pen, eraser and fill, and <b>measure</b>, <b>blast</b>, fog and &#127916; <b>Scene</b>. Last come shapes and <b>+ Add</b> for text and pictures. Hold <kbd>Space</kbd> and drag to pan from any tool.',
+      html: 'Now inside the hideout, on its Play Map. From the left: undo and redo for this map, then move and pan, the pen, eraser and fill. Next come shapes and <b>+ Add</b> for text and pictures, then <b>measure</b>, <b>blast</b>, fog and &#127916; <b>Scene</b>. Centre, the <b>grid</b> and <b>snap</b> stand at the map&rsquo;s right edge. Hold <kbd>Space</kbd> and drag to pan from any tool.',
       help: ['whiteboard', 'Placing things'],
       before: function() { openItem('map_tut_ground'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); } },
     { target: '#soundBtn', title: 'Sound',
@@ -1039,7 +1039,7 @@ function show(i, dir) {
     tour.i = i; tour.asking = false;
     rememberAt(i);
     var step = STEPS[i];
-    document.querySelectorAll('#wbFloatingToolbar .shape-menu.show').forEach(function(m) { m.classList.remove('show'); });   // each step re-opens a toolbar flyout only if it needs it
+    document.querySelectorAll('#wbFloatingToolbar .shape-menu.show, #wbEdgeTools .shape-menu.show').forEach(function(m) { m.classList.remove('show'); });   // each step re-opens a toolbar flyout only if it needs it
     try { clearStage(step); } catch (e) { console.warn('[tutorial] stage reset failed', e); }
     if (!step.opens && window.wpSheets && window.wpSheets.closeHuds) window.wpSheets.closeHuds();   // no HUD left floating on another step (Back, a section jump)
     try { if (step.before) step.before(); } catch (e) { console.warn('[tutorial] step setup failed', e); }
@@ -1120,7 +1120,7 @@ function endTour() {
         var cp = document.getElementById('chatPanel'); if (cp) cp.style.display = 'none'; if (window.wpDice) window.wpDice.closePanel();   // and the Dice step the chat panel
         if (window.wpSheets) { window.wpSheets.closeSheet(); if (window.wpSheets.closeHuds) window.wpSheets.closeHuds(); window.wpSheets.close(true); }   // and the sheet step Bren's sheet (and the HUD step his HUD) + the layout step's System editor
         if (window.wpFog) window.wpFog.setPreview('off');   // and the fog step its player-view preview
-        document.querySelectorAll('#wbFloatingToolbar .shape-menu.show').forEach(function(m) { m.classList.remove('show'); });   // and any toolbar flyout a step opened (Add, Scene)
+        document.querySelectorAll('#wbFloatingToolbar .shape-menu.show, #wbEdgeTools .shape-menu.show').forEach(function(m) { m.classList.remove('show'); });   // and any toolbar flyout a step opened (Add, Scene)
     }
     if (partWay) toast('The tour stopped at “' + STEPS[at].title + '”. Help ▸ Tutorial resumes it there.');
     syncPane();

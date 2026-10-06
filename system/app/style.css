@@ -305,6 +305,28 @@
     .draw-style-btn > .ico { width: 14px; height: 14px; vertical-align: -2px; margin-right: 4px; }
     .ico.ico-note circle { fill: currentColor; stroke: none; }   /* the music note's two heads, as in the top bar */
     .floating-toolbar input[type=range], .floating-toolbar input[type=checkbox] { accent-color: var(--gold); }   /* one accent: as every other slider and tick */
+    .ico.ico-dots { stroke-width: 2.6; }   /* three dots read as dots */
+    /* 107, the layout: View, Grid and Snap stand in a column at the map's right edge, clear of the pane's grip and above the bar. It is a second
+       box of the same toolbar (so it has the bar's looks and its menus' looks), and its menus open to its left */
+    #wbEdgeTools.floating-toolbar { left: auto; right: 26px; bottom: 96px; transform: none; flex-direction: column; gap: 2px; padding: 5px; }
+    #wbEdgeTools .shape-menu { left: auto !important; right: 100% !important; bottom: 0 !important; top: auto !important; transform: none !important; margin: 0 10px 0 0 !important; width: max-content; }   /* max-content: a box that opens to the left of a narrow column is as wide as its words */
+    body.stream-mode #wbEdgeTools { display: none !important; }   /* the stream window shows the map alone: the column goes with the bar */
+    body.net-client #wbEdgeTools { gap: 0; }   /* a player's column holds the one button */
+    /* The View menu's Show group: a row is ticked while its thing is shown (whiteboard.js syncViewTicks) */
+    #wbCenterMenu .view-show-label { border-top: 1px solid #333; margin-top: 4px; padding: 8px 12px 3px; }
+    #wbEdgeTools #wbCenterMenu { bottom: -80px !important; max-height: calc(100vh - 274px); overflow-y: auto; }   /* the tallest of the column's menus stands on the column's foot, and scrolls in a short window: no row is cut off */
+    .wb-tool-btn.view-row, .wb-tool-btn.view-tick { flex: 0 0 auto; width: 100%; height: auto; border-radius: 0; font-size: 12px; justify-content: flex-start; white-space: nowrap; }
+    .wb-tool-btn.view-row { padding: 7px 12px 7px 34px; }   /* an action's words begin where a tick's words do */
+    .wb-tool-btn.view-tick { padding: 7px 12px; gap: 8px; }
+    .wb-tool-btn.view-tick > .ico { width: 14px; height: 14px; color: var(--gold); visibility: hidden; }
+    .wb-tool-btn.view-tick.on > .ico { visibility: visible; }
+    /* The bar never runs off the map (whiteboard.js fitBar): it tightens, then wraps. Only the bar's own buttons shrink, never a menu's */
+    .floating-toolbar.tb-tight { gap: 2px; padding: 4px; }
+    .floating-toolbar.tb-tight > .wb-tool-btn, .floating-toolbar.tb-tight > div > .wb-tool-btn { width: 32px; height: 32px; }
+    .floating-toolbar.tb-tight > .wb-tool-sep { margin: 0 2px; }
+    .floating-toolbar.tb-wrap { flex-wrap: wrap; justify-content: center; row-gap: 2px; width: max-content; max-width: calc(100% - 24px); }   /* max-content: or a box centred from its left edge is fitted to half the map */
+    .floating-toolbar.tb-wrap > .wb-tool-sep.tb-brk { flex-basis: 100%; width: auto; height: 0; margin: 0; }   /* a row of the wrapped bar ends here (fitBar picks where): a group is never split */
+    .floating-toolbar.tb-wrap ~ #wbEdgeTools { bottom: 156px; }   /* the column stands above a bar of up to three rows */
     /* The fog button says this map's own fog state (fog.js btnSync): a ring and ON while its fog is on, whatever tool is in hand */
     #fogModeBtn { position: relative; }
     #fogModeBtn.fog-on { box-shadow: inset 0 0 0 2px var(--gold); }
@@ -1354,21 +1376,37 @@
   .journal-when { color: var(--dim); font-size: 10px; }
   .journal-notes { width: 100%; box-sizing: border-box; min-height: 56px; resize: vertical; font-size: 12px; background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; padding: 6px 8px; }
   body.stream-mode #handoutsBtn, body.stream-mode #journalBtn { display: none !important; }
+  /* 107 (the owner, 2026-10-06: "lets update the styling of the zoom and pointer location to match the other changes still, and optionally hide both
+     independently"): the box keeps its place and wears the toolbar's skin and its line icons. Its two halves, the pointer location and the zoom buttons,
+     are each put away by a switch of this computer's own (main.js applyCorner sets the two body classes) */
   #zoomBox {
     position: absolute; top: 26px; right: 14px; z-index: 8992;   /* over the map and the party and combat strips (8990), under the tool bar (8993) and its open menu: a tall tool menu is never cut by it */
-    display: flex; align-items: center; gap: 5px;
-    background: var(--panel); border: 1px solid var(--edge); border-radius: 8px;
-    padding: 4px 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    display: flex; align-items: center; gap: 4px;
+    background: var(--deep); border: 1px solid #333; border-radius: 10px;
+    padding: 4px 5px; box-shadow: 0 8px 24px rgba(0,0,0,0.6);
   }
+  #zoomBox .zoom-pos, #zoomBox .zoom-ctl { display: flex; align-items: center; }
+  #zoomBox .zoom-pos { gap: 4px; padding: 0 2px 0 4px; color: var(--dim); }
+  #zoomBox .zoom-pos > .ico { width: 13px; height: 13px; vertical-align: 0; }
+  #zoomBox .zoom-ctl { gap: 1px; }
+  .zoom-btn {
+    background: transparent; border: none; color: #ddd; width: 26px; height: 26px; padding: 0; border-radius: 7px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; transition: background 0.2s, color 0.2s;
+  }
+  .zoom-btn:hover { background: var(--plate); color: var(--ink); }
+  .zoom-btn > .ico { width: 15px; height: 15px; vertical-align: 0; }
   #zoomBox input {
-    width: 48px; text-align: center; background: transparent;
+    width: 44px; text-align: center; background: transparent;
     border: 1px solid transparent; border-radius: 4px; color: var(--ink);
     font: inherit; font-size: 12px; font-weight: 600; padding: 2px 0; outline: none;
   }
   #zoomBox input:hover { border-color: var(--edge); }
   #zoomBox input:focus { border-color: var(--gold); background: var(--panel2); }
-  #cursorPos { font-family: monospace; font-size: 11px; color: var(--dim); min-width: 88px; text-align: right; white-space: nowrap; }
+  #cursorPos { font-family: monospace; font-size: 11px; color: var(--dim); min-width: 80px; text-align: right; white-space: nowrap; }
   .zoom-sep { width: 1px; height: 16px; background: var(--edge); }
+  body.no-pointerpos #zoomBox .zoom-pos, body.no-zoomctl #zoomBox .zoom-ctl, body.no-pointerpos #zoomBox .zoom-sep, body.no-zoomctl #zoomBox .zoom-sep { display: none; }
+  body.no-pointerpos.no-zoomctl #zoomBox { display: none !important; }   /* both put away: no empty box (render() writes the box's display inline) */
+  body.no-pointerpos.no-zoomctl #partyStrip { top: 26px; }   /* and the party strip moves up into its place */
 
   /* ---- map breadcrumb (lives in the header, out of the canvas) ---- */
   #mapBreadcrumb {
@@ -3028,6 +3066,7 @@
   /* light-mode toolbar glyphs: the play-map and drawing toolbars used a fixed light grey that washes out on a light ground */
   html[data-theme="light"] .wb-tool-btn, html[data-theme="light"] .draw-size-btn, html[data-theme="light"] .draw-style-btn { color: var(--ink); }
   html[data-theme="light"] .wb-tool-btn.active, html[data-theme="light"] .draw-size-btn.active, html[data-theme="light"] .draw-style-btn.active { color: #fff; }
+  html[data-theme="light"] .zoom-btn { color: var(--ink); }   /* the zoom box wears the bar's looks in the light theme too */
   html[data-theme="light"] .draw-swatch.active { border-color: var(--ink); }
 
   /* Image Library preview */

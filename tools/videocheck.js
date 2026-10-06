@@ -203,7 +203,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
 
     /* ---- wired into the page, the features, the render and the documents ---- */
     const ix = read('system/app/index.html'), vt = read('system/app/scripts/vtt.js'), mn = read('system/app/scripts/main.js'), tu = read('system/app/scripts/tutorial.js'), ci = read('CAMPAIGN_INTEGRATION.md'), wn = read('WHATSNEW.txt'), wa = read('system/app/assets/whatsnew.txt'), st = read('system/app/scripts/settings.js');
-    const scene = ix.slice(ix.indexOf('<div class="shape-menu" id="sceneFxMenu"'), ix.indexOf('</div>', ix.indexOf('<div class="shape-menu" id="sceneFxMenu"')));
+    const sceneAt = ix.indexOf(' id="sceneFxMenu"'), scene = sceneAt < 0 ? '' : ix.slice(sceneAt, ix.indexOf('</div>', sceneAt));   // the Scene menu by its id: its rows are buttons, so its first closing div is its own
     check('the page: videocore loads before the app\'s main module (the load cleans with it), video.js after Music; the Video button in the Scene menu; the panel with its head, full screen and close, the stage and its video, the body, the file picker for video files and the corner',
         ix.indexOf('src="scripts/videocore.js"') > 0 && ix.indexOf('src="scripts/videocore.js"') < ix.indexOf('src="scripts/main.js"') && ix.indexOf('src="scripts/video.js"') > ix.indexOf('src="scripts/music.js"')
         && /id="videoBtn"/.test(scene) && ['videoPanel', 'videoHead', 'videoFullBtn', 'videoCloseBtn', 'videoStage', 'videoEl', 'videoCaption', 'videoBody', 'videoResize'].every(id => ix.indexOf('id="' + id + '"') > 0)

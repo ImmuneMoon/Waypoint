@@ -6000,6 +6000,8 @@ if(_el_shapeHexTriggerBtn) _el_shapeHexTriggerBtn.addEventListener('click', func
 
       if (gb) gb.classList.toggle('active', type !== 'off');
 
+      [['gridOffBtn', 'off'], ['gridSqBtn', 'square'], ['gridHexBtn', 'hex']].forEach(function(g) { var r = document.getElementById(g[0]); if (r) r.classList.toggle('on', g[1] === type); });   // 107, menus by name: the row of the grid in use is marked
+
   }
 
   function setGridType(type) {

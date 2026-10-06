@@ -172,8 +172,9 @@ const barKids = kidsOf(ix, BAR_OPEN) || [], edgeKids = kidsOf(ix, EDGE_OPEN) || 
     const more = barKids[barKids.length - 1] || { open: '', ids: [], text: '' }, clear = innerOfBtn('id="clearWbBtn"') || '';
     check('More, the last button of the bar, holds Clear board by its name: the very button, its id and its red, now a row with its bin and its words, in a menu that opens above More, and the GM\'s alone as Clear board always was',
         J(more.ids) === J(['wbMoreBtn', 'wbMoreMenu', 'clearWbBtn']) && more.open === '<div style="position:relative; display:inline-block;" class="gm-only">' && more.text.includes('<button class="wb-tool-btn" id="wbMoreBtn" title="More">')
-        && more.text.includes('<div class="shape-menu" id="wbMoreMenu" style="bottom:100%; top:auto; flex-direction:column; min-width:200px; left:auto; right:0; transform:none; margin-bottom:10px;">')
-        && /<button class="wb-tool-btn" style="color:var\(--red\);[^"]*" id="clearWbBtn" title="Clear Board">/.test(more.text) && /^<span style="width:20px; text-align:center;"><svg class="ico"[^>]*>.*<\/svg><\/span> Clear board$/.test(clear)
+        && more.text.includes('<div class="shape-menu menu-list" id="wbMoreMenu" style="bottom:100%; top:auto; flex-direction:column; min-width:200px; left:auto; right:0; transform:none; margin-bottom:10px;">')
+        && more.text.includes('<button class="wb-tool-btn menu-row menu-row-red" id="clearWbBtn" title="Clear Board">') && css.includes('    .wb-tool-btn.menu-row.menu-row-red { color: var(--red); }')
+        && /^<span class="mr-ico"><svg class="ico"[^>]*>.*<\/svg><\/span><span class="mr-txt">Clear board<small>Removes everything on this map\. It asks first\.<\/small><\/span>$/.test(clear)
         && css.includes(' body.net-client #addImageBtn, body.net-client #clearWbBtn,\n') && css.includes('  body.net-client .gm-only { display: none !important; }'), J([more.ids, more.open, clear]));
 }
 
@@ -204,7 +205,7 @@ const ARROW = { drawModeBtn: 'drawOptBtn', eraserModeBtn: 'eraserOptBtn', fillMo
 const MENU_ONLY = { shapeMenuBtn: 1, addMenuBtn: 1, fogModeBtn: 1, sceneFxBtn: 1, wbCenterBtn: 1, wbGridBtn: 1 };   // a button that only opens a menu: its arrow presses it
 const LAY =['wbUndoBtn', 'wbRedoBtn', '|', 'moveModeBtn', 'panModeBtn', '|', 'drawModeBtn+drawMenu', 'eraserModeBtn+eraserMenu', 'fillModeBtn+fillMenu', '|', 'shapeMenuBtn+shapeMenu', 'addMenuBtn+addMenu', '|', 'measureModeBtn+measureMenu',
     'blastModeBtn+blastMenu', '|', 'fogModeBtn+fogMenu', 'sceneFxBtn+sceneFxMenu', 'pagesBtn+pagesMenu', '|', 'wbMoreBtn+wbMoreMenu'];
-const GM_HAS = { wbUndoBtn: 1, wbRedoBtn: 1, fillModeBtn: 1, shapeMenuBtn: 1, blastModeBtn: 1, fogModeBtn: 1, sceneFxBtn: 1, pagesBtn: 1, wbMoreBtn: 1 };   // what a player's bar does not show (and no separator)
+const GM_HAS = { wbUndoBtn: 1, wbRedoBtn: 1, fillModeBtn: 1, shapeMenuBtn: 1, addMenuBtn: 1, blastModeBtn: 1, fogModeBtn: 1, sceneFxBtn: 1, pagesBtn: 1, wbMoreBtn: 1 };   // what a player's bar does not show (and no separator)
 function toolbarPage(player) {
     const byId = {}, docOn = [], doc = { getElementById: id => byId[id] || null, addEventListener: (t, f) => { docOn.push([t, f]); }, querySelectorAll: sel => main.all().filter(n => n.is(sel)) };
     // a press, as a page gives it: down through the boxes it is in (the capture listeners), then up from the target, and on to the page unless a listener stops it
@@ -224,7 +225,7 @@ function toolbarPage(player) {
         if (shown) { top.w = w; top.x = x; x += w + 2; }
     });
     const tight = x - 2 + 4 + 2;
-    bar.w = () => bar.cls.has('tb-wrap') ? -1 : bar.cls.has('tb-tight') ? tight : (player ? 312 : 848);
+    bar.w = () => bar.cls.has('tb-wrap') ? -1 : bar.cls.has('tb-tight') ? tight : (player ? 258 : 848);
     [['wbCenterBtn', 'wbCenterMenu'], ['wbGridBtn', 'gridMenu'], ['wbSnapBtn', 'snapMenu']].forEach(p => wrap(edge, p[0], p[1]));
     const vm = byId.wbCenterMenu; ['wbRulersBtn', 'wbZoomCtlBtn', 'wbPointerPosBtn'].forEach(id => mk('button', id, 'wb-tool-btn view-tick on', vm));
     return { doc, byId, main, bar, edge, click, tight, open: () => main.all().filter(n => n.is('.shape-menu.show')).map(n => n.id).sort() };
@@ -334,8 +335,49 @@ function runPress(P, win) {
         && css.includes('  html[data-theme="light"] .wb-tool-btn.tool-chev { color: var(--dim); }')
         && css.includes('  html[data-theme="light"] .wb-tool-btn.tool-chev:hover, html[data-theme="light"] .floating-toolbar .tool-pair:has(> .shape-menu.show) > .tool-chev { color: var(--gold); }\n')
         && css.includes('body.net-client #wbGridBtn, body.net-client #wbSnapBtn, body.net-client #gridOptBtn, body.net-client #snapOptBtn,\n') && css.includes('  body.net-client #shapeMenuBtn, body.net-client #shapeOptBtn, body.net-client #addImageBtn,')
-        && css.includes('    body.net-client .floating-toolbar .tool-pair:has(> #shapeMenuBtn) { display: none !important; }')
+        && css.includes('    body.net-client .floating-toolbar .tool-pair:has(> #shapeMenuBtn), body.net-client .floating-toolbar .tool-pair:has(> #addMenuBtn) { display: none !important; }')
+        && ['shapeTextBtn', 'addImageBtn', 'imgLibBtn', 'importCharBtn'].every(id => new RegExp('body\\.net-client #' + id + '[,\\s{]').test(css))   // Add's four rows are the GM's: that is why a player's bar leaves the button out
         && /id="fogModeBtn" style="display:none;"/.test(ix));
+}
+
+/* ---------- menus by name (the owner: "the options need to be more obvious for what something does") ---------- */
+{
+    const ST = ' style="bottom:100%; top:auto; flex-direction:column; min-width:', C = '; left:50%; transform:translateX(-50%); margin-bottom:10px;">';
+    const MENUS_BY_NAME = [
+        ['<div class="shape-menu menu-list" id="gridMenu">', [['gridOffBtn', 'Off', '', 'Off'], ['gridSqBtn', 'Square', '', 'Square'], ['gridHexBtn', 'Hex', '', 'Hex'], '-',
+            ['gridOpacityBtn', 'Grid opacity&hellip;', 'Opens Settings at the grid&rsquo;s look.', 'Grid opacity&hellip; (opens Settings)']]],
+        ['<div class="shape-menu menu-list" id="shapeMenu">', [['shapeRectBtn', 'Rectangle', '', 'Rectangle'], ['shapeCircBtn', 'Circle', '', 'Circle'], ['shapeDiaBtn', 'Diamond', '', 'Diamond'],
+            ['shapeHexBtn', 'Hexagon', 'Seats onto the cells of a hex grid.', 'Hexagon &mdash; resizes like any shape; centers onto hex grid cells'], '-',
+            ['shapeTriggerBtn', 'Trigger zone', 'Says its message when a character token is dropped inside.', 'Trigger Zone &mdash; fires its Event Message when a character token is dropped inside'],
+            ['shapeHexTriggerBtn', 'Hex trigger', 'A trigger zone the shape of a hex cell.', 'Hex Trigger &mdash; a hex-shaped trigger zone'], '-', 'block', 'block']],
+        ['<div class="shape-menu menu-list" id="addMenu"' + ST + '190px' + C, [['shapeTextBtn', 'Text box', 'Click to place it. Drag to size it.', 'Text &mdash; click to place a text box (drag to size it), or click an existing text box to edit it'],
+            ['addImageBtn', 'Image', 'A picture from this computer.', 'Add Image'], ['imgLibBtn', 'Image Library', 'This campaign&rsquo;s pictures and the shared ones.', 'Image Library &mdash; this campaign\'s pictures, the shared ones, and every campaign\'s'],
+            ['importCharBtn', 'Import Character', 'A character file as a ready token.', 'Import Character &mdash; drop a shadow-base.com character JSON as a ready token']]],
+        ['<div class="shape-menu menu-list" id="sceneFxMenu"' + ST + '200px' + C, [
+            ['soundBtn', 'Sound', 'Loops and one-shot cues the table hears.', 'Sound &mdash; ambient loops and one-shot cues for the scene, heard by every player at the table (a VTT feature, per campaign)'],
+            ['musicBtn', 'Music', 'Playlists, and a song a map remembers.', 'Music &mdash; named playlists, a song or playlist remembered per map that plays as you enter, with full GM transport (a VTT feature, per campaign)'],
+            ['fxBtn', 'Visual effects', 'Flashes, weather, bursts and banners.', 'Visual effects &mdash; flashes, screen shake, weather, bursts and banners on the play map, seen by the players on it (a VTT feature, per campaign)'],
+            ['videoBtn', 'Video', 'The campaign&rsquo;s videos, in a panel or shown to the table.', 'Video &mdash; the campaign&rsquo;s videos, watched in a panel you move, resize and put full screen (a VTT feature, per campaign)']]],
+        ['<div class="shape-menu menu-list" id="wbMoreMenu" style="bottom:100%; top:auto; flex-direction:column; min-width:200px; left:auto; right:0; transform:none; margin-bottom:10px;">',
+            [['clearWbBtn', 'Clear board', 'Removes everything on this map. It asks first.', 'Clear Board']]]];
+    const ROW = /^<button class="wb-tool-btn menu-row(?: menu-row-red)?" id="([A-Za-z]+)" title="([^"]*)"><span class="mr-ico">((?:<svg class="ico[^>]*>.*<\/svg>)?)<\/span><span class="mr-txt">([^<]+)(?:<small>([^<]+)<\/small>)?<\/span><\/button>$/;
+    const read = open => (kidsOf(ix, open) || []).map(k => { const m = ROW.exec(k.text); return m ? [m[1], m[4], m[5] || '', m[2]] : k.text === '<div class="menu-rule"></div>' ? '-' : /^<div class="menu-block" title="[^"]+">/.test(k.text) ? 'block' : '?' + k.text.slice(0, 60); });
+    const off = MENUS_BY_NAME.filter(m => J(read(m[0])) !== J(m[1])).map(m => [/id="([A-Za-z]+)"/.exec(m[0])[1], read(m[0])]);
+    const noIcon = MENUS_BY_NAME.reduce((a, m) => a.concat((kidsOf(ix, m[0]) || []).filter(k => ROW.test(k.text) && !ROW.exec(k.text)[3] && ROW.exec(k.text)[1] !== 'gridOffBtn').map(k => k.ids[0])), []);
+    check('a toolbar menu lists each choice by its name (the owner: "the options need to be more obvious for what something does"): Grid, Shapes, Add, Scene and More each read as a list of rows in their order, a row its icon, its name, and a grey line where the name is not enough; every row keeps its id and the tooltip it had; Shapes keeps New shape size and New item opacity under its rows',
+        off.length === 0 && noIcon.length === 0 && count(ix, 'class="wb-tool-btn menu-row') === 19, J([off, noIcon]));
+    const sm = kidsOf(ix, '<div class="shape-menu menu-list" id="shapeMenu">') || [], blocks = sm.filter(k => /^<div class="menu-block"/.test(k.text)).map(k => k.text);
+    check('Shapes keeps its two settings as they were, under its rows: New shape size with Free and Grid cell, and New item opacity with its slider and the figure beside its name; and Snap To says what each choice does in plain sentences',
+        blocks.length === 2 && blocks[0].includes('<div class="draw-menu-label">New shape size</div>') && count(blocks[0], 'class="draw-style-btn shape-size-btn') === 2 && blocks[0].indexOf('data-shapesize="free"') < blocks[0].indexOf('data-shapesize="cell"')
+        && blocks[1].includes('<div class="draw-menu-label">New item opacity <span id="shapeOpacityVal">100%</span></div>') && blocks[1].includes('<input type="range" class="new-opacity-slider" id="shapeOpacity" min="10" max="100" value="100" style="width:100%;">')
+        && count(ix, 'Grid seats pieces in cells. Items lines pieces up with each other. Both does the two, neighbours first.') === 1 && count(ix, 'Grid = predictable cell placement') === 0, J(blocks.map(b => b.slice(0, 80))));
+    check('the rows in the style sheet, and the grid in use: a menu of rows is a column as wide as its words, a row sets its icon in a slot and its name over its grey line, the row of the choice in use is gold, and the Grid menu marks the grid that is on whenever the grid is set',
+        css.includes('    .floating-toolbar .shape-menu.menu-list { flex-direction: column; align-items: stretch; gap: 2px; min-width: 210px; width: max-content; }')
+        && css.includes('    .wb-tool-btn.menu-row { flex: 0 0 auto; width: 100%; height: auto; border-radius: 6px; font-size: 12px; padding: 7px 10px; justify-content: flex-start; gap: 10px; text-align: left; }\n    .wb-tool-btn.menu-row > .mr-ico { flex: 0 0 20px; width: 20px; display: inline-flex; justify-content: center; }')
+        && css.includes('    .wb-tool-btn.menu-row > .mr-txt { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; min-width: 0; }\n    .wb-tool-btn.menu-row small { font-size: 10.5px; line-height: 1.35; font-weight: 400; color: var(--dim); white-space: normal; max-width: 240px; }\n    .wb-tool-btn.menu-row.on { color: var(--gold); }')
+        && css.includes('    .floating-toolbar .menu-rule { flex: 0 0 auto; height: 1px; background: #333; margin: 3px 2px; }')
+        && wbSrc.includes("      [['gridOffBtn', 'off'], ['gridSqBtn', 'square'], ['gridHexBtn', 'hex']].forEach(function(g) { var r = document.getElementById(g[0]); if (r) r.classList.toggle('on', g[1] === type); });")
+        && wbSrc.indexOf("if (gb) gb.classList.toggle('active', type !== 'off');") < wbSrc.indexOf("[['gridOffBtn', 'off'], ['gridSqBtn', 'square'], ['gridHexBtn', 'hex']]") && wbSrc.indexOf("[['gridOffBtn', 'off'], ['gridSqBtn', 'square'], ['gridHexBtn', 'hex']]") - wbSrc.indexOf("if (gb) gb.classList.toggle('active', type !== 'off');") < 80);
 }
 
 /* ---------- the bar never runs off the map: it tightens, then wraps between groups ---------- */
@@ -373,9 +415,9 @@ function runPress(P, win) {
         && !!g2 && J(g2.widths) === J([66, 127, 84, 118, 32]) && J(g2.seps.map(s => hs.indexOf(s))) === J([1, 2, 3, 5]) && g3 === null, J([g1 && g1.widths, g2 && [g2.widths, g2.seps.map(s => hs.indexOf(s))], g3]));
     const Q = toolbarPage(true), S = runBar(Q, {}), fitQ = (S.api || {}).fitBar || (() => {}), qs =() => [[...Q.bar.cls].filter(c => c !== 'floating-toolbar').sort().join(' '), Q.bar.style.width || '', Q.bar.children.filter(k => k.cls.has('tb-brk')).length];
     const gq = S.api ? S.api.barGroups((Q.bar.classList.add('tb-tight'), Q.bar)) : null; Q.bar.classList.remove('tb-tight');
-    const qat = w => { Q.main.clientWidth = w; fitQ(); return qs(); }, gotQ = [qat(400), qat(335), qat(272), qat(271), qat(120)];
+    const qat = w => { Q.main.clientWidth = w; fitQ(); return qs(); }, gotQ = [qat(400), qat(281), qat(229), qat(228), qat(120)];
     check('a player\'s bar is fitted too: it has fewer buttons and no separator, so it is one group, counted by what shows alone; it tightens like the GM\'s, and where even the tight bar is too wide it wraps wherever it must, with no row marked and no width set',
-        Q.tight === 248 && J(gq && [gq.widths, gq.gap, gq.chrome, gq.seps.length]) === J([[238], 0, 10, 0]) && J(gotQ) === J([['', '', 0], ['tb-tight', '', 0], ['tb-tight', '', 0], ['tb-tight tb-wrap', '', 0], ['tb-tight tb-wrap', '', 0]]), S.err || J([gq, gotQ]));
+        Q.tight === 205 && J(gq && [gq.widths, gq.gap, gq.chrome, gq.seps.length]) === J([[195], 0, 10, 0]) && J(gotQ) === J([['', '', 0], ['tb-tight', '', 0], ['tb-tight', '', 0], ['tb-tight tb-wrap', '', 0], ['tb-tight tb-wrap', '', 0]]), S.err || J([gq, gotQ]));
     const render = mainSrc.slice(mainSrc.indexOf('export function render() {'), mainSrc.indexOf('// Breadcrumb trail for nested maps')), iT = render.indexOf("document.getElementById('toggleRightBtn').style.display"), iF = render.indexOf('if (window.wpFitBar) window.wpFitBar();');
     check('the bar is fitted whenever the map\'s room changes: by render() once the panes are switched, so it measures the room the map has, and by an observer of the map\'s own box, the bar\'s parent; the style sheet tightens only the bar\'s own buttons, breaks a wrapped bar at the separators fitBar marks, and lifts the column above a wrapped bar',
         R.RO.made.length === 1 && R.RO.made[0].el === P.main && typeof R.RO.made[0].cb === 'function' && count(render, 'window.wpFitBar()') === 1 && iT > 0 && iF > iT && iF < render.indexOf('if (window.wpFloats) window.wpFloats.sync();')
@@ -497,6 +539,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         + "- The play map's toolbar has new icons, drawn as lines in the style of\n  the top bar's. The tool in your hand is gold, and so is a setting\n  that is on.\n"
         + "- The toolbar is laid out anew, and no tool is gone. Undo and redo\n  lead, then the tools in groups. Centre, the grid and snap stand in a\n  column at the map's right edge. More, the last button, holds Clear\n  board. In a narrow window the bar tightens, then wraps into even\n  rows, so no tool is ever cut off.\n"
         + "- A tool that has options has a small arrow beside its icon. The icon\n  takes the tool, and a second press puts it away. The arrow opens the\n  tool's options, and they stay up while you work, until you press the\n  arrow again or take another tool. Snap's icon switches snapping, and\n  its arrow opens what it snaps to.\n"
+        + "- The toolbar's menus list each choice by name: Grid, Shapes, Add,\n  Scene and More. A grey line under a name says what the choice does\n  where the name is not enough, and the Grid menu marks the grid in\n  use.\n"
         + "- The box at the top right of a map wears the toolbar's look. Its\n  pointer location and its zoom buttons can each be hidden on their\n  own. Tick them under Show in the centre menu, or press their buttons\n  in Settings > Table. The rulers have a tick there too.\n\n";
     const wn = [rootRead('WHATSNEW.txt'), read('assets/whatsnew.txt')];
     check('both release notes carry the same lines, and the suite is one of the CI runs',

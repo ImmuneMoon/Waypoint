@@ -314,7 +314,19 @@
     .wb-tool-btn.tool-chev:hover { background: transparent; color: var(--gold); }
     .floating-toolbar .tool-pair:has(> .shape-menu.show) > .tool-chev { color: var(--gold); }
     .tool-pair > .wb-tool-btn[style*="none"] + .tool-chev { display: none; }   /* an arrow goes with its button: the fog button shows only while the feature is on */
-    body.net-client .floating-toolbar .tool-pair:has(> #shapeMenuBtn) { display: none !important; }   /* a player has no Shapes: its pair takes no room on their bar */
+    body.net-client .floating-toolbar .tool-pair:has(> #shapeMenuBtn), body.net-client .floating-toolbar .tool-pair:has(> #addMenuBtn) { display: none !important; }   /* a player has no Shapes, and nothing of Add (its four rows are the GM's): neither pair stands on their bar */
+    /* 107, menus by name (the owner: "the options need to be more obvious for what something does"): a choice is a row with its icon, its name,
+       and a grey line where the name is not enough. The choice in use is gold */
+    .floating-toolbar .shape-menu.menu-list { flex-direction: column; align-items: stretch; gap: 2px; min-width: 210px; width: max-content; }   /* max-content: a menu centred from its left edge is otherwise fitted to its narrowest */
+    .wb-tool-btn.menu-row { flex: 0 0 auto; width: 100%; height: auto; border-radius: 6px; font-size: 12px; padding: 7px 10px; justify-content: flex-start; gap: 10px; text-align: left; }
+    .wb-tool-btn.menu-row > .mr-ico { flex: 0 0 20px; width: 20px; display: inline-flex; justify-content: center; }
+    .wb-tool-btn.menu-row > .mr-ico > .ico { width: 17px; height: 17px; vertical-align: 0; }
+    .wb-tool-btn.menu-row > .mr-txt { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; min-width: 0; }
+    .wb-tool-btn.menu-row small { font-size: 10.5px; line-height: 1.35; font-weight: 400; color: var(--dim); white-space: normal; max-width: 240px; }
+    .wb-tool-btn.menu-row.on { color: var(--gold); }
+    .wb-tool-btn.menu-row.menu-row-red { color: var(--red); }
+    .floating-toolbar .menu-rule { flex: 0 0 auto; height: 1px; background: #333; margin: 3px 2px; }
+    .floating-toolbar .menu-block { display: flex; flex-direction: column; gap: 4px; padding: 4px 8px 6px; }
     /* 107, the layout: View, Grid and Snap stand in a column at the map's right edge, clear of the pane's grip and above the bar. It is a second
        box of the same toolbar (so it has the bar's looks and its menus' looks), and its menus open to its left */
     #wbEdgeTools.floating-toolbar { left: auto; right: 26px; bottom: 96px; transform: none; flex-direction: column; gap: 2px; padding: 5px; }

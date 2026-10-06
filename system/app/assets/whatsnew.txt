@@ -184,6 +184,10 @@ The play map
   tool's options, and they stay up while you work, until you press the
   arrow again or take another tool. Snap's icon switches snapping, and
   its arrow opens what it snaps to.
+- The toolbar's menus list each choice by name: Grid, Shapes, Add,
+  Scene and More. A grey line under a name says what the choice does
+  where the name is not enough, and the Grid menu marks the grid in
+  use.
 - The box at the top right of a map wears the toolbar's look. Its
   pointer location and its zoom buttons can each be hidden on their
   own. Tick them under Show in the centre menu, or press their buttons

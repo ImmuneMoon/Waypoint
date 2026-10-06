@@ -1870,7 +1870,9 @@ function syncMenu() {
     document.querySelectorAll('#fogMenu .fog-stroke-btn').forEach(function(b) { b.classList.toggle('active', b.dataset.fstroke === stroke); });   // the stroke in hand is a setting: lit whether or not a brush is
     var pnote = ui('fogPaintNote'); if (pnote) pnote.textContent = paintWords(painting, !!mf.on);
     fillPreviewOptions();
-    var note = ui('fogNote'); if (note) note.textContent = gridForMap(map) ? '' : 'Gridless map: pick a measurement grid above so fog can compute cells.';
+    var noGrid = !gridForMap(map);
+    var note = ui('fogNote'); if (note) note.textContent = noGrid ? 'Gridless map: pick a measuring grid under Light and vision on this map, so that the fog can count cells.' : '';
+    if (typeof foldsSync === 'function') foldsSync({ fogFoldLight: noGrid, fogFoldPreview: typeof previewMode === 'string' && previewMode !== 'off' });   // a fold that holds what needs a look is shown open (asked for through typeof: fogcheck runs this function alone)
 }
 // Found live (item 18): on a short window the menu, opening upward from the toolbar and capped only by the viewport, ran its top rows (Fog on
 // this map first) under the page's header, where no click reaches them. Opened or the window resized, it now keeps its top below the header
@@ -1902,6 +1904,35 @@ function brushPress(which) {
     syncMenu(); redraw();
 }
 // [fogcheck:brushpress-end]
+
+// [fogcheck:folds-start]
+// The fog menu's folds (1.5.4, the toolbar's step 3c; the owner passed the mock-up of the menu "As drawn"): Light and vision on this map,
+// Preview a player's view, This campaign's fog settings. A fold is a button (.menu-fold) that shows or puts away the part it names
+// (aria-controls). Which folds are open is this computer's own (wp_fogFolds). A fold that holds what needs a look is shown open whatever was
+// kept: the preview while one is on, light and vision while a gridless map has no measuring grid. A part that is put away is still in the
+// page: its controls keep their values and their wiring, and nothing reads whether a fold is open but the fold itself
+var FOG_FOLDS = ['fogFoldLight', 'fogFoldPreview', 'fogFoldCamp'];
+function foldsKept() {   // { id: true or false } for the three folds, whatever the store holds
+    var o = null; try { o = JSON.parse(localStorage.getItem('wp_fogFolds')); } catch (e) { o = null; }
+    var out = {}; FOG_FOLDS.forEach(function(id) { out[id] = !!o && o[id] === 1; });   // the three names are this code's own: none is a name a prototype holds
+    return out;
+}
+function foldShow(id, open) {
+    var b = ui(id), body = b ? ui(b.getAttribute('aria-controls')) : null; if (!b || !body) return;
+    b.setAttribute('aria-expanded', open ? 'true' : 'false'); body.hidden = !open;
+}
+function foldsSync(must) {   // must: { id: true } for a fold shown open whatever was kept
+    var k = foldsKept(); FOG_FOLDS.forEach(function(id) { foldShow(id, k[id] || !!(must && must[id] === true)); });
+}
+function foldPress(id) {   // a press on a fold: the other way from how it stands, and kept for this computer
+    var b = FOG_FOLDS.indexOf(id) >= 0 ? ui(id) : null; if (!b) return;
+    var open = b.getAttribute('aria-expanded') !== 'true', k = foldsKept(), keep = {}; k[id] = open;
+    FOG_FOLDS.forEach(function(f) { if (k[f]) keep[f] = 1; });
+    try { localStorage.setItem('wp_fogFolds', JSON.stringify(keep)); } catch (e) {}
+    foldShow(id, open);
+    var m = ui('fogMenu'); if (m) fitMenu(m);   // the menu is taller or shorter now: its top stays under the page's header
+}
+// [fogcheck:folds-end]
 
 var LIGHT_SAID = {
     auto: 'This map is lit until you place a light source on it (the \u2728 effects panel).',
@@ -2020,6 +2051,7 @@ var LIGHT_SAID = {
     if (cov) cov.addEventListener('click', function() { var map = activeMap(); if (!map) return; var mfC = mapFog(map); mfC.mode = 'cover'; mfC.epoch = (mfC.epoch || 0) + 1; save(); syncMenu(); redraw(); toast('Whole map covered — only cells you reveal by hand show.'); });   // senses S6: a new epoch empties every player's memory of it
     var prev = ui('fogPreview');
     if (prev) prev.addEventListener('change', function() { previewMode = prev.value || 'off'; redraw(); });
+    FOG_FOLDS.forEach(function(id) { var fb = ui(id); if (fb) fb.addEventListener('click', function() { foldPress(id); }); });   // 1.5.4: the menu's three folds
     var wrap = ui('whiteboardWrap');
     if (wrap && window.ResizeObserver) { try { new ResizeObserver(function() { if (active()) draw(); }).observe(wrap); } catch (e) {} }
     window.addEventListener('resize', function() { if (active()) draw(); });

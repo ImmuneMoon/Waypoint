@@ -467,6 +467,7 @@
                                   <li>To paint fog by hand press <b>Reveal</b>, <b>Hide</b> or <b>Clear</b> under <b>Paint fog by hand</b>, then click or drag cells on the map. Right-click paints the other brush. Press the lit brush again, or pick another tool, to stop.</li>
                                   <li>On your own screen the fog is a see-through veil. A dark cell is one no token on the map sees, or one you hid by hand, and resting the pointer on it says which.</li>
                                   <li>Tick <b>Hide the fog on my screen</b> to take the veil off your screen alone. Your players&rsquo; fog does not change. A preview of the party or of a player still shows, and so does the veil while you paint. That tick is kept on this machine.</li>
+                                  <li>The rest is in three folds under the brushes: <b>Light and vision on this map</b>, <b>Preview a player&rsquo;s view</b> and <b>This campaign&rsquo;s fog settings</b>. Press a fold to open or close it. Which are open is kept on this machine, and the preview&rsquo;s fold opens by itself while a preview is on.</li>
                               </ul>
                           </li>
                           <li><b>Walls &amp; pillars that block sight:</b> flag a piece as <b>Blocks sight</b> in its Properties panel and it stops sight. A token&rsquo;s vision, and each player&rsquo;s view, ends at it instead of seeing through.
@@ -2190,86 +2191,10 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
           <div style="position:relative;" class="tool-pair gm-only">
               <button class="wb-tool-btn" id="fogModeBtn" style="display:none;" title="Fog of war &mdash; opens the fog menu: its first tick, Fog on this map, is the switch (a VTT feature, per campaign)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 14a4 4 0 0 1 .5-8 5.5 5.5 0 0 1 10.6 1.2A3.5 3.5 0 0 1 17.5 14H7zM5 17.5h14M8 21h8"/></svg></button><button class="wb-tool-btn tool-chev" id="fogOptBtn" data-for="fogModeBtn" title="Fog of war menu" aria-haspopup="true"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9.5l6 6 6-6"/></svg></button>
               <div class="shape-menu draw-menu" id="fogMenu">
-                  <label class="draw-menu-row" style="align-items:center; gap:6px; cursor:pointer;" title="The switch for this map&rsquo;s fog. While it is ticked the &#127787; button on the toolbar wears ON."><input type="checkbox" id="fogOn"> <span>Fog on this map</span></label>
-                  <label class="draw-menu-row" style="align-items:center; gap:6px; cursor:pointer; font-size:11px; color:var(--dim);" title="For you alone, on this machine: your screen draws no dark veil over a fogged map. Your players&rsquo; fog does not change. A preview of the party or of a player still shows, and so does the veil while you paint fog by hand."><input type="checkbox" id="fogHideMine"> <span>Hide the fog on my screen</span></label>
-                  <div class="draw-menu-row" style="gap:6px; margin-top:2px;">
-                      <button class="draw-style-btn" id="fogOnAllMaps" title="Turn fog on for every map in this campaign (turn any single map back off with the checkbox above)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 14a4 4 0 0 1 .5-8 5.5 5.5 0 0 1 10.6 1.2A3.5 3.5 0 0 1 17.5 14H7zM5 17.5h14M8 21h8"/></svg> Fog on &middot; all maps</button>
-                  </div>
-                  <label class="draw-menu-row" style="align-items:center; gap:6px; cursor:pointer; font-size:11px; color:var(--dim);"><input type="checkbox" id="fogOnDefault"> <span>New maps in this campaign start with fog on</span></label>
-                  <div class="draw-menu-label" title="A play area is any image or shape you mark (in its Properties, or the &#9635; button on its toolbar). Fog covers only cells under marked items &mdash; scenes and map art stay lit. This sets what a map does when nothing is marked yet.">When no play area is marked</div>
-                  <div class="draw-menu-row">
-                      <select id="fogEmptyScope" class="field" style="flex:1; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;">
-                          <option value="whole">Fog the whole map</option>
-                          <option value="none">No fog until you mark one</option>
-                      </select>
-                  </div>
-                  <div id="fogLightRow" style="display:none;">
-                      <div class="draw-menu-label" title="Lighting (a VTT feature): a lit cell shows to every token that has it in its line of sight; a token's sight is how far it sees in the dark. Auto: lit until you place a light source on this map (the &#10024; effects panel).">Light on this map</div>
-                      <div class="draw-menu-row">
-                          <select id="fogLight" class="field" style="flex:1; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;">
-                              <option value="auto">Auto &mdash; lit until you place a light</option>
-                              <option value="bright">Bright</option>
-                              <option value="dim">Dim</option>
-                              <option value="dark">Dark</option>
-                          </select>
-                      </div>
-                      <div class="draw-menu-row"><button class="draw-style-btn" id="fogLightPlace" title="Place a light source: click the map (its radii in its Properties). On an Auto map it goes dark outside its lights."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.3 1 2.1h5c0-.8.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></svg> Light source</button></div>
-                  </div>
-                  <div id="fogGridlessRow" style="display:none;">
-                      <div class="draw-menu-label">Gridless &mdash; measure vision with</div>
-                      <div class="draw-menu-row">
-                          <button class="draw-style-btn fog-grid-btn" data-fgrid="square" title="Square cells, D&amp;D radius vision">Square</button>
-                          <button class="draw-style-btn fog-grid-btn" data-fgrid="hex" title="Hex cells, GURPS front-arc vision">Hex</button>
-                      </div>
-                      <div class="draw-menu-row">
-                          <input type="number" id="fogCellLen" min="10" step="1" style="width:70px; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;">
-                          <span style="font-size:11px; color:var(--dim);">px per cell (the grid is not drawn)</span>
-                      </div>
-                  </div>
-                  <div id="fogSightFieldRow" style="display:none;">
-                      <div class="draw-menu-label">Sight from a character field</div>
-                      <div class="draw-menu-row">
-                          <select id="fogSightField" class="field" style="flex:1; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;"><option value="">Default only (no field)</option></select>
-                      </div>
-                      <div id="fogSightSecret" class="muted" style="display:none; margin:2px 0 4px; font-size:10.5px;"></div>
-                  </div>
-                  <div class="draw-menu-label">Default sight range</div>
-                  <div class="draw-menu-row">
-                      <input type="number" id="fogSight" min="0" step="1" style="width:80px; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;">
-                      <select id="fogSightUnit" class="field" title="What sight is counted in, for the default here and the character field above: each map&rsquo;s own scale turns it into cells (60 ft on 5 ft squares is 12 squares); grid cells count as they are" style="padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;"><option value="yd">yards</option><option value="ft">feet</option><option value="m">metres</option><option value="cells">grid cells</option></select>
-                      <span style="font-size:11px; color:var(--dim);">a token with no character, or an unmapped field</span>
-                  </div>
-                  <div id="fogSensesRow" style="display:none;">
-                      <div class="draw-menu-label">Senses</div>
-                      <div class="draw-menu-row">
-                          <span id="fogSensesText" style="flex:1; font-size:11px; color:var(--dim);"></span>
-                          <button type="button" id="fogSensesEdit" class="draw-style-btn" title="The system&rsquo;s senses are set on the Combat card of the System editor (its Items tab)">Edit&hellip;</button>
-                      </div>
-                      <div style="font-size:11px; color:var(--dim); padding:0 2px 4px;">Sight is the eyes&rsquo; own range in the dark. A sense that sees without light adds to it; the longer of the two is what the token sees.</div>
-                  </div>
-                  <div id="fogMarksRow" style="display:none;">
-                      <div class="draw-menu-label">Marks in a fight</div>
-                      <div class="draw-menu-row">
-                          <select id="fogMarksMode" class="field" title="How a player&rsquo;s marks move while a fight runs on a map: with every move, or only when a turn of theirs starts (and as they move on it; a player with no token in the fight at each new round). A mark goes at once when its creature comes into view, is hidden or leaves">
-                              <option value="move">As they move</option>
-                              <option value="turn">On your own turn</option>
-                          </select>
-                      </div>
-                      <div style="font-size:11px; color:var(--dim); padding:0 2px 4px;">On your own turn keeps a lone player from matching a moving mark to a turn; it does not hide what players tell each other.</div>
-                  </div>
-                  <div class="draw-menu-label">Vision</div>
-                  <div class="draw-menu-row">
-                      <select id="fogVision" class="field" style="flex:1; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;" title="All around: a token sees in every direction (D&amp;D radius). Facing cone: a token sees only ahead, and the cone turns as the token turns (GURPS front arc). Set per map &mdash; it no longer depends on the grid type.">
-                          <option value="all">All around</option>
-                          <option value="arc">Facing cone</option>
-                      </select>
-                  </div>
-                  <div class="draw-menu-row" id="fogVisionArcRow" style="display:none;">
-                      <input type="number" id="fogVisionArc" min="1" max="360" step="5" style="width:70px; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;" title="Cone width in degrees (1&ndash;360). 90&deg; is a torch; 180&deg; is a wide front arc; 360&deg; is all around.">
-                      <span style="font-size:11px; color:var(--dim);">&deg; cone, centred on each token's facing</span>
-                  </div>
-                  <label class="draw-menu-row" style="align-items:center; gap:6px; cursor:pointer; font-size:11px; color:var(--dim);"><input type="checkbox" id="fogVisionDefault"> <span>Use this vision for new maps in this campaign</span></label>
-                  <label class="draw-menu-row" style="align-items:center; gap:6px; cursor:pointer; font-size:11px; color:var(--dim);" title="Each player&rsquo;s own screen keeps the ground they have seen this session, dimmed. Remembered ground shows every piece on it that is not a character token, as it is now (a prop, a picture, an opened door); creatures there stay hidden. Cover all or Reveal all clears everyone&rsquo;s memory of the map; hiding a cell by hand clears that cell."><input type="checkbox" id="fogRemember"> <span>Players remember what they have seen</span></label>
+                  <div class="draw-menu-label">This map</div>
+                  <label class="draw-menu-row fog-tick" style="align-items:center; gap:6px; cursor:pointer;" title="The switch for this map&rsquo;s fog. While it is ticked the &#127787; button on the toolbar wears ON."><input type="checkbox" id="fogOn"> <span>Fog on this map</span><small>Players see only what their tokens see.</small></label>
+                  <label class="draw-menu-row fog-tick" style="align-items:center; gap:6px; cursor:pointer;" title="For you alone, on this machine: your screen draws no dark veil over a fogged map. Your players&rsquo; fog does not change. A preview of the party or of a player still shows, and so does the veil while you paint fog by hand."><input type="checkbox" id="fogHideMine"> <span>Hide the fog on my screen</span><small>Your own view only. Players are not affected.</small></label>
+                  <div id="fogNote" style="font-size:10.5px; color:var(--dim); line-height:1.4; max-width:210px;"></div>
                   <div class="draw-menu-label" title="Reveal or hide cells by hand, on top of what the tokens see, or clear your marks again. Press a brush to start; press the lit one again, or pick another tool, to stop.">Paint fog by hand</div>
                   <div class="draw-menu-row">
                       <button class="draw-style-btn fog-brush-btn" data-fbrush="reveal" title="Start painting: click or drag cells on the map to reveal them (right-click hides). Press again to stop."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12c2.5-4.5 6-7 10-7s7.5 2.5 10 7c-2.5 4.5-6 7-10 7s-7.5-2.5-10-7zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/></svg> Reveal</button>
@@ -2288,12 +2213,97 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                       <button class="draw-style-btn" id="fogRevealAll" title="Show the whole map (a lit scene)">Reveal all</button>
                       <button class="draw-style-btn" id="fogCoverAll" title="Hide everything except cells you reveal by hand">Cover all</button>
                   </div>
-                  <div class="draw-menu-label">Preview a player's view</div>
-                  <div class="draw-menu-row">
-                      <select id="fogPreview" class="field" style="flex:1; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;"><option value="off">Off &mdash; your own view</option><option value="party">Party &mdash; all tokens</option></select>
+                  <button type="button" class="menu-fold" id="fogFoldLight" aria-expanded="false" aria-controls="fogLightVision" title="How lit this map is, how its tokens see, and the grid a map with none is measured by"><span>Light and vision on this map</span><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 6l6 6-6 6"/></svg></button>
+                  <div class="menu-fold-body" id="fogLightVision" hidden>
+                      <div id="fogLightRow" style="display:none;">
+                          <div class="draw-menu-label" title="Lighting (a VTT feature): a lit cell shows to every token that has it in its line of sight; a token's sight is how far it sees in the dark. Auto: lit until you place a light source on this map (the &#10024; effects panel).">Light on this map</div>
+                          <div class="draw-menu-row">
+                              <select id="fogLight" class="field" style="flex:1; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;">
+                                  <option value="auto">Auto &mdash; lit until you place a light</option>
+                                  <option value="bright">Bright</option>
+                                  <option value="dim">Dim</option>
+                                  <option value="dark">Dark</option>
+                              </select>
+                          </div>
+                          <div class="draw-menu-row"><button class="draw-style-btn" id="fogLightPlace" title="Place a light source: click the map (its radii in its Properties). On an Auto map it goes dark outside its lights."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.3 1 2.1h5c0-.8.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></svg> Light source</button></div>
+                      </div>
+                      <div class="draw-menu-label">Vision</div>
+                      <div class="draw-menu-row">
+                          <select id="fogVision" class="field" style="flex:1; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;" title="All around: a token sees in every direction (D&amp;D radius). Facing cone: a token sees only ahead, and the cone turns as the token turns (GURPS front arc). Set per map &mdash; it no longer depends on the grid type.">
+                              <option value="all">All around</option>
+                              <option value="arc">Facing cone</option>
+                          </select>
+                      </div>
+                      <div class="draw-menu-row" id="fogVisionArcRow" style="display:none;">
+                          <input type="number" id="fogVisionArc" min="1" max="360" step="5" style="width:70px; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;" title="Cone width in degrees (1&ndash;360). 90&deg; is a torch; 180&deg; is a wide front arc; 360&deg; is all around.">
+                          <span style="font-size:11px; color:var(--dim);">&deg; cone, centred on each token's facing</span>
+                      </div>
+                      <label class="draw-menu-row" style="align-items:center; gap:6px; cursor:pointer; font-size:11px; color:var(--dim);"><input type="checkbox" id="fogVisionDefault"> <span>Use this vision for new maps in this campaign</span></label>
+                      <div id="fogGridlessRow" style="display:none;">
+                          <div class="draw-menu-label">Gridless &mdash; measure vision with</div>
+                          <div class="draw-menu-row">
+                              <button class="draw-style-btn fog-grid-btn" data-fgrid="square" title="Square cells, D&amp;D radius vision">Square</button>
+                              <button class="draw-style-btn fog-grid-btn" data-fgrid="hex" title="Hex cells, GURPS front-arc vision">Hex</button>
+                          </div>
+                          <div class="draw-menu-row">
+                              <input type="number" id="fogCellLen" min="10" step="1" style="width:70px; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;">
+                              <span style="font-size:11px; color:var(--dim);">px per cell (the grid is not drawn)</span>
+                          </div>
+                      </div>
                   </div>
-                  <div id="fogNote" style="font-size:10.5px; color:var(--dim); line-height:1.4; max-width:210px;"></div>
-                  <div style="font-size:10.5px; color:var(--dim); line-height:1.4; max-width:210px;">Preview shows the fog on your own screen. In a session each player sees an opaque fog of their own tokens' vision, and the host drops what they can't see &mdash; nothing hidden crosses the wire. A player&rsquo;s remembered ground lives on their own screen: the preview never shows it.</div>
+                  <button type="button" class="menu-fold" id="fogFoldPreview" aria-expanded="false" aria-controls="fogPreviewBox" title="See the fog as the party or one player sees it, on your own screen"><span>Preview a player&rsquo;s view</span><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 6l6 6-6 6"/></svg></button>
+                  <div class="menu-fold-body" id="fogPreviewBox" hidden>
+                      <div class="draw-menu-row">
+                          <select id="fogPreview" class="field" style="flex:1; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;"><option value="off">Off &mdash; your own view</option><option value="party">Party &mdash; all tokens</option></select>
+                      </div>
+                      <div style="font-size:10.5px; color:var(--dim); line-height:1.4; max-width:210px;">Preview shows the fog on your own screen. In a session each player sees an opaque fog of their own tokens' vision, and the host drops what they can't see &mdash; nothing hidden crosses the wire. A player&rsquo;s remembered ground lives on their own screen: the preview never shows it.</div>
+                  </div>
+                  <button type="button" class="menu-fold" id="fogFoldCamp" aria-expanded="false" aria-controls="fogCampBox" title="What holds for every map of this campaign: fog on new maps, sight, senses, marks and what players remember"><span>This campaign&rsquo;s fog settings</span><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 6l6 6-6 6"/></svg></button>
+                  <div class="menu-fold-body" id="fogCampBox" hidden>
+                      <div class="draw-menu-row" style="gap:6px; margin-top:2px;">
+                          <button class="draw-style-btn" id="fogOnAllMaps" title="Turn fog on for every map in this campaign (turn any single map back off with the checkbox above)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 14a4 4 0 0 1 .5-8 5.5 5.5 0 0 1 10.6 1.2A3.5 3.5 0 0 1 17.5 14H7zM5 17.5h14M8 21h8"/></svg> Fog on &middot; all maps</button>
+                      </div>
+                      <label class="draw-menu-row" style="align-items:center; gap:6px; cursor:pointer; font-size:11px; color:var(--dim);"><input type="checkbox" id="fogOnDefault"> <span>New maps in this campaign start with fog on</span></label>
+                      <div class="draw-menu-label" title="A play area is any image or shape you mark (in its Properties, or the &#9635; button on its toolbar). Fog covers only cells under marked items &mdash; scenes and map art stay lit. This sets what a map does when nothing is marked yet.">When no play area is marked</div>
+                      <div class="draw-menu-row">
+                          <select id="fogEmptyScope" class="field" style="flex:1; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;">
+                              <option value="whole">Fog the whole map</option>
+                              <option value="none">No fog until you mark one</option>
+                          </select>
+                      </div>
+                      <div id="fogSightFieldRow" style="display:none;">
+                          <div class="draw-menu-label">Sight from a character field</div>
+                          <div class="draw-menu-row">
+                              <select id="fogSightField" class="field" style="flex:1; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;"><option value="">Default only (no field)</option></select>
+                          </div>
+                          <div id="fogSightSecret" class="muted" style="display:none; margin:2px 0 4px; font-size:10.5px;"></div>
+                      </div>
+                      <div class="draw-menu-label">Default sight range</div>
+                      <div class="draw-menu-row">
+                          <input type="number" id="fogSight" min="0" step="1" style="width:80px; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;">
+                          <select id="fogSightUnit" class="field" title="What sight is counted in, for the default here and the character field above: each map&rsquo;s own scale turns it into cells (60 ft on 5 ft squares is 12 squares); grid cells count as they are" style="padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;"><option value="yd">yards</option><option value="ft">feet</option><option value="m">metres</option><option value="cells">grid cells</option></select>
+                          <span style="font-size:11px; color:var(--dim);">a token with no character, or an unmapped field</span>
+                      </div>
+                      <div id="fogSensesRow" style="display:none;">
+                          <div class="draw-menu-label">Senses</div>
+                          <div class="draw-menu-row">
+                              <span id="fogSensesText" style="flex:1; font-size:11px; color:var(--dim);"></span>
+                              <button type="button" id="fogSensesEdit" class="draw-style-btn" title="The system&rsquo;s senses are set on the Combat card of the System editor (its Items tab)">Edit&hellip;</button>
+                          </div>
+                          <div style="font-size:11px; color:var(--dim); padding:0 2px 4px;">Sight is the eyes&rsquo; own range in the dark. A sense that sees without light adds to it; the longer of the two is what the token sees.</div>
+                      </div>
+                      <div id="fogMarksRow" style="display:none;">
+                          <div class="draw-menu-label">Marks in a fight</div>
+                          <div class="draw-menu-row">
+                              <select id="fogMarksMode" class="field" title="How a player&rsquo;s marks move while a fight runs on a map: with every move, or only when a turn of theirs starts (and as they move on it; a player with no token in the fight at each new round). A mark goes at once when its creature comes into view, is hidden or leaves">
+                                  <option value="move">As they move</option>
+                                  <option value="turn">On your own turn</option>
+                              </select>
+                          </div>
+                          <div style="font-size:11px; color:var(--dim); padding:0 2px 4px;">On your own turn keeps a lone player from matching a moving mark to a turn; it does not hide what players tell each other.</div>
+                      </div>
+                      <label class="draw-menu-row" style="align-items:center; gap:6px; cursor:pointer; font-size:11px; color:var(--dim);" title="Each player&rsquo;s own screen keeps the ground they have seen this session, dimmed. Remembered ground shows every piece on it that is not a character token, as it is now (a prop, a picture, an opened door); creatures there stay hidden. Cover all or Reveal all clears everyone&rsquo;s memory of the map; hiding a cell by hand clears that cell."><input type="checkbox" id="fogRemember"> <span>Players remember what they have seen</span></label>
+                  </div>
               </div>
           </div>
           <div style="position:relative; display:inline-block;" class="tool-pair gm-only">

@@ -3187,6 +3187,7 @@ function applyPosToDom(msg) {
     var fwP = el.querySelector(':scope > .token-front');
     if (fwP) fwP.style.transform = msg.front ? 'rotate(' + msg.front + 'deg)' : '';
     if (msg.final === true && window.wpStanceChips) window.wpStanceChips();   // item 19b H5: a move that landed: the chips read each token's height where it now stands (whiteboard.js)
+    if (msg.final === true) { if (window.wpRefreshBlasts) window.wpRefreshBlasts(); } else if (window.wpCircleFollow) window.wpCircleFollow();   // 128: who stands in a circle or a blast is read again where a move landed, and a circle on a token goes with a move still under way
 }
 
 /* Host: send a player through a portal. Validates that the portal is a visible

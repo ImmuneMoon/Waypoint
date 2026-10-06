@@ -85,6 +85,7 @@
         wpCastSaveCharacter: 'Save a character/token into the campaign Cast.',
         wpCheckShell: 'Check whether the Electron core (shell) is older than SHELL_WANTED and needs the installer.',
         wpCheckUpdates: 'Run the app update check (GitHub latest vs the running version).',
+        wpCircleFollow: 'Redraw the circles of the Radius tool that sit on a token, where their tokens stand now (called while a token moves with no redraw).',
         wpClampMenu: 'Position a fixed pop-up menu so it stays on-screen (flips near the right/bottom edge).',
         wpCloseImgPreview: "Close the Image Library's large preview.",
         wpCmdkOpen: 'Open the Ctrl+K quick-jump palette.',

@@ -639,6 +639,7 @@
                                   <li>For a circle, <b>Radius</b> reads your number from the centre to the edge. <b>Diameter</b> reads it from edge to edge.</li>
                                   <li><b>Ring</b> takes two distances. The tokens between the two are inside, and the ones nearer than the first are not.</li>
                                   <li><b>Cone</b> is a wedge from a point, with an angle you set in degrees. Press a cell and drag to aim it. Drag the handle on its far edge to turn it later. A token standing on the point is not counted.</li>
+                                  <li><b>On a token</b> puts a circle on a token you click. The circle moves with its token, and the token itself is not counted. Right-click the circle&rsquo;s edge to remove it.</li>
                                   <li>The size is in the ruler&rsquo;s unit on that map, so 20 on a map in feet is 20 feet. The distances read in that unit too.</li>
                                   <li>Distance is hex distance. With <b>Token elevation</b> on it is straight-line, height included: <code>&radic;(h&sup2; + v&sup2;)</code>.</li>
                                   <li>It is measured from the shape&rsquo;s own height. That is the height of the token in its cell, else of the ground, and you can edit it in the tool&rsquo;s options.</li>
@@ -2130,6 +2131,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                       <button class="draw-style-btn active" data-shape="circle" title="A circle. Every token inside shows its distance."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM12 12l5.6-5.6M12 12h.01"/></svg> Circle</button>
                       <button class="draw-style-btn" data-shape="ring" title="A ring. The tokens between an inner and an outer distance are inside."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zM12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z"/></svg> Ring</button>
                       <button class="draw-style-btn" data-shape="cone" title="A wedge from a point, with an angle you set. Press a cell and drag to aim it."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18L15.5 4.2a18 18 0 0 1 6.4 12.2L4 18z"/></svg> Cone</button>
+                      <button class="draw-style-btn" data-shape="tok" title="A circle that sits on a token and moves with it. Click a token to place it."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M13.8 3.7A8.5 8.5 0 0 1 20.3 10.2M20.3 13.8A8.5 8.5 0 0 1 13.8 20.3M10.2 20.3A8.5 8.5 0 0 1 3.7 13.8M3.7 10.2A8.5 8.5 0 0 1 10.2 3.7M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/></svg> On a token</button>
                   </div>
                   <div class="draw-menu-row" id="blastShapeNote" style="font-size:11px; color:var(--dim); max-width:210px; line-height:1.4;">A circle. Every token inside shows its distance.</div>
                   <div class="draw-menu-label">Size</div>

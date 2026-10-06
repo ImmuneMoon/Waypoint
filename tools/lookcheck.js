@@ -45,7 +45,9 @@ const INVENTORY = ['wbFloatingToolbar', 'wbCenterBtn', 'wbCenterMenu', 'wbCenter
     // built with the ring and the cone (2026-10-06): the Shape row and the line that says what the shape in use is, a ring's inner distance, a cone's angle
     'blastShapeRow', 'blastShapeNote', 'blastInnerWrap', 'blastInner', 'blastAngleWrap', 'blastAngle',
     // built with Explode (2026-10-06), the GM's alone: its button, the two boxes it asks for with the part that holds them, and the two buttons under them
-    'blastExplodeBtn', 'blastExplodeForm', 'blastDmg', 'blastDmgType', 'blastExplodeGo', 'blastExplodeNo'];
+    'blastExplodeBtn', 'blastExplodeForm', 'blastDmg', 'blastDmgType', 'blastExplodeGo', 'blastExplodeNo',
+    // built with the fog menu's groups (2026-10-06): its three folds, each a button and the part it shows
+    'fogFoldLight', 'fogLightVision', 'fogFoldPreview', 'fogPreviewBox', 'fogFoldCamp', 'fogCampBox'];
 // The choices inside the menus that have no id: found by the attribute their handler reads
 const ROWS = { mode: ['grid', 'items', 'both'], straight: ['false', 'true'], tip: ['round', 'square', 'flat'], size: ['2', '3', '6', '10', '16'], emode: ['precise', 'segment'], unit: ['imperial', 'metric'],
     fgrid: ['square', 'hex'], fbrush: ['reveal', 'hide', 'clear'], fstroke: ['1', '3', '5', 'box', 'piece'], shapesize: ['free', 'cell'], as: ['r', 'd'], shape: ['circle', 'ring', 'cone', 'tok'] };
@@ -62,7 +64,7 @@ const board = (() => { const a = ix.indexOf('<div id="wbFloatingToolbar"'), z = 
     const idN = id => count(ix, ' id="' + id + '"'), ALL = INVENTORY.concat(HEADER, SETTINGS);
     const gone = ALL.filter(id => idN(id) !== 1).map(id => id + ' x' + idN(id)), out = INVENTORY.filter(id => count(board, ' id="' + id + '"') !== 1);
     check('nothing is removed (the owner: "lets not remove functionality with these updates, that critical."): each of the ' + INVENTORY.length + ' controls of the play map\'s toolbar, its menus and what stands around the map is in the page exactly once and still around the map, and so is each of the ' + HEADER.length + ' of the top bar with Import and every kind of Export, and each of the ' + SETTINGS.length + ' of the three switches in Settings',
-        board.length > 1000 && gone.length === 0 && out.length === 0 && INVENTORY.length === 176 && HEADER.length === 42 && SETTINGS.length === 6 && new Set(ALL).size === 224, J([gone, out]));
+        board.length > 1000 && gone.length === 0 && out.length === 0 && INVENTORY.length === 182 && HEADER.length === 42 && SETTINGS.length === 6 && new Set(ALL).size === 230, J([gone, out]));
     const rowsBad = Object.keys(ROWS).filter(k => J((board.match(new RegExp('<button[^>]* data-' + k + '="([^"]*)"', 'g')) || []).map(m => m.slice(m.lastIndexOf('="') + 2, -1))) !== J(ROWS[k]));
     const sw = (board.match(/<button class="draw-swatch" data-color="(#[0-9a-f]{6})"/g) || []).map(m => m.slice(-8, -1));
     check('nothing is removed, the choices inside the menus: Snap\'s three modes, the pen\'s two styles, three tips and five sizes, the eraser\'s two modes, the two measuring systems, the fog\'s two gridless grids, three brushes and five strokes, the two shape sizes, the Radius tool\'s three shapes and a circle\'s two readings, each in its order, and the seven colours of the pen and of the fill with a custom colour for each',
@@ -640,7 +642,8 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         + "- The blast tool is now the Radius tool, and every player has it. It\n  places a circle to measure with, in the ruler's gold. Type its size\n  in the ruler's unit, as a radius or as a diameter, and every token\n  inside shows its distance. Circles are yours alone. A blast with\n  damage is still thrown from a character's sheet.\n"
         + "- The Radius tool also measures a ring and a cone. A ring holds the\n  tokens between two distances. A cone is a wedge from a point: set\n  its angle, press a cell and drag to aim it, and drag its handle to\n  turn it later.\n"
         + "- The Radius tool can also put a circle on a token. Pick On a token\n  and click a token. The circle moves with it, and the token itself\n  is not counted.\n"
-        + "- The GM can set off a circle of the Radius tool as an explosion. Press\n  Explode in the tool's options and type the damage and its type.\n  Nothing is filled in. The blast is shown to everyone on the map, and\n  the damage follows the system's blast setting.\n\n";
+        + "- The GM can set off a circle of the Radius tool as an explosion. Press\n  Explode in the tool's options and type the damage and its type.\n  Nothing is filled in. The blast is shown to everyone on the map, and\n  the damage follows the system's blast setting.\n"
+        + "- The fog menu is shorter. This map's two ticks and the brushes stay\n  in view, and three folds hold the rest: light and vision, the\n  preview, and the campaign's fog settings. No control is gone.\n\n";
     const wn = [rootRead('WHATSNEW.txt'), read('assets/whatsnew.txt')];
     check('both release notes carry the same lines, and the suite is one of the CI runs',
         wn.every(t => count(t, NOTE) === 1 && count(t, 'Every button is where it was') === 0) && rootRead('.github/workflows/checks.yml').includes("      - name: lookcheck — the look of the play map (no control removed, the toolbar's line icons, gold for the tool in hand)\n        if: ${{ !cancelled() }}\n        run: node tools/lookcheck.js\n"));

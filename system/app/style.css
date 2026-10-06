@@ -741,6 +741,7 @@
   .cm-fx-tag.gm { color: #e0a54f; border-style: dashed; }
   .cm-fx.auto { cursor: default; }   /* conditions C4: an automatic effect on, nothing to click */
   .wb-item.blast-hit { outline: 2px solid var(--red); outline-offset: 2px; }
+  .wb-item.circle-hit { outline: 2px solid var(--gold); outline-offset: 2px; }   /* inside a circle of the Radius tool: measured, not hit */
   .token-initials { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 18px; color: var(--bg); pointer-events: none; text-shadow: 0 1px 0 rgba(255,255,255,0.25); }
   /* a player's picture token whose bytes have not arrived: a dashed disc with the initials, so the token is never an invisible box */
   .wb-item.image > .token-initials.tok-pending { inset: 3px; border-radius: 50%; background: rgba(30, 28, 40, 0.92); border: 2px dashed var(--dim); color: var(--ink); font-size: 15px; text-shadow: none; }
@@ -804,6 +805,11 @@
   #measureLayer g.blast text.hit { fill: var(--ink); font-size: 12px; pointer-events: none; }
   #measureLayer g.blast:hover circle.area { stroke: var(--gold); fill: rgba(224,165,79,0.14); }
   #measureLayer g.blast:hover circle.dot, #measureLayer g.blast:hover text { fill: var(--gold); }
+  /* a circle of the Radius tool's own measures: it wears the ruler's gold, and a thrown blast keeps its red */
+  #measureLayer g.blast.own circle.area { fill: rgba(224,165,79,0.1); stroke: var(--gold); }
+  #measureLayer g.blast.own circle.dot, #measureLayer g.blast.own text { fill: var(--gold); }
+  #measureLayer g.blast.own text.hit { fill: var(--ink); }
+  #measureLayer g.blast.own:hover circle.area { fill: rgba(224,165,79,0.2); }
   /* ---- inspector ---- */
   /* ---- sidebar ---- */
   #sidebar{

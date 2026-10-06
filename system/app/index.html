@@ -400,7 +400,7 @@
                               <ul>
                                   <li>A button that is on stays lit, and a second press puts it away: an armed burst, ping or light source is disarmed, a running weather stops, a held wash clears. <b>Density</b> thins or thickens the weather that is running, at once.</li>
                                   <li><b>Sound with it</b> plays one of your cues along with the effect you fire.</li>
-                                  <li>Right-click a token for a <b>Pulse</b>. The &#128165; Blast tool gains a <b>Boom</b>.</li>
+                                  <li>Right-click a token for a <b>Pulse</b>. On the GM&rsquo;s screen, a circle of the Radius tool or a thrown blast gains a <b>Boom</b>.</li>
                                   <li>The players on that map see an effect, and so does the stream window. A burst has a place, so a player on another map does not see it.</li>
                                   <li><b>Ping:</b> <kbd>Alt</kbd>+click on the play map rings that cell for a moment, over the fog, for everyone on the map. The panel&rsquo;s <b>Ping</b> button and then a click on the map does the same. The Ping row&rsquo;s list sends pings to one player on the map instead, and not to the stream window. Alt+click follows that choice until the player leaves the map. A ping is never saved, and a player&rsquo;s screen draws at most eight at once.</li>
                                   <li><b>Reduce motion</b> is in Settings and is each machine&rsquo;s own. It skips shake, shortens flashes and keeps a ping&rsquo;s ring still. A hard flash guard prevents strobing.</li>
@@ -457,7 +457,7 @@
                           <li><b>Save to Campaign Cast</b>, on a character token, keeps a copy of it in the campaign&rsquo;s cast. Right-click the play map &#9656; <b>&#9733; Campaign Cast</b> and click a member to place a copy there, or its <b>&times;5</b> for five. The cast is a folder of the Image Library too.</li>
                       </ul>
                       <div class="help-tip">Character tokens: any shape or image with <b>Is Character</b> set in the right sidebar becomes a token with a name and a stats tooltip. It can be handed to a player in multiplayer. Tokens pair with <b>shadow-base.com character sheets</b>. The <b>&#129333; Import Character</b> toolbar button turns a site JSON into a ready token, with the portrait as its art and the sheet attached. The inspector's <b>View</b> opens the full read-only sheet: stats, traits, skills and inventory. <b>Export JSON</b> writes a site-ready file back out, and a token with no sheet attached still exports a starter file.</div>
-                      <div class="help-tip"><b>Tool options:</b> a tool that has options has a <b>small arrow</b> beside its icon. The icon takes the tool, and a second press puts it away. The arrow opens the tool&rsquo;s options. They stay up while you work, until you press the arrow again or take another tool. The pen, the eraser, fill, measure and blast work this way. A button that only opens a menu has the same small arrow, and either of the two opens the menu.</div>
+                      <div class="help-tip"><b>Tool options:</b> a tool that has options has a <b>small arrow</b> beside its icon. The icon takes the tool, and a second press puts it away. The arrow opens the tool&rsquo;s options. They stay up while you work, until you press the arrow again or take another tool. The pen, the eraser, fill, measure and radius work this way. A button that only opens a menu has the same small arrow, and either of the two opens the menu.</div>
                       <div class="help-tip"><b>Toolbar groups:</b> to keep the play-map toolbar compact, the content tools live under the <b>+ Add</b> button: text box, image, the picture library and character import. The GM ambience tools live under the <b>&#127916; Scene</b> button: sound, music, visual effects and video. Centre, the grid and snap stand in a column at the map&rsquo;s right edge. The centre menu also shows or hides the rulers, the zoom buttons and the pointer location. <b>More</b>, the last button, holds Clear board. In a narrow window the bar tightens, then wraps onto a second row, so no tool is ever cut off. Opening any toolbar menu closes the others, so only one is ever up.</div>
                       <h4>Fog of war</h4>
                       <p>The <b>&#127787; Fog</b> tool is the GM&rsquo;s. It hides the play map behind an opaque fog and reveals only what a character can see. Fog is a <b>VTT feature, per campaign</b>, under &#9881; Settings &#9656; VTT features. It is <b>on by default</b>, so the &#127787; button is on the toolbar. Switch the feature off there if you never use it. There is no player switch: when you run fog, everyone at the table plays with it.</p>
@@ -498,7 +498,7 @@
                                   <li>Cover is read from the walls, pillars, closed doors and filled cells on the map, and works on square and hex. Fog need not be on for cover to show.</li>
                                   <li>Each piece&rsquo;s <b>Cover</b> setting, in its Properties, can turn its cover off. It can also make a piece that blocks no sight, such as a crate or a low wall, give cover you can see over. That cover is half or three-quarters, never total.</li>
                                   <li>Tokens never count as cover.</li>
-                                  <li>A blast shows each token&rsquo;s cover from its centre beside its distance. A blast thrown into a wall or a closed door goes off in front of it, on the thrower&rsquo;s side.</li>
+                                  <li>A circle of the Radius tool or a thrown blast shows each token&rsquo;s cover from its centre beside its distance. A blast thrown into a wall or a closed door goes off in front of it, on the thrower&rsquo;s side.</li>
                                   <li>A <b>target mark</b> carries the cover between its targeter&rsquo;s token and the target at its corner: &frac12; half, &frac34; three-quarters, &#9632; total, &#9680; cover.</li>
                                   <li>Cover is <b>advisory</b>. Waypoint estimates it from the map&rsquo;s pieces in whole cells, and you make the call. A piece gives cover in the cells whose centres it covers, and a blast reaches a large token&rsquo;s most exposed cell.</li>
                                   <li>Cover changes no dice, and damage only where your system says so. On the Combat card, with cover on, each grade can make a <b>Full auto</b> blast do full, half or no damage behind it.</li>
@@ -616,7 +616,7 @@
                       <h4>Measuring</h4>
                       <ol>
                           <li>Pick the <b>&#128207; Measure</b> tool and drag across the map to place a ruler. Press the small arrow beside the tool for its options.</li>
-                          <li>Choose <b>Imperial</b> or <b>Metric</b>. By default a hex cell is 1 yard across and a square is 5 feet. Heights follow your choice too, and read and are typed in yards or metres. That goes for a token&rsquo;s elevation on its chip, menu and Properties, a piece&rsquo;s height, the ruler&rsquo;s 3D line and a blast&rsquo;s labels.</li>
+                          <li>Choose <b>Imperial</b> or <b>Metric</b>. By default a hex cell is 1 yard across and a square is 5 feet. Heights follow your choice too, and read and are typed in yards or metres. That goes for a token&rsquo;s elevation on its chip, menu and Properties, a piece&rsquo;s height, the ruler&rsquo;s 3D line, and the height of a circle or a thrown blast.</li>
                           <li>For huge maps, such as space battles, set <b>Map Scale</b> in the measure options: one cell can be 100 yd or 2 km. Each map keeps its own scale.</li>
                           <li><b>Click any placed ruler to remove it</b>. It turns red on hover. <b>Clear rulers</b> in the measure options removes them all.</li>
                           <li><b>Token elevation</b> is switched for the campaign under &#9881; Settings &#9656; VTT features. With it on, a ruler between two tokens at different heights prints the straight-line <b>3D</b> figure as a second number.</li>
@@ -626,25 +626,28 @@
                                   <li>Everything that reads a token&rsquo;s height reads the two together. That is its chip and hover card, the ruler&rsquo;s 3D line, cover by height, a blast&rsquo;s distances, and <b>HeightDiff</b> and <b>HeightMod</b> in rolls.</li>
                                   <li>Its right-click menu keeps its own Elevation in the box and names the ground beside it, as <b>+3 yd ground</b>.</li>
                                   <li>A blast that lands on ground takes the ground&rsquo;s height when no token stands there.</li>
-                                  <li>While a ground piece is hidden, nothing worked out for your players reads it. That covers their screens, their rolls, a thrown blast, and what the fog shows or hides for each of them. It covers the stream window and your preview of a player too. Your own screen, your own rolls and your blast tool do read it.</li>
+                                  <li>While a ground piece is hidden, nothing worked out for your players reads it. That covers their screens, their rolls, a thrown blast, and what the fog shows or hides for each of them. It covers the stream window and your preview of a player too. Your own screen, your own rolls and your Radius tool do read it.</li>
                               </ul>
                           </li>
                           <li>When your system has a <b>range penalty</b>, every ruler also shows its modifier, such as <b>Range &minus;4</b>. The penalty is set in the <b>Range</b> box of the System editor&rsquo;s Combat card.</li>
                           <li>With <b>Token posture</b> on, a ruler that ends on a token that is not standing adds <b>&minus;2 ranged</b> after the distance, and names the posture beside it. Every posture but standing makes a smaller target: &minus;2 to a foe&rsquo;s ranged attack roll, never melee. Waypoint only shows it, and whoever rolls adds it.</li>
                       </ol>
-                      <h4>Blast radius</h4>
+                      <h4>Radius</h4>
                       <ul>
-                          <li>The <b>&#128165; Blast</b> tool drops a grenade's area effect on a cell. Type a radius in feet and click the map. Three feet make a yard. Every token within the radius lights up with its distance in yards. So you apply the handbook's <code>damage &divide; (3 &times; distance)</code> by hand: Waypoint never rolls for you.
+                          <li>The <b>Radius</b> tool places a circle on the map to measure with. Press the small arrow beside it, type a size, and click a cell. Every token inside the circle lights up with its distance from the centre.
                               <ul>
+                                  <li><b>Radius</b> reads your number from the centre to the edge. <b>Diameter</b> reads it from edge to edge.</li>
+                                  <li>The size is in the ruler&rsquo;s unit on that map, so 20 on a map in feet is 20 feet. The distances read in that unit too.</li>
                                   <li>Distance is hex distance. With <b>Token elevation</b> on it is straight-line, height included: <code>&radic;(h&sup2; + v&sup2;)</code>.</li>
-                                  <li>It is measured from the blast's own height. That is the height of the token in the landing cell, else of the ground, and you can edit it in the tool's menu.</li>
-                                  <li>Drag a blast to move it. It re-seats in a cell and, unless you set its height, takes the height of whoever stands there. Right-click it to remove it.</li>
-                                  <li>Blasts are yours alone, like rulers.</li>
+                                  <li>It is measured from the circle&rsquo;s own height. That is the height of the token in its cell, else of the ground, and you can edit it in the tool&rsquo;s options.</li>
+                                  <li>Drag a circle to move it. It re-seats in a cell and, unless you set its height, takes the height of whoever stands there. Right-click it to remove it.</li>
+                                  <li>Circles are yours alone, like rulers. Everyone at the table has the tool, and nobody else sees your circles.</li>
+                                  <li>The tool only measures. A blast with damage is thrown from a character&rsquo;s sheet.</li>
                               </ul>
                           </li>
-                          <li><b>&#128165; Boom:</b> with Visual effects on, each blast template shows a <b>Boom</b> label. Click it to set off an explosion burst at that spot for everyone on the map.</li>
+                          <li><b>Boom:</b> with Visual effects on, the GM sees a <b>Boom</b> label on each circle and each thrown blast. Click it to set off an explosion burst at that spot for everyone on the map.</li>
                       </ul>
-                      <div class="help-tip"><b>Blasts from the sheet:</b> this toolbar &#128165; is now a GM <b>quick-tool</b> for an ad-hoc radius. Per-item blasts are thrown by the character, PC or NPC, from their sheet. They use the campaign&rsquo;s own item library, under System &#9656; Items, and each item has its own name, radius and damage. See Help &#9656; Character sheets.</div>
+                      <div class="help-tip"><b>Blasts from the sheet:</b> a blast with damage is thrown by a character, PC or NPC, from their sheet. It uses the campaign&rsquo;s own item library, under System &#9656; Items, and each item has its own name, radius and damage. A thrown blast reads in feet and yards, as the item does. See Help &#9656; Character sheets.</div>
                       <h4>Elevation &amp; posture</h4>
                       <p>Two VTT features in <b>&#9881; Settings &#9656; VTT features</b> give every character token a height and a posture. The height is in yards or metres, by your choice under Measuring. The postures are standing, crouching, sitting, kneeling, crawling, prone and face up, unless your system sets its own on its Combat card.</p>
                       <ul>
@@ -1093,7 +1096,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           </li>
                           <li><b>Sound:</b> the &#127925; panel's ambient loop and cues play on every player's machine at your Master volume. Your uploaded files travel to each player over the connection: 4 MB each, one at a time, the playing loop first. The bundled set never needs to, since every install has it. A bundled sound you <b>Hide</b> leaves your lists and the table's list alike, and players stop hearing it if it was playing. <b>Show hidden</b> brings it back. A player can turn the table's sound off for themselves, never on when you have it off.</li>
                           <li><b>Character sheets:</b> the campaign&rsquo;s system reaches players with GM-only fields removed. A player gets their own character in full, other PCs&rsquo; Hover fields only, and NPCs never. Their edits to fields you left player-editable are checked on your machine and saved into your campaign. You see them at once on the sheet and the hover card. A roll from a sheet is a table roll with the character&rsquo;s values on the card. See Help &#9656; Character sheets.</li>
-                          <li><b>Visual effects:</b> the &#10024; panel fires flashes, screen shake, color washes, bursts, weather and banners to the players on that map, and to the stream window. A token can pulse from its menu, and the Blast tool gets a Boom. <b>Alt+click</b> on the play map pings a cell. Off for the campaign hides it, and a player can switch it off for themselves.</li>
+                          <li><b>Visual effects:</b> the &#10024; panel fires flashes, screen shake, color washes, bursts, weather and banners to the players on that map, and to the stream window. A token can pulse from its menu, and a circle of the Radius tool gets a Boom. <b>Alt+click</b> on the play map pings a cell. Off for the campaign hides it, and a player can switch it off for themselves.</li>
                           <li><b>Fog of war:</b> the &#127787; fog tool hides the map and shows each token only what it can see. Your machine works out every player&rsquo;s vision and sends each of them only the cells and creatures they may see, so what is hidden never crosses the wire. It is on for the campaign by default. You run it for the whole table, and there is no player switch. See Help &#9656; Play Map.</li>
                           <li><b>Lighting:</b> light and darkness on fogged maps. A map is lit until you place a light source, from the &#10024; effects panel. So every token sees what is in its line of sight, and a token&rsquo;s sight is how far it sees in the dark. The fog menu sets a map&rsquo;s light. With Lighting off, a token sees only as far as its sight. It is on by default and GM-controlled, like fog.</li>
                           <li><b>Dice:</b> anyone at the table rolls with <b>/roll</b> in Table Chat or the &#127922; roller beside the message box. Your machine makes every roll and everyone sees the same card. Every table roll lands in the session log under <b>Dice</b>. <b>/gmroll</b> is yours alone, a player's <b>/gmroll</b> comes to you only, and a whisper target makes your <b>/roll</b> private to that player. Help &#9656; Dice has the syntax. Dice is a VTT feature: off for the campaign, nobody rolls.</li>
@@ -1587,7 +1590,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                               </ul>
                           </li>
                           <li>The removal setting is separate from <b>GM only</b>, which keeps an item secret. A GM-only item you give a player still reaches their sheet: its name and notes, never its formulas. If you delete an item from the library, every character carrying it keeps a copy, marked <b>not in library</b> on your sheet. <b>Make custom</b> turns that copy into the character&rsquo;s own item.</li>
-                          <li>An item with a blast area gets a <b>&#128165; Throw</b> button: press it, then click the map. The blast lands attributed to the character and is <b>shared with everyone on that map</b>. The toolbar &#128165; stays a personal GM quick-tool.</li>
+                          <li>An item with a blast area gets a <b>&#128165; Throw</b> button: press it, then click the map. The blast lands attributed to the character and is <b>shared with everyone on that map</b>. The toolbar&rsquo;s Radius tool only measures, and its circles are yours alone.</li>
                           <li><b>Combat settings</b> are at the top of the Items tab.
                               <ul>
                                   <li><b>Blast automation</b> has three settings. <b>Full auto</b> rolls the damage and applies it to every token in range. <b>Roll to chat</b> rolls but leaves applying to you. <b>Measure only</b> just shows the area.</li>
@@ -2117,28 +2120,33 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
               </div>
           </div>
 
-          <div style="position:relative;" class="tool-pair gm-only">
-              <button class="wb-tool-btn" id="blastModeBtn" title="Blast (GM quick-tool) &mdash; click a cell to drop a radius; tokens in range show their distance. Drag to move, right-click to remove. Per-item blasts are thrown from a character's sheet."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2 5.5 5-2.5-2.5 5 5.5 2-5.5 2 2.5 5-5-2.5-2 5.5-2-5.5-5 2.5 2.5-5L2 12l5.5-2-2.5-5 5 2.5 2-5.5z"/></svg></button><button class="wb-tool-btn tool-chev" id="blastOptBtn" title="Blast options" aria-haspopup="true"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9.5l6 6 6-6"/></svg></button>
+          <div class="tool-pair" style="position:relative;">
+              <button class="wb-tool-btn" id="blastModeBtn" title="Radius. Click a cell to place a circle. Every token inside shows its distance. Drag a circle to move it, right-click to remove it. Press again to put the tool away."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM12 12l5.6-5.6M12 12h.01"/></svg></button><button class="wb-tool-btn tool-chev" id="blastOptBtn" title="Radius options" aria-haspopup="true"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9.5l6 6 6-6"/></svg></button>
               <div class="shape-menu draw-menu" id="blastMenu">
-                  <div class="draw-menu-label">Blast Radius (area effect, feet)</div>
-                  <div class="draw-menu-row" style="font-size:11px; color:var(--dim); max-width:210px; line-height:1.4;">A quick ad-hoc radius. Per-item blasts are thrown from a character's sheet (System &#9656; Items).</div>
+                  <div class="draw-menu-label">Circle size</div>
                   <div class="draw-menu-row">
-                      <input type="number" id="blastFt" min="1" step="1" style="width:70px; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;">
-                      <span style="font-size:11px; color:var(--dim);">ft &mdash; any other weapon (&divide;3 = yards)</span>
+                      <input type="number" id="blastFt" min="0" step="any" aria-label="Circle size" style="width:70px; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;">
+                      <span id="blastUnit" style="font-size:11px; color:var(--dim);">yd</span>
                   </div>
+                  <div class="draw-menu-row" id="blastAsRow">
+                      <button class="draw-style-btn active" data-as="r" title="Your number is read from the centre to the edge"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM12 12l5.6-5.6M12 12h.01"/></svg> Radius</button>
+                      <button class="draw-style-btn" data-as="d" title="Your number is read from edge to edge"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM4 12h16"/></svg> Diameter</button>
+                  </div>
+                  <div class="draw-menu-row" style="font-size:11px; color:var(--dim); max-width:210px; line-height:1.4;">The size is in the ruler&rsquo;s unit on this map. Every token inside the circle shows its distance.</div>
                   <div id="blastElevRow">
-                      <div class="draw-menu-label">Blast Height (<span id="blastElevUnit">yd</span>)</div>
+                      <div class="draw-menu-label">Height, in <span id="blastElevUnit">yd</span></div>
                       <div class="draw-menu-row">
-                          <input type="number" id="blastElev" step="1" style="width:70px; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;">
-                          <span style="font-size:11px; color:var(--dim);">where it goes off &mdash; the token in that cell's height, else the ground</span>
+                          <input type="number" id="blastElev" step="1" aria-label="Height" style="width:70px; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;">
                       </div>
+                      <div class="draw-menu-row" style="font-size:11px; color:var(--dim); max-width:210px; line-height:1.4;">The height of the last circle or blast placed. It starts at the height of the token in its cell, else the ground.</div>
                   </div>
                   <div class="draw-menu-row" id="blastFlatNote" style="font-size:11px; color:var(--dim);">Token elevation is off for this campaign (&#9881; Settings &#9656; VTT features): flat hex distance.</div>
                   <div class="draw-menu-row" id="blastWhich" style="font-size:11px; color:var(--dim);"></div>
                   <div class="draw-menu-row">
-                      <button class="draw-style-btn" id="blastClearBtn" title="Remove all placed blasts">Clear blasts</button>
-                      <button class="draw-style-btn" id="blastUndoThrow" title="Undo the last thrown blast's damage (restores every token it hit)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4L4 9l5 5M4 9h10.5a5.5 5.5 0 0 1 0 11H9"/></svg> Undo last throw</button>
+                      <button class="draw-style-btn" id="blastClearBtn" title="Removes the circles you placed. The GM&rsquo;s press also removes thrown blasts, for everyone.">Clear circles</button>
+                      <button class="draw-style-btn gm-only" id="blastUndoThrow" title="Undo the last thrown blast's damage (restores every token it hit)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4L4 9l5 5M4 9h10.5a5.5 5.5 0 0 1 0 11H9"/></svg> Undo last throw</button>
                   </div>
+                  <div class="draw-menu-row gm-only" style="font-size:11px; color:var(--dim); max-width:210px; line-height:1.4;">The tool only measures. A blast with damage is thrown from a character&rsquo;s sheet.</div>
               </div>
           </div>
 
@@ -2783,7 +2791,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <div class="set-vtt-row" data-vtt="elevation" style="margin-bottom:8px;">
                 <div class="set-field-label" style="display:flex; justify-content:space-between;">Token elevation <span id="setElevationState" style="color:var(--dim);"></span></div>
                 <button class="tool ghost" id="setElevationBtn" style="width:100%;">Toggle Elevation</button>
-                <div class="set-vtt-help" style="font-size:10.5px; color:var(--dim); line-height:1.4;">Height in yards on each token (a ledge at +3, a pit at &minus;2): a chip on the token, and the &#128165; Blast tool and rulers measure straight-line, height included. Off hides the chips but keeps the values. Set per campaign; in a session, this campaign's setting is the most your players can see.</div>
+                <div class="set-vtt-help" style="font-size:10.5px; color:var(--dim); line-height:1.4;">Height in yards on each token (a ledge at +3, a pit at &minus;2): a chip on the token, and the Radius tool and rulers measure straight-line, height included. Off hides the chips but keeps the values. Set per campaign; in a session, this campaign's setting is the most your players can see.</div>
                 <div class="set-vtt-role" style="display:none; font-size:10.5px; color:var(--dim); line-height:1.4;"></div>
             </div>
             <div class="set-vtt-row" data-vtt="posture" style="margin-bottom:8px;">

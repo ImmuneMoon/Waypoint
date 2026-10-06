@@ -3317,7 +3317,7 @@ window.wpFitToGrid = fitToGrid;
           var gbc = e.target.closest && e.target.closest('g.blast'); if (!gbc) return;
           e.preventDefault(); e.stopPropagation();
           var bic = parseInt(gbc.dataset.i, 10);
-          if (bic >= 0 && bic < blasts.length) { blasts.splice(bic, 1); renderMeasures(); syncBlastMenu(); toast('Blast removed.'); }
+          if (bic >= 0 && bic < blasts.length) { var goneB = blasts.splice(bic, 1)[0]; renderMeasures(); syncBlastMenu(); toast(ownCircle(goneB) ? 'Circle removed.' : 'Blast removed.'); }
       });
       document.addEventListener('pointermove', function(e) {
           if (!blastDrag) return;
@@ -3497,22 +3497,58 @@ window.wpFitToGrid = fitToGrid;
 
   });
 
-  /* ---- blast template: a grenade's area effect on the board (handbook ch. 7 / ch. 11) ----
-     A sub-mode of Measure (window.wpMeasureKind = 'blast'): click a cell to drop a template.
-     Radius is the weapon's area effect in feet (÷3 → yards). Every token within it lights up
-     with its distance printed, so the GM applies damage ÷ (3 × d) by hand — Waypoint never
-     rolls. Horizontal distance is hex distance in yards (one hex = one yard unless the map's
-     scale says otherwise; squares and gridless maps fall back to straight pixels); with the
-     Elevation toggle on, the vertical difference between the token and the template's own
-     height joins it straight-line: d = sqrt(h² + v²). Templates are local, like rulers —
-     never saved, never sent. */
+  /* ---- circles on the board: the Radius tool's own, and a thrown blast's area (handbook ch. 7 / ch. 11) ----
+     A sub-mode of Measure (window.wpMeasureKind = 'blast'): click a cell to place a circle.
+     The Radius tool is everyone's, to measure with (1.5.4). Its circle keeps a radius in yards
+     (b.yd), typed and shown in the ruler's unit on that map, as a radius or as a diameter (b.as).
+     A blast thrown from a sheet keeps its item's feet (b.ft, ÷3 → yards) and its name. Every
+     token within a circle lights up with its distance printed. Horizontal distance is hex
+     distance in yards (one hex = one yard unless the map's scale says otherwise; squares and
+     gridless maps fall back to straight pixels); with the Elevation toggle on, the vertical
+     difference between the token and the circle's own height joins it straight-line:
+     d = sqrt(h² + v²). The tool's circles are local, like rulers — never saved, never sent. */
   window.wpMeasureKind = 'ruler';
   window.isFogMode = false;
+  // [systemcheck:radius-start]
+  // The Radius tool's own numbers and words (1.5.4; the owner, 2026-10-06: "lets make the explosion tool a radius/ diameter tool instead").
+  // A circle keeps its RADIUS in yards, whatever was typed. Its size is typed and said in the ruler's unit on that map (by prompt: "The
+  // ruler's units"): the map's own unit, turned by the viewer's Imperial or Metric choice as the ruler's label turns it. as says how the
+  // number is read: 'r' from the centre to the edge, 'd' from edge to edge. The functions down to circlePref are pure: numbers and fixed
+  // words only. Under them stand the circles on screen, the size kept, the ruler's unit on the map on screen, and whose a circle is
+  var CIRCLE_MAX_YD = 10000000, CIRCLE_MIN_YD = 0.01;
+  function unitKnown(u) { return u === 'ft' || u === 'm' || u === 'km' || u === 'mi' ? u : 'yd'; }   // one of the ruler's five units, yards for anything else
+  function ydPer(u) { return u === 'ft' ? 1 / 3 : u === 'm' ? 1.09361 : u === 'km' ? 1093.61 : u === 'mi' ? 1760 : 1; }   // yards in one of them, as unitToYd counts
+  function rulerUnitOf(mapUnit, metric) {   // the unit the ruler's label ends in on a map of that unit
+      var u = unitKnown(mapUnit);
+      if (metric) return u === 'yd' || u === 'ft' ? 'm' : u === 'mi' ? 'km' : u;
+      return u === 'm' ? 'yd' : u === 'km' ? 'mi' : u;
+  }
+  function circleAs(v) { return v === 'd' ? 'd' : 'r'; }
+  function lenTrim(v) { v = Number(v); if (!isFinite(v) || !(v > 0)) return 0; return v >= 1 ? Math.round(v * 100) / 100 : Number(v.toPrecision(3)); }   // a size as it is typed: two decimals, three figures under 1
+  function circleYd(typed, as, unit) {   // the number in the box as a radius in yards; 0: nothing to place
+      var n = typeof typed === 'number' || typeof typed === 'string' ? Number(typed) : NaN;
+      if (!isFinite(n) || !(n > 0)) return 0;
+      var yd = n * ydPer(unitKnown(unit)) / (circleAs(as) === 'd' ? 2 : 1);
+      return yd < CIRCLE_MIN_YD ? 0 : Math.min(CIRCLE_MAX_YD, yd);
+  }
+  function circleTyped(yd, as, unit) { var v = Number(yd); return !isFinite(v) || !(v > 0) ? 0 : lenTrim(v * (circleAs(as) === 'd' ? 2 : 1) / ydPer(unitKnown(unit))); }   // a radius in yards as the number the box shows
+  function circleWords(yd, as, unit) { return (circleAs(as) === 'd' ? 'Diameter ' : 'Radius ') + circleTyped(yd, as, unit) + ' ' + unitKnown(unit); }
+  function rulerLen(yd, unit) { var v = Number(yd); if (!isFinite(v) || v < 0) v = 0; return String(Math.round(v / ydPer(unitKnown(unit)) * 10) / 10) + ' ' + unitKnown(unit); }   // a measured length, to a tenth as the ruler reads it
+  function circlePref(stored, oldBlast) {   // the size kept on this computer (wp_radius); before 1.5.4 the tool kept feet (wp_blast)
+      if (stored && typeof stored === 'object' && typeof stored.yd === 'number' && isFinite(stored.yd) && stored.yd >= CIRCLE_MIN_YD) return { yd: Math.min(CIRCLE_MAX_YD, stored.yd), as: circleAs(stored.as) };
+      if (oldBlast && typeof oldBlast === 'object' && typeof oldBlast.ft === 'number' && isFinite(oldBlast.ft) && oldBlast.ft > 0) return { yd: Math.min(3000, oldBlast.ft) / 3, as: 'r' };
+      return { yd: 4, as: 'r' };
+  }
   var blasts = [];
   var BLAST_CAP = 40;   // blasts on screen per map: the oldest go as new ones land (a throw stream from a player never grows this, or every client's render, without bound)
   function pushBlast(b) { blasts.push(b); if (blasts.length > BLAST_CAP) blasts.splice(0, blasts.length - BLAST_CAP); }
-  var blastDefaults = { ft: 12, name: '' };   // the toolbar quick-tool is unnamed; thrown blasts take their name from the item
-  try { var _bf = JSON.parse(localStorage.getItem('wp_blast') || 'null'); if (_bf && _bf.ft > 0) blastDefaults = { ft: _bf.ft, name: '' }; } catch (e) {}
+  var circleKept = { yd: 4, as: 'r' };   // the Radius tool's size, kept on this computer (wp_radius); a thrown blast takes its feet and its name from the item
+  try { circleKept = circlePref(JSON.parse(localStorage.getItem('wp_radius') || 'null'), JSON.parse(localStorage.getItem('wp_blast') || 'null')); } catch (e) {}
+  var _circleUnitShown = '';   // the unit the size box was last drawn in
+  function rulerUnitNow() { return rulerUnitOf(mapMeasureConfig().unit, state.measureUnit === 'metric'); }   // the unit the ruler reads in on the map on screen
+  function ownCircle(b) { return !!b && typeof b.yd === 'number' && b.yd > 0; }   // a circle of the Radius tool's own, never a thrown blast
+  function playerScreen() { var n = window.wpNet; return !!(n && (n.foreign || (n.active && n.role === 'client'))); }   // someone else's table on this screen, its link up or gone (litViewer's own test): every blast effect is the GM's
+  // [systemcheck:radius-end]
   var _blastHitIds = [];
   var blastDrag = null;   // { i, sx, sy, ox, oy, moved } while a blast is being dragged
   var _armedThrow = null;   // { charId, fieldId, rowId, ft, name, by, damage, gmOnly } while a sheet Throw is armed (one-shot)
@@ -3537,7 +3573,7 @@ window.wpFitToGrid = fitToGrid;
       if (state.gridType === 'hex') return hexDist(hexCellOf(ax, ay), hexCellOf(bx, by)) * cellYards();
       return Math.hypot(bx - ax, by - ay) / mapMeasureConfig().cellPx * cellYards();
   }
-  function blastRadiusYd(b) { return b.ft / 3; }
+  function blastRadiusYd(b) { return ownCircle(b) ? b.yd : b.ft / 3; }   // the tool's own circle keeps yards; a thrown blast its item's feet
   function blastDistances(b, map) {   // every character token (hidden ones too — the GM is the only viewer)
       var elevOn = stanceOn('elevation');
       return (map.whiteboard || []).filter(function(t) { return t.isChar; }).map(function(t) {
@@ -3549,33 +3585,33 @@ window.wpFitToGrid = fitToGrid;
   }
   function blastSvg() {
       var map = getActiveMap(); if (!map || !blasts.length) return '';
-      var pxPerYd = mapMeasureConfig().cellPx / cellYards(), elevOn = stanceOn('elevation'), html = '';
+      var pxPerYd = mapMeasureConfig().cellPx / cellYards(), elevOn = stanceOn('elevation'), html = '', ru = rulerUnitNow();
       blasts.forEach(function(b, i) {
-          var rYd = blastRadiusYd(b), rPx = rYd * pxPerYd;
-          html += '<g class="blast" data-i="' + i + '"><title>Drag to move \u00b7 right-click to remove</title>';
+          var rYd = blastRadiusYd(b), rPx = rYd * pxPerYd, own = ownCircle(b);   // the tool's own circle reads in the ruler's unit; a thrown blast keeps its item's feet and the handbook's yards
+          html += '<g class="blast' + (own ? ' own' : '') + '" data-i="' + i + '"><title>Drag to move \u00b7 right-click to remove</title>';
           html += '<circle class="area" cx="' + b.x + '" cy="' + b.y + '" r="' + rPx + '"></circle><circle class="ring" cx="' + b.x + '" cy="' + b.y + '" r="' + rPx + '"></circle><circle class="dot" cx="' + b.x + '" cy="' + b.y + '" r="6"></circle>';
-          var lbl = (b.name ? esc(b.name) + ' ' : '') + b.ft + ' ft \u00b7 r ' + fmtLen(rYd) + (elevOn ? ' \u00b7 at ' + fmtElev(b.elev || 0) + ' ' + lenUnit() : '');   // item 19 H1: in the viewer's unit
+          var lbl = (own ? esc(circleWords(b.yd, b.as, ru)) : (b.name ? esc(b.name) + ' ' : '') + b.ft + ' ft \u00b7 r ' + fmtLen(rYd)) + (elevOn ? ' \u00b7 at ' + fmtElev(b.elev || 0) + ' ' + lenUnit() : '');   // item 19 H1: in the viewer's unit
           html += '<text x="' + (b.x + 8) + '" y="' + (b.y - rPx - 8) + '">' + lbl + '</text>';
-          if (!window.wpNet || !window.wpNet.active || window.wpNet.role === 'host') html += '<text class="blast-boom" data-i="' + i + '" x="' + (b.x + 8) + '" y="' + (b.y - rPx - 26) + '">💥 Boom</text>';   // fires a burst everyone sees (1.5.0)
+          if (!playerScreen()) html += '<text class="blast-boom" data-i="' + i + '" x="' + (b.x + 8) + '" y="' + (b.y - rPx - 26) + '">💥 Boom</text>';   // fires a burst everyone sees (1.5.0)
           blastDistances(b, map).forEach(function(r) {
               if (r.d > rYd + 1e-9) return;
               var cvB = window.wpFog && window.wpFog.coverAt ? window.wpFog.coverAt(b.x, b.y, r.tok, map, elevOn ? (b.elev || 0) : 0, elevOn ? tokenElevation(r.tok, map, b.thrown === true) : 0) : null;   // cover follow-ups: the cover each token in range has from the blast's centre (local, advisory); item 19 H1: from the blast's height
-              html += '<text class="hit" x="' + (r.tok.x + (r.tok.w || 60) / 2) + '" y="' + (r.tok.y - 5) + '" text-anchor="middle">' + fmtLen(r.d) + (elevOn && r.v ? ' (' + (r.v > 0 ? '\u2191' : '\u2193') + (Math.round(ydOut(Math.abs(r.v)) * 10) / 10) + ')' : '') + (cvB ? ' \u00b7 ' + esc(cvB.name) : '') + '</text>';
+              html += '<text class="hit" x="' + (r.tok.x + (r.tok.w || 60) / 2) + '" y="' + (r.tok.y - 5) + '" text-anchor="middle">' + (own ? esc(rulerLen(r.d, ru)) : fmtLen(r.d)) + (elevOn && r.v ? ' (' + (r.v > 0 ? '\u2191' : '\u2193') + (Math.round(ydOut(Math.abs(r.v)) * 10) / 10) + ')' : '') + (cvB ? ' \u00b7 ' + esc(cvB.name) : '') + '</text>';
           });
           html += '</g>';
       });
       return html;
   }
-  function applyBlastHits() {
-      var map = getActiveMap(), hit = {};
-      if (map && blasts.length) blasts.forEach(function(b) { var rYd = blastRadiusYd(b); blastDistances(b, map).forEach(function(r) { if (r.d <= rYd + 1e-9) hit[r.tok.id] = true; }); });
-      _blastHitIds.forEach(function(id) { if (!hit[id] && state.wbEls[id]) state.wbEls[id].classList.remove('blast-hit'); });
+  function applyBlastHits() {   // a token inside a thrown blast is marked as hit, one inside circles of the Radius tool alone as measured
+      var map = getActiveMap(), hit = Object.create(null);
+      if (map && blasts.length) blasts.forEach(function(b) { var rYd = blastRadiusYd(b), own = ownCircle(b); blastDistances(b, map).forEach(function(r) { if (r.d <= rYd + 1e-9 && !(own && hit[r.tok.id])) hit[r.tok.id] = own ? 'circle-hit' : 'blast-hit'; }); });
+      _blastHitIds.forEach(function(id) { if (state.wbEls[id]) state.wbEls[id].classList.remove('blast-hit', 'circle-hit'); });
       _blastHitIds = Object.keys(hit);
-      _blastHitIds.forEach(function(id) { if (state.wbEls[id]) state.wbEls[id].classList.add('blast-hit'); });
+      _blastHitIds.forEach(function(id) { if (state.wbEls[id]) state.wbEls[id].classList.add(hit[id]); });
   }
   window.wpRefreshBlasts = function() { if (blasts.length || _blastHitIds.length || measures.length) renderMeasures(); };   // and the rulers placed: their words read the tokens they end on (a posture, a height) and the table's switches
   window.wpBlasts = function() { return blasts; };   // sandbox testing hook
-  function clearBlasts() { blasts = []; renderMeasures(); if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.broadcastBlastClear) { var mc = getActiveMap(); window.wpNet.broadcastBlastClear(mc ? mc.id : null); } }
+  function clearBlasts() { blasts = []; renderMeasures(); syncBlastMenu(); if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.broadcastBlastClear) { var mc = getActiveMap(); window.wpNet.broadcastBlastClear(mc ? mc.id : null); } }
   // Seat a blast in its grid cell; a blast whose height was never edited follows the token standing there
   function seatBlast(b) {
       if (state.gridType === 'hex') { var hc = snapToHex(b.x, b.y, 30, 'center'); b.x = hc.x; b.y = hc.y; }
@@ -3594,13 +3630,14 @@ window.wpFitToGrid = fitToGrid;
           var mvB = document.getElementById('moveModeBtn'); if (mvB) mvB.click();
           return;
       }
-      // A grenade lands in a cell, at the height of whoever stands there (a token on a catwalk), else the ground
-      var b = { x: x, y: y, ft: blastDefaults.ft, name: blastDefaults.name, elev: 0, autoElev: true };
+      // The Radius tool's own circle lands in a cell, at the height of whoever stands there (a token on a catwalk), else the ground.
+      // It is this screen's alone, whoever places it: nothing of it is sent, as nothing of a ruler is
+      var b = { x: x, y: y, yd: circleKept.yd, as: circleKept.as, name: '', elev: 0, autoElev: true };
       seatBlast(b);
       pushBlast(b);
       renderMeasures(); syncBlastMenu();
       var n = blastDistances(b, map).filter(function(r) { return r.d <= blastRadiusYd(b) + 1e-9; }).length;
-      toast((b.name ? b.name + ' ' : 'Blast ') + b.ft + ' ft placed' + (stanceOn('elevation') ? ' at ' + fmtElev(b.elev) + ' ' + lenUnit() : '') + ' \u2014 ' + n + ' token' + (n === 1 ? '' : 's') + ' in range. Drag it to move, right-click to remove.');
+      toast(circleWords(b.yd, b.as, rulerUnitNow()) + (stanceOn('elevation') ? ', at ' + fmtElev(b.elev) + ' ' + lenUnit() : '') + '. ' + n + ' token' + (n === 1 ? '' : 's') + ' inside. Drag it to move, right-click to remove.');
   }
   // A blast thrown from a character sheet: placed on the host, shown to everyone on the map (never the personal quick-tool).
   function placeThrownBlast(opts) {
@@ -3655,7 +3692,7 @@ window.wpFitToGrid = fitToGrid;
           applied++;
       });
       var coverNote = (halved ? ' \u00b7 ' + halved + ' behind cover took less' : '') + (shielded ? ' \u00b7 ' + shielded + ' shielded by cover' : '');   // counts only: never a name (a hidden token counts too)
-      if (applied) { _lastThrowTx = { hits: hits }; save(); syncBlastMenu(); toast('\u2212' + total + ' to ' + applied + ' token' + (applied === 1 ? '' : 's') + coverNote + '. Undo last throw in the \ud83d\udca5 menu.'); }
+      if (applied) { _lastThrowTx = { hits: hits }; save(); syncBlastMenu(); toast('\u2212' + total + ' to ' + applied + ' token' + (applied === 1 ? '' : 's') + coverNote + '. Undo last throw is in the Radius options.'); }
       else if (shielded) toast('No damage: ' + shielded + ' token' + (shielded === 1 ? '' : 's') + ' shielded by cover.');
   }
   // Undo the last full-auto throw's damage: restore every affected character's health, host-synced.
@@ -4063,15 +4100,17 @@ window.wpFitToGrid = fitToGrid;
       wbWrap.addEventListener('contextmenu', function(e) { if (window.isFillMode) e.preventDefault(); });
       document.addEventListener('pointerup', function() { if (_fillPaintBtn >= 0 && _fillDirty) { save(); _fillDirty = false; } _fillPaintBtn = -1; });
   }
+  // [systemcheck:radiusopts-start]
   var _el_blastModeBtn = document.getElementById('blastModeBtn');
   var _el_blastMenu = document.getElementById('blastMenu');
   function closeBlastMenu() { if (_el_blastMenu) _el_blastMenu.classList.remove('show'); }
   function lastBlast() { return blasts.length ? blasts[blasts.length - 1] : null; }
   function syncBlastMenu() {
       if (!_el_blastMenu) return;
-      var b = lastBlast(), ft = b ? b.ft : blastDefaults.ft, nm = b ? b.name : blastDefaults.name;
-      document.querySelectorAll('#blastPresetRow .draw-style-btn').forEach(function(x) { x.classList.toggle('active', parseInt(x.dataset.ft, 10) === ft && x.dataset.name === nm); });
-      var ftIn = document.getElementById('blastFt'); if (ftIn && document.activeElement !== ftIn) ftIn.value = ft;
+      var b = lastBlast(), now = circleNow(), ru = rulerUnitNow(); _circleUnitShown = ru;
+      var ftIn = document.getElementById('blastFt'); if (ftIn && document.activeElement !== ftIn) ftIn.value = circleTyped(now.yd, now.as, ru);
+      var unEl = document.getElementById('blastUnit'); if (unEl) unEl.textContent = ru;
+      document.querySelectorAll('#blastAsRow .draw-style-btn').forEach(function(x) { x.classList.toggle('active', x.dataset.as === now.as); });
       var elIn = document.getElementById('blastElev'); if (elIn && document.activeElement !== elIn) elIn.value = b ? Math.round(ydOut(b.elev || 0) * 10) / 10 : 0;   // item 19 H1: in the viewer's unit
       var elU = document.getElementById('blastElevUnit'); if (elU) elU.textContent = lenUnit();
       var elRow = document.getElementById('blastElevRow'); if (elRow) elRow.style.display = stanceOn('elevation') ? '' : 'none';
@@ -4083,15 +4122,19 @@ window.wpFitToGrid = fitToGrid;
               : why === 'local' ? 'Token elevation is off for you at this table (⚙ Settings ▸ VTT features): flat hex distance.'
               : 'Token elevation is off for this campaign (⚙ Settings ▸ VTT features): flat hex distance.';
       }
-      var which = document.getElementById('blastWhich'); if (which) which.textContent = b ? 'Changes apply to the last blast placed (' + blasts.length + ' on this map).' : 'Click a cell on the map to place a blast.';
+      var nOwn = blasts.filter(ownCircle).length;
+      var which = document.getElementById('blastWhich'); if (which) which.textContent = nOwn ? 'The size is that of the last circle you placed. You have ' + nOwn + ' on this map.' : 'Click a cell on the map to place a circle.';
   }
-  function setBlastShape(ft, name) {
-      ft = Math.round(Number(ft) || 0);
-      if (!(ft > 0)) { syncBlastMenu(); return; }
-      ft = Math.min(3000, ft);
-      blastDefaults = { ft: ft, name: name || '' };
-      try { localStorage.setItem('wp_blast', JSON.stringify(blastDefaults)); } catch (e) {}
-      var b = lastBlast(); if (b) { b.ft = ft; b.name = name || ''; renderMeasures(); }
+  function lastOwn() { for (var i = blasts.length - 1; i >= 0; i--) if (ownCircle(blasts[i])) return blasts[i]; return null; }
+  function circleNow() { var c = lastOwn(); return c ? { yd: c.yd, as: circleAs(c.as) } : { yd: circleKept.yd, as: circleKept.as }; }   // what the size box shows: the last circle of the tool's own, else the size kept for the next one
+  // The size box and the Radius / Diameter switch: the number in the box, read the way that is picked. It sizes the last circle of the tool's
+  // own and the next one, and is kept on this computer. A thrown blast is its item's size: nothing here changes one
+  function setCircle(typed, as) {
+      var ru = rulerUnitNow(), yd = circleYd(typed, as, ru);
+      if (!(yd > 0) || (_circleUnitShown && _circleUnitShown !== ru)) { syncBlastMenu(); return; }   // nothing to read, or the unit changed under the box: show it as it stands
+      circleKept = { yd: yd, as: circleAs(as) };
+      try { localStorage.setItem('wp_radius', JSON.stringify(circleKept)); } catch (e) {}
+      var c = lastOwn(); if (c) { c.yd = yd; c.as = circleKept.as; renderMeasures(); }
       syncBlastMenu();
   }
   wireTool({ id: 'blastModeBtn', chev: 'blastOptBtn', inHand: function() { return !!window.isMeasureMode && window.wpMeasureKind === 'blast'; }, sync: syncBlastMenu, take: function() {
@@ -4102,16 +4145,24 @@ window.wpFitToGrid = fitToGrid;
       closeDrawMenu(); if (_el_measureMenu) _el_measureMenu.classList.remove('show');
       state.selWbId = null; state.selWbIds = []; render();
   } });
-  document.querySelectorAll('#blastPresetRow .draw-style-btn').forEach(function(b) { b.addEventListener('click', function() { setBlastShape(this.dataset.ft, this.dataset.name); }); });
   var _el_blastFt = document.getElementById('blastFt');
-  if (_el_blastFt) _el_blastFt.addEventListener('change', function() { setBlastShape(this.value, ''); });
+  if (_el_blastFt) _el_blastFt.addEventListener('change', function() { setCircle(this.value, circleNow().as); });
+  document.querySelectorAll('#blastAsRow .draw-style-btn').forEach(function(x) { x.addEventListener('click', function() {   // the number stays, and is read the other way
+      var now = circleNow(), as = circleAs(this.dataset.as); if (as === now.as) return;
+      var n = _el_blastFt ? Number(_el_blastFt.value) : NaN;
+      setCircle(n > 0 ? n : circleTyped(now.yd, now.as, rulerUnitNow()), as);
+  }); });
   var _el_blastElev = document.getElementById('blastElev');
   if (_el_blastElev) _el_blastElev.addEventListener('input', function() { var b = lastBlast(); if (!b) return; var v = ydIn(this.value); b.elev = isFinite(v) ? Math.max(-999, Math.min(999, Math.round(v * 10) / 10)) : 0; b.autoElev = false; renderMeasures(); });   // item 19 H1: typed in the viewer's unit
   var _el_blastClearBtn = document.getElementById('blastClearBtn');
-  if (_el_blastClearBtn) _el_blastClearBtn.addEventListener('click', function() { clearBlasts(); syncBlastMenu(); });
+  if (_el_blastClearBtn) _el_blastClearBtn.addEventListener('click', function() {
+      if (playerScreen()) { blasts = blasts.filter(function(b) { return !ownCircle(b); }); renderMeasures(); syncBlastMenu(); }   // a player clears the circles they placed: a blast the GM threw is the table's
+      else clearBlasts();
+  });
   var _el_blastUndoThrow = document.getElementById('blastUndoThrow');
   if (_el_blastUndoThrow) _el_blastUndoThrow.addEventListener('click', function() { if (window.wpUndoThrow) window.wpUndoThrow(); });
   if (_el_blastMenu) ['pointerdown', 'click'].forEach(function(ev) { _el_blastMenu.addEventListener(ev, function(e) { e.stopPropagation(); }); });
+  // [systemcheck:radiusopts-end]
 
   // Pen preferences survive restarts: color, width, freehand/line (wp_drawColor / wp_drawWidth / wp_drawStraight)
   try { var _dc0 = localStorage.getItem('wp_drawColor'); if (_dc0 && /^#[0-9a-f]{6}$/i.test(_dc0)) state.drawColor = _dc0; } catch (e) {}

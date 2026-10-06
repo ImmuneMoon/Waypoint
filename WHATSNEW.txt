@@ -162,10 +162,8 @@ The tour
   Maps, Planners or Handbook in the left panel. Visual effects moved
   to the Play Map part of Help, beside Sound, Music and Video.
 - Help is being put into short plain sentences, a part at a time.
-  Getting Started, Tutorial, Data Maps, the Play Map part, both
-  Multiplayer parts, Grids & Measuring, Character sheets, Planners,
-  Handbook and Dice are done: the same facts, without brackets and
-  dashes, and a long entry split into a lead and its points.
+  Every part but Shortcuts is done: the same facts, without brackets
+  and dashes, and a long entry split into a lead and its points.
 - Help's search finds a point by its own words, once, and names the
   entry it stands under.
 
@@ -235,6 +233,8 @@ Fixes
   It said your token snaps to the grid on hex maps. It follows the
   GM's Snap on every grid. Help for players also says now that your
   sheet opens locked, and that Edit sheet lets you change it.
+- Coming up in Help listed players making their own characters as
+  still to come. They do that already, and the part now says so.
 - Searching page text now reads a planner's node tables and a
   flowchart's labels. A word that stood only in a node's table was
   found by no search: not quick-jump, not the panel's search, not the

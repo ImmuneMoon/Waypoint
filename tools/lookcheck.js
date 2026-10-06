@@ -39,10 +39,12 @@ const INVENTORY = ['wbFloatingToolbar', 'wbCenterBtn', 'wbCenterMenu', 'wbCenter
     // built with the layout (2026-10-06): the column at the map's right edge, More and its menu, and the View menu's three ticks
     'wbEdgeTools', 'wbMoreBtn', 'wbMoreMenu', 'wbRulersBtn', 'wbZoomCtlBtn', 'wbPointerPosBtn',
     // built with the presses (2026-10-06): the small arrow beside each tool that has options, and beside each button that opens a menu
-    'drawOptBtn', 'eraserOptBtn', 'fillOptBtn', 'measureOptBtn', 'blastOptBtn', 'snapOptBtn', 'shapeOptBtn', 'addOptBtn', 'fogOptBtn', 'sceneOptBtn', 'viewOptBtn', 'gridOptBtn'];
+    'drawOptBtn', 'eraserOptBtn', 'fillOptBtn', 'measureOptBtn', 'blastOptBtn', 'snapOptBtn', 'shapeOptBtn', 'addOptBtn', 'fogOptBtn', 'sceneOptBtn', 'viewOptBtn', 'gridOptBtn',
+    // built with the Radius tool (2026-10-06): the unit beside the size box, and the row that reads the number as a radius or as a diameter
+    'blastUnit', 'blastAsRow'];
 // The choices inside the menus that have no id: found by the attribute their handler reads
 const ROWS = { mode: ['grid', 'items', 'both'], straight: ['false', 'true'], tip: ['round', 'square', 'flat'], size: ['2', '3', '6', '10', '16'], emode: ['precise', 'segment'], unit: ['imperial', 'metric'],
-    fgrid: ['square', 'hex'], fbrush: ['reveal', 'hide', 'clear'], fstroke: ['1', '3', '5', 'box', 'piece'], shapesize: ['free', 'cell'] };
+    fgrid: ['square', 'hex'], fbrush: ['reveal', 'hide', 'clear'], fstroke: ['1', '3', '5', 'box', 'piece'], shapesize: ['free', 'cell'], as: ['r', 'd'] };
 const SWATCHES = ['#e9e9f0', '#1a1a1a', '#d9534f', '#e0a54f', '#5cb87a', '#4db3d3', '#b98cff'];
 // The top bar's controls, held from now on for the part that follows the toolbar (the slim row): Import and Export among them, of which the
 // owner said, of the row: "1 as long as we are not getting rid of import and export"
@@ -56,10 +58,10 @@ const board = (() => { const a = ix.indexOf('<div id="wbFloatingToolbar"'), z = 
     const idN = id => count(ix, ' id="' + id + '"'), ALL = INVENTORY.concat(HEADER, SETTINGS);
     const gone = ALL.filter(id => idN(id) !== 1).map(id => id + ' x' + idN(id)), out = INVENTORY.filter(id => count(board, ' id="' + id + '"') !== 1);
     check('nothing is removed (the owner: "lets not remove functionality with these updates, that critical."): each of the ' + INVENTORY.length + ' controls of the play map\'s toolbar, its menus and what stands around the map is in the page exactly once and still around the map, and so is each of the ' + HEADER.length + ' of the top bar with Import and every kind of Export, and each of the ' + SETTINGS.length + ' of the three switches in Settings',
-        board.length > 1000 && gone.length === 0 && out.length === 0 && INVENTORY.length === 162 && HEADER.length === 42 && SETTINGS.length === 6 && new Set(ALL).size === 210, J([gone, out]));
+        board.length > 1000 && gone.length === 0 && out.length === 0 && INVENTORY.length === 164 && HEADER.length === 42 && SETTINGS.length === 6 && new Set(ALL).size === 212, J([gone, out]));
     const rowsBad = Object.keys(ROWS).filter(k => J((board.match(new RegExp('<button[^>]* data-' + k + '="([^"]*)"', 'g')) || []).map(m => m.slice(m.lastIndexOf('="') + 2, -1))) !== J(ROWS[k]));
     const sw = (board.match(/<button class="draw-swatch" data-color="(#[0-9a-f]{6})"/g) || []).map(m => m.slice(-8, -1));
-    check('nothing is removed, the choices inside the menus: Snap\'s three modes, the pen\'s two styles, three tips and five sizes, the eraser\'s two modes, the two measuring systems, the fog\'s two gridless grids, three brushes and five strokes, the two shape sizes, each in its order, and the seven colours of the pen and of the fill with a custom colour for each',
+    check('nothing is removed, the choices inside the menus: Snap\'s three modes, the pen\'s two styles, three tips and five sizes, the eraser\'s two modes, the two measuring systems, the fog\'s two gridless grids, three brushes and five strokes, the two shape sizes, the circle\'s two readings, each in its order, and the seven colours of the pen and of the fill with a custom colour for each',
         rowsBad.length === 0 && J(sw) === J(SWATCHES.concat(SWATCHES)) && count(board, 'id="drawColorInput"') === 1 && count(board, 'id="fillColorInput"') === 1, J([rowsBad, sw]));
 }
 
@@ -76,23 +78,76 @@ const MENU = ['id="gridSqBtn"', 'id="gridHexBtn"', 'id="gridOpacityBtn"', 'data-
     'id="blastUndoThrow"', 'id="fogOnAllMaps"', 'id="fogLightPlace"', 'data-fbrush="reveal"', 'data-fbrush="hide"', 'data-fbrush="clear"', 'data-fstroke="box"', 'data-fstroke="piece"', 'id="soundBtn"', 'id="musicBtn"', 'id="fxBtn"', 'id="videoBtn"',
     'id="shapeRectBtn"', 'id="shapeCircBtn"', 'id="shapeDiaBtn"', 'id="shapeHexBtn"', 'id="shapeTriggerBtn"', 'id="shapeHexTriggerBtn"', 'data-shapesize="free"', 'data-shapesize="cell"', 'id="shapeTextBtn"', 'id="addImageBtn"', 'id="imgLibBtn"',
     'id="importCharBtn"'];
-const SET_HASH = '18f4747341c4c132a143e37b0b92ded6f24e0fe301638ec846f364402971e5ec';   // the set as the owner passed it on the icon sheet, 2026-10-06
+const SET_HASH = 'c718486bbbfc5b2650fa1bce9db67ecce3057b852041bb5c5acb53993b2759f9';   // the set as the owner passed it on the icon sheet, 2026-10-06, with the Radius drawing they passed on the radius sheet the same day where the burst stood
 // The buttons that stand on the bar and in the column today: an icon alone. Clear board is a row of More's menu now, an icon and its name
 const BAR = ['wbUndoBtn', 'wbRedoBtn', 'moveModeBtn', 'panModeBtn', 'drawModeBtn', 'eraserModeBtn', 'fillModeBtn', 'shapeMenuBtn', 'addMenuBtn', 'measureModeBtn', 'blastModeBtn', 'fogModeBtn', 'sceneFxBtn', 'pagesBtn', 'wbMoreBtn', 'wbCenterBtn',
     'wbGridBtn', 'wbSnapBtn'];
-const ROWS_NOW = MENU.concat(['id="clearWbBtn"', 'id="wbRulersBtn"', 'id="wbZoomCtlBtn"', 'id="wbPointerPosBtn"']);
+const ROWS_NOW = MENU.concat(['id="clearWbBtn"', 'id="wbRulersBtn"', 'id="wbZoomCtlBtn"', 'id="wbPointerPosBtn"', 'data-as="r"', 'data-as="d"']);
 const DOTS = '<path d="M12 5h.01M12 12h.01M12 19h.01"/>', TICK = '<path d="M5 12.5l4.5 4.5L19 7.5"/>', MINUS = '<path d="M5 12h14"/>';
 {
     const bar = BAR.map(id => [id, innerOfBtn('id="' + id + '"')]), menu = ROWS_NOW.map(h => [h, innerOfBtn(h)]);
     const noIcon = bar.filter(b => typeof b[1] !== 'string' || !SVG_RE.test(b[1]) || !/<\/svg>$/.test(b[1].replace(/<span class="draw-color-indicator" id="(draw|fill)ColorIndicator"><\/span>$/, ''))).map(b => b[0]);
     const glyph = bar.concat(menu).filter(b => typeof b[1] === 'string' && /&#\d+;/.test(b[1].replace('&middot;', ''))).map(b => b[0]);
     const noIconM = menu.filter(b => typeof b[1] !== 'string' || !b[1].includes('<svg class="ico')).map(b => b[0]);
-    check('the play map\'s tools wear line icons (the owner: "Line icons, shown first"): each of the eighteen buttons of the bar and of the column is the app\'s own kind of icon and nothing else, an <svg class="ico"> on the 24 by 24 grid, each of the thirty-four menu rows that wore a picture glyph holds one, so do Clear board and the three ticks, and none of them holds a picture glyph any more',
-        noIcon.length === 0 && noIconM.length === 0 && glyph.length === 0 && BAR.length === 18 && new Set(BAR).size === 18 && ROWS_NOW.length === 38, J([noIcon, noIconM, glyph]));
+    check('the play map\'s tools wear line icons (the owner: "Line icons, shown first"): each of the eighteen buttons of the bar and of the column is the app\'s own kind of icon and nothing else, an <svg class="ico"> on the 24 by 24 grid, each of the thirty-four menu rows that wore a picture glyph holds one, so do Clear board, the three ticks and the two rows of the Radius tool, and none of them holds a picture glyph any more',
+        noIcon.length === 0 && noIconM.length === 0 && glyph.length === 0 && BAR.length === 18 && new Set(BAR).size === 18 && ROWS_NOW.length === 40, J([noIcon, noIconM, glyph]));
     const passed = PASSED_BAR.map(id => [id, innerOfBtn('id="' + id + '"')]).concat(MENU.map(h => [h, innerOfBtn(h)]));
     const set = passed.map(b => b[0] + '=' + svgIn(b[1])).join('\n'), h = crypto.createHash('sha256').update(set).digest('hex');
     check('the icons are the set the owner passed on the icon sheet ("Use this set"), drawing for drawing, wherever the layout has put their buttons: a changed or a new drawing is shown to the owner first, and this pin moves only then',
         h === SET_HASH && PASSED_BAR.length === 18 && MENU.length === 34, h);
+    // The Radius tool (backlog 128; the owner, 2026-10-06: "lets make the explosion tool a radius/ diameter tool instead", and of its five
+    // drawings on the radius sheet, by prompt: "Use these drawings"). It is everyone's: the pair is no longer the GM's alone, and what is
+    // the GM's inside its options says so
+    const RADIUS = '<path d="M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM12 12l5.6-5.6M12 12h.01"/>', DIAMETER = '<path d="M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM4 12h16"/>';
+    check('the Radius tool wears the drawings the owner passed on the radius sheet ("Use these drawings"): the circle with a spoke on the bar and on the Radius row of its options, the circle with a line across on the Diameter row, each row an icon and its name',
+        draw('blastModeBtn') === RADIUS && innerOfBtn('data-as="r"') === SVG + RADIUS + '</svg> Radius' && innerOfBtn('data-as="d"') === SVG + DIAMETER + '</svg> Diameter');
+    const BOX = 'style="width:70px; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;"', GREY = '<div class="draw-menu-row" style="font-size:11px; color:var(--dim); max-width:210px; line-height:1.4;">';
+    const PAIR = '          <div class="tool-pair" style="position:relative;">\n'
+        + '              <button class="wb-tool-btn" id="blastModeBtn" title="Radius. Click a cell to place a circle. Every token inside shows its distance. Drag a circle to move it, right-click to remove it. Press again to put the tool away.">' + SVG + RADIUS + '</svg></button><button class="wb-tool-btn tool-chev" id="blastOptBtn" title="Radius options" aria-haspopup="true">' + SVG + '<path d="M6 9.5l6 6 6-6"/></svg></button>\n'
+        + '              <div class="shape-menu draw-menu" id="blastMenu">\n'
+        + '                  <div class="draw-menu-label">Circle size</div>\n'
+        + '                  <div class="draw-menu-row">\n'
+        + '                      <input type="number" id="blastFt" min="0" step="any" aria-label="Circle size" ' + BOX + '>\n'
+        + '                      <span id="blastUnit" style="font-size:11px; color:var(--dim);">yd</span>\n'
+        + '                  </div>\n'
+        + '                  <div class="draw-menu-row" id="blastAsRow">\n'
+        + '                      <button class="draw-style-btn active" data-as="r" title="Your number is read from the centre to the edge">' + SVG + RADIUS + '</svg> Radius</button>\n'
+        + '                      <button class="draw-style-btn" data-as="d" title="Your number is read from edge to edge">' + SVG + DIAMETER + '</svg> Diameter</button>\n'
+        + '                  </div>\n'
+        + '                  ' + GREY + 'The size is in the ruler&rsquo;s unit on this map. Every token inside the circle shows its distance.</div>\n'
+        + '                  <div id="blastElevRow">\n'
+        + '                      <div class="draw-menu-label">Height, in <span id="blastElevUnit">yd</span></div>\n'
+        + '                      <div class="draw-menu-row">\n'
+        + '                          <input type="number" id="blastElev" step="1" aria-label="Height" ' + BOX + '>\n'
+        + '                      </div>\n'
+        + '                      ' + GREY + 'The height of the last circle or blast placed. It starts at the height of the token in its cell, else the ground.</div>\n'
+        + '                  </div>\n'
+        + '                  <div class="draw-menu-row" id="blastFlatNote" style="font-size:11px; color:var(--dim);">Token elevation is off for this campaign (&#9881; Settings &#9656; VTT features): flat hex distance.</div>\n'
+        + '                  <div class="draw-menu-row" id="blastWhich" style="font-size:11px; color:var(--dim);"></div>\n'
+        + '                  <div class="draw-menu-row">\n'
+        + '                      <button class="draw-style-btn" id="blastClearBtn" title="Removes the circles you placed. The GM&rsquo;s press also removes thrown blasts, for everyone.">Clear circles</button>\n'
+        + '                      <button class="draw-style-btn gm-only" id="blastUndoThrow" title="Undo the last thrown blast\'s damage (restores every token it hit)">' + SVG + '<path d="M9 4L4 9l5 5M4 9h10.5a5.5 5.5 0 0 1 0 11H9"/></svg> Undo last throw</button>\n'
+        + '                  </div>\n'
+        + '                  <div class="draw-menu-row gm-only" style="font-size:11px; color:var(--dim); max-width:210px; line-height:1.4;">The tool only measures. A blast with damage is thrown from a character&rsquo;s sheet.</div>\n'
+        + '              </div>\n'
+        + '          </div>\n';
+    check('the Radius tool is everyone\'s (the owner: "everybody else can use the circle measurement tool as a measurement tool"): its pair is not the GM\'s alone and no rule hides it at someone else\'s table; its options are a size with the ruler\'s unit beside it, Radius or Diameter, a grey line that says what the size is in, the height, and Clear circles; what is the GM\'s inside them is marked so and no more: Undo last throw, and the line that says where a blast with damage comes from; no word of the old blast tool is left in them',
+        count(ix, PAIR) === 1 && !/net-client[^{}]*#blast/.test(css) && !/net-client[^{}]*:has\(> #blastModeBtn\)/.test(css) && count(PAIR, 'gm-only') === 2 && !/Blast Radius|area effect|quick|ad-hoc|&divide;3|Clear blasts/.test(PAIR)
+        && count(ix, ' id="blastPresetRow"') === 0 && !/Blast \(GM quick-tool\)|title="Blast options"/.test(ix));
+    check('a circle of the Radius tool measures, so it wears the ruler\'s gold, and a thrown blast keeps its red: the circle, its dot and its label by one class of the style sheet, the distances in the page\'s ink as a blast\'s are, and a token inside circles alone outlined gold where one inside a blast is outlined red',
+        css.includes('  #measureLayer g.blast.own circle.area { fill: rgba(224,165,79,0.1); stroke: var(--gold); }\n  #measureLayer g.blast.own circle.dot, #measureLayer g.blast.own text { fill: var(--gold); }\n  #measureLayer g.blast.own text.hit { fill: var(--ink); }\n  #measureLayer g.blast.own:hover circle.area { fill: rgba(224,165,79,0.2); }\n')
+        && css.includes('  .wb-item.blast-hit { outline: 2px solid var(--red); outline-offset: 2px; }\n  .wb-item.circle-hit { outline: 2px solid var(--gold); outline-offset: 2px; }')
+        && css.includes('  #measureLayer line { stroke: var(--gold); stroke-width: 2; stroke-dasharray: 8 5; }') && css.includes('  #measureLayer g.blast circle.area { fill: rgba(217,83,79,0.14); stroke: var(--red); stroke-width: 2; stroke-dasharray: 6 4; }'));
+    const helpAt = ix.indexOf('<h4>Radius</h4>'), helpR = helpAt < 0 ? '' : ix.slice(helpAt, ix.indexOf('<h4>Elevation &amp; posture</h4>', helpAt));
+    check('Help says what the tool is now: an entry of its own named Radius (how a circle is placed and sized, the two readings, the ruler\'s unit, that circles are yours alone and everyone has the tool, that it only measures), Boom as the GM\'s, and blasts from the sheet; the other entries that named the blast tool name the Radius tool, and so do Settings, two tips and the note under a hidden piece\'s ground height',
+        helpR.length > 1500 && count(ix, '<h4>Blast radius</h4>') === 0
+        && helpR.includes('<li>The <b>Radius</b> tool places a circle on the map to measure with. Press the small arrow beside it, type a size, and click a cell. Every token inside the circle lights up with its distance from the centre.')
+        && helpR.includes('<li><b>Radius</b> reads your number from the centre to the edge. <b>Diameter</b> reads it from edge to edge.</li>') && helpR.includes('<li>The size is in the ruler&rsquo;s unit on that map, so 20 on a map in feet is 20 feet. The distances read in that unit too.</li>')
+        && helpR.includes('<li>Circles are yours alone, like rulers. Everyone at the table has the tool, and nobody else sees your circles.</li>') && helpR.includes('<li>The tool only measures. A blast with damage is thrown from a character&rsquo;s sheet.</li>')
+        && helpR.includes('<li><b>Boom:</b> with Visual effects on, the GM sees a <b>Boom</b> label on each circle and each thrown blast.') && helpR.includes('<div class="help-tip"><b>Blasts from the sheet:</b> a blast with damage is thrown by a character, PC or NPC, from their sheet.')
+        && count(ix, 'On the GM&rsquo;s screen, a circle of the Radius tool or a thrown blast gains a <b>Boom</b>.') === 1 && count(ix, 'A circle of the Radius tool or a thrown blast shows each token&rsquo;s cover from its centre beside its distance.') === 1
+        && count(ix, 'The toolbar&rsquo;s Radius tool only measures, and its circles are yours alone.') === 1 && count(ix, 'and the Radius tool and rulers measure straight-line, height included.') === 1 && count(ix, 'and a circle of the Radius tool gets a Boom.') === 1
+        && !/Blast tool|blast tool|&#128165; Blast|toolbar &#128165;/.test(ix) && !/blast tool/.test(read('scripts/tips.js')) && count(read('scripts/inspector.js'), 'your own rolls and your Radius tool do.</div>') === 1);
     check('the drawings the layout added are the sheet\'s own or the simplest there is: More wears the sheet\'s three dots, a tick of the View menu is the tick Snap\'s Both wears, and the zoom box\'s minus is the plus without its upright',
         draw('wbMoreBtn') === DOTS && innerOfBtn('id="wbMoreBtn"').indexOf('<svg class="ico ico-dots"') === 0 && css.includes('    .ico.ico-dots { stroke-width: 2.6; }')
         && ['wbRulersBtn', 'wbZoomCtlBtn', 'wbPointerPosBtn'].every(id => draw(id) === TICK) && svgIn(innerOfBtn('data-mode="both"')) === TICK
@@ -156,7 +211,7 @@ const barKids = kidsOf(ix, BAR_OPEN) || [], edgeKids = kidsOf(ix, EDGE_OPEN) || 
 /* ---------- the layout the owner passed ("As drawn") ---------- */
 {
     const SEP = '<div class="wb-tool-sep">', seq = barKids.map(k => k.open === SEP ? '|' : (k.ids[0] || '?'));
-    check('the bar is laid out as the owner passed it ("As drawn"): undo and redo, then select and pan, then pen, eraser and fill, then shapes and Add, then measure and blast, then fog, Scene and Pages, then More, with a separator between the groups and none at either end',
+    check('the bar is laid out as the owner passed it ("As drawn"): undo and redo, then select and pan, then pen, eraser and fill, then shapes and Add, then measure and radius, then fog, Scene and Pages, then More, with a separator between the groups and none at either end',
         J(seq) === J(['wbUndoBtn', 'wbRedoBtn', '|', 'moveModeBtn', 'panModeBtn', '|', 'drawModeBtn', 'eraserModeBtn', 'fillModeBtn', '|', 'shapeMenuBtn', 'addMenuBtn', '|', 'measureModeBtn', 'blastModeBtn', '|', 'fogModeBtn', 'sceneFxBtn', 'pagesBtn', '|',
             'wbMoreBtn']), J(seq));
     const col = edgeKids.map(k => k.ids.filter(id => !/OptBtn$/.test(id)).slice(0, 2)), at = (a, b) => ix.indexOf(a) >= 0 && ix.indexOf(a) < ix.indexOf(b);   // the button and its menu (its small arrow is held with the presses)
@@ -205,7 +260,7 @@ const ARROW = { drawModeBtn: 'drawOptBtn', eraserModeBtn: 'eraserOptBtn', fillMo
 const MENU_ONLY = { shapeMenuBtn: 1, addMenuBtn: 1, fogModeBtn: 1, sceneFxBtn: 1, wbCenterBtn: 1, wbGridBtn: 1 };   // a button that only opens a menu: its arrow presses it
 const LAY =['wbUndoBtn', 'wbRedoBtn', '|', 'moveModeBtn', 'panModeBtn', '|', 'drawModeBtn+drawMenu', 'eraserModeBtn+eraserMenu', 'fillModeBtn+fillMenu', '|', 'shapeMenuBtn+shapeMenu', 'addMenuBtn+addMenu', '|', 'measureModeBtn+measureMenu',
     'blastModeBtn+blastMenu', '|', 'fogModeBtn+fogMenu', 'sceneFxBtn+sceneFxMenu', 'pagesBtn+pagesMenu', '|', 'wbMoreBtn+wbMoreMenu'];
-const GM_HAS = { wbUndoBtn: 1, wbRedoBtn: 1, fillModeBtn: 1, shapeMenuBtn: 1, addMenuBtn: 1, blastModeBtn: 1, fogModeBtn: 1, sceneFxBtn: 1, pagesBtn: 1, wbMoreBtn: 1 };   // what a player's bar does not show (and no separator)
+const GM_HAS = { wbUndoBtn: 1, wbRedoBtn: 1, fillModeBtn: 1, shapeMenuBtn: 1, addMenuBtn: 1, fogModeBtn: 1, sceneFxBtn: 1, pagesBtn: 1, wbMoreBtn: 1 };   // what a player's bar does not show (and no separator)
 function toolbarPage(player) {
     const byId = {}, docOn = [], doc = { getElementById: id => byId[id] || null, addEventListener: (t, f) => { docOn.push([t, f]); }, querySelectorAll: sel => main.all().filter(n => n.is(sel)) };
     // a press, as a page gives it: down through the boxes it is in (the capture listeners), then up from the target, and on to the page unless a listener stops it
@@ -225,7 +280,7 @@ function toolbarPage(player) {
         if (shown) { top.w = w; top.x = x; x += w + 2; }
     });
     const tight = x - 2 + 4 + 2;
-    bar.w = () => bar.cls.has('tb-wrap') ? -1 : bar.cls.has('tb-tight') ? tight : (player ? 258 : 848);
+    bar.w = () => bar.cls.has('tb-wrap') ? -1 : bar.cls.has('tb-tight') ? tight : (player ? 312 : 848);
     [['wbCenterBtn', 'wbCenterMenu'], ['wbGridBtn', 'gridMenu'], ['wbSnapBtn', 'snapMenu']].forEach(p => wrap(edge, p[0], p[1]));
     const vm = byId.wbCenterMenu; ['wbRulersBtn', 'wbZoomCtlBtn', 'wbPointerPosBtn'].forEach(id => mk('button', id, 'wb-tool-btn view-tick on', vm));
     return { doc, byId, main, bar, edge, click, tight, open: () => main.all().filter(n => n.is('.shape-menu.show')).map(n => n.id).sort() };
@@ -270,7 +325,7 @@ function runPress(P, win) {
 {
     const CHEV_D = '<path d="M6 9.5l6 6 6-6"/>';
     const TOOLS = [['drawModeBtn', 'drawOptBtn', 'drawMenu', 'Pen options'], ['eraserModeBtn', 'eraserOptBtn', 'eraserMenu', 'Eraser options'], ['fillModeBtn', 'fillOptBtn', 'fillMenu', 'Fill options'],
-        ['measureModeBtn', 'measureOptBtn', 'measureMenu', 'Measure options'], ['blastModeBtn', 'blastOptBtn', 'blastMenu', 'Blast options'], ['wbSnapBtn', 'snapOptBtn', 'snapMenu', 'Snap options']];
+        ['measureModeBtn', 'measureOptBtn', 'measureMenu', 'Measure options'], ['blastModeBtn', 'blastOptBtn', 'blastMenu', 'Radius options'], ['wbSnapBtn', 'snapOptBtn', 'snapMenu', 'Snap options']];
     const MENUS = [['shapeMenuBtn', 'shapeOptBtn', 'shapeMenu', 'Shapes menu'], ['addMenuBtn', 'addOptBtn', 'addMenu', 'Add menu'], ['fogModeBtn', 'fogOptBtn', 'fogMenu', 'Fog of war menu'], ['sceneFxBtn', 'sceneOptBtn', 'sceneFxMenu', 'Scene menu'],
         ['wbCenterBtn', 'viewOptBtn', 'wbCenterMenu', 'View menu'], ['wbGridBtn', 'gridOptBtn', 'gridMenu', 'Grid menu']];
     const pairOf = id => barKids.concat(edgeKids).filter(k => k.ids[0] === id)[0] || null;
@@ -279,7 +334,7 @@ function runPress(P, win) {
         return !k || J(k.ids.filter(id => !/Indicator$/.test(id)).slice(0, 3)) !== J([t[0], t[1], t[2]]) || !/^<div (class="tool-pair" style="position:relative;[^"]*"|style="position:relative;[^"]*" class="tool-pair gm-only")>$/.test(k.open)
             || count(k.text, '</button>' + arrow(t[1], t[3], p[1]) + '\n') !== 1; }).map(p => p[0][0]);
     const plain = ['wbUndoBtn', 'wbRedoBtn', 'moveModeBtn', 'panModeBtn', 'pagesBtn', 'wbMoreBtn'].filter(id => { const k = pairOf(id); return !k || /tool-pair|tool-chev/.test(k.text); });
-    check('a tool that has options is a pair (the owner: "Chevron opens them"): the pen, the eraser, fill, measure, blast and Snap each stand in a pair with a small arrow right after the icon, the arrow the passed sheet drew for "a tool has options", named for the options it opens; a button that only opens a menu is the same pair, and its arrow names the button it presses; undo, redo, select, pan, Pages and More have no arrow, having nothing to open beside themselves',
+    check('a tool that has options is a pair (the owner: "Chevron opens them"): the pen, the eraser, fill, measure, radius and Snap each stand in a pair with a small arrow right after the icon, the arrow the passed sheet drew for "a tool has options", named for the options it opens; a button that only opens a menu is the same pair, and its arrow names the button it presses; undo, redo, select, pan, Pages and More have no arrow, having nothing to open beside themselves',
         bad.length === 0 && plain.length === 0 && count(ix, 'class="wb-tool-btn tool-chev"') === 12 && MENUS.every(m => count(ix, ' id="' + m[1] + '" data-for="' + m[0] + '"') === 1)
         && TOOLS.every(t => !new RegExp(' id="' + t[1] + '" data-for=').test(ix)), J([bad, plain]));
     const tp = (pressSrc && runPress(toolbarPage(false), {}).api || {}).toolPress || (() => null), T = (a, b, c) => { const r = tp(a, b, c); return r ? r.tool + '/' + r.opts : 'none'; };
@@ -405,7 +460,7 @@ function runPress(P, win) {
         && J(got) === J([['', '', []], ['', '', []], ['tb-tight', '', []], ['tb-tight', '', []], ['tb-tight tb-wrap', '357px', [2]], ['tb-tight tb-wrap', '357px', [2]], ['tb-tight tb-wrap', '357px', [2]], ['tb-tight tb-wrap', '264px', [1, 3]],
             ['tb-tight tb-wrap', '264px', [1, 3]], ['', '', []], ['', '', []], ['', '', []], ['', '', []], ['', '', []]]), R.err || J([g && [g.widths, g.gap, g.chrome], got]));
     // only what shows is a group, and only a separator between two groups parts them: with Undo and Redo not shown the first separator leads
-    // the bar, and with Measure and Blast not shown too two separators stand in a row
+    // the bar, and with Measure and Radius not shown too two separators stand in a row
     const H = toolbarPage(false), SH = runBar(H, {}), hs = H.bar.children.filter(k => k.is('.wb-tool-sep')), BG = (SH.api || {}).barGroups || (() => null);
     H.byId.wbUndoBtn.w = 0; H.byId.wbRedoBtn.w = 0; const g1 = BG(H.bar);
     H.byId.measureModeBtn.parentElement.w = 0; H.byId.blastModeBtn.parentElement.w = 0; const g2 = BG(H.bar);
@@ -415,9 +470,9 @@ function runPress(P, win) {
         && !!g2 && J(g2.widths) === J([66, 127, 84, 118, 32]) && J(g2.seps.map(s => hs.indexOf(s))) === J([1, 2, 3, 5]) && g3 === null, J([g1 && g1.widths, g2 && [g2.widths, g2.seps.map(s => hs.indexOf(s))], g3]));
     const Q = toolbarPage(true), S = runBar(Q, {}), fitQ = (S.api || {}).fitBar || (() => {}), qs =() => [[...Q.bar.cls].filter(c => c !== 'floating-toolbar').sort().join(' '), Q.bar.style.width || '', Q.bar.children.filter(k => k.cls.has('tb-brk')).length];
     const gq = S.api ? S.api.barGroups((Q.bar.classList.add('tb-tight'), Q.bar)) : null; Q.bar.classList.remove('tb-tight');
-    const qat = w => { Q.main.clientWidth = w; fitQ(); return qs(); }, gotQ = [qat(400), qat(281), qat(229), qat(228), qat(120)];
-    check('a player\'s bar is fitted too: it has fewer buttons and no separator, so it is one group, counted by what shows alone; it tightens like the GM\'s, and where even the tight bar is too wide it wraps wherever it must, with no row marked and no width set',
-        Q.tight === 205 && J(gq && [gq.widths, gq.gap, gq.chrome, gq.seps.length]) === J([[195], 0, 10, 0]) && J(gotQ) === J([['', '', 0], ['tb-tight', '', 0], ['tb-tight', '', 0], ['tb-tight tb-wrap', '', 0], ['tb-tight tb-wrap', '', 0]]), S.err || J([gq, gotQ]));
+    const qat = w => { Q.main.clientWidth = w; fitQ(); return qs(); }, gotQ = [qat(400), qat(335), qat(272), qat(271), qat(120)];
+    check('a player\'s bar is fitted too: it has fewer buttons, the Radius tool among them, and no separator, so it is one group, counted by what shows alone; it tightens like the GM\'s, and where even the tight bar is too wide it wraps wherever it must, with no row marked and no width set',
+        Q.tight === 248 && J(gq && [gq.widths, gq.gap, gq.chrome, gq.seps.length]) === J([[238], 0, 10, 0]) && J(gotQ) === J([['', '', 0], ['tb-tight', '', 0], ['tb-tight', '', 0], ['tb-tight tb-wrap', '', 0], ['tb-tight tb-wrap', '', 0]]), S.err || J([gq, gotQ]));
     const render = mainSrc.slice(mainSrc.indexOf('export function render() {'), mainSrc.indexOf('// Breadcrumb trail for nested maps')), iT = render.indexOf("document.getElementById('toggleRightBtn').style.display"), iF = render.indexOf('if (window.wpFitBar) window.wpFitBar();');
     check('the bar is fitted whenever the map\'s room changes: by render() once the panes are switched, so it measures the room the map has, and by an observer of the map\'s own box, the bar\'s parent; the style sheet tightens only the bar\'s own buttons, breaks a wrapped bar at the separators fitBar marks, and lifts the column above a wrapped bar',
         R.RO.made.length === 1 && R.RO.made[0].el === P.main && typeof R.RO.made[0].cb === 'function' && count(render, 'window.wpFitBar()') === 1 && iT > 0 && iF > iT && iF < render.indexOf('if (window.wpFloats) window.wpFloats.sync();')
@@ -540,7 +595,8 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         + "- The toolbar is laid out anew, and no tool is gone. Undo and redo\n  lead, then the tools in groups. Centre, the grid and snap stand in a\n  column at the map's right edge. More, the last button, holds Clear\n  board. In a narrow window the bar tightens, then wraps into even\n  rows, so no tool is ever cut off.\n"
         + "- A tool that has options has a small arrow beside its icon. The icon\n  takes the tool, and a second press puts it away. The arrow opens the\n  tool's options, and they stay up while you work, until you press the\n  arrow again or take another tool. Snap's icon switches snapping, and\n  its arrow opens what it snaps to.\n"
         + "- The toolbar's menus list each choice by name: Grid, Shapes, Add,\n  Scene and More. A grey line under a name says what the choice does\n  where the name is not enough, and the Grid menu marks the grid in\n  use.\n"
-        + "- The box at the top right of a map wears the toolbar's look. Its\n  pointer location and its zoom buttons can each be hidden on their\n  own. Tick them under Show in the centre menu, or press their buttons\n  in Settings > Table. The rulers have a tick there too.\n\n";
+        + "- The box at the top right of a map wears the toolbar's look. Its\n  pointer location and its zoom buttons can each be hidden on their\n  own. Tick them under Show in the centre menu, or press their buttons\n  in Settings > Table. The rulers have a tick there too.\n"
+        + "- The blast tool is now the Radius tool, and every player has it. It\n  places a circle to measure with, in the ruler's gold. Type its size\n  in the ruler's unit, as a radius or as a diameter, and every token\n  inside shows its distance. Circles are yours alone. A blast with\n  damage is still thrown from a character's sheet.\n\n";
     const wn = [rootRead('WHATSNEW.txt'), read('assets/whatsnew.txt')];
     check('both release notes carry the same lines, and the suite is one of the CI runs',
         wn.every(t => count(t, NOTE) === 1 && count(t, 'Every button is where it was') === 0) && rootRead('.github/workflows/checks.yml').includes("      - name: lookcheck — the look of the play map (no control removed, the toolbar's line icons, gold for the tool in hand)\n        if: ${{ !cancelled() }}\n        run: node tools/lookcheck.js\n"));
@@ -548,10 +604,10 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         count(ix, 'Centre, the grid and snap stand in a column at the map&rsquo;s right edge. The centre menu also shows or hides the rulers, the zoom buttons and the pointer location. <b>More</b>, the last button, holds Clear board. In a narrow window the bar tightens, then wraps onto a second row, so no tool is ever cut off.') === 1
         && count(ix, '<p>The box at the top right of a map holds the <b>pointer location</b> and the <b>zoom buttons</b>. Each can be hidden on its own. Press <b>Toggle Pointer Location</b> or <b>Toggle Zoom Buttons</b> in <b>&#9881; Settings &#9656; Table</b>, or tick them in the centre menu at the right edge of the play map. The mouse wheel still zooms while the buttons are hidden. Both choices are yours alone, on this computer.</p>') === 1
         && count(ix, '<li>Click the grid button at the right edge of the play map and pick <b>Off, Square or Hex</b>.') === 1
-        && count(tourSrc, 'From the left: undo and redo for this map, then move and pan, the pen, eraser and fill. Next come shapes and <b>+ Add</b> for text and pictures, then <b>measure</b>, <b>blast</b>, fog and &#127916; <b>Scene</b>. Centre, the <b>grid</b> and <b>snap</b> stand at the map&rsquo;s right edge.') === 1
+        && count(tourSrc, 'From the left: undo and redo for this map, then move and pan, the pen, eraser and fill. Next come shapes and <b>+ Add</b> for text and pictures, then <b>measure</b>, <b>radius</b>, fog and &#127916; <b>Scene</b>. Centre, the <b>grid</b> and <b>snap</b> stand at the map&rsquo;s right edge.') === 1
         && count(tourSrc, "'#wbFloatingToolbar .shape-menu.show, #wbEdgeTools .shape-menu.show'") === 2 && count(ix, 'the minimap fold, rulers, the zoom buttons, the pointer location, panel sizes,') === 1);
     check('Help says how a press works now: a tip of its own on tool options (the small arrow, the icon, a second press, options that stay up), the Snap entry and the Measure entry in the new words, and the four tools\' own tooltips say what a press does',
-        count(ix, '<div class="help-tip"><b>Tool options:</b> a tool that has options has a <b>small arrow</b> beside its icon. The icon takes the tool, and a second press puts it away. The arrow opens the tool&rsquo;s options. They stay up while you work, until you press the arrow again or take another tool. The pen, the eraser, fill, measure and blast work this way. A button that only opens a menu has the same small arrow, and either of the two opens the menu.</div>') === 1
+        count(ix, '<div class="help-tip"><b>Tool options:</b> a tool that has options has a <b>small arrow</b> beside its icon. The icon takes the tool, and a second press puts it away. The arrow opens the tool&rsquo;s options. They stay up while you work, until you press the arrow again or take another tool. The pen, the eraser, fill, measure and radius work this way. A button that only opens a menu has the same small arrow, and either of the two opens the menu.</div>') === 1
         && count(ix, '<b>Snap To</b> picks what a drag aligns to. The Snap button switches snapping on and off, and the small arrow beside it opens Snap To.') === 1
         && count(ix, 'drag across the map to place a ruler. Press the small arrow beside the tool for its options.</li>') === 1
         && count(ix, ' id="drawModeBtn" title="Pen. Press again to put it away.">') === 1 && count(ix, ' id="eraserModeBtn" title="Eraser. Click or drag over strokes to erase them. Press again to put it away.">') === 1

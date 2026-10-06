@@ -690,7 +690,7 @@ var STEPS = [
       help: ['datamap', 'Rooms'],
       before: function() { openItem('map_tut_city'); goView('data'); state.selId = 'tut_palace'; render(); if (window.wpSyncRightPanel) window.wpSyncRightPanel(); openRightForTour(); } },
     { section: 'Play map & VTT features', target: '#wbFloatingToolbar', title: 'Play map tools',
-      html: 'Now inside the hideout, on its Play Map. From the left: undo and redo for this map, then move and pan, the pen, eraser and fill. Next come shapes and <b>+ Add</b> for text and pictures, then <b>measure</b>, <b>blast</b>, fog and &#127916; <b>Scene</b>. Centre, the <b>grid</b> and <b>snap</b> stand at the map&rsquo;s right edge. Hold <kbd>Space</kbd> and drag to pan from any tool.',
+      html: 'Now inside the hideout, on its Play Map. From the left: undo and redo for this map, then move and pan, the pen, eraser and fill. Next come shapes and <b>+ Add</b> for text and pictures, then <b>measure</b>, <b>radius</b>, fog and &#127916; <b>Scene</b>. Centre, the <b>grid</b> and <b>snap</b> stand at the map&rsquo;s right edge. Hold <kbd>Space</kbd> and drag to pan from any tool.',
       help: ['whiteboard', 'Placing things'],
       before: function() { openItem('map_tut_ground'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); } },
     { target: '#soundBtn', title: 'Sound',

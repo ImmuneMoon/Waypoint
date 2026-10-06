@@ -192,6 +192,11 @@ The play map
   pointer location and its zoom buttons can each be hidden on their
   own. Tick them under Show in the centre menu, or press their buttons
   in Settings > Table. The rulers have a tick there too.
+- The blast tool is now the Radius tool, and every player has it. It
+  places a circle to measure with, in the ruler's gold. Type its size
+  in the ruler's unit, as a radius or as a diameter, and every token
+  inside shows its distance. Circles are yours alone. A blast with
+  damage is still thrown from a character's sheet.
 
 Fixes
 - The fog of war is lighter on a busy map. It read every character's

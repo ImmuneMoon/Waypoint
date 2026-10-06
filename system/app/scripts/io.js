@@ -485,6 +485,20 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
   // A stored state with its selection beside its content ("s", read back by stepHistory; the content is untouched)
   function withSel(snap, s) { return s && typeof s === 'object' && (s.made || s.left) ? snap.slice(0, -1) + ',"s":' + JSON.stringify({ made: s.made || undefined, left: s.left || undefined }) + '}' : snap; }
 
+  // 127: the host's count of the drawings players have added and redrawn (net.js strokeSeq: a number that only goes up), read when a baseline is taken and
+
+  // kept beside a stored state ("q"). A restore reads it to tell a drawing a player added after that state was taken, which stays, from one
+
+  // that was there and that a step of the GM's removed, which goes again on a redo; and a redraw its player made since, which stays, from one
+
+  // the state already holds. With nothing drawn by a player yet the count is 0 and a state is stored exactly as before. Read as a whole
+
+  // number above 0 that a number holds exactly, or as 0: what is stored beside a state must always read back
+
+  function strokeSeq() { var n = window.wpNet, v = 0; try { v = n && typeof n.strokeSeq === 'function' ? Number(n.strokeSeq()) : 0; } catch (e) { v = 0; } return v > 0 && v <= Number.MAX_SAFE_INTEGER ? Math.floor(v) : 0; }
+
+  function withQ(snap, q) { return q > 0 ? snap.slice(0, -1) + ',"q":' + q + '}' : snap; }
+
   // V8 keeps a string with any non-Latin-1 character at two bytes a character, and the save has plenty
   function histBytes(h) {
 
@@ -680,7 +694,7 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
 
       if (!camp || !camp.items) return;
 
-      var remote = !!(window.wpNet && window.wpNet.applyingRemote), now = Date.now();
+      var remote = !!(window.wpNet && window.wpNet.applyingRemote), now = Date.now(), sq = strokeSeq();   // 127: sq, the host's count of what players drew and redrew, as this pass begins
 
       pruneDeadKeys();
 
@@ -692,9 +706,11 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
 
           var key = itemKey(camp, id), cur = project(item), h = histories[key];
 
-          if (!h) { histories[key] = seed(cur, camp.id, id); return; }   // lazy seed: new, imported, first seen
+          if (!h) { histories[key] = seed(cur, camp.id, id); if (sq) histories[key].lastQ = sq; return; }   // lazy seed: new, imported, first seen
 
-          if (cur === h.last) return;
+          if (cur === h.last) { if (sq) h.lastQ = sq; return; }   // 127: the same content, so every drawing a player has added by now is in it
+
+          var wasQ = h.lastQ || 0; if (sq) h.lastQ = sq;   // 127: the count the state being left was taken at; every branch below makes cur the baseline
 
           // A player's change is never a GM step: move the baseline, keep redo. The one exception is the
           // GM's own debounced edit on the open item that a remote save is flushing (savePending still set).
@@ -712,7 +728,7 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
 
           h.redo = [];
 
-          pushStep(h, withSel(h.last, { made: h.cur ? h.cur.made : undefined, left: mine ? mine.before : undefined }));   // the state being left, with the selection this step found
+          pushStep(h, withQ(withSel(h.last, { made: h.cur ? h.cur.made : undefined, left: mine ? mine.before : undefined }), wasQ));   // the state being left, with the selection this step found (and, 127, the count it was taken at)
 
           h.cur = mine ? { made: mine.after } : null;
 
@@ -745,6 +761,8 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
       var key = itemKey(camp, item.id), cur = project(item);
 
       if (histories[key]) histories[key].last = cur; else histories[key] = seed(cur, camp.id, item.id);
+
+      var sqB = strokeSeq(); if (sqB) histories[key].lastQ = sqB;   // 127: the count this baseline was taken at
 
   }
 
@@ -805,7 +823,47 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
      never revives one they erased. Mirrors the client write whitelist in net.js applyClientItemFiltered.
      ownerId is the host's word, including its absence (ensurePlayerToken demotes duplicates by deleting
      it); hidden stays from the snapshot (a GM hide / unhide is undoable; players cannot write it). */
-  function mergeLivePlayerState(snapC, live) {
+  function mergeLivePlayerState(snapC, live, acts, q) {
+
+      // 127 (the owner, by prompt, 2026-10-06: the GM's Undo takes back what the GM did to a player's drawing, "and still never moves or erases
+
+      // what the player did themselves"). acts: the host's count of what players did to their own drawings on this map (net.js strokeActs:
+
+      // addedAt, redrawnAt, erased, each asked about an id); q: the count the state being restored was taken at (withQ). With them a player's
+
+      // drawing is no longer kept whole as it is now:
+
+      //   in the state and on the map — it comes back as the state has it, so the GM's ticks, lock, hiding and place are undone; what its
+
+      //     player redrew since stays theirs (OWN, the keys a player may hand the host);
+
+      //   in the state only — one its player erased stays erased; one the GM removed comes back;
+
+      //   on the map only — one a player added after the state was taken stays; a piece the GM's eraser cut from one, a copy the GM pasted,
+
+      //     and one a later step of the GM's had removed (a redo) go.
+
+      // With no count (acts absent) every case is as it was before
+
+      var OWN = ['x', 'y', 'w', 'h', 'baseW', 'baseH', 'pts', 'color', 'strokeWidth', 'opacity'];
+
+      var isStroke = function(w) { return !!(w && w.type === 'path' && w.byPlayer); };
+
+      if (!(acts && typeof acts.addedAt === 'function' && typeof acts.redrawnAt === 'function' && typeof acts.erased === 'function')) acts = null;   // a count that is not its three questions is no count
+
+      var qn = typeof q === 'number' && q > 0 ? q : 0;
+
+      // each question, answered in the player's favour when it cannot be asked or its answer is no answer (no number for when, anything but a
+
+      // plain no for erased): their erase stays an erase, their drawing stays, their redraw stays
+
+      var since = function(n) { return !(typeof n === 'number' && n <= qn); };   // after this state was taken (a number the state was taken at, or before it, is not)
+
+      var erasedBy = function(id) { try { return acts.erased(id) !== false; } catch (e) { return true; } };
+
+      var addedSince = function(id) { try { return since(acts.addedAt(id)); } catch (e) { return true; } };
+
+      var redrewIt = function(id) { try { return since(acts.redrawnAt(id)); } catch (e) { return true; } };
 
       var liveList = live.whiteboard || [];
 
@@ -824,7 +882,7 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
 
           if (!l) {
 
-              if (s && s.type === 'path' && s.byPlayer) return;   // the player erased it: stays erased
+              if (isStroke(s) && (!acts || erasedBy(s.id))) return;   // the player erased it: stays erased (127: told by the host's count of what players erased — one the GM removed is no such thing, and comes back below; with no count every missing drawing of a player's reads as erased, as before)
 
               // A GM-deleted token whose player has since been given another one on this map comes back
               // under GM control (sheet intact): a player never ends up with two tokens they both own
@@ -840,7 +898,15 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
 
           if (l.ownerId) {
 
-              if (l.type === 'path' && l.byPlayer) { out.push(JSON.parse(JSON.stringify(l))); return; }   // their stroke as they have it now
+              if (l.type === 'path' && l.byPlayer) {   // a player's drawing
+
+                  if (!acts) { out.push(JSON.parse(JSON.stringify(l))); return; }   // no count: their stroke as they have it now, whole (as before)
+
+                  if (redrewIt(s.id)) OWN.forEach(function(k) { if (l[k] !== undefined) s[k] = JSON.parse(JSON.stringify(l[k])); else delete s[k]; });   // 127: what its player redrew since is theirs, and stays
+
+                  out.push(s); return;   // 127: all else comes back as the state has it — the GM's ticks, lock, hiding and place are what the step undoes
+
+              }
 
               ['x', 'y', 'rot', 'front', 'elevation', 'posture'].forEach(function(k) { if (l[k] !== undefined) s[k] = l[k]; else delete s[k]; });
 
@@ -856,6 +922,8 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
       liveList.forEach(function(l, i) {
 
           if (!l || !l.id || snapById[l.id] || !l.ownerId) return;
+
+          if (acts && isStroke(l) && !addedSince(l.id)) return;   // 127: a player's drawing by its marks that no player added after this state was taken — a piece the GM's eraser cut from one, a copy the GM pasted, one a later step of the GM's had removed — is the GM's doing, and goes with the step
 
           out.splice(Math.min(i, out.length), 0, JSON.parse(JSON.stringify(l)));
 
@@ -949,7 +1017,7 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
 
       var snap = from.pop();
 
-      if (dir === 'undo') h.redo.push(withSel(h.last, h.cur)); else pushStep(h, withSel(h.last, h.cur));
+      if (dir === 'undo') h.redo.push(withQ(withSel(h.last, h.cur), h.lastQ || 0)); else pushStep(h, withQ(withSel(h.last, h.cur), h.lastQ || 0));   // 127: with the count the state being left was taken at
 
       var parsed = JSON.parse(snap);
 
@@ -957,7 +1025,7 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
 
       var hosting = !!(window.wpNet && window.wpNet.active && window.wpNet.role === 'host');
 
-      if (hosting && item.type === 'map') mergeLivePlayerState(parsed.c, item);
+      if (hosting && item.type === 'map') mergeLivePlayerState(parsed.c, item, typeof window.wpNet.strokeActs === 'function' ? window.wpNet.strokeActs(camp.id, item.id) : null, typeof parsed.q === 'number' ? parsed.q : 0);   // 127: with the host's count of what players did to their own drawings here, and the count this state was taken at
 
       h.cur = parsed && parsed.s && typeof parsed.s === 'object' ? parsed.s : null;   // the selection that goes with the state come back to (a planner's styled fields)
 
@@ -989,6 +1057,8 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
       } finally { isUndoing = false; }
 
       h.last = project(item);   // taken AFTER render + save, so a render-time clean-up can never differ from the baseline
+
+      var sqS = strokeSeq(); if (sqS) h.lastQ = sqS;   // 127: the count this baseline was taken at
 
       histBytes(h);
 

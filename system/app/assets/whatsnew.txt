@@ -238,6 +238,10 @@ Fixes
   sheet opens locked, and that Edit sheet lets you change it.
 - Coming up in Help listed players making their own characters as
   still to come. They do that already, and the part now says so.
+- In a session, Undo now takes back what you did to a player's
+  drawing: a tick such as Blocks sight, Lock in place or Hide, a move,
+  or a delete. It used to leave a player's drawing exactly as it was.
+  It still never erases or moves what the player did themselves.
 - Searching page text now reads a planner's node tables and a
   flowchart's labels. A word that stood only in a node's table was
   found by no search: not quick-jump, not the panel's search, not the

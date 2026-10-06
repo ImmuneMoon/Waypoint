@@ -204,6 +204,10 @@ The play map
 - The Radius tool can also put a circle on a token. Pick On a token
   and click a token. The circle moves with it, and the token itself
   is not counted.
+- The GM can set off a circle of the Radius tool as an explosion. Press
+  Explode in the tool's options and type the damage and its type.
+  Nothing is filled in. The blast is shown to everyone on the map, and
+  the damage follows the system's blast setting.
 
 Fixes
 - The fog of war is lighter on a busy map. It read every character's

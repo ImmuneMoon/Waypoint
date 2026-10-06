@@ -645,10 +645,20 @@
                                   <li>It is measured from the shape&rsquo;s own height. That is the height of the token in its cell, else of the ground, and you can edit it in the tool&rsquo;s options.</li>
                                   <li>Drag a shape to move it. It re-seats in a cell and, unless you set its height, takes the height of whoever stands there. Right-click it to remove it.</li>
                                   <li>What you place is yours alone, like a ruler. Everyone at the table has the tool, and nobody else sees your shapes.</li>
-                                  <li>The tool only measures. A blast with damage is thrown from a character&rsquo;s sheet.</li>
+                                  <li>For players the tool only measures. A blast with damage is thrown from a character&rsquo;s sheet, or set off by the GM with <b>Explode</b>.</li>
                               </ul>
                           </li>
                           <li><b>Boom:</b> with Visual effects on, the GM sees a <b>Boom</b> label on each circle and each thrown blast. Click it to set off an explosion burst at that spot for everyone on the map.</li>
+                          <li><b>Explode:</b> the GM can set off the last circle placed as an explosion. Press <b>Explode</b> in the tool&rsquo;s options, type the damage and its type, and press Explode under them.
+                              <ul>
+                                  <li>The damage is a number or a roll, such as <code>6d6</code>. The type is a word, such as burning. Both are typed each time, and nothing is filled in.</li>
+                                  <li>The explosion is shown to everyone on the map, as a thrown blast is. The damage then follows the system&rsquo;s <b>Blast automation</b> setting.</li>
+                                  <li>The type is named on the roll&rsquo;s card. It does not change the number.</li>
+                                  <li>It hits the tokens the circle held. The token a circle sat on is not hit.</li>
+                                  <li><b>Undo last throw</b>, beside Explode, takes the damage back.</li>
+                                  <li>A ring or a cone does not explode. Neither does a circle whose centre is inside a wall or a closed door.</li>
+                              </ul>
+                          </li>
                       </ul>
                       <div class="help-tip"><b>Blasts from the sheet:</b> a blast with damage is thrown by a character, PC or NPC, from their sheet. It uses the campaign&rsquo;s own item library, under System &#9656; Items, and each item has its own name, radius and damage. A thrown blast reads in feet and yards, as the item does. See Help &#9656; Character sheets.</div>
                       <h4>Elevation &amp; posture</h4>
@@ -1593,7 +1603,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                               </ul>
                           </li>
                           <li>The removal setting is separate from <b>GM only</b>, which keeps an item secret. A GM-only item you give a player still reaches their sheet: its name and notes, never its formulas. If you delete an item from the library, every character carrying it keeps a copy, marked <b>not in library</b> on your sheet. <b>Make custom</b> turns that copy into the character&rsquo;s own item.</li>
-                          <li>An item with a blast area gets a <b>&#128165; Throw</b> button: press it, then click the map. The blast lands attributed to the character and is <b>shared with everyone on that map</b>. The toolbar&rsquo;s Radius tool only measures, and its circles are yours alone.</li>
+                          <li>An item with a blast area gets a <b>&#128165; Throw</b> button: press it, then click the map. The blast lands attributed to the character and is <b>shared with everyone on that map</b>. The toolbar&rsquo;s Radius tool measures, and its circles are yours alone. The GM can set one off as an explosion with <b>Explode</b>.</li>
                           <li><b>Combat settings</b> are at the top of the Items tab.
                               <ul>
                                   <li><b>Blast automation</b> has three settings. <b>Full auto</b> rolls the damage and applies it to every token in range. <b>Roll to chat</b> rolls but leaves applying to you. <b>Measure only</b> just shows the area.</li>
@@ -1601,7 +1611,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li><b>Who rolls</b> is the character&rsquo;s owner or always the GM.</li>
                                   <li><b>Roll outcomes</b> are success or failure by the margin, or <b>3d6 roll-under criticals</b>. With those, a roll of exactly 3d6 against a target reads 3 or 4 as a critical success, and also 5 at a target of 15 or more and 6 at 16 or more. It reads 17 as a failure, critical at a target of 15 or less. It reads 18, or failing by 10 or more, as a critical failure. That holds on the card, in the log and for what a roll changes on success or failure.</li>
                                   <li><b>Damage subtracts from</b> names the resource full-auto reduces, such as HP.</li>
-                                  <li>Undo a full-auto throw with <b>&#8617; Undo last throw</b> in the &#128165; menu.</li>
+                                  <li>Undo a full-auto throw with <b>Undo last throw</b> in the Radius tool&rsquo;s options.</li>
                               </ul>
                           </li>
                           <li><b>Range</b>, on the Combat card under cover, is your game&rsquo;s range penalty: a modifier by how far the target is.
@@ -2157,9 +2167,21 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                   <div class="draw-menu-row" id="blastWhich" style="font-size:11px; color:var(--dim);"></div>
                   <div class="draw-menu-row">
                       <button class="draw-style-btn" id="blastClearBtn" title="Removes the circles, rings and cones you placed. The GM&rsquo;s press also removes thrown blasts, for everyone.">Clear shapes</button>
-                      <button class="draw-style-btn gm-only" id="blastUndoThrow" title="Undo the last thrown blast's damage (restores every token it hit)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4L4 9l5 5M4 9h10.5a5.5 5.5 0 0 1 0 11H9"/></svg> Undo last throw</button>
                   </div>
-                  <div class="draw-menu-row gm-only" style="font-size:11px; color:var(--dim); max-width:210px; line-height:1.4;">The tool only measures. A blast with damage is thrown from a character&rsquo;s sheet.</div>
+                  <div class="draw-menu-label gm-only">Blast effects, the GM&rsquo;s</div>
+                  <div class="draw-menu-row gm-only">
+                      <button class="draw-style-btn" id="blastExplodeBtn" title="Sets off the last circle you placed as an explosion, shown to everyone on the map. You type the damage and its type each time."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2 5.5 5-2.5-2.5 5 5.5 2-5.5 2 2.5 5-5-2.5-2 5.5-2-5.5-5 2.5 2.5-5L2 12l5.5-2-2.5-5 5 2.5 2-5.5z"/></svg> Explode&hellip;</button>
+                      <button class="draw-style-btn" id="blastUndoThrow" title="Takes back the damage of the last thrown blast or explosion, for every token it hit."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4L4 9l5 5M4 9h10.5a5.5 5.5 0 0 1 0 11H9"/></svg> Undo last throw</button>
+                  </div>
+                  <div class="gm-only" id="blastExplodeForm" style="display:none;">
+                      <div class="draw-menu-row"><span style="font-size:11px; color:var(--dim); width:50px; flex:none;">Damage</span><input type="text" id="blastDmg" autocomplete="off" spellcheck="false" maxlength="300" aria-label="Damage, a number or a roll" style="flex:1; min-width:0; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;"></div>
+                      <div class="draw-menu-row"><span style="font-size:11px; color:var(--dim); width:50px; flex:none;">Type</span><input type="text" id="blastDmgType" autocomplete="off" spellcheck="false" maxlength="40" aria-label="Damage type, a word" style="flex:1; min-width:0; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;"></div>
+                      <div class="draw-menu-row">
+                          <button class="draw-style-btn" id="blastExplodeGo" title="Sets it off with the damage and the type you typed">Explode</button>
+                          <button class="draw-style-btn" id="blastExplodeNo" title="Puts the two boxes away and sets nothing off">Cancel</button>
+                      </div>
+                  </div>
+                  <div class="draw-menu-row gm-only" style="font-size:11px; color:var(--dim); max-width:210px; line-height:1.4;">Explode sets off the last circle you placed. It asks for the damage and its type each time. Nothing is filled in.</div>
               </div>
           </div>
 

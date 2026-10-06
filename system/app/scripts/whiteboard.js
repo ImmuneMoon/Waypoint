@@ -3610,6 +3610,7 @@ window.wpFitToGrid = fitToGrid;
   function shapeHolds(b, r) {   // is the token of this distance row inside b? A thrown blast and a circle by distance, a ring between its two, a cone within its angle too
       if (b.lost) return false;
       if (typeof b.tok === 'string' && r.tok && r.tok.id === b.tok) return false;   // the token a circle sits on is its centre, not something inside it
+      if (typeof b.spare === 'string' && r.tok && r.tok.id === b.spare) return false;   // an explosion set off from such a circle spares that token still
       if (r.d > blastRadiusYd(b) + 1e-9) return false;
       if (!ownCircle(b)) return true;
       if (b.as === 'ring') return r.d >= (b.inn || 0) - 1e-9;
@@ -3642,6 +3643,7 @@ window.wpFitToGrid = fitToGrid;
       return Math.hypot(bx - ax, by - ay) / mapMeasureConfig().cellPx * cellYards();
   }
   function blastRadiusYd(b) { return ownCircle(b) ? b.yd : b.ft / 3; }   // the tool's own circle keeps yards; a thrown blast its item's feet
+  function ftOut(v) { v = Number(v); return isFinite(v) ? Math.round(v * 10) / 10 : 0; }   // a blast's feet as its label says them, to a tenth: an explosion set off from a circle is not always a whole number of feet
   function blastDistances(b, map) {   // every character token (hidden ones too — the GM is the only viewer)
       var elevOn = stanceOn('elevation');
       return (map.whiteboard || []).filter(function(t) { return t.isChar; }).map(function(t) {
@@ -3664,7 +3666,7 @@ window.wpFitToGrid = fitToGrid;
           if (kind === 'cone') html += '<path class="area" d="' + conePath(b.x, b.y, rPx, b.dir, b.deg) + '"></path>' + DOT + '<circle class="blast-aim" data-i="' + i + '" cx="' + svgNum(b.x + rPx * Math.cos(b.dir || 0)) + '" cy="' + svgNum(b.y + rPx * Math.sin(b.dir || 0)) + '" r="7"><title>Drag to turn the cone</title></circle>';   // a path is numbers only (svgNum)
           else if (kind === 'ring' && b.inn > 0) html += '<path class="area" fill-rule="evenodd" d="' + ringPath(b.x, b.y, rPx, b.inn * pxPerYd) + '"></path>' + GRAB + DOT;
           else html += '<circle class="area" cx="' + b.x + '" cy="' + b.y + '" r="' + rPx + '"></circle>' + GRAB + DOT;
-          var lbl = (own ? esc(circleWords(b.yd, b.as, ru, b.inn, b.deg)) : (b.name ? esc(b.name) + ' ' : '') + b.ft + ' ft \u00b7 r ' + fmtLen(rYd)) + (elevOn ? ' \u00b7 at ' + fmtElev(b.elev || 0) + ' ' + lenUnit() : '');   // item 19 H1: in the viewer's unit
+          var lbl = (own ? esc(circleWords(b.yd, b.as, ru, b.inn, b.deg)) : (b.name ? esc(b.name) + ' ' : '') + ftOut(b.ft) + ' ft \u00b7 r ' + fmtLen(rYd)) + (elevOn ? ' \u00b7 at ' + fmtElev(b.elev || 0) + ' ' + lenUnit() : '');   // item 19 H1: in the viewer's unit
           html += '<text x="' + (b.x + 8) + '" y="' + (kind === 'cone' ? b.y - 12 : b.y - rPx - 8) + '">' + lbl + '</text>';   // a cone's words stand at its point: it has no top
           if (!playerScreen() && kind !== 'cone' && kind !== 'ring') html += '<text class="blast-boom" data-i="' + i + '" x="' + (b.x + 8) + '" y="' + (b.y - rPx - 26) + '">💥 Boom</text>';   // fires a burst everyone sees (1.5.0)
           blastDistances(b, map).forEach(function(r) {
@@ -3775,6 +3777,7 @@ window.wpFitToGrid = fitToGrid;
       var rYd = blastRadiusYd(b), hits = [], applied = 0, halved = 0, shielded = 0;
       blastDistances(b, map).forEach(function(r) {
           if (r.d > rYd + 1e-9 || !r.tok.charId) return;
+          if (typeof b.spare === 'string' && r.tok.id === b.spare) return;   // an explosion set off from a circle on a token: that token was not inside the circle
           var ch = camp.chars && typeof r.tok.charId === 'string' && Object.prototype.hasOwnProperty.call(camp.chars, r.tok.charId) ? camp.chars[r.tok.charId] : null; if (!ch) return;   // own ids only: a token from a file naming '__proto__' writes no damage onto a prototype
           var tierC = window.wpFog && window.wpFog.coverAt ? window.wpFog.coverAt(b.x, b.y, r.tok, map, stanceOn('elevation') ? (b.elev || 0) : 0, stanceOn('elevation') ? tokenElevation(r.tok, map, b.thrown === true) : 0) : null, ocC = S.coverOutcome ? S.coverOutcome(sys, tierC) : 'full', dmgC = S.coverDamage ? S.coverDamage(sys, tierC, total) : total;   // cover follow-ups (owner 2026-09-28): the system's outcome for the cover this token has from the blast (the host's own board)
           if (ocC === 'none' && total > 0) { shielded++; return; }   // shielded: the system's outcome for this grade is none (a half that rounds to 0 took less)
@@ -3809,6 +3812,96 @@ window.wpFitToGrid = fitToGrid;
       toast('Throw damage undone (' + nn + ' token' + (nn === 1 ? '' : 's') + ').');
   };
   window.wpHasThrowUndo = function() { return !!(_lastThrowTx && _lastThrowTx.hits.length); };
+  // [systemcheck:explode-start]
+  // Explode (1.5.4, backlog 128; the owner by prompt: "Yes, type is a word", and of who may: "The GM is the only one who should be able to
+  // make any blast effects"). The GM sets off the last circle of the Radius tool as an explosion. A damage, a number or a roll, and a damage
+  // type, a word, are typed each time: nothing is ever filled in ("no defaults can be done because a damage type and value is needed"). The
+  // circle becomes a blast in its place, shown to the table as a thrown blast is, and the damage follows the system's blast setting
+  // (combat.blastAuto: full rolls and applies, roll rolls to chat, measure does neither). The type is named on the roll's card and changes no
+  // number. It hits the tokens the circle held and no other: the token a circle sat on is spared (spare), and nothing is moved, so a circle
+  // whose centre is in a wall is refused where a throw would go off in front of it. Every refusal is in fixed words
+  var EXPLODE_MIN_FT = 1, EXPLODE_MAX_FT = 3000;   // a blast's radius in feet, as placeThrownBlast and a player's app bound it
+  function explodeType(v) {   // the damage type as typed: a few plain words on one line, 40 characters at most and never half a character
+      if (typeof v !== 'string') return '';
+      var out = '';
+      Array.from(v.replace(/[\x00-\x1f\x7f]/g, ' ').replace(/\s+/g, ' ').trim()).some(function(ch) {
+          if (ch.length === 1 && ch >= '\ud800' && ch <= '\udfff') return false;   // half a character that came alone: left out
+          if (out.length + ch.length > 40) return true;
+          out += ch; return false;
+      });
+      return out.trim();
+  }
+  function explodeWhere() {   // the circle Explode would set off: { c, ft }, or { why } in fixed words
+      if (playerScreen()) return { why: 'Only the GM sets off an explosion.' };
+      var map = getActiveMap(), c = map ? lastOwn() : null;
+      if (!c) return { why: 'Place a circle first. Explode sets off the last circle you placed.' };
+      if (shapeOf(c.as) !== 'circle') return { why: 'Explode sets off a circle. Pick Circle for this shape first.' };
+      var ft = c.yd * 3, ru = rulerUnitNow();
+      if (ft > EXPLODE_MAX_FT) return { why: 'An explosion is at most ' + rulerLen(EXPLODE_MAX_FT / 3, ru) + ' in radius.' };
+      if (ft < EXPLODE_MIN_FT) return { why: 'An explosion is at least ' + rulerLen(EXPLODE_MIN_FT / 3, ru) + ' in radius.' };
+      if (window.wpFog && window.wpFog.blastSeat && window.wpFog.blastSeat(map, c.x, c.y, c.x, c.y)) return { why: 'The centre of the circle is inside a wall or a closed door. Move the circle to an open cell first.' };
+      return { c: c, ft: ft };
+  }
+  function explodeAsk(dmg, type) {   // what Explode would set off with what was typed: { c, ft, expr, type }, or { why }
+      var q = explodeWhere(); if (q.why) return q;
+      var D = window.wpDiceCore, F = window.wpFormula, expr = D && D.cleanExpr ? D.cleanExpr(dmg) : null;
+      if (!expr) return { why: 'Type the damage. It is a number or a roll.' };
+      var p = F && F.parse ? F.parse(expr) : null;
+      if (!p || !p.ok) return { why: 'That damage does not read as a number or a roll.' };
+      if (p.names && p.names.length) return { why: 'The damage is a number or a roll. It cannot name a value from a sheet.' };
+      var ty = explodeType(type); if (!ty) return { why: 'Type the damage type. It is a word.' };
+      return { c: q.c, ft: q.ft, expr: expr, type: ty };
+  }
+  function explodeCircle(dmg, type) {   // true: it went off
+      var q = explodeAsk(dmg, type); if (q.why) { toast(q.why); return false; }
+      var map = getActiveMap(), camp = getActiveCampaign(), sys = camp && camp.system, combat = (sys && sys.combat) || {};
+      var auto = !sys ? 'roll' : combat.blastAuto === 'roll' || combat.blastAuto === 'measure' ? combat.blastAuto : 'full';   // with no character system there is nothing to apply the damage to
+      var diceOn = !window.wpVtt || window.wpVtt.on('dice'), rolled = false, total = null;
+      if (auto !== 'measure' && diceOn) {   // the roll first: a damage that cannot be rolled sets nothing off
+          if (!window.wpDice || !window.wpDice.rollFor) { toast('Dice are not available.'); return false; }
+          var dr = window.wpDice.rollFor('', q.expr, 'Explosion, ' + q.type + ' damage', { dmg: true });   // the type is named on the card: it changes no number
+          if (!dr || dr.error || !dr.ok) return false;   // the roll said why
+          rolled = true; total = typeof dr.value === 'number' && isFinite(dr.value) ? dr.value : null;
+      }
+      var c = q.c, at = blasts.indexOf(c); if (at < 0) return false;   // the circle went while the roll was made: nothing goes off, and no other shape's place is taken
+      var b = { x: c.x, y: c.y, ft: q.ft, name: 'Explosion', elev: typeof c.elev === 'number' && isFinite(c.elev) ? c.elev : 0, autoElev: false, thrown: true, by: '' };
+      if (typeof c.tok === 'string') b.spare = c.tok;   // the token the circle sat on was not inside it: the explosion does not hit it
+      blasts.splice(at, 1, b);   // the circle becomes the blast, where it stood
+      renderMeasures(); syncBlastMenu();
+      if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.broadcastBlast) window.wpNet.broadcastBlast({ x: b.x, y: b.y, ft: b.ft, name: b.name, elev: b.elev, by: '' }, map.id);   // shown to the table as a thrown blast is: its place, its size, its height and the fixed word
+      var n = blastDistances(b, map).filter(function(r) { return shapeHolds(b, r); }).length, said = 'Explosion, ' + q.type + '. ' + n + ' token' + (n === 1 ? '' : 's') + ' in range.';
+      if (!rolled) { toast(said + (auto === 'measure' ? ' Nothing was rolled. This system\u2019s blasts only measure.' : ' Nothing was rolled. Dice are off.')); return true; }
+      if (auto !== 'full') { toast(said); return true; }
+      if (total === null) { toast(said + ' The roll gave no number, so no damage was applied.'); return true; }
+      toast(said); applyBlastDamage(b, total, combat.hpResource);
+      return true;
+  }
+  // The two boxes under Explode: shown when Explode is pressed, put away when it went off, on Cancel and on a second press. They are emptied
+  // every time they are shown or put away, so what was typed for one explosion is never there for the next
+  var _el_exBtn = document.getElementById('blastExplodeBtn'), _el_exForm = document.getElementById('blastExplodeForm'), _el_exDmg = document.getElementById('blastDmg'), _el_exType = document.getElementById('blastDmgType');
+  function explodeForm(show) {
+      if (_el_exDmg) _el_exDmg.value = ''; if (_el_exType) _el_exType.value = '';
+      if (_el_exForm) _el_exForm.style.display = show ? '' : 'none';
+      if (show && _el_exDmg && _el_exDmg.focus) _el_exDmg.focus();
+  }
+  function explodeGo() { if (explodeCircle(_el_exDmg ? _el_exDmg.value : '', _el_exType ? _el_exType.value : '')) explodeForm(false); }   // refused: the boxes stay as typed, to be put right
+  if (_el_exBtn) _el_exBtn.addEventListener('click', function() {
+      if (_el_exForm && _el_exForm.style.display !== 'none') { explodeForm(false); return; }
+      var w = explodeWhere(); if (w.why) { toast(w.why); return; }   // nothing to set off: said before anything is asked
+      explodeForm(true);
+  });
+  var _el_exGo = document.getElementById('blastExplodeGo'), _el_exNo = document.getElementById('blastExplodeNo');
+  if (_el_exGo) _el_exGo.addEventListener('click', explodeGo);
+  if (_el_exNo) _el_exNo.addEventListener('click', function() { explodeForm(false); });
+  if (_el_exDmg) _el_exDmg.addEventListener('keydown', function(e) {   // Enter in the damage box goes on to the type: an explosion is never set off from the first box
+      if (e.key === 'Enter') { e.preventDefault(); if (_el_exType && _el_exType.focus) _el_exType.focus(); }
+      else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); explodeForm(false); }
+  });
+  if (_el_exType) _el_exType.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') { e.preventDefault(); explodeGo(); }
+      else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); explodeForm(false); }
+  });
+  // [systemcheck:explode-end]
   // A sheet Throw button arms a one-shot blast placement (mirrors wpArmFxBurst); the next map click throws it.
   window.wpArmBlast = function(ft, name, ctx) {
       ft = Math.max(1, Math.min(3000, Math.round(ft || 0))); if (!(ft > 0)) return;
@@ -3821,7 +3914,7 @@ window.wpFitToGrid = fitToGrid;
   // A client's received shared blast (from the host): rendered, never re-broadcast.
   window.wpRenderSharedBlast = function(bl) {
       if (!bl || typeof bl.x !== 'number' || typeof bl.y !== 'number') return;
-      var ft = Math.max(1, Math.min(3000, Math.round(bl.ft || 0))) || 12;
+      var ft = typeof bl.ft === 'number' && isFinite(bl.ft) && bl.ft > 0 ? Math.max(1, Math.min(3000, bl.ft)) : 12;   // the host's number as it is, within a blast's bounds: an explosion set off from a circle is not always a whole number of feet, and a rounded one would hold other tokens than the host's
       pushBlast({ x: bl.x, y: bl.y, ft: ft, name: typeof bl.name === 'string' ? bl.name.slice(0, 60) : '', elev: typeof bl.elev === 'number' ? bl.elev : 0, autoElev: false, thrown: true, by: typeof bl.by === 'string' ? bl.by.slice(0, 60) : '', shared: true });
       renderMeasures();
   };

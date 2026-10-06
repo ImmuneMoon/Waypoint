@@ -435,6 +435,8 @@
     #blastMenu { max-height: calc(100vh - 96px); overflow-y: auto; overflow-x: hidden; }   /* the Radius tool's options are tall too */
     #blastShapeRow { flex-wrap: wrap; }   /* its four shapes stand two to a row */
     #blastShapeRow > .draw-style-btn { flex: 1 1 40%; }
+    #blastExplodeBtn { color: var(--red); }   /* a blast effect, the GM's: it wears the blast's red, as on the sheet the owner passed */
+    #blastExplodeForm { display: flex; flex-direction: column; gap: 6px; }   /* the two boxes Explode asks for, and its two buttons */
     .draw-menu-label {
         font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
         color: var(--dim); text-align: left; padding: 0 2px;

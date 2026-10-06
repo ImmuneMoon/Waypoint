@@ -286,29 +286,48 @@
                   <div class="help-pane" data-pane="datamap" style="display:none;">
                       <h4>Tools</h4>
                       <ul>
-                          <li><b>&#10138; Select / Move</b> (default) &mdash; click rooms to edit them, drag to move, drag a box to select several.</li>
-                          <li><b>&#9995; Pan</b> &mdash; drag anywhere to move the map itself; rooms never move while it's active. (Middle-click drag &mdash; or hold <kbd>Space</kbd> and drag &mdash; pans in any tool.)</li>
-                          <li><b>&#8596; Link Mode</b> &mdash; lit gold while active; click two rooms to connect them. Its menu picks the <b>line type</b> for new links: a solid <b>Path</b>, a dashed <b>Route</b>, a dotted <b>Secret</b> way, or a <b>One-way</b> arrow from the first room to the second. <b>Done linking</b> (or the Select tool) leaves it.</li>
-                          <li><b>&#128465; Clear the board</b> &mdash; removes every room and link on this map after a confirmation (this map's Undo brings them back).</li>
+                          <li><b>&#10138; Select / Move</b> is the default tool. Click rooms to edit them, drag to move, drag a box to select several.</li>
+                          <li><b>&#9995; Pan</b>: drag anywhere to move the map itself. Rooms never move while it's active. A middle-click drag pans in any tool, and so does holding <kbd>Space</kbd> while you drag.</li>
+                          <li><b>&#8596; Link Mode</b> is lit gold while active. Click two rooms to connect them.
+                              <ul>
+                                  <li>Its menu picks the <b>line type</b> for new links: a solid <b>Path</b>, a dashed <b>Route</b>, a dotted <b>Secret</b> way, or a <b>One-way</b> arrow from the first room to the second.</li>
+                                  <li><b>Done linking</b> leaves it, and so does the Select tool.</li>
+                              </ul>
+                          </li>
+                          <li><b>&#128465; Clear the board</b> removes every room and link on this map after a confirmation. This map's Undo brings them back.</li>
                       </ul>
-                      <h4>Rooms (nodes)</h4>
+                      <h4>Rooms</h4>
                       <ol>
-                          <li>Click <b>&#10133; Add Room</b>, then drag the node where you want it.</li>
+                          <li>Click <b>&#10133; Add Room</b>, then drag the node where you want it. A room is one node of the data map.</li>
                           <li>Select it and fill in the right sidebar: name, category color, notes, and the characters found there.</li>
-                          <li><b>Set Room Image</b> does double duty: the picture shows on hover, and Waypoint builds a <b>child map</b> with that image as the scene, linking the node to it as a portal. (Nodes that already lead somewhere just get the picture.)</li>
+                          <li><b>Set Room Image</b> does double duty. The picture shows on hover, and Waypoint builds a <b>child map</b> with that image as the scene, linking the node to it as a portal. A node that already leads somewhere just gets the picture.</li>
                           <li><kbd>Double Click</kbd> a map or planner name in the sidebar to rename it.</li>
-                          <li>Categories are per-map &mdash; add your own under <b>Categories</b>. Press &#9734; on one (or <b>Save all to library</b>) and any other map can add it from the <b>Category Library</b> with the same name and color.</li>
-                          <li><b>+ Add</b> under <b>Characters</b> also drops a stand-in token on the play map (initials, in the shape of the map&rsquo;s cells); set a portrait and the token wears it, rename the character and the token follows.</li>
+                          <li>Categories are per-map. Add your own under <b>Categories</b>. Press &#9734; on one, or <b>Save all to library</b>, and any other map can add it from the <b>Category Library</b> with the same name and color.</li>
+                          <li><b>+ Add</b> under <b>Characters</b> also drops a stand-in token on the play map. It shows initials, in the shape of the map&rsquo;s cells. Set a portrait and the token wears it. Rename the character and the token follows.</li>
                       </ol>
                       <h4>Connections</h4>
                       <ol>
                           <li>Click <b>&#8596; Link Mode</b>, then click two rooms one after the other to connect them.</li>
-                          <li>Hover over a line and a small chip appears at its middle showing its type (a labelled line keeps its chip, with the label on it). <b>Click a line or its chip</b> to open it in <b>Properties</b>: the line type, a <b>label</b> drawn on the line (players see it), <b>GM-only notes</b> about the route (distance, danger, what it takes to find it), a swap for the direction, and Remove. <kbd>Delete</kbd> removes the selected link; right-click the chip for a quick type menu.</li>
+                          <li>Hover over a line and a small chip appears at its middle showing its type. A labelled line keeps its chip, with the label on it.
+                              <ul>
+                                  <li><b>Click a line or its chip</b> to open it in <b>Properties</b>.</li>
+                                  <li>There you set the line type and a <b>label</b> drawn on the line, which players see.</li>
+                                  <li><b>GM-only notes</b> about the route hold its distance, its danger, or what it takes to find it.</li>
+                                  <li>Properties also has a swap for the direction, and Remove.</li>
+                                  <li><kbd>Delete</kbd> removes the selected link. Right-click the chip for a quick type menu.</li>
+                              </ul>
+                          </li>
                       </ol>
-                      <h4>Linked maps (doors, stairs, warps)</h4>
+                      <h4>Linked maps: doors, stairs and warps</h4>
                       <ol>
-                          <li>Select a room and set its <b>Linked Map</b> to another map, plus an icon (door, stairs, gate&hellip;).</li>
-                          <li><kbd>Double Click</kbd> the room &mdash; or any play map item tied to it &mdash; to travel to that map. Use the breadcrumb to climb back out. In multiplayer, a player travels by <b>dropping their token</b> on the portal item (double-click works too), and the GM can send a player through by dropping that player's token there (a portal you locked for players still lets your own drop through).</li>
+                          <li>Select a room and set its <b>Linked Map</b> to another map, plus an icon such as a door, stairs or a gate.</li>
+                          <li><kbd>Double Click</kbd> the room, or any play map item tied to it, to travel to that map. Use the breadcrumb to climb back out.
+                              <ul>
+                                  <li>In multiplayer, a player travels by <b>dropping their token</b> on the portal item. A double-click works too.</li>
+                                  <li>The GM can send a player through by dropping that player's token there.</li>
+                                  <li>A portal you locked for players still lets your own drop through.</li>
+                              </ul>
+                          </li>
                       </ol>
                       <h4>GM notes on the play map</h4>
                       <p>Select a play map item, link it to a room in the right sidebar, and press <b>Generate GM Notes</b> to build a styled note card from that room's notes and characters. Hover a linked item to preview the room's info.</p>

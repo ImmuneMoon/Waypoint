@@ -1535,6 +1535,31 @@ function applyItem(msg) {
     net.applyingRemote = false;
 }
 
+// [netcheck:strokeacts-start]
+// 127 (the owner, by prompt, 2026-10-06: the GM's Undo takes back what the GM did to a player's drawing, "and still never moves or erases what
+// the player did themselves"): what players did to their own drawings, by the host's own count — which they added and which they redrew (and
+// when: a number that only goes up, a new one for each), and which they erased — noted in the one place a player's drawing is taken
+// (applyClientItemFiltered). The GM's undo reads it
+// (io.js mergeLivePlayerState) to tell a player's erase from the GM's own delete, a drawing a player added after a step was taken from a piece
+// the GM's eraser cut, and a player's redraw from the GM's move. Kept for the app's run, as the undo history is, and never for one table (a
+// step may be older than the session); a map's count goes with the map. Bounded: the added and redrawn ids are of drawings a player has not
+// erased (at most the drawings a map may hold, and those the GM removed), the erased ids the newest STROKE_ERASED_CAP a map. The undo is given
+// three questions about an id (strokeActs), never the sets
+var _strokeActs = Object.create(null), _strokeSeq = 0, STROKE_ERASED_CAP = 5000;
+function strokeNote(campId, mapId, what, id) {
+    if (typeof campId !== 'string' || typeof mapId !== 'string' || typeof id !== 'string' || !campId || !mapId || !id) return;   // what is no text, or empty, names nothing
+    var k = campId + '|' + mapId, a = _strokeActs[k] || (_strokeActs[k] = { added: new Map(), redrawn: new Map(), erased: new Set() });
+    if (what === 'added') { a.added.set(id, ++_strokeSeq); a.erased.delete(id); }
+    else if (what === 'redrawn') a.redrawn.set(id, ++_strokeSeq);   // numbered as an added drawing is: a state taken at this number or after it already holds the redraw
+    else if (what === 'erased') { a.added.delete(id); a.redrawn.delete(id); a.erased.delete(id); a.erased.add(id); if (a.erased.size > STROKE_ERASED_CAP) a.erased.delete(a.erased.values().next().value); }   // the oldest goes first
+}
+function strokeActs(campId, mapId) {
+    var of = function() { return (typeof campId === 'string' && typeof mapId === 'string' && _strokeActs[campId + '|' + mapId]) || null; };   // read when a question is asked, so an answer is never older than the count
+    return { addedAt: function(id) { var a = of(); return (a && a.added.get(id)) || 0; }, redrawnAt: function(id) { var a = of(); return (a && a.redrawn.get(id)) || 0; }, erased: function(id) { var a = of(); return !!(a && a.erased.has(id)); } };
+}
+function strokeActsForget(campId, mapId) { delete _strokeActs[campId + '|' + mapId]; }
+net.strokeActs = strokeActs; net.strokeSeq = function() { return _strokeSeq; };
+// [netcheck:strokeacts-end]
 // Host-side validation: from a player's patch, apply ONLY position/rotation of
 // whiteboard items owned by that player. Everything else is ignored.
 // [netcheck:patch-start]
@@ -1568,6 +1593,7 @@ function applyClientItemFiltered(msg, profile, out) {   // fold M10: out.strokes
             var stroke = playerStroke(w, profile.id);
             if (!stroke || ownStrokes >= STROKE_CAP || ownPts + stroke.pts.length > STROKE_PTS_CAP) return;   // past either cap the drawing is not taken (their own copy keeps it until the next copy of the map, as ever)
             ownStrokes++; ownPts += stroke.pts.length; liveItem.whiteboard.push(stroke); liveById[stroke.id] = stroke; changed = true; if (out) out.strokes = true;   // noted under its id: the same new id again in this copy redraws it instead of adding a second
+            if (typeof strokeNote === 'function') strokeNote(msg.campId, msg.itemId, 'added', stroke.id);   // 127: the host's count of what players did to their own drawings (the GM's undo reads it)
             return;
         }
         if (lw.ownerId !== profile.id) return;   // ownership is judged on the HOST's copy
@@ -1577,7 +1603,7 @@ function applyClientItemFiltered(msg, profile, out) {   // fold M10: out.strokes
             var re = playerStroke(w, profile.id), hadPts = Array.isArray(lw.pts) ? lw.pts.length : 0;
             if (strokeHeldOn(lw)) { if (out && re && (JSON.stringify(re.pts) !== JSON.stringify(lw.pts) || re.x !== lw.x || re.y !== lw.y)) out.whole = true; return; }   // 49 (c): a wall or a barrier now — a redraw of it is refused, and their screen is put right
             if (re && ownPts - hadPts + re.pts.length > STROKE_PTS_CAP) return;   // a redraw that would take their points past the budget is refused whole
-            if (re && JSON.stringify(re.pts) !== JSON.stringify(lw.pts) || (re && (re.x !== lw.x || re.y !== lw.y))) { ownPts += re.pts.length - hadPts; Object.assign(lw, re); changed = true; if (out) out.strokes = true; }
+            if (re && JSON.stringify(re.pts) !== JSON.stringify(lw.pts) || (re && (re.x !== lw.x || re.y !== lw.y))) { ownPts += re.pts.length - hadPts; Object.assign(lw, re); changed = true; if (out) out.strokes = true; if (typeof strokeNote === 'function') strokeNote(msg.campId, msg.itemId, 'redrawn', lw.id); }
             return;
         }
         var wx = Number(w.x), wy = Number(w.y), wr = Number(w.rot || 0), wf = Number(w.front || 0);   // geometry from a peer: finite and on the board, or nothing
@@ -1620,6 +1646,7 @@ function applyClientItemFiltered(msg, profile, out) {   // fold M10: out.strokes
         if (!(w.type === 'path' && w.byPlayer && w.ownerId === profile.id) || w.locked || w.hidden || sentIds[w.id]) return true;   // a locked one stays, and one the GM hid: it left their copy by the GM's hand, not theirs
         if (pend && pend[w.id] === 1) { delete pend[w.id]; if (out) out.whole = true; return true; }   // ...and one the GM hid and has shown again, this once: this copy may be older than the showing (their app may have dropped the shown drawing meanwhile: the whole map puts it right, and a later copy without it is an erase)
         if (strokeHeldOn(w)) { if (out) out.whole = true; return true; }   // 49 (c): one the GM made a wall or a barrier stays, and the copy that left it out gets the map back
+        if (typeof strokeNote === 'function') strokeNote(msg.campId, msg.itemId, 'erased', w.id);   // 127: erased by its player — the GM's undo never brings it back
         return false;
     });
     if (typeof hidNamed === 'function' && out && out.conn) hidNamed(out.conn.peer, msg.itemId, sentIds);   // the drawings this copy names are on their copy: a later copy without one is an erase
@@ -1940,6 +1967,7 @@ net.itemGone = function(campId, itemId) {
     if (typeof fogForgetMap === 'function') fogForgetMap(itemId);   // fold M5: and what anyone's copy of it holds
     if (typeof hidForgetMap === 'function') hidForgetMap(itemId);   // hidden pieces: and the drawings on it the GM hid
     if (typeof mapForgetMap === 'function') mapForgetMap(itemId);   // possession: and who held it whole
+    if (typeof strokeActsForget === 'function') strokeActsForget(campId, itemId);   // 127: and the count of what players did to their drawings on it
     if (!(net.active && net.role === 'host')) return;
     var msg = { type: 'itemGone', campId: campId, itemId: itemId };
     net.conns.forEach(function(c) { if (c.open && net.roster[c.peer]) { try { c.send(msg); } catch (e) { sendFailed(e); } } });

@@ -724,7 +724,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('F1a a waiting token never outlives its session: an import drops it (Replace and Merge), dropWaiting takes it from every play map (idempotent; a planner untouched), and the load, an undo, an export, a copy and a cut or delete handle it',
             outWt && j(outWt.campaigns.cW.items.mw.whiteboard.map(w => w.id)) === j(['ok']) && d1 === 2 && d2 === 0 && j(cD.items.m1.whiteboard.map(w => w.id)) === j(['b']) && cD.items.p1.whiteboard.length === 1 && dropWaiting(null) === 0
             && /state\.appState = migrated\.data;\n\s*Object\.keys\(state\.appState\.campaigns \|\| \{\}\)\.forEach\(function\(k\) \{ dropWaiting\(state\.appState\.campaigns\[k\]\); \}\);/.test(ioW)
-            && /var parsed = JSON\.parse\(snap\);\n\n\s*if \(item\.type === 'map' && parsed && parsed\.c && Array\.isArray\(parsed\.c\.whiteboard\)\) parsed\.c\.whiteboard = parsed\.c\.whiteboard\.filter\(function\(w\) \{ return !\(w && w\.waiting\); \}\);[^\n]*\n[\s\S]{0,200}mergeLivePlayerState\(parsed\.c, item\)/.test(ioW)
+            && /var parsed = JSON\.parse\(snap\);\n\n\s*if \(item\.type === 'map' && parsed && parsed\.c && Array\.isArray\(parsed\.c\.whiteboard\)\) parsed\.c\.whiteboard = parsed\.c\.whiteboard\.filter\(function\(w\) \{ return !\(w && w\.waiting\); \}\);[^\n]*\n[\s\S]{0,200}mergeLivePlayerState\(parsed\.c, item, /.test(ioW)
             && /delete c\._cleanup; dropWaiting\(c\); \}\);/.test(ioW) && /var wUndo = hosting && item\.type === 'map' && window\.wpNet && window\.wpNet\.tidyWaiting \? window\.wpNet\.tidyWaiting\(\{ quiet: true, mapId: item\.id \}\) : \[\];/.test(ioW) && /wUndo\.forEach\(function\(id\) \{ if \(id !== item\.id && window\.wpNet\.broadcastItemFiltered\) window\.wpNet\.broadcastItemFiltered\(camp\.id, id\); \}\);/.test(ioW) && /\.filter\(function\(x\) \{ return x && !x\.waiting; \}\)\.map\(clone\);/.test(ioW) && (ioW.match(/x\.waiting && window\.wpNet && window\.wpNet\.noWaiting\) window\.wpNet\.noWaiting\(x\.ownerId\);/g) || []).length === 2, j([outWt && outWt.campaigns.cW.items.mw.whiteboard, d1, d2]));
         const outR = cleanImport({ campaigns: { cO: { id: 'cO', name: 'O', items: { op: oldPlan() } } } }, deps);
         const icN = { items: { op: oldPlan() } }; cleanImportItems(icN, {});
@@ -1004,7 +1004,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             ri > 0 && rHost.load === 0 && rHost.ret === false && /hosting/.test(rHost.toasts[0] || '') && rClient.load === 0 && rClient.ret === false && rOff.load === 1 && rOff.cleared === 1 && rOff.ret === true && rNone.load === 1, JSON.stringify([rHost, rClient, rOff]));
         // lighting L5: the GM's undo while hosting (io.js mergeLivePlayerState, sliced and run strict) — a player's own light stays as it is live, its lock follows the snapshot
         {
-            const gi = ioSrc.indexOf('  function mergeLivePlayerState(snapC, live) {'), gk = ioSrc.indexOf('  // Where the planner was being looked at', gi);
+            const gi = ioSrc.indexOf('  function mergeLivePlayerState(snapC, live, acts, q) {'), gk = ioSrc.indexOf('  // Where the planner was being looked at', gi);
             const jm = JSON.stringify, cp = o => JSON.parse(jm(o));
             let merge = null, mergeErr = '';
             try { if (gi > 0 && gk > gi) merge = new Function('"use strict";\n' + ioSrc.slice(gi, gk) + '\nreturn mergeLivePlayerState;')(); } catch (e) { mergeErr = e.message; }
@@ -1078,11 +1078,149 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 const live2 = { id: 'm', type: 'map', whiteboard: cp(liveBoard) }, snap2 = { whiteboard: cp(snapBoard) }, snap3 = { whiteboard: cp(snapBoard) };
                 merge(snap2, live2); merge(snap3, { id: 'm', type: 'map', whiteboard: cp(snap2.whiteboard) });
                 check('undo merge: merging the same snapshot over its own result changes nothing more', jm(snap3.whiteboard) === jm(snap2.whiteboard), jm([snap2.whiteboard, snap3.whiteboard]));
+                // 127 (the owner, by prompt, 2026-10-06: the GM's Undo takes back what the GM did to a player's drawing, "and still never moves or erases
+                // what the player did themselves"). The merge, run with the host's own count of what players did to their drawings (net.js, the
+                // strokeacts slice run for real) and the count a state was taken at
+                const saA = netSrc.indexOf('// [netcheck:strokeacts-start]'), saZ = netSrc.indexOf('// [netcheck:strokeacts-end]');
+                const mkActs = () => { const net = {}; const api = new Function('net', '"use strict";\n' + (saA > 0 && saZ > saA ? netSrc.slice(saA, saZ) : 'throw new Error("no strokeacts slice");') + '\nreturn { note: strokeNote, acts: strokeActs, forget: strokeActsForget };')(net); api.net = net; return api; };
+                const st = (id, more) => Object.assign({ id: id, type: 'path', byPlayer: true, ownerId: 'u_a', x: 10, y: 10, w: 20, h: 20, baseW: 20, baseH: 20, z: 35, pts: [[0, 0], [5, 5]], color: '#e9e9f0', strokeWidth: 3 }, more);
+                const run = (snapB, liveB, acts, q) => { const snap = { whiteboard: cp(snapB) }, lv = { id: 'm', type: 'map', whiteboard: liveB }, was = jm(lv); merge(snap, lv, acts, q); const m = {}; snap.whiteboard.forEach(w => { m[w.id] = w; }); return { ids: snap.whiteboard.map(w => w.id).join(), m, liveSame: jm(lv) === was }; };
+                const A1 = mkActs(); A1.note('c', 'm', 'added', 'a');
+                const gmDid = { blocksSight: true, sightType: 'wall', locked: true, hidden: true, x: 99, color: '#ff0000' };
+                const u1 = run([st('a')], [st('a', gmDid)], A1.acts('c', 'm'), 1), r1 = run([st('a', gmDid)], [st('a')], A1.acts('c', 'm'), 1);
+                check('undo merge (127): what the GM did to a player\'s drawing is undone — a tick such as Blocks sight, Lock in place, Hide, a move and a colour all come back as the state had them, the drawing byte for byte the state\'s own — and a redo puts them back; the live map is left as it was',
+                    jm(u1.m.a) === jm(st('a')) && u1.liveSame && jm(r1.m.a) === jm(st('a', gmDid)) && r1.liveSame, jm([u1.m.a, r1.m.a]));
+                const A2 = mkActs(); A2.note('c', 'm', 'added', 'a'); A2.note('c', 'm', 'redrawn', 'a');   // added at 1, redrawn at 2
+                const ownNow = { x: 50, y: 51, w: 9, h: 8, baseW: 7, baseH: 6, pts: [[0, 0], [9, 9]], color: '#112233', strokeWidth: 5, opacity: 0.5 }, gmNow = { blocksSight: true, sightType: 'wall', locked: true, hidden: true, z: 99, rot: 45, name: 'A name of the GM\'s' };
+                const liveRe = st('a', Object.assign({}, ownNow, gmNow)), u2 = run([st('a')], [liveRe], A2.acts('c', 'm'), 1), u2b = run([st('a')], [liveRe], A2.acts('c', 'm'), 2);
+                const u2c = run([st('a', { opacity: 0.3 })], [st('a', { pts: [[0, 0], [9, 9]] })], A2.acts('c', 'm'), 1);   // a key their drawing no longer has
+                check('undo merge (127): what its player redrew since the state was taken stays theirs — its points, place, size, colour, width and opacity, each as a copy, and a key their drawing no longer has is dropped — while everything else comes back as the state had it: the GM\'s tick, lock, hiding, layer, turn and name are all undone; a redraw the state already holds (the state was taken at the redraw\'s number or after it) is no such thing: the drawing comes back byte for byte the state\'s own, the GM\'s move undone with the rest',
+                    jm(u2.m.a) === jm(Object.assign({}, st('a'), ownNow)) && u2.m.a.pts !== liveRe.pts && u2.liveSame && jm(u2b.m.a) === jm(st('a')) && u2b.liveSame && !('opacity' in u2c.m.a) && jm(u2c.m.a.pts) === jm([[0, 0], [9, 9]]), jm([u2.m.a, u2b.m.a, u2c.m.a]));
+                const A3 = mkActs(); ['p', 'g'].forEach(id => A3.note('c', 'm', 'added', id)); A3.note('c', 'm', 'erased', 'p');
+                const u3 = run([st('p'), st('g')], [], A3.acts('c', 'm'), 2);
+                check('undo merge (127): a drawing its player erased stays erased, and one the GM removed comes back', u3.ids === 'g' && jm(u3.m.g) === jm(st('g')), u3.ids);
+                const A4 = mkActs(); A4.note('c', 'm', 'added', 'old'); A4.note('c', 'm', 'added', 'n0'); A4.note('c', 'm', 'added', 'x1'); A4.note('c', 'm', 'added', 'x2'); A4.note('c', 'm', 'added', 'n1');
+                const live4 = () => [st('old'), st('n0'), st('cut'), st('n1'), { id: 'tk', type: 'circle', isChar: true, ownerId: 'u_e', x: 1, y: 2 }];
+                const u4 = run([st('old')], live4(), A4.acts('c', 'm'), 3), u4z = run([st('old')], live4(), A4.acts('c', 'm'), 0), u4n = run([st('old')], live4());
+                check('undo merge (127): on the map only — a drawing a player added after the state was taken stays; one that was there when it was taken and is not in it (a later step of the GM\'s had removed it: a redo) goes; a piece that carries a player\'s marks but that no player added (the GM\'s eraser cut it, or the GM pasted it) goes; a player\'s token that arrived stays as ever; a state taken before any drawing was counted keeps every drawing a player added; with no count everything on the map stays, as before',
+                    u4.ids === 'old,n1,tk' && u4z.ids === 'old,n0,n1,tk' && u4n.ids === 'old,n0,cut,n1,tk' && u4.liveSame, jm([u4.ids, u4z.ids, u4n.ids]));
+                // on doubt, the player's work stays: a count that is not its three questions is no count, and a question that fails, or whose answer is
+                // no answer, is answered for the player
+                const bad = { addedAt: () => { throw new Error('x'); }, redrawnAt: () => { throw new Error('x'); }, erased: () => { throw new Error('x'); } };
+                const dLive = () => [st('a', { x: 77, blocksSight: true }), st('n1')], dRun = (acts) => run([st('a'), st('p')], dLive(), acts, 1);
+                const plain = () => ({ addedAt: () => 0, redrawnAt: () => 0, erased: () => false });   // every question answered plainly: all of it the GM's doing
+                const dMiss = ['addedAt', 'redrawnAt', 'erased'].map(k => { const o = plain(); delete o[k]; return dRun(o); });   // one question missing, each in turn
+                const d1 = dRun(bad), d2b = dRun({ addedAt: () => 0, redrawn: () => false, erased: () => false }), d3 = dRun('yes'), asBefore = d => d.ids === 'a,n1' && d.m.a.blocksSight === true && d.m.a.x === 77;
+                const d4 = dRun({ addedAt: () => undefined, redrawnAt: () => 'x', erased: () => undefined }), d5 = dRun({ addedAt: () => NaN, redrawnAt: () => null, erased: () => 0 }), d6 = dRun(plain());
+                const forThem = d => d.ids === 'a,n1' && d.m.a.x === 77 && !('blocksSight' in d.m.a);   // their erase an erase, their new line kept, their redraw kept — and the GM's tick undone all the same
+                check('undo merge (127): on doubt the player\'s work stays — when a question cannot be asked, or is answered with what is no answer (no number for when, anything but a plain no for erased), their erase stays an erase, their drawing stays on the map and their redraw stays theirs, while the GM\'s tick is still undone; a count that is not its three questions (any one of them missing, one under another name), or no object at all, is no count, and every case is as it was before; with every question answered plainly the same map reads as the GM\'s doing throughout',
+                    forThem(d1) && dMiss.length === 3 && dMiss.every(asBefore) && asBefore(d2b) && asBefore(d3) && forThem(d4) && forThem(d5) && d6.ids === 'a,p' && d6.m.a.x === 10 && !('blocksSight' in d6.m.a),
+                    jm([d1.ids, d1.m.a, dMiss.map(d => [d.ids, d.m.a]), d2b.m.a, d3.m.a, d4.ids, d4.m.a, d5.ids, d5.m.a, d6.ids, d6.m.a]));
+                // the count itself (net.js, the strokeacts slice): three questions, a number that only goes up, an erase taking the id off the other two, a cap on the erased
+                const C = mkActs(), qa = C.acts('c', 'm');
+                C.note('c', 'm', 'added', 'a'); C.note('c', 'm', 'added', 'b'); C.note('c', 'm', 'redrawn', 'a'); C.note('c', 'm2', 'added', 'z');
+                const c1 = [C.acts('c', 'm').addedAt('a'), C.acts('c', 'm').addedAt('b'), C.acts('c', 'm2').addedAt('z'), C.acts('c', 'm').addedAt('z'), C.acts('c', 'm').redrawnAt('a'), C.acts('c', 'm').redrawnAt('b'), C.acts('c', 'm').erased('a'), C.net.strokeSeq(), qa.addedAt('a')];
+                C.note('c', 'm', 'erased', 'a'); const c2 = [C.acts('c', 'm').addedAt('a'), C.acts('c', 'm').redrawnAt('a'), C.acts('c', 'm').erased('a')];
+                C.note('c', 'm', 'added', 'a'); const c3 = [C.acts('c', 'm').addedAt('a'), C.acts('c', 'm').erased('a'), C.net.strokeSeq()];
+                [null, 5, {}, ''].forEach(v => { C.note(v, 'm', 'added', 'q'); C.note('c', v, 'added', 'q'); C.note('c', 'm', 'added', v); C.note('c', 'm', 'redrawn', v); }); C.note('c', 'm', 'nothing', 'b');
+                ['__proto__', 'constructor', 'hasOwnProperty'].forEach(k => { C.note(k, k, 'added', k); C.note('c', 'm', 'erased', k); });
+                const c4 = [C.net.strokeSeq(), C.acts('__proto__', '__proto__').addedAt('__proto__'), C.acts('c', 'm').erased('constructor'), ({}).added === undefined && Object.prototype.added === undefined, C.acts(null, 'm').addedAt('a'), C.acts('nope', 'nope').erased('a'), C.acts('nope', 'nope').redrawnAt('a')];
+                const capSrc = saA > 0 ? netSrc.slice(saA, saZ) : '', capN = Number((capSrc.match(/STROKE_ERASED_CAP = (\d+);/) || [])[1]);
+                for (let i = 0; i < capN + 3; i++) C.note('c', 'big', 'erased', 'e' + i);
+                const c5 = [C.acts('c', 'big').erased('e0'), C.acts('c', 'big').erased('e2'), C.acts('c', 'big').erased('e3'), C.acts('c', 'big').erased('e' + (capN + 2))];
+                C.note('c', 'big', 'erased', 'e3'); C.note('c', 'big', 'erased', 'fresh');   // the oldest kept, erased again, is the newest: the next to go is the one after it
+                const c5b = [C.acts('c', 'big').erased('e3'), C.acts('c', 'big').erased('e4'), C.acts('c', 'big').erased('fresh')];
+                C.forget('c', 'm'); const c6 = [C.acts('c', 'm').addedAt('b'), C.acts('c', 'm2').addedAt('z'), C.net.strokeSeq()];
+                C.note('c', 'm2', 'redrawn', 'z'); const c7a = C.acts('c', 'm2').redrawnAt('z'); C.note('c', 'm2', 'redrawn', 'z'); const c7 = [c7a, C.acts('c', 'm2').redrawnAt('z'), C.acts('c', 'm2').addedAt('z'), C.net.strokeSeq()];
+                C.note('null', 'm', 'added', 'k'); C.note('c', 'null', 'added', 'k2');   // a campaign or a map may be CALLED null; what is no text still names none
+                const c8 = [C.acts(null, 'm').addedAt('k'), C.acts('null', 'm').addedAt('k'), C.acts('c', null).addedAt('k2'), C.acts('c', 'null').addedAt('k2')];
+                check('undo merge (127) the count (net.js, the strokeacts slice run for real): a drawing a player added is numbered by a count that only goes up, per map of a campaign; a redraw takes a number of its own from the same count, a new one each time, and leaves the number the drawing was added at alone; an erase takes the id out of the added and the redrawn and into the erased, and adding it again takes it back out; a question asked before a note still reads the count as it is now; what is no text names nothing and counts nothing, in a note and in a question, and an id or a map called __proto__, constructor or hasOwnProperty is a key like any; the erased ids are the newest ' + capN + ' a map, the oldest going first, and one erased again is the newest again; a map\'s count goes with the map and the number never goes back; the undo is handed three questions and never the sets',
+                    jm(c1) === jm([1, 2, 4, 0, 3, 0, false, 4, 1]) && jm(c2) === jm([0, 0, true]) && jm(c3) === jm([5, false, 5]) && jm(c4) === jm([8, 6, true, true, 0, false, 0]) && capN === 5000 && jm(c5) === jm([false, false, true, true]) && jm(c5b) === jm([true, false, true])
+                    && jm(c6) === jm([0, 4, 8]) && jm(c7) === jm([9, 10, 4, 10]) && jm(c8) === jm([0, 11, 0, 12])
+                    && jm(Object.keys(qa).sort()) === jm(['addedAt', 'erased', 'redrawnAt']) && /net\.strokeActs = strokeActs; net\.strokeSeq = function\(\) \{ return _strokeSeq; \};/.test(capSrc), jm([c1, c2, c3, c4, capN, c5, c5b, c6, c7, c8]));
+                // end to end: io.js's own history, the merge and the undo, sliced and run for real on a hosted map, with the count beside them
+                const slI = name => { const a = ioSrc.indexOf('  // [textcheck:' + name + '-start]'), z = ioSrc.indexOf('  // [textcheck:' + name + '-end]'); return a > 0 && z > a ? ioSrc.slice(a, z) : 'throw new Error("no slice ' + name + '");'; };
+                const sbA = ioSrc.indexOf('  function setBaseline(item) {'), sbZ = ioSrc.indexOf('  function rebaseHistory(item) {', sbA);   // the baseline moved without a step
+                const mkW = () => {
+                    const S = mkActs(), map = { id: 'm1', type: 'map', meta: { title: 'M' }, whiteboard: [{ id: 'box', type: 'rect', x: 1, y: 1, w: 5, h: 5 }] }, camp = { id: 'c', activeItemId: 'm1', items: { m1: map } }, W = { S, map, camp, sent: 0 };
+                    const net = Object.assign(S.net, { active: true, role: 'host', applyingRemote: false, sendItem: () => { W.sent++; } });
+                    const names = ['window', 'state', 'getActiveCampaign', 'getActiveMap', 'localStorage', 'document', 'setTimeout', 'clearTimeout', 'Date', 'render', 'save', 'toast', 'saveTimeout'];
+                    const api = new Function(...names, slI('history') + '\n' + (sbA > 0 && sbZ > sbA ? ioSrc.slice(sbA, sbZ) : 'throw new Error("no setBaseline");') + '\n' + ioSrc.slice(gi, gk) + '\n' + slI('steps') + '\nreturn { pushHistory, stepHistory, setBaseline, stack: function(k) { return histories[k || "c/m1"]; } };')(
+                        { wpNet: net }, { appState: { campaigns: { c: camp } } }, () => camp, () => map, { getItem: () => null }, { getElementById: () => null, activeElement: null }, () => 0, () => {}, { now: () => 1000 }, () => {}, () => { api.pushHistory(); }, () => {}, undefined);
+                    W.gm = fn => { fn(map.whiteboard, map); api.pushHistory(); };   // an edit of the GM's own, and its pass
+                    W.land = fn => { fn(map.whiteboard, map); };                     // a player's change lands (no pass yet)
+                    W.pass = () => { net.applyingRemote = true; api.pushHistory(); net.applyingRemote = false; };   // the save a player's change causes: the baseline moves, no step
+                    W.draw = id => { W.land(wb => { wb.push(st(id)); }); S.note('c', 'm1', 'added', id); };
+                    W.redraw = (id, more) => { W.land(() => { Object.assign(W.it(id), more); }); S.note('c', 'm1', 'redrawn', id); };   // its player draws it again (the host's gate notes it)
+                    W.base = () => api.setBaseline(map);   // a render-time clean-up moves the baseline, with no step
+                    W.undo = () => api.stepHistory('undo'); W.redo = () => api.stepHistory('redo');
+                    W.ids = () => map.whiteboard.map(w => w.id).join(); W.it = id => map.whiteboard.find(w => w.id === id); W.stack = api.stack;
+                    api.pushHistory();   // the first pass seeds the baseline
+                    return W;
+                };
+                let e2e = null, e2eErr = '';
+                try {
+                    // (a) a tick: undone, redone; a drawing a player added after the step stays through both
+                    const Wa = mkW(); Wa.draw('a'); Wa.pass(); Wa.gm(() => { Object.assign(Wa.it('a'), { blocksSight: true, sightType: 'wall' }); }); Wa.draw('n'); Wa.pass();
+                    Wa.undo(); const a1 = [Wa.ids(), Wa.it('a').blocksSight === true]; Wa.redo(); const a2 = [Wa.ids(), Wa.it('a').blocksSight === true, Wa.it('a').sightType];
+                    // (b) a delete: undone (it comes back), redone (it goes again)
+                    const Wb = mkW(); Wb.draw('a'); Wb.pass(); Wb.gm(wb => { wb.splice(wb.findIndex(w => w.id === 'a'), 1); });
+                    const b0 = Wb.ids(); Wb.undo(); const b1 = Wb.ids(); Wb.redo(); const b2 = Wb.ids(); Wb.undo(); const b3 = Wb.ids();
+                    // (c) the GM's eraser cuts a player's line in two: undone (the line back, the pieces gone), redone (the pieces back, the line gone)
+                    const Wc = mkW(); Wc.draw('a'); Wc.pass(); Wc.gm(wb => { const i = wb.findIndex(w => w.id === 'a'), a = wb[i]; wb.splice(i, 1, Object.assign({}, a, { id: 'a1', pts: [[0, 0], [2, 2]] }), Object.assign({}, a, { id: 'a2', pts: [[3, 3], [5, 5]] })); });
+                    const c0 = Wc.ids(); Wc.undo(); const c1b = Wc.ids(); Wc.redo(); const c2b = Wc.ids();
+                    // (d) a player's erase is never undone: the GM moves a piece of their own, the player erases their line, the GM undoes
+                    const Wd = mkW(); Wd.draw('a'); Wd.pass(); Wd.gm(() => { Wd.it('box').x = 50; }); Wd.land(wb => { wb.splice(wb.findIndex(w => w.id === 'a'), 1); }); Wd.S.note('c', 'm1', 'erased', 'a'); Wd.pass();
+                    Wd.undo(); const d1b = [Wd.ids(), Wd.it('box').x]; Wd.redo(); const d2b = [Wd.ids(), Wd.it('box').x];
+                    // (e) a drawing that lands just before the GM's edit, with no pass between: the step holds the state without it, and an undo keeps it
+                    const We = mkW(); We.draw('a'); We.pass(); We.draw('late'); We.gm(() => { We.it('box').x = 70; }); We.undo(); const e1 = [We.ids(), We.it('box').x];
+                    // (f) the stamp: none on a state stored before a player has drawn anything, the count on one stored after
+                    const Wf = mkW(); Wf.gm(() => { Wf.it('box').x = 2; }); const f0 = Wf.stack().undo[0]; Wf.draw('a'); Wf.pass(); Wf.gm(() => { Wf.it('box').x = 3; }); const f1 = Wf.stack().undo[1]; Wf.undo(); const f2 = Wf.stack().redo[0];
+                    // (g) a player redraws their line, then the GM moves it: Undo takes the move back and leaves the redraw, Redo moves it again, Undo takes it back again
+                    const Wg = mkW(); Wg.draw('a'); Wg.pass(); Wg.redraw('a', { pts: [[0, 0], [8, 8]] }); Wg.pass(); Wg.gm(() => { Wg.it('a').x = 300; });
+                    Wg.undo(); const g1 = [Wg.it('a').x, jm(Wg.it('a').pts)]; Wg.redo(); const g2 = [Wg.it('a').x, jm(Wg.it('a').pts)]; Wg.undo(); const g3 = [Wg.it('a').x, jm(Wg.it('a').pts)];
+                    // (h) the GM moves a player's line, then its player redraws it: Undo leaves the line as its player has it now
+                    const Wh = mkW(); Wh.draw('a'); Wh.pass(); Wh.gm(() => { Wh.it('a').x = 300; }); Wh.redraw('a', { pts: [[0, 0], [8, 8]], x: 310 }); Wh.pass();
+                    Wh.undo(); const h1 = [Wh.it('a').x, jm(Wh.it('a').pts)];
+                    // (i) the count as io.js reads it: a whole number above 0 that a number holds exactly, or nothing — and what is stored always reads back
+                    const stampOf = v => { const Wq = mkW(); Wq.S.net.strokeSeq = () => { if (v === 'throw') throw new Error('x'); return v; }; Wq.pass(); Wq.gm(() => { Wq.it('box').x = 9; }); const s = Wq.stack().undo[0]; JSON.parse(s); return /"q":/.test(s) ? JSON.parse(s).q : null; };
+                    const qi = [NaN, Infinity, -5, 0, 'throw', undefined, 9007199254740993, 1.7, 3, 9007199254740991].map(stampOf);
+                    // (j) a map first seen after players have drawn: its first step carries the count it was first seen at
+                    const Wj = mkW(); Wj.draw('a'); Wj.pass(); Wj.camp.items.m2 = { id: 'm2', type: 'map', meta: { title: 'N' }, whiteboard: [{ id: 'b2', type: 'rect', x: 1, y: 1, w: 5, h: 5 }] }; Wj.pass();
+                    Wj.gm(() => { Wj.camp.items.m2.whiteboard[0].x = 9; }); const j1 = JSON.parse(Wj.stack('c/m2').undo[0]).q;
+                    // (k) a baseline moved without a step (a render-time clean-up) is taken at the count as it is then, and holds what players drew by then
+                    const Wk = mkW(); Wk.draw('a'); Wk.base(); Wk.gm(() => { Wk.it('box').x = 4; }); const k1 = [JSON.parse(Wk.stack().undo[0]).q, /"id":"a"/.test(Wk.stack().undo[0])];
+                    // (l) a redraw that lands just before the GM's Undo, with no pass between: the baseline that Undo leaves is taken at the count as it is then,
+                    // so a move the GM makes next is undone like any other
+                    const Wl = mkW(); Wl.draw('a'); Wl.pass(); Wl.gm(() => { Wl.it('box').x = 5; }); Wl.redraw('a', { pts: [[0, 0], [7, 7]] }); Wl.undo(); Wl.gm(() => { Wl.it('a').x = 300; }); Wl.undo();
+                    const l1 = [Wl.it('a').x, jm(Wl.it('a').pts), Wl.it('box').x];
+                    e2e = { a1, a2, b0, b1, b2, b3, c0, c1b, c2b, d1b, d2b, e1, g1, g2, g3, h1, qi, j1, k1, l1, f: [/"q":/.test(f0), JSON.parse(f0).q === undefined, JSON.parse(f1).q, JSON.parse(f2).q, f0.slice(0, 5), Wf.stack().lastQ], sent: Wa.sent };
+                } catch (e) { e2eErr = String(e && e.stack || e).slice(0, 400); }
+                check('undo merge (127) end to end (io.js\'s history, merge and undo, sliced and run for real on a hosted map with the host\'s count): the GM ticks a player\'s line and a player then draws another — Undo takes the tick off and keeps the new line, Redo puts the tick back and keeps it; the GM deletes a player\'s line — Undo brings it back, Redo takes it off again, Undo brings it back again; the GM\'s eraser cuts a player\'s line in two — Undo gives the line back whole and takes the pieces, Redo gives the pieces and takes the line; a line its player erased stays erased through the GM\'s undo and redo of a move of their own; a line that lands just before the GM\'s edit, with no pass between, stays when that edit is undone; a state stored before any player has drawn carries no count and is byte for byte as before, one stored after carries the count it was taken at, and the table is sent the map after a step',
+                    !!e2e && jm(e2e.a1) === jm(['box,a,n', false]) && jm(e2e.a2) === jm(['box,a,n', true, 'wall']) && e2e.b0 === 'box' && e2e.b1 === 'box,a' && e2e.b2 === 'box' && e2e.b3 === 'box,a'
+                    && e2e.c0 === 'box,a1,a2' && e2e.c1b === 'box,a' && e2e.c2b === 'box,a1,a2' && jm(e2e.d1b) === jm(['box', 1]) && jm(e2e.d2b) === jm(['box', 50]) && jm(e2e.e1) === jm(['box,a,late', 1])
+                    && jm(e2e.f) === jm([false, true, 1, 1, '{"c":', 1]) && e2e.sent === 2, e2eErr || jm(e2e));
+                check('undo merge (127) end to end, a redraw: a player redraws their line and the GM then moves it — Undo takes the move back and keeps the redraw, Redo moves it again, Undo takes it back again; the GM moves a line and its player then redraws it — Undo leaves it as its player has it now, where it is and as it is drawn; a redraw that lands just before an Undo of the GM\'s, with no pass between, is kept by that Undo, and a move the GM makes next is undone like any other',
+                    !!e2e && jm(e2e.g1) === jm([10, '[[0,0],[8,8]]']) && jm(e2e.g2) === jm([300, '[[0,0],[8,8]]']) && jm(e2e.g3) === jm([10, '[[0,0],[8,8]]']) && jm(e2e.h1) === jm([310, '[[0,0],[8,8]]']) && jm(e2e.l1) === jm([10, '[[0,0],[7,7]]', 1]),
+                    e2eErr || jm(e2e && [e2e.g1, e2e.g2, e2e.g3, e2e.h1, e2e.l1]));
+                check('undo merge (127) end to end, the count as the history reads it: a whole number above 0 that a number holds exactly is the stamp (a fraction is cut to its whole part); no number, an endless one, one below 1, one past what a number holds exactly, nothing at all and a count that throws stamp nothing — and every state stored reads back; a map first seen after players have drawn carries the count it was first seen at on its first step; a baseline moved without a step is taken at the count as it is then, and holds what players drew by then',
+                    !!e2e && jm(e2e.qi) === jm([null, null, null, null, null, null, null, 1, 3, 9007199254740991]) && e2e.j1 === 1 && jm(e2e.k1) === jm([1, true]), e2eErr || jm(e2e && [e2e.qi, e2e.j1, e2e.k1]));
+                // said, and wired: Help, both release notes and CLAUDE.md; the stamp read and written in the history's own places
+                const rd127 = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8').replace(/\r\n/g, '\n'), ix127 = rd127('system/app/index.html'), cl127 = rd127('CLAUDE.md');
+                const note127 = "- In a session, Undo now takes back what you did to a player's\n  drawing: a tick such as Blocks sight, Lock in place or Hide, a move,\n  or a delete. It used to leave a player's drawing exactly as it was.\n  It still never erases or moves what the player did themselves.\n";
+                const ioL = ioSrc.replace(/\n\n/g, '\n');   // io.js keeps a blank line between its lines
+                check('undo merge (127) said and wired: Help says under Player drawings that Undo takes back what the GM did to a player\'s line and never what the player did; both release notes carry the same lines; CLAUDE.md names the count, its three questions and the stamp; io.js reads the count once a pass, stamps the state being left with the count it was taken at in the pass and in a step both ways, sets a baseline\'s count wherever a baseline is taken, and hands the merge the count and the state\'s own stamp',
+                    ix127.includes('<li>Your <b>Undo</b> takes back what you did to a player&rsquo;s line, such as a tick, a move or a delete. It never erases or moves what the player did themselves.</li>')
+                    && rd127('WHATSNEW.txt').includes(note127) && rd127('system/app/assets/whatsnew.txt').includes(note127)
+                    && cl127.includes('net.js `strokeNote`, called only from the patch gate') && cl127.includes('read as three questions through `strokeActs`') && cl127.includes('io.js `withQ`, the state\'s `q`')
+                    && ioL.includes("  function strokeSeq() { var n = window.wpNet, v = 0; try { v = n && typeof n.strokeSeq === 'function' ? Number(n.strokeSeq()) : 0; } catch (e) { v = 0; } return v > 0 && v <= Number.MAX_SAFE_INTEGER ? Math.floor(v) : 0; }\n  function withQ(snap, q) { return q > 0 ? snap.slice(0, -1) + ',\"q\":' + q + '}' : snap; }")
+                    && ioL.includes('now = Date.now(), sq = strokeSeq();') && ioL.includes('if (cur === h.last) { if (sq) h.lastQ = sq; return; }') && ioL.includes('var wasQ = h.lastQ || 0; if (sq) h.lastQ = sq;') && ioL.includes('}), wasQ));')
+                    && ioL.includes('var sqB = strokeSeq(); if (sqB) histories[key].lastQ = sqB;') && ioL.includes('var sqS = strokeSeq(); if (sqS) h.lastQ = sqS;') && (ioL.match(/withQ\(/g) || []).length === 4 && (ioL.match(/strokeSeq\(\)/g) || []).length === 5);
             }
             // where it is called: the host only, a map only, before the snapshot is applied
             const ui = ioSrc.indexOf('var parsed = JSON.parse(snap);'), ua = ioSrc.indexOf('applyContent(item, parsed);', ui), undoSrc = ui > 0 && ua > ui ? ioSrc.slice(ui, ua) : '';
             check('undo merge: called for a map only while hosting, on the snapshot before it is applied, and nowhere else',
-                /var hosting = !!\(window\.wpNet && window\.wpNet\.active && window\.wpNet\.role === 'host'\);\n\s*if \(hosting && item\.type === 'map'\) mergeLivePlayerState\(parsed\.c, item\);/.test(undoSrc) && (ioSrc.match(/mergeLivePlayerState\(/g) || []).length === 2, jm([ui, ua, (ioSrc.match(/mergeLivePlayerState\(/g) || []).length]));
+                /var hosting = !!\(window\.wpNet && window\.wpNet\.active && window\.wpNet\.role === 'host'\);\n\s*if \(hosting && item\.type === 'map'\) mergeLivePlayerState\(parsed\.c, item, typeof window\.wpNet\.strokeActs === 'function' \? window\.wpNet\.strokeActs\(camp\.id, item\.id\) : null, typeof parsed\.q === 'number' \? parsed\.q : 0\);/.test(undoSrc) && (ioSrc.match(/mergeLivePlayerState\(/g) || []).length === 2, jm([ui, ua, (ioSrc.match(/mergeLivePlayerState\(/g) || []).length]));
         }
     }
 

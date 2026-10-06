@@ -1261,6 +1261,37 @@ pendingChecks.push((async () => {
         && rdH('WHATSNEW.txt').includes(noteH) && rdH('system/app/assets/whatsnew.txt').includes(noteH)
         && claudeH.includes('fogcore `strokeHeld` is the one judge, asked by the host\'s patch path (net.js `strokeHeldOn`') && claudeH.includes('and by a player\'s own eraser (whiteboard.js `eraseHeld`)'));
 })());
+// 127 (the owner, by prompt, 2026-10-06: the GM's Undo takes back what the GM did to a player's drawing, "and still never moves or erases what the
+// player did themselves"): the host notes what players do to their own drawings in the one place a drawing of theirs is taken — the patch gate,
+// run for real with the REAL playerStroke, the real fogcore and a recorder in the count's place. (The count itself and the undo that reads it are
+// cleanupcheck's.)
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const FCn = await import(url('fogcore.js'));
+    const patchSrc = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch'), actsSrc = between('// [netcheck:strokeacts-start]', '// [netcheck:strokeacts-end]', 'strokeacts');
+    const cleanersSrc = src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem('));
+    const psSrc = fnSrc('function playerStroke(', '\n}\n', 'playerStroke') + '\n}\n';
+    const run = (camps, msg, pid, pend) => { const notes = [], out = pend ? { conn: { peer: 'peer1' } } : {}; let r;
+        try { r = new Function('state', 'window', 'msg', 'prof', 'out', 'strokeNote', 'hidPendOf', cleanersSrc + ownKeySrc + psSrc + patchSrc + '\nreturn applyClientItemFiltered(msg, prof, out);')({ appState: { campaigns: camps } }, { wpVtt: { campaignOn: () => true }, wpFogCore: FCn }, msg, { id: pid || 'u_p' }, out, (c, m, what, id) => { notes.push([c, m, what, id].join(':')); }, pend ? () => pend : undefined); } catch (e) { r = 'threw: ' + e.message; }
+        return { r, notes: notes.join(' '), whole: out.whole === true }; };
+    const S = (id, extra) => Object.assign({ id, type: 'path', byPlayer: true, ownerId: 'u_p', x: 5, y: 5, w: 10, h: 10, baseW: 10, baseH: 10, z: 35, pts: [[0, 0], [4, 4]], color: '#e9e9f0', strokeWidth: 3 }, extra);
+    // keep: named as it stands; gone: left out; redo: named with new points; wall, lockd: named with new points (refused); hid: hidden; wall2 (a barrier), lockd2 and shown (the GM
+    // hid it and has shown it again: this copy may be older than the showing) are left out, and kept; hers: another player's; tok: their own token
+    const mk = () => ({ c1: { id: 'c1', items: { m1: { type: 'map', whiteboard: [S('keep'), S('gone'), S('redo'), S('wall', { blocksSight: true }), S('lockd', { locked: true }), S('hid', { hidden: true }), S('wall2', { barrier: true }), S('lockd2', { locked: true }), S('shown'), S('hers', { ownerId: 'u_q' }), { id: 'tok', isChar: true, ownerId: 'u_p', x: 0, y: 0, rot: 0, front: 0 }] } } } });
+    const copyOf = w => ({ id: w.id, type: 'path', ownerId: 'u_p', x: w.x, y: w.y, w: 10, h: 10, pts: w.pts.map(p => p.slice()) });
+    const c = mk(), idsNow = () => c.c1.items.m1.whiteboard.map(w => w.id).join();   // read after the gate ran: an erase hands the map a new list
+    const copyMsg = () => ({ campId: 'c1', itemId: 'm1', item: { whiteboard: [copyOf(S('keep')), Object.assign(copyOf(S('redo')), { pts: [[1, 1], [2, 2]] }), Object.assign(copyOf(S('wall')), { pts: [[8, 8], [9, 9]] }), Object.assign(copyOf(S('lockd')), { pts: [[8, 8], [9, 9]] }),
+        copyOf(S('new1')), copyOf(S('new1')), { id: 'tok', x: 30, y: 40, rot: 0, front: 0 }, Object.assign(copyOf(S('hers')), { ownerId: 'u_q' })] } });
+    const pendRec = { shown: 1 }, a = run(c, copyMsg(), 'u_p', pendRec), ids1 = idsNow(), a2 = run(c, copyMsg(), 'u_p', pendRec), ids2 = idsNow();   // the same copy twice: the second time the shown drawing is theirs to erase
+    const same = run(mk(), { campId: 'c1', itemId: 'm1', item: { whiteboard: ['keep', 'gone', 'redo', 'wall', 'lockd', 'wall2', 'lockd2', 'shown'].map(id => copyOf(S(id))).concat([{ id: 'tok', x: 0, y: 0, rot: 0, front: 0 }]) } });
+    check('undo count (127, the host\'s patch gate with the real playerStroke and the real fogcore): a copy of the map notes each thing its player did to a drawing of their own, once, with the campaign and the map — a new drawing as added (the same new id twice in one copy is added once), a drawing sent with new points as redrawn, one left out as erased — and notes nothing for what the gate refuses or what is not theirs to do: a redraw of a line the GM made a wall or of a locked drawing, a hidden drawing, another player\'s drawing, a move of their own token; a barrier or a locked drawing the copy leaves out is kept and is no erase, and neither is one the GM hid and has shown again, the once that the copy may be older than the showing — the next copy without it is an erase, and is noted; a copy that names every drawing as it stands notes nothing',
+        a.r === true && a.notes === 'c1:m1:redrawn:redo c1:m1:added:new1 c1:m1:erased:gone' && a.whole === true && ids1 === 'keep,redo,wall,lockd,hid,wall2,lockd2,shown,hers,tok,new1'
+        && a2.notes === 'c1:m1:erased:shown' && ids2 === 'keep,redo,wall,lockd,hid,wall2,lockd2,hers,tok,new1' && same.r === false && same.notes === '', j([a, ids1, a2, ids2, same]));
+    check('undo count (127, the source): the gate notes in exactly three places, each through typeof so that a page with no count is as before; the count is published as three questions and a number, never as its sets; a map that is deleted takes its count with it; the count is not forgotten at a new table (a step of the GM\'s undo may be older than the session)',
+        (patchSrc.match(/if \(typeof strokeNote === 'function'\) strokeNote\(msg\.campId, msg\.itemId, '(added|redrawn|erased)', /g) || []).length === 3 && (patchSrc.match(/strokeNote\(/g) || []).length === 3
+        && /net\.strokeActs = strokeActs; net\.strokeSeq = function\(\) \{ return _strokeSeq; \};/.test(actsSrc) && !/net\.[A-Za-z_]+ = _strokeActs/.test(src) && /if \(typeof strokeActsForget === 'function'\) strokeActsForget\(campId, itemId\);/.test(fnSrc('net.itemGone = function(campId, itemId) {', '\n};', 'itemGone'))
+        && (src.match(/_strokeActs = /g) || []).length === 1 && (src.match(/_strokeSeq = /g) || []).length === 1 && (src.match(/strokeActsForget\(/g) || []).length === 2);
+})());
 // R2 security (cluster A, #1 #3 #23): the patch path with the REAL playerStroke — a copy of the map they are on, ids that are keys, each new id once,
 // and a budget of points per player per map beside the count
 {

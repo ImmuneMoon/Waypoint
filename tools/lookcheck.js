@@ -41,10 +41,12 @@ const INVENTORY = ['wbFloatingToolbar', 'wbCenterBtn', 'wbCenterMenu', 'wbCenter
     // built with the presses (2026-10-06): the small arrow beside each tool that has options, and beside each button that opens a menu
     'drawOptBtn', 'eraserOptBtn', 'fillOptBtn', 'measureOptBtn', 'blastOptBtn', 'snapOptBtn', 'shapeOptBtn', 'addOptBtn', 'fogOptBtn', 'sceneOptBtn', 'viewOptBtn', 'gridOptBtn',
     // built with the Radius tool (2026-10-06): the unit beside the size box, and the row that reads the number as a radius or as a diameter
-    'blastUnit', 'blastAsRow'];
+    'blastUnit', 'blastAsRow',
+    // built with the ring and the cone (2026-10-06): the Shape row and the line that says what the shape in use is, a ring's inner distance, a cone's angle
+    'blastShapeRow', 'blastShapeNote', 'blastInnerWrap', 'blastInner', 'blastAngleWrap', 'blastAngle'];
 // The choices inside the menus that have no id: found by the attribute their handler reads
 const ROWS = { mode: ['grid', 'items', 'both'], straight: ['false', 'true'], tip: ['round', 'square', 'flat'], size: ['2', '3', '6', '10', '16'], emode: ['precise', 'segment'], unit: ['imperial', 'metric'],
-    fgrid: ['square', 'hex'], fbrush: ['reveal', 'hide', 'clear'], fstroke: ['1', '3', '5', 'box', 'piece'], shapesize: ['free', 'cell'], as: ['r', 'd'] };
+    fgrid: ['square', 'hex'], fbrush: ['reveal', 'hide', 'clear'], fstroke: ['1', '3', '5', 'box', 'piece'], shapesize: ['free', 'cell'], as: ['r', 'd'], shape: ['circle', 'ring', 'cone'] };
 const SWATCHES = ['#e9e9f0', '#1a1a1a', '#d9534f', '#e0a54f', '#5cb87a', '#4db3d3', '#b98cff'];
 // The top bar's controls, held from now on for the part that follows the toolbar (the slim row): Import and Export among them, of which the
 // owner said, of the row: "1 as long as we are not getting rid of import and export"
@@ -58,10 +60,10 @@ const board = (() => { const a = ix.indexOf('<div id="wbFloatingToolbar"'), z = 
     const idN = id => count(ix, ' id="' + id + '"'), ALL = INVENTORY.concat(HEADER, SETTINGS);
     const gone = ALL.filter(id => idN(id) !== 1).map(id => id + ' x' + idN(id)), out = INVENTORY.filter(id => count(board, ' id="' + id + '"') !== 1);
     check('nothing is removed (the owner: "lets not remove functionality with these updates, that critical."): each of the ' + INVENTORY.length + ' controls of the play map\'s toolbar, its menus and what stands around the map is in the page exactly once and still around the map, and so is each of the ' + HEADER.length + ' of the top bar with Import and every kind of Export, and each of the ' + SETTINGS.length + ' of the three switches in Settings',
-        board.length > 1000 && gone.length === 0 && out.length === 0 && INVENTORY.length === 164 && HEADER.length === 42 && SETTINGS.length === 6 && new Set(ALL).size === 212, J([gone, out]));
+        board.length > 1000 && gone.length === 0 && out.length === 0 && INVENTORY.length === 170 && HEADER.length === 42 && SETTINGS.length === 6 && new Set(ALL).size === 218, J([gone, out]));
     const rowsBad = Object.keys(ROWS).filter(k => J((board.match(new RegExp('<button[^>]* data-' + k + '="([^"]*)"', 'g')) || []).map(m => m.slice(m.lastIndexOf('="') + 2, -1))) !== J(ROWS[k]));
     const sw = (board.match(/<button class="draw-swatch" data-color="(#[0-9a-f]{6})"/g) || []).map(m => m.slice(-8, -1));
-    check('nothing is removed, the choices inside the menus: Snap\'s three modes, the pen\'s two styles, three tips and five sizes, the eraser\'s two modes, the two measuring systems, the fog\'s two gridless grids, three brushes and five strokes, the two shape sizes, the circle\'s two readings, each in its order, and the seven colours of the pen and of the fill with a custom colour for each',
+    check('nothing is removed, the choices inside the menus: Snap\'s three modes, the pen\'s two styles, three tips and five sizes, the eraser\'s two modes, the two measuring systems, the fog\'s two gridless grids, three brushes and five strokes, the two shape sizes, the Radius tool\'s three shapes and a circle\'s two readings, each in its order, and the seven colours of the pen and of the fill with a custom colour for each',
         rowsBad.length === 0 && J(sw) === J(SWATCHES.concat(SWATCHES)) && count(board, 'id="drawColorInput"') === 1 && count(board, 'id="fillColorInput"') === 1, J([rowsBad, sw]));
 }
 
@@ -82,15 +84,15 @@ const SET_HASH = 'c718486bbbfc5b2650fa1bce9db67ecce3057b852041bb5c5acb53993b2759
 // The buttons that stand on the bar and in the column today: an icon alone. Clear board is a row of More's menu now, an icon and its name
 const BAR = ['wbUndoBtn', 'wbRedoBtn', 'moveModeBtn', 'panModeBtn', 'drawModeBtn', 'eraserModeBtn', 'fillModeBtn', 'shapeMenuBtn', 'addMenuBtn', 'measureModeBtn', 'blastModeBtn', 'fogModeBtn', 'sceneFxBtn', 'pagesBtn', 'wbMoreBtn', 'wbCenterBtn',
     'wbGridBtn', 'wbSnapBtn'];
-const ROWS_NOW = MENU.concat(['id="clearWbBtn"', 'id="wbRulersBtn"', 'id="wbZoomCtlBtn"', 'id="wbPointerPosBtn"', 'data-as="r"', 'data-as="d"']);
+const ROWS_NOW = MENU.concat(['id="clearWbBtn"', 'id="wbRulersBtn"', 'id="wbZoomCtlBtn"', 'id="wbPointerPosBtn"', 'data-as="r"', 'data-as="d"', 'data-shape="circle"', 'data-shape="ring"', 'data-shape="cone"']);
 const DOTS = '<path d="M12 5h.01M12 12h.01M12 19h.01"/>', TICK = '<path d="M5 12.5l4.5 4.5L19 7.5"/>', MINUS = '<path d="M5 12h14"/>';
 {
     const bar = BAR.map(id => [id, innerOfBtn('id="' + id + '"')]), menu = ROWS_NOW.map(h => [h, innerOfBtn(h)]);
     const noIcon = bar.filter(b => typeof b[1] !== 'string' || !SVG_RE.test(b[1]) || !/<\/svg>$/.test(b[1].replace(/<span class="draw-color-indicator" id="(draw|fill)ColorIndicator"><\/span>$/, ''))).map(b => b[0]);
     const glyph = bar.concat(menu).filter(b => typeof b[1] === 'string' && /&#\d+;/.test(b[1].replace('&middot;', ''))).map(b => b[0]);
     const noIconM = menu.filter(b => typeof b[1] !== 'string' || !b[1].includes('<svg class="ico')).map(b => b[0]);
-    check('the play map\'s tools wear line icons (the owner: "Line icons, shown first"): each of the eighteen buttons of the bar and of the column is the app\'s own kind of icon and nothing else, an <svg class="ico"> on the 24 by 24 grid, each of the thirty-four menu rows that wore a picture glyph holds one, so do Clear board, the three ticks and the two rows of the Radius tool, and none of them holds a picture glyph any more',
-        noIcon.length === 0 && noIconM.length === 0 && glyph.length === 0 && BAR.length === 18 && new Set(BAR).size === 18 && ROWS_NOW.length === 40, J([noIcon, noIconM, glyph]));
+    check('the play map\'s tools wear line icons (the owner: "Line icons, shown first"): each of the eighteen buttons of the bar and of the column is the app\'s own kind of icon and nothing else, an <svg class="ico"> on the 24 by 24 grid, each of the thirty-four menu rows that wore a picture glyph holds one, so do Clear board, the three ticks and the five buttons of the Radius tool, and none of them holds a picture glyph any more',
+        noIcon.length === 0 && noIconM.length === 0 && glyph.length === 0 && BAR.length === 18 && new Set(BAR).size === 18 && ROWS_NOW.length === 43, J([noIcon, noIconM, glyph]));
     const passed = PASSED_BAR.map(id => [id, innerOfBtn('id="' + id + '"')]).concat(MENU.map(h => [h, innerOfBtn(h)]));
     const set = passed.map(b => b[0] + '=' + svgIn(b[1])).join('\n'), h = crypto.createHash('sha256').update(set).digest('hex');
     check('the icons are the set the owner passed on the icon sheet ("Use this set"), drawing for drawing, wherever the layout has put their buttons: a changed or a new drawing is shown to the owner first, and this pin moves only then',
@@ -99,51 +101,64 @@ const DOTS = '<path d="M12 5h.01M12 12h.01M12 19h.01"/>', TICK = '<path d="M5 12
     // drawings on the radius sheet, by prompt: "Use these drawings"). It is everyone's: the pair is no longer the GM's alone, and what is
     // the GM's inside its options says so
     const RADIUS = '<path d="M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM12 12l5.6-5.6M12 12h.01"/>', DIAMETER = '<path d="M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM4 12h16"/>';
-    check('the Radius tool wears the drawings the owner passed on the radius sheet ("Use these drawings"): the circle with a spoke on the bar and on the Radius row of its options, the circle with a line across on the Diameter row, each row an icon and its name',
-        draw('blastModeBtn') === RADIUS && innerOfBtn('data-as="r"') === SVG + RADIUS + '</svg> Radius' && innerOfBtn('data-as="d"') === SVG + DIAMETER + '</svg> Diameter');
-    const BOX = 'style="width:70px; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;"', GREY = '<div class="draw-menu-row" style="font-size:11px; color:var(--dim); max-width:210px; line-height:1.4;">';
+    const RING = '<path d="M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zM12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z"/>', CONE = '<path d="M4 18L15.5 4.2a18 18 0 0 1 6.4 12.2L4 18z"/>';
+    check('the Radius tool wears the drawings the owner passed on the radius sheet ("Use these drawings"): the circle with a spoke on the bar, on the Circle shape and on the Radius choice, as the sheet said, the circle with a line across on Diameter, the two rings on Ring and the wedge on Cone, each button an icon and its name',
+        draw('blastModeBtn') === RADIUS && innerOfBtn('data-as="r"') === SVG + RADIUS + '</svg> Radius' && innerOfBtn('data-as="d"') === SVG + DIAMETER + '</svg> Diameter'
+        && innerOfBtn('data-shape="circle"') === SVG + RADIUS + '</svg> Circle' && innerOfBtn('data-shape="ring"') === SVG + RING + '</svg> Ring' && innerOfBtn('data-shape="cone"') === SVG + CONE + '</svg> Cone');
+    const BOX = 'style="width:70px; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;"', GREY = '<div class="draw-menu-row" style="font-size:11px; color:var(--dim); max-width:210px; line-height:1.4;">', DIM = 'style="font-size:11px; color:var(--dim);"';
     const PAIR = '          <div class="tool-pair" style="position:relative;">\n'
-        + '              <button class="wb-tool-btn" id="blastModeBtn" title="Radius. Click a cell to place a circle. Every token inside shows its distance. Drag a circle to move it, right-click to remove it. Press again to put the tool away.">' + SVG + RADIUS + '</svg></button><button class="wb-tool-btn tool-chev" id="blastOptBtn" title="Radius options" aria-haspopup="true">' + SVG + '<path d="M6 9.5l6 6 6-6"/></svg></button>\n'
+        + '              <button class="wb-tool-btn" id="blastModeBtn" title="Radius. Click a cell to place a circle, a ring or a cone. Every token inside shows its distance. Drag a shape to move it, right-click to remove it. Press again to put the tool away.">' + SVG + RADIUS + '</svg></button><button class="wb-tool-btn tool-chev" id="blastOptBtn" title="Radius options" aria-haspopup="true">' + SVG + '<path d="M6 9.5l6 6 6-6"/></svg></button>\n'
         + '              <div class="shape-menu draw-menu" id="blastMenu">\n'
-        + '                  <div class="draw-menu-label">Circle size</div>\n'
+        + '                  <div class="draw-menu-label">Shape</div>\n'
+        + '                  <div class="draw-menu-row" id="blastShapeRow">\n'
+        + '                      <button class="draw-style-btn active" data-shape="circle" title="A circle. Every token inside shows its distance.">' + SVG + RADIUS + '</svg> Circle</button>\n'
+        + '                      <button class="draw-style-btn" data-shape="ring" title="A ring. The tokens between an inner and an outer distance are inside.">' + SVG + RING + '</svg> Ring</button>\n'
+        + '                      <button class="draw-style-btn" data-shape="cone" title="A wedge from a point, with an angle you set. Press a cell and drag to aim it.">' + SVG + CONE + '</svg> Cone</button>\n'
+        + '                  </div>\n'
+        + '                  <div class="draw-menu-row" id="blastShapeNote" style="font-size:11px; color:var(--dim); max-width:210px; line-height:1.4;">A circle. Every token inside shows its distance.</div>\n'
+        + '                  <div class="draw-menu-label">Size</div>\n'
         + '                  <div class="draw-menu-row">\n'
-        + '                      <input type="number" id="blastFt" min="0" step="any" aria-label="Circle size" ' + BOX + '>\n'
-        + '                      <span id="blastUnit" style="font-size:11px; color:var(--dim);">yd</span>\n'
+        + '                      <span class="draw-menu-row" id="blastInnerWrap" style="display:none;"><input type="number" id="blastInner" min="0" step="any" aria-label="Inner distance" ' + BOX + '><span ' + DIM + '>to</span></span>\n'
+        + '                      <input type="number" id="blastFt" min="0" step="any" aria-label="Size" ' + BOX + '>\n'
+        + '                      <span id="blastUnit" ' + DIM + '>yd</span>\n'
+        + '                      <span class="draw-menu-row" id="blastAngleWrap" style="display:none;"><input type="number" id="blastAngle" min="1" max="360" step="1" aria-label="Angle in degrees" ' + BOX.replace('70px', '56px') + '><span ' + DIM + '>&deg;</span></span>\n'
         + '                  </div>\n'
         + '                  <div class="draw-menu-row" id="blastAsRow">\n'
         + '                      <button class="draw-style-btn active" data-as="r" title="Your number is read from the centre to the edge">' + SVG + RADIUS + '</svg> Radius</button>\n'
         + '                      <button class="draw-style-btn" data-as="d" title="Your number is read from edge to edge">' + SVG + DIAMETER + '</svg> Diameter</button>\n'
         + '                  </div>\n'
-        + '                  ' + GREY + 'The size is in the ruler&rsquo;s unit on this map. Every token inside the circle shows its distance.</div>\n'
+        + '                  ' + GREY + 'The size is in the ruler&rsquo;s unit on this map.</div>\n'
         + '                  <div id="blastElevRow">\n'
         + '                      <div class="draw-menu-label">Height, in <span id="blastElevUnit">yd</span></div>\n'
         + '                      <div class="draw-menu-row">\n'
         + '                          <input type="number" id="blastElev" step="1" aria-label="Height" ' + BOX + '>\n'
         + '                      </div>\n'
-        + '                      ' + GREY + 'The height of the last circle or blast placed. It starts at the height of the token in its cell, else the ground.</div>\n'
+        + '                      ' + GREY + 'The height of the last shape or blast placed. It starts at the height of the token in its cell, else the ground.</div>\n'
         + '                  </div>\n'
         + '                  <div class="draw-menu-row" id="blastFlatNote" style="font-size:11px; color:var(--dim);">Token elevation is off for this campaign (&#9881; Settings &#9656; VTT features): flat hex distance.</div>\n'
         + '                  <div class="draw-menu-row" id="blastWhich" style="font-size:11px; color:var(--dim);"></div>\n'
         + '                  <div class="draw-menu-row">\n'
-        + '                      <button class="draw-style-btn" id="blastClearBtn" title="Removes the circles you placed. The GM&rsquo;s press also removes thrown blasts, for everyone.">Clear circles</button>\n'
+        + '                      <button class="draw-style-btn" id="blastClearBtn" title="Removes the circles, rings and cones you placed. The GM&rsquo;s press also removes thrown blasts, for everyone.">Clear shapes</button>\n'
         + '                      <button class="draw-style-btn gm-only" id="blastUndoThrow" title="Undo the last thrown blast\'s damage (restores every token it hit)">' + SVG + '<path d="M9 4L4 9l5 5M4 9h10.5a5.5 5.5 0 0 1 0 11H9"/></svg> Undo last throw</button>\n'
         + '                  </div>\n'
         + '                  <div class="draw-menu-row gm-only" style="font-size:11px; color:var(--dim); max-width:210px; line-height:1.4;">The tool only measures. A blast with damage is thrown from a character&rsquo;s sheet.</div>\n'
         + '              </div>\n'
         + '          </div>\n';
-    check('the Radius tool is everyone\'s (the owner: "everybody else can use the circle measurement tool as a measurement tool"): its pair is not the GM\'s alone and no rule hides it at someone else\'s table; its options are a size with the ruler\'s unit beside it, Radius or Diameter, a grey line that says what the size is in, the height, and Clear circles; what is the GM\'s inside them is marked so and no more: Undo last throw, and the line that says where a blast with damage comes from; no word of the old blast tool is left in them',
+    check('the Radius tool is everyone\'s (the owner: "everybody else can use the circle measurement tool as a measurement tool"): its pair is not the GM\'s alone and no rule hides it at someone else\'s table; its options are the Shape row with a grey line that says what the shape in use is, a size with the ruler\'s unit beside it, a ring\'s inner distance and a cone\'s angle each shown with its own shape, Radius or Diameter, the height, and Clear shapes; what is the GM\'s inside them is marked so and no more: Undo last throw, and the line that says where a blast with damage comes from; no word of the old blast tool is left in them',
         count(ix, PAIR) === 1 && !/net-client[^{}]*#blast/.test(css) && !/net-client[^{}]*:has\(> #blastModeBtn\)/.test(css) && count(PAIR, 'gm-only') === 2 && !/Blast Radius|area effect|quick|ad-hoc|&divide;3|Clear blasts/.test(PAIR)
         && count(ix, ' id="blastPresetRow"') === 0 && !/Blast \(GM quick-tool\)|title="Blast options"/.test(ix));
-    check('a circle of the Radius tool measures, so it wears the ruler\'s gold, and a thrown blast keeps its red: the circle, its dot and its label by one class of the style sheet, the distances in the page\'s ink as a blast\'s are, and a token inside circles alone outlined gold where one inside a blast is outlined red',
-        css.includes('  #measureLayer g.blast.own circle.area { fill: rgba(224,165,79,0.1); stroke: var(--gold); }\n  #measureLayer g.blast.own circle.dot, #measureLayer g.blast.own text { fill: var(--gold); }\n  #measureLayer g.blast.own text.hit { fill: var(--ink); }\n  #measureLayer g.blast.own:hover circle.area { fill: rgba(224,165,79,0.2); }\n')
+    check('a shape of the Radius tool measures, so it wears the ruler\'s gold, and a thrown blast keeps its red: a circle, or the path of a ring or a cone, its dot and its label by one class of the style sheet, a cone\'s handle that can be grabbed, the options held to the window\'s height, the distances in the page\'s ink as a blast\'s are, and a token inside circles alone outlined gold where one inside a blast is outlined red',
+        css.includes('  #measureLayer g.blast.own .area { fill: rgba(224,165,79,0.1); stroke: var(--gold); stroke-width: 2; stroke-dasharray: 6 4; }') && css.includes('\n  #measureLayer g.blast.own circle.dot, #measureLayer g.blast.own text { fill: var(--gold); }\n  #measureLayer g.blast.own text.hit { fill: var(--ink); }\n  #measureLayer g.blast.own:hover .area { fill: rgba(224,165,79,0.2); }\n')
+        && css.includes('  #measureLayer g.blast circle.blast-aim { fill: var(--gold); stroke: var(--bg); stroke-width: 2; pointer-events: auto; cursor: grab; }') && css.includes('    #blastMenu { max-height: calc(100vh - 96px); overflow-y: auto; overflow-x: hidden; }')
         && css.includes('  .wb-item.blast-hit { outline: 2px solid var(--red); outline-offset: 2px; }\n  .wb-item.circle-hit { outline: 2px solid var(--gold); outline-offset: 2px; }')
         && css.includes('  #measureLayer line { stroke: var(--gold); stroke-width: 2; stroke-dasharray: 8 5; }') && css.includes('  #measureLayer g.blast circle.area { fill: rgba(217,83,79,0.14); stroke: var(--red); stroke-width: 2; stroke-dasharray: 6 4; }'));
     const helpAt = ix.indexOf('<h4>Radius</h4>'), helpR = helpAt < 0 ? '' : ix.slice(helpAt, ix.indexOf('<h4>Elevation &amp; posture</h4>', helpAt));
-    check('Help says what the tool is now: an entry of its own named Radius (how a circle is placed and sized, the two readings, the ruler\'s unit, that circles are yours alone and everyone has the tool, that it only measures), Boom as the GM\'s, and blasts from the sheet; the other entries that named the blast tool name the Radius tool, and so do Settings, two tips and the note under a hidden piece\'s ground height',
+    check('Help says what the tool is now: an entry of its own named Radius (how a shape is placed and sized, a circle\'s two readings, the ring, the cone, the ruler\'s unit, that circles are yours alone and everyone has the tool, that it only measures), Boom as the GM\'s, and blasts from the sheet; the other entries that named the blast tool name the Radius tool, and so do Settings, two tips and the note under a hidden piece\'s ground height',
         helpR.length > 1500 && count(ix, '<h4>Blast radius</h4>') === 0
-        && helpR.includes('<li>The <b>Radius</b> tool places a circle on the map to measure with. Press the small arrow beside it, type a size, and click a cell. Every token inside the circle lights up with its distance from the centre.')
-        && helpR.includes('<li><b>Radius</b> reads your number from the centre to the edge. <b>Diameter</b> reads it from edge to edge.</li>') && helpR.includes('<li>The size is in the ruler&rsquo;s unit on that map, so 20 on a map in feet is 20 feet. The distances read in that unit too.</li>')
-        && helpR.includes('<li>Circles are yours alone, like rulers. Everyone at the table has the tool, and nobody else sees your circles.</li>') && helpR.includes('<li>The tool only measures. A blast with damage is thrown from a character&rsquo;s sheet.</li>')
+        && helpR.includes('<li>The <b>Radius</b> tool places a circle, a ring or a cone on the map to measure with. Press the small arrow beside it, pick a shape, type a size, and click a cell. Every token inside lights up with its distance from the centre.')
+        && helpR.includes('<li>For a circle, <b>Radius</b> reads your number from the centre to the edge. <b>Diameter</b> reads it from edge to edge.</li>') && helpR.includes('<li><b>Ring</b> takes two distances. The tokens between the two are inside, and the ones nearer than the first are not.</li>')
+        && helpR.includes('<li><b>Cone</b> is a wedge from a point, with an angle you set in degrees. Press a cell and drag to aim it. Drag the handle on its far edge to turn it later. A token standing on the point is not counted.</li>') && helpR.includes('<li>The size is in the ruler&rsquo;s unit on that map, so 20 on a map in feet is 20 feet. The distances read in that unit too.</li>')
+        && helpR.includes('<li>What you place is yours alone, like a ruler. Everyone at the table has the tool, and nobody else sees your shapes.</li>') && helpR.includes('<li>The tool only measures. A blast with damage is thrown from a character&rsquo;s sheet.</li>')
         && helpR.includes('<li><b>Boom:</b> with Visual effects on, the GM sees a <b>Boom</b> label on each circle and each thrown blast.') && helpR.includes('<div class="help-tip"><b>Blasts from the sheet:</b> a blast with damage is thrown by a character, PC or NPC, from their sheet.')
         && count(ix, 'On the GM&rsquo;s screen, a circle of the Radius tool or a thrown blast gains a <b>Boom</b>.') === 1 && count(ix, 'A circle of the Radius tool or a thrown blast shows each token&rsquo;s cover from its centre beside its distance.') === 1
         && count(ix, 'The toolbar&rsquo;s Radius tool only measures, and its circles are yours alone.') === 1 && count(ix, 'and the Radius tool and rulers measure straight-line, height included.') === 1 && count(ix, 'and a circle of the Radius tool gets a Boom.') === 1
@@ -596,7 +611,8 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         + "- A tool that has options has a small arrow beside its icon. The icon\n  takes the tool, and a second press puts it away. The arrow opens the\n  tool's options, and they stay up while you work, until you press the\n  arrow again or take another tool. Snap's icon switches snapping, and\n  its arrow opens what it snaps to.\n"
         + "- The toolbar's menus list each choice by name: Grid, Shapes, Add,\n  Scene and More. A grey line under a name says what the choice does\n  where the name is not enough, and the Grid menu marks the grid in\n  use.\n"
         + "- The box at the top right of a map wears the toolbar's look. Its\n  pointer location and its zoom buttons can each be hidden on their\n  own. Tick them under Show in the centre menu, or press their buttons\n  in Settings > Table. The rulers have a tick there too.\n"
-        + "- The blast tool is now the Radius tool, and every player has it. It\n  places a circle to measure with, in the ruler's gold. Type its size\n  in the ruler's unit, as a radius or as a diameter, and every token\n  inside shows its distance. Circles are yours alone. A blast with\n  damage is still thrown from a character's sheet.\n\n";
+        + "- The blast tool is now the Radius tool, and every player has it. It\n  places a circle to measure with, in the ruler's gold. Type its size\n  in the ruler's unit, as a radius or as a diameter, and every token\n  inside shows its distance. Circles are yours alone. A blast with\n  damage is still thrown from a character's sheet.\n"
+        + "- The Radius tool also measures a ring and a cone. A ring holds the\n  tokens between two distances. A cone is a wedge from a point: set\n  its angle, press a cell and drag to aim it, and drag its handle to\n  turn it later.\n\n";
     const wn = [rootRead('WHATSNEW.txt'), read('assets/whatsnew.txt')];
     check('both release notes carry the same lines, and the suite is one of the CI runs',
         wn.every(t => count(t, NOTE) === 1 && count(t, 'Every button is where it was') === 0) && rootRead('.github/workflows/checks.yml').includes("      - name: lookcheck — the look of the play map (no control removed, the toolbar's line icons, gold for the tool in hand)\n        if: ${{ !cancelled() }}\n        run: node tools/lookcheck.js\n"));

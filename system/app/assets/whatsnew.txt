@@ -201,6 +201,9 @@ The play map
   tokens between two distances. A cone is a wedge from a point: set
   its angle, press a cell and drag to aim it, and drag its handle to
   turn it later.
+- The Radius tool can also put a circle on a token. Pick On a token
+  and click a token. The circle moves with it, and the token itself
+  is not counted.
 
 Fixes
 - The fog of war is lighter on a busy map. It read every character's

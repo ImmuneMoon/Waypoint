@@ -962,6 +962,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
         if(modeStr==='visual' && window.wpNet && window.wpNet.active && window.wpNet.streamPos) window.wpNet.streamPos(item, false, dragMapId); // live token motion for remote players (fold M8: on the map the drag began on)
         if(modeStr==='visual' && window.wpUpdateSelToolbar) window.wpUpdateSelToolbar();   // toolbar rides along with the drag
         if (modeStr === 'visual' && window.wpUpdateHandles) window.wpUpdateHandles();   // dots follow the drag (single or multi)
+        if (modeStr === 'visual' && window.wpCircleFollow) window.wpCircleFollow();   // 128: a circle of the Radius tool that sits on a token goes with it
       });
 
       // A drag can lose its pointer without a pointerup: the cursor leaves the window, the
@@ -1088,6 +1089,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           save();
           if (modeStr === 'visual' && window.wpNet && window.wpNet.active && window.wpNet.targets && Object.keys(window.wpNet.targets).length && multiDrag.some(function(md) { return md.item.isChar; })) render();   // range penalties R1: a target mark's tags (cover, light, range) read where the tokens stand, so the mover's own screen draws them again once the drop lands
           if (modeStr === 'visual' && window.wpStanceChips) window.wpStanceChips();   // item 19b H5: a token dropped on or off a ground piece, or a ground piece dropped under one, reads its height where it now stands (no redraw follows a drop)
+          if (modeStr === 'visual' && window.wpRefreshBlasts) window.wpRefreshBlasts();   // 128: who stands in a circle or a blast is read again where the token was dropped (no redraw follows a drop)
         } else {
           if(modeStr==='data'){
               if(isLinkMode()){

@@ -433,6 +433,8 @@
        inside so it never clips off the top of the screen on shorter displays. */
     #fogMenu { max-height: calc(100vh - 96px); overflow-y: auto; overflow-x: hidden; }
     #blastMenu { max-height: calc(100vh - 96px); overflow-y: auto; overflow-x: hidden; }   /* the Radius tool's options are tall too */
+    #blastShapeRow { flex-wrap: wrap; }   /* its four shapes stand two to a row */
+    #blastShapeRow > .draw-style-btn { flex: 1 1 40%; }
     .draw-menu-label {
         font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
         color: var(--dim); text-align: left; padding: 0 2px;
@@ -813,6 +815,8 @@
   #measureLayer g.blast.own:hover .area { fill: rgba(224,165,79,0.2); }
   #measureLayer g.blast circle.blast-aim { fill: var(--gold); stroke: var(--bg); stroke-width: 2; pointer-events: auto; cursor: grab; }   /* a cone's handle: drag it to turn the cone */
   #measureLayer g.blast circle.blast-aim:hover { fill: var(--ink); }
+  #measureLayer g.blast.on-tok { cursor: default; }   /* a circle on a token is not dragged: it goes where its token goes */
+  #measureLayer g.blast.on-tok circle.dot { pointer-events: none; }   /* and a press at its centre is the token's own */
   /* ---- inspector ---- */
   /* ---- sidebar ---- */
   #sidebar{

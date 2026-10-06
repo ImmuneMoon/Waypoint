@@ -3313,7 +3313,7 @@ window.wpFitToGrid = fitToGrid;
           var gbd = e.target.closest('g.blast');
           if (gbd && e.button === 0) {   // drag a blast to move it (a plain click does nothing)
               var bi0 = parseInt(gbd.dataset.i, 10);
-              if (bi0 >= 0 && bi0 < blasts.length) { blastDrag = { i: bi0, sx: e.clientX, sy: e.clientY, ox: blasts[bi0].x, oy: blasts[bi0].y, moved: false }; e.preventDefault(); }
+              if (bi0 >= 0 && bi0 < blasts.length && typeof blasts[bi0].tok !== 'string') { blastDrag = { i: bi0, sx: e.clientX, sy: e.clientY, ox: blasts[bi0].x, oy: blasts[bi0].y, moved: false }; e.preventDefault(); }   // a circle on a token is not dragged: it goes where its token goes
               e.stopPropagation(); return;
           }
           if (e.target.closest('g.measure') || gbd) e.stopPropagation();
@@ -3523,7 +3523,8 @@ window.wpFitToGrid = fitToGrid;
   // ruler's units"): the map's own unit, turned by the viewer's Imperial or Metric choice as the ruler's label turns it. as says how the
   // number is read: 'r' from the centre to the edge, 'd' from edge to edge. as is also what is measured (circleKind): beside the two
   // circles, 'ring' (the tokens between an inner distance, inn, and the outer one, yd) and 'cone' (a wedge from the point, yd long, deg
-  // degrees wide, turned to dir in radians; 0 points right). The functions down to circlePref are pure: numbers and fixed words only.
+  // degrees wide, turned to dir in radians; 0 points right). A circle may sit on a token (tok: on a shape the token's id, on the shape
+  // kept for the next click true): it stands where its token stands and does not count it. The functions down to circlePref are pure.
   // Under them stand the shapes on screen, the size kept, the ruler's unit on the map on screen, whose a shape is and what it holds
   var CIRCLE_MAX_YD = 10000000, CIRCLE_MIN_YD = 0.01;
   function unitKnown(u) { return u === 'ft' || u === 'm' || u === 'km' || u === 'mi' ? u : 'yd'; }   // one of the ruler's five units, yards for anything else
@@ -3536,7 +3537,7 @@ window.wpFitToGrid = fitToGrid;
   function circleAs(v) { return v === 'd' ? 'd' : 'r'; }   // how a number is read: a ring's and a cone's are distances from the point, as a radius is
   function circleKind(v) { return v === 'd' || v === 'ring' || v === 'cone' ? v : 'r'; }   // what the tool measures: a circle by its radius or by its diameter, a ring, a cone
   function shapeOf(as) { var k = circleKind(as); return k === 'ring' || k === 'cone' ? k : 'circle'; }   // the shape it is: the Shape row's own word
-  function shapeNote(as) { var s = shapeOf(as); return s === 'ring' ? 'A ring. The tokens between its two distances are inside.' : s === 'cone' ? 'A wedge from a point. Press a cell and drag to aim it.' : 'A circle. Every token inside shows its distance.'; }
+  function shapeNote(as, tok) { var s = shapeOf(as); return s === 'ring' ? 'A ring. The tokens between its two distances are inside.' : s === 'cone' ? 'A wedge from a point. Press a cell and drag to aim it.' : tok === true ? 'A circle on a token. It moves with its token, and does not count it.' : 'A circle. Every token inside shows its distance.'; }
   function coneDeg(v, was) { var n = typeof v === 'number' || typeof v === 'string' ? Math.round(Number(v)) : NaN; return isFinite(n) && n >= 1 && n <= 360 ? n : (typeof was === 'number' && was >= 1 && was <= 360 ? Math.round(was) : 60); }   // a cone's angle in whole degrees, 1 to 360; what does not read keeps the angle there was
   function lenTrim(v) { v = Number(v); if (!isFinite(v) || !(v > 0)) return 0; return v >= 1 ? Math.round(v * 100) / 100 : Number(v.toPrecision(3)); }   // a size as it is typed: two decimals, three figures under 1
   function circleYd(typed, as, unit) {   // the number in the box as a radius in yards; 0: nothing to place
@@ -3559,7 +3560,9 @@ window.wpFitToGrid = fitToGrid;
       if (!isFinite(inn) || inn < CIRCLE_MIN_YD) inn = 0;
       if (as === 'ring' && inn > yd) { var t = inn; inn = yd; yd = t; }
       yd = Math.min(CIRCLE_MAX_YD, yd);
-      return { yd: yd, as: as, inn: inn < yd ? inn : 0, deg: coneDeg(o && o.deg, 60) };
+      var out = { yd: yd, as: as, inn: inn < yd ? inn : 0, deg: coneDeg(o && o.deg, 60) };
+      if (o && o.tok === true && (as === 'r' || as === 'd')) out.tok = true;   // on a token: a circle's alone, and only as true
+      return out;
   }
   function coneHolds(dir, deg, dx, dy) {   // is the point (dx, dy), counted from the cone's own point, within its angle? The point itself is not: a cone goes out from where it starts
       if (!(Math.abs(dx) > 1e-6 || Math.abs(dy) > 1e-6)) return false;
@@ -3590,7 +3593,23 @@ window.wpFitToGrid = fitToGrid;
   function rulerUnitNow() { return rulerUnitOf(mapMeasureConfig().unit, state.measureUnit === 'metric'); }   // the unit the ruler reads in on the map on screen
   function ownCircle(b) { return !!b && typeof b.yd === 'number' && b.yd > 0; }   // a circle of the Radius tool's own, never a thrown blast
   function playerScreen() { var n = window.wpNet; return !!(n && (n.foreign || (n.active && n.role === 'client'))); }   // someone else's table on this screen, its link up or gone (litViewer's own test): every blast effect is the GM's
+  function tokenOf(map, id) { var t = null; ((map && map.whiteboard) || []).forEach(function(w) { if (w && w.id === id && w.isChar) t = w; }); return t; }   // the character token of that id on this screen's copy of the map
+  // A circle on a token stands where its token stands, at the token's height unless its own was set. With its token off this screen's copy of
+  // the map (deleted, or out of a player's sight) it is lost: not drawn, holding nothing, until the token is back
+  function circleFollow(map) {   // true: a circle was lost or found, so what the options show has changed
+      var turned = false;
+      blasts.forEach(function(b) {
+          if (!ownCircle(b) || typeof b.tok !== 'string') return;
+          var t = tokenOf(map, b.tok), was = b.lost === true; if (!t) { b.lost = true; if (!was) turned = true; return; }
+          var c = tokenCentre(t); b.x = c.x; b.y = c.y; delete b.lost; if (was) turned = true;
+          if (b.autoElev) b.elev = tokenElevation(t, map);
+      });
+      return turned;
+  }
+  window.wpCircleFollow = function() { if (blasts.some(function(b) { return typeof b.tok === 'string'; })) renderMeasures(); };   // a token moved with no redraw (a drag under way, a move from the table): a circle on a token goes with it
   function shapeHolds(b, r) {   // is the token of this distance row inside b? A thrown blast and a circle by distance, a ring between its two, a cone within its angle too
+      if (b.lost) return false;
+      if (typeof b.tok === 'string' && r.tok && r.tok.id === b.tok) return false;   // the token a circle sits on is its centre, not something inside it
       if (r.d > blastRadiusYd(b) + 1e-9) return false;
       if (!ownCircle(b)) return true;
       if (b.as === 'ring') return r.d >= (b.inn || 0) - 1e-9;
@@ -3635,9 +3654,12 @@ window.wpFitToGrid = fitToGrid;
   function blastSvg() {
       var map = getActiveMap(); if (!map || !blasts.length) return '';
       var pxPerYd = mapMeasureConfig().cellPx / cellYards(), elevOn = stanceOn('elevation'), html = '', ru = rulerUnitNow();
+      if (circleFollow(map)) syncBlastMenu();   // a circle on a token stands where its token stands now; one lost or found: the options show what is on screen
       blasts.forEach(function(b, i) {
+          if (b.lost) return;   // its token is off this screen's copy of the map
           var rYd = blastRadiusYd(b), rPx = rYd * pxPerYd, own = ownCircle(b);   // the tool's own circle reads in the ruler's unit; a thrown blast keeps its item's feet and the handbook's yards
-          html += '<g class="blast' + (own ? ' own' : '') + '" data-i="' + i + '"><title>Drag to move \u00b7 right-click to remove</title>';
+          var onTok = own && typeof b.tok === 'string';   // on a token: a press at its centre is the token's, so its dot takes none (the style sheet's on-tok)
+          html += '<g class="blast' + (own ? ' own' : '') + (onTok ? ' on-tok' : '') + '" data-i="' + i + '"><title>' + (onTok ? 'It moves with its token \u00b7 right-click its edge to remove' : 'Drag to move \u00b7 right-click to remove') + '</title>';
           var kind = own ? circleKind(b.as) : 'r', DOT = '<circle class="dot" cx="' + b.x + '" cy="' + b.y + '" r="6"></circle>', GRAB = '<circle class="ring" cx="' + b.x + '" cy="' + b.y + '" r="' + rPx + '"></circle>';
           if (kind === 'cone') html += '<path class="area" d="' + conePath(b.x, b.y, rPx, b.dir, b.deg) + '"></path>' + DOT + '<circle class="blast-aim" data-i="' + i + '" cx="' + svgNum(b.x + rPx * Math.cos(b.dir || 0)) + '" cy="' + svgNum(b.y + rPx * Math.sin(b.dir || 0)) + '" r="7"><title>Drag to turn the cone</title></circle>';   // a path is numbers only (svgNum)
           else if (kind === 'ring' && b.inn > 0) html += '<path class="area" fill-rule="evenodd" d="' + ringPath(b.x, b.y, rPx, b.inn * pxPerYd) + '"></path>' + GRAB + DOT;
@@ -3686,15 +3708,18 @@ window.wpFitToGrid = fitToGrid;
       // It is this screen's alone, whoever places it: nothing of it is sent, as nothing of a ruler is
       var b = { x: x, y: y, yd: circleKept.yd, as: circleKept.as, name: '', elev: 0, autoElev: true };
       if (b.as === 'ring') b.inn = circleKept.inn; else if (b.as === 'cone') { b.deg = circleKept.deg; b.dir = circleDir; }
-      seatBlast(b);
-      pushBlast(b);
+      if (circleKept.tok === true) {   // a circle on a token: the click names the token, and the circle sits on it and nowhere else
+          var onT = tokenAtPoint(map, x, y); if (!onT) { toast('Click a token to put the circle on it.'); return; }
+          b.tok = onT.id;
+      } else seatBlast(b);
+      pushBlast(b); if (typeof b.tok === 'string') circleFollow(map);
       renderMeasures(); syncBlastMenu();
       if (b.as !== 'cone') circleSaid(b, map);   // a cone is said once its aim is let go
       return b;
   }
   function circleSaid(b, map) {   // the notice for a shape of the tool's own: what it is, where it stands, how many tokens it holds
       var n = blastDistances(b, map).filter(function(r) { return shapeHolds(b, r); }).length;
-      toast(circleWords(b.yd, b.as, rulerUnitNow(), b.inn, b.deg) + (stanceOn('elevation') ? ', at ' + fmtElev(b.elev) + ' ' + lenUnit() : '') + '. ' + n + ' token' + (n === 1 ? '' : 's') + ' inside. ' + (b.as === 'cone' ? 'Drag it to move, its handle to turn it, right-click to remove.' : 'Drag it to move, right-click to remove.'));
+      toast(circleWords(b.yd, b.as, rulerUnitNow(), b.inn, b.deg) + (stanceOn('elevation') ? ', at ' + fmtElev(b.elev) + ' ' + lenUnit() : '') + '. ' + n + ' token' + (n === 1 ? '' : 's') + ' inside. ' + (typeof b.tok === 'string' ? 'It moves with its token. Right-click its edge to remove.' : b.as === 'cone' ? 'Drag it to move, its handle to turn it, right-click to remove.' : 'Drag it to move, right-click to remove.'));
   }
   // A cone in hand follows the pointer once the pointer has really moved: a plain click leaves it turned as the last one was
   function coneTurn(e) {
@@ -4177,7 +4202,7 @@ window.wpFitToGrid = fitToGrid;
   var _el_blastModeBtn = document.getElementById('blastModeBtn');
   var _el_blastMenu = document.getElementById('blastMenu');
   function closeBlastMenu() { if (_el_blastMenu) _el_blastMenu.classList.remove('show'); }
-  function lastBlast() { return blasts.length ? blasts[blasts.length - 1] : null; }
+  function lastBlast() { for (var i = blasts.length - 1; i >= 0; i--) if (!blasts[i].lost) return blasts[i]; return null; }   // the last shape or blast on screen: never a circle whose token is off this screen's copy of the map
   function syncBlastMenu() {
       if (!_el_blastMenu) return;
       var b = lastBlast(), now = circleNow(), ru = rulerUnitNow(); _circleUnitShown = ru;
@@ -4187,10 +4212,10 @@ window.wpFitToGrid = fitToGrid;
       var unEl = document.getElementById('blastUnit'); if (unEl) unEl.textContent = ru;
       var inW = document.getElementById('blastInnerWrap'); if (inW) inW.style.display = now.as === 'ring' ? '' : 'none';   // a ring's inner distance and a cone's angle show with their own shape only
       var dgW = document.getElementById('blastAngleWrap'); if (dgW) dgW.style.display = now.as === 'cone' ? '' : 'none';
-      var shNow = shapeOf(now.as);
+      var shNow = now.tok === true ? 'tok' : shapeOf(now.as);
       document.querySelectorAll('#blastShapeRow .draw-style-btn').forEach(function(x) { x.classList.toggle('active', x.dataset.shape === shNow); });
-      var shN = document.getElementById('blastShapeNote'); if (shN) shN.textContent = shapeNote(now.as);
-      var asRow = document.getElementById('blastAsRow'); if (asRow) asRow.style.display = shNow === 'circle' ? '' : 'none';   // Radius or Diameter is a circle's question
+      var shN = document.getElementById('blastShapeNote'); if (shN) shN.textContent = shapeNote(now.as, now.tok);
+      var asRow = document.getElementById('blastAsRow'); if (asRow) asRow.style.display = shNow === 'circle' || shNow === 'tok' ? '' : 'none';   // Radius or Diameter is a circle's question, on a token or not
       document.querySelectorAll('#blastAsRow .draw-style-btn').forEach(function(x) { x.classList.toggle('active', x.dataset.as === now.as); });
       var elIn = document.getElementById('blastElev'); if (elIn && document.activeElement !== elIn) elIn.value = b ? Math.round(ydOut(b.elev || 0) * 10) / 10 : 0;   // item 19 H1: in the viewer's unit
       var elU = document.getElementById('blastElevUnit'); if (elU) elU.textContent = lenUnit();
@@ -4203,22 +4228,22 @@ window.wpFitToGrid = fitToGrid;
               : why === 'local' ? 'Token elevation is off for you at this table (⚙ Settings ▸ VTT features): flat hex distance.'
               : 'Token elevation is off for this campaign (⚙ Settings ▸ VTT features): flat hex distance.';
       }
-      var nOwn = blasts.filter(ownCircle).length;
-      var which = document.getElementById('blastWhich'); if (which) which.textContent = nOwn ? 'The numbers are those of the last shape you placed. You have ' + nOwn + ' on this map.' : now.as === 'ring' ? 'Click a cell on the map to place a ring.' : now.as === 'cone' ? 'Press a cell on the map and drag to aim the cone.' : 'Click a cell on the map to place a circle.';
+      var nOwn = blasts.filter(function(x) { return ownCircle(x) && !x.lost; }).length;   // the shapes on screen: a circle whose token is gone is not one
+      var which = document.getElementById('blastWhich'); if (which) which.textContent = nOwn ? 'The numbers are those of the last shape you placed. You have ' + nOwn + ' on this map.' : now.tok === true ? 'Click a token on the map to put a circle on it.' : now.as === 'ring' ? 'Click a cell on the map to place a ring.' : now.as === 'cone' ? 'Press a cell on the map and drag to aim the cone.' : 'Click a cell on the map to place a circle.';
   }
-  function lastOwn() { for (var i = blasts.length - 1; i >= 0; i--) if (ownCircle(blasts[i])) return blasts[i]; return null; }
+  function lastOwn() { for (var i = blasts.length - 1; i >= 0; i--) if (ownCircle(blasts[i]) && !blasts[i].lost) return blasts[i]; return null; }   // the last shape of the tool's own that is on screen
   function circleNow() {   // what the options show: the last shape of the tool's own, else the one kept for the next. A number the shape does not carry (a circle has no angle) is the one kept
-      var c = lastOwn(); return circleShape(c ? { yd: c.yd, as: c.as, inn: c.as === 'ring' ? c.inn : circleKept.inn, deg: c.as === 'cone' ? c.deg : circleKept.deg } : circleKept);
+      var c = lastOwn(); return circleShape(c ? { yd: c.yd, as: c.as, inn: c.as === 'ring' ? c.inn : circleKept.inn, deg: c.as === 'cone' ? c.deg : circleKept.deg, tok: typeof c.tok === 'string' || circleKept.tok === true } : circleKept);   // On a token shows for a circle that sits on one, and for a free circle while the next click is to go onto a token (circleShape keeps the mark for a circle alone)
   }
   // The options: what is measured, the size box, a ring's inner distance, a cone's angle. ch names what changed, each only when it did:
-  // { size, as, inner, deg }, as typed. It shapes the last shape of the tool's own and the next one, and is kept on this computer. A
-  // thrown blast is its item's size: nothing here changes one
+  // { size, as, inner, deg, tok }, as typed (tok: true or false, On a token picked or left). It shapes the last shape of the tool's own
+  // and the next one, and is kept on this computer. A thrown blast is its item's size: nothing here changes one
   function setCircle(ch) {
       var ru = rulerUnitNow(), now = circleNow(), kind = ch.as !== undefined ? circleKind(ch.as) : now.as;
       if (_circleUnitShown && _circleUnitShown !== ru) { syncBlastMenu(); return; }   // the unit changed under the boxes: show them as they stand
       var yd = ch.size !== undefined ? circleYd(ch.size, kind, ru) : now.yd;
       if (!(yd > 0)) { syncBlastMenu(); return; }   // nothing to read
-      circleKept = circleShape({ yd: yd, as: kind, inn: ch.inner !== undefined ? circleYd(ch.inner, 'r', ru) : now.inn, deg: ch.deg !== undefined ? coneDeg(ch.deg, now.deg) : now.deg });
+      circleKept = circleShape({ yd: yd, as: kind, inn: ch.inner !== undefined ? circleYd(ch.inner, 'r', ru) : now.inn, deg: ch.deg !== undefined ? coneDeg(ch.deg, now.deg) : now.deg, tok: ch.tok !== undefined ? ch.tok === true : now.tok });
       try { localStorage.setItem('wp_radius', JSON.stringify(circleKept)); } catch (e) {}
       if (circleKept.as === 'r' || circleKept.as === 'd') circleCas = circleKept.as;
       var c = lastOwn();
@@ -4226,6 +4251,8 @@ window.wpFitToGrid = fitToGrid;
           c.yd = circleKept.yd; c.as = circleKept.as; delete c.inn; delete c.deg;
           if (c.as === 'ring') c.inn = circleKept.inn; else if (c.as === 'cone') { c.deg = circleKept.deg; if (typeof c.dir !== 'number' || !isFinite(c.dir)) c.dir = circleDir; }
           if (c.as !== 'cone') delete c.dir;
+          if (circleKept.tok !== true && typeof c.tok === 'string') delete c.tok;   // off its token: a shape of its own where it stands
+          else if (ch.tok === true && typeof c.tok !== 'string') { var m0 = getActiveMap(), t0 = m0 ? tokenAtPoint(m0, c.x, c.y) : null; if (t0) { c.tok = t0.id; circleFollow(m0); } }   // On a token, picked for a circle already placed: onto the token it stands on, where one is there
           renderMeasures();
       }
       syncBlastMenu();
@@ -4243,13 +4270,14 @@ window.wpFitToGrid = fitToGrid;
   var _el_blastInner = document.getElementById('blastInner'), _el_blastAngle = document.getElementById('blastAngle');
   if (_el_blastInner) _el_blastInner.addEventListener('change', function() { setCircle({ inner: this.value }); });
   if (_el_blastAngle) _el_blastAngle.addEventListener('change', function() { setCircle({ deg: this.value }); });
-  function circleRead(as) {   // another reading or another shape: the number in the box stays, and is read the new way
+  function circleRead(as, tok) {   // another reading or another shape: the number in the box stays, and is read the new way. tok: On a token picked (true) or another shape (false); a reading leaves it as it is
       var now = circleNow(), n = _el_blastFt ? Number(_el_blastFt.value) : NaN;
-      setCircle({ as: as, size: n > 0 ? n : circleTyped(now.yd, now.as, rulerUnitNow()) });
+      setCircle({ as: as, size: n > 0 ? n : circleTyped(now.yd, now.as, rulerUnitNow()), tok: tok });
   }
   document.querySelectorAll('#blastAsRow .draw-style-btn').forEach(function(x) { x.addEventListener('click', function() { var as = circleAs(this.dataset.as); if (as !== circleNow().as) circleRead(as); }); });
   document.querySelectorAll('#blastShapeRow .draw-style-btn').forEach(function(x) { x.addEventListener('click', function() {
-      var sh = this.dataset.shape, as = sh === 'ring' ? 'ring' : sh === 'cone' ? 'cone' : circleCas; if (shapeOf(as) !== shapeOf(circleNow().as)) circleRead(as);
+      var sh = this.dataset.shape === 'ring' || this.dataset.shape === 'cone' || this.dataset.shape === 'tok' ? this.dataset.shape : 'circle', now = circleNow(); if (sh === (now.tok === true ? 'tok' : shapeOf(now.as))) return;
+      circleRead(sh === 'ring' ? 'ring' : sh === 'cone' ? 'cone' : circleCas, sh === 'tok');
   }); });
   var _el_blastElev = document.getElementById('blastElev');
   if (_el_blastElev) _el_blastElev.addEventListener('input', function() { var b = lastBlast(); if (!b) return; var v = ydIn(this.value); b.elev = isFinite(v) ? Math.max(-999, Math.min(999, Math.round(v * 10) / 10)) : 0; b.autoElev = false; renderMeasures(); });   // item 19 H1: typed in the viewer's unit

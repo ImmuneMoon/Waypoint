@@ -302,6 +302,8 @@ function mkCampaign(SC, F) {
                 { id: 'wall1', type: 'rect', blocksSight: true, x: 600, y: 0, w: 10, h: 400 },
                 { id: 'gate1', type: 'rect', barrier: true, sightType: 'door', doorOpen: false, x: 150, y: 50, w: 50, h: 50 },   // see-through barriers (1.5.1): a barrier's door beside tok_p1, and a plain barrier — no message but a door request may change either
                 { id: 'bars1', type: 'rect', barrier: true, x: 650, y: 0, w: 10, h: 400 },
+                { id: 'stroke_wall', type: 'path', byPlayer: true, ownerId: 'u_p1', blocksSight: true, sightType: 'wall', pts: [[0, 0], [30, 0]], color: '#ffffff', strokeWidth: 3, x: 700, y: 40, w: 30, h: 1, baseW: 30, baseH: 1, z: 35 },   // 49 (c) (the owner, 2026-10-06: "Lock it for its player"): a line of u_p1's own that the GM made a wall, and one made a see-through barrier — no message of a player's may erase, redraw or move either
+                { id: 'stroke_bar', type: 'path', byPlayer: true, ownerId: 'u_p1', barrier: true, pts: [[0, 0], [0, 30]], color: '#ffffff', strokeWidth: 3, x: 720, y: 60, w: 1, h: 30, baseW: 1, baseH: 30, z: 35 },
                 { id: 'text1', type: 'text', text: '<b>Welcome</b>', x: 20, y: 20, w: 100, h: 30 },
                 { id: 'note1', type: 'rect', gmNoteFor: 'tok_npc', x: 300, y: 260, w: 40, h: 20, gmInfo: 'the orc lies' },
                 { id: 'light1', type: 'light', light: { bright: 2, dim: 4, unit: 'yd' }, x: 700, y: 700, w: 20, h: 20 },
@@ -518,7 +520,8 @@ function mutations(tpl) {
             'hb': { type: 'hb' },
             'item': { type: 'item', campId: 'c1', itemId: 'm_open', item: { whiteboard: [{ id: 'tok_p1', x: 120, y: 130, rot: 0, front: 0, elevation: 0, posture: '', fogHand: 'hide', page: 'plan_x', barrier: true, blastStop: true, blocksSight: true, portalLock: true, targetMapId: 'm_fog' }, { id: 'stroke_p1', type: 'path', ownerId: 'u_p1', pts: [[0, 0], [10, 10], [20, 5]], color: '#ffffff', strokeWidth: 3, x: 0, y: 0, w: 20, h: 10, baseW: 20, baseH: 10, opacity: 1, fogHand: 'show', page: 'plan_x', barrier: true, blocksSight: true, portalLock: true, targetMapId: 'm_fog' },
                 { id: 'portal_locked', type: 'rect', targetMapId: 'm_fog', name: 'Barred stairs', x: 250, y: 100, w: 50, h: 50, layer: 'bottom' }, { id: 'portal_vis', type: 'rect', targetMapId: 'm_fog', name: 'Stairs', x: 500, y: 500, w: 50, h: 50, layer: 'bottom', portalLock: true },   // a portal's own lock: the GM's locked portal sent back unlocked, the open one sent back locked, the player's own token and drawing sent as locked portals — a host takes none of it
-                { id: 'gate1', type: 'rect', sightType: 'door', doorOpen: true, x: 150, y: 50, w: 50, h: 50 }, { id: 'bars1', type: 'rect', x: 650, y: 0, w: 10, h: 400 }] }, a: 1 },   // see-through barriers (1.5.1): a copy that sends the GM's gate back unflagged and open, the bars unflagged, and its own token and drawing flagged — a host takes none of it
+                { id: 'gate1', type: 'rect', sightType: 'door', doorOpen: true, x: 150, y: 50, w: 50, h: 50 }, { id: 'bars1', type: 'rect', x: 650, y: 0, w: 10, h: 400 },   // see-through barriers (1.5.1): a copy that sends the GM's gate back unflagged and open, the bars unflagged, and its own token and drawing flagged — a host takes none of it
+                { id: 'stroke_wall', type: 'path', ownerId: 'u_p1', pts: [[0, 0], [5, 25]], color: '#ffffff', strokeWidth: 3, x: 300, y: 300, w: 5, h: 25, baseW: 5, baseH: 25 }] }, a: 1 },   // 49 (c): its own line the GM made a wall sent redrawn and moved, and its own line the GM made a barrier (stroke_bar) left out, which is an erase — a host takes neither
             'threats': { type: 'threats', campId: 'c1', itemId: 'm_open', wbId: 'tok_p1', threats: [90, 180], a: 2 },
             'needItem': { type: 'needItem', campId: 'c1', itemId: 'm_open' },
             'travel': { type: 'travel', viaItemId: 'portal_vis' },
@@ -604,12 +607,14 @@ function mutations(tpl) {
             const mapB = before.app.campaigns.c1.items[m[1]], mapA = after.app.campaigns.c1.items[m[1]];
             const tokA = mapA && (mapA.whiteboard || []).find(x => x.id === m[2]), tokB = mapB && (mapB.whiteboard || []).find(x => x.id === m[2]);
             if (!m[3] && tokA && !tokB && tokA.type === 'path' && ['portalLock', 'targetMapId', 'barrier', 'blastStop', 'blocksSight', 'fogHand', 'page'].some(k => Object.prototype.hasOwnProperty.call(tokA, k))) return false;   // a drawing a player hands the host is the drawing alone: never a portal, a locked one, a wall or a barrier (a new piece arrives whole, so its keys are judged here)
+            if (!m[3] && tokB && !tokA && tokB.type === 'path' && tokB.byPlayer === true && (tokB.blocksSight || tokB.barrier === true)) return false;   // 49 (c): a drawing the GM made a wall or a barrier is the GM's piece from then on — no message of a player's erases it, their own included
             if (!m[3]) { const obj = tokA || tokB; return !!obj && ((obj.type === 'path' && obj.byPlayer === true && obj.ownerId === pid) || (msg.type === 'hello' && obj.ownerId === pid) || ((msg.type === 'travel' || msg.type === 'pos' || msg.type === 'item' || msg.type === 'char-token' || msg.type === 'char-done') && (obj.ownerId === pid || obj.waiting))); }
             const tok = tokB || tokA; if (!tok) return false;
             const key = m[3].split(/[.[]/)[0];
             if (key === 'barrier' || key === 'blocksSight' || key === 'blastStop' || key === 'fogHand') return false;   // what stops movement, sight or a blast is the GM's alone, on a player's own drawing too
             if (key === 'page') return false;   // backlog 125: a pin, the page a piece opens, is the GM's alone: no message of a player's sets it or clears it, on their own token or drawing too
             if (key === 'portalLock' || key === 'targetMapId') return false;   // a portal's own lock (and what makes a piece a portal) is the GM's alone: no message of a player's sets it or clears it, on their own token or drawing too
+            if (tok.type === 'path' && tok.byPlayer === true && (tok.blocksSight || tok.barrier === true)) return false;   // 49 (c): ...nor redraws or moves it: no key of such a drawing is its player's to change
             if (tok.type === 'path' && tok.byPlayer === true && tok.ownerId === pid) return true;
             if (tok.ownerId === pid && !tok.hidden && !tok.locked && /^(x|y|rot|front|elevation|posture|threats|light|face|isChar|charName|name|charStats|waiting|color|charId)$/.test(key)) return true;
             if (tok.ownerId === pid && (msg.type === 'tok-pic' || msg.type === 'char-pic') && /^(src|pic|face|frame)$/.test(key)) return true;
@@ -680,7 +685,10 @@ function mutations(tpl) {
 
     const campH = () => stubs.getActiveCampaign(), tokH = id => campH().items.m_open.whiteboard.find(w => w.id === id);
     const expectHost = {
-        'item': o => tokH('tok_p1').x === 120 && tokH('tok_p1').y === 130 && !!tokH('stroke_p1') && tokH('stroke_p1').byPlayer === true && o.p2.some(m => m.type === 'itemDelta' || m.type === 'item'),
+        'item': o => tokH('tok_p1').x === 120 && tokH('tok_p1').y === 130 && !!tokH('stroke_p1') && tokH('stroke_p1').byPlayer === true && o.p2.some(m => m.type === 'itemDelta' || m.type === 'item')
+            && JSON.stringify(tokH('stroke_wall')) === JSON.stringify({ id: 'stroke_wall', type: 'path', byPlayer: true, ownerId: 'u_p1', blocksSight: true, sightType: 'wall', pts: [[0, 0], [30, 0]], color: '#ffffff', strokeWidth: 3, x: 700, y: 40, w: 30, h: 1, baseW: 30, baseH: 1, z: 35 })   // 49 (c): the line the GM made a wall is as it was, redraw and move refused
+            && !!tokH('stroke_bar') && tokH('stroke_bar').barrier === true && o.p1.some(m => m.type === 'item' && m.itemId === 'm_open' && (m.item.whiteboard || []).some(w => w.id === 'stroke_bar')),   // ...the one made a barrier is not erased, and the sender gets the map whole with it
+
         'threats': () => JSON.stringify(tokH('tok_p1').threats) === '[90,180]',
         'needItem': o => o.p1.some(m => m.type === 'item' && m.itemId === 'm_open'),
         'travel': o => net.roster.peer_p1.location === 'm_fog' && o.p1.some(m => m.type === 'stage') && o.p1.some(m => m.type === 'mapBack' && m.itemId === 'm_open') && !o.p2.some(m => m.type === 'mapBack'),

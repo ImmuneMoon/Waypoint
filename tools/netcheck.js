@@ -1190,6 +1190,77 @@ pendingChecks.push((async () => {
     const protoRuns = [['constructor', 'm1'], ['__proto__', 'm1'], ['hasOwnProperty', 'm1'], ['c1', 'constructor'], ['c1', 'toString'], ['c1', '__proto__'], [5, 'm1'], ['c1', 7]].map(([c, i]) => runPatch(mk(), { campId: c, itemId: i, item: { whiteboard: [{ id: 't1', x: 9, y: 9 }] } }));
     check('patch (host): a campaign or map id that is a prototype key (or not a string) names nothing — refused, never a throw', protoRuns.every(r => r === false), j(protoRuns));
 }
+// 49 (c) (the owner, by prompt, 2026-10-06: "Lock it for its player"): a player's drawing the GM made a wall (Blocks sight) or a see-through
+// barrier (Stops movement only) is no longer its player's to redraw or erase. The patch gate with the REAL playerStroke and the real fogcore
+// (strokeHeld, the one judge), a player's own eraser's two helpers sliced from whiteboard.js and run for real, and the words
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const FCh = await import(url('fogcore.js')), rdH = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8').replace(/\r\n/g, '\n');
+    const coreH = rdH('system/app/scripts/fogcore.js'), wbH = rdH('system/app/scripts/whiteboard.js'), ixH = rdH('system/app/index.html'), claudeH = rdH('CLAUDE.md');
+    // (1) the judge: the two flags alone, a wall as the wall judges read it (any value that blocks), a barrier only as true
+    const held = w => FCh.strokeHeld(w);
+    check('49 (c) the judge (fogcore strokeHeld, run for real): a drawing the GM made a wall is held — Blocks sight as true and as any value that blocks sight, a door open or shut, a hidden one too — and so is one made a see-through barrier, only as true; a barrier flag that is a word or a number, no flag, false flags, and what is no object are not held; the fog core publishes it both ways',
+        held({ blocksSight: true }) === true && held({ blocksSight: 1 }) === true && held({ blocksSight: true, sightType: 'door', doorOpen: true }) === true && held({ blocksSight: true, hidden: true }) === true && held({ barrier: true }) === true && held({ barrier: true, sightType: 'door', doorOpen: true }) === true
+        && held({ barrier: 'yes' }) === false && held({ barrier: 1 }) === false && held({}) === false && held({ blocksSight: false, barrier: false }) === false && held({ blocksSight: 0 }) === false && held(null) === false && held(undefined) === false && held('wall') === false && held(7) === false
+        && coreH.includes('barrierOn: barrierOn, isDoor: isDoor, strokeHeld: strokeHeld, cleanBarrier: cleanBarrier,') && coreH.includes('barrierOn, isDoor, strokeHeld, cleanBarrier,'),
+        j([held({ blocksSight: 1 }), held({ barrier: 'yes' }), held(null)]));
+    // (2) the host's patch gate
+    const patchSrc = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch');
+    const cleanersSrc = src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem('));
+    const psSrc = fnSrc('function playerStroke(', '\n}\n', 'playerStroke') + '\n}\n';
+    const run = (camps, msg, o) => { o = o || {}; const out = {}; let r;
+        try { r = new Function('state', 'window', 'msg', 'prof', 'out', cleanersSrc + ownKeySrc + psSrc + patchSrc + '\nreturn applyClientItemFiltered(msg, prof, out);')({ appState: { campaigns: camps } }, o.noCore ? { wpVtt: { campaignOn: () => true } } : { wpVtt: { campaignOn: () => true }, wpFogCore: FCh }, msg, { id: o.pid || 'u_p' }, out); } catch (e) { r = 'threw: ' + e.message; }
+        return { r, whole: out.whole === true, strokes: out.strokes === true }; };
+    const S = (id, extra) => Object.assign({ id, type: 'path', byPlayer: true, ownerId: 'u_p', x: 5, y: 5, w: 10, h: 10, baseW: 10, baseH: 10, z: 35, pts: [[0, 0], [4, 4]], color: '#e9e9f0', strokeWidth: 3 }, extra);
+    const mk = () => ({ c1: { id: 'c1', items: { m1: { type: 'map', whiteboard: [S('wall', { blocksSight: true, sightType: 'wall' }), S('one', { blocksSight: 1 }), S('door', { blocksSight: true, sightType: 'door', doorOpen: true }), S('bar', { barrier: true }), S('odd', { barrier: 'yes' }), S('plain'), S('lockd', { locked: true }), S('hers', { ownerId: 'u_q', blocksSight: true })] } } } });
+    const wbOf = c => c.c1.items.m1.whiteboard, ids = c => wbOf(c).map(w => w.id).join(), by = (c, id) => wbOf(c).find(w => w.id === id);
+    // a copy of the map as an honest app of pid would send it: each drawing of theirs as it stands, but those named in drop, and those in redo changed
+    const copy = (c, o) => { o = o || {}; const pid = o.pid || 'u_p'; return { campId: 'c1', itemId: 'm1', item: { whiteboard: wbOf(c).filter(w => w.ownerId === pid && (o.drop || []).indexOf(w.id) < 0).map(w => Object.assign({ id: w.id, type: 'path', ownerId: pid, x: w.x, y: w.y, w: 10, h: 10, pts: w.pts.map(p => p.slice()) }, (o.redo || {})[w.id])) } }; };
+    const all = ['wall', 'one', 'door', 'bar', 'odd', 'plain', 'lockd'];
+    const cE = mk(), eAll = run(cE, copy(cE, { drop: all }));
+    const cW = mk(), eWall = run(cW, copy(cW, { drop: ['wall'] })), cB = mk(), eBar = run(cB, copy(cB, { drop: ['bar'] })), cN = mk(), eNone = run(cN, copy(cN));
+    check('49 (c) an erase (the host\'s patch gate with the real playerStroke and the real fogcore): a copy of the map that leaves every drawing of theirs out erases the plain one and the one whose barrier flag is only a word, and keeps each one the GM made a wall or a barrier (and the locked one, as ever); the sender is to get the map whole, so their screen holds the lines again; a copy that leaves out only a wall, or only a barrier, changes nothing and is answered the same way; a copy that names them all as they stand changes nothing and asks for no whole map',
+        eAll.r === true && eAll.whole === true && eAll.strokes === true && ids(cE) === 'wall,one,door,bar,lockd,hers'
+        && eWall.r === false && eWall.whole === true && ids(cW) === 'wall,one,door,bar,odd,plain,lockd,hers' && eBar.r === false && eBar.whole === true && ids(cB) === 'wall,one,door,bar,odd,plain,lockd,hers'
+        && eNone.r === false && eNone.whole === false && eNone.strokes === false && ids(cN) === 'wall,one,door,bar,odd,plain,lockd,hers', j([eAll, ids(cE), eWall, eBar, eNone]));
+    const P2 = [[9, 9], [1, 1]], redo = id => { const c = mk(), was = j(by(c, id)), r = run(c, copy(c, { redo: { [id]: { pts: P2 } } })); return { r: r.r, whole: r.whole, same: j(by(c, id)) === was, pts: j(by(c, id).pts) }; };
+    const move = id => { const c = mk(), was = j(by(c, id)), r = run(c, copy(c, { redo: { [id]: { x: 77 } } })); return { r: r.r, whole: r.whole, same: j(by(c, id)) === was, x: by(c, id).x }; };
+    const rW = redo('wall'), rO = redo('one'), rD = redo('door'), rB = redo('bar'), rP = redo('plain'), rOdd = redo('odd'), mW = move('wall'), mB = move('bar'), mP = move('plain');
+    const cM = mk(), bad = run(cM, { campId: 'c1', itemId: 'm1', item: { whiteboard: copy(cM).item.whiteboard.map(w => (w.id === 'wall' ? Object.assign({}, w, { pts: 'none' }) : w)) } });
+    check('49 (c) a redraw: new points, or a new place, for a drawing the GM made a wall, a door or a barrier are refused — the host\'s drawing is byte for byte as it was, its flags with it — and the sender is to get the map whole; the same redraw of a plain drawing, and of one whose barrier flag is only a word, lands as ever and asks for no whole map; a copy that names a wall in a shape that is no drawing changes nothing, erases nothing and asks for nothing',
+        [rW, rO, rD, rB, mW, mB].every(x => x.r === false && x.whole === true && x.same === true) && rW.pts === '[[0,0],[4,4]]' && mW.x === 5
+        && rP.r === true && rP.whole === false && rP.pts === j(P2) && rOdd.r === true && rOdd.whole === false && rOdd.pts === j(P2) && mP.r === true && mP.whole === false && mP.x === 77
+        && bad.r === false && bad.whole === false && ids(cM) === 'wall,one,door,bar,odd,plain,lockd,hers' && by(cM, 'wall').blocksSight === true, j([rW, rO, rD, rB, mW, mB, rP, rOdd, mP, bad]));
+    // handed back, another player's, and with no judge
+    const cU = mk(); delete by(cU, 'wall').blocksSight; delete by(cU, 'wall').sightType; delete by(cU, 'bar').barrier;
+    const uE = run(cU, copy(cU, { drop: ['wall', 'bar'] })), cU2 = mk(); delete by(cU2, 'wall').blocksSight; const uR = run(cU2, copy(cU2, { redo: { wall: { pts: P2 } } }));
+    const cQ = mk(), qE = run(cQ, copy(cQ, { pid: 'u_q', drop: ['hers'] }), { pid: 'u_q' }), cX = mk(), noCore = run(cX, copy(cX, { drop: ['wall'] }), { noCore: true });
+    check('49 (c) handed back, another player, and no judge: once the GM unticks the line it is its player\'s again — the same copy erases it, the same redraw lands; another player\'s copy keeps their own wall drawing the same way and never touches this player\'s; with no fog core on the page the rule cannot be asked and the gate answers as it did before; the gate asks the judge in exactly two places, the redraw and the erase, through its one helper',
+        uE.r === true && uE.whole === false && ids(cU) === 'one,door,odd,plain,lockd,hers' && uR.r === true && uR.whole === false && j(by(cU2, 'wall').pts) === j(P2)
+        && qE.r === false && qE.whole === true && ids(cQ) === 'wall,one,door,bar,odd,plain,lockd,hers' && noCore.r === true && noCore.whole === false && ids(cX) === 'one,door,bar,odd,plain,lockd,hers'
+        && (patchSrc.match(/strokeHeldOn\(/g) || []).length === 3 && patchSrc.includes("function strokeHeldOn(w) { var FCh = window.wpFogCore; return !!(FCh && typeof FCh.strokeHeld === 'function' && FCh.strokeHeld(w)); }")
+        && /if \(pOut\.whole\) net\.sendItem\(msg\.campId, msg\.itemId, conn, null, msg\.a\);/.test(src), j([uE, ids(cU), uR, qE, noCore, ids(cX)]));
+    // (3) a player's own eraser: the two helpers run for real, their call sites pinned
+    const eA = wbH.indexOf('// [netcheck:erasehold-start]'), eZ = wbH.indexOf('// [netcheck:erasehold-end]'), eSrc = eA > 0 && eZ > eA ? wbH.slice(eA, eZ) : 'throw new Error("no erasehold slice");';
+    const mkE = win => new Function('window', '"use strict";\n' + eSrc + '\nreturn { held: eraseHeld, words: eraseHeldWords };')(win);
+    const E = mkE({ wpFogCore: FCh }), E0 = mkE({}), wallI = S('w', { blocksSight: true, name: '<img src=x onerror=1>' }), barI = S('b', { barrier: true });
+    const fnE = wbH.slice(wbH.indexOf('  function eraseWorldPoint(x, y) {'), wbH.indexOf('  var _erasedAny = false;'));
+    const iOwn = fnE.indexOf("if (eraserClient && item.ownerId !== window.wpNet.myId) { out.push(item); return; }"), iAny = fnE.indexOf('if (!any) { out.push(item); return; }'), iHeld = fnE.indexOf('if (eraseHeld(item, eraserClient)) { heldHit = item; out.push(item); return; }   // 49 (c): touched, and kept whole'), iChg = fnE.indexOf('changed = true;\n          // Runs of consecutive intact segments become the surviving pieces');
+    check('49 (c) a player\'s own eraser (whiteboard.js, the erasehold slice run for real with the real fogcore): a line of theirs the GM made a wall or a barrier is held on a player\'s app and never on the GM\'s, whose eraser takes any line as ever; a plain line and one whose barrier flag is only a word are not; with no fog core nothing is held; the notice is fixed words that name a wall or a barrier and nothing of the line; the eraser asks only after the line is theirs and the eraser touched it, keeps the line whole, says the notice once a stroke and is ready to say it again at the next',
+        E.held(wallI, true) === true && E.held(barI, true) === true && E.held(wallI, false) === false && E.held(barI, false) === false && E.held(S('p'), true) === false && E.held(S('o', { barrier: 'yes' }), true) === false && E.held(null, true) === false && E0.held(wallI, true) === false
+        && E.words(wallI) === 'Your GM made that line a wall. It stays until they hand it back.' && E.words(barI) === 'Your GM made that line a barrier. It stays until they hand it back.' && E.words(null) === 'Your GM made that line a barrier. It stays until they hand it back.'
+        && iOwn > 0 && iAny > iOwn && iHeld > iAny && iChg > iHeld && fnE.includes('if (ddx*ddx + ddy*ddy <= reachSq) { if (eraseHeld(item, eraserClient)) { heldHit = item; out.push(item); return; } changed = true; return; }')
+        && (fnE.match(/eraseHeld\(item, eraserClient\)/g) || []).length === 2 && fnE.includes('      if (heldHit && !_heldSaid) { _heldSaid = true; toast(eraseHeldWords(heldHit)); }\n      if (changed) {')
+        && wbH.includes("      isErasing = false; lastErasePt = null; _heldSaid = false; if (_eraserCursor) _eraserCursor.classList.remove('pressed');") && wbH.includes('  var lastErasePt = null, _heldSaid = false;') && !/innerHTML|setAttribute/.test(eSrc),
+        j([E.held(wallI, true), E.held(wallI, false), E.words(wallI), iOwn, iAny, iHeld, iChg]));
+    // (4) said
+    const noteH = "- A player's line that you tick Blocks sight or Stops movement only is\n  yours from then on. Its player can no longer erase or redraw it, and\n  their eraser says why. Untick it to hand the line back.\n";
+    check('49 (c) said: Help for the GM says that a player\'s line ticked Blocks sight or Stops movement only is the GM\'s from then on and how it is handed back; Help for players has Your drawings, with what they may erase and that a wall or a barrier of the GM\'s stays; both release notes carry the same lines; CLAUDE.md names the one judge and its two askers',
+        ixH.includes('Tick <b>Blocks sight</b> or <b>Stops movement only</b> on a player&rsquo;s line and it is yours from then on: its player can no longer erase or redraw it. Untick it to hand the line back.</li>')
+        && ixH.includes('<li><b>Your drawings:</b> you have the pen and the eraser too. You can erase only your own marks. A line of yours that your GM made a wall or a barrier stays: you can no longer erase it, until they hand it back.</li>')
+        && rdH('WHATSNEW.txt').includes(noteH) && rdH('system/app/assets/whatsnew.txt').includes(noteH)
+        && claudeH.includes('fogcore `strokeHeld` is the one judge, asked by the host\'s patch path (net.js `strokeHeldOn`') && claudeH.includes('and by a player\'s own eraser (whiteboard.js `eraseHeld`)'));
+})());
 // R2 security (cluster A, #1 #3 #23): the patch path with the REAL playerStroke — a copy of the map they are on, ids that are keys, each new id once,
 // and a budget of points per player per map beside the count
 {
@@ -7229,6 +7300,26 @@ pendingChecks.push((async () => {
         check('hidden pieces (a player\'s own drawing the GM hid): (b) her copy made before the hide reached her names the drawing, and her app had written it back over the hide — she is sent the map whole saying her patch\'s number and the ghost goes, the host\'s drawing still hidden and in place; her next copy without it erases nothing and brings no whole map; (c) a hide and a show no patch crosses: the drawing is back on her screen, her next copy names it and brings no whole map (the record forgets it), and her erase after that is an erase',
             gh.ghost === true && J(gh.wholes) === J([[3, 'tA,tB,orc']]) && gh.after === false && gh.hostHid === true && gh.again === 0 && gh.later === false
             && nm.back === true && nm.wholes === 0 && nm.rec === J({ pA1: { mA: {} }, pA2: { mA: { s1: 1 } } }) && nm.erased === true, J([gh, nm]));
+        // 49 (c) (the owner, by prompt, 2026-10-06: "Lock it for its player"): a drawing of hers the GM made a wall, or a see-through barrier, end
+        // to end — the real patch gate, sends, itemDelta, the real fogcore's judge and her real page. The tick reaches her page; a copy of hers
+        // that leaves the line out erases nothing on the host and she is sent the map whole saying her patch's number, so her screen holds the
+        // line again (nobody else gets a whole map); a copy that redraws it is answered the same way; a copy that names it as it stands brings
+        // no whole map; once the GM unticks it, the same copy erases it
+        const wallLock = flag => { const { W, pg } = dW(); pg.map().whiteboard.push(stroke('s1', 10)); pg.save(); pg.host(); gmSave(W); pg.take();
+            const s1 = W.camp.items.mA.whiteboard.find(w => w.id === 's1'); if (flag === 'wall') { s1.blocksSight = true; s1.sightType = 'wall'; } else s1.barrier = true;
+            gmSave(W); pg.take(); const onPage = pg.tok('s1') ? [pg.tok('s1').blocksSight === true, pg.tok('s1').barrier === true] : null;
+            W.clearSent(); pg.map().whiteboard = pg.map().whiteboard.filter(w => w.id !== 's1'); pg.save(); const sentA = pg.host(), aA = +String(sentA[sentA.length - 1]).split(':')[1];   // her copy without the line
+            const hostHas = has({ map: () => W.camp.items.mA }, 's1'), wholes = W.a1.sent.filter(m => m.type === 'item').map(m => [m.ack === aA, m.item.whiteboard.some(w => w.id === 's1')]), others = kindsOf(W.b1);
+            pg.take(); const back = has(pg, 's1');
+            W.clearSent(); pg.tok('s1').pts = [[0, 0], [7, 3]]; pg.tok('s1').x = 44; pg.save(); pg.host();   // her copy with the line redrawn and moved
+            const hostLine = J(s1.pts) + '@' + s1.x, wholes2 = W.a1.sent.filter(m => m.type === 'item').length; pg.take(); const pageLine = J(pg.tok('s1').pts) + '@' + pg.tok('s1').x;
+            W.clearSent(); pg.tok('tA').x = 180; pg.save(); pg.host(); const wholes3 = W.a1.sent.filter(m => m.type === 'item').length, flagKept = flag === 'wall' ? s1.blocksSight === true : s1.barrier === true; pg.take();   // a copy that names the line as it stands
+            delete s1.blocksSight; delete s1.sightType; delete s1.barrier; gmSave(W); pg.take(); const offPage = pg.tok('s1') ? [pg.tok('s1').blocksSight === true, pg.tok('s1').barrier === true] : null;
+            W.clearSent(); pg.map().whiteboard = pg.map().whiteboard.filter(w => w.id !== 's1'); pg.tok('tA').x = 200; pg.save(); pg.host(); const erased = !has({ map: () => W.camp.items.mA }, 's1'), wholes4 = W.a1.sent.filter(m => m.type === 'item').length;
+            return { onPage, hostHas, wholes, others, back, hostLine, wholes2, pageLine, wholes3, flagKept, offPage, erased, wholes4 }; };
+        const wlW = wallLock('wall'), wlB = wallLock('barrier'), wlWant = on => J({ onPage: on, hostHas: true, wholes: [[true, true]], others: [], back: true, hostLine: '[[0,0],[10,10]]@10', wholes2: 1, pageLine: '[[0,0],[10,10]]@10', wholes3: 0, flagKept: true, offPage: [false, false], erased: true, wholes4: 0 });
+        check('49 (c) a wall drawing, end to end (the real patch gate, sends, itemDelta, the real fogcore and her real page): the GM\'s tick reaches her page; her copy without the line erases nothing on the host, and she is sent the map whole saying her patch\'s number, which puts the line back on her screen, while nobody else gets a whole map; her copy with the line redrawn and moved leaves the host\'s line as it was and is answered the same way, her page then holding the host\'s line; a copy that names it as it stands brings no whole map; the flag is the GM\'s throughout; unticked, the line is hers again and the same copy erases it — for a wall and for a see-through barrier alike',
+            J(wlW) === wlWant([true, false]) && J(wlB) === wlWant([false, true]), J([wlW, wlB]));
         // the record: made at a send of the map (whole or a delta) and at a join, for each connection of the drawing's owner; forgotten with the connection, the map and the table; its source
         const rc = (() => { const W = mk4({ realDelta: true }); W.camp.items.mA.fog.on = false; W.camp.items.mA.whiteboard.push(Object.assign(stroke('s1', 10), { hidden: true }), Object.assign(stroke('s2', 20), { hidden: 1, ownerId: 'u_b' }));
             W.net.sendItem('k', 'mA'); const r1 = J(W.api.hid()); W.net.broadcastItemFiltered('k', 'mB'); const r2 = J(W.api.hid()); W.net.broadcastItemFiltered('k', 'mA'); const r3 = J(W.api.hid());
@@ -7495,9 +7586,9 @@ pendingChecks.push((async () => {
             { id: 'pl1', type: 'path', byPlayer: true, ownerId: 'u_a', x: 600, y: 600, w: 10, h: 10, baseW: 10, baseH: 10, pts: [[0, 0], [5, 9]], barrier: false },
             { id: 'wbnew1', type: 'path', ownerId: 'u_a', x: 0, y: 0, w: 10, h: 10, pts: [[0, 0], [5, 5]], barrier: true, blocksSight: true, sightType: 'door', doorOpen: true }] } }, Pt.a1);
         const drew = Pt.tok('wbnew1'), redrew = Pt.tok('pl1'), has = (w, k) => !!w && Object.prototype.hasOwnProperty.call(w, k);
-        check('barriers (host, a player\'s map copy): nothing a copy says sets the flag or clears it — the GM\'s barrier sent back without it is a barrier still, her own token sent flagged takes no flag and no door type, a new drawing of hers sent as a barrier, a wall and an open door is taken as the drawing alone, and a drawing of hers the GM made a barrier stays one when she redraws it',
+        check('barriers (host, a player\'s map copy): nothing a copy says sets the flag or clears it — the GM\'s barrier sent back without it is a barrier still, her own token sent flagged takes no flag and no door type, a new drawing of hers sent as a barrier, a wall and an open door is taken as the drawing alone, and a drawing of hers the GM made a barrier stays one, and stays as it was drawn, when her copy redraws it (49 (c): it is the GM\'s piece now)',
             Pt.tok('ff').barrier === true && !has(Pt.tok('tA'), 'barrier') && !has(Pt.tok('tA'), 'sightType') && !!drew && !has(drew, 'barrier') && !has(drew, 'blocksSight') && !has(drew, 'sightType') && !has(drew, 'doorOpen')
-            && !!redrew && redrew.barrier === true && J(redrew.pts) === J([[0, 0], [5, 9]]), J([Pt.tok('ff'), drew, redrew]));
+            && !!redrew && redrew.barrier === true && J(redrew.pts) === J([[0, 0], [10, 10]]), J([Pt.tok('ff'), drew, redrew]));
         check('barriers (source): the walls\' rule has one judge, asked in two places and both for a player\'s move — the pos gate and the patch path — so the GM\'s own moves are never stopped; a player\'s door request takes a wall\'s door or a barrier\'s, each flag only as true; a player\'s app keeps the flag only as true; nothing strips it from a shown piece on its way out, and a hidden piece is not sent',
             (src.match(/window\.wpFog\.moveBlocked\(/g) || []).length === 2 && /if \(wlM !== 'off' && window\.wpFog && window\.wpFog\.moveBlocked && window\.wpFog\.moveBlocked\(map, w, frW\.x, frW\.y, seatX, seatY\)\) \{/.test(src)
             && /if \(moveMode\(camp, 'walls'\) === 'refuse' && window\.wpFog && window\.wpFog\.moveBlocked && window\.wpFog\.moveBlocked\(map, w, fx, fy, tx, ty\)\) return 'A wall is in the way: your token goes back\.';/.test(src)

@@ -2837,7 +2837,14 @@ window.wpFitToGrid = fitToGrid;
       return ddx*ddx + ddy*ddy;
   }
 
-  var lastErasePt = null;
+  // [netcheck:erasehold-start]
+  // 49 (c) (the owner, by prompt, 2026-10-06: "Lock it for its player"): a drawing of the player's own that the GM made a wall or a
+  // see-through barrier is no longer theirs to erase — fogcore strokeHeld, the host's own rule (net.js keeps such a drawing whatever a
+  // copy of the map says, and sends the map back). On the GM's machine the eraser takes any line, as ever. The words are fixed
+  function eraseHeld(item, asClient) { var FC = window.wpFogCore; return !!(asClient && FC && typeof FC.strokeHeld === 'function' && FC.strokeHeld(item)); }
+  function eraseHeldWords(item) { return 'Your GM made that line a ' + (item && item.blocksSight ? 'wall' : 'barrier') + '. It stays until they hand it back.'; }
+  // [netcheck:erasehold-end]
+  var lastErasePt = null, _heldSaid = false;   // 49 (c): the notice is said once a stroke of the eraser
 
   function eraseAt(clientX, clientY) {
       var box = wbWrap.getBoundingClientRect();
@@ -2866,6 +2873,7 @@ window.wpFitToGrid = fitToGrid;
       var changed = false;
       var out = [];
       var eraserClient = window.wpNet && window.wpNet.active && window.wpNet.role === 'client';
+      var heldHit = null;   // 49 (c): a line of theirs the GM made a wall or a barrier, touched by this pass and kept
       m.whiteboard.forEach(function(item) {
           var isRegion = (item.type === 'path' && item.tip === 'fill');
           if ((item.fill || isRegion) && !item.locked) {   // a fill cell OR a freeform fill region erases as a whole item
@@ -2908,7 +2916,7 @@ window.wpFitToGrid = fitToGrid;
           var abs = item.pts.map(function(p) { return [item.x + p[0] * sx, item.y + p[1] * sy]; });
           if (abs.length === 1) {
               var ddx = x - abs[0][0], ddy = y - abs[0][1];
-              if (ddx*ddx + ddy*ddy <= reachSq) { changed = true; return; }
+              if (ddx*ddx + ddy*ddy <= reachSq) { if (eraseHeld(item, eraserClient)) { heldHit = item; out.push(item); return; } changed = true; return; }
               out.push(item); return;
           }
           var cut = [];
@@ -2918,6 +2926,7 @@ window.wpFitToGrid = fitToGrid;
               if (cut[i]) any = true;
           }
           if (!any) { out.push(item); return; }
+          if (eraseHeld(item, eraserClient)) { heldHit = item; out.push(item); return; }   // 49 (c): touched, and kept whole
           changed = true;
           // Runs of consecutive intact segments become the surviving pieces
           var run = [];
@@ -2963,6 +2972,7 @@ window.wpFitToGrid = fitToGrid;
           }
           flush();
       });
+      if (heldHit && !_heldSaid) { _heldSaid = true; toast(eraseHeldWords(heldHit)); }
       if (changed) {
           m.whiteboard = out;
           if (state.selWbId && !out.some(function(i) { return i.id === state.selWbId; })) { state.selWbId = null; state.selWbIds = []; }
@@ -2986,7 +2996,7 @@ window.wpFitToGrid = fitToGrid;
       });
   }
   document.addEventListener('pointerup', function() {
-      isErasing = false; lastErasePt = null; if (_eraserCursor) _eraserCursor.classList.remove('pressed');
+      isErasing = false; lastErasePt = null; _heldSaid = false; if (_eraserCursor) _eraserCursor.classList.remove('pressed');
       if (_erasedAny && window.wpNet && window.wpNet.active && window.wpNet.role === 'client') save(true);   // fold M8: a player's erasing goes to the host at once
       _erasedAny = false;
   });

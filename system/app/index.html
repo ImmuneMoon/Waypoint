@@ -267,8 +267,25 @@
                   <div class="help-pane" data-pane="tutorial" style="display:none;">
                       <h4>Interactive tutorial</h4>
                       <p id="tourState"></p>
-                      <p>The tour is a guided walkthrough over the real app, in short steps grouped into <b>sections</b> you can jump between. Each step says what a thing is and the few things you do with it. <b>More in Help</b> under a card puts the card away and opens the part of Help that holds the rest. While a card is up the rest of the app is held still, so a stray click cannot undo what the step set up. Press <b>Try it yourself</b> to put the card away and use the app. The <b>Resume tour</b> chip at the bottom of the screen brings the same step back, set up again as it was. Drag a card by its heading to move it. Every card shows its section, how far through that part you are, and a <b>&#9662;</b> menu to skip to another. <kbd>Esc</kbd> asks before it ends the tour. A tour ended part-way keeps its place: <b>Resume</b> here picks it up at that step.</p>
-                      <p>On a fresh Waypoint the tour starts by itself once you leave the welcome screen with <b>Start a campaign</b> or <b>Enter Waypoint</b>, before you have made anything. The Tutorial campaign is then your first campaign unless you skip the tour. The prompt that names a campaign of your own comes when the tour ends or you skip it. A save that already holds something never sees the tour start by itself, and neither does a table you join.</p>
+                      <ul>
+                          <li>The tour is a guided walkthrough over the real app, in short steps grouped into <b>sections</b> you can jump between. Each step says what a thing is and the few things you do with it.
+                              <ul>
+                                  <li><b>More in Help</b> under a card puts the card away and opens the part of Help that holds the rest.</li>
+                                  <li>While a card is up the rest of the app is held still, so a stray click cannot undo what the step set up.</li>
+                                  <li>Press <b>Try it yourself</b> to put the card away and use the app. The <b>Resume tour</b> chip at the bottom of the screen brings the same step back, set up again as it was.</li>
+                                  <li>Drag a card by its heading to move it.</li>
+                                  <li>Every card shows its section, how far through that part you are, and a <b>&#9662;</b> menu to skip to another.</li>
+                                  <li><kbd>Esc</kbd> asks before it ends the tour. A tour ended part-way keeps its place: <b>Resume</b> here picks it up at that step.</li>
+                              </ul>
+                          </li>
+                          <li>On a fresh Waypoint the tour starts by itself once you leave the welcome screen with <b>Start a campaign</b> or <b>Enter Waypoint</b>, before you have made anything.
+                              <ul>
+                                  <li>The Tutorial campaign is then your first campaign unless you skip the tour.</li>
+                                  <li>The prompt that names a campaign of your own comes when the tour ends or you skip it.</li>
+                                  <li>A save that already holds something never sees the tour start by itself, and neither does a table you join.</li>
+                              </ul>
+                          </li>
+                      </ul>
                       <div style="display:flex; gap:8px; flex-wrap:wrap; margin:10px 0;">
                           <button class="tool gm-only" id="tourStartBtn">&#9654; Start the tutorial</button>
                           <button class="tool gm-only" id="tourResumeBtn" style="display:none;">&#9654; Resume the tutorial</button>

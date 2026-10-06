@@ -634,14 +634,16 @@
                       </ol>
                       <h4>Radius</h4>
                       <ul>
-                          <li>The <b>Radius</b> tool places a circle on the map to measure with. Press the small arrow beside it, type a size, and click a cell. Every token inside the circle lights up with its distance from the centre.
+                          <li>The <b>Radius</b> tool places a circle, a ring or a cone on the map to measure with. Press the small arrow beside it, pick a shape, type a size, and click a cell. Every token inside lights up with its distance from the centre.
                               <ul>
-                                  <li><b>Radius</b> reads your number from the centre to the edge. <b>Diameter</b> reads it from edge to edge.</li>
+                                  <li>For a circle, <b>Radius</b> reads your number from the centre to the edge. <b>Diameter</b> reads it from edge to edge.</li>
+                                  <li><b>Ring</b> takes two distances. The tokens between the two are inside, and the ones nearer than the first are not.</li>
+                                  <li><b>Cone</b> is a wedge from a point, with an angle you set in degrees. Press a cell and drag to aim it. Drag the handle on its far edge to turn it later. A token standing on the point is not counted.</li>
                                   <li>The size is in the ruler&rsquo;s unit on that map, so 20 on a map in feet is 20 feet. The distances read in that unit too.</li>
                                   <li>Distance is hex distance. With <b>Token elevation</b> on it is straight-line, height included: <code>&radic;(h&sup2; + v&sup2;)</code>.</li>
-                                  <li>It is measured from the circle&rsquo;s own height. That is the height of the token in its cell, else of the ground, and you can edit it in the tool&rsquo;s options.</li>
-                                  <li>Drag a circle to move it. It re-seats in a cell and, unless you set its height, takes the height of whoever stands there. Right-click it to remove it.</li>
-                                  <li>Circles are yours alone, like rulers. Everyone at the table has the tool, and nobody else sees your circles.</li>
+                                  <li>It is measured from the shape&rsquo;s own height. That is the height of the token in its cell, else of the ground, and you can edit it in the tool&rsquo;s options.</li>
+                                  <li>Drag a shape to move it. It re-seats in a cell and, unless you set its height, takes the height of whoever stands there. Right-click it to remove it.</li>
+                                  <li>What you place is yours alone, like a ruler. Everyone at the table has the tool, and nobody else sees your shapes.</li>
                                   <li>The tool only measures. A blast with damage is thrown from a character&rsquo;s sheet.</li>
                               </ul>
                           </li>
@@ -2121,29 +2123,38 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
           </div>
 
           <div class="tool-pair" style="position:relative;">
-              <button class="wb-tool-btn" id="blastModeBtn" title="Radius. Click a cell to place a circle. Every token inside shows its distance. Drag a circle to move it, right-click to remove it. Press again to put the tool away."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM12 12l5.6-5.6M12 12h.01"/></svg></button><button class="wb-tool-btn tool-chev" id="blastOptBtn" title="Radius options" aria-haspopup="true"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9.5l6 6 6-6"/></svg></button>
+              <button class="wb-tool-btn" id="blastModeBtn" title="Radius. Click a cell to place a circle, a ring or a cone. Every token inside shows its distance. Drag a shape to move it, right-click to remove it. Press again to put the tool away."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM12 12l5.6-5.6M12 12h.01"/></svg></button><button class="wb-tool-btn tool-chev" id="blastOptBtn" title="Radius options" aria-haspopup="true"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9.5l6 6 6-6"/></svg></button>
               <div class="shape-menu draw-menu" id="blastMenu">
-                  <div class="draw-menu-label">Circle size</div>
+                  <div class="draw-menu-label">Shape</div>
+                  <div class="draw-menu-row" id="blastShapeRow">
+                      <button class="draw-style-btn active" data-shape="circle" title="A circle. Every token inside shows its distance."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM12 12l5.6-5.6M12 12h.01"/></svg> Circle</button>
+                      <button class="draw-style-btn" data-shape="ring" title="A ring. The tokens between an inner and an outer distance are inside."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zM12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z"/></svg> Ring</button>
+                      <button class="draw-style-btn" data-shape="cone" title="A wedge from a point, with an angle you set. Press a cell and drag to aim it."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18L15.5 4.2a18 18 0 0 1 6.4 12.2L4 18z"/></svg> Cone</button>
+                  </div>
+                  <div class="draw-menu-row" id="blastShapeNote" style="font-size:11px; color:var(--dim); max-width:210px; line-height:1.4;">A circle. Every token inside shows its distance.</div>
+                  <div class="draw-menu-label">Size</div>
                   <div class="draw-menu-row">
-                      <input type="number" id="blastFt" min="0" step="any" aria-label="Circle size" style="width:70px; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;">
+                      <span class="draw-menu-row" id="blastInnerWrap" style="display:none;"><input type="number" id="blastInner" min="0" step="any" aria-label="Inner distance" style="width:70px; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;"><span style="font-size:11px; color:var(--dim);">to</span></span>
+                      <input type="number" id="blastFt" min="0" step="any" aria-label="Size" style="width:70px; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;">
                       <span id="blastUnit" style="font-size:11px; color:var(--dim);">yd</span>
+                      <span class="draw-menu-row" id="blastAngleWrap" style="display:none;"><input type="number" id="blastAngle" min="1" max="360" step="1" aria-label="Angle in degrees" style="width:56px; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;"><span style="font-size:11px; color:var(--dim);">&deg;</span></span>
                   </div>
                   <div class="draw-menu-row" id="blastAsRow">
                       <button class="draw-style-btn active" data-as="r" title="Your number is read from the centre to the edge"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM12 12l5.6-5.6M12 12h.01"/></svg> Radius</button>
                       <button class="draw-style-btn" data-as="d" title="Your number is read from edge to edge"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM4 12h16"/></svg> Diameter</button>
                   </div>
-                  <div class="draw-menu-row" style="font-size:11px; color:var(--dim); max-width:210px; line-height:1.4;">The size is in the ruler&rsquo;s unit on this map. Every token inside the circle shows its distance.</div>
+                  <div class="draw-menu-row" style="font-size:11px; color:var(--dim); max-width:210px; line-height:1.4;">The size is in the ruler&rsquo;s unit on this map.</div>
                   <div id="blastElevRow">
                       <div class="draw-menu-label">Height, in <span id="blastElevUnit">yd</span></div>
                       <div class="draw-menu-row">
                           <input type="number" id="blastElev" step="1" aria-label="Height" style="width:70px; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;">
                       </div>
-                      <div class="draw-menu-row" style="font-size:11px; color:var(--dim); max-width:210px; line-height:1.4;">The height of the last circle or blast placed. It starts at the height of the token in its cell, else the ground.</div>
+                      <div class="draw-menu-row" style="font-size:11px; color:var(--dim); max-width:210px; line-height:1.4;">The height of the last shape or blast placed. It starts at the height of the token in its cell, else the ground.</div>
                   </div>
                   <div class="draw-menu-row" id="blastFlatNote" style="font-size:11px; color:var(--dim);">Token elevation is off for this campaign (&#9881; Settings &#9656; VTT features): flat hex distance.</div>
                   <div class="draw-menu-row" id="blastWhich" style="font-size:11px; color:var(--dim);"></div>
                   <div class="draw-menu-row">
-                      <button class="draw-style-btn" id="blastClearBtn" title="Removes the circles you placed. The GM&rsquo;s press also removes thrown blasts, for everyone.">Clear circles</button>
+                      <button class="draw-style-btn" id="blastClearBtn" title="Removes the circles, rings and cones you placed. The GM&rsquo;s press also removes thrown blasts, for everyone.">Clear shapes</button>
                       <button class="draw-style-btn gm-only" id="blastUndoThrow" title="Undo the last thrown blast's damage (restores every token it hit)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4L4 9l5 5M4 9h10.5a5.5 5.5 0 0 1 0 11H9"/></svg> Undo last throw</button>
                   </div>
                   <div class="draw-menu-row gm-only" style="font-size:11px; color:var(--dim); max-width:210px; line-height:1.4;">The tool only measures. A blast with damage is thrown from a character&rsquo;s sheet.</div>

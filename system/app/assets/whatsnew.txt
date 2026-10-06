@@ -197,6 +197,10 @@ The play map
   in the ruler's unit, as a radius or as a diameter, and every token
   inside shows its distance. Circles are yours alone. A blast with
   damage is still thrown from a character's sheet.
+- The Radius tool also measures a ring and a cone. A ring holds the
+  tokens between two distances. A cone is a wedge from a point: set
+  its angle, press a cell and drag to aim it, and drag its handle to
+  turn it later.
 
 Fixes
 - The fog of war is lighter on a busy map. It read every character's

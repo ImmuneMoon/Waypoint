@@ -432,6 +432,7 @@
     /* The fog menu is the tallest tool menu (per-map + campaign-wide fog controls); cap it to the viewport and scroll
        inside so it never clips off the top of the screen on shorter displays. */
     #fogMenu { max-height: calc(100vh - 96px); overflow-y: auto; overflow-x: hidden; }
+    #blastMenu { max-height: calc(100vh - 96px); overflow-y: auto; overflow-x: hidden; }   /* the Radius tool's options are tall too */
     .draw-menu-label {
         font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
         color: var(--dim); text-align: left; padding: 0 2px;
@@ -806,10 +807,12 @@
   #measureLayer g.blast:hover circle.area { stroke: var(--gold); fill: rgba(224,165,79,0.14); }
   #measureLayer g.blast:hover circle.dot, #measureLayer g.blast:hover text { fill: var(--gold); }
   /* a circle of the Radius tool's own measures: it wears the ruler's gold, and a thrown blast keeps its red */
-  #measureLayer g.blast.own circle.area { fill: rgba(224,165,79,0.1); stroke: var(--gold); }
+  #measureLayer g.blast.own .area { fill: rgba(224,165,79,0.1); stroke: var(--gold); stroke-width: 2; stroke-dasharray: 6 4; }   /* a circle, or the path of a ring or a cone */
   #measureLayer g.blast.own circle.dot, #measureLayer g.blast.own text { fill: var(--gold); }
   #measureLayer g.blast.own text.hit { fill: var(--ink); }
-  #measureLayer g.blast.own:hover circle.area { fill: rgba(224,165,79,0.2); }
+  #measureLayer g.blast.own:hover .area { fill: rgba(224,165,79,0.2); }
+  #measureLayer g.blast circle.blast-aim { fill: var(--gold); stroke: var(--bg); stroke-width: 2; pointer-events: auto; cursor: grab; }   /* a cone's handle: drag it to turn the cone */
+  #measureLayer g.blast circle.blast-aim:hover { fill: var(--ink); }
   /* ---- inspector ---- */
   /* ---- sidebar ---- */
   #sidebar{

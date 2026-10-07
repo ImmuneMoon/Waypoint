@@ -899,6 +899,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         + "- A player's video chip and the Review button wear line drawings and\n  read as pills too.\n"
         + "- On the play map the left panel folds to a narrow rail, so the map\n  has more room. Press an icon of the rail to open the panel over the\n  map, or the pin to keep it open.\n"
         + "- The top row can be hidden: press the small arrow at its right end.\n  A tab at the top edge shows it again. The map tabs and the pills\n  stay, floating on the map.\n"
+        + "- The System editor has a key on its Fields, Rolls, Items and Lists\n  tabs. Press What the ticks mean to see what each tick of a row\n  does.\n"
         + "- Where the window is too narrow for the row, Sound, Music, Handouts,\n  Journal and Help move into More, so the row stays one line.\n"
         + "- Both menus work from the keyboard: the arrow keys, a letter for the\n  next row that begins with it, Enter, and Esc to close.\n"
         + "- The top bar's icons are redrawn as Waypoint's own drawings. Settings\n  wears a cog, and Music is still a note.\n"
@@ -1585,6 +1586,57 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         helpHide.length > 300 && helpHide.length < 1100 && helpHide.indexOf('<li><b>Hiding the row:</b> the small arrow at the right end of the top row hides it, so the map has the whole window.\n') === 0
         && ['<li>A small tab at the top edge shows the row again.</li>', '<li>The map tabs and the pills stay, floating on the map. So do Review, Update and an unread line of chat.</li>', '<li>The choice is yours alone, on this computer.</li>'].every(s => count(helpHide, s) === 1)
         && [rootRead('WHATSNEW.txt'), read('assets/whatsnew.txt')].every(t => count(t, "- The top row can be hidden: press the small arrow at its right end.\n  A tab at the top edge shows it again. The map tabs and the pills\n  stay, floating on the map.\n") === 1));
+}
+
+/* ---------- the System editor's keys (options that say what they do, the editor's rows) ---------- */
+// The owner, by prompt, of the editor's rows whose ticks said what they do only in tooltips: "A key at the top of each tab". syskey.js is
+// sliced by its markers and run for real on a page of plain objects.
+{
+    const kSrc = read('scripts/syskey.js'), kSlice = sliceOf(kSrc, 'syskey'), shSrc = read('scripts/sheets.js');
+    const sys = ix.slice(ix.indexOf('<div id="systemModal"'), ix.indexOf('<input type="file" id="sysImportFile"'));
+    // each key as the page has it: its tab, the control its button stands after, its box, and each tick it names with the words the row builder writes for that tick
+    const WANT = { fields: ['sysFields', 'sysKeyFields', 'sysFieldRows', [['Hover', "createTextNode(' Hover')"], ['Tile', "createTextNode(' Tile')"], ['Slider', "createTextNode(' Slider')"], ['Counter', "createTextNode(' Counter')"], ['Locked', "createTextNode('Locked: ')"],
+            ['&plusmn; colour', "createTextNode(' \\u00b1 colour')"], ['Badge', "createTextNode(' Badge')"], ['Bar', "createTextNode(' Bar')"], ['&#8635; Reset', "createTextNode(' \\u21bb Reset')"], ['Rich table', "createTextNode(' Rich table')"]]],
+        rolls: ['sysRolls', 'sysKeyRolls', 'sysRollRows', [['Initiative', "createTextNode(' Initiative')"], ['Damage', "createTextNode(' Damage')"]]],
+        items: ['sysItems', 'sysKeyItems', 'sysItemRows', [['per level', "createTextNode(' per level')"], ['Only while switched on', "createTextNode(' Only while switched on')"]]],
+        lists: ['sysLists', 'sysKeyLists', 'sysListRules', [['Same item more than once', "'Same item more than once'"], ['No quantity', "'No quantity'"], ['Custom rows', "'Custom rows'"], ['Rows have a level', "'Rows have a level'"], ['Rows have a switch', "'Rows have a switch'"],
+            ['Starts on', "'Starts on'"], ['On the row', "'On the row'"], ['Hidden', "'Hidden'"], ['Total', "'Total'"]]] };
+    const got = {}, bad = [];
+    Object.keys(WANT).forEach(k => { const w = WANT[k], re = new RegExp('<div id="' + w[0] + '" class="sys-tab"[^>]*>\\n(?:\\s*<div id="sysCombatBox"[^\\n]*\\n)?\\s*<div class="sys-toolbar">[^\\n]*<button class="tool ghost sys-key-btn" data-key="' + k + '" aria-expanded="false" aria-controls="' + w[1] + '" title="What each tick of a row on this tab does">What the ticks mean</button></div>\\n\\s*<div class="sys-key" id="' + w[1] + '" hidden>((?:<b>[^<]+</b><small>[^<]+</small>)+)</div>\\n\\s*<div id="' + w[2] + '"');
+        const m = re.exec(sys); if (!m) { bad.push(k + ': not as the page should have it'); return; }
+        got[k] = []; m[1].replace(/<b>([^<]+)<\/b><small>([^<]+)<\/small>/g, (x, n, line) => { got[k].push([n, line]); return x; });
+        if (J(got[k].map(r => r[0])) !== J(w[3].map(r => r[0]))) bad.push(k + ': names ' + J(got[k].map(r => r[0])));
+        w[3].forEach(r => { if (shSrc.indexOf(r[1]) < 0) bad.push(k + ': the editor has no tick ' + r[1]); });
+        got[k].forEach(r => { const t = r[1].replace(/&rsquo;/g, "'"); if (!/^[A-Z][^()—–;&]*\.$/.test(t) || t.length > 90 || / - /.test(t)) bad.push(k + ': line of ' + r[0] + ': ' + r[1]); }); });
+    const lines = Object.keys(got).reduce((n, k) => n + got[k].length, 0), tips = (sys.match(/ title="/g) || []).length;
+    check('the System editor\'s keys, as the page has them (the owner: "A key at the top of each tab"): the Fields, Rolls, Items and Lists tabs each have a button at the end of their toolbar, What the ticks mean, and right under the toolbar a key that is put away in the page; a key names each tick of its tab\'s rows by the very words the row wears, in the row\'s own order, with one grey line each, twenty-three lines in all: ten for a field, two for a roll, two for an item and nine for a list; every line is plain words, with no bracket, dash or semicolon, ends in a full stop and is 90 characters at most; the rows are as they were, and the editor\'s page holds the tooltips it held and the four of the buttons; the module is loaded after the row\'s own',
+        bad.length === 0 && lines === 23 && J(Object.keys(got).map(k => got[k].length)) === J([10, 2, 2, 9]) && count(sys, 'class="tool ghost sys-key-btn"') === 4 && count(sys, 'class="sys-key"') === 4 && ['sysAddField', 'sysAddRoll', 'sysAddItem', 'sysOpenLibrary', 'sysAddEffect', 'sysAddChar'].every(id => count(ix, ' id="' + id + '"') === 1)
+        && tips === 36 && count(ix, '<script type="module" src="scripts/rowhide.js"></script>\n<script type="module" src="scripts/syskey.js"></script>\n') === 1, J([bad, lines, tips]));
+    const load = () => { try { return new Function(kSlice + '\nreturn { KEYS: KEYS, keysRead: keysRead, keysKeep: keysKeep, keyPress: keyPress, keysApply: keysApply };')(); } catch (e) { return { err: String(e) }; } };
+    const T = load(); let err = T.err || '', kept = '', did = '';
+    if (!err) try {
+        const mkS = v => { const log = []; return { log, getItem: k => { log.push('get ' + k); if (v === 'throw') throw new Error('x'); return v; }, setItem: (k, x) => { if (v === 'throw') throw new Error('x'); log.push('set ' + k + '=' + x); } }; };
+        const s1 = mkS('{"fields":1,"rolls":0,"items":true,"lists":"1","other":1,"__proto__":{"rolls":1}}'), s2 = mkS(null);
+        kept = J([T.keysRead(s1), s1.log, T.keysRead(s2), T.keysRead(mkS('[1]')), T.keysRead(mkS('"fields"')), T.keysRead(mkS('null')), T.keysRead(mkS('not json')), T.keysRead(mkS('throw')),
+            T.keysKeep(s2, { fields: 1, rolls: 0, lists: true, other: 1, items: 1 }), T.keysKeep(s2, null), s2.log.slice(1), T.keysKeep(mkS('throw'), { fields: 1 }), J(T.KEYS)]);
+        const o0 = { fields: 1 }, p1 = T.keyPress(o0, 'rolls'), p2 = T.keyPress(p1, 'fields'), p3 = T.keyPress(p2, 'other'), p4 = T.keyPress(null, 'lists'), p5 = T.keyPress({ fields: true, rolls: 1, x: 1 }, 'toString'), p6 = T.keyPress(p2, '__proto__');
+        const mk = k => ({ k, attrs: { 'aria-controls': 'box_' + k }, getAttribute(a) { return this.attrs[a]; }, setAttribute(a, v) { this.attrs[a] = String(v); } }), btns = { fields: mk('fields'), rolls: mk('rolls'), lists: mk('lists') }, boxes = { box_fields: { hidden: true }, box_rolls: { hidden: true } };   // a page without the Items key, and a Lists button whose box is gone
+        const doc = { querySelector: q => { const m = /^\.sys-key-btn\[data-key="([a-z]+)"\]$/.exec(q); return m && btns[m[1]] ? btns[m[1]] : null; }, getElementById: id => boxes[id] || null };
+        const see = () => Object.keys(boxes).map(b => boxes[b].hidden).join(',') + '|' + Object.keys(btns).map(b => btns[b].attrs['aria-expanded'] || '-').join(',');
+        const a1 = T.keysApply(doc, { fields: 1, lists: 1, items: 1 }), v1 = see(), a2 = T.keysApply(doc, { rolls: 1, fields: true }), v2 = see(), a3 = T.keysApply(doc, null), v3 = see();
+        did = J([p1, p2, p3, p4, p5, p6, J(o0), p3 !== p2, a1, v1, a2, v2, a3, v3]);
+    } catch (e) { err = String(e && e.stack || e); }
+    check('which keys are open is this computer\'s own (keysRead, keysKeep, run for real): read from wp_sysKeys as the keys of the list that hold a 1 there, and nothing else the store names, a name a prototype holds least of all; a store that holds no object, no JSON or throws reads as no key open; kept as those keys alone, and a store that throws keeps nothing',
+        !err && kept === J([{ fields: 1 }, ['get wp_sysKeys'], {}, {}, {}, {}, {}, {}, true, true, ['set wp_sysKeys={"fields":1,"items":1}', 'set wp_sysKeys={}'], false, J(['fields', 'rolls', 'items', 'lists'])]), err || kept);
+    check('a press on a key\'s button and the keys written to the page (keyPress, keysApply, run for real): a press turns that key the other way and leaves the others, a name that is no key changes nothing, the state handed in is never changed and only a 1 counts as open; written, a key shows or is put away and its button says which to a screen reader; a page that lacks a key or its box draws the others',
+        !err && did === J([{ fields: 1, rolls: 1 }, { rolls: 1 }, { rolls: 1 }, { lists: 1 }, { rolls: 1 }, { rolls: 1 }, J({ fields: 1 }), true, 1, 'false,true|true,false,-', 1, 'true,false|false,true,-', 0, 'true,true|false,false,-']), err || did);
+    const helpKey = '<li><b>What the ticks mean:</b> the Fields, Rolls, Items and Lists tabs of the System editor each have a key. Press <b>What the ticks mean</b> at the top of the tab. It names each tick of a row with one line, and stays open until you close it.</li>\n';
+    check('the keys\' wiring, look and words: one listener on the System editor for a press on a key\'s button, which turns the key, keeps the choice and writes it, and the kept keys are written at the start; the module writes no markup; the button stands at the end of its toolbar, so the column heads of the Fields tab stay over their columns, a key is a grid of a name and its line, and a key that is put away is not drawn; Help says where the keys are and what they do, right after the entry on opening the editor, and both release notes say it',
+        kSlice.length > 900 && !/innerHTML|insertAdjacentHTML|outerHTML|document\.write/.test(kSrc) && !/[^\x00-\x7f]/.test(kSrc)
+        && kSrc.includes("        var b = e.target && e.target.closest ? e.target.closest('.sys-key-btn') : null; if (!b) return;\n        open = keyPress(open, b.getAttribute('data-key')); keysKeep(localStorage, open); keysApply(document, open);\n    });\n    keysApply(document, open);")
+        && kSrc.includes("var open = keysRead(localStorage);") && css.includes('\n  .sys-key-btn { margin-left: auto; white-space: nowrap; flex: none; }\n  .sys-key { display: grid; grid-template-columns: max-content 1fr;') && css.includes('\n  .sys-key[hidden] { display: none; }\n')
+        && count(ix, helpKey) === 1 && /System<\/b>, to write the rules of the campaign on screen, with no code\.[^\n]*<\/li>\n\s*<li><b>What the ticks mean:<\/b>/.test(ix)
+        && [rootRead('WHATSNEW.txt'), read('assets/whatsnew.txt')].every(t => count(t, "- The System editor has a key on its Fields, Rolls, Items and Lists\n  tabs. Press What the ticks mean to see what each tick of a row\n  does.\n") === 1));
 }
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');

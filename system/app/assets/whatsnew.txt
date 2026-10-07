@@ -267,6 +267,9 @@ The top bar and the data map
 - The top row can be hidden: press the small arrow at its right end.
   A tab at the top edge shows it again. The map tabs and the pills
   stay, floating on the map.
+- The System editor has a key on its Fields, Rolls, Items and Lists
+  tabs. Press What the ticks mean to see what each tick of a row
+  does.
 - Where the window is too narrow for the row, Sound, Music, Handouts,
   Journal and Help move into More, so the row stays one line.
 - Both menus work from the keyboard: the arrow keys, a letter for the

@@ -1905,7 +1905,7 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
       var row = document.getElementById('exportItemBtn');
       if (!row) return;
       row.style.display = it ? '' : 'none';
-      if (it) row.innerHTML = '&#128190; Export This ' + (it.type === 'planner' ? 'Planner' : it.type === 'doc' ? 'Page' : 'Map');
+      var rowName = row.querySelector('span'); if (it && rowName) rowName.textContent = 'Export This ' + (it.type === 'planner' ? 'Planner' : it.type === 'doc' ? 'Page' : 'Map');   // the row keeps its drawing: only its words change
   });
 
   

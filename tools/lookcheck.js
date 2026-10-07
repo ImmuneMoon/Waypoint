@@ -537,8 +537,8 @@ function runPress(P, win) {
     const read = open => (kidsOf(ix, open) || []).map(k => { const m = ROW.exec(k.text); return m ? [m[1], m[4], m[5] || '', m[2]] : k.text === '<div class="menu-rule"></div>' ? '-' : /^<div class="menu-block" title="[^"]+">/.test(k.text) ? 'block' : '?' + k.text.slice(0, 60); });
     const off = MENUS_BY_NAME.filter(m => J(read(m[0])) !== J(m[1])).map(m => [/id="([A-Za-z]+)"/.exec(m[0])[1], read(m[0])]);
     const noIcon = MENUS_BY_NAME.reduce((a, m) => a.concat((kidsOf(ix, m[0]) || []).filter(k => ROW.test(k.text) && !ROW.exec(k.text)[3] && ROW.exec(k.text)[1] !== 'gridOffBtn').map(k => k.ids[0])), []);
-    check('a toolbar menu lists each choice by its name (the owner: "the options need to be more obvious for what something does"): Grid, Shapes, Add, Scene and More each read as a list of rows in their order, a row its icon, its name, and a grey line where the name is not enough; every row keeps its id and the tooltip it had; Shapes keeps New shape size and New item opacity under its rows',
-        off.length === 0 && noIcon.length === 0 && count(ix, 'class="wb-tool-btn menu-row') === 19, J([off, noIcon]));
+    check('a toolbar menu lists each choice by its name (the owner: "the options need to be more obvious for what something does"): Grid, Shapes, Add, Scene and More each read as a list of rows in their order, a row its icon, its name, and a grey line where the name is not enough; every row keeps its id and the tooltip it had; Shapes keeps New shape size and New item opacity under its rows; with the four line types of the data map\'s Link menu the page holds twenty-three such rows',
+        off.length === 0 && noIcon.length === 0 && count(ix, 'class="wb-tool-btn menu-row') === 23, J([off, noIcon]));
     const sm = kidsOf(ix, '<div class="shape-menu menu-list" id="shapeMenu">') || [], blocks = sm.filter(k => /^<div class="menu-block"/.test(k.text)).map(k => k.text);
     check('Shapes keeps its two settings as they were, under its rows: New shape size with Free and Grid cell, and New item opacity with its slider and the figure beside its name; and Snap To says what each choice does in plain sentences',
         blocks.length === 2 && blocks[0].includes('<div class="draw-menu-label">New shape size</div>') && count(blocks[0], 'class="draw-style-btn shape-size-btn') === 2 && blocks[0].indexOf('data-shapesize="free"') < blocks[0].indexOf('data-shapesize="cell"')
@@ -706,6 +706,65 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         && css.includes('body.stream-mode #dataFloatingToolbar, body.stream-mode #zoomBox,') && mainSrc.includes("      document.getElementById('zoomBox').style.display = isPlanner ? 'none' : 'flex';\n"), J([count(css, HIDE), count(css, 'no-zoomctl'), count(css, 'no-pointerpos')]));
 }
 
+/* ---------- the data map's toolbar: the same line icons, and its Link menu by name ---------- */
+// Backlog 130. The owner, by prompt, 2026-10-06: "The data map's own toolbar still wears picture icons. Should it take the line icons too?" =
+// "Yes, the same icons (Recommended)". Its new drawings, Link Mode and one for each line type, were on the sheet the owner passed on
+// 2026-10-07 with "Use these drawings (Recommended)". A tool that is the same on both maps wears ONE drawing, so the data map's is read here
+// against the play map's control. Under the rule that nothing is removed, the data map's controls are an inventory of their own from now on
+{
+    const DATA_INVENTORY = ['dataFloatingToolbar', 'dataCenterBtn', 'dataCenterMenu', 'dataCenterCanvasBtn', 'dataCenterItemsBtn', 'dataFitBtn', 'dataUndoBtn', 'dataRedoBtn', 'dataMoveBtn', 'dataPanBtn', 'linkBtn', 'linkMenu', 'linkTypeRow', 'linkDoneBtn',
+        'addBtn', 'snapBtn', 'dataClearBtn'];
+    const DATA_OPEN = '<div id="dataFloatingToolbar" class="floating-toolbar">', a = ix.indexOf(DATA_OPEN), z = ix.indexOf('<div id="wbFloatingToolbar"'), dbar = a > 0 && z > a ? ix.slice(a, z) : '';
+    const gone = DATA_INVENTORY.filter(id => count(ix, ' id="' + id + '"') !== 1 || count(dbar, ' id="' + id + '"') !== 1);
+    const types = (dbar.match(/<button[^>]* data-type="([^"]*)"/g) || []).map(m => m.slice(m.lastIndexOf('="') + 2, -1));
+    const order = (kidsOf(ix, DATA_OPEN) || []).map(k => k.open === '<div class="wb-tool-sep">' ? '|' : (k.ids[0] || '?'));
+    check('nothing is removed on the data map either: each of the seventeen controls of its toolbar, its centre menu and its Link menu is in the page exactly once and inside the toolbar, the bar in the order it had (centre, undo and redo, then select, pan and Link Mode, then Add Room and snap, then Clear the board), and the Link menu holds its four line types in their order, the line that says how linking works and Done linking',
+        dbar.length > 2000 && gone.length === 0 && DATA_INVENTORY.length === 17 && new Set(DATA_INVENTORY).size === 17 && J(types) === J(['', 'route', 'secret', 'oneway'])
+        && J(order) === J(['dataCenterBtn', 'dataUndoBtn', 'dataRedoBtn', '|', 'dataMoveBtn', 'dataPanBtn', 'linkBtn', '|', 'addBtn', 'snapBtn', '|', 'dataClearBtn'])
+        && count(dbar, '<div class="draw-menu-row" style="font-size:11px; color:var(--dim); line-height:1.4;">Click two rooms to connect them. Click the chip on any line to change its type or remove it.</div>') === 1
+        && count(dbar, '<div class="draw-menu-row"><button class="draw-style-btn" id="linkDoneBtn" title="Back to the Select tool">Done linking</button></div>') === 1
+        && ['dataCenterCanvasBtn', 'dataCenterItemsBtn', 'dataFitBtn'].every(id => new RegExp(' id="' + id + '"[^>]*>(Center on Canvas|Center on Items|Fit to Content)</button>').test(dbar)), J([gone, types, order]));
+    // a control's whole inner text, found once in the data map's toolbar
+    const dIn = how => { const at = dbar.indexOf(how); if (at < 0 || dbar.indexOf(how, at + 1) >= 0) return null; const gt = dbar.indexOf('>', at), end = dbar.indexOf('</button>', gt); return gt < 0 || end < 0 ? null : dbar.slice(gt + 1, end); };
+    const LINK = '<path d="M3 4h6v6H3zM15 14h6v6h-6zM9 10l6 4"/>';   // Link Mode: two rooms joined by a line
+    const SAME = [['dataCenterBtn', 'wbCenterBtn'], ['dataUndoBtn', 'wbUndoBtn'], ['dataRedoBtn', 'wbRedoBtn'], ['dataMoveBtn', 'moveModeBtn'], ['dataPanBtn', 'panModeBtn'], ['addBtn', 'addMenuBtn'], ['snapBtn', 'wbSnapBtn'], ['dataClearBtn', 'clearWbBtn']];
+    const notSame = SAME.filter(p => typeof draw(p[1]) !== 'string' || dIn('id="' + p[0] + '"') !== SVG + draw(p[1]) + '</svg>').map(p => p[0]);
+    const h0 = ix.indexOf('id="helpModal"'), h1 = ix.indexOf('<div class="layout-wrapper">', h0), pageOnly = h0 < 0 || h1 < h0 ? '' : ix.slice(0, h0) + ix.slice(h1);
+    check('the data map\'s tools wear line icons (the owner: "Yes, the same icons"): each of the nine buttons of its bar is an icon alone, and eight are the very drawing the same tool wears on the play map, read from the play map\'s control: the centre mark, undo, redo, the arrow, the hand, the plus, the magnet and the bin; Link Mode wears the drawing the owner passed on the sheet, two rooms joined by a line, and no other control does; the toolbar holds thirteen drawings and no picture glyph; the bin is still red, and the tool in hand is gold by the bar\'s own rule',
+        notSame.length === 0 && SAME.length === 8 && dIn('id="linkBtn"') === SVG + LINK + '</svg>' && count(pageOnly, LINK) === 1 && !/&#\d+;/.test(dbar) && count(dbar, '<svg class="ico') === 13
+        && / id="dataClearBtn" title="Clear the board \(remove every room and link\)" style="color:var\(--red\);">/.test(dbar) && / class="wb-tool-btn active" id="dataMoveBtn"/.test(dbar) && css.includes('    #linkBtn.active { background: var(--gold); color: var(--bg); }'), J(notSame));
+    const LROW = /^<button class="wb-tool-btn menu-row" data-type="([a-z]*)" title="([^"]*)"><span class="mr-ico"><svg class="ico( ico-dots)?" viewBox="0 0 24 24" aria-hidden="true">(<path d="[MmLlHhVvAaCcSsZz0-9 .,-]+"\/>)<\/svg><\/span><span class="mr-txt">([^<]+)<small>([^<]+)<\/small><\/span><\/button>$/;
+    const lrows = (kidsOf(ix, '<div id="linkTypeRow">') || []).map(k => { const m = LROW.exec(k.text); return m ? [m[1], m[5], m[6], m[2], m[4], !!m[3]] : '?' + k.text.slice(0, 60); });
+    check('the Link menu lists the four line types by name, as the play map\'s menus do: a row each with its drawing, its name and a grey line that says what it is, the tooltip it had, and the drawing the owner passed for it: a line for Path, a dashed line for Route, four dots drawn as dots for Secret and a line with an arrowhead for One-way; the rows stand one under the other, in a menu wide enough for a grey line to stand on one row',
+        J(lrows) === J([['', 'Path', 'A plain connection.', 'A plain connection', '<path d="M4 12h16"/>', false], ['route', 'Route', 'Travel between places, not a doorway.', 'Dashed: travel between places, not a doorway', '<path d="M4 12h3.2M10.4 12h3.2M16.8 12H20"/>', false],
+            ['secret', 'Secret', 'A hidden or secret way.', 'Dotted: a hidden or secret way', '<path d="M5 12h.01M9.7 12h.01M14.3 12h.01M19 12h.01"/>', true],
+            ['oneway', 'One-way', 'An arrow from the first room you click to the second.', 'An arrow from the first room you click to the second', '<path d="M4 12h15M14.5 7.5L19 12l-4.5 4.5"/>', false]])
+        && css.includes('\n    #linkTypeRow { display: flex; flex-direction: column; gap: 2px; }') && css.includes('\n    #linkMenu { min-width: 280px; }') && count(ix, 'class="draw-style-btn" data-type=') === 0, J(lrows));
+    // The menu's own code, sliced from datamap.js and run for real on rows of plain objects
+    const dmSrc = read('scripts/datamap.js'), lt = sliceOf(dmSrc, 'linktype');
+    const world = (kept, deadStore) => { const rows = ['', 'route', 'secret', 'oneway'].map(t => { const cls = new Set(); return { dataset: { type: t }, cls, classList: { toggle: (c, on) => { if (on) cls.add(c); else cls.delete(c); } } }; });
+        const store = {}, asked = [], state = { linkType: kept }, TYPES = { '': { label: 'Path' }, route: { label: 'Route' }, secret: { label: 'Secret' }, oneway: { label: 'One-way' } };
+        const api = new Function('document', 'state', 'LINK_TYPES', 'localStorage', lt + '\nreturn { syncLinkMenu: syncLinkMenu, setLinkType: setLinkType };')({ querySelectorAll: sel => { asked.push(sel); return rows; } }, state, TYPES,
+            { setItem: (k, v) => { if (deadStore) throw new Error('no storage'); store[k] = v; } });
+        return { api, store, asked, state, on: () => rows.filter(r => r.cls.has('on')).map(r => r.dataset.type), all: () => rows.reduce((n, r) => n + r.cls.size, 0) }; };
+    let ran = false, got = [];
+    if (lt) { try {
+        const w = world('');
+        w.api.syncLinkMenu(); got.push(J(w.on()) === '[""]' && J(w.asked) === J(['#linkTypeRow [data-type]']));                                       // nothing picked yet: Path is the type in use
+        w.api.setLinkType('secret'); got.push(w.state.linkType === 'secret' && w.store.wp_linkType === 'secret' && J(w.on()) === '["secret"]' && w.all() === 1);   // one row is on, by the class on and no other
+        w.api.setLinkType('oneway'); w.api.setLinkType('route'); got.push(w.state.linkType === 'route' && w.store.wp_linkType === 'route' && J(w.on()) === '["route"]');
+        w.api.setLinkType(''); got.push(w.state.linkType === '' && w.store.wp_linkType === '' && J(w.on()) === '[""]');
+        got.push(['bridge', 'constructor', 'toString', '__proto__', 'hasOwnProperty', undefined, null, 7].every(t => { w.api.setLinkType('route'); w.api.setLinkType(t); return w.state.linkType === '' && J(w.on()) === '[""]'; }));   // a type the app does not have, or a name the list only inherits, is Path
+        const k = world('oneway'); k.api.syncLinkMenu(); got.push(J(k.on()) === '["oneway"]');                                                        // the type kept on this computer is the row that is on
+        const d = world('', true); d.api.setLinkType('secret'); got.push(d.state.linkType === 'secret' && J(d.on()) === '["secret"]');               // a computer that keeps nothing still switches
+        ran = true;
+    } catch (e) { got.push('threw: ' + e.message); } }
+    check('the Link menu\'s own code, run for real: the row of the type new links take is on, by the class on alone, as in every menu written by name; picking a type sets it, keeps it on this computer and moves the mark; a type the app does not have, or a name the list only inherits, is the plain Path; the kept type is the row that is on when the menu is drawn, and a computer that keeps nothing still switches; the rows are wired by their type and the kept type is read by the same rule',
+        lt.length > 300 && ran && got.length === 7 && got.every(v => v === true)
+        && count(dmSrc, "  document.querySelectorAll('#linkTypeRow [data-type]').forEach(function(b) { b.addEventListener('click', function(e) { e.stopPropagation(); setLinkType(this.dataset.type || ''); }); });") === 1
+        && count(dmSrc, "if (_lt0 && Object.prototype.hasOwnProperty.call(LINK_TYPES, _lt0)) state.linkType = _lt0;") === 1 && !/#linkTypeRow \.draw-style-btn/.test(dmSrc), J(got));
+}
+
 /* ---------- Help and the tour show a tool's own drawing beside its name ---------- */
 // Backlog 129. The owner, by prompt, 2026-10-06: "Help still shows the old picture icons beside tool names, in 56 places. What should Help
 // show?" = "The new drawings (Recommended)": each tool's name in Help gets the same line icon the toolbar wears. So every drawing in Help
@@ -718,7 +777,8 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
     const of = how => { const at = page.indexOf(how); if (at < 0 || page.indexOf(how, at + 1) >= 0) return '?'; const gt = page.indexOf('>', at), end = page.indexOf('</button>', gt), m = page.slice(gt + 1, end).match(ICO_ALL); return m ? m[0] : '?'; };   // a control's own drawing, as the page writes it
     const K = { image: of('id="addImageBtn"'), lib: of('id="imgLibBtn"'), sound: of('id="soundBtn"'), music: of('id="musicBtn"'), scene: of('id="sceneFxBtn"'), video: of('id="videoBtn"'), fx: of('id="fxBtn"'), pen: of('id="drawModeBtn"'),
         eraser: of('id="eraserModeBtn"'), fill: of('id="fillModeBtn"'), view: of('id="wbCenterBtn"'), trigger: of('id="shapeTriggerBtn"'), importChar: of('id="importCharBtn"'), fog: of('id="fogModeBtn"'), measure: of('id="measureModeBtn"'),
-        fogAll: of('id="fogOnAllMaps"'), reveal: of('data-fbrush="reveal"'), hide: of('data-fbrush="hide"'), clear: of('data-fbrush="clear"'), snap: of('id="wbSnapBtn"') };
+        fogAll: of('id="fogOnAllMaps"'), reveal: of('data-fbrush="reveal"'), hide: of('data-fbrush="hide"'), clear: of('data-fbrush="clear"'), snap: of('id="wbSnapBtn"'),
+        dMove: of('id="dataMoveBtn"'), dPan: of('id="dataPanBtn"'), dLink: of('id="linkBtn"'), dAdd: of('id="addBtn"'), dClear: of('id="dataClearBtn"') };   // the data map's own tools (130)
     const put = t => t.replace(/\{([a-zA-Z]+)\}/g, (m, k) => (Object.prototype.hasOwnProperty.call(K, k) ? K[k] : '?')), strip = s => s.replace(/^<svg[^>]*>/, '');
     const HELP_AT = ["<li><b>{image} Image</b> adds an image.",
         "<li><b>{lib} Image Library</b> shows",
@@ -753,22 +813,28 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         "<li><b>{view} Center</b> &nbsp; Recenter on the canvas",
         "<li><b>{snap} Snap</b> &nbsp; Toggle grid snapping.",
         "Everyone has the <b>{sound}</b> speaker in the Table pill",
-        "The <b>{sound}</b> speaker in the Table pill has"];
-    const TOUR_AT = ["fog and {scene} <b>Scene</b>. Centre, the <b>grid</b>", "html: 'Under the {scene} <b>Scene</b> button.", "html: 'Under {scene} <b>Scene</b> too, apart from Sound.", "html: 'Under {scene} <b>Scene</b> too. The {fx} panel fires", "html: 'Under {scene} <b>Scene</b> too: the campaign&rsquo;s", "The {fx} panel&rsquo;s <b>Ping</b> row", "The {fog} button opens the fog menu"];
+        "The <b>{sound}</b> speaker in the Table pill has",
+        "<li><b>{dMove} Select / Move</b> is the default tool.",
+        "<li><b>{dPan} Pan</b>: drag anywhere to move the map itself.",
+        "<li><b>{dLink} Link Mode</b> is lit gold while active.",
+        "<li><b>{dClear} Clear the board</b> removes every room and link",
+        "<li>Click <b>{dAdd} Add Room</b>, then drag the node",
+        "<li>Click <b>{dLink} Link Mode</b>, then click two rooms"];
+    const TOUR_AT = ["fog and {scene} <b>Scene</b>. Centre, the <b>grid</b>", "html: 'Under the {scene} <b>Scene</b> button.", "html: 'Under {scene} <b>Scene</b> too, apart from Sound.", "html: 'Under {scene} <b>Scene</b> too. The {fx} panel fires", "html: 'Under {scene} <b>Scene</b> too: the campaign&rsquo;s", "The {fx} panel&rsquo;s <b>Ping</b> row", "The {fog} button opens the fog menu", "{dLink} <b>Link Mode</b> connects two rooms"];
     const stepsA = tourSrc.indexOf('var STEPS = ['), stepsZ = tourSrc.indexOf('\n];', stepsA), steps = stepsA < 0 || stepsZ < stepsA ? '' : tourSrc.slice(stepsA, stepsZ);
     const badH = HELP_AT.filter(t => count(help, put(t)) !== 1).map(t => t.slice(0, 44)), badT = TOUR_AT.filter(t => count(steps, put(t)) !== 1).map(t => t.slice(0, 44)), lost = Object.keys(K).filter(k => K[k] === '?');
-    check('Help shows a tool\'s own drawing beside its name (the owner, by prompt: "The new drawings"): each of the ' + HELP_AT.length + ' places holds the very drawing its control wears in the page, read from the control: the pen, the eraser, fill, the trigger zone, the picture, the Image Library, Import Character, Measure and its ruler, the fog button with its menu, its three brushes and Fog on all maps, Scene with Sound, Music, Visual effects and Video, the centre menu and Snap; Help holds 38 drawings and no other; the note and the speaker in the Table pill are the drawings Music and Sound wear under Scene, which are the top bar\'s own',
-        help.length > 100000 && lost.length === 0 && badH.length === 0 && HELP_AT.length === 34 && drawn(help) === 38 && HELP_AT.reduce((n, t) => n + (t.match(/\{[a-zA-Z]+\}/g) || []).length, 0) === 38
+    check('Help shows a tool\'s own drawing beside its name (the owner, by prompt: "The new drawings"): each of the ' + HELP_AT.length + ' places holds the very drawing its control wears in the page, read from the control: the pen, the eraser, fill, the trigger zone, the picture, the Image Library, Import Character, Measure and its ruler, the fog button with its menu, its three brushes and Fog on all maps, Scene with Sound, Music, Visual effects and Video, the centre menu and Snap, and on the data map Select, Pan, Link Mode, Add Room and Clear the board; Help holds 44 drawings and no other; the note and the speaker in the Table pill are the drawings Music and Sound wear under Scene, which are the top bar\'s own',
+        help.length > 100000 && lost.length === 0 && badH.length === 0 && HELP_AT.length === 40 && drawn(help) === 44 && HELP_AT.reduce((n, t) => n + (t.match(/\{[a-zA-Z]+\}/g) || []).length, 0) === 44
         && strip(of('id="musicInd"')) === strip(K.music) && of('id="soundInd"') === K.sound && /^<svg class="ico ico-note"/.test(K.music), J([lost, badH, drawn(help)]));
-    check('no old picture of those tools is left in Help, and a glyph another control still wears is still there: the pictures of the pen, the eraser, fill, the trigger zone, the picture, the library, the character import, the ruler, Scene, Sound, Music, the effects, the speaker, the magnet, the centre mark and the Clear brush are gone from Help; the fog\'s is left once, on the right-click menu\'s Under fog row, the eye four times (Visible to players, Always revealed, a token\'s sight outline, Players can read) and the film once, on the header\'s chip; the planner\'s undo and redo, the data map\'s Select, Pan, Link Mode and Clear the board, the selection toolbar\'s Fit to grid and play area, and the sheet\'s Throw keep theirs',
+    check('no old picture of those tools is left in Help, and a glyph another control still wears is still there: the pictures of the pen, the eraser, fill, the trigger zone, the picture, the library, the character import, the ruler, Scene, Sound, Music, the effects, the speaker, the magnet, the centre mark and the Clear brush are gone from Help; the fog\'s is left once, on the right-click menu\'s Under fog row, the eye four times (Visible to players, Always revealed, a token\'s sight outline, Players can read) and the film once, on the header\'s chip; the planner\'s undo and redo, the selection toolbar\'s Fit to grid and play area, and the sheet\'s Throw keep theirs; the data map\'s Select, Pan, Link Mode, Add Room and Clear the board lost theirs when its toolbar took the line icons, so the two-way arrow is left once, on the badge that matches a size, and the bin once, on the Video panel\'s delete',
         [127916, 128207, 9999, 129533, 129699, 9889, 129333, 128444, 128452, 10024, 127925, 127926, 128266, 129522, 127919, 10005].every(c => glyph(help, c) === 0)
         && glyph(help, 127787) === 1 && count(help, '<b>&#127787; Under fog</b>') === 1 && glyph(help, 128065) === 4 && glyph(help, 127902) === 1 && count(help, 'a <b>&#127902;</b> chip in the header') === 1
-        && count(help, 'The <b>&#8617; &#8618;</b> buttons in the planner toolbar') === 1 && count(help, '<li><b>&#10138; Select / Move</b> is the default tool.') === 1 && count(help, '<li><b>&#9995; Pan</b>:') === 1 && count(help, '<li><b>&#128465; Clear the board</b>') === 1
-        && count(help, '<b>&#8596; Link Mode</b>') === 2 && count(help, '<b>&#8862; Fit to grid</b>') === 1 && count(help, 'with the <b>&#9635;</b> button on the selection toolbar') === 1 && count(help, '<b>&#128165; Throw</b> button') === 1,
+        && count(help, 'The <b>&#8617; &#8618;</b> buttons in the planner toolbar') === 1 && [10138, 9995, 10133].every(c => glyph(help, c) === 0) && glyph(help, 8596) === 1 && count(help, 'with a <b>&#8596; / &#8597;</b> badge') === 1
+        && glyph(help, 128465) === 1 && count(help, '<b>&#128465;</b> deletes it with its file') === 1 && count(help, '<b>&#8862; Fit to grid</b>') === 1 && count(help, 'with the <b>&#9635;</b> button on the selection toolbar') === 1 && count(help, '<b>&#128165; Throw</b> button') === 1,
         J([127916, 128207, 9999, 129533, 129699, 9889, 129333, 128444, 128452, 10024, 127925, 127926, 128266, 129522, 127919, 10005, 127787, 128065, 127902].map(c => glyph(help, c))));
-    check('the tour names those tools with the same drawings: each of its ' + TOUR_AT.length + ' places holds the drawing its control wears, the steps hold 8 drawings and no other, no step writes the old picture of Scene, of the effects or of the fog, and a step still writes the glyph of a control that wears one (Link Mode, Throw, Fit to grid, the planner\'s undo and redo); in Help and on a tour card a drawing takes the size of the words around it, by the style sheet',
-        steps.length > 5000 && badT.length === 0 && TOUR_AT.length === 7 && drawn(steps) === 8 && [127916, 10024, 127787].every(c => glyph(steps, c) === 0)
-        && count(steps, '<b>&#8596; Link Mode</b>') === 1 && count(steps, '&#128165; <b>Throw</b>') === 2 && count(steps, '<b>&#8862; Fit to grid</b>') === 1 && count(steps, 'The <b>&#8617; &#8618;</b> buttons') === 1
+    check('the tour names those tools with the same drawings: each of its ' + TOUR_AT.length + ' places holds the drawing its control wears, the steps hold 9 drawings and no other, no step writes the old picture of Scene, of the effects, of the fog or of Link Mode, and a step still writes the glyph of a control that wears one (Throw, Fit to grid, the planner\'s undo and redo); in Help and on a tour card a drawing takes the size of the words around it, by the style sheet',
+        steps.length > 5000 && badT.length === 0 && TOUR_AT.length === 8 && drawn(steps) === 9 && [127916, 10024, 127787, 8596].every(c => glyph(steps, c) === 0)
+        && count(steps, '&#128165; <b>Throw</b>') === 2 && count(steps, '<b>&#8862; Fit to grid</b>') === 1 && count(steps, 'The <b>&#8617; &#8618;</b> buttons') === 1
         && css.includes('\n  #helpModal .help-pane .ico, #tourCard .ico { width: 1.15em; height: 1.15em; vertical-align: -0.2em; }'), J([badT, drawn(steps)]));
 }
 
@@ -785,8 +851,10 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         + "- The Radius tool can also put a circle on a token. Pick On a token\n  and click a token. The circle moves with it, and the token itself\n  is not counted.\n"
         + "- The GM can set off a circle of the Radius tool as an explosion. Press\n  Explode in the tool's options and type the damage and its type.\n  Nothing is filled in. The blast is shown to everyone on the map, and\n  the damage follows the system's blast setting.\n"
         + "- The fog menu is shorter. This map's two ticks and the brushes stay\n  in view, and three folds hold the rest: light and vision, the\n  preview, and the campaign's fog settings. No control is gone.\n"
-        + "- Help and the tour show each play-map tool's own line drawing beside\n  its name, where they still showed the old picture icons.\n"
-        + "- The top bar's icons are redrawn as Waypoint's own drawings. Settings\n  wears a cog, and Music is still a note. No button has moved.\n\n";
+        + "- Help and the tour show each play-map tool's own line drawing beside\n  its name, where they still showed the old picture icons.\n\n"
+        + "The top bar and the data map\n"
+        + "- The top bar's icons are redrawn as Waypoint's own drawings. Settings\n  wears a cog, and Music is still a note. No button has moved.\n"
+        + "- The data map's toolbar wears the same line icons as the play map's.\n  Its Link menu lists the four line types by name, each with a small\n  drawing.\n\n";
     const wn = [rootRead('WHATSNEW.txt'), read('assets/whatsnew.txt')];
     check('both release notes carry the same lines, and the suite is one of the CI runs',
         wn.every(t => count(t, NOTE) === 1 && count(t, 'Every button is where it was') === 0) && rootRead('.github/workflows/checks.yml').includes("      - name: lookcheck — the look of the play map (no control removed, the toolbar's line icons, gold for the tool in hand)\n        if: ${{ !cancelled() }}\n        run: node tools/lookcheck.js\n"));

@@ -678,7 +678,7 @@ var STEPS = [
       help: ['start', 'What Waypoint is'],
       before: function() { openItem('map_tut_city'); goView('data'); } },
     { section: 'The data map', target: '#dataFloatingToolbar', title: 'Data map tools',
-      html: '<b>Add Room</b> drops a node. <b>&#8596; Link Mode</b> connects two rooms: pick a line type, then click one room and the other. Click a line to open it in <b>Properties</b>. Its label is drawn on the line for players too, and its notes stay with you. Eldara&rsquo;s lines are already labelled, one of each type.',
+      html: '<b>Add Room</b> drops a node. <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h6v6H3zM15 14h6v6h-6zM9 10l6 4"/></svg> <b>Link Mode</b> connects two rooms: pick a line type, then click one room and the other. Click a line to open it in <b>Properties</b>. Its label is drawn on the line for players too, and its notes stay with you. Eldara&rsquo;s lines are already labelled, one of each type.',
       help: ['datamap', 'Connections'],
       before: function() { openItem('map_tut_city'); goView('data'); } },
     { target: '#canvasWrap', title: 'Rooms and portals',

@@ -213,8 +213,13 @@ The play map
   preview, and the campaign's fog settings. No control is gone.
 - Help and the tour show each play-map tool's own line drawing beside
   its name, where they still showed the old picture icons.
+
+The top bar and the data map
 - The top bar's icons are redrawn as Waypoint's own drawings. Settings
   wears a cog, and Music is still a note. No button has moved.
+- The data map's toolbar wears the same line icons as the play map's.
+  Its Link menu lists the four line types by name, each with a small
+  drawing.
 
 Fixes
 - The fog of war is lighter on a busy map. It read every character's

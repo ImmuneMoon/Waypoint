@@ -449,6 +449,8 @@
     #blastShapeRow > .draw-style-btn { flex: 1 1 40%; }
     #blastExplodeBtn { color: var(--red); }   /* a blast effect, the GM's: it wears the blast's red, as on the sheet the owner passed */
     #blastExplodeForm { display: flex; flex-direction: column; gap: 6px; }   /* the two boxes Explode asks for, and its two buttons */
+    #linkTypeRow { display: flex; flex-direction: column; gap: 2px; }   /* the data map's Link menu: its four line types by name, a row each */
+    #linkMenu { min-width: 280px; }   /* wide enough for a row's grey line to stand on one line */
     .draw-menu-label {
         font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
         color: var(--dim); text-align: left; padding: 0 2px;

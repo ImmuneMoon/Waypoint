@@ -321,7 +321,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       oneway: { label: 'One-way', glyph: '\u2192',  hint: 'an arrow from the first room to the second' }
   };
   state.linkType = '';
-  try { var _lt0 = localStorage.getItem('wp_linkType'); if (_lt0 && LINK_TYPES[_lt0]) state.linkType = _lt0; } catch (e) {}
+  try { var _lt0 = localStorage.getItem('wp_linkType'); if (_lt0 && Object.prototype.hasOwnProperty.call(LINK_TYPES, _lt0)) state.linkType = _lt0; } catch (e) {}
   function ensureArrowMarker(svg) {
       if (svg.querySelector('#edgeArrow')) return;
       svg.insertAdjacentHTML('afterbegin', '<defs><marker id="edgeArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L10 5 L0 10 z" class="edge-arrow"></path></marker></defs>');
@@ -335,14 +335,17 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   }
   window.wpLinkTypes = LINK_TYPES;
   window.wpSelectLink = selectLink;
+  // [lookcheck:linktype-start]
+  // The Link menu lists the four line types by name, a row each. The row of the type new links take is `on`
   function syncLinkMenu() {
-      document.querySelectorAll('#linkTypeRow .draw-style-btn').forEach(function(b) { b.classList.toggle('active', (b.dataset.type || '') === (state.linkType || '')); });
+      document.querySelectorAll('#linkTypeRow [data-type]').forEach(function(b) { b.classList.toggle('on', (b.dataset.type || '') === (state.linkType || '')); });
   }
   function setLinkType(t) {
-      state.linkType = LINK_TYPES[t] ? t : '';
+      state.linkType = Object.prototype.hasOwnProperty.call(LINK_TYPES, t) ? t : '';
       try { localStorage.setItem('wp_linkType', state.linkType); } catch (e) {}
       syncLinkMenu();
   }
+  // [lookcheck:linktype-end]
   // The chip on a line: change its type, or remove it
   function openEdgeMenu(ev, i) {
       var menu = document.getElementById('edgeMenu'), am = getActiveMap();
@@ -371,7 +374,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var menu = document.getElementById('edgeMenu');
       if (menu && menu.style.display !== 'none' && !e.target.closest('#edgeMenu')) menu.style.display = 'none';
   });
-  document.querySelectorAll('#linkTypeRow .draw-style-btn').forEach(function(b) { b.addEventListener('click', function(e) { e.stopPropagation(); setLinkType(this.dataset.type || ''); }); });
+  document.querySelectorAll('#linkTypeRow [data-type]').forEach(function(b) { b.addEventListener('click', function(e) { e.stopPropagation(); setLinkType(this.dataset.type || ''); }); });
   var _el_linkDoneBtn = document.getElementById('linkDoneBtn');
   if (_el_linkDoneBtn) _el_linkDoneBtn.addEventListener('click', function(e) { e.stopPropagation(); setDataTool('dataMoveBtn'); render(); });
   var _el_linkMenu0 = document.getElementById('linkMenu');

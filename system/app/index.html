@@ -303,19 +303,19 @@
                   <div class="help-pane" data-pane="datamap" style="display:none;">
                       <h4>Tools</h4>
                       <ul>
-                          <li><b>&#10138; Select / Move</b> is the default tool. Click rooms to edit them, drag to move, drag a box to select several.</li>
-                          <li><b>&#9995; Pan</b>: drag anywhere to move the map itself. Rooms never move while it's active. A middle-click drag pans in any tool, and so does holding <kbd>Space</kbd> while you drag.</li>
-                          <li><b>&#8596; Link Mode</b> is lit gold while active. Click two rooms to connect them.
+                          <li><b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3v16l4.2-3.8L12 21.2l2.6-1.2-2.8-5.8h5.7L5 3z"/></svg> Select / Move</b> is the default tool. Click rooms to edit them, drag to move, drag a box to select several.</li>
+                          <li><b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 15V5.5a1.5 1.5 0 0 1 3 0V11M12 10.5v-6a1.5 1.5 0 0 1 3 0v6M15 11V6a1.5 1.5 0 0 1 3 0v8c0 4-2.6 7-6.6 7-2.5 0-4.2-1.2-5.5-3.4L3.6 13.4a1.5 1.5 0 0 1 2.5-1.7L9 15"/></svg> Pan</b>: drag anywhere to move the map itself. Rooms never move while it's active. A middle-click drag pans in any tool, and so does holding <kbd>Space</kbd> while you drag.</li>
+                          <li><b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h6v6H3zM15 14h6v6h-6zM9 10l6 4"/></svg> Link Mode</b> is lit gold while active. Click two rooms to connect them.
                               <ul>
                                   <li>Its menu picks the <b>line type</b> for new links: a solid <b>Path</b>, a dashed <b>Route</b>, a dotted <b>Secret</b> way, or a <b>One-way</b> arrow from the first room to the second.</li>
                                   <li><b>Done linking</b> leaves it, and so does the Select tool.</li>
                               </ul>
                           </li>
-                          <li><b>&#128465; Clear the board</b> removes every room and link on this map after a confirmation. This map's Undo brings them back.</li>
+                          <li><b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 4h4M6.5 7l1 13h9l1-13M9.8 10.5v6M12 10.5v6M14.2 10.5v6"/></svg> Clear the board</b> removes every room and link on this map after a confirmation. This map's Undo brings them back.</li>
                       </ul>
                       <h4>Rooms</h4>
                       <ol>
-                          <li>Click <b>&#10133; Add Room</b>, then drag the node where you want it. A room is one node of the data map.</li>
+                          <li>Click <b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.5v15M4.5 12h15"/></svg> Add Room</b>, then drag the node where you want it. A room is one node of the data map.</li>
                           <li>Select it and fill in the right sidebar: name, category color, notes, and the characters found there.</li>
                           <li><b>Set Room Image</b> does double duty. The picture shows on hover, and Waypoint builds a <b>child map</b> with that image as the scene, linking the node to it as a portal. A node that already leads somewhere just gets the picture.</li>
                           <li><kbd>Double Click</kbd> a map or planner name in the sidebar to rename it.</li>
@@ -324,7 +324,7 @@
                       </ol>
                       <h4>Connections</h4>
                       <ol>
-                          <li>Click <b>&#8596; Link Mode</b>, then click two rooms one after the other to connect them.</li>
+                          <li>Click <b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h6v6H3zM15 14h6v6h-6zM9 10l6 4"/></svg> Link Mode</b>, then click two rooms one after the other to connect them.</li>
                           <li>Hover over a line and a small chip appears at its middle showing its type. A labelled line keeps its chip, with the label on it.
                               <ul>
                                   <li><b>Click a line or its chip</b> to open it in <b>Properties</b>.</li>
@@ -1955,37 +1955,37 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     <div id="main" class="main">
       <div id="dataFloatingToolbar" class="floating-toolbar">
             <div style="position:relative; display:inline-block;">
-                <button class="wb-tool-btn" id="dataCenterBtn" title="Center Data Map">&#127919;</button>
+                <button class="wb-tool-btn" id="dataCenterBtn" title="Center Data Map"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM12 10.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3"/></svg></button>
                 <div class="shape-menu" id="dataCenterMenu" style="bottom:100%; top:auto; flex-direction:column; min-width: 130px; left:50%; transform:translateX(-50%); margin-bottom:10px;">
                     <button class="wb-tool-btn" id="dataCenterCanvasBtn" style="width:100%; border-radius:0; font-size:12px; height:auto; padding:8px 0;">Center on Canvas</button>
                     <button class="wb-tool-btn" id="dataCenterItemsBtn" style="width:100%; border-radius:0; font-size:12px; height:auto; padding:8px 0;">Center on Items</button>
                     <button class="wb-tool-btn" id="dataFitBtn" style="width:100%; border-radius:0; font-size:12px; height:auto; padding:8px 0;" title="Zoom and pan to frame every room (Shift+1)">Fit to Content</button>
                 </div>
             </div>
-            <button class="wb-tool-btn" id="dataUndoBtn" title="Undo (this map)" style="opacity:0.5; pointer-events:none;">&#8617;</button>
-            <button class="wb-tool-btn" id="dataRedoBtn" title="Redo (this map)" style="opacity:0.5; pointer-events:none;">&#8618;</button>
+            <button class="wb-tool-btn" id="dataUndoBtn" title="Undo (this map)" style="opacity:0.5; pointer-events:none;"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4L4 9l5 5M4 9h10.5a5.5 5.5 0 0 1 0 11H9"/></svg></button>
+            <button class="wb-tool-btn" id="dataRedoBtn" title="Redo (this map)" style="opacity:0.5; pointer-events:none;"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4l5 5-5 5M20 9H9.5a5.5 5.5 0 0 0 0 11H15"/></svg></button>
             <div class="wb-tool-sep"></div>
-            <button class="wb-tool-btn active" id="dataMoveBtn" title="Select / Move (drag rooms, box-select)">&#10138;</button>
-            <button class="wb-tool-btn" id="dataPanBtn" title="Pan (drag the map around; rooms never move)">&#9995;</button>
+            <button class="wb-tool-btn active" id="dataMoveBtn" title="Select / Move (drag rooms, box-select)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3v16l4.2-3.8L12 21.2l2.6-1.2-2.8-5.8h5.7L5 3z"/></svg></button>
+            <button class="wb-tool-btn" id="dataPanBtn" title="Pan (drag the map around; rooms never move)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 15V5.5a1.5 1.5 0 0 1 3 0V11M12 10.5v-6a1.5 1.5 0 0 1 3 0v6M15 11V6a1.5 1.5 0 0 1 3 0v8c0 4-2.6 7-6.6 7-2.5 0-4.2-1.2-5.5-3.4L3.6 13.4a1.5 1.5 0 0 1 2.5-1.7L9 15"/></svg></button>
             <div style="position:relative; display:inline-block;">
-                <button class="wb-tool-btn" id="linkBtn" title="Link Mode &mdash; click two rooms to connect them (click again for the line type)">&#8596;</button>
+                <button class="wb-tool-btn" id="linkBtn" title="Link Mode &mdash; click two rooms to connect them (click again for the line type)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h6v6H3zM15 14h6v6h-6zM9 10l6 4"/></svg></button>
                 <div class="shape-menu draw-menu" id="linkMenu" style="bottom:100%; top:auto; left:50%; transform:translateX(-50%); margin-bottom:10px;">
                     <div class="draw-menu-label">Line type for new links</div>
-                    <div class="draw-menu-row" id="linkTypeRow" style="flex-wrap:wrap;">
-                        <button class="draw-style-btn" data-type="" title="A plain connection">&#8212; Path</button>
-                        <button class="draw-style-btn" data-type="route" title="Dashed: travel between places, not a doorway">- - Route</button>
-                        <button class="draw-style-btn" data-type="secret" title="Dotted: a hidden or secret way">&middot;&middot;&middot; Secret</button>
-                        <button class="draw-style-btn" data-type="oneway" title="An arrow from the first room you click to the second">&rarr; One-way</button>
+                    <div id="linkTypeRow">
+                        <button class="wb-tool-btn menu-row" data-type="" title="A plain connection"><span class="mr-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h16"/></svg></span><span class="mr-txt">Path<small>A plain connection.</small></span></button>
+                        <button class="wb-tool-btn menu-row" data-type="route" title="Dashed: travel between places, not a doorway"><span class="mr-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h3.2M10.4 12h3.2M16.8 12H20"/></svg></span><span class="mr-txt">Route<small>Travel between places, not a doorway.</small></span></button>
+                        <button class="wb-tool-btn menu-row" data-type="secret" title="Dotted: a hidden or secret way"><span class="mr-ico"><svg class="ico ico-dots" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h.01M9.7 12h.01M14.3 12h.01M19 12h.01"/></svg></span><span class="mr-txt">Secret<small>A hidden or secret way.</small></span></button>
+                        <button class="wb-tool-btn menu-row" data-type="oneway" title="An arrow from the first room you click to the second"><span class="mr-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15M14.5 7.5L19 12l-4.5 4.5"/></svg></span><span class="mr-txt">One-way<small>An arrow from the first room you click to the second.</small></span></button>
                     </div>
                     <div class="draw-menu-row" style="font-size:11px; color:var(--dim); line-height:1.4;">Click two rooms to connect them. Click the chip on any line to change its type or remove it.</div>
                     <div class="draw-menu-row"><button class="draw-style-btn" id="linkDoneBtn" title="Back to the Select tool">Done linking</button></div>
                 </div>
             </div>
             <div class="wb-tool-sep"></div>
-            <button class="wb-tool-btn" id="addBtn" title="Add Room">&#10133;</button>
-              <button class="wb-tool-btn" id="snapBtn" title="Snap to Grid">&#129522;</button>
+            <button class="wb-tool-btn" id="addBtn" title="Add Room"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.5v15M4.5 12h15"/></svg></button>
+              <button class="wb-tool-btn" id="snapBtn" title="Snap to Grid"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h4.5v9a2.5 2.5 0 0 0 5 0V3H19v9a7 7 0 0 1-14 0V3zM5 7h4.5M14.5 7H19"/></svg></button>
             <div class="wb-tool-sep"></div>
-            <button class="wb-tool-btn" id="dataClearBtn" title="Clear the board (remove every room and link)" style="color:var(--red);">&#128465;&#65039;</button>
+            <button class="wb-tool-btn" id="dataClearBtn" title="Clear the board (remove every room and link)" style="color:var(--red);"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 4h4M6.5 7l1 13h9l1-13M9.8 10.5v6M12 10.5v6M14.2 10.5v6"/></svg></button>
         </div>
         <div id="wbFloatingToolbar" class="floating-toolbar">
             <button class="wb-tool-btn" id="wbUndoBtn" title="Undo (this map)" style="opacity:0.5; pointer-events:none;"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4L4 9l5 5M4 9h10.5a5.5 5.5 0 0 1 0 11H9"/></svg></button>

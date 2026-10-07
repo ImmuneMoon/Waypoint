@@ -667,8 +667,8 @@ var STEPS = [
       html: 'This tour uses a small campaign called <b>Tutorial</b> that was just added to your save. It is a real campaign: keep it and build on it, or discard it at the end. Use <b>Next</b> and <b>Back</b>. <b>Try it yourself</b> puts the card away so you can use what it describes, and <b>Resume tour</b> brings the step back. <b>Esc</b> asks before it ends the tour, and your place is kept. <b>More in Help</b> under a card opens the part of Help that says the rest.',
       help: ['tutorial', 'Interactive tutorial'],
       before: function() { ensureTutorialCampaign(false); openLeft(); openItem('map_tut_realm'); goView('data'); } },
-    { target: '#campaignSelect', title: 'Campaigns',
-      html: 'Everything belongs to a campaign. This picker switches between them, and the buttons beside it add, rename, search and delete campaigns. Your own campaigns are untouched by the tutorial. The <b>Waypoint</b> logo at the top left opens the <b>Welcome</b> screen. There you start, import or continue a campaign, or <b>Join a game</b>.',
+    { target: '#campMenuBtn', title: 'Campaigns',
+      html: 'Everything belongs to a campaign. Press its name here for the list of your campaigns. The same menu searches, adds, renames and deletes them. Your own campaigns are untouched by the tutorial. The <b>Waypoint</b> logo at the top left opens the <b>Welcome</b> screen. There you start, import or continue a campaign, or <b>Join a game</b>.',
       help: ['start', 'The welcome screen'] },
     { target: '#mapNavList', title: 'Maps nest like places',
       html: '<b>Eldara Realm</b> holds the city <b>Eldara</b>, which holds <b>The Inn</b>. World, region, building, room: as deep as you like. Drag a map onto another to nest it. Drop it near the top or bottom of another row to re-order it instead. Right-click a map for more, such as a new parent or child map.',
@@ -757,7 +757,7 @@ var STEPS = [
     { section: 'Character system', target: '#systemBtn', title: 'The system',
       html: 'Your game&rsquo;s rules, with no code. The <b>System</b> editor holds the campaign&rsquo;s <b>fields</b>: attributes, formulas worked out from them, pools such as HP, skills, toggles and text. It also holds its <b>rolls</b>, such as <code>d20 + STRmod</code>. <b>Start from&hellip;</b> gives you Basic d20 or Basic 3d6 to edit. Players get every field you leave visible, and GM-only fields never leave your machine.',
       help: ['sheets', 'The system'],
-      before: function() { if (window.wpSheets) { window.wpSheets.close(true); window.wpSheets.closeSheet(); } } },
+      before: function() { if (window.wpSheets) { window.wpSheets.close(true); window.wpSheets.closeSheet(); } if (window.wpTopRow) window.wpTopRow.open('campMenu'); } },   // System is a row of the campaign's menu: the menu is opened, so the row can be seen
     { target: '#sysLayout', title: 'Designing the sheet',
       html: 'The <b>Layout</b> tab is where you build the sheet. Arrange it into <b>sections</b> of one to four columns, then add fields, roll buttons, headings and the portrait. <b>Tabs</b> at the top split a bigger sheet into pages. Drag rows to reorder them, and the <b>preview</b> shows a real character as you build. Leave Layout alone and the sheet arranges itself. The <b>Sheet | HUD</b> switch lays out the character&rsquo;s HUD window the same way.',
       help: ['sheets', 'Layout'],
@@ -976,8 +976,8 @@ function place() {
 }
 
 // [tutorialcheck:stage-start]
-// What a step's own setup opens, told by its target: the System editor, a sheet (or a HUD), Settings, Table Chat, the fog preview.
-function stageFor(step) { var t = step.target || ''; return { editor: /^#sys(?!temBtn)/.test(t), sheet: t === '#sheetPanel' || !!step.opens, settings: t === '#setVttCampBlock', chat: t === '#diceBtn', fog: t === '#fogModeBtn', right: t === '#sidebar' }; }
+// What a step's own setup opens, told by its target: the System editor, a sheet (or a HUD), Settings, Table Chat, the fog preview, the campaign's menu.
+function stageFor(step) { var t = step.target || ''; return { editor: /^#sys(?!temBtn)/.test(t), sheet: t === '#sheetPanel' || !!step.opens, settings: t === '#setVttCampBlock', chat: t === '#diceBtn', fog: t === '#fogModeBtn', right: t === '#sidebar', camp: t === '#systemBtn' }; }
 // [tutorialcheck:stage-end]
 // Before a step's setup runs, everything another step (or the user, in Try it yourself) may have left open is put away, the Tutorial
 // campaign is the one on screen and the left panel is open — so a step reads the same wherever it is reached from: Next, Back, a jump to
@@ -987,6 +987,7 @@ function clearStage(step) {
     if (!hosting() && (state.appState.activeCampaignId !== TUTORIAL_CAMP_ID || !tutorialCampaign())) ensureTutorialCampaign(false);
     openLeft();
     var hm = document.getElementById('helpModal'); if (hm) hm.style.display = 'none';
+    if (!need.camp && window.wpTopRow) window.wpTopRow.close();   // a menu of the top row
     if (!need.settings) closeSettingsForTour();
     if (!need.right) closeRightForTour();
     if (!need.chat) { var cp = document.getElementById('chatPanel'); if (cp) cp.style.display = 'none'; if (window.wpDice) window.wpDice.closePanel(); }
@@ -1121,6 +1122,7 @@ function endTour() {
         if (window.wpSheets) { window.wpSheets.closeSheet(); if (window.wpSheets.closeHuds) window.wpSheets.closeHuds(); window.wpSheets.close(true); }   // and the sheet step Bren's sheet (and the HUD step his HUD) + the layout step's System editor
         if (window.wpFog) window.wpFog.setPreview('off');   // and the fog step its player-view preview
         document.querySelectorAll('#wbFloatingToolbar .shape-menu.show, #wbEdgeTools .shape-menu.show').forEach(function(m) { m.classList.remove('show'); });   // and any toolbar flyout a step opened (Add, Scene)
+        if (window.wpTopRow) window.wpTopRow.close();   // and the System step the campaign's menu
     }
     if (partWay) toast('The tour stopped at “' + STEPS[at].title + '”. Help ▸ Tutorial resumes it there.');
     syncPane();

@@ -19,6 +19,7 @@
 <script type="module" src="scripts/main.js"></script>
 <script type="module" src="scripts/floats.js"></script>
 <script type="module" src="scripts/pageshelf.js"></script>
+<script type="module" src="scripts/toprow.js"></script>
 <script type="module" src="scripts/net.js"></script>
 <script type="module" src="scripts/faces.js"></script>
 <script type="module" src="scripts/framer.js"></script>
@@ -66,15 +67,22 @@
     </div>
     <div class="header-sep"></div>
     <div class="header-group">
-      <select id="campaignSelect" class="map-select" aria-label="Select Campaign"></select>
-      <div id="tableWhere" class="table-where"></div>
-      <div class="hdr-group" data-label="Campaign">
-        <button class="tool ghost icon" id="searchCampBtn" title="Search Campaigns"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 4a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM15.4 15.4l5.1 5.1"/></svg></button>
-        <button class="tool ghost icon" id="newCampBtn" title="Create New Campaign"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.5v15M4.5 12h15"/></svg></button>
-        <button class="tool ghost icon" id="renameCampBtn" title="Rename Campaign"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 4l5 5L9 19.5 3.5 21 5 15.5 14.5 4zM12.5 6l5 5"/></svg></button>
-        <button class="tool ghost icon" id="systemBtn" title="System &mdash; this campaign&rsquo;s attributes, formulas and rolls (character sheets)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14v18H5zM9 8h6M9 12h6M9 16h4"/></svg></button>
-        <button class="tool ghost icon danger" id="delCampBtn" title="Delete Campaign"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 4h4M6.5 7l1 13h9l1-13M9.8 10.5v6M12 10.5v6M14.2 10.5v6"/></svg></button>
+      <div class="row-menu-wrap" id="campMenuWrap">
+        <button class="tool ghost row-name" id="campMenuBtn" aria-haspopup="true" aria-expanded="false" aria-controls="campMenu" title="This campaign. Press for the list of your campaigns, and to search, add, rename or delete one, or to open its System."><span id="campMenuName">Campaign</span><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9.5l6 6 6-6"/></svg></button>
+        <div class="row-menu" id="campMenu" hidden>
+          <div class="rm-label">Campaign</div>
+          <div class="rm-list" id="campMenuList"></div>
+          <button class="rm-row" id="searchCampBtn" title="Search Campaigns"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 4a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM15.4 15.4l5.1 5.1"/></svg><span>Search campaigns&hellip;</span></button>
+          <div class="rm-rule"></div>
+          <button class="rm-row" id="newCampBtn" title="Create New Campaign"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.5v15M4.5 12h15"/></svg><span>New campaign</span></button>
+          <button class="rm-row" id="renameCampBtn" title="Rename Campaign"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 4l5 5L9 19.5 3.5 21 5 15.5 14.5 4zM12.5 6l5 5"/></svg><span>Rename</span></button>
+          <button class="rm-row" id="systemBtn" title="System &mdash; this campaign&rsquo;s attributes, formulas and rolls (character sheets)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14v18H5zM9 8h6M9 12h6M9 16h4"/></svg><span>System</span><small>Sheets and rolls</small></button>
+          <div class="rm-rule"></div>
+          <button class="rm-row danger" id="delCampBtn" title="Delete Campaign"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 4h4M6.5 7l1 13h9l1-13M9.8 10.5v6M12 10.5v6M14.2 10.5v6"/></svg><span>Delete campaign</span></button>
+        </div>
+        <select id="campaignSelect" class="map-select" aria-label="Select Campaign" hidden></select>
       </div>
+      <div id="tableWhere" class="table-where"></div>
     </div>
     <div class="header-sep"></div>
     <div class="seg-control" id="viewModeSelect" role="group" aria-label="Select View Mode">
@@ -215,6 +223,16 @@
                           <li>Set your profile at any time under <b>Settings &#9656; Profile</b>.</li>
                           <li><b>Settings &#9656; Profile &#9656; Welcome screen on launch</b> sets how often the screen appears: every time, on the first run only, or never. The Welcome screen itself asks only the first time.</li>
                           <li>The screen lists a campaign to continue only once that campaign holds something.</li>
+                      </ul>
+                      <h4>The top row</h4>
+                      <ul>
+                          <li><b>Campaigns:</b> press the campaign&rsquo;s name in the top row for the list of your campaigns. Pick one to switch to it.
+                              <ul>
+                                  <li>The same menu searches, adds, renames and deletes campaigns.</li>
+                                  <li><b>System</b>, in that menu, opens the campaign&rsquo;s rules and sheets.</li>
+                                  <li>From the keyboard, the arrow keys go through the menu and <kbd>Esc</kbd> closes it.</li>
+                              </ul>
+                          </li>
                       </ul>
                       <h4>Your first map</h4>
                       <ol>
@@ -722,7 +740,7 @@
                           <li><b>In a session, the GM's campaign is the ceiling.</b> Players see at most what the hosted campaign has on. A GM change mid-session reaches the table at once, with a short notice on each player's screen.</li>
                           <li><b>Off for me.</b> At a table, a player can switch a feature the GM has on <b>off for themselves</b> in the same section, with &ldquo;Turn off for me&rdquo;. They can never switch one on when the GM has it off. The choice is remembered per table, which is that campaign and that GM. It never touches the player's own default or campaigns. A feature you switched off for yourself keeps its icon: <b>Music</b> and <b>Sound</b> stay in the top bar, struck through, and a click offers <b>Turn back on for me</b>.</li>
                           <li><b>The join notice.</b> On joining a table whose settings differ from your own default, one window lists two things. The first is what is on at the table but off for you. Your own default carries in, so those start off for you. <b>Use the table's settings</b> turns them on for you there, and <b>Keep mine</b> leaves them off. The second is what the GM has off and hidden while you are there. The notice shows again only when the GM has changed the settings since you last saw them.</li>
-                          <li><b>One campaign per session.</b> While hosting, anything that would put another campaign on screen asks first. On yes it ends the session for everyone before switching. That is the campaign picker, a search result, <kbd>Ctrl + K</kbd>, New or Delete Campaign, Import Replace and the tutorial.</li>
+                          <li><b>One campaign per session.</b> While hosting, anything that would put another campaign on screen asks first. On yes it ends the session for everyone before switching. That is the campaign list in the top row, a search result, <kbd>Ctrl + K</kbd>, New or Delete Campaign, Import Replace and the tutorial.</li>
                       </ul>
                       <h4>Coordinate rulers &amp; minimap</h4>
                       <p>The number strips along the top and left edges are coordinate rulers. Turn them off or back on in <b>&#9881; Settings &#9656; Table</b>, alongside a <b>Grid opacity</b> slider. Both are yours alone, so in multiplayer every player can fade the grid to taste without changing anyone else's view. The minimap in the corner is a VTT feature, per campaign, under <b>&#9881; Settings &#9656; VTT features</b>. The &#9662; on the box itself only folds it away and is yours alone. Zoom steps are 5% per click or <kbd>Mouse Wheel</kbd> tick. The wheel zooms toward the pointer, and <kbd>Shift</kbd> held makes it scroll instead.</p>
@@ -1392,7 +1410,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                   <div class="help-pane" data-pane="sheets" style="display:none;">
                       <h4>The system</h4>
                       <ul>
-                          <li>Press <b>System</b> in the top row to write the rules of the campaign on screen, with no code. It is the sheet icon beside Rename. A system is a list of <b>fields</b>. Each has a <b>key</b> that formulas use, such as <code>STR</code> or <code>Skill.Stealth</code>, a label, a kind, and what it stores or computes. Everything is saved with the campaign. <b>Save</b> in the editor keeps your changes, and players at a table get the visible fields at once.</li>
+                          <li>Press the campaign&rsquo;s name in the top row, then <b>System</b>, to write the rules of the campaign on screen, with no code. A system is a list of <b>fields</b>. Each has a <b>key</b> that formulas use, such as <code>STR</code> or <code>Skill.Stealth</code>, a label, a kind, and what it stores or computes. Everything is saved with the campaign. <b>Save</b> in the editor keeps your changes, and players at a table get the visible fields at once.</li>
                           <li><b>Kinds:</b> a field is one of these.
                               <ul>
                                   <li><b>Number</b> is an attribute, with a default, a min, a max and a step.</li>
@@ -2879,7 +2897,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <div class="set-vtt-row" data-vtt="sheets" style="margin-bottom:8px;">
                 <div class="set-field-label" style="display:flex; justify-content:space-between;">Character sheets <span id="setSheetsState" style="color:var(--dim);"></span></div>
                 <button class="tool ghost" id="setSheetsBtn" style="width:100%;">Toggle Character Sheets</button>
-                <div class="set-vtt-help" style="font-size:10.5px; color:var(--dim); line-height:1.4;">The campaign's system (the System button in the top row: attributes, formulas, rolls) and the character sheets built on it. Off keeps the system yours to edit but shows nothing of it at the table. Set per campaign; in a session, this campaign's setting is the most your players get.</div>
+                <div class="set-vtt-help" style="font-size:10.5px; color:var(--dim); line-height:1.4;">The campaign's system (System, in the campaign's menu in the top row: attributes, formulas, rolls) and the character sheets built on it. Off keeps the system yours to edit but shows nothing of it at the table. Set per campaign; in a session, this campaign's setting is the most your players get.</div>
                 <div class="set-vtt-role" style="display:none; font-size:10.5px; color:var(--dim); line-height:1.4;"></div>
             </div>
             <div class="set-vtt-row" data-vtt="fx" style="margin-bottom:8px;">

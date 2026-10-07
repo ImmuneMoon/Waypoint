@@ -261,6 +261,9 @@ The top bar and the data map
   a press opens its thing.
 - A player's video chip and the Review button wear line drawings and
   read as pills too.
+- On the play map the left panel folds to a narrow rail, so the map
+  has more room. Press an icon of the rail to open the panel over the
+  map, or the pin to keep it open.
 - Where the window is too narrow for the row, Sound, Music, Handouts,
   Journal and Help move into More, so the row stays one line.
 - Both menus work from the keyboard: the arrow keys, a letter for the

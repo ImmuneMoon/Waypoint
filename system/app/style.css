@@ -1541,6 +1541,19 @@
   body.no-pointerpos.no-zoomctl #zoomBox { display: none !important; }   /* both put away: no empty box (render() writes the box's display inline) */
   body.no-pointerpos.no-zoomctl #partyStrip { top: 26px; }   /* and the party strip moves up into its place */
 
+  /* ---- the left panel folded to a rail (step R4 of the slim row; leftrail.js). Folded, a narrow column of icons stands in the panel's place.
+     Opened from the rail, the panel lies over the map beside it, and takes no room from the map ---- */
+  .layout-wrapper { position: relative; }
+  #leftRail { flex: 0 0 34px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 0; background: var(--bg2); border-right: 1px solid var(--edge); }
+  #leftRail[hidden] { display: none; }
+  .rail-btn { width: 28px; height: 28px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--dim); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+  .rail-btn:hover { background: var(--panel2); color: var(--ink); }
+  .rail-btn.on { background: var(--gold); color: #1a1a1a; }
+  .rail-btn .ico { width: 16px; height: 16px; }
+  .rail-grow { flex: 1; }
+  #campaignSidebar.floating { position: absolute; left: 34px; top: 0; bottom: 0; z-index: 4020; box-shadow: 6px 0 18px rgba(0,0,0,0.45); }   /* over the map, its fog and the panes' arrows */
+  #campaignSidebar.collapsed + #leftGrip, #campaignSidebar.floating + #leftGrip { display: none; }   /* only a docked panel is resized */
+  body.stream-mode #leftRail, body.net-client.no-handbook #leftRail { display: none !important; }
   /* ---- the top row's state pills (step R3 of the slim row): what is going on, in a few words. A pill shows only while it has something to
      say. Outlined in gold means on. Filled means it wants you ---- */
   #rowPills { display: flex; align-items: center; gap: 5px; flex: none; }

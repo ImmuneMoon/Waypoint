@@ -22,6 +22,7 @@
 <script type="module" src="scripts/toprow.js"></script>
 <script type="module" src="scripts/maptabs.js"></script>
 <script type="module" src="scripts/pills.js"></script>
+<script type="module" src="scripts/leftrail.js"></script>
 <script type="module" src="scripts/net.js"></script>
 <script type="module" src="scripts/faces.js"></script>
 <script type="module" src="scripts/framer.js"></script>
@@ -282,6 +283,15 @@
                                   <li><b>Round</b> and a name say the fight on this map and whose turn it is. It opens the turn order.</li>
                                   <li><b>Viewing as</b> shows while the fog is drawn as a player sees it. Press it to end the preview.</li>
                                   <li>The pills are the GM&rsquo;s. The clock, Review and Update stand beside them as before.</li>
+                              </ul>
+                          </li>
+                          <li><b>The left panel:</b> on the play map the left panel folds to a narrow rail, so the map has more room.
+                              <ul>
+                                  <li>Press an icon of the rail to open the panel at the Handbook, the Planners or the Maps. It lies over the map.</li>
+                                  <li>Press the map, or the same icon again, to fold it.</li>
+                                  <li>The lens opens quick-jump.</li>
+                                  <li>The pin keeps the panel open on the play map. The arrow at the panel&rsquo;s edge folds it again.</li>
+                                  <li>On the other views the panel stays open, as before.</li>
                               </ul>
                           </li>
                           <li><b>More:</b> the three dots at the right end of the top row hold what you need less often.
@@ -2055,6 +2065,14 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
   </div>
 
   <div class="layout-wrapper">
+    <nav id="leftRail" aria-label="The left panel, folded" hidden>
+      <button class="rail-btn" id="railHandbook" data-rail="handbook" aria-expanded="false" title="Handbook. Opens the left panel at its pages."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6.5c-2-1.3-4.6-1.8-8-1.5v13c3.4-.3 6 .2 8 1.5 2-1.3 4.6-1.8 8-1.5V5c-3.4-.3-6 .2-8 1.5zM12 6.5v13"/></svg></button>
+      <button class="rail-btn gm-only" id="railPlanners" data-rail="planners" aria-expanded="false" title="Planners. Opens the left panel at your planners."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h8.5L18 7v13.5H6zM10 10v6l5-3z"/></svg></button>
+      <button class="rail-btn gm-only" id="railMaps" data-rail="maps" aria-expanded="false" title="Maps. Opens the left panel at the maps."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 6.5l5.5-2 6 2 5.5-2v13l-5.5 2-6-2-5.5 2zM9 4.5v13M15 6.5v13"/></svg></button>
+      <button class="rail-btn gm-only" id="railSearch" title="Search. Quick-jump, Ctrl+K."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 4a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM15.4 15.4l5.1 5.1"/></svg></button>
+      <span class="rail-grow"></span>
+      <button class="rail-btn" id="railPin" title="Keep the left panel open."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 3.5h7M10 3.5v5l-3.2 4.5h10.4L14 8.5v-5M12 13v7.5"/></svg></button>
+    </nav>
     <div id="campaignSidebar">
         <div class="sidebar-section sb-handbook">
             <h3><span class="section-title" data-section="handbook" data-label="Handbook" title="Collapse/expand this section">&#9662; Handbook</span> <div class="section-actions"><button class="tool ghost gm-only" id="collapseAllDocsBtn" style="padding:2px 6px; margin:0;" title="Collapse / expand all nested pages"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 20l5-5 5 5M7 4l5 5 5-5"/></svg></button><button class="tool ghost" id="searchDocsBtn" style="padding:2px 6px; margin:0;" title="Search Pages"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 4a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM15.4 15.4l5.1 5.1"/></svg></button><button class="tool ghost gm-only" id="docFromFileBtn" style="padding:2px 6px; margin:0;" title="New page from a Markdown file"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h8.5L18 7v13.5H6zM12 9.5v7.5M9 14l3 3 3-3"/></svg></button><button class="tool ghost gm-only" id="newDocBtn" style="padding:2px 6px; margin:0;" title="Create new Page" aria-label="Create new Page"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.5v15M4.5 12h15"/></svg></button></div></h3>

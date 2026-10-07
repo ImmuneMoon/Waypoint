@@ -3139,7 +3139,7 @@ function openLibPickerPlayer(anchor, c, f, spec) {
     var N = window.wpNet, LP = window.wpLibPicker, camp = getActiveCampaign(), man = N && N.libManifest ? N.libManifest() : null; if (!LP || !camp || !man) return;
     var packs = man.packs.filter(function(p) { return p.count > 0; }), total = packs.reduce(function(n, p) { return n + p.count; }, 0), done = false;
     var labels = {}; (spec && Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (s && typeof s.key === 'string' && s.hide !== true) labels[s.key] = s.label || s.key; });
-    var asEntry = function(r) { return { id: r[0], key: r[1], name: r[2], category: r[3], icon: r[4], tags: r[5] }; };
+    var asEntry = function(r) { var o = { id: r[0], key: r[1], name: r[2], category: r[3], icon: r[4], tags: r[5] }; if (Array.isArray(r[7])) o.needs = r[7]; return o; };   // 126b: a row's needs, so the picker greys it before the entry is opened
     LP.open({ anchor: anchor, title: 'Add to ' + (f.label || f.key || 'the list'), cats: spec && Array.isArray(spec.cats) ? spec.cats : null, once: null, noQty: !!(spec && spec.noQty), labels: labels, gm: false, needs: function(e) { var cpN = getActiveCampaign(), chN = charById(c.id, cpN), syN = systemOf(cpN); return chN && syN ? needsMet(syN, chN, e, true).missing : []; },   // 126b: what their character does not meet, by the needs their copy of the entry names (the host judges the rest)
         source: {
             packs: function() { return packs; },

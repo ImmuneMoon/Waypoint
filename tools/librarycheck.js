@@ -479,6 +479,37 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && prevSrc.includes("st.full[want] = full; if (Array.isArray(full.needs)) { draw(); addLabel(); } var y = st.hi >= 0 ? st.rows[st.hi] : null;"),
             j([withNeeds, noNeeds, moved, wrong, none]));
     }
+    /* ---- 126b: an index row carries the needs players may see, so a player's picker greys a row before its entry is opened ---- */
+    {
+        const { indexRow, cleanIndexRow, playerIndex, indexPage } = L;
+        const sysR = S.cleanSystem({ v: 1, name: 'R', rolls: [], fields: [{ id: 'f_inv', key: 'Gear', kind: 'item-list' }] }, { F, gmView: true });
+        const raw = [{ id: 'i_med', name: 'Meditation', vis: 'all' }, { id: 'i_dark', name: 'Dark', vis: 'gm' }, { id: 'i_sight', name: 'Sight', vis: 'all', needs: [{ id: 'i_med', lvl: 2 }, { id: 'i_dark' }] }, { id: 'i_rite', name: 'Rite', vis: 'all', needs: [{ id: 'i_dark' }] }];
+        const shown = id => id === 'i_med', ix = playerIndex(raw, libCtx(sysR, F, false, shown)), rowOf = id => ix.rows.find(r => r[0] === id);
+        const ixNo = playerIndex(raw.map(e => (e.id === 'i_sight' ? Object.assign({}, e, { needs: undefined }) : e)), libCtx(sysR, F, false, shown)), ixAll = playerIndex(raw, libCtx(sysR, F, false, () => false));
+        const eS = ix.byId.i_sight, rS = indexRow(eS), H = rS[6];
+        const good = ['i_a', '', 'A', '', '', [], H, [{ id: 'i_x', lvl: 2 }, { id: 'i_x' }, { id: 'bad' }, { id: 'i_y', lvl: 'no', name: 'N' }, null]];
+        const many = ['i_a', '', 'A', '', '', [], H, Array.from({ length: 12 }, (x, i) => ({ id: 'i_n' + i }))];
+        const pg = indexPage(ix.rows, 0, 50);
+        check('126b an index row carries what its entry needs (indexRow, cleanIndexRow and playerIndex, run for real): a row of an entry that needs something players may see has an eighth place, a copy of those needs, each an id and a level where it has one; an entry that needs nothing, and one all of whose needs are hidden, keep the row of seven they always had, so a pack that needs nothing reads byte for byte as before; a need that names a GM-only entry is in no row; the index\'s hash follows the needs; a player\'s app takes a row of seven as ever, and a row of eight only when its eighth place cleans to at least one need, an id once by its pattern, a level only as a number, never a name, eight at most; anything else in that place, and a row of nine, is no row; a page of the index hands the rows on as they are',
+            rS.length === 8 && j(rS[7]) === j([{ id: 'i_med', lvl: 2 }]) && rS[7] !== eS.needs && rS[7][0] !== eS.needs[0] && j(rowOf('i_sight')) === j(rS)
+            && rowOf('i_med').length === 7 && rowOf('i_rite').length === 7 && !rowOf('i_dark') && !/i_dark/.test(j(ix.rows)) && rowOf('i_sight').length === 8 && ixAll.rows.every(r => r.length === 7) && !/i_med"|i_dark/.test(j(ixAll.rows.map(r => r.slice(7))))
+            && ixNo.rows.every(r => r.length === 7) && ixNo.hash !== ix.hash && ixAll.hash !== ix.hash && j(rowOf('i_med')) === j(ixNo.rows.find(r => r[0] === 'i_med'))
+            && j(cleanIndexRow(rS)) === j(rS) && j(cleanIndexRow(good)) === j(['i_a', '', 'A', '', '', [], H, [{ id: 'i_x', lvl: 2 }, { id: 'i_y' }]]) && cleanIndexRow(many)[7].length === 8
+            && cleanIndexRow(['i_a', '', 'A', '', '', [], H, []]) === null && cleanIndexRow(['i_a', '', 'A', '', '', [], H, 'x']) === null && cleanIndexRow(['i_a', '', 'A', '', '', [], H, [{ id: 'bad' }]]) === null && cleanIndexRow(['i_a', '', 'A', '', '', [], H, null]) === null
+            && cleanIndexRow(rS.concat(['x'])) === null && j(cleanIndexRow(['i_a', '', 'A', '', '', [], H])) === j(['i_a', '', 'A', '', '', [], H]) && cleanIndexRow(['i_a', '', 'A', '', '', []]) === null
+            && j(pg.rows) === j(ix.rows),
+            j([rS, rowOf('i_rite'), cleanIndexRow(good), ix.hash, ixNo.hash]));
+        // the sheet hands a row's needs to the picker, whose guard then greys it with no entry read in full
+        const shS = require('fs').readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), pkS = require('fs').readFileSync(path.join(app, 'scripts', 'libpicker.js'), 'utf8').replace(/\r\n/g, '\n');
+        const aA = shS.indexOf('    var asEntry = function(r) {'), aZ = shS.indexOf('\n', aA), asEntry = aA > 0 ? new Function(shS.slice(aA, aZ) + '\nreturn asEntry;')() : null;
+        const e8 = asEntry(cleanIndexRow(rS)), e7 = asEntry(cleanIndexRow(rowOf('i_med')));
+        const gA = pkS.indexOf('function missOf(x)'), gZ = pkS.indexOf('function draw() {'), guard = (full) => new Function('st', 'window', pkS.slice(gA, gZ) + '\nreturn { cant: cant, cantText: cantText };')({ opts: { gm: false, needs: e => (e.needs || []).slice() }, full: full || {}, all: [{ e: e7 }, { e: e8 }] }, { wpSystemCore: S });
+        check('126b a row greys before its entry is opened (sheets.js asEntry and the picker\'s guard, run for real): the sheet hands a row\'s eighth place to the picker as the entry\'s needs, and nothing where a row has none; the guard then greys the row and says what it needs by the names the list holds, with no entry read in full; once the entry has come in full the guard goes by that, the GM\'s own words included',
+            asEntry !== null && j(e8) === j({ id: 'i_sight', key: '', name: 'Sight', category: '', icon: '', tags: [], needs: [{ id: 'i_med', lvl: 2 }] }) && j(e7) === j({ id: 'i_med', key: '', name: 'Meditation', category: '', icon: '', tags: [] }) && !('needs' in e7)
+            && guard().cant({ e: e8 }) === true && guard().cantText({ e: e8 }) === 'That needs Meditation at level 2.' && guard().cant({ e: e7 }) === false
+            && guard({ i_sight: { id: 'i_sight', name: 'Sight', needs: [{ id: 'i_med', lvl: 2 }], needsMsg: 'Train first.' } }).cantText({ e: e8 }) === 'Train first.' && guard({ i_sight: { id: 'i_sight', name: 'Sight' } }).cant({ e: e8 }) === false,
+            j([e8, e7, guard().cantText({ e: e8 })]));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

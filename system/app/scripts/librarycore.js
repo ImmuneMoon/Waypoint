@@ -5,7 +5,7 @@
    (gmNotes: never in the players' view). Everything that enters goes through here — a pack file read from disk, an imported
    .wppack.json, a manifest in a loaded save, and later (L3) every message on the wire — and comes out as plain arrays and objects
    (prototype-free maps inside). Build plan: docs/STAGE_6_LIBRARY_BUILD.md. */
-import { cleanItemDef, statKeys, statPicks, cleanIcon, fieldKinds, cleanLvls, hideNeeds } from './systemcore.js';
+import { cleanItemDef, statKeys, statPicks, cleanIcon, fieldKinds, cleanLvls, hideNeeds, cleanNeeds } from './systemcore.js';
 
 export var VERSION = 1;
 export var LIB = Object.freeze({
@@ -349,13 +349,17 @@ export function itemsToMove(sys, keepIds, taken, inPack, ctx) {
     return out;
 }
 // L3's index row (a picker lists thousands of these): [id, key, name, category, icon, tags, hash] from a players'-view entry, and
-// its cleaner (a client takes nothing else from a host)
-export function indexRow(e) { return [e.id, e.key || '', e.name, e.category || '', e.icon || '', Array.isArray(e.tags) ? e.tags.slice() : [], entryHash(e)]; }
+// its cleaner (a client takes nothing else from a host). 126b: an entry that needs something players may see has an eighth place, those
+// needs, so a player's picker greys the row before the entry is opened; an entry that needs nothing keeps its row of seven. A client
+// takes a row of eight only when that place cleans to at least one need
+export function indexRow(e) { var r = [e.id, e.key || '', e.name, e.category || '', e.icon || '', Array.isArray(e.tags) ? e.tags.slice() : [], entryHash(e)], nd = cleanNeeds(e.needs); if (nd) r.push(nd); return r; }
 export function cleanIndexRow(r) {
-    if (!Array.isArray(r) || r.length !== 7 || typeof r[0] !== 'string' || !ITEM_RE.test(r[0])) return null;
+    if (!Array.isArray(r) || (r.length !== 7 && r.length !== 8) || typeof r[0] !== 'string' || !ITEM_RE.test(r[0])) return null;
     var key = typeof r[1] === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,39}$/.test(r[1]) ? r[1] : '', tags = Array.isArray(r[5]) ? r[5].map(function(t) { return line(t, LIB.tag); }).filter(Boolean).slice(0, LIB.tags) : [];
     if (typeof r[6] !== 'string' || !HASH_RE.test(r[6])) return null;
-    return [r[0], key, line(r[2], 60) || 'Item', line(r[3], 40), cleanIcon(r[4]), tags, r[6]];
+    var out = [r[0], key, line(r[2], 60) || 'Item', line(r[3], 40), cleanIcon(r[4]), tags, r[6]];
+    if (r.length === 8) { var nd = cleanNeeds(r[7]); if (!nd) return null; out.push(nd); }
+    return out;
 }
 
 var API = { VERSION: VERSION, queryWords: queryWords, entryHay: entryHay, searchEntries: searchEntries, entryFromForm: entryFromForm, newEntryId: newEntryId, keyClashes: keyClashes, setPackMeta: setPackMeta, keyIndex: keyIndex, packFile: packFile, readPackImport: readPackImport, playerIndex: playerIndex, indexPage: indexPage, itemsToMove: itemsToMove, getAnswer: getAnswer, cleanPlayerManifest: cleanPlayerManifest, packImportPlan: packImportPlan, bulkSet: bulkSet, bulkMove: bulkMove, libImportPlan: libImportPlan, manifestSig: manifestSig, addPack: addPack, removePack: removePack, nextRev: nextRev, packMeta: packMeta, LIB: LIB, DIR_RE: DIR_RE, PACK_RE: PACK_RE, ITEM_RE: ITEM_RE, HASH_RE: HASH_RE, hashText: hashText, libCtx: libCtx, cleanLibEntry: cleanLibEntry, entryHash: entryHash, cleanPack: cleanPack, readPackFile: readPackFile, cleanManifest: cleanManifest, newDir: newDir, packFileName: packFileName, indexRow: indexRow, cleanIndexRow: cleanIndexRow };

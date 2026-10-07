@@ -650,14 +650,16 @@
                               </ul>
                           </li>
                           <li><b>Boom:</b> with Visual effects on, the GM sees a <b>Boom</b> label on each circle and each thrown blast. Click it to set off an explosion burst at that spot for everyone on the map.</li>
-                          <li><b>Explode:</b> the GM can set off the last circle placed as an explosion. Press <b>Explode</b> in the tool&rsquo;s options, type the damage and its type, and press Explode under them.
+                          <li><b>Explode:</b> the GM can set off the last shape placed as an explosion. Press <b>Explode</b> in the tool&rsquo;s options, type the damage and its type, and press Explode under them.
                               <ul>
                                   <li>The damage is a number or a roll, such as <code>6d6</code>. The type is a word, such as burning. Both are typed each time, and nothing is filled in.</li>
                                   <li>The explosion is shown to everyone on the map, as a thrown blast is. The damage then follows the system&rsquo;s <b>Blast automation</b> setting.</li>
                                   <li>The type is named on the roll&rsquo;s card. It does not change the number.</li>
-                                  <li>It hits the tokens the circle held. The token a circle sits on is spared, unless you tick <b>Also hits the token at the centre</b>. The tick is off each time.</li>
+                                  <li>It hits the tokens the shape held. The token a circle sits on is spared, unless you tick <b>Also hits the token at the centre</b>. The tick is off each time.</li>
                                   <li><b>Undo last throw</b>, beside Explode, takes the damage back.</li>
-                                  <li>A ring or a cone does not explode. Neither does a circle whose centre is inside a wall or a closed door.</li>
+                                  <li>A ring hits the tokens between its two distances, and a cone the tokens within its angle. Everyone on the map is shown that shape.</li>
+                                  <li>Cover is judged from a ring&rsquo;s centre and from a cone&rsquo;s point.</li>
+                                  <li>No shape explodes while its centre, or a cone&rsquo;s point, is inside a wall or a closed door.</li>
                               </ul>
                           </li>
                       </ul>
@@ -2175,7 +2177,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                   </div>
                   <div class="draw-menu-label gm-only">Blast effects, the GM&rsquo;s</div>
                   <div class="draw-menu-row gm-only">
-                      <button class="draw-style-btn" id="blastExplodeBtn" title="Sets off the last circle you placed as an explosion, shown to everyone on the map. You type the damage and its type each time."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2 5.5 5-2.5-2.5 5 5.5 2-5.5 2 2.5 5-5-2.5-2 5.5-2-5.5-5 2.5 2.5-5L2 12l5.5-2-2.5-5 5 2.5 2-5.5z"/></svg> Explode&hellip;</button>
+                      <button class="draw-style-btn" id="blastExplodeBtn" title="Sets off the last shape you placed as an explosion, shown to everyone on the map. You type the damage and its type each time."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2 5.5 5-2.5-2.5 5 5.5 2-5.5 2 2.5 5-5-2.5-2 5.5-2-5.5-5 2.5 2.5-5L2 12l5.5-2-2.5-5 5 2.5 2-5.5z"/></svg> Explode&hellip;</button>
                       <button class="draw-style-btn" id="blastUndoThrow" title="Takes back the damage of the last thrown blast or explosion, for every token it hit."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4L4 9l5 5M4 9h10.5a5.5 5.5 0 0 1 0 11H9"/></svg> Undo last throw</button>
                   </div>
                   <div class="gm-only" id="blastExplodeForm" style="display:none;">
@@ -2187,7 +2189,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           <button class="draw-style-btn" id="blastExplodeNo" title="Puts the two boxes away and sets nothing off">Cancel</button>
                       </div>
                   </div>
-                  <div class="draw-menu-row gm-only" style="font-size:11px; color:var(--dim); max-width:210px; line-height:1.4;">Explode sets off the last circle you placed. It asks for the damage and its type each time. Nothing is filled in.</div>
+                  <div class="draw-menu-row gm-only" style="font-size:11px; color:var(--dim); max-width:210px; line-height:1.4;">Explode sets off the last shape you placed. It asks for the damage and its type each time. Nothing is filled in.</div>
               </div>
           </div>
 

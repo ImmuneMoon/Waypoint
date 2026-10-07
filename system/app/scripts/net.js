@@ -2515,6 +2515,10 @@ net.broadcastBlast = function(blast, mapId) {
     if (!net.active || net.role !== 'host' || !blast) return;
     var b = { x: Number(blast.x), y: Number(blast.y), ft: Number(blast.ft), elev: Number(blast.elev) || 0, name: typeof blast.name === 'string' ? blast.name.slice(0, 60) : '', by: typeof blast.by === 'string' ? blast.by.slice(0, 60) : '' };
     if (!isFinite(b.x) || !isFinite(b.y) || !(b.ft > 0)) return;
+    // 128 (e): an exploded ring or cone keeps its shape, and the table is shown it. Numbers only, each within its bounds: a ring's inner distance
+    // in feet inside its radius, a cone's angle in whole degrees and its aim. A shape that does not clean is sent as the plain circle it is without it
+    if (blast.shape === 'ring') { var inF = Number(blast.inFt); if (isFinite(inF) && inF > 0 && inF < b.ft) { b.shape = 'ring'; b.inFt = inF; } }
+    else if (blast.shape === 'cone') { var dgB = Math.round(Number(blast.deg)), drB = Number(blast.dir); if (isFinite(dgB) && dgB >= 1 && dgB <= 360 && isFinite(drB)) { b.shape = 'cone'; b.deg = dgB; b.dir = Math.atan2(Math.sin(drB), Math.cos(drB)); } }
     var camp = getActiveCampaign(); if (!camp) return;
     var msg = { type: 'blast', campId: camp.id, mapId: mapId, blast: b };
     net.conns.forEach(function(c) { if (c.open && net.roster[c.peer] && net.roster[c.peer].location === mapId) { try { c.send(msg); } catch (e) { sendFailed(e); } } });

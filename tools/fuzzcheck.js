@@ -1054,7 +1054,7 @@ function mutations(tpl) {
         'music': { type: 'music', campId: 'c1', music: {} }, 'music-ctl': { type: 'music-ctl', act: 'play', id: 't1' },
         'fx': { type: 'fx', kind: 'flash', look: 'gold', mapId: 'm_open' },
         'video': { type: 'video', act: 'offer', id: '0123456789abcdef', name: 'Clip', sdp: 'v=0\r\no=- 1 1 IN IP4 127.0.0.1\r\n' },
-        'blast': { type: 'blast', mapId: 'm_open', blast: { x: 1, y: 1, ft: 10, name: CANARY } }, 'blastClear': { type: 'blastClear' },
+        'blast': { type: 'blast', mapId: 'm_open', blast: { x: 1, y: 1, ft: 10, name: CANARY, shape: 'cone', deg: 60, dir: 1 } }, 'blastClear': { type: 'blastClear' },
         'apply': { type: 'apply', id: 'a_1', from: { id: 'u_p2', name: 'Bram' }, label: 'Heal', lines: [{ f: 'HP', text: '+3' }], ts: 1 },
         'acts-left': { type: 'acts-left', charId: 'c_p1', left: { attack: 1 }, mode: 'warn' },
         'turn-note': { type: 'turn-note', text: 'Your turn.', charId: 'c_p1' },

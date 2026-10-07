@@ -3592,6 +3592,11 @@ window.wpFitToGrid = fitToGrid;
   var circleCas = circleKept.as === 'd' ? 'd' : 'r';   // how a circle's number was last read: what Circle goes back to from a ring or a cone
   function rulerUnitNow() { return rulerUnitOf(mapMeasureConfig().unit, state.measureUnit === 'metric'); }   // the unit the ruler reads in on the map on screen
   function ownCircle(b) { return !!b && typeof b.yd === 'number' && b.yd > 0; }   // a circle of the Radius tool's own, never a thrown blast
+  // What a shape is, for one of the tool's own and for a blast alike. A blast is a circle unless an explosion gave it a shape (the owner, of
+  // whether a cone or a ring should explode too: "A cone and a ring, soon"): a ring keeps its inner distance in feet (shape 'ring', inFt), a
+  // cone its angle and its aim (shape 'cone', deg, dir). A shape's own numbers stay in yards (as, inn)
+  function kindOf(b) { return ownCircle(b) ? circleKind(b.as) : b && (b.shape === 'ring' || b.shape === 'cone') ? b.shape : 'r'; }
+  function innerYd(b) { var v = ownCircle(b) ? Number(b.inn) : Number(b && b.inFt) / 3; return isFinite(v) && v > 0 ? v : 0; }   // a ring's inner distance in yards, 0 where there is none
   function playerScreen() { var n = window.wpNet; return !!(n && (n.foreign || (n.active && n.role === 'client'))); }   // someone else's table on this screen, its link up or gone (litViewer's own test): every blast effect is the GM's
   function tokenOf(map, id) { var t = null; ((map && map.whiteboard) || []).forEach(function(w) { if (w && w.id === id && w.isChar) t = w; }); return t; }   // the character token of that id on this screen's copy of the map
   // A circle on a token stands where its token stands, at the token's height unless its own was set. With its token off this screen's copy of
@@ -3612,9 +3617,9 @@ window.wpFitToGrid = fitToGrid;
       if (typeof b.tok === 'string' && r.tok && r.tok.id === b.tok) return false;   // the token a circle sits on is its centre, not something inside it
       if (typeof b.spare === 'string' && r.tok && r.tok.id === b.spare) return false;   // an explosion set off from such a circle spares that token still
       if (r.d > blastRadiusYd(b) + 1e-9) return false;
-      if (!ownCircle(b)) return true;
-      if (b.as === 'ring') return r.d >= (b.inn || 0) - 1e-9;
-      if (b.as === 'cone') { var c = tokenCentre(r.tok); return coneHolds(b.dir, b.deg, c.x - b.x, c.y - b.y); }
+      var k = kindOf(b);   // a blast that an exploded ring or cone left has that shape still
+      if (k === 'ring') return r.d >= innerYd(b) - 1e-9;
+      if (k === 'cone') { var c = tokenCentre(r.tok); return coneHolds(b.dir, b.deg, c.x - b.x, c.y - b.y); }
       return true;
   }
   // [systemcheck:radius-end]
@@ -3662,11 +3667,11 @@ window.wpFitToGrid = fitToGrid;
           var rYd = blastRadiusYd(b), rPx = rYd * pxPerYd, own = ownCircle(b);   // the tool's own circle reads in the ruler's unit; a thrown blast keeps its item's feet and the handbook's yards
           var onTok = own && typeof b.tok === 'string';   // on a token: a press at its centre is the token's, so its dot takes none (the style sheet's on-tok)
           html += '<g class="blast' + (own ? ' own' : '') + (onTok ? ' on-tok' : '') + '" data-i="' + i + '"><title>' + (onTok ? 'It moves with its token \u00b7 right-click its edge to remove' : 'Drag to move \u00b7 right-click to remove') + '</title>';
-          var kind = own ? circleKind(b.as) : 'r', DOT = '<circle class="dot" cx="' + b.x + '" cy="' + b.y + '" r="6"></circle>', GRAB = '<circle class="ring" cx="' + b.x + '" cy="' + b.y + '" r="' + rPx + '"></circle>';
-          if (kind === 'cone') html += '<path class="area" d="' + conePath(b.x, b.y, rPx, b.dir, b.deg) + '"></path>' + DOT + '<circle class="blast-aim" data-i="' + i + '" cx="' + svgNum(b.x + rPx * Math.cos(b.dir || 0)) + '" cy="' + svgNum(b.y + rPx * Math.sin(b.dir || 0)) + '" r="7"><title>Drag to turn the cone</title></circle>';   // a path is numbers only (svgNum)
-          else if (kind === 'ring' && b.inn > 0) html += '<path class="area" fill-rule="evenodd" d="' + ringPath(b.x, b.y, rPx, b.inn * pxPerYd) + '"></path>' + GRAB + DOT;
+          var kind = kindOf(b), DOT = '<circle class="dot" cx="' + b.x + '" cy="' + b.y + '" r="6"></circle>', GRAB = '<circle class="ring" cx="' + b.x + '" cy="' + b.y + '" r="' + rPx + '"></circle>';
+          if (kind === 'cone') html += '<path class="area" d="' + conePath(b.x, b.y, rPx, b.dir, b.deg) + '"></path>' + DOT + (own ? '<circle class="blast-aim" data-i="' + i + '" cx="' + svgNum(b.x + rPx * Math.cos(b.dir || 0)) + '" cy="' + svgNum(b.y + rPx * Math.sin(b.dir || 0)) + '" r="7"><title>Drag to turn the cone</title></circle>' : '');   // a path is numbers only (svgNum); a blast's cone has no handle: it went off as it was aimed
+          else if (kind === 'ring' && innerYd(b) > 0) html += '<path class="area" fill-rule="evenodd" d="' + ringPath(b.x, b.y, rPx, innerYd(b) * pxPerYd) + '"></path>' + GRAB + DOT;
           else html += '<circle class="area" cx="' + b.x + '" cy="' + b.y + '" r="' + rPx + '"></circle>' + GRAB + DOT;
-          var lbl = (own ? esc(circleWords(b.yd, b.as, ru, b.inn, b.deg)) : (b.name ? esc(b.name) + ' ' : '') + ftOut(b.ft) + ' ft \u00b7 r ' + fmtLen(rYd)) + (elevOn ? ' \u00b7 at ' + fmtElev(b.elev || 0) + ' ' + lenUnit() : '');   // item 19 H1: in the viewer's unit
+          var lbl = (own ? esc(circleWords(b.yd, b.as, ru, b.inn, b.deg)) : (b.name ? esc(b.name) + ' ' : '') + ftOut(b.ft) + ' ft' + (kind === 'ring' ? ', from ' + ftOut(b.inFt) + ' ft' : kind === 'cone' ? ', ' + coneDeg(b.deg, 60) + '\u00b0' : '') + ' \u00b7 r ' + fmtLen(rYd)) + (elevOn ? ' \u00b7 at ' + fmtElev(b.elev || 0) + ' ' + lenUnit() : '');   // item 19 H1: in the viewer's unit
           html += '<text x="' + (b.x + 8) + '" y="' + (kind === 'cone' ? b.y - 12 : b.y - rPx - 8) + '">' + lbl + '</text>';   // a cone's words stand at its point: it has no top
           if (!playerScreen() && kind !== 'cone' && kind !== 'ring') html += '<text class="blast-boom" data-i="' + i + '" x="' + (b.x + 8) + '" y="' + (b.y - rPx - 26) + '">💥 Boom</text>';   // fires a burst everyone sees (1.5.0)
           blastDistances(b, map).forEach(function(r) {
@@ -3774,10 +3779,9 @@ window.wpFitToGrid = fitToGrid;
       var camp = getActiveCampaign(), sys = camp && camp.system, S = window.wpSystemCore, F = window.wpFormula, map = getActiveMap();
       if (!sys || !S || !F || !map) return;
       if (!hpId) { toast('Full auto is on, but no damage resource is set (System editor \u25b8 Items \u25b8 Damage subtracts from).'); return; }
-      var rYd = blastRadiusYd(b), hits = [], applied = 0, halved = 0, shielded = 0;
+      var hits = [], applied = 0, halved = 0, shielded = 0;
       blastDistances(b, map).forEach(function(r) {
-          if (r.d > rYd + 1e-9 || !r.tok.charId) return;
-          if (typeof b.spare === 'string' && r.tok.id === b.spare) return;   // an explosion set off from a circle on a token: that token was not inside the circle
+          if (!shapeHolds(b, r) || !r.tok.charId) return;   // what a blast holds is asked in one place: its radius, a ring's inner distance, a cone's angle, and the token an explosion spares
           var ch = camp.chars && typeof r.tok.charId === 'string' && Object.prototype.hasOwnProperty.call(camp.chars, r.tok.charId) ? camp.chars[r.tok.charId] : null; if (!ch) return;   // own ids only: a token from a file naming '__proto__' writes no damage onto a prototype
           var tierC = window.wpFog && window.wpFog.coverAt ? window.wpFog.coverAt(b.x, b.y, r.tok, map, stanceOn('elevation') ? (b.elev || 0) : 0, stanceOn('elevation') ? tokenElevation(r.tok, map, b.thrown === true) : 0) : null, ocC = S.coverOutcome ? S.coverOutcome(sys, tierC) : 'full', dmgC = S.coverDamage ? S.coverDamage(sys, tierC, total) : total;   // cover follow-ups (owner 2026-09-28): the system's outcome for the cover this token has from the blast (the host's own board)
           if (ocC === 'none' && total > 0) { shielded++; return; }   // shielded: the system's outcome for this grade is none (a half that rounds to 0 took less)
@@ -3814,7 +3818,8 @@ window.wpFitToGrid = fitToGrid;
   window.wpHasThrowUndo = function() { return !!(_lastThrowTx && _lastThrowTx.hits.length); };
   // [systemcheck:explode-start]
   // Explode (1.5.4, backlog 128; the owner by prompt: "Yes, type is a word", and of who may: "The GM is the only one who should be able to
-  // make any blast effects"). The GM sets off the last circle of the Radius tool as an explosion. A damage, a number or a roll, and a damage
+  // make any blast effects"). The GM sets off the last shape of the Radius tool as an explosion: a circle, and since 128 (e) a ring or a cone
+  // too ("A cone and a ring, soon"), which the blast keeps and the table is shown. A damage, a number or a roll, and a damage
   // type, a word, are typed each time: nothing is ever filled in ("no defaults can be done because a damage type and value is needed"). The
   // circle becomes a blast in its place, shown to the table as a thrown blast is, and the damage follows the system's blast setting
   // (combat.blastAuto: full rolls and applies, roll rolls to chat, measure does neither). The type is named on the roll's card and changes no
@@ -3836,12 +3841,11 @@ window.wpFitToGrid = fitToGrid;
   function explodeWhere() {   // the circle Explode would set off: { c, ft }, or { why } in fixed words
       if (playerScreen()) return { why: 'Only the GM sets off an explosion.' };
       var map = getActiveMap(), c = map ? lastOwn() : null;
-      if (!c) return { why: 'Place a circle first. Explode sets off the last circle you placed.' };
-      if (shapeOf(c.as) !== 'circle') return { why: 'Explode sets off a circle. Pick Circle for this shape first.' };
+      if (!c) return { why: 'Place a shape first. Explode sets off the last shape you placed.' };
       var ft = c.yd * 3, ru = rulerUnitNow();
       if (ft > EXPLODE_MAX_FT) return { why: 'An explosion is at most ' + rulerLen(EXPLODE_MAX_FT / 3, ru) + ' in radius.' };
       if (ft < EXPLODE_MIN_FT) return { why: 'An explosion is at least ' + rulerLen(EXPLODE_MIN_FT / 3, ru) + ' in radius.' };
-      if (window.wpFog && window.wpFog.blastSeat && window.wpFog.blastSeat(map, c.x, c.y, c.x, c.y)) return { why: 'The centre of the circle is inside a wall or a closed door. Move the circle to an open cell first.' };
+      if (window.wpFog && window.wpFog.blastSeat && window.wpFog.blastSeat(map, c.x, c.y, c.x, c.y)) return { why: (shapeOf(c.as) === 'cone' ? 'The point of the cone' : shapeOf(c.as) === 'ring' ? 'The centre of the ring' : 'The centre of the circle') + ' is inside a wall or a closed door. Move it to an open cell first.' };
       return { c: c, ft: ft };
   }
   function explodeAsk(dmg, type) {   // what Explode would set off with what was typed: { c, ft, expr, type }, or { why }
@@ -3868,9 +3872,12 @@ window.wpFitToGrid = fitToGrid;
       var c = q.c, at = blasts.indexOf(c); if (at < 0) return false;   // the circle went while the roll was made: nothing goes off, and no other shape's place is taken
       var b = { x: c.x, y: c.y, ft: q.ft, name: 'Explosion', elev: typeof c.elev === 'number' && isFinite(c.elev) ? c.elev : 0, autoElev: false, thrown: true, by: '' };
       if (typeof c.tok === 'string' && hitFor !== c) b.spare = c.tok;   // the token the circle sat on was not inside it: the explosion does not hit it, unless the GM ticked that it does, for this very circle
-      blasts.splice(at, 1, b);   // the circle becomes the blast, where it stood
+      var sent = { x: b.x, y: b.y, ft: b.ft, name: b.name, elev: b.elev, by: '' };   // shown to the table as a thrown blast is: its place, its size, its height and the fixed word
+      if (shapeOf(c.as) === 'ring' && c.inn > 0 && c.inn < c.yd) { b.shape = sent.shape = 'ring'; b.inFt = sent.inFt = c.inn * 3; }   // a ring with no hole is the whole disc
+      else if (shapeOf(c.as) === 'cone') { b.shape = sent.shape = 'cone'; b.deg = sent.deg = coneDeg(c.deg, 60); b.dir = sent.dir = typeof c.dir === 'number' && isFinite(c.dir) ? c.dir : 0; }   // and its shape, where it has one
+      blasts.splice(at, 1, b);   // the shape becomes the blast, where it stood
       renderMeasures(); syncBlastMenu();
-      if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.broadcastBlast) window.wpNet.broadcastBlast({ x: b.x, y: b.y, ft: b.ft, name: b.name, elev: b.elev, by: '' }, map.id);   // shown to the table as a thrown blast is: its place, its size, its height and the fixed word
+      if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.broadcastBlast) window.wpNet.broadcastBlast(sent, map.id);
       var n = blastDistances(b, map).filter(function(r) { return shapeHolds(b, r); }).length, said = 'Explosion, ' + q.type + '. ' + n + ' token' + (n === 1 ? '' : 's') + ' in range.';
       if (!rolled) { toast(said + (auto === 'measure' ? ' Nothing was rolled. This system\u2019s blasts only measure.' : ' Nothing was rolled. Dice are off.')); return true; }
       if (auto !== 'full') { toast(said); return true; }
@@ -3931,7 +3938,12 @@ window.wpFitToGrid = fitToGrid;
   window.wpRenderSharedBlast = function(bl) {
       if (!bl || typeof bl.x !== 'number' || typeof bl.y !== 'number') return;
       var ft = typeof bl.ft === 'number' && isFinite(bl.ft) && bl.ft > 0 ? Math.max(1, Math.min(3000, bl.ft)) : 12;   // the host's number as it is, within a blast's bounds: an explosion set off from a circle is not always a whole number of feet, and a rounded one would hold other tokens than the host's
-      pushBlast({ x: bl.x, y: bl.y, ft: ft, name: typeof bl.name === 'string' ? bl.name.slice(0, 60) : '', elev: typeof bl.elev === 'number' ? bl.elev : 0, autoElev: false, thrown: true, by: typeof bl.by === 'string' ? bl.by.slice(0, 60) : '', shared: true });
+      var nb = { x: bl.x, y: bl.y, ft: ft, name: typeof bl.name === 'string' ? bl.name.slice(0, 60) : '', elev: typeof bl.elev === 'number' ? bl.elev : 0, autoElev: false, thrown: true, by: typeof bl.by === 'string' ? bl.by.slice(0, 60) : '', shared: true };
+      // 128 (e): an exploded ring or cone is shown as that shape. Its numbers are the host's, each checked here: a ring's inner distance inside
+      // its radius, a cone's angle a whole number of degrees from 1 to 360 and its aim a finite number. Anything else is a plain circle
+      if (bl.shape === 'ring' && typeof bl.inFt === 'number' && isFinite(bl.inFt) && bl.inFt > 0 && bl.inFt < ft) { nb.shape = 'ring'; nb.inFt = bl.inFt; }
+      else if (bl.shape === 'cone' && typeof bl.deg === 'number' && typeof bl.dir === 'number' && isFinite(bl.dir) && Math.round(bl.deg) >= 1 && Math.round(bl.deg) <= 360) { nb.shape = 'cone'; nb.deg = Math.round(bl.deg); nb.dir = Math.atan2(Math.sin(bl.dir), Math.cos(bl.dir)); }
+      pushBlast(nb);
       renderMeasures();
   };
   window.wpClearSharedBlasts = function() { var had = blasts.some(function(b) { return b.shared; }); blasts = blasts.filter(function(b) { return !b.shared; }); if (had) renderMeasures(); };

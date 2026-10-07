@@ -59,7 +59,7 @@ const SWATCHES = ['#e9e9f0', '#1a1a1a', '#d9534f', '#e0a54f', '#5cb87a', '#4db3d
 // owner said, of the row: "1 as long as we are not getting rid of import and export"
 const HEADER = ['headerBrand', 'campMenuBtn', 'campaignSelect', 'tableWhere', 'searchCampBtn', 'newCampBtn', 'renameCampBtn', 'systemBtn', 'delCampBtn', 'viewModeSelect', 'mapTabs', 'mapBreadcrumb', 'mapTabList', 'mapTabAdd', 'tableWhereMap', 'clockChip', 'videoChip', 'rowPills', 'fogPill', 'tablePill', 'pausedPill', 'roundPill', 'viewPill', 'saveAsBtn', 'saveAsMenu',
     'exportImgBtn', 'exportPdfBtn', 'exportHtmlBtn', 'exportMdBtn', 'exportItemBtn', 'exportMapsBtn', 'exportWbsBtn', 'exportPlannersBtn', 'exportDocsBtn', 'exportCampaignBtn', 'exportBtn', 'importBtn', 'fileIn', 'updateBtn', 'reviewChip',
-    'netBtn', 'sessionPauseBtn', 'chatBtn', 'soundInd', 'musicInd', 'handoutsBtn', 'journalBtn', 'refreshBtn', 'settingsBtn', 'helpBtn', 'moreMenuBtn', 'aboutBtn', 'saveNote'];
+    'netBtn', 'sessionPauseBtn', 'chatBtn', 'soundInd', 'musicInd', 'handoutsBtn', 'journalBtn', 'refreshBtn', 'settingsBtn', 'helpBtn', 'moreMenuBtn', 'aboutBtn', 'rowHideBtn', 'saveNote'];
 // Settings, Table: the three switches for what stands around a map, each with the word that says how it stands
 const SETTINGS = ['setRulersBtn', 'setRulersState', 'setZoomCtlBtn', 'setZoomCtlState', 'setPointerPosBtn', 'setPointerPosState'];
 const board = (() => { const a = ix.indexOf('<div id="wbFloatingToolbar"'), z = ix.indexOf('<div id="whiteboardWrap">'); return a > 0 && z > a ? ix.slice(a, z) : ''; })();
@@ -67,7 +67,7 @@ const board = (() => { const a = ix.indexOf('<div id="wbFloatingToolbar"'), z = 
     const idN = id => count(ix, ' id="' + id + '"'), ALL = INVENTORY.concat(HEADER, SETTINGS);
     const gone = ALL.filter(id => idN(id) !== 1).map(id => id + ' x' + idN(id)), out = INVENTORY.filter(id => count(board, ' id="' + id + '"') !== 1);
     check('nothing is removed (the owner: "lets not remove functionality with these updates, that critical."): each of the ' + INVENTORY.length + ' controls of the play map\'s toolbar, its menus and what stands around the map is in the page exactly once and still around the map, and so is each of the ' + HEADER.length + ' of the top bar with Import and every kind of Export, and each of the ' + SETTINGS.length + ' of the three switches in Settings',
-        board.length > 1000 && gone.length === 0 && out.length === 0 && INVENTORY.length === 184 && HEADER.length === 53 && SETTINGS.length === 6 && new Set(ALL).size === 243, J([gone, out]));
+        board.length > 1000 && gone.length === 0 && out.length === 0 && INVENTORY.length === 184 && HEADER.length === 54 && SETTINGS.length === 6 && new Set(ALL).size === 244, J([gone, out]));
     const rowsBad = Object.keys(ROWS).filter(k => J((board.match(new RegExp('<button[^>]* data-' + k + '="([^"]*)"', 'g')) || []).map(m => m.slice(m.lastIndexOf('="') + 2, -1))) !== J(ROWS[k]));
     const sw = (board.match(/<button class="draw-swatch" data-color="(#[0-9a-f]{6})"/g) || []).map(m => m.slice(-8, -1));
     check('nothing is removed, the choices inside the menus: Snap\'s three modes, the pen\'s two styles, three tips and five sizes, the eraser\'s two modes, the two measuring systems, the fog\'s two gridless grids, three brushes and five strokes, the two shape sizes, the Radius tool\'s three shapes and a circle\'s two readings, each in its order, and the seven colours of the pen and of the fill with a custom colour for each',
@@ -311,7 +311,7 @@ const hdr = id => { const at = ix.indexOf(' id="' + id + '"'); if (at < 0) retur
     const ORDER = ['headerBrand', 'campMenuWrap', 'campMenuBtn', 'campMenuName', 'campMenu', 'campMenuList', 'searchCampBtn', 'newCampBtn', 'renameCampBtn', 'systemBtn', 'delCampBtn', 'campaignSelect', 'tableWhere', 'viewModeSelect', 'mapTabs', 'mapTabFront', 'mapTabPin', 'mapBreadcrumb', 'mapTabName', 'mapTabHere', 'mapTabHereN', 'mapTabList', 'mapTabAdd', 'tableWhereMap', 'clockChip', 'videoChip', 'rowPills', 'fogPill', 'tablePill', 'pausedPill', 'roundPill', 'viewPill', 'visualTools', 'imgFileIn', 'sheetFileIn',
         'fileIn', 'docImportFile', 'updateBtn', 'reviewChip', 'reviewChipN', 'netBtn', 'netDot', 'sessionPauseBtn', 'chatBtn', 'chatBadge', 'soundInd', 'musicInd', 'handoutsBtn', 'journalBtn', 'journalBadge', 'settingsBtn', 'helpBtn',
         'moreMenuWrap', 'moreMenuBtn', 'moreMenu', 'moreFiles', 'saveAsDropdownWrap', 'saveAsBtn', 'saveAsMenu', 'exportImgBtn', 'exportPdfBtn', 'exportHtmlBtn', 'exportMdBtn', 'exportItemBtn', 'exportMapsBtn', 'exportWbsBtn', 'exportPlannersBtn', 'exportDocsBtn',
-        'exportCampaignBtn', 'exportBtn', 'importBtn', 'refreshBtn', 'aboutBtn', 'moreFold', 'saveNote'];
+        'exportCampaignBtn', 'exportBtn', 'importBtn', 'refreshBtn', 'aboutBtn', 'moreFold', 'rowHideBtn', 'saveNote'];
     check('the top row, nothing is gone: every control the header had is still in it, each id once, in the order the row and its two menus give them now (the five campaign buttons inside the campaign\'s menu, the page\'s own campaign list after them; Export As with its eleven kinds, Import, Refresh and About inside More), the eleven kinds of Export and Import among them (the owner: "as long as we are not getting rid of import and export"); every one of the top bar\'s list is in it',
         header.length > 4000 && J(ids) === J(ORDER) && new Set(ids).size === ids.length && HEADER.every(id => ids.indexOf(id) >= 0), J(ids.filter((id, i) => id !== ORDER[i]).slice(0, 6)));
     const ROW = '  header { padding: 4px 10px; gap: 6px; row-gap: 4px; min-height: 36px; box-sizing: border-box; background: var(--bg2); }\n'
@@ -898,6 +898,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         + "- The top row has pills that say what is going on: this map's fog, the\n  table and its players, a pause, the round and whose turn it is, and\n  a fog preview. A pill shows only while it has something to say, and\n  a press opens its thing.\n"
         + "- A player's video chip and the Review button wear line drawings and\n  read as pills too.\n"
         + "- On the play map the left panel folds to a narrow rail, so the map\n  has more room. Press an icon of the rail to open the panel over the\n  map, or the pin to keep it open.\n"
+        + "- The top row can be hidden: press the small arrow at its right end.\n  A tab at the top edge shows it again. The map tabs and the pills\n  stay, floating on the map.\n"
         + "- Where the window is too narrow for the row, Sound, Music, Handouts,\n  Journal and Help move into More, so the row stays one line.\n"
         + "- Both menus work from the keyboard: the arrow keys, a letter for the\n  next row that begins with it, Enter, and Esc to close.\n"
         + "- The top bar's icons are redrawn as Waypoint's own drawings. Settings\n  wears a cog, and Music is still a note.\n"
@@ -1529,12 +1530,61 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         && css.includes('\n  .layout-wrapper { position: relative; }\n  #leftRail { flex: 0 0 34px; box-sizing: border-box; display: flex; flex-direction: column;') && css.includes('\n  #leftRail[hidden] { display: none; }\n') && css.includes('\n  .rail-btn.on { background: var(--gold); color: #1a1a1a; }\n')
         && css.includes('\n  #campaignSidebar.floating { position: absolute; left: 34px; top: 0; bottom: 0; z-index: 4020;') && css.includes('\n  #campaignSidebar.collapsed + #leftGrip, #campaignSidebar.floating + #leftGrip { display: none; }')
         && css.includes('\n  body.stream-mode #leftRail, body.net-client.no-handbook #leftRail { display: none !important; }\n') && css.includes('\n  #campaignSidebar.collapsed { width: 0 !important; padding-left: 0; padding-right: 0; border-right: none; }'));
-    const helpRail = ix.slice(ix.indexOf('<li><b>The left panel:</b>'), ix.indexOf('<li><b>More:</b> the three dots'));
+    const helpRail = ix.slice(ix.indexOf('<li><b>The left panel:</b>'), ix.indexOf('<li><b>Hiding the row:</b>'));
     check('the rail, said: Help\'s part on the top row has an entry on the left panel, between the pills and More, that says the panel folds to a narrow rail on the play map, how an icon opens it and what folds it again, what the lens and the pin do, and that on the other views the panel stays open; both release notes say it in the same words',
         helpRail.length > 500 && helpRail.length < 1400 && helpRail.indexOf('<li><b>The left panel:</b> on the play map the left panel folds to a narrow rail, so the map has more room.\n') === 0
         && ['<li>Press an icon of the rail to open the panel at the Handbook, the Planners or the Maps. It lies over the map.</li>', '<li>Press the map, or the same icon again, to fold it.</li>', '<li>The lens opens quick-jump.</li>',
             '<li>The pin keeps the panel open on the play map. The arrow at the panel&rsquo;s edge folds it again.</li>', '<li>On the other views the panel stays open, as before.</li>'].every(s => count(helpRail, s) === 1)
         && [rootRead('WHATSNEW.txt'), read('assets/whatsnew.txt')].every(t => count(t, "- On the play map the left panel folds to a narrow rail, so the map\n  has more room. Press an icon of the rail to open the panel over the\n  map, or the pin to keep it open.\n") === 1));
+}
+
+/* ---------- the top row, hidden (the last step of the slim row) ---------- */
+// The owner: "one slim row, with the option of hiding it", and of what stays in sight while it is hidden, by prompt: "Tabs and pills".
+// rowhide.js is sliced by its markers and run for real on a page of plain objects.
+{
+    const hSrc = read('scripts/rowhide.js'), hSlice = sliceOf(hSrc, 'rowhide'), ARROW_D = 'M6 9.5l6 6 6-6', HH = 'body.row-hidden:not(.tour-on)';
+    check('the arrow that hides the row and the tab that shows it again, as the page has them: the arrow is the last control of the row, before the saved note, and the tab stands right after the row, put away in the page; both wear the small arrow the toolbar uses for "this opens", turned to point up on the arrow by the style sheet, so no new drawing was needed; each says in its tooltip what a press does; the module is loaded after the rail\'s',
+        count(ix, '    <button class="tool ghost icon" id="rowHideBtn" aria-pressed="false" title="Hide the top row. A small tab at the top edge shows it again."><svg class="ico ico-up" viewBox="0 0 24 24" aria-hidden="true"><path d="' + ARROW_D + '"/></svg></button>\n    <div class="save-note" id="saveNote"></div>\n  </header>\n'
+            + '  <button id="rowShowTab" hidden title="Show the top row."><svg class="ico ico-down" viewBox="0 0 24 24" aria-hidden="true"><path d="' + ARROW_D + '"/></svg></button>\n') === 1
+        && count(ix, ' id="rowHideBtn"') === 1 && count(ix, ' id="rowShowTab"') === 1 && new RegExp('id="campMenuBtn"[^\\n]*<path d="' + ARROW_D + '"/>').test(ix) && css.includes('\n  header #rowHideBtn .ico { transform: rotate(180deg); }')
+        && count(ix, '<script type="module" src="scripts/leftrail.js"></script>\n<script type="module" src="scripts/rowhide.js"></script>\n') === 1);
+    const load = () => { try { return new Function(hSlice + '\nreturn { hideRead: hideRead, hideKeep: hideKeep, hideApply: hideApply, hideSet: hideSet };')(); } catch (e) { return { err: String(e) }; } };
+    const T = load(); let err = T.err || '', kept = '', did = '';
+    if (!err) try {
+        const mkS = v => { const log = []; return { log, getItem: k => { log.push('get ' + k); if (v === 'throw') throw new Error('x'); return v; }, setItem: (k, x) => { if (v === 'throw') throw new Error('x'); log.push('set ' + k + '=' + x); }, removeItem: k => { if (v === 'throw') throw new Error('x'); log.push('remove ' + k); } }; };
+        const s1 = mkS('1'), s0 = mkS(null), sx = mkS('throw');
+        kept = J([T.hideRead(s1), s1.log, T.hideRead(s0), T.hideRead(mkS('yes')), T.hideRead(mkS('0')), T.hideRead(sx), T.hideKeep(s0, true), T.hideKeep(s0, false), T.hideKeep(s0, 1), s0.log.slice(1), T.hideKeep(sx, true)]);
+        const mkDoc = lack => { const cls = new Set(), log = [], el = id => ({ id, hidden: id === 'rowShowTab', attrs: {}, setAttribute(k, v) { this.attrs[k] = String(v); }, focus() { log.push('focus ' + id); } }), els = { rowShowTab: el('rowShowTab'), rowHideBtn: el('rowHideBtn') };
+            (lack || []).forEach(id => { delete els[id]; });
+            return { log, els, cls, body: { classList: { toggle: (c, v) => { if (v) cls.add(c); else cls.delete(c); } } }, getElementById: id => els[id] || null }; };
+        const see = d => [[...d.cls].join(' '), d.els.rowShowTab ? d.els.rowShowTab.hidden : '-', d.els.rowHideBtn ? d.els.rowHideBtn.attrs['aria-pressed'] : '-'].join('|');
+        const A = mkDoc(), a = [T.hideApply(A, true), see(A), T.hideApply(A, false), see(A), T.hideApply(A, 'yes'), see(A), T.hideApply(A, 1), see(A)];
+        const B = mkDoc(), st = mkS(null), calls = [], w = { wpTopRow: { close: () => { calls.push('close'); } }, wpFitBar: () => { calls.push('fit'); } };
+        const b1 = T.hideSet(B, st, w, true), sB1 = see(B), b2 = T.hideSet(B, st, w, false), sB2 = see(B), b3 = T.hideSet(B, st, w, 'yes'), sB3 = see(B);
+        const C = mkDoc(['rowShowTab', 'rowHideBtn']), c1 = T.hideSet(C, mkS('throw'), {}, true), sC = see(C), c2 = T.hideSet(C, mkS(null), { wpTopRow: {}, wpFitBar: 'no' }, true);
+        did = J([a, [b1, sB1, b2, sB2, b3, sB3], st.log, calls, B.log, [c1, sC, c2, C.log]]);
+    } catch (e) { err = String(e && e.stack || e); }
+    check('whether the row is hidden is this computer\'s own (hideRead, hideKeep, run for real): read as hidden only where the store holds a 1 under wp_rowHidden, kept as a 1 only for true and taken out for anything else, and a store that throws reads as shown and keeps nothing',
+        !err && kept === J([true, ['get wp_rowHidden'], false, false, false, false, true, true, true, ['set wp_rowHidden=1', 'remove wp_rowHidden', 'remove wp_rowHidden'], false]), err || kept);
+    check('hiding and showing the row (hideApply, hideSet, run for real): hidden, the body carries its one word, the tab shows and the arrow says it is pressed; shown, the word is gone and the tab is put away; only true hides; a press keeps the choice, puts a menu of the row away, has the toolbar fitted to the room the map has now, and moves the focus to the control that undoes it; a page that lacks the tab and the arrow, a store that throws and a window whose other modules are not there still hide the row and throw nothing',
+        !err && did === J([[true, 'row-hidden|false|true', false, '|true|false', false, '|true|false', false, '|true|false'], [true, 'row-hidden|false|true', false, '|true|false', false, '|true|false'],
+            ['set wp_rowHidden=1', 'remove wp_rowHidden', 'remove wp_rowHidden'], ['close', 'fit', 'close', 'fit', 'close', 'fit'], ['focus rowShowTab', 'focus rowHideBtn', 'focus rowHideBtn'], [true, 'row-hidden|-|-', true, []]]), err || did);
+    const KEEP = '  ' + HH + ' header > *:not(#mapTabs):not(#rowPills):not(#clockChip):not(#videoChip):not(.spacer):not(.header-group),\n  ' + HH + ' header > .header-group > *:not(#updateBtn):not(#reviewChip):not(.hdr-group),\n  ' + HH + ' header .hdr-group:not([data-label="Table"]),\n'
+        + '  ' + HH + ' header .hdr-group[data-label="Table"] > *:not(#chatBtn),\n  ' + HH + ' header #chatBtn:not(:has(#chatBadge:not([style*="display:none"]):not([style*="display: none"]))) { display: none !important; }\n';
+    const hdr2 = ix.slice(ix.indexOf('<header>'), ix.indexOf('</header>')), kid = id => new RegExp('\\n    <[a-z]+ [^\\n]*id="' + id + '"').test(hdr2);
+    check('a hidden row, in the style sheet and in the wiring: the row is lifted off the layout by the body\'s one word, so the map has the whole window, and takes no press but on what it shows; what stays in sight is named in one rule: the map tabs, the pills, the clock and a player\'s video, which are the row\'s own children, Review and Update inside their group, and the chat button only while its count shows; nothing is hidden while the tour\'s card is up, and the tab is put away then and in the stream window; the row stands beside a docked left panel and clear of an open Properties panel; a press on the arrow hides, a press on the tab shows, the kept choice is written at the start, and the module writes no markup',
+        count(css, KEEP) === 1 && ['mapTabs', 'rowPills', 'clockChip', 'videoChip'].every(kid) && /<div class="header-group">\n(?:(?!<\/header>)[\s\S])*?\n      <button class="tool" id="updateBtn"[^\n]*\n      <button class="tool" id="reviewChip"/.test(hdr2)
+        && /<div class="hdr-group" data-label="Table">\n(?:\s*<button[^\n]*\n)*?\s*<button class="tool ghost icon" id="chatBtn"[^\n]*<span id="chatBadge" style="display:none;/.test(hdr2)
+        && css.includes('\n  ' + HH + ' header { position: fixed; top: 2px; left: 40px; right: 8px; z-index: 4030; min-height: 0; padding: 0; gap: 6px; background: none; border: 0; flex-wrap: nowrap; pointer-events: none; }\n')
+        && css.includes('\n  ' + HH + ':has(#leftRail[hidden]) header { left: calc(var(--leftw, 240px) + 10px); }') && css.includes('\n  ' + HH + ':has(#sidebar:not(.collapsed):not([style*="none"])) header { right: calc(var(--rightw, 320px) + 12px); }')
+        && css.includes('\n  #rowShowTab[hidden], body.tour-on #rowShowTab, body.stream-mode #rowShowTab { display: none; }\n') && count(css, 'row-hidden') === count(css, HH) && count(css, HH) >= 20
+        && hSlice.length > 900 && !/innerHTML|insertAdjacentHTML|outerHTML|document\.write/.test(hSrc) && !/[^\x00-\x7f]/.test(hSrc)
+        && hSrc.includes("    if (btn) btn.addEventListener('click', function() { hideSet(document, localStorage, window, true); });\n    if (tab) tab.addEventListener('click', function() { hideSet(document, localStorage, window, false); });\n    hideApply(document, hideRead(localStorage));"));
+    const helpHide = ix.slice(ix.indexOf('<li><b>Hiding the row:</b>'), ix.indexOf('<li><b>More:</b> the three dots'));
+    check('hiding the row, said: Help\'s part on the top row has an entry on it, between the left panel and More, that says the small arrow at the row\'s right end hides it, that a small tab at the top edge shows it again, what stays in sight, floating on the map, and that the choice is this computer\'s own; both release notes say it in the same words',
+        helpHide.length > 300 && helpHide.length < 1100 && helpHide.indexOf('<li><b>Hiding the row:</b> the small arrow at the right end of the top row hides it, so the map has the whole window.\n') === 0
+        && ['<li>A small tab at the top edge shows the row again.</li>', '<li>The map tabs and the pills stay, floating on the map. So do Review, Update and an unread line of chat.</li>', '<li>The choice is yours alone, on this computer.</li>'].every(s => count(helpHide, s) === 1)
+        && [rootRead('WHATSNEW.txt'), read('assets/whatsnew.txt')].every(t => count(t, "- The top row can be hidden: press the small arrow at its right end.\n  A tab at the top edge shows it again. The map tabs and the pills\n  stay, floating on the map.\n") === 1));
 }
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');

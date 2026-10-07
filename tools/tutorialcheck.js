@@ -155,7 +155,9 @@ for (const t of targets) {
     // tag; every step's words, tags and their order exactly its own; no fold (no step is long enough for one: see the plain-words rule below)
     const J = JSON.stringify, B = new Function('"use strict";' + nl + cut('blocks') + nl + 'return { blocks: tourBlocks, pieces: tourPieces, len: tourLen };')();
     const piecesOk = J(B.pieces('One. Two three. <b>Four. Five</b> six. Seven e.g. this. Eight')) === J(['One.', 'Two three.', '<b>Four. Five</b> six.', 'Seven e.g. this.', 'Eight'])
-        && J(B.pieces('A &amp; b. &#9654; D. e')) === J(['A &amp; b.', '&#9654; D. e']) && J(B.pieces('Is it? Yes! Done: a, b.')) === J(['Is it?', 'Yes!', 'Done: a, b.']) && B.pieces('').length === 0 && B.len('<b>a&amp;b</b> c') === 5;
+        && J(B.pieces('A &amp; b. &#9654; D. e')) === J(['A &amp; b.', '&#9654; D. e']) && J(B.pieces('Is it? Yes! Done: a, b.')) === J(['Is it?', 'Yes!', 'Done: a, b.']) && B.pieces('').length === 0 && B.len('<b>a&amp;b</b> c') === 5
+        && J(B.pieces('Under <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 5.5l3 2. A1 1 0 0 1 4 4"/></svg> <b>Scene</b> too. Next one.')) === J(['Under <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 5.5l3 2. A1 1 0 0 1 4 4"/></svg> <b>Scene</b> too.', 'Next one.'])   // a tool's drawing beside its name: never cut, though its path holds a full stop, a space and a capital
+        && B.len('a<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 2"/><circle cx="6" cy="18" r="3"/></svg>b') === 2;   // and it is no character of the text
     const shortOk = B.blocks('One. Two. Three.') === '<p>One. Two. Three.</p>' && B.blocks(null) === '<p></p>';
     const xs = 'X' + 'x'.repeat(149), ys = 'Y' + 'y'.repeat(149), zs = 'Z' + 'z'.repeat(149), at380 = 'A' + 'a'.repeat(124) + '. B' + 'b'.repeat(124) + '. C' + 'c'.repeat(124) + '.';
     const longOk = B.blocks('Lead sentence here. ' + xs + '. ' + ys + '. ' + zs + '.') === '<p class="tour-lead">Lead sentence here.</p><ul class="tour-pts"><li>' + xs + '.</li><li>' + ys + '.</li><li>' + zs + '.</li></ul>'
@@ -167,7 +169,7 @@ for (const t of targets) {
     const stepCount = (lf.match(/^\s*\{ (?:section: '[^']*', )?target: /gm) || []).length;
     const norm = h => h.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
     const inline = h => (h.match(/<\/?(?!p\b|ul\b|li\b)[a-z]+[^>]*>/gi) || []).join('');
-    const formed = h => { const st = []; for (const m of h.matchAll(/<(\/?)([a-z0-9]+)[^>]*>/gi)) { const t = m[2].toLowerCase(); if (t === 'br') continue; if (m[1]) { if (st.pop() !== t) return false; } else st.push(t); } return st.length === 0; };
+    const formed = h => { const st = []; for (const m of h.matchAll(/<(\/?)([a-z0-9]+)[^>]*>/gi)) { const t = m[2].toLowerCase(); if (t === 'br' || /\/>$/.test(m[0])) continue; if (m[1]) { if (st.pop() !== t) return false; } else st.push(t); } return st.length === 0; };   // a tag that closes itself (a drawing's path or circle) opens nothing
     const wrong = [];
     lits.forEach((h, i) => { const o = B.blocks(h); if (norm(o) !== norm(h) || inline(o) !== inline(h) || !formed(o) || /<(script|style|iframe|img|a|details)\b|\son[a-z]+\s*=/i.test(o)) wrong.push(i); });
     const laidOut = lits.filter(h => /^<p class="tour-lead">/.test(B.blocks(h))).length;

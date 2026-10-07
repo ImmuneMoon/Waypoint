@@ -631,6 +631,72 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         && css.includes('body.stream-mode #dataFloatingToolbar, body.stream-mode #zoomBox,') && mainSrc.includes("      document.getElementById('zoomBox').style.display = isPlanner ? 'none' : 'flex';\n"), J([count(css, HIDE), count(css, 'no-zoomctl'), count(css, 'no-pointerpos')]));
 }
 
+/* ---------- Help and the tour show a tool's own drawing beside its name ---------- */
+// Backlog 129. The owner, by prompt, 2026-10-06: "Help still shows the old picture icons beside tool names, in 56 places. What should Help
+// show?" = "The new drawings (Recommended)": each tool's name in Help gets the same line icon the toolbar wears. So every drawing in Help
+// and in the tour's steps is READ here from the control that wears it in the page, and each place must hold exactly that. A drawing that
+// is redrawn later fails here until Help follows. A glyph that another control still wears (the planner's undo, the data map's tools, the
+// sheet's Throw, a row of the right-click menu, the selection toolbar) is no old picture, and stays
+{
+    const h0 = ix.indexOf('id="helpModal"'), h1 = ix.indexOf('<div class="layout-wrapper">', h0), help = h0 < 0 || h1 < h0 ? '' : ix.slice(h0, h1), page = h0 < 0 || h1 < h0 ? '' : ix.slice(0, h0) + ix.slice(h1);
+    const ICO_ALL = /<svg class="ico( ico-[a-z]+)?" viewBox="0 0 24 24" aria-hidden="true">[\s\S]*?<\/svg>/g, drawn = s => (s.match(ICO_ALL) || []).length, glyph = (s, code) => count(s, '&#' + code + ';');
+    const of = how => { const at = page.indexOf(how); if (at < 0 || page.indexOf(how, at + 1) >= 0) return '?'; const gt = page.indexOf('>', at), end = page.indexOf('</button>', gt), m = page.slice(gt + 1, end).match(ICO_ALL); return m ? m[0] : '?'; };   // a control's own drawing, as the page writes it
+    const K = { image: of('id="addImageBtn"'), lib: of('id="imgLibBtn"'), sound: of('id="soundBtn"'), music: of('id="musicBtn"'), scene: of('id="sceneFxBtn"'), video: of('id="videoBtn"'), fx: of('id="fxBtn"'), pen: of('id="drawModeBtn"'),
+        eraser: of('id="eraserModeBtn"'), fill: of('id="fillModeBtn"'), view: of('id="wbCenterBtn"'), trigger: of('id="shapeTriggerBtn"'), importChar: of('id="importCharBtn"'), fog: of('id="fogModeBtn"'), measure: of('id="measureModeBtn"'),
+        fogAll: of('id="fogOnAllMaps"'), reveal: of('data-fbrush="reveal"'), hide: of('data-fbrush="hide"'), clear: of('data-fbrush="clear"'), snap: of('id="wbSnapBtn"') };
+    const put = t => t.replace(/\{([a-zA-Z]+)\}/g, (m, k) => (Object.prototype.hasOwnProperty.call(K, k) ? K[k] : '?')), strip = s => s.replace(/^<svg[^>]*>/, '');
+    const HELP_AT = ["<li><b>{image} Image</b> adds an image.",
+        "<li><b>{lib} Image Library</b> shows",
+        "<li><b>{sound} Sound</b> is the GM&rsquo;s panel",
+        "<li><b>{music} Music</b> is the GM&rsquo;s panel for songs, under {scene} <b>Scene</b>.",
+        "<li><b>{video} Video</b> is the GM&rsquo;s panel for the campaign&rsquo;s <b>videos</b>, under {scene} <b>Scene</b>.",
+        "<li><b>Visual effects</b> open from the {fx} button",
+        "<li><b>{pen} Draw</b> sketches freehand.",
+        "<li><b>{eraser} Eraser</b> rubs out",
+        "<li><b>{fill} Fill</b> is the GM&rsquo;s tool",
+        "<li><b>{view} Center</b> menu:",
+        "Drop a <b>{trigger} Trigger Zone</b>",
+        "The <b>{importChar} Import Character</b> toolbar button",
+        "live under the <b>{scene} Scene</b> button",
+        "<p>The <b>{fog} Fog</b> tool is the GM&rsquo;s.",
+        "so the {fog} button is on the toolbar.",
+        "<li><b>The {fog} button and its menu:</b>",
+        "Then drag the <b>{measure} ruler</b> between two character tokens",
+        "<li><b>Light sources:</b> in the {fx} effects panel, or in the fog menu",
+        "Dragging the <b>{measure} ruler</b> from one character token",
+        "open the {fog} menu and tick <b>Fog on this map</b>",
+        "press <b>{fogAll} Fog on &middot; all maps</b>",
+        "<b>{reveal} Reveal</b> shows cells and <b>{hide} Hide</b> covers them. <b>{clear} Clear</b> takes your own marks off",
+        "Turn on <b>{snap} Snap</b> and tokens seat themselves",
+        "Pick the <b>{measure} Measure</b> tool and drag across the map",
+        "<li><b>Sound:</b> the {sound} panel's ambient loop",
+        "<li><b>Visual effects:</b> the {fx} panel fires",
+        "<li><b>Fog of war:</b> the {fog} fog tool hides",
+        "place a light source, from the {fx} effects panel. So every token",
+        "use the <b>{measure} Measure</b> tool freely.",
+        "The <b>{music}</b> note in the Table pill",
+        "<li><b>{view} Center</b> &nbsp; Recenter on the canvas",
+        "<li><b>{snap} Snap</b> &nbsp; Toggle grid snapping.",
+        "Everyone has the <b>{sound}</b> speaker in the Table pill",
+        "The <b>{sound}</b> speaker in the Table pill has"];
+    const TOUR_AT = ["fog and {scene} <b>Scene</b>. Centre, the <b>grid</b>", "html: 'Under the {scene} <b>Scene</b> button.", "html: 'Under {scene} <b>Scene</b> too, apart from Sound.", "html: 'Under {scene} <b>Scene</b> too. The {fx} panel fires", "html: 'Under {scene} <b>Scene</b> too: the campaign&rsquo;s", "The {fx} panel&rsquo;s <b>Ping</b> row", "The {fog} button opens the fog menu"];
+    const stepsA = tourSrc.indexOf('var STEPS = ['), stepsZ = tourSrc.indexOf('\n];', stepsA), steps = stepsA < 0 || stepsZ < stepsA ? '' : tourSrc.slice(stepsA, stepsZ);
+    const badH = HELP_AT.filter(t => count(help, put(t)) !== 1).map(t => t.slice(0, 44)), badT = TOUR_AT.filter(t => count(steps, put(t)) !== 1).map(t => t.slice(0, 44)), lost = Object.keys(K).filter(k => K[k] === '?');
+    check('Help shows a tool\'s own drawing beside its name (the owner, by prompt: "The new drawings"): each of the ' + HELP_AT.length + ' places holds the very drawing its control wears in the page, read from the control: the pen, the eraser, fill, the trigger zone, the picture, the Image Library, Import Character, Measure and its ruler, the fog button with its menu, its three brushes and Fog on all maps, Scene with Sound, Music, Visual effects and Video, the centre menu and Snap; Help holds 38 drawings and no other; the note and the speaker in the Table pill are the drawings Music and Sound wear under Scene, which are the top bar\'s own',
+        help.length > 100000 && lost.length === 0 && badH.length === 0 && HELP_AT.length === 34 && drawn(help) === 38 && HELP_AT.reduce((n, t) => n + (t.match(/\{[a-zA-Z]+\}/g) || []).length, 0) === 38
+        && strip(of('id="musicInd"')) === strip(K.music) && of('id="soundInd"') === K.sound && /^<svg class="ico ico-note"/.test(K.music), J([lost, badH, drawn(help)]));
+    check('no old picture of those tools is left in Help, and a glyph another control still wears is still there: the pictures of the pen, the eraser, fill, the trigger zone, the picture, the library, the character import, the ruler, Scene, Sound, Music, the effects, the speaker, the magnet, the centre mark and the Clear brush are gone from Help; the fog\'s is left once, on the right-click menu\'s Under fog row, the eye four times (Visible to players, Always revealed, a token\'s sight outline, Players can read) and the film once, on the header\'s chip; the planner\'s undo and redo, the data map\'s Select, Pan, Link Mode and Clear the board, the selection toolbar\'s Fit to grid and play area, and the sheet\'s Throw keep theirs',
+        [127916, 128207, 9999, 129533, 129699, 9889, 129333, 128444, 128452, 10024, 127925, 127926, 128266, 129522, 127919, 10005].every(c => glyph(help, c) === 0)
+        && glyph(help, 127787) === 1 && count(help, '<b>&#127787; Under fog</b>') === 1 && glyph(help, 128065) === 4 && glyph(help, 127902) === 1 && count(help, 'a <b>&#127902;</b> chip in the header') === 1
+        && count(help, 'The <b>&#8617; &#8618;</b> buttons in the planner toolbar') === 1 && count(help, '<li><b>&#10138; Select / Move</b> is the default tool.') === 1 && count(help, '<li><b>&#9995; Pan</b>:') === 1 && count(help, '<li><b>&#128465; Clear the board</b>') === 1
+        && count(help, '<b>&#8596; Link Mode</b>') === 2 && count(help, '<b>&#8862; Fit to grid</b>') === 1 && count(help, 'with the <b>&#9635;</b> button on the selection toolbar') === 1 && count(help, '<b>&#128165; Throw</b> button') === 1,
+        J([127916, 128207, 9999, 129533, 129699, 9889, 129333, 128444, 128452, 10024, 127925, 127926, 128266, 129522, 127919, 10005, 127787, 128065, 127902].map(c => glyph(help, c))));
+    check('the tour names those tools with the same drawings: each of its ' + TOUR_AT.length + ' places holds the drawing its control wears, the steps hold 8 drawings and no other, no step writes the old picture of Scene, of the effects or of the fog, and a step still writes the glyph of a control that wears one (Link Mode, Throw, Fit to grid, the planner\'s undo and redo); in Help and on a tour card a drawing takes the size of the words around it, by the style sheet',
+        steps.length > 5000 && badT.length === 0 && TOUR_AT.length === 7 && drawn(steps) === 8 && [127916, 10024, 127787].every(c => glyph(steps, c) === 0)
+        && count(steps, '<b>&#8596; Link Mode</b>') === 1 && count(steps, '&#128165; <b>Throw</b>') === 2 && count(steps, '<b>&#8862; Fit to grid</b>') === 1 && count(steps, 'The <b>&#8617; &#8618;</b> buttons') === 1
+        && css.includes('\n  #helpModal .help-pane .ico, #tourCard .ico { width: 1.15em; height: 1.15em; vertical-align: -0.2em; }'), J([badT, drawn(steps)]));
+}
+
 /* ---------- said, and run on CI ---------- */
 {
     const NOTE = "The play map\n"
@@ -643,7 +709,8 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         + "- The Radius tool also measures a ring and a cone. A ring holds the\n  tokens between two distances. A cone is a wedge from a point: set\n  its angle, press a cell and drag to aim it, and drag its handle to\n  turn it later.\n"
         + "- The Radius tool can also put a circle on a token. Pick On a token\n  and click a token. The circle moves with it, and the token itself\n  is not counted.\n"
         + "- The GM can set off a circle of the Radius tool as an explosion. Press\n  Explode in the tool's options and type the damage and its type.\n  Nothing is filled in. The blast is shown to everyone on the map, and\n  the damage follows the system's blast setting.\n"
-        + "- The fog menu is shorter. This map's two ticks and the brushes stay\n  in view, and three folds hold the rest: light and vision, the\n  preview, and the campaign's fog settings. No control is gone.\n\n";
+        + "- The fog menu is shorter. This map's two ticks and the brushes stay\n  in view, and three folds hold the rest: light and vision, the\n  preview, and the campaign's fog settings. No control is gone.\n"
+        + "- Help and the tour show each play-map tool's own line drawing beside\n  its name, where they still showed the old picture icons.\n\n";
     const wn = [rootRead('WHATSNEW.txt'), read('assets/whatsnew.txt')];
     check('both release notes carry the same lines, and the suite is one of the CI runs',
         wn.every(t => count(t, NOTE) === 1 && count(t, 'Every button is where it was') === 0) && rootRead('.github/workflows/checks.yml').includes("      - name: lookcheck — the look of the play map (no control removed, the toolbar's line icons, gold for the tool in hand)\n        if: ${{ !cancelled() }}\n        run: node tools/lookcheck.js\n"));
@@ -651,7 +718,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         count(ix, 'Centre, the grid and snap stand in a column at the map&rsquo;s right edge. The centre menu also shows or hides the rulers, the zoom buttons and the pointer location. <b>More</b>, the last button, holds Clear board. In a narrow window the bar tightens, then wraps onto a second row, so no tool is ever cut off.') === 1
         && count(ix, '<p>The box at the top right of a map holds the <b>pointer location</b> and the <b>zoom buttons</b>. Each can be hidden on its own. Press <b>Toggle Pointer Location</b> or <b>Toggle Zoom Buttons</b> in <b>&#9881; Settings &#9656; Table</b>, or tick them in the centre menu at the right edge of the play map. The mouse wheel still zooms while the buttons are hidden. Both choices are yours alone, on this computer.</p>') === 1
         && count(ix, '<li>Click the grid button at the right edge of the play map and pick <b>Off, Square or Hex</b>.') === 1
-        && count(tourSrc, 'From the left: undo and redo for this map, then move and pan, the pen, eraser and fill. Next come shapes and <b>+ Add</b> for text and pictures, then <b>measure</b>, <b>radius</b>, fog and &#127916; <b>Scene</b>. Centre, the <b>grid</b> and <b>snap</b> stand at the map&rsquo;s right edge.') === 1
+        && count(tourSrc.replace(/<svg class="ico[^>]*>.*?<\/svg>/g, '{ico}'), 'From the left: undo and redo for this map, then move and pan, the pen, eraser and fill. Next come shapes and <b>+ Add</b> for text and pictures, then <b>measure</b>, <b>radius</b>, fog and {ico} <b>Scene</b>. Centre, the <b>grid</b> and <b>snap</b> stand at the map&rsquo;s right edge.') === 1
         && count(tourSrc, "'#wbFloatingToolbar .shape-menu.show, #wbEdgeTools .shape-menu.show'") === 2 && count(ix, 'the minimap fold, rulers, the zoom buttons, the pointer location, panel sizes,') === 1);
     check('Help says how a press works now: a tip of its own on tool options (the small arrow, the icon, a second press, options that stay up), the Snap entry and the Measure entry in the new words, and the four tools\' own tooltips say what a press does',
         count(ix, '<div class="help-tip"><b>Tool options:</b> a tool that has options has a <b>small arrow</b> beside its icon. The icon takes the tool, and a second press puts it away. The arrow opens the tool&rsquo;s options. They stay up while you work, until you press the arrow again or take another tool. The pen, the eraser, fill, measure and radius work this way. A button that only opens a menu has the same small arrow, and either of the two opens the menu.</div>') === 1

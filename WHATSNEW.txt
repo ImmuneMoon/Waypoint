@@ -211,6 +211,8 @@ The play map
 - The fog menu is shorter. This map's two ticks and the brushes stay
   in view, and three folds hold the rest: light and vision, the
   preview, and the campaign's fog settings. No control is gone.
+- Help and the tour show each play-map tool's own line drawing beside
+  its name, where they still showed the old picture icons.
 
 Fixes
 - The fog of war is lighter on a busy map. It read every character's

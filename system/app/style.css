@@ -73,6 +73,7 @@
   /* one line-icon set, drawn in the current text color */
   .ico { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; vertical-align: -3px; flex: 0 0 auto; }
   .tool.icon .ico { width: 17px; height: 17px; vertical-align: 0; }
+  #helpModal .help-pane .ico, #tourCard .ico { width: 1.15em; height: 1.15em; vertical-align: -0.2em; }   /* a tool's own drawing beside its name, in Help and on a tour card: it takes the size of the words */
   .tool:not(.icon) .ico { margin-right: 2px; }
   .seg-btn .ico { width: 14px; height: 14px; vertical-align: -2px; margin-right: 3px; }
   .sidebar h3 .tool .ico, .section-head .tool .ico { width: 13px; height: 13px; vertical-align: -2px; }

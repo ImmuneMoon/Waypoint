@@ -896,7 +896,8 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         + "- Where the window is too narrow for the row, Sound, Music, Handouts,\n  Journal and Help move into More, so the row stays one line.\n"
         + "- Both menus work from the keyboard: the arrow keys, a letter for the\n  next row that begins with it, Enter, and Esc to close.\n"
         + "- The top bar's icons are redrawn as Waypoint's own drawings. Settings\n  wears a cog, and Music is still a note.\n"
-        + "- The data map's toolbar wears the same line icons as the play map's.\n  Its Link menu lists the four line types by name, each with a small\n  drawing.\n\n";
+        + "- The data map's toolbar wears the same line icons as the play map's.\n  Its Link menu lists the four line types by name, each with a small\n  drawing.\n"
+        + "- Settings says what each option does. An option that only explained\n  itself in a tooltip has a grey line under its name, and every tooltip\n  is still there.\n\n";
     const wn = [rootRead('WHATSNEW.txt'), read('assets/whatsnew.txt')];
     check('both release notes carry the same lines, and the suite is one of the CI runs',
         wn.every(t => count(t, NOTE) === 1 && count(t, 'Every button is where it was') === 0) && rootRead('.github/workflows/checks.yml').includes("      - name: lookcheck — the look of the play map (no control removed, the toolbar's line icons, gold for the tool in hand)\n        if: ${{ !cancelled() }}\n        run: node tools/lookcheck.js\n"));
@@ -1122,6 +1123,37 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         && count(tourSrc, "A <b>Markdown</b> file becomes a planner or a handbook page. Both are under <b>More</b> in the top row.',\n      help: ['start', 'Export As'],\n      before: function() { if (window.wpTopRow) window.wpTopRow.open('moreMenu'); } },") === 1
         && count(read('scripts/sound.js'), "if (!open) { var r = window.wpTopRow ? window.wpTopRow.box(b) : b.getBoundingClientRect(); pop.style.left =") === 1
         && count(read('scripts/music.js'), "    var mi = ui('musicInd'), r = window.wpTopRow ? window.wpTopRow.box(mi) : mi.getBoundingClientRect(); pop.style.right =") === 1);
+}
+
+/* ---------- options that say what they do: Settings ---------- */
+// Backlog 107, the look's last part. The mock-up the owner passed: "A name on every choice, and one grey line where the name is not enough. No
+// one should need a tooltip to learn what a button does", and "Every tooltip of today stays". Settings is the first window after the
+// toolbar's menus. A line is added beside or under what is there: no control, id, tooltip or handler changes. A new option of Settings whose
+// name is not enough gets its line, and joins this list
+{
+    const sA = ix.indexOf('<div id="settingsModal"'), sZ = ix.indexOf('<div id="sheetViewModal"', sA), setHtml = sA > 0 && sZ > sA ? ix.slice(sA, sZ) : '';
+    const RWO = 'Refuse stops it. Warn lets it through with a note to them and you. Off does not check.';
+    const NAMED = [['setFxReduced', 'Reduce motion (this machine)', 'Skips screen shake and shortens flashes.'], ['setSenseCaps', 'Sense captions over tokens (this machine)', 'The line above a token that is blind, or where a sense fails.'],
+        ['setWallsMode', 'Walls stop player tokens', 'A player&rsquo;s token cannot land in or cross a wall, a closed door or a barrier. Yours are never stopped. ' + RWO], ['setMoveMode', 'Move limit', 'On its turn a player&rsquo;s token moves no further than its Move per turn.'],
+        ['setOrderMode', 'Out of turn', 'A player&rsquo;s token in the fight moves only on its own turn.'], ['setActsMode', 'Actions per turn', 'A press of a button that costs an action spends one of the turn&rsquo;s actions.'],
+        ['setTimersMode', 'Effect timers', 'Who may pause, reset or stop the countdown of a timed effect.'], ['setTargetAskMode', 'A player targets one of my characters', 'On a map with no fight running, you can be asked whether to start one there.'],
+        ['setTimeRulesMode', 'Time rules', 'What happens when time passes and your system&rsquo;s rules by the clock are due.'], ['setFillMode', 'Players fill their own pools', 'Whether a player may fill a pool of their own back to full.']];
+    const UNDER = [['setActsMode', 'For those three: ' + RWO], ['setVttPushBtn', 'Copies the default above onto the campaigns you tick. The others keep their own settings.'], ['setJournalPage', 'The page each campaign shows first.'], ['setJournalShow', 'Which Show chip the Journal page starts on.'],
+        ['setInboxOpens', 'Which From chip the Inbox starts on.'], ['setSentOpens', 'Which To chip the Sent page starts on.'], ['setHandoutArrive', 'A handout or a shared page opens on screen at once, or is only counted on the Journal button.'],
+        ['setResetIdentityBtn', 'Makes you a new identity at every table. A GM&rsquo;s tokens given to the old one no longer know you. If you host, your players join your table as a new GM&rsquo;s.'], ['setResetLayoutBtn', 'Puts both side panels back to their default widths.'],
+        ['setSnapNowBtn', 'Copies the save as it is now into the backups folder. It is kept until you delete it.'], ['setResetPrefsBtn', 'Clears what this computer remembers of your choices. Your campaigns and your profile are not touched.']];
+    // every name that carries a line, with the control it stands beside; and every line that stands under a control, with that control
+    const named = [...setHtml.matchAll(/<span class="set-name">(?:<span>)?([^<]+)(?:<\/span>)?<small>([^<]+)<\/small><\/span>(?: <select id="([A-Za-z]+)"|<\/label>)/g)].map(m => [m[3] || 'setFxReduced', m[1], m[2]]);   // a tick's row names no list: it is the one tick, Reduce motion
+    const under = [...setHtml.matchAll(/ id="([A-Za-z]+)"[^\n]*\n\s*<div class="set-line[^"]*">([^<]+)<\/div>/g)].map(m => [m[1], m[2]]);
+    // the rule each line is written to, read as it is read: a named entity is its character
+    const read1 = s => s.replace(/&rsquo;/g, '\u2019'), rough = NAMED.map(n => n[2]).concat(UNDER.map(u => u[1])).map(read1).filter(s => /[()\[\];\u2014\u2013&]| - /.test(s) || !/\.$/.test(s) || s.length > 230 || s.split(/\. /).some(p => p.length > 110));
+    const tipOn = id => { const at = setHtml.indexOf(' id="' + id + '"'), from = setHtml.lastIndexOf('\n', at), row = setHtml.slice(from, setHtml.indexOf('\n', at)); return / title="[^"]{20,}"/.test(row); };
+    check('Settings says what each option does (the owner\'s passed mock-up: "A name on every choice, and one grey line where the name is not enough"): each of the ten options that are a name beside a list or a tick carries one grey line under that name, and each of eleven controls has its line under it, twenty-one lines in all and no other; every line is plain words, with no bracket, dash or semicolon, ends in a full stop and runs to no long sentence; and "Every tooltip of today stays": each of those rows still has its tooltip, and the window holds the forty-two tooltips it held',
+        setHtml.length > 40000 && J(named) === J(NAMED) && J(under) === J(UNDER) && rough.length === 0 && count(setHtml, 'class="set-name"') === 10 && count(setHtml, 'class="set-line') === 11 && count(setHtml, ' title="') === 42
+        && NAMED.concat(UNDER).every(r => count(setHtml, ' id="' + r[0] + '"') === 1 && tipOn(r[0])), J([named.filter((n, i) => J(n) !== J(NAMED[i])).slice(0, 2), under.filter((u, i) => J(u) !== J(UNDER[i])).slice(0, 2), rough]));
+    check('the lines\' own rules in the style sheet: a name and its line stand one above the other, the line small and grey, and a line under a list or in a column of buttons hugs the control it tells of',
+        css.includes('\n  .set-name { display: flex; flex-direction: column; gap: 1px; min-width: 0; }\n  .set-name > small, .set-line { font-size: 10.5px; color: var(--dim); line-height: 1.4; font-weight: 400; }\n  .set-name > span { font-size: 12px; color: var(--ink); }\n  .set-line { margin-top: 3px; }\n')
+        && css.includes('\n  .set-line.tight { margin-top: -5px; }') && css.includes('\n  .field + .set-line { margin-top: -9px; margin-bottom: 9px; }'));
 }
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');

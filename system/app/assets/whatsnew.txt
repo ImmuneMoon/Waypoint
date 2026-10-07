@@ -238,6 +238,9 @@ The top bar and the data map
 - The data map's toolbar wears the same line icons as the play map's.
   Its Link menu lists the four line types by name, each with a small
   drawing.
+- Settings says what each option does. An option that only explained
+  itself in a tooltip has a grey line under its name, and every tooltip
+  is still there.
 
 The Journal
 - The Journal shows one campaign at a time. It opens on the campaign on

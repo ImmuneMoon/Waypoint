@@ -298,6 +298,36 @@ const hdr = id => { const at = ix.indexOf(' id="' + id + '"'); if (at < 0) retur
         ds.length > 150 && back.length === 0 && GONE.length === 20 && new Set(GONE).size === 20 && ds.indexOf(cogD) >= 0 && ds.filter(d => d === OWN.sound.slice(9, -3)).length === 6, J([ds.length, back.length]));
 }
 
+/* ---------- the top row: one quiet row on every view ---------- */
+// Backlog 107, the look's second part. The owner, 2026-10-06, of the top of the window: "one slim row, with the option of hiding it"; the
+// mock-up passed "as drawn", in their words "1 as long as we are not getting rid of import and export"; and of where: "One row everywhere".
+// Step R1a is the row's look alone: the four captioned boxes go, each control is a bare icon, the mark stands alone. NOTHING moves in this
+// step, so every id in the header stands in the order it had. The menus that take controls out of the row come next, and this list moves then
+{
+    const hA = ix.indexOf('<header>'), hZ = ix.indexOf('</header>'), header = hA > 0 && hZ > hA ? ix.slice(hA, hZ) : '';
+    const ids = (header.match(/ id="[A-Za-z0-9_-]+"/g) || []).map(s => s.slice(5, -1));
+    const ORDER = ['headerBrand', 'campaignSelect', 'tableWhere', 'searchCampBtn', 'newCampBtn', 'renameCampBtn', 'systemBtn', 'delCampBtn', 'viewModeSelect', 'mapBreadcrumb', 'tableWhereMap', 'clockChip', 'videoChip', 'visualTools', 'imgFileIn', 'sheetFileIn',
+        'saveAsDropdownWrap', 'saveAsBtn', 'saveAsMenu', 'exportImgBtn', 'exportPdfBtn', 'exportHtmlBtn', 'exportMdBtn', 'exportItemBtn', 'exportMapsBtn', 'exportWbsBtn', 'exportPlannersBtn', 'exportDocsBtn', 'exportCampaignBtn', 'exportBtn', 'importBtn', 'fileIn',
+        'docImportFile', 'updateBtn', 'reviewChip', 'reviewChipN', 'netBtn', 'netDot', 'sessionPauseBtn', 'chatBtn', 'chatBadge', 'soundInd', 'musicInd', 'handoutsBtn', 'journalBtn', 'journalBadge', 'refreshBtn', 'settingsBtn', 'helpBtn', 'aboutBtn', 'saveNote'];
+    check('the top row, nothing moved: every control of the header stands where it stood, each id once and in the order it had, the eleven kinds of Export and Import among them (the owner: "as long as we are not getting rid of import and export"); every one of the top bar\'s list is in it',
+        header.length > 4000 && J(ids) === J(ORDER) && new Set(ids).size === ids.length && HEADER.every(id => ids.indexOf(id) >= 0), J(ids.filter((id, i) => id !== ORDER[i]).slice(0, 6)));
+    const ROW = '  header { padding: 4px 10px; gap: 6px; row-gap: 4px; min-height: 36px; box-sizing: border-box; background: var(--bg2); }\n'
+        + '  header h1 { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); }   /* the mark alone stands in the row: the name stays for a screen reader */\n'
+        + '  header .header-brand { padding: 0 2px; }\n  header .brand-icon { width: 22px; height: 22px; }\n  header .header-sep { height: 18px; }\n  header .header-group { gap: 5px; }\n'
+        + '  header .hdr-group { gap: 1px; padding: 0; margin-left: 0; border: 0; border-radius: 0; background: none; }\n  header .hdr-group::before { content: none; }\n'
+        + '  header .tool.icon { width: 28px; height: 26px; border-color: transparent; background: transparent; color: var(--dim); border-radius: 6px; }\n'
+        + '  header .tool.icon:hover { background: var(--panel2); border-color: transparent; color: var(--ink); }\n  header .tool.icon.danger:hover { color: var(--red); }\n  header .tool.icon.on { background: var(--gold); color: #1a1a1a; }\n';
+    check('the top row is one quiet row (the owner: "one slim row"): the header is 36 high where one row holds it, on the page\'s second ground; the four captioned boxes have no edge, no ground and no caption, and each control is a bare icon that lights under the pointer, red for Delete and gold while it is on; the mark stands alone and the name stays in the page, put out of sight without being taken out of it; the row still wraps where a window is too narrow, so nothing is cut off; the note that says the campaign is saved keeps its reserved width, so the row does not shift when its words change',
+        count(css, ROW) === 1 && /\n  header\{\n    flex:0 0 auto; padding:8px 16px;[^\n]*\n    border-bottom:1px solid var\(--edge\); display:flex;align-items:center;gap:10px;flex-wrap:wrap;\n  \}/.test(css)
+        && count(ix, '<h1>Waypoint</h1>') === 1 && !/header h1 \{[^}]*display: none/.test(css) && css.includes('  .save-note{font-size:11px;color:var(--faint);letter-spacing:.04em;white-space:nowrap;min-width:184px}')
+        && count(header, 'class="hdr-group" data-label="') === 4 && ['Campaign', 'Table', 'Journal', 'App'].every(l => count(header, 'class="hdr-group" data-label="' + l + '"') === 1));
+    const said = [ix, read('scripts/sheets.js'), read('scripts/sound.js'), tourSrc, read('scripts/tips.js')];
+    check('no word still names the boxes that are gone: Help, Settings, the tour, the tips and the sheet\'s own refusals say the top row, where they said the Table pill, the Table bar and the Campaign pill',
+        said.every(s => !/Table pill|Campaign pill|top <b>Table<\/b> bar|Journal pill|App pill/.test(s)) && count(ix, '<li>Press <b>System</b> in the top row to write the rules of the campaign on screen, with no code.') === 1
+        && count(ix, 'The campaign\'s system (the System button in the top row: attributes, formulas, rolls)') === 1 && count(ix, '<li>Use the <b>&#9208;&#65039;</b> button in the top row, the <b>&#127760;</b> panel,') === 1
+        && count(read('scripts/sheets.js'), "return { error: 'The campaign has no system yet. Press System in the top row to make one.' };") === 2);
+}
+
 /* ---------- gold for what is in hand and what is on ---------- */
 {
     check('gold is the one accent on the bar (the owner: "Gold"): the tool in hand, the pen size in use and a chip that is on are gold with dark ink, the light theme keeps its white ink on its darker gold, and the bar\'s old blue is nowhere in the style sheet',
@@ -813,11 +843,11 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         "<li><b>Fog of war:</b> the {fog} fog tool hides",
         "place a light source, from the {fx} effects panel. So every token",
         "use the <b>{measure} Measure</b> tool freely.",
-        "The <b>{music}</b> note in the Table pill",
+        "The <b>{music}</b> note in the top row",
         "<li><b>{view} Center</b> &nbsp; Recenter on the canvas",
         "<li><b>{snap} Snap</b> &nbsp; Toggle grid snapping.",
-        "Everyone has the <b>{sound}</b> speaker in the Table pill",
-        "The <b>{sound}</b> speaker in the Table pill has",
+        "Everyone has the <b>{sound}</b> speaker in the top row",
+        "The <b>{sound}</b> speaker in the top row has",
         "<li><b>{dMove} Select / Move</b> is the default tool.",
         "<li><b>{dPan} Pan</b>: drag anywhere to move the map itself.",
         "<li><b>{dLink} Link Mode</b> is lit gold while active.",
@@ -827,7 +857,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
     const TOUR_AT = ["fog and {scene} <b>Scene</b>. Centre, the <b>grid</b>", "html: 'Under the {scene} <b>Scene</b> button.", "html: 'Under {scene} <b>Scene</b> too, apart from Sound.", "html: 'Under {scene} <b>Scene</b> too. The {fx} panel fires", "html: 'Under {scene} <b>Scene</b> too: the campaign&rsquo;s", "The {fx} panel&rsquo;s <b>Ping</b> row", "The {fog} button opens the fog menu", "{dLink} <b>Link Mode</b> connects two rooms"];
     const stepsA = tourSrc.indexOf('var STEPS = ['), stepsZ = tourSrc.indexOf('\n];', stepsA), steps = stepsA < 0 || stepsZ < stepsA ? '' : tourSrc.slice(stepsA, stepsZ);
     const badH = HELP_AT.filter(t => count(help, put(t)) !== 1).map(t => t.slice(0, 44)), badT = TOUR_AT.filter(t => count(steps, put(t)) !== 1).map(t => t.slice(0, 44)), lost = Object.keys(K).filter(k => K[k] === '?');
-    check('Help shows a tool\'s own drawing beside its name (the owner, by prompt: "The new drawings"): each of the ' + HELP_AT.length + ' places holds the very drawing its control wears in the page, read from the control: the pen, the eraser, fill, the trigger zone, the picture, the Image Library, Import Character, Measure and its ruler, the fog button with its menu, its three brushes and Fog on all maps, Scene with Sound, Music, Visual effects and Video, the centre menu and Snap, and on the data map Select, Pan, Link Mode, Add Room and Clear the board; Help holds 44 drawings and no other; the note and the speaker in the Table pill are the drawings Music and Sound wear under Scene, which are the top bar\'s own',
+    check('Help shows a tool\'s own drawing beside its name (the owner, by prompt: "The new drawings"): each of the ' + HELP_AT.length + ' places holds the very drawing its control wears in the page, read from the control: the pen, the eraser, fill, the trigger zone, the picture, the Image Library, Import Character, Measure and its ruler, the fog button with its menu, its three brushes and Fog on all maps, Scene with Sound, Music, Visual effects and Video, the centre menu and Snap, and on the data map Select, Pan, Link Mode, Add Room and Clear the board; Help holds 44 drawings and no other; the note and the speaker in the top row are the drawings Music and Sound wear under Scene, which are the top bar\'s own',
         help.length > 100000 && lost.length === 0 && badH.length === 0 && HELP_AT.length === 40 && drawn(help) === 44 && HELP_AT.reduce((n, t) => n + (t.match(/\{[a-zA-Z]+\}/g) || []).length, 0) === 44
         && strip(of('id="musicInd"')) === strip(K.music) && of('id="soundInd"') === K.sound && /^<svg class="ico ico-note"/.test(K.music), J([lost, badH, drawn(help)]));
     check('no old picture of those tools is left in Help, and a glyph another control still wears is still there: the pictures of the pen, the eraser, fill, the trigger zone, the picture, the library, the character import, the ruler, Scene, Sound, Music, the effects, the speaker, the magnet, the centre mark and the Clear brush are gone from Help; the fog\'s is left once, on the right-click menu\'s Under fog row, the eye four times (Visible to players, Always revealed, a token\'s sight outline, Players can read) and the film once, on the header\'s chip; the planner\'s undo and redo, the selection toolbar\'s Fit to grid and play area, and the sheet\'s Throw keep theirs; the data map\'s Select, Pan, Link Mode, Add Room and Clear the board lost theirs when its toolbar took the line icons, so the two-way arrow is left once, on the badge that matches a size, and the bin once, on the Video panel\'s delete',
@@ -859,7 +889,8 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         + "- The fog menu is shorter. This map's two ticks and the brushes stay\n  in view, and three folds hold the rest: light and vision, the\n  preview, and the campaign's fog settings. No control is gone.\n"
         + "- Help and the tour show each play-map tool's own line drawing beside\n  its name, where they still showed the old picture icons.\n\n"
         + "The top bar and the data map\n"
-        + "- The top bar's icons are redrawn as Waypoint's own drawings. Settings\n  wears a cog, and Music is still a note. No button has moved.\n"
+        + "- The top of the window is one quiet row. Its four captioned boxes are\n  gone, and each button still says what it is when you point at it. No\n  button has moved.\n"
+        + "- The top bar's icons are redrawn as Waypoint's own drawings. Settings\n  wears a cog, and Music is still a note.\n"
         + "- The data map's toolbar wears the same line icons as the play map's.\n  Its Link menu lists the four line types by name, each with a small\n  drawing.\n\n";
     const wn = [rootRead('WHATSNEW.txt'), read('assets/whatsnew.txt')];
     check('both release notes carry the same lines, and the suite is one of the CI runs',

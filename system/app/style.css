@@ -1132,6 +1132,14 @@
   .set-section-label { color: var(--gold); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin: 14px 0 8px; border-bottom: 1px solid var(--edge); padding-bottom: 4px; }
   .set-section-label:first-of-type { margin-top: 4px; }
   .set-field-label { color: var(--dim); font-size: 11px; margin-bottom: 4px; }
+  /* 107, options that say what they do (the owner's passed mock-up): a name on every choice, and one grey line where the name is not enough.
+     The tooltip of each stays. A line stands under the name of a row, or under the control of a captioned one */
+  .set-name { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .set-name > small, .set-line { font-size: 10.5px; color: var(--dim); line-height: 1.4; font-weight: 400; }
+  .set-name > span { font-size: 12px; color: var(--ink); }
+  .set-line { margin-top: 3px; }
+  .set-line.tight { margin-top: -5px; }   /* in a column of buttons that keeps a gap: the line hugs its own button */
+  .field + .set-line { margin-top: -9px; margin-bottom: 9px; }   /* a list keeps a margin under it: the line stands close under the list, and the margin under the line */
   .set-unit-btn.active { border-color: var(--gold); color: var(--gold); }
   #setAvatarPreview, #netJoinAvatar {
     width: 64px; height: 64px; border-radius: 50%; background: var(--panel); border: 1px solid var(--edge);

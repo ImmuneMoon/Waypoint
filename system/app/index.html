@@ -1258,7 +1258,11 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           <li>Other players' tokens only show on the map they're actually on.</li>
                           <li><b>&#128214; Journal:</b> everything a GM has shown you, saved on this computer with its caption.
                               <ul>
-                                  <li>Add notes under each handout, or press <b>+ Note</b> to write your own pages in a campaign's section. It all works with no session running.</li>
+                                  <li>The Journal shows one campaign at a time. It opens on the campaign on screen, or on the table you are at.</li>
+                                  <li>The name in its title is a list. Pick another of your journals there, or <b>Personal notes</b>.</li>
+                                  <li>Add notes under each handout, or press <b>+ Note</b> to write a page of your own in the journal shown. It all works with no session running.</li>
+                                  <li><b>Personal notes</b> is one notebook for every campaign. It has a tab in each journal, and it is the same notebook wherever you open it.</li>
+                                  <li>A search looks through the journal shown. Tick <b>Every journal</b> to look through all of them, and each result then names its campaign.</li>
                                   <li>A web address in a handout's text, its caption or a note is a link where you read it.</li>
                                   <li>Click a thumbnail to open a handout or a shared page, or <b>Open</b> on a note of your own.</li>
                                   <li>In the boxes where you write, an address stays plain text.</li>
@@ -3343,8 +3347,8 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
 <!-- Journal (everyone) -->
 <div id="journalModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:100000; align-items:center; justify-content:center;">
     <div style="background:var(--panel2); padding:22px; border:1px solid var(--gold); border-radius:8px; width:760px; max-width:94vw; height:84vh; display:flex; flex-direction:column;">
-        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center;">Journal <button id="journalCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
-        <input id="journalSearch" class="field" type="search" placeholder="Search — titles, captions, handout text, your notes" style="margin-bottom:10px;" autocomplete="off">
+        <h3 style="margin-top:0; color:var(--gold); display:flex; justify-content:space-between; align-items:center; gap:10px;"><span class="journal-of">Journal <small>of</small> <select id="journalPick" class="map-select" aria-label="Which journal is shown" title="The journal shown. It opens on the campaign on screen, or on the table you are at."></select></span> <button id="journalCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
+        <div class="journal-search-row"><input id="journalSearch" class="field" type="search" placeholder="Search titles, captions, handout text and your notes" autocomplete="off"><label class="journal-all" title="Unticked, a search looks through the journal shown. Ticked, it looks through every journal, and each result names its campaign."><input type="checkbox" id="journalAll"> Every journal</label></div>
         <div id="journalList" style="overflow-y:auto; flex:1;"></div>
     </div>
 </div>

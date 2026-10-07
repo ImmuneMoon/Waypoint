@@ -107,20 +107,29 @@ function filter(keep) {   // keep: the entry to stay on (the list grew under it)
     draw(); preview(); addLabel();
 }
 function isOnce(x) { return !!(st.opts.once && st.opts.once[x.e.id] === 1); }
+// 126b: an entry a character may not take yet. opts.needs(entry) answers the needs it does not meet (none: it may be taken). A player's row
+// is judged once its entry has come in full, which is when its needs are known. The words are the core's, with the names this list holds
+function missOf(x) { if (!st || typeof st.opts.needs !== 'function' || !x || x.hdr) return []; var m = null; try { m = st.opts.needs(st.full[x.e.id] || x.e); } catch (e) { m = null; } return Array.isArray(m) ? m : []; }
+function cantText(x) {
+    var miss = missOf(x); if (!miss.length) return '';
+    var S = window.wpSystemCore, e = st.full[x.e.id] || x.e;
+    return S && S.needsSays ? S.needsSays(e, miss, function(id) { for (var i = 0; i < st.all.length; i++) if (st.all[i].e.id === id) return st.all[i].e.name; return null; }) : 'Your character does not meet what that needs.';
+}
+function cant(x) { return !st.opts.gm && missOf(x).length > 0; }   // the GM may always give it: their picker only says so
 function draw() {
     if (!st) return; var list = st.els.list, sp = st.els.spacer, top = list.scrollTop, h = list.clientHeight || 300;
     sp.textContent = '';
     var from = Math.max(0, Math.floor(top / ROW_H) - 10), to = Math.min(st.rows.length, Math.ceil((top + h) / ROW_H) + 10);
     for (var i = from; i < to; i++) (function(x, i) {
         if (x.hdr) { var hd = el('div', 'lib-pick-hdr', x.hdr); hd.style.top = (i * ROW_H) + 'px'; sp.appendChild(hd); return; }
-        var once = isOnce(x), r = el('button', 'lib-row lib-pick-row' + (i === st.hi ? ' hi' : '') + (st.picked[x.e.id] ? ' on' : '') + (once ? ' once' : '')); r.type = 'button'; r.style.top = (i * ROW_H) + 'px';
-        if (once) r.title = 'Already on the list';
+        var once = isOnce(x), no = !once && cant(x), r = el('button', 'lib-row lib-pick-row' + (i === st.hi ? ' hi' : '') + (st.picked[x.e.id] ? ' on' : '') + (once ? ' once' : '') + (no ? ' cant' : '')); r.type = 'button'; r.style.top = (i * ROW_H) + 'px';
+        if (once) r.title = 'Already on the list'; else if (no) r.title = cantText(x);   // 126b: greyed out, and it says why
         r.appendChild(el('span', 'lib-row-ico', x.e.icon && !/^icon:/.test(x.e.icon) ? x.e.icon : ''));
         r.appendChild(el('span', 'lib-row-name', x.e.name));
         if (gmOnly(x)) r.appendChild(el('span', 'sheet-chip sheet-chip-gm', 'GM'));
         r.appendChild(el('span', 'lib-row-cat', x.p.name));
-        r.addEventListener('click', function(ev) { if (once) return; if (ev.ctrlKey || ev.metaKey) { if (st.picked[x.e.id]) delete st.picked[x.e.id]; else st.picked[x.e.id] = 1; } st.hi = i; draw(); preview(); addLabel(); });
-        r.addEventListener('dblclick', function() { if (once) return; st.hi = i; st.picked = map(); doAdd(false); });
+        r.addEventListener('click', function(ev) { if (once) return; if ((ev.ctrlKey || ev.metaKey) && !no) { if (st.picked[x.e.id]) delete st.picked[x.e.id]; else st.picked[x.e.id] = 1; } st.hi = i; draw(); preview(); addLabel(); });
+        r.addEventListener('dblclick', function() { if (once || no) return; st.hi = i; st.picked = map(); doAdd(false); });
         sp.appendChild(r);
     })(st.rows[i], i);
 }
@@ -142,6 +151,7 @@ function preview() {
     }
     var e = st.full[x.e.id] || x.e, h = el('div', 'lib-pick-name', ((e.icon && !/^icon:/.test(e.icon)) ? e.icon + ' ' : '') + e.name); if (gmOnly(x)) h.appendChild(el('span', 'sheet-chip sheet-chip-gm', 'GM only')); box.appendChild(h);
     box.appendChild(el('div', 'lib-pick-sub', [e.category || 'No category', x.p.name].join(' · ')));
+    var whyNot = cantText(x); if (whyNot) box.appendChild(el('div', 'lib-pick-need', st.opts.gm ? 'This character does not meet what it needs. ' + whyNot : whyNot));   // 126b
     var labels = st.opts.labels || {}, stats = e.stats && typeof e.stats === 'object' ? e.stats : {};
     Object.keys(labels).forEach(function(k) { var key = Object.keys(stats).filter(function(s) { return lc(s) === lc(k); })[0]; if (key !== undefined) line(box, labels[k], String(stats[key])); });
     if (typeof e.lvl === 'number') line(box, 'Starts at', String(e.lvl));
@@ -155,7 +165,7 @@ function preview() {
     if (st.opts.gm && e.gmNotes) { box.appendChild(el('div', 'lib-fsub', 'GM notes')); box.appendChild(el('div', 'lib-pick-desc', e.gmNotes)); }
     if (need) box.appendChild(el('div', 'lib-pick-sub', 'Loading the rest…'));
 }
-function chosenIds() { var ids = Object.keys(st.picked).filter(function(id) { return st.all.some(function(x) { return x.e.id === id && !isOnce(x); }); }); if (ids.length) return ids; var x = st.hi >= 0 ? st.rows[st.hi] : null; return x && !x.hdr && !isOnce(x) ? [x.e.id] : []; }
+function chosenIds() { var ids = Object.keys(st.picked).filter(function(id) { return st.all.some(function(x) { return x.e.id === id && !isOnce(x) && !cant(x); }); }); if (ids.length) return ids; var x = st.hi >= 0 ? st.rows[st.hi] : null; return x && !x.hdr && !isOnce(x) && !cant(x) ? [x.e.id] : []; }
 function addLabel() { var n = Object.keys(st.picked).length; st.els.add.textContent = n > 1 ? 'Add ' + n : 'Add'; st.els.add.disabled = !chosenIds().length; }
 function doAdd(stay) {
     var ids = chosenIds(); if (!ids.length) return;

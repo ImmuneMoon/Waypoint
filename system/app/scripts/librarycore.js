@@ -5,7 +5,7 @@
    (gmNotes: never in the players' view). Everything that enters goes through here — a pack file read from disk, an imported
    .wppack.json, a manifest in a loaded save, and later (L3) every message on the wire — and comes out as plain arrays and objects
    (prototype-free maps inside). Build plan: docs/STAGE_6_LIBRARY_BUILD.md. */
-import { cleanItemDef, statKeys, statPicks, cleanIcon, fieldKinds, cleanLvls, hideNeeds, cleanNeeds } from './systemcore.js';
+import { cleanItemDef, statKeys, statPicks, cleanIcon, fieldKinds, cleanLvls, hideNeeds, cleanNeeds, needRule } from './systemcore.js';
 
 export var VERSION = 1;
 export var LIB = Object.freeze({
@@ -30,11 +30,11 @@ export function hashText(s) { s = String(s); var h = 0x811c9dc5; for (var i = 0;
 // An entry, cleaned for a view: the item definition (the view's stat keys and choices), then the library's own text. The players'
 // view never holds a GM-only entry, its GM-only parts (cleanItemDef's), or gmNotes. ctx = { F, gmView, sys } (sys: the view the
 // stats are read against; none: the key rule alone). Keys absent from the source stay absent (a plain item stays byte-identical).
-export function libCtx(sys, F, gmView, shown) { var fields = isObj(sys) && Array.isArray(sys.fields) ? sys.fields : null; return { F: F, gmView: !!gmView, shown: shown, keys: fields ? statKeys(fields) : undefined, picks: fields ? statPicks(fields) : undefined, kinds: fields ? fieldKinds(sys) : undefined }; }
+export function libCtx(sys, F, gmView, shown, ruleShown) { var fields = isObj(sys) && Array.isArray(sys.fields) ? sys.fields : null; return { F: F, gmView: !!gmView, shown: shown, ruleShown: ruleShown, keys: fields ? statKeys(fields) : undefined, picks: fields ? statPicks(fields) : undefined, kinds: fields ? fieldKinds(sys) : undefined }; }
 export function cleanLibEntry(e, ctx) {
     ctx = ctx || {};
     var out = cleanItemDef(e, ctx.F, !!ctx.gmView, ctx.keys, ctx.picks, ctx.kinds); if (!out) return null;
-    if (!ctx.gmView && ctx.shown !== true) hideNeeds(out, ctx.shown);   // 126b: a players' view never names an entry players cannot see. ctx.shown: the host's judge (library.js needShown); true on a player's own app, which keeps what its host sent; absent: every need is hidden. Here, before the library's own text, so that the keys keep the cleaner's order
+    if (!ctx.gmView && ctx.shown !== true) hideNeeds(out, ctx.shown, ctx.ruleShown);   // 126b: a players' view never names an entry players cannot see. ctx.shown: the host's judge (library.js needShown); true on a player's own app, which keeps what its host sent; absent: every need is hidden. Here, before the library's own text, so that the keys keep the cleaner's order
     var d = prose(e.desc, LIB.desc); if (d.trim()) out.desc = d;
     var lv = cleanLvls(e.lvls); if (lv) out.lvls = lv;   // 1.5.4: what each of its levels gives (a row's details show it as a small table)
     if (Array.isArray(e.tags)) { var seen = map(), tg = []; e.tags.forEach(function(t) { var x = line(t, LIB.tag); if (x && !seen[x.toLowerCase()] && tg.length < LIB.tags) { seen[x.toLowerCase()] = 1; tg.push(x); } }); if (tg.length) out.tags = tg; }
@@ -166,7 +166,10 @@ export function entryFromForm(f) {
     if (f.rm === 'bound' || f.rm === 'curse') { out.rm = f.rm; if (s(f.rmMsg).trim()) out.rmMsg = s(f.rmMsg); }   // L2b: a player's removal (bound / curse on contact) and its message, as the Items tab has them
     if (f.eq === 'bound' || f.eq === 'curse') { out.eq = f.eq; if (s(f.eqMsg).trim()) out.eqMsg = s(f.eqMsg); }   // and switching it off
     if (Array.isArray(f.mods) && f.mods.length) out.mods = JSON.parse(JSON.stringify(f.mods)); if (f.modsOn === true) out.modsOn = true;   // F6: its changes to the character (cleaned as an entry's are)
-    if (Array.isArray(f.needs) && f.needs.length) { out.needs = JSON.parse(JSON.stringify(f.needs)); if (s(f.needsMsg).trim()) out.needsMsg = s(f.needsMsg); }   // 126b: what it needs, and the GM's own words for a refusal (cleaned as an entry's are)
+    var hasN = Array.isArray(f.needs) && f.needs.length > 0, rlF = s(f.needsIf).trim();
+    if (hasN) out.needs = JSON.parse(JSON.stringify(f.needs));
+    if (rlF) out.needsIf = rlF;   // ... its rule, a formula that must be true
+    if ((hasN || rlF) && s(f.needsMsg).trim()) out.needsMsg = s(f.needsMsg);   // 126b: what it needs, and the GM's own words for a refusal (cleaned as an entry's are)
     return out;
 }
 export function newEntryId(taken, rnd) {
@@ -352,13 +355,14 @@ export function itemsToMove(sys, keepIds, taken, inPack, ctx) {
 // its cleaner (a client takes nothing else from a host). 126b: an entry that needs something players may see has an eighth place, those
 // needs, so a player's picker greys the row before the entry is opened; an entry that needs nothing keeps its row of seven. A client
 // takes a row of eight only when that place cleans to at least one need
-export function indexRow(e) { var r = [e.id, e.key || '', e.name, e.category || '', e.icon || '', Array.isArray(e.tags) ? e.tags.slice() : [], entryHash(e)], nd = cleanNeeds(e.needs); if (nd) r.push(nd); return r; }
-export function cleanIndexRow(r) {
-    if (!Array.isArray(r) || (r.length !== 7 && r.length !== 8) || typeof r[0] !== 'string' || !ITEM_RE.test(r[0])) return null;
+export function indexRow(e) { var r = [e.id, e.key || '', e.name, e.category || '', e.icon || '', Array.isArray(e.tags) ? e.tags.slice() : [], entryHash(e)], nd = cleanNeeds(e.needs), rl = typeof e.needsIf === 'string' && e.needsIf ? e.needsIf : ''; if (rl) { r.push(nd || null); r.push(rl); } else if (nd) r.push(nd); return r; }   // a ninth place: the entry's rule, after its needs or null
+export function cleanIndexRow(r, F) {   // F: the formula engine, for a row of nine (its rule must be a formula with no dice)
+    if (!Array.isArray(r) || r.length < 7 || r.length > 9 || typeof r[0] !== 'string' || !ITEM_RE.test(r[0])) return null;
     var key = typeof r[1] === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,39}$/.test(r[1]) ? r[1] : '', tags = Array.isArray(r[5]) ? r[5].map(function(t) { return line(t, LIB.tag); }).filter(Boolean).slice(0, LIB.tags) : [];
     if (typeof r[6] !== 'string' || !HASH_RE.test(r[6])) return null;
     var out = [r[0], key, line(r[2], 60) || 'Item', line(r[3], 40), cleanIcon(r[4]), tags, r[6]];
     if (r.length === 8) { var nd = cleanNeeds(r[7]); if (!nd) return null; out.push(nd); }
+    if (r.length === 9) { var nd9 = r[7] === null ? null : cleanNeeds(r[7]), rl9 = needRule(r[8], F); if ((r[7] !== null && !nd9) || !rl9) return null; out.push(nd9); out.push(rl9); }
     return out;
 }
 

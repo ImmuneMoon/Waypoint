@@ -4,7 +4,8 @@
    doubled: a control may move under a menu or a fold, and it is never dropped. It also holds what the owner passed for the toolbar:
    line icons for the tools ("Line icons, shown first", the sheet passed with "Use this set"), gold for the tool in hand ("Gold"), and
    their two words on the first mock-up: "also id like the music icon to stay a note" and "and the waypoint icon to be the icon we use
-   today, not the compass" (an icon the app already has keeps its drawing).
+   today, not the compass" (an icon the app already has keeps its drawing). The top bar's own icons, which matched the drawings of another
+   icon set, were redrawn as the app's own (backlog 131: "Redraw them as our own", the sheet passed with "Use these drawings").
    Then the layout ("As drawn": the tools on one bar; View, Grid and Snap in a column at the map's right edge; More, the last button,
    with Clear board; the rulers "On, as today" with a tick in the View menu), and the box at the top right, of which they said first
    "Leave the box as it is" and then: "lets update the styling of the zoom and pointer location to match the other changes still, and
@@ -84,12 +85,12 @@ const MENU = ['id="gridSqBtn"', 'id="gridHexBtn"', 'id="gridOpacityBtn"', 'data-
     'id="blastUndoThrow"', 'id="fogOnAllMaps"', 'id="fogLightPlace"', 'data-fbrush="reveal"', 'data-fbrush="hide"', 'data-fbrush="clear"', 'data-fstroke="box"', 'data-fstroke="piece"', 'id="soundBtn"', 'id="musicBtn"', 'id="fxBtn"', 'id="videoBtn"',
     'id="shapeRectBtn"', 'id="shapeCircBtn"', 'id="shapeDiaBtn"', 'id="shapeHexBtn"', 'id="shapeTriggerBtn"', 'id="shapeHexTriggerBtn"', 'data-shapesize="free"', 'data-shapesize="cell"', 'id="shapeTextBtn"', 'id="addImageBtn"', 'id="imgLibBtn"',
     'id="importCharBtn"'];
-const SET_HASH = 'c718486bbbfc5b2650fa1bce9db67ecce3057b852041bb5c5acb53993b2759f9';   // the set as the owner passed it on the icon sheet, 2026-10-06, with the Radius drawing they passed on the radius sheet the same day where the burst stood
+const SET_HASH = '437749cba37b0bb31c8701fc9cf74f7d7b60473b8b4c04d29d211839ab7b0d75';   // the set as the owner passed it on the icon sheet, 2026-10-06, with the Radius drawing they passed on the radius sheet the same day where the burst stood, and with Add's plus, Clear board's bin, Sound's speaker and Music's note as they passed them redrawn on the top bar's sheet, 2026-10-07
 // The buttons that stand on the bar and in the column today: an icon alone. Clear board is a row of More's menu now, an icon and its name
 const BAR = ['wbUndoBtn', 'wbRedoBtn', 'moveModeBtn', 'panModeBtn', 'drawModeBtn', 'eraserModeBtn', 'fillModeBtn', 'shapeMenuBtn', 'addMenuBtn', 'measureModeBtn', 'blastModeBtn', 'fogModeBtn', 'sceneFxBtn', 'pagesBtn', 'wbMoreBtn', 'wbCenterBtn',
     'wbGridBtn', 'wbSnapBtn'];
 const ROWS_NOW = MENU.concat(['id="clearWbBtn"', 'id="wbRulersBtn"', 'id="wbZoomCtlBtn"', 'id="wbPointerPosBtn"', 'data-as="r"', 'data-as="d"', 'data-shape="circle"', 'data-shape="ring"', 'data-shape="cone"', 'data-shape="tok"', 'id="blastExplodeBtn"']);
-const DOTS = '<path d="M12 5h.01M12 12h.01M12 19h.01"/>', TICK = '<path d="M5 12.5l4.5 4.5L19 7.5"/>', MINUS = '<path d="M5 12h14"/>';
+const DOTS = '<path d="M12 5h.01M12 12h.01M12 19h.01"/>', TICK = '<path d="M5 12.5l4.5 4.5L19 7.5"/>', MINUS = '<path d="M4.5 12h15"/>';
 {
     const bar = BAR.map(id => [id, innerOfBtn('id="' + id + '"')]), menu = ROWS_NOW.map(h => [h, innerOfBtn(h)]);
     const noIcon = bar.filter(b => typeof b[1] !== 'string' || !SVG_RE.test(b[1]) || !/<\/svg>$/.test(b[1].replace(/<span class="draw-color-indicator" id="(draw|fill)ColorIndicator"><\/span>$/, ''))).map(b => b[0]);
@@ -194,13 +195,13 @@ const DOTS = '<path d="M12 5h.01M12 12h.01M12 19h.01"/>', TICK = '<path d="M5 12
     check('the drawings the layout added are the sheet\'s own or the simplest there is: More wears the sheet\'s three dots, a tick of the View menu is the tick Snap\'s Both wears, and the zoom box\'s minus is the plus without its upright',
         draw('wbMoreBtn') === DOTS && innerOfBtn('id="wbMoreBtn"').indexOf('<svg class="ico ico-dots"') === 0 && css.includes('    .ico.ico-dots { stroke-width: 2.6; }')
         && ['wbRulersBtn', 'wbZoomCtlBtn', 'wbPointerPosBtn'].every(id => draw(id) === TICK) && svgIn(innerOfBtn('data-mode="both"')) === TICK
-        && draw('zoomOutBtn') === MINUS && draw('zoomInBtn') === '<path d="M12 5v14M5 12h14"/>' && draw('zoomInBtn').includes(MINUS.slice(9, -3)), J([draw('wbMoreBtn'), draw('wbRulersBtn'), draw('zoomOutBtn'), draw('zoomInBtn')]));
+        && draw('zoomOutBtn') === MINUS && draw('zoomInBtn') === '<path d="M12 4.5v15M4.5 12h15"/>' && draw('zoomInBtn').includes(MINUS.slice(9, -3)), J([draw('wbMoreBtn'), draw('wbRulersBtn'), draw('zoomOutBtn'), draw('zoomInBtn')]));
     // left as they are, on purpose: a pen tip IS its shape, and Snap's switch row has its words written by the script
     check('left as they were, on purpose: the pen\'s three tips are their own shapes, and Snap\'s switch row keeps the words its script writes',
         innerOfBtn('data-tip="round"') === '&#9679; Round' && innerOfBtn('data-tip="square"') === '&#9632; Square' && innerOfBtn('data-tip="flat"') === '&#9698; Flat' && innerOfBtn('id="snapOffBtn"') === '&#9211; Turn snapping off');
     // every drawing is a plain path (or, for the note, a path and two circles): nothing else can stand in an icon
     const zoomIcons = ['zoomOutBtn', 'zoomInBtn'].map(id => [id, innerOfBtn('id="' + id + '"')]);
-    const odd = bar.concat(menu, zoomIcons).filter(b => { const s = svgIn(b[1]); return typeof s !== 'string' || !/^<path d="[MmLlHhVvAaCcSsZz0-9 .,-]+"\/>(<circle cx="\d+" cy="\d+" r="\d+"\/>){0,2}$/.test(s); }).map(b => b[0]);
+    const odd = bar.concat(menu, zoomIcons).filter(b => { const s = svgIn(b[1]); return typeof s !== 'string' || !/^<path d="[MmLlHhVvAaCcSsZz0-9 .,-]+"\/>(<circle cx="[\d.]+" cy="[\d.]+" r="[\d.]+"\/>){0,2}$/.test(s); }).map(b => b[0]);
     check('an icon is a path of plain drawing commands, and for the music note a path and two circles: no script, no link, no picture and no style can stand in one', odd.length === 0, J(odd));
 }
 
@@ -208,8 +209,8 @@ const DOTS = '<path d="M12 5h.01M12 12h.01M12 19h.01"/>', TICK = '<path d="M5 12
 const hdr = id => { const at = ix.indexOf(' id="' + id + '"'); if (at < 0) return null; const a = ix.indexOf('<svg class="ico"', at), gt = ix.indexOf('>', a), z = ix.indexOf('</svg>', gt); return a < 0 || a - at > 600 ? null : ix.slice(gt + 1, z); };
 {
     const note = svgIn(innerOfBtn('id="musicBtn"'));
-    check('the music icon stays a note (the owner: "also id like the music icon to stay a note"): Music under Scene wears the very note of the top bar\'s music button, a stem with its beam and two filled heads, and the style sheet fills the heads on both',
-        typeof note === 'string' && note === hdr('musicInd') && note === '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>' && innerOfBtn('id="musicBtn"').includes('<svg class="ico ico-note"')
+    check('the music icon stays a note (the owner: "also id like the music icon to stay a note"): Music under Scene wears the very note of the top bar\'s music button, two notes joined by a double beam as the owner passed it redrawn, and the style sheet fills the two heads on both',
+        typeof note === 'string' && note === hdr('musicInd') && note === '<path d="M8.5 17.5V6.4l10.5-2.6v11.2M8.5 10.4l10.5-2.6"/><circle cx="6" cy="17.5" r="2.5"/><circle cx="16.5" cy="15" r="2.5"/>' && innerOfBtn('id="musicBtn"').includes('<svg class="ico ico-note"')
         && css.includes('    .ico.ico-note circle { fill: currentColor; stroke: none; }') && css.includes('  #musicInd .ico circle { fill: currentColor; stroke: none; }'), J([note, hdr('musicInd')]));
     check('the other icons the app already had are the same drawings where the toolbar uses them: Sound under Scene is the top bar\'s speaker, Add is its plus, Clear board is its bin, and the fog\'s Clear brush is the close mark',
         svgIn(innerOfBtn('id="soundBtn"')) === hdr('soundInd') && svgIn(innerOfBtn('id="addMenuBtn"')) === hdr('newCampBtn') && svgIn(innerOfBtn('id="clearWbBtn"')) === hdr('delCampBtn') && svgIn(innerOfBtn('data-fbrush="clear"')) === hdr('docReaderClose')
@@ -217,6 +218,80 @@ const hdr = id => { const at = ix.indexOf(' id="' + id + '"'); if (at < 0) retur
     check('the Waypoint mark is the icon the app uses today (the owner: "and the waypoint icon to be the icon we use today, not the compass"): the top bar\'s mark is the app\'s own icon file, shown as a picture, and the file is there',
         count(ix, '<img src="icon.ico" alt="" class="brand-icon">') === 1 && /<div class="header-brand" id="headerBrand"[^>]*>\n\s*<img src="icon\.ico" alt="" class="brand-icon">\n\s*<h1>Waypoint<\/h1>/.test(ix)
         && fs.existsSync(path.join(app, 'icon.ico')) && fs.statSync(path.join(app, 'icon.ico')).size > 1000);
+}
+
+/* ---------- the top bar's icons, redrawn as the app's own ---------- */
+// Backlog 131. The owner, by prompt, 2026-10-06, of the top bar's icons that matched the drawings of another icon set: "Redraw them as our
+// own", a sheet before any is used; and of that sheet, by prompt, 2026-10-07: "Use these drawings (Recommended)". Each drawing below is the
+// sheet's own, made for Waypoint from plain lines, arcs and outlines on the 24 by 24 grid, and it stands on EVERY control that wears it: an
+// icon the app has keeps one drawing wherever it is used. A changed or a new drawing is shown to the owner first, and these move only then.
+// The drawings they replaced are known here by the hashes of their paths alone, so that none comes back with a copy from an older page
+{
+    const p = d => '<path d="' + d + '"/>', RING = 'M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17z';
+    const OWN = {
+        search: p('M10.5 4a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM15.4 15.4l5.1 5.1'),   // a lens and its handle
+        plus: p('M12 4.5v15M4.5 12h15'), minus: p('M4.5 12h15'),   // two lines, and the bar that is the plus without its upright
+        rename: p('M14.5 4l5 5L9 19.5 3.5 21 5 15.5 14.5 4zM12.5 6l5 5'),   // a pencil with its band
+        trash: p('M4 7h16M10 4h4M6.5 7l1 13h9l1-13M9.8 10.5v6M12 10.5v6M14.2 10.5v6'),   // a bin with a knob on its lid and three ribs
+        playV: p('M4 5h16v14H4zM7 16l1.8-1.8M10.6 12.4l1.8-1.8M15 8l3 3M18 8l-3 3'),   // a map sheet with a dashed trail to a cross
+        clock: p(RING + 'M12 7.5V12l-3 2.2'),
+        up: p('M13 3.5H6v17h12v-5.5M11.5 9.5H21M17.5 6L21 9.5 17.5 13'),   // a page with an arrow leaving it
+        down: p('M13 3.5H6v17h12v-5.5M21 9.5h-9.5M15 6l-3.5 3.5L15 13'),   // the same page, the arrow coming in
+        update: p('M6.5 12L12 6.5l5.5 5.5M6.5 18L12 12.5l5.5 5.5'),   // two chevrons pointing up
+        net: p(RING + 'M12 3.5c-4.4 4.8-4.4 12.2 0 17M12 3.5c4.4 4.8 4.4 12.2 0 17M4.6 9h14.8M4.6 15h14.8'),   // a globe with two lines of latitude
+        chat: p('M5 4.5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-7.5L7 20.5v-4H5a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2zM7.5 9h9M7.5 12.5h5.5'),   // a speech box with two lines of text
+        sound: p('M3.5 9.5H7l5-4v13l-5-4H3.5zM15.5 9.3a4 4 0 0 1 0 5.4M18.2 6.8a8 8 0 0 1 0 10.4'),   // a speaker with two waves
+        music: p('M8.5 17.5V6.4l10.5-2.6v11.2M8.5 10.4l10.5-2.6') + '<circle cx="6" cy="17.5" r="2.5"/><circle cx="16.5" cy="15" r="2.5"/>',   // still a note: two notes joined by a double beam
+        handouts: p('M8.5 3.5h11v14h-11zM5 7v13.5h11M11.5 8h5M11.5 11.5h5'),   // two sheets, one behind the other
+        journal: p('M6.5 3.5H18v17H6.5a2 2 0 0 1-2-2v-13a2 2 0 0 1 2-2zM4.5 16.5a2 2 0 0 1 2-2H18M10 3.5v6.5l2-1.5 2 1.5V3.5'),   // a closed book with a ribbon
+        refresh: p('M19.5 12a7.5 7.5 0 1 1-2.2-5.3M17.6 2.8v4.2h-4.2'),   // one round arrow
+        gear: p('M10.2 5.1L10.7 2.8L13.3 2.8L13.8 5.1A7.1 7.1 0 0 1 15.6 5.9L17.6 4.6L19.4 6.4L18.1 8.5A7.1 7.1 0 0 1 18.9 10.2L21.2 10.7L21.2 13.3L18.9 13.8A7.1 7.1 0 0 1 18.1 15.6L19.4 17.6L17.6 19.4L15.6 18.1A7.1 7.1 0 0 1 13.8 18.9L13.3 21.2L10.7 21.2L10.2 18.9A7.1 7.1 0 0 1 8.5 18.1L6.4 19.4L4.6 17.6L5.9 15.6A7.1 7.1 0 0 1 5.1 13.8L2.8 13.3L2.8 10.7L5.1 10.2A7.1 7.1 0 0 1 5.9 8.5L4.6 6.4L6.4 4.6L8.4 5.9A7.1 7.1 0 0 1 10.2 5.1zM12 8.9a3.1 3.1 0 1 0 0 6.2 3.1 3.1 0 0 0 0-6.2z'),   // a cog: eight teeth round a ring, and a hole
+        help: p(RING + 'M9.4 9.6a2.7 2.7 0 1 1 3.9 2.4c-.8.4-1.3 1-1.3 1.9M12 16.9h.01'),
+        about: p(RING + 'M12 11v5.6M12 7.5h.01'),
+        fromFile: p('M6 3.5h8.5L18 7v13.5H6zM12 9.5v7.5M9 14l3 3 3-3') };   // a page with a clipped corner and an arrow into it
+    const WEARS = { search: ['id="searchCampBtn"', 'id="searchDocsBtn"', 'id="searchPlannersBtn"', 'id="searchMapsSidebarBtn"'], plus: ['id="newCampBtn"', 'id="newDocBtn"', 'id="newPlannerBtn"', 'id="newMapSidebarBtn"', 'id="addMenuBtn"', 'id="zoomInBtn"'],
+        minus: ['id="zoomOutBtn"'], rename: ['id="renameCampBtn"'], trash: ['id="delCampBtn"', 'id="clearWbBtn"'], playV: ['data-mode="visual"'], clock: ['id="clockChip"'], up: ['id="saveAsBtn"'], down: ['id="importBtn"'], update: ['id="updateBtn"'],
+        net: ['id="netBtn"'], chat: ['id="chatBtn"'], sound: ['id="soundInd"', 'id="soundBtn"'], music: ['id="musicInd"', 'id="musicBtn"'], handouts: ['id="handoutsBtn"'], journal: ['id="journalBtn"'], refresh: ['id="refreshBtn"'], gear: ['id="settingsBtn"'],
+        help: ['id="helpBtn"'], about: ['id="aboutBtn"'], fromFile: ['id="docFromFileBtn"', 'id="plannerFromFileBtn"', 'id="plannerImportBtn"'] };
+    // already the app's own before the sheet, and staying as the sheet said: System's sheet, the Data Map's three rooms, Collapse all, Outline, the cross and the triangle
+    const CHEV2 = p('M7 20l5-5 5 5M7 4l5 5 5-5'), STEPS3 = p('M4 6h16M8 12h12M12 18h8');
+    const STAY = { 'id="systemBtn"': p('M5 3h14v18H5zM9 8h6M9 12h6M9 16h4'), 'data-mode="data"': p('M6 2.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM18 2.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM12 16.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM8.5 5h7M7.2 7.2l3.6 7.3M16.8 7.2l-3.6 7.3'),
+        'id="collapseAllDocsBtn"': CHEV2, 'id="collapseAllPlannersBtn"': CHEV2, 'id="collapseAllMapsBtn"': CHEV2, 'id="plannerOutlineBtn"': STEPS3, 'id="docReaderOutline"': STEPS3, 'id="docReaderClose"': p('M6 6l12 12M18 6L6 18'), 'id="renderPlannerBtn"': p('M6 3l14 9-14 9V3z') };
+    const h0 = ix.indexOf('id="helpModal"'), h1 = ix.indexOf('<div class="layout-wrapper">', h0), page = h0 < 0 || h1 < h0 ? '' : ix.slice(0, h0) + ix.slice(h1);   // the page without Help: where the controls are
+    const ONE = /<svg class="ico( ico-[a-z]+)?" viewBox="0 0 24 24" aria-hidden="true">[\s\S]*?<\/svg>/g;
+    // the one drawing on a control that is in the page exactly once
+    const iconAt = how => { const at = page.indexOf(how); if (at < 0 || page.indexOf(how, at + 1) >= 0) return '?'; const gt = page.indexOf('>', at), end = page.indexOf('</button>', gt), m = gt < 0 || end < 0 ? null : page.slice(gt + 1, end).match(ONE);
+        return m && m.length === 1 ? m[0].slice(m[0].indexOf('>') + 1, -6) : '?'; };
+    const wrong = [], nWear = Object.keys(WEARS).reduce((n, k) => n + WEARS[k].length, 0);
+    Object.keys(WEARS).forEach(k => WEARS[k].forEach(h => { if (iconAt(h) !== OWN[k]) wrong.push(h + ' is not ' + k); }));
+    const header = ix.slice(ix.indexOf('<header>'), ix.indexOf('</header>'));
+    check('the top bar\'s icons are the app\'s own drawings (the owner: "Redraw them as our own", the sheet passed with "Use these drawings"): each of the twenty drawings of the sheet stands on every control that wears it, thirty-four controls in all: the lens on the four Search buttons, the plus on the four New buttons, on Add and on zoom in, with zoom out\'s bar the plus without its upright, the pencil, the bin on Delete and on Clear board, the Play Map\'s sheet with its trail, the clock, the page with an arrow out and in on Export As and Import, the two chevrons of Update, the globe, the speech box, the speaker in the Table pill and under Scene, the note in both, the two sheets of Handouts, the Journal\'s closed book, the round arrow, the cog, the question mark and the i in their rings, and the page with an arrow into it on the three From a file buttons; no two are the same drawing, and the top bar holds its twenty-one icons as before',
+        page.length > 100000 && wrong.length === 0 && Object.keys(OWN).length === 21 && J(Object.keys(OWN).sort()) === J(Object.keys(WEARS).sort()) && nWear === 34 && new Set(Object.values(OWN)).size === 21
+        && OWN.plus === p('M12 4.5v15' + OWN.minus.slice(9, -3)) && count(header, '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">') === 21, J(wrong));
+    // The cog, read as geometry and never by one runtime's arithmetic: its outline is eight teeth, each four points (the ring, the tip, the tip,
+    // the ring) 15 and 8 degrees either side of a tooth's middle, the first tooth pointing up, and it closes where it began; then the hole
+    const cogD = OWN.gear.slice(9, -3), cut = cogD.indexOf('zM'), pts = [];
+    cogD.slice(0, cut).replace(/([MLA])([^MLA]*)/g, (m, c, nums) => { const v = nums.trim().split(/[ ,]+/).map(Number); pts.push(c === 'A' ? [v[5], v[6], v.length === 7 && v[0] === 7.1 && v[1] === 7.1 && v[4] === 1] : [v[0], v[1], v.length === 2]); return m; });
+    const off = pts.slice(0, 32).filter((q, i) => { const k = Math.floor(i / 4), j = i % 4, R = j === 0 || j === 3 ? 7.1 : 9.3, deg = (k * 45 - 90 + [-15, -8, 8, 15][j]) * Math.PI / 180, x = 12 + R * Math.cos(deg), y = 12 + R * Math.sin(deg);
+        return !(q[2] === true && Math.abs(q[0] - x) < 0.08 && Math.abs(q[1] - y) < 0.08); });
+    const plain = s => /^<path d="[MmLlHhVvAaCcSsZz0-9 .,-]+"\/>(<circle cx="[\d.]+" cy="[\d.]+" r="[\d.]+"\/>){0,2}$/.test(s);
+    check('each of those drawings is made of plain geometry, a path of plain drawing commands and, for the note alone, two heads; and the cog is what the sheet said, eight teeth round a ring and a hole: thirty-two points, each on the ring or on a tip where a tooth of that count puts it, the outline closed where it began, and a round hole in the middle',
+        Object.keys(OWN).every(k => plain(OWN[k]) && (OWN[k].indexOf('<circle') >= 0) === (k === 'music')) && Object.keys(STAY).every(h => plain(STAY[h]) && STAY[h].indexOf('<circle') < 0)
+        && cut > 0 && pts.length === 33 && off.length === 0 && pts[32][0] === pts[0][0] && pts[32][1] === pts[0][1] && pts[32][2] === true && cogD.slice(cut) === 'zM12 8.9a3.1 3.1 0 1 0 0 6.2 3.1 3.1 0 0 0 0-6.2z', J([pts.length, off]));
+    const moved = Object.keys(STAY).filter(h => iconAt(h) !== STAY[h]);
+    check('the drawings that were the app\'s own already stay as they were, as the sheet said: System\'s sheet with three lines, the Data Map\'s three rooms and their links, the two chevrons of the three Collapse all buttons, the stepped lines of the two Outline buttons, the cross that closes a page and the triangle that reads a planner',
+        moved.length === 0 && Object.keys(STAY).length === 9, J(moved));
+    // every path the app writes anywhere, in the page with Help, in a script and in the style sheet, by its hash
+    const GONE = ['5e6660965155792d2c26d443ed429e290d4463de9d36ff84f7779c50e3e31b28', '07a6bbb8f424ba6c0f80de4a8f3e540cb3d3a886a99276c03e490ea2b9041d0b', 'cc33539c17e46d9d12b543874cde19a1f7291f5c0f73a1cc8c12ff43b1145879', 'cc702b5af64cc79bfc48f04f12a76eb8495f3ec73cfb4b600338e6d1297e3a84',
+        'dd5c14c131d360ea029cf78030246440e723734654995d3ec232a103edb54387', 'ed0e8a4d7881c927b51e3fcf7ac141db21ff8498c7c40a6a02db375367c7afd0', '046f4ead368a82d171745d6eb279b69ae822ede7c4506256113d88bbf0115fc8', '9d87c5ffb18876a8ec18b8e15611a8bc05fdf3071233030e0115b6ca77579de9',
+        'c4940a576819d8bb257e5038f90920d211f2cfb12c98776d3772920c271ea14e', 'd2a12653e6a67f9115f0c503a1963652376801410d3d9cca02149b21923b05e5', '17905e45666b4e3d53594ebb472a013aa664a79288c8c2da3b1c6e7277f129a6', 'aff931f105ea03a65ff9c84dcf0ce9abfc6ffd9e81625ec4f9d50e0fdc2b35c4',
+        '7bbc989121192a83c4b3f38ec304ee651db8580970a3250b6fd759ec287611d1', '0c117f55860b0e8b9b7851986d1d118743fa45d336b205c721ab962954222cb3', '0bbed630c922e1ab3ae1e8a2c3f0d608a3436e06245aae2808b63f6a7ed940e3', 'f4074b7bfc948d9c00949faeacb44208444b7d11acb7537c23b491c00b4520e8',
+        '467e9794ce50a22c3e8133afacf68570d723e93442c26b63987f865f67511e97', 'e29b18f61a70b904e1644eb7a7c161fda777a487dd5b0086a9e5ddb97e52e418', 'eb0b23f43d892327a9cbfb2a714759141a95dd26ba8c075e3a4f0f3b47fb3408', '6cb99be45d63a3e0303fdef10eb701fb96742c8eec7df8780a9dbbe079daba18'];
+    const ds = [];
+    [ix, css].concat(fs.readdirSync(path.join(app, 'scripts')).filter(f => /\.js$/.test(f)).map(f => read('scripts/' + f))).forEach(s => { s.replace(/\\/g, '').replace(/ d=["']([^"']+)["']/g, (m, d) => { ds.push(d); return m; }); });
+    const back = ds.filter(d => GONE.indexOf(crypto.createHash('sha256').update(d).digest('hex')) >= 0);
+    check('none of the drawings they replaced is left anywhere: every path the page writes, Help with it, every path a script writes and every path in the style sheet is held against the twenty that went, which the suite knows by their hashes alone; the paths are found at all, the cog and Help\'s copies among them',
+        ds.length > 150 && back.length === 0 && GONE.length === 20 && new Set(GONE).size === 20 && ds.indexOf(cogD) >= 0 && ds.filter(d => d === OWN.sound.slice(9, -3)).length === 6, J([ds.length, back.length]));
 }
 
 /* ---------- gold for what is in hand and what is on ---------- */
@@ -603,7 +678,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         + '          <span class="zoom-ctl">\n'
         + '              <button class="zoom-btn" id="zoomOutBtn" title="Zoom Out">' + SVG + MINUS + '</svg></button>\n'
         + '              <input id="zoomLbl" title="Click to type a zoom level" value="100%" aria-label="Zoom level" />\n'
-        + '              <button class="zoom-btn" id="zoomInBtn" title="Zoom In">' + SVG + '<path d="M12 5v14M5 12h14"/></svg></button>\n'
+        + '              <button class="zoom-btn" id="zoomInBtn" title="Zoom In">' + SVG + '<path d="M12 4.5v15M4.5 12h15"/></svg></button>\n'
         + '          </span>\n'
         + '      </div>\n';
     const kids = kidsOf(ix, '<div id="zoomBox">') || [], pos = kids[0] || { text: '' };
@@ -710,7 +785,8 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         + "- The Radius tool can also put a circle on a token. Pick On a token\n  and click a token. The circle moves with it, and the token itself\n  is not counted.\n"
         + "- The GM can set off a circle of the Radius tool as an explosion. Press\n  Explode in the tool's options and type the damage and its type.\n  Nothing is filled in. The blast is shown to everyone on the map, and\n  the damage follows the system's blast setting.\n"
         + "- The fog menu is shorter. This map's two ticks and the brushes stay\n  in view, and three folds hold the rest: light and vision, the\n  preview, and the campaign's fog settings. No control is gone.\n"
-        + "- Help and the tour show each play-map tool's own line drawing beside\n  its name, where they still showed the old picture icons.\n\n";
+        + "- Help and the tour show each play-map tool's own line drawing beside\n  its name, where they still showed the old picture icons.\n"
+        + "- The top bar's icons are redrawn as Waypoint's own drawings. Settings\n  wears a cog, and Music is still a note. No button has moved.\n\n";
     const wn = [rootRead('WHATSNEW.txt'), read('assets/whatsnew.txt')];
     check('both release notes carry the same lines, and the suite is one of the CI runs',
         wn.every(t => count(t, NOTE) === 1 && count(t, 'Every button is where it was') === 0) && rootRead('.github/workflows/checks.yml').includes("      - name: lookcheck — the look of the play map (no control removed, the toolbar's line icons, gold for the tool in hand)\n        if: ${{ !cancelled() }}\n        run: node tools/lookcheck.js\n"));

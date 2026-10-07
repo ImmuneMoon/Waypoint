@@ -363,6 +363,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (window.wpPageShelf && window.wpPageShelf.noteActive) window.wpPageShelf.noteActive();   // 1.5.4 (pageshelf.js): a page that is the item on screen is one of the last pages opened
       mNav.innerHTML = mapQuickHtml(camp) + (treeHtml('map') || '<div class="nav-empty">No maps yet — press + above to create your first location.</div>');
       if (window.wpMapTabs) window.wpMapTabs.sync();   // the top row's map tabs (maptabs.js) read the pins, the last maps opened (noted just above) and who is where
+      if (window.wpPills) window.wpPills.sync();   // and its state pills (pills.js): a table opened or closed, a player come or gone
 
 
 

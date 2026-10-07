@@ -255,6 +255,10 @@ The top bar and the data map
   parent maps inside the tab. Your pinned maps and the last maps you
   opened follow. An eye and a number mark a map your players are on,
   and the plus opens quick-jump.
+- The top row has pills that say what is going on: this map's fog, the
+  table and its players, a pause, the round and whose turn it is, and
+  a fog preview. A pill shows only while it has something to say, and
+  a press opens its thing.
 - Where the window is too narrow for the row, Sound, Music, Handouts,
   Journal and Help move into More, so the row stays one line.
 - Both menus work from the keyboard: the arrow keys, a letter for the

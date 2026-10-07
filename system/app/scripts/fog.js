@@ -1628,6 +1628,7 @@ function btnSync() {
     _btnMapId = map ? map.id : null;
     if (stop) window.wpExitFogMode();
     if (stop || moved) { var fm = ui('fogMenu'); if (fm && fm.classList && fm.classList.contains('show')) syncMenu(); }   // an open menu follows the tool put down and the map on screen
+    if (typeof window !== 'undefined' && window.wpPills) window.wpPills.sync();   // the top row's pills (pills.js) say this map's fog and a preview, and read the button just set
 }
 // [fogcheck:fogbtn-end]
 /* ---------- the throttled redraw loop (runs only while the overlay is active) ---------- */

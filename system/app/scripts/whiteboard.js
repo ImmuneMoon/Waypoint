@@ -6620,6 +6620,7 @@ window.wpOpenCombat = openCombatModal;
     });
 })();
 function renderCombatStrip() {
+    if (typeof window !== 'undefined' && window.wpPills) window.wpPills.sync();   // the top row's Round pill (pills.js) says the same fight
     var strip = document.getElementById('combatStrip'); if (!strip) return;
     var n = window.wpNet, am = getActiveMap();
     var c = n && n.active && am && am.type === 'map' && state.viewMode === 'visual' && n.combats && n.combats[am.id];

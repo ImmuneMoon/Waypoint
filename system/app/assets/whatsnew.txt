@@ -63,6 +63,11 @@ Character sheets
   entry yourself. A need players may not see is never named to them.
   A row whose needs stop being met stays on the sheet, marked needs
   not met.
+- For ShadowBase needs no second pick. Once the character's ShadowBase
+  file has been read here, by Import or by a pick, the Download menu
+  offers For ShadowBase from that file and says which file it is and
+  when it was read. Another row picks a newer file. The file is kept in
+  memory only, until you close Waypoint.
 
 Calendar
 - The game clock runs by itself while you host a session: a second of

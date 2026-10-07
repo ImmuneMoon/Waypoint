@@ -3,7 +3,7 @@
    kept for a bounded number of seconds, the compressed bytes as the durable copy), the GM's panel on
    the play map (#soundPanel) and library (#soundLibModal: uploads into saves/images/audio/<campId>/,
    the bundled defaults under Shared, Import from another campaign… by reference), the player's
-   indicator in the Table pill (#soundInd) with volume, mute and "off for me", the autoplay gate, the
+   indicator in the top row (#soundInd) with volume, mute and "off for me", the autoplay gate, the
    stream window's BroadcastChannel carrier, and the glue net.js calls: listMessage() for the host,
    onList / onCue / onSnapshot / tableLeft / sessionEnded for the client. soundcore.js holds the
    validators; net.js holds the wire (sounds / sound messages, chunked asset-part transfer). */

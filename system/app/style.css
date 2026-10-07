@@ -66,6 +66,26 @@
   .brand-icon{width:24px;height:24px;border-radius:6px;display:block}
   .header-sep{width:1px;height:24px;background:var(--edge);flex:0 0 auto}
   .header-group{display:flex;align-items:center;gap:6px}
+  /* 107, the top row (the owner: "one slim row, with the option of hiding it", the mock-up passed "as drawn", and "One row everywhere"). One
+     quiet row on every view: the mark, then each control as a bare icon that lights under the pointer. The four captioned boxes are gone, and
+     each button still says what it is in its tooltip. Where a window is too narrow for one row it wraps onto a second: nothing is cut off */
+  header { padding: 4px 10px; gap: 6px; row-gap: 4px; min-height: 36px; box-sizing: border-box; background: var(--bg2); }
+  header h1 { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); }   /* the mark alone stands in the row: the name stays for a screen reader */
+  header .header-brand { padding: 0 2px; }
+  header .brand-icon { width: 22px; height: 22px; }
+  header .header-sep { height: 18px; }
+  header .header-group { gap: 5px; }
+  header .hdr-group { gap: 1px; padding: 0; margin-left: 0; border: 0; border-radius: 0; background: none; }
+  header .hdr-group::before { content: none; }
+  header .tool.icon { width: 28px; height: 26px; border-color: transparent; background: transparent; color: var(--dim); border-radius: 6px; }
+  header .tool.icon:hover { background: var(--panel2); border-color: transparent; color: var(--ink); }
+  header .tool.icon.danger:hover { color: var(--red); }
+  header .tool.icon.on { background: var(--gold); color: #1a1a1a; }
+  header .tool:not(.icon) { padding: 4px 9px; }   /* Export As, Import, Update and Review: a word beside the icon */
+  header .map-select { padding: 4px 8px; font-size: 12.5px; }
+  header .seg-control { padding: 2px; }
+  header .seg-btn { padding: 4px 9px; font-size: 12px; }
+  header .hdr-clock { height: 22px; padding: 0 9px; border-radius: 11px; font-size: 11.5px; }   /* the clock, and a player's video chip, read as pills */
   .tool.icon{
     width:32px;height:32px;padding:0;display:inline-flex;align-items:center;justify-content:center;
     font-size:14px;line-height:1;

@@ -221,8 +221,11 @@ The play map
   its name, where they still showed the old picture icons.
 
 The top bar and the data map
+- The top of the window is one quiet row. Its four captioned boxes are
+  gone, and each button still says what it is when you point at it. No
+  button has moved.
 - The top bar's icons are redrawn as Waypoint's own drawings. Settings
-  wears a cog, and Music is still a note. No button has moved.
+  wears a cog, and Music is still a note.
 - The data map's toolbar wears the same line icons as the play map's.
   Its Link menu lists the four line types by name, each with a small
   drawing.

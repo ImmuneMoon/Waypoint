@@ -3939,7 +3939,7 @@ function startFromFile() {
 function gmImportRead(c, j) {   // { error } or { up }: the record the Review reads
     var camp = getActiveCampaign(), sys = systemOf(camp), SCo = window.wpSystemCore;
     if (isClient() || !canWrite()) return { error: 'Only the GM imports a file here.' };
-    if (!c || !sys || !F() || !SCo || !SCo.sbProposal) return { error: 'The campaign has no system yet (System in the Campaign pill).' };
+    if (!c || !sys || !F() || !SCo || !SCo.sbProposal) return { error: 'The campaign has no system yet. Press System in the top row to make one.' };
     if (isCharFile(j)) return { error: 'That is a Waypoint character file: it fills a character a player is still making. Import here reads a ShadowBase character JSON.' };
     if (!j || typeof j !== 'object' || Array.isArray(j) || (j.type && j.type !== 'character') || (!j.name && !j.attributes && !j.points)) return { error: 'That does not look like a ShadowBase character JSON.' };
     var pr = SCo.sbProposal(sys, c, j, F(), sbFinder(camp, sys));
@@ -4077,7 +4077,7 @@ function playerFinder(camp, view) {
 function fromShadowBase(w) {
     var camp = getActiveCampaign(), sys = systemOf(camp);
     if (!w || !w.sheet) return { error: 'No ShadowBase sheet on this token.' };
-    if (!sys || !F()) return { error: 'The campaign has no system yet (System in the Campaign pill).' };
+    if (!sys || !F()) return { error: 'The campaign has no system yet. Press System in the top row to make one.' };
     var r = aliasFromShadowBase(w.sheet, sys, F()), ro = sbRowOps(w.sheet, sys, sbFinder(camp, sys));   // Stage 6 F7: its rows too
     if (!r.matched && !ro.rows) return { error: 'Nothing on the sheet matches the system\'s keys (ST or STR, DX or DEX, HT or CON, IQ or INT, HP, FP, Will, Per, Dodge, Parry, skills by name).' };
     var c = w.charId ? charById(w.charId, camp) : null;

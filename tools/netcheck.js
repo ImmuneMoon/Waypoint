@@ -11014,6 +11014,29 @@ pendingChecks.push((async () => {
             j([rOwn, sentC, kitR, ans]));
     }
 })());
+pendingChecks.push((async () => {
+    /* ---- 126b: an index row's needs on a player's app (the real loader) ---- */
+    {
+        const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+        const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js')), Lx = await import(url('librarycore.js'));
+        const lcSrc = between('// [netcheck:libclient-start]', '// [netcheck:libclient-end]', 'libclient'), wait0 = () => new Promise(r => setImmediate(r));
+        const timers = [], fakeSet = (fn, ms) => { timers.push({ fn, ms }); return timers.length; }, fakeClear = id => { if (timers[id - 1]) timers[id - 1].fn = null; };
+        const sent = [], conn = { peer: 'h', open: true, send: m => { packCheck(m); sent.push(JSON.parse(JSON.stringify(m))); } };
+        const netL = { active: true, role: 'client', syncedPeer: 'h', conns: [conn] }, stL = { appState: { activeCampaignId: 'k' } };
+        const campL = { id: 'k', system: Sx.cleanSystem({ v: 1, name: 'P', rolls: [], fields: [{ id: 'f_inv', key: 'Gear', kind: 'item-list' }] }, { F: Fx, gmView: false }) };
+        new Function('net', 'state', 'window', 'getActiveCampaign', 'setTimeout', 'clearTimeout', lcSrc)(netL, stL, { wpLibraryCore: Lx, wpFormula: Fx }, () => campL, fakeSet, fakeClear);
+        netL.libTake({ campId: 'k', packs: [{ id: 'p_a', name: 'A', count: 6, hash: 'aaaaaaaa' }] });
+        const row = (id, name, more) => [id, '', name, 'Gear', '', [], '12345678'].concat(more === undefined ? [] : [more]);
+        const load = netL.libLoad('p_a'); await wait0();
+        const ask = sent[sent.length - 1];
+        netL.libAnswer({ type: 'lib-idx-ans', rid: ask.rid, packId: 'p_a', hash: 'aaaaaaaa', page: 0, pages: 1, rows: [row('i_1', 'One'), row('i_2', 'Two', [{ id: 'i_1', lvl: 2, name: 'x' }, { id: 'i_1' }, { id: '__proto__' }]), row('i_3', 'Three', 'junk'), row('i_4', 'Four', []),
+            row('i_5', 'Five', [{ id: 'i_1' }]).concat(['extra']), row('i_6', 'Six', [{ id: 'bad' }])] });
+        const ok = await load, got = netL.libRows('p_a').map(r => [r[0], r.length, r.length === 8 ? r[7] : null]);
+        check('126b an index row\'s needs on a player\'s app (the real loader with the real library core): a row of seven is taken as ever; a row of eight is taken with its needs cleaned again, an id once by its pattern, a level as a number, no name; a row whose eighth place is no list, an empty one or holds no need, and a row of nine, are left out whole; the ask packs',
+            ok === true && ask.type === 'lib-idx' && ask.packId === 'p_a' && j(got) === j([['i_1', 7, null], ['i_2', 8, [{ id: 'i_1', lvl: 2 }]]]) && netL.libLoaded('p_a') === 2,
+            j(got));
+    }
+})());
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
     /* ---- 1.5.4: the follow ruling (the owner, 2026-10-04): nobody follows the GM around unless the table is set to ---- */
     {

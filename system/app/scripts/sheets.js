@@ -3862,6 +3862,26 @@ function printSheet(charId, gmAll) {
 // file, picked here, with what the table changed written into a copy of it (systemcore sbWriteBack): the copy is a whole file the website's
 // Import Character reads. Worked out on this machine from the viewer's own copy of the character (the GM's whole copy, a player's own);
 // nothing is stored, sent or changed in the campaign. What a file holds reaches the page only as text nodes (sbExportBody).
+// 85 (the owner, 2026-10-04: "i just need to be able to let them download their characters and save them to shadowbase easily"): the
+// character's ShadowBase file is remembered once it has been read on this machine, by Import or by a pick here, so For ShadowBase needs no
+// second pick. In memory only, until the app closes: never stored and never sent, since a file kept from another day could put old figures
+// back on the website. By campaign and character, the newest SB_KEEP files
+var _sbKept = Object.create(null), SB_KEEP = 8, SB_KEEP_MAX = 8 * 1024 * 1024;
+function sbIsSheet(j) { return !!j && typeof j === 'object' && !Array.isArray(j) && !isCharFile(j) && (!j.type || j.type === 'character') && !!(j.name || j.attributes || j.points); }
+function sbKeepKey(campId, charId) { return typeof campId === 'string' && campId && typeof charId === 'string' && charId ? campId + '|' + charId : ''; }
+function sbKeep(campId, charId, text, name, at) {
+    var k = sbKeepKey(campId, charId); if (!k || typeof text !== 'string' || !text || text.length > SB_KEEP_MAX) return false;
+    delete _sbKept[k]; _sbKept[k] = { text: text, name: typeof name === 'string' ? name : '', at: typeof at === 'number' && isFinite(at) ? at : Date.now() };
+    var ks = Object.keys(_sbKept); while (ks.length > SB_KEEP) delete _sbKept[ks.shift()];   // the one read longest ago goes first
+    return true;
+}
+function sbKept(campId, charId) { var k = sbKeepKey(campId, charId); return k && _sbKept[k] ? _sbKept[k] : null; }
+// how long ago a file was read, in plain words (worked out from the two times alone, so it reads the same on every machine)
+function sbKeptAgo(at, now) {
+    var m = Math.floor(((typeof now === 'number' ? now : Date.now()) - at) / 60000); if (!(m >= 1)) return 'just now';
+    return m < 60 ? m + (m === 1 ? ' minute ago' : ' minutes ago') : m < 1440 ? Math.floor(m / 60) + (m < 120 ? ' hour ago' : ' hours ago') : 'more than a day ago';
+}
+function sbKeptName(name) { var s = String(name == null ? '' : name).replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim(); return s ? (s.length > 48 ? s.slice(0, 48) + '\u2026' : s) : 'the file read here'; }
 function sbExportPlan(charId, j) {   // { r, name } or { error: words }
     if (isCharFile(j)) return { error: 'That is a Waypoint character file. Pick the character\u2019s ShadowBase file (the website\u2019s Export JSON).' };
     var S = window.wpSystemCore, X = exportView(charId, !isClient()); if (!S || !S.sbWriteBack || !X) return { error: 'This sheet cannot be exported here.' };
@@ -3881,8 +3901,9 @@ function sbExportFile(text, name, json) {
     return { text: out, name: (base || 'character') + ' (from Waypoint).json' };
 }
 function sbExportWords(v) { return typeof v === 'number' && isFinite(v) ? String(v) : typeof v === 'string' ? (v.length > 40 ? v.slice(0, 40) + '\u2026' : v) : typeof v === 'boolean' ? (v ? 'yes' : 'no') : v === null || v === undefined ? 'nothing' : 'something else'; }
-function sbExportBody(r, sheetName, fileCharName) {   // the question's list, as text nodes only
+function sbExportBody(r, sheetName, fileCharName, kept) {   // the question's list, as text nodes only; kept (85): the remembered file it was made from, said first
     var box = el('div', 'sb-export-list'), line = function(cls, t) { box.appendChild(el('div', cls, t)); }, cut = function(s) { s = String(s); return s.length > 60 ? s.slice(0, 60) + '\u2026' : s; };
+    if (kept) line('sb-export-warn', 'From \u201c' + sbKeptName(kept.name) + '\u201d, read here ' + sbKeptAgo(kept.at) + '. If the character changed on the website since then, pick the newer file.');
     var nmS = String(sheetName || '').trim().toLowerCase(), nmF = typeof fileCharName === 'string' ? fileCharName.trim().toLowerCase() : '';   // a short name beside a full one ("Sahrhie", "Sahrhie Vosst") is the same character
     if (nmS && nmF && nmS.indexOf(nmF) < 0 && nmF.indexOf(nmS) < 0) line('sb-export-warn', 'The file is for \u201c' + cut(fileCharName.trim()) + '\u201d; this sheet is \u201c' + cut(sheetName || '') + '\u201d.');
     r.changes.forEach(function(c) { line('sb-export-row', cut(c.label) + ': ' + sbExportWords(c.from) + ' \u2192 ' + sbExportWords(c.to)); });
@@ -3891,20 +3912,28 @@ function sbExportBody(r, sheetName, fileCharName) {   // the question's list, as
     line('sb-export-dim', 'Everything else in the file stays as the website wrote it. Items, conditions, notes and character points are not carried: change those on the website.');
     return box;
 }
-function exportShadowBase(charId) {
+// the copy made from one file's text and offered for saving; kept: the remembered file it came from, which the question then names
+function sbExportRun(charId, txt, fileName, kept) {
+    var j = null; try { j = JSON.parse(txt); } catch (e) { toast('That file is not valid JSON.'); return; }
+    var P = sbExportPlan(charId, j); if (P.error) { toast(P.error); return; }
+    if (!P.r.changes.length) { toast('Nothing to write: that file already holds what this sheet shows.'); return; }
+    showConfirm('Write this session into a copy of that ShadowBase file?', function(yes) {
+        if (!yes) return;
+        var f = sbExportFile(txt, fileName, P.r.json);
+        if (saveTextFile(f.name, f.text, 'application/json')) toast('Saved ' + f.name + '. On the website: Import Character.');
+    }, { body: sbExportBody(P.r, P.name, typeof j.name === 'string' ? j.name : '', kept || null) });
+}
+function exportShadowBase(charId, useKept) {   // useKept (85): from the file remembered for this character, with no pick; none remembered: the pick, as ever
+    var campK = getActiveCampaign(), kept = useKept === true ? sbKept(campK && campK.id, charId) : null;
+    if (kept) { sbExportRun(charId, kept.text, kept.name, kept); return; }
     var inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json';
     inp.addEventListener('change', function() {
         var file = inp.files && inp.files[0]; if (!file) return;
         if (file.size > 8 * 1024 * 1024) { toast('That file is too large.'); return; }
         file.text().then(function(txt) {
-            var j = null; try { j = JSON.parse(txt); } catch (e) { toast('That file is not valid JSON.'); return; }
-            var P = sbExportPlan(charId, j); if (P.error) { toast(P.error); return; }
-            if (!P.r.changes.length) { toast('Nothing to write: that file already holds what this sheet shows.'); return; }
-            showConfirm('Write this session into a copy of that ShadowBase file?', function(yes) {
-                if (!yes) return;
-                var f = sbExportFile(txt, file.name, P.r.json);
-                if (saveTextFile(f.name, f.text, 'application/json')) toast('Saved ' + f.name + '. On the website: Import Character.');
-            }, { body: sbExportBody(P.r, P.name, typeof j.name === 'string' ? j.name : '') });
+            var jP = null, campP = getActiveCampaign(); try { jP = JSON.parse(txt); } catch (e) { jP = null; }
+            if (campP && sbIsSheet(jP)) sbKeep(campP.id, charId, txt, file.name);   // 85: a later For ShadowBase needs no pick
+            sbExportRun(charId, txt, file.name, null);
         });
     });
     inp.click();
@@ -3919,11 +3948,13 @@ function openDownloadMenu(anchor) {
     if (_dlPop) { closeDownloadMenu(); return; }   // its button toggles it
     var c = sheetOpen ? charById(sheetOpen) : null; if (!c || c.partial || !canOpen(c.id)) return;
     var gm = !isClient(), cid = c.id, pop = el('div', 'sheet-dl-pop'); pop.setAttribute('role', 'menu'); pop._anchor = anchor;
-    var item = function(label, sub, kind) { var b = el('button', 'sheet-dl-item'); b.type = 'button'; b.setAttribute('role', 'menuitem'); b.appendChild(el('span', 'sheet-dl-t', label)); b.appendChild(el('span', 'sheet-dl-s', sub)); b.addEventListener('click', function(e) { e.preventDefault(); closeDownloadMenu(); if (kind === 'print') printSheet(cid, gm && _dlGm); else if (kind === 'sb') exportShadowBase(cid); else downloadChar(cid, kind, gm && _dlGm); }); pop.appendChild(b); };
+    var item = function(label, sub, kind) { var b = el('button', 'sheet-dl-item'); b.type = 'button'; b.setAttribute('role', 'menuitem'); b.appendChild(el('span', 'sheet-dl-t', label)); b.appendChild(el('span', 'sheet-dl-s', sub)); b.addEventListener('click', function(e) { e.preventDefault(); closeDownloadMenu(); if (kind === 'print') printSheet(cid, gm && _dlGm); else if (kind === 'sb') exportShadowBase(cid); else if (kind === 'sbkept') exportShadowBase(cid, true); else downloadChar(cid, kind, gm && _dlGm); }); pop.appendChild(b); };
     item('Character file (.wpchar.json)', 'Every value on the sheet, to keep', 'json');
     item('Readable page (.md)', 'The sheet as text \u2014 it imports as a handbook page', 'md');
     item('Print or save as PDF\u2026', 'Exactly as it shows, every tab in turn', 'print');
-    item('For ShadowBase (.json)\u2026', 'This session written into a copy of its ShadowBase file', 'sb');
+    var campD = getActiveCampaign(), keptD = sbKept(campD && campD.id, cid);   // 85: the ShadowBase file read here for this character, if one was
+    if (keptD) { item('For ShadowBase (.json)', 'From ' + sbKeptName(keptD.name) + ', read here ' + sbKeptAgo(keptD.at), 'sbkept'); item('For ShadowBase, from another file\u2026', 'Pick a newer export from the website', 'sb'); }
+    else item('For ShadowBase (.json)\u2026', 'This session written into a copy of its ShadowBase file', 'sb');
     if (gm) { var lb = el('label', 'sheet-dl-gm'), cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = _dlGm; cb.addEventListener('change', function() { _dlGm = cb.checked; }); lb.appendChild(cb); lb.appendChild(document.createTextNode(' Include GM-only fields')); lb.title = 'Off: the sheet as its player sees it. On: your own copy, with every GM-only field and row (the file is named \u2026-gm)'; pop.appendChild(lb); }
     else pop.appendChild(el('div', 'sheet-dl-note', 'Your sheet as you see it.'));
     pop.addEventListener('mousedown', function(e) { e.stopPropagation(); });
@@ -3933,7 +3964,7 @@ function openDownloadMenu(anchor) {
         e.preventDefault(); var its = Array.prototype.slice.call(pop.querySelectorAll('.sheet-dl-item, .sheet-dl-gm input')), at = its.indexOf(document.activeElement), nx = its[(at + (e.key === 'ArrowDown' ? 1 : its.length - 1) + its.length) % its.length]; try { if (nx) nx.focus(); } catch (er) {}
     });
     document.body.appendChild(pop); _dlPop = pop;
-    var r = anchor.getBoundingClientRect(); pop.style.left = Math.max(8, Math.min(window.innerWidth - 288, r.right - 280)) + 'px'; pop.style.top = Math.max(8, Math.min(window.innerHeight - 232, r.bottom + 6)) + 'px';
+    var r = anchor.getBoundingClientRect(); pop.style.left = Math.max(8, Math.min(window.innerWidth - 288, r.right - 280)) + 'px'; pop.style.top = Math.max(8, Math.min(window.innerHeight - (keptD ? 284 : 232), r.bottom + 6)) + 'px';
     document.addEventListener('mousedown', dlOutside, true); document.addEventListener('keydown', dlKey, true);   // Escape here first: the panel's own Escape closes the sheet
     var first = pop.querySelector('.sheet-dl-item'); try { if (first) first.focus(); } catch (er) {}
 }
@@ -3992,6 +4023,7 @@ function startFromFile() {
                     if (a.error) { toast(a.error); return; }
                     if (!a.charId) return;
                     var id = a.charId; openSheet(id);
+                    if (isSb && typeof sbKeep === 'function' && typeof getActiveCampaign === 'function') { var campS = getActiveCampaign(); if (campS) sbKeep(campS.id, id, txt, file.name); }   // 85: For ShadowBase then needs no pick
                     var rU = n.charUpload(id, j, function(b) { if (b.error) { toast(b.error + ' Your character is made: Import on its sheet can fill it later.'); return; } toast(fillNote(b, j)); filePicture(id, j); });
                     if (rU && rU.error) toast(rU.error + ' Your character is made: Import on its sheet can fill it later.');
                 });
@@ -4022,6 +4054,7 @@ function gmImportJson(c) {
         if (file.size > 8 * 1024 * 1024) { toast('That file is too large.'); return; }
         file.text().then(function(txt) {
             var j = null; try { j = JSON.parse(txt); } catch (e) { toast('That file is not valid JSON.'); return; }
+            var campG = typeof sbKeep === 'function' && typeof sbIsSheet === 'function' ? getActiveCampaign() : null; if (campG && charById(id) && sbIsSheet(j)) sbKeep(campG.id, id, txt, file.name);   // 85: For ShadowBase then needs no pick (kept whatever the review comes to)
             var cNow = charById(id), r = cNow ? gmImportRead(cNow, j) : { error: 'That character is no longer here.' };
             if (r.error) { toast(r.error); return; }
             openReview(id, r.up);
@@ -4045,6 +4078,7 @@ function importJson() {   // the owner sends their sheet file to the GM (the GM 
             if (isFile && !making) { toast('A character file only fills a character you are still making.'); return; }   // Onboarding F2a: never sent as a dossier (owner, 2026-09-27: in play, Import stays as it was)
             if (!isFile && (!j || typeof j !== 'object' || Array.isArray(j) || (j.type && j.type !== 'character') || (!j.name && !j.attributes && !j.points))) { toast(making ? 'That is neither a character file nor a ShadowBase character.' : 'That does not look like a ShadowBase character JSON.'); return; }
             var n = net(); if (!n || !n.charUpload) return;
+            if (!isFile && typeof sbKeep === 'function') { var campI = getActiveCampaign(); if (campI) sbKeep(campI.id, id, txt, file.name); }   // 85: For ShadowBase then needs no pick
             if (making) {
                 showConfirm('Fill ' + nm + ' from this file? What it carries replaces what the sheet has.', function(y) {
                     if (!y) return;

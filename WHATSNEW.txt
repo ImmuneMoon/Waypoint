@@ -47,6 +47,13 @@ Character sheets
   Write them in the Library, in an entry's Description and By level
   boxes. A player reads them on their own sheet for an entry players
   can see. A GM-only entry's text stays with you.
+- Point budgets. In the System editor's Lists tab, add a budget: a
+  name, a formula for the points a character has, and one for the
+  points it has spent. The sheet shows spent of has under its head.
+  When a player's own change would take their character over, the
+  budget refuses it, or lets it through with a note to them and to
+  you, as you set it. You also say when it is watched: always, while
+  a character is made, or in play. Your own changes are never refused.
 
 Calendar
 - The game clock runs by itself while you host a session: a second of

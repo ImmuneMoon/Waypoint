@@ -10864,6 +10864,71 @@ pendingChecks.push((async () => {
         && iName > 0 && iBar > iName && iHost > iBar && iHostBtn > iHost && iJoin > iHostBtn && iJoinBtn > iJoin && html.split('id="netNameInput"').length === 2 && html.split('id="netJoinAvatar"').length === 2 && /data-pane="host" aria-expanded="false" aria-controls="netPaneHost"/.test(html) && /data-pane="join" aria-expanded="false" aria-controls="netPaneJoin"/.test(html) && wired,
         JSON.stringify([seen, iName, iBar, iHost, iHostBtn, iJoin, iJoinBtn, wired]));
 }
+pendingChecks.push((async () => {
+    /* ---- 126: point budgets, the host's watch on a player's own change (the owner: "A budget you define"; a breach and its watch "per system dictation") ---- */
+    {
+        const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+        const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
+        const edSrc = between('// [netcheck:charedit-start]', '// [netcheck:charedit-end]', 'charedit'), msSrc = between('// [netcheck:charedits-start]', '// [netcheck:charedits-end]', 'charedits'), ciSrc = between('// [netcheck:charitem-start]', '// [netcheck:charitem-end]', 'charitem');
+        const dlSrc = between('// [netcheck:chardelta-start]', '// [netcheck:chardelta-end]', 'chardelta'), bnSrc = between('// [netcheck:budgetnote-start]', '// [netcheck:budgetnote-end]', 'budgetnote');
+        const ntSrc = (() => { const i = src.indexOf('function itemNotice('), k = src.indexOf('net.syncChars = function', i); if (i < 0 || k < 0) throw new Error('netcheck: itemNotice not found'); return src.slice(i, k); })();   // the item notice, the budget notice and what both keep
+        const mk = (rule, vals, charMore) => {
+            const sys = Sx.cleanSystem({ v: 1, name: 'B', rolls: [], items: [{ id: 'i_x', name: 'X' }, { id: 'i_y', name: 'Y' }, { id: 'i_z', name: 'Z' }], fields: [{ id: 'f_st', key: 'ST', kind: 'number', def: 10 }, { id: 'f_dx', key: 'DX', kind: 'number', def: 10 },
+                { id: 'f_cp', key: 'CP', kind: 'number', def: 100, edit: 'gm' }, { id: 'f_kit', key: 'Kit', kind: 'item-list' }], budgets: rule ? [Object.assign({ id: 'b_cp', name: 'Character points', has: 'CP', spent: '(ST - 10) * 10 + (DX - 10) * 10 + Kit.count * 5' }, rule)] : undefined }, { F: Fx, gmView: true });
+            const camp = { id: 'k', system: sys, chars: { c_1: Object.assign({ id: 'c_1', name: 'Ana', ownerId: 'u_a', npc: false, values: vals || { f_st: 19 } }, charMore) } };
+            const out = { answer: [], owner: [], notes: [], logs: [], saves: 0, clock: 1000000 }, box = b => m => { packCheck(m); b.push(JSON.parse(JSON.stringify(m))); };
+            const conn = { peer: 'pA', send: box(out.answer) }, net = { active: true, role: 'host', paused: false, conns: [{ peer: 'pA', open: true, send: box(out.owner) }], roster: { pA: { id: 'u_a' } } };
+            const win = { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} }, wpDiceCore: null };
+            const H = new Function('net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'peerProfileId', 'lim', 'toast', 'logEvent', 'Date',
+                'var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {};\n' + dlSrc + '\n' + ntSrc + '\nreturn { edit: function(msg, conn) {\n' + edSrc + '\n}, edits: function(msg, conn) {\n' + msSrc + '\n}, item: function(msg, conn) {\n' + ciSrc + '\n} };')(
+                net, () => Sx, win, () => false, () => camp, () => { out.saves++; }, e => { throw e; }, c => (net.roster[c.peer] ? net.roster[c.peer].id : null), { allow: () => true }, t => out.notes.push(t), (k, t) => out.logs.push([k, t]), { now: () => out.clock });
+            const run = (kind, msg) => { out.answer.length = 0; out.owner.length = 0; out.notes.length = 0; out.logs.length = 0; const s0 = out.saves; H[kind](msg, conn);
+                return { answer: out.answer.slice(), sent: out.owner.length, notes: out.notes.slice(), logs: out.logs.slice(), saved: out.saves - s0, vals: JSON.parse(JSON.stringify(camp.chars.c_1.values)) }; };
+            return { run, out, camp };
+        };
+        const E = (fid, v) => ({ type: 'char-edit', rid: 'e1', charId: 'c_1', fieldId: fid, value: v }), M = (...vals) => ({ type: 'char-edits', rid: 'm1', charId: 'c_1', values: vals.map(p => ({ fieldId: p[0], value: p[1] })) });
+        const ADD = k => ({ type: 'char-item', rid: 'i1', charId: 'c_1', fieldId: 'f_kit', op: 'add', defId: 'i_' + k, rowId: 'w_' + k + '1', qty: 1 });
+        const ACK = rid => j([{ type: 'char-ack', rid }]), SAYS = (spent, by) => 'Character points: ' + spent + ' of 100 spent. That is ' + by + ' over.', NO = (rid, spent, by) => j([{ type: 'char-deny', rid, reason: 'budget', msg: SAYS(spent, by) }]), WARN = (rid, spent, by) => j([{ type: 'char-ack', rid, msg: SAYS(spent, by) }]);
+        const quiet = (r, vals) => r.sent === 0 && r.saved === 0 && r.notes.length === 0 && r.logs.length === 0 && j(r.vals) === j(vals), went = r => r.sent === 1 && r.saved === 1;
+        // a budget that refuses, watched always
+        const R = mk({ over: 'refuse', when: 'always' });
+        const r1 = R.run('edit', E('f_st', 20)), r2 = R.run('edit', E('f_st', 21)), r3 = R.run('edits', M(['f_st', 20], ['f_dx', 11])), r4 = R.run('edits', M(['f_st', 18], ['f_dx', 11]));
+        const r5 = R.run('item', ADD('x')), r6 = R.run('item', ADD('y')), r7 = R.run('item', ADD('z')), kit2 = r6.vals.f_kit;
+        check('126 a budget that refuses, on the host (the real edit, batch and row branches, with the real core): a player\'s own change that keeps their character within its points is stored, answered and sent on as ever, at the very limit too; one that would take it over is refused BEFORE anything is stored, with the reason "budget" and the budget\'s own words, its name and its figures: nothing is stored, sent or saved, and the GM is not told; a batch is judged whole, so two values that together go over are refused together; and so is a row picked up',
+            j(r1.answer) === ACK('e1') && went(r1) && r1.vals.f_st === 20 && r1.notes.length === 0
+            && j(r2.answer) === NO('e1', 110, 10) && quiet(r2, { f_st: 20 })
+            && j(r3.answer) === NO('m1', 110, 10) && quiet(r3, { f_st: 20 }) && j(r4.answer) === ACK('m1') && went(r4) && j([r4.vals.f_st, r4.vals.f_dx]) === j([18, 11])
+            && j(r5.answer) === ACK('i1') && went(r5) && r5.vals.f_kit.length === 1 && j(r6.answer) === ACK('i1') && r6.vals.f_kit.length === 2
+            && j(r7.answer) === NO('i1', 105, 5) && quiet(r7, { f_st: 18, f_dx: 11, f_kit: kit2 }),
+            j([r1.answer, r2, r3.answer, r4.answer, r5.answer, r7.answer]));
+        // a budget that warns: the change goes through, with its words to the player and to the GM
+        const Wn = mk({ over: 'warn', when: 'always' });
+        const w1 = Wn.run('edit', E('f_st', 21)), w2 = Wn.run('edit', E('f_st', 22)); Wn.out.clock += 31000; const w3 = Wn.run('edit', E('f_st', 23)), w4 = Wn.run('edits', M(['f_dx', 11])), w5 = Wn.run('item', ADD('x'));
+        Wn.out.clock += 31000; const w6 = Wn.run('edit', E('f_st', 12)), w7 = Wn.run('edit', E('f_st', 30));
+        check('126 a budget that warns, on the host: the change is stored and sent on, the answer carries the budget\'s words for the player, and the GM is told, by name, in a notice that is also logged; a budget breached again within the quiet window is not said again, and the next notice says how many went unsaid; a batch and a row are warned of alike; a change that brings the character back within its points is answered plainly, with nothing said',
+            j(w1.answer) === WARN('e1', 110, 10) && went(w1) && w1.vals.f_st === 21 && j(w1.notes) === j(['Ana went over. ' + SAYS(110, 10)]) && j(w1.logs) === j([['items', 'Ana went over. ' + SAYS(110, 10)]])
+            && j(w2.answer) === WARN('e1', 120, 20) && went(w2) && w2.notes.length === 0
+            && j(w3.answer) === WARN('e1', 130, 30) && j(w3.notes) === j(['Ana went over. ' + SAYS(130, 30) + ' 1 more since the last notice.'])
+            && j(w4.answer) === WARN('m1', 140, 40) && went(w4) && w4.notes.length === 0 && j(w5.answer) === WARN('i1', 145, 45) && went(w5) && w5.vals.f_kit.length === 1
+            && j(w6.answer) === ACK('e1') && went(w6) && w6.notes.length === 0 && j(w7.answer) === WARN('e1', 215, 115) && j(w7.notes) === j(['Ana went over. ' + SAYS(215, 115) + ' 2 more since the last notice.']),
+            j([w1, w3.notes, w4.answer, w5.answer, w6.answer, w7]));
+        // off, and the two watches
+        const off = mk({ over: 'off', when: 'always' }).run('edit', E('f_st', 30)), none = mk(null).run('edit', E('f_st', 30));
+        const mkPlay = mk({ over: 'refuse', when: 'making' }).run('edit', E('f_st', 30)), mkMake = mk({ over: 'refuse', when: 'making' }, null, { making: 1 }).run('edit', E('f_st', 30));
+        const plMake = mk({ over: 'refuse', when: 'play' }, null, { making: 1 }).run('edit', E('f_st', 30)), plPlay = mk({ over: 'refuse', when: 'play' }).run('edit', E('f_st', 30)), plOpen = mk({ over: 'refuse', when: 'play' }, null, { unlocked: 1 }).run('edit', E('f_st', 30));
+        const shB = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8');
+        check('126 a budget that only shows, and the two watches, on the host: a budget set to off judges nothing, and a system with no budget answers as it always did; a budget watched while a character is made refuses a character in the making and lets one in play through; a budget watched in play does the reverse, an unlocked character being in play; the notice is the one place that tells the GM, each branch asks the core before it stores, and a player\'s app has words for the refusal',
+            j(off.answer) === ACK('e1') && went(off) && off.notes.length === 0 && j(none.answer) === ACK('e1') && went(none)
+            && j(mkPlay.answer) === ACK('e1') && went(mkPlay) && j(mkMake.answer) === NO('e1', 200, 100) && quiet(mkMake, { f_st: 19 })
+            && j(plMake.answer) === ACK('e1') && went(plMake) && j(plPlay.answer) === NO('e1', 200, 100) && quiet(plPlay, { f_st: 19 }) && j(plOpen.answer) === NO('e1', 200, 100)
+            && bnSrc.length > 300 && !/innerHTML/.test(bnSrc) && src.split('budgetNotice(').length === 5 && src.split('.budgetWatch(').length === 4
+            && edSrc.indexOf('Se.budgetWatch(campE.system, chE, bcE, Fe)') < edSrc.indexOf('chE.values[q.fieldId] = resE.value') && edSrc.indexOf('Se.budgetWatch(') > edSrc.indexOf('Se.applyEdit(')
+            && msSrc.indexOf('Sm.budgetWatch(campM.system, chM, dM, Fm)') < msSrc.indexOf('chM.values[k] = dM[k]') && msSrc.indexOf('Sm.budgetWatch(') > msSrc.indexOf('for (var iM = 0;')
+            && ciSrc.indexOf('Si.budgetWatch(campI.system, chI, bcI, Fi)') < ciSrc.indexOf('chI.values[qi.fieldId] = resI.value') && ciSrc.indexOf('Si.budgetWatch(') > ciSrc.indexOf('Si.applyRowOp(')
+            && shB.split("reason === 'budget' ? (msg || 'That would take the character over a point budget.')").length === 2 && Sx.cleanDenyReason('budget') === 'budget',
+            j([off.answer, none.answer, mkPlay.answer, mkMake.answer, plMake.answer, plPlay.answer, src.split('budgetNotice(').length, src.split('.budgetWatch(').length]));
+    }
+})());
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
     /* ---- 1.5.4: the follow ruling (the owner, 2026-10-04): nobody follows the GM around unless the table is set to ---- */
     {

@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { timeRuleRun, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, initRoll, aliasFromShadowBase, sbRowOps, sbApplyProposal, cleanUploads, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, DEFAULT_POSTURES, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
+import { timeRuleRun, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, initRoll, aliasFromShadowBase, sbRowOps, sbApplyProposal, cleanUploads, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, DEFAULT_POSTURES, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
 import { cleanCalendar, fmtWhen, fmtDate, timeOf, calPreset, CAL_LIMITS } from './calendarcore.js';
 
@@ -765,6 +765,7 @@ function renderSheet() {
     // [systemcheck:sheetedit-end]
     var dlX = ui('sheetDelete'); if (dlX) { var mineX = isClient() && own && !c.partial && charList(camp).filter(function(x) { return !x.partial && x.ownerId === myId(); }).length > 1; dlX.style.display = (gm && canWrite()) || mineX ? '' : 'none'; dlX.title = gm ? 'Delete this sheet: its values are gone; its tokens keep their name and lose the link' : 'Delete this sheet of yours: one you are still making, or one you do not play (your GM is told)'; }
     renderReviewBar(c, camp, gm);
+    var bdB = ui('sheetBudgets'); if (bdB) bdB.style.display = !c.partial && budgetBar(bdB, sys, c) ? '' : 'none';   // 126: the point budgets, under the head
     var rvB = ui('sheetReview'), rvN = gm ? uploadsOf(camp, c.id) : []; if (rvB) { rvB.style.display = rvN.length ? '' : 'none'; if (rvN.length) rvB.textContent = 'Review (' + rvN[0].changes.length + ')'; }   // U3: the GM's review of it
     var hb = ui('sheetHud'); if (hb) { var hOn = hudHasContent(sys) && canOpen(c.id); hb.style.display = hOn ? '' : 'none'; if (hOn) hb.title = 'Open ' + (sys.sheet.hud.title || 'the HUD'); }   // HUD frame (HF2a): only when the saved system has a HUD they can see
     p.classList.toggle('sheet-has-headportrait', !!(sys.sheet && sys.sheet.look && sys.sheet.look.portrait));   // Stage 5g: the header block carries the portrait, so the title bar's small one steps aside
@@ -829,6 +830,7 @@ function renderSheetInto(container, charId, camp) {
     var sys = cleanSystem(raw, { F: F(), gmView: true }), c = sys ? cleanChar(c0, sys) : null;
     if (!sys || !c) return null;
     _fxLive = false; try { buildSections(container, sys, c, resolveAll(sys, c, F(), tokenCtxFor(c.id, camp)), true, false, function() { renderSheetInto(container, charId, camp); }, { campId: camp.id, view: 'sheet', preview: false }); } finally { _fxLive = true; }   // 5h: a pop-out's effect controls act on nothing
+    var bdP = el('div', 'sheet-budgets'); if (budgetBar(bdP, sys, c)) container.insertBefore(bdP, container.firstChild);   // 126: a sheet in a window of its own shows its point budgets too, at its top
     container.querySelectorAll('input, select, textarea').forEach(function(el) { el.disabled = true; });
     container.querySelectorAll('[data-part="up"], [data-part="down"]').forEach(function(el) { el.disabled = true; });   // Stage 6 look fold (L8): arrows inside a box look live otherwise
     container.querySelectorAll('[contenteditable]').forEach(function(el) { el.setAttribute('contenteditable', 'false'); });
@@ -3304,6 +3306,7 @@ function commit(c, f, value) {
     if (!res.ok) { toast(res.reason === 'field' ? 'That field cannot be edited.' : 'That value is not allowed here.'); renderViews(c.id); return; }
     var prev = c.values && Object.prototype.hasOwnProperty.call(c.values, f.id) ? clone(c.values[f.id]) : undefined;
     lastChange = { charId: c.id, fieldId: f.id, prev: prev };
+    if (typeof budgetNote === 'function') budgetNote(sys, c, f.id, res.value);   // 126: the GM's own change is never refused; a notice says when it takes the character over a budget
     c.values = c.values || {}; c.values[f.id] = res.value;
     var d = {}; d[f.id] = res.value;
     afterCharChange(c, false, d);
@@ -3326,6 +3329,7 @@ function commitMany(c, list) {
     if (!ids.length) return;
     var extra = null; ids.slice(1).forEach(function(fid) { (extra = extra || {})[fid] = prevs[fid]; });
     lastChange = { charId: c.id, fieldId: ids[0], prev: prevs[ids[0]], extra: extra };   // one Revert brings every value back
+    if (typeof budgetNote === 'function') budgetNote(sys, c, d);   // 126
     c.values = c.values || {}; ids.forEach(function(fid) { c.values[fid] = d[fid]; });
     afterCharChange(c, false, d);
 }
@@ -3364,6 +3368,7 @@ function commitItem(c, f, q) {   // Stage 6 F4a: a row op q = { op: add|remove|s
     undoFollow(res);
     var prev = c.values && Object.prototype.hasOwnProperty.call(c.values, f.id) ? clone(c.values[f.id]) : undefined;
     lastChange = { charId: c.id, fieldId: f.id, prev: prev };
+    if (typeof budgetNote === 'function') budgetNote(sys, c, f.id, res.value);   // 126: the GM's own change is never refused; a notice says when it takes the character over a budget
     c.values = c.values || {}; c.values[f.id] = res.value;
     var d = {}; d[f.id] = res.value;
     if (ownerSeesSame(camp, sys, prev, res.value, f.id)) d = {};   // Stage 6: a change only to a row its owner never holds (a kept curse) is saved and never sent — even an unchanged copy would tell them
@@ -3581,6 +3586,30 @@ function doneMaking() {
 // The GM's side: a character a player made (or finished) waits for Keep it (owner, 2026-09-27); Send back unlocks it for them to fill in, with a
 // note; Remove (one a player made) deletes it with its tokens and gives them a waiting token where it stood; Unlock / Lock on any player's character
 // [sinkcheck:reviewbar-start]
+// [systemcheck:budgetbar-start]
+// 126, point budgets on the sheet (the owner: "the sheet shows spent of total"): one chip a budget, its name, "spent of has", and what is
+// left or by how much it is over. A budget whose figures cannot be worked out for this character shows a dash. A budget's name comes from
+// the system, which can come from a file: every word here is a text node. true: it drew a chip
+function budgetBar(box, sys, c) {
+    if (!box) return false; box.textContent = '';
+    var list = sys && c && F() ? budgetsOf(sys, c, F()) : [];
+    list.forEach(function(b) {
+        var chip = el('span', 'sheet-budget' + (b.over ? ' over' : ''));
+        chip.appendChild(el('b', '', b.name));
+        if (b.left === null) { chip.appendChild(el('span', 'sheet-budget-fig', '—')); chip.title = 'This budget could not be worked out for this character'; }
+        else { chip.appendChild(el('span', 'sheet-budget-fig', fmtNum(b.spent) + ' of ' + fmtNum(b.has))); chip.appendChild(el('span', 'sheet-budget-left', b.over ? fmtNum(b.spent - b.has) + ' over' : fmtNum(b.left) + ' left')); }
+        box.appendChild(chip);
+    });
+    return list.length > 0;
+}
+// The GM's own change is never refused by a budget: a notice says when it takes the character over, or further over. Asked before the
+// change is stored, with the new value by its field (one field and its value, or a map of them)
+function budgetNote(sys, c, a, v) {
+    var d = a; if (typeof a === 'string') { d = {}; d[a] = v; }
+    var w = budgetWatch(sys, c, d, F()), hit = w.refuse || w.warn[0];
+    if (hit) toast((c && c.name ? c.name : 'This character') + ' is over. ' + budgetSays(hit));
+}
+// [systemcheck:budgetbar-end]
 function renderReviewBar(c, camp, gm) {
     var bar = ui('sheetReviewBar'); if (!bar) return;
     bar.textContent = '';
@@ -4106,7 +4135,7 @@ function ownerFromToken(w) {
     giveCharacter(w.ownerId || '', c.id, { keep: w.id });   // a same-owner pick on a kept character's token makes it the one in play, with its token placed where they stand
 }
 function charGone(id) { var shown = false; if (sheetOpen === id) { closeSheet(); shown = true; } if (typeof id === 'string' && huds[id]) { closeHud(id); shown = true; } if (shown) toast('That character is no longer shared with you.'); if (window.appRender) window.appRender(); }
-function editResult(rid, ok, reason, msg, op) { if (!ok) toast(reason === 'none' ? 'Nothing to apply.' : reason === 'error' ? (msg || 'That amount could not be worked out.') : op === 'apply' && reason === 'field' ? 'That action is not on your sheet now.' : op === 'apply' && reason === 'timeout' ? 'No answer from the GM.' : reason === 'stays' ? (msg || (op === 'set' ? 'It stays on.' : 'You can\u2019t get rid of it.')) : reason === 'field' && op === 'custom' ? 'Only the GM changes that row now.' : reason === 'field' && op === 'ov' ? 'Only the GM changes this copy’s stats now.' : reason === 'off' ? 'Character sheets are off here.' : reason === 'owner' ? 'That sheet is not yours.' : reason === 'field' ? 'That field cannot be edited.' : reason === 'slow' ? 'Slow down a little.' : reason === 'missing' ? 'That is no longer there.' : reason === 'timeout' ? 'No answer from the GM; the change was undone.' : reason === 'making' ? 'Finish the character first (press Done on its sheet).' : reason === 'paused' ? 'The table is paused.' : 'That value was not accepted.'); renderViews(null); }
+function editResult(rid, ok, reason, msg, op) { if (!ok) toast(reason === 'none' ? 'Nothing to apply.' : reason === 'error' ? (msg || 'That amount could not be worked out.') : op === 'apply' && reason === 'field' ? 'That action is not on your sheet now.' : op === 'apply' && reason === 'timeout' ? 'No answer from the GM.' : reason === 'budget' ? (msg || 'That would take the character over a point budget.') : reason === 'stays' ? (msg || (op === 'set' ? 'It stays on.' : 'You can\u2019t get rid of it.')) : reason === 'field' && op === 'custom' ? 'Only the GM changes that row now.' : reason === 'field' && op === 'ov' ? 'Only the GM changes this copy’s stats now.' : reason === 'off' ? 'Character sheets are off here.' : reason === 'owner' ? 'That sheet is not yours.' : reason === 'field' ? 'That field cannot be edited.' : reason === 'slow' ? 'Slow down a little.' : reason === 'missing' ? 'That is no longer there.' : reason === 'timeout' ? 'No answer from the GM; the change was undone.' : reason === 'making' ? 'Finish the character first (press Done on its sheet).' : reason === 'paused' ? 'The table is paused.' : 'That value was not accepted.'); renderViews(null); }
 
 /* ---------- the editor: fields, rolls, characters ---------- */
 var draft = null, dirty = false, tab = 'fields', errorsById = {}, warningsById = {}, layoutView = 'sheet';   // layoutView (HUD frame HF1): 'sheet' | 'hud'
@@ -4475,6 +4504,28 @@ function refreshErrors() {
     else if (sdE && (!paS || !paS.ok)) iErr.push({ message: 'Sides roll: ' + (paS && paS.error && paS.error.message ? paS.error.message : 'the formula cannot be read.') + ' Save drops it.' });
     else if (sdE && Array.isArray(paS.names) && paS.names.length) iErr.push({ message: 'Sides roll: it reads ' + paS.names[0] + ', but a side rolls it as one, never as one character: Save drops it.' });
     if (iErr.length) errorsById.initiative = iErr;
+    // 126: what Save drops of the point budgets, under their box, read as the cleaner reads them: a budget with no name, a formula that is
+    // missing, too long, unreadable or rolls dice, one that reads what players cannot read, and any budget past the eighth
+    var bErr = [], bSys = null, bCtl = new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']');
+    (Array.isArray(draft.budgets) ? draft.budgets : []).forEach(function(b, i) {
+        var nm = 'Budget ' + (i + 1);
+        if (i >= LIMITS.budgets) { if (i === LIMITS.budgets) bErr.push({ message: 'At most ' + LIMITS.budgets + ' budgets: Save drops the rest.' }); return; }
+        if (!b || typeof b !== 'object') return;
+        if (typeof b.name !== 'string' || !b.name.replace(new RegExp(bCtl.source, 'g'), ' ').trim()) { bErr.push({ message: nm + ': it needs a name. Save drops it.' }); return; }
+        [['has', 'Has', 'the points a character has'], ['spent', 'Spent', 'the points it has spent']].some(function(g) {
+            var t = typeof b[g[0]] === 'string' ? b[g[0]].trim() : '', at = nm + ', ' + g[1] + ': ';
+            if (!t) { bErr.push({ message: at + 'a formula is needed for ' + g[2] + '. Save drops the budget.' }); return true; }
+            if (t.length > LIMITS.formula || bCtl.test(t)) { bErr.push({ message: at + 'a formula is at most ' + LIMITS.formula + ' characters, on one line. Save drops the budget.' }); return true; }
+            var pa = F().parse(t);
+            if (!pa || !pa.ok) { bErr.push({ message: at + (pa && pa.error && pa.error.message ? pa.error.message : 'the formula cannot be read.') + ' Save drops the budget.' }); return true; }
+            if (rfDice(pa.ast && pa.ast.body)) { bErr.push({ message: at + 'a budget rolls no dice. Save drops the budget.' }); return true; }
+            bSys = bSys || { fields: gmViewFields(draft, F()), items: draft.items, core: draft.core };
+            var gmB = gmDerivedNames(bSys, F(), Array.isArray(pa.names) ? pa.names : []);
+            if (gmB.length) { bErr.push({ message: at + 'it reads ' + gmB[0] + ', which players cannot read, and a player sees their own budget. Save drops the budget.' }); return true; }
+            return false;
+        });
+    });
+    if (bErr.length) errorsById.budgets = bErr;
 }
 function errorCell(id) {
     var cell = el('div', 'sys-err');
@@ -4486,10 +4537,11 @@ function errorCell(id) {
     if (!cell.childNodes.length) cell.style.display = 'none';
     return cell;
 }
-function errPrefix(p, warn) { var m = /^(apply|then)\.(\d+)$/.exec(p || ''); if (m) return (m[1] === 'then' ? 'Then ' : 'Change ') + (+m[2] + 1) + ': '; if (p === 'turn.move') return 'Move per turn: '; if (p === 'cost') return 'Costs: '; if (warn || !p || p === 'formula' || p === 'rollFormula' || p === 'apply' || p === 'list') return ''; return p + ': '; }   // Stage 6 HUD H7: an apply action's change by its number
+function errPrefix(p, warn) { var m = /^(apply|then)\.(\d+)$/.exec(p || ''); if (m) return (m[1] === 'then' ? 'Then ' : 'Change ') + (+m[2] + 1) + ': '; if (p === 'turn.move') return 'Move per turn: '; if (p === 'has') return 'Has: '; if (p === 'spent') return 'Spent: '; if (p === 'cost') return 'Costs: '; if (warn || !p || p === 'formula' || p === 'rollFormula' || p === 'apply' || p === 'list') return ''; return p + ': '; }   // Stage 6 HUD H7: an apply action's change by its number
 function formulaTextFor(id, prop) {
     if (id === 'combat' && prop === 'turn.move') return (draft.combat && draft.combat.turn && draft.combat.turn.move) || '';   // turn-based combat T1
     if (id === 'range') return prop === 'formula' && draft.combat && draft.combat.range && typeof draft.combat.range.formula === 'string' ? draft.combat.range.formula.trim() : '';   // range penalties R1: as refreshErrors read it
+    if (/^b_/.test(id)) { var bdF = (draft.budgets || []).find(function(x) { return x && x.id === id; }); return bdF && (prop === 'has' || prop === 'spent') && typeof bdF[prop] === 'string' ? bdF[prop] : ''; }   // 126: a budget's formula, as the validator read it
     if (/^e_/.test(id)) { var dAu = (draft.effects || []).find(function(x) { return x && x.id === id; }); return prop === 'formula' && dAu && typeof dAu.auto === 'string' ? dAu.auto.trim() : ''; }   // conditions C4: an effect's automatic formula, as refreshErrors read it
     var f = draft.fields.find(function(x) { return x.id === id; });
     if (f) return prop === 'roll' ? f.roll || '' : f[DEF_PROP[f.kind]] || '';
@@ -5039,6 +5091,65 @@ function onInitChange(t) {   // the boxes' change events (their input events did
     return true;
 }
 // [sinkcheck:initbox-end]
+// 126, point budgets in the System editor (the owner, by prompt: "A budget you define"; what a breach does and when it is watched, "per system
+// dictation"): the Lists tab's Point budgets box. A budget a line: its name, the two formulas, what happens when a player's own change would
+// take their character over, and when it is watched. A new budget refuses, always. Every text lands as a value or a text node. Save cleans
+// them; refreshErrors says what it would drop
+// [systemcheck:budgetbox-start]
+var BUDGET_OVER_OPTS = [['refuse', 'Refuse a change that goes over'], ['warn', 'Warn, and let it through'], ['off', 'Only show it']], BUDGET_WHEN_OPTS = [['always', 'Always'], ['making', 'While a character is made'], ['play', 'In play']];
+function budgetDraft() { return Array.isArray(draft.budgets) ? draft.budgets : (draft.budgets = []); }
+function renderBudgets() {
+    var box = ui('sysBudgets'); if (!box) return; box.textContent = '';
+    var arr = Array.isArray(draft.budgets) ? draft.budgets : [], wrap = el('div', 'sys-budgets');
+    wrap.appendChild(el('div', 'sys-light-head', 'Point budgets'));
+    wrap.appendChild(el('div', 'sys-note', 'A budget holds the points a character has against the points it has spent. Each is a formula, such as Points, or Traits.paid + Skills.paid. The sheet shows spent of has under its head. When a player’s own change would take their character over, the budget refuses it, or lets it through with a note to them and to you. Your own changes are never refused.'));
+    arr.forEach(function(b0, i) {
+        var b = b0 && typeof b0 === 'object' ? b0 : {}, rw = el('div', 'sys-flags sys-bud-row'); rw.dataset.bi = String(i);
+        var n = input('sys-bud-name field', typeof b.name === 'string' ? b.name : '', 'Its name on the sheet: Character points, Gear', 'Name'); n.maxLength = LIMITS.name; rw.appendChild(n);
+        [['has', 'Has', 'The points a character has: a number or a formula, such as Points, or 100 + Flaws.paid', 'e.g. Points'], ['spent', 'Spent', 'The points a character has spent: a formula, such as Traits.paid + Skills.paid', 'e.g. Traits.paid']].forEach(function(g) {
+            var l = el('label', 'sys-combat-item sys-bud-f'); l.appendChild(el('span', 'sys-num-cap', g[1]));
+            var fi = input('sys-bud-' + g[0] + ' field', typeof b[g[0]] === 'string' ? b[g[0]] : '', g[2], g[3]); fi.maxLength = LIMITS.formula; l.appendChild(fi); rw.appendChild(l);
+        });
+        rw.appendChild(labeledSelect('sys-bud-over', 'When over', BUDGET_OVER_OPTS, b.over === 'warn' || b.over === 'off' ? b.over : 'refuse', 'What happens when a player’s own change would take their character over this budget. Refuse stops the change. Warn lets it through with a note to them and to you. Only show it does not check'));
+        rw.appendChild(labeledSelect('sys-bud-when', 'Watched', BUDGET_WHEN_OPTS, b.when === 'making' || b.when === 'play' ? b.when : 'always', 'When the budget is watched: always, only while a player is making the character, or only once it is in play'));
+        [['up', '▲', 'Move up'], ['down', '▼', 'Move down'], ['del', '×', 'Remove']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = 'bd' + bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
+        wrap.appendChild(rw);
+        if (typeof b.id === 'string') { var re = errorCell(b.id); re.dataset.errFor = b.id; wrap.appendChild(re); }   // the validator's reading of its two formulas
+    });
+    var ad = el('button', 'tool ghost sys-btn sys-bud-add', '+ Budget'); ad.dataset.act = 'bdadd'; ad.disabled = arr.length >= LIMITS.budgets; ad.title = ad.disabled ? 'At most ' + LIMITS.budgets : 'A budget: the points a character has, and the points it has spent'; wrap.appendChild(ad);
+    var err = errorCell('budgets'); err.dataset.errFor = 'budgets'; wrap.appendChild(err);
+    box.appendChild(wrap);
+}
+function onBudgetInput(t) {
+    var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-bud-') < 0) return false;
+    if (c.indexOf('sys-bud-over') >= 0 || c.indexOf('sys-bud-when') >= 0) return true;   // their change events do the work
+    var rw = t.closest('.sys-bud-row'), i = rw ? +rw.dataset.bi : -1, arr = budgetDraft(), b = arr[i] && typeof arr[i] === 'object' ? arr[i] : null; if (!b) return true;
+    if (c.indexOf('sys-bud-name') >= 0) b.name = t.value.slice(0, LIMITS.name);
+    else if (c.indexOf('sys-bud-has') >= 0) b.has = t.value.slice(0, LIMITS.formula);
+    else if (c.indexOf('sys-bud-spent') >= 0) b.spent = t.value.slice(0, LIMITS.formula);
+    else return true;
+    markDirty(); patchErrors(); return true;
+}
+function onBudgetChange(t) {
+    var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-bud-') < 0) return false;
+    if (c.indexOf('sys-bud-over') < 0 && c.indexOf('sys-bud-when') < 0) return true;   // the boxes' change events (their input events did the work)
+    var rw = t.closest('.sys-bud-row'), i = rw ? +rw.dataset.bi : -1, arr = budgetDraft(), b = arr[i] && typeof arr[i] === 'object' ? arr[i] : null; if (!b) return true;
+    if (c.indexOf('sys-bud-over') >= 0) b.over = t.value === 'warn' || t.value === 'off' ? t.value : 'refuse';
+    else b.when = t.value === 'making' || t.value === 'play' ? t.value : 'always';
+    markDirty(); patchErrors(); return true;
+}
+function budgetClick(b) {
+    var m = /^bd(add|up|down|del)$/.exec(b.dataset.act || ''); if (!m) return false;
+    var arr = budgetDraft(), rw = b.closest('.sys-bud-row'), i = rw ? +rw.dataset.bi : -1;
+    if (m[1] === 'add') { if (arr.length >= LIMITS.budgets) { toast('At most ' + LIMITS.budgets + '.'); return true; } arr.push({ id: uid('b_'), name: '', has: '', spent: '', over: 'refuse', when: 'always' }); }
+    else if (!(i >= 0 && i < arr.length && Math.floor(i) === i)) return true;
+    else if (m[1] === 'up') { if (i > 0) arr.splice(i - 1, 0, arr.splice(i, 1)[0]); }
+    else if (m[1] === 'down') { if (i < arr.length - 1) arr.splice(i + 1, 0, arr.splice(i, 1)[0]); }
+    else arr.splice(i, 1);
+    if (!arr.length) delete draft.budgets;
+    markDirty(); renderBudgets(); patchErrors(); return true;
+}
+// [systemcheck:budgetbox-end]
 // Conditions C3 (docs/CONDITIONS_PLAN.md): the system's own postures on the Combat card — how a token can stand, in order. None: the seven.
 // Name your own starts from the seven (their ids kept, so a website sheet still sets them). Each row a name, its chip's tag, a "smaller target"
 // tick (-2 to a foe's ranged roll, shown only: the owner's answer of 2026-09-30), notes and changes as an effect's; the first is how a token
@@ -5784,6 +5895,7 @@ function renderAll() {
     var siEl = ui('sysItems'); if (siEl) siEl.style.display = tab === 'items' ? '' : 'none';
     var sfEl = ui('sysEffects'); if (sfEl) sfEl.style.display = tab === 'effects' ? '' : 'none';   // 5h
     var slEl = ui('sysLists'); if (slEl) { slEl.style.display = tab === 'lists' ? '' : 'none'; if (tab === 'lists') renderLists(); }   // Stage 6 F4b
+    if (tab === 'lists') renderBudgets();   // 126: the Point budgets box, under the list rules
     var efr = ui('sysEffectRows'); if (efr) { efr.textContent = ''; if (!draft.effects || !draft.effects.length) efr.appendChild(el('div', 'sys-empty', 'No status effects yet. Add Rage, Prone, Blessed\u2026 each with the numbers it changes, then put a Status effects field on the sheet.')); (draft.effects || []).forEach(function(d) { efr.appendChild(effectRow(d)); }); }
     var sl = ui('sysLayout'); if (sl) { sl.style.display = tab === 'layout' ? '' : 'none'; if (tab === 'layout') renderLayout(); }
     var scal = ui('sysCalendar'); if (scal) { scal.style.display = tab === 'calendar' ? '' : 'none'; if (tab === 'calendar') renderCalendar(); }   // item 20 K1: the calendar
@@ -5809,6 +5921,7 @@ function onInput(e) {
     if (onRangeInput(t)) return;   // range penalties R1
     if (onPostureInput(t)) return;   // conditions C3
     if (onInitInput(t)) return;   // initiative O2
+    if (onBudgetInput(t)) return;   // 126: the Lists tab's point budgets
     if (onHeightInput(t)) return;   // item 19 H2
     if (onCalendarInput(t)) return;   // item 20 K1
     var fxd = fxOfRow(t);   // 5h: a library effect's text boxes
@@ -5952,6 +6065,7 @@ function onChange(e) {
     if (onRangeChange(t)) return;   // range penalties R1
     if (onPostureChange(t)) return;   // conditions C3
     if (onInitChange(t)) return;   // initiative O2
+    if (onBudgetChange(t)) return;   // 126
     if (onHeightChange(t)) return;   // item 19 H2
     if (onCalendarChange(t)) return;   // item 20 K1
     if (c.indexOf('sys-combat-auto') >= 0) { draft.combat.blastAuto = t.value; markDirty(); patchErrors(); return; }
@@ -6079,6 +6193,7 @@ function onClick(e) {
     if (postureClick(b)) return;   // conditions C3: the Combat card
     if (heightClick(b)) return;   // item 19 H2: the Combat card's height table
     if (calendarClick(b)) return;   // item 20 K1: the Calendar tab
+    if (budgetClick(b)) return;   // 126: the Lists tab's point budgets
     var crow = b.closest('.sys-char-row');
     if (crow) {
         var camp = getActiveCampaign(), ch = charById(crow.dataset.cid, camp); if (!ch) return;

@@ -1359,7 +1359,8 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                               <ul>
                                   <li>That much is built: see System &#9656; Items.</li>
                                   <li><b>Players make their own characters</b> and pick from the library already.</li>
-                                  <li>Still to come: point <b>budgets</b> and <b>prerequisites</b> as formulas.</li>
+                                  <li>Point <b>budgets</b> are built too: see System &#9656; Lists.</li>
+                                  <li>Still to come: <b>prerequisites</b>.</li>
                               </ul>
                           </li>
                       </ul>
@@ -1618,6 +1619,17 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li>A list&rsquo;s <b>Counters</b>, four at most, are numbers each row keeps, such as a weapon&rsquo;s Charges or its Hits. Each has a key, a label, where a row starts, and its most, a formula like <code>Row.Shots</code>. They show on the row with &minus; and + for whoever may change the row. They read as <code>Row.Charges</code> or <code>Weapons.Blaster.Charges</code>, and a counter has no total.</li>
                                   <li>A list&rsquo;s roll can change counters after it lands, with its <b>+ Then&hellip;</b> in the Lists card: Fire takes 1 from Charges, and On success adds 1 to Hits. It can also <b>need</b> something first, as in <code>Row.Charges &gt;= 1</code> with &ldquo;Out of charges&rdquo;. Its button greys out, and the host refuses a roll that does not meet it.</li>
                                   <li>A list&rsquo;s apply action can move a counter too, as in Reload: Charges set to 10.</li>
+                              </ul>
+                          </li>
+                          <li><b>Point budgets</b> watch the points a character has against the points it has spent. You set them up at the top of the <b>Lists</b> tab.
+                              <ul>
+                                  <li>A budget is a name and two formulas: what a character <b>has</b>, and what it has <b>spent</b>. Each can be a number, a field such as Points, or a list&rsquo;s total such as Traits.paid.</li>
+                                  <li>The sheet shows each budget under its head: spent of has, and what is left. A budget that is over turns red.</li>
+                                  <li><b>When over</b> says what happens when a player&rsquo;s own change would take their character over. Refuse stops the change and tells them why. Warn lets it through with a note to them and to you. Only show it does not check.</li>
+                                  <li><b>Watched</b> says when: always, only while a player is making the character, or only once it is in play.</li>
+                                  <li>A character that is already over may stay as it is and may come down. It may not go further over.</li>
+                                  <li>Your own changes are never refused. A notice tells you when one takes a character over.</li>
+                                  <li>A budget reads only what players can read, since a player sees their own budget. Save drops one that reads a GM-only value, and says why.</li>
                               </ul>
                           </li>
                           <li><b>Weapon ranges</b> are built from these, with no setting of their own. Give the weapons list two stats in your range&rsquo;s unit: <b>Half</b>, its half-damage range, and <b>MaxRange</b>, its longest. The word <i>max</i> itself is reserved.
@@ -3302,7 +3314,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
 <!-- Character sheets (1.5.0): one character's sheet over the play map (sheets.js) -->
 <div id="sheetPanel" style="display:none;">
     <div id="sheetHead"><img id="sheetPortrait" alt="" style="display:none;"><span class="sheet-titles"><span id="sheetTitle" class="notepad-title">Sheet</span><span id="sheetSub" class="notepad-who"></span></span><select id="sheetPick" class="tool sheet-pick" title="Another character" style="display:none;"></select><button class="tool ghost notepad-btn" id="sheetRevert" title="Put back the last value you changed" style="display:none;">&#8630;</button><button class="tool ghost notepad-btn sheet-endturn" id="sheetEndTurn" title="End your turn: play moves on to the next in the order" style="display:none;">End turn</button><button class="tool ghost notepad-btn" id="sheetName" title="Rename the character you are making" style="display:none;">Name&hellip;</button><button class="tool notepad-btn sheet-done" id="sheetDone" title="Finished: it goes into play (your GM is told and may send it back)" style="display:none;">Done</button><button class="tool ghost notepad-btn" id="sheetPic" title="Your character's picture: a face, a bundled picture or one you upload (your GM is told)" style="display:none;">Picture</button><button class="tool ghost notepad-btn" id="sheetUpload" title="Import JSON: send your ShadowBase sheet file to the GM, who approves what changes" style="display:none;">Import</button><button class="tool ghost notepad-btn sheet-review" id="sheetReview" title="A player sent a sheet update for this character: review it" style="display:none;">Review</button><button class="tool ghost notepad-btn" id="sheetUnlock" title="Let its player fill in every field they can see" style="display:none;">Unlock for player</button><button class="tool ghost notepad-btn sheet-edit" id="sheetEdit" title="Edit sheet" style="display:none;">Edit sheet</button><button class="tool ghost notepad-btn sheet-delete" id="sheetDelete" title="Delete this sheet" style="display:none;">Delete</button><button class="tool ghost notepad-btn" id="sheetDownload" title="Download this sheet: a character file or a readable page" style="display:none;"><span class="wp-glyph sheet-dl-ico" aria-hidden="true"></span></button><button class="tool ghost notepad-btn" id="sheetHud" title="Open the HUD" style="display:none;"><span class="wp-glyph hud-ico-open" aria-hidden="true"></span></button><button class="tool ghost notepad-btn" id="sheetPop" title="Pop out into its own window (drag it to another monitor); dock it back from there"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 3.5H3.2A1.2 1.2 0 0 0 2 4.7v8.1A1.2 1.2 0 0 0 3.2 14h8.1a1.2 1.2 0 0 0 1.2-1.2V9.5"/><path d="M9.5 2.5H14v4.5"/><path d="M14 2.5 7.5 9"/></svg></button><button class="tool ghost notepad-btn" id="sheetClose" title="Close (Esc)">&times;</button></div>
-    <div id="sheetReviewBar" class="sheet-review-bar" role="status" style="display:none;"></div><div id="sheetBody"></div>
+    <div id="sheetBudgets" class="sheet-budgets" role="status" style="display:none;"></div><div id="sheetReviewBar" class="sheet-review-bar" role="status" style="display:none;"></div><div id="sheetBody"></div>
     <div id="sheetResize" class="sheet-resize" title="Drag to resize the sheet (double-click: the default size)"></div>
 </div>
 <!-- The HUD (Stage 6): one window per character, cloned from the template (no ids inside: clones never share one) -->
@@ -3374,6 +3386,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         <div id="sysLists" class="sys-tab" style="display:none;">
             <div class="sys-toolbar"><span class="sys-note">Shape each <b>Item list</b> field: which item <b>categories</b> its picker offers, whether each row carries a <b>level</b> (with names) and a <b>switch</b> (Readied, Equipped&hellip;), whether the same item may be there more than once, and whether rows have a quantity; and its <b>stats</b> (numbers each of its items carries) and a <b>price</b>. At the top, <b>Item stats on players&rsquo; sheets</b>: whether players may change the stats of their own copies; and <b>A player&rsquo;s sheet upload</b>: whether the levels, switches and quantities of rows a player already carries apply at once when they send their sheet file, or wait for your review with the rest.</span></div>
             <div id="sysListRules"></div>
+            <div id="sysBudgets"></div>
             <div id="sysListRows" class="sys-rows"></div>
         </div>
         <div id="sysEffects" class="sys-tab" style="display:none;">

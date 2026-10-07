@@ -20,6 +20,7 @@
 <script type="module" src="scripts/floats.js"></script>
 <script type="module" src="scripts/pageshelf.js"></script>
 <script type="module" src="scripts/toprow.js"></script>
+<script type="module" src="scripts/maptabs.js"></script>
 <script type="module" src="scripts/net.js"></script>
 <script type="module" src="scripts/faces.js"></script>
 <script type="module" src="scripts/framer.js"></script>
@@ -89,7 +90,11 @@
       <button class="seg-btn active" data-mode="data"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM18 2.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM12 16.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM8.5 5h7M7.2 7.2l3.6 7.3M16.8 7.2l-3.6 7.3"/></svg> Data Map</button>
       <button class="seg-btn" data-mode="visual"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4zM7 16l1.8-1.8M10.6 12.4l1.8-1.8M15 8l3 3M18 8l-3 3"/></svg> Play Map</button>
     </div>
-    <div id="mapBreadcrumb"></div>
+    <div id="mapTabs" role="group" aria-label="Maps">
+      <div id="mapTabFront" hidden><span class="mt-mark" id="mapTabPin" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 3.5h7M10 3.5v5l-3.2 4.5h10.4L14 8.5v-5M12 13v7.5"/></svg></span><div id="mapBreadcrumb"></div><span class="mt-name" id="mapTabName"></span><span class="mt-mark" id="mapTabHere" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12c2.5-4.5 6-7 10-7s7.5 2.5 10 7c-2.5 4.5-6 7-10 7s-7.5-2.5-10-7zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/></svg><small id="mapTabHereN"></small></span></div>
+      <div id="mapTabList"></div>
+      <button class="tool ghost icon" id="mapTabAdd" title="Open another map. Quick-jump, Ctrl+K."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.5v15M4.5 12h15"/></svg></button>
+    </div>
     <div id="tableWhereMap" class="table-where"></div>
     <div class="spacer"></div>
     <button class="tool ghost hdr-clock" id="clockChip" style="display:none;" title="The campaign&rsquo;s date and time"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zM12 7.5V12l-3 2.2"/></svg><span class="clock-run" aria-hidden="true"></span><span class="clock-txt"></span></button>
@@ -249,6 +254,16 @@
                               <ul>
                                   <li>The same menu searches, adds, renames and deletes campaigns.</li>
                                   <li><b>System</b>, in that menu, opens the campaign&rsquo;s rules and sheets.</li>
+                              </ul>
+                          </li>
+                          <li><b>Map tabs:</b> the top row shows the map in front and the maps you go back to. Press a tab to go to that map.
+                              <ul>
+                                  <li>The lighter tab is the map on screen. Its parent maps stand inside it, each one press away.</li>
+                                  <li>Your pinned maps come next, each with a pin. Pin a map from the play map&rsquo;s right-click menu.</li>
+                                  <li>The last maps you opened follow them.</li>
+                                  <li>An eye and a number mark a map your players are on. Point at the tab for their names.</li>
+                                  <li>The plus opens quick-jump, as <kbd>Ctrl</kbd>+<kbd>K</kbd> does.</li>
+                                  <li>Players have no tabs. Their row names the map they are on.</li>
                               </ul>
                           </li>
                           <li><b>More:</b> the three dots at the right end of the top row hold what you need less often.

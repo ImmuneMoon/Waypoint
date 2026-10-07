@@ -251,6 +251,10 @@ The top bar and the data map
   As with its eleven kinds, Import, Refresh, About and the way back to
   the welcome screen.
 - Each kind of Export As has a small drawing beside its name.
+- The top row has map tabs. The map on screen stands first, with its
+  parent maps inside the tab. Your pinned maps and the last maps you
+  opened follow. An eye and a number mark a map your players are on,
+  and the plus opens quick-jump.
 - Where the window is too narrow for the row, Sound, Music, Handouts,
   Journal and Help move into More, so the row stays one line.
 - Both menus work from the keyboard: the arrow keys, a letter for the

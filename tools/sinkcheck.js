@@ -2619,16 +2619,20 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const escLine = (/function esc\(s\)\{[^\n]*\}/.exec(read('inspector.js')) || [''])[0], escApp = escLine ? new Function(escLine + '\nreturn esc;')() : null;   // the page's own esc, as handouts.js imports it
         const hoT = read('handouts.js'), tagLine = (/function tagChips\(tags, cls\) \{[^\n]*/.exec(hoT) || [''])[0], ownSrcFn = (/function ownPicSrc\(src\) \{[\s\S]*?\n\}/.exec(hoT) || [''])[0];
         let jSrc = '', shSrc = ''; try { jSrc = slice('handouts.js', 'journal'); shSrc = slice('handouts.js', 'journalshare'); } catch (e) { jSrc = ''; shSrc = ''; }
+        const safeLine = (/var safeId = function\(s\) \{[^\n]*/.exec(hoT) || [''])[0], keyLine = (/function journalKey\(msg\) \{[^\n]*/.exec(hoT) || [''])[0];   // the key of a journal, as handouts.js itself works it out
         const mkJ = (journals, o) => {
             o = o || {};
-            const list = { innerHTML: '' }, w = { list, toasts: [], fetched: [], shared: [], err: '' };
-            const ui = id => (id === 'journalModal' ? { style: {} } : id === 'journalList' ? list : null);
+            const list = { innerHTML: '' }, w = { list, toasts: [], fetched: [], shared: [], read: [], err: '' };
+            // the picker, where a test asks for one: elements of plain objects that take text and refuse markup
+            const node = tag => ({ tag, kids: [], label: '', value: '', textContent: '', appendChild(c) { this.kids.push(c); return c; }, removeChild(c) { this.kids.splice(this.kids.indexOf(c), 1); return c; }, get firstChild() { return this.kids[0] || null; }, set innerHTML(v) { w.err = 'markup was written into the picker'; } });
+            if (o.pick) { w.pick = node('select'); w.pick.kids.push(node('option')); }   // an option left from the last time it was drawn
+            const ui = id => (id === 'journalModal' ? { style: {} } : id === 'journalList' ? list : id === 'journalPick' ? w.pick || null : null);
             const wnd = { wpNet: Object.assign({ myId: 'u_me', active: false, role: null, roster: {}, shareEntry: p => { w.shared.push(p); return true; } }, o.net || {}) };
-            const readIndex = async key => journals.find(x => x.campId === key) || { campId: key, entries: [] };
+            const readIndex = async key => { w.read.push(key); return journals.concat(o.disk || []).find(x => x.campId === key) || { campId: key, entries: [] }; };   // o.disk: an index the folder holds that the list of journals does not name
             const fetchS = async u => { w.fetched.push(String(u)); return { ok: true, arrayBuffer: async () => new Uint8Array([137, 80, 78, 71]).buffer }; };
-            const names = ['ui', 'listJournals', 'ownCampaignKey', 'sentRecords', 'readIndex', 'withIndex', 'journalPage', 'journalDefaultPage', 'journalShow', 'journalShowDefault', 'chipOpensTo', 'journalFilter', 'badge', 'esc', 'picRef', 'window', 'fetch', 'toast', 'document'];
-            const vals = [ui, async () => journals, () => o.own || null, () => o.sent || [], readIndex, async (k, fn) => { const ix = await readIndex(k); fn(ix); return ix; }, {}, () => 'all', {}, () => '', () => '', () => {}, () => {}, escApp, SC.picRef, wnd, fetchS, t => w.toasts.push(t), { querySelector: () => null }];
-            try { w.api = new Function(...names, '"use strict";\n' + tagLine + '\n' + ownSrcFn + '\n' + shSrc + '\n' + jSrc + '\nreturn { openJournal: openJournal, shareEntry: shareEntry, sentLine: sentLine };')(...vals); } catch (e) { w.err = String(e && e.message); w.api = { openJournal: async () => { throw new Error(w.err); }, shareEntry: async () => { throw new Error(w.err); } }; }
+            const names = ['ui', 'listJournals', 'ownCampaignKey', 'sentRecords', 'readIndex', 'withIndex', 'journalPage', 'journalDefaultPage', 'journalShow', 'journalShowDefault', 'chipOpensTo', 'journalFilter', 'badge', 'esc', 'picRef', 'window', 'fetch', 'toast', 'document', 'getActiveCampaign'];
+            const vals = [ui, async () => journals, () => o.own || null, () => o.sent || [], readIndex, async (k, fn) => { const ix = await readIndex(k); fn(ix); return ix; }, {}, () => 'all', {}, () => '', () => '', () => {}, () => {}, escApp, SC.picRef, wnd, fetchS, t => w.toasts.push(t), o.pick ? { querySelector: () => null, createElement: node } : { querySelector: () => null }, () => o.camp || null];
+            try { w.api = new Function(...names, '"use strict";\n' + safeLine + '\n' + keyLine + '\n' + tagLine + '\n' + ownSrcFn + '\n' + shSrc + '\n' + jSrc + '\nreturn { openJournal: openJournal, shareEntry: shareEntry, sentLine: sentLine, at: function() { return journalAt; }, setAt: function(v) { journalAt = v; } };')(...vals); } catch (e) { w.err = String(e && e.message); w.api = { openJournal: async () => { throw new Error(w.err); }, shareEntry: async () => { throw new Error(w.err); } }; }
             return w;
         };
         const X = '"><img src=x onerror=1>', protoBefore = Object.getOwnPropertyNames(Object.prototype).sort().join();
@@ -2672,6 +2676,123 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             shSrc.length > 400 && badRuns.every(W => !W.err && W.fetched.length === 0 && W.shared.length === 0 && JSON.stringify(W.toasts) === JSON.stringify(['That picture could not be read from your journal.']))
             && goodRuns.every((W, i) => !W.err && JSON.stringify(W.fetched) === JSON.stringify([goodSrc[i]]) && W.shared.length === 1 && W.shared[0].to === 'gm' && W.shared[0].entry.kind === 'image' && W.shared[0].entry.data.length === 4 && W.toasts[0] === '"Pic" sent to GM.'),
             [badRuns.map(W => [W.err, W.fetched.length, W.shared.length]), goodRuns.map(W => [W.err, W.fetched, W.shared.length])]);
+        // ---- 132: one campaign at a time (the owner, by prompt: "A. One campaign at a time"), and Personal notes in every journal ("personal notes
+        // can transcend campaigns then and be available from each campaign as they are and as they update. they will be the only exception") ----
+        const cnt = (s, f) => s.split(f).length - 1, copy = v => JSON.parse(JSON.stringify(v));
+        const secsOf = html => (html.match(/<div class="journal-section[^"]*" data-camp="[^"]*" data-page="[^"]*"/g) || []).map(s => { const m = /class="journal-section([^"]*)" data-camp="([^"]*)" data-page="([^"]*)"/.exec(s); return [m[2], m[1].trim(), m[3]]; });
+        const tabsOf = (html, camp) => { const a = html.indexOf('data-camp="' + camp + '" data-page='), z = a < 0 ? -1 : html.indexOf('<div class="journal-section', a + 1); return a < 0 ? null : ((z < 0 ? html.slice(a) : html.slice(a, z)).match(/data-tab="[a-z]+" title="[^"]*">[^<]*<span class="journal-count">\d+/g) || []).map(s => /data-tab="([a-z]+)"/.exec(s)[1] + ':' + /(\d+)$/.exec(s)[1]); };
+        const note = (id, t) => ({ id, kind: 'note', title: t, text: 'x', receivedAt: 1 });
+        const shelf = [{ campId: 'c1__u_gm', campaign: 'The Camp', gm: 'Gina', gmId: 'u_gm', updated: 9, entries: [{ id: 'h1', kind: 'text', title: 'Letter', text: 't', receivedAt: 3 }] },
+            { campId: 'personal', campaign: 'Personal notes', gm: '', updated: 20, entries: [note('p1', 'Mine'), note('p2', 'Too')] },
+            { campId: 'c2__u_o', campaign: X, gm: X, gmId: 'u_other', updated: 5, entries: [note('n1', 'T')] },
+            { campId: 'c3__u_x', campaign: 'Plain', gm: ' gm ', gmId: 'u_x', updated: 2, entries: [note('n2', 'U')] },
+            { campId: 'c4__u_me', campaign: 'Old one', gm: 'Me', gmId: 'u_me', updated: 1, entries: [note('n3', 'V')] }];
+        const openJ = async (W, arg) => { try { if (arg === undefined) await W.api.openJournal(); else await W.api.openJournal(arg); return ''; } catch (e) { return String(e && e.message); } };
+        // the GM, with a campaign of their own on screen that has no journal yet
+        const G1 = mkJ(copy(shelf), { own: { key: 'c7__u_me', camp: { name: X } }, pick: true }), thG = await openJ(G1), hG = G1.list.innerHTML, sG = secsOf(hG);
+        const EMPTY_GM = '<div class="journal-empty" data-page="all">Nothing in this journal yet. What you show your players is listed here, and + Note writes a page of your own.</div>';
+        const EMPTY_PL = '<div class="journal-empty" data-page="all">Nothing in this journal yet. What a GM shows you is kept here with its caption, and + Note writes a page of your own. It stays on this computer and works without a session.</div>';
+        check('journal (one campaign at a time): the campaign on screen always has its journal, empty or not, under the name the campaign has now; it stands first and is marked as the one you are in, the other journals follow as they were listed and Personal notes stands last; the window opens on it; an empty journal says so, in the GM\'s words for the GM; a hostile campaign name is text in its head; and nothing is read from disk for a journal that is not listed and has no sent record',
+            !thG && !G1.err && JSON.stringify(sG) === JSON.stringify([['c7__u_me', 'here', 'all'], ['c1__u_gm', '', 'all'], ['c2__u_o', '', 'all'], ['c3__u_x', '', 'all'], ['c4__u_me', '', 'all'], ['personal', '', 'mine']]) && G1.api.at() === 'c7__u_me' && risks(hG).length === 0
+            && hG.indexOf('<div class="journal-camp"><b>' + SC.esc(X) + '</b>') > 0 && cnt(hG, EMPTY_GM) === 1 && cnt(hG, 'data-page="all">Nothing in this journal yet') === 1 && G1.read.length === 0, [thG || G1.err, sG, G1.read]);
+        // the GM's notes under what they have shown live in the journal's own index: it is read where there is a sent record
+        const G2 = mkJ([], { own: { key: 'c7__u_me', camp: { name: 'Mine' } }, sent: [{ hid: 'h9', to: [{ pid: 'u_a', name: 'Ann', at: 5 }], last: 5, kind: 'text', text: 't', title: 'Shown', caption: '', src: '', tags: [] }], disk: [{ campId: 'c7__u_me', sentNotes: { 'sent:h9': 'kept note' }, entries: [] }] });
+        const thG2 = await openJ(G2);
+        // a journal of the GM's own campaign whose index names someone else as its GM (a saves folder can come from anywhere): it is the GM's all the same
+        const G3 = mkJ([{ campId: 'c7__u_me', campaign: 'Old name', gm: 'Evil', gmId: 'u_evil', updated: 3, entries: [{ id: 'n1', kind: 'note', title: 'T', text: 'b', receivedAt: 1, sentTo: [{ to: 'u_a', name: 'Ann', at: 7 }] }] }],
+            { own: { key: 'c7__u_me', camp: { name: 'Mine' } }, sent: [{ hid: 'h9', to: [{ pid: 'u_a', name: 'Ann', at: 5 }], last: 5, kind: 'text', text: 't', title: 'Shown', caption: '', src: '', tags: [] }] });
+        const thG3 = await openJ(G3), hG3 = G3.list.innerHTML;
+        check('journal (one campaign at a time): the journal of the GM\'s own campaign is the GM\'s whatever its index says of itself: it goes by the campaign\'s name as it is now, it is not said to be run by anyone, and what the GM has shown is listed in it as the GM\'s own; a page sent on and a handout shown carry their journal\'s name as every row does',
+            !thG3 && !G3.err && JSON.stringify(secsOf(hG3)) === JSON.stringify([['c7__u_me', 'here', 'all'], ['personal', '', 'mine']]) && hG3.indexOf('<div class="journal-camp"><b>Mine</b><span class="journal-tabs">') > 0 && !/run by|Evil|Old name/.test(hG3)
+            && /data-id="sent:h9" data-kind="text" data-sent="1" data-mine="1"/.test(hG3) && cnt(hG3, '<div class="journal-entry') === 3 && cnt(hG3, '<span class="journal-in">Mine</span>') === 3 && G3.read.length === 0, [thG3 || G3.err, secsOf(hG3), cnt(hG3, '<span class="journal-in">Mine</span>')]);
+        // a player at a table, the table gone, a table that has not said whose it is, and nobody's table
+        const T1 = mkJ(copy(shelf), { net: { active: true, role: 'client', gmId: 'u_gm' }, camp: { id: 'c1', name: 'The Camp, renamed' } }), thT1 = await openJ(T1), hT1 = T1.list.innerHTML;
+        const T2 = mkJ([], { net: { active: true, role: 'client', gmId: 'u_.gm' }, camp: { id: 'c 9', name: 'New' } }), thT2 = await openJ(T2), hT2 = T2.list.innerHTML;
+        const T3 = mkJ([], { net: { foreign: true, gmId: 'u_gm' }, camp: { id: 'c1', name: 'Was here' } }), thT3 = await openJ(T3);
+        const T4 = mkJ(copy(shelf), { net: { active: true, role: 'client', gmId: '' }, camp: { id: 'c1', name: 'Early' } }), thT4 = await openJ(T4);
+        const N1 = mkJ([], {}), thN1 = await openJ(N1);
+        check('journal (one campaign at a time): a player\'s window opens on the journal of the table they are at, keyed as a handout from that table keys it (the campaign and its GM), under the name the campaign has now and listed once; a table whose journal holds nothing yet has it all the same, in the player\'s words, with nothing read from disk; so has a table that is gone while its campaign is still on screen; before a table has said whose it is, and with no campaign of one\'s own, there is no such journal and the window opens on the first listed, or on Personal notes; the GM\'s notes under what they have shown are read from their journal\'s own index',
+            !thT1 && JSON.stringify(secsOf(hT1).map(s => s[0] + '/' + s[1])) === JSON.stringify(['c1__u_gm/here', 'c2__u_o/', 'c3__u_x/', 'c4__u_me/', 'personal/']) && T1.api.at() === 'c1__u_gm' && hT1.indexOf('<div class="journal-camp"><b>The Camp, renamed</b> <span style="color:var(--dim); font-weight:normal; font-size:11px;">run by Gina</span>') > 0
+            && !thT2 && JSON.stringify(secsOf(hT2)) === JSON.stringify([['c9__u_gm', 'here', 'all'], ['personal', '', 'mine']]) && cnt(hT2, EMPTY_PL) === 1 && T2.read.length === 0 && T2.api.at() === 'c9__u_gm'
+            && !thT3 && T3.api.at() === 'c1__u_gm' && !thT4 && T4.api.at() === 'c1__u_gm' && !/journal-section here/.test(T4.list.innerHTML) && secsOf(T4.list.innerHTML).length === 5
+            && !thN1 && JSON.stringify(secsOf(N1.list.innerHTML)) === JSON.stringify([['personal', '', 'mine']]) && N1.api.at() === 'personal' && cnt(N1.list.innerHTML, 'No pages of your own here yet') === 1 && !/Nothing in this journal yet/.test(N1.list.innerHTML)
+            && !thG2 && JSON.stringify(G2.read) === JSON.stringify(['c7__u_me']) && />kept note<\/textarea>/.test(G2.list.innerHTML), [thT1, thT2, thT3, thT4, thN1, thG2, secsOf(hT2), T4.api.at(), G2.read]);
+        check('journal (Personal notes in every journal): each campaign\'s journal has five tabs, the last of them Personal notes with the number of pages in that one notebook, the same number in every journal; Personal notes itself has no tabs; and every row carries its own journal\'s name, as text, for a search that takes in every journal',
+            JSON.stringify(tabsOf(hG, 'c7__u_me')) === JSON.stringify(['all:0', 'mine:0', 'inbox:0', 'sent:0', 'personal:2']) && JSON.stringify(tabsOf(hG, 'c1__u_gm')) === JSON.stringify(['all:1', 'mine:0', 'inbox:1', 'sent:0', 'personal:2'])
+            && JSON.stringify(tabsOf(hG, 'c4__u_me')) === JSON.stringify(['all:1', 'mine:1', 'inbox:0', 'sent:0', 'personal:2']) && JSON.stringify(tabsOf(hG, 'personal')) === '[]' && JSON.stringify(tabsOf(N1.list.innerHTML, 'personal')) === '[]'
+            && cnt(hG, '<span class="journal-in">') === cnt(hG, '<div class="journal-entry') && cnt(hG, '<div class="journal-entry') === 6 && cnt(hG, '<span class="journal-in">Personal notes</span>') === 2 && cnt(hG, '<span class="journal-in">The Camp</span>') === 1 && cnt(hG, '<span class="journal-in">' + SC.esc(X) + '</span>') === 1,
+            [tabsOf(hG, 'c7__u_me'), tabsOf(hG, 'c1__u_gm'), cnt(hG, '<span class="journal-in">'), cnt(hG, '<div class="journal-entry')]);
+        const opts = W => (W.pick ? W.pick.kids : []).map(g => [g.tag, g.label, g.kids.map(o => [o.tag, o.value, o.textContent, o.kids.length])]);
+        check('journal (the picker): the name in the window\'s title is a list made of elements with text, never of markup: the journal of the campaign on screen under This campaign, the others under Your other journals in their order, Personal notes under Across every campaign; what it held before is taken out; a journal run by someone else says by whom, and one of your own, or one whose GM is only called GM, does not; a hostile campaign or GM name is the option\'s text as it stands; and it shows the journal the window is on',
+            !G1.err && JSON.stringify(opts(G1)) === JSON.stringify([['optgroup', 'This campaign', [['option', 'c7__u_me', X, 0]]],
+                ['optgroup', 'Your other journals', [['option', 'c1__u_gm', 'The Camp, run by Gina', 0], ['option', 'c2__u_o', X + ', run by ' + X, 0], ['option', 'c3__u_x', 'Plain', 0], ['option', 'c4__u_me', 'Old one', 0]]],
+                ['optgroup', 'Across every campaign', [['option', 'personal', 'Personal notes', 0]]]]) && G1.pick.value === 'c7__u_me', [G1.err, opts(G1)]);
+        // where the window opens, and where it stays
+        const kp = [];
+        G1.api.setAt('c1__u_gm'); await openJ(G1, true); kp.push(G1.api.at(), G1.pick.value);                 // drawn again where it stands
+        await openJ(G1); kp.push(G1.api.at());                                                                // opened by its button: the campaign on screen
+        G1.api.setAt('gone'); await openJ(G1, true); kp.push(G1.api.at());                                    // the journal it stood on is no longer there
+        for (const v of [{ type: 'click' }, 'true', 1]) { G1.api.setAt('c1__u_gm'); await openJ(G1, v); kp.push(G1.api.at()); }   // only true keeps it: a click's own event does not
+        const N2 = mkJ(copy(shelf), {}); await openJ(N2); kp.push(N2.api.at()); N2.api.setAt('c3__u_x'); await openJ(N2); kp.push(N2.api.at()); N2.api.setAt('zz'); await openJ(N2); kp.push(N2.api.at());   // no campaign on screen: where it last stood, else the first listed
+        check('journal (where it opens): opened by its button the window is on the campaign on screen, whatever it showed before; drawn again after a note was added or a page removed it stays on the journal it shows, by the word true alone and never by a click\'s own event; a journal that is no longer there falls back to the campaign on screen; with no campaign on screen it stays where it last stood, else on the first listed',
+            JSON.stringify(kp) === JSON.stringify(['c1__u_gm', 'c1__u_gm', 'c7__u_me', 'c7__u_me', 'c7__u_me', 'c7__u_me', 'c7__u_me', 'c1__u_gm', 'c3__u_x', 'c1__u_gm']), kp);
+        // which rows show: the filter's own code, sliced from handouts.js and run for real on a window of plain objects
+        let jfSrc = ''; try { jfSrc = slice('handouts.js', 'journalfilter'); } catch (e) { jfSrc = ''; }
+        const wordsSrc = hoT.slice(hoT.indexOf('function normWords(s) {'), hoT.indexOf('// "Share with'));
+        const mkWin = at => {
+            const cls = () => { const s = new Set(); return { set: s, toggle: (c, on) => { if (on) s.add(c); else s.delete(c); }, contains: c => s.has(c) }; };
+            const secs = [], empties = [], chips = [], box = { value: '' }, tick = { checked: false };
+            const sec = (camp, page) => { const s = { dataset: { camp, page, show: '', from: '', to: '' }, style: {}, classList: cls(), rows: [], querySelectorAll: q => (q === '.journal-entry' ? s.rows.slice() : []), appendChild: r => { s.rows.splice(s.rows.indexOf(r), 1); s.rows.push(r); } }; secs.push(s); return s; };
+            const row = (s, page, text) => { const r = { dataset: { page }, className: 'journal-entry', style: {}, textContent: text, parentNode: s, closest: () => s, querySelectorAll: () => [] }; s.rows.push(r); return r; };
+            const empty = (s, page) => { const e = { dataset: { page }, className: 'journal-empty', style: {}, closest: () => s }; empties.push(e); return e; };
+            const chip = (s, f) => { const c = { dataset: { for: f }, style: {}, parentNode: s }; chips.push(c); return c; };
+            const list = { classList: cls(), querySelectorAll: q => (q === '.journal-section' ? secs.slice() : q === '.journal-entry' ? secs.reduce((a, s) => a.concat(s.rows), []) : q === '.journal-empty' ? empties.slice() : q === '.journal-from-row' ? chips.slice() : []) };
+            let api = null, err = '';
+            try { api = new Function('ui', 'journalAtIn', 'window', 'localStorage', '"use strict";\nvar journalAt = journalAtIn;\n' + wordsSrc + '\n' + jfSrc + '\nreturn { filter: journalFilter, at: function(v) { journalAt = v; } };')(id => (id === 'journalSearch' ? box : id === 'journalList' ? list : id === 'journalAll' ? tick : null), at, {}, { getItem: () => null }); } catch (e) { err = String(e && e.message); }   // the slice also publishes the default page on the window
+            const shown = () => secs.filter(s => s.style.display !== 'none').map(s => s.dataset.camp + (s.classList.contains('as-tab') ? '*' : '') + ':' + s.rows.filter(r => r.style.display !== 'none').map(r => r.textContent).join(','));
+            return { sec, row, empty, chip, box, tick, api, err, shown, mode: () => [...list.classList.set].sort().join(' ') };
+        };
+        const FW = mkWin('c1'), fl = [];
+        if (FW.api) {
+            const A = FW.sec('c1', 'all'); FW.row(A, 'mine', 'alpha note'); FW.row(A, 'inbox', 'letter from the harbour'); FW.row(A, 'sent', 'sent letter'); const chA = FW.chip(A, 'all'), chI = FW.chip(A, 'inbox'), eM = FW.empty(A, 'mine');
+            const B = FW.sec('c2', 'all'); FW.row(B, 'inbox', 'harbour map');
+            const E = FW.sec('c3', 'all'), eE = FW.empty(E, 'all');
+            const Pn = FW.sec('personal', 'mine'); FW.row(Pn, 'mine', 'house rules harbour'); const chP = FW.chip(Pn, 'mine');
+            const run = (q, every) => { FW.box.value = q || ''; FW.tick.checked = !!every; FW.api.filter(); return JSON.stringify([FW.shown(), FW.mode()]); };
+            fl.push(run(), JSON.stringify([chA.style.display, chI.style.display, eM.style.display]));   // one journal is shown, with the page its tab is on: that page's chips, and no other tab's empty line
+            A.dataset.page = 'inbox'; fl.push(run());
+            A.dataset.page = 'personal'; fl.push(run(), chP.style.display);                         // its Personal notes tab: the one notebook, under this journal's own head
+            fl.push(run('harbour'));                                                                // a search with that tab in front reads Personal notes and nothing else
+            A.dataset.page = 'all'; fl.push(run('harbour'));                                        // a search reads the journal shown: no other journal, and not Personal notes
+            fl.push(run('zebra'));                                                                  // nothing found: the journal shown keeps its head and its tabs
+            fl.push(run('harbour', true));                                                          // every journal: each one that holds a hit, under its own head
+            fl.push(run('', true));                                                                 // the tick alone, with nothing typed, changes nothing
+            FW.api.at('personal'); fl.push(run());                                                  // Personal notes as a journal of its own
+            FW.api.at('c3'); fl.push(run(), eE.style.display); E.dataset.page = 'mine'; fl.push(run(), eE.style.display); E.dataset.page = 'all';   // a journal that holds nothing says so on its first tab, and there alone
+            FW.api.at('nope'); fl.push(run());                                                      // a journal that is not there shows nothing
+        }
+        const one = (rows, mode) => JSON.stringify([rows, mode || '']);
+        check('journal (which rows show; the filter run for real on a window of plain objects): one journal is shown at a time, on the page its tab is on, with the chips of that page; with its Personal notes tab in front the one notebook stands in its place under the journal\'s own head; a search reads what is shown and nothing else, so neither another journal nor Personal notes answers for a campaign, and Personal notes alone answers while its tab is in front; a search that finds nothing leaves the journal shown its head and its tabs; with Every journal ticked a search takes in every journal, each under its own head, and marks the window so that each row names its campaign; the tick alone changes nothing; Personal notes can be shown as a journal of its own; a journal that holds nothing says so on its first tab alone; a journal that is not there shows nothing',
+            jfSrc.length > 600 && !FW.err && JSON.stringify(fl) === JSON.stringify([one(['c1:alpha note,letter from the harbour,sent letter']), JSON.stringify(['', 'none', 'none']), one(['c1:letter from the harbour']), one(['c1:', 'personal*:house rules harbour']), '',
+                one(['c1:', 'personal*:house rules harbour'], 'searching'), one(['c1:letter from the harbour'], 'searching'), one(['c1:'], 'searching'), one(['c1:letter from the harbour', 'c2:harbour map', 'personal:house rules harbour'], 'everywhere searching'),
+                one(['c1:alpha note,letter from the harbour,sent letter']), one(['personal:house rules harbour']), one(['c3:']), '', one(['c3:']), 'none', one([])]), FW.err || fl);
+        const ixJ = read('../index.html'), cssJ = read('../style.css');
+        check('journal (the window and its wiring, pinned): the title holds the picker, empty in the page, and the search row holds the Every journal tick, not ticked; the button opens the window on the campaign on screen and never hands its click to it; a redraw after a note, a Clear or a removal keeps the journal shown; the picker takes only a journal that is drawn; + Note with the Personal notes tab in front writes into that notebook, and a journal begun by a note of your own is stamped with its campaign\'s name; a row\'s campaign and a head\'s name are shown only while a search takes in every journal, and Personal notes shown as a tab has no head of its own',
+            cnt(ixJ, '<span class="journal-of">Journal <small>of</small> <select id="journalPick" class="map-select" aria-label="Which journal is shown" title="The journal shown. It opens on the campaign on screen, or on the table you are at."></select></span>') === 1
+            && cnt(ixJ, '<label class="journal-all" title="Unticked, a search looks through the journal shown. Ticked, it looks through every journal, and each result names its campaign."><input type="checkbox" id="journalAll"> Every journal</label>') === 1
+            && cnt(hoT, "if (_jBtn) _jBtn.addEventListener('click', function() { openJournal(); });") === 1 && cnt(hoT, 'await openJournal(true);') === 3 && !/addEventListener\('click', openJournal\)/.test(hoT) && cnt(hoT, "ui('handoutModal').style.display = 'none'; openJournal(); });") === 1
+            && cnt(hoT, "if (Array.prototype.some.call(list.querySelectorAll('.journal-section'), function(s) { return s.dataset.camp === v; })) journalAt = v; else _jPick.value = journalAt;") === 1
+            && cnt(hoT, "if (secA && secA.dataset.page === 'personal') campId = 'personal';") === 1 && cnt(hoT, "else if (hereA && hereA.key === campId) stampHead(idx, { gmId: hereA.gmId, gm: idx.gm, campaign: hereA.campaign });") === 1
+            && cnt(hoT, "if (_jAll) { _jAll.addEventListener('change', journalFilter);") === 1
+            && cssJ.includes('\n  .journal-in { display: none;') && cssJ.includes('\n  #journalList.everywhere .journal-in { display: inline-block; }') && cssJ.includes('\n  #journalList:not(.everywhere) .journal-camp > b { display: none; }') && cssJ.includes('\n  #journalList .journal-section.as-tab > .journal-camp { display: none; }'));
+        const helpJ = ixJ.slice(ixJ.indexOf('<li><b>&#128214; Journal:</b>'), ixJ.indexOf('<li><b>Targeting:</b>'));
+        const NOTE_J = "The Journal\n- The Journal shows one campaign at a time. It opens on the campaign on\n  screen, or on the table you are at. The name in its title is a list\n  of your other journals.\n- Personal notes is one notebook for every campaign. It has a tab in\n  each journal, and it is the same notebook wherever you open it.\n- A search looks through the journal shown. Tick Every journal to look\n  through all of them. Each result then names its campaign.\n- A campaign you run always has its journal, so + Note writes a page\n  that belongs to that campaign.\n\n";
+        check('journal (said): Help says the Journal shows one campaign at a time and where it opens, that the name in its title is a list, that + Note writes into the journal shown, that Personal notes is one notebook with a tab in each journal, and how a search looks through one journal or all of them; both release notes carry the same lines',
+            helpJ.length > 600 && helpJ.includes('<li>The Journal shows one campaign at a time. It opens on the campaign on screen, or on the table you are at.</li>') && helpJ.includes('<li>The name in its title is a list. Pick another of your journals there, or <b>Personal notes</b>.</li>')
+            && helpJ.includes('<li>Add notes under each handout, or press <b>+ Note</b> to write a page of your own in the journal shown. It all works with no session running.</li>')
+            && helpJ.includes('<li><b>Personal notes</b> is one notebook for every campaign. It has a tab in each journal, and it is the same notebook wherever you open it.</li>')
+            && helpJ.includes('<li>A search looks through the journal shown. Tick <b>Every journal</b> to look through all of them, and each result then names its campaign.</li>') && !/in a campaign's section/.test(ixJ)
+            && [fs.readFileSync(path.join(__dirname, '..', 'WHATSNEW.txt'), 'utf8'), fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'assets', 'whatsnew.txt'), 'utf8')].every(t => cnt(t.replace(/\r\n/g, '\n'), NOTE_J) === 1));
     }
 
     /* ---- Settings' snapshots: Delete and Restore act only on a yes (settings.js, sliced by its snaps markers and run on a recording page; the page's

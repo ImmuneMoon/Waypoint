@@ -224,6 +224,17 @@ The top bar and the data map
   Its Link menu lists the four line types by name, each with a small
   drawing.
 
+The Journal
+- The Journal shows one campaign at a time. It opens on the campaign on
+  screen, or on the table you are at. The name in its title is a list
+  of your other journals.
+- Personal notes is one notebook for every campaign. It has a tab in
+  each journal, and it is the same notebook wherever you open it.
+- A search looks through the journal shown. Tick Every journal to look
+  through all of them. Each result then names its campaign.
+- A campaign you run always has its journal, so + Note writes a page
+  that belongs to that campaign.
+
 Fixes
 - The fog of war is lighter on a busy map. It read every character's
   sheet again for each frame it drew, sixteen times a second; it now

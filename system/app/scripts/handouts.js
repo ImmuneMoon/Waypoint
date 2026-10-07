@@ -398,19 +398,67 @@ if (_hClose) _hClose.addEventListener('click', function() { ui('handoutModal').s
 
 /* ---------- the Journal window ---------- */
 // [sinkcheck:journal-start]
-async function openJournal() {
+// The journal the window shows (the owner, by prompt, 2026-10-07: "A. One campaign at a time"): a journal's key, or 'personal'. The window
+// opens on the journal of the campaign on screen, and the name in its title is a list of the others. Of the notebook that belongs to no
+// campaign the owner said: "personal notes can transcend campaigns then and be available from each campaign as they are and as they update.
+// they will be the only exception". So Personal notes is a tab of every journal, the same notebook each time, and a journal of its own
+var journalAt = '';
+// The journal of the campaign on screen: the GM's own campaign, or the table this app sits at (one journal per campaign per GM)
+function journalHere() {
+    var n = window.wpNet, own = ownCampaignKey();
+    if (own) return { key: own.key, campaign: String(own.camp.name || '').slice(0, 120), gmId: n.myId, mine: true };
+    if (!n || !(n.foreign || (n.active && n.role === 'client'))) return null;
+    var camp = typeof getActiveCampaign === 'function' ? getActiveCampaign() : null, key = camp && n.gmId ? journalKey({ campId: camp.id, gmId: n.gmId }) : '';
+    return key ? { key: key, campaign: String(camp.name || '').slice(0, 120), gmId: safeId(n.gmId), mine: false } : null;
+}
+function journalName(j) { return j.campaign || (j.campId === 'personal' ? 'Personal notes' : 'Campaign'); }
+// The picker in the window's title: the journal of the campaign on screen, then the others, then Personal notes. Its options are made as
+// elements with text: a campaign's or a GM's name read from an index on disk is never markup here
+function journalPickFill(journals, here) {
+    var sel = ui('journalPick'); if (!sel || typeof document.createElement !== 'function') return;
+    while (sel.firstChild) sel.removeChild(sel.firstChild);
+    var me = window.wpNet ? window.wpNet.myId : '';
+    var group = function(label, items) {
+        if (!items.length) return;
+        var g = document.createElement('optgroup'); g.label = label;
+        items.forEach(function(j) {
+            var o = document.createElement('option'); o.value = j.campId;
+            o.textContent = journalName(j) + (j.gm && j.gmId !== me && !/^gm$/i.test(String(j.gm).trim()) ? ', run by ' + j.gm : '');
+            g.appendChild(o);
+        });
+        sel.appendChild(g);
+    };
+    group('This campaign', journals.filter(function(j) { return !!here && j.campId === here.key; }));
+    group('Your other journals', journals.filter(function(j) { return j.campId !== 'personal' && !(here && j.campId === here.key); }));
+    group('Across every campaign', journals.filter(function(j) { return j.campId === 'personal'; }));
+    sel.value = journalAt;
+}
+async function openJournal(keep) {   // keep (true only): drawn again where it stands, after a note was added or a page removed. Else it opens on the campaign on screen
     var m = ui('journalModal'); if (!m) return;
     m.style.display = 'flex';
     badge(0);
     var list = ui('journalList');
     list.innerHTML = '<div style="color:var(--dim); padding:14px;">Loading your journal…</div>';
     var journals = await listJournals();
-    var own = ownCampaignKey();
-    if (own && !journals.some(function(j) { return j.campId === own.key; }) && sentRecords(own.key).length) {
-        var oi = await readIndex(own.key);
-        journals.unshift(Object.assign(oi, { campId: own.key, campaign: own.camp.name || '', gm: '', gmId: window.wpNet.myId, entries: oi.entries || [], updated: oi.updated || 0 }));
+    var here = journalHere();
+    // The campaign on screen always has its journal, empty or not, under the name the campaign has now. The GM's own is the GM's
+    if (here) {
+        var hj = journals.filter(function(j) { return j.campId === here.key; })[0];
+        if (!hj) {   // not listed, so it holds no page yet. Only the GM's own can still hold something: the notes written under what was shown
+            hj = here.mine && sentRecords(here.key).length ? await readIndex(here.key) : { campId: here.key, gm: '', entries: [] };
+            hj.campId = here.key; hj.entries = hj.entries || []; hj.updated = hj.updated || 0; journals.push(hj);
+        }
+        if (here.campaign) hj.campaign = here.campaign;
+        if (here.mine) { hj.gm = ''; hj.gmId = here.gmId; } else if (!hj.gmId) hj.gmId = here.gmId;
     }
-    if (!journals.length) { list.innerHTML = '<div style="color:var(--dim); padding:14px; line-height:1.5;">Nothing here yet. When a GM shows you a handout — a place, a face, a letter — it is saved here with its caption, and you can add your own notes. It stays on this computer and works without a session.</div><div style="padding:0 14px;"><button class="tool ghost journal-add" data-camp="personal">+ Note</button> <span style="color:var(--dim); font-size:11px;">Start a personal notebook now; campaign sections appear as GMs show you things.</span></div>'; return; }
+    // Personal notes is always there: a tab of every journal, and a journal of its own
+    var pj = journals.filter(function(j) { return j.campId === 'personal'; })[0];
+    if (!pj) { pj = { campId: 'personal', campaign: 'Personal notes', gm: '', entries: [] }; journals.push(pj); }
+    var nPersonal = pj.entries.filter(function(e) { return e.kind === 'note'; }).length;
+    var rank = function(j) { return here && j.campId === here.key ? 0 : j.campId === 'personal' ? 2 : 1; };   // this campaign, the others as they were listed, Personal notes
+    journals = journals.map(function(j, i) { return { j: j, i: i }; }).sort(function(a, b) { return rank(a.j) - rank(b.j) || a.i - b.i; }).map(function(x) { return x.j; });
+    var has = function(k) { return !!k && journals.some(function(j) { return j.campId === k; }); };
+    if (!(keep === true && has(journalAt))) journalAt = here ? here.key : has(journalAt) ? journalAt : journals[0].campId;
     list.innerHTML = journals.map(function(j) {
         var personal = j.campId === 'personal';
         var iRunIt = !!(j.gmId && window.wpNet && j.gmId === window.wpNet.myId);   // my own campaign: nothing here is "from the GM"
@@ -430,7 +478,9 @@ async function openJournal() {
             + tab('all', 'Journal', nAll, 'Everything — your own pages, what you received and what you sent — newest first')
             + tab('mine', 'My notes', nMine, 'Your own pages')
             + tab('inbox', 'Inbox', inbox.length, iRunIt ? 'Pages players shared with you' : 'Handouts from the GM and pages other players shared with you')
-            + tab('sent', 'Sent', nSent, iRunIt ? 'Every handout you have shown, to whom and when' : 'Every page you have shared, with whom and when') + '</span>';
+            + tab('sent', 'Sent', nSent, iRunIt ? 'Every handout you have shown, to whom and when' : 'Every page you have shared, with whom and when')
+            + tab('personal', 'Personal notes', nPersonal, 'Your notes that belong to no campaign. It is the same notebook in every journal.') + '</span>';
+        var inTag = ' <span class="journal-in">' + esc(journalName(j)) + '</span>';   // the row's own campaign, shown while a search takes in every journal
         // people: who sent you things (From) and whom you sent things (To)
         var senders = Object.create(null), recips = Object.create(null);   // keyed by ids from the index: no inherited name is ever a sender
         function bump(map, id, name, n) { if (!id) return; var m = map[id] || (map[id] = { id: id, name: name || id, n: 0 }); if (name && (m.name === id || !m.name)) m.name = name; m.n += (n || 1); }
@@ -464,17 +514,17 @@ async function openJournal() {
             var thumb = kind === 'text' ? '<div class="journal-thumb journal-thumb-text" title="Open">' + esc(String(text).slice(0, 160)) + '</div>' : '<img class="journal-thumb" src="' + esc(picRef(e.src)) + '" alt="" title="Open">';
             return '<div class="journal-entry journal-sentrow" data-page="sent" data-to="' + esc(s.to) + '" data-camp="' + esc(j.campId) + '" data-id="sent:' + esc(e.id) + ':' + esc(s.at) + '" data-kind="' + kind + '" data-sent="1"' + whose(e) + (kind === 'text' ? ' data-text="' + esc(String(text)) + '"' : '') + '>' + thumb +
                 '<div class="journal-body"><div class="journal-title">' + esc(e.title || (e.kind === 'note' ? 'A note' : 'Handout')) + '</div>' + (e.caption ? '<div class="journal-caption">' + esc(e.caption) + '</div>' : '') +
-                '<div class="journal-when">Sent to <b>' + esc(s.to === 'gm' ? 'GM' : s.to === '*' ? 'everyone at once' : s.name) + '</b> <span style="opacity:.7;">' + new Date(s.at).toLocaleString() + '</span>' + (e.kind !== 'note' && e.notes ? ' · with your notes' : '') + '</div>' +
+                '<div class="journal-when">Sent to <b>' + esc(s.to === 'gm' ? 'GM' : s.to === '*' ? 'everyone at once' : s.name) + '</b> <span style="opacity:.7;">' + new Date(s.at).toLocaleString() + '</span>' + (e.kind !== 'note' && e.notes ? ' · with your notes' : '') + inTag + '</div>' +
                 '<textarea class="journal-notes" placeholder="Your notes about this send…">' + esc((j.sentNotes || {})['sent:' + e.id + ':' + s.at] || '') + '</textarea></div></div>';
         }).join('');
-        var head = '<div class="journal-camp"><b>' + esc(j.campaign || (personal ? 'Personal notes' : 'Campaign')) + '</b>' + runBy + tabs + ' <button class="tool ghost journal-add" data-camp="' + esc(j.campId) + '" title="Write a page of your own">+ Note</button></div>';
+        var head = '<div class="journal-camp"><b>' + esc(journalName(j)) + '</b>' + runBy + tabs + ' <button class="tool ghost journal-add" data-camp="' + esc(j.campId) + '" title="Write a page of your own">+ Note</button></div>';
         var entries = j.entries.slice().sort(function(a, b) { return (b.receivedAt || 0) - (a.receivedAt || 0); }).map(function(e) {
             if (e.kind === 'note') {
                 return '<div class="journal-entry journal-own" data-page="mine" data-camp="' + esc(j.campId) + '" data-id="' + esc(e.id) + '" data-kind="note"' + whose(e) + '>' +
                     '<div class="journal-body">' +
                     '<div style="display:flex; gap:6px; align-items:center;"><input class="field journal-note-title" value="' + esc(e.title || '') + '" placeholder="Title"><button class="tool ghost journal-open" title="Open this note to read it: a web address in it is a link there" style="padding:2px 8px;">Open</button><button class="tool ghost danger journal-del" title="Delete this note" style="padding:2px 8px;">&times;</button></div>' +
                     '<textarea class="journal-notes journal-note-body" placeholder="Write…">' + esc(e.text || '') + '</textarea>' +
-                    '<div class="journal-when">' + new Date(e.receivedAt || 0).toLocaleString() + ' · your note</div>' + sentLine(e) + shareControls() + '</div></div>';
+                    '<div class="journal-when">' + new Date(e.receivedAt || 0).toLocaleString() + ' · your note' + inTag + '</div>' + sentLine(e) + shareControls() + '</div></div>';
             }
             var thumb = e.kind === 'text'
                 ? '<div class="journal-thumb journal-thumb-text" title="Open">' + esc(String(e.text || '').slice(0, 160)) + '</div>'
@@ -482,11 +532,12 @@ async function openJournal() {
             return '<div class="journal-entry" data-page="inbox" data-from="' + esc(fromOf(e)) + '" data-camp="' + esc(j.campId) + '" data-id="' + esc(e.id) + '" data-kind="' + esc(e.kind || 'image') + '"' + whose(e) + (e.kind === 'text' ? ' data-text="' + esc(String(e.text || '')) + '"' : '') + '>' + thumb +
                 '<div class="journal-body"><div class="journal-title" style="display:flex; align-items:center; gap:6px;"><span style="flex:1;">' + esc(e.title || 'Handout') + '</span><button class="tool ghost danger journal-del" title="Remove this from your journal (the sender keeps theirs)" style="padding:2px 8px;">&times;</button></div>' +
                 (e.caption ? '<div class="journal-caption">' + esc(e.caption) + '</div>' : '') + tagChips(e.tags) +
-                '<div class="journal-when">' + new Date(e.receivedAt || 0).toLocaleString() + (e.from ? ' · updated version — the earlier one is kept below' : '') + ' · from <b>' + esc(fromName(e)) + '</b></div>' +
+                '<div class="journal-when">' + new Date(e.receivedAt || 0).toLocaleString() + (e.from ? ' · updated version — the earlier one is kept below' : '') + ' · from <b>' + esc(fromName(e)) + '</b>' + inTag + '</div>' +
                 (e.sharedBy && e.sharedNotes ? '<div class="journal-shared"><div class="journal-shared-who">' + esc(fromOf(e) === 'gm' ? 'The GM' : e.sharedBy) + ' wrote</div>' + esc(e.sharedNotes) + '</div>' : '') +
                 '<textarea class="journal-notes" placeholder="Your notes about this…">' + esc(e.notes || '') + '</textarea>' + sentLine(e) + shareControls() + '</div></div>';
         }).join('');
-        var empty = (!nMine ? '<div class="journal-empty" data-page="mine">No pages of your own here yet — press + Note.</div>' : '')
+        var empty = (!nAll && !personal ? '<div class="journal-empty" data-page="all">' + (iRunIt ? 'Nothing in this journal yet. What you show your players is listed here, and + Note writes a page of your own.' : 'Nothing in this journal yet. What a GM shows you is kept here with its caption, and + Note writes a page of your own. It stays on this computer and works without a session.') + '</div>' : '')
+                  + (!nMine ? '<div class="journal-empty" data-page="mine">No pages of your own here yet — press + Note.</div>' : '')
                   + (!inbox.length && !personal ? '<div class="journal-empty" data-page="inbox">' + (iRunIt ? 'Nothing shared with you yet.' : 'Nothing received yet.') + '</div>' : '')
                   + (!nSent && !personal ? '<div class="journal-empty" data-page="sent">' + (iRunIt ? 'Nothing shown to the players yet.' : 'Nothing sent yet — while in a session, pick "Share with…" on any page.') + '</div>' : '');
         var sentRows = sent.map(function(s) {
@@ -494,11 +545,12 @@ async function openJournal() {
                       : picRef(s.src) ? '<img class="journal-thumb" src="' + esc(picRef(s.src)) + '" alt="" title="Open">' : '<div class="journal-thumb journal-thumb-text">(removed)</div>';
             return '<div class="journal-entry journal-sentrow" data-page="sent" data-to="' + esc(s.to.map(function(t) { return t.pid || ''; }).join(' ')) + '" data-camp="' + esc(j.campId) + '" data-id="sent:' + esc(s.hid) + '" data-kind="' + (s.kind === 'text' ? 'text' : 'image') + '" data-sent="1" data-mine="1"' + (s.kind === 'text' ? ' data-text="' + esc(String(s.text || '')) + '"' : '') + '>' + thumb +
                 '<div class="journal-body"><div class="journal-title">' + esc(s.title) + '</div>' + (s.caption ? '<div class="journal-caption">' + esc(s.caption) + '</div>' : '') + tagChips(s.tags) +
-                '<div class="journal-when">Shown to ' + s.to.map(function(t) { return esc(t.name) + ' <span style="opacity:.7;">' + new Date(t.at).toLocaleString() + '</span>'; }).join(', ') + '</div>' +
+                '<div class="journal-when">Shown to ' + s.to.map(function(t) { return esc(t.name) + ' <span style="opacity:.7;">' + new Date(t.at).toLocaleString() + '</span>'; }).join(', ') + inTag + '</div>' +
                 '<textarea class="journal-notes" placeholder="Your notes about this handout…">' + esc((j.sentNotes || {})['sent:' + s.hid] || '') + '</textarea></div></div>';
         }).join('');
-        return '<div class="journal-section" data-camp="' + esc(j.campId) + '" data-page="' + page + '" data-show="' + esc(show) + '" data-from="' + esc(from) + '" data-to="' + esc(to) + '">' + head + chipRows + empty + sentRows + mySentRows + entries + '</div>';
+        return '<div class="journal-section' + (here && j.campId === here.key ? ' here' : '') + '" data-camp="' + esc(j.campId) + '" data-page="' + page + '" data-show="' + esc(show) + '" data-from="' + esc(from) + '" data-to="' + esc(to) + '">' + head + chipRows + empty + sentRows + mySentRows + entries + '</div>';
     }).join('');
+    journalPickFill(journals, here);
     journalFilter();
 }
 // [sinkcheck:journal-end]
@@ -650,6 +702,15 @@ function chipOpensTo(which, campId, items) {
     if (pref === 'remember') { try { var last = localStorage.getItem('journal_' + which + 'Last_' + campId) || ''; if (items[last]) return last; } catch (e) {} }
     return '';
 }
+// [sinkcheck:journalfilter-start]
+// What a look at the window takes in. One journal is shown at a time (journalAt). With its Personal notes tab in front, the one notebook
+// that spans every campaign stands in that journal's place, under the journal's own head. A search reads what is shown, or every journal
+function journalScope(list, every) {
+    var secs = Array.prototype.slice.call(list.querySelectorAll('.journal-section'));
+    var at = secs.filter(function(s) { return s.dataset.camp === journalAt; })[0] || null;
+    var pers = at && at.dataset.camp !== 'personal' && at.dataset.page === 'personal' ? secs.filter(function(s) { return s.dataset.camp === 'personal'; })[0] || null : null;
+    return { at: at, pers: pers, shown: function(s) { return every || s === at || s === pers; }, read: function(s) { return every || (pers ? s === pers : s === at); } };
+}
 // Does this row belong on the page its section is showing?
 function onPage(row) {
     var sec = row.closest('.journal-section'); if (!sec) return true;
@@ -657,7 +718,7 @@ function onPage(row) {
     var has = function(list, id) { return (' ' + (list || '') + ' ').indexOf(' ' + id + ' ') >= 0; };
     if (page === 'all') {
         var show = sec.dataset.show || '';
-        if (isEmpty) return false;
+        if (isEmpty) return rp === 'all';   // the one line of a journal that holds nothing yet
         return !show || rp === show;
     }
     if (page === 'inbox') { var from = sec.dataset.from || ''; return rp === 'inbox' && (isEmpty || !from || row.dataset.from === from); }
@@ -670,7 +731,9 @@ function journalFilter() {
     var box = ui('journalSearch'), list = ui('journalList'); if (!box || !list) return;
     var terms = normWords(box.value);
     var q = terms.length, phrase = terms.join(' ');
+    var allBox = ui('journalAll'), every = q > 0 && !!(allBox && allBox.checked === true), sc = journalScope(list, every);
     list.classList.toggle('searching', q > 0);   // a search looks across both pages
+    list.classList.toggle('everywhere', every);   // it takes in every journal: each row then names its campaign
     var scored = [];
     list.querySelectorAll('.journal-entry').forEach(function(row, i) { if (!row.dataset.i) row.dataset.i = String(i + 1); });   // the rendered (date) order, to come back to
     if (!q) {
@@ -682,6 +745,7 @@ function journalFilter() {
     list.querySelectorAll('.journal-from-row').forEach(function(el) { el.style.display = !q && el.parentNode.dataset.page === el.dataset.for ? '' : 'none'; });
     list.querySelectorAll('.journal-entry').forEach(function(row) {
         if (!q) { row.style.display = onPage(row) ? '' : 'none'; return; }
+        if (!sc.read(row.closest('.journal-section'))) { row.style.display = 'none'; return; }   // a search reads what is shown, and nothing else
         var hay = row.textContent + ' ' + (row.dataset.text || '');
         row.querySelectorAll('input, textarea').forEach(function(f) { hay += ' ' + f.value; });
         var words = normWords(hay), hit = 0, score = 0;
@@ -704,16 +768,30 @@ function journalFilter() {
     }
     list.querySelectorAll('.journal-section').forEach(function(sec) {
         var any = !q || Array.prototype.some.call(sec.querySelectorAll('.journal-entry'), function(r) { return r.style.display !== 'none'; });
-        sec.style.display = any ? '' : 'none';
+        sec.classList.toggle('as-tab', sec === sc.pers && !every);
+        sec.style.display = sc.shown(sec) && (any || sec === sc.at) ? '' : 'none';   // the journal shown keeps its head and its tabs when a search finds nothing in it
     });
 }
+// [sinkcheck:journalfilter-end]
 var _jSearch = ui('journalSearch');
 if (_jSearch) {
     _jSearch.addEventListener('input', journalFilter);
     _jSearch.addEventListener('keydown', function(e) { e.stopPropagation(); if (e.key === 'Escape') { _jSearch.value = ''; journalFilter(); } });
 }
 var _jBtn = ui('journalBtn');
-if (_jBtn) _jBtn.addEventListener('click', openJournal);
+if (_jBtn) _jBtn.addEventListener('click', function() { openJournal(); });   // opened by its button: on the campaign on screen
+// The picker: another journal of this computer, or Personal notes. Nothing is read again, since every journal is drawn and one is shown
+var _jPick = ui('journalPick');
+if (_jPick) {
+    _jPick.addEventListener('change', function() {
+        var list = ui('journalList'), v = _jPick.value; if (!list) return;
+        if (Array.prototype.some.call(list.querySelectorAll('.journal-section'), function(s) { return s.dataset.camp === v; })) journalAt = v; else _jPick.value = journalAt;
+        journalFilter(); list.scrollTop = 0;
+    });
+    _jPick.addEventListener('keydown', function(e) { e.stopPropagation(); });
+}
+var _jAll = ui('journalAll');
+if (_jAll) { _jAll.addEventListener('change', journalFilter); _jAll.addEventListener('keydown', function(e) { e.stopPropagation(); }); }
 var _jClose = ui('journalCloseBtn');
 if (_jClose) _jClose.addEventListener('click', function() { ui('journalModal').style.display = 'none'; });
 // [sinkcheck:journalopen-start]
@@ -822,7 +900,7 @@ if (_jList) {
             await dropEntryFiles(campC, goneC);   // the pages' picture files go with them
             if (scope === 'all' || scope === 'inbox') { journalFrom[campC] = undefined; }
             toast(scope === 'all' ? 'Journal cleared.' : scope === 'mine' ? 'Your pages are gone.' : 'Inbox cleared.');
-            await openJournal();
+            await openJournal(true);
             return;
         }
         var chip = e.target.closest && e.target.closest('.journal-from');
@@ -838,15 +916,17 @@ if (_jList) {
         }
         var add = e.target.closest && e.target.closest('.journal-add');
         if (add) {
-            var campId = safeId(add.dataset.camp) || 'personal';
-            if (journalPage[campId] === 'inbox' || journalPage[campId] === 'sent') journalPage[campId] = 'all';   // the new page must be visible
-            var id = 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+            var campId = safeId(add.dataset.camp) || 'personal', secA = add.closest('.journal-section');
+            if (secA && secA.dataset.page === 'personal') campId = 'personal';   // the Personal notes tab is in front: the new page goes into that notebook
+            else if (journalPage[campId] === 'inbox' || journalPage[campId] === 'sent') journalPage[campId] = 'all';   // the new page must be visible
+            var id = 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), hereA = journalHere();
             await withIndex(campId, function(idx) {
                 if (campId === 'personal') idx.campaign = idx.campaign || 'Personal notes';
+                else if (hereA && hereA.key === campId) stampHead(idx, { gmId: hereA.gmId, gm: idx.gm, campaign: hereA.campaign });   // a journal begun by a note of your own knows its campaign's name, so the picker can name it from any other campaign
                 idx.entries.push({ id: id, kind: 'note', title: '', text: '', receivedAt: Date.now(), notes: '' });
             });
             await registerJournal(campId);
-            await openJournal();
+            await openJournal(true);
             var t = document.querySelector('.journal-entry[data-id="' + id + '"] .journal-note-title'); if (t) t.focus();
             return;
         }
@@ -865,7 +945,7 @@ if (_jList) {
             var ix = await withIndex(cId, function(idx) { goneD = idx.entries.filter(function(x) { return x.id === nId; }); idx.entries = idx.entries.filter(function(x) { return x.id !== nId; }); });
             dropEntryFiles(cId, goneD);   // the page's picture file goes with it
             row.remove();
-            if (!ix.entries.length) await openJournal();
+            if (!ix.entries.length) await openJournal(true);
         }
     });
     _jList.addEventListener('input', function(e) {

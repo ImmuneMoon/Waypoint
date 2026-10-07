@@ -11,7 +11,7 @@ import { showPrompt, showConfirm } from './dialogs.js';
 import { searchEntries, entryFromForm, newEntryId, keyClashes, cleanLibEntry, libCtx, LIB, packFile, readPackImport, packImportPlan, bulkSet, bulkMove, lvlsToText } from './librarycore.js';
 import { itemReach, carriedBy } from './systemcore.js';
 
-var ROW_H = 28, FLUSH_MS = 1000, FORM_KEYS = ['name', 'key', 'category', 'icon', 'vis', 'notes', 'desc', 'lvls', 'ref', 'gmNotes', 'damage', 'cost', 'throwSkill', 'tags', 'lvl', 'stats', 'area', 'rm', 'rmMsg', 'eq', 'eqMsg', 'mods', 'modsOn', 'needs', 'needsMsg'];
+var ROW_H = 28, FLUSH_MS = 1000, FORM_KEYS = ['name', 'key', 'category', 'icon', 'vis', 'notes', 'desc', 'lvls', 'ref', 'gmNotes', 'damage', 'cost', 'throwSkill', 'tags', 'lvl', 'stats', 'area', 'rm', 'rmMsg', 'eq', 'eqMsg', 'mods', 'modsOn', 'needs', 'needsIf', 'needsMsg'];
 var NEED_MAX = 8, NEED_PICK = 2000;   // 126b: the entries one entry needs, and the longest list its chooser offers
 var VIS = [['all', 'Players can see it'], ['gm', 'GM only']];
 var st = { open: false, campId: null, packId: null, entryId: null, q: '', shown: [], work: map(), dirty: map(), timer: null, draftNew: null, sel: map(), anchor: null, imp: null, fm: null, fmFor: null, fn: null, fnFor: null };   // fm (F6): the open entry's changes being edited
@@ -127,7 +127,7 @@ function newPack() {
 function exportPack(which) {
     var p = packById(st.packId), c = camp(); if (!p || !c || !ready(p.id)) return;
     var players = which === 'players', pv = players && window.wpSheets && window.wpSheets.playerSystem ? window.wpSheets.playerSystem(c) : null;
-    var file = packFile(p, workOf(p.id), players ? libCtx(pv || { fields: [] }, F(), false, LB() && LB().needShown ? LB().needShown : undefined) : gmCtx());   // 126b: a players' copy names no entry players cannot see
+    var file = packFile(p, workOf(p.id), players ? libCtx(pv || { fields: [] }, F(), false, LB() && LB().needShown ? LB().needShown : undefined, LB() && LB().needRuleShown ? LB().needRuleShown : undefined) : gmCtx());   // 126b: a players' copy names no entry players cannot see
     var base = String(p.name || '').replace(/[^A-Za-z0-9_ -]+/g, '').trim().replace(/ +/g, '_').slice(0, 40) || 'pack';
     var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(file, null, 1)], { type: 'application/json' })); a.download = base + (players ? '.players' : '') + '.wppack.json';
     document.body.appendChild(a); a.click(); setTimeout(function() { URL.revokeObjectURL(a.href); a.remove(); }, 500);
@@ -307,7 +307,10 @@ function needsBox(form, e) {
         box.appendChild(sel);
     };
     draw();
-    field(form, 'needsMsg', 'Message', e.needsMsg, { max: 200, ph: 'Shown to the player in place of the list (optional)' });
+    field(form, 'needsIf', 'Rule', e.needsIf, { max: 300, ph: 'A formula that must be true, such as ST >= 12 (optional)', title: 'A formula with no dice that must be true for the character. It reads the character as a list’s column does, and it can stand beside the entries above or alone' });
+    form.appendChild(el('div', 'lib-note', 'A rule is a formula that must be true for the character, such as ST >= 12. It rolls no dice.'));
+    var rsN = LB() && LB().needRuleShown ? LB().needRuleShown : null; if (typeof e.needsIf === 'string' && e.needsIf && rsN && rsN(e.needsIf) !== true) form.appendChild(el('div', 'lib-warn', 'This rule reads something players may not read. They are not shown it, and your machine judges it alone.'));
+    field(form, 'needsMsg', 'Message', e.needsMsg, { max: 200, ph: 'Shown to the player in place of what it needs (optional)' });
 }
 function modTargets() {
     var c = camp(), out = [];
@@ -345,12 +348,13 @@ function modsBox(form, e) {
 function readForm() {
     var g = function(id) { var n = ui('libF_' + id); return n ? n.value : ''; }, e = current(), stats = {};
     Array.prototype.forEach.call(document.querySelectorAll('#libForm [data-stat]'), function(n) { stats[n.dataset.stat] = n.value; });
-    var typed = entryFromForm({ id: e.id, name: g('name'), key: g('key'), category: g('category'), icon: g('icon'), vis: g('vis'), lvl: g('lvl'), stats: stats, notes: g('notes'), desc: g('desc'), lvls: g('lvls'), tags: g('tags'), ref: g('ref'), damage: g('damage'), cost: g('cost'), throwSkill: g('throwSkill'), areaFt: g('areaFt'), areaShape: e.area && e.area.shape, areaName: e.area && e.area.name, gmNotes: g('gmNotes'), rm: g('rm'), rmMsg: g('rmMsg'), eq: g('eq'), eqMsg: g('eqMsg'), mods: st.fmFor === e.id && st.fm ? st.fm : e.mods, modsOn: ui('libF_modsOn') ? ui('libF_modsOn').checked : e.modsOn === true, needs: st.fnFor === e.id && st.fn ? st.fn : e.needs, needsMsg: g('needsMsg') });
+    var typed = entryFromForm({ id: e.id, name: g('name'), key: g('key'), category: g('category'), icon: g('icon'), vis: g('vis'), lvl: g('lvl'), stats: stats, notes: g('notes'), desc: g('desc'), lvls: g('lvls'), tags: g('tags'), ref: g('ref'), damage: g('damage'), cost: g('cost'), throwSkill: g('throwSkill'), areaFt: g('areaFt'), areaShape: e.area && e.area.shape, areaName: e.area && e.area.name, gmNotes: g('gmNotes'), rm: g('rm'), rmMsg: g('rmMsg'), eq: g('eq'), eqMsg: g('eqMsg'), mods: st.fmFor === e.id && st.fm ? st.fm : e.mods, modsOn: ui('libF_modsOn') ? ui('libF_modsOn').checked : e.modsOn === true, needs: st.fnFor === e.id && st.fn ? st.fn : e.needs, needsIf: g('needsIf'), needsMsg: g('needsMsg') });
     var out = clone(e), eqShown = !!ui('libF_eq'); FORM_KEYS.forEach(function(k) { if (eqShown || (k !== 'eq' && k !== 'eqMsg')) delete out[k]; }); return Object.assign(out, typed);   // a switch lock the form does not show (no list has a switch) is kept
 }
 function saveEntry() {
     var e = current(); if (!e || !st.packId || !ready(st.packId)) return;
     var raw = readForm(); if (!raw.name.trim()) { toast('Give the entry a name.'); return; }
+    var SCr = window.wpSystemCore, rlT = typeof raw.needsIf === 'string' ? raw.needsIf.trim() : ''; if (rlT && !(SCr && SCr.needRule && SCr.needRule(rlT, F()))) { toast('The rule under What it needs is not a formula this sheet can work out. A rule rolls no dice.'); return; }   // 126b: never dropped in silence
     var c = cleanLibEntry(raw, gmCtx()); if (!c) { toast('That entry could not be kept.'); return; }
     var list = workOf(st.packId), i = -1; list.forEach(function(x, k) { if (x.id === c.id) i = k; });
     var was = i >= 0 ? list[i] : null;

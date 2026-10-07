@@ -43,7 +43,9 @@ function playerSystem(camp) {
     var pages = readablePages(camp), key = JSON.stringify(camp.system) + '\n' + pages.join(',') + '\n' + JSON.stringify(lcs);
     var nsh = isClient() ? true : LBc && LBc.needShown ? LBc.needShown : null;   // 126b: which entries players may see, for a need that names one: the library's own judge on the GM's machine; a client's copy is the host's view
     if (typeof nsh === 'function') (Array.isArray(camp.system.items) ? camp.system.items : []).concat(Array.isArray(camp.system.core) ? camp.system.core : []).forEach(function(it) { if (it && Array.isArray(it.needs)) it.needs.forEach(function(n) { key += n && nsh(n.id) === true ? '1' : '0'; }); });   // ... and the kept view follows it
-    if (_pvMemo.key !== key) { var v = cleanSystem(camp.system, { F: F(), gmView: false, pages: pages, libCats: lcs, needShown: nsh }); _pvMemo = { key: key, text: v ? JSON.stringify(v) : null }; }
+    var rsh = !isClient() && LBc && LBc.needRuleShown ? LBc.needRuleShown : null;   // ... and whether players may read an entry's rule (the library's judge, which also knows its own GM-only keys; without it the core judges by the system alone)
+    if (rsh) (Array.isArray(camp.system.items) ? camp.system.items : []).concat(Array.isArray(camp.system.core) ? camp.system.core : []).forEach(function(it) { if (it && typeof it.needsIf === 'string' && it.needsIf) key += rsh(it.needsIf) === true ? 'R' : 'r'; });
+    if (_pvMemo.key !== key) { var v = cleanSystem(camp.system, { F: F(), gmView: false, pages: pages, libCats: lcs, needShown: nsh, ruleShown: rsh }); _pvMemo = { key: key, text: v ? JSON.stringify(v) : null }; }
     return _pvMemo.text === null ? null : JSON.parse(_pvMemo.text);
 }
 // Stage 5f: the handbook pages players may read in a campaign (the "Players can read" switch: meta.players !== false) — the host's
@@ -2123,8 +2125,8 @@ function needName(sys, id, gm) {   // gm: the GM's own sheet, which names every 
     return null;
 }
 function cantTake(sys, c, it) {
-    if (!it || !Array.isArray(it.needs) || !it.needs.length || !c) return '';
-    var nm = needsMet(sys, c, it, true); if (nm.ok) return '';
+    if (!it || !c || ((!Array.isArray(it.needs) || !it.needs.length) && (typeof it.needsIf !== 'string' || !it.needsIf))) return '';
+    var nm = needsMet(sys, c, it, true, typeof F === 'function' ? F() : null); if (nm.ok) return '';
     return needsSays(it, nm.missing, function(id) { return needName(sys, id); });
 }
 // [systemcheck:needpick-end]
@@ -2292,8 +2294,9 @@ function rowQty(c, f, rid) { var v = c && c.values && Array.isArray(c.values[f.i
 // copy names, so a need they may not see marks nothing for them. A row kept out of its player's sight is not judged. The words are text
 function needBits(host, sys, c, entry, rd, gm) {
     if (typeof needsMet !== 'function' || typeof needsSays !== 'function' || !rd || !entry || entry.hid === 1) return;
-    var nd = rd.src === 'inline' ? entry.needs : rd.src === 'lib' && rd.base ? rd.base.needs : null; if (!Array.isArray(nd) || !nd.length) return;
-    var nm = needsMet(sys, c, { needs: nd }, !gm); if (nm.ok) return;
+    var nd = rd.src === 'inline' ? entry.needs : rd.src === 'lib' && rd.base ? rd.base.needs : null, rl = rd.src === 'inline' ? entry.needsIf : rd.src === 'lib' && rd.base ? rd.base.needsIf : null;
+    nd = Array.isArray(nd) ? nd : []; rl = typeof rl === 'string' ? rl : ''; if (!nd.length && !rl) return;   // its needed entries, and its rule
+    var nm = needsMet(sys, c, { needs: nd, needsIf: rl }, !gm, typeof F === 'function' ? F() : null); if (nm.ok) return;
     var chip = el('span', 'sheet-chip sheet-item-unmet', 'needs not met');
     chip.title = 'This character does not meet what it needs. ' + needsSays(null, nm.missing, function(id) { for (var i = 0; i < nd.length; i++) if (nd[i] && nd[i].id === id && typeof nd[i].name === 'string' && nd[i].name) return nd[i].name; return typeof needName === 'function' ? needName(sys, id, gm) : null; });   // the name an owner's copy carries, else what this app can read
     host.appendChild(chip);
@@ -3128,7 +3131,7 @@ function openLibPicker(anchor, c, f, spec, carried) {
     var LB = window.wpLibrary, LP = window.wpLibPicker, camp = getActiveCampaign(); if (!LB || !LP || !camp || !camp.library) return;
     var once = null; if (spec && spec.noQty && !spec.multi) { once = Object.create(null); carried.forEach(function(r) { if (r && typeof r.defId === 'string' && r.hid !== 1) once[r.defId] = 1; }); }
     var labels = {}; (spec && Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (s && typeof s.key === 'string' && s.hide !== true) labels[s.key] = s.label || s.key; });
-    LP.open({ anchor: anchor, title: 'Add to ' + (f.label || f.key || 'the list'), cats: spec && Array.isArray(spec.cats) && spec.cats.length ? spec.cats : null, once: once, noQty: !!(spec && spec.noQty), labels: labels, gm: true, needs: function(e) { var cpN = getActiveCampaign(), chN = cpN && cpN.chars ? cpN.chars[c.id] : null, syN = systemOf(cpN); return chN && syN ? needsMet(syN, chN, e).missing : []; },   // 126b: the GM is told, never stopped
+    LP.open({ anchor: anchor, title: 'Add to ' + (f.label || f.key || 'the list'), cats: spec && Array.isArray(spec.cats) && spec.cats.length ? spec.cats : null, once: once, noQty: !!(spec && spec.noQty), labels: labels, gm: true, needs: function(e) { var cpN = getActiveCampaign(), chN = cpN && cpN.chars ? cpN.chars[c.id] : null, syN = systemOf(cpN); return chN && syN ? needsMet(syN, chN, e, false, F()).missing : []; },   // 126b: the GM is told, never stopped
         source: { packs: function() { return (camp.library && camp.library.packs) || []; }, entries: function(pid) { return LB.entriesOf(pid); } },
         onAdd: function(ids, qty) { var cp = getActiveCampaign(), ch = cp && cp.chars ? cp.chars[c.id] : null, sy = systemOf(cp), ff = sy ? fieldById(sy, f.id) : null; if (cp !== camp || !ch || !ff) return; ids.forEach(function(id) { commitItem(ch, ff, { op: 'add', defId: id, rowId: uid('w_'), qty: qty }); }); } });
 }
@@ -3139,8 +3142,8 @@ function openLibPickerPlayer(anchor, c, f, spec) {
     var N = window.wpNet, LP = window.wpLibPicker, camp = getActiveCampaign(), man = N && N.libManifest ? N.libManifest() : null; if (!LP || !camp || !man) return;
     var packs = man.packs.filter(function(p) { return p.count > 0; }), total = packs.reduce(function(n, p) { return n + p.count; }, 0), done = false;
     var labels = {}; (spec && Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (s && typeof s.key === 'string' && s.hide !== true) labels[s.key] = s.label || s.key; });
-    var asEntry = function(r) { var o = { id: r[0], key: r[1], name: r[2], category: r[3], icon: r[4], tags: r[5] }; if (Array.isArray(r[7])) o.needs = r[7]; return o; };   // 126b: a row's needs, so the picker greys it before the entry is opened
-    LP.open({ anchor: anchor, title: 'Add to ' + (f.label || f.key || 'the list'), cats: spec && Array.isArray(spec.cats) ? spec.cats : null, once: null, noQty: !!(spec && spec.noQty), labels: labels, gm: false, needs: function(e) { var cpN = getActiveCampaign(), chN = charById(c.id, cpN), syN = systemOf(cpN); return chN && syN ? needsMet(syN, chN, e, true).missing : []; },   // 126b: what their character does not meet, by the needs their copy of the entry names (the host judges the rest)
+    var asEntry = function(r) { var o = { id: r[0], key: r[1], name: r[2], category: r[3], icon: r[4], tags: r[5] }; if (Array.isArray(r[7])) o.needs = r[7]; if (typeof r[8] === 'string') o.needsIf = r[8]; return o; };   // 126b: a row's needs, so the picker greys it before the entry is opened
+    LP.open({ anchor: anchor, title: 'Add to ' + (f.label || f.key || 'the list'), cats: spec && Array.isArray(spec.cats) ? spec.cats : null, once: null, noQty: !!(spec && spec.noQty), labels: labels, gm: false, needs: function(e) { var cpN = getActiveCampaign(), chN = charById(c.id, cpN), syN = systemOf(cpN); return chN && syN ? needsMet(syN, chN, e, true, F()).missing : []; },   // 126b: what their character does not meet, by the needs their copy of the entry names (the host judges the rest)
         source: {
             packs: function() { return packs; },
             entries: function(pid) { return N.libRows(pid).map(asEntry); },

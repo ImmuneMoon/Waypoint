@@ -553,7 +553,7 @@ check('client: a host map is cleaned on the snapshot, on a whole item and after 
 check('client: a snapshot without a usable appState is refused before anything is set; prototype keys are purged', /if \(!msg \|\| !msg\.appState \|\| typeof msg\.appState !== 'object' \|\| !msg\.appState\.campaigns/.test(src) && /\['__proto__', 'constructor', 'prototype'\]\.forEach/.test(src));
 check('client: the join snapshot\'s system is re-cleaned as the players\' view before its characters are (a host\'s system is never rendered raw)', /function applySnapshot\(msg\)[\s\S]{0,9000}?cs\.system = snapSys; else delete cs\.system;[\s\S]{0,400}?cleanChar\(/.test(src) && /var snapSys = \(cs\.system && window\.wpFormula\) \? window\.wpSystemCore\.cleanSystem\(cs\.system, \{ F: window\.wpFormula, gmView: false, libCats: \{\}, needShown: true \}\) : null;/.test(src)
     && /else \{ var csys = window\.wpSystemCore\.cleanSystem\(msg\.system, \{ F: window\.wpFormula, gmView: false, libCats: \{\}, needShown: true \}\); if \(csys\) campS\.system = csys; \}/.test(src)
-    && /gmView: false, pages: [^\n]*, libCats: window\.wpLibrary && window\.wpLibrary\.catsFor \? window\.wpLibrary\.catsFor\(\) : null, needShown: window\.wpLibrary && window\.wpLibrary\.needShown \? window\.wpLibrary\.needShown : null \}\); if \(psys\) camp\.system = psys; else delete camp\.system;/.test(src));
+    && /gmView: false, pages: [^\n]*, libCats: window\.wpLibrary && window\.wpLibrary\.catsFor \? window\.wpLibrary\.catsFor\(\) : null, needShown: window\.wpLibrary && window\.wpLibrary\.needShown \? window\.wpLibrary\.needShown : null, ruleShown: window\.wpLibrary && window\.wpLibrary\.needRuleShown \? window\.wpLibrary\.needRuleShown : null \}\); if \(psys\) camp\.system = psys; else delete camp\.system;/.test(src));
 check('wireConn: a message that throws never leaves applyingRemote on', /try \{ handleMessage\(d, conn\); \} catch \(e\)[^\n]*finally \{ net\.applyingRemote = false; \}/.test(src));
 check('assets (client): prototype-free caches, own-key arrival check, size cap, old blob revoked, no outside URLs', /var assetCache = Object\.create\(null\)/.test(src) && /var assetPending = Object\.create\(null\)/.test(src) && /!own\(assetPending, msg\.path\)\) return;/.test(src) && /msg\.data\.byteLength > AUDIO_CAP/.test(src) && /var type = assetMime\(msg\.path\), was = assetCache\[msg\.path\], made;/.test(src) && /URL\.revokeObjectURL\(was\)/.test(src) && /return ASSET_PLACEHOLDER;\s*\/\/ an absolute URL from a host/.test(src));
 check('chat (client): only the synced host, shape-checked, text capped', /if \(conn\.peer !== net\.syncedPeer \|\| typeof msg\.text !== 'string' \|\| !msg\.from/.test(src) && /text: msg\.text\.slice\(0, 2000\)/.test(src));
@@ -11010,7 +11010,7 @@ pendingChecks.push((async () => {
             rOwn.ok === true && j(sentC) === j(['i_two']) && j(kitR) === j(['i_lib1', 'i_two'])
             && j(ans) === j([{ type: 'char-deny', rid: 'i1', reason: 'needs', msg: 'That needs something you do not have.' }]) && campH.chars.c_1.values.f_kit.length === 1
             && src.includes("{ player: true, view: camp.system, lib: net.libEntry, copy: true });") && rpSrc.includes("var o = { player: true, view: camp.system, lib: net.libEntry, copy: true },")
-            && ciSrc.includes("{ player: true, view: window.wpSheets ? window.wpSheets.playerSystem(campI) : null, grace: grI, onGrace: !!ogI, lib: libI });") && !/copy:/.test(ciSrc),
+            && ciSrc.includes("{ player: true, view: window.wpSheets ? window.wpSheets.playerSystem(campI) : null, grace: grI, onGrace: !!ogI, lib: libI, libPl: window.wpLibrary && window.wpLibrary.playerEntry ? function(id) { return window.wpLibrary.playerEntry(id); } : null });") && !/copy:/.test(ciSrc),
             j([rOwn, sentC, kitR, ans]));
     }
 })());
@@ -11030,11 +11030,57 @@ pendingChecks.push((async () => {
         const load = netL.libLoad('p_a'); await wait0();
         const ask = sent[sent.length - 1];
         netL.libAnswer({ type: 'lib-idx-ans', rid: ask.rid, packId: 'p_a', hash: 'aaaaaaaa', page: 0, pages: 1, rows: [row('i_1', 'One'), row('i_2', 'Two', [{ id: 'i_1', lvl: 2, name: 'x' }, { id: 'i_1' }, { id: '__proto__' }]), row('i_3', 'Three', 'junk'), row('i_4', 'Four', []),
-            row('i_5', 'Five', [{ id: 'i_1' }]).concat(['extra']), row('i_6', 'Six', [{ id: 'bad' }])] });
+            row('i_5', 'Five', [{ id: 'i_1' }]).concat(['ST >= 2', 'extra']), row('i_6', 'Six', [{ id: 'bad' }])] });
         const ok = await load, got = netL.libRows('p_a').map(r => [r[0], r.length, r.length === 8 ? r[7] : null]);
-        check('126b an index row\'s needs on a player\'s app (the real loader with the real library core): a row of seven is taken as ever; a row of eight is taken with its needs cleaned again, an id once by its pattern, a level as a number, no name; a row whose eighth place is no list, an empty one or holds no need, and a row of nine, are left out whole; the ask packs',
+        check('126b an index row\'s needs on a player\'s app (the real loader with the real library core): a row of seven is taken as ever; a row of eight is taken with its needs cleaned again, an id once by its pattern, a level as a number, no name; a row whose eighth place is no list, an empty one or holds no need, and a row of ten, are left out whole; the ask packs',
             ok === true && ask.type === 'lib-idx' && ask.packId === 'p_a' && j(got) === j([['i_1', 7, null], ['i_2', 8, [{ id: 'i_1', lvl: 2 }]]]) && netL.libLoaded('p_a') === 2,
             j(got));
+    }
+})());
+pendingChecks.push((async () => {
+    /* ---- 126b, the rule on the wire: the host judges a player's pick by the rule and says its text only where players may read it ---- */
+    {
+        const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+        const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js')), Lx = await import(url('librarycore.js'));
+        const rawS = { v: 1, name: 'N', rolls: [], fields: [{ id: 'f_st', key: 'ST', kind: 'number' }, { id: 'f_sec', key: 'Secret', kind: 'number', vis: 'gm' }, { id: 'f_kit', key: 'Kit', kind: 'item-list' }],
+            items: [{ id: 'i_a', name: 'A', needsIf: 'ST >= 12' }, { id: 'i_b', name: 'B', needsIf: 'Secret >= 1' }, { id: 'i_w', name: 'W', needsIf: 'ST >= 12', needsMsg: 'Be strong.' }, { id: 'i_c', name: 'C' }] };
+        const sysH = Sx.cleanSystem(rawS, { F: Fx, gmView: true }), gmLib = { i_l1: { id: 'i_l1', name: 'L1', vis: 'all', needsIf: 'ST >= 5' }, i_l2: { id: 'i_l2', name: 'L2', vis: 'all', needsIf: 'Secret >= 1' } }, plLib = { i_l1: { id: 'i_l1', name: 'L1', needsIf: 'ST >= 5' }, i_l2: { id: 'i_l2', name: 'L2', needsHid: true } };
+        const own = (o, k) => (Object.prototype.hasOwnProperty.call(o, k) ? o[k] : null);
+        const ciSrc = between('// [netcheck:charitem-start]', '// [netcheck:charitem-end]', 'charitem'), dlSrc = between('// [netcheck:chardelta-start]', '// [netcheck:chardelta-end]', 'chardelta');
+        const ntSrc = (() => { const i = src.indexOf('function itemNotice('), k = src.indexOf('net.syncChars = function', i); if (i < 0 || k < 0) throw new Error('netcheck: itemNotice not found'); return src.slice(i, k); })();
+        const campH = { id: 'k', system: sysH, chars: { c_1: { id: 'c_1', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_st: 1 } } } }, ans = [];
+        const conn = { peer: 'pA', send: m => { packCheck(m); ans.push(JSON.parse(JSON.stringify(m))); } }, netH = { active: true, role: 'host', paused: false, conns: [{ peer: 'pA', open: true, send() {} }], roster: { pA: { id: 'u_a' } } };
+        const winH = { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} }, wpDiceCore: null, wpLibrary: { playerEntry: id => own(plLib, id), entry: id => own(gmLib, id) } };
+        const H = new Function('net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'peerProfileId', 'lim', 'toast', 'logEvent',
+            'var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {};\n' + dlSrc + '\n' + ntSrc + '\nreturn function(msg, conn) {\n' + ciSrc + '\n};')(
+            netH, () => Sx, winH, () => false, () => campH, () => {}, e => { throw e; }, c => (netH.roster[c.peer] ? netH.roster[c.peer].id : null), { allow: () => true }, () => {}, () => {});
+        let nRow = 0; const ADD = k => { ans.length = 0; nRow++; H({ type: 'char-item', rid: 'i1', charId: 'c_1', fieldId: 'f_kit', op: 'add', defId: 'i_' + k, rowId: 'w_r' + nRow, qty: 1 }, conn); return ans.length === 1 && ans[0].type === 'char-ack' ? 'ack' : ans.map(m => [m.type, m.reason, m.msg]); };
+        const NO = t => j([['char-deny', 'needs', t]]), kit = () => (campH.chars.c_1.values.f_kit || []).map(r => r.defId);
+        const h1 = ADD('a'), h2 = ADD('b'), h3 = ADD('w'), h4 = ADD('l1'), h5 = ADD('l2'), h6 = ADD('c'), k0 = kit();
+        campH.chars.c_1.values.f_st = 12; const h7 = ADD('a'), h8 = ADD('l1'), h9 = ADD('b'), h10 = ADD('w');
+        campH.chars.c_1.values.f_sec = 1; const h11 = ADD('b'), h12 = ADD('l2');
+        // a player's own app: the same rule on their copy, said at once and nothing sent
+        const view = Sx.cleanSystem(rawS, { F: Fx, gmView: false }), cA = src.indexOf('net.charItem = function('), cZ = src.indexOf('\n};\n', cA) + 3, sentC = [];
+        const campC = { id: 'k', system: view, chars: { c_1: { id: 'c_1', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_st: 1 } } } };
+        const netC = { active: true, role: 'client', stream: false, foreign: true, syncedPeer: 'h', myId: 'u_a', libEntry: id => own(plLib, id), conns: [{ peer: 'h', open: true, send: m => { packCheck(m); sentC.push(m.defId); } }] };
+        new Function('net', 'SC', 'getActiveCampaign', 'window', '_charPending', 'charPendingDone', 'setTimeout', src.slice(cA, cZ))(netC, () => Sx, () => campC, { wpFormula: Fx, wpVtt: { on: () => true } }, {}, () => {}, () => 0);
+        let nC = 0; const CADD = k => { nC++; const r = netC.charItem('c_1', 'f_kit', { op: 'add', defId: 'i_' + k, rowId: 'w_c' + nC, qty: 1 }); return r.ok ? 'ok' : r.error; };
+        const c1 = CADD('a'), c2 = CADD('w'), c3 = CADD('l1'), n0 = sentC.length, c4 = CADD('b'), c5 = CADD('l2'); campC.chars.c_1.values.f_st = 12; const c6 = CADD('a'), c7 = CADD('l1');
+        // a player's app taking index rows: a row of nine, with the real loader
+        const lcSrc = between('// [netcheck:libclient-start]', '// [netcheck:libclient-end]', 'libclient'), wait0 = () => new Promise(r => setImmediate(r));
+        const sentL = [], netL = { active: true, role: 'client', syncedPeer: 'h', conns: [{ peer: 'h', open: true, send: m => { packCheck(m); sentL.push(JSON.parse(JSON.stringify(m))); } }] };
+        new Function('net', 'state', 'window', 'getActiveCampaign', 'setTimeout', 'clearTimeout', lcSrc)(netL, { appState: { activeCampaignId: 'k' } }, { wpLibraryCore: Lx, wpFormula: Fx }, () => campC, () => 1, () => {});
+        netL.libTake({ campId: 'k', packs: [{ id: 'p_a', name: 'A', count: 7, hash: 'aaaaaaaa' }] });
+        const row = (id, more) => [id, '', id, 'Gear', '', [], '12345678'].concat(more || []);
+        const load = netL.libLoad('p_a'); await wait0();
+        netL.libAnswer({ type: 'lib-idx-ans', rid: sentL[sentL.length - 1].rid, packId: 'p_a', hash: 'aaaaaaaa', page: 0, pages: 1, rows: [row('i_1'), row('i_2', [null, '  ST >= 2 ']), row('i_3', [[{ id: 'i_1', name: 'x' }], 'ST >= 2']), row('i_4', [null, '1d6 > 2']), row('i_5', [null, 7]), row('i_6', ['junk', 'ST >= 2']), row('i_7', [null, 'ST >= 2', 'x'])] });
+        const okL = await load, gotL = netL.libRows('p_a').map(r => [r[0], r.slice(7)]);
+        check('126b the rule on the wire (the real host row branch, the real net.charItem and the real loader, with the real core): the host judges a player\'s pick by the entry\'s rule against its own copy of the character and answers char-deny with the reason of a need, storing nothing; the rule is said by its text where the players\' view of the entry holds it, in the GM\'s own words where the entry has them, and as something you do not have where the rule reads what players may not read, its text never sent; an entry of the library is judged the same way through the host\'s own copy, its rule said only as the players\' copy holds it; once the rule holds each pick goes through; a player\'s own app answers by the rule its copy holds, at once and with nothing sent, and leaves a rule it does not hold to the host; a player\'s app takes a row of nine with its rule trimmed and its needs cleaned, and leaves out whole one whose rule rolls dice or is no text, one whose eighth place is no list, and a row of ten',
+            j(h1) === NO('That needs ST >= 12.') && j(h2) === NO('That needs something you do not have.') && j(h3) === NO('Be strong.') && j(h4) === NO('That needs ST >= 5.') && j(h5) === NO('That needs something you do not have.') && h6 === 'ack' && j(k0) === j(['i_c'])
+            && h7 === 'ack' && h8 === 'ack' && j(h9) === NO('That needs something you do not have.') && h10 === 'ack' && h11 === 'ack' && h12 === 'ack' && j(kit()) === j(['i_c', 'i_a', 'i_l1', 'i_w', 'i_b', 'i_l2']) && !/Secret/.test(j([h2, h5, h9]))
+            && c1 === 'That needs ST >= 12.' && c2 === 'Be strong.' && c3 === 'That needs ST >= 5.' && n0 === 0 && c4 === 'ok' && c5 === 'ok' && c6 === 'ok' && c7 === 'ok' && j(sentC) === j(['i_b', 'i_l2', 'i_a', 'i_l1']) && !/Secret/.test(j(view))
+            && okL === true && j(gotL) === j([['i_1', []], ['i_2', [null, 'ST >= 2']], ['i_3', [[{ id: 'i_1' }], 'ST >= 2']]]),
+            j([h1, h2, h4, h5, c1, c3, sentC, gotL]));
     }
 })());
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary

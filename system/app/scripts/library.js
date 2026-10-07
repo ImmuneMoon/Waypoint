@@ -8,7 +8,7 @@
 import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { libCtx, readPackFile, cleanPack, packMeta, manifestSig, addPack, removePack, nextRev, libImportPlan, setPackMeta, keyIndex, playerIndex, hashText, itemsToMove } from './librarycore.js';
-import { setLibraryFind, coreOf, cleanSystem, libSnaps } from './systemcore.js';
+import { setLibraryFind, coreOf, cleanSystem, libSnaps, setRuleJudge, gmDerivedNames, gmViewFields } from './systemcore.js';
 
 function map() { return Object.create(null); }
 var cur = { campId: null, sig: '', byId: map(), packs: map(), n: 0, state: 'none', error: '' };
@@ -35,7 +35,10 @@ function ownCore(sys) { var m = map(); (sys && Array.isArray(sys.core) ? sys.cor
 function refreshCore(camp, atSave) {
     camp = camp || getActiveCampaign(); if (!camp || !camp.system || !gmHere() || cur.campId !== camp.id || cur.state === 'loading') return false;
     var bare = atSave === true && !(camp.library && Array.isArray(camp.library.packs) && camp.library.packs.length);
-    var idx = bare ? ownCore(camp.system) : byKey(camp), res = coreOf(camp.system, function(k) { return idx[k] || []; }), before = JSON.stringify(camp.system.core || []), nowT = JSON.stringify(res.core);
+    var rules = [];   // 126b: the rules of the library's entries are formulas of the system too: an entry one reads by its key is an addressed entry (the core's own while no pack is there)
+    if (bare) (Array.isArray(camp.system.core) ? camp.system.core : []).forEach(function(e) { if (e && typeof e.needsIf === 'string' && e.needsIf) rules.push(e.needsIf); });
+    else (camp.library && Array.isArray(camp.library.packs) ? camp.library.packs : []).forEach(function(p) { if (p) entriesOf(p.id).forEach(function(e) { if (e && typeof e.needsIf === 'string' && e.needsIf) rules.push(e.needsIf); }); });
+    var idx = bare ? ownCore(camp.system) : byKey(camp), res = coreOf(camp.system, function(k) { return idx[k] || []; }, rules), before = JSON.stringify(camp.system.core || []), nowT = JSON.stringify(res.core);
     if (before === nowT) return false;
     if (res.core.length) camp.system.core = res.core; else delete camp.system.core;
     var clean = F() ? cleanSystem(camp.system, { F: F(), gmView: true }) : null; if (clean) camp.system = clean;   // cleaned as any system is
@@ -89,7 +92,7 @@ async function savePack(packId, entries) {
     var body = JSON.stringify(cp.pack), res = null;
     try { res = await fetch('/api/library?dir=' + camp.library.dir + '&pack=' + packId + '&rev=' + rev, { method: 'POST', body: body }); } catch (e) { res = null; }
     if (!res || !res.ok) { if (res && res.status === 404) oldCore(); return { error: res && res.status === 413 ? 'That pack is too large (16 MB at most).' : 'The pack could not be written.' }; }
-    var meta = packMeta(cp.pack.entries, libCtx(camp.system, F(), false, needShown), new Blob([body]).size);
+    var meta = packMeta(cp.pack.entries, libCtx(camp.system, F(), false, needShown, needRuleShown), new Blob([body]).size);
     camp.library.packs.forEach(function(p) { if (p.id === packId) { p.rev = rev; p.count = meta.count; p.bytes = meta.bytes; p.hash = meta.hash; } });
     (cur.packs[packId] || []).forEach(function(id) { if (cur.byId[id]) { delete cur.byId[id]; cur.n--; } });
     cur.packs[packId] = cp.pack.entries.map(function(e) { return e.id; });
@@ -225,12 +228,39 @@ function needShown(id) {
     for (var i = 0; i < its.length; i++) if (its[i] && its[i].id === id) return its[i].vis !== 'gm';
     var e = entryFor(id); return !!e && e.vis !== 'gm';
 }
+// ... and whether players may read an entry's rule: a player's own app must be able to work it out, so it reads no value players may not
+// read, at any depth (judged over the GM's own system, as a budget is), and it addresses no GM-only entry of the library by its key, whose
+// name the text would tell. Kept per system and library state and per text, since every entry of a pack may ask
+var _ruleMemo = { key: null, sys: null, view: null, idx: null, lists: null, said: null };
+function needRuleShown(text) {
+    var camp = getActiveCampaign(), f = F(); if (!camp || !camp.system || !f || typeof f.parse !== 'function' || typeof text !== 'string' || !text) return false;
+    var key = manifestSig(camp) + '|' + cur.n + '|' + (camp.library && Array.isArray(camp.library.packs) ? camp.library.packs.map(function(p) { return p && p.vis === 'gm' ? 'g' : 'a'; }).join('') : '');
+    if (_ruleMemo.sys !== camp.system || _ruleMemo.key !== key) _ruleMemo = { key: key, sys: camp.system, view: null, idx: null, lists: null, said: map() };
+    var m = _ruleMemo; if (m.said[text] !== undefined) return m.said[text];
+    var ok = false;
+    try {
+        var p = f.parse(text);
+        if (p && p.ok && Array.isArray(p.names)) {
+            m.view = m.view || { fields: gmViewFields(camp.system, f), items: camp.system.items, core: camp.system.core };
+            ok = !gmDerivedNames(m.view, f, p.names).length;
+            if (ok) {
+                if (!m.lists) { m.lists = map(); m.view.fields.forEach(function(fl) { if (fl && fl.kind === 'item-list' && typeof fl.key === 'string') m.lists[fl.key.toLowerCase()] = 1; }); m.idx = byKey(camp); }
+                ok = !p.names.some(function(n) { var nm = typeof n === 'string' ? n : (n && typeof n.name === 'string' ? n.name : ''), sg = nm.toLowerCase().split('.'); return sg.length > 1 && m.lists[sg[0]] === 1 && (m.idx[sg[1]] || []).some(function(e) { return !!e && e.vis === 'gm'; }); });
+            }
+        }
+    } catch (e) { ok = false; }
+    return (m.said[text] = ok);
+}
 // ... and what a kept players' index depends on beside its own pack and the players' fields: for each entry a need of this pack names,
 // whether players may see it now (a needed entry or its pack made GM-only, a system item's own change). A pack whose entries need nothing
 // depends on nothing else, so a change elsewhere in the library works no index out again
 function needSig(packId) {
     var s = '';
-    (cur.packs[packId] || []).forEach(function(id) { var e = cur.byId[id]; if (e && Array.isArray(e.needs)) e.needs.forEach(function(n) { if (n && typeof n.id === 'string') s += n.id + (needShown(n.id) ? '+' : '-'); }); });
+    (cur.packs[packId] || []).forEach(function(id) {
+        var e = cur.byId[id]; if (!e) return;
+        if (Array.isArray(e.needs)) e.needs.forEach(function(n) { if (n && typeof n.id === 'string') s += n.id + (needShown(n.id) ? '+' : '-'); });
+        if (typeof e.needsIf === 'string' && e.needsIf) s += '?' + id + (needRuleShown(e.needsIf) ? '+' : '-');   // ... and whether players may read its rule
+    });
     return s ? hashText(s) : '';
 }
 // [librarycheck:needshown-end]
@@ -240,7 +270,7 @@ function playerIndexOf(packId, plSys) {
     var p = camp.library.packs.filter(function(x) { return x.id === packId; })[0]; if (!p || p.vis === 'gm') return null;
     plSys = plSys || plSysOf(camp); var fields = plSys && Array.isArray(plSys.fields) ? plSys.fields : [];
     var sig = camp.id + '|' + p.rev + '|' + hashText(JSON.stringify(fields)) + '|' + needSig(packId), m = _pidx[packId]; if (m && m.sig === sig) return m;
-    var ix = playerIndex(entriesOf(packId), libCtx({ fields: fields }, F(), false, needShown)); ix.sig = sig; _pidx[packId] = ix;
+    var ix = playerIndex(entriesOf(packId), libCtx({ fields: fields }, F(), false, needShown, needRuleShown)); ix.sig = sig; _pidx[packId] = ix;
     return ix;
 }
 function playerManifest() {
@@ -255,7 +285,8 @@ function playerEntry(id) {
     return null;
 }
 setLibraryFind(entryFor);
+setRuleJudge(needRuleShown);   // 126b: an owner's copy of a row carries its entry's rule only where players may read it
 // the campaign on screen, or its manifest, changed (a load, a switch, a restore): read it again
 setInterval(function() { if (busy) return; var camp = getActiveCampaign(), sig = manifestSig(camp); if (sig !== cur.sig || (camp ? camp.id : null) !== cur.campId) load(camp); }, 1000);
 
-window.wpLibrary = { load: load, entry: entry, entryFor: entryFor, entriesOf: entriesOf, size: function() { return cur.n; }, state: function() { return cur.state; }, error: function() { return cur.error; }, savePack: savePack, createPack: createPack, deletePack: deletePack, importFiles: importFiles, importPlan: libImportPlan, refreshCore: refreshCore, syncSnaps: syncSnaps, ready: ready, setMeta: setMeta, migrateItems: migrateItems, playerIndexOf: playerIndexOf, playerManifest: playerManifest, catsFor: catsFor, playerEntry: playerEntry, needShown: needShown };
+window.wpLibrary = { load: load, entry: entry, entryFor: entryFor, entriesOf: entriesOf, size: function() { return cur.n; }, state: function() { return cur.state; }, error: function() { return cur.error; }, savePack: savePack, createPack: createPack, deletePack: deletePack, importFiles: importFiles, importPlan: libImportPlan, refreshCore: refreshCore, syncSnaps: syncSnaps, ready: ready, setMeta: setMeta, migrateItems: migrateItems, playerIndexOf: playerIndexOf, playerManifest: playerManifest, catsFor: catsFor, playerEntry: playerEntry, needShown: needShown, needRuleShown: needRuleShown };

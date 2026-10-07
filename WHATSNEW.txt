@@ -208,6 +208,9 @@ The play map
   Explode in the tool's options and type the damage and its type.
   Nothing is filled in. The blast is shown to everyone on the map, and
   the damage follows the system's blast setting.
+- An explosion set off from a circle on a token spares that token. Tick
+  Also hits the token at the centre in the Explode boxes to hit it too.
+  The tick is off each time.
 - The fog menu is shorter. This map's two ticks and the brushes stay
   in view, and three folds hold the rest: light and vision, the
   preview, and the campaign's fog settings. No control is gone.

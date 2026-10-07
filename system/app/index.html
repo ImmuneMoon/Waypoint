@@ -655,7 +655,7 @@
                                   <li>The damage is a number or a roll, such as <code>6d6</code>. The type is a word, such as burning. Both are typed each time, and nothing is filled in.</li>
                                   <li>The explosion is shown to everyone on the map, as a thrown blast is. The damage then follows the system&rsquo;s <b>Blast automation</b> setting.</li>
                                   <li>The type is named on the roll&rsquo;s card. It does not change the number.</li>
-                                  <li>It hits the tokens the circle held. The token a circle sat on is not hit.</li>
+                                  <li>It hits the tokens the circle held. The token a circle sits on is spared, unless you tick <b>Also hits the token at the centre</b>. The tick is off each time.</li>
                                   <li><b>Undo last throw</b>, beside Explode, takes the damage back.</li>
                                   <li>A ring or a cone does not explode. Neither does a circle whose centre is inside a wall or a closed door.</li>
                               </ul>
@@ -2177,6 +2177,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                   <div class="gm-only" id="blastExplodeForm" style="display:none;">
                       <div class="draw-menu-row"><span style="font-size:11px; color:var(--dim); width:50px; flex:none;">Damage</span><input type="text" id="blastDmg" autocomplete="off" spellcheck="false" maxlength="300" aria-label="Damage, a number or a roll" style="flex:1; min-width:0; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;"></div>
                       <div class="draw-menu-row"><span style="font-size:11px; color:var(--dim); width:50px; flex:none;">Type</span><input type="text" id="blastDmgType" autocomplete="off" spellcheck="false" maxlength="40" aria-label="Damage type, a word" style="flex:1; min-width:0; padding:4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;"></div>
+                      <label class="draw-menu-row fog-tick" id="blastHitCentreRow" style="display:none; align-items:center; gap:6px; cursor:pointer; font-size:12px;" title="Ticked, this explosion also hits the token the circle sits on. It is unticked each time these boxes open."><input type="checkbox" id="blastHitCentre"> <span>Also hits the token at the centre</span><small>Unticked, that token is spared.</small></label>
                       <div class="draw-menu-row">
                           <button class="draw-style-btn" id="blastExplodeGo" title="Sets it off with the damage and the type you typed">Explode</button>
                           <button class="draw-style-btn" id="blastExplodeNo" title="Puts the two boxes away and sets nothing off">Cancel</button>

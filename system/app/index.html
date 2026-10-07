@@ -23,6 +23,7 @@
 <script type="module" src="scripts/maptabs.js"></script>
 <script type="module" src="scripts/pills.js"></script>
 <script type="module" src="scripts/leftrail.js"></script>
+<script type="module" src="scripts/rowhide.js"></script>
 <script type="module" src="scripts/net.js"></script>
 <script type="module" src="scripts/faces.js"></script>
 <script type="module" src="scripts/framer.js"></script>
@@ -172,8 +173,10 @@
         </div>
       </div>
     </div>
+    <button class="tool ghost icon" id="rowHideBtn" aria-pressed="false" title="Hide the top row. A small tab at the top edge shows it again."><svg class="ico ico-up" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9.5l6 6 6-6"/></svg></button>
     <div class="save-note" id="saveNote"></div>
   </header>
+  <button id="rowShowTab" hidden title="Show the top row."><svg class="ico ico-down" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9.5l6 6 6-6"/></svg></button>
 
 
   <div id="aboutModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:99999; align-items:center; justify-content:center;">
@@ -292,6 +295,13 @@
                                   <li>The lens opens quick-jump.</li>
                                   <li>The pin keeps the panel open on the play map. The arrow at the panel&rsquo;s edge folds it again.</li>
                                   <li>On the other views the panel stays open, as before.</li>
+                              </ul>
+                          </li>
+                          <li><b>Hiding the row:</b> the small arrow at the right end of the top row hides it, so the map has the whole window.
+                              <ul>
+                                  <li>A small tab at the top edge shows the row again.</li>
+                                  <li>The map tabs and the pills stay, floating on the map. So do Review, Update and an unread line of chat.</li>
+                                  <li>The choice is yours alone, on this computer.</li>
                               </ul>
                           </li>
                           <li><b>More:</b> the three dots at the right end of the top row hold what you need less often.

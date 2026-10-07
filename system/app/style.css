@@ -1541,6 +1541,25 @@
   body.no-pointerpos.no-zoomctl #zoomBox { display: none !important; }   /* both put away: no empty box (render() writes the box's display inline) */
   body.no-pointerpos.no-zoomctl #partyStrip { top: 26px; }   /* and the party strip moves up into its place */
 
+  /* ---- the top row hidden (the last step of the slim row; rowhide.js). The row is lifted off the layout, so the map has the whole window,
+     and what says something stays in sight, floating on the map: the map tabs, the pills, the clock, a player's video, Review, Update, and
+     the chat button while a line is unread. The tour's card shows the row whole ---- */
+  header #rowHideBtn .ico { transform: rotate(180deg); }   /* the small arrow the toolbar uses, pointing up */
+  #rowShowTab { position: fixed; top: 0; left: 50%; transform: translateX(-50%); z-index: 4031; width: 44px; height: 14px; padding: 0; border: 1px solid var(--edge); border-top: 0; border-radius: 0 0 7px 7px; background: var(--bg2); color: var(--dim); cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  #rowShowTab[hidden], body.tour-on #rowShowTab, body.stream-mode #rowShowTab { display: none; }
+  #rowShowTab:hover, #rowShowTab:focus-visible { color: var(--gold); border-color: var(--gold); }
+  #rowShowTab .ico { width: 12px; height: 12px; }
+  body.row-hidden:not(.tour-on) header { position: fixed; top: 2px; left: 40px; right: 8px; z-index: 4030; min-height: 0; padding: 0; gap: 6px; background: none; border: 0; flex-wrap: nowrap; pointer-events: none; }
+  body.row-hidden:not(.tour-on):has(#leftRail[hidden]) header { left: calc(var(--leftw, 240px) + 10px); }   /* beside a docked left panel */
+  body.row-hidden:not(.tour-on):has(#sidebar:not(.collapsed):not([style*="none"])) header { right: calc(var(--rightw, 320px) + 12px); }   /* and clear of an open Properties panel */
+  body.row-hidden:not(.tour-on) header > *:not(#mapTabs):not(#rowPills):not(#clockChip):not(#videoChip):not(.spacer):not(.header-group),
+  body.row-hidden:not(.tour-on) header > .header-group > *:not(#updateBtn):not(#reviewChip):not(.hdr-group),
+  body.row-hidden:not(.tour-on) header .hdr-group:not([data-label="Table"]),
+  body.row-hidden:not(.tour-on) header .hdr-group[data-label="Table"] > *:not(#chatBtn),
+  body.row-hidden:not(.tour-on) header #chatBtn:not(:has(#chatBadge:not([style*="display:none"]):not([style*="display: none"]))) { display: none !important; }
+  body.row-hidden:not(.tour-on) header #rowPills, body.row-hidden:not(.tour-on) header #clockChip, body.row-hidden:not(.tour-on) header #videoChip, body.row-hidden:not(.tour-on) header #mapTabs > *, body.row-hidden:not(.tour-on) header #updateBtn, body.row-hidden:not(.tour-on) header #reviewChip, body.row-hidden:not(.tour-on) header #chatBtn { pointer-events: auto; }
+  body.row-hidden:not(.tour-on) header .map-tab, body.row-hidden:not(.tour-on) header #mapTabAdd, body.row-hidden:not(.tour-on) header #clockChip, body.row-hidden:not(.tour-on) header #chatBtn { background: var(--bg2); }
+  body.row-hidden:not(.tour-on) header #mapTabFront, body.row-hidden:not(.tour-on) header .map-tab, body.row-hidden:not(.tour-on) header #mapTabAdd, body.row-hidden:not(.tour-on) header .pill, body.row-hidden:not(.tour-on) header .hdr-clock, body.row-hidden:not(.tour-on) header #chatBtn { box-shadow: 0 1px 6px rgba(0,0,0,0.5); }
   /* ---- the left panel folded to a rail (step R4 of the slim row; leftrail.js). Folded, a narrow column of icons stands in the panel's place.
      Opened from the rail, the panel lies over the map beside it, and takes no room from the map ---- */
   .layout-wrapper { position: relative; }

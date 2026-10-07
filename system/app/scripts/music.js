@@ -369,7 +369,7 @@ function closePill() { if (pillPop) { pillPop.remove(); pillPop = null; document
 function onPillOut(e) { if (pillPop && !pillPop.contains(e.target) && e.target !== ui('musicInd')) closePill(); }
 function showPill(pop) {
     document.body.appendChild(pop);
-    var r = ui('musicInd').getBoundingClientRect(); pop.style.right = Math.max(8, window.innerWidth - r.right) + 'px'; pop.style.top = (r.bottom + 6) + 'px';
+    var mi = ui('musicInd'), r = window.wpTopRow ? window.wpTopRow.box(mi) : mi.getBoundingClientRect(); pop.style.right = Math.max(8, window.innerWidth - r.right) + 'px'; pop.style.top = (r.bottom + 6) + 'px';
     setTimeout(function() { document.addEventListener('pointerdown', onPillOut, true); }, 0);
 }
 function openPill() {

@@ -749,8 +749,9 @@ var STEPS = [
       html: 'Pictures and text to show your players: a letter, a face, a place. The Tutorial has two ready, <b>Grukk&rsquo;s ledger</b> and <b>The hideout</b>. In a session you show one to everyone or to one player. It lands in their <b>Journal</b>, the book icon beside this, where they keep notes on it. A room can carry a handout that arrives when a player reaches it.',
       help: ['mp-gm', 'Handouts'] },
     { section: 'Sharing & finding', target: '#saveAsBtn', title: 'Export and import',
-      html: 'Share or back up at any scope: one map or planner, a whole campaign, or everything. An export that uses pictures arrives as a <b>.zip</b> with the pictures inside. <b>Import</b> takes those files and <b>merges by id</b> or replaces. Merging is how another author hands you a module without touching the rest of your campaign. A <b>Markdown</b> file becomes a planner or a handbook page.',
-      help: ['start', 'Export As'] },
+      html: 'Share or back up at any scope: one map or planner, a whole campaign, or everything. An export that uses pictures arrives as a <b>.zip</b> with the pictures inside. <b>Import</b> takes those files and <b>merges by id</b> or replaces. Merging is how another author hands you a module without touching the rest of your campaign. A <b>Markdown</b> file becomes a planner or a handbook page. Both are under <b>More</b> in the top row.',
+      help: ['start', 'Export As'],
+      before: function() { if (window.wpTopRow) window.wpTopRow.open('moreMenu'); } },   // Export As is a row of More: the menu is opened, so the row can be seen
     { target: '#mapNavList', title: 'Finding things',
       html: '<kbd>Ctrl</kbd> + <kbd>K</kbd> jumps anywhere: type a map, planner or room name from any campaign and press Enter. Right-click <b>Planners</b> or <b>Maps</b> for a search that filters its list. The <b>Recent</b> chips above the Maps tree remember where you have been.',
       help: ['start', 'Getting around fast'] },
@@ -976,8 +977,8 @@ function place() {
 }
 
 // [tutorialcheck:stage-start]
-// What a step's own setup opens, told by its target: the System editor, a sheet (or a HUD), Settings, Table Chat, the fog preview, the campaign's menu.
-function stageFor(step) { var t = step.target || ''; return { editor: /^#sys(?!temBtn)/.test(t), sheet: t === '#sheetPanel' || !!step.opens, settings: t === '#setVttCampBlock', chat: t === '#diceBtn', fog: t === '#fogModeBtn', right: t === '#sidebar', camp: t === '#systemBtn' }; }
+// What a step's own setup opens, told by its target: the System editor, a sheet (or a HUD), Settings, Table Chat, the fog preview, a menu of the top row.
+function stageFor(step) { var t = step.target || ''; return { editor: /^#sys(?!temBtn)/.test(t), sheet: t === '#sheetPanel' || !!step.opens, settings: t === '#setVttCampBlock', chat: t === '#diceBtn', fog: t === '#fogModeBtn', right: t === '#sidebar', row: t === '#systemBtn' || t === '#saveAsBtn' }; }
 // [tutorialcheck:stage-end]
 // Before a step's setup runs, everything another step (or the user, in Try it yourself) may have left open is put away, the Tutorial
 // campaign is the one on screen and the left panel is open — so a step reads the same wherever it is reached from: Next, Back, a jump to
@@ -987,7 +988,7 @@ function clearStage(step) {
     if (!hosting() && (state.appState.activeCampaignId !== TUTORIAL_CAMP_ID || !tutorialCampaign())) ensureTutorialCampaign(false);
     openLeft();
     var hm = document.getElementById('helpModal'); if (hm) hm.style.display = 'none';
-    if (!need.camp && window.wpTopRow) window.wpTopRow.close();   // a menu of the top row
+    if (!need.row && window.wpTopRow) window.wpTopRow.close();   // a menu of the top row
     if (!need.settings) closeSettingsForTour();
     if (!need.right) closeRightForTour();
     if (!need.chat) { var cp = document.getElementById('chatPanel'); if (cp) cp.style.display = 'none'; if (window.wpDice) window.wpDice.closePanel(); }
@@ -1122,7 +1123,7 @@ function endTour() {
         if (window.wpSheets) { window.wpSheets.closeSheet(); if (window.wpSheets.closeHuds) window.wpSheets.closeHuds(); window.wpSheets.close(true); }   // and the sheet step Bren's sheet (and the HUD step his HUD) + the layout step's System editor
         if (window.wpFog) window.wpFog.setPreview('off');   // and the fog step its player-view preview
         document.querySelectorAll('#wbFloatingToolbar .shape-menu.show, #wbEdgeTools .shape-menu.show').forEach(function(m) { m.classList.remove('show'); });   // and any toolbar flyout a step opened (Add, Scene)
-        if (window.wpTopRow) window.wpTopRow.close();   // and the System step the campaign's menu
+        if (window.wpTopRow) window.wpTopRow.close();   // and the System step or the Export step a menu of the top row
     }
     if (partWay) toast('The tour stopped at “' + STEPS[at].title + '”. Help ▸ Tutorial resumes it there.');
     syncPane();

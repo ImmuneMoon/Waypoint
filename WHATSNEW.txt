@@ -225,8 +225,14 @@ The top bar and the data map
   and each button still says what it is when you point at it.
 - The campaign's name stands in the top row. Press it for the list of
   your campaigns. The same menu holds Search, New, Rename, System and
-  Delete, which stood beside the list as five buttons. The arrow keys
-  go through the menu and Esc closes it.
+  Delete, which stood beside the list as five buttons.
+- More, the three dots at the right end of the top row, holds Export
+  As with its eleven kinds, Import, Refresh, About and the way back to
+  the welcome screen.
+- Where the window is too narrow for the row, Sound, Music, Handouts,
+  Journal and Help move into More, so the row stays one line.
+- Both menus work from the keyboard: the arrow keys, a letter for the
+  next row that begins with it, Enter, and Esc to close.
 - The top bar's icons are redrawn as Waypoint's own drawings. Settings
   wears a cog, and Music is still a note.
 - The data map's toolbar wears the same line icons as the play map's.

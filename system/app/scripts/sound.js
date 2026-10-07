@@ -409,7 +409,7 @@ function renderInd() {
 }
 (function wireInd() {
     var b = ui('soundInd'), pop = ui('soundPop'); if (!b || !pop) return;
-    b.addEventListener('click', function(e) { e.stopPropagation(); if (gateShown) { tryResume(); return; } var open = pop.style.display !== 'none'; pop.style.display = open ? 'none' : 'block'; if (!open) { var r = b.getBoundingClientRect(); pop.style.left = Math.max(8, Math.min(window.innerWidth - 250, r.left - 100)) + 'px'; pop.style.top = (r.bottom + 6) + 'px'; renderInd(); } });
+    b.addEventListener('click', function(e) { e.stopPropagation(); if (gateShown) { tryResume(); return; } var open = pop.style.display !== 'none'; pop.style.display = open ? 'none' : 'block'; if (!open) { var r = window.wpTopRow ? window.wpTopRow.box(b) : b.getBoundingClientRect(); pop.style.left = Math.max(8, Math.min(window.innerWidth - 250, r.left - 100)) + 'px'; pop.style.top = (r.bottom + 6) + 'px'; renderInd(); } });
     document.addEventListener('pointerdown', function(e) { if (pop.style.display !== 'none' && !e.target.closest('#soundPop') && !e.target.closest('#soundInd')) pop.style.display = 'none'; }, true);
     pop.addEventListener('input', function(e) { if (e.target.id === 'soundVolume') setLocalVolume(Number(e.target.value) / 100); });
     pop.addEventListener('change', function(e) { if (e.target.id === 'soundMuteChk') setMute(e.target.checked); else if (e.target.id === 'soundOffChk') { if (window.wpVtt) window.wpVtt.setLocal('sound', e.target.checked); refresh(); } });

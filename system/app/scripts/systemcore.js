@@ -341,6 +341,7 @@ function cleanNeeds(v, names) {
     (Array.isArray(v) ? v : []).forEach(function(n) {
         if (out.length >= LIMITS.needs || !isObj(n) || typeof n.id !== 'string' || !ITEM_ID.test(n.id) || seen[n.id]) return;
         seen[n.id] = 1; var o = { id: n.id }, l = typeof n.lvl === 'number' ? lvlNum(n.lvl) : undefined; if (l !== undefined) o.lvl = l;
+        var fr = typeof n.from === 'number' ? lvlNum(n.from) : undefined; if (fr !== undefined) o.from = fr;   // from: the level of the entry that needs it from which this need applies (a level's own prerequisite); with none it applies to taking the entry at all
         if (names === true && typeof n.name === 'string') { var nn = cutText(n.name, LIMITS.name); if (nn) o.name = nn; }
         out.push(o);
     });
@@ -359,8 +360,9 @@ function hideNeeds(def, shown, ruleShown) {
     var had = Array.isArray(def.needs) ? def.needs : [], keep = had.filter(function(n) { return typeof shown === 'function' && shown(n.id) === true; });
     var rule = typeof def.needsIf === 'string' ? def.needsIf : '', ruleOk = !!rule && typeof ruleShown === 'function' && ruleShown(rule) === true;
     var hid = def.needsHid === true || keep.length !== had.length || (!!rule && !ruleOk), msg = def.needsMsg;
-    delete def.needs; delete def.needsIf; delete def.needsHid; delete def.needsMsg;   // written again in the cleaner's own order, as the definition's last keys
-    if (keep.length) def.needs = keep; if (ruleOk) def.needsIf = rule; if (hid) def.needsHid = true; if (msg !== undefined) def.needsMsg = msg;
+    var from = def.needsFrom;
+    delete def.needs; delete def.needsIf; delete def.needsFrom; delete def.needsHid; delete def.needsMsg;   // written again in the cleaner's own order, as the definition's last keys
+    if (keep.length) def.needs = keep; if (ruleOk) { def.needsIf = rule; if (from !== undefined) def.needsFrom = from; } if (hid) def.needsHid = true; if (msg !== undefined) def.needsMsg = msg;   // a rule that is left out takes its level with it
     return def;
 }
 // Whether a rule holds for a character: worked out by the sheet's own resolver, with no dice, it gives true or a number other than 0. A rule
@@ -378,9 +380,12 @@ function ruleTrue(sys, char, rule, F, vars) {
 // player's own app, whose copy of a library row is inline and names its entry as src. The host never says it: a row on the host names its
 // entry itself, and a src that stands on one of its own rows (a file could write one) is not believed. F: the formula engine, for a rule
 // (with none, a rule does not hold)
-function needsMet(sys, char, def, copy, F, vars) {
+function needsMet(sys, char, def, copy, F, vars, lvl) {
     var out = { ok: true, missing: [] }; if (!isObj(def)) return out;
-    var nds = Array.isArray(def.needs) ? def.needs : [], rule = typeof def.needsIf === 'string' ? def.needsIf : '';
+    // lvl: the level the row has, or would have. A need, or the rule, that begins at a level of this entry counts only once the row is at that level or above;
+    // with no level told (a list whose rows have none, a picker that knows no row yet) it does not count
+    var at = typeof lvl === 'number' && fin(lvl) ? lvl : null, due = function(from) { return typeof from !== 'number' || (at !== null && at >= from); };
+    var nds = (Array.isArray(def.needs) ? def.needs : []).filter(function(n) { return isObj(n) && due(n.from); }), rule = typeof def.needsIf === 'string' && due(def.needsFrom) ? def.needsIf : '';
     if (!nds.length && !rule) return out;
     var have = map();   // id -> the highest level a carried row of it has; true where its list has no level
     if (nds.length) (isObj(sys) && Array.isArray(sys.fields) ? sys.fields : []).forEach(function(f) {
@@ -441,6 +446,7 @@ function cleanItemDef(it, F, gmView, keys, picks, kinds) {   // kinds (F6): the 
     // 126b: its needs, the LAST keys of a definition and always in this order (hideNeeds writes them again the same way): a players' view cleaned again reads, and hashes, the same
     var ind = cleanNeeds(it.needs); if (ind) out.needs = ind;   // 126b: what a character must carry before it may take this one, in both views (a player's picker says why)
     var inr = needRule(it.needsIf, F); if (inr) out.needsIf = inr;   // ... its rule, a formula that must be true for the character (a players' view that could not work it out does not hold it: hideNeeds)
+    var inf = inr && typeof it.needsFrom === 'number' ? lvlNum(it.needsFrom) : undefined; if (inf !== undefined) out.needsFrom = inf;   // ... the level of this entry from which the rule applies, only beside a rule
     if (!gmView && it.needsHid === true) out.needsHid = true;   // ... a players' view may say that more is needed than it names (hideNeeds); the GM's own never holds the mark
     if (out.needs || out.needsIf || out.needsHid) { var inm = cutText(it.needsMsg, LIMITS.rmMsg); if (inm) out.needsMsg = inm; }   // ... and the GM's own words for a refusal
     return out;
@@ -1884,7 +1890,7 @@ function cleanRow(e, items, spec) {   // spec (F4b): the list's options (f.list)
     var d = cleanRowDef(e.def, e.lnk !== 1); if (!d) return null;
     var cs = rowStats(e.def.stats, spec); if (cs) d.stats = cs; else delete d.stats;   // F4c1: a custom or inline copy carries its list's stats only
     if (e.lnk === 1) rowText(d, e.def);   // 1.5.4: an owner's inline copy keeps the entry's long text, cleaned again (the host sends it for an entry players may see); a row of the character's own never has any
-    var c = { id: id, qty: qty }; rowFacts(c, e, spec); c.def = d; if (e.lnk === 1) { c.lnk = 1; if (typeof e.src === 'string' && ITEM_ID.test(e.src)) { c.src = e.src; var cnR = cleanNeeds(e.needs, true); if (cnR) c.needs = cnR; var crR = cleanFormulaText(e.needsIf); if (crR) c.needsIf = crR; } } else { if (e.own === 1) c.own = 1; if (e.hid === 1) c.hid = 1; if (e.keptOn === 1 && c.on === true) c.keptOn = 1; } return c;   // F4c3: own (a row its owner made), never on an inline copy
+    var c = { id: id, qty: qty }; rowFacts(c, e, spec); c.def = d; if (e.lnk === 1) { c.lnk = 1; if (typeof e.src === 'string' && ITEM_ID.test(e.src)) { c.src = e.src; var cnR = cleanNeeds(e.needs, true); if (cnR) c.needs = cnR; var crR = cleanFormulaText(e.needsIf); if (crR) { c.needsIf = crR; var cfR = typeof e.needsFrom === 'number' ? lvlNum(e.needsFrom) : undefined; if (cfR !== undefined) c.needsFrom = cfR; } } } else { if (e.own === 1) c.own = 1; if (e.hid === 1) c.hid = 1; if (e.keptOn === 1 && c.on === true) c.keptOn = 1; } return c;   // F4c3: own (a row its owner made), never on an inline copy
 }
 // Stage 6 F4b: a row's facts, after its quantity — the level on the list's terms (as stored while the list has none), the switch, the note.
 // keptOn (after them, the GM's machine only): the owner switched a curse-on-contact item off and the GM keeps it on
@@ -2042,7 +2048,7 @@ function projectRows(rows, view, lib, spec, ruleShown) {   // ruleShown (126b): 
                     rnP.forEach(function(n) { var x = typeof lib === 'function' ? lib(n.id) : (lib && Object.prototype.hasOwnProperty.call(lib, n.id)) ? lib[n.id] : null, nm = isObj(x) && typeof x.name === 'string' ? cutText(x.name, LIMITS.name) : ''; if (nm) n.name = nm; });
                     io.needs = rnP;
                 }
-                var rjP = typeof ruleShown === 'function' ? ruleShown : _ruleJudge; if (typeof le.needsIf === 'string' && le.needsIf && typeof rjP === 'function' && rjP(le.needsIf) === true) io.needsIf = le.needsIf;   // ... and its rule, where a player's own app could work it out
+                var rjP = typeof ruleShown === 'function' ? ruleShown : _ruleJudge; if (typeof le.needsIf === 'string' && le.needsIf && typeof rjP === 'function' && rjP(le.needsIf) === true) { io.needsIf = le.needsIf; var lfP = typeof le.needsFrom === 'number' ? lvlNum(le.needsFrom) : undefined; if (lfP !== undefined) io.needsFrom = lfP; }   // ... and its rule, where a player's own app could work it out
             }
             out.push(io); return;
         }
@@ -2076,7 +2082,7 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
         if (!ent || !inView || (opts.player && ent.vis === 'gm')) return { ok: false, reason: 'missing' };
         if (opts.player && spec && Array.isArray(spec.cats) && !catIn(spec.cats, ent.category)) return { ok: false, reason: 'missing' };   // F4b: outside the list's categories reads as gone
         if (opts.player && !fl) {   // 126b: what the entry needs, judged for a player's own pick (a character being made too; never a file that fills one, never the GM)
-            var nmR = needsMet(sys, char, ent, opts.copy === true, F);   // copy: a player's own app, judging its copy of the character
+            var nmR = needsMet(sys, char, ent, opts.copy === true, F, null, spec && isObj(spec.lvl) ? lvlClamp(spec.lvl, typeof ent.lvl === 'number' ? ent.lvl : spec.lvl.def) : undefined);   // copy: a player's own app, judging its copy of the character. At the level the new row starts at
             var pvE = nmR.ok ? null : opts.copy === true ? ent : (itemDef(opts.view || null, q.defId) || (typeof opts.libPl === 'function' ? opts.libPl(q.defId) : null));   // the entry as players read it: a rule they may not read is never said
             var missR = nmR.ok ? [] : nmR.missing.map(function(n) { return isObj(n) && n.rule !== undefined && !(isObj(pvE) && pvE.needsIf === n.rule) ? { rule: true } : n; });
             if (!nmR.ok) return { ok: false, reason: 'needs', msg: needsSays(ent, missR, function(id) { var d2 = itemDef(sys, id); if (d2) return valueOpts(opts.view || null).items[id] === 1 ? d2.name : null; var l2 = typeof opts.lib === 'function' ? opts.lib(id) : null; return isObj(l2) && l2.vis !== 'gm' ? l2.name : null; }) };
@@ -2123,7 +2129,18 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
                 if (!spec || !spec.price) return { ok: false, reason: 'value' };
                 if (fx.paid === null) delete rw.paid; else { if (typeof fx.paid !== 'number' || !fin(fx.paid) || fx.paid < 0 || fx.paid > LIMITS.statAbs) return { ok: false, reason: 'value' }; rw.paid = fx.paid; }
             }
+            var wasL = spec && isObj(spec.lvl) ? rowLvl(spec, rw, null) : undefined;
             if (fx.lvl !== undefined) { if (!spec || !isObj(spec.lvl)) return { ok: false, reason: 'value' }; if (fx.lvl === null) delete rw.lvl; else { var nl = lvlNum(fx.lvl); if (nl === undefined || typeof fx.lvl !== 'number') return { ok: false, reason: 'value' }; rw.lvl = lvlClamp(spec.lvl, nl); } }
+            if (fx.lvl !== undefined && opts.player && !fl && typeof wasL === 'number' && typeof rw.lvl === 'number' && rw.lvl > wasL) {   // 126b, a level's own needs: a player's raise is judged like a pick, at the level asked for. Never the GM's hand, a file that fills a character, or a level taken down
+                var idL = typeof rw.defId === 'string' ? rw.defId : null;   // the host's row names its entry; an owner's inline copy on their own app carries the needs it may see itself
+                var entL = idL ? (itemDef(sys, idL) || (typeof opts.lib === 'function' ? opts.lib(idL) : null) || (opts.copy !== true && typeof libFind === 'function' ? libFind(idL) : null)) : (opts.copy === true && rw.lnk === 1 && typeof rw.src === 'string' ? rw : null);
+                var nmL = isObj(entL) ? needsMet(sys, char, entL, opts.copy === true, F, null, rw.lvl) : null;
+                if (nmL && !nmL.ok) {
+                    var pvL = opts.copy === true ? entL : idL ? (itemDef(opts.view || null, idL) || (typeof opts.libPl === 'function' ? opts.libPl(idL) : null)) : null;   // the entry as players read it: a rule they may not read is never said
+                    var missL = nmL.missing.map(function(n) { return isObj(n) && n.rule !== undefined && !(isObj(pvL) && pvL.needsIf === n.rule) ? { rule: true } : n; });
+                    return { ok: false, reason: 'needs', msg: needsSays(entL, missL, function(id) { if (opts.copy === true) { var own = (Array.isArray(entL.needs) ? entL.needs : []).filter(function(n) { return isObj(n) && n.id === id && typeof n.name === 'string'; })[0]; if (own) return own.name; } var d3 = itemDef(sys, id); if (d3) return valueOpts(opts.view || null).items[id] === 1 ? d3.name : null; var l3 = typeof opts.lib === 'function' ? opts.lib(id) : null; return isObj(l3) && l3.vis !== 'gm' ? l3.name : null; }) };
+                }
+            }
             if (fx.note !== undefined) { if (typeof fx.note !== 'string') return { ok: false, reason: 'value' }; var nn = cutText(fx.note, LIMITS.rowNote); if (nn) rw.note = nn; else delete rw.note; }
             if (fx.ct !== undefined) {   // Stage 6 HUD R2: its counters — each one its list has, a whole number from 0 to the row's own most
                 var cst = spec && Array.isArray(spec.counters) ? spec.counters : null; if (!cst || !isObj(fx.ct)) return { ok: false, reason: 'value' };

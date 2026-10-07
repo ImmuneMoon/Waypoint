@@ -11082,6 +11082,43 @@ pendingChecks.push((async () => {
             && okL === true && j(gotL) === j([['i_1', []], ['i_2', [null, 'ST >= 2']], ['i_3', [[{ id: 'i_1' }], 'ST >= 2']]]),
             j([h1, h2, h4, h5, c1, c3, sentC, gotL]));
     }
+    /* ---- 126b, a level's own needs on the wire (the owner: "Yes, on each need": raising a level is judged like a pick) ---- */
+    {
+        const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+        const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
+        const ciSrc = between('// [netcheck:charitem-start]', '// [netcheck:charitem-end]', 'charitem'), dlSrc = between('// [netcheck:chardelta-start]', '// [netcheck:chardelta-end]', 'chardelta');
+        const ntSrc = (() => { const i = src.indexOf('function itemNotice('), k = src.indexOf('net.syncChars = function', i); if (i < 0 || k < 0) throw new Error('netcheck: itemNotice not found'); return src.slice(i, k); })();
+        const raw = { v: 1, name: 'N', rolls: [], fields: [{ id: 'f_st', key: 'ST', kind: 'number', def: 10 }, { id: 'f_sk', key: 'Skills', kind: 'item-list', list: { multi: true, lvl: { min: 0, max: 5, def: 1 } } }],
+            items: [{ id: 'i_med', name: 'MED' }, { id: 'i_dark', name: 'DARK', vis: 'gm' }, { id: 'i_pow', name: 'POW', needs: [{ id: 'i_med', from: 2 }, { id: 'i_dark', from: 4 }] }, { id: 'i_rule', name: 'RULE', needsIf: 'ST >= 12', needsFrom: 3 }] };
+        const sys = Sx.cleanSystem(raw, { F: Fx, gmView: true }), row = (id, lvl) => ({ id: 'w_' + id, defId: 'i_' + id, qty: 1, lvl });
+        const camp = { id: 'k', system: sys, chars: { c_1: { id: 'c_1', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_sk: [row('pow', 1), row('rule', 2)] } } } };
+        const out = { answer: [], owner: [], notes: [], saves: 0 }, box = b => m => { packCheck(m); b.push(JSON.parse(JSON.stringify(m))); };
+        const conn = { peer: 'pA', send: box(out.answer) }, net = { active: true, role: 'host', paused: false, conns: [{ peer: 'pA', open: true, send: box(out.owner) }], roster: { pA: { id: 'u_a' } } };
+        const win = { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} }, wpDiceCore: null, wpLibrary: { playerEntry: () => null, entry: () => null } };
+        const H = new Function('net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'peerProfileId', 'lim', 'toast', 'logEvent',
+            'var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {};\n' + dlSrc + '\n' + ntSrc + '\nreturn function(msg, conn) {\n' + ciSrc + '\n};')(
+            net, () => Sx, win, () => false, () => camp, () => { out.saves++; }, e => { throw e; }, c => (net.roster[c.peer] ? net.roster[c.peer].id : null), { allow: () => true }, t => out.notes.push(t), () => {});
+        const lvls = () => camp.chars.c_1.values.f_sk.map(r => r.defId.slice(2) + ':' + r.lvl).join(' ');
+        const SET = (id, lvl) => { out.answer.length = 0; out.owner.length = 0; const s0 = out.saves; H({ type: 'char-item', rid: 'i1', charId: 'c_1', fieldId: 'f_sk', op: 'set', rowId: 'w_' + id, facts: { lvl } }, conn); return [j(out.answer), out.owner.length, out.saves - s0, lvls()]; };
+        const NO = msg => j([{ type: 'char-deny', rid: 'i1', reason: 'needs', msg }]), ACK = j([{ type: 'char-ack', rid: 'i1' }]);
+        const h1 = SET('pow', 2), h2 = SET('rule', 3), h3 = SET('pow', 0), h4 = SET('pow', 1);
+        camp.chars.c_1.values.f_sk.push(row('med', 1)); camp.chars.c_1.values.f_st = 12;
+        const h5 = SET('pow', 2), h6 = SET('pow', 3), h7 = SET('pow', 4), h8 = SET('rule', 3);
+        // a player's own app: its copy of the character, with the players' view of the system
+        const cA = src.indexOf('net.charItem = function('), cZ = src.indexOf('\n};\n', cA) + 3, sent = [], clSrc = src.slice(cA, cZ);
+        const view = Sx.cleanSystem(JSON.parse(j(Sx.cleanSystem(raw, { F: Fx, gmView: false, needShown: id => id !== 'i_dark' }))), { F: Fx, gmView: false, needShown: true });
+        const campC = { id: 'k', system: view, chars: { c_1: { id: 'c_1', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_sk: [row('pow', 1), row('rule', 2)] } } } };
+        const netC = { active: true, role: 'client', stream: false, foreign: true, syncedPeer: 'h', myId: 'u_a', libEntry: () => null, conns: [{ peer: 'h', open: true, send: m => { packCheck(m); sent.push(JSON.parse(JSON.stringify(m))); } }] };
+        new Function('net', 'SC', 'getActiveCampaign', 'window', '_charPending', 'charPendingDone', 'setTimeout', clSrc)(netC, () => Sx, () => campC, { wpFormula: Fx, wpVtt: { on: () => true } }, {}, () => {}, () => 0);
+        const CS = (id, lvl) => { const r = netC.charItem('c_1', 'f_sk', { op: 'set', rowId: 'w_' + id, facts: { lvl } }); return r.ok === true ? 'ok' : r.error; }, cl = () => campC.chars.c_1.values.f_sk.map(r => r.defId.slice(2) + ':' + r.lvl).join(' ');
+        const c1 = CS('pow', 2), c2 = CS('rule', 3), n0 = sent.length, l0 = cl(); campC.chars.c_1.values.f_sk.push(row('med', 1)); campC.chars.c_1.values.f_st = 12;
+        const c3 = CS('pow', 2), c4 = CS('rule', 3), c5 = CS('pow', 4);
+        check('126b a level\'s own needs on the wire (the real host row branch and the real net.charItem, with the real core): a player\'s raise of a row\'s level past where a need begins, without carrying it, is answered char-deny with the reason needs and the words, with nothing stored, sent or saved; a rule that begins at a level refuses alike, by its text where players may read it; a level taken down and one put back below the level go through; once the character carries the need and meets the rule, each raise goes through, up to the level where a need the players may not see begins, which is refused and never named; a player\'s own app answers the same raises first, in the core\'s words, and sends nothing, and leaves to the host the need it cannot see',
+            j(h1) === j([NO('That needs MED.'), 0, 0, 'pow:1 rule:2']) && j(h2) === j([NO('That needs ST >= 12.'), 0, 0, 'pow:1 rule:2']) && h3[0] === ACK && h3[3] === 'pow:0 rule:2' && h4[0] === ACK && h4[3] === 'pow:1 rule:2'
+            && h5[0] === ACK && h5[2] === 1 && h6[0] === ACK && h6[3] === 'pow:3 rule:2 med:1' && j(h7) === j([NO('That needs something you do not have.'), 0, 0, 'pow:3 rule:2 med:1']) && h8[0] === ACK && h8[3] === 'pow:3 rule:3 med:1' && !/DARK|i_dark/.test(j([h1, h7]))
+            && c1 === 'That needs MED.' && c2 === 'That needs ST >= 12.' && n0 === 0 && l0 === 'pow:1 rule:2' && c3 === 'ok' && c4 === 'ok' && c5 === 'ok'
+            && j(sent.map(m => [m.op, m.rowId, m.facts && m.facts.lvl])) === j([['set', 'w_pow', 2], ['set', 'w_rule', 3], ['set', 'w_pow', 4]]) && !/i_dark/.test(j(view)), j([h1, h2, h5, h7, c1, c2, c5, l0]));
+    }
 })());
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
     /* ---- 1.5.4: the follow ruling (the owner, 2026-10-04): nobody follows the GM around unless the table is set to ---- */

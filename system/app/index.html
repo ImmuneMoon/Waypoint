@@ -2636,10 +2636,12 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <div style="margin-bottom:10px;">
                 <div style="color:var(--dim); font-size:11px; margin-bottom:4px;">Players arrive at</div>
                 <select id="netStageSelect" style="width:100%; box-sizing:border-box;" title="Where joining players land. 'Player's last location' (the default) sends each player back to the map they were last on, where they stay put until they travel or you summon: nobody is moved because you open another map. 'Follow me' makes the whole table move with you from map to map; picking a map pins the table there until you switch back."></select>
+                <div class="set-line">Follow me moves the whole table with you. A map keeps it on that map.</div>
             </div>
             <div id="netStageFallbackRow" style="margin-bottom:10px; display:none;">
                 <div style="color:var(--dim); font-size:11px; margin-bottom:4px;">New players start at</div>
                 <select id="netStageFallbackSelect" style="width:100%; box-sizing:border-box;" title="Where a player joining this campaign for the first time lands — they have no last location yet (a last map that was deleted or locked for players counts the same). 'Follow me' puts them on the map you are on when they join, once: they do not follow you afterwards; picking a map parks them there until they travel or you summon."></select>
+                <div class="set-line">Follow me puts them on your map once. After that they stay put.</div>
             </div>
             <div id="newPlayersBox" style="margin-bottom:10px;">
                 <div style="color:var(--dim); font-size:11px; margin-bottom:4px;">Players without a character</div>
@@ -2647,13 +2649,15 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                     <option value="on">Get a waiting token until you give them a character</option>
                     <option value="off">Get no token until you give them a character</option>
                 </select>
-                <label style="display:flex; gap:6px; align-items:center; color:var(--dim); font-size:12px; margin-top:6px;" title="Off (the default): a waiting token sees nothing of its own under fog, only what you have revealed. On: it sees around itself like a character's token."><input type="checkbox" id="netWaitingSight"> Waiting tokens see around them under fog</label>
+                <div class="set-line">A waiting token is their picture in a dashed outline. They can move it.</div>
+                <label style="display:flex; gap:6px; align-items:center; color:var(--dim); font-size:12px; margin-top:6px;" title="Off (the default): a waiting token sees nothing of its own under fog, only what you have revealed. On: it sees around itself like a character's token."><input type="checkbox" id="netWaitingSight"> <span class="set-name"><span>Waiting tokens see around them under fog</span><small>Off, they see only what you have revealed.</small></span></label>
                 <select id="netMakeSelect" style="width:100%; box-sizing:border-box; margin-top:6px;" title="With character sheets on: whether a player without a character may make one of their own (Make a character&hellip; or Just a token&hellip; on their card). Only when you ask: their chip &#9656; Let them make a character.">
                     <option value="live">Players may make a character of their own</option>
                     <option value="invite">Players make one only when you ask them</option>
                     <option value="off">Players never make a character</option>
                 </select>
-                <label style="display:flex; gap:6px; align-items:center; color:var(--dim); font-size:12px; margin-top:6px;" title="On (the default): a player making a character may fill it from a file with Import on its sheet &mdash; their own sheet download or a ShadowBase sheet &mdash; at once, with their own rights; you review the whole character when they press Done."><input type="checkbox" id="netMakeFile"> &hellip;may start it from a file</label>
+                <div class="set-line">To ask one player, press their chip, then Let them make a character.</div>
+                <label style="display:flex; gap:6px; align-items:center; color:var(--dim); font-size:12px; margin-top:6px;" title="On (the default): a player making a character may fill it from a file with Import on its sheet &mdash; their own sheet download or a ShadowBase sheet &mdash; at once, with their own rights; you review the whole character when they press Done."><input type="checkbox" id="netMakeFile"> <span class="set-name"><span>&hellip;may start it from a file</span><small>With Import on the new sheet. You review it when they press Done.</small></span></label>
             </div>
             <div style="margin-bottom:10px;">
                 <div style="color:var(--dim); font-size:11px; margin-bottom:4px;">Session password (optional)</div>
@@ -2670,9 +2674,12 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                 <button class="tool ghost" id="netSummonBtn" style="margin-top:8px; width:100%;" title="Bring every player back to your current map. To fetch just one, use the &#128227; on their name in the player list above.">&#128227; Summon All Players</button>
                 <button class="tool ghost" id="netCombatBtn" style="margin-top:8px; width:100%;" title="Start combat on the map you are on: pick who is in, give initiative, run the turns. Also on the play-map right-click menu.">&#9876; Start Combat</button>
                 <button class="tool ghost" id="netNotepadBtn" style="margin-top:8px; width:100%;" title="A disposable notepad the whole table sees as you type. Gone when you put it away or the session ends; anyone can save it to their Journal.">&#128221; Table Notepad</button>
+                <div class="set-line">A throwaway notepad the whole table sees as you type.</div>
                 <button class="tool ghost" id="netLogBtn" style="margin-top:8px; width:100%;" title="Everything that happened at the table — joins, handouts, crossings, chat, shares — by session">&#128220; Session Log</button>
                 <button class="tool ghost" id="netTravelLockBtn" style="margin-top:8px; width:100%;" title="Keep players on the maps they are on: portals, warps and room links stop working for them until you allow travel again. Tokens still move, chat stays open, nothing is paused.">&#128274; Lock Travel Between Maps</button>
+                <div class="set-line">While travel is locked, portals and room links do not work for players. Tokens still move.</div>
                 <button class="tool ghost" id="netPauseBtn" style="margin-top:8px; width:100%;" title="Freeze the table: players can't move tokens or travel until you resume. Chat stays open.">&#9208;&#65039; Pause the Table</button>
+                <div class="set-line">While the table is paused, players cannot move tokens or travel. Chat stays open.</div>
             </div>
         </div>
         <div id="netPaneJoin" style="display:none; border:1px solid var(--edge); border-radius:8px; padding:12px; margin-bottom:12px;">
@@ -2682,6 +2689,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                 <button class="tool" id="netJoinBtn">Join</button>
             </div>
             <input type="text" id="netJoinPassInput" placeholder="Password (only if the GM set one)" style="width:100%; box-sizing:border-box;">
+            <div class="set-line">Your GM sends you the room code. Type or paste it with or without the hyphen.</div>
         </div>
         <div id="netRoster" style="color:var(--dim); font-size:12px; margin-bottom:12px;">No players connected yet.</div>
         <div id="netVttLine" style="display:none; color:var(--dim); font-size:11px; margin:-6px 0 10px;" title="The VTT features this table runs with — set per campaign in &#9881; Settings &#9656; VTT features (the GM's campaign decides; players can switch a feature off for themselves there)"></div>

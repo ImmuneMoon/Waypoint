@@ -241,6 +241,8 @@ The top bar and the data map
 - Settings says what each option does. An option that only explained
   itself in a tooltip has a grey line under its name, and every tooltip
   is still there.
+- The Multiplayer window does the same. The host's options, Table
+  Notepad, Lock Travel, Pause and the room code each have their line.
 
 The Journal
 - The Journal shows one campaign at a time. It opens on the campaign on

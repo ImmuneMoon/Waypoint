@@ -85,7 +85,7 @@
   header .map-select { padding: 4px 8px; font-size: 12.5px; }
   header .seg-control { padding: 2px; }
   header .seg-btn { padding: 4px 9px; font-size: 12px; }
-  header .hdr-clock { height: 22px; padding: 0 9px; border-radius: 11px; font-size: 11.5px; }   /* the clock, and a player's video chip, read as pills */
+  header .hdr-clock, header #reviewChip, header #updateBtn { height: 22px; padding: 0 9px; border-radius: 11px; font-size: 11.5px; }   /* the clock, and a player's video chip, read as pills */
   /* 107, the row's menus (toprow.js). A menu takes controls out of the row and takes none away: a row of a menu is the control itself, with its
      id, its tooltip and its handler. The campaign's name opens the first: the list of campaigns, then Search, New, Rename, System and Delete */
   .row-menu-wrap { position: relative; display: inline-flex; min-width: 0; }
@@ -2161,6 +2161,8 @@
   .video-watchnote { color: #ddd; font-size: 11px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .hdr-clock.hdr-video { max-width: 170px; }   /* two classes: the later .hdr-clock rule would win over one */
   .hdr-video.active { border-color: var(--gold); }
+  .hdr-clock.hdr-video:not(.active) { background: var(--gold); border-color: var(--gold); color: #1a1408; font-weight: 600; }   /* its panel is closed while the video plays: filled, it wants you */
+  .hdr-clock.hdr-video .ico, #reviewChip .ico { width: 12px; height: 12px; flex: none; }
   .video-resize { position: absolute; right: 0; bottom: 0; width: 14px; height: 12px; cursor: nwse-resize; z-index: 3; touch-action: none; background: linear-gradient(135deg, transparent 0 55%, var(--edge) 55% 62%, transparent 62% 72%, var(--edge) 72% 79%, transparent 79%); }
   #musicPanel input[type=checkbox], .music-pillpop input[type=checkbox] { accent-color: var(--gold); }
   .music-section { padding: 8px 10px; border-bottom: 1px solid var(--edge); }

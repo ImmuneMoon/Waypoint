@@ -59,7 +59,8 @@ Character sheets
   each at a level where one matters. A player's picker greys out what
   their character may not take yet and says why, and your machine
   judges every pick. You may always give an entry yourself. A need
-  that names a GM-only entry is never named to a player.
+  that names a GM-only entry is never named to a player. A row whose
+  needs stop being met stays on the sheet, marked needs not met.
 
 Calendar
 - The game clock runs by itself while you host a session: a second of

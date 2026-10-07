@@ -460,6 +460,25 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && lbT.includes("    var sig = camp.id + '|' + p.rev + '|' + hashText(JSON.stringify(fields)) + '|' + needSig(packId), m = _pidx[packId]; if (m && m.sig === sig) return m;") && lbT.split('needSig(').length === 3,
             j([s0, sigOne, sigTwo, sigTwoHidden, sigTwoSys, noCamp]));
     }
+    /* ---- 126b: a player's row greys out the moment its entry comes in full (found live: the row and Add waited for the next redraw) ---- */
+    {
+        const pkS = require('fs').readFileSync(path.join(app, 'scripts', 'libpicker.js'), 'utf8').replace(/\r\n/g, '\n');
+        const pA = pkS.indexOf('function preview() {'), pZ = pkS.indexOf('\n}\n', pA) + 3, prevSrc = pA > 0 ? pkS.slice(pA, pZ) : '';
+        const elP = (tag, cls, text) => ({ tag, className: cls || '', textContent: text === undefined || text === null ? '' : String(text), children: [], appendChild(x) { this.children.push(x); return x; } });
+        const run = (full, hiAfter) => {
+            const calls = { draw: 0, add: 0, get: 0 }, back = [];
+            const stP = { hi: 0, rows: [{ e: { id: 'i_a', name: 'A' }, p: { id: 'p_1', name: 'Pack' } }, { e: { id: 'i_b', name: 'B' }, p: { id: 'p_1', name: 'Pack' } }], full: {}, getTimer: 0, els: { prev: elP('div') }, opts: { gm: false, labels: {}, source: { get: (e, p, cb) => { calls.get++; back.push(cb); } } } };
+            const preview = new Function('st', 'el', 'setTimeout', 'clearTimeout', 'draw', 'addLabel', 'gmOnly', 'cantText', 'lc', 'line', prevSrc + '\nreturn preview;')(stP, elP, fn => { fn(); return 1; }, () => {}, () => { calls.draw++; }, () => { calls.add++; }, () => false, () => '', s => String(s).toLowerCase(), () => {});
+            preview(); const asked = calls.get; if (hiAfter !== undefined) stP.hi = hiAfter;
+            back.forEach(cb => cb(full));
+            return [asked, calls.draw, calls.add, Object.keys(stP.full).join()];
+        };
+        const withNeeds = run({ id: 'i_a', name: 'A', needs: [{ id: 'i_x' }] }), noNeeds = run({ id: 'i_a', name: 'A' }), moved = run({ id: 'i_a', name: 'A', needs: [{ id: 'i_x' }] }, 1), wrong = run({ id: 'i_zz', name: 'Z', needs: [{ id: 'i_x' }] }), none = run(null);
+        check('126b a row greys out as its entry comes in full (libpicker.js preview, run for real): when a player\'s entry arrives a moment after it is highlighted and it needs something, the rows are drawn again and the Add button is judged again, so the row is greyed and Add is off at once and not at the next redraw; that holds when another row is in front by then; an entry that needs nothing draws nothing again; an answer for another entry, and no answer, change nothing',
+            prevSrc.length > 400 && j(withNeeds) === j([1, 1, 1, 'i_a']) && j(noNeeds) === j([1, 0, 0, 'i_a']) && j(moved) === j([1, 1, 1, 'i_a']) && j(wrong) === j([1, 0, 0, '']) && j(none) === j([1, 0, 0, ''])
+            && prevSrc.includes("st.full[want] = full; if (Array.isArray(full.needs)) { draw(); addLabel(); } var y = st.hi >= 0 ? st.rows[st.hi] : null;"),
+            j([withNeeds, noNeeds, moved, wrong, none]));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

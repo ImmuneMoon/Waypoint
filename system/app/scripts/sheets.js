@@ -2111,9 +2111,10 @@ function wireLayoutDrag(ls) {   // HTML5 drag between and within sections (the c
 // 126b: why a player's character may not take one of the system's own items yet, in the core's words ('' while it may). Asked for a player's
 // own picker only: the GM is never stopped. A needed entry is named only where this player may read its name: an item of their view that is
 // not GM-only, then a library row their app has been sent. One it cannot name is said as something else
-function needName(sys, id) {
+function needName(sys, id, gm) {   // gm: the GM's own sheet, which names every entry
     var its = (sys && Array.isArray(sys.items) ? sys.items : []).concat(sys && Array.isArray(sys.core) ? sys.core : []);
-    for (var i = 0; i < its.length; i++) if (its[i] && its[i].id === id) return its[i].vis !== 'gm' && typeof its[i].name === 'string' ? its[i].name : null;
+    for (var i = 0; i < its.length; i++) if (its[i] && its[i].id === id) return (gm === true || its[i].vis !== 'gm') && typeof its[i].name === 'string' ? its[i].name : null;
+    if (gm === true) { var LBn = window.wpLibrary, en = LBn && LBn.entry ? LBn.entry(id) : null; return en && typeof en.name === 'string' ? en.name : null; }
     var N = net(), man = N && N.libManifest ? N.libManifest() : null, packs = man && Array.isArray(man.packs) ? man.packs : [];
     for (var p = 0; p < packs.length; p++) {
         var rows = packs[p] && N.libRows ? N.libRows(packs[p].id) : [];
@@ -2123,7 +2124,7 @@ function needName(sys, id) {
 }
 function cantTake(sys, c, it) {
     if (!it || !Array.isArray(it.needs) || !it.needs.length || !c) return '';
-    var nm = needsMet(sys, c, it); if (nm.ok) return '';
+    var nm = needsMet(sys, c, it, true); if (nm.ok) return '';
     return needsSays(it, nm.missing, function(id) { return needName(sys, id); });
 }
 // [systemcheck:needpick-end]
@@ -2286,6 +2287,17 @@ function undoBtn(entry, c, f) {
     return b;
 }
 function rowQty(c, f, rid) { var v = c && c.values && Array.isArray(c.values[f.id]) ? c.values[f.id] : [], r = v.find(function(x) { return rowIdOf(x) === rid; }); return r ? (r.qty | 0) : 0; }
+// 126b: a row whose entry needs something the character does not carry is marked (the owner, of a prerequisite that stops being true: "Mark
+// it on the sheet"). Nothing is taken off the sheet. The GM's sheet judges by every need of the entry; a player's own by the needs their
+// copy names, so a need they may not see marks nothing for them. A row kept out of its player's sight is not judged. The words are text
+function needBits(host, sys, c, entry, rd, gm) {
+    if (typeof needsMet !== 'function' || typeof needsSays !== 'function' || !rd || !entry || entry.hid === 1) return;
+    var nd = rd.src === 'inline' ? entry.needs : rd.src === 'lib' && rd.base ? rd.base.needs : null; if (!Array.isArray(nd) || !nd.length) return;
+    var nm = needsMet(sys, c, { needs: nd }, !gm); if (nm.ok) return;
+    var chip = el('span', 'sheet-chip sheet-item-unmet', 'needs not met');
+    chip.title = 'This character does not meet what it needs. ' + needsSays(null, nm.missing, function(id) { for (var i = 0; i < nd.length; i++) if (nd[i] && nd[i].id === id && typeof nd[i].name === 'string' && nd[i].name) return nd[i].name; return typeof needName === 'function' ? needName(sys, id, gm) : null; });   // the name an owner's copy carries, else what this app can read
+    host.appendChild(chip);
+}
 // Stage 6 F4a: a copy of an entry deleted from the library — marked; the GM may make it the character's own item
 function lostBits(host, rd, entry, c, f, gm, editable) {
     if (!rd || rd.src !== 'lost') return;
@@ -2341,7 +2353,7 @@ function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, 
         var ovc = ovCtx(entry, rd, gm);   // F4c2: what this copy holds of its own (a dot on each)
         var nm = el('span', 'sheet-item-name', def.name); if (def.area) nm.appendChild(el('span', 'sheet-item-area-tag', ' ' + def.area.ft + ' ft')); if (def.notes) nm.title = def.notes; ovNameDot(nm, ovc, true); line.appendChild(nm);
         if (chips && def.category) line.appendChild(el('span', 'sheet-chip', def.category));
-        lostBits(line, rd, entry, c, f, gm, chg); gmItemBits(line, def, entry, gm, !!(spec && spec.on)); keyShareChip(line, entry, rd, unseenL); modsBits(line, def, entry, spec, sysI);
+        lostBits(line, rd, entry, c, f, gm, chg); needBits(line, sysI, c, entry, rd, gm); gmItemBits(line, def, entry, gm, !!(spec && spec.on)); keyShareChip(line, entry, rd, unseenL); modsBits(line, def, entry, spec, sysI);
         var noteLn = null;
         if (spec) { statChips(line, def, spec, ovc); colChips(line, spec, res && res.cells ? res.cells[rid] : null); ctCtl(line, entry, c, f, spec, editable, res && res.cts ? res.cts[rid] : null); var lc = lvlCtl(entry, def, c, f, spec, chg); if (lc) line.appendChild(lc); var oc = onCtl(entry, c, f, spec, editable, true); if (oc) line.appendChild(oc); var pcL = paidCtl(entry, def, c, f, spec, chg, gm, true); if (pcL) line.appendChild(pcL); noteLn = hudRow ? null : noteBits(entry, def, c, f, chg, ovc); }   // F4c1: the stats shown On the row, what one cost
         if (def.area && canThrow && (gm || def.vis !== 'gm') && entry.hid !== 1) line.appendChild(itemThrowBtn(def, c, f, rid));   // a GM-only item: the GM's throw only (a player's copy never carries its area)
@@ -2443,7 +2455,7 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty,
         if (def.area) nameTd.appendChild(el('span', 'sheet-item-area-tag', ' ' + def.area.ft + ' ft'));
         var ovT = ovCtx(entry, rd, gm); ovNameDot(nameTd, ovT);   // F4c2: a dot when the copy holds values of its own
         if (tbl.chips && def.category) nameTd.appendChild(el('span', 'sheet-chip', def.category));
-        lostBits(nameTd, rd, entry, c, f, gm, chg); gmItemBits(nameTd, def, entry, gm, hasO); keyShareChip(nameTd, entry, rd, unseenT); modsBits(nameTd, def, entry, spec, sysI);
+        lostBits(nameTd, rd, entry, c, f, gm, chg); needBits(nameTd, sysI, c, entry, rd, gm); gmItemBits(nameTd, def, entry, gm, hasO); keyShareChip(nameTd, entry, rd, unseenT); modsBits(nameTd, def, entry, spec, sysI);
         tr.appendChild(nameTd);
         cols.forEach(function(col) { tr.appendChild(el('td', 'sheet-itcol-' + col, itemCellText(col, def))); });
         shownSt.forEach(function(s) { var sTd = el('td', 'sheet-itcol-stat', statText(s, rowStat(spec, def, s.key))), sDt = statDot(s, spec, ovT); if (sDt) sTd.appendChild(sDt); tr.appendChild(sTd); });
@@ -3128,7 +3140,7 @@ function openLibPickerPlayer(anchor, c, f, spec) {
     var packs = man.packs.filter(function(p) { return p.count > 0; }), total = packs.reduce(function(n, p) { return n + p.count; }, 0), done = false;
     var labels = {}; (spec && Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (s && typeof s.key === 'string' && s.hide !== true) labels[s.key] = s.label || s.key; });
     var asEntry = function(r) { return { id: r[0], key: r[1], name: r[2], category: r[3], icon: r[4], tags: r[5] }; };
-    LP.open({ anchor: anchor, title: 'Add to ' + (f.label || f.key || 'the list'), cats: spec && Array.isArray(spec.cats) ? spec.cats : null, once: null, noQty: !!(spec && spec.noQty), labels: labels, gm: false, needs: function(e) { var cpN = getActiveCampaign(), chN = charById(c.id, cpN), syN = systemOf(cpN); return chN && syN ? needsMet(syN, chN, e).missing : []; },   // 126b: what their character does not meet, by the needs their copy of the entry names (the host judges the rest)
+    LP.open({ anchor: anchor, title: 'Add to ' + (f.label || f.key || 'the list'), cats: spec && Array.isArray(spec.cats) ? spec.cats : null, once: null, noQty: !!(spec && spec.noQty), labels: labels, gm: false, needs: function(e) { var cpN = getActiveCampaign(), chN = charById(c.id, cpN), syN = systemOf(cpN); return chN && syN ? needsMet(syN, chN, e, true).missing : []; },   // 126b: what their character does not meet, by the needs their copy of the entry names (the host judges the rest)
         source: {
             packs: function() { return packs; },
             entries: function(pid) { return N.libRows(pid).map(asEntry); },

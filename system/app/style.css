@@ -86,6 +86,28 @@
   header .seg-control { padding: 2px; }
   header .seg-btn { padding: 4px 9px; font-size: 12px; }
   header .hdr-clock { height: 22px; padding: 0 9px; border-radius: 11px; font-size: 11.5px; }   /* the clock, and a player's video chip, read as pills */
+  /* 107, the row's menus (toprow.js). A menu takes controls out of the row and takes none away: a row of a menu is the control itself, with its
+     id, its tooltip and its handler. The campaign's name opens the first: the list of campaigns, then Search, New, Rename, System and Delete */
+  .row-menu-wrap { position: relative; display: inline-flex; min-width: 0; }
+  .row-menu { position: absolute; top: 100%; left: 0; z-index: 10000; margin-top: 6px; min-width: 240px; max-width: 340px; max-height: calc(100vh - 80px); overflow-y: auto; box-sizing: border-box; padding: 5px; display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--edge); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.5); }
+  .row-menu[hidden] { display: none; }
+  #campaignSelect[hidden] { display: none; }   /* the page's own campaign list: every module's source for the campaigns, out of sight whatever a later rule says of a select */
+  .rm-label { padding: 6px 8px 2px; font-size: 10px; letter-spacing: .5px; text-transform: uppercase; color: var(--faint); }
+  .rm-rule { flex: 0 0 auto; height: 1px; margin: 4px 2px; background: var(--edge); }
+  .rm-list { display: flex; flex-direction: column; }
+  .rm-row { display: flex; align-items: center; gap: 9px; width: 100%; box-sizing: border-box; padding: 5px 8px; border: 0; border-radius: 5px; background: none; color: var(--ink); font: inherit; font-size: 12.5px; text-align: left; white-space: nowrap; cursor: pointer; }
+  .rm-row:hover, .rm-row:focus-visible { background: var(--panel2); outline: none; }
+  .rm-row > .ico { width: 14px; height: 14px; color: var(--dim); vertical-align: 0; }
+  .rm-row > small { margin-left: auto; padding-left: 12px; color: var(--faint); font-size: 11px; }
+  .rm-row.danger, .rm-row.danger > .ico { color: var(--red); }
+  .rm-row.on { color: var(--gold); }   /* the campaign on screen */
+  .rm-slot { flex: 0 0 14px; width: 14px; text-align: center; }
+  .rm-row.on > .rm-slot::before { content: '\2713'; }
+  header .tool.row-name { display: inline-flex; align-items: center; gap: 6px; max-width: 280px; padding: 4px 8px; border-color: transparent; background: transparent; color: var(--gold); font-weight: 600; }   /* the campaign's name: the row's one word in gold */
+  header .tool.row-name:hover, header .tool.row-name[aria-expanded="true"] { background: var(--panel2); border-color: transparent; }
+  .row-name > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .row-name > .ico { width: 10px; height: 10px; margin: 0; stroke-width: 2.6; color: var(--dim); }
+  body.net-client #campMenuWrap { display: none !important; }   /* a player has no campaign of the GM's to pick: the GM's campaign is named beside it (tableWhere) */
   .tool.icon{
     width:32px;height:32px;padding:0;display:inline-flex;align-items:center;justify-content:center;
     font-size:14px;line-height:1;
@@ -170,7 +192,6 @@
   /* GM's view of a token whose owner is elsewhere in the world */
   .wb-item.wb-absent { opacity: 0.3 !important; filter: grayscale(0.8); }
   body.net-client .gm-only { display: none !important; }
-  body.net-client header .hdr-group[data-label="Campaign"] { display: none !important; }   /* its buttons are all hidden above: no empty labelled pill */
   body.net-client #imgLibBtn, body.net-client #importCharBtn { display: none !important; }   /* the picture library and sheet import are the GM's own (a client's save is not this table's) */
   /* Image Library scope row (1.5.0): which campaign's pictures; shared categories carry a mark */
   #imgLibCats .img-scope-break { flex-basis: 100%; height: 0; }

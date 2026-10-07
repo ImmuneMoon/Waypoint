@@ -898,7 +898,8 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         + "- The top bar's icons are redrawn as Waypoint's own drawings. Settings\n  wears a cog, and Music is still a note.\n"
         + "- The data map's toolbar wears the same line icons as the play map's.\n  Its Link menu lists the four line types by name, each with a small\n  drawing.\n"
         + "- Settings says what each option does. An option that only explained\n  itself in a tooltip has a grey line under its name, and every tooltip\n  is still there.\n"
-        + "- The Multiplayer window does the same. The host's options, Table\n  Notepad, Lock Travel, Pause and the room code each have their line.\n\n";
+        + "- The Multiplayer window does the same. The host's options, Table\n  Notepad, Lock Travel, Pause and the room code each have their line.\n"
+        + "- The System editor's Combat card says what its blast, cover and\n  roll settings do, each in a grey line under its list.\n\n";
     const wn = [rootRead('WHATSNEW.txt'), read('assets/whatsnew.txt')];
     check('both release notes carry the same lines, and the suite is one of the CI runs',
         wn.every(t => count(t, NOTE) === 1 && count(t, 'Every button is where it was') === 0) && rootRead('.github/workflows/checks.yml').includes("      - name: lookcheck — the look of the play map (no control removed, the toolbar's line icons, gold for the tool in hand)\n        if: ${{ !cancelled() }}\n        run: node tools/lookcheck.js\n"));
@@ -1194,6 +1195,46 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         count(netJs, "    if (btn) { btn.innerHTML = net.paused ? '&#9654;&#65039; Resume the Table' : '&#9208;&#65039; Pause the Table'; btn.classList.toggle('paused', net.paused); }") === 1
         && count(netJs, "    if (btn) { btn.innerHTML = net.travelLocked ? '&#128275; Allow Travel Between Maps' : '&#128274; Lock Travel Between Maps'; btn.classList.toggle('paused', net.travelLocked); }") === 1
         && count(netHtml, '&#9208;&#65039; Pause the Table</button>\n                <div class="set-line">While the table is paused, ') === 1 && count(netHtml, '&#128274; Lock Travel Between Maps</button>\n                <div class="set-line">While travel is locked, ') === 1);
+}
+
+/* ---------- options that say what they do: the System editor's Combat card ---------- */
+// The same passed mock-up, the third window. The System editor is boxes and rows. Each of its boxes has a note. Its rows are a table whose
+// ticks still explain themselves in tooltips: how a table says what its ticks do is a question for the owner. The one group with no words in
+// sight was the Combat card's first lists, on blasts, cover and roll outcomes. Six of them have one grey line. A line is made by `lineUnder`,
+// as an element with text, under the list a box was just given, so each list is built by the very statement that built it before
+{
+    const sh = read('scripts/sheets.js');
+    const LINES = [['sys-combat-auto', 'What happens when a blast is thrown.'], ['sys-combat-roller', 'Who makes a thrown blast’s rolls.'], ['sys-combat-hp', 'The pool that Full auto damage is taken from.'],
+        ['sys-combat-cover-on', 'Cover is read from the map’s walls and cover pieces. It changes no roll.'], ['sys-combat-height-rule', 'This needs Token elevation on. A piece’s height is in its Properties.'],
+        ['sys-combat-checks', 'How a check against a target reads its dice.']];
+    const rA = sh.indexOf('function renderCombat() {'), rc = rA < 0 ? '' : sh.slice(rA, sh.indexOf('\n}\n', rA));
+    // the statement that builds a list, with the tooltip it always had as its last word, and the line that follows it at once
+    const found = [...rc.matchAll(/labeledSelect\('(sys-combat-[a-z-]+)',[^\n]*, '((?:[^'\\\n]|\\.)*)'\)\);[^\n]*\n    (?:if \(cm\.cover\.on\) )?lineUnder\(box, '([^'\n]+)'\);\n/g)].map(m => [m[1], m[3].replace(/\\u2019/g, '’'), m[2].length]);
+    const rough = LINES.map(l => l[1]).filter(s => /[()\[\];—–&]| - /.test(s) || !/\.$/.test(s) || s.length > 230 || s.split(/\. /).some(p => p.length > 110));
+    const lA = sh.indexOf('// [lookcheck:lineunder-start]'), lZ = sh.indexOf('// [lookcheck:lineunder-end]'), luSrc = lA >= 0 && lZ > lA ? sh.slice(lA, lZ) : '';
+    const elS = (tag, cls, text) => ({ tag, cls, text, kids: [], lastChild: null, appendChild(k) { this.kids.push(k); this.lastChild = k; } });
+    let LU = null, luErr = ''; try { LU = new Function('el', luSrc + '\nreturn lineUnder;')(elS); } catch (e) { luErr = String(e); }
+    const lab = elS('label', 'sys-combat-item'), empty = { lastChild: null }, boxS = { lastChild: lab }, ran = [];
+    try { LU(empty, 'Nothing yet.'); ran.push(empty.lastChild); LU(null, 'No box.'); LU(boxS, 'A line.'); ran.push(lab.kids.length, lab.kids[0] && [lab.kids[0].tag, lab.kids[0].cls, lab.kids[0].text], boxS.lastChild === lab); } catch (e) { luErr = luErr || String(e); }
+    // the card's first lists built for real, by the card's own code up to its boxes, with cover off and with cover on: which list each line lands under
+    const top = rc.slice(0, rc.indexOf('    rangeBox(box, cm);')), T = Object.fromEntries(LINES);
+    const runTop = coverOn => { const kids = [], box = { textContent: 'x', lastChild: null, appendChild(k) { kids.push(k); this.lastChild = k; } };
+        const lsel = cls => { const l = elS('label', 'sys-combat-item'); l.sel = cls; l.appendChild({ dataset: {} }); return l; };
+        try { new Function('ui', 'draft', 'labeledSelect', 'lineUnder', top + '\n}\nrenderCombat();')(() => box, { fields: [], combat: { blastAuto: 'full', blastRoller: 'owner', hpResource: '', cover: { on: coverOn, style: 'graded' } } }, lsel, LU); } catch (e) { return [String(e)]; }
+        return kids.map(k => { const ls = k.kids.filter(x => x.cls === 'sys-line').map(x => x.text); return k.sel + (ls.length ? ':' + ls.join('|') : ''); }); };
+    const withLine = c => c + ':' + T[c], OFF = ['sys-combat-auto', 'sys-combat-roller', 'sys-combat-hp', 'sys-combat-cover-on'].map(withLine).concat('sys-combat-cover-style', withLine('sys-combat-checks'));
+    const ON = OFF.slice(0, 5).concat(withLine('sys-combat-height-rule'), 'sys-combat-cover-area', 'sys-combat-cover-area', 'sys-combat-cover-area', withLine('sys-combat-checks'));
+    const topOff = runTop(false), topOn = runTop(true);
+    check('the System editor\'s Combat card says what its first lists do (the same passed mock-up): Blast automation, Who rolls, Damage subtracts from, Cover from blockers, Height and cover and Roll outcomes each have one grey line, six lines and no other, each right after the statement that builds its list, and that statement still ends in the tooltip it had; each line is plain words, with no bracket, dash or semicolon, and ends in a full stop; the line is made by `lineUnder`, run for real: an element with text under the list a box was just given, the box itself left as it was, and nothing for a box that holds nothing or is not there; and the card\'s own code, run for real up to its boxes: with cover off five lists have their line, Cover grades has none and no line of Height and cover lands anywhere, and with cover on Height and cover has its own and the three lists of a blast behind cover have none',
+        rc.length > 2000 && top.length > 2000 && J(topOff) === J(OFF) && J(topOn) === J(ON) && J(found.map(f => f.slice(0, 2))) === J(LINES) && found.every(f => f[2] >= 60) && count(sh, "lineUnder(box, '") === 6 && rough.length === 0
+        && luSrc.length > 100 && !luErr && J(ran) === J([null, 1, ['small', 'sys-line', 'A line.'], true]) && !/innerHTML|insertAdjacentHTML|outerHTML/.test(luSrc)
+        && count(sh, "function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }") === 1
+        && count(sh, "function labeledSelect(cls, cap, options, value, title) { var l = el('label', 'sys-combat-item'); l.appendChild(el('span', 'sys-num-cap', cap)); l.appendChild(select(cls, options, value, title)); return l; }") === 1
+        && count(sh, "function select(cls, options, value, title) { var s = el('select', cls); options.forEach(function(o) { s.appendChild(opt(o[0], o[1], o[0] === value)); }); if (title) s.title = title; return s; }") === 1,
+        luErr || J([found.map(f => f[0] + ':' + f[2]), rough, ran, topOff.filter((x, i) => x !== OFF[i]).slice(0, 2), topOn.filter((x, i) => x !== ON[i]).slice(0, 2)]));
+    check('the card\'s own rules in the style sheet: a line is small and grey, takes the width of its list and never widens it, and the lists of the card stand in their row by their tops, since a line makes some taller than others',
+        css.includes('\n  .sys-combat-item { display: inline-flex; flex-direction: column; gap: 3px; }\n') && css.includes('\n  .sys-combat-item > .sys-line { width: 0; min-width: 100%; font-size: 10.5px; line-height: 1.4; color: var(--dim); }\n')
+        && css.includes('\n  #sysCombatBox { align-items: flex-start; }') && css.indexOf('\n  #sysCombatBox { align-items: flex-start; }') > css.indexOf('\n  #sysCombatBox, #sysListRules { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end;'));
 }
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');

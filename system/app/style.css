@@ -2451,6 +2451,9 @@
   /* Items tab (Stage 5): the campaign item library + the combat/blast settings */
   #sysCombatBox, #sysListRules { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end; padding: 8px 2px 12px; border-bottom: 1px solid var(--edge); margin-bottom: 8px; }
   .sys-combat-item { display: inline-flex; flex-direction: column; gap: 3px; }
+  /* 107, options that say what they do: a grey line under a captioned list of the Combat card. It takes the width of its list and never widens it */
+  .sys-combat-item > .sys-line { width: 0; min-width: 100%; font-size: 10.5px; line-height: 1.4; color: var(--dim); }
+  #sysCombatBox { align-items: flex-start; }   /* a line makes some lists taller than others: they stand in their row by their tops */
   .sys-item-area { display: inline-flex; gap: 5px; align-items: flex-end; }
   .sys-item-notes-row { margin-top: 5px; }
   .sys-item-notes-row input { width: 100%; box-sizing: border-box; }

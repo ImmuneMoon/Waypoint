@@ -4511,6 +4511,10 @@ function numField(cls, value, title, cap, step) { var l = el('label', 'sys-num')
 function select(cls, options, value, title) { var s = el('select', cls); options.forEach(function(o) { s.appendChild(opt(o[0], o[1], o[0] === value)); }); if (title) s.title = title; return s; }
 function btnRow(list) { var btns = el('span', 'sys-btns'); list.forEach(function(b) { var x = el('button', 'tool ghost sys-btn'); x.dataset.act = b[0]; x.title = b[1]; x.innerHTML = b[2]; btns.appendChild(x); }); return btns; }
 function labeledSelect(cls, cap, options, value, title) { var l = el('label', 'sys-combat-item'); l.appendChild(el('span', 'sys-num-cap', cap)); l.appendChild(select(cls, options, value, title)); return l; }
+// [lookcheck:lineunder-start]
+// 107, options that say what they do: one grey line under the captioned list a box was just given. Fixed words, set as text
+function lineUnder(box, text) { var l = box && box.lastChild; if (l) l.appendChild(el('small', 'sys-line', text)); }
+// [lookcheck:lineunder-end]
 function fieldRow(f) {
     var row = el('div', 'sys-row'); row.dataset.id = f.id;
     var top = el('div', 'sys-row-main');
@@ -4967,17 +4971,23 @@ function renderCombat() {
     var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' });
     if (!cm.cover || typeof cm.cover !== 'object') cm.cover = { on: false, style: 'graded' };
     box.appendChild(labeledSelect('sys-combat-auto', 'Blast automation', [['full', 'Full auto — roll & apply'], ['roll', 'Roll to chat; apply by hand'], ['measure', 'Measure only']], cm.blastAuto, 'What happens when a blast is thrown: full = roll damage and apply it to tokens in range; roll = post the roll for a human to apply; measure = area only.'));
+    lineUnder(box, 'What happens when a blast is thrown.');
     box.appendChild(labeledSelect('sys-combat-roller', 'Who rolls', [['owner', 'The character\'s owner'], ['gm', 'Always the GM']], cm.blastRoller, 'Who makes a thrown blast\'s rolls: the owning player, or always the GM.'));
+    lineUnder(box, 'Who makes a thrown blast\u2019s rolls.');
     var resFields = (draft.fields || []).filter(function(f) { return f.kind === 'resource'; });
     box.appendChild(labeledSelect('sys-combat-hp', 'Damage subtracts from', [['', resFields.length ? '— none —' : '— add a resource field —']].concat(resFields.map(function(f) { return [f.id, f.label || f.key]; })), cm.hpResource, 'Which resource full-auto damage reduces (the "health" resource).'));
+    lineUnder(box, 'The pool that Full auto damage is taken from.');
     box.appendChild(labeledSelect('sys-combat-cover-on', 'Cover from blockers', [['off', 'Off'], ['on', 'On — the ruler, blasts and target marks']], cm.cover.on ? 'on' : 'off', 'When on, the ruler between two character tokens, a blast\'s labels and target marks show cover, read from the map\'s pieces: its sight-blockers (walls, pillars, closed doors, filled cells) and pieces set to give cover you can see over (a crate, a low wall). It changes no roll; with Full auto, the settings below say what a blast does behind each grade of cover, and a blast thrown into a wall or a closed door goes off in front of it.'));
+    lineUnder(box, 'Cover is read from the map\u2019s walls and cover pieces. It changes no roll.');
     box.appendChild(labeledSelect('sys-combat-cover-style', 'Cover grades', [['graded', 'Graded — half / three-quarters / total'], ['binary', 'Simple — cover / none']], cm.cover.style === 'binary' ? 'binary' : 'graded', 'Graded uses the corner rule for D&D-style tiers; Simple reports only whether there is cover (for systems that treat cover as one flat penalty or DR). The tier names are built in; custom thresholds come later.'));
     if (cm.cover.on) box.appendChild(labeledSelect('sys-combat-height-rule', 'Height and cover', [['', 'Flat — height changes no cover'], ['clears', 'Height clears low cover — from above; from below it hides the target']], cm.height && typeof cm.height === 'object' && cm.height.rule === 'clears' ? 'clears' : '', 'With Token elevation on, looked at from higher than a see-over piece (a crate, a low wall), it gives no cover; from below the target it hides them (total cover). Walls block at any height. A piece\u2019s height is in its Properties; a see-over piece with none is 1 yard tall.'));   // item 19 H1 (the owner's answer: the handbook's rule, per system)
+    if (cm.cover.on) lineUnder(box, 'This needs Token elevation on. A piece\u2019s height is in its Properties.');
     if (cm.cover.on) {   // cover follow-ups (owner 2026-09-28): what a full-auto blast does behind each grade
         var cgs = cm.cover.style === 'binary' ? [['cover', 'Blast behind cover'], ['total', 'Blast behind total cover']] : [['half', 'Blast behind half cover'], ['threeq', 'Blast behind three-quarters cover'], ['total', 'Blast behind total cover']];
         cgs.forEach(function(g) { var cur = cm.cover.area && typeof cm.cover.area === 'object' && Object.prototype.hasOwnProperty.call(cm.cover.area, g[0]) ? cm.cover.area[g[0]] : 'full'; var ls = labeledSelect('sys-combat-cover-area', g[1], [['full', 'Full damage'], ['half', 'Half damage'], ['none', 'No damage']], cur === 'half' || cur === 'none' ? cur : 'full', 'With Full auto blasts, what the rolled damage does to a token behind this much cover (measured from the blast\u2019s centre).'); ls.lastChild.dataset.grade = g[0]; box.appendChild(ls); });
     }
     box.appendChild(labeledSelect('sys-combat-checks', 'Roll outcomes', [['', 'Success or failure by the margin'], ['under3d6', '3d6 roll-under criticals']], cm.checks === 'under3d6' ? 'under3d6' : '', 'How a check reads. 3d6 roll-under (a roll of exactly 3d6 against a target): 3\u20134 are a critical success, 5 at a target of 15+, 6 at 16+; 17 fails (critically at 15 or less), 18 or failing by 10+ is a critical failure.'));   // Stage 6 F8
+    lineUnder(box, 'How a check against a target reads its dice.');
     rangeBox(box, cm);   // range penalties R1: the system's range rule, under cover
     heightBox(box, cm);   // item 19 H2: the system's height modifier, under range
     lightBox(box, cm);   // lighting L4: the system's light rules

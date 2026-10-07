@@ -243,6 +243,8 @@ The top bar and the data map
   is still there.
 - The Multiplayer window does the same. The host's options, Table
   Notepad, Lock Travel, Pause and the room code each have their line.
+- The System editor's Combat card says what its blast, cover and
+  roll settings do, each in a grey line under its list.
 
 The Journal
 - The Journal shows one campaign at a time. It opens on the campaign on

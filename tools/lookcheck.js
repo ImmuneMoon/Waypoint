@@ -900,6 +900,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         + "- On the play map the left panel folds to a narrow rail, so the map\n  has more room. Press an icon of the rail to open the panel over the\n  map, or the pin to keep it open.\n"
         + "- The top row can be hidden: press the small arrow at its right end.\n  A tab at the top edge shows it again. The map tabs and the pills\n  stay, floating on the map.\n"
         + "- The System editor has a key on its Fields, Rolls, Items and Lists\n  tabs. Press What the ticks mean to see what each tick of a row\n  does.\n"
+        + "- Help's Coming up says what is built and what is coming: the map\n  builder, text style in more places, friends and direct invites, and\n  the website with cloud saves.\n"
         + "- Where the window is too narrow for the row, Sound, Music, Handouts,\n  Journal and Help move into More, so the row stays one line.\n"
         + "- Both menus work from the keyboard: the arrow keys, a letter for the\n  next row that begins with it, Enter, and Esc to close.\n"
         + "- The top bar's icons are redrawn as Waypoint's own drawings. Settings\n  wears a cog, and Music is still a note.\n"
@@ -1637,6 +1638,21 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         && kSrc.includes("var open = keysRead(localStorage);") && css.includes('\n  .sys-key-btn { margin-left: auto; white-space: nowrap; flex: none; }\n  .sys-key { display: grid; grid-template-columns: max-content 1fr;') && css.includes('\n  .sys-key[hidden] { display: none; }\n')
         && count(ix, helpKey) === 1 && /System<\/b>, to write the rules of the campaign on screen, with no code\.[^\n]*<\/li>\n\s*<li><b>What the ticks mean:<\/b>/.test(ix)
         && [rootRead('WHATSNEW.txt'), read('assets/whatsnew.txt')].every(t => count(t, "- The System editor has a key on its Fields, Rolls, Items and Lists\n  tabs. Press What the ticks mean to see what each tick of a row\n  does.\n") === 1));
+}
+
+/* ---------- 126c: Help's Coming up says what is built and what is coming ---------- */
+// The owner, asked what the part should list as coming now that everything it named is built, ticked all four: "The map builder (Recommended),Text
+// style in more places,Friends and direct invites,The website and cloud saves".
+{
+    const a = ix.indexOf('<div class="help-pane" data-pane="roadmap"'), z = ix.indexOf('<div class="help-pane"', a + 10), road = a > 0 && z > a ? ix.slice(a, z) : '', heads = (road.match(/<h4>[^<]+<\/h4>/g) || []).map(h => h.slice(4, -5));
+    const comingAt = road.indexOf('<h4>Coming</h4>'), coming = comingAt > 0 ? road.slice(comingAt, road.indexOf('</ul>', comingAt)) : '', names = (coming.match(/<li><b>[^<]+<\/b>/g) || []).map(s => s.slice(7, -4));
+    check('126c Help\'s Coming up, read against what is built: the part says first that the system builder is built and points to Character sheets and to Handbook in Help, where it spoke of the builder as a plan; then what is built of the item library, as before; then, under Coming, the four things the owner ticked and no other, in their order: the map builder, text style in more places, friends and direct invites, the website and cloud saves, each in plain words; nothing in the part names a date or says Still to come; both release notes say it',
+        road.length > 1500 && J(heads) === J(['Where Waypoint is heading', 'Your own game system is built', 'Blasts thrown from the sheet', 'Coming', 'Campaign content'])
+        && count(road, '<li><b>The system builder is built.</b> You write your game&rsquo;s rules, lay out its character sheets and fill its library inside Waypoint, with no code. See <b>Character sheets</b> in Help.</li>') === 1
+        && count(road, 'See <b>Handbook</b> in Help.</li>') === 1 && count(ix, '<button data-help="sheets">&#128203; Character sheets</button>') === 1 && count(ix, '<button data-help="handbook">&#128214; Handbook</button>') === 1
+        && J(names) === J(['The map builder.', 'Text style in more places.', 'Friends and direct invites.', 'The website and cloud saves.']) && (coming.match(/<li>/g) || []).length === 4
+        && count(road, '<li>That much is built: see System &#9656; Items.</li>') === 1 && !/Still to come|planned or partly in place|not the final shape|20\d\d|next (week|month|year|release)|soon/i.test(road)
+        && [rootRead('WHATSNEW.txt'), read('assets/whatsnew.txt')].every(t => count(t, "- Help's Coming up says what is built and what is coming: the map\n  builder, text style in more places, friends and direct invites, and\n  the website with cloud saves.\n") === 1), J([heads, names]));
 }
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');

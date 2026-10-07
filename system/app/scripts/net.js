@@ -2801,6 +2801,21 @@ function itemNotice(ch, name, what) {
     if (more) t += ' (' + more + ' more ' + (more === 1 ? 'try' : 'tries') + ' since the last notice)';
     toast(t); logEvent('items', t);
 }
+// [netcheck:budgetnote-start]
+// 126: a player's own change took their character over a point budget that warns. The GM is told, by the budget's name and its figures. A
+// budget breached again within the quiet window is not said again: the next notice says how many went unsaid (as a refused removal does)
+function budgetNotice(ch, hits) {
+    var S = SC(), who = ch && ch.name ? ch.name : 'A character'; if (!S || !S.budgetSays || !Array.isArray(hits)) return;
+    hits.forEach(function(h) {
+        if (!h || typeof h.id !== 'string') return;
+        var tk = (ch && ch.id ? ch.id : who) + '|' + h.id + '|budget', ts = _triedSaid[tk], tnow = Date.now();
+        if (ts && tnow - ts.at < TRY_QUIET_MS) { ts.more++; return; }
+        var more = ts ? ts.more : 0; _triedSaid[tk] = { at: tnow, more: 0 };
+        var t = who + ' went over. ' + S.budgetSays(h) + (more ? ' ' + more + ' more since the last notice.' : '');
+        toast(t); logEvent('items', t);
+    });
+}
+// [netcheck:budgetnote-end]
 var _uploadAt = {}, UPLOAD_GAP_MS = 10000;   // Stage 6 U2: host: peer -> when their last upload was read (one every 10 s)
 var _triedSaid = {}, TRY_QUIET_MS = 30000;   // host: 'charId|item|kind' -> { at, more } — the last said refused attempt (memory only)
 net.syncChars = function() {   // every character, per peer (after the system changed)
@@ -5658,9 +5673,12 @@ function handleMessage(msg, conn) {
         var profE = net.roster[conn.peer]; if (chE.npc || !chE.ownerId || !profE || chE.ownerId !== profE.id) { denyE('owner'); return; }
         var resE = Se.applyEdit(campE.system, chE, q.fieldId, q.value, Fe, { player: true });
         if (!resE.ok) { denyE(resE.reason); return; }
+        var bcE = {}; bcE[q.fieldId] = resE.value; var bwE = Se.budgetWatch(campE.system, chE, bcE, Fe);   // 126: a point budget is judged before anything is stored
+        if (bwE.refuse) { try { conn.send({ type: 'char-deny', rid: q.rid, reason: 'budget', msg: Se.budgetSays(bwE.refuse) }); } catch (e) { sendFailed(e); } return; }
         chE.values = chE.values || {}; chE.values[q.fieldId] = resE.value; chE.updated = Date.now();
         saveRemoteSoon();
-        try { conn.send({ type: 'char-ack', rid: q.rid }); } catch (e) { sendFailed(e); }
+        try { conn.send(bwE.warn.length ? { type: 'char-ack', rid: q.rid, msg: Se.budgetSays(bwE.warn[0]) } : { type: 'char-ack', rid: q.rid }); } catch (e) { sendFailed(e); }   // 126: a budget that only warns lets the change through, with its words to the player
+        if (bwE.warn.length && typeof budgetNotice === 'function') budgetNotice(chE, bwE.warn);   // ... and to the GM
         var dE = {}; dE[q.fieldId] = resE.value; net.syncCharDelta(q.charId, dE);
         if (window.wpSheets) window.wpSheets.charChanged(q.charId);
         // [netcheck:charedit-end]
@@ -5685,9 +5703,12 @@ function handleMessage(msg, conn) {
             if (!resM.ok) { denyM(resM.reason); return; }   // one refused value refuses the batch: nothing is stored
             workM.values[qm.values[iM].fieldId] = resM.value; dM[qm.values[iM].fieldId] = resM.value;
         }
+        var bwM = Sm.budgetWatch(campM.system, chM, dM, Fm);   // 126: the whole batch against the point budgets, before anything is stored
+        if (bwM.refuse) { try { conn.send({ type: 'char-deny', rid: qm.rid, reason: 'budget', msg: Sm.budgetSays(bwM.refuse) }); } catch (e) { sendFailed(e); } return; }
         chM.values = chM.values || {}; Object.keys(dM).forEach(function(k) { chM.values[k] = dM[k]; }); chM.updated = Date.now();
         saveRemoteSoon();
-        try { conn.send({ type: 'char-ack', rid: qm.rid }); } catch (e) { sendFailed(e); }
+        try { conn.send(bwM.warn.length ? { type: 'char-ack', rid: qm.rid, msg: Sm.budgetSays(bwM.warn[0]) } : { type: 'char-ack', rid: qm.rid }); } catch (e) { sendFailed(e); }
+        if (bwM.warn.length && typeof budgetNotice === 'function') budgetNotice(chM, bwM.warn);
         net.syncCharDelta(qm.charId, dM);
         if (window.wpSheets) window.wpSheets.charChanged(qm.charId);
         // [netcheck:charedits-end]
@@ -5854,6 +5875,8 @@ function handleMessage(msg, conn) {
             if (resI.reason === 'stays') { itemNotice(chI, resI.name, resI.eq && qi.op === 'set' ? 'eq-bound-try' : 'bound-try'); try { conn.send({ type: 'char-deny', rid: qi.rid, reason: 'stays', msg: resI.msg || '' }); } catch (e) { sendFailed(e); } return; }   // a bound item: it stays, with the GM's message
             denyI(resI.reason); return;
         }
+        var bcI = {}; bcI[qi.fieldId] = resI.value; var bwI = Si.budgetWatch(campI.system, chI, bcI, Fi);   // 126: a point budget is judged before anything is stored (a row picked up, a level raised, a quantity, a row of their own)
+        if (bwI.refuse) { try { conn.send({ type: 'char-deny', rid: qi.rid, reason: 'budget', msg: Si.budgetSays(bwI.refuse) }); } catch (e) { sendFailed(e); } return; }
         chI.values = chI.values || {}; chI.values[qi.fieldId] = resI.value; chI.updated = nowI;
         Object.keys(_rowGrace).forEach(function(k) { if (_rowGrace[k].until <= nowI) delete _rowGrace[k]; });
         if (resI.added > 0 && typeof resI.row === 'string') {   // a pickup (a new row, a merge, a +) opens the row's Undo window, or folds into it and extends it
@@ -5863,8 +5886,11 @@ function handleMessage(msg, conn) {
         if (resI.onGraceUsed) delete _rowGrace[gkI + '|on'];   // F4b review: a grace lets it go once (the GM switching it on again is not undone by it)
         if (typeof resI.onRow === 'string' && resI.eqNote === 'bound') _rowGrace[qi.charId + '|' + qi.fieldId + '|' + resI.onRow + '|on'] = { until: nowI + Si.LIMITS.undoGraceMs, added: 0 };   // F4b: switched on (or picked up on) — it may come off for a moment, as a pickup's Undo
         saveRemoteSoon();
+        if (bwI.warn.length && !((resI.hid || resI.keptOn) && resI.msg)) { try { conn.send({ type: 'char-ack', rid: qi.rid, msg: Si.budgetSays(bwI.warn[0]) }); } catch (e) { sendFailed(e); } }   // 126: a budget that only warns lets the change through, with its words to the player (an item's own message, when one is due, goes first)
+        else
         try { conn.send((resI.hid || resI.keptOn) && resI.msg ? { type: 'char-ack', rid: qi.rid, msg: resI.msg } : { type: 'char-ack', rid: qi.rid }); } catch (e) { sendFailed(e); }   // a cursed item's message rides the answer (none: the answer any removal gets); F4b: a curse kept on, too
         var dI = {}; dI[qi.fieldId] = resI.value; net.syncCharDelta(qi.charId, dI);
+        if (bwI.warn.length && typeof budgetNotice === 'function') budgetNotice(chI, bwI.warn);   // 126: a budget that only warns: the GM is told
         if (resI.note && resI.added > 0) itemNotice(chI, resI.name, resI.note === 'bound' ? 'bound-pick' : 'curse-pick');
         else if (resI.hid) itemNotice(chI, resI.name, 'curse-drop');
         if (resI.eqNote && typeof resI.onRow === 'string') itemNotice(chI, resI.name, resI.eqNote === 'bound' ? 'eq-bound-on' : 'eq-curse-on');   // F4b

@@ -3283,6 +3283,23 @@
   /* Onboarding F3: a player's own character — the GM's review bar, the owner's Done, the join card's actions, the GM's chip badges */
   .sheet-review-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 10px; background: rgba(212,175,55,0.12); border-bottom: 1px solid var(--gold); font-size: 12px; flex: none; }
   .sheet-review-bar .sheet-rv-text { flex: 1 1 180px; min-width: 0; }
+  /* 126, point budgets: the strip under the sheet's head, a chip a budget, red when it is over */
+  .sheet-budgets { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 10px; border-bottom: 1px solid var(--edge); font-size: 12px; flex: none; }
+  .sheet-budget { display: inline-flex; align-items: baseline; gap: 6px; padding: 2px 9px; border: 1px solid var(--edge); border-radius: 10px; }
+  .sheet-budget > b { font-weight: 600; }
+  .sheet-budget-left { color: var(--dim); font-size: 11px; }
+  .sheet-budget.over { border-color: var(--red); }
+  .sheet-budget.over .sheet-budget-fig, .sheet-budget.over .sheet-budget-left { color: var(--red); }
+  /* ... and the Lists tab's Point budgets box in the System editor: a budget a line, its fields boxed as the Combat card's are */
+  #sysBudgets { padding: 2px 2px 12px; border-bottom: 1px solid var(--edge); margin-bottom: 8px; }
+  .sys-budgets { display: flex; flex-direction: column; gap: 6px; }
+  #sysBudgets input, #sysBudgets select { background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; padding: 4px 7px; font-size: 12px; box-sizing: border-box; }
+  #sysBudgets input:focus, #sysBudgets select:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 2px rgba(224,165,79,0.22); }
+  .sys-bud-row { align-items: flex-end; }
+  .sys-bud-row input.sys-bud-name { flex: 0 1 180px; min-width: 110px; font-weight: 500; }
+  .sys-bud-row .sys-bud-f { flex: 1 1 170px; min-width: 130px; }
+  .sys-bud-row .sys-bud-f input { width: 100%; font-family: ui-monospace, Consolas, monospace; }
+  .sys-budgets .sys-bud-add { align-self: flex-start; }
   .sheet-done { border-color: var(--gold); color: var(--gold); }
   .join-card > .join-act { display: block; margin-top: 8px; padding: 3px 10px; font-size: 12px; }
   .party-tok.party-making { box-shadow: 0 0 0 2px rgba(122,167,255,0.9), 0 2px 6px rgba(0,0,0,0.55); }

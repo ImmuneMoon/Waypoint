@@ -8479,7 +8479,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && rv1 === j(['', '1', 'A sheet update waits for your review: Sahrhie (1)']) && rvNone === j([[], 'none'])
             && shS3.includes("var rvChip = ui('reviewChip'); if (rvChip) rvChip.addEventListener('click', reviewNext);") && shS3.split("addEventListener('click', reviewNext)").length === 2
             && shS3.includes("function uploadsChanged(charId) { renderViews(typeof charId === 'string' ? charId : null); renderReviewChip(); }") && shS3.includes("_review = null; renderReviewChip(); }") && shS3.includes("try { renderReviewChip(); } catch (e) { console.error(e); }")
-            && ixS2.includes('<button class="tool" id="reviewChip" style="display:none;" title="A player sent a sheet update: review what changes">&#128203; Review <span id="reviewChipN"></span></button>')
+            && ixS2.includes('<button class="tool" id="reviewChip" style="display:none;" title="A player sent a sheet update: review what changes"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 5H6v15.5h12V5h-2.5M9 3.5h6v3H9zM9 13.5l2.2 2.2 3.8-4.2"/></svg> Review <span id="reviewChipN"></span></button>')
             && ixS2.includes('Nothing changes until you press <b>Review</b> and apply the ones you tick. Review is a gold button in the header for as long as an upload waits, and on the character&rsquo;s sheet.')
             && rdx('scripts/net.js').includes("' to review (the gold Review button in the header).';"),
             j([rv0, rv2, rvOpen, rvClient, rvNoWrite, rvOff, rv1, rvNone]));

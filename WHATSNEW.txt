@@ -259,6 +259,8 @@ The top bar and the data map
   table and its players, a pause, the round and whose turn it is, and
   a fog preview. A pill shows only while it has something to say, and
   a press opens its thing.
+- A player's video chip and the Review button wear line drawings and
+  read as pills too.
 - Where the window is too narrow for the row, Sound, Music, Handouts,
   Journal and Help move into More, so the row stays one line.
 - Both menus work from the keyboard: the arrow keys, a letter for the

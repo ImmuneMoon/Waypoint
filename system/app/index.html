@@ -97,25 +97,6 @@
     <div class="header-group">
       <span id="visualTools" style="display:none;"><input type="file" id="imgFileIn" accept="image/*" hidden></span>
       <input type="file" id="sheetFileIn" accept=".json,application/json" hidden>
-      <div class="dropdown-wrap" id="saveAsDropdownWrap">
-        <button class="tool ghost" id="saveAsBtn"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3.5H6v17h12v-5.5M11.5 9.5H21M17.5 6L21 9.5 17.5 13"/></svg> Export As <span class="caret-down">&#9662;</span></button>
-        <div id="saveAsMenu" class="dropdown header-dropdown" style="display:none;">
-          <div class="menu-item" id="exportImgBtn" title="Export current view as PNG">&#128444;&#65039; Save as Image</div>
-          <div class="menu-item" id="exportPdfBtn" title="Export as PDF / Print">&#128196; Save PDF</div>
-          <div class="menu-item" id="exportHtmlBtn" title="Export as HTML">&#127760; Save HTML</div>
-          <div class="menu-item" id="exportMdBtn" title="The open planner or handbook page as Markdown (its pictures bundled in a .zip)">&#128221; Save Markdown</div>
-          <div class="menu-divider"></div>
-          <div class="menu-item" id="exportItemBtn" title="Just the open map or planner (its images come along in a .zip)">&#128190; Export This Map</div>
-          <div class="menu-item" id="exportMapsBtn" title="Every map in this campaign, data + play map, with images">&#128506;&#65039; Export All Maps</div>
-          <div class="menu-item" id="exportWbsBtn" title="Play Map-only copies of this campaign's maps, with images">&#127912; Export All Play Maps</div>
-          <div class="menu-item" id="exportPlannersBtn" title="Every planner in this campaign">&#128209; Export All Planners</div>
-         <div class="menu-item" id="exportDocsBtn" title="Every handbook page in this campaign">&#128214; Export All Pages</div>
-          <div class="menu-divider"></div>
-          <div class="menu-item" id="exportCampaignBtn" title="This campaign on its own &mdash; every map and planner, its players, handouts and cast, with its images, sounds and videos bundled (whatever their size). Imports as this campaign.">&#127981; Export This Campaign</div>
-          <div class="menu-item" id="exportBtn" title="The entire save &mdash; every campaign, with all images bundled">&#128230; Export Everything</div>
-        </div>
-      </div>
-      <button class="tool ghost" id="importBtn"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3.5H6v17h12v-5.5M21 9.5h-9.5M15 6l-3.5 3.5L15 13"/></svg> Import </button>
       <input type="file" id="fileIn" accept=".json,application/json,.html,text/html,.zip,application/zip,application/x-zip-compressed,.md,.markdown,text/markdown,.txt,text/plain" hidden>
      <input type="file" id="docImportFile" accept=".md,.markdown,.txt,.zip,image/*" multiple hidden>
       <div class="header-sep"></div>
@@ -133,10 +114,48 @@
         <button class="tool ghost icon" id="journalBtn" title="Journal &mdash; everything a GM has shown you, with your notes" style="position:relative;"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 3.5H18v17H6.5a2 2 0 0 1-2-2v-13a2 2 0 0 1 2-2zM4.5 16.5a2 2 0 0 1 2-2H18M10 3.5v6.5l2-1.5 2 1.5V3.5"/></svg><span id="journalBadge" style="display:none; position:absolute; top:-4px; right:-4px; background:var(--gold); color:#1a1408; font-size:9px; min-width:14px; height:14px; line-height:14px; border-radius:7px; text-align:center; padding:0 2px;"></span></button>
       </div>
       <div class="hdr-group" data-label="App">
-        <button class="tool ghost icon" id="refreshBtn" title="Refresh Waypoint &mdash; reloads the app and puts you straight back into your session"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M17.6 2.8v4.2h-4.2"/></svg></button>
         <button class="tool ghost icon" id="settingsBtn" title="Settings"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.2 5.1L10.7 2.8L13.3 2.8L13.8 5.1A7.1 7.1 0 0 1 15.6 5.9L17.6 4.6L19.4 6.4L18.1 8.5A7.1 7.1 0 0 1 18.9 10.2L21.2 10.7L21.2 13.3L18.9 13.8A7.1 7.1 0 0 1 18.1 15.6L19.4 17.6L17.6 19.4L15.6 18.1A7.1 7.1 0 0 1 13.8 18.9L13.3 21.2L10.7 21.2L10.2 18.9A7.1 7.1 0 0 1 8.5 18.1L6.4 19.4L4.6 17.6L5.9 15.6A7.1 7.1 0 0 1 5.1 13.8L2.8 13.3L2.8 10.7L5.1 10.2A7.1 7.1 0 0 1 5.9 8.5L4.6 6.4L6.4 4.6L8.4 5.9A7.1 7.1 0 0 1 10.2 5.1zM12 8.9a3.1 3.1 0 1 0 0 6.2 3.1 3.1 0 0 0 0-6.2z"/></svg></button>
         <button class="tool ghost icon" id="helpBtn" title="Help &amp; Shortcuts"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zM9.4 9.6a2.7 2.7 0 1 1 3.9 2.4c-.8.4-1.3 1-1.3 1.9M12 16.9h.01"/></svg></button>
-        <button class="tool ghost icon" id="aboutBtn" title="About Waypoint"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zM12 11v5.6M12 7.5h.01"/></svg></button>
+        <div class="row-menu-wrap" id="moreMenuWrap">
+          <button class="tool ghost icon" id="moreMenuBtn" aria-haspopup="true" aria-expanded="false" aria-controls="moreMenu" title="More. Export As, Import, Refresh, About and the welcome screen."><svg class="ico ico-dots" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5h.01M12 12h.01M12 19h.01"/></svg></button>
+          <div class="row-menu" id="moreMenu" hidden>
+            <div class="rm-label">More</div>
+            <div class="rm-part" id="moreFiles">
+              <div class="dropdown-wrap" id="saveAsDropdownWrap">
+                <button class="rm-row" id="saveAsBtn" aria-haspopup="true" title="Export As. Save the open map, the campaign or everything as a file."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3.5H6v17h12v-5.5M11.5 9.5H21M17.5 6L21 9.5 17.5 13"/></svg><span>Export As</span><small>11 kinds &rsaquo;</small></button>
+                <div id="saveAsMenu" class="dropdown header-dropdown" style="display:none;">
+                  <div class="menu-item" id="exportImgBtn" title="Export current view as PNG">&#128444;&#65039; Save as Image</div>
+                  <div class="menu-item" id="exportPdfBtn" title="Export as PDF / Print">&#128196; Save PDF</div>
+                  <div class="menu-item" id="exportHtmlBtn" title="Export as HTML">&#127760; Save HTML</div>
+                  <div class="menu-item" id="exportMdBtn" title="The open planner or handbook page as Markdown (its pictures bundled in a .zip)">&#128221; Save Markdown</div>
+                  <div class="menu-divider"></div>
+                  <div class="menu-item" id="exportItemBtn" title="Just the open map or planner (its images come along in a .zip)">&#128190; Export This Map</div>
+                  <div class="menu-item" id="exportMapsBtn" title="Every map in this campaign, data + play map, with images">&#128506;&#65039; Export All Maps</div>
+                  <div class="menu-item" id="exportWbsBtn" title="Play Map-only copies of this campaign's maps, with images">&#127912; Export All Play Maps</div>
+                  <div class="menu-item" id="exportPlannersBtn" title="Every planner in this campaign">&#128209; Export All Planners</div>
+                 <div class="menu-item" id="exportDocsBtn" title="Every handbook page in this campaign">&#128214; Export All Pages</div>
+                  <div class="menu-divider"></div>
+                  <div class="menu-item" id="exportCampaignBtn" title="This campaign on its own &mdash; every map and planner, its players, handouts and cast, with its images, sounds and videos bundled (whatever their size). Imports as this campaign.">&#127981; Export This Campaign</div>
+                  <div class="menu-item" id="exportBtn" title="The entire save &mdash; every campaign, with all images bundled">&#128230; Export Everything</div>
+                </div>
+              </div>
+              <button class="rm-row" id="importBtn" title="Import. Bring in a campaign, a map, a planner or a page from a file."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3.5H6v17h12v-5.5M21 9.5h-9.5M15 6l-3.5 3.5L15 13"/></svg><span>Import</span></button>
+              <div class="rm-rule"></div>
+            </div>
+            <button class="rm-row" id="refreshBtn" title="Refresh Waypoint &mdash; reloads the app and puts you straight back into your session"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M17.6 2.8v4.2h-4.2"/></svg><span>Refresh Waypoint</span></button>
+            <button class="rm-row" id="aboutBtn" title="About Waypoint"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zM12 11v5.6M12 7.5h.01"/></svg><span>About Waypoint</span></button>
+            <button class="rm-row" data-press="headerBrand" title="Back to the welcome screen"><img src="icon.ico" alt="" class="rm-mark"><span>Back to the welcome screen</span></button>
+            <div class="rm-part" id="moreFold">
+              <div class="rm-rule"></div>
+              <div class="rm-label">Folded in while the window is narrow</div>
+              <button class="rm-row" data-press="soundInd" title="Sound. Your volume and mute."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 9.5H7l5-4v13l-5-4H3.5zM15.5 9.3a4 4 0 0 1 0 5.4M18.2 6.8a8 8 0 0 1 0 10.4"/></svg><span>Sound</span></button>
+              <button class="rm-row" data-press="musicInd" title="Music. Your volume and mute."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 17.5V6.4l10.5-2.6v11.2M8.5 10.4l10.5-2.6"/><circle cx="6" cy="17.5" r="2.5"/><circle cx="16.5" cy="15" r="2.5"/></svg><span>Music</span></button>
+              <button class="rm-row" data-press="handoutsBtn" title="Handouts. Pictures and written pages to show your players."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 3.5h11v14h-11zM5 7v13.5h11M11.5 8h5M11.5 11.5h5"/></svg><span>Handouts</span></button>
+              <button class="rm-row" data-press="journalBtn" title="Journal. Everything a GM has shown you, with your notes."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 3.5H18v17H6.5a2 2 0 0 1-2-2v-13a2 2 0 0 1 2-2zM4.5 16.5a2 2 0 0 1 2-2H18M10 3.5v6.5l2-1.5 2 1.5V3.5"/></svg><span>Journal</span><small data-badge="journalBadge"></small></button>
+              <button class="rm-row" data-press="helpBtn" title="Help and shortcuts"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zM9.4 9.6a2.7 2.7 0 1 1 3.9 2.4c-.8.4-1.3 1-1.3 1.9M12 16.9h.01"/></svg><span>Help</span></button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
     <div class="save-note" id="saveNote"></div>
@@ -230,7 +249,19 @@
                               <ul>
                                   <li>The same menu searches, adds, renames and deletes campaigns.</li>
                                   <li><b>System</b>, in that menu, opens the campaign&rsquo;s rules and sheets.</li>
-                                  <li>From the keyboard, the arrow keys go through the menu and <kbd>Esc</kbd> closes it.</li>
+                              </ul>
+                          </li>
+                          <li><b>More:</b> the three dots at the right end of the top row hold what you need less often.
+                              <ul>
+                                  <li>Export As and Import are rows of it. So are Refresh Waypoint and About Waypoint.</li>
+                                  <li>Back to the welcome screen is there too. The Waypoint mark at the left does the same.</li>
+                                  <li>Where the window is too narrow for the row, Sound, Music, Handouts, Journal and Help move into More. Nothing is cut off.</li>
+                              </ul>
+                          </li>
+                          <li><b>From the keyboard:</b> both menus can be worked without the mouse.
+                              <ul>
+                                  <li>The arrow keys go through a menu, and a letter goes to the next row that begins with it.</li>
+                                  <li><kbd>Enter</kbd> presses a row and <kbd>Esc</kbd> closes the menu.</li>
                               </ul>
                           </li>
                       </ul>
@@ -925,7 +956,7 @@
                               <ul>
                                   <li>The <b>import</b> button in the planner toolbar appends to the open document.</li>
                                   <li>The file button on the right-click menus of the Planners and Handbook headers makes a new one.</li>
-                                  <li>The header <b>Import</b> button takes a <code>.md</code> file, or a zip that holds one, and asks which it becomes.</li>
+                                  <li><b>Import</b>, under <b>More</b> in the top row, takes a <code>.md</code> file, or a zip that holds one, and asks which it becomes.</li>
                               </ul>
                           </li>
                           <li>Pictures come along when you pick them together with the file, or zip the file with its <code>images</code> folder. Google Docs&rsquo; <b>File &rsaquo; Download &rsaquo; Markdown</b> embeds them and works as is.</li>

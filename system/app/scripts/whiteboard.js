@@ -3819,7 +3819,9 @@ window.wpFitToGrid = fitToGrid;
   // circle becomes a blast in its place, shown to the table as a thrown blast is, and the damage follows the system's blast setting
   // (combat.blastAuto: full rolls and applies, roll rolls to chat, measure does neither). The type is named on the roll's card and changes no
   // number. It hits the tokens the circle held and no other: the token a circle sat on is spared (spare), and nothing is moved, so a circle
-  // whose centre is in a wall is refused where a throw would go off in front of it. Every refusal is in fixed words
+  // whose centre is in a wall is refused where a throw would go off in front of it. Every refusal is in fixed words. Of the token a circle
+  // sat on the owner said, by prompt: "Ask each time". So the boxes hold a tick, Also hits the token at the centre, shown only for a circle
+  // on a token and off every time it comes up. Ticked, that one explosion spares nobody
   var EXPLODE_MIN_FT = 1, EXPLODE_MAX_FT = 3000;   // a blast's radius in feet, as placeThrownBlast and a player's app bound it
   function explodeType(v) {   // the damage type as typed: a few plain words on one line, 40 characters at most and never half a character
       if (typeof v !== 'string') return '';
@@ -3852,7 +3854,7 @@ window.wpFitToGrid = fitToGrid;
       var ty = explodeType(type); if (!ty) return { why: 'Type the damage type. It is a word.' };
       return { c: q.c, ft: q.ft, expr: expr, type: ty };
   }
-  function explodeCircle(dmg, type) {   // true: it went off
+  function explodeCircle(dmg, type, hitFor) {   // true: it went off. hitFor: the very circle whose centre token the GM ticked to be hit, else nothing
       var q = explodeAsk(dmg, type); if (q.why) { toast(q.why); return false; }
       var map = getActiveMap(), camp = getActiveCampaign(), sys = camp && camp.system, combat = (sys && sys.combat) || {};
       var auto = !sys ? 'roll' : combat.blastAuto === 'roll' || combat.blastAuto === 'measure' ? combat.blastAuto : 'full';   // with no character system there is nothing to apply the damage to
@@ -3865,7 +3867,7 @@ window.wpFitToGrid = fitToGrid;
       }
       var c = q.c, at = blasts.indexOf(c); if (at < 0) return false;   // the circle went while the roll was made: nothing goes off, and no other shape's place is taken
       var b = { x: c.x, y: c.y, ft: q.ft, name: 'Explosion', elev: typeof c.elev === 'number' && isFinite(c.elev) ? c.elev : 0, autoElev: false, thrown: true, by: '' };
-      if (typeof c.tok === 'string') b.spare = c.tok;   // the token the circle sat on was not inside it: the explosion does not hit it
+      if (typeof c.tok === 'string' && hitFor !== c) b.spare = c.tok;   // the token the circle sat on was not inside it: the explosion does not hit it, unless the GM ticked that it does, for this very circle
       blasts.splice(at, 1, b);   // the circle becomes the blast, where it stood
       renderMeasures(); syncBlastMenu();
       if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.broadcastBlast) window.wpNet.broadcastBlast({ x: b.x, y: b.y, ft: b.ft, name: b.name, elev: b.elev, by: '' }, map.id);   // shown to the table as a thrown blast is: its place, its size, its height and the fixed word
@@ -3879,12 +3881,26 @@ window.wpFitToGrid = fitToGrid;
   // The two boxes under Explode: shown when Explode is pressed, put away when it went off, on Cancel and on a second press. They are emptied
   // every time they are shown or put away, so what was typed for one explosion is never there for the next
   var _el_exBtn = document.getElementById('blastExplodeBtn'), _el_exForm = document.getElementById('blastExplodeForm'), _el_exDmg = document.getElementById('blastDmg'), _el_exType = document.getElementById('blastDmgType');
+  var _el_exHitRow = document.getElementById('blastHitCentreRow'), _el_exHit = document.getElementById('blastHitCentre'), _exHitFor = null;   // the tick, and the circle it is being asked for
+  // The tick under the two boxes: Also hits the token at the centre. It shows only while the boxes are up and the circle that would go off
+  // sits on a token. It is unticked whenever the circle it is asked for changes, so a yes for one circle is never there for another
+  function explodeHitRow() {
+      if (!_el_exHitRow) return;
+      var c = _el_exForm && _el_exForm.style.display !== 'none' && !playerScreen() ? lastOwn() : null;
+      if (!c || typeof c.tok !== 'string' || shapeOf(c.as) !== 'circle') c = null;
+      if (c !== _exHitFor) { _exHitFor = c; if (_el_exHit) _el_exHit.checked = false; }
+      _el_exHitRow.style.display = c ? '' : 'none';
+  }
   function explodeForm(show) {
       if (_el_exDmg) _el_exDmg.value = ''; if (_el_exType) _el_exType.value = '';
       if (_el_exForm) _el_exForm.style.display = show ? '' : 'none';
+      explodeHitRow();   // put away, the tick is asked for no circle, so it is unticked; it comes up again off, whatever it held
       if (show && _el_exDmg && _el_exDmg.focus) _el_exDmg.focus();
   }
-  function explodeGo() { if (explodeCircle(_el_exDmg ? _el_exDmg.value : '', _el_exType ? _el_exType.value : '')) explodeForm(false); }   // refused: the boxes stay as typed, to be put right
+  function explodeGo() {   // refused: the boxes stay as typed, to be put right
+      var hitFor = _el_exHit && _el_exHit.checked === true && _el_exHitRow && _el_exHitRow.style.display !== 'none' ? _exHitFor : null;
+      if (explodeCircle(_el_exDmg ? _el_exDmg.value : '', _el_exType ? _el_exType.value : '', hitFor)) explodeForm(false);
+  }
   if (_el_exBtn) _el_exBtn.addEventListener('click', function() {
       if (_el_exForm && _el_exForm.style.display !== 'none') { explodeForm(false); return; }
       var w = explodeWhere(); if (w.why) { toast(w.why); return; }   // nothing to set off: said before anything is asked
@@ -4323,6 +4339,7 @@ window.wpFitToGrid = fitToGrid;
       }
       var nOwn = blasts.filter(function(x) { return ownCircle(x) && !x.lost; }).length;   // the shapes on screen: a circle whose token is gone is not one
       var which = document.getElementById('blastWhich'); if (which) which.textContent = nOwn ? 'The numbers are those of the last shape you placed. You have ' + nOwn + ' on this map.' : now.tok === true ? 'Click a token on the map to put a circle on it.' : now.as === 'ring' ? 'Click a cell on the map to place a ring.' : now.as === 'cone' ? 'Press a cell on the map and drag to aim the cone.' : 'Click a cell on the map to place a circle.';
+      if (typeof explodeHitRow === 'function') explodeHitRow();   // the Explode boxes ask about the centre token only while the circle that would go off sits on one
   }
   function lastOwn() { for (var i = blasts.length - 1; i >= 0; i--) if (ownCircle(blasts[i]) && !blasts[i].lost) return blasts[i]; return null; }   // the last shape of the tool's own that is on screen
   function circleNow() {   // what the options show: the last shape of the tool's own, else the one kept for the next. A number the shape does not carry (a circle has no angle) is the one kept

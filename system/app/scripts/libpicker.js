@@ -147,7 +147,7 @@ function preview() {
     var src = st.opts.source, need = typeof src.get === 'function' && !st.full[x.e.id];
     if (need) {   // L3b: a player's entry comes in full a moment after it is highlighted (the arrows running down a list ask for none on the way)
         clearTimeout(st.getTimer); var mine = st, want = x.e.id;
-        st.getTimer = setTimeout(function() { if (st !== mine) return; src.get(x.e, x.p, function(full) { if (st !== mine || !full || full.id !== want) return; st.full[want] = full; var y = st.hi >= 0 ? st.rows[st.hi] : null; if (y && !y.hdr && y.e.id === want) preview(); }); }, 250);
+        st.getTimer = setTimeout(function() { if (st !== mine) return; src.get(x.e, x.p, function(full) { if (st !== mine || !full || full.id !== want) return; st.full[want] = full; if (Array.isArray(full.needs)) { draw(); addLabel(); } var y = st.hi >= 0 ? st.rows[st.hi] : null; if (y && !y.hdr && y.e.id === want) preview(); }); }, 250);
     }
     var e = st.full[x.e.id] || x.e, h = el('div', 'lib-pick-name', ((e.icon && !/^icon:/.test(e.icon)) ? e.icon + ' ' : '') + e.name); if (gmOnly(x)) h.appendChild(el('span', 'sheet-chip sheet-chip-gm', 'GM only')); box.appendChild(h);
     box.appendChild(el('div', 'lib-pick-sub', [e.category || 'No category', x.p.name].join(' · ')));

@@ -334,12 +334,15 @@ function cleanRollDef(r, gmView) {
 // need the formula, which also removes the GM-only-field-leak surface (cleanSystem's blanking is fields/rolls only).
 // 126b, prerequisites (the owner, by prompt: "Both", the entries something needs by ticking and a formula for anything else; "the picker greys
 // out what cannot be taken and says why; the host judges a player's pick"). These are the ticked ones: the entries a character must carry
-// before it may take this one, each by its id and, where one is given, at a level at least. At most LIMITS.needs, an id once
-function cleanNeeds(v) {
+// before it may take this one, each by its id and, where one is given, at a level at least. At most LIMITS.needs, an id once. names: true
+// only for the needs on an owner's copy of a row, where each may carry the needed entry's name as text; a definition never keeps one
+function cleanNeeds(v, names) {
     var out = [], seen = map();
     (Array.isArray(v) ? v : []).forEach(function(n) {
         if (out.length >= LIMITS.needs || !isObj(n) || typeof n.id !== 'string' || !ITEM_ID.test(n.id) || seen[n.id]) return;
-        seen[n.id] = 1; var o = { id: n.id }, l = typeof n.lvl === 'number' ? lvlNum(n.lvl) : undefined; if (l !== undefined) o.lvl = l; out.push(o);
+        seen[n.id] = 1; var o = { id: n.id }, l = typeof n.lvl === 'number' ? lvlNum(n.lvl) : undefined; if (l !== undefined) o.lvl = l;
+        if (names === true && typeof n.name === 'string') { var nn = cutText(n.name, LIMITS.name); if (nn) o.name = nn; }
+        out.push(o);
     });
     return out.length ? out : null;
 }
@@ -356,15 +359,16 @@ function hideNeeds(def, shown) {
 // The one judge of an entry's prerequisites for one character: each needed entry is carried on some list of the character, and where the need
 // names a level and the row has one, at that level or above. A row hidden from its player (a kept curse) never counts, and neither does a
 // row of the character's own. { ok, missing: the needs not met }. def: the entry as the judge holds it (the host: whole; a player's app:
-// the needs it may see)
-function needsMet(sys, char, def) {
+// the needs it may see). copy: true on a player's own app, whose copy of a library row is inline and names its entry as src. The host never
+// says it: a row on the host names its entry itself, and a src that stands on one of its own rows (a file could write one) is not believed
+function needsMet(sys, char, def, copy) {
     var out = { ok: true, missing: [] }; if (!isObj(def) || !Array.isArray(def.needs) || !def.needs.length) return out;
     var have = map();   // id -> the highest level a carried row of it has; true where its list has no level
     (isObj(sys) && Array.isArray(sys.fields) ? sys.fields : []).forEach(function(f) {
         if (!isObj(f) || f.kind !== 'item-list') return;
         var rows = isObj(char) && isObj(char.values) && Array.isArray(char.values[f.id]) ? char.values[f.id] : [], lv = isObj(f.list) && isObj(f.list.lvl);
         rows.forEach(function(r) {
-            var eid = isObj(r) ? (typeof r.defId === 'string' ? r.defId : r.lnk === 1 && typeof r.src === 'string' ? r.src : null) : null;   // the host's row names its entry; an owner's inline copy names it as src
+            var eid = isObj(r) ? (typeof r.defId === 'string' ? r.defId : copy === true && r.lnk === 1 && typeof r.src === 'string' ? r.src : null) : null;   // the host's row names its entry; an owner's inline copy names it as src, read only on the owner's own app
             if (!eid || r.hid === 1) return;
             var l = lv ? rowLvl(f.list, r, null) : true, h = have[eid];
             if (h === undefined || (typeof l === 'number' && (h === true || l > h))) have[eid] = l;
@@ -1854,7 +1858,7 @@ function cleanRow(e, items, spec) {   // spec (F4b): the list's options (f.list)
     var d = cleanRowDef(e.def, e.lnk !== 1); if (!d) return null;
     var cs = rowStats(e.def.stats, spec); if (cs) d.stats = cs; else delete d.stats;   // F4c1: a custom or inline copy carries its list's stats only
     if (e.lnk === 1) rowText(d, e.def);   // 1.5.4: an owner's inline copy keeps the entry's long text, cleaned again (the host sends it for an entry players may see); a row of the character's own never has any
-    var c = { id: id, qty: qty }; rowFacts(c, e, spec); c.def = d; if (e.lnk === 1) { c.lnk = 1; if (typeof e.src === 'string' && ITEM_ID.test(e.src)) c.src = e.src; } else { if (e.own === 1) c.own = 1; if (e.hid === 1) c.hid = 1; if (e.keptOn === 1 && c.on === true) c.keptOn = 1; } return c;   // F4c3: own (a row its owner made), never on an inline copy
+    var c = { id: id, qty: qty }; rowFacts(c, e, spec); c.def = d; if (e.lnk === 1) { c.lnk = 1; if (typeof e.src === 'string' && ITEM_ID.test(e.src)) { c.src = e.src; var cnR = cleanNeeds(e.needs, true); if (cnR) c.needs = cnR; } } else { if (e.own === 1) c.own = 1; if (e.hid === 1) c.hid = 1; if (e.keptOn === 1 && c.on === true) c.keptOn = 1; } return c;   // F4c3: own (a row its owner made), never on an inline copy
 }
 // Stage 6 F4b: a row's facts, after its quantity — the level on the list's terms (as stored while the list has none), the switch, the note.
 // keptOn (after them, the GM's machine only): the owner switched a curse-on-contact item off and the GM keeps it on
@@ -1998,7 +2002,16 @@ function projectRows(rows, view, lib, spec) {
             var d = mergeOv(isObj(le) ? le : r.snap, r.ov), pd = cleanRowDef(d, false); if (!pd) return;   // F4c2: inline, with its own values folded in (then reduced to the players' fields)
             ownStats(pd, d, spec); viewMods(pd, view);
             if (isObj(le)) room -= rowText(pd, le, room);   // 1.5.4: the entry's description and levels, from the library as it is now — never a deleted entry's copy (it kept none), never a GM-only entry's
-            var io = { id: rid, qty: r.qty }; projFacts(io, r); io.def = pd; io.lnk = 1; if (isObj(le) && le.vis !== 'gm') io.src = r.defId; out.push(io); return;   // 126b: src, the entry it came from, for an entry players may see: their own app then knows the character carries it (what another entry needs); a GM-only entry's id is never told
+            var io = { id: rid, qty: r.qty }; projFacts(io, r); io.def = pd; io.lnk = 1;
+            if (isObj(le) && le.vis !== 'gm') {   // 126b: for an entry players may see, src, the entry it came from: their own app then knows the character carries it (what another entry needs); a GM-only entry's id is never told
+                io.src = r.defId;
+                var cnP = cleanNeeds(le.needs), rnP = cnP ? hideNeeds({ needs: cnP }, function(id) { var x = typeof lib === 'function' ? lib(id) : (lib && Object.prototype.hasOwnProperty.call(lib, id)) ? lib[id] : null; return isObj(x) && x.vis !== 'gm'; }).needs : null;
+                if (rnP) {   // ... and the needs of it that players may see, from the library as it is now, each with the needed entry's name: their sheet marks the row while one is not met, and says which, with nothing of the library loaded
+                    rnP.forEach(function(n) { var x = typeof lib === 'function' ? lib(n.id) : (lib && Object.prototype.hasOwnProperty.call(lib, n.id)) ? lib[n.id] : null, nm = isObj(x) && typeof x.name === 'string' ? cutText(x.name, LIMITS.name) : ''; if (nm) n.name = nm; });
+                    io.needs = rnP;
+                }
+            }
+            out.push(io); return;
         }
         if (r.id && isObj(r.def)) { var cd = cleanRowDef(r.def, false); if (cd) { ownStats(cd, r.def, spec); viewMods(cd, view); var co = { id: r.id, qty: r.qty }; projFacts(co, r); co.def = cd; if (r.own === 1) co.own = 1; out.push(co); } }   // F4c3: own — a row they made (theirs to change while the list takes custom rows)
     });
@@ -2030,7 +2043,7 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
         if (!ent || !inView || (opts.player && ent.vis === 'gm')) return { ok: false, reason: 'missing' };
         if (opts.player && spec && Array.isArray(spec.cats) && !catIn(spec.cats, ent.category)) return { ok: false, reason: 'missing' };   // F4b: outside the list's categories reads as gone
         if (opts.player && !fl) {   // 126b: what the entry needs, judged for a player's own pick (a character being made too; never a file that fills one, never the GM)
-            var nmR = needsMet(sys, char, ent);
+            var nmR = needsMet(sys, char, ent, opts.copy === true);   // copy: a player's own app, judging its copy of the character
             if (!nmR.ok) return { ok: false, reason: 'needs', msg: needsSays(ent, nmR.missing, function(id) { var d2 = itemDef(sys, id); if (d2) return valueOpts(opts.view || null).items[id] === 1 ? d2.name : null; var l2 = typeof opts.lib === 'function' ? opts.lib(id) : null; return isObj(l2) && l2.vis !== 'gm' ? l2.name : null; }) };
         }
         var n = spec && spec.noQty ? 1 : clampNum((q.qty | 0) || 1, 1, LIMITS.maxQty), have = -1;

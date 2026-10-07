@@ -4306,7 +4306,7 @@ pendingChecks.push((async () => {
     check('L3b one ask in flight at the table (the rest wait their turn); a host still busy after five more tries is given up on and the next ask goes',
         oneAtATime && asksQ === 6 && gaveUp && nextWent && lwOk === true && gqOk, J([oneAtATime, asksQ, gaveUp, nextWent, lwOk, gqOk]));
     check('L3b a player\'s pick reads the entry they fetched (charItem and the changes worked out again pass the client\'s cache as opts.lib); the session end clears it and what players drew from the host',
-        /S\.applyRowOp\(camp\.system, c, fieldId, q, window\.wpFormula, \{ player: true, view: camp\.system, lib: net\.libEntry \}\)/.test(src) && /var o = \{ player: true, view: camp\.system, lib: net\.libEntry \}/.test(src) && /net\.libReset\(\); _libSpent = Object\.create\(null\);/.test(src));
+        /S\.applyRowOp\(camp\.system, c, fieldId, q, window\.wpFormula, \{ player: true, view: camp\.system, lib: net\.libEntry, copy: true \}\)/.test(src) && /var o = \{ player: true, view: camp\.system, lib: net\.libEntry, copy: true \}/.test(src) && /net\.libReset\(\); _libSpent = Object\.create\(null\);/.test(src));
 })());
 
 // Stage 6 F6 (owner, 2026-09-27): a kept curse keeps working, nameless — the real char-item handler drops a cursed item (it stays on the
@@ -10978,6 +10978,40 @@ pendingChecks.push((async () => {
             && j(sent.map(m => [m.type, m.op, m.defId])) === j([['char-item', 'add', 'i_med'], ['char-item', 'add', 'i_own'], ['char-item', 'add', 'i_lib8'], ['char-item', 'add', 'i_hid']]) && j(kit()) === j(['i_med', 'i_own', 'i_lib8', 'i_hid'])
             && ciSrc.includes("res.reason === 'needs' ? (res.msg || 'Your character does not meet what that needs.') : 'That change is not allowed.' };"),
             j([r1, r2, r3, r7, r8, r9, sent.map(m => m.defId)]));
+    }
+})());
+pendingChecks.push((async () => {
+    /* ---- 126b: only a player's own app believes a src; the host judges by its own rows ---- */
+    {
+        const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+        const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
+        const rawS = { v: 1, name: 'N', rolls: [], fields: [{ id: 'f_kit', key: 'Kit', kind: 'item-list' }], items: [{ id: 'i_two', name: 'TWO', needs: [{ id: 'i_lib1' }] }] };
+        const view = Sx.cleanSystem(rawS, { F: Fx, gmView: false, needShown: true }), inline = () => [{ id: 'w_1', qty: 1, def: { name: 'L1' }, lnk: 1, src: 'i_lib1' }], PICK = { op: 'add', defId: 'i_two', rowId: 'w_two1', qty: 1 };
+        // a player's own app: the pick, and the changes still waiting laid over a newer host copy
+        const cA = src.indexOf('net.charItem = function('), cZ = src.indexOf('\n};\n', cA) + 3, sentC = [];
+        const campC = { id: 'k', system: view, chars: { c_1: { id: 'c_1', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_kit: inline() } } } };
+        const netC = { active: true, role: 'client', stream: false, foreign: true, syncedPeer: 'h', myId: 'u_a', libEntry: () => null, conns: [{ peer: 'h', open: true, send: m => { packCheck(m); sentC.push(m.defId); } }] };
+        new Function('net', 'SC', 'getActiveCampaign', 'window', '_charPending', 'charPendingDone', 'setTimeout', src.slice(cA, cZ))(netC, () => Sx, () => campC, { wpFormula: Fx, wpVtt: { on: () => true } }, {}, () => {}, () => 0);
+        const rOwn = netC.charItem('c_1', 'f_kit', PICK);
+        const rA = src.indexOf('function reapplyPending(charId) {'), rZ = src.indexOf('\n}\n', rA) + 3, rpSrc = rA > 0 ? src.slice(rA, rZ) : '';
+        const campR = { id: 'k', system: view, chars: { c_1: { id: 'c_1', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_kit: [] } } } };
+        new Function('getActiveCampaign', 'SC', '_charHost', '_charPending', 'window', 'net', rpSrc + '\nreturn reapplyPending;')(() => campR, () => Sx, { c_1: { f_kit: inline() } }, { e1: { charId: 'c_1', fieldId: 'f_kit', kind: 'item', q: JSON.parse(JSON.stringify(PICK)) } }, { wpFormula: Fx }, { libEntry: () => null })('c_1');
+        const kitR = campR.chars.c_1.values.f_kit.map(r => r.defId || r.src);
+        // the host: the same pick for a character one of whose own stored rows carries a src (a campaign from a file may hold one)
+        const ciSrc = between('// [netcheck:charitem-start]', '// [netcheck:charitem-end]', 'charitem'), dlSrc = between('// [netcheck:chardelta-start]', '// [netcheck:chardelta-end]', 'chardelta');
+        const ntSrc = (() => { const i = src.indexOf('function itemNotice('), k = src.indexOf('net.syncChars = function', i); if (i < 0 || k < 0) throw new Error('netcheck: itemNotice not found'); return src.slice(i, k); })();
+        const sysH = Sx.cleanSystem(rawS, { F: Fx, gmView: true }), campH = { id: 'k', system: sysH, chars: { c_1: { id: 'c_1', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_kit: inline() } } } }, ans = [];
+        const conn = { peer: 'pA', send: m => { packCheck(m); ans.push(JSON.parse(JSON.stringify(m))); } }, netH = { active: true, role: 'host', paused: false, conns: [{ peer: 'pA', open: true, send() {} }], roster: { pA: { id: 'u_a' } } };
+        const winH = { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false, needShown: () => true }), charChanged() {} }, wpDiceCore: null, wpLibrary: null };
+        new Function('net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'peerProfileId', 'lim', 'toast', 'logEvent',
+            'var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {};\n' + dlSrc + '\n' + ntSrc + '\nreturn function(msg, conn) {\n' + ciSrc + '\n};')(
+            netH, () => Sx, winH, () => false, () => campH, () => {}, e => { throw e; }, c => (netH.roster[c.peer] ? netH.roster[c.peer].id : null), { allow: () => true }, () => {}, () => {})(Object.assign({ type: 'char-item', rid: 'i1', charId: 'c_1', fieldId: 'f_kit' }, PICK), conn);
+        check('126b only a player\'s own app believes a src (the real net.charItem, reapplyPending and host row branch, with the real core): on a player\'s app a pick whose need is carried as an inline copy of a library row goes through and is sent, and a change still waiting for the host is laid over a newer host copy the same way, so the row they picked does not drop out of sight; the host, judging the very same rows as its own, does not believe the src and refuses, storing nothing; the host\'s call says nothing of a copy, both of a player\'s calls do',
+            rOwn.ok === true && j(sentC) === j(['i_two']) && j(kitR) === j(['i_lib1', 'i_two'])
+            && j(ans) === j([{ type: 'char-deny', rid: 'i1', reason: 'needs', msg: 'That needs something you do not have.' }]) && campH.chars.c_1.values.f_kit.length === 1
+            && src.includes("{ player: true, view: camp.system, lib: net.libEntry, copy: true });") && rpSrc.includes("var o = { player: true, view: camp.system, lib: net.libEntry, copy: true },")
+            && ciSrc.includes("{ player: true, view: window.wpSheets ? window.wpSheets.playerSystem(campI) : null, grace: grI, onGrace: !!ogI, lib: libI });") && !/copy:/.test(ciSrc),
+            j([rOwn, sentC, kitR, ans]));
     }
 })());
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary

@@ -5543,6 +5543,7 @@ if(_el_toggleLeftBtn) _el_toggleLeftBtn.addEventListener('click', function() {
 
       this.textContent = sb.classList.contains('collapsed') ? '▶' : '◀';
       this.dataset.tip = sb.classList.contains('collapsed') ? 'Show the left panel' : 'Hide the left panel'; this.removeAttribute('title');   // what a press does now (tooltips.js reads data-tip: one tooltip, never two)
+      if (window.wpLeftRail) window.wpLeftRail.toggled();   // the panel's three states are leftrail.js's: folded it leaves a rail, and on the play map docking it is pinning it
 
   });
 

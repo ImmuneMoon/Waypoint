@@ -276,6 +276,8 @@ The top bar and the data map
 - Help's Coming up says what is built and what is coming: the map
   builder, text style in more places, friends and direct invites, and
   the website with cloud saves.
+- Help shows the top row's controls with their own drawings: Settings,
+  Multiplayer, the Journal, chat, About and Handouts.
 - Where the window is too narrow for the row, Sound, Music, Handouts,
   Journal and Help move into More, so the row stays one line.
 - Both menus work from the keyboard: the arrow keys, a letter for the

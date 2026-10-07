@@ -4849,7 +4849,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             /mine = !host && n\.myTurnTok \? n\.myTurnTok\(\) : null;/.test(wbE) && /\(mine \? '<button class="combat-strip-btn combat-strip-endturn" data-act="endturn"/.test(wbE) && /if \(b\.dataset\.act === 'endturn'\) \{ var rt = n && n\.turnEnd \? n\.turnEnd\(\) : null; if \(rt && rt\.error\) toast\(rt\.error\); return; \}[^\n]*\n(?:        if \(n && n\.role !== 'host' && \(b\.dataset\.act === 'hold'[^\n]*\n)?        if \(!\(n && n\.role === 'host' && am\)\) return;/.test(wbE)
             && (shE.match(/try \{ syncEndTurn\(\); \} catch \(e\) \{\}/g) || []).length === 3 && /q\('hud-endturn'\)\.addEventListener\('click', endTurn\);/.test(shE) && /etB\.addEventListener\('click', endTurn\);/.test(shE)
             && /\{ id: 'turns',     label: 'Turn-based combat', legacyKey: null, noLocal: true \}/.test(vtE) && /id="sheetEndTurn"/.test(hmE) && /hud-endturn/.test(hmE) && /id="setTurnsBtn"/.test(hmE) && /id="setVttGlobalTurnsBtn"/.test(hmE)
-            && /<b>Turn-based combat<\/b> is a VTT feature under &#9881; Settings &#9656; VTT features, on by default\. With it on, the player whose token has the turn gets <b>End turn<\/b>/.test(hmE));
+            && /<b>Turn-based combat<\/b> is a VTT feature under <svg class="ico"[^>]*>.*?<\/svg> Settings &#9656; VTT features, on by default\. With it on, the player whose token has the turn gets <b>End turn<\/b>/.test(hmE));
     }
     /* ---- Turn-based combat T2b: apply actions at a character's turn's start; run automatically, or as a reminder the GM or its player presses ---- */
     {

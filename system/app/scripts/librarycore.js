@@ -169,6 +169,7 @@ export function entryFromForm(f) {
     var hasN = Array.isArray(f.needs) && f.needs.length > 0, rlF = s(f.needsIf).trim();
     if (hasN) out.needs = JSON.parse(JSON.stringify(f.needs));
     if (rlF) out.needsIf = rlF;   // ... its rule, a formula that must be true
+    var frT = s(f.needsFrom).trim(), frF = Number(frT); if (rlF && frT !== '' && isFinite(frF)) out.needsFrom = frF;   // ... and the level of this entry from which the rule applies (a level's own prerequisite), only beside a rule
     if ((hasN || rlF) && s(f.needsMsg).trim()) out.needsMsg = s(f.needsMsg);   // 126b: what it needs, and the GM's own words for a refusal (cleaned as an entry's are)
     return out;
 }
@@ -355,7 +356,7 @@ export function itemsToMove(sys, keepIds, taken, inPack, ctx) {
 // its cleaner (a client takes nothing else from a host). 126b: an entry that needs something players may see has an eighth place, those
 // needs, so a player's picker greys the row before the entry is opened; an entry that needs nothing keeps its row of seven. A client
 // takes a row of eight only when that place cleans to at least one need
-export function indexRow(e) { var r = [e.id, e.key || '', e.name, e.category || '', e.icon || '', Array.isArray(e.tags) ? e.tags.slice() : [], entryHash(e)], nd = cleanNeeds(e.needs), rl = typeof e.needsIf === 'string' && e.needsIf ? e.needsIf : ''; if (rl) { r.push(nd || null); r.push(rl); } else if (nd) r.push(nd); return r; }   // a ninth place: the entry's rule, after its needs or null
+export function indexRow(e) { var r = [e.id, e.key || '', e.name, e.category || '', e.icon || '', Array.isArray(e.tags) ? e.tags.slice() : [], entryHash(e)], nd = cleanNeeds(e.needs), rl = typeof e.needsIf === 'string' && e.needsIf && typeof e.needsFrom !== 'number' ? e.needsIf : ''; if (rl) { r.push(nd || null); r.push(rl); } else if (nd) r.push(nd); return r; }   // a ninth place: the entry's rule, after its needs or null
 export function cleanIndexRow(r, F) {   // F: the formula engine, for a row of nine (its rule must be a formula with no dice)
     if (!Array.isArray(r) || r.length < 7 || r.length > 9 || typeof r[0] !== 'string' || !ITEM_RE.test(r[0])) return null;
     var key = typeof r[1] === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,39}$/.test(r[1]) ? r[1] : '', tags = Array.isArray(r[5]) ? r[5].map(function(t) { return line(t, LIB.tag); }).filter(Boolean).slice(0, LIB.tags) : [];

@@ -63,6 +63,9 @@ Character sheets
   entry yourself. A need players may not see is never named to them.
   A row whose needs stop being met stays on the sheet, marked needs
   not met.
+- A level can have prerequisites of its own. A need, and the Rule,
+  may begin at a level of the entry: set its From level. A player
+  who raises a level is judged as when they take the entry.
 - For ShadowBase needs no second pick. Once the character's ShadowBase
   file has been read here, by Import or by a pick, the Download menu
   offers For ShadowBase from that file and says which file it is and

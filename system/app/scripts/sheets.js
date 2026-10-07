@@ -2296,7 +2296,8 @@ function needBits(host, sys, c, entry, rd, gm) {
     if (typeof needsMet !== 'function' || typeof needsSays !== 'function' || !rd || !entry || entry.hid === 1) return;
     var nd = rd.src === 'inline' ? entry.needs : rd.src === 'lib' && rd.base ? rd.base.needs : null, rl = rd.src === 'inline' ? entry.needsIf : rd.src === 'lib' && rd.base ? rd.base.needsIf : null;
     nd = Array.isArray(nd) ? nd : []; rl = typeof rl === 'string' ? rl : ''; if (!nd.length && !rl) return;   // its needed entries, and its rule
-    var nm = needsMet(sys, c, { needs: nd, needsIf: rl }, !gm, typeof F === 'function' ? F() : null); if (nm.ok) return;
+    var rf = rd.src === 'inline' ? entry.needsFrom : rd.src === 'lib' && rd.base ? rd.base.needsFrom : undefined;   // a level's own needs: the rule's from-level, and the row judged at the level it has
+    var nm = needsMet(sys, c, { needs: nd, needsIf: rl, needsFrom: typeof rf === 'number' ? rf : undefined }, !gm, typeof F === 'function' ? F() : null, null, typeof entry.lvl === 'number' ? entry.lvl : undefined); if (nm.ok) return;
     var chip = el('span', 'sheet-chip sheet-item-unmet', 'needs not met');
     chip.title = 'This character does not meet what it needs. ' + needsSays(null, nm.missing, function(id) { for (var i = 0; i < nd.length; i++) if (nd[i] && nd[i].id === id && typeof nd[i].name === 'string' && nd[i].name) return nd[i].name; return typeof needName === 'function' ? needName(sys, id, gm) : null; });   // the name an owner's copy carries, else what this app can read
     host.appendChild(chip);

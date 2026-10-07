@@ -294,6 +294,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       
 
       if (window.wpMapTabs) window.wpMapTabs.sync();   // the top row's map tabs (maptabs.js): the tab in front holds the breadcrumb drawn just above
+      if (window.wpPills) window.wpPills.sync();   // and its state pills (pills.js): the view, the map on screen
 
       if (isPlanner) {
 

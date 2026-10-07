@@ -2064,6 +2064,7 @@ function refreshPauseUi() {
     if (btn) { btn.innerHTML = net.paused ? '&#9654;&#65039; Resume the Table' : '&#9208;&#65039; Pause the Table'; btn.classList.toggle('paused', net.paused); }
     var sb = ui('sessionPauseBtn');
     if (sb) { sb.innerHTML = net.paused ? '&#9654;&#65039;' : '&#9208;&#65039;'; sb.title = net.paused ? 'Resume the table' : 'Pause the table (freeze everyone)'; sb.classList.toggle('paused', net.paused); }
+    if (typeof window !== 'undefined' && window.wpPills) window.wpPills.sync();   // the top row's Paused pill (pills.js)
 }
 function setPausedLocal(on) {
     net.paused = !!on;

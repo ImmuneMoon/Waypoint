@@ -21,6 +21,7 @@
 <script type="module" src="scripts/pageshelf.js"></script>
 <script type="module" src="scripts/toprow.js"></script>
 <script type="module" src="scripts/maptabs.js"></script>
+<script type="module" src="scripts/pills.js"></script>
 <script type="module" src="scripts/net.js"></script>
 <script type="module" src="scripts/faces.js"></script>
 <script type="module" src="scripts/framer.js"></script>
@@ -99,6 +100,13 @@
     <div class="spacer"></div>
     <button class="tool ghost hdr-clock" id="clockChip" style="display:none;" title="The campaign&rsquo;s date and time"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zM12 7.5V12l-3 2.2"/></svg><span class="clock-run" aria-hidden="true"></span><span class="clock-txt"></span></button>
     <button class="tool ghost hdr-clock hdr-video" id="videoChip" style="display:none;" aria-pressed="false" title="Your GM is showing a video: open or close it here">&#127902; <span class="vchip-txt clock-txt"></span></button>
+    <div id="rowPills" role="group" aria-label="What is going on">
+      <button class="pill" id="fogPill" hidden title="Fog on this map. Opens the fog options."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 14a4 4 0 0 1 .5-8 5.5 5.5 0 0 1 10.6 1.2A3.5 3.5 0 0 1 17.5 14H7zM5 17.5h14M8 21h8"/></svg><span class="pill-txt"></span></button>
+      <button class="pill" id="tablePill" hidden title="You are hosting. Opens Multiplayer."><span class="pill-dot" aria-hidden="true"></span><span class="pill-txt"></span></button>
+      <button class="pill hot" id="pausedPill" hidden title="The table is paused. Press to resume it."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg><span class="pill-txt">Paused</span></button>
+      <button class="pill on" id="roundPill" hidden title="A fight is on this map. Opens the turn order."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v14H5zM9 9h.01M15 9h.01M12 12h.01M9 15h.01M15 15h.01"/></svg><span class="pill-txt"></span></button>
+      <button class="pill on" id="viewPill" hidden title="The fog is drawn as a player sees it. Press to end the preview."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12c2.5-4.5 6-7 10-7s7.5 2.5 10 7c-2.5 4.5-6 7-10 7s-7.5-2.5-10-7zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/></svg><span class="pill-txt"></span></button>
+    </div>
     <div class="header-group">
       <span id="visualTools" style="display:none;"><input type="file" id="imgFileIn" accept="image/*" hidden></span>
       <input type="file" id="sheetFileIn" accept=".json,application/json" hidden>
@@ -264,6 +272,16 @@
                                   <li>An eye and a number mark a map your players are on. Point at the tab for their names.</li>
                                   <li>The plus opens quick-jump, as <kbd>Ctrl</kbd>+<kbd>K</kbd> does.</li>
                                   <li>Players have no tabs. Their row names the map they are on.</li>
+                              </ul>
+                          </li>
+                          <li><b>Pills:</b> small pills in the top row say what is going on. A pill shows only while it has something to say, and a press opens its thing.
+                              <ul>
+                                  <li><b>Fog on</b> or <b>Fog off</b> says this map&rsquo;s fog on the play map. It opens the fog options.</li>
+                                  <li><b>Table</b> and a number show while you host, with how many players are connected. It opens Multiplayer.</li>
+                                  <li><b>Paused</b> is filled while the table is paused. Press it to resume.</li>
+                                  <li><b>Round</b> and a name say the fight on this map and whose turn it is. It opens the turn order.</li>
+                                  <li><b>Viewing as</b> shows while the fog is drawn as a player sees it. Press it to end the preview.</li>
+                                  <li>The pills are the GM&rsquo;s. The clock, Review and Update stand beside them as before.</li>
                               </ul>
                           </li>
                           <li><b>More:</b> the three dots at the right end of the top row hold what you need less often.

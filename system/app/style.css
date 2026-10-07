@@ -2496,6 +2496,12 @@
   .sys-tab { display: flex; flex-direction: column; gap: 6px; min-height: 0; flex: 1; }
   #sysItems { overflow-y: auto; }   /* the Combat card (range, light, senses, turns, postures) can be taller than the editor: the tab scrolls rather than spilling out of it */
   .sys-toolbar { display: flex; align-items: center; gap: 10px; font-size: 11.5px; color: var(--dim); }
+  /* ---- the System editor's keys (syskey.js): a button at the end of a tab's toolbar opens a key that names each tick of the tab's rows ---- */
+  .sys-key-btn { margin-left: auto; white-space: nowrap; flex: none; }
+  .sys-key { display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; padding: 8px 10px; margin: 6px 0; border: 1px solid var(--edge); border-radius: 6px; background: var(--panel); font-size: 11.5px; }
+  .sys-key[hidden] { display: none; }
+  .sys-key b { color: var(--ink); font-weight: 600; white-space: nowrap; }
+  .sys-key small { color: var(--dim); font-size: 11px; line-height: 1.4; }
   .sys-cols { display: none; }
   .sys-rows { overflow: auto; max-height: 52vh; border: 1px solid var(--edge); border-radius: 8px; padding: 6px; display: flex; flex-direction: column; gap: 6px; background: rgba(0,0,0,0.16); }
   .sys-row { border: 1px solid var(--edge); border-left: 3px solid rgba(224,165,79,0.55); border-radius: 7px; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; background: var(--panel2); box-shadow: 0 1px 3px rgba(0,0,0,0.28); transition: border-color .1s; }

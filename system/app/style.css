@@ -121,7 +121,8 @@
   .rm-row > small[data-badge] { color: var(--gold); font-weight: 700; }
   #moreMenu .dropdown-wrap { display: block; }
   #moreMenu #saveAsMenu { top: -6px; left: auto; right: 100%; margin: 0 7px 0 0; min-width: 210px; max-height: calc(100vh - 90px); overflow-y: auto; padding: 5px; background: var(--panel); border-color: var(--edge); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.5); }
-  #moreMenu #saveAsMenu .menu-item { padding: 5px 8px; border-radius: 5px; font-size: 12.5px; }
+  #moreMenu #saveAsMenu .menu-item { display: flex; align-items: center; gap: 9px; padding: 5px 8px; border-radius: 5px; font-size: 12.5px; }
+  #moreMenu #saveAsMenu .menu-item > .ico { flex: none; color: var(--dim); }
   #moreMenu #saveAsMenu .menu-divider { height: 1px; margin: 4px 2px; background: var(--edge); }
   body.net-client #moreFiles { display: none !important; }   /* a player exports and imports nothing of the GM's: the part goes with its rule */
   body:not(.row-narrow) #moreFold { display: none; }

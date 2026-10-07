@@ -250,6 +250,7 @@ The top bar and the data map
 - More, the three dots at the right end of the top row, holds Export
   As with its eleven kinds, Import, Refresh, About and the way back to
   the welcome screen.
+- Each kind of Export As has a small drawing beside its name.
 - Where the window is too narrow for the row, Sound, Music, Handouts,
   Journal and Help move into More, so the row stays one line.
 - Both menus work from the keyboard: the arrow keys, a letter for the

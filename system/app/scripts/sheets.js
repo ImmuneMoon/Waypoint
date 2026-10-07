@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { timeRuleRun, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, initRoll, aliasFromShadowBase, sbRowOps, sbApplyProposal, cleanUploads, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, DEFAULT_POSTURES, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
+import { timeRuleRun, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, aliasFromShadowBase, sbRowOps, sbApplyProposal, cleanUploads, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, DEFAULT_POSTURES, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
 import { cleanCalendar, fmtWhen, fmtDate, timeOf, calPreset, CAL_LIMITS } from './calendarcore.js';
 
@@ -41,7 +41,9 @@ function playerSystem(camp) {
     camp = camp || getActiveCampaign(); if (!camp || !camp.system || !F()) return null;
     var LBc = window.wpLibrary, lcs = isClient() ? {} : LBc && LBc.catsFor ? LBc.catsFor(camp) : null;   // a list's categories: the library's on the GM's machine; a client's copy is the host's view (nothing GM-only to hide)
     var pages = readablePages(camp), key = JSON.stringify(camp.system) + '\n' + pages.join(',') + '\n' + JSON.stringify(lcs);
-    if (_pvMemo.key !== key) { var v = cleanSystem(camp.system, { F: F(), gmView: false, pages: pages, libCats: lcs }); _pvMemo = { key: key, text: v ? JSON.stringify(v) : null }; }
+    var nsh = isClient() ? true : LBc && LBc.needShown ? LBc.needShown : null;   // 126b: which entries players may see, for a need that names one: the library's own judge on the GM's machine; a client's copy is the host's view
+    if (typeof nsh === 'function') (Array.isArray(camp.system.items) ? camp.system.items : []).concat(Array.isArray(camp.system.core) ? camp.system.core : []).forEach(function(it) { if (it && Array.isArray(it.needs)) it.needs.forEach(function(n) { key += n && nsh(n.id) === true ? '1' : '0'; }); });   // ... and the kept view follows it
+    if (_pvMemo.key !== key) { var v = cleanSystem(camp.system, { F: F(), gmView: false, pages: pages, libCats: lcs, needShown: nsh }); _pvMemo = { key: key, text: v ? JSON.stringify(v) : null }; }
     return _pvMemo.text === null ? null : JSON.parse(_pvMemo.text);
 }
 // Stage 5f: the handbook pages players may read in a campaign (the "Players can read" switch: meta.players !== false) — the host's
@@ -2105,6 +2107,26 @@ function wireLayoutDrag(ls) {   // HTML5 drag between and within sections (the c
     });
     ls.addEventListener('dragend', function() { dragPl = null; clearMarks(); });
 }
+// [systemcheck:needpick-start]
+// 126b: why a player's character may not take one of the system's own items yet, in the core's words ('' while it may). Asked for a player's
+// own picker only: the GM is never stopped. A needed entry is named only where this player may read its name: an item of their view that is
+// not GM-only, then a library row their app has been sent. One it cannot name is said as something else
+function needName(sys, id) {
+    var its = (sys && Array.isArray(sys.items) ? sys.items : []).concat(sys && Array.isArray(sys.core) ? sys.core : []);
+    for (var i = 0; i < its.length; i++) if (its[i] && its[i].id === id) return its[i].vis !== 'gm' && typeof its[i].name === 'string' ? its[i].name : null;
+    var N = net(), man = N && N.libManifest ? N.libManifest() : null, packs = man && Array.isArray(man.packs) ? man.packs : [];
+    for (var p = 0; p < packs.length; p++) {
+        var rows = packs[p] && N.libRows ? N.libRows(packs[p].id) : [];
+        for (var r = 0; r < rows.length; r++) if (Array.isArray(rows[r]) && rows[r][0] === id) return typeof rows[r][2] === 'string' ? rows[r][2] : null;
+    }
+    return null;
+}
+function cantTake(sys, c, it) {
+    if (!it || !Array.isArray(it.needs) || !it.needs.length || !c) return '';
+    var nm = needsMet(sys, c, it); if (nm.ok) return '';
+    return needsSays(it, nm.missing, function(id) { return needName(sys, id); });
+}
+// [systemcheck:needpick-end]
 // ---- item-list widgets (Stage 4: the plain list and the rich table share these) ----
 var ITEM_COL_LABEL = { category: 'Category', cost: 'Cost', damage: 'Damage', area: 'Area', notes: 'Notes' };
 function itemThrowBtn(def, c, f, rid) {   // Stage 6 F4a: the throw names the carried row (the host reads its definition). A GM-only item, or one on a GM-only list: its damage and its blast's name stay the GM's
@@ -2229,13 +2251,14 @@ function noteToggle(line, entry, c, f) {
 }
 // F4b: a list's picker — the items of its categories (every one when it names none), a group per category; on a list with no quantity that
 // holds an item once, one already carried is greyed. Returns how many it offers
-function pickerInto(sel, items, spec, carried) {
+function pickerInto(sel, items, spec, carried, cantOf) {   // cantOf (126b): why this character may not take an item yet, in words; none, or no words: it may
     var cats = Array.isArray(spec.cats) ? spec.cats.map(function(x) { return String(x).toLowerCase(); }) : null, groups = [], byCat = Object.create(null), loose = [], have = Object.create(null), n = 0;
     if (spec.noQty && !spec.multi) carried.forEach(function(r) { if (r && typeof r.defId === 'string' && r.hid !== 1) have[r.defId] = 1; });
     items.forEach(function(it) {
         var cat = String(it.category || '').trim(), lc = cat.toLowerCase();
         if (cats && cats.indexOf(lc) < 0) return;
         var o = opt(it.id, (iconText(it.icon) ? iconText(it.icon) + ' ' : '') + it.name); if (have[it.id] === 1) { o.disabled = true; o.title = 'Already on the list'; }
+        else { var why = typeof cantOf === 'function' ? cantOf(it) : ''; if (typeof why === 'string' && why) { o.disabled = true; o.title = why; } }
         n++;
         if (!cat) { loose.push(o); return; }
         if (!byCat[lc]) { byCat[lc] = el('optgroup'); byCat[lc].label = cat; groups.push(byCat[lc]); }
@@ -3074,8 +3097,9 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
         if (!gm && window.wpLibPicker && window.wpNet && window.wpNet.libManifest) { var lmP = window.wpNet.libManifest(); libOK = !!lmP && lmP.packs.some(function(p) { return p.count > 0; }); }   // L3b: a player, the packs the host lets them see
         if (editOk && _fxLive && sysI && ((sysI.items && sysI.items.length) || custOK || libOK) && !onOnly) {
             var add = el('select', 'field sheet-item-add'), nPick = -1, vwP = _fxView; add.appendChild(opt('', '+ Add item…', true));
-            if (specI) nPick = pickerInto(add, sysI.items || [], specI, carried);   // F4b: the list's categories, grouped
-            else sysI.items.forEach(function(it) { add.appendChild(opt(it.id, (iconText(it.icon) ? iconText(it.icon) + ' ' : '') + it.name + (it.category ? ' — ' + it.category : ''))); });
+            var cantI = !gm && typeof cantTake === 'function' ? function(it) { return cantTake(sysI, c, it); } : null;   // 126b: an item this character may not take yet is greyed out for its player and says why; the GM is never stopped
+            if (specI) nPick = pickerInto(add, sysI.items || [], specI, carried, cantI);   // F4b: the list's categories, grouped
+            else sysI.items.forEach(function(it) { var oI = opt(it.id, (iconText(it.icon) ? iconText(it.icon) + ' ' : '') + it.name + (it.category ? ' — ' + it.category : '')), whyI = cantI ? cantI(it) : ''; if (whyI) { oI.disabled = true; oI.title = whyI; } add.appendChild(oI); });
             if (libOK) add.appendChild(opt('__lib', '📚 From the library…'));   // L2c: the picker (libpicker.js)
             if (custOK) add.appendChild(opt('__custom', '+ Custom…'));   // F4c3: a blank row of the character's own, its form open on its name (in the view it was chosen in)
             add.addEventListener('change', function() { if (add.value === '__lib') { add.value = ''; openLibPicker(add, c, f, specI, carried); return; } if (add.value === '__custom') { var nr = uid('w_'); _rowForm = { charId: c.id, fieldId: f.id, rowId: nr, view: vwP, typed: {}, focus: 'name' }; commitItem(c, f, { op: 'custom', rowId: nr, def: {} }); return; } if (add.value) commitItem(c, f, { op: 'add', defId: add.value, rowId: uid('w_'), qty: 1 }); });   // Stage 6 F4a: a new row's id from here (the host never mints)
@@ -3092,7 +3116,7 @@ function openLibPicker(anchor, c, f, spec, carried) {
     var LB = window.wpLibrary, LP = window.wpLibPicker, camp = getActiveCampaign(); if (!LB || !LP || !camp || !camp.library) return;
     var once = null; if (spec && spec.noQty && !spec.multi) { once = Object.create(null); carried.forEach(function(r) { if (r && typeof r.defId === 'string' && r.hid !== 1) once[r.defId] = 1; }); }
     var labels = {}; (spec && Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (s && typeof s.key === 'string' && s.hide !== true) labels[s.key] = s.label || s.key; });
-    LP.open({ anchor: anchor, title: 'Add to ' + (f.label || f.key || 'the list'), cats: spec && Array.isArray(spec.cats) && spec.cats.length ? spec.cats : null, once: once, noQty: !!(spec && spec.noQty), labels: labels, gm: true,
+    LP.open({ anchor: anchor, title: 'Add to ' + (f.label || f.key || 'the list'), cats: spec && Array.isArray(spec.cats) && spec.cats.length ? spec.cats : null, once: once, noQty: !!(spec && spec.noQty), labels: labels, gm: true, needs: function(e) { var cpN = getActiveCampaign(), chN = cpN && cpN.chars ? cpN.chars[c.id] : null, syN = systemOf(cpN); return chN && syN ? needsMet(syN, chN, e).missing : []; },   // 126b: the GM is told, never stopped
         source: { packs: function() { return (camp.library && camp.library.packs) || []; }, entries: function(pid) { return LB.entriesOf(pid); } },
         onAdd: function(ids, qty) { var cp = getActiveCampaign(), ch = cp && cp.chars ? cp.chars[c.id] : null, sy = systemOf(cp), ff = sy ? fieldById(sy, f.id) : null; if (cp !== camp || !ch || !ff) return; ids.forEach(function(id) { commitItem(ch, ff, { op: 'add', defId: id, rowId: uid('w_'), qty: qty }); }); } });
 }
@@ -3104,7 +3128,7 @@ function openLibPickerPlayer(anchor, c, f, spec) {
     var packs = man.packs.filter(function(p) { return p.count > 0; }), total = packs.reduce(function(n, p) { return n + p.count; }, 0), done = false;
     var labels = {}; (spec && Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (s && typeof s.key === 'string' && s.hide !== true) labels[s.key] = s.label || s.key; });
     var asEntry = function(r) { return { id: r[0], key: r[1], name: r[2], category: r[3], icon: r[4], tags: r[5] }; };
-    LP.open({ anchor: anchor, title: 'Add to ' + (f.label || f.key || 'the list'), cats: spec && Array.isArray(spec.cats) ? spec.cats : null, once: null, noQty: !!(spec && spec.noQty), labels: labels, gm: false,
+    LP.open({ anchor: anchor, title: 'Add to ' + (f.label || f.key || 'the list'), cats: spec && Array.isArray(spec.cats) ? spec.cats : null, once: null, noQty: !!(spec && spec.noQty), labels: labels, gm: false, needs: function(e) { var cpN = getActiveCampaign(), chN = charById(c.id, cpN), syN = systemOf(cpN); return chN && syN ? needsMet(syN, chN, e).missing : []; },   // 126b: what their character does not meet, by the needs their copy of the entry names (the host judges the rest)
         source: {
             packs: function() { return packs; },
             entries: function(pid) { return N.libRows(pid).map(asEntry); },
@@ -4135,7 +4159,7 @@ function ownerFromToken(w) {
     giveCharacter(w.ownerId || '', c.id, { keep: w.id });   // a same-owner pick on a kept character's token makes it the one in play, with its token placed where they stand
 }
 function charGone(id) { var shown = false; if (sheetOpen === id) { closeSheet(); shown = true; } if (typeof id === 'string' && huds[id]) { closeHud(id); shown = true; } if (shown) toast('That character is no longer shared with you.'); if (window.appRender) window.appRender(); }
-function editResult(rid, ok, reason, msg, op) { if (!ok) toast(reason === 'none' ? 'Nothing to apply.' : reason === 'error' ? (msg || 'That amount could not be worked out.') : op === 'apply' && reason === 'field' ? 'That action is not on your sheet now.' : op === 'apply' && reason === 'timeout' ? 'No answer from the GM.' : reason === 'budget' ? (msg || 'That would take the character over a point budget.') : reason === 'stays' ? (msg || (op === 'set' ? 'It stays on.' : 'You can\u2019t get rid of it.')) : reason === 'field' && op === 'custom' ? 'Only the GM changes that row now.' : reason === 'field' && op === 'ov' ? 'Only the GM changes this copy’s stats now.' : reason === 'off' ? 'Character sheets are off here.' : reason === 'owner' ? 'That sheet is not yours.' : reason === 'field' ? 'That field cannot be edited.' : reason === 'slow' ? 'Slow down a little.' : reason === 'missing' ? 'That is no longer there.' : reason === 'timeout' ? 'No answer from the GM; the change was undone.' : reason === 'making' ? 'Finish the character first (press Done on its sheet).' : reason === 'paused' ? 'The table is paused.' : 'That value was not accepted.'); renderViews(null); }
+function editResult(rid, ok, reason, msg, op) { if (!ok) toast(reason === 'none' ? 'Nothing to apply.' : reason === 'error' ? (msg || 'That amount could not be worked out.') : op === 'apply' && reason === 'field' ? 'That action is not on your sheet now.' : op === 'apply' && reason === 'timeout' ? 'No answer from the GM.' : reason === 'budget' ? (msg || 'That would take the character over a point budget.') : reason === 'needs' ? (msg || 'Your character does not meet what that needs.') : reason === 'stays' ? (msg || (op === 'set' ? 'It stays on.' : 'You can\u2019t get rid of it.')) : reason === 'field' && op === 'custom' ? 'Only the GM changes that row now.' : reason === 'field' && op === 'ov' ? 'Only the GM changes this copy’s stats now.' : reason === 'off' ? 'Character sheets are off here.' : reason === 'owner' ? 'That sheet is not yours.' : reason === 'field' ? 'That field cannot be edited.' : reason === 'slow' ? 'Slow down a little.' : reason === 'missing' ? 'That is no longer there.' : reason === 'timeout' ? 'No answer from the GM; the change was undone.' : reason === 'making' ? 'Finish the character first (press Done on its sheet).' : reason === 'paused' ? 'The table is paused.' : 'That value was not accepted.'); renderViews(null); }
 
 /* ---------- the editor: fields, rolls, characters ---------- */
 var draft = null, dirty = false, tab = 'fields', errorsById = {}, warningsById = {}, layoutView = 'sheet';   // layoutView (HUD frame HF1): 'sheet' | 'hud'

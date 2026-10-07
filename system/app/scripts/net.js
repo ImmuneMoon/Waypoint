@@ -980,7 +980,7 @@ function sanitizeAppState(s, recipientId, held) {   // recipientId: the player t
         if (window.wpDocRender && window.wpDocRender.cleanDocStyle) { var _cds = window.wpDocRender.cleanDocStyle(camp.docStyle); if (_cds) camp.docStyle = _cds; else delete camp.docStyle; }   // the campaign's document appearance travels (validated: fonts from the list, hex colors) so a player's Handbook matches; the client re-validates at render too
         var libFx = fxLib(camp.system), libIt = itemLib(camp.system), fullSys = camp.system;   // 5h / Stage 6: the full libraries (and F6: the full system), before the players' view replaces the system (a GM-only effect or item reaches its owner inline)
         if (camp.id === c.activeCampaignId && camp.system && window.wpSystemCore && window.wpFormula) {   // character sheets (1.5.0): the hosted campaign's system travels as the players' view, GM-only fields gone
-            var psys = window.wpSystemCore.cleanSystem(camp.system, { F: window.wpFormula, gmView: false, pages: (window.wpSheets && window.wpSheets.readablePages) ? window.wpSheets.readablePages(camp) : [], libCats: window.wpLibrary && window.wpLibrary.catsFor ? window.wpLibrary.catsFor() : null }); if (psys) camp.system = psys; else delete camp.system;   // chips/links only to pages players may read (Stage 5f; fails closed)
+            var psys = window.wpSystemCore.cleanSystem(camp.system, { F: window.wpFormula, gmView: false, pages: (window.wpSheets && window.wpSheets.readablePages) ? window.wpSheets.readablePages(camp) : [], libCats: window.wpLibrary && window.wpLibrary.catsFor ? window.wpLibrary.catsFor() : null, needShown: window.wpLibrary && window.wpLibrary.needShown ? window.wpLibrary.needShown : null }); if (psys) camp.system = psys; else delete camp.system;   // chips/links only to pages players may read (Stage 5f; fails closed)
         } else delete camp.system;
         if (camp.id === c.activeCampaignId && recipientId && camp.chars && camp.system && window.wpSystemCore) {   // characters (1.5.0): this recipient's own in full, other PCs' hover fields, NPCs never
             var outCh = {}; Object.keys(camp.chars).forEach(function(id) { var v = withHoverLines(window.wpSystemCore.charFor(camp.chars[id], camp.system, recipientId, { lib: libFx, items: libIt, full: fullSys }), camp.chars[id], camp.system, libFx, libIt, fullSys); if (v) outCh[id] = v; }); camp.chars = outCh;
@@ -1728,7 +1728,7 @@ function applySnapshot(msg) {
     if (window.wpSystemCore) Object.values(state.appState.campaigns || {}).forEach(function(cs) {   // characters (1.5.0): what arrived is re-cleaned against the system that came with it
         if (!cs || typeof cs !== 'object') return;
         if (cs.system !== undefined) {   // the system itself is re-cleaned as the players' view here, as the 'system' message is: a host's word is never rendered raw
-            var snapSys = (cs.system && window.wpFormula) ? window.wpSystemCore.cleanSystem(cs.system, { F: window.wpFormula, gmView: false, libCats: {} }) : null;   // libCats: the host's view, nothing GM-only in hand to hide
+            var snapSys = (cs.system && window.wpFormula) ? window.wpSystemCore.cleanSystem(cs.system, { F: window.wpFormula, gmView: false, libCats: {}, needShown: true }) : null;   // libCats: the host's view, nothing GM-only in hand to hide
             if (snapSys) cs.system = snapSys; else delete cs.system;
         }
         if (!cs.chars || typeof cs.chars !== 'object') return;
@@ -2726,7 +2726,7 @@ net.libLoad = function(packId, progress) {
 // entries of a pack by id — the cache first, the rest asked for (50 an ask; what an answer left out for size is asked again); the ones held
 net.libGet = async function(packId, ids) {
     var m = net.libManifest(), LC = libLC(), camp = getActiveCampaign(); if (!m || !LC || !camp || !Array.isArray(ids)) return [];
-    var ctx = LC.libCtx(camp.system, window.wpFormula, false), once = Object.create(null), want = ids.filter(function(id) { if (typeof id !== 'string' || !LC.ITEM_RE.test(id) || _lib.ent.has(id) || once[id]) return false; once[id] = 1; return true; }).slice(0, 200), rounds = 0;
+    var ctx = LC.libCtx(camp.system, window.wpFormula, false, true), once = Object.create(null), want = ids.filter(function(id) { if (typeof id !== 'string' || !LC.ITEM_RE.test(id) || _lib.ent.has(id) || once[id]) return false; once[id] = 1; return true; }).slice(0, 200), rounds = 0;
     while (want.length && rounds++ < 20) {
         var chunk = want.slice(0, LC.LIB.getIds), a = await libSend({ type: 'lib-get', campId: m.campId, packId: packId, ids: chunk });
         if (!a || a.err || a.packId !== packId || typeof a.hash !== 'string' || !Array.isArray(a.entries)) break;
@@ -2979,7 +2979,7 @@ net.charItem = function(charId, fieldId, q) {
     var c = (camp && camp.chars && typeof charId === 'string' && Object.prototype.hasOwnProperty.call(camp.chars, charId) ? camp.chars[charId] : null); if (!c || c.partial || c.npc || !c.ownerId || c.ownerId !== net.myId) return { error: 'That character is not yours.' };
     if (!camp.system) return { error: 'No system at this table.' };
     var res = S.applyRowOp(camp.system, c, fieldId, q, window.wpFormula, { player: true, view: camp.system, lib: net.libEntry });   // a player's copy IS the players' view (L3b: a library entry, from what this player fetched)
-    if (!res.ok) return { error: res.why === 'key' ? 'That key is already used in this list.' : res.why === 'badkey' ? 'Not a usable key: a letter, then letters, digits and _ (up to 40).' : res.reason === 'field' ? 'That list cannot be changed that way.' : res.reason === 'missing' ? 'That item is gone.' : 'That change is not allowed.' };   // why (F4c3): the local answer's own (a key taken in what they can see, or not a key), never sent
+    if (!res.ok) return { error: res.why === 'key' ? 'That key is already used in this list.' : res.why === 'badkey' ? 'Not a usable key: a letter, then letters, digits and _ (up to 40).' : res.reason === 'field' ? 'That list cannot be changed that way.' : res.reason === 'missing' ? 'That item is gone.' : res.reason === 'needs' ? (res.msg || 'Your character does not meet what that needs.') : 'That change is not allowed.' };   // why (F4c3): the local answer's own (a key taken in what they can see, or not a key), never sent; needs (126b): what their own copy says the entry needs
     var rid = 'e' + Math.random().toString(36).slice(2, 10);
     var prev = c.values && Object.prototype.hasOwnProperty.call(c.values, fieldId) ? JSON.parse(JSON.stringify(c.values[fieldId])) : undefined;
     c.values = c.values || {}; c.values[fieldId] = res.value;
@@ -5873,6 +5873,7 @@ function handleMessage(msg, conn) {
         var resI = Si.applyRowOp(campI.system, chI, qi.fieldId, qi, Fi, { player: true, view: window.wpSheets ? window.wpSheets.playerSystem(campI) : null, grace: grI, onGrace: !!ogI, lib: libI });
         if (!resI.ok) {
             if (resI.reason === 'stays') { itemNotice(chI, resI.name, resI.eq && qi.op === 'set' ? 'eq-bound-try' : 'bound-try'); try { conn.send({ type: 'char-deny', rid: qi.rid, reason: 'stays', msg: resI.msg || '' }); } catch (e) { sendFailed(e); } return; }   // a bound item: it stays, with the GM's message
+            if (resI.reason === 'needs') { try { conn.send({ type: 'char-deny', rid: qi.rid, reason: 'needs', msg: resI.msg || '' }); } catch (e) { sendFailed(e); } return; }   // 126b: what the entry needs, in the GM's own words or by the names a player may know
             denyI(resI.reason); return;
         }
         var bcI = {}; bcI[qi.fieldId] = resI.value; var bwI = Si.budgetWatch(campI.system, chI, bcI, Fi);   // 126: a point budget is judged before anything is stored (a row picked up, a level raised, a quantity, a row of their own)
@@ -6000,7 +6001,7 @@ function handleMessage(msg, conn) {
         if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId) return;
         var campS = campOf(msg.campId); if (!campS) return;
         if (msg.system === null) delete campS.system;
-        else { var csys = window.wpSystemCore.cleanSystem(msg.system, { F: window.wpFormula, gmView: false, libCats: {} }); if (csys) campS.system = csys; }
+        else { var csys = window.wpSystemCore.cleanSystem(msg.system, { F: window.wpFormula, gmView: false, libCats: {}, needShown: true }); if (csys) campS.system = csys; }
         if (window.wpSheetsSync) window.wpSheetsSync();
     } else if (msg.type === 'docStyle' && net.role === 'client') {
         // the hosted campaign's document look changed mid-session (doc theming): from the synced host only, re-validated here; an open Handbook page and the sheet follow

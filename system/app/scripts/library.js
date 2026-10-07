@@ -89,7 +89,7 @@ async function savePack(packId, entries) {
     var body = JSON.stringify(cp.pack), res = null;
     try { res = await fetch('/api/library?dir=' + camp.library.dir + '&pack=' + packId + '&rev=' + rev, { method: 'POST', body: body }); } catch (e) { res = null; }
     if (!res || !res.ok) { if (res && res.status === 404) oldCore(); return { error: res && res.status === 413 ? 'That pack is too large (16 MB at most).' : 'The pack could not be written.' }; }
-    var meta = packMeta(cp.pack.entries, libCtx(camp.system, F(), false), new Blob([body]).size);
+    var meta = packMeta(cp.pack.entries, libCtx(camp.system, F(), false, needShown), new Blob([body]).size);
     camp.library.packs.forEach(function(p) { if (p.id === packId) { p.rev = rev; p.count = meta.count; p.bytes = meta.bytes; p.hash = meta.hash; } });
     (cur.packs[packId] || []).forEach(function(id) { if (cur.byId[id]) { delete cur.byId[id]; cur.n--; } });
     cur.packs[packId] = cp.pack.entries.map(function(e) { return e.id; });
@@ -215,13 +215,32 @@ function ready(packId) { var camp = getActiveCampaign(); return !!camp && cur.ca
 // once per pack revision and players' fields; the manifest they get (visible packs, counted and hashed on that view: no folder, no
 // revision, no GM-only pack); an entry of it by id. The GM's machine only, the campaign on screen, packs it has read
 var _pidx = map();
+// [librarycheck:needshown-start]
+// 126b: whether players may see an entry, for a need that names it. Read from the GM's own copies: a system item that is not GM-only, or a
+// library entry that is not GM-only in a pack players may see (entryFor folds the pack in). Never through the players' index, which is made
+// by cleaning entries and would ask this again for a need inside the same pack
+function needShown(id) {
+    var camp = getActiveCampaign(); if (!camp || typeof id !== 'string') return false;
+    var its = camp.system && Array.isArray(camp.system.items) ? camp.system.items : [];
+    for (var i = 0; i < its.length; i++) if (its[i] && its[i].id === id) return its[i].vis !== 'gm';
+    var e = entryFor(id); return !!e && e.vis !== 'gm';
+}
+// ... and what a kept players' index depends on beside its own pack and the players' fields: for each entry a need of this pack names,
+// whether players may see it now (a needed entry or its pack made GM-only, a system item's own change). A pack whose entries need nothing
+// depends on nothing else, so a change elsewhere in the library works no index out again
+function needSig(packId) {
+    var s = '';
+    (cur.packs[packId] || []).forEach(function(id) { var e = cur.byId[id]; if (e && Array.isArray(e.needs)) e.needs.forEach(function(n) { if (n && typeof n.id === 'string') s += n.id + (needShown(n.id) ? '+' : '-'); }); });
+    return s ? hashText(s) : '';
+}
+// [librarycheck:needshown-end]
 function plSysOf(camp) { try { return window.wpSheets && window.wpSheets.playerSystem ? window.wpSheets.playerSystem(camp) : null; } catch (e) { return null; } }
 function playerIndexOf(packId, plSys) {
     var camp = getActiveCampaign(); if (!camp || !camp.library || !gmHere() || !ready(packId)) return null;
     var p = camp.library.packs.filter(function(x) { return x.id === packId; })[0]; if (!p || p.vis === 'gm') return null;
     plSys = plSys || plSysOf(camp); var fields = plSys && Array.isArray(plSys.fields) ? plSys.fields : [];
-    var sig = camp.id + '|' + p.rev + '|' + hashText(JSON.stringify(fields)), m = _pidx[packId]; if (m && m.sig === sig) return m;
-    var ix = playerIndex(entriesOf(packId), libCtx({ fields: fields }, F(), false)); ix.sig = sig; _pidx[packId] = ix;
+    var sig = camp.id + '|' + p.rev + '|' + hashText(JSON.stringify(fields)) + '|' + needSig(packId), m = _pidx[packId]; if (m && m.sig === sig) return m;
+    var ix = playerIndex(entriesOf(packId), libCtx({ fields: fields }, F(), false, needShown)); ix.sig = sig; _pidx[packId] = ix;
     return ix;
 }
 function playerManifest() {
@@ -239,4 +258,4 @@ setLibraryFind(entryFor);
 // the campaign on screen, or its manifest, changed (a load, a switch, a restore): read it again
 setInterval(function() { if (busy) return; var camp = getActiveCampaign(), sig = manifestSig(camp); if (sig !== cur.sig || (camp ? camp.id : null) !== cur.campId) load(camp); }, 1000);
 
-window.wpLibrary = { load: load, entry: entry, entryFor: entryFor, entriesOf: entriesOf, size: function() { return cur.n; }, state: function() { return cur.state; }, error: function() { return cur.error; }, savePack: savePack, createPack: createPack, deletePack: deletePack, importFiles: importFiles, importPlan: libImportPlan, refreshCore: refreshCore, syncSnaps: syncSnaps, ready: ready, setMeta: setMeta, migrateItems: migrateItems, playerIndexOf: playerIndexOf, playerManifest: playerManifest, catsFor: catsFor, playerEntry: playerEntry };
+window.wpLibrary = { load: load, entry: entry, entryFor: entryFor, entriesOf: entriesOf, size: function() { return cur.n; }, state: function() { return cur.state; }, error: function() { return cur.error; }, savePack: savePack, createPack: createPack, deletePack: deletePack, importFiles: importFiles, importPlan: libImportPlan, refreshCore: refreshCore, syncSnaps: syncSnaps, ready: ready, setMeta: setMeta, migrateItems: migrateItems, playerIndexOf: playerIndexOf, playerManifest: playerManifest, catsFor: catsFor, playerEntry: playerEntry, needShown: needShown };

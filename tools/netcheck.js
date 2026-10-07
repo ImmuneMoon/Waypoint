@@ -551,9 +551,9 @@ check('asset arrival (client): a refused picture clears its pending flag and ret
 check('client: every campaign/item lookup from a host message is an own-key lookup (campOf/validKey) in applyStage, applyItem, applyItemDelta, handlePos, itemGone, chars, system', (src.match(/campOf\(/g) || []).length >= 8 && /function applyItem\(msg\) \{\n\s*var camp = campOf\(msg\.campId\);\n\s*if \(!camp \|\| !validKey\(msg\.itemId\)\) return;/.test(src) && /function applyItemDelta\(msg\) \{\n\s*var camp = campOf\(msg\.campId\); if \(!camp \|\| !validKey\(msg\.itemId\)\) return;/.test(src));
 check('client: a host map is cleaned on the snapshot, on a whole item and after a delta (text items rebuilt, colors checked, bounded)', (src.match(/cleanHostMap\(/g) || []).length >= 4 && /if \(incoming\.type === 'map'\) incoming = cleanHostMap\(incoming\)/.test(src) && /if \(it\.type === 'map'\) cleanHostMap\(it\)/.test(src));
 check('client: a snapshot without a usable appState is refused before anything is set; prototype keys are purged', /if \(!msg \|\| !msg\.appState \|\| typeof msg\.appState !== 'object' \|\| !msg\.appState\.campaigns/.test(src) && /\['__proto__', 'constructor', 'prototype'\]\.forEach/.test(src));
-check('client: the join snapshot\'s system is re-cleaned as the players\' view before its characters are (a host\'s system is never rendered raw)', /function applySnapshot\(msg\)[\s\S]{0,9000}?cs\.system = snapSys; else delete cs\.system;[\s\S]{0,400}?cleanChar\(/.test(src) && /var snapSys = \(cs\.system && window\.wpFormula\) \? window\.wpSystemCore\.cleanSystem\(cs\.system, \{ F: window\.wpFormula, gmView: false, libCats: \{\} \}\) : null;/.test(src)
-    && /else \{ var csys = window\.wpSystemCore\.cleanSystem\(msg\.system, \{ F: window\.wpFormula, gmView: false, libCats: \{\} \}\); if \(csys\) campS\.system = csys; \}/.test(src)
-    && /gmView: false, pages: [^\n]*, libCats: window\.wpLibrary && window\.wpLibrary\.catsFor \? window\.wpLibrary\.catsFor\(\) : null \}\); if \(psys\) camp\.system = psys; else delete camp\.system;/.test(src));
+check('client: the join snapshot\'s system is re-cleaned as the players\' view before its characters are (a host\'s system is never rendered raw)', /function applySnapshot\(msg\)[\s\S]{0,9000}?cs\.system = snapSys; else delete cs\.system;[\s\S]{0,400}?cleanChar\(/.test(src) && /var snapSys = \(cs\.system && window\.wpFormula\) \? window\.wpSystemCore\.cleanSystem\(cs\.system, \{ F: window\.wpFormula, gmView: false, libCats: \{\}, needShown: true \}\) : null;/.test(src)
+    && /else \{ var csys = window\.wpSystemCore\.cleanSystem\(msg\.system, \{ F: window\.wpFormula, gmView: false, libCats: \{\}, needShown: true \}\); if \(csys\) campS\.system = csys; \}/.test(src)
+    && /gmView: false, pages: [^\n]*, libCats: window\.wpLibrary && window\.wpLibrary\.catsFor \? window\.wpLibrary\.catsFor\(\) : null, needShown: window\.wpLibrary && window\.wpLibrary\.needShown \? window\.wpLibrary\.needShown : null \}\); if \(psys\) camp\.system = psys; else delete camp\.system;/.test(src));
 check('wireConn: a message that throws never leaves applyingRemote on', /try \{ handleMessage\(d, conn\); \} catch \(e\)[^\n]*finally \{ net\.applyingRemote = false; \}/.test(src));
 check('assets (client): prototype-free caches, own-key arrival check, size cap, old blob revoked, no outside URLs', /var assetCache = Object\.create\(null\)/.test(src) && /var assetPending = Object\.create\(null\)/.test(src) && /!own\(assetPending, msg\.path\)\) return;/.test(src) && /msg\.data\.byteLength > AUDIO_CAP/.test(src) && /var type = assetMime\(msg\.path\), was = assetCache\[msg\.path\], made;/.test(src) && /URL\.revokeObjectURL\(was\)/.test(src) && /return ASSET_PLACEHOLDER;\s*\/\/ an absolute URL from a host/.test(src));
 check('chat (client): only the synced host, shape-checked, text capped', /if \(conn\.peer !== net\.syncedPeer \|\| typeof msg\.text !== 'string' \|\| !msg\.from/.test(src) && /text: msg\.text\.slice\(0, 2000\)/.test(src));
@@ -10927,6 +10927,57 @@ pendingChecks.push((async () => {
             && ciSrc.indexOf('Si.budgetWatch(campI.system, chI, bcI, Fi)') < ciSrc.indexOf('chI.values[qi.fieldId] = resI.value') && ciSrc.indexOf('Si.budgetWatch(') > ciSrc.indexOf('Si.applyRowOp(')
             && shB.split("reason === 'budget' ? (msg || 'That would take the character over a point budget.')").length === 2 && Sx.cleanDenyReason('budget') === 'budget',
             j([off.answer, none.answer, mkPlay.answer, mkMake.answer, plMake.answer, plPlay.answer, src.split('budgetNotice(').length, src.split('.budgetWatch(').length]));
+    }
+})());
+pendingChecks.push((async () => {
+    /* ---- 126b: what an entry needs, judged by the host for a player's own pick (the owner: "the host judges a player's pick") ---- */
+    {
+        const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+        const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
+        const ciSrc = between('// [netcheck:charitem-start]', '// [netcheck:charitem-end]', 'charitem'), dlSrc = between('// [netcheck:chardelta-start]', '// [netcheck:chardelta-end]', 'chardelta');
+        const ntSrc = (() => { const i = src.indexOf('function itemNotice('), k = src.indexOf('net.syncChars = function', i); if (i < 0 || k < 0) throw new Error('netcheck: itemNotice not found'); return src.slice(i, k); })();
+        const sys = Sx.cleanSystem({ v: 1, name: 'N', rolls: [], fields: [{ id: 'f_kit', key: 'Kit', kind: 'item-list' }], items: [{ id: 'i_med', name: 'MED' }, { id: 'i_dark', name: 'DARK', vis: 'gm' }, { id: 'i_two', name: 'TWO', needs: [{ id: 'i_med' }, { id: 'i_dark' }] },
+            { id: 'i_own', name: 'OWN', needs: [{ id: 'i_med' }], needsMsg: 'Train first.' }, { id: 'i_free', name: 'FREE' }] }, { F: Fx, gmView: true });
+        const libE = { i_lib: { id: 'i_lib', name: 'LIB', vis: 'all', needs: [{ id: 'i_med' }] } };
+        const camp = { id: 'k', system: sys, chars: { c_1: { id: 'c_1', name: 'Ana', ownerId: 'u_a', npc: false, values: {} } } };
+        const out = { answer: [], owner: [], notes: [], saves: 0 }, box = b => m => { packCheck(m); b.push(JSON.parse(JSON.stringify(m))); };
+        const conn = { peer: 'pA', send: box(out.answer) }, net = { active: true, role: 'host', paused: false, conns: [{ peer: 'pA', open: true, send: box(out.owner) }], roster: { pA: { id: 'u_a' } } };
+        const win = { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} }, wpDiceCore: null, wpLibrary: { playerEntry: id => (Object.prototype.hasOwnProperty.call(libE, id) ? {} : null), entry: id => (Object.prototype.hasOwnProperty.call(libE, id) ? libE[id] : null) } };
+        const H = new Function('net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'peerProfileId', 'lim', 'toast', 'logEvent',
+            'var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {};\n' + dlSrc + '\n' + ntSrc + '\nreturn function(msg, conn) {\n' + ciSrc + '\n};')(
+            net, () => Sx, win, () => false, () => camp, () => { out.saves++; }, e => { throw e; }, c => (net.roster[c.peer] ? net.roster[c.peer].id : null), { allow: () => true }, t => out.notes.push(t), () => {});
+        const ADD = k => { out.answer.length = 0; out.owner.length = 0; out.notes.length = 0; const s0 = out.saves; H({ type: 'char-item', rid: 'i1', charId: 'c_1', fieldId: 'f_kit', op: 'add', defId: 'i_' + k, rowId: 'w_' + k + '1', qty: 1 }, conn);
+            return { answer: out.answer.slice(), sent: out.owner.length, notes: out.notes.slice(), saved: out.saves - s0, kit: (camp.chars.c_1.values.f_kit || []).map(r => r.defId) }; };
+        const NO = msg => j([{ type: 'char-deny', rid: 'i1', reason: 'needs', msg }]), ACK = j([{ type: 'char-ack', rid: 'i1' }]), quiet = (r, kit) => r.sent === 0 && r.saved === 0 && r.notes.length === 0 && j(r.kit) === j(kit);
+        const n1 = ADD('two'), n2 = ADD('own'), n3 = ADD('lib'), n4 = ADD('free'), n5 = ADD('med'), n6 = ADD('own'), n7 = ADD('lib'), n8 = ADD('two');
+        check('126b what an entry needs, on the host (the real row branch with the real core): a player\'s pick of an entry whose needs their character does not meet is answered char-deny with the reason "needs" and the words, the GM\'s own where the entry has them, else the needs by name; nothing is stored, sent or saved, and the GM is not told; an entry of the library is judged alike, through the host\'s own copy of it; an entry that needs nothing, and one whose needs are met, are picked as ever; a need that names a GM-only entry is never named to the player, whose id the host alone holds; every message packs',
+            j(n1.answer) === NO('That needs MED and something else.') && quiet(n1, []) && j(n2.answer) === NO('Train first.') && quiet(n2, []) && j(n3.answer) === NO('That needs MED.') && quiet(n3, [])
+            && j(n4.answer) === ACK && n4.saved === 1 && j(n5.answer) === ACK && j(n6.answer) === ACK && j(n7.answer) === ACK && j(n7.kit) === j(['i_free', 'i_med', 'i_own', 'i_lib'])
+            && j(n8.answer) === NO('That needs something you do not have.') && quiet(n8, ['i_free', 'i_med', 'i_own', 'i_lib']) && !/DARK|i_dark/.test(j([n1.answer, n8.answer]))
+            && ciSrc.indexOf("if (resI.reason === 'needs') {") > ciSrc.indexOf('Si.applyRowOp(') && ciSrc.indexOf("if (resI.reason === 'needs') {") < ciSrc.indexOf('chI.values[qi.fieldId] = resI.value') && Sx.cleanDenyReason('needs') === 'needs',
+            j([n1.answer, n2.answer, n3.answer, n4.answer, n7.kit, n8.answer]));
+    }
+})());
+pendingChecks.push((async () => {
+    /* ---- 126b: a player's own app answers a pick its character does not meet in the core's words, and sends nothing ---- */
+    {
+        const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+        const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
+        const cA = src.indexOf('net.charItem = function('), cZ = src.indexOf('\n};\n', cA) + 3, sent = [], ciSrc = src.slice(cA, cZ);
+        const view = Sx.cleanSystem({ v: 1, name: 'N', rolls: [], fields: [{ id: 'f_kit', key: 'Kit', kind: 'item-list' }], items: [{ id: 'i_med', name: 'MED' }, { id: 'i_two', name: 'TWO', needs: [{ id: 'i_med' }, { id: 'i_lib9' }] },
+            { id: 'i_own', name: 'OWN', needs: [{ id: 'i_med' }], needsMsg: 'Train first.' }, { id: 'i_hid', name: 'HID', needsHid: true }] }, { F: Fx, gmView: false, needShown: true });
+        const campC = { id: 'k', system: view, chars: { c_1: { id: 'c_1', name: 'Ana', ownerId: 'u_a', npc: false, values: {} } } };
+        const libE = { i_lib8: { id: 'i_lib8', name: 'LIB8', vis: 'all', needs: [{ id: 'i_med' }] } };
+        const netC = { active: true, role: 'client', stream: false, foreign: true, syncedPeer: 'h', myId: 'u_a', libEntry: id => (Object.prototype.hasOwnProperty.call(libE, id) ? libE[id] : null), conns: [{ peer: 'h', open: true, send: m => { packCheck(m); sent.push(JSON.parse(JSON.stringify(m))); } }] };
+        new Function('net', 'SC', 'getActiveCampaign', 'window', '_charPending', 'charPendingDone', 'setTimeout', ciSrc)(netC, () => Sx, () => campC, { wpFormula: Fx, wpVtt: { on: () => true } }, {}, () => {}, () => 0);
+        const ADD = k => netC.charItem('c_1', 'f_kit', { op: 'add', defId: 'i_' + k, rowId: 'w_' + k + '1', qty: 1 }), kit =() => (campC.chars.c_1.values.f_kit || []).map(r => r.defId);
+        const r1 = ADD('two'), r2 = ADD('own'), r3 = ADD('lib8'), n0 = sent.length, k0 = kit(), r4 = ADD('med'), r5 = ADD('own'), r6 = ADD('lib8'), r7 = ADD('two'), r8 = ADD('hid'), r9 = ADD('gone');
+        check('126b a player\'s own app (the real net.charItem with the real core): a pick their character does not meet, by the needs their own copy of the entry names, is answered at once in the core\'s words, the GM\'s own where the entry has them, and nothing is stored or sent; an entry of the library is judged alike from the copy their app fetched; once the need is carried the same picks are stored and sent; a need their copy does not name is left to the host, so that pick is sent; an entry that is gone still says so; every message packs',
+            r1.error === 'That needs MED and something else.' && r2.error === 'Train first.' && r3.error === 'That needs MED.' && n0 === 0 && k0.length === 0
+            && r4.ok === true && r5.ok === true && r6.ok === true && r7.error === 'That needs something you do not have.' && r8.ok === true && r9.error === 'That item is gone.'
+            && j(sent.map(m => [m.type, m.op, m.defId])) === j([['char-item', 'add', 'i_med'], ['char-item', 'add', 'i_own'], ['char-item', 'add', 'i_lib8'], ['char-item', 'add', 'i_hid']]) && j(kit()) === j(['i_med', 'i_own', 'i_lib8', 'i_hid'])
+            && ciSrc.includes("res.reason === 'needs' ? (res.msg || 'Your character does not meet what that needs.') : 'That change is not allowed.' };"),
+            j([r1, r2, r3, r7, r8, r9, sent.map(m => m.defId)]));
     }
 })());
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary

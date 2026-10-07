@@ -54,6 +54,12 @@ Character sheets
   budget refuses it, or lets it through with a note to them and to
   you, as you set it. You also say when it is watched: always, while
   a character is made, or in play. Your own changes are never refused.
+- Prerequisites. In the Library, an entry's What it needs box lists
+  the entries a character must carry before it may take that one,
+  each at a level where one matters. A player's picker greys out what
+  their character may not take yet and says why, and your machine
+  judges every pick. You may always give an entry yourself. A need
+  that names a GM-only entry is never named to a player.
 
 Calendar
 - The game clock runs by itself while you host a session: a second of

@@ -11,9 +11,10 @@ import { showPrompt, showConfirm } from './dialogs.js';
 import { searchEntries, entryFromForm, newEntryId, keyClashes, cleanLibEntry, libCtx, LIB, packFile, readPackImport, packImportPlan, bulkSet, bulkMove, lvlsToText } from './librarycore.js';
 import { itemReach, carriedBy } from './systemcore.js';
 
-var ROW_H = 28, FLUSH_MS = 1000, FORM_KEYS = ['name', 'key', 'category', 'icon', 'vis', 'notes', 'desc', 'lvls', 'ref', 'gmNotes', 'damage', 'cost', 'throwSkill', 'tags', 'lvl', 'stats', 'area', 'rm', 'rmMsg', 'eq', 'eqMsg', 'mods', 'modsOn'];
+var ROW_H = 28, FLUSH_MS = 1000, FORM_KEYS = ['name', 'key', 'category', 'icon', 'vis', 'notes', 'desc', 'lvls', 'ref', 'gmNotes', 'damage', 'cost', 'throwSkill', 'tags', 'lvl', 'stats', 'area', 'rm', 'rmMsg', 'eq', 'eqMsg', 'mods', 'modsOn', 'needs', 'needsMsg'];
+var NEED_MAX = 8, NEED_PICK = 2000;   // 126b: the entries one entry needs, and the longest list its chooser offers
 var VIS = [['all', 'Players can see it'], ['gm', 'GM only']];
-var st = { open: false, campId: null, packId: null, entryId: null, q: '', shown: [], work: map(), dirty: map(), timer: null, draftNew: null, sel: map(), anchor: null, imp: null, fm: null, fmFor: null };   // fm (F6): the open entry's changes being edited
+var st = { open: false, campId: null, packId: null, entryId: null, q: '', shown: [], work: map(), dirty: map(), timer: null, draftNew: null, sel: map(), anchor: null, imp: null, fm: null, fmFor: null, fn: null, fnFor: null };   // fm (F6): the open entry's changes being edited
 var byName = typeof Intl !== 'undefined' && Intl.Collator ? new Intl.Collator(undefined, { sensitivity: 'base', numeric: true }).compare : function(a, b) { return String(a).localeCompare(String(b)); };
 function map() { return Object.create(null); }
 function ui(id) { return document.getElementById(id); }
@@ -126,7 +127,7 @@ function newPack() {
 function exportPack(which) {
     var p = packById(st.packId), c = camp(); if (!p || !c || !ready(p.id)) return;
     var players = which === 'players', pv = players && window.wpSheets && window.wpSheets.playerSystem ? window.wpSheets.playerSystem(c) : null;
-    var file = packFile(p, workOf(p.id), players ? libCtx(pv || { fields: [] }, F(), false) : gmCtx());
+    var file = packFile(p, workOf(p.id), players ? libCtx(pv || { fields: [] }, F(), false, LB() && LB().needShown ? LB().needShown : undefined) : gmCtx());   // 126b: a players' copy names no entry players cannot see
     var base = String(p.name || '').replace(/[^A-Za-z0-9_ -]+/g, '').trim().replace(/ +/g, '_').slice(0, 40) || 'pack';
     var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(file, null, 1)], { type: 'application/json' })); a.download = base + (players ? '.players' : '') + '.wppack.json';
     document.body.appendChild(a); a.click(); setTimeout(function() { URL.revokeObjectURL(a.href); a.remove(); }, 500);
@@ -263,6 +264,7 @@ function renderForm() {
     field(form, 'throwSkill', 'Thrown with', e.throwSkill, { max: 40, ph: 'A skill key', title: 'The skill a throw of it rolls' });
     field(form, 'gmNotes', 'GM notes', e.gmNotes, { area: true, rows: 3, max: LIB.gmNotes, title: 'Yours alone: never on a player’s screen' });
     modsBox(form, e);   // Stage 6 F6
+    needsBox(form, e);   // 126b
     form.appendChild(el('div', 'lib-fsub', 'Locks (yours alone)'));
     field(form, 'rm', 'When removed', e.rm === 'bound' || e.rm === 'curse' ? e.rm : '', { pairs: [['', 'A player may remove it'], ['bound', 'Bound: only the GM removes it'], ['curse', 'Curse on contact: you keep it']], title: 'When a player removes it from their character. Bound: it stays, with your message. Curse on contact: it leaves their sheet but you keep it on the character, out of their sight' });
     field(form, 'rmMsg', 'Message', e.rmMsg, { max: 200, ph: 'Shown to the player (optional)' });
@@ -279,6 +281,34 @@ function renderForm() {
 // Stage 6 F6: an entry's changes to the character carrying it — a working copy while its form is open (Save entry keeps it), each a field to
 // change (the system's numbers, skills, formulas, pools' max, toggles) by an amount, per level once a list has levels; "only while switched on"
 // once a list has a switch. Built with text nodes; the entry is cleaned as any is when saved
+// 126b (the owner: "the entries and levels something needs, no formula to write"): what an entry needs before a character may take it. The
+// needed entries are picked from a list, each with a least level where one matters, and the GM may add words of their own for a refusal. A
+// working copy while the form is open (Save entry keeps it). An entry's name is a text node
+function needsBox(form, e) {
+    if (st.fnFor !== e.id || !st.fn) { st.fn = clone(Array.isArray(e.needs) ? e.needs : []); st.fnFor = e.id; }
+    form.appendChild(el('div', 'lib-fsub', 'What it needs'));
+    form.appendChild(el('div', 'lib-note', 'A player may take this only while their character carries every entry listed here. Their picker greys it out until then and says why. You may always give it.'));
+    var box = el('div', 'lib-mods lib-needs'); form.appendChild(box);
+    var all = allEntries().concat(sysItems()), nameOf = function(id) { for (var i = 0; i < all.length; i++) if (all[i] && all[i].id === id) return all[i].name; return null; };
+    var draw = function() {
+        box.textContent = '';
+        st.fn.forEach(function(n, ni) {
+            var ln = el('div', 'lib-ctl lib-need'), nm = nameOf(n.id);
+            ln.appendChild(el('span', 'lib-need-name', nm || 'An entry that is gone'));
+            var lv = el('input', 'field lib-mod-amt'); lv.type = 'number'; lv.step = 'any'; lv.placeholder = 'Level'; lv.value = typeof n.lvl === 'number' ? String(n.lvl) : ''; lv.title = 'The least level it must have. Leave it empty for any level'; ln.appendChild(lv);
+            lv.addEventListener('input', function() { if (lv.value.trim() === '' || !isFinite(Number(lv.value))) delete n.lvl; else n.lvl = Number(lv.value); });
+            var x = el('button', 'tool ghost', '\u00d7'); x.type = 'button'; x.title = 'It no longer needs this'; x.addEventListener('click', function() { st.fn.splice(ni, 1); draw(); }); ln.appendChild(x);
+            box.appendChild(ln);
+        });
+        var taken = map(); st.fn.forEach(function(n) { taken[n.id] = 1; }); taken[e.id] = 1;
+        var opts = [['', '+ An entry it needs\u2026']].concat(all.filter(function(x) { return x && typeof x.id === 'string' && !taken[x.id]; }).sort(function(a, b) { return byName(a.name, b.name); }).slice(0, NEED_PICK).map(function(x) { return [x.id, x.name + (x.vis === 'gm' ? ' (GM only)' : '')]; }));
+        var sel = select(opts, ''); sel.title = 'Pick an entry a character must carry before it may take this one'; sel.disabled = st.fn.length >= NEED_MAX;
+        sel.addEventListener('change', function() { if (!sel.value || st.fn.length >= NEED_MAX) return; st.fn.push({ id: sel.value }); draw(); });
+        box.appendChild(sel);
+    };
+    draw();
+    field(form, 'needsMsg', 'Message', e.needsMsg, { max: 200, ph: 'Shown to the player in place of the list (optional)' });
+}
 function modTargets() {
     var c = camp(), out = [];
     ((c && c.system && c.system.fields) || []).forEach(function(x) { var nm = x.label || x.key || '(field)'; if (x.kind === 'number' || x.kind === 'formula') out.push([x.id + '|add', nm]); else if (x.kind === 'skill') out.push([x.id + '|add', nm + ' (total)']); else if (x.kind === 'resource') out.push([x.id + '|max', nm + ' max']); else if (x.kind === 'toggle') out.push([x.id + '|on', nm + ' — switch on']); });
@@ -315,7 +345,7 @@ function modsBox(form, e) {
 function readForm() {
     var g = function(id) { var n = ui('libF_' + id); return n ? n.value : ''; }, e = current(), stats = {};
     Array.prototype.forEach.call(document.querySelectorAll('#libForm [data-stat]'), function(n) { stats[n.dataset.stat] = n.value; });
-    var typed = entryFromForm({ id: e.id, name: g('name'), key: g('key'), category: g('category'), icon: g('icon'), vis: g('vis'), lvl: g('lvl'), stats: stats, notes: g('notes'), desc: g('desc'), lvls: g('lvls'), tags: g('tags'), ref: g('ref'), damage: g('damage'), cost: g('cost'), throwSkill: g('throwSkill'), areaFt: g('areaFt'), areaShape: e.area && e.area.shape, areaName: e.area && e.area.name, gmNotes: g('gmNotes'), rm: g('rm'), rmMsg: g('rmMsg'), eq: g('eq'), eqMsg: g('eqMsg'), mods: st.fmFor === e.id && st.fm ? st.fm : e.mods, modsOn: ui('libF_modsOn') ? ui('libF_modsOn').checked : e.modsOn === true });
+    var typed = entryFromForm({ id: e.id, name: g('name'), key: g('key'), category: g('category'), icon: g('icon'), vis: g('vis'), lvl: g('lvl'), stats: stats, notes: g('notes'), desc: g('desc'), lvls: g('lvls'), tags: g('tags'), ref: g('ref'), damage: g('damage'), cost: g('cost'), throwSkill: g('throwSkill'), areaFt: g('areaFt'), areaShape: e.area && e.area.shape, areaName: e.area && e.area.name, gmNotes: g('gmNotes'), rm: g('rm'), rmMsg: g('rmMsg'), eq: g('eq'), eqMsg: g('eqMsg'), mods: st.fmFor === e.id && st.fm ? st.fm : e.mods, modsOn: ui('libF_modsOn') ? ui('libF_modsOn').checked : e.modsOn === true, needs: st.fnFor === e.id && st.fn ? st.fn : e.needs, needsMsg: g('needsMsg') });
     var out = clone(e), eqShown = !!ui('libF_eq'); FORM_KEYS.forEach(function(k) { if (eqShown || (k !== 'eq' && k !== 'eqMsg')) delete out[k]; }); return Object.assign(out, typed);   // a switch lock the form does not show (no list has a switch) is kept
 }
 function saveEntry() {

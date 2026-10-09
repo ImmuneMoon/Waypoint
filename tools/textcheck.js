@@ -55,6 +55,28 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     const DRL = await import(modUrl('docrender.js'));   // the page sanitiser: the link rule is its rule for an <a href>
     const RUN = (t, o) => Object.assign({ t, color: '', b: false, i: false, u: false, st: false, size: '', link: '' }, o || {});   // a run as runsOf gives one
 
+    /* ================= Waypoint's own typefaces (1.5.4): the list, the one cleaner of a stored font, the one CSS writer ================= */
+    {
+        const { FONTS, MAX_FONT, fontKnown, cleanFont, fontCss } = TF;
+        check('fonts: the list is frozen in shape: [name, generic, group] each, every name once, plain characters only, groups in runs (a group is never begun twice)',
+            Array.isArray(FONTS) && FONTS.length === 23 && FONTS.every(f => Array.isArray(f) && f.length === 3 && /^[A-Za-z0-9][A-Za-z0-9 ]*$/.test(f[0]) && f[0].length <= MAX_FONT) && new Set(FONTS.map(f => f[0].toLowerCase())).size === 23
+            && FONTS.map(f => f[2]).filter((g, i, a) => i === 0 || a[i - 1] !== g).length === new Set(FONTS.map(f => f[2])).size, J(FONTS.map(f => f[2])));
+        check('fontKnown: the list\'s own spelling of a font it holds, asked without regard to case or the spaces around it; nothing for a name it lacks, a name a prototype holds, or anything that is no text',
+            fontKnown('Cinzel') === 'Cinzel' && fontKnown('  cinzel ') === 'Cinzel' && fontKnown('IM FELL ENGLISH') === 'IM Fell English' && fontKnown('Georgia') === '' && fontKnown('') === '' && fontKnown('   ') === ''
+            && ['constructor', 'toString', '__proto__', 'hasOwnProperty'].every(n => fontKnown(n) === '') && [null, undefined, 7, true, {}, [], ['Cinzel'], { toString() { return 'Cinzel'; } }].every(v => fontKnown(v) === ''));
+        const HOSTILE = ['x"; background:url(//evil.example/x)', 'Arial, Georgia', "Arial'", 'a;b', 'url(x)', 'a:b', 'a/b', 'a\\b', '<b>', 'expression(1)', 'a\nb', 'a\u0000b', '-x', ' ', '', '_x', 'Ari\u00e4l', 'A'.repeat(MAX_FONT + 1), '!important', 'var(--x)', '@import'];
+        check('cleanFont: a font of the list under the list\'s spelling; any other plain family name as it is (a text box from before named one of the computer\'s own), trimmed; nothing for a name with a quote, a comma, a bracket, a semicolon, a colon, a slash, a line break, a letter outside the plain ones, a leading hyphen or underscore, or one past the cap; nothing for a word CSS reads as an instruction (inherit, initial, unset, revert, default), which quoted would name a font no computer has; nothing for what is no text',
+            cleanFont('cinzel') === 'Cinzel' && cleanFont(' Georgia ') === 'Georgia' && cleanFont('Times New Roman') === 'Times New Roman' && cleanFont('Univers 45') === 'Univers 45' && cleanFont('Franklin Gothic-Medium_2') === 'Franklin Gothic-Medium_2' && cleanFont('A'.repeat(MAX_FONT)) === 'A'.repeat(MAX_FONT)
+            && HOSTILE.every(v => cleanFont(v) === undefined) && ['inherit', 'INITIAL', ' unset ', 'revert', 'revert-layer', 'default'].every(v => cleanFont(v) === undefined && fontCss(v) === '') && cleanFont('Inherited') === 'Inherited' && [null, undefined, 7, true, {}, [], ['Cinzel'], { toString() { return 'Cinzel'; } }].every(v => cleanFont(v) === undefined) && cleanFont(cleanFont(' lora ')) === 'Lora' && MAX_FONT === 60, J(HOSTILE.filter(v => cleanFont(v) !== undefined)));
+        const SAFE = /^(|[a-z-]+|"[A-Za-z0-9][A-Za-z0-9 _-]*"(, (serif|sans-serif|monospace|cursive))?)$/;
+        check('fontCss: what a stored font is drawn with: a font of the list as its quoted name and its generic family; another plain name quoted; a generic family\'s own word as the keyword it is; the app\'s own font (nothing) for everything else; never a value that could end the declaration it goes in or begin another',
+            fontCss('Lora') === '"Lora", serif' && fontCss('share tech mono') === '"Share Tech Mono", monospace' && fontCss('Caveat') === '"Caveat", cursive' && fontCss('Georgia') === '"Georgia"' && fontCss('Times New Roman') === '"Times New Roman"' && fontCss('SERIF') === 'serif' && fontCss('sans-serif') === 'sans-serif' && fontCss('system-ui') === 'system-ui' && ['ui-serif', 'ui-sans-serif', 'ui-monospace', 'ui-rounded', 'math', 'emoji', 'fangsong', 'fantasy', 'cursive', 'monospace'].every(g => fontCss(g) === g && fontCss(g.toUpperCase()) === g) && fontCss('ui-comic') === '"ui-comic"'
+            && HOSTILE.every(v => fontCss(v) === '') && [null, undefined, 7, {}, []].every(v => fontCss(v) === '') && FONTS.concat([['Georgia'], ['monospace'], ['x y-z_9']]).every(f => SAFE.test(fontCss(f[0]))), J(HOSTILE.map(fontCss).filter(Boolean)));
+        const fsrc = slice('textfmt.js', 'fonts');
+        check('fonts (the source): the list, its cleaner and its CSS writer read nothing but their argument and the list: no window, no document, no storage, nothing asked of the computer\'s own fonts',
+            !/window|document|localStorage|queryLocalFonts|navigator|fetch\(/.test(fsrc) && /function cleanFont\(v\) \{/.test(fsrc) && /function fontCss\(v\) \{\n    var f = cleanFont\(v\); if \(!f\) return '';/.test(fsrc));
+    }
+
     /* ================= cleanFmt ================= */
     check('cleanFmt: only a plain object is a format (null, a string, a number, a list -> undefined)',
         [null, undefined, 'bold', 7, true, [], [{ b: true }]].every(v => cleanFmt(v, 'text') === undefined));

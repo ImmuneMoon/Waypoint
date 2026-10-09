@@ -243,6 +243,17 @@ The play map
   preview, and the campaign's fog settings. No control is gone.
 - Help and the tour show each play-map tool's own line drawing beside
   its name, where they still showed the old picture icons.
+- Text boxes use Waypoint's own fonts. The Font list in Properties
+  offers 23 of them, in groups: for reading, old and fantasy,
+  handwriting, science fiction, typewriter and code, display, and
+  runes. They come with the app, so a box looks the same on every
+  computer. A box made earlier keeps the font it had until you pick
+  another.
+- The Content editor of a text box colours the words you select and
+  sizes them, as a planner's text block does. Ctrl + Z there takes
+  back your last change.
+- Pasting into a text box on the map pastes plain words, as the
+  Content editor does.
 
 The top bar and the data map
 - The top of the window is one quiet row. Its captioned boxes are gone,

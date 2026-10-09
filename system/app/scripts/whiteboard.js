@@ -514,6 +514,18 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
 
                   });
 
+                  el.addEventListener('paste', function(e) {   // 1.5.4: plain words only, as the Content editor in Properties pastes them: markup from elsewhere names fonts of the computer it came from
+
+                      if (el.contentEditable !== 'true') return;
+
+                      e.preventDefault();
+
+                      var t = (e.clipboardData || window.clipboardData).getData('text/plain');
+
+                      try { document.execCommand('insertText', false, t); } catch (err) {}
+
+                  });
+
                   el.addEventListener('blur', function(e) {
 
                       el.contentEditable = "false"; el.classList.remove('editing');
@@ -772,7 +784,7 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
               var inkT = (item.color && item.color !== 'transparent' && item.color !== 'var(--panel2)') ? item.color : (plateInk(item.bg) || 'var(--ink)');
               el.style.color = withAlpha(inkT, item.textOpacity == null ? 1 : item.textOpacity);
               el.style.background = (item.bg && item.bg !== 'transparent') ? withAlpha(item.bg, item.bgOpacity == null ? 1 : item.bgOpacity) : 'transparent';
-              el.style.fontFamily = item.font || '';
+              el.style.fontFamily = (window.wpTextFmt && window.wpTextFmt.fontCss) ? window.wpTextFmt.fontCss(item.font) : '';   // 1.5.4: one of Waypoint's own fonts by its name, or the plain family name a box from before holds (textfmt.js cleanFont); anything else is the app's own font
               el.style.fontSize = item.fontSize ? item.fontSize + 'px' : '';
               var al = item.align || 'center';
               el.style.textAlign = al;

@@ -59,7 +59,23 @@
                                      colour, no size or no link changes nothing.
      clear(fmt, text, s, e)          a caret or the whole text: nothing left (undefined); a part: that part plain.
      stateAt(fmt, text, s, e)        what the controls show: { b, i, u, st, color, size, link, any } — color, size and link
-                                     '' for none and null where the range holds more than one. */
+                                     '' for none and null where the range holds more than one.
+
+   Waypoint's own typefaces (1.5.4). A text's font is one of FONTS, by its name: each is a file of the app (assets/fonts, its licence
+   text beside it, an @font-face rule of style.css), so a text looks the same on every computer and no font is read from the computer
+   it is shown on.
+
+     FONTS                           [name, generic, group] each, in the order a list offers them: the name is what a text stores
+                                     and what the font's @font-face rule calls the family.
+     fontKnown(v)                    the list's own spelling of a font it holds (asked without regard to case), else ''.
+     cleanFont(v)                    the ONLY shape a font is stored, sent or drawn in: a font of the list under the list's
+                                     spelling; else a plain family name as it is (letters, digits, spaces, hyphens and
+                                     underscores, beginning with a letter or a digit, MAX_FONT at most): a text box from before
+                                     1.5.4 named one of the computer's own fonts and keeps it; anything else undefined, and so is
+                                     a word CSS reads as an instruction (inherit, initial, unset, revert, revert-layer, default).
+     fontCss(v)                      the font-family a stored font is drawn with: '"Name", generic' for a font of the list,
+                                     '"Name"' for another plain family name, a generic family's own word as it is, '' (the
+                                     app's own font) for anything else. Never a value that could end the declaration it goes in. */
 'use strict';
 
 var VERSION = '1.5.0';
@@ -75,6 +91,41 @@ var SIZE_NAMES = { small: 'Small', large: 'Large', larger: 'Larger', huge: 'Huge
 // The app's ink row (the pen's palette on the play map), plus Custom and Default in the bar
 var PALETTE = [['#e9e9f0', 'White'], ['#1a1a1a', 'Black'], ['#d9534f', 'Red'], ['#e0a54f', 'Gold'], ['#5cb87a', 'Green'], ['#4db3d3', 'Blue'], ['#b98cff', 'Violet']];
 var LOOKS = ['size', 'color', 'b', 'i', 'u', 'st', 'link'];   // a look's keys, in the order they are stored
+// [textcheck:fonts-start]
+// Waypoint's own typefaces: [name, generic, group]. One entry a family; tools/systemcheck.js holds each to its file, its licence text and
+// its @font-face rule. Inter is the one the sheet looks already carried.
+var FONTS = [
+    ['Inter', 'sans-serif', 'Reading'], ['Lora', 'serif', 'Reading'], ['Crimson Text', 'serif', 'Reading'], ['Comic Neue', 'sans-serif', 'Reading'],
+    ['Cinzel', 'serif', 'Old and fantasy'], ['IM Fell English', 'serif', 'Old and fantasy'], ['Almendra', 'serif', 'Old and fantasy'], ['MedievalSharp', 'serif', 'Old and fantasy'],
+    ['Uncial Antiqua', 'serif', 'Old and fantasy'], ['UnifrakturCook', 'serif', 'Old and fantasy'], ['Pirata One', 'serif', 'Old and fantasy'],
+    ['Caveat', 'cursive', 'Handwriting'], ['Great Vibes', 'cursive', 'Handwriting'],
+    ['Orbitron', 'sans-serif', 'Science fiction'], ['Audiowide', 'sans-serif', 'Science fiction'], ['Black Ops One', 'sans-serif', 'Science fiction'], ['Share Tech Mono', 'monospace', 'Science fiction'],
+    ['Cutive Mono', 'monospace', 'Typewriter and code'], ['JetBrains Mono', 'monospace', 'Typewriter and code'],
+    ['Rye', 'serif', 'Display'], ['Bangers', 'sans-serif', 'Display'], ['Nosifer', 'sans-serif', 'Display'],
+    ['Noto Sans Runic', 'sans-serif', 'Runes']
+];
+var MAX_FONT = 60;       // a font name's length
+var FONT_WIDE = ['inherit', 'initial', 'unset', 'revert', 'revert-layer', 'default'];   // words CSS reads as an instruction, never as a family: no font is stored or drawn under one
+var FONT_GENERIC = ['serif', 'sans-serif', 'monospace', 'cursive', 'fantasy', 'system-ui', 'ui-serif', 'ui-sans-serif', 'ui-monospace', 'ui-rounded', 'math', 'emoji', 'fangsong'];   // a generic family is a keyword: written without quotes (a quoted one would be the name of a font no computer has)
+function fontKnown(v) {
+    if (typeof v !== 'string') return '';
+    var t = v.trim().toLowerCase(); if (!t) return '';
+    for (var i = 0; i < FONTS.length; i++) if (FONTS[i][0].toLowerCase() === t) return FONTS[i][0];
+    return '';
+}
+function cleanFont(v) {
+    if (typeof v !== 'string') return undefined;
+    var k = fontKnown(v); if (k) return k;
+    var t = v.trim();
+    if (FONT_WIDE.indexOf(t.toLowerCase()) >= 0) return undefined;
+    return (t.length <= MAX_FONT && /^[A-Za-z0-9][A-Za-z0-9 _-]*$/.test(t)) ? t : undefined;   // a plain family name: nothing that could end a declaration, open a function or begin a second family
+}
+function fontCss(v) {
+    var f = cleanFont(v); if (!f) return '';
+    for (var i = 0; i < FONTS.length; i++) if (FONTS[i][0] === f) return '"' + f + '", ' + FONTS[i][1];
+    return FONT_GENERIC.indexOf(f.toLowerCase()) >= 0 ? f.toLowerCase() : '"' + f + '"';
+}
+// [textcheck:fonts-end]
 
 function own(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
 function isObj(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
@@ -386,6 +437,6 @@ function stateAt(fmt, text, s, e) {
     return { b: all('b'), i: all('i'), u: all('u'), st: all('st'), color: one('color'), size: one('size'), link: one('link'), any: !!f };
 }
 
-var API = { VERSION: VERSION, MAX_SPANS: MAX_SPANS, MAX_RAW: MAX_RAW, MAX_LINK: MAX_LINK, SIZES: SIZES.slice(), SIZE_EM: SIZE_EM, SIZE_NAMES: SIZE_NAMES, PALETTE: PALETTE, cleanFmt: cleanFmt, cleanLink: cleanLink, typedLink: typedLink, linkParts: linkParts, MAX_TEXT_LINKS: MAX_TEXT_LINKS, runsOf: runsOf, respan: respan, apply: apply, clear: clear, stateAt: stateAt };
+var API = { VERSION: VERSION, MAX_SPANS: MAX_SPANS, MAX_RAW: MAX_RAW, MAX_LINK: MAX_LINK, SIZES: SIZES.slice(), SIZE_EM: SIZE_EM, SIZE_NAMES: SIZE_NAMES, PALETTE: PALETTE, FONTS: FONTS, MAX_FONT: MAX_FONT, fontKnown: fontKnown, cleanFont: cleanFont, fontCss: fontCss, cleanFmt: cleanFmt, cleanLink: cleanLink, typedLink: typedLink, linkParts: linkParts, MAX_TEXT_LINKS: MAX_TEXT_LINKS, runsOf: runsOf, respan: respan, apply: apply, clear: clear, stateAt: stateAt };
 if (typeof window !== 'undefined') window.wpTextFmt = API;
-export { VERSION, MAX_SPANS, MAX_RAW, MAX_LINK, MAX_TEXT_LINKS, SIZES, SIZE_EM, SIZE_NAMES, PALETTE, cleanFmt, cleanLink, typedLink, linkParts, runsOf, respan, apply, clear, stateAt };
+export { VERSION, MAX_SPANS, MAX_RAW, MAX_LINK, MAX_TEXT_LINKS, SIZES, SIZE_EM, SIZE_NAMES, PALETTE, FONTS, MAX_FONT, fontKnown, cleanFont, fontCss, cleanFmt, cleanLink, typedLink, linkParts, runsOf, respan, apply, clear, stateAt };

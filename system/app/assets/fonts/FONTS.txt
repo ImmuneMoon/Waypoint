@@ -1,0 +1,130 @@
+Typefaces bundled with Waypoint
+===============================
+
+Waypoint carries these typefaces so that a text set in one looks the same on every computer.
+Each font file is as its makers published it: none is changed, subset or converted. Each is licensed under the
+SIL Open Font License, Version 1.1, and its licence text, with its copyright notice, is the OFL.txt beside it.
+The files come from the Google Fonts repository (https://github.com/google/fonts, folder ofl/<folder>). A variable
+font is named "<Name>[wght].ttf" there and "<Name>-wght.ttf" here: the file is the same, byte for byte.
+tools/systemcheck.js holds the SHA-256 of every file.
+
+Inter (inter/) is listed in its own folder with its own LICENSE: a Latin subset in the WOFF2 format, as the
+Inter project publishes it for the web.
+
+Lora
+  File:      lora/Lora-wght.ttf   (published as Lora[wght].ttf)
+  Licence:   SIL Open Font License 1.1, lora/OFL.txt
+  Copyright 2011 The Lora Project Authors (https://github.com/cyrealtype/Lora-Cyrillic), with Reserved
+  Font Name "Lora".
+
+Crimson Text
+  File:      crimsontext/CrimsonText-Regular.ttf
+  Licence:   SIL Open Font License 1.1, crimsontext/OFL.txt
+  Copyright 2010 The Crimson Text Project Authors (https://github.com/googlefonts/Crimson)
+
+Comic Neue
+  File:      comicneue/ComicNeue-Regular.ttf
+  Licence:   SIL Open Font License 1.1, comicneue/OFL.txt
+  Copyright 2014 The Comic Neue Project Authors (https://github.com/crozynski/comicneue)
+
+Cinzel
+  File:      cinzel/Cinzel-wght.ttf   (published as Cinzel[wght].ttf)
+  Licence:   SIL Open Font License 1.1, cinzel/OFL.txt
+  Copyright 2020 The Cinzel Project Authors (https://github.com/NDISCOVER/Cinzel)
+
+IM Fell English
+  File:      imfellenglish/IMFeENrm28P.ttf
+  Licence:   SIL Open Font License 1.1, imfellenglish/OFL.txt
+  Copyright (c) 2010, Igino Marini (mail@iginomarini.com)
+
+Almendra
+  File:      almendra/Almendra-Regular.ttf
+  Licence:   SIL Open Font License 1.1, almendra/OFL.txt
+  Copyright (c) 2011-2012, Ana Sanfelippo (anasanfe@gmail.com), with Reserved Font Name 'Almendra'
+
+MedievalSharp
+  File:      medievalsharp/MedievalSharp.ttf
+  Licence:   SIL Open Font License 1.1, medievalsharp/OFL.txt
+  Copyright (c) 2011, wmk69 (wmk69@o2.pl), with Reserved Font Name MedievalSharp.
+
+Uncial Antiqua
+  File:      uncialantiqua/UncialAntiqua-Regular.ttf
+  Licence:   SIL Open Font License 1.1, uncialantiqua/OFL.txt
+  Copyright (c) 2011 by Brian J. Bonislawsky DBA Astigmatic (AOETI) (astigma@astigmatic.com), with
+  Reserved Font Names "Uncial Antiqua"
+
+UnifrakturCook
+  File:      unifrakturcook/UnifrakturCook-Bold.ttf
+  Licence:   SIL Open Font License 1.1, unifrakturcook/OFL.txt
+  Copyright (c) 2010, j. 'mach' wust, with Reserved Font Name UnifrakturCook. Copyright (c) 2009, Peter
+  Wiegel.
+
+Pirata One
+  File:      pirataone/PirataOne-Regular.ttf
+  Licence:   SIL Open Font License 1.1, pirataone/OFL.txt
+  Copyright (c) 2012, Rodrigo Fuenzalida, Nicolas Massi (www.taip.com.ar / abc.taip.com.ar), with Reserved
+  Font Name 'Pirata'
+
+Caveat
+  File:      caveat/Caveat-wght.ttf   (published as Caveat[wght].ttf)
+  Licence:   SIL Open Font License 1.1, caveat/OFL.txt
+  Copyright 2014 The Caveat Project Authors (https://github.com/googlefonts/caveat)
+
+Great Vibes
+  File:      greatvibes/GreatVibes-Regular.ttf
+  Licence:   SIL Open Font License 1.1, greatvibes/OFL.txt
+  Copyright 2015 The Great Vibes Pro Project Authors (https://github.com/googlefonts/great-vibes)
+
+Orbitron
+  File:      orbitron/Orbitron-wght.ttf   (published as Orbitron[wght].ttf)
+  Licence:   SIL Open Font License 1.1, orbitron/OFL.txt
+  Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved
+  Font Name: "Orbitron"
+
+Audiowide
+  File:      audiowide/Audiowide-Regular.ttf
+  Licence:   SIL Open Font License 1.1, audiowide/OFL.txt
+  Copyright (c) 2012, Brian J. Bonislawsky DBA Astigmatic (AOETI) (astigma@astigmatic.com), with Reserved
+  Font Names "Audiowide"
+
+Black Ops One
+  File:      blackopsone/BlackOpsOne-Regular.ttf
+  Licence:   SIL Open Font License 1.1, blackopsone/OFL.txt
+  Copyright 2022 The Black-Ops Project Authors
+  (https://github.com/googlefonts/googlefonts-project-template)
+
+Share Tech Mono
+  File:      sharetechmono/ShareTechMono-Regular.ttf
+  Licence:   SIL Open Font License 1.1, sharetechmono/OFL.txt
+  Copyright (c) 2012, Carrois Type Design, Ralph du Carrois (post@carrois.com www.carrois.com), with
+  Reserved Font Name 'Share'
+
+Cutive Mono
+  File:      cutivemono/CutiveMono-Regular.ttf
+  Licence:   SIL Open Font License 1.1, cutivemono/OFL.txt
+  Copyright 2012 The Cutive Project Authors (https://github.com/googlefonts/cutivemono)
+
+JetBrains Mono
+  File:      jetbrainsmono/JetBrainsMono-wght.ttf   (published as JetBrainsMono[wght].ttf)
+  Licence:   SIL Open Font License 1.1, jetbrainsmono/OFL.txt
+  Copyright 2020 The JetBrains Mono Project Authors (https://github.com/JetBrains/JetBrainsMono)
+
+Rye
+  File:      rye/Rye-Regular.ttf
+  Licence:   SIL Open Font License 1.1, rye/OFL.txt
+  Copyright (c) 2011 by Sorkin Type Co (www.sorkintype.com), with Reserved Font Name "Rye".
+
+Bangers
+  File:      bangers/Bangers-Regular.ttf
+  Licence:   SIL Open Font License 1.1, bangers/OFL.txt
+  Copyright 2010 The Bangers Project Authors (https://github.com/googlefonts/bangers)
+
+Nosifer
+  File:      nosifer/Nosifer-Regular.ttf
+  Licence:   SIL Open Font License 1.1, nosifer/OFL.txt
+  Copyright (c) 2011, Typomondo, with Reserved Font Name "Nosifer".
+
+Noto Sans Runic
+  File:      notosansrunic/NotoSansRunic-Regular.ttf
+  Licence:   SIL Open Font License 1.1, notosansrunic/OFL.txt
+  Copyright 2022 The Noto Project Authors (https://github.com/notofonts/runic)

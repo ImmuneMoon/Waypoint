@@ -4160,6 +4160,61 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && /'\.woff2': 'font\/woff2'/.test(fs.readFileSync(path.join(__dirname, 'dev-server.js'), 'utf8')) && /if \(ext === '\.woff2'\) mime = 'font\/woff2';/.test(fs.readFileSync(path.join(__dirname, '..', 'system', 'resources', 'app', 'main.js'), 'utf8')), j(faces));
     }
 
+    /* ---- Waypoint's own typefaces (1.5.4, text style in more places): files of the app, each as its makers published it, its licence text beside it ---- */
+    {
+        const crypto = require('crypto'), TFF = await import(url('textfmt.js'));
+        // [family as the Font list and its @font-face rule name it, folder, file, the weights the file holds, bytes, SHA-256]: a file that changes by a byte is not the file its makers published
+        const FACES = [
+            ['Lora', 'lora', 'Lora-wght.ttf', '400 700', 212196, '822a6621ccbe8d97d20ac88c1c41f5615c9c2c202eaa75f272cd452aac6475a7'],
+            ['Crimson Text', 'crimsontext', 'CrimsonText-Regular.ttf', '400', 107200, '48e6c5d5ad1d01599d374ecb817e15890d1feb3b8a3a88e527d44c90389e1f06'],
+            ['Comic Neue', 'comicneue', 'ComicNeue-Regular.ttf', '400', 57248, 'a0ee5a37c8b27c4db0700137d928598b1e23b0089e1546a8961909176b779360'],
+            ['Cinzel', 'cinzel', 'Cinzel-wght.ttf', '400 900', 125468, 'f4d83d34d1f6c741193e4acf4b3dff9531e5a67b6aa65228d00a7db72a4e0f34'],
+            ['IM Fell English', 'imfellenglish', 'IMFeENrm28P.ttf', '400', 194992, 'fe9705bbde51af802719246d4608d08d37bde956ab99d9a590da996a5221a24c'],
+            ['Almendra', 'almendra', 'Almendra-Regular.ttf', '400', 68684, 'b127a6121209353b53da9ce73bf9d350f74190d8384c28ede179e4fb9440f946'],
+            ['MedievalSharp', 'medievalsharp', 'MedievalSharp.ttf', '400', 148712, '74cb2e6738bd7703adf120802f68fba0c9ddb9147a08e6847f1005b1e55df5a5'],
+            ['Uncial Antiqua', 'uncialantiqua', 'UncialAntiqua-Regular.ttf', '400', 63404, '33a5128b59d1c95d4f3788164f4ab3a1196f0a982263cb2cd278c47418366766'],
+            ['UnifrakturCook', 'unifrakturcook', 'UnifrakturCook-Bold.ttf', '400', 42688, 'ea002fa9c65f1a612af100e00d87ab65f16381f450020ec3d021f3dbf79a6dcd'],
+            ['Pirata One', 'pirataone', 'PirataOne-Regular.ttf', '400', 56316, '5347a2e155589ecf667d4b766613c8ee003edde9f83717fd24c09599a4b1ecc0'],
+            ['Caveat', 'caveat', 'Caveat-wght.ttf', '400 700', 403648, '0bdb6b660482d31531b3945849fba5916b3ef8695da7024a9e6b9ee3c4157988'],
+            ['Great Vibes', 'greatvibes', 'GreatVibes-Regular.ttf', '400', 457588, '8d509802186f1b51572531ecf313e8098f9a5bfdfaca93f0c9b34467f9982d15'],
+            ['Orbitron', 'orbitron', 'Orbitron-wght.ttf', '400 900', 38576, 'f42db2dd16e642258e35782916eceb1dcdbea06fb958d77ad71dc5963587e8fd'],
+            ['Audiowide', 'audiowide', 'Audiowide-Regular.ttf', '400', 69916, 'c7c0f2b0f6fad8c623e31772ce79f94a4edb9321ffce9fce978ea892d20ae730'],
+            ['Black Ops One', 'blackopsone', 'BlackOpsOne-Regular.ttf', '400', 166532, '282a825b5f294377387e3969f765408157dbea8da0f5d0aae68c6bc704b145b3'],
+            ['Share Tech Mono', 'sharetechmono', 'ShareTechMono-Regular.ttf', '400', 43272, '9ceab1f87414829af259c0f537573ae03ef7dd3147c0b27a36a1a0beb6732677'],
+            ['Cutive Mono', 'cutivemono', 'CutiveMono-Regular.ttf', '400', 80004, '96a36a00079058684982f61ee334323f8b501d7b68dcecd6049a4f9177e3a62c'],
+            ['JetBrains Mono', 'jetbrainsmono', 'JetBrainsMono-wght.ttf', '100 800', 187208, '48715a42ec242c21e9f02692891e147d022299a52e48d5e413e1a942193ffeda'],
+            ['Rye', 'rye', 'Rye-Regular.ttf', '400', 183244, 'b7edee5e615ae1b6b07e9d030c1309152bf3672a0e8a2a46293e273730f5adba'],
+            ['Bangers', 'bangers', 'Bangers-Regular.ttf', '400', 93148, '4160a7311de9342674cce9160cde9fcbb30f48190397d86ff1b70b455af65824'],
+            ['Nosifer', 'nosifer', 'Nosifer-Regular.ttf', '400', 43272, '09c5ac35e34dc7a397d5f698b703c5640b59cf93d4d343ebae4f16f3859d09b8'],
+            ['Noto Sans Runic', 'notosansrunic', 'NotoSansRunic-Regular.ttf', '400', 55800, '615b6c1166a8c51816dc1536784acbf486547e3bed03dbfdd70910e10066793b']
+        ];
+        const fdir = path.join(app, 'assets', 'fonts'), norm = s => s.replace(/\r\n/g, '\n');
+        const dirs = fs.readdirSync(fdir).filter(n => fs.statSync(path.join(fdir, n)).isDirectory()).sort(), loose = fs.readdirSync(fdir).filter(n => !fs.statSync(path.join(fdir, n)).isDirectory());
+        const badFile = FACES.filter(f => { const p = path.join(fdir, f[1], f[2]); if (!fs.existsSync(p)) return true; const b = fs.readFileSync(p); return b.length !== f[4] || b.slice(0, 4).toString('hex') !== '00010000' || crypto.createHash('sha256').update(b).digest('hex') !== f[5]; }).map(f => f[2]);
+        const badDir = FACES.filter(f => fs.readdirSync(path.join(fdir, f[1])).sort().join('|') !== [f[2], 'OFL.txt'].sort().join('|')).map(f => f[1]);
+        const lic = f => norm(fs.readFileSync(path.join(fdir, f[1], 'OFL.txt'), 'utf8'));
+        const badLic = FACES.filter(f => { const t = lic(f); return !/^Copyright /.test(t) || !/This Font Software is licensed under the SIL Open Font License, Version 1\.1\./.test(t) || !/SIL OPEN FONT LICENSE\s+Version 1\.1 - 26 February 2007/.test(t) || !/PERMISSION & CONDITIONS/.test(t) || !/TERMINATION/.test(t) || !/DISCLAIMER/.test(t); }).map(f => f[1]);
+        check('fonts: 22 typefaces are bundled beside Inter, one folder each holding the font file and its licence text and nothing else; each file is TrueType and is byte for byte the file its makers published (its length and SHA-256), never a subset or a conversion; each licence text begins with its copyright notice and is the SIL Open Font License 1.1 whole',
+            FACES.length === 22 && j(dirs) === j(FACES.map(f => f[1]).concat('inter').sort()) && j(loose) === j(['FONTS.txt']) && badFile.length === 0 && badDir.length === 0 && badLic.length === 0 && new Set(FACES.map(f => f[5])).size === 22, j([dirs.length, loose, badFile, badDir, badLic]));
+        const cssF = norm(fs.readFileSync(path.join(app, 'style.css'), 'utf8')), rules = cssF.match(/@font-face \{[^}]*\}/g) || [];
+        const want = FACES.map(f => '@font-face { font-family: "' + f[0] + '"; font-style: normal; font-weight: ' + f[3] + '; font-display: swap; src: url("assets/fonts/' + f[1] + '/' + f[2] + '") format("truetype"); }');
+        const ours = rules.filter(r => !/font-family: "Inter"/.test(r)), urls = (cssF.match(/url\("assets\/fonts\/[^"]+"\)/g) || []).map(u => u.slice(5, -2));
+        check('fonts: the style sheet names each bundled file in exactly one @font-face rule, under the family the Font list offers, with the weights the file holds; no rule names a file that is not there, a web address or a font of the computer (local())',
+            rules.length === 24 && ours.length === 22 && want.every(w => ours.filter(r => r === w).length === 1) && urls.length === 24 && urls.every(u => fs.existsSync(path.join(app, u))) && !/@font-face[^}]*(https?:|\/\/|local\()/.test(cssF) && !/@import/.test(cssF), j([rules.length, ours.filter(r => want.indexOf(r) < 0)]));
+        const listed = TFF.FONTS.map(f => f[0]), GEN = ['serif', 'sans-serif', 'monospace', 'cursive'];
+        check('fonts: the list the app offers (textfmt.js FONTS) is Inter and the 22, each once, each with a generic family to fall back on and a group; every name is one the cleaner keeps as it is and the style sheet has a rule for',
+            listed.length === 23 && new Set(listed).size === 23 && listed[0] === 'Inter' && j(listed.slice(1).sort()) === j(FACES.map(f => f[0]).sort()) && TFF.FONTS.every(f => f.length === 3 && GEN.indexOf(f[1]) >= 0 && typeof f[2] === 'string' && f[2].length > 0 && TFF.cleanFont(f[0]) === f[0] && TFF.fontCss(f[0]) === '"' + f[0] + '", ' + f[1] && cssF.indexOf('font-family: "' + f[0] + '";') > 0), j(listed));
+        const listTxt = norm(fs.readFileSync(path.join(fdir, 'FONTS.txt'), 'utf8')), readme = norm(fs.readFileSync(path.join(__dirname, '..', 'README.md'), 'utf8')), pageF = norm(fs.readFileSync(path.join(app, 'index.html'), 'utf8')), about = pageF.slice(pageF.indexOf('id="aboutModal"'), pageF.indexOf('id="aboutCloseBtn"'));
+        const head = f => lic(f).split(/\n\s*\n/)[0].split('\n').map(s => s.trim()).filter(Boolean).join(' ').replace(/\s+/g, ' ');
+        check('fonts: the credits: assets/fonts/FONTS.txt names each typeface with its file, its licence text and its copyright notice as the licence text states it; About and the README say the typefaces are bundled under the SIL Open Font License and where the texts are',
+            FACES.every(f => listTxt.indexOf('\n' + f[0] + '\n  File:      ' + f[1] + '/' + f[2]) > 0 && listTxt.indexOf('SIL Open Font License 1.1, ' + f[1] + '/OFL.txt') > 0 && listTxt.replace(/\n\s+/g, ' ').indexOf(head(f)) > 0)
+            && /22 more typefaces[^<]*SIL Open Font License 1\.1/.test(about) && /assets\/fonts\/FONTS\.txt/.test(about) && /system\/app\/assets\/fonts\/FONTS\.txt/.test(readme) && j((readme.match(/It includes 22 more typefaces for text on maps: ([^.]+)\. Each is under the SIL Open Font License 1\.1,/) || ['', ''])[1].replace(' and ', ', ').split(', ').sort()) === j(FACES.map(f => f[0]).sort()) && FACES.every(f => f[3] === '400' || / /.test(f[3])) && new Set(FACES.map(f => f[0])).size === 22, j(FACES.filter(f => listTxt.replace(/\n\s+/g, ' ').indexOf(head(f)) < 0).map(f => f[0])));
+        const ga = norm(fs.readFileSync(path.join(__dirname, '..', '.gitattributes'), 'utf8')), iss = norm(fs.readFileSync(path.join(__dirname, '..', 'installer.iss'), 'utf8')), rel = norm(fs.readFileSync(path.join(__dirname, 'release.js'), 'utf8'));
+        check('fonts: a font file is binary to git, so a checkout never rewrites a byte of one; the release build zips the whole app folder with no filter, and the installer takes every folder with no exclusion that could match a font file, a licence text or the fonts folder',
+            /^\*\.ttf binary$/m.test(ga) && rel.includes("Compress-Archive -Force -Path '${path.join(SYSTEM, 'app', '*')}' -DestinationPath '${zipPath}'") && /\nconst SYSTEM = path\.join\(ROOT, 'system'\);/.test(rel) && !/-Include|-Exclude|-Filter/.test(rel)
+            && /\nSource: "\*"; DestDir: "\{app\}"; Excludes: "[^"]*"; Flags: ignoreversion recursesubdirs createallsubdirs/.test(iss) && (iss.match(/Excludes: "([^"]*)"/) || ['', '*'])[1].split(',').every(x => !/^\*$|\*\.txt|\*\.ttf|\*\.\*|^system$|^system\\\*$|system\\app($|\\\*|\\assets)|assets|fonts|OFL|FONTS/i.test(x)), j((iss.match(/Excludes: "[^"]*"/g) || []).join(' ').slice(0, 300)));
+    }
+
     /* ---- Stage 6 Fold 2: the token's stance — Posture / Elevation names, the Stance placement ---- */
     {
         const SC6 = S.stanceCtx, on2 = { posture: true, elevation: true };

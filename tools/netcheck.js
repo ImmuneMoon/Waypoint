@@ -10244,6 +10244,51 @@ pendingChecks.push((async () => {
             && (src.match(/_charPending = Object\.create\(null\)/g) || []).length === 2 && !/_charPending = \{\}/.test(src)
             && /^var assetWaiters = Object\.create\(null\);/m.test(src) && /assetWaiters = Object\.create\(null\); assetPending = Object\.create\(null\);/.test(src) && !/assetWaiters = \{\}/.test(src), J([pendErr, calls]));
     }
+    // (g13b) text style in more places (1.5.4): a text box's font as a host names it. A player's app keeps one of Waypoint's own fonts under the
+    // list's spelling, or a plain family name, and nothing else; with no cleaner on hand it keeps none
+    {
+        const TFn = await import('file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', 'textfmt.js')).split(String.fromCharCode(92)).join('/'));
+        const mk = win => new Function('window', 'cleanWaitingItem', 'sanitizeRichText', 'cleanHostLight', 'cleanHostTokSenses', 'cleanHostFxb', lineOf('function cleanHostWbItem(w) {') + '\nreturn cleanHostWbItem;')(win, H.cleanWaitingItem, t => t, () => {}, () => {}, () => {});
+        const cwF = mk({ wpTextFmt: TFn }), cwNone = mk({}), cwOld = mk({ wpTextFmt: { FONTS: TFn.FONTS } });
+        const f = (cw, font, type) => { const o = cw({ id: 't', type: type || 'text', text: 'x', font }); return 'font' in o ? o.font : 'none'; };
+        const BAD = ['x"; background:url(//evil.example/x)', 'Arial, Georgia', "A'", 'a;b', 'url(x)', '<b>', '', ' ', 7, true, null, {}, ['Cinzel'], { toString() { return 'Cinzel'; } }, 'A'.repeat(61)];
+        check('text style (client): a text box\'s font from the host is kept only as the cleaner keeps it: one of Waypoint\'s own under the list\'s spelling, or a plain family name as it is; a declaration, a second family, a quote, an address, an empty name, a number, an object or a name past the cap is dropped, on a piece of any kind; a box with no font gains none; with no cleaner on hand (none, or a textfmt from before the list) no font is kept at all',
+            f(cwF, 'Cinzel') === 'Cinzel' && f(cwF, ' cinzel ') === 'Cinzel' && f(cwF, 'Georgia') === 'Georgia' && f(cwF, 'Times New Roman') === 'Times New Roman' && BAD.every(v => f(cwF, v) === 'none') && f(cwF, 'x"; color:red', 'rect') === 'none' && f(cwF, 'Lora', 'rect') === 'Lora'
+            && !('font' in cwF({ id: 't', type: 'text', text: 'x' })) && f(cwNone, 'Cinzel') === 'none' && f(cwNone, 'Georgia') === 'none' && f(cwOld, 'Cinzel') === 'none', J([BAD.map(v => f(cwF, v)), f(cwNone, 'Cinzel'), f(cwOld, 'Cinzel')]));
+        check('text style (client, the source): the font is cleaned in the one function every piece a host sends goes through, by textfmt.js cleanFont alone, and deleted when that gives nothing',
+            /if \(w\.type === 'text'\) w\.text = sanitizeRichText\(w\.text\); if \(w\.font !== undefined\) \{ var TFf = window\.wpTextFmt, fn = TFf && TFf\.cleanFont \? TFf\.cleanFont\(w\.font\) : undefined; if \(fn\) w\.font = fn; else delete w\.font; \}/.test(lineOf('function cleanHostWbItem(w) {')));
+    }
+    // (g13c) the words of a text box as a player's app and an import keep them (the real sanitizeRichText on a stand-in for the page's own parser, with the
+    // real safeStyle and richFont): the colour and the size the Content editor's bar gives a selection survive as written, and a font named inside the words
+    // follows the rule of the box's own font
+    {
+        const TFw = await import('file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', 'textfmt.js')).split(String.fromCharCode(92)).join('/'));
+        const richSrc = ['var RICH_TAGS = ', 'var RICH_DROP = ', 'var RICH_STYLE = ', 'function richFont(v, asName) {', 'function safeStyle(css) {', 'function safeRichHref(h) {', 'function safeRichSrc(s) {', 'function escAttr(s) {'].map(lineOf).join('\n')
+            + '\n' + src.slice(src.indexOf('function sanitizeRichText(html) {'), src.indexOf('net.sanitizeRichText = sanitizeRichText;'));
+        const Tn = s => ({ nodeType: 3, nodeValue: s }), El = (tag, attrs, kids) => ({ nodeType: 1, tagName: tag.toUpperCase(), childNodes: kids || [], getAttribute: k => (attrs && Object.prototype.hasOwnProperty.call(attrs, k) ? attrs[k] : null) });
+        let tree = [];
+        const mkRich = win => new Function('window', 'DOMParser', richSrc + '\nreturn { safeStyle: safeStyle, richFont: richFont, sanitizeRichText: sanitizeRichText };')(win, function() { this.parseFromString = () => ({ body: El('body', {}, tree) }); });
+        const Rw = mkRich({ wpTextFmt: TFw }), R0 = mkRich({}), Rold = mkRich({ wpTextFmt: { FONTS: TFw.FONTS } });
+        const walk = (R, kids) => { tree = kids; return R.sanitizeRichText('x'); };
+        const sizes = TFw.SIZES.map(k => Rw.safeStyle('font-size: ' + TFw.SIZE_EM[k] + ';'));
+        check('text style (a text box\'s words, the real safeStyle): the colour and each size step the bar writes are kept as written; a web address, an expression and a property that is none of the look\'s are dropped',
+            Rw.safeStyle('color: rgb(217, 83, 79);') === 'color:rgb(217, 83, 79)' && Rw.safeStyle('color:#d9534f') === 'color:#d9534f' && J(sizes) === J(TFw.SIZES.map(k => 'font-size:' + TFw.SIZE_EM[k])) && sizes.length === 4
+            && Rw.safeStyle('color: url(x)') === '' && Rw.safeStyle('color: expression(1)') === '' && Rw.safeStyle('position: fixed') === '' && Rw.safeStyle('background-image: none') === '' && Rw.safeStyle('color: red; position: fixed; font-size: 1.2em') === 'color:red;font-size:1.2em', J([Rw.safeStyle('color: rgb(217, 83, 79);'), sizes]));
+        const wideIn = ['font-family: inherit', 'font-family: INITIAL', 'font-family: unset', 'font-family: revert', 'font-family: revert-layer', 'font-family: "inherit", serif'];
+        const famIn = ['font-family: Cinzel', 'font-family: "IM Fell English"', "font-family: 'lora', serif", 'font-family: Papyrus', 'font-family: Arial, Helvetica, sans-serif', 'font-family: serif', 'font-family: Ar(ial', "font-family: 'a\\b'", 'font-family: ', 'font-family: x y-z_9'];
+        const famOut = ['font-family:"Cinzel", serif', 'font-family:"IM Fell English", serif', 'font-family:"Lora", serif', 'font-family:"Papyrus"', 'font-family:"Arial"', 'font-family:serif', '', '', '', 'font-family:"x y-z_9"'];
+        check('text style (a text box\'s words): a font named inside the words follows the rule of the box\'s own font: the first family named, as fontCss writes it (one of Waypoint\'s own with its generic family, a plain family name quoted, a generic family as its keyword); a stack is cut to its first family, a bracket names nothing, and a word CSS reads as an instruction (inherit and its kind) names nothing, so the words keep the box\'s own font; with no cleaner at hand (none, or a textfmt from before the list) no font is kept, while a colour and a size still are',
+            J(famIn.map(Rw.safeStyle)) === J(famOut) && wideIn.every(s => Rw.safeStyle(s) === '') && Rw.safeStyle('color: red; font-family: inherit') === 'color:red' && Rw.richFont('inherit', true) === '' && famIn.every(s => R0.safeStyle(s) === '' && Rold.safeStyle(s) === '') && R0.safeStyle('color: red; font-family: Cinzel; font-size: 1.2em') === 'color:red;font-size:1.2em'
+            && Rw.richFont('cinzel', true) === 'Cinzel' && Rw.richFont('Comic Sans MS', true) === 'Comic Sans MS' && Rw.richFont('Arial, Helvetica', true) === 'Arial' && Rw.richFont('a;b', true) === '' && R0.richFont('Cinzel', true) === '' && R0.richFont('Cinzel') === '', J([famIn.map(Rw.safeStyle), famIn.map(R0.safeStyle)]));
+        const words = walk(Rw, [El('b', {}, [El('span', { style: 'color: rgb(217, 83, 79);' }, [El('span', { style: 'font-size: 1.2em;' }, [Tn('Eldara')])]), Tn(' Realm')]), Tn(' <b>"x"</b> & more')]);
+        const fam = walk(Rw, [El('span', { style: 'font-family: Papyrus, fantasy; color: red' }, [Tn('a')]), El('font', { face: 'cinzel', color: '#ff0000', size: '3' }, [Tn('b')]), El('font', { face: 'Arial, Helvetica' }, [Tn('c')]), El('font', { face: 'x"y' }, [Tn('d')]), El('span', { style: 'font-family: url(//evil.example/f.ttf)' }, [Tn('e')])]);
+        const fam0 = walk(R0, [El('span', { style: 'font-family: Cinzel; color: red' }, [Tn('a')]), El('font', { face: 'Cinzel', color: '#ff0000' }, [Tn('b')])]);
+        const drop = walk(Rw, [El('script', {}, [Tn('alert(1)')]), El('span', { style: 'color: red', onclick: 'x()' }, [Tn('k')]), El('center', {}, [Tn('m')])]);
+        check('text style (a text box\'s words, the real sanitizeRichText on a parser of the suite\'s own): the markup the bar leaves on a selection comes through whole, a colour inside bold with a size inside it, the words escaped as text; a font inside the words is written by the same rule in a style and in a font element (a stack cut to its first family, a name with a quote dropped with its attribute, a web address dropped); with no cleaner the words keep their colour and lose every font; a script goes with its content, a handler attribute is never written, an unknown wrapper keeps its words',
+            words === '<b><span style="color:rgb(217, 83, 79)"><span style="font-size:1.2em">Eldara</span></span> Realm</b> &lt;b&gt;&quot;x&quot;&lt;/b&gt; &amp; more'
+            && fam === '<span style="font-family:&quot;Papyrus&quot;;color:red">a</span><font color="#ff0000" size="3" face="Cinzel">b</font><font face="Arial">c</font><font>d</font><span>e</span>'
+            && fam0 === '<span style="color:red">a</span><font color="#ff0000">b</font>' && drop === '<span style="color:red">k</span>m', J([words, fam, fam0, drop]));
+    }
     // (g13) geometry a host sends — a whole map's or a delta's pieces (cleanHostWbItem) and a live move (handlePos, the client branch): finite
     // numbers within bounds, or nothing
     {

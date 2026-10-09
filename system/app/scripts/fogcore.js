@@ -95,19 +95,10 @@ function cleanName(v, cap) { if (typeof v !== 'string') return ''; return Array.
    Pure & item-blind: fog.js converts flagged board items to a Set of opaque cell KEYS and passes
    it to visibleCells, so host enforcement and the client overlay run the SAME code and agree. */
 // Cells whose CENTRE lies inside an axis-aligned board rect [x,x+w]x[y,y+h].
-function cellsUnderRect(x, y, w, h, grid) {
-    var out = [], cs = [cellOf(x, y, grid), cellOf(x + w, y, grid), cellOf(x, y + h, grid), cellOf(x + w, y + h, grid)];
-    if (grid.type === 'square') {
-        var c0 = Infinity, c1 = -Infinity, r0 = Infinity, r1 = -Infinity;
-        cs.forEach(function(c) { c0 = Math.min(c0, c.c); c1 = Math.max(c1, c.c); r0 = Math.min(r0, c.r); r1 = Math.max(r1, c.r); });
-        for (var c = c0; c <= c1; c++) for (var r = r0; r <= r1; r++) { var p = cellCenter({ c: c, r: r }, grid); if (p.x >= x && p.x <= x + w && p.y >= y && p.y <= y + h) out.push({ c: c, r: r }); }
-    } else {
-        var q0 = Infinity, q1 = -Infinity, s0 = Infinity, s1 = -Infinity;
-        cs.forEach(function(c) { q0 = Math.min(q0, c.q); q1 = Math.max(q1, c.q); s0 = Math.min(s0, c.r); s1 = Math.max(s1, c.r); });
-        for (var q = q0 - 2; q <= q1 + 2; q++) for (var rr = s0 - 2; rr <= s1 + 2; rr++) { var p2 = cellCenter({ q: q, r: rr }, grid); if (p2.x >= x && p2.x <= x + w && p2.y >= y && p2.y <= y + h) out.push({ q: q, r: rr }); }
-    }
-    return out;
-}
+// A column of cells at a time (cellsUnderSpan with no span): on hexagons the rows of a column lie half a row lower with each column, so a
+// walk of the corners' whole range of rows took half the box's width squared, which one long thin piece made thousands of millions of steps
+// (the review of 2026-10-09). The cells and their order are as they always were
+function cellsUnderRect(x, y, w, h, grid) { return cellsUnderSpan(x, y, w, h, grid, null); }
 // Point-in-flat-top-hexagon (the board item's box is w wide, h tall, centre cx,cy).
 function pointInFlatHex(px, py, cx, cy, w, h) {
     var s = w / 2, b = h / 2, qx = Math.abs(px - cx), qy = Math.abs(py - cy);
@@ -137,15 +128,16 @@ function cellsUnderDiamond(x, y, w, h, grid) {
 // long thin wall turned across the grid has a box hundreds of times its own cells). cellsUnderSpan lists the cells of a board rect exactly as
 // cellsUnderRect does, in its order and by its test, but walks in each column only the rows `span` leaves: span(px) gives the stretch of y in
 // which the column at x may hold a centre the caller keeps ([lo, hi], or null for none). The rows are widened past the stretch, so a span that
-// leaves no kept centre out loses none
+// leaves no kept centre out loses none. With no span the whole box is walked: cellsUnderRect itself
 function cellsUnderSpan(x, y, w, h, grid, span) {
     var out = [], cs = [cellOf(x, y, grid), cellOf(x + w, y, grid), cellOf(x, y + h, grid), cellOf(x + w, y + h, grid)], sq = grid.type === 'square';
     var a0 = Infinity, a1 = -Infinity, b0 = Infinity, b1 = -Infinity;
     cs.forEach(function(c) { var a = sq ? c.c : c.q; a0 = Math.min(a0, a); a1 = Math.max(a1, a); b0 = Math.min(b0, c.r); b1 = Math.max(b1, c.r); });
     if (!sq) { a0 -= 2; a1 += 2; b0 -= 2; b1 += 2; }
     for (var a = a0; a <= a1; a++) {
-        var px = sq ? a * grid.size + grid.size / 2 : 1.5 * grid.s * a + grid.s / 2, sp = span(px); if (!sp) continue;
-        var lo = Math.max(sp[0], y), hi = Math.min(sp[1], y + h); if (!(lo <= hi)) continue;
+        var px = sq ? a * grid.size + grid.size / 2 : 1.5 * grid.s * a + grid.s / 2, lo = y, hi = y + h;
+        if (span) { var sp = span(px); if (!sp) continue; lo = Math.max(sp[0], y); hi = Math.min(sp[1], y + h); }
+        if (!(lo <= hi)) continue;
         var from = Math.max(b0, sq ? Math.floor(lo / grid.size) - 1 : Math.floor(lo / grid.h - a / 2) - 2), to = Math.min(b1, sq ? Math.floor(hi / grid.size) + 1 : Math.ceil(hi / grid.h - a / 2) + 2);
         for (var b = from; b <= to; b++) {
             var cell = sq ? { c: a, r: b } : { q: a, r: b }, p = cellCenter(cell, grid);

@@ -581,11 +581,23 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
   function mergeAppState(imported) {
 
       var added = 0, updated = 0, newCamps = 0;
+      // The owed review, 2026-10-09: the file is shaped as a load shapes one BEFORE anything is merged (cleanup.js cleanImport: the load's own
+      // normaliser, then the item cleaners), as Replace always did. Merge had run the item cleaners alone, so a map's fog, a new campaign's
+      // fog, clock, music and uploads, an item's id against its key and a piece that is no object came in as the file wrote them. What the
+      // normaliser fills in where the file said nothing is no word of the file's: a name and an open item are taken only where the file had
+      // them. said: null where the merge is run alone, with no cleaner at hand, and the file is taken as it says
+      var said = null;
+      if (typeof cleanImport === 'function' && typeof importDeps === 'function') {
+          said = Object.create(null);
+          if (imported && typeof imported === 'object' && imported.campaigns && typeof imported.campaigns === 'object') Object.keys(imported.campaigns).forEach(function(cid) { var c0 = imported.campaigns[cid]; if (c0 && typeof c0 === 'object') said[cid] = { name: typeof c0.name === 'string' && !!c0.name, open: typeof c0.activeItemId === 'string' && !!c0.activeItemId }; });
+          imported = cleanImport(imported, importDeps());
+          if (!imported) return { added: 0, updated: 0, newCamps: 0 };
+      }
 
       Object.values(imported.campaigns || {}).forEach(function(ic) {
 
           if (!ic || typeof ic !== 'object' || typeof ic.id !== 'string' || (ic.id in Object.prototype)) return;   // never a prototype key as a campaign id
-          cleanImportedItems(ic);
+          if (!said) cleanImportedItems(ic);   // with the whole file, above, where its cleaner is at hand: the item cleaners run once
 
           var existing = state.appState.campaigns[ic.id];
 
@@ -616,7 +628,8 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
 
           });
 
-          if (ic.name) existing.name = ic.name;
+          var sdM = said ? said[ic.id] : { name: true, open: true };
+          if (ic.name && sdM && sdM.name) existing.name = ic.name;
           if (ic.library) takeImportedLibrary(existing, ic, existing.library);   // Stage 6 library L1c2: its packs join the library here (a pack already here takes a new revision)
 
           // the system (character sheets, 1.5.0): the imported one replaces when it is at least as new, cleaned like a file's; preset ids are stable, so values keep their fields
@@ -661,7 +674,7 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
 
           if (ic._keptByUser) existing._keptByUser = ic._keptByUser;   // the import answer ("it's mine") is remembered on a merge as on an add
 
-          if (ic.activeItemId && existing.items[ic.activeItemId]) existing.activeItemId = ic.activeItemId;
+          if (ic.activeItemId && sdM && sdM.open && existing.items[ic.activeItemId]) existing.activeItemId = ic.activeItemId;
 
           // A single-item export can reference a parent that doesn't exist
           // here — orphaned parentIds would hide the item from the sidebar tree.

@@ -47,76 +47,51 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
 
   function showPrompt(title, defaultText, callback) {
-
       var p = document.getElementById('customPrompt');
-
+      // One layer at a time (the owed review, 2026-10-09): a prompt asked while a question or another prompt is up waits its turn
+      if (p.style.display === 'flex' || layerUp('customConfirm')) { _promptWait.push([title, defaultText, callback]); return; }
       document.getElementById('customPromptTitle').textContent = title;
-
       var inp = document.getElementById('customPromptInput');
-
       inp.value = defaultText || '';
-
       p.style.display = 'flex';
-
       inp.focus();
-
       inp.select();
-
-      
-
       var okBtn = document.getElementById('customPromptOk');
-
       var cancelBtn = document.getElementById('customPromptCancel');
-
-      
-
       function cleanup() {
-
           p.style.display = 'none';
-
           okBtn.onclick = null;
-
           cancelBtn.onclick = null;
-
           inp.onkeydown = null;
-
+          layersNext();
       }
-
-      
-
       okBtn.onclick = function() {
-
           cleanup();
-
           callback(inp.value);
-
       };
-
-      
-
       cancelBtn.onclick = function() {
-
           cleanup();
-
           callback(null);
-
       };
-
-      
-
-      inp.onkeydown = function(e) {
-
-          if (e.key === 'Enter') okBtn.onclick();
-
-          if (e.key === 'Escape') cancelBtn.onclick();
-
+      inp.onkeydown = function(e) {   // the key is the prompt's own: it goes no further, so it answers nothing else on the page
+          if (e.key === 'Enter') { e.stopPropagation(); e.preventDefault(); okBtn.onclick(); }
+          else if (e.key === 'Escape') { e.stopPropagation(); cancelBtn.onclick(); }
       };
-
   }
-
-
-
   var _confirmQueue = [];
+  // The naming prompt and a question were two layers of the page, so both could be up, the question over the prompt, and one Enter or Escape
+  // answered both (the owed review, 2026-10-09). They are one layer now: whichever is asked while the other is up waits, and when one closes
+  // the next comes up, a question before a prompt, since a question may be someone waiting at the table's door
+  var _promptWait = [];
+  function layerUp(id) { var e = document.getElementById(id); return !!(e && e.style && e.style.display === 'flex'); }
+  function layersNext() {
+      if (!_confirmQueue.length && !_promptWait.length) return;
+      setTimeout(function() {
+          if (layerUp('customConfirm') || layerUp('customPrompt')) return;   // something came up meanwhile: whatever closes it asks here again
+          var nx = _confirmQueue.shift(); if (nx) { showConfirm(nx[0], nx[1], nx[2]); return; }
+          var np = _promptWait.shift(); if (np && typeof showPrompt === 'function') showPrompt(np[0], np[1], np[2]);
+      }, 0);
+  }
 
   var CONFIRM_CAREFUL_MS = 700;   // a question marked careful: how long it must have been up before its OK answers it
 
@@ -124,7 +99,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       var p = document.getElementById('customConfirm');
 
-      var noEnter = !!(opts && opts.noEnter === true);
+      var noEnter = !!(opts && opts.noEnter === true), noEscape = !!(opts && opts.noEscape === true);   // noEscape: Escape must not answer it either (a join request: its No turns the player away for the session)
 
       // opts.careful: a question that must be read before it is answered (a link from someone else: linkgate.js). Its OK takes only a
       // single press — a click that is not part of a double-click, or the button pressed from the keyboard — and only once the question
@@ -137,7 +112,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       // (a link's site and whole address: linkgate.js). A question without one is drawn exactly as before.
       var bodyEl = opts && opts.body && typeof opts.body === 'object' && opts.body.nodeType === 1 ? opts.body : null, slot = null;
 
-      if (p.style.display === 'flex') { _confirmQueue.push([title, callback, opts]); return; }   // one question at a time: a second waits its turn instead of silently replacing the first (whose answer would then never arrive)
+      if (p.style.display === 'flex' || layerUp('customPrompt')) { _confirmQueue.push([title, callback, opts]); return; }   // one question at a time: a second waits its turn instead of silently replacing the first (whose answer would then never arrive)
 
       document.getElementById('customConfirmTitle').textContent = title;
 
@@ -169,7 +144,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
           if (slot) { if (slot.parentNode) { slot.parentNode.classList.remove('confirm-wide'); slot.parentNode.removeChild(slot); } slot = null; }
 
-          var nx = _confirmQueue.shift(); if (nx) setTimeout(function() { showConfirm(nx[0], nx[1], nx[2]); }, 0);
+          layersNext();
 
       }
 
@@ -199,7 +174,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
           if (e.key === 'Enter' && !noEnter) okBtn.onclick();
 
-          if (e.key === 'Escape') cancelBtn.onclick();
+          if (e.key === 'Escape' && !noEscape) cancelBtn.onclick();
 
       }
 

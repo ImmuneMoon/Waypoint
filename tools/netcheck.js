@@ -425,7 +425,7 @@ pendingChecks.push((async () => {
     // processNextApproval, run for real over the real queueJoin: a request whose profile is banned never reaches the GM
     const pnaSrc = (() => { const k = 'function processNextApproval() {', i = src.indexOf(k), e = src.indexOf('\n}\n', i); if (i < 0 || e < 0 || src.indexOf(k, i + 1) >= 0) throw new Error('netcheck: processNextApproval not found once'); return src.slice(i, e + 3); })();
     const buildPNA = new Function('env', pre(['processNextApproval']) + 'var approvalOpen = false;\n' + pnaSrc + '\nreturn { run: processNextApproval, isOpen: function() { return approvalOpen; } };');
-    const withQ = h => { h.env.net.active = true; h.asks = []; h.env.showConfirm = (m, cb) => h.asks.push({ m, cb }); h.P = buildPNA(h.env); h.env.processNextApproval = h.P.run;
+    const withQ = h => { h.env.net.active = true; h.asks = []; h.env.showConfirm = (m, cb, o) => h.asks.push({ m, cb, o }); h.P = buildPNA(h.env); h.env.processNextApproval = h.P.run;
         h.answer = yes => h.asks[h.asks.length - 1].cb(yes); h.says = () => h.asks.map(a => a.m); h.types = peer => h.sent.filter(s => s.peer === peer).map(s => s.m.type + (s.m.reason ? '(' + s.m.reason + ')' : '')); return h; };
     const RM = 'You were removed from this session.', BN = 'You are banned from this campaign.', askOf = (n, hint) => '"' + n + '" wants to join your table' + (hint ? ' — a name this table already knows, but without its table key (a fresh install, or someone else using that name)' : '') + '. Let them in?';
     const calBan = () => ({ u_cal: { name: 'Cal', bannedAt: 1 } });
@@ -441,6 +441,8 @@ pendingChecks.push((async () => {
         js(q1a) === js({ says: [askOf('Ann')], waiting: ['u_sam', 'u_cal', 'u_bo'], open: true, closed: [] })
         && js(q1b) === js({ says: [askOf('Ann'), askOf('Bo')], waiting: 0, open: true, admitted: ['qA'], closed: ['qS', 'qC'], S: ['wait', 'denied(' + RM + ')'], C: ['wait', 'denied(' + BN + ')'], B: ['wait'] })
         && js(q1d) === js({ admitted: ['qA', 'qB'], open: false, asks: 2, roster: ['qA', 'qB'] }), js([q1a, q1b, q1d]));
+    check('a join request takes its buttons alone (the owed review of 2026-10-09; processNextApproval, run for real): each request put to the GM carries the two marks that keep Enter and Escape from answering it, since a key typed for something else let a stranger in or turned a player away for the session',
+        js(Q1.asks.map(a => a.o)) === js([{ noEnter: true, noEscape: true }, { noEnter: true, noEscape: true }]) && src.includes("    }, { noEnter: true, noEscape: true });"), js(Q1.asks.map(a => a.o)));
     // nothing on screen: a banned request is refused at once and leaves no prompt open, so the next request is shown; a prototype name is never taken for a ban
     const Q2 = withQ(harness({ bannedPlayers: calBan() })); Q2.env.bannedIds.u_sam = true;
     Q2.env.queueJoin(Q2.conn('qS'), { id: 'u_sam', name: 'Sam' }, 'nokey'); Q2.env.queueJoin(Q2.conn('qC'), { id: 'u_cal', name: 'Cal' }, '');
@@ -1456,6 +1458,43 @@ pendingChecks.push((async () => {
     check('targeting (dialogs.js showConfirm, run for real): Enter answers an ordinary question Yes and closes it (its key handler gone); a question marked noEnter is left open by Enter and answered by Escape (No) or its Yes button; a question queued behind another keeps its mark — the first answered by Enter brings the second, which Enter leaves open; a mark that is not true is no mark',
         aOpen && j(aAfter) === j([[true], false, 0]) && j(bEnter) === j([[], true, 1]) && j(bEsc) === j([[false], false, 0]) && j(cOk) === j([[true], false])
         && j(dMid) === j([[['first', true]], 'Second?']) && j(dEnd) === j([[['first', true]], true]) && j(dEsc) === j([[['first', true], ['second', false]], false]) && j(eOdd) === j([[true], false]), j([aAfter, bEnter, bEsc, cOk, dMid, dEnd, dEsc, eOdd]));
+    // The owed review, 2026-10-09 (backlog 137). (c) A join request was a question Enter answered and Escape refused, so a key typed for
+    // something else let a stranger in, or turned a player away for the session: its buttons alone answer it now (noEnter and the new
+    // noEscape). (d) The naming prompt and a question were two layers, so both could be up and one Enter or Escape answered both: they are
+    // one layer, a key typed into the prompt goes no further, and whichever is asked while the other is up waits its turn.
+    // dialogs.js showPrompt and showConfirm, run for real on a page of plain objects, with timers the test runs itself
+    {
+        const dlgAll = dlgT.slice(dlgT.indexOf('  function showPrompt(title, defaultText, callback) {'), dlgT.indexOf('  // One-button variant of showConfirm'));
+        const mkLay = () => { const els = {}, keys = [], timers = [], el = id => (els[id] = els[id] || { id, style: { display: 'none' }, textContent: '', value: '', onclick: null, onkeydown: null, focus() { els._focus = id; }, select() {} });
+            ['customConfirm', 'customConfirmTitle', 'customConfirmOk', 'customConfirmCancel', 'customPrompt', 'customPromptTitle', 'customPromptInput', 'customPromptOk', 'customPromptCancel'].forEach(el);
+            const doc = { getElementById: id => els[id] || null, addEventListener: (k, h) => { if (k === 'keydown') keys.push(h); }, removeEventListener: (k, h) => { const i = keys.indexOf(h); if (i >= 0) keys.splice(i, 1); } };
+            const api = new Function('document', 'setTimeout', dlgAll + '\nreturn { sc: showConfirm, sp: showPrompt };')(doc, fn => { timers.push(fn); });
+            // a key typed into the prompt's box: the box's own handler first, then the page's, unless the box stopped it there
+            const typeKey = k => { let stopped = false, prevented = false; const ev = { key: k, stopPropagation() { stopped = true; }, preventDefault() { prevented = true; } }; if (els.customPromptInput.onkeydown) els.customPromptInput.onkeydown(ev); if (!stopped) keys.slice().forEach(h => h(ev)); return [stopped, prevented]; };
+            return { api, els, keys, typeKey, run: () => { let n = 0; while (timers.length && n++ < 50) timers.shift()(); }, pageKey: k => keys.slice().forEach(h => h({ key: k })), qUp: () => els.customConfirm.style.display === 'flex', pUp: () => els.customPrompt.style.display === 'flex', qTitle: () => els.customConfirmTitle.textContent, pTitle: () => els.customPromptTitle.textContent }; };
+        // a prompt up, then a question: the question waits, and Enter typed into the prompt answers the prompt alone
+        const L1 = mkLay(), a1 = []; L1.api.sp('Name?', 'My New Campaign', v => a1.push(['p', v])); L1.api.sc('Discard?', v => a1.push(['q', v])); const l1a = [L1.pUp(), L1.qUp(), L1.keys.length]; L1.els.customPromptInput.value = 'X';
+        const k1 = L1.typeKey('Enter'), l1b = [a1.slice(), L1.pUp(), L1.qUp()]; L1.run(); const l1c = [L1.qUp(), L1.qTitle(), a1.length];
+        // a question up, then a prompt: the prompt waits; Escape typed into the prompt, once it is up, cancels the prompt alone
+        const L2 = mkLay(), a2 = []; L2.api.sc('End combat?', v => a2.push(['q', v])); L2.api.sp('Name?', '', v => a2.push(['p', v])); const l2a = [L2.qUp(), L2.pUp()]; L2.pageKey('Enter'); const l2b = [a2.slice(), L2.qUp(), L2.pUp()]; L2.run();
+        const l2c = [L2.pUp(), L2.pTitle(), L2.els._focus]; L2.api.sc('Later?', v => a2.push(['q2', v])); const l2q = L2.qUp(), k2 = L2.typeKey('Escape'), l2d = [a2.slice(), L2.pUp(), L2.qUp()]; L2.run(); const l2e = [L2.qUp(), L2.qTitle()];
+        // a second prompt does not replace the first; questions come before a waiting prompt
+        const L3 = mkLay(), a3 = []; L3.api.sp('A?', '', v => a3.push(['a', v])); L3.api.sp('B?', '', v => a3.push(['b', v])); const l3a = L3.pTitle(); L3.els.customPromptOk.onclick(); L3.run(); const l3b = [a3.slice(), L3.pTitle(), L3.pUp()];
+        const L4 = mkLay(), a4 = []; L4.api.sc('Q1?', v => a4.push(['q1', v])); L4.api.sp('P?', '', v => a4.push(['p', v])); L4.api.sc('Q2?', v => a4.push(['q2', v])); L4.els.customConfirmOk.onclick(); L4.run(); const l4a = [L4.qUp(), L4.qTitle(), L4.pUp()];
+        L4.els.customConfirmCancel.onclick(); L4.run(); const l4b = [L4.qUp(), L4.pUp(), L4.pTitle(), a4.slice()];
+        // a question answered by a callback that asks another: the waiting one keeps its place behind it
+        const L5 = mkLay(), a5 = []; L5.api.sc('First?', v => { a5.push('first'); L5.api.sc('Follow-up?', () => a5.push('follow')); }); L5.api.sc('Waiting?', () => a5.push('waiting')); L5.api.sc('Later?', () => a5.push('later')); L5.els.customConfirmOk.onclick(); const l5a = L5.qTitle(); L5.run(); const l5b = L5.qTitle(); L5.els.customConfirmOk.onclick(); L5.run(); const l5c = [L5.qTitle(), a5.slice()]; L5.els.customConfirmOk.onclick(); L5.run(); const l5d = [L5.qTitle(), a5.slice()];
+        // the join question's marks: neither Enter nor Escape answers it, its buttons do; a mark that is not true is no mark
+        const L6 = mkLay(), a6 = []; L6.api.sc('Join?', v => a6.push(v), { noEnter: true, noEscape: true }); L6.pageKey('Enter'); L6.pageKey('Escape'); const l6a = [a6.slice(), L6.qUp()]; L6.els.customConfirmCancel.onclick(); const l6b = [a6.slice(), L6.qUp(), L6.keys.length];
+        const L7 = mkLay(), a7 = []; L7.api.sc('Odd?', v => a7.push(v), { noEscape: 'yes' }); L7.pageKey('Escape'); const l7 = [a7.slice(), L7.qUp()];
+        check('a question and the naming prompt are one layer (the owed review of 2026-10-09; dialogs.js showPrompt and showConfirm, run for real): a question asked while the prompt is up waits, and Enter typed into the prompt answers the prompt alone, going no further, after which the question comes up unanswered; a prompt asked while a question is up waits, and Escape typed into it cancels the prompt alone, a question asked meanwhile waiting behind it; a second prompt waits for the first and never replaces it; questions come up before a waiting prompt; a question whose answer asks another keeps the waiting ones behind it, in the order they were asked; a question marked noEnter and noEscape is left up by both keys and answered by its buttons, a mark that is not true is no mark',
+            j(l1a) === j([true, false, 0]) && j(k1) === j([true, true]) && j(l1b) === j([[['p', 'X']], false, false]) && j(l1c) === j([true, 'Discard?', 1])
+            && j(l2a) === j([true, false]) && j(l2b) === j([[['q', true]], false, false]) && j(l2c) === j([true, 'Name?', 'customPromptInput']) && l2q === false && j(k2) === j([true, false]) && j(l2d) === j([[['q', true], ['p', null]], false, false]) && j(l2e) === j([true, 'Later?'])
+            && l3a === 'A?' && j(l3b) === j([[['a', '']], 'B?', true]) && j(l4a) === j([true, 'Q2?', false]) && j(l4b) === j([false, true, 'P?', [['q1', true], ['q2', false]]])
+            && l5a === 'Follow-up?' && l5b === 'Follow-up?' && j(l5c) === j(['Waiting?', ['first', 'follow']]) && j(l5d) === j(['Later?', ['first', 'follow', 'waiting']])
+            && j(l6a) === j([[], true]) && j(l6b) === j([[false], false, 0]) && j(l7) === j([[false], false]),
+            j([l1a, k1, l1b, l1c, l2a, l2b, l2c, l2q, k2, l2d, l2e, l3a, l3b, l4a, l4b, l5a, l5b, l5c, l6a, l6b, l7]));
+    }
     // the Settings row, Help, the tour and the integration guide
     const idxT = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8').replace(/\r\n/g, '\n'), setT = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'settings.js'), 'utf8').replace(/\r\n/g, '\n'), guideT = fs.readFileSync(path.join(__dirname, '..', 'CAMPAIGN_INTEGRATION.md'), 'utf8').replace(/\r\n/g, '\n');
     const turnsRow = (idxT.match(/<div class="set-vtt-row" data-vtt="turns"[\s\S]*?<div class="set-vtt-role"/) || [''])[0];

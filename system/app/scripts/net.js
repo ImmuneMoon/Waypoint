@@ -4987,7 +4987,7 @@ function processNextApproval() {
             toast((next.prof.name || 'Player') + ' was turned away.');
         }
         processNextApproval();
-    });
+    }, { noEnter: true, noEscape: true });   // its buttons alone (the owed review, 2026-10-09): a key typed for something else let a stranger in, or turned a player away for the session
 }
 // [netcheck:approval-end]
 

@@ -3674,7 +3674,7 @@ window.wpFitToGrid = fitToGrid;
   function blastSvg() {
       var map = getActiveMap(); if (!map || !blasts.length) return '';
       var pxPerYd = mapMeasureConfig().cellPx / cellYards(), elevOn = stanceOn('elevation'), html = '', ru = rulerUnitNow();
-      if (circleFollow(map)) syncBlastMenu();   // a circle on a token stands where its token stands now; one lost or found: the options show what is on screen
+      if (circleFollow(map)) { if (typeof circleRekept === 'function') circleRekept(); syncBlastMenu(); }   // a circle on a token stands where its token stands now; one lost or found: the options show what is on screen, and the next click places it
       blasts.forEach(function(b, i) {
           if (b.lost) return;   // its token is off this screen's copy of the map
           var rYd = blastRadiusYd(b), rPx = rYd * pxPerYd, own = ownCircle(b);   // the tool's own circle reads in the ruler's unit; a thrown blast keeps its item's feet and the handbook's yards
@@ -4404,8 +4404,9 @@ window.wpFitToGrid = fitToGrid;
       if (circleKept.as === 'r' || circleKept.as === 'd') circleCas = circleKept.as;
       try { localStorage.setItem('wp_radius', JSON.stringify(circleKept)); } catch (e) {}
   }
-  // While a Throw armed from a sheet is in hand this tool is not, though the mode is its own: its icon and its small arrow then TAKE the tool,
-  // which puts the Throw down (the review of the fold's own fixes, 2026-10-09: the arrow only opened the options, and the next click threw)
+  // While a Throw armed from a sheet is in hand this tool is not, though the mode is its own: its icon TAKES the tool, and so does its small
+  // arrow when it opens the options, which puts the Throw down (the review of the fold's own fixes, 2026-10-09: the arrow only opened the
+  // options, and the next click threw). The arrow over options that are already up only closes them: nothing there says measure
   wireTool({ id: 'blastModeBtn', chev: 'blastOptBtn', inHand: function() { return !_armedThrow && !!window.isMeasureMode && window.wpMeasureKind === 'blast'; }, sync: syncBlastMenu, take: function() {
       disarmThrow();
       window.isMeasureMode = true; window.wpMeasureKind = 'blast';
@@ -6065,7 +6066,7 @@ window.wpArmLight = function() {
 function armPlacement(type, props, label) {
     // Placement is a mode of its own: leave draw / erase / measure / pan first
     var mv = document.getElementById('moveModeBtn');
-    if (mv && !mv.classList.contains('active')) mv.click();
+    if (mv && (!mv.classList.contains('active') || window.isMeasureMode)) mv.click();   // a sheet Throw armed while Select is in hand leaves the bar on Select and the map measuring: Select is pressed all the same, which puts the Throw down (the review of 2026-10-09: the click meant to place a shape threw it)
     window.wpPlace = { type: type, props: props };
     document.getElementById('shapeMenu').classList.remove('show');
     if (wbWrap) wbWrap.style.cursor = 'crosshair';

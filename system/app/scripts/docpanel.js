@@ -289,10 +289,14 @@ function refresh() { if (openId) draw(false); }   // called from the app's rende
 // only one the shell lets a page open for a page. Asked by the panel's own button and by the left panel's menu (Open in a new window)
 function popOut(id) {
     var camp = activeCamp(); if (!camp || typeof camp.id !== 'string' || typeof id !== 'string' || !id) return false;
-    window.open(location.origin + '/?popout=doc:' + encodeURIComponent(camp.id) + '/' + encodeURIComponent(id), 'wpPopout_' + id, 'width=820,height=1000');
+    var made = null; try { made = window.open(location.origin + '/?popout=doc:' + encodeURIComponent(camp.id) + '/' + encodeURIComponent(id), 'wpPopout_' + id, 'width=820,height=1000'); } catch (e) { made = null; }
+    if (!made) return false;   // the owed review, 2026-10-09: no window came up (refused or blocked). The caller falls back to the panel, and no tab is closed for a window that is not there
     if (window.wpPageShelf && window.wpPageShelf.opened) window.wpPageShelf.opened(id);   // 1.5.4 (pageshelf.js): one of the last pages opened
     return true;
 }
+// The owed review, 2026-10-09: a page docked back opens the panel in the app's own window alone. The stream window shows the table's view and
+// has no way to put a panel away, and it hears the same word
+function dockTakes(search) { try { var q = new URLSearchParams(String(search == null ? '' : search)); return !q.has('stream') && !q.has('popout'); } catch (e) { return false; } }
 // [textcheck:panelpop-end]
 
 /* ---------- wiring ---------- */
@@ -305,7 +309,7 @@ function popOut(id) {
     });
     // A popped-out doc window that "docks back" reopens the in-app panel here.
     try { new BroadcastChannel('waypoint').addEventListener('message', function(e) {
-        if (e.data && e.data.type === 'dock' && e.data.kind === 'doc') { var a = e.data.arg || ''; open(a.slice(a.indexOf('/') + 1)); }
+        if (e.data && e.data.type === 'dock' && e.data.kind === 'doc' && dockTakes(location.search)) { var a = e.data.arg || ''; open(a.slice(a.indexOf('/') + 1)); }
     }); } catch (e) {}
     // 1.5.4 tabs: a press on a tab's name brings its page to the front; its own button, or the middle mouse button anywhere on it, closes it
     var strip = ui('docPanelTabs');

@@ -141,10 +141,11 @@ function shelfModel(camp, mapId, recentRaw) {
     var room = SHELF.here;
     mapChain(camp, mapId).forEach(function(mid, k) {
         if (room <= 0) return;
-        var rows = pagesFor(camp, mid).filter(function(r) { return take(r.id); }).map(function(r) { return row(r.id, r.node && r.node !== pageTitle(camp.items[r.id]) ? r.node + (r.n > 1 ? ' +' + (r.n - 1) : '') : ''); });
-        if (k === 0) mapPinsOn(camp, mid).forEach(function(id) { if (take(id)) rows.push(row(id, 'pinned on this map')); });   // a page a piece of this map opens belongs here too
+        var rows = pagesFor(camp, mid).filter(function(r) { return !seen[r.id]; }).map(function(r) { return row(r.id, r.node && r.node !== pageTitle(camp.items[r.id]) ? r.node + (r.n > 1 ? ' +' + (r.n - 1) : '') : ''); });
+        if (k === 0) mapPinsOn(camp, mid).forEach(function(id) { if (!seen[id] && !rows.some(function(r) { return r.id === id; })) rows.push(row(id, 'pinned on this map')); });   // a page a piece of this map opens belongs here too
         rows.sort(function(a, b) { return (a.next ? 0 : 1) - (b.next ? 0 : 1) || natCmp(a.title, b.title); });
-        if (rows.length) { m.where.push({ map: mid, title: pageTitle(camp.items[mid]), here: k === 0, rows: rows.slice(0, room) }); room -= Math.min(room, rows.length); }
+        rows = rows.slice(0, room); rows.forEach(function(r) { seen[r.id] = 1; });   // the owed review, 2026-10-09: a row is seen once it is KEPT. Marked before the cut, a page past the limit stood nowhere on the shelf, pinned or not
+        if (rows.length) { m.where.push({ map: mid, title: pageTitle(camp.items[mid]), here: k === 0, rows: rows }); room -= rows.length; }
     });
     if (nextId && take(nextId)) m.next.push(row(nextId));
     pins.forEach(function(id) { if (take(id)) m.pinned.push(row(id)); });

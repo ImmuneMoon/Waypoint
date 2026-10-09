@@ -8788,13 +8788,13 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const hold = { camp: o.camp === undefined ? { system: { combat: { blastAuto: 'full', hpResource: 'f_hp' } } } : o.camp };   // the campaign on screen
             const asR = el(''), asD = el(''); asR.dataset.as = 'r'; asD.dataset.as = 'd'; ['t1', 't2', 't3'].forEach(id => { state.wbEls[id] = el(id); });
             const sh = ['circle', 'ring', 'cone', 'tok'].map(k => { const e = el(''); e.dataset.shape = k; return e; });   // the Shape row's four buttons
-            const doc = { activeElement: null, getElementById: id => els[id] || null, querySelectorAll: s => (s === '#blastAsRow .draw-style-btn' ? [asR, asD] : s === '#blastShapeRow .draw-style-btn' ? sh : []), body: { classList: { add() {}, remove() {} } } };
+            const doc = { activeElement: null, getElementById: id => els[id] || null, querySelectorAll: s => (s === '#blastAsRow .draw-style-btn' ? [asR, asD] : s === '#blastShapeRow .draw-style-btn' ? sh : []), body: { classList: { add() {}, remove(...n) { out.cls = (out.cls || []).concat(n); } } } };
             const net = o.role ? { active: o.role !== 'gone', role: o.role === 'host' ? 'host' : 'client', foreign: o.role === 'client' || o.role === 'gone', throwReq: (...a) => { out.net.push(['throwReq'].concat(a)); }, broadcastBlast: (...a) => { out.net.push(['blast'].concat(a)); }, broadcastBlastClear: id => { out.net.push(['clear', id]); } } : undefined;
             const win = { wpNet: net };   // the page's window: the hook a moved token calls is set on it
             let api = null;
             try { api = new Function('document', 'window', 'localStorage', 'state', 'getActiveMap', '_r1', 'wireTool', 'updateWbToolbar', 'closeDrawMenu', '_el_measureMenu', 'render', 'wbWrap', 'renderMeasures', 'stanceOn', 'seatBlast', 'blastDistances', 'toast', 'placeThrownBlast', 'tokenElevation', 'getActiveCampaign', 'applyBlastDamage',
                 "'use strict';" + NL + luR + NL + msSrc + NL + radSrc + NL + 'var _armedThrow = null, _blastHitIds = [];' + NL + rYdSrc + tcSrc + tapSrc + hitSrc + clrSrc + plcSrc + optSrc + NL + exSrc + NL
-                + 'return { place: placeBlast, clear: clearBlasts, sync: syncBlastMenu, push: pushBlast, radius: blastRadiusYd, unit: rulerUnitNow, label: measureLabel, blasts: function() { return blasts; }, kept: function() { return circleKept; }, own: ownCircle, hits: applyBlastHits, player: playerScreen, holds: shapeHolds, follow: circleFollow, explode: explodeCircle, exWhere: explodeWhere, exAsk: explodeAsk, turn: coneTurn, letGo: coneLetGo, aim: function(a) { coneAim = a; }, aiming: function() { return coneAim; }, dir: function() { return circleDir; },'
+                + 'return { arm: function(c) { _armedThrow = c; }, armed: function() { return _armedThrow; }, disarm: disarmThrow, rekept: circleRekept, place: placeBlast, clear: clearBlasts, sync: syncBlastMenu, push: pushBlast, radius: blastRadiusYd, unit: rulerUnitNow, label: measureLabel, blasts: function() { return blasts; }, kept: function() { return circleKept; }, own: ownCircle, hits: applyBlastHits, player: playerScreen, holds: shapeHolds, follow: circleFollow, explode: explodeCircle, exWhere: explodeWhere, exAsk: explodeAsk, turn: coneTurn, letGo: coneLetGo, aim: function(a) { coneAim = a; }, aiming: function() { return coneAim; }, dir: function() { return circleDir; },'
                 + ' pure: { unitKnown: unitKnown, ydPer: ydPer, rulerUnitOf: rulerUnitOf, circleAs: circleAs, lenTrim: lenTrim, circleYd: circleYd, circleTyped: circleTyped, circleWords: circleWords, rulerLen: rulerLen, circlePref: circlePref, circleKind: circleKind, shapeOf: shapeOf, shapeNote: shapeNote, coneDeg: coneDeg, circleShape: circleShape, coneHolds: coneHolds, svgNum: svgNum, discPath: discPath, ringPath: ringPath, conePath: conePath, explodeType: explodeType, ftOut: ftOut, kindOf: kindOf, innerYd: innerYd } };')(
                 doc, win, ls, state, () => map, n => Math.round(n * 10) / 10, c => { out.wired = c; }, () => {}, () => {}, null, () => {}, { getBoundingClientRect: () => ({ left: 0, top: 0 }), scrollLeft: 0, scrollTop: 0, style: {} },
                 () => { out.renders++; }, () => o.flat !== true, () => { out.seats++; }, b => b.dist || o.dist || [{ d: 3.9 }, { d: 6 }], t => { out.toasts.push(t); }, () => { out.net.push(['thrown']); }, t => Number(t.elevation) || 0, () => hold.camp, (b, total, hp) => { out.dmg.push([b, total, hp]); });
@@ -9198,7 +9198,71 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && wbR.includes("if (kind === 'cone') html += '<path class=\"area\" d=\"' + conePath(b.x, b.y, rPx, b.dir, b.deg) + '\"></path>'") && wbR.includes("else if (kind === 'ring' && innerYd(b) > 0) html += '<path class=\"area\" fill-rule=\"evenodd\" d=\"' + ringPath(b.x, b.y, rPx, innerYd(b) * pxPerYd) + '\"></path>'") && wbR.includes("          var kind = kindOf(b), DOT =") && wbR.includes("+ DOT + (own ? '<circle class=\"blast-aim\" data-i=\"' + i + '\"") && wbR.includes("          if (!shapeHolds(b, r) || !r.tok.charId) return;")
             && wbR.includes("if (nb && nb.as === 'cone') coneAim = { b: nb, sx: e.clientX, sy: e.clientY, moved: false, fresh: true };") && wbR.includes("coneAim = { b: blasts[ai], sx: e.clientX, sy: e.clientY, moved: true, fresh: false };")
             && wbR.includes("          if (coneAim) { coneTurn(e); return; }\n") && wbR.includes("          if (coneAim) { coneLetGo(); return; }\n")
-            && wbR.split("'wp_blast'").length === 2 && wbR.split("'wp_radius'").length === 3 && !/blastDefaults|setBlastShape|blastPresetRow/.test(wbR) && wbR.includes("coverNote + '. Undo last throw is in the Radius options.'); }"));
+            && wbR.split("'wp_blast'").length === 2 && wbR.split("'wp_radius'").length === 4 && !/blastDefaults|setBlastShape|blastPresetRow/.test(wbR) && wbR.includes("coverNote + '. Undo last throw is in the Radius options.'); }"));
+        // The owed review, 2026-10-09 (backlog 136). (i) A Throw armed from a sheet and then left by taking another tool stayed armed, and the next
+        // click of the Radius tool, which every player now has, threw it for the whole table. (j) After the last shape of the tool's own went, the
+        // options showed an older shape's numbers while the next click placed the ones kept
+        {
+            const armCtx = () => ({ charId: 'c_1', fieldId: 'f_kit', rowId: 'w_1', ft: 12, name: 'Grenade', by: '', damage: '', gmOnly: false });
+            const TA = world({ role: 'client' }); let thr = TA.out.err || 'no api';
+            if (TA.api) { TA.api.sync(); TA.api.arm(armCtx()); TA.api.place({ clientX: 60, clientY: 60 }); const fired = jr(TA.out.net), afterFire = TA.api.armed(), nFire = TA.api.blasts().length;   // armed, then a click: thrown, once
+                TA.out.net.length = 0; TA.out.cls = []; TA.api.arm(armCtx()); TA.out.wired.take(); const afterTake = TA.api.armed(), cls = TA.out.cls.slice(), placed = TA.api.place({ clientX: 90, clientY: 60 });   // armed, then the Radius tool taken: put down, and the click measures
+                TA.api.disarm(); const quiet = TA.out.cls.length;
+                thr = { fired, afterFire, nFire, afterTake, cls, net: jr(TA.out.net), own: !!placed && TA.api.own(placed), n: TA.api.blasts().length, quiet }; }
+            const TB = world({ role: 'host' }); let rk = TB.out.err || 'no api';
+            if (TB.api) { TB.api.sync(); TB.api.place({ clientX: 60, clientY: 60 }); const b = TB.api.place({ clientX: 160, clientY: 60 }); type(TB, '10');   // two circles: the second made 10 ft, the first as it was placed
+                const keptB = TB.api.kept().yd, shownB = TB.els.blastFt.value; TB.api.blasts().splice(TB.api.blasts().indexOf(b), 1); TB.out.writes.length = 0; TB.api.rekept(); TB.api.sync();
+                const shownA = TB.els.blastFt.value, keptA = TB.api.kept().yd, wrote = TB.out.writes.slice(), next = TB.api.place({ clientX: 260, clientY: 60 }), nextYd = next && next.yd;
+                type(TB, '9'); TB.api.blasts().length = 0; TB.api.rekept(); const keptNone = TB.api.kept().yd;   // the next one made 9 ft, then no shape of the tool's own left: the kept one stays
+                rk = { keptB, shownB: String(shownB), shownA: String(shownA), keptA, wrote, nextYd, keptNone }; }
+            check('a sheet Throw left armed, and the Radius options after the last shape goes (the owed review of 2026-10-09; whiteboard.js, run for real): an armed Throw is thrown by the next click, once; taking the Radius tool puts an armed Throw down and takes the placing mark off, so the click that follows measures with a circle of the tool\'s own and asks the host for nothing; taking any tool does the same, through the toolbar\'s one update; with nothing armed nothing is touched. When the last shape of the tool\'s own goes, the shape kept for the next click follows the older shape the options then show, and is kept for this computer, so a click places what is in sight; with no shape left the kept one stays',
+                typeof thr === 'object' && thr.fired === jr([['throwReq', 'c_1', 'f_kit', 'w_1', 60, 60, 'm1']]) && thr.afterFire === null && thr.nFire === 0 && thr.afterTake === null && jr(thr.cls) === jr(['placing']) && thr.net === '[]' && thr.own === true && thr.n === 1 && thr.quiet === 1
+                && typeof rk === 'object' && near(rk.keptB, 10 / 3) && rk.shownB === '10' && rk.shownA === '12' && near(rk.keptA, 4) && jr(rk.wrote) === jr(['wp_radius']) && near(rk.nextYd, 4) && near(rk.keptNone, 3)
+                && wbR.includes("      toolOptsOnly(activeId);   // 107: a tool's options belong to the tool in hand\n      disarmThrow();") && wbR.includes("take: function() {\n      disarmThrow();\n      window.isMeasureMode = true; window.wpMeasureKind = 'blast';")
+                && wbR.includes("var goneB = blasts.splice(bic, 1)[0]; if (ownCircle(goneB)) circleRekept(); renderMeasures(); syncBlastMenu();") && wbR.includes("      blasts.splice(at, 1, b);   // the shape becomes the blast, where it stood\n      if (typeof circleRekept === 'function') circleRekept();\n"), jr([thr, rk]));
+        }
+        // The review of the fold's own fixes, 2026-10-09. (i) A Throw armed from a sheet sets the very mode the Radius tool reads as in hand, so
+        // the tool's small arrow only opened its options and the Throw stayed armed: the next click threw. While a Throw is armed the tool is
+        // not in hand, so its icon and its arrow TAKE it, and a press in options that were already up puts the Throw down. (j) The shape kept
+        // for the next click is the very shape the options show, On a token and a ring's or a cone's own numbers included
+        {
+            const armCtx2 = () => ({ charId: 'c_1', fieldId: 'f_kit', rowId: 'w_1', ft: 12, name: 'Grenade', by: '', damage: '', gmOnly: false }), evP = { stopPropagation() {} };
+            const pressSrc = sl('  var TOOL_OPTS = ', '  // A button that only opens a menu');
+            const wire = T => {   // the real wiring of a tool, wireTool and toolPress, on four elements of the test's own
+                const mk = id => { const e = { id, on: {}, cls: new Set(), clicks: 0 }; e.classList = { add: n => { e.cls.add(n); }, remove: n => { e.cls.delete(n); }, contains: n => e.cls.has(n) }; e.addEventListener = (t, f) => { e.on[t] = f; }; e.click = () => { e.clicks++; }; return e; };
+                const E = { blastModeBtn: mk('blastModeBtn'), blastOptBtn: mk('blastOptBtn'), blastMenu: mk('blastMenu'), moveModeBtn: mk('moveModeBtn') };
+                new Function('document', pressSrc + NL + 'return wireTool;')({ getElementById: id => E[id] || null })(T.out.wired);
+                return E;
+            };
+            const armed = T => { T.win.isMeasureMode = true; T.win.wpMeasureKind = 'blast'; T.api.arm(armCtx2()); };   // as a sheet's Throw arms one: the mode is the Radius tool's own
+            const TP = world({ role: 'client' }); let ar = TP.out.err || 'no api';
+            if (TP.api && pressSrc) { const E = wire(TP); TP.api.sync();
+                armed(TP); const inHandArmed = TP.out.wired.inHand(); E.blastOptBtn.on.click(evP); const afterArrow = TP.api.armed(), upA = E.blastMenu.cls.has('show');   // the arrow: the tool is taken, the Throw put down, the options up
+                TP.out.net.length = 0; const placed = TP.api.place({ clientX: 90, clientY: 60 }), netA = jr(TP.out.net);
+                armed(TP); TP.els.blastMenu.fire('pointerdown'); const afterMenu = TP.api.armed();                                                                          // a press in the options, which were up: put down
+                armed(TP); E.blastModeBtn.on.click(evP); const afterIcon = TP.api.armed(), away0 = E.moveModeBtn.clicks;                                                    // the icon: the tool is taken, never put away
+                const inHandPlain = TP.out.wired.inHand(); E.blastModeBtn.on.click(evP); const away1 = E.moveModeBtn.clicks;                                              // nothing armed: the tool is in hand, and its icon puts it away
+                armed(TP); E.blastMenu.cls.add('show'); E.blastOptBtn.on.click(evP); const stillArmed = !!TP.api.armed(), upB = E.blastMenu.cls.has('show'); TP.api.disarm();   // the arrow over options that are up only closes them: nothing says measure
+                ar = { inHandArmed, afterArrow, upA, own: !!placed && TP.api.own(placed), netA, afterMenu, afterIcon, away0, inHandPlain, away1, stillArmed, upB }; }
+            const TT = world({ role: 'host' }); let tk = TT.out.err || 'no api';
+            if (TT.api) { TT.map.whiteboard.push({ id: 'a', isChar: true, x: 100, y: 100, w: 60, h: 52 }, { id: 'b', isChar: true, x: 200, y: 100, w: 60, h: 52 });
+                TT.api.sync(); TT.sh[3].fire('click'); const a1 = TT.api.place({ clientX: 110, clientY: 110 }), b1 = TT.api.place({ clientX: 210, clientY: 110 });   // two circles, each on a token
+                TT.sh[0].fire('click'); const keptOff = TT.api.kept().tok, bTok = b1 && typeof b1.tok;                                                               // Circle: the newer one comes off its token, and the next is to be free
+                TT.api.blasts().splice(TT.api.blasts().indexOf(b1), 1); TT.api.rekept(); TT.api.sync();                                                              // the newer one goes: the options show the older, which sits on a token
+                const keptOn = TT.api.kept().tok, shown = mark(TT), n0 = TT.api.blasts().length, free = TT.api.place({ clientX: 600, clientY: 600 });
+                tk = { a: a1 && a1.tok, bTok, keptOff, keptOn, shown, none: free === undefined && TT.api.blasts().length === n0 }; }
+            const olderOf = (btn, tweak) => { const T = world({ role: 'host' }); if (!T.api) return T.out.err;
+                T.api.sync(); T.api.place({ clientX: 60, clientY: 60 }); T.api.place({ clientX: 160, clientY: 60 }); T.sh[btn].fire('click');   // two shapes, the second made a ring or a cone
+                const bl = T.api.blasts(); tweak(bl[1]); bl.reverse(); bl.pop(); const was = jr([T.api.kept().inn, T.api.kept().deg]); T.api.rekept();   // it is the older one now, with numbers of its own, and the newer one goes
+                return [T.api.kept().as, T.api.kept().inn, T.api.kept().deg, was]; };
+            const ringK = olderOf(1, s => { s.inn = 1; }), coneK = olderOf(2, s => { s.deg = 90; });
+            check('an armed Throw and the Radius tool\'s arrow, and the kept shape as the options show it (the review of the fold\'s own fixes, 2026-10-09; whiteboard.js with the real wireTool and toolPress, run for real): while a sheet Throw is armed the Radius tool is not in hand, so its small arrow takes the tool, which puts the Throw down, and opens its options, and the click that follows measures and asks the host for nothing; a press in options that were already up puts the Throw down; the icon takes the tool and never puts it away; with nothing armed the tool is in hand and its icon puts it away; the arrow over options that are up only closes them. When the newer shape goes the kept shape is the one the options show: On a token where the older shape sits on one, so a click on empty ground places nothing, and an older ring\'s inner distance and an older cone\'s angle',
+                typeof ar === 'object' && ar.inHandArmed === false && ar.afterArrow === null && ar.upA === true && ar.own === true && ar.netA === '[]' && ar.afterMenu === null && ar.afterIcon === null && ar.away0 === 0 && ar.inHandPlain === true && ar.away1 === 1 && ar.stillArmed === true && ar.upB === false
+                && typeof tk === 'object' && tk.a === 'a' && tk.bTok === 'undefined' && tk.keptOff === undefined && tk.keptOn === true && tk.shown === 'tok' && tk.none === true
+                && Array.isArray(ringK) && ringK[0] === 'ring' && near(ringK[1], 1) && ringK[3] !== jr([ringK[1], ringK[2]]) && Array.isArray(coneK) && coneK[0] === 'cone' && coneK[2] === 90 && coneK[3] !== jr([coneK[1], coneK[2]])
+                && wbR.includes("inHand: function() { return !_armedThrow && !!window.isMeasureMode && window.wpMeasureKind === 'blast'; }") && wbR.includes("_el_blastMenu.addEventListener(ev, function(e) { e.stopPropagation(); disarmThrow(); }); });")
+                && wbR.includes("      if (!lastOwn()) return;\n      circleKept = circleNow();"), jr([ar, tk, ringK, coneK]));
+        }
     }
     /* ---- 126: point budgets (the owner, by prompt: "A budget you define"; what a breach does and when it is watched, "per system dictation") ---- */
     {

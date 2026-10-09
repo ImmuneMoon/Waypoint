@@ -2132,6 +2132,7 @@ window.wpFitToGrid = fitToGrid;
       ['mode-move', 'mode-pan', 'mode-draw', 'mode-eraser', 'mode-measure', 'mode-blast', 'mode-fog', 'mode-fill'].forEach(function(c) { document.body.classList.remove(c); });
       document.body.classList.add('mode-' + String(activeId || 'moveModeBtn').replace('ModeBtn', ''));
       toolOptsOnly(activeId);   // 107: a tool's options belong to the tool in hand
+      disarmThrow();   // a tool taken puts an armed sheet Throw down (the owed review, 2026-10-09)
   }
 
   var _el_drawMenu = document.getElementById('drawMenu');
@@ -2761,7 +2762,7 @@ window.wpFitToGrid = fitToGrid;
   }
   function portalLockRow(items, map) {
       var n = window.wpNet, FC = window.wpFogCore;
-      if (window.wpStream || (n && n.active && n.role === 'client')) return null;
+      if (window.wpStream || (n && (n.foreign || (n.active && n.role === 'client')))) return null;   // someone else's table on this screen, its link up or between attempts (the owed review, 2026-10-09)
       var ps = (Array.isArray(items) ? items : []).filter(function(w) { return !!(w && FC && typeof FC.isPortal === 'function' && FC.isPortal(w, map)); });
       if (!ps.length) return null;
       var lock = ps.some(function(w) { return w.portalLock !== true; });
@@ -2781,7 +2782,7 @@ window.wpFitToGrid = fitToGrid;
   // the stream window); the markup holds fixed words only.
   function doorRows(items) {
       var n = window.wpNet, FC = window.wpFogCore;
-      if (window.wpStream || (n && n.active && n.role === 'client')) return null;
+      if (window.wpStream || (n && (n.foreign || (n.active && n.role === 'client')))) return null;   // someone else's table on this screen, its link up or between attempts (the owed review, 2026-10-09)
       var ds = (Array.isArray(items) ? items : []).filter(function(w) { return !!(w && FC && typeof FC.isDoor === 'function' && FC.isDoor(w)); });
       if (!ds.length) return null;
       var open = ds.some(function(w) { return !w.doorOpen; }), lock = ds.some(function(w) { return w.doorLock !== true; }), s = ds.length > 1 ? 's' : '';
@@ -2805,7 +2806,7 @@ window.wpFitToGrid = fitToGrid;
   function fogHandOk(w) { return !!w && typeof w === 'object' && (!!w.fill || ['image', 'rect', 'circle', 'hexagon', 'diamond'].indexOf(w.type) >= 0) && !w.hidden && !w.isChar && !w.waiting && !w.gmNoteFor; }
   function fogHandRows(items) {
       var n = window.wpNet;
-      if (window.wpStream || (n && n.active && n.role === 'client')) return null;
+      if (window.wpStream || (n && (n.foreign || (n.active && n.role === 'client')))) return null;   // someone else's table on this screen, its link up or between attempts (the owed review, 2026-10-09)
       var ps = (Array.isArray(items) ? items : []).filter(fogHandOk);
       if (!ps.length) return null;
       var hide = ps.every(function(w) { return w.fogHand === 'hide'; }), show = ps.every(function(w) { return w.fogHand === 'show'; });
@@ -3335,7 +3336,7 @@ window.wpFitToGrid = fitToGrid;
           var gbc = e.target.closest && e.target.closest('g.blast'); if (!gbc) return;
           e.preventDefault(); e.stopPropagation();
           var bic = parseInt(gbc.dataset.i, 10);
-          if (bic >= 0 && bic < blasts.length) { var goneB = blasts.splice(bic, 1)[0]; renderMeasures(); syncBlastMenu(); toast(!ownCircle(goneB) ? 'Blast removed.' : goneB.as === 'ring' ? 'Ring removed.' : goneB.as === 'cone' ? 'Cone removed.' : 'Circle removed.'); }
+          if (bic >= 0 && bic < blasts.length) { var goneB = blasts.splice(bic, 1)[0]; if (ownCircle(goneB)) circleRekept(); renderMeasures(); syncBlastMenu(); toast(!ownCircle(goneB) ? 'Blast removed.' : goneB.as === 'ring' ? 'Ring removed.' : goneB.as === 'cone' ? 'Cone removed.' : 'Circle removed.'); }
       });
       document.addEventListener('pointermove', function(e) {
           if (coneAim) { coneTurn(e); return; }
@@ -3888,6 +3889,7 @@ window.wpFitToGrid = fitToGrid;
       if (shapeOf(c.as) === 'ring' && c.inn > 0 && c.inn < c.yd) { b.shape = sent.shape = 'ring'; b.inFt = sent.inFt = c.inn * 3; }   // a ring with no hole is the whole disc
       else if (shapeOf(c.as) === 'cone') { b.shape = sent.shape = 'cone'; b.deg = sent.deg = coneDeg(c.deg, 60); b.dir = sent.dir = typeof c.dir === 'number' && isFinite(c.dir) ? c.dir : 0; }   // and its shape, where it has one
       blasts.splice(at, 1, b);   // the shape becomes the blast, where it stood
+      if (typeof circleRekept === 'function') circleRekept();
       renderMeasures(); syncBlastMenu();
       if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.broadcastBlast) window.wpNet.broadcastBlast(sent, map.id);
       var n = blastDistances(b, map).filter(function(r) { return shapeHolds(b, r); }).length, said = 'Explosion, ' + q.type + '. ' + n + ' token' + (n === 1 ? '' : 's') + ' in range.';
@@ -4391,7 +4393,21 @@ window.wpFitToGrid = fitToGrid;
       }
       syncBlastMenu();
   }
-  wireTool({ id: 'blastModeBtn', chev: 'blastOptBtn', inHand: function() { return !!window.isMeasureMode && window.wpMeasureKind === 'blast'; }, sync: syncBlastMenu, take: function() {
+  // The owed review, 2026-10-09: a Throw armed from a sheet and then left, by taking another tool and not by Esc, stayed armed, and the next
+  // click of the Radius tool threw it for real, for the whole table, where its player meant to measure. Taking any tool puts it down
+  function disarmThrow() { if (_armedThrow) { _armedThrow = null; document.body.classList.remove('placing'); } }
+  // ... and when the last shape of the tool's own goes (set off, or taken off by a right-click), the shape kept for the next click follows
+  // what the options then show, an older shape's numbers: a click places what is in sight
+  function circleRekept() {
+      if (!lastOwn()) return;
+      circleKept = circleNow();   // the very shape the options show, On a token included
+      if (circleKept.as === 'r' || circleKept.as === 'd') circleCas = circleKept.as;
+      try { localStorage.setItem('wp_radius', JSON.stringify(circleKept)); } catch (e) {}
+  }
+  // While a Throw armed from a sheet is in hand this tool is not, though the mode is its own: its icon and its small arrow then TAKE the tool,
+  // which puts the Throw down (the review of the fold's own fixes, 2026-10-09: the arrow only opened the options, and the next click threw)
+  wireTool({ id: 'blastModeBtn', chev: 'blastOptBtn', inHand: function() { return !_armedThrow && !!window.isMeasureMode && window.wpMeasureKind === 'blast'; }, sync: syncBlastMenu, take: function() {
+      disarmThrow();
       window.isMeasureMode = true; window.wpMeasureKind = 'blast';
       window.isDrawingMode = false; window.isEraserMode = false;
       if (wbWrap) wbWrap.style.cursor = 'crosshair';
@@ -4422,7 +4438,7 @@ window.wpFitToGrid = fitToGrid;
   });
   var _el_blastUndoThrow = document.getElementById('blastUndoThrow');
   if (_el_blastUndoThrow) _el_blastUndoThrow.addEventListener('click', function() { if (window.wpUndoThrow) window.wpUndoThrow(); });
-  if (_el_blastMenu) ['pointerdown', 'click'].forEach(function(ev) { _el_blastMenu.addEventListener(ev, function(e) { e.stopPropagation(); }); });
+  if (_el_blastMenu) ['pointerdown', 'click'].forEach(function(ev) { _el_blastMenu.addEventListener(ev, function(e) { e.stopPropagation(); disarmThrow(); }); });   // a press in the tool's options is a wish to measure: a Throw armed while they were up is put down
   // [systemcheck:radiusopts-end]
 
   // Pen preferences survive restarts: color, width, freehand/line (wp_drawColor / wp_drawWidth / wp_drawStraight)
@@ -6888,6 +6904,7 @@ function appendTableMenu(cMenu, e) {
 }
 document.addEventListener('contextmenu', function(e) {
     if (state.viewMode !== 'visual' && state.viewMode !== 'data') return;
+    if (window.wpNet && window.wpNet.foreign && !(window.wpNet.active && window.wpNet.role === 'client')) return;   // the owed review, 2026-10-09: someone else's table on this screen with its link down, between two attempts to reconnect. The GM's menu is not theirs then either
     if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') {
         // players get no edit menu — except elevation / posture on their own token (the
         // same permission line as moving it); empty play-map space offers Leave Session

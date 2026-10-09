@@ -38,7 +38,9 @@ import { updateCampaignSelect, updateSidebarNav } from './sidebar.js';
 
 import { showPrompt, showConfirm, isCampaignNameTaken, getUniqueCampaignTitle, promptForCampaignName, isItemNameTaken, getUniqueItemTitle, promptForItemName } from './dialogs.js';
 
-import { renderPlanner, renderPlannerPreview, RTE_CMDS, RTE_SYMS, rteSyncBar } from './planner.js';
+import { renderPlanner, renderPlannerPreview, RTE_CMDS, RTE_SYMS, rteSyncBar, rteLookHtml, rteLook } from './planner.js';
+
+import * as TF from './textfmt.js';   // Waypoint's own fonts (FONTS) and the one cleaner of a stored font
 
 import { renderDataMap, clearSnaps, drawSnap, doSmartSnapping, attachDrag, attachPanning, isLinkMode, setLinkMode, removeLinkAt } from './datamap.js';
 
@@ -2010,13 +2012,60 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
   window.wpCreateMapFromRoomImage = createMapFromRoomImage;   // sandbox testing hook
 
   /* ---------- text box styling: font, size, alignment, background ---------- */
-  // Fonts every Windows install ships with (plus the app's own UI font first)
-  var TEXT_FONTS = ['', 'Segoe UI', 'Arial', 'Calibri', 'Cambria', 'Georgia', 'Times New Roman', 'Book Antiqua', 'Garamond', 'Palatino Linotype', 'Verdana', 'Tahoma', 'Trebuchet MS', 'Century Gothic', 'Franklin Gothic Medium', 'Impact', 'Comic Sans MS', 'Consolas', 'Courier New', 'Lucida Console'];
+  // [sinkcheck:textfont-start]
+  /* A text box's font is one of Waypoint's own (textfmt.js FONTS: files of the app, so the box looks the same on every computer). A box from
+     before 1.5.4 may name one of the computer's own fonts: it keeps it, offered first and said to be this computer's own, until another is
+     picked. Whatever a box holds reaches this markup through cleanFont (a plain family name or nothing) and esc. */
+  function fontOwnOf(cur) { var f = TF.cleanFont(cur); return (f && !TF.fontKnown(f)) ? f : ''; }   // a kept font that is none of Waypoint's own
+  function fontOptsHtml(cur) {
+      var known = TF.fontKnown(cur), own = fontOwnOf(cur), group = null;
+      var out = '<option value=""' + (!known && !own ? ' selected' : '') + '>App default</option>';
+      if (own) out += '<option value="' + esc(own) + '" selected>' + esc(own) + ' (this computer\u2019s own)</option>';
+      TF.FONTS.forEach(function(f) {
+          if (f[2] !== group) { if (group !== null) out += '</optgroup>'; group = f[2]; out += '<optgroup label="' + esc(group) + '">'; }
+          out += '<option value="' + esc(f[0]) + '"' + (known === f[0] ? ' selected' : '') + ' style="font-family:' + esc(TF.fontCss(f[0])) + '">' + esc(f[0]) + '</option>';
+      });
+      return out + (group !== null ? '</optgroup>' : '');
+  }
+  // the grey line under the list: fixed words, set as text
+  function fontNote(cur) {
+      return fontOwnOf(cur) ? 'This box uses a font of this computer\u2019s own. It may look different on another computer. Pick one from the list to change that.'
+                            : 'Waypoint\u2019s own fonts. The text looks the same on every computer.';
+  }
+  // what the list's pick stores: a font cleanFont keeps, or no key (the app's own font)
+  function fontSet(w, v) { var f = TF.cleanFont(v); if (f) w.font = f; else delete w.font; return f || ''; }
+  // [sinkcheck:textfont-end]
+  // [sinkcheck:texthist-start]
+  /* The Content editor's own undo. A colour or a size is made of nodes the bar re-makes behind the browser's back (planner.js rteColor, rteSize), so the
+     browser's own undo and redo no longer know the box: a redo could put a marker (a font element of size 7) back, and the box would store it. The
+     editor keeps what it stored instead: the box's markup after each change, a run of typing as one step, HIST_MAX steps at most. Plain objects only. */
+  var HIST_MAX = 100, HIST_RUN_MS = 800;
+  function histNew(text) { return { list: [String(text || '')], at: 0, t: 0, typed: false }; }
+  function histPush(h, text, now, typed) {
+      text = String(text || '');
+      if (text === h.list[h.at]) return h;
+      h.list.length = h.at + 1;   // a new change forgets what was undone
+      if (typed === true && h.typed && now - h.t < HIST_RUN_MS) h.list[h.at] = text;   // a run of typing is one step. The state a history begins with, and one an undo went back to, is never written over: neither is marked as typed
+      else { h.list.push(text); if (h.list.length > HIST_MAX) h.list.shift(); h.at = h.list.length - 1; }
+      h.t = now; h.typed = typed === true;
+      return h;
+  }
+  function histStep(h, dir) {   // dir below 0 undoes, any other redoes: the markup to show, or null where there is none
+      var to = h.at + (dir < 0 ? -1 : 1);
+      if (to < 0 || to >= h.list.length) return null;
+      h.at = to; h.typed = false;
+      return h.list[to];
+  }
+  // whether a key press asks for an undo (-1) or a redo (1) of the editor's own, else 0
+  function histKey(e) {
+      var k = String((e && e.key) || '').toLowerCase();
+      if (!e || !(e.ctrlKey || e.metaKey) || e.altKey || (k !== 'z' && k !== 'y')) return 0;
+      return (k === 'y' || e.shiftKey) ? 1 : -1;
+  }
+  // [sinkcheck:texthist-end]
   var TEXT_BG = { 'transparent': 'None', 'var(--panel2)': 'Dark Panel', '#15151c': 'Near Black', '#1a1a1a': 'Black', '#e9e9f0': 'White', 'rgba(0,0,0,0.55)': 'Shade', 'rgba(255,255,255,0.15)': 'Frost', 'rgba(217, 83, 79, 0.3)': 'Red Tint', 'rgba(92, 184, 122, 0.3)': 'Green Tint', 'rgba(77, 179, 211, 0.3)': 'Blue Tint', 'rgba(224, 165, 79, 0.3)': 'Gold Tint', '#e0a54f': 'Gold', '#4db3d3': 'Blue', '#d9534f': 'Red' };
   function textStyleHtml(w) {
-      var fontOpts = TEXT_FONTS.map(function(f) {
-          return '<option value="' + esc(f) + '"' + ((w.font || '') === f ? ' selected' : '') + (f ? ' style="font-family:\'' + esc(f) + '\'"' : '') + '>' + (f || 'App default') + '</option>';
-      }).join('');
+      var fontOpts = fontOptsHtml(w.font);
       var al = w.align || 'center', va = w.valign || 'middle';
       function ab(v, glyph, title) { return '<button class="tool ghost ts-align' + (al === v ? ' active' : '') + '" data-align="' + v + '" title="' + title + '" style="flex:1; padding:3px 0;">' + glyph + '</button>'; }
       function vb(v, glyph, title) { return '<button class="tool ghost ts-valign' + (va === v ? ' active' : '') + '" data-valign="' + v + '" title="' + title + '" style="flex:1; padding:3px 0;">' + glyph + '</button>'; }
@@ -2026,11 +2075,11 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
       }).join('') + '<label class="color-btn custom" title="Custom background"><input type="color" id="wbTextBgCustom" value="' + (/^#[0-9a-f]{6}$/i.test(w.bg || '') ? w.bg : '#15151c') + '"></label>';
       var _rteBar = RTE_CMDS.map(function(k) {
           if (k.sep) return '<span class="rte-sep"></span>';
-          if (k.sym) return '<span class="rte-symwrap"><button type="button" class="rte-btn rte-symbtn" title="' + k.t + '" tabindex="-1">' + k.l + '</button><div class="rte-syms">' + RTE_SYMS.map(function(s) { return '<button type="button" class="rte-sym" data-sym="' + s[0] + '" title="' + s[1] + '" tabindex="-1">' + s[0] + '</button>'; }).join('') + '</div></span>';
+          if (k.sym) return rteLookHtml() + '<span class="rte-symwrap"><button type="button" class="rte-btn rte-symbtn" title="' + k.t + '" tabindex="-1">' + k.l + '</button><div class="rte-syms">' + RTE_SYMS.map(function(s) { return '<button type="button" class="rte-sym" data-sym="' + s[0] + '" title="' + s[1] + '" tabindex="-1">' + s[0] + '</button>'; }).join('') + '</div></span>';   // 1.5.4: colour and size on the selected words, the planner text block's own controls (no Link box here)
           return '<button type="button" class="rte-btn" data-cmd="' + k.c + '" title="' + k.t + '" tabindex="-1">' + k.l + '</button>';
       }).join('');
-      return '<div class="field"><label>Content</label><div class="rte" id="wbTextContentRte"><div class="rte-bar">' + _rteBar + '</div><div class="rte-body" contenteditable="true" id="wbTextContentBody" data-placeholder="Type here — select text and use the bar, or Ctrl+B / I / U" spellcheck="true">' + (w.text || '') + '</div></div><div class="muted" style="margin-top:3px;">A live edit of the box\'s words. Bold / italic / lists / symbols — the same set as the planner\'s text blocks. Double-clicking the box on the canvas still works.</div></div>' +
-             '<div class="field"><label for="wbTextFont">Font</label><select id="wbTextFont" style="width:100%;">' + fontOpts + '</select></div>' +
+      return '<div class="field"><label>Content</label><div class="rte" id="wbTextContentRte"><div class="rte-bar">' + _rteBar + '</div><div class="rte-body" contenteditable="true" id="wbTextContentBody" data-placeholder="Type here — select text and use the bar, or Ctrl+B / I / U" spellcheck="true">' + (w.text || '') + '</div></div><div class="muted" style="margin-top:3px;">A live edit of the box\'s words. Select words to make them bold or italic, to colour them or to size them. Lists and symbols are here too. Double-clicking the box on the canvas still works.</div></div>' +
+             '<div class="field"><label for="wbTextFont">Font</label><select id="wbTextFont" style="width:100%;">' + fontOpts + '</select><div class="muted" id="wbTextFontNote" style="margin-top:3px;"></div></div>' +
              '<div class="field"><label for="wbTextSize">Text Size <span class="muted" id="wbTextSizeVal">' + (num(w.fontSize, 0) || 16) + ' px</span></label><div style="display:flex; gap:8px; align-items:center;"><input type="range" id="wbTextSize" min="8" max="96" value="' + (num(w.fontSize, 0) || 16) + '" style="flex:1"><input type="number" id="wbTextSizeNum" min="8" max="200" value="' + (num(w.fontSize, 0) || 16) + '" style="width:56px" aria-label="Text size in pixels"></div></div>' +
              '<div class="field text-align"><label>Text Alignment</label><div class="tal-grid"><span class="tal-cap">Horizontal</span><div class="tal-row">' + ab('left', '&#8676;', 'Align left') + ab('center', '&#8596;', 'Center') + ab('right', '&#8677;', 'Align right') + ab('justify', '&#8801;', 'Justify') + '</div><span class="tal-cap">Vertical</span><div class="tal-row tal-v">' + vb('top', '&#8679;', 'Top') + vb('middle', '&#8597;', 'Middle') + vb('bottom', '&#8681;', 'Bottom') + '</div></div></div>' +
              '<div class="field"><label>Box Background</label><div class="color-row">' + bgHtml + '</div></div>' +
@@ -2041,13 +2090,31 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
       var el = state.wbEls && state.wbEls[w.id];
       var contentBody = document.getElementById('wbTextContentBody');
       if (contentBody) {
-          contentBody.addEventListener('input', function() {
-              w.text = this.innerHTML;
-              var host = state.wbEls && state.wbEls[w.id];
-              if (host && host.contentEditable !== 'true') host.innerHTML = w.text || 'Text...';
+          var hist = histNew(contentBody.innerHTML);   // the steps are the box's own read-back: a stored text may read back differently, and a step that differs only so is no change
+          contentBody._wpShown = w.text || '';   // the item's text as the box last showed or stored it
+          var mirror = function() { var host = state.wbEls && state.wbEls[w.id]; if (host && host.contentEditable !== 'true') host.innerHTML = w.text || 'Text...'; };
+          var histGo = function(dir) {   // one step of the editor's own undo: the box, the item and the board show that markup, the caret at its end
+              var t = histStep(hist, dir); if (t === null) return;
+              contentBody.innerHTML = t; contentBody._wpShown = t; w.text = t; mirror();
+              hist.list[hist.at] = contentBody.innerHTML;
+              try { var r = document.createRange(); r.selectNodeContents(contentBody); r.collapse(false); var gs = window.getSelection(); gs.removeAllRanges(); gs.addRange(r); } catch (err) {}
+              rteSyncBar(contentBody);
+          };
+          contentBody.addEventListener('input', function(e) {
+              if (this._wpQuiet) return;   // a colour or a size half-way through (planner.js rteLook): the finished box follows
+              if (this.innerHTML === hist.list[hist.at]) { rteSyncBar(this); return; }   // a press that changed nothing (Bold at a caret): no step, and the stored text is not rewritten
+              w.text = this.innerHTML; this._wpShown = w.text;
+              histPush(hist, w.text, Date.now(), !!(e && typeof e.inputType === 'string' && /^(insert|delete)/.test(e.inputType)));
+              mirror();
               rteSyncBar(this);
           });
-          contentBody.addEventListener('keydown', function(e) { e.stopPropagation(); });
+          contentBody.addEventListener('beforeinput', function(e) {   // an undo or a redo asked through the browser's own menu: the editor's, never the browser's
+              if (e.inputType === 'historyUndo' || e.inputType === 'historyRedo') { e.preventDefault(); histGo(e.inputType === 'historyUndo' ? -1 : 1); }
+          });
+          contentBody.addEventListener('keydown', function(e) {
+              var dir = histKey(e); if (dir) { e.preventDefault(); histGo(dir); }
+              e.stopPropagation();
+          });
           contentBody.addEventListener('paste', function(e) {   // plain text only — no styles from elsewhere
               e.preventDefault();
               var t = (e.clipboardData || window.clipboardData).getData('text/plain');
@@ -2055,16 +2122,25 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
           });
           contentBody.addEventListener('blur', function() { save(true); });
           contentBody.addEventListener('focus', function() {
-              // Refresh from the item — the on-canvas editor may have committed a newer value while the panel stayed put
+              // Refresh from the item only when its text CHANGED since the box last showed it (the on-canvas editor may have committed a newer value while the
+              // panel stayed put). Comparing the box's own markup with the stored text would rebuild a box whose text merely reads back differently, as an
+              // imported one does, and throw away the selection the size list and the colour picker come back for
               var fresh = w.text || '';
-              if (this.innerHTML !== fresh) this.innerHTML = fresh;
+              if (fresh !== this._wpShown) { this.innerHTML = fresh; this._wpShown = fresh; hist = histNew(this.innerHTML); }
               rteSyncBar(this);
           });
           var contentBar = contentBody.parentNode.querySelector('.rte-bar');
           if (contentBar) {
-              contentBar.addEventListener('mousedown', function(e) { e.preventDefault(); });   // keep the selection
+              contentBar.addEventListener('mousedown', function(e) { if (e.target && e.target.closest && e.target.closest('select, input')) return; e.preventDefault(); });   // keep the selection (the size list and the colour picker take the focus: the box's selection is remembered for them)
+              var pick = contentBar.querySelector('.rte-colorpick'), sizeSel = contentBar.querySelector('.rte-size');
+              if (pick) pick.addEventListener('change', function() { rteLook(contentBody, { color: this.value }); });
+              if (sizeSel) sizeSel.addEventListener('change', function() { var v = this.value; this.value = ''; if (v) rteLook(contentBody, { size: v === 'default' ? null : v }); });
               contentBar.addEventListener('click', function(e) {
                   var b = contentBar.parentNode.querySelector('.rte-body');
+                  var swC = e.target.closest && e.target.closest('.rte-sw[data-color]');
+                  if (swC) { rteLook(b, { color: swC.dataset.color }); return; }
+                  if (e.target.closest && e.target.closest('.rte-nocolor')) { rteLook(b, { color: null }); return; }
+                  if (e.target.closest && e.target.closest('.rte-custom, .rte-size')) return;   // their own change events
                   var sym = e.target.closest && e.target.closest('.rte-sym');
                   if (sym) {
                       b.focus();
@@ -2082,9 +2158,10 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
               });
           }
       }
-      var fontSel = document.getElementById('wbTextFont');
+      var fontSel = document.getElementById('wbTextFont'), fontNoteEl = document.getElementById('wbTextFontNote');
+      if (fontNoteEl) fontNoteEl.textContent = fontNote(w.font);
       if (fontSel) fontSel.addEventListener('change', function() {
-          if (this.value) w.font = this.value; else delete w.font;
+          fontSet(w, this.value);
           save(); render();
       });
       var sizeR = document.getElementById('wbTextSize'), sizeN = document.getElementById('wbTextSizeNum'), sizeV = document.getElementById('wbTextSizeVal');

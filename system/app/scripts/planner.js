@@ -1361,13 +1361,18 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       return sanitizeHtml(b.type === 'text' && body ? '<p>' + body + '</p>' : body);
   }
   // [sinkcheck:rte-end]
-  function rteHtml(idx, b) {
-      // a planner's and a page's text blocks also get colour and size (the list above is shared with the play map's text box, which does not): the app's ink row, then Custom, Default and the size steps — constants from textfmt.js, written before the symbol tray
-      var look = TF.PALETTE.map(function(p) { return '<button type="button" class="rte-sw" data-color="' + esc(p[0]) + '" title="' + esc(p[1]) + ' \u2014 colour the selected text" style="background:' + esc(p[0]) + ';" tabindex="-1"></button>'; }).join('')
+  // Colour and size on the selected text: the app's ink row, then Custom, Default and the size steps — constants from textfmt.js. A planner's and a page's
+  // text blocks write them into their bar before the symbol tray, and since 1.5.4 the play map's text box does too (inspector.js textStyleHtml).
+  function rteLookHtml() {
+      return TF.PALETTE.map(function(p) { return '<button type="button" class="rte-sw" data-color="' + esc(p[0]) + '" title="' + esc(p[1]) + ' \u2014 colour the selected text" style="background:' + esc(p[0]) + ';" tabindex="-1"></button>'; }).join('')
               + '<label class="rte-sw rte-custom" title="Custom colour for the selected text"><input type="color" class="rte-colorpick" value="#d9534f" tabindex="-1"></label>'
               + '<button type="button" class="rte-btn rte-nocolor" title="The default colour on the selected text" tabindex="-1">Default</button>'
-              + '<select class="rte-size" title="Size of the selected text" tabindex="-1"><option value="">Size\u2026</option><option value="default">Default</option>' + TF.SIZES.map(function(s) { return '<option value="' + esc(s) + '">' + esc(TF.SIZE_NAMES[s] || s) + '</option>'; }).join('') + '</select><span class="rte-sep"></span>'
-              // …and a Link box (the planner's own too): its address is read by textfmt.js typedLink and set by rteLinkDo
+              + '<select class="rte-size" title="Size of the selected text" tabindex="-1"><option value="">Size\u2026</option><option value="default">Default</option>' + TF.SIZES.map(function(s) { return '<option value="' + esc(s) + '">' + esc(TF.SIZE_NAMES[s] || s) + '</option>'; }).join('') + '</select><span class="rte-sep"></span>';
+  }
+  function rteHtml(idx, b) {
+      // a text block's bar: the shared commands (the list above), the colour and size controls before the symbol tray…
+      var look = rteLookHtml()
+              // …and a Link box (the planner's own): its address is read by textfmt.js typedLink and set by rteLinkDo
               + '<label class="ts-linklab rte-linklab" title="' + esc(RTE_LINK_TITLE) + '">Link <input type="text" class="ts-link rte-link" placeholder="https://\u2026" spellcheck="false" autocomplete="off" aria-label="Link address" tabindex="-1"></label><span class="rte-sep"></span>';
       var bar = RTE_CMDS.map(function(k) {
           if (k.sep) return '<span class="rte-sep"></span>';
@@ -1425,7 +1430,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var MARK = '#010203';
       rteExec('foreColor', c || MARK);
       var off = rteOffsets(body);
-      if (!off || off[0] === off[1]) return;   // a caret: the colour is for what is typed next — nothing to turn into spans, and the caret must stay as it is
+      var gsC = window.getSelection();
+      if (!off || (gsC && gsC.isCollapsed)) return;   // a caret: the colour is for what is typed next — nothing to turn into spans, and the caret must stay as it is. A selection that holds no characters (an empty line) is no caret: what the command wrapped is tidied below, so the default colour's marker is never left behind
       Array.from(body.querySelectorAll('font[color]')).forEach(function(f) {
           var col = String(f.getAttribute('color') || '').toLowerCase(), sz = f.getAttribute('size');
           if (col === MARK) {   // the default colour: whatever the command wrapped loses its colour, and so does anything inside it
@@ -2451,7 +2457,11 @@ export {
 
     RTE_SYMS,
 
-    rteSyncBar
+    rteSyncBar,
+
+    rteLookHtml,
+
+    rteLook
 
 };
 

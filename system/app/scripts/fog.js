@@ -175,8 +175,10 @@ function nullAreas(map, grid) {   // [{ keys: { cellKey: 1 }, ids }], kept on th
     (map.whiteboard || []).forEach(function(w) {
         if (!w || w.isChar || w.waiting || w.type === 'light' || w.gmNoteFor || w.nulls === undefined) return;
         var ids = C.cleanNulls(w.nulls); if (!ids) return;
-        var keys = Object.create(null); footprintCells(w, grid, C).forEach(function(c) { keys[C.cellKey(c, grid)] = 1; });
-        areas.push({ keys: keys, ids: ids });
+        var keys = Object.create(null), fcN = footprintCells(w, grid, C); fcN.forEach(function(c) { keys[C.cellKey(c, grid)] = 1; });
+        var areaN = { keys: keys, ids: ids };
+        if (fcN.over) areaN.big = { x: w.x, y: w.y, w: w.w, h: w.h, rot: w.rot, type: w.type === 'hexagon' || w.type === 'circle' || w.type === 'diamond' ? w.type : 'rect' };   // too large to list (the owed review, 2026-10-09): its outline is asked for the one cell a token stands in, as its cells would answer
+        areas.push(areaN);
     });
     _nullCache[map.id] = { stamp: stamp, areas: areas };
     return areas;
@@ -184,7 +186,7 @@ function nullAreas(map, grid) {   // [{ keys: { cellKey: 1 }, ids }], kept on th
 function nullsAt(map, token) {   // { senseId: 1 } switched off where the token stands
     var out = Object.create(null), C = core(), grid = map && token ? gridForMap(map) : null; if (!C || !grid) return out;
     var areas = nullAreas(map, grid);
-    if (areas.length) { var k = C.cellKey(C.cellOf(token.x + (token.w || 60) / 2, token.y + (token.h || 52) / 2, grid), grid); areas.forEach(function(a) { if (a.keys[k] === 1) a.ids.forEach(function(id) { out[id] = 1; }); }); }
+    if (areas.length) { var cellN = C.cellOf(token.x + (token.w || 60) / 2, token.y + (token.h || 52) / 2, grid), k = C.cellKey(cellN, grid), pcN = null; areas.forEach(function(a) { if (a.keys[k] === 1 || (a.big && C.itemCovers(a.big, (pcN = pcN || C.cellCenter(cellN, grid)).x, pcN.y, grid))) a.ids.forEach(function(id) { out[id] = 1; }); }); }
     var fo = isClientView() ? map.fogOff : null;   // a player's copy: what the host told them of their own token (the host's own map never holds one it reads)
     if (fo && typeof fo === 'object' && typeof token.id === 'string' && Object.prototype.hasOwnProperty.call(fo, token.id) && Array.isArray(fo[token.id])) fo[token.id].forEach(function(id) { if (typeof id === 'string') out[id] = 1; });
     return out;
@@ -296,7 +298,7 @@ function terrainFor(map, grid) {
     _terrStamp[map.id] = stamp; _terrCache[map.id] = set;
     return set;
 }
-var _smokeCache = Object.create(null), _smokeStamp = Object.create(null), _smokeSig = Object.create(null), _smokeVer = Object.create(null), _smokeUnion = Object.create(null), _smokeWarned = Object.create(null);
+var _smokeCache = Object.create(null), _smokeStamp = Object.create(null), _smokeSig = Object.create(null), _smokeVer = Object.create(null), _smokeUnion = Object.create(null), _smokeWarned = Object.create(null), _blastBig = Object.create(null);
 function smokeFor(map, grid) {   // { cellKey: 1 } or null, kept on the map's save stamp and grid; its content version moves only when the set does
     var stamp = ((map.meta && map.meta.updated) || 0) + '|' + grid.type + ':' + (grid.size || grid.s);
     if (_smokeStamp[map.id] === stamp) return _smokeCache[map.id];
@@ -323,7 +325,11 @@ function smokeUnion(map, blk, sm, tag) {   // the walls and the smoke as one set
     return su.set;
 }
 // The grid cells an eligible blocker item covers — shared by blockersFor and the door click-toggle so they agree.
-function footprintCells(w, grid, C) { return C.itemCells(w, grid); }   // item 18: by its outline, turned as the board draws it (unturned: as before)
+// The owed review, 2026-10-09: a piece's cells are listed only where its box, turned as the board draws it (the box barBox measures), is
+// within forty times the walls' cap; a painted cell is its one cell whatever its box. A host may name a piece of any size, and a wall
+// 16 million cells wide stalled a player's app before any cap was counted. A piece past the bound gives no cell and says so (`over`): it
+// reads as over the walls' cap where it would have been a wall, and as nothing anywhere else
+function footprintCells(w, grid, C) { if (C.itemOver(w, grid)) { var noneF = []; noneF.over = true; return noneF; } return C.itemCells(w, grid); }   // item 18: by its outline, turned as the board draws it (unturned: as before)
 function blockersFor(map, grid) {
     if (!map || !grid) return null;
     // Key the memo on map.meta.updated (stamped every save, io.js) as well as map.id, so a blocker MOVE busts it even
@@ -334,7 +340,7 @@ function blockersFor(map, grid) {
     for (var i = 0; i < wb.length && !over; i++) {
         var w = wb[i]; if (!eligibleBlocker(w)) continue;
         if (w.type === 'path') { var ps = C.pathSegs(w); for (var q = 0; q < ps.length; q++) { segs.push(ps[q]); if (segs.length > C.LIMITS.wallSegs) { over = true; break; } } continue; }   // item 18 W2: a pen line blocks as its line
-        var cells = footprintCells(w, grid, C);
+        var cells = footprintCells(w, grid, C); if (cells.over) { over = true; break; }   // too large to list: over the cap by itself
         for (var j = 0; j < cells.length; j++) { var k = C.cellKey(cells[j], grid); if (!set[k]) { set[k] = 1; if (++n > C.LIMITS.blockerCells) { over = true; break; } } }
     }
     if (over && !_blockerWarned[map.id]) { _blockerWarned[map.id] = 1; toast('Too many sight-blockers on this map — vision is not being blocked here.'); }
@@ -354,6 +360,8 @@ function maskFootprint(w, grid, C) {
     if (!w.rot || w.fill || w.type === 'circle') return footprintCells(w, grid, C);
     var rad = w.rot * Math.PI / 180, ww = w.w || 0, hh = w.h || 0, cx = w.x + ww / 2, cy = w.y + hh / 2;
     var bw = Math.abs(ww * Math.cos(rad)) + Math.abs(hh * Math.sin(rad)), bh = Math.abs(ww * Math.sin(rad)) + Math.abs(hh * Math.cos(rad));
+    var cwM = grid.type === 'square' ? grid.size : 1.5 * grid.s, chM = grid.type === 'square' ? grid.size : grid.h;
+    if (!((bw / cwM + 2) * (bh / chM + 2) <= C.LIMITS.blockerCells * 40)) { var noneM = []; noneM.over = true; return noneM; }   // its turned box is walked whole: too large to walk, and said so (the owed review, 2026-10-09)
     var box = C.cellsUnderRect(cx - bw / 2, cy - bh / 2, bw, bh, grid), cos = Math.cos(-rad), sin = Math.sin(-rad), out = [];
     for (var i = 0; i < box.length; i++) {
         var p = C.cellCenter(box[i], grid), dx = p.x - cx, dy = p.y - cy;
@@ -378,7 +386,7 @@ function fogMask(map, camp, grid) {
     for (var i = 0; i < wb.length && !over; i++) {
         var w = wb[i]; if (!w || !w.fogged || w.hidden) continue;
         any = true;
-        var fc = maskFootprint(w, grid, C);
+        var fc = maskFootprint(w, grid, C); if (fc.over) { over = true; break; }   // a play area too large to list is over the cap: the whole map is fogged, never none of it (the owed review, 2026-10-09)
         for (var j = 0; j < fc.length; j++) { var k = C.cellKey(fc[j], grid); if (!set[k]) { set[k] = 1; cells.push(fc[j]); if (++n > C.LIMITS.blockerCells) { over = true; break; } } }
     }
     var result;
@@ -421,12 +429,37 @@ function coverSetsFor(map, grid, blast) {
     var cap = C.LIMITS.blockerCells, hard = Object.create(null), soft = Object.create(null), nh = 0, ns = 0, over = false, hs = [], ss = [];
     var softH = Object.create(null), softLines = [];   // item 19 H1: each see-over cell's height (its tallest piece; 1 yard where none is given) and each see-over line's
     var hardH = Object.create(null), hardLines = [], fullW = null, lowW = false;   // item 19b H4: each wall cell's height (Infinity where a piece with none stands in it) and each wall line's; fullW: the walls with no height; lowW: some wall has a height
+    // The owed review, 2026-10-09. A barrier ticked Stops blasts is a wall to a blast whatever cover it gives an attack (its Cover choice was
+    // asked first, and a see-over one then stopped no blast). It is taken AFTER every other piece and only where it fits under the caps, so
+    // that no wall loses its cover to one: a ticked barrier too large for what is left is passed over alone, and the GM is told once for
+    // each count (one large barrier switched off all blast cover on its map, walls included, and nothing said so)
+    var later = [], putPiece = function(w, role, own) {   // own: a ticked barrier. false: it did not fit
+        var hW = C.cleanHeight(w.height) || 1, hR = role === 'hard' ? C.cleanHeight(w.height) || Infinity : 0, k, j;
+        if (!own && role === 'hard' && hR < Infinity) lowW = true;
+        if (w.type === 'path') {   // item 18 W2: a pen line's cover is its line
+            var pz = C.pathSegs(w), into = role === 'hard' ? hs : ss;
+            if (own && hs.length + pz.length > C.LIMITS.wallSegs) return false;
+            if (own && hR < Infinity) lowW = true;
+            for (var q = 0; q < pz.length; q++) { into.push(pz[q]); if (hs.length > C.LIMITS.wallSegs) { over = true; break; } }
+            if (ss.length > C.LIMITS.wallSegs) ss.length = C.LIMITS.wallSegs;
+            if (role === 'soft' && pz.length) softLines.push({ segs: pz, h: hW });
+            if (role === 'hard' && pz.length) hardLines.push({ segs: pz, h: hR });
+            return true;
+        }
+        var cells = footprintCells(w, grid, C);
+        if (cells.over) { if (own) return false; if (role === 'hard') over = true; return true; }   // too large to list: a wall that size is over the cap by itself, a see-over piece gives no cover
+        if (own) { var add = 0, fresh = Object.create(null); for (j = 0; j < cells.length; j++) { k = C.cellKey(cells[j], grid); if (!hard[k] && !fresh[k]) { fresh[k] = 1; add++; } } if (nh + add > cap) return false; if (hR < Infinity) lowW = true; }
+        for (j = 0; j < cells.length; j++) { k = C.cellKey(cells[j], grid); if (role === 'hard') { if (!(hardH[k] >= hR)) hardH[k] = hR; if (!hard[k]) { hard[k] = 1; if (++nh > cap) { over = true; break; } } } else { if (!soft[k] && ns <= cap) { soft[k] = 1; ns++; } if (soft[k] && !(softH[k] >= hW)) softH[k] = hW; } }
+        return true;
+    };
     for (var i = 0; i < wb.length && !over; i++) {
-        var role = C.coverRole(wb[i]) || (blast === true && C.blastStopOn(wb[i]) ? 'hard' : null); if (!role) continue;   // a barrier ticked Stops blasts: a wall to a blast
-        var hW = C.cleanHeight(wb[i].height) || 1, hR = role === 'hard' ? C.cleanHeight(wb[i].height) || Infinity : 0; if (role === 'hard' && hR < Infinity) lowW = true;
-        if (wb[i].type === 'path') { var pz = C.pathSegs(wb[i]), into = role === 'hard' ? hs : ss; for (var q = 0; q < pz.length; q++) { into.push(pz[q]); if (hs.length > C.LIMITS.wallSegs) { over = true; break; } } if (ss.length > C.LIMITS.wallSegs) ss.length = C.LIMITS.wallSegs; if (role === 'soft' && pz.length) softLines.push({ segs: pz, h: hW }); if (role === 'hard' && pz.length) hardLines.push({ segs: pz, h: hR }); continue; }   // item 18 W2: a pen line's cover is its line
-        var cells = footprintCells(wb[i], grid, C);
-        for (var j = 0; j < cells.length; j++) { var k = C.cellKey(cells[j], grid); if (role === 'hard') { if (!(hardH[k] >= hR)) hardH[k] = hR; if (!hard[k]) { hard[k] = 1; if (++nh > cap) { over = true; break; } } } else { if (!soft[k] && ns <= cap) { soft[k] = 1; ns++; } if (soft[k] && !(softH[k] >= hW)) softH[k] = hW; } }
+        if (blast === true && C.blastStopOn(wb[i])) { later.push(wb[i]); continue; }   // a barrier ticked Stops blasts: a wall to a blast, taken last
+        var role = C.coverRole(wb[i]); if (role) putPiece(wb[i], role, false);
+    }
+    var bigB = 0; if (!over) later.forEach(function(w) { if (!putPiece(w, 'hard', true)) bigB++; });
+    if (blast === true) {
+        if (bigB && _blastBig[map.id] !== bigB && typeof toast === 'function' && !(typeof isClientView === 'function' && isClientView())) toast((bigB === 1 ? 'A barrier on this map is' : bigB + ' barriers on this map are') + ' too large to stop blasts.' + (later.length > bigB ? ' The other barriers still do.' : ''));
+        _blastBig[map.id] = bigB;
     }
     // the walls and the see-over cells together over the cap (a cell counted once): the walls keep their cover, the see-over pieces give none.
     // all: the union the fogcore calls read, built once here

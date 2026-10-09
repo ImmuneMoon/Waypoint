@@ -133,6 +133,52 @@ function cellsUnderDiamond(x, y, w, h, grid) {
     for (var i = 0; i < box.length; i++) { var p = cellCenter(box[i], grid); if (Math.abs(p.x - cx) / rx + Math.abs(p.y - cy) / ry <= 1 + 1e-9) out.push(box[i]); }
     return out;
 }
+// The owed review, 2026-10-09: a turned piece's cells are found a column of cells at a time, so the work follows the piece and not its box (a
+// long thin wall turned across the grid has a box hundreds of times its own cells). cellsUnderSpan lists the cells of a board rect exactly as
+// cellsUnderRect does, in its order and by its test, but walks in each column only the rows `span` leaves: span(px) gives the stretch of y in
+// which the column at x may hold a centre the caller keeps ([lo, hi], or null for none). The rows are widened past the stretch, so a span that
+// leaves no kept centre out loses none
+function cellsUnderSpan(x, y, w, h, grid, span) {
+    var out = [], cs = [cellOf(x, y, grid), cellOf(x + w, y, grid), cellOf(x, y + h, grid), cellOf(x + w, y + h, grid)], sq = grid.type === 'square';
+    var a0 = Infinity, a1 = -Infinity, b0 = Infinity, b1 = -Infinity;
+    cs.forEach(function(c) { var a = sq ? c.c : c.q; a0 = Math.min(a0, a); a1 = Math.max(a1, a); b0 = Math.min(b0, c.r); b1 = Math.max(b1, c.r); });
+    if (!sq) { a0 -= 2; a1 += 2; b0 -= 2; b1 += 2; }
+    for (var a = a0; a <= a1; a++) {
+        var px = sq ? a * grid.size + grid.size / 2 : 1.5 * grid.s * a + grid.s / 2, sp = span(px); if (!sp) continue;
+        var lo = Math.max(sp[0], y), hi = Math.min(sp[1], y + h); if (!(lo <= hi)) continue;
+        var from = Math.max(b0, sq ? Math.floor(lo / grid.size) - 1 : Math.floor(lo / grid.h - a / 2) - 2), to = Math.min(b1, sq ? Math.floor(hi / grid.size) + 1 : Math.ceil(hi / grid.h - a / 2) + 2);
+        for (var b = from; b <= to; b++) {
+            var cell = sq ? { c: a, r: b } : { q: a, r: b }, p = cellCenter(cell, grid);
+            if (p.x >= x && p.x <= x + w && p.y >= y && p.y <= y + h) out.push(cell);
+        }
+    }
+    return out;
+}
+// The span of a turned piece: its own box about (cx, cy), half-sizes rx and ry (never under any outline's own half-size), a hair wider than the
+// outline tests' own 1e-9, cut by the line x. A side that runs along the column, the piece all but square to the grid, cuts nothing off
+function turnedSpan(cx, cy, co, si, rx, ry) {
+    var hx = rx * (1 + 1e-8) + 1e-6, hy = ry * (1 + 1e-8) + 1e-6;
+    return function(px) {
+        var dx = px - cx, lo = -Infinity, hi = Infinity, a, b;
+        if (Math.abs(si) > 1e-6) { a = (-hx - dx * co) / si; b = (hx - dx * co) / si; lo = Math.max(lo, Math.min(a, b)); hi = Math.min(hi, Math.max(a, b)); }
+        if (Math.abs(co) > 1e-6) { a = (-hy + dx * si) / co; b = (hy + dx * si) / co; lo = Math.max(lo, Math.min(a, b)); hi = Math.min(hi, Math.max(a, b)); }
+        return lo <= hi ? [cy + lo, cy + hi] : null;
+    };
+}
+// Whether a piece is too large to list its cells: past OVER_TIMES times the walls' cap (the owed review, 2026-10-09: a host may name a piece of
+// any size, and listing one 16 million cells wide stalled a player's app before any cap was counted). Judged on what itemCells would walk: an
+// unturned piece's own box; a turned one's own size, since its cells are found a column at a time and its columns are fewer than twice its
+// own size in cells; a turned piece with a size below 0, whose box is walked whole, by that box. A painted cell is its one cell whatever its box
+var OVER_TIMES = 40;
+function itemOver(w, grid) {
+    if (!isObj(w) || !isObj(grid) || w.fill) return false;
+    var cw = grid.type === 'square' ? grid.size : 1.5 * grid.s, ch = grid.type === 'square' ? grid.size : grid.h, top = LIMITS.blockerCells * OVER_TIMES;
+    var ww = fin(w.w) ? w.w : 0, hh = fin(w.h) ? w.h : 0, rot = fin(w.rot) ? w.rot % 360 : 0;
+    if (!rot || (w.type === 'circle' && ww === hh)) return !((Math.abs(ww) / cw + 2) * (Math.abs(hh) / ch + 2) <= top);
+    var m = Math.min(cw, ch); if (ww >= 0 && hh >= 0) return !((ww / m + 2) * (hh / m + 2) <= top);
+    var rad = rot * Math.PI / 180, co = Math.abs(Math.cos(rad)), si = Math.abs(Math.sin(rad)), bw = Math.abs(ww) * co + Math.abs(hh) * si, bh = Math.abs(ww) * si + Math.abs(hh) * co;
+    return !((bw / cw + 2) * (bh / ch + 2) <= top);
+}
 // Item 18 (the owner's answer, 2026-09-30: a turned shape or an image blocks by its outline, never by pixels): a board piece's cells — those
 // whose centre lies inside its outline, turned by its rot (degrees, about its box's centre, as the board draws it). A painted cell is its one
 // cell; a circle its ellipse (a true circle turns into itself, so it is read unturned); a hexagon or a diamond its own outline; a rectangle, an
@@ -144,7 +190,8 @@ function itemCells(w, grid) {
     var kind = w.type === 'hexagon' ? 'hex' : w.type === 'circle' ? 'ell' : w.type === 'diamond' ? 'dia' : 'rect', rot = fin(w.rot) ? w.rot % 360 : 0;
     if (!rot || (kind === 'ell' && ww === hh)) return kind === 'hex' ? cellsUnderHex(w.x, w.y, ww, hh, grid) : kind === 'ell' ? cellsUnderCircle(w.x, w.y, ww, hh, grid) : kind === 'dia' ? cellsUnderDiamond(w.x, w.y, ww, hh, grid) : cellsUnderRect(w.x, w.y, ww, hh, grid);
     var rad = rot * Math.PI / 180, co = Math.cos(rad), si = Math.sin(rad), cx = w.x + ww / 2, cy = w.y + hh / 2, rx = ww / 2 || 1, ry = hh / 2 || 1;
-    var bw = Math.abs(ww * co) + Math.abs(hh * si), bh = Math.abs(ww * si) + Math.abs(hh * co), box = cellsUnderRect(cx - bw / 2, cy - bh / 2, bw, bh, grid), out = [];
+    var bw = Math.abs(ww * co) + Math.abs(hh * si), bh = Math.abs(ww * si) + Math.abs(hh * co), out = [];
+    var box = ww >= 0 && hh >= 0 ? cellsUnderSpan(cx - bw / 2, cy - bh / 2, bw, bh, grid, turnedSpan(cx, cy, co, si, rx, ry)) : cellsUnderRect(cx - bw / 2, cy - bh / 2, bw, bh, grid);   // the turned box's cells, a column at a time for a plain size
     for (var i = 0; i < box.length; i++) {
         var p = cellCenter(box[i], grid), dx = p.x - cx, dy = p.y - cy, lx = dx * co + dy * si, ly = -dx * si + dy * co;   // the cell centre in the piece's own frame
         var inside = kind === 'hex' ? pointInFlatHex(lx, ly, 0, 0, ww, hh) : kind === 'ell' ? (lx / rx) * (lx / rx) + (ly / ry) * (ly / ry) <= 1 + 1e-9
@@ -848,7 +895,7 @@ function markCells(viewers, creatures, grid, blockers, found, smoke) {
     var byKey = function(a, b) { return a.key < b.key ? -1 : a.key > b.key ? 1 : 0; };
     cs.sort(function(a, b) { return a.d - b.d || byKey(a, b); });
     var got = Object.create(null), tests = 0, withSmoke = null;
-    if (isObj(smoke)) { withSmoke = Object.create(null); var bk; if (blockers) for (bk in blockers) withSmoke[bk] = 1; for (bk in smoke) withSmoke[bk] = 1; }
+    if (isObj(smoke)) { withSmoke = Object.create(null); var bk; if (blockers) for (bk in blockers) withSmoke[bk] = 1; for (bk in smoke) withSmoke[bk] = 1; copyWalls(blockers, withSmoke); copyWalls(smoke, withSmoke); }   // the owed review, 2026-10-09: the thin walls too, as unionSets and fog.js smokeUnion carry them (with the cells alone, one Smoke piece anywhere made every pen-line wall stop no mark sense)
     cs.forEach(function(cr) {
         vs.forEach(function(o) {
             var v = o.v, g = got[cr.key], better = !g || v.k < g.k;
@@ -1006,6 +1053,6 @@ function cleanCampFog(cf) {   // campaign-level: { fields:{sight, sightUnit?}, d
     return out;
 }
 
-var API = { VERSION: VERSION, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, itemCells: itemCells, pathSegs: pathSegs, pathCells: pathCells, withWalls: withWalls, wallsOf: wallsOf, copyWalls: copyWalls, wallEdgeCells: wallEdgeCells, lineClear: lineClear, moveClear: moveClear, cellCorners: cellCorners, coverBetween: coverBetween, coverFromPoint: coverFromPoint, openSeat: openSeat, coverRole: coverRole, barrierOn: barrierOn, isDoor: isDoor, strokeHeld: strokeHeld, cleanBarrier: cleanBarrier, blastStopOn: blastStopOn, cleanBlastStop: cleanBlastStop, fogHandOf: fogHandOf, cleanFogHand: cleanFogHand, cellsNear: cellsNear, isPortal: isPortal, cleanPortalLock: cleanPortalLock, visibleCells: visibleCells, seenCells: seenCells, cellDist: cellDist, cleanLight: cleanLight, cleanTokSenses: cleanTokSenses, cleanUnsensed: cleanUnsensed, cleanNulls: cleanNulls, cleanTerrain: cleanTerrain, cleanHeight: cleanHeight, cleanGround: cleanGround, itemCovers: itemCovers, groundAt: groundAt, cleanTokFx: cleanTokFx, terrainFactor: terrainFactor, cleanFogOff: cleanFogOff, markCells: markCells, lineOverHeight: lineOverHeight, lineOverWall: lineOverWall, heightStops: heightStops, cleanFogMarks: cleanFogMarks, lightUnit: lightUnit, unitCells: unitCells, cellInArc: cellInArc, litLevels: litLevels, neighbourCells: neighbourCells, cleanFogLit: cleanFogLit, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog };
+var API = { VERSION: VERSION, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, itemCells: itemCells, itemOver: itemOver, pathSegs: pathSegs, pathCells: pathCells, withWalls: withWalls, wallsOf: wallsOf, copyWalls: copyWalls, wallEdgeCells: wallEdgeCells, lineClear: lineClear, moveClear: moveClear, cellCorners: cellCorners, coverBetween: coverBetween, coverFromPoint: coverFromPoint, openSeat: openSeat, coverRole: coverRole, barrierOn: barrierOn, isDoor: isDoor, strokeHeld: strokeHeld, cleanBarrier: cleanBarrier, blastStopOn: blastStopOn, cleanBlastStop: cleanBlastStop, fogHandOf: fogHandOf, cleanFogHand: cleanFogHand, cellsNear: cellsNear, isPortal: isPortal, cleanPortalLock: cleanPortalLock, visibleCells: visibleCells, seenCells: seenCells, cellDist: cellDist, cleanLight: cleanLight, cleanTokSenses: cleanTokSenses, cleanUnsensed: cleanUnsensed, cleanNulls: cleanNulls, cleanTerrain: cleanTerrain, cleanHeight: cleanHeight, cleanGround: cleanGround, itemCovers: itemCovers, groundAt: groundAt, cleanTokFx: cleanTokFx, terrainFactor: terrainFactor, cleanFogOff: cleanFogOff, markCells: markCells, lineOverHeight: lineOverHeight, lineOverWall: lineOverWall, heightStops: heightStops, cleanFogMarks: cleanFogMarks, lightUnit: lightUnit, unitCells: unitCells, cellInArc: cellInArc, litLevels: litLevels, neighbourCells: neighbourCells, cleanFogLit: cleanFogLit, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog };
 if (typeof window !== 'undefined') window.wpFogCore = API;
-export { VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, itemCells, pathSegs, pathCells, withWalls, wallsOf, copyWalls, wallEdgeCells, lineClear, moveClear, cellCorners, coverBetween, coverFromPoint, openSeat, coverRole, barrierOn, isDoor, strokeHeld, cleanBarrier, blastStopOn, cleanBlastStop, fogHandOf, cleanFogHand, cellsNear, isPortal, cleanPortalLock, visibleCells, seenCells, cellDist, cleanLight, cleanTokSenses, cleanUnsensed, cleanNulls, cleanTerrain, cleanHeight, cleanGround, itemCovers, groundAt, cleanTokFx, terrainFactor, cleanFogOff, markCells, lineOverHeight, lineOverWall, heightStops, cleanFogMarks, lightUnit, unitCells, cellInArc, litLevels, neighbourCells, cleanFogLit, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog };
+export { VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, itemCells, itemOver, pathSegs, pathCells, withWalls, wallsOf, copyWalls, wallEdgeCells, lineClear, moveClear, cellCorners, coverBetween, coverFromPoint, openSeat, coverRole, barrierOn, isDoor, strokeHeld, cleanBarrier, blastStopOn, cleanBlastStop, fogHandOf, cleanFogHand, cellsNear, isPortal, cleanPortalLock, visibleCells, seenCells, cellDist, cleanLight, cleanTokSenses, cleanUnsensed, cleanNulls, cleanTerrain, cleanHeight, cleanGround, itemCovers, groundAt, cleanTokFx, terrainFactor, cleanFogOff, markCells, lineOverHeight, lineOverWall, heightStops, cleanFogMarks, lightUnit, unitCells, cellInArc, litLevels, neighbourCells, cleanFogLit, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog };

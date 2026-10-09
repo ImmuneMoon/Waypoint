@@ -218,7 +218,10 @@ function foldReveal(root, el, own) {
     for (var i = 0; i < at; i++) { var lv = page.levels[i]; if (!lv) continue; stack = stack.filter(function(o) { return o.level < lv; }); stack.push({ level: lv, part: part[i] }); }
     var lvAt = page.levels[at]; if (lvAt) stack = stack.filter(function(o) { return o.level < lvAt; });
     stack.forEach(function(o) { open(o.part); });
-    if (part[at] && (part[at].kind === 'body' || own)) open(part[at]);
+    // The owed review, 2026-10-09: a block that opens with a heading and holds more is a heading's part, and folded its remainder is put away
+    // with what stands under it. A hit there opens it; a hit in the heading's own words is in sight as it is
+    var hd = navFirstEl(page.blocks[at]), inHead = el === page.blocks[at]; for (var n = el; !inHead && n && n !== page.blocks[at]; n = n.parentNode) if (n === hd) inHead = true;
+    if (part[at] && (part[at].kind === 'body' || own || !inHead)) open(part[at]);
     if (changed) foldSet(root, shut);
     return changed;
 }

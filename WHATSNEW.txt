@@ -270,6 +270,9 @@ The top bar and the data map
 - The top row can be hidden: press the small arrow at its right end.
   A tab at the top edge shows it again. The map tabs and the pills
   stay, floating on the map.
+  They sit under the top ruler, and the zoom box and the minimap
+  move down to make room. The tab stands in the corner where the
+  two rulers meet.
 - The System editor has a key on its Fields, Rolls, Items and Lists
   tabs. Press What the ticks mean to see what each tick of a row
   does.

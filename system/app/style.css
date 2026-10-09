@@ -1545,12 +1545,25 @@
      and what says something stays in sight, floating on the map: the map tabs, the pills, the clock, a player's video, Review, Update, and
      the chat button while a line is unread. The tour's card shows the row whole ---- */
   header #rowHideBtn .ico { transform: rotate(180deg); }   /* the small arrow the toolbar uses, pointing up */
-  #rowShowTab { position: fixed; top: 0; left: 50%; transform: translateX(-50%); z-index: 4031; width: 44px; height: 14px; padding: 0; border: 1px solid var(--edge); border-top: 0; border-radius: 0 0 7px 7px; background: var(--bg2); color: var(--dim); cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  /* the tab that shows a hidden row stands at the top edge, in the corner where the two rulers meet, which holds nothing: it covers no ruler, no map tab and no pill.
+     --mainleft is where the map's area begins, measured by rowhide.js: past the rail, or past a docked panel and its grip */
+  #rowShowTab { position: fixed; top: 0; left: var(--mainleft, 34px); z-index: 4031; box-sizing: border-box; width: 36px; height: 18px; padding: 0; border: 1px solid var(--edge); border-top: 0; border-left: 0; border-radius: 0 0 7px 0; background: var(--bg2); color: var(--dim); cursor: pointer; display: flex; align-items: center; justify-content: center; }
   #rowShowTab[hidden], body.tour-on #rowShowTab, body.stream-mode #rowShowTab { display: none; }
   #rowShowTab:hover, #rowShowTab:focus-visible { color: var(--gold); border-color: var(--gold); }
   #rowShowTab .ico { width: 12px; height: 12px; }
-  body.row-hidden:not(.tour-on) header { position: fixed; top: 2px; left: 40px; right: 8px; z-index: 4030; min-height: 0; padding: 0; gap: 6px; background: none; border: 0; flex-wrap: nowrap; pointer-events: none; }
-  body.row-hidden:not(.tour-on):has(#leftRail[hidden]) header { left: calc(var(--leftw, 240px) + 10px); }   /* beside a docked left panel */
+  /* a hidden row's bar floats under the top ruler (18 px) and past the left one with the tab in its corner (36 px), so both rulers are read whole.
+     With no ruler on screen it stands at the top edge */
+  body.row-hidden:not(.tour-on) { --rowbar: 22px; }
+  body.row-hidden:not(.tour-on).no-rulers { --rowbar: 3px; }
+  body.row-hidden:not(.tour-on) header { position: fixed; top: var(--rowbar); left: calc(var(--mainleft, 34px) + 42px); right: 8px; z-index: 4030; min-height: 0; padding: 0; gap: 6px; background: none; border: 0; flex-wrap: nowrap; pointer-events: none; }
+  /* where the window is too narrow for the bar it gives way and never spills over the Properties panel: the tabs down to the plus alone, as a folded row's do,
+     the clock cut short first, and then each pill down to its drawing alone (32 px: its drawing, its padding and its edge), its words cut short. Past that the pills' box
+     clips sideways: nothing of the bar is ever drawn past its own right edge */
+  body.row-hidden:not(.tour-on) header #mapTabs { min-width: 30px; }
+  body.row-hidden:not(.tour-on) header #clockChip { flex: 0 100 auto; min-width: 0; }
+  body.row-hidden:not(.tour-on) header #rowPills { flex: 0 1 auto; min-width: 0; overflow-x: clip; }
+  body.row-hidden:not(.tour-on) header #rowPills .pill { flex: 0 1 auto; min-width: 32px; }
+  body.row-hidden:not(.tour-on) header #rowPills .pill-txt { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   body.row-hidden:not(.tour-on):has(#sidebar:not(.collapsed):not([style*="none"])) header { right: calc(var(--rightw, 320px) + 12px); }   /* and clear of an open Properties panel */
   body.row-hidden:not(.tour-on) header > *:not(#mapTabs):not(#rowPills):not(#clockChip):not(#videoChip):not(.spacer):not(.header-group),
   body.row-hidden:not(.tour-on) header > .header-group > *:not(#updateBtn):not(#reviewChip):not(.hdr-group),
@@ -1560,6 +1573,20 @@
   body.row-hidden:not(.tour-on) header #rowPills, body.row-hidden:not(.tour-on) header #clockChip, body.row-hidden:not(.tour-on) header #videoChip, body.row-hidden:not(.tour-on) header #mapTabs > *, body.row-hidden:not(.tour-on) header #updateBtn, body.row-hidden:not(.tour-on) header #reviewChip, body.row-hidden:not(.tour-on) header #chatBtn { pointer-events: auto; }
   body.row-hidden:not(.tour-on) header .map-tab, body.row-hidden:not(.tour-on) header #mapTabAdd, body.row-hidden:not(.tour-on) header #clockChip, body.row-hidden:not(.tour-on) header #chatBtn { background: var(--bg2); }
   body.row-hidden:not(.tour-on) header #mapTabFront, body.row-hidden:not(.tour-on) header .map-tab, body.row-hidden:not(.tour-on) header #mapTabAdd, body.row-hidden:not(.tour-on) header .pill, body.row-hidden:not(.tour-on) header .hdr-clock, body.row-hidden:not(.tour-on) header #chatBtn { box-shadow: 0 1px 6px rgba(0,0,0,0.5); }
+  /* what stands at the top of a map moves down by the bar's height (26 px and a gap) while the row is hidden, so the bar touches none of it: the minimap and the zoom
+     box first, then what stood on one line under the zoom box (the party strip, a player's join card and the turn strip), which keeps its distance, the party strip
+     taking the zoom box's place when that is put away. A planner or a page has a toolbar of its own along its top edge: there the page starts under the bar. What is
+     fixed to the window's middle (the pause banner, the sound and music gates) stands level with the zoom box, clear of the turn strip under it. A player's page
+     reader and the update banner write their top once, from the row's bottom as it was then: here they stand under the bar whatever they wrote. Never in the
+     stream window, which has no bar: every rule here says so */
+  body.row-hidden:not(.tour-on):not(.stream-mode) #minimap, body.row-hidden:not(.tour-on):not(.stream-mode) #zoomBox { top: calc(var(--rowbar) + 32px); }
+  body.row-hidden:not(.tour-on):not(.stream-mode) #partyStrip, body.row-hidden:not(.tour-on):not(.stream-mode) #joinCard, body.row-hidden:not(.tour-on):not(.stream-mode) #combatStrip { top: calc(var(--rowbar) + 68px); }
+  body.row-hidden:not(.tour-on):not(.stream-mode).no-pointerpos.no-zoomctl #partyStrip { top: calc(var(--rowbar) + 32px); }
+  body.row-hidden:not(.tour-on):not(.stream-mode) #plannerWrap { margin-top: 32px; }
+  body.row-hidden:not(.tour-on):not(.stream-mode) #pauseBanner { top: calc(var(--rowbar) + 27px); }
+  body.row-hidden:not(.tour-on):not(.stream-mode) #soundGate, body.row-hidden:not(.tour-on):not(.stream-mode) #musicGate { top: calc(var(--rowbar) + 32px); }
+  body.row-hidden:not(.tour-on):not(.stream-mode) #docReaderModal { top: calc(var(--rowbar) + 26px) !important; }
+  body.row-hidden:not(.tour-on):not(.stream-mode) #updateBanner { top: calc(var(--rowbar) + 34px) !important; }
   /* ---- the left panel folded to a rail (step R4 of the slim row; leftrail.js). Folded, a narrow column of icons stands in the panel's place.
      Opened from the rail, the panel lies over the map beside it, and takes no room from the map ---- */
   .layout-wrapper { position: relative; }
@@ -1570,7 +1597,7 @@
   .rail-btn.on { background: var(--gold); color: #1a1a1a; }
   .rail-btn .ico { width: 16px; height: 16px; }
   .rail-grow { flex: 1; }
-  #campaignSidebar.floating { position: absolute; left: 34px; top: 0; bottom: 0; z-index: 4020; box-shadow: 6px 0 18px rgba(0,0,0,0.45); }   /* over the map, its fog and the panes' arrows */
+  #campaignSidebar.floating { position: absolute; left: 34px; top: 0; bottom: 0; z-index: 5001; box-shadow: 6px 0 18px rgba(0,0,0,0.45); }   /* over the map, its fog, the panes' arrows, the minimap (5000) and a hidden row's bar and tab (4030, 4031): nothing of the map's own is drawn on the opened panel */
   #campaignSidebar.collapsed + #leftGrip, #campaignSidebar.floating + #leftGrip { display: none; }   /* only a docked panel is resized */
   body.stream-mode #leftRail, body.net-client.no-handbook #leftRail { display: none !important; }
   /* ---- the top row's state pills (step R3 of the slim row): what is going on, in a few words. A pill shows only while it has something to

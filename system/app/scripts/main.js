@@ -242,6 +242,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       document.getElementById('toggleRightBtn').style.display = isPlanner ? 'none' : 'flex';
       if (window.wpLeftRail) window.wpLeftRail.sync();   // the left panel folds to its rail on the play map (leftrail.js), before the bar measures the room the map has
+      if (window.wpRowHide) window.wpRowHide.fit();   // where the map's area begins, for a hidden row's tab and bar (rowhide.js): one redraw can move both of the area's edges and leave its size as it was
       if (window.wpFitBar) window.wpFitBar();   // 107: the bar never runs off the map (it tightens, then wraps). Asked once the panes are switched: it measures the room the map has
       if (window.wpFloats) window.wpFloats.sync();   // 1.5.4 (floats.js): a floating box shows on the play map, and on another view only if it was asked for there
 

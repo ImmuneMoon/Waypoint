@@ -6,7 +6,12 @@
    page: the style sheet lifts the row off the layout by the one word row-hidden on the body, so the map has the whole window, and leaves
    in sight what says something: the map tabs, the pills with the clock, a player's video, Review and Update, and the chat button while a
    line is unread. Every control keeps its id and its handler, and the tour's card shows the row whole, since a step may point into it.
-   Whether the row is hidden is this computer's own (wp_rowHidden). */
+   Whether the row is hidden is this computer's own (wp_rowHidden).
+
+   What stays in sight keeps clear of what stands at the top of a map (the owner, 2026-10-08, with pictures: "things need better vertical
+   spacing", "the bar also blocks the ruler along the top and slightly to the left side"): the bar floats under the top ruler and past the
+   left one, the tab stands in the corner where the two rulers meet, and the style sheet moves the minimap, the zoom box and the party strip
+   down by the bar's height. This module tells the style sheet where the map's area begins (--mainleft). */
 
 // [lookcheck:rowhide-start]
 function hideRead(store) { try { return store.getItem('wp_rowHidden') === '1'; } catch (e) { return false; } }
@@ -28,6 +33,19 @@ function hideSet(doc, store, w, on) {
     var to = doc.getElementById(hid ? 'rowShowTab' : 'rowHideBtn'); if (to && typeof to.focus === 'function') to.focus();   // the focus goes to the control that undoes it
     return hid;
 }
+// Where the map's area begins, told to the style sheet as --mainleft. The tab that shows a hidden row stands in that area's top left corner and
+// the row's bar beside it, whatever stands to their left: the rail, a docked panel with its grip, or nothing at all on a player's app that has
+// nothing to read. Answers the number written, or null when there is nothing sound to write (the style sheet then keeps the rail's width)
+function mainLeft(doc) {
+    var m = doc.getElementById('main'), r = (m && typeof m.getBoundingClientRect === 'function') ? m.getBoundingClientRect() : null;
+    var x = (r && typeof r.left === 'number') ? Math.round(r.left) : NaN;
+    return (x >= 0 && x <= 4000) ? x : null;
+}
+function mainLeftApply(doc) {
+    var x = mainLeft(doc); if (x === null) return null;
+    doc.documentElement.style.setProperty('--mainleft', x + 'px');
+    return x;
+}
 // [lookcheck:rowhide-end]
 
 function wire() {
@@ -35,6 +53,9 @@ function wire() {
     if (btn) btn.addEventListener('click', function() { hideSet(document, localStorage, window, true); });
     if (tab) tab.addEventListener('click', function() { hideSet(document, localStorage, window, false); });
     hideApply(document, hideRead(localStorage));
+    mainLeftApply(document);
+    var area = document.getElementById('main');
+    if (area && typeof ResizeObserver === 'function') new ResizeObserver(function() { mainLeftApply(document); }).observe(area);   // the area changes size when the left panel is folded, opened, docked or dragged wider; main.js render() asks fit() too, since one redraw can move both of its edges
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire();
-window.wpRowHide = { set: function(on) { return hideSet(document, localStorage, window, on === true); }, hidden: function() { return document.body.classList.contains('row-hidden'); } };
+window.wpRowHide = { set: function(on) { return hideSet(document, localStorage, window, on === true); }, hidden: function() { return document.body.classList.contains('row-hidden'); }, fit: function() { return mainLeftApply(document); } };

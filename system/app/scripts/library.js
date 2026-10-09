@@ -232,8 +232,16 @@ function needShown(id) {
 // read, at any depth (judged over the GM's own system, as a budget is), and it addresses no GM-only entry of the library by its key, whose
 // name the text would tell. Kept per system and library state and per text, since every entry of a pack may ask
 var _ruleMemo = { key: null, sys: null, view: null, idx: null, lists: null, said: null };
+// The owed review, 2026-10-09: a rule is judged against the library as it is READ. While a pack's file is not read, its entries are in no index
+// and its GM-only ones have left the core, so a rule that names one by its key read as shown. Until every listed pack is read no rule is
+// shown, as catsFor answers nothing then (and the answer is not kept: it is given before the memo)
+function libWhole(camp) {
+    var pk = camp.library && Array.isArray(camp.library.packs) ? camp.library.packs : [];
+    return !pk.length || (cur.campId === camp.id && cur.state !== 'loading' && pk.every(function(p) { return !!p && typeof p.id === 'string' && Object.prototype.hasOwnProperty.call(cur.packs, p.id); }));
+}
 function needRuleShown(text) {
     var camp = getActiveCampaign(), f = F(); if (!camp || !camp.system || !f || typeof f.parse !== 'function' || typeof text !== 'string' || !text) return false;
+    if (!libWhole(camp)) return false;
     var key = manifestSig(camp) + '|' + cur.n + '|' + (camp.library && Array.isArray(camp.library.packs) ? camp.library.packs.map(function(p) { return p && p.vis === 'gm' ? 'g' : 'a'; }).join('') : '');
     if (_ruleMemo.sys !== camp.system || _ruleMemo.key !== key) _ruleMemo = { key: key, sys: camp.system, view: null, idx: null, lists: null, said: map() };
     var m = _ruleMemo; if (m.said[text] !== undefined) return m.said[text];
@@ -289,4 +297,4 @@ setRuleJudge(needRuleShown);   // 126b: an owner's copy of a row carries its ent
 // the campaign on screen, or its manifest, changed (a load, a switch, a restore): read it again
 setInterval(function() { if (busy) return; var camp = getActiveCampaign(), sig = manifestSig(camp); if (sig !== cur.sig || (camp ? camp.id : null) !== cur.campId) load(camp); }, 1000);
 
-window.wpLibrary = { load: load, entry: entry, entryFor: entryFor, entriesOf: entriesOf, size: function() { return cur.n; }, state: function() { return cur.state; }, error: function() { return cur.error; }, savePack: savePack, createPack: createPack, deletePack: deletePack, importFiles: importFiles, importPlan: libImportPlan, refreshCore: refreshCore, syncSnaps: syncSnaps, ready: ready, setMeta: setMeta, migrateItems: migrateItems, playerIndexOf: playerIndexOf, playerManifest: playerManifest, catsFor: catsFor, playerEntry: playerEntry, needShown: needShown, needRuleShown: needRuleShown };
+window.wpLibrary = { whole: function() { var cW = getActiveCampaign(); return !!cW && libWhole(cW); }, load: load, entry: entry, entryFor: entryFor, entriesOf: entriesOf, size: function() { return cur.n; }, state: function() { return cur.state; }, error: function() { return cur.error; }, savePack: savePack, createPack: createPack, deletePack: deletePack, importFiles: importFiles, importPlan: libImportPlan, refreshCore: refreshCore, syncSnaps: syncSnaps, ready: ready, setMeta: setMeta, migrateItems: migrateItems, playerIndexOf: playerIndexOf, playerManifest: playerManifest, catsFor: catsFor, playerEntry: playerEntry, needShown: needShown, needRuleShown: needRuleShown };

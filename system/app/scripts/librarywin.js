@@ -127,6 +127,7 @@ function newPack() {
 function exportPack(which) {
     var p = packById(st.packId), c = camp(); if (!p || !c || !ready(p.id)) return;
     var players = which === 'players', pv = players && window.wpSheets && window.wpSheets.playerSystem ? window.wpSheets.playerSystem(c) : null;
+    if (players && LB() && LB().whole && LB().whole() !== true) { toast('A pack of this campaign could not be read, so a players\u2019 copy would leave every rule out. Nothing was exported.'); return; }   // the owed review, 2026-10-09: such a file would keep its rules hidden for good, with nothing said
     var file = packFile(p, workOf(p.id), players ? libCtx(pv || { fields: [] }, F(), false, LB() && LB().needShown ? LB().needShown : undefined, LB() && LB().needRuleShown ? LB().needRuleShown : undefined) : gmCtx());   // 126b: a players' copy names no entry players cannot see
     var base = String(p.name || '').replace(/[^A-Za-z0-9_ -]+/g, '').trim().replace(/ +/g, '_').slice(0, 40) || 'pack';
     var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(file, null, 1)], { type: 'application/json' })); a.download = base + (players ? '.players' : '') + '.wppack.json';
@@ -238,6 +239,7 @@ function field(form, id, label, value, opts) {
 }
 function renderForm() {
     var form = ui('libForm'); if (!form) return; form.textContent = '';
+    st.fm = null; st.fmFor = null; st.fn = null; st.fnFor = null;   // the owed review, 2026-10-09: the form is filled from the entry as it is stored, every box of it. The working copies of its changes and its needs outlived the form (a close, an import, another campaign), and Save entry wrote stale ones back
     if (st.imp) { renderImport(form); return; }
     var many = st.draftNew ? [] : chosen(); if (many.length > 1) { renderBulk(form, many); return; }
     var e = current(); if (!e) { form.appendChild(el('div', 'lib-empty', st.packId && ready(st.packId) ? 'Choose an entry, or + Entry to add one. Ctrl-click, Shift-click or Ctrl+A choose several.' : '')); return; }
@@ -313,7 +315,7 @@ function needsBox(form, e) {
     form.appendChild(el('div', 'lib-note', 'A rule is a formula that must be true for the character, such as ST >= 12. It rolls no dice.'));
     field(form, 'needsFrom', 'Rule from level', e.needsFrom, { max: 8, ph: 'The level of this entry from which the rule applies (optional)', title: 'Leave it empty for a rule that must be true to take the entry at all' });
     form.appendChild(el('div', 'lib-note', 'A need or a rule with a From level counts only once the row of this entry is at that level. A player who raises a level is judged as when they take the entry.'));
-    var rsN = LB() && LB().needRuleShown ? LB().needRuleShown : null; if (typeof e.needsIf === 'string' && e.needsIf && rsN && rsN(e.needsIf) !== true) form.appendChild(el('div', 'lib-warn', 'This rule reads something players may not read. They are not shown it, and your machine judges it alone.'));
+    var rsN = LB() && LB().needRuleShown ? LB().needRuleShown : null; if (typeof e.needsIf === 'string' && e.needsIf && rsN && rsN(e.needsIf) !== true) form.appendChild(el('div', 'lib-warn', LB().whole && LB().whole() !== true ? 'A pack of this campaign is not read, so no rule is shown to players for now. Your machine judges it alone.' : 'This rule reads something players may not read. They are not shown it, and your machine judges it alone.'));   // the owed review, 2026-10-09: while a pack is unread no rule is shown, whatever it reads: the reason said is the true one
     field(form, 'needsMsg', 'Message', e.needsMsg, { max: 200, ph: 'Shown to the player in place of what it needs (optional)' });
 }
 function modTargets() {
@@ -352,7 +354,7 @@ function modsBox(form, e) {
 function readForm() {
     var g = function(id) { var n = ui('libF_' + id); return n ? n.value : ''; }, e = current(), stats = {};
     Array.prototype.forEach.call(document.querySelectorAll('#libForm [data-stat]'), function(n) { stats[n.dataset.stat] = n.value; });
-    var typed = entryFromForm({ id: e.id, name: g('name'), key: g('key'), category: g('category'), icon: g('icon'), vis: g('vis'), lvl: g('lvl'), stats: stats, notes: g('notes'), desc: g('desc'), lvls: g('lvls'), tags: g('tags'), ref: g('ref'), damage: g('damage'), cost: g('cost'), throwSkill: g('throwSkill'), areaFt: g('areaFt'), areaShape: e.area && e.area.shape, areaName: e.area && e.area.name, gmNotes: g('gmNotes'), rm: g('rm'), rmMsg: g('rmMsg'), eq: g('eq'), eqMsg: g('eqMsg'), mods: st.fmFor === e.id && st.fm ? st.fm : e.mods, modsOn: ui('libF_modsOn') ? ui('libF_modsOn').checked : e.modsOn === true, needs: st.fnFor === e.id && st.fn ? st.fn : e.needs, needsIf: g('needsIf'), needsFrom: g('needsFrom'), needsMsg: g('needsMsg') });
+    var typed = entryFromForm({ id: e.id, name: g('name'), key: g('key'), category: g('category'), icon: g('icon'), vis: g('vis'), lvl: g('lvl'), stats: stats, notes: g('notes'), desc: g('desc'), lvls: g('lvls'), lvlsWas: e.lvls, tags: g('tags'), ref: g('ref'), damage: g('damage'), cost: g('cost'), throwSkill: g('throwSkill'), areaFt: g('areaFt'), areaShape: e.area && e.area.shape, areaName: e.area && e.area.name, gmNotes: g('gmNotes'), rm: g('rm'), rmMsg: g('rmMsg'), eq: g('eq'), eqMsg: g('eqMsg'), mods: st.fmFor === e.id && st.fm ? st.fm : e.mods, modsOn: ui('libF_modsOn') ? ui('libF_modsOn').checked : e.modsOn === true, needs: st.fnFor === e.id && st.fn ? st.fn : e.needs, needsIf: g('needsIf'), needsFrom: g('needsFrom'), needsMsg: g('needsMsg') });
     var out = clone(e), eqShown = !!ui('libF_eq'); FORM_KEYS.forEach(function(k) { if (eqShown || (k !== 'eq' && k !== 'eqMsg')) delete out[k]; }); return Object.assign(out, typed);   // a switch lock the form does not show (no list has a switch) is kept
 }
 function saveEntry() {

@@ -155,11 +155,18 @@ export function lvlsFromText(text) {
     return out;
 }
 export function lvlsToText(lvls) { return (Array.isArray(lvls) ? lvls : []).filter(isObj).map(function(r) { return String(r.lvl) + (r.tag ? ' (' + r.tag + ')' : '') + ': ' + String(r.text == null ? '' : r.text); }).join('\n'); }
+// The box's text as an entry's levels. While the box still reads exactly as the stored levels are written (nobody typed in it), they are kept
+// as they are: a level's words may hold what a line cannot carry back (a tag with a closing bracket and then a colon), and saving an entry
+// for another change must not rewrite its levels
+export function lvlsFromBox(text, was) {
+    var w = Array.isArray(was) && was.length ? was : null, t = String(text == null ? '' : text).replace(/\r\n?/g, '\n');
+    return w && t === lvlsToText(w) ? JSON.parse(JSON.stringify(w)) : lvlsFromText(t);
+}
 export function entryFromForm(f) {
     f = isObj(f) ? f : {}; var s = function(v) { return typeof v === 'string' ? v : v == null ? '' : String(v); };
     var out = { id: s(f.id), name: s(f.name), key: s(f.key).trim(), category: s(f.category), icon: s(f.icon), vis: f.vis === 'gm' ? 'gm' : 'all', notes: s(f.notes), desc: s(f.desc), ref: s(f.ref), gmNotes: s(f.gmNotes), damage: s(f.damage), cost: s(f.cost), throwSkill: s(f.throwSkill).trim() };
     var tags = s(f.tags).split(',').map(function(t) { return t.trim(); }).filter(Boolean); if (tags.length) out.tags = tags;
-    var lvs = lvlsFromText(s(f.lvls)); if (lvs.length) out.lvls = lvs;   // 1.5.4: one level a line
+    var lvs = lvlsFromBox(s(f.lvls), f.lvlsWas); if (lvs.length) out.lvls = lvs;   // 1.5.4: one level a line (lvlsWas: the entry's levels as stored, kept while the box was not typed in)
     var lv = s(f.lvl).trim(); if (/^-?\d+$/.test(lv)) out.lvl = Number(lv);
     if (isObj(f.stats)) { var st = {}, n = 0; Object.keys(f.stats).forEach(function(k) { var v = s(f.stats[k]).trim(); if (!v) return; st[k] = /^-?\d+(\.\d+)?$/.test(v) ? Number(v) : v; n++; }); if (n) out.stats = st; }
     var ft = s(f.areaFt).trim(); if (/^\d+$/.test(ft) && Number(ft) > 0) out.area = { ft: Number(ft), shape: s(f.areaShape) || 'circle', name: s(f.areaName) };   // the shape as it was (the cleaner keeps a known one)

@@ -869,7 +869,7 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
 
       var snapList = Array.isArray(snapC.whiteboard) ? snapC.whiteboard : [];
 
-      var liveById = {}, snapById = {}, liveOwned = {}, out = [];
+      var liveById = {}, snapById = {}, liveOwned = {}, out = [], back = [];
 
       var grp = function(w) { return w.charId ? 'c:' + w.charId : 'n:' + w.ownerId + '|' + String(w.charName || ''); };   // Onboarding F0: the chooser's groups (a character, or a pet by name)
       liveList.forEach(function(w) { if (w && w.id) { liveById[w.id] = w; if (w.isChar && w.ownerId) liveOwned[grp(w)] = 1; } });
@@ -880,6 +880,18 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
 
           var l = s && s.id ? liveById[s.id] : null;
 
+          // The owed review, 2026-10-09: an id that names two things is no match. A new drawing can be handed in under any id that is not on the
+
+          // map, the id of a piece the GM deleted among them: matched by id alone, the GM's Undo gave the restored piece (a wall, a door, another
+
+          // player's drawing) to whoever sent the line. Two things: the state's piece against a drawing on the map; and, where the count can say
+
+          // what happened since, the state's drawing against a piece that is none or against a drawing signed by another player. The state's own
+
+          // then comes back as a delete of the GM's undone, its owner as the state has it, and the other goes with the step
+
+          if (l && (isStroke(s) ? !!acts && (!isStroke(l) || (typeof l.ownerId === 'string' && typeof s.ownerId === 'string' && l.ownerId !== s.ownerId)) : isStroke(l))) l = null;
+
           if (!l) {
 
               if (isStroke(s) && (!acts || erasedBy(s.id))) return;   // the player erased it: stays erased (127: told by the host's count of what players erased — one the GM removed is no such thing, and comes back below; with no count every missing drawing of a player's reads as erased, as before)
@@ -887,6 +899,8 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
               // A GM-deleted token whose player has since been given another one on this map comes back
               // under GM control (sheet intact): a player never ends up with two tokens they both own
               if (s && s.isChar && s.ownerId && liveOwned[grp(s)]) delete s.ownerId;
+
+              if (isStroke(s) && typeof s.ownerId === 'string') back.push({ id: s.id, ownerId: s.ownerId });   // a player's drawing this step brings back: no copy of theirs holds it yet, so a copy of theirs without it is no erase (net.js strokesBack)
 
               out.push(s);   // anything else absent live was a GM delete: it comes back (a token with its sheet)
 
@@ -930,6 +944,8 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
       });
 
       snapC.whiteboard = out;
+
+      return back;   // the players' drawings that came back with this state: [{ id, ownerId }]
 
   }
 
@@ -1025,7 +1041,7 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
 
       var hosting = !!(window.wpNet && window.wpNet.active && window.wpNet.role === 'host');
 
-      if (hosting && item.type === 'map') mergeLivePlayerState(parsed.c, item, typeof window.wpNet.strokeActs === 'function' ? window.wpNet.strokeActs(camp.id, item.id) : null, typeof parsed.q === 'number' ? parsed.q : 0);   // 127: with the host's count of what players did to their own drawings here, and the count this state was taken at
+      var backS = hosting && item.type === 'map' ? mergeLivePlayerState(parsed.c, item, typeof window.wpNet.strokeActs === 'function' ? window.wpNet.strokeActs(camp.id, item.id) : null, typeof parsed.q === 'number' ? parsed.q : 0) : null;   // 127: with the host's count of what players did to their own drawings here, and the count this state was taken at
 
       h.cur = parsed && parsed.s && typeof parsed.s === 'object' ? parsed.s : null;   // the selection that goes with the state come back to (a planner's styled fields)
 
@@ -1050,7 +1066,7 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
 
       try {
 
-          if (hosting) { window.wpNet.applyingRemote = true; save(true); window.wpNet.applyingRemote = false; if (window.wpFog) window.wpFog.invalidateVision(); if (window.wpNet.sendItem) window.wpNet.sendItem(camp.id, item.id); wUndo.forEach(function(id) { if (id !== item.id && window.wpNet.broadcastItemFiltered) window.wpNet.broadcastItemFiltered(camp.id, id); }); if (window.wpNet.syncCombatHidden) window.wpNet.syncCombatHidden(); }
+          if (hosting) { window.wpNet.applyingRemote = true; save(true); window.wpNet.applyingRemote = false; if (window.wpFog) window.wpFog.invalidateVision(); if (backS && backS.length && typeof window.wpNet.strokesBack === 'function') window.wpNet.strokesBack(item.id, backS); if (window.wpNet.sendItem) window.wpNet.sendItem(camp.id, item.id); wUndo.forEach(function(id) { if (id !== item.id && window.wpNet.broadcastItemFiltered) window.wpNet.broadcastItemFiltered(camp.id, id); }); if (window.wpNet.syncCombatHidden) window.wpNet.syncCombatHidden(); }
 
           else save(true);
 

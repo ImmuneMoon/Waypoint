@@ -898,12 +898,34 @@ function cleanBudgets(v, F) {
     });
     return out.length ? out : null;
 }
+// What a budget is worked out from (the owed review, 2026-10-09). NO EFFECT counts in it. Not one made on the spot, in which a player may
+// name any field in their view and any amount, the points a character has among them. And not one of the system either: an effect is
+// switched with no budget asked, a GM-only one reaches its player as a row of its own that their app could not tell from one made on the
+// spot, and a figure that follows a passing effect could be raised, spent against and dropped again. Neither do the changes of a row a
+// PLAYER made on the sheet (`own`: a custom row, whose changes its player writes as freely). The changes of an item of the system or its
+// library count, and those of a row the GM made: taking, dropping and switching one are each judged. So the figures are the character's
+// own values with its effects lists emptied and the changes of its players' own rows left out, and no automatic effect is applied
+// (budgetsOf). The host's record and its owner's copy hold the same of all that, so both machines work out the same figures
+function budgetChar(sys, char) {
+    var vals = isObj(char.values) ? char.values : null, out = null, put = function(id, v) { out = out || Object.assign({}, vals); out[id] = v; };
+    if (vals) sys.fields.forEach(function(f) {
+        if (!isObj(f) || typeof f.id !== 'string' || !hasOwn(vals, f.id) || !Array.isArray(vals[f.id])) return;
+        var rows = vals[f.id];
+        if (f.kind === 'effects') { if (rows.length) put(f.id, []); return; }
+        var moved = false, kept = rows.map(function(r) {
+            if (!isObj(r) || r.own !== 1 || !isObj(r.def) || r.lnk === 1 || typeof r.defId === 'string' || !Array.isArray(r.def.mods) || !r.def.mods.length) return r;
+            moved = true; var d = Object.assign({}, r.def); delete d.mods; return Object.assign({}, r, { def: d });
+        });
+        if (moved) put(f.id, kept);
+    });
+    return out ? Object.assign({}, char, { values: out }) : char;
+}
 // The figures of every budget for one character: [{ id, name, has, spent, left, over, rule, when }]. A figure is a number, or null where its
-// formula could not be worked out for this character: such a budget is shown without figures and is never watched. over: spent is past has
+// formula could not be worked out for this character: such a budget is shown without figures. over: spent is past has
 function budgetsOf(sys, char, F) {
     var out = [], list = isObj(sys) && Array.isArray(sys.budgets) ? sys.budgets : [];
     if (!list.length || !isObj(char) || !Array.isArray(sys.fields) || !F || typeof F.evaluate !== 'function') return out;
-    var vars = makeResolver(sys, char, F, null);
+    var vars = makeResolver(sys, budgetChar(sys, char), F, { noAuto: true });
     var num = function(text) { var r = null; try { r = F.evaluate(text, { vars: vars, random: noDice }); } catch (e) { r = null; } if (!r || !r.ok) return null; var x = typeof r.value === 'boolean' ? (r.value ? 1 : 0) : r.value; return typeof x === 'number' && fin(x) ? x : null; };
     list.forEach(function(b) {
         if (!isObj(b) || typeof b.id !== 'string' || typeof b.has !== 'string' || typeof b.spent !== 'string') return;
@@ -915,8 +937,11 @@ function budgetsOf(sys, char, F) {
 // The host's judgement of a player's own change, asked BEFORE the change is stored. changes: { fieldId: the new value }, as the edit and the
 // row gates answer them. A budget is breached when, with the change, it is over AND further over than it was: a change that leaves an overrun
 // the same or smaller goes through, so a character that is over can be put right a step at a time. A budget is watched by its `when`; one set
-// to off, and one whose figures cannot be worked out before or after, is not judged. { refuse: the first breached budget set to refuse, or
-// null; warn: the breached budgets set to warn }, each { id, name, has, spent, by }
+// to off is not judged. A figure that cannot be worked out (the owed review, 2026-10-09: a player could make one fail, by a division by a field
+// of their own, and was then judged by nothing): a change that takes a budget from worked out to not is a breach (`lost`, with the figures
+// it had); one that brings it back is judged as if nothing had been over before, so over at all is a breach; one that cannot be worked out
+// before or after is not judged. { refuse: the first breached budget set to refuse, or null; warn: the breached budgets set to warn }, each
+// { id, name, has, spent, by } and, for a figure lost, lost: true
 function budgetWatch(sys, char, changes, F) {
     var out = { refuse: null, warn: [] }, list = isObj(sys) && Array.isArray(sys.budgets) ? sys.budgets : [];
     if (!list.length || !isObj(char) || !isObj(changes)) return out;
@@ -928,17 +953,20 @@ function budgetWatch(sys, char, changes, F) {
     Object.keys(changes).forEach(function(k) { if (FIELD_ID.test(k)) vals[k] = changes[k]; });
     var was = map(); budgetsOf(sys, char, F).forEach(function(x) { was[x.id] = x; });
     budgetsOf(sys, Object.assign({}, char, { values: vals }), F).forEach(function(x) {
-        var rule = live[x.id], w = was[x.id];
-        if (!rule || !w || x.left === null || w.left === null) return;
-        var d1 = x.spent - x.has, d0 = w.spent - w.has;
-        if (!(d1 > 1e-9) || !(d1 > d0 + 1e-9)) return;
-        var hit = { id: x.id, name: x.name, has: x.has, spent: x.spent, by: d1 };
+        var rule = live[x.id], w = was[x.id], hit = null;
+        if (!rule || !w) return;
+        if (x.left === null) { if (w.left === null) return; hit = { id: x.id, name: x.name, has: w.has, spent: w.spent, by: 0, lost: true }; }
+        else {
+            var d1 = x.spent - x.has, d0 = w.left === null ? 0 : w.spent - w.has;
+            if (!(d1 > 1e-9) || !(d1 > d0 + 1e-9)) return;
+            hit = { id: x.id, name: x.name, has: x.has, spent: x.spent, by: d1 };
+        }
         if (rule === 'refuse') { if (!out.refuse) out.refuse = hit; } else out.warn.push(hit);
     });
     return out;
 }
 // What a breach says, to the player and to the GM alike: the budget's name and its figures, as text
-function budgetSays(hit) { return isObj(hit) ? cutText(hit.name, LIMITS.name) + ': ' + fmtNum(hit.spent) + ' of ' + fmtNum(hit.has) + ' spent. That is ' + fmtNum(hit.by) + ' over.' : ''; }
+function budgetSays(hit) { return !isObj(hit) ? '' : hit.lost === true ? cutText(hit.name, LIMITS.name) + ' cannot be worked out with that change.' : cutText(hit.name, LIMITS.name) + ': ' + fmtNum(hit.spent) + ' of ' + fmtNum(hit.has) + ' spent. That is ' + fmtNum(hit.by) + ' over.'; }
 // Stage 3: optional per-section colors — hex only (accent = title + left stripe, bg = panel, border = box), like the doc-theming whitelist.
 function cleanSecStyle(v) {
     if (!isObj(v)) return null;
@@ -2129,12 +2157,13 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
                 if (!spec || !spec.price) return { ok: false, reason: 'value' };
                 if (fx.paid === null) delete rw.paid; else { if (typeof fx.paid !== 'number' || !fin(fx.paid) || fx.paid < 0 || fx.paid > LIMITS.statAbs) return { ok: false, reason: 'value' }; rw.paid = fx.paid; }
             }
-            var wasL = spec && isObj(spec.lvl) ? rowLvl(spec, rw, null) : undefined;
+            var lvJ = !!(fx.lvl !== undefined && opts.player && !fl && spec && isObj(spec.lvl)), rdJ = lvJ ? rowDef(sys, rw) : null, dfJ = rdJ ? rdJ.def : null, wasL = lvJ ? rowLvl(spec, rw, dfJ) : undefined;   // the level the row reads at before the change: its own, else its entry's, else the list's
             if (fx.lvl !== undefined) { if (!spec || !isObj(spec.lvl)) return { ok: false, reason: 'value' }; if (fx.lvl === null) delete rw.lvl; else { var nl = lvlNum(fx.lvl); if (nl === undefined || typeof fx.lvl !== 'number') return { ok: false, reason: 'value' }; rw.lvl = lvlClamp(spec.lvl, nl); } }
-            if (fx.lvl !== undefined && opts.player && !fl && typeof wasL === 'number' && typeof rw.lvl === 'number' && rw.lvl > wasL) {   // 126b, a level's own needs: a player's raise is judged like a pick, at the level asked for. Never the GM's hand, a file that fills a character, or a level taken down
+            var nowL = lvJ ? rowLvl(spec, rw, dfJ) : undefined;   // ... and after it. The owed review, 2026-10-09: a level handed back (null) reads at its entry's own, which is a raise for a row kept lower, and was judged by nothing
+            if (lvJ && typeof wasL === 'number' && typeof nowL === 'number' && nowL > wasL) {   // 126b, a level's own needs: a player's raise is judged like a pick, at the level asked for. Never the GM's hand, a file that fills a character, or a level taken down
                 var idL = typeof rw.defId === 'string' ? rw.defId : null;   // the host's row names its entry; an owner's inline copy on their own app carries the needs it may see itself
                 var entL = idL ? (itemDef(sys, idL) || (typeof opts.lib === 'function' ? opts.lib(idL) : null) || (opts.copy !== true && typeof libFind === 'function' ? libFind(idL) : null)) : (opts.copy === true && rw.lnk === 1 && typeof rw.src === 'string' ? rw : null);
-                var nmL = isObj(entL) ? needsMet(sys, char, entL, opts.copy === true, F, null, rw.lvl) : null;
+                var nmL = isObj(entL) ? needsMet(sys, char, entL, opts.copy === true, F, null, nowL) : null;
                 if (nmL && !nmL.ok) {
                     var pvL = opts.copy === true ? entL : idL ? (itemDef(opts.view || null, idL) || (typeof opts.libPl === 'function' ? opts.libPl(idL) : null)) : null;   // the entry as players read it: a rule they may not read is never said
                     var missL = nmL.missing.map(function(n) { return isObj(n) && n.rule !== undefined && !(isObj(pvL) && pvL.needsIf === n.rule) ? { rule: true } : n; });

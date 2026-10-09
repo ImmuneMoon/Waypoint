@@ -3647,7 +3647,7 @@ function budgetBar(box, sys, c) {
 function budgetNote(sys, c, a, v) {
     var d = a; if (typeof a === 'string') { d = {}; d[a] = v; }
     var w = budgetWatch(sys, c, d, F()), hit = w.refuse || w.warn[0];
-    if (hit) toast((c && c.name ? c.name : 'This character') + ' is over. ' + budgetSays(hit));
+    if (hit) toast((c && c.name ? c.name : 'This character') + (hit.lost === true ? ': ' : ' is over. ') + budgetSays(hit));
 }
 // [systemcheck:budgetbar-end]
 function renderReviewBar(c, camp, gm) {

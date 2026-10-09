@@ -1115,18 +1115,32 @@ function ackSend(msg, mapId) {   // a map for every admitted, open connection, e
 // A patch that leaves such a drawing out, or names one still hidden here, came from a stale copy: that connection is sent the map whole, with
 // the patch's number, so their app takes it as the word on everything up to that patch (applyClientItemFiltered, the item branch)
 var _hidPend = Object.create(null);
+function hidMark(mapId, ownerId, id, back) {   // back: a note made by the GM's undo ({ at: its time }); none: a drawing seen hidden (1)
+    net.conns.forEach(function(c) {
+        var pr = c && typeof c.peer === 'string' && own(net.roster, c.peer) ? net.roster[c.peer] : null; if (!pr || pr.id !== ownerId) return;
+        if (typeof mapHeld === 'function' && !mapHeld(c, mapId)) return;   // possession: only a connection holding this map whole has a copy of it
+        var per = own(_hidPend, c.peer) ? _hidPend[c.peer] : (_hidPend[c.peer] = Object.create(null)), ids = own(per, mapId) ? per[mapId] : (per[mapId] = Object.create(null));
+        ids[id] = back || 1;
+    });
+}
 function hidNote(map) {
     if (!map || map.type !== 'map' || typeof map.id !== 'string' || !Array.isArray(map.whiteboard)) return;
     map.whiteboard.forEach(function(w) {
         if (!w || !w.hidden || w.type !== 'path' || !w.byPlayer || typeof w.ownerId !== 'string' || typeof w.id !== 'string') return;
-        net.conns.forEach(function(c) {
-            var pr = c && typeof c.peer === 'string' && own(net.roster, c.peer) ? net.roster[c.peer] : null; if (!pr || pr.id !== w.ownerId) return;
-            if (typeof mapHeld === 'function' && !mapHeld(c, map.id)) return;   // possession: only a connection holding this map whole has a copy of it
-            var per = own(_hidPend, c.peer) ? _hidPend[c.peer] : (_hidPend[c.peer] = Object.create(null)), ids = own(per, map.id) ? per[map.id] : (per[map.id] = Object.create(null));
-            ids[w.id] = 1;
-        });
+        hidMark(map.id, w.ownerId, w.id);
     });
 }
+// The owed review, 2026-10-09: the same for a drawing of a player's that the GM's undo or redo brought back (io.js stepHistory tells which, as
+// the merge names them). Its player's copy does not hold it until the restored map reaches them, so a copy of theirs made before that
+// lacks it: read as their erase, it took the GM's undo back in silence and noted an erase that no later undo could bring back. This note
+// carries its time: EVERY copy of theirs that lacks the drawing within HID_BACK_MS of the step is no erase (two may be on their way), and
+// after that the note is spent, so that an erase of their own is an erase at once however long they waited
+function hidBack(mapId, list) {
+    if (typeof mapId !== 'string' || !mapId || !Array.isArray(list)) return;
+    var at = typeof fogNow === 'function' ? fogNow() : Date.now();
+    list.forEach(function(b) { if (b && typeof b.id === 'string' && b.id && typeof b.ownerId === 'string' && b.ownerId) hidMark(mapId, b.ownerId, b.id, { at: at }); });
+}
+net.strokesBack = function(mapId, list) { if (net.role === 'host') hidBack(mapId, list); };
 function hidNoteAll() { var camp = getActiveCampaign(); if (camp && camp.items) Object.keys(camp.items).forEach(function(id) { hidNote(camp.items[id]); }); }
 function hidPendOf(peer, mapId) { return typeof peer === 'string' && own(_hidPend, peer) && typeof mapId === 'string' && own(_hidPend[peer], mapId) ? _hidPend[peer][mapId] : null; }
 function hidNamed(peer, mapId, ids) { var p = hidPendOf(peer, mapId); if (p) Object.keys(ids).forEach(function(id) { delete p[id]; }); }
@@ -1565,7 +1579,7 @@ net.strokeActs = strokeActs; net.strokeSeq = function() { return _strokeSeq; };
 // Host-side validation: from a player's patch, apply ONLY position/rotation of
 // whiteboard items owned by that player. Everything else is ignored.
 // [netcheck:patch-start]
-var STROKE_CAP = 600, STROKE_PTS_CAP = 60000;   // a player's drawings on one map: their count, and their points in all (a drawing is 4000 points at most) — what bounds the GM's save and every copy of the map
+var STROKE_CAP = 600, STROKE_PTS_CAP = 60000, HID_BACK_MS = 5000;   // a player's drawings on one map: their count, and their points in all (a drawing is 4000 points at most) — what bounds the GM's save and every copy of the map
 // 49 (c) (the owner, by prompt, 2026-10-06: "Lock it for its player"): a player's drawing the GM made a wall (Blocks sight) or a see-through
 // barrier (Stops movement only) is the GM's piece from then on — its player neither redraws nor erases it, as with one the GM locked, until
 // the GM unticks it. fogcore strokeHeld is the one judge (a player's own eraser asks it too). A copy of theirs that would change or drop
@@ -1647,6 +1661,11 @@ function applyClientItemFiltered(msg, profile, out) {   // fold M10: out.strokes
     liveItem.whiteboard = liveItem.whiteboard.filter(function(w) {
         if (!(w.type === 'path' && w.byPlayer && w.ownerId === profile.id) || w.locked || w.hidden || sentIds[w.id]) return true;   // a locked one stays, and one the GM hid: it left their copy by the GM's hand, not theirs
         if (pend && pend[w.id] === 1) { delete pend[w.id]; if (out) out.whole = true; return true; }   // ...and one the GM hid and has shown again, this once: this copy may be older than the showing (their app may have dropped the shown drawing meanwhile: the whole map puts it right, and a later copy without it is an erase)
+        if (pend && pend[w.id] && typeof pend[w.id] === 'object') {   // ...and one the GM's undo or redo brought back (hidBack), for a short while after the step: this copy was made before the restored map reached them
+            var nowB = typeof fogNow === 'function' ? fogNow() : Date.now(), atB = pend[w.id].at;
+            if (typeof atB === 'number' && nowB >= atB && nowB - atB <= HID_BACK_MS) { if (out) out.whole = true; return true; }
+            delete pend[w.id];   // past its time: the restored map reached them long ago, and this copy is their own erase
+        }
         if (strokeHeldOn(w)) { if (out) out.whole = true; return true; }   // 49 (c): one the GM made a wall or a barrier stays, and the copy that left it out gets the map back
         if (typeof strokeNote === 'function') strokeNote(msg.campId, msg.itemId, 'erased', w.id);   // 127: erased by its player — the GM's undo never brings it back
         return false;
@@ -2814,7 +2833,7 @@ function budgetNotice(ch, hits) {
         var tk = (ch && ch.id ? ch.id : who) + '|' + h.id + '|budget', ts = _triedSaid[tk], tnow = Date.now();
         if (ts && tnow - ts.at < TRY_QUIET_MS) { ts.more++; return; }
         var more = ts ? ts.more : 0; _triedSaid[tk] = { at: tnow, more: 0 };
-        var t = who + ' went over. ' + S.budgetSays(h) + (more ? ' ' + more + ' more since the last notice.' : '');
+        var t = who + (h.lost === true ? ': ' : ' went over. ') + S.budgetSays(h) + (more ? ' ' + more + ' more since the last notice.' : '');
         toast(t); logEvent('items', t);
     });
 }
@@ -6178,7 +6197,9 @@ function handleMessage(msg, conn) {
         // A player deletes an EXTRA sheet of their own (the owner, 2026-10-04: a player who joined from a second computer had two sheets under one
         // name, "both I and the player should be able to just delete these"): one still in the making, or one that is not the character they play.
         // Never the one in play (they would sit at the table with nothing: that one is the GM's to delete), never an NPC's or another player's.
-        // It is the host's own delete: tokens keep their name and lose the link, the GM is told, and it is one step of the GM's undo.
+        // It is the host's own delete: tokens keep their name and lose the link, and the GM is told. The sheet's values are gone for good (the undo
+        // history holds maps and pages, never characters), so the notice promises no way back, and the unlinking of its tokens is no step of the
+        // GM's undo: a player's message never is (the owed review, 2026-10-09).
         var ridX = typeof msg.rid === 'string' && /^[A-Za-z0-9_-]{1,24}$/.test(msg.rid) ? msg.rid : null; if (!ridX) return;
         var ansX = function(o) { o.type = 'char-delete-ans'; o.rid = ridX; try { conn.send(o); } catch (e) { sendFailed(e); } };
         var prX = own(net.roster, conn.peer) ? net.roster[conn.peer] : null; if (!prX) return;
@@ -6192,8 +6213,11 @@ function handleMessage(msg, conn) {
         if (!allow('chardel', { perMs: 2000, burst: 2, windowMs: 30000, table: 30 }, conn.peer)) { ansX({ reason: 'slow' }); return; }
         if (window.wpHistFlush) window.wpHistFlush();   // the GM's pending edit is its own step before the sheet goes
         var nmX = cleanCharName(chX.name) || 'a sheet';
-        window.wpSheets.deleteCharacter(chX.id);
-        toast((prX.name || 'A player') + ' deleted their sheet ' + nmX + (mkX ? ' (it was still being made).' : '.') + ' Undo brings it back.');
+        var mapsX = []; Object.keys(campX.items || {}).forEach(function(idM) { var mM = campX.items[idM]; if (mM && mM.type === 'map' && Array.isArray(mM.whiteboard) && mM.whiteboard.some(function(w) { return !!w && w.charId === chX.id; })) mapsX.push(idM); });   // the maps that hold a token of it: each loses its link
+        var wasX = net.applyingRemote; net.applyingRemote = true;
+        try { window.wpSheets.deleteCharacter(chX.id); } finally { net.applyingRemote = wasX; }
+        mapsX.forEach(function(idM) { if (typeof net.broadcastItemFiltered === 'function') net.broadcastItemFiltered(campX.id, idM); });   // a save marked as from the table sends no map by itself: each map that held one of its tokens goes out as it now is
+        toast((prX.name || 'A player') + ' deleted their sheet ' + nmX + (mkX ? ' (it was still being made).' : '.'));
         ansX({ ok: true });
         // [netcheck:chardelete-end]
     } else if (msg.type === 'char-token' && net.role === 'host') {

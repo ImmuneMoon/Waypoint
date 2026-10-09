@@ -743,13 +743,19 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         {   // The review of the fold's own fixes, 2026-10-09. A turned piece's cells are found a column of cells at a time (fogcore cellsUnderSpan), and
             // the list is exactly what walking its whole turned box gave before: the same cells in the same order. The reference below is the
             // lister as it was, kept here; a seeded search holds the two together on both grids, for every kind, at every turn that matters
+            const refRect = (x, y, w, h, g) => { const out = [], cs = [FC.cellOf(x, y, g), FC.cellOf(x + w, y, g), FC.cellOf(x, y + h, g), FC.cellOf(x + w, y + h, g)];   // the box lister as it was: every row of the corners' range, for every column
+                if (g.type === 'square') { let c0 = Infinity, c1 = -Infinity, r0 = Infinity, r1 = -Infinity; cs.forEach(c => { c0 = Math.min(c0, c.c); c1 = Math.max(c1, c.c); r0 = Math.min(r0, c.r); r1 = Math.max(r1, c.r); });
+                    for (let c = c0; c <= c1; c++) for (let r = r0; r <= r1; r++) { const p = FC.cellCenter({ c, r }, g); if (p.x >= x && p.x <= x + w && p.y >= y && p.y <= y + h) out.push({ c, r }); } }
+                else { let q0 = Infinity, q1 = -Infinity, s0 = Infinity, s1 = -Infinity; cs.forEach(c => { q0 = Math.min(q0, c.q); q1 = Math.max(q1, c.q); s0 = Math.min(s0, c.r); s1 = Math.max(s1, c.r); });
+                    for (let q = q0 - 2; q <= q1 + 2; q++) for (let rr = s0 - 2; rr <= s1 + 2; rr++) { const p2 = FC.cellCenter({ q, r: rr }, g); if (p2.x >= x && p2.x <= x + w && p2.y >= y && p2.y <= y + h) out.push({ q, r: rr }); } }
+                return out; };
             const refCells = (w, g) => {
                 if (w === null || typeof w !== 'object' || typeof w.x !== 'number' || !isFinite(w.x) || typeof w.y !== 'number' || !isFinite(w.y)) return [];
                 const fin0 = v => typeof v === 'number' && isFinite(v), ww = fin0(w.w) ? w.w : 0, hh = fin0(w.h) ? w.h : 0;
                 const kind = w.type === 'hexagon' ? 'hex' : w.type === 'circle' ? 'ell' : w.type === 'diamond' ? 'dia' : 'rect', rot = fin0(w.rot) ? w.rot % 360 : 0;
                 if (w.fill || !rot || (kind === 'ell' && ww === hh)) return FC.itemCells(Object.assign({}, w, { rot: 0 }), g);
                 const rad = rot * Math.PI / 180, co = Math.cos(rad), si = Math.sin(rad), cx = w.x + ww / 2, cy = w.y + hh / 2, rx = ww / 2 || 1, ry = hh / 2 || 1;
-                const bw = Math.abs(ww * co) + Math.abs(hh * si), bh = Math.abs(ww * si) + Math.abs(hh * co), box = FC.cellsUnderRect(cx - bw / 2, cy - bh / 2, bw, bh, g), out = [];
+                const bw = Math.abs(ww * co) + Math.abs(hh * si), bh = Math.abs(ww * si) + Math.abs(hh * co), box = refRect(cx - bw / 2, cy - bh / 2, bw, bh, g), out = [];
                 const inHex = (px, py, wd, ht) => { const s = wd / 2, b = ht / 2, qx = Math.abs(px), qy = Math.abs(py); if (qx > s || qy > b) return false; if (qx <= s / 2) return true; return qy <= (2 * b / s) * (s - qx) + 1e-9; };
                 for (let i = 0; i < box.length; i++) {
                     const p = FC.cellCenter(box[i], g), dx = p.x - cx, dy = p.y - cy, lx = dx * co + dy * si, ly = -dx * si + dy * co;
@@ -790,6 +796,21 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             check('a play area too large to list (fog.js fogMask with its footprints, run strict): a picture marked as the play area that is past the bound fogs the whole map, as one past the cells\' cap always did, and never leaves the fog confined to no cell at all — on the ordinary grid and on a fine one, unturned, turned and as a circle, a thousand million pixels wide answered at once; a turned one whose size is no number fogs the whole map too; a play area of an ordinary size is still its own cells, turned or not',
                 lj(masks.map(m => [m[0], m[2], m[3]])) === lj([['set', true, true], ['all', true, true], ['all', true, true], ['all', true, true], ['all', true, true], ['all', true, true], ['all', true, true], ['all', true, true], ['set', false, true], ['all', true, true], ['all', true, true]])
                 && masks[0][1] === 16 && masks[8][1] > 4 && masks[8][1] < 16 && fogSrc.includes("        var fc = maskFootprint(w, grid, C); if (fc.over) { over = true; break; }"), lj(masks));
+            // The review of the second round, 2026-10-09: the box lister itself walks a column of cells at a time (cellsUnderRect is cellsUnderSpan
+            // with no span). On hexagons the old walk took the corners' whole range of rows for every column, half the box's width squared, so
+            // one wide thin piece, unturned, was thousands of millions of steps. The list is the old walk's own (refRect, kept above)
+            const badR = []; let nR = 0, cellsR = 0;
+            const sizesR = [0, 1e-9, 1, 10, 49.99, 50, 60, 125, 400, 990, 2400, -10, -400, NaN];
+            for (let i = 0; i < 4000 && badR.length < 3; i++) {
+                const g = pickS(gridsS), far = rndS() < 0.05 ? 1000 : 1, x = Math.round((rndS() - 0.5) * 4000 * 100) / 100 * far, y = Math.round((rndS() - 0.5) * 4000 * 100) / 100 * far, w = rndS() < 0.3 ? Math.round(rndS() * 300000) / 100 : pickS(sizesR), h = rndS() < 0.3 ? Math.round(rndS() * 300000) / 100 : pickS(sizesR);
+                const a = FC.cellsUnderRect(x, y, w, h, g).map(c => FC.cellKey(c, g)).join(' '), b = refRect(x, y, w, h, g).map(c => FC.cellKey(c, g)).join(' ');
+                nR++; cellsR += b ? b.split(' ').length : 0; if (a !== b) badR.push([x, y, w, h, g]);
+            }
+            const hexG = FC.hexGrid(30, 52), tW0 = Date.now(), wideN = FC.itemCells({ id: 'wd', type: 'rect', x: 0, y: 0, w: 100000 * 45, h: 0 }, hexG).length, wideOver = FC.itemOver({ type: 'rect', x: 0, y: 0, w: 100000 * 45, h: 0 }, hexG), wideMs = Date.now() - tW0;
+            const tN0 = Date.now(), negN = FC.itemCells({ id: 'ng', type: 'rect', x: 0, y: 0, w: -100000 * 45, h: 0, rot: 0.0001 }, hexG).length, negOver = FC.itemOver({ type: 'rect', x: 0, y: 0, w: -100000 * 45, h: 0, rot: 0.0001 }, hexG), negMs = Date.now() - tN0;
+            const tM0 = Date.now(), wideMask = FM2.fogMask({ id: 'pmw', meta: { updated: 1 }, whiteboard: [{ id: 'pa', type: 'image', fogged: true, x: 0, y: 0, w: 40000 * 45, h: 0, rot: 0.005 }] }, {}, hexG), maskMs = Date.now() - tM0;
+            check('the box lister, a column of cells at a time (the review of the second round, 2026-10-09; fogcore cellsUnderRect, run for real): over 4,000 seeded boxes on squares and on hexagons of several sizes — a width or a height of nothing, below 0 or no number, far from the map\'s corner — the list is the very list the old walk of the corners\' whole range gave, cell for cell and in its order; and on hexagons a piece a hundred thousand cells wide and of no height, which the judge passes and the old walk took thousands of millions of steps over, is listed at once, unturned and with a width below 0 at a hair of a turn, as is a wide play area a hair turned',
+                nR === 4000 && cellsR > 100000 && badR.length === 0 && wideOver === false && wideN > 49000 && wideN < 51000 && wideMs < 1500 && negOver === false && negN === 0 && negMs < 1500 && (wideMask.mode === 'set' || wideMask.mode === 'all') && maskMs < 1500, lj([nR, cellsR, badR.slice(0, 2), wideOver, wideN, wideMs, negOver, negN, negMs, wideMask.mode, maskMs]));
             // a null area too large to list still switches its senses off where a token stands
             const NA = new Function('core', 'gridForMap', 'isClientView', "'use strict';" + NL + lineOf('var _nullCache = Object.create(null)') + cut('function nullAreas(') + cut('function nullsAt(') + lineOf('function footprintCells(') + NL + 'return nullsAt;')(() => FC, m => m.g, () => false);
             let naN = 0; const nulled = (o, g, tx, ty) => { const t0 = Date.now(), r = NA({ id: 'na' + (++naN), g, meta: { updated: 1 }, whiteboard: [Object.assign({ id: 'ar', type: 'rect', x: 0, y: 0, nulls: ['sn_abcd1234'] }, o)] }, { id: 't', x: tx - 30, y: ty - 26, w: 60, h: 52 }); return Object.keys(r).join(',') + (Date.now() - t0 < 1500 ? '' : ' slow'); };

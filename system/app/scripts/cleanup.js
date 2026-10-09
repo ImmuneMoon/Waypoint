@@ -600,6 +600,10 @@ function cleanImportItems(ic, deps) {
     Object.keys(ic.items).forEach(function(id) {
         if (id in Object.prototype) { delete ic.items[id]; return; }
         var it = ic.items[id]; if (!isObj(it)) { delete ic.items[id]; return; }
+        // The owed review, 2026-10-09: the app draws every item that is neither a planner nor a page as a map, so an item of any other type is
+        // cleaned as the map it will be drawn as. Its type had to be exactly 'map' for a cleaner below to run: a file's 'Map' or 'board' kept
+        // its whole play map as written, a text box's markup included
+        if (it.type !== 'doc' && it.type !== 'planner' && it.type !== 'map') it.type = !it.type && Array.isArray(it.blocks) ? 'planner' : 'map';
         if (it.type === 'doc') { var cd = DR && DR.cleanDoc ? DR.cleanDoc(it, { keepHidden: true }) : null; if (cd) ic.items[id] = cd; else delete ic.items[id]; return; }
         if (it.type === 'planner') {   // a planner from before blocks keeps its text in one string, which opens as a raw HTML block (planner.js): it becomes that block here, so the rule below cleans it
             if (typeof it.content === 'string' && it.content && (!Array.isArray(it.blocks) || !it.blocks.length)) it.blocks = [{ id: 'b_' + Math.random().toString(36).slice(2, 10), type: 'raw', content: it.content }];

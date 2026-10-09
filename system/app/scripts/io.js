@@ -97,6 +97,7 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
             if (!m || typeof m !== 'object') { delete c.items[id]; fix('dropped corrupt item'); return; }
             if (m.id !== id) { m.id = id; fix('item id repaired'); }
             if (!m.type) { m.type = Array.isArray(m.blocks) ? 'planner' : 'map'; fix('item type inferred'); }
+            else if (m.type !== 'map' && m.type !== 'planner' && m.type !== 'doc') { m.type = 'map'; fix('unknown item type read as a map'); }   // as the app draws it: every reader that asks for a map by its type then finds it (the owed review, 2026-10-09)
             if (!m.meta || typeof m.meta !== 'object') { m.meta = {}; fix('meta created'); }
             if (typeof m.meta.title !== 'string' || !m.meta.title) { m.meta.title = m.title || m.name || (m.type === 'planner' ? 'Planner' : m.type === 'doc' ? 'Page' : 'Map'); fix('title defaulted'); }
             if ('gridFront' in m.meta) { delete m.meta.gridFront; fix('obsolete gridFront removed'); }

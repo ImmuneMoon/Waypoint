@@ -324,13 +324,15 @@ The play map
   your players get it as they get a token's picture, and an export
   carries it.
 - A map as a picture. Save Map as Picture, in Export As, draws the map
-  you have open as one PNG file, sharp at any size. Choose the whole
-  map or what is on screen, and a cell size of 50, 70, 100 or 140
-  pixels. The dialog says how large the picture will be first. Tick
-  Grid lines and Labels, and pick a dark ground or none. Tokens, hidden
-  pieces, your GM notes, lights, trigger zones and fog are never in it,
-  and a door is drawn as the piece it is. Nothing on the map is changed
-  and nothing is sent. Save as Image still saves what is on screen.
+  you have open as one PNG file. Choose the whole map or what is on
+  screen, and a cell size of 50, 70, 100 or 140 pixels. The dialog
+  says how large the picture will be first. Tick Grid lines and
+  Labels, and pick a dark ground or none. Tokens, hidden pieces, your
+  GM notes, lights and trigger zones are never in it, and a door is
+  drawn as the piece it is. Fog is not drawn, so the picture also
+  shows what your players have not seen yet. Nothing on the map is
+  changed and nothing is sent. Save as Image still saves what is on
+  screen.
 
 The top bar and the data map
 - The top of the window is one quiet row. Its captioned boxes are gone,

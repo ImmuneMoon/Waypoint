@@ -6837,6 +6837,7 @@ function genWire() {
     var go = genEl('genGo'); if (go) go.addEventListener('click', function() { genGo(); });
     // every key pressed in the dialog stays in it: the page reads keys as its own (Build's Esc and Enter, a token's arrows, Delete)
     m.addEventListener('keydown', function(e) {
+        if (buildAsking()) return;   // a question or a prompt of the app's own, raised over the dialog, has every key: the focus may still rest in here
         e.stopPropagation();
         if (e.key === 'Escape') { e.preventDefault(); genHide(); }
         else if (e.key === 'Enter' && e.target && /^INPUT$/.test(e.target.tagName || '')) { e.preventDefault(); genGo(); }
@@ -6850,6 +6851,13 @@ function genWire() {
         e.stopPropagation(); e.preventDefault();
         if (e.key === 'Escape') genHide();
         else if (e.key === 'Tab') genTab(null, e.shiftKey === true);
+    }, true);
+    // A paste is the page's to read too (it lays a copied piece or a picture on the map behind): never while the dialog is up, but for a
+    // field of the dialog's own, which takes its paste as any field does
+    document.addEventListener('paste', function(e) {
+        if (!genShown() || buildAsking()) return;
+        var t = e.target; if (t && typeof m.contains === 'function' && m.contains(t) && /^(INPUT|TEXTAREA)$/.test(t.tagName || '')) return;
+        e.preventDefault(); e.stopPropagation();
     }, true);
 }
 // [buildcheck:gendialog-end]

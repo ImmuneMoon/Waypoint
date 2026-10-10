@@ -20,7 +20,7 @@ import { fontCss } from './textfmt.js';
 var VERSION = 1;
 var CELLS = Object.freeze([50, 70, 100, 140]);   // px a cell in the file; the board itself is 50
 // A picture is refused past these, before a canvas is made: a browser gives a blank canvas, or no file, with no error past its own limits
-var LIMITS = Object.freeze({ side: 16000, area: 100000000, margin: 25, board: 30000, items: 6000, lines: 400 });
+var LIMITS = Object.freeze({ side: 16000, area: 100000000, margin: 25, board: 30000, items: 60000, lines: 400 });
 var INK = Object.freeze({ bg: '#15151c', edge: '#3a3a4a', faint: '#6a6a7d', ink: '#e9e9f0', plateDark: '#f2f2f7', plateLight: '#1f1d24' });
 var VARS = Object.freeze({ '--bg': '#15151c', '--bg2': '#1c1c26', '--panel': '#20202c', '--panel2': '#262633', '--edge': '#3a3a4a', '--ink': '#e9e9f0', '--dim': '#9a9aad', '--faint': '#6a6a7d', '--gold': '#e0a54f', '--blue': '#4db3d3', '--green': '#5cb87a', '--red': '#d9534f', '--violet': '#b98cff', '--teal': '#3fb6a8', '--steel': '#9aa4b0', '--neutral': '#c9c9d4' });
 var BODY_FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
@@ -43,12 +43,28 @@ function alpha(v) { return fin(v) && v >= 0 && v < 1 ? v : 1; }
 
 // A stored colour as a canvas takes one. A canvas ignores a var() without a word and keeps its last colour, so the theme's names are read
 // here as the dark theme has them, and one this table lacks is the fallback
+// The forms a canvas takes for certain: a hex of 3, 4, 6 or 8 digits, rgb of three plain numbers or three percentages, hsl, each with an
+// alpha or none, and a colour's own name. A canvas says nothing at a colour it cannot read and keeps the one it had, which is whatever was
+// drawn last. So any other form the sink's own rule lets through (inherit, a word that is no colour, rgb(1,2), a hex of five digits) is
+// the fallback, never the last colour
+var NUMC = '(?:\\d+(?:\\.\\d+)?|\\.\\d+)', ALPHAC = '\\s*(?:,\\s*' + NUMC + '%?\\s*)?\\)$';
+var CANVAS_RE = Object.freeze([/^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i,
+    new RegExp('^rgba?\\(\\s*' + NUMC + '\\s*,\\s*' + NUMC + '\\s*,\\s*' + NUMC + ALPHAC, 'i'),
+    new RegExp('^rgba?\\(\\s*' + NUMC + '%\\s*,\\s*' + NUMC + '%\\s*,\\s*' + NUMC + '%' + ALPHAC, 'i'),
+    new RegExp('^hsla?\\(\\s*' + NUMC + '\\s*,\\s*' + NUMC + '%\\s*,\\s*' + NUMC + '%' + ALPHAC, 'i')]);
+var NAMED = Object.freeze(('aliceblue antiquewhite aqua aquamarine azure beige bisque black blanchedalmond blue blueviolet brown burlywood cadetblue chartreuse chocolate coral cornflowerblue cornsilk crimson cyan darkblue darkcyan darkgoldenrod darkgray darkgreen darkgrey darkkhaki darkmagenta darkolivegreen darkorange darkorchid darkred darksalmon darkseagreen darkslateblue darkslategray darkslategrey darkturquoise darkviolet deeppink deepskyblue dimgray dimgrey dodgerblue firebrick floralwhite forestgreen fuchsia gainsboro ghostwhite gold goldenrod gray green greenyellow grey honeydew hotpink indianred indigo ivory khaki lavender lavenderblush lawngreen lemonchiffon lightblue lightcoral lightcyan lightgoldenrodyellow lightgray lightgreen lightgrey lightpink lightsalmon lightseagreen lightskyblue lightslategray lightslategrey lightsteelblue lightyellow lime limegreen linen magenta maroon mediumaquamarine mediumblue mediumorchid mediumpurple mediumseagreen mediumslateblue mediumspringgreen mediumturquoise mediumvioletred midnightblue mintcream mistyrose moccasin navajowhite navy oldlace olive olivedrab orange orangered orchid palegoldenrod palegreen paleturquoise palevioletred papayawhip peachpuff peru pink plum powderblue purple rebeccapurple red rosybrown royalblue saddlebrown salmon sandybrown seagreen seashell sienna silver skyblue slateblue slategray slategrey snow springgreen steelblue tan teal thistle tomato turquoise violet wheat white whitesmoke yellow yellowgreen transparent').split(' ').reduce(function(o, n) { o[n] = 1; return o; }, Object.create(null)));
+function canvasColor(c) {
+    if (typeof c !== 'string') return false;
+    if (NAMED[c.toLowerCase()] === 1) return true;
+    for (var i = 0; i < CANVAS_RE.length; i++) if (CANVAS_RE[i].test(c)) return true;
+    return false;
+}
 function paint(v, fallback) {
     var c = cssColor(v, '');
     if (!c) return fallback;
     var m = /^var\((--[a-z0-9-]+)\)$/i.exec(c);
     if (m) return own(VARS, m[1]) ? VARS[m[1]] : fallback;
-    return c;
+    return canvasColor(c) ? c : fallback;
 }
 // The ink a label takes on its own plate, as the board's plateInk reads the plate: light words on a dark plate, dark on a light one
 function plateInk(bg) {
@@ -84,14 +100,17 @@ function stackZ(item, gridOn) {
     if (gridOn && item.type === 'text') z = 15010;
     return z;
 }
-// The pieces to draw, lowest first, the later of two on one level on top (the board's rule), split at the grid's own level
+// The pieces to draw, lowest first, the later of two on one level on top (the board's rule), split at the grid's own level. A map of more
+// pieces than one picture draws answers `cut`, only as true: the first of them in the map's own order are kept
 function order(items, opts) {
     var o = opts || {}, list = Array.isArray(items) ? items : [], kept = [];
-    for (var i = 0; i < list.length && kept.length < LIMITS.items; i++) if (shows(list[i], o.labels === true)) kept.push({ item: list[i], z: stackZ(list[i], !!o.grid), i: i });
+    var cut = false;
+    for (var i = 0; i < list.length; i++) if (shows(list[i], o.labels === true)) { if (kept.length >= LIMITS.items) { cut = true; break; } kept.push({ item: list[i], z: stackZ(list[i], !!o.grid), i: i }); }
     kept.sort(function(a, b) { return a.z - b.z || a.i - b.i; });
     var under = [], over = [];
     kept.forEach(function(k) { (k.z < GRID_Z ? under : over).push(k.item); });
-    return { under: under, over: over };
+    var out = { under: under, over: over }; if (cut) out.cut = true;   // more pieces than one picture draws: the caller says so
+    return out;
 }
 
 /* ---------- the area ---------- */
@@ -116,13 +135,17 @@ function near(item, box) {
     return e.x < box.x + box.w && e.x + e.w > box.x && e.y < box.y + box.h && e.y + e.h > box.y;
 }
 // "The whole map": the box around every piece the picture draws, with a small margin, held to the board. null where it draws nothing. A
-// piece the picture leaves out never widens it, so the picture's size says nothing of what is hidden
+// piece the picture leaves out never widens it, so the picture's size says nothing of what is hidden. With opts.snap the box is widened
+// to the lines of that lattice, so that the picture begins and ends on a grid line and a grid laid over it elsewhere starts at its corner
 function bounds(items, opts) {
     var o = order(items, opts), all = o.under.concat(o.over), x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     all.forEach(function(it) { var e = extent(it); x0 = Math.min(x0, e.x); y0 = Math.min(y0, e.y); x1 = Math.max(x1, e.x + e.w); y1 = Math.max(y1, e.y + e.h); });
     if (!all.length) return null;
     var m = LIMITS.margin, B = LIMITS.board;
     x0 = Math.max(0, Math.floor(x0 - m)); y0 = Math.max(0, Math.floor(y0 - m)); x1 = Math.min(B, Math.ceil(x1 + m)); y1 = Math.min(B, Math.ceil(y1 + m));
+    var sn = opts && opts.snap, sw = sn && fin(sn.w) && sn.w >= 1 ? sn.w : 0, sh = sn && fin(sn.h) && sn.h >= 1 ? sn.h : 0;   // opts.snap: the map's own lattice, { w, h }
+    if (sw) { x0 = Math.floor(x0 / sw) * sw; x1 = Math.min(B, Math.ceil(x1 / sw) * sw); }
+    if (sh) { y0 = Math.floor(y0 / sh) * sh; y1 = Math.min(B, Math.ceil(y1 / sh) * sh); }
     return x1 > x0 && y1 > y0 ? { x: x0, y: y0, w: x1 - x0, h: y1 - y0 } : null;
 }
 // A box of the board as handed in (what is on screen), held to the board; null for one that is no box
@@ -189,14 +212,17 @@ function needs(items, opts) {
         else if (it.type === 'text') add(fonts, 'f', fontOf(it, 1).load);
         else { var f = fillOf(it); if (f) add(pics, 'p', f.url); else add(tiles, 't', patternOf(it)); }
     });
-    return { pics: pics, tiles: tiles, fonts: fonts, count: all.length };
+    var need = { pics: pics, tiles: tiles, fonts: fonts, count: all.length }; if (o.cut) need.cut = true;
+    return need;
 }
 
 /* ---------- a label's words ---------- */
-var BLOCK_TAGS = Object.freeze({ DIV: 1, P: 1, LI: 1, H1: 1, H2: 1, H3: 1, H4: 1, BLOCKQUOTE: 1, PRE: 1, TR: 1, UL: 1, OL: 1, TABLE: 1, HR: 1 });
-var SKIP_TAGS = Object.freeze({ SCRIPT: 1, STYLE: 1, IMG: 1, TEMPLATE: 1, SVG: 1, HEAD: 1, TITLE: 1 });
+var BLOCK_TAGS = Object.freeze({ DIV: 1, P: 1, LI: 1, H1: 1, H2: 1, H3: 1, H4: 1, H5: 1, H6: 1, BLOCKQUOTE: 1, PRE: 1, TR: 1, TD: 1, TH: 1, UL: 1, OL: 1, DL: 1, DT: 1, DD: 1, TABLE: 1, CAPTION: 1, HR: 1 });
+// what a page never shows as words: code, a picture, and the text an element holds only for a browser that cannot show the element itself
+var SKIP_TAGS = Object.freeze({ SCRIPT: 1, STYLE: 1, IMG: 1, TEMPLATE: 1, SVG: 1, HEAD: 1, TITLE: 1, NOSCRIPT: 1, IFRAME: 1, NOEMBED: 1, NOFRAMES: 1, XMP: 1, TEXTAREA: 1, CANVAS: 1, VIDEO: 1, AUDIO: 1, OBJECT: 1, DATALIST: 1, SELECT: 1, MATH: 1 });
 // The plain lines of a text box's markup, read from a tree that was parsed elsewhere and never put on the page: a text node's characters, a
-// line break at br and around a block, runs of white space as one space. Nothing of a tag, a style or an address is read
+// line break at br and around a block, runs of white space as one space. Nothing of a tag or an address is read, and of a style only
+// whether it puts the element away: an element that is hidden holds no words of the label
 function plainLines(node) {
     var lines = [''], n = 0;
     var brk = function() { if (lines[lines.length - 1] !== '' || lines.length === 1) lines.push(''); };
@@ -205,7 +231,7 @@ function plainLines(node) {
         if (nd.nodeType === 3) { lines[lines.length - 1] += String(nd.nodeValue == null ? '' : nd.nodeValue); return; }
         if (nd.nodeType !== 1 && nd.nodeType !== 9 && nd.nodeType !== 11) return;
         var tag = typeof nd.tagName === 'string' ? nd.tagName.toUpperCase() : '';
-        if (SKIP_TAGS[tag] === 1) return;
+        if (SKIP_TAGS[tag] === 1 || nd.hidden === true || (nd.style && nd.style.display === 'none')) return;   // nor an element the markup itself puts away
         if (tag === 'BR') { lines.push(''); return; }
         var block = BLOCK_TAGS[tag] === 1, kids = nd.childNodes;
         if (block) brk();
@@ -334,6 +360,7 @@ function drawPath(ctx, item, job, w, h) {
     } else {
         ctx.beginPath(); trace(ctx, pts, false);
         ctx.strokeStyle = col; ctx.lineWidth = sw; ctx.lineCap = tip === 'square' ? 'square' : 'round'; ctx.lineJoin = tip === 'square' ? 'miter' : 'round';
+        if (tip === 'square') ctx.miterLimit = 4;   // the board's line is an svg stroke, whose sharp corners are cut off at 4: a canvas's own 10 would draw a needle there
         ctx.stroke();
     }
     ctx.restore();
@@ -342,7 +369,7 @@ function drawLabel(ctx, item, job, w, h) {
     var s = job.scale, res = job.res || {}, base = ctx.globalAlpha, plate = paint(item.bg, '');
     if (plate && plate !== 'transparent') { ctx.globalAlpha = base * alpha(item.bgOpacity); roundRect(ctx, 0, 0, w, h, 4 * s); ctx.fillStyle = plate; ctx.fill(); }
     var lines = typeof res.text === 'function' ? res.text(item) : null; if (!Array.isArray(lines) || !lines.length) { ctx.globalAlpha = base; return; }
-    var f = fontOf(item, s), pad = 5 * s, lh = f.px * 1.5, stored = cssColor(item.color, ''), ink = !stored || stored === 'transparent' || stored === 'var(--panel2)' ? (plateInk(typeof item.bg === 'string' ? item.bg : '') || INK.ink) : paint(item.color, INK.ink);
+    var f = fontOf(item, s), pad = 5 * s, lh = f.px * 1.5, stored = cssColor(item.color, ''), ink = !stored || stored === 'transparent' || stored === 'var(--panel2)' ? (plateInk(typeof item.bg === 'string' ? item.bg : '') || (job.bg === 'none' ? INK.plateLight : INK.ink)) : paint(item.color, INK.ink);
     ctx.font = f.css;
     var wrapped = wrapLines(lines, Math.max(1, w - 2 * pad), function(t) { return ctx.measureText(t).width; });
     var align = item.align === 'left' || item.align === 'right' ? item.align : 'center', total = wrapped.length * lh, top = item.valign === 'top' ? pad : item.valign === 'bottom' ? h - pad - total : (h - total) / 2, x = align === 'left' ? pad : align === 'right' ? w - pad : w / 2;
@@ -387,13 +414,15 @@ function drawGrid(ctx, job) {
     }
 }
 // The whole picture onto a context that is job.box at job.scale: the ground, the pieces under the grid, the grid, what lies over it. It
-// answers what it drew and what it had to leave out. Everything is drawn in one go, in the board's own order: the caller loads first.
+// answers what it drew and what it had to leave out (`missing` pictures, and `cut`, only as true, for a map of more pieces than one picture
+// draws). The ground and the clip cover the canvas's whole pixels, which plan() rounds up. Everything is drawn in one go, in the board's own
+// order: the caller loads first.
 // job.grid is the MAP's own grid ('square', 'hex' or none), which decides the order; job.lines false leaves its lines out of the picture
 function draw(ctx, job) {
     var out = { drawn: 0, missing: 0 };
     if (!ctx || !job || !job.box || !(job.scale > 0)) return out;
     job.out = out;
-    var s = job.scale, W = job.box.w * s, H = job.box.h * s, grid = job.grid === 'square' || job.grid === 'hex' ? job.grid : '', o = order(job.items, { labels: job.labels === true, grid: !!grid });
+    var s = job.scale, W = Math.ceil(job.box.w * s), H = Math.ceil(job.box.h * s), grid = job.grid === 'square' || job.grid === 'hex' ? job.grid : '', o = order(job.items, { labels: job.labels === true, grid: !!grid });
     ctx.save();
     ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.clip();
     if (job.bg !== 'none') { ctx.fillStyle = INK.bg; ctx.fillRect(0, 0, W, H); }
@@ -401,6 +430,7 @@ function draw(ctx, job) {
     if (grid && job.lines !== false) { ctx.save(); drawGrid(ctx, { scale: s, box: job.box, grid: grid }); ctx.restore(); }
     o.over.forEach(function(it) { if (near(it, job.box)) { drawPiece(ctx, it, job); out.drawn++; } });
     ctx.restore();
+    if (o.cut) out.cut = true;
     return out;
 }
 

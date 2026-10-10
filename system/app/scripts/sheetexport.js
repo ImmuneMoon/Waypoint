@@ -6,8 +6,10 @@
      page), the sheet walked as it is laid out: the header, the dashboard, the band as one line, every tab, every section.
    fileBase(name): a character's name as a file name. isCharFile(j): a character file. The caller (sheets.js) picks the view, works out
    `all` (resolveAll) on that same view and saves the file. */
-import { STORED, fmtNum, headerEntry, autoLayout, rowDef, rowIdOf, rowLvl, rowOn, rowStat, rowPaid, showsIf, POSTURE_NAMES, postureAt, ownPostures } from './systemcore.js';
-import { docToMarkdown, mdEscapeText } from './docmd.js';
+import { STORED, fmtNum, headerEntry, autoLayout, rowDef, rowIdOf, rowLvl, rowOn, rowStat, rowPaid, showsIf, POSTURE_NAMES, postureAt, ownPostures, lookOf } from './systemcore.js';
+import { docToMarkdown, mdEscapeText, fmtFromInline } from './docmd.js';
+import { cleanFmt, runsOf, SIZE_EM } from './textfmt.js';
+import { recShapeOk } from './lookcore.js';
 import { hashText } from './librarycore.js';
 import { esc } from './safecore.js';
 
@@ -43,7 +45,7 @@ function itemIn(sys, id) { var hit = null; ((sys && Array.isArray(sys.items)) ? 
 // opts: { exported (an ISO time), gm (the GM's own copy: GM-only fields included), picture (a data URL of at most 200,000 characters) }
 function charToJson(sys, view, all, opts) {
     opts = opts || {};
-    var fields = {}, values = {}, computed = {}, vals = view && isObj(view.values) ? view.values : {};
+    var fields = {}, values = {}, computed = {}, vals = view && isObj(view.values) ? view.values : {}, looks = {}, nLooks = 0;
     ((sys && Array.isArray(sys.fields)) ? sys.fields : []).forEach(function(f) {
         if (!isObj(f) || typeof f.id !== 'string') return;
         if (STORED[f.kind]) {
@@ -53,6 +55,7 @@ function charToJson(sys, view, all, opts) {
                 if (f.kind === 'effects' && Array.isArray(v)) v.forEach(function(r) { if (isObj(r)) delete r.t; });   // a countdown runs on the GM's clock: never in a file
                 if (f.kind === 'item-list' && Array.isArray(v)) v.forEach(function(r) { var it = isObj(r) && typeof r.defId === 'string' ? itemIn(sys, r.defId) : null; if (it) { if (typeof it.name === 'string' && it.name) r.name = it.name; if (typeof it.key === 'string' && it.key) r.key = it.key; } });   // Onboarding F4: its item's name, for a reader on another campaign
                 values[f.id] = v;   // a pool left full stays absent (read back, {cur: null} would be an empty pool)
+                if (typeof v === 'string') { var lk = lookOf(f, view); if (lk) { looks[f.id] = lk; nLooks++; } }   // item 35: the look of a text, where one stands for the very words written (cleaned by the field's own rule)
             }
         }
         var e = all ? all[f.id] : null;
@@ -65,6 +68,7 @@ function charToJson(sys, view, all, opts) {
     if (view && typeof view.face === 'string' && view.face) out.face = view.face;
     if (typeof opts.picture === 'string' && opts.picture.length <= PICTURE_MAX && PIC_RE.test(opts.picture)) out.picture = opts.picture;
     out.values = values;
+    if (nLooks) out.looks = looks;   // keyed as the values are; absent with no look, so such a file is byte for byte as it was
     out.computed = computed;
     return out;
 }
@@ -75,7 +79,8 @@ function charToJson(sys, view, all, opts) {
 // else by key and kind, its type checked; its rows as the ops a hand would make — an item of the view by id, else by name (and key) through find
 // within the list's categories, else a row of its own with the players' fields — its facts as the list has them; its effects (one of the view's
 // by id, else its own changes, each on a field of the view). A GM's copy (gm), the numbers worked out (computed) and the system's name are never
-// read. { values, lists, ops, fxLists, fx, unmatched (the file's own labels, as text), lost (rows it could not place), name, face } or null
+// read. { values, lists, ops, fxLists, fx, unmatched (the file's own labels, as text), lost (rows it could not place), name, face } or null;
+// and looks, only when the file gives a kept text one: by its shape alone here, cleaned against the value AS KEPT where the fill is applied
 var ROWS_MAX = 150, FX_MAX = 30;
 function charFromJson(view, j, find, findKey) {
     if (!isCharFile(j) || j.v !== VERSION || !isObj(view) || !Array.isArray(view.fields)) return null;
@@ -141,7 +146,7 @@ function charFromJson(view, j, find, findKey) {
             if (typeof r.name === 'string' && r.name.trim()) out.fx.push({ f: f.id, q: { op: 'adhoc', row: { id: id, name: r.name, icon: typeof r.icon === 'string' ? r.icon : '', tone: typeof r.tone === 'string' ? r.tone : '', dur: typeof r.dur === 'string' ? r.dur : '', notes: typeof r.notes === 'string' ? r.notes : '', on: r.on !== false, mods: mods(r.mods) } } });
         });
     };
-    var vals = isObj(j.values) ? j.values : {};
+    var vals = isObj(j.values) ? j.values : {}, fileLooks = isObj(j.looks) ? j.looks : null;
     Object.keys(vals).slice(0, 400).forEach(function(fid) {
         if (!own(vals, fid)) return;
         var f = target(fid), v = vals[fid]; if (!f) { out.unmatched.push(label(fid)); return; }
@@ -152,6 +157,7 @@ function charFromJson(view, j, find, findKey) {
         var fits = k === 'number' || k === 'skill' ? typeof v === 'number' && isFinite(v) : k === 'toggle' ? typeof v === 'boolean' : k === 'resource' ? isObj(v) && typeof v.cur === 'number' && isFinite(v.cur) : typeof v === 'string';
         if (!fits) { out.unmatched.push(label(fid)); return; }
         out.values[f.id] = k === 'resource' ? { cur: v.cur } : v;
+        if (fileLooks && (k === 'text' || k === 'notes') && own(fileLooks, fid) && recShapeOk(fileLooks[fid])) { if (!out.looks) out.looks = {}; out.looks[f.id] = clone(fileLooks[fid]); }   // item 35
     });
     return out;
 }
@@ -190,6 +196,41 @@ function itemCellText(col, def) {
     return '';
 }
 
+// Item 35: a text of the sheet written WITH ITS LOOK, where one stands for the very words written: a line as escaped text in the tags the
+// Markdown side reads a look from (b, i, u, s, the sanitiser's one span form for a colour and a size step, a href), kept only where it reads
+// back as those words with that look (docmd fmtFromInline); else the line is written plain, as it always was. Notes go line by line: a
+// line's look is the part of the text's look that lies on it. Null: no look to write, the caller writes what it always wrote
+function lineFmt(fmt, a, b) {
+    var o = {}, k; for (k in fmt) if (Object.prototype.hasOwnProperty.call(fmt, k) && k !== 'spans') o[k] = fmt[k];
+    var sp = (Array.isArray(fmt.spans) ? fmt.spans : []).map(function(s) { if (!isObj(s) || !(s.e > a) || !(s.s < b)) return null; var q = {}, j; for (j in s) if (Object.prototype.hasOwnProperty.call(s, j)) q[j] = s[j]; q.s = Math.max(a, s.s) - a; q.e = Math.min(b, s.e) - a; return q; }).filter(Boolean);
+    if (sp.length) o.spans = sp;
+    return o;
+}
+function styledLine(t, fmt) {
+    var f = t ? cleanFmt(fmt, t) : undefined; if (!f) return esc(t);
+    var has = function(k) { return typeof k === 'string' && Object.prototype.hasOwnProperty.call(SIZE_EM, k); }, size = has(f.size) ? SIZE_EM[f.size] : '', out = '', open = '';
+    var look = function(x) { var g = cleanFmt(x, t); return JSON.stringify([(g && g.size) || '', runsOf(t, g)]); };
+    runsOf(t, f).forEach(function(r) {
+        var x = esc(r.t), c = typeof r.color === 'string' && /^#[0-9a-f]{6}$/.test(r.color) ? r.color : '', z = !size && has(r.size) ? SIZE_EM[r.size] : '', href = typeof r.link === 'string' ? r.link : '';
+        if (r.i === true) x = '<i>' + x + '</i>';
+        if (r.b === true) x = '<b>' + x + '</b>';
+        if (r.u === true) x = '<u>' + x + '</u>';
+        if (r.st === true) x = '<s>' + x + '</s>';
+        if (c || z) x = '<span style="' + (c ? 'color:' + c : '') + (c && z ? ';' : '') + (z ? 'font-size:' + z : '') + '">' + x + '</span>';
+        if (href !== open) { if (open) out += '</a>'; if (href) out += '<a href="' + esc(href) + '">'; open = href; }   // neighbours of one link share it
+        out += x;
+    });
+    if (open) out += '</a>';
+    var html = size ? '<span style="font-size:' + size + '">' + out + '</span>' : out, back = fmtFromInline(html);
+    return back && back.text === t && look(back.fmt) === look(f) ? html : esc(t);
+}
+function styledText(text, rec, multi) {
+    if (typeof text !== 'string' || !rec || !isObj(rec.fmt) || /\r/.test(text)) return null;
+    if (!multi) return styledLine(plain(text), rec.fmt);
+    var at = 0; return text.split('\n').map(function(x) { var a = at, b = at + x.length; at = b + 1; return styledLine(plain(x), lineFmt(rec.fmt, a, b)); }).join('<br>');
+}
+function liHtml(label, html) { return '<li><b>' + esc(plain(label)) + ':</b> ' + html + '</li>'; }
+
 // opts: { F (formula.js, for show-ifs), gm (the GM's own copy), sub (the line under the name), pageTitle(id) (a readable page's title or
 // null), tctx ({ facing, stance }: the token the numbers read) }
 function sheetToMarkdown(sys, view, all, opts) {
@@ -205,7 +246,8 @@ function sheetToMarkdown(sys, view, all, opts) {
     (Array.isArray(sh.identity) ? sh.identity : []).concat(Array.isArray(sh.ledger) ? sh.ledger : []).forEach(function(q) {
         var f = isObj(q) ? byId[q.id] : null; if (!f) return;
         var h = headerEntry(f, all[f.id]); if (!h) return;
-        hd.push(li(f.label || f.key, h.chip ? 'on' : h.error ? (gmOnlyError(String(h.error)) ? 'GM only' : '—') : h.text));
+        var hl = !h.chip && !h.error && f.kind === 'text' && typeof vals[f.id] === 'string' && h.text === vals[f.id] ? styledText(h.text, lookOf(f, view), false) : null;   // item 35: with its look
+        hd.push(hl ? liHtml(f.label || f.key, hl) : li(f.label || f.key, h.chip ? 'on' : h.error ? (gmOnlyError(String(h.error)) ? 'GM only' : '—') : h.text));
     });
     if (hd.length) B.push(textBlock('<ul>' + hd.join('') + '</ul>'));
     var secs = (Array.isArray(lay.sections) ? lay.sections : []).filter(isObj), idx = Object.create(null);
@@ -267,8 +309,9 @@ function sheetToMarkdown(sys, view, all, opts) {
                 var f = byId[pl.id]; if (!f) return;
                 if (f.kind === 'item-list') { flush(); listBlock(f, pl); return; }
                 if (f.kind === 'effects') { flush(); fxBlock(f); return; }
-                if (f.kind === 'notes') { flush(); var nt = all[f.id] && typeof all[f.id].value === 'string' ? all[f.id].value : typeof vals[f.id] === 'string' ? vals[f.id] : ''; B.push(textBlock('<p><b>' + esc(plain(f.label || f.key)) + (nt ? '</b><br>' + lines(nt) : ':</b> —') + '</p>')); return; }
-                items.push(li(f.label || f.key, valueText(f, all[f.id])));
+                if (f.kind === 'notes') { flush(); var nt = all[f.id] && typeof all[f.id].value === 'string' ? all[f.id].value : typeof vals[f.id] === 'string' ? vals[f.id] : ''; B.push(textBlock('<p><b>' + esc(plain(f.label || f.key)) + (nt ? '</b><br>' + ((nt === vals[f.id] ? styledText(nt, lookOf(f, view), true) : null) || lines(nt)) : ':</b> —') + '</p>')); return; }
+                var e1 = all[f.id], sl = f.kind === 'text' && e1 && !e1.error && typeof vals[f.id] === 'string' && vals[f.id] !== '' && e1.value === vals[f.id] ? styledText(vals[f.id], lookOf(f, view), false) : null;   // item 35: with its look
+                items.push(sl ? liHtml(f.label || f.key, sl) : li(f.label || f.key, valueText(f, all[f.id])));
                 return;
             }
             if (pl.kind === 'heading' && pl.text) { flush(); B.push(textBlock('<p><b>' + esc(plain(pl.text)) + '</b></p>')); }

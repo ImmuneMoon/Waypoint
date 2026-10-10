@@ -2628,6 +2628,7 @@
   #sheetHead > #sheetHud, #sheetHead > #sheetPop, #sheetHead > #sheetClose { order: 0; margin-top: 0; }
   #sheetHead > #sheetDownload { margin-left: auto; }
   #sheetHead > .sheet-titles { flex: 1 1 90px; overflow: hidden; }
+  #sheetHead > .sheet-pick { flex: 1 1 70px; min-width: 0; }   /* the list gives way before row one wraps in a narrow panel: close stays at its right end */
   #sheetTitle { overflow: hidden; text-overflow: ellipsis; }
   #sheetPortrait { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; border: 1px solid var(--gold); }
   .sheet-titles { display: flex; flex-direction: column; min-width: 0; flex: 1; }
@@ -3129,9 +3130,11 @@
   .sheet-locked .sheet-read { color: inherit; background: transparent; border-color: transparent; }
   .sheet-read a { color: var(--blue); }
   /* ... the header's own bare box, and a one-line text in an Inline rows section, which sizes there as the plain input does */
-  .sheet-idn-edit .sheet-box.ts-box { min-width: 0; min-height: 0; border: 0; background: transparent; padding: 4px 8px; line-height: 1.3; color: inherit; }
+  .sheet-idn-edit .sheet-box.ts-box { min-width: 0; min-height: 0; border: 0; background: transparent; padding: 4px; font-size: 14px; line-height: 1.3; color: inherit; }   /* the header input's own sizes (.sheet-hdr-edit input.field) */
   .sheet-field.sheet-inline-row > .sheet-box, .sheet-field.sheet-inline-row > .sheet-read.sheet-text { flex: 1 1 7em; width: auto; min-width: 0; }
-  #sheetEdit.on { color: #1a1a1a; }   /* Lock sheet wears .tool.on's gold fill with dark words, as every button that is on (it was gold words on the gold fill) */
+  /* Lock sheet wears .tool.on's fill with dark words, as every button that is on (it was gold words on the gold fill). On a sheet with a palette the
+     fill is the palette's own accent, which may be dark: the words then take the ink worked out for it (sheets.js applyPaletteTo, --gold-ink) */
+  #sheetEdit.on, .sheet-paletted .tool.on { color: var(--gold-ink, #1a1a1a); }
   input.sheet-range::-webkit-slider-runnable-track { height: 8px; background: transparent; }
   input.sheet-range::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; margin-top: -4px; border-radius: 50%; background: var(--ink); border: 2px solid var(--panel2); box-shadow: 0 1px 3px rgba(0,0,0,0.5); box-sizing: border-box; }
   input.sheet-range::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--ink); border: 2px solid var(--panel2); }

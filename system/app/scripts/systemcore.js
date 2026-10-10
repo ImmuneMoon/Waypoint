@@ -4499,17 +4499,18 @@ function applyTwin(sys, char, fieldId, q, F, opts) {
 // copy's name and stats only; the list's own stats). fill = { values: { fieldId: value }, lists: [fieldId] (the lists the file carries: replaced,
 // a kept curse stays), ops: [{ f, q }] (applyRowOp, a row's ops together: all or nothing, but a copy's own values, a fact or a count drop alone,
 // and a key taken leaves the row without it), fxLists: [fieldId] (emptied), fx: [{ f, q }] (applyEffectOp) }; pools last (their max read with the
-// rows and changes in place). opts: applyRowOp's (view, lib) and now. { ok, values, done, left } — counts only; not in the making: { ok: false }
+// rows and changes in place). opts: applyRowOp's (view, lib) and now. { ok, values, done, left } — counts only; not in the making: { ok: false }.
+// fill.looks: { fieldId: a look record } for the texts in fill.values (item 35); the answer then holds looks, the character's looks after the fill
 function fillMaking(sys, char, fill, F, opts) {
     if (!isObj(sys) || !Array.isArray(sys.fields) || !isObj(char) || openChar(char) !== 'making' || !isObj(fill)) return { ok: false, reason: 'notmaking' };
     opts = Object.assign({}, isObj(opts) ? opts : {}, { player: true, fill: true });
     var work = { id: char.id, name: char.name, ownerId: char.ownerId, npc: false, making: 1, values: JSON.parse(JSON.stringify(isObj(char.values) ? char.values : {})) }, done = 0, left = 0;
     var mine = function(fid, kind) { var f = typeof fid === 'string' ? fieldById(sys, fid) : null; return f && f.kind === kind && f.vis === 'all' ? f : null; };   // making: every visible field is theirs (D3)
-    var vals = isObj(fill.values) ? fill.values : {}, pools = [];
+    var vals = isObj(fill.values) ? fill.values : {}, pools = [], lkIn = isObj(fill.looks) ? fill.looks : null, wrote = [];
     Object.keys(vals).slice(0, LIMITS.fields).forEach(function(fid) {
         var f = fieldById(sys, fid); if (!f || f.kind === 'item-list' || f.kind === 'effects') { left++; return; }   // rows and effects go by their own ops
         if (f.kind === 'resource') { pools.push(fid); return; }
-        var r = applyEdit(sys, work, fid, vals[fid], F, opts); if (r.ok) { work.values[fid] = r.value; done++; } else left++;
+        var r = applyEdit(sys, work, fid, vals[fid], F, opts); if (r.ok) { work.values[fid] = r.value; done++; if (lkIn && hasOwn(lkIn, fid)) wrote.push(fid); } else left++;
     });
     (Array.isArray(fill.lists) ? fill.lists : []).forEach(function(fid) { if (mine(fid, 'item-list')) work.values[fid] = (Array.isArray(work.values[fid]) ? work.values[fid] : []).filter(function(r) { return isObj(r) && r.hid === 1; }); });
     var groups = [], at = map(), per = map();
@@ -4544,7 +4545,15 @@ function fillMaking(sys, char, fill, F, opts) {
         var r = applyEffectOp(sys, work, o.f, o.q, F, opts); if (r.ok) { work.values[o.f] = r.value; if (o.q.op !== 'on') done++; } else left++;
     });
     pools.forEach(function(fid) { var r = applyEdit(sys, work, fid, vals[fid], F, opts); if (r.ok) { work.values[fid] = r.value; done++; } else left++; });
-    return { ok: true, values: work.values, done: done, left: left };
+    // Item 35: the looks of the texts. A look the file gives a text this fill WROTE stands in for the character's own, and every look is then
+    // cleaned against the value AS KEPT, by its field's own rule (cleanLooks): a fill that changes a text ends its old look.
+    // `looks` is in the answer only when one is left; the counts say nothing of looks
+    var lkAll = {}, lkOld = isObj(char.looks) ? char.looks : null;
+    if (lkOld) Object.keys(lkOld).forEach(function(k) { lkAll[k] = lkOld[k]; });
+    wrote.forEach(function(fid) { lkAll[fid] = lkIn[fid]; });   // (cleaned just below with the rest: one that does not clean leaves no look for its text, the old one neither)
+    var lkOut = cleanLooks(lkAll, work.values, sys), res = { ok: true, values: work.values, done: done, left: left };
+    if (lkOut) res.looks = lkOut;
+    return res;
 }
 // Onboarding F4: a ShadowBase dossier as a fill for a character in the making, read on the PLAYERS' view (a GM-only field, a GM-only pool, a skill's
 // base read through one: none of it is there to match) with their finder (the view's items and the entries of the packs they may see)

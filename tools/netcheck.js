@@ -5100,6 +5100,34 @@ pendingChecks.push((async () => {
     check('Onboarding F4 (host): a character file (the player\'s own download) fills a character in the making the same way (its picture is never on the wire); on a character in play it is refused (file) and a ShadowBase sheet still goes to the GM\'s Review (owner, 2026-09-27: unlocked keeps today\'s Import)',
         j(R3.answer) === j([{ n: 0, auto: 2, left: 0, type: 'char-upload-ans', rid: 'e1' }]) && R3.ch.values.f_st === 15 && (R3.ch.values.f_sk || []).length === 1 && R3.ch.values.f_sk[0].lvl === 7
         && j(run({ ch: { making: undefined, unlocked: 1 }, msg: { sheet: cfile } }).answer) === j([{ reason: 'file', type: 'char-upload-ans', rid: 'e1' }]) && (() => { const u = run({ ch: { making: undefined, unlocked: 1 } }); return u.answer[0].n > 0 && !!u.camp.uploads && u.ch.values.f_st === 10; })(), j(R3.answer));
+    // item 35, fold 1c: a character file with looks fills a character in the making, and the host stores the looks with the values
+    const LKf = await import(url('lookcore.js'));
+    const sysT = Sx.cleanSystem({ v: 1, name: 'T', rolls: [], fields: [{ id: 'f_name', key: 'Name', label: 'Name', kind: 'text' }, { id: 'f_bio', key: 'Bio', label: 'Bio', kind: 'notes' }, { id: 'f_secret', key: 'Secret', label: 'Secret', kind: 'text', vis: 'gm' }] }, { F: Fx, gmView: true }), plT = viewOf({ system: sysT });
+    const NAMEf = 'Bren the Bold', BIOf = 'Line one\nline two', ruleT = id => Sx.lookRule(Sx.fieldById(sysT, id)), recT = (id, fmt, text) => LKf.makeRec(fmt, '', text, ruleT(id));
+    const BOLDf = recT('f_name', { spans: [{ s: 0, e: 4, b: true }] }, NAMEf), BIGf = recT('f_bio', { spans: [{ s: 5, e: 8, size: 'large' }] }, BIOf), OLDf = recT('f_name', { i: true }, 'Old words');
+    const srcT = more => Object.assign({ id: 'c_s', name: 'Vex', ownerId: 'u_a', npc: false, values: { f_name: NAMEf, f_bio: BIOf, f_secret: 'hidden' } }, more);
+    const fileT = (more, gmCopy) => SXp.charToJson(gmCopy ? sysT : plT, gmCopy ? Sx.cleanChar(srcT(more), sysT, { state: 'host' }) : Sx.charForView(srcT(more), plT), null, gmCopy ? { exported: 'x', gm: true } : { exported: 'x' });
+    const runT = (file, chMore) => {
+        const ch = Object.assign({ id: 'c_m', name: 'Vex', ownerId: 'u_a', npc: false, making: 1, values: {} }, chMore || {}), camp = { id: 'k', system: sysT, chars: { c_m: ch } }, out = { answer: [], sent: [], ch };
+        const conn = { peer: 'pA', send: m => { packCheck(m); out.answer.push(JSON.parse(JSON.stringify(m))); } };
+        const netF = { active: true, role: 'host', paused: false, conns: [], roster: { pA: { id: 'u_a', name: 'Pat' } }, sendCharTo: (pid, id) => out.sent.push([pid, id, ch.looks === undefined ? null : j(ch.looks)]), syncCharDelta() {} };
+        const win = { wpFormula: Fx, wpVtt: { on: () => true }, wpLibrary: { state: () => 'ready' }, wpSheets: { sbFinder: () => () => [], charChanged() {}, uploadsChanged() {}, playerSystem: viewOf, charFromJson: SXp.charFromJson } };
+        win.wpSheets.playerFinder = realFinder(win);
+        new Function('msg', 'conn', 'net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'toast', 'logEvent', '_uploadAt', 'UPLOAD_GAP_MS', 'sheetsOnFor', 'allow', upSrc)(
+            { type: 'char-upload', rid: 'e1', charId: 'c_m', sheet: JSON.parse(j(file)) }, conn, netF, () => Sx, win, () => false, () => camp, () => {}, e => { throw e; }, () => {}, () => {}, {}, 10000, () => true, () => true);
+        return out;
+    };
+    const LOOKSf = { f_name: BOLDf, f_bio: BIGf }, Lf1 = runT(fileT({ looks: LOOKSf })), Lf0 = runT(fileT()), LfG = runT(fileT({ looks: { f_name: BOLDf, f_bio: BIGf, f_secret: recT('f_secret', { b: true }, 'hidden') } }, true));
+    const LfOld = runT(fileT(), { values: { f_name: 'Old words' }, looks: { f_name: OLDf } }), LfKeep = runT(fileT(), { values: { f_name: NAMEf }, looks: { f_name: BOLDf } });
+    const hostF = JSON.parse(j(fileT())); hostF.looks = { f_name: { fmt: { spans: [{ s: 0, e: 4, b: true, size: 'large' }] }, sig: LKf.textSig(NAMEf) }, f_bio: { fmt: { b: true }, sig: LKf.textSig('Other words') }, f_secret: BOLDf, f_zzz: BOLDf }; const LfHost = runT(hostF);
+    const junkF = JSON.parse(j(fileT())); junkF.looks = [BOLDf]; const LfJunk = runT(junkF);
+    check('item 35, fold 1c (host, the charfill branch run for real with the real core and the real file reader): a character file with looks fills a character in the making, and the host stores the looks with the values, each cleaned against the value as kept by its field\'s own rule, before the owner is sent their copy; the answer is counts only and the same with or without looks; a file with none leaves the character with no looks key, and ends the look of a text it changed while a text written again as it stood keeps its look; the GM\'s own copy of a file, read on the players\' view, gives no GM-only text and no look for one; a file\'s look for other words, for a GM-only field or for a field that is not there leaves none, a size is dropped from a one-line text, and looks that are a list leave none; the new line stands by itself after the values are stored',
+        j(Lf1.ch.looks) === j(LOOKSf) && j(Lf1.sent) === j([['u_a', 'c_m', j(LOOKSf)]]) && j(Lf1.answer) === j([{ n: 0, auto: 2, left: 0, type: 'char-upload-ans', rid: 'e1' }]) && j(Lf0.answer) === j(Lf1.answer) && !('looks' in Lf0.ch) && j(Lf0.ch.values) === j(Lf1.ch.values) && j(Lf0.sent) === j([['u_a', 'c_m', null]])
+        && j(LfG.answer) === j(Lf1.answer) && j(LfG.ch.looks) === j(LOOKSf) && !('f_secret' in LfG.ch.values)
+        && !('looks' in LfOld.ch) && LfOld.ch.values.f_name === NAMEf && j(LfKeep.ch.looks) === j({ f_name: BOLDf })
+        && j(LfHost.ch.looks) === j({ f_name: BOLDf }) && j(LfHost.answer) === j(Lf1.answer) && !('looks' in LfJunk.ch) && j(LfJunk.answer) === j(Lf1.answer)
+        && /\n            chU\.values = rF\.values; chU\.updated = nowU;\n            if \(rF\.looks\) chU\.looks = rF\.looks; else delete chU\.looks;[^\n]*\n            if \(net\.sendCharTo\) net\.sendCharTo\(profU\.id, qu\.charId\);/.test(upSrc),
+        j([Lf1.ch.looks, Lf1.answer, Lf0.answer, LfG.ch.looks, LfOld.ch.looks, LfKeep.ch.looks, LfHost.ch.looks, LfJunk.ch.looks]));
     const sigF = { format: 'waypoint-character', v: 1, name: 'Vex', system: { sig: SXp.systemSig(viewOf({ system: sysF(false, true) })), fields: { f_st: { key: 'IQ', kind: 'number' }, f_x: { key: 'DX', kind: 'number' }, f_y: { key: 'Skills', kind: 'item-list' } } },
         values: { f_st: 12, f_x: 15, f_y: [{ id: 'w_1', defId: 'i_climb', qty: 1, lvl: 5 }, { id: 'w_2', defId: 'i_pot', qty: 1, lvl: 4 }] } };
     const T0 = run({ iq: true, msg: { sheet: sigF } }), T1 = run({ iq: true, gmDx: true, msg: { sheet: sigF } }), idN = v => j(v).replace(/"w_f[a-z0-9]+"/g, '"ID"');

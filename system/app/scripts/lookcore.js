@@ -39,7 +39,7 @@
      cleanRec(rec, text, rule)     the ONLY shape a record is stored, sent or drawn in, for THIS text: undefined unless the text is
                                    a string within the rule's length, the record has a record's shape and its sig is the text's.
      makeRec(fmt, font, text, rule)   a record for a text from a format and a font: what an edit stores. undefined for none.
-     lookWeight(rec)               the size, for a budget, of a record cleanRec or makeRec GAVE: its strings' lengths and 48 a part.
+     lookWeight(rec)               the size, for a budget, of a record cleanRec or makeRec GAVE: its strings as JSON writes them, 64 for the record and 64 a part.
                                    Never the measure of a record as it arrived: clean first, then weigh. */
 'use strict';
 import { cleanFmt, fontKnown, MAX_RAW, MAX_LINK, MAX_FONT } from './textfmt.js';
@@ -145,13 +145,13 @@ function makeRec(fmt, font, text, rule) {
     return textOk(text, R) ? build(fmt, font, text, R) : undefined;
 }
 // (W_BASE: the record's own braces and keys and a whole field's four switches, as JSON writes them at the most; W_PART: a part's braces,
-// its two places of up to seven digits each and its four switches; a string with its key, its quotes, its colon and its comma. A cleaned
-// record's strings hold nothing JSON writes longer (a signature, a font's name, a colour, a size's word, an address the link rule kept).
+// its two places of up to seven digits each and its four switches; a string AS JSON WRITES IT, with its key, its colon and its comma: an
+// address the link rule kept may hold a quote, a backslash or half a character, each of which JSON writes longer than one character.
 // So for a CLEANED record the sum is never less than the characters JSON gives it, and a budget counted in it bounds what is sent and saved)
 var W_BASE = 64, W_PART = 64;
 function lookWeight(rec) {
     if (!plain(rec)) return 0;
-    var str = function(k, v) { return k.length + 6 + v.length; }, strs = function(o) { var t = 0, k; for (k in o) if (own(o, k) && typeof o[k] === 'string') t += str(k, o[k]); return t; };
+    var str = function(k, v) { return k.length + 4 + JSON.stringify(v).length; }, strs = function(o) { var t = 0, k; for (k in o) if (own(o, k) && typeof o[k] === 'string') t += str(k, o[k]); return t; };
     var w = W_BASE;
     if (typeof rec.sig === 'string') w += str('sig', rec.sig);
     if (typeof rec.font === 'string') w += str('font', rec.font);

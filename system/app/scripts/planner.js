@@ -541,6 +541,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var E = tsState.els, wasBox = tsState.box, wasSel = tsState.sel;
       tsState.box = null; tsState.sel = null; tsState.run = null; tsState.last = null; tsState.pre = null; tsState.comp = false; tsState.away = false;
       if (E) { E.root.hidden = true; E.symWrap.classList.remove('open'); }
+      if (tsHosts.length) tsxWatch(null);
       if (tsHosts.length) { tsState.kept = null; if (wasBox) tsxLeft(wasSel, wasBox); }   // a host is told that its box was left
   }
   // Where the bar goes — pure: the panel and the box as { left, top, right, bottom } on the screen, the bar's width and height. Above the box,
@@ -562,7 +563,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           return { left: Math.round(left), top: Math.round(box.bottom + gap), below: true, seen: seen };
       }
       var above = box.top - gap - h, below = (under === true && box.bottom + gap + h <= panel.bottom - 2) || above < panel.top + 2;
-      return { left: Math.round(left), top: Math.round(below ? box.bottom + gap : above), below: below, seen: seen };
+      var top = below ? box.bottom + gap : above;
+      if (under === true && below && top + h > panel.bottom - 2) top = Math.max(panel.top + pad, panel.bottom - pad - h);   // it fits neither under nor above what it stands by: inside the panel all the same, over the foot of it, never past the panel's edge where nobody can reach it
+      return { left: Math.round(left), top: Math.round(top), below: below, seen: seen };
   }
   // the table a box is a heading or a cell of (its element), else null
   function tsTableOf(box) { return box && box.matches && box.closest && box.matches('.b-colhead, .r-col') ? box.closest('.b-table') : null; }
@@ -574,6 +577,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (tsHosts.length) hr = tsxRect(E, own);   // a host's root with no area of its own (a layer that only holds panels): the window stands in
       var by = hxP ? hxP.barBy(box) : null;
       if (by && by !== box && by.nodeType === 1 && by.getBoundingClientRect && by.contains && by.contains(box)) br = by.getBoundingClientRect();   // what a host has the bar stand by (the whole row its box is part of), so the bar lies over nothing of that row
+      else by = null;
+      if (tsHosts.length) tsxWatch(hxP ? by || box : null);
       var right = hr !== own ? hr.right : hr.left + (ref.clientLeft || 0) + (ref.clientWidth || (hr.right - hr.left));   // less the panel's scroll bar
       E.root.style.maxWidth = Math.max(180, Math.round(right - hr.left - 12)) + 'px';
       var tb = tsTableOf(box);
@@ -803,6 +808,16 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   function tsxRect(E, hr) {
       if (!E.home || E.host === E.home || (hr.right > hr.left && hr.bottom > hr.top)) return hr;
       return { left: 0, top: 0, right: window.innerWidth || 0, bottom: window.innerHeight || 0 };
+  }
+  // What a host's bar stands by is watched for its size. A box dragged taller by its grip, or a font that loads late, moves the edge the bar
+  // stands at with no key, press or scroll to say so. ONE observer, on one element at a time, and none for a planner's own box
+  var tsxRO = null, tsxSeen = null;
+  function tsxWatch(el) {
+      el = el || null; if (tsxSeen === el) return;
+      var RO = typeof window !== 'undefined' && typeof window.ResizeObserver === 'function' ? window.ResizeObserver : null;
+      if (tsxRO) { try { tsxRO.disconnect(); } catch (err) {} }
+      tsxSeen = el; if (!el || !RO) return;
+      try { if (!tsxRO) tsxRO = new RO(function() { tsPlace(); }); tsxRO.observe(el); } catch (err2) {}
   }
   function tsxCopy(f) { return f === undefined || f === null ? undefined : JSON.parse(JSON.stringify(f)); }
   function tsxSame(a, b) { return a.text === b.text && JSON.stringify(a.fmt) === JSON.stringify(b.fmt) && (a.font || '') === (b.font || ''); }

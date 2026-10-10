@@ -3851,9 +3851,136 @@ net.targets = {};
    Journal, and it is gone when the GM puts it away or the session ends. Never saved with the campaign. */
 net.notepad = { on: false, text: '' };
 var notepadTimer = null;
+// [netcheck:padbox-start]
+// Item 35, fold 3a: the GM styles the pad and every player reads it so (the owner, 2026-10-09: "GM styles it"). The GM's box is the planner's
+// own text box, the pad a HOST of it (window.wpTextBox). The look is the GM's alone until it is sent: _pad.fmt and _pad.font, made into a
+// record for the very text sent, by the rule of the pad (lookcore RULES.PAD: a size and one of Waypoint's own fonts, never a link, since
+// everyone at the table reads it). A player's box only reads: the reader (window.wpTextRead) draws the text with the look the host sent,
+// cleaned again there. It is editable only so that it has a caret, as the read-only box it replaced had: every edit is cancelled.
+// _pad.on: 0 not asked yet, 1 the pad is a host of the text box, 2 refused. _pad.mode: how the box is dressed now, 'write' or 'read'.
+var _pad = { fmt: undefined, font: '', on: 0, mode: '' };
+var PAD_WRITE = 'Notes for the whole table — everyone sees this as you type. Gone when you put it away or the session ends; anyone can save it to their Journal.', PAD_READ = 'The GM has not written anything yet.';
+function padCore() { var L = typeof window !== 'undefined' ? window.wpLook : null; return L && typeof L.makeRec === 'function' && typeof L.cleanRec === 'function' && L.RULES && L.RULES.PAD ? L : null; }
+function padBox() { var w = typeof window !== 'undefined' ? window.wpTextBox : null; return w && typeof w.host === 'function' && typeof w.dress === 'function' && typeof w.fill === 'function' ? w : null; }
+function padReset() { _pad.fmt = undefined; _pad.font = ''; }
+// The look of the pad as the GM has it now, for the text given, or none
+function padRec(text) { var L = padCore(); return L ? L.makeRec(_pad.fmt, _pad.font, text, L.RULES.PAD) : undefined; }
 function notepadMsg() {
     var camp = getActiveCampaign() || {};
-    return { type: 'notepad', on: !!net.notepad.on, text: String(net.notepad.text || '').slice(0, 20000), campId: camp.id || '', gmId: getProfile().id, campaign: camp.name || '', gm: getProfile().name || 'GM' };
+    var m = { type: 'notepad', on: !!net.notepad.on, text: String(net.notepad.text || '').slice(0, 20000), campId: camp.id || '', gmId: getProfile().id, campaign: camp.name || '', gm: getProfile().name || 'GM' };
+    var lk = m.on ? padRec(m.text) : undefined;   // the look for the very text sent: a message with no look has exactly the keys it always had
+    if (lk) m.look = lk;
+    return m;
+}
+// The pad's one field, as the text box reads and writes it. Only while this app hosts: a player's app has no field, so nothing can be typed
+function padField(key) {
+    if (key !== 'pad' || net.role !== 'host') return null;
+    return { ident: 'pad', text: function() { return String(net.notepad.text || ''); }, fmt: function() { return _pad.fmt; },
+        setText: function(v) { net.notepad.text = String(v == null ? '' : v).slice(0, 20000); }, setFmt: function(v) { _pad.fmt = v && typeof v === 'object' ? v : undefined; },
+        font: function() { return _pad.font; }, setFont: function(v) { _pad.font = typeof v === 'string' ? v : ''; } };
+}
+// The pad registers as a host once. Its panel is small, so the bar stands BY the panel, outside it and under it where the window has room
+function padOn() {
+    if (_pad.on) return _pad.on === 1;
+    var w = padBox(), p = ui('notepadPanel'); if (!w || !padCore() || !p) return false;
+    var yes = function() { return true; }, no = function() { return false; }, panel = function() { return p; };
+    _pad.on = w.host({ id: 'pad', roots: [p], doc: function() { return 'pad'; }, field: padField, name: function() { return 'Table notepad'; }, links: no, sizes: yes, fonts: yes, barHost: panel, barBy: panel, barUnder: yes, changed: function() { net.notepadInput(); }, left: function() {} }) ? 1 : 2;
+    return _pad.on === 1;
+}
+// A place in the drawn text as a count of characters, and back: the reader draws every character of the text once, in order, in text nodes
+function padAt(el, node, off) {
+    var n = 0, done = false;
+    var count = function(x) { if (x.nodeType === 3) n += x.nodeValue.length; else for (var k = 0; x.childNodes && k < x.childNodes.length; k++) count(x.childNodes[k]); };
+    var walk = function(x) {
+        if (done) return;
+        if (x === node) {
+            if (x.nodeType === 3) n += Math.max(0, Math.min(x.nodeValue.length, off | 0));
+            else for (var i = 0; x.childNodes && i < x.childNodes.length && i < off; i++) count(x.childNodes[i]);
+            done = true; return;
+        }
+        if (x.nodeType === 3) { n += x.nodeValue.length; return; }
+        for (var j = 0; x.childNodes && j < x.childNodes.length && !done; j++) walk(x.childNodes[j]);
+    };
+    walk(el);
+    return n;
+}
+function padPoint(el, at) {
+    var left = Math.max(0, at | 0), last = null, hit = null;
+    var walk = function(x) {
+        if (hit) return;
+        if (x.nodeType === 3) { var len = x.nodeValue.length; if (left <= len) { hit = { node: x, offset: left }; return; } left -= len; last = x; return; }
+        for (var j = 0; x.childNodes && j < x.childNodes.length && !hit; j++) walk(x.childNodes[j]);
+    };
+    walk(el);
+    return hit || (last ? { node: last, offset: last.nodeValue.length } : { node: el, offset: 0 });
+}
+// The selection inside the pad as places in its text, or none when it does not lie in the pad; and a selection put there
+function padSelOf(el) {
+    var gs = typeof window !== 'undefined' && window.getSelection ? window.getSelection() : null;
+    if (!gs || !gs.rangeCount || !gs.anchorNode || !gs.focusNode || !el.contains(gs.anchorNode) || !el.contains(gs.focusNode)) return null;
+    var a = padAt(el, gs.anchorNode, gs.anchorOffset), f = padAt(el, gs.focusNode, gs.focusOffset);
+    return { s: Math.min(a, f), e: Math.max(a, f), back: f < a };
+}
+function padSelect(el, s, e, back) {
+    var gs = typeof window !== 'undefined' && window.getSelection ? window.getSelection() : null; if (!gs || !gs.setBaseAndExtent) return false;
+    var a = padPoint(el, back ? e : s), f = s === e ? a : padPoint(el, back ? s : e);
+    try { gs.setBaseAndExtent(a.node, a.offset, f.node, f.offset); } catch (err) { return false; }
+    return true;
+}
+// Where a player's selection goes when the GM changes the text under it (the owed review of 2026-10-09, pure). The text changed in one
+// stretch, the GM typing: the old text's [pN, endN) became the new text's [pN, newN). A place before it stays and a place after it moves
+// with the words. At its edges a selection keeps to the player's own words: its START goes after what was typed there, its END (and a lone
+// caret) stays before it. A place inside what was changed is gone: a selection the change reaches into becomes a caret at its end, never a
+// selection over words the player did not pick. No place is ever between the two halves of one character
+function padMoved(oldN, nowN, s0N, s1N) {
+    var aN = oldN.length, zN = nowN.length, pN = 0, qN = 0, limN = Math.min(aN, zN);
+    var pairN = function(t, i) { if (i <= 0 || i >= t.length) return false; var x = t.charCodeAt(i - 1), y = t.charCodeAt(i); return x >= 0xd800 && x <= 0xdbff && y >= 0xdc00 && y <= 0xdfff; };   // i lies between the halves of one character
+    while (pN < limN && oldN.charCodeAt(pN) === nowN.charCodeAt(pN)) pN++;
+    if (pairN(oldN, pN) || pairN(nowN, pN)) pN--;   // two characters that share their first half are two characters: the change begins before both
+    while (qN < limN - pN && oldN.charCodeAt(aN - 1 - qN) === nowN.charCodeAt(zN - 1 - qN)) qN++;
+    if (pairN(oldN, aN - qN) || pairN(nowN, zN - qN)) qN--;   // the end of what changed is where a selection collapses to: never between the halves of one character
+    var endN = aN - qN, newN = zN - qN;
+    s0N = Math.max(0, Math.min(aN, s0N | 0)); s1N = Math.max(s0N, Math.min(aN, s1N | 0));   // the selection, within the old text
+    var mapN = function(o, right) { return o < pN ? o : o > endN ? o + (zN - aN) : o === pN || o === endN ? (right ? newN : pN) : -1; }, m0N = mapN(s0N, s1N > s0N), m1N = mapN(s1N, false);
+    if (s1N > s0N && s0N < pN && s1N > endN && newN > pN) m0N = -1;   // words typed or put INSIDE the selection: the player did not pick them
+    if (m0N < 0 || m1N < 0) m0N = m1N = newN;
+    return [m0N, Math.max(m0N, m1N)];
+}
+// A reading pad drawn: by the reader, with the look cleaned again by the rule of the pad; as plain words without the reader
+function padDraw(el, text, look) {
+    var rd = typeof window !== 'undefined' && window.wpTextRead && typeof window.wpTextRead.fill === 'function' ? window.wpTextRead : null, L = padCore();
+    if (rd && L) { rd.fill(el, text, look, document, { rule: L.RULES.PAD, typed: false }); return; }
+    if (el.style) el.style.fontFamily = '';
+    el.textContent = text;
+}
+// A reading pad follows the pad's text and look. Drawn only when either changed; a selection in it moves with its words (padMoved), keeps
+// the way it was made where it survives, and the reader's place in a long text stays
+function padRead(el, look) {
+    var text = String(net.notepad.text || ''), key = text + '\u0000' + (look ? JSON.stringify(look) : '');
+    if (el._padKey === key) return false;
+    var old = typeof el._padText === 'string' ? el._padText : '', sel = padSelOf(el), sc = el.scrollTop;
+    padDraw(el, text, look);
+    el._padKey = key; el._padText = text;
+    if (sel) { var m = padMoved(old, text, sel.s, sel.e); padSelect(el, m[0], m[1], sel.back && m[1] > m[0]); }
+    el.scrollTop = sc;
+    return true;
+}
+// The pad's box dressed for its part: the GM's as a box of the text box module, a reader's as a box that only reads. Done when the part
+// changes (this app hosted and now sits at someone's table, or the other way), and then the box is emptied first
+function padDress(el, host) {
+    var w = host ? padBox() : null, want = host && w && padOn() ? 'write' : 'read';
+    if (_pad.mode === want && el._padMode === want) return want;
+    while (el.firstChild) el.removeChild(el.firstChild);
+    el._padKey = null; el._padText = ''; el._tsText = undefined; el._tsFont = undefined;
+    if (el.style) el.style.fontFamily = '';
+    if (want === 'write') { el.removeAttribute('aria-readonly'); w.dress(el, { key: 'pad', multi: true, placeholder: PAD_WRITE, label: 'Table notepad' }); }
+    else {
+        el.classList.remove('ts-box'); el.classList.remove('ts-multi'); if (el.dataset) delete el.dataset.tsk;
+        el.setAttribute('contenteditable', 'true'); el.setAttribute('role', 'textbox'); el.setAttribute('aria-multiline', 'true'); el.setAttribute('aria-readonly', 'true');
+        el.setAttribute('aria-label', 'Table notepad'); el.setAttribute('spellcheck', 'false'); el.setAttribute('data-placeholder', host ? PAD_WRITE : PAD_READ);
+    }
+    _pad.mode = want; el._padMode = want;
+    return want;
 }
 function renderNotepad() {
     var p = ui('notepadPanel'), ta = ui('notepadText'); if (!p || !ta) return;
@@ -3861,35 +3988,13 @@ function renderNotepad() {
     p.style.display = on ? 'flex' : 'none';
     if (!on) return;
     var host = net.role === 'host';
-    ta.readOnly = !host;
-    ta.placeholder = host ? 'Notes for the whole table — everyone sees this as you type. Gone when you put it away or the session ends; anyone can save it to their Journal.' : 'The GM has not written anything yet.';
-    if ((!host || document.activeElement !== ta) && ta.value !== net.notepad.text) {
-        var heldN = !host && document.activeElement === ta, s0N = heldN ? ta.selectionStart : 0, s1N = heldN ? ta.selectionEnd : 0, scN = !host ? ta.scrollTop : 0, oldN = heldN ? String(ta.value) : '', dirN = heldN ? ta.selectionDirection : 'none';
-        ta.value = net.notepad.text || '';
-        if (!host && !heldN) ta.scrollTop = scN;   // a player reading without the focus in the box: their place in a long text stays too
-        if (heldN) {   // a player reading or copying: where they are stays. The text changed in one stretch, the GM typing: a place before it stays, a place after it moves with the words, and a selection the change reaches into becomes a caret at its end, never a selection over words the player did not pick
-            var nowN = ta.value, aN = oldN.length, zN = nowN.length, pN = 0, qN = 0, limN = Math.min(aN, zN);
-            var pairN = function(t, i) { if (i <= 0 || i >= t.length) return false; var x = t.charCodeAt(i - 1), y = t.charCodeAt(i); return x >= 0xd800 && x <= 0xdbff && y >= 0xdc00 && y <= 0xdfff; };   // i lies between the halves of one character
-            while (pN < limN && oldN.charCodeAt(pN) === nowN.charCodeAt(pN)) pN++;
-            if (pairN(oldN, pN) || pairN(nowN, pN)) pN--;   // two characters that share their first half are two characters: the change begins before both
-            while (qN < limN - pN && oldN.charCodeAt(aN - 1 - qN) === nowN.charCodeAt(zN - 1 - qN)) qN++;
-            if (pairN(oldN, aN - qN) || pairN(nowN, zN - qN)) qN--;   // the end of what changed is where a selection collapses to: never between the halves of one character
-            // The change: the old text's [pN, endN) became the new text's [pN, newN). A place before it stays and a place after it moves with
-            // the words. At its edges a selection keeps to the player's own words: its START goes after what was typed there, its END (and a
-            // lone caret) stays before it. A place inside what was changed is gone
-            var endN = aN - qN, newN = zN - qN;
-            s0N = Math.max(0, Math.min(aN, s0N | 0)); s1N = Math.max(s0N, Math.min(aN, s1N | 0));   // the selection, within the old text
-            var mapN = function(o, right) { return o < pN ? o : o > endN ? o + (zN - aN) : o === pN || o === endN ? (right ? newN : pN) : -1; }, m0N = mapN(s0N, s1N > s0N), m1N = mapN(s1N, false);
-            if (s1N > s0N && s0N < pN && s1N > endN && newN > pN) m0N = -1;   // words typed or put INSIDE the selection: the player did not pick them
-            if (m0N < 0 || m1N < 0) m0N = m1N = newN;
-            try { ta.setSelectionRange(m0N, Math.max(m0N, m1N), m1N > m0N && (dirN === 'backward' || dirN === 'forward') ? dirN : 'none'); } catch (e) {}   // a selection keeps the way it was made: the next Shift and arrow goes on from its own end
-            ta.scrollTop = scN;
-        }
-    }   // the writer's own typing is never drawn over; a player's box only reads, and follows the GM even while it has the focus (the owed review, 2026-10-09)
+    if (padDress(ta, host) === 'write') { var w = padBox(); if (!(typeof w.pending === 'function' && w.pending(ta))) w.fill(ta); }   // the writer's own box, drawn from the pad as it stands: the module keeps the caret, and never draws over a composition or a control of the bar in use
+    else padRead(ta, host ? padRec(String(net.notepad.text || '')) : net.notepad.look);   // a player's box only reads, and follows the GM even while it has the focus (the owed review, 2026-10-09)
     var close = ui('notepadCloseBtn'); if (close) close.style.display = host ? '' : 'none';
     var clr = ui('notepadClearBtn'); if (clr) clr.style.display = host ? '' : 'none';
     var who = ui('notepadWho'); if (who) who.textContent = host ? 'everyone at the table sees this' : 'written by ' + (net.notepad.gm || 'the GM');
 }
+// [netcheck:padbox-end]
 window.wpRenderNotepad = renderNotepad;
 net.notepadToggle = function() {
     if (net.role !== 'host') return;
@@ -3900,6 +4005,7 @@ net.notepadToggle = function() {
         showConfirm('Put the table notepad away? ' + (has ? 'Its text goes for everyone who has not saved it to their Journal.' : 'It is empty.'), function(yes) {
             if (!yes) return;
             net.notepad = { on: false, text: '' };
+            if (typeof padReset === 'function') padReset();   // its look goes with its words
             broadcast(notepadMsg(), null); renderNotepad(); toast('Notepad put away.');
             logEvent('table', 'Table notepad put away');
         });
@@ -3910,36 +4016,41 @@ net.notepadToggle = function() {
         var ta = ui('notepadText'); if (ta) setTimeout(function() { ta.focus(); }, 50);
     }
 };
-net.notepadInput = function(text) {
+net.notepadInput = function(text) {   // the pad changed under the GM's hand: its text (given here, or already written by the pad's own field) or its look. The table is told a quarter of a second after the last change
     if (net.role !== 'host' || !net.notepad.on) return;
-    net.notepad.text = String(text || '').slice(0, 20000);
+    if (typeof text === 'string') net.notepad.text = text.slice(0, 20000);
     clearTimeout(notepadTimer);
     notepadTimer = setTimeout(function() { broadcast(notepadMsg(), null); }, 250);
 };
 (function() {
     var ta = ui('notepadText'), close = ui('notepadCloseBtn'), saveB = ui('notepadSaveBtn'), minB = ui('notepadMinBtn'), p = ui('notepadPanel'), head = ui('notepadHead');
     if (!ta) return;
-    ta.addEventListener('input', function() { net.notepadInput(ta.value); });
-    ta.addEventListener('keydown', function(e) { e.stopPropagation(); });
+    // The GM's typing reaches the pad through the text box module (the pad's host is told of every change). A player's box only reads: every
+    // edit is cancelled before it happens, and what cannot be cancelled (a composition) is drawn over at once
+    var reads = function() { return net.role !== 'host'; }, redraw = function() { if (reads()) { ta._padKey = null; renderNotepad(); } };
+    ['beforeinput', 'paste', 'cut', 'drop'].forEach(function(ev) { ta.addEventListener(ev, function(e) { if (reads()) e.preventDefault(); }); });
+    ta.addEventListener('input', redraw); ta.addEventListener('compositionend', redraw);
+    if (p) p.addEventListener('keydown', function(e) { e.stopPropagation(); });   // a key pressed anywhere in the pad, the bar's controls among them, is the pad's: the page reads every key that reaches the document (undo, Delete, the arrows)
+    else ta.addEventListener('keydown', function(e) { e.stopPropagation(); });
     if (close) close.addEventListener('click', function() { net.notepadToggle(); });
     var clearB = ui('notepadClearBtn');
     if (clearB) clearB.addEventListener('click', function() {
         if (net.role !== 'host' || !net.notepad.on) return;
-        if (!String(net.notepad.text || ta.value || '').trim()) { toast('The notepad is already empty.'); return; }
+        if (!String(net.notepad.text || '').trim()) { toast('The notepad is already empty.'); return; }
         showConfirm('Clear the table notepad? The text goes for everyone who has not saved it to their Journal. The notepad stays open.', function(yes) {
             if (!yes) return;
             clearTimeout(notepadTimer);
-            net.notepad.text = ''; ta.value = '';
+            net.notepad.text = ''; _pad.fmt = undefined;   // the words and what styled them go: the pad's font stays, it is the pad's
             broadcast(notepadMsg(), null); renderNotepad(); toast('Notepad cleared.');
             logEvent('table', 'Table notepad cleared');
         });
     });
     if (minB) minB.addEventListener('click', function() { p.classList.toggle('min'); minB.textContent = p.classList.contains('min') ? '\u25B4' : '\u25BE'; });
     if (saveB) saveB.addEventListener('click', function() {
-        var text = net.role === 'host' ? ta.value : (net.notepad.text || '');
+        var text = String(net.notepad.text || '');
         if (!String(text).trim()) { toast('Nothing on the notepad yet.'); return; }
         var meta = net.role === 'host' ? notepadMsg() : net.notepad;
-        if (window.wpJournalAddNote) window.wpJournalAddNote(meta, 'Table notes — ' + new Date().toLocaleDateString(), text);
+        if (window.wpJournalAddNote) window.wpJournalAddNote(meta, 'Table notes — ' + new Date().toLocaleDateString(), text, meta && meta.look);   // with its look: the GM's own as it would be sent, a player's as the host sent it. The Journal cleans it again for the text it stores
     });
     var pb = ui('netNotepadBtn'); if (pb) pb.addEventListener('click', function() {
         if (!(net.active && net.role === 'host')) { toast('Host a session first — the notepad is for the table.'); return; }
@@ -3952,7 +4063,7 @@ net.notepadInput = function(text) {
             if (e.target.closest('button')) return;
             var r = p.getBoundingClientRect(); d = { dx: e.clientX - r.left, dy: e.clientY - r.top }; head.setPointerCapture(e.pointerId); e.preventDefault();
         });
-        head.addEventListener('pointermove', function(e) { if (!d) return; p.style.left = Math.max(0, Math.min(window.innerWidth - 120, e.clientX - d.dx)) + 'px'; p.style.top = Math.max(0, Math.min(window.innerHeight - 40, e.clientY - d.dy)) + 'px'; p.style.right = 'auto'; });
+        head.addEventListener('pointermove', function(e) { if (!d) return; p.style.left = Math.max(0, Math.min(window.innerWidth - 120, e.clientX - d.dx)) + 'px'; p.style.top = Math.max(0, Math.min(window.innerHeight - 40, e.clientY - d.dy)) + 'px'; p.style.right = 'auto'; if (window.wpTextBox && typeof window.wpTextBox.place === 'function') window.wpTextBox.place(); });   // (the bar stands by the pad: it goes where the pad goes)
         head.addEventListener('pointerup', function() { d = null; });
         head.addEventListener('pointercancel', function() { d = null; });
     }
@@ -3988,6 +4099,9 @@ function applyNotepad(m) {
     var was = net.notepad.on;
     // filed, on "save to Journal", under the table played — the campaign on screen and the GM the snapshot named — never under a campaign or GM the message names
     net.notepad = { on: !!m.on, text: String(m.text || '').slice(0, 20000), campId: String((state.appState && state.appState.activeCampaignId) || '').slice(0, 80), gmId: String(net.gmId || '').slice(0, 80), campaign: String(m.campaign || '').slice(0, 120), gm: String(m.gm || 'GM').slice(0, 60) };
+    // item 35: the look the GM gave the pad, cleaned HERE for the text as kept, by the rule of the pad (no link, a size, one of Waypoint's own fonts). Only what the cleaner gives is kept
+    var LKn = typeof window !== 'undefined' && window.wpLook && typeof window.wpLook.cleanRec === 'function' && window.wpLook.RULES ? window.wpLook : null, lkN = LKn && net.notepad.on ? LKn.cleanRec(m.look, net.notepad.text, LKn.RULES.PAD) : undefined;
+    if (lkN) net.notepad.look = lkN;
     if (net.notepad.on && !was) toast('The GM opened a table notepad — you can save it to your Journal any time.');
     else if (!net.notepad.on && was) toast('The GM put the table notepad away.');
     renderNotepad();
@@ -7389,7 +7503,7 @@ function leaveSession(silent) {
     endWaiting(wasHost);   // Onboarding F1a: waiting tokens live only while the session runs (the end's save writes them away)
     net.targets = {}; combatAskOpen = Object.create(null);
     net.combats = {}; combatAsked = {};
-    net.notepad = { on: false, text: '' }; setTimeout(renderNotepad, 0);
+    net.notepad = { on: false, text: '' }; if (typeof padReset === 'function') padReset(); setTimeout(renderNotepad, 0);
     if (window.wpRenderCombatStrip) setTimeout(function() { window.wpRenderCombatStrip(); }, 0);
     if (window.wpSheets && window.wpSheets.tokenTurned) setTimeout(function() { window.wpSheets.tokenTurned(null, true); }, 0);   // HUD frame (HF5b): CombatRound reads 0 again, so a sheet or HUD showing it repaints (no render runs on a leave)
     stopHeartbeat();

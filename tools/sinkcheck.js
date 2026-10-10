@@ -2720,6 +2720,27 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 && /typed = o\.typed === true && ruleLinks\(o\.rule\);/.test(runsSrc) && runsSrc.split('linkParts(t)').length === 2 && !/fillLinked\(span/.test(runsSrc)
                 && J((read('linkgate.js').match(/^import [^\n]*$/gm) || []).map(s => s.trim())) === J(["import { cleanLink, linkParts } from './textfmt.js';", "import { showConfirm } from './dialogs.js';", "import { runsOf, SIZE_EM, fontCss } from './textfmt.js';", "import { cleanRec, ruleLinks } from './lookcore.js';"])
                 && /\n  \.wp-run-read \{ white-space: pre-wrap; overflow-wrap: anywhere; \}\n/.test(read('../style.css').replace(/\r\n/g, '\n')));
+            // item 35, fold 3a: a player's table notepad drawn from a hostile host's message (net.js sliced by its padbox markers and run for real
+            // with the REAL reader beside it, on the page of plain objects, which refuses markup)
+            {
+                const nsrc = read('net.js'), pa = nsrc.indexOf('// [netcheck:padbox-start]'), pz = nsrc.indexOf('// [netcheck:padbox-end]'), padSrc = pa < 0 || pz < pa ? '' : nsrc.slice(pa, pz);
+                const rapi = new Function('cleanLink', 'linkParts', 'URL', 'runsOf', 'SIZE_EM', 'fontCss', 'cleanRec', 'ruleLinks', gateSrc + '\n' + peekSrcR + '\n' + runsSrc + '\nreturn { fillRuns };')(TFl.cleanLink, TFl.linkParts, URL, TFl.runsOf, TFl.SIZE_EM, TFl.fontCss, LKr.cleanRec, LKr.ruleLinks);
+                const TXT = 'Go to https://evil.example/x now <b>bold</b>', sigX = LKr.textSig(TXT);
+                const pad = (look, text) => { const dom = makeDom(), doc = dom.document, W = dom.window, panel = doc.createElement('div'), el = doc.createElement('div'); panel.appendChild(el); doc.body.appendChild(panel);
+                    W.wpTextRead = { fill: rapi.fillRuns }; W.wpLook = LKr;
+                    const net = { active: true, role: 'client', notepad: { on: true, text: text === undefined ? TXT : text, gm: 'Mallory', look } };
+                    new Function('net', 'ui', 'window', 'document', 'getActiveCampaign', 'getProfile', padSrc + '\nreturn renderNotepad;')(net, id => ({ notepadPanel: panel, notepadText: el })[id] || null, W, doc, () => ({}), () => ({}))();
+                    const all = el.all(); return [J(all.map(x => x.tagName).filter((t, i, a) => a.indexOf(t) === i)), all.length, el.textContent === (text === undefined ? TXT : text), el.style.fontFamily || '', J(all.map(x => [x.style.fontWeight || '', x.style.color || '', x.style.fontSize || '']).filter(s => s.join('') !== '')), J(Object.keys(el.attrs).sort())]; };
+                const styled = pad({ fmt: { spans: [{ s: 0, e: 5, b: true, link: 'https://evil.example/' }, { s: 27, e: 30, color: '#ff0000', size: 'large' }] }, font: 'Comic Sans MS', sig: sigX });
+                const fontOk = pad({ fmt: { i: true }, font: 'cinzel', sig: sigX }), junk = pad({ fmt: { spans: [{ s: 0, e: 5, b: true, onclick: 'x' }] }, sig: sigX }), stale = pad({ fmt: { b: true }, sig: LKr.textSig('other') }), none = pad(undefined), scriptLink = pad({ fmt: { link: 'javascript:alert(1)', b: true }, sig: sigX });
+                const ATTRS = J(['aria-label', 'aria-multiline', 'aria-readonly', 'contenteditable', 'data-placeholder', 'role', 'spellcheck']);
+                check('item 35, fold 3a, a player\'s table notepad (net.js sliced by its padbox markers, run for real with the reader): whatever a host sends, the pad holds spans and text nodes and nothing else: a link in the look is dropped and a web address typed in the words stays plain text, so no anchor is ever made; markup in the words shows as characters; a font of the host\'s own computer is dropped and one of Waypoint\'s own is set under the list\'s spelling; a record with an unknown key, one made for other words and none at all leave the plain words in one text node; the box carries only the attributes of a box that only reads; the slice makes no element itself, writes no markup and sets no handler; the box wraps its words, scrolls and shows its placeholder as the box it replaced did',
+                    J(styled) === J([J(['SPAN']), 4, true, '', J([['bold', '', ''], ['', '#ff0000', TFl.SIZE_EM.large]]), ATTRS]) && J(fontOk) === J([J(['SPAN']), 1, true, TFl.fontCss('Cinzel'), '[]', ATTRS]) && TFl.fontCss('Cinzel') !== ''
+                    && [junk, stale, none].every(x => J(x) === J(['[]', 0, true, '', '[]', ATTRS])) && J(scriptLink) === J([J(['SPAN']), 1, true, '', J([['bold', '', '']]), ATTRS])
+                    && padSrc.length > 2000 && !/innerHTML|insertAdjacentHTML|outerHTML|createElement|document\.write|\.on[a-z]+ = |setAttribute\('on|\beval\(|new Function/.test(padSrc) && /rd\.fill\(el, text, look, document, \{ rule: L\.RULES\.PAD, typed: false \}\);/.test(padSrc)
+                    && /\n  #notepadText \{ [^}\n]*resize: vertical; min-height: 140px; max-height: 60vh; [^}\n]*overflow-y: auto; white-space: pre-wrap; overflow-wrap: anywhere; outline: none; cursor: text; \}/.test(read('../style.css')) && read('../style.css').includes('\n  #notepadText:empty::before { content: attr(data-placeholder); color: var(--dim); opacity: 0.75; pointer-events: none; }\n'),
+                    [styled, fontOk, junk, stale, none, scriptLink]);
+            }
         }
 
         // the handout viewer (handouts.js showHandout, run for real) and the gate on the same page

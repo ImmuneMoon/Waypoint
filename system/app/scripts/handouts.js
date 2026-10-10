@@ -847,12 +847,12 @@ function jbxField(key) {
         font: function() { return n.font || ''; }, setFont: function(v) { n.font = typeof v === 'string' ? v : ''; } };
 }
 function jbxChanged(key) { var row = jbxRow(key); if (row) noteSaveSoon(row); }
-// The Journal registers as a host once, when the first note is drawn. The bar goes into the window's own box, which is never drawn again (the
-// list is); the LIST bounds its place, so a note scrolled out of the list takes the bar out of sight with it, and it stands UNDER the note's
-// whole row, so that it lies over nothing of the note in hand: neither its title row above the box nor its Share row beneath it
 // A key pressed on a control of the bar while it stands in the Journal's window box is the bar's alone. The box has no key shield of its own
 // (the list, the search and the picker each have one), and the page reads every key that reaches the document: undo, Delete, the arrows
 function jbxBarKey(e) { var t = e && e.target; if (t && t.closest && t.closest('.ts-bar')) e.stopPropagation(); }
+// The Journal registers as a host once, when the first note is drawn. The bar goes into the window's own box, which is never drawn again (the
+// list is); the LIST bounds its place, so a note scrolled out of the list takes the bar out of sight with it, and it stands UNDER the note's
+// whole row, so that it lies over nothing of the note in hand: neither its title row above the box nor its Share row beneath it
 function jbxOn() {
     if (_jbx.on) return _jbx.on === 1;
     var w = jbxApi(); if (!w || !jbxLook() || !_jList || !_jList.parentNode) return false;

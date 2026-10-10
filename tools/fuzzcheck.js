@@ -1035,7 +1035,7 @@ function mutations(tpl) {
         'stance': { type: 'stance', flags: { elevation: true, posture: false }, camps: {}, campId: 'c1' },
         'travelLock': { type: 'travelLock', on: false }, 'travelDenied': { type: 'travelDenied', reason: 'closed', map: 'Cellar' },
         'handout': { type: 'handout', kind: 'text', text: 'note', title: 'T', caption: 'c', id: 'sh_1', campId: 'c1', gmId: 'u_gm', look: { fmt: { b: true }, font: 'Lora', sig: win.wpLook.textSig('note') } },   // item 35, fold 2b: a page may come with a look
-        'notepad': { type: 'notepad', on: true, text: 'hi', campId: 'c1', gmId: 'u_gm', campaign: 'C', gm: 'GM' },
+        'notepad': { type: 'notepad', on: true, text: 'hi', campId: 'c1', gmId: 'u_gm', campaign: 'C', gm: 'GM', look: { fmt: { b: true, spans: [{ s: 0, e: 1, link: 'https://a.example/' }] }, font: 'Lora', sig: win.wpLook.textSig('hi') } },   // item 35, fold 3a: the pad may come with a look, so the seeded mutations reach its cleaner
         'combats': { type: 'combats', combats: { m_open: { mapId: 'm_open', round: 1, turn: 0, rows: [{ id: 'row_p1', name: 'Ayla', tokId: 'tok_p1' }, { id: 'row_npc', name: 'Orc', tokId: 'tok_npc' }] } } },
         'targets': { type: 'targets', targets: { u_p2: { id: 'tok_npc', mapId: 'm_open', name: 'Bram' } } },
         'pos': { type: 'pos', campId: 'c1', itemId: 'm_open', wbId: 'tok_p2', x: 200, y: 210, rot: 45, front: 0, final: true },
@@ -1091,7 +1091,7 @@ function mutations(tpl) {
         'mapBack-shown': () => { const m = campC().items.m_open; return !!m && m.stub === true && m.whiteboard.length === 0 && JSON.stringify(m).indexOf(CANARY) < 0 && campC().activeItemId === 'm_open'; },
         'stage': () => campC().activeItemId === 'm_open' && rec.toasts.some(t => /arrive/.test(t)),
         'pause': () => cnet.paused === true, 'snap': () => cnet.tableSnapOn === true, 'stance': () => !!cnet.stance,
-        'handout': () => rec.journal.length === 1, 'notepad': () => cnet.notepad && cnet.notepad.on === true,
+        'handout': () => rec.journal.length === 1, 'notepad': () => cnet.notepad && cnet.notepad.on === true && JSON.stringify(cnet.notepad.look) === JSON.stringify({ fmt: { b: true }, font: 'Lora', sig: win.wpLook.textSig('hi') }),   // (the look as the rule of the pad cleans it: its link is gone)
         'combats': () => cnet.combats.m_open && cnet.combats.m_open.rows.length === 2,
         'targets': () => cnet.targets.u_p2 && cnet.targets.u_p2.id === 'tok_npc',
         'pos': () => tokC('m_open', 'tok_p2').x === 200 && tokC('m_open', 'tok_p2').rot === 45,

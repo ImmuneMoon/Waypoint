@@ -2010,6 +2010,22 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 && J(watched) === J([1, true, '426px']) && J(grown) === J(['526px', 1, 0]) && J(sameEl) === J([1, 0]) && J(moved2) === J([1, true, 1]) && J(onPlan) === J([1, 0, 2]) && back1 === true && J(hid) === J([0, true]) && noRO === false && badRO === false
                 && /\n      if \(tsHosts\.length\) tsxWatch\(null\);\n      if \(tsHosts\.length\) \{ tsState\.kept = null; if \(wasBox\) tsxLeft\(wasSel, wasBox\); \}/.test(barSrc),
                 [clamp, watched, grown, sameEl, moved2, onPlan, back1, hid, noRO, badRO]);
+            // fold 3a: a host may have the bar stand by the very panel it lives in (the table notepad's own small panel). The bar then stands
+            // OUTSIDE that panel, bounded by the window and as wide as the panel; and a host may ask for the bar to be placed again
+            const q1 = mkHost(), qb = q1.box('notes', true), QE = q1.E, qWhere = () => [QE.root.style.left, QE.root.style.top, QE.root.classList.contains('ts-below'), QE.root.style.visibility || '', QE.root.style.maxWidth];
+            q1.dom.window.innerWidth = 1400; q1.dom.window.innerHeight = 900; q1.panel.rect = { left: 1000, top: 140, right: 1320, bottom: 400 }; q1.panel.clientWidth = 320; q1.body.rect = { left: 1001, top: 170, right: 1319, bottom: 368 }; qb.rect = { left: 1001, top: 172, right: 1319, bottom: 366 };
+            q1.pg.focus(qb, 1); const inside1 = qWhere();   // the host names nothing: the bar inside the panel, as ever
+            q1.host.barBy = () => q1.panel; q1.host.barUnder = () => true; q1.pg.dom.fire(q1.body, 'scroll', {}); const outUnder = qWhere();
+            q1.panel.rect = { left: 1000, top: 600, right: 1320, bottom: 880 }; const notYet = qWhere()[1]; q1.TB.place(); const outAbove = qWhere();   // the panel was dragged: nothing says so until the host asks
+            q1.panel.rect = { left: 1000, top: 10, right: 1320, bottom: 890 }; q1.TB.place(); const outHeld = qWhere();
+            q1.panel.rect = { left: 1000, top: 140, right: 1320, bottom: 400 }; q1.host.barUnder = () => false; q1.TB.place(); const outOver = qWhere();
+            q1.host.barBy = () => q1.body; q1.TB.place(); const byInner = qWhere()[4];   // an element inside the panel: the panel bounds the bar, as before
+            const p9 = mkPage({ map: mapOf(B0()) }).wire().rebuild(); const placed0 = (() => { try { p9.dom.window.wpTextBox.place(); return true; } catch (e) { return String(e && e.message); } })();   // with no box in use it places nothing and says nothing
+            check('item 35, fold 3a, the bar by its own panel (planner.js, run for real): a host that names the very panel the bar lives in has the bar stand outside it, bounded by the window and as wide as the panel: under it where the window has room, above it where only that fits, inside the window where neither does, and above it without the word under; a panel that moved with no scroll and no change of size is followed only when the host asks (wpTextBox.place); an element inside the panel bounds the bar by the panel as before; place with no box in use does nothing',
+                J(inside1) === J(['1006px', '372px', true, '', '308px']) && J(outUnder) === J(['974px', '406px', true, '', '320px']) && notYet === '406px' && J(outAbove) === J(['974px', '564px', false, '', '320px'])
+                && J(outHeld) === J(['974px', '864px', true, '', '320px']) && J(outOver) === J(['974px', '104px', false, '', '320px']) && byInner === '308px' && placed0 === true
+                && /\n      place: function\(\) \{ tsPlace\(\); \},/.test(barSrc),
+                [inside1, outUnder, notYet, outAbove, outHeld, outOver, byInner, placed0]);
         }
 
         // --- the planner with a host registered and idle: the very same steps and the very same stored bytes

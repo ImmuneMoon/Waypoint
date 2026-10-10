@@ -139,12 +139,12 @@ function wire() {
             openMenu(id); if (e.detail === 0) menuFocus(id);   // detail 0: pressed from the keyboard, so the focus goes into the menu
         });
         var onKey = function(e) {
-            if (!menuShown(id)) { if (e.key === 'ArrowDown') { e.preventDefault(); openMenu(id); menuFocus(id); } return; }   // on the button, its menu put away: Down opens it
+            if (!menuShown(id)) { if (e.key === 'ArrowDown') { e.preventDefault(); e.stopPropagation(); openMenu(id); menuFocus(id); } return; }   // on the button, its menu put away: Down opens it
             if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); menuSet(id, false); b.focus(); return; }   // Escape puts it away, goes no further, and hands the focus back
             var rows = menuRows(id), at = rows.indexOf(document.activeElement), to = menuStep(e.key, at, rows.length);
             if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) to = menuType(rows.map(function(r) { return r.textContent; }), at, e.key);   // a key of one character is a letter, never an arrow: the next row that begins with it. The space bar begins no row's words, so it stays the press it is
             if (to < 0) return;
-            e.preventDefault(); rows[to].focus();
+            e.preventDefault(); e.stopPropagation(); rows[to].focus();   // the key is the menu's and goes no further: the page's own arrow keys move a selected token (the owed review, 2026-10-09)
         };
         b.addEventListener('keydown', onKey); m.addEventListener('keydown', onKey);   // the focus is on the button or on a row: the keys are the menu's only there
         m.addEventListener('click', function(e) {

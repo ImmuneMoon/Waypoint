@@ -56,6 +56,22 @@ async function writeIndex(campId, idx) {
 // Two handouts arriving close together (replays come 0.4 s apart) used to read the same index and
 // the later write dropped the earlier entry — and its notes with it, on the next replay.
 var indexQueues = {};
+// [netcheck:notesave-start]
+// A note's save waits half a second after the last key. A redraw of the Journal inside that wait read the index from disk, where the typing
+// was not yet written, and drew the older words, which the next key then saved over the new (the owed review, 2026-10-09). Every waiting
+// save is kept with its own work, so that a redraw can run them all first
+var noteTimers = {};
+function noteLater(key, run) {
+    if (noteTimers[key]) clearTimeout(noteTimers[key].t);
+    var go = function() { if (noteTimers[key] && noteTimers[key].go === go) delete noteTimers[key]; return run(); };
+    noteTimers[key] = { t: setTimeout(go, 500), go: go };
+}
+function flushNotes() {
+    var waits = [];
+    Object.keys(noteTimers).forEach(function(k) { var n = noteTimers[k]; delete noteTimers[k]; if (!n) return; clearTimeout(n.t); try { waits.push(Promise.resolve(n.go()).then(function() {}, function() {})); } catch (e) {} });   // a save that fails stops no other, and the redraw waits for every one
+    return Promise.all(waits).then(function() {});
+}
+// [netcheck:notesave-end]
 function withIndex(campId, change) {
     var prev = indexQueues[campId] || Promise.resolve();
     var next = prev.catch(function() {}).then(async function() {
@@ -186,13 +202,15 @@ function hashBytes(bytes) {
 // their exact id. Two players' shares under one id (a host cleaned 'u_x' and 'u_.x' alike once) never find each other's page: a page is replaced
 // in place only by its own sender
 function exactId(v) { return typeof v === 'string' && /^[A-Za-z0-9_.:-]{1,80}$/.test(v) ? v : ''; }
-function sharerOf(msg) { return msg && msg.sharedBy ? exactId(msg.sharedById) : ''; }
+function sharerOf(msg) { return msg && msg.sharedBy ? (exactId(msg.sharedById) || null) : ''; }   // null: a named sender whose id is none or does not read. It matches no page, so each such share is a page of its own (it had read as the GM's, '')
 // Who a received page came from, for the links in it (linkgate.js asks before one opens and says who): the GM — a handout, or a page the GM
 // shared — or one player, by the name the Journal shows
 function cameFrom(msg) { return !msg.sharedBy || (exactId(msg.sharedById) && exactId(msg.sharedById) === safeId(msg.gmId)) ? { gm: true } : { who: String(msg.sharedBy).slice(0, 60) }; }
 function latestOf(idx, id, who) {
-    var best = null;
-    idx.entries.forEach(function(e) { if ((e.id === id || e.from === id) && (e.sharedById || '') === who && (!best || (e.receivedAt || 0) > (best.receivedAt || 0))) best = e; });
+    var best = null; if (who === null) return null;   // who: '' for the GM's own page, which is one with no sender named; else the sender's exact id
+    // never a page the player wrote themselves (the owed review, 2026-10-09): a note has no sender, so it read as the GM's, and a host that
+    // sent a handout under a note's id replaced the player's own words with it
+    idx.entries.forEach(function(e) { if (e.kind !== 'note' && (e.id === id || e.from === id) && (who === '' ? !e.sharedBy : e.sharedById === who) && (!best || (e.receivedAt || 0) > (best.receivedAt || 0))) best = e; });
     return best;
 }
 function idTaken(idx, id) { return idx.entries.some(function(e) { return e.id === id; }); }
@@ -381,14 +399,13 @@ if (_hNotes) {
         // keep the journal list's box in step if it is open behind the viewer
         var row = document.querySelector('.journal-entry[data-camp="' + en.campId + '"][data-id="' + en.id + '"] .journal-notes');
         if (row && row.value !== val) row.value = val;
-        clearTimeout(viewerNoteTimer);
-        viewerNoteTimer = setTimeout(function() {
-            withIndex(en.campId, function(idx) {
+        noteLater('viewer:' + en.campId + '/' + en.id, function() {
+            return withIndex(en.campId, function(idx) {
                 var x = idx.entries.find(function(y) { return y.id === en.id; });
                 if (!x) return false;
                 x.notes = val.slice(0, 20000);
             });
-        }, 500);
+        });
     });
 }
 var _hJournal = ui('handoutOpenJournalBtn');
@@ -435,6 +452,7 @@ function journalPickFill(journals, here) {
 }
 async function openJournal(keep) {   // keep (true only): drawn again where it stands, after a note was added or a page removed. Else it opens on the campaign on screen
     var m = ui('journalModal'); if (!m) return;
+    if (typeof flushNotes === 'function') await flushNotes();   // what was typed in the last half second is on disk before the rows are drawn from it
     m.style.display = 'flex';
     badge(0);
     var list = ui('journalList');
@@ -824,20 +842,18 @@ if (_jList) {
         if (tg) { var sb = ui('journalSearch'); if (sb) { sb.value = tg.dataset.tag; journalFilter(); sb.focus(); } return; }
         openRow(e.target);
     });
-    var noteTimers = {};
     _jList.addEventListener('input', function(e) {
         var ta = e.target.closest && e.target.closest('.journal-notes'); if (!ta || ta.classList.contains('journal-note-body')) return;
         var row = ta.closest('.journal-entry'), campId = row.dataset.camp, id = row.dataset.id, val = ta.value;
         if (viewerEntry && viewerEntry.campId === campId && viewerEntry.id === id && _hNotes && _hNotes.value !== val) _hNotes.value = val;
-        clearTimeout(noteTimers[campId + '/' + id]);
-        noteTimers[campId + '/' + id] = setTimeout(function() {
-            withIndex(campId, function(idx) {
+        noteLater(campId + '/' + id, function() {
+            return withIndex(campId, function(idx) {
                 if (row.dataset.sent) { idx.sentNotes = idx.sentNotes || {}; if (val.trim()) idx.sentNotes[id] = val.slice(0, 20000); else delete idx.sentNotes[id]; return; }
                 var en = idx.entries.find(function(x) { return x.id === id; });
                 if (!en) return false;
                 en.notes = val.slice(0, 20000);
             });
-        }, 500);
+        });
     });
     _jList.addEventListener('keydown', function(e) { e.stopPropagation(); });
     _jList.addEventListener('change', function(e) {
@@ -866,7 +882,7 @@ if (_jList) {
         if (clr) {
             var secC = clr.closest('.journal-section'); if (!secC) return;
             var campC = secC.dataset.camp, scope = clr.dataset.scope, fromC = secC.dataset.from || '';
-            var fromChip = fromC ? secC.querySelector('.journal-from[data-for="inbox"][data-from="' + fromC + '"]') : null;
+            var fromChip = fromC ? Array.prototype.filter.call(secC.querySelectorAll('.journal-from[data-for="inbox"]'), function(c) { return !!c.dataset && c.dataset.from === fromC; })[0] || null : null;   // by its own value: a sender keyed by a name that holds a quote made the selector no selector, and Clear did nothing (the owed review, 2026-10-09)
             var fromName = fromChip ? fromChip.textContent.replace(/\s*\d+\s*$/, '').trim() : '';
             var idxC = await readIndex(campC), campName = idxC.campaign || (campC === 'personal' ? 'Personal notes' : 'this campaign');
             var senderOf = function(x) { return !x.sharedBy || (x.sharedById && x.sharedById === idxC.gmId) ? 'gm' : (x.sharedById || x.sharedBy); };
@@ -952,14 +968,13 @@ if (_jList) {
         var fld = e.target.closest && e.target.closest('.journal-note-title, .journal-note-body'); if (!fld) return;
         var row = fld.closest('.journal-entry'), campId = row.dataset.camp, id = row.dataset.id;
         var title = (row.querySelector('.journal-note-title') || {}).value || '', text = (row.querySelector('.journal-note-body') || {}).value || '';
-        clearTimeout(noteTimers['own:' + campId + '/' + id]);
-        noteTimers['own:' + campId + '/' + id] = setTimeout(function() {
-            withIndex(campId, function(idx) {
+        noteLater('own:' + campId + '/' + id, function() {
+            return withIndex(campId, function(idx) {
                 var en = idx.entries.find(function(x) { return x.id === id; });
                 if (!en) return false;
                 en.title = title.slice(0, 120); en.text = text.slice(0, 60000);
             });
-        }, 500);
+        });
     });
 }
 

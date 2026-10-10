@@ -33,6 +33,7 @@ function railNext(st, ev) {
         if (sec && s.mode !== 'docked') { if (s.mode === 'open' && s.sec === sec) s.mode = 'rail'; else { s.mode = 'open'; s.sec = sec; } }   // the icon of the section it is open at folds it again
     } else if (t === 'away') { if (s.mode === 'open') s.mode = 'rail'; }
     else if (t === 'pin') { if (s.mode !== 'docked') { s.mode = 'docked'; s.auto = false; if (s.play) s.pin = true; } }
+    else if (t === 'settle') { if (s.play && !s.pin && s.mode === 'docked') { s.mode = 'rail'; s.auto = true; } }   // as an arrival at the play map would leave it (the tour's end)
     else if (t === 'toggle') { var fold = s.mode === 'docked'; s.mode = fold ? 'rail' : 'docked'; s.auto = fold && s.play; if (s.play) s.pin = !fold; }   // on the play map the arrow is the pin's other half: folded there, it is the play map's fold, and opens again on another view
     if (s.mode !== 'open') s.sec = '';
     return s;
@@ -55,7 +56,8 @@ function playNow() { var am = getActiveMap(); return !!am && am.type === 'map' &
 function touring() { return document.body.classList.contains('tour-on'); }
 function act(ev) {
     var was = st; st = railNext(st, ev);
-    if (st.pin !== was.pin && !touring()) railPinKeep(localStorage, st.pin);   // the tour opens the panel for a step: that is no choice of the user's to keep
+    if (touring()) st.pin = was.pin;   // the tour opens the panel for a step: that is no choice of the user's, to keep or to play by (the owed review, 2026-10-09: the pin stayed in memory and disagreed with the one kept)
+    else if (st.pin !== was.pin) railPinKeep(localStorage, st.pin);
     railApply(document, st);
     if (st.mode === 'open' && (was.mode !== 'open' || was.sec !== st.sec)) showSection(st.sec);
     if (st.mode !== was.mode && window.wpFitBar) window.wpFitBar();   // the map has more or less room: the toolbar is fitted again
@@ -84,4 +86,4 @@ function wire() {
 }
 function sync() { return act({ t: 'view', play: playNow() }); }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire();
-window.wpLeftRail = { sync: sync, toggled: function() { return act({ t: 'toggle' }); }, mode: function() { return st.mode; } };
+window.wpLeftRail = { sync: sync, toggled: function() { return act({ t: 'toggle' }); }, settle: function() { return act({ t: 'settle' }); }, mode: function() { return st.mode; } };

@@ -155,6 +155,7 @@ function playListFrom(plId, tid) {
     play({ kind: 'playlist', id: plId, loop: (source && source.kind === 'playlist' && source.id === plId && source.loop) || 'list', shuffle: false }, { fresh: true, index: i > 0 ? i : 0, fade: 0.25 });
 }
 function stop(fadeSec) {
+    loadGen++;   // a song still loading is no longer wanted (the owed review, 2026-10-09: it played after the GM's stop, a release, or Music switched off)
     source = null; order = []; qi = 0; pending = null;
     if (cur) { var old = cur; cur = null; if (ctx) ramp(old.gain, 0.0001, fadeSec === undefined ? 0.6 : fadeSec); setTimeout(function() { try { old.src.stop(); } catch (e) {} }, ((fadeSec === undefined ? 0.6 : fadeSec) * 1000) + 120); }
     emit(); broadcastControl();
@@ -181,7 +182,7 @@ function startIdle() {
 }
 function togglePlay() { if (!source) { startIdle(); return; } if (cur) { stopLane(0.3); } else { playCurrent(0.3); } emit(); broadcastControl(); }
 // [musiccheck:idle-end]
-function stopLane(fadeSec) { if (!cur) return; var old = cur; cur = null; if (ctx) ramp(old.gain, 0.0001, fadeSec || 0.3); setTimeout(function() { try { old.src.stop(); } catch (e) {} }, (fadeSec || 0.3) * 1000 + 120); }
+function stopLane(fadeSec) { loadGen++; if (!cur) return; var old = cur; cur = null; if (ctx) ramp(old.gain, 0.0001, fadeSec || 0.3); setTimeout(function() { try { old.src.stop(); } catch (e) {} }, (fadeSec || 0.3) * 1000 + 120); }
 function next() { if (!source || !order.length) return; if (qi < order.length - 1) qi++; else if (source.loop !== 'off') qi = 0; else return; playCurrent(0.25); }
 function prev() { if (!source || !order.length) return; if (position() > 3) { seek(0); return; } if (qi > 0) qi--; else if (source.loop !== 'off') qi = order.length - 1; else return; playCurrent(0.25); }
 function position() { if (!cur || !ctx) return 0; var e = (ctx.currentTime - cur.startedAt) * (cur.rate || 1) + cur.offset; return cur.loopOne && cur.dur ? (e % cur.dur) : Math.min(e, cur.dur); }
@@ -279,17 +280,17 @@ function onControl(msg) {
     controlled = true;
     var want = mc.now || mc.track;
     if (!want && mc.playlist) { var pl = playlistById(mc.playlist); want = pl && pl.tracks.length ? pl.tracks[(mc.index > 0 && mc.index < pl.tracks.length) ? mc.index : 0] : null; }
-    if (!want || !trackById(want)) { if (cur) stopLane(0.3); return; }   // nothing to play / a track this client does not have
+    if (!want || !trackById(want)) { stopLane(0.3); return; }   // nothing to play / a track this client does not have
     source = { kind: mc.playlist ? 'playlist' : 'track', id: mc.playlist || mc.track, loop: mc.loop, shuffle: !!mc.shuffle };
     if (cur && cur.entry.id === want) {   // already on this exact track: follow loop, re-seek on a real jump, follow pause/play
         cur.loopOne = mc.loop === 'one'; cur.src.loop = cur.loopOne;
         if (Math.abs((mc.pos || 0) - position()) > 2.5) seek(mc.pos || 0);
-        if (!mc.playing && cur) stopLane(0.2); else if (mc.playing && !cur) playCurrent(0.2, mc.pos || 0);
+        if (!mc.playing) stopLane(0.2); else if (!cur) playCurrent(0.2, mc.pos || 0);   // paused: the lane and a song still on its way
         return;
     }
     order = [want]; qi = 0; autoStarted = false;   // a one-track queue: the host drives every change, we never advance on our own
     var el = mc.ts ? (Date.now() - mc.ts) / 1000 : 0; if (!(el > 0) || el > 30) el = 0;   // add the transfer/latency elapsed (bounded — ignore an obviously-skewed clock)
-    if (mc.playing) playCurrent(0.4, (mc.pos || 0) + el); else if (cur) stopLane(0.3);
+    if (mc.playing) playCurrent(0.4, (mc.pos || 0) + el); else stopLane(0.3);
 }
 function onSnapshot() { controlled = false; stop(0); cache = {}; bytes = {}; cacheSec = 0; lastKey = ''; lastMapId = null; }   // a fresh snapshot: drop stale library/playback; the 'music' message re-arms
 function tableLeft() { controlled = false; controlling = false; stop(0); cache = {}; bytes = {}; cacheSec = 0; lastKey = ''; lastMapId = null; }

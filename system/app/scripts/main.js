@@ -586,12 +586,26 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
       // fog, clock, music and uploads, an item's id against its key and a piece that is no object came in as the file wrote them. What the
       // normaliser fills in where the file said nothing is no word of the file's: a name and an open item are taken only where the file had
       // them. said: null where the merge is run alone, with no cleaner at hand, and the file is taken as it says
-      var said = null;
+      var said = null, bindsM = [];
       if (typeof cleanImport === 'function' && typeof importDeps === 'function') {
           said = Object.create(null);
-          if (imported && typeof imported === 'object' && imported.campaigns && typeof imported.campaigns === 'object') Object.keys(imported.campaigns).forEach(function(cid) { var c0 = imported.campaigns[cid]; if (c0 && typeof c0 === 'object') said[cid] = { name: typeof c0.name === 'string' && !!c0.name, open: typeof c0.activeItemId === 'string' && !!c0.activeItemId }; });
+          if (imported && typeof imported === 'object' && imported.campaigns && typeof imported.campaigns === 'object') {
+              // A Merge lands in the campaign a file's campaign names by its ID, as it always did, and the normaliser reads the key: the file is
+              // keyed by id first (a campaign with no usable id is left out, as it always was). A Merge file is a PART of a campaign, so what it
+              // says of its own name, its open item and each item's place in the tree is written down here, in the file's own words, before the
+              // normaliser judges it as a whole save (the review of 2026-10-09: an item whose parent was not in the file came in un-nested)
+              var byId = {};
+              Object.keys(imported.campaigns).forEach(function(cid) { var c0 = imported.campaigns[cid]; if (!c0 || typeof c0 !== 'object' || typeof c0.id !== 'string' || !c0.id || (c0.id in Object.prototype) || Object.prototype.hasOwnProperty.call(byId, c0.id)) return; byId[c0.id] = c0; });
+              imported.campaigns = byId;
+              Object.keys(byId).forEach(function(cid) {
+                  var c0 = byId[cid], par = Object.create(null);
+                  if (c0.items && typeof c0.items === 'object') Object.keys(c0.items).forEach(function(iid) { var it0 = c0.items[iid], p0 = it0 && typeof it0 === 'object' && it0.meta && typeof it0.meta === 'object' ? it0.meta.parentId : null; if (typeof p0 === 'string' && p0 && !(p0 in Object.prototype) && !(iid in Object.prototype)) par[iid] = p0; });
+                  said[cid] = { name: typeof c0.name === 'string' ? c0.name : '', open: typeof c0.activeItemId === 'string' ? c0.activeItemId : '', par: par };
+              });
+          }
           imported = cleanImport(imported, importDeps());
           if (!imported) return { added: 0, updated: 0, newCamps: 0 };
+          if (typeof window.wpTakeBindNotes === 'function') bindsM = window.wpTakeBindNotes() || [];   // what the normaliser bound in the file's campaigns: said for a campaign that comes in new, below
       }
 
       Object.values(imported.campaigns || {}).forEach(function(ic) {
@@ -614,6 +628,7 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
                   if (it && it.meta && it.meta.parentId && !ic.items[it.meta.parentId]) delete it.meta.parentId;
               });
 
+              var nbM = bindsM.filter(function(b) { return b && b.camp === ic; }); if (nbM.length && window.wpNoteBindings) window.wpNoteBindings(nbM);   // the one-time notice of who was bound to which character: the normaliser has bound them by now, so the lines above find nothing left to say
               newCamps++;
 
               return;
@@ -628,8 +643,13 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
 
           });
 
-          var sdM = said ? said[ic.id] : { name: true, open: true };
-          if (ic.name && sdM && sdM.name) existing.name = ic.name;
+          var sdM = said ? said[ic.id] : null, nameM = said ? (sdM ? sdM.name : '') : ic.name, openM = said ? (sdM ? sdM.open : '') : ic.activeItemId;   // the file's own words; with no cleaner at hand, the file as it says
+          // an item whose parent is not in the file, but is here and of its kind, keeps its place under it
+          if (sdM && sdM.par) Object.keys(sdM.par).forEach(function(iid) {
+              var itP = Object.prototype.hasOwnProperty.call(ic.items, iid) ? ic.items[iid] : null, pidP = sdM.par[iid], parP = Object.prototype.hasOwnProperty.call(existing.items, pidP) ? existing.items[pidP] : null;
+              if (itP && itP.meta && typeof itP.meta === 'object' && !itP.meta.parentId && pidP !== iid && parP && parP.type === itP.type && !Object.prototype.hasOwnProperty.call(ic.items, pidP)) itP.meta.parentId = pidP;
+          });
+          if (nameM) existing.name = nameM;
           if (ic.library) takeImportedLibrary(existing, ic, existing.library);   // Stage 6 library L1c2: its packs join the library here (a pack already here takes a new revision)
 
           // the system (character sheets, 1.5.0): the imported one replaces when it is at least as new, cleaned like a file's; preset ids are stable, so values keep their fields
@@ -674,13 +694,16 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
 
           if (ic._keptByUser) existing._keptByUser = ic._keptByUser;   // the import answer ("it's mine") is remembered on a merge as on an add
 
-          if (ic.activeItemId && sdM && sdM.open && existing.items[ic.activeItemId]) existing.activeItemId = ic.activeItemId;
+          if (openM && Object.prototype.hasOwnProperty.call(existing.items, openM)) existing.activeItemId = openM;
 
           // A single-item export can reference a parent that doesn't exist
           // here — orphaned parentIds would hide the item from the sidebar tree.
           Object.keys(ic.items).forEach(function(id) {
               var it = existing.items[id];
               if (it && it.meta && it.meta.parentId && !existing.items[it.meta.parentId]) delete it.meta.parentId;
+              // ... and a nesting that closes a loop with what is already here would hide the item too: let go, as a load lets it go
+              var seenP = Object.create(null), curP = it && it.meta && it.meta.parentId ? id : null, hopsP = 0;
+              while (curP && hopsP++ < 10000) { if (seenP[curP]) { delete it.meta.parentId; break; } seenP[curP] = 1; var nxP = Object.prototype.hasOwnProperty.call(existing.items, curP) ? existing.items[curP] : null; curP = nxP && nxP.meta && typeof nxP.meta.parentId === 'string' && nxP.meta.parentId ? nxP.meta.parentId : null; }
           });
 
       });

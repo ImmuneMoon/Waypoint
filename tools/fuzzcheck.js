@@ -318,6 +318,7 @@ function mkCampaign(SC, F) {
             pl_1: { id: 'pl_1', type: 'planner', meta: { title: 'Plan' }, content: 'secret' }
         }
     };
+    camp.chars.c_p1.looks = { f_class: { fmt: { i: true }, sig: win.wpLook.textSig('Ranger') } }; camp.chars.c_p2.looks = { f_class: { fmt: { i: true }, sig: win.wpLook.textSig('Bard') } };   // item 35: a look each from the start, so the real join snapshot is seen to carry a player their own and nobody else's
     return camp;
 }
 const clone = o => JSON.parse(JSON.stringify(o));
@@ -934,7 +935,7 @@ function mutations(tpl) {
         const styles = [['a text the player sees and only the GM edits', { charId: 'c_p1', fieldId: 'f_gmtxt', look: { fmt: { i: true }, sig: sigL('a title the GM gave') } }], ['taking off the GM\'s look there', { charId: 'c_p1', fieldId: 'f_gmtxt', look: null }], ['the GM-only text', { charId: 'c_p1', fieldId: 'f_gmword', look: lookL('the secret word') }], ['another player\'s character', { charId: 'c_p2', fieldId: 'f_class', look: lookL('Bard') }], ['the NPC', { charId: 'c_npc', fieldId: 'f_class', look: lookL('Brute') }], ['a number', { charId: 'c_p1', fieldId: 'f_str', look: lookL('14') }], ['other words', { charId: 'c_p1', fieldId: 'f_class', look: lookL('Wizard') }]];
         for (let k = 0; k < styles.length; k++) { clockOff += 500; await fireHost('p1', 'char-style ' + styles[k][0], styles[k][0], Object.assign({ type: 'char-style', rid: 'gs' + k }, styles[k][1])); }
         const outL = sentLog.slice(sbL), campL = stubs.getActiveCampaign();
-        check('host: a player\'s look reaches no text they may not edit, be it hidden from them or in their sight, nor takes off a look the GM set there, and it reaches no character of another player and no NPC, a number takes none, and a look made for other words is no look: each is refused, nothing is kept, and the GM-only words are sent to nobody', JSON.stringify(campL.chars.c_p1.looks) === JSON.stringify(seedL) && ['c_p2', 'c_npc'].every(id => campL.chars[id].looks === undefined) && outL.filter(s => s.m.type === 'charstyle-deny').length === styles.length && styles.length === 7 && !outL.some(s => s.m.type === 'charStyle' || s.m.type === 'charstyle-ack') && !outL.some(s => /the secret word/.test(JSON.stringify(s.m))), { looks: ['c_p1', 'c_p2', 'c_npc'].map(id => campL.chars[id].looks), out: outL.map(s => s.m.type + (s.m.reason ? ':' + s.m.reason : '')) });
+        check('host: a player\'s look reaches no text they may not edit, be it hidden from them or in their sight, nor takes off a look the GM set there, and it reaches no character of another player and no NPC, a number takes none, and a look made for other words is no look: each is refused, nothing is kept, and the GM-only words are sent to nobody', JSON.stringify(campL.chars.c_p1.looks) === JSON.stringify(seedL) && JSON.stringify(campL.chars.c_p2.looks) === JSON.stringify({ f_class: { fmt: { i: true }, sig: sigL('Bard') } }) && campL.chars.c_npc.looks === undefined && outL.filter(s => s.m.type === 'charstyle-deny').length === styles.length && styles.length === 7 && !outL.some(s => s.m.type === 'charStyle' || s.m.type === 'charstyle-ack') && !outL.some(s => /the secret word/.test(JSON.stringify(s.m))), { looks: ['c_p1', 'c_p2', 'c_npc'].map(id => campL.chars[id].looks), out: outL.map(s => s.m.type + (s.m.reason ? ':' + s.m.reason : '')) });
     }
     {   // the early proof and the gates: a stranger whose hello passes them is sent it; a removed id, an older version and a wrong password are not
         await resetWorld(); drainDialogs(); resetRec(); clockOff += 20000;
@@ -1045,8 +1046,8 @@ function mutations(tpl) {
         'char-upload-ans': { type: 'char-upload-ans', rid: 'u1', n: 1, auto: 0, left: 0 }, 'char-pic-ans': { type: 'char-pic-ans', rid: 'p1', ok: true },
         'char-make-ans': { type: 'char-make-ans', rid: 'm1', ok: true, charId: 'c_new' }, 'tok-light-ans': { type: 'tok-light-ans', rid: 'l1', reason: 'cap' },
         'char-review': { type: 'char-review', outcome: 'back', name: 'Ayla', note: 'fix it' }, 'char-upload-done': { type: 'char-upload-done', charId: 'c_p1', done: 1, of: 2 },
-        'chars': { type: 'chars', campId: 'c1', chars: { c_p1: { id: 'c_p1', name: 'Ayla', ownerId: 'u_p1', values: { f_str: 15 } } } },
-        'char': { type: 'char', campId: 'c1', char: { id: 'c_p1', name: 'Ayla', ownerId: 'u_p1', values: { f_str: 16 } } },
+        'chars': { type: 'chars', campId: 'c1', chars: { c_p1: { id: 'c_p1', name: 'Ayla', ownerId: 'u_p1', values: { f_str: 15, f_class: 'Ranger' }, looks: { f_class: { fmt: { u: true }, sig: win.wpLook.textSig('Ranger') } } }, c_p2: { id: 'c_p2', name: 'Bram', ownerId: 'u_p2', partial: true, values: { f_class: 'Bard' }, looks: { f_class: { fmt: { u: true }, sig: win.wpLook.textSig('Bard') } } } } },
+        'char': { type: 'char', campId: 'c1', char: { id: 'c_p1', name: 'Ayla', ownerId: 'u_p1', values: { f_str: 16, f_class: 'Ranger' }, looks: { f_class: { fmt: { st: true }, sig: win.wpLook.textSig('Ranger') } } } },
         'charDelta': { type: 'charDelta', campId: 'c1', id: 'c_p1', values: { f_str: 17, f_gmfig: 5 }, unseen: [] },
         'charGone': { type: 'charGone', campId: 'c1', id: 'c_p2' }, 'char-ack': { type: 'char-ack', rid: 'x1' }, 'char-deny': { type: 'char-deny', rid: 'x2', reason: 'slow', msg: 'm' },
         'door-deny': { type: 'door-deny', reason: 'locked' },
@@ -1095,7 +1096,7 @@ function mutations(tpl) {
         'targets': () => cnet.targets.u_p2 && cnet.targets.u_p2.id === 'tok_npc',
         'pos': () => tokC('m_open', 'tok_p2').x === 200 && tokC('m_open', 'tok_p2').rot === 45,
         // 'auth' is answered before the snapshot only (checked there); after it the branch is inert by design
-        'chars': () => campC().chars.c_p1.values.f_str === 15, 'char': () => campC().chars.c_p1.values.f_str === 16,
+        'chars': () => campC().chars.c_p1.values.f_str === 15 && !!campC().chars.c_p1.looks && campC().chars.c_p1.looks.f_class.fmt.u === true && !('looks' in campC().chars.c_p2), 'char': () => campC().chars.c_p1.values.f_str === 16 && !!campC().chars.c_p1.looks && campC().chars.c_p1.looks.f_class.fmt.st === true,
         'charDelta': () => campC().chars.c_p1.values.f_str === 17 && campC().chars.c_p1.values.f_gmfig === undefined,
         'charStyle': () => !!campC().chars.c_p1.looks && Object.keys(campC().chars.c_p1.looks).join() === 'f_class' && campC().chars.c_p1.looks.f_class.fmt.b === true,
         'charGone': () => !campC().chars.c_p2, 'campName': () => campC().name === 'Renamed', 'clock': () => campC().clock && campC().clock.t === 3600,
@@ -1226,6 +1227,10 @@ function mutations(tpl) {
     const pristineC = clone(stateMod.state.appState);
     function resetClient() { stateMod.state.appState = clone(pristineC); cnet.leaving = false; cnet.foreign = true; cnet.active = true; cnet.role = 'client'; cnet.conns = [hconn]; cnet.syncedPeer = hconn.peer; resetRec(); }
 
+    {   // the real join snapshot, as this player's app keeps it: their own whole copy with its look, no other copy with one, and the host's word that it knows looks
+        resetClient(); const ccL = campC().chars;
+        check('client: the real join snapshot gives the player their own character\'s look and no other copy one, and says that this host knows text looks', !!(ccL.c_p1 && ccL.c_p1.looks && ccL.c_p1.looks.f_class && ccL.c_p1.looks.f_class.fmt.i === true) && Object.keys(ccL).every(id => id === 'c_p1' || !('looks' in ccL[id])) && Object.keys(ccL).length >= 2 && cnet.looksOk() === true && snapshotForClient.looks === true, { chars: Object.keys(ccL).map(id => [id, ccL[id].partial === true, Object.keys(ccL[id].looks || {})]), ok: cnet.looksOk(), said: snapshotForClient.looks });
+    }
     for (const kind of Object.keys(ctpl)) {
         if (kind === 'snapshot') continue;
         const tpl = ctpl[kind];

@@ -5,7 +5,8 @@
    The panel is in one of three states, on every view:
      docked   as it always was: beside the map, with its grip.
      rail     folded: a narrow column of icons stands in its place (Handbook, Planners, Maps, Search, and a pin).
-     open     opened from the rail: it lies over the map beside the rail, and a press anywhere else folds it again.
+     open     opened from the rail: it lies over the map beside the rail, showing the section its icon names and no other, and a press
+              anywhere else folds it again. The other sections are folded for that time and put back as they were afterwards.
    Arriving at the play map folds a docked panel to the rail, unless it was pinned there, and leaving the play map opens again what folded
    by itself. The arrow at the panel's edge works as it did: it folds a docked panel and docks a folded one, which on the play map is the
    same as the pin. Whether the panel is pinned on the play map is this computer's own (wp_leftPin). Nothing of the panel is changed: its
@@ -47,6 +48,37 @@ function railApply(doc, s) {
     if (tg) { tg.textContent = s.mode === 'docked' ? '\u25c0' : '\u25b6'; tg.dataset.tip = s.mode === 'docked' ? 'Hide the left panel' : 'Show the left panel'; tg.removeAttribute('title'); }
     return true;
 }
+// Opened from the rail, the panel shows the section its icon names and no other (the owner, 2026-10-10: "these buttons should open just their
+// section and leave the others collapsed if used"). railOnly unfolds that section and folds the others, each through its own title, so the
+// panel's own folding stays the one place a section folds. It answers what it changed, { section: [folded before, folded now] }, added to
+// what an earlier icon changed. railBack puts back what railOnly changed and nobody changed again since. A section is folded when its list is
+// put away
+function railSecOf(doc, sec) {
+    var title = doc.querySelector('#campaignSidebar .section-title[data-section="' + sec + '"]'), box = title && title.closest ? title.closest('.sidebar-section') : null, nav = box ? box.querySelector('[id$="NavList"]') : null;
+    return title && nav ? { title: title, box: box, nav: nav } : null;
+}
+function railOnly(doc, sec, kept) {
+    var k = kept && typeof kept === 'object' ? kept : {};
+    if (RAIL_SECS.indexOf(sec) < 0) return k;
+    RAIL_SECS.forEach(function(s2) {
+        var p = railSecOf(doc, s2); if (!p) return;
+        var folded = p.nav.style.display === 'none', want = s2 !== sec;
+        if (folded === want) return;
+        p.title.click();
+        k[s2] = [k[s2] ? k[s2][0] : folded, want];
+    });
+    return k;
+}
+function railBack(doc, kept) {
+    if (!kept || typeof kept !== 'object') return 0;
+    var n = 0;
+    RAIL_SECS.forEach(function(s2) {
+        var rec = Array.isArray(kept[s2]) ? kept[s2] : null, p = rec ? railSecOf(doc, s2) : null; if (!p) return;
+        var folded = p.nav.style.display === 'none';
+        if (folded === rec[1] && folded !== rec[0]) { p.title.click(); n++; }   // still as the rail left it, and not as it was before
+    });
+    return n;
+}
 function railPinRead(store) { try { return store.getItem('wp_leftPin') === '1'; } catch (e) { return false; } }
 function railPinKeep(store, pin) { try { if (pin === true) store.setItem('wp_leftPin', '1'); else store.removeItem('wp_leftPin'); return true; } catch (e) { return false; } }
 // [lookcheck:leftrail-end]
@@ -60,13 +92,15 @@ function act(ev) {
     else if (st.pin !== was.pin) railPinKeep(localStorage, st.pin);
     railApply(document, st);
     if (st.mode === 'open' && (was.mode !== 'open' || was.sec !== st.sec)) showSection(st.sec);
+    else if (was.mode === 'open' && st.mode !== 'open') showSection('');   // no longer open from the rail: the sections as they were
     if (st.mode !== was.mode && window.wpFitBar) window.wpFitBar();   // the map has more or less room: the toolbar is fitted again
     return st.mode;
 }
-function showSection(sec) {   // the section the icon names: unfolded if it was folded, and scrolled to
-    var title = document.querySelector('#campaignSidebar .section-title[data-section="' + sec + '"]'), box = title && title.closest ? title.closest('.sidebar-section') : null; if (!box) return;
-    var nav = box.querySelector('[id$="NavList"]'); if (nav && nav.style.display === 'none') title.click();
-    if (box.scrollIntoView) box.scrollIntoView({ block: 'start' });
+var _only = null;   // what the rail folded and unfolded for the section it shows, to put back
+function showSection(sec) {   // the section the icon names, alone and scrolled to; '' once the panel is no longer open from the rail
+    if (!sec) { railBack(document, _only); _only = null; return; }
+    _only = railOnly(document, sec, _only);
+    var p = railSecOf(document, sec); if (p && p.box.scrollIntoView) p.box.scrollIntoView({ block: 'start' });
 }
 function wire() {
     var rail = document.getElementById('leftRail'); if (!rail) return;

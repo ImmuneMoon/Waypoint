@@ -191,6 +191,12 @@ function picUrl(u) {
     return /[\s'"()\\]/.test(out) ? '' : out;
 }
 function picTileOf(v) { return v === 2 || v === 4 || v === 'whole' ? v : 1; }
+// The name a Texture list shows for a picture in use: its file's own name, 40 characters at most. Text for a text node or for esc, never markup
+function picName(u) {
+    if (typeof u !== 'string') return '';
+    var cp = Array.from(u.slice(u.lastIndexOf('/') + 1));
+    return cp.length > 40 ? cp.slice(0, 39).join('') + '\u2026' : cp.join('');
+}
 // Where a repeat of `mark` px (a text: '50', '100', '200') sits so that its origin is the board's; 'whole' and anything else sit at the piece's own corner
 function picPos(x, y, mark) {
     var t = typeof mark === 'string' && /^[1-9][0-9]{1,3}$/.test(mark) ? Number(mark) : 0; if (!t) return '0px 0px';
@@ -575,6 +581,6 @@ function wallLine(pts) {
     return lineOf(pts);
 }
 
-var API = { VERSION: VERSION, TEXTURES: TEXTURES, cleanTexture: cleanTexture, TEX: TEX, TEX_CSS: TEX_CSS, texStyle: texStyle, texPos: texPos, texPattern: texPattern, PIC_CELL: PIC_CELL, picUrl: picUrl, picPos: picPos, picStyle: picStyle, picPattern: picPattern, MATERIALS: MATERIALS, MATERIAL_IDS: MATERIAL_IDS, cleanMaterial: cleanMaterial, pieceProps: pieceProps, penPreset: penPreset, snapBox: snapBox, hexCellBox: hexCellBox, hexCellsInBox: hexCellsInBox, corridor: corridor, snapVertex: snapVertex, polyItem: polyItem, seatedAt: seatedAt, floorOk: floorOk, outlineWalls: outlineWalls, corridorWalls: corridorWalls, wallLine: wallLine };
+var API = { VERSION: VERSION, TEXTURES: TEXTURES, cleanTexture: cleanTexture, TEX: TEX, TEX_CSS: TEX_CSS, texStyle: texStyle, texPos: texPos, texPattern: texPattern, PIC_CELL: PIC_CELL, picUrl: picUrl, picPos: picPos, picStyle: picStyle, picPattern: picPattern, picName: picName, MATERIALS: MATERIALS, MATERIAL_IDS: MATERIAL_IDS, cleanMaterial: cleanMaterial, pieceProps: pieceProps, penPreset: penPreset, snapBox: snapBox, hexCellBox: hexCellBox, hexCellsInBox: hexCellsInBox, corridor: corridor, snapVertex: snapVertex, polyItem: polyItem, seatedAt: seatedAt, floorOk: floorOk, outlineWalls: outlineWalls, corridorWalls: corridorWalls, wallLine: wallLine };
 if (typeof window !== 'undefined') window.wpBuildCore = API;
-export { VERSION, TEXTURES, cleanTexture, TEX, TEX_CSS, texStyle, texPos, texPattern, PIC_CELL, picUrl, picPos, picStyle, picPattern, MATERIALS, MATERIAL_IDS, cleanMaterial, pieceProps, penPreset, snapBox, hexCellBox, hexCellsInBox, corridor, snapVertex, polyItem, seatedAt, floorOk, outlineWalls, corridorWalls, wallLine };
+export { VERSION, TEXTURES, cleanTexture, TEX, TEX_CSS, texStyle, texPos, texPattern, PIC_CELL, picUrl, picPos, picStyle, picPattern, picName, MATERIALS, MATERIAL_IDS, cleanMaterial, pieceProps, penPreset, snapBox, hexCellBox, hexCellsInBox, corridor, snapVertex, polyItem, seatedAt, floorOk, outlineWalls, corridorWalls, wallLine };

@@ -3317,6 +3317,7 @@ function applyPosToDom(msg) {
     el.style.left = msg.x + 'px';
     el.style.top = msg.y + 'px';
     el.style.transform = msg.rot ? 'rotate(' + msg.rot + 'deg)' : 'none';
+    if (window.wpTexSeat) window.wpTexSeat(el, msg.x, msg.y);   // the map builder: a piece that wears a pattern or a picture keeps its repeat on the board's lattice while it moves
     var fwP = el.querySelector(':scope > .token-front');
     if (fwP) fwP.style.transform = msg.front ? 'rotate(' + msg.front + 'deg)' : '';
     if (msg.final === true && window.wpStanceChips) window.wpStanceChips();   // item 19b H5: a move that landed: the chips read each token's height where it now stands (whiteboard.js)

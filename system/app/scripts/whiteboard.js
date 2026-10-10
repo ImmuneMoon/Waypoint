@@ -382,11 +382,14 @@ function wbPicFill(item) {
     var url = resolveImg(src); if (typeof url !== 'string' || !url) return null;
     return { src: src, url: url, tile: FC.cleanTexTile(item.texTile) || 1, box: box };
 }
+// A short text that stands for a resolved address in a key: the address itself when it is short, else its length and both its ends. On a
+// player's app an SVG picture's address is the whole picture inline, which may be millions of characters
+function wbPicUrlKey(u) { return u.length <= 256 ? u : u.length + '|' + u.slice(0, 64) + u.slice(-64); }
 // A filled region's picture: an svg pattern in the path's own defs (buildcore picPattern), built again only when its picture, its tile, its
 // place, its size or its colour changes. True when the region wears its picture
 function wbPicPath(svg, pathEl, item, bw, bh, col) {
     var pf = wbPicFill(item), BC = window.wpBuildCore; if (!pf || pf.box || !svg || !pathEl) return false;
-    var key = 'pic|' + pf.src + '|' + pf.tile + '|' + item.x + '|' + item.y + '|' + (item.w || 0) + '|' + (item.h || 0) + '|' + bw + '|' + bh + '|' + col + '|' + (pf.url.length <= 256 ? pf.url : pf.url.length + '|' + pf.url.slice(0, 64) + pf.url.slice(-64)), defs = svg.querySelector(':scope > defs');
+    var key = 'pic|' + pf.src + '|' + pf.tile + '|' + item.x + '|' + item.y + '|' + (item.w || 0) + '|' + (item.h || 0) + '|' + bw + '|' + bh + '|' + col + '|' + wbPicUrlKey(pf.url), defs = svg.querySelector(':scope > defs');
     if (!defs || svg.dataset.texKey !== key) {
         if (defs) defs.remove();
         var pat = BC.picPattern(document, pf.url, pf.tile, item.x, item.y, item.w || bw, item.h || bh, col, ++_texSerial);
@@ -815,19 +818,24 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
           // The map builder (fold B1): a piece's texture is a name of the app's own list (buildcore.js), drawn over its colour as a repeating tile
           // seated on the board's lattice, so pieces side by side read as one surface. On a box shape that is no token. A filled region's is drawn
           // in its own svg below. Anything else (no name, a name the list lacks, another kind of piece) leaves the piece exactly as it was drawn above
-          var picT = typeof wbPicFill === 'function' ? wbPicFill(item) : null, picBox = picT && picT.box ? window.wpBuildCore.picStyle(picT.url, picT.tile, item.x, item.y) : null;   // fold B3: one of the campaign's own pictures comes before any pattern
-          var BCt = window.wpBuildCore, texN = picBox ? null : (BCt && BCt.cleanTexture ? BCt.cleanTexture(item.texture) : null);   // a picture that cannot be drawn leaves the pattern the piece also names
+          var picT = typeof wbPicFill === 'function' ? wbPicFill(item) : null, BCt = window.wpBuildCore;   // fold B3: one of the campaign's own pictures comes before any pattern
+          // The picture an element already wears is known by a short key kept on it, never by reading its style back: on a player's app an SVG
+          // picture's address is the whole picture inline, and a map may hold thousands of cells that wear it. Then only its place can have changed
+          var picKey = picT && picT.box ? picT.src + '|' + picT.tile + '|' + wbPicUrlKey(picT.url) : '', picKept = !!picKey && el.dataset.picKey === picKey && !!el.dataset.pic;
+          var picBox = picKey && !picKept ? BCt.picStyle(picT.url, picT.tile, item.x, item.y) : null;
+          var texN = picBox || picKept ? null : (BCt && BCt.cleanTexture ? BCt.cleanTexture(item.texture) : null);   // an address that is none leaves the pattern the piece also names
           var texBox = picBox || (texN && (item.type === 'rect' || item.type === 'circle' || item.type === 'hexagon' || item.type === 'diamond') && !item.isChar && !item.waiting ? BCt.texStyle(texN, item.x, item.y) : null);
-          if (texBox) {   // each written only where it differs: the tile's address is long, and a map may hold thousands of textured cells
-              if (el.style.backgroundImage !== texBox.image) el.style.backgroundImage = texBox.image;
+          if (picKept) { var posK = BCt.picPos(item.x, item.y, el.dataset.pic); if (el.style.backgroundPosition !== posK) el.style.backgroundPosition = posK; }
+          else if (texBox) {   // each written only where it differs: the tile's address is long, and a map may hold thousands of textured cells
+              if (picBox || el.style.backgroundImage !== texBox.image) el.style.backgroundImage = texBox.image;   // a new picture is written, never compared with the old one
               if (el.style.backgroundSize !== texBox.size) el.style.backgroundSize = texBox.size;
               if (el.style.backgroundPosition !== texBox.position) el.style.backgroundPosition = texBox.position;
               if ((el.style.backgroundRepeat || '') !== (texBox.repeat || '')) el.style.backgroundRepeat = texBox.repeat || '';   // a picture stretched over the whole piece does not repeat
               el.dataset.tex = picBox ? 'pic' : texN;
-              if (picBox) el.dataset.pic = picBox.mark; else if (el.dataset.pic) delete el.dataset.pic;
+              if (picBox) { el.dataset.pic = picBox.mark; el.dataset.picKey = picKey; } else { if (el.dataset.pic) delete el.dataset.pic; if (el.dataset.picKey) delete el.dataset.picKey; }
           }
-          else if (el.dataset.tex) { el.style.backgroundImage = ''; el.style.backgroundSize = ''; el.style.backgroundPosition = ''; if (el.style.backgroundRepeat) el.style.backgroundRepeat = ''; delete el.dataset.tex; delete el.dataset.pic; }
-          el.classList.toggle('wb-tex', !!texBox || !!(texN && item.type === 'path' && item.tip === 'fill') || !!(picT && !picT.box));
+          else if (el.dataset.tex) { el.style.backgroundImage = ''; el.style.backgroundSize = ''; el.style.backgroundPosition = ''; if (el.style.backgroundRepeat) el.style.backgroundRepeat = ''; delete el.dataset.tex; delete el.dataset.pic; delete el.dataset.picKey; }
+          el.classList.toggle('wb-tex', picKept || !!texBox || !!(texN && item.type === 'path' && item.tip === 'fill') || !!(picT && !picT.box));
           // [sinkcheck:texstyle-end]
 
           // Text boxes: the color swatch is the text color, not a fill; the box
@@ -4196,13 +4204,16 @@ window.wpFitToGrid = fitToGrid;
       if (!t || item.terrain === t) return false;
       item.terrain = t; return true;
   }
-  // The map builder (fold B1): the fill menu's texture on a cell it paints, new or painted over (true when that changed it). A name of the app's
-  // own list, or Plain color, which takes a texture off
+  // The map builder: the fill menu's texture on a cell it paints, new or painted over (true when that changed it). A name of the app's own
+  // list, Plain color, which takes a texture off, or (fold B3) one of the campaign's own pictures with its repeat, which takes the pattern's
+  // place. Whatever the menu says, the cell ends with that and nothing else: a pattern or Plain color takes a picture off
   function fillTextureTo(item) {
-      var BC = window.wpBuildCore, t = BC && BC.cleanTexture ? BC.cleanTexture(state.fillTexture) : null;
-      if (t ? item.texture === t : item.texture === undefined) return false;
-      if (t) item.texture = t; else delete item.texture;
-      return true;
+      var BC = window.wpBuildCore, FC = window.wpFogCore, pic = FC && typeof FC.cleanTexSrc === 'function' ? FC.cleanTexSrc(state.fillPic) : null, tile = pic ? ((typeof FC.cleanTexTile === 'function' ? FC.cleanTexTile(state.fillTile) : null) || 1) : null;
+      var t = pic ? null : (BC && BC.cleanTexture ? BC.cleanTexture(state.fillTexture) : null), ch = false;
+      if (t ? item.texture !== t : item.texture !== undefined) { if (t) item.texture = t; else delete item.texture; ch = true; }
+      if (pic ? item.texSrc !== pic : item.texSrc !== undefined) { if (pic) item.texSrc = pic; else delete item.texSrc; ch = true; }
+      if (tile ? item.texTile !== tile : item.texTile !== undefined) { if (tile) item.texTile = tile; else delete item.texTile; ch = true; }
+      return ch;
   }
   function fillCellAt(x, y, remove) {
       var map = getActiveMap(); if (!map) return;
@@ -6450,7 +6461,7 @@ function buildWallItem(L, pre) { return Object.assign({ id: 'wb' + uid(), type: 
 function buildLay(map, boxes, props, more, walls) {
     var BC = buildCore(); if (!BC || !props) return;
     if (!boxes.length) { toast('Nothing to lay there.'); return; }
-    var room = BUILD_MAX - map.whiteboard.length, laid = 0, wall = false, full = false, keys = ['color', 'layer', 'name', 'texture', 'blocksSight', 'sightType', 'cover', 'terrain'];
+    var room = BUILD_MAX - map.whiteboard.length, laid = 0, wall = false, full = false, keys = ['color', 'layer', 'name', 'texture', 'texSrc', 'texTile', 'blocksSight', 'sightType', 'cover', 'terrain'];   // a piece laid again in place wears the new material and nothing of the old: a picture it wore goes with its pattern
     for (var i = 0; i < boxes.length; i++) {
         var b = boxes[i], item = Object.assign({ id: 'wb' + uid(), type: b.type, x: b.x, y: b.y, w: b.w, h: b.h, z: 10 }, newOpacityProps(), props);
         if (b.pts) { item.pts = b.pts; item.baseW = b.baseW; item.baseH = b.baseH; item.tip = 'fill'; }

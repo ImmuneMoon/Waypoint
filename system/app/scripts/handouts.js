@@ -63,6 +63,7 @@ var indexQueues = {};
 var noteTimers = {};
 function noteLater(key, run) {
     if (noteTimers[key]) clearTimeout(noteTimers[key].t);
+    delete noteTimers[key];   // set again, the key goes to the end: a redraw runs the waiting saves oldest first, as their timers would
     var go = function() { if (noteTimers[key] && noteTimers[key].go === go) delete noteTimers[key]; return run(); };
     noteTimers[key] = { t: setTimeout(go, 500), go: go };
 }

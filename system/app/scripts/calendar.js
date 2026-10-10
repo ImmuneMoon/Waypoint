@@ -16,12 +16,20 @@ function sysNow() { var sh = window.wpSheets; return sh && sh.systemOf ? sh.syst
 var restMode = false, pend = null, roundPend = 0;   // item 20 K5: time moved on as Rest (else Active), the time rules waiting for the GM's word, a fight's rounds not yet counted
 // What waits belongs to the campaign it was counted in (the owed review, 2026-10-09): a list of time rules due, the live time counted behind
 // it and a fight's rounds carried into the next campaign opened, whose own rules then ran for hours that never passed there. Asked before any
-// of the three is read or added to
-var pendCamp = '';
+// of the three is read or added to. With another campaign on screen they are PUT ASIDE for their own, and are back when it is: letting them
+// go lost a list, with its counts, when another campaign was merely looked at (the review of that fix). What is kept is bounded
+var pendCamp = '', pendKept = Object.create(null), PEND_KEEP = 40;
 function pendFor(camp) {
     var id = camp && typeof camp.id === 'string' ? camp.id : '';
-    if (pend && pend.camp !== id) pend = null;
-    if (pendCamp !== id) { livePend = 0; roundPend = 0; pendCamp = id; }
+    if (id === pendCamp) return;
+    if (pendCamp) {
+        delete pendKept[pendCamp];
+        if (pend || livePend > 0 || roundPend > 0) { pendKept[pendCamp] = { pend: pend, live: livePend, round: roundPend }; var ksP = Object.keys(pendKept); if (ksP.length > PEND_KEEP) delete pendKept[ksP[0]]; }
+    }
+    var kP = id && pendKept[id] ? pendKept[id] : null;
+    pend = kP ? kP.pend : null; livePend = kP ? kP.live : 0; roundPend = kP ? kP.round : 0;
+    if (id) delete pendKept[id];
+    pendCamp = id;
 }
 var view = null, pick = null, winSig = '', winCamp = '', winBase = '', winDay = -1;   // the window's period in view ({ yi, period }, or { page } with no periods), the day picked (a day number from 0) or null, what it last drew and for which campaign
 function sysCal() { var s = sysNow(); return s && s.calendar ? s.calendar : null; }

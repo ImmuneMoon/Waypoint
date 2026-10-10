@@ -182,7 +182,7 @@ function startIdle() {
 }
 function togglePlay() { if (!source) { startIdle(); return; } if (cur) { stopLane(0.3); } else { playCurrent(0.3); } emit(); broadcastControl(); }
 // [musiccheck:idle-end]
-function stopLane(fadeSec) { loadGen++; if (!cur) return; var old = cur; cur = null; if (ctx) ramp(old.gain, 0.0001, fadeSec || 0.3); setTimeout(function() { try { old.src.stop(); } catch (e) {} }, (fadeSec || 0.3) * 1000 + 120); }
+function stopLane(fadeSec) { loadGen++; pending = null; if (gateShown) hideGate(); if (!cur) return; var old = cur; cur = null; if (ctx) ramp(old.gain, 0.0001, fadeSec || 0.3); setTimeout(function() { try { old.src.stop(); } catch (e) {} }, (fadeSec || 0.3) * 1000 + 120); }
 function next() { if (!source || !order.length) return; if (qi < order.length - 1) qi++; else if (source.loop !== 'off') qi = 0; else return; playCurrent(0.25); }
 function prev() { if (!source || !order.length) return; if (position() > 3) { seek(0); return; } if (qi > 0) qi--; else if (source.loop !== 'off') qi = order.length - 1; else return; playCurrent(0.25); }
 function position() { if (!cur || !ctx) return 0; var e = (ctx.currentTime - cur.startedAt) * (cur.rate || 1) + cur.offset; return cur.loopOne && cur.dur ? (e % cur.dur) : Math.min(e, cur.dur); }

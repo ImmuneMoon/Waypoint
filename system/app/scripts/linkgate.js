@@ -37,6 +37,9 @@
    A drag:      a link is dragged only where a click on it opens it directly. Anywhere else the drag does not begin (a second listener,
                 for dragstart): a dragged address dropped on another of the app's windows would be followed there with no question.
 
+   Before:      while the pointer or the keyboard's focus rests on a link that would open or ask, its whole address stands in a strip at the
+                window's bottom left, as a browser shows one (the linkpeek slice below).
+
    linkVerdict(c) is the rule as a pure function, linkWhere(a, win) reads where a link is, fillLinked(el, text, doc) is the renderer
    (elements and text nodes only). tools/sinkcheck.js runs all of it by the markers below. */
 import { cleanLink, linkParts } from './textfmt.js';
@@ -177,6 +180,7 @@ function wireLinks(win, doc, ask) {
     doc.addEventListener('click', h, true);
     doc.addEventListener('auxclick', h, true);
     doc.addEventListener('dragstart', dragGate(win), true);
+    if (typeof peekWire === 'function') peekWire(win, doc);   // the address in sight before a press (its own slice, below)
     return h;
 }
 // A plain text drawn with its web addresses as links (textfmt.js linkParts): a text node for every part, and around an address an <a>
@@ -196,6 +200,56 @@ function fillLinked(el, text, doc) {
 }
 // [sinkcheck:linkgate-end]
 
+// [sinkcheck:linkpeek-start]
+// A link's address in sight BEFORE a press (the owner, 2026-10-09, of links in more places: "it shows the address in a way a browser does
+// before opening as well as warning"). While the pointer, or the keyboard's focus, rests on a link the gate would open or ask about, the
+// whole address stands in a strip at the window's bottom left, where a browser shows one: the very address the gate judges (cleaned as the
+// gate cleans it) as the URL parser reads it, which is what the question shows too, so plain characters only. The strip is ONE element this
+// makes, holding ONE text node whose value is the address: nothing of a link is ever markup or an attribute. Nothing shows for a link the
+// gate opens nothing for: one in a box that is being edited, one that was just dragged, an address that is not the web's, a file the app
+// itself hands over to be saved.
+var PEEK_MAX = 300;
+function peekText(href) { var s = typeof href === 'string' ? href : ''; return s.length > PEEK_MAX ? s.slice(0, PEEK_MAX - 1) + '…' : s; }
+function peekOf(win, a) {   // the address to show for a link, '' for none
+    var raw = linkOf(a); if (raw === null) return '';
+    if (a.hasAttribute('download') && /^(blob|data):/i.test(raw)) return '';
+    var c = linkWhere(a, win); c.link = cleanLink(raw);
+    if (linkVerdict(c) === 'none') return '';
+    var url = readUrl(c.link); return url ? peekText(url.href) : '';
+}
+function peekEl(doc, make) {   // the one strip of this document; made on first use, inside the pop-out's own box where the page is one
+    var el = doc.getElementById('linkPeek'); if (el || !make) return el || null;
+    el = doc.createElement('div'); el.id = 'linkPeek'; el.className = 'linkpeek'; el.hidden = true; el.setAttribute('aria-hidden', 'true');
+    el.appendChild(doc.createTextNode(''));
+    var home = doc.body && doc.body.classList && doc.body.classList.contains('popout-mode') ? doc.getElementById('popoutWrap') : null;
+    (home || doc.body).appendChild(el);
+    return el;
+}
+function peekHide(doc) { var el = peekEl(doc, false); if (el && el.hidden !== true) el.hidden = true; }
+function peekShow(win, doc, a, e) {
+    var text = a ? peekOf(win, a) : ''; if (!text) { peekHide(doc); return false; }
+    var el = peekEl(doc, true); if (!el) return false;
+    if (el.firstChild) el.firstChild.nodeValue = text; else el.appendChild(doc.createTextNode(text));
+    // out of the pointer's way, as a browser's is: with the pointer low on the left the strip stands on the right
+    var low = !!(e && typeof e.clientX === 'number' && typeof e.clientY === 'number' && win && e.clientY > (win.innerHeight || 0) - 64 && e.clientX < (win.innerWidth || 0) * 0.62);
+    el.classList.toggle('peek-right', low);
+    el.hidden = false;
+    return true;
+}
+function peekWire(win, doc) {
+    var at = null;   // the link the strip stands for
+    var away = function() { at = null; peekHide(doc); };
+    doc.addEventListener('mouseover', function(e) { var a = linkAt(e.target); if (a === at) return; at = a; if (!a || !peekShow(win, doc, a, e)) peekHide(doc); }, true);
+    doc.addEventListener('mouseout', function(e) { if (!at) return; var to = e.relatedTarget ? linkAt(e.relatedTarget) : null; if (to !== at) away(); }, true);   // onto a part of the same link: it stays
+    doc.addEventListener('focusin', function(e) { var a = linkAt(e.target); if (a && peekShow(win, doc, a, null)) at = a; }, true);
+    doc.addEventListener('focusout', function(e) { if (at && linkAt(e.target) === at) away(); }, true);
+    doc.addEventListener('scroll', away, true);
+    doc.addEventListener('mousedown', away, true);   // the press itself: what follows is the gate's
+    doc.addEventListener('keydown', function(e) { if (e.key === 'Escape') away(); }, true);
+    if (win && typeof win.addEventListener === 'function') win.addEventListener('blur', away);
+}
+// [sinkcheck:linkpeek-end]
+
 if (typeof window !== 'undefined' && typeof document !== 'undefined') wireLinks(window, document, showConfirm);
 
-export { linkVerdict, linkWhere, linkOf, linkAt, readUrl, askBody, linkGate, dragGate, wireLinks, fillLinked, atTable };
+export { linkVerdict, linkWhere, linkOf, linkAt, readUrl, askBody, linkGate, dragGate, wireLinks, fillLinked, atTable, peekText, peekOf, peekShow, peekHide, peekWire };

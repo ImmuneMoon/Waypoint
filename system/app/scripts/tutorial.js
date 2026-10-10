@@ -939,6 +939,22 @@ function tourField(t) { return !!t && (t.isContentEditable === true || !!(t.clos
 // The owed review, 2026-10-09: while a question or a prompt of the app's own is up (a join request while the tour runs at a hosted table)
 // every key is its, Escape included; and Enter on a focused button of the card's own (Back, Skip, Try it yourself) is that button's press
 function appAsking() { if (typeof document === 'undefined' || !document.getElementById) return false; var q = document.getElementById('customConfirm'), p = document.getElementById('customPrompt'); return !!((q && q.style && q.style.display === 'flex') || (p && p.style && p.style.display === 'flex')); }
+// The card is drawn again at every step, which took the focus off the button it was on: after Enter on Back the next Enter was the page's and
+// went forward (the review of 2026-10-09). cardFocusOf says which of the card's own buttons has the focus, by its id, before the card is drawn
+// again, and cardRefocus puts the focus back on it, or on Next where that button is no longer there. A pointer's press keeps no focus to put back
+function cardFocusOf(card, active) {
+    if (!card || !active || typeof card.contains !== 'function' || !card.contains(active)) return '';
+    var id = typeof active.id === 'string' ? active.id : '';
+    if (!id && active.classList && active.classList.contains('tour-secitem')) id = 'tourSecBtn';
+    return /^tour[A-Za-z]{1,24}$/.test(id) ? id : '';
+}
+function cardRefocus(card, keep) {
+    if (!card || !keep || !/^tour[A-Za-z]{1,24}$/.test(keep)) return false;
+    var f = card.querySelector('#' + keep) || card.querySelector('#tourNext');
+    if (!f) return false;
+    try { f.focus(); } catch (e) {}
+    return true;
+}
 function tourButton(t) { return !!(t && t.closest && t.closest('button, a[href]') && t.closest('#tourCard')); }   // a button of the page under the card still moves the tour, so that Enter presses nothing there
 function tourKey(e) {
     if (!tour.active || tour.paused) return;
@@ -1063,8 +1079,10 @@ function show(i, dir) {
     }).join('') + '</div>';
     html += '<div class="tour-secmenu" id="tourSecMenu" style="display:none;">' + sp.map(function(s, k) { return '<button class="tour-secitem' + (k === sec.idx ? ' on' : '') + '" data-secstart="' + s.start + '">' + esc(s.label) + '</button>'; }).join('') + '</div>';
     html += '<h3 class="tour-grip" title="Drag to move this card">' + esc(step.title) + '</h3><div class="tour-body">' + tourBlocks(step.html) + '</div>' + (step.help ? '<button class="tour-help" id="tourHelp" title="Put this card away and open Help at this entry. Resume tour brings the step back.">More in Help &#9656; ' + esc(step.help[1]) + '</button>' : '') + '<div class="tour-btns"></div>';
+    var keepF = cardFocusOf(tour.card, document.activeElement);
     tour.card.innerHTML = html;
     drawButtons();
+    cardRefocus(tour.card, keepF);
     var q = function(id) { return tour.card.querySelector('#' + id); };
     if (q('tourSecBtn')) q('tourSecBtn').addEventListener('click', function(e) { e.stopPropagation(); var m = q('tourSecMenu'); if (m) { m.style.display = m.style.display === 'none' ? 'flex' : 'none'; place(); } });
     if (q('tourSecMenu')) q('tourSecMenu').querySelectorAll('.tour-secitem').forEach(function(b) { b.addEventListener('click', function() { var s = parseInt(b.dataset.secstart, 10); if (s >= 0 && s < STEPS.length) show(s, 1); }); });

@@ -435,27 +435,32 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         && j(a1) === j([3600, [[[{ c: 'c_a', r: 'r_any', n: 1 }], 'The clock ran']], null, 0, 'none', true]) && j(o1) === j([3600, 0, null, false]), j([q0, q1, q2, q3, q4, q5, a1, o1]));
     // The owed review, 2026-10-09 (backlog 138): what waits belongs to the campaign it was counted in. A list of time rules due, the live time
     // counted behind it and a fight's rounds carried into the next campaign opened: its chip said rules were due, its own rules did not run, and
-    // when the GM answered, the hours that had passed in the first campaign were counted in the second
+    // when the GM answered, the hours that had passed in the first campaign were counted in the second. The first fix let them go, which lost a
+    // list for good when another campaign was merely looked at (its review): each campaign's is now KEPT for it, and is back when it is
     {
         const campOf = id => ({ id, clock: { t: 0 }, chars: charsL() }), oS = { camp: campOf('A'), sys: sysTR, host: true }, WS = mkCal(oS), tickS = s => WS.api.liveTick(Math.round(s * 1000)), campA = oS.camp;
         tickS(1); for (let s = 61; s <= 3601; s += 60) tickS(s);                                   // an hour in A: a rule is due, and the list waits
         tickS(3661); tickS(3721); WS.api.rounds(10);                                               // two minutes more behind it, and a fight's rounds
-        const sA = [!!WS.api.st().pend, WS.api.st().pend && WS.api.st().pend.camp, WS.api.liveSt().livePend, WS.api.st().roundPend > 0, / clock-due|^clock-due/.test(' ' + WS.chip.className)];
+        const pA = WS.api.st().pend, sA = [!!pA, pA && pA.camp, WS.api.liveSt().livePend, WS.api.st().roundPend, /clock-due/.test(WS.chip.className)];
         const campB = campOf('B'); oS.camp = campB; WS.api.refresh();                               // another campaign on screen
         const sB = [WS.api.st().pend, WS.api.liveSt().livePend, WS.api.st().roundPend, /clock-due/.test(WS.chip.className), /time rules are due/.test(WS.chip.title)];
         const dueSaid = WS.toasts.filter(t => /Time rules are due/.test(t)).length; tickS(3781); tickS(3841);   // B's own minutes: counted from nothing
-        const sB2 = [WS.api.st().pend, WS.runs.length, j(campB.clock.acc), WS.toasts.filter(t => /Time rules are due/.test(t)).length === dueSaid, WS.api.fightEnded(), j(campA.clock.acc)];
-        // a list still drawn from the first campaign, answered after the switch: it is no list here, and nothing of it is counted
-        const oT = { camp: campOf('A'), sys: sysTR, host: true }, WT = mkCal(oT), tickT = s => WT.api.liveTick(Math.round(s * 1000)); tickT(1); for (let s = 61; s <= 3601; s += 60) tickT(s); tickT(3661);
-        WT.api.openWin(); const skipBtn = findN(WT.body, 'cal-pend-skip')[0], campB2 = campOf('B'); oT.camp = campB2; WT.api.onWinClick({ target: skipBtn });
+        const sB2 = [WS.api.st().pend, WS.runs.length, j(campB.clock.acc), WS.toasts.filter(t => /Time rules are due/.test(t)).length === dueSaid, WS.api.fightEnded()];
+        oS.camp = campA; WS.api.refresh();                                                          // and A again: its list, its minutes and its rounds are as they were left
+        const sA2 = [WS.api.st().pend === pA, WS.api.liveSt().livePend, WS.api.st().roundPend, /clock-due/.test(WS.chip.className)];
+        oS.camp = null; WS.api.fightEnded(); oS.camp = campA; WS.api.refresh(); const sA3 = [WS.api.st().pend === pA, WS.api.liveSt().livePend];   // no campaign on screen for a moment: nothing is lost
+        // a list still drawn from the first campaign, answered after the switch: it is no list here, nothing of it is counted, and it still waits for its own campaign
+        const oT = { camp: campOf('A'), sys: sysTR, host: true }, WT = mkCal(oT), tickT = s => WT.api.liveTick(Math.round(s * 1000)), campA2 = oT.camp; tickT(1); for (let s = 61; s <= 3601; s += 60) tickT(s); tickT(3661);
+        WT.api.openWin(); const pT = WT.api.st().pend, skipBtn = findN(WT.body, 'cal-pend-skip')[0], campB2 = campOf('B'); oT.camp = campB2; WT.api.onWinClick({ target: skipBtn });
         const sT = [!!skipBtn, WT.api.st().pend, WT.api.liveSt().livePend, WT.runs.length, 'acc' in campB2.clock, findN(WT.body, 'cal-pend-head').length];
-        // and with no switch the list waits as it did (the control)
-        const oC = { camp: campOf('A'), sys: sysTR, host: true }, WC = mkCal(oC), tickC = s => WC.api.liveTick(Math.round(s * 1000)); tickC(1); for (let s = 61; s <= 3601; s += 60) tickC(s); tickC(3661); WC.api.refresh();
-        const sC = [!!WC.api.st().pend, WC.api.liveSt().livePend, /clock-due/.test(WC.chip.className)];
-        check('what waits in the calendar belongs to its campaign (the owed review of 2026-10-09; calendar.js, run for real with a hosting table and a clock of the suite\'s own): a list of time rules due in one campaign, the minutes counted behind it and a fight\'s rounds are let go when another campaign is on screen, so its chip says nothing is due, its own rules count its own minutes from nothing, nothing runs for hours that passed elsewhere, and the first campaign\'s counts are as they were left; a list still drawn from the first campaign and answered after the switch is no list, and counts nothing in the second; with no switch the list and the time behind it wait as before',
-            j(sA) === j([true, 'A', 120, true, true]) && j(sB) === j([null, 0, 0, false, false]) && sB2[0] === null && sB2[1] === 0 && sB2[2] === '{"c_a":{"r_any":120},"c_n":{"r_any":120}}' && sB2[3] === true && sB2[4] === false
-            && j(sT) === j([true, null, 0, 0, false, 0]) && j(sC) === j([true, 60, true])
-            && calJs.includes("function pendFor(camp) {") && (calJs.match(/pendFor\(/g) || []).length === 8, j([sA, sB, sB2, sT, sC]));
+        oT.camp = campA2; WT.api.refresh(); const sT2 = [WT.api.st().pend === pT, WT.api.liveSt().livePend];
+        // many campaigns looked at with something waiting in each: the kept ones are bounded
+        const oM = { camp: campOf('m0'), sys: sysTR, host: true }, WM = mkCal(oM); for (let i = 0; i < 60; i++) { oM.camp = campOf('m' + i); WM.api.rounds(1); WM.api.refresh(); }
+        oM.camp = campOf('m59'); WM.api.refresh(); const lastKept = WM.api.st().roundPend; oM.camp = campOf('m0'); WM.api.refresh(); const firstKept = WM.api.st().roundPend;
+        check('what waits in the calendar belongs to its campaign (the owed review of 2026-10-09 and the review of its first fix; calendar.js, run for real with a hosting table and a clock of the suite\'s own): with another campaign on screen a list of time rules due in the first, the minutes counted behind it and a fight\'s rounds are put aside, so the second campaign\'s chip says nothing is due, its own rules count its own minutes from nothing and nothing runs for hours that passed elsewhere; when the first campaign is back its list is due again, with its minutes and its rounds as they were left, and a moment with no campaign on screen loses nothing; a list still drawn from the first campaign and answered after the switch is no list in the second, counts nothing there and still waits for its own; what is kept for campaigns that are looked at is bounded',
+            j(sA) === j([true, 'A', 120, 60, true]) && j(sB) === j([null, 0, 0, false, false]) && sB2[0] === null && sB2[1] === 0 && sB2[2] === '{"c_a":{"r_any":120},"c_n":{"r_any":120}}' && sB2[3] === true && sB2[4] === false
+            && j(sA2) === j([true, 120, 60, true]) && j(sA3) === j([true, 120]) && j(sT) === j([true, null, 0, 0, false, 0]) && j(sT2) === j([true, 60]) && lastKept > 0 && firstKept === 0
+            && calJs.includes("function pendFor(camp) {") && (calJs.match(/pendFor\(/g) || []).length === 8, j([sA, sB, sB2, sA2, sA3, sT, sT2, lastKept, firstKept]));
     }
     check('the running clock is wired and said (pinned): one look a second from the page\'s wiring; a minute banked tells the table and writes quietly, never through a save; the chip\'s mark in the page; Help\'s Calendar list, the integration guide\'s keys and What\'s New in both copies; its styles',
         calJs.includes("import { save, saveView, toast } from './io.js';") && calJs.includes("    if (typeof setInterval === 'function') setInterval(function() { try { liveTick(Date.now()); } catch (e) {} }, 1000);")

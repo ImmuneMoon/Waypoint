@@ -1240,11 +1240,12 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
 
   // A failed save was said only in the row's saved note, which is out of sight while the row is hidden (the owed review, 2026-10-09): it is
   // said in a notice too, once when saving begins to fail, and again only after a save has gone through in between
-  var _saveFailSaid = false;
+  var _saveFailSaid = false, _saveFailAt = 0, SAVE_FAIL_AGAIN = 60000;   // ... and once a minute while it goes on failing: a notice is on screen for three seconds
   function saveFailed(bad) {
       if (!bad) { _saveFailSaid = false; return; }
-      if (_saveFailSaid) return;
-      _saveFailSaid = true; toast('Saving failed. The campaign is not reaching the disk.');
+      var nowF = Date.now();
+      if (_saveFailSaid && nowF - _saveFailAt < SAVE_FAIL_AGAIN) return;
+      _saveFailSaid = true; _saveFailAt = nowF; toast('Saving failed. The campaign is not reaching the disk.');
   }
   function save(immediate) {
     if (window.__wpNoSave) return;   // a snapshot is being restored: the in-memory copy must not win

@@ -398,6 +398,7 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
 
 
 
+  var _texSerial = 0;   // the map builder: one id for each svg pattern a filled region's texture takes (never an item's id)
   function renderWhiteboard() {
       if (window.wpRenderPartyStrip) window.wpRenderPartyStrip();
       if (window.wpRenderCombatStrip) window.wpRenderCombatStrip();
@@ -777,6 +778,17 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
 
           }
 
+          // [sinkcheck:texstyle-start]
+          // The map builder (fold B1): a piece's texture is a name of the app's own list (buildcore.js), drawn over its colour as a repeating tile
+          // seated on the board's lattice, so pieces side by side read as one surface. On a box shape that is no token. A filled region's is drawn
+          // in its own svg below. Anything else (no name, a name the list lacks, another kind of piece) leaves the piece exactly as it was drawn above
+          var BCt = window.wpBuildCore, texN = BCt && BCt.cleanTexture ? BCt.cleanTexture(item.texture) : null;
+          var texBox = texN && (item.type === 'rect' || item.type === 'circle' || item.type === 'hexagon' || item.type === 'diamond') && !item.isChar && !item.waiting ? BCt.texStyle(texN, item.x, item.y) : null;
+          if (texBox) { el.style.backgroundImage = texBox.image; el.style.backgroundSize = texBox.size; el.style.backgroundPosition = texBox.position; el.dataset.tex = texN; }
+          else if (el.dataset.tex) { el.style.backgroundImage = ''; el.style.backgroundSize = ''; el.style.backgroundPosition = ''; delete el.dataset.tex; }
+          el.classList.toggle('wb-tex', !!texBox || !!(texN && item.type === 'path' && item.tip === 'fill'));
+          // [sinkcheck:texstyle-end]
+
           // Text boxes: the color swatch is the text color, not a fill; the box
           // has its own background, font, size, and alignment.
           if (item.type === 'text') {
@@ -1001,7 +1013,7 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
 
               
 
-              var pathEl = svg.querySelector('path'), _tip = item.tip || 'round', _col = cssColor(item.color) || 'var(--ink)';
+              var pathEl = svg.querySelector(':scope > path'), _tip = item.tip || 'round', _col = cssColor(item.color) || 'var(--ink)';
               var _sp = buildStrokePath(item.pts, _tip, item.strokeWidth || 3, item.holes);
               pathEl.setAttribute('d', _sp.d);
               if (_sp.fill) {
@@ -1015,6 +1027,25 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
               // [fogcheck:doorline-start]
               if (doorIt && !_sp.fill) pathEl.setAttribute('pathLength', '100'); else pathEl.removeAttribute('pathLength');   // a door line's length counts as 100: the stylesheet draws its two ends alone while it is open
               // [fogcheck:doorline-end]
+              // [sinkcheck:texpath-start]
+              // The map builder (fold B1): a filled region's texture is an svg pattern in the path's own defs, built by createElementNS only (buildcore
+              // texPattern), seated on the board's lattice and scaled back by the box over its base size (the svg's viewBox is stretched to the box). It
+              // is built again only when its place, size, name or colour changes. An untextured path keeps no defs and its plain fill
+              var BCp = window.wpBuildCore, texP = _sp.fill && BCp && BCp.cleanTexture ? BCp.cleanTexture(item.texture) : null, defsP = svg.querySelector(':scope > defs');
+              if (texP) {
+                  var texKey = texP + '|' + item.x + '|' + item.y + '|' + (item.w || 0) + '|' + (item.h || 0) + '|' + bw + '|' + bh + '|' + _col;
+                  if (!defsP || svg.dataset.texKey !== texKey) {
+                      if (defsP) defsP.remove();
+                      var patP = BCp.texPattern(document, texP, item.x, item.y, _col, ++_texSerial);
+                      if (patP) {
+                          patP.setAttribute('patternTransform', 'scale(' + (bw / (item.w || bw)) + ' ' + (bh / (item.h || bh)) + ')');
+                          defsP = document.createElementNS('http://www.w3.org/2000/svg', 'defs'); defsP.appendChild(patP); svg.insertBefore(defsP, svg.firstChild);
+                          svg.dataset.texKey = texKey; svg.dataset.texId = patP.getAttribute('id');
+                      } else { delete svg.dataset.texKey; delete svg.dataset.texId; }
+                  }
+                  if (svg.dataset.texId) { pathEl.setAttribute('fill', 'url(#' + svg.dataset.texId + ')'); if (pathEl.style.fill) pathEl.style.fill = ''; }   // a colour set live on the path would hide the pattern
+              } else if (defsP) { defsP.remove(); delete svg.dataset.texKey; delete svg.dataset.texId; }
+              // [sinkcheck:texpath-end]
 
           }
 
@@ -1429,8 +1460,8 @@ window.wpFitToGrid = fitToGrid;
           var el = state.wbEls[i.id];
           if (!el) return;
           if (i.type === 'text') el.style.color = (v && v !== 'transparent') ? v : '';
-          else if (i.type === 'path') { var p = el.querySelector('path'); if (p) { if (i.tip === 'fill') p.style.fill = v; else p.style.stroke = v; } }
-          else if (i.type !== 'image' && i.type !== 'trigger') el.style.background = v;
+          else if (i.type === 'path') { var p = el.querySelector('svg > path'), pr = i.tip === 'fill' ? el.querySelector('svg > defs > pattern > rect') : null; if (pr) pr.setAttribute('fill', cssColor(v, 'transparent')); else if (p) { if (i.tip === 'fill') p.style.fill = v; else p.style.stroke = v; } }   // its own path, never a pattern's; a textured region: the colour under its pattern
+          else if (i.type !== 'image' && i.type !== 'trigger') el.style.backgroundColor = v;   // the colour alone, so a recolour keeps a piece's texture
       });
   }
   // The palette matches the selection: text and drawings get the pen inks,
@@ -4073,6 +4104,26 @@ window.wpFitToGrid = fitToGrid;
   }
   ['fillTerrainChk', 'fillTerrainCost'].forEach(function(id) { var e0 = document.getElementById(id); if (e0) e0.addEventListener('change', fillTerrainSet); });
   // [fogcheck:fillmenu-end]
+  // [sinkcheck:texopts-start]
+  // The map builder (fold B1): a Texture list's rows are the app's own names, as option values and text nodes, with Plain color for none
+  function texOptionsInto(sel, cur) {
+      var BC = window.wpBuildCore; if (!sel || !BC || !Array.isArray(BC.TEXTURES)) return;
+      while (sel.firstChild) sel.removeChild(sel.firstChild);
+      var o0 = document.createElement('option'); o0.value = ''; o0.textContent = 'Plain color'; sel.appendChild(o0);
+      BC.TEXTURES.forEach(function(n) { var o = document.createElement('option'); o.value = n; o.textContent = n.charAt(0).toUpperCase() + n.slice(1); sel.appendChild(o); });
+      sel.value = BC.cleanTexture(cur) || '';
+  }
+  // The fill menu's Texture list: its pick is kept on this computer and read back through the cleaner
+  function fillTextureInit() {
+      var sel = document.getElementById('fillTexture'), BC = window.wpBuildCore, kept = '';
+      try { kept = localStorage.getItem('wp_fillTexture') || ''; } catch (e) {}
+      state.fillTexture = (BC && BC.cleanTexture ? BC.cleanTexture(kept) : null) || '';
+      if (!sel) return;
+      texOptionsInto(sel, state.fillTexture);
+      sel.addEventListener('change', function() { var B2 = window.wpBuildCore; state.fillTexture = (B2 && B2.cleanTexture ? B2.cleanTexture(this.value) : null) || ''; try { localStorage.setItem('wp_fillTexture', state.fillTexture); } catch (e) {} });
+  }
+  // [sinkcheck:texopts-end]
+  fillTextureInit();
   wireTool({ id: 'fillModeBtn', chev: 'fillOptBtn', inHand: function() { return !!window.isFillMode; }, sync: syncFillMenu, take: function() {
       window.isDrawingMode = false; window.isEraserMode = false; window.isMeasureMode = false; window.isFogMode = false;
       if (wbWrap) wbWrap.style.cursor = 'crosshair';
@@ -4100,23 +4151,31 @@ window.wpFitToGrid = fitToGrid;
       if (!t || item.terrain === t) return false;
       item.terrain = t; return true;
   }
+  // The map builder (fold B1): the fill menu's texture on a cell it paints, new or painted over (true when that changed it). A name of the app's
+  // own list, or Plain color, which takes a texture off
+  function fillTextureTo(item) {
+      var BC = window.wpBuildCore, t = BC && BC.cleanTexture ? BC.cleanTexture(state.fillTexture) : null;
+      if (t ? item.texture === t : item.texture === undefined) return false;
+      if (t) item.texture = t; else delete item.texture;
+      return true;
+  }
   function fillCellAt(x, y, remove) {
       var map = getActiveMap(); if (!map) return;
       if (!Array.isArray(map.whiteboard)) map.whiteboard = [];
       var c = cellSnap(x, y), px = c.px, py = c.py;
       var existing = map.whiteboard.find(function(it) { return it && it.fill && Math.abs(it.x - px) < 1 && Math.abs(it.y - py) < 1; });
       if (remove) { if (existing) { map.whiteboard = map.whiteboard.filter(function(it) { return it !== existing; }); _fillDirty = true; render(); } return; }
-      if (existing) { var ch = fillTerrainTo(existing); if (existing.color !== state.fillColor) { existing.color = state.fillColor; ch = true; } if (ch) { _fillDirty = true; render(); } return; }
+      if (existing) { var ch = fillTerrainTo(existing); if (fillTextureTo(existing)) ch = true; if (existing.color !== state.fillColor) { existing.color = state.fillColor; ch = true; } if (ch) { _fillDirty = true; render(); } return; }
       var item = Object.assign({ id: 'wb' + uid(), type: c.type, x: px, y: py, w: c.w, h: c.h, baseW: c.w, baseH: c.h, z: 10, color: state.fillColor, fill: true, layer: 'back' }, (window.wpNewOpacityProps ? window.wpNewOpacityProps() : {}));
-      fillTerrainTo(item); map.whiteboard.push(item); _fillDirty = true; render();
+      fillTerrainTo(item); fillTextureTo(item); map.whiteboard.push(item); _fillDirty = true; render();
   }
   // Add (or recolor) one fill cell WITHOUT save/render — for batch use by the flood-fill. Returns true if it changed anything.
   function fillCellCore(map, x, y) {
       var c = cellSnap(x, y), px = c.px, py = c.py;
       var existing = map.whiteboard.find(function(it) { return it && it.fill && Math.abs(it.x - px) < 1 && Math.abs(it.y - py) < 1; });
-      if (existing) { var ch2 = fillTerrainTo(existing); if (existing.color !== state.fillColor) { existing.color = state.fillColor; ch2 = true; } return ch2; }
+      if (existing) { var ch2 = fillTerrainTo(existing); if (fillTextureTo(existing)) ch2 = true; if (existing.color !== state.fillColor) { existing.color = state.fillColor; ch2 = true; } return ch2; }
       var item2 = Object.assign({ id: 'wb' + uid(), type: c.type, x: px, y: py, w: c.w, h: c.h, baseW: c.w, baseH: c.h, z: 10, color: state.fillColor, fill: true, layer: 'back' }, (window.wpNewOpacityProps ? window.wpNewOpacityProps() : {}));
-      fillTerrainTo(item2); map.whiteboard.push(item2);
+      fillTerrainTo(item2); fillTextureTo(item2); map.whiteboard.push(item2);
       return true;
   }
   // [fogcheck:fillcell-end]
@@ -4318,6 +4377,7 @@ window.wpFitToGrid = fitToGrid;
       var region = Object.assign({ id: 'wb' + uid(), type: 'path', tip: 'fill', x: ox, y: oy, w: rw, h: rh, baseW: rw, baseH: rh,
           z: 10, pts: local, color: state.fillColor, layer: 'back' }, (window.wpNewOpacityProps ? window.wpNewOpacityProps() : {}));
       if (holes.length) region.holes = holes;
+      fillTextureTo(region);   // the fill menu's texture on the freeform area too
       map.whiteboard.push(region);
       save(); render();
       toast('Filled the area inside your lines.');

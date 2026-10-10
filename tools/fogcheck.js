@@ -3048,9 +3048,9 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && /\nvar API = \{[^\n]*, TEXTURES: TEXTURES, cleanTexture: cleanTexture, [^\n]*\};\n/.test(fcS) && BCf.cleanTexture('bricks') === 'bricks' && BCf.cleanTexture('Bricks') === null, J(ctx));
         const wbS = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, NL);
         const cutM = name => { const a = wbS.indexOf('// [fogcheck:' + name + '-start]'), b = wbS.indexOf('// [fogcheck:' + name + '-end]'); return a > 0 && b > a ? wbS.slice(a, b) : ''; };
-        const mkFill = st => { const env = { st, map: { whiteboard: [] }, renders: 0, n: 0 };
+        const mkFill = (st, win) => { const env = { st, map: { whiteboard: [] }, renders: 0, n: 0 };
             const api = new Function('state', 'getActiveMap', 'cellSnap', 'uid', 'render', 'window', '"use strict"; var _fillDirty = false;' + NL + cutM('fillcell') + NL + 'return { fillCellAt: fillCellAt, fillCellCore: fillCellCore, dirty: function() { var d = _fillDirty; _fillDirty = false; return d; } };')(
-                st, () => env.map, (x, y) => { const cx = Math.floor(x / 50) * 50 + 25, cy = Math.floor(y / 50) * 50 + 25; return { cx, cy, w: 50, h: 50, type: 'rect', px: cx - 25, py: cy - 25 }; }, () => 'u' + (++env.n), () => { env.renders++; }, { wpFogCore: X });
+                st, () => env.map, (x, y) => { const cx = Math.floor(x / 50) * 50 + 25, cy = Math.floor(y / 50) * 50 + 25; return { cx, cy, w: 50, h: 50, type: 'rect', px: cx - 25, py: cy - 25 }; }, () => 'u' + (++env.n), () => { env.renders++; }, win || { wpFogCore: X, wpBuildCore: BCf });
             return Object.assign(env, api); };
         const fA = mkFill({ fillColor: '#111111', fillTerrain: 0 }), tOf = () => fA.map.whiteboard.map(w => ('terrain' in w ? w.terrain : '-'));
         fA.fillCellAt(10, 10); const a1 = [tOf(), fA.dirty()];
@@ -3064,6 +3064,20 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const fillGot = [a1, a2, a3, a4, a5, a6, [c1, c2, c3, c4, fB.map.whiteboard.map(w => w.terrain), fB.renders]];
         check('terrain T1 the fill tool (run for real): with its Difficult terrain tick off a painted cell carries no cost; on, a cell painted or painted over takes the menu\'s cost (a change that saves and redraws), the same cell again changes nothing; off again, painting over recolours and keeps the cost; a cost past 10 is 10, one that is no number none; right-click takes the cell away; the flood-fill\'s cells alike',
             J(fillGot) === J([[['-'], true], [[3], true], [[3], false, 0], [[3], '#222222', true], [3, 10, '-'], [[10, '-'], 2], [true, false, true, false, [5], 0]]), J(fillGot));
+        // map builder B1b: the fill menu's texture on the cells it paints, through the same harness with the real buildcore on the window
+        const fT = mkFill({ fillColor: '#111111', fillTerrain: 0, fillTexture: 'bricks' }), xOf = () => fT.map.whiteboard.map(w => ('texture' in w ? w.texture : '-'));
+        fT.fillCellAt(10, 10); const x1 = [xOf(), fT.dirty()];
+        fT.fillCellAt(10, 10); const x2 = [xOf(), fT.dirty(), fT.renders];
+        fT.st.fillTexture = 'grass'; fT.fillCellAt(12, 12); const x3 = [xOf(), fT.dirty()];
+        fT.st.fillTexture = ''; fT.fillCellAt(60, 10); const x4 = [xOf(), fT.dirty()];
+        fT.fillCellAt(10, 10); const x5 = [xOf(), fT.dirty()];
+        fT.st.fillTexture = 'Bricks'; fT.fillCellAt(110, 10); fT.st.fillTexture = 'url(x)'; fT.fillCellAt(160, 10); fT.st.fillTexture = '__proto__'; fT.fillCellAt(10, 10); fT.st.fillTexture = undefined; fT.fillCellAt(210, 10); const x6 = [xOf(), fT.dirty()];
+        fT.st.fillTexture = 'grass'; fT.st.fillColor = '#222222'; fT.st.fillTerrain = 3; fT.fillCellAt(10, 10); const x7 = [xOf(), fT.map.whiteboard[0].color, fT.map.whiteboard[0].terrain, fT.map.whiteboard[0].fill, fT.map.whiteboard[0].layer, fT.dirty()];
+        const fU = mkFill({ fillColor: '#111111', fillTerrain: 0, fillTexture: 'planks' }), u1 = fU.fillCellCore(fU.map, 10, 10), u2 = fU.fillCellCore(fU.map, 10, 10); fU.st.fillTexture = 'stone'; const u3 = fU.fillCellCore(fU.map, 10, 10), uTex = fU.map.whiteboard[0].texture; fU.st.fillTexture = ''; const u4 = fU.fillCellCore(fU.map, 10, 10), u5 = fU.fillCellCore(fU.map, 10, 10);
+        const fN = mkFill({ fillColor: '#111111', fillTerrain: 0, fillTexture: 'bricks' }, { wpFogCore: X }); fN.fillCellAt(10, 10); fN.fillCellAt(10, 10);
+        const texGot = [x1, x2, x3, x4, x5, x6, x7, [u1, u2, u3, uTex, u4, u5, fU.map.whiteboard.map(w => ('texture' in w ? w.texture : '-')), fU.renders], fN.map.whiteboard.map(w => ('texture' in w ? w.texture : '-'))];
+        check('map builder B1b the fill tool\'s texture (run for real with the real buildcore): a painted cell takes the menu\'s texture (a change that saves and redraws), the same cell again changes nothing; painting over sets another; Plain color (empty) gives a new cell none and takes it off a painted one; a name the list lacks (another case, an address, a prototype\'s name, nothing) gives none and takes nothing more off; a recolour or a terrain change keeps the cell a fill at layer back; the flood-fill\'s cells alike; without the core no texture at all',
+            J(texGot) === J([[['bricks'], true], [['bricks'], false, 1], [['grass'], true], [['grass', '-'], true], [['-', '-'], true], [['-', '-', '-', '-', '-'], true], [['grass', '-', '-', '-', '-'], '#222222', 3, true, 'back', true], [true, false, true, 'stone', true, false, ['-'], 0], ['-']]), J(texGot));
         const mkMenu = (chk, val) => { const wired = [], mkEl = o => Object.assign(o, { addEventListener: (ev, fn) => wired.push([ev, fn && fn.name]) }), els = { fillTerrainChk: mkEl({ checked: chk }), fillTerrainCost: mkEl({ value: val, disabled: false }) }, store = {}, st = { fillColor: '#111111', fillTerrain: 0 };
             const doc = { querySelectorAll: () => [], querySelector: () => null, getElementById: id => els[id] || null };
             const api = new Function('document', 'state', 'localStorage', 'window', '"use strict";' + NL + cutM('fillmenu') + NL + 'return { set: fillTerrainSet };')(doc, st, { setItem: (k, v) => { store[k] = v; } }, { wpFogCore: X });

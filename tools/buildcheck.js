@@ -339,6 +339,22 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
     let chk = null; try { fs.writeFileSync(tmp, src); chk = cp.spawnSync(process.execPath, ['--check', tmp], { encoding: 'utf8' }); } catch (e) { chk = { status: -1, stderr: String(e) }; } finally { try { fs.unlinkSync(tmp); } catch (e) { /* gone */ } }
     check('buildcore.js passes node --check as a .mjs copy (a syntax error parsecheck would attribute to every importer)', chk && chk.status === 0, chk && (chk.stderr || chk.status));
 
+    /* ---- fold B1b: a textured piece's tile stays seated while it is dragged (datamap.js sliced by its texseat markers and run for real) ---- */
+    const cutM = (s, name, file) => { const a = '// [buildcheck:' + name + '-start]', b = '// [buildcheck:' + name + '-end]', i = s.indexOf(a), k = s.indexOf(b); if (i < 0 || k < i) throw new Error('buildcheck: ' + name + ' markers not found in ' + file); return s.slice(i, k); };
+    const seatSrc = cutM(dmSrc, 'texseat', 'datamap.js'), mkSeat = win => new Function('window', "'use strict';" + NL + seatSrc + NL + 'return texSeatEl;')(win), seat = mkSeat({ wpBuildCore: B });
+    const boxEl = { dataset: { tex: 'bricks' }, style: {} }, plainEl = { dataset: {}, style: {}, querySelector: () => null };
+    const patEl = { attrs: { width: '50', height: '48', x: '0', y: '0' }, setAttribute(k, v) { this.attrs[k] = v; }, getAttribute(k) { return this.attrs[k]; } }, svgEl = { dataset: { texId: 'wptex3', texKey: 'ripples|0|0|100|100|100|100|#fff' }, querySelector: sel => (sel === ':scope > defs > pattern' ? patEl : null) };
+    const pathEl = { dataset: { type: 'path' }, style: {}, querySelector: sel => (sel === ':scope > svg' ? svgEl : null) }, bareSvg = { dataset: {}, querySelector: () => null }, pathNoTex = { dataset: { type: 'path' }, style: {}, querySelector: () => bareSvg };
+    seat(boxEl, 130, -20); seat(plainEl, 130, 70); seat(pathEl, 130, 70); seat(pathNoTex, 130, 70); seat(null, 1, 1); seat({}, 1, 1);
+    const noCoreEl = { dataset: { tex: 'bricks' }, style: {} }; mkSeat({})(noCoreEl, 130, 70);
+    const hostileEl = { dataset: { tex: 'url(x)' }, style: {} }; seat(hostileEl, 130, 70);
+    const farPat = { attrs: { width: '50', height: '50' }, setAttribute(k, v) { this.attrs[k] = v; }, getAttribute(k) { return this.attrs[k]; } }, farEl = { dataset: { type: 'path' }, style: {}, querySelector: () => ({ dataset: { texId: 'wptex9' }, querySelector: () => farPat }) }; seat(farEl, -30, NaN);
+    check('texSeatEl (datamap.js, run for real): a moving textured box keeps its tile on the board\'s lattice (backgroundPosition by buildcore texPos, never positive); a moving filled region\'s svg pattern takes the place in tile units (x and y the negative mod of the tile\'s width and height, as text; left of the origin still negative, a place that is no number 0) and its key is cleared so the next full redraw builds it again; a plain element, a path with no pattern, nothing or no core change nothing; a name the list lacks seats at 0',
+        boxEl.style.backgroundPosition === '-30px -30px' && boxEl.style.backgroundPosition === B.texPos(130, -20, 'bricks') && j(plainEl.style) === '{}' && patEl.attrs.x === '-30' && patEl.attrs.y === '-22' && svgEl.dataset.texKey === '' && svgEl.dataset.texId === 'wptex3' && j(pathEl.style) === '{}' && j(pathNoTex.style) === '{}' && j(bareSvg.dataset) === '{}' && j(noCoreEl.style) === '{}'
+        && hostileEl.style.backgroundPosition === '0px 0px' && farPat.attrs.x === '-20' && farPat.attrs.y === '0', j([boxEl.style, patEl.attrs, svgEl.dataset, hostileEl.style, farPat.attrs]));
+    check('texSeatEl runs in the live-drag loop (after each piece\'s left and top are set) and once more after the release, where the drop snapped the pieces, before the save',
+        /mEl\.style\.top = m\.item\.y \+ 'px';\n\s*texSeatEl\(mEl, m\.item\.x, m\.item\.y\);/.test(dmSrc) && /multiDrag\.forEach\(function\(md\) \{ texSeatEl\(md\.el \|\| \(state\.wbEls && state\.wbEls\[md\.item\.id\]\), md\.item\.x, md\.item\.y\); \}\);[^\n]*\n\s*save\(\);/.test(dmSrc) && (dmSrc.match(/texSeatEl\(/g) || []).length === 3);
+
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

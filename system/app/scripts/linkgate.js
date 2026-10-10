@@ -208,8 +208,19 @@ function fillLinked(el, text, doc) {
 // makes, holding ONE text node whose value is the address: nothing of a link is ever markup or an attribute. Nothing shows for a link the
 // gate opens nothing for: one in a box that is being edited, one that was just dragged, an address that is not the web's, a file the app
 // itself hands over to be saved.
-var PEEK_MAX = 300;
-function peekText(href) { var s = typeof href === 'string' ? href : ''; return s.length > PEEK_MAX ? s.slice(0, PEEK_MAX - 1) + '…' : s; }
+var PEEK_MAX = 300, PEEK_SITE = 120;
+// What the strip says for an address: its scheme, its site and what follows the site, as a browser's own strip says it. The name and password an
+// address may carry before its site are left out: they are no part of where it leads, and can be written to read as a site. A site too long to
+// show whole is cut at its FRONT, since its end is what names whose it is. So the end of the site is in sight whatever the address holds
+function peekText(href) {
+    var s = typeof href === 'string' ? href : '', u = null;
+    try { u = new URL(s); } catch (e) { u = null; }
+    if (u && (u.protocol === 'http:' || u.protocol === 'https:') && typeof u.host === 'string' && u.host) {
+        var site = u.host; if (site.length > PEEK_SITE) site = '…' + site.slice(site.length - (PEEK_SITE - 1));
+        s = u.protocol + '//' + site + String(u.pathname) + String(u.search) + String(u.hash);
+    }
+    return s.length > PEEK_MAX ? s.slice(0, PEEK_MAX - 1) + '…' : s;
+}
 function peekOf(win, a) {   // the address to show for a link, '' for none
     var raw = linkOf(a); if (raw === null) return '';
     if (a.hasAttribute('download') && /^(blob|data):/i.test(raw)) return '';

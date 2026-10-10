@@ -3858,11 +3858,14 @@ var notepadTimer = null;
 // everyone at the table reads it). A player's box only reads: the reader (window.wpTextRead) draws the text with the look the host sent,
 // cleaned again there. It is editable only so that it has a caret, as the read-only box it replaced had: every edit is cancelled.
 // _pad.on: 0 not asked yet, 1 the pad is a host of the text box, 2 refused. _pad.mode: how the box is dressed now, 'write' or 'read'.
-var _pad = { fmt: undefined, font: '', on: 0, mode: '' };
+var _pad = { fmt: undefined, font: '', on: 0, mode: '', gen: 0 };
 var PAD_WRITE = 'Notes for the whole table — everyone sees this as you type. Gone when you put it away or the session ends; anyone can save it to their Journal.', PAD_READ = 'The GM has not written anything yet.';
 function padCore() { var L = typeof window !== 'undefined' ? window.wpLook : null; return L && typeof L.makeRec === 'function' && typeof L.cleanRec === 'function' && L.RULES && L.RULES.PAD ? L : null; }
 function padBox() { var w = typeof window !== 'undefined' ? window.wpTextBox : null; return w && typeof w.host === 'function' && typeof w.dress === 'function' && typeof w.fill === 'function' ? w : null; }
-function padReset() { _pad.fmt = undefined; _pad.font = ''; }
+// A pad that is put away, or a session that ends, takes the pad's look with it and its steps too: the field says who it is with a number that
+// goes up here, and the text box module drops the steps kept for a field that is another now. Without it the undo key on a NEW pad
+// brought back the words of the pad before it, and sent them to the table
+function padReset() { _pad.fmt = undefined; _pad.font = ''; _pad.gen++; }
 // The look of the pad as the GM has it now, for the text given, or none
 function padRec(text) { var L = padCore(); return L ? L.makeRec(_pad.fmt, _pad.font, text, L.RULES.PAD) : undefined; }
 function notepadMsg() {
@@ -3875,7 +3878,7 @@ function notepadMsg() {
 // The pad's one field, as the text box reads and writes it. Only while this app hosts: a player's app has no field, so nothing can be typed
 function padField(key) {
     if (key !== 'pad' || net.role !== 'host') return null;
-    return { ident: 'pad', text: function() { return String(net.notepad.text || ''); }, fmt: function() { return _pad.fmt; },
+    return { ident: 'pad:' + _pad.gen, text: function() { return String(net.notepad.text || ''); }, fmt: function() { return _pad.fmt; },
         setText: function(v) { net.notepad.text = String(v == null ? '' : v).slice(0, 20000); }, setFmt: function(v) { _pad.fmt = v && typeof v === 'object' ? v : undefined; },
         font: function() { return _pad.font; }, setFont: function(v) { _pad.font = typeof v === 'string' ? v : ''; } };
 }
@@ -3949,16 +3952,17 @@ function padMoved(oldN, nowN, s0N, s1N) {
 // A reading pad drawn: by the reader, with the look cleaned again by the rule of the pad; as plain words without the reader
 function padDraw(el, text, look) {
     var rd = typeof window !== 'undefined' && window.wpTextRead && typeof window.wpTextRead.fill === 'function' ? window.wpTextRead : null, L = padCore();
-    if (rd && L) { rd.fill(el, text, look, document, { rule: L.RULES.PAD, typed: false }); return; }
-    if (el.style) el.style.fontFamily = '';
-    el.textContent = text;
+    if (rd && L) rd.fill(el, text, look, document, { rule: L.RULES.PAD, typed: false });
+    else { if (el.style) el.style.fontFamily = ''; el.textContent = text; }
+    if (text.charAt(text.length - 1) === '\n') el.appendChild(document.createElement('br'));   // a last line break opens a line only when something stands on it: the line the GM just opened shows, as it does in the GM's own box
 }
 // A reading pad follows the pad's text and look. Drawn only when either changed; a selection in it moves with its words (padMoved), keeps
 // the way it was made where it survives, and the reader's place in a long text stays
 function padRead(el, look) {
     var text = String(net.notepad.text || ''), key = text + '\u0000' + (look ? JSON.stringify(look) : '');
     if (el._padKey === key) return false;
-    var old = typeof el._padText === 'string' ? el._padText : '', sel = padSelOf(el), sc = el.scrollTop;
+    var act = typeof document !== 'undefined' ? document.activeElement : null, held = !!act && (act === el || (typeof el.contains === 'function' && el.contains(act)));
+    var old = typeof el._padText === 'string' ? el._padText : '', sel = held ? padSelOf(el) : null, sc = el.scrollTop;   // a selection is put back only while the pad holds the focus: setting one inside an editable box takes the focus there, and a reader whose focus is elsewhere must keep it
     padDraw(el, text, look);
     el._padKey = key; el._padText = text;
     if (sel) { var m = padMoved(old, text, sel.s, sel.e); padSelect(el, m[0], m[1], sel.back && m[1] > m[0]); }
@@ -3982,6 +3986,18 @@ function padDress(el, host) {
     _pad.mode = want; el._padMode = want;
     return want;
 }
+// The pad's own listeners. The GM's typing reaches the pad through the text box module (the pad's host is told of every change). A player's
+// box only reads: every edit is cancelled before it happens, and what cannot be cancelled (a composition) is drawn over at once.
+// A key pressed in the box or on a control of the bar is the pad's alone: the page reads every key that reaches the document (undo,
+// Delete, the arrows). A key on one of the pad's own buttons goes on, as it always did: a question the app asks is answered by keys the
+// document hears, and the focus rests on the button that raised it
+function padKey(e) { var t = e && e.target; if (t && t.closest && (t.closest('#notepadText') || t.closest('.ts-bar'))) e.stopPropagation(); }
+function padWire(ta, p) {
+    var reads = function() { return net.role !== 'host'; }, redraw = function() { if (reads()) { ta._padKey = null; renderNotepad(); } };
+    ['beforeinput', 'paste', 'cut', 'drop'].forEach(function(ev) { ta.addEventListener(ev, function(e) { if (reads()) e.preventDefault(); }); });
+    ta.addEventListener('input', redraw); ta.addEventListener('compositionend', redraw);
+    (p || ta).addEventListener('keydown', padKey);
+}
 function renderNotepad() {
     var p = ui('notepadPanel'), ta = ui('notepadText'); if (!p || !ta) return;
     var on = net.active && net.notepad.on;
@@ -4002,6 +4018,8 @@ net.notepadToggle = function() {
         var npF = ui('notepadPanel');
         if (npF && window.wpFloats && window.wpFloats.away(npF)) { window.wpFloats.reveal(npF); return; }   // 1.5.4 (floats.js): it is up, on another view: asked for here it shows here, and nobody is asked to put it away
         var has = String(net.notepad.text || '').trim();
+        var aeN = typeof document !== 'undefined' ? document.activeElement : null;   // the question is answered by keys the document hears: Enter must not also press the pad's own button again, which would open a new pad the moment this one is put away
+        if (aeN && npF && typeof npF.contains === 'function' && npF.contains(aeN) && typeof aeN.blur === 'function') aeN.blur();
         showConfirm('Put the table notepad away? ' + (has ? 'Its text goes for everyone who has not saved it to their Journal.' : 'It is empty.'), function(yes) {
             if (!yes) return;
             net.notepad = { on: false, text: '' };
@@ -4025,18 +4043,13 @@ net.notepadInput = function(text) {   // the pad changed under the GM's hand: it
 (function() {
     var ta = ui('notepadText'), close = ui('notepadCloseBtn'), saveB = ui('notepadSaveBtn'), minB = ui('notepadMinBtn'), p = ui('notepadPanel'), head = ui('notepadHead');
     if (!ta) return;
-    // The GM's typing reaches the pad through the text box module (the pad's host is told of every change). A player's box only reads: every
-    // edit is cancelled before it happens, and what cannot be cancelled (a composition) is drawn over at once
-    var reads = function() { return net.role !== 'host'; }, redraw = function() { if (reads()) { ta._padKey = null; renderNotepad(); } };
-    ['beforeinput', 'paste', 'cut', 'drop'].forEach(function(ev) { ta.addEventListener(ev, function(e) { if (reads()) e.preventDefault(); }); });
-    ta.addEventListener('input', redraw); ta.addEventListener('compositionend', redraw);
-    if (p) p.addEventListener('keydown', function(e) { e.stopPropagation(); });   // a key pressed anywhere in the pad, the bar's controls among them, is the pad's: the page reads every key that reaches the document (undo, Delete, the arrows)
-    else ta.addEventListener('keydown', function(e) { e.stopPropagation(); });
+    padWire(ta, p);
     if (close) close.addEventListener('click', function() { net.notepadToggle(); });
     var clearB = ui('notepadClearBtn');
     if (clearB) clearB.addEventListener('click', function() {
         if (net.role !== 'host' || !net.notepad.on) return;
         if (!String(net.notepad.text || '').trim()) { toast('The notepad is already empty.'); return; }
+        if (typeof clearB.blur === 'function') clearB.blur();   // (as Put away: the Enter that answers the question presses nothing again)
         showConfirm('Clear the table notepad? The text goes for everyone who has not saved it to their Journal. The notepad stays open.', function(yes) {
             if (!yes) return;
             clearTimeout(notepadTimer);

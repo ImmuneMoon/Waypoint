@@ -364,9 +364,13 @@ function lineOf(pts) {
 //   pieces   the selection: only its floor pieces count (floorOk)
 //   grid     a square or a hex lattice (a map with no grid: the caller passes the 50 px square lattice Build seats its pieces on)
 //   opts.doors   the map's pieces: where a DOOR that players see stands, the doorway is left open. A door laid as a block: no wall on the
-//                edge between a floor cell and a cell the door covers. A door drawn as a line: no wall on a cell edge whose middle lies on it
-//                (within a fifth of a cell). A hidden door is walled over, since a gap would show where it is
-//   opts.have    the map's pieces: a wall line that is already there (the same box and points, within a pixel) is not laid twice (`had`)
+//                edge between a floor cell and a cell the door covers, nor on the outer sides of a floor cell the door itself stands on (the
+//                door is the closure there). A door drawn as a line: no wall on a cell edge whose middle lies on it (within a fifth of a
+//                cell). A hidden door is walled over, since a gap would show where it is. Only the doors NEAR the floors are read (their
+//                box, a cell wider each way), so a door line of many points elsewhere on the map never crowds a near one out; past 1000
+//                near segments the rest are not read and the answer says so (`doorsOver`, only as true)
+//   opts.have    the map's pieces: a wall line that is already there (the same box and the same points, each within a pixel) is not laid
+//                twice (`had`). Every point is compared: a hex outline that changed by one cell can keep its box, its count and its start
 //   lines    each { x, y, w, h, baseW, baseH, pts }. Square: one line a straight run, the runs along a row line first and then along a
 //            column line, each in order. Hex: the outline's zigzag as chains of at most 120 edges, an open chain before a closed one
 //   over     the floors cover more than 6000 cells together, or one of them is too large to list: nothing is laid
@@ -386,12 +390,24 @@ function outlineWalls(pieces, grid, opts) {
     }
     out.cells = cells.length;
     if (!cells.length) return out;
+    var bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity, padX = grid.type === 'square' ? grid.size : 2 * grid.s, padY = grid.type === 'square' ? grid.size : grid.h;
+    for (i = 0; i < cells.length; i++) { var fcn = cellCenter(cells[i], grid); bx0 = Math.min(bx0, fcn.x); bx1 = Math.max(bx1, fcn.x); by0 = Math.min(by0, fcn.y); by1 = Math.max(by1, fcn.y); }
+    bx0 -= padX; bx1 += padX; by0 -= padY; by1 += padY;   // the floors' box, a cell wider each way: a door further off opens nothing here
     var doorCells = Object.create(null), doorSegs = [], doors = Array.isArray(o.doors) ? o.doors : [];
     for (i = 0; i < doors.length; i++) {
         var d = doors[i]; if (!isDoor(d) || d.hidden || d.isChar || d.waiting || d.gmNoteFor || !fin(d.x) || !fin(d.y)) continue;
-        if (d.type === 'path' && !d.fill) { var ds = pathSegs(d); for (k = 0; k < ds.length && doorSegs.length < WALLS.doors; k++) doorSegs.push(ds[k]); continue; }
+        if (d.type === 'path' && !d.fill) {
+            var ds = pathSegs(d);
+            for (k = 0; k < ds.length; k++) {
+                var sg = ds[k]; if (Math.max(sg[0], sg[2]) < bx0 || Math.min(sg[0], sg[2]) > bx1 || Math.max(sg[1], sg[3]) < by0 || Math.min(sg[1], sg[3]) > by1) continue;
+                if (doorSegs.length >= WALLS.doors) { out.doorsOver = true; break; }
+                doorSegs.push(sg);
+            }
+            continue;
+        }
         if (itemOver(d, grid)) continue;
-        var dc = itemCells(d, grid); for (k = 0; k < dc.length && k < WALLS.cells; k++) doorCells[cellKey(dc[k], grid)] = 1;
+        var dc = itemCells(d, grid);
+        for (k = 0; k < dc.length; k++) { var dcn = cellCenter(dc[k], grid); if (dcn.x >= bx0 && dcn.x <= bx1 && dcn.y >= by0 && dcn.y <= by1) doorCells[cellKey(dc[k], grid)] = 1; }
     }
     var tol = 0.2 * (grid.type === 'square' ? grid.size : grid.s);
     var open = function(outKey, mx, my) {   // a doorway: no wall on this edge
@@ -405,6 +421,7 @@ function outlineWalls(pieces, grid, opts) {
         var put = function(M, line, at, outKey, mx, my) { if (!inSet[outKey] && !open(outKey, mx, my)) (M[line] || (M[line] = [])).push(at); };
         for (i = 0; i < cells.length; i++) {
             var c = cells[i].c, r = cells[i].r;
+            if (doorCells[c + ',' + r]) continue;   // a door block stands on this floor cell: the door is the closure, its outer sides stay open
             put(H, r, c, c + ',' + (r - 1), (c + 0.5) * s, r * s);
             put(H, r + 1, c, c + ',' + (r + 1), (c + 0.5) * s, (r + 1) * s);
             put(V, c, r, (c - 1) + ',' + r, c * s, (r + 0.5) * s);
@@ -426,6 +443,7 @@ function outlineWalls(pieces, grid, opts) {
         var hs = grid.s, hh = grid.h / 2, edges = [], at = Object.create(null);   // a corner -> the outer edges that meet there (two at most)
         var vkey = function(x, y) { return Math.round(x / (hs / 2)) + ',' + Math.round(y / hh); };   // a hex lattice's corners lie on whole half-steps
         for (i = 0; i < cells.length; i++) {
+            if (doorCells[cellKey(cells[i], grid)]) continue;   // a door block stands on this floor cell, as on a square lattice
             var p = cellCenter(cells[i], grid), vs = [[p.x - hs, p.y], [p.x - hs / 2, p.y - hh], [p.x + hs / 2, p.y - hh], [p.x + hs, p.y], [p.x + hs / 2, p.y + hh], [p.x - hs / 2, p.y + hh]];
             for (k = 0; k < 6; k++) {
                 var va = vs[k], vb = vs[(k + 1) % 6], mx = (va[0] + vb[0]) / 2, my = (va[1] + vb[1]) / 2, nk = cellKey(cellOf(2 * mx - p.x, 2 * my - p.y, grid), grid);   // the cell across this side
@@ -451,13 +469,18 @@ function outlineWalls(pieces, grid, opts) {
         }
         for (i = 0; i < edges.length; i++) if (!edges[i].used) walk(i, edges[i].ka, edges[i].a);   // then the closed loops
     }
-    var have = Array.isArray(o.have) ? o.have : [];
+    var have = Array.isArray(o.have) ? o.have : [], walls = [];   // the wall lines that stand on the map, picked out once
+    for (k = 0; k < have.length; k++) {
+        var hw = have[k];
+        if (isObj(hw) && hw.type === 'path' && hw.tip !== 'fill' && hw.blocksSight === true && hw.sightType !== 'door' && !hw.hidden && !(fin(hw.rot) && hw.rot % 360 !== 0) && Array.isArray(hw.pts)) walls.push(hw);
+    }
     for (i = 0; i < lines.length; i++) {
         var L = lines[i], dup = false;
-        for (k = 0; k < have.length && !dup; k++) {
-            var hw = have[k];
-            dup = isObj(hw) && hw.type === 'path' && hw.tip !== 'fill' && hw.blocksSight === true && hw.sightType !== 'door' && !hw.hidden && !(fin(hw.rot) && hw.rot % 360 !== 0) && Array.isArray(hw.pts) && hw.pts.length === L.pts.length
-                && near1(hw.x, L.x) && near1(hw.y, L.y) && near1(hw.w, L.w) && near1(hw.h, L.h) && Array.isArray(hw.pts[1]) && near1(hw.pts[1][0], L.pts[1][0]) && near1(hw.pts[1][1], L.pts[1][1]);
+        for (k = 0; k < walls.length && !dup; k++) {
+            var wl = walls[k];
+            if (wl.pts.length !== L.pts.length || !near1(wl.x, L.x) || !near1(wl.y, L.y) || !near1(wl.w, L.w) || !near1(wl.h, L.h)) continue;
+            dup = true;   // the same line only when every point is the same
+            for (n = 0; n < L.pts.length && dup; n++) dup = Array.isArray(wl.pts[n]) && near1(wl.pts[n][0], L.pts[n][0]) && near1(wl.pts[n][1], L.pts[n][1]);
         }
         if (dup) out.had++; else out.lines.push(L);
     }

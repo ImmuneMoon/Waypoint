@@ -565,9 +565,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // anything else
   function texSeatEl(el, x, y) {
       var BC = window.wpBuildCore; if (!BC || !el || !el.dataset) return;
+      if (el.dataset.pic) { if (typeof BC.picPos === 'function') el.style.backgroundPosition = BC.picPos(x, y, el.dataset.pic); return; }   // fold B3: a picture's own repeat ('whole' sits at the piece's corner)
       if (el.dataset.tex) { el.style.backgroundPosition = BC.texPos(x, y, el.dataset.tex); return; }
       var svg = el.dataset.type === 'path' ? el.querySelector(':scope > svg') : null, pat = svg && svg.dataset.texId ? svg.querySelector(':scope > defs > pattern') : null;
-      if (!pat) return;
+      if (!pat || pat.getAttribute('data-whole')) return;   // a picture stretched over the whole region moves with it
       var w = Number(pat.getAttribute('width')) || 50, h = Number(pat.getAttribute('height')) || 50, fx = isFinite(x) ? x : 0, fy = isFinite(y) ? y : 0;
       pat.setAttribute('x', String(-(((fx % w) + w) % w))); pat.setAttribute('y', String(-(((fy % h) + h) % h)));
       svg.dataset.texKey = '';   // the next full redraw builds the pattern again from the item, whatever it was built for before

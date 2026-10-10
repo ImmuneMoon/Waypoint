@@ -570,7 +570,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // the table a box is a heading or a cell of (its element), else null
   function tsTableOf(box) { return box && box.matches && box.closest && box.matches('.b-colhead, .r-col') ? box.closest('.b-table') : null; }
   function tsPlace() {
-      var E = tsState.els, box = tsState.box; if (!E || !box || E.root.hidden || !box.getBoundingClientRect) return;
+      var E = tsState.els, box = tsState.box;
+      if (!E || !box || E.root.hidden || !box.getBoundingClientRect) { if (tsHosts.length) tsxWatch(null); return; }   // nothing to place, so nothing is watched: a bar put away while its host draws the field again would keep the old element alive
       var hxP = tsHosts.length ? tsHostOf(box) : null, area = hxP ? hxP.barArea(box) : null, ref = E.host;
       if (area && area.nodeType === 1 && area.getBoundingClientRect && E.host.contains && E.host.contains(area)) ref = area;   // a host's own bounds for the bar (a list that scrolls inside the panel the bar lives in)
       var own = ref.getBoundingClientRect(), hr = own, br = box.getBoundingClientRect();

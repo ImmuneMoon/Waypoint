@@ -2026,6 +2026,25 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 && J(outHeld) === J(['974px', '864px', true, '', '320px']) && J(outOver) === J(['974px', '104px', false, '', '320px']) && byInner === '308px' && placed0 === true
                 && /\n      place: function\(\) \{ tsPlace\(\); \},/.test(barSrc),
                 [inside1, outUnder, notYet, outAbove, outHeld, outOver, byInner, placed0]);
+            // the thirteenth review. A field that says it is another now (a pad put away and opened again under the same key) has no steps to take
+            // back or put back; and what a host's bar stands by is watched across a host that draws its field again, never an element off the page
+            const emptyStore = () => ({ name: { text: '' }, notes: { text: '' } });
+            const padLike = () => { const g = mkHost({ store: emptyStore() }), base = g.host.field; g.gen = 0; g.host.field = key => { const f = base(key); if (f) f.ident = 'pad:' + g.gen; return f; };
+                const b = g.box('notes', true); g.pg.focus(b, 0); g.pg.engine.type(b, 'secret'); g.pg.focus(b, 0, 6); g.pg.engine.backspace(b); g.rec.length = 0; return [g, b]; };
+            const [gs, gsb] = padLike(), sameField = [gs.store.notes.text, gs.pg.tsxUndo(gsb, 'undo'), gs.store.notes.text];   // the same field: its own steps, as ever
+            const [gn, gnb] = padLike(); gn.gen = 1; gn.TB.fill(gnb); const newField = [gn.pg.tsxUndo(gnb, 'undo'), gn.store.notes.text, gn.pg.tsxUndo(gnb, 'redo'), gn.store.notes.text, J(gn.rec)];
+            const [gr, grb] = padLike(); gr.pg.tsxUndo(grb, 'undo'); gr.pg.tsxUndo(grb, 'undo'); gr.rec.length = 0; gr.gen = 1; gr.TB.fill(grb); const newFieldRedo = [gr.store.notes.text, gr.pg.tsxUndo(grb, 'redo'), gr.store.notes.text, J(gr.rec)];
+            const v1 = mkHost(), vmade = [], VRO = function(fn) { this.fn = fn; this.seen = []; vmade.push(this); }; VRO.prototype.observe = function(el) { this.seen.push(el); }; VRO.prototype.disconnect = function() { this.seen = []; };
+            v1.dom.window.ResizeObserver = VRO;
+            let vb = v1.box('name'); v1.host.changed = () => { const old = vb, had = v1.dom.page.active === old; v1.body.removeChild(old); if (had) v1.dom.page.active = null; vb = v1.box('name'); if (had) vb.focus(); };
+            v1.pg.focus(vb, 4); const vFirst = vb; v1.pg.engine.type(vb, 'a'); const movedOn = [vb !== vFirst, vFirst.isConnected, vmade.length, vmade[0].seen.length === 1 && vmade[0].seen[0] === vb];
+            v1.pg.dom.fire(vb, 'keydown', keyEv({ key: 'Escape' })); const vAway = v1.E.root.hidden, vBefore = vb; v1.pg.engine.type(vb, 'b');
+            const awayWatch = [vb !== vBefore, vBefore.isConnected, vmade[0].seen.length, vmade[0].seen.every(x => x.isConnected !== false)];
+            v1.pg.dom.fire(vb.firstChild || vb, 'mousedown'); const backWatch = [v1.E.root.hidden, vmade[0].seen.length === 1 && vmade[0].seen[0] === vb];   // a click in the box brings the bar back, and the watch with it
+            check('item 35, the thirteenth review (planner.js, run for real): a field whose host says it is another now, under the same key, has nothing to take back and nothing to put back, and its host is told nothing, while the same field keeps its own steps; what a host\'s bar stands by is watched across a host that draws its field again as a new element, the observer moving to the element on the page; while the bar is put away nothing is watched, so no element taken off the page is kept, and the watch comes back with the bar',
+                J(sameField) === J(['', true, 'secret']) && J(newField) === J([false, '', false, '', '[]']) && J(newFieldRedo) === J(['', false, '', '[]'])
+                && J(movedOn) === J([true, false, 1, true]) && vAway === true && J(awayWatch) === J([true, false, 0, true]) && J(backWatch) === J([false, true]),
+                [sameField, newField, newFieldRedo, movedOn, vAway, awayWatch, backWatch]);
         }
 
         // --- the planner with a host registered and idle: the very same steps and the very same stored bytes

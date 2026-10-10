@@ -1531,6 +1531,7 @@
   .journal-caption { color: var(--ink); font-size: 12px; line-height: 1.45; white-space: pre-wrap; }
   .journal-when { color: var(--dim); font-size: 10px; }
   .journal-notes { width: 100%; box-sizing: border-box; min-height: 56px; resize: vertical; font-size: 12px; background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; padding: 6px 8px; }
+  .journal-note-body.ts-box { padding: 6px 8px; font-size: 12px; line-height: 1.45; min-height: 56px; max-height: 50vh; overflow-y: auto; resize: vertical; }   /* item 35: a note of your own in the text box, sized as the notes box it stands in for */
   body.stream-mode #handoutsBtn, body.stream-mode #journalBtn { display: none !important; }
   /* 107 (the owner, 2026-10-06: "lets update the styling of the zoom and pointer location to match the other changes still, and optionally hide both
      independently"): the box keeps its place and wears the toolbar's skin and its line icons. Its two halves, the pointer location and the zoom buttons,

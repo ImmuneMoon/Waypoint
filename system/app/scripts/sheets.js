@@ -3397,14 +3397,14 @@ function sbxCut(f, v) { v = typeof v === 'string' ? v : ''; return f.kind === 't
 // A field as the box reads and writes it: the draft where one is open, else what is stored
 function sbxField(key) {
     var p = sbxParts(key); if (!p) return null;
-    var open = function() { var d = _sbx.drafts[key]; if (!d) d = _sbx.drafts[key] = { text: sbxStored(p.c, p.f), fmt: sbxFmtOf(p.c, p.f) }; return d; };
+    var open = function() { var d = _sbx.drafts[key]; if (!d) { var s0 = sbxStored(p.c, p.f); d = _sbx.drafts[key] = { text: s0, base: s0, fmt: sbxFmtOf(p.c, p.f) }; } return d; };   // base: the words the draft was opened on
     return { ident: key + ':' + p.f.kind,
         text: function() { var d = _sbx.drafts[key]; return d ? d.text : sbxStored(p.c, p.f); },
         fmt: function() { var d = _sbx.drafts[key]; return d ? d.fmt : sbxFmtOf(p.c, p.f); },
         // (a write that changes nothing opens no draft: a draft is committed by a timer the box arms only when it was told of a change, and one
         // left open would hide, and later write over, a newer stored text)
         // A format is compared AS CLEANED for the text it is for: a span the box grew past the end of a full field cleans to the look the field has
-        setText: function(v) { var t = sbxCut(p.f, v); if (!_sbx.drafts[key] && t === sbxStored(p.c, p.f)) return; var d = open(); d.text = t; d.typed = true; },
+        setText: function(v) { var t = sbxCut(p.f, v); if (!_sbx.drafts[key] && t === sbxStored(p.c, p.f)) return; open().text = t; },
         setFmt: function(v) { var g = v && typeof v === 'object' ? v : undefined; if (!_sbx.drafts[key]) { var r = g ? lookFor(p.f, sbxStored(p.c, p.f), g) : undefined; if (JSON.stringify((r && r.fmt) || null) === JSON.stringify(sbxFmtOf(p.c, p.f) || null)) return; } open().fmt = g; } };
 }
 function sbxName(key) { var p = sbxParts(key); return p ? String(p.f.label || p.f.key || '') : ''; }
@@ -3424,7 +3424,9 @@ function sbxCommit(key) {
     delete _sbx.drafts[key];
     var p = sbxParts(key); if (!p) return false;
     var had = !!p.c.values && typeof p.c.values[p.f.id] === 'string', was = sbxStored(p.c, p.f), wasFmt = sbxFmtOf(p.c, p.f);
-    if (d.typed !== true && d.text !== was) return false;   // a look alone, and the words changed under it meanwhile: it was made for other words, and the newer words stand
+    // Nothing was typed (the draft holds the words it was opened on: a look alone, or words typed and taken back) and the words changed
+    // under it meanwhile: its look was made for other words. The newer words stand, and the view is drawn again so that the box shows them
+    if (d.text === d.base && d.text !== was) { renderViews(p.c.id); return false; }
     var rec = d.fmt ? lookFor(p.f, d.text, d.fmt) : undefined;
     var textMoved = d.text !== was, lookMoved = JSON.stringify((rec && rec.fmt) || null) !== JSON.stringify(wasFmt || null);
     if (!textMoved && !lookMoved) return false;

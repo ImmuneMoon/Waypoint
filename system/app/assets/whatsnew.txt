@@ -72,6 +72,22 @@ Character sheets
   offers For ShadowBase from that file and says which file it is and
   when it was read. Another row picks a newer file. The file is kept in
   memory only, until you close Waypoint.
+- Text style on a sheet. With Edit sheet on, click into a text or notes
+  field and a bar comes up on it, as in a planner. Select words and make
+  them bold, italic, underlined, struck through or coloured, or give
+  them a link. Notes take a size as well. The style is kept with the
+  character: its player and you both see it, on the sheet, on the HUD
+  and on a printed sheet.
+- A link on a sheet shows the site and the whole address and asks
+  before it opens, whoever wrote it. On a printed sheet a link is plain
+  words.
+- At a table whose GM runs an older Waypoint, a sheet keeps your words
+  and not their style.
+- The sheet's head is two rows. The first is the character: its
+  picture, its name and player, the list of characters, then the HUD,
+  a window of its own and close. The second holds the sheet's buttons,
+  with Download at its end. A name is never hidden under the list, and
+  no button is pushed off the edge of a narrow sheet.
 
 Calendar
 - The game clock runs by itself while you host a session: a second of

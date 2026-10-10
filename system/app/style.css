@@ -2618,7 +2618,17 @@
   /* Character sheets (1.5.0): the sheet panel over the play map */
   #sheetPanel { position: fixed; right: 18px; top: 120px; width: 460px; max-width: 96vw; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; max-height: 82vh; }
   #sheetPanel.sheet-has-table { width: min(680px, 96vw); }   /* Stage 4: a rich item table's columns need room — widen the panel, still responsive to the viewport */
-  #sheetHead { display: flex; align-items: center; gap: 8px; padding: 6px 8px; cursor: move; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); user-select: none; }
+  /* The sheet's head is TWO ROWS (the owner, 2026-10-10, by prompt: "Two rows"). Row one is the character: its picture, its name and player, the
+     list of characters, then the HUD, a window of its own and close at the right end. Row two is what is done to the sheet, and Download ends
+     it. A button stands in the same place whoever looks. Nothing is covered and nothing is pushed off the panel: a long name is cut with an
+     ellipsis, and a row wraps where a narrow sheet has more than fits. A row with nothing in it takes no room */
+  #sheetHead { display: flex; flex-wrap: wrap; align-items: center; gap: 0 8px; padding: 6px 8px; cursor: move; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); user-select: none; }
+  #sheetHead::after { content: ''; order: 1; flex: 0 0 100%; height: 0; }
+  #sheetHead > .notepad-btn { order: 2; margin-top: 5px; }
+  #sheetHead > #sheetHud, #sheetHead > #sheetPop, #sheetHead > #sheetClose { order: 0; margin-top: 0; }
+  #sheetHead > #sheetDownload { margin-left: auto; }
+  #sheetHead > .sheet-titles { flex: 1 1 90px; overflow: hidden; }
+  #sheetTitle { overflow: hidden; text-overflow: ellipsis; }
   #sheetPortrait { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; border: 1px solid var(--gold); }
   .sheet-titles { display: flex; flex-direction: column; min-width: 0; flex: 1; }
   .sheet-pick { max-width: 150px; padding: 2px 6px; font-size: 11px; }
@@ -3110,14 +3120,18 @@
   /* The sheet's lock: on a locked sheet, and in the HUD, a stat that needs Edit sheet reads as a value, not as a greyed box. What still works in play keeps its box */
   .sheet-locked :is(input.field, select.field, textarea.field):disabled { opacity: 1; color: inherit; -webkit-text-fill-color: currentColor; background: transparent; border-color: transparent; cursor: default; }
   .sheet-locked select.field:disabled { appearance: none; -webkit-appearance: none; background-image: none; }
-  .sheet-locked .sheet-step:disabled { visibility: hidden; }
+  .sheet-locked .sheet-step:disabled { visibility: hidden; }   /* the arrows inside a number box: dead while locked, so not drawn (they keep their room: nothing shifts when Edit sheet is pressed) */
   /* Item 35: a text or notes field read with its look (a locked sheet, the HUD, a window of its own): the box a field has where one is drawn, plain words on a locked sheet as its neighbours are */
-  .sheet-read { width: 100%; background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; padding: 8px 9px; font: inherit; font-size: 13px; line-height: 1.45; box-sizing: border-box; min-height: 34px; cursor: default; }
+  .sheet-read, .sheet-box.ts-box { width: 100%; padding: 3px 6px; font: inherit; font-size: 12.5px; line-height: 1.5; box-sizing: border-box; min-height: calc(1.5em + 8px); }   /* the plain input's own sizes in a sheet: a field keeps its shape when it gains a look and when Edit sheet is pressed */
+  .sheet-read { background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; cursor: default; }
   .sheet-read.sheet-text { white-space: pre; overflow: hidden; text-overflow: ellipsis; }
-  .sheet-read.sheet-notes { font-size: 12px; min-height: 60px; resize: none; }
-  .sheet-locked .sheet-read { background: transparent; border-color: transparent; }
-  .sheet-read a { color: var(--blue); }   /* the arrows inside a number box: dead while locked, so not drawn (they keep their room: nothing shifts when Edit sheet is pressed) */
-  #sheetEdit.on { border-color: var(--gold); color: var(--gold); }
+  .sheet-read.sheet-notes, .sheet-box.sheet-notes { height: calc(6em + 8px); min-height: 60px; overflow-y: auto; resize: vertical; }   /* the plain notes box: four lines, a scroll of its own, its grip */
+  .sheet-locked .sheet-read { color: inherit; background: transparent; border-color: transparent; }
+  .sheet-read a { color: var(--blue); }
+  /* ... the header's own bare box, and a one-line text in an Inline rows section, which sizes there as the plain input does */
+  .sheet-idn-edit .sheet-box.ts-box { min-width: 0; min-height: 0; border: 0; background: transparent; padding: 4px 8px; line-height: 1.3; color: inherit; }
+  .sheet-field.sheet-inline-row > .sheet-box, .sheet-field.sheet-inline-row > .sheet-read.sheet-text { flex: 1 1 7em; width: auto; min-width: 0; }
+  #sheetEdit.on { color: #1a1a1a; }   /* Lock sheet wears .tool.on's gold fill with dark words, as every button that is on (it was gold words on the gold fill) */
   input.sheet-range::-webkit-slider-runnable-track { height: 8px; background: transparent; }
   input.sheet-range::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; margin-top: -4px; border-radius: 50%; background: var(--ink); border: 2px solid var(--panel2); box-shadow: 0 1px 3px rgba(0,0,0,0.5); box-sizing: border-box; }
   input.sheet-range::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--ink); border: 2px solid var(--panel2); }

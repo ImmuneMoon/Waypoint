@@ -1754,5 +1754,24 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         && [rootRead('WHATSNEW.txt'), read('assets/whatsnew.txt')].every(t => count(t, "- Help's Coming up says what is built and what is coming: the map\n  builder, text style in more places, friends and direct invites, and\n  the website with cloud saves.\n") === 1), J([heads, names]));
 }
 
+/* ---------- the sheet's head: two rows (the owner, 2026-10-10, by prompt: "Two rows (Recommended)"), and Lock sheet's words ---------- */
+// The owner pointed at the head ("issues with the layout here"): its buttons needed more room than the panel has, so the name was squeezed
+// to nothing and drawn under the list of characters, and Download, the HUD, a window of its own and close stood off the panel's edge.
+{
+    const a = ix.indexOf('<div id="sheetHead">'), z = a < 0 ? -1 : ix.indexOf('\n', a), head = z > a ? ix.slice(a, z) : '', ids = (head.match(/ id="[A-Za-z]+"/g) || []).map(s => s.slice(5, -1));
+    const HEAD = ['sheetHead', 'sheetPortrait', 'sheetTitle', 'sheetSub', 'sheetPick', 'sheetRevert', 'sheetEndTurn', 'sheetName', 'sheetDone', 'sheetPic', 'sheetUpload', 'sheetReview', 'sheetUnlock', 'sheetEdit', 'sheetDelete', 'sheetDownload', 'sheetHud', 'sheetPop', 'sheetClose'];
+    const rule = sel => { const i = css.indexOf('\n  ' + sel + ' {'); return i < 0 ? null : css.slice(css.indexOf('{', i), css.indexOf('}', i) + 1); };
+    const btns = head.match(/<button class="[^"]*" id="[A-Za-z]+"/g) || [], allBtn = btns.length === 14 && btns.every(b => /[" ]notepad-btn[" ]/.test(b));
+    check('the sheet\'s head is two rows (the owner, 2026-10-10, by prompt: "Two rows (Recommended)"): its nineteen ids are in the page once and in their order, and every button of it is a notepad button; the head wraps, and a break of no height stands between its rows, so a row with nothing in it takes no room; row one is the picture, the names, the list of characters and the window\'s own three (the HUD, a window of its own, close), row two every other button, with Download at its right end; the names keep a width of their own and a long one is cut with an ellipsis, never drawn under another control; Lock sheet wears the gold fill with dark words and no rule gives it gold words (the owner: "this looks like a style error")',
+        J(ids) === J(HEAD) && HEAD.every(id => count(ix, ' id="' + id + '"') === 1) && allBtn
+        && rule('#sheetHead') === '{ display: flex; flex-wrap: wrap; align-items: center; gap: 0 8px; padding: 6px 8px; cursor: move; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); user-select: none; }'
+        && rule('#sheetHead::after') === "{ content: ''; order: 1; flex: 0 0 100%; height: 0; }" && rule('#sheetHead > .notepad-btn') === '{ order: 2; margin-top: 5px; }'
+        && rule('#sheetHead > #sheetHud, #sheetHead > #sheetPop, #sheetHead > #sheetClose') === '{ order: 0; margin-top: 0; }' && rule('#sheetHead > #sheetDownload') === '{ margin-left: auto; }'
+        && rule('#sheetHead > .sheet-titles') === '{ flex: 1 1 90px; overflow: hidden; }' && rule('#sheetTitle') === '{ overflow: hidden; text-overflow: ellipsis; }'
+        && css.indexOf('\n  #sheetHead > .notepad-btn {') < css.indexOf('\n  #sheetHead > #sheetHud, #sheetHead > #sheetPop, #sheetHead > #sheetClose {')
+        && rule('#sheetEdit.on') === '{ color: #1a1a1a; }' && css.includes('\n  .tool.on{background:var(--gold);color:#1a1a1a;border-color:var(--gold);font-weight:700}') && !/#sheetEdit[^{\n]*\{[^}\n]*color: var\(--gold\)/.test(css),
+        J([ids, btns.length, allBtn, rule('#sheetHead'), rule('#sheetEdit.on')]));
+}
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

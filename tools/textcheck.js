@@ -532,7 +532,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         };
         const names = Object.keys(deps), fsrc = opts.linkGrows ? fieldsSrc.replace('var TS_LINK_GROWS = false;', 'var TS_LINK_GROWS = true;') : fieldsSrc;
         if (opts.linkGrows && fsrc === fieldsSrc) throw new Error('textcheck: the link rule\'s one line was not found');
-        const api = new Function(...names, fsrc + '\n' + boxSrc + '\n' + barSrc + '\nreturn { tsDesc, tsField, tsType, tsEditAt, tsName, tsSetColCount, tsRowsAsObjects, tsCols, TS_PLAIN, TS_LINK_GROWS, TS_EDIT, tsScan, tsPointAt, tsShown, tsIncoming, tsMulti, tsDraw, tsPaint, tsBoxHtml, tsFill, tsSelOf, tsSelect, tsState, tsBox, tsBoxOf, tsNote, tsTarget, tsShow, tsHide, tsPlaceAt, tsPlace, tsKind, tsCommit, tsInsertAt, tsPress, tsLink, tsSymbol, tsRebuilt, tsBack, tsRefresh, tsBuild, tsKey, tsWire, tsOrder, tsToBar, tsHosts, tsHostOf, tsHostBy, tsxUndo, tsxShown };')(...names.map(k => deps[k]));
+        const api = new Function(...names, fsrc + '\n' + boxSrc + '\n' + barSrc + '\nreturn { tsDesc, tsField, tsType, tsEditAt, tsName, tsSetColCount, tsRowsAsObjects, tsCols, TS_PLAIN, TS_LINK_GROWS, TS_EDIT, tsScan, tsPointAt, tsShown, tsIncoming, tsMulti, tsDraw, tsPaint, tsBoxHtml, tsFill, tsSelOf, tsSelect, tsState, tsBox, tsBoxOf, tsNote, tsTarget, tsShow, tsHide, tsPlaceAt, tsPlace, tsKind, tsCommit, tsInsertAt, tsPress, tsLink, tsSymbol, tsRebuilt, tsBack, tsRefresh, tsBuild, tsKey, tsWire, tsOrder, tsToBar, tsHosts, tsHostOf, tsHostBy, tsxUndo, tsxShown, tsxFont };')(...names.map(k => deps[k]));
         Object.assign(page, api, { editor, blocksEl, engine: dom.engine });
         // an editor box for a field, as renderPlanner writes it (its classes and data attributes), empty until tsFill draws it
         page.box = (cls, data, multi) => { const el = dom.mk('div', cls + ' ts-box' + (multi ? ' ts-multi' : ''), data); el.setAttribute('contenteditable', 'plaintext-only'); el.rect = { left: 140, top: 300, right: 520, bottom: 334 }; blocksEl.appendChild(el); return el; };
@@ -1312,7 +1312,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && E.nocolor.textContent === 'Default' && J(E.size.children.map(o => [o.value, o.textContent])) === J([['', 'Default'], ['small', 'Small'], ['large', 'Large'], ['larger', 'Larger'], ['huge', 'Huge'], ['mixed', 'Mixed']]) && E.sizeMixed.disabled === true && E.sizeMixed.hidden === true
             && E.link.tagName === 'INPUT' && E.link.type === 'text' && E.link.parentNode === E.linkLab && /^Link — a web address/.test(E.linkLab.title) && E.clear.dataset.ts === 'clear' && /^Clear/.test(E.clear.title)
             && J(E.symList.map(b => [b.dataset.sym, b.textContent, b.title])) === J(SYMS.map(s => [s[0], s[0], s[1]])) && E.symBtn.textContent === 'Ω'
-            && J(E.root.children.filter(c => c.className !== 'rte-sep').map(c => c.className.replace(/ off$/, ''))) === J(['rte-btn', 'rte-btn', 'rte-btn', 'rte-btn'].concat(PALETTE.map(() => 'rte-sw'), ['rte-sw rte-custom ts-custom', 'rte-btn rte-nocolor', 'ts-sizelab', 'ts-linklab', 'rte-btn', 'rte-symwrap', 'ts-scope']))
+            && J(E.root.children.filter(c => c.className !== 'rte-sep').map(c => c.className.replace(/ off$/, ''))) === J(['rte-btn', 'rte-btn', 'rte-btn', 'rte-btn'].concat(PALETTE.map(() => 'rte-sw'), ['rte-sw rte-custom ts-custom', 'rte-btn rte-nocolor', 'ts-sizelab', 'ts-fontlab', 'ts-linklab', 'rte-btn', 'rte-symwrap', 'ts-scope']))
             && [E.b, E.i, E.u, E.s, E.custom, E.nocolor, E.size, E.link, E.clear, E.symBtn].concat(E.swatches, E.symList).every(c => c.tabIndex === -1) && [E.b, E.i, E.u, E.s, E.nocolor].every(c => /the selected characters, or the whole field with nothing selected$/.test(c.title)));
         check('bar: with no box in use every control is disabled, and a press changes nothing and saves nothing',
             [E.b, E.i, E.u, E.s, E.custom, E.nocolor, E.size, E.link, E.clear, E.symBtn].concat(E.swatches).every(c => c.disabled === true) && (() => { const before = J(pg.map); pg.click(E.b); pg.click(E.swatches[2]); E.size.value = 'large'; D.fire(E.size, 'change'); pg.click(E.symList[0]); pg.tsPress({ b: true }); return J(pg.map) === before && pg.log.length === 0; })());
@@ -1884,6 +1884,54 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 && J(seenAt) === J([['text', J([['Brenx', '']]), '[5,5]', true, '[5,5]'], ['look', J([['Br', 'bold'], ['enx', '']]), '[0,2]', true, '[0,2]'], ['text', J([['Brenx', '']]), '[0,2]', true, '[0,2]']])
                 && J(shorter) === J(['Br', '[2,2]', '[2,2]']) && offPage === true && J(kept2) === J([true, 'Brena1', true, 'Brena', false]) && J(wide) === J(['', '1388px']),
                 [out, firstBox, n0, n1, c1, c2, o0, o1, cm, seenAt, shorter, offPage, kept2, wide, stepwise, sw1, sw2, moved, goneType, gonePress, goneUndo, goneLeft, goneAtLeft]);
+        }
+
+        // --- item 35, fold 2a-i: the bar's Font list. Waypoint's own fonts for a host's WHOLE field, shown only where the host takes a font for that
+        // field and the field can hold one. A planner's field takes none: the list stays put away there and the keyboard never stands on it
+        {
+            const { FONTS, fontKnown, fontCss } = TF, FN = FONTS.map(f => f[0]), GROUPS = FONTS.map(f => f[2]).filter((g, i, a) => a.indexOf(g) === i);
+            const fonted = (o) => { const h = mkHost(o), st = h.store; h.host.field = key => { const q = st[String(key).split(':').pop()]; return q ? { text: () => q.text, fmt: () => q.fmt, setFmt: f => { if (f) q.fmt = f; else delete q.fmt; }, setText: v => { q.text = v; }, font: () => q.font, setFont: v => { h.rec.push('setFont:' + v); if (v) q.font = v; else delete q.font; } } : null; }; h.host.fonts = key => /notes$/.test(key); return h; };
+            const h = fonted(), pg = h.pg, E = h.E, st = h.store; st.notes.font = 'lora';
+            const opts = E.font.children, heads = opts.filter(o => o.disabled), picks = opts.filter(o => !o.disabled);
+            const built = [E.fontLab.className, E.fontLab.hidden, E.fontLab.children.length === 1 && E.fontLab.children[0] === E.font, E.font.className, E.font.tabIndex, picks[0].value === '' && picks[0].textContent === 'App default', J(picks.slice(1).map(o => o.value)) === J(FN), J(picks.slice(1).map(o => o.textContent)) === J(FN), J(heads.map(o => o.textContent)) === J(GROUPS), heads.every(o => o.value.charCodeAt(0) === 1 && o.className === 'ts-fontgroup'), picks.slice(1).every(o => o.style.fontFamily === fontCss(o.value)), E.root.children.indexOf(E.fontLab) === E.root.children.indexOf(E.size.parentNode) + 1];
+            const nb = h.box('notes', true), mb = h.box('name'), orderHas = () => pg.tsOrder().indexOf(E.font);
+            const drawn0 = [nb.style.fontFamily === fontCss('Lora'), mb.style.fontFamily || ''];
+            pg.focus(mb, 2); const onName = [E.fontLab.hidden, orderHas()];   // the host takes no font for this field
+            pg.focus(nb, 3); const onNotes = [E.fontLab.hidden, E.font.value, pg.tsOrder()[orderHas() - 1] === E.size, pg.tsOrder()[orderHas() + 1] === E.link];
+            pg.dom.runTimers(); h.rec.length = 0; E.font.value = 'Cinzel'; E.font.fire('change'); pg.dom.runTimers();
+            const picked = [st.notes.font, J(h.rec), nb.style.fontFamily === fontCss('Cinzel'), E.font.value, st.notes.text, pg.tsState.box === nb];
+            const undone = [pg.tsxUndo(nb, 'undo'), fontKnown(st.notes.font), nb.style.fontFamily === fontCss('Lora'), E.font.value, pg.tsxUndo(nb, 'redo'), st.notes.font, nb.style.fontFamily === fontCss('Cinzel'), pg.tsxUndo(nb, 'redo')];
+            h.rec.length = 0; const refused = [pg.tsxFont('Comic Sans MS'), pg.tsxFont(String.fromCharCode(1) + 'Reading'), pg.tsxFont('Cinzel'), pg.tsxFont('cinzel'), pg.tsxFont(7), pg.tsxFont({ toString: () => 'Lora' }), st.notes.font, J(h.rec)];
+            const cleared = [pg.tsxFont(''), 'font' in st.notes, nb.style.fontFamily, E.font.value, pg.tsxUndo(nb, 'undo'), st.notes.font];
+            // typing and a font are steps of their own, taken back in turn
+            pg.focus(nb, 3); pg.engine.type(nb, 'x'); pg.tsxFont('Almendra'); const mixed = [st.notes.text, st.notes.font, pg.tsxUndo(nb, 'undo'), st.notes.text, st.notes.font, pg.tsxUndo(nb, 'undo'), st.notes.text, st.notes.font];
+            // on a field the host takes no font for, and with nothing in hand, the list changes nothing
+            pg.focus(mb, 2); h.rec.length = 0; st.name.font = 'Lora'; const offField = [pg.tsxFont('Cinzel'), st.name.font, J(h.rec), E.fontLab.hidden, pg.tsOrder().indexOf(E.font)];   // (and the list, shown a moment ago for the notes, is put away again)
+            // a font that is not one of Waypoint's own never shows and never reaches the box
+            const hz = fonted(); hz.store.notes.font = 'Comic Sans MS'; const zb = hz.box('notes', true); hz.pg.focus(zb, 1); const hostile = [zb.style.fontFamily || '', hz.E.font.value, hz.E.fontLab.hidden];
+            const odd = [7, null, {}, ['Lora'], 'Lora"; color: red', '__proto__'].map(v => { const q = fonted(); q.store.notes.font = v; const b = q.box('notes', true); q.pg.focus(b, 1); return (b.style.fontFamily || '') + '|' + q.E.font.value; });
+            // a field that cannot hold a font, at a host that says it takes one: put away
+            const nf = mkHost(); nf.host.fonts = () => true; const nfb = nf.box('notes', true); nf.pg.focus(nfb, 1); const noSetter = [nf.E.fontLab.hidden, nf.pg.tsOrder().indexOf(nf.E.font), nf.pg.tsxFont('Lora'), nfb.style.fontFamily || ''];
+            // a host that answers oddly about fonts gets the cautious reading
+            const oddHost = ['yes', 1, {}, null].map(v => { const q = fonted(); q.host.fonts = () => v; const b = q.box('notes', true); q.pg.focus(b, 1); return q.E.fontLab.hidden; });
+            // the planner's own boxes: put away, never in the keyboard's order, and its steps key for key what they were
+            const p0 = mkPage({ map: mapOf(B0()) }).wire().rebuild(), pb = p0.tsBox({ idx: 0, k: 'title' }); p0.focus(pb, 1); const onPlanner = [p0.tsState.els.fontLab.hidden, p0.tsOrder().indexOf(p0.tsState.els.font), p0.tsxFont('Lora')];
+            // the keyboard: the list takes the focus, Enter and Escape there go back to the box
+            pg.focus(nb, 3); E.font.focus(); const kd = pg.dom.fire(E.font, 'keydown', keyEv({ key: 'Enter' })); const keys = [pg.dom.page.active === nb];
+            // a press waits for a composition's end; the field's own setter takes only a font of the list; the mouse may open the list (a button's press is kept from taking the focus)
+            pg.focus(nb, 3); pg.tsState.comp = true; const inComp = pg.tsxFont('Lora'); pg.tsState.comp = false; const wrapF = pg.tsField(null, { k: 'x', h: 'sheet', key: 'notes' }); wrapF.setFont('Comic Sans MS'); const set1 = 'font' in st.notes; wrapF.setFont('lora'); const set2 = st.notes.font;
+            const extra = [inComp, set1, set2, E.font.fire('mousedown').defaultPrevented, E.b.fire('mousedown').defaultPrevented, kd.defaultPrevented];
+            check('item 35, fold 2a-i, the bar\'s Font list (planner.js, run for real on the page of plain objects): the bar gains ONE label after Size, put away, holding a list of App default and Waypoint\'s own fonts in their groups, each a text and each drawn in its own font through fontCss, a group\'s heading shown and never picked; it shows only for a host\'s field where the host takes a font and the field can hold one, with the field\'s font under the list\'s own spelling, and then stands between Size and Link in the keyboard\'s order; a pick sets one of the list for the WHOLE field, is one step of its own, tells the host of a look, and draws the box in that font; undo and redo take the font back and put it back with the box; a name that is not of the list, a heading, the font the field has, a number and an object change nothing; App default takes the font off; typing and a font are steps taken back in turn; a field the host takes no font for, a field that cannot hold one, a host that answers oddly and a planner\'s own box never show the list nor take a font; a font that is not Waypoint\'s own, of any shape, never shows and never reaches the box\'s style; Enter in the list goes back to the box',
+                J(built) === J(['ts-fontlab', true, true, 'rte-size ts-font', -1, true, true, true, true, true, true, true]) && J(drawn0) === J([true, ''])
+                && J(onName) === J([true, -1]) && J(onNotes) === J([false, 'Lora', true, true])
+                && J(picked) === J(['Cinzel', J(['setFont:Cinzel', 'changed:notes:look']), true, 'Cinzel', 'one\ntwo', true])
+                && J(undone) === J([true, 'Lora', true, 'Lora', true, 'Cinzel', true, false])
+                && J(refused) === J([false, false, false, false, false, false, 'Cinzel', '[]'])
+                && J(cleared) === J([true, false, '', '', true, 'Cinzel'])
+                && J(mixed) === J(['onex\ntwo', 'Almendra', true, 'onex\ntwo', 'Cinzel', true, 'one\ntwo', 'Cinzel'])
+                && J(offField) === J([false, 'Lora', '[]', true, -1]) && J(hostile) === J(['', '', false]) && odd.every(x => x === '|') && J(noSetter) === J([true, -1, false, '']) && oddHost.every(x => x === true)
+                && J(onPlanner) === J([true, -1, false]) && J(keys) === J([true]) && J(extra) === J([false, false, 'Lora', false, true, true]),
+                [built, drawn0, onName, onNotes, picked, undone, refused, cleared, mixed, offField, hostile, odd, noSetter, oddHost, onPlanner, keys]);
         }
 
         // --- the planner with a host registered and idle: the very same steps and the very same stored bytes

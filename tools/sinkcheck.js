@@ -3119,6 +3119,19 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             JSON.stringify(kept) === JSON.stringify(['/saves/images/m_abc/pic.png', '/saves/images/m_abc/Pic 2.JPEG']) && /var members = Object\.keys\(cc\.by\)\.filter\(function\(p\) \{ return tagsIn\(cc, p\)\.indexOf\(del\) >= 0 && catMemberFile\(p\); \}\);/.test(read('whiteboard.js')), [kept]);
     }
 
+    /* ---- item 35, fold 2a-i: the bar's Font list (planner.js). A font from a host's field, which may come from a file or the wire ---- */
+    {
+        const plF = require('fs').readFileSync(require('path').join(__dirname, '..', 'system', 'app', 'scripts', 'planner.js'), 'utf8').replace(/\r\n/g, '\n');
+        const sets = plF.match(/[A-Za-z_.]*fontFamily[^;\n]*;/g) || [];
+        check('the bar\'s Font list (planner.js): a font family is written in two statements only, a host\'s box\'s and a list option\'s own, and both take it from fontCss alone; what a host\'s field says its font is passes fontKnown on its way in and on its way out, so only one of Waypoint\'s own fonts is ever read, shown or stored; the list\'s options are made by name with text, and a group\'s heading has a value no font could have; no list of the computer\'s fonts is asked for',
+            JSON.stringify(sets) === JSON.stringify(['box.style.fontFamily = css;', 'fo.style.fontFamily = TF.fontCss(f[0]);'])
+            && plF.includes("function tsxFontOn(box, fld) { var css = fld && fld.font ? TF.fontCss(fld.font()) : ''; if (box && box.style && box._tsFont !== css) { box._tsFont = css; box.style.fontFamily = css; } }")
+            && plF.includes("o.font = function() { return TF.fontKnown(f.font()); }; o.setFont = function(v) { f.setFont(TF.fontKnown(v)); };")
+            && plF.includes("var gh = mk('option', 'ts-fontgroup', f[2]); gh.value = '\\u0001' + f[2]; gh.disabled = true;") && plF.includes("var fo = mk('option', '', f[0]); fo.value = f[0];")
+            && plF.includes("var known = typeof name === 'string' && name ? TF.fontKnown(name) : '', was = tsxNow(fld);\n      if ((name && !known) || (was.font || '') === known) { tsRefresh(); return false; }")
+            && !/queryLocalFonts|local\(/.test(plF) && require('fs').readFileSync(require('path').join(__dirname, '..', 'system', 'app', 'style.css'), 'utf8').replace(/\r\n/g, '\n').includes('\n  .ts-fontlab[hidden] { display: none; }'), JSON.stringify(sets));
+    }
+
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

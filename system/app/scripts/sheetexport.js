@@ -9,6 +9,7 @@
 import { STORED, fmtNum, headerEntry, autoLayout, rowDef, rowIdOf, rowLvl, rowOn, rowStat, rowPaid, showsIf, POSTURE_NAMES, postureAt, ownPostures, lookOf } from './systemcore.js';
 import { docToMarkdown, mdEscapeText, fmtFromInline } from './docmd.js';
 import { cleanFmt, runsOf, SIZE_EM } from './textfmt.js';
+import { LIMITS as DOC_LIMITS } from './docrender.js';
 import { recShapeOk } from './lookcore.js';
 import { hashText } from './librarycore.js';
 import { esc } from './safecore.js';
@@ -157,7 +158,7 @@ function charFromJson(view, j, find, findKey) {
         var fits = k === 'number' || k === 'skill' ? typeof v === 'number' && isFinite(v) : k === 'toggle' ? typeof v === 'boolean' : k === 'resource' ? isObj(v) && typeof v.cur === 'number' && isFinite(v.cur) : typeof v === 'string';
         if (!fits) { out.unmatched.push(label(fid)); return; }
         out.values[f.id] = k === 'resource' ? { cur: v.cur } : v;
-        if (fileLooks && (k === 'text' || k === 'notes') && own(fileLooks, fid) && recShapeOk(fileLooks[fid])) { if (!out.looks) out.looks = {}; out.looks[f.id] = clone(fileLooks[fid]); }   // item 35
+        if (fileLooks && (k === 'text' || k === 'notes') && own(fileLooks, fid)) { if (!out.looks) out.looks = {}; out.looks[f.id] = recShapeOk(fileLooks[fid]) ? clone(fileLooks[fid]) : null; }   // item 35 (a look that is no record: null, which ends the text's old look where the fill is applied, as a look that does not clean does)
     });
     return out;
 }
@@ -230,6 +231,12 @@ function styledText(text, rec, multi) {
     var at = 0; return text.split('\n').map(function(x) { var a = at, b = at + x.length; at = b + 1; return styledLine(plain(x), lineFmt(rec.fmt, a, b)); }).join('<br>');
 }
 function liHtml(label, html) { return '<li><b>' + esc(plain(label)) + ':</b> ' + html + '</li>'; }
+// A list of the page as ONE block. An item written with its look is { html, plain }. The page sanitiser reads a block up to its own length
+// (docrender LIMITS.html) and cuts the rest off: a list that would be longer with its looks is written plain, every word of it kept
+function ulOf(items) {
+    var html = '<ul>' + items.map(function(x) { return typeof x === 'string' ? x : x.html; }).join('') + '</ul>';
+    return html.length <= DOC_LIMITS.html ? html : '<ul>' + items.map(function(x) { return typeof x === 'string' ? x : x.plain; }).join('') + '</ul>';
+}
 
 // opts: { F (formula.js, for show-ifs), gm (the GM's own copy), sub (the line under the name), pageTitle(id) (a readable page's title or
 // null), tctx ({ facing, stance }: the token the numbers read) }
@@ -247,9 +254,10 @@ function sheetToMarkdown(sys, view, all, opts) {
         var f = isObj(q) ? byId[q.id] : null; if (!f) return;
         var h = headerEntry(f, all[f.id]); if (!h) return;
         var hl = !h.chip && !h.error && f.kind === 'text' && typeof vals[f.id] === 'string' && h.text === vals[f.id] ? styledText(h.text, lookOf(f, view), false) : null;   // item 35: with its look
-        hd.push(hl ? liHtml(f.label || f.key, hl) : li(f.label || f.key, h.chip ? 'on' : h.error ? (gmOnlyError(String(h.error)) ? 'GM only' : '—') : h.text));
+        var hp = li(f.label || f.key, h.chip ? 'on' : h.error ? (gmOnlyError(String(h.error)) ? 'GM only' : '—') : h.text);
+        hd.push(hl ? { html: liHtml(f.label || f.key, hl), plain: hp } : hp);
     });
-    if (hd.length) B.push(textBlock('<ul>' + hd.join('') + '</ul>'));
+    if (hd.length) B.push(textBlock(ulOf(hd)));
     var secs = (Array.isArray(lay.sections) ? lay.sections : []).filter(isObj), idx = Object.create(null);
     secs.forEach(function(s) { if (typeof s.id === 'string') idx[s.id] = s; });
     var parentOf = function(s) { var p = typeof s.parent === 'string' ? idx[s.parent] : null; return p && p !== s && !p.parent ? p : null; };   // one level, by the sheet's own rule (sheets.js childParent: a parent that has a parent of its own, even a gone one, holds none)
@@ -302,16 +310,17 @@ function sheetToMarkdown(sys, view, all, opts) {
         var title = plain(String(sec.title || '').trim() + (sec.title && meta ? ' — ' + meta : meta)).trim();
         if (title) B.push(child ? textBlock('<p><b>' + esc(title) + '</b></p>') : { type: 'h3', title: title });   // an untitled section has no heading, as on the sheet
         var items = [];
-        var flush = function() { if (items.length) { B.push(textBlock('<ul>' + items.join('') + '</ul>')); items = []; } };
+        var flush = function() { if (items.length) { B.push(textBlock(ulOf(items))); items = []; } };
         (Array.isArray(sec.fields) ? sec.fields : []).forEach(function(pl) {
             if (!isObj(pl) || !shown(pl)) return;
             if (typeof pl.id === 'string') {
                 var f = byId[pl.id]; if (!f) return;
                 if (f.kind === 'item-list') { flush(); listBlock(f, pl); return; }
                 if (f.kind === 'effects') { flush(); fxBlock(f); return; }
-                if (f.kind === 'notes') { flush(); var nt = all[f.id] && typeof all[f.id].value === 'string' ? all[f.id].value : typeof vals[f.id] === 'string' ? vals[f.id] : ''; B.push(textBlock('<p><b>' + esc(plain(f.label || f.key)) + (nt ? '</b><br>' + ((nt === vals[f.id] ? styledText(nt, lookOf(f, view), true) : null) || lines(nt)) : ':</b> —') + '</p>')); return; }
+                if (f.kind === 'notes') { flush(); var nt = all[f.id] && typeof all[f.id].value === 'string' ? all[f.id].value : typeof vals[f.id] === 'string' ? vals[f.id] : ''; var nh = '<p><b>' + esc(plain(f.label || f.key)), ns = nt && nt === vals[f.id] ? styledText(nt, lookOf(f, view), true) : null; if (ns && (nh + '</b><br>' + ns + '</p>').length > DOC_LIMITS.html) ns = null; /* item 35: with its look, unless the block would then be longer than the sanitiser reads */ B.push(textBlock(nh + (nt ? '</b><br>' + (ns || lines(nt)) : ':</b> —') + '</p>')); return; }
                 var e1 = all[f.id], sl = f.kind === 'text' && e1 && !e1.error && typeof vals[f.id] === 'string' && vals[f.id] !== '' && e1.value === vals[f.id] ? styledText(vals[f.id], lookOf(f, view), false) : null;   // item 35: with its look
-                items.push(sl ? liHtml(f.label || f.key, sl) : li(f.label || f.key, valueText(f, all[f.id])));
+                var sp = li(f.label || f.key, valueText(f, all[f.id]));
+                items.push(sl ? { html: liHtml(f.label || f.key, sl), plain: sp } : sp);
                 return;
             }
             if (pl.kind === 'heading' && pl.text) { flush(); B.push(textBlock('<p><b>' + esc(plain(pl.text)) + '</b></p>')); }

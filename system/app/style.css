@@ -3295,7 +3295,10 @@
   .ts-bar .ts-custom.off input { pointer-events: none; }
   .ts-bar .rte-sw.active { box-shadow: 0 0 0 2px var(--panel2), 0 0 0 3px var(--ink); }
   .ts-bar .rte-btn:focus-visible, .ts-bar .rte-sw:focus-visible, .ts-bar .rte-size:focus-visible, .ts-bar .rte-sym:focus-visible, .ts-bar .ts-custom:focus-within { outline: 2px solid var(--gold); outline-offset: 1px; }
-  .ts-sizelab, .ts-linklab { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--dim); }
+  .ts-sizelab, .ts-linklab, .ts-fontlab { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--dim); }
+  .ts-fontlab[hidden] { display: none; }   /* put away for a field that takes no font (the rule above would show it) */
+  .ts-font { max-width: 150px; }
+  .ts-font .ts-fontgroup { color: var(--dim); font-style: italic; }
   .ts-link { font: inherit; font-size: 12px; height: 24px; width: 150px; box-sizing: border-box; padding: 0 6px; border: 1px solid var(--edge); border-radius: 4px; background: var(--panel); color: var(--ink); }
   .ts-link:focus { border-color: var(--gold); outline: none; }
   .rte-bar .ts-linklab { margin: 0 2px; }

@@ -17,7 +17,9 @@
    On a hex grid the same plan is read with the cells as hexagons, a column of the plan a column of hexagons. A hexagon touches six cells
    where a square touches four, but two cells of the plan that are not next to each other across a side or a corner are never neighbours as
    hexagons, and solid ground lies a whole cell wide between a room and anything it is not opened to, so nothing joins that the plan keeps
-   apart. An opening may touch two or three cells of its room as a hexagon: its door runs along every side it shares with the room. */
+   apart. That holds for two corridor cells too: two that lie corner to corner always have a corridor cell beside them both, but for two
+   openings of one room at its corner, which is why a node of a room gives one opening at most. An opening may touch two or three cells of
+   its room as a hexagon: its door runs along every side it shares with the room. */
 'use strict';
 
 import { cellOf, cellCenter, cellKey } from './fogcore.js';
@@ -121,14 +123,18 @@ function genDungeon(opts) {
         }
     }
     // openings: an edge node of a room and the way out of it, [i, j, dx, dy], wherever the board goes on past the room: the node beyond is
-    // free, since no room comes nearer another than a node. Each room takes one to three of them
+    // free, since no room comes nearer another than a node. Each room takes one to three of them, and a node gives one at most: two
+    // openings that leave a corner node, one to the side and one down, lie corner to corner, and as hexagons they would touch
     var opens = [];
     rooms.forEach(function(R) {
         var list = [], a, b;
         for (a = 0; a < R.rw; a++) { if (R.nj > 0) list.push([R.ni + a, R.nj, 0, -1]); if (R.nj + R.rh < NY) list.push([R.ni + a, R.nj + R.rh - 1, 0, 1]); }
         for (b = 0; b < R.rh; b++) { if (R.ni > 0) list.push([R.ni, R.nj + b, -1, 0]); if (R.ni + R.rw < NX) list.push([R.ni + R.rw - 1, R.nj + b, 1, 0]); }
         var want = 1 + (rnd() < 0.55 ? 1 : 0) + (R.rw * R.rh >= 9 && rnd() < 0.5 ? 1 : 0);
-        for (var t = 0; t < want && list.length; t++) opens.push(list.splice(ri(0, list.length - 1), 1)[0]);
+        for (var t = 0; t < want && list.length; t++) {
+            var pk = list.splice(ri(0, list.length - 1), 1)[0]; opens.push(pk);
+            list = list.filter(function(c) { return c[0] !== pk[0] || c[1] !== pk[1]; });
+        }
     });
     // the board of cells: 1 a room's cell, 2 a corridor's cell (a node, the cell between two nodes, an opening)
     var cell = [], x, y;

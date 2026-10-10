@@ -6580,6 +6580,14 @@ function genForm() {
     var val = function(id) { var e = genEl(id); return e ? String(e.value) : ''; }, num = function(id, d) { var s = val(id).trim(), v = Number(s); return s !== '' && isFinite(v) ? v : d; };
     return GC.cleanGen({ seed: val('genSeed').trim(), w: num('genW', GC.SIZE.w), h: num('genH', GC.SIZE.h), rooms: val('genRooms'), corr: val('genCorr'), doors: val('genDoors') });
 }
+// The two Size boxes written as the sizes that will be used (10 to 60, whole). True when a box read otherwise: what was laid would not
+// have been what the box showed
+function genSizes() {
+    var o = genForm(), w = genEl('genW'), h = genEl('genH'), moved = false; if (!o) return false;
+    if (w && String(w.value) !== String(o.w)) { w.value = String(o.w); moved = true; }
+    if (h && String(h.value) !== String(o.h)) { h.value = String(o.h); moved = true; }
+    return moved;
+}
 function genFill(o) {
     var set = function(id, v) { var e = genEl(id); if (e) e.value = String(v); };
     set('genSeed', o.seed); set('genW', o.w); set('genH', o.h); set('genRooms', o.rooms); set('genCorr', o.corr); set('genDoors', o.doors);
@@ -6652,10 +6660,28 @@ function genShow() {
     return true;
 }
 function genHide() { var m = genEl('genModal'); if (!m || m.style.display === 'none') return; m.style.display = 'none'; var b = genEl('buildGenBtn'); if (b && b.focus) b.focus(); }
+// What Tab walks through, in the dialog's own order: never a row that is put away nor a control that is out of use
+function genStops() {
+    var out = Array.prototype.slice.call(document.querySelectorAll('#genWhere .gen-chip'));
+    ['genMap', 'genName', 'genGrid', 'genW', 'genH', 'genRooms', 'genCorr', 'genDoors', 'genSeed', 'genSeedNew', 'genCancel', 'genGo'].forEach(function(id) {
+        var e = genEl(id), row = id === 'genMap' ? genEl('genMapRow') : id === 'genName' || id === 'genGrid' ? genEl('genNameRow') : null;
+        if (e && !e.disabled && !(row && row.hidden)) out.push(e);
+    });
+    return out;
+}
+// Tab goes round inside the dialog: past its last control to its first, and back. True when the focus was moved
+function genTab(target, back) {
+    var st = genStops(), at = st.indexOf(target); if (!st.length) return false;
+    var to = back ? (at <= 0 ? st[st.length - 1] : null) : (at < 0 || at === st.length - 1 ? st[0] : null);
+    if (!to || !to.focus) return false;
+    to.focus(); return true;
+}
 // Generate: the dungeon laid as the dialog's count said. The GM is taken to the map first, on its play map: that draws and saves it as
 // it stands, a new map empty, which is the state one Undo goes back to. Then the pieces are laid there in ONE save, so one Undo takes the
 // dungeon back, and a new map stays
 function genGo() {
+    if (!genShown()) return false;   // only from the dialog as it stands: a second press finds it put away
+    if (genSizes()) { genSync(); return false; }   // a size that was not as it will be used is shown first, with its count: the next press lays it
     var plan = genPlan(); if (!plan.ok) { genSync(); return false; }
     var camp = getActiveCampaign(), here = getActiveMap(), map = plan.map, nmBox = genEl('genName'), items = genItems(plan.pieces);
     if (!items.length) { toast('That dungeon could not be laid. Nothing was changed.'); return false; }
@@ -6665,13 +6691,13 @@ function genGo() {
         camp.items[map.id] = map;
     }
     if (!map.meta || typeof map.meta !== 'object') map.meta = {};
+    if (!Array.isArray(map.whiteboard)) map.whiteboard = [];   // before the map is drawn: a map from a file may have none
     genHide();
     if (map === here) save(true);
     else {
         map.meta.lastView = 'visual';
         if (!navigateToMap(map.id)) { if (plan.fresh) delete camp.items[map.id]; toast('That map could not be opened. Nothing was changed.'); return false; }
     }
-    if (!Array.isArray(map.whiteboard)) map.whiteboard = [];
     if (map.whiteboard.length + items.length > BUILD_MAX) { toast('That dungeon could not be laid. Nothing was changed.'); return false; }
     items.forEach(function(it) { map.whiteboard.push(it); });
     map.meta.gen = plan.opts;   // the GM's own, to make it again: never sent (net.js sanitizeItem), cleaned from a file (cleanup.js)
@@ -6683,9 +6709,11 @@ function genGo() {
 function genWire() {
     var m = genEl('genModal'), row = genEl('buildGenBtn'); if (!m) return;
     if (row) row.addEventListener('click', function(ev) { ev.stopPropagation(); genShow(); });
+    // the dialog hands the focus back to this row when it is put away: a key still held from the press that put it away presses nothing here
+    if (row) row.addEventListener('keydown', function(e) { if (e.repeat === true && (e.key === 'Enter' || e.key === ' ')) e.preventDefault(); });
     Array.prototype.forEach.call(document.querySelectorAll('#genWhere .gen-chip'), function(b) { b.addEventListener('click', function() { var w = this.dataset.where; if (GEN_WHERE.indexOf(w) < 0) return; _gen.where = w; genSync(); }); });
     ['genMap', 'genGrid', 'genRooms', 'genCorr', 'genDoors'].forEach(function(id) { var e = genEl(id); if (e) e.addEventListener('change', genSync); });
-    ['genW', 'genH'].forEach(function(id) { var e = genEl(id); if (!e) return; e.addEventListener('input', genSync); e.addEventListener('change', function() { var o = genForm(); if (o) { var w = genEl('genW'), h = genEl('genH'); if (w) w.value = String(o.w); if (h) h.value = String(o.h); } genSync(); }); });   // a size left outside its bounds reads as the size that will be used
+    ['genW', 'genH'].forEach(function(id) { var e = genEl(id); if (!e) return; e.addEventListener('input', genSync); e.addEventListener('change', function() { genSizes(); genSync(); }); });   // a size left outside its bounds reads as the size that will be used
     var sb = genEl('genSeed'); if (sb) sb.addEventListener('input', genSync);
     var nw = genEl('genSeedNew'); if (nw) nw.addEventListener('click', function() { var s = genEl('genSeed'); if (s) s.value = genNewSeed(); genSync(); });
     var no = genEl('genCancel'); if (no) no.addEventListener('click', genHide);
@@ -6695,7 +6723,17 @@ function genWire() {
         e.stopPropagation();
         if (e.key === 'Escape') { e.preventDefault(); genHide(); }
         else if (e.key === 'Enter' && e.target && /^INPUT$/.test(e.target.tagName || '')) { e.preventDefault(); genGo(); }
+        else if (e.key === 'Tab' && genTab(e.target, e.shiftKey === true)) e.preventDefault();
     });
+    // A key pressed while the dialog is up with the focus outside it (after a press on its backdrop) is the dialog's too: the page would
+    // read it as its own behind the dialog, undo the map or put Build away. Escape puts the dialog away, Tab brings the focus back in, and
+    // any other key does nothing. Heard first (capture), and never while a question or a prompt of the app's own is up over the dialog
+    document.addEventListener('keydown', function(e) {
+        if (!genShown() || buildAsking() || (e.target && typeof m.contains === 'function' && m.contains(e.target))) return;
+        e.stopPropagation(); e.preventDefault();
+        if (e.key === 'Escape') genHide();
+        else if (e.key === 'Tab') genTab(null, e.shiftKey === true);
+    }, true);
 }
 // [buildcheck:gendialog-end]
 genWire();

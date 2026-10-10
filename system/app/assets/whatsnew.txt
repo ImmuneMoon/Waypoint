@@ -345,6 +345,11 @@ The Journal
   through all of them. Each result then names its campaign.
 - A campaign you run always has its journal, so + Note writes a page
   that belongs to that campaign.
+- A note of your own takes a look. Click into its text and a bar comes
+  up, as in a planner: bold, italic, underline, strike through, a
+  colour, a size, a link and a font. The fonts are Waypoint's own, so
+  a note reads the same on every computer. Open shows the note with
+  its look.
 
 Fixes
 - The fog of war is lighter on a busy map. It read every character's

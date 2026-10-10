@@ -372,7 +372,11 @@ function showHandout(h) {
     var im = ui('handoutImg'), tx = ui('handoutText');
     var hSrc = picRef(h.src);
     if (hSrc) { im.src = /^(data:|blob:)/.test(hSrc) ? hSrc : encodeURI(hSrc); im.style.display = 'block'; } else { im.removeAttribute('src'); im.style.display = 'none'; }
-    if (tx) { if (linked) fillLinked(tx, h.text || '', document); else tx.textContent = h.text || ''; tx.style.display = h.text ? 'block' : 'none'; }
+    // Item 35: a note with a look is read through the reader (linkgate.js): the record cleaned again there by the rule of a note, a web address
+    // in its plain words a link as ever. Every other text is written as it always was, in no font of an earlier note's
+    var rdL = linked && tx && h.look && typeof window.wpTextRead === 'object' && window.wpTextRead && typeof window.wpTextRead.fill === 'function' && window.wpLook && window.wpLook.RULES ? window.wpTextRead : null;
+    if (rdL) { rdL.fill(tx, h.text || '', h.look, document, { rule: window.wpLook.RULES.NOTE, typed: true }); tx.style.display = h.text ? 'block' : 'none'; }
+    else if (tx) { if (tx.style.fontFamily) tx.style.fontFamily = ''; if (linked) fillLinked(tx, h.text || '', document); else tx.textContent = h.text || ''; tx.style.display = h.text ? 'block' : 'none'; }
     var cp = ui('handoutCaption');
     if (linked) fillLinked(cp, h.caption || '', document); else cp.textContent = h.caption || '';
     cp.style.display = h.caption ? 'block' : 'none';
@@ -569,6 +573,7 @@ async function openJournal(keep) {   // keep (true only): drawn again where it s
         }).join('');
         return '<div class="journal-section' + (here && j.campId === here.key ? ' here' : '') + '" data-camp="' + esc(j.campId) + '" data-page="' + page + '" data-show="' + esc(show) + '" data-from="' + esc(from) + '" data-to="' + esc(to) + '">' + head + chipRows + empty + sentRows + mySentRows + entries + '</div>';
     }).join('');
+    if (typeof noteBoxes === 'function') noteBoxes(list, journals);   // item 35: a note of your own is written in the text box, with its look
     journalPickFill(journals, here);
     journalFilter();
 }
@@ -660,7 +665,7 @@ async function shareEntry(campId, id, to, btn) {
 // [sinkcheck:journalshare-end]
 // [sinkcheck:journalnote-start]
 // Save a page of text (the table notepad) to the journal: the campaign's section for a player, the GM's own
-window.wpJournalAddNote = async function(meta, title, text) {
+window.wpJournalAddNote = async function(meta, title, text, look) {   // look (item 35): a record for that text, kept only as the rule of a note cleans it
     var n = window.wpNet, key;
     if (n && n.role === 'host') { var own = ownCampaignKey(); key = own ? own.key : 'personal'; }
     else key = journalKey(meta || {}) || 'personal';
@@ -671,6 +676,7 @@ window.wpJournalAddNote = async function(meta, title, text) {
         else if (meta && meta.campaign) stampHead(idx, meta);
         var en = { id: id, kind: 'note', title: String(title || '').slice(0, 120), text: String(text || '').slice(0, 60000), receivedAt: Date.now(), notes: '' };
         if (theirs) en.table = true;
+        var lkA = look && window.wpLook && typeof window.wpLook.cleanRec === 'function' ? window.wpLook.cleanRec(look, en.text, window.wpLook.RULES.NOTE) : undefined; if (lkA) en.look = lkA;
         idx.entries.push(en);
     });
     await registerJournal(key);
@@ -813,6 +819,71 @@ var _jAll = ui('journalAll');
 if (_jAll) { _jAll.addEventListener('change', journalFilter); _jAll.addEventListener('keydown', function(e) { e.stopPropagation(); }); }
 var _jClose = ui('journalCloseBtn');
 if (_jClose) _jClose.addEventListener('click', function() { ui('journalModal').style.display = 'none'; });
+// [sinkcheck:journalbox-start]
+// Item 35 (the owner, 2026-10-09: "Your own notes"): the TEXT of a note you write takes a look and one of Waypoint's own fonts. Not its
+// title, and not the notes under a handout or a received page. The note's box is the planner's own text box and the Journal its HOST
+// (window.wpTextBox). What a box holds lives in _jbx.notes by 'campaign/entry' and is saved into the index entry beside its text, as
+// en.look: a record by the rule of a note (lookcore RULES.NOTE), made for the text AS STORED and cleaned again at every use. An unstyled
+// note keeps exactly the keys it had. Without the box module or lookcore the note is the textarea it always was
+var _jbx = { on: 0, notes: Object.create(null) };
+function jbxApi() { var w = typeof window !== 'undefined' ? window.wpTextBox : null; return w && typeof w.host === 'function' && typeof w.dress === 'function' && typeof w.fill === 'function' && typeof w.textOf === 'function' ? w : null; }
+function jbxLook() { var L = typeof window !== 'undefined' ? window.wpLook : null; return L && typeof L.cleanRec === 'function' && typeof L.makeRec === 'function' && L.RULES && L.RULES.NOTE ? L : null; }
+function jbxKeyOf(row) { var d = row && row.dataset ? row.dataset : null; return d && d.kind === 'note' && typeof d.camp === 'string' && d.camp && typeof d.id === 'string' && d.id ? d.camp + '/' + d.id : ''; }
+function jbxNote(key) { return typeof key === 'string' && key && Object.prototype.hasOwnProperty.call(_jbx.notes, key) ? _jbx.notes[key] : null; }
+function jbxRow(key) { var rows = _jList && _jList.querySelectorAll ? _jList.querySelectorAll('.journal-entry') : []; for (var i = 0; i < rows.length; i++) if (jbxKeyOf(rows[i]) === key) return rows[i]; return null; }
+// A note as the box reads and writes it: its text, its format and its font, in memory until the save
+function jbxField(key) {
+    var n = jbxNote(key); if (!n) return null;
+    return { ident: 'note:' + key, text: function() { return n.text; }, fmt: function() { return n.fmt; },
+        setText: function(v) { n.text = String(v == null ? '' : v).slice(0, 60000); }, setFmt: function(v) { n.fmt = v && typeof v === 'object' ? v : undefined; },
+        font: function() { return n.font || ''; }, setFont: function(v) { n.font = typeof v === 'string' ? v : ''; } };
+}
+function jbxChanged(key) { var row = jbxRow(key); if (row) noteSaveSoon(row); }
+// The Journal registers as a host once, when the first note is drawn. The bar goes into the window's own box, which is never drawn again (the list is)
+function jbxOn() {
+    if (_jbx.on) return _jbx.on === 1;
+    var w = jbxApi(); if (!w || !jbxLook() || !_jList || !_jList.parentNode) return false;
+    var yes = function() { return true; };
+    _jbx.on = w.host({ id: 'journal', roots: [_jList], doc: function() { return 'journal'; }, field: jbxField, name: function() { return 'Note'; }, links: yes, sizes: yes, fonts: yes, barHost: function() { return _jList.parentNode; }, changed: jbxChanged, left: function() {} }) ? 1 : 2;
+    return _jbx.on === 1;
+}
+// The record for what a note's box holds now, or none: what Open reads the note with
+function jbxRecOf(row) { var n = jbxNote(jbxKeyOf(row)), L = jbxLook(); return n && L ? L.makeRec(n.fmt, n.font || '', n.text, L.RULES.NOTE) : undefined; }
+// The notes of the list that was just written: each note's textarea is replaced by a box the text box module dresses and fills. What the
+// box holds is read from the INDEX entry, never from markup: its text, and its look cleaned for that very text. The box answers `value`
+// with its text, so every reader of a note's body reads it as it read the textarea. The number of boxes made
+function noteBoxes(list, journals) {
+    if (!list || !list.querySelectorAll || !jbxOn()) return 0;
+    var w = jbxApi(), L = jbxLook(), by = Object.create(null), live = Object.create(null), made = 0;
+    (Array.isArray(journals) ? journals : []).forEach(function(j) { if (!j || typeof j.campId !== 'string') return; (Array.isArray(j.entries) ? j.entries : []).forEach(function(e) { if (e && e.kind === 'note' && typeof e.id === 'string') by[j.campId + '/' + e.id] = e; }); });
+    Array.prototype.forEach.call(list.querySelectorAll('textarea.journal-note-body'), function(ta) {
+        var row = ta.closest ? ta.closest('.journal-entry') : null, key = jbxKeyOf(row), en = key && Object.prototype.hasOwnProperty.call(by, key) ? by[key] : null; if (!en || key.length > 200) return;
+        var text = typeof en.text === 'string' ? en.text.slice(0, 60000) : '', rec = L.cleanRec(en.look, text, L.RULES.NOTE);
+        _jbx.notes[key] = { text: text, fmt: rec ? rec.fmt : undefined, font: rec && typeof rec.font === 'string' ? rec.font : '' };
+        var d = document.createElement('div'); d.className = ta.className;
+        if (!w.dress(d, { key: key, multi: true, placeholder: 'Write\u2026', label: 'Note' })) { delete _jbx.notes[key]; return; }
+        Object.defineProperty(d, 'value', { get: function() { return w.textOf(d); } });
+        ta.parentNode.replaceChild(d, ta); w.fill(d); live[key] = 1; made++;
+    });
+    Object.keys(_jbx.notes).forEach(function(k) { if (!live[k]) delete _jbx.notes[k]; });   // a note that is no longer drawn holds nothing here
+    return made;
+}
+// A note's title or text changed: saved a moment later, the look with the text it is for. A note with no box keeps the look it has while
+// that look still stands for its words
+function noteSaveSoon(row) {
+    var campId = row.dataset.camp, id = row.dataset.id, n = jbxNote(jbxKeyOf(row));
+    var title = (row.querySelector('.journal-note-title') || {}).value || '', text = n ? n.text : (row.querySelector('.journal-note-body') || {}).value || '', fmt = n ? n.fmt : undefined, font = n ? n.font : '';
+    noteLater('own:' + campId + '/' + id, function() {
+        return withIndex(campId, function(idx) {
+            var en = idx.entries.find(function(x) { return x.id === id; });
+            if (!en) return false;
+            en.title = title.slice(0, 120); en.text = text.slice(0, 60000);
+            var L = jbxLook(), rec = !L ? en.look : n ? L.makeRec(fmt, font || '', en.text, L.RULES.NOTE) : L.cleanRec(en.look, en.text, L.RULES.NOTE);
+            if (rec) en.look = rec; else delete en.look;
+        });
+    });
+}
+// [sinkcheck:journalbox-end]
 // [sinkcheck:journalopen-start]
 // A row of the Journal opened to be read — a click on its thumbnail, or on a note's Open. The viewer is told whose the page is, as the row
 // says (openJournal wrote that from the index): your own, the GM's, or a player's by name; a row that says nothing is not known to be yours.
@@ -821,7 +892,9 @@ function openRow(target) {
     var op = target.closest && target.closest('.journal-open');
     if (op) {   // a note of your own, opened to be read: what its boxes hold right now
         var rowN = op.closest('.journal-entry'); if (!rowN) return;
-        showHandout({ title: (rowN.querySelector('.journal-note-title') || {}).value || 'A note', caption: '', src: null, text: (rowN.querySelector('.journal-note-body') || {}).value || '', from: rowFrom(rowN) });
+        var hN = { title: (rowN.querySelector('.journal-note-title') || {}).value || 'A note', caption: '', src: null, text: (rowN.querySelector('.journal-note-body') || {}).value || '', from: rowFrom(rowN) };
+        var lkN = typeof jbxRecOf === 'function' ? jbxRecOf(rowN) : undefined; if (lkN) hN.look = lkN;   // item 35: with its look, as its box holds it now
+        showHandout(hN);
         return;
     }
     var t = target.closest && target.closest('.journal-thumb'); if (!t) return;
@@ -967,15 +1040,8 @@ if (_jList) {
     });
     _jList.addEventListener('input', function(e) {
         var fld = e.target.closest && e.target.closest('.journal-note-title, .journal-note-body'); if (!fld) return;
-        var row = fld.closest('.journal-entry'), campId = row.dataset.camp, id = row.dataset.id;
-        var title = (row.querySelector('.journal-note-title') || {}).value || '', text = (row.querySelector('.journal-note-body') || {}).value || '';
-        noteLater('own:' + campId + '/' + id, function() {
-            return withIndex(campId, function(idx) {
-                var en = idx.entries.find(function(x) { return x.id === id; });
-                if (!en) return false;
-                en.title = title.slice(0, 120); en.text = text.slice(0, 60000);
-            });
-        });
+        if (fld.classList && fld.classList.contains('ts-box')) return;   // a note's box: its host is told of every change (jbxChanged), after the text is in its field
+        noteSaveSoon(fld.closest('.journal-entry'));
     });
 }
 

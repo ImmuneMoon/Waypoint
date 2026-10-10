@@ -232,7 +232,7 @@ function styledText(text, rec, multi) {
 }
 function liHtml(label, html) { return '<li><b>' + esc(plain(label)) + ':</b> ' + html + '</li>'; }
 // A list of the page as ONE block. An item written with its look is { html, plain }. The page sanitiser reads a block up to its own length
-// (docrender LIMITS.html) and cuts the rest off: a list that would be longer with its looks is written plain, every word of it kept
+// (docrender LIMITS.html) and cuts the rest off: a list that would be longer with its looks is written plain, as it was before it had any
 function ulOf(items) {
     var html = '<ul>' + items.map(function(x) { return typeof x === 'string' ? x : x.html; }).join('') + '</ul>';
     return html.length <= DOC_LIMITS.html ? html : '<ul>' + items.map(function(x) { return typeof x === 'string' ? x : x.plain; }).join('') + '</ul>';

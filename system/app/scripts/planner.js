@@ -879,10 +879,11 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var known = typeof name === 'string' && name ? TF.fontKnown(name) : '', was = tsxNow(fld);
       if ((name && !known) || (was.font || '') === known) { tsRefresh(); return false; }
       var kept = !!(from && tsState.key && document.activeElement === from);
-      tsState.run = null; tsState.last = null;
+      var runOn = kept && from === tsState.els.font ? JSON.stringify(['font', sel.d]) : null, cont = !!runOn && tsState.run === runOn;   // the Font list stepped through by its arrow keys is one step, as the Size list is
+      tsState.run = runOn; tsState.last = null;
       fld.setFont(known);
       var now = tsxNow(fld), told = !tsxSame(was, now);
-      if (told) tsxStep(tsxStack(am.id, sel.d, true, fld.ident), was, now, { s: sel.s, e: sel.e }, { s: sel.s, e: sel.e }, false);
+      if (told) tsxStep(tsxStack(am.id, sel.d, true, fld.ident), was, now, { s: sel.s, e: sel.e }, { s: sel.s, e: sel.e }, cont);
       tsxFontOn(box, fld);
       if (!kept) tsHold(box, sel.s, sel.e, sel.back);
       tsRefresh(); tsPlace();
@@ -1207,6 +1208,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       E.link.addEventListener('blur', function() { tsState.linkDone = null; tsRefresh(); });   // left: it shows the field's own link again
       E.size.addEventListener('blur', function() { tsState.run = null; });   // the list was left: the next size is a step of its own
       E.font.addEventListener('change', function() { tsxFont(E.font.value, E.font); });   // a heading is no font: the list changes nothing for it
+      E.font.addEventListener('blur', function() { tsState.run = null; });   // the list was left: the next font is a step of its own
       E.custom.addEventListener('change', function() { tsPress({ color: E.custom.value }, E.custom); });   // once, when the picker closes: one undo step
       tsRefresh();
   }

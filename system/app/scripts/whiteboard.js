@@ -6371,23 +6371,27 @@ function wpBuildCommit(P, px, py, pw, ph, sx, sy) {
     var B = P.build, BC = buildCore(), C = window.wpFogCore, map = getActiveMap();
     if (!B || !window.isBuildMode) return;
     var ae = document.activeElement; if (ae && ae.closest && ae.closest('#buildMenu') && ae.blur) ae.blur();   // the pointer is back on the map, and the board keeps a click from moving the focus: the options' fields give the keys back
+    if (window.wpPlace && window.wpPlace.build) { P = window.wpPlace; B = P.build; }   // a box left half typed took its change at that blur and armed again: this lay is made with what the options now say
     if (!BC || !C || !map || !buildMay() || !buildHere()) { var mvB = document.getElementById('moveModeBtn'); if (mvB) mvB.click(); return; }   // Build cannot lay here (someone else's table, a page): the tool is put away, never left lit and dead
     if (!Array.isArray(map.whiteboard)) map.whiteboard = [];
     var grid = buildGrid(), dragged = pw > 12 || ph > 12, thin = dragged && Math.min(pw, ph) <= 12,   // either way past 12 px is a drag; thin: along one row or one column
-         mx = Math.abs(sx - px) < 0.5 ? px + pw : px, my = Math.abs(sy - py) < 0.5 ? py + ph : py;
+         mx = Math.max(0, Math.abs(sx - px) < 0.5 ? px + pw : px), my = Math.max(0, Math.abs(sy - py) < 0.5 ? py + ph : py),   // the release, held to the board: nothing is laid past its top or left edge
+         x0 = Math.min(sx, mx), y0 = Math.min(sy, my), dw = Math.abs(mx - sx), dh = Math.abs(my - sy);
     if (B.shape === 'poly') { buildPolyAdd(sx, sy, grid); buildArm(); return; }
     var boxes = [], more = false;
     if (grid && grid.type === 'hex') {   // cell by cell (the owner's answer): one hexagon a cell, so the area is exact
-        var hc = (B.shape === 'corridor' || thin) ? BC.corridor(grid, sx, sy, mx, my, B.shape === 'corridor' ? B.corridorW : 1) : dragged ? buildHexBox(BC, C, grid, px, py, pw, ph, sx, sy, mx, my) : { cells: [C.cellOf(sx, sy, grid)], more: false };   // a thin drag is the cells its line passes
+        var hc = (B.shape === 'corridor' || thin) ? BC.corridor(grid, sx, sy, mx, my, B.shape === 'corridor' ? B.corridorW : 1) : dragged ? buildHexBox(BC, C, grid, x0, y0, dw, dh, sx, sy, mx, my) : { cells: [C.cellOf(sx, sy, grid)], more: false };   // a thin drag is the cells its line passes
         if (hc && hc.cells) { more = hc.more === true; hc.cells.forEach(function(c) { var hb = BC.hexCellBox(grid, c); if (hb) boxes.push(Object.assign({ type: 'hexagon' }, hb)); }); }
     } else if (grid) {   // the square lattice: a click one cell, a drag the cells it covers, a corridor a strip of whole cells
         var bx = B.shape === 'corridor' ? BC.corridor(grid, sx, sy, mx, my, B.corridorW) : BC.snapBox(grid, sx, sy, mx, my, dragged);
-        if (bx) boxes.push(Object.assign({ type: B.shape === 'circle' ? 'circle' : 'rect' }, bx));
+        if (bx) { if (bx.x < 0) { bx.w += bx.x; bx.x = 0; } if (bx.y < 0) { bx.h += bx.y; bx.y = 0; } }   // a two-wide corridor begun in the first row or column: only what is on the board
+        if (bx && bx.w > 0 && bx.h > 0) boxes.push(Object.assign({ type: B.shape === 'circle' ? 'circle' : 'rect' }, bx));
     } else {   // no grid: a free box, on the 50 px dots while Snap is on, as the plain shapes seat
         var snap = !!(window.wpSnapOn && window.wpSnapOn()), r50 = function(v) { return snap ? Math.round(v / 50) * 50 : Math.round(v); };
+        var free = (pw > 12 && ph > 12) || Math.max(pw, ph) >= 50;   // with no cells to land on, a slip of the hand during a click is still a click, as the plain shapes read it; a long thin drag is a strip
         var fb = B.shape === 'corridor' ? (Math.abs(mx - sx) >= Math.abs(my - sy) ? { x: Math.min(sx, mx), y: sy - 25, w: Math.abs(mx - sx), h: 50 } : { x: sx - 25, y: Math.min(sy, my), w: 50, h: Math.abs(my - sy) })
-            : dragged ? { x: px, y: py, w: pw, h: ph } : { x: sx - 50, y: sy - 50, w: 100, h: 100 };
-        boxes.push({ type: B.shape === 'circle' ? 'circle' : 'rect', x: r50(fb.x), y: r50(fb.y), w: Math.max(snap ? 50 : 10, r50(fb.w)), h: Math.max(snap ? 50 : 10, r50(fb.h)) });
+            : free ? { x: x0, y: y0, w: dw, h: dh } : { x: sx - 50, y: sy - 50, w: 100, h: 100 };
+        boxes.push({ type: B.shape === 'circle' ? 'circle' : 'rect', x: Math.max(0, r50(fb.x)), y: Math.max(0, r50(fb.y)), w: Math.max(snap ? 50 : 10, r50(fb.w)), h: Math.max(snap ? 50 : 10, r50(fb.h)) });
     }
     buildLay(map, boxes, P.props, more);
     buildArm();
@@ -6512,7 +6516,7 @@ function wallsLay(map, items) {
     if (!res.lines.length || !pre) return res.had ? 'Those walls are already there.' : 'There is nothing to wall there.';
     if (map.whiteboard.length + res.lines.length > BUILD_MAX) return 'This map holds as many pieces as it can carry to players, ' + BUILD_MAX + '. No wall was laid.';
     res.lines.forEach(function(L) { map.whiteboard.push(Object.assign({ id: 'wb' + uid(), type: 'path', x: L.x, y: L.y, w: L.w, h: L.h, baseW: L.baseW, baseH: L.baseH, z: 10, pts: L.pts }, newOpacityProps(), pre)); });
-    return res.lines.length === 1 ? 'One wall line laid.' : res.lines.length + ' wall lines laid.';
+    return (res.lines.length === 1 ? 'One wall line laid.' : res.lines.length + ' wall lines laid.') + (res.doorsOver === true ? ' Some door lines were not read. Check the doorways.' : '');
 }
 // [buildcheck:wallsrow-end]
 

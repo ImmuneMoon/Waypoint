@@ -244,6 +244,25 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (up) up.addEventListener('click', go(-1));
       if (down) down.addEventListener('click', go(1));
   })();
+// [lookcheck:panelbare-start]
+// What a joined player's left panel holds (1.5.4). With nothing to read and no character of their own the whole panel steps aside
+// (style.css body.net-client.no-handbook). With a character and no page the Handbook section and its rail icon alone step aside: a player
+// writes no pages, so the words of an empty Handbook are not theirs. The GM's own panel is never touched. chN: how many characters the
+// Characters section lists on this screen
+function panelBare(foreign, chN, hasDoc) { return !!foreign && !(chN > 0) && !hasDoc; }
+function panelHasDoc(items) { return !!items && typeof items === 'object' && Object.keys(items).some(function(k) { var it = items[k]; return !!it && typeof it === 'object' && it.type === 'doc'; }); }
+function panelHeld(doc, foreign, chN, hasDoc) {
+    var dn = doc.getElementById('docNavList'), hs = dn && dn.closest ? dn.closest('.sidebar-section') : null, rh = doc.getElementById('railHandbook'), off = !!foreign && !hasDoc;
+    if (hs) hs.hidden = off;
+    if (rh) rh.hidden = off;
+    doc.body.classList.toggle('no-handbook', panelBare(foreign, chN, hasDoc));
+    return off;
+}
+// [lookcheck:panelbare-end]
+// The one place the class and the Handbook's own stepping aside are written: asked by the Characters section's sync (charlist.js), which
+// runs at every redraw of the panel and of the board, and by the panel itself while that module is not there yet
+function panelJudge(chN) { var camp = getActiveCampaign(); return panelHeld(document, !!(window.wpNet && window.wpNet.foreign), chN, panelHasDoc(camp && camp.items)); }
+
   function updateSidebarNav() {
 
       var camp = getActiveCampaign();
@@ -357,9 +376,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       var dNav = document.getElementById('docNavList');
       if (dNav) dNav.innerHTML = treeHtml('doc') || '<div class="nav-empty">No pages yet — press + above to write a rules or reference page your players can read.</div>';
-      // A joined player with nothing to read and no character of their own: the whole left panel steps aside (style.css body.net-client.no-handbook)
-      var chN = window.wpCharList ? window.wpCharList.sync() : 0;   // the Characters section follows every redraw of the panel (charlist.js); for a player: how many characters are theirs
-      document.body.classList.toggle('no-handbook', !!(window.wpNet && window.wpNet.foreign) && !chN && !Object.values(camp.items).some(function(it) { return it.type === 'doc'; }));
+      // The Characters section follows every redraw of the panel (charlist.js), and its sync asks panelJudge what a joined player's panel holds
+      if (window.wpCharList) window.wpCharList.sync(); else panelJudge(0);
 
       if (window.wpPageShelf && window.wpPageShelf.noteActive) window.wpPageShelf.noteActive();   // 1.5.4 (pageshelf.js): a page that is the item on screen is one of the last pages opened
       mNav.innerHTML = mapQuickHtml(camp) + (treeHtml('map') || '<div class="nav-empty">No maps yet — press + above to create your first location.</div>');
@@ -378,7 +396,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
 
 
-        document.querySelectorAll('.sidebar-item').forEach(el => {
+        // the tree's own rows, in its own three lists: a row of another section (a character's) is never the tree's to open, rename or nest
+        document.querySelectorAll('#mapNavList .sidebar-item, #plannerNavList .sidebar-item, #docNavList .sidebar-item').forEach(el => {
             el.addEventListener('contextmenu', function(e) {
                 e.preventDefault();
                 if (!window.wpCanPersistLocal || !window.wpCanPersistLocal()) return;   // a joined player's tree is read-only
@@ -446,7 +465,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                 var activeC = getActiveCampaign();
                 var itC = activeC && activeC.items[this.dataset.id];
                 if (itC && itC.type === 'doc' && window.wpNet && window.wpNet.foreign) { if (window.wpOpenDoc) window.wpOpenDoc(this.dataset.id); return; }   // a joined player reads a page in the panel; activeItemId stays on the map
-                if (activeC) {
+                if (activeC && itC) {   // only an item of the campaign is opened: never an id that names nothing
                     activeC.activeItemId = this.dataset.id;
                     state.selId = null; state.selWbId = null; state.linkStart = null;
                     if (window.wpApplyRememberedView) window.wpApplyRememberedView();
@@ -670,6 +689,8 @@ export {
     updateCampaignSelect,
 
     updateSidebarNav,
+
+    panelJudge,
 
     navigateToMap
 

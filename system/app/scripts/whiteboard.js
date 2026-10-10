@@ -4405,7 +4405,7 @@ window.wpFitToGrid = fitToGrid;
   // ... and when the last shape of the tool's own goes (set off, or taken off by a right-click), the shape kept for the next click follows
   // what the options then show, an older shape's numbers: a click places what is in sight
   function circleRekept() {
-      if (!lastOwn()) return;
+      if (circleKeptPicked || !lastOwn()) return;   // a pick that waits for its click is already the shape kept, and the options show it: a circle that goes meanwhile changes nothing (the review of 2026-10-10: a right-click on one of two circles that came back threw the pick away)
       circleKeptPicked = false; circleKept = circleNow();   // the very shape the options show, On a token included
       if (circleKept.as === 'r' || circleKept.as === 'd') circleCas = circleKept.as;
       try { localStorage.setItem('wp_radius', JSON.stringify(circleKept)); } catch (e) {}

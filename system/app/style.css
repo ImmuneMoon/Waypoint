@@ -3285,9 +3285,11 @@
   .sb-export-row { color: var(--ink); overflow-wrap: anywhere; }
   .sb-export-warn { color: var(--gold); overflow-wrap: anywhere; }
   .sb-export-dim { color: var(--dim); font-size: 12px; overflow-wrap: anywhere; }
-  /* A link's address before a press (linkgate.js): one line at the window's bottom left, where a browser shows one. It takes no press, stands
-     over the handout viewer and under the app's own question, and goes to the right while the pointer is low on the left. */
-  #linkPeek { position: fixed; left: 0; bottom: 0; z-index: 100005; max-width: 60vw; box-sizing: border-box; padding: 3px 9px 4px; background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-left: 0; border-bottom: 0; border-top-right-radius: 5px; font: 12px/1.4 Consolas, 'Courier New', monospace; white-space: normal; overflow-wrap: anywhere; pointer-events: none; user-select: none; }
+  /* A link's address before a press (linkgate.js): a strip at the window's bottom left, where a browser shows one. It WRAPS and is never cut:
+     the end of a site names whose it is, and must be in sight at any width. At most half the window wide, so that it can always stand clear of
+     the link it names: it goes to the right while the pointer is low on the left. It takes no press, stands over the handout viewer and under
+     the app's own question. */
+  #linkPeek { position: fixed; left: 0; bottom: 0; z-index: 100005; max-width: 50vw; box-sizing: border-box; padding: 3px 9px 4px; background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-left: 0; border-bottom: 0; border-top-right-radius: 5px; font: 12px/1.4 Consolas, 'Courier New', monospace; white-space: normal; overflow-wrap: anywhere; pointer-events: none; user-select: none; }
   #linkPeek.peek-right { left: auto; right: 0; border-left: 1px solid var(--edge); border-right: 0; border-top-right-radius: 0; border-top-left-radius: 5px; }
   #linkPeek[hidden] { display: none; }
   body.stream-mode #linkPeek { display: none; }

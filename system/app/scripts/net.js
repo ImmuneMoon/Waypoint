@@ -736,6 +736,7 @@ function wireWbItem(w, cloned) {
     if (w.eventMessage !== undefined) delete w.eventMessage;   // secrets (R2): a trigger zone's message is GM prep until a token lands in it — the host says it then, to the dropper alone (triggerFire)
     if (w.blastStop !== undefined && w.blastStop !== true) delete w.blastStop;   // a barrier's Stops blasts tick: with a shown piece and only as true, the one value the host judges by
     if (w.portalLock !== undefined && w.portalLock !== true) delete w.portalLock;   // a portal's own lock: it travels with a shown portal (a hidden piece is not sent at all) and only as true, the one value the host judges by (travelBar)
+    if (w.texture !== undefined) { var FCw = typeof window !== 'undefined' && window.wpFogCore, txo = FCw && FCw.cleanTexture ? FCw.cleanTexture(w.texture) : null; if (txo) w.texture = txo; else delete w.texture; }   // the map builder: a shown piece's texture leaves only as a name of the app's own list, none without the cleaner (whatever a save held)
     if (w.fogHand !== undefined && w.fogHand !== 'hide' && w.fogHand !== 'show') delete w.fogHand;   // 1.5.4: a piece's fog mark travels with a shown piece (a hidden one is not sent at all), only as its two words: the player's own overlay reads what the host judges by
     return w;
 }

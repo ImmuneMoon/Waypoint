@@ -64,25 +64,44 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         }
         return { pts, bounds: pts.concat(qc), text: sp.trim() };
     });
-    const seamOk = n => {
-        const t = B.TEX[n], sps = subpaths(t.d), all = [].concat(...sps.map(s => s.pts)), has = (x, y) => all.some(p => Math.abs(p[0] - x) < 1e-9 && Math.abs(p[1] - y) < 1e-9), m = t.dark / 2;
-        const shifted = (sp, dx, dy) => sps.some(o => o !== sp && o.pts.length === sp.pts.length && o.pts.every((p, k) => Math.abs(p[0] - (sp.pts[k][0] + dx)) < 1e-9 && Math.abs(p[1] - (sp.pts[k][1] + dy)) < 1e-9));
-        return sps.every(sp => {
-            const out = sp.bounds.some(p => p[0] < 0 || p[0] > t.w || p[1] < 0 || p[1] > t.h);
-            if (out) { const xs = sp.bounds.map(p => p[0]), ys = sp.bounds.map(p => p[1]); return (Math.min(...xs) < 0 && shifted(sp, t.w, 0)) || (Math.max(...xs) > t.w && shifted(sp, -t.w, 0)) || (Math.min(...ys) < 0 && shifted(sp, 0, t.h)) || (Math.max(...ys) > t.h && shifted(sp, 0, -t.h)); }
-            return sp.bounds.every(p => {
-                const onX = p[0] === 0 || p[0] === t.w, onY = p[1] === 0 || p[1] === t.h;
-                if (onX && !has(p[0] === 0 ? t.w : 0, p[1])) return false;
-                if (onY && !has(p[0], p[1] === 0 ? t.h : 0)) return false;
-                return (onX || (p[0] >= m && p[0] <= t.w - m)) && (onY || (p[1] >= m && p[1] <= t.h - m));
-            });
-        });
-    };
-    check('every tile tiles seamlessly by its constants: a stroke ending on an edge continues from the same place on the opposite edge, a stone straddling the seam is drawn at both edges, and nothing else comes within half the dark stroke of an edge',
-        B.TEXTURES.every(seamOk), j(B.TEXTURES.filter(n => !seamOk(n))));
-    check('the ripples\' wave period divides the tile, so a row leaves the right edge at the height and slope it enters the left (the control points mirror); the hatching\'s lines leave an edge where their twins enter',
-        (() => { const sp = subpaths(B.TEX.ripples.d); return sp.length === 3 && sp.every(s => s.pts.length === 5 && s.pts[0][0] === 0 && s.pts[4][0] === B.TEX.ripples.w && s.pts[0][1] === s.pts[4][1] && s.bounds[5][1] - s.pts[0][1] === -(s.bounds[8][1] - s.pts[0][1])); })()
-        && subpaths(B.TEX.hatching.d).every(s => s.pts.length === 2 && Math.abs((s.pts[1][1] - s.pts[0][1]) - (s.pts[1][0] - s.pts[0][0])) < 1e-9));
+    // The seam itself, measured (the review of fold B1a: comparing end points could not see a round cap that covers less of an edge than a slanted
+    // stroke's body does). A tile's strokes are flattened to short segments, curves and arcs sampled. Every point of a band 2 px deep along the
+    // tile's four edges is asked two things: is it within half the stroke of the tile's OWN segments (what the tile draws there, cut at its
+    // edge), and is it within half the stroke of the segments of the tile and its eight neighbours (what the tiling should show there). A stroke
+    // that ends on an edge with no twin, a twin a little off, or a cap that nicks the seam, each leaves points where the two answers differ
+    const flat = d => { const out = [], tok = d.trim().split(/[\s,]+/); let cur = null, cx = 0, cy = 0, x0 = 0, y0 = 0, cmd = '', i = 0;
+        const num = () => Number(tok[i++]), to = (x, y) => { cur.push([x, y]); cx = x; cy = y; };
+        while (i < tok.length) {
+            if (/^[A-Za-z]$/.test(tok[i])) { cmd = tok[i++]; if (cmd === 'Z') { to(x0, y0); continue; } }
+            if (cmd === 'M') { cur = []; out.push(cur); x0 = num(); y0 = num(); to(x0, y0); }
+            else if (cmd === 'L') { const x = num(), y = num(); to(x, y); }
+            else if (cmd === 'H') to(num(), cy);
+            else if (cmd === 'V') to(cx, num());
+            else if (cmd === 'Q') { const ax = cx, ay = cy, qx = num(), qy = num(), x = num(), y = num(); for (let k = 1; k <= 24; k++) { const t = k / 24, u = 1 - t; to(u * u * ax + 2 * u * t * qx + t * t * x, u * u * ay + 2 * u * t * qy + t * t * y); } }
+            else if (cmd === 'A') {   // an arc by its end points, as the SVG rules turn them into a centre (the tiles' arcs are never turned)
+                const x1 = cx, y1 = cy; let rx = num(), ry = num(); const phi = num(), fa = num(), fs = num(), x2 = num(), y2 = num(); if (phi !== 0) throw new Error('buildcheck: a turned arc');
+                const xp = (x1 - x2) / 2, yp = (y1 - y2) / 2, lam = xp * xp / (rx * rx) + yp * yp / (ry * ry); if (lam > 1) { rx *= Math.sqrt(lam); ry *= Math.sqrt(lam); }
+                const den = rx * rx * yp * yp + ry * ry * xp * xp, co = (fa === fs ? -1 : 1) * Math.sqrt(Math.max(0, (rx * rx * ry * ry - den) / den)), ccx = co * rx * yp / ry, ccy = -co * ry * xp / rx, mx = ccx + (x1 + x2) / 2, my = ccy + (y1 + y2) / 2;
+                const a1 = Math.atan2((yp - ccy) / ry, (xp - ccx) / rx); let da = Math.atan2((-yp - ccy) / ry, (-xp - ccx) / rx) - a1; if (!fs && da > 0) da -= 2 * Math.PI; if (fs && da < 0) da += 2 * Math.PI;
+                for (let k = 1; k <= 32; k++) to(mx + rx * Math.cos(a1 + da * k / 32), my + ry * Math.sin(a1 + da * k / 32));
+            } else throw new Error('buildcheck: path command ' + cmd);
+        }
+        return out; };
+    const segsOf = (d, dx, dy) => [].concat(...flat(d).map(pl => pl.slice(1).map((p, k) => [pl[k][0] + dx, pl[k][1] + dy, p[0] + dx, p[1] + dy])));
+    const nearSeg = (segs, x, y, r) => { for (let s = 0; s < segs.length; s++) { const a = segs[s], vx = a[2] - a[0], vy = a[3] - a[1], l2 = vx * vx + vy * vy, t = l2 ? Math.max(0, Math.min(1, ((x - a[0]) * vx + (y - a[1]) * vy) / l2)) : 0, ex = a[0] + t * vx - x, ey = a[1] + t * vy - y; if (ex * ex + ey * ey <= r * r) return true; } return false; };
+    const seamGaps = t => { let gaps = 0; const own = segsOf(t.d, 0, 0), reach = t.dark / 2 + 0.1;
+        const all = [].concat(...[-1, 0, 1].map(a => [].concat(...[-1, 0, 1].map(b => segsOf(t.d, a * t.w, b * t.h))))).filter(s => Math.max(s[0], s[2]) >= -reach && Math.min(s[0], s[2]) <= t.w + reach && Math.max(s[1], s[3]) >= -reach && Math.min(s[1], s[3]) <= t.h + reach);
+        [t.dark / 2, t.light / 2].forEach(r => { for (let x = 0.05; x < t.w; x += 0.1) for (let y = 0.05; y < t.h; y += 0.1) { if (x > 2 && x < t.w - 2 && y > 2 && y < t.h - 2) continue; if (nearSeg(all, x, y, r) && !nearSeg(own, x, y, r)) gaps++; } });
+        return gaps; };
+    const tileGaps = B.TEXTURES.map(n => seamGaps(B.TEX[n]));
+    const oldHatch = { w: 50, h: 50, dark: 1.6, light: 0.7, d: 'M 0 6.25 L 43.75 50 M 0 18.75 L 31.25 50 M 0 31.25 L 18.75 50 M 0 43.75 L 6.25 50 M 6.25 0 L 50 43.75 M 18.75 0 L 50 31.25 M 31.25 0 L 50 18.75 M 43.75 0 L 50 6.25' };
+    const oldRipple = { w: 50, h: 48, dark: 1.6, light: 0.8, d: 'M 0 8 Q 6.25 2 12.5 8 Q 18.75 14 25 8 Q 31.25 2 37.5 8 Q 43.75 14 50 8 M 0 24 Q 6.25 30 12.5 24 Q 18.75 18 25 24 Q 31.25 30 37.5 24 Q 43.75 18 50 24 M 0 40 Q 6.25 34 12.5 40 Q 18.75 46 25 40 Q 31.25 34 37.5 40 Q 43.75 46 50 40' };
+    const badGaps = [oldHatch, oldRipple, { w: 50, h: 50, dark: 1.6, light: 0.7, d: 'M 0 12.5 H 30' }, { w: 50, h: 50, dark: 1.6, light: 0.7, d: 'M 0 12.5 H 50 M 20 0 V 20 M 20.6 30 V 50' }, { w: 50, h: 50, dark: 1.6, light: 0.7, d: 'M 10 0.5 H 40' }].map(seamGaps);
+    check('every tile tiles seamlessly, measured: no point of the 2 px band along a tile\'s edges is drawn by a neighbour\'s stroke and not by the tile\'s own, at the dark width and at the light; the same measure finds the nicks the hatching and the ripples had while their strokes ended on the edge, a stroke with no twin, a twin a little off and a stroke too near an edge',
+        j(tileGaps) === j(Array(8).fill(0)) && badGaps.every(g => g > 0), j([tileGaps, badGaps]));
+    check('the ripples run half a wave past the tile at both ends and the hatching 4 px past it, so the tile\'s own edge cuts each stroke: a row passes both edges at one height; the hatching\'s eight lines all run at 45 degrees and end outside the tile',
+        (() => { const sp = subpaths(B.TEX.ripples.d), w = B.TEX.ripples.w; return sp.length === 3 && sp.every(s => s.pts.length === 7 && s.pts[0][0] === -12.5 && s.pts[1][0] === 0 && s.pts[5][0] === w && s.pts[6][0] === w + 12.5 && s.pts.every(p => p[1] === s.pts[0][1])); })()
+        && subpaths(B.TEX.hatching.d).length === 8 && subpaths(B.TEX.hatching.d).every(s => s.pts.length === 2 && Math.abs((s.pts[1][1] - s.pts[0][1]) - (s.pts[1][0] - s.pts[0][0])) < 1e-9 && s.pts.every(p => p[0] === -4 || p[1] === -4 || p[0] === 54 || p[1] === 54)));
     check('cleanTexture and texStyle: the eight names themselves, and nothing for another case, a space, a path, an address, a number, an object, a boolean or a prototype\'s name',
         B.TEXTURES.every(n => B.cleanTexture(n) === n && B.texStyle(n, 0, 0) !== null) && HOSTILE.every(v => B.cleanTexture(v) === null && B.texStyle(v, 0, 0) === null) && B.cleanTexture(['flagstones']) === null, j(HOSTILE.map(v => B.cleanTexture(v))));
     check('texStyle: the tile\'s image and size with the position for the piece\'s place', j(B.texStyle('bricks', 120, 70)) === j({ image: B.TEX_CSS.bricks.image, size: '50px 50px', position: '-20px -20px' }) && j(B.texStyle('ripples', 0, 0)) === j({ image: B.TEX_CSS.ripples.image, size: '50px 48px', position: '0px 0px' }));
@@ -223,6 +242,13 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
     check('hexCellsInBox: a click (under a pixel either way) the one cell under it; a 200 x 120 box exactly the cells fogcore cellsUnderRect gives, in its order, each once, more false; a negative extent read from its other corner',
         j(B.hexCellsInBox(hx, 100, 60, 0, 0)) === j({ cells: [F.cellOf(100, 60, hx)], more: false }) && j(B.hexCellsInBox(hx, 100, 60, 0.5, 300)) === j({ cells: [F.cellOf(100, 60, hx)], more: false }) && j(B.hexCellsInBox(hx, 100, 60, 200, 120)) === j({ cells: dedup, more: false }) && dedup.length > 6
         && j(B.hexCellsInBox(hx, 300, 180, -200, -120)) === j({ cells: dedup, more: false }) && j(B.hexCellsInBox(sq, 0, 0, 100, 100)) === j({ cells: F.cellsUnderRect(0, 0, 100, 100, sq), more: false }) && B.hexCellsInBox(null, 0, 0, 10, 10) === null && B.hexCellsInBox(hx, NaN, 0, 10, 10) === null, j(B.hexCellsInBox(hx, 100, 60, 200, 120)));
+    const boxEq = (() => { for (let i = 0; i < 240; i++) { const g = i % 2 ? hx : sq, x = ri(-3000, 3000), y = ri(-3000, 3000), w = ri(1, i % 5 ? 6000 : 60000), h = ri(1, i % 7 ? 3000 : 40000), cap = [5, 60, 400][i % 3], got = B.hexCellsInBox(g, x, y, w, h, cap);
+        const seen = new Set(), uniq = F.cellsUnderRect(x, y, w, h, g).filter(c => { const k = F.cellKey(c, g); if (seen.has(k)) return false; seen.add(k); return true; });
+        if (j(got) !== j({ cells: uniq.slice(0, cap), more: uniq.length > cap })) return j([i, g.type, x, y, w, h, cap, got.cells.length, got.more, uniq.length]); } return ''; })();
+    const hugeHx = B.hexCellsInBox(hx, -2e7, -2e7, 4e7, 4e7), hugeSq = B.hexCellsInBox(sq, 0, 0, 5e7, 5e7, 7), wideHx = B.hexCellsInBox(hx, 0, 0, 4e7, 300), tallSq = B.hexCellsInBox(sq, 10, 10, 120, 4e7), thinHx = B.hexCellsInBox(hx, 0, 0, 100000, 20);
+    check('hexCellsInBox never lists a huge box whole (the review of fold B1a): 240 seeded boxes on both grids, some far wider or taller than the cap needs, give exactly the first cells of the whole listing, in its order, and whether there were more; a box forty million pixels each way, or that wide or that tall alone, answers with the cap and more (listed whole it would never answer); a box too thin for a row to be sure of a cell is still listed',
+        boxEq === '' && hugeHx.cells.length === 400 && hugeHx.more === true && hugeSq.cells.length === 7 && hugeSq.more === true && j(hugeSq.cells) === j([0, 1, 2, 3, 4, 5, 6].map(r => ({ c: 0, r }))) && wideHx.cells.length === 400 && wideHx.more === true && tallSq.cells.length === 400 && tallSq.more === true && tallSq.cells.every(c => c.c === 0)
+        && thinHx.more === true && thinHx.cells.length === 400, boxEq || j([hugeHx.cells.length, hugeSq.cells, wideHx.cells.length, tallSq.cells.length, thinHx.cells.length]));
     const capd = B.hexCellsInBox(hx, 100, 60, 200, 120, 5), big = B.hexCellsInBox(hx, 0, 0, 3000, 3000);
     check('the cap: cap 5 gives the first 5 cells and more true; the default 400 on a box of thousands; a cap that is none reads 400',
         capd.cells.length === 5 && capd.more === true && j(capd.cells) === j(dedup.slice(0, 5)) && big.cells.length === 400 && big.more === true && B.hexCellsInBox(hx, 0, 0, 3000, 3000, 'x').cells.length === 400 && B.hexCellsInBox(hx, 0, 0, 3000, 3000, 0).cells.length === 400 && B.hexCellsInBox(hx, 0, 0, 3000, 3000, 2.7).cells.length === 2);
@@ -237,22 +263,34 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         && j(B.corridor(sq, 130, 120, 160, 410, 2)) === j({ x: 100, y: 100, w: 100, h: 350 }) && j(B.corridor(sq, 130, 120, 100, 410, 2)) === j({ x: 50, y: 100, w: 100, h: 350 }) && j(B.corridor(sq, 130, 120, 130, 410, 2)) === j({ x: 100, y: 100, w: 100, h: 350 })
         && B.corridor(sq, NaN, 0, 10, 10, 1) === null && B.corridor(sq, 0, 0, 10, Infinity, 1) === null && B.corridor(null, 0, 0, 10, 10, 1) === null && B.corridor({ type: 'tri' }, 0, 0, 10, 10, 1) === null);
     const hexRun = (sx, sy, ex, ey, w) => B.corridor(hx, sx, sy, ex, ey, w);
-    const hexProp2 = (() => { for (let i = 0; i < 60; i++) { const sx = ri(-800, 800), sy = ri(-800, 800), ex = ri(-800, 800), ey = ri(-800, 800), one = hexRun(sx, sy, ex, ey, 1), two = hexRun(sx, sy, ex, ey, 2);
-        if (!one || one.more || one.cells.length < 1 || j(one.cells[0]) !== j(F.cellOf(sx, sy, hx)) || j(one.cells[one.cells.length - 1]) !== j(F.cellOf(ex, ey, hx))) return 'ends ' + j([sx, sy, ex, ey, one]);
+    const keyH = c => F.cellKey(c, hx), perCol = cells => { const m = new Map(); cells.forEach(c => m.set(c.q, (m.get(c.q) || 0) + 1)); return [...m.values()]; };
+    // the side a run leans to and a band grows on: down, or right when the run is level (a point: right); every sample is moved a hair that way
+    const lean = (sx, sy, ex, ey) => { let nx = -(ey - sy), ny = ex - sx; if (ny < 0 || (ny === 0 && nx < 0)) { nx = -nx; ny = -ny; } if (!nx && !ny) nx = 1; const l = Math.hypot(nx, ny); return [nx / l, ny / l]; };
+    const hexProp2 = (() => { for (let i = 0; i < 60; i++) { const sx = ri(-800, 800), sy = ri(-800, 800), ex = ri(-800, 800), ey = ri(-800, 800), one = hexRun(sx, sy, ex, ey, 1), two = hexRun(sx, sy, ex, ey, 2), [nx, ny] = lean(sx, sy, ex, ey), e = hx.s * 1e-6;
+        if (!one || one.more || one.cells.length < 1 || j(one.cells[0]) !== j(F.cellOf(sx + nx * e, sy + ny * e, hx)) || j(one.cells[one.cells.length - 1]) !== j(F.cellOf(ex + nx * e, ey + ny * e, hx))) return 'ends ' + j([sx, sy, ex, ey, one]);
         for (let k = 1; k < one.cells.length; k++) if (F.hexDist(one.cells[k - 1], one.cells[k]) !== 1) return 'step ' + j([sx, sy, ex, ey, one.cells[k - 1], one.cells[k]]);
-        const ks = new Set(one.cells.map(c => F.cellKey(c, hx))); if (ks.size !== one.cells.length) return 'twice ' + j(one);
-        const k2 = new Set(two.cells.map(c => F.cellKey(c, hx))); if (k2.size !== two.cells.length || two.cells.length <= one.cells.length || two.cells.length > 2 * one.cells.length || !one.cells.every(c => k2.has(F.cellKey(c, hx)))) return 'width 2 ' + j([sx, sy, ex, ey, one.cells.length, two.cells.length]);
-        const added = two.cells.slice(one.cells.length); if (!added.every(c => one.cells.some(o => F.hexDist(o, c) === 1))) return 'width 2 neighbours ' + j([sx, sy, ex, ey]);
-        const nx0 = -(ey - sy), ny0 = ex - sx, flip = ny0 < 0 || (ny0 === 0 && nx0 < 0) ? -1 : 1, nx = nx0 * flip, ny = ny0 * flip;   // the side the band grows on: down, or right when level
+        const ks = new Set(one.cells.map(keyH)); if (ks.size !== one.cells.length) return 'twice ' + j(one);
+        const k2 = new Set(two.cells.map(keyH)); if (two.more || k2.size !== two.cells.length || two.cells.length <= one.cells.length || two.cells.length > 2 * one.cells.length || !one.cells.every(c => k2.has(keyH(c)))) return 'width 2 ' + j([sx, sy, ex, ey, one.cells.length, two.cells.length]);
+        if (j(two.cells[0]) !== j(one.cells[0]) || j(two.cells.filter(c => ks.has(keyH(c)))) !== j(one.cells)) return 'width 2 order ' + j([sx, sy, ex, ey]);   // the run's own cells in the run's order, each before its neighbour
+        const added = two.cells.filter(c => !ks.has(keyH(c)));
         if (!added.every(c => { const p = F.cellCenter(c, hx); return one.cells.some(o => { const q = F.cellCenter(o, hx); return F.hexDist(o, c) === 1 && (p.x - q.x) * nx + (p.y - q.y) * ny > 0; }); })) return 'width 2 side ' + j([sx, sy, ex, ey]); } return ''; })();
-    check('corridor hex (60 seeded segments): a straight run from the press cell to the release cell, each consecutive pair at hexDist 1, each cell once; width 2 holds every cell of width 1 and adds (at most as many again) only neighbours of the run on its lower side — its right side when it runs up or down', hexProp2 === '', hexProp2);
-    const axisRun = hexRun(15, 0, 15, 520, 1), axisTwo = hexRun(15, 0, 15, 520, 2), flat = hexRun(15, 10, 465, 10, 2), flatOne = hexRun(15, 10, 465, 10, 1);
+    check('corridor hex (60 seeded segments): a straight run from the press cell to the release cell (each end read a hair toward the run\'s lower side), each consecutive pair at hexDist 1, each cell once; width 2 holds every cell of width 1 in the run\'s order and adds (at most as many again) only neighbours of the run on its lower side — its right side when it runs up or down', hexProp2 === '', hexProp2);
+    const axisRun = hexRun(15, 0, 15, 520, 1), axisTwo = hexRun(15, 0, 15, 520, 2), flat2 = hexRun(15, 10, 465, 10, 2), flatOne = hexRun(15, 10, 465, 10, 1), flatKeys = new Set(flatOne.cells.map(keyH));
     check('corridor hex along a lattice axis: a run down one column is that column\'s 11 cells, and two wide is exactly that column and the next to its right (22 cells); a level run (a zigzag through the half-offset columns) two wide adds each cell\'s neighbour below; the same band from either end',
-        axisRun.cells.length === 11 && axisRun.cells.every(c => c.q === 0) && axisTwo.cells.length === 22 && axisTwo.cells.every(c => c.q === 0 || c.q === 1) && axisTwo.cells.filter(c => c.q === 1).length === 11 && j(hexRun(15, 520, 15, 0, 2).cells.map(c => F.cellKey(c, hx)).sort()) === j(axisTwo.cells.map(c => F.cellKey(c, hx)).sort())
-        && flat.cells.length === 2 * flatOne.cells.length && flat.cells.slice(flatOne.cells.length).every(c => { const p = F.cellCenter(c, hx); return flatOne.cells.some(o => { const q = F.cellCenter(o, hx); return F.hexDist(o, c) === 1 && p.y > q.y; }); }), j([axisRun.cells.length, axisTwo.cells.length, flatOne.cells.length, flat.cells.length]));
-    const longHex = hexRun(0, 0, 60000, 0, 1), lhDense = hexRun(0, 0, 60000, 0, 2);
-    check('corridor hex cap: a segment of thousands of cells gives 400 and more true, at either width; a point gives its one cell, two wide its cell and the one to its right', longHex.cells.length === 400 && longHex.more === true && lhDense.cells.length === 400 && lhDense.more === true && j(hexRun(100, 100, 100, 100, 1)) === j({ cells: [F.cellOf(100, 100, hx)], more: false })
-        && j(hexRun(105, 104, 105, 104, 2)) === j({ cells: [{ q: 2, r: 1 }, { q: 3, r: 1 }], more: false }), j([longHex.cells.length, lhDense.cells.length, hexRun(100, 100, 100, 100, 2)]));
+        axisRun.cells.length === 11 && axisRun.cells.every(c => c.q === 0) && axisTwo.cells.length === 22 && axisTwo.cells.every(c => c.q === 0 || c.q === 1) && axisTwo.cells.filter(c => c.q === 1).length === 11 && j(hexRun(15, 520, 15, 0, 2).cells.map(keyH).sort()) === j(axisTwo.cells.map(keyH).sort())
+        && flat2.cells.length === 2 * flatOne.cells.length && flat2.cells.filter(c => !flatKeys.has(keyH(c))).every(c => { const p = F.cellCenter(c, hx); return flatOne.cells.some(o => { const q = F.cellCenter(o, hx); return F.hexDist(o, c) === 1 && p.y > q.y; }); })
+        && j(hexRun(465, 10, 15, 10, 2).cells.map(keyH).sort()) === j(flat2.cells.map(keyH).sort()), j([axisRun.cells.length, axisTwo.cells.length, flatOne.cells.length, flat2.cells.length]));
+    // the review of fold B1a: a level run through cell centres rides the edge the two cells of every other column share; the rounding took one, the
+    // other or both from sample to sample, so a corridor one wide was two wide in every other column
+    const tie1 = hexRun(15, 0, 4015, 0, 1), tie2 = hexRun(15, 0, 4015, 0, 2), tieBack = hexRun(4015, 0, 15, 0, 1), tieUp = hexRun(15, 52, 4015, 52, 1), slope = hexRun(15, 0, 15 + 45 * 40, 26 * 40, 1);
+    check('corridor hex on a shared edge: a level run through cell centres takes ONE cell a column, the lower one where it rides an edge (centres at y 0 and y 26 only), 90 cells for 90 columns and the same cells from either end; a row lower alike; a run along the other lattice direction through centres one cell a column too; two wide is two cells in every column',
+        tie1.cells.length === 90 && perCol(tie1.cells).every(n => n === 1) && tie1.cells.every(c => { const y = F.cellCenter(c, hx).y; return y === 0 || y === 26; }) && j(tieBack.cells.map(keyH).sort()) === j(tie1.cells.map(keyH).sort())
+        && tieUp.cells.length === 90 && tieUp.cells.every(c => { const y = F.cellCenter(c, hx).y; return y === 52 || y === 78; }) && slope.cells.length === 41 && perCol(slope.cells).every(n => n === 1)
+        && tie2.cells.length === 180 && perCol(tie2.cells).every(n => n === 2) && tie2.more === false, j([tie1.cells.length, perCol(tie1.cells).filter(n => n !== 1).length, tieUp.cells.length, slope.cells.length, tie2.cells.length]));
+    const longHex = hexRun(0, 0, 60000, 0, 1), lhDense = hexRun(0, 0, 60000, 0, 2), half = hexRun(15, 0, 9015, 0, 2);
+    check('corridor hex cap: a segment of thousands of cells gives 400 and more true, at either width; a two-wide corridor cut at the cap is two wide for all of its kept length (two cells in each of 200 columns, whether the run alone passed the cap or only the pair did); a point gives its one cell, two wide its cell and the one to its right',
+        longHex.cells.length === 400 && longHex.more === true && lhDense.cells.length === 400 && lhDense.more === true && perCol(lhDense.cells).length === 200 && perCol(lhDense.cells).every(n => n === 2) && half.cells.length === 400 && half.more === true && perCol(half.cells).length === 200 && perCol(half.cells).every(n => n === 2)
+        && j(hexRun(100, 100, 100, 100, 1)) === j({ cells: [F.cellOf(100, 100, hx)], more: false }) && j(hexRun(105, 104, 105, 104, 2)) === j({ cells: [{ q: 2, r: 1 }, { q: 3, r: 1 }], more: false }), j([longHex.cells.length, lhDense.cells.length, perCol(half.cells).length, hexRun(100, 100, 100, 100, 2)]));
 
     /* ---- snapVertex ---- */
     const vProp = (() => { for (let i = 0; i < 50; i++) { const x = ri(-900, 900) + rnd(), y = ri(-900, 900) + rnd(), v = B.snapVertex(hx, x, y), a = snapToHex(x, y, 30, 'vertex');
@@ -269,9 +307,10 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         j(tri) === j({ type: 'path', tip: 'fill', x: 10, y: 10, w: 100, h: 80, baseW: 100, baseH: 80, pts: [[0, 0], [100, 0], [50, 80]] }) && j(sqr) === j({ type: 'path', tip: 'fill', x: 0, y: 0, w: 100, h: 100, baseW: 100, baseH: 100, pts: [[0, 0], [100, 0], [100, 100], [0, 100]] })
         && j(dup.pts) === j([[0, 0], [50, 0], [50, 50]]) && j(frac) === j({ type: 'path', tip: 'fill', x: 10, y: 20.13, w: 50.5, h: 49.87, baseW: 50.5, baseH: 49.87, pts: [[0, 0], [50.5, 0], [50.5, 49.87]] }), j([tri, sqr, dup, frac]));
     const many = n => { const v = []; for (let i = 0; i < n; i++) v.push([Math.round(1000 * Math.cos(i / n * 2 * Math.PI) * 100) / 100, Math.round(1000 * Math.sin(i / n * 2 * Math.PI) * 100) / 100]); return v; };
-    check('polyItem refuses fewer than 3 distinct vertices or more than 500; 500 kept (and 500 with the closing repeat); a point that is no pair of numbers passed over; no list null; a flat extent still a pixel',
+    check('polyItem refuses fewer than 3 distinct vertices or more than 500 (whatever follows the 501st: never cut to fit); 500 kept (and 500 with the closing repeat); a point that is no pair of numbers within a million either way passed over; no list null; a shape of no area (corners in a line, there and back, under a square pixel) null, a thin one that has an area still a pixel tall, and a shape drawn the other way round a shape all the same',
         B.polyItem([[0, 0], [100, 0]]) === null && B.polyItem([[0, 0], [100, 0], [100, 0], [0, 0]]) === null && B.polyItem(many(501)) === null && B.polyItem(many(500)).pts.length === 500 && B.polyItem(many(500).concat([many(500)[0]])).pts.length === 500 && B.polyItem(many(600)) === null
-        && j(B.polyItem([[0, 0], 'x', [100, 0], [null, 5], [50, 80], [NaN, 1], [1]]).pts) === j([[0, 0], [100, 0], [50, 80]]) && B.polyItem('x') === null && B.polyItem(null) === null && B.polyItem([]) === null && B.polyItem([[0, 0], [100, 0], [50, 0]]).h === 1);
+        && j(B.polyItem([[0, 0], 'x', [100, 0], [null, 5], [50, 80], [NaN, 1], [1]]).pts) === j([[0, 0], [100, 0], [50, 80]]) && B.polyItem('x') === null && B.polyItem(null) === null && B.polyItem([]) === null && B.polyItem([[0, 0], [100, 0], [50, 0]]) === null && B.polyItem([[0, 0], [10, 0], [0, 0], [10, 0]]) === null && B.polyItem([[0, 0], [100, 0], [50, 0.01]]) === null && B.polyItem([[0, 0], [100, 0], [50, 0.5]]).h === 1
+        && B.polyItem(many(500).concat([many(500)[0], [5, 5], [6, 6], [7, 7]])) === null && B.polyItem([[0, 0], [1e308, 0], [0, 1e308]]) === null && j(B.polyItem([[0, 0], [1e7, 5], [100, 0], [-5, 1.5e6], [50, 80]]).pts) === j([[0, 0], [100, 0], [50, 80]]) && B.polyItem([[0, 0], [1e6, 0], [0, 1e6]]).w === 1e6 && j(B.polyItem([[60, 90], [110, 10], [10, 10]]).pts) === j([[50, 80], [100, 0], [0, 0]]));
     const sqG = F.squareGrid(50), segs = F.pathSegs(sqr), segs3 = F.pathSegs(tri);
     check('fogcore pathSegs closes the ring (n segments for n vertices, the last back to the first) and pathCells finds its cells on a square grid; a scaled copy (w, h over baseW, baseH) still closes',
         segs.length === 4 && segs3.length === 3 && j(segs[3]) === j([0, 100, 0, 0]) && j(segs3[2]) === j([60, 90, 10, 10]) && F.pathCells(sqr, sqG).length >= 8 && F.pathCells(tri, sqG).length >= 4 && F.pathSegs(Object.assign({}, sqr, { w: 200, h: 200 })).length === 4 && F.pathSegs(B.polyItem(many(500))).length === 500, j([segs, segs3]));
@@ -282,6 +321,14 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
     check('seatedAt: the first item of the same type whose box lies within a pixel each way and is no token (isChar / waiting), not hidden and no path; never one 2 px over or of another type; -1 for none, no list or no piece',
         B.seatedAt(items, { type: 'rect', x: 100, y: 50, w: 50, h: 50 }) === 8 && B.seatedAt(items.slice(0, 8), { type: 'rect', x: 100, y: 50, w: 50, h: 50 }) === -1 && B.seatedAt(items, { type: 'hexagon', x: 100, y: 50, w: 50, h: 50 }) === 4 && B.seatedAt(items, { type: 'rect', x: 100, y: 50, w: 60, h: 50 }) === -1
         && B.seatedAt(items, { type: 'path', x: 100, y: 50, w: 50, h: 50 }) === -1 && B.seatedAt([], { type: 'rect', x: 0, y: 0, w: 1, h: 1 }) === -1 && B.seatedAt(null, { type: 'rect' }) === -1 && B.seatedAt(items, null) === -1 && B.seatedAt(items, { type: 'rect', x: 'x', y: 50, w: 50, h: 50 }) === -1);
+    // the review of fold B1a: the Build tool overwrites the colour, layer, name, texture and wall keys of the piece it finds seated, so only a
+    // PLAIN piece may be found: never a locked or turned one, nor one with a purpose of its own
+    const spOne = extra => [Object.assign({ type: 'rect', x: 0, y: 0, w: 50, h: 50 }, extra)], spPiece = { type: 'rect', x: 0, y: 0, w: 50, h: 50 };
+    const spNo = [{ locked: true }, { rot: 45 }, { rot: -90 }, { rot: 0.5 }, { barrier: true }, { fogged: true }, { targetMapId: 'm2' }, { nodeId: 'r1' }, { nulls: ['s1'] }, { smoke: true }, { fogHand: 'hide' }, { fogHand: 'show' }, { page: 'p1' }, { gmNoteFor: 't1' }].map(e => B.seatedAt(spOne(e), spPiece));
+    const spYes = [{}, { rot: 0 }, { rot: 360 }, { rot: -720 }, { rot: 'x' }, { barrier: 'yes' }, { smoke: 1 }, { fill: true }, { texture: 'bricks', blocksSight: true, sightType: 'wall' }, { terrain: 2 }, { cover: 'yes' }, { height: 2 }, { ground: 1 }, { layer: 'front' }, { name: 'Floor' }].map(e => B.seatedAt(spOne(e), spPiece));
+    check('seatedAt re-lays only a plain piece: one that is locked, turned (by any angle that is no whole turn), a see-through barrier, a play area, a portal by its own key or its node\'s, a null area, smoke, marked for the fog, pinned to a page or a GM note card is never found; a painted cell, a built wall, a piece with terrain, cover, a height, a ground or another layer, and one turned by nothing or a whole turn, are; a piece with no type finds nothing, even an item with none',
+        spNo.every(v => v === -1) && spYes.every(v => v === 0) && B.seatedAt([{ x: 0, y: 0, w: 1, h: 1 }], { x: 0, y: 0, w: 1, h: 1 }) === -1 && B.seatedAt(spOne({}), { type: 7, x: 0, y: 0, w: 50, h: 50 }) === -1
+        && B.seatedAt([spOne({ locked: true })[0], spOne({})[0]], spPiece) === 1, j([spNo, spYes]));
 
     /* ---- the module itself ---- */
     check('buildcore\'s header: what it is, no state no DOM, run by tools/buildcheck.js under Node, the owner\'s decisions of 2026-10-01; what it publishes on window is what it exports',

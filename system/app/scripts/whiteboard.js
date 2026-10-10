@@ -367,6 +367,38 @@ function resolveImg(src) {
     return out === src ? picRef(src) : out;   // unchanged (the GM, solo or hosting; a bundled asset): the app's own pictures only — a web address from a file never loads
 }
 // [sinkcheck:resolveimg-end]
+// [sinkcheck:picfill-start]
+// The map builder (fold B3): a piece's fill may be one of the campaign's own pictures (texSrc, with texTile for the size of one repeat). It is
+// read here and nowhere else at the draw: the path through fogcore cleanTexSrc (a plain path under saves/images, never a web address),
+// resolved as every picture of the board is (resolveImg: on a player's app the bytes the host sent, asked for once), and handed to buildcore,
+// which alone writes it as a css url or an svg attribute. null for a piece that wears none, for a token and for a kind of piece that takes
+// no texture
+function wbPicFill(item) {
+    var FC = window.wpFogCore, BC = window.wpBuildCore;
+    if (!item || !FC || !BC || typeof FC.cleanTexSrc !== 'function' || typeof BC.picStyle !== 'function' || item.isChar || item.waiting) return null;
+    var box = item.type === 'rect' || item.type === 'circle' || item.type === 'hexagon' || item.type === 'diamond';
+    if (!box && !(item.type === 'path' && item.tip === 'fill')) return null;
+    var src = FC.cleanTexSrc(item.texSrc); if (!src) return null;
+    var url = resolveImg(src); if (typeof url !== 'string' || !url) return null;
+    return { src: src, url: url, tile: FC.cleanTexTile(item.texTile) || 1, box: box };
+}
+// A filled region's picture: an svg pattern in the path's own defs (buildcore picPattern), built again only when its picture, its tile, its
+// place, its size or its colour changes. True when the region wears its picture
+function wbPicPath(svg, pathEl, item, bw, bh, col) {
+    var pf = wbPicFill(item), BC = window.wpBuildCore; if (!pf || pf.box || !svg || !pathEl) return false;
+    var key = 'pic|' + pf.src + '|' + pf.tile + '|' + item.x + '|' + item.y + '|' + (item.w || 0) + '|' + (item.h || 0) + '|' + bw + '|' + bh + '|' + col + '|' + (pf.url.length <= 256 ? pf.url : pf.url.length + '|' + pf.url.slice(0, 64) + pf.url.slice(-64)), defs = svg.querySelector(':scope > defs');
+    if (!defs || svg.dataset.texKey !== key) {
+        if (defs) defs.remove();
+        var pat = BC.picPattern(document, pf.url, pf.tile, item.x, item.y, item.w || bw, item.h || bh, col, ++_texSerial);
+        if (!pat) { delete svg.dataset.texKey; delete svg.dataset.texId; return false; }
+        pat.setAttribute('patternTransform', 'scale(' + (bw / (item.w || bw)) + ' ' + (bh / (item.h || bh)) + ')');
+        defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs'); defs.appendChild(pat); svg.insertBefore(defs, svg.firstChild);
+        svg.dataset.texKey = key; svg.dataset.texId = pat.getAttribute('id');
+    }
+    pathEl.setAttribute('fill', 'url(#' + svg.dataset.texId + ')'); if (pathEl.style.fill) pathEl.style.fill = '';
+    return true;
+}
+// [sinkcheck:picfill-end]
 function fixEmbeddedImgs(el) {
     if (!(window.wpNet && window.wpNet.active && window.wpNet.role === 'client')) return;
     el.querySelectorAll('img').forEach(function(im) {
@@ -783,16 +815,19 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
           // The map builder (fold B1): a piece's texture is a name of the app's own list (buildcore.js), drawn over its colour as a repeating tile
           // seated on the board's lattice, so pieces side by side read as one surface. On a box shape that is no token. A filled region's is drawn
           // in its own svg below. Anything else (no name, a name the list lacks, another kind of piece) leaves the piece exactly as it was drawn above
-          var BCt = window.wpBuildCore, texN = BCt && BCt.cleanTexture ? BCt.cleanTexture(item.texture) : null;
-          var texBox = texN && (item.type === 'rect' || item.type === 'circle' || item.type === 'hexagon' || item.type === 'diamond') && !item.isChar && !item.waiting ? BCt.texStyle(texN, item.x, item.y) : null;
+          var picT = typeof wbPicFill === 'function' ? wbPicFill(item) : null, picBox = picT && picT.box ? window.wpBuildCore.picStyle(picT.url, picT.tile, item.x, item.y) : null;   // fold B3: one of the campaign's own pictures comes before any pattern
+          var BCt = window.wpBuildCore, texN = picBox ? null : (BCt && BCt.cleanTexture ? BCt.cleanTexture(item.texture) : null);   // a picture that cannot be drawn leaves the pattern the piece also names
+          var texBox = picBox || (texN && (item.type === 'rect' || item.type === 'circle' || item.type === 'hexagon' || item.type === 'diamond') && !item.isChar && !item.waiting ? BCt.texStyle(texN, item.x, item.y) : null);
           if (texBox) {   // each written only where it differs: the tile's address is long, and a map may hold thousands of textured cells
               if (el.style.backgroundImage !== texBox.image) el.style.backgroundImage = texBox.image;
               if (el.style.backgroundSize !== texBox.size) el.style.backgroundSize = texBox.size;
               if (el.style.backgroundPosition !== texBox.position) el.style.backgroundPosition = texBox.position;
-              el.dataset.tex = texN;
+              if ((el.style.backgroundRepeat || '') !== (texBox.repeat || '')) el.style.backgroundRepeat = texBox.repeat || '';   // a picture stretched over the whole piece does not repeat
+              el.dataset.tex = picBox ? 'pic' : texN;
+              if (picBox) el.dataset.pic = picBox.mark; else if (el.dataset.pic) delete el.dataset.pic;
           }
-          else if (el.dataset.tex) { el.style.backgroundImage = ''; el.style.backgroundSize = ''; el.style.backgroundPosition = ''; delete el.dataset.tex; }
-          el.classList.toggle('wb-tex', !!texBox || !!(texN && item.type === 'path' && item.tip === 'fill'));
+          else if (el.dataset.tex) { el.style.backgroundImage = ''; el.style.backgroundSize = ''; el.style.backgroundPosition = ''; if (el.style.backgroundRepeat) el.style.backgroundRepeat = ''; delete el.dataset.tex; delete el.dataset.pic; }
+          el.classList.toggle('wb-tex', !!texBox || !!(texN && item.type === 'path' && item.tip === 'fill') || !!(picT && !picT.box));
           // [sinkcheck:texstyle-end]
 
           // Text boxes: the color swatch is the text color, not a fill; the box
@@ -1037,7 +1072,8 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
               // The map builder (fold B1): a filled region's texture is an svg pattern in the path's own defs, built by createElementNS only (buildcore
               // texPattern), seated on the board's lattice and scaled back by the box over its base size (the svg's viewBox is stretched to the box). It
               // is built again only when its place, size, name or colour changes. An untextured path keeps no defs and its plain fill
-              var BCp = window.wpBuildCore, texP = _sp.fill && BCp && BCp.cleanTexture ? BCp.cleanTexture(item.texture) : null, defsP = svg.querySelector(':scope > defs');
+              var picDone = _sp.fill && typeof wbPicPath === 'function' ? wbPicPath(svg, pathEl, item, bw, bh, _col) : false;   // fold B3: a picture fills the region, with a pattern of its own in the same defs
+              var BCp = window.wpBuildCore, texP = !picDone && _sp.fill && BCp && BCp.cleanTexture ? BCp.cleanTexture(item.texture) : null, defsP = svg.querySelector(':scope > defs');
               if (texP) {
                   var texKey = texP + '|' + item.x + '|' + item.y + '|' + (item.w || 0) + '|' + (item.h || 0) + '|' + bw + '|' + bh + '|' + _col;
                   if (!defsP || svg.dataset.texKey !== texKey) {
@@ -1050,7 +1086,7 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
                       } else { delete svg.dataset.texKey; delete svg.dataset.texId; }
                   }
                   if (svg.dataset.texId) { pathEl.setAttribute('fill', 'url(#' + svg.dataset.texId + ')'); if (pathEl.style.fill) pathEl.style.fill = ''; }   // a colour set live on the path would hide the pattern
-              } else if (defsP) { defsP.remove(); delete svg.dataset.texKey; delete svg.dataset.texId; }
+              } else if (defsP && !picDone) { defsP.remove(); delete svg.dataset.texKey; delete svg.dataset.texId; }
               // [sinkcheck:texpath-end]
 
           }
@@ -4650,7 +4686,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
           Object.keys(camp.items || {}).forEach(function(id) {
               var it = camp.items[id]; if (!it || typeof it !== 'object') return;
               if (!titles[id]) titles[id] = { title: (it.meta && it.meta.title) || id, campId: cid, camp: camp.name || cid };
-              list(it.whiteboard).forEach(function(w) { if (w) { add(w.src, cid); if (w.frame && typeof w.frame === 'object') add(w.frame.src, cid); } });   // a token's kept original (the token creator) is the campaign's too
+              list(it.whiteboard).forEach(function(w) { if (w) { add(w.src, cid); add(w.texSrc, cid); if (w.frame && typeof w.frame === 'object') add(w.frame.src, cid); } });   // a token's kept original (the token creator) is the campaign's too
               list(it.rooms).forEach(function(r) { if (!r) return; add(r.image, cid); list(r.characters).forEach(function(ch) { if (ch) add(ch.portrait, cid); }); });
               list(it.blocks).forEach(function(b) { if (b) add(b.src, cid); });
           });
@@ -4785,7 +4821,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       Object.values(state.appState.campaigns || {}).forEach(function(camp) {
           Object.values(camp.items || {}).forEach(function(it) {
               var name = (it.meta && it.meta.title) || it.id;
-              (it.whiteboard || []).forEach(function(w) { if (w && (hit(w.src) || (w.frame && typeof w.frame === 'object' && hit(w.frame.src)))) { n++; maps[name] = 1; } });
+              (it.whiteboard || []).forEach(function(w) { if (w && (hit(w.src) || hit(w.texSrc) || (w.frame && typeof w.frame === 'object' && hit(w.frame.src)))) { n++; maps[name] = 1; } });
               (it.rooms || []).forEach(function(r) { if (hit(r.image)) { n++; maps[name] = 1; } (r.characters || []).forEach(function(ch) { if (hit(ch.portrait)) { n++; maps[name] = 1; } }); });
               (it.blocks || []).forEach(function(b) { if (b && hit(b.src)) { n++; maps[name] = 1; } });
           });

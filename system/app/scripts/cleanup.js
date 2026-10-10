@@ -653,6 +653,7 @@ function cleanImportItems(ic, deps) {
             if (w.height !== undefined) { var HT = FC && typeof FC.cleanHeight === 'function' ? FC.cleanHeight(w.height) : null; if (HT) w.height = HT; else delete w.height; }   // item 19 H1: a piece's height in yards
             if (w.ground !== undefined) { var GR = FC && typeof FC.cleanGround === 'function' ? FC.cleanGround(w.ground) : null; if (GR) w.ground = GR; else delete w.ground; }   // item 19b H5: a piece's ground height in yards (a pit below 0)
             if (w.texture !== undefined) { var TX = FC && typeof FC.cleanTexture === 'function' ? FC.cleanTexture(w.texture) : null; if (TX) w.texture = TX; else delete w.texture; }   // map builder B1: a texture only as a name of the app's own list
+            if (w.texSrc !== undefined || w.texTile !== undefined) { var TS = FC && typeof FC.cleanTexSrc === 'function' ? FC.cleanTexSrc(w.texSrc) : null, TT = TS && typeof FC.cleanTexTile === 'function' ? FC.cleanTexTile(w.texTile) : null; if (TS) w.texSrc = TS; else delete w.texSrc; if (TT) w.texTile = TT; else delete w.texTile; }   // map builder B3: a picture fill only as a plain path under saves/images and a known tile, none without the cleaners
             delete w.fxb;   // conditions C1: a token's effects as the table sees them are worked out by a host, never a file's
             if (w.fx !== undefined) { var TF = FC && typeof FC.cleanTokFx === 'function' ? FC.cleanTokFx(w.fx) : null; if (TF) w.fx = TF; else delete w.fx; }   // conditions C2: a token's own effects
         });

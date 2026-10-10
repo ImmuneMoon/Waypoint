@@ -175,6 +175,56 @@ function penPreset(matId, ov) {
     return { strokeWidth: 6, tip: 'square', color: hexColor(o.color) || m.color, layer: 'back-mid', name: m.name, blocksSight: true, sightType: door ? 'door' : 'wall' };
 }
 
+/* ---------- one of the campaign's own pictures as a fill (fold B3) ---------- */
+// The address handed in is what the board resolved for a piece's texSrc: the app's own path, or on a player's app the blob or data address
+// of the bytes the host sent. It reaches a style or an attribute only as picUrl gives it: a path percent-encoded (a file's name may hold a
+// space, a bracket or a quote mark), a blob or data address only when it holds nothing that could end a css url(). Anything else is no
+// address, and the piece shows its colour. One repeat is PIC_CELL px a cell on every map, the lattice the code-drawn patterns use
+var PIC_CELL = 50;
+function picUrl(u) {
+    if (typeof u !== 'string' || !u || u.length > 4194304) return '';
+    var out = u;
+    if (!/^(data:image\/|blob:)/i.test(u)) {
+        if (u.charAt(0) !== '/' || u.charAt(1) === '/') return '';   // the app's own path only: never a scheme, never a host of its own
+        try { out = encodeURI(u).replace(/[()']/g, function(c) { return '%' + c.charCodeAt(0).toString(16).toUpperCase(); }); } catch (e) { return ''; }
+    }
+    return /[\s'"()\\]/.test(out) ? '' : out;
+}
+function picTileOf(v) { return v === 2 || v === 4 || v === 'whole' ? v : 1; }
+// Where a repeat of `mark` px (a text: '50', '100', '200') sits so that its origin is the board's; 'whole' and anything else sit at the piece's own corner
+function picPos(x, y, mark) {
+    var t = typeof mark === 'string' && /^[1-9][0-9]{1,3}$/.test(mark) ? Number(mark) : 0; if (!t) return '0px 0px';
+    return px(mod(x, t)) + ' ' + px(mod(y, t));
+}
+// A box shape's picture as its background: { image, size, position, repeat, mark } or null where the address is none
+function picStyle(u, tile, x, y) {
+    var url = picUrl(u); if (!url) return null;
+    var tl = picTileOf(tile), img = 'url("' + url + '")';
+    if (tl === 'whole') return { image: img, size: '100% 100%', position: '0px 0px', repeat: 'no-repeat', mark: 'whole' };
+    var t = tl * PIC_CELL;
+    return { image: img, size: t + 'px ' + t + 'px', position: picPos(x, y, String(t)), repeat: '', mark: String(t) };
+}
+// The same picture as an SVG <pattern> for a filled region, built with createElementNS only. w and h: the region's box as drawn, which
+// 'whole' stretches the picture over once (the pattern is then marked data-whole and sits at the region's own corner)
+function picPattern(doc, u, tile, x, y, w, h, color, serial) {
+    if (!doc || typeof doc.createElementNS !== 'function') return null;
+    var url = picUrl(u); if (!url) return null;
+    var tl = picTileOf(tile), whole = tl === 'whole', tw = whole ? (fin(w) && w > 0 ? w : 0) : tl * PIC_CELL, th = whole ? (fin(h) && h > 0 ? h : 0) : tl * PIC_CELL; if (!(tw > 0 && th > 0)) return null;
+    var sn = fin(serial) && serial >= 0 && Math.floor(serial) === serial ? serial : 0, p = doc.createElementNS(SVG_NS, 'pattern');
+    p.setAttribute('id', 'wptex' + sn);
+    p.setAttribute('patternUnits', 'userSpaceOnUse');
+    p.setAttribute('width', String(tw)); p.setAttribute('height', String(th));
+    p.setAttribute('x', whole ? '0' : String(-mod(x, tw))); p.setAttribute('y', whole ? '0' : String(-mod(y, th)));
+    if (whole) p.setAttribute('data-whole', '1');
+    var r = doc.createElementNS(SVG_NS, 'rect');
+    r.setAttribute('width', String(tw)); r.setAttribute('height', String(th)); r.setAttribute('fill', cssColor(color, 'transparent'));
+    p.appendChild(r);
+    var im = doc.createElementNS(SVG_NS, 'image');
+    im.setAttribute('href', url); im.setAttribute('width', String(tw)); im.setAttribute('height', String(th)); im.setAttribute('preserveAspectRatio', 'none');
+    p.appendChild(im);
+    return p;
+}
+
 /* ---------- lattice maths (grid descriptors as fogcore builds them: { type: 'square', size } or { type: 'hex', s, h }) ---------- */
 function squareOk(grid) { return isObj(grid) && grid.type === 'square' && fin(grid.size) && grid.size > 0; }
 function hexOk(grid) { return isObj(grid) && grid.type === 'hex' && fin(grid.s) && grid.s > 0 && fin(grid.h) && grid.h > 0; }
@@ -525,6 +575,6 @@ function wallLine(pts) {
     return lineOf(pts);
 }
 
-var API = { VERSION: VERSION, TEXTURES: TEXTURES, cleanTexture: cleanTexture, TEX: TEX, TEX_CSS: TEX_CSS, texStyle: texStyle, texPos: texPos, texPattern: texPattern, MATERIALS: MATERIALS, MATERIAL_IDS: MATERIAL_IDS, cleanMaterial: cleanMaterial, pieceProps: pieceProps, penPreset: penPreset, snapBox: snapBox, hexCellBox: hexCellBox, hexCellsInBox: hexCellsInBox, corridor: corridor, snapVertex: snapVertex, polyItem: polyItem, seatedAt: seatedAt, floorOk: floorOk, outlineWalls: outlineWalls, corridorWalls: corridorWalls, wallLine: wallLine };
+var API = { VERSION: VERSION, TEXTURES: TEXTURES, cleanTexture: cleanTexture, TEX: TEX, TEX_CSS: TEX_CSS, texStyle: texStyle, texPos: texPos, texPattern: texPattern, PIC_CELL: PIC_CELL, picUrl: picUrl, picPos: picPos, picStyle: picStyle, picPattern: picPattern, MATERIALS: MATERIALS, MATERIAL_IDS: MATERIAL_IDS, cleanMaterial: cleanMaterial, pieceProps: pieceProps, penPreset: penPreset, snapBox: snapBox, hexCellBox: hexCellBox, hexCellsInBox: hexCellsInBox, corridor: corridor, snapVertex: snapVertex, polyItem: polyItem, seatedAt: seatedAt, floorOk: floorOk, outlineWalls: outlineWalls, corridorWalls: corridorWalls, wallLine: wallLine };
 if (typeof window !== 'undefined') window.wpBuildCore = API;
-export { VERSION, TEXTURES, cleanTexture, TEX, TEX_CSS, texStyle, texPos, texPattern, MATERIALS, MATERIAL_IDS, cleanMaterial, pieceProps, penPreset, snapBox, hexCellBox, hexCellsInBox, corridor, snapVertex, polyItem, seatedAt, floorOk, outlineWalls, corridorWalls, wallLine };
+export { VERSION, TEXTURES, cleanTexture, TEX, TEX_CSS, texStyle, texPos, texPattern, PIC_CELL, picUrl, picPos, picStyle, picPattern, MATERIALS, MATERIAL_IDS, cleanMaterial, pieceProps, penPreset, snapBox, hexCellBox, hexCellsInBox, corridor, snapVertex, polyItem, seatedAt, floorOk, outlineWalls, corridorWalls, wallLine };

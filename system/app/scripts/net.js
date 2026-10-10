@@ -5994,6 +5994,7 @@ function handleMessage(msg, conn) {
             if (!rF || !rF.ok) { ansU({ reason: 'unread' }); return; }
             var leftF = rF.left + (typeof fillF.lost === 'number' && isFinite(fillF.lost) ? Math.max(0, fillF.lost | 0) : 0);   // rows the file named and nothing here could place (read on the players' view: no oracle)
             chU.values = rF.values; chU.updated = nowU;
+            if (rF.looks) chU.looks = rF.looks; else delete chU.looks;   // item 35: the looks after the fill, cleaned against the values as kept (a text the fill changed has lost its old look)
             if (net.sendCharTo) net.sendCharTo(profU.id, qu.charId);   // theirs alone while it is made
             if (SHf && SHf.charChanged) SHf.charChanged(qu.charId);
             saveRemoteSoon();

@@ -88,6 +88,11 @@ Character sheets
   a window of its own and close. The second holds the sheet's buttons,
   with Download at its end. A name is never hidden under the list, and
   no button is pushed off the edge of a narrow sheet.
+- A styled text keeps its style in the character file and on the
+  readable page. A character filled from that file takes the style
+  too.
+- A notes box on a sheet keeps its own scroll, and the height you
+  dragged it to, while you type.
 
 Calendar
 - The game clock runs by itself while you host a session: a second of

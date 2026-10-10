@@ -575,7 +575,9 @@ function redrawForFacing(v) {   // v: a HUD's record (HUD frame HF2a), each with
         if (v) v.redraw = null; else _dialRedraw = null;
         var body = v ? v.body : ui('sheetBody'), ae = document.activeElement;
         var inStance = ae && ae.closest && ae.closest('.sheet-stance'), committed = inStance && (ae.tagName === 'SELECT' || ae.value === ae.getAttribute('data-cur'));   // the stance control's own value is already on the token
+        if (body && ae && body.contains(ae) && ae.isContentEditable === true) { ae.addEventListener('blur', function() { setTimeout(function() { redrawForFacing(v); }, 0); }, { once: true }); return; }   // item 35: a text box that has the focus is typed in too
         if (body && ae && body.contains(ae) && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) && !committed) { ae.addEventListener('blur', function() { setTimeout(function() { redrawForFacing(v); }, 0); }, { once: true }); return; }
+        if (typeof sbxHeld === 'function' && sbxHeld(body)) { sbxDefer(); return; }   // item 35: a box of this view must stay on the page for now: drawn a moment later
         if (v) { if (huds[v.charId] === v) renderHud(v.charId); } else renderSheet();
     }, 150);
     if (v) v.redraw = tmr; else _dialRedraw = tmr;
@@ -726,6 +728,7 @@ function endTurn() { var n = net(), r = n && n.turnEnd ? n.turnEnd() : { error: 
 
 /* ---------- the sheet panel ---------- */
 var sheetOpen = null, lastChange = null;
+function lastChangePeek() { return lastChange; }   // the change Revert would take back, as the sheet's text box reads it
 function canOpen(charId) {
     if (!featureOn()) return false;
     var c = charById(charId); if (!c) return false;
@@ -1240,6 +1243,7 @@ function headerBlocks(head, sys, c, all, gm, own) {
 function idnControl(f, c, e, tone) {
     var raw = c.values ? c.values[f.id] : undefined, wrap = el('span', 'sheet-hdr-val sheet-hdr-edit sheet-idn-edit'), ctl;
     var named = f.kind === 'number' && Array.isArray(f.labels) && f.labels.length;
+    if (typeof lookOnPaper === 'function' && lookOnPaper(f, c)) { var pv = el('span', 'sheet-hdr-val' + (tone || ''), String(raw)); pv.title = String(raw); lookInto(pv, f, c, raw); return pv; }   // item 35: on paper a styled text is read with its look, as the locked sheet shows it (with no look it prints as it always did)
     if (f.kind === 'text') { ctl = typeof sbxNode === 'function' ? sbxNode(f, c, false) : null; if (!ctl) { ctl = el('input', 'field sheet-text sheet-idn-input'); ctl.type = 'text'; ctl.maxLength = f.max || 200; ctl.value = raw === undefined ? String(f.def || '') : String(raw); ctl.addEventListener('change', function() { commit(c, f, ctl.value); }); } }   // item 35: its own box where the box can serve
     else if (f.kind === 'select') { ctl = el('select', 'field sheet-select sheet-idn-input'); var sv = raw === undefined ? f.def : raw; (f.options || []).forEach(function(o) { ctl.appendChild(opt(o, o, sv === o)); }); ctl.addEventListener('change', function() { commit(c, f, ctl.value); }); }
     else if (f.kind === 'toggle') { ctl = el('input', 'sheet-idn-check'); ctl.type = 'checkbox'; ctl.checked = raw === undefined ? f.def === true : raw === true; ctl.addEventListener('change', function() { commit(c, f, ctl.checked); }); }
@@ -1270,7 +1274,7 @@ function accentInk(hex) {
 // and the sheet is exactly the theme's. Re-checked here: the live panel draws the campaign's raw system, so only a whole palette of
 // plain hex colours ever reaches a style property.
 var PAL_VARS = { text: ['--ink', '--text'], muted: ['--dim', '--muted'], panel: ['--panel2', '--surface'], card: ['--sheet-card'], field: ['--panel'], edge: ['--edge', '--border'], primary: ['--sheet-primary'], danger: ['--red', '--danger'], good: ['--green'], warn: ['--sheet-warn'] };
-var PAL_ALL = ['--ink', '--text', '--dim', '--muted', '--panel2', '--surface', '--sheet-card', '--panel', '--edge', '--border', '--sheet-primary', '--sheet-primary-ink', '--red', '--danger', '--sheet-danger-ink', '--green', '--sheet-warn', '--gold', '--scroll', '--scroll-hover'];
+var PAL_ALL = ['--ink', '--text', '--dim', '--muted', '--panel2', '--surface', '--sheet-card', '--panel', '--edge', '--border', '--sheet-primary', '--sheet-primary-ink', '--red', '--danger', '--sheet-danger-ink', '--green', '--sheet-warn', '--gold', '--gold-ink', '--scroll', '--scroll-hover'];
 function paletteOf(look) {
     var HEX = /^#[0-9a-fA-F]{6}$/, pal = look && look.palette && typeof look.palette === 'object' ? look.palette : null; if (!pal) return null;
     for (var k in PAL_VARS) if (Object.prototype.hasOwnProperty.call(PAL_VARS, k) && (typeof pal[k] !== 'string' || !HEX.test(pal[k]))) return null;
@@ -1282,7 +1286,8 @@ function applyPaletteTo(node, look) {
     if (pal) {
         Object.keys(PAL_VARS).forEach(function(k) { PAL_VARS[k].forEach(function(v) { node.style.setProperty(v, pal[k]); }); });
         node.style.setProperty('--sheet-primary-ink', accentInk(pal.primary)); node.style.setProperty('--sheet-danger-ink', accentInk(pal.danger));
-        node.style.setProperty('--gold', look && typeof look.accent === 'string' && HEX.test(look.accent) ? look.accent : pal.primary);   // hover and focus borders follow the palette under either theme
+        var gold = look && typeof look.accent === 'string' && HEX.test(look.accent) ? look.accent : pal.primary;
+        node.style.setProperty('--gold', gold); node.style.setProperty('--gold-ink', accentInk(gold));   // (and the ink for words ON that fill: a button that is on wears it)   // hover and focus borders follow the palette under either theme
         var dark = accentInk(pal.panel) === '#ffffff'; node.style.colorScheme = dark ? 'dark' : 'light';
         node.style.setProperty('--scroll', dark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.18)'); node.style.setProperty('--scroll-hover', dark ? 'rgba(255,255,255,0.28)' : 'rgba(0,0,0,0.32)');
     }
@@ -1498,6 +1503,7 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
     var layout = sheet.sections || [];
     var tabs = (sheet.tabs && sheet.tabs.length) ? sheet.tabs : null;   // the auto layout has no tabs
     var byId = {}; sys.fields.forEach(function(f) { byId[f.id] = f; }); var rollById = {}; sys.rolls.forEach(function(r) { rollById[r.id] = r; });
+    if (typeof sbxKeep === 'function') sbxKeep(body, c);   // item 35: a notes block's own scroll and height, carried over this redraw
     _rfClearing = true; try { body.textContent = ''; } finally { _rfClearing = false; }   // F4c2 review: clearing blurs a focused box — its change must not commit half-typed (the form keeps it)
     _fxView = hudV ? 'hud' : 'sheet'; _lockNow = viewLocked(c, vctx);   // ...and a redraw that blur started (another view) leaves this one's view, and its lock, as they were
     if (typeof sbxView === 'function') sbxView(body, vctx);   // item 35: may this view hold text boxes
@@ -1630,7 +1636,7 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
     applyLook(body, look, vctx);   // Stage 6 look fold
     syncFramePad(body);
     if (tabs ? !tabN : !secN) { var emT = tabs ? 'Nothing on this tab yet.' : hudV ? (((sheet.band && sheet.band.length) || (sheet.ledger && sheet.ledger.length)) ? '' : 'Nothing in this view yet.') : (sys.fields.length ? 'Nothing placed on the sheet yet.' : 'The system has no fields yet. Open the System editor.'); if (emT) body.appendChild(el('div', 'sys-empty', emT)); }   // HF1: a band-only HUD shows no empty text under its chips
-    if (typeof sbxFill === 'function') sbxFill(body);   // item 35: this view's text boxes are filled now that they stand on the page
+    if (typeof sbxFill === 'function') sbxFill(body, c);   // item 35: this view's text boxes are filled now that they stand on the page
 }
 /* ---------- the Layout tab (SB4): sections, columns, placements, a live preview ---------- */
 // Stage 6 HUD frame (HF1): the Layout tab edits the sheet's layout or the HUD's (the Sheet | HUD switch). A HUD made by merely looking at
@@ -3363,7 +3369,7 @@ function commit(c, f, value) {
 // committed it, then the look through commitLook, for the text as it then stands. The box is the field's own control and takes `use`, as
 // the input did; where it cannot serve (no module, a window of its own, a preview or a print, a table whose host keeps no looks) the
 // field is drawn as it always was.
-var _sbx = { on: 0, live: false, paper: false, stale: false, drafts: Object.create(null), timers: Object.create(null) };
+var _sbx = { on: 0, live: false, paper: false, stale: false, run: '', drafts: Object.create(null), timers: Object.create(null) };
 var SBX_KEY = /^(c_[A-Za-z0-9_]{1,24}):(f_[A-Za-z0-9_]{1,24})$/, SBX_MS = 600, SBX_WAIT = 400;
 function sbxApi() { var w = typeof window !== 'undefined' ? window.wpTextBox : null; return w && typeof w.host === 'function' && typeof w.dress === 'function' && typeof w.fill === 'function' && typeof w.pending === 'function' ? w : null; }
 // The host registers once, when the first box is wanted: its roots are the sheet's panel and the HUDs' layer
@@ -3382,7 +3388,12 @@ function sbxParts(key) {
 }
 function sbxStored(c, f) { var raw = c.values ? c.values[f.id] : undefined; return raw === undefined ? (f.kind === 'text' ? String(f.def || '') : '') : String(raw); }
 function sbxFmtOf(c, f) { var r = lookOf(f, c); return r ? r.fmt : undefined; }
-function sbxCut(f, v) { v = typeof v === 'string' ? v : ''; return f.kind === 'text' ? v.replace(/[\r\n]+/g, ' ').slice(0, f.max || 200) : v.slice(0, LIMITS.notes); }   // a one-line text holds no line break and is as long as its input was
+// A draft's text is what the cleaner will store (systemcore cleanValue), so that a look made for it is a look for the stored words: a
+// one-line text holds no control character, notes none but a tab and a line break, and each is as long as its field keeps. A character
+// that goes is written as ONE space, so every other character keeps its place and the box's own spans stay where they were laid
+var SBX_CTRL = new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']', 'g');
+var SBX_CTRL_NL = new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(8) + String.fromCharCode(11) + String.fromCharCode(12) + String.fromCharCode(14) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']', 'g');
+function sbxCut(f, v) { v = typeof v === 'string' ? v : ''; return f.kind === 'text' ? v.replace(SBX_CTRL, ' ').slice(0, f.max || LIMITS.text) : v.replace(SBX_CTRL_NL, ' ').slice(0, LIMITS.notes); }
 // A field as the box reads and writes it: the draft where one is open, else what is stored
 function sbxField(key) {
     var p = sbxParts(key); if (!p) return null;
@@ -3390,14 +3401,16 @@ function sbxField(key) {
     return { ident: key + ':' + p.f.kind,
         text: function() { var d = _sbx.drafts[key]; return d ? d.text : sbxStored(p.c, p.f); },
         fmt: function() { var d = _sbx.drafts[key]; return d ? d.fmt : sbxFmtOf(p.c, p.f); },
-        setText: function(v) { open().text = sbxCut(p.f, v); },
-        setFmt: function(v) { open().fmt = v && typeof v === 'object' ? v : undefined; } };
+        // (a write that changes nothing opens no draft: a draft is committed by a timer the box arms only when it was told of a change, and one
+        // left open would hide, and later write over, a newer stored text)
+        setText: function(v) { var t = sbxCut(p.f, v); if (!_sbx.drafts[key] && t === sbxStored(p.c, p.f)) return; open().text = t; },
+        setFmt: function(v) { var g = v && typeof v === 'object' ? v : undefined; if (!_sbx.drafts[key] && JSON.stringify(g || null) === JSON.stringify(sbxFmtOf(p.c, p.f) || null)) return; open().fmt = g; } };
 }
 function sbxName(key) { var p = sbxParts(key); return p ? String(p.f.label || p.f.key || '') : ''; }
 function sbxSizes(key) { var p = sbxParts(key); return !!p && p.f.kind === 'notes'; }   // no size on a one-line text
 function sbxBarHost(box) { return box && box.closest ? box.closest('#sheetPanel, .hud-panel') : null; }
 function sbxChanged(key) { if (typeof key !== 'string' || !SBX_KEY.test(key)) return; clearTimeout(_sbx.timers[key]); _sbx.timers[key] = setTimeout(function() { sbxCommit(key); }, SBX_MS); }
-function sbxLeft(key) { if (typeof key === 'string' && SBX_KEY.test(key)) sbxCommit(key); }
+function sbxLeft(key) { if (typeof key !== 'string' || !SBX_KEY.test(key)) return; sbxCommit(key); if (_sbx.run === key) _sbx.run = ''; }   // (the run of typing ends where the box is left)
 // What was typed is committed: the text first, as the input committed it, then the look for the text as it then stands. A default that was
 // only styled is stored as it reads, since a look stands on a stored text. Should the text not be taken exactly as typed (refused, or
 // cleaned to other words), no look is laid on other words. True when something was sent on its way
@@ -3410,11 +3423,18 @@ function sbxCommit(key) {
     var had = !!p.c.values && typeof p.c.values[p.f.id] === 'string', was = sbxStored(p.c, p.f), wasFmt = sbxFmtOf(p.c, p.f);
     var textMoved = d.text !== was, lookMoved = JSON.stringify(d.fmt || null) !== JSON.stringify(wasFmt || null);
     if (!textMoved && !lookMoved) return false;
-    if (textMoved || (!had && d.fmt)) commit(p.c, p.f, d.text);
-    if (!p.c.values || p.c.values[p.f.id] !== d.text) return true;
+    var sent = false, peek = typeof lastChangePeek === 'function' ? lastChangePeek : null, lc = peek ? peek() : null, run = _sbx.run === key && !!lc && lc.charId === p.c.id && lc.fieldId === p.f.id;
+    if (textMoved || (!had && d.fmt)) {
+        commit(p.c, p.f, d.text); sent = true;
+        // one run of typing in one field is ONE change to take back: Revert brings back the words as they stood before the run, as it did
+        // when the input stored once, on leaving
+        var now = peek ? peek() : null; if (run && now && now !== lc && now.charId === p.c.id && now.fieldId === p.f.id) now.prev = lc.prev;
+        _sbx.run = key;
+    }
+    if (!p.c.values || p.c.values[p.f.id] !== d.text) return sent;
     var rec = d.fmt ? lookFor(p.f, d.text, d.fmt) : undefined;
-    if (rec) commitLook(p.c, p.f, rec); else if (wasFmt && !textMoved) commitLook(p.c, p.f, null);
-    return true;
+    if (rec) { commitLook(p.c, p.f, rec); sent = true; } else if (wasFmt && !textMoved) { commitLook(p.c, p.f, null); sent = true; }
+    return sent;
 }
 // The field's own box: an element the text box module dresses and fills. Null where the box cannot serve: the caller draws what it always drew
 function sbxNode(f, c, multi) {
@@ -3427,7 +3447,28 @@ function sbxNode(f, c, multi) {
 // The boxes of a view that was just built are filled, now that they stand under the host's root. Before the focus is put back: a field
 // drawn again takes up its typing, its selection and the bar in the new element within this one turn. And the view is built: what is drawn
 // next is no print until its own view says so
-function sbxFill(body) { _sbx.paper = false; var w = _sbx.live ? sbxApi() : null; if (!w || !body || !body.querySelectorAll) return; var bs = body.querySelectorAll('.sheet-box'); for (var i = 0; i < bs.length; i++) w.fill(bs[i]); }
+function sbxFill(body, c) {
+    _sbx.paper = false;
+    var w = _sbx.live ? sbxApi() : null; if (!body || !body.querySelectorAll) return;
+    if (w) { var bs = body.querySelectorAll('.sheet-box'); for (var i = 0; i < bs.length; i++) w.fill(bs[i]); }
+    var keep = body._sbxKeep; body._sbxKeep = null;
+    if (!keep || keep.id !== (c && typeof c.id === 'string' ? c.id : '')) return;
+    var ns = body.querySelectorAll(SBX_NOTES);
+    for (var j = 0; j < ns.length; j++) { var q = keep.map[sbxSpot(ns[j])]; if (!q) continue; if (q.h) ns[j].style.height = q.h; if (q.top) ns[j].scrollTop = q.top; }
+}
+// A notes block has a scroll and a grip of its own. Both are carried over a redraw of the same character's view, by the field and the
+// place it stands in: taken before the view is cleared, put back once its boxes are filled (a height only as a plain count of pixels)
+var SBX_NOTES = '.sheet-box.sheet-notes, .sheet-read.sheet-notes';
+function sbxSpot(n) { var d = n && n.dataset ? n.dataset : null; return d && typeof d.fid === 'string' && d.fid ? d.fid + '|' + (d.part || '') + '|' + (d.band || '') : ''; }
+function sbxKeep(body, c) {
+    if (!body || !body.querySelectorAll) return;
+    var ns = body.querySelectorAll(SBX_NOTES), map = null;
+    for (var i = 0; i < ns.length; i++) {
+        var k = sbxSpot(ns[i]), st = ns[i].style, h = st && typeof st.height === 'string' && /^\d{1,4}(\.\d{1,3})?px$/.test(st.height) ? st.height : '', top = ns[i].scrollTop > 0 ? Math.round(ns[i].scrollTop) : 0;
+        if (k && (top || h)) { if (!map) map = Object.create(null); map[k] = { top: top, h: h }; }
+    }
+    body._sbxKeep = map ? { id: c && typeof c.id === 'string' ? c.id : '', map: map } : null;
+}
 // A view is not drawn again while one of its boxes must not be taken off the page (a composition is under way in it, or a control of the
 // bar is in use for it): it is marked stale and drawn once that is over. Every other redraw goes ahead: the box takes its field up again
 // in the new element, with the caret where it was
@@ -3460,6 +3501,7 @@ function lookInto(v, f, c, shown) {
 }
 // On paper a look is read without its links: a printed page, and the file a print dialog saves, cannot ask before a link opens
 function lookPaper() { return typeof _sbx !== 'undefined' && !!_sbx && _sbx.paper === true; }
+function lookOnPaper(f, c) { return !!f && f.kind === 'text' && lookPaper() && !!lookOf(f, c); }   // a one-line text that prints with its look (the header's own control asks)
 function lookReadRule(f) { var r = lookRule(f); if (!r || !lookPaper()) return r; var o = {}, k; for (k in r) if (Object.prototype.hasOwnProperty.call(r, k)) o[k] = r[k]; o.link = false; return o; }
 // [systemcheck:sheetlook-end]
 // [systemcheck:commitlook-start]

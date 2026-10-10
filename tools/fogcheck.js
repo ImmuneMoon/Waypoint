@@ -3040,6 +3040,12 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const ct = [2, 3, 2.4, 2.6, 1.5, 1.49, 1, 0, -5, 10, 10.4, 11, 1e9, NaN, Infinity, -Infinity, '3', true, null, undefined, {}, [3]].map(v => X.cleanTerrain(v));
         check('terrain T1 cleanTerrain: a number rounded to a whole one, 2 to 10 (above 10 is 10); below 2, not finite, a string, a switch, nothing or an object is none',
             J(ct) === J([2, 3, 2, 3, 2, null, null, null, null, 10, 10, 10, 10, null, null, null, null, null, null, null, null, null]), J(ct));
+        // map builder B1: fogcore cleanTexture, the wire's and the file's cleaner, with the real buildcore beside the real fogcore (its texture names are fogcore's own)
+        const BCf = await import(url('buildcore.js')), fcS = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'fogcore.js'), 'utf8').replace(/\r\n/g, NL);
+        const ctx = ['flagstones', 'bricks', 'cobbles', 'planks', 'stone', 'hatching', 'ripples', 'grass', 'Bricks', 'bricks ', ' bricks', 'url(x)', '/saves/images/x.png', 'data:image/png;base64,AA', '__proto__', 'constructor', 'toString', '', 1, null, undefined, {}, ['bricks'], true].map(v => X.cleanTexture(v));
+        check('map builder B1 fogcore cleanTexture: the eight names themselves (the frozen TEXTURES list, buildcore\'s own eight element for element), nothing for another case, a space, a path, an address, a prototype\'s name, a number, a list, an object or a switch; both published on the window\'s copy as they are exported',
+            J(ctx) === J(['flagstones', 'bricks', 'cobbles', 'planks', 'stone', 'hatching', 'ripples', 'grass'].concat(Array(16).fill(null))) && Object.isFrozen(X.TEXTURES) && J(X.TEXTURES) === J(BCf.TEXTURES) && X.TEXTURES.length === 8
+            && /\nvar API = \{[^\n]*, TEXTURES: TEXTURES, cleanTexture: cleanTexture, [^\n]*\};\n/.test(fcS) && BCf.cleanTexture('bricks') === 'bricks' && BCf.cleanTexture('Bricks') === null, J(ctx));
         const wbS = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, NL);
         const cutM = name => { const a = wbS.indexOf('// [fogcheck:' + name + '-start]'), b = wbS.indexOf('// [fogcheck:' + name + '-end]'); return a > 0 && b > a ? wbS.slice(a, b) : ''; };
         const mkFill = st => { const env = { st, map: { whiteboard: [] }, renders: 0, n: 0 };

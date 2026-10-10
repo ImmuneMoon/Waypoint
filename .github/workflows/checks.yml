@@ -108,6 +108,9 @@ jobs:
       - name: lookcheck — the look of the play map (no control removed, the toolbar's line icons, gold for the tool in hand)
         if: ${{ !cancelled() }}
         run: node tools/lookcheck.js
+      - name: buildcheck — the map builder's pure core (code-drawn textures, materials, the lattice maths)
+        if: ${{ !cancelled() }}
+        run: node tools/buildcheck.js
       - name: updatercheck — signed updates, the way back, the core updating itself, the key tool and the core's record (run on scratch installs; nothing downloaded is ever started)
         if: ${{ !cancelled() }}
         run: node tools/updatercheck.js

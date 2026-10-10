@@ -12,7 +12,7 @@ import { getActiveCampaign, getActiveMap } from './models.js';
 import { state } from './state.js';
 import { showPrompt } from './dialogs.js';
 import { toast } from './io.js';
-import { navigateToMap, updateSidebarNav } from './sidebar.js';
+import { navigateToMap, updateSidebarNav, panelJudge } from './sidebar.js';
 
 // [lookcheck:charlist-start]
 var CHAR_NAME = 80, CHAR_ID = /^c_[A-Za-z0-9_]{1,24}$/;   // a name's length in a row (a sheet keeps a longer one); a sheet's id as the system core keeps one (systemcore CHAR_ID)
@@ -41,7 +41,7 @@ function charDraw(doc, box, model, gm, open) {
     while (box.firstChild) box.removeChild(box.firstChild);
     var el = function(tag, cls, text) { var e = doc.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.appendChild(doc.createTextNode(text)); return e; };
     var rowOf = function(r) {
-        var d = el('div', 'sidebar-item ch-row'); d.dataset.char = r.id; d.setAttribute('role', 'button'); d.setAttribute('tabindex', '0');
+        var d = el('div', 'ch-row'); d.dataset.char = r.id; d.setAttribute('role', 'button'); d.setAttribute('tabindex', '0');   // a class of its own: the tree binds its own rows by theirs (sidebar.js)
         d.appendChild(el('span', 'si-title', r.name)); if (r.who) d.appendChild(el('small', 'ch-who', r.who));
         return d;
     };
@@ -76,6 +76,13 @@ function charTokenOf(items, charId, activeId, all) {
     });
     return best;
 }
+// Whether a token of the character still waits to be placed on some map
+function charWaiting(items, charId) {
+    if (!items || typeof items !== 'object' || typeof charId !== 'string' || !charId) return false;
+    return Object.keys(items).some(function(mid) { var m = items[mid]; return !!m && m.type === 'map' && Array.isArray(m.whiteboard) && m.whiteboard.some(function(w) { return !!w && typeof w === 'object' && w.isChar === true && w.waiting === true && w.charId === charId; }); });
+}
+// What Find on the map says when it found no token to go to. A player's app holds only the map it is on
+function charNoToken(name, waiting, client) { return name + (waiting ? ' has a token that waits to be placed.' : client ? ' has no token on this map.' : ' has no token on a map.'); }
 // The rows of a character's menu, as the owner picked them: Sheet, HUD where the sheet has one, Find on the map, Delete sheet
 function charMenuRows(hud, del) {
     var rows = [{ act: 'sheet', text: 'Sheet\u2026' }];
@@ -88,9 +95,13 @@ function charNpcsRead(store) { try { return store.getItem('wp_charNpcs') === '1'
 function charNpcsKeep(store, open) { try { if (open === true) store.setItem('wp_charNpcs', '1'); else store.removeItem('wp_charNpcs'); return true; } catch (e) { return false; } }
 // [lookcheck:charlist-end]
 
+// [lookcheck:charwire-start]
 var _sig = null, _open = charNpcsRead(localStorage), _menu = null;
 function sheets() { return window.wpSheets || null; }
 function foreign() { var n = window.wpNet; return !!(n && (n.foreign || (n.active && n.role === 'client'))); }   // someone else's table on this screen, its link up or between attempts
+function linkUp() { var n = window.wpNet; return !!(n && n.active && n.role === 'client'); }   // a player's app as the sheet module knows one (sheets.js isClient)
+// Someone else's table with its link down: the sheet module would read this screen as the GM's own, so nothing of a sheet is asked of it
+function away() { if (!foreign() || linkUp()) return false; toast('You are not connected to the table right now.'); return true; }
 function namesOf(camp) {
     var out = Object.create(null), n = window.wpNet;
     if (camp && camp.players && typeof camp.players === 'object') Object.keys(camp.players).forEach(function(pid) { var p = camp.players[pid]; if (p && typeof p === 'object') out[pid] = p.name || pid; });
@@ -100,20 +111,21 @@ function namesOf(camp) {
 // The section as the campaign has it now. Put away, with its icon on the rail, where there is nothing to list for this screen: the stream
 // window, Character sheets switched off, a player with no character of their own. Answers the number of characters listed
 function sync() {
-    var box = document.getElementById('charNavList'), sec = box && box.closest ? box.closest('.sidebar-section') : null, rb = document.getElementById('railCharacters'); if (!box || !sec) return 0;
+    var box = document.getElementById('charNavList'), sec = box && box.closest ? box.closest('.sidebar-section') : null, rb = document.getElementById('railCharacters'); if (!box || !sec) { panelJudge(0); return 0; }
     var camp = getActiveCampaign(), S = sheets(), client = foreign(), n = window.wpNet, me = client ? String((n && n.myId) || '\u0000') : '';
     var on = !!camp && !!S && !window.wpStream && (!window.wpVtt || !!window.wpVtt.on('sheets'));
     var model = on ? charRowsOf(camp.chars, namesOf(camp), me) : { players: [], npcs: [] }, count = model.players.length + model.npcs.length, show = on && (!client || count > 0);
     sec.hidden = !show; if (rb) rb.hidden = !show;
     var sig = show ? charSig(model, !client, _open) : '';
     if (sig !== _sig) { _sig = sig; if (show) charDraw(document, box, model, !client, _open); else while (box.firstChild) box.removeChild(box.firstChild); }
+    panelJudge(show ? count : 0);   // what a player's panel holds is judged wherever the count is known: a character that arrives reaches only this (render)
     return show ? count : 0;
 }
-function openOf(id) { var S = sheets(); if (!S || !S.canOpen || !S.canOpen(id)) { toast('That sheet cannot be opened here.'); return; } S.openSheet(id); }
+function openOf(id) { var S = sheets(); if (away()) return; if (!S || !S.canOpen || !S.canOpen(id)) { toast('That sheet cannot be opened here.'); return; } S.openSheet(id); }
 function findOf(id) {
     var camp = getActiveCampaign(), S = sheets(), c = camp && S ? S.charById(id, camp) : null; if (!c) return;
     var hit = charTokenOf(camp.items, id, camp.activeItemId, !foreign());
-    if (!hit) { toast(charText(c.name, CHAR_NAME) + ' has no token on a map.'); return; }
+    if (!hit) { toast(charNoToken(charText(c.name, CHAR_NAME) || 'Unnamed', charWaiting(camp.items, id), foreign())); return; }
     if (!hit.tok.hidden && window.wpFocusCharacter) { window.wpFocusCharacter('i:' + hit.tok.id); return; }
     // a token the GM hid: the party's own finder passes over it, so the GM is taken there by hand
     hit.map.meta = hit.map.meta || {};
@@ -135,14 +147,15 @@ function menuFor(id, x, y) {
             var act = b.dataset.act, cid = _menu.dataset.char; menuAway();
             var S2 = sheets(); if (!S2 || !cid) return;
             if (act === 'sheet') openOf(cid);
-            else if (act === 'hud') { if (S2.hudFor(cid)) S2.openHud(cid); }
+            else if (act === 'hud') { if (!away() && S2.hudFor(cid)) S2.openHud(cid); }
             else if (act === 'find') findOf(cid);
             else if (act === 'delete') { if (S2.askDeleteSheet) S2.askDeleteSheet(cid); }
         });
     }
     while (_menu.firstChild) _menu.removeChild(_menu.firstChild);
     _menu.dataset.char = id;
-    var client = foreign(), del = client ? !!(c.ownerId && window.wpNet && c.ownerId === window.wpNet.myId && !c.partial) : !!(window.wpCanPersistLocal && window.wpCanPersistLocal());
+    // Delete only where the sheet module will take it: a player's own whole sheet while their link is up, the GM's where the campaign can be written
+    var client = foreign(), del = client ? !!(linkUp() && c.ownerId && c.ownerId === window.wpNet.myId && !c.partial) : !!(window.wpCanPersistLocal && window.wpCanPersistLocal());
     charMenuRows(!!(S.hudFor && S.hudFor(id)), del).forEach(function(r) {
         var d = document.createElement(r.rule ? 'div' : 'button');
         if (r.rule) d.className = 'menu-divider'; else { d.type = 'button'; if (r.red) d.className = 'danger'; d.dataset.act = r.act; d.setAttribute('role', 'menuitem'); d.appendChild(document.createTextNode(r.text)); }
@@ -173,7 +186,8 @@ function wire() {
     var plus = document.getElementById('newCharBtn');
     if (plus) plus.addEventListener('click', function(e) {
         e.stopPropagation();
-        var S = sheets(); if (!S || !S.addCharacter || foreign() || !(window.wpCanPersistLocal && window.wpCanPersistLocal())) return;
+        var S = sheets(); if (!S || !S.addCharacter) return;
+        if (foreign() || !(window.wpCanPersistLocal && window.wpCanPersistLocal())) { toast('A sheet cannot be made here. This campaign is not yours to change.'); return; }
         showPrompt('Name the character', 'New character', function(name) {
             if (name === null) return;
             var c = S.addCharacter(String(name || '').trim() || 'New character'); if (!c) return;
@@ -182,5 +196,6 @@ function wire() {
     });
     updateSidebarNav();   // the panel judges once more what it holds for this screen, the section among it (sidebar.js asks sync)
 }
+// [lookcheck:charwire-end]
 window.wpCharList = { sync: sync };
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire();

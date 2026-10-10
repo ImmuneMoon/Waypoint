@@ -1371,7 +1371,8 @@
   /* The Characters section (charlist.js): the players' characters, then the NPCs under one fold */
   .sidebar-section[hidden], .ch-npcs[hidden] { display: none; }
   .ch-sub { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--dim); padding: 2px 10px 4px; }
-  .ch-row { justify-content: space-between; }
+  .ch-row { padding: 8px 10px; border-radius: 5px; color: var(--ink); cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 3px; transition: background 0.1s; border: 1px solid transparent; }   /* the look of a row of the tree (.sidebar-item), under a class of its own */
+  .ch-row:hover { background: rgba(255,255,255,0.06); }
   .ch-row .si-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ch-row .ch-who { flex: none; color: var(--dim); font-size: 11px; font-weight: normal; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ch-row:focus-visible, .ch-fold:focus-visible { outline: 1px solid var(--gold); outline-offset: -1px; }

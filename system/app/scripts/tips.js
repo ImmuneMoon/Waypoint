@@ -178,9 +178,13 @@ function headingText(el) {
     clone.querySelectorAll('button, input, select, .muted, [data-tip-ignore]').forEach(function(n) { n.remove(); });
     return clone.textContent;
 }
+// A section title of the left panel that shares its words with another heading is known by its own name (data-section)
+var BY_SECTION = { characters: 'The campaign\u2019s character sheets. Click a character to open its sheet. Right-click it for its HUD, to find its token or to delete the sheet.' };
 function tipFor(el) {
     var forId = el.getAttribute && el.getAttribute('for');
     if (forId && BY_ID[forId]) return BY_ID[forId];
+    var sec = el.classList && el.classList.contains('section-title') && el.dataset ? el.dataset.section : '';
+    if (sec && Object.prototype.hasOwnProperty.call(BY_SECTION, sec)) return BY_SECTION[sec];
     var key = norm(headingText(el));
     if (!key) return null;
     if (BY_TEXT[key]) return BY_TEXT[key];
@@ -195,7 +199,7 @@ function applyTips(root) {
         if (el.dataset.tipped) return;
         var tip = tipFor(el);
         if (!tip) return;
-        if (el.classList.contains('section-title')) el.title = tip + ' (Click to collapse or expand · right-click for actions.)';
+        if (el.classList.contains('section-title')) el.title = tip + (el.parentNode && el.parentNode.querySelector && el.parentNode.querySelector('.section-actions') ? ' (Click to collapse or expand · right-click for actions.)' : ' (Click to collapse or expand.)');   // a title with no actions promises none
         else if (!el.title) el.title = tip;
         else return;
         el.dataset.tipped = '1';

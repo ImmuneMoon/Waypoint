@@ -359,6 +359,8 @@ The Journal
   whose GM runs an older Waypoint, the words arrive without it.
 
 Fixes
+- The Journal's unread count stays in sight while the top row is hidden,
+  as chat's does.
 - A key held down no longer answers a question. A question that came up
   while Enter or Escape was still down was answered at once, unread.
 - Enter answers a question and presses nothing behind it. It used to

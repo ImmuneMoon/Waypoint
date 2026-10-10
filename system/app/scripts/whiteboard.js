@@ -2121,7 +2121,7 @@ window.wpFitToGrid = fitToGrid;
   // [lookcheck:press-start]
   // 107, the presses (the owner, 2026-10-06, of a tool that has options: "Chevron opens them"): the icon only takes the tool, and the small arrow
   // beside it opens the tool's options, which stay up while they are wanted. Options belong to the tool in hand: another tool taken puts them away.
-  var TOOL_OPTS = { drawModeBtn: 'drawMenu', eraserModeBtn: 'eraserMenu', fillModeBtn: 'fillMenu', measureModeBtn: 'measureMenu', blastModeBtn: 'blastMenu' };   // a tool that has options, and the menu that holds them
+  var TOOL_OPTS = { drawModeBtn: 'drawMenu', eraserModeBtn: 'eraserMenu', fillModeBtn: 'fillMenu', measureModeBtn: 'measureMenu', blastModeBtn: 'blastMenu', buildModeBtn: 'buildMenu' };   // a tool that has options, and the menu that holds them
   // What a press does. part: 'icon', or 'chev' for the small arrow. inHand: the tool is the one in hand. open: its options are up.
   // It answers what becomes of the tool ('take' it, put it 'away' for the arrow, or '' leave it) and of its options ('open', 'close', or '' leave them)
   function toolPress(part, inHand, open) {
@@ -2154,7 +2154,7 @@ window.wpFitToGrid = fitToGrid;
   wireMenuArrows();
   // [lookcheck:press-end]
   function updateWbToolbar(activeId) {
-      ['moveModeBtn', 'panModeBtn', 'drawModeBtn', 'eraserModeBtn', 'measureModeBtn', 'blastModeBtn', 'fogModeBtn', 'fillModeBtn'].forEach(id => {
+      ['moveModeBtn', 'panModeBtn', 'drawModeBtn', 'eraserModeBtn', 'measureModeBtn', 'blastModeBtn', 'fogModeBtn', 'fillModeBtn', 'buildModeBtn'].forEach(id => {
           var el = document.getElementById(id);
           if (el) el.classList.remove('active');
       });
@@ -2164,9 +2164,11 @@ window.wpFitToGrid = fitToGrid;
       window.isPanMode = (activeId === 'panModeBtn');
       window.isFogMode = (activeId === 'fogModeBtn');   // fog paints on the board; other modes clear it
       window.isFillMode = (activeId === 'fillModeBtn');   // fill paints cells; other modes clear it
+      window.isBuildMode = (activeId === 'buildModeBtn');   // Build lays pieces; other modes clear it
+      if (activeId !== 'buildModeBtn' && typeof buildDown === 'function') buildDown(activeId);   // another tool taken puts down what Build armed (its placement, its pen preset, a polygon under way)
       if (activeId !== 'eraserModeBtn' && window.wpEraserCursorHide) window.wpEraserCursorHide();
       // Per-tool cursors (style.css `body.mode-*`): the class beats every item's own cursor
-      ['mode-move', 'mode-pan', 'mode-draw', 'mode-eraser', 'mode-measure', 'mode-blast', 'mode-fog', 'mode-fill'].forEach(function(c) { document.body.classList.remove(c); });
+      ['mode-move', 'mode-pan', 'mode-draw', 'mode-eraser', 'mode-measure', 'mode-blast', 'mode-fog', 'mode-fill', 'mode-build'].forEach(function(c) { document.body.classList.remove(c); });
       document.body.classList.add('mode-' + String(activeId || 'moveModeBtn').replace('ModeBtn', ''));
       toolOptsOnly(activeId);   // 107: a tool's options belong to the tool in hand
       disarmThrow();   // a tool taken puts an armed sheet Throw down (the owed review, 2026-10-09)
@@ -2225,7 +2227,7 @@ window.wpFitToGrid = fitToGrid;
       if (bar) bar.style.display = 'none';
   });
 
-  wireTool({ id: 'drawModeBtn', chev: 'drawOptBtn', inHand: function() { return !!window.isDrawingMode; }, sync: syncDrawMenu, take: function() {
+  wireTool({ id: 'drawModeBtn', chev: 'drawOptBtn', inHand: function() { return !!window.isDrawingMode && !window.isBuildMode; }, sync: syncDrawMenu, take: function() {
       window.isDrawingMode = true;
       window.isEraserMode = false;
       window.isMeasureMode = false;
@@ -6187,6 +6189,7 @@ window.wpPlaceCommit = function(px, py, pw, ph, sx, sy) {
     var P = window.wpPlace;
     disarmPlacement();
     if (!P) return;
+    if (P.build) { wpBuildCommit(P, px, py, pw, ph, sx, sy); return; }   // the map builder: a built piece lands by its own rules (on the lattice, a hexagon a cell) and Build stays in hand
     var props = Object.assign({}, P.props);
     var dragged = pw > 12 && ph > 12;
     var type = P.type;
@@ -6225,8 +6228,242 @@ function addWbItemAt(type, props, x, y) {
     save(); render();
 }
 document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape' && window.wpPlace) { disarmPlacement(); toast('Placement cancelled.'); }
+    if (e.key === 'Escape' && window.wpPlace && !window.wpPlace.build) { disarmPlacement(); toast('Placement cancelled.'); }   // a placement that is Build's own is Build's to end (buildKey)
 });
+// [buildcheck:buildtool-start]
+// The map builder (fold B1c, backlog 23): the Build tool, the GM's alone. A tool with options, wired like every other (wireTool): its icon
+// takes it, its small arrow opens its options, and it stays in hand until Esc or another tool. A built piece is an ordinary board item with
+// today's keys (buildcore pieceProps) and one more, texture. On a square grid it lands on the lattice whatever Snap says, on a hex grid one
+// hexagon a cell, and with no grid as Snap says. A Wall line is drawn by the pen under Build's preset (window.wpPenPreset): Build stays the
+// tool in hand while the pen's own code draws the line. The options are the sheet the owner passed on 2026-10-10: materials by name, a row
+// each, the shapes as one row of chips, then Texture and Color, and only for Water its Difficult terrain tick, only for a Corridor its width.
+var BUILD_MAX = 6000;   // a map's copy holds this many pieces for players (net.js): a gesture past it lays nothing more
+var BUILD_SHAPES = ['rect', 'circle', 'poly', 'corridor', 'line'];
+var BUILD_LINES = { floor: 'Flagstones. Tokens walk on it.', wall: 'Blocks sight and gives cover.', door: 'A wall that opens. Players can open it.', water: 'Difficult terrain, counted double.', rubble: 'Gives cover. Tokens can cross it.', wood: 'Planks.', grass: '' };
+var BUILD_SHAPE_LINES = { rect: 'Click a cell, or drag an area.', circle: 'Click a cell, or drag an area. The circle fills its box.', poly: 'Click each corner. Click the first again to close it.', corridor: 'Drag along it.', line: 'Draw along the grid lines. The line is the wall.' };
+var _build = { mat: 'floor', shape: 'rect', tex: 'flagstones', color: '#5a5663', terrain: 0, corridorW: 1, poly: null, polyEl: null, pen: false, loaded: false };
+function buildCore() { return window.wpBuildCore || null; }
+function buildGrid() { var C = window.wpFogCore; if (!C) return null; return state.gridType === 'hex' ? C.hexGrid(30, 52) : state.gridType === 'square' ? C.squareGrid(50) : null; }   // the lattice the fill tool's cellSnap reads
+function buildHex6(v) { return typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v) ? v : null; }
+function buildMay() { return !playerScreen() && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()); }   // the GM's own campaign on the GM's own screen
+function buildLoad() {   // the options' last choices, kept on this computer, each read back through its own cleaner
+    var BC = buildCore(), FC = window.wpFogCore; if (!BC || _build.loaded) return;
+    _build.loaded = true;
+    try {
+        var v = JSON.parse(localStorage.getItem('wp_build') || 'null'); if (!v || typeof v !== 'object') return;
+        var mat = BC.cleanMaterial(v.mat), M = mat ? BC.MATERIALS[mat] : null; if (!M) return;
+        _build.mat = mat; _build.shape = BUILD_SHAPES.indexOf(v.shape) >= 0 ? v.shape : 'rect';
+        if (_build.shape === 'line' && mat !== 'wall' && mat !== 'door') _build.shape = 'rect';
+        _build.tex = v.tex === '' ? '' : (BC.cleanTexture(v.tex) || M.texture); _build.color = buildHex6(v.color) || M.color;
+        _build.terrain = mat === 'water' ? ((FC && FC.cleanTerrain ? FC.cleanTerrain(v.terrain) : null) || 0) : 0; _build.corridorW = v.corridorW === 2 ? 2 : 1;
+    } catch (e) {}
+}
+function buildSave() { try { localStorage.setItem('wp_build', JSON.stringify({ mat: _build.mat, shape: _build.shape, tex: _build.tex, color: _build.color, terrain: _build.terrain, corridorW: _build.corridorW })); } catch (e) {} }
+function buildMaterial(mat) {   // a material brings its own texture, colour and terrain; a Wall or a Door is a thin line by default (the owner's answer of 2026-10-01)
+    var BC = buildCore(), id = BC ? BC.cleanMaterial(mat) : null, M = id ? BC.MATERIALS[id] : null; if (!M) return false;
+    _build.mat = id; _build.tex = M.texture; _build.color = M.color; _build.terrain = M.terrain || 0;
+    _build.shape = (id === 'wall' || id === 'door') ? 'line' : (_build.shape === 'line' ? 'rect' : _build.shape);
+    return true;
+}
+function buildShape(shape) {   // a Wall line is a wall's or a door's: picked with another material in hand, it takes Wall
+    if (BUILD_SHAPES.indexOf(shape) < 0) return false;
+    if (shape === 'line' && _build.mat !== 'wall' && _build.mat !== 'door') { if (!buildMaterial('wall')) return false; }
+    _build.shape = shape;
+    return true;
+}
+function buildProps() {   // the props of the piece about to be laid (buildcore pieceProps: a fresh bag by whitelist, never a type, a place or a flag of another kind)
+    var BC = buildCore(); if (!BC) return null;
+    return BC.pieceProps(_build.mat, { texture: _build.tex, color: _build.color, terrain: _build.mat === 'water' ? (_build.terrain || 0) : undefined });
+}
+// Arm the board for the next piece: for a Wall line the pen under Build's preset, for every other shape a placement that is Build's own
+// (never armPlacement, which takes Select and speaks). Build is still the tool in hand either way
+function buildArm() {
+    var BC = buildCore(); if (!BC || !window.isBuildMode) return false;
+    if (_build.shape !== 'poly') buildPolyEnd();
+    if (_build.shape === 'line') {
+        if (window.wpPlace) disarmPlacement();
+        window.wpPenPreset = BC.penPreset(_build.mat === 'door' ? 'door' : 'wall', { color: _build.color });
+        window.isDrawingMode = true; _build.pen = true;
+        if (wbWrap) wbWrap.style.cursor = 'crosshair';
+        return !!window.wpPenPreset;
+    }
+    window.wpPenPreset = null;
+    if (_build.pen) { _build.pen = false; window.isDrawingMode = false; }
+    var props = buildProps(); if (!props) return false;
+    window.wpPlace = { type: 'build', props: props, build: { mat: _build.mat, shape: _build.shape, corridorW: _build.corridorW } };
+    if (wbWrap) wbWrap.style.cursor = 'crosshair';
+    document.body.classList.add('placing');
+    return true;
+}
+// Another tool is in hand (updateWbToolbar asks): what Build armed is put down. The pen keeps drawing only where the pen itself was taken
+function buildDown(activeId) {
+    window.wpPenPreset = null; buildPolyEnd();
+    if (_build.pen) { _build.pen = false; if (activeId !== 'drawModeBtn') window.isDrawingMode = false; }
+    if (window.wpPlace && window.wpPlace.build) disarmPlacement();
+}
+function buildTake() {
+    if (!buildMay() || !buildCore()) return;
+    buildLoad();
+    window.isDrawingMode = false; window.isEraserMode = false; window.isMeasureMode = false;
+    if (window.wpPlace) disarmPlacement();
+    updateWbToolbar('buildModeBtn'); closeDrawMenu();
+    state.selWbId = null; state.selWbIds = []; render();
+    buildArm();
+}
+// The options from the choices. The material rows are made once, by name: a swatch of the material's own tile, its name, one grey line
+function buildSync() {
+    var BC = buildCore(), FC = window.wpFogCore; if (!BC) return;
+    buildLoad();
+    var box = document.getElementById('buildMatRows');
+    if (box && !box.firstChild) BC.MATERIAL_IDS.forEach(function(id) {
+        var M = BC.MATERIALS[id], b = document.createElement('button'); b.type = 'button'; b.className = 'wb-tool-btn menu-row build-mat'; b.dataset.buildmat = id; b.title = M.name;
+        var ic = document.createElement('span'), sw = document.createElement('span'), ts = BC.texStyle(M.texture, 0, 0);
+        ic.className = 'mr-ico'; sw.className = 'build-tile'; sw.style.backgroundColor = M.color; if (ts) { sw.style.backgroundImage = ts.image; sw.style.backgroundSize = ts.size; }
+        ic.appendChild(sw); b.appendChild(ic);
+        var tx = document.createElement('span'); tx.className = 'mr-txt'; tx.appendChild(document.createTextNode(M.name));
+        if (BUILD_LINES[id]) { var sm = document.createElement('small'); sm.textContent = BUILD_LINES[id]; tx.appendChild(sm); }
+        b.appendChild(tx);
+        b.addEventListener('click', function(ev) { ev.stopPropagation(); buildPick(function() { return buildMaterial(id); }); });
+        box.appendChild(b);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('#buildMatRows .build-mat'), function(b) { b.classList.toggle('on', b.dataset.buildmat === _build.mat); });
+    Array.prototype.forEach.call(document.querySelectorAll('#buildShapeRow .build-shape-btn'), function(b) { b.classList.toggle('active', b.dataset.buildshape === _build.shape); });
+    var ln = document.getElementById('buildShapeLine'); if (ln) ln.textContent = BUILD_SHAPE_LINES[_build.shape] || '';
+    var ts2 = document.getElementById('buildTexture'); if (ts2) { texOptionsInto(ts2, _build.tex); ts2.disabled = _build.shape === 'line'; }   // a line is a stroke: it wears no texture
+    var hit = false;
+    Array.prototype.forEach.call(document.querySelectorAll('#buildColorRow .build-sw'), function(sw2) { var on = String(sw2.dataset.color || '').toLowerCase() === String(_build.color || '').toLowerCase(); if (on) hit = true; sw2.classList.toggle('active', on); });
+    var cs = document.querySelector('#buildColorRow .draw-swatch.custom'); if (cs) { cs.classList.toggle('active', !hit); cs.style.background = hit ? '' : (buildHex6(_build.color) || ''); }
+    var ci = document.getElementById('buildColorInput'); if (ci && buildHex6(_build.color)) ci.value = _build.color;
+    var tr = document.getElementById('buildTerrainRow'), tc = document.getElementById('buildTerrainChk'), tn = document.getElementById('buildTerrainCost'), tv = FC && FC.cleanTerrain ? FC.cleanTerrain(_build.terrain) : null;
+    if (tr) tr.hidden = _build.mat !== 'water';
+    if (tc) tc.checked = !!tv;
+    if (tn) { if (tv) tn.value = tv; tn.disabled = !tv; }
+    var cr = document.getElementById('buildCorridorRow'), cw = document.getElementById('buildCorridorW');
+    if (cr) cr.hidden = _build.shape !== 'corridor';
+    if (cw) cw.value = String(_build.corridorW);
+}
+function buildPick(change) {   // a choice in the options: kept, shown, and the board armed for it while Build is in hand
+    if (change() === false) return;
+    buildSave(); buildSync();
+    if (window.isBuildMode) buildArm();
+}
+// Laying: wpPlaceCommit hands a built piece here. The lattice maths is buildcore's (snapBox, hexCellsInBox, hexCellBox, corridor, snapVertex,
+// polyItem, seatedAt), so a later generator lays pieces through the very same functions
+function wpBuildCommit(P, px, py, pw, ph, sx, sy) {
+    var B = P.build, BC = buildCore(), C = window.wpFogCore, map = getActiveMap();
+    if (!B || !BC || !C || !map || !window.isBuildMode || !buildMay()) return;
+    if (!Array.isArray(map.whiteboard)) map.whiteboard = [];
+    var grid = buildGrid(), dragged = pw > 12 && ph > 12, mx = Math.abs(sx - px) < 0.5 ? px + pw : px, my = Math.abs(sy - py) < 0.5 ? py + ph : py;
+    if (B.shape === 'poly') { buildPolyAdd(sx, sy, grid); buildArm(); return; }
+    var boxes = [], more = false;
+    if (grid && grid.type === 'hex') {   // cell by cell (the owner's answer): one hexagon a cell, so the area is exact
+        var hc = B.shape === 'corridor' ? BC.corridor(grid, sx, sy, mx, my, B.corridorW) : dragged ? BC.hexCellsInBox(grid, px, py, pw, ph, 400) : { cells: [C.cellOf(sx, sy, grid)], more: false };
+        if (hc && hc.cells) { more = hc.more === true; hc.cells.forEach(function(c) { var hb = BC.hexCellBox(grid, c); if (hb) boxes.push(Object.assign({ type: 'hexagon' }, hb)); }); }
+    } else if (grid) {   // the square lattice: a click one cell, a drag the cells it covers, a corridor a strip of whole cells
+        var bx = B.shape === 'corridor' ? BC.corridor(grid, sx, sy, mx, my, B.corridorW) : BC.snapBox(grid, sx, sy, mx, my, dragged);
+        if (bx) boxes.push(Object.assign({ type: B.shape === 'circle' ? 'circle' : 'rect' }, bx));
+    } else {   // no grid: a free box, on the 50 px dots while Snap is on, as the plain shapes seat
+        var snap = !!(window.wpSnapOn && window.wpSnapOn()), r50 = function(v) { return snap ? Math.round(v / 50) * 50 : Math.round(v); };
+        var fb = B.shape === 'corridor' ? (Math.abs(mx - sx) >= Math.abs(my - sy) ? { x: Math.min(sx, mx), y: sy - 25, w: Math.abs(mx - sx), h: 50 } : { x: sx - 25, y: Math.min(sy, my), w: 50, h: Math.abs(my - sy) })
+            : dragged ? { x: px, y: py, w: pw, h: ph } : { x: sx - 50, y: sy - 50, w: 100, h: 100 };
+        boxes.push({ type: B.shape === 'circle' ? 'circle' : 'rect', x: r50(fb.x), y: r50(fb.y), w: Math.max(snap ? 50 : 10, r50(fb.w)), h: Math.max(snap ? 50 : 10, r50(fb.h)) });
+    }
+    buildLay(map, boxes, P.props, more);
+    buildArm();
+}
+// The boxes as pieces, ONE save for the gesture. A cell that already holds a plain piece of that shape takes the new props instead of a second
+// piece (buildcore seatedAt: never a locked or turned piece, nor one with a purpose of its own)
+function buildLay(map, boxes, props, more) {
+    var BC = buildCore(); if (!BC || !props) return;
+    if (!boxes.length) { toast('Nothing to lay there.'); return; }
+    var room = BUILD_MAX - map.whiteboard.length, laid = 0, wall = false, full = false, keys = ['color', 'layer', 'name', 'texture', 'blocksSight', 'sightType', 'cover', 'terrain'];
+    for (var i = 0; i < boxes.length; i++) {
+        var b = boxes[i], item = Object.assign({ id: 'wb' + uid(), type: b.type, x: b.x, y: b.y, w: b.w, h: b.h, z: 10 }, newOpacityProps(), props);
+        if (b.pts) { item.pts = b.pts; item.baseW = b.baseW; item.baseH = b.baseH; item.tip = 'fill'; }
+        var at = b.pts ? -1 : BC.seatedAt(map.whiteboard, item);
+        if (at >= 0) {
+            var old = map.whiteboard[at], wasWall = old.blocksSight === true;
+            keys.forEach(function(k) { if (props[k] !== undefined) old[k] = props[k]; else delete old[k]; });
+            if (props.sightType !== 'door') { delete old.doorOpen; delete old.doorLock; }
+            if (wasWall || old.blocksSight) wall = true;
+            laid++; continue;
+        }
+        if (room <= 0) { full = true; break; }
+        room--; map.whiteboard.push(item); laid++; if (item.blocksSight) wall = true;
+    }
+    if (full) toast('This map holds as many pieces as it can carry to players, ' + BUILD_MAX + '. Nothing more was laid.');
+    if (!laid) return;
+    save(); render();
+    if (wall && window.wpFog && window.wpFog.invalidateVision) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
+    if (more) toast('A drag lays at most 400 cells at a time. Drag again for the rest.');
+}
+// The polygon: each click a corner on the lattice (a square grid's crossings, a hex grid's corners, the 50 px dots or the point itself with no
+// grid, as Snap says), a rubber band to the pointer, closed by a click on the first corner or by Enter. One filled region with the piece's props
+function buildPolyAdd(sx, sy, grid) {
+    var BC = buildCore(); if (!BC) return;
+    var v = BC.snapVertex(grid, sx, sy, !!(window.wpSnapOn && window.wpSnapOn())); if (!v) return;
+    if (!_build.poly) _build.poly = [];
+    var P0 = _build.poly[0];
+    if (P0 && Math.hypot(v.x - P0.x, v.y - P0.y) < 20) {   // a click on the first corner closes the shape, once it has three
+        if (_build.poly.length >= 3) buildPolyClose(); else if (_build.poly.length > 1) toast('A polygon needs at least three corners.');
+        return;
+    }
+    if (_build.poly.length >= 500) { toast('A polygon takes at most 500 corners.'); return; }
+    var last = _build.poly[_build.poly.length - 1]; if (last && last.x === v.x && last.y === v.y) return;
+    _build.poly.push(v); buildPolyDraw(null);
+}
+function buildPolyClose() {
+    var BC = buildCore(), map = getActiveMap(), verts = _build.poly || [];
+    if (!BC || !map || verts.length < 3) { toast('A polygon needs at least three corners.'); return; }
+    var it = BC.polyItem(verts.map(function(p) { return [p.x, p.y]; }));
+    buildPolyEnd();
+    if (!it) { toast('That shape covers nothing. Its corners lie in a line.'); return; }
+    var props = buildProps(); if (!props || !buildMay()) return;
+    if (!Array.isArray(map.whiteboard)) map.whiteboard = [];
+    buildLay(map, [{ type: 'path', x: it.x, y: it.y, w: it.w, h: it.h, pts: it.pts, baseW: it.baseW, baseH: it.baseH }], props, false);
+}
+function buildPolyDraw(cur) {   // the rubber band over the board: numbers only into attributes, every element made by name
+    var verts = _build.poly || []; if (!verts.length) return;
+    var el = _build.polyEl, NS = 'http://www.w3.org/2000/svg';
+    if (!el) { el = document.createElement('div'); el.className = 'wb-build-poly'; el.appendChild(document.createElementNS(NS, 'svg')); if (wb) wb.appendChild(el); _build.polyEl = el; }
+    var svg = el.firstChild; svg.setAttribute('width', '100%'); svg.setAttribute('height', '100%');
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    var pts = verts.map(function(p) { return Number(p.x) + ',' + Number(p.y); }); if (cur) pts.push(Number(cur.x) + ',' + Number(cur.y));
+    var line = document.createElementNS(NS, 'polyline'); line.setAttribute('points', pts.join(' ')); line.setAttribute('class', 'wb-build-band'); svg.appendChild(line);
+    verts.forEach(function(p, i) { var c = document.createElementNS(NS, 'circle'); c.setAttribute('cx', String(Number(p.x))); c.setAttribute('cy', String(Number(p.y))); c.setAttribute('r', i === 0 ? '7' : '4'); c.setAttribute('class', i === 0 ? 'wb-build-first' : 'wb-build-dot'); svg.appendChild(c); });
+}
+function buildPolyEnd() { _build.poly = null; if (_build.polyEl) { _build.polyEl.remove(); _build.polyEl = null; } }
+// The keys while Build is in hand: Enter closes a polygon of three corners or more, Esc drops a polygon under way, else puts the tool away
+function buildKey(e) {
+    if (!window.isBuildMode) return;
+    var t = e.target, typing = !!t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || '') || t.isContentEditable === true);
+    if (e.key === 'Enter' && !typing && _build.poly && _build.poly.length >= 3) { e.preventDefault(); buildPolyClose(); buildArm(); }
+    else if (e.key === 'Escape') {
+        if (_build.poly && _build.poly.length) { buildPolyEnd(); toast('Polygon dropped. Build is still in hand.'); }
+        else { var mv = document.getElementById('moveModeBtn'); if (mv) mv.click(); }
+    }
+}
+function buildMove(e) {   // the rubber band follows the pointer to the corner the next click would take
+    var BC = buildCore(); if (!BC || !_build.poly || !_build.poly.length || !wbWrap) return;
+    var r = wbWrap.getBoundingClientRect(), z = state.zoomLevel || 1, x = (e.clientX - r.left + wbWrap.scrollLeft) / z, y = (e.clientY - r.top + wbWrap.scrollTop) / z;
+    buildPolyDraw(BC.snapVertex(buildGrid(), x, y, !!(window.wpSnapOn && window.wpSnapOn())));
+}
+function buildWire() {   // the options' own controls, each once
+    Array.prototype.forEach.call(document.querySelectorAll('#buildShapeRow .build-shape-btn'), function(b) { b.addEventListener('click', function(ev) { ev.stopPropagation(); var s = this.dataset.buildshape; buildPick(function() { return buildShape(s); }); }); });
+    var tx = document.getElementById('buildTexture'); if (tx) tx.addEventListener('change', function() { var BC = buildCore(), v = this.value; buildPick(function() { _build.tex = v === '' ? '' : ((BC && BC.cleanTexture(v)) || _build.tex); }); });
+    Array.prototype.forEach.call(document.querySelectorAll('#buildColorRow .build-sw'), function(sw) { sw.addEventListener('click', function(ev) { ev.stopPropagation(); var c = buildHex6(this.dataset.color); buildPick(function() { if (!c) return false; _build.color = c; }); }); });
+    var ci = document.getElementById('buildColorInput'); if (ci) ci.addEventListener('input', function() { var c = buildHex6(this.value); buildPick(function() { if (!c) return false; _build.color = c; }); });
+    ['buildTerrainChk', 'buildTerrainCost'].forEach(function(id) { var e0 = document.getElementById(id); if (e0) e0.addEventListener('change', function() {
+        var FC = window.wpFogCore, chk = document.getElementById('buildTerrainChk'), bx = document.getElementById('buildTerrainCost'), n = (bx && FC && FC.cleanTerrain ? FC.cleanTerrain(Number(bx.value)) : null) || 2;
+        buildPick(function() { if (_build.mat !== 'water') return false; _build.terrain = chk && chk.checked ? n : 0; });
+    }); });
+    var cw = document.getElementById('buildCorridorW'); if (cw) cw.addEventListener('change', function() { var two = this.value === '2'; buildPick(function() { _build.corridorW = two ? 2 : 1; }); });
+    if (wbWrap) wbWrap.addEventListener('pointermove', buildMove);
+    document.addEventListener('keydown', buildKey);
+    wireTool({ id: 'buildModeBtn', chev: 'buildOptBtn', inHand: function() { return !!window.isBuildMode; }, sync: buildSync, take: buildTake });
+}
+// [buildcheck:buildtool-end]
+buildWire();
 
 var _el_shapeTextBtn = document.getElementById('shapeTextBtn');
 

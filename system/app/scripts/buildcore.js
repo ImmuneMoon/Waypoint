@@ -57,12 +57,15 @@ var TEX = frozenTable({
     // five irregular closed quads kept inside the tile (the gaps read as mortar at the seam), a faint fill under them: rubble, rock
     stone: { w: 50, h: 50, dark: 1.8, light: 0.8, fill: 'rgba(0,0,0,0.12)',
         d: 'M 3 3 L 22 2 L 24 16 L 5 19 Z M 27 3 L 47 6 L 45 20 L 29 18 Z M 2 24 L 15 22 L 18 33 L 4 36 Z M 21 22 L 46 25 L 44 38 L 23 36 Z M 7 40 L 40 41 L 37 47 L 9 47 Z' },
-    // 45-degree lines y = x + c, c every 12.5 px offset by half a step so none passes a corner; each leaves an edge where its twin enters
+    // 45-degree lines y = x + c, c every 12.5 px offset by half a step so none passes a corner; each leaves an edge where its twin enters.
+    // Every line runs 4 px past the tile at both ends: the tile's own edge cuts it, so no round cap nicks the seam (a cap covers less of
+    // the edge than a slanted stroke's body does)
     hatching: { w: 50, h: 50, dark: 1.6, light: 0.7,
-        d: 'M 0 6.25 L 43.75 50 M 0 18.75 L 31.25 50 M 0 31.25 L 18.75 50 M 0 43.75 L 6.25 50 M 6.25 0 L 50 43.75 M 18.75 0 L 50 31.25 M 31.25 0 L 50 18.75 M 43.75 0 L 50 6.25' },
-    // three wave rows 16 px apart (a 48 px tile), period 25 (twice across the tile), the middle row half a period out of phase
+        d: 'M -4 2.25 L 47.75 54 M -4 14.75 L 35.25 54 M -4 27.25 L 22.75 54 M -4 39.75 L 10.25 54 M 2.25 -4 L 54 47.75 M 14.75 -4 L 54 35.25 M 27.25 -4 L 54 22.75 M 39.75 -4 L 54 10.25' },
+    // three wave rows 16 px apart (a 48 px tile), period 25 (twice across the tile), the middle row half a period out of phase. Each row
+    // runs half a wave past the tile at both ends (the wave it would draw in the next tile), so the edge cuts it and no cap nicks the seam
     ripples: { w: 50, h: 48, dark: 1.6, light: 0.8,
-        d: 'M 0 8 Q 6.25 2 12.5 8 Q 18.75 14 25 8 Q 31.25 2 37.5 8 Q 43.75 14 50 8 M 0 24 Q 6.25 30 12.5 24 Q 18.75 18 25 24 Q 31.25 30 37.5 24 Q 43.75 18 50 24 M 0 40 Q 6.25 34 12.5 40 Q 18.75 46 25 40 Q 31.25 34 37.5 40 Q 43.75 46 50 40' },
+        d: 'M -12.5 8 Q -6.25 14 0 8 Q 6.25 2 12.5 8 Q 18.75 14 25 8 Q 31.25 2 37.5 8 Q 43.75 14 50 8 Q 56.25 2 62.5 8 M -12.5 24 Q -6.25 18 0 24 Q 6.25 30 12.5 24 Q 18.75 18 25 24 Q 31.25 30 37.5 24 Q 43.75 18 50 24 Q 56.25 30 62.5 24 M -12.5 40 Q -6.25 46 0 40 Q 6.25 34 12.5 40 Q 18.75 46 25 40 Q 31.25 34 37.5 40 Q 43.75 46 50 40 Q 56.25 34 62.5 40' },
     // four tufts of three short blades, each bending outward from its own foot (never one point: that reads as a bird's), all inside the tile
     grass: { w: 50, h: 50, dark: 1.8, light: 0.8,
         d: 'M 10 18 Q 9.5 13 7 10 M 12 18 Q 12.5 12.5 12 8 M 14 18 Q 15 13 17 11 M 34 14 Q 33.5 9 31 6 M 36 14 Q 36.5 8.5 36 4 M 38 14 Q 39 9 41 7 '
@@ -205,21 +208,27 @@ function capped(cells, grid, cap) {
     }
     return { cells: out, more: more };
 }
-// The cells whose centre lies in a dragged box (fogcore cellsUnderRect's own order), a click (under a pixel either way) the one cell under it
+// The cells whose centre lies in a dragged box (fogcore cellsUnderRect's own order), a click (under a pixel either way) the one cell under it.
+// A box far larger than the cap is not listed whole before it is cut. The lister walks a column of cells at a time from the left, each from
+// the top, so the box is first tried no taller than one column needs to pass the cap, and no wider than holds the cap by its columns' least
+// count: the first cells of that try are the first cells of the whole box. It is listed whole only where the try came short
 function hexCellsInBox(grid, x, y, w, h, cap) {
     if (!gridOk(grid) || !fin(x) || !fin(y)) return null;
     w = fin(w) ? w : 0; h = fin(h) ? h : 0;
     if (w < 0) { x += w; w = -w; }
     if (h < 0) { y += h; h = -h; }
     if (w < 1 || h < 1) return { cells: [cellOf(x, y, grid)], more: false };
-    return capped(cellsUnderRect(x, y, w, h, grid), grid, cap);
+    var n = fin(cap) && cap >= 1 ? Math.floor(cap) : 400, colW = grid.type === 'square' ? grid.size : 1.5 * grid.s, rowH = grid.type === 'square' ? grid.size : grid.h;
+    var hT = Math.min(h, (n + 2) * rowH), perCol = Math.floor(hT / rowH), wT = perCol >= 1 ? Math.min(w, (Math.ceil((n + 1) / perCol) + 2) * colW) : w;
+    if (wT < w || hT < h) { var first = capped(cellsUnderRect(x, y, wT, hT, grid), grid, n); if (first.more) return first; }
+    return capped(cellsUnderRect(x, y, w, h, grid), grid, n);
 }
 // A corridor from the press to the release. Square: a strip locked to the axis of the larger extent (a tie reads horizontal), from the press
 // cell to the release cell inclusive, one cell wide or two (the press cell's row or column plus the next toward the pointer's perpendicular
 // side; downward or rightward when it is level). Hex: the cells a straight segment passes, sampled every quarter cell; width 2 adds each
 // of them its neighbour on the segment's lower side (its right side when it runs up or down), so a run along a lattice axis is two rows
 // wide (a distance band could not be: the next row's centres lie 1.5 s away, past 0.75 h, and a band wide enough takes both sides);
-// cut at 400 with `more`. null for a number that is none or a grid that is neither
+// cut at 400 with `more`, a two-wide one as run cell and neighbour in turn. null for a number that is none or a grid that is neither
 var HEX_NB = [[1, 0], [1, -1], [0, 1], [0, -1], [-1, 1], [-1, 0]];
 function corridor(grid, sx, sy, ex, ey, width) {
     if (!gridOk(grid) || !fin(sx) || !fin(sy) || !fin(ex) || !fin(ey)) return null;
@@ -234,21 +243,24 @@ function corridor(grid, sx, sy, ex, ey, width) {
         return { x: cc0 * s, y: rr0 * s, w: (two ? 2 : 1) * s, h: (rr1 - rr0 + 1) * s };
     }
     var dx = ex - sx, dy = ey - sy, len = Math.hypot(dx, dy), steps = Math.min(20000, Math.max(1, Math.ceil(len / (grid.s / 4)))), run = [];
-    for (var k = 0; k <= steps; k++) run.push(cellOf(sx + dx * k / steps, sy + dy * k / steps, grid));
+    var nx = -dy, ny = dx;   // the segment's normal, turned to point down, or right when it is level (a point: right)
+    if (ny < 0 || (ny === 0 && nx < 0)) { nx = -nx; ny = -ny; }
+    if (!nx && !ny) nx = 1;
+    // Every sample is moved a hair toward that side. A run that rides the edge two cells share (a level drag through cell centres does, in
+    // every other column) then takes the cell on its lower side each time, never one or the other as the rounding falls
+    var nl = Math.hypot(nx, ny), ox = nx / nl * grid.s * 1e-6, oy = ny / nl * grid.s * 1e-6;
+    for (var k = 0; k <= steps; k++) run.push(cellOf(sx + dx * k / steps + ox, sy + dy * k / steps + oy, grid));
     var out = capped(run, grid, 400);
-    if (two && !out.more) {
-        var nx = -dy, ny = dx;   // the segment's normal, turned to point down, or right when it is level (a point: right)
-        if (ny < 0 || (ny === 0 && nx < 0)) { nx = -nx; ny = -ny; }
-        if (!nx && !ny) nx = 1;
-        var cells = out.cells.slice();
-        for (var i = 0; i < out.cells.length; i++) {
-            var c = out.cells[i], p = cellCenter(c, grid), best = null, bd = -Infinity;
-            for (var n = 0; n < 6; n++) { var nb = { q: c.q + HEX_NB[n][0], r: c.r + HEX_NB[n][1] }, pc = cellCenter(nb, grid), d = (pc.x - p.x) * nx + (pc.y - p.y) * ny; if (d > bd) { bd = d; best = nb; } }
-            cells.push(best);
-        }
-        out = capped(cells, grid, 400);
+    if (!two) return out;
+    // Two wide: each cell of the run and then its neighbour on that side, so a corridor cut at the cap is two wide for all of its length
+    var cells = [];
+    for (var i = 0; i < out.cells.length; i++) {
+        var c = out.cells[i], p = cellCenter(c, grid), best = null, bd = -Infinity;
+        for (var n = 0; n < 6; n++) { var nb = { q: c.q + HEX_NB[n][0], r: c.r + HEX_NB[n][1] }, pc = cellCenter(nb, grid), d = (pc.x - p.x) * nx + (pc.y - p.y) * ny; if (d > bd) { bd = d; best = nb; } }
+        cells.push(c, best);
     }
-    return out;
+    var wide = capped(cells, grid, 400);
+    return { cells: wide.cells, more: out.more || wide.more };
 }
 // The lattice corner nearest a point, for a polygon's vertex: a square grid's line crossing; a hex grid's nearest vertex of the cell the point
 // lies in (datamap snapToHex 'vertex'); no grid: the 50 px lattice when snap is true, else the point as it is. To the hundredth
@@ -263,18 +275,24 @@ function snapVertex(grid, x, y, snap) {
     return { x: r2(best[0]), y: r2(best[1]) };
 }
 // A filled region item from board points: consecutive repeats and a closing repeat of the first dropped, a point that is no pair of numbers
-// passed over; 3 to 500 vertices, else null. Its box is their extent (a pixel at least), its points relative to the box, to the hundredth
+// within a million either way passed over; 3 to 500 vertices, else null (501 and a closing repeat is 500; anything read past that is over,
+// never cut to fit). A shape that covers nothing (under a square pixel: its corners in a line, or there and back) is null too. Its box is
+// their extent (a pixel at least), its points relative to the box, to the hundredth
+var POLY_FAR = 1e6;
 function polyItem(verts) {
     if (!Array.isArray(verts)) return null;
     var v = [];
-    for (var i = 0; i < verts.length && v.length <= 500; i++) {
-        var p = verts[i]; if (!Array.isArray(p) || !fin(p[0]) || !fin(p[1])) continue;
+    for (var i = 0; i < verts.length && v.length <= 501; i++) {
+        var p = verts[i]; if (!Array.isArray(p) || !fin(p[0]) || !fin(p[1]) || Math.abs(p[0]) > POLY_FAR || Math.abs(p[1]) > POLY_FAR) continue;
         var q = [r2(p[0]), r2(p[1])], last = v.length ? v[v.length - 1] : null;
         if (last && last[0] === q[0] && last[1] === q[1]) continue;
         v.push(q);
     }
     if (v.length > 1 && v[0][0] === v[v.length - 1][0] && v[0][1] === v[v.length - 1][1]) v.pop();
     if (v.length < 3 || v.length > 500) return null;
+    var area = 0;
+    for (var a = 0; a < v.length; a++) { var b = v[(a + 1) % v.length]; area += v[a][0] * b[1] - b[0] * v[a][1]; }
+    if (Math.abs(area) / 2 < 1) return null;
     var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     for (var k = 0; k < v.length; k++) { x0 = Math.min(x0, v[k][0]); y0 = Math.min(y0, v[k][1]); x1 = Math.max(x1, v[k][0]); y1 = Math.max(y1, v[k][1]); }
     var w = Math.max(1, r2(x1 - x0)), h = Math.max(1, r2(y1 - y0)), pts = [];
@@ -283,12 +301,17 @@ function polyItem(verts) {
 }
 function near1(a, b) { return fin(a) && fin(b) && Math.abs(a - b) <= 1; }
 // The index of the item already seated where a piece would go — the same type, its box within a pixel each way, not a token, not hidden, no
-// pts — so a paint-drag re-lays onto it instead of stacking; -1 for none
+// pts — so a paint-drag re-lays onto it instead of stacking; -1 for none. Only a PLAIN piece is re-laid: never one that is locked or turned,
+// nor one with a purpose of its own that a new floor or wall must not take over (a see-through barrier, a play area, a portal by its own key
+// or its node's, a null area, smoke, a fog mark, a pin to a page, a GM note card). Such a piece is left as it is and the new one lands on it
+function special(w) {
+    return !!(w.locked || w.gmNoteFor || w.barrier === true || w.fogged || w.targetMapId || w.nodeId || w.nulls || w.smoke === true || w.fogHand || w.page || (fin(w.rot) && w.rot % 360 !== 0));
+}
 function seatedAt(items, piece) {
-    if (!Array.isArray(items) || !isObj(piece)) return -1;
+    if (!Array.isArray(items) || !isObj(piece) || typeof piece.type !== 'string') return -1;
     for (var i = 0; i < items.length; i++) {
         var w = items[i];
-        if (!isObj(w) || w.type !== piece.type || w.isChar || w.waiting || w.hidden || w.pts) continue;
+        if (!isObj(w) || w.type !== piece.type || w.isChar || w.waiting || w.hidden || w.pts || special(w)) continue;
         if (near1(w.x, piece.x) && near1(w.y, piece.y) && near1(w.w, piece.w) && near1(w.h, piece.h)) return i;
     }
     return -1;

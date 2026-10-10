@@ -590,6 +590,23 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             !!cA && cA.items.bare.meta.title === 'Map' && Array.isArray(cA.items.bare.rooms) && Array.isArray(cA.items.bare.links) && Array.isArray(cA.items.bare.whiteboard) && !!cA.items.bare.cats && out._schema === 2, cA && JSON.stringify(cA.items.bare));
         check('import: the system is cleaned and each character cleaned against it (an unknown value goes, a character whose id disagrees goes), and its owner is stamped on its token; characters with no system go',
             !!cA && !!cA.system && Object.keys(cA.chars).join() === 'c_1' && !('f_zz' in cA.chars.c_1.values) && m1.whiteboard[1].ownerId === 'u_x' && !!cB && !('chars' in cB), cA && JSON.stringify([cA.chars, m1.whiteboard[1], cB && cB.chars]));
+        // item 35: the looks of a character's texts from a file come in as the app cleans them (cleanChar): on Replace and on a load by the load's
+        // own normaliser, on Merge by the same cleaner main.js runs for each character
+        {
+            const LKi = await import(surl('lookcore.js')), sigI = t => LKi.textSig(t);
+            const lookFile = { activeCampaignId: 'cL', campaigns: { cL: { id: 'cL', name: 'L', items: {}, system: { v: 1, name: 'T', rolls: [], fields: [{ id: 'f_name', key: 'Name', kind: 'text' }, { id: 'f_bio', key: 'Bio', kind: 'notes' }, { id: 'f_st', key: 'ST', kind: 'number', def: 10 }] },
+                chars: { c_1: { id: 'c_1', name: 'Hero', ownerId: 'u_x', values: { f_name: 'Bren', f_bio: 'Line one', f_st: 12 },
+                        looks: { f_bio: { fmt: { spans: [{ s: 0, e: 4, link: 'javascript:alert(1)', b: true, size: 'large' }] }, sig: sigI('Line one') }, f_name: { fmt: { b: true, size: 'huge', color: 'red;x:url(//e)' }, font: 'Evil", serif', sig: sigI('Bren') }, f_st: { fmt: { b: true }, sig: sigI('12') }, f_zz: { fmt: { b: true }, sig: sigI('Bren') } } },
+                    c_2: { id: 'c_2', name: 'Stale', ownerId: 'u_y', values: { f_name: 'Now other words' }, looks: { f_name: { fmt: { b: true }, sig: sigI('Bren') } } },
+                    c_3: { id: 'c_3', name: 'Odd', ownerId: 'u_z', values: { f_name: 'Bren' }, looks: [1, 2] },
+                    c_4: { id: 'c_4', name: 'Shape', ownerId: 'u_w', values: { f_name: 'Bren' }, looks: { f_name: { fmt: { b: true }, sig: sigI('Bren'), onclick: 'x' } } },
+                    c_5: { id: 'c_5', name: 'Plain', ownerId: 'u_v', values: { f_name: 'Bren' } } } } } };
+            const outL = cleanImport(JSON.parse(JSON.stringify(lookFile)), deps), chL = outL && outL.campaigns.cL && outL.campaigns.cL.chars, l1 = chL && chL.c_1 && chL.c_1.looks, spanL = l1 && l1.f_bio && l1.f_bio.fmt.spans && l1.f_bio.fmt.spans[0];
+            check('item 35 import: a file\'s looks of a character\'s texts come in cleaned (the real load normaliser with the real core): a look is kept beside a text or notes value it was made for, in the order of the system\'s fields; an address that is no web address, a colour that is no colour, a size on a one-line text and a font go, and the rest of the look stays; a look for a number or for a field that is not there, one made for other words, one with a key of its own invention and looks that are a list leave no key; a character with none has none; and Merge cleans each character through the same cleaner, main.js naming no look itself',
+                !!l1 && Object.keys(l1).join() === 'f_name,f_bio' && JSON.stringify(l1.f_name) === JSON.stringify({ fmt: { b: true }, sig: sigI('Bren') }) && l1.f_bio.sig === sigI('Line one') && l1.f_bio.fmt.spans.length === 1 && !!spanL && spanL.s === 0 && spanL.e === 4 && spanL.b === true && spanL.size === 'large' && !('link' in spanL)
+                && ['c_2', 'c_3', 'c_4', 'c_5'].every(id => chL[id] && !('looks' in chL[id])) && !/javascript|url\(|Evil|onclick|huge/.test(JSON.stringify(chL))
+                && (mainSrc.match(/window\.wpSystemCore\.cleanChar\(/g) || []).length === 2 && !/\.looks\b/.test(mainSrc) && (ioSrc.match(/window\.wpSystemCore\.cleanChar\(/g) || []).length === 1 && !/\.looks\b/.test(ioSrc), chL && JSON.stringify(chL));
+        }
         // senses S1: a file's senses (the system's combat.senses) come in cleaned as the app cleans them, on Replace (the load's normaliser) and on Merge (main.js)
         const sensesSys = () => ({ v: 1, name: 'Sn', rolls: [], fields: [{ id: 'f_st', key: 'Sight', label: 'S', kind: 'number', def: 6, vis: 'all' }, { id: 'f_gm', key: 'GMFig', label: 'G', kind: 'number', def: 5, vis: 'gm' }],
             combat: { senses: { vis: 'gm', blind: { field: 'f_gm' }, list: [

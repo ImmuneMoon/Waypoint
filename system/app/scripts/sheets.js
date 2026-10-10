@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { timeRuleRun, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, aliasFromShadowBase, sbRowOps, sbApplyProposal, cleanUploads, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, DEFAULT_POSTURES, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
+import { timeRuleRun, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, aliasFromShadowBase, sbRowOps, sbApplyProposal, cleanUploads, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, DEFAULT_POSTURES, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
 import { cleanCalendar, fmtWhen, fmtDate, timeOf, calPreset, CAL_LIMITS } from './calendarcore.js';
 
@@ -349,6 +349,7 @@ function afterCharChange(c, whole, values) {
     var camp = getActiveCampaign(); if (!camp) return;
     c.updated = Date.now();
     if (typeof window !== 'undefined' && window.wpFog && window.wpFog.sensesForget) window.wpFog.sensesForget();   // the fog's kept senses are read again from the sheet
+    if (typeof lookPrune === 'function') lookPrune(c);   // item 35: a look whose text is no longer its own goes before the save
     syncOwners(camp);
     save(true);
     var n = net();
@@ -3351,6 +3352,38 @@ function commit(c, f, value) {
     var d = {}; d[f.id] = res.value;
     afterCharChange(c, false, d);
 }
+// [systemcheck:commitlook-start]
+// Item 35: the look of one text of a character (bold, a colour, a link), set from its sheet. rec: a look record made for the text the sheet
+// holds now, or null to take the look off. A player's goes to the host and is laid over at once. The GM's is judged by the very rule the
+// host judges a player's by, stored, saved and told to the table. True when it was taken
+function commitLook(c, f, rec) {
+    var camp = getActiveCampaign(), sys = systemOf(camp); if (!camp || !sys || !c || !f) return false;
+    if (isClient()) { var n = net(); if (!n || !n.charStyle) return false; var r = n.charStyle(c.id, f.id, rec); if (r && r.error) toast(r.error); renderViews(c.id); return !(r && r.error); }
+    if (!canWrite()) return false;
+    var res = applyStyle(sys, c, f.id, rec, F(), {});
+    if (!res.ok) { toast(lookSays(res.reason)); renderViews(c.id); return false; }
+    if (res.look) { if (!c.looks || typeof c.looks !== 'object') c.looks = {}; c.looks[f.id] = res.look; }
+    else if (c.looks && typeof c.looks === 'object') { delete c.looks[f.id]; if (!Object.keys(c.looks).length) delete c.looks; }
+    c.updated = Date.now();
+    save(true);
+    var h = net(); if (h && h.active && h.role === 'host' && h.syncCharStyle) { var d = {}; d[f.id] = res.look; h.syncCharStyle(c.id, d); }
+    renderViews(c.id);
+    return true;
+}
+// A look lives while its text stands. Once a field's text is another (an edit, a file, a time rule), the look made for the old words is
+// gone for good on the machine that owns the campaign, at the two funnels every change of a character ends in; a player's app forgets the
+// host's word for it by the same rule (net.js styleLay). So a text typed back to what it was finds no old look on one machine and not on
+// another. who: a character, its id, or nothing for all of them
+function lookPrune(who) {
+    if (isClient()) return;
+    var camp = getActiveCampaign(), sys = camp ? systemOf(camp) : null; if (!camp || !sys || !camp.chars) return;
+    var list = who && typeof who === 'object' ? [who] : typeof who === 'string' ? [Object.prototype.hasOwnProperty.call(camp.chars, who) ? camp.chars[who] : null] : Object.keys(camp.chars).map(function(k) { return camp.chars[k]; });
+    list.forEach(function(c) { if (!c || c.looks === undefined) return; var lk = cleanLooks(c.looks, c.values || {}, sys); if (JSON.stringify(lk) === JSON.stringify(c.looks)) return; if (lk) c.looks = lk; else delete c.looks; });
+}
+function lookSays(reason) { return reason === 'stale' ? 'That text changed. Its look was not kept.' : reason === 'style' ? 'That look cannot be kept here.' : reason === 'field' ? 'That text cannot be styled.' : ''; }
+// A player's look the host refused or never answered (net.js styleDone): its own words for a look, the edit's words for the rest
+function styleResult(rid, ok, reason) { if (ok) return; var w = lookSays(reason); if (w) { toast(w); renderViews(null); } else editResult(rid, false, reason, '', ''); }
+// [systemcheck:commitlook-end]
 // HUD frame (HF4b): several values of one character as ONE change (a section's Reset all). The GM's is one delta, and one Revert undoes it all
 // (lastChange.extra); a player's is one char-edits message the host judges all-or-nothing. At most LIMITS.editBatch values
 function commitMany(c, list) {
@@ -4197,6 +4230,7 @@ function fromShadowBase(w) {
 // net.js hooks: a character arrived, changed or went
 function charChanged(id) {
     if (typeof window !== 'undefined' && window.wpFog && window.wpFog.sensesForget) window.wpFog.sensesForget();   // the fog's kept senses are read again from the sheet
+    if (typeof lookPrune === 'function') lookPrune(id);   // item 35: a change from the table (a player's edit, a time rule) that left a look without its text
     var lost = {};   // HUD frame (HF2a): one notice per character, however many of its views close
     if (sheetOpen && isClient() && (id === null || sheetOpen === id)) { var gone = charById(sheetOpen); if (gone && (gone.partial || gone.ownerId !== myId())) { var nmG = gone.name; lost[gone.id] = 1; closeSheet(); toast(nmG + ' is no longer your character.'); var nG = net(); if (nG && nG.dropPending) nG.dropPending(gone.id); } }
     if (isClient()) Object.keys(huds).forEach(function(hid) { if (id !== null && id !== undefined && hid !== id) return; var gh = charById(hid); if (gh && !gh.partial && gh.ownerId === myId()) return; closeHud(hid); if (!lost[hid]) { lost[hid] = 1; toast((gh ? gh.name : 'That character') + ' is no longer your character.'); var nH = net(); if (nH && nH.dropPending) nH.dropPending(hid); } });
@@ -4247,6 +4281,7 @@ function reCleanChars(camp, sys) {
             if (v === undefined) delete c.values[fid]; else c.values[fid] = v;
             c.updated = Date.now();
         });
+        if (c.looks !== undefined) { var lkR = cleanLooks(c.looks, c.values, sys); if (JSON.stringify(lkR) !== JSON.stringify(c.looks)) { if (lkR) c.looks = lkR; else delete c.looks; c.updated = Date.now(); } }   // item 35: a look whose field went, is no text now, or whose text changed
     });
 }
 // Stage 6 F4a: what GM-only items and effects look like to the players who carry them (their inline copies)
@@ -6503,7 +6538,7 @@ window.wpSheets = { bellNote: bellNote, runTimeRules: runTimeRules, startMaking:
     charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, deleteCharacter: deleteCharacter, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
     charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId, tokenFx: tokenFx, tokenFxModel: tokenFxModel, tokenFxCharOp: tokenFxCharOp,
     playerFinder: playerFinder, charFromJson: charFromJson, startFromFile: startFromFile,
-    openSheet: openSheet, closeSheet: closeSheet, openHud: openHud, closeHud: closeHud, closeHuds: closeHuds, hudFor: hudFor, rolled: rolled, tokenTurned: tokenTurned, tokenCtxFor: tokenCtxFor, canOpen: canOpen, renderSheet: renderViews, renderSheetInto: renderSheetInto, charChanged: charChanged, charGone: charGone, editResult: editResult, sheetOpen: function() { return sheetOpen; }, canRoll: canRoll, hasInitRoll: hasInitRoll, rollInit: rollInit, initTieNow: initTieNow, fromShadowBase: fromShadowBase, LIMITS: LIMITS };
+    openSheet: openSheet, closeSheet: closeSheet, openHud: openHud, closeHud: closeHud, closeHuds: closeHuds, hudFor: hudFor, rolled: rolled, tokenTurned: tokenTurned, tokenCtxFor: tokenCtxFor, canOpen: canOpen, renderSheet: renderViews, renderSheetInto: renderSheetInto, charChanged: charChanged, charGone: charGone, editResult: editResult, styleResult: styleResult, commitLook: commitLook, sheetOpen: function() { return sheetOpen; }, canRoll: canRoll, hasInitRoll: hasInitRoll, rollInit: rollInit, initTieNow: initTieNow, fromShadowBase: fromShadowBase, LIMITS: LIMITS };
 
 // Pop the open sheet out into its own window (like the doc panel); dock-back there reopens the in-app panel.
 (function wireSheetPopout() {

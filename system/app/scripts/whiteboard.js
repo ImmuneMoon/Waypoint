@@ -6489,6 +6489,32 @@ function buildWire() {   // the options' own controls, each once
 }
 // [buildcheck:buildtool-end]
 buildWire();
+// [buildcheck:wallsrow-start]
+// Walls around selection (the map builder, fold B2b; the owner, 2026-10-10, by prompt: "Walls first", on the "Right-click menu"). One row on the
+// GM's menu of a selection that holds floor pieces (buildcore floorOk). It lays ordinary Wall lines, the very items the Build tool's Wall line
+// draws, along the outer edge of the cells the floors cover together (buildcore outlineWalls). Nothing is derived live: each line is a piece of
+// its own afterwards. The row is the GM's alone, on the machine that owns the campaign (buildMay), never in the stream window; its markup holds
+// fixed words and the Wall line's own drawing, and nothing of a piece
+var WALLS_ROW = '<div class="menu-item cm-walls" title="Thin wall lines along the outer edge of the selected floors together. Where two of them touch there is no wall between them, and a doorway that holds a door stays open. Each line is an ordinary piece afterwards, and one Undo takes them all back.">'
+    + '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 18.5V8.5h13M3.5 18.5h4M18.5 6.5v4"/></svg><span>Walls around selection<small>Lays wall lines along the outer edge.</small></span></div>';
+function wallsRow(items) {
+    var BC = buildCore();
+    if (!BC || typeof BC.outlineWalls !== 'function' || window.wpStream || !buildMay()) return null;
+    var fl = (Array.isArray(items) ? items : []).filter(function(w) { return BC.floorOk(w); });
+    return fl.length ? { items: fl, html: WALLS_ROW } : null;
+}
+// The walls laid on the map, all or none; what to say of it. A map with no grid takes the 50 px lattice Build seats its pieces on
+function wallsLay(map, items) {
+    var row = wallsRow(items), BC = buildCore(), FC = window.wpFogCore;
+    if (!row || !FC || !map || map.type !== 'map' || !Array.isArray(map.whiteboard)) return '';
+    var res = BC.outlineWalls(row.items, buildGrid() || FC.squareGrid(50), { doors: map.whiteboard, have: map.whiteboard }), pre = BC.penPreset('wall', {});
+    if (res.over) return 'Those floors cover too much ground for walls at once. Select fewer pieces.';
+    if (!res.lines.length || !pre) return res.had ? 'Those walls are already there.' : 'There is nothing to wall there.';
+    if (map.whiteboard.length + res.lines.length > BUILD_MAX) return 'This map holds as many pieces as it can carry to players, ' + BUILD_MAX + '. No wall was laid.';
+    res.lines.forEach(function(L) { map.whiteboard.push(Object.assign({ id: 'wb' + uid(), type: 'path', x: L.x, y: L.y, w: L.w, h: L.h, baseW: L.baseW, baseH: L.baseH, z: 10, pts: L.pts }, newOpacityProps(), pre)); });
+    return res.lines.length === 1 ? 'One wall line laid.' : res.lines.length + ' wall lines laid.';
+}
+// [buildcheck:wallsrow-end]
 
 var _el_shapeTextBtn = document.getElementById('shapeTextBtn');
 
@@ -7375,6 +7401,8 @@ document.addEventListener('contextmenu', function(e) {
                 var fhRow = fogHandRows(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));   // 1.5.4: a piece's fog mark, only where the selection holds a piece that may carry one
                 if (fhRow) html += fhRow.html;
                 html += '<div class="menu-divider"></div>';
+                var wlRow = wallsRow(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));   // the map builder: walls around the selected floors, a group of its own
+                if (wlRow) html += wlRow.html + '<div class="menu-divider"></div>';
             }
             html += '<div class="menu-item cm-front">Bring to Front</div>';
             html += '<div class="menu-item cm-fwd">Bring Forward</div>';
@@ -7592,6 +7620,10 @@ document.addEventListener('contextmenu', function(e) {
                         if (it) it.locked = lockThem;
                     });
                     import('./io.js').then(m => m.toast(lockThem ? 'Locked in place.' : 'Unlocked: free to move.'));
+                } else if (action.includes('cm-walls')) {   // the map builder: wall lines around the selected floors (saved and drawn again below: ONE save, so one Undo takes them all back)
+                    var saidW = wallsLay(am, selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));
+                    if (saidW) toast(saidW);
+                    if (window.wpFog && window.wpFog.invalidateVision) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
                 } else if (action.includes('cm-light')) {
                     var gmLitNow = gmLightToggle(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));
                     if (gmLitNow) { var wentL = gmLitNow.apply(); if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); } import('./io.js').then(m => m.toast(wentL === 'off' ? 'Light off.' : 'Light on.')); }

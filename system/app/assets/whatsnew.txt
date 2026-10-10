@@ -300,6 +300,11 @@ The play map
   one or two cells wide, and a wall line is drawn along the grid
   lines. Each piece is an ordinary item afterwards. Build stays in
   hand until you press Esc or take another tool.
+- Walls around selection. Select floor pieces, right-click, and one
+  row lays wall lines along their outer edge. Where two floors touch
+  there is no wall between them, and a doorway that holds a door stays
+  open. Each wall line is an ordinary piece, and one Undo takes them
+  all back.
 
 The top bar and the data map
 - The top of the window is one quiet row. Its captioned boxes are gone,

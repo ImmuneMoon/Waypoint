@@ -332,6 +332,12 @@ The top bar and the data map
 - On the play map the left panel folds to a narrow rail, so the map
   has more room. Press an icon of the rail to open the panel over the
   map with that section alone, or the pin to keep it open.
+- The left panel has a Characters section, under Maps. It lists the
+  campaign's character sheets: your players' characters first, each
+  with its player's name, and the NPCs under one fold. Click one to
+  open its sheet. Right-click it for its HUD, to find its token on the
+  map or to delete the sheet. It has its own icon on the rail, and a
+  player sees their own characters there.
 - The top row can be hidden: press the small arrow at its right end.
   A tab at the top edge shows it again. The map tabs and the pills
   stay, floating on the map.

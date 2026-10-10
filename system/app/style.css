@@ -243,7 +243,7 @@
   #imgLibSourceWrap select { max-width: 220px; }
   /* A joined player's left panel is the Handbook alone: the other sections are hidden by class, and the whole
      panel steps aside when the hosted campaign has no readable page (sidebar.js sets no-handbook) */
-  body.net-client #campaignSidebar .sidebar-section:not(.sb-handbook) { display: none !important; }
+  body.net-client #campaignSidebar .sidebar-section:not(.sb-handbook):not(.sb-characters) { display: none !important; }   /* a player's panel: the Handbook, and their own characters */
   body.net-client.no-handbook #campaignSidebar, body.net-client.no-handbook #toggleLeftBtn { display: none !important; }
 
   /* segmented view-mode switch */
@@ -1368,6 +1368,18 @@
   .sidebar-section { padding: 12px 10px; border-bottom: 1px solid var(--edge); }
   .sidebar-section h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--gold); margin: 0 0 10px 0; display: flex; justify-content: space-between; align-items: center; }
   .section-title { cursor: pointer; user-select: none; }
+  /* The Characters section (charlist.js): the players' characters, then the NPCs under one fold */
+  .sidebar-section[hidden], .ch-npcs[hidden] { display: none; }
+  .ch-sub { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--dim); padding: 2px 10px 4px; }
+  .ch-row { justify-content: space-between; }
+  .ch-row .si-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ch-row .ch-who { flex: none; color: var(--dim); font-size: 11px; font-weight: normal; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ch-row:focus-visible, .ch-fold:focus-visible { outline: 1px solid var(--gold); outline-offset: -1px; }
+  .ch-fold { display: block; width: 100%; text-align: left; background: none; border: 0; cursor: pointer; font: inherit; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--dim); padding: 6px 10px 4px; }
+  .ch-fold:hover { color: var(--ink); }
+  .context-menu.char-menu { position: fixed; display: flex; flex-direction: column; min-width: 170px; padding: 4px 0; }
+  .char-menu .menu-divider { height: 1px; background: var(--edge); margin: 4px 0; }
+  .char-menu button.danger { color: var(--red); }
   .section-title:hover { color: var(--ink); }
   /* the section's action buttons live in a right-click popup, so the header title has full room */
   .section-actions { display: none; }
@@ -1648,6 +1660,7 @@
   #leftRail[hidden] { display: none; }
   .rail-btn { width: 28px; height: 28px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--dim); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
   .rail-btn:hover { background: var(--panel2); color: var(--ink); }
+  .rail-btn[hidden] { display: none; }   /* the Characters icon, where there is nothing to list for this screen */
   .rail-btn.on { background: var(--gold); color: #1a1a1a; }
   .rail-btn .ico { width: 16px; height: 16px; }
   .rail-grow { flex: 1; }

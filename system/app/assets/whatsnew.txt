@@ -22,8 +22,9 @@ Multiplayer
 Character sheets
 - Delete a sheet from the sheet itself: Delete in its head (asked
   first). You may delete any sheet; a player may delete one of their own
-  that they are still making or do not play, and you are told, with Undo
-  to bring it back. A sheet still being made says so in the sheet's list
+  that they are still making or do not play, and you are told. A sheet
+  a player deleted does not come back with Undo. A sheet still being
+  made says so in the sheet's list
   and on its row of the Characters tab, which has a box to find a
   character by name.
 - A sheet opens locked. Rolls, pools, switches, counters, effects and
@@ -175,6 +176,10 @@ Planners and pages
   The piece's right-click menu has Open page too, and the Pages shelf
   lists the page under Here on that map. The link is yours alone:
   players get the piece without it.
+- A link shows where it leads before you click. Rest the pointer on a
+  link, or reach it with Tab, and its whole address stands at the
+  bottom left of the window, as in a web browser. A link from someone
+  else still asks first.
 
 The tour
 - The tour is short now. Each step says what a thing is and the few

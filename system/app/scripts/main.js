@@ -701,9 +701,10 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
           Object.keys(ic.items).forEach(function(id) {
               var it = existing.items[id];
               if (it && it.meta && it.meta.parentId && !existing.items[it.meta.parentId]) delete it.meta.parentId;
-              // ... and a nesting that closes a loop with what is already here would hide the item too: let go, as a load lets it go
+              // ... and a nesting that closes a loop with what is already here would hide the item too: let go, as a load lets it go. Only where
+              // the walk comes back to the item itself: its own nesting closes the loop, and a repeat further up is another item's to let go
               var seenP = Object.create(null), curP = it && it.meta && it.meta.parentId ? id : null, hopsP = 0;
-              while (curP && hopsP++ < 10000) { if (seenP[curP]) { delete it.meta.parentId; break; } seenP[curP] = 1; var nxP = Object.prototype.hasOwnProperty.call(existing.items, curP) ? existing.items[curP] : null; curP = nxP && nxP.meta && typeof nxP.meta.parentId === 'string' && nxP.meta.parentId ? nxP.meta.parentId : null; }
+              while (curP && hopsP++ < 10000) { if (seenP[curP]) { if (curP === id) delete it.meta.parentId; break; } seenP[curP] = 1; var nxP = Object.prototype.hasOwnProperty.call(existing.items, curP) ? existing.items[curP] : null; curP = nxP && nxP.meta && typeof nxP.meta.parentId === 'string' && nxP.meta.parentId ? nxP.meta.parentId : null; }
           });
 
       });

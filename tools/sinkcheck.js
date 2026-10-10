@@ -2668,6 +2668,68 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 asPlayer.table === true && rejoining.table === true && !('table' in asHost) && !('table' in asNone) && [asPlayer, asHost, asNone].every(e => e.kind === 'note' && e.text === 'see ' + OK && e.title === 'Table notes') && J(Object.keys(asHost)) === J(['id', 'kind', 'title', 'text', 'receivedAt', 'notes']), [asPlayer, asHost]);
         }
 
+        // 1.5.4, item 35 (the owner, 2026-10-09, of links in more places: "it shows the address in a way a browser does before opening as well
+        // as warning"): a link's address in sight before a press. linkgate.js sliced by its linkpeek markers and run for real beside the gate,
+        // on a page of plain objects that refuses markup
+        {
+            const peekSrc = slice('linkgate.js', 'linkpeek');
+            const mkPeek = (o) => { o = o || {}; const dom = makeDom(), doc = dom.document, W = dom.window, asked = []; W.innerWidth = 1000; W.innerHeight = 800;
+                if ('net' in o) W.wpNet = o.net; if (o.popout) doc.body.classList.add('popout-mode');
+                const el = (tag, id, parent) => { const e = doc.createElement(tag); if (id) e.id = id; (parent || doc.body).appendChild(e); return e; };
+                const z = {}; ['handoutModal', 'helpModal', 'plannerPreview', 'popoutWrap', 'chatLog'].forEach(id => { z[id] = el('div', id); });
+                z.editing = el('div', 'rteBody'); z.editing.setAttribute('contenteditable', 'true');
+                const api = new Function('cleanLink', 'linkParts', 'URL', gateSrc + '\n' + (o.noPeek ? '' : peekSrc) + '\nreturn { wireLinks: wireLinks, readUrl: readUrl, peekText: typeof peekText === "function" ? peekText : null };')(TFl.cleanLink, TFl.linkParts, URL);
+                api.wireLinks(W, doc, (words, cb, opts) => { asked.push(words); });
+                const strips = () => doc.body.all().filter(n => n.id === 'linkPeek'), strip = () => strips()[0] || null;
+                const P = { dom, doc, W, z, api, asked, strips, strip, shown: () => { const s = strip(); return s && s.hidden !== true ? s.firstChild.nodeValue : null; } };
+                P.link = (zone, href, attrs) => { const a = doc.createElement('a'); if (href !== undefined) a.setAttribute('href', href); Object.keys(attrs || {}).forEach(k => a.setAttribute(k, attrs[k])); a.appendChild(doc.createTextNode('the link')); (typeof zone === 'string' ? z[zone] : zone).appendChild(a); return a; };
+                P.over = (a, x) => { dom.fire(a, 'mouseover', Object.assign({ clientX: 500, clientY: 300, relatedTarget: null }, x || {})); return P.shown(); };
+                P.out = (a, to) => { dom.fire(a, 'mouseout', { relatedTarget: to || null }); return P.shown(); };
+                return P; };
+            const WANT = 'https://ok.example/p?a=1&b=2';
+            // every place and role: an address the gate would open, and one it would ask about, both show
+            const gm = mkPeek({ net: { active: true, role: 'host' } }), pl = mkPeek({ net: { active: true, role: 'client' } }), solo = mkPeek();
+            gm.z.handoutModal.dataset.linksOwn = '1';
+            const places = [gm.over(gm.link('plannerPreview', OK)), pl.over(pl.link('plannerPreview', OK)), gm.over(gm.link('handoutModal', OK)), pl.over(pl.link('handoutModal', OK)), solo.over(solo.link('helpModal', OK)), solo.over(solo.link('chatLog', OK)), pl.over(pl.link('chatLog', OK))];
+            // nothing for a link the gate opens nothing for, and the strip is put away when the pointer goes from a link onto one
+            const N = mkPeek(), good = N.link('plannerPreview', OK); N.over(good);
+            const nones = [N.link('editing', OK), N.link('plannerPreview', OK, { 'data-held': '1' }), N.link('plannerPreview', undefined), N.link('plannerPreview', 'javascript:alert(1)'), N.link('plannerPreview', 'ftp://a.example/'), N.link('plannerPreview', '/api/data'), N.link('plannerPreview', '#top'),
+                N.link('plannerPreview', 'blob:https://ok.example/1', { download: 'export.zip' }), N.link('plannerPreview', 'data:text/plain,x', { download: 'x.txt' })].map(a => { N.over(good); return N.over(a); });
+            // the address is the one the gate judges, as the URL parser reads it: plain characters only
+            const A = mkPeek(), trimmed = A.over(A.link('plannerPreview', '  https://a.example/x  ')), alike = A.over(A.link('plannerPreview', 'https://аррӏе.example/')), turned = A.over(A.link('plannerPreview', 'https://a.example/‮gpj.exe')),
+                long = A.over(A.link('plannerPreview', 'https://a.example/' + 'x'.repeat(1900))), svg = A.over(A.link('plannerPreview', undefined, { 'xlink:href': OK })), inner = (() => { const a = A.link('plannerPreview', OK), b = A.doc.createElement('b'); b.appendChild(A.doc.createTextNode('bold')); a.appendChild(b); return [A.over(b), a, b]; })();
+            const plain = s => typeof s === 'string' && /^[\x21-\x7e]+$/.test(s);
+            // one strip, one text node, nothing of the address in an attribute; where it is made
+            const S = mkPeek(), s0 = S.strips().length, hostile = 'https://ok.example/?q=%22%3E%3Cimg%20src=x%20onerror=alert(1)%3E'; S.over(S.link('plannerPreview', hostile)); S.over(S.link('plannerPreview', OK)); S.over(S.link('helpModal', OK));
+            const st = S.strip(), shape = st ? [S.strips().length, st.nodeName, st.childNodes.length, st.firstChild.nodeType, st.parentNode === S.doc.body, st.title, Object.keys(st.attrs || {}).every(k => String(st.attrs[k]).indexOf('example') < 0)] : null;
+            const Pp = mkPeek({ popout: true }); Pp.over(Pp.link('popoutWrap', OK)); const inPop = Pp.strip() && Pp.strip().parentNode.id;
+            // what puts it away, and what does not
+            const H = mkPeek(), h1 = H.link('plannerPreview', OK), h2 = H.link('plannerPreview', 'https://two.example/'), kid = H.doc.createElement('i'); h1.appendChild(kid);
+            const hides = []; H.over(h1); hides.push(H.out(h1, kid) === WANT, H.out(h1, h2) === null); H.over(h1); hides.push(H.out(h1, null) === null);
+            H.over(h1); H.dom.fire(H.z.plannerPreview, 'scroll', {}); hides.push(H.shown() === null); H.over(h1); H.dom.fire(h1, 'keydown', { key: 'a' }); hides.push(H.shown() === WANT); H.dom.fire(h1, 'keydown', { key: 'Escape' }); hides.push(H.shown() === null);
+            H.over(h1); H.dom.fire(h1, 'mousedown', { button: 0 }); hides.push(H.shown() === null); H.over(h1); H.W.fire('blur'); hides.push(H.shown() === null);
+            h2.focus(); hides.push(H.shown() === 'https://two.example/'); h2.blur(); hides.push(H.shown() === null); H.over(h1); hides.push(H.over(h2) === 'https://two.example/', H.over(H.z.chatLog) === null);
+            // out of the pointer's way
+            const R = mkPeek(), r1 = R.link('plannerPreview', OK), sides = [[100, 790], [900, 790], [100, 300], [700, 790]].map(p => { R.out(r1, null); R.over(r1, { clientX: p[0], clientY: p[1] }); return R.strip().classList.contains('peek-right'); });
+            // the gate as it was: with the strip up a click still asks, and the gate alone, with no strip code beside it, works as before
+            const C = mkPeek({ net: { active: true, role: 'client' } }), c1 = C.link('plannerPreview', OK); C.over(c1); C.dom.fire(c1, 'click', { button: 0 });
+            const bare = mkPeek({ noPeek: true }), b1 = bare.link('plannerPreview', OK), bareOver = bare.over(b1);
+            const cut = solo.api.peekText;
+            check('a link\'s address in sight before a press (1.5.4; linkgate.js sliced by its linkpeek markers and run for real beside the gate): while the pointer rests on a link the gate would open or ask about, on the GM\'s screen and on a player\'s, in a page, a handout, Help or anywhere else, the strip holds the whole address as the URL parser reads it; nothing shows for a link in a box that is being edited, one that was just dragged, one with no address, an address that is not the web\'s or a file the app hands over to be saved, and going onto such a link puts the strip away; the address is the one the gate judges, cleaned as the gate cleans it, in plain characters only — a look-alike name in its xn-- form, a direction mark percent-encoded — and cut at 300 characters; a diagram\'s link and a part of a link show the link\'s address',
+                J(places) === J([WANT, WANT, WANT, WANT, WANT, WANT, WANT]) && J(nones) === J([null, null, null, null, null, null, null, null, null])
+                && trimmed === 'https://a.example/x' && plain(alike) && /^https:\/\/xn--/.test(alike) && plain(turned) && /%E2%80%AE/i.test(turned) && typeof long === 'string' && long.length === 300 && long.charAt(299) === '…' && svg === WANT && inner[0] === WANT
+                && cut('x'.repeat(300)).length === 300 && cut('x'.repeat(301)) === 'x'.repeat(299) + '…' && cut(7) === '' && cut(null) === '', [places, nones, trimmed, alike, turned, long && long.length, svg, inner[0]]);
+            check('the strip itself, and what puts it away (run for real): one element a document, made on first use, a div holding one text node whose value is the address, nothing of the address in an attribute or a title, on the page itself and inside the pop-out\'s own box in a window of its own; it stays while the pointer moves onto a part of the same link and goes when the pointer leaves the link, at a scroll, at Escape and at no other key, at a press, and when the window loses the focus; the keyboard\'s focus on a link shows its address and leaving it puts it away; with the pointer low on the left the strip stands on the right; a click still asks with the strip up, and the gate with no strip code beside it works as it did',
+                s0 === 0 && J(shape) === J([1, 'DIV', 1, 3, true, '', true]) && inPop === 'popoutWrap' && J(hides) === J([true, true, true, true, true, true, true, true, true, true, true, true]) && J(sides) === J([true, false, false, false])
+                && J(C.asked) === J([ASK]) && bareOver === null && bare.strips().length === 0 && bare.api.peekText === null, [s0, shape, inPop, hides, sides, C.asked, bareOver]);
+            check('the strip, wired and in the style sheet (pinned): the gate\'s own wiring asks for it where it is there, through typeof, so the gate run alone is as it was; the slice makes one element by name and writes text nodes only; the strip takes no press, stands over the handout viewer and under the app\'s own question, and is put away by its hidden attribute; Help says it to players and under planners, and both release notes say it',
+                /doc\.addEventListener\('dragstart', dragGate\(win\), true\);\n\s*if \(typeof peekWire === 'function'\) peekWire\(win, doc\);[^\n]*\n\s*return h;/.test(gateSrc)
+                && !/innerHTML|outerHTML|insertAdjacentHTML|document\.write|\beval\(|new Function|Function\(|setAttribute\('on|\.on[a-z]+ = |javascript:|\.open\(/.test(peekSrc) && J((peekSrc.match(/createElement\('[a-z]+'\)/g) || [])) === J(["createElement('div')"]) && !/\.title = |setAttribute\('(?!aria-hidden')/.test(peekSrc)
+                && /\n  #linkPeek \{ position: fixed; left: 0; bottom: 0; z-index: 100005; [^\n]*pointer-events: none; user-select: none; \}\n  #linkPeek\.peek-right \{ left: auto; right: 0;[^\n]*\}\n  #linkPeek\[hidden\] \{ display: none; \}\n/.test(read('../style.css').replace(/\r\n/g, '\n'))
+                && (() => { const ixP = fs.readFileSync(path.join(dir, '..', 'index.html'), 'utf8'); return ixP.includes('<li>Before you click, rest the pointer on a link. Its whole address shows at the bottom left of the window, as in a web browser.</li>') && ixP.includes('<li>Rest the pointer on a link, or reach it with <kbd>Tab</kbd>, to see its whole address at the bottom left of the window before you click.</li>'); })()
+                && [path.join(dir, '..', '..', '..', 'WHATSNEW.txt'), path.join(dir, '..', 'assets', 'whatsnew.txt')].every(f => fs.readFileSync(f, 'utf8').replace(/\r\n/g, '\n').includes('- A link shows where it leads before you click. Rest the pointer on a\n  link, or reach it with Tab, and its whole address stands at the\n  bottom left of the window, as in a web browser. A link from someone\n  else still asks first.\n')));
+        }
+
         // wired, and a scan of the new code
         {
             const gateAll = read('linkgate.js'), ix = fs.readFileSync(path.join(dir, '..', 'index.html'), 'utf8').replace(/\r\n/g, '\n');
@@ -2677,7 +2739,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 && /import \{ fillLinked \} from '\.\/linkgate\.js';/.test(hoAll) && (hoAll.match(/fillLinked\(/g) || []).length === 2 && (hoAll.match(/from: cameFrom\(msg\)/g) || []).length === 2 && /from: atSomeonesTable\(\) \? null : \{ own: true \}/.test(hoAll) && /openRow\(e\.target\);/.test(hoAll)
                 && /<button class="tool ghost journal-open" title="[^"<>]*"[^>]*>Open<\/button>/.test(hoAll));
             check('links (a scan of the new code — the gate, the renderer, the viewer, opening a row, the notepad\'s save): no innerHTML, outerHTML, insertAdjacentHTML or document.write; no handler attribute and none set by name; no eval, no Function; every element made by createElement with a fixed name (div, a), every text by createTextNode or textContent',
-                [gateSrc, slice('handouts.js', 'viewer'), slice('handouts.js', 'journalopen'), slice('handouts.js', 'journalnote')].every(s => !/innerHTML|outerHTML|insertAdjacentHTML|document\.write|\beval\(|new Function|Function\(|setAttribute\('on|\.on[a-z]+ = |javascript:/.test(s))
+                [gateSrc, slice('linkgate.js', 'linkpeek'), slice('handouts.js', 'viewer'), slice('handouts.js', 'journalopen'), slice('handouts.js', 'journalnote')].every(s => !/innerHTML|outerHTML|insertAdjacentHTML|document\.write|\beval\(|new Function|Function\(|setAttribute\('on|\.on[a-z]+ = |javascript:/.test(s))
                 && J((gateSrc.match(/createElement\(([^)]*)\)/g) || []).sort()) === J(["createElement('a')", "createElement('div')", "createElement('div')"]) && !/createElement/.test(slice('handouts.js', 'viewer')));
             const cssL = fs.readFileSync(path.join(dir, '..', 'style.css'), 'utf8').replace(/\r\n/g, '\n');
             check('links (a pop-out window): the rule that hides the rest of the page in a pop-out leaves the app\'s own question, so a link that asks there can be answered — the question sits directly under the body (where the rule looks) and hides itself while it is closed',

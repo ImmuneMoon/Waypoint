@@ -143,6 +143,7 @@ function wire() {
             if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); menuSet(id, false); b.focus(); return; }   // Escape puts it away, goes no further, and hands the focus back
             var rows = menuRows(id), at = rows.indexOf(document.activeElement), to = menuStep(e.key, at, rows.length);
             if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) to = menuType(rows.map(function(r) { return r.textContent; }), at, e.key);   // a key of one character is a letter, never an arrow: the next row that begins with it. The space bar begins no row's words, so it stays the press it is
+            if (to < 0 && !e.ctrlKey && !e.metaKey && !e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'Delete' || e.key === 'Backspace')) { e.preventDefault(); e.stopPropagation(); return; }   // the page's own keys for what is selected on the map: a menu that has the focus takes them and does nothing with them (the review of 2026-10-09)
             if (to < 0) return;
             e.preventDefault(); e.stopPropagation(); rows[to].focus();   // the key is the menu's and goes no further: the page's own arrow keys move a selected token (the owed review, 2026-10-09)
         };

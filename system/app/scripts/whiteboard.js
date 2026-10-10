@@ -4365,12 +4365,13 @@ window.wpFitToGrid = fitToGrid;
               : 'Token elevation is off for this campaign (⚙ Settings ▸ VTT features): flat hex distance.';
       }
       var nOwn = blasts.filter(function(x) { return ownCircle(x) && !x.lost; }).length;   // the shapes on screen: a circle whose token is gone is not one
-      var which = document.getElementById('blastWhich'); if (which) which.textContent = nOwn ? 'The numbers are those of the last shape you placed. You have ' + nOwn + ' on this map.' : now.tok === true ? 'Click a token on the map to put a circle on it.' : now.as === 'ring' ? 'Click a cell on the map to place a ring.' : now.as === 'cone' ? 'Press a cell on the map and drag to aim the cone.' : 'Click a cell on the map to place a circle.';
+      var which = document.getElementById('blastWhich'); if (which) which.textContent = nOwn && !circleKeptPicked ? 'The numbers are those of the last shape you placed. You have ' + nOwn + ' on this map.' : now.tok === true ? 'Click a token on the map to put a circle on it.' : now.as === 'ring' ? 'Click a cell on the map to place a ring.' : now.as === 'cone' ? 'Press a cell on the map and drag to aim the cone.' : 'Click a cell on the map to place a circle.';
       if (typeof explodeHitRow === 'function') explodeHitRow();   // the Explode boxes ask about the centre token only while the circle that would go off sits on one
   }
   function lastOwn() { for (var i = blasts.length - 1; i >= 0; i--) if (ownCircle(blasts[i]) && !blasts[i].lost) return blasts[i]; return null; }   // the last shape of the tool's own that is on screen
+  function lastEdit() { return circleKeptPicked ? null : lastOwn(); }   // the shape the options show and change. None while a shape picked with none on screen waits for its click: a circle that came back with its token since is left as it is, and the options go on showing the pick
   function circleNow() {   // what the options show: the last shape of the tool's own, else the one kept for the next. A number the shape does not carry (a circle has no angle) is the one kept
-      var c = lastOwn(); return circleShape(c ? { yd: c.yd, as: c.as, inn: c.as === 'ring' ? c.inn : circleKept.inn, deg: c.as === 'cone' ? c.deg : circleKept.deg, tok: typeof c.tok === 'string' || circleKept.tok === true } : circleKept);   // On a token shows for a circle that sits on one, and for a free circle while the next click is to go onto a token (circleShape keeps the mark for a circle alone)
+      var c = lastEdit(); return circleShape(c ? { yd: c.yd, as: c.as, inn: c.as === 'ring' ? c.inn : circleKept.inn, deg: c.as === 'cone' ? c.deg : circleKept.deg, tok: typeof c.tok === 'string' || circleKept.tok === true } : circleKept);   // On a token shows for a circle that sits on one, and for a free circle while the next click is to go onto a token (circleShape keeps the mark for a circle alone)
   }
   // The options: what is measured, the size box, a ring's inner distance, a cone's angle. ch names what changed, each only when it did:
   // { size, as, inner, deg, tok }, as typed (tok: true or false, On a token picked or left). It shapes the last shape of the tool's own
@@ -4383,7 +4384,7 @@ window.wpFitToGrid = fitToGrid;
       circleKept = circleShape({ yd: yd, as: kind, inn: ch.inner !== undefined ? circleYd(ch.inner, 'r', ru) : now.inn, deg: ch.deg !== undefined ? coneDeg(ch.deg, now.deg) : now.deg, tok: ch.tok !== undefined ? ch.tok === true : now.tok });
       try { localStorage.setItem('wp_radius', JSON.stringify(circleKept)); } catch (e) {}
       if (circleKept.as === 'r' || circleKept.as === 'd') circleCas = circleKept.as;
-      var c = lastOwn(); if (!c) circleKeptPicked = true;
+      var c = lastEdit(); if (!c) circleKeptPicked = true;
       if (c) {
           c.yd = circleKept.yd; c.as = circleKept.as; delete c.inn; delete c.deg;
           if (c.as === 'ring') c.inn = circleKept.inn; else if (c.as === 'cone') { c.deg = circleKept.deg; if (typeof c.dir !== 'number' || !isFinite(c.dir)) c.dir = circleDir; }
@@ -4401,7 +4402,7 @@ window.wpFitToGrid = fitToGrid;
   // what the options then show, an older shape's numbers: a click places what is in sight
   function circleRekept() {
       if (!lastOwn()) return;
-      circleKept = circleNow(); circleKeptPicked = false;   // the very shape the options show, On a token included
+      circleKeptPicked = false; circleKept = circleNow();   // the very shape the options show, On a token included
       if (circleKept.as === 'r' || circleKept.as === 'd') circleCas = circleKept.as;
       try { localStorage.setItem('wp_radius', JSON.stringify(circleKept)); } catch (e) {}
   }

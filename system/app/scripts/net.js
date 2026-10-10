@@ -3775,7 +3775,11 @@ function renderNotepad() {
     var host = net.role === 'host';
     ta.readOnly = !host;
     ta.placeholder = host ? 'Notes for the whole table — everyone sees this as you type. Gone when you put it away or the session ends; anyone can save it to their Journal.' : 'The GM has not written anything yet.';
-    if ((!host || document.activeElement !== ta) && ta.value !== net.notepad.text) ta.value = net.notepad.text || '';   // the writer's own typing is never drawn over; a player's box only reads, and follows the GM even while it has the focus (the owed review, 2026-10-09)
+    if ((!host || document.activeElement !== ta) && ta.value !== net.notepad.text) {
+        var heldN = !host && document.activeElement === ta, s0N = heldN ? ta.selectionStart : 0, s1N = heldN ? ta.selectionEnd : 0, scN = heldN ? ta.scrollTop : 0;
+        ta.value = net.notepad.text || '';
+        if (heldN) { try { ta.setSelectionRange(Math.min(s0N, ta.value.length), Math.min(s1N, ta.value.length)); } catch (e) {} ta.scrollTop = scN; }   // a player reading or copying: where they are stays, as far as the new text reaches
+    }   // the writer's own typing is never drawn over; a player's box only reads, and follows the GM even while it has the focus (the owed review, 2026-10-09)
     var close = ui('notepadCloseBtn'); if (close) close.style.display = host ? '' : 'none';
     var clr = ui('notepadClearBtn'); if (clr) clr.style.display = host ? '' : 'none';
     var who = ui('notepadWho'); if (who) who.textContent = host ? 'everyone at the table sees this' : 'written by ' + (net.notepad.gm || 'the GM');

@@ -2686,9 +2686,12 @@ function postureAt(sys, v) {
     return { i: i, p: pl[i] };
 }
 // One of the website's seven postures for a token's stored text, by its id: the ids themselves, the 1.4.6 ids and the handbook's long names, as
-// the map reads them. '' for a text that is none of them (a posture of a system's own list, a word nobody knows, nothing)
-function postureSeven(v) {
+// the map reads them. '' for a text that is none of them (a posture of a system's own list, a word nobody knows, nothing). sys: the system
+// in use. A posture of its own list, by its id, is never one of the seven, whatever letters the id holds: the reading below is by the words
+// a text holds, and an id such as p_transit holds sit (the review of 2026-10-09)
+function postureSeven(v, sys) {
     if (typeof v !== 'string' || !v) return '';
+    if (POSTURE_IDS.indexOf(v) < 0 && ownPostures(sys)) { var plS = postureList(sys); for (var iS = 0; iS < plS.length; iS++) if (isObj(plS[iS]) && plS[iS].id === v) return ''; }
     var k = postureIndex(v); if (k > 0) return POSTURE_IDS[k];
     var s = v.toLowerCase().replace(/[^a-z]+/g, ' ').trim();
     return s === 'standing' || s === 'stand' ? POSTURE_IDS[0] : '';

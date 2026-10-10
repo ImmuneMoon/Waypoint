@@ -320,9 +320,9 @@ The play map
   Properties. It opens the Image Library, and the picture you pick
   becomes the fill of what you lay or paint. Tile size sets how large one
   repeat is: one, two or four cells, or the whole piece once. Pieces
-  side by side read as one surface. The picture is one of the campaign's
-  own files, your players get it as they get a token's picture, and an
-  export carries it.
+  side by side read as one surface. The picture is one of your own files,
+  your players get it as they get a token's picture, and an export
+  carries it.
 
 The top bar and the data map
 - The top of the window is one quiet row. Its captioned boxes are gone,

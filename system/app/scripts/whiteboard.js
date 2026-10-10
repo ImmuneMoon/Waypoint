@@ -4163,7 +4163,9 @@ window.wpFitToGrid = fitToGrid;
   // picture in use stands in the list under its file's own name. The two rows' values are fixed words that no texture is named by
   var TEX_PIC = '@pic', TEX_PICK = '@pick';
   var TILE_ROWS = [[1, '1 cell'], [2, '2 cells'], [4, '4 cells'], ['whole', 'Whole piece']];
-  var TILE_LINES = { '1': 'The picture repeats across the piece, one tile a cell.', '2': 'The picture repeats across the piece, one tile every two cells.', '4': 'The picture repeats across the piece, one tile every four cells.', 'whole': 'The picture is stretched over the piece once.' };
+  // One repeat is 50 px a cell on every map, a square cell's width: on a hex map that is a little less than a cell. A painted cell and a
+  // hexagon Build lays are each a piece, so Whole piece shows the picture once in each
+  var TILE_LINES = { '1': 'The picture repeats. One tile is as wide as one square cell.', '2': 'The picture repeats. One tile is as wide as two square cells.', '4': 'The picture repeats. One tile is as wide as four square cells.', 'whole': 'The picture is stretched over each piece once. A painted cell or a laid hexagon is a piece of its own.' };
   function texPicOf(v) { var FC = window.wpFogCore; return (FC && typeof FC.cleanTexSrc === 'function' ? FC.cleanTexSrc(v) : null) || ''; }
   // A repeat as a chip, a list or this computer's store names it (a text) or as a piece holds it: 1, 2, 4 or 'whole', and 1 for anything else
   function texTileOf(v) { var FC = window.wpFogCore, n = typeof v === 'string' && /^[124]$/.test(v) ? Number(v) : v; return (FC && typeof FC.cleanTexTile === 'function' ? FC.cleanTexTile(n) : null) || 1; }
@@ -4187,8 +4189,21 @@ window.wpFitToGrid = fitToGrid;
       if (typeof window.wpPickImage !== 'function') { if (typeof toast === 'function') toast('The image library is not available here.'); return; }
       window.wpPickImage(function(src) {
           var s = texPicOf(src);
-          if (!s) { if (typeof toast === 'function') toast('That picture cannot be a fill. Its name holds a # or a % code, or it lies in the sounds, video or Journal folder.'); return; }
+          if (!s) { if (typeof toast === 'function') toast('That picture cannot be a fill. Its name holds two dots together, a # or a % code, or it lies in the sounds or video folder. Rename or move the file and pick it again.'); return; }
           take({ pic: s });
+      });
+  }
+  // A Texture list's last rows act at a choice, never at a key step. A closed list changes its value at every arrow key and typed letter, and
+  // here that would open the Image Library, or take a picture off, on the way past. So such a key opens the list instead, where the arrow
+  // keys only move and Enter or a click chooses. Alt+Down, F4 and Space open it as they always did, and Tab and Enter are left alone
+  var TEX_STEP_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'];
+  function texListStep(e) { return !!e && !e.altKey && !e.ctrlKey && !e.metaKey && typeof e.key === 'string' && (TEX_STEP_KEYS.indexOf(e.key) >= 0 || (e.key.length === 1 && e.key !== ' ')); }
+  function texListKeys(sel) {
+      if (!sel || typeof sel.addEventListener !== 'function') return;
+      sel.addEventListener('keydown', function(e) {
+          if (!texListStep(e)) return;
+          e.preventDefault();
+          if (typeof this.showPicker === 'function') { try { this.showPicker(); } catch (err) {} }
       });
   }
   // The Tile size chips of a menu (buttons that each carry data-tile) and the grey line under them, shown only while a picture is the fill
@@ -4201,7 +4216,7 @@ window.wpFitToGrid = fitToGrid;
       var row = document.getElementById(rowId); if (!row) return;
       Array.prototype.forEach.call(row.querySelectorAll('[data-tile]'), function(b) { b.addEventListener('click', function(ev) { ev.stopPropagation(); take(texTileOf(this.dataset.tile)); }); });
   }
-  window.wpTexList = { PIC: TEX_PIC, PICK: TEX_PICK, TILES: TILE_ROWS, pick: texListPick, picOf: texPicOf, tileOf: texTileOf };   // Properties' Texture row asks the same rule
+  window.wpTexList = { PIC: TEX_PIC, PICK: TEX_PICK, TILES: TILE_ROWS, pick: texListPick, keys: texListKeys, picOf: texPicOf, tileOf: texTileOf };   // Properties' Texture row asks the same rule
   // The fill menu's Texture list and its Tile size: the picks are kept on this computer and read back through the cleaners
   function fillTexSync() { texOptionsInto(document.getElementById('fillTexture'), state.fillTexture, state.fillPic); tileRowSync('fillTileRow', 'fillTileLine', state.fillPic, state.fillTile); }
   function fillTexKeep() { try { localStorage.setItem('wp_fillTexture', state.fillTexture); localStorage.setItem('wp_fillPic', state.fillPic || ''); localStorage.setItem('wp_fillTile', String(state.fillTile || 1)); } catch (e) {} }
@@ -4219,6 +4234,7 @@ window.wpFitToGrid = fitToGrid;
               fillTexKeep(); fillTexSync();
           });
       });
+      texListKeys(sel);
       tileRowWire('fillTileRow', function(t) { state.fillTile = t; fillTexKeep(); fillTexSync(); });
   }
   // [sinkcheck:texopts-end]
@@ -5377,7 +5393,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       if (catBtn) { catBtn.innerHTML = fromV ? 'Add / move category\u2026' : 'Add to category\u2026'; catBtn.title = fromV ? 'Add another category, move it out of ' + fromV + ', or take it out' : 'Tag this picture with a category (it can be in several)'; }
       var add = document.getElementById('imgLibPreviewAdd'), delBtn = document.getElementById('imgLibPreviewDel');
       if (_imgLibPicker) { add.textContent = _imgLibPick ? 'Bring in & use' : 'Bring into this campaign'; add.title = 'This campaign remembers the picture (nothing is copied)' + (_imgLibPick ? ' and the block gets it' : ''); }
-      else { add.textContent = _imgLibPick ? 'Use this picture' : (castBatch() > 1 ? 'Add \u00d7' + castBatch() + ' to map' : 'Add to map'); add.title = _imgLibPick ? 'Put this picture in the block' : 'Place it on the current play map (the number in Copies)'; }
+      else { add.textContent = _imgLibPick ? 'Use this picture' : (castBatch() > 1 ? 'Add \u00d7' + castBatch() + ' to map' : 'Add to map'); add.title = _imgLibPick ? 'Use this picture where you asked for one' : 'Place it on the current play map (the number in Copies)'; }
       if (catBtn) catBtn.style.display = _imgLibPicker ? 'none' : '';
       if (delBtn) delBtn.style.display = _imgLibPicker ? 'none' : '';
       pv.dataset.src = src; delete pv.dataset.cid;   // leaving cast mode: the Add button reads src, not a stale cid
@@ -6595,6 +6611,7 @@ function buildWire() {   // the options' own controls, each once
         if (typeof texListPick !== 'function') { name(v); return; }
         texListPick(v, buildSync, function(p) { if (p.pic) buildPick(function() { _build.pic = p.pic; }); else name(p.tex); });   // fold B3: A picture opens the Image Library, and its pick is the fill
     });
+    if (tx && typeof texListKeys === 'function') texListKeys(tx);
     if (typeof tileRowWire === 'function') tileRowWire('buildTileRow', function(t) { buildPick(function() { _build.tile = t; }); });
     Array.prototype.forEach.call(document.querySelectorAll('#buildColorRow .build-sw'), function(sw) { sw.addEventListener('click', function(ev) { ev.stopPropagation(); var c = buildHex6(this.dataset.color); buildPick(function() { if (!c) return false; _build.color = c; }); }); });
     var ci = document.getElementById('buildColorInput'); if (ci) ci.addEventListener('input', function() { var c = buildHex6(this.value); buildPick(function() { if (!c) return false; _build.color = c; }); });

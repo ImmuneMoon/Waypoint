@@ -743,7 +743,7 @@ function openSheet(charId) {
     p.style.display = 'flex'; if (window.wpFloats) window.wpFloats.reveal(p);   // 1.5.4 (floats.js): asked for here, so it shows on this view
     placeSheet(); raisePanel(p); renderSheet();
 }
-function closeSheet() { closeDownloadMenu(); sheetOpen = null; _sheetEdit = null; var p = ui('sheetPanel'); if (p) p.style.display = 'none'; }
+function closeSheet() { closeDownloadMenu(); sheetOpen = null; _sheetEdit = null; var p = ui('sheetPanel'); if (p) p.style.display = 'none'; if (typeof sbxFlush === 'function') sbxFlush(); }   // (item 35: what was being typed in it is stored, and the run of typing ends)
 function placeSheet() { var p = ui('sheetPanel'); if (!p) return; try { var pos = JSON.parse(pref('wp_sheetPanel', 'null')); if (pos && isFinite(pos.x) && isFinite(pos.y)) { p.style.left = Math.max(0, Math.min(window.innerWidth - 160, pos.x)) + 'px'; p.style.top = Math.max(0, Math.min(window.innerHeight - 80, pos.y)) + 'px'; p.style.right = 'auto'; } if (pos && isFinite(pos.w) && isFinite(pos.h)) sizePanel(p, pos.w, pos.h); } catch (e) {} }
 // Fold B: the panel's own size (its corner grip), clamped to the window; the saved record keeps the position and the size together
 function sizePanel(p, w, h) { var r = p.getBoundingClientRect(); w = Math.max(360, Math.min(window.innerWidth - Math.max(0, r.left) - 8, Math.round(w))); h = Math.max(240, Math.min(window.innerHeight - Math.max(0, r.top) - 8, Math.round(h))); p.style.width = w + 'px'; p.style.height = h + 'px'; p.classList.add('sheet-sized'); }   // clamped to the room left of/below where the panel is, so the grip and the last rows stay on screen
@@ -903,7 +903,7 @@ function placeHud(v) {
     p.style.left = Math.round(Math.max(0, Math.min(W - 160, x))) + 'px'; p.style.top = Math.round(Math.max(0, Math.min(H - 80, y))) + 'px';
     if (sized) sizePanel(p, o.w, o.h);
 }
-function closeHud(charId) { var v = huds[charId]; if (!v) return; clearTimeout(v.redraw); delete huds[charId]; if (v.panel && v.panel.parentNode) v.panel.parentNode.removeChild(v.panel); if (!Object.keys(huds).length) resetZ(); }
+function closeHud(charId) { var v = huds[charId]; if (!v) return; if (typeof sbxFlush === 'function') sbxFlush(); clearTimeout(v.redraw); delete huds[charId]; if (v.panel && v.panel.parentNode) v.panel.parentNode.removeChild(v.panel); if (!Object.keys(huds).length) resetZ(); }
 function closeHuds() { Object.keys(huds).forEach(function(id) { closeHud(id); }); }
 // The HUD's twin of renderSheet: its head (portrait, name, the HUD's title), then the HUD's own layout in the sheet's look
 function renderHud(charId) {
@@ -3403,14 +3403,17 @@ function sbxField(key) {
         fmt: function() { var d = _sbx.drafts[key]; return d ? d.fmt : sbxFmtOf(p.c, p.f); },
         // (a write that changes nothing opens no draft: a draft is committed by a timer the box arms only when it was told of a change, and one
         // left open would hide, and later write over, a newer stored text)
-        setText: function(v) { var t = sbxCut(p.f, v); if (!_sbx.drafts[key] && t === sbxStored(p.c, p.f)) return; open().text = t; },
-        setFmt: function(v) { var g = v && typeof v === 'object' ? v : undefined; if (!_sbx.drafts[key] && JSON.stringify(g || null) === JSON.stringify(sbxFmtOf(p.c, p.f) || null)) return; open().fmt = g; } };
+        // A format is compared AS CLEANED for the text it is for: a span the box grew past the end of a full field cleans to the look the field has
+        setText: function(v) { var t = sbxCut(p.f, v); if (!_sbx.drafts[key] && t === sbxStored(p.c, p.f)) return; var d = open(); d.text = t; d.typed = true; },
+        setFmt: function(v) { var g = v && typeof v === 'object' ? v : undefined; if (!_sbx.drafts[key]) { var r = g ? lookFor(p.f, sbxStored(p.c, p.f), g) : undefined; if (JSON.stringify((r && r.fmt) || null) === JSON.stringify(sbxFmtOf(p.c, p.f) || null)) return; } open().fmt = g; } };
 }
 function sbxName(key) { var p = sbxParts(key); return p ? String(p.f.label || p.f.key || '') : ''; }
 function sbxSizes(key) { var p = sbxParts(key); return !!p && p.f.kind === 'notes'; }   // no size on a one-line text
 function sbxBarHost(box) { return box && box.closest ? box.closest('#sheetPanel, .hud-panel') : null; }
 function sbxChanged(key) { if (typeof key !== 'string' || !SBX_KEY.test(key)) return; clearTimeout(_sbx.timers[key]); _sbx.timers[key] = setTimeout(function() { sbxCommit(key); }, SBX_MS); }
 function sbxLeft(key) { if (typeof key !== 'string' || !SBX_KEY.test(key)) return; sbxCommit(key); if (_sbx.run === key) _sbx.run = ''; }   // (the run of typing ends where the box is left)
+// A view of the sheet is closed: nothing is told of a leaving then, so every open draft is committed now and the run of typing ends
+function sbxFlush() { Object.keys(_sbx.drafts).forEach(function(k) { sbxCommit(k); }); _sbx.run = ''; }
 // What was typed is committed: the text first, as the input committed it, then the look for the text as it then stands. A default that was
 // only styled is stored as it reads, since a look stands on a stored text. Should the text not be taken exactly as typed (refused, or
 // cleaned to other words), no look is laid on other words. True when something was sent on its way
@@ -3421,20 +3424,22 @@ function sbxCommit(key) {
     delete _sbx.drafts[key];
     var p = sbxParts(key); if (!p) return false;
     var had = !!p.c.values && typeof p.c.values[p.f.id] === 'string', was = sbxStored(p.c, p.f), wasFmt = sbxFmtOf(p.c, p.f);
-    var textMoved = d.text !== was, lookMoved = JSON.stringify(d.fmt || null) !== JSON.stringify(wasFmt || null);
+    if (d.typed !== true && d.text !== was) return false;   // a look alone, and the words changed under it meanwhile: it was made for other words, and the newer words stand
+    var rec = d.fmt ? lookFor(p.f, d.text, d.fmt) : undefined;
+    var textMoved = d.text !== was, lookMoved = JSON.stringify((rec && rec.fmt) || null) !== JSON.stringify(wasFmt || null);
     if (!textMoved && !lookMoved) return false;
-    var sent = false, peek = typeof lastChangePeek === 'function' ? lastChangePeek : null, lc = peek ? peek() : null, run = _sbx.run === key && !!lc && lc.charId === p.c.id && lc.fieldId === p.f.id;
+    var peek = typeof lastChangePeek === 'function' ? lastChangePeek : null, lc = peek ? peek() : null, run = _sbx.run === key && !!lc && lc.charId === p.c.id && lc.fieldId === p.f.id;
     if (textMoved || (!had && d.fmt)) {
-        commit(p.c, p.f, d.text); sent = true;
+        commit(p.c, p.f, d.text);
         // one run of typing in one field is ONE change to take back: Revert brings back the words as they stood before the run, as it did
         // when the input stored once, on leaving
-        var now = peek ? peek() : null; if (run && now && now !== lc && now.charId === p.c.id && now.fieldId === p.f.id) now.prev = lc.prev;
-        _sbx.run = key;
+        var now = peek ? peek() : null, ours = !!now && now !== lc && now.charId === p.c.id && now.fieldId === p.f.id;   // the commit left a change of this field's to take back (a refused one leaves none)
+        if (run && ours) now.prev = lc.prev;
+        if (ours) _sbx.run = key;
     }
-    if (!p.c.values || p.c.values[p.f.id] !== d.text) return sent;
-    var rec = d.fmt ? lookFor(p.f, d.text, d.fmt) : undefined;
-    if (rec) { commitLook(p.c, p.f, rec); sent = true; } else if (wasFmt && !textMoved) { commitLook(p.c, p.f, null); sent = true; }
-    return sent;
+    if (!p.c.values || p.c.values[p.f.id] !== d.text) return true;
+    if (rec) commitLook(p.c, p.f, rec); else if (wasFmt && !textMoved) commitLook(p.c, p.f, null);
+    return true;
 }
 // The field's own box: an element the text box module dresses and fills. Null where the box cannot serve: the caller draws what it always drew
 function sbxNode(f, c, multi) {

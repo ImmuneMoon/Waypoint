@@ -722,6 +722,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
      itself, nor when the window loses the focus or a panel is hidden: it flushes by itself then. (6) left(key) must be harmless when nothing
      changed. (7) It names a barHost that it does not draw again. */
   var TS_SIZE_NOT = 'This field takes no size.', TS_LINK_NOT = 'This field takes no link.';
+  var TS_FONT_TITLE = 'Font, for the whole field. These are Waypoint\u2019s own fonts: they look the same on every computer.';
   var TSX_STEPS = 100, TSX_FIELDS = 60, tsxUndos = Object.create(null), tsxKeys = [];   // (tsState.kept: a field drawn again as a new element, until that element gets the focus: { box, s, e, back, away })
   // a host's text as its box shows it: a one-line box without line breaks, a box of several lines with its line breaks as \n. (A planner's
   // label also drops one leading line break, as the textarea it replaced did when it was written as markup: a host's text never was.)
@@ -800,8 +801,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       return { left: 0, top: 0, right: window.innerWidth || 0, bottom: window.innerHeight || 0 };
   }
   function tsxCopy(f) { return f === undefined || f === null ? undefined : JSON.parse(JSON.stringify(f)); }
-  function tsxSame(a, b) { return a.text === b.text && JSON.stringify(a.fmt) === JSON.stringify(b.fmt); }
-  function tsxNow(fld) { return { text: fld.text(), fmt: tsxCopy(fld.fmt()) }; }
+  function tsxSame(a, b) { return a.text === b.text && JSON.stringify(a.fmt) === JSON.stringify(b.fmt) && (a.font || '') === (b.font || ''); }
+  function tsxNow(fld) { var o = { text: fld.text(), fmt: tsxCopy(fld.fmt()) }; if (fld.font) o.font = fld.font(); return o; }   // (a font only for a field that has one: every other step is key for key what it was)
+  // A host's box wears its field's font: one of Waypoint's own through fontCss, or none. Written only when it changed
+  function tsxFontOn(box, fld) { var css = fld && fld.font ? TF.fontCss(fld.font()) : ''; if (box && box.style && box._tsFont !== css) { box._tsFont = css; box.style.fontFamily = css; } }
   // The steps of one field of a host's, by the host's text of the moment and the field's key: { base, steps, at }. base is the text and look
   // before the first step; a step is the text and look after it, with the selection before it (bs, be) and after it (as, ae).
   function tsxStack(ctx, d, make, ident) {
@@ -814,10 +817,11 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   function tsxStep(U, was, now, before, after, cont) {
       var cur = U.at >= 0 ? U.steps[U.at] : U.base;
       if (!cur || !tsxSame(cur, was)) { U.base = was; U.steps = []; U.at = -1; cont = false; }   // the field was changed from elsewhere since: what was noted is of another text
-      if (cont && U.at >= 0 && U.at === U.steps.length - 1) { var top = U.steps[U.at]; top.text = now.text; top.fmt = now.fmt; top.as = after.s; top.ae = after.e; return; }
+      if (cont && U.at >= 0 && U.at === U.steps.length - 1) { var top = U.steps[U.at]; top.text = now.text; top.fmt = now.fmt; if (now.font !== undefined) top.font = now.font; top.as = after.s; top.ae = after.e; return; }
       U.steps.length = U.at + 1;   // a new step forgets what was undone
-      U.steps.push({ text: now.text, fmt: now.fmt, bs: before.s, be: before.e, as: after.s, ae: after.e });
-      if (U.steps.length > TSX_STEPS) { var gone = U.steps.shift(); U.base = { text: gone.text, fmt: gone.fmt }; }
+      var st = { text: now.text, fmt: now.fmt, bs: before.s, be: before.e, as: after.s, ae: after.e }; if (now.font !== undefined) st.font = now.font;
+      U.steps.push(st);
+      if (U.steps.length > TSX_STEPS) { var gone = U.steps.shift(); U.base = { text: gone.text, fmt: gone.fmt }; if (gone.font !== undefined) U.base.font = gone.font; }
       U.at = U.steps.length - 1;
   }
   // ONE edit of a host's box on its way to the host's field: tsCommit's own rule for what is one step, on the field's own stack
@@ -865,6 +869,26 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (told) { hx.changed(sel.d.key, 'look'); tsxGone(); }   // last: the host may draw its view again now
       return true;
   }
+  // The Font list: one of Waypoint's own fonts (or none) for a host's WHOLE field, one step of its own, and the host is told. Only where the
+  // host takes a font for that field and the field can hold one; a name that is not of the list changes nothing
+  function tsxFont(name, from) {
+      if (tsState.comp) return false;
+      var box = tsState.box, am = tsBlocksOf(box), sel = tsTarget();
+      var hx = am && sel && sel.d.k === 'x' ? tsHostBy(sel.d.h) : null, fld = hx ? tsField(null, sel.d) : null;
+      if (!fld || !fld.setFont || !hx.fonts(sel.d.key)) { tsState.run = null; tsRefresh(); return false; }
+      var known = typeof name === 'string' && name ? TF.fontKnown(name) : '', was = tsxNow(fld);
+      if ((name && !known) || (was.font || '') === known) { tsRefresh(); return false; }
+      var kept = !!(from && tsState.key && document.activeElement === from);
+      tsState.run = null; tsState.last = null;
+      fld.setFont(known);
+      var now = tsxNow(fld), told = !tsxSame(was, now);
+      if (told) tsxStep(tsxStack(am.id, sel.d, true, fld.ident), was, now, { s: sel.s, e: sel.e }, { s: sel.s, e: sel.e }, false);
+      tsxFontOn(box, fld);
+      if (!kept) tsHold(box, sel.s, sel.e, sel.back);
+      tsRefresh(); tsPlace();
+      if (told) { hx.changed(sel.d.key, 'look'); tsxGone(); }   // last: the host may draw its view again now
+      return told;
+  }
   // Undo and redo in a host's box: the field's own steps. False when there is nothing to take back or put back
   function tsxUndo(box, dir) {
       if (tsState.comp) return false;   // a composition is the engine's until it ends
@@ -875,7 +899,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var to, a, z;
       if (dir === 'undo') { if (U.at < 0) return false; a = U.steps[U.at].bs; z = U.steps[U.at].be; U.at--; to = U.at >= 0 ? U.steps[U.at] : U.base; }
       else { if (U.at >= U.steps.length - 1) return false; U.at++; to = U.steps[U.at]; a = to.as; z = to.ae; }
-      fld.setText(to.text); fld.setFmt(tsxCopy(to.fmt));
+      fld.setText(to.text); fld.setFmt(tsxCopy(to.fmt)); if (fld.setFont) { fld.setFont(to.font || ''); tsxFontOn(box, fld); }
       var multi = tsMulti(d), n;
       box._tsText = tsxShown(fld.text(), multi); n = box._tsText.length;
       tsPaint(box, fld, multi);
@@ -905,6 +929,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (lab && lab.title !== words) lab.title = words;
       if (noSize) { E.size.disabled = true; E.size.value = ''; }
       if (noLink) { E.link.disabled = true; E.linkLab.classList.add('off'); E.linkLab.title = TS_LINK_NOT; if (document.activeElement !== E.link) { E.link.value = ''; E.link.placeholder = 'https://…'; } }
+      var fonts = !!hx && typeof fld.setFont === 'function' && hx.fonts(sel.d.key);
+      if (E.fontLab.hidden === fonts) E.fontLab.hidden = !fonts;
+      if (fonts) { var fv = fld.font(); if (E.font.value !== fv) E.font.value = fv; }
   }
   // A host's boxes wired on the elements they live under. keydown is taken in the CAPTURE phase: a panel of the app's may stop a key and close
   // on Escape in its own listener, and the box's Escape (which only puts the bar away) and its undo chord come first
@@ -929,18 +956,21 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       tsHosts.forEach(function(h) { others = others.concat(h.roots); });
       for (var ri = 0; ri < roots.length; ri++) { if (others.some(function(o) { return near(o, roots[ri]); })) return false; others.push(roots[ri]); }
       var ask = function(name, none) { return function(a, b) { try { return typeof rec[name] === 'function' ? rec[name](a, b) : none; } catch (err) { if (typeof console !== 'undefined' && console.error) console.error(err); return none; } }; };
-      var q = { field: ask('field', null), doc: ask('doc', ''), name: ask('name', ''), links: ask('links', false), sizes: ask('sizes', false), barHost: ask('barHost', null), changed: ask('changed', null), left: ask('left', null) };
+      var q = { field: ask('field', null), doc: ask('doc', ''), name: ask('name', ''), links: ask('links', false), sizes: ask('sizes', false), fonts: ask('fonts', false), barHost: ask('barHost', null), changed: ask('changed', null), left: ask('left', null) };
       var hx = {
           id: rec.id, roots: roots,
           // a host's field as the box reads it: its text a string or nothing, its format an object or none. What it holds is the host's, and may come from a file
           field: function(key) {
               var f = q.field(key); if (!f || typeof f.text !== 'function' || typeof f.fmt !== 'function' || typeof f.setFmt !== 'function' || typeof f.setText !== 'function') return null;
-              return { ident: typeof f.ident === 'string' ? f.ident.slice(0, 200) : '', text: function() { var t = f.text(); return typeof t === 'string' ? t : ''; }, fmt: function() { var m = f.fmt(); return m && typeof m === 'object' ? m : undefined; }, setFmt: function(v) { f.setFmt(v); }, setText: function(v) { f.setText(v); } };
+              var o = { ident: typeof f.ident === 'string' ? f.ident.slice(0, 200) : '', text: function() { var t = f.text(); return typeof t === 'string' ? t : ''; }, fmt: function() { var m = f.fmt(); return m && typeof m === 'object' ? m : undefined; }, setFmt: function(v) { f.setFmt(v); }, setText: function(v) { f.setText(v); } };
+              if (typeof f.font === 'function' && typeof f.setFont === 'function') { o.font = function() { return TF.fontKnown(f.font()); }; o.setFont = function(v) { f.setFont(TF.fontKnown(v)); }; }   // one of Waypoint's own fonts, or none
+              return o;
           },
           doc: function() { var v = q.doc(); return typeof v === 'string' ? v : ''; },
           name: function(key) { var v = q.name(key); return typeof v === 'string' ? v.slice(0, 80) : ''; },
           links: function(key) { return q.links(key) === true; },
           sizes: function(key) { return q.sizes(key) === true; },
+          fonts: function(key) { return q.fonts(key) === true; },
           barHost: function(box) { return q.barHost(box) || null; },
           changed: function(key, kind) { q.changed(key, kind); },
           left: function(key) { q.left(key); }
@@ -973,6 +1003,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (mine && tsState.comp) return false;
       var multi = tsMulti(d), shown = tsxShown(fld.text(), multi), sel = mine && document.activeElement === box ? tsSelOf(box) : null, same = (again ? old._tsText : box._tsText) === shown;
       box._tsText = shown;
+      tsxFontOn(box, fld);
       var drawn = tsPaint(box, fld, multi);
       if (mine) {
           if (!same) { tsState.last = null; tsState.run = null; }   // the text changed under the box: what is typed next is a step of its own (a fill that changes no text, as from the host's own word of a change, keeps a run of typing one step)
@@ -986,7 +1017,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // the bar's controls the keyboard can stand on, in order (the symbols while their tray is open)
   function tsOrder() {
       var E = tsState.els; if (!E) return [];
-      var list = [E.b, E.i, E.u, E.s].concat(E.swatches, [E.custom, E.nocolor, E.size, E.link, E.clear, E.symBtn]);
+      var list = [E.b, E.i, E.u, E.s].concat(E.swatches, [E.custom, E.nocolor, E.size], E.fontLab.hidden ? [] : [E.font], [E.link, E.clear, E.symBtn]);   // (the Font list only while it shows)
       if (E.symWrap.classList.contains('open')) list = list.concat(E.symList);
       return list.filter(function(c) { return !c.disabled; });
   }
@@ -1124,7 +1155,16 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       E.size = mk('select', 'rte-size'); E.size.tabIndex = -1;
       [['', 'Default']].concat(TF.SIZES.map(function(k) { return [k, TF.SIZE_NAMES[k] || k]; })).forEach(function(o) { var op = mk('option', '', o[1]); op.value = o[0]; E.size.appendChild(op); });
       E.sizeMixed = mk('option', '', 'Mixed'); E.sizeMixed.value = 'mixed'; E.sizeMixed.disabled = true; E.sizeMixed.hidden = true; E.size.appendChild(E.sizeMixed);   // shown, never picked: the range holds more than one size
-      sizeLab.appendChild(E.size); root.appendChild(sizeLab); root.appendChild(mk('span', 'rte-sep'));
+      sizeLab.appendChild(E.size); root.appendChild(sizeLab);
+      // item 35: Waypoint's own fonts, for a whole field. Put away until a host's field that takes a font has the bar (a planner's field takes none)
+      E.fontLab = mk('label', 'ts-fontlab', 'Font ', TS_FONT_TITLE); E.fontLab.hidden = true;
+      E.font = mk('select', 'rte-size ts-font'); E.font.tabIndex = -1;
+      var fGroup = null, fDef = mk('option', '', 'App default'); fDef.value = ''; E.font.appendChild(fDef);
+      TF.FONTS.forEach(function(f) {
+          if (f[2] !== fGroup) { fGroup = f[2]; var gh = mk('option', 'ts-fontgroup', f[2]); gh.value = '\u0001' + f[2]; gh.disabled = true; E.font.appendChild(gh); }   // a group's heading: shown, never picked
+          var fo = mk('option', '', f[0]); fo.value = f[0]; fo.style.fontFamily = TF.fontCss(f[0]); E.font.appendChild(fo);
+      });
+      E.fontLab.appendChild(E.font); root.appendChild(E.fontLab); root.appendChild(mk('span', 'rte-sep'));
       E.linkLab = mk('label', 'ts-linklab', 'Link ', TS_LINK_TITLE);
       E.link = mk('input', 'ts-link'); E.link.type = 'text'; E.link.tabIndex = -1; E.link.placeholder = 'https://…'; E.link.setAttribute('spellcheck', 'false'); E.link.setAttribute('autocomplete', 'off'); E.link.setAttribute('aria-label', 'Link address');
       E.linkLab.appendChild(E.link); root.appendChild(E.linkLab); root.appendChild(mk('span', 'rte-sep'));
@@ -1139,7 +1179,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       host.appendChild(root);
       tsState.els = E;
       // the buttons never take the focus: the box keeps its selection. The size list, the colour picker and the link box must take it; the press then acts on what was remembered
-      root.addEventListener('mousedown', function(e) { tsState.key = false; var t = e.target; if (t === E.size || t === E.custom || t === E.link || (t && t.tagName === 'OPTION')) { tsTarget(); return; } e.preventDefault(); });
+      root.addEventListener('mousedown', function(e) { tsState.key = false; var t = e.target; if (t === E.size || t === E.font || t === E.custom || t === E.link || (t && t.tagName === 'OPTION')) { tsTarget(); return; } e.preventDefault(); });
       // the keyboard in the bar: Tab and Shift+Tab move along it; a control pressed from it keeps the focus (tsPress); Escape — and Enter in the
       // Size list — goes back to the box; Enter in the link box sets the link and goes back; Escape there backs out: the box takes the focus, the
       // link box loses it with what was typed still in it, and its change event — which would set that — is told there is nothing left to do (linkDone)
@@ -1148,7 +1188,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           if (e.key === 'Tab') { var list = tsOrder(), at = list.indexOf(e.target), nx = list.length ? list[(at + (e.shiftKey ? list.length - 1 : 1) + list.length) % list.length] : null; e.preventDefault(); e.stopPropagation(); if (nx) { try { nx.focus(); } catch (err) {} } return; }
           if (e.key === 'Enter' && e.target === E.link) { e.preventDefault(); e.stopPropagation(); tsState.linkDone = E.link.value; if (tsLink() !== 'bad') tsBack(); return; }
           if (e.key === 'Escape' && e.target === E.link) tsState.linkDone = E.link.value;
-          if ((e.key === 'Escape' || (e.key === 'Enter' && e.target === E.size)) && tsBack()) { e.preventDefault(); e.stopPropagation(); }
+          if ((e.key === 'Escape' || (e.key === 'Enter' && (e.target === E.size || e.target === E.font))) && tsBack()) { e.preventDefault(); e.stopPropagation(); }
       });
       root.addEventListener('click', function(e) {
           var t = e.target, btn = t && t.closest ? t.closest('button') : null; if (!btn || btn.disabled) return;
@@ -1166,6 +1206,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       E.link.addEventListener('change', function() { var done = tsState.linkDone; tsState.linkDone = null; if (done === E.link.value) return; tsLink(); });   // the box was left with a new address in it (Enter has its own way, above)
       E.link.addEventListener('blur', function() { tsState.linkDone = null; tsRefresh(); });   // left: it shows the field's own link again
       E.size.addEventListener('blur', function() { tsState.run = null; });   // the list was left: the next size is a step of its own
+      E.font.addEventListener('change', function() { tsxFont(E.font.value, E.font); });   // a heading is no font: the list changes nothing for it
       E.custom.addEventListener('change', function() { tsPress({ color: E.custom.value }, E.custom); });   // once, when the picker closes: one undo step
       tsRefresh();
   }

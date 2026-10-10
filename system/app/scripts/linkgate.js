@@ -41,9 +41,15 @@
                 window's bottom left, as a browser shows one (the linkpeek slice below).
 
    linkVerdict(c) is the rule as a pure function, linkWhere(a, win) reads where a link is, fillLinked(el, text, doc) is the renderer
-   (elements and text nodes only). tools/sinkcheck.js runs all of it by the markers below. */
+   (elements and text nodes only). tools/sinkcheck.js runs all of it by the markers below.
+
+   A text with a LOOK, where it is read (item 35): fillRuns(el, text, rec, doc, opts), published as window.wpTextRead.fill, so that a
+   module that may not name this one (net.js) can reach it. The look is a record of lookcore.js: it names its text, and is cleaned here by
+   the rule of the place. A text that may be someone else's is drawn with opts.ask, and then every link in it asks, wherever it stands. */
 import { cleanLink, linkParts } from './textfmt.js';
 import { showConfirm } from './dialogs.js';
+import { runsOf, SIZE_EM, fontCss } from './textfmt.js';
+import { cleanRec } from './lookcore.js';
 
 // [sinkcheck:linkgate-start]
 var LINK_TARGET = '_blank', LINK_REL = 'noopener noreferrer';   // what the page sanitiser writes on every link (docrender.js aAttrs)
@@ -76,6 +82,7 @@ function linkWhere(a, win) {
         c.zone = 'viewer'; c.own = d.linksOwn === '1'; c.gm = !c.own && d.linksGm === '1'; c.who = !c.own && !c.gm && typeof d.linksWho === 'string' ? d.linksWho.slice(0, 60) : '';
         return c;
     }
+    if (a.closest('[data-ask]')) return c;   // a text that may be someone else's, drawn by the reader with the word that it asks (fillRuns): no place it stands in makes its links open directly
     if (a.closest(ZONE_APP)) { c.zone = 'app'; return c; }
     if (a.closest(ZONE_PAGE)) { c.zone = 'page'; c.gm = c.player === true; return c; }
     return c;
@@ -306,6 +313,49 @@ function peekWire(win, doc) {
 }
 // [sinkcheck:linkpeek-end]
 
-if (typeof window !== 'undefined' && typeof document !== 'undefined') wireLinks(window, document, showConfirm);
+// [sinkcheck:runs-start]
+// A text drawn where it is READ, with its look (item 35; lookcore.js). The look is a record that names its text, cleaned here by the rule of
+// the place (opts.rule): a record made for other words, or one that is hostile, draws the text plain. A span for every run, with a strict
+// colour, fixed words for weight, slant, underline and strike, and one of the size steps; a run's link as ONE <a> this makes, with href,
+// target and rel and nothing else, only where the rule takes links (the record came through fieldLook) and the link rule keeps the address
+// as it is. opts.typed: the web addresses typed in an unlinked part are links too, as fillLinked draws them; a linked part is never linked
+// twice. opts.ask: the text may be someone else's, so every link in it asks first wherever the element stands (linkWhere reads the mark).
+// The element's font is one of Waypoint's own or none, and is SET OR CLEARED at every draw: an element is used again for the next text.
+// With no look and typed, node for node what fillLinked makes. Elements and text nodes only.
+function fillRuns(el, text, rec, doc, opts) {
+    var o = opts && typeof opts === 'object' ? opts : {}, t = typeof text === 'string' ? text : '', typed = o.typed === true;
+    var r = cleanRec(rec, t, o.rule);
+    el.style.fontFamily = r && r.font ? fontCss(r.font) : '';
+    if (o.ask === true) el.dataset.ask = '1'; else delete el.dataset.ask;
+    if (!r || !r.fmt) {
+        if (typed) return fillLinked(el, t, doc);
+        while (el.firstChild) el.removeChild(el.firstChild);
+        if (t) el.appendChild(doc.createTextNode(t));
+        return el;
+    }
+    while (el.firstChild) el.removeChild(el.firstChild);
+    runsOf(t, r.fmt).forEach(function(run) {
+        var span = doc.createElement('span'), link = typeof run.link === 'string' && run.link && cleanLink(run.link) === run.link ? run.link : '', strike = run.st === true;
+        span.className = 'wp-run';
+        if (typeof run.color === 'string' && /^#[0-9a-f]{6}$/.test(run.color)) span.style.color = run.color;
+        if (run.b === true) span.style.fontWeight = 'bold';
+        if (run.i === true) span.style.fontStyle = 'italic';
+        if (run.u === true || strike) span.style.textDecoration = (run.u === true ? 'underline' : '') + (run.u === true && strike ? ' ' : '') + (strike ? 'line-through' : '');
+        if (typeof run.size === 'string' && Object.prototype.hasOwnProperty.call(SIZE_EM, run.size)) span.style.fontSize = SIZE_EM[run.size];
+        if (link) {
+            var a = doc.createElement('a');
+            a.setAttribute('href', link); a.setAttribute('target', LINK_TARGET); a.setAttribute('rel', LINK_REL);
+            a.appendChild(doc.createTextNode(run.t));
+            span.appendChild(a);
+        } else if (typed) fillLinked(span, run.t, doc);
+        else span.appendChild(doc.createTextNode(run.t));
+        el.appendChild(span);
+    });
+    return el;
+}
+// [sinkcheck:runs-end]
 
-export { linkVerdict, linkWhere, linkOf, linkAt, readUrl, askBody, linkGate, dragGate, wireLinks, fillLinked, atTable, peekText, peekOf, peekShow, peekHide, peekWire };
+if (typeof window !== 'undefined' && typeof document !== 'undefined') wireLinks(window, document, showConfirm);
+if (typeof window !== 'undefined') window.wpTextRead = { fill: fillRuns };
+
+export { linkVerdict, linkWhere, linkOf, linkAt, readUrl, askBody, linkGate, dragGate, wireLinks, fillLinked, atTable, peekText, peekOf, peekShow, peekHide, peekWire, fillRuns };

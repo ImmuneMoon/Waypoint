@@ -3293,6 +3293,8 @@
   #linkPeek.peek-right { left: auto; right: 0; border-left: 1px solid var(--edge); border-right: 0; border-top-right-radius: 0; border-top-left-radius: 5px; }
   #linkPeek[hidden] { display: none; }
   body.stream-mode #linkPeek { display: none; }
+  /* a text drawn with its look where it is read (linkgate.js fillRuns): its line breaks and spaces are the text's own */
+  .wp-run-read { white-space: pre-wrap; overflow-wrap: anywhere; }
   .linkask { margin: 0 0 16px; font-size: 13px; line-height: 1.5; color: var(--ink); text-align: left; }
   .linkask-from { margin-bottom: 10px; }
   .linkask-label { color: var(--dim); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }

@@ -595,6 +595,81 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     const LINK = 'https://a.example/x';
     const keyEv = o => Object.assign({ key: 'b', ctrlKey: false, metaKey: false, altKey: false, shiftKey: false }, o);
 
+    /* ================= the look of a text outside a planner (lookcore.js, item 35): a record that names its text, cleaned by a rule ================= */
+    {
+        let LK = null, lkErr = null; try { LK = await import(modUrl('lookcore.js')); } catch (e) { lkErr = e; }
+        const lkSrc = read('lookcore.js'), imports = (lkSrc.match(/^\s*import\s[^\n]*$/gm) || []).map(s => s.trim());
+        check('lookcore.js loads in Node with no window: a pure module that imports textfmt.js and nothing else, with no DOM and no state of a page',
+            !!LK && !lkErr && J(imports) === J(["import { cleanFmt, fontKnown, MAX_RAW, MAX_LINK, MAX_FONT } from './textfmt.js';"]) && !/\bdocument\b|\blocalStorage\b|\bfetch\(/.test(lkSrc.replace(/\/\*[\s\S]*?\*\//, '')) && /\nif \(typeof window !== 'undefined'\) window\.wpLook = API;\n/.test(lkSrc.replace(/\r\n/g, '\n')), lkErr ? String(lkErr) : imports);
+        if (LK) {
+            const { RULES, LINKS, LINK_CHARS, textSig, lookShapeOk, recShapeOk, fieldLook, cleanRec, makeRec, lookWeight } = LK;
+            // --- the signature
+            const GRIN = String.fromCharCode(0xd83d, 0xde00), big = 'ab'.repeat(30000), sigs = [textSig(''), textSig('a'), textSig('b'), textSig('ab'), textSig('ba'), textSig(GRIN), textSig(big), textSig(big.slice(0, -1) + 'c'), textSig(7), textSig(null)];
+            const fnv = s => { let h = 0x811c9dc5; const b = Buffer.from(s, 'utf16le'); for (const x of b) { h ^= x; h = Math.imul(h, 0x01000193); } return s.length + ':' + ('0000000' + (h >>> 0).toString(16)).slice(-8); };   // FNV-1a over the text's UTF-16 code units, low byte first, written out again here
+            check('textSig: a text\'s length and eight hex digits of FNV-1a over its UTF-16 code units, held against the same sum written out again; the empty text, one letter, two texts of one length that differ, the same letters in another order, a character of two code units and a text of 60,000 characters each have a signature of their own; what is no text signs as the empty text',
+                sigs[0] === '0:811c9dc5' && (() => { for (let k = 0; k < 5000; k++) { const s = 't' + k; if (/:0/.test(fnv(s))) return textSig(s) === fnv(s) && textSig(s).length === s.length.toString().length + 9; } return false; })() && sigs.slice(0, 8).every((s, i) => /^\d{1,5}:[0-9a-f]{8}$/.test(s) && s === fnv(['', 'a', 'b', 'ab', 'ba', GRIN, big, big.slice(0, -1) + 'c'][i])) && new Set(sigs.slice(0, 8)).size === 8 && sigs[5].indexOf('2:') === 0 && sigs[6].indexOf('60000:') === 0 && sigs[8] === sigs[0] && sigs[9] === sigs[0], sigs);
+
+            // --- the shape of a format, before anything reads it
+            const T20 = 'x'.repeat(20000), full = { size: 'large', color: RED, b: true, i: true, u: true, st: true, link: 'https://a.example/' + 'p'.repeat(1900), spans: [] };
+            for (let k = 0; k < 200; k++) full.spans.push({ s: k * 100, e: k * 100 + 50, size: 'huge', color: GREEN, b: true, i: true, u: true, st: true, link: 'https://l' + k + '.example/' + 'q'.repeat(1970) });
+            const inherit = Object.create({ b: true }), cyc = {}; cyc.spans = [cyc];
+            const badShapes = [null, undefined, 7, 'x', [], [{ b: true }], new Uint8Array(4), new DataView(new ArrayBuffer(4)), Object.setPrototypeOf([], Object.prototype), Object.setPrototypeOf(new Uint8Array(0), null), inherit, new (class Fmt { constructor() { this.b = true; } })(), { spans: 'x' }, { spans: {} }, { spans: new Array(401).fill({ s: 0, e: 1, b: true }) },
+                { spans: [{ s: 0, e: 1, b: { x: 1 } }] }, { spans: [[0, 1]] }, { spans: [null] }, { spans: [Object.create({ s: 0 })] }, { link: 'h'.repeat(2001) }, { color: { toString: () => RED } }, { b: [true] }, { style: 'x' }, { spans: [{ s: 0, e: 1, style: 'x' }] }, { onclick: 'x' }, cyc, { b: () => true }, { b: Symbol('x') }];
+            const okShapes = [{}, { b: true }, full, { spans: [] }, { spans: [{ s: 0, e: 1 }] }, { size: null, color: undefined }, Object.assign(Object.create(null), { b: true }), { spans: new Array(400).fill({ s: 0, e: 1, b: true }) }, { link: 'h'.repeat(2000) }];
+            const Rk = rng(20261010), junk = () => [undefined, null, true, false, 0, -1, 3.5, 1e9, NaN, 'x', '', RED, '#GGGGGG', 'large', 'javascript:alert(1)', LINK, 'https://e.example/' + 'z'.repeat(Math.floor(Rk() * 2100)), {}, [], { b: true }][Math.floor(Rk() * 20)];
+            let shapeBad = null, emitted = 0, kept = 0;
+            for (let k = 0; k < 3000 && !shapeBad; k++) {
+                const len = Math.floor(Rk() * 60), text = 'abcdefghij'.repeat(6).slice(0, len), f = {}, keys = ['size', 'color', 'b', 'i', 'u', 'st', 'link', 'style', 'onclick', '__proto__x'];
+                keys.forEach(key => { if (Rk() < 0.45) f[key] = junk(); });
+                if (Rk() < 0.8) { f.spans = []; const n = Math.floor(Rk() * 14); for (let q = 0; q < n; q++) { const sp = Rk() < 0.9 ? { s: Math.floor(Rk() * (len + 3)) - 1, e: Math.floor(Rk() * (len + 3)) - 1 } : junk(); if (sp && typeof sp === 'object' && !Array.isArray(sp)) ['size', 'color', 'b', 'i', 'u', 'st', 'link', 'x'].forEach(key => { if (Rk() < 0.4) sp[key] = Rk() < 0.6 ? [true, RED, 'huge', LINK, 'https://s' + q + '.example/'][Math.floor(Rk() * 5)] : junk(); }); f.spans.push(sp); } }
+                const rule = [RULES.LINE, RULES.NOTES, RULES.NOTE, RULES.PAD, null, 'x', { size: 1, link: 'yes' }][Math.floor(Rk() * 7)];
+                let out; try { out = fieldLook(f, text, rule); } catch (e) { shapeBad = { k, threw: String(e), f }; break; }
+                emitted++;
+                if (out === undefined) continue;
+                kept++;
+                if (!lookShapeOk(out)) shapeBad = { k, why: 'shape', out };
+                else if (J(fieldLook(out, text, rule)) !== J(out)) shapeBad = { k, why: 'not the same again', out, again: fieldLook(out, text, rule) };
+                else if (J(cleanFmt(out, text)) !== J(out)) shapeBad = { k, why: 'not a cleaned format', out };
+                else { const R2 = rule && typeof rule === 'object' ? rule : {}, all = [out].concat(out.spans || []); if (all.some(o => (o.size !== undefined && R2.size !== true) || (o.link !== undefined && R2.link !== true))) shapeBad = { k, why: 'a key the rule does not take', out, rule }; }
+            }
+            const worst = fieldLook(full, T20, RULES.NOTE);
+            check('lookShapeOk and fieldLook (a seeded walk of 3,000 hostile formats under every rule, and the worst a field can hold): a format has a look\'s shape when it is a plain object with a look\'s own keys, each a primitive, and at most 400 plain parts of the same kind; an array, a typed array, a view, an object with a prototype of its own, 401 parts, a part that is no plain object, a value that is an object or a function, a string past 2,000 characters, a key that is no look\'s and a list that holds itself are each refused, with bounded work; whatever fieldLook gives has that shape, is a cleaned format, is the same when given back, and holds no size and no link the rule does not take; 200 full parts on 20,000 characters and 200 links of 2,000 characters come out bounded',
+                !shapeBad && emitted === 3000 && kept > 400 && badShapes.every(x => lookShapeOk(x) === false) && okShapes.every(x => lookShapeOk(x) === true)
+                && lookShapeOk(worst) && worst.spans.length <= MAX_SPANS && [worst].concat(worst.spans).filter(o => o.link).length <= LINKS && [worst].concat(worst.spans).reduce((t, o) => t + (o.link ? o.link.length : 0), 0) <= LINK_CHARS, shapeBad || { emitted, kept });
+
+            // --- what a rule takes
+            const TX = 'The quick brown fox jumps over the lazy dog', base = { color: RED, spans: [{ s: 4, e: 9, b: true, size: 'huge', link: 'https://b.example/' }] }, whole = { size: 'huge', link: LINK };
+            const line = fieldLook(base, TX, RULES.LINE), pad = fieldLook(base, TX, RULES.PAD), note = fieldLook(base, TX, RULES.NOTE), none = fieldLook(base, TX, null), odd = fieldLook(base, TX, { size: 1, link: 'yes', font: {} });
+            const longT = 'w'.repeat(3000), many = { spans: [] }; for (let k = 0; k < 30; k++) many.spans.push({ s: k * 10, e: k * 10 + 5, b: true, link: 'https://m' + k + '.example/' });
+            const m20 = fieldLook(many, longT, RULES.NOTES), heavy = { spans: [] }; for (let k = 0; k < 6; k++) heavy.spans.push({ s: k * 10, e: k * 10 + 5, i: true, link: 'https://h' + k + '.example/' + 'r'.repeat(1900) });
+            const h8 = fieldLook(heavy, longT, RULES.NOTES), wholeLink = fieldLook({ link: 'https://w.example/' + 'r'.repeat(1970), spans: [{ s: 0, e: 4, b: true }] }, TX, RULES.NOTES);
+            check('fieldLook (what a rule takes): a sheet\'s one-line text keeps its colour, its bold and its links and loses every size, on the field and on a part; the notepad keeps its sizes and loses every link; a Journal note keeps both; a rule that is no object, or whose answers are not true, takes neither. A field keeps at most 20 linked parts and 8,000 characters of address: a part past either keeps its text and the rest of its look and loses only its link; a format with nothing left is none',
+                J(line) === J({ color: RED, spans: [{ s: 4, e: 9, b: true, link: 'https://b.example/' }] }) && J(pad) === J({ color: RED, spans: [{ s: 4, e: 9, size: 'huge', b: true }] }) && J(note) === J({ color: RED, spans: [{ s: 4, e: 9, size: 'huge', b: true, link: 'https://b.example/' }] }) && J(none) === J({ color: RED, spans: [{ s: 4, e: 9, b: true }] }) && J(odd) === J(none)
+                && J(fieldLook(whole, TX, RULES.LINE)) === J({ link: LINK }) && J(fieldLook(whole, TX, RULES.PAD)) === J({ size: 'huge' }) && J(fieldLook(whole, TX, RULES.NOTES)) === J({ size: 'huge', link: LINK }) && fieldLook(whole, TX, {}) === undefined
+                && m20.spans.length === 30 && m20.spans.filter(s => s.link).length === 20 && m20.spans.slice(0, 20).every((s, k) => s.link === 'https://m' + k + '.example/') && m20.spans.slice(20).every(s => s.b === true && s.link === undefined)
+                && h8.spans.filter(s => s.link).length === 4 && h8.spans.every(s => s.i === true) && h8.spans.reduce((t, s) => t + (s.link ? s.link.length : 0), 0) <= 8000 && wholeLink.link.length === 1988 && wholeLink.spans.length === 1
+                && fieldLook({ size: 'huge' }, TX, RULES.LINE) === undefined && fieldLook({ link: LINK }, TX, RULES.PAD) === undefined && fieldLook(undefined, TX, RULES.NOTE) === undefined && J(fieldLook({ b: true }, '', RULES.NOTE)) === J({ b: true }), [line, pad, none, m20.spans.filter(s => s.link).length, h8.spans.filter(s => s.link).length]);
+
+            // --- the record, and the one stale rule
+            const rec = makeRec(base, 'cinzel', TX, RULES.NOTE), recLine = makeRec(base, 'Cinzel', TX, RULES.LINE), fontOnly = makeRec(undefined, 'Lora', TX, RULES.PAD), sig = textSig(TX);
+            const stale = cleanRec(rec, TX + '!', RULES.NOTE), sameLen = cleanRec(rec, TX.replace('quick', 'quack'), RULES.NOTE), again = cleanRec(rec, TX, RULES.NOTE), asLine = cleanRec(rec, TX, RULES.LINE), asNone = cleanRec(rec, TX, null);
+            const hostile = [null, 'x', [], { fmt: { b: true } }, { fmt: { b: true }, sig: 7 }, { fmt: { b: true }, sig: sig + ' ' }, { fmt: { b: true }, sig: sig.replace(':', ';') }, { fmt: { b: true }, sig, extra: 1 }, { fmt: [{ b: true }], sig }, { fmt: { b: { x: 1 } }, sig }, { font: 7, sig }, { font: 'F'.repeat(61), sig },
+                Object.assign(Object.create({ fmt: { b: true } }), { sig }), { fmt: { b: true }, sig: '99999999:00000000' }, { sig }, { fmt: {}, sig }, { fmt: { b: 'yes', color: 'red' }, sig }, { font: 'Comic Sans MS', sig }, { font: 'Arial"; background: url(x)', sig }, { font: 'inherit', sig }];
+            const max = RULES.PAD.max, atMax = 'p'.repeat(max), overMax = atMax + 'p';
+            check('a look record and the one stale rule (cleanRec, makeRec, lookWeight): a record is { fmt, font, sig } in that order, the format as the rule takes it, the font one of Waypoint\'s own under the list\'s spelling and only where the rule takes fonts, the sig the text\'s; a record is read for THIS text only: a sig for other words, even of the same length, is no record, so a look never lands on a text it was not made for; a record with another key, a sig that is no signature, a format or a font of the wrong kind, a prototype that holds its keys, a font of the computer\'s own or one that could end a declaration, and a record with nothing left are each none; a text past the rule\'s length takes no look; a record read under a stricter rule keeps what that rule takes',
+                J(rec) === J({ fmt: cleanFmt(base, TX), font: 'Cinzel', sig }) && J(Object.keys(rec)) === J(['fmt', 'font', 'sig']) && J(recLine) === J({ fmt: line, sig }) && J(fontOnly) === J({ font: 'Lora', sig }) && recShapeOk(rec) && recShapeOk(fontOnly) && [{ sig: 'x' }, { sig: '5:zzzzzzzz' }, { sig: '12345678:00000000' }, { sig: '5:0000000' }, { sig: ' 5:00000000' }, { font: 7, sig }, { font: 'F'.repeat(61), sig }, { fmt: 'x', sig }, { fmt: { style: 'x' }, sig }, { sig, more: 1 }, [], null].every(r => recShapeOk(r) === false) && recShapeOk({ sig }) && recShapeOk({ fmt: undefined, font: undefined, sig })
+                && stale === undefined && sameLen === undefined && J(again) === J(rec) && J(asLine) === J({ fmt: line, sig }) && J(asNone) === J({ fmt: none, sig })
+                && hostile.every(h => cleanRec(h, TX, RULES.NOTE) === undefined) && cleanRec({ fmt: { b: true, onclick: 'x' }, sig }, TX, RULES.NOTE) === undefined && J(cleanRec({ fmt: { b: true, color: undefined }, font: undefined, sig }, TX, RULES.NOTE)) === J({ fmt: { b: true }, sig })
+                && J(makeRec({ b: true }, '', atMax, RULES.PAD)) === J({ fmt: { b: true }, sig: textSig(atMax) }) && makeRec({ b: true }, '', overMax, RULES.PAD) === undefined && cleanRec({ fmt: { b: true }, sig: textSig(overMax) }, overMax, RULES.PAD) === undefined && makeRec({ b: true }, '', 7, RULES.NOTE) === undefined && cleanRec(rec, null, RULES.NOTE) === undefined
+                && makeRec(undefined, '', TX, RULES.NOTE) === undefined && makeRec({ color: 'red' }, 'Arial', TX, RULES.NOTE) === undefined
+                && lookWeight(rec) === 16 + 6 + 7 + 48 + (4 + 18) && lookWeight(null) === 0 && lookWeight(fontOnly) === 20 && lookWeight(worst && { fmt: worst, sig: 'x' }) < 60000
+                && Object.isFrozen(RULES) && Object.keys(RULES).every(k => Object.isFrozen(RULES[k])) && J(RULES) === J({ LINE: { size: false, link: true, font: false, multi: false, max: 0 }, NOTES: { size: true, link: true, font: false, multi: true, max: 0 }, NOTE: { size: true, link: true, font: true, multi: true, max: 60000 }, PAD: { size: true, link: false, font: true, multi: true, max: 20000 } }),
+                [rec, recLine, fontOnly, stale, sameLen, asLine, lookWeight(rec)]);
+            global.window = {}; const LK2 = await import(modUrl('lookcore.js') + '?w'); const WL = global.window.wpLook; delete global.window;
+            check('window.wpLook is published with the whole API', !!WL && ['textSig', 'lookShapeOk', 'recShapeOk', 'fieldLook', 'cleanRec', 'makeRec', 'lookWeight'].every(k => typeof WL[k] === 'function') && WL.RULES === LK2.RULES && WL.LINKS === 20 && WL.LINK_CHARS === 8000);
+        }
+    }
+
     /* ---- where each field's format lives ---- */
     {
         const pg = mkPage({ map: mapOf(B0()) }), bl = pg.map.blocks, F = d => pg.tsField(bl, d);

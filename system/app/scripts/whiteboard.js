@@ -6242,7 +6242,7 @@ var BUILD_MAX = 6000;   // a map's copy holds this many pieces for players (net.
 var BUILD_SHAPES = ['rect', 'circle', 'poly', 'corridor', 'line'];
 var BUILD_LINES = { floor: 'Flagstones. Tokens walk on it.', wall: 'Blocks sight and gives cover.', door: 'A wall that opens. Players can open it.', water: 'Difficult terrain, counted double.', rubble: 'Gives cover. Tokens can cross it.', wood: 'Planks.', grass: '' };
 var BUILD_SHAPE_LINES = { rect: 'Click a cell, or drag an area.', circle: 'Click a cell, or drag an area. The circle fills its box.', poly: 'Click each corner. Click the first again to close it.', corridor: 'Drag along it.', line: 'Draw along the grid lines. The line is the wall.' };
-var _build = { mat: 'floor', shape: 'rect', tex: 'flagstones', color: '#5a5663', terrain: 0, corridorW: 1, poly: null, polyEl: null, pen: false, loaded: false };
+var _build = { mat: 'floor', shape: 'rect', tex: 'flagstones', color: '#5a5663', terrain: 0, corridorW: 1, walls: false, poly: null, polyEl: null, pen: false, loaded: false };
 function buildCore() { return window.wpBuildCore || null; }
 function buildGrid() { var C = window.wpFogCore; if (!C) return null; return state.gridType === 'hex' ? C.hexGrid(30, 52) : state.gridType === 'square' ? C.squareGrid(50) : null; }   // the lattice the fill tool's cellSnap reads
 function buildHex6(v) { return typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v) ? v : null; }
@@ -6273,10 +6273,10 @@ function buildLoad() {   // the options' last choices, kept on this computer, ea
         _build.mat = mat; _build.shape = BUILD_SHAPES.indexOf(v.shape) >= 0 ? v.shape : 'rect';
         if (_build.shape === 'line' && mat !== 'wall' && mat !== 'door') _build.shape = 'rect';
         _build.tex = v.tex === '' ? '' : (BC.cleanTexture(v.tex) || M.texture); _build.color = buildHex6(v.color) || M.color;
-        _build.terrain = mat === 'water' ? ((FC && FC.cleanTerrain ? FC.cleanTerrain(v.terrain) : null) || 0) : 0; _build.corridorW = v.corridorW === 2 ? 2 : 1;
+        _build.terrain = mat === 'water' ? ((FC && FC.cleanTerrain ? FC.cleanTerrain(v.terrain) : null) || 0) : 0; _build.corridorW = v.corridorW === 2 ? 2 : 1; _build.walls = v.walls === true;
     } catch (e) {}
 }
-function buildSave() { try { localStorage.setItem('wp_build', JSON.stringify({ mat: _build.mat, shape: _build.shape, tex: _build.tex, color: _build.color, terrain: _build.terrain, corridorW: _build.corridorW })); } catch (e) {} }
+function buildSave() { try { var kept = { mat: _build.mat, shape: _build.shape, tex: _build.tex, color: _build.color, terrain: _build.terrain, corridorW: _build.corridorW }; if (_build.walls === true) kept.walls = true; localStorage.setItem('wp_build', JSON.stringify(kept)); } catch (e) {} }   // With walls is kept only while it is ticked
 function buildMaterial(mat) {   // a material brings its own texture, colour and terrain; a Wall or a Door is a thin line by default (the owner's answer of 2026-10-01)
     var BC = buildCore(), id = BC ? BC.cleanMaterial(mat) : null, M = id ? BC.MATERIALS[id] : null; if (!M) return false;
     _build.mat = id; _build.tex = M.texture; _build.color = M.color; _build.terrain = M.terrain || 0;
@@ -6308,7 +6308,8 @@ function buildArm() {
     window.wpPenPreset = null;
     if (_build.pen) { _build.pen = false; window.isDrawingMode = false; }
     var props = buildProps(); if (!props) return false;
-    window.wpPlace = { type: 'build', props: props, build: { mat: _build.mat, shape: _build.shape, corridorW: _build.corridorW } };
+    var rec = { mat: _build.mat, shape: _build.shape, corridorW: _build.corridorW }; if (_build.walls === true && _build.shape === 'corridor') rec.walls = true;   // a corridor laid With walls
+    window.wpPlace = { type: 'build', props: props, build: rec };
     if (wbWrap) wbWrap.style.cursor = 'crosshair';
     document.body.classList.add('placing');
     return true;
@@ -6359,6 +6360,9 @@ function buildSync() {
     var cr = document.getElementById('buildCorridorRow'), cw = document.getElementById('buildCorridorW');
     if (cr) cr.hidden = _build.shape !== 'corridor';
     if (cw) cw.value = String(_build.corridorW);
+    var cwl = document.getElementById('buildCorridorWalls'), cln = document.getElementById('buildCorridorLine');
+    if (cwl) cwl.checked = _build.walls === true;
+    if (cln) cln.hidden = _build.shape !== 'corridor';
 }
 function buildPick(change) {   // a choice in the options: kept, shown, and the board armed for it while Build is in hand
     if (change() === false) return;
@@ -6393,12 +6397,21 @@ function wpBuildCommit(P, px, py, pw, ph, sx, sy) {
             : free ? { x: x0, y: y0, w: dw, h: dh } : { x: sx - 50, y: sy - 50, w: 100, h: 100 };
         boxes.push({ type: B.shape === 'circle' ? 'circle' : 'rect', x: Math.max(0, r50(fb.x)), y: Math.max(0, r50(fb.y)), w: Math.max(snap ? 50 : 10, r50(fb.w)), h: Math.max(snap ? 50 : 10, r50(fb.h)) });
     }
-    buildLay(map, boxes, P.props, more);
+    var wallsToo = [];   // a corridor laid With walls (the owner: "Open ends"): a wall line along each long side, in the same save as its floor
+    if (B.shape === 'corridor' && B.walls === true && boxes.length) {
+        var preW = BC.penPreset('wall', {}), wl = [];
+        if (grid) { var cwr = BC.corridorWalls(grid, sx, sy, mx, my, B.corridorW, { doors: map.whiteboard, have: map.whiteboard }); wl = cwr && !cwr.over ? cwr.lines.filter(function(L) { return L.x >= 0 && L.y >= 0; }) : []; }
+        else { var fbx = boxes[0], lvl = Math.abs(mx - sx) >= Math.abs(my - sy); wl = (lvl ? [[[fbx.x, fbx.y], [fbx.x + fbx.w, fbx.y]], [[fbx.x, fbx.y + fbx.h], [fbx.x + fbx.w, fbx.y + fbx.h]]] : [[[fbx.x, fbx.y], [fbx.x, fbx.y + fbx.h]], [[fbx.x + fbx.w, fbx.y], [fbx.x + fbx.w, fbx.y + fbx.h]]]).map(function(p2) { return BC.wallLine(p2); }).filter(Boolean); }
+        if (preW) wallsToo = wl.map(function(L) { return buildWallItem(L, preW); });
+    }
+    buildLay(map, boxes, P.props, more, wallsToo);
     buildArm();
 }
+// One wall line as the item the pen's Wall line makes: a path with the line's box and points, then the preset's keys
+function buildWallItem(L, pre) { return Object.assign({ id: 'wb' + uid(), type: 'path', x: L.x, y: L.y, w: L.w, h: L.h, baseW: L.baseW, baseH: L.baseH, z: 10, pts: L.pts }, newOpacityProps(), pre); }
 // The boxes as pieces, ONE save for the gesture. A cell that already holds a plain piece of that shape takes the new props instead of a second
 // piece (buildcore seatedAt: never a locked or turned piece, nor one with a purpose of its own)
-function buildLay(map, boxes, props, more) {
+function buildLay(map, boxes, props, more, walls) {
     var BC = buildCore(); if (!BC || !props) return;
     if (!boxes.length) { toast('Nothing to lay there.'); return; }
     var room = BUILD_MAX - map.whiteboard.length, laid = 0, wall = false, full = false, keys = ['color', 'layer', 'name', 'texture', 'blocksSight', 'sightType', 'cover', 'terrain'];
@@ -6416,6 +6429,9 @@ function buildLay(map, boxes, props, more) {
         }
         if (room <= 0) { full = true; break; }
         room--; map.whiteboard.push(item); laid++; if (item.blocksSight) wall = true;
+    }
+    if (walls && walls.length) {   // a corridor's walls, all or none (a floor that found no room leaves none for them either)
+        if (map.whiteboard.length + walls.length <= BUILD_MAX) { walls.forEach(function(wi) { map.whiteboard.push(wi); }); wall = true; } else full = true;
     }
     if (full) toast('This map holds as many pieces as it can carry to players, ' + BUILD_MAX + '. Nothing more was laid.');
     if (!laid) return;
@@ -6487,6 +6503,7 @@ function buildWire() {   // the options' own controls, each once
         buildPick(function() { if (_build.mat !== 'water') return false; _build.terrain = chk && chk.checked ? n : 0; });
     }); });
     var cw = document.getElementById('buildCorridorW'); if (cw) cw.addEventListener('change', function() { var two = this.value === '2'; buildPick(function() { _build.corridorW = two ? 2 : 1; }); });
+    var cwl = document.getElementById('buildCorridorWalls'); if (cwl) cwl.addEventListener('change', function() { var on = !!this.checked; buildPick(function() { _build.walls = on; }); });
     if (wbWrap) wbWrap.addEventListener('pointermove', buildMove);
     document.addEventListener('keydown', buildKey);
     wireTool({ id: 'buildModeBtn', chev: 'buildOptBtn', inHand: function() { return !!window.isBuildMode; }, sync: buildSync, take: buildTake });
@@ -6515,7 +6532,7 @@ function wallsLay(map, items) {
     if (res.over) return 'Those floors cover too much ground for walls at once. Select fewer pieces.';
     if (!res.lines.length || !pre) return res.had ? 'Those walls are already there.' : 'There is nothing to wall there.';
     if (map.whiteboard.length + res.lines.length > BUILD_MAX) return 'This map holds as many pieces as it can carry to players, ' + BUILD_MAX + '. No wall was laid.';
-    res.lines.forEach(function(L) { map.whiteboard.push(Object.assign({ id: 'wb' + uid(), type: 'path', x: L.x, y: L.y, w: L.w, h: L.h, baseW: L.baseW, baseH: L.baseH, z: 10, pts: L.pts }, newOpacityProps(), pre)); });
+    res.lines.forEach(function(L) { map.whiteboard.push(buildWallItem(L, pre)); });
     return (res.lines.length === 1 ? 'One wall line laid.' : res.lines.length + ' wall lines laid.') + (res.doorsOver === true ? ' Some door lines were not read. Check the doorways.' : '');
 }
 // [buildcheck:wallsrow-end]

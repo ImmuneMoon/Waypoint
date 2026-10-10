@@ -541,7 +541,7 @@
                           <li><b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 5.5h9v7h-9zM3 12.5h9v7H3zM12 12.5h9v7h-9z"/></svg> Build</b> is the GM&rsquo;s tool for making a map. Pick a material and a shape, then click a cell or drag an area. Each piece is an ordinary item you can move, resize, recolor or delete. Build stays in hand until <kbd>Esc</kbd> or another tool.
                               <ul>
                                   <li>A <b>Wall</b> blocks sight and gives cover. A <b>Door</b> is a wall that opens. <b>Water</b> is difficult terrain, and <b>Rubble</b> gives cover. Change any of it in a piece&rsquo;s Properties.</li>
-                                  <li>A <b>Polygon</b> takes a click at each corner and closes on the first, or with <kbd>Enter</kbd>. A <b>Corridor</b> is a strip one or two cells wide. A <b>Wall line</b> is drawn along the grid lines, and the line is the wall.</li>
+                                  <li>A <b>Polygon</b> takes a click at each corner and closes on the first, or with <kbd>Enter</kbd>. A <b>Corridor</b> is a strip one or two cells wide. Tick <b>With walls</b> and it gets a wall line along each side, with its two ends open. A <b>Wall line</b> is drawn along the grid lines, and the line is the wall.</li>
                                   <li>On a square grid a piece lands on the cells. On a hex grid it is laid one hexagon a cell, at most 400 in a drag. Laid over a plain piece of the same shape, it changes that piece.</li>
                                   <li><b>Walls around selection</b> is on the right-click menu of floor pieces you have selected. It lays wall lines along the outer edge of the cells they cover together. Where two floors touch there is no wall between them, and a doorway that holds a door stays open. The walls follow the grid, so a round room gets stepped walls. Each wall line is an ordinary piece, and one Undo takes them all back. Walls laid earlier stay as they are, so delete the old wall where you add a door later.</li>
                               </ul>
@@ -2356,7 +2356,9 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                       </div>
                       <div class="draw-menu-row" id="buildCorridorRow" hidden>
                           <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--dim);" title="How many cells wide a corridor is">Width <select id="buildCorridorW" style="font-size:11px;"><option value="1">1 cell</option><option value="2">2 cells</option></select></label>
+                          <label style="display:flex; align-items:center; gap:5px; font-size:11px; color:var(--dim); margin-left:10px;" title="Lays a wall line along each long side of the corridor as you drag. Its two ends stay open, so it joins what it runs into."><input type="checkbox" id="buildCorridorWalls"> With walls</label>
                       </div>
+                      <div class="build-line" id="buildCorridorLine" hidden>With walls lays a wall line along each side. The ends stay open.</div>
                   </div>
                   <div class="menu-rule"></div>
                   <div class="build-line" id="buildHint">Building stays in hand until you press Esc or take another tool.</div>

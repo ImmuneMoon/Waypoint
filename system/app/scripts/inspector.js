@@ -1123,7 +1123,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                 if (_el_wbStrokeWidthNum) _el_wbStrokeWidthNum.value = v;
                 var lbl = document.getElementById('wbStrokeWidthVal');
                 if (lbl) lbl.textContent = v + ' px';
-                var pel = state.wbEls && state.wbEls[w.id] && state.wbEls[w.id].querySelector('path');
+                var pel = state.wbEls && state.wbEls[w.id] && state.wbEls[w.id].querySelector('svg > path');   // the piece's own path, never a pattern's
                 if (pel) pel.setAttribute('stroke-width', v);
             }
             if (_el_wbStrokeWidth) {
@@ -1138,8 +1138,8 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                     var host = state.wbEls && state.wbEls[w.id];
                     if (!host) return;
                     if (w.type === 'text') { host.style.color = this.value; return; }
-                    var pel = host.querySelector('path');
-                    if (pel) pel.setAttribute('stroke', this.value);
+                    var pel = host.querySelector('svg > path'), prc = w.tip === 'fill' ? host.querySelector('svg > defs > pattern > rect') : null;   // the piece's own path, never a pattern's; a textured region: the colour under its pattern
+                    if (prc) prc.setAttribute('fill', cssColor(this.value, 'transparent')); else if (pel) pel.setAttribute('stroke', this.value);
                 });
                 _el_wbStrokeCustomColor.addEventListener('change', function() { save(); render(); });
             }

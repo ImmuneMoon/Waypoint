@@ -774,7 +774,7 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
           } else {
 
               el.style.boxShadow = '';
-              el.style.background = (item.type === 'path' || item.type === 'image' || item.type === 'text' || item.type === 'trigger') ? 'transparent' : cssColor(item.color);
+              el.style[el.dataset.tex ? 'backgroundColor' : 'background'] = (item.type === 'path' || item.type === 'image' || item.type === 'text' || item.type === 'trigger') ? 'transparent' : cssColor(item.color);   // a piece that wears a tile takes its colour alone: the shorthand would wipe the tile and have it written again at every draw
 
           }
 
@@ -784,7 +784,12 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
           // in its own svg below. Anything else (no name, a name the list lacks, another kind of piece) leaves the piece exactly as it was drawn above
           var BCt = window.wpBuildCore, texN = BCt && BCt.cleanTexture ? BCt.cleanTexture(item.texture) : null;
           var texBox = texN && (item.type === 'rect' || item.type === 'circle' || item.type === 'hexagon' || item.type === 'diamond') && !item.isChar && !item.waiting ? BCt.texStyle(texN, item.x, item.y) : null;
-          if (texBox) { el.style.backgroundImage = texBox.image; el.style.backgroundSize = texBox.size; el.style.backgroundPosition = texBox.position; el.dataset.tex = texN; }
+          if (texBox) {   // each written only where it differs: the tile's address is long, and a map may hold thousands of textured cells
+              if (el.style.backgroundImage !== texBox.image) el.style.backgroundImage = texBox.image;
+              if (el.style.backgroundSize !== texBox.size) el.style.backgroundSize = texBox.size;
+              if (el.style.backgroundPosition !== texBox.position) el.style.backgroundPosition = texBox.position;
+              el.dataset.tex = texN;
+          }
           else if (el.dataset.tex) { el.style.backgroundImage = ''; el.style.backgroundSize = ''; el.style.backgroundPosition = ''; delete el.dataset.tex; }
           el.classList.toggle('wb-tex', !!texBox || !!(texN && item.type === 'path' && item.tip === 'fill'));
           // [sinkcheck:texstyle-end]
@@ -1735,6 +1740,7 @@ window.wpFitToGrid = fitToGrid;
 
           // a picture or a shape resized to the size of one hex cell seats in that cell, as its drop does (datamap.js wpSeatSized: Snap on, a hex map; one piece, never a group, which keeps its shape)
           if (!groupMembers && window.wpSeatSized && window.wpSeatSized(item)) { var elZ = state.wbEls[item.id]; if (elZ) { elZ.style.left = item.x + 'px'; elZ.style.top = item.y + 'px'; } if (window.wpUpdateSelToolbar) window.wpUpdateSelToolbar(); }
+          if (document.querySelector('#whiteboard .wb-item.wb-tex.sel') && typeof renderWhiteboard === 'function') renderWhiteboard();   // the map builder: a resized textured piece is drawn again, its tile seated and its pattern scaled back (a resize ends with no redraw otherwise)
           save();
           refreshStanceChips();   // item 19b H5: a ground piece resized under a token (or away from one) changes its chip with no redraw
 

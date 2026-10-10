@@ -377,7 +377,7 @@ function lineOf(pts) {
 function outlineWalls(pieces, grid, opts) {
     var out = { lines: [], floors: 0, cells: 0, had: 0, over: false };
     if (!Array.isArray(pieces) || !gridOk(grid)) return out;
-    var o = isObj(opts) ? opts : {}, inSet = Object.create(null), cells = [], i, k, n;
+    var inSet = Object.create(null), cells = [], i, k;
     for (i = 0; i < pieces.length; i++) {
         var w = pieces[i]; if (!floorOk(w)) continue;
         var fc = floorCells(w, grid); if (fc.over) { out.over = true; return out; }
@@ -388,6 +388,12 @@ function outlineWalls(pieces, grid, opts) {
             inSet[ck] = 1; cells.push(fc.cells[k]);
         }
     }
+    return wallsOfCells(out, cells, inSet, grid, opts, null);
+}
+// The wall lines along the outer edge of a set of cells (each once, keyed in inSet), written into the answer. `end`, when given, says of an
+// outer edge (its middle and its outward normal) that it is left open: a corridor's two ends
+function wallsOfCells(out, cells, inSet, grid, opts, end) {
+    var o = isObj(opts) ? opts : {}, i, k, n;
     out.cells = cells.length;
     if (!cells.length) return out;
     var bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity, padX = grid.type === 'square' ? grid.size : 2 * grid.s, padY = grid.type === 'square' ? grid.size : grid.h;
@@ -418,14 +424,14 @@ function outlineWalls(pieces, grid, opts) {
     var lines = [];
     if (grid.type === 'square') {
         var s = grid.size, H = Object.create(null), V = Object.create(null);   // a lattice line -> the cells along it that have an outer edge there
-        var put = function(M, line, at, outKey, mx, my) { if (!inSet[outKey] && !open(outKey, mx, my)) (M[line] || (M[line] = [])).push(at); };
+        var put = function(M, line, at, outKey, mx, my, nx, ny) { if (!inSet[outKey] && !open(outKey, mx, my) && !(end && end(mx, my, nx, ny))) (M[line] || (M[line] = [])).push(at); };
         for (i = 0; i < cells.length; i++) {
             var c = cells[i].c, r = cells[i].r;
             if (doorCells[c + ',' + r]) continue;   // a door block stands on this floor cell: the door is the closure, its outer sides stay open
-            put(H, r, c, c + ',' + (r - 1), (c + 0.5) * s, r * s);
-            put(H, r + 1, c, c + ',' + (r + 1), (c + 0.5) * s, (r + 1) * s);
-            put(V, c, r, (c - 1) + ',' + r, c * s, (r + 0.5) * s);
-            put(V, c + 1, r, (c + 1) + ',' + r, (c + 1) * s, (r + 0.5) * s);
+            put(H, r, c, c + ',' + (r - 1), (c + 0.5) * s, r * s, 0, -1);
+            put(H, r + 1, c, c + ',' + (r + 1), (c + 0.5) * s, (r + 1) * s, 0, 1);
+            put(V, c, r, (c - 1) + ',' + r, c * s, (r + 0.5) * s, -1, 0);
+            put(V, c + 1, r, (c + 1) + ',' + r, (c + 1) * s, (r + 0.5) * s, 1, 0);
         }
         var runs = function(M, level) {
             var ks = Object.keys(M).map(Number).sort(function(a, b) { return a - b; });
@@ -448,6 +454,7 @@ function outlineWalls(pieces, grid, opts) {
             for (k = 0; k < 6; k++) {
                 var va = vs[k], vb = vs[(k + 1) % 6], mx = (va[0] + vb[0]) / 2, my = (va[1] + vb[1]) / 2, nk = cellKey(cellOf(2 * mx - p.x, 2 * my - p.y, grid), grid);   // the cell across this side
                 if (inSet[nk] || open(nk, mx, my)) continue;
+                if (end) { var hn = Math.hypot(mx - p.x, my - p.y); if (end(mx, my, (mx - p.x) / hn, (my - p.y) / hn)) continue; }
                 var ka = vkey(va[0], va[1]), kb = vkey(vb[0], vb[1]);
                 n = edges.length; edges.push({ a: va, b: vb, ka: ka, kb: kb, used: false });
                 (at[ka] || (at[ka] = [])).push(n); (at[kb] || (at[kb] = [])).push(n);
@@ -486,7 +493,37 @@ function outlineWalls(pieces, grid, opts) {
     }
     return out;
 }
+// corridorWalls(grid, sx, sy, ex, ey, width, opts) -> as outlineWalls answers. The wall lines along the two long sides of the corridor that
+// corridor() lays for the same gesture: the outer edge of its cells, less its two ENDS (the owner, 2026-10-10, by prompt: "Open ends"), so
+// that it joins what it runs into. An end is an outer edge that faces along the corridor at its last cell, or against it at its first: its
+// outward normal within about 53 degrees of the corridor's direction (so the two sides beside a hexagon's forward side stay walled), and its
+// middle no further back than a quarter of a cell from that end. The direction runs from the first cell's centre to the last one's; a
+// corridor of one cell takes the gesture's own (a tie reads level, as corridor() reads it). opts as outlineWalls takes them
+function corridorWalls(grid, sx, sy, ex, ey, width, opts) {
+    var out = { lines: [], floors: 0, cells: 0, had: 0, over: false };
+    var co = corridor(grid, sx, sy, ex, ey, width), run = corridor(grid, sx, sy, ex, ey, 1); if (!co || !run) return out;
+    var sq = grid.type === 'square', list = sq ? cellsUnderRect(co.x, co.y, co.w, co.h, grid) : co.cells, a, b, inSet = Object.create(null), cells = [], i;
+    if (sq) { a = { x: run.x + grid.size / 2, y: run.y + grid.size / 2 }; b = { x: run.x + run.w - grid.size / 2, y: run.y + run.h - grid.size / 2 }; }
+    else { if (!run.cells.length) return out; a = cellCenter(run.cells[0], grid); b = cellCenter(run.cells[run.cells.length - 1], grid); }
+    if (list.length > WALLS.cells) { out.over = true; return out; }
+    for (i = 0; i < list.length; i++) { var ck = cellKey(list[i], grid); if (!inSet[ck]) { inSet[ck] = 1; cells.push(list[i]); } }
+    var dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy);
+    if (len < 1e-6) { dx = ex - sx; dy = ey - sy; if (sq) { if (Math.abs(dx) >= Math.abs(dy)) { dx = 1; dy = 0; } else { dx = 0; dy = 1; } } else if (!dx && !dy) dx = 1; len = 0; }
+    var dl = Math.hypot(dx, dy); dx /= dl; dy /= dl;
+    var q = 0.25 * (sq ? grid.size : 1.5 * grid.s);
+    out.floors = 1;
+    return wallsOfCells(out, cells, inSet, grid, opts, function(mx, my, nx, ny) {
+        var t = (mx - a.x) * dx + (my - a.y) * dy, d = nx * dx + ny * dy;
+        return (d > 0.6 && t > len - q) || (d < -0.6 && t < q);
+    });
+}
+// One wall line's geometry from board points (two at least, each a pair of numbers), for a caller that knows where its wall runs; else null
+function wallLine(pts) {
+    if (!Array.isArray(pts) || pts.length < 2) return null;
+    for (var i = 0; i < pts.length; i++) if (!Array.isArray(pts[i]) || !fin(pts[i][0]) || !fin(pts[i][1])) return null;
+    return lineOf(pts);
+}
 
-var API = { VERSION: VERSION, TEXTURES: TEXTURES, cleanTexture: cleanTexture, TEX: TEX, TEX_CSS: TEX_CSS, texStyle: texStyle, texPos: texPos, texPattern: texPattern, MATERIALS: MATERIALS, MATERIAL_IDS: MATERIAL_IDS, cleanMaterial: cleanMaterial, pieceProps: pieceProps, penPreset: penPreset, snapBox: snapBox, hexCellBox: hexCellBox, hexCellsInBox: hexCellsInBox, corridor: corridor, snapVertex: snapVertex, polyItem: polyItem, seatedAt: seatedAt, floorOk: floorOk, outlineWalls: outlineWalls };
+var API = { VERSION: VERSION, TEXTURES: TEXTURES, cleanTexture: cleanTexture, TEX: TEX, TEX_CSS: TEX_CSS, texStyle: texStyle, texPos: texPos, texPattern: texPattern, MATERIALS: MATERIALS, MATERIAL_IDS: MATERIAL_IDS, cleanMaterial: cleanMaterial, pieceProps: pieceProps, penPreset: penPreset, snapBox: snapBox, hexCellBox: hexCellBox, hexCellsInBox: hexCellsInBox, corridor: corridor, snapVertex: snapVertex, polyItem: polyItem, seatedAt: seatedAt, floorOk: floorOk, outlineWalls: outlineWalls, corridorWalls: corridorWalls, wallLine: wallLine };
 if (typeof window !== 'undefined') window.wpBuildCore = API;
-export { VERSION, TEXTURES, cleanTexture, TEX, TEX_CSS, texStyle, texPos, texPattern, MATERIALS, MATERIAL_IDS, cleanMaterial, pieceProps, penPreset, snapBox, hexCellBox, hexCellsInBox, corridor, snapVertex, polyItem, seatedAt, floorOk, outlineWalls };
+export { VERSION, TEXTURES, cleanTexture, TEX, TEX_CSS, texStyle, texPos, texPattern, MATERIALS, MATERIAL_IDS, cleanMaterial, pieceProps, penPreset, snapBox, hexCellBox, hexCellsInBox, corridor, snapVertex, polyItem, seatedAt, floorOk, outlineWalls, corridorWalls, wallLine };

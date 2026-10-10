@@ -1758,7 +1758,7 @@ function applySnapshot(msg) {
     });
     charSessionReset();
     Object.values(state.appState.campaigns || {}).forEach(function(cs) { if (cs && cs.chars && typeof cs.chars === 'object') Object.keys(cs.chars).forEach(function(id) { noteHostCopy(id, cs.chars[id].values); }); });   // Stage 6: the host's copy of every character, whole, from the start (a refusal goes back to it)
-    if (typeof noteHostLook === 'function') Object.values(state.appState.campaigns || {}).forEach(function(cs) { if (cs && cs.chars && typeof cs.chars === 'object') Object.keys(cs.chars).forEach(function(id) { if (cs.chars[id] && !cs.chars[id].partial) noteHostLook(id, cs.chars[id].looks); }); });   // item 35: and its looks
+    if (typeof noteHostChar === 'function') Object.values(state.appState.campaigns || {}).forEach(function(cs) { if (cs && cs.chars && typeof cs.chars === 'object') Object.keys(cs.chars).forEach(function(id) { noteHostChar(cs.chars[id]); }); });   // item 35: and its looks, on our own whole copies alone
     net.stanceCamps = cleanStanceCamps(msg.stanceCamps);   // null from an older host: msg.stance governs every campaign
     net.targets = cleanTargets(msg.targets);
     net.combats = cleanCombats(msg.combats);
@@ -2902,9 +2902,14 @@ net.syncCharDelta = function(id, values) {   // changed values, filtered to what
 // said each of our characters has, which a refused or unanswered look goes back to. _styleKnown: this host has answered a look
 var styleLimit = null, _stylePending = Object.create(null), _charHostLook = Object.create(null), _styleKnown = false, _styleOldSaid = false;
 function styleOwn(o, k) { return !!o && typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k); }
-function styleReset() { Object.keys(_stylePending).forEach(function(k) { clearTimeout(_stylePending[k].timer); }); _stylePending = Object.create(null); _charHostLook = Object.create(null); _styleKnown = false; if (styleLimit) styleLimit.reset(); }
-function noteHostLook(id, looks) { if (typeof id !== 'string') return; if (looks && typeof looks === 'object') _charHostLook[id] = JSON.parse(JSON.stringify(looks)); else delete _charHostLook[id]; }
-function noteHostLooks(chars) { _charHostLook = Object.create(null); Object.keys(chars || {}).forEach(function(id) { var c = chars[id]; if (c && !c.partial) noteHostLook(id, c.looks); }); }
+function styleReset() { Object.keys(_stylePending).forEach(function(k) { clearTimeout(_stylePending[k].timer); }); _stylePending = Object.create(null); _charHostLook = Object.create(null); _styleKnown = false; _styleOldSaid = false; if (styleLimit) styleLimit.reset(); }
+// A copy holds looks only when it is OUR OWN WHOLE copy: the host puts them on no other (charView), and a player's app does not take a
+// host's word for it. So a teammate's hover copy, or a whole copy that is someone else's, never keeps a look a host laid on it
+function styleOurs(c) { return !!c && !c.partial && !c.npc && !!c.ownerId && c.ownerId === net.myId; }
+function styleHeard() { _styleKnown = true; }   // the host said something about looks: it knows them
+function noteHostLook(id, looks) { if (typeof id !== 'string') return; if (looks && typeof looks === 'object') { _charHostLook[id] = JSON.parse(JSON.stringify(looks)); styleHeard(); } else delete _charHostLook[id]; }
+function noteHostChar(c) { if (!c) return; if (!styleOurs(c)) { delete c.looks; delete _charHostLook[c.id]; return; } noteHostLook(c.id, c.looks); }   // a copy as the host sent it, cleaned: its looks noted, or taken off a copy that is not ours
+function noteHostLooks(chars) { _charHostLook = Object.create(null); Object.keys(chars || {}).forEach(function(id) { noteHostChar(chars[id]); }); }
 function styleDropFor(charId) { Object.keys(_stylePending).forEach(function(rid) { if (_stylePending[rid].charId === charId) { clearTimeout(_stylePending[rid].timer); delete _stylePending[rid]; } }); }
 function styleGone(charId) { styleDropFor(charId); delete _charHostLook[charId]; }
 // A character's looks as they stand now on a player's app: what the host last said, then the looks still waiting for its answer in the order
@@ -2912,7 +2917,7 @@ function styleGone(charId) { styleDropFor(charId); delete _charHostLook[charId];
 // host's). Run whenever the host's copy, a waiting change or a waiting look moves. A copy that is not ours to change holds no waiting look
 function styleLay(charId) {
     var camp = getActiveCampaign(), S = SC(), c = camp && camp.chars && styleOwn(camp.chars, charId) ? camp.chars[charId] : null;
-    if (!c || c.partial || c.npc || !c.ownerId || c.ownerId !== net.myId) { styleDropFor(charId); return; }
+    if (!styleOurs(c)) { if (c) delete c.looks; styleDropFor(charId); return; }
     if (styleOwn(_charHostLook, charId)) { var stands = S && camp.system ? S.cleanLooks(_charHostLook[charId], styleOwn(_charHost, charId) ? _charHost[charId] : {}, camp.system) : null; if (stands) _charHostLook[charId] = stands; else delete _charHostLook[charId]; }   // the host's word lives while the text the host holds is the text it was made for: after that it is gone for good, as it is on the host
     var out = styleOwn(_charHostLook, charId) ? JSON.parse(JSON.stringify(_charHostLook[charId])) : {};
     Object.keys(_stylePending).forEach(function(rid) { var p = _stylePending[rid]; if (p.charId !== charId) return; if (p.look) out[p.fieldId] = p.look; else delete out[p.fieldId]; });
@@ -2922,19 +2927,21 @@ function styleLay(charId) {
 // The host's word on looks it changed: named, the fields the message names; got, those of them that are a look of the text the host last
 // said the field holds, cleaned. A field named with no such look has none. Field by field of the system on hand, never key by key of the message
 function styleTake(charId, named, got, sys) {
+    styleHeard();
     var hl = styleOwn(_charHostLook, charId) ? _charHostLook[charId] : (_charHostLook[charId] = {});
     sys.fields.forEach(function(f) { if (!styleOwn(named, f.id)) return; if (styleOwn(got, f.id)) hl[f.id] = got[f.id]; else delete hl[f.id]; });
     styleLay(charId);
 }
 // The answer to a look we sent (heard: the host said it; else our own clock or a send that failed). Kept: the host holds what was sent.
 // Refused or unanswered: back to what the host last said. An older Waypoint knows no looks and answers nothing: said once a session, and
-// only while this host has never answered one
+// only while this host has said nothing about looks at all (an answer, its word on a look, a copy that carries one). Every other silence
+// is said as an unanswered change is: a look never goes back without a word
 function styleDone(rid, ok, reason, heard) {
     var p = styleOwn(_stylePending, rid) ? _stylePending[rid] : null; if (!p) return; clearTimeout(p.timer); delete _stylePending[rid];
     if (heard === true) _styleKnown = true;
     if (ok) { var hl = styleOwn(_charHostLook, p.charId) ? _charHostLook[p.charId] : (_charHostLook[p.charId] = {}); if (p.look) hl[p.fieldId] = JSON.parse(JSON.stringify(p.look)); else delete hl[p.fieldId]; }
     styleLay(p.charId);
-    if (!ok && reason === 'timeout' && !_styleKnown) { if (!_styleOldSaid) { _styleOldSaid = true; toast('The GM\'s Waypoint did not answer. An older Waypoint keeps no text style on sheets.'); } }
+    if (!ok && reason === 'timeout' && !_styleKnown && !_styleOldSaid) { _styleOldSaid = true; toast('The GM\'s Waypoint did not answer. An older Waypoint keeps no text style on sheets.'); }
     else if (!ok && window.wpSheets && window.wpSheets.styleResult) window.wpSheets.styleResult(rid, false, reason);
     if (window.wpSheets) window.wpSheets.charChanged(p.charId);
 }
@@ -5754,7 +5761,7 @@ function handleMessage(msg, conn) {
         // is never taken off by an older word of the host's
         if (!net.foreign || conn.peer !== net.syncedPeer || net.stream || !window.wpSystemCore) return;
         var SY = window.wpSystemCore;
-        if (msg.type !== 'charStyle') { if (typeof msg.rid !== 'string' || !Object.prototype.hasOwnProperty.call(_stylePending, msg.rid)) return; styleDone(msg.rid, msg.type === 'charstyle-ack', SY.cleanDenyReason(msg.reason), true); return; }
+        if (msg.type !== 'charStyle') { styleHeard(); if (typeof msg.rid !== 'string' || !Object.prototype.hasOwnProperty.call(_stylePending, msg.rid)) return; styleDone(msg.rid, msg.type === 'charstyle-ack', SY.cleanDenyReason(msg.reason), true); return; }
         if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId) return;
         var campL = campOf(msg.campId); if (!campL || !campL.system || !campL.chars) return;   // the system always comes first
         if (typeof msg.id !== 'string' || !Object.prototype.hasOwnProperty.call(campL.chars, msg.id) || !campL.chars[msg.id] || !msg.looks || typeof msg.looks !== 'object' || Array.isArray(msg.looks)) return;   // own ids only
@@ -5791,7 +5798,7 @@ function handleMessage(msg, conn) {
             if (window.wpSheets) window.wpSheets.charGone(msg.id);
             return;
         }
-        if (msg.type === 'char') { var c1 = SC2.cleanChar(msg.char, sysC, { state: 'owner' }); if (!c1) return; c1.partial = !!(msg.char && msg.char.partial === true); if (typeof noteHostLook === 'function') noteHostLook(c1.id, c1.partial ? null : c1.looks); if (c1.partial || c1.ownerId !== net.myId) dropP(c1.id); campC.chars[c1.id] = c1; noteHostCopy(c1.id, c1.values); reapplyPending(c1.id); if (window.wpSheets) window.wpSheets.charChanged(c1.id); return; }
+        if (msg.type === 'char') { var c1 = SC2.cleanChar(msg.char, sysC, { state: 'owner' }); if (!c1) return; c1.partial = !!(msg.char && msg.char.partial === true); if (typeof noteHostChar === 'function') noteHostChar(c1); if (c1.partial || c1.ownerId !== net.myId) dropP(c1.id); campC.chars[c1.id] = c1; noteHostCopy(c1.id, c1.values); reapplyPending(c1.id); if (window.wpSheets) window.wpSheets.charChanged(c1.id); return; }
         if (typeof msg.id !== 'string' || !Object.prototype.hasOwnProperty.call(campC.chars, msg.id) || !campC.chars[msg.id] || !msg.values || typeof msg.values !== 'object') return;   // own ids only: a delta for '__proto__' would write onto every object's prototype
         var tgt = campC.chars[msg.id], hb = Object.prototype.hasOwnProperty.call(_charHost, msg.id) ? _charHost[msg.id] : null; tgt.values = tgt.values || {};   // a delta updates a whole host copy, never starts a partial one
         Object.keys(msg.values).forEach(function(fid) { var f = SC2.fieldById(sysC, fid); if (!f) return; if (msg.values[fid] === null) { delete tgt.values[fid]; if (hb) delete hb[fid]; return; } var v = SC2.cleanValue(f, msg.values[fid], SC2.valueOpts(sysC)); if (v !== undefined) { tgt.values[fid] = v; if (hb) hb[fid] = JSON.parse(JSON.stringify(v)); } });

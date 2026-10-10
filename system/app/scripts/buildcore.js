@@ -2,7 +2,7 @@
    list, drawn here as a seamless SVG tile — never a file, never an address), the seven materials of the palette and the props bag a
    piece of each takes, the Wall-line preset the pen takes, and the lattice maths the palette lays pieces by (a square box snapped to
    the lattice, a hexagon seated on its cell, a corridor, a polygon's vertex and item, the piece already seated where a new one would
-   go). No state, no DOM; tools/buildcheck.js runs it under Node, and whiteboard.js (the palette) imports it. Published as
+   go), and the wall lines around a set of floor pieces (outlineWalls). No state, no DOM; tools/buildcheck.js runs it under Node, and whiteboard.js (the palette) imports it. Published as
    window.wpBuildCore.
 
    The owner's decisions of 2026-10-01 (docs/MAP_BUILDER_PLAN.md, Design 3):
@@ -21,7 +21,7 @@
    is taken from its board place (texPos), so abutting pieces continue one pattern. */
 'use strict';
 
-import { cellOf, cellCenter, cellKey, cellsUnderRect, cleanTerrain } from './fogcore.js';   // the one lattice the fog, cover and movement read
+import { cellOf, cellCenter, cellKey, cellsUnderRect, cleanTerrain, itemCells, itemOver, itemCovers, pathSegs, isDoor } from './fogcore.js';   // the one lattice the fog, cover and movement read
 import { cssColor } from './safecore.js';   // one colour rule for the GM's screen and the wire (safecore COLOR_RE)
 
 var VERSION = 1;
@@ -317,6 +317,153 @@ function seatedAt(items, piece) {
     return -1;
 }
 
-var API = { VERSION: VERSION, TEXTURES: TEXTURES, cleanTexture: cleanTexture, TEX: TEX, TEX_CSS: TEX_CSS, texStyle: texStyle, texPos: texPos, texPattern: texPattern, MATERIALS: MATERIALS, MATERIAL_IDS: MATERIAL_IDS, cleanMaterial: cleanMaterial, pieceProps: pieceProps, penPreset: penPreset, snapBox: snapBox, hexCellBox: hexCellBox, hexCellsInBox: hexCellsInBox, corridor: corridor, snapVertex: snapVertex, polyItem: polyItem, seatedAt: seatedAt };
+/* ---------- walls around floors (fold B2b; the owner, 2026-10-10, by prompt: "Walls first", on the "Right-click menu") ----------
+   One command lays thin wall lines along the outer edge of the cells a set of floor pieces covers together. Nothing is derived live: what
+   comes back is geometry for ordinary Wall lines (the pen's thin wall of item 18 W2), which the caller dresses with penPreset and adds as
+   items. The outline follows the LATTICE, as the fog's own reading of a piece does (fogcore itemCells / itemCovers: a cell is a piece's when
+   its centre is covered), so a rectangle on the grid is walled exactly and a round room or a slanted polygon gets stepped walls. */
+// A FLOOR piece: a plain area a wall may run around: a rectangle, a circle, a hexagon, a diamond, a filled region or a painted cell that
+// players see and that blocks nothing itself. Never a token, a waiting token or a GM note card; never a hidden piece (walls around one would
+// draw its shape for the players); never a wall, a door or a see-through barrier; never a play area, a null area or smoke; never a picture,
+// a text, a pen line, a trigger or a light
+function floorOk(w) {
+    if (!isObj(w) || w.isChar || w.waiting || w.gmNoteFor || w.hidden || w.blocksSight || w.barrier === true || w.fogged || w.nulls || w.smoke === true) return false;
+    if (!fin(w.x) || !fin(w.y)) return false;
+    if (w.type === 'path') return w.tip === 'fill' && Array.isArray(w.pts);
+    return w.type === 'rect' || w.type === 'circle' || w.type === 'hexagon' || w.type === 'diamond';
+}
+var WALLS = Object.freeze({ cells: 6000, region: 24000, work: 2e7, doors: 1000, chunk: 120 });   // cells: the fog's own cap of blocker cells
+// The cells a floor piece covers, as the fog reads them: { cells } or { over: true } for a piece too large to list. A filled region is asked
+// cell by cell over its outline's box (itemCells reads any path as its box)
+function floorCells(w, grid) {
+    if (w.type !== 'path' || w.fill) return itemOver(w, grid) ? { over: true } : { cells: itemCells(w, grid) };
+    var segs = pathSegs(w), x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, i;
+    for (i = 0; i < segs.length; i++) { var s = segs[i]; x0 = Math.min(x0, s[0], s[2]); x1 = Math.max(x1, s[0], s[2]); y0 = Math.min(y0, s[1], s[3]); y1 = Math.max(y1, s[1], s[3]); }
+    if (!segs.length) return { cells: [] };
+    var cw = grid.type === 'square' ? grid.size : 1.5 * grid.s, ch = grid.type === 'square' ? grid.size : grid.h, est = ((x1 - x0) / cw + 2) * ((y1 - y0) / ch + 2);
+    if (!(est <= WALLS.region) || est * segs.length > WALLS.work) return { over: true };
+    var box = cellsUnderRect(x0, y0, x1 - x0, y1 - y0, grid), out = [];
+    for (i = 0; i < box.length; i++) { var p = cellCenter(box[i], grid); if (itemCovers(w, p.x, p.y, grid)) out.push(box[i]); }
+    return { cells: out };
+}
+function segDist(px, py, s) {
+    var dx = s[2] - s[0], dy = s[3] - s[1], l2 = dx * dx + dy * dy, t = l2 ? ((px - s[0]) * dx + (py - s[1]) * dy) / l2 : 0;
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    return Math.hypot(px - (s[0] + t * dx), py - (s[1] + t * dy));
+}
+// A wall line's geometry from board points, as the pen stores a stroke: its box their extent (10 px at least each way, the pen's own least),
+// its points relative to the box, to the hundredth
+function lineOf(pts) {
+    var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, i;
+    for (i = 0; i < pts.length; i++) { x0 = Math.min(x0, pts[i][0]); y0 = Math.min(y0, pts[i][1]); x1 = Math.max(x1, pts[i][0]); y1 = Math.max(y1, pts[i][1]); }
+    var w = Math.max(10, r2(x1 - x0)), h = Math.max(10, r2(y1 - y0)), rel = [];
+    for (i = 0; i < pts.length; i++) rel.push([r2(pts[i][0] - x0), r2(pts[i][1] - y0)]);
+    return { x: r2(x0), y: r2(y0), w: w, h: h, baseW: w, baseH: h, pts: rel };
+}
+// outlineWalls(pieces, grid, opts) -> { lines, floors, cells, had, over }
+//   pieces   the selection: only its floor pieces count (floorOk)
+//   grid     a square or a hex lattice (a map with no grid: the caller passes the 50 px square lattice Build seats its pieces on)
+//   opts.doors   the map's pieces: where a DOOR that players see stands, the doorway is left open. A door laid as a block: no wall on the
+//                edge between a floor cell and a cell the door covers. A door drawn as a line: no wall on a cell edge whose middle lies on it
+//                (within a fifth of a cell). A hidden door is walled over, since a gap would show where it is
+//   opts.have    the map's pieces: a wall line that is already there (the same box and points, within a pixel) is not laid twice (`had`)
+//   lines    each { x, y, w, h, baseW, baseH, pts }. Square: one line a straight run, the runs along a row line first and then along a
+//            column line, each in order. Hex: the outline's zigzag as chains of at most 120 edges, an open chain before a closed one
+//   over     the floors cover more than 6000 cells together, or one of them is too large to list: nothing is laid
+function outlineWalls(pieces, grid, opts) {
+    var out = { lines: [], floors: 0, cells: 0, had: 0, over: false };
+    if (!Array.isArray(pieces) || !gridOk(grid)) return out;
+    var o = isObj(opts) ? opts : {}, inSet = Object.create(null), cells = [], i, k, n;
+    for (i = 0; i < pieces.length; i++) {
+        var w = pieces[i]; if (!floorOk(w)) continue;
+        var fc = floorCells(w, grid); if (fc.over) { out.over = true; return out; }
+        out.floors++;
+        for (k = 0; k < fc.cells.length; k++) {
+            var ck = cellKey(fc.cells[k], grid); if (inSet[ck]) continue;
+            if (cells.length >= WALLS.cells) { out.over = true; return out; }
+            inSet[ck] = 1; cells.push(fc.cells[k]);
+        }
+    }
+    out.cells = cells.length;
+    if (!cells.length) return out;
+    var doorCells = Object.create(null), doorSegs = [], doors = Array.isArray(o.doors) ? o.doors : [];
+    for (i = 0; i < doors.length; i++) {
+        var d = doors[i]; if (!isDoor(d) || d.hidden || d.isChar || d.waiting || d.gmNoteFor || !fin(d.x) || !fin(d.y)) continue;
+        if (d.type === 'path' && !d.fill) { var ds = pathSegs(d); for (k = 0; k < ds.length && doorSegs.length < WALLS.doors; k++) doorSegs.push(ds[k]); continue; }
+        if (itemOver(d, grid)) continue;
+        var dc = itemCells(d, grid); for (k = 0; k < dc.length && k < WALLS.cells; k++) doorCells[cellKey(dc[k], grid)] = 1;
+    }
+    var tol = 0.2 * (grid.type === 'square' ? grid.size : grid.s);
+    var open = function(outKey, mx, my) {   // a doorway: no wall on this edge
+        if (doorCells[outKey]) return true;
+        for (var q = 0; q < doorSegs.length; q++) if (segDist(mx, my, doorSegs[q]) <= tol) return true;
+        return false;
+    };
+    var lines = [];
+    if (grid.type === 'square') {
+        var s = grid.size, H = Object.create(null), V = Object.create(null);   // a lattice line -> the cells along it that have an outer edge there
+        var put = function(M, line, at, outKey, mx, my) { if (!inSet[outKey] && !open(outKey, mx, my)) (M[line] || (M[line] = [])).push(at); };
+        for (i = 0; i < cells.length; i++) {
+            var c = cells[i].c, r = cells[i].r;
+            put(H, r, c, c + ',' + (r - 1), (c + 0.5) * s, r * s);
+            put(H, r + 1, c, c + ',' + (r + 1), (c + 0.5) * s, (r + 1) * s);
+            put(V, c, r, (c - 1) + ',' + r, c * s, (r + 0.5) * s);
+            put(V, c + 1, r, (c + 1) + ',' + r, (c + 1) * s, (r + 0.5) * s);
+        }
+        var runs = function(M, level) {
+            var ks = Object.keys(M).map(Number).sort(function(a, b) { return a - b; });
+            for (var a = 0; a < ks.length; a++) {
+                var ats = M[ks[a]].slice().sort(function(p, q) { return p - q; }), from = null, to = null;
+                for (var b = 0; b <= ats.length; b++) {
+                    if (b < ats.length && from !== null && (ats[b] === to || ats[b] === to + 1)) { to = ats[b]; continue; }
+                    if (from !== null) lines.push(lineOf(level ? [[from * s, ks[a] * s], [(to + 1) * s, ks[a] * s]] : [[ks[a] * s, from * s], [ks[a] * s, (to + 1) * s]]));
+                    if (b < ats.length) { from = ats[b]; to = ats[b]; }
+                }
+            }
+        };
+        runs(H, true); runs(V, false);
+    } else {
+        var hs = grid.s, hh = grid.h / 2, edges = [], at = Object.create(null);   // a corner -> the outer edges that meet there (two at most)
+        var vkey = function(x, y) { return Math.round(x / (hs / 2)) + ',' + Math.round(y / hh); };   // a hex lattice's corners lie on whole half-steps
+        for (i = 0; i < cells.length; i++) {
+            var p = cellCenter(cells[i], grid), vs = [[p.x - hs, p.y], [p.x - hs / 2, p.y - hh], [p.x + hs / 2, p.y - hh], [p.x + hs, p.y], [p.x + hs / 2, p.y + hh], [p.x - hs / 2, p.y + hh]];
+            for (k = 0; k < 6; k++) {
+                var va = vs[k], vb = vs[(k + 1) % 6], mx = (va[0] + vb[0]) / 2, my = (va[1] + vb[1]) / 2, nk = cellKey(cellOf(2 * mx - p.x, 2 * my - p.y, grid), grid);   // the cell across this side
+                if (inSet[nk] || open(nk, mx, my)) continue;
+                var ka = vkey(va[0], va[1]), kb = vkey(vb[0], vb[1]);
+                n = edges.length; edges.push({ a: va, b: vb, ka: ka, kb: kb, used: false });
+                (at[ka] || (at[ka] = [])).push(n); (at[kb] || (at[kb] = [])).push(n);
+            }
+        }
+        var walk = function(first, key, pt) {   // from a corner along unused edges until none leads on
+            var pts = [pt], e = first;
+            while (e !== -1) {
+                var E = edges[e]; E.used = true;
+                var fwd = E.ka === key; key = fwd ? E.kb : E.ka; pts.push(fwd ? E.b : E.a);
+                var next = at[key]; e = -1;
+                for (var q = 0; q < next.length; q++) if (!edges[next[q]].used) { e = next[q]; break; }
+            }
+            for (var c0 = 0; c0 < pts.length - 1; c0 += WALLS.chunk) lines.push(lineOf(pts.slice(c0, c0 + WALLS.chunk + 1)));
+        };
+        for (i = 0; i < edges.length; i++) {   // the chains a doorway cut open, each from one of its ends
+            if (edges[i].used) continue;
+            if (at[edges[i].ka].length === 1) walk(i, edges[i].ka, edges[i].a); else if (at[edges[i].kb].length === 1) walk(i, edges[i].kb, edges[i].b);
+        }
+        for (i = 0; i < edges.length; i++) if (!edges[i].used) walk(i, edges[i].ka, edges[i].a);   // then the closed loops
+    }
+    var have = Array.isArray(o.have) ? o.have : [];
+    for (i = 0; i < lines.length; i++) {
+        var L = lines[i], dup = false;
+        for (k = 0; k < have.length && !dup; k++) {
+            var hw = have[k];
+            dup = isObj(hw) && hw.type === 'path' && hw.tip !== 'fill' && hw.blocksSight === true && hw.sightType !== 'door' && !hw.hidden && !(fin(hw.rot) && hw.rot % 360 !== 0) && Array.isArray(hw.pts) && hw.pts.length === L.pts.length
+                && near1(hw.x, L.x) && near1(hw.y, L.y) && near1(hw.w, L.w) && near1(hw.h, L.h) && Array.isArray(hw.pts[1]) && near1(hw.pts[1][0], L.pts[1][0]) && near1(hw.pts[1][1], L.pts[1][1]);
+        }
+        if (dup) out.had++; else out.lines.push(L);
+    }
+    return out;
+}
+
+var API = { VERSION: VERSION, TEXTURES: TEXTURES, cleanTexture: cleanTexture, TEX: TEX, TEX_CSS: TEX_CSS, texStyle: texStyle, texPos: texPos, texPattern: texPattern, MATERIALS: MATERIALS, MATERIAL_IDS: MATERIAL_IDS, cleanMaterial: cleanMaterial, pieceProps: pieceProps, penPreset: penPreset, snapBox: snapBox, hexCellBox: hexCellBox, hexCellsInBox: hexCellsInBox, corridor: corridor, snapVertex: snapVertex, polyItem: polyItem, seatedAt: seatedAt, floorOk: floorOk, outlineWalls: outlineWalls };
 if (typeof window !== 'undefined') window.wpBuildCore = API;
-export { VERSION, TEXTURES, cleanTexture, TEX, TEX_CSS, texStyle, texPos, texPattern, MATERIALS, MATERIAL_IDS, cleanMaterial, pieceProps, penPreset, snapBox, hexCellBox, hexCellsInBox, corridor, snapVertex, polyItem, seatedAt };
+export { VERSION, TEXTURES, cleanTexture, TEX, TEX_CSS, texStyle, texPos, texPattern, MATERIALS, MATERIAL_IDS, cleanMaterial, pieceProps, penPreset, snapBox, hexCellBox, hexCellsInBox, corridor, snapVertex, polyItem, seatedAt, floorOk, outlineWalls };

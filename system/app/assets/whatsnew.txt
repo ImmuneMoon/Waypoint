@@ -350,6 +350,8 @@ The Journal
   colour, a size, a link and a font. The fonts are Waypoint's own, so
   a note reads the same on every computer. Open shows the note with
   its look.
+- A note of your own that you share arrives with its look. At a table
+  whose GM runs an older Waypoint, the words arrive without it.
 
 Fixes
 - The fog of war is lighter on a busy map. It read every character's

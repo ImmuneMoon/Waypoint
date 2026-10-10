@@ -550,7 +550,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // sits along the table's top edge (just above the heading row, from the table's left edge) and no cell is covered; once that edge has
   // scrolled out of the panel it stays at the top of the panel's view (edge: 'top'), and only where it would then lie over its own box
   // does it go under the box.
-  function tsPlaceAt(panel, box, w, h, table) {
+  function tsPlaceAt(panel, box, w, h, table, under) {   // under (true only): the bar stands under the box where there is room for it
       var gap = 6, pad = 6;
       var seen = box.bottom > panel.top && box.top < panel.bottom && box.right > panel.left && box.left < panel.right;
       var from = table ? table.left : box.left;
@@ -561,19 +561,23 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           if (box.top >= stuck + h + gap) return { left: Math.round(left), top: Math.round(stuck), below: false, seen: seen, edge: 'top' };
           return { left: Math.round(left), top: Math.round(box.bottom + gap), below: true, seen: seen };
       }
-      var above = box.top - gap - h, below = above < panel.top + 2;
+      var above = box.top - gap - h, below = (under === true && box.bottom + gap + h <= panel.bottom - 2) || above < panel.top + 2;
       return { left: Math.round(left), top: Math.round(below ? box.bottom + gap : above), below: below, seen: seen };
   }
   // the table a box is a heading or a cell of (its element), else null
   function tsTableOf(box) { return box && box.matches && box.closest && box.matches('.b-colhead, .r-col') ? box.closest('.b-table') : null; }
   function tsPlace() {
       var E = tsState.els, box = tsState.box; if (!E || !box || E.root.hidden || !box.getBoundingClientRect) return;
-      var own = E.host.getBoundingClientRect(), hr = own, br = box.getBoundingClientRect();
+      var hxP = tsHosts.length ? tsHostOf(box) : null, area = hxP ? hxP.barArea(box) : null, ref = E.host;
+      if (area && area.nodeType === 1 && area.getBoundingClientRect && E.host.contains && E.host.contains(area)) ref = area;   // a host's own bounds for the bar (a list that scrolls inside the panel the bar lives in)
+      var own = ref.getBoundingClientRect(), hr = own, br = box.getBoundingClientRect();
       if (tsHosts.length) hr = tsxRect(E, own);   // a host's root with no area of its own (a layer that only holds panels): the window stands in
-      var right = hr !== own ? hr.right : hr.left + (E.host.clientLeft || 0) + (E.host.clientWidth || (hr.right - hr.left));   // less the panel's scroll bar
+      var by = hxP ? hxP.barBy(box) : null;
+      if (by && by !== box && by.nodeType === 1 && by.getBoundingClientRect && by.contains && by.contains(box)) br = by.getBoundingClientRect();   // what a host has the bar stand by (the whole row its box is part of), so the bar lies over nothing of that row
+      var right = hr !== own ? hr.right : hr.left + (ref.clientLeft || 0) + (ref.clientWidth || (hr.right - hr.left));   // less the panel's scroll bar
       E.root.style.maxWidth = Math.max(180, Math.round(right - hr.left - 12)) + 'px';
       var tb = tsTableOf(box);
-      var at = tsPlaceAt({ left: hr.left, top: hr.top, right: right, bottom: hr.bottom }, br, E.root.offsetWidth || 0, E.root.offsetHeight || 0, tb && tb.getBoundingClientRect ? tb.getBoundingClientRect() : null);
+      var at = tsPlaceAt({ left: hr.left, top: hr.top, right: right, bottom: hr.bottom }, br, E.root.offsetWidth || 0, E.root.offsetHeight || 0, tb && tb.getBoundingClientRect ? tb.getBoundingClientRect() : null, !!hxP && hxP.barUnder(box));
       E.root.style.left = at.left + 'px'; E.root.style.top = at.top + 'px';
       E.root.style.visibility = at.seen ? '' : 'hidden';
       E.root.classList.toggle('ts-below', at.below);
@@ -817,7 +821,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   function tsxStep(U, was, now, before, after, cont) {
       var cur = U.at >= 0 ? U.steps[U.at] : U.base;
       if (!cur || !tsxSame(cur, was)) { U.base = was; U.steps = []; U.at = -1; cont = false; }   // the field was changed from elsewhere since: what was noted is of another text
-      if (cont && U.at >= 0 && U.at === U.steps.length - 1) { var top = U.steps[U.at]; top.text = now.text; top.fmt = now.fmt; if (now.font !== undefined) top.font = now.font; top.as = after.s; top.ae = after.e; return; }
+      if (cont && !U.shut && U.at >= 0 && U.at === U.steps.length - 1) { var top = U.steps[U.at]; top.text = now.text; top.fmt = now.fmt; if (now.font !== undefined) top.font = now.font; top.as = after.s; top.ae = after.e; var prev = U.at > 0 ? U.steps[U.at - 1] : U.base; if (prev && tsxSame(prev, top)) { U.steps.pop(); U.at--; U.shut = true; }   /* a run that came back to where it began (a list stepped down and up again) is no step, and what it does next is a step of its own, never part of the step before the run */ return; }
+      U.shut = false;
       U.steps.length = U.at + 1;   // a new step forgets what was undone
       var st = { text: now.text, fmt: now.fmt, bs: before.s, be: before.e, as: after.s, ae: after.e }; if (now.font !== undefined) st.font = now.font;
       U.steps.push(st);
@@ -957,7 +962,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       tsHosts.forEach(function(h) { others = others.concat(h.roots); });
       for (var ri = 0; ri < roots.length; ri++) { if (others.some(function(o) { return near(o, roots[ri]); })) return false; others.push(roots[ri]); }
       var ask = function(name, none) { return function(a, b) { try { return typeof rec[name] === 'function' ? rec[name](a, b) : none; } catch (err) { if (typeof console !== 'undefined' && console.error) console.error(err); return none; } }; };
-      var q = { field: ask('field', null), doc: ask('doc', ''), name: ask('name', ''), links: ask('links', false), sizes: ask('sizes', false), fonts: ask('fonts', false), barHost: ask('barHost', null), changed: ask('changed', null), left: ask('left', null) };
+      var q = { field: ask('field', null), doc: ask('doc', ''), name: ask('name', ''), links: ask('links', false), sizes: ask('sizes', false), fonts: ask('fonts', false), barHost: ask('barHost', null), barArea: ask('barArea', null), barBy: ask('barBy', null), barUnder: ask('barUnder', false), changed: ask('changed', null), left: ask('left', null) };
       var hx = {
           id: rec.id, roots: roots,
           // a host's field as the box reads it: its text a string or nothing, its format an object or none. What it holds is the host's, and may come from a file
@@ -973,6 +978,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           sizes: function(key) { return q.sizes(key) === true; },
           fonts: function(key) { return q.fonts(key) === true; },
           barHost: function(box) { return q.barHost(box) || null; },
+          barArea: function(box) { return q.barArea(box) || null; },
+          barBy: function(box) { return q.barBy(box) || null; },
+          barUnder: function(box) { return q.barUnder(box) === true; },
           changed: function(key, kind) { q.changed(key, kind); },
           left: function(key) { q.left(key); }
       };

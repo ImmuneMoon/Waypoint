@@ -308,6 +308,13 @@ The play map
 - A corridor with walls. Tick With walls beside a corridor's width and
   Build lays a wall line along each side as you drag. The two ends stay
   open. A wall that already stands across an end stays there.
+- A dungeon made for you. Generate a dungeon, the last row of Build's
+  options, lays rooms, corridors, wall lines and doors as ordinary
+  pieces, on a square grid or a hex one. Build it on this map, on
+  another map or on a new one. Set its size, its rooms, corridors and
+  doors, and a seed: the same seed and settings make the same dungeon
+  again. It says how many pieces it would lay first, and one Undo
+  takes it back.
 
 The top bar and the data map
 - The top of the window is one quiet row. Its captioned boxes are gone,

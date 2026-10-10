@@ -57,6 +57,9 @@ function railSecOf(doc, sec) {
     var title = doc.querySelector('#campaignSidebar .section-title[data-section="' + sec + '"]'), box = title && title.closest ? title.closest('.sidebar-section') : null, nav = box ? box.querySelector('[id$="NavList"]') : null;
     return title && nav ? { title: title, box: box, nav: nav } : null;
 }
+// A title pressed by the rail wears a mark for that press: sidebar.js folds the section and keeps nothing of it, so a window closed while the
+// panel is open from the rail comes back with the user's own folds (the review of 2026-10-10: they were written to this computer for good)
+function railClick(title) { if (title.dataset) title.dataset.rail = '1'; try { title.click(); } finally { if (title.dataset) delete title.dataset.rail; } }
 function railOnly(doc, sec, kept) {
     var k = kept && typeof kept === 'object' ? kept : {};
     if (RAIL_SECS.indexOf(sec) < 0) return k;
@@ -64,7 +67,7 @@ function railOnly(doc, sec, kept) {
         var p = railSecOf(doc, s2); if (!p) return;
         var folded = p.nav.style.display === 'none', want = s2 !== sec;
         if (folded === want) return;
-        p.title.click();
+        railClick(p.title);
         k[s2] = [k[s2] ? k[s2][0] : folded, want];
     });
     return k;
@@ -75,7 +78,7 @@ function railBack(doc, kept) {
     RAIL_SECS.forEach(function(s2) {
         var rec = Array.isArray(kept[s2]) ? kept[s2] : null, p = rec ? railSecOf(doc, s2) : null; if (!p) return;
         var folded = p.nav.style.display === 'none';
-        if (folded === rec[1] && folded !== rec[0]) { p.title.click(); n++; }   // still as the rail left it, and not as it was before
+        if (folded === rec[1] && folded !== rec[0]) { railClick(p.title); n++; }   // still as the rail left it, and not as it was before
     });
     return n;
 }
@@ -96,11 +99,13 @@ function act(ev) {
     if (st.mode !== was.mode && window.wpFitBar) window.wpFitBar();   // the map has more or less room: the toolbar is fitted again
     return st.mode;
 }
-var _only = null;   // what the rail folded and unfolded for the section it shows, to put back
-function showSection(sec) {   // the section the icon names, alone and scrolled to; '' once the panel is no longer open from the rail
-    if (!sec) { railBack(document, _only); _only = null; return; }
+var _only = null, _top = null;   // what the rail folded and unfolded for the section it shows, and where the panel was scrolled to, to put back
+function showSection(sec) {   // the section the icon names, alone, the panel at its top; '' once the panel is no longer open from the rail
+    var side = document.getElementById('campaignSidebar');
+    if (!sec) { railBack(document, _only); _only = null; if (side && _top !== null) side.scrollTop = _top; _top = null; return; }
+    if (side && _top === null) _top = side.scrollTop;
     _only = railOnly(document, sec, _only);
-    var p = railSecOf(document, sec); if (p && p.box.scrollIntoView) p.box.scrollIntoView({ block: 'start' });
+    if (side) side.scrollTop = 0;   // the others are folded to their titles: the shown section is in sight from the top, and no other box is asked to scroll
 }
 function wire() {
     var rail = document.getElementById('leftRail'); if (!rail) return;

@@ -6400,7 +6400,7 @@ function wpBuildCommit(P, px, py, pw, ph, sx, sy) {
     var wallsToo = [];   // a corridor laid With walls (the owner: "Open ends"): a wall line along each long side, in the same save as its floor
     if (B.shape === 'corridor' && B.walls === true && boxes.length) {
         var preW = BC.penPreset('wall', {}), wl = [];
-        if (grid) { var cwr = BC.corridorWalls(grid, sx, sy, mx, my, B.corridorW, { doors: map.whiteboard, have: map.whiteboard }); wl = cwr && !cwr.over ? cwr.lines.filter(function(L) { return L.x >= 0 && L.y >= 0; }) : []; }
+        if (grid) { var cwr = BC.corridorWalls(grid, sx, sy, mx, my, B.corridorW, { doors: map.whiteboard, have: map.whiteboard }); wl = cwr && !cwr.over ? (grid.type === 'hex' ? cwr.lines : cwr.lines.filter(function(L) { return L.x >= 0 && L.y >= 0; })) : []; }   // a square strip is cut to the board, and its walls with it; a hex corridor's cells are laid whole, so its walls are too
         else { var fbx = boxes[0], lvl = Math.abs(mx - sx) >= Math.abs(my - sy); wl = (lvl ? [[[fbx.x, fbx.y], [fbx.x + fbx.w, fbx.y]], [[fbx.x, fbx.y + fbx.h], [fbx.x + fbx.w, fbx.y + fbx.h]]] : [[[fbx.x, fbx.y], [fbx.x, fbx.y + fbx.h]], [[fbx.x + fbx.w, fbx.y], [fbx.x + fbx.w, fbx.y + fbx.h]]]).map(function(p2) { return BC.wallLine(p2); }).filter(Boolean); }
         if (preW) wallsToo = wl.map(function(L) { return buildWallItem(L, preW); });
     }

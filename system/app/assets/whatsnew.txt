@@ -307,7 +307,7 @@ The play map
   all back.
 - A corridor with walls. Tick With walls beside a corridor's width and
   Build lays a wall line along each side as you drag. The two ends stay
-  open, so the corridor joins what it runs into.
+  open. A wall that already stands across an end stays there.
 
 The top bar and the data map
 - The top of the window is one quiet row. Its captioned boxes are gone,

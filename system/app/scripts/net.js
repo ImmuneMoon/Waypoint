@@ -3776,9 +3776,17 @@ function renderNotepad() {
     ta.readOnly = !host;
     ta.placeholder = host ? 'Notes for the whole table — everyone sees this as you type. Gone when you put it away or the session ends; anyone can save it to their Journal.' : 'The GM has not written anything yet.';
     if ((!host || document.activeElement !== ta) && ta.value !== net.notepad.text) {
-        var heldN = !host && document.activeElement === ta, s0N = heldN ? ta.selectionStart : 0, s1N = heldN ? ta.selectionEnd : 0, scN = heldN ? ta.scrollTop : 0;
+        var heldN = !host && document.activeElement === ta, s0N = heldN ? ta.selectionStart : 0, s1N = heldN ? ta.selectionEnd : 0, scN = heldN ? ta.scrollTop : 0, oldN = heldN ? String(ta.value) : '';
         ta.value = net.notepad.text || '';
-        if (heldN) { try { ta.setSelectionRange(Math.min(s0N, ta.value.length), Math.min(s1N, ta.value.length)); } catch (e) {} ta.scrollTop = scN; }   // a player reading or copying: where they are stays, as far as the new text reaches
+        if (heldN) {   // a player reading or copying: where they are stays. The text changed in one stretch, the GM typing: a place before it stays, a place after it moves with the words, and a selection the change reaches into becomes a caret at its end, never a selection over words the player did not pick
+            var nowN = ta.value, aN = oldN.length, zN = nowN.length, pN = 0, qN = 0, limN = Math.min(aN, zN);
+            while (pN < limN && oldN.charCodeAt(pN) === nowN.charCodeAt(pN)) pN++;
+            while (qN < limN - pN && oldN.charCodeAt(aN - 1 - qN) === nowN.charCodeAt(zN - 1 - qN)) qN++;
+            var mapN = function(o) { o = Math.max(0, Math.min(aN, o | 0)); return o <= pN ? o : o >= aN - qN ? o + (zN - aN) : -1; }, m0N = mapN(s0N), m1N = mapN(s1N);
+            if (m0N < 0 || m1N < 0) m0N = m1N = zN - qN;
+            try { ta.setSelectionRange(m0N, Math.max(m0N, m1N)); } catch (e) {}
+            ta.scrollTop = scN;
+        }
     }   // the writer's own typing is never drawn over; a player's box only reads, and follows the GM even while it has the focus (the owed review, 2026-10-09)
     var close = ui('notepadCloseBtn'); if (close) close.style.display = host ? '' : 'none';
     var clr = ui('notepadClearBtn'); if (clr) clr.style.display = host ? '' : 'none';

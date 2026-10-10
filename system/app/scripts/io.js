@@ -1242,7 +1242,7 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
   // said in a notice too, once when saving begins to fail, and again only after a save has gone through in between
   var _saveFailSaid = false, _saveFailAt = 0, SAVE_FAIL_AGAIN = 60000;   // ... and once a minute while it goes on failing: a notice is on screen for three seconds
   function saveFailed(bad) {
-      if (!bad) { _saveFailSaid = false; return; }
+      if (!bad) { if (_saveFailSaid) toast('Saving works again. The campaign is on the disk.'); _saveFailSaid = false; return; }
       var nowF = Date.now();
       if (_saveFailSaid && nowF - _saveFailAt < SAVE_FAIL_AGAIN) return;
       _saveFailSaid = true; _saveFailAt = nowF; toast('Saving failed. The campaign is not reaching the disk.');

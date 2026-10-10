@@ -202,12 +202,13 @@ function fillLinked(el, text, doc) {
 
 // [sinkcheck:linkpeek-start]
 // A link's address in sight BEFORE a press (the owner, 2026-10-09, of links in more places: "it shows the address in a way a browser does
-// before opening as well as warning"). While the pointer, or the keyboard's focus, rests on a link the gate would open or ask about, the
-// whole address stands in a strip at the window's bottom left, where a browser shows one: the very address the gate judges (cleaned as the
-// gate cleans it) as the URL parser reads it, which is what the question shows too, so plain characters only. The strip is ONE element this
-// makes, holding ONE text node whose value is the address: nothing of a link is ever markup or an attribute. Nothing shows for a link the
-// gate opens nothing for: one in a box that is being edited, one that was just dragged, an address that is not the web's, a file the app
-// itself hands over to be saved.
+// before opening as well as warning"). While the pointer, or the keyboard's focus, rests on a link the gate would open or ask about, its
+// address stands in a strip at the window's bottom left, where a browser shows one. It is the very address the gate judges (cleaned as the
+// gate cleans it) as the URL parser reads it, so plain characters only, and it is said as peekText says it: the site it names is the site
+// the question names. The strip is ONE element this makes, holding ONE text node whose value is the address: nothing of a link is ever
+// markup or an attribute. The style sheet wraps the strip and never cuts it, so what peekText keeps is in sight at any window width.
+// Nothing shows for a link the gate opens nothing for: one in a box that is being edited, one that was just dragged, an address that is
+// not the web's, a file the app itself hands over to be saved. Nothing shows in the stream window.
 var PEEK_MAX = 300, PEEK_SITE = 120;
 // What the strip says for an address: its scheme, its site and what follows the site, as a browser's own strip says it. The name and password an
 // address may carry before its site are left out: they are no part of where it leads, and can be written to read as a site. A site too long to
@@ -238,26 +239,64 @@ function peekEl(doc, make) {   // the one strip of this document; made on first 
 }
 function peekHide(doc) { var el = peekEl(doc, false); if (el && el.hidden !== true) el.hidden = true; }
 function peekShow(win, doc, a, e) {
-    var text = a ? peekOf(win, a) : ''; if (!text) { peekHide(doc); return false; }
+    var text = a ? peekOf(win, a) : '';
+    if (text && doc.body && doc.body.classList && doc.body.classList.contains('stream-mode')) text = '';   // the stream window is a picture for an audience: nobody clicks there, and nothing is said over it
+    if (!text) { peekHide(doc); return false; }
     var el = peekEl(doc, true); if (!el) return false;
     if (el.firstChild) el.firstChild.nodeValue = text; else el.appendChild(doc.createTextNode(text));
-    // out of the pointer's way, as a browser's is: with the pointer low on the left the strip stands on the right
-    var low = !!(e && typeof e.clientX === 'number' && typeof e.clientY === 'number' && win && e.clientY > (win.innerHeight || 0) - 64 && e.clientX < (win.innerWidth || 0) * 0.62);
-    el.classList.toggle('peek-right', low);
     el.hidden = false;
+    // out of the pointer's way, as a browser's is: with the pointer low on the left the strip stands on the right. Low is within the strip's
+    // own height of the bottom: a long address wraps, and the strip is then several lines tall
+    var tall = (el.offsetHeight || 40) + 24;
+    var low = !!(e && typeof e.clientX === 'number' && typeof e.clientY === 'number' && win && e.clientY > (win.innerHeight || 0) - tall && e.clientX < (win.innerWidth || 0) * 0.62);
+    el.classList.toggle('peek-right', low);
     return true;
 }
+// The strip stands while the pointer, or the keyboard's focus, RESTS on a link, and for no longer. An element that is taken off the page, or
+// that scrolls from under a still pointer, sends no word of leaving, so each way the strip can outlive its link is closed here by name.
 function peekWire(win, doc) {
-    var at = null;   // the link the strip stands for
-    var away = function() { at = null; peekHide(doc); };
-    doc.addEventListener('mouseover', function(e) { var a = linkAt(e.target); if (a === at) return; at = a; if (!a || !peekShow(win, doc, a, e)) peekHide(doc); }, true);
-    doc.addEventListener('mouseout', function(e) { if (!at) return; var to = e.relatedTarget ? linkAt(e.relatedTarget) : null; if (to !== at) away(); }, true);   // onto a part of the same link: it stays
-    doc.addEventListener('focusin', function(e) { var a = linkAt(e.target); if (a && peekShow(win, doc, a, null)) at = a; }, true);
-    doc.addEventListener('focusout', function(e) { if (at && linkAt(e.target) === at) away(); }, true);
-    doc.addEventListener('scroll', away, true);
-    doc.addEventListener('mousedown', away, true);   // the press itself: what follows is the gate's
-    doc.addEventListener('keydown', function(e) { if (e.key === 'Escape') away(); }, true);
-    if (win && typeof win.addEventListener === 'function') win.addEventListener('blur', away);
+    var at = null, how = '';   // the link the strip stands for, and what brought it up: 'ptr' the pointer, 'key' the keyboard's focus
+    var lost = null;           // a link under the pointer whose strip a scroll or the window's blur put away: the pointer's next move on it brings it back
+    var keyed = false;         // the last press was a key, so a focus that follows is the keyboard's (a press of the pointer focuses a link too, and shows nothing by itself)
+    var away = function() { at = null; how = ''; lost = null; peekHide(doc); };
+    // no link under the pointer any more: the address of the link the keyboard's focus rests on, if it rests on one, else nothing
+    var rest = function() {
+        var f = keyed ? linkAt(doc.activeElement) : null;
+        if (f && f.isConnected !== false && peekShow(win, doc, f, null)) { at = f; how = 'key'; lost = null; } else away();
+    };
+    doc.addEventListener('mouseover', function(e) {
+        var a = linkAt(e.target);
+        if (a && a === at && how === 'ptr') return;   // onto a part of the same link: it stays
+        if (a && peekShow(win, doc, a, e)) { at = a; how = 'ptr'; lost = null; return; }
+        rest();
+    }, true);
+    doc.addEventListener('mouseout', function(e) { if (!at || how !== 'ptr') return; var to = e.relatedTarget ? linkAt(e.relatedTarget) : null; if (to !== at) rest(); }, true);
+    doc.addEventListener('mousemove', function(e) {
+        if (at && at.isConnected === false) { away(); return; }   // its link was taken off the page under a resting pointer
+        if (!lost) return;
+        var was = lost, a = linkAt(e.target); lost = null;
+        if (a === was && !at && peekShow(win, doc, a, e)) { at = a; how = 'ptr'; }
+    }, true);
+    doc.addEventListener('focusin', function(e) {
+        var a = linkAt(e.target);
+        if (a && keyed) { if (peekShow(win, doc, a, null)) { at = a; how = 'key'; lost = null; } else if (how === 'key') away(); return; }
+        if (!a && how === 'key') away();   // the focus went on to something that is no link (a link taken off the page sends no focusout)
+    }, true);
+    doc.addEventListener('focusout', function(e) { if (at && how === 'key' && linkAt(e.target) === at) away(); }, true);
+    doc.addEventListener('scroll', function(e) {
+        if (!at) return;
+        if (how === 'key') { if (doc.activeElement !== at) away(); return; }   // the focus itself scrolls its link into view: the strip is fixed to the window, and stays
+        var t = e && e.target;
+        if (t && t !== doc && typeof t.contains === 'function' && !t.contains(at)) return;   // another box scrolled (a chat line arriving): the link has not moved
+        var was = at; away(); lost = was;   // the link may have moved from under the pointer
+    }, true);
+    doc.addEventListener('mousedown', function() { keyed = false; }, true);   // a press leaves the strip: the pointer still rests on the link, and what follows is the gate's
+    doc.addEventListener('dragstart', function() { if (at) away(); }, true);   // while something is dragged the pointer sends no word of where it is
+    doc.addEventListener('keydown', function(e) {
+        keyed = true;
+        if (e.key === 'Escape' || (at && at.isConnected === false)) away();   // Escape; or the focused link was taken off the page, which sends no focusout
+    }, true);
+    if (win && typeof win.addEventListener === 'function') win.addEventListener('blur', function() { var was = how === 'ptr' ? at : null; away(); lost = was; });
 }
 // [sinkcheck:linkpeek-end]
 

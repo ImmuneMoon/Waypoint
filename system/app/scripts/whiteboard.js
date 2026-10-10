@@ -3854,8 +3854,10 @@ window.wpFitToGrid = fitToGrid;
   }
   function explodeWhere() {   // the circle Explode would set off: { c, ft }, or { why } in fixed words
       if (playerScreen()) return { why: 'Only the GM sets off an explosion.' };
-      var map = getActiveMap(), c = map ? lastOwn() : null;
-      if (!c) return { why: 'Place a shape first. Explode sets off the last shape you placed.' };
+      // the shape the options show: none while a shape picked in the options waits for its click, though a circle that came back with its token
+      // may be on screen by then (the review of 2026-10-10: Explode set off a circle whose numbers the options no longer showed)
+      var map = getActiveMap(), c = map ? lastEdit() : null;
+      if (!c) return { why: map && circleKeptPicked && lastOwn() ? 'The shape you picked is waiting for its click. Place it first: Explode sets off the last shape you placed.' : 'Place a shape first. Explode sets off the last shape you placed.' };
       var ft = c.yd * 3, ru = rulerUnitNow();
       if (ft > EXPLODE_MAX_FT) return { why: 'An explosion is at most ' + rulerLen(EXPLODE_MAX_FT / 3, ru) + ' in radius.' };
       if (ft < EXPLODE_MIN_FT) return { why: 'An explosion is at least ' + rulerLen(EXPLODE_MIN_FT / 3, ru) + ' in radius.' };
@@ -3908,7 +3910,7 @@ window.wpFitToGrid = fitToGrid;
   // sits on a token. It is unticked whenever the circle it is asked for changes, so a yes for one circle is never there for another
   function explodeHitRow() {
       if (!_el_exHitRow) return;
-      var c = _el_exForm && _el_exForm.style.display !== 'none' && !playerScreen() ? lastOwn() : null;
+      var c = _el_exForm && _el_exForm.style.display !== 'none' && !playerScreen() ? lastEdit() : null;
       if (!c || typeof c.tok !== 'string' || shapeOf(c.as) !== 'circle') c = null;
       if (c !== _exHitFor) { _exHitFor = c; if (_el_exHit) _el_exHit.checked = false; }
       _el_exHitRow.style.display = c ? '' : 'none';
@@ -4339,9 +4341,11 @@ window.wpFitToGrid = fitToGrid;
   var _el_blastMenu = document.getElementById('blastMenu');
   function closeBlastMenu() { if (_el_blastMenu) _el_blastMenu.classList.remove('show'); }
   function lastBlast() { for (var i = blasts.length - 1; i >= 0; i--) if (!blasts[i].lost) return blasts[i]; return null; }   // the last shape or blast on screen: never a circle whose token is off this screen's copy of the map
+  // ... and the one the height box reaches: never a shape of the tool's own while a pick waits for its click, since the options show the pick then
+  function lastTall() { var b = lastBlast(); return b && circleKeptPicked && ownCircle(b) ? null : b; }
   function syncBlastMenu() {
       if (!_el_blastMenu) return;
-      var b = lastBlast(), now = circleNow(), ru = rulerUnitNow(); _circleUnitShown = ru;
+      var b = lastTall(), now = circleNow(), ru = rulerUnitNow(); _circleUnitShown = ru;
       var ftIn = document.getElementById('blastFt'); if (ftIn && document.activeElement !== ftIn) ftIn.value = circleTyped(now.yd, now.as, ru);
       var inIn = document.getElementById('blastInner'); if (inIn && document.activeElement !== inIn) inIn.value = circleTyped(now.inn, 'r', ru);
       var dgIn = document.getElementById('blastAngle'); if (dgIn && document.activeElement !== dgIn) dgIn.value = now.deg;
@@ -4433,7 +4437,7 @@ window.wpFitToGrid = fitToGrid;
       circleRead(sh === 'ring' ? 'ring' : sh === 'cone' ? 'cone' : circleCas, sh === 'tok');
   }); });
   var _el_blastElev = document.getElementById('blastElev');
-  if (_el_blastElev) _el_blastElev.addEventListener('input', function() { var b = lastBlast(); if (!b) return; var v = ydIn(this.value); b.elev = isFinite(v) ? Math.max(-999, Math.min(999, Math.round(v * 10) / 10)) : 0; b.autoElev = false; renderMeasures(); });   // item 19 H1: typed in the viewer's unit
+  if (_el_blastElev) _el_blastElev.addEventListener('input', function() { var b = lastTall(); if (!b) return; var v = ydIn(this.value); b.elev = isFinite(v) ? Math.max(-999, Math.min(999, Math.round(v * 10) / 10)) : 0; b.autoElev = false; renderMeasures(); });   // item 19 H1: typed in the viewer's unit
   var _el_blastClearBtn = document.getElementById('blastClearBtn');
   if (_el_blastClearBtn) _el_blastClearBtn.addEventListener('click', function() {
       if (playerScreen()) { blasts = blasts.filter(function(b) { return !ownCircle(b); }); renderMeasures(); syncBlastMenu(); }   // a player clears the circles they placed: a blast the GM threw is the table's

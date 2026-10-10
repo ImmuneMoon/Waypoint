@@ -752,8 +752,12 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // A host is told its box was left. Not for a box that is off the page: its host took it away itself, as it does when it draws a field again
   function tsxLeft(sel, was) {
       var d = sel && sel.d; if (!d || d.k !== 'x' || !was || was.isConnected === false) return;
-      var hx = tsHostBy(d.h); if (hx) hx.left(d.key);
+      var hx = tsHostBy(d.h); if (hx) { hx.left(d.key); tsxGone(); }
   }
+  // A host was just told something and may have drawn its view again. Should it have taken the bar's box off the page and filled no
+  // successor (the field's row went, or it draws later), nothing else would take the bar away: no fill armed the wait, and a removed
+  // element fires no focus event. So the wait is armed here: the bar goes after the turn unless a successor took over
+  function tsxGone() { var b = tsState.box; if (b && b.isConnected === false) tsxSweep(); }
   // A host's field drawn again as a NEW element while the bar was on the old one (a host that draws its view again when told of a change): the
   // same host, the same key, the same text of the moment
   function tsxAgain(sel, box) {
@@ -834,7 +838,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       tsState.sel = { map: am.id, d: d, s: s, e: e, back: false };
       if ((own || redrawn) && document.activeElement === box) tsSelect(box, s, e);
       tsRefresh(); tsPlace();
-      if (moved) hx.changed(d.key, 'text');   // last: the host may draw its view again now
+      if (moved) { hx.changed(d.key, 'text'); tsxGone(); }   // last: the host may draw its view again now
       return moved;
   }
   // One press of the bar on a host's field: tsPress's own rule, less a label's link. A link and a size only where the host takes them
@@ -858,7 +862,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (!left && !kept) tsHold(box, sel.s, sel.e, sel.back);
       if (next && next.spans && next.spans.length >= TF.MAX_SPANS) toast('This field now holds the most styled parts it can (' + TF.MAX_SPANS + ').');
       tsRefresh(); tsPlace();
-      if (told) hx.changed(sel.d.key, 'look');   // last: the host may draw its view again now
+      if (told) { hx.changed(sel.d.key, 'look'); tsxGone(); }   // last: the host may draw its view again now
       return true;
   }
   // Undo and redo in a host's box: the field's own steps. False when there is nothing to take back or put back
@@ -880,7 +884,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (tsState.box === box) tsState.sel = { map: am.id, d: d, s: a, e: z, back: false };
       if (document.activeElement === box) tsSelect(box, a, z);
       tsRefresh(); tsPlace();
-      hx.changed(d.key, 'text');   // last: the host may draw its view again now
+      hx.changed(d.key, 'text'); tsxGone();   // last: the host may draw its view again now
       return true;
   }
   // Ctrl+Z, Ctrl+Y and Ctrl+Shift+Z in a host's box (the chord io.js reads for a planner's): taken whether or not there is a step, so that

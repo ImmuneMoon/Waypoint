@@ -18,6 +18,11 @@ Multiplayer
 - A player's line that you tick Blocks sight or Stops movement only is
   yours from then on. Its player can no longer erase or redraw it, and
   their eraser says why. Untick it to hand the line back.
+- The table notepad takes a look. The GM clicks into it and a bar comes
+  up by it: bold, italic, underline, strike through, a colour, a size
+  and one of Waypoint's fonts for the whole notepad. Every player reads
+  it with that look, and Save to my Journal keeps it. A web address in
+  the notepad stays plain text.
 
 Character sheets
 - Delete a sheet from the sheet itself: Delete in its head (asked

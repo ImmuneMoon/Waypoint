@@ -580,7 +580,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       else by = null;
       if (tsHosts.length) tsxWatch(hxP ? by || box : null);
       var right = hr !== own ? hr.right : hr.left + (ref.clientLeft || 0) + (ref.clientWidth || (hr.right - hr.left));   // less the panel's scroll bar
-      E.root.style.maxWidth = Math.max(180, Math.round(right - hr.left - 12)) + 'px';
+      var out = !!by && by === E.host;   // the bar stands by the very panel it lives in (a small panel of its own, as the table notepad's): OUTSIDE it, so the window bounds the bar, which is as wide as that panel
+      if (out) { hr = { left: 0, top: 0, right: window.innerWidth || 0, bottom: window.innerHeight || 0 }; right = hr.right; }
+      E.root.style.maxWidth = Math.max(180, Math.round(out ? br.right - br.left : right - hr.left - 12)) + 'px';
       var tb = tsTableOf(box);
       var at = tsPlaceAt({ left: hr.left, top: hr.top, right: right, bottom: hr.bottom }, br, E.root.offsetWidth || 0, E.root.offsetHeight || 0, tb && tb.getBoundingClientRect ? tb.getBoundingClientRect() : null, !!hxP && hxP.barUnder(box));
       E.root.style.left = at.left + 'px'; E.root.style.top = at.top + 'px';
@@ -1306,6 +1308,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       dress: function(box, o) { return tsxDress(box, o); },
       fill: function(box) { return tsxFill(box); },
       pending: function(box) { return !!box && tsState.box === box && (tsState.comp || tsInBar(document.activeElement)); },
+      place: function() { tsPlace(); },   // the bar placed again where its box is now: for a host whose panel moves with no scroll and no change of size (a panel dragged across the window)
       textOf: function(box) { return box && typeof box._tsText === 'string' ? box._tsText : ''; }
   };
   // [textcheck:bar-end]

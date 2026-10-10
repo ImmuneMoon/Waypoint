@@ -2119,8 +2119,8 @@
   .notepad-title { color: var(--gold); font-weight: 700; font-size: 12.5px; white-space: nowrap; }
   .notepad-who { flex: 1; min-width: 0; color: var(--dim); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #notepadPanel .notepad-btn { padding: 1px 7px; font-size: 11px; }
-  #notepadText { border: none; border-radius: 0; resize: vertical; min-height: 140px; max-height: 60vh; font-size: 13px; line-height: 1.5; padding: 8px 10px; background: transparent; }
-  #notepadText:read-only { color: var(--ink); }
+  #notepadText { border: none; border-radius: 0; resize: vertical; min-height: 140px; max-height: 60vh; font-size: 13px; line-height: 1.5; padding: 8px 10px; background: transparent; color: var(--ink); width: auto; box-sizing: border-box; overflow-x: hidden; overflow-y: auto; white-space: pre-wrap; overflow-wrap: anywhere; outline: none; cursor: text; }   /* item 35: the pad is a box of the text box module for the GM and a box that only reads for a player, sized as the textarea it stands in for */
+  #notepadText:empty::before { content: attr(data-placeholder); color: var(--dim); opacity: 0.75; pointer-events: none; }
   .notepad-foot { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 5px 8px; border-top: 1px solid var(--edge); }
   .notepad-hint { color: var(--dim); font-size: 10.5px; }
   #notepadPanel.min #notepadText, #notepadPanel.min .notepad-foot { display: none; }

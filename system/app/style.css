@@ -518,6 +518,7 @@
        inside so it never clips off the top of the screen on shorter displays. */
     #fogMenu { max-height: calc(100vh - 96px); overflow-y: auto; overflow-x: hidden; }
     #blastMenu { max-height: calc(100vh - 96px); overflow-y: auto; overflow-x: hidden; }   /* the Radius tool's options are tall too */
+    #buildMenu { max-height: calc(100vh - 96px); overflow-y: auto; overflow-x: hidden; }   /* and Build's */
     .fog-tick { flex-wrap: wrap; }   /* a tick of the fog menu: its name, and under it a grey line that says what it does */
     .fog-tick > small { flex-basis: 100%; padding-left: 21px; color: var(--dim); font-size: 11px; line-height: 1.35; }
     .menu-fold {   /* a fold of a toolbar menu: a line that shows or puts away the part under it */

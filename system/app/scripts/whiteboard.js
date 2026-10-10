@@ -419,6 +419,7 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
       if (activeMap.id !== _lastMeasureMapId) {
 
           _lastMeasureMapId = activeMap.id;
+          if (typeof buildPolyEnd === 'function') buildPolyEnd();   // the map builder: a polygon under way was the other map's
 
           if (typeof clearMeasures === 'function') clearMeasures();
           if (typeof clearBlasts === 'function') clearBlasts();
@@ -6246,6 +6247,23 @@ function buildCore() { return window.wpBuildCore || null; }
 function buildGrid() { var C = window.wpFogCore; if (!C) return null; return state.gridType === 'hex' ? C.hexGrid(30, 52) : state.gridType === 'square' ? C.squareGrid(50) : null; }   // the lattice the fill tool's cellSnap reads
 function buildHex6(v) { return typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v) ? v : null; }
 function buildMay() { return !playerScreen() && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()); }   // the GM's own campaign on the GM's own screen
+function buildHere() { var m = getActiveMap(); return !!m && m.type === 'map' && state.viewMode === 'visual'; }   // the play map is on screen: Build lays on a map and on nothing else
+function buildMapKey() { var c = typeof getActiveCampaign === 'function' ? getActiveCampaign() : null, m = getActiveMap(); return (c && c.id ? c.id : '') + '|' + (m && m.id ? m.id : ''); }
+function buildAsking() { var q = document.getElementById('customConfirm'), p = document.getElementById('customPrompt'); return !!((q && q.style.display === 'flex') || (p && p.style.display === 'flex')); }   // a question or a prompt of the app's own is up
+// A polygon under way belongs to the map it was begun on. With another map on screen it is dropped: its corners are that map's. A look at the
+// same map's data map loses nothing: Build's keys and its commit ask the view themselves (buildHere)
+function buildPolyHere() {
+    if (!_build.poly) return true;
+    if (_build.polyMap === buildMapKey()) return true;
+    buildPolyEnd();
+    return false;
+}
+// A dragged box on a hex grid: the press cell, the cells whose centre the box holds, the release cell, each once and 400 at most
+function buildHexBox(BC, C, grid, px, py, pw, ph, sx, sy, mx, my) {
+    var box = BC.hexCellsInBox(grid, px, py, pw, ph, 400), list = [C.cellOf(sx, sy, grid)].concat(box && box.cells ? box.cells : [], [C.cellOf(mx, my, grid)]), seen = Object.create(null), out = [];
+    for (var i = 0; i < list.length; i++) { var k = C.cellKey(list[i], grid); if (seen[k]) continue; seen[k] = 1; out.push(list[i]); }
+    return { cells: out.slice(0, 400), more: !!(box && box.more) || out.length > 400 };
+}
 function buildLoad() {   // the options' last choices, kept on this computer, each read back through its own cleaner
     var BC = buildCore(), FC = window.wpFogCore; if (!BC || _build.loaded) return;
     _build.loaded = true;
@@ -6351,13 +6369,16 @@ function buildPick(change) {   // a choice in the options: kept, shown, and the 
 // polyItem, seatedAt), so a later generator lays pieces through the very same functions
 function wpBuildCommit(P, px, py, pw, ph, sx, sy) {
     var B = P.build, BC = buildCore(), C = window.wpFogCore, map = getActiveMap();
-    if (!B || !BC || !C || !map || !window.isBuildMode || !buildMay()) return;
+    if (!B || !window.isBuildMode) return;
+    var ae = document.activeElement; if (ae && ae.closest && ae.closest('#buildMenu') && ae.blur) ae.blur();   // the pointer is back on the map, and the board keeps a click from moving the focus: the options' fields give the keys back
+    if (!BC || !C || !map || !buildMay() || !buildHere()) { var mvB = document.getElementById('moveModeBtn'); if (mvB) mvB.click(); return; }   // Build cannot lay here (someone else's table, a page): the tool is put away, never left lit and dead
     if (!Array.isArray(map.whiteboard)) map.whiteboard = [];
-    var grid = buildGrid(), dragged = pw > 12 && ph > 12, mx = Math.abs(sx - px) < 0.5 ? px + pw : px, my = Math.abs(sy - py) < 0.5 ? py + ph : py;
+    var grid = buildGrid(), dragged = pw > 12 || ph > 12, thin = dragged && Math.min(pw, ph) <= 12,   // either way past 12 px is a drag; thin: along one row or one column
+         mx = Math.abs(sx - px) < 0.5 ? px + pw : px, my = Math.abs(sy - py) < 0.5 ? py + ph : py;
     if (B.shape === 'poly') { buildPolyAdd(sx, sy, grid); buildArm(); return; }
     var boxes = [], more = false;
     if (grid && grid.type === 'hex') {   // cell by cell (the owner's answer): one hexagon a cell, so the area is exact
-        var hc = B.shape === 'corridor' ? BC.corridor(grid, sx, sy, mx, my, B.corridorW) : dragged ? BC.hexCellsInBox(grid, px, py, pw, ph, 400) : { cells: [C.cellOf(sx, sy, grid)], more: false };
+        var hc = (B.shape === 'corridor' || thin) ? BC.corridor(grid, sx, sy, mx, my, B.shape === 'corridor' ? B.corridorW : 1) : dragged ? buildHexBox(BC, C, grid, px, py, pw, ph, sx, sy, mx, my) : { cells: [C.cellOf(sx, sy, grid)], more: false };   // a thin drag is the cells its line passes
         if (hc && hc.cells) { more = hc.more === true; hc.cells.forEach(function(c) { var hb = BC.hexCellBox(grid, c); if (hb) boxes.push(Object.assign({ type: 'hexagon' }, hb)); }); }
     } else if (grid) {   // the square lattice: a click one cell, a drag the cells it covers, a corridor a strip of whole cells
         var bx = B.shape === 'corridor' ? BC.corridor(grid, sx, sy, mx, my, B.corridorW) : BC.snapBox(grid, sx, sy, mx, my, dragged);
@@ -6385,6 +6406,7 @@ function buildLay(map, boxes, props, more) {
             var old = map.whiteboard[at], wasWall = old.blocksSight === true;
             keys.forEach(function(k) { if (props[k] !== undefined) old[k] = props[k]; else delete old[k]; });
             if (props.sightType !== 'door') { delete old.doorOpen; delete old.doorLock; }
+            delete old.fill;   // a piece Build laid is no painted cell: the Fill tool leaves it alone
             if (wasWall || old.blocksSight) wall = true;
             laid++; continue;
         }
@@ -6402,7 +6424,8 @@ function buildLay(map, boxes, props, more) {
 function buildPolyAdd(sx, sy, grid) {
     var BC = buildCore(); if (!BC) return;
     var v = BC.snapVertex(grid, sx, sy, !!(window.wpSnapOn && window.wpSnapOn())); if (!v) return;
-    if (!_build.poly) _build.poly = [];
+    buildPolyHere();   // corners begun on another map are dropped: this click starts anew
+    if (!_build.poly) { _build.poly = []; _build.polyMap = buildMapKey(); }
     var P0 = _build.poly[0];
     if (P0 && Math.hypot(v.x - P0.x, v.y - P0.y) < 20) {   // a click on the first corner closes the shape, once it has three
         if (_build.poly.length >= 3) buildPolyClose(); else if (_build.poly.length > 1) toast('A polygon needs at least three corners.');
@@ -6413,6 +6436,7 @@ function buildPolyAdd(sx, sy, grid) {
     _build.poly.push(v); buildPolyDraw(null);
 }
 function buildPolyClose() {
+    if (!buildPolyHere() || !buildHere()) { buildPolyEnd(); return; }
     var BC = buildCore(), map = getActiveMap(), verts = _build.poly || [];
     if (!BC || !map || verts.length < 3) { toast('A polygon needs at least three corners.'); return; }
     var it = BC.polyItem(verts.map(function(p) { return [p.x, p.y]; }));
@@ -6432,19 +6456,20 @@ function buildPolyDraw(cur) {   // the rubber band over the board: numbers only 
     var line = document.createElementNS(NS, 'polyline'); line.setAttribute('points', pts.join(' ')); line.setAttribute('class', 'wb-build-band'); svg.appendChild(line);
     verts.forEach(function(p, i) { var c = document.createElementNS(NS, 'circle'); c.setAttribute('cx', String(Number(p.x))); c.setAttribute('cy', String(Number(p.y))); c.setAttribute('r', i === 0 ? '7' : '4'); c.setAttribute('class', i === 0 ? 'wb-build-first' : 'wb-build-dot'); svg.appendChild(c); });
 }
-function buildPolyEnd() { _build.poly = null; if (_build.polyEl) { _build.polyEl.remove(); _build.polyEl = null; } }
+function buildPolyEnd() { _build.poly = null; _build.polyMap = null; if (_build.polyEl) { _build.polyEl.remove(); _build.polyEl = null; } }
 // The keys while Build is in hand: Enter closes a polygon of three corners or more, Esc drops a polygon under way, else puts the tool away
 function buildKey(e) {
-    if (!window.isBuildMode) return;
-    var t = e.target, typing = !!t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || '') || t.isContentEditable === true);
-    if (e.key === 'Enter' && !typing && _build.poly && _build.poly.length >= 3) { e.preventDefault(); buildPolyClose(); buildArm(); }
+    if (!window.isBuildMode || e.defaultPrevented) return;
+    var t = e.target, typing = !!t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || '') || t.isContentEditable === true), own = typing && !!(t.closest && t.closest('#buildMenu'));
+    if ((typing && !(own && e.key === 'Escape')) || buildAsking() || !buildHere()) return;   // a field's own keys, a question of the app's, another view: none of them Build's. Esc in a field of Build's own options still is
+    if (e.key === 'Enter' && _build.poly && _build.poly.length >= 3 && buildPolyHere()) { e.preventDefault(); buildPolyClose(); buildArm(); }
     else if (e.key === 'Escape') {
-        if (_build.poly && _build.poly.length) { buildPolyEnd(); toast('Polygon dropped. Build is still in hand.'); }
+        if (_build.poly && _build.poly.length && buildPolyHere()) { buildPolyEnd(); toast('Polygon dropped. Build is still in hand.'); }   // one that was another map's goes without a word
         else { var mv = document.getElementById('moveModeBtn'); if (mv) mv.click(); }
     }
 }
 function buildMove(e) {   // the rubber band follows the pointer to the corner the next click would take
-    var BC = buildCore(); if (!BC || !_build.poly || !_build.poly.length || !wbWrap) return;
+    var BC = buildCore(); if (!BC || !_build.poly || !_build.poly.length || !wbWrap || !buildPolyHere()) return;
     var r = wbWrap.getBoundingClientRect(), z = state.zoomLevel || 1, x = (e.clientX - r.left + wbWrap.scrollLeft) / z, y = (e.clientY - r.top + wbWrap.scrollTop) / z;
     buildPolyDraw(BC.snapVertex(buildGrid(), x, y, !!(window.wpSnapOn && window.wpSnapOn())));
 }

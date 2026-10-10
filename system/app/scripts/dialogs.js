@@ -118,6 +118,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       p.style.display = 'flex';
 
+      // A click on OK or Cancel leaves the focus on that button. Where the answer raises the next question in the same breath, Enter or the
+      // space bar would press it again: a second join request was answered so (the review of 2026-10-09). A question whose keys must not
+      // answer it takes the focus off its own buttons as it comes up
+      if (noEnter || noEscape) { var aeQ = document.activeElement; if (aeQ && typeof aeQ.blur === 'function' && typeof p.contains === 'function' && p.contains(aeQ)) aeQ.blur(); }
       shownAt = Date.now();
 
       
@@ -347,6 +351,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   var _el_newCampBtn = document.getElementById('newCampBtn');
 
 if(_el_newCampBtn) _el_newCampBtn.addEventListener('click', function() {
+      if ((window.wpNet && window.wpNet.foreign) || (state.appState && state.appState._foreign)) { toast('Not while you\'re at someone else\'s table.'); return; }   // the campaigns on screen are someone else's (the owed review, 2026-10-09: the tour's owed prompt reached this from a player's app)
 
       var initial = getUniqueCampaignTitle("My New Campaign", null);
 

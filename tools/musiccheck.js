@@ -255,6 +255,29 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const w8 = mkLane(['busy', song]); w8.api.playTrackAt(A, 30, 0.4, false); await settle(); w8.now = 6000; await w8.fire();
         check('following the GM\'s music, the time the file took is added to where the song starts (5 s late: from 35 s, not 30), round its length for a looped song; a map\'s own music starts where it was asked to',
             j(w6.started) === j([35]) && j(w7.started) === j([10]) && j(w8.started) === j([30]), j([w6.started, w7.started, w8.started]));
+        // The owed review, 2026-10-09 (backlog 138): a stop did not supersede a song that was still loading, so it played after the GM's stop or
+        // release, after Music was switched off, and after a pause that came while the file was on its way. music.js stop and stopLane, run for
+        // real beside playTrackAt
+        const stopSrc = (() => { const i = muSrc.indexOf('function stop(fadeSec) {'), k = muSrc.indexOf(NL + '}' + NL, i), l = muSrc.indexOf('function stopLane(fadeSec) {'), m = muSrc.indexOf(NL, l); return i < 0 || k < 0 || l < 0 ? '' : muSrc.slice(i, k + 2) + NL + muSrc.slice(l, m + 1); })();
+        const mkStop = answers => { const w = { timers: [], toasts: [], started: [], asks: [], client: true, now: 1000 };
+            w.api = new Function('bufferFor', 'ac', 'ramp', 'emit', 'broadcastControl', 'showGate', 'isClient', 'toast', 'setTimeout', 'onTrackEnd', 'Date',
+                '"use strict"; var loadGen = 0, cur = null, pending = null, rate = 1, controlled = false, source = { kind: "track" }, order = [1], qi = 0, ctx = null; function effGain() { return 1; }' + NL + cut('playtrack') + NL + stopSrc + NL + 'return { playTrackAt: playTrackAt, stop: stop, stopLane: stopLane, playing: function() { return cur ? cur.entry.id : null; }, source: function() { return source; } };')(
+                e => { w.asks.push(e.id); const a = answers.shift(); return a && a.duration ? Promise.resolve(a) : Promise.reject(new Error(a || 'missing')); },
+                () => ({ state: 'running', currentTime: 0, destination: {}, createGain: () => ({ gain: { value: 0 }, connect() {} }), createBufferSource: () => ({ playbackRate: { value: 1 }, connect() {}, start(when, off) { w.started.push(Math.round(off * 100) / 100); }, stop() {} }) }),
+                () => {}, () => {}, () => {}, () => {}, () => w.client, t => w.toasts.push(t), (fn, ms) => { w.timers.push(fn); return w.timers.length; }, () => {}, { now: () => w.now });
+            w.fire = async () => { const fns = w.timers.splice(0); fns.forEach(f => f()); await settle(); }; return w; };
+        const s1 = mkStop(['busy', song]); s1.api.playTrackAt(A, 0, 0.4, false); await settle(); s1.api.stop(0.5); await s1.fire();                   // told busy, then stopped: the retry asks for nothing
+        const s2 = mkStop([song]); s2.api.playTrackAt(A, 0, 0.4, false); s2.api.stop(0.5); await settle();                                             // stopped while the file is on its way: it does not start
+        const s3 = mkStop(['busy', song]); s3.api.playTrackAt(A, 0, 0.4, false); await settle(); s3.api.stopLane(0.3); await s3.fire();                 // a pause while the song is still loading
+        const s4 = mkStop([song]); s4.api.playTrackAt(A, 0, 0.4, false); s4.api.stopLane(0.3); await settle();
+        const s5 = mkStop([song, song]); s5.api.playTrackAt(A, 0, 0.4, false); await settle(); const was5 = s5.api.playing(); s5.api.stopLane(0.3); const mid5 = s5.api.playing(); s5.api.playTrackAt(B, 0, 0.4, false); await settle();   // a playing song paused, then another asked for: as ever
+        const s6 = mkStop(['busy', song]); s6.api.playTrackAt(A, 0, 0.4, false); await settle(); await s6.fire();                                        // the control: with no stop the retry plays
+        check('a stop supersedes a song that is still loading (the owed review of 2026-10-09; music.js stop and stopLane beside playTrackAt, run for real): after a stop, which the GM\'s stop, a release, Music switched off and leaving the table all go through, a retry that was waiting asks for nothing and a file that arrives does not start; a pause that comes while the song is on its way cancels it the same way; a song that is playing is paused as ever and the next one asked for plays; with no stop the retry plays',
+            stopSrc.length > 200 && j([s1.asks, s1.started, s1.api.playing(), s1.api.source()]) === j([['t_a'], [], null, null]) && j([s2.asks, s2.started, s2.api.playing()]) === j([['t_a'], [], null])
+            && j([s3.asks, s3.started, s3.api.playing()]) === j([['t_a'], [], null]) && j([s4.started, s4.api.playing()]) === j([[], null]) && was5 === 't_a' && mid5 === null && s5.api.playing() === 't_b' && j(s5.started) === j([0, 0])
+            && j([s6.asks, s6.started, s6.api.playing()]) === j([['t_a', 't_a'], [0], 't_a'])
+            && muSrc.includes("    if (!want || !trackById(want)) { stopLane(0.3); return; }") && muSrc.includes("        if (!mc.playing) stopLane(0.2); else if (!cur) playCurrent(0.2, mc.pos || 0);") && muSrc.includes("else stopLane(0.3);"),
+            j([s1.asks, s1.started, s2.started, s3.asks, s4.started, was5, mid5, s5.started, s6.asks, s6.started]));
         const mkTick = () => {
             const w = { calls: [], live: true, solo: false, on: true, camp: null };
             w.tick = new Function('getActiveCampaign', 'net', 'pref', 'featureOn', 'cleanMapMusic', 'idSets', 'W',

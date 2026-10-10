@@ -936,12 +936,18 @@ function ensureDom() {
 // all. While the question is up the arrows and Enter move nothing (Enter is its focused button's), and while the tour is paused (Try it
 // yourself) every key is the app's.
 function tourField(t) { return !!t && (t.isContentEditable === true || !!(t.closest && t.closest('input, textarea, select'))); }
+// The owed review, 2026-10-09: while a question or a prompt of the app's own is up (a join request while the tour runs at a hosted table)
+// every key is its, Escape included; and Enter on a focused button of the card's own (Back, Skip, Try it yourself) is that button's press
+function appAsking() { if (typeof document === 'undefined' || !document.getElementById) return false; var q = document.getElementById('customConfirm'), p = document.getElementById('customPrompt'); return !!((q && q.style && q.style.display === 'flex') || (p && p.style && p.style.display === 'flex')); }
+function tourButton(t) { return !!(t && t.closest && t.closest('button, a[href]') && t.closest('#tourCard')); }   // a button of the page under the card still moves the tour, so that Enter presses nothing there
 function tourKey(e) {
     if (!tour.active || tour.paused) return;
+    if (appAsking()) return;
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); askEnd(); return; }
     if (e.key !== 'ArrowRight' && e.key !== 'Enter' && e.key !== 'ArrowLeft') return;
     if (tourField(e.target)) return;
     if (tour.asking) return;
+    if (e.key === 'Enter' && tourButton(e.target)) return;
     e.preventDefault();
     next(e.key === 'ArrowLeft' ? -1 : 1);
 }
@@ -1127,7 +1133,8 @@ function endTour() {
     }
     if (partWay) toast('The tour stopped at “' + STEPS[at].title + '”. Help ▸ Tutorial resumes it there.');
     syncPane();
-    if (window.wpCampaignAfterTour === true) { window.wpCampaignAfterTour = false; var nbT = document.getElementById('newCampBtn'); if (nbT) setTimeout(function() { nbT.click(); }, 300); }   // the welcome's Start a campaign on a fresh save: the naming prompt now, after the tour or its Skip (the owner's word, 2026-10-01)
+    if (window.wpLeftRail && window.wpLeftRail.settle) window.wpLeftRail.settle();   // the left panel as an arrival at this view leaves it: the tour opened it for its steps
+    if (window.wpCampaignAfterTour === true) { window.wpCampaignAfterTour = false; var nbT = document.getElementById('newCampBtn'), awayT = !!(window.wpNet && window.wpNet.foreign); if (nbT && !awayT) setTimeout(function() { nbT.click(); }, 300); }   // the welcome's Start a campaign on a fresh save: the naming prompt now, after the tour or its Skip (the owner's word, 2026-10-01)
 }
 
 /* ---------- Help → Tutorial pane wiring ---------- */

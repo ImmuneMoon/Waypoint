@@ -3600,6 +3600,7 @@ window.wpFitToGrid = fitToGrid;
   function pushBlast(b) { blasts.push(b); if (blasts.length > BLAST_CAP) blasts.splice(0, blasts.length - BLAST_CAP); }
   var circleKept = circleShape({ yd: 4, as: 'r' });   // the Radius tool's shape, kept on this computer (wp_radius); a thrown blast takes its feet and its name from the item
   try { circleKept = circlePref(JSON.parse(localStorage.getItem('wp_radius') || 'null'), JSON.parse(localStorage.getItem('wp_blast') || 'null')); } catch (e) {}
+  var circleKeptPicked = false;   // the kept shape was picked in the options while no shape of the tool's own was on screen: a circle that comes back with its token does not take its place
   var _circleUnitShown = '';   // the unit the size box was last drawn in
   var circleDir = 0, coneAim = null;   // the way the last cone was turned, and the cone being turned: { b, sx, sy, moved, fresh } (fresh: just placed, not yet said)
   var circleCas = circleKept.as === 'd' ? 'd' : 'r';   // how a circle's number was last read: what Circle goes back to from a ring or a cone
@@ -3674,7 +3675,7 @@ window.wpFitToGrid = fitToGrid;
   function blastSvg() {
       var map = getActiveMap(); if (!map || !blasts.length) return '';
       var pxPerYd = mapMeasureConfig().cellPx / cellYards(), elevOn = stanceOn('elevation'), html = '', ru = rulerUnitNow();
-      if (circleFollow(map)) { if (typeof circleRekept === 'function') circleRekept(); syncBlastMenu(); }   // a circle on a token stands where its token stands now; one lost or found: the options show what is on screen, and the next click places it
+      if (circleFollow(map)) { if (!circleKeptPicked && typeof circleRekept === 'function') circleRekept(); syncBlastMenu(); }   // a circle on a token stands where its token stands now; one lost or found: the options show what is on screen, and the next click places it
       blasts.forEach(function(b, i) {
           if (b.lost) return;   // its token is off this screen's copy of the map
           var rYd = blastRadiusYd(b), rPx = rYd * pxPerYd, own = ownCircle(b);   // the tool's own circle reads in the ruler's unit; a thrown blast keeps its item's feet and the handbook's yards
@@ -3732,7 +3733,7 @@ window.wpFitToGrid = fitToGrid;
           var onT = tokenAtPoint(map, x, y); if (!onT) { toast('Click a token to put the circle on it.'); return; }
           b.tok = onT.id;
       } else seatBlast(b);
-      pushBlast(b); if (typeof b.tok === 'string') circleFollow(map);
+      pushBlast(b); circleKeptPicked = false; if (typeof b.tok === 'string') circleFollow(map);
       renderMeasures(); syncBlastMenu();
       if (b.as !== 'cone') circleSaid(b, map);   // a cone is said once its aim is let go
       return b;
@@ -4382,7 +4383,7 @@ window.wpFitToGrid = fitToGrid;
       circleKept = circleShape({ yd: yd, as: kind, inn: ch.inner !== undefined ? circleYd(ch.inner, 'r', ru) : now.inn, deg: ch.deg !== undefined ? coneDeg(ch.deg, now.deg) : now.deg, tok: ch.tok !== undefined ? ch.tok === true : now.tok });
       try { localStorage.setItem('wp_radius', JSON.stringify(circleKept)); } catch (e) {}
       if (circleKept.as === 'r' || circleKept.as === 'd') circleCas = circleKept.as;
-      var c = lastOwn();
+      var c = lastOwn(); if (!c) circleKeptPicked = true;
       if (c) {
           c.yd = circleKept.yd; c.as = circleKept.as; delete c.inn; delete c.deg;
           if (c.as === 'ring') c.inn = circleKept.inn; else if (c.as === 'cone') { c.deg = circleKept.deg; if (typeof c.dir !== 'number' || !isFinite(c.dir)) c.dir = circleDir; }
@@ -4400,7 +4401,7 @@ window.wpFitToGrid = fitToGrid;
   // what the options then show, an older shape's numbers: a click places what is in sight
   function circleRekept() {
       if (!lastOwn()) return;
-      circleKept = circleNow();   // the very shape the options show, On a token included
+      circleKept = circleNow(); circleKeptPicked = false;   // the very shape the options show, On a token included
       if (circleKept.as === 'r' || circleKept.as === 'd') circleCas = circleKept.as;
       try { localStorage.setItem('wp_radius', JSON.stringify(circleKept)); } catch (e) {}
   }

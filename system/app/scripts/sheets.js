@@ -3887,7 +3887,7 @@ function sbExportPlan(charId, j) {   // { r, name } or { error: words }
     if (isCharFile(j)) return { error: 'That is a Waypoint character file. Pick the character\u2019s ShadowBase file (the website\u2019s Export JSON).' };
     var S = window.wpSystemCore, X = exportView(charId, !isClient()); if (!S || !S.sbWriteBack || !X) return { error: 'This sheet cannot be exported here.' };
     var c0 = charById(charId, X.camp), fl = tokenFlags(), t = c0 ? facingTarget(c0, X.camp) : null, tok = t ? {} : null;
-    if (t && fl.posture) { var rawP = typeof t.tok.posture === 'string' ? t.tok.posture : '', atP = rawP && typeof S.postureAt === 'function' ? S.postureAt(X.sys, rawP) : null; tok.posture = atP && atP.p && typeof atP.p.id === 'string' ? atP.p.id : (rawP || 'standing'); }   // as the map and the sheet read it: one of the seven under an older spelling is that posture (the owed review, 2026-10-09)
+    if (t && fl.posture) { var rawP = typeof t.tok.posture === 'string' ? t.tok.posture : '', p7 = rawP && typeof S.postureSeven === 'function' ? S.postureSeven(rawP) : ''; tok.posture = !rawP ? 'standing' : (p7 || rawP); }   // one of the website's seven under an older spelling is that posture (the owed review, 2026-10-09); a text that is none of the seven is handed over as stored, so the write-back says it does not know it and the file's own posture stands
     if (t && fl.elevation) { var st = stanceCtx(t.tok, fl); tok.elevation = st ? st.elevation : 0; }
     var r = S.sbWriteBack(j, X.sys, X.view, X.all, tok);
     if (!r || r.error) return { error: r && r.error === 'system' ? 'This campaign has no system to read the sheet by.' : 'That does not look like a ShadowBase character sheet (the website\u2019s Export JSON).' };

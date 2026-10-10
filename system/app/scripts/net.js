@@ -3775,7 +3775,7 @@ function renderNotepad() {
     var host = net.role === 'host';
     ta.readOnly = !host;
     ta.placeholder = host ? 'Notes for the whole table — everyone sees this as you type. Gone when you put it away or the session ends; anyone can save it to their Journal.' : 'The GM has not written anything yet.';
-    if (document.activeElement !== ta && ta.value !== net.notepad.text) ta.value = net.notepad.text || '';
+    if ((!host || document.activeElement !== ta) && ta.value !== net.notepad.text) ta.value = net.notepad.text || '';   // the writer's own typing is never drawn over; a player's box only reads, and follows the GM even while it has the focus (the owed review, 2026-10-09)
     var close = ui('notepadCloseBtn'); if (close) close.style.display = host ? '' : 'none';
     var clr = ui('notepadClearBtn'); if (clr) clr.style.display = host ? '' : 'none';
     var who = ui('notepadWho'); if (who) who.textContent = host ? 'everyone at the table sees this' : 'written by ' + (net.notepad.gm || 'the GM');

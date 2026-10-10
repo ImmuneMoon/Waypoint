@@ -236,6 +236,7 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
       setTimeout(function() { toast('Players now follow their characters by id: ' + bound + ' bound' + (linked ? ', ' + linked + ' token' + (linked === 1 ? '' : 's') + ' linked by name' : '') + '. The Session Log lists anyone with more than one character.'); }, 1200);
   }
 
+  window.wpTakeBindNotes = function() { var n = _bindNotes; _bindNotes = []; return n; };   // main.js: what the normaliser bound in a file it shaped for a Merge, taken once
   window.wpNoteBindings = noteBindings;   // main.js: an import's bindings get the same notice
 
   function load() {
@@ -1237,6 +1238,14 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
 
   var saveTimeout;
 
+  // A failed save was said only in the row's saved note, which is out of sight while the row is hidden (the owed review, 2026-10-09): it is
+  // said in a notice too, once when saving begins to fail, and again only after a save has gone through in between
+  var _saveFailSaid = false;
+  function saveFailed(bad) {
+      if (!bad) { _saveFailSaid = false; return; }
+      if (_saveFailSaid) return;
+      _saveFailSaid = true; toast('Saving failed. The campaign is not reaching the disk.');
+  }
   function save(immediate) {
     if (window.__wpNoSave) return;   // a snapshot is being restored: the in-memory copy must not win
 
@@ -1274,7 +1283,7 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
 
         }
 
-        fetch('/api/data', {
+        var sent = fetch('/api/data', {
 
           method: 'POST',
 
@@ -1293,6 +1302,7 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
         })
 
         .catch(err => saveNote.innerHTML = 'Network error saving.');
+        if (sent && typeof sent.then === 'function') sent.then(function() { if (typeof saveFailed === 'function') saveFailed(/rror saving/.test(String(saveNote.innerHTML))); });
 
     };
 
@@ -1738,7 +1748,21 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
       var v = skipped.filter(function(n) { return /^images\/video\//.test(n); }).length;
       return { images: nImg - (skipped.length - v), videos: nVid - v, missing: skipped.length };
   }
-  function exportDoneWords(r) { return 'Exported ' + r.name + ' (' + r.images + ' image(s)' + (r.videos ? ', ' + r.videos + ' video(s)' : '') + (r.missing ? ', ' + r.missing + ' missing' : '') + ').'; }
+  function exportDoneWords(r) { return 'Exported ' + r.name + ' (' + r.images + ' image(s)' + (r.videos ? ', ' + r.videos + ' video(s)' : '') + (r.missing ? ', ' + r.missing + ' missing' : '') + ').' + exportLeftWords(r); }
+  // ... and what could not be read at all: a library pack the campaign pins, or the list of the campaign's pictures that no map uses yet
+  function exportLeftWords(r) {
+      var n = r && r.libMissing > 0 ? Math.floor(r.libMissing) : 0;
+      return (n === 1 ? ' One library pack could not be read and was left out.' : n > 1 ? ' ' + n + ' library packs could not be read and were left out.' : '') + (r && r.unlisted === true ? ' The pictures no map uses yet could not be listed and were left out.' : '');
+  }
+  // What becomes of the picked file when a large export fails. An unfinished file is aborted: nothing reached the file you picked. A finished
+  // one found wrong is taken away again. One that was never opened for writing is left as it was: the export wrote none of it, and it may be
+  // last week's export (the owed review, 2026-10-09: it was removed). Answers whether a file that is not to be trusted was left behind
+  async function exportFailTidy(handle, w, closed) {
+      if (w) { try { await w.abort(); } catch (e2) {} return false; }
+      if (!closed) return false;
+      if (handle && typeof handle.remove === 'function') { try { await handle.remove(); return false; } catch (e3) { return true; } }
+      return true;
+  }
   // [zipcheck:exportfile-end]
 
   // A campaign file that leaves this machine carries the players' names and history, never their table keys
@@ -1808,13 +1832,14 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
       Object.values(payload.campaigns || {}).forEach(function(c) { delete c._foreign; delete c._keptByUser; delete c._cleanup; dropWaiting(c); });   // Onboarding F1a: nor a waiting token
 
       var json = JSON.stringify(payload, null, 2);
+      var libMissing = 0, unlisted = false;   // what could not be read is said at the end, never passed over (the owed review, 2026-10-09)
       var paths = collectImagePaths(payload);   // item 21: a campaign's videos travel too — the archive is made of the files as they lie on disk, of any size (zip.js)
       if (scope === 'campaign' || scope === 'all') {   // a campaign's own pictures travel even when nothing references them yet
           try {
               var listed = await (await fetch('/api/list-images')).json();
               var own = {}; Object.values(payload.campaigns || {}).forEach(function(c) { Object.keys(c.items || {}).forEach(function(id) { own[id] = 1; }); });
               (Array.isArray(listed) ? listed : []).forEach(function(im) { if (im && im.path && !/^journal(\/|$)/.test(im.folder || '') && (scope === 'all' || own[im.folder]) && paths.indexOf(im.path) < 0) paths.push(im.path); });
-          } catch (e) {}
+          } catch (e) { unlisted = true; }
       }
       // Stage 6 library L1c2: a campaign export carries each pack file its manifest pins (library/<dir>/<id>.<rev>.json), so a campaign
       // with a library always travels as a zip
@@ -1825,11 +1850,11 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
               var lm = libCamps[lc].library;
               for (var lp = 0; lp < lm.packs.length; lp++) {
                   var pk = lm.packs[lp]; if (!pk || !pk.rev) continue;
-                  try { var lr = await fetch('/api/library?dir=' + encodeURIComponent(lm.dir) + '&pack=' + encodeURIComponent(pk.id) + '&rev=' + pk.rev); if (lr.ok) libFiles.push({ name: 'library/' + lm.dir + '/' + pk.id + '.' + pk.rev + '.json', data: new Uint8Array(await lr.arrayBuffer()) }); } catch (e) {}
+                  try { var lr = await fetch('/api/library?dir=' + encodeURIComponent(lm.dir) + '&pack=' + encodeURIComponent(pk.id) + '&rev=' + pk.rev); if (lr.ok) libFiles.push({ name: 'library/' + lm.dir + '/' + pk.id + '.' + pk.rev + '.json', data: new Uint8Array(await lr.arrayBuffer()) }); else libMissing++; } catch (e) { libMissing++; }
               }
           }
       }
-      if (!paths.length && !libFiles.length && !handle) return { name: base + '.json', text: json };
+      if (!paths.length && !libFiles.length && !handle) return { name: base + '.json', text: json, libMissing: libMissing, unlisted: unlisted };
 
       var isVideo = function(p) { return p.indexOf('/saves/images/video/') === 0; };
       var nVid = paths.filter(isVideo).length, nImg = paths.length - nVid;
@@ -1846,24 +1871,22 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
           var sEntries = entries.map(function(en) { return { name: en.name, size: en.data.length, pull: async function(emit) { await emit(en.data); } }; });
           paths.forEach(function(p) { sEntries.push({ name: p.replace(/^\/saves\//, ''), open: function() { return exportOpen(encodeURI(p)); } }); });
           total = exportMediaBytes(scope);
-          var w = null, res = null;
+          var w = null, res = null, closed = false;
           try {
               w = await handle.createWritable();
               res = await zip.zipWrite({ write: function(pos, data) { return w.write({ type: 'write', position: pos, data: data }); }, truncate: function(n) { return w.truncate(n); } }, sEntries, say);
-              await w.close(); w = null;
+              await w.close(); w = null; closed = true;
               toast('Checking the export\u2026');
               var zfile = await handle.getFile(), zread = await zip.zipOpen(zfile);
               if (zfile.size !== res.size || zread.entries.length !== res.count) throw new Error('the file did not read back as it was written');
               for (var zi = 0; zi < zread.entries.length; zi++) await zread.entries[zi].check();
           } catch (e) {
-              var left = false;
-              if (w) { try { await w.abort(); } catch (e2) {} }   // not closed: nothing reached the file you picked
-              else if (typeof handle.remove === 'function') { try { await handle.remove(); } catch (e3) { left = true; } } else left = true;   // written, then found wrong: taken away again
+              var left = await exportFailTidy(handle, w, closed);
               toast('The export could not be written: ' + (e && e.message || 'the file could not be made') + '.' + (left ? ' The file it left is not to be trusted: delete it.' : ''));
               return null;
           }
           var tallyS = exportTally(nImg, nVid, res.skipped);
-          return { name: handle.name || (base + '.zip'), saved: true, images: tallyS.images, videos: tallyS.videos, library: libFiles.length, missing: tallyS.missing };
+          return { name: handle.name || (base + '.zip'), saved: true, images: tallyS.images, videos: tallyS.videos, library: libFiles.length, missing: tallyS.missing, libMissing: libMissing, unlisted: unlisted };
       }
       for (var k = 0; k < paths.length; k++) {
           try {
@@ -1886,7 +1909,7 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
           return null;
       }
       var tallyB = exportTally(nImg, nVid, skipped);
-      return { name: base + '.zip', blob: zblob, images: tallyB.images, videos: tallyB.videos, library: libFiles.length, missing: tallyB.missing };
+      return { name: base + '.zip', blob: zblob, images: tallyB.images, videos: tallyB.videos, library: libFiles.length, missing: tallyB.missing, libMissing: libMissing, unlisted: unlisted };
   }
   window.wpBuildExport = buildExport;
 
@@ -1901,7 +1924,7 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
       }
       var r = await buildExport(scope, handle);
       if (!r) return;
-      if (r.text) { download(r.name, r.text); toast('Exported ' + r.name); }
+      if (r.text) { download(r.name, r.text); toast('Exported ' + r.name + '.' + exportLeftWords(r)); }
       else {
           if (!r.saved) downloadBlob(r.name, r.blob);
           toast(exportDoneWords(r));

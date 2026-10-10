@@ -769,6 +769,110 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         && wbSrc.split("type: 'path', x: L.x, y: L.y, w: L.w, h: L.h, baseW: L.baseW, baseH: L.baseH, z: 10, pts: L.pts }, newOpacityProps(), pre)").length === 2 && wbSrc.split('buildWallItem(').length === 4);
     }
 
+    /* ---- fold B2: the dungeon generator's pure half (gencore.js), run for real against counts of the suite's own and the real fogcore ---- */
+    {
+    let G = null, gerr = null; try { G = await import(url('gencore.js')); } catch (e) { gerr = e; }
+    check('gencore loads in Node with no window, beside buildcore and fogcore', !!G && !gerr, gerr && gerr.stack);
+    if (G) {
+    const gsrc = read('system/app/scripts/gencore.js'), DEFG = { seed: '0000-fox', w: 30, h: 20, rooms: 'some', corr: 'winding', doors: 'most' };
+    const hostileG = JSON.parse('{"seed":"<b>x</b>","w":"30","h":null,"rooms":"Few","corr":["winding"],"doors":"constructor","__proto__":{"seed":"abc"}}');
+    check('cleanGen keeps a setting only as the dialog offers it: a seed of letters, digits and hyphens of 24 at most, a size of 10 to 60 cells each way rounded to a whole number, and one word of each list; anything else, a key the bag only inherits and a bag that is none give the first settings; seedOf writes four digits and a word of its own list from any whole number',
+        j(G.cleanGen(undefined)) === j(DEFG) && j(G.cleanGen(null)) === j(DEFG) && j(G.cleanGen('x')) === j(DEFG) && j(G.cleanGen(hostileG)) === j(DEFG) && j(G.cleanGen(Object.create({ seed: 'abc', w: 12 }))) === j(DEFG)
+        && j(G.cleanGen({ seed: '4471-fox', w: 9, h: 61, rooms: 'many', corr: 'straight', doors: 'none' })) === j({ seed: '4471-fox', w: 10, h: 60, rooms: 'many', corr: 'straight', doors: 'none' })
+        && j(G.cleanGen({ seed: 'a'.repeat(25), w: 12.4, h: 12.6, rooms: 'few', doors: 'some' })) === j({ seed: '0000-fox', w: 12, h: 13, rooms: 'few', corr: 'winding', doors: 'some' }) && G.cleanGen({ seed: 'a'.repeat(24) }).seed.length === 24
+        && [G.cleanGen({ w: NaN }).w, G.cleanGen({ w: Infinity }).w, G.cleanGen({ h: -5 }).h, G.cleanGen({ seed: '' }).seed, G.cleanGen({ seed: 'a b' }).seed].join('|') === '30|30|10|0000-fox|0000-fox'
+        && [G.seedOf(4471), G.seedOf(123456789), G.seedOf(-5), G.seedOf(NaN), G.seedOf(0), G.seedOf(9999.9)].join('|') === '4471-fox|6789-' + G.WORDS[12345 % G.WORDS.length] + '|0005-fox|0000-fox|0000-fox|9999-fox' && G.WORDS.every(w => /^[a-z]{3,8}$/.test(w)) && new Set(G.WORDS).size === G.WORDS.length && G.WORDS.length === 32
+        && Object.isFrozen(G.SIZE) && Object.isFrozen(G.ROOMS) && Object.isFrozen(G.CORRS) && Object.isFrozen(G.DOORS) && Object.isFrozen(G.WORDS) && j([G.ROOMS, G.CORRS, G.DOORS, G.SIZE]) === j([['few', 'some', 'many'], ['straight', 'winding'], ['none', 'some', 'most'], { min: 10, max: 60, w: 30, h: 20 }]),
+        j([G.cleanGen(hostileG), G.seedOf(123456789)]));
+    const gA = G.genDungeon({ seed: '4471-fox' }), gB = G.genDungeon({ seed: '4471-fox' }), gDiff = s => j(G.genDungeon(Object.assign({ seed: '4471-fox' }, s))) !== j(gA);
+    check('the same seed and settings make the same dungeon again, and any one of them changed makes another: nothing but the seed and the five settings is read, no clock and no chance of the computer\'s own',
+        j(gA) === j(gB) && j(G.genDungeon(Object.assign({}, gA.opts))) === j(gA) && gDiff({ seed: '4471-owl' }) && gDiff({ w: 32 }) && gDiff({ h: 22 }) && gDiff({ rooms: 'few' }) && gDiff({ corr: 'straight' }) && gDiff({ doors: 'none' })
+        && !/Math\.random|Date\.now|new Date|performance\.now|crypto\./.test(gsrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')) && j(gA.opts) === j(G.cleanGen({ seed: '4471-fox' })) && gA.cols === 30 && gA.rows === 20, j([gA.rooms.length, gA.cells.length]));
+    const gPin = o => require('crypto').createHash('sha256').update(j(G.genDungeon(o))).digest('hex').slice(0, 16);
+    const gPins = [gPin({ seed: '4471-fox' }), gPin({ seed: '0001-owl', w: 41, h: 27, rooms: 'few', corr: 'straight', doors: 'some' }), gPin({ seed: 'big', w: 60, h: 60, rooms: 'many', doors: 'none' }), gPin({ seed: 'a', w: 10, h: 10 })];
+    check('a seed goes on giving the dungeon it gave: four dungeons of version 1 pinned by hash, the first settings, a large board of few rooms and straight corridors, the largest board, and the smallest. A change to the generator that moves one is a new VERSION, said in the release notes, never a silent one',
+        G.VERSION === 1 && j(gPins) === j(['2f1f8d59f0cbc346', '73aeaa80a6b1c1a6', '19209ba76153afa3', 'ec6066ad51918b68']) && j([gA.rooms.length, gA.cells.length, gA.doors.length]) === '[6,179,10]', j(gPins));
+    const kl = b => j(G.keepLargest(b)), klSame = [[1, 0], [0, 0]], gC9 = G.genDungeon({ seed: 'c9', w: 10, h: 10 }), gC8 = G.genDungeon({ seed: 'c8', w: 12, h: 10 });
+    check('keepLargest, the net under the generator, run directly: of a board of cells the largest part that hangs together across sides stays and the rest becomes solid ground; of two as large the first met by row and column; cells that touch only at a corner are apart; the board itself is changed and handed back; an empty board, solid ground and no board stay as they are. And where chance leaves a small board with fewer than two rooms, two small rooms stand in opposite corners, on either diagonal, with a way between them',
+        kl([[1, 1, 0, 2], [0, 0, 0, 2], [1, 0, 0, 2]]) === '[[0,0,0,2],[0,0,0,2],[0,0,0,2]]' && kl([[1, 0, 2]]) === '[[1,0,0]]' && kl([[0, 2, 0, 1]]) === '[[0,2,0,0]]' && kl([[1, 0], [0, 1]]) === '[[1,0],[0,0]]' && kl([[0, 1], [1, 1]]) === '[[0,1],[1,1]]' && kl([[2, 1, 2], [0, 0, 1], [1, 0, 0]]) === '[[2,1,2],[0,0,1],[0,0,0]]'
+        && kl([]) === '[]' && kl([[0, 0], [0, 0]]) === '[[0,0],[0,0]]' && G.keepLargest(null) === null && G.keepLargest(klSame) === klSame
+        && j(gC9.rooms) === j([{ c: 7, r: 1, w: 3, h: 3 }, { c: 1, r: 7, w: 3, h: 3 }]) && j(gC8.rooms) === j([{ c: 1, r: 1, w: 3, h: 3 }, { c: 9, r: 7, w: 3, h: 3 }]) && gC9.cells.length > 4 && gC8.cells.length > 4 && gC9.doors.length >= 2,
+        j([kl([[1, 1, 0, 2], [0, 0, 0, 2], [1, 0, 0, 2]]), gC9.rooms, gC8.rooms]));
+    // every dungeon of a sweep, held to the plan
+    const N4 = [[1, 0], [-1, 0], [0, 1], [0, -1]], sweep = [];
+    ['few', 'some', 'many'].forEach(rm => ['straight', 'winding'].forEach(co => ['none', 'some', 'most'].forEach(dr => [[10, 10], [30, 20], [41, 27], [60, 60], [10, 60]].forEach((sz, n) => sweep.push({ seed: 'sw-' + rm[0] + co[0] + dr[0] + n, w: sz[0], h: sz[1], rooms: rm, corr: co, doors: dr })))));
+    let gBad = 0, gFirstBad = '', gRooms = { few: 0, some: 0, many: 0 }, gDoors = { none: 0, some: 0, most: 0 }, gOpen = { none: 0, some: 0, most: 0 }, gTurn = { straight: 0, winding: 0 }, gCorr = { straight: 0, winding: 0 }, gEmpty = 0, gLone = 0;
+    const planOf = dg => { const fl = new Map(); dg.rooms.forEach((R, n) => { for (let y = R.r; y < R.r + R.h; y++) for (let x = R.c; x < R.c + R.w; x++) fl.set(x + ',' + y, 'R' + n); }); dg.cells.forEach(c => fl.set(c[0] + ',' + c[1], 'C')); return fl; };
+    sweep.forEach(o => {
+        const dg = G.genDungeon(o), fl = new Map(), why = [];
+        dg.rooms.forEach((R, n) => { if (!(R.c % 2 && R.r % 2 && R.w % 2 && R.h % 2 && R.w >= 3 && R.h >= 3 && R.w <= 7 && R.h <= 7 && R.c >= 1 && R.r >= 1 && R.c + R.w <= dg.cols && R.r + R.h <= dg.rows)) why.push('room ' + n);
+            dg.rooms.forEach((S, m) => { if (m > n && !(R.c + R.w + 3 <= S.c || S.c + S.w + 3 <= R.c || R.r + R.h + 3 <= S.r || S.r + S.h + 3 <= R.r)) why.push('rooms ' + n + ' and ' + m + ' too near'); });
+            for (let y = R.r; y < R.r + R.h; y++) for (let x = R.c; x < R.c + R.w; x++) fl.set(x + ',' + y, 'R' + n); });
+        let last = -1; dg.cells.forEach(c => { const k = c[0] + ',' + c[1], ord = c[1] * 1000 + c[0]; if (fl.has(k)) why.push('cell twice or in a room ' + k); if (ord <= last) why.push('order'); last = ord; if (!(c[0] >= 0 && c[1] >= 0 && c[0] < dg.cols && c[1] < dg.rows)) why.push('off the board'); fl.set(k, 'C'); });
+        const openAt = new Map(); dg.doors.forEach(d => { const k = d.c + ',' + d.r; if (openAt.has(k)) why.push('opening twice'); openAt.set(k, d); if (fl.get(k) !== 'C' || Math.abs(d.dc) + Math.abs(d.dr) !== 1 || typeof d.door !== 'boolean' || !/^R/.test(fl.get((d.c + d.dc) + ',' + (d.r + d.dr)) || '') || fl.get((d.c - d.dc) + ',' + (d.r - d.dr)) !== 'C') why.push('opening ' + k); });
+        dg.cells.forEach(c => { let ways = 0; N4.forEach(d => { const v = fl.get((c[0] + d[0]) + ',' + (c[1] + d[1])); if (v) ways++; if (v && v !== 'C') { const op = openAt.get(c[0] + ',' + c[1]); if (!op || op.dc !== d[0] || op.dr !== d[1]) why.push('a corridor touches a room at ' + c); } });
+            if (ways < 2) why.push('dead end ' + c);
+            for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const v = fl.get((c[0] + dx) + ',' + (c[1] + dy)); if (v && v !== 'C' && !openAt.has(c[0] + ',' + c[1])) why.push('a corridor beside a room at ' + c); } });
+        if (fl.size) { const seen = new Set(), first = fl.keys().next().value, q = [first]; seen.add(first); while (q.length) { const p = q.pop().split(',').map(Number); N4.forEach(d => { const k = (p[0] + d[0]) + ',' + (p[1] + d[1]); if (fl.has(k) && !seen.has(k)) { seen.add(k); q.push(k); } }); } if (seen.size !== fl.size) why.push('not joined'); } else gEmpty++;
+        if (o.doors === 'none' && dg.doors.some(d => d.door)) why.push('a door where none was asked');
+        if (dg.rooms.length < 2) gLone++;
+        if (why.length) { gBad++; if (!gFirstBad) gFirstBad = j(o) + ' ' + why.slice(0, 3).join('; '); }
+        gRooms[o.rooms] += dg.rooms.length; gDoors[o.doors] += dg.doors.filter(d => d.door).length; gOpen[o.doors] += dg.doors.length;
+        const cs = new Set(dg.cells.map(c => c[0] + ',' + c[1])); dg.cells.forEach(c => { const h = cs.has((c[0] + 1) + ',' + c[1]) || cs.has((c[0] - 1) + ',' + c[1]), v = cs.has(c[0] + ',' + (c[1] + 1)) || cs.has(c[0] + ',' + (c[1] - 1)); if (h && v) gTurn[o.corr]++; gCorr[o.corr]++; });
+    });
+    check('every dungeon of a sweep over the settings and five sizes (90 of them) keeps to its plan: rooms on the board with odd sides of 3 to 7 cells, no two nearer than three cells; the corridors\' cells each once, by row and column, none inside a room; every cell of the dungeon walked to from every other; no corridor that ends anywhere but at a room; a corridor touching a room only through its opening, toward the room, and never even at a corner otherwise, which is what keeps a hex map\'s extra neighbours apart; never an empty dungeon, and two rooms or more on the smallest board; Doors: None gives no door; more rooms for Many than Some than Few, more doors for Most than Some, and fewer turns for Straight than Winding',
+        gBad === 0 && sweep.length === 90 && gEmpty === 0 && gLone === 0 && gRooms.few < gRooms.some && gRooms.some < gRooms.many && gDoors.none === 0 && gDoors.some > 0 && gDoors.some < gDoors.most && gDoors.most <= gOpen.most && gTurn.straight / gCorr.straight < 0.7 * gTurn.winding / gCorr.winding, j([gBad, gFirstBad, gEmpty, gLone, gRooms, gDoors, gOpen, gTurn, gCorr]));
+    // the pieces on a square lattice
+    const cellsOfPieces = (fs, g) => { const m = new Map(); let twice = 0; fs.forEach(f => F.itemCells(f, g).forEach(c => { const k = F.cellKey(c, g); if (m.has(k)) twice++; m.set(k, c); })); return { m, twice }; };
+    const wallSet = (pc, g, withDoors) => { const pre = B.penPreset('wall', {}), dpre = B.penPreset('door', {}), segs = []; pc.walls.forEach(L => F.pathSegs(Object.assign({ type: 'path' }, L, pre)).forEach(s => segs.push(s))); if (withDoors) pc.doors.forEach(L => F.pathSegs(Object.assign({ type: 'path' }, L, dpre)).forEach(s => segs.push(s))); return F.withWalls(null, segs, g); };
+    let sqBad = 0, sqFirst = '', sqN = 0;
+    sweep.filter((o, n) => n % 3 === 0).forEach(o => {
+        const dg = G.genDungeon(o), pc = G.dungeonPieces(dg, sq, 1010, 2040), plan = planOf(dg), got = cellsOfPieces(pc.floors, sq), why = [], oc = 20, or = 40; sqN++;
+        if (got.twice || got.m.size !== plan.size || [...plan.keys()].some(k => { const p = k.split(',').map(Number); return !got.m.has((oc + p[0]) + ',' + (or + p[1])); })) why.push('floors');
+        if (!pc.floors.every(f => f.type === 'rect' && f.x % 50 === 0 && f.y % 50 === 0 && f.w >= 50 && f.h >= 50) || pc.floors.length !== dg.rooms.length + G.strips(dg.cells).length) why.push('boxes');
+        let edges = 0; plan.forEach((v, k) => { const p = k.split(',').map(Number); N4.forEach(d => { if (!plan.has((p[0] + d[0]) + ',' + (p[1] + d[1]))) edges++; }); });
+        let unit = 0; pc.walls.forEach(L => { const len = L.pts[1][0] || L.pts[1][1]; if (L.pts.length !== 2 || len % 50) why.push('a wall off the lattice'); unit += len / 50; }); if (unit !== edges) why.push('walls ' + unit + ' for ' + edges);
+        const doorsOn = dg.doors.filter(d => d.door); if (pc.doors.length !== doorsOn.length) why.push('doors');
+        doorsOn.forEach((d, n) => { const L = pc.doors[n], x0 = (oc + d.c) * 50, y0 = (or + d.r) * 50, want = d.dc ? [x0 + (d.dc > 0 ? 50 : 0), y0, 10, 50] : [x0, y0 + (d.dr > 0 ? 50 : 0), 50, 10]; if (j([L.x, L.y, L.w, L.h]) !== j(want)) why.push('door ' + n); });
+        if (pc.count !== pc.floors.length + pc.walls.length + pc.doors.length) why.push('count');
+        const shut = wallSet(pc, sq, true), ajar = wallSet(pc, sq, false), at = (c, r) => ({ c: oc + c, r: or + r });
+        dg.doors.forEach(d => { const a = at(d.c, d.r), b = at(d.c + d.dc, d.r + d.dr); if (F.lineClear(a, b, sq, ajar) !== true || F.lineClear(a, b, sq, shut) !== !d.door) why.push('sight through an opening'); });
+        let leak = 0; plan.forEach((v, k) => { const p = k.split(',').map(Number); N4.forEach(d => { if (!plan.has((p[0] + d[0]) + ',' + (p[1] + d[1])) && F.lineClear(at(p[0], p[1]), at(p[0] + d[0], p[1] + d[1]), sq, ajar)) leak++; else if (plan.has((p[0] + d[0]) + ',' + (p[1] + d[1])) && !F.lineClear(at(p[0], p[1]), at(p[0] + d[0], p[1] + d[1]), sq, ajar)) leak++; }); }); if (leak) why.push('sight ' + leak);
+        if (why.length) { sqBad++; if (!sqFirst) sqFirst = j(o) + ' ' + why.slice(0, 3).join('; '); }
+    });
+    const gStrips = G.strips([[1, 1], [2, 1], [3, 1], [5, 1], [3, 2], [5, 2], [3, 3], [7, 7]]);
+    check('the dungeon as pieces on a square lattice (dungeonPieces, 30 dungeons): its top left corner in the cell that holds the point handed in; a box a room and a box a run of corridor, on the lattice, covering every cell of the plan once and no other; wall lines along every edge between the dungeon and solid ground and nowhere else, so the real fogcore sees from a cell to each neighbour inside the dungeon and to none outside; a door line on the edge between an opening and its room, which stops sight while a door stands there and lets it through where none does; the count is what would be laid; the corridors\' boxes are runs along a row first, then down a column, each run whole whatever order its cells are listed in',
+        sqBad === 0 && sqN === 30 && j(gStrips) === j([{ c: 1, r: 1, w: 3, h: 1 }, { c: 5, r: 1, w: 1, h: 2 }, { c: 3, r: 2, w: 1, h: 2 }, { c: 7, r: 7, w: 1, h: 1 }]) && j(G.strips([])) === '[]'
+        && j(G.strips([[3, 2], [3, 1], [6, 5], [7, 5], [5, 5]])) === j([{ c: 5, r: 5, w: 3, h: 1 }, { c: 3, r: 1, w: 1, h: 2 }]), j([sqBad, sqFirst, sqN, gStrips, G.strips([[3, 2], [3, 1], [6, 5], [7, 5], [5, 5]])]));
+    // the pieces on a hex lattice
+    const HEX6 = [[0, -1], [1, -1], [1, 0], [0, 1], [-1, 1], [-1, 0]]; let hxBad = 0, hxFirst = '', hxN = 0, hxWide = 0;
+    sweep.filter((o, n) => n % 3 === 1).forEach(o => {
+        const dg = G.genDungeon(o), ox = 2000 + (hxN % 2) * 45, pc = G.dungeonPieces(dg, hx, ox, 3000), plan = planOf(dg), why = [], o0 = F.cellOf(ox, 3000, hx), row0 = o0.r + Math.floor(o0.q / 2); hxN++;
+        const hexOf = (c, r) => { const q = o0.q + c; return { q, r: row0 + r - Math.floor(q / 2) }; }, kOf = (c, r) => F.cellKey(hexOf(c, r), hx), kind = new Map(); plan.forEach((v, k) => { const p = k.split(',').map(Number); kind.set(kOf(p[0], p[1]), v); });
+        const got = cellsOfPieces(pc.floors, hx); if (got.twice || got.m.size !== plan.size || kind.size !== plan.size || [...kind.keys()].some(k => !got.m.has(k)) || pc.floors.length !== plan.size || !pc.floors.every(f => f.type === 'hexagon' && f.w === 60 && f.h === 52)) why.push('floors');
+        const openK = new Map(); dg.doors.forEach(d => openK.set(kOf(d.c, d.r), d));
+        // hexagons that touch: nothing the plan keeps apart is joined
+        let sides = 0; got.m.forEach((c, k) => HEX6.forEach(d => { const nk = F.cellKey({ q: c.q + d[0], r: c.r + d[1] }, hx), a = kind.get(k), b = kind.get(nk); if (!b) { sides++; return; } if (a !== b && a !== 'C' && b !== 'C') why.push('two rooms touch'); if (a === 'C' && b !== 'C' && !openK.has(k)) why.push('a corridor touches a room'); }));
+        const seen = new Set(), first = got.m.keys().next().value; if (first) { const q = [first]; seen.add(first); while (q.length) { const c = got.m.get(q.pop()); HEX6.forEach(d => { const nk = F.cellKey({ q: c.q + d[0], r: c.r + d[1] }, hx); if (got.m.has(nk) && !seen.has(nk)) { seen.add(nk); q.push(nk); } }); } if (seen.size !== got.m.size) why.push('not joined'); }
+        let wallSides = 0; pc.walls.forEach(L => { if (L.pts.length > 121) why.push('a long chain'); wallSides += L.pts.length - 1; }); if (wallSides !== sides) why.push('walls ' + wallSides + ' for ' + sides);
+        const shut = wallSet(pc, hx, true), ajar = wallSet(pc, hx, false); let leak = 0;
+        got.m.forEach((c, k) => HEX6.forEach(d => { const nb = { q: c.q + d[0], r: c.r + d[1] }, nk = F.cellKey(nb, hx), inside = got.m.has(nk); if (F.lineClear(c, nb, hx, ajar) !== inside) leak++;
+            if (inside && openK.has(k) && kind.get(nk) !== 'C') { const D = openK.get(k); if (F.lineClear(c, nb, hx, shut) !== !D.door) why.push('a door that does not close its opening'); if (D.door) hxWide++; } else if (inside && !(openK.has(nk) && kind.get(k) !== 'C') && !F.lineClear(c, nb, hx, shut)) why.push('a door across something else'); })); if (leak) why.push('sight ' + leak);
+        if (pc.doors.length !== dg.doors.filter(d => d.door).length || pc.count !== pc.floors.length + pc.walls.length + pc.doors.length) why.push('count');
+        if (why.length) { hxBad++; if (!hxFirst) hxFirst = j(o) + ' ' + why.slice(0, 3).join('; '); }
+    });
+    const gNone = { floors: [], doors: [], walls: [], count: 0 };
+    check('the dungeon as pieces on a hex lattice (30 dungeons, from an even column and from an odd one): one hexagon a cell of the plan, seated on its cell; hexagons that touch join nothing the plan keeps apart, no two rooms and no corridor with a room but at its opening, and the whole is still one; wall chains along every side between the dungeon and solid ground, cut at 120 sides, and the real fogcore sees from a cell to each neighbour inside and to none outside; a door runs along every side its opening shares with the room, one side or several, and closes all of them; dungeonPieces answers nothing for a plan, a lattice or a point that is none',
+        hxBad === 0 && hxN === 30 && hxWide > 60 && [G.dungeonPieces(null, sq, 0, 0), G.dungeonPieces(gA, null, 0, 0), G.dungeonPieces(gA, { type: 'square', size: 0 }, 0, 0), G.dungeonPieces(gA, { type: 'hex', s: 30 }, 0, 0), G.dungeonPieces(gA, sq, NaN, 0), G.dungeonPieces({ rooms: [] }, sq, 0, 0)].every(r => j(r) === j(gNone)), j([hxBad, hxFirst, hxN, hxWide]));
+    const gBig = G.dungeonPieces(G.genDungeon({ seed: 'big', w: 60, h: 60, rooms: 'many' }), hx, 0, 0), gBigSq = G.dungeonPieces(G.genDungeon({ seed: 'big', w: 60, h: 60, rooms: 'many' }), sq, 0, 0);
+    check('the largest dungeon the dialog can ask for fits what a map holds, on both lattices, and the module is the pure half it says: no state, no DOM, plain ASCII, no arrow function or template, what it publishes on window is what it exports, and it passes as a module',
+        gBig.count > 500 && gBig.count < 6000 && gBigSq.count > 200 && gBigSq.count < 6000 && gBig.walls.length > 0 && gBigSq.walls.length > 0 && !/[^\x00-\x7e]/.test(gsrc) && gsrc.indexOf('\r') < 0 && !/=>|`/.test(gsrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, ''))
+        && !/\bdocument\b|\blocalStorage\b/.test(gsrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')) && Object.keys(G).filter(k => k !== 'default').every(k => new RegExp('\\b' + k + ': ' + k + '\\b').test(gsrc) && new RegExp('export \\{[^}]*\\b' + k + '\\b').test(gsrc))
+        && /var API = \{[^}]*genDungeon: genDungeon[^}]*\};\nif \(typeof window !== 'undefined'\) window\.wpGenCore = API;\nexport \{ /.test(gsrc) && read('system/app/index.html').split('<script type="module" src="scripts/gencore.js"></script>').length === 2
+        && read('system/app/index.html').indexOf('scripts/fogcore.js"></script>\n<script type="module" src="scripts/gencore.js"></script>') > read('system/app/index.html').indexOf('scripts/buildcore.js"></script>'), j([gBig.count, gBigSq.count]));
+    }
+    }
+
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

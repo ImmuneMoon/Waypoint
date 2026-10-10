@@ -296,6 +296,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       
 
       if (window.wpMapTabs) window.wpMapTabs.sync();   // the top row's map tabs (maptabs.js): the tab in front holds the breadcrumb drawn just above
+      if (window.wpCharList) window.wpCharList.sync();   // the left panel's Characters section (charlist.js): every change of a character ends in a redraw, and the list is drawn again only when it changed
       if (window.wpPills) window.wpPills.sync();   // and its state pills (pills.js): the view, the map on screen
 
       if (isPlanner) {

@@ -4,7 +4,7 @@
 
    The panel is in one of three states, on every view:
      docked   as it always was: beside the map, with its grip.
-     rail     folded: a narrow column of icons stands in its place (Handbook, Planners, Maps, Search, and a pin).
+     rail     folded: a narrow column of icons stands in its place (Handbook, Planners, Maps, Characters, Search, and a pin).
      open     opened from the rail: it lies over the map beside the rail, showing the section its icon names and no other, and a press
               anywhere else folds it again. The other sections are folded for that time and put back as they were afterwards.
    Arriving at the play map folds a docked panel to the rail, unless it was pinned there, and leaving the play map opens again what folded
@@ -15,7 +15,7 @@ import { getActiveMap } from './models.js';
 import { state } from './state.js';
 
 // [lookcheck:leftrail-start]
-var RAIL_SECS = ['handbook', 'planners', 'maps'];   // the panel's sections, as their titles name them (data-section)
+var RAIL_SECS = ['handbook', 'planners', 'maps', 'characters'];   // the panel's sections, as their titles name them (data-section)
 // The panel's state after something happened. st: { mode: 'docked' | 'rail' | 'open', sec, auto, play, pin }: sec is the section it was
 // opened at, auto says it folded by itself, play that the play map is on screen, pin that it is pinned there. ev: { t: 'view', play } the
 // view changed, { t: 'icon', sec } a press on an icon of the rail, { t: 'away' } a press anywhere else or Esc, { t: 'pin' } the rail's pin,

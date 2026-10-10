@@ -357,8 +357,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       var dNav = document.getElementById('docNavList');
       if (dNav) dNav.innerHTML = treeHtml('doc') || '<div class="nav-empty">No pages yet — press + above to write a rules or reference page your players can read.</div>';
-      // A joined player with nothing to read: the whole left panel steps aside (style.css body.net-client.no-handbook)
-      document.body.classList.toggle('no-handbook', !!(window.wpNet && window.wpNet.foreign) && !Object.values(camp.items).some(function(it) { return it.type === 'doc'; }));
+      // A joined player with nothing to read and no character of their own: the whole left panel steps aside (style.css body.net-client.no-handbook)
+      var chN = window.wpCharList ? window.wpCharList.sync() : 0;   // the Characters section follows every redraw of the panel (charlist.js); for a player: how many characters are theirs
+      document.body.classList.toggle('no-handbook', !!(window.wpNet && window.wpNet.foreign) && !chN && !Object.values(camp.items).some(function(it) { return it.type === 'doc'; }));
 
       if (window.wpPageShelf && window.wpPageShelf.noteActive) window.wpPageShelf.noteActive();   // 1.5.4 (pageshelf.js): a page that is the item on screen is one of the last pages opened
       mNav.innerHTML = mapQuickHtml(camp) + (treeHtml('map') || '<div class="nav-empty">No maps yet — press + above to create your first location.</div>');
@@ -510,7 +511,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
   (function() {
 
-      [['planners', 'plannerNavList'], ['handbook', 'docNavList'], ['maps', 'mapNavList']].forEach(function(pair) {
+      [['planners', 'plannerNavList'], ['handbook', 'docNavList'], ['maps', 'mapNavList'], ['characters', 'charNavList']].forEach(function(pair) {
 
           var key = pair[0], nav = document.getElementById(pair[1]);
 

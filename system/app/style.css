@@ -3110,7 +3110,13 @@
   /* The sheet's lock: on a locked sheet, and in the HUD, a stat that needs Edit sheet reads as a value, not as a greyed box. What still works in play keeps its box */
   .sheet-locked :is(input.field, select.field, textarea.field):disabled { opacity: 1; color: inherit; -webkit-text-fill-color: currentColor; background: transparent; border-color: transparent; cursor: default; }
   .sheet-locked select.field:disabled { appearance: none; -webkit-appearance: none; background-image: none; }
-  .sheet-locked .sheet-step:disabled { visibility: hidden; }   /* the arrows inside a number box: dead while locked, so not drawn (they keep their room: nothing shifts when Edit sheet is pressed) */
+  .sheet-locked .sheet-step:disabled { visibility: hidden; }
+  /* Item 35: a text or notes field read with its look (a locked sheet, the HUD, a window of its own): the box a field has where one is drawn, plain words on a locked sheet as its neighbours are */
+  .sheet-read { width: 100%; background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; padding: 8px 9px; font: inherit; font-size: 13px; line-height: 1.45; box-sizing: border-box; min-height: 34px; cursor: default; }
+  .sheet-read.sheet-text { white-space: pre; overflow: hidden; text-overflow: ellipsis; }
+  .sheet-read.sheet-notes { font-size: 12px; min-height: 60px; resize: none; }
+  .sheet-locked .sheet-read { background: transparent; border-color: transparent; }
+  .sheet-read a { color: var(--blue); }   /* the arrows inside a number box: dead while locked, so not drawn (they keep their room: nothing shifts when Edit sheet is pressed) */
   #sheetEdit.on { border-color: var(--gold); color: var(--gold); }
   input.sheet-range::-webkit-slider-runnable-track { height: 8px; background: transparent; }
   input.sheet-range::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; margin-top: -4px; border-radius: 50%; background: var(--ink); border: 2px solid var(--panel2); box-shadow: 0 1px 3px rgba(0,0,0,0.5); box-sizing: border-box; }

@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { timeRuleRun, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, aliasFromShadowBase, sbRowOps, sbApplyProposal, cleanUploads, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, DEFAULT_POSTURES, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
+import { timeRuleRun, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, aliasFromShadowBase, sbRowOps, sbApplyProposal, cleanUploads, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, DEFAULT_POSTURES, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
 import { cleanCalendar, fmtWhen, fmtDate, timeOf, calPreset, CAL_LIMITS } from './calendarcore.js';
 
@@ -1227,6 +1227,7 @@ function headerBlocks(head, sys, c, all, gm, own) {
             if (!ledger && IDN_EDIT[f.kind] === 1 && !en.error && idnOk(f)) { it.appendChild(idnControl(f, c, all[f.id], tone)); box.appendChild(it); return; }   // Stage 6: changed right here, so the field needs no second copy
             var v = el('span', 'sheet-hdr-val' + (en.chip ? ' sheet-hdr-chip' : '') + (en.error ? ' sheet-err' : '') + tone + (en.empty ? ' sheet-hdr-empty' : ''), en.chip ? 'on' : en.text);
             v.title = en.error ? en.error : en.empty ? f.label + ': not set' : en.why ? en.text + '\n' + en.why : en.text;   // a long value is ellipsised in its box: the tooltip carries the whole of it (the error's reason when there is one)
+            if (!en.chip && !en.error && !en.empty && typeof lookInto === 'function') lookInto(v, f, c, en.text);   // item 35: a one-line text with a look is read with it here too
             it.appendChild(v); box.appendChild(it);
         });
         if (box.childNodes.length) main.appendChild(box);
@@ -3092,6 +3093,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
         return box;
     }
     if (k === 'toggle') { var lb = el('label', 'sheet-toggle'); var cb = el('input'); cb.type = 'checkbox'; cb.dataset.fid = f.id; cb.checked = raw === undefined ? f.def === true : raw === true; cb.disabled = !use; cb.addEventListener('change', function() { commit(c, f, cb.checked); }); lb.appendChild(cb); lb.appendChild(document.createTextNode(' ' + (cb.checked ? 'on' : 'off'))); box.appendChild(lb); if (e && e.value === true && !cb.checked && e.mods && e.mods.length) { var ft = el('span', 'sheet-eff sheet-eff-same', 'on (' + e.mods.map(function(m) { return m.name; }).join(', ') + ')'); ft.title = 'Switched on by ' + e.mods.map(function(m) { return m.name; }).join(', '); box.appendChild(ft); } return box; }
+    if ((k === 'text' || k === 'notes') && typeof lookNode === 'function') { var lkN = lookNode(f, c, use, k === 'notes'); if (lkN) { box.appendChild(lkN); return box; } }   // item 35: read with its look where it is only read here; else as ever, below
     if (k === 'text') { var ti = el('input', 'field sheet-text'); ti.type = 'text'; ti.dataset.fid = f.id; ti.maxLength = f.max || 200; ti.value = raw === undefined ? String(f.def || '') : String(raw); ti.disabled = !use; ti.addEventListener('change', function() { commit(c, f, ti.value); }); box.appendChild(ti); return box; }
     if (k === 'notes') { var ta = el('textarea', 'field sheet-notes'); ta.dataset.fid = f.id; ta.rows = 4; ta.value = raw === undefined ? '' : String(raw); ta.disabled = !use; var tmr = null; ta.addEventListener('input', function() { clearTimeout(tmr); tmr = setTimeout(function() { commit(c, f, ta.value); }, 600); }); ta.addEventListener('change', function() { clearTimeout(tmr); commit(c, f, ta.value); }); box.appendChild(ta); return box; }
     if (k === 'select') { var se = el('select', 'field sheet-select'); se.dataset.fid = f.id; (f.options || []).forEach(function(o) { se.appendChild(opt(o, o, (raw === undefined ? f.def : raw) === o)); }); se.disabled = !use; se.addEventListener('change', function() { commit(c, f, se.value); }); box.appendChild(se); return box; }
@@ -3352,6 +3354,28 @@ function commit(c, f, value) {
     var d = {}; d[f.id] = res.value;
     afterCharChange(c, false, d);
 }
+// [systemcheck:sheetlook-start]
+// Item 35: a text or notes field drawn WITH ITS LOOK where the field is only read here (a locked sheet, the HUD, a window of its own, a field
+// that is not this viewer's to change), through the reader (linkgate.js, window.wpTextRead): the record is cleaned again there by the
+// field's own rule, and every link in it asks first, whoever wrote the words. Only where a look stands for the very text stored: with none
+// the field is drawn as it always was, by the two lines after this call. Null: draw it that way
+function lookNode(f, c, use, multi) {
+    if (use) return null;
+    var rd = typeof window !== 'undefined' && window.wpTextRead && typeof window.wpTextRead.fill === 'function' ? window.wpTextRead : null, rec = rd ? lookOf(f, c) : undefined;
+    if (!rec) return null;
+    var d = el('div', 'sheet-read ' + (multi ? 'sheet-notes' : 'sheet-text') + ' wp-run-read'); d.dataset.fid = f.id;
+    rd.fill(d, c.values[f.id], rec, document, { rule: lookRule(f), typed: false, ask: true });
+    return d;
+}
+// The same for a value in the sheet's header, which is a span of plain words: the reader draws into that very span, only for a one-line
+// text whose look stands and only where the words shown are the text stored (a default, an error or an empty mark is drawn as it was)
+function lookInto(v, f, c, shown) {
+    var rd = typeof window !== 'undefined' && window.wpTextRead && typeof window.wpTextRead.fill === 'function' ? window.wpTextRead : null, rec = rd && f && f.kind === 'text' ? lookOf(f, c) : undefined;
+    if (!rec || shown !== c.values[f.id]) return false;
+    rd.fill(v, shown, rec, document, { rule: lookRule(f), typed: false, ask: true });
+    return true;
+}
+// [systemcheck:sheetlook-end]
 // [systemcheck:commitlook-start]
 // Item 35: the look of one text of a character (bold, a colour, a link), set from its sheet. rec: a look record made for the text the sheet
 // holds now, or null to take the look off. A player's goes to the host and is laid over at once. The GM's is judged by the very rule the

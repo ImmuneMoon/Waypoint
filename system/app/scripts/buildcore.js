@@ -494,8 +494,8 @@ function wallsOfCells(out, cells, inSet, grid, opts, end) {
     return out;
 }
 // corridorWalls(grid, sx, sy, ex, ey, width, opts) -> as outlineWalls answers. The wall lines along the two long sides of the corridor that
-// corridor() lays for the same gesture: the outer edge of its cells, less its two ENDS (the owner, 2026-10-10, by prompt: "Open ends"), so
-// that it joins what it runs into. An end is an outer edge that faces along the corridor at its last cell, or against it at its first: its
+// corridor() lays for the same gesture: the outer edge of its cells, less its two ENDS (the owner, 2026-10-10, by prompt: "Open ends"). A
+// wall that already stands across an end stays: nothing is derived live. An end is an outer edge that faces along the corridor at its last cell, or against it at its first: its
 // outward normal within about 53 degrees of the corridor's direction (so the two sides beside a hexagon's forward side stay walled), and its
 // middle no further back than a quarter of a cell from that end. The direction runs from the first cell's centre to the last one's; a
 // corridor of one cell takes the gesture's own (a tie reads level, as corridor() reads it). opts as outlineWalls takes them
@@ -504,9 +504,10 @@ function corridorWalls(grid, sx, sy, ex, ey, width, opts) {
     var co = corridor(grid, sx, sy, ex, ey, width), run = corridor(grid, sx, sy, ex, ey, 1); if (!co || !run) return out;
     var sq = grid.type === 'square', list = sq ? cellsUnderRect(co.x, co.y, co.w, co.h, grid) : co.cells, a, b, inSet = Object.create(null), cells = [], i;
     if (sq) { a = { x: run.x + grid.size / 2, y: run.y + grid.size / 2 }; b = { x: run.x + run.w - grid.size / 2, y: run.y + run.h - grid.size / 2 }; }
-    else { if (!run.cells.length) return out; a = cellCenter(run.cells[0], grid); b = cellCenter(run.cells[run.cells.length - 1], grid); }
+    else { if (!run.cells.length) return out; a = cellCenter(run.cells[0], grid); b = a; }
     if (list.length > WALLS.cells) { out.over = true; return out; }
     for (i = 0; i < list.length; i++) { var ck = cellKey(list[i], grid); if (!inSet[ck]) { inSet[ck] = 1; cells.push(list[i]); } }
+    if (!sq) for (i = run.cells.length - 1; i >= 0; i--) if (inSet[cellKey(run.cells[i], grid)]) { b = cellCenter(run.cells[i], grid); break; }   // the far end is the last run cell that was laid: a corridor two wide is cut at half the run
     var dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy);
     if (len < 1e-6) { dx = ex - sx; dy = ey - sy; if (sq) { if (Math.abs(dx) >= Math.abs(dy)) { dx = 1; dy = 0; } else { dx = 0; dy = 1; } } else if (!dx && !dy) dx = 1; len = 0; }
     var dl = Math.hypot(dx, dy); dx /= dl; dy /= dl;

@@ -536,7 +536,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
               folded = !folded;
 
-              try { localStorage.setItem('wp_fold_' + key, folded ? '1' : '0'); } catch (e) {}
+              if (title.dataset.rail !== '1') { try { localStorage.setItem('wp_fold_' + key, folded ? '1' : '0'); } catch (e) {} }   // a fold the rail made for the section it shows is no choice of the user's: it is not kept (leftrail.js)
 
               apply();
 

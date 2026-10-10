@@ -1307,6 +1307,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             if (_el_wbTerrainCost) _el_wbTerrainCost.addEventListener('change', function() { setItemTerrain(w, true, this.value); });
             var _el_wbTexture = document.getElementById('wbTexture');   // the map builder: a piece's texture
             if (_el_wbTexture) _el_wbTexture.addEventListener('change', function() { setItemTexture(w, this.value); });
+            if (_el_wbTexture && window.wpTexList && typeof window.wpTexList.keys === 'function') window.wpTexList.keys(_el_wbTexture);   // its last rows act at a choice, never at a key step
             var _el_wbTexTile = document.getElementById('wbTexTile');   // fold B3: how large one repeat of a picture is
             if (_el_wbTexTile) _el_wbTexTile.addEventListener('change', function() { setItemTexTile(w, this.value); });
             var _el_wbSmoke = document.getElementById('wbSmoke');   // senses S7b: smoke, true or no key
@@ -1846,13 +1847,20 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
       var TL = window.wpTexList, canPick = !!(TL && typeof TL.pick === 'function' && typeof TL.tileOf === 'function' && Array.isArray(TL.TILES) && BC && typeof BC.picName === 'function' && window.wpFogCore && typeof window.wpFogCore.cleanTexSrc === 'function'), tile = pic && canPick ? String(TL.tileOf(w.texTile)) : '';
       return '<div class="field"><label for="wbTexture">Texture</label><select id="wbTexture" title="A pattern Waypoint draws over the color, seated on the grid."><option value=""' + (cur || pic ? '' : ' selected') + '>Plain color</option>' + names.map(function(n) { return '<option value="' + esc(n) + '"' + (n === cur && !pic ? ' selected' : '') + '>' + esc(n.charAt(0).toUpperCase() + n.slice(1)) + '</option>'; }).join('') + (pic ? '<option value="@pic" selected>' + esc(BC.picName(pic)) + '</option>' : '') + (canPick ? '<option value="@pick">A picture&hellip;</option>' : '') + '</select></div>'
           + (tile ? '<div class="field"><label for="wbTexTile">Tile size</label><select id="wbTexTile" title="How large one repeat of the picture is. Whole piece stretches it over the piece once.">' + TL.TILES.map(function(r) { return '<option value="' + esc(String(r[0])) + '"' + (String(r[0]) === tile ? ' selected' : '') + '>' + esc(r[1]) + '</option>'; }).join('') + '</select></div>' : '')
-          + '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">' + (pic ? 'One of this campaign&#39;s own pictures, over the color. A pattern or Plain color takes it off.' : 'A pattern drawn over the color. Pieces side by side read as one surface.') + '</div>';
+          + '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">' + (pic ? 'One of your own pictures, over the color. A pattern or Plain color takes it off.' : 'A pattern drawn over the color. Pieces side by side read as one surface.') + '</div>';
   }
   function setItemTexture(w, v) {
       if (v === '@pic') { renderInspector(); return; }   // the picture's own row: nothing changes
       if (v === '@pick') {   // A picture: the list goes back as it was, and the Image Library's pick, when one comes, is the fill
-          var TL = window.wpTexList;
-          if (TL && typeof TL.pick === 'function') TL.pick(v, renderInspector, function(p) { if (!p || !p.pic) return; w.texSrc = p.pic; w.texTile = TL.tileOf(w.texTile); delete w.texture; save(); render(); renderInspector(); });
+          var TL = window.wpTexList, m0 = getActiveMap(), mapId = m0 ? m0.id : null, id = w.id;
+          if (TL && typeof TL.pick === 'function') TL.pick(v, renderInspector, function(p) {
+              if (!p || !p.pic) return;
+              // The pick may come long after the press, and an Undo or a Delete behind the library may have replaced or removed the piece: it is
+              // found again by its id on the map on screen, and a piece that is gone, or takes no fill any more, is left alone and said
+              var m = getActiveMap(), cur = m && m.id === mapId && Array.isArray(m.whiteboard) ? m.whiteboard.find(function(x) { return !!x && x.id === id; }) : null;
+              if (!cur || !textureFieldOk(cur)) { toast('That piece is no longer on this map. Nothing was changed.'); return; }
+              cur.texSrc = p.pic; cur.texTile = TL.tileOf(cur.texTile); delete cur.texture; save(); render(); renderInspector();
+          });
           else renderInspector();
           return;
       }

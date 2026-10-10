@@ -275,6 +275,7 @@ const K1 = 'a'.repeat(32), K2 = 'b'.repeat(32), K3 = 'c'.repeat(32);   // K3: a 
 function mkCampaign(SC, F) {
     const fx = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'hud-d20.json'), 'utf8'));
     fx.rolls.push({ id: 'r_heal', label: 'Heal', apply: [{ f: 'f_hp', formula: '2', add: true }] });
+    fx.fields.push({ id: 'f_gmword', key: 'GMWord', label: 'GM word', kind: 'text', edit: 'gm', vis: 'gm', hover: false });   // item 35: a text only the GM sees and edits (no look of a player's reaches it, and its words never leave)
     fx.combat = { light: { presets: [{ name: 'Torch', bright: 2, dim: 4, unit: 'yd', pick: true }] } };
     const sys = SC.cleanSystem(fx, { F, gmView: true, libCats: {} });
     const tok = (id, o) => Object.assign({ id, type: 'circle', isChar: true, w: 50, h: 50, layer: 'middle' }, o);
@@ -282,9 +283,9 @@ function mkCampaign(SC, F) {
         id: 'c1', name: 'Fuzz Campaign', activeItemId: 'm_open', system: sys,
         players: { u_p1: { name: 'Ayla', key: K1 }, u_p2: { name: 'Bram', key: K2 }, u_p3: { name: 'Cato', key: K3 } }, bannedPlayers: {}, sessionLog: [], turnRules: {},
         chars: {
-            c_p1: { id: 'c_p1', name: 'Ayla', ownerId: 'u_p1', npc: false, values: { f_str: 14, f_dex: 12, f_gmfig: 7, f_hp: { cur: 10, max: 12 }, f_inv: [] }, updated: 1 },
-            c_p2: { id: 'c_p2', name: 'Bram', ownerId: 'u_p2', npc: false, values: { f_str: 9, f_gmfig: 3 }, updated: 1 },
-            c_npc: { id: 'c_npc', name: 'Orc', npc: true, values: { f_str: 16, f_gmfig: 99 }, updated: 1 }
+            c_p1: { id: 'c_p1', name: 'Ayla', ownerId: 'u_p1', npc: false, values: { f_str: 14, f_dex: 12, f_gmfig: 7, f_hp: { cur: 10, max: 12 }, f_inv: [], f_class: 'Ranger', f_gmword: 'the secret word' }, updated: 1 },
+            c_p2: { id: 'c_p2', name: 'Bram', ownerId: 'u_p2', npc: false, values: { f_str: 9, f_gmfig: 3, f_class: 'Bard' }, updated: 1 },
+            c_npc: { id: 'c_npc', name: 'Orc', npc: true, values: { f_str: 16, f_gmfig: 99, f_class: 'Brute' }, updated: 1 }
         },
         items: {
             m_open: { id: 'm_open', type: 'map', meta: { title: 'Open Field', gridType: 'square' }, fog: { cell: 50 }, rooms: [], links: [], whiteboard: [
@@ -540,6 +541,7 @@ function mutations(tpl) {
             'lib-idx': { type: 'lib-idx', rid: 'r6', campId: 'c1', packId: 'p_core', page: 0 },
             'lib-get': { type: 'lib-get', rid: 'r7', campId: 'c1', packId: 'p_core', ids: ['i_rope'] },
             'char-effect': { type: 'char-effect', rid: 'r8', charId: 'c_p1', fieldId: 'f_fx', op: 'add', ref: 'e_ward', rowId: 'x_1' },
+            'char-style': { type: 'char-style', rid: 'r9', charId: 'c_p1', fieldId: 'f_class', look: { fmt: { b: true }, sig: win.wpLook.textSig('Ranger') } },   // item 35: the look of a text of their own sheet
             'throw-req': { type: 'throw-req', charId: 'c_p1', fieldId: 'f_inv', rowId: 'w_1', mapId: 'm_open', x: 200, y: 200 },
             'door-req': { type: 'door-req', mapId: 'm_open', itemId: 'door1' },
             'char-pic': { type: 'char-pic', rid: 'r9', charId: 'c_p1', face: 'default', img: 'data:image/png;base64,iVBORw0KGgo=' },
@@ -705,6 +707,7 @@ function mutations(tpl) {
         'char-item': o => Array.isArray(campH().chars.c_p1.values.f_inv) && campH().chars.c_p1.values.f_inv.length === 1 && o.p1.some(m => m.type === 'char-ack'),
         'lib-idx': o => o.p1.some(m => m.type === 'lib-idx-ans'),
         'char-effect': o => o.p1.some(m => m.type === 'char-ack') && Array.isArray(campH().chars.c_p1.values.f_fx) && campH().chars.c_p1.values.f_fx.length === 1,
+        'char-style': o => !!(campH().chars.c_p1.looks && campH().chars.c_p1.looks.f_class && campH().chars.c_p1.looks.f_class.fmt.b === true) && o.p1.some(m => m.type === 'charstyle-ack') && o.p1.some(m => m.type === 'charStyle') && !o.p2.some(m => m.type === 'charStyle'),
         'door-req': () => tokH('door1').doorOpen === true,
         'char-pic': o => rec.pics.length === 1 && o.p1.some(m => m.type === 'char-pic-ans' && m.ok === true),
         'char-make': o => o.p1.some(m => m.type === 'char-make-ans' && m.reason === 'have'),
@@ -926,6 +929,11 @@ function mutations(tpl) {
         const camp = stubs.getActiveCampaign(), out = sentLog.slice(sb);
         check('host: the GM-only field is neither rolled by name, nor edited, nor is another\'s character or the NPC', camp.chars.c_p1.values.f_gmfig === 7 && camp.chars.c_p2.values.f_str === 9 && camp.chars.c_npc.values.f_str === 16 && !out.some(s => s.m.type === 'roll' && /GMFig/.test(JSON.stringify(s.m.names || ''))) && out.filter(s => s.m.type === 'char-deny').length >= 3, { gmfig: camp.chars.c_p1.values.f_gmfig, p2: camp.chars.c_p2.values.f_str, npc: camp.chars.c_npc.values.f_str, out: out.map(s => s.m.type + (s.m.reason ? ':' + s.m.reason : '')) });
         check('host: nothing sent to any player carries the GM-only value, the hidden token or the GM note', !out.some(s => /"f_gmfig":(7|3|99)|tok_hidden|the orc lies|secret plan/.test(JSON.stringify(s.m))));
+        const sbL = sentLog.length, sigL = t => win.wpLook.textSig(t), lookL = t => ({ fmt: { b: true }, sig: sigL(t) }), clockL = clockOff; clockOff += 20000;
+        const styles = [['the GM-only text', { charId: 'c_p1', fieldId: 'f_gmword', look: lookL('the secret word') }], ['another player\'s character', { charId: 'c_p2', fieldId: 'f_class', look: lookL('Bard') }], ['the NPC', { charId: 'c_npc', fieldId: 'f_class', look: lookL('Brute') }], ['a number', { charId: 'c_p1', fieldId: 'f_str', look: lookL('14') }], ['other words', { charId: 'c_p1', fieldId: 'f_class', look: lookL('Wizard') }]];
+        for (let k = 0; k < styles.length; k++) { clockOff += 500; await fireHost('p1', 'char-style ' + styles[k][0], styles[k][0], Object.assign({ type: 'char-style', rid: 'gs' + k }, styles[k][1])); }
+        const outL = sentLog.slice(sbL), campL = stubs.getActiveCampaign();
+        check('host: a player\'s look reaches no text they may not edit, no character of another player and no NPC, a number takes none, and a look made for other words is no look: each is refused, nothing is kept, and the GM-only words are sent to nobody', ['c_p1', 'c_p2', 'c_npc'].every(id => campL.chars[id].looks === undefined) && outL.filter(s => s.m.type === 'charstyle-deny').length === styles.length && !outL.some(s => s.m.type === 'charStyle' || s.m.type === 'charstyle-ack') && !outL.some(s => /the secret word/.test(JSON.stringify(s.m))), { looks: ['c_p1', 'c_p2', 'c_npc'].map(id => campL.chars[id].looks), out: outL.map(s => s.m.type + (s.m.reason ? ':' + s.m.reason : '')) });
     }
     {   // the early proof and the gates: a stranger whose hello passes them is sent it; a removed id, an older version and a wrong password are not
         await resetWorld(); drainDialogs(); resetRec(); clockOff += 20000;
@@ -1011,6 +1019,7 @@ function mutations(tpl) {
 
     const ctpl = {
         'snapshot': snapshotForClient,
+        'charStyle': { type: 'charStyle', campId: 'c1', id: 'c_p1', looks: { f_class: { fmt: { b: true }, sig: win.wpLook.textSig('Ranger') }, f_gmword: { fmt: { b: true }, sig: win.wpLook.textSig('the secret word') } } }, 'charstyle-ack': { type: 'charstyle-ack', rid: 'x3' }, 'charstyle-deny': { type: 'charstyle-deny', rid: 'x4', reason: 'stale' },   // item 35: first, while the app still holds the host's copy of the character as the snapshot left it
         'item': { type: 'item', campId: 'c1', itemId: 'm_open', item: snapshotForClient.appState.campaigns.c1.items.m_open, ack: 1 },
         'item-fog': mfogForClient || { type: 'item', campId: 'c1', itemId: 'm_fog', item: { id: 'm_fog', type: 'map', meta: { title: 'Dark Cellar' }, fog: { on: true, cell: 50 }, whiteboard: [], rooms: [], links: [] } },   // the fogged map whole, as the host gave it when the player arrived there
         'item-doc': { type: 'item', campId: 'c1', itemId: 'd_notes', item: { id: 'd_notes', type: 'doc', meta: { title: 'Notes' }, blocks: [{ id: 'b1', type: 'p', text: CANARY }] } },
@@ -1087,6 +1096,7 @@ function mutations(tpl) {
         // 'auth' is answered before the snapshot only (checked there); after it the branch is inert by design
         'chars': () => campC().chars.c_p1.values.f_str === 15, 'char': () => campC().chars.c_p1.values.f_str === 16,
         'charDelta': () => campC().chars.c_p1.values.f_str === 17 && campC().chars.c_p1.values.f_gmfig === undefined,
+        'charStyle': () => !!campC().chars.c_p1.looks && Object.keys(campC().chars.c_p1.looks).join() === 'f_class' && campC().chars.c_p1.looks.f_class.fmt.b === true,
         'charGone': () => !campC().chars.c_p2, 'campName': () => campC().name === 'Renamed', 'clock': () => campC().clock && campC().clock.t === 3600,
         'fogDiff': () => !!tokC('m_fog', 'tok_new') && !tokC('m_fog', 'tok_far'), 'docStyle': () => campC().docStyle && campC().docStyle.font === 'serif',
         'turnRules': () => campC().turnRules.timers === 'owner', 'acts-left': () => cnet.actsLeft && cnet.actsLeft.c_p1 && cnet.actsLeft.c_p1.left.attack === 1,

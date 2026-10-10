@@ -1758,6 +1758,7 @@ function applySnapshot(msg) {
     });
     charSessionReset();
     Object.values(state.appState.campaigns || {}).forEach(function(cs) { if (cs && cs.chars && typeof cs.chars === 'object') Object.keys(cs.chars).forEach(function(id) { noteHostCopy(id, cs.chars[id].values); }); });   // Stage 6: the host's copy of every character, whole, from the start (a refusal goes back to it)
+    if (typeof noteHostLook === 'function') Object.values(state.appState.campaigns || {}).forEach(function(cs) { if (cs && cs.chars && typeof cs.chars === 'object') Object.keys(cs.chars).forEach(function(id) { if (cs.chars[id] && !cs.chars[id].partial) noteHostLook(id, cs.chars[id].looks); }); });   // item 35: and its looks
     net.stanceCamps = cleanStanceCamps(msg.stanceCamps);   // null from an older host: msg.stance governs every campaign
     net.targets = cleanTargets(msg.targets);
     net.combats = cleanCombats(msg.combats);
@@ -2802,7 +2803,7 @@ function charViewFor(charId, recipientId) {   // the copy one peer may hold, or 
     return withHoverLines(S.charFor(camp.chars[charId], view, recipientId, { lib: lib, items: items, full: camp.system }), camp.chars[charId], view, lib, items, camp.system);
 }
 net.dropPending = function(charId) { Object.keys(_charPending).forEach(function(rid) { if (_charPending[rid].charId === charId) { clearTimeout(_charPending[rid].timer); delete _charPending[rid]; } }); };   // a sheet that stopped being ours: its queued edits go
-function charSessionReset() { Object.keys(_charPending).forEach(function(k) { clearTimeout(_charPending[k].timer); }); _charPending = Object.create(null); _charSlowSaid = {}; _charHost = Object.create(null); _rowGrace = {}; _triedSaid = {}; if (charLimit) charLimit.reset(); }
+function charSessionReset() { Object.keys(_charPending).forEach(function(k) { clearTimeout(_charPending[k].timer); }); _charPending = Object.create(null); _charSlowSaid = {}; _charHost = Object.create(null); _rowGrace = {}; _triedSaid = {}; if (charLimit) charLimit.reset(); if (typeof styleReset === 'function') styleReset(); }
 // Stage 6: the GM alone hears when a player picks up, tries to remove or drops a bound or cursed item (a toast and the session log's Items)
 function itemNotice(ch, name, what) {
     var who = ch && ch.name ? ch.name : 'A character', nm = name || 'an item';
@@ -2892,6 +2893,85 @@ net.syncCharDelta = function(id, values) {   // changed values, filtered to what
     });
 };
 // [netcheck:chardelta-end]
+// [netcheck:charlook-start]
+// Item 35: the LOOK of a character's text value (bold, a colour, a link: systemcore applyStyle, lookcore.js) travels in messages of its own,
+// so that the edit path is as it always was. A player sends 'char-style' for a text of their own character. The host answers
+// 'charstyle-ack' or 'charstyle-deny' and tells each connection that holds the character whole with 'charStyle'. A look belongs to the very
+// text it was made for (its signature): a text changed by any other writer leaves a look that every reader drops.
+// _stylePending: a look sent and not yet answered, by request id (prototype-free, read by own key). _charHostLook: the looks the host last
+// said each of our characters has, which a refused or unanswered look goes back to. _styleKnown: this host has answered a look
+var styleLimit = null, _stylePending = Object.create(null), _charHostLook = Object.create(null), _styleKnown = false, _styleOldSaid = false;
+function styleOwn(o, k) { return !!o && typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k); }
+function styleReset() { Object.keys(_stylePending).forEach(function(k) { clearTimeout(_stylePending[k].timer); }); _stylePending = Object.create(null); _charHostLook = Object.create(null); _styleKnown = false; if (styleLimit) styleLimit.reset(); }
+function noteHostLook(id, looks) { if (typeof id !== 'string') return; if (looks && typeof looks === 'object') _charHostLook[id] = JSON.parse(JSON.stringify(looks)); else delete _charHostLook[id]; }
+function noteHostLooks(chars) { _charHostLook = Object.create(null); Object.keys(chars || {}).forEach(function(id) { var c = chars[id]; if (c && !c.partial) noteHostLook(id, c.looks); }); }
+function styleDropFor(charId) { Object.keys(_stylePending).forEach(function(rid) { if (_stylePending[rid].charId === charId) { clearTimeout(_stylePending[rid].timer); delete _stylePending[rid]; } }); }
+function styleGone(charId) { styleDropFor(charId); delete _charHostLook[charId]; }
+// A character's looks as they stand now on a player's app: what the host last said, then the looks still waiting for its answer in the order
+// they were sent, and of all those only what fits the text the app holds now (a text with a change of its own waiting has no look of the
+// host's). Run whenever the host's copy, a waiting change or a waiting look moves. A copy that is not ours to change holds no waiting look
+function styleLay(charId) {
+    var camp = getActiveCampaign(), S = SC(), c = camp && camp.chars && styleOwn(camp.chars, charId) ? camp.chars[charId] : null;
+    if (!c || c.partial || c.npc || !c.ownerId || c.ownerId !== net.myId) { styleDropFor(charId); return; }
+    if (styleOwn(_charHostLook, charId)) { var stands = S && camp.system ? S.cleanLooks(_charHostLook[charId], styleOwn(_charHost, charId) ? _charHost[charId] : {}, camp.system) : null; if (stands) _charHostLook[charId] = stands; else delete _charHostLook[charId]; }   // the host's word lives while the text the host holds is the text it was made for: after that it is gone for good, as it is on the host
+    var out = styleOwn(_charHostLook, charId) ? JSON.parse(JSON.stringify(_charHostLook[charId])) : {};
+    Object.keys(_stylePending).forEach(function(rid) { var p = _stylePending[rid]; if (p.charId !== charId) return; if (p.look) out[p.fieldId] = p.look; else delete out[p.fieldId]; });
+    var lk = S && camp.system ? S.cleanLooks(out, c.values || {}, camp.system) : null;
+    if (lk) c.looks = lk; else delete c.looks;
+}
+// The host's word on looks it changed: named, the fields the message names; got, those of them that are a look of the text the host last
+// said the field holds, cleaned. A field named with no such look has none. Field by field of the system on hand, never key by key of the message
+function styleTake(charId, named, got, sys) {
+    var hl = styleOwn(_charHostLook, charId) ? _charHostLook[charId] : (_charHostLook[charId] = {});
+    sys.fields.forEach(function(f) { if (!styleOwn(named, f.id)) return; if (styleOwn(got, f.id)) hl[f.id] = got[f.id]; else delete hl[f.id]; });
+    styleLay(charId);
+}
+// The answer to a look we sent (heard: the host said it; else our own clock or a send that failed). Kept: the host holds what was sent.
+// Refused or unanswered: back to what the host last said. An older Waypoint knows no looks and answers nothing: said once a session, and
+// only while this host has never answered one
+function styleDone(rid, ok, reason, heard) {
+    var p = styleOwn(_stylePending, rid) ? _stylePending[rid] : null; if (!p) return; clearTimeout(p.timer); delete _stylePending[rid];
+    if (heard === true) _styleKnown = true;
+    if (ok) { var hl = styleOwn(_charHostLook, p.charId) ? _charHostLook[p.charId] : (_charHostLook[p.charId] = {}); if (p.look) hl[p.fieldId] = JSON.parse(JSON.stringify(p.look)); else delete hl[p.fieldId]; }
+    styleLay(p.charId);
+    if (!ok && reason === 'timeout' && !_styleKnown) { if (!_styleOldSaid) { _styleOldSaid = true; toast('The GM\'s Waypoint did not answer. An older Waypoint keeps no text style on sheets.'); } }
+    else if (!ok && window.wpSheets && window.wpSheets.styleResult) window.wpSheets.styleResult(rid, false, reason);
+    if (window.wpSheets) window.wpSheets.charChanged(p.charId);
+}
+// Host: a character's changed looks, to each connection that holds the character WHOLE (its owner's). looks names the fields; what is sent is
+// the look as that connection's own copy holds it now, or null where it holds none: never a record as handed in
+net.syncCharStyle = function(id, looks) {
+    if (!net.active || net.role !== 'host' || !looks || typeof looks !== 'object') return;
+    var camp = getActiveCampaign(), S = SC(); if (!camp || !S || !window.wpSheets) return;
+    var src = camp.chars && styleOwn(camp.chars, id) ? camp.chars[id] : null; if (!src) return;
+    var view = window.wpSheets.playerSystem(camp); if (!view) return;
+    var libY = fxLib(camp.system), itY = itemLib(camp.system);
+    net.conns.forEach(function(c) {
+        if (!c.open || !net.roster[c.peer]) return;
+        var v = S.charFor(src, view, peerProfileId(c), { lib: libY, items: itY, full: camp.system }); if (!v || v.partial) return;
+        var sub = {}, any = false;
+        Object.keys(looks).forEach(function(f) { if (!styleOwn(v.values, f) || typeof v.values[f] !== 'string') return; sub[f] = v.looks && styleOwn(v.looks, f) ? v.looks[f] : null; any = true; });   // only beside a text this copy holds
+        if (any) { try { c.send({ type: 'charStyle', campId: camp.id, id: id, looks: sub }); } catch (e) { sendFailed(e); } }
+    });
+};
+// A player's look for a text of their own sheet: judged here by the host's own rule and laid over at once, then judged on the host; put
+// back on a refusal or silence. rec: a look record made for the text the sheet holds now, or null to take the look off
+net.charStyle = function(charId, fieldId, rec) {
+    var S = SC(), camp = getActiveCampaign();
+    if (!S || !camp || !net.active || net.role !== 'client' || net.stream) return { error: 'Not at a table.' };
+    if (!net.foreign || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return { error: 'Not at the table yet.' };
+    if (window.wpVtt && !window.wpVtt.on('sheets')) return { error: 'Character sheets are off here.' };
+    var c = camp.chars && styleOwn(camp.chars, charId) ? camp.chars[charId] : null; if (!c || c.partial || c.npc || !c.ownerId || c.ownerId !== net.myId) return { error: 'That character is not yours.' };
+    if (!camp.system) return { error: 'No system at this table.' };
+    var res = S.applyStyle(camp.system, c, fieldId, rec, window.wpFormula, { player: true });
+    if (!res.ok) return { error: res.reason === 'stale' ? 'That text changed. Its look was not kept.' : res.reason === 'style' ? 'That look cannot be kept here.' : 'That text cannot be styled.' };
+    var rid = 'y' + Math.random().toString(36).slice(2, 10);
+    _stylePending[rid] = { charId: charId, fieldId: fieldId, look: res.look, timer: setTimeout(function() { styleDone(rid, false, 'timeout'); }, S.LIMITS.editTimeoutMs) };
+    styleLay(charId);
+    try { net.conns[0].send({ type: 'char-style', rid: rid, charId: charId, fieldId: fieldId, look: res.look }); } catch (e) { styleDone(rid, false, 'value'); return { error: 'Could not reach the GM.' }; }
+    return { ok: true, pending: true };
+};
+// [netcheck:charlook-end]
 net.syncCharGone = function(id, only) { if (!net.active || net.role !== 'host') return; var camp = getActiveCampaign(); if (!camp) return; net.conns.forEach(function(c) { if (c.open && net.roster[c.peer] && (!only || peerProfileId(c) === only)) { try { c.send({ type: 'charGone', campId: camp.id, id: id }); } catch (e) { sendFailed(e); } } }); };   // only (Onboarding F3): one player's (a character in the making went)
 // Onboarding F3: a character's copy to its owner alone (each connection of theirs) — a character in the making is theirs only
 function sendCharTo(pid, id) {
@@ -3100,6 +3180,7 @@ function reapplyPending(charId) {
         }
         if (p.batch) p.batch.forEach(function(q) { c.values[q.fieldId] = q.value; }); else c.values[p.fieldId] = p.value;   // HF4b: every value of a batch still waiting
     });
+    if (typeof styleLay === 'function') styleLay(charId);   // item 35: the looks follow the text they belong to
 }
 function noteHostCopy(id, values) { _charHost[id] = JSON.parse(JSON.stringify(values || {})); }   // Stage 6: what the host last said this character holds
 // [netcheck:pending-end]
@@ -5666,6 +5747,22 @@ function handleMessage(msg, conn) {
         var campD = getActiveCampaign(), chD = campD && campD.chars && typeof msg.charId === 'string' && Object.prototype.hasOwnProperty.call(campD.chars, msg.charId) ? campD.chars[msg.charId] : null;
         var dn = typeof msg.done === 'number' && isFinite(msg.done) ? Math.max(0, msg.done | 0) : 0, ofN = typeof msg.of === 'number' && isFinite(msg.of) ? Math.max(0, msg.of | 0) : 0;
         toast(dn ? 'The GM applied ' + dn + ' of ' + ofN + ' changes from your sheet' + (chD ? ' to ' + chD.name : '') + '.' : 'The GM kept ' + (chD ? chD.name + ' as it was' : 'your character as it was') + ' (' + ofN + (ofN === 1 ? ' change' : ' changes') + ' not taken).');
+    } else if ((msg.type === 'charStyle' || msg.type === 'charstyle-ack' || msg.type === 'charstyle-deny') && net.role === 'client') {
+        // [netcheck:charstylein-start]
+        // looks from the synced host only (item 35), under the guards of a character's values. Each record is cleaned again here, against
+        // the text the host last said the field holds and by this app's own rule for the field; a look still waiting for the host's answer
+        // is never taken off by an older word of the host's
+        if (!net.foreign || conn.peer !== net.syncedPeer || net.stream || !window.wpSystemCore) return;
+        var SY = window.wpSystemCore;
+        if (msg.type !== 'charStyle') { if (typeof msg.rid !== 'string' || !Object.prototype.hasOwnProperty.call(_stylePending, msg.rid)) return; styleDone(msg.rid, msg.type === 'charstyle-ack', SY.cleanDenyReason(msg.reason), true); return; }
+        if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId) return;
+        var campL = campOf(msg.campId); if (!campL || !campL.system || !campL.chars) return;   // the system always comes first
+        if (typeof msg.id !== 'string' || !Object.prototype.hasOwnProperty.call(campL.chars, msg.id) || !campL.chars[msg.id] || !msg.looks || typeof msg.looks !== 'object' || Array.isArray(msg.looks)) return;   // own ids only
+        var tgL = campL.chars[msg.id]; if (tgL.partial || tgL.npc || !tgL.ownerId || tgL.ownerId !== net.myId) return;   // looks go with a whole copy of our own
+        var hbL = Object.prototype.hasOwnProperty.call(_charHost, msg.id) ? _charHost[msg.id] : {};
+        styleTake(msg.id, msg.looks, SY.cleanLooks(msg.looks, hbL, campL.system) || {}, campL.system);
+        if (window.wpSheets) window.wpSheets.charChanged(msg.id);
+        // [netcheck:charstylein-end]
     } else if ((msg.type === 'chars' || msg.type === 'char' || msg.type === 'charDelta' || msg.type === 'charGone' || msg.type === 'char-ack' || msg.type === 'char-deny') && net.role === 'client') {
         // [netcheck:charin-start]
         // characters from the synced host only (character sheets, 1.5.0): copies are replaced, never merged; every value re-cleaned against the system on hand
@@ -5680,6 +5777,7 @@ function handleMessage(msg, conn) {
             var outC = {};
             if (msg.chars && typeof msg.chars === 'object') Object.keys(msg.chars).forEach(function(id) { var cc = SC2.cleanChar(msg.chars[id], sysC, { state: 'owner' }); if (cc && cc.id === id) { cc.partial = msg.chars[id].partial === true; outC[id] = cc; } });
             _charHost = Object.create(null); Object.keys(outC).forEach(function(id) { noteHostCopy(id, outC[id].values); });
+            if (typeof noteHostLooks === 'function') noteHostLooks(outC);   // item 35: and the looks the host says they have
             Object.keys(outC).forEach(function(id) { if (outC[id].partial || outC[id].ownerId !== net.myId) dropP(id); });   // no longer ours: queued edits go, never laid over a teammate copy
             campC.chars = outC; Object.keys(outC).forEach(reapplyPending);
             if (window.wpSheets) window.wpSheets.charChanged(null);
@@ -5688,12 +5786,12 @@ function handleMessage(msg, conn) {
         campC.chars = campC.chars || {};
         if (msg.type === 'charGone') {
             if (typeof msg.id !== 'string' || !Object.prototype.hasOwnProperty.call(campC.chars, msg.id) || !campC.chars[msg.id]) return;   // own ids only: a host naming '__proto__' reaches no prototype
-            delete campC.chars[msg.id]; delete _charHost[msg.id];
+            delete campC.chars[msg.id]; delete _charHost[msg.id]; if (typeof styleGone === 'function') styleGone(msg.id);
             Object.keys(_charPending).forEach(function(rid) { if (_charPending[rid].charId === msg.id) { clearTimeout(_charPending[rid].timer); delete _charPending[rid]; } });
             if (window.wpSheets) window.wpSheets.charGone(msg.id);
             return;
         }
-        if (msg.type === 'char') { var c1 = SC2.cleanChar(msg.char, sysC, { state: 'owner' }); if (!c1) return; c1.partial = !!(msg.char && msg.char.partial === true); if (c1.partial || c1.ownerId !== net.myId) dropP(c1.id); campC.chars[c1.id] = c1; noteHostCopy(c1.id, c1.values); reapplyPending(c1.id); if (window.wpSheets) window.wpSheets.charChanged(c1.id); return; }
+        if (msg.type === 'char') { var c1 = SC2.cleanChar(msg.char, sysC, { state: 'owner' }); if (!c1) return; c1.partial = !!(msg.char && msg.char.partial === true); if (typeof noteHostLook === 'function') noteHostLook(c1.id, c1.partial ? null : c1.looks); if (c1.partial || c1.ownerId !== net.myId) dropP(c1.id); campC.chars[c1.id] = c1; noteHostCopy(c1.id, c1.values); reapplyPending(c1.id); if (window.wpSheets) window.wpSheets.charChanged(c1.id); return; }
         if (typeof msg.id !== 'string' || !Object.prototype.hasOwnProperty.call(campC.chars, msg.id) || !campC.chars[msg.id] || !msg.values || typeof msg.values !== 'object') return;   // own ids only: a delta for '__proto__' would write onto every object's prototype
         var tgt = campC.chars[msg.id], hb = Object.prototype.hasOwnProperty.call(_charHost, msg.id) ? _charHost[msg.id] : null; tgt.values = tgt.values || {};   // a delta updates a whole host copy, never starts a partial one
         Object.keys(msg.values).forEach(function(fid) { var f = SC2.fieldById(sysC, fid); if (!f) return; if (msg.values[fid] === null) { delete tgt.values[fid]; if (hb) delete hb[fid]; return; } var v = SC2.cleanValue(f, msg.values[fid], SC2.valueOpts(sysC)); if (v !== undefined) { tgt.values[fid] = v; if (hb) hb[fid] = JSON.parse(JSON.stringify(v)); } });
@@ -5701,6 +5799,32 @@ function handleMessage(msg, conn) {
         reapplyPending(msg.id);
         if (window.wpSheets) window.wpSheets.charChanged(msg.id);
         // [netcheck:charin-end]
+    } else if (msg.type === 'char-style' && net.role === 'host') {
+        // [netcheck:charstyle-start]
+        // a player's look for a text of their own character (item 35): char-edit's gates in char-edit's order, with a limiter of its own.
+        // Only the ids' shape is judged before the limiter; the record is judged by applyStyle (the field's rights, as for an edit of the
+        // text, then the record against the text the host holds). Every refusal past the ids' shape is answered
+        var Sy = SC(), Fy = window.wpFormula; if (!Sy || !Fy) return;
+        var qy = Sy.cleanCharStyle(msg); if (!qy) return;
+        var denyY = function(reason) { try { conn.send({ type: 'charstyle-deny', rid: qy.rid, reason: reason }); } catch (e) { sendFailed(e); } };
+        if (net.paused || peerPaused(conn.peer)) { denyY('paused'); return; }   // frozen table (or this player is paused): no looks either
+        if (!styleLimit && window.wpDiceCore) styleLimit = window.wpDiceCore.RateLimit({ perMs: 100, burst: Sy.LIMITS.editsPerWindow, windowMs: Sy.LIMITS.editWindowMs, table: 400 });
+        var limY = styleLimit ? styleLimit.allow(conn.peer, Date.now()) : true;
+        if (limY !== true) { var skY = conn.peer + '|style'; if (!_charSlowSaid[skY] || Date.now() - _charSlowSaid[skY] > Sy.LIMITS.editWindowMs) { _charSlowSaid[skY] = Date.now(); denyY('slow'); } return; }
+        if (window.wpVtt && !window.wpVtt.on('sheets')) { denyY('off'); return; }
+        var campY = getActiveCampaign(), chY = (campY && campY.chars && Object.prototype.hasOwnProperty.call(campY.chars, qy.charId) ? campY.chars[qy.charId] : null);
+        if (!campY || !campY.system || !chY) { denyY('missing'); return; }
+        var profY = net.roster[conn.peer]; if (chY.npc || !chY.ownerId || !profY || chY.ownerId !== profY.id) { denyY('owner'); return; }
+        var resY = Sy.applyStyle(campY.system, chY, qy.fieldId, qy.look, Fy, { player: true });
+        if (!resY.ok) { denyY(resY.reason); return; }
+        if (resY.look) { if (!chY.looks || typeof chY.looks !== 'object') chY.looks = {}; chY.looks[qy.fieldId] = resY.look; }
+        else if (chY.looks && typeof chY.looks === 'object') { delete chY.looks[qy.fieldId]; if (!Object.keys(chY.looks).length) delete chY.looks; }
+        chY.updated = Date.now();
+        saveRemoteSoon();
+        try { conn.send({ type: 'charstyle-ack', rid: qy.rid }); } catch (e) { sendFailed(e); }
+        var dY = {}; dY[qy.fieldId] = resY.look; net.syncCharStyle(qy.charId, dY);
+        if (window.wpSheets) window.wpSheets.charChanged(qy.charId);
+        // [netcheck:charstyle-end]
     } else if (msg.type === 'char-edit' && net.role === 'host') {
         // [netcheck:charedit-start]
         // a player's value for their own character: shape, rate, feature, ownership, then the field's own rules; every refusal answered

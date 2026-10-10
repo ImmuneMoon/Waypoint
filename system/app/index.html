@@ -538,6 +538,13 @@
                                   <li>On a square or hex grid a turn&rsquo;s <b>Move per turn</b> counts each difficult cell a move steps into at its cost. A ruler whose line crosses difficult terrain shows what that move costs, as <b>Move cost</b>, under its length. Tokens are never stopped by it outright, and a hidden piece counts for no one.</li>
                               </ul>
                           </li>
+                          <li><b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 5.5h9v7h-9zM3 12.5h9v7H3zM12 12.5h9v7h-9z"/></svg> Build</b> is the GM&rsquo;s tool for making a map. Pick a material and a shape, then click a cell or drag an area. Each piece is an ordinary item you can move, resize, recolor or delete. Build stays in hand until <kbd>Esc</kbd> or another tool.
+                              <ul>
+                                  <li>A <b>Wall</b> blocks sight and gives cover. A <b>Door</b> is a wall that opens. <b>Water</b> is difficult terrain, and <b>Rubble</b> gives cover. Change any of it in a piece&rsquo;s Properties.</li>
+                                  <li>A <b>Polygon</b> takes a click at each corner and closes on the first, or with <kbd>Enter</kbd>. A <b>Corridor</b> is a strip one or two cells wide. A <b>Wall line</b> is drawn along the grid lines, and the line is the wall.</li>
+                                  <li>On a square grid a piece lands on the cells. On a hex grid it is laid one hexagon a cell, at most 400 in a drag. Laid over a plain piece of the same shape, it changes that piece.</li>
+                              </ul>
+                          </li>
                           <li><b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM12 10.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3"/></svg> Center</b> menu: jump to the canvas center, to all items, <b>Fit to Content</b> or <b>Center on Character</b>. Fit to Content, also <kbd>Shift</kbd>+<kbd>1</kbd>, zooms and pans so that everything, or just the selection, fits the screen. Center on Character goes to your own token in multiplayer, or to the selected one as GM.</li>
                           <li>Drop a <b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M13.5 2L5 13.5h6L10 22l9-12h-6.2L13.5 2z"/></svg> Trigger Zone</b> and give it an Event Message. It fires when a character token is dragged inside. The button picks a shape to fit the grid: a hex on hex maps, a square on square grids. Change it at any time under <b>Trigger Shape</b>.</li>
                           <li>Any item can be a <b>portal</b>: Properties &rarr; <b>Portal to Map</b>. On a nested map the parent is offered first, as &#11014; Back to&hellip;, so a way home takes one click and needs no node.</li>
@@ -1450,7 +1457,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                       </ul>
                       <h4>Coming</h4>
                       <ul>
-                          <li><b>The map builder.</b> Build a map inside Waypoint, where today you bring a picture of one.</li>
+                          <li><b>The map builder.</b> Its first tool, Build, lays floors, walls, doors and water on the grid today. A dungeon made for you, walls around a selection and your own pictures as fills are yet to be built.</li>
                           <li><b>Text style in more places.</b> Bold, colour and size on the notes of a row on a character sheet. Planners, pages, text on maps, character sheets, Journal notes and the table notepad have it today.</li>
                           <li><b>Friends and direct invites.</b> Keep the people you play with at hand, and invite them to your table directly.</li>
                           <li><b>The website and cloud saves.</b> A website for Waypoint, and a campaign kept online so that it is not tied to one computer.</li>
@@ -2308,6 +2315,50 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                   <button class="wb-tool-btn menu-row" id="addImageBtn" title="Add Image"><span class="mr-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18v14H3zM7.5 8.5a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6zM3.5 17l5-5 3.5 3.5 3-3 5.5 5.5"/></svg></span><span class="mr-txt">Image<small>A picture from this computer.</small></span></button>
                   <button class="wb-tool-btn menu-row" id="imgLibBtn" title="Image Library &mdash; this campaign's pictures, the shared ones, and every campaign's"><span class="mr-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h15v11H3zM6 8V5h15v11h-3M3.5 17l4-4 3 3 2.5-2.5 4.5 4.5"/></svg></span><span class="mr-txt">Image Library<small>This campaign&rsquo;s pictures and the shared ones.</small></span></button>
                   <button class="wb-tool-btn menu-row" id="importCharBtn" title="Import Character &mdash; drop a shadow-base.com character JSON as a ready token"><span class="mr-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zM2.5 20v-1.5A4.5 4.5 0 0 1 7 14h4a4.5 4.5 0 0 1 4.5 4.5V20M19 5v8M15.8 9.8L19 13l3.2-3.2"/></svg></span><span class="mr-txt">Import Character<small>A character file as a ready token.</small></span></button>
+              </div>
+          </div>
+          <div style="position:relative;" class="tool-pair gm-only">
+              <button class="wb-tool-btn" id="buildModeBtn" title="Build. Lay floors, walls, doors, water and more on the grid as textured pieces. Click a cell or drag an area. Press again to put it away."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 5.5h9v7h-9zM3 12.5h9v7H3zM12 12.5h9v7h-9z"/></svg></button><button class="wb-tool-btn tool-chev" id="buildOptBtn" title="Build options" aria-haspopup="true"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9.5l6 6 6-6"/></svg></button>
+              <div class="shape-menu menu-list" id="buildMenu">
+                  <div class="draw-menu-label">Material</div>
+                  <div class="build-mats" id="buildMatRows"></div>
+                  <div class="menu-rule"></div>
+                  <div class="menu-block">
+                      <div class="draw-menu-label">Shape</div>
+                      <div class="draw-menu-row build-shapes" id="buildShapeRow">
+                          <button class="draw-style-btn build-shape-btn" data-buildshape="rect" title="Whole cells. Click for one cell, drag for an area."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v12H3z"/></svg> Rectangle</button>
+                          <button class="draw-style-btn build-shape-btn" data-buildshape="circle" title="A circle fitted to whole cells. Click for one cell, drag for an area."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16z"/></svg> Circle</button>
+                          <button class="draw-style-btn build-shape-btn" data-buildshape="poly" title="Click each corner on the grid. Click the first corner again, or press Enter, to close the shape."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l8.5 6.2-3.2 10.3H6.7L3.5 9.7z"/></svg> Polygon</button>
+                          <button class="draw-style-btn build-shape-btn" data-buildshape="corridor" title="A straight strip of whole cells, one or two wide. Drag along it."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h18M3 15h18"/></svg> Corridor</button>
+                          <button class="draw-style-btn build-shape-btn" data-buildshape="line" title="A thin wall or door drawn along the grid lines. It blocks sight as the line itself."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 18.5V8.5h13M3.5 18.5h4M18.5 6.5v4"/></svg> Wall line</button>
+                      </div>
+                      <div class="build-line" id="buildShapeLine"></div>
+                  </div>
+                  <div class="menu-rule"></div>
+                  <div class="menu-block">
+                      <div class="draw-menu-label">Texture</div>
+                      <div class="draw-menu-row"><select id="buildTexture" style="flex:1; font-size:11px;" title="The pattern drawn over the piece's color. Plain color: no pattern."></select></div>
+                      <div class="draw-menu-label">Color</div>
+                      <div class="draw-menu-row" id="buildColorRow">
+                          <button class="draw-swatch build-sw" data-color="#5a5663" title="Stone grey" style="background:#5a5663;"></button>
+                          <button class="draw-swatch build-sw" data-color="#3f3b47" title="Dark stone" style="background:#3f3b47;"></button>
+                          <button class="draw-swatch build-sw" data-color="#6b4a2a" title="Dark wood" style="background:#6b4a2a;"></button>
+                          <button class="draw-swatch build-sw" data-color="#7a5634" title="Wood" style="background:#7a5634;"></button>
+                          <button class="draw-swatch build-sw" data-color="#2e5d86" title="Water blue" style="background:#2e5d86;"></button>
+                          <button class="draw-swatch build-sw" data-color="#55505c" title="Rubble grey" style="background:#55505c;"></button>
+                          <button class="draw-swatch build-sw" data-color="#4b6b36" title="Grass green" style="background:#4b6b36;"></button>
+                          <label class="draw-swatch custom" title="Custom Color"><input type="color" id="buildColorInput" value="#5a5663"></label>
+                      </div>
+                      <div class="draw-menu-row" id="buildTerrainRow" hidden>
+                          <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--dim); cursor:pointer;" title="On: tokens pay this many times as much to move into the piece. Off: the piece costs nothing extra."><input type="checkbox" id="buildTerrainChk"> Difficult terrain &times;</label>
+                          <input type="number" id="buildTerrainCost" min="2" max="10" step="1" value="2" disabled style="width:44px; font-size:11px;" title="What moving into the piece costs: this many times as much (2 to 10)">
+                      </div>
+                      <div class="draw-menu-row" id="buildCorridorRow" hidden>
+                          <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--dim);" title="How many cells wide a corridor is">Width <select id="buildCorridorW" style="font-size:11px;"><option value="1">1 cell</option><option value="2">2 cells</option></select></label>
+                      </div>
+                  </div>
+                  <div class="menu-rule"></div>
+                  <div class="build-line" id="buildHint">Building stays in hand until you press Esc or take another tool.</div>
               </div>
           </div>
           <div class="wb-tool-sep"></div>

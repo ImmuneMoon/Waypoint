@@ -549,6 +549,16 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   };
   // [systemcheck:snaprule-end]
 
+  // The map builder (fold B1c): a Wall line is drawn with the pen under the Build tool's preset (window.wpPenPreset). Its points always ride
+  // the lattice, a hex grid's corners or a square grid's crossings, whatever Snap says, so the stroke walks cell edges exactly as the snapped
+  // pen does (the thin wall of item 18). With no grid, as Snap says
+  function snapLattice(x, y) {
+      if (state.gridType === 'hex') { var ph = snapToHex(x, y, 30, 'vertex'); return { x: ph.x, y: ph.y }; }
+      if (state.gridType === 'square') return { x: Math.round(x / 50) * 50, y: Math.round(y / 50) * 50 };
+      return getSnapCoords(x, y);
+  }
+  function penSnap(x, y) { return window.wpPenPreset ? snapLattice(x, y) : getSnapCoords(x, y); }
+  function penSnapOn() { return !!(state.snap || window.wpPenPreset); }
   // [buildcheck:texseat-start]
   // The map builder (fold B1): a textured piece's tile stays seated on the board's lattice while the piece moves. A box shape's background
   // position, or a filled region's svg pattern (its x and y in tile units: the next full redraw builds it again from the item). Nothing for
@@ -1247,7 +1257,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
               var mouseY = (e.clientY - wrapBox.top + wrapEl.scrollTop) / state.zoomLevel;
 
-              var snapped = getSnapCoords(mouseX, mouseY);
+              var snapped = penSnap(mouseX, mouseY);
 
               mouseX = snapped.x; mouseY = snapped.y;
 
@@ -1307,11 +1317,11 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
               var rawX = mouseX, rawY = mouseY;
 
-              var snapped = getSnapCoords(mouseX, mouseY);
+              var snapped = penSnap(mouseX, mouseY);
 
               mouseX = snapped.x; mouseY = snapped.y;
 
-              if (typeof state !== 'undefined' && state.snap) {
+              if (typeof state !== 'undefined' && penSnapOn()) {
 
                   if (drawPoints.length > 0 && drawPoints[drawPoints.length-1][0] === mouseX && drawPoints[drawPoints.length-1][1] === mouseY) {
 
@@ -1338,7 +1348,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                   // straight segment between them cuts through cells. Walk from the
                   // last vertex to the new one along grid edges (greedy neighbor that
                   // closes on the target), adding every vertex on the way.
-                  if (state.snap && state.gridType && state.gridType !== 'off' && drawPoints.length) {
+                  if (penSnapOn() && state.gridType && state.gridType !== 'off' && drawPoints.length) {
                       var lastP = drawPoints[drawPoints.length - 1];
                       var cur = [lastP[0], lastP[1]];
                       var guard = 0;
@@ -1397,9 +1407,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
 
               var normPts = drawPoints.map(function(p){ return [p[0] - drawMinX, p[1] - drawMinY]; });
-              var _dcol = state.drawColor || 'var(--ink)';
-              var _dw = state.drawStrokeWidth || 3;
-              var _sp = window.wpBuildStrokePath ? window.wpBuildStrokePath(normPts, state.drawTip, _dw) : null;
+              var _PPd = window.wpPenPreset, _dtip = _PPd ? _PPd.tip : state.drawTip;   // the map builder: a Wall line previews as it will land
+              var _dcol = _PPd ? _PPd.color : (state.drawColor || 'var(--ink)');
+              var _dw = _PPd ? _PPd.strokeWidth : (state.drawStrokeWidth || 3);
+              var _sp = window.wpBuildStrokePath ? window.wpBuildStrokePath(normPts, _dtip, _dw) : null;
               var _inner;
               if (_sp && _sp.fill) {
                   _inner = '<path fill="' + _dcol + '" stroke="none" d="' + _sp.d + '" />';
@@ -1407,7 +1418,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                   _inner = '<path fill="none" stroke="' + _dcol + '" stroke-width="' + _sp.width + '" stroke-linecap="' + _sp.linecap + '" stroke-linejoin="' + _sp.linejoin + '" d="' + _sp.d + '" />';
               } else {
                   var pathD = 'M ' + normPts.map(function(p){ return p[0] + ' ' + p[1]; }).join(' L ');
-                  _inner = '<path fill="none" stroke="' + _dcol + '" stroke-width="' + _dw + '" stroke-linecap="' + (state.drawTip === 'square' ? 'square' : 'round') + '" stroke-linejoin="' + (state.drawTip === 'square' ? 'miter' : 'round') + '" d="' + pathD + '" />';
+                  _inner = '<path fill="none" stroke="' + _dcol + '" stroke-width="' + _dw + '" stroke-linecap="' + (_dtip === 'square' ? 'square' : 'round') + '" stroke-linejoin="' + (_dtip === 'square' ? 'miter' : 'round') + '" d="' + pathD + '" />';
               }
               currentDrawItem.innerHTML = '<svg width="100%" height="100%" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none" style="overflow:visible;">' + _inner + '</svg>';
 
@@ -1537,6 +1548,15 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                   // a player's drawing: signed with their id so the host accepts it and only they (or the GM) can erase it
                   item.ownerId = window.wpNet.myId; item.byPlayer = true;
               }
+              // [buildcheck:penpreset-start]
+              // The map builder (fold B1c): a Wall line. The GM's stroke takes the Build tool's preset (its width, square tip, colour, layer and name,
+              // and blocks sight as a wall or a door) on the machine that owns the campaign only. A player's stroke never does, whatever their window holds
+              var PPw = window.wpPenPreset;
+              if (PPw && !item.byPlayer && window.wpCanPersistLocal && window.wpCanPersistLocal()) {
+                  item.strokeWidth = PPw.strokeWidth; item.tip = PPw.tip; item.color = PPw.color; item.layer = PPw.layer; item.name = PPw.name;
+                  if (PPw.blocksSight === true) { item.blocksSight = true; item.sightType = PPw.sightType === 'door' ? 'door' : 'wall'; }
+              }
+              // [buildcheck:penpreset-end]
               getActiveMap().whiteboard.push(item);
 
               currentDrawItem.remove();
@@ -1544,6 +1564,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               currentDrawItem = null;
 
               save(!!(window.wpNet && window.wpNet.active && window.wpNet.role === 'client')); render();   // fold M8: a player's stroke goes to the host at once
+              if (item.blocksSight && window.wpFog && window.wpFog.invalidateVision) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }   // the map builder: a wall line blocks at once
 
           }
 

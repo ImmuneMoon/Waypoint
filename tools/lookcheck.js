@@ -29,7 +29,7 @@ const sliceOf = (src, name) => { const A = '// [lookcheck:' + name + '-start]', 
 // panes' grips, the minimap). A new control is added to this list when it is built; none is ever taken off it without the owner's word.
 const INVENTORY = ['wbFloatingToolbar', 'wbCenterBtn', 'wbCenterMenu', 'wbCenterCanvasBtn', 'wbCenterItemsBtn', 'wbCenterCharBtn', 'wbFitBtn', 'wbUndoBtn', 'wbRedoBtn', 'wbGridBtn', 'gridMenu', 'gridOffBtn', 'gridSqBtn', 'gridHexBtn',
     'gridOpacityBtn', 'wbSnapBtn', 'snapMenu', 'snapOffBtn', 'moveModeBtn', 'panModeBtn', 'drawModeBtn', 'drawColorIndicator', 'drawMenu', 'drawStyleRow', 'drawTipRow', 'drawColorRow', 'drawColorInput', 'drawSizeRow', 'drawOpacityVal',
-    'drawOpacity', 'eraserModeBtn', 'eraserMenu', 'eraserSizeVal', 'eraserSize', 'fillModeBtn', 'fillColorIndicator', 'fillMenu', 'fillColorRow', 'fillColorInput', 'fillFloodChk', 'fillTerrainChk', 'fillTerrainCost', 'fillTexture', 'measureModeBtn',
+    'drawOpacity', 'eraserModeBtn', 'eraserMenu', 'eraserSizeVal', 'eraserSize', 'fillModeBtn', 'fillColorIndicator', 'fillMenu', 'fillColorRow', 'fillColorInput', 'fillFloodChk', 'fillTerrainChk', 'fillTerrainCost', 'fillTexture', 'buildModeBtn', 'buildMenu', 'buildMatRows', 'buildShapeRow', 'buildShapeLine', 'buildTexture', 'buildColorRow', 'buildColorInput', 'buildTerrainRow', 'buildTerrainChk', 'buildTerrainCost', 'buildCorridorRow', 'buildCorridorW', 'buildHint', 'measureModeBtn',
     'measureMenu', 'measureUnitRow', 'measureCellValue', 'measureCellUnit', 'measureClearBtn', 'blastModeBtn', 'blastMenu', 'blastFt', 'blastElevRow', 'blastElevUnit', 'blastElev', 'blastFlatNote', 'blastWhich', 'blastClearBtn',
     'blastUndoThrow', 'fogModeBtn', 'fogMenu', 'fogOn', 'fogHideMine', 'fogOnAllMaps', 'fogOnDefault', 'fogEmptyScope', 'fogLightRow', 'fogLight', 'fogLightPlace', 'fogGridlessRow', 'fogCellLen', 'fogSightFieldRow', 'fogSightField',
     'fogSightSecret', 'fogSight', 'fogSightUnit', 'fogSensesRow', 'fogSensesText', 'fogSensesEdit', 'fogMarksRow', 'fogMarksMode', 'fogVision', 'fogVisionArcRow', 'fogVisionArc', 'fogVisionDefault', 'fogRemember', 'fogStrokeRow',
@@ -52,7 +52,7 @@ const INVENTORY = ['wbFloatingToolbar', 'wbCenterBtn', 'wbCenterMenu', 'wbCenter
     // built with the fog menu's groups (2026-10-06): its three folds, each a button and the part it shows
     'fogFoldLight', 'fogLightVision', 'fogFoldPreview', 'fogPreviewBox', 'fogFoldCamp', 'fogCampBox'];
 // The choices inside the menus that have no id: found by the attribute their handler reads
-const ROWS = { mode: ['grid', 'items', 'both'], straight: ['false', 'true'], tip: ['round', 'square', 'flat'], size: ['2', '3', '6', '10', '16'], emode: ['precise', 'segment'], unit: ['imperial', 'metric'],
+const ROWS = { buildshape: ['rect', 'circle', 'poly', 'corridor', 'line'], mode: ['grid', 'items', 'both'], straight: ['false', 'true'], tip: ['round', 'square', 'flat'], size: ['2', '3', '6', '10', '16'], emode: ['precise', 'segment'], unit: ['imperial', 'metric'],
     fgrid: ['square', 'hex'], fbrush: ['reveal', 'hide', 'clear'], fstroke: ['1', '3', '5', 'box', 'piece'], shapesize: ['free', 'cell'], as: ['r', 'd'], shape: ['circle', 'ring', 'cone', 'tok'] };
 const SWATCHES = ['#e9e9f0', '#1a1a1a', '#d9534f', '#e0a54f', '#5cb87a', '#4db3d3', '#b98cff'];
 // The top bar's controls, held from now on for the part that follows the toolbar (the slim row): Import and Export among them, of which the
@@ -67,7 +67,7 @@ const board = (() => { const a = ix.indexOf('<div id="wbFloatingToolbar"'), z = 
     const idN = id => count(ix, ' id="' + id + '"'), ALL = INVENTORY.concat(HEADER, SETTINGS);
     const gone = ALL.filter(id => idN(id) !== 1).map(id => id + ' x' + idN(id)), out = INVENTORY.filter(id => count(board, ' id="' + id + '"') !== 1);
     check('nothing is removed (the owner: "lets not remove functionality with these updates, that critical."): each of the ' + INVENTORY.length + ' controls of the play map\'s toolbar, its menus and what stands around the map is in the page exactly once and still around the map, and so is each of the ' + HEADER.length + ' of the top bar with Import and every kind of Export, and each of the ' + SETTINGS.length + ' of the three switches in Settings',
-        board.length > 1000 && gone.length === 0 && out.length === 0 && INVENTORY.length === 185 && HEADER.length === 54 && SETTINGS.length === 6 && new Set(ALL).size === 245, J([gone, out]));
+        board.length > 1000 && gone.length === 0 && out.length === 0 && INVENTORY.length === 199 && HEADER.length === 54 && SETTINGS.length === 6 && new Set(ALL).size === 259, J([gone, out]));
     const rowsBad = Object.keys(ROWS).filter(k => J((board.match(new RegExp('<button[^>]* data-' + k + '="([^"]*)"', 'g')) || []).map(m => m.slice(m.lastIndexOf('="') + 2, -1))) !== J(ROWS[k]));
     const sw = (board.match(/<button class="draw-swatch" data-color="(#[0-9a-f]{6})"/g) || []).map(m => m.slice(-8, -1));
     check('nothing is removed, the choices inside the menus: Snap\'s three modes, the pen\'s two styles, three tips and five sizes, the eraser\'s two modes, the two measuring systems, the fog\'s two gridless grids, three brushes and five strokes, the two shape sizes, the Radius tool\'s three shapes and a circle\'s two readings, each in its order, and the seven colours of the pen and of the fill with a custom colour for each',
@@ -89,7 +89,7 @@ const MENU = ['id="gridSqBtn"', 'id="gridHexBtn"', 'id="gridOpacityBtn"', 'data-
     'id="importCharBtn"'];
 const SET_HASH = '437749cba37b0bb31c8701fc9cf74f7d7b60473b8b4c04d29d211839ab7b0d75';   // the set as the owner passed it on the icon sheet, 2026-10-06, with the Radius drawing they passed on the radius sheet the same day where the burst stood, and with Add's plus, Clear board's bin, Sound's speaker and Music's note as they passed them redrawn on the top bar's sheet, 2026-10-07
 // The buttons that stand on the bar and in the column today: an icon alone. Clear board is a row of More's menu now, an icon and its name
-const BAR = ['wbUndoBtn', 'wbRedoBtn', 'moveModeBtn', 'panModeBtn', 'drawModeBtn', 'eraserModeBtn', 'fillModeBtn', 'shapeMenuBtn', 'addMenuBtn', 'measureModeBtn', 'blastModeBtn', 'fogModeBtn', 'sceneFxBtn', 'pagesBtn', 'wbMoreBtn', 'wbCenterBtn',
+const BAR = ['wbUndoBtn', 'wbRedoBtn', 'moveModeBtn', 'panModeBtn', 'drawModeBtn', 'eraserModeBtn', 'fillModeBtn', 'shapeMenuBtn', 'addMenuBtn', 'buildModeBtn', 'measureModeBtn', 'blastModeBtn', 'fogModeBtn', 'sceneFxBtn', 'pagesBtn', 'wbMoreBtn', 'wbCenterBtn',
     'wbGridBtn', 'wbSnapBtn'];
 const ROWS_NOW = MENU.concat(['id="clearWbBtn"', 'id="wbRulersBtn"', 'id="wbZoomCtlBtn"', 'id="wbPointerPosBtn"', 'data-as="r"', 'data-as="d"', 'data-shape="circle"', 'data-shape="ring"', 'data-shape="cone"', 'data-shape="tok"', 'id="blastExplodeBtn"']);
 const DOTS = '<path d="M12 5h.01M12 12h.01M12 19h.01"/>', TICK = '<path d="M5 12.5l4.5 4.5L19 7.5"/>', MINUS = '<path d="M4.5 12h15"/>';
@@ -98,8 +98,8 @@ const DOTS = '<path d="M12 5h.01M12 12h.01M12 19h.01"/>', TICK = '<path d="M5 12
     const noIcon = bar.filter(b => typeof b[1] !== 'string' || !SVG_RE.test(b[1]) || !/<\/svg>$/.test(b[1].replace(/<span class="draw-color-indicator" id="(draw|fill)ColorIndicator"><\/span>$/, ''))).map(b => b[0]);
     const glyph = bar.concat(menu).filter(b => typeof b[1] === 'string' && /&#\d+;/.test(b[1].replace('&middot;', ''))).map(b => b[0]);
     const noIconM = menu.filter(b => typeof b[1] !== 'string' || !b[1].includes('<svg class="ico')).map(b => b[0]);
-    check('the play map\'s tools wear line icons (the owner: "Line icons, shown first"): each of the eighteen buttons of the bar and of the column is the app\'s own kind of icon and nothing else, an <svg class="ico"> on the 24 by 24 grid, each of the thirty-four menu rows that wore a picture glyph holds one, so do Clear board, the three ticks, the six buttons of the Radius tool and Explode, and none of them holds a picture glyph any more',
-        noIcon.length === 0 && noIconM.length === 0 && glyph.length === 0 && BAR.length === 18 && new Set(BAR).size === 18 && ROWS_NOW.length === 45, J([noIcon, noIconM, glyph]));
+    check('the play map\'s tools wear line icons (the owner: "Line icons, shown first"): each of the nineteen buttons of the bar and of the column (the eighteen of the icon sheet and Build) is the app\'s own kind of icon and nothing else, an <svg class="ico"> on the 24 by 24 grid, each of the thirty-four menu rows that wore a picture glyph holds one, so do Clear board, the three ticks, the six buttons of the Radius tool and Explode, and none of them holds a picture glyph any more',
+        noIcon.length === 0 && noIconM.length === 0 && glyph.length === 0 && BAR.length === 19 && new Set(BAR).size === 19 && ROWS_NOW.length === 45, J([noIcon, noIconM, glyph]));
     const passed = PASSED_BAR.map(id => [id, innerOfBtn('id="' + id + '"')]).concat(MENU.map(h => [h, innerOfBtn(h)]));
     const set = passed.map(b => b[0] + '=' + svgIn(b[1])).join('\n'), h = crypto.createHash('sha256').update(set).digest('hex');
     check('the icons are the set the owner passed on the icon sheet ("Use this set"), drawing for drawing, wherever the layout has put their buttons: a changed or a new drawing is shown to the owner first, and this pin moves only then',
@@ -364,8 +364,8 @@ const barKids = kidsOf(ix, BAR_OPEN) || [], edgeKids = kidsOf(ix, EDGE_OPEN) || 
 /* ---------- the layout the owner passed ("As drawn") ---------- */
 {
     const SEP = '<div class="wb-tool-sep">', seq = barKids.map(k => k.open === SEP ? '|' : (k.ids[0] || '?'));
-    check('the bar is laid out as the owner passed it ("As drawn"): undo and redo, then select and pan, then pen, eraser and fill, then shapes and Add, then measure and radius, then fog, Scene and Pages, then More, with a separator between the groups and none at either end',
-        J(seq) === J(['wbUndoBtn', 'wbRedoBtn', '|', 'moveModeBtn', 'panModeBtn', '|', 'drawModeBtn', 'eraserModeBtn', 'fillModeBtn', '|', 'shapeMenuBtn', 'addMenuBtn', '|', 'measureModeBtn', 'blastModeBtn', '|', 'fogModeBtn', 'sceneFxBtn', 'pagesBtn', '|',
+    check('the bar is laid out as the owner passed it ("As drawn"): undo and redo, then select and pan, then pen, eraser and fill, then shapes, Add and Build (the owner, of where Build stands: "With Shapes and Add"), then measure and radius, then fog, Scene and Pages, then More, with a separator between the groups and none at either end',
+        J(seq) === J(['wbUndoBtn', 'wbRedoBtn', '|', 'moveModeBtn', 'panModeBtn', '|', 'drawModeBtn', 'eraserModeBtn', 'fillModeBtn', '|', 'shapeMenuBtn', 'addMenuBtn', 'buildModeBtn', '|', 'measureModeBtn', 'blastModeBtn', '|', 'fogModeBtn', 'sceneFxBtn', 'pagesBtn', '|',
             'wbMoreBtn']), J(seq));
     const col = edgeKids.map(k => k.ids.filter(id => !/OptBtn$/.test(id)).slice(0, 2)), at = (a, b) => ix.indexOf(a) >= 0 && ix.indexOf(a) < ix.indexOf(b);   // the button and its menu (its small arrow is held with the presses)
     const render = mainSrc.slice(mainSrc.indexOf('export function render() {'), mainSrc.indexOf('// Breadcrumb trail for nested maps'));
@@ -478,7 +478,7 @@ function runPress(P, win) {
 {
     const CHEV_D = '<path d="M6 9.5l6 6 6-6"/>';
     const TOOLS = [['drawModeBtn', 'drawOptBtn', 'drawMenu', 'Pen options'], ['eraserModeBtn', 'eraserOptBtn', 'eraserMenu', 'Eraser options'], ['fillModeBtn', 'fillOptBtn', 'fillMenu', 'Fill options'],
-        ['measureModeBtn', 'measureOptBtn', 'measureMenu', 'Measure options'], ['blastModeBtn', 'blastOptBtn', 'blastMenu', 'Radius options'], ['wbSnapBtn', 'snapOptBtn', 'snapMenu', 'Snap options']];
+        ['measureModeBtn', 'measureOptBtn', 'measureMenu', 'Measure options'], ['blastModeBtn', 'blastOptBtn', 'blastMenu', 'Radius options'], ['wbSnapBtn', 'snapOptBtn', 'snapMenu', 'Snap options'], ['buildModeBtn', 'buildOptBtn', 'buildMenu', 'Build options']];
     const MENUS = [['shapeMenuBtn', 'shapeOptBtn', 'shapeMenu', 'Shapes menu'], ['addMenuBtn', 'addOptBtn', 'addMenu', 'Add menu'], ['fogModeBtn', 'fogOptBtn', 'fogMenu', 'Fog of war menu'], ['sceneFxBtn', 'sceneOptBtn', 'sceneFxMenu', 'Scene menu'],
         ['wbCenterBtn', 'viewOptBtn', 'wbCenterMenu', 'View menu'], ['wbGridBtn', 'gridOptBtn', 'gridMenu', 'Grid menu']];
     const pairOf = id => barKids.concat(edgeKids).filter(k => k.ids[0] === id)[0] || null;
@@ -488,7 +488,7 @@ function runPress(P, win) {
             || count(k.text, '</button>' + arrow(t[1], t[3], p[1]) + '\n') !== 1; }).map(p => p[0][0]);
     const plain = ['wbUndoBtn', 'wbRedoBtn', 'moveModeBtn', 'panModeBtn', 'pagesBtn', 'wbMoreBtn'].filter(id => { const k = pairOf(id); return !k || /tool-pair|tool-chev/.test(k.text); });
     check('a tool that has options is a pair (the owner: "Chevron opens them"): the pen, the eraser, fill, measure, radius and Snap each stand in a pair with a small arrow right after the icon, the arrow the passed sheet drew for "a tool has options", named for the options it opens; a button that only opens a menu is the same pair, and its arrow names the button it presses; undo, redo, select, pan, Pages and More have no arrow, having nothing to open beside themselves',
-        bad.length === 0 && plain.length === 0 && count(ix, 'class="wb-tool-btn tool-chev"') === 12 && MENUS.every(m => count(ix, ' id="' + m[1] + '" data-for="' + m[0] + '"') === 1)
+        bad.length === 0 && plain.length === 0 && count(ix, 'class="wb-tool-btn tool-chev"') === 13 && MENUS.every(m => count(ix, ' id="' + m[1] + '" data-for="' + m[0] + '"') === 1)
         && TOOLS.every(t => !new RegExp(' id="' + t[1] + '" data-for=').test(ix)), J([bad, plain]));
     const tp = (pressSrc && runPress(toolbarPage(false), {}).api || {}).toolPress || (() => null), T = (a, b, c) => { const r = tp(a, b, c); return r ? r.tool + '/' + r.opts : 'none'; };
     check('what a press does (toolPress, run for real): the icon takes a tool that is not in hand and never opens its options, and puts a tool in hand away with its options; the small arrow opens the options and takes the tool with them, leaves the tool where it is when it is already in hand, and closes options that are up without putting the tool away',
@@ -510,7 +510,7 @@ function runPress(P, win) {
         b.shapeMenu.classList.add('show'); b.eraserMenu.classList.add('show'); b.blastMenu.classList.add('show'); R.api.toolOptsOnly('blastModeBtn'); seen.push(P.open().join(','));   // only a tool's options are put away, never another menu
     }
     check('the presses, run for real on a page of plain objects (wireTool, toolOptsOnly): an icon takes its tool and opens nothing, and a second press puts it away; the arrow takes the tool with its options, brought up to date before they show; a press on the map or the bar leaves them up, for they stay while they are wanted; the arrow again closes them and the tool stays; another tool taken, by its icon or its arrow, puts them away, since options belong to the tool in hand',
-        !!R.api && pressSrc.length > 800 && J(R.api.TOOL_OPTS) === J({ drawModeBtn: 'drawMenu', eraserModeBtn: 'eraserMenu', fillModeBtn: 'fillMenu', measureModeBtn: 'measureMenu', blastModeBtn: 'blastMenu' })
+        !!R.api && pressSrc.length > 800 && J(R.api.TOOL_OPTS) === J({ drawModeBtn: 'drawMenu', eraserModeBtn: 'eraserMenu', fillModeBtn: 'fillMenu', measureModeBtn: 'measureMenu', blastModeBtn: 'blastMenu', buildModeBtn: 'buildMenu' })
         && J(seen) === J(['pen | ', 'move | ', 'pen | drawMenu', 'pen | drawMenu', 'pen | ', 'eraser | eraserMenu', 'move | ', 'pen | ', 'blastMenu,shapeMenu'])
         && J(log) === J(['take pen', 'take pen', 'sync pen ', 'sync pen ', 'take eraser', 'sync eraser ', 'take eraser', 'sync eraser ', 'take pen'])
         && J(page) === J(['moveModeBtn', 'main', 'wbFloatingToolbar', 'moveModeBtn']), R.err || J([seen, log, page]));
@@ -521,15 +521,15 @@ function runPress(P, win) {
     if (S.api) { MENUS.forEach(m => Q.click(Q.byId[m[1]])); Q.click(Q.byId.drawOptBtn); Q.click(Q.byId.snapOptBtn); }
     check('a button that only opens a menu and its small arrow are one control (wireMenuArrows, run for real): a press on the arrow presses its own button once and no other, and reaches the page as that button\'s press, so every rule of the button holds for the arrow; the arrow of a tool that has options is no such arrow',
         !!S.api && J(hits) === J({ shapeMenuBtn: 1, addMenuBtn: 1, fogModeBtn: 1, sceneFxBtn: 1, wbCenterBtn: 1, wbGridBtn: 1 }) && J(docHits) === J(['shapeMenuBtn', 'addMenuBtn', 'fogModeBtn', 'sceneFxBtn', 'wbCenterBtn', 'wbGridBtn', 'drawOptBtn', 'snapOptBtn']), S.err || J([hits, docHits]));
-    const wired = [["wireTool({ id: 'drawModeBtn', chev: 'drawOptBtn', inHand: function() { return !!window.isDrawingMode; }, sync: syncDrawMenu, take: function() {", "updateWbToolbar('drawModeBtn');"],
+    const wired = [["wireTool({ id: 'drawModeBtn', chev: 'drawOptBtn', inHand: function() { return !!window.isDrawingMode && !window.isBuildMode; }, sync: syncDrawMenu, take: function() {", "updateWbToolbar('drawModeBtn');"],
         ["wireTool({ id: 'eraserModeBtn', chev: 'eraserOptBtn', inHand: function() { return !!window.isEraserMode; }, sync: syncEraserMenu, take: function() {", "updateWbToolbar('eraserModeBtn');"],
         ["wireTool({ id: 'fillModeBtn', chev: 'fillOptBtn', inHand: function() { return !!window.isFillMode; }, sync: syncFillMenu, take: function() {", "updateWbToolbar('fillModeBtn');"],
         ["wireTool({ id: 'measureModeBtn', chev: 'measureOptBtn', inHand: function() { return !!window.isMeasureMode && window.wpMeasureKind === 'ruler'; }, sync: syncMeasureMenu, take: function() {", "updateWbToolbar('measureModeBtn');"],
         ["wireTool({ id: 'blastModeBtn', chev: 'blastOptBtn', inHand: function() { return !_armedThrow && !!window.isMeasureMode && window.wpMeasureKind === 'blast'; }, sync: syncBlastMenu, take: function() {", "updateWbToolbar('blastModeBtn');"]];
     const notWired = wired.filter(w => { const a = wbSrc.indexOf(w[0]), z = wbSrc.indexOf('  } });', a); return count(wbSrc, w[0]) !== 1 || z < 0 || z - a > 900 || !wbSrc.slice(a, z).includes(w[1]); }).map(w => w[0].slice(15, 32));
     const OLD = ["wbWrap.addEventListener('pointerdown', closeDrawMenu)", "!e.target.closest('#drawMenu')", "!e.target.closest('#eraserMenu')", "!e.target.closest('#measureMenu')", "!e.target.closest('#fillMenu')", "!e.target.closest('#blastMenu')", 'click again for pen options', 'click again for size', 'click again for units', 'Click again for the color', 'Click the tool again for options', 'click for options'];
-    check('each of the five tools is wired through the one wiring, with what it means for it to be in hand, and taking any tool puts the others\' options away; nothing closes a tool\'s options at a press elsewhere or when a stroke begins any more, so they stay up while they are wanted; no tooltip still says to click again for options',
-        notWired.length === 0 && count(wbSrc, 'wireTool({') === 5 && wbSrc.includes("      toolOptsOnly(activeId);   // 107: a tool's options belong to the tool in hand\n      disarmThrow();   // a tool taken puts an armed sheet Throw down (the owed review, 2026-10-09)\n  }\n")
+    check('each of the five tools, and Build as the sixth, is wired through the one wiring, with what it means for it to be in hand, and taking any tool puts the others\' options away; nothing closes a tool\'s options at a press elsewhere or when a stroke begins any more, so they stay up while they are wanted; no tooltip still says to click again for options',
+        notWired.length === 0 && count(wbSrc, 'wireTool({') === 6 && count(wbSrc, "    wireTool({ id: 'buildModeBtn', chev: 'buildOptBtn', inHand: function() { return !!window.isBuildMode; }, sync: buildSync, take: buildTake });") === 1 && count(wbSrc, "    updateWbToolbar('buildModeBtn'); closeDrawMenu();") === 1 && wbSrc.includes("      toolOptsOnly(activeId);   // 107: a tool's options belong to the tool in hand\n      disarmThrow();   // a tool taken puts an armed sheet Throw down (the owed review, 2026-10-09)\n  }\n")
         && OLD.every(o => count(wbSrc, o) + count(ix, o) === 0), J([notWired, OLD.filter(o => count(wbSrc, o) + count(ix, o) > 0)]));
     check('Snap: its icon switches snapping on and off and says so, and its small arrow opens what it snaps to; the button\'s tooltip says how it stands and what a press does; the Snap To menu still has its own switch row',
         wbSrc.includes("    _el_wbSnapBtn.addEventListener('click', function(e) { e.stopPropagation(); setSnap(!state.snap); toast(state.snap ? 'Snapping on.' : 'Snapping off.'); });\n")
@@ -811,7 +811,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
     const ICO_ALL = /<svg class="ico( ico-[a-z]+)?" viewBox="0 0 24 24" aria-hidden="true">[\s\S]*?<\/svg>/g, drawn = s => (s.match(ICO_ALL) || []).length, glyph = (s, code) => count(s, '&#' + code + ';');
     const of = how => { const at = page.indexOf(how); if (at < 0 || page.indexOf(how, at + 1) >= 0) return '?'; const gt = page.indexOf('>', at), end = page.indexOf('</button>', gt), m = page.slice(gt + 1, end).match(ICO_ALL); return m ? m[0] : '?'; };   // a control's own drawing, as the page writes it
     const K = { image: of('id="addImageBtn"'), lib: of('id="imgLibBtn"'), sound: of('id="soundBtn"'), music: of('id="musicBtn"'), scene: of('id="sceneFxBtn"'), video: of('id="videoBtn"'), fx: of('id="fxBtn"'), pen: of('id="drawModeBtn"'),
-        eraser: of('id="eraserModeBtn"'), fill: of('id="fillModeBtn"'), view: of('id="wbCenterBtn"'), trigger: of('id="shapeTriggerBtn"'), importChar: of('id="importCharBtn"'), fog: of('id="fogModeBtn"'), measure: of('id="measureModeBtn"'),
+        eraser: of('id="eraserModeBtn"'), fill: of('id="fillModeBtn"'), build: of('id="buildModeBtn"'), view: of('id="wbCenterBtn"'), trigger: of('id="shapeTriggerBtn"'), importChar: of('id="importCharBtn"'), fog: of('id="fogModeBtn"'), measure: of('id="measureModeBtn"'),
         fogAll: of('id="fogOnAllMaps"'), reveal: of('data-fbrush="reveal"'), hide: of('data-fbrush="hide"'), clear: of('data-fbrush="clear"'), snap: of('id="wbSnapBtn"'),
         dMove: of('id="dataMoveBtn"'), dPan: of('id="dataPanBtn"'), dLink: of('id="linkBtn"'), dAdd: of('id="addBtn"'), dClear: of('id="dataClearBtn"') };   // the data map's own tools (130)
     const put = t => t.replace(/\{([a-zA-Z]+)\}/g, (m, k) => (Object.prototype.hasOwnProperty.call(K, k) ? K[k] : '?')), strip = s => s.replace(/^<svg[^>]*>/, '');
@@ -825,6 +825,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         "<li><b>{pen} Draw</b> sketches freehand.",
         "<li><b>{eraser} Eraser</b> rubs out",
         "<li><b>{fill} Fill</b> is the GM&rsquo;s tool",
+        "<li><b>{build} Build</b> is the GM&rsquo;s tool for making a map.",
         "<li><b>{view} Center</b> menu:",
         "Drop a <b>{trigger} Trigger Zone</b>",
         "The <b>{importChar} Import Character</b> toolbar button",
@@ -860,7 +861,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
     const stepsA = tourSrc.indexOf('var STEPS = ['), stepsZ = tourSrc.indexOf('\n];', stepsA), steps = stepsA < 0 || stepsZ < stepsA ? '' : tourSrc.slice(stepsA, stepsZ);
     const badH = HELP_AT.filter(t => count(help, put(t)) !== 1).map(t => t.slice(0, 44)), badT = TOUR_AT.filter(t => count(steps, put(t)) !== 1).map(t => t.slice(0, 44)), lost = Object.keys(K).filter(k => K[k] === '?');
     check('Help shows a tool\'s own drawing beside its name (the owner, by prompt: "The new drawings"): each of the ' + HELP_AT.length + ' places holds the very drawing its control wears in the page, read from the control: the pen, the eraser, fill, the trigger zone, the picture, the Image Library, Import Character, Measure and its ruler, the fog button with its menu, its three brushes and Fog on all maps, Scene with Sound, Music, Visual effects and Video, the centre menu and Snap, and on the data map Select, Pan, Link Mode, Add Room and Clear the board; Help holds 44 drawings and no other; the note and the speaker in the top row are the drawings Music and Sound wear under Scene, which are the top bar\'s own',
-        help.length > 100000 && lost.length === 0 && badH.length === 0 && HELP_AT.length === 41 && drawn(help) === 85 && HELP_AT.reduce((n, t) => n + (t.match(/\{[a-zA-Z]+\}/g) || []).length, 0) === 45
+        help.length > 100000 && lost.length === 0 && badH.length === 0 && HELP_AT.length === 42 && drawn(help) === 86 && HELP_AT.reduce((n, t) => n + (t.match(/\{[a-zA-Z]+\}/g) || []).length, 0) === 46
         && strip(of('id="musicInd"')) === strip(K.music) && of('id="soundInd"') === K.sound && /^<svg class="ico ico-note"/.test(K.music), J([lost, badH, drawn(help)]));
     // 131 (b): the top row's controls in Help (the owner, by prompt: "Show the new drawings (Recommended)")
     const ROW_HELP = [['id="settingsBtn"', 27, 9881, 0], ['id="netBtn"', 8, 127760, 1], ['id="journalBtn"', 1, 128214, 1], ['id="chatBtn"', 2, 128172, 0], ['id="aboutBtn"', 1, 9432, 0], ['id="handoutsBtn"', 1, 128220, 0]];
@@ -899,7 +900,8 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         + "- Text boxes use Waypoint's own fonts. The Font list in Properties\n  offers 23 of them, in groups: for reading, old and fantasy,\n  handwriting, science fiction, typewriter and code, display, and\n  runes. They come with the app, so a box looks the same on every\n  computer. A box made earlier keeps the font it had until you pick\n  another.\n"
         + "- The Content editor of a text box colours the words you select and\n  sizes them, as a planner's text block does. Ctrl + Z there takes\n  back your last change.\n"
         + "- Pasting into a text box on the map pastes plain words, as the\n  Content editor does.\n"
-        + "- Textures. A painted cell, a rectangle, a hexagon, a circle, a diamond\n  or a filled area can wear one of eight patterns over its colour:\n  flagstones, bricks, cobbles, planks, stone, hatching, ripples or\n  grass. Pick one under Texture in the Fill menu or in a piece's\n  Properties. Waypoint draws the patterns itself and seats them on the\n  grid, so pieces side by side read as one surface. Changing the colour\n  keeps the pattern, and your players see it as you do. This is the\n  first part of the map builder.\n\n"
+        + "- Textures. A painted cell, a rectangle, a hexagon, a circle, a diamond\n  or a filled area can wear one of eight patterns over its colour:\n  flagstones, bricks, cobbles, planks, stone, hatching, ripples or\n  grass. Pick one under Texture in the Fill menu or in a piece's\n  Properties. Waypoint draws the patterns itself and seats them on the\n  grid, so pieces side by side read as one surface. Changing the colour\n  keeps the pattern, and your players see it as you do. This is the\n  first part of the map builder.\n"
+        + "- Build. A new tool on the play map's bar, the GM's, lays a map's\n  pieces on the grid: floors, walls, doors, water, rubble, wood and\n  grass. Pick a material and a shape, then click a cell or drag an\n  area. A polygon takes a click at each corner, a corridor is a strip\n  one or two cells wide, and a wall line is drawn along the grid\n  lines. Each piece is an ordinary item afterwards. Build stays in\n  hand until you press Esc or take another tool.\n\n"
         + "The top bar and the data map\n"
         + "- The top of the window is one quiet row. Its captioned boxes are gone,\n  and each button still says what it is when you point at it.\n"
         + "- The campaign's name stands in the top row. Press it for the list of\n  your campaigns. The same menu holds Search, New, Rename, System and\n  Delete, which stood beside the list as five buttons.\n"

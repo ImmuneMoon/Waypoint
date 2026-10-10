@@ -293,6 +293,13 @@ The play map
   grid, so pieces side by side read as one surface. Changing the colour
   keeps the pattern, and your players see it as you do. This is the
   first part of the map builder.
+- Build. A new tool on the play map's bar, the GM's, lays a map's
+  pieces on the grid: floors, walls, doors, water, rubble, wood and
+  grass. Pick a material and a shape, then click a cell or drag an
+  area. A polygon takes a click at each corner, a corridor is a strip
+  one or two cells wide, and a wall line is drawn along the grid
+  lines. Each piece is an ordinary item afterwards. Build stays in
+  hand until you press Esc or take another tool.
 
 The top bar and the data map
 - The top of the window is one quiet row. Its captioned boxes are gone,

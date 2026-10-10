@@ -6536,6 +6536,169 @@ function wallsLay(map, items) {
     return (res.lines.length === 1 ? 'One wall line laid.' : res.lines.length + ' wall lines laid.') + (res.doorsOver === true ? ' Some door lines were not read. Check the doorways.' : '');
 }
 // [buildcheck:wallsrow-end]
+// [buildcheck:gendialog-start]
+// The dungeon made for you (the map builder, fold B2; the owner's answers of 2026-10-10 on the two sheets: the dialog "As drawn", the
+// Build it on row with "A new map picks its grid", "Taken to that map" afterwards, the command in "Build's options"). The last row of
+// Build's options opens one dialog. Its settings go to the pure half (gencore.js), which answers geometry, and what is laid is ORDINARY
+// pieces: floors with the Floor material's own props, wall lines and door lines as the pen's presets make them. Nothing on the map is
+// changed and nothing is derived live. It is laid in one save, so one Undo takes it back. The seed and settings are kept on the map
+// (meta.gen) for the GM alone, to make it again: net.js never sends them and an import cleans them. The dialog is the GM's (buildMay) and
+// its markup is fixed words in the page: a map's name reaches the list as an option's text, never as markup
+var GEN_LINES = { here: 'Its top left corner goes where the middle of your screen is. Nothing on the map is changed.', other: 'It lands in the middle of that map as you last saw it. You are taken there once it is made.', fresh: 'A new map is made for it. You are taken there once it is made.', none: 'This campaign has no other map.' };
+var GEN_WHERE = ['here', 'other', 'fresh'];
+var _gen = { where: 'here', maps: '' };
+function genCore() { return window.wpGenCore || null; }
+function genEl(id) { return document.getElementById(id); }
+function genText(v, n) { return String(v === null || v === undefined ? '' : v).replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, n); }
+function genShown() { var m = genEl('genModal'); return !!m && m.style.display === 'flex'; }
+// The lattice a dungeon is laid on: a map's own hex or square grid, and the 50 px lattice Build seats its pieces on where it has none
+function genKind(map) { var g = map && map.meta && typeof map.meta === 'object' ? map.meta.gridType : null; return g === 'hex' ? 'hex' : 'square'; }
+function genGridFor(kind) { var C = window.wpFogCore; return !C ? null : kind === 'hex' ? C.hexGrid(30, 52) : C.squareGrid(50); }
+// The campaign's maps other than the one on screen, by name: [{ id, title }]
+function genMaps(camp, hereId) {
+    var out = []; if (!camp || !camp.items || typeof camp.items !== 'object') return out;
+    Object.keys(camp.items).forEach(function(id) {
+        var it = camp.items[id]; if (!it || typeof it !== 'object' || it.type !== 'map' || it.id !== id || id === hereId) return;
+        out.push({ id: id, title: genText(it.meta && typeof it.meta === 'object' ? it.meta.title : '', 80) || 'Untitled' });
+    });
+    out.sort(function(a, b) { return a.title.localeCompare(b.title) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0); });
+    return out;
+}
+// Where a dungeon's top left corner goes: the middle of the view (`mid`, the screen's own, for the map on screen), else the middle of the
+// map as it was last seen, else its home, moved so that the whole dungeon and a cell to spare stay on the board
+function genCorner(map, mid, grid, cols, rows) {
+    var meta = map && map.meta && typeof map.meta === 'object' ? map.meta : {}, num = function(v) { return typeof v === 'number' && isFinite(v); };
+    var x = mid && num(mid.x) ? mid.x : num(meta.lastWbX) ? meta.lastWbX : num(meta.homeX) ? meta.homeX : 15000, y = mid && num(mid.y) ? mid.y : num(meta.lastWbY) ? meta.lastWbY : num(meta.homeY) ? meta.homeY : 15000;
+    var hex = grid.type === 'hex', w = hex ? (cols + 1) * 1.5 * grid.s + grid.s : (cols + 1) * grid.size, h = hex ? (rows + 2) * grid.h : (rows + 1) * grid.size;
+    return { x: Math.max(0, Math.min(30000 - w, x)), y: Math.max(0, Math.min(30000 - h, y)) };
+}
+function genCountWords(n, held) { return 'This would lay ' + n + ' pieces. The map holds ' + BUILD_MAX + '.' + (held + n > BUILD_MAX ? ' It has ' + held + ' already, so this does not fit.' : ''); }
+function genNewSeed() { var GC = genCore(); return GC ? GC.seedOf(Math.floor(Math.random() * 320000)) : '0000-fox'; }
+// The form as the generator's settings, and the settings into the form
+function genForm() {
+    var GC = genCore(); if (!GC) return null;
+    var val = function(id) { var e = genEl(id); return e ? String(e.value) : ''; }, num = function(id, d) { var s = val(id).trim(), v = Number(s); return s !== '' && isFinite(v) ? v : d; };
+    return GC.cleanGen({ seed: val('genSeed').trim(), w: num('genW', GC.SIZE.w), h: num('genH', GC.SIZE.h), rooms: val('genRooms'), corr: val('genCorr'), doors: val('genDoors') });
+}
+function genFill(o) {
+    var set = function(id, v) { var e = genEl(id); if (e) e.value = String(v); };
+    set('genSeed', o.seed); set('genW', o.w); set('genH', o.h); set('genRooms', o.rooms); set('genCorr', o.corr); set('genDoors', o.doors);
+}
+// What Generate would do now: { ok, say } and, where it can be laid, { map (null for a new one), fresh, kind, opts, pieces }
+function genPlan() {
+    var GC = genCore(), BC = buildCore(), camp = getActiveCampaign(), here = getActiveMap(), no = { ok: false, say: 'A dungeon cannot be built here.' };
+    if (!GC || !BC || !camp || !camp.items || !here || here.type !== 'map' || !buildMay() || !buildHere()) return no;
+    var seedBox = genEl('genSeed'), typed = seedBox ? String(seedBox.value).trim() : '', opts = genForm();
+    if (!opts || opts.seed !== typed) return { ok: false, say: 'A seed is letters, digits and hyphens, 24 at most.' };
+    var where = GEN_WHERE.indexOf(_gen.where) >= 0 ? _gen.where : 'here', map = here, fresh = where === 'fresh', kind;
+    if (where === 'other') {
+        var sel = genEl('genMap'), id = sel ? String(sel.value) : '';
+        map = id && id !== here.id && Object.prototype.hasOwnProperty.call(camp.items, id) && camp.items[id] && camp.items[id].type === 'map' ? camp.items[id] : null;
+        if (!map) return { ok: false, say: GEN_LINES.none };
+    }
+    if (fresh) { var gs = genEl('genGrid'); kind = gs && gs.value === 'hex' ? 'hex' : 'square'; map = null; } else kind = genKind(map);
+    var grid = genGridFor(kind); if (!grid) return no;
+    var dg = GC.genDungeon(opts), at = genCorner(map, where === 'here' ? viewCentre() : null, grid, dg.cols, dg.rows), pc = GC.dungeonPieces(dg, grid, at.x, at.y);
+    if (!pc.floors.length || !pc.walls.length) return { ok: false, say: 'That dungeon could not be laid out. Try another seed.' };
+    var held = map && Array.isArray(map.whiteboard) ? map.whiteboard.length : 0;
+    if (held + pc.count > BUILD_MAX) return { ok: false, say: genCountWords(pc.count, held) };
+    return { ok: true, say: genCountWords(pc.count, held), map: map, fresh: fresh, kind: kind, opts: opts, pieces: pc };
+}
+// The dungeon's pieces as ordinary items: the very items the Build tool lays for a Floor and draws for a Wall line and a Door line
+function genItems(pc) {
+    var BC = buildCore(), fp = BC ? BC.pieceProps('floor', {}) : null, wp = BC ? BC.penPreset('wall', {}) : null, dp = BC ? BC.penPreset('door', {}) : null, out = [];
+    if (!fp || !wp || !dp) return out;
+    pc.floors.forEach(function(b) { out.push(Object.assign({ id: 'wb' + uid(), type: b.type, x: b.x, y: b.y, w: b.w, h: b.h, z: 10 }, newOpacityProps(), fp)); });
+    pc.walls.forEach(function(L) { out.push(buildWallItem(L, wp)); });
+    pc.doors.forEach(function(L) { out.push(buildWallItem(L, dp)); });
+    return out;
+}
+// The other maps as the list's options, made again only when the list changed, so a pick stands: elements with text, never markup
+function genMapsFill() {
+    var sel = genEl('genMap'), camp = getActiveCampaign(), here = getActiveMap(); if (!sel) return 0;
+    var list = genMaps(camp, here ? here.id : ''), sig = JSON.stringify(list);
+    if (sig === _gen.maps) return list.length;
+    var was = String(sel.value || '');
+    while (sel.firstChild) sel.removeChild(sel.firstChild);
+    list.forEach(function(m) { var o = document.createElement('option'); o.value = m.id; o.appendChild(document.createTextNode(m.title)); sel.appendChild(o); });
+    sel.value = list.some(function(m) { return m.id === was; }) ? was : (list[0] ? list[0].id : '');
+    _gen.maps = sig;
+    return list.length;
+}
+// The dialog as it stands: the chip in use, the row its choice needs, the line that says where it lands, the count, and Generate put out
+// of use with the reason in sight where the dungeon cannot be laid
+function genSync() {
+    if (!genShown()) return;
+    var where = GEN_WHERE.indexOf(_gen.where) >= 0 ? _gen.where : 'here';
+    Array.prototype.forEach.call(document.querySelectorAll('#genWhere .gen-chip'), function(b) { var on = b.dataset.where === where; b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false'); });
+    var mr = genEl('genMapRow'), nr = genEl('genNameRow'), ln = genEl('genWhereLine'), ct = genEl('genCount'), go = genEl('genGo');
+    if (mr) mr.hidden = where !== 'other';
+    if (nr) nr.hidden = where !== 'fresh';
+    var others = where === 'other' ? genMapsFill() : 1;
+    if (ln) ln.textContent = where === 'other' && !others ? GEN_LINES.none : GEN_LINES[where];
+    var plan = genPlan();
+    if (ct) ct.textContent = plan.say;
+    if (go) go.disabled = !plan.ok;
+}
+function genShow() {
+    var m = genEl('genModal'), GC = genCore(), here = getActiveMap(); if (!m || !GC || !buildCore() || !buildMay() || !buildHere() || !here) return false;
+    var kept = here.meta && typeof here.meta === 'object' && here.meta.gen && typeof here.meta.gen === 'object' ? GC.cleanGen(here.meta.gen) : null;
+    if (kept) genFill(kept); else { var sb = genEl('genSeed'); if (sb) sb.value = genNewSeed(); }   // a map that keeps its dungeon's seed shows it, to make it again; else a new seed each time
+    var nm = genEl('genName'); if (nm) nm.value = 'Dungeon';
+    _gen.where = 'here'; _gen.maps = '';
+    m.style.display = 'flex';
+    genSync();
+    var first = document.querySelector('#genWhere .gen-chip.on'); if (first && first.focus) first.focus();
+    return true;
+}
+function genHide() { var m = genEl('genModal'); if (!m || m.style.display === 'none') return; m.style.display = 'none'; var b = genEl('buildGenBtn'); if (b && b.focus) b.focus(); }
+// Generate: the dungeon laid as the dialog's count said. The GM is taken to the map first, on its play map: that draws and saves it as
+// it stands, a new map empty, which is the state one Undo goes back to. Then the pieces are laid there in ONE save, so one Undo takes the
+// dungeon back, and a new map stays
+function genGo() {
+    var plan = genPlan(); if (!plan.ok) { genSync(); return false; }
+    var camp = getActiveCampaign(), here = getActiveMap(), map = plan.map, nmBox = genEl('genName'), items = genItems(plan.pieces);
+    if (!items.length) { toast('That dungeon could not be laid. Nothing was changed.'); return false; }
+    if (plan.fresh) {
+        map = createNewMap(getUniqueItemTitle(genText(nmBox ? nmBox.value : '', 80) || 'Dungeon', null));
+        map.meta.gridType = plan.kind;
+        camp.items[map.id] = map;
+    }
+    if (!map.meta || typeof map.meta !== 'object') map.meta = {};
+    genHide();
+    if (map === here) save(true);
+    else {
+        map.meta.lastView = 'visual';
+        if (!navigateToMap(map.id)) { if (plan.fresh) delete camp.items[map.id]; toast('That map could not be opened. Nothing was changed.'); return false; }
+    }
+    if (!Array.isArray(map.whiteboard)) map.whiteboard = [];
+    if (map.whiteboard.length + items.length > BUILD_MAX) { toast('That dungeon could not be laid. Nothing was changed.'); return false; }
+    items.forEach(function(it) { map.whiteboard.push(it); });
+    map.meta.gen = plan.opts;   // the GM's own, to make it again: never sent (net.js sanitizeItem), cleaned from a file (cleanup.js)
+    save(true); render();
+    if (window.wpFog && window.wpFog.invalidateVision) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
+    toast('Dungeon laid, ' + items.length + ' pieces. One Undo takes it back.');
+    return true;
+}
+function genWire() {
+    var m = genEl('genModal'), row = genEl('buildGenBtn'); if (!m) return;
+    if (row) row.addEventListener('click', function(ev) { ev.stopPropagation(); genShow(); });
+    Array.prototype.forEach.call(document.querySelectorAll('#genWhere .gen-chip'), function(b) { b.addEventListener('click', function() { var w = this.dataset.where; if (GEN_WHERE.indexOf(w) < 0) return; _gen.where = w; genSync(); }); });
+    ['genMap', 'genGrid', 'genRooms', 'genCorr', 'genDoors'].forEach(function(id) { var e = genEl(id); if (e) e.addEventListener('change', genSync); });
+    ['genW', 'genH'].forEach(function(id) { var e = genEl(id); if (!e) return; e.addEventListener('input', genSync); e.addEventListener('change', function() { var o = genForm(); if (o) { var w = genEl('genW'), h = genEl('genH'); if (w) w.value = String(o.w); if (h) h.value = String(o.h); } genSync(); }); });   // a size left outside its bounds reads as the size that will be used
+    var sb = genEl('genSeed'); if (sb) sb.addEventListener('input', genSync);
+    var nw = genEl('genSeedNew'); if (nw) nw.addEventListener('click', function() { var s = genEl('genSeed'); if (s) s.value = genNewSeed(); genSync(); });
+    var no = genEl('genCancel'); if (no) no.addEventListener('click', genHide);
+    var go = genEl('genGo'); if (go) go.addEventListener('click', function() { genGo(); });
+    // every key pressed in the dialog stays in it: the page reads keys as its own (Build's Esc and Enter, a token's arrows, Delete)
+    m.addEventListener('keydown', function(e) {
+        e.stopPropagation();
+        if (e.key === 'Escape') { e.preventDefault(); genHide(); }
+        else if (e.key === 'Enter' && e.target && /^INPUT$/.test(e.target.tagName || '')) { e.preventDefault(); genGo(); }
+    });
+}
+// [buildcheck:gendialog-end]
+genWire();
 
 var _el_shapeTextBtn = document.getElementById('shapeTextBtn');
 

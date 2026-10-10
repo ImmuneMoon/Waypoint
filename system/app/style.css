@@ -1378,6 +1378,33 @@
   .ch-row:focus-visible, .ch-fold:focus-visible { outline: 1px solid var(--gold); outline-offset: -1px; }
   .ch-fold { display: block; width: 100%; text-align: left; background: none; border: 0; cursor: pointer; font: inherit; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--dim); padding: 6px 10px 4px; }
   .ch-fold:hover { color: var(--ink); }
+  /* the dungeon generator's dialog (the map builder, fold B2): the app's own dark box, a row a setting, as the owner passed it drawn */
+  .gen-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 100005; align-items: center; justify-content: center; }
+  .gen-box { background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; padding: 18px 20px; width: 410px; max-width: calc(100vw - 32px); max-height: calc(100vh - 32px); overflow-y: auto; box-sizing: border-box; }
+  .gen-box h3 { margin: 0 0 12px; color: var(--gold); }
+  .gen-row { display: flex; align-items: center; gap: 8px; margin: 8px 0; font-size: 13px; color: var(--ink); }
+  .gen-row[hidden] { display: none; }
+  .gen-name { flex: 0 0 78px; color: var(--dim); font-size: 12px; }
+  .gen-name.gen-name2 { flex: 0 0 auto; margin-left: 4px; }
+  .gen-seg { display: inline-flex; gap: 4px; }
+  .gen-chip { background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 4px; padding: 4px 9px; font: inherit; font-size: 12px; cursor: pointer; }
+  .gen-chip:hover { border-color: var(--dim); }
+  .gen-chip.on { background: var(--gold); border-color: var(--gold); color: #1a1408; font-weight: 600; }
+  .gen-chip:focus-visible { outline: 1px solid var(--gold); outline-offset: 2px; }
+  .gen-box select, .gen-box input[type="number"], .gen-box input[type="text"] { background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 4px; padding: 4px 6px; font: inherit; font-size: 12px; color-scheme: dark; outline: none; margin: 0; }
+  .gen-box select:hover, .gen-box input[type="number"]:hover, .gen-box input[type="text"]:hover { border-color: var(--dim); }
+  .gen-box select:focus, .gen-box input[type="number"]:focus, .gen-box input[type="text"]:focus { border-color: var(--gold); }
+  .gen-box select { cursor: pointer; min-width: 120px; }
+  .gen-box select option { background: var(--panel); color: var(--ink); }
+  .gen-box input[type="number"] { width: 58px; }
+  #genSeed { width: 130px; font-family: ui-monospace, Consolas, monospace; }
+  #genName { flex: 1 1 110px; min-width: 0; }
+  #genMap { flex: 1 1 auto; min-width: 0; }
+  #genSeedNew { padding: 3px 10px; margin: 0; }
+  .gen-line { font-size: 11px; color: var(--dim); line-height: 1.4; margin: 4px 0; }
+  #genCount { color: var(--ink); min-height: 16px; }
+  .gen-rule { height: 1px; background: var(--edge); margin: 10px 0; }
+  .gen-foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 12px; }
   .context-menu.char-menu { position: fixed; display: flex; flex-direction: column; min-width: 170px; padding: 4px 0; }
   .char-menu .menu-divider { height: 1px; background: var(--edge); margin: 4px 0; }
   .char-menu button.danger { color: var(--red); }

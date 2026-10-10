@@ -547,6 +547,7 @@
                                   <li>A <b>Polygon</b> takes a click at each corner and closes on the first, or with <kbd>Enter</kbd>. A <b>Corridor</b> is a strip one or two cells wide. Tick <b>With walls</b> and it gets a wall line along each side, with its two ends open. A <b>Wall line</b> is drawn along the grid lines, and the line is the wall.</li>
                                   <li>On a square grid a piece lands on the cells. On a hex grid it is laid one hexagon a cell, at most 400 in a drag. Laid over a plain piece of the same shape, it changes that piece.</li>
                                   <li><b>Walls around selection</b> is on the right-click menu of floor pieces you have selected. It lays wall lines along the outer edge of the cells they cover together. Where two floors touch there is no wall between them, and a doorway that holds a door stays open. The walls follow the grid, so a round room gets stepped walls. Each wall line is an ordinary piece, and one Undo takes them all back. Walls laid earlier stay as they are, so delete the old wall where you add a door later.</li>
+                                  <li><b>Generate a dungeon</b> is the last row of Build&rsquo;s options. It lays a whole dungeon of ordinary pieces: rooms and corridors as floors, wall lines around them and doors on the lines. Build it on <b>This map</b>, on <b>Another map</b> or on <b>A new map</b>, and you are taken to that map. Set its size, how many rooms and doors it has, and whether its corridors wind. The dialog says how many pieces it would lay before you accept. The same <b>Seed</b> and settings make the same dungeon again, and the map keeps them for you alone. Nothing already on the map is changed, and one Undo takes the whole dungeon back.</li>
                               </ul>
                           </li>
                           <li><b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM12 10.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3"/></svg> Center</b> menu: jump to the canvas center, to all items, <b>Fit to Content</b> or <b>Center on Character</b>. Fit to Content, also <kbd>Shift</kbd>+<kbd>1</kbd>, zooms and pans so that everything, or just the selection, fits the screen. Center on Character goes to your own token in multiplayer, or to the selected one as GM.</li>
@@ -1461,7 +1462,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                       </ul>
                       <h4>Coming</h4>
                       <ul>
-                          <li><b>The map builder.</b> Its first tool, Build, lays floors, walls, doors and water on the grid today, and Walls around selection walls your floors in. A dungeon made for you and your own pictures as fills are yet to be built.</li>
+                          <li><b>The map builder.</b> Its first tool, Build, lays floors, walls, doors and water on the grid today. Walls around selection walls your floors in, and Generate a dungeon lays a whole dungeon for you. Your own pictures as fills are yet to be built.</li>
                           <li><b>Text style in more places.</b> Bold, colour and size on the notes of a row on a character sheet. Planners, pages, text on maps, character sheets, Journal notes and the table notepad have it today.</li>
                           <li><b>Friends and direct invites.</b> Keep the people you play with at hand, and invite them to your table directly.</li>
                           <li><b>The website and cloud saves.</b> A website for Waypoint, and a campaign kept online so that it is not tied to one computer.</li>
@@ -2369,6 +2370,8 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                       <div class="build-line" id="buildCorridorLine" hidden>With walls lays a wall line along each side. The ends stay open.</div>
                   </div>
                   <div class="menu-rule"></div>
+                  <button class="wb-tool-btn menu-row" id="buildGenBtn" title="Lays a whole dungeon of ordinary pieces: rooms and corridors as floors, wall lines around them and doors on the lines. You choose where it is built, its size and its seed first. One Undo takes it back."><span class="mr-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 5.5h9v7h-9zM3 12.5h9v7H3zM12 12.5h9v7h-9z"/></svg></span><span class="mr-txt">Generate a dungeon&hellip;<small>Rooms, corridors, walls and doors, made for you.</small></span></button>
+                  <div class="menu-rule"></div>
                   <div class="build-line" id="buildHint">Building stays in hand until you press Esc or take another tool.</div>
               </div>
           </div>
@@ -2758,6 +2761,26 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
       </aside>
     </div>
   </div>
+
+<div id="genModal" class="gen-modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="genTitle">
+    <div class="gen-box">
+        <h3 id="genTitle">Generate a dungeon</h3>
+        <div class="gen-row"><span class="gen-name" id="genWhereName">Build it on</span><span class="gen-seg" id="genWhere" role="radiogroup" aria-labelledby="genWhereName"><button type="button" class="gen-chip on" data-where="here" role="radio" aria-checked="true" title="On the map you are on">This map</button><button type="button" class="gen-chip" data-where="other" role="radio" aria-checked="false" title="On another map of this campaign">Another map</button><button type="button" class="gen-chip" data-where="fresh" role="radio" aria-checked="false" title="On a map made for it">A new map</button></span></div>
+        <div class="gen-row" id="genMapRow" hidden><label class="gen-name" for="genMap">Map</label><select id="genMap" title="The map the dungeon is built on. The list holds this campaign's other maps. The dungeon follows that map's own grid."></select></div>
+        <div class="gen-row" id="genNameRow" hidden><label class="gen-name" for="genName">Name</label><input type="text" id="genName" maxlength="80" value="Dungeon" title="The new map's name"><label class="gen-name gen-name2" for="genGrid">Grid</label><select id="genGrid" title="The new map's grid"><option value="square">Square</option><option value="hex">Hex</option></select></div>
+        <div class="gen-line" id="genWhereLine">Its top left corner goes where the middle of your screen is. Nothing on the map is changed.</div>
+        <div class="gen-rule"></div>
+        <div class="gen-row"><label class="gen-name" for="genW">Size</label><input type="number" id="genW" min="10" max="60" step="1" value="30" title="How many cells wide, 10 to 60"><span>by</span><input type="number" id="genH" min="10" max="60" step="1" value="20" aria-label="Cells high" title="How many cells high, 10 to 60"><span>cells</span></div>
+        <div class="gen-row"><label class="gen-name" for="genRooms">Rooms</label><select id="genRooms" title="How many rooms the dungeon has"><option value="few">Few</option><option value="some" selected>Some</option><option value="many">Many</option></select></div>
+        <div class="gen-row"><label class="gen-name" for="genCorr">Corridors</label><select id="genCorr" title="Whether a corridor keeps its way or turns often"><option value="straight">Straight</option><option value="winding" selected>Winding</option></select></div>
+        <div class="gen-row"><label class="gen-name" for="genDoors">Doors</label><select id="genDoors" title="How many of the ways into a room have a door"><option value="none">None</option><option value="some">Some</option><option value="most" selected>Most rooms</option></select></div>
+        <div class="gen-row"><label class="gen-name" for="genSeed">Seed</label><input type="text" id="genSeed" maxlength="24" spellcheck="false" autocomplete="off" title="Letters, digits and hyphens. The same seed and settings make the same dungeon again."><button type="button" class="tool ghost" id="genSeedNew" title="Another seed, so another dungeon">New</button></div>
+        <div class="gen-line">The same seed and settings make the same dungeon again.</div>
+        <div class="gen-rule"></div>
+        <div class="gen-line" id="genCount" aria-live="polite"></div>
+        <div class="gen-foot"><button type="button" class="tool ghost" id="genCancel">Cancel</button><button type="button" class="tool" id="genGo">Generate</button></div>
+    </div>
+</div>
 
 <div id="customPrompt" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:100010; align-items:center; justify-content:center;">
     <div style="background:var(--panel2); padding:20px; border:1px solid var(--gold); border-radius:8px; width: 300px;">

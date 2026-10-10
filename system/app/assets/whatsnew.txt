@@ -331,7 +331,7 @@ The top bar and the data map
   read as pills too.
 - On the play map the left panel folds to a narrow rail, so the map
   has more room. Press an icon of the rail to open the panel over the
-  map, or the pin to keep it open.
+  map with that section alone, or the pin to keep it open.
 - The top row can be hidden: press the small arrow at its right end.
   A tab at the top edge shows it again. The map tabs and the pills
   stay, floating on the map.

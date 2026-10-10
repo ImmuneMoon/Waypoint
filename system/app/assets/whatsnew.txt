@@ -177,9 +177,9 @@ Planners and pages
   lists the page under Here on that map. The link is yours alone:
   players get the piece without it.
 - A link shows where it leads before you click. Rest the pointer on a
-  link, or reach it with Tab, and its whole address stands at the
-  bottom left of the window, as in a web browser. A link from someone
-  else still asks first.
+  link, or reach it with Tab, and the address it leads to stands at
+  the bottom left of the window, as in a web browser. A link from
+  someone else still asks first.
 
 The tour
 - The tour is short now. Each step says what a thing is and the few

@@ -527,19 +527,21 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   function tsShow(box) {
       var E = tsState.els; if (!E || !box) return;
       var wasBox = tsState.box, wasSel = tsState.sel;
+      var held = tsHosts.length ? tsxTaken(box) : null;   // a host's field drawn again as a new element: what went on in the old one goes on in this one
       if (tsState.box !== box) { tsState.sel = null; tsState.run = null; tsState.last = null; tsState.pre = null; tsState.comp = false; }
       if (tsHosts.length) tsBarTo(box);   // the bar goes into the panel of the box it is on
       tsState.box = box; tsNote(box);
-      E.root.hidden = false; tsState.away = false;
+      if (held) tsxGoOn(box, held);
+      if (!(held && held.away)) { E.root.hidden = false; tsState.away = false; }
       tsRefresh(); tsPlace();
-      if (tsHosts.length && wasBox && wasBox !== box) tsxLeft(wasSel, wasBox);   // a host is told that its box was left for this one
+      if (tsHosts.length && wasBox && wasBox !== box) setTimeout(function() { tsxLeft(wasSel, wasBox); }, 0);   // a host is told that its box was left for this one, once the focus has settled: a host may draw its view again when told
   }
   function tsHide() {
       if (tsHosts.length && tsxHeld()) return;   // the bar is on a host's box that is in use: a planner drawn again behind it is no reason to take the bar away
       var E = tsState.els, wasBox = tsState.box, wasSel = tsState.sel;
       tsState.box = null; tsState.sel = null; tsState.run = null; tsState.last = null; tsState.pre = null; tsState.comp = false; tsState.away = false;
       if (E) { E.root.hidden = true; E.symWrap.classList.remove('open'); }
-      if (tsHosts.length && wasBox) tsxLeft(wasSel, wasBox);   // a host is told that its box was left
+      if (tsHosts.length) { tsState.kept = null; if (wasBox) tsxLeft(wasSel, wasBox); }   // a host is told that its box was left
   }
   // Where the bar goes — pure: the panel and the box as { left, top, right, bottom } on the screen, the bar's width and height. Above the box,
   // or under it when there is no room above inside the panel; from the box's left edge, pushed inside the panel sideways. seen: the box is in
@@ -567,6 +569,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   function tsPlace() {
       var E = tsState.els, box = tsState.box; if (!E || !box || E.root.hidden || !box.getBoundingClientRect) return;
       var hr = E.host.getBoundingClientRect(), br = box.getBoundingClientRect();
+      if (tsHosts.length) hr = tsxRect(E, hr);   // a host's root with no area of its own (a layer that only holds panels): the window stands in
       var right = hr.left + (E.host.clientLeft || 0) + (E.host.clientWidth || (hr.right - hr.left));   // less the panel's scroll bar
       E.root.style.maxWidth = Math.max(180, Math.round(right - hr.left - 12)) + 'px';
       var tb = tsTableOf(box);
@@ -635,7 +638,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var it = String(e.inputType || '');
       if (tsState.comp) return;   // a composition is the engine's until it ends
       tsState.pre = tsSelOf(box);
-      if ((it === 'historyUndo' || it === 'historyRedo') && tsHostOf(box)) { e.preventDefault(); tsxUndo(box, it === 'historyUndo' ? 'undo' : 'redo'); return; }   // a host's box keeps steps of its own: never the planner's history
+      // a host's box keeps steps of its own, never the planner's history. The browser has ONE undo stack a document, so an undo asked for in another field
+      // can land here: it is cancelled and changes nothing in a box that does not have the focus (a planner field that asked takes its own step when the browser stays silent)
+      if ((it === 'historyUndo' || it === 'historyRedo') && tsHostOf(box)) { e.preventDefault(); if (document.activeElement === box) tsxUndo(box, it === 'historyUndo' ? 'undo' : 'redo'); return; }
       if (it === 'historyUndo' || it === 'historyRedo') { e.preventDefault(); boxUndo(it === 'historyUndo' ? 'undo' : 'redo'); return; }   // the browser's undo stack is one per document: a Ctrl+Z left to it in another field can land here
       if (it === 'insertParagraph' || it === 'insertLineBreak') { e.preventDefault(); if (tsMulti(tsDesc(box))) tsInsert(box, '\n', it); return; }
       if (/^insertFrom/.test(it) || it === 'insertLink') {   // a paste or a drop the paste and drop events did not see: plain text, through the box's text
@@ -705,16 +710,25 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
      The same box and the same bar, with three things of their own. STEPS: a host's field keeps its own undo, by its key (never the planner's
      history, which knows planners only, and never the browser's). WHERE THE BAR IS: inside the panel the host names for the box, so that a key
      pressed on a control of the bar is a key inside that panel, and the bar scrolls and stacks with it. WHAT THE HOST IS TOLD: changed(key,
-     'text' | 'look') after every edit and press, and left(key) once the focus has gone from the box and from the bar, or the bar is on another
-     box. Nothing here calls save, the preview or a step of the planner's. */
+     'text' | 'look') after every edit, press and undo, as the LAST thing done, and left(key) once the focus has gone from the box and from the bar,
+     or the bar is on another box. Nothing here calls save, the preview or a step of the planner's.
+     A HOST'S DUTIES. (1) A key names ONE field for as long as doc() answers the same: a row's own id, never its place in a list. A field may
+     also say who it is (ident): steps kept under a key are let go when another field answers to it. (2) Its roots lie apart: none inside
+     another, none around or inside the planner's own boxes. (3) It may draw its view again when it is told of a change or of a leaving: a
+     field drawn again as a NEW element under the same key takes over the bar, the selection, the run of typing and a bar put away (fill
+     adopts it), and the host gives it the focus. (4) It does not take a box off the page while pending(box) is true, and holds any redraw of
+     its own making (a timer, a word from the table) while a box of its own has the focus. (5) Nothing is told for a box it took off the page
+     itself, nor when the window loses the focus or a panel is hidden: it flushes by itself then. (6) left(key) must be harmless when nothing
+     changed. (7) It names a barHost that it does not draw again. */
   var TS_SIZE_NOT = 'This field takes no size.', TS_LINK_NOT = 'This field takes no link.';
-  var TSX_STEPS = 100, TSX_FIELDS = 60, tsxUndos = Object.create(null), tsxKeys = [];
+  var TSX_STEPS = 100, TSX_FIELDS = 60, tsxUndos = Object.create(null), tsxKeys = [];   // (tsState.kept: a field drawn again as a new element, until that element gets the focus: { box, s, e, back, away })
   // a host's text as its box shows it: a one-line box without line breaks, a box of several lines with its line breaks as \n. (A planner's
   // label also drops one leading line break, as the textarea it replaced did when it was written as markup: a host's text never was.)
   function tsxShown(text, multi) { text = (typeof text === 'string' ? text : '').replace(/\u0000/g, '\uFFFD'); return multi ? text.replace(/\r\n?/g, '\n') : text.replace(/[\r\n]/g, ''); }
   // the box of a host's field, by its key: found by comparing, never by a selector built from the key
   function tsxBox(d) {
-      var hx = tsHostBy(d.h), found = null; if (!hx) return null;
+      var hx = tsHostBy(d.h), found = null, b0 = tsState.box; if (!hx) return null;
+      if (b0 && b0.isConnected !== false && b0.dataset && b0.dataset.tsk === d.key && tsHostOf(b0) === hx) return b0;   // the box the bar is on: a host may show one field in two places under one key
       hx.roots.forEach(function(r) { if (found) return; Array.prototype.forEach.call(r.querySelectorAll('.ts-box'), function(b) { if (!found && b.dataset && b.dataset.tsk === d.key) found = b; }); });
       return found;
   }
@@ -739,14 +753,42 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var d = sel && sel.d; if (!d || d.k !== 'x' || !was || was.isConnected === false) return;
       var hx = tsHostBy(d.h); if (hx) hx.left(d.key);
   }
+  // A host's field drawn again as a NEW element while the bar was on the old one (a host that draws its view again when told of a change): the
+  // same host, the same key, the same text of the moment
+  function tsxAgain(sel, box) {
+      var d = sel && sel.d, dn = box ? tsDesc(box) : null, am = dn ? tsBlocksOf(box) : null;
+      return !!d && d.k === 'x' && !!dn && dn.k === 'x' && dn.h === d.h && dn.key === d.key && !!am && am.id === sel.map;
+  }
+  // ... the new element takes over the run of typing, and once it has the focus (tsShow, which also asks the bar's place) the selection and a bar
+  // that was put away. Should the host not give it the focus, the bar goes as it does when a box is left
+  function tsxAdopt(old, box) {
+      var s = tsState.sel;
+      tsState.box = box;
+      if (tsState.last && tsState.last.box === old) tsState.last.box = box;
+      tsState.kept = { box: box, s: s.s, e: s.e, back: !!s.back, away: tsState.away === true };
+      setTimeout(tsFocusNow, 0);
+  }
+  function tsxTaken(box) { var k = tsState.kept; if (!k) return null; tsState.kept = null; return k.box === box ? k : null; }
+  function tsxGoOn(box, k) {
+      var am = tsBlocksOf(box), d = tsDesc(box), n = (box._tsText || '').length; if (!am || !d) return;
+      var s = Math.max(0, Math.min(n, k.s)), e = Math.max(s, Math.min(n, k.e));
+      tsState.sel = { map: am.id, d: d, s: s, e: e, back: k.back };
+      if (document.activeElement === box) tsSelect(box, s, e, k.back);
+  }
+  // the panel the bar is laid out against: the window, for a host's root that has no area of its own
+  function tsxRect(E, hr) {
+      if (!E.home || E.host === E.home || (hr.right > hr.left && hr.bottom > hr.top)) return hr;
+      return { left: 0, top: 0, right: window.innerWidth || 0, bottom: window.innerHeight || 0 };
+  }
   function tsxCopy(f) { return f === undefined || f === null ? undefined : JSON.parse(JSON.stringify(f)); }
   function tsxSame(a, b) { return a.text === b.text && JSON.stringify(a.fmt) === JSON.stringify(b.fmt); }
   function tsxNow(fld) { return { text: fld.text(), fmt: tsxCopy(fld.fmt()) }; }
   // The steps of one field of a host's, by the host's text of the moment and the field's key: { base, steps, at }. base is the text and look
   // before the first step; a step is the text and look after it, with the selection before it (bs, be) and after it (as, ae).
-  function tsxStack(ctx, d, make) {
+  function tsxStack(ctx, d, make, ident) {
       var k = ctx + '\u0001' + d.key, U = tsxUndos[k];
-      if (!U && make) { U = tsxUndos[k] = { base: null, steps: [], at: -1 }; tsxKeys.push(k); if (tsxKeys.length > TSX_FIELDS) delete tsxUndos[tsxKeys.shift()]; }
+      if (!U && make) { U = tsxUndos[k] = { base: null, steps: [], at: -1, ident: ident }; tsxKeys.push(k); if (tsxKeys.length > TSX_FIELDS) delete tsxUndos[tsxKeys.shift()]; }
+      if (U && U.ident !== ident) { U.base = null; U.steps = []; U.at = -1; U.ident = ident; }   // another field answers to this key now: the steps were not its own
       return U || null;
   }
   // One step onto a field's stack. was, now: the field before and after. cont: it carries on the step before it (a run of typing, a run of sizes)
@@ -770,14 +812,14 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (fld.text() !== value) { value = tsxShown(fld.text(), multi); s = Math.min(s, value.length); e = Math.min(e, value.length); own = true; }   // the host kept another text (cut at its own length): the box shows what is kept
       var now = tsxNow(fld), moved = !tsxSame(was, now);
       box._tsText = value;
-      if (moved) tsxStep(tsxStack(am.id, d, true), was, now, before, { s: s, e: e }, cont);
+      if (moved) tsxStep(tsxStack(am.id, d, true, fld.ident), was, now, before, { s: s, e: e }, cont);
       tsState.last = moved ? { box: box, kind: kind, s: s, e: e } : null;
       tsState.run = null;
       var redrawn = tsPaint(box, fld, multi);
       tsState.sel = { map: am.id, d: d, s: s, e: e, back: false };
       if ((own || redrawn) && document.activeElement === box) tsSelect(box, s, e);
-      if (moved) hx.changed(d.key, 'text');
       tsRefresh(); tsPlace();
+      if (moved) hx.changed(d.key, 'text');   // last: the host may draw its view again now
       return moved;
   }
   // One press of the bar on a host's field: tsPress's own rule, less a label's link. A link and a size only where the host takes them
@@ -795,18 +837,20 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       tsState.last = null;
       fld.setFmt(next);
       var now = tsxNow(fld);
-      if (!tsxSame(was, now)) { tsxStep(tsxStack(am.id, sel.d, true), was, now, { s: sel.s, e: sel.e }, { s: sel.s, e: sel.e }, cont); hx.changed(sel.d.key, 'look'); }
+      var told = !tsxSame(was, now);
+      if (told) tsxStep(tsxStack(am.id, sel.d, true, fld.ident), was, now, { s: sel.s, e: sel.e }, { s: sel.s, e: sel.e }, cont);
       tsPaint(box, fld, tsMulti(sel.d));
       if (!left && !kept) tsHold(box, sel.s, sel.e, sel.back);
       if (next && next.spans && next.spans.length >= TF.MAX_SPANS) toast('This field now holds the most styled parts it can (' + TF.MAX_SPANS + ').');
       tsRefresh(); tsPlace();
+      if (told) hx.changed(sel.d.key, 'look');   // last: the host may draw its view again now
       return true;
   }
   // Undo and redo in a host's box: the field's own steps. False when there is nothing to take back or put back
   function tsxUndo(box, dir) {
       if (tsState.comp) return false;   // a composition is the engine's until it ends
       var d = box ? tsDesc(box) : null, fld = d && d.k === 'x' ? tsField(null, d) : null, hx = fld ? tsHostBy(d.h) : null; if (!hx) return false;
-      var am = tsBlocksOf(box), U = am ? tsxStack(am.id, d, false) : null; if (!U) return false;
+      var am = tsBlocksOf(box), U = am ? tsxStack(am.id, d, false, fld.ident) : null; if (!U) return false;
       var cur = U.at >= 0 ? U.steps[U.at] : U.base;
       if (!cur || !tsxSame(cur, tsxNow(fld))) { U.base = null; U.steps = []; U.at = -1; return false; }   // changed from elsewhere since: nothing of it to take back
       var to, a, z;
@@ -820,8 +864,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       tsState.last = null; tsState.run = null; tsState.pre = null;
       if (tsState.box === box) tsState.sel = { map: am.id, d: d, s: a, e: z, back: false };
       if (document.activeElement === box) tsSelect(box, a, z);
-      hx.changed(d.key, 'text');
       tsRefresh(); tsPlace();
+      hx.changed(d.key, 'text');   // last: the host may draw its view again now
       return true;
   }
   // Ctrl+Z, Ctrl+Y and Ctrl+Shift+Z in a host's box (the chord io.js reads for a planner's): taken whether or not there is a step, so that
@@ -861,6 +905,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (!rec || typeof rec !== 'object' || typeof rec.id !== 'string' || !/^[a-z][a-z0-9]{0,15}$/.test(rec.id) || tsHostBy(rec.id)) return false;
       var roots = Array.isArray(rec.roots) ? rec.roots.filter(function(r) { return !!r && r.nodeType === 1 && typeof r.addEventListener === 'function' && typeof r.contains === 'function' && typeof r.querySelectorAll === 'function'; }) : [];
       if (!roots.length || roots.length !== rec.roots.length || typeof rec.field !== 'function') return false;
+      // roots lie apart: a box event is wired once on each, and a root inside another, or around or inside the planner's own boxes, would have every edit taken twice
+      var pb = document.getElementById('plannerBlocks'), others = pb ? [pb] : [], near = function(a, b) { return a === b || a.contains(b) || b.contains(a); };
+      tsHosts.forEach(function(h) { others = others.concat(h.roots); });
+      for (var ri = 0; ri < roots.length; ri++) { if (others.some(function(o) { return near(o, roots[ri]); })) return false; others.push(roots[ri]); }
       var ask = function(name, none) { return function(a, b) { try { return typeof rec[name] === 'function' ? rec[name](a, b) : none; } catch (err) { if (typeof console !== 'undefined' && console.error) console.error(err); return none; } }; };
       var q = { field: ask('field', null), doc: ask('doc', ''), name: ask('name', ''), links: ask('links', false), sizes: ask('sizes', false), barHost: ask('barHost', null), changed: ask('changed', null), left: ask('left', null) };
       var hx = {
@@ -868,7 +916,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           // a host's field as the box reads it: its text a string or nothing, its format an object or none. What it holds is the host's, and may come from a file
           field: function(key) {
               var f = q.field(key); if (!f || typeof f.text !== 'function' || typeof f.fmt !== 'function' || typeof f.setFmt !== 'function' || typeof f.setText !== 'function') return null;
-              return { text: function() { var t = f.text(); return typeof t === 'string' ? t : ''; }, fmt: function() { var m = f.fmt(); return m && typeof m === 'object' ? m : undefined; }, setFmt: function(v) { f.setFmt(v); }, setText: function(v) { f.setText(v); } };
+              return { ident: typeof f.ident === 'string' ? f.ident.slice(0, 200) : '', text: function() { var t = f.text(); return typeof t === 'string' ? t : ''; }, fmt: function() { var m = f.fmt(); return m && typeof m === 'object' ? m : undefined; }, setFmt: function(v) { f.setFmt(v); }, setText: function(v) { f.setText(v); } };
           },
           doc: function() { var v = q.doc(); return typeof v === 'string' ? v : ''; },
           name: function(key) { var v = q.name(key); return typeof v === 'string' ? v.slice(0, 80) : ''; },
@@ -895,15 +943,20 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // A host's box drawn from its field: after the host dressed it, and again whenever the host's text or look changed under it. The selection
   // and the bar are kept where the box is the one in use. Never while a composition is under way in it (the box is the engine's then).
   function tsxFill(box) {
-      if (tsState.box && tsState.box !== box && tsState.box.isConnected === false) tsHide();   // the box the bar was on is off the page
-      var d = box ? tsDesc(box) : null, fld = d && d.k === 'x' ? tsField(null, d) : null; if (!fld) return false;
+      var d = box ? tsDesc(box) : null, fld = d && d.k === 'x' ? tsField(null, d) : null, old = tsState.box, again = false;
+      if (old && old !== box && old.isConnected === false) {   // the box the bar was on is off the page
+          again = !!fld && tsxAgain(tsState.sel, box);
+          if (again) tsxAdopt(old, box); else tsHide();
+      }
+      if (!fld) return false;
       var mine = tsState.box === box;
       if (mine && tsState.comp) return false;
-      var multi = tsMulti(d), shown = tsxShown(fld.text(), multi), sel = mine && document.activeElement === box ? tsSelOf(box) : null;
+      var multi = tsMulti(d), shown = tsxShown(fld.text(), multi), sel = mine && document.activeElement === box ? tsSelOf(box) : null, same = (again ? old._tsText : box._tsText) === shown;
       box._tsText = shown;
       var drawn = tsPaint(box, fld, multi);
       if (mine) {
-          tsState.last = null; tsState.run = null; tsState.pre = null;
+          if (!same) { tsState.last = null; tsState.run = null; }   // the text changed under the box: what is typed next is a step of its own (a fill that changes no text, as from the host's own word of a change, keeps a run of typing one step)
+          tsState.pre = null;
           if (tsState.sel) { tsState.sel.s = Math.min(tsState.sel.s, shown.length); tsState.sel.e = Math.max(tsState.sel.s, Math.min(tsState.sel.e, shown.length)); }
           if (drawn && sel) tsSelect(box, Math.min(sel.s, shown.length), Math.min(sel.e, shown.length), sel.back);
           tsRefresh(); tsPlace();

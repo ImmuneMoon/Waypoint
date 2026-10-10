@@ -3782,10 +3782,12 @@ function renderNotepad() {
             var nowN = ta.value, aN = oldN.length, zN = nowN.length, pN = 0, qN = 0, limN = Math.min(aN, zN);
             var pairN = function(t, i) { if (i <= 0 || i >= t.length) return false; var x = t.charCodeAt(i - 1), y = t.charCodeAt(i); return x >= 0xd800 && x <= 0xdbff && y >= 0xdc00 && y <= 0xdfff; };   // i lies between the halves of one character
             while (pN < limN && oldN.charCodeAt(pN) === nowN.charCodeAt(pN)) pN++;
+            if (pairN(oldN, pN) || pairN(nowN, pN)) pN--;   // two characters that share their first half are two characters: the change begins before both
             while (qN < limN - pN && oldN.charCodeAt(aN - 1 - qN) === nowN.charCodeAt(zN - 1 - qN)) qN++;
             if (pairN(oldN, aN - qN) || pairN(nowN, zN - qN)) qN--;   // the end of what changed is where a selection collapses to: never between the halves of one character
             // the START of a selection leans right: what the GM typed right before the selected words is not selected with them. Its end, and a lone caret, lean left
-            var mapN = function(o, right) { o = Math.max(0, Math.min(aN, o | 0)); return (right ? o < pN : o <= pN) ? o : o >= aN - qN ? o + (zN - aN) : -1; }, m0N = mapN(s0N, s1N > s0N), m1N = mapN(s1N, false);
+            // (a start that sits exactly where the change begins goes to the END of what changed: after what was typed there, and nowhere when something was only deleted)
+            var mapN = function(o, right) { o = Math.max(0, Math.min(aN, o | 0)); if (right && o === pN) return zN - qN; return o <= pN ? o : o >= aN - qN ? o + (zN - aN) : -1; }, m0N = mapN(s0N, s1N > s0N), m1N = mapN(s1N, false);
             if (m0N < 0 || m1N < 0) m0N = m1N = zN - qN;
             try { ta.setSelectionRange(m0N, Math.max(m0N, m1N)); } catch (e) {}
             ta.scrollTop = scN;

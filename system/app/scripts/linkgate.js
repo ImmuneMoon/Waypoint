@@ -260,10 +260,11 @@ function peekWire(win, doc) {
     var lost = null;           // a link under the pointer whose strip a scroll or the window's blur put away: the pointer's next move on it brings it back
     var keyed = false;         // the last press was a key, so a focus that FOLLOWS is the keyboard's (a press of the pointer focuses a link too, and shows nothing by itself)
     var kf = null;             // the link the keyboard's focus rests on: noted as the focus arrives, so a key pressed later never makes a pointer's focus the keyboard's
+    var back = null, gone = false;   // across the window's absence: the link the keyboard's focus rested on as the window lost the focus, and that the window was away. The focus that comes back with the window is the keyboard's only if it was before
     var away = function() { at = null; how = ''; lost = null; peekHide(doc); };
     // no link under the pointer any more: the address of the link the keyboard's focus rests on, if it rests on one, else nothing
     var rest = function() {
-        var f = kf && doc.activeElement === kf && kf.isConnected !== false ? kf : null;
+        var f = kf && doc.activeElement === kf ? kf : null;   // (a link taken off the page is never the element with the focus)
         if (f && peekShow(win, doc, f, null)) { at = f; how = 'key'; lost = null; } else away();
     };
     doc.addEventListener('mouseover', function(e) {
@@ -281,11 +282,12 @@ function peekWire(win, doc) {
     }, true);
     doc.addEventListener('focusin', function(e) {
         var a = linkAt(e.target);
-        kf = a && keyed ? a : null;
+        if (gone) { gone = false; kf = a && a === back ? a : null; } else kf = a && keyed ? a : null;
+        back = null;
         if (kf && peekShow(win, doc, kf, null)) { at = kf; how = 'key'; lost = null; return; }
         if (how === 'key') away();   // the focus went on to something that shows nothing (a link taken off the page sends no focusout)
     }, true);
-    doc.addEventListener('focusout', function(e) { var a = linkAt(e.target); if (a && a === kf) kf = null; if (at && how === 'key' && a === at) away(); }, true);
+    doc.addEventListener('focusout', function(e) { var a = linkAt(e.target); if (a) back = a === kf ? a : null; if (a && a === kf) kf = null; if (at && how === 'key' && a === at) away(); }, true);
     doc.addEventListener('scroll', function(e) {
         if (!at) return;
         if (how === 'key') { if (doc.activeElement !== at) away(); return; }   // the focus itself scrolls its link into view: the strip is fixed to the window, and stays
@@ -293,14 +295,14 @@ function peekWire(win, doc) {
         if (t && t !== doc && typeof t.contains === 'function' && !t.contains(at)) return;   // another box scrolled (a chat line arriving): the link has not moved
         var was = at; away(); lost = was;   // the link may have moved from under the pointer
     }, true);
-    doc.addEventListener('mousedown', function() { keyed = false; }, true);   // a press leaves the strip: the pointer still rests on the link, and what follows is the gate's
+    doc.addEventListener('mousedown', function() { keyed = false; gone = false; back = null; }, true);   // a press leaves the strip: the pointer still rests on the link, and what follows is the gate's
     doc.addEventListener('dragstart', function() { if (at) away(); }, true);   // while something is dragged the pointer sends no word of where it is
     doc.addEventListener('keydown', function(e) {
-        keyed = true;
-        if (e.key === 'Escape') kf = null;   // put away by hand: it stays away until the focus moves
+        keyed = true; gone = false;
+        if (e.key === 'Escape') kf = null;   // put away by hand: it stays away until the focus moves (and across the window's absence: what is noted then is noted from kf)
         if (e.key === 'Escape' || (at && at.isConnected === false)) away();   // Escape; or the focused link was taken off the page, which sends no focusout
     }, true);
-    if (win && typeof win.addEventListener === 'function') win.addEventListener('blur', function() { var was = how === 'ptr' ? at : null; kf = null; away(); lost = was; });   // (the focus comes back to its link with the window, and is noted again then)
+    if (win && typeof win.addEventListener === 'function') win.addEventListener('blur', function() { var was = how === 'ptr' ? at : null; gone = true; if (kf) back = kf; kf = null; away(); lost = was; });   // (the focus comes back to its link with the window, and is noted again then)
 }
 // [sinkcheck:linkpeek-end]
 

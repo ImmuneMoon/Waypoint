@@ -242,6 +242,7 @@ var _hoSaid = false, _shSaid = false;   // each budget's refusal is said once a 
 var _hoCount = 0, _hoBytes = 0, _shCount = 0, _shBytes = 0;   // what one run of the app accepts from tables — the GM's handouts and, apart from them, the pages players share: a host that keeps sending fills no disk, and a player who keeps sharing never spends what the GM's handouts live on
 function handoutBudget(msg) {
     var n = (msg && msg.data && msg.data.byteLength) || (msg && typeof msg.text === 'string' ? msg.text.length : 0) || 0;
+    var Lb = msg && msg.look !== undefined && typeof window !== 'undefined' && window.wpLook && typeof window.wpLook.recShapeOk === 'function' ? window.wpLook : null; if (Lb && Lb.recShapeOk(msg.look)) n += Lb.lookWeight(msg.look);   // item 35: a page's look counts with its words
     if (msg && typeof msg.sharedBy === 'string' && msg.sharedBy) {
         if (_shCount >= 200 || _shBytes + n > 100 * 1024 * 1024) { if (!_shSaid) { _shSaid = true; toast('Players are sharing more than this session can hold — the rest are skipped.'); } return false; }
         _shCount++; _shBytes += n; return true;
@@ -315,7 +316,9 @@ async function receiveHandout(msg) {
 async function receiveTextHandout(msg, campId, id) {
     var title = String(msg.title || 'Handout').slice(0, 120), caption = String(msg.caption || '').slice(0, 4000);
     var text = String(msg.text || '').slice(0, 60000);
-    if (!journalRoom(campId, 0, text.length + title.length + caption.length + 1024)) { journalFull(); return; }
+    // Item 35: the look a shared note came with, cleaned HERE again for the text as kept, by the rule of a note (whatever the host says it cleaned)
+    var Lr = msg.look !== undefined && typeof window !== 'undefined' && window.wpLook && typeof window.wpLook.cleanRec === 'function' ? window.wpLook : null, look = Lr ? Lr.cleanRec(msg.look, text, Lr.RULES.NOTE) : undefined;
+    if (!journalRoom(campId, 0, text.length + title.length + caption.length + 1024 + (look ? Lr.lookWeight(look) : 0))) { journalFull(); return; }
     var existing, added = false, shownId = id;
     await withIndex(campId, function(idx) {
         stampHead(idx, msg);
@@ -325,6 +328,7 @@ async function receiveTextHandout(msg, campId, id) {
             // nothing written on it yet: the latest replaces it, whatever changed
             if (String(existing.text || '') !== text) added = true;
             existing.title = title; existing.caption = caption; existing.kind = 'text'; existing.text = text; existing.updatedAt = Date.now(); existing.notes = '';
+            if (look) existing.look = look; else delete existing.look;   // (a page replaced in place loses an old look)
             stampShared(existing, msg);
             shownId = existing.id;
             return;
@@ -332,6 +336,7 @@ async function receiveTextHandout(msg, campId, id) {
         if (existing && String(existing.text || '') === text && msg.replay) {
             // the same words coming back on reconnect: refreshed quietly, the notes stay
             existing.title = title; existing.caption = caption; existing.kind = 'text'; existing.updatedAt = Date.now();
+            if (look) existing.look = look; else delete existing.look;
             stampShared(existing, msg);
             shownId = existing.id;
             return;
@@ -339,13 +344,15 @@ async function receiveTextHandout(msg, campId, id) {
         // first time, or a re-queue / re-show / changed text on top of a noted copy: a new entry of its own (under an id of its own where another sender's page holds this one)
         var en = { id: existing || idTaken(idx, id) ? versionId(id) : id, kind: 'text', title: title, caption: caption, text: text, receivedAt: Date.now(), notes: '' };
         if (existing) en.from = id;
+        if (look) en.look = look;
         stampShared(en, msg);
         idx.entries.push(en); added = true; shownId = en.id;
     });
     await registerJournal(campId);
     if (msg.replay && !added) return;
     badge(unseen + 1);
-    if (handoutPopup()) showHandout({ title: title, caption: caption, text: text, fresh: true, entry: { campId: campId, id: shownId }, from: cameFrom(msg) });
+    var fresh = { title: title, caption: caption, text: text, fresh: true, entry: { campId: campId, id: shownId }, from: cameFrom(msg) }; if (look) fresh.look = look;
+    if (handoutPopup()) showHandout(fresh);
     else toast((msg.sharedBy ? msg.sharedBy + ' shared' : 'New handout') + ': "' + (title || 'Handout') + '" — in your Journal.');
 }
 window.wpJournalReceive = receiveHandout;
@@ -650,6 +657,7 @@ async function shareEntry(campId, id, to, btn) {
         if (!bytes || !bytes.length) { toast('That picture could not be read from your journal.'); return; }
         entry = { id: e.id, kind: 'image', title: e.title || 'Handout', caption: e.caption || '', mime: e.mime || 'image/jpeg', data: bytes, notes: e.notes || '', tags: e.tags || [] };
     }
+    if (e.kind === 'note' && e.look && typeof e.look === 'object') entry.look = e.look;   // item 35: a note of your own goes with its look (the host cleans it for the text as it relays it, and each reader again)
     if (window.wpNet.shareEntry({ to: to, entry: entry })) {
         var who = to === '*' ? 'everyone in the party' : to === 'gm' ? 'GM' : ((Object.values(window.wpNet.roster || {}).find(function(p) { return p && p.id === to; }) || {}).name || 'them');
         toast('"' + (entry.title || 'Note') + '" sent to ' + who + '.');
@@ -839,12 +847,18 @@ function jbxField(key) {
         font: function() { return n.font || ''; }, setFont: function(v) { n.font = typeof v === 'string' ? v : ''; } };
 }
 function jbxChanged(key) { var row = jbxRow(key); if (row) noteSaveSoon(row); }
-// The Journal registers as a host once, when the first note is drawn. The bar goes into the window's own box, which is never drawn again (the list is)
+// The Journal registers as a host once, when the first note is drawn. The bar goes into the window's own box, which is never drawn again (the
+// list is); the LIST bounds its place, so a note scrolled out of the list takes the bar out of sight with it, and it stands UNDER the note's
+// whole row, so that it lies over nothing of the note in hand: neither its title row above the box nor its Share row beneath it
+// A key pressed on a control of the bar while it stands in the Journal's window box is the bar's alone. The box has no key shield of its own
+// (the list, the search and the picker each have one), and the page reads every key that reaches the document: undo, Delete, the arrows
+function jbxBarKey(e) { var t = e && e.target; if (t && t.closest && t.closest('.ts-bar')) e.stopPropagation(); }
 function jbxOn() {
     if (_jbx.on) return _jbx.on === 1;
     var w = jbxApi(); if (!w || !jbxLook() || !_jList || !_jList.parentNode) return false;
     var yes = function() { return true; };
-    _jbx.on = w.host({ id: 'journal', roots: [_jList], doc: function() { return 'journal'; }, field: jbxField, name: function() { return 'Note'; }, links: yes, sizes: yes, fonts: yes, barHost: function() { return _jList.parentNode; }, changed: jbxChanged, left: function() {} }) ? 1 : 2;
+    _jbx.on = w.host({ id: 'journal', roots: [_jList], doc: function() { return 'journal'; }, field: jbxField, name: function() { return 'Note'; }, links: yes, sizes: yes, fonts: yes, barHost: function() { return _jList.parentNode; }, barArea: function() { return _jList; }, barBy: function(box) { return box && box.closest ? box.closest('.journal-entry') : null; }, barUnder: yes, changed: jbxChanged, left: function() {} }) ? 1 : 2;
+    if (_jbx.on === 1) _jList.parentNode.addEventListener('keydown', jbxBarKey);
     return _jbx.on === 1;
 }
 // The record for what a note's box holds now, or none: what Open reads the note with
@@ -858,11 +872,11 @@ function noteBoxes(list, journals) {
     (Array.isArray(journals) ? journals : []).forEach(function(j) { if (!j || typeof j.campId !== 'string') return; (Array.isArray(j.entries) ? j.entries : []).forEach(function(e) { if (e && e.kind === 'note' && typeof e.id === 'string') by[j.campId + '/' + e.id] = e; }); });
     Array.prototype.forEach.call(list.querySelectorAll('textarea.journal-note-body'), function(ta) {
         var row = ta.closest ? ta.closest('.journal-entry') : null, key = jbxKeyOf(row), en = key && Object.prototype.hasOwnProperty.call(by, key) ? by[key] : null; if (!en || key.length > 200) return;
-        var text = typeof en.text === 'string' ? en.text.slice(0, 60000) : '', rec = L.cleanRec(en.look, text, L.RULES.NOTE);
+        var text = typeof en.text === 'string' ? en.text.slice(0, 60000).replace(/\r\n?/g, '\n') : '', rec = L.cleanRec(en.look, text, L.RULES.NOTE);   // (line ends as the box shows them: the box's own offsets are then the text's)
         _jbx.notes[key] = { text: text, fmt: rec ? rec.fmt : undefined, font: rec && typeof rec.font === 'string' ? rec.font : '' };
         var d = document.createElement('div'); d.className = ta.className;
         if (!w.dress(d, { key: key, multi: true, placeholder: 'Write\u2026', label: 'Note' })) { delete _jbx.notes[key]; return; }
-        Object.defineProperty(d, 'value', { get: function() { return w.textOf(d); } });
+        Object.defineProperty(d, 'value', { get: function() { return w.textOf(d); }, set: function() {} });   // (read by every reader of a note's body; an assignment changes nothing and never throws)
         ta.parentNode.replaceChild(d, ta); w.fill(d); live[key] = 1; made++;
     });
     Object.keys(_jbx.notes).forEach(function(k) { if (!live[k]) delete _jbx.notes[k]; });   // a note that is no longer drawn holds nothing here
@@ -905,7 +919,7 @@ function openRow(target) {
     }
     var base = { title: row.querySelector('.journal-title').textContent.replace(/\s*\u00d7\s*$/, '').trim(), caption: (row.querySelector('.journal-caption') || {}).textContent || '', entry: { campId: row.dataset.camp, id: row.dataset.id }, from: rowFrom(row) };
     if (row.dataset.kind === 'text') {
-        readIndex(row.dataset.camp).then(function(idx) { var en = idx.entries.find(function(x) { return x.id === row.dataset.id; }); showHandout(Object.assign(base, { text: en ? en.text : '' })); });
+        readIndex(row.dataset.camp).then(function(idx) { var en = idx.entries.find(function(x) { return x.id === row.dataset.id; }); showHandout(Object.assign(base, { text: en ? en.text : '' }, en && en.look && typeof en.look === 'object' ? { look: en.look } : {})); });
     } else showHandout(Object.assign(base, { src: t.getAttribute('src') }));
 }
 // [sinkcheck:journalopen-end]

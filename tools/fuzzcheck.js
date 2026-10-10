@@ -528,7 +528,7 @@ function mutations(tpl) {
             'needItem': { type: 'needItem', campId: 'c1', itemId: 'm_open' },
             'travel': { type: 'travel', viaItemId: 'portal_vis' },
             'target': { type: 'target', id: 'tok_npc', mapId: 'm_open' },
-            'share': { type: 'share', entry: { kind: 'text', text: 'a shared note', title: 'Note', caption: 'cap', notes: 'n', tags: ['t'], id: 'e1' }, to: '*' },
+            'share': { type: 'share', entry: { kind: 'text', text: 'a shared note', title: 'Note', caption: 'cap', notes: 'n', tags: ['t'], id: 'e1', look: { fmt: { spans: [{ s: 2, e: 8, b: true, link: 'https://a.example/' }] }, font: 'Lora', sig: win.wpLook.textSig('a shared note') } }, to: '*' },   // item 35, fold 2b: a note goes with its look
             'share-image': { type: 'share', entry: { kind: 'image', data: new Uint8Array([1, 2, 3, 4]).buffer, mime: 'image/png', title: 'Pic', id: 'e2' }, to: 'gm' },
             'pos': { type: 'pos', campId: 'c1', itemId: 'm_open', wbId: 'tok_p1', x: 150, y: 160, rot: 0, front: 0, final: true, a: 3 },
             'char-edit': { type: 'char-edit', rid: 'r1', charId: 'c_p1', fieldId: 'f_str', value: 12 },
@@ -696,7 +696,7 @@ function mutations(tpl) {
         'needItem': o => o.p1.some(m => m.type === 'item' && m.itemId === 'm_open'),
         'travel': o => net.roster.peer_p1.location === 'm_fog' && o.p1.some(m => m.type === 'stage') && o.p1.some(m => m.type === 'mapBack' && m.itemId === 'm_open') && !o.p2.some(m => m.type === 'mapBack'),
         'target': o => net.targets.u_p1 && net.targets.u_p1.id === 'tok_npc' && o.p2.some(m => m.type === 'targets'),
-        'share': o => o.p2.some(m => m.type === 'handout' && m.title === 'Note' && m.sharedById === 'u_p1'),
+        'share': o => o.p2.some(m => m.type === 'handout' && m.title === 'Note' && m.sharedById === 'u_p1' && !!m.look && m.look.font === 'Lora' && JSON.stringify(m.look.fmt) === JSON.stringify({ spans: [{ s: 2, e: 8, b: true, link: 'https://a.example/' }] })),   // (relayed with its look, cleaned for the text as relayed)
         'share-image': () => rec.journal.length === 1 && rec.journal[0].mime === 'image/png' && rec.journal[0].data instanceof ArrayBuffer,
         'pos': o => tokH('tok_p1').x === 150 && tokH('tok_p1').y === 160 && o.p2.some(m => m.type === 'pos' && m.x === 150),
         'char-edit': o => campH().chars.c_p1.values.f_str === 12 && o.p1.some(m => m.type === 'char-ack'),
@@ -1034,7 +1034,7 @@ function mutations(tpl) {
         'pause': { type: 'pause', on: true }, 'pausePlayer': { type: 'pausePlayer', on: false }, 'snap': { type: 'snap', on: true },
         'stance': { type: 'stance', flags: { elevation: true, posture: false }, camps: {}, campId: 'c1' },
         'travelLock': { type: 'travelLock', on: false }, 'travelDenied': { type: 'travelDenied', reason: 'closed', map: 'Cellar' },
-        'handout': { type: 'handout', kind: 'text', text: 'note', title: 'T', caption: 'c', id: 'sh_1', campId: 'c1', gmId: 'u_gm' },
+        'handout': { type: 'handout', kind: 'text', text: 'note', title: 'T', caption: 'c', id: 'sh_1', campId: 'c1', gmId: 'u_gm', look: { fmt: { b: true }, font: 'Lora', sig: win.wpLook.textSig('note') } },   // item 35, fold 2b: a page may come with a look
         'notepad': { type: 'notepad', on: true, text: 'hi', campId: 'c1', gmId: 'u_gm', campaign: 'C', gm: 'GM' },
         'combats': { type: 'combats', combats: { m_open: { mapId: 'm_open', round: 1, turn: 0, rows: [{ id: 'row_p1', name: 'Ayla', tokId: 'tok_p1' }, { id: 'row_npc', name: 'Orc', tokId: 'tok_npc' }] } } },
         'targets': { type: 'targets', targets: { u_p2: { id: 'tok_npc', mapId: 'm_open', name: 'Bram' } } },

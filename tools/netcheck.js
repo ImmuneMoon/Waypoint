@@ -8918,7 +8918,7 @@ pendingChecks.push((async () => {
             return { ok: false, status: 404 };
         };
         const w = { files, ls, localStorage, used, toasts: [], deleted: [], shown: [], now: 1700000000000, o };
-        const env = { fetch, localStorage, document: { getElementById: () => null }, toast: m => w.toasts.push(m), esc: s => String(s), showHandout: h => { w.shown.push(h); }, handoutPopup: () => o.popup === true, window: {}, FileReader: function() {}, Blob: function() {}, Date: { now: () => (w.now += 7) } };
+        const env = { fetch, localStorage, document: { getElementById: () => null }, toast: m => w.toasts.push(m), esc: s => String(s), showHandout: h => { w.shown.push(h); }, handoutPopup: () => o.popup === true, window: o.window || {}, FileReader: function() {}, Blob: function() {}, Date: { now: () => (w.now += 7) } };
         const names = Object.keys(env);
         w.api = new Function(...names, "'use strict';\n" + journalSrc + '\nreturn { receive: receiveHandout, readIndex: readIndex, stampHead: stampHead, registerJournal: registerJournal, budget: handoutBudget, dropEntryFiles: typeof dropEntryFiles === "function" ? dropEntryFiles : null };')(...names.map(n => env[n]));
         w.idx = key => w.api.readIndex(key);
@@ -8926,6 +8926,40 @@ pendingChecks.push((async () => {
     };
     const gmMsg = (id, text, more) => Object.assign({ type: 'handout', campId: 'camp1', gmId: 'u_gm', campaign: 'The Camp', gm: 'Gina', id, kind: 'text', title: 'T ' + id, caption: '', text, tags: [] }, more || {});
     const shMsg = (id, text, who, whoId, more) => gmMsg(id, text, Object.assign({ sharedBy: who, sharedById: whoId, sharedNotes: '' }, more || {}));
+    // item 35, fold 2b: a shared note's look. On the host (relayShare, run for real with lookcore): by its shape alone until the text is cut,
+    // counted with the words it styles, cleaned for the text as relayed. In the reader's Journal (receiveTextHandout, run for real): cleaned again
+    pendingChecks.push((async () => {
+        const LKb = await import(require('url').pathToFileURL(path.join(__dirname, '..', 'system', 'app', 'scripts', 'lookcore.js')).href), NOTE = LKb.RULES.NOTE, T = 'Shared words here';
+        const good = LKb.makeRec({ spans: [{ s: 0, e: 6, b: true, link: 'https://a.example/' }] }, 'Lora', T, NOTE), stale = LKb.makeRec({ b: true }, '', 'Other words', NOTE), LONG = 'y'.repeat(60010), forLong = { fmt: { spans: [{ s: 0, e: 3, b: true }] }, sig: LKb.textSig(LONG) }, fonted = { fmt: { b: true }, font: 'Comic Sans MS', sig: LKb.textSig(T) };
+        const KEYS = ['type', 'campId', 'gmId', 'campaign', 'gm', 'id', 'title', 'caption', 'sharedBy', 'sharedById', 'sharedNotes', 'tags', 'kind', 'text'];
+        const relay = (look, o) => { o = o || {}; const w = mkHost(); if (!o.noCore) w.env.window.wpLook = LKb; const a = w.join('pA', 'u_a', 'Ann'); w.join('pB', 'u_b', 'Bo');
+            const entry = Object.assign({ kind: 'text', id: 'n1', text: T, title: 'A note' }, look === undefined ? {} : { look }, o.entry || {}), msg = { type: 'share', to: o.to || '*', entry };
+            if (o.gm) w.relay(msg, null, { id: 'u_gm', name: 'Gina' }); else { w.now += 60000; w.relay(msg, a); }
+            const m = o.to === 'gm' ? w.gmGot[0] : (w.sent.find(s => s[0] === 'pB') || [])[1];
+            return [m ? (m.kind === 'text' ? j(Object.keys(m)) === j(KEYS.concat('look' in m ? ['look'] : [])) : 'image') : 'none', m && 'look' in m ? j(m.look) : null, w.env._shareBytes.u_a || 0]; };
+        const W = r => LKb.lookWeight(r), host = { styled: relay(good), plain: relay(undefined), stale: relay(stale), font: relay(fonted), typed: relay(new Uint8Array(8)), word: relay('x'), nul: relay(null), junk: relay(Object.assign({}, good, { junk: 1 })),
+            cut: relay(forLong, { entry: { text: LONG } }), image: relay(good, { entry: { kind: 'image', data: new Uint8Array(4), mime: 'image/png' } }), gm: relay(good, { gm: true }), toGm: relay(good, { to: 'gm' }), noCore: relay(good, { noCore: true }) };
+        const hostWant = { styled: [true, j(good), T.length + W(good)], plain: [true, null, T.length], stale: [true, null, T.length + W(stale)], font: [true, j({ fmt: { b: true }, sig: LKb.textSig(T) }), T.length + W(fonted)], typed: [true, null, T.length], word: [true, null, T.length], nul: [true, null, T.length], junk: [true, null, T.length],
+            cut: [true, null, LONG.length + W(forLong)], image: ['image', null, 4], gm: [true, j(good), 0], toGm: [true, j(good), T.length + W(good)], noCore: [true, null, T.length] };
+        // the reader: whatever the host says it cleaned, the look is cleaned here again for the text as kept
+        const rcv = async (msgs, o) => { const J2 = mkJournal(Object.assign({ window: { wpLook: LKb }, popup: true }, o || {})); for (const m of msgs) await J2.api.receive(m); const idx = await J2.idx('camp1__u_gm'); return [idx.entries.map(e => [e.id, e.kind, e.kind === 'text' ? e.text : '', 'look' in e ? j(e.look) : null]), J2.shown.map(h => ('look' in h ? j(h.look) : null))]; };
+        const hostile = { fmt: { spans: [{ s: 0, e: 6, link: 'javascript:alert(1)', color: 'red', onclick: 'x' }] }, font: 'Comic Sans MS"; x', sig: LKb.textSig(T) };
+        const reader = { styled: await rcv([shMsg('sh1', T, 'Pat', 'u_p1', { look: good })]), plain: await rcv([shMsg('sh1', T, 'Pat', 'u_p1')]), hostile: await rcv([shMsg('sh1', T, 'Pat', 'u_p1', { look: hostile })]), stale: await rcv([shMsg('sh1', T, 'Pat', 'u_p1', { look: stale })]),
+            font: await rcv([shMsg('sh1', T, 'Pat', 'u_p1', { look: fonted })]), fromGm: await rcv([gmMsg('h1', T, { look: good })]), replaced: await rcv([shMsg('sh1', T, 'Pat', 'u_p1', { look: good }), shMsg('sh1', 'New words', 'Pat', 'u_p1')]),
+            relooked: await rcv([shMsg('sh1', T, 'Pat', 'u_p1'), shMsg('sh1', T, 'Pat', 'u_p1', { look: good })]), image: await rcv([Object.assign(gmMsg('p1', ''), { kind: 'image', data: new Uint8Array(4), mime: 'image/png', look: good })]),
+            noCore: await rcv([shMsg('sh1', T, 'Pat', 'u_p1', { look: good })], { window: {} }), typed: await rcv([shMsg('sh1', T, 'Pat', 'u_p1', { look: new Uint8Array(8) })]) };
+        const E = (id, text, look) => [[[id, 'text', text, look === undefined ? null : j(look)]], [look === undefined ? null : j(look)]];
+        const hoB = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'handouts.js'), 'utf8').replace(/\r\n/g, '\n');
+        check('item 35, fold 2b, a shared note\'s look (net.js relayShare and handouts.js receiveTextHandout, each run for real with lookcore): the host relays a styled note with exactly the keys an unstyled one has and its look after them, cleaned for the text as relayed by the rule of a note; an unstyled share has the keys it always had; a look made for other words, or for a text the relay cut, is dropped and the share delivered; a font of the sender\'s own computer is dropped and the rest of the look kept; a look that is no record (bytes, a word, nothing, a record with an unknown key) is no look, and the share is neither refused nor charged for it; a look of the right shape counts with the words it styles in the sender\'s budget, kept or not; a picture carries none; the GM\'s own share and a share to the GM carry it; a host with no lookcore relays the words alone; the reader cleans the look again for the text as kept, so a hostile host\'s look (a script address, a colour word, a handler, a font with a quote) leaves a plain page and bytes leave none; a page replaced in place loses its old look, and the same words sent again with a look gain it; the picture\'s own path names no look; the page shown at once carries the look the index does; without lookcore the page is stored and shown plain; the sender names the look only for a note of its own, and the three ways a page is written each set or drop it',
+            j(host) === j(hostWant)
+            && j(reader.styled) === j(E('sh1', T, good)) && j(reader.plain) === j(E('sh1', T)) && j(reader.hostile) === j(E('sh1', T)) && j(reader.stale) === j(E('sh1', T)) && j(reader.font) === j(E('sh1', T, { fmt: { b: true }, sig: LKb.textSig(T) })) && j(reader.fromGm) === j(E('h1', T, good))
+            && j(reader.replaced[0]) === j([['sh1', 'text', 'New words', null]]) && j(reader.replaced[1]) === j([j(good), null]) && j(reader.relooked[0]) === j([['sh1', 'text', T, j(good)]])
+            && (() => { const a = hoB.indexOf('async function receiveHandout(msg) {'), z = hoB.indexOf('async function receiveTextHandout('); return a > 0 && z > a && hoB.slice(a, z).indexOf('look') < 0; })() && j(reader.noCore) === j(E('sh1', T)) && j(reader.typed) === j(E('sh1', T))
+            && hoB.includes("    if (e.kind === 'note' && e.look && typeof e.look === 'object') entry.look = e.look;") && hoB.split('if (look) existing.look = look; else delete existing.look;').length === 3 && hoB.includes("        if (look) en.look = look;\n        stampShared(en, msg);")
+            && hoB.includes("if (Lb && Lb.recShapeOk(msg.look)) n += Lb.lookWeight(msg.look);") && hoB.includes("+ 1024 + (look ? Lr.lookWeight(look) : 0))) { journalFull(); return; }") && hoB.includes("en && en.look && typeof en.look === 'object' ? { look: en.look } : {})); });")
+            && /\n    var LKs = typeof window !== 'undefined' && window\.wpLook && typeof window\.wpLook\.recShapeOk === 'function' \? window\.wpLook : null, lkS = LKs && en\.kind !== 'image' && LKs\.recShapeOk\(en\.look\) \? en\.look : null;\n    if \(conn\) \{/.test(shareSrc),
+            j([host, reader]));
+    })());
 
     // links (1.5.0): nothing new on the wire or on disk. A handout's text, a caption and a share travel and are stored as the plain text they are —
     // a web address in them is drawn as a link only where the text is read (handouts.js showHandout through linkgate.js); the viewer is only told who a page came from

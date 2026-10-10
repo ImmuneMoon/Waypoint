@@ -4542,12 +4542,15 @@ function shareIdOf(pid, eid) {
 function relayShare(msg, conn, sender) {
     var sp = sender || (conn && net.roster[conn.peer]); if (!sp) return false;
     var en = msg.entry; if (!en || typeof en !== 'object') return;
+    // Item 35: a shared note's look. By its SHAPE alone here: a look that is no record is no look, and the share goes as it would without one
+    var LKs = typeof window !== 'undefined' && window.wpLook && typeof window.wpLook.recShapeOk === 'function' ? window.wpLook : null, lkS = LKs && en.kind !== 'image' && LKs.recShapeOk(en.look) ? en.look : null;
     if (conn) {   // from a player: a few a minute, and a budget for the session (a share lands on the GM's disk or in another player's journal) — 100 shares and 60 MB,
                   // the player's own by profile id, so a new connection (a new peer id) is no new allowance; the notes and the caption count with the text or the picture
         var kS = String(sp.id);
         if (!allow('share', { perMs: 1000, burst: 6, windowMs: 60000, table: 300 }, kS)) return;
         if (en.data && !(en.data instanceof ArrayBuffer || ArrayBuffer.isView(en.data))) return;   // binary or nothing: a decoded map could claim any byteLength
         var szS = ((en.data && en.data.byteLength) || (typeof en.text === 'string' ? en.text.length : 0)) + (typeof en.notes === 'string' ? en.notes.length : 0) + (typeof en.caption === 'string' ? en.caption.length : 0);
+        if (lkS) szS += LKs.lookWeight(lkS);   // the look counts with the words it styles
         if ((_shareCount[kS] || 0) >= 100 || (_shareBytes[kS] || 0) + szS > 60 * 1024 * 1024) return;
         _shareCount[kS] = (_shareCount[kS] || 0) + 1; _shareBytes[kS] = (_shareBytes[kS] || 0) + szS;
     }
@@ -4567,6 +4570,7 @@ function relayShare(msg, conn, sender) {
         if (!(en.data && en.data.byteLength !== undefined) || en.data.byteLength > 6 * 1024 * 1024) return;
         out.mime = ({ 'image/png': 1, 'image/jpeg': 1, 'image/webp': 1 })[en.mime] ? en.mime : 'image/jpeg'; out.data = en.data;
     }
+    if (lkS && kind === 'text') { var lkO = LKs.cleanRec(lkS, out.text, LKs.RULES.NOTE); if (lkO) out.look = lkO; }   // for the text AS CUT, by the rule of a note: an unstyled share has exactly the keys it had
     var names = [];
     if (to === 'gm') { if (window.wpJournalReceive) window.wpJournalReceive(out); names.push('you'); }
     else net.conns.forEach(function(c) {

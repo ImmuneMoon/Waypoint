@@ -49,7 +49,7 @@
 import { cleanLink, linkParts } from './textfmt.js';
 import { showConfirm } from './dialogs.js';
 import { runsOf, SIZE_EM, fontCss } from './textfmt.js';
-import { cleanRec } from './lookcore.js';
+import { cleanRec, ruleLinks } from './lookcore.js';
 
 // [sinkcheck:linkgate-start]
 var LINK_TARGET = '_blank', LINK_REL = 'noopener noreferrer';   // what the page sanitiser writes on every link (docrender.js aAttrs)
@@ -76,13 +76,14 @@ function atTable(win) {
 function linkWhere(a, win) {
     var c = { editing: false, held: !!(a.hasAttribute && a.hasAttribute('data-held')), zone: 'other', own: false, gm: false, who: '', player: atTable(win) };
     for (var n = a; n; n = n.parentNode) if (n.isContentEditable === true) { c.editing = true; break; }
+    var ask = !!a.closest('[data-ask]');   // a text that may be someone else's, drawn by the reader with the word that it asks (fillRuns): no place it stands in makes its links open directly, the viewer's own entry included
     var v = a.closest(ZONE_VIEWER);
     if (v) {
         var d = v.dataset || {};
-        c.zone = 'viewer'; c.own = d.linksOwn === '1'; c.gm = !c.own && d.linksGm === '1'; c.who = !c.own && !c.gm && typeof d.linksWho === 'string' ? d.linksWho.slice(0, 60) : '';
+        c.zone = 'viewer'; c.own = !ask && d.linksOwn === '1'; c.gm = !c.own && d.linksGm === '1'; c.who = !c.own && !c.gm && typeof d.linksWho === 'string' ? d.linksWho.slice(0, 60) : '';
         return c;
     }
-    if (a.closest('[data-ask]')) return c;   // a text that may be someone else's, drawn by the reader with the word that it asks (fillRuns): no place it stands in makes its links open directly
+    if (ask) return c;
     if (a.closest(ZONE_APP)) { c.zone = 'app'; return c; }
     if (a.closest(ZONE_PAGE)) { c.zone = 'page'; c.gm = c.player === true; return c; }
     return c;
@@ -318,12 +319,12 @@ function peekWire(win, doc) {
 // the place (opts.rule): a record made for other words, or one that is hostile, draws the text plain. A span for every run, with a strict
 // colour, fixed words for weight, slant, underline and strike, and one of the size steps; a run's link as ONE <a> this makes, with href,
 // target and rel and nothing else, only where the rule takes links (the record came through fieldLook) and the link rule keeps the address
-// as it is. opts.typed: the web addresses typed in an unlinked part are links too, as fillLinked draws them; a linked part is never linked
-// twice. opts.ask: the text may be someone else's, so every link in it asks first wherever the element stands (linkWhere reads the mark).
+// as it is. opts.typed: the web addresses typed in the text are links too, where the rule takes links: the very addresses fillLinked finds
+// in the plain text, each whole, whatever looks lie over it; a linked part is never linked twice. opts.ask: the text may be someone else's, so every link in it asks first wherever the element stands (linkWhere reads the mark).
 // The element's font is one of Waypoint's own or none, and is SET OR CLEARED at every draw: an element is used again for the next text.
 // With no look and typed, node for node what fillLinked makes. Elements and text nodes only.
 function fillRuns(el, text, rec, doc, opts) {
-    var o = opts && typeof opts === 'object' ? opts : {}, t = typeof text === 'string' ? text : '', typed = o.typed === true;
+    var o = opts && typeof opts === 'object' ? opts : {}, t = typeof text === 'string' ? text : '', typed = o.typed === true && ruleLinks(o.rule);   // typed addresses are links only where the place takes links at all
     var r = cleanRec(rec, t, o.rule);
     el.style.fontFamily = r && r.font ? fontCss(r.font) : '';
     if (o.ask === true) el.dataset.ask = '1'; else delete el.dataset.ask;
@@ -334,21 +335,33 @@ function fillRuns(el, text, rec, doc, opts) {
         return el;
     }
     while (el.firstChild) el.removeChild(el.firstChild);
-    runsOf(t, r.fmt).forEach(function(run) {
-        var span = doc.createElement('span'), link = typeof run.link === 'string' && run.link && cleanLink(run.link) === run.link ? run.link : '', strike = run.st === true;
+    var runs = runsOf(t, r.fmt), at = [], pos = 0, typedAt = [];
+    runs.forEach(function(run) { var own = typeof run.link === 'string' && run.link && cleanLink(run.link) === run.link ? run.link : ''; at.push({ s: pos, e: pos + run.t.length, link: own }); pos += run.t.length; });
+    // The web addresses typed in the text are found ONCE, over the whole text, as the plain renderer finds them: never part by part, where a
+    // boundary between two looks inside an address would link a cut address, which is another place. Every piece of a typed address leads
+    // to the whole address. One that reaches into a part with a link of its own is not linked at all: whole or none
+    if (typed && pos === t.length) { var from = 0; linkParts(t).forEach(function(p) { var href = p.href === undefined ? '' : cleanLink(p.href), s = from, e = from + p.t.length; from = e; if (href && href === p.t && !at.some(function(x) { return x.link && x.s < e && x.e > s; })) typedAt.push({ s: s, e: e, href: href }); }); if (from !== t.length) typedAt = []; }
+    var anchor = function(href, words) { var a = doc.createElement('a'); a.setAttribute('href', href); a.setAttribute('target', LINK_TARGET); a.setAttribute('rel', LINK_REL); a.appendChild(doc.createTextNode(words)); return a; };
+    runs.forEach(function(run, i) {
+        var span = doc.createElement('span'), link = at[i].link, strike = run.st === true;
         span.className = 'wp-run';
         if (typeof run.color === 'string' && /^#[0-9a-f]{6}$/.test(run.color)) span.style.color = run.color;
         if (run.b === true) span.style.fontWeight = 'bold';
         if (run.i === true) span.style.fontStyle = 'italic';
         if (run.u === true || strike) span.style.textDecoration = (run.u === true ? 'underline' : '') + (run.u === true && strike ? ' ' : '') + (strike ? 'line-through' : '');
         if (typeof run.size === 'string' && Object.prototype.hasOwnProperty.call(SIZE_EM, run.size)) span.style.fontSize = SIZE_EM[run.size];
-        if (link) {
-            var a = doc.createElement('a');
-            a.setAttribute('href', link); a.setAttribute('target', LINK_TARGET); a.setAttribute('rel', LINK_REL);
-            a.appendChild(doc.createTextNode(run.t));
-            span.appendChild(a);
-        } else if (typed) fillLinked(span, run.t, doc);
-        else span.appendChild(doc.createTextNode(run.t));
+        if (link) span.appendChild(anchor(link, run.t));
+        else {
+            var cur = at[i].s, end = at[i].e;
+            typedAt.forEach(function(ta) {
+                if (ta.e <= cur || ta.s >= end) return;
+                var a0 = Math.max(ta.s, cur), a1 = Math.min(ta.e, end);
+                if (a0 > cur) span.appendChild(doc.createTextNode(t.slice(cur, a0)));
+                span.appendChild(anchor(ta.href, t.slice(a0, a1)));
+                cur = a1;
+            });
+            if (cur < end) span.appendChild(doc.createTextNode(t.slice(cur, end)));
+        }
         el.appendChild(span);
     });
     return el;

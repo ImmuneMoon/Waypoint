@@ -3857,7 +3857,7 @@ function renderNotepad() {
     ta.readOnly = !host;
     ta.placeholder = host ? 'Notes for the whole table — everyone sees this as you type. Gone when you put it away or the session ends; anyone can save it to their Journal.' : 'The GM has not written anything yet.';
     if ((!host || document.activeElement !== ta) && ta.value !== net.notepad.text) {
-        var heldN = !host && document.activeElement === ta, s0N = heldN ? ta.selectionStart : 0, s1N = heldN ? ta.selectionEnd : 0, scN = !host ? ta.scrollTop : 0, oldN = heldN ? String(ta.value) : '';
+        var heldN = !host && document.activeElement === ta, s0N = heldN ? ta.selectionStart : 0, s1N = heldN ? ta.selectionEnd : 0, scN = !host ? ta.scrollTop : 0, oldN = heldN ? String(ta.value) : '', dirN = heldN ? ta.selectionDirection : 'none';
         ta.value = net.notepad.text || '';
         if (!host && !heldN) ta.scrollTop = scN;   // a player reading without the focus in the box: their place in a long text stays too
         if (heldN) {   // a player reading or copying: where they are stays. The text changed in one stretch, the GM typing: a place before it stays, a place after it moves with the words, and a selection the change reaches into becomes a caret at its end, never a selection over words the player did not pick
@@ -3875,7 +3875,7 @@ function renderNotepad() {
             var mapN = function(o, right) { return o < pN ? o : o > endN ? o + (zN - aN) : o === pN || o === endN ? (right ? newN : pN) : -1; }, m0N = mapN(s0N, s1N > s0N), m1N = mapN(s1N, false);
             if (s1N > s0N && s0N < pN && s1N > endN && newN > pN) m0N = -1;   // words typed or put INSIDE the selection: the player did not pick them
             if (m0N < 0 || m1N < 0) m0N = m1N = newN;
-            try { ta.setSelectionRange(m0N, Math.max(m0N, m1N)); } catch (e) {}
+            try { ta.setSelectionRange(m0N, Math.max(m0N, m1N), m1N > m0N && dirN === 'backward' ? 'backward' : 'none'); } catch (e) {}   // a selection made backwards stays backwards: the next Shift and arrow goes on from its own end
             ta.scrollTop = scN;
         }
     }   // the writer's own typing is never drawn over; a player's box only reads, and follows the GM even while it has the focus (the owed review, 2026-10-09)

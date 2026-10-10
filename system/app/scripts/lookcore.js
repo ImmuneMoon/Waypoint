@@ -77,6 +77,9 @@ function ruleOf(rule) {
     return { size: r.size === true, link: r.link === true, font: r.font === true, multi: r.multi === true, max: m };
 }
 
+// Whether a place's rule takes links at all, for a reader that draws typed addresses as links (linkgate.js fillRuns)
+function ruleLinks(rule) { return ruleOf(rule).link; }
+
 function sigStep(h, c) { h = Math.imul(h ^ (c & 0xff), 0x01000193); return Math.imul(h ^ (c >>> 8), 0x01000193); }
 function textSig(text) {
     var s = typeof text === 'string' ? text : '', h = 0x811c9dc5, n = s.length;
@@ -141,16 +144,22 @@ function makeRec(fmt, font, text, rule) {
     var R = ruleOf(rule);
     return textOk(text, R) ? build(fmt, font, text, R) : undefined;
 }
+// (W_BASE: the record's own braces and keys and a whole field's four switches, as JSON writes them at the most; W_PART: a part's braces,
+// its two places of up to seven digits each and its four switches; a string with its key, its quotes, its colon and its comma. A cleaned
+// record's strings hold nothing JSON writes longer (a signature, a font's name, a colour, a size's word, an address the link rule kept).
+// So for a CLEANED record the sum is never less than the characters JSON gives it, and a budget counted in it bounds what is sent and saved)
+var W_BASE = 64, W_PART = 64;
 function lookWeight(rec) {
     if (!plain(rec)) return 0;
-    var w = 16, len = function(o) { var t = 0, k; for (k in o) if (own(o, k) && typeof o[k] === 'string') t += o[k].length; return t; };
-    if (typeof rec.sig === 'string') w += rec.sig.length;
-    if (typeof rec.font === 'string') w += rec.font.length;
-    if (plain(rec.fmt)) { w += len(rec.fmt); if (Array.isArray(rec.fmt.spans)) rec.fmt.spans.forEach(function(sp) { w += 48 + (plain(sp) ? len(sp) : 0); }); }
+    var str = function(k, v) { return k.length + 6 + v.length; }, strs = function(o) { var t = 0, k; for (k in o) if (own(o, k) && typeof o[k] === 'string') t += str(k, o[k]); return t; };
+    var w = W_BASE;
+    if (typeof rec.sig === 'string') w += str('sig', rec.sig);
+    if (typeof rec.font === 'string') w += str('font', rec.font);
+    if (plain(rec.fmt)) { w += strs(rec.fmt); if (Array.isArray(rec.fmt.spans)) rec.fmt.spans.forEach(function(sp) { w += W_PART + (plain(sp) ? strs(sp) : 0); }); }
     return w;
 }
 // [textcheck:lookcore-end]
 
-var API = { RULES: RULES, LINKS: LINKS, LINK_CHARS: LINK_CHARS, textSig: textSig, lookShapeOk: lookShapeOk, recShapeOk: recShapeOk, fieldLook: fieldLook, cleanRec: cleanRec, makeRec: makeRec, lookWeight: lookWeight };
+var API = { RULES: RULES, LINKS: LINKS, LINK_CHARS: LINK_CHARS, textSig: textSig, lookShapeOk: lookShapeOk, recShapeOk: recShapeOk, fieldLook: fieldLook, cleanRec: cleanRec, makeRec: makeRec, lookWeight: lookWeight, ruleLinks: ruleLinks };
 if (typeof window !== 'undefined') window.wpLook = API;
-export { RULES, LINKS, LINK_CHARS, textSig, lookShapeOk, recShapeOk, fieldLook, cleanRec, makeRec, lookWeight };
+export { RULES, LINKS, LINK_CHARS, textSig, lookShapeOk, recShapeOk, fieldLook, cleanRec, makeRec, lookWeight, ruleLinks };

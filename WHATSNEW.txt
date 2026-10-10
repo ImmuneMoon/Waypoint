@@ -315,6 +315,14 @@ The play map
   doors, and a seed: the same seed and settings make the same dungeon
   again. It says how many pieces it would lay first, and one Undo
   takes it back.
+- Your own pictures as fills. The last row of every Texture list is A
+  picture: in Build's options, in the Fill tool's and in a piece's
+  Properties. It opens the Image Library, and the picture you pick
+  becomes the fill of what you lay or paint. Tile size sets how large one
+  repeat is: one, two or four cells, or the whole piece once. Pieces
+  side by side read as one surface. The picture is one of the campaign's
+  own files, your players get it as they get a token's picture, and an
+  export carries it.
 
 The top bar and the data map
 - The top of the window is one quiet row. Its captioned boxes are gone,

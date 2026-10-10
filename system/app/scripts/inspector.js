@@ -1307,6 +1307,8 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             if (_el_wbTerrainCost) _el_wbTerrainCost.addEventListener('change', function() { setItemTerrain(w, true, this.value); });
             var _el_wbTexture = document.getElementById('wbTexture');   // the map builder: a piece's texture
             if (_el_wbTexture) _el_wbTexture.addEventListener('change', function() { setItemTexture(w, this.value); });
+            var _el_wbTexTile = document.getElementById('wbTexTile');   // fold B3: how large one repeat of a picture is
+            if (_el_wbTexTile) _el_wbTexTile.addEventListener('change', function() { setItemTexTile(w, this.value); });
             var _el_wbSmoke = document.getElementById('wbSmoke');   // senses S7b: smoke, true or no key
             if (_el_wbSmoke) _el_wbSmoke.addEventListener('change', function() { if (this.checked === true) w.smoke = true; else delete w.smoke; save(); render(); renderInspector(); if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); } });
             var _el_wbBlocksSight = document.getElementById('wbBlocksSight');
@@ -1841,15 +1843,27 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
   function texFieldPic(w) { var FCi = window.wpFogCore, BC = window.wpBuildCore, s = FCi && typeof FCi.cleanTexSrc === 'function' ? FCi.cleanTexSrc(w.texSrc) : null; return s && BC && typeof BC.picName === 'function' ? s : ''; }
   function textureFieldHtml(w) {
       var BC = window.wpBuildCore, cur = BC && BC.cleanTexture ? BC.cleanTexture(w.texture) : null, names = BC && Array.isArray(BC.TEXTURES) ? BC.TEXTURES : [], pic = texFieldPic(w);
-      return '<div class="field"><label for="wbTexture">Texture</label><select id="wbTexture" title="A pattern Waypoint draws over the color, seated on the grid."><option value=""' + (cur || pic ? '' : ' selected') + '>Plain color</option>' + names.map(function(n) { return '<option value="' + esc(n) + '"' + (n === cur && !pic ? ' selected' : '') + '>' + esc(n.charAt(0).toUpperCase() + n.slice(1)) + '</option>'; }).join('') + (pic ? '<option value="@pic" selected>' + esc(BC.picName(pic)) + '</option>' : '') + '</select></div>'
+      var TL = window.wpTexList, canPick = !!(TL && typeof TL.pick === 'function' && typeof TL.tileOf === 'function' && Array.isArray(TL.TILES) && BC && typeof BC.picName === 'function' && window.wpFogCore && typeof window.wpFogCore.cleanTexSrc === 'function'), tile = pic && canPick ? String(TL.tileOf(w.texTile)) : '';
+      return '<div class="field"><label for="wbTexture">Texture</label><select id="wbTexture" title="A pattern Waypoint draws over the color, seated on the grid."><option value=""' + (cur || pic ? '' : ' selected') + '>Plain color</option>' + names.map(function(n) { return '<option value="' + esc(n) + '"' + (n === cur && !pic ? ' selected' : '') + '>' + esc(n.charAt(0).toUpperCase() + n.slice(1)) + '</option>'; }).join('') + (pic ? '<option value="@pic" selected>' + esc(BC.picName(pic)) + '</option>' : '') + (canPick ? '<option value="@pick">A picture&hellip;</option>' : '') + '</select></div>'
+          + (tile ? '<div class="field"><label for="wbTexTile">Tile size</label><select id="wbTexTile" title="How large one repeat of the picture is. Whole piece stretches it over the piece once.">' + TL.TILES.map(function(r) { return '<option value="' + esc(String(r[0])) + '"' + (String(r[0]) === tile ? ' selected' : '') + '>' + esc(r[1]) + '</option>'; }).join('') + '</select></div>' : '')
           + '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">' + (pic ? 'One of this campaign&#39;s own pictures, over the color. A pattern or Plain color takes it off.' : 'A pattern drawn over the color. Pieces side by side read as one surface.') + '</div>';
   }
   function setItemTexture(w, v) {
       if (v === '@pic') { renderInspector(); return; }   // the picture's own row: nothing changes
+      if (v === '@pick') {   // A picture: the list goes back as it was, and the Image Library's pick, when one comes, is the fill
+          var TL = window.wpTexList;
+          if (TL && typeof TL.pick === 'function') TL.pick(v, renderInspector, function(p) { if (!p || !p.pic) return; w.texSrc = p.pic; w.texTile = TL.tileOf(w.texTile); delete w.texture; save(); render(); renderInspector(); });
+          else renderInspector();
+          return;
+      }
       var BC = window.wpBuildCore, t = BC && BC.cleanTexture ? BC.cleanTexture(v) : null;
       if (t) w.texture = t; else delete w.texture;
       delete w.texSrc; delete w.texTile;   // fold B3: a pattern or Plain color takes a picture off
       save(); render(); renderInspector();
+  }
+  function setItemTexTile(w, v) {   // the Tile size list: only for a piece that wears a picture, and only as one of the four repeats
+      var TL = window.wpTexList; if (!TL || typeof TL.tileOf !== 'function' || !texFieldPic(w)) return;
+      w.texTile = TL.tileOf(v); save(); render(); renderInspector();
   }
   // [sinkcheck:texfield-end]
   // [sinkcheck:groundbox-start]

@@ -1414,6 +1414,11 @@
   #genCount { color: var(--ink); min-height: 16px; }
   .gen-rule { height: 1px; background: var(--edge); margin: 10px 0; }
   .gen-foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 12px; }
+  /* a tick in a dialog of this kind (the map picture's Show row): the app's own gold */
+  .gen-tick { display: inline-flex; align-items: center; gap: 6px; margin-right: 14px; font-size: 12px; color: var(--ink); cursor: pointer; }
+  .gen-tick input { accent-color: var(--gold); margin: 0; }
+  .gen-tick input:disabled, .gen-tick:has(input:disabled) { cursor: default; }
+  .gen-tick:has(input:disabled) { color: var(--dim); }
   .context-menu.char-menu { position: fixed; display: flex; flex-direction: column; min-width: 170px; padding: 4px 0; }
   .char-menu .menu-divider { height: 1px; background: var(--edge); margin: 4px 0; }
   .char-menu button.danger { color: var(--red); }

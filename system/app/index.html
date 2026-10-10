@@ -47,6 +47,8 @@
 <script type="module" src="scripts/fx.js"></script>
 <script type="module" src="scripts/fogcore.js"></script>
 <script type="module" src="scripts/gencore.js"></script>
+<script type="module" src="scripts/shotcore.js"></script>
+<script type="module" src="scripts/mapshot.js"></script>
 <script type="module" src="scripts/calendarcore.js"></script>
 <script type="module" src="scripts/calendar.js"></script>
 <script type="module" src="scripts/fog.js"></script>
@@ -141,9 +143,10 @@
             <div class="rm-label">More</div>
             <div class="rm-part" id="moreFiles">
               <div class="dropdown-wrap" id="saveAsDropdownWrap">
-                <button class="rm-row" id="saveAsBtn" aria-haspopup="true" title="Export As. Save the open map, the campaign or everything as a file."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3.5H6v17h12v-5.5M11.5 9.5H21M17.5 6L21 9.5 17.5 13"/></svg><span>Export As</span><small>11 kinds &rsaquo;</small></button>
+                <button class="rm-row" id="saveAsBtn" aria-haspopup="true" title="Export As. Save the open map, the campaign or everything as a file."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3.5H6v17h12v-5.5M11.5 9.5H21M17.5 6L21 9.5 17.5 13"/></svg><span>Export As</span><small>12 kinds &rsaquo;</small></button>
                 <div id="saveAsMenu" class="dropdown header-dropdown" style="display:none;">
                   <div class="menu-item" id="exportImgBtn" title="Export current view as PNG"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18v14H3zM7.5 8.5a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6zM3.5 17l5-5 3.5 3.5 3-3 5.5 5.5"/></svg><span>Save as Image</span></div>
+                  <div class="menu-item" id="exportMapPicBtn" title="The open map drawn as one picture file, without tokens or anything that is yours alone"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8.5V5h3.5M17.5 5H21v3.5M21 15.5V19h-3.5M6.5 19H3v-3.5M7.5 8.5h9v7h-9zM12 8.5v7M7.5 12h9"/></svg><span>Save Map as Picture</span></div>
                   <div class="menu-item" id="exportPdfBtn" title="Export as PDF / Print"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8.5v-5h10v5M7 17H4.5V8.5h15V17H17M7 13.5h10v7H7z"/></svg><span>Save PDF</span></div>
                   <div class="menu-item" id="exportHtmlBtn" title="Export as HTML"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7.5L3.5 12 8 16.5M16 7.5l4.5 4.5-4.5 4.5M13.5 5.5l-3 13"/></svg><span>Save HTML</span></div>
                   <div class="menu-item" id="exportMdBtn" title="The open planner or handbook page as Markdown (its pictures bundled in a .zip)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 4.5l-2 15M16.5 4.5l-2 15M4.5 9.5h16M3.5 14.5h16"/></svg><span>Save Markdown</span></div>
@@ -360,7 +363,7 @@
                       <ul>
                           <li>Everything autosaves to <b>saves/data.json</b> a moment after each change. There is no save button to forget.</li>
                           <li>To back up or move your campaign, copy the <b>saves</b> folder. That's the whole thing.</li>
-                          <li><b>Export As</b> makes shareable files at any scope: the open map or planner, all the maps, play maps or planners of the campaign, or everything. An export that uses images arrives as a <b>.zip</b> with the pictures bundled in. A campaign export, and Everything, also carry the campaign&rsquo;s sounds and its <b>videos</b>, whole. An export has no size limit: files are read from disk and written in parts. A zip past 4 GB is written as ZIP64, which any current unzip tool opens. When the videos and music together pass 1 GB, the export asks where to save it and writes straight to that file. It then reads the file back and checks every file in it before it calls the export done.</li>
+                          <li><b>Export As</b> makes shareable files at any scope: the open map or planner, all the maps, play maps or planners of the campaign, or everything. <b>Save Map as Picture</b> draws the open map as one picture file. An export that uses images arrives as a <b>.zip</b> with the pictures bundled in. A campaign export, and Everything, also carry the campaign&rsquo;s sounds and its <b>videos</b>, whole. An export has no size limit: files are read from disk and written in parts. A zip past 4 GB is written as ZIP64, which any current unzip tool opens. When the videos and music together pass 1 GB, the export asks where to save it and writes straight to that file. It then reads the file back and checks every file in it before it calls the export done.</li>
                           <li><b>Import</b> accepts those zips and plain .json files. It merges by id or replaces. It reads the file in pieces and checks every bundled file against its checksum before copying it. A damaged file is counted as failed and never written.</li>
                       </ul>
                       <h4>Updates</h4>
@@ -550,6 +553,7 @@
                                   <li>On a square grid a piece lands on the cells. On a hex grid it is laid one hexagon a cell, at most 400 in a drag. Laid over a plain piece of the same shape, it changes that piece.</li>
                                   <li><b>Walls around selection</b> is on the right-click menu of floor pieces you have selected. It lays wall lines along the outer edge of the cells they cover together. Where two floors touch there is no wall between them, and a doorway that holds a door stays open. The walls follow the grid, so a round room gets stepped walls. Each wall line is an ordinary piece, and one Undo takes them all back. Walls laid earlier stay as they are, so delete the old wall where you add a door later.</li>
                                   <li><b>Generate a dungeon</b> is the last row of Build&rsquo;s options. It lays a whole dungeon of ordinary pieces: rooms and corridors as floors, wall lines around them and doors on the lines. Build it on <b>This map</b>, on <b>Another map</b> or on <b>A new map</b>, and you are taken to that map. Set its size, how many rooms and doors it has, and whether its corridors wind. The dialog says how many pieces it would lay before you accept. The same <b>Seed</b> and settings make the same dungeon again, and the map keeps them for you alone. Nothing already on the map is changed, and one Undo takes the whole dungeon back.</li>
+                                  <li><b>Save Map as Picture</b> is in <b>Export As</b>, under the three dots at the right end of the top row. It draws the map you have open as one PNG file, sharp at any size. Choose <b>The whole map</b> or <b>What is on screen</b>, and a <b>Cell size</b> of 50, 70, 100 or 140 pixels. The dialog says how large the picture will be before you save it. <b>Grid lines</b> draws the map&rsquo;s own grid, and <b>Labels</b> draws your text boxes as plain words. <b>Background</b> None leaves the ground see-through. Tokens, hidden pieces, GM notes, lights, trigger zones and fog are never in the picture. A door is drawn as the piece it is, with no door sign. Nothing on the map is changed and nothing is sent. <b>Save as Image</b> still saves what is on your screen.</li>
                               </ul>
                           </li>
                           <li><b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM12 10.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3"/></svg> Center</b> menu: jump to the canvas center, to all items, <b>Fit to Content</b> or <b>Center on Character</b>. Fit to Content, also <kbd>Shift</kbd>+<kbd>1</kbd>, zooms and pans so that everything, or just the selection, fits the screen. Center on Character goes to your own token in multiplayer, or to the selected one as GM.</li>
@@ -1464,7 +1468,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                       </ul>
                       <h4>Coming</h4>
                       <ul>
-                          <li><b>The map builder.</b> Its first tool, Build, lays floors, walls, doors and water on the grid today. Walls around selection walls your floors in, and Generate a dungeon lays a whole dungeon for you. A floor can wear one of your own pictures. Saving a map as a picture is yet to be built.</li>
+                          <li><b>The map builder.</b> Its first tool, Build, lays floors, walls, doors and water on the grid today. Walls around selection walls your floors in, and Generate a dungeon lays a whole dungeon for you. A floor can wear one of your own pictures, and Save Map as Picture saves a map as one picture file. Secret doors, city maps and world maps are yet to be built.</li>
                           <li><b>Text style in more places.</b> Bold, colour and size on the notes of a row on a character sheet. Planners, pages, text on maps, character sheets, Journal notes and the table notepad have it today.</li>
                           <li><b>Friends and direct invites.</b> Keep the people you play with at hand, and invite them to your table directly.</li>
                           <li><b>The website and cloud saves.</b> A website for Waypoint, and a campaign kept online so that it is not tied to one computer.</li>
@@ -2767,6 +2771,20 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
       </aside>
     </div>
   </div>
+
+<div id="shotModal" class="gen-modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="shotTitle">
+    <div class="gen-box">
+        <h3 id="shotTitle">Save map as picture</h3>
+        <div class="gen-row"><span class="gen-name" id="shotAreaName">Area</span><span class="gen-seg" id="shotArea" role="radiogroup" aria-labelledby="shotAreaName"><button type="button" class="gen-chip on" data-area="map" role="radio" aria-checked="true" title="The box around every piece your players can see, with a small margin.">The whole map</button><button type="button" class="gen-chip" data-area="view" role="radio" aria-checked="false" title="The part of the map that is on your screen now.">What is on screen</button></span></div>
+        <div class="gen-row"><span class="gen-name" id="shotCellName">Cell size</span><span class="gen-seg" id="shotCell" role="radiogroup" aria-labelledby="shotCellName"><button type="button" class="gen-chip" data-cell="50" role="radio" aria-checked="false" title="One cell is 50 pixels in the file, as on your screen at full size.">50 px</button><button type="button" class="gen-chip on" data-cell="70" role="radio" aria-checked="true" title="One cell is 70 pixels in the file. Most other virtual tabletops expect this.">70 px</button><button type="button" class="gen-chip" data-cell="100" role="radio" aria-checked="false" title="One cell is 100 pixels in the file.">100 px</button><button type="button" class="gen-chip" data-cell="140" role="radio" aria-checked="false" title="One cell is 140 pixels in the file. This prints well.">140 px</button></span></div>
+        <div class="gen-line" id="shotSize" aria-live="polite"></div>
+        <div class="gen-rule"></div>
+        <div class="gen-row"><span class="gen-name" id="shotShowName">Show</span><span class="gen-seg" role="group" aria-labelledby="shotShowName"><label class="gen-tick" title="The map&rsquo;s own grid, drawn over the pieces."><input type="checkbox" id="shotGrid" checked> Grid lines</label><label class="gen-tick" title="Your text boxes, as plain words in their own font, size and color."><input type="checkbox" id="shotLabels" checked> Labels</label></span></div>
+        <div class="gen-row"><span class="gen-name" id="shotBgName">Background</span><span class="gen-seg" id="shotBg" role="radiogroup" aria-labelledby="shotBgName"><button type="button" class="gen-chip on" data-bg="dark" role="radio" aria-checked="true" title="The map&rsquo;s own dark ground.">Dark</button><button type="button" class="gen-chip" data-bg="none" role="radio" aria-checked="false" title="The ground is left see-through, which prints as white paper.">None</button></span></div>
+        <div class="gen-line" id="shotNote">Tokens, hidden pieces and your own GM marks are left out.</div>
+        <div class="gen-foot"><button type="button" class="tool ghost" id="shotCancel">Cancel</button><button type="button" class="tool" id="shotGo">Save picture</button></div>
+    </div>
+</div>
 
 <div id="genModal" class="gen-modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="genTitle">
     <div class="gen-box">

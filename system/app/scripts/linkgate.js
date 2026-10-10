@@ -245,10 +245,11 @@ function peekShow(win, doc, a, e) {
     var el = peekEl(doc, true); if (!el) return false;
     if (el.firstChild) el.firstChild.nodeValue = text; else el.appendChild(doc.createTextNode(text));
     el.hidden = false;
-    // out of the pointer's way, as a browser's is: with the pointer low on the left the strip stands on the right. Low is within the strip's
-    // own height of the bottom: a long address wraps, and the strip is then several lines tall
-    var tall = (el.offsetHeight || 40) + 24;
-    var low = !!(e && typeof e.clientX === 'number' && typeof e.clientY === 'number' && win && e.clientY > (win.innerHeight || 0) - tall && e.clientX < (win.innerWidth || 0) * 0.62);
+    // out of the way of what it names, as a browser's is: with the pointer (or, for the keyboard's focus, the link) low on the left the strip
+    // stands on the right. Low is within the strip's own height of the bottom: a long address wraps, and the strip is then several lines tall
+    var tall = (el.offsetHeight || 40) + 24, px = e && typeof e.clientX === 'number' ? e.clientX : null, py = e && typeof e.clientY === 'number' ? e.clientY : null;
+    if ((px === null || py === null) && a.getBoundingClientRect) { var r = a.getBoundingClientRect(); px = r.left; py = r.bottom; }   // no pointer (the keyboard's focus): where the link itself is
+    var low = !!(win && typeof px === 'number' && typeof py === 'number' && py > (win.innerHeight || 0) - tall && px < (win.innerWidth || 0) * 0.5);   // the strip is at most half the window wide, so one side is always clear
     el.classList.toggle('peek-right', low);
     return true;
 }
@@ -257,12 +258,13 @@ function peekShow(win, doc, a, e) {
 function peekWire(win, doc) {
     var at = null, how = '';   // the link the strip stands for, and what brought it up: 'ptr' the pointer, 'key' the keyboard's focus
     var lost = null;           // a link under the pointer whose strip a scroll or the window's blur put away: the pointer's next move on it brings it back
-    var keyed = false;         // the last press was a key, so a focus that follows is the keyboard's (a press of the pointer focuses a link too, and shows nothing by itself)
+    var keyed = false;         // the last press was a key, so a focus that FOLLOWS is the keyboard's (a press of the pointer focuses a link too, and shows nothing by itself)
+    var kf = null;             // the link the keyboard's focus rests on: noted as the focus arrives, so a key pressed later never makes a pointer's focus the keyboard's
     var away = function() { at = null; how = ''; lost = null; peekHide(doc); };
     // no link under the pointer any more: the address of the link the keyboard's focus rests on, if it rests on one, else nothing
     var rest = function() {
-        var f = keyed ? linkAt(doc.activeElement) : null;
-        if (f && f.isConnected !== false && peekShow(win, doc, f, null)) { at = f; how = 'key'; lost = null; } else away();
+        var f = kf && doc.activeElement === kf && kf.isConnected !== false ? kf : null;
+        if (f && peekShow(win, doc, f, null)) { at = f; how = 'key'; lost = null; } else away();
     };
     doc.addEventListener('mouseover', function(e) {
         var a = linkAt(e.target);
@@ -279,10 +281,11 @@ function peekWire(win, doc) {
     }, true);
     doc.addEventListener('focusin', function(e) {
         var a = linkAt(e.target);
-        if (a && keyed) { if (peekShow(win, doc, a, null)) { at = a; how = 'key'; lost = null; } else if (how === 'key') away(); return; }
-        if (!a && how === 'key') away();   // the focus went on to something that is no link (a link taken off the page sends no focusout)
+        kf = a && keyed ? a : null;
+        if (kf && peekShow(win, doc, kf, null)) { at = kf; how = 'key'; lost = null; return; }
+        if (how === 'key') away();   // the focus went on to something that shows nothing (a link taken off the page sends no focusout)
     }, true);
-    doc.addEventListener('focusout', function(e) { if (at && how === 'key' && linkAt(e.target) === at) away(); }, true);
+    doc.addEventListener('focusout', function(e) { var a = linkAt(e.target); if (a && a === kf) kf = null; if (at && how === 'key' && a === at) away(); }, true);
     doc.addEventListener('scroll', function(e) {
         if (!at) return;
         if (how === 'key') { if (doc.activeElement !== at) away(); return; }   // the focus itself scrolls its link into view: the strip is fixed to the window, and stays
@@ -294,9 +297,10 @@ function peekWire(win, doc) {
     doc.addEventListener('dragstart', function() { if (at) away(); }, true);   // while something is dragged the pointer sends no word of where it is
     doc.addEventListener('keydown', function(e) {
         keyed = true;
+        if (e.key === 'Escape') kf = null;   // put away by hand: it stays away until the focus moves
         if (e.key === 'Escape' || (at && at.isConnected === false)) away();   // Escape; or the focused link was taken off the page, which sends no focusout
     }, true);
-    if (win && typeof win.addEventListener === 'function') win.addEventListener('blur', function() { var was = how === 'ptr' ? at : null; away(); lost = was; });
+    if (win && typeof win.addEventListener === 'function') win.addEventListener('blur', function() { var was = how === 'ptr' ? at : null; kf = null; away(); lost = was; });   // (the focus comes back to its link with the window, and is noted again then)
 }
 // [sinkcheck:linkpeek-end]
 

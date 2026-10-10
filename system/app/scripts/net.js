@@ -3780,9 +3780,12 @@ function renderNotepad() {
         ta.value = net.notepad.text || '';
         if (heldN) {   // a player reading or copying: where they are stays. The text changed in one stretch, the GM typing: a place before it stays, a place after it moves with the words, and a selection the change reaches into becomes a caret at its end, never a selection over words the player did not pick
             var nowN = ta.value, aN = oldN.length, zN = nowN.length, pN = 0, qN = 0, limN = Math.min(aN, zN);
+            var pairN = function(t, i) { if (i <= 0 || i >= t.length) return false; var x = t.charCodeAt(i - 1), y = t.charCodeAt(i); return x >= 0xd800 && x <= 0xdbff && y >= 0xdc00 && y <= 0xdfff; };   // i lies between the halves of one character
             while (pN < limN && oldN.charCodeAt(pN) === nowN.charCodeAt(pN)) pN++;
             while (qN < limN - pN && oldN.charCodeAt(aN - 1 - qN) === nowN.charCodeAt(zN - 1 - qN)) qN++;
-            var mapN = function(o) { o = Math.max(0, Math.min(aN, o | 0)); return o <= pN ? o : o >= aN - qN ? o + (zN - aN) : -1; }, m0N = mapN(s0N), m1N = mapN(s1N);
+            if (pairN(oldN, aN - qN) || pairN(nowN, zN - qN)) qN--;   // the end of what changed is where a selection collapses to: never between the halves of one character
+            // the START of a selection leans right: what the GM typed right before the selected words is not selected with them. Its end, and a lone caret, lean left
+            var mapN = function(o, right) { o = Math.max(0, Math.min(aN, o | 0)); return (right ? o < pN : o <= pN) ? o : o >= aN - qN ? o + (zN - aN) : -1; }, m0N = mapN(s0N, s1N > s0N), m1N = mapN(s1N, false);
             if (m0N < 0 || m1N < 0) m0N = m1N = zN - qN;
             try { ta.setSelectionRange(m0N, Math.max(m0N, m1N)); } catch (e) {}
             ta.scrollTop = scN;

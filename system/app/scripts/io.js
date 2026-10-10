@@ -1240,7 +1240,7 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
 
   // A failed save was said only in the row's saved note, which is out of sight while the row is hidden (the owed review, 2026-10-09): it is
   // said in a notice too, once when saving begins to fail, and again only after a save has gone through in between
-  var _saveFailSaid = false, _saveFailAt = 0, SAVE_FAIL_AGAIN = 60000;   // ... and once a minute while it goes on failing: a notice is on screen for three seconds
+  var _saveFailSaid = false, _saveFailAt = 0, SAVE_FAIL_AGAIN = 60000, _saveSeq = 0;   // ... and once a minute while it goes on failing: a notice is on screen for three seconds
   function saveFailed(bad) {
       if (!bad) { if (_saveFailSaid) toast('Saving works again. The campaign is on the disk.'); _saveFailSaid = false; return; }
       var nowF = Date.now();
@@ -1303,7 +1303,7 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
         })
 
         .catch(err => saveNote.innerHTML = 'Network error saving.');
-        if (sent && typeof sent.then === 'function') sent.then(function() { if (typeof saveFailed === 'function') saveFailed(/rror saving/.test(String(saveNote.innerHTML))); });
+        if (sent && typeof sent.then === 'function') { var seqS = ++_saveSeq; sent.then(function() { if (seqS === _saveSeq && typeof saveFailed === 'function') saveFailed(/rror saving/.test(String(saveNote.innerHTML))); }); }   // the newest save's word alone: an older one that answers late says nothing of where the disk stands
 
     };
 

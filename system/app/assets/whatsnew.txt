@@ -285,6 +285,14 @@ The play map
   back your last change.
 - Pasting into a text box on the map pastes plain words, as the
   Content editor does.
+- Textures. A painted cell, a rectangle, a hexagon, a circle, a diamond
+  or a filled area can wear one of eight patterns over its colour:
+  flagstones, bricks, cobbles, planks, stone, hatching, ripples or
+  grass. Pick one under Texture in the Fill menu or in a piece's
+  Properties. Waypoint draws the patterns itself and seats them on the
+  grid, so pieces side by side read as one surface. Changing the colour
+  keeps the pattern, and your players see it as you do. This is the
+  first part of the map builder.
 
 The top bar and the data map
 - The top of the window is one quiet row. Its captioned boxes are gone,

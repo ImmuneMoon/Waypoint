@@ -549,6 +549,20 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   };
   // [systemcheck:snaprule-end]
 
+  // [buildcheck:texseat-start]
+  // The map builder (fold B1): a textured piece's tile stays seated on the board's lattice while the piece moves. A box shape's background
+  // position, or a filled region's svg pattern (its x and y in tile units: the next full redraw builds it again from the item). Nothing for
+  // anything else
+  function texSeatEl(el, x, y) {
+      var BC = window.wpBuildCore; if (!BC || !el || !el.dataset) return;
+      if (el.dataset.tex) { el.style.backgroundPosition = BC.texPos(x, y, el.dataset.tex); return; }
+      var svg = el.dataset.type === 'path' ? el.querySelector(':scope > svg') : null, pat = svg && svg.dataset.texId ? svg.querySelector(':scope > defs > pattern') : null;
+      if (!pat) return;
+      var w = Number(pat.getAttribute('width')) || 50, h = Number(pat.getAttribute('height')) || 50, fx = isFinite(x) ? x : 0, fy = isFinite(y) ? y : 0;
+      pat.setAttribute('x', String(-(((fx % w) + w) % w))); pat.setAttribute('y', String(-(((fy % h) + h) % h)));
+      svg.dataset.texKey = '';   // the next full redraw builds the pattern again from the item, whatever it was built for before
+  }
+  // [buildcheck:texseat-end]
   function getSnapCoords(x, y) {
       if (typeof state !== 'undefined' && state.snap) {
           if (state.gridType === 'hex') {
@@ -958,6 +972,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
             if (mEl) {
                 mEl.style.left = m.item.x + 'px';
                 mEl.style.top = m.item.y + 'px';
+                texSeatEl(mEl, m.item.x, m.item.y);   // the map builder: the tile stays seated on the board while the piece moves
             }
         });
         
@@ -1089,6 +1104,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               var toRoom = window.wpAutoRoom ? window.wpAutoRoom(item, am) : null;
               if (toRoom && !traveled) import('./io.js').then(function(m) { m.toast((item.charName || 'Character') + ' is now in ' + (toRoom.name || 'that room') + '.'); });
           }
+          multiDrag.forEach(function(md) { texSeatEl(md.el || (state.wbEls && state.wbEls[md.item.id]), md.item.x, md.item.y); });   // the map builder: seated again where the release snapped the pieces
           save();
           if (modeStr === 'visual' && window.wpNet && window.wpNet.active && window.wpNet.targets && Object.keys(window.wpNet.targets).length && multiDrag.some(function(md) { return md.item.isChar; })) render();   // range penalties R1: a target mark's tags (cover, light, range) read where the tokens stand, so the mover's own screen draws them again once the drop lands
           if (modeStr === 'visual' && window.wpStanceChips) window.wpStanceChips();   // item 19b H5: a token dropped on or off a ground piece, or a ground piece dropped under one, reads its height where it now stands (no redraw follows a drop)

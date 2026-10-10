@@ -851,6 +851,12 @@
   .wb-item.trigger.trigger-diamond { clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); }
   .wb-item.star { clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); background: var(--faint); }
   .wb-item.line { background: var(--edge); }
+  /* The map builder (fold B1): a textured piece draws its pattern over its colour. Pieces side by side show no seam and no rounded corner */
+  .wb-item.wb-tex { border: 0; border-radius: 0; background-repeat: repeat; }
+  .wb-item.wb-tex.circle { border-radius: 50%; }
+  .wb-item.wb-tex.wb-door.wb-door-open:not(.path) { background-image: none !important; }   /* an open door's body is cleared, a textured one's too */
+  body:not(.net-client) .wb-item.path.wb-tex svg > path { pointer-events: visiblePainted; }   /* the GM picks a textured region up by its filled inside, not only by its outline */
+  .wb-item.path svg defs path { stroke-dasharray: none !important; filter: none !important; fill-opacity: 1 !important; }   /* a pattern's own lines never take a wall's dashes, a door's glow or an open door's fade */
   
   /* Text boxes stack their lines vertically (a row-flex laid contentEditable
      paragraphs side by side) and wrap inside the box; overflow-wrap catches

@@ -526,8 +526,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // The bar on a box / off
   function tsShow(box) {
       var E = tsState.els; if (!E || !box) return;
-      var wasBox = tsState.box, wasSel = tsState.sel;
       var held = tsHosts.length ? tsxTaken(box) : null;   // a host's field drawn again as a new element: what went on in the old one goes on in this one
+      var wasBox = tsState.box, wasSel = tsState.sel;
       if (tsState.box !== box) { tsState.sel = null; tsState.run = null; tsState.last = null; tsState.pre = null; tsState.comp = false; }
       if (tsHosts.length) tsBarTo(box);   // the bar goes into the panel of the box it is on
       tsState.box = box; tsNote(box);
@@ -568,9 +568,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   function tsTableOf(box) { return box && box.matches && box.closest && box.matches('.b-colhead, .r-col') ? box.closest('.b-table') : null; }
   function tsPlace() {
       var E = tsState.els, box = tsState.box; if (!E || !box || E.root.hidden || !box.getBoundingClientRect) return;
-      var hr = E.host.getBoundingClientRect(), br = box.getBoundingClientRect();
-      if (tsHosts.length) hr = tsxRect(E, hr);   // a host's root with no area of its own (a layer that only holds panels): the window stands in
-      var right = hr.left + (E.host.clientLeft || 0) + (E.host.clientWidth || (hr.right - hr.left));   // less the panel's scroll bar
+      var own = E.host.getBoundingClientRect(), hr = own, br = box.getBoundingClientRect();
+      if (tsHosts.length) hr = tsxRect(E, own);   // a host's root with no area of its own (a layer that only holds panels): the window stands in
+      var right = hr !== own ? hr.right : hr.left + (E.host.clientLeft || 0) + (E.host.clientWidth || (hr.right - hr.left));   // less the panel's scroll bar
       E.root.style.maxWidth = Math.max(180, Math.round(right - hr.left - 12)) + 'px';
       var tb = tsTableOf(box);
       var at = tsPlaceAt({ left: hr.left, top: hr.top, right: right, bottom: hr.bottom }, br, E.root.offsetWidth || 0, E.root.offsetHeight || 0, tb && tb.getBoundingClientRect ? tb.getBoundingClientRect() : null);
@@ -716,7 +716,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
      also say who it is (ident): steps kept under a key are let go when another field answers to it. (2) Its roots lie apart: none inside
      another, none around or inside the planner's own boxes. (3) It may draw its view again when it is told of a change or of a leaving: a
      field drawn again as a NEW element under the same key takes over the bar, the selection, the run of typing and a bar put away (fill
-     adopts it), and the host gives it the focus. (4) It does not take a box off the page while pending(box) is true, and holds any redraw of
+     adopts it), and the host gives it the focus. Taking the old element off, filling the new one and giving it the focus happen in ONE turn:
+     a host that must wait (a file read, an answer from the table) does not draw the box in use again, it fills the same element. (4) It does not take a box off the page while pending(box) is true, and holds any redraw of
      its own making (a timer, a word from the table) while a box of its own has the focus. (5) Nothing is told for a box it took off the page
      itself, nor when the window loses the focus or a panel is hidden: it flushes by itself then. (6) left(key) must be harmless when nothing
      changed. (7) It names a barHost that it does not draw again. */
@@ -768,7 +769,21 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       tsState.kept = { box: box, s: s.s, e: s.e, back: !!s.back, away: tsState.away === true };
       setTimeout(tsFocusNow, 0);
   }
-  function tsxTaken(box) { var k = tsState.kept; if (!k) return null; tsState.kept = null; return k.box === box ? k : null; }
+  // The bar's box is off the page and no successor has been filled yet: once the host is done (one turn later) the bar goes, if no new element took over
+  function tsxSweep() {
+      if (tsState.sweep) return;
+      tsState.sweep = true;
+      setTimeout(function() { tsState.sweep = false; var b = tsState.box; if (b && b.isConnected === false) tsHide(); }, 0);
+  }
+  function tsxTaken(box) {
+      var k = tsState.kept; if (!k) return null;
+      tsState.kept = null;
+      if (k.box === box) return k;
+      if (!tsxAgain(tsState.sel, box)) return null;   // (what is kept is always the bar's box: every place that moves the bar takes or clears it)
+      if (tsState.last && tsState.last.box === k.box) tsState.last.box = box;   // the same field in another place (a sheet and a HUD under one key): the host gave THIS element the focus
+      tsState.box = box; k.box = box;
+      return k;
+  }
   function tsxGoOn(box, k) {
       var am = tsBlocksOf(box), d = tsDesc(box), n = (box._tsText || '').length; if (!am || !d) return;
       var s = Math.max(0, Math.min(n, k.s)), e = Math.max(s, Math.min(n, k.e));
@@ -946,7 +961,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var d = box ? tsDesc(box) : null, fld = d && d.k === 'x' ? tsField(null, d) : null, old = tsState.box, again = false;
       if (old && old !== box && old.isConnected === false) {   // the box the bar was on is off the page
           again = !!fld && tsxAgain(tsState.sel, box);
-          if (again) tsxAdopt(old, box); else tsHide();
+          if (again) { tsState.comp = false; tsxAdopt(old, box); }   // (a composition under way went with the old element: its host broke its word, and the new box is at least drawn and usable)
+          else tsxSweep();   // not its successor. A host that draws its WHOLE view again fills other boxes first: the bar waits for the successor until the host is done
       }
       if (!fld) return false;
       var mine = tsState.box === box;

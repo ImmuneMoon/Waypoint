@@ -7,7 +7,11 @@
                                text's signature. Keys in that order. Never an empty record: no fmt and no font is no record.
 
    THE ONE STALE RULE. A record whose sig is not the signature of the text beside it is no record: the text is drawn plain. So a
-   look can never land on other words, whoever changed the text, and nothing has to hunt a look down when a text changes.
+   look does not outlive its words when a text is changed by something that knows nothing of looks, and nothing has to hunt a look
+   down when a text changes. The signature guards against ACCIDENT, not against a writer who means it: two texts of one length that
+   share a signature can be found by trying. THE DUTY that follows: a place keeps a look for a text only where whoever may write the
+   text may also write its look (a sheet's field, by the field's own right; a note, its writer's; the notepad, the GM's). And a rule
+   is the place's own: it is never read from the data it is to clean.
 
    A RULE says what a place takes: { size, link, font, multi, max }. LINE a sheet's one-line text; NOTES a sheet's notes; NOTE a
    Journal note of your own; PAD the table notepad. A look is cleaned BY A RULE on every machine that stores, sends or draws it:
@@ -17,7 +21,10 @@
    Published as window.wpLook when a window exists.
 
      textSig(text)                 length + ':' + eight hex digits (FNV-1a, 32 bits, over the text's UTF-16 code units, low byte first).
-                                   A signature tells a changed text apart: it is no secret and no proof of who wrote anything.
+                                   A signature tells a changed text apart: it is no secret and no proof of who wrote anything. It is the
+                                   signature of the text AS THE TABLE'S CONNECTION CARRIES IT: that packs text as UTF-8, where half a
+                                   character with no other half (a text cut inside a pair) arrives as the replacement character, so such
+                                   a half is signed as that character and a host and a player's app reach the same answer.
      lookShapeOk(fmt)              the SHAPE of a format before anything reads it: a plain object (no array, no view, no prototype of
                                    its own) whose own keys are a look's, each a primitive (a string at most MAX_LINK long), with
                                    spans an array of at most MAX_RAW plain entries of the same kind. Bounded work, nothing
@@ -25,13 +32,15 @@
      recShapeOk(rec)               the shape of a record: a plain object with no key but fmt, font and sig, the sig a signature's
                                    form, the font a short string, the fmt passing lookShapeOk.
      fieldLook(fmt, text, rule)    a format as the rule takes it: cleaned, a size and a link dropped where the rule has none, at
-                                   most LINKS linked parts and LINK_CHARS characters of address a field (a part past either keeps
-                                   its text and the rest of its look, and loses only its link), cleaned again. undefined for none.
-                                   The same again when given its own answer.
+                                   most LINKS links and LINK_CHARS characters of address a field, cleaned again. A link is one
+                                   address over touching parts, whatever looks those parts have: it is counted once, and kept
+                                   whole or dropped whole (what is dropped keeps its text and the rest of its look). undefined
+                                   for none. The same again when given its own answer.
      cleanRec(rec, text, rule)     the ONLY shape a record is stored, sent or drawn in, for THIS text: undefined unless the text is
                                    a string within the rule's length, the record has a record's shape and its sig is the text's.
      makeRec(fmt, font, text, rule)   a record for a text from a format and a font: what an edit stores. undefined for none.
-     lookWeight(rec)               a record's size for a budget: its strings' lengths and 48 a part. */
+     lookWeight(rec)               the size, for a budget, of a record cleanRec or makeRec GAVE: its strings' lengths and 48 a part.
+                                   Never the measure of a record as it arrived: clean first, then weigh. */
 'use strict';
 import { cleanFmt, fontKnown, MAX_RAW, MAX_LINK, MAX_FONT } from './textfmt.js';
 
@@ -68,10 +77,19 @@ function ruleOf(rule) {
     return { size: r.size === true, link: r.link === true, font: r.font === true, multi: r.multi === true, max: m };
 }
 
+function sigStep(h, c) { h = Math.imul(h ^ (c & 0xff), 0x01000193); return Math.imul(h ^ (c >>> 8), 0x01000193); }
 function textSig(text) {
-    var s = typeof text === 'string' ? text : '', h = 0x811c9dc5;
-    for (var i = 0; i < s.length; i++) { var c = s.charCodeAt(i); h = Math.imul(h ^ (c & 0xff), 0x01000193); h = Math.imul(h ^ (c >>> 8), 0x01000193); }
-    return s.length + ':' + ('0000000' + (h >>> 0).toString(16)).slice(-8);
+    var s = typeof text === 'string' ? text : '', h = 0x811c9dc5, n = s.length;
+    for (var i = 0; i < n; i++) {
+        var c = s.charCodeAt(i);
+        if (c >= 0xd800 && c <= 0xdbff) {   // the first half of a character of two code units
+            var nx = s.charCodeAt(i + 1);   // (past the end it is no number, and no second half)
+            if (nx >= 0xdc00 && nx <= 0xdfff) { h = sigStep(sigStep(h, c), nx); i++; continue; }
+            c = 0xfffd;   // half a character with no other half: signed as the replacement character, which is what the table's connection carries in its place (it packs text as UTF-8). So the two ends sign alike
+        } else if (c >= 0xdc00 && c <= 0xdfff) c = 0xfffd;
+        h = sigStep(h, c);
+    }
+    return n + ':' + ('0000000' + (h >>> 0).toString(16)).slice(-8);
 }
 function lookShapeOk(fmt) {
     if (!plain(fmt) || !keysOk(fmt, FMT_KEYS, 'spans')) return false;
@@ -93,9 +111,13 @@ function fieldLook(fmt, text, rule) {
     // a link is kept while the field has room for it: at most LINKS of them, and LINK_CHARS characters of address in all
     var room = function(link) { if (!R.link || typeof link !== 'string' || !link || n >= LINKS || chars + link.length > LINK_CHARS) return false; n++; chars += link.length; return true; };
     for (k in f) if (own(f, k) && k !== 'spans' && !(k === 'size' && !R.size) && !(k === 'link' && !R.link)) out[k] = f[k];   // (a link that is the whole field's is one link of at most MAX_LINK characters, and no part has another: always within both bounds)
+    // one address over touching parts of several looks is ONE link (a reader draws it as one): it is counted once, and kept whole or dropped whole
+    var pe = -1, pl = '', pk = false;
     if (Array.isArray(f.spans)) out.spans = f.spans.map(function(sp) {
-        var o = {}, j;
-        for (j in sp) if (own(sp, j) && !(j === 'size' && !R.size) && !(j === 'link' && !room(sp.link))) o[j] = sp[j];
+        var o = {}, j, l = typeof sp.link === 'string' ? sp.link : '', keep = false;
+        if (l) keep = sp.s === pe && l === pl ? pk : room(l);
+        pe = sp.e; pl = l; pk = keep;
+        for (j in sp) if (own(sp, j) && !(j === 'size' && !R.size) && !(j === 'link' && !keep)) o[j] = sp[j];
         return o;
     });
     return cleanFmt(out, text);   // parts that now add nothing are dropped, neighbours of one look merged
@@ -122,6 +144,7 @@ function makeRec(fmt, font, text, rule) {
 function lookWeight(rec) {
     if (!plain(rec)) return 0;
     var w = 16, len = function(o) { var t = 0, k; for (k in o) if (own(o, k) && typeof o[k] === 'string') t += o[k].length; return t; };
+    if (typeof rec.sig === 'string') w += rec.sig.length;
     if (typeof rec.font === 'string') w += rec.font.length;
     if (plain(rec.fmt)) { w += len(rec.fmt); if (Array.isArray(rec.fmt.spans)) rec.fmt.spans.forEach(function(sp) { w += 48 + (plain(sp) ? len(sp) : 0); }); }
     return w;

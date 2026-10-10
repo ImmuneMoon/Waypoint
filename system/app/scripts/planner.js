@@ -90,9 +90,23 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   function tsCols(b) { return (Array.isArray(b.cols) && b.cols.length > 0) ? b.cols : tsDefaultCols(b); }
   function tsOwnCols(b) { if (!Array.isArray(b.cols) || !b.cols.length) b.cols = tsDefaultCols(b).slice(); }
   function tsInt(v) { var n = parseInt(v, 10); return n >= 0 ? n : -1; }
+  // Boxes OUTSIDE the planner. A sheet, a Journal note and the table notepad take the same box and the same bar. Each is a HOST that registers
+  // once (window.wpTextBox.host): the elements its boxes live under (its roots), and for a box's key where its text and its look are kept. A
+  // host's box is told from a planner's by where it stands: under one of a host's roots and not under #plannerBlocks. While no host is
+  // registered tsHostOf answers at its first test, so a planner runs the very statements it always ran.
+  var tsHosts = [];
+  function tsHostOf(el) {
+      if (!tsHosts.length || !el || !el.closest) return null;
+      if (el.closest('#plannerBlocks')) return null;
+      for (var i = 0; i < tsHosts.length; i++) { var rs = tsHosts[i].roots; for (var j = 0; j < rs.length; j++) if (rs[j].contains(el)) return tsHosts[i]; }
+      return null;
+  }
+  function tsHostBy(id) { for (var i = 0; i < tsHosts.length; i++) if (tsHosts[i].id === id) return tsHosts[i]; return null; }
   // Which field an editor box is: { idx, k, ri, ci, ni, ei } — its place in the blocks, never its text
   function tsDesc(el) {
       if (!el || !el.classList || !el.dataset) return null;
+      var hx = tsHostOf(el);   // a host's box: its place is the key its host gave it, { k: 'x', h, key, m } (m: it takes line breaks)
+      if (hx) return typeof el.dataset.tsk === 'string' && el.dataset.tsk ? { k: 'x', h: hx.id, key: el.dataset.tsk, m: el.classList.contains('ts-multi') ? 1 : 0 } : null;
       var c = el.classList, d = { idx: tsInt(el.dataset.idx) };
       if (d.idx < 0) return null;
       if (c.contains('b-title')) d.k = 'title';
@@ -118,6 +132,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   }
   // The field a descriptor names in these blocks — { text(), fmt(), setFmt(f), setText(v) } — or null when it is not there (any more)
   function tsField(blocks, d) {
+      if (d && d.k === 'x') { var hx = tsHostBy(d.h); return hx ? hx.field(d.key) : null; }   // a host's box: the host's own field for that key
       var b = d && Array.isArray(blocks) ? blocks[d.idx] : null;
       if (!b || typeof b !== 'object') return null;
       var grid = b.type === 'node' || b.type === 'table';
@@ -209,6 +224,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   }
   // A field's name in a few words (plain text: the bar's own name, for a screen reader)
   function tsName(blocks, d) {
+      if (d && d.k === 'x') { var hn = tsHostBy(d.h); return hn && hn.field(d.key) ? hn.name(d.key) : ''; }
       var b = d && Array.isArray(blocks) ? blocks[d.idx] : null; if (!b || !tsField(blocks, d)) return '';
       var cut = function(s) { s = String(s == null ? '' : s).replace(/\s+/g, ' ').trim(); return s.length > 30 ? s.slice(0, 29) + '\u2026' : s; };
       var plain = b.mode === 'table' || b.type === 'table';
@@ -339,7 +355,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       text = String(text == null ? '' : text).replace(/\u0000/g, '');
       return multi ? text.replace(/\r\n?/g, '\n') : text.replace(/\r\n?|\n/g, ' ');
   }
-  function tsMulti(d) { return !!d && d.k === 'node'; }   // a flowchart node's label is the one field that takes line breaks
+  function tsMulti(d) { return !!d && (d.k === 'node' || (d.k === 'x' && d.m === 1)); }   // a flowchart node's label takes line breaks, and so does a host's box that its host made so
   // A run's look as one string: what its element is drawn with
   function tsSig(r) { return [r.color, r.b === true ? 1 : 0, r.i === true ? 1 : 0, r.u === true ? 1 : 0, r.st === true ? 1 : 0, r.size, r.link].join('|'); }
   // One run as an element: its text in a text node, its look through the element's style from the cleaned values only — a strict colour, fixed
@@ -457,9 +473,16 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   var TS_LINK_NODE_BAD = 'A node’s link is a plain web address: it cannot hold a quote, < or >, %%, &# or a ; after a #.';   // said for an address the link rule keeps but a diagram cannot carry (docrender.js diagramLink)
   var TS_LINK_BAD = 'A link is a web address: it starts with http:// or https:// and holds no spaces.';   // said for an address that is refused — by this bar's Link box and by a text block's
   function tsIsLabel(d) { return !!d && (d.k === 'node' || d.k === 'edge'); }
-  function tsBlocksOf() { var am = getActiveMap(); return am && isDocLike(am) && Array.isArray(am.blocks) ? am : null; }
+  // What a box's field is found in: the open planner or page, { id, blocks }. For a host's box, the host's own text of the moment by the
+  // host's id and the document it says it shows: { id, blocks: null }, since a host's field is asked of the host and never of blocks
+  function tsBlocksOf(box) {
+      var hx = box ? tsHostOf(box) : null;
+      if (hx) return { id: 'x:' + hx.id + ':' + hx.doc(), blocks: null };
+      var am = getActiveMap(); return am && isDocLike(am) && Array.isArray(am.blocks) ? am : null;
+  }
   // the editor box of a field, by its place
   function tsBox(d) {
+      if (d && d.k === 'x') return tsxBox(d);
       var root = document.getElementById('plannerBlocks'); if (!root || !d) return null;
       var at = '[data-idx="' + d.idx + '"]';
       var q = d.k === 'title' ? '.b-title' + at : d.k === 'sub' ? '.b-sub' + at : d.k === 'must' ? '.b-must' + at : d.k === 'caption' ? '.b-caption' + at
@@ -471,13 +494,14 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   function tsBoxOf(t) {
       var el = t && t.nodeType === 3 ? t.parentNode : t;
       el = el && el.closest ? el.closest('.ts-box') : null;
+      if (el && tsHostOf(el)) return el;   // a host's box
       return el && el.closest('#plannerBlocks') ? el : null;
   }
   function tsInBar(t) { var E = tsState.els; return !!(E && t && E.root.contains(t)); }
   // Remember what a box holds selected (as the selection moves, and again at every press). A box whose selection cannot be read — the focus
   // is in the bar — keeps what was remembered for it.
   function tsNote(box) {
-      var am = tsBlocksOf(), d = am && box ? tsDesc(box) : null; if (!d || !tsField(am.blocks, d)) return false;
+      var am = tsBlocksOf(box), d = am && box ? tsDesc(box) : null; if (!d || !tsField(am.blocks, d)) return false;
       var gs = tsSelOf(box), old = tsState.sel, mine = !!old && old.map === am.id && tsState.box === box;
       if (!gs) { if (mine) return true; var n = (box._tsText || '').length; gs = { s: n, e: n, back: false }; }
       tsState.sel = { map: am.id, d: d, s: gs.s, e: gs.e, back: gs.back };
@@ -485,7 +509,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   }
   // The field the bar acts on now: its box's selection as it stands — null when there is none (or the box, or its field, is gone)
   function tsTarget() {
-      var am = tsBlocksOf(), box = tsState.box; if (!am || !box) return null;
+      var box = tsState.box, am = tsBlocksOf(box); if (!am || !box) return null;
       if (document.activeElement === box) tsNote(box);
       var sel = tsState.sel;
       if (!sel || sel.map !== am.id || !tsField(am.blocks, sel.d) || tsBox(sel.d) !== box) return null;
@@ -493,7 +517,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   }
   // The focus and the selection back in the box (after a press by the mouse, or from the bar by Escape)
   function tsHold(box, s, e, back) {
-      var am = tsBlocksOf(), d = am ? tsDesc(box) : null; if (!d) return false;
+      var am = tsBlocksOf(box), d = am ? tsDesc(box) : null; if (!d) return false;
       try { if (document.activeElement !== box) box.focus(); } catch (err) {}
       tsState.box = box; tsState.sel = { map: am.id, d: d, s: s, e: e, back: !!back };
       tsSelect(box, s, e, back);
@@ -502,15 +526,20 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // The bar on a box / off
   function tsShow(box) {
       var E = tsState.els; if (!E || !box) return;
+      var wasBox = tsState.box, wasSel = tsState.sel;
       if (tsState.box !== box) { tsState.sel = null; tsState.run = null; tsState.last = null; tsState.pre = null; tsState.comp = false; }
+      if (tsHosts.length) tsBarTo(box);   // the bar goes into the panel of the box it is on
       tsState.box = box; tsNote(box);
       E.root.hidden = false; tsState.away = false;
       tsRefresh(); tsPlace();
+      if (tsHosts.length && wasBox && wasBox !== box) tsxLeft(wasSel, wasBox);   // a host is told that its box was left for this one
   }
   function tsHide() {
-      var E = tsState.els;
+      if (tsHosts.length && tsxHeld()) return;   // the bar is on a host's box that is in use: a planner drawn again behind it is no reason to take the bar away
+      var E = tsState.els, wasBox = tsState.box, wasSel = tsState.sel;
       tsState.box = null; tsState.sel = null; tsState.run = null; tsState.last = null; tsState.pre = null; tsState.comp = false; tsState.away = false;
       if (E) { E.root.hidden = true; E.symWrap.classList.remove('open'); }
+      if (tsHosts.length && wasBox) tsxLeft(wasSel, wasBox);   // a host is told that its box was left
   }
   // Where the bar goes — pure: the panel and the box as { left, top, right, bottom } on the screen, the bar's width and height. Above the box,
   // or under it when there is no room above inside the panel; from the box's left edge, pushed inside the panel sideways. seen: the box is in
@@ -554,7 +583,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // belongs to (io.js), the look carried (tsType), both selections noted for undo, the box drawn again, the save. own: the app worked it out,
   // so the selection must be set (the engine's own edit left its caret where it belongs unless the box had to be drawn again).
   function tsCommit(box, value, s, e, inputType, before, own) {
-      var am = tsBlocksOf(), d = am ? tsDesc(box) : null, fld = d ? tsField(am.blocks, d) : null; if (!fld) return false;
+      var am = tsBlocksOf(box), d = am ? tsDesc(box) : null, fld = d ? tsField(am.blocks, d) : null; if (!fld) return false;
+      if (d.k === 'x') return tsxCommit(box, am, d, fld, value, s, e, inputType, before, own);   // a host's box: its own steps, and its host is told
       var kind = tsKind(inputType), last = tsState.last && tsState.last.box === box ? tsState.last : null;
       if (!before) before = last ? { s: last.s, e: last.e } : { s: s, e: e };
       var cont = kind !== 'one' && !!last && last.kind === kind && before.s === last.s && before.e === last.e;   // the same kind of edit, where the last one left the caret
@@ -574,7 +604,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   }
   // The engine edited a box (typing, deleting, a composition's end, a correction): read it back as text and take the edit
   function tsTake(box, inputType) {
-      var am = tsBlocksOf(), d = am ? tsDesc(box) : null, fld = d ? tsField(am.blocks, d) : null; if (!fld) return false;
+      var am = tsBlocksOf(box), d = am ? tsDesc(box) : null, fld = d ? tsField(am.blocks, d) : null; if (!fld) return false;
       var multi = tsMulti(d), raw = tsScan(box).text, value = multi ? raw.replace(/\r/g, '\n') : raw.replace(/[\r\n]/g, ' ');   // one character for one: the offsets hold
       var sel = tsSelOf(box), s = sel ? sel.s : value.length, e = sel ? sel.e : value.length, before = tsState.pre;
       tsState.pre = null;
@@ -605,6 +635,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var it = String(e.inputType || '');
       if (tsState.comp) return;   // a composition is the engine's until it ends
       tsState.pre = tsSelOf(box);
+      if ((it === 'historyUndo' || it === 'historyRedo') && tsHostOf(box)) { e.preventDefault(); tsxUndo(box, it === 'historyUndo' ? 'undo' : 'redo'); return; }   // a host's box keeps steps of its own: never the planner's history
       if (it === 'historyUndo' || it === 'historyRedo') { e.preventDefault(); boxUndo(it === 'historyUndo' ? 'undo' : 'redo'); return; }   // the browser's undo stack is one per document: a Ctrl+Z left to it in another field can land here
       if (it === 'insertParagraph' || it === 'insertLineBreak') { e.preventDefault(); if (tsMulti(tsDesc(box))) tsInsert(box, '\n', it); return; }
       if (/^insertFrom/.test(it) || it === 'insertLink') {   // a paste or a drop the paste and drop events did not see: plain text, through the box's text
@@ -652,6 +683,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   function tsBoxKey(e) {
       var box = tsBoxOf(e.target); if (!box) return;
       if (e.key === 'F10' && e.altKey && !e.ctrlKey && !e.metaKey) { e.preventDefault(); e.stopPropagation(); tsToBar(box); return; }
+      if (tsxChord(e, box)) return;   // a host's box: the undo chord is its own steps
       if (e.key === 'Escape' && tsState.box === box && tsState.els && !tsState.els.root.hidden) {   // the bar out of the way; the box keeps the focus
           tsState.away = true; tsState.els.root.hidden = true; tsState.els.symWrap.classList.remove('open');
           e.stopPropagation();
@@ -669,6 +701,215 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       try { first.focus(); } catch (err) {}
       return true;
   }
+  /* ---- boxes outside the planner: a host's ----
+     The same box and the same bar, with three things of their own. STEPS: a host's field keeps its own undo, by its key (never the planner's
+     history, which knows planners only, and never the browser's). WHERE THE BAR IS: inside the panel the host names for the box, so that a key
+     pressed on a control of the bar is a key inside that panel, and the bar scrolls and stacks with it. WHAT THE HOST IS TOLD: changed(key,
+     'text' | 'look') after every edit and press, and left(key) once the focus has gone from the box and from the bar, or the bar is on another
+     box. Nothing here calls save, the preview or a step of the planner's. */
+  var TS_SIZE_NOT = 'This field takes no size.', TS_LINK_NOT = 'This field takes no link.';
+  var TSX_STEPS = 100, TSX_FIELDS = 60, tsxUndos = Object.create(null), tsxKeys = [];
+  // a host's text as its box shows it: a one-line box without line breaks, a box of several lines with its line breaks as \n. (A planner's
+  // label also drops one leading line break, as the textarea it replaced did when it was written as markup: a host's text never was.)
+  function tsxShown(text, multi) { text = (typeof text === 'string' ? text : '').replace(/\u0000/g, '\uFFFD'); return multi ? text.replace(/\r\n?/g, '\n') : text.replace(/[\r\n]/g, ''); }
+  // the box of a host's field, by its key: found by comparing, never by a selector built from the key
+  function tsxBox(d) {
+      var hx = tsHostBy(d.h), found = null; if (!hx) return null;
+      hx.roots.forEach(function(r) { if (found) return; Array.prototype.forEach.call(r.querySelectorAll('.ts-box'), function(b) { if (!found && b.dataset && b.dataset.tsk === d.key) found = b; }); });
+      return found;
+  }
+  // the bar is on a host's box, and the focus is in that box or in the bar
+  function tsxHeld() { var b = tsState.box, a = document.activeElement; return !!b && !!tsHostOf(b) && (a === b || tsInBar(a)); }
+  function tsxRoot(hx, box) { for (var i = 0; i < hx.roots.length; i++) if (hx.roots[i].contains(box)) return hx.roots[i]; return null; }
+  // The one bar goes where its box is: inside the panel a host names for the box, else the root the box stands under; back in the editor's
+  // own panel for a planner's box. Asked at every show, since a host's panel may have been drawn again or taken off the page meanwhile.
+  function tsBarTo(box) {
+      var E = tsState.els; if (!E) return;
+      if (!E.home) E.home = E.host;
+      var hx = box ? tsHostOf(box) : null, want = hx ? hx.barHost(box) : null;
+      if (want && (want.nodeType !== 1 || !want.appendChild || !want.contains || want.isConnected === false || !want.contains(box))) want = null;
+      if (hx && !want) want = tsxRoot(hx, box);
+      var to = want || E.home;
+      if (E.root.parentNode !== to) to.appendChild(E.root);
+      E.host = to;
+      E.root.classList.toggle('ts-bar-over', !!want);
+  }
+  // A host is told its box was left. Not for a box that is off the page: its host took it away itself, as it does when it draws a field again
+  function tsxLeft(sel, was) {
+      var d = sel && sel.d; if (!d || d.k !== 'x' || !was || was.isConnected === false) return;
+      var hx = tsHostBy(d.h); if (hx) hx.left(d.key);
+  }
+  function tsxCopy(f) { return f === undefined || f === null ? undefined : JSON.parse(JSON.stringify(f)); }
+  function tsxSame(a, b) { return a.text === b.text && JSON.stringify(a.fmt) === JSON.stringify(b.fmt); }
+  function tsxNow(fld) { return { text: fld.text(), fmt: tsxCopy(fld.fmt()) }; }
+  // The steps of one field of a host's, by the host's text of the moment and the field's key: { base, steps, at }. base is the text and look
+  // before the first step; a step is the text and look after it, with the selection before it (bs, be) and after it (as, ae).
+  function tsxStack(ctx, d, make) {
+      var k = ctx + '\u0001' + d.key, U = tsxUndos[k];
+      if (!U && make) { U = tsxUndos[k] = { base: null, steps: [], at: -1 }; tsxKeys.push(k); if (tsxKeys.length > TSX_FIELDS) delete tsxUndos[tsxKeys.shift()]; }
+      return U || null;
+  }
+  // One step onto a field's stack. was, now: the field before and after. cont: it carries on the step before it (a run of typing, a run of sizes)
+  function tsxStep(U, was, now, before, after, cont) {
+      var cur = U.at >= 0 ? U.steps[U.at] : U.base;
+      if (!cur || !tsxSame(cur, was)) { U.base = was; U.steps = []; U.at = -1; cont = false; }   // the field was changed from elsewhere since: what was noted is of another text
+      if (cont && U.at >= 0 && U.at === U.steps.length - 1) { var top = U.steps[U.at]; top.text = now.text; top.fmt = now.fmt; top.as = after.s; top.ae = after.e; return; }
+      U.steps.length = U.at + 1;   // a new step forgets what was undone
+      U.steps.push({ text: now.text, fmt: now.fmt, bs: before.s, be: before.e, as: after.s, ae: after.e });
+      if (U.steps.length > TSX_STEPS) { var gone = U.steps.shift(); U.base = { text: gone.text, fmt: gone.fmt }; }
+      U.at = U.steps.length - 1;
+  }
+  // ONE edit of a host's box on its way to the host's field: tsCommit's own rule for what is one step, on the field's own stack
+  function tsxCommit(box, am, d, fld, value, s, e, inputType, before, own) {
+      var hx = tsHostBy(d.h); if (!hx) return false;
+      var multi = tsMulti(d), kind = tsKind(inputType), last = tsState.last && tsState.last.box === box ? tsState.last : null;
+      if (!before) before = last ? { s: last.s, e: last.e } : { s: s, e: e };
+      var cont = kind !== 'one' && !!last && last.kind === kind && before.s === last.s && before.e === last.e;
+      var was = tsxNow(fld);
+      tsType(null, d, value, s, inputType);
+      if (fld.text() !== value) { value = tsxShown(fld.text(), multi); s = Math.min(s, value.length); e = Math.min(e, value.length); own = true; }   // the host kept another text (cut at its own length): the box shows what is kept
+      var now = tsxNow(fld), moved = !tsxSame(was, now);
+      box._tsText = value;
+      if (moved) tsxStep(tsxStack(am.id, d, true), was, now, before, { s: s, e: e }, cont);
+      tsState.last = moved ? { box: box, kind: kind, s: s, e: e } : null;
+      tsState.run = null;
+      var redrawn = tsPaint(box, fld, multi);
+      tsState.sel = { map: am.id, d: d, s: s, e: e, back: false };
+      if ((own || redrawn) && document.activeElement === box) tsSelect(box, s, e);
+      if (moved) hx.changed(d.key, 'text');
+      tsRefresh(); tsPlace();
+      return moved;
+  }
+  // One press of the bar on a host's field: tsPress's own rule, less a label's link. A link and a size only where the host takes them
+  function tsxPress(change, from, am, sel, box) {
+      var hx = tsHostBy(sel.d.h), fld = tsField(null, sel.d); if (!hx || !fld) { tsState.run = null; tsRefresh(); return false; }
+      var plain = change !== 'clear';
+      if ((plain && tsOwn(change, 'link') && !hx.links(sel.d.key)) || (plain && tsOwn(change, 'size') && !hx.sizes(sel.d.key))) { tsRefresh(); return false; }
+      var was = tsxNow(fld), text = was.text;
+      var next = change === 'clear' ? TF.clear(fld.fmt(), text, sel.s, sel.e) : TF.apply(fld.fmt(), text, sel.s, sel.e, change);
+      if (JSON.stringify(next) === JSON.stringify(TF.cleanFmt(fld.fmt(), text))) { tsRefresh(); return false; }   // nothing to change: no step
+      var kept = !!(from && tsState.key && document.activeElement === from);
+      var left = !!(from && from === tsState.els.link && document.activeElement !== from);
+      var runOn = kept && from === tsState.els.size ? JSON.stringify([sel.d, sel.s, sel.e]) : null, cont = !!runOn && tsState.run === runOn;   // the Size list stepped through by its arrow keys is one step
+      tsState.run = runOn;
+      tsState.last = null;
+      fld.setFmt(next);
+      var now = tsxNow(fld);
+      if (!tsxSame(was, now)) { tsxStep(tsxStack(am.id, sel.d, true), was, now, { s: sel.s, e: sel.e }, { s: sel.s, e: sel.e }, cont); hx.changed(sel.d.key, 'look'); }
+      tsPaint(box, fld, tsMulti(sel.d));
+      if (!left && !kept) tsHold(box, sel.s, sel.e, sel.back);
+      if (next && next.spans && next.spans.length >= TF.MAX_SPANS) toast('This field now holds the most styled parts it can (' + TF.MAX_SPANS + ').');
+      tsRefresh(); tsPlace();
+      return true;
+  }
+  // Undo and redo in a host's box: the field's own steps. False when there is nothing to take back or put back
+  function tsxUndo(box, dir) {
+      if (tsState.comp) return false;   // a composition is the engine's until it ends
+      var d = box ? tsDesc(box) : null, fld = d && d.k === 'x' ? tsField(null, d) : null, hx = fld ? tsHostBy(d.h) : null; if (!hx) return false;
+      var am = tsBlocksOf(box), U = am ? tsxStack(am.id, d, false) : null; if (!U) return false;
+      var cur = U.at >= 0 ? U.steps[U.at] : U.base;
+      if (!cur || !tsxSame(cur, tsxNow(fld))) { U.base = null; U.steps = []; U.at = -1; return false; }   // changed from elsewhere since: nothing of it to take back
+      var to, a, z;
+      if (dir === 'undo') { if (U.at < 0) return false; a = U.steps[U.at].bs; z = U.steps[U.at].be; U.at--; to = U.at >= 0 ? U.steps[U.at] : U.base; }
+      else { if (U.at >= U.steps.length - 1) return false; U.at++; to = U.steps[U.at]; a = to.as; z = to.ae; }
+      fld.setText(to.text); fld.setFmt(tsxCopy(to.fmt));
+      var multi = tsMulti(d), n;
+      box._tsText = tsxShown(fld.text(), multi); n = box._tsText.length;
+      tsPaint(box, fld, multi);
+      a = Math.max(0, Math.min(n, a)); z = Math.max(a, Math.min(n, z));
+      tsState.last = null; tsState.run = null; tsState.pre = null;
+      if (tsState.box === box) tsState.sel = { map: am.id, d: d, s: a, e: z, back: false };
+      if (document.activeElement === box) tsSelect(box, a, z);
+      hx.changed(d.key, 'text');
+      tsRefresh(); tsPlace();
+      return true;
+  }
+  // Ctrl+Z, Ctrl+Y and Ctrl+Shift+Z in a host's box (the chord io.js reads for a planner's): taken whether or not there is a step, so that
+  // neither the page nor the engine undoes anything of its own there
+  function tsxChord(e, box) {
+      if (!tsHosts.length || !tsHostOf(box)) return false;
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return false;
+      var k = String(e.key || '').toLowerCase(), dir = (k === 'z' && !e.shiftKey) ? 'undo' : (k === 'y' || (k === 'z' && e.shiftKey)) ? 'redo' : null;
+      if (!dir) return false;
+      e.preventDefault(); e.stopPropagation();
+      tsxUndo(box, dir);
+      return true;
+  }
+  // The bar for a host's field: Size and Link are off, in fixed words, where the host does not take them
+  function tsxRefresh(E, fld, sel) {
+      var hx = fld && sel && sel.d.k === 'x' ? tsHostBy(sel.d.h) : null, noLink = !!hx && !hx.links(sel.d.key), noSize = !!hx && !hx.sizes(sel.d.key);
+      var lab = E.size.parentNode, words = noSize ? TS_SIZE_NOT : 'Size' + TS_SCOPE;
+      if (lab && lab.title !== words) lab.title = words;
+      if (noSize) { E.size.disabled = true; E.size.value = ''; }
+      if (noLink) { E.link.disabled = true; E.linkLab.classList.add('off'); E.linkLab.title = TS_LINK_NOT; if (document.activeElement !== E.link) { E.link.value = ''; E.link.placeholder = 'https://…'; } }
+  }
+  // A host's boxes wired on the elements they live under. keydown is taken in the CAPTURE phase: a panel of the app's may stop a key and close
+  // on Escape in its own listener, and the box's Escape (which only puts the bar away) and its undo chord come first
+  function tsxListen(hx) {
+      var evs = [['beforeinput', tsBefore], ['input', tsInput], ['compositionstart', tsCompStart], ['compositionend', tsCompEnd], ['paste', tsPaste], ['copy', tsCopy], ['cut', tsCopy], ['drop', tsDrop], ['dragstart', tsDragStart]];
+      hx.roots.forEach(function(r) {
+          evs.forEach(function(p) { r.addEventListener(p[0], p[1]); });
+          r.addEventListener('keydown', tsBoxKey, true);
+          r.addEventListener('mousedown', function(e) { var box = tsBoxOf(e.target); if (box && box === tsState.box && tsState.away) tsShow(box); });
+          r.addEventListener('scroll', tsPlace, true);
+      });
+  }
+  // A host registers: { id, roots, field(key), doc(), name(key), links(key), sizes(key), barHost(box), changed(key, kind), left(key) }. Only id,
+  // roots and field are needed. What a host answers is read with care: a host that throws or answers oddly gets the cautious reading (no
+  // field, no link, no size), and is never trusted for more than text and a format that textfmt.js cleans as it reads it.
+  function tsxHost(rec) {
+      if (!rec || typeof rec !== 'object' || typeof rec.id !== 'string' || !/^[a-z][a-z0-9]{0,15}$/.test(rec.id) || tsHostBy(rec.id)) return false;
+      var roots = Array.isArray(rec.roots) ? rec.roots.filter(function(r) { return !!r && r.nodeType === 1 && typeof r.addEventListener === 'function' && typeof r.contains === 'function' && typeof r.querySelectorAll === 'function'; }) : [];
+      if (!roots.length || roots.length !== rec.roots.length || typeof rec.field !== 'function') return false;
+      var ask = function(name, none) { return function(a, b) { try { return typeof rec[name] === 'function' ? rec[name](a, b) : none; } catch (err) { if (typeof console !== 'undefined' && console.error) console.error(err); return none; } }; };
+      var q = { field: ask('field', null), doc: ask('doc', ''), name: ask('name', ''), links: ask('links', false), sizes: ask('sizes', false), barHost: ask('barHost', null), changed: ask('changed', null), left: ask('left', null) };
+      var hx = {
+          id: rec.id, roots: roots,
+          // a host's field as the box reads it: its text a string or nothing, its format an object or none. What it holds is the host's, and may come from a file
+          field: function(key) {
+              var f = q.field(key); if (!f || typeof f.text !== 'function' || typeof f.fmt !== 'function' || typeof f.setFmt !== 'function' || typeof f.setText !== 'function') return null;
+              return { text: function() { var t = f.text(); return typeof t === 'string' ? t : ''; }, fmt: function() { var m = f.fmt(); return m && typeof m === 'object' ? m : undefined; }, setFmt: function(v) { f.setFmt(v); }, setText: function(v) { f.setText(v); } };
+          },
+          doc: function() { var v = q.doc(); return typeof v === 'string' ? v : ''; },
+          name: function(key) { var v = q.name(key); return typeof v === 'string' ? v.slice(0, 80) : ''; },
+          links: function(key) { return q.links(key) === true; },
+          sizes: function(key) { return q.sizes(key) === true; },
+          barHost: function(box) { return q.barHost(box) || null; },
+          changed: function(key, kind) { q.changed(key, kind); },
+          left: function(key) { q.left(key); }
+      };
+      tsHosts.push(hx);
+      tsxListen(hx);
+      return true;
+  }
+  // A host makes an element its box: classes and attributes only, never content. o: { key, multi, placeholder, label }
+  function tsxDress(box, o) {
+      if (!box || box.nodeType !== 1 || !box.classList || !box.dataset || !o || typeof o.key !== 'string' || !o.key || o.key.length > 200) return false;
+      var multi = o.multi === true, ph = typeof o.placeholder === 'string' ? o.placeholder.slice(0, 200) : '', label = typeof o.label === 'string' && o.label ? o.label.slice(0, 200) : ph;
+      box.classList.add('ts-box'); box.classList.toggle('ts-multi', multi);
+      box.dataset.tsk = o.key;
+      box.setAttribute('contenteditable', TS_EDIT); box.setAttribute('role', 'textbox'); box.setAttribute('aria-multiline', multi ? 'true' : 'false'); box.setAttribute('spellcheck', 'true');
+      box.setAttribute('data-placeholder', ph); box.setAttribute('aria-label', label);
+      return true;
+  }
+  // A host's box drawn from its field: after the host dressed it, and again whenever the host's text or look changed under it. The selection
+  // and the bar are kept where the box is the one in use. Never while a composition is under way in it (the box is the engine's then).
+  function tsxFill(box) {
+      if (tsState.box && tsState.box !== box && tsState.box.isConnected === false) tsHide();   // the box the bar was on is off the page
+      var d = box ? tsDesc(box) : null, fld = d && d.k === 'x' ? tsField(null, d) : null; if (!fld) return false;
+      var mine = tsState.box === box;
+      if (mine && tsState.comp) return false;
+      var multi = tsMulti(d), shown = tsxShown(fld.text(), multi), sel = mine && document.activeElement === box ? tsSelOf(box) : null;
+      box._tsText = shown;
+      var drawn = tsPaint(box, fld, multi);
+      if (mine) {
+          tsState.last = null; tsState.run = null; tsState.pre = null;
+          if (tsState.sel) { tsState.sel.s = Math.min(tsState.sel.s, shown.length); tsState.sel.e = Math.max(tsState.sel.s, Math.min(tsState.sel.e, shown.length)); }
+          if (drawn && sel) tsSelect(box, Math.min(sel.s, shown.length), Math.min(sel.e, shown.length), sel.back);
+          tsRefresh(); tsPlace();
+      }
+      return true;
+  }
   // the bar's controls the keyboard can stand on, in order (the symbols while their tray is open)
   function tsOrder() {
       var E = tsState.els; if (!E) return [];
@@ -680,8 +921,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // from: the bar's control the press came from. One the keyboard reached and holds keeps the focus; after any other press the box has it.
   function tsPress(change, from) {
       if (tsState.comp) return false;   // a composition is under way: the box holds text the store does not have yet and must not be drawn again — the press waits for its end
-      var am = tsBlocksOf(), sel = tsTarget(), box = tsState.box;
+      var box = tsState.box, am = tsBlocksOf(box), sel = tsTarget();
       if (!am || !sel) { tsState.run = null; tsRefresh(); return false; }
+      if (sel.d.k === 'x') return tsxPress(change, from, am, sel, box);   // a host's field: its own steps, and its host is told
       var fld = tsField(am.blocks, sel.d), text = fld.text(), was = fld.fmt();
       // a flowchart label never holds a link: on a node's label a link is the WHOLE NODE's (its own link, by the diagram's rule), whatever is selected; an arrow carries none
       var whole = change !== 'clear' && tsOwn(change, 'link') && tsIsLabel(sel.d);
@@ -740,7 +982,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   function tsRebuilt() { tsHide(); }
   // Back from the bar to its box, the selection as it was. False when there is none.
   function tsBack() {
-      var am = tsBlocksOf(), sel = tsState.sel, box = tsState.box;
+      var box = tsState.box, am = tsBlocksOf(box), sel = tsState.sel;
       if (!am || !sel || !box || sel.map !== am.id || !tsField(am.blocks, sel.d) || tsBox(sel.d) !== box) return false;
       return tsHold(box, sel.s, sel.e, sel.back);
   }
@@ -757,7 +999,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // The bar as it stands: what it acts on, which controls are lit, which cannot apply
   function tsRefresh() {
       var E = tsState.els; if (!E) return;
-      var am = tsBlocksOf(), sel = tsState.sel, fld = am && sel && tsState.box && sel.map === am.id ? tsField(am.blocks, sel.d) : null, st = null, n = 0;
+      var am = tsBlocksOf(tsState.box), sel = tsState.sel, fld = am && sel && tsState.box && sel.map === am.id ? tsField(am.blocks, sel.d) : null, st = null, n = 0;
       if (fld) { st = TF.stateAt(fld.fmt(), fld.text(), sel.s, sel.e); n = Math.abs(sel.e - sel.s); }
       var off = !fld;
       E.root.setAttribute('aria-label', fld ? 'Text style — ' + tsName(am.blocks, sel.d) : 'Text style');
@@ -784,6 +1026,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       }
       E.clear.disabled = off || !st.any;
       E.symBtn.disabled = off;
+      if (tsHosts.length) tsxRefresh(E, fld, sel);   // a host's field: Size and Link only where its host takes them
   }
   // Build the bar (elements, text nodes and values only) inside the editor panel and wire its controls. host: the panel that scrolls
   // (#plannerEditorWrap); syms: the symbol tray's [character, name] list (the text blocks' own).
@@ -916,7 +1159,15 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           try { if (box.scrollIntoView) box.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) {}
           tsRefresh(); tsPlace();
           return true;
-      }
+      },
+      // Boxes outside the planner. host(rec): a host registers once. dress(box, o): an element becomes a box (classes and attributes only).
+      // fill(box): drawn from its field, after dress and whenever the host's text or look changed under it. pending(box): the box must
+      // not be taken off the page now (a composition is under way in it, or a control of the bar is in use for it). textOf(box): its text.
+      host: function(rec) { return tsxHost(rec); },
+      dress: function(box, o) { return tsxDress(box, o); },
+      fill: function(box) { return tsxFill(box); },
+      pending: function(box) { return !!box && tsState.box === box && (tsState.comp || tsInBar(document.activeElement)); },
+      textOf: function(box) { return box && typeof box._tsText === 'string' ? box._tsText : ''; }
   };
   // [textcheck:bar-end]
   // [sinkcheck:boxes-end]

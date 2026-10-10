@@ -532,7 +532,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         };
         const names = Object.keys(deps), fsrc = opts.linkGrows ? fieldsSrc.replace('var TS_LINK_GROWS = false;', 'var TS_LINK_GROWS = true;') : fieldsSrc;
         if (opts.linkGrows && fsrc === fieldsSrc) throw new Error('textcheck: the link rule\'s one line was not found');
-        const api = new Function(...names, fsrc + '\n' + boxSrc + '\n' + barSrc + '\nreturn { tsDesc, tsField, tsType, tsEditAt, tsName, tsSetColCount, tsRowsAsObjects, tsCols, TS_PLAIN, TS_LINK_GROWS, TS_EDIT, tsScan, tsPointAt, tsShown, tsIncoming, tsMulti, tsDraw, tsPaint, tsBoxHtml, tsFill, tsSelOf, tsSelect, tsState, tsBox, tsBoxOf, tsNote, tsTarget, tsShow, tsHide, tsPlaceAt, tsPlace, tsKind, tsCommit, tsInsertAt, tsPress, tsLink, tsSymbol, tsRebuilt, tsBack, tsRefresh, tsBuild, tsKey, tsWire, tsOrder, tsToBar };')(...names.map(k => deps[k]));
+        const api = new Function(...names, fsrc + '\n' + boxSrc + '\n' + barSrc + '\nreturn { tsDesc, tsField, tsType, tsEditAt, tsName, tsSetColCount, tsRowsAsObjects, tsCols, TS_PLAIN, TS_LINK_GROWS, TS_EDIT, tsScan, tsPointAt, tsShown, tsIncoming, tsMulti, tsDraw, tsPaint, tsBoxHtml, tsFill, tsSelOf, tsSelect, tsState, tsBox, tsBoxOf, tsNote, tsTarget, tsShow, tsHide, tsPlaceAt, tsPlace, tsKind, tsCommit, tsInsertAt, tsPress, tsLink, tsSymbol, tsRebuilt, tsBack, tsRefresh, tsBuild, tsKey, tsWire, tsOrder, tsToBar, tsHosts, tsHostOf, tsHostBy, tsxUndo, tsxShown };')(...names.map(k => deps[k]));
         Object.assign(page, api, { editor, blocksEl, engine: dom.engine });
         // an editor box for a field, as renderPlanner writes it (its classes and data attributes), empty until tsFill draws it
         page.box = (cls, data, multi) => { const el = dom.mk('div', cls + ' ts-box' + (multi ? ' ts-multi' : ''), data); el.setAttribute('contenteditable', 'plaintext-only'); el.rect = { left: 140, top: 300, right: 520, bottom: 334 }; blocksEl.appendChild(el); return el; };
@@ -1500,6 +1500,181 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             ['beforeinput', 'input', 'compositionstart', 'compositionend', 'paste', 'copy', 'cut', 'drop', 'dragstart', 'keydown'].every(ev => new RegExp("root\\.addEventListener\\('" + ev + "', ts[A-Za-z]+\\);").test(barSrc)) && /document\.addEventListener\('keydown', tsKey, true\);/.test(barSrc) && /document\.addEventListener\('focusin', /.test(barSrc) && /document\.addEventListener\('focusout', /.test(barSrc)
             && /document\.addEventListener\('selectionchange', /.test(barSrc) && /host\.addEventListener\('scroll', tsPlace, true\);/.test(barSrc) && /window\.addEventListener\('resize', tsPlace\);/.test(barSrc) && /\n      fieldUndoChord\(e\);\n  \}\n/.test(barSrc) && !/fieldUndoChord\(e\)\) return;/.test(barSrc) && (barSrc.slice(barSrc.indexOf('function tsBoxKey(e)'), barSrc.indexOf('function tsToBar(box)')).match(/stopPropagation\(\)/g) || []).length === 2
             && !/sessionStorage|wp_textStyleOpen|textStyleBar|textStyleToggle|textStyleBody/.test(plannerSrc));
+    }
+
+    /* ---- boxes outside the planner: a host's (item 35, fold 1a-i). The same box and the same bar serve a sheet, a Journal note and the notepad;
+       no host exists in the app yet, so a host of the suite's own stands in: plain { text, fmt } records, two panels, and a recorder ---- */
+    {
+        const mkHost = opts => { opts = opts || {};
+            const pg = mkPage({ map: mapOf(B0()) }).wire().rebuild(), dom = pg.dom, doc = pg.doc, TB = dom.window.wpTextBox, rec = [], store = opts.store || { name: { text: 'Bren' }, notes: { text: 'one\ntwo' } };
+            const panel = dom.mk('div', 'panel', {}, 'sheetPanel'), body = dom.mk('div', 'sheet-body'), hud = dom.mk('div', '', {}, 'hudLayer'); doc.body.appendChild(panel); panel.appendChild(body); doc.body.appendChild(hud);
+            panel.rect = { left: 800, top: 100, right: 1260, bottom: 700 }; panel.clientLeft = 0; panel.clientWidth = 460; hud.rect = { left: 0, top: 0, right: 600, bottom: 400 }; hud.clientLeft = 0; hud.clientWidth = 600;
+            const st = { doc: 'c1/ch1' };
+            const fieldOf = key => { const o = store[String(key).split(':').pop()]; return o ? { text: () => (typeof o.text === 'string' ? o.text : ''), fmt: () => o.fmt, setFmt: f => { if (f) o.fmt = f; else delete o.fmt; }, setText: v => { o.text = opts.max ? String(v).slice(0, opts.max) : v; } } : null; };
+            const host = { id: 'sheet', roots: [panel, hud], doc: () => st.doc, field: fieldOf, name: key => 'Sheet ' + key, links: key => /notes$/.test(key), sizes: key => /notes$/.test(key), barHost: box => (panel.contains(box) ? panel : null), changed: (key, kind) => { rec.push('changed:' + key + ':' + kind); }, left: key => { rec.push('left:' + key); } };
+            const ok = TB.host(host);
+            const box = (key, multi, parent) => { const el = dom.mk('div', 'sheet-in'); el.rect = { left: 820, top: 300, right: 1200, bottom: 330 }; (parent || body).appendChild(el); const dressed = TB.dress(el, { key, multi: !!multi, placeholder: 'Type <here>', label: 'The ' + key }); TB.fill(el); el.dressed = dressed; return el; };
+            return { pg, dom, doc, TB, rec, store, st, panel, body, hud, host, ok, box, E: pg.tsState.els, sel: () => pg.tsState.sel && [pg.tsState.sel.s, pg.tsState.sel.e] }; };
+        const plannerLog = pg => J([pg.log, pg.sels.length]);
+
+        // --- a host registers; an element becomes its box; a box is told from a planner's
+        {
+            const h = mkHost(), pg = h.pg, name = h.box('name'), notes = h.box('notes', true), d1 = pg.tsDesc(name), d2 = pg.tsDesc(notes);
+            const again = h.TB.host(h.host), bad = [null, {}, { id: 'Sheet', roots: [h.panel], field: () => null }, { id: 'a b', roots: [h.panel], field: () => null }, { id: 'j', roots: [], field: () => null }, { id: 'j', roots: [h.panel, {}], field: () => null }, { id: 'j', roots: [h.panel] }, { id: 'j', roots: 'x', field: () => null }].map(r => h.TB.host(r));
+            const stray = h.dom.mk('div', 'ts-box', { tsk: 'name' }); h.doc.body.appendChild(stray);   // a box under no host's root and outside the planner: nobody's
+            const inPlanner = h.dom.mk('div', 'ts-box', { tsk: 'name' }); pg.blocksEl.appendChild(inPlanner);   // under #plannerBlocks a key makes no host's box
+            const noKey = h.dom.mk('div', 'ts-box'); h.body.appendChild(noKey);
+            h.store.lead = { text: '\nline two\r\nline three' }; const lead = h.box('lead', true), flat = h.box('lead', false);
+            check('a host\'s box (planner.js, run for real with a host of the suite\'s own): a host registers once under a short plain id with the elements its boxes live under and a way to its fields; a record that is none, a second under the same id, an id that is not short plain letters, no root, a root that is no element and no field are each refused. dress makes an element a box with classes and attributes only, its key in its data and never its text; a box is told from a planner\'s by where it stands, so its place is { k: x, the host, the key, whether it takes line breaks }, found again by comparing its key; a box under no host\'s root, one under the planner\'s own boxes and one with no key are no host\'s box. fill draws it from its field: a one-line box without line breaks, a box of several lines with every line break, a leading one too',
+                h.ok === true && again === false && bad.every(x => x === false) && pg.tsHosts.length === 1 && name.dressed === true
+                && name.className === 'sheet-in ts-box' && notes.className === 'sheet-in ts-box ts-multi' && J(name.attrs) === J({ contenteditable: pg.TS_EDIT, role: 'textbox', 'aria-multiline': 'false', spellcheck: 'true', 'data-placeholder': 'Type <here>', 'aria-label': 'The name' }) && notes.attrs['aria-multiline'] === 'true' && name.dataset.tsk === 'name'
+                && J(d1) === J({ k: 'x', h: 'sheet', key: 'name', m: 0 }) && J(d2) === J({ k: 'x', h: 'sheet', key: 'notes', m: 1 }) && pg.tsMulti(d1) === false && pg.tsMulti(d2) === true && pg.tsBox(d1) === name && pg.tsBox(d2) === notes && pg.tsBox({ k: 'x', h: 'sheet', key: 'nope' }) === null && pg.tsBox({ k: 'x', h: 'none', key: 'name' }) === null
+                && pg.tsBoxOf(name.firstChild.firstChild) === name && pg.tsBoxOf(stray) === null && pg.tsDesc(stray) === null && pg.tsBoxOf(inPlanner) === inPlanner && pg.tsDesc(inPlanner) === null && pg.tsDesc(noKey) === null && pg.tsHostOf(name) === pg.tsHostBy('sheet') && pg.tsHostOf(pg.tsBox({ idx: 0, k: 'title' })) === null
+                && h.TB.textOf(name) === 'Bren' && h.TB.textOf(notes) === 'one\ntwo' && pg.textOf(notes) === 'one\ntwo' && h.TB.textOf(lead) === '\nline two\nline three' && h.TB.textOf(flat) === 'line twoline three' && pg.tsName(null, d1) === 'Sheet name' && pg.tsName(null, { k: 'x', h: 'sheet', key: 'nope' }) === ''
+                && [null, {}, { key: '' }, { key: 7 }, { key: 'k'.repeat(201) }].every(o => h.TB.dress(h.dom.mk('div', ''), o) === false) && h.TB.dress(null, { key: 'a' }) === false && h.TB.fill(noKey) === false && h.TB.fill(null) === false,
+                [again, bad, name.className, name.attrs, d1, d2, h.TB.textOf(lead), h.TB.textOf(flat)]);
+        }
+
+        // --- typing, pasting, a composition, Enter: the host's field takes the text, the host is told, and the planner is told nothing
+        {
+            const h = mkHost(), pg = h.pg, E = pg.engine, name = h.box('name'), notes = h.box('notes', true), log0 = plannerLog(pg), out = [];
+            pg.focus(name, 4); E.type(name, 'x'); out.push(h.store.name.text, J(h.rec), pg.textOf(name), J(pg.range(name)));
+            h.rec.length = 0; h.store.name.fmt = { spans: [{ s: 0, e: 2, b: true }] }; h.TB.fill(name); pg.focus(name, 2); E.type(name, 'Z'); out.push(h.store.name.text, J(h.store.name.fmt), J(pg.drawn(name).map(r => r[0])));   // typed right after a styled part: it joins it
+            pg.focus(name, 0); E.paste(name, { 'text/html': '<b>bold</b>', 'text/plain': 'a\nb' }); out.push(h.store.name.text);   // a paste is plain text; a one-line box takes a line break as a space
+            pg.focus(name, 0); E.enter(name); out.push(h.store.name.text);   // no line break in a one-line box
+            pg.focus(notes, 3); E.enter(notes); out.push(h.store.notes.text);   // a box of several lines takes it
+            h.rec.length = 0; pg.focus(notes, 0); E.compose(notes, ['k', 'ka', 'か']); out.push(h.store.notes.text, J(h.rec));   // a composition is applied once, at its end
+            const cut = (pg.focus(notes, 0, 1), E.copy(notes, 'cut')); out.push(cut.got['text/plain'], h.store.notes.text);
+            check('a host\'s box (typing): what is typed goes to the host\'s field as text, the box is drawn again from it, and the host is told that the text changed; what is typed right after a styled part joins it, as in a planner; a paste is plain text, a line break pasted into a one-line box a space, Enter nothing in a one-line box and a line break in a box of several lines; a composition is applied once, at its end; a cut gives plain text. None of it reaches the planner: no save, no preview, no step and no selection noted there',
+                J(out) === J(['Brenx', J(['changed:name:text']), 'Brenx', '[5,5]', 'BrZenx', J({ spans: [{ s: 0, e: 3, b: true }] }), J(['BrZ', 'enx']), 'a bBrZenx', 'a bBrZenx', 'one\n\ntwo', 'かone\n\ntwo', J(['changed:notes:text']), 'か', 'one\n\ntwo'])
+                && plannerLog(pg) === log0 && J(pg.map.blocks) === J(B0()), out);
+        }
+
+        // --- the bar on a host's box: where it is, what it offers, the keys
+        {
+            const h = mkHost(), pg = h.pg, E = h.E, name = h.box('name'), notes = h.box('notes', true), out = [], seen = [];
+            h.panel.addEventListener('keydown', e => { seen.push(e.key); });   // a panel of the app's own that reads keys in its own listener, as the sheet panel does
+            pg.focus(name, 0, 2); out.push(E.root.parentNode === h.panel, E.host === h.panel, E.root.classList.contains('ts-bar-over'), E.root.hidden, E.root.attrs['aria-label']);
+            out.push(E.size.disabled, E.size.parentNode.title, E.link.disabled, E.linkLab.title, E.linkLab.classList.contains('off'), E.b.disabled);   // this field takes neither a size nor a link, and says so
+            out.push(pg.tsPress({ size: 'large' }), pg.tsPress({ link: LINK }), J(h.store.name.fmt));   // and a press of either changes nothing
+            h.rec.length = 0; pg.click(E.b); out.push(J(h.store.name.fmt), J(h.rec), J(pg.range(name)), pg.dom.page.active === name); const afterB = J(pg.drawn(name).map(r => [r[0], r[1].fontWeight || '']));   // the box is drawn again with the look
+            pg.dom.fire(name, 'keydown', keyEv({ key: 'i', ctrlKey: true })); pg.click(E.swatches[2]); out.push(J(h.store.name.fmt));
+            pg.focus(notes, 0, 3); out.push(E.size.disabled, E.size.parentNode.title === 'Size' + ' — the selected characters, or the whole field with nothing selected', E.link.disabled, E.linkLab.classList.contains('off'));
+            pg.dom.fire(E.size, 'mousedown'); E.size.focus(); E.size.value = 'large'; pg.dom.fire(E.size, 'change'); pg.dom.fire(E.link, 'mousedown'); E.link.focus(); E.link.value = 'a.example/x'; pg.dom.fire(E.link, 'keydown', keyEv({ key: 'Enter' }));
+            out.push(J(h.store.notes.fmt), pg.dom.page.active === notes);
+            // the keys: Alt+F10 into the bar, Tab along it, Escape back; Escape in the box puts the bar away BEFORE the panel's own listener sees the key, and the next Escape is the panel's
+            const f10 = pg.dom.fire(notes, 'keydown', keyEv({ key: 'F10', altKey: true })); out.push(f10.stopped, pg.dom.page.active === E.b); pg.dom.fire(E.b, 'keydown', keyEv({ key: 'Tab' })); out.push(pg.dom.page.active === E.i);
+            pg.dom.fire(E.i, 'keydown', keyEv({ key: 'Escape' })); out.push(pg.dom.page.active === notes, J(pg.range(notes)));
+            seen.length = 0; const esc1 = pg.dom.fire(notes, 'keydown', keyEv({ key: 'Escape' })); out.push(esc1.stopped, E.root.hidden, J(seen)); const esc2 = pg.dom.fire(notes, 'keydown', keyEv({ key: 'Escape' })); out.push(!!esc2.stopped, J(seen));
+            pg.dom.fire(notes.firstChild, 'mousedown'); out.push(E.root.hidden);   // a click in the box brings the bar back
+            // back on a planner's box the bar is in the editor's own panel again, with its own words
+            const title = pg.tsBox({ idx: 0, k: 'title' }); pg.focus(title, 0, 3); out.push(E.root.parentNode === pg.editor, E.host === pg.editor, E.root.classList.contains('ts-bar-over'), E.size.disabled, E.size.parentNode.title === 'Size' + ' — the selected characters, or the whole field with nothing selected', E.link.disabled);
+            // a box under a root the host names no panel for: the bar goes into that root
+            const hudBox = h.box('hud:name', false, h.hud); pg.focus(hudBox, 0); out.push(E.root.parentNode === h.hud, E.host === h.hud);
+            h.host.barHost = () => h.hud; pg.focus(notes, 0); const wrongPanel = E.root.parentNode === h.panel; h.host.barHost = box => (h.panel.contains(box) ? h.panel : null);   // a panel the host names that does not hold the box: the bar goes into the box's own root
+            // the panel scrolls: the bar follows its box
+            pg.focus(name, 0); const top0 = E.root.style.top; name.rect = { left: 820, top: 400, right: 1200, bottom: 430 }; pg.dom.fire(h.body, 'scroll', {}); out.push(top0 !== E.root.style.top);
+            check('a host\'s box (the bar): the one bar goes into the panel its host names for the box, so a key on a control of the bar is a key inside that panel, and is named for the field; Size and Link are off, in fixed words, on a field whose host takes neither, and a press of either changes nothing; B, Ctrl+I and a colour act on the selection, tell the host that the look changed, and leave the selection and the focus in the box; on a field that takes them the Size list and the Link box work as in a planner. Alt+F10 goes into the bar, Tab along it, Escape back to the box with its selection. Escape in the box puts the bar away in the capture phase, before a listener of the panel\'s own sees the key, and the next Escape is the panel\'s; a click in the box brings the bar back. On a planner\'s box the bar is back in the editor\'s own panel with its own words; a box under a root the host names no panel for takes the bar into that root, and so does a box whose host names a panel that does not hold it; the bar follows its box when the panel scrolls',
+                J(out) === J([true, true, true, false, 'Text style — Sheet name', true, 'This field takes no size.', true, 'This field takes no link.', true, false, false, false, undefined,
+                    J({ spans: [{ s: 0, e: 2, b: true }] }), J(['changed:name:look']), '[0,2]', true, J({ spans: [{ s: 0, e: 2, color: PALETTE[2][0], b: true, i: true }] }),
+                    false, true, false, false, J({ spans: [{ s: 0, e: 3, size: 'large', link: 'https://a.example/x' }] }), true,
+                    true, true, true, true, '[0,3]', true, true, '[]', false, J(['Escape']), false,
+                    true, true, false, false, true, false, true, true, true]) && afterB === J([['Br', 'bold'], ['en', '']]) && wrongPanel === true, [out, afterB, wrongPanel]);
+        }
+
+        // --- undo and redo in a host's box are the field's own steps
+        {
+            const h = mkHost(), pg = h.pg, E = pg.engine, H = mkHist(pg), name = h.box('name'), notes = h.box('notes', true), out = [], depth0 = J(H.depth()), log0 = plannerLog(pg);
+            const chord = (box, key, extra) => pg.dom.fire(box, 'keydown', keyEv(Object.assign({ key, ctrlKey: true }, extra || {})));
+            pg.focus(name, 4); E.type(name, 'ab'); pg.click(h.E.b); pg.focus(name, 0); E.paste(name, { 'text/plain': 'X ' });   // a run of typing (one step), a press (one step), a paste (one step)
+            const full = [h.store.name.text, J(h.store.name.fmt)];
+            h.rec.length = 0; const z1 = chord(name, 'z'), toldUndo = J(h.rec); out.push(z1.stopped, z1.defaultPrevented, h.store.name.text, J(pg.range(name)));
+            chord(name, 'z'); out.push(h.store.name.text, J(h.store.name.fmt)); chord(name, 'z'); out.push(h.store.name.text, J(pg.range(name)));
+            const z4 = chord(name, 'z'); out.push(z4.stopped, h.store.name.text);   // nothing left: the chord is still the box's
+            chord(name, 'y'); chord(name, 'z', { shiftKey: true }); E.edit(name, 'historyRedo', null); out.push(J([h.store.name.text, J(h.store.name.fmt)]) === J(full));
+            E.edit(name, 'historyUndo', null); out.push(h.store.name.text);   // the engine's own undo, should it ever arrive: the same steps
+            pg.focus(name, 0); E.type(name, 'Q'); chord(name, 'y'); out.push(h.store.name.text); chord(name, 'z'); const afterQ = h.store.name.text; chord(name, 'y');   // a new step forgets what was undone: nothing to put back, and the undo after it goes to the text before it
+            h.store.name.text = 'from elsewhere'; h.TB.fill(name); chord(name, 'z'); out.push(h.store.name.text);   // the host changed the text under the box: nothing of the old steps is taken back
+            pg.focus(notes, 3); E.type(notes, '!'); pg.focus(name, 0); E.type(name, '1'); pg.focus(notes, 0); chord(notes, 'z'); out.push(h.store.notes.text, h.store.name.text);   // each field its own steps
+            // steps noted for a text the host changed since are let go by the next edit too: its undo goes back to the host's text, and no further
+            const o2 = mkHost(), ob2 = o2.box('name'); o2.pg.focus(ob2, 4); o2.pg.engine.type(ob2, 'a'); o2.store.name.text = 'theirs'; o2.TB.fill(ob2); o2.pg.focus(ob2, 6); o2.pg.engine.type(ob2, 'b'); const u1 = [o2.pg.tsxUndo(ob2, 'undo'), o2.store.name.text, o2.pg.tsxUndo(ob2, 'undo'), o2.store.name.text];
+            // an edit the host refuses whole is no step; and no step is taken back while a composition is under way
+            const r2 = mkHost({ max: 6 }), rb2 = r2.box('name'); r2.pg.focus(rb2, 4); r2.pg.engine.type(rb2, 'xy'); r2.rec.length = 0; r2.pg.focus(rb2, 0); r2.pg.engine.paste(rb2, { 'text/plain': 'Q' }); const refused = [r2.store.name.text, J(r2.rec), r2.TB.textOf(rb2)];
+            r2.pg.focus(rb2, 6); r2.pg.engine.paste(rb2, { 'text/plain': 'Z' }); const refused2 = [r2.store.name.text, J(r2.rec)]; r2.dom.fire(rb2, 'compositionstart', {}); const inComp = [r2.pg.tsxUndo(rb2, 'undo'), r2.store.name.text]; r2.dom.fire(rb2, 'compositionend', {}); const afterComp = [r2.pg.tsxUndo(rb2, 'undo'), r2.store.name.text];
+            // a hundred steps at most: the oldest are let go
+            const many = mkHost(), mp = many.pg, mb = many.box('name'); for (let k = 0; k < 130; k++) { mp.focus(mb, 0); mp.engine.paste(mb, { 'text/plain': String(k % 10) }); } let undone = 0; while (undone < 200 && mp.tsxUndo(mb, 'undo')) undone++;
+            check('a host\'s box (undo): Ctrl+Z, Ctrl+Y and Ctrl+Shift+Z in a host\'s box are the field\'s own steps, with the selection each step began with and ended on: a run of typing is one step, a press of the bar one, a paste one; the chord is taken and goes no further even when nothing is left; the engine\'s own undo and redo, should they arrive, are the same steps; a new step forgets what was undone; the host is told of an undo as of an edit; a text the host changed under the box leaves nothing to take back, and the next edit starts its steps anew; an edit the host refuses whole is no step and tells nothing; nothing is taken back while a composition is under way; each field has its own steps, a hundred at most. The planner\'s history is never touched: no step, no save, and its own undo is not asked',
+                J(out) === J([true, true, 'Brenab', '[0,0]', 'Brenab', undefined, 'Bren', '[4,4]', true, 'Bren', true, 'Brenab', 'QBrenab', 'from elsewhere', 'one\ntwo', '1from elsewhere'])
+                && toldUndo === J(['changed:name:text']) && afterQ === 'Brenab' && J(u1) === J([true, 'theirs', false, 'theirs']) && J(refused) === J(['QBrenx', J(['changed:name:text']), 'QBrenx']) && J(refused2) === J(['QBrenx', J(['changed:name:text'])]) && J(inComp) === J([false, 'QBrenx']) && J(afterComp) === J([true, 'Brenxy'])
+                && undone === 100 && many.store.name.text.length === 4 + 30 && J(H.depth()) === depth0 && plannerLog(pg) === log0, [out, toldUndo, afterQ, u1, refused, refused2, inComp, afterComp, undone, many.store.name.text.length]);
+        }
+
+        // --- what the host is told of leaving, a box drawn again, a box taken off the page, a planner drawn again behind
+        {
+            const h = mkHost(), pg = h.pg, name = h.box('name'), notes = h.box('notes', true), btn = h.dom.mk('button', ''), out = []; h.doc.body.appendChild(btn);
+            pg.focus(name, 0); pg.dom.fire(name, 'keydown', keyEv({ key: 'F10', altKey: true })); out.push(J(h.rec), h.TB.pending(name), h.TB.pending(notes));   // into the bar: not left, and the box must not be taken away now
+            pg.dom.fire(h.E.b, 'keydown', keyEv({ key: 'Escape' })); out.push(h.TB.pending(name)); btn.focus(); pg.dom.runTimers(); out.push(J(h.rec), h.E.root.hidden);   // the focus gone from box and bar: left, once
+            h.rec.length = 0; pg.focus(name, 0); pg.focus(notes, 0); pg.dom.runTimers(); out.push(J(h.rec));   // on to another box of the host's
+            h.rec.length = 0; const again = (h.body.removeChild(notes), pg.dom.page.active = null, h.box('notes', true)); pg.focus(again, 0); pg.dom.runTimers(); out.push(J(h.rec), pg.tsState.box === again);   // the same field drawn again: nobody was left
+            h.rec.length = 0; h.body.removeChild(again); pg.dom.page.active = null; h.TB.fill(name); out.push(J(h.rec), h.E.root.hidden, pg.tsState.box === null);   // the bar's box taken off the page: the bar goes, and no leaving is told
+            pg.focus(name, 0); pg.rebuild(); out.push(h.E.root.hidden, pg.tsState.box === name);   // the planner drawn again behind a host's box in use: the bar stays
+            btn.focus(); pg.dom.runTimers(); pg.focus(pg.tsBox({ idx: 0, k: 'title' }), 0); pg.rebuild(); out.push(h.E.root.hidden);   // ... and on a planner's own box it goes, as ever
+            const t2 = pg.tsBox({ idx: 0, k: 'title' }); pg.focus(t2, 0); pg.dom.fire(t2, 'keydown', keyEv({ key: 'F10', altKey: true })); h.E.root.hidden = false; pg.tsRebuilt(); const plannerHeld = h.E.root.hidden; btn.focus(); pg.dom.runTimers();   // with the focus in the bar for a planner's box, too: the editor's boxes are new
+            // the host's text of the moment changes (another character in the panel) while the focus is in the bar: what the bar remembered is of another text
+            pg.focus(name, 0, 2); pg.dom.fire(name, 'keydown', keyEv({ key: 'F10', altKey: true })); h.st.doc = 'c1/ch2'; out.push(pg.tsPress({ b: true }, h.E.b), J(h.store.name.fmt));
+            // a composition under way: the box is the engine's, and fill leaves it alone
+            const c2 = mkHost(), cb = c2.box('name'); c2.pg.focus(cb, 4); c2.dom.fire(cb, 'compositionstart', {}); c2.store.name.text = 'changed'; out.push(c2.TB.pending(cb), c2.TB.fill(cb), c2.TB.textOf(cb)); c2.dom.fire(cb, 'compositionend', {});
+            // a host that keeps another text (cut at a length of its own): the box shows what is kept
+            const m = mkHost({ max: 6 }), mb = m.box('name'); m.pg.focus(mb, 4); m.pg.engine.type(mb, 'xyz'); out.push(m.store.name.text, m.TB.textOf(mb), J(m.pg.range(mb)));
+            // a host that throws or answers oddly gets the cautious reading
+            const odd = mkHost(), ob = odd.box('name'); Object.assign(odd.host, { links: () => 1, sizes: () => 'yes', left: () => { throw new Error('x'); }, name: () => 7, barHost: () => ({}), changed: () => { throw new Error('y'); } });
+            const noErr = console.error; let said = 0; console.error = () => { said++; }; let threw = null; try { odd.pg.focus(ob, 0, 2); odd.pg.click(odd.E.b); } catch (e) { threw = String(e); } console.error = noErr;
+            out.push(threw, J(odd.store.name.fmt), odd.E.link.disabled, odd.E.size.disabled, odd.E.root.attrs['aria-label'], odd.E.root.parentNode === odd.panel, said > 0);
+            check('a host\'s box (what the host is told, and what stays): going from the box into the bar is not leaving it, and the box is pending, so its host must not take it off the page; once the focus has gone from the box and the bar the host is told left, once; going on to another box of the host\'s tells it too; the same field drawn again as a new element tells nothing, and neither does a box the host took off the page, where the bar goes with it; a planner drawn again behind a host\'s box in use leaves the bar on it, and on a planner\'s own box takes it away as ever; when the host\'s text of the moment changes, what the bar remembered acts on nothing; fill leaves a box alone while a composition is under way in it; a host that keeps another text than was typed has its box show what is kept; a host that throws or answers oddly gets the cautious reading, no link and no size and a bar in its root, and stops nothing',
+                J(out) === J([J([]), true, false, false, J(['left:name']), true, J(['left:name']), J([]), true, J([]), true, true, false, true, true, false, undefined, true, false, 'Bren', 'Brenxy', 'Brenxy', '[6,6]', null, J({ spans: [{ s: 0, e: 2, b: true }] }), true, true, 'Text style — ', true, true]) && plannerHeld === true, [out, plannerHeld]);
+        }
+
+        // --- the planner with a host registered and idle: the very same steps and the very same stored bytes
+        {
+            const start = () => [
+                { id: 'b0', type: 'h1', title: 'The Hill Road', sub: 'an evening', fmt: { title: { color: RED, spans: [{ s: 4, e: 8, b: true, link: LINK }] } } },
+                { id: 'b1', type: 'node', title: 'The inn', tag: 'social', must: 'learn the road', cols: ['Check', 'DC', 'Cost'], colFmt: [null, { b: true }], rows: [{ col1: 'Medicine', col2: '10', col3: 'free', fmt: { col1: { spans: [{ s: 0, e: 3, color: GREEN, u: true }] } } }, { col1: 'Insight', col2: '13', col3: 'a coin' }] },
+                { id: 'b2', type: 'flowchart', nodes: [{ id: 'n1', text: LBL, shape: 'rect', color: 'neutral', fmt: { color: RED, spans: [{ s: 9, e: 17, size: 'large', color: GREEN }] } }, { id: 'n3', text: 'two', shape: 'rect', color: 'gold' }], edges: [{ from: 'n1', to: 'n3', text: 'then', style: 'solid' }] },
+                { id: 'b3', type: 'image', src: '/saves/images/x.png', caption: 'the map', fmt: { caption: { i: true } } }
+            ];
+            const fields = [{ idx: 0, k: 'title' }, { idx: 0, k: 'sub' }, { idx: 1, k: 'title' }, { idx: 1, k: 'sub' }, { idx: 1, k: 'must' }, { idx: 1, k: 'col', ci: 1 }, { idx: 1, k: 'cell', ri: 0, ci: 0 }, { idx: 1, k: 'cell', ri: 1, ci: 2 }, { idx: 2, k: 'node', ni: 0 }, { idx: 2, k: 'node', ni: 1 }, { idx: 2, k: 'edge', ei: 0 }, { idx: 3, k: 'caption' }];
+            const walk = hosted => {
+                const pg = mkPage({ map: mapOf(start()) }).wire().rebuild(), E = pg.engine, B = pg.tsState.els, R = rng(20261010), alpha = 'ab cé<&'; let hostBox = null, told = 0;
+                if (hosted) { const panel = pg.mk('div', '', {}, 'sheetPanel'); pg.doc.body.appendChild(panel); pg.dom.window.wpTextBox.host({ id: 'idle', roots: [panel], field: () => ({ text: () => 'idle', fmt: () => undefined, setFmt: () => { told++; }, setText: () => { told++; } }), changed: () => { told++; }, left: () => { told++; } }); hostBox = pg.mk('div', ''); panel.appendChild(hostBox); pg.dom.window.wpTextBox.dress(hostBox, { key: 'k' }); pg.dom.window.wpTextBox.fill(hostBox); }
+                for (let k = 0; k < 900; k++) {
+                    const d = fields[Math.floor(R() * fields.length)], box = pg.tsBox(d), text = pg.tsField(pg.map.blocks, d).text();
+                    const a = Math.floor(R() * (text.length + 1)), z = R() < 0.5 ? a : Math.min(text.length, a + Math.floor(R() * 5)), op = Math.floor(R() * 12);
+                    pg.focus(box, a, z);
+                    if (op < 4) E.type(box, alpha[Math.floor(R() * alpha.length)]);
+                    else if (op === 4) E.backspace(box);
+                    else if (op === 5) E.paste(box, { 'text/plain': ['x y', 'l1\nl2', '<b>p</b>'][Math.floor(R() * 3)] });
+                    else if (op === 6) E.enter(box);
+                    else if (op === 7) pg.click(B.b); else if (op === 8) pg.click(B.swatches[Math.floor(R() * 3) + 2]); else if (op === 10) pg.click(R() < 0.5 ? B.u : B.s);
+                    else if (op === 9) { pg.dom.fire(B.size, 'mousedown'); B.size.focus(); B.size.value = ['large', 'huge', ''][Math.floor(R() * 3)]; pg.dom.fire(B.size, 'change'); }
+                    else if (R() < 0.3) pg.click(B.clear); else { pg.dom.fire(B.link, 'mousedown'); B.link.focus(); B.link.value = R() < 0.7 ? LINK : ''; pg.dom.fire(B.link, 'keydown', keyEv({ key: 'Enter' })); }
+                }
+                return { blocks: J(pg.map.blocks), log: J(pg.log), sels: J(pg.sels), toasts: J(pg.toasts), told, bar: B.root.parentNode === pg.editor && !B.root.classList.contains('ts-bar-over'), idle: hostBox ? pg.dom.window.wpTextBox.textOf(hostBox) : null };
+            };
+            const plain = walk(false), hosted = walk(true);
+            check('a host registered and idle changes nothing for a planner (a seeded walk of 900 edits and presses over twelve fields, run twice): with a host registered and a box of its own on the page, the planner stores byte for byte what it stores with none, in the very same steps, saves, previews and noted selections, says the same notices, keeps its bar in its own panel, and the host is told nothing',
+                plain.blocks === hosted.blocks && plain.log === hosted.log && plain.sels === hosted.sels && plain.toasts === hosted.toasts && plain.log.length > 5000 && hosted.told === 0 && hosted.bar === true && hosted.idle === 'idle' && plain.blocks !== J(start()), [plain.log.length, hosted.told, hosted.bar]);
+        }
+
+        // --- the source: what the fold rests on, pinned
+        check('a host\'s box (wired, pinned): a planner\'s path asks about hosts by one test that is false while none is registered; a host\'s keys are taken in the capture phase on the elements its boxes live under, with the nine other box events and the panel\'s scroll; the undo chord and the engine\'s own undo in a host\'s box never reach the planner\'s history; the bar\'s place is asked at every show; the published API names the hosts\' part',
+            /function tsHostOf\(el\) \{\n\s*if \(!tsHosts\.length \|\| !el \|\| !el\.closest\) return null;\n\s*if \(el\.closest\('#plannerBlocks'\)\) return null;/.test(fieldsSrc)
+            && /if \(tsHosts\.length\) tsBarTo\(box\);/.test(barSrc) && /if \(tsHosts\.length && wasBox && wasBox !== box\) tsxLeft\(wasSel, wasBox\);/.test(barSrc) && /if \(tsHosts\.length && wasBox\) tsxLeft\(wasSel, wasBox\);/.test(barSrc) && /if \(tsHosts\.length && tsxHeld\(\)\) return;/.test(barSrc) && /if \(tsHosts\.length\) tsxRefresh\(E, fld, sel\);/.test(barSrc)
+            && /r\.addEventListener\('keydown', tsBoxKey, true\);/.test(barSrc) && /r\.addEventListener\('scroll', tsPlace, true\);/.test(barSrc) && /\['beforeinput', tsBefore\], \['input', tsInput\], \['compositionstart', tsCompStart\], \['compositionend', tsCompEnd\], \['paste', tsPaste\], \['copy', tsCopy\], \['cut', tsCopy\], \['drop', tsDrop\], \['dragstart', tsDragStart\]/.test(barSrc)
+            && /if \(\(it === 'historyUndo' \|\| it === 'historyRedo'\) && tsHostOf\(box\)\) \{ e\.preventDefault\(\); tsxUndo\(box, it === 'historyUndo' \? 'undo' : 'redo'\); return; \}/.test(barSrc) && /\n      if \(tsxChord\(e, box\)\) return;[^\n]*\n      if \(e\.key === 'Escape' && tsState\.box === box/.test(barSrc)
+            && /if \(d\.k === 'x'\) return tsxCommit\(box, am, d, fld, value, s, e, inputType, before, own\);/.test(barSrc) && /if \(sel\.d\.k === 'x'\) return tsxPress\(change, from, am, sel, box\);/.test(barSrc)
+            && ['host', 'dress', 'fill', 'pending', 'textOf', 'selOf', 'select', 'restore'].every(k => new RegExp('\\n      ' + k + ': function\\(').test(barSrc))
+            && !/save\(|renderPlannerPreview\(|stepBoundary\(|stepFold\(|stepSel\(|boxUndo\(|fieldUndoChord\(/.test(barSrc.slice(barSrc.indexOf('  var TS_SIZE_NOT = '), barSrc.indexOf('  // the bar\'s controls the keyboard can stand on')))
+            && barSrc.indexOf('  var TS_SIZE_NOT = ') > 0 && barSrc.indexOf('  // the bar\'s controls the keyboard can stand on') > barSrc.indexOf('  var TS_SIZE_NOT = '));
     }
 
     /* ---- what an input did for free: Tab, the sideways scroll; a large planner ---- */

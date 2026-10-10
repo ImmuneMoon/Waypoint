@@ -3776,8 +3776,9 @@ function renderNotepad() {
     ta.readOnly = !host;
     ta.placeholder = host ? 'Notes for the whole table — everyone sees this as you type. Gone when you put it away or the session ends; anyone can save it to their Journal.' : 'The GM has not written anything yet.';
     if ((!host || document.activeElement !== ta) && ta.value !== net.notepad.text) {
-        var heldN = !host && document.activeElement === ta, s0N = heldN ? ta.selectionStart : 0, s1N = heldN ? ta.selectionEnd : 0, scN = heldN ? ta.scrollTop : 0, oldN = heldN ? String(ta.value) : '';
+        var heldN = !host && document.activeElement === ta, s0N = heldN ? ta.selectionStart : 0, s1N = heldN ? ta.selectionEnd : 0, scN = !host ? ta.scrollTop : 0, oldN = heldN ? String(ta.value) : '';
         ta.value = net.notepad.text || '';
+        if (!host && !heldN) ta.scrollTop = scN;   // a player reading without the focus in the box: their place in a long text stays too
         if (heldN) {   // a player reading or copying: where they are stays. The text changed in one stretch, the GM typing: a place before it stays, a place after it moves with the words, and a selection the change reaches into becomes a caret at its end, never a selection over words the player did not pick
             var nowN = ta.value, aN = oldN.length, zN = nowN.length, pN = 0, qN = 0, limN = Math.min(aN, zN);
             var pairN = function(t, i) { if (i <= 0 || i >= t.length) return false; var x = t.charCodeAt(i - 1), y = t.charCodeAt(i); return x >= 0xd800 && x <= 0xdbff && y >= 0xdc00 && y <= 0xdfff; };   // i lies between the halves of one character
@@ -3785,10 +3786,14 @@ function renderNotepad() {
             if (pairN(oldN, pN) || pairN(nowN, pN)) pN--;   // two characters that share their first half are two characters: the change begins before both
             while (qN < limN - pN && oldN.charCodeAt(aN - 1 - qN) === nowN.charCodeAt(zN - 1 - qN)) qN++;
             if (pairN(oldN, aN - qN) || pairN(nowN, zN - qN)) qN--;   // the end of what changed is where a selection collapses to: never between the halves of one character
-            // the START of a selection leans right: what the GM typed right before the selected words is not selected with them. Its end, and a lone caret, lean left
-            // (a start that sits exactly where the change begins goes to the END of what changed: after what was typed there, and nowhere when something was only deleted)
-            var mapN = function(o, right) { o = Math.max(0, Math.min(aN, o | 0)); if (right && o === pN) return zN - qN; return o <= pN ? o : o >= aN - qN ? o + (zN - aN) : -1; }, m0N = mapN(s0N, s1N > s0N), m1N = mapN(s1N, false);
-            if (m0N < 0 || m1N < 0) m0N = m1N = zN - qN;
+            // The change: the old text's [pN, endN) became the new text's [pN, newN). A place before it stays and a place after it moves with
+            // the words. At its edges a selection keeps to the player's own words: its START goes after what was typed there, its END (and a
+            // lone caret) stays before it. A place inside what was changed is gone
+            var endN = aN - qN, newN = zN - qN;
+            s0N = Math.max(0, Math.min(aN, s0N | 0)); s1N = Math.max(s0N, Math.min(aN, s1N | 0));   // the selection, within the old text
+            var mapN = function(o, right) { return o < pN ? o : o > endN ? o + (zN - aN) : o === pN || o === endN ? (right ? newN : pN) : -1; }, m0N = mapN(s0N, s1N > s0N), m1N = mapN(s1N, false);
+            if (s1N > s0N && s0N < pN && s1N > endN && newN > pN) m0N = -1;   // words typed or put INSIDE the selection: the player did not pick them
+            if (m0N < 0 || m1N < 0) m0N = m1N = newN;
             try { ta.setSelectionRange(m0N, Math.max(m0N, m1N)); } catch (e) {}
             ta.scrollTop = scN;
         }

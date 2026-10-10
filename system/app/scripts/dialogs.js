@@ -176,6 +176,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       function handleKey(e) {
 
+          if (e.repeat) return;   // a key held down from before the question came up answers nothing: it was pressed for something else
+
           if (e.key === 'Enter' && !noEnter) okBtn.onclick();
 
           if (e.key === 'Escape' && !noEscape) cancelBtn.onclick();

@@ -359,6 +359,11 @@ The Journal
   whose GM runs an older Waypoint, the words arrive without it.
 
 Fixes
+- A key held down no longer answers a question. A question that came up
+  while Enter or Escape was still down was answered at once, unread.
+- Put away on the table notepad stays put away when you answer with
+  Enter. The same Enter used to press the button again, which opened a
+  new notepad at once.
 - The fog of war is lighter on a busy map. It read every character's
   sheet again for each frame it drew, sixteen times a second; it now
   keeps what it read until the token, its sheet or the system changes.

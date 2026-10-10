@@ -176,6 +176,16 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       function handleKey(e) {
 
+          // While a question is up, Enter presses nothing behind it. The focus usually rests on the button that raised the question, and the
+
+          // Enter that answered it pressed that button again, which asked anew (the table notepad's Put away opened a new pad so). A press of
+
+          // one of the question's own buttons from the keyboard is left alone
+
+          var aeK = document.activeElement, ownK = !!(aeK && typeof p.contains === 'function' && p.contains(aeK));
+
+          if (e.key === 'Enter' && !ownK && typeof e.preventDefault === 'function') e.preventDefault();
+
           if (e.repeat) return;   // a key held down from before the question came up answers nothing: it was pressed for something else
 
           if (e.key === 'Enter' && !noEnter) okBtn.onclick();

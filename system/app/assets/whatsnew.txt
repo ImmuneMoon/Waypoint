@@ -361,6 +361,9 @@ The Journal
 Fixes
 - A key held down no longer answers a question. A question that came up
   while Enter or Escape was still down was answered at once, unread.
+- Enter answers a question and presses nothing behind it. It used to
+  press the button that raised the question as well, which could ask the
+  same question again.
 - Put away on the table notepad stays put away when you answer with
   Enter. The same Enter used to press the button again, which opened a
   new notepad at once.

@@ -1462,11 +1462,17 @@ pendingChecks.push((async () => {
     // something else let a stranger in, or turned a player away for the session: its buttons alone answer it now (noEnter and the new
     // noEscape). (d) The naming prompt and a question were two layers, so both could be up and one Enter or Escape answered both: they are
     // one layer, a key typed into the prompt goes no further, and whichever is asked while the other is up waits its turn.
-    // the fourteenth review: a key held down answers nothing, and the next press of it answers as ever
-    { const dR = mkDlg(), aR = [], hold = k => dR.keys.slice().forEach(h => h({ key: k, repeat: true })); dR.sc('Held?', v => aR.push(v)); hold('Enter'); hold('Escape'); const heldOpen = [aR.slice(), dR.open()]; dR.press('Enter'); const pressed = [aR.slice(), dR.open()];
-      const dS = mkDlg(), aS = []; dS.sc('Held?', v => aS.push(v)); dS.keys.slice().forEach(h => h({ key: 'Escape', repeat: false })); const notHeld = [aS.slice(), dS.open()];
-      check('a question and a key held down (dialogs.js showConfirm, run for real): Enter or Escape repeating from a press made before the question came up answers nothing and leaves it open; the next press answers it; a press that is no repeat answers as ever',
-          j(heldOpen) === j([[], true]) && j(pressed) === j([[true], false]) && j(notHeld) === j([[false], false]), j([heldOpen, pressed, notHeld])); }
+    // the fourteenth review: a key held down answers nothing, and the next press of it answers as ever; and while a question is up, Enter presses
+    // nothing behind it, a press of one of the question's own buttons from the keyboard left alone
+    { const mkQ = (where, opts) => { const els = {}, keys = [], el = id => (els[id] = els[id] || { style: { display: 'none' }, textContent: '', onclick: null }); ['customConfirm', 'customConfirmTitle', 'customConfirmOk', 'customConfirmCancel'].forEach(el);
+          const inner = { blur() {} }; els.customConfirm.contains = x => x === inner;
+          const doc = { getElementById: id => els[id] || null, addEventListener: (k, h) => { if (k === 'keydown') keys.push(h); }, removeEventListener: (k, h) => { const i = keys.indexOf(h); if (i >= 0) keys.splice(i, 1); }, activeElement: where === 'own' ? inner : where === 'behind' ? {} : null };
+          const got = []; new Function('document', 'setTimeout', dlgSrc + '\nreturn showConfirm;')(doc, fn => fn())('Q?', v => got.push(v), opts);
+          return (k, rep) => { let pd = false; keys.slice().forEach(h => h(rep === 'bare' ? { key: k } : { key: k, repeat: rep === true, preventDefault() { pd = true; } })); return [pd, got.slice(), els.customConfirm.style.display === 'flex']; }; };
+      const qB = mkQ('behind'), heldQ = [qB('Enter', true), qB('Escape', true), qB('Enter')], qE = mkQ('behind'), escQ = [qE('Escape')], qO = mkQ('own'), ownQ = [qO('Enter', true), qO('Enter')], qN = mkQ('none'), noneQ = [qN('Enter', 'bare')], qG = mkQ('behind', { noEnter: true }), graveQ = [qG('Enter'), qG('Escape')];
+      check('a question and its keys (dialogs.js showConfirm, run for real): Enter or Escape repeating from a press made before the question came up answers nothing and leaves it open, and the next press answers it; while a question is up Enter presses nothing behind it, whether it answers, repeats or may not answer, so the button that raised the question is not pressed again; Escape is never held back; a press of one of the question\'s own buttons from the keyboard is left to that button; an event with nothing to hold back answers as ever',
+          j(heldQ) === j([[true, [], true], [false, [], true], [true, [true], false]]) && j(escQ) === j([[false, [false], false]]) && j(ownQ) === j([[false, [], true], [false, [true], false]]) && j(noneQ) === j([[false, [true], false]]) && j(graveQ) === j([[true, [], true], [false, [false], false]]),
+          j([heldQ, escQ, ownQ, noneQ, graveQ])); }
     // dialogs.js showPrompt and showConfirm, run for real on a page of plain objects, with timers the test runs itself
     {
         const dlgAll = dlgT.slice(dlgT.indexOf('  function showPrompt(title, defaultText, callback) {'), dlgT.indexOf('  // One-button variant of showConfirm'));

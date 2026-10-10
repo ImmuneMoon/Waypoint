@@ -4158,22 +4158,68 @@ window.wpFitToGrid = fitToGrid;
   ['fillTerrainChk', 'fillTerrainCost'].forEach(function(id) { var e0 = document.getElementById(id); if (e0) e0.addEventListener('change', fillTerrainSet); });
   // [fogcheck:fillmenu-end]
   // [sinkcheck:texopts-start]
-  // The map builder (fold B1): a Texture list's rows are the app's own names, as option values and text nodes, with Plain color for none
-  function texOptionsInto(sel, cur) {
+  // The map builder (fold B1): a Texture list's rows are the app's own names, as option values and text nodes, with Plain color for none.
+  // Fold B3 (the owner, 2026-10-10: "The Texture list", "A Tile size list"): its last row is A picture, which opens the Image Library, and a
+  // picture in use stands in the list under its file's own name. The two rows' values are fixed words that no texture is named by
+  var TEX_PIC = '@pic', TEX_PICK = '@pick';
+  var TILE_ROWS = [[1, '1 cell'], [2, '2 cells'], [4, '4 cells'], ['whole', 'Whole piece']];
+  var TILE_LINES = { '1': 'The picture repeats across the piece, one tile a cell.', '2': 'The picture repeats across the piece, one tile every two cells.', '4': 'The picture repeats across the piece, one tile every four cells.', 'whole': 'The picture is stretched over the piece once.' };
+  function texPicOf(v) { var FC = window.wpFogCore; return (FC && typeof FC.cleanTexSrc === 'function' ? FC.cleanTexSrc(v) : null) || ''; }
+  // A repeat as a chip, a list or this computer's store names it (a text) or as a piece holds it: 1, 2, 4 or 'whole', and 1 for anything else
+  function texTileOf(v) { var FC = window.wpFogCore, n = typeof v === 'string' && /^[124]$/.test(v) ? Number(v) : v; return (FC && typeof FC.cleanTexTile === 'function' ? FC.cleanTexTile(n) : null) || 1; }
+  function texOptionsInto(sel, cur, pic) {
       var BC = window.wpBuildCore; if (!sel || !BC || !Array.isArray(BC.TEXTURES)) return;
       while (sel.firstChild) sel.removeChild(sel.firstChild);
       var o0 = document.createElement('option'); o0.value = ''; o0.textContent = 'Plain color'; sel.appendChild(o0);
       BC.TEXTURES.forEach(function(n) { var o = document.createElement('option'); o.value = n; o.textContent = n.charAt(0).toUpperCase() + n.slice(1); sel.appendChild(o); });
-      sel.value = BC.cleanTexture(cur) || '';
+      var can = typeof BC.picName === 'function' && !!(window.wpFogCore && typeof window.wpFogCore.cleanTexSrc === 'function'), src = can ? texPicOf(pic) : '';
+      if (src) { var op = document.createElement('option'); op.value = TEX_PIC; op.textContent = BC.picName(src); sel.appendChild(op); }
+      if (can) { var ok = document.createElement('option'); ok.value = TEX_PICK; ok.textContent = 'A picture\u2026'; sel.appendChild(ok); }
+      sel.value = src ? TEX_PIC : (BC.cleanTexture(cur) || '');
   }
-  // The fill menu's Texture list: its pick is kept on this computer and read back through the cleaner
+  // A Texture list was changed. A name or Plain color is handed on. The picture's own row changes nothing. A picture puts the list back as it
+  // was and opens the Image Library, whose pick is handed on only as a path cleanTexSrc keeps. The library says nothing when it is closed
+  // with no pick, so nothing waits for one
+  function texListPick(value, back, take) {
+      if (value === TEX_PIC) { back(); return; }
+      if (value !== TEX_PICK) { take({ tex: value }); return; }
+      back();
+      if (typeof window.wpPickImage !== 'function') { if (typeof toast === 'function') toast('The image library is not available here.'); return; }
+      window.wpPickImage(function(src) {
+          var s = texPicOf(src);
+          if (!s) { if (typeof toast === 'function') toast('That picture cannot be a fill. Its name holds a # or a % code, or it lies in the sounds, video or Journal folder.'); return; }
+          take({ pic: s });
+      });
+  }
+  // The Tile size chips of a menu (buttons that each carry data-tile) and the grey line under them, shown only while a picture is the fill
+  function tileRowSync(rowId, lineId, pic, tile, off) {
+      var row = document.getElementById(rowId), line = document.getElementById(lineId), on = !!pic && !off, t = String(texTileOf(tile));
+      if (row) { row.hidden = !on; Array.prototype.forEach.call(row.querySelectorAll('[data-tile]'), function(b) { var is = b.dataset.tile === t; b.classList.toggle('on', is); b.setAttribute('aria-pressed', is ? 'true' : 'false'); }); }
+      if (line) { line.hidden = !on; line.textContent = on ? TILE_LINES[t] : ''; }
+  }
+  function tileRowWire(rowId, take) {
+      var row = document.getElementById(rowId); if (!row) return;
+      Array.prototype.forEach.call(row.querySelectorAll('[data-tile]'), function(b) { b.addEventListener('click', function(ev) { ev.stopPropagation(); take(texTileOf(this.dataset.tile)); }); });
+  }
+  window.wpTexList = { PIC: TEX_PIC, PICK: TEX_PICK, TILES: TILE_ROWS, pick: texListPick, picOf: texPicOf, tileOf: texTileOf };   // Properties' Texture row asks the same rule
+  // The fill menu's Texture list and its Tile size: the picks are kept on this computer and read back through the cleaners
+  function fillTexSync() { texOptionsInto(document.getElementById('fillTexture'), state.fillTexture, state.fillPic); tileRowSync('fillTileRow', 'fillTileLine', state.fillPic, state.fillTile); }
+  function fillTexKeep() { try { localStorage.setItem('wp_fillTexture', state.fillTexture); localStorage.setItem('wp_fillPic', state.fillPic || ''); localStorage.setItem('wp_fillTile', String(state.fillTile || 1)); } catch (e) {} }
   function fillTextureInit() {
-      var sel = document.getElementById('fillTexture'), BC = window.wpBuildCore, kept = '';
-      try { kept = localStorage.getItem('wp_fillTexture') || ''; } catch (e) {}
+      var sel = document.getElementById('fillTexture'), BC = window.wpBuildCore, kept = '', keptPic = '', keptTile = '';
+      try { kept = localStorage.getItem('wp_fillTexture') || ''; keptPic = localStorage.getItem('wp_fillPic') || ''; keptTile = localStorage.getItem('wp_fillTile') || ''; } catch (e) {}
       state.fillTexture = (BC && BC.cleanTexture ? BC.cleanTexture(kept) : null) || '';
+      state.fillPic = texPicOf(keptPic); state.fillTile = texTileOf(keptTile);
       if (!sel) return;
-      texOptionsInto(sel, state.fillTexture);
-      sel.addEventListener('change', function() { var B2 = window.wpBuildCore; state.fillTexture = (B2 && B2.cleanTexture ? B2.cleanTexture(this.value) : null) || ''; try { localStorage.setItem('wp_fillTexture', state.fillTexture); } catch (e) {} });
+      fillTexSync();
+      sel.addEventListener('change', function() {
+          texListPick(this.value, fillTexSync, function(p) {
+              var B2 = window.wpBuildCore;
+              if (p.pic) state.fillPic = p.pic; else { state.fillPic = ''; state.fillTexture = (B2 && B2.cleanTexture ? B2.cleanTexture(p.tex) : null) || ''; }
+              fillTexKeep(); fillTexSync();
+          });
+      });
+      tileRowWire('fillTileRow', function(t) { state.fillTile = t; fillTexKeep(); fillTexSync(); });
   }
   // [sinkcheck:texopts-end]
   fillTextureInit();
@@ -6289,14 +6335,14 @@ var BUILD_MAX = 6000;   // a map's copy holds this many pieces for players (net.
 var BUILD_SHAPES = ['rect', 'circle', 'poly', 'corridor', 'line'];
 var BUILD_LINES = { floor: 'Flagstones. Tokens walk on it.', wall: 'Blocks sight and gives cover.', door: 'A wall that opens. Players can open it.', water: 'Difficult terrain, counted double.', rubble: 'Gives cover. Tokens can cross it.', wood: 'Planks.', grass: '' };
 var BUILD_SHAPE_LINES = { rect: 'Click a cell, or drag an area.', circle: 'Click a cell, or drag an area. The circle fills its box.', poly: 'Click each corner. Click the first again to close it.', corridor: 'Drag along it.', line: 'Draw along the grid lines. The line is the wall.' };
-var _build = { mat: 'floor', shape: 'rect', tex: 'flagstones', color: '#5a5663', terrain: 0, corridorW: 1, walls: false, poly: null, polyEl: null, pen: false, loaded: false };
+var _build = { mat: 'floor', shape: 'rect', tex: 'flagstones', pic: '', tile: 1, color: '#5a5663', terrain: 0, corridorW: 1, walls: false, poly: null, polyEl: null, pen: false, loaded: false };
 function buildCore() { return window.wpBuildCore || null; }
 function buildGrid() { var C = window.wpFogCore; if (!C) return null; return state.gridType === 'hex' ? C.hexGrid(30, 52) : state.gridType === 'square' ? C.squareGrid(50) : null; }   // the lattice the fill tool's cellSnap reads
 function buildHex6(v) { return typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v) ? v : null; }
 function buildMay() { return !playerScreen() && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()); }   // the GM's own campaign on the GM's own screen
 function buildHere() { var m = getActiveMap(); return !!m && m.type === 'map' && state.viewMode === 'visual'; }   // the play map is on screen: Build lays on a map and on nothing else
 function buildMapKey() { var c = typeof getActiveCampaign === 'function' ? getActiveCampaign() : null, m = getActiveMap(); return (c && c.id ? c.id : '') + '|' + (m && m.id ? m.id : ''); }
-function buildAsking() { var q = document.getElementById('customConfirm'), p = document.getElementById('customPrompt'); return !!((q && q.style.display === 'flex') || (p && p.style.display === 'flex')); }   // a question or a prompt of the app's own is up
+function buildAsking() { var q = document.getElementById('customConfirm'), p = document.getElementById('customPrompt'), lib = document.getElementById('imgLibModal'); return !!((q && q.style.display === 'flex') || (p && p.style.display === 'flex') || (lib && lib.style.display === 'flex')); }   // a question or a prompt of the app's own is up, or the Image Library, which Build's own Texture list opens
 // A polygon under way belongs to the map it was begun on. With another map on screen it is dropped: its corners are that map's. A look at the
 // same map's data map loses nothing: Build's keys and its commit ask the view themselves (buildHere)
 function buildPolyHere() {
@@ -6320,13 +6366,14 @@ function buildLoad() {   // the options' last choices, kept on this computer, ea
         _build.mat = mat; _build.shape = BUILD_SHAPES.indexOf(v.shape) >= 0 ? v.shape : 'rect';
         if (_build.shape === 'line' && mat !== 'wall' && mat !== 'door') _build.shape = 'rect';
         _build.tex = v.tex === '' ? '' : (BC.cleanTexture(v.tex) || M.texture); _build.color = buildHex6(v.color) || M.color;
+        _build.pic = (FC && typeof FC.cleanTexSrc === 'function' ? FC.cleanTexSrc(v.pic) : null) || ''; _build.tile = (FC && typeof FC.cleanTexTile === 'function' ? FC.cleanTexTile(v.tile) : null) || 1;   // fold B3: a picture as the fill, and its repeat
         _build.terrain = mat === 'water' ? ((FC && FC.cleanTerrain ? FC.cleanTerrain(v.terrain) : null) || 0) : 0; _build.corridorW = v.corridorW === 2 ? 2 : 1; _build.walls = v.walls === true;
     } catch (e) {}
 }
-function buildSave() { try { var kept = { mat: _build.mat, shape: _build.shape, tex: _build.tex, color: _build.color, terrain: _build.terrain, corridorW: _build.corridorW }; if (_build.walls === true) kept.walls = true; localStorage.setItem('wp_build', JSON.stringify(kept)); } catch (e) {} }   // With walls is kept only while it is ticked
+function buildSave() { try { var kept = { mat: _build.mat, shape: _build.shape, tex: _build.tex, color: _build.color, terrain: _build.terrain, corridorW: _build.corridorW }; if (_build.walls === true) kept.walls = true; if (_build.pic) { kept.pic = _build.pic; kept.tile = _build.tile; } localStorage.setItem('wp_build', JSON.stringify(kept)); } catch (e) {} }   // With walls is kept only while it is ticked, a picture and its repeat only while one is the fill
 function buildMaterial(mat) {   // a material brings its own texture, colour and terrain; a Wall or a Door is a thin line by default (the owner's answer of 2026-10-01)
     var BC = buildCore(), id = BC ? BC.cleanMaterial(mat) : null, M = id ? BC.MATERIALS[id] : null; if (!M) return false;
-    _build.mat = id; _build.tex = M.texture; _build.color = M.color; _build.terrain = M.terrain || 0;
+    _build.mat = id; _build.tex = M.texture; _build.pic = ''; _build.color = M.color; _build.terrain = M.terrain || 0;   // its own pattern takes a picture's place
     _build.shape = (id === 'wall' || id === 'door') ? 'line' : (_build.shape === 'line' ? 'rect' : _build.shape);
     return true;
 }
@@ -6338,7 +6385,7 @@ function buildShape(shape) {   // a Wall line is a wall's or a door's: picked wi
 }
 function buildProps() {   // the props of the piece about to be laid (buildcore pieceProps: a fresh bag by whitelist, never a type, a place or a flag of another kind)
     var BC = buildCore(); if (!BC) return null;
-    return BC.pieceProps(_build.mat, { texture: _build.tex, color: _build.color, terrain: _build.mat === 'water' ? (_build.terrain || 0) : undefined });
+    return BC.pieceProps(_build.mat, { texture: _build.tex, texSrc: _build.pic || undefined, texTile: _build.tile, color: _build.color, terrain: _build.mat === 'water' ? (_build.terrain || 0) : undefined });
 }
 // Arm the board for the next piece: for a Wall line the pen under Build's preset, for every other shape a placement that is Build's own
 // (never armPlacement, which takes Select and speaks). Build is still the tool in hand either way
@@ -6395,7 +6442,8 @@ function buildSync() {
     Array.prototype.forEach.call(document.querySelectorAll('#buildMatRows .build-mat'), function(b) { b.classList.toggle('on', b.dataset.buildmat === _build.mat); });
     Array.prototype.forEach.call(document.querySelectorAll('#buildShapeRow .build-shape-btn'), function(b) { b.classList.toggle('active', b.dataset.buildshape === _build.shape); });
     var ln = document.getElementById('buildShapeLine'); if (ln) ln.textContent = BUILD_SHAPE_LINES[_build.shape] || '';
-    var ts2 = document.getElementById('buildTexture'); if (ts2) { texOptionsInto(ts2, _build.tex); ts2.disabled = _build.shape === 'line'; }   // a line is a stroke: it wears no texture
+    var ts2 = document.getElementById('buildTexture'); if (ts2) { texOptionsInto(ts2, _build.tex, _build.pic); ts2.disabled = _build.shape === 'line'; }   // a line is a stroke: it wears no texture
+    if (typeof tileRowSync === 'function') tileRowSync('buildTileRow', 'buildTileLine', _build.pic, _build.tile, _build.shape === 'line');   // fold B3: the Tile size chips, while a picture is the fill
     var hit = false;
     Array.prototype.forEach.call(document.querySelectorAll('#buildColorRow .build-sw'), function(sw2) { var on = String(sw2.dataset.color || '').toLowerCase() === String(_build.color || '').toLowerCase(); if (on) hit = true; sw2.classList.toggle('active', on); });
     var cs = document.querySelector('#buildColorRow .draw-swatch.custom'); if (cs) { cs.classList.toggle('active', !hit); cs.style.background = hit ? '' : (buildHex6(_build.color) || ''); }
@@ -6542,7 +6590,12 @@ function buildMove(e) {   // the rubber band follows the pointer to the corner t
 }
 function buildWire() {   // the options' own controls, each once
     Array.prototype.forEach.call(document.querySelectorAll('#buildShapeRow .build-shape-btn'), function(b) { b.addEventListener('click', function(ev) { ev.stopPropagation(); var s = this.dataset.buildshape; buildPick(function() { return buildShape(s); }); }); });
-    var tx = document.getElementById('buildTexture'); if (tx) tx.addEventListener('change', function() { var BC = buildCore(), v = this.value; buildPick(function() { _build.tex = v === '' ? '' : ((BC && BC.cleanTexture(v)) || _build.tex); }); });
+    var tx = document.getElementById('buildTexture'); if (tx) tx.addEventListener('change', function() {
+        var BC = buildCore(), v = this.value, name = function(t) { buildPick(function() { _build.pic = ''; _build.tex = t === '' ? '' : ((BC && BC.cleanTexture(t)) || _build.tex); }); };
+        if (typeof texListPick !== 'function') { name(v); return; }
+        texListPick(v, buildSync, function(p) { if (p.pic) buildPick(function() { _build.pic = p.pic; }); else name(p.tex); });   // fold B3: A picture opens the Image Library, and its pick is the fill
+    });
+    if (typeof tileRowWire === 'function') tileRowWire('buildTileRow', function(t) { buildPick(function() { _build.tile = t; }); });
     Array.prototype.forEach.call(document.querySelectorAll('#buildColorRow .build-sw'), function(sw) { sw.addEventListener('click', function(ev) { ev.stopPropagation(); var c = buildHex6(this.dataset.color); buildPick(function() { if (!c) return false; _build.color = c; }); }); });
     var ci = document.getElementById('buildColorInput'); if (ci) ci.addEventListener('input', function() { var c = buildHex6(this.value); buildPick(function() { if (!c) return false; _build.color = c; }); });
     ['buildTerrainChk', 'buildTerrainCost'].forEach(function(id) { var e0 = document.getElementById(id); if (e0) e0.addEventListener('change', function() {

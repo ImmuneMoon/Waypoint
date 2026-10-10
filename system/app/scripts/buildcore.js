@@ -21,7 +21,7 @@
    is taken from its board place (texPos), so abutting pieces continue one pattern. */
 'use strict';
 
-import { cellOf, cellCenter, cellKey, cellsUnderRect, cleanTerrain, itemCells, itemOver, itemCovers, pathSegs, isDoor } from './fogcore.js';   // the one lattice the fog, cover and movement read
+import { cellOf, cellCenter, cellKey, cellsUnderRect, cleanTerrain, cleanTexSrc, cleanTexTile, itemCells, itemOver, itemCovers, pathSegs, isDoor } from './fogcore.js';   // the one lattice the fog, cover and movement read
 import { cssColor } from './safecore.js';   // one colour rule for the GM's screen and the wire (safecore COLOR_RE)
 
 var VERSION = 1;
@@ -144,12 +144,14 @@ function hexColor(v) { return typeof v === 'string' && HEX_RE.test(v) && cssColo
 //   color       the override when it is a #rgb / #rrggbb / #rrggbbaa literal, else the material's
 //   texture     the override when cleanTexture keeps it; the material's when the override is undefined OR an unknown string (a name this
 //               build does not know falls back to the material's default, never to none); ABSENT for '' or null ("Plain colour")
+//   texSrc / texTile   (fold B3) the override's picture when fogcore cleanTexSrc keeps it, with its repeat (cleanTexTile, else 1): one of the
+//               campaign's own pictures as the fill. texture is then ABSENT: a piece that wears a picture names no pattern
 //   blocksSight / sightType   the material's as given; blocksSight: false drops both (a piece that blocks nothing is no door either, so it
 //               wins over door: true); door: true on any material sets blocksSight: true, sightType: 'door'
 //   cover       true -> 'yes', false -> absent, undefined -> the material's (Rubble's default, the GM's tick deciding per piece)
 //   terrain     a number -> fogcore cleanTerrain of it (2..10) or absent; 0, false, null or anything else -> absent; undefined -> the material's
 function own(o, k) { return Object.prototype.hasOwnProperty.call(o, k) ? o[k] : undefined; }   // an override is read as the bag's own key only, never inherited
-function picks(ov) { var o = isObj(ov) ? ov : {}, p = {}, ks = ['color', 'texture', 'blocksSight', 'door', 'cover', 'terrain']; for (var i = 0; i < ks.length; i++) p[ks[i]] = own(o, ks[i]); return p; }
+function picks(ov) { var o = isObj(ov) ? ov : {}, p = {}, ks = ['color', 'texture', 'texSrc', 'texTile', 'blocksSight', 'door', 'cover', 'terrain']; for (var i = 0; i < ks.length; i++) p[ks[i]] = own(o, ks[i]); return p; }
 function pieceProps(matId, ov) {
     var id = cleanMaterial(matId); if (!id) return null;
     var m = MATERIALS[id], o = picks(ov), out = {};
@@ -158,6 +160,8 @@ function pieceProps(matId, ov) {
     out.name = m.name.slice(0, 60);
     if (o.texture === undefined) out.texture = m.texture;
     else if (o.texture !== '' && o.texture !== null) out.texture = cleanTexture(o.texture) || m.texture;
+    var ps = cleanTexSrc(o.texSrc);
+    if (ps) { delete out.texture; out.texSrc = ps; out.texTile = cleanTexTile(o.texTile) || 1; }
     if (o.blocksSight === false) { /* neither key */ }
     else if (o.door === true) { out.blocksSight = true; out.sightType = 'door'; }
     else if (m.blocksSight) { out.blocksSight = true; out.sightType = m.sightType; }

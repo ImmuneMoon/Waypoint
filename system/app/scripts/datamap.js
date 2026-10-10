@@ -573,6 +573,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       pat.setAttribute('x', String(-(((fx % w) + w) % w))); pat.setAttribute('y', String(-(((fy % h) + h) % h)));
       svg.dataset.texKey = '';   // the next full redraw builds the pattern again from the item, whatever it was built for before
   }
+  window.wpTexSeat = texSeatEl;   // a move from the table moves a piece with no redraw too (net.js applyPosToDom)
   // [buildcheck:texseat-end]
   function getSnapCoords(x, y) {
       if (typeof state !== 'undefined' && state.snap) {

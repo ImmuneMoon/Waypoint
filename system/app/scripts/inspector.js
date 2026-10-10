@@ -1837,14 +1837,18 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
   // color for none. Offered on a box shape or a filled region that is no token and not hidden. The GM's pick is written only as a name the
   // list holds
   function textureFieldOk(w) { return (['rect', 'hexagon', 'circle', 'diamond'].indexOf(w.type) >= 0 || (w.type === 'path' && w.tip === 'fill')) && !w.isChar && !w.waiting && !w.hidden && !!(window.wpBuildCore && window.wpBuildCore.cleanTexture); }
+  // Fold B3: the picture a piece wears as its fill, as the cleaner keeps it, or none. It stands in the list under its file's own name
+  function texFieldPic(w) { var FCi = window.wpFogCore, BC = window.wpBuildCore, s = FCi && typeof FCi.cleanTexSrc === 'function' ? FCi.cleanTexSrc(w.texSrc) : null; return s && BC && typeof BC.picName === 'function' ? s : ''; }
   function textureFieldHtml(w) {
-      var BC = window.wpBuildCore, cur = BC && BC.cleanTexture ? BC.cleanTexture(w.texture) : null, names = BC && Array.isArray(BC.TEXTURES) ? BC.TEXTURES : [];
-      return '<div class="field"><label for="wbTexture">Texture</label><select id="wbTexture" title="A pattern Waypoint draws over the color, seated on the grid."><option value=""' + (cur ? '' : ' selected') + '>Plain color</option>' + names.map(function(n) { return '<option value="' + esc(n) + '"' + (n === cur ? ' selected' : '') + '>' + esc(n.charAt(0).toUpperCase() + n.slice(1)) + '</option>'; }).join('') + '</select></div>'
-          + '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">A pattern drawn over the color. Pieces side by side read as one surface.</div>';
+      var BC = window.wpBuildCore, cur = BC && BC.cleanTexture ? BC.cleanTexture(w.texture) : null, names = BC && Array.isArray(BC.TEXTURES) ? BC.TEXTURES : [], pic = texFieldPic(w);
+      return '<div class="field"><label for="wbTexture">Texture</label><select id="wbTexture" title="A pattern Waypoint draws over the color, seated on the grid."><option value=""' + (cur || pic ? '' : ' selected') + '>Plain color</option>' + names.map(function(n) { return '<option value="' + esc(n) + '"' + (n === cur && !pic ? ' selected' : '') + '>' + esc(n.charAt(0).toUpperCase() + n.slice(1)) + '</option>'; }).join('') + (pic ? '<option value="@pic" selected>' + esc(BC.picName(pic)) + '</option>' : '') + '</select></div>'
+          + '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">' + (pic ? 'One of this campaign&#39;s own pictures, over the color. A pattern or Plain color takes it off.' : 'A pattern drawn over the color. Pieces side by side read as one surface.') + '</div>';
   }
   function setItemTexture(w, v) {
+      if (v === '@pic') { renderInspector(); return; }   // the picture's own row: nothing changes
       var BC = window.wpBuildCore, t = BC && BC.cleanTexture ? BC.cleanTexture(v) : null;
       if (t) w.texture = t; else delete w.texture;
+      delete w.texSrc; delete w.texTile;   // fold B3: a pattern or Plain color takes a picture off
       save(); render(); renderInspector();
   }
   // [sinkcheck:texfield-end]

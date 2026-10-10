@@ -798,16 +798,18 @@ var TEXTURES = Object.freeze(['flagstones', 'bricks', 'cobbles', 'planks', 'ston
 function cleanTexture(v) { return typeof v === 'string' && TEXTURES.indexOf(v) >= 0 ? v : null; }
 // The map builder (fold B3): a piece may wear one of the campaign's own pictures as its fill. texSrc is a picture's path as the Image
 // Library lists one: a plain path under /saves/images/ that ends in a picture's extension. Never a web address, an inline picture, a path
-// that walks or carries a query, never the Journal's or the video library's folder, and 400 characters at most, which is what the table's
-// asset gate serves. A percent sign is refused too: the table reads a path decoded, so one spelling could name two files. texTile says
-// how large one repeat of the picture is: 1, 2 or 4 cells, or 'whole', the picture once over the whole piece
+// that walks, holds two dots together or carries a query, and 400 characters at most, which is what the table's asset gate serves. Never
+// the Journal's or the video library's folder, nor the sounds' (the table hands a file of that folder out in parts, to a sound's asker
+// alone, so a picture there would never reach a player). A percent sign that begins an escape (two hex digits after it) is refused: the
+// table reads a path decoded, so one spelling could name two files. A lone one is a name's own. texTile says how large one repeat of the
+// picture is: 1, 2 or 4 cells, or 'whole', the picture once over the whole piece
 var TEX_TILES = Object.freeze([1, 2, 4, 'whole']);
-var TEX_SRC_BAD = /[\\:?#%*<>|"\u0000-\u001f\u007f]/, TEX_SRC_EXT = /\.(png|jpe?g|gif|webp|svg)$/i;
+var TEX_SRC_BAD = /[\\:?#*<>|"\u0000-\u001f\u007f]/, TEX_SRC_PCT = /%[0-9A-Fa-f]{2}/, TEX_SRC_EXT = /\.(png|jpe?g|gif|webp|svg)$/i;
 function cleanTexSrc(v) {
-    if (typeof v !== 'string' || v.length > 400 || v.indexOf('/saves/images/') !== 0 || TEX_SRC_BAD.test(v) || !TEX_SRC_EXT.test(v)) return null;
+    if (typeof v !== 'string' || v.length > 400 || v.indexOf('/saves/images/') !== 0 || v.indexOf('..') >= 0 || TEX_SRC_BAD.test(v) || TEX_SRC_PCT.test(v) || !TEX_SRC_EXT.test(v)) return null;
     var segs = v.slice(14).split('/');
-    for (var i = 0; i < segs.length; i++) if (!segs[i] || segs[i] === '.' || segs[i] === '..' || /[. ]$/.test(segs[i])) return null;
-    if (segs.length > 1 && /^(journal|video)$/i.test(segs[0])) return null;
+    for (var i = 0; i < segs.length; i++) if (!segs[i] || /[. ]$/.test(segs[i])) return null;
+    if (segs.length > 1 && /^(journal|video|audio)$/i.test(segs[0])) return null;
     return v;
 }
 function cleanTexTile(v) { return TEX_TILES.indexOf(v) >= 0 ? v : null; }

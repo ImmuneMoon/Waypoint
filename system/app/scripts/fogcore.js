@@ -857,7 +857,7 @@ function cleanTerrain(v) {
 }
 // Map builder B1 (1.5.4, backlog 23): a piece's texture is a NAME from this frozen list, drawn by the app itself (buildcore.js), never a file
 // or an address. Anything else (another case, a space, a path, a url, a number, an object, a prototype's name) is none. The same list in both views
-var TEXTURES = Object.freeze(['flagstones', 'bricks', 'cobbles', 'planks', 'stone', 'hatching', 'ripples', 'grass', 'shingles', 'pantiles', 'slates', 'thatch']);
+var TEXTURES = Object.freeze(['flagstones', 'bricks', 'cobbles', 'planks', 'stone', 'hatching', 'ripples', 'grass', 'shingles', 'pantiles', 'slates', 'thatch', 'forest', 'mountains', 'sand', 'snow']);
 function cleanTexture(v) { return typeof v === 'string' && TEXTURES.indexOf(v) >= 0 ? v : null; }
 // The map builder (fold B3): a piece may wear one of the campaign's own pictures as its fill. texSrc is a picture's path as the Image
 // Library lists one: a plain path under /saves/images/ that ends in a picture's extension. Never a web address, an inline picture, a path

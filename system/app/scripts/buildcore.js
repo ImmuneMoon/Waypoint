@@ -1,4 +1,4 @@
-/* Map builder (1.5.4, backlog item 23, fold B1) — the pure half: the eight code-drawn textures a piece may wear (a NAME from a frozen
+/* Map builder (1.5.4, backlog item 23, fold B1) — the pure half: the sixteen code-drawn textures a piece may wear (a NAME from a frozen
    list, drawn here as a seamless SVG tile — never a file, never an address), the seven materials of the palette and the props bag a
    piece of each takes, the Wall-line preset the pen takes, and the lattice maths the palette lays pieces by (a square box snapped to
    the lattice, a hexagon seated on its cell, a corridor, a polygon's vertex and item, the piece already seated where a new one would
@@ -6,7 +6,7 @@
    window.wpBuildCore.
 
    The owner's decisions of 2026-10-01 (docs/MAP_BUILDER_PLAN.md, Design 3):
-   - a texture is a code-drawn pattern named from a frozen list (fogcore cleanTexture keeps the same eight, in both views): a piece
+   - a texture is a code-drawn pattern named from a frozen list (fogcore cleanTexture keeps the same list, in both views): a piece
      carries item.texture = 'bricks', and every machine draws the same tile from the same constants — nothing is fetched;
    - a piece is an ordinary board item with today's flags (blocksSight / sightType, cover, terrain, layer), so fog, cover, light,
      movement and the inspector read it as they read any shape, and an older install shows it as a plain coloured shape;
@@ -33,7 +33,7 @@ function r2(v) { return Math.round(v * 100) / 100; }
 function frozenTable(o) { var t = Object.create(null), k; for (k in o) if (Object.prototype.hasOwnProperty.call(o, k)) t[k] = Object.freeze(o[k]); return Object.freeze(t); }
 
 /* ---------- textures ---------- */
-var TEXTURES = Object.freeze(['flagstones', 'bricks', 'cobbles', 'planks', 'stone', 'hatching', 'ripples', 'grass', 'shingles', 'pantiles', 'slates', 'thatch']);
+var TEXTURES = Object.freeze(['flagstones', 'bricks', 'cobbles', 'planks', 'stone', 'hatching', 'ripples', 'grass', 'shingles', 'pantiles', 'slates', 'thatch', 'forest', 'mountains', 'sand', 'snow']);
 function cleanTexture(v) { return typeof v === 'string' && TEXTURES.indexOf(v) >= 0 ? v : null; }
 
 // name -> { w, h, d, dark, light, fill? }: the tile's size in whole pixels, ONE path drawn twice (dark under light, the widths), and for
@@ -89,7 +89,23 @@ var TEX = frozenTable({
     // thatch: three rows of short slanted straws, the middle row set between the others, all inside the tile
     thatch: { w: 50, h: 50, dark: 1.8, light: 0.8,
         d: 'M 4 4 L 7 13 M 14 6 L 17 15 M 24 3 L 27 12 M 34 6 L 37 15 M 43 4 L 46 13 M 8 20 L 11 29 M 19 22 L 22 31 M 29 19 L 32 28 M 39 22 L 42 31 '
-            + 'M 4 36 L 7 45 M 14 38 L 17 47 M 24 35 L 27 44 M 34 38 L 37 47 M 43 36 L 46 45' }
+            + 'M 4 36 L 7 45 M 14 38 L 17 47 M 24 35 L 27 44 M 34 38 L 37 47 M 43 36 L 46 45' },
+    // The four land patterns of a world map (fold B7; the owner, 2026-10-11, by prompt: "The four (Recommended)": Forest, Mountains,
+    // Sand, Snow), each as the sheet drew it.
+    // forest: two rows of small round treetops, a dome on a short trunk, the second row half a tree over; all inside the tile
+    forest: { w: 50, h: 50, dark: 1.8, light: 0.8,
+        d: 'M 3 12 A 4 4 0 0 1 11 12 M 7 12 V 15 M 28 12 A 4 4 0 0 1 36 12 M 32 12 V 15 M 15.5 37 A 4 4 0 0 1 23.5 37 M 19.5 37 V 40 M 40.5 37 A 4 4 0 0 1 48.5 37 M 44.5 37 V 40' },
+    // mountains: two rows of peaks, each with a short stroke down its shaded side, the second row half a peak over. That row's second
+    // peak straddles the seam, so it is drawn at both edges and the tile's own edge cuts it
+    mountains: { w: 50, h: 50, dark: 1.8, light: 0.8,
+        d: 'M 3 20 L 12 5 L 21 20 M 12 5 L 14.5 11.5 L 12 14 M 28 20 L 37 5 L 46 20 M 37 5 L 39.5 11.5 L 37 14 M 15.5 45 L 24.5 30 L 33.5 45 M 24.5 30 L 27 36.5 L 24.5 39 '
+            + 'M 40.5 45 L 49.5 30 L 58.5 45 M 49.5 30 L 52 36.5 L 49.5 39 M -9.5 45 L -0.5 30 L 8.5 45 M -0.5 30 L 2 36.5 L -0.5 39' },
+    // sand: three low dune lines and six grains (a grain is a stroke a tenth of a pixel long: its round cap is the dot); all inside the tile
+    sand: { w: 50, h: 50, dark: 1.6, light: 0.8,
+        d: 'M 5 13 Q 12.5 7 20 13 M 29 31 Q 36.5 25 44 31 M 8 45 Q 14.5 40 21 45 M 33 9 L 33.1 9 M 42 17 L 42.1 17 M 11 27 L 11.1 27 M 21 34 L 21.1 34 M 36 42 L 36.1 42 M 45 39 L 45.1 39' },
+    // snow: four short drift marks and five flakes, the same dots; all inside the tile
+    snow: { w: 50, h: 50, dark: 1.6, light: 0.8,
+        d: 'M 6 11 H 14 M 30 25 H 38 M 11 40 H 18 M 37 44 H 43 M 36 8 L 36.1 8 M 22 19 L 22.1 19 M 45 17 L 45.1 17 M 8 27 L 8.1 27 M 26 36 L 26.1 36' }
 });
 var DARK = 'rgba(0,0,0,0.38)', LIGHT = 'rgba(255,255,255,0.18)', SVG_NS = 'http://www.w3.org/2000/svg';
 var TEX_INK = Object.freeze({ dark: DARK, light: LIGHT });   // the two strokes of every tile, for a drawer that draws the tile itself (the map picture)

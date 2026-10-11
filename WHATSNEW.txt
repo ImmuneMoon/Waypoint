@@ -308,7 +308,7 @@ The play map
 - A corridor with walls. Tick With walls beside a corridor's width and
   Build lays a wall line along each side as you drag. The two ends stay
   open. A wall that already stands across an end stays there.
-- A dungeon made for you. Generate a dungeon, the last row of Build's
+- A dungeon made for you. Generate a dungeon, a row of Build's
   options, lays rooms, corridors, wall lines and doors as ordinary
   pieces, on a square grid or a hex one. Build it on this map, on
   another map or on a new one. Set its size, its rooms, corridors and
@@ -349,6 +349,13 @@ The play map
   pantiles, slates and thatch. Build has three more materials. A
   Building and a City wall block sight and stop tokens as a wall does,
   and a Street is a floor of cobbles.
+- A city made for you. Generate a city, under Generate a dungeon in
+  Build's options, lays a village, a town or a city as ordinary
+  pieces: streets, buildings under their roofs, a city wall, water and
+  fields. A village is laid at token scale. A town and a city are an
+  overview. Pick the wall, a river or a coast, the roofs and a seed:
+  the same seed and settings make the same city again. It says how
+  many pieces it would lay first, and one Undo takes it back.
 
 The top bar and the data map
 - The top of the window is one quiet row. Its captioned boxes are gone,

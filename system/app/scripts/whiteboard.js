@@ -6920,6 +6920,211 @@ function genWire() {
 }
 // [buildcheck:gendialog-end]
 genWire();
+// [buildcheck:citydialog-start]
+// The city made for you (the map builder, fold B6; the owner's answers of 2026-10-11 on the city sheet: a city map is for "Both, by a Size
+// list", a building is "A block", the dialog "As drawn"; and on the row's sheet: the row's drawing "B. Wall and gate", a new map's grid
+// "You pick in the dialog"). The row under Generate a dungeon opens one dialog. Its settings go to the pure half (citycore.js), which
+// answers geometry, and what is laid is ORDINARY pieces, each dressed with a material's own props: a field as Grass, a street as Street,
+// water as Water, a bridge as Wood floor, a house as Building under its own roof, a wall and a tower as City wall, and a town's wall as
+// the pen's Wall line in the City wall's colour. Nothing on the map is changed and nothing is derived live. It is laid in one save, so
+// one Undo takes it back. The seed and settings are kept on the map (meta.city) for the GM alone, to make it again: net.js never sends
+// them and an import cleans them. The dialog is the GM's (buildMay) and its markup is fixed words in the page: a map's name reaches the
+// list as an option's text, never as markup. It leans on the dungeon dialog's helpers (genEl, genText, genMaps, genCountWords, genNewSeed)
+var CITY_LINES = { here: 'Its middle goes where the middle of your screen is. Nothing on the map is changed.', other: 'It lands in the middle of that map as you last saw it. You are taken there once it is made.', fresh: 'A new map is made for it. You are taken there once it is made.', none: 'This campaign has no other map.' };
+var CITY_GRIDS = ['off', 'square', 'hex'], CITY_NAMES = { village: 'Village', town: 'Town', city: 'City' }, CITY_MATS = { field: 'grass', street: 'street', water: 'water', bridge: 'wood' }, CITY_WALL_PX = 8;
+var _city = { where: 'here', maps: '', grid: '', named: false };
+function cityCore() { return window.wpCityCore || null; }
+function cityShown() { var m = genEl('cityModal'); return !!m && m.style.display === 'flex'; }
+function cityWord(size) { return Object.prototype.hasOwnProperty.call(CITY_NAMES, size) ? CITY_NAMES[size] : CITY_NAMES.town; }
+// The grid a new map starts with until the GM picks one in the dialog: square cells for a village, which is laid on them, and none for a
+// town or a city, which are an overview
+function cityGridFor(size) { return size === 'village' ? 'square' : 'off'; }
+// The form as the generator's settings, and the settings into the form
+function cityForm() {
+    var CC = cityCore(); if (!CC) return null;
+    var val = function(id) { var e = genEl(id); return e ? String(e.value) : ''; }, fl = genEl('cityFields');
+    return CC.cleanCity({ seed: val('citySeed').trim(), size: val('citySize'), wall: val('cityWall'), water: val('cityWater'), roofs: val('cityRoofs'), fields: !fl || fl.checked !== false });
+}
+function cityFill(o) {
+    var set = function(id, v) { var e = genEl(id); if (e) e.value = String(v); }, fl = genEl('cityFields');
+    set('citySeed', o.seed); set('citySize', o.size); set('cityWall', o.wall); set('cityWater', o.water); set('cityRoofs', o.roofs); if (fl) fl.checked = o.fields !== false;
+}
+// Where a city's top left corner goes, so that its MIDDLE is the middle of the view (`mid`, the screen's own, for the map on screen), else
+// of the map as it was last seen, else of its home. The whole city stays on the board, and a village sits on its lattice of cells
+function cityCorner(map, mid, w, h, cell) {
+    var meta = map && map.meta && typeof map.meta === 'object' ? map.meta : {}, num = function(v) { return typeof v === 'number' && isFinite(v); };
+    var cx = mid && num(mid.x) ? mid.x : num(meta.lastWbX) ? meta.lastWbX : num(meta.homeX) ? meta.homeX : 15000, cy = mid && num(mid.y) ? mid.y : num(meta.lastWbY) ? meta.lastWbY : num(meta.homeY) ? meta.homeY : 15000;
+    var fit = function(c, size) { var at = Math.max(0, Math.min(30000 - size, c - size / 2)); return cell > 0 ? Math.round(at / cell) * cell : Math.round(at); };
+    return { x: fit(cx, w), y: fit(cy, h) };
+}
+// What Generate would do now: { ok, say } and, where it can be laid, { map (null for a new one), fresh, grid, opts, pieces }
+function cityPlan() {
+    var CC = cityCore(), BC = buildCore(), camp = getActiveCampaign(), here = getActiveMap(), no = { ok: false, say: 'A city cannot be built here.' };
+    if (!CC || !BC || !camp || !camp.items || !here || here.type !== 'map' || !buildMay() || !buildHere()) return no;
+    var seedBox = genEl('citySeed'), typed = seedBox ? String(seedBox.value).trim() : '', opts = cityForm();
+    if (!opts || opts.seed !== typed) return { ok: false, say: 'A seed is letters, digits and hyphens, 24 at most.' };
+    var where = GEN_WHERE.indexOf(_city.where) >= 0 ? _city.where : 'here', map = here, fresh = where === 'fresh', grid = '';
+    if (where === 'other') {
+        var sel = genEl('cityMap'), id = sel ? String(sel.value) : '';
+        map = id && id !== here.id && Object.prototype.hasOwnProperty.call(camp.items, id) && camp.items[id] && camp.items[id].type === 'map' ? camp.items[id] : null;
+        if (!map) return { ok: false, say: CITY_LINES.none };
+    }
+    if (fresh) { var gs = genEl('cityGrid'), g = gs ? String(gs.value) : ''; grid = CITY_GRIDS.indexOf(g) >= 0 ? g : cityGridFor(opts.size); map = null; }
+    var plan = CC.genCity(opts), cells = plan.kind === 'cells', w = cells ? plan.cols * CC.CELL : plan.w, h = cells ? plan.rows * CC.CELL : plan.h;
+    var at = cityCorner(map, where === 'here' ? viewCentre() : null, w, h, cells ? CC.CELL : 0), pc = CC.cityPieces(plan, at.x, at.y);
+    if (!pc.count || !pc.buildings.length) return { ok: false, say: 'That city could not be laid out. Try another seed.' };
+    var held = map && Array.isArray(map.whiteboard) ? map.whiteboard.length : 0;
+    if (held + pc.count > BUILD_MAX) return { ok: false, say: genCountWords(pc.count, held) };
+    return { ok: true, say: genCountWords(pc.count, held), map: map, fresh: fresh, grid: grid, opts: opts, pieces: pc };
+}
+// One piece as the item the Build tool lays for its shape: a box, a circle, or a filled region with its points
+function cityPiece(g, props) {
+    var it = Object.assign({ id: 'wb' + uid(), type: g.type, x: g.x, y: g.y, w: g.w, h: g.h, z: 10 }, newOpacityProps(), props);
+    if (g.pts) { it.pts = g.pts; it.baseW = g.baseW; it.baseH = g.baseH; it.tip = 'fill'; }
+    return it;
+}
+// The city's pieces as ordinary items, in the order they are laid: each wears the props of its material, a house its own roof and that
+// roof's colour, and a town's wall is the pen's Wall line under the City wall's name and colour
+function cityItems(pc) {
+    var BC = buildCore(), out = [], grounds = {}; if (!BC || !pc) return out;
+    var cw = BC.pieceProps('citywall', {}), pen = BC.penPreset('wall', {}), ok = !!cw && !!pen;
+    Object.keys(CITY_MATS).forEach(function(k) { grounds[k] = BC.pieceProps(CITY_MATS[k], {}); if (!grounds[k]) ok = false; });
+    if (!ok) return out;
+    var line = Object.assign({}, pen, { name: cw.name, color: cw.color, strokeWidth: CITY_WALL_PX });
+    pc.grounds.forEach(function(g) { if (Object.prototype.hasOwnProperty.call(grounds, g.kind)) out.push(cityPiece(g.geo, grounds[g.kind])); });
+    pc.buildings.forEach(function(b) { var p = BC.pieceProps('building', { texture: b.roof, color: b.color }); if (p) out.push(cityPiece(b.geo, p)); });
+    pc.walls.forEach(function(wl) { out.push(wl.line ? buildWallItem(wl.geo, line) : cityPiece(wl.geo, cw)); });
+    pc.towers.forEach(function(t) { out.push(cityPiece(t.geo, cw)); });
+    return out;
+}
+// The other maps as the list's options, made again only when the list changed, so a pick stands: elements with text, never markup
+function cityMapsFill() {
+    var sel = genEl('cityMap'), camp = getActiveCampaign(), here = getActiveMap(); if (!sel) return 0;
+    var list = genMaps(camp, here ? here.id : ''), sig = JSON.stringify(list);
+    if (sig === _city.maps) return list.length;
+    var was = String(sel.value || '');
+    while (sel.firstChild) sel.removeChild(sel.firstChild);
+    list.forEach(function(m) { var o = document.createElement('option'); o.value = m.id; o.appendChild(document.createTextNode(m.title)); sel.appendChild(o); });
+    sel.value = list.some(function(m) { return m.id === was; }) ? was : (list[0] ? list[0].id : '');
+    _city.maps = sig;
+    return list.length;
+}
+// The dialog as it stands: the chip in use, the row its choice needs, the line that says where it lands, the count, and Generate put out
+// of use with the reason in sight where the city cannot be laid. A new map's grid and name follow the Size until the GM sets them
+function citySync() {
+    if (!cityShown()) return;
+    var where = GEN_WHERE.indexOf(_city.where) >= 0 ? _city.where : 'here', o = cityForm();
+    Array.prototype.forEach.call(document.querySelectorAll('#cityWhere .gen-chip'), function(b) { var on = b.dataset.where === where; b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false'); });
+    var mr = genEl('cityMapRow'), nr = genEl('cityNameRow'), ln = genEl('cityWhereLine'), ct = genEl('cityCount'), go = genEl('cityGo'), gs = genEl('cityGrid'), nm = genEl('cityName');
+    if (mr) mr.hidden = where !== 'other';
+    if (nr) nr.hidden = where !== 'fresh';
+    if (o && gs && !_city.grid) gs.value = cityGridFor(o.size);
+    if (o && nm && !_city.named) nm.value = cityWord(o.size);
+    var others = where === 'other' ? cityMapsFill() : 1;
+    if (ln) ln.textContent = where === 'other' && !others ? CITY_LINES.none : CITY_LINES[where];
+    var plan = cityPlan();
+    if (ct) ct.textContent = plan.say;
+    if (go) go.disabled = !plan.ok;
+}
+function cityShow() {
+    var m = genEl('cityModal'), CC = cityCore(), here = getActiveMap(); if (!m || !CC || !buildCore() || !buildMay() || !buildHere() || !here) return false;
+    var kept = here.meta && typeof here.meta === 'object' && here.meta.city && typeof here.meta.city === 'object' && !Array.isArray(here.meta.city) ? CC.cleanCity(here.meta.city) : null;
+    if (kept) cityFill(kept); else { var sb = genEl('citySeed'); if (sb) sb.value = genNewSeed(); }   // a map that keeps its city's seed shows it, to make it again; else a new seed each time
+    _city.where = 'here'; _city.maps = ''; _city.grid = ''; _city.named = false;
+    m.style.display = 'flex';
+    citySync();
+    var first = document.querySelector('#cityWhere .gen-chip.on'); if (first && first.focus) first.focus();
+    return true;
+}
+function cityHide() { var m = genEl('cityModal'); if (!m || m.style.display === 'none') return; m.style.display = 'none'; var b = genEl('buildCityBtn'); if (b && b.focus) b.focus(); }
+// What Tab walks through, in the dialog's own order: never a row that is put away nor a control that is out of use
+function cityStops() {
+    var out = Array.prototype.slice.call(document.querySelectorAll('#cityWhere .gen-chip'));
+    ['cityMap', 'cityName', 'cityGrid', 'citySeed', 'citySeedNew', 'citySize', 'cityWall', 'cityWater', 'cityRoofs', 'cityFields', 'cityCancel', 'cityGo'].forEach(function(id) {
+        var e = genEl(id), row = id === 'cityMap' ? genEl('cityMapRow') : id === 'cityName' || id === 'cityGrid' ? genEl('cityNameRow') : null;
+        if (e && !e.disabled && !(row && row.hidden)) out.push(e);
+    });
+    return out;
+}
+// Tab goes round inside the dialog: past its last control to its first, and back. True when the focus was moved
+function cityTab(target, back) {
+    var st = cityStops(), at = st.indexOf(target); if (!st.length) return false;
+    var to = back ? (at <= 0 ? st[st.length - 1] : null) : (at < 0 || at === st.length - 1 ? st[0] : null);
+    if (!to || !to.focus) return false;
+    to.focus(); return true;
+}
+// Generate: the city laid as the dialog's count said. The GM is taken to the map first, on its play map: that draws and saves it as it
+// stands, a new map empty, which is the state one Undo goes back to. Then the pieces are laid there in ONE save, so one Undo takes the
+// city back, and a new map stays
+function cityGo() {
+    if (!cityShown()) return false;   // only from the dialog as it stands: a second press finds it put away
+    var plan = cityPlan(); if (!plan.ok) { citySync(); return false; }
+    var camp = getActiveCampaign(), here = getActiveMap(), map = plan.map, nmBox = genEl('cityName'), items = cityItems(plan.pieces), word = cityWord(plan.opts.size);
+    if (!items.length) { toast('That city could not be laid. Nothing was changed.'); return false; }
+    if (plan.fresh) {
+        map = createNewMap(getUniqueItemTitle(genText(nmBox ? nmBox.value : '', 80) || word, null));
+        map.meta.gridType = plan.grid;
+        camp.items[map.id] = map;
+    }
+    if (!map.meta || typeof map.meta !== 'object') map.meta = {};
+    if (!Array.isArray(map.whiteboard)) map.whiteboard = [];   // before the map is drawn: a map from a file may have none
+    cityHide();
+    if (map === here) save(true);
+    else {
+        map.meta.lastView = 'visual';
+        if (!navigateToMap(map.id)) { if (plan.fresh) delete camp.items[map.id]; toast('That map could not be opened. Nothing was changed.'); return false; }
+    }
+    if (map.whiteboard.length + items.length > BUILD_MAX) { toast('That city could not be laid. Nothing was changed.'); return false; }
+    items.forEach(function(it) { map.whiteboard.push(it); });
+    map.meta.city = plan.opts;   // the GM's own, to make it again: never sent (net.js sanitizeItem), cleaned from a file (cleanup.js)
+    save(true); render();
+    if (window.wpFog && window.wpFog.invalidateVision) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
+    toast(word + ' laid, ' + items.length + ' pieces. One Undo takes it back.');
+    return true;
+}
+function cityWire() {
+    var m = genEl('cityModal'), row = genEl('buildCityBtn'); if (!m) return;
+    if (row) row.addEventListener('click', function(ev) { ev.stopPropagation(); cityShow(); });
+    // the dialog hands the focus back to this row when it is put away: a key still held from the press that put it away presses nothing here
+    if (row) row.addEventListener('keydown', function(e) { if (e.repeat === true && (e.key === 'Enter' || e.key === ' ')) e.preventDefault(); });
+    Array.prototype.forEach.call(document.querySelectorAll('#cityWhere .gen-chip'), function(b) { b.addEventListener('click', function() { var w = this.dataset.where; if (GEN_WHERE.indexOf(w) < 0) return; _city.where = w; citySync(); }); });
+    ['cityMap', 'citySize', 'cityWall', 'cityWater', 'cityRoofs', 'cityFields'].forEach(function(id) { var e = genEl(id); if (e) e.addEventListener('change', citySync); });
+    // a grid or a name the GM set for the new map stands, whatever Size is picked afterwards
+    var gs = genEl('cityGrid'); if (gs) gs.addEventListener('change', function() { var g = String(this.value); _city.grid = CITY_GRIDS.indexOf(g) >= 0 ? g : ''; citySync(); });
+    var nm = genEl('cityName'); if (nm) nm.addEventListener('input', function() { _city.named = true; });
+    var sb = genEl('citySeed'); if (sb) sb.addEventListener('input', citySync);
+    var nw = genEl('citySeedNew'); if (nw) nw.addEventListener('click', function() { var s = genEl('citySeed'); if (s) s.value = genNewSeed(); citySync(); });
+    var no = genEl('cityCancel'); if (no) no.addEventListener('click', cityHide);
+    var go = genEl('cityGo'); if (go) go.addEventListener('click', function() { cityGo(); });
+    // every key pressed in the dialog stays in it: the page reads keys as its own (Build's Esc and Enter, a token's arrows, Delete)
+    m.addEventListener('keydown', function(e) {
+        if (buildAsking()) return;   // a question or a prompt of the app's own, raised over the dialog, has every key: the focus may still rest in here
+        e.stopPropagation();
+        var t = e.target, box = !!t && /^INPUT$/.test(t.tagName || '');
+        if (e.key === 'Escape') { e.preventDefault(); cityHide(); }
+        else if (e.key === 'Enter' && box && t.type === 'checkbox') { e.preventDefault(); if (e.repeat !== true && !t.disabled && typeof t.click === 'function') t.click(); }   // Enter ticks a tick that has the focus, as it does on the page
+        else if (e.key === 'Enter' && box) { e.preventDefault(); cityGo(); }
+        else if (e.key === 'Tab' && cityTab(t, e.shiftKey === true)) e.preventDefault();
+    });
+    // A key pressed while the dialog is up with the focus outside it (after a press on its backdrop) is the dialog's too: the page would
+    // read it as its own behind the dialog, undo the map or put Build away. Escape puts the dialog away, Tab brings the focus back in, and
+    // any other key does nothing. Heard first (capture), and never while a question or a prompt of the app's own is up over the dialog
+    document.addEventListener('keydown', function(e) {
+        if (!cityShown() || buildAsking() || (e.target && typeof m.contains === 'function' && m.contains(e.target))) return;
+        e.stopPropagation(); e.preventDefault();
+        if (e.key === 'Escape') cityHide();
+        else if (e.key === 'Tab') cityTab(null, e.shiftKey === true);
+    }, true);
+    // A paste is the page's to read too (it lays a copied piece or a picture on the map behind): never while the dialog is up, but for a
+    // text field of the dialog's own, which takes its paste as any field does
+    document.addEventListener('paste', function(e) {
+        if (!cityShown() || buildAsking()) return;
+        var t = e.target; if (t && typeof m.contains === 'function' && m.contains(t) && /^(INPUT|TEXTAREA)$/.test(t.tagName || '') && t.type !== 'checkbox') return;
+        e.preventDefault(); e.stopPropagation();
+    }, true);
+}
+// [buildcheck:citydialog-end]
+cityWire();
 
 var _el_shapeTextBtn = document.getElementById('shapeTextBtn');
 

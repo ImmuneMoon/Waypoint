@@ -1417,6 +1417,14 @@
   #genSeedNew { padding: 3px 10px; margin: 0; }
   .gen-line { font-size: 11px; color: var(--dim); line-height: 1.4; margin: 4px 0; }
   #genCount { color: var(--ink); min-height: 16px; }
+  /* the city's dialog (fold B6) is the same box with ids of its own: its seed, its new map's name, its list of maps and its count sized alike */
+  #citySeed { width: 130px; font-family: ui-monospace, Consolas, monospace; }
+  #cityName { flex: 1 1 110px; min-width: 0; }
+  #cityMap { flex: 1 1 auto; min-width: 0; }
+  #citySeedNew { padding: 3px 10px; margin: 0; }
+  #cityCount { color: var(--ink); min-height: 16px; }
+  #cityModal .gen-row > select { min-width: 150px; }
+  #cityModal #cityGrid { min-width: 0; }
   .gen-rule { height: 1px; background: var(--edge); margin: 10px 0; }
   .gen-foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 12px; }
   /* a tick in a dialog of this kind (the map picture's Show row): the app's own gold */

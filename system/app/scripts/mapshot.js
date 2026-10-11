@@ -178,17 +178,23 @@ function shotPick(change) { if (_shot.busy) return; _shot.err = ''; change(); sh
 // on Escape would close behind the dialog. Escape puts the dialog away and Tab goes round its controls. Any other key pressed on a control
 // of the dialog is that control's own press, and one pressed anywhere else does nothing. While a question or a prompt of the app's own is up
 // over the dialog every key is theirs
+// The press of Escape that put the dialog away is the dialog's for as long as it is held: its repeats come after the dialog is down, and
+// a box of the page's that closes on Escape would hear them. Any new press, and Escape let go, end that
+var _shotEsc = false;
 function shotKey(e) {
+    if (e.repeat !== true) _shotEsc = false;
+    else if (_shotEsc && e.key === 'Escape') { if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation(); else e.stopPropagation(); e.preventDefault(); return; }
     if (!shotShown() || shotAsking()) return;
     var m = shotEl('shotModal'), inside = !!(m && e.target && typeof m.contains === 'function' && m.contains(e.target));
     if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation(); else e.stopPropagation();
-    if (e.key === 'Escape') { e.preventDefault(); if (e.repeat !== true) shotHide(); }
+    if (e.key === 'Escape') { e.preventDefault(); if (e.repeat !== true) { shotHide(); _shotEsc = true; } }
     else if (e.key === 'Tab') { e.preventDefault(); shotTab(inside ? e.target : null, e.shiftKey === true); }
     else if (!inside) e.preventDefault();
 }
 // A paste is the page's to read too (it lays a copied piece or a picture on the map): never while the dialog is up
 function shotPaste(e) { if (!shotShown() || shotAsking()) return; e.preventDefault(); if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation(); else e.stopPropagation(); }
 // The key that put the dialog away, still held, presses nothing on the button the focus went back to
+function shotKeyUp(e) { if (e.key === 'Escape') _shotEsc = false; }
 function shotHeld(e) { if (e.repeat === true && (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape')) { e.preventDefault(); e.stopPropagation(); } }
 function shotWire() {
     var m = shotEl('shotModal'); if (!m) return;
@@ -207,6 +213,7 @@ function shotWire() {
     if (go) go.addEventListener('click', function() { shotGo(); });
     if (back) back.addEventListener('keydown', shotHeld);
     window.addEventListener('keydown', shotKey, true);
+    window.addEventListener('keyup', shotKeyUp, true);
     window.addEventListener('paste', shotPaste, true);
 }
 // [buildcheck:mapshot-end]

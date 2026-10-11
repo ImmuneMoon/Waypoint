@@ -751,12 +751,20 @@ function wireWbItem(w, cloned) {
     if (w.portalLock !== undefined && w.portalLock !== true) delete w.portalLock;   // a portal's own lock: it travels with a shown portal (a hidden piece is not sent at all) and only as true, the one value the host judges by (travelBar)
     if (w.texture !== undefined) { var FCw = typeof window !== 'undefined' && window.wpFogCore, txo = FCw && FCw.cleanTexture ? FCw.cleanTexture(w.texture) : null; if (txo) w.texture = txo; else delete w.texture; }   // the map builder: a shown piece's texture leaves only as a name of the app's own list, none without the cleaner (whatever a save held)
     if (w.texSrc !== undefined || w.texTile !== undefined) { var FCp = typeof window === 'object' && window ? window.wpFogCore : null, tso = FCp && typeof FCp.cleanTexSrc === 'function' ? FCp.cleanTexSrc(w.texSrc) : null, tto = tso && typeof FCp.cleanTexTile === 'function' ? FCp.cleanTexTile(w.texTile) : null; if (tso) w.texSrc = tso; else delete w.texSrc; if (tto) w.texTile = tto; else delete w.texTile; }   // fold B3: a picture fill leaves only as a plain path under saves/images and a known tile, none without the cleaners: the asset gate serves what is sent under this key
-    // A plain wall carries NO name on its way out (the second review of fold B5). A wall's name is whatever its maker gave it: Build names a
-    // piece by its material whatever colour and pattern were picked, the city generator by its own, and a wall made by hand has none. So no
-    // rule could give a secret door's copy the name the walls beside it carry, and the one wall there whose name differed was the secret
-    // door. A player's app reads a wall's name in one place, the pill that says which piece a resize matched, which then says its kind. A
-    // door, a wall that leads somewhere, a picture, a text box and a token keep theirs: a copy is none of those
-    if (w.name !== undefined && (w.blocksSight || w.barrier === true) && w.sightType !== 'door' && !w.isChar && !w.waiting && !w.targetMapId && !w.nodeId && w.type !== 'image' && w.type !== 'text') delete w.name;
+    // A plain wall leaves in ONE shape (the second and third reviews of fold B5): a secret door's copy is made in that shape, and whatever a
+    // wall carries that a copy cannot follow marks the copy as the one wall without it. A wall's NAME is whatever its maker gave it (Build
+    // names a piece by its material whatever colour and pattern were picked, the city generator by its own, a wall made by hand has none).
+    // Its GROUP is the room it was grouped with, door and all. A wall from a file has no sightType where every wall the app makes has one,
+    // and a hex colour in whatever case the file wrote. A wall that was once a door or a way through may keep what that left behind. So a
+    // plain wall, one that blocks sight or is a see-through barrier, is no door, no token and no waiting token, leads nowhere and is no
+    // picture and no text box, is sent with no name, no group and nothing of a door or of a way through (an empty key of one too), typed wall, its hex colour in
+    // lower case. A player's app reads none of those keys on a wall (the pill that names what a resize matched says its kind). A door, a
+    // wall that leads somewhere, a picture, a text box and a token keep theirs: a copy is none of those
+    if ((w.blocksSight || w.barrier === true) && w.sightType !== 'door' && !w.isChar && !w.waiting && !w.targetMapId && !w.nodeId && w.type !== 'image' && w.type !== 'text') {
+        delete w.name; delete w.groupId; delete w.doorOpen; delete w.doorLock; delete w.targetMapId; delete w.nodeId; delete w.targetRoomId; delete w.trap; delete w.portalIcon; delete w.portalLock;   // targetMapId and nodeId read as false here: null, false, an empty text or a 0 (Properties writes null on an unlink, a file with one schema for every piece an empty text)
+        w.sightType = 'wall';
+        if (typeof w.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(w.color)) w.color = w.color.toLowerCase();
+    }
     // The keys of a wall, a door or a see-through barrier in ONE order on its way out (the review of fold B5). The connection packs a piece key
     // by key in the piece's own order, and that order tells how a piece was made: a secret door's copy stood beside walls whose keys came in
     // another order, a pattern set before or after Blocks sight. Sorted, a copy and a wall made the same way differ by nothing but id and place.

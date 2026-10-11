@@ -543,11 +543,11 @@ function clearColor(c) {
 }
 // What the players are shown of a secret door: its colour and its pattern ('' for none). A door that is see-through itself (a clear box
 // over a picture map, with no pattern and no picture of its own) stays clear until the GM names a colour or a pattern for it: there is no
-// look of its own to give away, and a brick box over the picture would. A door drawn as a line wears a colour alone (a stroke the board
-// draws as a filled shape, the Fill tip and the flat nib, wears a pattern as the board lets it)
+// look of its own to give away, and a brick box over the picture would. A door drawn as a line wears a colour alone, whatever nib drew
+// it: Properties offers no pattern for a line, so no wall drawn as a line wears one. A filled region (the Fill tip) wears a pattern as a box does
 function secretLook(w) {
     if (!isObj(w)) return { color: SECRET_WALL.color, texture: SECRET_WALL.texture, clear: false };
-    var col = cleanSeenColor(w.seenColor), tex = cleanSeenTexture(w.seenTexture), line = w.type === 'path' && w.tip !== 'fill' && w.tip !== 'flat';
+    var col = cleanSeenColor(w.seenColor), tex = cleanSeenTexture(w.seenTexture), line = w.type === 'path' && w.tip !== 'fill';
     var clear = clearColor(w.color) && !cleanTexture(w.texture) && !cleanTexSrc(w.texSrc) && !col && !(tex && !line);
     return { color: col || (clear ? 'transparent' : SECRET_WALL.color), texture: line ? '' : tex !== null ? tex : (clear ? '' : SECRET_WALL.texture), clear: clear };
 }
@@ -557,7 +557,7 @@ function secretLook(w) {
 // its material whatever colour and pattern were picked, the city generator by its own, a wall made by hand has none), so no rule could give
 // the copy the name the walls beside it carry. The host sends a plain wall with no name at all (net.js wireWbItem), so a copy and a wall
 // read alike there where they were made alike: the copy keeps every other key of the door's own (its layer, its height, its cover), so a
-// door laid by one tool among walls made by another still differs by what the tools write. So nothing the GM changes on the door's own name, look, lock or group changes the copy. Its keys stand in the door's
+// door laid by one tool among walls made by another still differs by what the tools write. So nothing the GM changes on the door's own name, lock or group changes the copy, nor on its look while the door is not see-through (a see-through door's copy stays clear only while the door itself draws nothing). Its keys stand in the door's
 // own order, the pattern in the name's place (last, for a door with no name): so a door Build laid reads key for key as the wall Build
 // lays, less its name. On the wire the order says nothing either way: the host writes the keys of every wall, door and barrier in one
 // order on its way out. Any other piece: the piece itself. The host's one rule for a piece on its way out and the map's picture

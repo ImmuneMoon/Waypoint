@@ -1989,7 +1989,7 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
   function secretFieldOk(w) { var n = window.wpNet, FC = window.wpFogCore; return !(window.wpStream || (n && (n.foreign || (n.active && n.role === 'client')))) && !!w && typeof w === 'object' && !w.hidden && !!FC && typeof FC.secretOk === 'function' && FC.secretOk(w); }
   function secretFieldHtml(w) {
       if (!secretFieldOk(w)) return '';
-      var FC = window.wpFogCore, on = w.secret === true, look = on && typeof FC.secretLook === 'function' ? FC.secretLook(w) : null, names = Array.isArray(FC.TEXTURES) ? FC.TEXTURES : [], line = w.type === 'path' && w.tip !== 'fill' && w.tip !== 'flat', named = w.seenColor !== undefined || w.seenTexture !== undefined;
+      var FC = window.wpFogCore, on = w.secret === true, look = on && typeof FC.secretLook === 'function' ? FC.secretLook(w) : null, names = Array.isArray(FC.TEXTURES) ? FC.TEXTURES : [], line = w.type === 'path' && w.tip !== 'fill', named = w.seenColor !== undefined || w.seenTexture !== undefined;
       var html = '<div class="field check-row"><input type="checkbox" id="wbSecret" ' + (on ? 'checked' : '') + '> <label for="wbSecret">Secret</label></div>'
           + '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">Your players see wall here until it is found. Reveal it from its right-click menu, or open it.</div>';
       if (!look) return html;

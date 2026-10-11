@@ -50,6 +50,11 @@
    shape but the wall the players are to hold); the write oracle takes no change of it and none of the three keys from any player, on a new
    drawing, a redrawn one and their own token alike; the well-formed map copy sends it back as an open door with no tick; a door request naming
    it is a message kind of its own; and the player's app is seen to keep none of the three keys a host names, on any piece, after every message.
+   A plain wall leaves the host in ONE shape (the third review of fold B5), the shape a secret door's copy is made in. So every send is also read
+   for a plain wall that is not typed wall, that carries a group, a key of a door or of a way through, or a hex colour with an upper-case letter.
+   The host world holds a wall for each: one with no sightType key, one typed with a word the app does not know, one whose colour a file wrote
+   in upper case, one that stands in the secret door's own group and wears the look named for the door, and one that keeps what a door and a
+   way through left behind.
    The suite is diagnostic: it exits 1 while it has findings and is not in the CI matrix.
    SKIP_KNOWN below marks a finding the owner has accepted (an exact prefix of its FAIL or FINDING line, with the reason): such a line is
    printed as accepted and counted apart, and the run still exits 1 for any red line not in it.
@@ -283,10 +288,11 @@ const K1 = 'a'.repeat(32), K2 = 'b'.repeat(32), K3 = 'c'.repeat(32);   // K3: a 
    players are to hold in its place (fogcore secretSeen). secretLeak reads ONE send for what would give the door away: its own name, colour or
    picture, one of the GM's three keys under any piece or message, or the door in any shape but that wall. A copy must read as the walls
    beside it do. So it also reads a send for a wall, a door or a barrier whose keys stand in an order of their own, and for a plain wall that
-   carries a name. It is asked of every send a probe causes (fireHost) and of every send of the run */
+   carries a name or stands in any shape but the one a copy is made in (wallOdd, below). It is asked of every send a probe causes (fireHost)
+   and of every send of the run */
 const SECRET_KEYS = ['secret', 'seenColor', 'seenTexture'];
-const SD = { id: 'door_secret', name: 'Vault of Embers', color: '#a1b2c3', seen: '#445566', pic: '/saves/images/vault-door.png' };
-const SECRET_SEEN = { id: SD.id, type: 'rect', blocksSight: true, sightType: 'wall', color: SD.seen, texture: 'bricks', x: 300, y: 600, w: 50, h: 50, layer: 'back-mid' };   // the copy has NO name, whatever the door is called and whatever look is named for it (fogcore secretSeen)
+const SD = { id: 'door_secret', name: 'Vault of Embers', color: '#a1b2c3', seen: '#445566', pic: '/saves/images/vault-door.png', group: 'g_room' };   // (group: the group the door stands in on the host, with the wall wall_group. The copy has none)
+const SECRET_SEEN = { id: SD.id, type: 'rect', blocksSight: true, sightType: 'wall', color: SD.seen, texture: 'bricks', x: 300, y: 600, w: 50, h: 50, layer: 'back-mid' };   // the copy has NO name, whatever the door is called and whatever look is named for it, and NO group, whatever group the door stands in (fogcore secretSeen)
 const sortedPairs = o => JSON.stringify(Object.keys(o).sort().map(k => [k, o[k]]));
 const seenAsWall = w => { try { return !!w && typeof w === 'object' && sortedPairs(w) === sortedPairs(SECRET_SEEN); } catch (e) { return false; } };   // key for key the wall, whatever the order: one key more (doorOpen: false, a name) is a door given away
 const hasOff = w => { try { return Object.keys(w).some(k => w[k] === false || w[k] === null); } catch (e) { return false; } };   // the trace of a control once used on a piece: Is Character unticked, a lock taken off, a link to a room taken away
@@ -316,6 +322,60 @@ const hostName = id => (hasOwn(NAMED.walls, id) ? NAMED.walls[id] : NAMED.kept[i
 const wireName = id => (hasOwn(NAMED.walls, id) ? null : NAMED.kept[id]);   // what a player is to hold: no name key at all for a plain wall, its own name for the others
 const namesOff = (get, want) => NAMED_IDS.filter(id => get(id) !== want(id)).map(id => [id, get(id)]);   // the pieces whose name is not the one wanted, as [id, what was found]: first in a detail
 const NAMED_FLOOR = 100;   // each named piece is seen in at least this many sends of the run before its names are judged
+/* A plain wall leaves the host in ONE shape (the third review of fold B5; net.js wireWbItem). A secret door's copy is made in that shape (fogcore
+   secretSeen): typed wall, with no group, nothing of a door and nothing of a way through, its hex colour in lower case. So whatever a wall
+   carries that a copy cannot follow marks the copy as the one wall without it. A wall from a campaign file has no sightType key, where every
+   wall the app makes has one, or a word of its maker's own under it. A file may write a hex colour in upper case. The walls of a room grouped
+   with its door carry the room's group. A wall that was once a door or a way through may keep what that left behind. wallOdd reads ONE plain
+   wall, by this suite's own reading of which piece that is (plainWall), and says the first thing it holds against the one shape, or '' for
+   none. The source writes the type whatever the wall carried, so wallOdd wants it to be exactly wall, never only present.
+   SHAPED lists the walls of the open field that carry such a thing ON THE HOST, so that no clause of wallOdd is empty. For each, host says
+   what the GM's own piece holds and keeps, wire what a player is to hold in its place, and keys the keys a detail prints.
+   wall_schema is a wall as a file with one schema for every piece writes it: every key of a door and of a way through is there and empty
+   ('' or 0), so every delete of the source's block has a wall behind it whose key reads as false.
+   wall_group and wall_schema are also the copy's twins (TWIN_IDS): each wears the look named for the secret door. A copy and a wall made the same way differ by id and place
+   alone (twinOff), and asMade reads a piece less those three, in its own order of keys. What these say of a failure is said in short pieces:
+   the suite prints a text of more than 60 characters in a detail as its length */
+const WALL_NEVER = ['groupId', 'doorOpen', 'doorLock', 'targetMapId', 'nodeId', 'targetRoomId', 'trap', 'portalIcon', 'portalLock'];   // (targetMapId and nodeId: a plain wall leads nowhere, so either can stand on one only as an empty text or a 0, as a file with one schema for every piece writes them. It leaves with neither key)
+const WALL_STALE = ['doorOpen', 'doorLock', 'targetRoomId', 'trap', 'portalIcon', 'portalLock'];   // what a door (doorOpen, doorLock) and a way through (targetRoomId, trap, portalIcon, portalLock) leave behind
+const emptyKey = (w, k) => hasOwn(w, k) && (w[k] === '' || w[k] === 0);   // a key that is there and reads as false, and is neither false nor null (those two leave by another rule)
+const TWIN_IDS = ['wall_group', 'wall_schema'];   // the walls made in the look named for the secret door: each and the door's copy differ by id and place alone
+const capsHex = v => typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v) && /[A-F]/.test(v);   // a six-digit hex colour with an upper-case letter
+function wallOdd(w) {
+    try {
+        if (!hasOwn(w, 'sightType')) return 'has no type';
+        if (w.sightType !== 'wall') return 'is not typed wall';
+        const k = WALL_NEVER.find(x => hasOwn(w, x)); if (k) return 'carries the key ' + k;
+        if (capsHex(w.color)) return 'writes a hex colour in upper case';
+    } catch (e) { return 'cannot be read'; }
+    return '';
+}
+const SHAPED = {
+    wall1: { keys: ['sightType'], host: w => w.type === 'rect' && w.blocksSight === true && !hasOwn(w, 'sightType'), wire: w => w.sightType === 'wall' },
+    wall_typed: { keys: ['sightType'], host: w => w.type === 'rect' && w.blocksSight === true && w.sightType === 'window', wire: w => w.sightType === 'wall' },
+    wall_caps: { keys: ['color'], host: w => w.color === '#8C7B5A' && capsHex(w.color), wire: w => w.color === '#8c7b5a' },
+    wall_group: { keys: ['groupId'], host: (w, door) => w.groupId === SD.group && !!door && door.groupId === SD.group && w.color === SD.seen && w.texture === 'bricks', wire: w => !hasOwn(w, 'groupId') },
+    wall_stale: { keys: WALL_STALE, host: w => WALL_STALE.every(k => hasOwn(w, k)) && w.doorOpen === true && w.trap === true, wire: w => WALL_STALE.every(k => !hasOwn(w, k)) },
+    wall_schema: { keys: WALL_NEVER, host: w => WALL_NEVER.every(k => emptyKey(w, k)) && w.color === SD.seen && w.texture === 'bricks', wire: w => WALL_NEVER.every(k => !hasOwn(w, k)) }
+};
+const SHAPED_IDS = Object.keys(SHAPED);
+const inShape = (id, w) => !!w && typeof w === 'object' && plainWall(w) && wallOdd(w) === '' && SHAPED[id].wire(w);   // the piece a player is to hold for that wall
+const shapeFound = (id, w) => {   // what a piece holds under the keys judged, one short text a key it holds: first in a detail
+    if (!w) return ['gone'];
+    const ks = SHAPED[id].keys, held = ks.filter(k => hasOwn(w, k)).map(k => k + ' ' + JSON.stringify(w[k]));
+    return (held.length ? held : [ks.length === 1 ? 'no ' + ks[0] : 'none of its ' + ks.length + ' keys']).concat(plainWall(w) ? [] : ['no plain wall']);
+};
+const shapesOff = get => SHAPED_IDS.filter(id => !inShape(id, get(id))).map(id => [id, shapeFound(id, get(id))]);   // the walls a player does not hold in the one shape, as [id, what was found]
+const hostShapesOff = (get, door) => SHAPED_IDS.filter(id => { const w = get(id); return !w || !plainWall(w) || !SHAPED[id].host(w, door); }).map(id => [id, shapeFound(id, get(id))]);   // the walls that no longer carry their thing on the host
+const oddWalls = m => piecesIn(m).filter(plainWall).map(w => [w.id, wallOdd(w)]).filter(p => p[1]);   // every plain wall a message carries in another shape, as [id, what it holds against the shape]
+const asMade = w => JSON.stringify(Object.keys(w).filter(k => k !== 'id' && k !== 'x' && k !== 'y').map(k => [k, w[k]]));
+function twinOff(door, wall) {   // null where the door's copy and the wall differ by id and place alone, else how they differ
+    if (!door || !wall) return { missing: [!door ? 'the copy' : '', !wall ? 'the wall' : ''].filter(Boolean) };
+    if (asMade(door) === asMade(wall)) return null;
+    const only = (a, b) => Object.keys(a).filter(k => !hasOwn(b, k)), differ = Object.keys(door).filter(k => k !== 'id' && k !== 'x' && k !== 'y' && hasOwn(wall, k) && JSON.stringify(door[k]) !== JSON.stringify(wall[k]));
+    if (!only(door, wall).length && !only(wall, door).length && !differ.length) return { order: [Object.keys(door), Object.keys(wall)] };   // the same keys and values, in another order
+    return { onlyCopy: only(door, wall), onlyWall: only(wall, door), differ: differ.map(k => [k, door[k], wall[k]]) };
+}
 const bareOfSecret = w => !!w && typeof w === 'object' && SECRET_KEYS.every(k => !Object.prototype.hasOwnProperty.call(w, k));
 function piecesIn(m) {   // every board piece a message carries: a whole map's, a delta's, a catch-up's, a snapshot's
     const out = [], take = a => { if (Array.isArray(a)) a.forEach(w => { if (w && typeof w === 'object') out.push(w); }); };
@@ -340,6 +400,7 @@ function secretLeak(m) {   // '' for a send that gives nothing of the secret doo
     if (piecesIn(m).some(w => (w.blocksSight || w.barrier === true) && !keysInOrder(w))) return 'a wall, a door or a barrier whose keys stand in an order of their own';
     if (piecesIn(m).some(w => plainWall(w) && hasOwn(w, 'name'))) return 'a plain wall that carries a name';
     if (piecesIn(m).some(w => (w.blocksSight || w.barrier === true) && hasOff(w))) return 'a wall, a door or a barrier that carries a key whose value is false or null';
+    { const odd = piecesIn(m).filter(plainWall).map(wallOdd).find(Boolean); if (odd) return 'a plain wall that ' + odd; }   // the third review of fold B5: a plain wall in any shape but the one a copy is made in
     return '';
 }
 function mkCampaign(SC, F) {
@@ -370,7 +431,7 @@ function mkCampaign(SC, F) {
                 { id: 'trap1', type: 'rect', hidden: true, trap: true, targetMapId: 'm_fog', x: 200, y: 100, w: 50, h: 50, layer: 'bottom' },
                 { id: 'door1', type: 'rect', blocksSight: true, sightType: 'door', doorOpen: false, name: 'Cellar door', x: 150, y: 150, w: 50, h: 50 },   // a named door: a door keeps its name on the wire
                 { id: 'door_locked', type: 'rect', blocksSight: true, sightType: 'door', doorOpen: false, doorLock: true, x: 50, y: 150, w: 50, h: 50 },
-                { id: 'wall1', type: 'rect', blocksSight: true, name: 'Wall', x: 600, y: 0, w: 10, h: 400 },   // a plain wall that has a name on the host, as a wall Build lays has: it leaves the host with none (the second review of fold B5)
+                { id: 'wall1', type: 'rect', blocksSight: true, name: 'Wall', x: 600, y: 0, w: 10, h: 400 },   // a plain wall that has a name on the host, as a wall Build lays has: it leaves the host with none (the second review of fold B5). It has NO sightType key, as a wall from a campaign file has none: it leaves typed wall (the third review)
                 { id: 'gate1', type: 'rect', barrier: true, sightType: 'door', doorOpen: false, name: 'Gate', x: 150, y: 50, w: 50, h: 50 },   // see-through barriers (1.5.1): a barrier's door beside tok_p1, and a plain barrier — no message but a door request may change either
                 { id: 'bars1', type: 'rect', barrier: true, name: 'Force field', x: 650, y: 0, w: 10, h: 400 },   // (a named plain barrier leaves with no name, as the named wall does)
                 { id: 'arch1', type: 'rect', blocksSight: true, targetMapId: 'm_fog', name: 'Archway', x: 800, y: 600, w: 50, h: 50, layer: 'bottom' },   // a wall that leads somewhere keeps its name on the wire, as a door does: only a plain wall leaves with none
@@ -383,7 +444,13 @@ function mkCampaign(SC, F) {
                 { id: 'rail_word', type: 'rect', barrier: 'yes', name: 'Railing', x: 900, y: 560, w: 60, h: 10 },   // a barrier flag that is a word: a barrier counts only as true
                 tok('tok_statue', { charName: 'Statue', name: 'Statue', blocksSight: true, x: 900, y: 620 }),   // a token that blocks sight
                 { id: 'wait_p3', type: 'circle', waiting: 1, ownerId: 'u_p3', name: 'Cato', barrier: true, x: 900, y: 700, w: 50, h: 50, layer: 'middle' },   // a waiting token that is a barrier
-                { id: 'door_secret', type: 'rect', blocksSight: true, sightType: 'door', doorOpen: false, secret: true, color: SD.color, name: SD.name, seenColor: SD.seen, texture: 'planks', texSrc: SD.pic, texTile: 2, x: 300, y: 600, w: 50, h: 50, layer: 'back-mid' },   // fold B5: a secret door (the map builder): the GM's own, clear of every other piece and of the probes' paths. The players hold a wall there in the colour named for it; its own name, colour, pattern and picture never leave the host, and no message of a player's opens it, finds it or changes it
+                // the third review of fold B5: a plain wall leaves in ONE shape. Each of these five carries, on the host, one more thing a secret door's copy cannot follow (wall1 above carries the first: no sightType key). SHAPED says what each holds here and what a player is to hold
+                { id: 'wall_typed', type: 'rect', blocksSight: true, sightType: 'window', color: '#4a4753', x: 1000, y: 220, w: 10, h: 60 },   // a wall typed with a word the app does not know, as a file may write one: no door, so a plain wall, and it leaves typed wall whatever it carried
+                { id: 'wall_caps', type: 'rect', blocksSight: true, sightType: 'wall', color: '#8C7B5A', x: 1000, y: 0, w: 10, h: 200 },   // a wall whose hex colour a file wrote in upper case: it leaves in #8c7b5a
+                { id: 'wall_group', type: 'rect', blocksSight: true, sightType: 'wall', groupId: SD.group, color: SD.seen, texture: 'bricks', x: 1000, y: 300, w: 50, h: 50, layer: 'back-mid' },   // a wall of the room the secret door was grouped with, in the look named for the door: it leaves with no group, and then it and the door's copy differ by id and place alone
+                { id: 'wall_stale', type: 'rect', blocksSight: true, sightType: 'wall', doorOpen: true, doorLock: true, targetRoomId: 'n_cellar', trap: true, portalIcon: 'stairs', portalLock: true, color: '#4a4753', x: 1000, y: 400, w: 10, h: 150 },   // a wall that was once a door and a way through and keeps what those left behind: it leaves with none of the six keys. It leads nowhere (no targetMapId, no nodeId), so it is no portal and no trap on the host
+                { id: 'wall_schema', type: 'rect', blocksSight: true, sightType: 'wall', groupId: '', doorOpen: 0, doorLock: 0, targetMapId: '', nodeId: '', targetRoomId: '', trap: 0, portalIcon: '', portalLock: 0, color: SD.seen, texture: 'bricks', x: 1000, y: 600, w: 50, h: 50, layer: 'back-mid' },   // a wall as a file with one schema for every piece writes it, in the look named for the secret door: every key of a door and of a way through is there and empty. It leaves with none of the nine, and then it and the door's copy differ by id and place alone
+                { id: 'door_secret', type: 'rect', blocksSight: true, sightType: 'door', doorOpen: false, secret: true, color: SD.color, name: SD.name, groupId: SD.group, seenColor: SD.seen, texture: 'planks', texSrc: SD.pic, texTile: 2, x: 300, y: 600, w: 50, h: 50, layer: 'back-mid' },   // fold B5: a secret door (the map builder): the GM's own, clear of every other piece and of the probes' paths. The players hold a wall there in the colour named for it; its own name, colour, pattern and picture never leave the host, and no message of a player's opens it, finds it or changes it
                 { id: 'stroke_wall', type: 'path', byPlayer: true, ownerId: 'u_p1', blocksSight: true, sightType: 'wall', pts: [[0, 0], [30, 0]], color: '#ffffff', strokeWidth: 3, x: 700, y: 40, w: 30, h: 1, baseW: 30, baseH: 1, z: 35 },   // 49 (c) (the owner, 2026-10-06: "Lock it for its player"): a line of u_p1's own that the GM made a wall, and one made a see-through barrier — no message of a player's may erase, redraw or move either
                 { id: 'stroke_bar', type: 'path', byPlayer: true, ownerId: 'u_p1', barrier: true, pts: [[0, 0], [0, 30]], color: '#ffffff', strokeWidth: 3, x: 720, y: 60, w: 1, h: 30, baseW: 1, baseH: 30, z: 35 },
                 { id: 'text1', type: 'text', text: '<b>Welcome</b>', x: 20, y: 20, w: 100, h: 30 },
@@ -1086,6 +1153,11 @@ function mutations(tpl) {
             wallIds.length === 4 && keptIds.length === 11 && Object.keys(ONE_THING).length === 9 && Object.keys(ONE_THING).every(id => hasOwn(NAMED.kept, id)) && notAsTold.length === 0 && hostOff.length === 0
             && snapOff.every(l => l.length === 0) && snapOdd.every(l => l.length === 0),
             { notAsTold, hostOff, p1Off: snapOff[0], p2Off: snapOff[1], notPlainInSnapshot: snapOdd, counts: [wallIds.length, keptIds.length, Object.keys(ONE_THING).length] });
+        // 1c. a plain wall leaves in ONE shape (the third review of fold B5): the six walls of the world that carry, on the host, a thing a copy cannot follow
+        const shapeHost = hostShapesOff(tokH, doorH()), shapeSnap = [snapP1, snapP2].map(snap => shapesOff(id => pieceOf(snap, id))), twinSnap = [snapP1, snapP2].map(snap => TWIN_IDS.map(id => twinOff(sdOf(snap), pieceOf(snap, id)))), oddSnap = [snapP1, snapP2].map(oddWalls);
+        check('host (a plain wall leaves in one shape): the world holds six plain walls that each carry, on the host, a thing a secret door\'s copy cannot follow. One has no sightType key, as a wall from a campaign file has none. One is typed window, a word the app does not know. One writes its colour #8C7B5A. One stands in the secret door\'s own group and wears the look named for the door. One keeps doorOpen, doorLock, targetRoomId, trap, portalIcon and portalLock. One is a wall as a file with one schema for every piece writes it, in the look named for the door: groupId, doorOpen, doorLock, targetMapId, nodeId, targetRoomId, trap, portalIcon and portalLock are each there and empty. The join snapshot gives each player the first two typed wall, the third in #8c7b5a, the fourth with no group, the fifth with none of the six keys and the sixth with none of the nine, targetMapId and nodeId among them. In the snapshot the wall of the door\'s group and the one-schema wall each differ from the door\'s copy by id and place alone, and no plain wall stands in another shape. The host\'s own pieces keep what they carry',
+            SHAPED_IDS.length === 6 && shapeHost.length === 0 && doorH().groupId === SD.group && shapeSnap.every(l => l.length === 0) && twinSnap.every(l => l.length === TWIN_IDS.length && l.every(t => t === null)) && oddSnap.every(l => l.length === 0),
+            { p1Off: shapeSnap[0], p2Off: shapeSnap[1], twin: twinSnap, hostOff: shapeHost, doorGroup: doorH().groupId, oddWalls: oddSnap.map(l => l.slice(0, 4)) });
 
         // 2. a copy asked for whole: as the GM left the door, and with the door open, locked for players and in a group on the GM's own screen
         await level(); const n0 = sentLog.length, need = { type: 'needItem', campId: 'c1', itemId: 'm_open' };
@@ -1142,8 +1214,8 @@ function mutations(tpl) {
         //    before the door is found, when its own look is the table's to see)
         {
             const carried = sentLog.filter(s => !!doorIn(s.m)), leaks = [];
-            for (const s of sentLog) { const why = secretLeak(s.m); if (why) { leaks.push(s.to + ':' + s.m.type + ' holds ' + why); if (leaks.length >= 20) break; } }
-            check('host (a secret door): across the run, nothing sent to anyone gives the secret door away — the ' + carried.length + ' sends that carry it each hold it as the wall the players are to hold, and no send holds its own name, colour or picture, nor one of the GM\'s three keys. No wall, door or barrier in any send has its keys in an order of its own or a key whose value is false or null, and no plain wall in any send carries a name', carried.length >= 100 && carried.every(s => seenAsWall(doorIn(s.m))) && leaks.length === 0, { carried: carried.length, leaks: leaks.slice(0, 3) });
+            for (const s of sentLog) { const why = secretLeak(s.m); if (why) { leaks.push([s.to + ':' + s.m.type, why]); if (leaks.length >= 20) break; } }
+            check('host (a secret door): across the run, nothing sent to anyone gives the secret door away — the ' + carried.length + ' sends that carry it each hold it as the wall the players are to hold, and no send holds its own name, colour or picture, nor one of the GM\'s three keys. No wall, door or barrier in any send has its keys in an order of its own or a key whose value is false or null, and no plain wall in any send carries a name, a group or a key of a door or of a way through, is typed anything but wall, or writes a hex colour with an upper-case letter', carried.length >= 100 && carried.every(s => seenAsWall(doorIn(s.m))) && leaks.length === 0, { carried: carried.length, leaks: leaks.slice(0, 3) });
             {   // the clause above is not empty: two walls of the world carry such keys on the host, and they are sent often
                 const offIds = ['wall_one', 'wall_line'], offHost = offIds.map(id => hasOff(tokH(id))), offSent = offIds.map(id => sentLog.reduce((n, s) => n + piecesIn(s.m).filter(w => w.id === id).length, 0)), offLeft = offIds.map(id => sentLog.reduce((n, s) => n + piecesIn(s.m).filter(w => w.id === id && hasOff(w)).length, 0));
                 check('host (a wall\'s leftover keys): a wall that carries isChar false and locked false on the host, and one that carries nodeId null, the traces of controls once used, reach the players often and never with such a key, while the host\'s own pieces keep them', offHost.every(Boolean) && offSent.every(n => n >= 20) && offLeft.every(n => n === 0), { offHost, offSent, offLeft });
@@ -1159,6 +1231,17 @@ function mutations(tpl) {
                 wallIds.length === 4 && keptIds.length === 11 && wallsSeen.every(n => n >= NAMED_FLOOR) && wallsNamed.every(n => n === 0) && wallsOdd.every(n => n === 0) && keptSeen.every(n => n >= NAMED_FLOOR) && keptWrong.every(n => n === 0)
                 && runOff.length === 0 && hostStill.length === 0,
                 { runOff, hostOff: hostStill, floor: NAMED_FLOOR, wallsSeen, keptSeen });
+            {   // the third review of fold B5: the clauses that hold a plain wall to its one shape are not empty either. The world holds a wall for each thing a copy cannot follow, and each is sent often
+                const shSeen = SHAPED_IDS.map(id => count(id, () => true)), shWrong = SHAPED_IDS.map(id => count(id, w => !inShape(id, w))), shOff = [];   // what was wrong, wall by wall: first in the detail
+                SHAPED_IDS.forEach((id, i) => {
+                    if (shSeen[i] < NAMED_FLOOR) shOff.push(id + ' sent ' + shSeen[i] + ' times');
+                    if (shWrong[i]) { const first = sentLog.map(s => piecesIn(s.m).find(w => w.id === id && !inShape(id, w))).find(Boolean); shOff.push([id, 'sent in another shape', shWrong[i], 'times, the first with'].concat(shapeFound(id, first))); }
+                });
+                const both = sentLog.filter(s => !!doorIn(s.m) && TWIN_IDS.every(id => piecesIn(s.m).some(w => w.id === id))), twins = [].concat.apply([], both.map(s => TWIN_IDS.map(id => twinOff(doorIn(s.m), piecesIn(s.m).find(w => w.id === id))))).filter(Boolean), shHost = hostShapesOff(tokH, doorH());
+                check('host (a plain wall leaves in one shape): across the run, the wall with no sightType key, the wall typed window, the wall written in #8C7B5A, the wall of the secret door\'s group, the wall that keeps what a door and a way through left behind and the wall a one-schema file writes with every such key empty were sent ' + shSeen.join(', ') + ' times. Each time the first two were typed wall, the third was in #8c7b5a, the fourth had no group, the fifth had none of doorOpen, doorLock, targetRoomId, trap, portalIcon and portalLock, and the sixth had none of those, no groupId, no targetMapId and no nodeId. In the ' + both.length + ' sends that carry the door\'s copy and both, the wall of the door\'s group and the one-schema wall each differ from the door\'s copy by id and place alone. The host\'s own pieces keep what they carry, and the door still stands in that group',
+                    SHAPED_IDS.length === 6 && shSeen.every(n => n >= NAMED_FLOOR) && shWrong.every(n => n === 0) && shOff.length === 0 && both.length >= NAMED_FLOOR && twins.length === 0 && shHost.length === 0 && doorH().groupId === SD.group,
+                    { shOff, twinsOff: twins.length, twin: twins[0] || null, hostOff: shHost, doorGroup: doorH().groupId, floor: NAMED_FLOOR, shSeen, both: both.length });
+            }
         }
 
         // 6. the door's own picture fill: its path was sent to nobody, so the asset gate serves it to nobody
@@ -1180,6 +1263,8 @@ function mutations(tpl) {
         const bareWall = Object.assign({}, SECRET_SEEN, { color: '#3f3b47' }); delete bareWall.texture;   // the fallback: the Wall material's colour and no pattern, and no name, as SECRET_SEEN has none
         const nameNC = id => nameOf(wholeNC[0] ? piecesIn(wholeNC[0]).find(w => w.id === id) || null : null);
         check('host (a secret door): with no fog core at hand the secret door still leaves as a wall — the Wall material\'s colour, no door key, no lock, no group, no name, no pattern or picture and none of the three keys, nothing of its own look anywhere in the copy — and a request naming it is still answered with nothing, where the lock of the door beside it is still said. The rule for a name needs no core: the four named plain walls still leave with none, and the eleven pieces that keep a name still carry theirs', threwNC === '' && wholeNC.length === 1 && !!doorNC && sortedPairs(doorNC) === sortedPairs(bareWall) && !hasOwn(doorNC, 'name') && wallIds.every(id => nameNC(id) === null) && keptIds.every(id => nameNC(id) === NAMED.kept[id]) && namesOff(nameNC, wireName).length === 0 && !/Vault of Embers|#a1b2c3|vault-door|"(secret|seenColor|seenTexture)":/i.test(JSON.stringify(wholeNC[0])) && eq(deniesNC, ['locked']) && window.wpFogCore === FC && doorH().secret === true && doorH().doorLock === true, { namesOff: namesOff(nameNC, wireName), threwNC, deniesNC, doorNC });
+        const shapeNC = shapesOff(id => (wholeNC[0] ? piecesIn(wholeNC[0]).find(w => w.id === id) || null : null)), oddNC = wholeNC[0] ? oddWalls(wholeNC[0]) : [['no copy', 'was not sent']];
+        check('host (a plain wall leaves in one shape): the rule for the shape needs no fog core. In the copy sent with none at hand the six walls leave as they do with it. The first two are typed wall, the third is in #8c7b5a, the fourth has no group, the fifth has none of the six keys and the sixth none of the nine, targetMapId and nodeId among them. No plain wall of that copy stands in another shape, and the secret door\'s fallback wall is one of them', wholeNC.length === 1 && shapeNC.length === 0 && oddNC.length === 0 && !!doorNC && plainWall(doorNC) && wallOdd(doorNC) === '', { shapeNC, oddNC: oddNC.slice(0, 4), doorNC });
 
         // 7. the GM's own edits. What only the GM sees of the door sends the table nothing; another look named for the wall reaches the table as
         //    that wall; once the door is found (fogcore secretReveal: what the menu's row and opening it do) it is a door for everyone
@@ -1567,6 +1652,8 @@ function mutations(tpl) {
         check('client (a secret door): the real join snapshot leaves the player\'s app holding the GM\'s secret door as the wall the host sent — a wall\'s type, the look named for it, no door key and none of the three keys', seenAsWall(pc('m_open', SD.id)), pc('m_open', SD.id));
         const nameC = id => { const w = pc('m_open', id); return !w ? 'gone' : hasOwn(w, 'name') ? w.name : null; };
         check('client (a plain wall has no name): the real join snapshot leaves the player\'s app holding the world\'s four named plain walls with no name (the wall, the barrier, the wall whose flag is the number 1 and the wall drawn as a line), and the eleven named pieces that keep a name under their own', Object.keys(NAMED.walls).length === 4 && Object.keys(NAMED.kept).length === 11 && Object.keys(NAMED.walls).every(id => nameC(id) === null) && Object.keys(NAMED.kept).every(id => nameC(id) === NAMED.kept[id]) && namesOff(nameC, wireName).length === 0, { namesOff: namesOff(nameC, wireName), held: NAMED_IDS.length });
+        const shapeC = shapesOff(id => pc('m_open', id)), twinC = TWIN_IDS.map(id => twinOff(pc('m_open', SD.id), pc('m_open', id))).find(Boolean) || null;
+        check('client (a plain wall leaves in one shape): the real join snapshot leaves the player\'s app holding the world\'s six walls as the host sent them. The wall with no sightType key on the host and the wall typed window there are typed wall, the wall written in #8C7B5A is in #8c7b5a, the wall of the secret door\'s group has no group, the wall that kept what a door and a way through left behind has none of the six keys, and the wall a one-schema file wrote with every such key empty has none of the nine, targetMapId and nodeId among them. On the player\'s app the wall of the door\'s group and the one-schema wall each differ from the secret door\'s copy by id and place alone', SHAPED_IDS.length === 6 && shapeC.length === 0 && twinC === null, { shapeC, twinC });
         const evil = () => [
             { id: 'evil_sd1', type: 'rect', blocksSight: true, sightType: 'door', doorOpen: false, secret: true, seenColor: '#112233', seenTexture: 'grass', color: '#6b4a2a', name: 'Door', x: 0, y: 0, w: 50, h: 50 },   // a door ticked secret, as a GM's own save holds one
             { id: 'evil_sd2', type: 'rect', secret: 'yes', seenColor: CANARY, seenTexture: { a: 1 }, x: 60, y: 0, w: 50, h: 50 },   // junk under the three keys, on a plain shape

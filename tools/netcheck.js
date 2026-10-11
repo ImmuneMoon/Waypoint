@@ -11950,7 +11950,7 @@ pendingChecks.push((async () => {
             if (!rnd(5)) p.targetMapId = 'mB'; if (!rnd(7)) p.portalLock = true; if (!rnd(9)) p.nodeId = 'r1';
             return p;
         };
-        const NAMES8 = ['flagstones', 'bricks', 'cobbles', 'planks', 'stone', 'hatching', 'ripples', 'grass'];
+        const NAMES8 = ['flagstones', 'bricks', 'cobbles', 'planks', 'stone', 'hatching', 'ripples', 'grass', 'shingles', 'pantiles', 'slates', 'thatch'];   // the app's own names: the first eight and the four roof patterns of fold B6
         const isSecret = p => p.secret === true && (p.blocksSight === true || p.barrier === true) && p.sightType === 'door' && ['rect', 'hexagon', 'circle', 'diamond', 'path'].indexOf(p.type) >= 0 && !p.isChar && !p.waiting && !p.gmNoteFor;
         const lookOf = p => {
             const col = typeof p.seenColor === 'string' && /^#[0-9a-fA-F]{6}$/.test(p.seenColor) ? p.seenColor.toLowerCase() : null, line = p.type === 'path' && p.tip !== 'fill' && p.tip !== 'flat', named = NAMES8.indexOf(p.seenTexture) >= 0;

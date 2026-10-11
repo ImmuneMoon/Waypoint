@@ -1207,7 +1207,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 Js([miss(rSd, wantSec), miss(mSd, wantSec), [rSd, mSd].map(m => [keptAsIs(m), stillOpen(m), judged(m)]), Js(wbOf(rSd)) === Js(wbOf(mSd))]));
 
             // 2. the look named for it
-            const NAMES = ['flagstones', 'bricks', 'cobbles', 'planks', 'stone', 'hatching', 'ripples', 'grass'];   // the app's own eight, written out: the list itself is fogcheck's to hold
+            const NAMES = ['flagstones', 'bricks', 'cobbles', 'planks', 'stone', 'hatching', 'ripples', 'grass', 'shingles', 'pantiles', 'slates', 'thatch'];   // the app's own twelve, written out: the list itself is fogcheck's to hold
             const COLS = [['#AbCdEf', '#abcdef'], ['#3f3b47', '#3f3b47'], ['#000000', '#000000'], ['#FFFFFF', '#ffffff'], ['red'], ['#abc'], ['#abcd'], ['#abcdef0'], ['#abcdef80'], ['#abcdeg'], ['abcdef'], [' #abcdef'], ['#abcdef '], ['#abcdef\n'], ['rgb(1,2,3)'], ['rgb(1, 2, 3)'], ['hsl(0, 0%, 50%)'],
                 ['url(https://x.test/a.png)'], ['var(--panel2)'], ['transparent'], ['#abcdef;background:url(https://x.test/a.png)'], [''], [{ r: 1 }], [['#abcdef']], [11259375], [true], [false], [null]];   // a value, and what it comes in as (nothing: it does not come in)
             const TEXS = [['', '']].concat(NAMES.map(n => [n, n]), [['Bricks'], ['BRICKS'], [' bricks'], ['bricks '], ['bricks\n'], ['brick'], ['/saves/images/m/wall.png'], ['https://x.test/a.png'], ['url(x)'], ['__proto__'], ['constructor'], ['length'], [' '], [{}], [{ name: 'bricks' }], [['bricks']], [0], [1], [true], [false], [null]]);

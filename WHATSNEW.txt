@@ -345,6 +345,10 @@ The play map
 - A door cuts its own doorway. Draw a door as a line along a wall line,
   with Build's Door material and its Wall line shape, and the wall is
   cut where the door lies. One Undo takes the door and the cut back.
+- Roofs and streets. Four roof patterns join the list: shingles,
+  pantiles, slates and thatch. Build has three more materials. A
+  Building and a City wall block sight and stop tokens as a wall does,
+  and a Street is a floor of cobbles.
 
 The top bar and the data map
 - The top of the window is one quiet row. Its captioned boxes are gone,

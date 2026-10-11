@@ -33,7 +33,7 @@ function r2(v) { return Math.round(v * 100) / 100; }
 function frozenTable(o) { var t = Object.create(null), k; for (k in o) if (Object.prototype.hasOwnProperty.call(o, k)) t[k] = Object.freeze(o[k]); return Object.freeze(t); }
 
 /* ---------- textures ---------- */
-var TEXTURES = Object.freeze(['flagstones', 'bricks', 'cobbles', 'planks', 'stone', 'hatching', 'ripples', 'grass']);
+var TEXTURES = Object.freeze(['flagstones', 'bricks', 'cobbles', 'planks', 'stone', 'hatching', 'ripples', 'grass', 'shingles', 'pantiles', 'slates', 'thatch']);
 function cleanTexture(v) { return typeof v === 'string' && TEXTURES.indexOf(v) >= 0 ? v : null; }
 
 // name -> { w, h, d, dark, light, fill? }: the tile's size in whole pixels, ONE path drawn twice (dark under light, the widths), and for
@@ -69,7 +69,27 @@ var TEX = frozenTable({
     // four tufts of three short blades, each bending outward from its own foot (never one point: that reads as a bird's), all inside the tile
     grass: { w: 50, h: 50, dark: 1.8, light: 0.8,
         d: 'M 10 18 Q 9.5 13 7 10 M 12 18 Q 12.5 12.5 12 8 M 14 18 Q 15 13 17 11 M 34 14 Q 33.5 9 31 6 M 36 14 Q 36.5 8.5 36 4 M 38 14 Q 39 9 41 7 '
-            + 'M 18 43 Q 17.5 38 15 35 M 20 43 Q 20.5 37.5 20 33 M 22 43 Q 23 38 25 36 M 40 37 Q 39.5 32 37 29 M 42 37 Q 42.5 31.5 42 27 M 44 37 Q 45 32 47 30' }
+            + 'M 18 43 Q 17.5 38 15 35 M 20 43 Q 20.5 37.5 20 33 M 22 43 Q 23 38 25 36 M 40 37 Q 39.5 32 37 29 M 42 37 Q 42.5 31.5 42 27 M 44 37 Q 45 32 47 30' },
+    // The four roof patterns (fold B6; the owner ticked all four on the city sheet: Shingles, Pantiles, Slates, Thatch).
+    // shingles: four rows of rounded shingles 25 px wide, each row half a shingle over from the one above. A row is one chain of scallops
+    // that runs half a shingle past the tile at both ends, so the tile's edge cuts it and its twin enters at the other side
+    shingles: { w: 50, h: 50, dark: 1.6, light: 0.7,
+        d: 'M -18.75 5 Q -6.25 17 6.25 5 Q 18.75 17 31.25 5 Q 43.75 17 56.25 5 M -6.25 17.5 Q 6.25 29.5 18.75 17.5 Q 31.25 29.5 43.75 17.5 Q 56.25 29.5 68.75 17.5 '
+            + 'M -18.75 30 Q -6.25 42 6.25 30 Q 18.75 42 31.25 30 Q 43.75 42 56.25 30 M -6.25 42.5 Q 6.25 54.5 18.75 42.5 Q 31.25 54.5 43.75 42.5 Q 56.25 54.5 68.75 42.5' },
+    // pantiles: four columns of long clay tiles, their joints running 4 px past the tile so the edge cuts them, and two wavy lips across
+    // the columns, each lip a chain of small scallops that runs half a column past both sides
+    pantiles: { w: 50, h: 50, dark: 1.6, light: 0.7,
+        d: 'M 6.25 -4 V 54 M 18.75 -4 V 54 M 31.25 -4 V 54 M 43.75 -4 V 54 '
+            + 'M -6.25 12.5 Q 0 17.5 6.25 12.5 Q 12.5 17.5 18.75 12.5 Q 25 17.5 31.25 12.5 Q 37.5 17.5 43.75 12.5 Q 50 17.5 56.25 12.5 '
+            + 'M -6.25 37.5 Q 0 42.5 6.25 37.5 Q 12.5 42.5 18.75 37.5 Q 25 42.5 31.25 37.5 Q 37.5 42.5 43.75 37.5 Q 50 42.5 56.25 37.5' },
+    // slates: two courses of flat slates 16 px wide and 25 px tall, a half-slate stagger (a 48 px tile holds three), the courses shifted
+    // 12.5 so no course line lies on the seam; the second course wraps the seam, as the bricks' fourth does
+    slates: { w: 48, h: 50, dark: 1.6, light: 0.7,
+        d: 'M 0 12.5 H 48 M 0 37.5 H 48 M 4 12.5 V 37.5 M 20 12.5 V 37.5 M 36 12.5 V 37.5 M 12 37.5 V 50 M 28 37.5 V 50 M 44 37.5 V 50 M 12 0 V 12.5 M 28 0 V 12.5 M 44 0 V 12.5' },
+    // thatch: three rows of short slanted straws, the middle row set between the others, all inside the tile
+    thatch: { w: 50, h: 50, dark: 1.8, light: 0.8,
+        d: 'M 4 4 L 7 13 M 14 6 L 17 15 M 24 3 L 27 12 M 34 6 L 37 15 M 43 4 L 46 13 M 8 20 L 11 29 M 19 22 L 22 31 M 29 19 L 32 28 M 39 22 L 42 31 '
+            + 'M 4 36 L 7 45 M 14 38 L 17 47 M 24 35 L 27 44 M 34 38 L 37 47 M 43 36 L 46 45' }
 });
 var DARK = 'rgba(0,0,0,0.38)', LIGHT = 'rgba(255,255,255,0.18)', SVG_NS = 'http://www.w3.org/2000/svg';
 var TEX_INK = Object.freeze({ dark: DARK, light: LIGHT });   // the two strokes of every tile, for a drawer that draws the tile itself (the map picture)
@@ -131,9 +151,13 @@ var MATERIALS = frozenTable({
     water: { name: 'Water', texture: 'ripples', color: '#2e5d86', layer: 'back', terrain: 2 },
     rubble: { name: 'Rubble', texture: 'stone', color: '#55505c', layer: 'back-mid', cover: 'yes' },
     wood: { name: 'Wood floor', texture: 'planks', color: '#7a5634', layer: 'back' },
-    grass: { name: 'Grass', texture: 'grass', color: '#4b6b36', layer: 'back' }
+    grass: { name: 'Grass', texture: 'grass', color: '#4b6b36', layer: 'back' },
+    // a town's own three (fold B6): a street is a floor, a building is a block that stops sight and tokens as a wall does (the owner: "A block"), and so is a city wall
+    street: { name: 'Street', texture: 'cobbles', color: '#6b6672', layer: 'back' },
+    building: { name: 'Building', texture: 'shingles', color: '#7a3f33', layer: 'back-mid', blocksSight: true, sightType: 'wall' },
+    citywall: { name: 'City wall', texture: 'stone', color: '#4a4753', layer: 'back-mid', blocksSight: true, sightType: 'wall' }
 });
-var MATERIAL_IDS = Object.freeze(['floor', 'wall', 'door', 'water', 'rubble', 'wood', 'grass']);
+var MATERIAL_IDS = Object.freeze(['floor', 'wall', 'door', 'water', 'rubble', 'wood', 'grass', 'street', 'building', 'citywall']);
 function cleanMaterial(v) { return typeof v === 'string' && MATERIAL_IDS.indexOf(v) >= 0 ? v : null; }
 var HEX_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
 function hexColor(v) { return typeof v === 'string' && HEX_RE.test(v) && cssColor(v) === v ? v : null; }

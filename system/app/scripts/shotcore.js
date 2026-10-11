@@ -12,7 +12,7 @@
 
    What it knowingly does not match to the pixel: a see-through piece's border and pattern are blended on the piece's colour one after the
    other, where the board blends the whole piece once, and a label's words are plain, wrapped by measured width. */
-import { cleanTexSrc, cleanTexTile } from './fogcore.js';
+import { cleanTexSrc, cleanTexTile, secretSeen } from './fogcore.js';
 import { cleanTexture, TEX, PIC_CELL, picUrl } from './buildcore.js';
 import { cssColor, picRef } from './safecore.js';
 import { fontCss } from './textfmt.js';
@@ -105,7 +105,10 @@ function stackZ(item, gridOn) {
 function order(items, opts) {
     var o = opts || {}, list = Array.isArray(items) ? items : [], kept = [];
     var cut = false;
-    for (var i = 0; i < list.length; i++) if (shows(list[i], o.labels === true)) { if (kept.length >= LIMITS.items) { cut = true; break; } kept.push({ item: list[i], z: stackZ(list[i], !!o.grid), i: i }); }
+    for (var i = 0; i < list.length; i++) {
+        var it = secretSeen(list[i]);   // a secret door as the players hold it: a wall, in the look named for it (fogcore, the wire's own rule)
+        if (shows(it, o.labels === true)) { if (kept.length >= LIMITS.items) { cut = true; break; } kept.push({ item: it, z: stackZ(it, !!o.grid), i: i }); }
+    }
     kept.sort(function(a, b) { return a.z - b.z || a.i - b.i; });
     var under = [], over = [];
     kept.forEach(function(k) { (k.z < GRID_Z ? under : over).push(k.item); });

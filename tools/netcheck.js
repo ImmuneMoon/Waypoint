@@ -11845,6 +11845,425 @@ pendingChecks.push((async () => {
             && (() => { const a0 = src.indexOf('function applySnapshot(msg) {'), a = src.indexOf('styleHostKnows(msg.looks);'), z = a < 0 ? -1 : src.indexOf('\n}\n', a), tail = a0 >= 0 && a > a0 && z > a ? src.slice(a + 26, z) : 'styleReset('; return src.split('styleHostKnows(msg.looks)').length === 2 && src.slice(a0, a).indexOf('\n}\n') < 0 && !/styleReset\(|charSessionReset\(|diceSessionReset\(|leaveSession\(|_styleHostOk|styleHostKnows\(/.test(tail); })() && src.split('net.syncCharStyle(').length === 2 && src.split('net.charStyle = function(').length === 2, j(gates));
     }
 })());
+/* ================= fold B5: a secret door (the map builder, part one) =================
+   The owner, 2026-10-10, by prompt: players see "The wall's look" where a secret door stands until it is found, and it is found by "A row, and
+   opening it". To the players a secret door is WALL. The host's one rule for a piece on its way out (wireWbItem, through fogcore secretSeen)
+   sends it as a wall in the look named for it; the three keys (secret, seenColor, seenTexture) are the GM's and never travel, on any piece; a
+   player's app drops them whatever a host sends; a door request naming one is answered as a wall's is. Each run for real with the real
+   fogcore: the rule alone and on a whole map, its fallback with no core at hand, a player's cleaners, the door request branch, the asset
+   gate, and the one-module world (the real sanitizeAppState, sendItem, itemDelta, fogCatchUp and patch gate over the real fog.js, with a
+   real player page per connection) */
+pendingChecks.push((async () => {
+    const urlS = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const FC = await import(urlS('fogcore.js')), Sx = await import(urlS('systemcore.js')), Fx = await import(urlS('formula.js'));
+    const J = v => JSON.stringify(v), ownK = (o, k) => Object.prototype.hasOwnProperty.call(o, k), copyOf = o => JSON.parse(J(o));
+    const flat = o => (o && typeof o === 'object' ? J(Object.keys(o).sort().map(k => [k, o[k]])) : String(o));   // a piece as its own keys in order, each with its value: equal only where no key is missing and none is extra
+    const KEYS3 = ['secret', 'seenColor', 'seenTexture'], has3 = o => (o && typeof o === 'object' ? KEYS3.filter(k => ownK(o, k)) : ['no piece']);
+    const less = (o, ks) => { const c = copyOf(o); ks.forEach(k => { delete c[k]; }); return c; };
+    const mkWire = win => new Function('window', '"use strict";\n' + siSrc() + '\nreturn [sanitizeItem, wireWbItem];')(win);
+    const [siS, wwiS] = mkWire({ wpFogCore: FC });
+
+    // ---- (1) the host's one rule (wireWbItem), with the real fogcore ----
+    // A door as Build lays one, then opened, locked and grouped by the GM, wearing a pattern and a picture of its own, ticked Secret
+    const PIC = '/saves/images/k/vault door.png', OAK = '#6b4a2a', WALLC = '#3f3b47', BOX = { type: 'rect', x: 100, y: 50, w: 50, h: 50 };
+    const D = (id, over) => Object.assign({ id }, BOX, { blocksSight: true, sightType: 'door', secret: true, doorOpen: true, doorLock: true, groupId: 'g_vault', texture: 'planks', color: OAK, texSrc: PIC, texTile: 2, layer: 'back-mid', cover: 'yes', height: 3 }, over || {});
+    const wallOf = (id, more) => Object.assign({ id }, BOX, { blocksSight: true, sightType: 'wall', layer: 'back-mid', cover: 'yes', height: 3 }, more || {});
+    const LINE = { type: 'path', tip: 'square', strokeWidth: 6, x: 200, y: 50, w: 6, h: 50, baseW: 6, baseH: 50, pts: [[0, 0], [0, 50]], layer: 'back-mid' };   // a door drawn as a line (the pen's Wall line)
+    const GATE = { type: 'rect', x: 300, y: 50, w: 50, h: 50, barrier: true, blastStop: true };   // a see-through barrier, ticked Stops blasts
+    const TRI = [[0, 0], [50, 0], [50, 50]];
+    const secretCases = [   // [the host's piece, what leaves]
+        [D('sdA', { name: 'Door', seenColor: '#2B2B33', seenTexture: 'stone' }), wallOf('sdA', { name: 'Wall', color: '#2b2b33', texture: 'stone' })],   // the look the GM named, the colour lower-cased; Build's own name Door reads Wall
+        [D('sdB', { name: 'SENTINEL_VAULT' }), wallOf('sdB', { name: 'Wall', color: WALLC, texture: 'bricks' })],   // no look named: the Wall material's; a name of its own reads Wall too
+        [D('sdC'), wallOf('sdC', { color: WALLC, texture: 'bricks' })],
+        [D('sdD', { name: 'Door', seenColor: '#445566', seenTexture: '' }), wallOf('sdD', { name: 'Wall', color: '#445566' })],   // Plain color: no pattern at all
+        [D('sdE', { seenColor: 'url(//x.test/c)', seenTexture: 'Bricks' }), wallOf('sdE', { color: WALLC, texture: 'bricks' })],   // a look a save held that is no colour and no name of the list
+        [D('sdF', { seenColor: 7, seenTexture: { a: 1 } }), wallOf('sdF', { color: WALLC, texture: 'bricks' })],
+        [D('sdG', { type: 'hexagon' }), wallOf('sdG', { type: 'hexagon', color: WALLC, texture: 'bricks' })],
+        [Object.assign({ id: 'sdH' }, GATE, { sightType: 'door', color: 'transparent', secret: true, doorOpen: true, doorLock: true, name: 'SENTINEL_FORCE_GATE' }), Object.assign({ id: 'sdH' }, GATE, { sightType: 'wall', color: 'transparent', name: 'Wall' })],   // a see-through barrier's door stays clear
+        [Object.assign({ id: 'sdI' }, GATE, { sightType: 'door', color: 'transparent', secret: true, seenColor: '#102030' }), Object.assign({ id: 'sdI' }, GATE, { sightType: 'wall', color: '#102030', texture: 'bricks' })],   // ... until the GM names a colour
+        [Object.assign({ id: 'sdJ' }, GATE, { sightType: 'door', color: '#335577', texture: 'ripples', secret: true, doorOpen: true }), Object.assign({ id: 'sdJ' }, GATE, { sightType: 'wall', color: WALLC, texture: 'bricks' })],   // a barrier's door with a look of its own
+        [Object.assign({ id: 'sdK' }, LINE, { blocksSight: true, sightType: 'door', color: OAK, name: 'Door', texture: 'planks', secret: true, doorLock: true, seenTexture: 'stone' }), Object.assign({ id: 'sdK' }, LINE, { blocksSight: true, sightType: 'wall', color: WALLC, name: 'Wall' })],   // a line wears a colour alone
+        [Object.assign({ id: 'sdL' }, LINE, { blocksSight: true, sightType: 'door', color: OAK, secret: true, doorOpen: true, seenColor: '#A0B0C0' }), Object.assign({ id: 'sdL' }, LINE, { blocksSight: true, sightType: 'wall', color: '#a0b0c0' })],
+        [Object.assign({ id: 'sdM' }, LINE, { tip: 'fill', pts: TRI, blocksSight: true, sightType: 'door', color: OAK, secret: true }), Object.assign({ id: 'sdM' }, LINE, { tip: 'fill', pts: TRI, blocksSight: true, sightType: 'wall', color: WALLC, texture: 'bricks' })],   // a filled region is no line
+        [D('sdN', { targetMapId: 'mB', portalIcon: 'Door', portalLock: true, trap: true, nodeId: 'r1' }), wallOf('sdN', { color: WALLC, texture: 'bricks' })],   // a secret door that is also a portal: no way through on the players' copy
+        [Object.assign({ id: 'sdO' }, GATE, { sightType: 'door', color: 'transparent', secret: true, seenTexture: 'grass' }), Object.assign({ id: 'sdO' }, GATE, { sightType: 'wall', color: WALLC, texture: 'grass' })],   // a pattern named on a see-through door: the Wall's colour under it
+        [Object.assign({ id: 'sdS' }, GATE, { sightType: 'door', color: 'rgba(0, 0, 0, 0)', secret: true, seenTexture: '' }), Object.assign({ id: 'sdS' }, GATE, { sightType: 'wall', color: 'transparent' })],   // see-through by another spelling, Plain color named: still clear
+        [Object.assign({ id: 'sdQ' }, LINE, { tip: 'flat', blocksSight: true, sightType: 'door', color: OAK, secret: true, seenTexture: 'stone' }), Object.assign({ id: 'sdQ' }, LINE, { tip: 'flat', blocksSight: true, sightType: 'wall', color: WALLC, texture: 'stone' })]   // a flat nib is drawn as a filled shape and wears a pattern
+    ];
+    const leave = (wire, piece) => { const was = J(piece), alone = wire(piece, false), onClone = wire(copyOf(piece), true); return { alone, onClone, kept: J(piece) === was && alone !== piece }; };
+    const SECRET_WORDS = /secret|seenColor|seenTexture|doorOpen|doorLock|groupId|g_vault|texSrc|texTile|vault door|6b4a2a|335577|planks|ripples|SENTINEL|"Door"|"door"/;
+    const secGot = secretCases.map(c => leave(wwiS, c[0]));
+    check('map builder B5, a secret door on its way out (wireWbItem, run for real with the real fogcore): a door ticked Secret leaves as a WALL, sent alone or on a map\'s clone, exactly the wall and nothing more: its type reads wall, it wears the colour and pattern the GM named for it (the colour lower-cased, Plain color as no pattern) or the Wall material\'s where none or none that cleans is named, and it carries no tick, no named look, no open or locked word, no group, no pattern, colour or picture of its own and no name of its own (Build\'s own name Door reads Wall); a see-through barrier\'s door stays clear until a colour is named for it, a door drawn as a line wears a colour and never a pattern, a filled region and a hexagon wear both; the host\'s own piece is left exactly as it was',
+        secretCases.every((c, i) => flat(secGot[i].alone) === flat(c[1]) && flat(secGot[i].onClone) === flat(c[1]) && secGot[i].kept) && !SECRET_WORDS.test(J(secGot.map(g => [g.alone, g.onClone]))),
+        J(secretCases.map((c, i) => [c[0].id, flat(secGot[i].alone) === flat(c[1]), flat(secGot[i].onClone) === flat(c[1]), secGot[i].kept]).filter(r => !(r[1] && r[2] && r[3])).concat([secGot[0].alone])));
+    const STRAY = { seenColor: '#112233', seenTexture: 'grass' };
+    const notSecret = [less(D('ndA', Object.assign({ name: 'Door' }, STRAY)), ['secret'])]   // a door that was found: the look named for it is still on the host's piece
+        .concat([1, 'true', 'yes', {}, [], false, null, 0].map((v, i) => D('ndS' + i, Object.assign({ secret: v, name: 'Door' }, STRAY))))   // a tick that is not the word true
+        .concat([
+            Object.assign({ id: 'ndW' }, BOX, { blocksSight: true, sightType: 'wall', secret: true, color: WALLC, texture: 'bricks', name: 'Wall' }, STRAY),   // a wall
+            Object.assign({ id: 'ndV' }, BOX, { blocksSight: true, secret: true, color: WALLC }),   // a wall with no type named
+            Object.assign({ id: 'ndP' }, BOX, { secret: true, seenTexture: '', name: 'Rug', color: '#aa0000' }),   // a plain piece
+            Object.assign({ id: 'ndT' }, BOX, { sightType: 'door', secret: true, doorOpen: true }),   // a door's type on a piece that blocks nothing
+            Object.assign({ id: 'ndU' }, BOX, { blocksSight: 1, sightType: 'door', secret: true, doorOpen: true }, STRAY),   // a flag that is not true
+            Object.assign({ id: 'ndI', type: 'image', src: '/saves/images/k/gate.png', x: 1, y: 2, w: 50, h: 50, blocksSight: true, sightType: 'door', secret: true, doorOpen: true }, STRAY),   // a picture piece: its picture is the door
+            Object.assign({ id: 'ndC', type: 'image', isChar: true, charName: 'Mimic', x: 1, y: 2, w: 50, h: 50, blocksSight: true, sightType: 'door', secret: true }, STRAY),   // a token
+            Object.assign({ id: 'ndQ', type: 'circle', waiting: 1, ownerId: 'u_a', x: 1, y: 2, w: 50, h: 50, blocksSight: true, sightType: 'door', secret: true })   // a waiting token
+        ]);
+    const nsGot = notSecret.map(p => leave(wwiS, p)), nsWant = notSecret.map(p => flat(less(p, KEYS3)));
+    check('map builder B5 (wireWbItem, run for real): only a door ticked by the word true is sent as a wall. A door that is not secret but still holds the look once named for it, and one whose tick is 1, a text, an object, a list, false, null or 0, leave as the doors they are, open, locked, grouped, in their own colour, pattern, picture and name; a wall, a wall with no type, a plain piece, a door\'s type on a piece that blocks nothing or whose flag is not true, a picture piece, a token and a waiting token ticked Secret leave as they are; and not one of them carries the tick or either key of the look, alone or on a clone, the host\'s own piece untouched',
+        notSecret.every((p, i) => flat(nsGot[i].alone) === nsWant[i] && flat(nsGot[i].onClone) === nsWant[i] && nsGot[i].kept && has3(nsGot[i].alone).length === 0 && has3(nsGot[i].onClone).length === 0)
+        && nsGot.slice(0, 9).every(g => g.alone.sightType === 'door' && g.alone.doorOpen === true && g.alone.doorLock === true && g.alone.groupId === 'g_vault' && g.alone.color === OAK && g.alone.texture === 'planks' && g.alone.texSrc === PIC && g.alone.texTile === 2 && g.alone.name === 'Door'),
+        J(notSecret.map((p, i) => [p.id, flat(nsGot[i].alone) === nsWant[i], flat(nsGot[i].onClone) === nsWant[i], nsGot[i].kept]).filter(r => !(r[1] && r[2] && r[3])).concat([nsGot[0].alone])));
+    const hidGot = [wwiS(D('hdA', { hidden: true }), false), wwiS(copyOf(D('hdB', { hidden: true })), true), wwiS(D('hdC', { hidden: 1 }), false), wwiS(D('hdD', { gmNoteFor: 'r1' }), false)];
+    const mapS = () => ({ id: 'mS', type: 'map', meta: { title: 'Cellar' }, rooms: [], links: [], whiteboard: secretCases.map(c => copyOf(c[0])).concat([copyOf(notSecret[0]), D('hdE', { hidden: true, name: 'SENTINEL_HIDDEN' })]) });
+    const hostS = mapS(), wasS = J(hostS), outS = siS(hostS);
+    check('map builder B5 (wireWbItem and sanitizeItem, run for real): a hidden secret door gives nothing at all, alone or on a clone, hidden by true or by any truthy mark, and so does a GM note card ticked Secret; a whole map\'s copy holds each secret door as its wall in the host\'s own order, the found door as the door it is and the hidden one not at all, with no tick and no key of the look anywhere in it; the host\'s own map is left exactly as it was',
+        J(hidGot) === J([null, null, null, null]) && J(outS.whiteboard.map(flat)) === J(secretCases.map(c => flat(c[1])).concat([nsWant[0]])) && J(hostS) === wasS && !/"secret"|seenColor|seenTexture|SENTINEL|hdE/.test(J(outS)),
+        J([hidGot, outS.whiteboard.map(w => w.id + ':' + w.sightType)]));
+
+    // ---- (2) the fallback: no fogcore at hand, or one that knows no secret door ----
+    const [siN, wwiN] = mkWire({}), [, wwiO] = mkWire({ wpFogCore: {} }), [, wwiH] = mkWire({ wpFogCore: { cleanTexture: FC.cleanTexture, cleanTexSrc: FC.cleanTexSrc, cleanTexTile: FC.cleanTexTile } });   // wwiH: the pattern's and the picture's cleaners at hand, so only the fallback's own list keeps the door's look at home
+    const bare = w => { const o = less(w, KEYS3.concat(['doorOpen', 'doorLock', 'groupId', 'name', 'texture', 'texSrc', 'texTile'], ['targetMapId', 'nodeId', 'trap', 'portalIcon', 'portalLock'])); o.sightType = 'wall'; o.color = w.color === 'transparent' ? 'transparent' : WALLC; return o; };   // the fallback's own rule: no look named is read, and only the plain word stays see-through
+    const fbGot = [wwiN, wwiO, wwiH].map(wire => secretCases.map(c => leave(wire, c[0]))), fbPlain = [wwiN, wwiO, wwiH].map(wire => notSecret.map(p => leave(wire, p)));
+    const mapN = siN(mapS());
+    check('map builder B5, the fallback (wireWbItem, run for real with no fogcore on the window, with one that knows no secret door, and with one that holds only the pattern\'s and the picture\'s cleaners): a secret door still leaves as a wall, in the Wall material\'s colour #3f3b47 (one that is see-through by the plain word left so), with no open or locked word, no group, no name, no way through and no pattern or picture of its own, a wall\'s door, a see-through barrier\'s and a line alike, alone or on a clone, the host\'s own piece untouched; and no piece of any kind leaves with the tick or with either key of the look, on a whole map either',
+        fbGot.every(per => per.every((g, i) => flat(g.alone) === flat(bare(secretCases[i][0])) && flat(g.onClone) === flat(bare(secretCases[i][0])) && g.kept)) && !SECRET_WORDS.test(J(fbGot.map(per => per.map(g => [g.alone, g.onClone]))))
+        && fbPlain.every(per => per.every(g => has3(g.alone).length === 0 && has3(g.onClone).length === 0 && g.kept)) && mapN.whiteboard.length === secretCases.length + 1 && mapN.whiteboard.every(w => has3(w).length === 0) && mapN.whiteboard.slice(0, secretCases.length).every(w => w.sightType === 'wall' && (w.color === WALLC || w.color === 'transparent') && !ownK(w, 'doorOpen') && !ownK(w, 'name') && !ownK(w, 'targetMapId') && !ownK(w, 'portalLock')),
+        J([fbGot[2][0], fbGot[0][7], fbPlain[0][0].alone]));
+    check('map builder B5, the fallback leaves every other piece as the piece it is: with the pattern\'s and the picture\'s cleaners at hand a found door, a door whose tick is not the word true, a wall and a plain piece leave exactly as they do with the whole core, less the three keys; with no core at all a found door is still a door, open, locked, grouped and in its own colour and name',
+        notSecret.slice(0, -3).every((p, i) => flat(fbPlain[2][i].alone) === nsWant[i] && flat(fbPlain[2][i].onClone) === nsWant[i]) && [0, 1].every(n => ['sightType', 'doorOpen', 'doorLock', 'groupId', 'name', 'color'].every(k => fbPlain[n][0].alone[k] === notSecret[0][k])),
+        J([fbPlain[2][0].alone, fbPlain[0][0].alone]));
+
+    // 3,000 seeded pieces of every kind, each judged by the suite's own reading of the rule (written out here, never fogcore's): which piece
+    // is a secret door, the look it wears, and what is left of it
+    {
+        let seedS = 20261010; const rnd = n => { seedS = (Math.imul(seedS, 1103515245) + 12345) >>> 0; return Math.floor((seedS >>> 8) / 16777216 * n); }, pick = list => list[rnd(list.length)];
+        const GOODPIC = '/saves/images/k/p.png', put = (o, k, list) => { const v = pick(list); if (v !== undefined) o[k] = v; };
+        const gen = i => {
+            const p = { id: 'g' + i, x: rnd(40) * 50, y: rnd(40) * 50, w: 50, h: 50 };
+            put(p, 'type', ['rect', 'rect', 'rect', 'hexagon', 'circle', 'diamond', 'path', 'path', 'image', 'text']); if (p.type === 'path') { p.pts = [[0, 0], [0, 50]]; put(p, 'tip', ['square', 'fill', 'round', undefined]); }
+            put(p, 'blocksSight', [true, true, true, 1, false, undefined]); put(p, 'barrier', [undefined, undefined, undefined, true, 1]); put(p, 'sightType', ['door', 'door', 'door', 'wall', undefined]); put(p, 'secret', [true, true, true, 1, 'true', false, null, undefined]);
+            if (!rnd(12)) p.isChar = true; if (!rnd(15)) p.waiting = 1; if (!rnd(15)) p.hidden = true; if (!rnd(20)) p.gmNoteFor = 'r1';
+            put(p, 'doorOpen', [true, undefined]); put(p, 'doorLock', [true, undefined]); put(p, 'groupId', ['g_one', undefined]); put(p, 'name', ['Door', 'Vault', 'Wall', '', undefined]);
+            put(p, 'color', [OAK, 'transparent', 'transparent', WALLC, '#ABCDEF', undefined]); put(p, 'texture', ['planks', 'bricks', 'Planks', 'url(x)', undefined, undefined]); put(p, 'texSrc', [GOODPIC, 'http://x.test/p.png', undefined, undefined]); put(p, 'texTile', [1, 2, 'whole', 3, undefined]);
+            put(p, 'seenColor', ['#2B2B33', '#abc', 'red', 7, undefined, undefined]); put(p, 'seenTexture', ['stone', '', 'Stone', 9, undefined, undefined]);
+            if (!rnd(5)) p.targetMapId = 'mB'; if (!rnd(7)) p.portalLock = true; if (!rnd(9)) p.nodeId = 'r1';
+            return p;
+        };
+        const NAMES8 = ['flagstones', 'bricks', 'cobbles', 'planks', 'stone', 'hatching', 'ripples', 'grass'];
+        const isSecret = p => p.secret === true && (p.blocksSight === true || p.barrier === true) && p.sightType === 'door' && ['rect', 'hexagon', 'circle', 'diamond', 'path'].indexOf(p.type) >= 0 && !p.isChar && !p.waiting && !p.gmNoteFor;
+        const lookOf = p => {
+            const col = typeof p.seenColor === 'string' && /^#[0-9a-fA-F]{6}$/.test(p.seenColor) ? p.seenColor.toLowerCase() : null, line = p.type === 'path' && p.tip !== 'fill' && p.tip !== 'flat', named = NAMES8.indexOf(p.seenTexture) >= 0;
+            const clear = p.color === 'transparent' && NAMES8.indexOf(p.texture) < 0 && p.texSrc !== GOODPIC && !col && !(named && !line);   // clear only while neither a colour nor a pattern is named
+            return { color: col || (clear ? 'transparent' : WALLC), texture: line ? '' : p.seenTexture === '' ? '' : named ? p.seenTexture : (clear ? '' : 'bricks') };
+        };
+        const wantOf = p => { const o = less(p, KEYS3.concat(['doorOpen', 'doorLock', 'groupId', 'texSrc', 'texTile', 'name', 'texture'], ['targetMapId', 'nodeId', 'trap', 'portalIcon', 'portalLock'])), lk = lookOf(p); if (typeof p.name === 'string' && p.name.trim()) o.name = 'Wall'; o.sightType = 'wall'; o.color = lk.color; if (lk.texture) o.texture = lk.texture; return o; };
+        const tally = { pieces: 0, gone: 0, secret: 0, lines: 0, clear: 0, named: 0, plain: 0 }, bad = [];
+        for (let i = 0; i < 4500; i++) {
+            const p = gen(i), was = J(p), a = wwiS(p, false), b = wwiS(copyOf(p), true);
+            tally.pieces++;
+            if (p.hidden || p.gmNoteFor) { tally.gone++; if (a !== null || b !== null) bad.push([i, 'a hidden piece left', p]); continue; }
+            if (J(p) !== was) bad.push([i, 'the host\'s piece changed', p]);
+            if (isSecret(p)) {
+                const lk = lookOf(p), w = flat(wantOf(p)); tally.secret++; if (p.type === 'path' && p.tip !== 'fill') tally.lines++; if (lk.color === 'transparent') tally.clear++; else if (lk.color !== WALLC) tally.named++;
+                if (flat(a) !== w || flat(b) !== w) bad.push([i, 'a secret door', p, a]);
+            } else {
+                const w = flat(wwiS(less(p, KEYS3), false)); tally.plain++;   // any other piece: what the same piece without the three keys leaves as
+                if (flat(a) !== w || flat(b) !== w || has3(a).length || has3(b).length) bad.push([i, 'another piece', p, a]);
+            }
+            [wwiN, wwiH].forEach(wire => { const f = wire(p, false); if (has3(f).length || (isSecret(p) && (f.sightType !== 'wall' || f.color !== (p.color === 'transparent' ? 'transparent' : WALLC) || ['doorOpen', 'doorLock', 'groupId', 'name', 'texture', 'texSrc', 'texTile'].concat(['targetMapId', 'nodeId', 'trap', 'portalIcon', 'portalLock']).some(k => ownK(f, k))))) bad.push([i, 'the fallback', p, f]); });
+        }
+        check('map builder B5 (wireWbItem, run for real on 4,500 seeded pieces of every kind, each judged by a reading of the rule written out in the suite): a hidden piece and a GM note card give nothing; a door ticked by the word true, whether a wall\'s door or a see-through barrier\'s, and never a picture piece, a text box, a token or a waiting token, leaves as exactly the wall the reading gives, with no way through, a name that reads Wall, in the look named for it, the Wall material\'s, or clear; every other piece leaves exactly as the same piece without the three keys does; the host\'s piece is never touched; and with no fogcore, or one without the rule, no piece carries any of the three keys and every secret door is a bare wall in #3f3b47, or left see-through',
+            bad.length === 0 && tally.pieces === 4500 && tally.secret >= 250 && tally.lines >= 40 && tally.clear >= 40 && tally.named >= 40 && tally.gone >= 250 && tally.plain >= 2000, J([tally, bad.slice(0, 2)]));   // the counts say that the seeded pieces reach each branch of the rule
+    }
+
+    // ---- (2b) what the first round of tests found, fixed: a way through, the order of the copy's keys, an own __proto__ key ----
+    const puS = win => new Function('window', fnSrc('function portalUnder(item, map) {', '\n}\n', 'portalUnder') + '\n}\nreturn portalUnder;')(win);
+    const tokS = { id: 'tok', x: 0, y: 0, w: 60, h: 52 }, mapPU = over => ({ whiteboard: [tokS, Object.assign({ id: 'po', type: 'rect', targetMapId: 'm2', x: 0, y: 0, w: 60, h: 52 }, over)], rooms: [] });
+    const DOORP = { blocksSight: true, sightType: 'door' }, withP = more => Object.assign({}, DOORP, more), underOf = (win, over) => { const r = puS(win)(tokS, mapPU(over)); return r ? r.id : null; };
+    const tvS = between('// [netcheck:travelmsg-start]', '// [netcheck:travelmsg-end]', 'travelmsg');
+    const travelS = (win, over) => { const from = { id: 'm1', type: 'map', whiteboard: [Object.assign({ id: 'po', type: 'rect', targetMapId: 'm2', x: 0, y: 0, w: 60, h: 52 }, over)] }, calls = [];
+        new Function('window', 'msg', 'conn', 'net', 'peerPaused', 'allow', 'getActiveCampaign', 'hostTravel', tvS)(win, { type: 'travel', viaItemId: 'po' }, { peer: 'pA' }, { paused: false, roster: { pA: { id: 'u_p', location: 'm1' } } }, () => false, () => true, () => ({ id: 'c1', activeItemId: 'm1', items: { m1: from } }), (c, t, p) => { calls.push(p ? p.id : null); });
+        return calls; };
+    const WINS = [{ wpFogCore: FC }, {}, undefined];
+    check('map builder B5, a secret door that is also a portal (the real portalUnder and the real travel branch, run with the real fogcore, with no core and with no window): a token dropped on it goes through nothing and a travel request naming it moves nobody, as for a hidden portal; the same door once found takes them through; a hidden trap tile still catches a drop; a tick that is not the word true stops nothing; with the core a tick on a portal that is no door stops nothing, and with no core the raw tick alone decides',
+        WINS.every(w => underOf(w, withP({ secret: true })) === null && J(travelS(w, withP({ secret: true }))) === '[]' && underOf(w, DOORP) === 'po' && J(travelS(w, DOORP)) === J(['po']) && underOf(w, { hidden: true, trap: true }) === 'po' && underOf(w, withP({ secret: 'yes' })) === 'po' && J(travelS(w, withP({ secret: 1 }))) === J(['po']))
+        && underOf(WINS[0], { secret: true }) === 'po' && J(travelS(WINS[0], { secret: true })) === J(['po']) && underOf(WINS[1], { secret: true }) === null && J(travelS(WINS[2], { secret: true })) === '[]',
+        J(WINS.map(w => [underOf(w, withP({ secret: true })), travelS(w, withP({ secret: true })), underOf(w, DOORP), underOf(w, { secret: true })])));
+    const protoDoor = JSON.parse('{"id":"pd","type":"rect","x":0,"y":0,"w":50,"h":50,"blocksSight":true,"sightType":"door","secret":true,"__proto__":{"doorOpen":true,"evil":1}}'), protoOut = wwiS(protoDoor, false);
+    const sameJ = [D('ko', { name: 'Door' }), less(D('ko', { name: 'Door' }), ['texture']), D('ko', { name: 'Vault', texture: 'grass' }), less(D('ko', { name: 'Door' }), ['texSrc', 'texTile', 'doorLock', 'groupId', 'doorOpen']), D('ko', { name: 'Door', color: '#123456', groupId: 'g_other' })].map(p => J(wwiS(p, false)));
+    check('map builder B5, what a change to the door behind the wall sends (wireWbItem, run for real): the wall a secret door leaves as is the very same text, key for key and in the same order, whether the door has a pattern of its own, another or none, a picture or none, a lock, a group, another colour or another name, so a save after such a change sends the table nothing; its pattern stands right after its name; an own key named __proto__ never becomes the copy\'s prototype, and nothing it held is read from the copy',
+        sameJ.every(s => s === sameJ[0]) && /"name":"Wall","texture":"bricks"/.test(sameJ[0]) && !!protoOut && Object.getPrototypeOf(protoOut) === Object.prototype && protoOut.doorOpen === undefined && protoOut.evil === undefined && protoOut.sightType === 'wall' && !/evil|doorOpen/.test(J(protoOut)),
+        J([sameJ.map(s => s === sameJ[0]), sameJ[0], protoOut]));
+
+    // ---- (3) a player's app: whatever a host sends, none of the three keys is kept ----
+    const lineU = k => { const i = src.indexOf(k); if (i < 0 || src.indexOf(k, i + 1) >= 0) throw new Error('netcheck: ' + k + ' not found once'); return src.slice(i, src.indexOf('\n', i)); };
+    const hmA = src.indexOf('function cleanHostMap(m) {'), hmB = src.indexOf('\n}\n', hmA) + 2;
+    const hostSide = win => new Function('window', 'cleanWaitingItem', 'sanitizeRichText', 'safeColor', '"use strict";\n' + lineU('function cleanHostWbItem(w) {') + '\n' + lineU('function cleanHostLight(w) {') + '\n' + src.slice(hmA, hmB) + '\nreturn { cleanHostWbItem, cleanHostMap };')(win, H.cleanWaitingItem, t => 'T:' + String(t).length, v => (v === '#123456' ? v : ''));
+    const hostile = () => [
+        D('hsA', Object.assign({ name: 'Door' }, STRAY)),   // a secret door sent raw, as no honest host sends one
+        Object.assign({ id: 'hsB' }, BOX, { blocksSight: true, sightType: 'wall', secret: true, name: 'Wall' }),
+        Object.assign({ id: 'hsC' }, BOX, { secret: 'yes', seenColor: 'url(//x.test/c)', seenTexture: '<img src=x onerror=alert(1)>' }),
+        Object.assign({ id: 'hsD' }, BOX, { secret: { a: 1 }, seenColor: 7, seenTexture: ['bricks'] }),
+        Object.assign({ id: 'hsE' }, BOX, { secret: false }), Object.assign({ id: 'hsF' }, BOX, { seenColor: null }), Object.assign({ id: 'hsG' }, BOX, { seenTexture: '' }),
+        Object.assign({ id: 'hsH', type: 'image', isChar: true, ownerId: 'u_me', x: 1, y: 2, secret: true }, STRAY),
+        Object.assign({ id: 'hsI' }, LINE, { blocksSight: true, sightType: 'door', secret: true, seenTexture: 'stone' }),
+        { id: 'hsJ', type: 'text', text: '<b>hi</b>', x: 1, y: 2, secret: true, seenColor: '#112233' }
+    ];
+    const hsWant = hostile().map(p => { const o = less(p, KEYS3); if (o.type === 'text') o.text = 'T:' + String(o.text).length; return flat(o); });
+    const cleaned = [{ wpFogCore: FC }, {}, { wpFogCore: {} }].map(win => { const C = hostSide(win), ins = hostile(), outs = ins.map(w => C.cleanHostWbItem(w)), map = C.cleanHostMap({ id: 'mH', type: 'map', whiteboard: hostile() }); return { same: outs.every((o, i) => o === ins[i]), outs, map }; });
+    const wantFor = n => (n === 0 ? hsWant : hostile().map(p => { const o = less(p, KEYS3.concat(['texture', 'texSrc', 'texTile', 'height'])); if (o.type === 'text') o.text = 'T:' + String(o.text).length; return flat(o); }));   // with no cleaner on hand a pattern, a picture and a height do not come in either
+    const plainS = Object.assign({ id: 'hsP' }, BOX, { blocksSight: true, sightType: 'door', doorOpen: true }), plainWas = J(plainS), plainOut = hostSide({ wpFogCore: FC }).cleanHostWbItem(plainS);
+    const waitOut = hostSide({ wpFogCore: FC }).cleanHostWbItem(Object.assign({ id: 'hsW', waiting: 1, ownerId: 'u_a', type: 'circle', x: 1, y: 2, secret: true }, STRAY));
+    check('map builder B5, a player\'s app (cleanHostWbItem and a whole map through cleanHostMap, run for real): whatever a host sends, the tick and both keys of the look are dropped and the piece is kept, the same piece with everything else on it as it was: a secret door sent raw, a wall, a plain piece, a token of the player\'s own, a line and a text box, the keys as true, a text, an address, markup, a number, a list, an object, false, null or an empty text, with the real fogcore, with none and with an empty one; a piece that carries none of them is the same piece with no key added, and a waiting token comes in without them',
+        cleaned.every((c, n) => c.same && J(c.outs.map(flat)) === J(wantFor(n)) && J(c.map.whiteboard.map(flat)) === J(wantFor(n)) && c.map.whiteboard.length === 10 && c.outs.every(o => has3(o).length === 0) && !/"secret"|seenColor|seenTexture/.test(J([c.outs, c.map])))
+        && cleaned[0].outs[0].sightType === 'door' && cleaned[0].outs[0].doorOpen === true && cleaned[0].outs[0].texture === 'planks' && plainOut === plainS && J(plainS) === plainWas && !!waitOut && waitOut.waiting === 1 && has3(waitOut).length === 0,
+        J([cleaned.map((c, n) => [c.same, J(c.outs.map(flat)) === J(wantFor(n)), J(c.map.whiteboard.map(flat)) === J(wantFor(n))]), cleaned[0].outs[0], waitOut]));
+
+    // ---- (4) the door request branch: a secret door answers as the wall the players hold there would ----
+    const drSrc = between('// [netcheck:doorreq-start]', '// [netcheck:doorreq-end]', 'doorreq'), moveModeS = new Function(lineOf('function moveMode(') + '\nreturn moveMode;')();
+    const runDoor = (doorOver, o) => {
+        o = o || {};
+        const door = Object.assign({ id: 'dr', type: 'rect', blocksSight: true, sightType: 'door', x: 50, y: 50, w: 50, h: 50 }, doorOver), was = J(door);
+        const tok = { id: 'tk', isChar: true, ownerId: 'u_p', x: 100, y: 50, w: 50, h: 50 };
+        const map = { id: 'm1', type: 'map', meta: { gridType: 'square' }, fog: { on: true }, whiteboard: [door, tok] }, out = { sent: [], saves: 0, redraws: 0 };
+        const conn = { peer: 'pA', send: m => { packCheck(m); out.sent.push(copyOf(m)); } };
+        const netD = { role: 'host', active: true, paused: false, roster: { pA: { id: 'u_p', location: o.at || 'm1' } } };
+        new Function('msg', 'conn', 'net', 'peerPaused', 'window', '_doorLimit', 'sendFailed', 'getActiveCampaign', 'getActiveMap', 'save', 'toast', 'moveMode', drSrc)(
+            { type: 'door-req', mapId: 'm1', itemId: 'dr' }, conn, netD, () => false, { wpVtt: { on: () => true }, wpDiceCore: null, wpFogCore: ownK(o, 'core') ? o.core : FC, wpFog: { redraw: () => { out.redraws++; } } }, null, e => { throw e; }, () => ({ id: 'c1', items: { m1: map } }), () => map, () => { out.saves++; }, () => {}, moveModeS);
+        return J({ open: door.doorOpen === true, same: J(door) === was, sent: out.sent.map(m => m.type + ':' + m.reason), saves: out.saves, redraws: out.redraws });
+    };
+    const QUIET = J({ open: false, same: true, sent: [], saves: 0, redraws: 0 }), OPENED = J({ open: true, same: false, sent: [], saves: 1, redraws: 1 }), said = why => J({ open: false, same: true, sent: ['door-deny:' + why], saves: 0, redraws: 0 });
+    const lineGate = { type: 'path', x: 50, y: 50, w: 10, h: 50, baseW: 10, baseH: 50, pts: [[0, 0], [0, 50]] }, barGate = { blocksSight: false, barrier: true };
+    const dr = { plain: runDoor({}), secret: runDoor({ secret: true }), locked: runDoor({ doorLock: true }), secretLocked: runDoor({ secret: true, doorLock: true }), far: runDoor({ x: 300 }), secretFar: runDoor({ secret: true, x: 300 }),
+        secretOpen: runDoor({ secret: true, doorOpen: true }), bar: runDoor(barGate), secretBar: runDoor(Object.assign({ secret: true }, barGate)), secretBarLocked: runDoor(Object.assign({ secret: true, doorLock: true }, barGate)),
+        line: runDoor(lineGate), secretLine: runDoor(Object.assign({ secret: true }, lineGate)), notTrue: [1, 'true', 'yes', {}].map(v => runDoor({ secret: v })) };
+    check('map builder B5, the door request (the doorreq slice, run for real with the real fogcore): a player\'s request naming a shut secret door next to their token answers nothing and changes nothing (the door stays shut, no message, no save, no redraw), where the very same door without the tick opens; a locked one answers nothing where the same door without the tick answers locked, and one too far answers nothing where the same door answers far, so no answer says that a door stands there; a see-through barrier\'s secret door and one drawn as a line alike; a secret door the host\'s piece calls open is left as it is; a tick that is not the word true is no secret door, and that door opens',
+        dr.plain === OPENED && dr.secret === QUIET && dr.locked === said('locked') && dr.secretLocked === QUIET && dr.far === said('far') && dr.secretFar === QUIET && dr.secretOpen === J({ open: true, same: true, sent: [], saves: 0, redraws: 0 })
+        && dr.bar === OPENED && dr.secretBar === QUIET && dr.secretBarLocked === QUIET && dr.line === OPENED && dr.secretLine === QUIET && dr.notTrue.every(r => r === OPENED), J(dr));
+    // the same request, the piece once a secret door and once the wall the players hold: the two answers are the same in every situation
+    const spots = [[{}, {}], [{ x: 300 }, {}], [{ doorLock: true }, {}], [{ doorOpen: true }, {}], [{ doorLock: true, x: 300 }, {}], [{}, { at: 'm2' }], [{ doorLock: true }, { at: 'm2' }]];
+    const twins = spots.map(s => [runDoor(Object.assign({ secret: true }, s[0]), s[1]), runDoor(Object.assign({ sightType: 'wall' }, s[0]), s[1])]);
+    const oldCore = Object.assign({}, FC); delete oldCore.secretOn;
+    const noCore = { secretLocked: runDoor({ secret: true, doorLock: true }, { core: null }), locked: runDoor({ doorLock: true }, { core: null }), secret: runDoor({ secret: true }, { core: null }),
+        oldSecret: runDoor({ secret: true }, { core: oldCore }), oldPlain: runDoor({}, { core: oldCore }), oldSecretLocked: runDoor({ secret: true, doorLock: true }, { core: oldCore }), oldLocked: runDoor({ doorLock: true }, { core: oldCore }) };
+    check('map builder B5, the door request: a request naming a secret door is answered exactly as one naming a wall at its place is, next to the token, too far, locked, open on the host, and from a player who is on another map; and with no fogcore at hand, or one that knows no secret door, the raw tick still stops it: a locked secret door answers nothing where the same door without the tick answers locked, and a shut one stays shut where the same door without the tick opens',
+        twins.every(t => t[0] === t[1]) && twins.slice(0, 5).every(t => t[0] === QUIET || t[0] === J({ open: true, same: true, sent: [], saves: 0, redraws: 0 })) && twins[5][0] === said('far')
+        && noCore.secretLocked === QUIET && noCore.locked === said('locked') && noCore.secret === QUIET && noCore.oldSecret === QUIET && noCore.oldPlain === OPENED && noCore.oldSecretLocked === QUIET && noCore.oldLocked === said('locked') && typeof oldCore.isDoor === 'function' && oldCore.secretOn === undefined,
+        J([twins, noCore]));
+    const srcNC = src.replace(/\/\/[^\n]*/g, '');
+    const seenSaid = (srcNC.match(/seen(?:Color|Texture)/g) || []).length, seenAsked = (srcNC.match(/w\.seen(?:Color|Texture) !== undefined|delete w\.seen(?:Color|Texture)/g) || []).length;
+    check('map builder B5 (wired): net.js writes none of the three keys anywhere, so no message of a player\'s can set one; it never reads the look\'s two keys but to ask whether they are there and to delete them, the look being fogcore\'s to read; and secretSeen is asked in one place, the host\'s one rule for a piece on its way out',
+        !/\.(?:secret|seenColor|seenTexture)\s*=(?!=)/.test(srcNC) && seenSaid === seenAsked && srcNC.split('.secretSeen(').length === 2 && src.slice(src.indexOf('function wireWbItem('), src.indexOf('\n}\n', src.indexOf('function wireWbItem('))).split('.secretSeen(').length === 2,
+        J([seenSaid, seenAsked, srcNC.split('.secretSeen(').length - 1]));
+
+    // ---- (5) the asset gate: a secret door's own picture is no reference until the door is found ----
+    {
+        const tick = ms => new Promise(r => setTimeout(r, ms || 40)), FLOORPIC = '/saves/images/k/stone floor.png';
+        const mkGate = files => {
+            const w = { fetched: [] }, netG = { active: true, role: 'host', conns: [], stream: false };
+            const fetchG = reqPath => { w.fetched.push(reqPath); let dec; try { dec = decodeURIComponent(reqPath); } catch (e) { dec = reqPath; } const f = files[dec]; if (!f) return Promise.resolve({ ok: false }); const body = new Uint8Array(f.len);
+                return Promise.resolve({ ok: true, headers: { get: h => (h === 'content-length' ? String(f.len) : null) }, body: { cancel() {} }, arrayBuffer: () => Promise.resolve(body.buffer) }); };
+            w.api = new Function('net', 'location', 'sendFailed', 'allow', 'fetch', 'setTimeout', between('// [netcheck:assetreq-start]', '// [netcheck:assetreq-end]', 'assetreq') + '\nreturn { handleAssetRequest, assetNoteSends };')(netG, { origin: 'http://localhost:3999' }, e => { throw e; }, () => true, fetchG, setTimeout);
+            w.conn = peer => { const c = { peer, open: true, sent: [], send: m => { packCheck(m); c.sent.push(JSON.parse(j(m, (k, v) => (ArrayBuffer.isView(v) ? '<' + v.byteLength + ' bytes>' : v)))); } }; w.api.assetNoteSends(c); return c; };
+            w.ask = async (c, p) => { const n = c.sent.length; w.api.handleAssetRequest({ type: 'asset-req', path: p }, c); await tick(); return c.sent.slice(n).map(m => (m.type === 'asset' ? (m.error ? 'refused:' + m.error : 'asset:' + m.mime + ':' + m.data) : m.type)); };
+            return w;
+        };
+        const gateRun = async wireMap => {
+            const files = {}; files[PIC] = { len: 5 }; files[FLOORPIC] = { len: 6 };
+            const G = mkGate(files), GA = G.conn('pA'), hostG = { id: 'mG', type: 'map', whiteboard: [D('sdP', { name: 'Door' }), { id: 'fl', type: 'rect', x: 0, y: 0, w: 50, h: 50, texSrc: FLOORPIC, texTile: 1 }] };
+            GA.send({ type: 'item', campId: 'k', itemId: 'mG', item: wireMap(hostG) });
+            const floor = await G.ask(GA, FLOORPIC), shut = await G.ask(GA, PIC), shutEnc = await G.ask(GA, PIC.replace(' ', '%20')), fetchedShut = G.fetched.map(decodeURIComponent);
+            const found = FC.secretReveal(hostG.whiteboard[0]); GA.send({ type: 'item', campId: 'k', itemId: 'mG', item: wireMap(hostG) });
+            return { floor, shut, shutEnc, fetchedShut, found, after: await G.ask(GA, PIC) };
+        };
+        const [siHalf] = mkWire({ wpFogCore: { cleanTexSrc: FC.cleanTexSrc, cleanTexTile: FC.cleanTexTile } });   // the picture's cleaners and no secretSeen: the fallback's own list
+        const gS = await gateRun(siS), gH = await gateRun(siHalf), gWant = J({ floor: ['asset:image/png:<6 bytes>'], shut: ['refused:missing'], shutEnc: ['refused:missing'], fetchedShut: [FLOORPIC], found: true, after: ['asset:image/png:<5 bytes>'] });
+        check('map builder B5, the asset gate (assetreq, run for real on a map copy the host\'s real sanitizeItem made): the picture a secret door wears is no reference for a connection that was sent the map, so a request for it, raw or percent-encoded, is answered missing and nothing is fetched, while the floor\'s picture on the same map is served; once the door is found and the map sent again, its picture is served; and the same with the fallback, where only the picture\'s cleaners are at hand',
+            J(gS) === gWant && J(gH) === gWant, J([gS, gH]));
+    }
+
+    // ---- (6) the one-module world, in the shape of the possession world above: the host's real code as one module over the real fog.js and
+    // fogcore, every send packed for the wire, and a real player page per connection (applyItem, applyItemDelta and the fogDiff branch over the
+    // real cleanHostMap) ----
+    const fogT = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'fog.js'), 'utf8').replace(/\r\n/g, '\n');
+    const fogSrc = fogT.slice(fogT.indexOf('function core() {'), fogT.indexOf('/* ---------- the overlay'));
+    const wholeS = k => { const i = src.indexOf(k), e = src.indexOf('\n};\n', i); if (i < 0 || e < 0 || src.indexOf(k, i + 1) >= 0) throw new Error('netcheck: ' + k + ' not found once'); return src.slice(i, e + 4); };
+    const bw = n => between('// [netcheck:' + n + '-start]', '// [netcheck:' + n + '-end]', n);
+    const modSrc = ['var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {}, bannedIds = {}, _travelDenyLast = {};',
+        'var fxLib = function() { return {}; }, itemLib = function() { return {}; }, withHoverLines = function(v) { return v; };',
+        ownKeySrc, siSrc(), bw('mapheld'), fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState'), bw('foglit'), fnSrc('function anyFog(', '\n}\n', 'anyFog') + '\n}\n', lineOf('function mapFogged('), lineOf('var FOG_DIFF_ADD_MAX = '),
+        fnSrc('function quickHash(', '\n}\n', 'quickHash') + '\n}\n', lineOf('function uniqueIds('), fnSrc('function itemDelta(itemId, clean) {', '\nfunction applyItemDelta(', 'itemDelta'), fnSrc('function playerStroke(', '\n}\n', 'playerStroke') + '\n}\n',
+        wholeS('net.sendItem = function('), wholeS('net.broadcastItemFiltered = function('), wholeS('net.itemGone = function('), wholeS('net.pushItems = function('), wholeS('net.summonPlayerToMap = function('), bw('stage'),
+        fnSrc('function freeSpotNear(', '\n}\n', 'freeSpotNear') + '\n}\n', fnSrc('function stepOffPortal(', '\n}\n', 'stepOffPortal') + '\n}\n', fnSrc('function portalUnder(', '\n}\n', 'portalUnder') + '\n}\n', fnSrc('function hostTravel(conn, traveler, portal, fromMap, gmHand) {', '\n// The portal item under a token\'s center', 'hostTravel'),
+        lineOf('var _saveSoon = null;'), lineOf('function saveRemoteSoon()'), bw('bpos'), src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem(')), bw('pos'), bw('patch'), bw('fogmove'),
+        'return { snapshot: sanitizeAppState, seedSnap: fogSeedSnapshot, arm: fogArm, heldNote: mapHeldNote, heldOf: mapHeldOf, patchIn: applyClientItemFiltered };'].join('\n');
+    const NAMES = ['net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'sendFailed', 'peerProfileId', 'lim', 'pushChat', 'state', 'broadcast', '_lastSent', 'setTimeout', 'clearTimeout', 'save', 'toast', 'logEvent', 'renderRoster', 'dropWaitingFor', 'allow', 'render', 'broadcastRoster', 'checkRoomHandouts', 'applyPosToDom', 'bellOut', 'renderNotepad', 'fogNow', 'ensurePlayerToken', 'findLandingRoom', 'landingPoint'];
+    const buildHost = new Function(...NAMES, modSrc);
+    const buildFog = new Function('window', 'document', 'getActiveMap', 'getActiveCampaign', 'state', "'use strict';\n" + fogSrc + '\nreturn { fogDropIds: fogDropIds, fogLitFor: fogLitFor, canSeePoint: canSeePoint, invalidateVision: invalidateVision, invalidateSeen: invalidateSeen, seenKeyOf: seenKeyOf, lightMoves: lightMoves, sightSigFor: sightSigFor, tokenSightCells: tokenSightCells, viewersFor: viewersFor, moveBlocked: moveBlocked, moveCells: moveCells, fogMarksFor: fogMarksFor, fogOffFor: fogOffFor };');
+    const pageSrc = [ownKeySrc, broadcastSrc, lineOf('function escAttr(s) {'), fnSrc('function sanitizeRichText(', '\n}\n', 'sanitizeRichText') + '\n}\n', lineOf('function safeColor('), lineOf('function cleanHostWbItem(w) {'), lineOf('function cleanHostTokSenses(w) {'), lineOf('function cleanHostFxb(w) {'), lineOf('function cleanHostLight(w) {'),
+        fnSrc('function ownCellKeysOf(', '\n}\n', 'ownCellKeysOf') + '\n}\n', fnSrc('function ownTokIdsOf(', '\n}\n', 'ownTokIdsOf') + '\n}\n', fnSrc('function cleanHostMap(', '\n}\n', 'cleanHostMap') + '\n}\n', bw('actlog'),
+        fnSrc('function applyItem(msg) {', '\n}\n', 'applyItem') + '\n}\n', fnSrc('function applyItemDelta(msg) {', '\n}\n', 'applyItemDelta') + '\n}\n', bw('fogdiffapply'),
+        lineOf('function fromHost('), fnSrc('function mapStub(map) {', '\n}\n', 'mapStub') + '\n}\n', fnSrc('function activeItemPatch() {', '\n}\n', 'activeItemPatch') + '\n}\n',
+        'return { applyItem: applyItem, applyItemDelta: applyItemDelta, cleanMap: cleanHostMap, fogDiff: function(msg, conn) {', bw('fogdiff'), '} };'].join('\n');
+    const buildPage = new Function('net', 'state', 'window', 'getActiveCampaign', 'render', 'updateSidebarNav', 'cleanWaitingItem', pageSrc);
+    const mkPage = myId => {
+        const asked = [], hostConn = { peer: 'h', open: true, send(m) { packCheck(m); asked.push(copyOf(m)); } };
+        const netP = { role: 'client', active: true, foreign: true, syncedPeer: 'h', stream: false, applyingRemote: false, myId, conns: [hostConn], roster: {} };
+        const camp = { id: 'k', activeItemId: 'mA', items: {} }, state = { appState: { activeCampaignId: 'k', campaigns: { k: camp } } };
+        const P = buildPage(netP, state, { wpFogCore: FC, wpFog: { invalidateVision() {}, redraw() {} } }, () => camp, () => {}, () => {}, H.cleanWaitingItem);
+        const feed = m => { m = copyOf(m); if (m.type === 'item') P.applyItem(m); else if (m.type === 'itemDelta') P.applyItemDelta(m); else if (m.type === 'fogDiff') P.fogDiff(m, { peer: 'h' }); };
+        return { P, camp, asked, feed, map: id => camp.items[id] };
+    };
+    const T = (id, owner, charId, c, r, more) => Object.assign({ id, type: 'image', isChar: true, charName: id, x: c * 50, y: r * 50, w: 50, h: 50, rot: 0, front: 0 }, owner ? { ownerId: owner } : {}, charId ? { charId } : {}, more || {});
+    const M = (id, wb, fogged) => ({ id, type: 'map', meta: { title: 'The ' + id, gridType: 'square', cellValue: 5, cellUnit: 'ft' }, rooms: [], links: [], cats: {}, fog: fogged ? { on: true, mode: 'auto', light: 'dark', manual: { adds: [], cuts: [] } } : { on: false }, whiteboard: wb });
+    const sysS = Sx.cleanSystem({ v: 1, name: 'S', rolls: [], fields: [{ id: 'f_sight', key: 'Sight', label: 'Sight', kind: 'number', def: 60, edit: 'owner', vis: 'all' }] }, { F: Fx, gmView: true });
+    const CRYPT = '/saves/images/k/crypt door.png';
+    // mA: the map both players are on, no fog: a secret door with a look named for it (sdR), one drawn as a line and named Door (sdL), a see-through
+    // barrier's (sdG), a door of the GM's that is no secret (gd), a drawing of Ana's (sA) and two long-named pieces, so that a change travels as a
+    // delta. mF: a fogged dark 5 ft map: Ana's token at (2,2), a secret door the host's piece calls OPEN standing as a column between her and an orc
+    // three cells off, and a bat 14 cells off (past her 12 cells of sight) whose token carries the three keys as stray values
+    const mkB = () => {
+        const ev = [], timers = [], feats = { fog: true, lighting: true, sheets: true, turning: true }, saidAll = [];
+        const camp = { id: 'k', system: sysS, fog: { fields: { sight: 'f_sight', sightUnit: 'ft' }, defaults: { sight: 30 } }, turnRules: {},
+            items: {
+                mA: M('mA', [T('tA', 'u_a', 'c_a', 2, 2), T('tB', 'u_b', 'c_b', 2, 4), { id: 'pad1', type: 'rect', name: 'p'.repeat(240), x: 1, y: 1, w: 5, h: 5 }, { id: 'pad2', type: 'rect', name: 'q'.repeat(240), x: 2, y: 2, w: 5, h: 5 },
+                    D('sdR', { x: 400, y: 200, name: 'SENTINEL_VAULT_DOOR', seenColor: '#2B2B33', seenTexture: 'stone' }),
+                    Object.assign({ id: 'sdL' }, LINE, { x: 500, y: 200, blocksSight: true, sightType: 'door', color: '#7b5a3a', name: 'Door', secret: true, doorLock: true }),
+                    Object.assign({ id: 'sdG' }, GATE, { x: 600, y: 200, sightType: 'door', color: 'transparent', secret: true, doorLock: true, name: 'SENTINEL_FORCE_GATE' }),
+                    { id: 'gd', type: 'rect', x: 700, y: 200, w: 50, h: 50, blocksSight: true, sightType: 'door', color: '#224466', name: 'Gate' },
+                    { id: 'sA', type: 'path', x: 10, y: 10, w: 20, h: 20, baseW: 20, baseH: 20, pts: [[0, 0], [10, 10]], color: '#e9e9f0', strokeWidth: 3, ownerId: 'u_a', byPlayer: true, z: 35 }], false),
+                mF: M('mF', [T('tAf', 'u_a', 'c_a', 2, 2), T('orcF', '', 'c_n', 5, 2), T('batF', '', 'c_n', 2, 16, { secret: true, seenColor: '#123456', seenTexture: 'grass' }),
+                    D('sdF', { x: 200, y: 0, w: 50, h: 250, color: '#5a3a1a', name: 'SENTINEL_CRYPT_DOOR', texSrc: CRYPT, texTile: 1 })], true) },
+            chars: { c_a: { id: 'c_a', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_sight: 60 } }, c_b: { id: 'c_b', name: 'Bo', ownerId: 'u_b', npc: false, values: { f_sight: 60 } }, c_n: { id: 'c_n', name: 'Orc', npc: true, values: { f_sight: 60 } } } };
+        const W = { ev, camp, timers, now: 0, saves: 0, toasts: [] };
+        const mkConn = (peer, page) => ({ peer, open: true, sent: [], page: page || null, send(m) { packCheck(m); this.sent.push(copyOf(m)); ev.push(peer + ':' + m.type + (m.itemId ? ':' + m.itemId : '')); if (this.page) this.page.feed(m); } });
+        W.a1 = mkConn('pA1', mkPage('u_a')); W.b1 = mkConn('pB', mkPage('u_b')); W.w1 = mkConn('pW');   // pW: a peer still waiting for the GM's Allow
+        W.net = { active: true, role: 'host', paused: false, applyingRemote: false, myId: 'u_gm', conns: [W.a1, W.b1, W.w1], roster: { pA1: { id: 'u_a', name: 'Ana', location: 'mA' }, pB: { id: 'u_b', name: 'Bo', location: 'mA' } }, combats: {}, targets: {}, travelLocked: false, tokenDropped: () => false };
+        const state = { appState: { activeCampaignId: 'k', campaigns: { k: camp } } };
+        const win = { wpFogCore: FC, wpSystemCore: Sx, wpFormula: Fx, wpDiceCore: null, wpVtt: { on: k => feats[k] !== false, campaignOn: k => feats[k] !== false, mode: () => 'host' }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} }, wpDocRender: { cleanDoc: d => copyOf(d) } };
+        W.fog = buildFog(win, { getElementById: () => null }, () => null, () => camp, state); win.wpFog = W.fog;
+        const setT = (fn, ms) => { timers.push({ fn, ms }); return timers.length; }, clearT = id => { const t = timers[id - 1]; if (t) t.fn = null; };
+        W.fire = ms => { const due = timers.filter(t => t.fn && t.ms === ms); due.forEach(t => { const f = t.fn; t.fn = null; f(); }); return due.length; };
+        const bc = (m, ex) => { packCheck(m); W.net.conns.forEach(c => { if (c !== ex && c.open && ownK(W.net.roster, c.peer)) c.send(m); }); };
+        W.api = buildHost(W.net, () => Sx, win, () => false, () => camp, e => { throw e; }, c => (W.net.roster[c.peer] ? W.net.roster[c.peer].id : null), { allow: () => true }, () => {}, state, bc, {}, setT, clearT,
+            () => { W.saves++; }, t => W.toasts.push(t), () => {}, () => {}, () => {}, () => true, () => {}, () => {}, () => {}, () => {}, () => {}, () => {}, () => W.now, () => false, () => null, () => null);
+        W.tok = (id, mapId) => camp.items[mapId || 'mA'].whiteboard.find(w => w.id === id);
+        W.stream = () => W.api.snapshot(state.appState).campaigns.k.items;   // the stream window's copy: no recipient
+        // the join as admitPlayer makes it: the map they land on held, the snapshot made with that record, every fogged map it carries whole seeded
+        W.join = (c, landing) => { W.net.roster[c.peer].location = landing; W.api.heldNote(c, landing); const snap = { type: 'snapshot', appState: W.api.snapshot(state.appState, W.net.roster[c.peer].id, W.api.heldOf(c)), stage: { campId: 'k', itemId: landing } }; c.send(snap); W.api.seedSnap(c, snap);
+            Object.keys(snap.appState.campaigns.k.items).forEach(id => { c.page.camp.items[id] = copyOf(snap.appState.campaigns.k.items[id]); if (c.page.camp.items[id].type === 'map') c.page.P.cleanMap(c.page.camp.items[id]); }); c.page.camp.activeItemId = landing; return snap; };
+        W.gmSave = id => { W.fog.invalidateVision(); W.net.sendItem('k', id); };   // the GM's save of a map: the fog works its vision out again, the map goes to the table
+        W.step = () => { const out = ev.slice(); saidAll.push(J(W.net.conns.map(c => c.sent))); ev.length = 0; W.net.conns.forEach(c => { c.sent.length = 0; }); return out; };   // what went out since the last step, by connection and kind; the text of it is kept
+        W.steps = () => saidAll.length;
+        W.text = from => saidAll.slice(from || 0).concat([J(W.net.conns.map(c => c.sent))]).join('\n');   // everything sent to anyone, from that step on, as text
+        return W;
+    };
+    const on = (item, ids) => ids.map(id => flat(((item && item.whiteboard) || []).find(w => w && w.id === id)));
+    const lastOf = (c, type, mapId) => c.sent.filter(m => m.type === type && m.itemId === mapId).pop();
+    const LEAK = /"secret"|seenColor|seenTexture|doorOpen|doorLock|groupId|g_vault|g_crypt|texSrc|texTile|vault door|crypt door|other door|6b4a2a|7b5a3a|5a3a1a|5b3b1b|planks|cobbles|SENTINEL|"Door"/;
+
+    // (6a) no fog: the join snapshot, a whole copy, a delta, the GM's own work on the door behind the wall, the look named for it, and the finding
+    {
+        const W = mkB(), hR = W.tok('sdR'), hL = W.tok('sdL'), hG = W.tok('sdG'), IDS = ['sdR', 'sdL', 'sdG'];
+        const wallR = (x, look) => flat(wallOf('sdR', Object.assign({ x, y: 200, name: 'Wall' }, look)));   // the door has a name of its own, which reads Wall
+        const wallL = flat(Object.assign({ id: 'sdL' }, LINE, { x: 500, y: 200, blocksSight: true, sightType: 'wall', color: WALLC, name: 'Wall' })), wallG = flat(Object.assign({ id: 'sdG' }, GATE, { x: 600, y: 200, sightType: 'wall', color: 'transparent', name: 'Wall' }));
+        const want0 = J([wallR(400, { color: '#2b2b33', texture: 'stone' }), wallL, wallG]), hostWas = J(W.camp.items.mA);
+        const snapA = W.join(W.a1, 'mA'), snapB = W.join(W.b1, 'mA'), evJoin = W.step();
+        const joined = { ev: evJoin, wire: [snapA, snapB].map(s => J(on(s.appState.campaigns.k.items.mA, IDS)) === want0), page: [W.a1, W.b1].map(c => J(on(c.page.map('mA'), IDS)) === want0), gd: [W.a1, W.b1].map(c => c.page.map('mA').whiteboard.find(w => w.id === 'gd').sightType), host: J(W.camp.items.mA) === hostWas };
+        W.net.sendItem('k', 'mA');   // the GM's first save: the snapshot set no shared baseline, so the map goes whole
+        const wholeWire = [W.a1, W.b1].map(c => J(on((lastOf(c, 'item', 'mA') || {}).item, IDS)) === want0), wholeHost = J(W.camp.items.mA) === hostWas, evWhole = W.step();
+        W.net.broadcastItemFiltered('k', 'mA');   // a one-off send of the whole map (a travel, a summon, a push)
+        const pushWire = [W.a1, W.b1].map(c => J(on((lastOf(c, 'item', 'mA') || {}).item, IDS)) === want0), evPush = W.step();
+        const streamItems = W.stream(), streamOk = J(on(streamItems.mA, IDS)) === want0 && on(streamItems.mF, ['sdF'])[0] === flat(wallOf('sdF', { x: 200, y: 0, w: 50, h: 250, name: 'Wall', color: WALLC, texture: 'bricks' })) && !LEAK.test(J(streamItems));   // the stream window's copy of both maps
+        hR.x = 450; W.net.sendItem('k', 'mA');   // the GM moves the secret door: a delta
+        const dMove = lastOf(W.a1, 'itemDelta', 'mA'), setMove = dMove && dMove.whiteboard ? dMove.whiteboard.set.map(flat) : null, evMove = W.step();
+        const pageMove = [W.a1, W.b1].map(c => on(c.page.map('mA'), ['sdR'])[0] === wallR(450, { color: '#2b2b33', texture: 'stone' }));
+        // the GM's own work on the door behind the wall: renamed, repainted, unlocked, shut, regrouped, another pattern and picture; and the others' locks
+        hR.name = 'SENTINEL_RENAMED'; hR.color = '#5b3b1b'; delete hR.doorLock; delete hR.doorOpen; hR.groupId = 'g_crypt'; hR.texture = 'cobbles'; hR.texSrc = '/saves/images/k/other door.png'; hR.texTile = 4; delete hL.doorLock; hL.doorOpen = true; hG.name = 'SENTINEL_OTHER_GATE'; delete hG.doorLock;
+        W.net.sendItem('k', 'mA'); const evOwn = W.step();
+        delete hR.texture; delete hR.texSrc; delete hR.texTile; hR.name = 'Door'; W.net.sendItem('k', 'mA'); const evBare = W.step();   // the door's own pattern and picture taken off, and renamed: the wall is the same text, so nothing goes out
+        hR.texture = 'cobbles'; hR.texSrc = '/saves/images/k/other door.png'; hR.texTile = 4; hR.name = 'SENTINEL_RENAMED'; W.net.sendItem('k', 'mA'); const evBack = W.step();
+        hR.seenColor = '#334455'; hR.seenTexture = ''; W.net.sendItem('k', 'mA');   // the look named for it is the players' to see: it travels, as the wall's colour
+        const dLook = lastOf(W.a1, 'itemDelta', 'mA'), setLook = dLook && dLook.whiteboard ? dLook.whiteboard.set.map(flat) : null, evLook = W.step();
+        const pageLook = [W.a1, W.b1].map(c => on(c.page.map('mA'), ['sdR'])[0] === wallR(450, { color: '#334455' }));
+        const before = W.text(), mark = W.steps(), hostKeys = [hR.secret, hL.secret, hG.secret];
+        check('map builder B5 in the one-module world (the real sanitizeAppState, sendItem, broadcastItemFiltered and itemDelta into real player pages; a map with no fog): each secret door reaches every player as a wall, in the join snapshot, on a whole copy, on a one-off send of the map and in the delta that follows the GM moving it, and stands as that wall on each player\'s page: the look named for it, the Wall material\'s colour on the line named Door, which reads Wall, and nothing drawn for the see-through barrier\'s; the GM\'s own door beside them is a door; the stream window\'s copy holds the same walls, on the fogged map too; the host\'s own map is left as it was by every send, and a peer still waiting for the GM is sent nothing',
+            J(joined) === J({ ev: ['pA1:snapshot', 'pB:snapshot'], wire: [true, true], page: [true, true], gd: ['door', 'door'], host: true }) && J(evWhole) === J(['pA1:item:mA', 'pB:item:mA']) && J(wholeWire) === J([true, true]) && wholeHost && J(evPush) === J(['pA1:item:mA', 'pB:item:mA']) && J(pushWire) === J([true, true]) && streamOk
+            && J(evMove) === J(['pA1:itemDelta:mA', 'pB:itemDelta:mA']) && J(setMove) === J([wallR(450, { color: '#2b2b33', texture: 'stone' })]) && J(pageMove) === J([true, true]) && J(hostKeys) === J([true, true, true]) && W.w1.sent.length === 0,
+            J([joined, evWhole, wholeWire, evPush, pushWire, streamOk, evMove, setMove, pageMove]));
+        check('map builder B5 in the one-module world: while the door is secret, what the GM does to the door behind the wall goes to nobody: renamed, repainted, unlocked, shut, regrouped and given another pattern and picture, and the other two unlocked, opened and renamed, the next save sends no message at all; the look the GM names for it does travel, as the wall\'s own colour with no pattern, and each page follows; and in everything sent to anyone so far (two snapshots, the whole copies, the deltas) the text holds no tick, neither key of the look, no open or locked word, no group, no picture fill, and nothing of any secret door\'s own colour, pattern, picture path or name',
+            J(evOwn) === J([]) && J(evBare) === J([]) && J(evBack) === J([]) && J(evLook) === J(['pA1:itemDelta:mA', 'pB:itemDelta:mA']) && J(setLook) === J([wallR(450, { color: '#334455' })]) && J(pageLook) === J([true, true]) && !LEAK.test(before) && /sdR/.test(before) && /"sightType":"wall"/.test(before) && /2b2b33/.test(before),
+            J([evOwn, evLook, setLook, pageLook, (before.match(LEAK) || [''])[0]]));
+        // found: the row's way (the tick deleted), and by opening it
+        const foundR = FC.secretReveal(hR); W.net.sendItem('k', 'mA');
+        const dR = lastOf(W.a1, 'itemDelta', 'mA'), setR = dR && dR.whiteboard ? dR.whiteboard.set.map(flat) : null, evR = W.step(), doorR = flat(less(hR, ['seenColor', 'seenTexture']));
+        const pageR = [W.a1, W.b1].map(c => on(c.page.map('mA'), ['sdR'])[0] === doorR);
+        hL.doorOpen = true; const foundL = FC.secretReveal(hL); W.net.sendItem('k', 'mA'); const evL = W.step(), pL = W.b1.page.map('mA').whiteboard.find(w => w.id === 'sdL');
+        const after = W.text(mark), stillG = [W.a1, W.b1].map(c => on(c.page.map('mA'), ['sdG'])[0] === wallG);
+        check('map builder B5 in the one-module world: found. Once the GM reveals it (the tick deleted on the host, the map saved) the door reaches every player as the door it is, as a delta, and stands on each page with its own colour, pattern, picture, name and group; one found by opening it stands there as an open door; the secret door nobody found is still a wall on every page; and what is sent after the finding still holds no tick and neither key of the look, which stay on the host\'s piece',
+            foundR === true && J(evR) === J(['pA1:itemDelta:mA', 'pB:itemDelta:mA']) && J(setR) === J([doorR]) && J(pageR) === J([true, true]) && hR.seenColor === '#334455' && /"sightType","door"/.test(doorR) && /SENTINEL_RENAMED/.test(doorR) && /5b3b1b/.test(doorR) && /other door/.test(doorR) && /g_crypt/.test(doorR) && /cobbles/.test(doorR)
+            && foundL === true && J(evL) === J(['pA1:itemDelta:mA', 'pB:itemDelta:mA']) && !!pL && pL.sightType === 'door' && pL.doorOpen === true && pL.color === '#7b5a3a' && pL.name === 'Door' && J(stillG) === J([true, true]) && !/"secret"|seenColor|seenTexture/.test(after) && W.w1.sent.length === 0,
+            J([foundR, evR, setR, pageR, foundL, evL, pL, stillG]));
+    }
+    // (6b) under fog: the host reads an open secret door as shut, so the creature behind it is on no copy; a catch-up; the finding
+    {
+        const idsOf = it => ((it && it.whiteboard) || []).map(w => w.id);
+        const F0 = mkB(); delete F0.tok('sdF', 'mF').secret; const openSeen = idsOf(F0.join(F0.a1, 'mF').appState.campaigns.k.items.mF);   // the same door, open and no secret: the orc behind it is seen
+        const F = mkB(), hF = F.tok('sdF', 'mF'), hostWas = J(F.camp.items.mF), snapF = F.join(F.a1, 'mF'), itF = snapF.appState.campaigns.k.items.mF;
+        const wallF = flat(wallOf('sdF', { x: 200, y: 0, w: 50, h: 250, name: 'Wall', color: WALLC, texture: 'bricks' }));
+        const joinF = { ids: idsOf(itF), wire: on(itF, ['sdF'])[0] === wallF, page: on(F.a1.page.map('mF'), ['sdF'])[0] === wallF, stubA: itF && snapF.appState.campaigns.k.items.mA.stub === true, host: J(F.camp.items.mF) === hostWas, ev: F.step() };
+        F.gmSave('mF'); const wholeF = { ids: idsOf((lastOf(F.a1, 'item', 'mF') || {}).item), wire: on((lastOf(F.a1, 'item', 'mF') || {}).item, ['sdF'])[0] === wallF, ev: F.step() };
+        F.tok('batF', 'mF').y = 250; F.api.arm('mF'); const fired = F.fire(150);   // the bat flies to three cells off her token: caught up in place
+        const diff = lastOf(F.a1, 'fogDiff', 'mF'), added = diff && Array.isArray(diff.add) ? diff.add.map(a => [a.item.id, has3(a.item)]) : null, evDiff = F.step(), pageDiff = idsOf(F.a1.page.map('mF')).slice().sort();
+        const before = F.text();
+        check('map builder B5 in the one-module world, under fog (the real fog.js judging for each player): a secret door the host\'s piece calls open still stops sight, so the orc behind it is on no copy of Ana\'s, where the same door open and no secret lets her see it; her join snapshot and her whole copy hold the door as a wall in the Wall material\'s look; a bat that flies into her sight is caught up in place, the orc still left out, and the bat\'s token, which carried the three keys as stray values, arrives without them; nothing sent so far names the orc or holds the tick, a key of the look, or anything of the door\'s own; nothing goes to a player who is not on that map',
+            J(openSeen) === J(['tAf', 'orcF', 'sdF']) && J(joinF) === J({ ids: ['tAf', 'sdF'], wire: true, page: true, stubA: true, host: true, ev: ['pA1:snapshot'] }) && J(wholeF) === J({ ids: ['tAf', 'sdF'], wire: true, ev: ['pA1:item:mF'] })
+            && fired === 1 && J(evDiff) === J(['pA1:fogDiff:mF']) && J(added) === J([['batF', []]]) && J(pageDiff) === J(['batF', 'sdF', 'tAf']) && !LEAK.test(before) && !/orcF/.test(before) && /sdF/.test(before) && F.b1.sent.length === 0 && F.w1.sent.length === 0,
+            J([openSeen, joinF, wholeF, fired, evDiff, added, pageDiff, (before.match(LEAK) || [''])[0]]));
+        const foundF = FC.secretReveal(hF); F.gmSave('mF');   // found: an open door now, and the orc behind it comes into sight
+        const itAfter = (lastOf(F.a1, 'item', 'mF') || {}).item, evFound = F.step(), doorF = flat(copyOf(hF)), pgF = F.a1.page.map('mF');
+        check('map builder B5 in the one-module world, under fog: found. With the tick deleted on the host and the map saved, Ana\'s copy holds the door as the open door it is, with its own colour, pattern, picture and name, and the orc that stood behind the wall is on her copy and on her page',
+            foundF === true && J(evFound) === J(['pA1:item:mF']) && J(idsOf(itAfter)) === J(['tAf', 'orcF', 'batF', 'sdF']) && on(itAfter, ['sdF'])[0] === doorF && on(pgF, ['sdF'])[0] === doorF && /"doorOpen",true/.test(doorF) && /"sightType","door"/.test(doorF) && /crypt door/.test(doorF) && idsOf(pgF).indexOf('orcF') >= 0,
+            J([foundF, evFound, idsOf(itAfter), on(itAfter, ['sdF'])[0] === doorF]));
+    }
+    // (6c) a player's map copy: nothing a player sends sets, clears or reads any of it
+    {
+        const P = mkB(); P.join(P.a1, 'mA'); P.join(P.b1, 'mA'); P.step();
+        const hR = P.tok('sdR'), hL = P.tok('sdL'), hG = P.tok('sdG'), hGd = P.tok('gd'), wasR = J(hR), wasL = J(hL), wasG = J(hG), wasGd = J(hGd), wasMap = J(P.camp.items.mA);
+        const DOORISH = Object.assign({ secret: true, blocksSight: true, sightType: 'door' }, STRAY);
+        // first a copy that changes nothing but those keys: on every piece of her page's copy, her own and the GM's alike
+        const keysOnly = copyOf(P.a1.page.map('mA')); keysOnly.whiteboard.forEach(w => { Object.assign(w, DOORISH, { doorOpen: true }); });
+        const changed0 = P.api.patchIn({ type: 'item', campId: 'k', itemId: 'mA', item: keysOnly }, P.net.roster.pA1, { conn: P.a1 }), same0 = J(P.camp.items.mA) === wasMap;
+        const copy = copyOf(P.a1.page.map('mA')), cw = id => copy.whiteboard.find(w => w.id === id);
+        Object.assign(cw('tA'), { x: 150 }, DOORISH);   // her own token, moved, with the three keys and a door's flags
+        Object.assign(cw('sA'), { pts: [[0, 0], [9, 9]] }, DOORISH);   // her own drawing, redrawn, likewise
+        copy.whiteboard.push(Object.assign({ id: 'sNew', type: 'path', ownerId: 'u_a', x: 0, y: 0, w: 10, h: 10, pts: [[0, 0], [10, 10]] }, DOORISH));   // a new drawing of hers
+        Object.assign(cw('sdR'), { sightType: 'door', doorOpen: true, color: '#ff0000', name: 'Found it', seenColor: '#ff0000' });   // the GM's secret door sent back as an open door (her copy holds no tick to send)
+        Object.assign(cw('sdL'), { secret: false, sightType: 'door' });
+        copy.whiteboard = copy.whiteboard.filter(w => w.id !== 'sdG');   // ... and one left out
+        Object.assign(cw('gd'), { secret: true, doorOpen: true }, STRAY);   // the GM's own door, ticked Secret by her
+        const out = { conn: P.a1 }, changed = P.api.patchIn({ type: 'item', campId: 'k', itemId: 'mA', item: copy }, P.net.roster.pA1, out);
+        const tA = P.tok('tA'), sA = P.tok('sA'), sNew = P.tok('sNew');
+        P.net.sendItem('k', 'mA'); const sentP = J(P.net.conns.map(c => c.sent)), bPage = P.b1.page.map('mA'), wallRb = on(bPage, ['sdR'])[0] === flat(wallOf('sdR', { x: 400, y: 200, name: 'Wall', color: '#2b2b33', texture: 'stone' }));
+        check('map builder B5 in the one-module world, a player\'s map copy (the real patch gate): a copy that only puts the tick, both keys of the look, a door\'s flags and the open word on every piece of the map, her own and the GM\'s, changes nothing on the host at all, the map exactly as it was; a copy that puts them on her own token, on a drawing of her own and on a new drawing while it moves the token and redraws moves the token and takes the drawings, and none of those keys comes in with them; the GM\'s secret door sent back as an open door in another colour, another sent back with a tick that is false, a third left out of the copy, and the GM\'s own door sent back ticked Secret and open, each leave the host\'s piece exactly as it was; what the host then sends to the table holds no tick and no key of the look, and the other player\'s page still holds a wall',
+            changed0 === false && same0 && changed === true && tA.x === 150 && has3(tA).length === 0 && !ownK(tA, 'blocksSight') && !ownK(tA, 'sightType') && J(sA.pts) === J([[0, 0], [9, 9]]) && has3(sA).length === 0 && !ownK(sA, 'blocksSight') && !!sNew && sNew.byPlayer === true && has3(sNew).length === 0 && !ownK(sNew, 'blocksSight') && !ownK(sNew, 'sightType')
+            && J(hR) === wasR && J(hL) === wasL && J(hG) === wasG && J(hGd) === wasGd && P.tok('sdG') === hG && !/"secret"|seenColor|seenTexture/.test(sentP) && /sNew/.test(sentP) && wallRb && bPage.whiteboard.find(w => w.id === 'gd').sightType === 'door' && !ownK(bPage.whiteboard.find(w => w.id === 'gd'), 'doorOpen'),
+            J([changed0, same0, changed, tA, sA, sNew, J(hR) === wasR, J(hL) === wasL, J(hG) === wasG, J(hGd) === wasGd, wallRb]));
+    }
+    // (6d) a player's page and a hostile host: the three ways a piece arrives (a whole map, a delta, a catch-up), each through the real code
+    {
+        const pg = mkPage('u_a'), evil = (id, more) => Object.assign({ id }, BOX, { blocksSight: true, sightType: 'door', secret: true }, STRAY, more || {});
+        pg.feed({ type: 'item', campId: 'k', itemId: 'mA', item: { id: 'mA', type: 'map', meta: { title: 'A' }, rooms: [], links: [], cats: {}, fog: { on: true }, whiteboard: [T('tA', 'u_a', 'c_a', 2, 2), evil('e1')] } });
+        const afterItem = pg.map('mA').whiteboard.map(w => [w.id, has3(w)]);
+        pg.feed({ type: 'itemDelta', campId: 'k', itemId: 'mA', whiteboard: { set: [evil('e2'), evil('e1', { x: 5 })], del: [], order: ['tA', 'e1', 'e2'] } });
+        pg.feed({ type: 'fogDiff', campId: 'k', itemId: 'mA', add: [{ item: Object.assign(T('orc', '', '', 5, 5), { secret: true }, STRAY), after: 'tA' }] });
+        const got = pg.map('mA').whiteboard.map(w => [w.id, has3(w), w.sightType || '', w.x]);
+        check('map builder B5, a player\'s page and a hostile host (the real applyItem, applyItemDelta and fogDiff branch over the real cleanHostMap): a piece that arrives with the tick and the look\'s keys on a whole map, in a delta\'s set, or as a creature added by a catch-up is kept without them each time, a door still the door the host called it; the page asks the host for nothing',
+            J(afterItem) === J([['tA', []], ['e1', []]]) && J(got) === J([['tA', [], '', 100], ['orc', [], '', 250], ['e1', [], 'door', 5], ['e2', [], 'door', 100]]) && pg.asked.length === 0 && !/"secret"|seenColor|seenTexture/.test(J(pg.map('mA'))),
+            J([afterItem, got, pg.asked]));
+    }
+})());
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
     /* ---- 1.5.4: the follow ruling (the owner, 2026-10-04): nobody follows the GM around unless the table is set to ---- */
     {

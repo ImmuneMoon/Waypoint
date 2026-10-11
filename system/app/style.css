@@ -226,6 +226,11 @@
   .wb-item.path.wb-door.wb-door-open svg path:not([fill="none"]) { fill-opacity: 0.25; }
   .wb-item.wb-door.wb-door-open::after { content: '\1F6AA  open'; font-size: 11px; font-weight: 700; color: #4caf7d; white-space: nowrap; }
   .wb-item.wb-door.wb-door-open.wb-door-locked::after { content: '\1F6AA\1F512  open'; }
+  /* a secret door (the map builder), on the GM's screen alone: a dashed edge, a violet glow on a line, and the word secret beside its mark. The players hold a wall there */
+  .wb-item.wb-door.wb-secret:not(.path) { outline-style: dashed; }
+  .wb-item.wb-door.wb-secret::after { content: '\1F6AA  secret'; font-size: 11px; font-weight: 700; color: var(--gold); white-space: nowrap; }
+  .wb-item.wb-door.wb-secret.wb-door-locked::after { content: '\1F6AA\1F512  secret'; }
+  .wb-item.path.wb-door.wb-secret svg path { filter: drop-shadow(0 0 3px #b98cff); }
   /* player's view: an opaque grey placeholder */
   .wb-item.wb-hidden-ph {
       background: #3a3a4a !important; border: 1px solid #4a4a5c !important; border-radius: 8px;

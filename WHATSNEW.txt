@@ -333,6 +333,15 @@ The play map
   shows what your players have not seen yet. Nothing on the map is
   changed and nothing is sent. Save as Image still saves what is on
   screen.
+- Secret doors. Tick Secret in a door's Properties, or right-click it
+  for Make secret door. Your players see wall there until it is found,
+  and their click on it does nothing. It starts in the look of Build's
+  Wall, and Seen as and Seen pattern let you match a wall of your own.
+  You see the door with a dashed edge and the word secret. Reveal
+  secret door on its right-click menu shows it as a shut door, and
+  opening it reveals it too. Save Map as Picture draws it as your
+  players see it. To show a whole secret room at once, hide what is
+  in it, group those pieces, and use Show to Players on the group.
 
 The top bar and the data map
 - The top of the window is one quiet row. Its captioned boxes are gone,

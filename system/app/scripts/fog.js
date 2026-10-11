@@ -268,7 +268,7 @@ var _blockerSig = Object.create(null), _blockerVer = Object.create(null), _block
 function eligibleBlocker(w) {
     if (!w || !w.blocksSight || w.hidden) return false;             // hidden never blocks (host & client must agree)
     if (w.isChar || w.waiting) return false;                        // a token never blocks sight: a player's copy may lack it (fog drops it), so host and client would disagree
-    if (w.sightType === 'door' && w.doorOpen) return false;         // an OPEN door blocks nothing; a closed one blocks like a wall
+    if (w.sightType === 'door' && w.doorOpen && !(typeof window === 'object' && window && window.wpFogCore && typeof window.wpFogCore.secretOn === 'function' && window.wpFogCore.secretOn(w))) return false;   // an OPEN door blocks nothing; a closed one blocks like a wall, and so does a secret door whatever it says: the players hold a wall there
     if (w.fill) return true;                                        // a fill-bucket cell
     return w.type === 'rect' || w.type === 'hexagon' || w.type === 'diamond' || w.type === 'circle' || w.type === 'image' || w.type === 'path';   // item 18: a solid shape or an image, turned or not, by its outline (fogcore itemCells); W2: a pen line as the line itself (pathSegs)
 }
@@ -654,7 +654,7 @@ function toggleDoorAt(boardX, boardY) {
         if (!w || !C.isDoor(w) || w.hidden) continue;   // a wall's door or a see-through barrier's (fogcore isDoor)
         var cells = w.type === 'path' ? C.pathCells(w, grid) : footprintCells(w, grid, C);   // item 18 W2: a line door is found on the cells its line passes
         for (var j = 0; j < cells.length; j++) {
-            if (C.cellKey(cells[j], grid) === key) { w.doorOpen = !w.doorOpen; save(); if (window.appRender) window.appRender(); invalidateVision(); redraw(); toast(w.doorOpen ? 'Door opened.' : 'Door closed.'); return true; }
+            if (C.cellKey(cells[j], grid) === key) { w.doorOpen = !w.doorOpen; var foundS = !!(w.doorOpen && typeof C.secretReveal === 'function' && C.secretReveal(w)); save(); if (window.appRender) window.appRender(); invalidateVision(); redraw(); toast(foundS ? 'Secret door opened. Your players see it as a door now.' : w.doorOpen ? 'Door opened.' : 'Door closed.'); return true; }
         }
     }
     return false;

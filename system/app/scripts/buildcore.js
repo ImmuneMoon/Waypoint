@@ -364,9 +364,9 @@ function near1(a, b) { return fin(a) && fin(b) && Math.abs(a - b) <= 1; }
 // The index of the item already seated where a piece would go — the same type, its box within a pixel each way, not a token, not hidden, no
 // pts — so a paint-drag re-lays onto it instead of stacking; -1 for none. Only a PLAIN piece is re-laid: never one that is locked or turned,
 // nor one with a purpose of its own that a new floor or wall must not take over (a see-through barrier, a play area, a portal by its own key
-// or its node's, a null area, smoke, a fog mark, a pin to a page, a GM note card). Such a piece is left as it is and the new one lands on it
+// or its node's, a null area, smoke, a fog mark, a pin to a page, a secret door, a GM note card). Such a piece is left as it is and the new one lands on it
 function special(w) {
-    return !!(w.locked || w.gmNoteFor || w.barrier === true || w.fogged || w.targetMapId || w.nodeId || w.nulls || w.smoke === true || w.fogHand || w.page || (fin(w.rot) && w.rot % 360 !== 0));
+    return !!(w.locked || w.gmNoteFor || w.barrier === true || w.fogged || w.targetMapId || w.nodeId || w.nulls || w.smoke === true || w.fogHand || w.page || w.secret === true || (fin(w.rot) && w.rot % 360 !== 0));
 }
 function seatedAt(items, piece) {
     if (!Array.isArray(items) || !isObj(piece) || typeof piece.type !== 'string') return -1;

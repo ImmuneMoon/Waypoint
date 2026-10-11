@@ -909,6 +909,9 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
           // [sinkcheck:doorcue-start]
           el.classList.toggle('wb-door-locked', doorIt === true && item.doorLock === true && !hideFromMe);   // a door the GM locked against players: a small lock beside its door mark, for the GM and for players alike (style.css)
           // [sinkcheck:doorcue-end]
+          // [sinkcheck:secretcue-start]
+          el.classList.toggle('wb-secret', doorIt === true && !item.hidden && !clientView && !window.wpStream && !!(window.wpFogCore && typeof window.wpFogCore.secretOn === 'function' && window.wpFogCore.secretOn(item)));   // the map builder, a secret door: a dashed edge and the word secret, on the GM's screen alone (the players hold a wall there, with no key that says otherwise)
+          // [sinkcheck:secretcue-end]
 
           el.classList.toggle('wb-hidden-ph', hideFromMe);
           el.classList.toggle('wb-waiting', !!item.waiting && !hideFromMe);   // Onboarding F1a: the dashed ring — never on a hidden stub (an element is reused when an item is hidden)
@@ -2881,6 +2884,36 @@ window.wpFitToGrid = fitToGrid;
       return '';
   }
   // [sinkcheck:doorrow-end]
+  // [sinkcheck:secretrow-start]
+  // A secret door's row on the GM's menu (the map builder, fold B5; the owner, by prompt: found by "A row, and opening it"): Reveal secret
+  // door where the selection holds one, else Make secret door where it holds a door that may be one (fogcore secretOk). Revealed, the
+  // players see it as a door from now on, shut. Made secret, it is shut first: an open door cannot be secret. The GM's alone (never a
+  // player's app, its link up or between attempts, never the stream window), never for a hidden door; the markup holds fixed words only
+  function secretRow(items) {
+      var n = window.wpNet, FC = window.wpFogCore;
+      if (window.wpStream || (n && (n.foreign || (n.active && n.role === 'client')))) return null;
+      if (!FC || typeof FC.secretOk !== 'function' || typeof FC.secretOn !== 'function' || typeof FC.secretReveal !== 'function') return null;
+      var ds = (Array.isArray(items) ? items : []).filter(function(w) { return !!w && !w.hidden && FC.secretOk(w); });
+      if (!ds.length) return null;
+      var nSec = ds.filter(function(w) { return FC.secretOn(w); }).length, found = nSec > 0, s = (found ? nSec : ds.length) > 1 ? 's' : '';   // the row counts what it will act on: the secret doors for Reveal, every door for Make
+      return { reveal: found, items: ds, html: found
+          ? '<div class="menu-item cm-secret-show" title="Your players see it as a door from now on. It stays shut until someone opens it.">&#128065; Reveal secret door' + s + '</div>'
+          : '<div class="menu-item cm-secret-make" title="Your players see wall here until it is found. The door is shut first, since an open door cannot be secret.">&#128682; Make secret door' + s + '</div>' };
+  }
+  function secretRowDo(items) {
+      var row = secretRow(items), FC = window.wpFogCore; if (!row) return '';
+      if (row.reveal) { row.items.forEach(function(w) { FC.secretReveal(w); }); return 'shown'; }
+      row.items.forEach(function(w) { w.secret = true; delete w.doorOpen; });
+      return 'made';
+  }
+  // A secret door that was just opened is found: an open door cannot be secret. How many of them the players now see as a door (one that
+  // is hidden from players loses its tick too, and is no door to them yet)
+  function secretOpened(items) {
+      var FC = window.wpFogCore, n = 0; if (!FC || typeof FC.secretOn !== 'function' || typeof FC.secretReveal !== 'function') return 0;
+      (Array.isArray(items) ? items : []).forEach(function(w) { if (w && w.doorOpen && FC.secretOn(w) && FC.secretReveal(w) && !w.hidden) n++; });
+      return n;
+  }
+  // [sinkcheck:secretrow-end]
   // [sinkcheck:foghandrow-start]
   // A fog mark on a piece, on the GM's menu (1.5.4; the owner, 2026-10-04: "having a way to fill fog for a whole image would be good too"; by
   // prompt "A mark on the image"): Under fog and Always revealed, each ticked while every piece of the selection that may carry a mark has
@@ -6525,7 +6558,7 @@ function buildWallItem(L, pre) { return Object.assign({ id: 'wb' + uid(), type: 
 function buildLay(map, boxes, props, more, walls) {
     var BC = buildCore(); if (!BC || !props) return;
     if (!boxes.length) { toast('Nothing to lay there.'); return; }
-    var room = BUILD_MAX - map.whiteboard.length, laid = 0, wall = false, full = false, keys = ['color', 'layer', 'name', 'texture', 'texSrc', 'texTile', 'blocksSight', 'sightType', 'cover', 'terrain'];   // a piece laid again in place wears the new material and nothing of the old: a picture it wore goes with its pattern
+    var room = BUILD_MAX - map.whiteboard.length, laid = 0, wall = false, full = false, keys = ['color', 'layer', 'name', 'texture', 'texSrc', 'texTile', 'blocksSight', 'sightType', 'cover', 'terrain', 'secret', 'seenColor', 'seenTexture'];   // a piece laid again in place wears the new material and nothing of the old: a picture it wore goes with its pattern
     for (var i = 0; i < boxes.length; i++) {
         var b = boxes[i], item = Object.assign({ id: 'wb' + uid(), type: b.type, x: b.x, y: b.y, w: b.w, h: b.h, z: 10 }, newOpacityProps(), props);
         if (b.pts) { item.pts = b.pts; item.baseW = b.baseW; item.baseH = b.baseH; item.tip = 'fill'; }
@@ -7743,6 +7776,8 @@ document.addEventListener('contextmenu', function(e) {
                 if (ppRow) html += ppRow.html;
                 var drRow = doorRows(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));   // a door's own rows: open or close it, lock it for players
                 if (drRow) html += drRow.html;
+                var scRow = secretRow(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));   // the map builder: a secret door's row, Reveal or Make
+                if (scRow) html += scRow.html;
                 var plRow = portalLockRow(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }), am);   // a portal's own lock: the GM's row, only where the selection holds a portal
                 if (plRow) html += plRow.html;
                 var fhRow = fogHandRows(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));   // 1.5.4: a piece's fog mark, only where the selection holds a piece that may carry one
@@ -7951,6 +7986,10 @@ document.addEventListener('contextmenu', function(e) {
                 } else if (action.includes('cm-door-open') || action.includes('cm-door-lock')) {   // a door's own rows (saved and drawn again below): an open door lets sight through, so the fog works its vision out again
                     var wentD = doorRowsDo(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }), action.includes('cm-door-open') ? 'open' : 'lock');
                     if (wentD) { if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); } toast(wentD === 'opened' ? 'Door opened.' : wentD === 'closed' ? 'Door closed.' : wentD === 'locked' ? 'Door locked for players.' : 'Door unlocked for players.'); }
+                    if (wentD === 'opened' && secretOpened(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }))) toast('Secret door opened. Your players see it as a door now.');   // a secret door that is opened is found: an open door cannot be secret
+                } else if (action.includes('cm-secret-show') || action.includes('cm-secret-make')) {   // the map builder: a secret door revealed, or a door made secret (saved and drawn again below, so the table gets it at once)
+                    var wentS = secretRowDo(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));
+                    if (wentS) { if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); } toast(wentS === 'shown' ? 'Secret door revealed. Your players see it as a door now.' : 'Secret door. Your players see wall here until it is found.'); }
                 } else if (action.includes('cm-open-page')) {   // 1.5.4 (pageshelf.js): a pin's page, opened by the one rule (over the map by a plain click)
                     var ppDo = pagePinRow(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));
                     if (ppDo && window.wpPageShelf) window.wpPageShelf.open(ppDo.id, window.wpPageShelf.wayNow(ce));

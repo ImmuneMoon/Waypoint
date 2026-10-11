@@ -1135,6 +1135,176 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 && Jt(opens) === Jt(['sub', 'top', 'n', 'top']) && Jt(noted) === Jt([['c7:1']]) && !!st7.appState.campaigns.c7
                 && ioSrc.includes("  window.wpTakeBindNotes = function() { var n = _bindNotes; _bindNotes = []; return n; };") && mainSrc.includes("          if (typeof window.wpTakeBindNotes === 'function') bindsM = window.wpTakeBindNotes() || [];"), Jt([nest, keyed.r, Object.keys(keyed.camps), opens, noted]));
         }
+        /* ---- fold B5: a secret door (the map builder; the owner, by prompt: players see "The wall's look (Recommended)" where a secret door stands
+           until it is found, and it is found by "A row, and opening it (Recommended)"). A file's tick (a piece's secret) and the look named for it
+           (seenColor, seenTexture) through the real import: on Replace (cleanImport: the load's own normaliser, then the item cleaners), on Merge
+           (cleanImportItems alone, as main.js runs it where the whole file has no cleaner) and through main.js mergeAppState itself ---- */
+        {
+            const FCs = await import(surl('fogcore.js')), Js = JSON.stringify, SEC = ['secret', 'seenColor', 'seenTexture'], depsS = { migrate, DR: DOC, sanitize, FC: FCs };
+            const SD = () => ({ blocksSight: true, sightType: 'door' }), LOOK = () => ({ seenColor: '#112233', seenTexture: 'bricks' });   // a wall's door; a look that is kept beside a tick
+            const pc = (id, extra) => Object.assign({ id, type: 'rect', x: 100, y: 150, w: 50, h: 50, z: 10, layer: 'middle', color: '#7a5230' }, extra);
+            const NOTICK = ['yes', 'true', 'TRUE', 1, 0, 2, {}, { on: true }, [], [true], null, false], KEPT = ['a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8'];
+            const sdBoard = () => clone([
+                // the tick comes in: a wall's door (open, locked, named, grouped, patterned, turned, pinned to a page), a see-through barrier's door, a door
+                // drawn as a line, a hidden door, a filled region, a circle, a painted hex cell and a diamond that are doors
+                pc('a1', Object.assign(SD(), { secret: true, doorOpen: true, doorLock: true, name: 'Door', groupId: 'g_7', texture: 'planks', rot: 90, locked: true, height: 3, page: 'plan_1' })),
+                pc('a2', { barrier: true, blastStop: true, sightType: 'door', secret: true, doorOpen: true, color: 'transparent' }),
+                { id: 'a3', type: 'path', x: 300, y: 100, w: 100, h: 6, baseW: 100, baseH: 6, z: 10, pts: [[0, 3], [100, 3]], strokeWidth: 6, tip: 'square', color: '#8a5a2b', layer: 'back-mid', name: 'Door', blocksSight: true, sightType: 'door', secret: true, doorLock: true },
+                pc('a4', Object.assign(SD(), { hidden: true, secret: true, doorOpen: true })),
+                { id: 'a5', type: 'path', tip: 'fill', x: 0, y: 0, w: 50, h: 50, z: 10, pts: [[0, 0], [50, 0], [50, 50]], color: '#555555', blocksSight: true, sightType: 'door', doorOpen: false, secret: true },
+                Object.assign(pc('a6', SD()), { type: 'circle', secret: true }),
+                Object.assign(pc('a7', SD()), { type: 'hexagon', w: 60, h: 52, fill: true, doorOpen: 1, secret: true }),
+                Object.assign(pc('a8', { barrier: true, sightType: 'door', doorLock: true, secret: true }), { type: 'diamond' })
+            ].concat(
+                // no tick: a word, a number, an object, a list, nothing or false on a wall's door that stands open and locked, each with a look named beside it
+                NOTICK.map((v, i) => pc('v' + (i + 1), Object.assign(SD(), { secret: v, doorOpen: true, doorLock: true }, LOOK()))),
+                [
+                    // no tick: true on a piece that may not be a secret door, each with a look named beside it. In their order: a wall, a wall with no
+                    // type named, a plain piece, a piece typed a door that is neither a wall nor a barrier, a picture that is a door, a token, a GM-note
+                    // card, a GM-note card that is a box, a barrier flag that is no true, a wall flag that is no true, another spelling of the type,
+                    // and a waiting token, which no import keeps at all
+                    pc('n1', Object.assign({ blocksSight: true, sightType: 'wall', secret: true }, LOOK())),
+                    pc('n2', Object.assign({ blocksSight: true, secret: true }, LOOK())),
+                    pc('n3', Object.assign({ secret: true }, LOOK())),
+                    pc('n4', Object.assign({ sightType: 'door', doorOpen: true, secret: true }, LOOK())),
+                    Object.assign(pc('n5', SD()), { type: 'image', src: '/saves/images/m/door.png', doorOpen: true, doorLock: true, secret: true }, LOOK()),
+                    Object.assign(pc('n6', SD()), { type: 'circle', isChar: true, charName: 'Mimic', doorOpen: true, secret: true }, LOOK()),
+                    Object.assign(pc('n7', SD()), { type: 'text', text: 'A note', gmNoteFor: 'r1', secret: true }, LOOK()),
+                    pc('n8', Object.assign(SD(), { gmNoteFor: 'r1', doorOpen: true, secret: true }, LOOK())),
+                    pc('n9', Object.assign({ barrier: 'yes', sightType: 'door', doorOpen: true, secret: true }, LOOK())),
+                    pc('n10', Object.assign({ blocksSight: 1, sightType: 'door', doorOpen: true, secret: true }, LOOK())),
+                    pc('n11', Object.assign({ blocksSight: true, sightType: 'Door', doorOpen: true, secret: true }, LOOK())),
+                    pc('w1', Object.assign(SD(), { waiting: true, ownerId: 'u_p', secret: true }, LOOK())),
+                    // no tick named: the look alone, on a door that was found and on two plain pieces
+                    pc('f1', Object.assign(SD(), { doorOpen: true, seenColor: '#445566', seenTexture: 'stone' })), pc('f2', { seenColor: '#445566' }), pc('f3', { seenTexture: '' }),
+                    // none of the three: a plain piece, and an ordinary door that stands open and locked
+                    pc('p1'), pc('p2', Object.assign(SD(), { doorOpen: true, doorLock: true }))
+                ]));
+            const SD_IDS = KEPT.concat(NOTICK.map((v, i) => 'v' + (i + 1)), ['n1', 'n2', 'n3', 'n4', 'n5', 'n6', 'n7', 'n8', 'n9', 'n10', 'n11', 'f1', 'f2', 'f3', 'p1', 'p2']);   // every piece but the waiting token
+            const sdMap = () => ({ id: 'mSd', type: 'map', meta: { title: 'S' }, rooms: [], links: [], whiteboard: sdBoard() });
+            const fileOf = m => ({ campaigns: { cSd: { id: 'cSd', name: 'S', items: { mSd: m } } } });
+            const repl = (mf, d) => { const o = cleanImport(JSON.parse(Js(fileOf(mf()))), d); return (o && o.campaigns && o.campaigns.cSd && o.campaigns.cSd.items && o.campaigns.cSd.items.mSd) || null; };   // Replace
+            const merg = (mf, d) => { const ic = { items: { mSd: mf() } }; cleanImportItems(ic, d); return ic.items.mSd || null; };   // Merge: the item cleaners alone
+            const wbOf = m => (m && Array.isArray(m.whiteboard) ? m.whiteboard : []), idsOf = m => wbOf(m).map(w => w.id), byId = (m, id) => wbOf(m).find(w => w.id === id) || null;
+            const secOf = m => wbOf(m).map(w => SEC.map(k => (k in w ? w[k] : 'none')));
+            const miss = (m, want) => { const ids = idsOf(m); return secOf(m).map((g, i) => (Js(g) === Js(want[i]) ? null : ids[i] + '=' + Js(g))).filter(Boolean).concat(ids.length === want.length ? [] : ['count ' + ids.length + ' of ' + want.length]); };
+            const less = (w, ks) => { const o = {}; Object.keys(w || {}).forEach(k => { if (ks.indexOf(k) < 0) o[k] = w[k]; }); return o; };
+            const bare = mf => () => { const m = mf(); m.whiteboard.forEach(w => SEC.forEach(k => { delete w[k]; })); return m; };   // the same file with none of the three keys
+            // a fogcore that holds only some of the secret door's functions, with every cleaner the files' other keys need
+            const core = ks => { const o = { LIMITS: FCs.LIMITS, cleanLight: FCs.cleanLight, cleanBarrier: FCs.cleanBarrier, cleanBlastStop: FCs.cleanBlastStop, cleanTexture: FCs.cleanTexture, cleanHeight: FCs.cleanHeight, isDoor: FCs.isDoor }; ks.forEach(k => { o[k] = FCs[k]; }); return { DR: DOC, sanitize, FC: o }; };
+
+            // 1. the tick
+            const rSd = repl(sdMap, depsS), mSd = merg(sdMap, depsS), inSd = sdMap(), wantTick = SD_IDS.map(id => (KEPT.indexOf(id) >= 0 ? [true, 'none', 'none'] : ['none', 'none', 'none'])), wantSec = SD_IDS.map(id => (KEPT.indexOf(id) >= 0 ? [true, 'none', 'none'] : /^v\d+$/.test(id) ? ['none', '#112233', 'bricks'] : id === 'f1' ? ['none', '#445566', 'stone'] : ['none', 'none', 'none']));   // wantTick: the ticks alone, as a core with no cleaner for the look brings them in
+            const keptAsIs = m => KEPT.every(id => Js(byId(m, id)) === Js(less(byId(inSd, id), ['doorOpen'])));   // shut, and every other key as the file had it, in the file's order
+            const vDoors = m => wbOf(m).filter(w => /^v\d+$/.test(w.id));
+            const stillOpen = m => vDoors(m).length === NOTICK.length && vDoors(m).every(w => w.doorOpen === true && w.doorLock === true && w.sightType === 'door' && w.blocksSight === true) && ['n4', 'n5', 'n6', 'n8', 'n9', 'n10', 'n11', 'f1', 'p2'].every(id => !!byId(m, id) && byId(m, id).doorOpen === true);
+            const judged = m => wbOf(m).length > 0 && wbOf(m).every(w => ('secret' in w) === FCs.secretOn(w) && (!('secret' in w) || w.secret === true));
+            check('import: a secret door\'s tick (the map builder, fold B5) comes in only as true and only on a piece that may be one, on Replace and on Merge alike, piece for piece: a wall\'s door, a see-through barrier\'s door, a door drawn as a line, a hidden door, and a filled region, a circle, a painted hex cell and a diamond that are doors; each is then shut (no doorOpen, whatever the file said) and keeps its lock, its type and every other key as the file had it, in the file\'s order; a word, a number, an object, a list, nothing or false is no tick, and such a door stays as open and as locked as the file had it and keeps the look named beside it, as a door that was found does; a wall, a plain piece, a piece typed a door that is neither a wall nor a barrier, a picture that is a door, a token, a GM-note card, a piece whose wall or barrier flag is no true and another spelling of the type take no tick; a waiting token does not come in at all; what came in with a tick is exactly what the one judge (fogcore secretOn) reads as a secret door; the cleaner itself (fogcore cleanSecret) takes true alone',
+                !!rSd && !!mSd && Js(idsOf(rSd)) === Js(SD_IDS) && Js(idsOf(mSd)) === Js(SD_IDS) && Js(secOf(rSd)) === Js(wantSec) && Js(secOf(mSd)) === Js(wantSec)
+                && keptAsIs(rSd) && keptAsIs(mSd) && !KEPT.some(id => 'doorOpen' in byId(rSd, id) || 'doorOpen' in byId(mSd, id)) && stillOpen(rSd) && stillOpen(mSd) && judged(rSd) && judged(mSd) && Js(wbOf(rSd)) === Js(wbOf(mSd))
+                && [rSd, mSd].every(m => byId(m, 'a1').doorLock === true && byId(m, 'a3').doorLock === true && byId(m, 'a8').doorLock === true && byId(m, 'a4').hidden === true && byId(m, 'a2').barrier === true && byId(m, 'a2').blastStop === true && byId(m, 'a3').type === 'path' && byId(m, 'a5').tip === 'fill' && byId(m, 'a1').sightType === 'door')
+                && Js([true, 1, 'true', 'yes', {}, [], null, undefined, false, 0].map(v => FCs.cleanSecret(v))) === Js([true, false, false, false, false, false, false, false, false, false]),
+                Js([miss(rSd, wantSec), miss(mSd, wantSec), [rSd, mSd].map(m => [keptAsIs(m), stillOpen(m), judged(m)]), Js(wbOf(rSd)) === Js(wbOf(mSd))]));
+
+            // 2. the look named for it
+            const NAMES = ['flagstones', 'bricks', 'cobbles', 'planks', 'stone', 'hatching', 'ripples', 'grass'];   // the app's own eight, written out: the list itself is fogcheck's to hold
+            const COLS = [['#AbCdEf', '#abcdef'], ['#3f3b47', '#3f3b47'], ['#000000', '#000000'], ['#FFFFFF', '#ffffff'], ['red'], ['#abc'], ['#abcd'], ['#abcdef0'], ['#abcdef80'], ['#abcdeg'], ['abcdef'], [' #abcdef'], ['#abcdef '], ['#abcdef\n'], ['rgb(1,2,3)'], ['rgb(1, 2, 3)'], ['hsl(0, 0%, 50%)'],
+                ['url(https://x.test/a.png)'], ['var(--panel2)'], ['transparent'], ['#abcdef;background:url(https://x.test/a.png)'], [''], [{ r: 1 }], [['#abcdef']], [11259375], [true], [false], [null]];   // a value, and what it comes in as (nothing: it does not come in)
+            const TEXS = [['', '']].concat(NAMES.map(n => [n, n]), [['Bricks'], ['BRICKS'], [' bricks'], ['bricks '], ['bricks\n'], ['brick'], ['/saves/images/m/wall.png'], ['https://x.test/a.png'], ['url(x)'], ['__proto__'], ['constructor'], ['length'], [' '], [{}], [{ name: 'bricks' }], [['bricks']], [0], [1], [true], [false], [null]]);
+            const lkBoard = () => clone([].concat(
+                COLS.map((c, i) => pc('c' + (i + 1), Object.assign(SD(), { secret: true, doorOpen: true, seenColor: c[0] }))),
+                TEXS.map((t, i) => pc('t' + (i + 1), Object.assign(SD(), { secret: true, seenTexture: t[0] }))),
+                [pc('b1', Object.assign(SD(), { secret: true, seenColor: '#ABCDEF', seenTexture: 'grass' })), pc('b2', Object.assign(SD(), { secret: true, seenColor: 'red', seenTexture: 'stone' })), pc('b3', Object.assign(SD(), { secret: true, seenColor: '#010203', seenTexture: 'Stone' })),
+                    pc('b4', { barrier: true, sightType: 'door', secret: true, seenColor: '#0a0B0c', seenTexture: '' }), pc('b5', Object.assign(SD(), { hidden: true, secret: true, seenColor: '#445566', seenTexture: 'ripples' }))]));
+            const lkMap = () => ({ id: 'mSd', type: 'map', meta: { title: 'L' }, rooms: [], links: [], whiteboard: lkBoard() }), LK_IDS = lkBoard().map(w => w.id);
+            const wantLk = [].concat(COLS.map(c => [true, c.length > 1 ? c[1] : 'none', 'none']), TEXS.map(t => [true, 'none', t.length > 1 ? t[1] : 'none']), [[true, '#abcdef', 'grass'], [true, 'none', 'stone'], [true, '#010203', 'none'], [true, '#0a0b0c', ''], [true, '#445566', 'ripples']]);
+            const rLk = repl(lkMap, depsS), mLk = merg(lkMap, depsS), tLk = merg(lkMap, core(['cleanSecret', 'secretOk'])), cLk = merg(lkMap, core(['cleanSecret', 'secretOk', 'cleanSeenColor'])), xLk = merg(lkMap, core(['cleanSecret', 'secretOk', 'cleanSeenTexture']));
+            const colSaid = Js(COLS.map(c => FCs.cleanSeenColor(c[0])).concat([FCs.cleanSeenColor(undefined)])) === Js(COLS.map(c => (c.length > 1 ? c[1] : null)).concat([null]));
+            const texSaid = Js(TEXS.map(t => FCs.cleanSeenTexture(t[0])).concat([FCs.cleanSeenTexture(undefined)])) === Js(TEXS.map(t => (t.length > 1 ? t[1] : null)).concat([null]));
+            check('import: the look named for a secret door comes in only on a door that may be one, beside its tick or without it, on Replace and on Merge alike, piece for piece, a see-through barrier\'s door\'s and a hidden door\'s too: seenColor only as #rrggbb, lower-cased, so a colour word, a short hex, a hex of seven or eight digits, one with a space or a line break beside it, rgb(), hsl(), a url, a variable, transparent, a colour with a declaration after it, an empty text, an object, a list, a number, true, false and nothing are dropped; seenTexture only as an empty text (a plain colour) or a name of the app\'s own eight, so another case, a space beside the name, half a name, a picture\'s path, a web address, a url, a name a prototype holds, an object, a list, a number, true, false and nothing are dropped; one of the two that does not clean leaves the other as it cleans; on a piece that may not be a secret door both are dropped, and a door that was found keeps its own; with the tick\'s cleaners at hand and not the look\'s no look comes in, and with one of the look\'s two only what that one keeps; the two cleaners themselves (fogcore cleanSeenColor, cleanSeenTexture) say the same',
+                !!rLk && !!mLk && Js(idsOf(rLk)) === Js(LK_IDS) && Js(idsOf(mLk)) === Js(LK_IDS) && LK_IDS.length === COLS.length + TEXS.length + 5 && Js(secOf(rLk)) === Js(wantLk) && Js(secOf(mLk)) === Js(wantLk) && Js(wbOf(rLk)) === Js(wbOf(mLk)) && !wbOf(mLk).concat(wbOf(rLk)).some(w => 'doorOpen' in w) && judged(rLk) && judged(mLk)
+                && Js(secOf(tLk)) === Js(wantLk.map(() => [true, 'none', 'none'])) && Js(secOf(cLk)) === Js(wantLk.map(r => [true, r[1], 'none'])) && Js(secOf(xLk)) === Js(wantLk.map(r => [true, 'none', r[2]])) && Js(secOf(merg(sdMap, core(['cleanSecret', 'secretOk'])))) === Js(wantTick)
+                && wbOf(rSd).length > 0 && !wbOf(rSd).concat(wbOf(mSd)).some(w => ('seenColor' in w || 'seenTexture' in w) && !FCs.secretOk(w)) && wbOf(mSd).filter(w => !('secret' in w) && 'seenColor' in w).length === NOTICK.length + 1 && colSaid && texSaid,
+                Js([miss(rLk, wantLk), miss(mLk, wantLk), miss(cLk, wantLk.map(r => [true, r[1], 'none'])), miss(xLk, wantLk.map(r => [true, 'none', r[2]])), colSaid, texSaid]));
+
+            // 3. no cleaner at hand
+            const NOCORE = [['no fog core', { DR: DOC, sanitize }], ['a fog core from before the secret door', core([])], ['the tick\'s cleaner without the judge', core(['cleanSecret', 'cleanSeenColor', 'cleanSeenTexture'])], ['the judge without the tick\'s cleaner', core(['secretOk', 'cleanSeenColor', 'cleanSeenTexture'])], ['the look\'s cleaners and the readers\' judge alone', core(['cleanSeenColor', 'cleanSeenTexture', 'secretOn', 'secretSeen'])]];
+            const noneIn = m => wbOf(m).length > 0 && !wbOf(m).some(w => SEC.some(k => k in w)), ncBad = [];
+            // what a file gives with no cleaner, against the same file without the three keys: a piece whose tick was the word true keeps it and is shut, every other piece is the same, and no look comes in
+            const tickOnly = (got, ctl, mf) => { const a = wbOf(got), b = wbOf(ctl), was = {}; wbOf(mf()).forEach(w => { if (w.secret === true) was[w.id] = 1; });
+                return a.length > 0 && a.length === b.length && a.every((w, i) => !('seenColor' in w) && !('seenTexture' in w) && (was[w.id] === 1 ? w.secret === true && !('doorOpen' in w) && Js(less(w, ['secret'])) === Js(less(b[i], ['doorOpen'])) : Js(w) === Js(b[i]))) && Js(less(got, ['whiteboard'])) === Js(less(ctl, ['whiteboard'])); };
+            NOCORE.forEach(n => [['the file of doors', sdMap, SD_IDS], ['the file of looks', lkMap, LK_IDS]].forEach(f => { const got = merg(f[1], n[1]), ctl = merg(bare(f[1]), n[1]); if (!(tickOnly(got, ctl, f[1]) && Js(idsOf(got)) === Js(f[2]))) ncBad.push(n[0] + ', ' + f[0]); }));
+            const rNo = repl(sdMap, deps), rNoCtl = repl(bare(sdMap), deps), rNoLk = repl(lkMap, deps), rNoLkCtl = repl(bare(lkMap), deps), mNo = merg(sdMap, { DR: DOC, sanitize });
+            check('import: with no cleaner at hand a tick that is the word true STAYS and its door is shut, since the host still sends a wall for it where dropping it would show the players a door; a tick of any other value and both keys of the look are dropped; on Merge (no fog core, a fog core from before the secret door, the tick\'s cleaner without the judge, the judge without the tick\'s cleaner, the look\'s cleaners with neither) and on Replace (no fog core), from a file of doors and from a file of looks; every piece itself is kept, the waiting token alone left out as ever, and each stands otherwise exactly as the same file stands without the three keys; once the core is at hand such a door is read as a secret door and leaves as a wall, and a picture that kept a tick this way is no secret door and leaves as itself',
+                ncBad.length === 0 && tickOnly(rNo, rNoCtl, sdMap) && Js(idsOf(rNo)) === Js(SD_IDS) && tickOnly(rNoLk, rNoLkCtl, lkMap) && Js(idsOf(rNoLk)) === Js(LK_IDS)
+                && [rNo, mNo].every(m => byId(m, 'a1').secret === true && !('doorOpen' in byId(m, 'a1')) && !('doorOpen' in byId(m, 'a4')) && !('doorOpen' in byId(m, 'a2')) && byId(m, 'a1').doorLock === true && byId(m, 'v1').doorOpen === true && !('secret' in byId(m, 'v1')) && byId(m, 'n5').secret === true)
+                && Js(secOf(mNo)) === Js(sdBoard().filter(w => !w.waiting).map(w => (w.secret === true ? [true, 'none', 'none'] : ['none', 'none', 'none']))) && wbOf(rNoLk).every(w => w.secret === true)
+                && FCs.secretOn(byId(mNo, 'a1')) && FCs.secretSeen(byId(mNo, 'a1')).sightType === 'wall' && !('secret' in FCs.secretSeen(byId(mNo, 'a1'))) && FCs.secretOn(byId(mNo, 'n5')) === false && FCs.secretSeen(byId(mNo, 'n5')) === byId(mNo, 'n5') && FCs.secretOn(byId(mNo, 'n1')) === false,
+                Js([ncBad, tickOnly(rNo, rNoCtl, sdMap), idsOf(rNo).length, tickOnly(rNoLk, rNoLkCtl, lkMap), secOf(mNo)]));
+
+            // 4. nothing else of a piece changes: each cleaned file against the same file cleaned without the three keys
+            const drift = (m, ctl, kept) => { const a = wbOf(m), b = wbOf(ctl), rest = SEC.concat('doorOpen'); if (!m || !ctl || !a.length || a.length !== b.length) return ['count'];
+                const out = a.map((w, i) => (Js(less(w, rest)) === Js(less(b[i], rest)) && (kept.indexOf(w.id) >= 0 ? !('doorOpen' in w) : Js(['doorOpen' in w, w.doorOpen]) === Js(['doorOpen' in b[i], b[i].doorOpen])) ? null : w.id)).filter(Boolean);
+                if (Js(less(m, ['whiteboard'])) !== Js(less(ctl, ['whiteboard']))) out.push('the map itself'); return out; };
+            const moved = [];
+            [['Replace', repl, depsS], ['Merge', merg, depsS], ['Merge with the tick\'s cleaners and not the look\'s', merg, core(['cleanSecret', 'secretOk'])]].forEach(r => [['the file of doors', sdMap, KEPT], ['the file of looks', lkMap, LK_IDS]].forEach(f => { const d = drift(r[1](f[1], r[2]), r[1](bare(f[1]), r[2]), f[2]); if (d.length) moved.push(r[0] + ', ' + f[0] + ': ' + d.join(' ')); }));
+            const twiceM = (() => { const ic = { items: { mSd: sdMap(), mLk: Object.assign(lkMap(), { id: 'mLk' }) } }; cleanImportItems(ic, depsS); const once = Js(ic); cleanImportItems(ic, depsS); return once === Js(ic) && ic.items.mLk.whiteboard.length === LK_IDS.length; })();
+            const twiceR = (() => { const again = cleanImport(JSON.parse(Js({ campaigns: { cSd: { id: 'cSd', name: 'S', items: { mSd: rSd } } } })), depsS); return !!again && Js(again.campaigns.cSd.items.mSd.whiteboard) === Js(wbOf(rSd)); })();
+            const oddType = [mf => Object.assign(mf(), { type: 'board' }), mf => { const m = mf(); delete m.type; return m; }].every(alt => { const got = merg(() => alt(sdMap), depsS); return !!got && got.type === 'map' && Js(wbOf(got)) === Js(wbOf(mSd)); });
+            check('import: a secret door\'s keys change nothing else: every piece of a file of doors and of a file of looks, cleaned on Replace and on Merge, is key for key the piece the same file gives without the three keys, but for the keys themselves and the doorOpen of a door whose tick came in, and the map around them is the same; a file cleaned twice is the file cleaned once, on Merge and on Replace; a map under another type, or under none, is cleaned as the map it will be drawn as',
+                moved.length === 0 && twiceM && twiceR && oddType, Js([moved, twiceM, twiceR, oddType]));
+
+            // 5. what the app itself writes, and a load
+            const ownBoard = () => clone([pc('o1', Object.assign(SD(), { doorLock: true, name: 'Door', groupId: 'g_2', secret: true })), pc('o2', Object.assign(SD(), { secret: true, seenColor: '#aabbcc', seenTexture: '' })), pc('o3', { barrier: true, sightType: 'door', color: 'transparent', secret: true, seenColor: '#3f3b47', seenTexture: 'cobbles' }),
+                { id: 'o4', type: 'path', x: 300, y: 100, w: 100, h: 6, baseW: 100, baseH: 6, z: 10, pts: [[0, 3], [100, 3]], strokeWidth: 6, tip: 'square', color: '#8a5a2b', layer: 'back-mid', name: 'Door', blocksSight: true, sightType: 'door', secret: true, seenColor: '#555566' },
+                pc('o5', Object.assign(SD(), { hidden: true, secret: true })), pc('o6', Object.assign(SD(), { doorOpen: true, seenColor: '#aabbcc', seenTexture: 'stone' }))]);   // o6: a door that was found, which keeps the look named for it on the GM's own save
+            const ownMap = () => ({ id: 'mSd', type: 'map', meta: { title: 'O' }, rooms: [], links: [], whiteboard: ownBoard() }), ownWant = ownBoard();
+            let ldWb = null, ldErr = '';
+            try {
+                const migS = new Function('window', 'CATS', 'CURRENT_SCHEMA', 'createNewCampaign', '"use strict";\n' + ioSrc.slice(mi, mk) + '\nreturn function(d) { return migrateAppState(d).data; };')({ wpSystemCore: S, wpFormula: F, wpLibraryCore: LBC, wpFogCore: FCs }, { default: { label: 'Default', color: '#ccc' } }, 2, nm => ({ id: 'camp_v0', name: nm, items: {} }));
+                ldWb = migS({ activeCampaignId: 'cSd', campaigns: { cSd: { id: 'cSd', name: 'S', activeItemId: 'mSd', items: { mSd: ownMap() } } } }).campaigns.cSd.items.mSd.whiteboard;
+            } catch (e) { ldErr = String((e && e.message) || e); }
+            check('a secret door as the app itself writes it (the tick as true on a shut door, a wall\'s, a see-through barrier\'s, a line\'s or a hidden one, with a look as the two cleaners keep one) comes through a Replace and a Merge exactly as it was, key for key; a load is no import: the load\'s own normaliser (io.js migrateAppState, run for real with the fog core at hand) leaves every piece of the GM\'s own save as it stands, so no start of the app loses a secret door, and a door that was found keeps the look named for it there, as it does through a Replace and a Merge',
+                !ldErr && Js(ldWb) === Js(ownBoard()) && Js(wbOf(repl(ownMap, depsS))) === Js(ownWant) && Js(wbOf(merg(ownMap, depsS))) === Js(ownWant) && Js(secOf({ whiteboard: ownWant })) === Js([[true, 'none', 'none'], [true, '#aabbcc', ''], [true, '#3f3b47', 'cobbles'], [true, '#555566', 'none'], [true, 'none', 'none'], ['none', '#aabbcc', 'stone']]),
+                ldErr || Js([Js(ldWb) === Js(ownBoard()), secOf(repl(ownMap, depsS)), secOf(merg(ownMap, depsS))]));
+
+            // 6. the import's Merge itself: main.js mergeAppState, sliced and run for real
+            const mergeSrcS = mainSrc.slice(mainSrc.indexOf('  function mergeAppState(imported) {'), mainSrc.indexOf('var _el_importMergeBtn'));
+            const mergeS = (appState, file, d, alone) => { const st = { appState }; let r = null;
+                try { r = new Function('state', 'window', 'cleanImportedItems', 'takeImportedLibrary', 'cleanImport', 'importDeps', mergeSrcS + '\nreturn mergeAppState;')(st, {}, ic => cleanImportItems(ic, d), () => {}, alone ? undefined : cleanImport, alone ? undefined : () => d)(file); } catch (e) { r = { err: String((e && e.message) || e) }; }
+                const c = st.appState.campaigns.cSd; return { r, map: (c && c.items && c.items.mSd) || null }; };
+            const hereNew = () => ({ activeCampaignId: 'cSd', campaigns: { cSd: { id: 'cSd', name: 'Mine', activeItemId: 'm0', items: { m0: { id: 'm0', type: 'map', meta: { title: 'Home' }, rooms: [], links: [], whiteboard: [] } } } } });
+            const hereOld = () => { const h = hereNew(); h.campaigns.cSd.items.mSd = { id: 'mSd', type: 'map', meta: { title: 'Old' }, rooms: [], links: [], whiteboard: [pc('a1', Object.assign(SD(), { doorOpen: true })), pc('zz')] }; return h; };   // the map is here already, its a1 an ordinary open door
+            const hereElse = () => ({ activeCampaignId: 'cE', campaigns: { cE: { id: 'cE', name: 'Else', activeItemId: 'e0', items: { e0: { id: 'e0', type: 'map', meta: { title: 'E' }, rooms: [], links: [], whiteboard: [] } } } } });
+            const gAdd = mergeS(hereNew(), fileOf(sdMap()), depsS), gUpd = mergeS(hereOld(), fileOf(sdMap()), depsS), gNew = mergeS(hereElse(), fileOf(sdMap()), depsS), gAlone = mergeS(hereNew(), fileOf(sdMap()), depsS, true), gNone = mergeS(hereNew(), fileOf(sdMap()), deps), gLk = mergeS(hereNew(), fileOf(lkMap()), depsS);
+            check('import (main.js mergeAppState, sliced and run for real with the real cleanImport): a Merge brings a file\'s secret doors in exactly as a Replace does, piece for piece, into a campaign that is here (the map new, or in the place of the map of that id, whose ordinary open door is then the file\'s secret door, shut), into a campaign that comes in new, and where the merge runs the item cleaners alone; the looks of a file of looks as a Replace keeps them; with no fog core at hand the merge keeps a tick that is the word true, drops the look and still brings in every piece',
+                Js(gAdd.r) === Js({ added: 1, updated: 0, newCamps: 0 }) && Js(gUpd.r) === Js({ added: 0, updated: 1, newCamps: 0 }) && Js(gNew.r) === Js({ added: 0, updated: 0, newCamps: 1 }) && Js(gAlone.r) === Js({ added: 1, updated: 0, newCamps: 0 }) && mergeSrcS.length > 500
+                && wbOf(rSd).length === SD_IDS.length && [gAdd, gUpd, gNew, gAlone].every(g => Js(wbOf(g.map)) === Js(wbOf(rSd)) && Js(secOf(g.map)) === Js(wantSec)) && byId(gUpd.map, 'a1').secret === true && !('doorOpen' in byId(gUpd.map, 'a1')) && !byId(gUpd.map, 'zz')
+                && Js(secOf(gLk.map)) === Js(wantLk) && Js(wbOf(gLk.map)) === Js(wbOf(rLk)) && Js(secOf(gNone.map)) === Js(secOf(mNo)) && !noneIn(gNone.map) && Js(idsOf(gNone.map)) === Js(SD_IDS),
+                Js([gAdd.r, gUpd.r, gNew.r, gAlone.r, [gAdd, gUpd, gNew, gAlone].map(g => miss(g.map, wantSec)), miss(gLk.map, wantLk), noneIn(gNone.map)]));
+
+            // 7. the fog core as the app hands it over: the object fogcore.js publishes on the window, which main.js importDeps passes as FC (the checks
+            // above hand over the module's own exports). fogcore.js run for real with a window, its one export line left off
+            const fcSrcS = readSrc('fogcore.js'), fcCutS = fcSrcS.lastIndexOf('\nexport {'); let FCw = null, fcErrS = '';
+            try { const winS = {}; if (fcCutS <= 0) throw new Error('fogcore.js has no export line to leave off'); new Function('window', '"use strict";\n' + fcSrcS.slice(0, fcCutS) + '\n')(winS); FCw = winS.wpFogCore || null; } catch (e) { fcErrS = String((e && e.message) || e); }
+            const wSd = FCw ? merg(sdMap, { DR: DOC, sanitize, FC: FCw }) : null, wLk = FCw ? merg(lkMap, { DR: DOC, sanitize, FC: FCw }) : null;
+            check('import: the fog core as the app hands it to the import (the object fogcore.js publishes as window.wpFogCore, run for real with a window; main.js importDeps passes it as FC) holds the four functions the import asks for a secret door (cleanSecret, secretOk, cleanSeenColor, cleanSeenTexture) and brings a file of doors and a file of looks in exactly as the module\'s own exports do, so no secret door of a file is lost, or shown to the table as a door, for a name the published object lacks',
+                !fcErrS && !!FCw && ['cleanSecret', 'secretOk', 'cleanSeenColor', 'cleanSeenTexture'].every(k => typeof FCw[k] === 'function') && wbOf(wSd).length === SD_IDS.length && Js(wbOf(wSd)) === Js(wbOf(mSd)) && Js(secOf(wSd)) === Js(wantSec) && Js(wbOf(wLk)) === Js(wbOf(mLk)) && Js(secOf(wLk)) === Js(wantLk)
+                && mainSrc.includes('FC: window.wpFogCore,'),
+                fcErrS || Js([!!FCw, FCw && ['cleanSecret', 'secretOk', 'cleanSeenColor', 'cleanSeenTexture'].filter(k => typeof FCw[k] !== 'function'), miss(wSd, wantSec), miss(wLk, wantLk)]));
+            // 8. the kinds: only a kind of piece a wall may be takes the tick, and a look that does not clean leaves a found door with none
+            const kdBoard = () => clone([
+                Object.assign(pc('k1', SD()), { type: 'text', text: 'Beware', secret: true }, LOOK()), Object.assign(pc('k2', SD()), { type: 'light', light: { bright: 2, dim: 2, unit: 'cells' }, secret: true }, LOOK()),
+                Object.assign(pc('k3', SD()), { type: 'triangle', secret: true }, LOOK()), Object.assign(pc('k4', SD()), { type: 'star', secret: true }, LOOK()), Object.assign(pc('k5', SD()), { type: 'line', secret: true }, LOOK()),
+                Object.assign(pc('k6', SD()), { type: 'trigger', secret: true }, LOOK()), pc('k7', Object.assign(SD(), { secret: true }, LOOK())),
+                pc('k8', Object.assign(SD(), { doorOpen: true, seenColor: 'red', seenTexture: 'Stone' })), pc('k9', Object.assign(SD(), { doorOpen: true, seenColor: '#AA00FF', seenTexture: '' }))]);
+            const kdMap = () => ({ id: 'mSd', type: 'map', meta: { title: 'K' }, rooms: [], links: [], whiteboard: kdBoard() });
+            const rKd = repl(kdMap, depsS), mKd = merg(kdMap, depsS), wantKd = [].concat(Array(6).fill(['none', 'none', 'none']), [[true, '#112233', 'bricks'], ['none', 'none', 'none'], ['none', '#aa00ff', '']]);
+            check('import: only a kind of piece a wall may be takes a secret door\'s tick: a text box, a light, a triangle, a star, a line piece and a trigger zone that carry a door\'s flags, the tick and a look come in with none of the three keys, on Replace and on Merge, where a rectangle beside them keeps all three and is shut; a door that was found keeps a look that cleans, its colour lower-cased and Plain color as an empty text, stays as open as the file had it, and loses a look that does not clean; none of them is read as a secret door but the rectangle',
+                !!rKd && !!mKd && Js(secOf(rKd)) === Js(wantKd) && Js(secOf(mKd)) === Js(wantKd) && Js(wbOf(rKd)) === Js(wbOf(mKd)) && Js(wbOf(mKd).map(w => FCs.secretOn(w))) === Js([false, false, false, false, false, false, true, false, false])
+                && !('doorOpen' in byId(mKd, 'k7')) && byId(mKd, 'k8').doorOpen === true && byId(mKd, 'k9').doorOpen === true && byId(mKd, 'k1').text === 'Beware' && byId(mKd, 'k1').type === 'text',
+                Js([miss(rKd, wantKd), miss(mKd, wantKd)]));
+        }
         // the dev console's reload: never under a table, the GM's or someone else's
         const ri = ioSrc.indexOf('window.wpReloadFromDisk = function() {'), rk = ioSrc.indexOf('\n};', ri);
         const reload = (n) => { const calls = { load: 0, cleared: 0, toasts: [] }; const w = { wpNet: n };

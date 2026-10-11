@@ -907,7 +907,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                 '</label>' +
                 '<div class="muted" style="margin-top:4px;">' + (w.hidden
                   ? 'Players at your table cannot see this. You see it dimmed. Tick the box to reveal it.'
-                  : 'Everyone at your table sees this. Untick to hide it (secret doors, unrevealed enemies, GM notes).') + '</div>' +
+                  : 'Everyone at your table sees this. Untick to hide it (unrevealed enemies, traps, GM notes).') + '</div>' +
               '</div>';
               
             if (w.groupId) {
@@ -1040,12 +1040,14 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
               '<div class="field check-row"><input type="checkbox" id="wbLock" '+(w.locked?'checked':'')+'> <label for="wbLock">Locked (Prevent drag & resize)</label></div>'+
               (['rect','hexagon','circle','diamond','image','path'].indexOf(w.type) >= 0 && !w.hidden && !w.isChar && !w.waiting ? '<div class="field check-row"><input type="checkbox" id="wbBlocksSight" '+(w.blocksSight?'checked':'')+'> <label for="wbBlocksSight">'+(w.type === 'path' ? 'Blocks sight (a wall along the line)' : 'Blocks sight (wall / pillar)')+'</label></div><div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">'+(w.type === 'path' ? 'Fog vision (and each player&rsquo;s view), light, cover and players&rsquo; moves stop at the line itself, a thin wall between cells.' : 'Fog vision (and each player&rsquo;s view) stops at the cells its outline covers, turned as it is drawn.')+' Needs fog on for the map.</div>' : '')+   // item 18 W2: a pen line
               barrierFieldHtml(w)+   // see-through barriers (1.5.1): Stops movement only, with a barrier's own door rows
+              (w.barrier === true && !w.blocksSight ? secretFieldHtml(w) : '')+   // the map builder: a barrier's door may be secret
               fogHandFieldHtml(w)+   // 1.5.4: a piece's fog mark (Under fog, Always revealed)
               (['rect','hexagon','circle','diamond'].indexOf(w.type) >= 0 && !w.hidden && !w.isChar && !w.waiting ? '<div class="field check-row"><input type="checkbox" id="wbSmoke" '+(w.smoke===true?'checked':'')+'> <label for="wbSmoke">Smoke (hides what is in it and past it)</label></div><div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">The eyes do not see into or through it, nor a sense the walls stop unless it sees through smoke. Tokens walk through it, it gives no cover and light passes.</div>' : '')+   // senses S7b
               (['rect','hexagon','circle','diamond'].indexOf(w.type) >= 0 && !w.hidden && !w.isChar && !w.waiting ? terrainFieldHtml(w) : '')+   // difficult terrain T1
               (textureFieldOk(w) ? textureFieldHtml(w) : '')+   // the map builder: a piece's texture, a name of the app's own list
               (['rect','hexagon','circle','diamond','image','path'].indexOf(w.type) >= 0 && !w.hidden && w.blocksSight ? '<div class="field"><label for="wbSightType">Type</label><select id="wbSightType"><option value="wall"'+(w.sightType!=='door'?' selected':'')+'>Wall / pillar (always blocks)</option><option value="door"'+(w.sightType==='door'?' selected':'')+'>Door (can open)</option></select></div>' : '')+
               (w.blocksSight && w.sightType==='door' && !w.hidden ? '<div class="field check-row"><input type="checkbox" id="wbDoorOpen" '+(w.doorOpen?'checked':'')+'> <label for="wbDoorOpen">Door is open (sight passes through)</label></div><div class="field check-row"><input type="checkbox" id="wbDoorLock" '+(w.doorLock?'checked':'')+'> <label for="wbDoorLock">GM-locked (players can&rsquo;t open it)</label></div>' : '')+
+              (w.blocksSight ? secretFieldHtml(w) : '')+   // the map builder: a door may be secret (the players see wall there until it is found)
               // [sinkcheck:heightbox-start]
               (['rect','hexagon','circle','diamond','image','path'].indexOf(w.type) >= 0 && !w.isChar && !w.waiting && !w.hidden ? (function() {   // item 19 H1 (the owner's answer): a piece's height, shown and typed in the viewer's unit, kept in yards
                   var Sh = window.wpStance, FCh = window.wpFogCore, hv = FCh && FCh.cleanHeight ? FCh.cleanHeight(w.height) : null, un = Sh && Sh.lenUnit ? Sh.lenUnit() : 'yd';
@@ -1316,6 +1318,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             if(_el_wbBlocksSight) _el_wbBlocksSight.addEventListener('change', function() {
                 if (this.checked) { w.blocksSight = true; if (!w.sightType) w.sightType = 'wall'; } else { delete w.blocksSight; delete w.sightType; delete w.doorOpen; delete w.doorLock; }
                 delete w.barrier; delete w.blastStop;   // see-through barriers: exclusive with Stops movement only (a wall stops tokens anyway, and blasts)
+                if (!this.checked) delete w.secret;   // a piece that is no door any more is no secret door
                 save(); render(); renderInspector();
                 if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
             });
@@ -1365,20 +1368,31 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             if(_el_wbSightType) _el_wbSightType.addEventListener('change', function() {
                 w.sightType = this.value === 'door' ? 'door' : 'wall';
                 if (w.sightType !== 'door') { delete w.doorOpen; delete w.doorLock; }
+                delete w.secret;   // a piece whose type was just changed is a plain wall or a plain door, never secret by a key it kept
                 save(); render(); renderInspector();
                 if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
             });
             var _el_wbDoorOpen = document.getElementById('wbDoorOpen');
             if(_el_wbDoorOpen) _el_wbDoorOpen.addEventListener('change', function() {
                 if (this.checked) w.doorOpen = true; else delete w.doorOpen;
+                var foundDo = this.checked && typeof secretFound === 'function' && secretFound(w);   // a secret door that is opened is found: an open door cannot be secret
                 save(); render();
                 if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
+                if (foundDo) { renderInspector(); toast(w.hidden ? 'Secret door opened. It is no longer secret, and it is still hidden from your players.' : 'Secret door opened. Your players see it as a door now.'); }
             });
             var _el_wbDoorLock = document.getElementById('wbDoorLock');
             if(_el_wbDoorLock) _el_wbDoorLock.addEventListener('change', function() {
                 if (this.checked) w.doorLock = true; else delete w.doorLock;
                 save(); render();
             });
+            var _el_wbSecret = document.getElementById('wbSecret');   // the map builder: a secret door, and what the players see there
+            if (_el_wbSecret) _el_wbSecret.addEventListener('change', function() { setItemSecret(w, this.checked); });
+            var _el_wbSeenColor = document.getElementById('wbSeenColor');
+            if (_el_wbSeenColor) _el_wbSeenColor.addEventListener('change', function() { setItemSeen(w, 'color', this.value); });
+            var _el_wbSeenTexture = document.getElementById('wbSeenTexture');
+            if (_el_wbSeenTexture) _el_wbSeenTexture.addEventListener('change', function() { setItemSeen(w, 'texture', this.value); });
+            var _el_wbSeenReset = document.getElementById('wbSeenReset');
+            if (_el_wbSeenReset) _el_wbSeenReset.addEventListener('click', function() { setItemSeen(w, 'reset'); });
             var _el_wbDup = document.getElementById('wbDup');
             if (_el_wbDup) _el_wbDup.addEventListener('click', function() { if (window.wpDuplicateWb) window.wpDuplicateWb([w]); });
             var _el_wbDel = document.getElementById('wbDel');
@@ -1923,7 +1937,7 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
   }
   function setItemBarrier(w, on) {
       if (on === true && barrierFieldOk(w)) { w.barrier = true; delete w.blocksSight; if (w.sightType !== 'door') w.sightType = 'wall'; }   // exclusive with Blocks sight; a door stays a door
-      else { delete w.barrier; delete w.blastStop; if (!w.blocksSight) { delete w.sightType; delete w.doorOpen; delete w.doorLock; } }
+      else { delete w.barrier; delete w.blastStop; if (!w.blocksSight) { delete w.sightType; delete w.doorOpen; delete w.doorLock; delete w.secret; } }   // no door any more, so no secret door
       save(); render(); renderInspector();
       if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
   }
@@ -1950,6 +1964,47 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
       toast((w.fogHand === 'hide' ? 'Under fog: players see nothing under it.' : w.fogHand === 'show' ? 'Always revealed: players always see what is under it.' : 'Fog mark taken off.') + (note ? ' ' + note : ''));
   }
   // [sinkcheck:foghandbox-end]
+  // [sinkcheck:secretbox-start]
+  // A secret door (the map builder, fold B5; the owner, 2026-10-10, by prompt: players see "The wall's look", and it is found by "A row, and
+  // opening it"): the Secret tick under a door's own rows, a wall's door and a see-through barrier's alike. Ticked, the players' screens show
+  // wall there until it is found (fogcore secretSeen), and two rows say what they see: a colour, and a pattern of the app's own list. Never a
+  // picture: a picture's path sent to the table is a file the host then serves. The GM's alone (never a player's app, never the stream
+  // window); never on a hidden piece, a picture piece, a token, a waiting token or a GM-note card. Its markup holds fixed words, a colour as
+  // the cleaner keeps it, and names of the list through esc
+  function secretFieldOk(w) { var n = window.wpNet, FC = window.wpFogCore; return !(window.wpStream || (n && (n.foreign || (n.active && n.role === 'client')))) && !!w && typeof w === 'object' && !w.hidden && !!FC && typeof FC.secretOk === 'function' && FC.secretOk(w); }
+  function secretFieldHtml(w) {
+      if (!secretFieldOk(w)) return '';
+      var FC = window.wpFogCore, on = w.secret === true, look = on && typeof FC.secretLook === 'function' ? FC.secretLook(w) : null, names = Array.isArray(FC.TEXTURES) ? FC.TEXTURES : [], line = w.type === 'path' && w.tip !== 'fill' && w.tip !== 'flat', named = w.seenColor !== undefined || w.seenTexture !== undefined;
+      var html = '<div class="field check-row"><input type="checkbox" id="wbSecret" ' + (on ? 'checked' : '') + '> <label for="wbSecret">Secret</label></div>'
+          + '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">Your players see wall here until it is found. Reveal it from its right-click menu, or open it.</div>';
+      if (!look) return html;
+      var col = /^#[0-9a-f]{6}$/.test(look.color) ? look.color : '#3f3b47';
+      html += '<div class="field"><label for="wbSeenColor">Seen as</label><input type="color" id="wbSeenColor" value="' + esc(col) + '" title="The color your players see where the secret door stands."></div>';
+      if (!line) html += '<div class="field"><label for="wbSeenTexture">Seen pattern</label><select id="wbSeenTexture" title="The pattern your players see there."><option value=""' + (look.texture ? '' : ' selected') + '>Plain color</option>' + names.map(function(n) { return '<option value="' + esc(n) + '"' + (n === look.texture ? ' selected' : '') + '>' + esc(String(n).charAt(0).toUpperCase() + String(n).slice(1)) + '</option>'; }).join('') + '</select></div>';
+      html += '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">' + (look.clear ? 'This piece is see-through, so your players see nothing drawn here. Pick a color or a pattern to give it a look.' : 'What your players see there. It starts as the Wall material. Match it to a wall of your own. It cannot wear one of your pictures.') + '</div>';
+      if (named) html += '<div class="field"><button type="button" class="tool ghost" style="width:100%" id="wbSeenReset" title="Takes the color and pattern you named off again. Your players then see the Wall material, or nothing where the piece is see-through.">Back to the Wall look</button></div>';
+      return html;
+  }
+  // A door that is opened is found: an open door cannot be secret. True where it was one
+  function secretFound(w) { var FC = window.wpFogCore; return !!(FC && typeof FC.secretReveal === 'function' && FC.secretReveal(w)); }
+  function setItemSecret(w, on) {
+      if (!w || typeof w !== 'object') return;
+      if (on === true && !secretFieldOk(w)) return;   // not a piece that may be secret, or not the GM's screen: nothing is changed and nothing is said
+      if (on === true) { w.secret = true; delete w.doorOpen; }   // a secret door is shut
+      else delete w.secret;
+      save(); render(); renderInspector();
+      if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
+      toast(w.secret === true ? 'Secret door. Your players see wall here until it is found.' : 'No longer secret. Your players see it as a door.');
+  }
+  function setItemSeen(w, key, v) {
+      var FC = window.wpFogCore; if (!w || typeof w !== 'object' || !secretFieldOk(w) || w.secret !== true) return;
+      if (key === 'color') { var c = typeof FC.cleanSeenColor === 'function' ? FC.cleanSeenColor(v) : null; if (c) w.seenColor = c; else delete w.seenColor; }
+      else if (key === 'texture') { var t = typeof FC.cleanSeenTexture === 'function' ? FC.cleanSeenTexture(v) : null; if (t === null || t === undefined) delete w.seenTexture; else w.seenTexture = t; }
+      else if (key === 'reset') { delete w.seenColor; delete w.seenTexture; }   // back to the Wall material, or to nothing drawn for a see-through piece
+      else return;
+      save(); render(); renderInspector();
+  }
+  // [sinkcheck:secretbox-end]
   // [shelfcheck:pagepinbox-start]
   // A pin (1.5.4, pageshelf.js): the page a piece of the play map opens. The GM's alone, and never sent. The list offers the campaign's
   // planners and handbook pages by name, escaped, and the piece keeps only the id of one that is there: pageshelf.js is the judge of both

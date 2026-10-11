@@ -2,7 +2,7 @@
    The WHOLE of net.js is loaded (never sliced): its five import lines are replaced by stubs handed in as parameters, its
    `export { net }` becomes `return net`, and the module runs on a stub window / document / localStorage / Peer that record
    every DOM sink, toast, dialog, save and fetch. The real core modules (dicecore, systemcore, fogcore, formula, safecore,
-   videocore, calendarcore, librarycore, fxcore, soundcore, musiccore, docrender, vtt, state) are imported for real, so the
+   buildcore, videocore, calendarcore, librarycore, fxcore, soundcore, musiccore, docrender, vtt, state) are imported for real, so the
    rate limiters, the cleaners and the character system are the app's own. A host world (two maps, one fogged, characters
    with a GM-only field, a hidden token, a trap tile, two admitted players, one waiting peer, strangers) and a client world
    (synced to a stub host) are driven through net._handleMessage with, per message type, a well-formed example and a seeded
@@ -281,13 +281,41 @@ const K1 = 'a'.repeat(32), K2 = 'b'.repeat(32), K3 = 'c'.repeat(32);   // K3: a 
 /* fold B5: a secret door. The GM's own secret door on the open field (the world's door_secret). Its own name, colour, pattern and picture fill
    are the GM's until it is found; the colour named for the players' wall is all of its look that may travel, and SECRET_SEEN is the piece the
    players are to hold in its place (fogcore secretSeen). secretLeak reads ONE send for what would give the door away: its own name, colour or
-   picture, one of the GM's three keys under any piece or message, or the door in any shape but that wall. It is asked of every send a probe
-   causes (fireHost) and of every send of the run */
+   picture, one of the GM's three keys under any piece or message, or the door in any shape but that wall. A copy must read as the walls
+   beside it do. So it also reads a send for a wall, a door or a barrier whose keys stand in an order of their own, and for a plain wall that
+   carries a name. It is asked of every send a probe causes (fireHost) and of every send of the run */
 const SECRET_KEYS = ['secret', 'seenColor', 'seenTexture'];
 const SD = { id: 'door_secret', name: 'Vault of Embers', color: '#a1b2c3', seen: '#445566', pic: '/saves/images/vault-door.png' };
-const SECRET_SEEN = { id: SD.id, type: 'rect', blocksSight: true, sightType: 'wall', color: SD.seen, name: 'Wall', texture: 'bricks', x: 300, y: 600, w: 50, h: 50, layer: 'back-mid' };   // a name the door has reads Wall, whatever it says: its own name never leaves
+const SECRET_SEEN = { id: SD.id, type: 'rect', blocksSight: true, sightType: 'wall', color: SD.seen, texture: 'bricks', x: 300, y: 600, w: 50, h: 50, layer: 'back-mid' };   // the copy has NO name, whatever the door is called and whatever look is named for it (fogcore secretSeen)
 const sortedPairs = o => JSON.stringify(Object.keys(o).sort().map(k => [k, o[k]]));
 const seenAsWall = w => { try { return !!w && typeof w === 'object' && sortedPairs(w) === sortedPairs(SECRET_SEEN); } catch (e) { return false; } };   // key for key the wall, whatever the order: one key more (doorOpen: false, a name) is a door given away
+const hasOff = w => { try { return Object.keys(w).some(k => w[k] === false || w[k] === null); } catch (e) { return false; } };   // the trace of a control once used on a piece: Is Character unticked, a lock taken off, a link to a room taken away
+const keysInOrder = w => { try { const k = Object.keys(w); return JSON.stringify(k) === JSON.stringify(k.slice().sort()); } catch (e) { return true; } };   // the review of fold B5: a wall, a door and a barrier leave with their keys sorted, so the order says nothing of how a piece was made
+/* A plain wall carries NO name on the wire (the second review of fold B5; net.js wireWbItem). Build names a piece by its material whatever colour
+   and pattern the GM picked, so no rule could give a secret door's copy the name the walls beside it carry. The host sends a plain wall with
+   none, and a copy and a wall of one look differ by id and place alone. plainWall is this suite's own reading of which piece that is: it blocks
+   sight or is a see-through barrier, is not typed a door, is no token and no waiting token, leads nowhere, and is no picture and no text box.
+   NAMED lists the pieces of the open field that have a name on the host. The plain walls leave with none: a wall, a see-through barrier, a
+   wall whose Blocks sight flag is the number 1 (the rule takes any truthy flag) and a wall drawn as a line (Build's Wall line, a town's City
+   wall). The others keep theirs: a wall's door, a barrier's door, a wall that is a portal, two portals that block nothing, and one piece for
+   each other thing the rule excepts (a wall linked to a node, a picture that blocks sight, a text box that blocks sight, a piece whose barrier
+   flag is a word and not true, a token that blocks sight, a waiting token that is a barrier).
+   WALL_AS says what each plain wall is in the world. ONE_THING names, for each piece that keeps its name and blocks something, the ONE thing
+   that makes it no plain wall: with that thing taken away (butFor) this suite's reading calls it a plain wall. So a rule that stops
+   excepting that one thing sends the piece with no name, and the suite sees it */
+const plainWall = w => !!w && typeof w === 'object' && !!(w.blocksSight || w.barrier === true) && w.sightType !== 'door' && !w.isChar && !w.waiting && !w.targetMapId && !w.nodeId && w.type !== 'image' && w.type !== 'text';
+const NAMED = { walls: { wall1: 'Wall', bars1: 'Force field', wall_one: 'Old wall', wall_line: 'City wall' }, kept: { door1: 'Cellar door', gate1: 'Gate', arch1: 'Archway', portal_vis: 'Stairs', portal_locked: 'Barred stairs', node_wall: 'Hall', img_wall: 'Pillar', text_wall: 'Sign', rail_word: 'Railing', tok_statue: 'Statue', wait_p3: 'Cato' } };
+const WALL_AS = { wall1: w => w.type === 'rect' && w.blocksSight === true, bars1: w => w.type === 'rect' && w.barrier === true && !w.blocksSight, wall_one: w => w.type === 'rect' && w.blocksSight === 1 && w.barrier !== true, wall_line: w => w.type === 'path' && w.blocksSight === true };
+const ONE_THING = {
+    door1: w => { w.sightType = 'wall'; }, gate1: w => { w.sightType = 'wall'; }, arch1: w => { delete w.targetMapId; }, node_wall: w => { delete w.nodeId; }, img_wall: w => { w.type = 'rect'; }, text_wall: w => { w.type = 'rect'; },
+    rail_word: w => { w.barrier = true; }, tok_statue: w => { delete w.isChar; }, wait_p3: w => { delete w.waiting; }
+};
+const butFor = (w, id) => { const c = JSON.parse(JSON.stringify(w)); ONE_THING[id](c); return plainWall(c); };
+const NAMED_IDS = Object.keys(NAMED.walls).concat(Object.keys(NAMED.kept));
+const hostName = id => (hasOwn(NAMED.walls, id) ? NAMED.walls[id] : NAMED.kept[id]);   // the name a piece has on the host
+const wireName = id => (hasOwn(NAMED.walls, id) ? null : NAMED.kept[id]);   // what a player is to hold: no name key at all for a plain wall, its own name for the others
+const namesOff = (get, want) => NAMED_IDS.filter(id => get(id) !== want(id)).map(id => [id, get(id)]);   // the pieces whose name is not the one wanted, as [id, what was found]: first in a detail
+const NAMED_FLOOR = 100;   // each named piece is seen in at least this many sends of the run before its names are judged
 const bareOfSecret = w => !!w && typeof w === 'object' && SECRET_KEYS.every(k => !Object.prototype.hasOwnProperty.call(w, k));
 function piecesIn(m) {   // every board piece a message carries: a whole map's, a delta's, a catch-up's, a snapshot's
     const out = [], take = a => { if (Array.isArray(a)) a.forEach(w => { if (w && typeof w === 'object') out.push(w); }); };
@@ -309,6 +337,9 @@ function secretLeak(m) {   // '' for a send that gives nothing of the secret doo
     if (j.indexOf(SD.pic) >= 0) return 'the door\'s own picture';
     const km = j.match(/"(secret|seenColor|seenTexture)":/); if (km) return 'the GM\'s key ' + km[1];
     if (j.indexOf(SD.id) >= 0 && piecesIn(m).some(w => w.id === SD.id && !seenAsWall(w))) return 'the door in a shape that is not the wall the players are to hold';
+    if (piecesIn(m).some(w => (w.blocksSight || w.barrier === true) && !keysInOrder(w))) return 'a wall, a door or a barrier whose keys stand in an order of their own';
+    if (piecesIn(m).some(w => plainWall(w) && hasOwn(w, 'name'))) return 'a plain wall that carries a name';
+    if (piecesIn(m).some(w => (w.blocksSight || w.barrier === true) && hasOff(w))) return 'a wall, a door or a barrier that carries a key whose value is false or null';
     return '';
 }
 function mkCampaign(SC, F) {
@@ -337,11 +368,21 @@ function mkCampaign(SC, F) {
                 { id: 'portal_vis', type: 'rect', targetMapId: 'm_fog', name: 'Stairs', x: 500, y: 500, w: 50, h: 50, layer: 'bottom' },
                 { id: 'portal_locked', type: 'rect', targetMapId: 'm_fog', portalLock: true, name: 'Barred stairs', x: 250, y: 100, w: 50, h: 50, layer: 'bottom' },   // a portal's own lock (the owner, 2026-10-03): a portal the GM locked for players, three clear cells from tok_p1 — no message of a player's may move anyone through it, set its lock or clear it
                 { id: 'trap1', type: 'rect', hidden: true, trap: true, targetMapId: 'm_fog', x: 200, y: 100, w: 50, h: 50, layer: 'bottom' },
-                { id: 'door1', type: 'rect', blocksSight: true, sightType: 'door', doorOpen: false, x: 150, y: 150, w: 50, h: 50 },
+                { id: 'door1', type: 'rect', blocksSight: true, sightType: 'door', doorOpen: false, name: 'Cellar door', x: 150, y: 150, w: 50, h: 50 },   // a named door: a door keeps its name on the wire
                 { id: 'door_locked', type: 'rect', blocksSight: true, sightType: 'door', doorOpen: false, doorLock: true, x: 50, y: 150, w: 50, h: 50 },
-                { id: 'wall1', type: 'rect', blocksSight: true, x: 600, y: 0, w: 10, h: 400 },
-                { id: 'gate1', type: 'rect', barrier: true, sightType: 'door', doorOpen: false, x: 150, y: 50, w: 50, h: 50 },   // see-through barriers (1.5.1): a barrier's door beside tok_p1, and a plain barrier — no message but a door request may change either
-                { id: 'bars1', type: 'rect', barrier: true, x: 650, y: 0, w: 10, h: 400 },
+                { id: 'wall1', type: 'rect', blocksSight: true, name: 'Wall', x: 600, y: 0, w: 10, h: 400 },   // a plain wall that has a name on the host, as a wall Build lays has: it leaves the host with none (the second review of fold B5)
+                { id: 'gate1', type: 'rect', barrier: true, sightType: 'door', doorOpen: false, name: 'Gate', x: 150, y: 50, w: 50, h: 50 },   // see-through barriers (1.5.1): a barrier's door beside tok_p1, and a plain barrier — no message but a door request may change either
+                { id: 'bars1', type: 'rect', barrier: true, name: 'Force field', x: 650, y: 0, w: 10, h: 400 },   // (a named plain barrier leaves with no name, as the named wall does)
+                { id: 'arch1', type: 'rect', blocksSight: true, targetMapId: 'm_fog', name: 'Archway', x: 800, y: 600, w: 50, h: 50, layer: 'bottom' },   // a wall that leads somewhere keeps its name on the wire, as a door does: only a plain wall leaves with none
+                { id: 'wall_one', type: 'rect', blocksSight: 1, name: 'Old wall', isChar: false, locked: false, x: 900, y: 0, w: 10, h: 200 },   // the second reader: a wall whose flag is the number 1, as a file may hold one. The rule takes any truthy flag, so it leaves with no name too
+                { id: 'wall_line', type: 'path', blocksSight: true, sightType: 'wall', name: 'City wall', nodeId: null, pts: [[0, 0], [40, 0]], color: '#4a4753', strokeWidth: 8, x: 900, y: 250, w: 40, h: 1, baseW: 40, baseH: 1, z: 35 },   // a wall drawn as a line (Build's Wall line, a town's City wall): a plain wall whatever kind of piece it is
+                // one piece for each other thing the name rule excepts. Each would be a plain wall but for the one thing named (ONE_THING), and keeps its name on the wire
+                { id: 'node_wall', type: 'rect', blocksSight: true, nodeId: 'n_hall', name: 'Hall', x: 900, y: 300, w: 50, h: 50 },   // a wall linked to a node
+                { id: 'img_wall', type: 'image', blocksSight: true, src: '/saves/images/pic.png', name: 'Pillar', x: 900, y: 400, w: 50, h: 50, layer: 'bottom' },   // a picture that blocks sight
+                { id: 'text_wall', type: 'text', blocksSight: true, text: 'Keep out', name: 'Sign', x: 900, y: 500, w: 60, h: 30 },   // a text box that blocks sight
+                { id: 'rail_word', type: 'rect', barrier: 'yes', name: 'Railing', x: 900, y: 560, w: 60, h: 10 },   // a barrier flag that is a word: a barrier counts only as true
+                tok('tok_statue', { charName: 'Statue', name: 'Statue', blocksSight: true, x: 900, y: 620 }),   // a token that blocks sight
+                { id: 'wait_p3', type: 'circle', waiting: 1, ownerId: 'u_p3', name: 'Cato', barrier: true, x: 900, y: 700, w: 50, h: 50, layer: 'middle' },   // a waiting token that is a barrier
                 { id: 'door_secret', type: 'rect', blocksSight: true, sightType: 'door', doorOpen: false, secret: true, color: SD.color, name: SD.name, seenColor: SD.seen, texture: 'planks', texSrc: SD.pic, texTile: 2, x: 300, y: 600, w: 50, h: 50, layer: 'back-mid' },   // fold B5: a secret door (the map builder): the GM's own, clear of every other piece and of the probes' paths. The players hold a wall there in the colour named for it; its own name, colour, pattern and picture never leave the host, and no message of a player's opens it, finds it or changes it
                 { id: 'stroke_wall', type: 'path', byPlayer: true, ownerId: 'u_p1', blocksSight: true, sightType: 'wall', pts: [[0, 0], [30, 0]], color: '#ffffff', strokeWidth: 3, x: 700, y: 40, w: 30, h: 1, baseW: 30, baseH: 1, z: 35 },   // 49 (c) (the owner, 2026-10-06: "Lock it for its player"): a line of u_p1's own that the GM made a wall, and one made a see-through barrier — no message of a player's may erase, redraw or move either
                 { id: 'stroke_bar', type: 'path', byPlayer: true, ownerId: 'u_p1', barrier: true, pts: [[0, 0], [0, 30]], color: '#ffffff', strokeWidth: 3, x: 720, y: 60, w: 1, h: 30, baseW: 1, baseH: 30, z: 35 },
@@ -450,11 +491,11 @@ function mutations(tpl) {
     const imp = async f => (await import(pathToFileURL(path.join(ROOT, f)).href));
     stateMod = await imp('state.js');
     const skipped = [];
-    for (const f of ['dicecore.js', 'formula.js', 'calendarcore.js', 'systemcore.js', 'fogcore.js', 'safecore.js', 'videocore.js', 'librarycore.js', 'fxcore.js', 'soundcore.js', 'musiccore.js', 'docrender.js', 'vtt.js']) {
+    for (const f of ['dicecore.js', 'formula.js', 'calendarcore.js', 'systemcore.js', 'fogcore.js', 'safecore.js', 'buildcore.js', 'videocore.js', 'librarycore.js', 'fxcore.js', 'soundcore.js', 'musiccore.js', 'docrender.js', 'vtt.js']) {
         try { await imp(f); } catch (e) { skipped.push(f + ': ' + e.message); }
     }
-    const SC = window.wpSystemCore, F = window.wpFormula, DC = window.wpDiceCore, FC = window.wpFogCore;
-    check('the core modules load for real (dicecore, systemcore, fogcore, formula, vtt…)', !!(SC && F && DC && FC && window.wpVtt) && skipped.length === 0, skipped);
+    const SC = window.wpSystemCore, F = window.wpFormula, DC = window.wpDiceCore, FC = window.wpFogCore, BC = window.wpBuildCore;
+    check('the core modules load for real (dicecore, systemcore, fogcore, buildcore, formula, vtt…)', !!(SC && F && DC && FC && BC && typeof BC.pieceProps === 'function' && window.wpVtt) && skipped.length === 0, { skipped, buildcore: typeof BC, pieceProps: BC ? typeof BC.pieceProps : 'no buildcore' });
 
     const sheetsStub = () => ({
         playerSystem: camp => SC.cleanSystem(camp.system, { F, gmView: false, libCats: {} }), readablePages: () => [],
@@ -1029,10 +1070,22 @@ function mutations(tpl) {
 
         // 1. the world, and the join snapshot
         await resetWorld(); await calm();
-        check('host (a secret door): the world\'s door_secret is a secret door by the app\'s own judge (fogcore secretOn), and the piece this suite expects the players to hold is the one fogcore secretSeen gives for it, so the probes reach the real rule', typeof FC.secretOn === 'function' && typeof FC.secretSeen === 'function' && FC.secretOn(doorH()) === true && seenAsWall(FC.secretSeen(doorH())) && JSON.stringify(doorH()) === pristineSD, { door: doorH(), seen: typeof FC.secretSeen === 'function' ? FC.secretSeen(doorH()) : 'no secretSeen' });
+        check('host (a secret door): the world\'s door_secret is a secret door by the app\'s own judge (fogcore secretOn), and the piece this suite expects the players to hold is the one fogcore secretSeen gives for it, with no name and with no table of names left in the core to give it one, so the probes reach the real rule', typeof FC.secretOn === 'function' && typeof FC.secretSeen === 'function' && FC.secretOn(doorH()) === true && seenAsWall(FC.secretSeen(doorH())) && !hasOwn(FC.secretSeen(doorH()), 'name') && FC.secretName === undefined && FC.SECRET_NAMES === undefined && typeof doorH().name === 'string' && JSON.stringify(doorH()) === pristineSD, { seenName: typeof FC.secretSeen === 'function' ? (hasOwn(FC.secretSeen(doorH()), 'name') ? FC.secretSeen(doorH()).name : null) : 'no secretSeen', table: [typeof FC.secretName, typeof FC.SECRET_NAMES], secretOn: typeof FC.secretOn === 'function' ? FC.secretOn(doorH()) : 'no secretOn', seen: typeof FC.secretSeen === 'function' ? FC.secretSeen(doorH()) : 'no secretSeen', door: doorH() });
         const sdOf = snap => { const cs = snap && snap.appState && snap.appState.campaigns, it = cs && cs.c1 && cs.c1.items ? cs.c1.items.m_open : null; return it && Array.isArray(it.whiteboard) ? it.whiteboard.find(w => w && w.id === SD.id) || null : null; };
         const snapP2 = conns.p2.sent.find(m => m.type === 'snapshot');
         check('host (a secret door): the join snapshot gives each player the GM\'s secret door as a wall — its id and its box, a wall\'s type, the colour the GM named for it and the Wall material\'s pattern — with no door key, no lock, no name, no pattern or picture of its own and none of the GM\'s three keys, anywhere in the snapshot', seenAsWall(sdOf(snapP1)) && seenAsWall(sdOf(snapP2)) && secretLeak(snapP1) === '' && secretLeak(snapP2) === '', { p1: sdOf(snapP1), p2: sdOf(snapP2), leak: [secretLeak(snapP1), secretLeak(snapP2)] });
+        // 1b. a plain wall has no name on the wire (the second review of fold B5): the world's named pieces, on the host and in the join snapshot
+        const wallIds = Object.keys(NAMED.walls), keptIds = Object.keys(NAMED.kept);
+        const pieceOf = (snap, id) => { const cs = snap && snap.appState && snap.appState.campaigns, it = cs && cs.c1 && cs.c1.items ? cs.c1.items.m_open : null; return it && Array.isArray(it.whiteboard) ? it.whiteboard.find(w => w && w.id === id) || null : null; };
+        const nameOf = w => (!w ? 'gone' : hasOwn(w, 'name') ? w.name : null);   // null: the piece is there and has no name key at all
+        // the world as the title tells it: each plain wall is the kind of piece named for it, and each piece that keeps its name is no plain wall for ONE reason (the two portals block nothing at all)
+        const notAsTold = wallIds.filter(id => !tokH(id) || !WALL_AS[id] || !WALL_AS[id](tokH(id)) || !plainWall(tokH(id)))
+            .concat(keptIds.filter(id => !tokH(id) || plainWall(tokH(id)) || (ONE_THING[id] ? !butFor(tokH(id), id) : !!(tokH(id).blocksSight || tokH(id).barrier === true || !tokH(id).targetMapId))));
+        const hostOff = namesOff(id => nameOf(tokH(id)), hostName), snapOff = [snapP1, snapP2].map(snap => namesOff(id => nameOf(pieceOf(snap, id)), wireName)), snapOdd = [snapP1, snapP2].map(snap => wallIds.filter(id => !plainWall(pieceOf(snap, id))));
+        check('host (a plain wall has no name): the world holds four pieces that have a name on the host and are plain walls by this suite\'s own reading: a wall, a see-through barrier, a wall whose Blocks sight flag is the number 1, and a wall drawn as a line. Beside them it holds eleven named pieces that are none. Nine would be a plain wall but for one thing: a door, a barrier\'s door, a wall that is a portal, a wall linked to a node, a picture that blocks sight, a text box that blocks sight, a piece whose barrier flag is a word, a token that blocks sight and a waiting token that is a barrier. Two are portals that block nothing. The join snapshot gives each player the four plain walls with no name and the eleven others under their own, and the host\'s own pieces keep every name',
+            wallIds.length === 4 && keptIds.length === 11 && Object.keys(ONE_THING).length === 9 && Object.keys(ONE_THING).every(id => hasOwn(NAMED.kept, id)) && notAsTold.length === 0 && hostOff.length === 0
+            && snapOff.every(l => l.length === 0) && snapOdd.every(l => l.length === 0),
+            { notAsTold, hostOff, p1Off: snapOff[0], p2Off: snapOff[1], notPlainInSnapshot: snapOdd, counts: [wallIds.length, keptIds.length, Object.keys(ONE_THING).length] });
 
         // 2. a copy asked for whole: as the GM left the door, and with the door open, locked for players and in a group on the GM's own screen
         await level(); const n0 = sentLog.length, need = { type: 'needItem', campId: 'c1', itemId: 'm_open' };
@@ -1090,7 +1143,22 @@ function mutations(tpl) {
         {
             const carried = sentLog.filter(s => !!doorIn(s.m)), leaks = [];
             for (const s of sentLog) { const why = secretLeak(s.m); if (why) { leaks.push(s.to + ':' + s.m.type + ' holds ' + why); if (leaks.length >= 20) break; } }
-            check('host (a secret door): across the run, nothing sent to anyone gives the secret door away — the ' + carried.length + ' sends that carry it each hold it as the wall the players are to hold, and no send holds its own name, colour or picture, nor one of the GM\'s three keys', carried.length >= 100 && carried.every(s => seenAsWall(doorIn(s.m))) && leaks.length === 0, { carried: carried.length, leaks: leaks.slice(0, 3) });
+            check('host (a secret door): across the run, nothing sent to anyone gives the secret door away — the ' + carried.length + ' sends that carry it each hold it as the wall the players are to hold, and no send holds its own name, colour or picture, nor one of the GM\'s three keys. No wall, door or barrier in any send has its keys in an order of its own or a key whose value is false or null, and no plain wall in any send carries a name', carried.length >= 100 && carried.every(s => seenAsWall(doorIn(s.m))) && leaks.length === 0, { carried: carried.length, leaks: leaks.slice(0, 3) });
+            {   // the clause above is not empty: two walls of the world carry such keys on the host, and they are sent often
+                const offIds = ['wall_one', 'wall_line'], offHost = offIds.map(id => hasOff(tokH(id))), offSent = offIds.map(id => sentLog.reduce((n, s) => n + piecesIn(s.m).filter(w => w.id === id).length, 0)), offLeft = offIds.map(id => sentLog.reduce((n, s) => n + piecesIn(s.m).filter(w => w.id === id && hasOff(w)).length, 0));
+                check('host (a wall\'s leftover keys): a wall that carries isChar false and locked false on the host, and one that carries nodeId null, the traces of controls once used, reach the players often and never with such a key, while the host\'s own pieces keep them', offHost.every(Boolean) && offSent.every(n => n >= 20) && offLeft.every(n => n === 0), { offHost, offSent, offLeft });
+            }
+            const count = (id, f) => sentLog.reduce((n, s) => n + piecesIn(s.m).filter(w => w.id === id && f(w)).length, 0);
+            const wallsSeen = wallIds.map(id => count(id, () => true)), wallsNamed = wallIds.map(id => count(id, w => hasOwn(w, 'name'))), wallsOdd = wallIds.map(id => count(id, w => !plainWall(w)));
+            const keptSeen = keptIds.map(id => count(id, () => true)), keptWrong = keptIds.map(id => count(id, w => w.name !== NAMED.kept[id]));
+            const runOff = [];   // what was wrong, piece by piece: first in the detail
+            wallIds.forEach((id, i) => { if (wallsSeen[i] < NAMED_FLOOR) runOff.push(id + ' sent ' + wallsSeen[i] + ' times'); if (wallsNamed[i]) runOff.push(id + ' sent with a name ' + wallsNamed[i] + ' times'); if (wallsOdd[i]) runOff.push(id + ' sent as no plain wall ' + wallsOdd[i] + ' times'); });
+            keptIds.forEach((id, i) => { if (keptSeen[i] < NAMED_FLOOR) runOff.push(id + ' sent ' + keptSeen[i] + ' times'); if (keptWrong[i]) runOff.push(id + ' sent under another name or none ' + keptWrong[i] + ' times'); });
+            const hostStill = namesOff(id => nameOf(tokH(id)), hostName);
+            check('host (a plain wall has no name): across the run, the four plain walls that have a name on the host (the wall, the barrier, the wall whose flag is the number 1 and the wall drawn as a line) were sent ' + wallsSeen.join(', ') + ' times, each time as a plain wall and never with a name. The eleven named pieces that keep a name (two doors, the wall that is a portal, two portals, the wall linked to a node, the picture, the text box, the piece whose barrier flag is a word, the token and the waiting token) were sent ' + keptSeen.join(', ') + ' times, each time under their own name. The host\'s own pieces still hold every name',
+                wallIds.length === 4 && keptIds.length === 11 && wallsSeen.every(n => n >= NAMED_FLOOR) && wallsNamed.every(n => n === 0) && wallsOdd.every(n => n === 0) && keptSeen.every(n => n >= NAMED_FLOOR) && keptWrong.every(n => n === 0)
+                && runOff.length === 0 && hostStill.length === 0,
+                { runOff, hostOff: hostStill, floor: NAMED_FLOOR, wallsSeen, keptSeen });
         }
 
         // 6. the door's own picture fill: its path was sent to nobody, so the asset gate serves it to nobody
@@ -1109,8 +1177,9 @@ function mutations(tpl) {
         clockOff += 1500; threwNC += noCore({ type: 'door-req', mapId: 'm_open', itemId: 'door_locked' });
         await calm();
         const sentNC = conns.p1.sent.slice(c0), wholeNC = sentNC.filter(m => m.type === 'item' && m.itemId === 'm_open' && m.item && !m.item.stub), doorNC = wholeNC[0] ? doorIn(wholeNC[0]) : null, deniesNC = sentNC.filter(m => m.type === 'door-deny').map(m => m.reason);
-        const bareWall = Object.assign({}, SECRET_SEEN, { color: '#3f3b47' }); delete bareWall.texture; delete bareWall.name;   // the fallback names nothing
-        check('host (a secret door): with no fog core at hand the secret door still leaves as a wall — the Wall material\'s colour, no door key, no lock, no group, no name, no pattern or picture and none of the three keys, nothing of its own look anywhere in the copy — and a request naming it is still answered with nothing, where the lock of the door beside it is still said', threwNC === '' && wholeNC.length === 1 && !!doorNC && sortedPairs(doorNC) === sortedPairs(bareWall) && !/Vault of Embers|#a1b2c3|vault-door|"(secret|seenColor|seenTexture)":/i.test(JSON.stringify(wholeNC[0])) && eq(deniesNC, ['locked']) && window.wpFogCore === FC && doorH().secret === true && doorH().doorLock === true, { threwNC, doorNC, deniesNC });
+        const bareWall = Object.assign({}, SECRET_SEEN, { color: '#3f3b47' }); delete bareWall.texture;   // the fallback: the Wall material's colour and no pattern, and no name, as SECRET_SEEN has none
+        const nameNC = id => nameOf(wholeNC[0] ? piecesIn(wholeNC[0]).find(w => w.id === id) || null : null);
+        check('host (a secret door): with no fog core at hand the secret door still leaves as a wall — the Wall material\'s colour, no door key, no lock, no group, no name, no pattern or picture and none of the three keys, nothing of its own look anywhere in the copy — and a request naming it is still answered with nothing, where the lock of the door beside it is still said. The rule for a name needs no core: the four named plain walls still leave with none, and the eleven pieces that keep a name still carry theirs', threwNC === '' && wholeNC.length === 1 && !!doorNC && sortedPairs(doorNC) === sortedPairs(bareWall) && !hasOwn(doorNC, 'name') && wallIds.every(id => nameNC(id) === null) && keptIds.every(id => nameNC(id) === NAMED.kept[id]) && namesOff(nameNC, wireName).length === 0 && !/Vault of Embers|#a1b2c3|vault-door|"(secret|seenColor|seenTexture)":/i.test(JSON.stringify(wholeNC[0])) && eq(deniesNC, ['locked']) && window.wpFogCore === FC && doorH().secret === true && doorH().doorLock === true, { namesOff: namesOff(nameNC, wireName), threwNC, deniesNC, doorNC });
 
         // 7. the GM's own edits. What only the GM sees of the door sends the table nothing; another look named for the wall reaches the table as
         //    that wall; once the door is found (fogcore secretReveal: what the menu's row and opening it do) it is a door for everyone
@@ -1119,9 +1188,27 @@ function mutations(tpl) {
         Object.assign(gD, { doorOpen: true, doorLock: true, groupId: 'g_vault', color: '#0a0b0c', name: SD.name + ', ajar', texture: 'stone' }); await level();
         const quiet = carry(g0);
         check('host (a secret door): the GM opening, locking, grouping, renaming, recolouring and repatterning the secret door on their own screen sends the table nothing of the map at the next save: the wall the players hold has not changed', quiet.length === 0, quiet.map(s => s.to + ':' + s.m.type));
+        g0 = sentLog.length; delete gD.seenColor; await level();   // no look named for it any more: the Wall material's own, the very look Build names a piece Wall for
+        const unlook = carry(g0), wantWall = Object.assign({}, SECRET_SEEN, { color: '#3f3b47' }), toBoth = list => list.length >= 2 && ['peer_p1', 'peer_p2'].every(p => list.some(s => s.to === p));
+        const coreWall = FC.secretSeen(gD);   // the core's own answer, before the host's rule for a wall's name is asked
+        check('host (a secret door): with no look named for it the wall reaches both players at the next save in the Wall material\'s own colour and pattern, and still with no name. Build names a wall of that look Wall, and the copy takes no name from its look: the core\'s own copy has none, and the piece on the wire has none', toBoth(unlook) && unlook.every(s => !!doorIn(s.m) && sortedPairs(doorIn(s.m)) === sortedPairs(wantWall) && !hasOwn(doorIn(s.m), 'name') && keysInOrder(doorIn(s.m))) && coreWall !== gD && sortedPairs(coreWall) === sortedPairs(wantWall) && !hasOwn(coreWall, 'name') && !hasOwn(gD, 'seenColor') && gD.name === SD.name + ', ajar', { coreName: nameOf(coreWall), sentNames: unlook.map(s => [s.to, nameOf(doorIn(s.m))]), core: coreWall, sent: unlook.map(s => [s.to, doorIn(s.m)]), host: gD });
         g0 = sentLog.length; gD.seenColor = '#778899'; gD.seenTexture = ''; await level();
         const relook = carry(g0), wantLook = Object.assign({}, SECRET_SEEN, { color: '#778899' }); delete wantLook.texture;
-        check('host (a secret door): another look the GM names for it (a colour, and a plain colour for its pattern) reaches both players at the next save as that wall — still a wall, with no pattern, no door key and none of the three keys', relook.length >= 2 && ['peer_p1', 'peer_p2'].every(p => relook.some(s => s.to === p)) && relook.every(s => !!doorIn(s.m) && sortedPairs(doorIn(s.m)) === sortedPairs(wantLook) && doorIn(s.m).name === 'Wall' && !/"(secret|seenColor|seenTexture|doorOpen|doorLock|groupId|texSrc)":/.test(JSON.stringify(doorIn(s.m)))), relook.map(s => [s.to, doorIn(s.m)]));
+        check('host (a secret door): another look the GM names for it (a colour, and a plain colour for its pattern) reaches both players at the next save as that wall — still a wall, with no pattern, no door key and none of the three keys', relook.length >= 2 && ['peer_p1', 'peer_p2'].every(p => relook.some(s => s.to === p)) && relook.every(s => !!doorIn(s.m) && sortedPairs(doorIn(s.m)) === sortedPairs(wantLook) && !('name' in doorIn(s.m)) && keysInOrder(doorIn(s.m)) &&!/"(secret|seenColor|seenTexture|doorOpen|doorLock|groupId|texSrc)":/.test(JSON.stringify(doorIn(s.m)))), relook.map(s => [s.to, doorIn(s.m)]));
+        // a wall as Build lays one (buildcore pieceProps, run for real, as the Build tool asks it) where the GM picked that colour and Plain color
+        // for it: the piece is named by its MATERIAL, whatever was picked. On the wire it has no name, so the door's copy and the wall beside it
+        // differ by id and place alone
+        const builtProps = BC && typeof BC.pieceProps === 'function' ? BC.pieceProps('wall', { color: '#778899', texture: '' }) : null;
+        campH().items.m_open.whiteboard.push(Object.assign({ id: 'wall_built', type: 'rect', x: 350, y: 600, w: 50, h: 50 }, builtProps || {})); await level();
+        clockOff += 1500; const side0 = conns.p1.sent.length;
+        try { net._handleMessage(clone(need), conns.p1); } finally { net.applyingRemote = false; } await calm();
+        const sideMap = conns.p1.sent.slice(side0).filter(m => m.type === 'item' && m.itemId === 'm_open' && m.item && !m.item.stub).pop() || null, sideDoor = sideMap ? doorIn(sideMap) : null, sideWall = sideMap ? piecesIn(sideMap).find(w => w.id === 'wall_built') || null : null;
+        const lessPlace = w => (w ? JSON.stringify(Object.keys(w).filter(k => k !== 'id' && k !== 'x' && k !== 'y').map(k => [k, w[k]])) : 'none');   // in the piece's own order of keys
+        const sideOff = !sideDoor || !sideWall ? { missing: [!sideDoor ? 'the door' : '', !sideWall ? 'the wall' : ''] } : {   // how the two differ, first in the detail: a key only one has, a value that differs, the order
+            onlyDoor: Object.keys(sideDoor).filter(k => !hasOwn(sideWall, k)), onlyWall: Object.keys(sideWall).filter(k => !hasOwn(sideDoor, k)),
+            differ: Object.keys(sideDoor).filter(k => k !== 'id' && k !== 'x' && k !== 'y' && hasOwn(sideWall, k) && JSON.stringify(sideDoor[k]) !== JSON.stringify(sideWall[k])).map(k => [k, sideDoor[k], sideWall[k]]),
+            order: JSON.stringify(Object.keys(sideDoor)) === JSON.stringify(Object.keys(sideWall)) ? 'the same' : [Object.keys(sideDoor), Object.keys(sideWall)] };
+        check('host (a secret door): a wall Build laid beside it (buildcore pieceProps, run for real) in the look the GM named for the door is named Wall on the host, by its material. In a whole copy of the map that wall has no name, and the door\'s copy and the wall differ by id and place alone: the same keys in the same order with the same values', !!builtProps && !!sideDoor && !!sideWall && lessPlace(sideDoor) === lessPlace(sideWall) && !hasOwn(sideWall, 'name') && !hasOwn(sideDoor, 'name') && plainWall(sideWall) && plainWall(sideDoor) && sideWall.x === 350 && sideDoor.x === 300 && tokH('wall_built').name === 'Wall' && plainWall(tokH('wall_built')), { hostName: tokH('wall_built') ? nameOf(tokH('wall_built')) : 'gone', sideOff, built: builtProps });
         g0 = sentLog.length; const wasSecret = FC.secretReveal(gD); await level();
         const shown = carry(g0), shownDoors = shown.map(s => doorIn(s.m));
         check('host (a secret door): once the GM finds it, the next save gives both players the door as the door it is — a door\'s type, open and locked as the GM has it, its own name, colour, pattern, picture and group — and still none of the three keys, though the look named for it stays on the GM\'s own piece', wasSecret === true && shown.length >= 2 && ['peer_p1', 'peer_p2'].every(p => shown.some(s => s.to === p)) && shownDoors.every(w => !!w && w.sightType === 'door' && w.blocksSight === true && w.doorOpen === true && w.doorLock === true && w.name === SD.name + ', ajar' && w.color === '#0a0b0c' && w.texture === 'stone' && w.texSrc === SD.pic && w.groupId === 'g_vault' && bareOfSecret(w)) && !hasOwn(doorH(), 'secret') && doorH().seenColor === '#778899', { wasSecret, shownDoors, host: doorH() });
@@ -1478,6 +1565,8 @@ function mutations(tpl) {
         resetClient(); resetRec(); const f0 = found.size;
         const pc = (mid, id) => { const it = campC().items[mid]; return (it && Array.isArray(it.whiteboard) ? it.whiteboard : []).find(w => w && w.id === id) || null; };
         check('client (a secret door): the real join snapshot leaves the player\'s app holding the GM\'s secret door as the wall the host sent — a wall\'s type, the look named for it, no door key and none of the three keys', seenAsWall(pc('m_open', SD.id)), pc('m_open', SD.id));
+        const nameC = id => { const w = pc('m_open', id); return !w ? 'gone' : hasOwn(w, 'name') ? w.name : null; };
+        check('client (a plain wall has no name): the real join snapshot leaves the player\'s app holding the world\'s four named plain walls with no name (the wall, the barrier, the wall whose flag is the number 1 and the wall drawn as a line), and the eleven named pieces that keep a name under their own', Object.keys(NAMED.walls).length === 4 && Object.keys(NAMED.kept).length === 11 && Object.keys(NAMED.walls).every(id => nameC(id) === null) && Object.keys(NAMED.kept).every(id => nameC(id) === NAMED.kept[id]) && namesOff(nameC, wireName).length === 0, { namesOff: namesOff(nameC, wireName), held: NAMED_IDS.length });
         const evil = () => [
             { id: 'evil_sd1', type: 'rect', blocksSight: true, sightType: 'door', doorOpen: false, secret: true, seenColor: '#112233', seenTexture: 'grass', color: '#6b4a2a', name: 'Door', x: 0, y: 0, w: 50, h: 50 },   // a door ticked secret, as a GM's own save holds one
             { id: 'evil_sd2', type: 'rect', secret: 'yes', seenColor: CANARY, seenTexture: { a: 1 }, x: 60, y: 0, w: 50, h: 50 },   // junk under the three keys, on a plain shape

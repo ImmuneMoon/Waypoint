@@ -731,12 +731,12 @@ function wireWbItem(w, cloned) {
     if (w.gmNoteFor || w.hidden) return null;
     if (!cloned) w = JSON.parse(JSON.stringify(w), wireNum);
     // The map builder, a secret door: the players hold a WALL there until it is found (fogcore secretSeen: no door type, never open, no lock, no
-    // group, no name or picture of its own, in the look the GM named for it or the Wall material's). The door's own look never leaves the host
+    // group, no name and no picture, in the look the GM named for it or the Wall material's). The door's own look never leaves the host
     // before that. The three keys are the GM's and never travel, on any piece. With no core at hand a secret door is still sent as a wall
     if (w.secret !== undefined || w.seenColor !== undefined || w.seenTexture !== undefined) {
         var FCs = typeof window === 'object' && window ? window.wpFogCore : null;
         if (FCs && typeof FCs.secretSeen === 'function') w = FCs.secretSeen(w);
-        else if (w.secret === true && (w.blocksSight === true || w.barrier === true) && w.sightType === 'door' && w.type !== 'image' && w.type !== 'text' && !w.isChar && !w.waiting) { ['doorOpen', 'doorLock', 'groupId', 'name', 'texture', 'texSrc', 'texTile', 'targetMapId', 'nodeId', 'trap', 'portalIcon', 'portalLock'].forEach(function(k) { delete w[k]; }); w.sightType = 'wall'; if (w.color !== 'transparent') w.color = '#3f3b47'; }
+        else if (w.secret === true && (w.blocksSight === true || w.barrier === true) && w.sightType === 'door' && w.type !== 'image' && w.type !== 'text' && !w.isChar && !w.waiting) { ['doorOpen', 'doorLock', 'groupId', 'name', 'texture', 'texSrc', 'texTile', 'targetMapId', 'targetRoomId', 'nodeId', 'trap', 'portalIcon', 'portalLock'].forEach(function(k) { delete w[k]; }); w.sightType = 'wall'; if (w.color !== 'transparent') w.color = '#3f3b47'; }
         delete w.secret; delete w.seenColor; delete w.seenTexture;
     }
     // attached sheets, the per-token GM note/dialogue AND the token creator's kept original are GM prep (and heavy) — never on the wire
@@ -751,6 +751,19 @@ function wireWbItem(w, cloned) {
     if (w.portalLock !== undefined && w.portalLock !== true) delete w.portalLock;   // a portal's own lock: it travels with a shown portal (a hidden piece is not sent at all) and only as true, the one value the host judges by (travelBar)
     if (w.texture !== undefined) { var FCw = typeof window !== 'undefined' && window.wpFogCore, txo = FCw && FCw.cleanTexture ? FCw.cleanTexture(w.texture) : null; if (txo) w.texture = txo; else delete w.texture; }   // the map builder: a shown piece's texture leaves only as a name of the app's own list, none without the cleaner (whatever a save held)
     if (w.texSrc !== undefined || w.texTile !== undefined) { var FCp = typeof window === 'object' && window ? window.wpFogCore : null, tso = FCp && typeof FCp.cleanTexSrc === 'function' ? FCp.cleanTexSrc(w.texSrc) : null, tto = tso && typeof FCp.cleanTexTile === 'function' ? FCp.cleanTexTile(w.texTile) : null; if (tso) w.texSrc = tso; else delete w.texSrc; if (tto) w.texTile = tto; else delete w.texTile; }   // fold B3: a picture fill leaves only as a plain path under saves/images and a known tile, none without the cleaners: the asset gate serves what is sent under this key
+    // A plain wall carries NO name on its way out (the second review of fold B5). A wall's name is whatever its maker gave it: Build names a
+    // piece by its material whatever colour and pattern were picked, the city generator by its own, and a wall made by hand has none. So no
+    // rule could give a secret door's copy the name the walls beside it carry, and the one wall there whose name differed was the secret
+    // door. A player's app reads a wall's name in one place, the pill that says which piece a resize matched, which then says its kind. A
+    // door, a wall that leads somewhere, a picture, a text box and a token keep theirs: a copy is none of those
+    if (w.name !== undefined && (w.blocksSight || w.barrier === true) && w.sightType !== 'door' && !w.isChar && !w.waiting && !w.targetMapId && !w.nodeId && w.type !== 'image' && w.type !== 'text') delete w.name;
+    // The keys of a wall, a door or a see-through barrier in ONE order on its way out (the review of fold B5). The connection packs a piece key
+    // by key in the piece's own order, and that order tells how a piece was made: a secret door's copy stood beside walls whose keys came in
+    // another order, a pattern set before or after Blocks sight. Sorted, a copy and a wall made the same way differ by nothing but id and place.
+    // An own key named __proto__ is not carried over (set by name it would be the copy's prototype). A key whose value is false or null is
+    // not carried over either: it says only that a control was once used on the piece (Is Character ticked and unticked, a lock taken
+    // off, a link to a room taken away), a player's app reads such a key as it reads none, and a changed piece replaces the old one whole
+    if (w.blocksSight || w.barrier === true) { var wo = {}, wk = Object.keys(w).sort(); for (var wi = 0; wi < wk.length; wi++) if (wk[wi] !== '__proto__' && w[wk[wi]] !== false && w[wk[wi]] !== null) wo[wk[wi]] = w[wk[wi]]; w = wo; }
     if (w.fogHand !== undefined && w.fogHand !== 'hide' && w.fogHand !== 'show') delete w.fogHand;   // 1.5.4: a piece's fog mark travels with a shown piece (a hidden one is not sent at all), only as its two words: the player's own overlay reads what the host judges by
     return w;
 }
@@ -3472,7 +3485,7 @@ function portalUnder(item, map) {
     var best = null, bestArea = Infinity;
     map.whiteboard.forEach(function(o) {
         if (o.id === item.id || !(o.nodeId || o.targetMapId) || (o.hidden && !o.trap)) return;   // a hidden TRAP portal still catches a token that lands on it
-        if ((typeof window === 'object' && window && window.wpFogCore && typeof window.wpFogCore.secretOn === 'function' ? window.wpFogCore.secretOn(o) : !!o && o.secret === true)) return;   // a secret door that is also a portal takes nobody through until it is found: to the players it is wall
+        if ((typeof window === 'object' && window && window.wpFogCore && typeof window.wpFogCore.secretOn === 'function' ? window.wpFogCore.secretOn(o) : !!o && o.secret === true) && !o.hidden) return;   // a secret door that is also a portal takes nobody through until it is found: to the players it is wall. A HIDDEN piece is no wall to anyone, so a hidden trap tile fires whether or not a tick was left on it
         var ow = o.w || 0, oh = o.h || 0;
         // resting on the portal: the token's centre inside it, or at least a third of the token overlapping it
         // (hex seating can park the centre a few pixels outside a tile that is not hex-aligned)
@@ -5796,13 +5809,15 @@ function handleMessage(msg, conn) {
         var fromMap = tCamp.items[traveler.location || tCamp.activeItemId];
         if (!fromMap || fromMap.type !== 'map') return;
         var portal = (fromMap.whiteboard || []).find(function(w) { return w.id === msg.viaItemId; });
-        if (portal && portal.hidden) return;   // a hidden portal is no door to knock on: a trap tile fires only when a token is dropped on it (the host judges the drop), never by naming it
-        if (portal && (typeof window === 'object' && window && window.wpFogCore && typeof window.wpFogCore.secretOn === 'function' ? window.wpFogCore.secretOn(portal) : !!portal && portal.secret === true)) return;   // nor is a secret door that is also a portal: the players hold a wall there, with no way through, until it is found
         // leaving the map through a door is a move of theirs: a token of theirs here the GM locked is frozen for its player, and one a running turn-based
-        // fight holds off its turn under the Refuse rule moves only on its turn — either keeps them on the map and says why (the GM's summon and bring still take them)
+        // fight holds off its turn under the Refuse rule moves only on its turn — either keeps them on the map and says why (the GM's summon and bring still take them).
+        // Both are said BEFORE the portal is looked at (the review of fold B5): said after, a request naming a hidden portal or a secret door got
+        // silence where one naming a wall or nothing at all got the note, and silence marked exactly what is hidden
         var mineT = (fromMap.whiteboard || []).filter(function(w) { return w && w.isChar && w.ownerId === traveler.id && !w.hidden; });
         if (mineT.some(function(w) { return w.locked; })) { turnNote(conn, 'The GM has locked your token: you cannot leave this map.'); return; }
         if (mineT.some(function(w) { var cb = turnCombatOf(tCamp, fromMap.id, w), cur = cb && cb.rows[cb.turn]; return !!cb && !(cur && cur.tokId === w.id) && moveMode(tCamp, 'order') === 'refuse'; })) { turnNote(conn, 'It is not your turn: you cannot leave this map yet.'); return; }
+        if (portal && portal.hidden) return;   // a hidden portal is no door to knock on: a trap tile fires only when a token is dropped on it (the host judges the drop), never by naming it
+        if (portal && (typeof window === 'object' && window && window.wpFogCore && typeof window.wpFogCore.secretOn === 'function' ? window.wpFogCore.secretOn(portal) : !!portal && portal.secret === true)) return;   // nor is a secret door that is also a portal: the players hold a wall there, with no way through, until it is found
         hostTravel(conn, traveler, portal, fromMap);
         // [netcheck:travelmsg-end]
     } else if (msg.type === 'target' && net.role === 'host') {

@@ -2906,12 +2906,21 @@ window.wpFitToGrid = fitToGrid;
       row.items.forEach(function(w) { w.secret = true; delete w.doorOpen; });
       return 'made';
   }
-  // A secret door that was just opened is found: an open door cannot be secret. How many of them the players now see as a door (one that
-  // is hidden from players loses its tick too, and is no door to them yet)
-  function secretOpened(items) {
+  // A secret door that was just opened is found: an open door cannot be secret. How many of them the players now see as a door. One that
+  // is hidden from players loses its tick too and is no door to them yet: those are counted in tally.hid, so the caller can say it
+  function secretOpened(items, tally) {
       var FC = window.wpFogCore, n = 0; if (!FC || typeof FC.secretOn !== 'function' || typeof FC.secretReveal !== 'function') return 0;
-      (Array.isArray(items) ? items : []).forEach(function(w) { if (w && w.doorOpen && FC.secretOn(w) && FC.secretReveal(w) && !w.hidden) n++; });
+      (Array.isArray(items) ? items : []).forEach(function(w) {
+          if (!w || !w.doorOpen || !FC.secretOn(w) || !FC.secretReveal(w)) return;
+          if (!w.hidden) n++; else if (tally && typeof tally === 'object') tally.hid = (tally.hid || 0) + 1;
+      });
       return n;
+  }
+  // What the menu says of the secret doors it just opened: fixed words, '' where none was one
+  function secretOpenedWords(seen, hid) {
+      if (seen && hid) return 'Secret doors opened. They are no longer secret. The hidden ones stay hidden from your players.';
+      if (hid) return 'Secret door opened. It is no longer secret, and it is still hidden from your players.';
+      return seen ? 'Secret door opened. Your players see it as a door now.' : '';
   }
   // [sinkcheck:secretrow-end]
   // [sinkcheck:foghandrow-start]
@@ -6885,7 +6894,7 @@ function genWire() {
     var m = genEl('genModal'), row = genEl('buildGenBtn'); if (!m) return;
     if (row) row.addEventListener('click', function(ev) { ev.stopPropagation(); genShow(); });
     // the dialog hands the focus back to this row when it is put away: a key still held from the press that put it away presses nothing here
-    if (row) row.addEventListener('keydown', function(e) { if (e.repeat === true && (e.key === 'Enter' || e.key === ' ')) e.preventDefault(); });
+    if (row) row.addEventListener('keydown', function(e) { if (e.repeat === true && (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape')) { e.preventDefault(); e.stopPropagation(); } });   // a held Escape would be Build's own next, and put the tool away
     Array.prototype.forEach.call(document.querySelectorAll('#genWhere .gen-chip'), function(b) { b.addEventListener('click', function() { var w = this.dataset.where; if (GEN_WHERE.indexOf(w) < 0) return; _gen.where = w; genSync(); }); });
     ['genMap', 'genGrid', 'genRooms', 'genCorr', 'genDoors'].forEach(function(id) { var e = genEl(id); if (e) e.addEventListener('change', genSync); });
     ['genW', 'genH'].forEach(function(id) { var e = genEl(id); if (!e) return; e.addEventListener('input', genSync); e.addEventListener('change', function() { genSizes(); genSync(); }); });   // a size left outside its bounds reads as the size that will be used
@@ -6893,6 +6902,20 @@ function genWire() {
     var nw = genEl('genSeedNew'); if (nw) nw.addEventListener('click', function() { var s = genEl('genSeed'); if (s) s.value = genNewSeed(); genSync(); });
     var no = genEl('genCancel'); if (no) no.addEventListener('click', genHide);
     var go = genEl('genGo'); if (go) go.addEventListener('click', function() { genGo(); });
+    // Escape is heard FIRST, at the window, and goes no further: a box of the page's own closes on Escape in a listener of the document's
+    // (the dice roller), and one key must not put two boxes away. Never while a question or a prompt of the app's own is up over the dialog
+    // The press that put the dialog away is the dialog's for as long as it is held: its repeats come after the dialog is down, and the
+    // document's own listeners would hear them before the row does. Any new press, and Escape let go, end that
+    var escHeld = false;
+    if (typeof window.addEventListener === 'function') window.addEventListener('keydown', function(e) {
+        if (e.repeat !== true) escHeld = false;
+        else if (escHeld && e.key === 'Escape') { if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation(); else e.stopPropagation(); e.preventDefault(); return; }
+        if (e.key !== 'Escape' || !genShown() || buildAsking()) return;
+        if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation(); else e.stopPropagation();
+        e.preventDefault();
+        if (e.repeat !== true) { genHide(); escHeld = true; }
+    }, true);
+    if (typeof window.addEventListener === 'function') window.addEventListener('keyup', function(e) { if (e.key === 'Escape') escHeld = false; }, true);
     // every key pressed in the dialog stays in it: the page reads keys as its own (Build's Esc and Enter, a token's arrows, Delete)
     m.addEventListener('keydown', function(e) {
         if (buildAsking()) return;   // a question or a prompt of the app's own, raised over the dialog, has every key: the focus may still rest in here
@@ -7086,7 +7109,7 @@ function cityWire() {
     var m = genEl('cityModal'), row = genEl('buildCityBtn'); if (!m) return;
     if (row) row.addEventListener('click', function(ev) { ev.stopPropagation(); cityShow(); });
     // the dialog hands the focus back to this row when it is put away: a key still held from the press that put it away presses nothing here
-    if (row) row.addEventListener('keydown', function(e) { if (e.repeat === true && (e.key === 'Enter' || e.key === ' ')) e.preventDefault(); });
+    if (row) row.addEventListener('keydown', function(e) { if (e.repeat === true && (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape')) { e.preventDefault(); e.stopPropagation(); } });   // a held Escape would be Build's own next, and put the tool away
     Array.prototype.forEach.call(document.querySelectorAll('#cityWhere .gen-chip'), function(b) { b.addEventListener('click', function() { var w = this.dataset.where; if (GEN_WHERE.indexOf(w) < 0) return; _city.where = w; citySync(); }); });
     ['cityMap', 'citySize', 'cityWall', 'cityWater', 'cityRoofs', 'cityFields'].forEach(function(id) { var e = genEl(id); if (e) e.addEventListener('change', citySync); });
     // a grid or a name the GM set for the new map stands, whatever Size is picked afterwards
@@ -7096,6 +7119,20 @@ function cityWire() {
     var nw = genEl('citySeedNew'); if (nw) nw.addEventListener('click', function() { var s = genEl('citySeed'); if (s) s.value = genNewSeed(); citySync(); });
     var no = genEl('cityCancel'); if (no) no.addEventListener('click', cityHide);
     var go = genEl('cityGo'); if (go) go.addEventListener('click', function() { cityGo(); });
+    // Escape is heard FIRST, at the window, and goes no further: a box of the page's own closes on Escape in a listener of the document's
+    // (the dice roller), and one key must not put two boxes away. Never while a question or a prompt of the app's own is up over the dialog
+    // The press that put the dialog away is the dialog's for as long as it is held: its repeats come after the dialog is down, and the
+    // document's own listeners would hear them before the row does. Any new press, and Escape let go, end that
+    var escHeld = false;
+    if (typeof window.addEventListener === 'function') window.addEventListener('keydown', function(e) {
+        if (e.repeat !== true) escHeld = false;
+        else if (escHeld && e.key === 'Escape') { if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation(); else e.stopPropagation(); e.preventDefault(); return; }
+        if (e.key !== 'Escape' || !cityShown() || buildAsking()) return;
+        if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation(); else e.stopPropagation();
+        e.preventDefault();
+        if (e.repeat !== true) { cityHide(); escHeld = true; }
+    }, true);
+    if (typeof window.addEventListener === 'function') window.addEventListener('keyup', function(e) { if (e.key === 'Escape') escHeld = false; }, true);
     // every key pressed in the dialog stays in it: the page reads keys as its own (Build's Esc and Enter, a token's arrows, Delete)
     m.addEventListener('keydown', function(e) {
         if (buildAsking()) return;   // a question or a prompt of the app's own, raised over the dialog, has every key: the focus may still rest in here
@@ -8216,7 +8253,7 @@ document.addEventListener('contextmenu', function(e) {
                 } else if (action.includes('cm-door-open') || action.includes('cm-door-lock')) {   // a door's own rows (saved and drawn again below): an open door lets sight through, so the fog works its vision out again
                     var wentD = doorRowsDo(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }), action.includes('cm-door-open') ? 'open' : 'lock');
                     if (wentD) { if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); } toast(wentD === 'opened' ? 'Door opened.' : wentD === 'closed' ? 'Door closed.' : wentD === 'locked' ? 'Door locked for players.' : 'Door unlocked for players.'); }
-                    if (wentD === 'opened' && secretOpened(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }))) toast('Secret door opened. Your players see it as a door now.');   // a secret door that is opened is found: an open door cannot be secret
+                    if (wentD === 'opened') { var tallyD = { hid: 0 }, saidD = secretOpenedWords(secretOpened(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }), tallyD), tallyD.hid); if (saidD) toast(saidD); }   // a secret door that is opened is found: an open door cannot be secret
                 } else if (action.includes('cm-secret-show') || action.includes('cm-secret-make')) {   // the map builder: a secret door revealed, or a door made secret (saved and drawn again below, so the table gets it at once)
                     var wentS = secretRowDo(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));
                     if (wentS) { if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); } toast(wentS === 'shown' ? 'Secret door revealed. Your players see it as a door now.' : 'Secret door. Your players see wall here until it is found.'); }

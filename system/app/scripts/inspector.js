@@ -1154,6 +1154,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             if (_el_wbFitGrid) { _el_wbFitGrid.addEventListener('click', function() { if (window.wpFitToGrid) window.wpFitToGrid([w]); }); if (window.wpFitWouldChange && !window.wpFitWouldChange([w])) { _el_wbFitGrid.disabled = true; _el_wbFitGrid.title = w.locked ? 'Locked — unlock it to fit to the grid' : 'Already aligned to the grid'; } }
             var _el_wbPortalMap = document.getElementById('wbPortalMap');
             if (_el_wbPortalMap) _el_wbPortalMap.addEventListener('change', function() {
+                if (this.value !== w.targetMapId) delete w.targetRoomId;   // a landing room is a room of the map it was picked for
                 if (this.value) w.targetMapId = this.value; else { delete w.targetMapId; delete w.portalIcon; }
                 portalLockTidy(w, activeMap);   // no longer a portal: its lock goes with it
                 save(); render();
@@ -1180,7 +1181,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                 if(wbEventMsg) wbEventMsg.addEventListener('input', function() { w.eventMessage = this.value; save(); });
             } else {
                 var wbIsChar = document.getElementById('wbIsChar');
-                if(wbIsChar) wbIsChar.addEventListener('change', function() { w.isChar = this.checked; save(); renderInspector(); });
+                if(wbIsChar) wbIsChar.addEventListener('change', function() { if (typeof secretCharOk === 'function' && !secretCharOk(w, this.checked)) { this.checked = false; return; } w.isChar = this.checked; save(); renderInspector(); });
                 var wbCharName = document.getElementById('wbCharName');
                 if(wbCharName) wbCharName.addEventListener('input', function() { w.charName = this.value; save(); });
                 var wbCharStats = document.getElementById('wbCharStats');
@@ -1971,6 +1972,20 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
   // picture: a picture's path sent to the table is a file the host then serves. The GM's alone (never a player's app, never the stream
   // window); never on a hidden piece, a picture piece, a token, a waiting token or a GM-note card. Its markup holds fixed words, a colour as
   // the cleaner keeps it, and names of the list through esc
+  // Is Character on a secret door (the review of fold B5): a token is no secret door, so ticked there the players were sent the door itself
+  // while the tick stayed on the piece and came back beside an open door. Refused, in fixed words, while the piece is a secret door; a tick
+  // left on a piece that is none goes with the change
+  // Unticked on a token that still carries the tick (a save from before the refusal): the tick goes, so no secret door comes back, open
+  // door and all, where the players held a door all along. A hidden secret door has neither the Secret tick nor the Reveal row on
+  // screen, so its refusal names what it does offer
+  function secretCharOk(w, on) {
+      if (!w || typeof w !== 'object') return true;
+      if (!on) { if (w.isChar && w.secret !== undefined) delete w.secret; return true; }
+      var FC = window.wpFogCore;
+      if (FC && typeof FC.secretOn === 'function' ? FC.secretOn(w) : w.secret === true) { toast(w.hidden ? 'This is a secret door that is hidden from your players. Show it to your players and untick Secret first. Or open it from its right-click menu.' : 'This is a secret door. Reveal it or untick Secret first.'); return false; }
+      if (w.secret !== undefined) delete w.secret;
+      return true;
+  }
   function secretFieldOk(w) { var n = window.wpNet, FC = window.wpFogCore; return !(window.wpStream || (n && (n.foreign || (n.active && n.role === 'client')))) && !!w && typeof w === 'object' && !w.hidden && !!FC && typeof FC.secretOk === 'function' && FC.secretOk(w); }
   function secretFieldHtml(w) {
       if (!secretFieldOk(w)) return '';

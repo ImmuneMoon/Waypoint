@@ -231,6 +231,8 @@
   .wb-item.wb-door.wb-secret::after { content: '\1F6AA  secret'; font-size: 11px; font-weight: 700; color: var(--gold); white-space: nowrap; }
   .wb-item.wb-door.wb-secret.wb-door-locked::after { content: '\1F6AA\1F512  secret'; }
   .wb-item.path.wb-door.wb-secret svg path { filter: drop-shadow(0 0 3px #b98cff); }
+  /* and in its body, since a hexagon or a diamond is cut to its outline and shows neither the edge nor the word: the shut door's hatching in the line's violet */
+  .wb-item.wb-door.wb-secret:not(.path):not(.wb-door-open):not(.wb-hidden-gm):not(.wb-trap)::before { background: repeating-linear-gradient(45deg, rgba(185,140,255,0.9) 0 calc(3px * var(--wbz, 1)), transparent calc(3px * var(--wbz, 1)) calc(11px * var(--wbz, 1))); }
   /* player's view: an opaque grey placeholder */
   .wb-item.wb-hidden-ph {
       background: #3a3a4a !important; border: 1px solid #4a4a5c !important; border-radius: 8px;

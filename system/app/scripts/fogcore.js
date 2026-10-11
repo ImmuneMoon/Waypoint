@@ -525,7 +525,8 @@ function isDoor(w) { return isObj(w) && (w.blocksSight === true || w.barrier ===
 // reader asks secretOn, and nothing else reads the key
 // The kinds of piece that may be a secret door are the kinds a wall may be, less a picture: a picture is the door and cannot wear another
 // look, and a text box, a light or a trigger zone blocks nothing whatever flags a file gave it
-function secretKind(w) { return !!w.fill || w.type === 'rect' || w.type === 'hexagon' || w.type === 'diamond' || w.type === 'circle' || w.type === 'path'; }
+// Judged by the type alone: a painted cell is a rect or a hexagon already, and a file's fill: true on a picture or a text box makes it no kind a wall may be
+function secretKind(w) { return w.type === 'rect' || w.type === 'hexagon' || w.type === 'diamond' || w.type === 'circle' || w.type === 'path'; }
 function secretOk(w) { return isDoor(w) && secretKind(w) && !w.isChar && !w.waiting && !w.gmNoteFor; }
 function secretOn(w) { return isObj(w) && w.secret === true && secretOk(w); }
 function cleanSecret(v) { return v === true; }
@@ -551,19 +552,24 @@ function secretLook(w) {
     return { color: col || (clear ? 'transparent' : SECRET_WALL.color), texture: line ? '' : tex !== null ? tex : (clear ? '' : SECRET_WALL.texture), clear: clear };
 }
 // The piece as the players hold it. A secret door: a COPY that is a wall in the look above, with nothing that says door: no door type, never
-// open, locked for no one, no group, no picture fill, and no way through to another map or a room (a secret door that is also a portal is a
-// portal once it is found). A name it has reads Wall, as Build names the walls beside it, and one with no name gets none. Its keys stand in
-// the door's own order, the pattern right after the name: so a door Build laid reads key for key as the wall Build lays, and nothing the GM
-// changes on the door's own look moves a key of the copy. Any other piece: the piece itself. The host's one rule for a piece on its way
-// out (net.js wireWbItem) and the map's picture (shotcore.js) both ask this, so a table and a picture show one thing
-var SECRET_DROP = Object.freeze({ secret: 1, seenColor: 1, seenTexture: 1, doorOpen: 1, doorLock: 1, groupId: 1, texSrc: 1, texTile: 1, texture: 1, targetMapId: 1, nodeId: 1, trap: 1, portalIcon: 1, portalLock: 1 });
+// open, locked for no one, no group, no picture fill, and no way through to another map, a room or a landing room there (a secret door that
+// is also a portal is a portal once it is found). It carries NO name: a wall's name is whatever its maker gave it (Build names a piece by
+// its material whatever colour and pattern were picked, the city generator by its own, a wall made by hand has none), so no rule could give
+// the copy the name the walls beside it carry. The host sends a plain wall with no name at all (net.js wireWbItem), so a copy and a wall
+// read alike there where they were made alike: the copy keeps every other key of the door's own (its layer, its height, its cover), so a
+// door laid by one tool among walls made by another still differs by what the tools write. So nothing the GM changes on the door's own name, look, lock or group changes the copy. Its keys stand in the door's
+// own order, the pattern in the name's place (last, for a door with no name): so a door Build laid reads key for key as the wall Build
+// lays, less its name. On the wire the order says nothing either way: the host writes the keys of every wall, door and barrier in one
+// order on its way out. Any other piece: the piece itself. The host's one rule for a piece on its way out and the map's picture
+// (shotcore.js) both ask this, so a table and a picture show one thing
+var SECRET_DROP = Object.freeze({ secret: 1, seenColor: 1, seenTexture: 1, name: 1, doorOpen: 1, doorLock: 1, groupId: 1, texSrc: 1, texTile: 1, texture: 1, targetMapId: 1, targetRoomId: 1, nodeId: 1, trap: 1, portalIcon: 1, portalLock: 1 });
 function secretSeen(w) {
     if (!secretOn(w)) return w;
     var s = {}, k, look = secretLook(w), put = false, tex = function() { if (!put && look.texture) s.texture = look.texture; put = true; };
     for (k in w) {
-        if (!Object.prototype.hasOwnProperty.call(w, k) || k === '__proto__' || SECRET_DROP[k] === 1) continue;
+        if (!Object.prototype.hasOwnProperty.call(w, k) || k === '__proto__') continue;
+        if (SECRET_DROP[k] === 1) { if (k === 'name') tex(); continue; }   // no name at all: the pattern stands in the name's place
         if (k === 'color') s.color = look.color;
-        else if (k === 'name') { if (typeof w.name === 'string' && w.name.trim()) s.name = 'Wall'; tex(); }   // an empty name is no name
         else if (k === 'sightType') s.sightType = 'wall';
         else s[k] = w[k];
     }

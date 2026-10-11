@@ -1317,6 +1317,16 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 !!rKd && !!mKd && Js(secOf(rKd)) === Js(wantKd) && Js(secOf(mKd)) === Js(wantKd) && Js(wbOf(rKd)) === Js(wbOf(mKd)) && Js(wbOf(mKd).map(w => FCs.secretOn(w))) === Js([false, false, false, false, false, false, true, false, false])
                 && !('doorOpen' in byId(mKd, 'k7')) && byId(mKd, 'k8').doorOpen === true && byId(mKd, 'k9').doorOpen === true && byId(mKd, 'k1').text === 'Beware' && byId(mKd, 'k1').type === 'text',
                 Js([miss(rKd, wantKd), miss(mKd, wantKd)]));
+            // 9. the review of fold B5: a fill mark makes a picture or a text box no kind a wall may be
+            const kfBoard = () => clone([
+                Object.assign(pc('f1', SD()), { type: 'image', src: '/saves/images/k/vault.png', fill: true, secret: true }, LOOK()), Object.assign(pc('f2', SD()), { type: 'text', text: 'The vault', fill: true, secret: true }, LOOK()),
+                Object.assign(pc('f3', SD()), { type: 'image', src: '/saves/images/k/vault.png', fill: 1, secret: true }), pc('f4', Object.assign(SD(), { fill: true, secret: true }, LOOK())), Object.assign(pc('f5', SD()), { type: 'hexagon', fill: true, secret: true, doorOpen: true })]);
+            const kfMap = () => ({ id: 'mSd', type: 'map', meta: { title: 'K' }, rooms: [], links: [], whiteboard: kfBoard() });
+            const rKf = repl(kfMap, depsS), mKf = merg(kfMap, depsS), wantKf = [['none', 'none', 'none'], ['none', 'none', 'none'], ['none', 'none', 'none'], [true, '#112233', 'bricks'], [true, 'none', 'none']];
+            check('import: a fill mark makes no piece a kind a wall may be (the review of fold B5): a picture and a text box that a file marked fill, by true or by 1, flagged as a door and ticked Secret come in with none of the three keys, on Replace and on Merge, so the host never sends the picture or the words as the wall the GM was promised; a painted cell, a rectangle or a hexagon with the mark, keeps its tick and is shut; the picture keeps its path and the text box its words',
+                !!rKf && !!mKf && Js(secOf(rKf)) === Js(wantKf) && Js(secOf(mKf)) === Js(wantKf) && Js(wbOf(rKf)) === Js(wbOf(mKf)) && Js(wbOf(mKf).map(w => FCs.secretOn(w))) === Js([false, false, false, true, true])
+                && byId(mKf, 'f1').src === '/saves/images/k/vault.png' && byId(mKf, 'f1').type === 'image' && byId(mKf, 'f2').text === 'The vault' && !('doorOpen' in byId(mKf, 'f5')) && byId(mKf, 'f5').fill === true,
+                Js([miss(rKf, wantKf), miss(mKf, wantKf), wbOf(mKf).map(w => FCs.secretOn(w))]));
         }
         // the dev console's reload: never under a table, the GM's or someone else's
         const ri = ioSrc.indexOf('window.wpReloadFromDisk = function() {'), rk = ioSrc.indexOf('\n};', ri);

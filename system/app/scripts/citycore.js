@@ -75,12 +75,17 @@ function genVillage(o, rnd) {
         if (o.wall === 'towers') [[L, T], [R - 2, T], [L, Bm - 2], [R - 2, Bm - 2]].forEach(function(t) { var tb = { c: t[0], r: t[1], w: 2, h: 2 }; plan.towers.push(tb); mark(tb, 6); });
     }
     // the main street runs across the whole board, so it is the road out, and its two cells in the wall are a gate. A street over the
-    // river is a bridge, a box of its own. One street crosses the main street, and often a second one leaves it to one side
+    // river is a bridge, a box of its own, with no water under it. One street crosses the main street, and often a second one leaves it to one side
     var r0 = T + 10 + int(-2, 2), c0 = L + 14 + int(-4, 4), sides = [];
     var cross = function(c, up) { return up ? { c: c, r: T + a, w: 2, h: r0 - T - a } : { c: c, r: r0 + 2, w: 2, h: Bm - a - r0 - 2 }; };
     sides.push(cross(c0, true), cross(c0, false));
     if (rnd() < 0.6) { var c1 = c0 + (c0 < L + 15 ? 9 : -9), up1 = rnd() < 0.5; if (!(rc >= 0 && Math.abs(c1 - rc) < 4)) sides.push(cross(c1, up1)); }
-    if (rc >= 0) { plan.streets.push({ c: 0, r: r0, w: rc, h: 2 }, { c: rc + 2, r: r0, w: cols - rc - 2, h: 2 }); plan.bridges.push({ c: rc, r: r0, w: 2, h: 2 }); }
+    if (rc >= 0) {
+        plan.streets.push({ c: 0, r: r0, w: rc, h: 2 }, { c: rc + 2, r: r0, w: cols - rc - 2, h: 2 }); plan.bridges.push({ c: rc, r: r0, w: 2, h: 2 });
+        // the river is cut where its bridge stands, a box above it and a box below: water is difficult terrain, and laid under the bridge it
+        // made the one way across cost what wading costs (the highest cost on a cell is the cell's)
+        plan.water.splice(plan.water.indexOf(river), 1, { c: rc, r: 0, w: 2, h: r0 }, { c: rc, r: r0 + 2, w: 2, h: rows - r0 - 2 });
+    }
     else plan.streets.push({ c: 0, r: r0, w: cols, h: 2 });
     mark({ c: 0, r: r0, w: cols, h: 2 }, 1);
     sides.forEach(function(s) { plan.streets.push(s); mark(s, 1); });

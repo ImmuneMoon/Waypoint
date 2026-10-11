@@ -21,7 +21,7 @@
    is taken from its board place (texPos), so abutting pieces continue one pattern. */
 'use strict';
 
-import { cellOf, cellCenter, cellKey, cellsUnderRect, cleanTerrain, cleanTexSrc, cleanTexTile, itemCells, itemOver, itemCovers, pathSegs, isDoor } from './fogcore.js';   // the one lattice the fog, cover and movement read
+import { cellOf, cellCenter, cellKey, cellsUnderRect, cleanTerrain, cleanTexSrc, cleanTexTile, itemCells, itemOver, itemCovers, pathSegs, isDoor, LIMITS } from './fogcore.js';   // the one lattice the fog, cover and movement read
 import { cssColor } from './safecore.js';   // one colour rule for the GM's screen and the wire (safecore COLOR_RE)
 
 var VERSION = 1;
@@ -457,7 +457,8 @@ function lineOf(pts) {
 //   opts.have    the map's pieces: a wall line that is already there (the same box and the same points, each within a pixel) is not laid
 //                twice (`had`). Every point is compared: a hex outline that changed by one cell can keep its box, its count and its start
 //   lines    each { x, y, w, h, baseW, baseH, pts }. Square: one line a straight run, the runs along a row line first and then along a
-//            column line, each in order. Hex: the outline's zigzag as chains of at most 120 edges, an open chain before a closed one
+//            column line, each in order. Hex: the outline's zigzag as chains of at most 120 edges, an open chain before a closed one, each also
+//            cut at a corner where a wall line of opts.have begins or ends, a closed one begun at such a corner
 //   over     the floors cover more than 6000 cells together, or one of them is too large to list: nothing is laid
 function outlineWalls(pieces, grid, opts) {
     var out = { lines: [], floors: 0, cells: 0, had: 0, over: false };
@@ -506,6 +507,11 @@ function wallsOfCells(out, cells, inSet, grid, opts, end) {
         for (var q = 0; q < doorSegs.length; q++) if (segDist(mx, my, doorSegs[q]) <= tol) return true;
         return false;
     };
+    var have = Array.isArray(o.have) ? o.have : [], walls = [];   // the wall lines that stand on the map, picked out once
+    for (k = 0; k < have.length; k++) {
+        var hw = have[k];
+        if (isObj(hw) && hw.type === 'path' && hw.tip !== 'fill' && hw.blocksSight === true && hw.sightType !== 'door' && !hw.hidden && !(fin(hw.rot) && hw.rot % 360 !== 0) && Array.isArray(hw.pts)) walls.push(hw);
+    }
     var lines = [];
     if (grid.type === 'square') {
         var s = grid.size, H = Object.create(null), V = Object.create(null);   // a lattice line -> the cells along it that have an outer edge there
@@ -533,6 +539,19 @@ function wallsOfCells(out, cells, inSet, grid, opts, end) {
     } else {
         var hs = grid.s, hh = grid.h / 2, edges = [], at = Object.create(null);   // a corner -> the outer edges that meet there (two at most)
         var vkey = function(x, y) { return Math.round(x / (hs / 2)) + ',' + Math.round(y / hh); };   // a hex lattice's corners lie on whole half-steps
+        // The corners where a wall line that stands on the map begins or ends. A chain is cut there too, and a closed loop begins at
+        // one: an outline is laid in lines of 120 edges from wherever its walk began, and after a door's cut the walk begins at the
+        // doorway, so no new line had the points of a standing one and a long outline was laid a second time
+        var stop = Object.create(null);
+        for (k = 0; k < walls.length; k++) {
+            var sw = walls[k], fx = fin(sw.baseW) && sw.baseW > 0 && fin(sw.w) ? sw.w / sw.baseW : 1, fy = fin(sw.baseH) && sw.baseH > 0 && fin(sw.h) ? sw.h / sw.baseH : 1;
+            if (!fin(sw.x) || !fin(sw.y) || !sw.pts.length) continue;
+            for (n = 0; n < 2; n++) {
+                var sp = sw.pts[n ? sw.pts.length - 1 : 0]; if (!Array.isArray(sp) || !fin(sp[0]) || !fin(sp[1])) continue;
+                var spx = sw.x + sp[0] * fx, spy = sw.y + sp[1] * fy, skx = Math.round(spx / (hs / 2)), sky = Math.round(spy / hh);
+                if (Math.abs(spx - skx * hs / 2) <= 1 && Math.abs(spy - sky * hh) <= 1) stop[skx + ',' + sky] = 1;   // only an end that lies on a corner of the lattice
+            }
+        }
         for (i = 0; i < cells.length; i++) {
             if (doorCells[cellKey(cells[i], grid)]) continue;   // a door block stands on this floor cell, as on a square lattice
             var p = cellCenter(cells[i], grid), vs = [[p.x - hs, p.y], [p.x - hs / 2, p.y - hh], [p.x + hs / 2, p.y - hh], [p.x + hs, p.y], [p.x + hs / 2, p.y + hh], [p.x - hs / 2, p.y + hh]];
@@ -546,25 +565,25 @@ function wallsOfCells(out, cells, inSet, grid, opts, end) {
             }
         }
         var walk = function(first, key, pt) {   // from a corner along unused edges until none leads on
-            var pts = [pt], e = first;
+            var pts = [pt], keys = [key], e = first;
             while (e !== -1) {
                 var E = edges[e]; E.used = true;
-                var fwd = E.ka === key; key = fwd ? E.kb : E.ka; pts.push(fwd ? E.b : E.a);
+                var fwd = E.ka === key; key = fwd ? E.kb : E.ka; pts.push(fwd ? E.b : E.a); keys.push(key);
                 var next = at[key]; e = -1;
                 for (var q = 0; q < next.length; q++) if (!edges[next[q]].used) { e = next[q]; break; }
             }
-            for (var c0 = 0; c0 < pts.length - 1; c0 += WALLS.chunk) lines.push(lineOf(pts.slice(c0, c0 + WALLS.chunk + 1)));
+            var last = pts.length - 1, c0, c1;
+            if (last > 1 && keys[0] === keys[last]) {   // a closed loop: begun at a standing wall's end where it has one, whichever edge the walk met first
+                for (c1 = 0; c1 < last && !stop[keys[c1]]; c1++);
+                if (c1 > 0 && c1 < last) { pts = pts.slice(c1, last).concat(pts.slice(0, c1 + 1)); keys = keys.slice(c1, last).concat(keys.slice(0, c1 + 1)); }
+            }
+            for (c0 = 0, c1 = 1; c1 <= last; c1++) if (c1 === last || c1 - c0 === WALLS.chunk || stop[keys[c1]]) { lines.push(lineOf(pts.slice(c0, c1 + 1))); c0 = c1; }
         };
         for (i = 0; i < edges.length; i++) {   // the chains a doorway cut open, each from one of its ends
             if (edges[i].used) continue;
             if (at[edges[i].ka].length === 1) walk(i, edges[i].ka, edges[i].a); else if (at[edges[i].kb].length === 1) walk(i, edges[i].kb, edges[i].b);
         }
         for (i = 0; i < edges.length; i++) if (!edges[i].used) walk(i, edges[i].ka, edges[i].a);   // then the closed loops
-    }
-    var have = Array.isArray(o.have) ? o.have : [], walls = [];   // the wall lines that stand on the map, picked out once
-    for (k = 0; k < have.length; k++) {
-        var hw = have[k];
-        if (isObj(hw) && hw.type === 'path' && hw.tip !== 'fill' && hw.blocksSight === true && hw.sightType !== 'door' && !hw.hidden && !(fin(hw.rot) && hw.rot % 360 !== 0) && Array.isArray(hw.pts)) walls.push(hw);
     }
     for (i = 0; i < lines.length; i++) {
         var L = lines[i], dup = false;
@@ -573,6 +592,9 @@ function wallsOfCells(out, cells, inSet, grid, opts, end) {
             if (wl.pts.length !== L.pts.length || !near1(wl.x, L.x) || !near1(wl.y, L.y) || !near1(wl.w, L.w) || !near1(wl.h, L.h)) continue;
             dup = true;   // the same line only when every point is the same
             for (n = 0; n < L.pts.length && dup; n++) dup = Array.isArray(wl.pts[n]) && near1(wl.pts[n][0], L.pts[n][0]) && near1(wl.pts[n][1], L.pts[n][1]);
+            if (dup) continue;
+            dup = true;   // or the same line walked from its other end: what a door's cut leaves of a chain begins past the doorway, and a wall may be drawn either way
+            for (n = 0; n < L.pts.length && dup; n++) { var back = wl.pts[L.pts.length - 1 - n]; dup = Array.isArray(back) && near1(back[0], L.pts[n][0]) && near1(back[1], L.pts[n][1]); }
         }
         if (dup) out.had++; else out.lines.push(L);
     }
@@ -614,15 +636,20 @@ function wallLine(pts) {
 // which wall lines a door line lies ALONG, and what is left of each. A wall that the door only crosses, or meets at a corner or an end, is
 // not touched: the door lies along a wall segment only where both its ends are within CUT_TOL of that segment's own line and they overlap
 // by more than CUT_TOL. What is left of a wall keeps the wall's own order of points, so a caller lays the pieces where the wall stood.
+// A cut is all or none for a wall: where more than CUT_NEAR of the doorway would still be walled (walledUnder: a wall drawn by hand
+// wobbles, so only its level stretches lie along the door), the wall is no wall the door lies along and is left whole, uncut.
+// That holds for a piece between two cuts, for a wall that ends in the doorway and for one that runs on past the door's end,
+// under a door of one stretch or of many (the pen lays a point at every lattice corner).
 // cutWalls(pieces, door) -> { cuts: [{ at, lines }], n }
 //   pieces   the map's pieces. Only a WALL drawn as a line that players see is cut (cutOk): never a filled region, a door, a hidden, locked
-//            or turned line, a see-through barrier (it may be a force field laid there on purpose), nor a line a player drew
+//            or turned line, a see-through barrier (it may be a force field laid there on purpose), nor a line a player drew, nor a line of
+//            more points than the fog reads (pathSegs stops at LIMITS.wallSegs segments: the rest of the drawing would be lost)
 //   door     the door line that was just laid (read as the board draws it: fogcore pathSegs), at most CUT_SEGS of its segments
 //   cuts     one entry a wall that is cut: `at` its place in pieces, `lines` what is left of it as lineOf geometry (none where the door
 //            covers it whole). A wall drawn as a closed loop and cut once is left as ONE line, begun past the doorway
-var CUT_TOL = 1, CUT_SEGS = 400;
+var CUT_TOL = 1, CUT_SEGS = 400, CUT_NEAR = 12;
 function cutOk(w) {
-    return isObj(w) && w.type === 'path' && w.tip !== 'fill' && Array.isArray(w.pts) && w.blocksSight === true && w.sightType !== 'door'
+    return isObj(w) && w.type === 'path' && w.tip !== 'fill' && Array.isArray(w.pts) && w.pts.length <= LIMITS.wallSegs + 1 && w.blocksSight === true && w.sightType !== 'door'
         && !w.hidden && !w.locked && !w.isChar && !w.waiting && !w.gmNoteFor && !w.ownerId && !w.byPlayer && !(fin(w.rot) && w.rot % 360 !== 0);
 }
 function cutWalls(pieces, door) {
@@ -630,6 +657,7 @@ function cutWalls(pieces, door) {
     if (!Array.isArray(pieces) || !isObj(door) || door.type !== 'path' || door.tip === 'fill') return res;
     var D = pathSegs(door).slice(0, CUT_SEGS), i, j, d;
     if (!D.length) return res;
+    var Dv = D.map(function(p) { var l = Math.sqrt((p[2] - p[0]) * (p[2] - p[0]) + (p[3] - p[1]) * (p[3] - p[1])); return [(p[2] - p[0]) / l, (p[3] - p[1]) / l, l]; });   // each stretch of the door: its direction and its length
     var bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
     for (d = 0; d < D.length; d++) { bx0 = Math.min(bx0, D[d][0], D[d][2]); by0 = Math.min(by0, D[d][1], D[d][3]); bx1 = Math.max(bx1, D[d][0], D[d][2]); by1 = Math.max(by1, D[d][1], D[d][3]); }
     for (i = 0; i < pieces.length; i++) {
@@ -669,9 +697,38 @@ function cutWalls(pieces, door) {
             var a = kept[0], z = kept[kept.length - 1];
             if (near(a[0], [first[0], first[1]]) && near(z[z.length - 1], [end[2], end[3]])) { kept = kept.slice(1, -1).concat([z.concat(a.slice(1))]); }
         }
+        if (walledUnder(kept, D, Dv) > CUT_NEAR + 1e-6) continue;   // too much of the doorway would still be walled: this wall is not cut at all
         res.cuts.push({ at: i, lines: kept.map(lineOf) }); res.n++;
     }
     return res;
+}
+// How much of the doorway would still be walled: the length, measured along the door's stretches and added up over them, of what
+// is left of the wall lying within CUT_NEAR of a stretch and between its ends. Worked out exactly, a segment of wall against a
+// stretch of door: along a segment both its place along the stretch and its distance from it change evenly. EVERY stretch of
+// the door counts, whether or not it cut this wall: a stretch that lies over a wobbling part of the wall cut nothing there, and
+// that part is the very wall left standing in the doorway. So a stub past the door's end, a wall that turns off at the door's
+// end and an alcove or a jog deeper than CUT_NEAR count for nothing, while a wobble counts for all of its length under the
+// door, whether the piece ends in the doorway, lies between two cuts or runs on past the door's end. A wall that runs within
+// CUT_NEAR beside another part of the same door counts too: a door with a wall that close behind it stands in no doorway.
+function walledUnder(kept, D, Dv) {
+    var sum = 0;
+    for (var r = 0; r < kept.length; r++) {
+        var run = kept[r];
+        for (var i = 1; i < run.length; i++) {
+            var a = run[i - 1], b = run[i];
+            for (var d = 0; d < D.length; d++) {
+                var ux = Dv[d][0], uy = Dv[d][1], len = Dv[d][2];
+                var t0 = (a[0] - D[d][0]) * ux + (a[1] - D[d][1]) * uy, dt = (b[0] - D[d][0]) * ux + (b[1] - D[d][1]) * uy - t0;
+                if (!(Math.abs(dt) > 0)) continue;   // straight away from the door: no length along it
+                var o0 = (a[1] - D[d][1]) * ux - (a[0] - D[d][0]) * uy, dn = (b[1] - D[d][1]) * ux - (b[0] - D[d][0]) * uy - o0;
+                var lo = Math.max(0, Math.min(-t0 / dt, (len - t0) / dt)), hi = Math.min(1, Math.max(-t0 / dt, (len - t0) / dt));   // the part between the stretch's ends
+                if (dn === 0) { if (!(Math.abs(o0) <= CUT_NEAR)) continue; }
+                else { lo = Math.max(lo, Math.min((-CUT_NEAR - o0) / dn, (CUT_NEAR - o0) / dn)); hi = Math.min(hi, Math.max((-CUT_NEAR - o0) / dn, (CUT_NEAR - o0) / dn)); }   // and within CUT_NEAR of it
+                if (hi > lo) sum += Math.abs(dt) * (hi - lo);
+            }
+        }
+    }
+    return sum;
 }
 function runLen(r) { var n = 0; for (var i = 1; i < r.length; i++) n += Math.sqrt((r[i][0] - r[i - 1][0]) * (r[i][0] - r[i - 1][0]) + (r[i][1] - r[i - 1][1]) * (r[i][1] - r[i - 1][1])); return n; }
 

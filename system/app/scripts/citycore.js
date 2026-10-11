@@ -7,7 +7,7 @@
    drawn" (Size, City wall: none, a wall with gates, a wall with towers; Water: none, a river, a coast; Roofs: mixed or one of the four
    roof patterns; Fields outside); a city is ORDINARY pieces, as a dungeon is.
 
-   A village is planned on a board of cells, as a dungeon is: a main street two cells wide with one or two streets across it, and houses
+   A village is planned on a board of cells, as a dungeon is: a main street two cells wide with one street across it and often a second that leaves it to one side, and houses
    as boxes of cells along them, each touching its street and nothing else. It is laid on the 50 px lattice whatever grid the map has.
 
    A town and a city are planned in pixels, with no lattice: a grid of wards whose corners are moved a little by chance, and the wards
@@ -138,12 +138,20 @@ function flood(starts, ok) {
     while (st.length) { var c = st.pop(), k = c[0] + ',' + c[1]; if (seen[k] === 1 || !ok(c[0], c[1])) continue; seen[k] = 1; st.push([c[0] + 1, c[1]], [c[0] - 1, c[1]], [c[0], c[1] + 1], [c[0], c[1] - 1]); }
     return seen;
 }
+// A board of wards is a list of columns, each a list as long as the first; a place on it is two whole numbers
+function boardOf(inn) {
+    var nx = Array.isArray(inn) ? inn.length : 0, ny = nx && Array.isArray(inn[0]) ? inn[0].length : 0;
+    if (!nx || !ny) return null;
+    for (var i = 0; i < nx; i++) if (!Array.isArray(inn[i]) || inn[i].length !== ny) return null;
+    return { nx: nx, ny: ny };
+}
+function wholeNum(n) { return typeof n === 'number' && n === Math.floor(n); }
 // One city, with no hole in it: of a board of wards (inn[i][j], 1 for a kept one) the wards joined by a side to the middle one stay and
 // the rest go, and a ward the kept ones close in is kept too. The board itself is changed and handed back
 function oneCity(inn, mi, mj) {
-    var nx = Array.isArray(inn) ? inn.length : 0, ny = nx && Array.isArray(inn[0]) ? inn[0].length : 0, i, j;
-    if (!nx || !ny) return inn;
-    var isIn = function(p, q) { return p >= 0 && q >= 0 && p < nx && q < ny && inn[p][q] === 1; };
+    var bd = boardOf(inn), i, j; if (!bd) return inn;   // a board that is none is handed back as it is
+    var nx = bd.nx, ny = bd.ny;
+    var isIn = function(p, q) { return wholeNum(p) && wholeNum(q) && p >= 0 && q >= 0 && p < nx && q < ny && inn[p][q] === 1; };
     var joined = flood([[mi, mj]], isIn);
     for (i = 0; i < nx; i++) for (j = 0; j < ny; j++) inn[i][j] = joined[i + ',' + j] === 1 ? 1 : 0;
     var outside = flood([[-1, -1]], function(p, q) { return p >= -1 && q >= -1 && p <= nx && q <= ny && !isIn(p, q); });
@@ -154,12 +162,13 @@ function oneCity(inn, mi, mj) {
 // says its two corners { a, b }, the way it faces and whether it is a gate. Four sides are gates, where a main road leaves: the outermost
 // side of the middle column to the north and to the south, and of the middle row to the west and to the east
 function cityEdge(inn, mi, mj) {
-    var nx = Array.isArray(inn) ? inn.length : 0, ny = nx && Array.isArray(inn[0]) ? inn[0].length : 0, i, j, k, edges = [], loops = [];
-    if (!nx || !ny) return loops;
-    var isIn = function(p, q) { return p >= 0 && q >= 0 && p < nx && q < ny && inn[p][q] === 1; };
+    var bd = boardOf(inn), i, j, k, edges = [], loops = []; if (!bd) return loops;
+    var nx = bd.nx, ny = bd.ny;
+    var isIn = function(p, q) { return wholeNum(p) && wholeNum(q) && p >= 0 && q >= 0 && p < nx && q < ny && inn[p][q] === 1; };
     var jt = -1, jb = -1, il = -1, ir = -1;
-    for (j = 0; j < ny; j++) if (isIn(mi, j)) { if (jt < 0) jt = j; jb = j; }
-    for (i = 0; i < nx; i++) if (isIn(i, mj)) { if (il < 0) il = i; ir = i; }
+    var mid = wholeNum(mi) && wholeNum(mj);   // a middle that names no ward gives the edge with no gate
+    for (j = 0; mid && j < ny; j++) if (isIn(mi, j)) { if (jt < 0) jt = j; jb = j; }
+    for (i = 0; mid && i < nx; i++) if (isIn(i, mj)) { if (il < 0) il = i; ir = i; }
     var side = function(pa, pb, way, gate) { edges.push({ a: pa, b: pb, way: way, gate: gate, used: false }); };
     for (i = 0; i < nx; i++) for (j = 0; j < ny; j++) {
         if (!isIn(i, j)) continue;
@@ -194,11 +203,14 @@ function genOverview(o, rnd) {
     if (ri > 0) for (j = 0; j < ny; j++) if (inn[ri - 1][j] !== inn[ri][j]) inn[ri - 1][j] = inn[ri][j] = 1;
     oneCity(inn, mi, mj);
     var isIn = function(p, q) { return p >= 0 && q >= 0 && p < nx && q < ny && inn[p][q] === 1; };
-    // the river itself, from the top of the board to its bottom, with a bridge where a street meets it and the city lies all around
+    // the river itself, from the top of the board to its bottom, with a bridge where a street meets it and the city lies all around:
+    // three at most, the first such crossing, the middle one and the last, so that no end of the city is left without one
     if (ri > 0) {
         var mid = [[G[ri][0][0], 0]]; for (j = 0; j <= ny; j++) mid.push(G[ri][j]); mid.push([G[ri][ny][0], H]);
         plan.water.push(mid.map(function(p) { return [p[0] - RW, p[1]]; }).concat(mid.slice().reverse().map(function(p) { return [p[0] + RW, p[1]]; })));
-        for (j = 1; j < ny && plan.bridges.length < 3; j++) if (isIn(ri - 1, j - 1) && isIn(ri - 1, j) && isIn(ri, j - 1) && isIn(ri, j)) { var g = G[ri][j]; plan.bridges.push([[g[0] - RW - 14, g[1] - 13], [g[0] + RW + 14, g[1] - 13], [g[0] + RW + 14, g[1] + 13], [g[0] - RW - 14, g[1] + 13]]); }
+        var cross = []; for (j = 1; j < ny; j++) if (isIn(ri - 1, j - 1) && isIn(ri - 1, j) && isIn(ri, j - 1) && isIn(ri, j)) cross.push(j);
+        if (cross.length > 3) cross = [cross[0], cross[Math.floor((cross.length - 1) / 2)], cross[cross.length - 1]];
+        cross.forEach(function(jc) { var g = G[ri][jc]; plan.bridges.push([[g[0] - RW - 14, g[1] - 13], [g[0] + RW + 14, g[1] - 13], [g[0] + RW + 14, g[1] + 13], [g[0] - RW - 14, g[1] + 13]]); });
     }
     if (coast) { var shore = [[0, H], [0, G[0][lastRow][1] + 40]]; for (i = 0; i <= nx; i++) shore.push([G[i][lastRow][0], G[i][lastRow][1] + 40]); shore.push([W, G[nx][lastRow][1] + 40], [W, H]); plan.water.push(shore); }
     // the edge of the city, with its four gates
@@ -212,7 +224,9 @@ function genOverview(o, rnd) {
         var wet = function(c) { return ri > 0 && c[0] === ri; };
         var span = function(e) { var p = pt(e.a), q = pt(e.b); return Math.max(Math.abs(q[0] - p[0]) + Math.abs(q[1] - p[1]), 1); };
         var gap = function(e, t) { return whole(lerp(pt(e.a), pt(e.b), 0.5 + t * O_GATE / Math.max(span(e), 4 * O_GATE))); };
-        var bank = function(e, t) { var d = Math.min((RW + 8) / span(e), 0.3); return whole(lerp(pt(e.a), pt(e.b), t > 0 ? d : 1 - d)); };
+        // a side that ends at a river corner runs ACROSS the river, whose banks lie RW to each side of the corner: the wall's end is measured
+        // by the side's level run, so a side that leans still ends clear of the water
+        var bank = function(e, t) { var p = pt(e.a), q = pt(e.b), d = Math.min((RW + 8) / Math.max(Math.abs(q[0] - p[0]), 1), 0.3); return whole(lerp(p, q, t > 0 ? d : 1 - d)); };
         var runs = [], run = [], shut = function() { if (run.length > 1) runs.push(run); run = []; };
         loop.forEach(function(e) {
             if (wet(e.a)) shut();
@@ -266,22 +280,33 @@ function genCity(opts) {
 // under comes first):
 //   { grounds: [{ kind: 'field' | 'street' | 'water' | 'bridge', geo }], buildings: [{ geo, roof, color }], walls: [{ geo, line }], towers: [{ geo }], w, h, count }
 // geo is a box { type: 'rect', x, y, w, h }, a circle, a filled region (buildcore polyItem) or, for an overview's wall (line: true), the
-// pen's line geometry (buildcore wallLine). The caller dresses each with a material's props and lays ordinary items
+// pen's line geometry (buildcore wallLine). The caller dresses each with a material's props and lays ordinary items. A village is seated
+// on the 50 px lattice whatever place is handed in. A plan is read as data: a piece whose numbers are no numbers of a plan's own size is
+// passed over whole, a size that is none is 0, a place far off the board gives nothing, and nothing throws
+// What cityPieces takes of a plan: a place within P_FAR of the board's corner, a point within P_PLAN of the plan's own, a box of whole cells
+var P_FAR = 100000, P_PLAN = 20000, P_CELLS = 400, P_TOWER = 1000;
 function cityPieces(plan, ox, oy) {
     var out = { grounds: [], buildings: [], walls: [], towers: [], w: 0, h: 0, count: 0 };
-    if (!isObj(plan) || !fin(ox) || !fin(oy)) return out;
-    var x0 = Math.round(ox), y0 = Math.round(oy), list = function(v) { return Array.isArray(v) ? v : []; };
-    var at = function(pts) { return list(pts).map(function(p) { return Array.isArray(p) ? [x0 + p[0], y0 + p[1]] : null; }); };
-    var box = function(b) { return isObj(b) && fin(b.c) && fin(b.r) && fin(b.w) && fin(b.h) && b.w >= 1 && b.h >= 1 ? { type: 'rect', x: x0 + b.c * CELL, y: y0 + b.r * CELL, w: b.w * CELL, h: b.h * CELL } : null; };
-    var poly = function(pts) { return polyItem(at(pts)); };
+    if (!isObj(plan) || !fin(ox) || !fin(oy) || Math.abs(ox) > P_FAR || Math.abs(oy) > P_FAR) return out;
+    var cells = plan.kind === 'cells'; if (!cells && plan.kind !== 'free') return out;
+    // a village is seated on its lattice of cells, at the lattice point nearest the place handed in; a town at the whole pixel nearest it
+    var x0 = cells ? Math.round(ox / CELL) * CELL : Math.round(ox), y0 = cells ? Math.round(oy / CELL) * CELL : Math.round(oy), list = function(v) { return Array.isArray(v) ? v : []; };
+    var near = function(v) { return fin(v) && Math.abs(v) <= P_PLAN; }, cell = function(v) { return fin(v) && v === Math.floor(v) && v >= 0 && v <= P_CELLS; };
+    // a list of points at its place, or nothing where one of them is no pair of numbers of a plan's own size: a shape is laid whole or not at all
+    var at = function(pts) {
+        var o = []; if (!Array.isArray(pts)) return null;
+        for (var i = 0; i < pts.length; i++) { var p = pts[i]; if (!Array.isArray(p) || !near(p[0]) || !near(p[1])) return null; o.push([x0 + p[0], y0 + p[1]]); }
+        return o;
+    };
+    var box = function(b) { return isObj(b) && cell(b.c) && cell(b.r) && cell(b.w) && cell(b.h) && b.w >= 1 && b.h >= 1 ? { type: 'rect', x: x0 + b.c * CELL, y: y0 + b.r * CELL, w: b.w * CELL, h: b.h * CELL } : null; };
+    var poly = function(pts) { var q = at(pts); return q ? polyItem(q) : null; }, line = function(pts) { var q = at(pts); return q ? wallLine(q) : null; };
     var ground = function(kind, v, make) { list(v).forEach(function(s) { var g = make(s); if (g) out.grounds.push({ kind: kind, geo: g }); }); };
-    var cells = plan.kind === 'cells', make = cells ? box : poly;
-    if (!cells && plan.kind !== 'free') return out;
-    out.w = cells ? plan.cols * CELL : plan.w; out.h = cells ? plan.rows * CELL : plan.h;
+    var make = cells ? box : poly, size = function(n, px) { return cells ? (cell(n) && n >= 1 ? n * CELL : 0) : (near(px) && px > 0 ? px : 0); };
+    out.w = size(plan.cols, plan.w); out.h = size(plan.rows, plan.h);
     ground('field', plan.fields, make); ground('street', plan.streets, make); ground('water', plan.water, make); ground('bridge', plan.bridges, make);
     list(plan.buildings).forEach(function(b) { var g = isObj(b) ? (cells ? box(b) : poly(b.pts)) : null, roof = g && ROOF_NAMES.indexOf(b.roof) >= 0 ? b.roof : ROOF_NAMES[0]; if (g) out.buildings.push({ geo: g, roof: roof, color: ROOF_COLOR[roof] }); });
-    list(plan.walls).forEach(function(L) { var g = cells ? box(L) : wallLine(at(L)); if (g) out.walls.push({ geo: g, line: !cells }); });
-    list(plan.towers).forEach(function(t) { var g = cells ? box(t) : (isObj(t) && fin(t.x) && fin(t.y) && fin(t.r) && t.r > 0 ? { type: 'circle', x: x0 + t.x - t.r, y: y0 + t.y - t.r, w: t.r * 2, h: t.r * 2 } : null); if (g) out.towers.push({ geo: g }); });
+    list(plan.walls).forEach(function(L) { var g = cells ? box(L) : line(L); if (g) out.walls.push({ geo: g, line: !cells }); });
+    list(plan.towers).forEach(function(t) { var g = cells ? box(t) : (isObj(t) && near(t.x) && near(t.y) && fin(t.r) && t.r > 0 && t.r <= P_TOWER ? { type: 'circle', x: x0 + t.x - t.r, y: y0 + t.y - t.r, w: t.r * 2, h: t.r * 2 } : null); if (g) out.towers.push({ geo: g }); });
     out.count = out.grounds.length + out.buildings.length + out.walls.length + out.towers.length;
     return out;
 }

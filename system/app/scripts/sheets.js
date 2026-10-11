@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { timeRuleRun, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, aliasFromShadowBase, sbRowOps, sbApplyProposal, cleanUploads, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, DEFAULT_POSTURES, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
+import { timeRuleRun, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, aliasFromShadowBase, sbRowOps, sbApplyProposal, cleanUploads, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, DEFAULT_POSTURES, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
 import { cleanCalendar, fmtWhen, fmtDate, timeOf, calPreset, CAL_LIMITS } from './calendarcore.js';
 
@@ -2427,7 +2427,7 @@ function ctCtl(host, entry, c, f, spec, editable, cells) {
 // Stage 6 F5a1: the columns shown on a row — a chip each, its label small ("Cost 11 pts"); an error reads "\u2014" with the message on hover
 function colChips(host, spec, cells) {
     if (!cells || !Array.isArray(spec.cols)) return;
-    spec.cols.forEach(function(cc, i) { var v = cells[i]; if (cc.hide === true || !v) return; var ch = el('span', 'sheet-chip sheet-item-col' + (v.error ? ' sheet-item-colerr' : '')); ch.appendChild(el('small', null, cc.label)); ch.appendChild(document.createTextNode(' ' + v.text + (cc.unit && !v.error ? ' ' + cc.unit : ''))); if (v.error) ch.title = v.error; host.appendChild(ch); });
+    spec.cols.forEach(function(cc, i) { var v = cells[i]; if (cc.hide === true || !v) return; var ch = el('span', 'sheet-chip sheet-item-col' + (v.error ? ' sheet-item-colerr' : '')); ch.appendChild(el('small', null, cc.label)); ch.appendChild(document.createTextNode(' ' + v.text + (cc.unit && !v.error ? ' ' + cc.unit : '') + (typeof plusText === 'function' ? plusText(v) : ''))); if (v.error) ch.title = v.error; host.appendChild(ch); });
 }
 // F5a1: the totals under a list — each stat shown on the row and each column marked Total, summed over the rows carried (a kept curse is not)
 function totalsLine(wrap, spec, foot) {
@@ -2475,7 +2475,7 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty,
         tr.appendChild(nameTd);
         cols.forEach(function(col) { tr.appendChild(el('td', 'sheet-itcol-' + col, itemCellText(col, def))); });
         shownSt.forEach(function(s) { var sTd = el('td', 'sheet-itcol-stat', statText(s, rowStat(spec, def, s.key))), sDt = statDot(s, spec, ovT); if (sDt) sTd.appendChild(sDt); tr.appendChild(sTd); });
-        var cellsT = res && res.cells ? res.cells[rid] : null; shownCl.forEach(function(x) { var v = cellsT ? cellsT[x.i] : null, cTd = el('td', 'sheet-itcol-col' + (v && v.error ? ' sheet-item-colerr' : ''), v ? v.text + (x.c.unit && !v.error ? ' ' + x.c.unit : '') : ''); if (v && v.error) cTd.title = v.error; tr.appendChild(cTd); });   // F5a1: its columns
+        var cellsT = res && res.cells ? res.cells[rid] : null; shownCl.forEach(function(x) { var v = cellsT ? cellsT[x.i] : null, cTd = el('td', 'sheet-itcol-col' + (v && v.error ? ' sheet-item-colerr' : ''), v ? v.text + (x.c.unit && !v.error ? ' ' + x.c.unit : '') + (typeof plusText === 'function' ? plusText(v) : '') : ''); if (v && v.error) cTd.title = v.error; tr.appendChild(cTd); });   // F5a1: its columns (1.5.4: and what a column's With stats add, in brackets)
         if (hasL) { var lTd = el('td', 'sheet-itcol-lvl'), lcT = lvlCtl(entry, def, c, f, spec, chg); if (lcT) lTd.appendChild(lcT); tr.appendChild(lTd); }
         if (hasO) { var oTd = el('td', 'sheet-itcol-on'), ocT = onCtl(entry, c, f, spec, editable, false); if (ocT) oTd.appendChild(ocT); tr.appendChild(oTd); }
         if (hasQ) {
@@ -4499,19 +4499,33 @@ function refreshErrors() {
     var capS = LIMITS.listStats, firstSp = Object.create(null), keptAll = Object.create(null), keptBy = Object.create(null), firstDef = Object.create(null);
     draft.fields.forEach(function(f) {
         if (!f || f.kind !== 'item-list') return;
-        var sp = f.list && typeof f.list === 'object' ? f.list : {}, st = Array.isArray(sp.stats) ? sp.stats : [], errs = [], mine = Object.create(null), n = 0, nm = f.label || f.key || 'another list';
+        var sp = f.list && typeof f.list === 'object' ? f.list : {}, st = Array.isArray(sp.stats) ? sp.stats : [], errs = [], mine = Object.create(null), keptW = Object.create(null), n = 0, nm = f.label || f.key || 'another list';
         st.forEach(function(s, i) {
             var k = s && typeof s === 'object' && typeof s.key === 'string' ? s.key : '';
             if (!k.trim()) { errs.push({ message: 'Stat ' + (i + 1) + ' needs a key: Save drops it.' }); return; }
             if (!statKey(k, F())) { errs.push({ message: 'Stat key "' + k + '" is not usable: a letter, then letters, digits and _ (up to 24, no spaces); not a word formulas already use (count, qty, on, has, lvl, paid, row; max, cur, ranks, base; a function or reserved word such as floor, and, true; constructor, toString). Save drops it.' }); return; }
             var l = k.toLowerCase(); if (mine[l]) { errs.push({ message: 'Stat key "' + k + '" repeats "' + mine[l] + '" (keys ignore case): Save keeps the first.' }); return; }
             mine[l] = k; if (++n > capS) return;
+            keptW[l] = 1;   // 1.5.4 With: the stats Save keeps of this list
             if (typeof s.def === 'number' && isFinite(s.def) && Math.abs(s.def) > LIMITS.statAbs) errs.push({ message: 'Stat "' + k + '" has a default past ±1,000,000,000: Save drops it.' });
             keptAll[l] = 1; if (!firstDef[l]) firstDef[l] = s;
             if (!firstSp[l]) firstSp[l] = { key: k, list: nm }; else if (firstSp[l].key !== k) errs.push({ message: 'Stat "' + k + '" is spelled "' + firstSp[l].key + '" on ' + firstSp[l].list + ': Save uses that spelling here too (one key, one spelling).' });
         });
         if (n > capS) errs.push({ message: 'At most ' + capS + ' stats a list: Save keeps the first ' + capS + '.' });
         if (typeof sp.price === 'string' && sp.price && !mine[sp.price.toLowerCase()]) errs.push({ message: 'The price names no stat of this list: Save drops it.' });
+        (Array.isArray(sp.cols) ? sp.cols : []).forEach(function(cc) {   // 1.5.4 With: what Save drops of a column's With stats, as the cleaner reads them
+            if (!cc || typeof cc !== 'object' || !Array.isArray(cc.plus)) return;
+            var cn = (typeof cc.label === 'string' && cc.label) || (typeof cc.key === 'string' && cc.key) || 'A column', seenP = Object.create(null), keptP = 0;
+            cc.plus.forEach(function(p) {
+                var pl = typeof p === 'string' ? p.trim().toLowerCase() : ''; if (!pl) return;
+                var ps = null; st.forEach(function(s) { if (!ps && s && typeof s === 'object' && typeof s.key === 'string' && s.key.toLowerCase() === pl) ps = s; });
+                if (!ps || !mine[pl]) errs.push({ message: 'Column "' + cn + '": With names "' + p + '", which is no stat of this list. Save drops that name.' });
+                else if (!keptW[pl]) errs.push({ message: 'Column "' + cn + '": With names "' + p + '", a stat past the ' + capS + ' Save keeps. Save drops that name.' });
+                else if (ps.kind === 'pick') errs.push({ message: 'Column "' + cn + '": With names "' + p + '", which is a choice. Only a number adds to a column. Save drops that name.' });
+                else if (seenP[pl]) errs.push({ message: 'Column "' + cn + '": With names "' + p + '" twice. Save keeps the first.' });
+                else { seenP[pl] = 1; if (++keptP === LIMITS.colPlus + 1) errs.push({ message: 'Column "' + cn + '": at most ' + LIMITS.colPlus + ' With stats a column. Save keeps the first ' + LIMITS.colPlus + '.' }); }
+            });
+        });
         keptBy[f.id] = mine;
         if (errs.length) errorsById['list:' + f.id] = errs;
     });
@@ -5197,6 +5211,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
         var cfI = input('sys-list-colformula field', typeof cc.formula === 'string' ? cc.formula : '', 'Worked out for each row, no dice: Row.lvl, Row.qty, Row.on, Row.has, Row.paid, Row.<stat> and Row.<another column> read the row; any other name reads the character', 'Formula (Row.lvl * 2 + Row.Rel)'); cfI.maxLength = LIMITS.formula; cr.appendChild(cfI);
         var cuI = input('sys-list-colunit field', typeof cc.unit === 'string' ? cc.unit : '', 'A unit after the value (pts, lb)', 'Unit'); cuI.maxLength = LIMITS.unit; cr.appendChild(cuI);
         cr.appendChild(input('sys-list-colnames field', Array.isArray(cc.labels) ? cc.labels.join(', ') : '', 'Names for the values 0, 1, 2\u2026 separated by commas: the row shows the name, formulas read the number', 'Value names (optional)'));
+        var cpI = input('sys-list-colplus field', Array.isArray(cc.plus) ? cc.plus.join(', ') : '', 'Number stats of this list that add to this column in a case of their own, by their keys, separated by commas. Where such a stat is not 0 the row shows the two added, with the stat\u2019s label: DR 15 (35 vs. energy)', 'With stats (optional)'); cpI.maxLength = 240; cr.appendChild(cpI);   // 1.5.4 With
         cr.appendChild(checkLabel('sys-list-colhide', cc.hide === true, 'Hidden', 'Worked out (for totals and other columns) but not shown on the row'));
         cr.appendChild(checkLabel('sys-list-colfoot', cc.foot === true, 'Total', 'Its total shows under the list'));
         [['colup', '\u25b2', 'Move up'], ['coldown', '\u25bc', 'Move down'], ['coldel', '\u00d7', 'Remove this column']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; cr.appendChild(bb); });
@@ -6273,6 +6288,7 @@ function onInput(e) {
             else if (lcc.indexOf('sys-list-colformula') >= 0) cD.formula = t.value.slice(0, LIMITS.formula);
             else if (lcc.indexOf('sys-list-colunit') >= 0) { if (t.value.trim()) cD.unit = t.value.slice(0, LIMITS.unit); else delete cD.unit; }
             else if (lcc.indexOf('sys-list-colnames') >= 0) { var cln = t.value.split(',').map(function(s) { return s.trim(); }).slice(0, LIMITS.labels); while (cln.length && !cln[cln.length - 1]) cln.pop(); if (cln.some(Boolean)) cD.labels = cln; else delete cD.labels; }
+            else if (lcc.indexOf('sys-list-colplus') >= 0) { var cpl = t.value.split(',').map(function(s) { return s.trim(); }).filter(Boolean).slice(0, 64); if (cpl.length) cD.plus = cpl; else delete cD.plus; }   // 1.5.4 With: stat keys as typed, which Save reads by the list's own stats
             else return;
             var nCard = t.closest('.sys-list-card'), nLine = nCard ? nCard.querySelector('.sys-list-names') : null; if (nLine) nLine.textContent = listNamesText(lcd.key, lsp);   // the names line follows a key as it is typed
         }

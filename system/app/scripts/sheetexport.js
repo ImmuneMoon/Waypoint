@@ -6,7 +6,7 @@
      page), the sheet walked as it is laid out: the header, the dashboard, the band as one line, every tab, every section.
    fileBase(name): a character's name as a file name. isCharFile(j): a character file. The caller (sheets.js) picks the view, works out
    `all` (resolveAll) on that same view and saves the file. */
-import { STORED, fmtNum, headerEntry, autoLayout, rowDef, rowIdOf, rowLvl, rowOn, rowStat, rowPaid, showsIf, POSTURE_NAMES, postureAt, ownPostures, lookOf } from './systemcore.js';
+import { STORED, fmtNum, headerEntry, autoLayout, rowDef, rowIdOf, rowLvl, rowOn, rowStat, plusText, rowPaid, showsIf, POSTURE_NAMES, postureAt, ownPostures, lookOf } from './systemcore.js';
 import { docToMarkdown, mdEscapeText, fmtFromInline } from './docmd.js';
 import { cleanFmt, runsOf, SIZE_EM } from './textfmt.js';
 import { LIMITS as DOC_LIMITS } from './docrender.js';
@@ -276,7 +276,7 @@ function sheetToMarkdown(sys, view, all, opts) {
         (Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (isObj(s) && s.show === true) colsA.push({ t: s.label || s.key, g: function(r, d) { return statText(s, rowStat(spec, d, s.key)); } }); });
         (Array.isArray(spec.cols) ? spec.cols : []).forEach(function(c) {
             if (!isObj(c) || c.hide === true) return;
-            colsA.push({ t: c.label || c.key, g: function(r) { var cs = cells[rowIdOf(r)], v = Array.isArray(cs) ? cs.find(function(x) { return x && x.key === c.key; }) : null; if (!v) return ''; if (v.error) return gmOnlyError(String(v.error)) ? 'GM only' : '—'; return String(v.text == null ? '' : v.text) + (c.unit && v.text ? ' ' + c.unit : ''); } });
+            colsA.push({ t: c.label || c.key, g: function(r) { var cs = cells[rowIdOf(r)], v = Array.isArray(cs) ? cs.find(function(x) { return x && x.key === c.key; }) : null; if (!v) return ''; if (v.error) return gmOnlyError(String(v.error)) ? 'GM only' : '—'; return String(v.text == null ? '' : v.text) + (c.unit && v.text ? ' ' + c.unit : '') + plusText(v); } });
         });
         if (isObj(spec.lvl)) colsA.push({ t: spec.lvl.label || 'Level', g: function(r, d) { var v = rowLvl(spec, r, d); return typeof v === 'number' ? statText(spec.lvl, v) : ''; } });
         if (isObj(spec.on)) colsA.push({ t: spec.on.label || 'On', g: function(r) { return rowOn(spec, r) ? 'yes' : 'no'; } });

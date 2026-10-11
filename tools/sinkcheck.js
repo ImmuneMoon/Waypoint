@@ -3861,6 +3861,112 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     }
     // fold B5: a secret door, the end of its checks
 
+    /* ---- 1.5.4: a column's With stats on the sheet, in the System editor and on the readable page, and the website's typed DR (systemcore.js sbRowOps) ---- */
+    {
+        const j = JSON.stringify, SYw = await import(modUrl('systemcore.js')), FOw = await import(modUrl('formula.js')), XPw = await import(modUrl('sheetexport.js')), DMw = await import(modUrl('docmd.js'));
+        const shW = read('sheets.js'), HTMLW = /innerHTML|insertAdjacentHTML|outerHTML|setAttribute|document\.write/;
+        const cutW = (a, b, keep) => { const i = shW.indexOf(a), k = i < 0 ? -1 : shW.indexOf(b, i + a.length); if (i < 0 || k < 0) throw new Error('sinkcheck: sheets.js ' + a.trim().slice(0, 40) + ' not found'); return shW.slice(i, keep ? k + b.length : k); };
+        const lineW = k => cutW('\n' + k, '\n').slice(1);
+        // a page of plain objects that refuses markup: whatever is written as markup, an attribute or a style is written down
+        const mkPage = () => {
+            const made = [], htmlSet = [], attrs = [];
+            const fake = tag => { const e = { tag, children: [], childNodes: [], style: {}, dataset: {}, className: '', textContent: '', appendChild(k) { this.children.push(k); this.childNodes.push(k); return k; }, setAttribute(n, v) { attrs.push([n, v]); }, addEventListener() {} }; ['innerHTML', 'outerHTML'].forEach(p => Object.defineProperty(e, p, { set(v) { htmlSet.push(v); }, get() { return ''; } })); e.insertAdjacentHTML = (w, v) => { htmlSet.push(v); }; made.push(e); return e; };
+            const doc = { createElement: fake, createTextNode: t => { const n = { tag: '#text', textContent: String(t) }; made.push(n); return n; } };
+            return { made, htmlSet, attrs, fake, doc, clean: () => htmlSet.length === 0 && attrs.length === 0 && made.every(e => e.tag === '#text' || Object.keys(e.style).length === 0) };
+        };
+        const X1 = '"><script>x()</script>', LONGW = T + new Array(5001).join('N');
+        const rawW = { v: 1, name: 'W', rolls: [], items: [{ id: 'i_torso', name: 'Torso', category: '', stats: { pen: 1 } }], fields: [{ id: 'f_loc', key: 'Locations', label: T, kind: 'item-list', vis: 'all', list: { custom: true, multi: true, lvl: { label: 'DR' }, on: { label: 'Crippled' },
+            stats: [{ key: 'stated', label: 'Stated' }, { key: 'pen', label: 'Pen' }, { key: 'vsEnergy', label: T }, { key: 'vsIon', label: P }, { key: 'vsCold', label: 'vs. cold' }, { key: 'kind', kind: 'pick', opts: [{ label: 'A', name: 'A' }] }],
+            cols: [{ key: 'DR', label: T + P, formula: 'Row.lvl', plus: ['vsenergy', 'VSION', T, P, X1, '__proto__', 'constructor', 'kind', 'vsEnergy', 'vsCold'] }] } }] };
+        const sysW = SYw.cleanSystem(JSON.parse(j(rawW)), { F: FOw, gmView: true }), fW = sysW.fields[0], OWN = ['stated', 'pen', 'vsEnergy', 'vsIon', 'vsCold'];
+        const protoKeys = () => j([Object.keys(Object.prototype), ({}).vsEnergy, ({}).stated, ({}).ghost, ({}).polluted, typeof ({}).constructor, typeof ({}).toString]), proto0 = protoKeys();
+        // the hostile website file: kinds that are markup, a script address, a prototype's name; rows whose ids are a prototype's names; names past any length
+        const fileW = { characteristics: { locations: [{ id: 'a1', name: 'Torso', type: 'Torso', relativeSM: 2, status: 'Healthy' }], locationDr: [
+            { id: 'a1', name: 'Torso', type: 'Torso', dr: 15, typedDr: [{ vs: 'energy', bonus: 20 }, { vs: T, bonus: 3 }, { vs: 'javascript:alert(1)', bonus: 4 }, { vs: '__proto__', bonus: 5 }, { vs: '<b>', bonus: 6 }, { vs: 'ion', bonus: 10 }, { vs: 'ENERGY ', bonus: 99 }, { vs: 'acid', bonus: 2 }, { vs: 'cold', bonus: 2e9 }, { vs: 'cold', bonus: '<b>' }, null, { vs: '<i>', bonus: 0 }] },
+            { id: '__proto__', name: LONGW, type: 'Torso', dr: 3, typedDr: 'x' },
+            { id: 'constructor', name: 'Odd' + LONGW, type: 'Nothing', dr: 4, typedDr: [{ vs: 'cold', bonus: 9 }] },
+            { id: 'toString', name: LONGW, type: 'Torso', dr: 9, typedDr: [], amputated: true },
+            { id: 'ghost', name: 'Ghost', type: 'Torso', dr: 1 },
+            { id: 'real', name: 'Real', type: 'Torso', dr: 2 }] },
+            droidBuild: { locationStates: Object.assign(Object.create({ ghost: 'Crippled' }), { real: 'Crippled' }) } };
+        const findW = n => String(n).trim().toLowerCase() === 'torso' ? [sysW.items[0]] : [];
+        const roW = SYw.sbRowOps(fileW, sysW, findW), rowsW = [], byRow = Object.create(null);
+        roW.ops.forEach(o => { const q = o.q; if (!byRow[q.rowId]) { byRow[q.rowId] = { ops: [] }; rowsW.push(byRow[q.rowId]); } byRow[q.rowId].ops.push(q); });
+        const opOf = (r, op) => r ? r.ops.filter(q => q.op === op) : [], onOf = r => { const s = opOf(r, 'set')[0]; return s && s.facts ? s.facts.on : undefined; };
+        const statBags = roW.ops.map(o => o.q.op === 'ov' && o.q.ov && o.q.ov.stats ? o.q.ov.stats : o.q.op === 'custom' && o.q.def && o.q.def.stats ? o.q.def.stats : null).filter(Boolean);
+        const kindWords = roW.skipped.filter(w => !/^amputated: /.test(w)), NMAX = SYw.LIMITS.name, cutName = LONGW.slice(0, NMAX);
+        check('typed DR (a hostile website file, sbRowOps run for real): a kind that is markup, a script address or __proto__ is said only in the fixed words "typed DR of a kind that does not read", once; a kind is named only as 1 to 20 small letters; a figure past the bound or no number carries nothing; a second entry of a kind is not added; no stat is written but the list\'s own number stats, each a number or null; no prototype is touched',
+            j(kindWords) === j(['typed DR of a kind that does not read', 'typed DR vs. acid']) && kindWords.every(w => /^typed DR (of a kind that does not read|vs\. [a-z]{1,20})$/.test(w))
+            && j(opOf(rowsW[0], 'ov').map(q => q.ov)) === j([{ stats: { pen: 3 } }, { stats: { stated: 1, vsEnergy: 20, vsIon: 10, vsCold: null } }])
+            && statBags.length >= 4 && statBags.every(s => Object.keys(s).every(k => OWN.indexOf(k) >= 0 && (s[k] === null || (typeof s[k] === 'number' && isFinite(s[k])))) && (Object.getPrototypeOf(s) === Object.prototype || Object.getPrototypeOf(s) === null))
+            && protoKeys() === proto0 && !/<b>|<i>|javascript|__proto__|onerror=alert\(1\)>"/.test(j(kindWords)) && !/2000000000|"99"|:99[,}]/.test(j(statBags)),
+            j([roW.skipped.map(w => w.slice(0, 60)), statBags]));
+        check('typed DR (a hostile website file): a row whose id is __proto__, constructor or a name the droid\'s locationStates only inherits reads no status from it (Healthy), a row whose id is its own key there reads it; an amputated row is skipped under its cut name; a row\'s name reaches a library row\'s own name and a custom row only as text cut to the name\'s length',
+            rowsW.length === 5 && roW.rows === 5 && onOf(rowsW[1]) === false && onOf(rowsW[2]) === false && onOf(rowsW[3]) === false && onOf(rowsW[4]) === true && onOf(rowsW[0]) === false
+            && j(opOf(rowsW[1], 'ov')[0] && opOf(rowsW[1], 'ov')[0].ov) === j({ name: cutName }) && cutName.length === NMAX
+            && opOf(rowsW[2], 'custom').length === 1 && opOf(rowsW[2], 'custom')[0].def.name === ('Odd' + LONGW).slice(0, NMAX) && j(opOf(rowsW[2], 'custom')[0].def.stats) === j({ stated: 1, vsCold: 9 })
+            && roW.skipped.indexOf('amputated: ' + cutName) >= 0 && roW.skipped.every(w => w.length <= 'amputated: '.length + NMAX) && protoKeys() === proto0,
+            j([rowsW.length, rowsW.map(onOf), roW.skipped.map(w => w.length), opOf(rowsW[1], 'ov').map(q => q.ov && q.ov.name ? q.ov.name.length : q.ov)]));
+
+        // the sheet: the rows the file made, resolved by the real core, drawn by the real colChips and the rich table's own cell statement
+        const chW = { id: 'c_w', name: 'W', ownerId: '', npc: true, values: {} }, refusedW = [];
+        roW.ops.forEach(o => { const r = SYw.applyRowOp(sysW, chW, o.f, o.q, FOw, {}); if (r.ok) chW.values[o.f] = r.value; else refusedW.push(o.q.op + ':' + r.reason); });
+        const resW = SYw.resolveAll(sysW, chW, FOw), rid0 = SYw.rowIdOf(chW.values.f_loc[0]), cells0 = resW.f_loc.cells[rid0], WORDS = ' (35 ' + T + ', 25 ' + P + ')';
+        check('With stats (the cleaner and the cell, run for real): a hostile name, a prototype\'s name and a choice in a column\'s With leave the list\'s own number stats in the list\'s own spelling, each once; the cell\'s extra words are the figure, a space and the stat\'s label, joined by commas inside one pair of brackets, and nothing else (plusText)',
+            j(fW.list.cols[0].plus) === j(['vsEnergy', 'vsIon', 'vsCold']) && refusedW.length === 0 && j(cells0[0].more) === j([{ key: 'vsEnergy', label: T, text: '35' }, { key: 'vsIon', label: P, text: '25' }])
+            && SYw.plusText(cells0[0]) === WORDS && SYw.plusText({ more: [] }) === '' && SYw.plusText(null) === '' && SYw.plusText({ more: [{ text: 1, label: X1 }] }) === ' (1 ' + X1 + ')' && protoKeys() === proto0,
+            j([fW.list.cols[0].plus, refusedW, cells0, SYw.plusText(cells0[0])]));
+        const ccSrc = cutW('\nfunction colChips(host, spec, cells) {', '\n}\n', true), tdSrc = cutW('var cellsT = res && res.cells ? res.cells[rid] : null; shownCl.forEach(', 'tr.appendChild(cTd); });', true);
+        const PG1 = mkPage(), host1 = PG1.fake('div');
+        new Function('document', 'plusText', "'use strict';\n" + lineW('function el(tag, cls, text) {') + ccSrc + '\nreturn colChips;')(PG1.doc, SYw.plusText)(host1, fW.list, cells0);
+        const chip1 = host1.children[0];
+        check('With stats (the sheet\'s chip, colChips run for real on a page that refuses markup): a hostile column label is the chip\'s small label as text, and the figure with what its With stats add, hostile stat labels and all, is ONE text node after it; nothing is written as markup, an attribute, a title or a style',
+            host1.children.length === 1 && !!chip1 && chip1.tag === 'span' && chip1.className === 'sheet-chip sheet-item-col' && chip1.children.length === 2 && chip1.children[0].tag === 'small' && chip1.children[0].textContent === T + P && chip1.children[0].children.length === 0
+            && chip1.children[1].tag === '#text' && chip1.children[1].textContent === ' 15' + WORDS && chip1.title === undefined && PG1.clean() && !HTMLW.test(ccSrc) && !HTMLW.test(lineW('function el(tag, cls, text) {')),
+            j([host1.children.length, chip1 && chip1.children.map(k => [k.tag, k.textContent]), PG1.htmlSet, PG1.attrs]));
+        const PG2 = mkPage(), tr2 = PG2.fake('tr');
+        new Function('document', 'plusText', 'res', 'rid', 'shownCl', 'tr', "'use strict';\n" + lineW('function el(tag, cls, text) {') + '\n' + tdSrc)(PG2.doc, SYw.plusText, resW.f_loc, rid0, fW.list.cols.map((c, i) => ({ c, i })), tr2);
+        const td2 = tr2.children[0];
+        check('With stats (the rich table\'s cell, its own statement run for real on the same kind of page): the cell is a td whose text is the figure and what its With stats add; no child, no markup, no attribute, no title; and every line of sheets.js that asks plusText is one of those two text sinks',
+            tr2.children.length === 1 && !!td2 && td2.tag === 'td' && td2.className === 'sheet-itcol-col' && td2.textContent === '15' + WORDS && td2.children.length === 0 && td2.title === undefined && PG2.clean() && !HTMLW.test(tdSrc)
+            && j(shW.split('\n').filter(l => /plusText\s*\(/.test(l)).map(l => l.indexOf('ch.appendChild(document.createTextNode(') >= 0 && ccSrc.indexOf(l) >= 0 ? 'chip' : l.indexOf(tdSrc) >= 0 ? 'td' : 'other')) === j(['chip', 'td']),
+            j([tr2.children.length, td2 && [td2.tag, td2.className, td2.textContent, td2.children.length], PG2.htmlSet, PG2.attrs, shW.split('\n').filter(l => /plusText\s*\(/.test(l)).length]));
+        // the readable page: what sheetexport.js writes is read back as the plain words, and drawn as escaped text
+        const mdW = XPw.sheetToMarkdown(sysW, chW, resW, { F: FOw, gm: true }), backW = DMw.markdownToBlocks(mdW, { kind: 'doc' }), tblW = (backW.blocks || []).filter(b => b.type === 'table')[0] || { cols: [], rows: [] };
+        const cellW = tblW.rows[0] ? Object.keys(tblW.rows[0]).map(k => tblW.rows[0][k]) : [], htmlW = DR.renderDoc(DR.cleanDoc(DR.cleanDoc({ id: 'd_w', type: 'doc', meta: { title: 'W', players: true }, blocks: backW.blocks }), { keepHidden: true }), {}), sxW = read('sheetexport.js').split('\n').filter(l => /plusText\s*\(/.test(l));
+        check('With stats (the readable page, sheetexport.js run for real): the column\'s cell is written with its With words escaped for Markdown, reads back as the very words (a hostile stat label as characters), and the page drawn from it holds no tag, handler or address of the label\'s; plusText is asked in one statement there, inside the cell the table escapes',
+            cellW.indexOf('15' + WORDS) >= 0 && tblW.cols.indexOf(T + P) >= 0 && !/(^|[^\\])<img/.test(mdW) && mdW.indexOf('35 \\<img src=x onerror=alert(1)\\>') >= 0 &&risks(htmlW).length === 0 && !/<img/i.test(htmlW) && htmlW.indexOf('35 &lt;img src=x onerror=alert(1)&gt;') >= 0
+            && sxW.length === 1 && /colsA\.push\(\{ t: c\.label \|\| c\.key, g: function\(r\) \{/.test(sxW[0]) && /\+ plusText\(v\); \} \}\);$/.test(sxW[0].trim()) && read('sheetexport.js').split('rows: rows.map(function(r, i) { return cols.map(function(c) { return cell(c.g(r, defs[i])); }); })').length === 2,
+            j([cellW, risks(htmlW), sxW.length, mdW.split('\n').filter(l => /35 /.test(l))]));
+
+        // the System editor: the With stats box (listCard, run for real) and what Save drops of it (refreshErrors and errorCell, run for real)
+        const lcSrc = cutW('\nfunction listCard(f, allCats, targets, acts) {', '\nfunction checkLabel('), HOSTP = [T, P, X1, 'kind', 'vsEnergy', 'VSENERGY', '__proto__', 'constructor'];
+        const draftW = JSON.parse(j(rawW)); draftW.fields[0].list.cols[0].plus = HOSTP.slice();
+        const PG3 = mkPage();
+        const card3 = new Function('document', 'LIMITS', 'numField', 'priceOptions', 'listApplyEditor', "'use strict';\n" + lineW('function el(tag, cls, text) {') + '\n' + lineW('function input(cls, value, title, placeholder) {') + '\n' + lineW('function checkLabel(cls, on, text, title) {') + lcSrc + '\nreturn listCard;')(
+            PG3.doc, SYw.LIMITS, () => PG3.fake('input'), () => {}, () => {})(draftW.fields[0], [], [], []);
+        const plus3 = PG3.made.filter(e => typeof e.className === 'string' && e.className.split(' ').indexOf('sys-list-colplus') >= 0), lab3 = PG3.made.filter(e => typeof e.className === 'string' && e.className.split(' ').indexOf('sys-list-collabel') >= 0);
+        const hSrc = cutW("var cpl = t.value.split(',')", 'else delete cD.plus;', true), runH = (v, cD) => { new Function('t', 'cD', "'use strict';\n" + hSrc)({ value: v }, cD); return cD; };
+        const typed3 = runH('  ' + T + ' , vsenergy,, ' + P + ',' + X1 + ' ', {}), kept3 = (() => { const d = JSON.parse(j(rawW)); d.fields[0].list.cols[0].plus = typed3.plus; return SYw.cleanSystem(d, { F: FOw, gmView: true }).fields[0].list.cols[0].plus; })();
+        check('With stats (the System editor\'s box, listCard run for real on a page that refuses markup): a hostile With list from a file is the box\'s VALUE, joined by commas, in an input of 240 characters at most, and a hostile column label the value of its own box; nothing is markup or an attribute; its handler stores the names as typed, trimmed, with no empty one and no key when none is left, and Save keeps of them only the list\'s own stats',
+            !!card3 && plus3.length === 1 && plus3[0].tag === 'input' && plus3[0].type === 'text' && plus3[0].value === HOSTP.join(', ') && plus3[0].maxLength === 240 && plus3[0].textContent === '' && plus3[0].children.length === 0 && /^Number stats of this list/.test(plus3[0].title) && plus3[0].placeholder === 'With stats (optional)'
+            && lab3.length === 1 && lab3[0].value === T + P && PG3.clean() && !HTMLW.test(lcSrc) && !HTMLW.test(lineW('function input(cls, value, title, placeholder) {'))
+            && j(typed3) === j({ plus: [T, 'vsenergy', P, X1] }) && j(kept3) === j(['vsEnergy']) && j(runH(' , ,', { plus: ['x'], key: 'DR' })) === j({ key: 'DR' }),
+            j([plus3.map(e => [e.tag, e.value, e.maxLength]), PG3.htmlSet, PG3.attrs, typed3, kept3]));
+        const reSrcW = cutW('\nfunction refreshErrors() {', '\nfunction errorCell('), ecSrc = cutW('\nfunction errorCell(id) {', '\nfunction errPrefix(') + '\n' + lineW('function errPrefix(p, warn) {');
+        const PG4 = mkPage(), CAMPW = { system: sysW, chars: {} };
+        const cell4 = new Function('draft', 'F', 'validKey', 'KINDS', 'cleanItemKey', 'cleanSystem', 'validateSystem', 'statKey', 'LIMITS', 'getActiveCampaign', 'systemOf', 'document', 'formulaTextFor', 'NL',
+            "var errorsById = {}, warningsById = {};\n" + lineW('function el(tag, cls, text) {') + reSrcW + ecSrc + "\nrefreshErrors(); return errorCell('list:f_loc');")(
+            draftW, () => FOw, SYw.validKey, SYw.KINDS, SYw.cleanItemKey, SYw.cleanSystem, SYw.validateSystem, SYw.statKey, SYw.LIMITS, () => CAMPW, c => c && c.system && typeof c.system === 'object' ? c.system : null, PG4.doc, () => '', '\n');
+        const lines4 = cell4.children.filter(e => e.className === 'sys-err-line'), texts4 = lines4.map(e => e.textContent), CN = 'Column "' + T + P + '": With names "';
+        check('With stats (what Save drops, refreshErrors and errorCell run for real on a page that refuses markup): each message that quotes a hostile name or a hostile column label is a line whose TEXT it is, never markup; a name that is no stat of the list (a prototype\'s name among them), a choice and a name twice are each said, as the cleaner reads them',
+            lines4.length === cell4.children.length && lines4.every(e => e.tag === 'div' && e.children.length === 0) && PG4.clean() && !HTMLW.test(ecSrc)
+            && [T, P, X1, '__proto__', 'constructor'].every(n => texts4.indexOf(CN + n + '", which is no stat of this list. Save drops that name.') >= 0)
+            && texts4.indexOf(CN + 'kind", which is a choice. Only a number adds to a column. Save drops that name.') >= 0 && texts4.indexOf(CN + 'VSENERGY" twice. Save keeps the first.') >= 0
+            && texts4.filter(t => t.indexOf(CN) === 0).length === 7 && protoKeys() === proto0,
+            j([texts4, PG4.htmlSet, PG4.attrs]));
+    }
+
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

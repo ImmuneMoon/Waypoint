@@ -77,6 +77,15 @@ Character sheets
   offers For ShadowBase from that file and says which file it is and
   when it was read. Another row picks a newer file. The file is kept in
   memory only, until you close Waypoint.
+- A list's column can show its special cases. In the System editor a
+  column has a With stats box. Name number stats of the list there, and
+  a row reads DR 15 (35 vs. energy) where such a stat has a figure. A
+  column that names none looks as it did.
+- A sheet from ShadowBase brings each hit location's DR as the website
+  states it, with its typed DR, and a droid comes with its own
+  locations. That needs a Locations list with a level, which holds the
+  DR, and the stats for it: one named stated, and one for each kind,
+  such as vsEnergy.
 - Text style on a sheet. With Edit sheet on, click into a text or notes
   field and a bar comes up on it, as in a planner. Select words and make
   them bold, italic, underlined, struck through or coloured, or give

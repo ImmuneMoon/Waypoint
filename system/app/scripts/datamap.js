@@ -1559,6 +1559,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                   if (PPw.blocksSight === true) { item.blocksSight = true; item.sightType = PPw.sightType === 'door' ? 'door' : 'wall'; }
               }
               // [buildcheck:penpreset-end]
+              if (PPw && item.sightType === 'door' && item.blocksSight === true && !item.byPlayer && typeof window.wpDoorCut === 'function') window.wpDoorCut(getActiveMap(), item);   // the map builder: a door drawn along a wall line cuts its doorway, in this stroke's own save
               getActiveMap().whiteboard.push(item);
 
               currentDrawItem.remove();

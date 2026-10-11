@@ -342,6 +342,9 @@ The play map
   opening it reveals it too. Save Map as Picture draws it as your
   players see it. To show a whole secret room at once, hide what is
   in it, group those pieces, and use Show to Players on the group.
+- A door cuts its own doorway. Draw a door as a line along a wall line,
+  with Build's Door material and its Wall line shape, and the wall is
+  cut where the door lies. One Undo takes the door and the cut back.
 
 The top bar and the data map
 - The top of the window is one quiet row. Its captioned boxes are gone,

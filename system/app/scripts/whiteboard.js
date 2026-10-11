@@ -6553,6 +6553,31 @@ function wpBuildCommit(P, px, py, pw, ph, sx, sy) {
 }
 // One wall line as the item the pen's Wall line makes: a path with the line's box and points, then the preset's keys
 function buildWallItem(L, pre) { return Object.assign({ id: 'wb' + uid(), type: 'path', x: L.x, y: L.y, w: L.w, h: L.h, baseW: L.baseW, baseH: L.baseH, z: 10, pts: L.pts }, newOpacityProps(), pre); }
+// A door laid on a wall line cuts its doorway (the map builder, fold B5; the owner, 2026-10-10, by prompt: "The door cuts its doorway"). The
+// wall lines the new door line lies along are cut where it lies (buildcore cutWalls), in the save that lays the door, so ONE Undo takes the
+// door and the cut back together. A piece of a cut wall is the wall itself with new geometry and a new id: every other key of it stays (its
+// colour, width, name, layer, height, cover), and it leaves its group, as a piece the eraser cuts does. All or none within what a map
+// holds. Only on a map with a grid, where the pen rides the lattice: a free-hand stroke on a map with none could lie along a wall by
+// accident. The GM's own campaign alone. Answers how many walls were cut
+function doorCut(map, door) {
+    var BC = window.wpBuildCore;
+    if (!BC || typeof BC.cutWalls !== 'function' || !map || !Array.isArray(map.whiteboard) || !door || !buildMay() || !buildGrid()) return 0;
+    var res = BC.cutWalls(map.whiteboard, door); if (!res || !res.n) return 0;
+    var more = 0, at = {}, gone = {}, out = [];
+    res.cuts.forEach(function(c) { more += c.lines.length - 1; at[c.at] = c; });
+    if (map.whiteboard.length + more + 1 > BUILD_MAX) { toast('The wall under the door is not cut: this map holds too many pieces. Delete the wall there by hand.'); return 0; }
+    map.whiteboard.forEach(function(w, i) {
+        var c = at[i]; if (!c) { out.push(w); return; }
+        gone[w.id] = 1;
+        c.lines.forEach(function(L) { var p = Object.assign({}, w, { id: 'wb' + uid(), x: L.x, y: L.y, w: L.w, h: L.h, baseW: L.baseW, baseH: L.baseH, pts: L.pts }); delete p.groupId; delete p.rot; out.push(p); });
+    });
+    map.whiteboard.length = 0; for (var k = 0; k < out.length; k++) map.whiteboard.push(out[k]);   // the same list, so whoever holds it holds the cut
+    if (state.selWbId && gone[state.selWbId]) state.selWbId = null;   // a selected wall that is gone is no selection
+    if (Array.isArray(state.selWbIds)) state.selWbIds = state.selWbIds.filter(function(id) { return !gone[id]; });
+    toast(res.n === 1 ? 'The wall under the door is cut. One Undo takes the door and the cut back.' : 'The walls under the door are cut. One Undo takes the door and the cuts back.');
+    return res.n;
+}
+window.wpDoorCut = doorCut;
 // The boxes as pieces, ONE save for the gesture. A cell that already holds a plain piece of that shape takes the new props instead of a second
 // piece (buildcore seatedAt: never a locked or turned piece, nor one with a purpose of its own)
 function buildLay(map, boxes, props, more, walls) {

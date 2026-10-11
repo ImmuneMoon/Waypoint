@@ -586,6 +586,71 @@ function wallLine(pts) {
     return lineOf(pts);
 }
 
-var API = { VERSION: VERSION, TEXTURES: TEXTURES, cleanTexture: cleanTexture, TEX: TEX, TEX_CSS: TEX_CSS, TEX_INK: TEX_INK, texStyle: texStyle, texPos: texPos, texPattern: texPattern, PIC_CELL: PIC_CELL, picUrl: picUrl, picPos: picPos, picStyle: picStyle, picPattern: picPattern, picName: picName, MATERIALS: MATERIALS, MATERIAL_IDS: MATERIAL_IDS, cleanMaterial: cleanMaterial, pieceProps: pieceProps, penPreset: penPreset, snapBox: snapBox, hexCellBox: hexCellBox, hexCellsInBox: hexCellsInBox, corridor: corridor, snapVertex: snapVertex, polyItem: polyItem, seatedAt: seatedAt, floorOk: floorOk, outlineWalls: outlineWalls, corridorWalls: corridorWalls, wallLine: wallLine };
+// A door laid on a wall line cuts its doorway (the map builder, fold B5; the owner, 2026-10-10, by prompt: "The door cuts its doorway"). Pure:
+// which wall lines a door line lies ALONG, and what is left of each. A wall that the door only crosses, or meets at a corner or an end, is
+// not touched: the door lies along a wall segment only where both its ends are within CUT_TOL of that segment's own line and they overlap
+// by more than CUT_TOL. What is left of a wall keeps the wall's own order of points, so a caller lays the pieces where the wall stood.
+// cutWalls(pieces, door) -> { cuts: [{ at, lines }], n }
+//   pieces   the map's pieces. Only a WALL drawn as a line that players see is cut (cutOk): never a filled region, a door, a hidden, locked
+//            or turned line, a see-through barrier (it may be a force field laid there on purpose), nor a line a player drew
+//   door     the door line that was just laid (read as the board draws it: fogcore pathSegs), at most CUT_SEGS of its segments
+//   cuts     one entry a wall that is cut: `at` its place in pieces, `lines` what is left of it as lineOf geometry (none where the door
+//            covers it whole). A wall drawn as a closed loop and cut once is left as ONE line, begun past the doorway
+var CUT_TOL = 1, CUT_SEGS = 400;
+function cutOk(w) {
+    return isObj(w) && w.type === 'path' && w.tip !== 'fill' && Array.isArray(w.pts) && w.blocksSight === true && w.sightType !== 'door'
+        && !w.hidden && !w.locked && !w.isChar && !w.waiting && !w.gmNoteFor && !w.ownerId && !w.byPlayer && !(fin(w.rot) && w.rot % 360 !== 0);
+}
+function cutWalls(pieces, door) {
+    var res = { cuts: [], n: 0 };
+    if (!Array.isArray(pieces) || !isObj(door) || door.type !== 'path' || door.tip === 'fill') return res;
+    var D = pathSegs(door).slice(0, CUT_SEGS), i, j, d;
+    if (!D.length) return res;
+    var bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
+    for (d = 0; d < D.length; d++) { bx0 = Math.min(bx0, D[d][0], D[d][2]); by0 = Math.min(by0, D[d][1], D[d][3]); bx1 = Math.max(bx1, D[d][0], D[d][2]); by1 = Math.max(by1, D[d][1], D[d][3]); }
+    for (i = 0; i < pieces.length; i++) {
+        var w = pieces[i]; if (w === door || !cutOk(w) || !fin(w.x) || !fin(w.y)) continue;
+        var ww = fin(w.w) && w.w > 0 ? w.w : 0, wh = fin(w.h) && w.h > 0 ? w.h : 0, pad = 12;   // a line's box holds its points: one far from the door is not read
+        if (w.x > bx1 + pad || w.x + ww < bx0 - pad || w.y > by1 + pad || w.y + wh < by0 - pad) continue;
+        var W = pathSegs(w); if (!W.length) continue;
+        var runs = [], run = [], any = false;
+        for (j = 0; j < W.length; j++) {
+            var ax = W[j][0], ay = W[j][1], bx = W[j][2], by = W[j][3], L = Math.sqrt((bx - ax) * (bx - ax) + (by - ay) * (by - ay)), ux = (bx - ax) / L, uy = (by - ay) / L, iv = [];
+            for (d = 0; d < D.length; d++) {
+                var p = D[d];
+                if (Math.abs((p[1] - ay) * ux - (p[0] - ax) * uy) > CUT_TOL || Math.abs((p[3] - ay) * ux - (p[2] - ax) * uy) > CUT_TOL) continue;   // both ends on the wall segment's own line
+                var t1 = (p[0] - ax) * ux + (p[1] - ay) * uy, t2 = (p[2] - ax) * ux + (p[3] - ay) * uy, lo = Math.max(0, Math.min(t1, t2)), hi = Math.min(L, Math.max(t1, t2));
+                if (hi - lo > CUT_TOL) iv.push([lo, hi]);
+            }
+            if (!run.length) run.push([ax, ay]);
+            if (iv.length) {
+                any = true;
+                iv.sort(function(a, b) { return a[0] - b[0]; });
+                var merged = [iv[0]];
+                for (d = 1; d < iv.length; d++) { var last = merged[merged.length - 1]; if (iv[d][0] <= last[1] + CUT_TOL) last[1] = Math.max(last[1], iv[d][1]); else merged.push(iv[d]); }
+                for (d = 0; d < merged.length; d++) {
+                    var c0 = merged[d][0] <= CUT_TOL ? 0 : merged[d][0], c1 = merged[d][1] >= L - CUT_TOL ? L : merged[d][1];   // no hair of wall left at a corner
+                    if (c0 > 0) run.push([ax + ux * c0, ay + uy * c0]);
+                    runs.push(run);
+                    run = c1 < L ? [[ax + ux * c1, ay + uy * c1]] : [];
+                }
+            }
+            if (run.length) run.push([bx, by]);
+        }
+        if (!any) continue;
+        if (run.length) runs.push(run);
+        var first = W[0], end = W[W.length - 1], near = function(a, b) { return Math.abs(a[0] - b[0]) <= 0.01 && Math.abs(a[1] - b[1]) <= 0.01; };
+        var kept = runs.filter(function(r) { return runLen(r) >= CUT_TOL; });
+        if (kept.length > 1 && near([first[0], first[1]], [end[2], end[3]])) {   // a closed loop: its first and last runs are one line
+            var a = kept[0], z = kept[kept.length - 1];
+            if (near(a[0], [first[0], first[1]]) && near(z[z.length - 1], [end[2], end[3]])) { kept = kept.slice(1, -1).concat([z.concat(a.slice(1))]); }
+        }
+        res.cuts.push({ at: i, lines: kept.map(lineOf) }); res.n++;
+    }
+    return res;
+}
+function runLen(r) { var n = 0; for (var i = 1; i < r.length; i++) n += Math.sqrt((r[i][0] - r[i - 1][0]) * (r[i][0] - r[i - 1][0]) + (r[i][1] - r[i - 1][1]) * (r[i][1] - r[i - 1][1])); return n; }
+
+var API = { VERSION: VERSION, TEXTURES: TEXTURES, cleanTexture: cleanTexture, TEX: TEX, TEX_CSS: TEX_CSS, TEX_INK: TEX_INK, texStyle: texStyle, texPos: texPos, texPattern: texPattern, PIC_CELL: PIC_CELL, picUrl: picUrl, picPos: picPos, picStyle: picStyle, picPattern: picPattern, picName: picName, MATERIALS: MATERIALS, MATERIAL_IDS: MATERIAL_IDS, cleanMaterial: cleanMaterial, pieceProps: pieceProps, penPreset: penPreset, snapBox: snapBox, hexCellBox: hexCellBox, hexCellsInBox: hexCellsInBox, corridor: corridor, snapVertex: snapVertex, polyItem: polyItem, seatedAt: seatedAt, floorOk: floorOk, outlineWalls: outlineWalls, corridorWalls: corridorWalls, wallLine: wallLine, cutOk: cutOk, cutWalls: cutWalls };
 if (typeof window !== 'undefined') window.wpBuildCore = API;
-export { VERSION, TEXTURES, cleanTexture, TEX, TEX_CSS, TEX_INK, texStyle, texPos, texPattern, PIC_CELL, picUrl, picPos, picStyle, picPattern, picName, MATERIALS, MATERIAL_IDS, cleanMaterial, pieceProps, penPreset, snapBox, hexCellBox, hexCellsInBox, corridor, snapVertex, polyItem, seatedAt, floorOk, outlineWalls, corridorWalls, wallLine };
+export { VERSION, TEXTURES, cleanTexture, TEX, TEX_CSS, TEX_INK, texStyle, texPos, texPattern, PIC_CELL, picUrl, picPos, picStyle, picPattern, picName, MATERIALS, MATERIAL_IDS, cleanMaterial, pieceProps, penPreset, snapBox, hexCellBox, hexCellsInBox, corridor, snapVertex, polyItem, seatedAt, floorOk, outlineWalls, corridorWalls, wallLine, cutOk, cutWalls };

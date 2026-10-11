@@ -3747,6 +3747,26 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && wb5.includes("                    if (wentD === 'opened' && secretOpened(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }))) toast('Secret door opened. Your players see it as a door now.');")
             && wb5.indexOf("action.includes('cm-secret-show')") > wb5.indexOf('        cMenu.onclick = function(ce) {') && wb5.indexOf("action.includes('cm-secret-show')") < wb5.indexOf("            cMenu.style.display = 'none';\n            if(window.appRender) { save(); window.appRender(); }\n        };") && wb5.split('        cMenu.onclick = function(ce) {').length === 2,
             j([pr1, st1, pr2, st2, pr3, st3, pr4, pr5, st5, pr6, st6, pr8, st8, pr7]));
+        // what the fixes after the first round of tests added: the way back to the Wall look, the flat nib, the row's count, a hidden door opened, a line's edge
+        const S9 = mkSb(), rs = dW({ secret: true, seenColor: '#aabbcc', seenTexture: 'grass' }); S9.seen(rs, 'reset'); const rsGot = ['seenColor' in rs, 'seenTexture' in rs, rs.secret, S9.calls.saves, S9.calls.renders, S9.calls.insp];
+        const rs2 = dW({ seenColor: '#aabbcc', seenTexture: 'grass' }); S9.seen(rs2, 'reset'); const rsNot = [rs2.seenColor, rs2.seenTexture, S9.calls.saves];
+        const rs3 = dW({ secret: true, seenColor: '#aabbcc' }), rs4 = dW({ secret: true, seenTexture: '' }); S9.seen(rs3, 'reset'); S9.seen(rs4, 'reset');
+        const flatH = SBX.html(dW({ type: 'path', tip: 'flat', secret: true, seenTexture: 'stone' })), lineH = SBX.html(dW({ type: 'path', tip: 'square', secret: true, seenTexture: 'stone' }));
+        check('fold B5: back to the Wall look, and the flat nib (inspector.js, the secretbox slice run for real): the reset takes both the named colour and the named pattern off a secret door, saves and draws again, and leaves the tick; on a door that is not secret it changes and saves nothing; the button is drawn only while a colour or a pattern is named, either alone, and it is wired to that reset on a click; a door drawn with the flat nib gets the pattern list with the named pattern selected, where a plain line gets none',
+            j(rsGot) === j([false, false, true, 1, 1, 1]) && j(rsNot) === j(['#aabbcc', 'grass', 1]) && !('seenColor' in rs3) && !('seenTexture' in rs4) && rs3.secret === true
+            && resetOf(SBX.html(dW({ secret: true }))) === 0 && resetOf(SBX.html(dW({ secret: true, seenColor: '#aabbcc' }))) === 1 && resetOf(SBX.html(dW({ secret: true, seenTexture: '' }))) === 1 && resetOf(SBX.html(dW({ seenColor: '#aabbcc' }))) === 0
+            && insp5.includes("var _el_wbSeenReset = document.getElementById('wbSeenReset');\n            if (_el_wbSeenReset) _el_wbSeenReset.addEventListener('click', function() { setItemSeen(w, 'reset'); });")
+            && optsOf(lineH) === null && optsOf(flatH) !== null && j(optsOf(flatH).filter(o => o[1]).map(o => o[0])) === j(['stone']),
+            j([rsGot, rsNot, resetOf(SBX.html(dW({ secret: true, seenTexture: '' }))), optsOf(lineH), optsOf(flatH) && optsOf(flatH).filter(o => o[1])]));
+        const R9 = mkSr(GM5), mix1 = R9.row([dW({ secret: true }), dW({ id: 'e2' })]), mix2 = R9.row([dW({ secret: true }), dW({ id: 'e2', secret: true }), dW({ id: 'e3' })]), make2 = R9.row([dW(), dW({ id: 'e2' })]), make1 = R9.row([dW()]);
+        const hidO = dW({ hidden: true, secret: true, doorOpen: true }), shownO = dW({ id: 'e2', secret: true, doorOpen: true }), shutO = dW({ id: 'e3', secret: true }), nOpen = R9.opened([hidO, shownO, shutO]);
+        check('fold B5: the row counts what it acts on, and a hidden door that is opened (whiteboard.js, the secretrow slice run for real): Reveal is said of one door where one of the selected doors is secret and of doors where two are, whatever else is selected, and Make of every selected door; a secret door that is opened while it is hidden from players loses its tick too, since an open door cannot be secret, and is not counted among the doors the players now see, while a shut one keeps its tick',
+            !!mix1 && !!mix2 && !!make2 && !!make1 && /Reveal secret door<\/div>$/.test(mix1.html) && /Reveal secret doors<\/div>$/.test(mix2.html) && /Make secret doors<\/div>$/.test(make2.html) && /Make secret door<\/div>$/.test(make1.html)
+            && nOpen === 1 && !('secret' in hidO) && !('secret' in shownO) && shutO.secret === true,
+            j([mix1 && mix1.html.slice(-32), mix2 && mix2.html.slice(-32), make2 && make2.html.slice(-32), nOpen, 'secret' in hidO, 'secret' in shownO]));
+        const EDGE9 = '.wb-item.wb-door.wb-secret:not(.path) { outline-style: dashed; }';
+        check('fold B5: a secret door drawn as a line gets no box (style.css): the dashed edge is for a secret door that is no pen line, whose outline the sheet takes away, and no other rule gives a piece that wears wb-secret an outline',
+            css5.split(EDGE9).length === 2 && !/\.wb-secret[^{}]*\{[^}]*outline/.test(css5.split(EDGE9).join('')), '');
     }
     // fold B5: a secret door, the end of its checks
 

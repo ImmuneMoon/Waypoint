@@ -12,7 +12,7 @@
 
    What it knowingly does not match to the pixel: a see-through piece's border and pattern are blended on the piece's colour one after the
    other, where the board blends the whole piece once, and a label's words are plain, wrapped by measured width. */
-import { cleanTexSrc, cleanTexTile, secretSeen } from './fogcore.js';
+import { cleanTexSrc, cleanTexTile, secretSeen, lineWidth, lineOpacity, lineTip } from './fogcore.js';
 import { cleanTexture, TEX, PIC_CELL, picUrl } from './buildcore.js';
 import { cssColor, picRef } from './safecore.js';
 import { fontCss } from './textfmt.js';
@@ -122,7 +122,7 @@ function order(items, opts) {
 function extent(item, wide) {
     var x = item.x, y = item.y, w = item.w, h = item.h, pad = 0;
     if (item.type === 'path' && item.tip !== 'fill') {
-        var bw = fin(item.baseW) && item.baseW > 0 ? item.baseW : w, bh = fin(item.baseH) && item.baseH > 0 ? item.baseH : h, sw = fin(item.strokeWidth) && item.strokeWidth > 0 ? item.strokeWidth : 3;
+        var bw = fin(item.baseW) && item.baseW > 0 ? item.baseW : w, bh = fin(item.baseH) && item.baseH > 0 ? item.baseH : h, sw = lineWidth(item);   // a line's width, opacity and nib as the board reads them: fogcore's one reading
         pad = sw * Math.max(bw > 0 ? w / bw : 1, bh > 0 ? h / bh : 1, 1) * (wide === true ? 6 : 1);
     }
     var rot = fin(item.rot) ? item.rot % 360 : 0;
@@ -344,7 +344,7 @@ function trace(ctx, pts, close) { for (var i = 0; i < pts.length; i++) { if (i) 
 function drawPath(ctx, item, job, w, h) {
     var s = job.scale, bw = fin(item.baseW) && item.baseW > 0 ? item.baseW : item.w, bh = fin(item.baseH) && item.baseH > 0 ? item.baseH : item.h;
     if (!(bw > 0) || !(bh > 0) || !(w > 0) || !(h > 0) || !pointsOk(item.pts, item.tip === 'fill' ? 3 : 1) || item.pts.length > 20000) return;   // a line with no height has no box to be drawn in: the board shows none either
-    var tip = item.tip === 'fill' || item.tip === 'flat' || item.tip === 'square' ? item.tip : 'round', col = paint(item.color, INK.ink), sw = fin(item.strokeWidth) && item.strokeWidth > 0 ? item.strokeWidth : 3, pts = item.pts, rule = 'nonzero';
+    var tip = item.tip === 'fill' ? 'fill' : lineTip(item), col = paint(item.color, INK.ink), sw = lineWidth(item), pts = item.pts, rule = 'nonzero';
     var shape = function() {
         ctx.beginPath();
         if (tip === 'fill') {
@@ -384,7 +384,7 @@ function drawLabel(ctx, item, job, w, h) {
 function drawPiece(ctx, item, job) {
     var s = job.scale, w = item.w * s, h = item.h * s, rot = fin(item.rot) ? item.rot % 360 : 0;
     ctx.save();
-    ctx.globalAlpha = alpha(item.opacity);
+    ctx.globalAlpha = item.type === 'path' && item.tip !== 'fill' ? lineOpacity(item) : alpha(item.opacity);
     ctx.translate((item.x - job.box.x) * s + w / 2, (item.y - job.box.y) * s + h / 2);
     if (rot) ctx.rotate(rot * Math.PI / 180);
     ctx.translate(-w / 2, -h / 2);

@@ -534,22 +534,81 @@ function cleanSecret(v) { return v === true; }
 // buildcheck holds it to). The GM may name another colour (item.seenColor: #rrggbb) and another pattern (item.seenTexture: a name of the
 // list, or '' for a plain colour), to match a wall of their own. Never a picture: a picture's path sent to the table is a file the host serves
 var SECRET_WALL = Object.freeze({ color: '#3f3b47', texture: 'bricks' });
-function cleanSeenColor(v) { return typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v) ? v.toLowerCase() : null; }
+function cleanSeenColor(v) { return typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v) ? v.toLowerCase() : v === 'transparent' ? v : null; }   // or the word transparent: a door matched to a see-through wall is seen as nothing drawn
 function cleanSeenTexture(v) { return v === '' ? '' : cleanTexture(v); }   // a name, '' for none, or null where nothing was named
-// A colour that draws nothing: the word, a hex colour whose alpha is 0, or an rgba / hsla whose alpha is 0
-function clearColor(c) {
-    if (typeof c !== 'string') return false; var t = c.trim();
-    return /^transparent$/i.test(t) || /^#(?:[0-9a-f]{3}0|[0-9a-f]{6}00)$/i.test(t) || /^(?:rgba|hsla)\([^()]*,\s*0(?:\.0+)?\s*\)$/i.test(t);
+// A pen line's width, opacity and nib in ONE reading, which the GM's board, a player's board, the wire and the map's picture all ask
+// (whiteboard.js, net.js wireWbItem, shotcore.js): a width that is no number above 0 is 3, an opacity that is no number under 1 is solid, a
+// nib that is neither square nor flat is round, and text is read by parseFloat. So a wall from a file whose width is text draws alike on
+// every screen, and a matched secret door's copy, made from these, reads as its wall does however the wall was made
+function lineOf(w) { return isObj(w) && w.type === 'path' && w.tip !== 'fill'; }
+function lineNum(v) { return typeof v === 'number' ? v : typeof v === 'string' ? parseFloat(v) : NaN; }
+function lineWidth(w) { var n = lineNum(isObj(w) ? w.strokeWidth : null); return fin(n) && n > 0 ? Math.min(n, 1e15) : 3; }
+function lineOpacity(w) { var n = lineNum(isObj(w) ? w.opacity : null); return fin(n) && n < 1 ? Math.max(0, n) : 1; }
+function lineTip(w) { return isObj(w) && (w.tip === 'square' || w.tip === 'flat') ? w.tip : 'round'; }
+// How thick a line's PEN draws. A pen line is drawn in its own box (baseW by baseH) scaled to the piece's box (w by h), and its stroke
+// is scaled with it: a line resized to twice its size is drawn twice as thick, and one stretched one way alone is thicker along one
+// direction than along another. lineScale is the two scales as pathSegs reads them (1 where a scale is no sound number). lineFactor
+// is the thickness drawn for each unit of stroke width along a direction on the board ([x1, y1, x2, y2]: only its direction counts),
+// turned back by the piece's rot first. A round or a square nib is a stroke: det(S) / |S d|, exactly 1 for a line never resized. The
+// flat nib is a ribbon, the line moved by its nib either way, and the nib lies along the diagonal of the line's OWN box: 0.70711 *
+// |ux * sy - uy * sx|, which is 0 for a line that runs along its own nib. With no direction: the root of the two scales
+function lineScale(w) {
+    if (!isObj(w)) return [1, 1];
+    var ww = fin(w.w) && w.w > 0 ? w.w : 0, hh = fin(w.h) && w.h > 0 ? w.h : 0, bw = fin(w.baseW) && w.baseW > 0 ? w.baseW : (ww || 1), bh = fin(w.baseH) && w.baseH > 0 ? w.baseH : (hh || 1);
+    var sx = ww ? ww / bw : 1, sy = hh ? hh / bh : 1;
+    return [fin(sx) && sx > 0 ? sx : 1, fin(sy) && sy > 0 ? sy : 1];
+}
+function lineFactor(w, seg, tip) {
+    var sc = lineScale(w), sx = sc[0], sy = sc[1], flat = tip === 'flat';
+    if (!flat && sx === 1 && sy === 1) return 1;
+    var dx = 0, dy = 0;
+    if (Array.isArray(seg) && fin(seg[0]) && fin(seg[1]) && fin(seg[2]) && fin(seg[3])) {
+        dx = seg[2] - seg[0]; dy = seg[3] - seg[1];
+        var rot = isObj(w) && fin(w.rot) ? w.rot % 360 : 0;
+        if (rot) { var rad = -rot * Math.PI / 180, co = Math.cos(rad), si = Math.sin(rad), tx = dx * co - dy * si; dy = dx * si + dy * co; dx = tx; }   // back into the box as it lies before its turn
+    }
+    var len = Math.sqrt(dx * dx + dy * dy), even = Math.sqrt(sx * sy); if (!fin(even) || !(even > 0)) even = 1;
+    if (!(len > 0) || !fin(len)) return flat ? 0.70711 * even : even;
+    var ux = dx / len, uy = dy / len, f = flat ? 0.70711 * Math.abs(ux * sy - uy * sx) : sx * sy * Math.sqrt((ux / sx) * (ux / sx) + (uy / sy) * (uy / sy));
+    return fin(f) && f >= 0 ? f : (flat ? 0 : 1);
+}
+// A secret door drawn as a LINE may also be seen at another width, opacity and nib than its own (the owner, 2026-10-12, by prompt, of a
+// door that is thicker or fainter than its wall: "Match a wall"): item.seenWidth (a number above 0), item.seenOpacity (0 to 1, where 1
+// is solid) and item.seenTip (round, square or flat). Properties' Match press sets them from the wall line the door meets (secretMatch).
+// The width is the copy's own strokeWidth, in the DOOR's box: where the door or its wall was resized or turned it is the number at which
+// the copy is drawn as a wall line made the way its wall was would be drawn there (seenDrawn says how thick that is). The GM's own
+// screen still draws the door as it was drawn. On any other kind of piece the three count for nothing
+function cleanSeenWidth(v) { return fin(v) && v > 0 && v <= 1e15 ? v : null; }
+function cleanSeenOpacity(v) { return fin(v) && v >= 0 && v <= 1 ? v : null; }
+function cleanSeenTip(v) { return v === 'round' || v === 'square' || v === 'flat' ? v : null; }
+// A colour that draws nothing, read as the board's own rule reads the very text (BOARD_COLOR is safecore.js COLOR_RE with its 40
+// characters, and sinkcheck holds the copy to it). A text that rule takes is clear where it is the word transparent, a hex colour
+// whose alpha is 0, or an rgba / hsla of FOUR parts whose alpha is 0 (rgba(255, 0, 0) is plain red). A text it REFUSES (a blank
+// beside the colour, RGBA in capitals, no text at all) draws no fill on a rectangle or a circle, which is clear, and ink on a line
+// or a filled region, which is not; a hexagon and a diamond then show their own ground. box: true asks for a rectangle or a circle
+var BOARD_COLOR = /^(#[0-9a-fA-F]{3,8}|(rgb|hsl)a?\([\d.,\s%]+\)|[a-zA-Z]{1,20}|var\(--[\w-]+\))$/;
+function clearColor(c, box) {
+    if (typeof c !== 'string') return false;
+    if (c.length > 40 || !BOARD_COLOR.test(c)) return box === true;
+    return /^transparent$/i.test(c) || /^#(?:[0-9a-fA-F]{3}0|[0-9a-fA-F]{6}00)$/.test(c) || /^(?:rgba|hsla)\(\s*[\d.\s%]+,[\d.\s%]+,[\d.\s%]+,\s*0(?:\.0+)?\s*\)$/.test(c);
 }
 // What the players are shown of a secret door: its colour and its pattern ('' for none). A door that is see-through itself (a clear box
 // over a picture map, with no pattern and no picture of its own) stays clear until the GM names a colour or a pattern for it: there is no
-// look of its own to give away, and a brick box over the picture would. A door drawn as a line wears a colour alone, whatever nib drew
-// it: Properties offers no pattern for a line, so no wall drawn as a line wears one. A filled region (the Fill tip) wears a pattern as a box does
+// look of its own to give away, and a brick box over the picture would. A door drawn as a line wears no pattern, whatever nib drew it:
+// Properties offers none for a line, so no wall drawn as a line wears one. It may be matched to a wall line in width, opacity and nib.
+// A filled region (the Fill tip) wears a pattern as a box does. A seen colour that is the word transparent draws nothing, as the
+// see-through wall it was matched to does, unless a pattern is named with it
 function secretLook(w) {
     if (!isObj(w)) return { color: SECRET_WALL.color, texture: SECRET_WALL.texture, clear: false };
     var col = cleanSeenColor(w.seenColor), tex = cleanSeenTexture(w.seenTexture), line = w.type === 'path' && w.tip !== 'fill';
-    var clear = clearColor(w.color) && !cleanTexture(w.texture) && !cleanTexSrc(w.texSrc) && !col && !(tex && !line);
-    return { color: col || (clear ? 'transparent' : SECRET_WALL.color), texture: line ? '' : tex !== null ? tex : (clear ? '' : SECRET_WALL.texture), clear: clear };
+    var named = !!(tex && !line), seeClear = col === 'transparent';
+    var clear = seeClear ? !named : (clearColor(w.color, w.type === 'rect' || w.type === 'circle') && !cleanTexture(w.texture) && !cleanTexSrc(w.texSrc) && !col && !named);
+    var look = { color: col || (clear ? 'transparent' : SECRET_WALL.color), texture: line ? '' : tex !== null ? tex : (clear ? '' : SECRET_WALL.texture), clear: clear };
+    if (line) {   // a line's matched width, opacity and nib, each named only where it was set: a door with none reads exactly as before
+        var sw = cleanSeenWidth(w.seenWidth), so = cleanSeenOpacity(w.seenOpacity), st = cleanSeenTip(w.seenTip);
+        if (sw !== null) look.width = sw; if (so !== null) look.opacity = so; if (st !== null) look.tip = st;
+    }
+    return look;
 }
 // The piece as the players hold it. A secret door: a COPY that is a wall in the look above, with nothing that says door: no door type, never
 // open, locked for no one, no group, no picture fill, and no way through to another map, a room or a landing room there (a secret door that
@@ -562,7 +621,7 @@ function secretLook(w) {
 // lays, less its name. On the wire the order says nothing either way: the host writes the keys of every wall, door and barrier in one
 // order on its way out. Any other piece: the piece itself. The host's one rule for a piece on its way out and the map's picture
 // (shotcore.js) both ask this, so a table and a picture show one thing
-var SECRET_DROP = Object.freeze({ secret: 1, seenColor: 1, seenTexture: 1, name: 1, doorOpen: 1, doorLock: 1, groupId: 1, texSrc: 1, texTile: 1, texture: 1, targetMapId: 1, targetRoomId: 1, nodeId: 1, trap: 1, portalIcon: 1, portalLock: 1 });
+var SECRET_DROP = Object.freeze({ secret: 1, seenColor: 1, seenTexture: 1, seenWidth: 1, seenOpacity: 1, seenTip: 1, locked: 1, name: 1, doorOpen: 1, doorLock: 1, groupId: 1, texSrc: 1, texTile: 1, texture: 1, targetMapId: 1, targetRoomId: 1, nodeId: 1, trap: 1, portalIcon: 1, portalLock: 1 });
 function secretSeen(w) {
     if (!secretOn(w)) return w;
     var s = {}, k, look = secretLook(w), put = false, tex = function() { if (!put && look.texture) s.texture = look.texture; put = true; };
@@ -571,16 +630,226 @@ function secretSeen(w) {
         if (SECRET_DROP[k] === 1) { if (k === 'name') tex(); continue; }   // no name at all: the pattern stands in the name's place
         if (k === 'color') s.color = look.color;
         else if (k === 'sightType') s.sightType = 'wall';
+        else if (k === 'strokeWidth' && look.width !== undefined) s.strokeWidth = look.width;   // a matched line: the wall's width, opacity and nib in the door's own places
+        else if (k === 'tip' && look.tip !== undefined) s.tip = look.tip;
+        else if (k === 'opacity' && look.opacity !== undefined) { if (look.opacity < 1) s.opacity = look.opacity; }   // a solid wall carries no opacity at all
         else s[k] = w[k];
     }
     if (!Object.prototype.hasOwnProperty.call(s, 'color')) s.color = look.color;
     tex();
     if (s.sightType !== 'wall') s.sightType = 'wall';
+    if (look.width !== undefined && !Object.prototype.hasOwnProperty.call(s, 'strokeWidth')) s.strokeWidth = look.width;
+    if (look.tip !== undefined && !Object.prototype.hasOwnProperty.call(s, 'tip')) s.tip = look.tip;
+    if (look.opacity !== undefined && look.opacity < 1 && !Object.prototype.hasOwnProperty.call(s, 'opacity')) s.opacity = look.opacity;
     return s;
 }
 // Found: a door for everyone from now on. The look named for it stays on the piece, for the day it is made secret again. True where it
 // was a secret door (a tick left on a piece that may not be one goes too, and is no finding)
 function secretReveal(w) { if (!isObj(w) || w.secret === undefined) return false; var was = secretOn(w); delete w.secret; return was; }
+// The wall line a door drawn as a line MEETS, as the look to match the door to (the owner, by prompt: "The door is then seen with the
+// colour, width and opacity of the wall line it meets"). A wall line here is a pen line that players see as a wall: it blocks sight or is
+// a see-through barrier, and is no door, no token, no waiting token, no GM-note card and not hidden. Pure: it reads the pieces and
+// changes nothing.
+// WHICH WALLS MEET IT. The two lines TOUCH where the gap between them is no more than half of each line's drawn width and MATCH.touch px
+// (a door drawn by hand stops a few pixels short of its wall), and are NEAR where it is no more than those halves and MATCH.reach px.
+// A half is held to MATCH.cap px.
+// WHICH OF THEM ANSWERS, in this order.
+// (1) A LOOK that reaches BOTH of the door's ENDS: for each end 2 where a wall of that look touches it, 1 where one is near it, and the
+// two added, but only where the look reaches both. A door in a gap of its wall, or across a corridor, is reached at both ends by one
+// look, whatever stands beside it. A door that carries on from its own wall and butts on another is reached at one end by each: the
+// ends say nothing then, and the ranks below decide. An end is reached from the door's end POINT to the wall's stroke alone (touched
+// within the wall's half and MATCH.touch px, near within its half and MATCH.reach px). An end that lies IN the wall's stroke, within
+// its half and a pixel, is always reached: the door lies on the wall there, as a door drawn over an uncut wall does, and a straight
+// door over the wall of a round room. Any other end is NOT reached by a wall that passes the door's MIDDLE about as near as it passes
+// that end, or nearer (within the widest reach, and no more than a margin farther than the end: the lesser of half the way from that
+// end to the middle and MATCH.reach px): such a wall runs beside the door there. A door whose two ends lie within the lesser of
+// MATCH.reach px and half its own length of each other (a ring) has no two ends: the ends say nothing and no wall is aside. Walls of
+// one look are those DRAWN alike: colour, width, opacity, nib and scale, the colour read in lower case and each number to a
+// thousandth, so two walls resized together are one look but at a rounding step of the thousandth.
+// (2) A wall that is not ASIDE before one that is. A wall is aside where it runs BESIDE the door (it passes both ends and the middle
+// at about one distance and reaches neither end) or CROSSES it (it passes the middle clear of both ends), unless the two strokes
+// overlap at the door's two ends and at its middle: then the door was drawn over that wall, however roughly.
+// (3) A wall that runs the door's own way before one that stands across it. A run is read over MATCH.run px of LINE: a stretch as long
+// as that is its own run, a shorter one is read with the line that joins it (a line drawn by hand is made of pixel steps), and where
+// the line ends before the run is full the run is that much shorter. The door's run is read around its stretch. The wall's is read
+// on either side of its stretch, over a run and over half a run (a wall may turn a corner right at the door, or 20 px before it),
+// and the most alike of those read over half a run of line at the least counts. The same way is a cosine of MATCH.same or more,
+// which is 30 degrees and a little.
+// (4) A wall the door touches before one it is only near.
+// (5) A wall whose OWN first or last point lies at one of the door's ends (within its half and MATCH.reach px) before one that passes
+// it: the door carries on from the first.
+// (6) The nearer. (7) The first in the map's list.
+// The pair of stretches that speaks for a wall is, of the pairs within MATCH.touch px of the wall's nearest gap, the one whose runs are
+// most alike, then the nearer, then the door's earliest stretch. It is judged once ALL the wall's stretches are read, so a wall drawn
+// from its other end answers alike but at an exact tie of two of its legs.
+// THE ANSWER. Its colour (a six-digit hex colour, or the word transparent for a wall that draws nothing: the two forms a secret door
+// may be seen in, else null), its opacity as lineOpacity reads it, and the WIDTH and NIB at which the door's copy is drawn as thick
+// as its wall IS drawn where they meet, since the eye has only that to compare with: the wall's width times its pen's factor along
+// the wall's own leg there, over the door's box's factor along the door's stretch (a stretch of half a run or more by its own
+// direction, as the board draws it, a shorter one by its run). For two lines never resized nor turned that is the wall's own number
+// and nib, with one exception. A flat nib is a ribbon, as thick as the way it runs makes it, so it is read along the DOOR's stretch on
+// both: how thick the wall's own nib would draw there. Where that is under a pixel, or the door's own box would need a nib more than
+// twice or under half as wide, the copy takes the SQUARE nib at the ribbon's thickness, a pixel at the least. Null where the door is
+// no line or no wall line meets it.
+// THE BOUND. A wall's points are read as the fog reads them (pathSegs, LIMITS.wallSegs stretches of a line at the most). Then every
+// wall stretch and every pair looked at costs one unit of work, a tidying of the list of pairs one for each pair in it, and each pair
+// judged for its runs 64: past MATCH.work the answer is { over: true } and nothing else, so no farther wall answers in the place of
+// one that was not read. A list of pairs too long to be judged within the bound is over as soon as it is that long. Each stretch's
+// runs are read once and kept, so a pair judged costs a few products
+var MATCH = Object.freeze({ reach: 12, touch: 4, cap: 100, work: 20000000, run: 40, same: 0.86 });
+function ptSeg2(px, py, s) {
+    var dx = s[2] - s[0], dy = s[3] - s[1], l2 = dx * dx + dy * dy, t = l2 ? ((px - s[0]) * dx + (py - s[1]) * dy) / l2 : 0;
+    t = t < 0 ? 0 : t > 1 ? 1 : t; var qx = s[0] + t * dx - px, qy = s[1] + t * dy - py; return qx * qx + qy * qy;
+}
+function segGap2(a, b) {
+    var o = function(p, q, r, s, x, y) { return (r - p) * (y - q) - (s - q) * (x - p); };
+    var d1 = o(a[0], a[1], a[2], a[3], b[0], b[1]), d2 = o(a[0], a[1], a[2], a[3], b[2], b[3]), d3 = o(b[0], b[1], b[2], b[3], a[0], a[1]), d4 = o(b[0], b[1], b[2], b[3], a[2], a[3]);
+    if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) return 0;   // the two cross
+    return Math.min(ptSeg2(a[0], a[1], b), ptSeg2(a[2], a[3], b), ptSeg2(b[0], b[1], a), ptSeg2(b[2], b[3], a));
+}
+function matchWall(w) { return lineOf(w) && (!!w.blocksSight || w.barrier === true) && w.sightType !== 'door' && !w.isChar && !w.waiting && !w.hidden && !w.gmNoteFor; }
+function lineHalf(w) { var sc = lineScale(w), h = lineWidth(w) * Math.max(sc[0], sc[1]) / 2; return fin(h) && h > 0 ? Math.min(MATCH.cap, h) : 0; }   // half a line's drawn width at the most, whichever way it runs, held to the cap
+function segLen(s) { return Math.sqrt((s[2] - s[0]) * (s[2] - s[0]) + (s[3] - s[1]) * (s[3] - s[1])); }
+// The point a line reaches `left` px of line back from the start of its stretch k (way -1) or on from its end (way 1), along the
+// stretches that join it, with how much line it passed. It stops inside a stretch, where the line ends or breaks, and after 256 stretches
+function runPoint(segs, k, way, left) {
+    var i = k, s = segs[k], x = way < 0 ? s[0] : s[2], y = way < 0 ? s[1] : s[3], t, l, f, steps = 0, went = 0;
+    while (left > 0 && steps++ < 256) {
+        t = segs[i + way]; if (!t) break;
+        if (way < 0 ? (t[2] !== x || t[3] !== y) : (t[0] !== x || t[1] !== y)) break;   // the line breaks here
+        l = segLen(t);
+        if (l > left) { f = left / l; return way < 0 ? [t[2] + (t[0] - t[2]) * f, t[3] + (t[1] - t[3]) * f, went + left] : [t[0] + (t[2] - t[0]) * f, t[1] + (t[3] - t[1]) * f, went + left]; }
+        left -= l; went += l; i += way; x = way < 0 ? t[0] : t[2]; y = way < 0 ? t[1] : t[3];
+    }
+    return [x, y, went];
+}
+// The way a line runs at its stretch k, as a stretch from the origin so that only its direction counts, and fifth how much line it
+// was read over: `span` px of LINE (MATCH.run where none is given) where the line is that long. A stretch as long as the span is
+// its own run. A shorter one is read with the line that joins it. side 0: as much before it as after it, and where one side runs
+// out the other is not lengthened. side -1: the run that ENDS with the stretch. side 1: the run that BEGINS with it
+function runDir(segs, k, side, span) {
+    var s = segs[k], own = segLen(s), more = (span > 0 ? span : MATCH.run) - own;
+    if (!(more > 0)) return [0, 0, s[2] - s[0], s[3] - s[1], own];
+    var p = side === 1 ? [s[0], s[1], 0] : runPoint(segs, k, -1, side === -1 ? more : more / 2), q = side === -1 ? [s[2], s[3], 0] : runPoint(segs, k, 1, side === 1 ? more : more / 2);
+    var dx = q[0] - p[0], dy = q[1] - p[1];
+    if (dx === 0 && dy === 0) { dx = s[2] - s[0]; dy = s[3] - s[1]; }   // a run that comes back on itself: the stretch's own way
+    return [0, 0, dx, dy, own + p[2] + q[2]];
+}
+function runCos(p, q) { var lp = Math.sqrt(p[2] * p[2] + p[3] * p[3]), lq = Math.sqrt(q[2] * q[2] + q[3] * q[3]), c = lp > 0 && lq > 0 ? Math.abs(p[2] * q[2] + p[3] * q[3]) / (lp * lq) : 0; return fin(c) ? Math.min(c, 1) : 0; }
+// The runs of a wall at its stretch j that may speak for it: on either side of the stretch, each over a run and over half a run of
+// line, those that were read over half a run of line at the least (the first pixel step of a wall that begins at the door says
+// nothing of the way the wall runs). With none that long, the run around the stretch
+function wallRuns(ws, j) {
+    var half = MATCH.run / 2, all = [runDir(ws, j, -1), runDir(ws, j, 1), runDir(ws, j, -1, half), runDir(ws, j, 1, half)], out = [];
+    for (var i = 0; i < all.length; i++) if (all[i][4] >= half) out.push(all[i]);
+    if (!out.length) out.push(runDir(ws, j, 0));
+    return out;
+}
+// Of those runs the one most like a door's run rd (the earliest at a tie), as a copy with the cosine of the two sixth
+function runAlike(rd, runs) {
+    var best = null, bc = -1, c;
+    for (var i = 0; i < runs.length; i++) { c = runCos(rd, runs[i]); if (c > bc) { bc = c; best = runs[i]; } }
+    return [0, 0, best[2], best[3], best[4], bc];
+}
+// The way a line is DRAWN at its stretch k: a stretch of half a run or more by its own direction (the board draws every stretch by
+// itself: a lattice's sides), a shorter one, a pen's step, by the run of the line around it
+function drawDir(segs, k) { var s = segs[k]; return segLen(s) >= MATCH.run / 2 ? [0, 0, s[2] - s[0], s[3] - s[1]] : runDir(segs, k, 0); }
+function lookNum(n) { return Math.round(n * 1000) / 1000; }
+function lookKey(w) { var sc = lineScale(w); return JSON.stringify([typeof w.color === 'string' ? w.color.toLowerCase() : null, lookNum(lineWidth(w)), lookNum(lineOpacity(w)), lineTip(w), lookNum(sc[0]), lookNum(sc[1])]); }
+function secretMatch(door, pieces) {
+    if (!lineOf(door) || !Array.isArray(pieces)) return null;
+    var ds = pathSegs(door), n = ds.length; if (!n) return null;
+    var X0 = Infinity, Y0 = Infinity, X1 = -Infinity, Y1 = -Infinity, i, j, k, d, c, tot = 0;
+    for (k = 0; k < n; k++) { d = ds[k]; X0 = Math.min(X0, d[0], d[2]); X1 = Math.max(X1, d[0], d[2]); Y0 = Math.min(Y0, d[1], d[3]); Y1 = Math.max(Y1, d[1], d[3]); tot += segLen(d); }
+    var ax = ds[0][0], ay = ds[0][1], bx = ds[n - 1][2], by = ds[n - 1][3];   // the door's two ends
+    var mx = ax, my = ay, acc = 0, sl, mt;   // and its middle: half its length along its stretches
+    for (k = 0; k < n; k++) { d = ds[k]; sl = segLen(d); if (acc + sl >= tot / 2) { mt = sl > 0 ? (tot / 2 - acc) / sl : 0; mx = d[0] + (d[2] - d[0]) * mt; my = d[1] + (d[3] - d[1]) * mt; break; } acc += sl; }
+    var twoR = Math.min(MATCH.reach, tot / 2), two = (bx - ax) * (bx - ax) + (by - ay) * (by - ay) > twoR * twoR;   // a door whose two ends are one place (a ring) has no two ends to reach, and nothing runs beside it: a short straight door has two
+    var ma = Math.sqrt((mx - ax) * (mx - ax) + (my - ay) * (my - ay)) / 2, mb = Math.sqrt((mx - bx) * (mx - bx) + (my - by) * (my - by)) / 2;   // half the way from each end to the middle
+    var hdMax = lineHalf(door), tipD = lineTip(door), wd = lineWidth(door), work = 0, found = [], looks = Object.create(null), dRun = [];
+    for (i = 0; i < pieces.length; i++) {
+        var w = pieces[i]; if (w === door || !matchWall(w)) continue;
+        var R = MATCH.reach + hdMax + lineHalf(w), R2 = R * R, ws = pathSegs(w), near = Infinity, band = Infinity, e0 = Infinity, e1 = Infinity, em = Infinity, cand = [], lim = 512, wRun = [];
+        for (j = 0; j < ws.length; j++) {
+            var s = ws[j], sx0 = Math.min(s[0], s[2]) - R, sx1 = Math.max(s[0], s[2]) + R, sy0 = Math.min(s[1], s[3]) - R, sy1 = Math.max(s[1], s[3]) + R;
+            if (++work > MATCH.work) return { over: true };
+            if (sx1 < X0 || sx0 > X1 || sy1 < Y0 || sy0 > Y1) continue;   // nowhere near the door
+            var g0 = ptSeg2(ax, ay, s), g1 = ptSeg2(bx, by, s), gm = ptSeg2(mx, my, s); if (g0 < e0) e0 = g0; if (g1 < e1) e1 = g1; if (gm < em) em = gm;
+            for (k = 0; k < n; k++) {
+                d = ds[k];
+                if (++work > MATCH.work) return { over: true };
+                if (Math.max(d[0], d[2]) < sx0 || Math.min(d[0], d[2]) > sx1 || Math.max(d[1], d[3]) < sy0 || Math.min(d[1], d[3]) > sy1) continue;   // this stretch of the door is nowhere near that stretch of the wall
+                var g = segGap2(d, s); if (!(g <= R2)) continue;
+                if (g < near) { near = g; band = (Math.sqrt(near) + MATCH.touch) * (Math.sqrt(near) + MATCH.touch); }
+                if (g <= band) {   // only a pair within the band of the nearest so far can still be within it of the nearest of all
+                    cand.push([g, k, j]);
+                    if (cand.length > lim) {   // tidied in step with its size, and the tidying costs work: a list in which every pair is as near as the nearest is never walked whole at every pair
+                        if ((work += cand.length) > MATCH.work) return { over: true };
+                        var keep = []; for (c = 0; c < cand.length; c++) if (cand[c][0] <= band) keep.push(cand[c]);
+                        cand = keep; lim = Math.max(512, cand.length * 2);
+                        if (cand.length * 64 > MATCH.work) return { over: true };   // more pairs than could be judged within the bound
+                    }
+                }
+            }
+        }
+        if (!cand.length) continue;
+        // the pair that speaks for this wall: of the pairs within the band of its nearest gap, the one whose two runs are most alike, then the nearer, then the door's earliest stretch
+        var pk = -1, pj = -1, pcos = -1, pg = Infinity, prun = null;
+        for (c = 0; c < cand.length; c++) {
+            if (!(cand[c][0] <= band)) continue;
+            if ((work += 64) > MATCH.work) return { over: true };
+            var ck = cand[c][1], cj = cand[c][2], al = runAlike(dRun[ck] || (dRun[ck] = runDir(ds, ck, 0)), wRun[cj] || (wRun[cj] = wallRuns(ws, cj))), cs = al[5];
+            if (cs > pcos + 1e-9 || (Math.abs(cs - pcos) <= 1e-9 && (cand[c][0] < pg || (cand[c][0] === pg && ck < pk)))) { pcos = cs; pg = cand[c][0]; pk = ck; pj = cj; prun = al; }
+        }
+        var dirD = dRun[pk], dirW = prun;   // the door's run where they meet, and the leg of the wall that meets it
+        var hd = Math.min(MATCH.cap, wd * lineFactor(door, dirD, tipD) / 2), hw = Math.min(MATCH.cap, lineWidth(w) * lineFactor(w, dirW, lineTip(w)) / 2);
+        if (!fin(hd) || hd < 0) hd = 0; if (!fin(hw) || hw < 0) hw = 0;
+        var T2 = (hd + hw + MATCH.touch) * (hd + hw + MATCH.touch), N2 = (hd + hw + MATCH.reach) * (hd + hw + MATCH.reach);
+        if (!(near <= N2)) continue;   // within the widest reach a line could have, yet not within this pair's own
+        // An END is reached where the door's end point itself lies in the wall's stroke, or near it: the door's own width does not count here, or a thick wall that runs BESIDE a thick door would reach both its ends
+        var Te2 = (hw + MATCH.touch) * (hw + MATCH.touch), Ne2 = (hw + MATCH.reach) * (hw + MATCH.reach), On2 = (hw + 1) * (hw + 1), Li2 = (hw + hd) * (hw + hd);
+        var on = e0 <= On2 && e1 <= On2;   // both of the door's ends lie IN this wall's stroke: the door lies on the wall, whatever its middle does
+        var lies = e0 <= Li2 && e1 <= Li2 && em <= Li2;   // the two strokes overlap at the door's two ends and at its middle: the door was drawn over this wall
+        var past = two && em <= R2, dm = Math.sqrt(em), de0 = Math.sqrt(e0), de1 = Math.sqrt(e1), ga = Math.min(ma, MATCH.reach), gb = Math.min(mb, MATCH.reach);   // the wall passes the door's middle within the widest reach (where every stretch of it was read)...
+        var out0 = past && e0 > On2 && dm < de0 + ga, out1 = past && e1 > On2 && dm < de1 + gb;   // ...about as near as it passes that end, or nearer, and the end is not in its stroke: it runs beside the door there, and does not reach the end
+        var beside = out0 && out1 && de0 < dm + ga && de1 < dm + gb;   // BESIDE the door: it passes both ends and the middle at about one distance, so it runs the door's whole length at an offset
+        var aside = !lies && (beside || (past && de0 >= dm + ga && de1 >= dm + gb));   // ...or it passes the door's MIDDLE clear of both ends (it crosses the door): either way it meets the door at no end
+        var key = lookKey(w), lk = looks[key] || (looks[key] = [0, 0]), s0 = out0 ? 0 : e0 <= Te2 ? 2 : e0 <= Ne2 ? 1 : 0, s1 = out1 ? 0 : e1 <= Te2 ? 2 : e1 <= Ne2 ? 1 : 0;
+        if (s0 > lk[0]) lk[0] = s0; if (s1 > lk[1]) lk[1] = s1;
+        var wa = ws[0], wz = ws[ws.length - 1], pp = function(x, y, u, v) { return (x - u) * (x - u) + (y - v) * (y - v); };   // the wall's own two ends against the door's
+        var ee = Math.min(pp(wa[0], wa[1], ax, ay), pp(wa[0], wa[1], bx, by), pp(wz[2], wz[3], ax, ay), pp(wz[2], wz[3], bx, by));
+        found.push({ w: w, key: key, aside: aside ? 1 : 0, along: pcos >= MATCH.same ? 1 : 0, touch: near <= T2 ? 1 : 0, endsAt: ee <= Ne2 ? 1 : 0, near: near, dir: dirD, dirW: dirW });
+        var fnd = found[found.length - 1], sj = ws[pj];   // the two directions the WIDTH is read along: as each line is drawn where they meet
+        fnd.drawD = drawDir(ds, pk); fnd.drawW = segLen(sj) >= MATCH.run / 2 ? [0, 0, sj[2] - sj[0], sj[3] - sj[1]] : dirW;
+    }
+    var best = null, bestE = -1, bestS = -1;
+    for (i = 0; i < found.length; i++) {
+        var f = found[i], lkf = looks[f.key], ends = two && lkf[0] && lkf[1] ? lkf[0] + lkf[1] : 0;   // the ends speak only where one look reaches both
+        var score = ends * 10000 + (f.aside ? 0 : 1000) + f.along * 100 + f.touch * 10 + f.endsAt;
+        if (best === null || score > bestS || (score === bestS && f.near < best.near)) { best = f; bestE = ends; bestS = score; }
+    }
+    if (!best) return null;
+    var tip = lineTip(best.w), lwB = lineWidth(best.w), flat = tip === 'flat', fw = lineFactor(best.w, flat ? best.drawD : best.drawW, tip), fd = lineFactor(door, best.drawD, tip), r = 1;
+    if (flat) {   // a ribbon, read along the door's stretch. Under a pixel, or a nib the door's own box would stretch past twice or under half: the square nib at that thickness
+        var thick = lwB * fw;
+        if (!(thick >= 1) || !(fd > 0) || !(fw / fd <= 2) || !(fw / fd >= 0.5)) { tip = 'square'; fd = lineFactor(door, best.drawD, 'square'); r = fd > 0 ? (thick >= 1 ? thick : 1) / (lwB * fd) : 1; }
+        else r = fw / fd;
+    }
+    else r = fd > 0 ? fw / fd : 1;
+    if (!fin(r) || !(r > 0) || Math.abs(r - 1) < 1e-9) r = 1;
+    var wide = lwB * r;
+    return { color: clearColor(best.w.color) ? 'transparent' : cleanSeenColor(best.w.color), width: fin(wide) && wide > 0 ? Math.min(wide, 1e15) : lwB, opacity: lineOpacity(best.w), tip: tip };
+}
+// How thick a matched door is DRAWN for the players, in px of the map, as [the thinnest, the thickest] over its own runs: its seen
+// width times the factor of the nib its copy wears along each run (one figure twice for a straight door, or one never resized). Null
+// where no width is set
+function seenDrawn(w) {
+    var sw = lineOf(w) ? cleanSeenWidth(w.seenWidth) : null; if (sw === null) return null;
+    var ds = pathSegs(w), tip = cleanSeenTip(w.seenTip) || lineTip(w), lo = Infinity, hi = -Infinity, n = Math.min(ds.length, 2000), k, t;
+    for (k = 0; k < n; k++) { t = sw * lineFactor(w, drawDir(ds, k), tip); if (fin(t) && t >= 0) { if (t < lo) lo = t; if (t > hi) hi = t; } }
+    if (!(hi >= 0) || !fin(lo)) { t = sw * lineFactor(w, null, tip); lo = hi = fin(t) && t >= 0 ? t : sw; }
+    return [lo, hi];
+}
 // A drawing its player may no longer erase or redraw (the owner, by prompt, 2026-10-06: "Lock it for its player"): one the GM made a wall
 // (Blocks sight, read as the wall judges read it: any value that blocks) or a see-through barrier (Stops movement only, only as true).
 // Judged on the two flags alone: an open door is still the GM's piece, and so is a wall on a map whose fog is off. The GM unticks both to
@@ -1129,6 +1398,6 @@ function cleanCampFog(cf) {   // campaign-level: { fields:{sight, sightUnit?}, d
     return out;
 }
 
-var API = { VERSION: VERSION, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, itemCells: itemCells, itemOver: itemOver, pathSegs: pathSegs, pathCells: pathCells, withWalls: withWalls, wallsOf: wallsOf, copyWalls: copyWalls, wallEdgeCells: wallEdgeCells, lineClear: lineClear, moveClear: moveClear, cellCorners: cellCorners, coverBetween: coverBetween, coverFromPoint: coverFromPoint, openSeat: openSeat, coverRole: coverRole, barrierOn: barrierOn, isDoor: isDoor, strokeHeld: strokeHeld, cleanBarrier: cleanBarrier, blastStopOn: blastStopOn, cleanBlastStop: cleanBlastStop, fogHandOf: fogHandOf, cleanFogHand: cleanFogHand, cellsNear: cellsNear, isPortal: isPortal, cleanPortalLock: cleanPortalLock, visibleCells: visibleCells, seenCells: seenCells, cellDist: cellDist, cleanLight: cleanLight, cleanTokSenses: cleanTokSenses, cleanUnsensed: cleanUnsensed, cleanNulls: cleanNulls, cleanTerrain: cleanTerrain, TEXTURES: TEXTURES, cleanTexture: cleanTexture, TEX_TILES: TEX_TILES, cleanTexSrc: cleanTexSrc, cleanTexTile: cleanTexTile, cleanHeight: cleanHeight, cleanGround: cleanGround, itemCovers: itemCovers, groundAt: groundAt, cleanTokFx: cleanTokFx, terrainFactor: terrainFactor, cleanFogOff: cleanFogOff, markCells: markCells, lineOverHeight: lineOverHeight, lineOverWall: lineOverWall, heightStops: heightStops, cleanFogMarks: cleanFogMarks, lightUnit: lightUnit, unitCells: unitCells, cellInArc: cellInArc, litLevels: litLevels, neighbourCells: neighbourCells, cleanFogLit: cleanFogLit, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog, secretOk: secretOk, secretOn: secretOn, cleanSecret: cleanSecret, SECRET_WALL: SECRET_WALL, cleanSeenColor: cleanSeenColor, cleanSeenTexture: cleanSeenTexture, secretLook: secretLook, secretSeen: secretSeen, secretReveal: secretReveal };
+var API = { VERSION: VERSION, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, itemCells: itemCells, itemOver: itemOver, pathSegs: pathSegs, pathCells: pathCells, withWalls: withWalls, wallsOf: wallsOf, copyWalls: copyWalls, wallEdgeCells: wallEdgeCells, lineClear: lineClear, moveClear: moveClear, cellCorners: cellCorners, coverBetween: coverBetween, coverFromPoint: coverFromPoint, openSeat: openSeat, coverRole: coverRole, barrierOn: barrierOn, isDoor: isDoor, strokeHeld: strokeHeld, cleanBarrier: cleanBarrier, blastStopOn: blastStopOn, cleanBlastStop: cleanBlastStop, fogHandOf: fogHandOf, cleanFogHand: cleanFogHand, cellsNear: cellsNear, isPortal: isPortal, cleanPortalLock: cleanPortalLock, visibleCells: visibleCells, seenCells: seenCells, cellDist: cellDist, cleanLight: cleanLight, cleanTokSenses: cleanTokSenses, cleanUnsensed: cleanUnsensed, cleanNulls: cleanNulls, cleanTerrain: cleanTerrain, TEXTURES: TEXTURES, cleanTexture: cleanTexture, TEX_TILES: TEX_TILES, cleanTexSrc: cleanTexSrc, cleanTexTile: cleanTexTile, cleanHeight: cleanHeight, cleanGround: cleanGround, itemCovers: itemCovers, groundAt: groundAt, cleanTokFx: cleanTokFx, terrainFactor: terrainFactor, cleanFogOff: cleanFogOff, markCells: markCells, lineOverHeight: lineOverHeight, lineOverWall: lineOverWall, heightStops: heightStops, cleanFogMarks: cleanFogMarks, lightUnit: lightUnit, unitCells: unitCells, cellInArc: cellInArc, litLevels: litLevels, neighbourCells: neighbourCells, cleanFogLit: cleanFogLit, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog, secretOk: secretOk, secretOn: secretOn, cleanSecret: cleanSecret, SECRET_WALL: SECRET_WALL, cleanSeenColor: cleanSeenColor, cleanSeenTexture: cleanSeenTexture, secretLook: secretLook, secretSeen: secretSeen, secretReveal: secretReveal, lineOf: lineOf, lineWidth: lineWidth, lineOpacity: lineOpacity, lineTip: lineTip, lineScale: lineScale, lineFactor: lineFactor, cleanSeenWidth: cleanSeenWidth, cleanSeenOpacity: cleanSeenOpacity, cleanSeenTip: cleanSeenTip, MATCH: MATCH, secretMatch: secretMatch, seenDrawn: seenDrawn };
 if (typeof window !== 'undefined') window.wpFogCore = API;
-export { VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, itemCells, itemOver, pathSegs, pathCells, withWalls, wallsOf, copyWalls, wallEdgeCells, lineClear, moveClear, cellCorners, coverBetween, coverFromPoint, openSeat, coverRole, barrierOn, isDoor, strokeHeld, cleanBarrier, blastStopOn, cleanBlastStop, fogHandOf, cleanFogHand, cellsNear, isPortal, cleanPortalLock, visibleCells, seenCells, cellDist, cleanLight, cleanTokSenses, cleanUnsensed, cleanNulls, cleanTerrain, TEXTURES, cleanTexture, TEX_TILES, cleanTexSrc, cleanTexTile, cleanHeight, cleanGround, itemCovers, groundAt, cleanTokFx, terrainFactor, cleanFogOff, markCells, lineOverHeight, lineOverWall, heightStops, cleanFogMarks, lightUnit, unitCells, cellInArc, litLevels, neighbourCells, cleanFogLit, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog, secretOk, secretOn, cleanSecret, SECRET_WALL, cleanSeenColor, cleanSeenTexture, secretLook, secretSeen, secretReveal };
+export { VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, itemCells, itemOver, pathSegs, pathCells, withWalls, wallsOf, copyWalls, wallEdgeCells, lineClear, moveClear, cellCorners, coverBetween, coverFromPoint, openSeat, coverRole, barrierOn, isDoor, strokeHeld, cleanBarrier, blastStopOn, cleanBlastStop, fogHandOf, cleanFogHand, cellsNear, isPortal, cleanPortalLock, visibleCells, seenCells, cellDist, cleanLight, cleanTokSenses, cleanUnsensed, cleanNulls, cleanTerrain, TEXTURES, cleanTexture, TEX_TILES, cleanTexSrc, cleanTexTile, cleanHeight, cleanGround, itemCovers, groundAt, cleanTokFx, terrainFactor, cleanFogOff, markCells, lineOverHeight, lineOverWall, heightStops, cleanFogMarks, lightUnit, unitCells, cellInArc, litLevels, neighbourCells, cleanFogLit, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog, secretOk, secretOn, cleanSecret, SECRET_WALL, cleanSeenColor, cleanSeenTexture, secretLook, secretSeen, secretReveal, lineOf, lineWidth, lineOpacity, lineTip, lineScale, lineFactor, cleanSeenWidth, cleanSeenOpacity, cleanSeenTip, MATCH, secretMatch, seenDrawn };

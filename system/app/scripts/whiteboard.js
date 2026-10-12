@@ -947,6 +947,8 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
           // Final opacity = the item's own opacity setting combined with the
           // trigger/locked dimming (absence dimming is CSS, .wb-absent !important)
           var itemOp = (item.opacity != null && item.opacity < 1) ? item.opacity : 1;
+          var _lnCore = (item.type === 'path' && item.tip !== 'fill' && typeof window !== 'undefined') ? window.wpFogCore : null;   // a pen line's opacity, width and nib are read in ONE place (fogcore), so this board, a player's board, the wire and the map's picture agree for every stored value
+          if (_lnCore && typeof _lnCore.lineOpacity === 'function') itemOp = _lnCore.lineOpacity(item);
 
           if (item.type === 'trigger') {
 
@@ -1066,7 +1068,9 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
               
 
               var pathEl = svg.querySelector(':scope > path'), _tip = item.tip || 'round', _col = cssColor(item.color) || 'var(--ink)';
-              var _sp = buildStrokePath(item.pts, _tip, item.strokeWidth || 3, item.holes);
+              var _lw = item.strokeWidth || 3, _lnDraw = (_tip !== 'fill' && typeof window !== 'undefined') ? window.wpFogCore : null;
+              if (_lnDraw && typeof _lnDraw.lineWidth === 'function' && typeof _lnDraw.lineTip === 'function') { _tip = _lnDraw.lineTip(item); _lw = _lnDraw.lineWidth(item); }   // the same one reading for the width and the nib
+              var _sp = buildStrokePath(item.pts, _tip, _lw, item.holes);
               pathEl.setAttribute('d', _sp.d);
               if (_sp.fill) {
                   pathEl.setAttribute('fill', _col); pathEl.style.stroke = 'none'; pathEl.removeAttribute('stroke-width');
@@ -3113,10 +3117,12 @@ window.wpFitToGrid = fitToGrid;
               var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
               run.forEach(function(p) { minX = Math.min(minX, p[0]); minY = Math.min(minY, p[1]); maxX = Math.max(maxX, p[0]); maxY = Math.max(maxY, p[1]); });
               var w = Math.max(1, maxX - minX), h = Math.max(1, maxY - minY);
+              // what is left keeps the line's own stretch (its box that much smaller, its points in it): a resized line is drawn with its stroke stretched, and a piece laid at its own size would be thinner or thicker than the line was
+              var kx = sx > 0 && isFinite(sx) ? sx : 1, ky = sy > 0 && isFinite(sy) ? sy : 1;
               var piece = Object.assign({}, item, {
                   id: 'wb' + uid(),
-                  x: minX, y: minY, w: w, h: h, baseW: w, baseH: h,
-                  pts: run.map(function(p) { return [p[0] - minX, p[1] - minY]; })
+                  x: minX, y: minY, w: w, h: h, baseW: w / kx, baseH: h / ky,
+                  pts: run.map(function(p) { return [(p[0] - minX) / kx, (p[1] - minY) / ky]; })
               });
               delete piece.groupId;
               out.push(piece);
@@ -6578,7 +6584,16 @@ function doorCut(map, door) {
     map.whiteboard.forEach(function(w, i) {
         var c = at[i]; if (!c) { out.push(w); return; }
         gone[w.id] = 1;
-        c.lines.forEach(function(L) { var p = Object.assign({}, w, { id: 'wb' + uid(), x: L.x, y: L.y, w: L.w, h: L.h, baseW: L.baseW, baseH: L.baseH, pts: L.pts }); delete p.groupId; delete p.rot; out.push(p); });
+        c.lines.forEach(function(L) {
+            var p = Object.assign({}, w, { id: 'wb' + uid(), x: L.x, y: L.y, w: L.w, h: L.h, baseW: L.baseW, baseH: L.baseH, pts: L.pts }); delete p.groupId; delete p.rot;
+            // a wall that was resized is drawn in its own box stretched, stroke and nib with it: a piece keeps that very stretch (its own box that much smaller, its points in it), so every stretch of it is drawn exactly as it was, whatever the nib and whatever corners it has. Its width stays the wall's own
+            var FCc = window.wpFogCore, scW = FCc && typeof FCc.lineScale === 'function' ? FCc.lineScale(w) : null;
+            if (scW && (scW[0] !== 1 || scW[1] !== 1) && Array.isArray(L.pts)) {
+                var bwP = L.w / scW[0], bhP = L.h / scW[1];
+                if (isFinite(bwP) && bwP > 0 && isFinite(bhP) && bhP > 0) { p.baseW = bwP; p.baseH = bhP; p.pts = L.pts.map(function(q) { return [q[0] / scW[0], q[1] / scW[1]]; }); }
+            }
+            out.push(p);
+        });
     });
     map.whiteboard.length = 0; for (var k = 0; k < out.length; k++) map.whiteboard.push(out[k]);   // the same list, so whoever holds it holds the cut
     if (state.selWbId && gone[state.selWbId]) state.selWbId = null;   // a selected wall that is gone is no selection
@@ -6592,7 +6607,7 @@ window.wpDoorCut = doorCut;
 function buildLay(map, boxes, props, more, walls) {
     var BC = buildCore(); if (!BC || !props) return;
     if (!boxes.length) { toast('Nothing to lay there.'); return; }
-    var room = BUILD_MAX - map.whiteboard.length, laid = 0, wall = false, full = false, keys = ['color', 'layer', 'name', 'texture', 'texSrc', 'texTile', 'blocksSight', 'sightType', 'cover', 'terrain', 'secret', 'seenColor', 'seenTexture'];   // a piece laid again in place wears the new material and nothing of the old: a picture it wore goes with its pattern
+    var room = BUILD_MAX - map.whiteboard.length, laid = 0, wall = false, full = false, keys = ['color', 'layer', 'name', 'texture', 'texSrc', 'texTile', 'blocksSight', 'sightType', 'cover', 'terrain', 'secret', 'seenColor', 'seenTexture', 'seenWidth', 'seenOpacity', 'seenTip'];   // a piece laid again in place wears the new material and nothing of the old: a picture it wore goes with its pattern
     for (var i = 0; i < boxes.length; i++) {
         var b = boxes[i], item = Object.assign({ id: 'wb' + uid(), type: b.type, x: b.x, y: b.y, w: b.w, h: b.h, z: 10 }, newOpacityProps(), props);
         if (b.pts) { item.pts = b.pts; item.baseW = b.baseW; item.baseH = b.baseH; item.tip = 'fill'; }
@@ -8376,9 +8391,10 @@ document.addEventListener('contextmenu', function(e) {
                     selectedIds.forEach(id => {
                         var it = am.whiteboard.find(x => x.id === id);
                         if (it && it.pts) {
-                            var cx = it.x, cy = it.y;
+                            var cx = it.x, cy = it.y, msx = it.w / (it.baseW || it.w || 1), msy = it.h / (it.baseH || it.h || 1);   // a resized line's points are read at their place on the map
+                            if (!(msx > 0) || !isFinite(msx)) msx = 1; if (!(msy > 0) || !isFinite(msy)) msy = 1;
                             it.pts.forEach(p => { 
-                                var px = p[0] + cx; var py = p[1] + cy;
+                                var px = p[0] * msx + cx; var py = p[1] * msy + cy;
                                 newPts.push([px, py]);
                                 if (px < minX) minX = px;
                                 if (py < minY) minY = py;

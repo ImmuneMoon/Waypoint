@@ -769,6 +769,23 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       render();
   }
 
+  // A press handed on to another piece (the three hand-overs of the drag below). No chain of them is longer than three: two hand-overs
+  // that each answer the other would otherwise pass one press back and forth without end
+  var handDepth = 0;
+  function handOn(toEl, e) {
+      if (handDepth >= 3) return false;
+      handDepth++;
+      try { toEl.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pointerId: e.pointerId, clientX: e.clientX, clientY: e.clientY })); }
+      finally { handDepth--; }
+      return true;
+  }
+  // A piece's level as the board stacks it (systemcore stackZ: a level a file wrote as text is read as its number, a layer only by the app's own words)
+  function handZ(cand) {
+      var SC = window.wpSystemCore;
+      if (SC && typeof SC.stackZ === 'function') return SC.stackZ(cand);
+      var LZ = { back: 10, 'back-mid': 15, middle: 20, 'front-mid': 25, front: 30 }, n = Number(cand.z), z = Object.prototype.hasOwnProperty.call(LZ, cand.layer) ? LZ[cand.layer] : (isFinite(n) && n ? n : 10);
+      return cand.aboveGrid ? z + 15020 : z;
+  }
   function attachDrag(el, modeStr){
       var startX,startY,moved,dragging=false,item;
       var multiDrag = [];
@@ -809,36 +826,33 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                            cpx >= cand.x && cpx <= cand.x + (cand.w || 0) && cpy >= cand.y && cpy <= cand.y + (cand.h || 0);
                 });
                 var mineEl = mine && document.querySelector('.wb-item[data-id="' + mine.id + '"]');
-                if (mineEl && mineEl.style.display !== 'none') {
-                    mineEl.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pointerId: e.pointerId, clientX: e.clientX, clientY: e.clientY }));
-                    e.preventDefault();
-                }
+                if (mineEl && mineEl.style.display !== 'none' && handOn(mineEl, e)) e.preventDefault();
                 return;
             }
         }
         if(item.locked) {
             // A locked item must not shield the items under it: hand the drag to
-            // the topmost UNLOCKED item beneath the pointer, if there is one.
+            // the topmost UNLOCKED item beneath the pointer, if there is one. On a
+            // player's app only to a token of their own: a player drags nothing else,
+            // and a press on a piece that is not theirs is handed back to their own
+            // token (above), so the two hand-overs passed a press on their own locked
+            // token back and forth without end.
+            var asPlayer = !!(window.wpNet && window.wpNet.active && window.wpNet.role === 'client');
             if (modeStr === 'visual' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
                 var wrB = wbWrap.getBoundingClientRect();
                 var wpx = (e.clientX - wrB.left + wbWrap.scrollLeft) / state.zoomLevel;
                 var wpy = (e.clientY - wrB.top + wbWrap.scrollTop) / state.zoomLevel;
-                var LZ = { back: 10, 'back-mid': 15, middle: 20, 'front-mid': 25, front: 30 };
-                var best = null, bestZ = -1, bestIdx = -1;
+                var best = null, bestZ = -Infinity, bestIdx = -1;
                 activeMap.whiteboard.forEach(function(cand, idx) {
                     if (cand.locked || cand.id === item.id) return;
+                    if (asPlayer && !((cand.isChar || cand.waiting) && cand.ownerId === window.wpNet.myId)) return;
                     if (wpx < cand.x || wpx > cand.x + (cand.w || 0) || wpy < cand.y || wpy > cand.y + (cand.h || 0)) return;
-                    var cz = (cand.layer && LZ[cand.layer]) || cand.z || 10;
-                    if (cand.aboveGrid) cz += 15020;
+                    var cz = handZ(cand);
                     if (cz > bestZ || (cz === bestZ && idx > bestIdx)) { best = cand; bestZ = cz; bestIdx = idx; }
                 });
                 if (best) {
                     var underEl = document.querySelector('.wb-item[data-id="' + best.id + '"]');
-                    if (underEl && underEl.style.display !== 'none') {
-                        underEl.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pointerId: e.pointerId, clientX: e.clientX, clientY: e.clientY }));
-                        e.preventDefault();
-                        return;
-                    }
+                    if (underEl && underEl.style.display !== 'none' && handOn(underEl, e)) { e.preventDefault(); return; }
                 }
             }
             if (modeStr === 'visual') {
@@ -865,28 +879,23 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
         // Token grab priority: a character token UNDER an unlocked non-token item (a label, note, prop, backdrop)
         // wins the grab/select — the creature is what you're reaching for. Hand the pointer to the topmost token
         // beneath, without touching layer/z. A modifier-click still selects the item on top; token-on-token grabs
-        // the top one (this only fires when the grabbed item is not itself a token). The locked branch above already
-        // hands a locked cover-item's drag to whatever is beneath it.
-        if (modeStr === 'visual' && !item.isChar && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+        // the top one (this only fires when the grabbed item is not itself a token, and a WAITING token is a token: it
+        // has no isChar, and handed on from it a press on a player's own waiting token over another token came back
+        // to it without end). The locked branch above already hands a locked cover-item's drag to whatever is beneath it.
+        if (modeStr === 'visual' && !item.isChar && !item.waiting && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
             var wrT = wbWrap.getBoundingClientRect();
             var tpx = (e.clientX - wrT.left + wbWrap.scrollLeft) / state.zoomLevel;
             var tpy = (e.clientY - wrT.top + wbWrap.scrollTop) / state.zoomLevel;
-            var LZt = { back: 10, 'back-mid': 15, middle: 20, 'front-mid': 25, front: 30 };
-            var tok = null, tokZ = -1, tokIdx = -1;
+            var tok = null, tokZ = -Infinity, tokIdx = -1;
             activeMap.whiteboard.forEach(function(cand, idx) {
                 if (!cand.isChar || cand.locked || cand.id === item.id) return;
                 if (tpx < cand.x || tpx > cand.x + (cand.w || 0) || tpy < cand.y || tpy > cand.y + (cand.h || 0)) return;
-                var cz = (cand.layer && LZt[cand.layer]) || cand.z || 10;
-                if (cand.aboveGrid) cz += 15020;
+                var cz = handZ(cand);
                 if (cz > tokZ || (cz === tokZ && idx > tokIdx)) { tok = cand; tokZ = cz; tokIdx = idx; }
             });
             if (tok) {
                 var tokEl = document.querySelector('.wb-item[data-id="' + tok.id + '"]');
-                if (tokEl && tokEl.style.display !== 'none') {
-                    tokEl.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pointerId: e.pointerId, clientX: e.clientX, clientY: e.clientY }));
-                    e.preventDefault();
-                    return;
-                }
+                if (tokEl && tokEl.style.display !== 'none' && handOn(tokEl, e)) { e.preventDefault(); return; }
             }
         }
 

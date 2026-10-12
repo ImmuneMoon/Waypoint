@@ -847,7 +847,7 @@ import { onLoad as cleanupOnLoad, sweepRecents, dropWaiting } from './cleanup.js
 
       // With no count (acts absent) every case is as it was before
 
-      var OWN = ['x', 'y', 'w', 'h', 'baseW', 'baseH', 'pts', 'color', 'strokeWidth', 'opacity'];
+      var OWN = ['x', 'y', 'w', 'h', 'baseW', 'baseH', 'pts', 'color', 'strokeWidth', 'opacity', 'tip'];
 
       var isStroke = function(w) { return !!(w && w.type === 'path' && w.byPlayer); };
 

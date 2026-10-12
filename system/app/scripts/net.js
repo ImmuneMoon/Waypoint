@@ -381,7 +381,7 @@ function sanitizeRichText(html) {
 }
 net.sanitizeRichText = sanitizeRichText;
 // A play map as a client keeps it: text items rebuilt, category colors that are colors, collections bounded.
-function cleanHostWbItem(w) { if (!w || typeof w !== 'object' || typeof w.id !== 'string') return null; if (w.waiting) return cleanWaitingItem(w); for (var gi = 0; gi < 6; gi++) { var gk = ['x', 'y', 'w', 'h', 'rot', 'front'][gi], gv = w[gk], gc = gi < 4 ? 1e7 : 1e6; if (gv === undefined) continue; if (typeof gv !== 'number' || !isFinite(gv)) delete w[gk]; else if (gv > gc) w[gk] = gc; else if (gv < -gc) w[gk] = -gc; } if (w.type === 'text') w.text = sanitizeRichText(w.text); if (w.font !== undefined) { var TFf = window.wpTextFmt, fn = TFf && TFf.cleanFont ? TFf.cleanFont(w.font) : undefined; if (fn) w.font = fn; else delete w.font; } if (w.light !== undefined) cleanHostLight(w); if (w.senses !== undefined || w.blind !== undefined) cleanHostTokSenses(w); if (w.fxb !== undefined) cleanHostFxb(w); if (w.smoke !== undefined && w.smoke !== true) delete w.smoke; if (w.secret !== undefined || w.seenColor !== undefined || w.seenTexture !== undefined) { delete w.secret; delete w.seenColor; delete w.seenTexture; } if (w.page !== undefined) delete w.page; if (w.fogHand !== undefined && w.fogHand !== 'hide' && w.fogHand !== 'show') delete w.fogHand; if (w.blastStop !== undefined && w.blastStop !== true) delete w.blastStop; if (w.barrier !== undefined && w.barrier !== true) delete w.barrier; if (w.portalLock !== undefined && w.portalLock !== true) delete w.portalLock; if (w.terrain !== undefined) { var FCt = window.wpFogCore, tr = FCt && FCt.cleanTerrain ? FCt.cleanTerrain(w.terrain) : null; if (tr) w.terrain = tr; else delete w.terrain; } if (w.height !== undefined) { var FCh = window.wpFogCore, ht = FCh && FCh.cleanHeight ? FCh.cleanHeight(w.height) : null; if (ht) w.height = ht; else delete w.height; } if (w.texSrc !== undefined || w.texTile !== undefined) { var FCq = window.wpFogCore, tsi = FCq && typeof FCq.cleanTexSrc === 'function' ? FCq.cleanTexSrc(w.texSrc) : null, tti = tsi && typeof FCq.cleanTexTile === 'function' ? FCq.cleanTexTile(w.texTile) : null; if (tsi) w.texSrc = tsi; else delete w.texSrc; if (tti) w.texTile = tti; else delete w.texTile; } if (w.texture !== undefined) { var FCx = window.wpFogCore, tx = FCx && FCx.cleanTexture ? FCx.cleanTexture(w.texture) : null; if (tx) w.texture = tx; else delete w.texture; } if (w.ground !== undefined) { var FCg = window.wpFogCore, gr = FCg && FCg.cleanGround ? FCg.cleanGround(w.ground) : null; if (gr) w.ground = gr; else delete w.ground; } return w; }   // senses S7b: smoke only as true; see-through barriers (1.5.1): barrier only as true; a portal's own lock: portalLock only as true; difficult terrain T1: its cost, 2-10, or none; item 19 H1: a piece's height, yards; item 19b H5: a piece's ground height, yards (a pit below 0); map builder B1: a piece's texture only as a name of the app's own list (fogcore cleanTexture), none without the cleaner
+function cleanHostWbItem(w) { if (!w || typeof w !== 'object' || typeof w.id !== 'string') return null; if (w.waiting) return cleanWaitingItem(w); for (var gi = 0; gi < 6; gi++) { var gk = ['x', 'y', 'w', 'h', 'rot', 'front'][gi], gv = w[gk], gc = gi < 4 ? 1e7 : 1e6; if (gv === undefined) continue; if (typeof gv !== 'number' || !isFinite(gv)) delete w[gk]; else if (gv > gc) w[gk] = gc; else if (gv < -gc) w[gk] = -gc; } if (w.type === 'text') w.text = sanitizeRichText(w.text); if (w.font !== undefined) { var TFf = window.wpTextFmt, fn = TFf && TFf.cleanFont ? TFf.cleanFont(w.font) : undefined; if (fn) w.font = fn; else delete w.font; } if (w.light !== undefined) cleanHostLight(w); if (w.senses !== undefined || w.blind !== undefined) cleanHostTokSenses(w); if (w.fxb !== undefined) cleanHostFxb(w); if (w.smoke !== undefined && w.smoke !== true) delete w.smoke; if (w.secret !== undefined || w.seenColor !== undefined || w.seenTexture !== undefined || w.seenWidth !== undefined || w.seenOpacity !== undefined || w.seenTip !== undefined) { delete w.secret; delete w.seenColor; delete w.seenTexture; delete w.seenWidth; delete w.seenOpacity; delete w.seenTip; } if (w.page !== undefined) delete w.page; if (w.fogHand !== undefined && w.fogHand !== 'hide' && w.fogHand !== 'show') delete w.fogHand; if (w.blastStop !== undefined && w.blastStop !== true) delete w.blastStop; if (w.barrier !== undefined && w.barrier !== true) delete w.barrier; if (w.portalLock !== undefined && w.portalLock !== true) delete w.portalLock; if (w.terrain !== undefined) { var FCt = window.wpFogCore, tr = FCt && FCt.cleanTerrain ? FCt.cleanTerrain(w.terrain) : null; if (tr) w.terrain = tr; else delete w.terrain; } if (w.height !== undefined) { var FCh = window.wpFogCore, ht = FCh && FCh.cleanHeight ? FCh.cleanHeight(w.height) : null; if (ht) w.height = ht; else delete w.height; } if (w.texSrc !== undefined || w.texTile !== undefined) { var FCq = window.wpFogCore, tsi = FCq && typeof FCq.cleanTexSrc === 'function' ? FCq.cleanTexSrc(w.texSrc) : null, tti = tsi && typeof FCq.cleanTexTile === 'function' ? FCq.cleanTexTile(w.texTile) : null; if (tsi) w.texSrc = tsi; else delete w.texSrc; if (tti) w.texTile = tti; else delete w.texTile; } if (w.texture !== undefined) { var FCx = window.wpFogCore, tx = FCx && FCx.cleanTexture ? FCx.cleanTexture(w.texture) : null; if (tx) w.texture = tx; else delete w.texture; } if (w.ground !== undefined) { var FCg = window.wpFogCore, gr = FCg && FCg.cleanGround ? FCg.cleanGround(w.ground) : null; if (gr) w.ground = gr; else delete w.ground; } return w; }   // senses S7b: smoke only as true; see-through barriers (1.5.1): barrier only as true; a portal's own lock: portalLock only as true; difficult terrain T1: its cost, 2-10, or none; item 19 H1: a piece's height, yards; item 19b H5: a piece's ground height, yards (a pit below 0); map builder B1: a piece's texture only as a name of the app's own list (fogcore cleanTexture), none without the cleaner
 // Senses S2b: a token's own ranges, kept on a token of this player's alone (the host sends no other), cleaned again; none from a hostile host
 // on anyone else's token, and none with no cleaner on hand. S3: the GM's Blind tick likewise, and only as true
 function cleanHostTokSenses(w) { var FCs = window.wpFogCore, mine = !!w.ownerId && w.ownerId === net.myId, ts = FCs && FCs.cleanTokSenses && mine ? FCs.cleanTokSenses(w.senses) : null; if (ts) w.senses = ts; else delete w.senses; if (!(mine && w.blind === true)) delete w.blind; }
@@ -734,12 +734,20 @@ function wireWbItem(w, cloned) {
     if (!cloned) w = JSON.parse(JSON.stringify(w), wireNum);
     // The map builder, a secret door: the players hold a WALL there until it is found (fogcore secretSeen: no door type, never open, no lock, no
     // group, no name and no picture, in the look the GM named for it or the Wall material's). The door's own look never leaves the host
-    // before that. The three keys are the GM's and never travel, on any piece. With no core at hand a secret door is still sent as a wall
-    if (w.secret !== undefined || w.seenColor !== undefined || w.seenTexture !== undefined) {
+    // before that. The tick and the look named for it are the GM's and never travel, on any piece: the colour and the pattern, and for a door
+    // drawn as a line the width, opacity and nib that Match set. With no core at hand a secret door is still sent as a wall
+    if (w.secret !== undefined || w.seenColor !== undefined || w.seenTexture !== undefined || w.seenWidth !== undefined || w.seenOpacity !== undefined || w.seenTip !== undefined) {
         var FCs = typeof window === 'object' && window ? window.wpFogCore : null;
         if (FCs && typeof FCs.secretSeen === 'function') w = FCs.secretSeen(w);
-        else if (w.secret === true && (w.blocksSight === true || w.barrier === true) && w.sightType === 'door' && w.type !== 'image' && w.type !== 'text' && !w.isChar && !w.waiting) { ['doorOpen', 'doorLock', 'groupId', 'name', 'texture', 'texSrc', 'texTile', 'targetMapId', 'targetRoomId', 'nodeId', 'trap', 'portalIcon', 'portalLock'].forEach(function(k) { delete w[k]; }); w.sightType = 'wall'; if (w.color !== 'transparent') w.color = '#3f3b47'; }
-        delete w.secret; delete w.seenColor; delete w.seenTexture;
+        else if (w.secret === true && (w.blocksSight === true || w.barrier === true) && w.sightType === 'door' && w.type !== 'image' && w.type !== 'text' && !w.isChar && !w.waiting) { ['doorOpen', 'doorLock', 'groupId', 'name', 'texture', 'texSrc', 'texTile', 'targetMapId', 'targetRoomId', 'nodeId', 'trap', 'portalIcon', 'portalLock', 'locked'].forEach(function(k) { delete w[k]; }); w.sightType = 'wall';
+            if (w.type === 'path' && w.tip !== 'fill') {   // a door drawn as a line: the look Match set for it, read here as the core's cleaners read it, so a matched door is sent alike with no core too
+                if (typeof w.seenColor === 'string' && /^#[0-9a-fA-F]{6}$/.test(w.seenColor)) w.color = w.seenColor.toLowerCase(); else if (w.seenColor === 'transparent') w.color = 'transparent'; else if (w.color !== 'transparent') w.color = '#3f3b47';
+                if (typeof w.seenWidth === 'number' && isFinite(w.seenWidth) && w.seenWidth > 0 && w.seenWidth <= 1e15) w.strokeWidth = w.seenWidth;
+                if (typeof w.seenOpacity === 'number' && isFinite(w.seenOpacity) && w.seenOpacity >= 0 && w.seenOpacity <= 1) { if (w.seenOpacity < 1) w.opacity = w.seenOpacity; else delete w.opacity; }
+                if (w.seenTip === 'round' || w.seenTip === 'square' || w.seenTip === 'flat') w.tip = w.seenTip;
+            } else if (w.color !== 'transparent') w.color = '#3f3b47';
+        }
+        delete w.secret; delete w.seenColor; delete w.seenTexture; delete w.seenWidth; delete w.seenOpacity; delete w.seenTip;
     }
     // attached sheets, the per-token GM note/dialogue AND the token creator's kept original are GM prep (and heavy) — never on the wire
     if (w.sheet || w.gmInfo || w.frame) { delete w.sheet; delete w.gmInfo; delete w.frame; }
@@ -763,9 +771,20 @@ function wireWbItem(w, cloned) {
     // lower case. A player's app reads none of those keys on a wall (the pill that names what a resize matched says its kind). A door, a
     // wall that leads somewhere, a picture, a text box and a token keep theirs: a copy is none of those
     if ((w.blocksSight || w.barrier === true) && w.sightType !== 'door' && !w.isChar && !w.waiting && !w.targetMapId && !w.nodeId && w.type !== 'image' && w.type !== 'text') {
+        delete w.locked;   // the GM's Lock in place: the board draws a locked piece at 85%, on a player's screen too, so a locked wall beside a secret door that is not locked (or the other way round) showed. No player can move the GM's wall, and a player's own drawing that was made a wall is held by strokeHeld
         delete w.name; delete w.groupId; delete w.doorOpen; delete w.doorLock; delete w.targetMapId; delete w.nodeId; delete w.targetRoomId; delete w.trap; delete w.portalIcon; delete w.portalLock;   // targetMapId and nodeId read as false here: null, false, an empty text or a 0 (Properties writes null on an unlink, a file with one schema for every piece an empty text)
         w.sightType = 'wall';
         if (typeof w.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(w.color)) w.color = w.color.toLowerCase();
+        // A wall drawn as a line leaves with its width, opacity and nib in ONE reading (Match a wall, 2026-10-12): a secret door's copy may be
+        // matched to a wall line in all three, and a wall from a file may hold a width that is text, an opacity of 1 or no nib at all, where
+        // the copy holds a number, no opacity and a nib. These are fogcore's lineWidth, lineOpacity and lineTip, which the board and the map's
+        // picture draw by too, written out here so that a wall is sent alike with no core at hand (netcheck holds the two readings to each other)
+        if (w.type === 'path' && w.tip !== 'fill') {
+            var lwn = typeof w.strokeWidth === 'number' ? w.strokeWidth : typeof w.strokeWidth === 'string' ? parseFloat(w.strokeWidth) : NaN, lon = typeof w.opacity === 'number' ? w.opacity : typeof w.opacity === 'string' ? parseFloat(w.opacity) : NaN;
+            w.strokeWidth = isFinite(lwn) && lwn > 0 ? Math.min(lwn, 1e15) : 3;
+            if (isFinite(lon) && lon < 1) w.opacity = Math.max(0, lon); else delete w.opacity;
+            w.tip = (w.tip === 'square' || w.tip === 'flat') ? w.tip : 'round';
+        }
     }
     // The keys of a wall, a door or a see-through barrier in ONE order on its way out (the review of fold B5). The connection packs a piece key
     // by key in the piece's own order, and that order tells how a piece was made: a secret door's copy stood beside walls whose keys came in
@@ -1652,12 +1671,15 @@ function applyClientItemFiltered(msg, profile, out) {   // fold M10: out.strokes
         }
         if (lw.ownerId !== profile.id) return;   // ownership is judged on the HOST's copy
         if (lw.hidden) { if (out && lw.type === 'path' && lw.byPlayer) out.whole = true; return; }   // a piece the GM hid is not on its player's copy at all: nothing a patch says of it overwrites the host's; a copy naming a drawing of theirs hidden here was made before the hide reached them, and their app writes such a drawing back over every copy of that age — the whole map puts it right (the item branch)
-        if (lw.locked) return;   // the GM locked it: frozen for its player — no move, turn, facing, stance or redrawn stroke (their app stops them too)
+        if (lw.locked) {   // the GM locked it: frozen for its player — no move, turn, facing, stance or redrawn stroke (their app stops them too)
+            if (out && lw.type === 'path' && lw.byPlayer && strokeHeldOn(lw)) { var reL = playerStroke(w, profile.id); if (reL && (JSON.stringify(reL.pts) !== JSON.stringify(lw.pts) || reL.x !== lw.x || reL.y !== lw.y)) out.whole = true; }   // ...and where it is a wall or a barrier too, their copy of it says no lock (no plain wall carries one to players): a redraw is answered with the map whole, as for any held wall
+            return;
+        }
         if (lw.type === 'path' && lw.byPlayer) {
             var re = playerStroke(w, profile.id), hadPts = Array.isArray(lw.pts) ? lw.pts.length : 0;
             if (strokeHeldOn(lw)) { if (out && re && (JSON.stringify(re.pts) !== JSON.stringify(lw.pts) || re.x !== lw.x || re.y !== lw.y)) out.whole = true; return; }   // 49 (c): a wall or a barrier now — a redraw of it is refused, and their screen is put right
             if (re && ownPts - hadPts + re.pts.length > STROKE_PTS_CAP) return;   // a redraw that would take their points past the budget is refused whole
-            if (re && JSON.stringify(re.pts) !== JSON.stringify(lw.pts) || (re && (re.x !== lw.x || re.y !== lw.y))) { ownPts += re.pts.length - hadPts; Object.assign(lw, re); changed = true; if (out) out.strokes = true; if (typeof strokeNote === 'function') strokeNote(msg.campId, msg.itemId, 'redrawn', lw.id); }
+            if (re && JSON.stringify(re.pts) !== JSON.stringify(lw.pts) || (re && (re.x !== lw.x || re.y !== lw.y))) { ownPts += re.pts.length - hadPts; if (lw.tip === 'fill') delete re.tip; Object.assign(lw, re); if (!re.tip && (lw.tip === 'square' || lw.tip === 'flat')) delete lw.tip; changed = true; if (out) out.strokes = true; if (typeof strokeNote === 'function') strokeNote(msg.campId, msg.itemId, 'redrawn', lw.id); }
             return;
         }
         var wx = Number(w.x), wy = Number(w.y), wr = Number(w.rot || 0), wf = Number(w.front || 0);   // geometry from a peer: finite and on the board, or nothing
@@ -1697,7 +1719,8 @@ function applyClientItemFiltered(msg, profile, out) {   // fold M10: out.strokes
     // A player's own drawing missing from their copy was erased by them
     var before = liveItem.whiteboard.length;
     liveItem.whiteboard = liveItem.whiteboard.filter(function(w) {
-        if (!(w.type === 'path' && w.byPlayer && w.ownerId === profile.id) || w.locked || w.hidden || sentIds[w.id]) return true;   // a locked one stays, and one the GM hid: it left their copy by the GM's hand, not theirs
+        if (!(w.type === 'path' && w.byPlayer && w.ownerId === profile.id) || w.hidden || sentIds[w.id]) return true;   // one the GM hid stays: it left their copy by the GM's hand, not theirs
+        if (w.locked) { if (out && strokeHeldOn(w)) out.whole = true; return true; }   // a locked one stays; where it is a wall or a barrier too, their copy of it says no lock, so the copy that left it out gets the map back
         if (pend && pend[w.id] === 1) { delete pend[w.id]; if (out) out.whole = true; return true; }   // ...and one the GM hid and has shown again, this once: this copy may be older than the showing (their app may have dropped the shown drawing meanwhile: the whole map puts it right, and a later copy without it is an erase)
         if (pend && pend[w.id] && typeof pend[w.id] === 'object') {   // ...and one the GM's undo or redo brought back (hidBack), for a short while after the step: this copy was made before the restored map reached them
             var nowB = typeof fogNow === 'function' ? fogNow() : Date.now(), atB = pend[w.id].at;
@@ -1730,6 +1753,7 @@ function playerStroke(w, pid) {
                 baseW: Math.max(1, num(w.baseW, num(w.w, 10))), baseH: Math.max(1, num(w.baseH, num(w.h, 10))), z: 35, pts: pts,
                 color: color, strokeWidth: Math.min(40, Math.max(1, num(w.strokeWidth, 3))), ownerId: pid, byPlayer: true };
     if (typeof w.opacity === 'number' && w.opacity >= 0 && w.opacity <= 1) out.opacity = w.opacity;
+    if (w.tip === 'square' || w.tip === 'flat') out.tip = w.tip;   // the nib it was drawn with, so every screen draws it as its drawer's does (round where none is named, as before); never the Fill tip
     return out;
 }
 

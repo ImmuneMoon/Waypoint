@@ -351,6 +351,20 @@ The play map
   opening it reveals it too. Save Map as Picture draws it as your
   players see it. To show a whole secret room at once, hide what is
   in it, group those pieces, and use Show to Players on the group.
+- A secret door drawn as a pen line can match its wall. Press Match the
+  wall it meets in the door's Properties. Your players then see the
+  door with the color, width, opacity and nib of the wall line it
+  touches. Your own screen still shows the door as you drew it. Press
+  it again after you change that wall.
+- A wall locked in place is no longer drawn fainter on your players'
+  screens. Your own screen still shows the lock's dim.
+- A player's line keeps the square or flat nib it was drawn with on
+  everyone's screen.
+- A wall line that you resized keeps its thickness when a door cuts it
+  or the eraser touches it.
+- A player could not pick up their own token where it lay over another
+  token while it still waited for its sheet. An error strip came up.
+  That press works now.
 - A door cuts its own doorway. Draw a door as a line along a wall line,
   with Build's Door material and its Wall line shape, and the wall is
   cut where the door lies. One Undo takes the door and the cut back.

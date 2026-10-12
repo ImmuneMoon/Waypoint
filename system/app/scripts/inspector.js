@@ -1394,6 +1394,8 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             if (_el_wbSeenTexture) _el_wbSeenTexture.addEventListener('change', function() { setItemSeen(w, 'texture', this.value); });
             var _el_wbSeenReset = document.getElementById('wbSeenReset');
             if (_el_wbSeenReset) _el_wbSeenReset.addEventListener('click', function() { setItemSeen(w, 'reset'); });
+            var _el_wbSeenMatch = document.getElementById('wbSeenMatch');   // Match a wall: a secret door drawn as a line, seen as the wall line it meets
+            if (_el_wbSeenMatch) _el_wbSeenMatch.addEventListener('click', function() { setItemSeen(w, 'match'); });
             var _el_wbDup = document.getElementById('wbDup');
             if (_el_wbDup) _el_wbDup.addEventListener('click', function() { if (window.wpDuplicateWb) window.wpDuplicateWb([w]); });
             var _el_wbDel = document.getElementById('wbDel');
@@ -1968,7 +1970,8 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
   // [sinkcheck:secretbox-start]
   // A secret door (the map builder, fold B5; the owner, 2026-10-10, by prompt: players see "The wall's look", and it is found by "A row, and
   // opening it"): the Secret tick under a door's own rows, a wall's door and a see-through barrier's alike. Ticked, the players' screens show
-  // wall there until it is found (fogcore secretSeen), and two rows say what they see: a colour, and a pattern of the app's own list. Never a
+  // wall there until it is found (fogcore secretSeen), and two rows say what they see: a colour, and a pattern of the app's own list. A door
+  // drawn as a line has no pattern row: it has Match the wall it meets and one line of words for what Match set. Never a
   // picture: a picture's path sent to the table is a file the host then serves. The GM's alone (never a player's app, never the stream
   // window); never on a hidden piece, a picture piece, a token, a waiting token or a GM-note card. Its markup holds fixed words, a colour as
   // the cleaner keeps it, and names of the list through esc
@@ -1989,16 +1992,35 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
   function secretFieldOk(w) { var n = window.wpNet, FC = window.wpFogCore; return !(window.wpStream || (n && (n.foreign || (n.active && n.role === 'client')))) && !!w && typeof w === 'object' && !w.hidden && !!FC && typeof FC.secretOk === 'function' && FC.secretOk(w); }
   function secretFieldHtml(w) {
       if (!secretFieldOk(w)) return '';
-      var FC = window.wpFogCore, on = w.secret === true, look = on && typeof FC.secretLook === 'function' ? FC.secretLook(w) : null, names = Array.isArray(FC.TEXTURES) ? FC.TEXTURES : [], line = w.type === 'path' && w.tip !== 'fill', named = w.seenColor !== undefined || w.seenTexture !== undefined;
+      var FC = window.wpFogCore, on = w.secret === true, look = on && typeof FC.secretLook === 'function' ? FC.secretLook(w) : null, names = Array.isArray(FC.TEXTURES) ? FC.TEXTURES : [], line = w.type === 'path' && w.tip !== 'fill', named = w.seenColor !== undefined || w.seenTexture !== undefined || (line && (w.seenWidth !== undefined || w.seenOpacity !== undefined || w.seenTip !== undefined));
       var html = '<div class="field check-row"><input type="checkbox" id="wbSecret" ' + (on ? 'checked' : '') + '> <label for="wbSecret">Secret</label></div>'
           + '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">Your players see wall here until it is found. Reveal it from its right-click menu, or open it.</div>';
       if (!look) return html;
       var col = /^#[0-9a-f]{6}$/.test(look.color) ? look.color : '#3f3b47';
-      html += '<div class="field"><label for="wbSeenColor">Seen as</label><input type="color" id="wbSeenColor" value="' + esc(col) + '" title="The color your players see where the secret door stands."></div>';
+      html += '<div class="field"><label for="wbSeenColor">Seen as</label><input type="color" id="wbSeenColor" value="' + esc(col) + '" title="The color your players see where the secret door stands." style="height:30px; padding:2px;"></div>';
       if (!line) html += '<div class="field"><label for="wbSeenTexture">Seen pattern</label><select id="wbSeenTexture" title="The pattern your players see there."><option value=""' + (look.texture ? '' : ' selected') + '>Plain color</option>' + names.map(function(n) { return '<option value="' + esc(n) + '"' + (n === look.texture ? ' selected' : '') + '>' + esc(String(n).charAt(0).toUpperCase() + String(n).slice(1)) + '</option>'; }).join('') + '</select></div>';
-      html += '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">' + (look.clear ? 'This piece is see-through, so your players see nothing drawn here. Pick a color or a pattern to give it a look.' : 'What your players see there. It starts as the Wall material. Match it to a wall of your own. It cannot wear one of your pictures.') + '</div>';
-      if (named) html += '<div class="field"><button type="button" class="tool ghost" style="width:100%" id="wbSeenReset" title="Takes the color and pattern you named off again. Your players then see the Wall material, or nothing where the piece is see-through.">Back to the Wall look</button></div>';
+      html += '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">' + (look.clear ? (w.seenColor === 'transparent' ? (line ? 'Your players see nothing drawn here, like the see-through wall this door is matched to. Pick a color to give it a look.' : 'Your players see nothing drawn here. Pick a color or a pattern to give it a look.') : 'This piece is see-through, so your players see nothing drawn here. Pick a color or a pattern to give it a look.') : 'What your players see there. It starts as the Wall material. Match it to a wall of your own. It cannot wear one of your pictures.') + '</div>';
+      if (line) {   // Match a wall (the owner, 2026-10-12, by prompt): one press, and the players see the door as the wall line it meets
+          html += '<div class="field"><button type="button" class="tool ghost" style="width:100%" id="wbSeenMatch" title="Your players then see this door with the color, width, opacity and nib of the wall line it meets. Your own screen still shows the door as you drew it.">Match the wall it meets</button></div>';
+          var seenAs = look.clear ? '' : seenLineWords(look, typeof FC.seenDrawn === 'function' ? FC.seenDrawn(w) : null);   // nothing is drawn for a see-through look, so no width is said
+          if (seenAs) html += '<div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">' + esc(seenAs) + '</div>';
+      }
+      if (named) html += '<div class="field"><button type="button" class="tool ghost" style="width:100%" id="wbSeenReset" title="' + (line ? 'Takes the color you named and what Match set off again. Your players then see the door in the Wall color at its own width, opacity and nib, or nothing where it is see-through.' : 'Takes the color and pattern you named off again. Your players then see the Wall material, or nothing where the piece is see-through.') + '">Back to the Wall look</button></div>';
       return html;
+  }
+  // What Match set for a door drawn as a line, in words: numbers the core cleaned and one of three fixed words for the nib. '' where nothing
+  // is set. The width said is the one the door is DRAWN at for the players (drawn: fogcore seenDrawn, the thinnest and the thickest over
+  // the door's own runs, or one number), which is the stored one unless the door was resized or turned
+  function seenLineWords(look, drawn) {
+      if (!look || typeof look !== 'object') return '';
+      var bits = [], ok = function(v) { return typeof v === 'number' && isFinite(v) && v >= 0; }, r2 = function(v) { return Math.round(v * 100) / 100; }, lo = null, hi = null;
+      if (Array.isArray(drawn) && ok(drawn[0]) && ok(drawn[1]) && drawn[1] > 0) { lo = Math.min(drawn[0], drawn[1]); hi = Math.max(drawn[0], drawn[1]); }
+      else if (ok(drawn) && drawn > 0) lo = hi = drawn;
+      else if (ok(look.width)) lo = hi = look.width;
+      if (ok(look.width) && lo !== null) bits.push((r2(hi) - r2(lo) > 0.05 ? r2(lo) + ' to ' + r2(hi) : r2(hi)) + ' px wide');
+      if (typeof look.opacity === 'number' && isFinite(look.opacity)) bits.push('at ' + Math.round(look.opacity * 100) + '% opacity');
+      if (look.tip === 'round' || look.tip === 'square' || look.tip === 'flat') bits.push('with the ' + look.tip + ' nib');
+      return bits.length ? 'Your players see it ' + bits.join(', ') + '. Back to the Wall look takes that off too.' : '';
   }
   // A door that is opened is found: an open door cannot be secret. True where it was one
   function secretFound(w) { var FC = window.wpFogCore; return !!(FC && typeof FC.secretReveal === 'function' && FC.secretReveal(w)); }
@@ -2012,12 +2034,27 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
       toast(w.secret === true ? 'Secret door. Your players see wall here until it is found.' : 'No longer secret. Your players see it as a door.');
   }
   function setItemSeen(w, key, v) {
-      var FC = window.wpFogCore; if (!w || typeof w !== 'object' || !secretFieldOk(w) || w.secret !== true) return;
+      var FC = window.wpFogCore, said = ''; if (!w || typeof w !== 'object' || !secretFieldOk(w) || w.secret !== true) return;
       if (key === 'color') { var c = typeof FC.cleanSeenColor === 'function' ? FC.cleanSeenColor(v) : null; if (c) w.seenColor = c; else delete w.seenColor; }
       else if (key === 'texture') { var t = typeof FC.cleanSeenTexture === 'function' ? FC.cleanSeenTexture(v) : null; if (t === null || t === undefined) delete w.seenTexture; else w.seenTexture = t; }
-      else if (key === 'reset') { delete w.seenColor; delete w.seenTexture; }   // back to the Wall material, or to nothing drawn for a see-through piece
+      else if (key === 'reset') { delete w.seenColor; delete w.seenTexture; delete w.seenWidth; delete w.seenOpacity; delete w.seenTip; }   // back to the Wall material, or to nothing drawn for a see-through piece; a line back to its own width, opacity and nib
+      else if (key === 'match') {   // a door drawn as a line: the look of the wall line it meets, read from the map on screen. The door itself is not changed
+          if (!(w.type === 'path' && w.tip !== 'fill') || typeof FC.secretMatch !== 'function') return;
+          var mm = typeof getActiveMap === 'function' ? getActiveMap() : null;
+          if (!mm || !Array.isArray(mm.whiteboard) || mm.whiteboard.indexOf(w) < 0) return;   // not a piece of the map on screen any more: nothing is changed and nothing is said
+          var hit = FC.secretMatch(w, mm.whiteboard);
+          if (hit && hit.over === true) { toast('This map has too many wall lines to tell which one this door meets. Nothing was changed.'); return; }
+          if (!hit) { toast('No wall line meets this door. Match works where the door touches a wall that is drawn as a line.'); return; }
+          var mW = typeof FC.cleanSeenWidth === 'function' ? FC.cleanSeenWidth(hit.width) : null, mO = typeof FC.cleanSeenOpacity === 'function' ? FC.cleanSeenOpacity(hit.opacity) : null, mT = typeof FC.cleanSeenTip === 'function' ? FC.cleanSeenTip(hit.tip) : null, mC = typeof FC.cleanSeenColor === 'function' ? FC.cleanSeenColor(hit.color) : null;
+          if (mW === null || mW === undefined) delete w.seenWidth; else w.seenWidth = mW;
+          if (mO === null || mO === undefined) delete w.seenOpacity; else w.seenOpacity = mO;
+          if (mT === null || mT === undefined) delete w.seenTip; else w.seenTip = mT;
+          if (mC) w.seenColor = mC;   // a wall in a colour a secret door cannot be seen in leaves the colour named so far
+          said = mC ? 'Matched. Your players see this door as the wall line it meets.' : 'Matched in width, opacity and nib. That wall has a color a secret door cannot be seen in. Give the wall one of the pen colors, then press Match again.';
+      }
       else return;
       save(); render(); renderInspector();
+      if (said) toast(said);
   }
   // [sinkcheck:secretbox-end]
   // [shelfcheck:pagepinbox-start]

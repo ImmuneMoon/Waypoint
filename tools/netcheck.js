@@ -1250,7 +1250,7 @@ pendingChecks.push((async () => {
 pendingChecks.push((async () => {
     const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
     const FCh = await import(url('fogcore.js')), rdH = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8').replace(/\r\n/g, '\n');
-    const coreH = rdH('system/app/scripts/fogcore.js'), wbH = rdH('system/app/scripts/whiteboard.js'), ixH = rdH('system/app/index.html'), claudeH = rdH('CLAUDE.md');
+    const coreH = rdH('system/app/scripts/fogcore.js'), wbH = rdH('system/app/scripts/whiteboard.js'), ixH = rdH('system/app/index.html'), claudeH = (() => { try { return rdH('CLAUDE.md'); } catch (e) { if (e && e.code === 'ENOENT') return null; throw e; } })();   // CLAUDE.md is kept on the maintainer's machine only (git-ignored): its pins run where it is there
     // (1) the judge: the two flags alone, a wall as the wall judges read it (any value that blocks), a barrier only as true
     const held = w => FCh.strokeHeld(w);
     check('49 (c) the judge (fogcore strokeHeld, run for real): a drawing the GM made a wall is held — Blocks sight as true and as any value that blocks sight, a door open or shut, a hidden one too — and so is one made a see-through barrier, only as true; a barrier flag that is a word or a number, no flag, false flags, and what is no object are not held; the fog core publishes it both ways',
@@ -1410,7 +1410,7 @@ pendingChecks.push((async () => {
         ixH.includes('Tick <b>Blocks sight</b> or <b>Stops movement only</b> on a player&rsquo;s line and it is yours from then on: its player can no longer erase or redraw it. Untick it to hand the line back.</li>')
         && ixH.includes('<li><b>Your drawings:</b> you have the pen and the eraser too. You can erase only your own marks. A line of yours that your GM made a wall or a barrier stays: you can no longer erase it, until they hand it back.</li>')
         && rdH('WHATSNEW.txt').includes(noteH) && rdH('system/app/assets/whatsnew.txt').includes(noteH)
-        && claudeH.includes('fogcore `strokeHeld` is the one judge, asked by the host\'s patch path (net.js `strokeHeldOn`') && claudeH.includes('and by a player\'s own eraser (whiteboard.js `eraseHeld`)'));
+        && (claudeH === null || (claudeH.includes('fogcore `strokeHeld` is the one judge, asked by the host\'s patch path (net.js `strokeHeldOn`') && claudeH.includes('and by a player\'s own eraser (whiteboard.js `eraseHeld`)'))));
 })());
 // 127 (the owner, by prompt, 2026-10-06: the GM's Undo takes back what the GM did to a player's drawing, "and still never moves or erases what the
 // player did themselves"): the host notes what players do to their own drawings in the one place a drawing of theirs is taken — the patch gate,

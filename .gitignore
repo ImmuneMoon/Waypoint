@@ -23,6 +23,8 @@ Waypoint_Setup.exe
 # --- local clutter ---
 Not used/
 scratch/
+# the house reference for the coding tool: kept on the maintainer's machine, never in the repository
+CLAUDE.md
 log.txt
 Waypoint.lnk
 *.bak

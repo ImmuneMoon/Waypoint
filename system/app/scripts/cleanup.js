@@ -585,7 +585,7 @@ function cleanupInfo() { return { lastRun: lastRun, tiers: lastTiers, ledgerSize
 // An import's items are content from another table: a planner's raw HTML is rebuilt by the wire's rich-text sanitiser, diagrams lose
 // their click directives, the formats of its plain fields are cleaned against their texts, handbook pages go through cleanDoc, a play map's text items are rebuilt, and no id is ever a prototype key.
 // Fails closed: with no sanitiser on hand a raw block, a diagram and a text item come in empty and a page does not come in.
-// deps: { DR: docrender.js (cleanDoc, stripMermaidLinks), sanitize: net.js sanitizeRichText, FC: fogcore.js, TF: textfmt.js (cleanFont), GEN: gencore.js (cleanGen), CITY: citycore.js (cleanCity) }. Merge runs it on each campaign.
+// deps: { DR: docrender.js (cleanDoc, stripMermaidLinks), sanitize: net.js sanitizeRichText, FC: fogcore.js, TF: textfmt.js (cleanFont), GEN: gencore.js (cleanGen), CITY: citycore.js (cleanCity), WORLD: worldcore.js (cleanWorld) }. Merge runs it on each campaign.
 function cleanImportItems(ic, deps) {
     // A table key from a file proves nothing: the players a campaign file names come in with their names, bindings and history, never
     // the secret each proves their identity with at THIS table (the export drops them too, io.js stripTableKeys). Whoever wrote the file is
@@ -596,7 +596,7 @@ function cleanImportItems(ic, deps) {
         else Object.keys(ic.players).forEach(function(pid) { var p = ic.players[pid]; if (isObj(p)) delete p.key; else delete ic.players[pid]; });
     }
     if (!isObj(ic.items)) { ic.items = {}; return; }
-    var DR = deps && deps.DR, san = deps && typeof deps.sanitize === 'function' ? deps.sanitize : null, FC = deps && deps.FC && typeof deps.FC.cleanLight === 'function' ? deps.FC : null, TFd = deps && deps.TF && typeof deps.TF.cleanFont === 'function' ? deps.TF : null, GENd = deps && deps.GEN && typeof deps.GEN.cleanGen === 'function' ? deps.GEN : null, CITYd = deps && deps.CITY && typeof deps.CITY.cleanCity === 'function' ? deps.CITY : null;
+    var DR = deps && deps.DR, san = deps && typeof deps.sanitize === 'function' ? deps.sanitize : null, FC = deps && deps.FC && typeof deps.FC.cleanLight === 'function' ? deps.FC : null, TFd = deps && deps.TF && typeof deps.TF.cleanFont === 'function' ? deps.TF : null, GENd = deps && deps.GEN && typeof deps.GEN.cleanGen === 'function' ? deps.GEN : null, CITYd = deps && deps.CITY && typeof deps.CITY.cleanCity === 'function' ? deps.CITY : null, WORLDd = deps && deps.WORLD && typeof deps.WORLD.cleanWorld === 'function' ? deps.WORLD : null;
     Object.keys(ic.items).forEach(function(id) {
         if (id in Object.prototype) { delete ic.items[id]; return; }
         var it = ic.items[id]; if (!isObj(it)) { delete ic.items[id]; return; }
@@ -628,6 +628,8 @@ function cleanImportItems(ic, deps) {
         if (it.type === 'map' && isObj(it.meta) && it.meta.gen !== undefined) { var gK = GENd && isObj(it.meta.gen) && !Array.isArray(it.meta.gen) ? GENd.cleanGen(it.meta.gen) : null; if (gK) it.meta.gen = gK; else delete it.meta.gen; }
         // 1.5.4 (citycore.js): the seed and settings a map's city was generated from, held to the same rule (deps.CITY = citycore.js cleanCity)
         if (it.type === 'map' && isObj(it.meta) && it.meta.city !== undefined) { var cK = CITYd && isObj(it.meta.city) && !Array.isArray(it.meta.city) ? CITYd.cleanCity(it.meta.city) : null; if (cK) it.meta.city = cK; else delete it.meta.city; }
+        // 1.5.4 (worldcore.js): the seed and settings a map's world was generated from, held to the same rule (deps.WORLD = worldcore.js cleanWorld)
+        if (it.type === 'map' && isObj(it.meta) && it.meta.world !== undefined) { var wK = WORLDd && isObj(it.meta.world) && !Array.isArray(it.meta.world) ? WORLDd.cleanWorld(it.meta.world) : null; if (wK) it.meta.world = wK; else delete it.meta.world; }
         if (it.type === 'map' && Array.isArray(it.whiteboard)) it.whiteboard.forEach(function(w) {   // 1.5.4: a text box's font from a file: one of Waypoint's own by its name, or a plain family name (deps.TF = textfmt.js cleanFont); with no cleaner on hand it does not come in
             if (!isObj(w) || w.font === undefined) return;
             var FN = TFd ? TFd.cleanFont(w.font) : undefined;

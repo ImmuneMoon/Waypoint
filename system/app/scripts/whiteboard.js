@@ -7162,6 +7162,206 @@ function cityWire() {
 }
 // [buildcheck:citydialog-end]
 cityWire();
+// [buildcheck:worlddialog-start]
+// The world made for you (the map builder, fold B7; the owner's answers of 2026-10-11 on the world sheet: the land patterns "The four",
+// a generated world "C. A Land list", towns "optional when generating" as "A list, None first", the row's drawing "A. Peaks", and the
+// dialog as the sheet drew it). The row under Generate a city opens one dialog. Its settings go to the pure half (worldcore.js), which
+// answers geometry, and what is laid is ORDINARY pieces: the sea as one box, each stretch of land as one filled region in its own colour
+// and pattern, a river as a line in the water's colour, a town as a small square and its name as a text box the GM can change. Nothing
+// blocks sight or stops a token: a world map is for pointing and travelling. Nothing on the map is changed and nothing is derived live.
+// It is laid in one save, so one Undo takes it back. The seed and settings are kept on the map (meta.world) for the GM alone, to make it
+// again: net.js never sends them and an import cleans them. The dialog is the GM's (buildMay) and its markup is fixed words in the page:
+// a map's name reaches the list as an option's text, never as markup. It leans on the dungeon's and the city's helpers (genEl, genText,
+// genMaps, genCountWords, genNewSeed, cityCorner, cityPiece)
+var WORLD_LINES = { here: 'Its middle goes where the middle of your screen is. Nothing on the map is changed.', other: 'It lands in the middle of that map as you last saw it. You are taken there once it is made.', fresh: 'A new map is made for it. You are taken there once it is made.', none: 'This campaign has no other map.' };
+var WORLD_GRIDS = ['off', 'square', 'hex'], WORLD_NAMES = { sea: 'Sea', land: 'Land', forest: 'Forest', sand: 'Sand', snow: 'Snow', mountains: 'Mountains', river: 'River', town: 'Town' }, WORLD_RIVER_PX = 9;
+// a town's name: light words on a dark plate that lets the land show through, so that it reads on forest, on sand and on snow alike.
+// It hugs the side its mark is on: the generator says left, or right where the name stands on the mark's left at the board's edge
+var WORLD_LABEL = Object.freeze({ color: '#f0ead6', bg: '#16161d', bgOpacity: 0.6, fontSize: 18, layer: 'middle' });
+var _world = { where: 'fresh', maps: '' };
+function worldCore() { return window.wpWorldCore || null; }
+function worldShown() { var m = genEl('worldModal'); return !!m && m.style.display === 'flex'; }
+// The form as the generator's settings, and the settings into the form
+function worldForm() {
+    var WC = worldCore(); if (!WC) return null;
+    var val = function(id) { var e = genEl(id); return e ? String(e.value) : ''; };
+    return WC.cleanWorld({ seed: val('worldSeed').trim(), land: val('worldLand'), size: val('worldSize'), mountains: val('worldMountains'), forests: val('worldForests'), rivers: val('worldRivers'), climate: val('worldClimate'), towns: val('worldTowns') });
+}
+function worldFill(o) {
+    var set = function(id, v) { var e = genEl(id); if (e) e.value = String(v); };
+    set('worldSeed', o.seed); set('worldLand', o.land); set('worldSize', o.size); set('worldMountains', o.mountains); set('worldForests', o.forests); set('worldRivers', o.rivers); set('worldClimate', o.climate); set('worldTowns', o.towns);
+}
+// What Generate would do now: { ok, say } and, where it can be laid, { map (null for a new one), fresh, grid, opts, pieces }. The world's
+// MIDDLE goes to the middle of the view, as a city's does, at whole pixels: a world is an overview and sits on no lattice
+function worldPlan() {
+    var WC = worldCore(), BC = buildCore(), camp = getActiveCampaign(), here = getActiveMap(), no = { ok: false, say: 'A world cannot be built here.' };
+    if (!WC || !BC || !camp || !camp.items || !here || here.type !== 'map' || !buildMay() || !buildHere()) return no;
+    var seedBox = genEl('worldSeed'), typed = seedBox ? String(seedBox.value).trim() : '', opts = worldForm();
+    if (!opts || opts.seed !== typed) return { ok: false, say: 'A seed is letters, digits and hyphens, 24 at most.' };
+    var where = GEN_WHERE.indexOf(_world.where) >= 0 ? _world.where : 'fresh', map = here, fresh = where === 'fresh', grid = '';
+    if (where === 'other') {
+        var sel = genEl('worldMap'), id = sel ? String(sel.value) : '';
+        map = id && id !== here.id && Object.prototype.hasOwnProperty.call(camp.items, id) && camp.items[id] && camp.items[id].type === 'map' ? camp.items[id] : null;
+        if (!map) return { ok: false, say: WORLD_LINES.none };
+    }
+    if (fresh) { var gs = genEl('worldGrid'), g = gs ? String(gs.value) : ''; grid = WORLD_GRIDS.indexOf(g) >= 0 ? g : 'off'; map = null; }
+    var plan = WC.genWorld(opts), at = cityCorner(map, where === 'here' ? viewCentre() : null, plan.w, plan.h, 0), pc = WC.worldPieces(plan, at.x, at.y), items = worldItems(pc);
+    if (items.length < 2) return { ok: false, say: 'That world could not be laid out. Try another seed.' };
+    var held = map && Array.isArray(map.whiteboard) ? map.whiteboard.length : 0;
+    if (held + items.length > BUILD_MAX) return { ok: false, say: genCountWords(items.length, held) };
+    return { ok: true, say: genCountWords(items.length, held), map: map, fresh: fresh, grid: grid, opts: opts, items: items };
+}
+// The world's pieces as ordinary items, in the order they are laid. Each is made here from the generator's own colours and patterns,
+// asked again: a colour only as six hex digits, a pattern only as a name of the list, a town's name only as letters. Nothing carries a
+// key that blocks sight, stops a token or costs movement
+function worldItems(pc) {
+    var BC = buildCore(), out = []; if (!BC || !pc || !Array.isArray(pc.pieces)) return out;
+    pc.pieces.forEach(function(p) {
+        var g = p && typeof p === 'object' ? p.geo : null; if (!g || typeof g !== 'object') return;
+        if (p.kind === 'name') { if (typeof p.text === 'string' && /^[A-Za-z]{1,24}$/.test(p.text)) out.push(Object.assign({ id: 'wb' + uid(), type: 'text', x: g.x, y: g.y, w: g.w, h: g.h, z: 10 }, newOpacityProps(), WORLD_LABEL, { text: p.text, align: p.align === 'right' ? 'right' : 'left' })); return; }
+        if (!Object.prototype.hasOwnProperty.call(WORLD_NAMES, p.kind) || typeof p.color !== 'string' || !/^#[0-9a-f]{6}$/.test(p.color)) return;
+        var props = { color: p.color, layer: 'back', name: WORLD_NAMES[p.kind] }, tex = typeof BC.cleanTexture === 'function' ? BC.cleanTexture(p.texture) : null; if (tex) props.texture = tex;
+        if (p.kind === 'river') { if (Array.isArray(g.pts)) out.push(buildWallItem(g, { color: p.color, layer: 'back', name: WORLD_NAMES.river, strokeWidth: WORLD_RIVER_PX, tip: 'round' })); return; }
+        if (p.kind === 'town') { out.push(cityPiece({ type: 'rect', x: g.x, y: g.y, w: g.w, h: g.h }, { color: p.color, layer: 'back-mid', name: WORLD_NAMES.town })); return; }
+        out.push(cityPiece(p.kind === 'sea' ? { type: 'rect', x: g.x, y: g.y, w: g.w, h: g.h } : g, props));
+    });
+    return out;
+}
+// The other maps as the list's options, made again only when the list changed, so a pick stands: elements with text, never markup
+function worldMapsFill() {
+    var sel = genEl('worldMap'), camp = getActiveCampaign(), here = getActiveMap(); if (!sel) return 0;
+    var list = genMaps(camp, here ? here.id : ''), sig = JSON.stringify(list);
+    if (sig === _world.maps) return list.length;
+    var was = String(sel.value || '');
+    while (sel.firstChild) sel.removeChild(sel.firstChild);
+    list.forEach(function(m) { var o = document.createElement('option'); o.value = m.id; o.appendChild(document.createTextNode(m.title)); sel.appendChild(o); });
+    sel.value = list.some(function(m) { return m.id === was; }) ? was : (list[0] ? list[0].id : '');
+    _world.maps = sig;
+    return list.length;
+}
+// The dialog as it stands: the chip in use, the row its choice needs, the line that says where it lands, the count, and Generate put out
+// of use with the reason in sight where the world cannot be laid
+function worldSync() {
+    if (!worldShown()) return;
+    var where = GEN_WHERE.indexOf(_world.where) >= 0 ? _world.where : 'fresh';
+    Array.prototype.forEach.call(document.querySelectorAll('#worldWhere .gen-chip'), function(b) { var on = b.dataset.where === where; b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false'); });
+    var mr = genEl('worldMapRow'), nr = genEl('worldNameRow'), ln = genEl('worldWhereLine'), ct = genEl('worldCount'), go = genEl('worldGo');
+    if (mr) mr.hidden = where !== 'other';
+    if (nr) nr.hidden = where !== 'fresh';
+    var others = where === 'other' ? worldMapsFill() : 1;
+    if (ln) ln.textContent = where === 'other' && !others ? WORLD_LINES.none : WORLD_LINES[where];
+    var plan = worldPlan();
+    if (ct) ct.textContent = plan.say;
+    if (go) go.disabled = !plan.ok;
+}
+// It comes up on A new map, as the sheet drew it: a world wants a map of its own. On a map that keeps its world's seed it comes up on
+// This map with that seed and those settings, to make it again
+function worldShow() {
+    var m = genEl('worldModal'), WC = worldCore(), here = getActiveMap(); if (!m || !WC || !buildCore() || !buildMay() || !buildHere() || !here) return false;
+    var kept = here.meta && typeof here.meta === 'object' && here.meta.world && typeof here.meta.world === 'object' && !Array.isArray(here.meta.world) ? WC.cleanWorld(here.meta.world) : null;
+    if (kept) worldFill(kept); else { var sb = genEl('worldSeed'); if (sb) sb.value = genNewSeed(); }
+    _world.where = kept ? 'here' : 'fresh'; _world.maps = '';
+    var nm = genEl('worldName'), gs = genEl('worldGrid'); if (nm) nm.value = 'World'; if (gs) gs.value = 'off';
+    m.style.display = 'flex';
+    worldSync();
+    var first = document.querySelector('#worldWhere .gen-chip.on'); if (first && first.focus) first.focus();
+    return true;
+}
+function worldHide() { var m = genEl('worldModal'); if (!m || m.style.display === 'none') return; m.style.display = 'none'; var b = genEl('buildWorldBtn'); if (b && b.focus) b.focus(); }
+// What Tab walks through, in the dialog's own order: never a row that is put away nor a control that is out of use
+function worldStops() {
+    var out = Array.prototype.slice.call(document.querySelectorAll('#worldWhere .gen-chip'));
+    ['worldMap', 'worldName', 'worldGrid', 'worldSeed', 'worldSeedNew', 'worldLand', 'worldSize', 'worldMountains', 'worldForests', 'worldRivers', 'worldClimate', 'worldTowns', 'worldCancel', 'worldGo'].forEach(function(id) {
+        var e = genEl(id), row = id === 'worldMap' ? genEl('worldMapRow') : id === 'worldName' || id === 'worldGrid' ? genEl('worldNameRow') : null;
+        if (e && !e.disabled && !(row && row.hidden)) out.push(e);
+    });
+    return out;
+}
+// Tab goes round inside the dialog: past its last control to its first, and back. True when the focus was moved
+function worldTab(target, back) {
+    var st = worldStops(), at = st.indexOf(target); if (!st.length) return false;
+    var to = back ? (at <= 0 ? st[st.length - 1] : null) : (at < 0 || at === st.length - 1 ? st[0] : null);
+    if (!to || !to.focus) return false;
+    to.focus(); return true;
+}
+// Generate: the world laid as the dialog's count said. The GM is taken to the map first, on its play map: that draws and saves it as it
+// stands, a new map empty, which is the state one Undo goes back to. Then the pieces are laid there in ONE save, so one Undo takes the
+// world back, and a new map stays
+function worldGo() {
+    if (!worldShown()) return false;   // only from the dialog as it stands: a second press finds it put away
+    var plan = worldPlan(); if (!plan.ok) { worldSync(); return false; }
+    var camp = getActiveCampaign(), here = getActiveMap(), map = plan.map, nmBox = genEl('worldName'), items = plan.items;
+    if (plan.fresh) {
+        map = createNewMap(getUniqueItemTitle(genText(nmBox ? nmBox.value : '', 80) || 'World', null));
+        map.meta.gridType = plan.grid;
+        camp.items[map.id] = map;
+    }
+    if (!map.meta || typeof map.meta !== 'object') map.meta = {};
+    if (!Array.isArray(map.whiteboard)) map.whiteboard = [];   // before the map is drawn: a map from a file may have none
+    worldHide();
+    if (map === here) save(true);
+    else {
+        map.meta.lastView = 'visual';
+        if (!navigateToMap(map.id)) { if (plan.fresh) delete camp.items[map.id]; toast('That map could not be opened. Nothing was changed.'); return false; }
+    }
+    if (map.whiteboard.length + items.length > BUILD_MAX) { toast('That world could not be laid. Nothing was changed.'); return false; }
+    items.forEach(function(it) { map.whiteboard.push(it); });
+    map.meta.world = plan.opts;   // the GM's own, to make it again: never sent (net.js sanitizeItem), cleaned from a file (cleanup.js)
+    save(true); render();
+    if (window.wpFog && window.wpFog.invalidateVision) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
+    toast('World laid, ' + items.length + ' pieces. One Undo takes it back.');
+    return true;
+}
+function worldWire() {
+    var m = genEl('worldModal'), row = genEl('buildWorldBtn'); if (!m) return;
+    if (row) row.addEventListener('click', function(ev) { ev.stopPropagation(); worldShow(); });
+    // the dialog hands the focus back to this row when it is put away: a key still held from the press that put it away presses nothing here
+    if (row) row.addEventListener('keydown', function(e) { if (e.repeat === true && (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape')) { e.preventDefault(); e.stopPropagation(); } });   // a held Escape would be Build's own next, and put the tool away
+    Array.prototype.forEach.call(document.querySelectorAll('#worldWhere .gen-chip'), function(b) { b.addEventListener('click', function() { var w = this.dataset.where; if (GEN_WHERE.indexOf(w) < 0) return; _world.where = w; worldSync(); }); });
+    ['worldMap', 'worldLand', 'worldSize', 'worldMountains', 'worldForests', 'worldRivers', 'worldClimate', 'worldTowns'].forEach(function(id) { var e = genEl(id); if (e) e.addEventListener('change', worldSync); });
+    var sb = genEl('worldSeed'); if (sb) sb.addEventListener('input', worldSync);
+    var nw = genEl('worldSeedNew'); if (nw) nw.addEventListener('click', function() { var s = genEl('worldSeed'); if (s) s.value = genNewSeed(); worldSync(); });
+    var no = genEl('worldCancel'); if (no) no.addEventListener('click', worldHide);
+    var go = genEl('worldGo'); if (go) go.addEventListener('click', function() { worldGo(); });
+    // Escape is heard FIRST, at the window, and goes no further, and the press that put the dialog away is the dialog's for as long as it
+    // is held, as in the dungeon's and the city's dialogs. Never while a question or a prompt of the app's own is up over the dialog
+    var escHeld = false;
+    if (typeof window.addEventListener === 'function') window.addEventListener('keydown', function(e) {
+        if (e.repeat !== true) escHeld = false;
+        else if (escHeld && e.key === 'Escape') { if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation(); else e.stopPropagation(); e.preventDefault(); return; }
+        if (e.key !== 'Escape' || !worldShown() || buildAsking()) return;
+        if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation(); else e.stopPropagation();
+        e.preventDefault();
+        if (e.repeat !== true) { worldHide(); escHeld = true; }
+    }, true);
+    if (typeof window.addEventListener === 'function') window.addEventListener('keyup', function(e) { if (e.key === 'Escape') escHeld = false; }, true);
+    // every key pressed in the dialog stays in it: the page reads keys as its own (Build's Esc and Enter, a token's arrows, Delete)
+    m.addEventListener('keydown', function(e) {
+        if (buildAsking()) return;   // a question or a prompt of the app's own, raised over the dialog, has every key: the focus may still rest in here
+        e.stopPropagation();
+        var t = e.target, box = !!t && /^INPUT$/.test(t.tagName || '');
+        if (e.key === 'Escape') { e.preventDefault(); worldHide(); }
+        else if (e.key === 'Enter' && box) { e.preventDefault(); worldGo(); }
+        else if (e.key === 'Tab' && worldTab(t, e.shiftKey === true)) e.preventDefault();
+    });
+    // A key pressed while the dialog is up with the focus outside it (after a press on its backdrop) is the dialog's too. Escape puts the
+    // dialog away, Tab brings the focus back in, and any other key does nothing. Heard first (capture), never under a question of the app's own
+    document.addEventListener('keydown', function(e) {
+        if (!worldShown() || buildAsking() || (e.target && typeof m.contains === 'function' && m.contains(e.target))) return;
+        e.stopPropagation(); e.preventDefault();
+        if (e.key === 'Escape') worldHide();
+        else if (e.key === 'Tab') worldTab(null, e.shiftKey === true);
+    }, true);
+    // A paste is the page's to read too (it lays a copied piece or a picture on the map behind): never while the dialog is up, but for a
+    // text field of the dialog's own, which takes its paste as any field does
+    document.addEventListener('paste', function(e) {
+        if (!worldShown() || buildAsking()) return;
+        var t = e.target; if (t && typeof m.contains === 'function' && m.contains(t) && /^(INPUT|TEXTAREA)$/.test(t.tagName || '') && t.type !== 'checkbox') return;
+        e.preventDefault(); e.stopPropagation();
+    }, true);
+}
+// [buildcheck:worlddialog-end]
+worldWire();
 
 var _el_shapeTextBtn = document.getElementById('shapeTextBtn');
 

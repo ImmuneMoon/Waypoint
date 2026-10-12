@@ -1427,6 +1427,14 @@
   #cityCount { color: var(--ink); min-height: 16px; }
   #cityModal .gen-row > select { min-width: 150px; }
   #cityModal #cityGrid { min-width: 0; }
+  /* the world's dialog (fold B7) is the same box again, with ids of its own */
+  #worldSeed { width: 130px; font-family: ui-monospace, Consolas, monospace; }
+  #worldName { flex: 1 1 110px; min-width: 0; }
+  #worldMap { flex: 1 1 auto; min-width: 0; }
+  #worldSeedNew { padding: 3px 10px; margin: 0; }
+  #worldCount { color: var(--ink); min-height: 16px; }
+  #worldModal .gen-row > select { min-width: 150px; }
+  #worldModal #worldGrid { min-width: 0; }
   .gen-rule { height: 1px; background: var(--edge); margin: 10px 0; }
   .gen-foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 12px; }
   /* a tick in a dialog of this kind (the map picture's Show row): the app's own gold */

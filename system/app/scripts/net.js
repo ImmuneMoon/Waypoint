@@ -399,6 +399,7 @@ function cleanHostMap(m) {
     var flC = window.wpFogCore && window.wpFogCore.cleanFogLit ? window.wpFogCore.cleanFogLit(m.fogLit) : null; if (flC) m.fogLit = flC; else delete m.fogLit;   // lighting L3: the lit cells the host sent this player, cleaned again
     if (m.lightsCapped !== true) delete m.lightsCapped;
     if (m.meta && typeof m.meta === 'object' && m.meta.gen !== undefined) delete m.meta.gen;   // 1.5.4: a dungeon's seed and settings are a GM's own and never sent; a player's app keeps none a host names
+    if (m.meta && typeof m.meta === 'object' && m.meta.world !== undefined) delete m.meta.world;   // 1.5.4 (worldcore.js): a world's seed and settings alike, the GM's own
     if (m.meta && typeof m.meta === 'object' && m.meta.city !== undefined) delete m.meta.city;   // 1.5.4 (citycore.js): a city's seed and settings alike: a player's app keeps none a host names
     if (m.fogMarks !== undefined) { var mkC = window.wpFogCore && window.wpFogCore.cleanFogMarks ? window.wpFogCore.cleanFogMarks(m.fogMarks, ownCellKeysOf(m)) : null; if (mkC) m.fogMarks = mkC; else delete m.fogMarks; }   // senses S4: this player's marks, cleaned again
     if (m.fogOff !== undefined) { var ofC = window.wpFogCore && window.wpFogCore.cleanFogOff ? window.wpFogCore.cleanFogOff(m.fogOff, ownTokIdsOf(m)) : null; if (ofC) m.fogOff = ofC; else delete m.fogOff; }   // senses S7a: their own tokens only, cleaned again
@@ -705,6 +706,7 @@ function sanitizeItem(item) {
     if (item.type !== 'map') return item;
     var m = JSON.parse(JSON.stringify(item), wireNum);
     if (m.meta && typeof m.meta === 'object' && m.meta.gen !== undefined) delete m.meta.gen;   // 1.5.4 (gencore.js): the seed and settings a dungeon was generated from are the GM's own, to make it again: never on the wire
+    if (m.meta && typeof m.meta === 'object' && m.meta.world !== undefined) delete m.meta.world;   // 1.5.4 (worldcore.js): a world's seed and settings alike, the GM's own
     if (m.meta && typeof m.meta === 'object' && m.meta.city !== undefined) delete m.meta.city;   // 1.5.4 (citycore.js): the seed and settings a city was generated from are the GM's own too: never on the wire
     delete m.fogLit; delete m.lightsCapped;   // lighting L3: only ever set per player, on their own copy (fogCopyFor) — never from the host's map
     delete m.fogMarks; delete m.fogOff;   // senses S4: likewise a player's marks

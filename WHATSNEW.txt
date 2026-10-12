@@ -369,6 +369,13 @@ The play map
   many pieces it would lay first, and one Undo takes it back.
 - Land for a world map. Four patterns join the list: forest, mountains,
   sand and snow. Any piece can wear one, as it wears the others.
+- A world made for you. Generate a world, under Generate a city in
+  Build's options, lays a world map as ordinary pieces: the sea, land,
+  forest, sand, snow, mountains and rivers. Pick an island, a continent
+  or a scatter of islands, its size, its climate and a seed: the same
+  seed and settings make the same world again. Towns can be marked,
+  with made-up names as text boxes you can change. Nothing on it blocks
+  sight or stops a token, and one Undo takes it back.
 
 The top bar and the data map
 - The top of the window is one quiet row. Its captioned boxes are gone,
@@ -408,9 +415,9 @@ The top bar and the data map
 - The System editor has a key on its Fields, Rolls, Items and Lists
   tabs. Press What the ticks mean to see what each tick of a row
   does.
-- Help's Coming up says what is built and what is coming: the map
-  builder, text style in more places, friends and direct invites, and
-  the website with cloud saves.
+- Help's Coming up says what is built and what is coming. The map
+  builder is built now. Text style in more places, friends and direct
+  invites, and the website with cloud saves are still to come.
 - Help shows the top row's controls with their own drawings: Settings,
   Multiplayer, the Journal, chat, About and Handouts.
 - Where the window is too narrow for the row, Sound, Music, Handouts,

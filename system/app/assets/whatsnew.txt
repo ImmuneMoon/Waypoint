@@ -94,7 +94,14 @@ Character sheets
   whose Memory Core alone is corrupted is not crippled there.
 - For ShadowBase writes your credits onto the character's credit chip,
   where the website reads its money, and gives the file a chip if it
-  has none. Before, the website put its old figure back.
+  has none. Before, the website put its old figure back. Change from a
+  bar spent comes back in bars, as the website gives it.
+- A droid from ShadowBase comes with its hardware as the website works
+  it out: its Lifting and Striking ST, its most Power Points and the XP
+  its parts cost.
+- A token's Export JSON keeps a sheet from the website as the website
+  wrote it, but for the token's posture and elevation. It no longer
+  rewrites the sheet's languages, name or picture.
 - Text style on a sheet. With Edit sheet on, click into a text or notes
   field and a bar comes up on it, as in a planner. Select words and make
   them bold, italic, underlined, struck through or coloured, or give

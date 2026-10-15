@@ -67,9 +67,11 @@ async function bestPortraitDataUrl(item) {
 // Parse + attach a site JSON to a token. Light validation only — the site's
 // own importer is the authority, and it tolerates partial files.
 /* Site contract (ShadowBase Website docs/CHARACTER_JSON_FORMAT.md, 2026-09-05):
-   the sheet stays opaque, but a few fields must be SHAPED the way the site
-   bills them, or the site heals them on load and announces it every time.
-   Applied when a sheet is attached and again on export:
+   a file Waypoint MAKES (a token with no sheet attached) is shaped the way
+   the site bills it. A file the site WROTE is carried exactly as it came, but
+   for the session's stance (the site's handoff of 2026-10-14: rebuilding its
+   languages from languageEntries alone lost a tongue that is in no entry, and
+   a droid's XP with it). The shaping, for a made file:
    - languages: when languageEntries exist, the string is only a display
      projection — bracket-free, "Tongue (Tier[, Comprehension-only]); …".
      Bracketed costs beside entries double-bill; commas keep one tongue.
@@ -77,6 +79,7 @@ async function bestPortraitDataUrl(item) {
      comma-joined list bills only its first [n].
    - details.sizeModifier must be present (nothing derives it from height).
    Everything else passes through untouched. */
+// [systemcheck:sbtoken-start]
 var TIER_LABEL = { native: 'Native', broken: 'Broken', accented: 'Accented', fluent: 'Fluent' };
 export function normalizeForSite(j) {
     if (!j || typeof j !== 'object') return j;
@@ -122,8 +125,7 @@ export function attachSheet(item, file, done) {
             return;
         }
         var finish = function() {
-            normalizeForSite(j);
-            item.sheet = j;
+            item.sheet = j;   // as the site wrote it: never shaped (normalizeForSite is for a file Waypoint makes)
             if (!item.charName && j.name) item.charName = j.name;
             seedStance(item, j);   // the sheet's details.posture / details.elevation seed the token
             toast('Sheet attached: ' + (j.name || 'character') + ' ✓');
@@ -146,11 +148,12 @@ export function attachSheet(item, file, done) {
     }).catch(function() { toast('Could not read that file.'); });
 }
 
-// The export payload: the attached sheet round-tripped verbatim, with only
-// name / portrait / campaign filled in from Waypoint. Sheetless tokens get a
-// skeleton — every missing key defaults on the site's side.
+// The export payload: the attached sheet round-tripped verbatim, with only the
+// token's stance written in (each while its feature is on). A sheetless token
+// gets a skeleton, shaped, named and pictured from the token: every missing key
+// defaults on the site's side.
 export async function buildCharacterJson(item, campName) {
-    var base = item.sheet ? JSON.parse(JSON.stringify(item.sheet)) : {
+    var made = !item.sheet, base = item.sheet ? JSON.parse(JSON.stringify(item.sheet)) : {
         type: 'character',
         name: '',
         portrait: null,
@@ -170,14 +173,16 @@ export async function buildCharacterJson(item, campName) {
             notes: 'Exported from Waypoint — finish this sheet on shadow-base.com.'
         }
     };
-    base.type = base.type || 'character';
-    normalizeForSite(base);
-    if (base.points && typeof base.points === 'object' && base.points.forceAlignment == null) {
-        var fa = (base.points.lightSidePoints || 0) - (base.points.darkSidePoints || 0);
-        base.points.forceAlignment = Math.max(-100, Math.min(100, fa));
+    if (made) {   // a file Waypoint makes: shaped, named and filed under the campaign. A file the site wrote keeps all of that as it came
+        base.type = base.type || 'character';
+        normalizeForSite(base);
+        if (base.points && typeof base.points === 'object' && base.points.forceAlignment == null) {
+            var fa = (base.points.lightSidePoints || 0) - (base.points.darkSidePoints || 0);
+            base.points.forceAlignment = Math.max(-100, Math.min(100, fa));
+        }
+        base.name = item.charName || base.name || 'Unnamed Character';
+        if (!base.campaign) base.campaign = campName || '';
     }
-    base.name = item.charName || base.name || 'Unnamed Character';
-    if (!base.campaign) base.campaign = campName || '';
     // The site's stance fields live in details (docs/CHARACTER_JSON_FORMAT.md on the website):
     // posture ids standing / crouching / sitting / kneeling / crawling / lying-prone / lying-face-up,
     // elevation in yards. Each is written only while its switch is on.
@@ -186,11 +191,12 @@ export async function buildCharacterJson(item, campName) {
         if (window.wpStance.on('posture')) base.details.posture = window.wpStance.tokenPosture(item);
         if (window.wpStance.on('elevation')) base.details.elevation = window.wpStance.tokenElevation(item);
     }
-    var portrait = await bestPortraitDataUrl(item);
-    if (portrait) base.portrait = portrait;   // else whatever the sheet carried stays
-    var fname = (base.name.replace(/[\\/:*?"<>|]+/g, '').trim() || 'character') + ' — ShadowBase.json';
+    var portrait = made ? await bestPortraitDataUrl(item) : null;
+    if (portrait) base.portrait = portrait;   // a made file only: the site's file keeps its own picture
+    var fname = (String(base.name || item.charName || '').replace(/[\\/:*?"<>|]+/g, '').trim() || 'character') + ' — ShadowBase.json';
     return { filename: fname, data: base };
 }
+// [systemcheck:sbtoken-end]
 window.wpBuildCharacterJson = buildCharacterJson;   // sandbox testing hook
 
 export async function exportCharacterJson(item, campName) {

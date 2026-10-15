@@ -3971,14 +3971,26 @@ function sbCrystal(j) {
 // chassis and its processor, which the file states nowhere else). effective is the figure the sheet rolls, the value or that baseline
 // with every modifier in play on it, so it is never a base: read as one, a species' ST +4 was added twice, once in the figure and once by
 // its row (the site's handoff of 2026-10-14). The base is value; where value is null it is effective less what the file's own rows add
-// (sbAttrChan), and nothing is bought, so the baseline its points are priced from is the same figure. { base, tpl }
+// (sbChan), and nothing is bought, so the baseline its points are priced from is the same figure. { base, tpl }
 var SB_ATTR_K = { strength: 'st', dexterity: 'dx', iq: 'iq', health: 'ht' };
 function sbIdle(t) { return t.suspended === true || (typeof t.countedWithCopyOf === 'string' && !!t.countedWithCopyOf.trim()); }   // a trait row worth an absent row on every figure, its points apart (a droid part not working; a further copy of one part's trait)
-function sbAttrChan(j, a) {   // what the file's own rows add to an attribute, as the website sums its channel: the trait rows in play and the status effects (the phase in play)
+// What the file's own rows add to one channel of the website's (strength, liftingSt, ...), read as the bridge's rows will add it: the trait
+// rows in play (never a suspended row or a further copy of one part's trait), the status effects (the phase in play), the armour worn (its
+// bag, else what its notes read as, with its DX and Move penalties) and the implants and limbs installed (their bag, else their text). A figure
+// the file states whole (an attribute's effective, a droid's Lifting ST) less this is the share no row of Waypoint's will add again
+function sbChan(j, a) {
     var n = 0, add = function(bag) { var v = isObj(bag) ? bag[a] : undefined; if (typeof v === 'number' && fin(v) && Math.abs(v) <= LIMITS.effectAmount) n += v; };
-    var tr = isObj(j.traits) ? j.traits : {};
-    ['advantages', 'disadvantages', 'quirks'].forEach(function(k) { (Array.isArray(tr[k]) ? tr[k].slice(0, LIMITS.carried) : []).forEach(function(t) { if (isObj(t) && !sbIdle(t)) add(t.modifiers); }); });
-    (Array.isArray(j.statusEffects) ? j.statusEffects.slice(0, LIMITS.effectRows) : []).forEach(function(x) { if (!isObj(x)) return; var ph = Array.isArray(x.phases) && typeof x.phaseIndex === 'number' && x.phaseIndex >= 1 && isObj(x.phases[x.phaseIndex - 1]) ? x.phases[x.phaseIndex - 1] : null; add(ph && isObj(ph.modifiers) ? ph.modifiers : x.modifiers); });
+    var tr = isObj(j.traits) ? j.traits : {}, inv = isObj(j.inventory) ? j.inventory : {}, pen = function(v) { return typeof v === 'number' && fin(v) ? v : 0; };
+    var own = function(x) { return !(x.isInstalled === true && typeof x.installedInDroidId === 'string' && x.installedInDroidId !== 'PLAYER_DROID'); }, rows = function(v) { return Array.isArray(v) ? v.slice(0, LIMITS.carried).filter(isObj) : []; };
+    ['advantages', 'disadvantages', 'quirks'].forEach(function(k) { rows(tr[k]).forEach(function(t) { if (!sbIdle(t)) add(t.modifiers); }); });
+    rows(j.statusEffects).slice(0, LIMITS.effectRows).forEach(function(x) { var ph = Array.isArray(x.phases) && typeof x.phaseIndex === 'number' && x.phaseIndex >= 1 && isObj(x.phases[x.phaseIndex - 1]) ? x.phases[x.phaseIndex - 1] : null; add(ph && isObj(ph.modifiers) ? ph.modifiers : x.modifiers); });
+    rows(inv.armor).forEach(function(x) {
+        if (x.equipped !== true || x.storageLocationId || x.isSeveredRemnant === true || !own(x)) return;
+        var bag = isObj(x.modifiers) ? x.modifiers : sbTextBag(x.notes); add(bag);
+        if (a === 'dexterity') n += pen(typeof x.finalDXPenalty === 'number' ? x.finalDXPenalty : x.dxPenalty); if (a === 'move') n += pen(typeof x.finalMovePenalty === 'number' ? x.finalMovePenalty : x.movePenalty);
+    });
+    rows(inv.implants).concat(rows(inv.cybernetics)).forEach(function(x) { if (x.installed === true) add(isObj(x.modifiers) ? x.modifiers : sbTextBag(x.effect)); });
+    rows(inv.cyberneticUpgrades).forEach(function(x) { if (x.equipped === true) add(isObj(x.modifiers) ? x.modifiers : sbTextBag(x.effect)); });
     return n;
 }
 function sbAttr(j, a, k) {
@@ -3986,7 +3998,7 @@ function sbAttr(j, a, k) {
     if (sbNum(x) !== undefined) return { base: x, tpl: bl };
     if (!isObj(x)) return { base: bl, tpl: bl };
     var v = sbNum(x.value); if (v !== undefined) return { base: v, tpl: bl };
-    var e = sbNum(x.effective); if (e !== undefined) { var b = e - sbAttrChan(j, a); return { base: b, tpl: b }; }
+    var e = sbNum(x.effective); if (e !== undefined) { var b = e - sbChan(j, a); return { base: b, tpl: b }; }
     var o = [x.final, x.level, x.current].map(sbNum).filter(function(y) { return y !== undefined; })[0];   // an older sheet's shapes
     return o === undefined ? { base: bl, tpl: bl } : { base: o, tpl: bl };
 }
@@ -3998,9 +4010,20 @@ function sbLoose(r) { return isObj(r) && r.category === 'Currencies' && !r.stora
 function sbCash(v) { var n = Number(v); return fin(n) ? n : 0; }   // Number(x) || 0, as the site reads a row's figures
 function sbMoneyHeld(rows) { var t = 0; (Array.isArray(rows) ? rows : []).forEach(function(r) { if (!sbLoose(r)) return; var q = sbCash(r.quantity); t += sbCash(r.storedValue) * q + sbCash(r.denominationValue) * q; }); return t; }
 // A gain or a spending on those rows, the site's own rule with both kinds of money tracked: a gain onto the chip that holds the most (or a
-// new Credit Chip, the site's own row), a spending off the chips that hold the least and then off the smallest bars. One difference: the
-// change of a bar broken to pay goes onto a chip, never back into smaller bars (the site makes it in bars by its table of denominations,
-// which Waypoint does not copy); the sum is the same. Rows are changed in place on the copy; the rows that hold nothing go, as the site's do
+// new Credit Chip, the site's own row), a spending off the chips that hold the least and then off the smallest bars, the change of a bar
+// broken to pay made in bars, the fewest, by the site's denominations (the file format's own money, as the site prints it: SB_BARS), a
+// part of a credit left over onto a chip. Rows are changed in place on the copy; the rows that hold nothing go, as the site's do
+var SB_BARS = [10000, 5000, 2000, 1000, 500, 200, 100, 50, 20, 10, 5, 2, 1];   // an Aurodium bar's denominations; each weighs its value over 10,000 lb
+function sbMoneyBars(eq, amount, newId) {
+    var rem = amount, out = eq.slice(), commas = function(v) { return String(v).replace(/\B(?=(\d{3})+(?!\d))/g, ','); };
+    SB_BARS.forEach(function(v) {
+        if (rem < v) return; var count = Math.floor(rem / v); rem = Math.round((rem - count * v) * 100) / 100;
+        var had = out.filter(function(e) { return sbLoose(e) && e.denominationValue === v; })[0];
+        if (had) had.quantity = sbCash(had.quantity) + count;
+        else out.push({ id: newId(), name: 'Aurodium Galactic Credit (' + commas(v) + ' cr)', category: 'Currencies', weight: v / 10000, cost: 0, quantity: count, denominationValue: v, description: 'A physical credit bar in ' + v + ' denomination.', condition: 'Fine' });
+    });
+    return rem > 0.005 ? sbMoneyMove(out, rem, newId) : out;
+}
 function sbMoneyMove(rows, delta, newId) {
     var r2 = function(n) { return Math.round(n * 100) / 100; }, eq = rows.slice();
     var chips = function(desc) { return eq.filter(function(e) { return sbLoose(e) && e.storedValue != null; }).sort(function(a, b) { return desc ? sbCash(b.storedValue) - sbCash(a.storedValue) : sbCash(a.storedValue) - sbCash(b.storedValue); }); };
@@ -4015,7 +4038,7 @@ function sbMoneyMove(rows, delta, newId) {
             if (rem <= 0) return; var d = sbCash(a.denominationValue) || 1, q = sbCash(a.quantity), inStack = d * q;
             if (inStack >= rem) { var take = Math.ceil(rem / d); a.quantity = Math.max(0, q - take); over = take * d - rem; rem = 0; } else { a.quantity = 0; rem -= inStack; }
         });
-        if (over > 0) return sbMoneyMove(eq.filter(sbMoneyKept), over, newId);
+        if (over > 0) return sbMoneyBars(eq, over, newId).filter(sbMoneyKept);   // a bar row spent to nothing is still there for the change to land on, as the site's is
     }
     return eq.filter(sbMoneyKept);
 }
@@ -4036,6 +4059,14 @@ function sbScalars(j) {   // lower-case key -> the dossier's value (a number, a 
     lvl('speedlvl', 'basicSpeed', (rDX + rHT) / 4); lvl('movelvl', 'basicMove', Math.floor((rST + rDX) / 4));
     if (sbNum(pt.total) !== undefined) out.points = pt.total;
     if (sbNum(pt.powerPoints) !== undefined) out.pp = pt.powerPoints;
+    // The site's own figures, where the file states them (since 2026-10-14; a file the published site wrote has none, and the system works
+    // them out): Lifting ST and Striking ST as the levels the rows do not already add (a droid's parts print theirs on no row), a droid's
+    // most Power Points, and its build's XP as Chapter 17 prints it, hardware plus the governing IQ term. Read only, never written back
+    var lv = function(v) { return isObj(v) ? sbNum(v.levels) : undefined; }, liftL = lv(ch.liftingSt), strikeL = lv(ch.strikingSt);
+    if (liftL !== undefined) out.liftst = liftL - sbChan(j, 'liftingSt');
+    if (strikeL !== undefined) out.strikest = strikeL - sbChan(j, 'strikingSt');
+    if (isObj(ch.powerPoints) && sbNum(ch.powerPoints.max) !== undefined) out.ppcap = ch.powerPoints.max;
+    if (sbNum(pt.droidHardware) !== undefined) out.hwpts = pt.droidHardware + (sbNum(pt.droidGoverningIq) || 0);
     var al = sbNum(pt.forceAlignment); if (al === undefined && (sbNum(pt.lightSidePoints) !== undefined || sbNum(pt.darkSidePoints) !== undefined)) al = (sbNum(pt.lightSidePoints) || 0) - (sbNum(pt.darkSidePoints) || 0); if (al !== undefined) out.align = al;   // an older dossier has only the two sides
     var gen = isObj(j.inventory) && Array.isArray(j.inventory.general) ? j.inventory.general : null;   // the money its loose rows hold, as the site opens the file; a file with no such row keeps its stated total here (the site opens it at 0, and the write-back gives it a chip)
     if (gen && gen.some(sbLoose)) out.credits = Math.round(sbMoneyHeld(gen) * 100) / 100; else if (sbNum(cr.total) !== undefined) out.credits = cr.total;
@@ -4097,7 +4128,7 @@ function sbWriteBack(json, sys, char, all, tok) {
                 var rows1 = rows0;
                 if (Math.abs(had0 - vCr) >= 0.005) {
                     var ids = map(); rows0.forEach(function(r) { if (isObj(r) && typeof r.id === 'string') ids[r.id] = 1; });
-                    rows1 = sbMoneyMove(rows0, Math.round((vCr - had0) * 100) / 100, function() { var k = 1; while (ids['waypoint-credit-chip-' + k] === 1) k++; ids['waypoint-credit-chip-' + k] = 1; return 'waypoint-credit-chip-' + k; });
+                    rows1 = sbMoneyMove(rows0, Math.round((vCr - had0) * 100) / 100, function() { var k = 1; while (ids['waypoint-money-' + k] === 1) k++; ids['waypoint-money-' + k] = 1; return 'waypoint-money-' + k; });
                     if (!isObj(invC)) invC = out.inventory = {};
                     invC.general = rows1;
                 }

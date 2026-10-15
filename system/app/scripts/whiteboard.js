@@ -6859,6 +6859,10 @@ function genShow() {
     return true;
 }
 function genHide() { var m = genEl('genModal'); if (!m || m.style.display === 'none') return; m.style.display = 'none'; var b = genEl('buildGenBtn'); if (b && b.focus) b.focus(); }
+// Before a dialog lays its pieces the run of typing in its own field ends: the app's history folds a save into the step before it while a
+// text field's run is open on that map, and what is laid must be a step of its own, which one Undo takes back alone. In the usual flow
+// the row takes the focus as the dialog goes; this holds where it cannot
+function genUnfocus(modalId) { var m = genEl(modalId), a = document.activeElement; if (m && a && a !== document.body && typeof a.blur === 'function' && typeof m.contains === 'function' && m.contains(a)) a.blur(); }
 // What Tab walks through, in the dialog's own order: never a row that is put away nor a control that is out of use
 function genStops() {
     var out = Array.prototype.slice.call(document.querySelectorAll('#genWhere .gen-chip'));
@@ -6891,7 +6895,7 @@ function genGo() {
     }
     if (!map.meta || typeof map.meta !== 'object') map.meta = {};
     if (!Array.isArray(map.whiteboard)) map.whiteboard = [];   // before the map is drawn: a map from a file may have none
-    genHide();
+    genUnfocus('genModal'); genHide();
     if (map === here) save(true);
     else {
         map.meta.lastView = 'visual';
@@ -7106,7 +7110,7 @@ function cityGo() {
     }
     if (!map.meta || typeof map.meta !== 'object') map.meta = {};
     if (!Array.isArray(map.whiteboard)) map.whiteboard = [];   // before the map is drawn: a map from a file may have none
-    cityHide();
+    genUnfocus('cityModal'); cityHide();
     if (map === here) save(true);
     else {
         map.meta.lastView = 'visual';
@@ -7183,12 +7187,13 @@ cityWire();
 // dialog as the sheet drew it). The row under Generate a city opens one dialog. Its settings go to the pure half (worldcore.js), which
 // answers geometry, and what is laid is ORDINARY pieces: the sea as one box, each stretch of land as one filled region in its own colour
 // and pattern, a river as a line in the water's colour, a town as a small square and its name as a text box the GM can change. Nothing
-// blocks sight or stops a token: a world map is for pointing and travelling. Nothing on the map is changed and nothing is derived live.
+// blocks sight or stops a token: a world map is for pointing and travelling. No piece already on the map is changed, but a world laid on a
+// map that holds pieces covers them (its sea is one box on the back layer, laid after them), which its line says. Nothing is derived live.
 // It is laid in one save, so one Undo takes it back. The seed and settings are kept on the map (meta.world) for the GM alone, to make it
 // again: net.js never sends them and an import cleans them. The dialog is the GM's (buildMay) and its markup is fixed words in the page:
 // a map's name reaches the list as an option's text, never as markup. It leans on the dungeon's and the city's helpers (genEl, genText,
 // genMaps, genCountWords, genNewSeed, cityCorner, cityPiece)
-var WORLD_LINES = { here: 'Its middle goes where the middle of your screen is. Nothing on the map is changed.', other: 'It lands in the middle of that map as you last saw it. You are taken there once it is made.', fresh: 'A new map is made for it. You are taken there once it is made.', none: 'This campaign has no other map.' };
+var WORLD_LINES = { here: 'Its middle goes where the middle of your screen is. It covers what is there, and one Undo takes it back.', other: 'It lands in the middle of that map as you last saw it and covers what is there. You are taken there once it is made.', fresh: 'A new map is made for it. You are taken there once it is made.', none: 'This campaign has no other map.' };
 var WORLD_GRIDS = ['off', 'square', 'hex'], WORLD_NAMES = { sea: 'Sea', land: 'Land', forest: 'Forest', sand: 'Sand', snow: 'Snow', mountains: 'Mountains', river: 'River', town: 'Town' }, WORLD_RIVER_PX = 9;
 // a town's name: light words on a dark plate that lets the land show through, so that it reads on forest, on sand and on snow alike.
 // It hugs the side its mark is on: the generator says left, or right where the name stands on the mark's left at the board's edge
@@ -7227,18 +7232,32 @@ function worldPlan() {
     return { ok: true, say: genCountWords(items.length, held), map: map, fresh: fresh, grid: grid, opts: opts, items: items };
 }
 // The world's pieces as ordinary items, in the order they are laid. Each is made here from the generator's own colours and patterns,
-// asked again: a colour only as six hex digits, a pattern only as a name of the list, a town's name only as letters. Nothing carries a
-// key that blocks sight, stops a token or costs movement
+// asked again: the kind only as a text of the list, a colour only as six hex digits, a pattern only as a name of the list, a town's name
+// only as letters, every number of a piece's box a sound one (worldBox), a river's and a region's points sound ones (worldLine), and a
+// stretch of land a filled region and nothing else. A piece that fails is passed over whole. Nothing carries a key that blocks sight,
+// stops a token or costs movement. A world is laid at FULL opacity whatever the GM's New item opacity says: its layers are made to cover
+// each other (plain land lies under every other kind), so a see-through one would show the layer beneath it
+function worldNum(v) { return typeof v === 'number' && isFinite(v) && Math.abs(v) <= 200000; }
+function worldBox(g) { return worldNum(g.x) && worldNum(g.y) && worldNum(g.w) && worldNum(g.h) && g.w > 0 && g.h > 0 ? { x: g.x, y: g.y, w: g.w, h: g.h } : null; }
+function worldLine(g) {
+    var b = worldBox(g); if (!b || !Array.isArray(g.pts) || g.pts.length < 2 || g.pts.length > 2000 || !worldNum(g.baseW) || !worldNum(g.baseH) || !(g.baseW > 0) || !(g.baseH > 0)) return null;
+    var pts = []; for (var i = 0; i < g.pts.length; i++) { var q = g.pts[i]; if (!Array.isArray(q) || !worldNum(q[0]) || !worldNum(q[1])) return null; pts.push([q[0], q[1]]); }
+    b.baseW = g.baseW; b.baseH = g.baseH; b.pts = pts; return b;
+}
 function worldItems(pc) {
     var BC = buildCore(), out = []; if (!BC || !pc || !Array.isArray(pc.pieces)) return out;
+    var lay = function(it) { delete it.opacity; out.push(it); };
     pc.pieces.forEach(function(p) {
-        var g = p && typeof p === 'object' ? p.geo : null; if (!g || typeof g !== 'object') return;
-        if (p.kind === 'name') { if (typeof p.text === 'string' && /^[A-Za-z]{1,24}$/.test(p.text)) out.push(Object.assign({ id: 'wb' + uid(), type: 'text', x: g.x, y: g.y, w: g.w, h: g.h, z: 10 }, newOpacityProps(), WORLD_LABEL, { text: p.text, align: p.align === 'right' ? 'right' : 'left' })); return; }
+        var g = p && typeof p === 'object' ? p.geo : null; if (!g || typeof g !== 'object' || typeof p.kind !== 'string') return;
+        var b = worldBox(g); if (!b) return;
+        if (p.kind === 'name') { if (typeof p.text === 'string' && /^[A-Za-z]{1,24}$/.test(p.text)) out.push(Object.assign({ id: 'wb' + uid(), type: 'text', x: b.x, y: b.y, w: b.w, h: b.h, z: 10 }, WORLD_LABEL, { text: p.text, align: p.align === 'right' ? 'right' : 'left' })); return; }
         if (!Object.prototype.hasOwnProperty.call(WORLD_NAMES, p.kind) || typeof p.color !== 'string' || !/^#[0-9a-f]{6}$/.test(p.color)) return;
         var props = { color: p.color, layer: 'back', name: WORLD_NAMES[p.kind] }, tex = typeof BC.cleanTexture === 'function' ? BC.cleanTexture(p.texture) : null; if (tex) props.texture = tex;
-        if (p.kind === 'river') { if (Array.isArray(g.pts)) out.push(buildWallItem(g, { color: p.color, layer: 'back', name: WORLD_NAMES.river, strokeWidth: WORLD_RIVER_PX, tip: 'round' })); return; }
-        if (p.kind === 'town') { out.push(cityPiece({ type: 'rect', x: g.x, y: g.y, w: g.w, h: g.h }, { color: p.color, layer: 'back-mid', name: WORLD_NAMES.town })); return; }
-        out.push(cityPiece(p.kind === 'sea' ? { type: 'rect', x: g.x, y: g.y, w: g.w, h: g.h } : g, props));
+        if (p.kind === 'river') { var rl = worldLine(g); if (rl) lay(buildWallItem(rl, { color: p.color, layer: 'back', name: WORLD_NAMES.river, strokeWidth: WORLD_RIVER_PX, tip: 'round' })); return; }
+        if (p.kind === 'town') { lay(cityPiece({ type: 'rect', x: b.x, y: b.y, w: b.w, h: b.h }, { color: p.color, layer: 'back-mid', name: WORLD_NAMES.town })); return; }
+        if (p.kind === 'sea') { lay(cityPiece({ type: 'rect', x: b.x, y: b.y, w: b.w, h: b.h }, props)); return; }
+        var rg = g.type === 'path' ? worldLine(g) : null; if (!rg) return;   // a stretch of land: a filled region, its geometry taken value by value
+        lay(cityPiece({ type: 'path', x: rg.x, y: rg.y, w: rg.w, h: rg.h, pts: rg.pts, baseW: rg.baseW, baseH: rg.baseH }, props));
     });
     return out;
 }
@@ -7313,7 +7332,7 @@ function worldGo() {
     }
     if (!map.meta || typeof map.meta !== 'object') map.meta = {};
     if (!Array.isArray(map.whiteboard)) map.whiteboard = [];   // before the map is drawn: a map from a file may have none
-    worldHide();
+    genUnfocus('worldModal'); worldHide();
     if (map === here) save(true);
     else {
         map.meta.lastView = 'visual';

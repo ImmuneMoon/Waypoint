@@ -398,9 +398,7 @@ function cleanHostMap(m) {
     if (m.stub === true) { m.whiteboard = []; m.rooms = []; m.links = []; } else if (m.stub !== undefined) delete m.stub;   // possession: a stub holds nothing (whatever a host put on it); the mark is true or absent
     var flC = window.wpFogCore && window.wpFogCore.cleanFogLit ? window.wpFogCore.cleanFogLit(m.fogLit) : null; if (flC) m.fogLit = flC; else delete m.fogLit;   // lighting L3: the lit cells the host sent this player, cleaned again
     if (m.lightsCapped !== true) delete m.lightsCapped;
-    if (m.meta && typeof m.meta === 'object' && m.meta.gen !== undefined) delete m.meta.gen;   // 1.5.4: a dungeon's seed and settings are a GM's own and never sent; a player's app keeps none a host names
-    if (m.meta && typeof m.meta === 'object' && m.meta.world !== undefined) delete m.meta.world;   // 1.5.4 (worldcore.js): a world's seed and settings alike, the GM's own
-    if (m.meta && typeof m.meta === 'object' && m.meta.city !== undefined) delete m.meta.city;   // 1.5.4 (citycore.js): a city's seed and settings alike: a player's app keeps none a host names
+    if (m.meta && typeof m.meta === 'object') ['gen', 'city', 'world'].forEach(function(k) { if (m.meta[k] !== undefined) delete m.meta[k]; });   // 1.5.4: a map's GM-only meta keys (the seed and settings a dungeon, a city or a world was generated from) are never sent, and a player's app keeps none a host names. ONE list here and the same list in sanitizeItem: a new such key joins both (netcheck reads the two against each other)
     if (m.fogMarks !== undefined) { var mkC = window.wpFogCore && window.wpFogCore.cleanFogMarks ? window.wpFogCore.cleanFogMarks(m.fogMarks, ownCellKeysOf(m)) : null; if (mkC) m.fogMarks = mkC; else delete m.fogMarks; }   // senses S4: this player's marks, cleaned again
     if (m.fogOff !== undefined) { var ofC = window.wpFogCore && window.wpFogCore.cleanFogOff ? window.wpFogCore.cleanFogOff(m.fogOff, ownTokIdsOf(m)) : null; if (ofC) m.fogOff = ofC; else delete m.fogOff; }   // senses S7a: their own tokens only, cleaned again
     if (m.cats && typeof m.cats === 'object') Object.keys(m.cats).forEach(function(k) { var c = m.cats[k]; if (k in Object.prototype) { delete m.cats[k]; return; } if (c && typeof c === 'object' && !safeColor(c.color)) c.color = '#888'; });
@@ -705,9 +703,7 @@ function sanitizeItem(item) {
     if (item.type === 'doc') return window.wpDocRender ? window.wpDocRender.cleanDoc(item) : null;   // GM-only pages and unknown block types never leave the host; without the renderer, no page at all
     if (item.type !== 'map') return item;
     var m = JSON.parse(JSON.stringify(item), wireNum);
-    if (m.meta && typeof m.meta === 'object' && m.meta.gen !== undefined) delete m.meta.gen;   // 1.5.4 (gencore.js): the seed and settings a dungeon was generated from are the GM's own, to make it again: never on the wire
-    if (m.meta && typeof m.meta === 'object' && m.meta.world !== undefined) delete m.meta.world;   // 1.5.4 (worldcore.js): a world's seed and settings alike, the GM's own
-    if (m.meta && typeof m.meta === 'object' && m.meta.city !== undefined) delete m.meta.city;   // 1.5.4 (citycore.js): the seed and settings a city was generated from are the GM's own too: never on the wire
+    if (m.meta && typeof m.meta === 'object') ['gen', 'city', 'world'].forEach(function(k) { if (m.meta[k] !== undefined) delete m.meta[k]; });   // 1.5.4: a map's GM-only meta keys (the seed and settings a dungeon, a city or a world was generated from, kept to make it again) never go on the wire. The same list as in cleanHostMap: a new such key joins both
     delete m.fogLit; delete m.lightsCapped;   // lighting L3: only ever set per player, on their own copy (fogCopyFor) — never from the host's map
     delete m.fogMarks; delete m.fogOff;   // senses S4: likewise a player's marks
     // fog of war (1.5.0 FV2): map.fog travels so a player's client can paint its own-vision overlay; the host

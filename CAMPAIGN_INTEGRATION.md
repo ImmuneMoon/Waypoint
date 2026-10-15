@@ -95,6 +95,10 @@ Always keep a backup copy of `saves/data.json` before writing to it. (The app al
     "cellValue": 100, "cellUnit": "yd" // OPTIONAL measurement scale per grid cell (defaults: 1 yd/hex,
                                        // 5 ft/square; units: yd|ft|m|km|mi) — for space battles etc.
     // lastX/lastY/lastZoom, lastWbX/lastWbY/lastWbZoom: camera memory; omit, app fills them
+    // gen / city / world: the seed and settings a generated dungeon, city or world map keeps, so that
+    // the GM can make it again. They are the GM's own: never sent to players, and cleaned on import
+    // by each generator's own cleaner (anything that is no bag of settings is dropped, and a bag,
+    // an empty one too, comes in as that generator's settings in full). A tool leaves them out
   },
   "cats": {                            // node categories: key -> {label, color}
     "surface": { "label": "Surface · Public", "color": "#e0a54f" }

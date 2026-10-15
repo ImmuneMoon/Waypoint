@@ -4733,6 +4733,44 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             j([texts4, PG4.htmlSet, PG4.attrs]));
     }
 
+    /* ---- [m410] 1.5.4 SITE_EQUIVALENT_PLAN fold 2 in the System editor, against a system from a file: a hostile stat label and a hostile Per stat
+       reach the Lists card's One at a time row (listCard, run for real) only as an option's value and text, and what Save drops of a hostile Per stat
+       and of a roll's needs that do not read (refreshErrors, errorCell and formulaTextFor, run for real) only as the text of a line, its caret under
+       the needs themselves ---- */
+    {
+        const j = JSON.stringify, SY4 = await import(modUrl('systemcore.js')), FO4 = await import(modUrl('formula.js'));
+        const sh4 = read('sheets.js'), HTML4 = /innerHTML|insertAdjacentHTML|outerHTML|setAttribute|document\.write/;
+        const cut4 = (a, b) => { const i = sh4.indexOf(a), k = i < 0 ? -1 : sh4.indexOf(b, i + a.length); if (i < 0 || k < 0) throw new Error('sinkcheck: sheets.js ' + a.trim().slice(0, 40) + ' not found'); return sh4.slice(i, k); };
+        const line4 = k => cut4('\n' + k, '\n').slice(1);
+        const mkPage4 = () => {
+            const made = [], htmlSet = [], attrs = [];
+            const fake = tag => { const e = { tag, children: [], childNodes: [], style: {}, dataset: {}, className: '', textContent: '', appendChild(k) { this.children.push(k); this.childNodes.push(k); return k; }, setAttribute(n, v) { attrs.push([n, v]); }, addEventListener() {} }; ['innerHTML', 'outerHTML'].forEach(p => Object.defineProperty(e, p, { set(v) { htmlSet.push(v); }, get() { return ''; } })); e.insertAdjacentHTML = (w, v) => { htmlSet.push(v); }; made.push(e); return e; };
+            const doc = { createElement: fake, createTextNode: t => { const n = { tag: '#text', textContent: String(t) }; made.push(n); return n; } };
+            return { made, htmlSet, attrs, fake, doc, clean: () => htmlSet.length === 0 && attrs.length === 0 && made.every(e => e.tag === '#text' || Object.keys(e.style).length === 0) };
+        };
+        const X4 = '"><script>x()</script>';
+        const draft4 = { name: 'D', fields: [{ id: 'f_ar', key: 'Armour', label: 'Armour', kind: 'item-list', list: { on: { label: 'Worn', one: true, per: X4 }, stats: [{ key: 'Loc', label: T }] } }],
+            rolls: [{ id: 'r_a', label: 'A', formula: 'd6', needs: T, needsText: X4 }], items: [], sheet: { sections: [] } };
+        const lcSrc4 = cut4('\nfunction listCard(f, allCats, targets, acts) {', '\nfunction checkLabel('), PG1 = mkPage4();
+        const card4 = new Function('document', 'LIMITS', 'numField', 'priceOptions', 'listApplyEditor', "'use strict';\n" + line4('function el(tag, cls, text) {') + '\n' + line4('function input(cls, value, title, placeholder) {') + '\n' + line4('function checkLabel(cls, on, text, title) {') + cut4('\nfunction perOptions(sel, sp) {', '\nfunction priceOptions(') + lcSrc4 + '\nreturn listCard;')(
+            PG1.doc, SY4.LIMITS, () => PG1.fake('input'), () => {}, () => {})(draft4.fields[0], [], [], []);
+        const per4 = PG1.made.filter(e => e.className === 'sys-list-onper'), one4 = PG1.made.filter(e => typeof e.className === 'string' && e.className.split(' ').indexOf('sys-list-onone') >= 0);
+        const opts4 = per4.map(s => s.children.map(o => [o.tag, o.value, o.textContent, o.selected === true, o.children.length]));
+        check('m410 One at a time in the System editor (listCard, run for real on a page that refuses markup): a hostile stat label and a hostile Per stat the list does not have reach the Per stat list only as an option\'s value and text, the stat by its label and the missing one picked and said as such; the One at a time tick ticked; nothing is markup, an attribute or a style',
+            !!card4 && one4.length === 1 && one4[0].checked === true && j(opts4) === j([[['option', '', 'Whole list', false, 0], ['option', 'Loc', 'Per ' + T, false, 0], ['option', X4, 'Per ' + X4 + ' (no such stat)', true, 0]]])
+            && PG1.clean() && !HTML4.test(lcSrc4), j([opts4, one4.length, PG1.htmlSet, PG1.attrs]));
+        const reSrc4 = cut4('\nfunction refreshErrors() {', '\nfunction errorCell('), ecSrc4 = cut4('\nfunction errorCell(id) {', '\nfunction errPrefix(') + '\n' + line4('function errPrefix(p, warn) {') + cut4('\nfunction formulaTextFor(id, prop) {', '\nfunction patchErrors(');
+        const PG2 = mkPage4(), CAMP4 = { system: null, chars: {} };
+        const cells4 = new Function('draft', 'F', 'validKey', 'KINDS', 'cleanItemKey', 'cleanSystem', 'validateSystem', 'statKey', 'LIMITS', 'getActiveCampaign', 'systemOf', 'gmViewFields', 'gmDerivedNames', 'TIME_WORDS', 'DEF_PROP', 'document', 'NL',
+            "var errorsById = {}, warningsById = {};\n" + line4('function el(tag, cls, text) {') + reSrc4 + ecSrc4 + "\nrefreshErrors(); return [errorCell('list:f_ar'), errorCell('r_a')];")(
+            draft4, () => FO4, SY4.validKey, SY4.KINDS, SY4.cleanItemKey, SY4.cleanSystem, SY4.validateSystem, SY4.statKey, SY4.LIMITS, () => CAMP4, () => null, SY4.gmViewFields, SY4.gmDerivedNames, SY4.TIME_WORDS, SY4.DEF_PROP, PG2.doc, '\n');
+        const said4 = cells4.map(c => c.children.map(k => [k.tag, k.className, k.textContent, (k.children || []).length]));
+        const listSaid = said4[0].filter(k => k[1] === 'sys-err-line').map(k => k[2]), needSaid = said4[1].filter(k => /^Needs: /.test(k[2])), caret4 = said4[1].filter(k => k[0] === 'pre');
+        check('m410 what Save drops, said as text (refreshErrors, errorCell and formulaTextFor, run for real on a page that refuses markup): a hostile Per stat is quoted in the line that says One at a time keeps one row on for the whole list; a roll\'s hostile needs that do not read are said under "Needs: ", with the caret drawn under the needs themselves and not under the roll\'s formula; every line a text and nothing markup, an attribute or a style',
+            listSaid.indexOf('One at a time goes by "' + X4 + '", which is no stat of this list. Save keeps one row on for the whole list.') >= 0 && needSaid.length >= 1 && caret4.length >= 1 && caret4.every(k => k[2].indexOf(T + '\n') === 0 && k[3] === 0)
+            && said4.every(c => c.every(k => k[3] === 0)) && PG2.clean() && !HTML4.test(ecSrc4), j([said4, PG2.htmlSet, PG2.attrs]));
+    }
+
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

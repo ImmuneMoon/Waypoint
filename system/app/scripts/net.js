@@ -2864,7 +2864,7 @@ function charViewFor(charId, recipientId) {   // the copy one peer may hold, or 
 net.dropPending = function(charId) { Object.keys(_charPending).forEach(function(rid) { if (_charPending[rid].charId === charId) { clearTimeout(_charPending[rid].timer); delete _charPending[rid]; } }); };   // a sheet that stopped being ours: its queued edits go
 function charSessionReset() { Object.keys(_charPending).forEach(function(k) { clearTimeout(_charPending[k].timer); }); _charPending = Object.create(null); _charSlowSaid = {}; _charHost = Object.create(null); _rowGrace = {}; _triedSaid = {}; if (charLimit) charLimit.reset(); if (typeof styleReset === 'function') styleReset(); }
 // Stage 6: the GM alone hears when a player picks up, tries to remove or drops a bound or cursed item (a toast and the session log's Items)
-function itemNotice(ch, name, what) {
+function itemNotice(ch, name, what, by) {   // by (1.5.4 One at a time): the row a player switched on, which a bound row of its group kept off
     var who = ch && ch.name ? ch.name : 'A character', nm = name || 'an item';
     if (/-try$/.test(what)) {   // F4b follow-up: a refused attempt repeated is one notice per quiet window, the next one saying how many went unsaid
         var tk = (ch && ch.id ? ch.id : who) + '|' + nm + '|' + what, ts = _triedSaid[tk], tnow = Date.now();
@@ -2877,6 +2877,8 @@ function itemNotice(ch, name, what) {
         : what === 'eq-bound-on' ? who + ' switched on ' + nm + ' — bound: it stays on until you switch it off.'   // Stage 6 F4b: the equip lock
         : what === 'eq-curse-on' ? who + ' switched on ' + nm + ' — curse on contact: if they switch it off, you keep it on.'
         : what === 'eq-bound-try' ? who + ' tried to switch off ' + nm + ' — it stays on (bound).'
+        : what === 'eq-held-try' ? who + ' tried to switch on ' + (by || 'an item') + ' — ' + nm + ' is bound and stays on, so it stays off.'   // 1.5.4 One at a time
+        : what === 'eq-move-try' ? who + ' tried to change ' + nm + ' — it is bound and stays on, and another row of that group is on.'
         : what === 'eq-curse-off' ? who + ' switched off ' + nm + ' — it stays on, out of their sight, until you switch it off.'
         : what === 'pick-over' ? who + ' changed ' + nm + ' — their pick replaced the hidden choice you set (set it again with \u270e if you want it back).'
         : who + ' dropped ' + nm + ' — kept on their sheet, out of their sight, until you remove it.';
@@ -4544,7 +4546,7 @@ function combatNewRound(mapId, c) {   // combatStep at a new round, once per rou
         var charOf = function(r) { var tk = tokOf(r); return tk && tk.isChar && typeof tk.charId === 'string' && camp.chars && own(camp.chars, tk.charId) ? camp.chars[tk.charId] : null; };
         for (var i = 0, n = 0; i < c.rows.length; i++) {
             var ch = charOf(c.rows[i]); if (!ch) continue;
-            var tkI = tokOf(c.rows[i]), rr = window.wpSheets.rollInit(ch.id, { priv: !!(tkI && (tkI.hidden || (typeof net.tokUnseen === 'function' && net.tokUnseen(mapId, tkI.id)))) }); if (rr && rr.error) { toast(rr.error); break; }   // no roll, dice off: said once, the rest keep their numbers; hidden pieces: a creature the GM hid, or one some player at the table cannot see (net.tokUnseen), rolls in private (its row reads Hidden to them, and the card would name it)
+            var tkI = tokOf(c.rows[i]), rr = window.wpSheets.rollInit(ch.id, { priv: !!(tkI && (tkI.hidden || (typeof net.tokUnseen === 'function' && net.tokUnseen(mapId, tkI.id)))) }); if (rr && rr.held) continue; if (rr && rr.error) { toast(rr.error); break; }   // held (1.5.4): its initiative roll's needs not met, it keeps its number   // no roll, dice off: said once, the rest keep their numbers; hidden pieces: a creature the GM hid, or one some player at the table cannot see (net.tokUnseen), rolls in private (its row reads Hidden to them, and the card would name it)
             if (rr && typeof rr.value === 'number' && isFinite(rr.value)) { c.rows[i].init = Math.max(-1e6, Math.min(1e6, Math.round(rr.value * 100) / 100)); c.rows[i].rolled = 1; delete c.rows[i].tb; n++; }
         }
         if (n && S.orderByInit) c.rows = S.orderByInit(c.rows, S.initTie ? S.initTie(camp.system, window.wpFormula, charOf) : null);   // nothing rolled: the order as it was
@@ -6243,9 +6245,10 @@ function handleMessage(msg, conn) {
         var nowI = Date.now(), gkI = qi.charId + '|' + qi.fieldId + '|' + (qi.rowId || ''), grI = qi.op !== 'add' && _rowGrace[gkI] && _rowGrace[gkI].until > nowI ? _rowGrace[gkI] : null;   // Stage 6: inside a pickup's Undo window
         var ogI = !!(_rowGrace[gkI + '|on'] && _rowGrace[gkI + '|on'].until > nowI);   // F4b: a bound item switched on a moment ago may come off (or be dropped: the lock covers that while it is on)
         var libI = window.wpLibrary && window.wpLibrary.playerEntry ? function(id) { return window.wpLibrary.playerEntry(id) ? window.wpLibrary.entry(id) : null; } : null;   // Stage 6 library L3: an entry of a pack players may see (the host's own copy of it: the row keeps it)
-        var resI = Si.applyRowOp(campI.system, chI, qi.fieldId, qi, Fi, { player: true, view: window.wpSheets ? window.wpSheets.playerSystem(campI) : null, grace: grI, onGrace: !!ogI, lib: libI, libPl: window.wpLibrary && window.wpLibrary.playerEntry ? function(id) { return window.wpLibrary.playerEntry(id); } : null });   // libPl (126b): a library entry as players read it, so a rule they may not read is never said
+        var gofI = function(rid) { var k = qi.charId + '|' + qi.fieldId + '|' + rid + '|on'; return !!(Object.prototype.hasOwnProperty.call(_rowGrace, k) && _rowGrace[k].until > nowI); };   // 1.5.4 One at a time: each row's own grace, for a bound row a switch-on would switch off
+        var resI = Si.applyRowOp(campI.system, chI, qi.fieldId, qi, Fi, { player: true, view: window.wpSheets ? window.wpSheets.playerSystem(campI) : null, grace: grI, onGrace: !!ogI, graceOf: gofI, lib: libI, libPl: window.wpLibrary && window.wpLibrary.playerEntry ? function(id) { return window.wpLibrary.playerEntry(id); } : null });   // libPl (126b): a library entry as players read it, so a rule they may not read is never said
         if (!resI.ok) {
-            if (resI.reason === 'stays') { itemNotice(chI, resI.name, resI.eq && qi.op === 'set' ? 'eq-bound-try' : 'bound-try'); try { conn.send({ type: 'char-deny', rid: qi.rid, reason: 'stays', msg: resI.msg || '' }); } catch (e) { sendFailed(e); } return; }   // a bound item: it stays, with the GM's message
+            if (resI.reason === 'stays') { itemNotice(chI, resI.name, resI.by ? 'eq-held-try' : resI.moved ? 'eq-move-try' : resI.eq && qi.op === 'set' ? 'eq-bound-try' : 'bound-try', resI.by); try { conn.send({ type: 'char-deny', rid: qi.rid, reason: 'stays', msg: resI.msg || '' }); } catch (e) { sendFailed(e); } return; }   // a bound item: it stays, with the GM's message
             if (resI.reason === 'needs') { try { conn.send({ type: 'char-deny', rid: qi.rid, reason: 'needs', msg: resI.msg || '' }); } catch (e) { sendFailed(e); } return; }   // 126b: what the entry needs, in the GM's own words or by the names a player may know
             denyI(resI.reason); return;
         }
@@ -6258,17 +6261,19 @@ function handleMessage(msg, conn) {
             if (gA) { gA.added += resI.added; gA.until = nowI + Si.LIMITS.undoGraceMs; } else _rowGrace[gkA] = { until: nowI + Si.LIMITS.undoGraceMs, added: resI.added };
         } else if (grI && resI.undone > 0) grI.added = Math.max(0, grI.added - resI.undone);   // taken back: the window stays until it lapses (a later Undo takes back nothing and says nothing)
         if (resI.onGraceUsed) delete _rowGrace[gkI + '|on'];   // F4b review: a grace lets it go once (the GM switching it on again is not undone by it)
+        if (Array.isArray(resI.graceSpent)) resI.graceSpent.forEach(function(rid) { delete _rowGrace[qi.charId + '|' + qi.fieldId + '|' + rid + '|on']; });   // 1.5.4 One at a time: a bound row the switch-on took off spent its grace
         if (typeof resI.onRow === 'string' && resI.eqNote === 'bound') _rowGrace[qi.charId + '|' + qi.fieldId + '|' + resI.onRow + '|on'] = { until: nowI + Si.LIMITS.undoGraceMs, added: 0 };   // F4b: switched on (or picked up on) — it may come off for a moment, as a pickup's Undo
         saveRemoteSoon();
-        if (bwI.warn.length && !((resI.hid || resI.keptOn) && resI.msg)) { try { conn.send({ type: 'char-ack', rid: qi.rid, msg: Si.budgetSays(bwI.warn[0]) }); } catch (e) { sendFailed(e); } }   // 126: a budget that only warns lets the change through, with its words to the player (an item's own message, when one is due, goes first)
+        var itMI = resI.hid && resI.msg ? resI.msg : resI.keptOn && resI.keptMsg ? resI.keptMsg : '';   // an item's own message: a curse dropped, or a curse kept on (1.5.4: its own field, beside a row switched on)
+        if (bwI.warn.length && !itMI) { try { conn.send({ type: 'char-ack', rid: qi.rid, msg: Si.budgetSays(bwI.warn[0]) }); } catch (e) { sendFailed(e); } }   // 126: a budget that only warns lets the change through, with its words to the player (an item's own message, when one is due, goes first)
         else
-        try { conn.send((resI.hid || resI.keptOn) && resI.msg ? { type: 'char-ack', rid: qi.rid, msg: resI.msg } : { type: 'char-ack', rid: qi.rid }); } catch (e) { sendFailed(e); }   // a cursed item's message rides the answer (none: the answer any removal gets); F4b: a curse kept on, too
+        try { conn.send(itMI ? { type: 'char-ack', rid: qi.rid, msg: itMI } : { type: 'char-ack', rid: qi.rid }); } catch (e) { sendFailed(e); }   // a cursed item's message rides the answer (none: the answer any removal gets); F4b: a curse kept on, too
         var dI = {}; dI[qi.fieldId] = resI.value; net.syncCharDelta(qi.charId, dI);
         if (bwI.warn.length && typeof budgetNotice === 'function') budgetNotice(chI, bwI.warn);   // 126: a budget that only warns: the GM is told
         if (resI.note && resI.added > 0) itemNotice(chI, resI.name, resI.note === 'bound' ? 'bound-pick' : 'curse-pick');
         else if (resI.hid) itemNotice(chI, resI.name, 'curse-drop');
         if (resI.eqNote && typeof resI.onRow === 'string') itemNotice(chI, resI.name, resI.eqNote === 'bound' ? 'eq-bound-on' : 'eq-curse-on');   // F4b
-        if (resI.keptOn) itemNotice(chI, resI.name, 'eq-curse-off');
+        if (resI.keptOn) itemNotice(chI, resI.keptName || resI.name, 'eq-curse-off');   // 1.5.4: a curse the one rule kept on, by its own name
         if (typeof resI.secretPick === 'string') itemNotice(chI, resI.name + '\u2019s ' + resI.secretPick, 'pick-over');   // owner 2026-09-27: their pick replaced a hidden choice you set
         if (window.wpSheets) window.wpSheets.charChanged(qi.charId);
         // [netcheck:charitem-end]
@@ -6794,7 +6799,7 @@ function handleMessage(msg, conn) {
                 if (wantQ && q.adv) { var awQ = Dq.withAdvantage(wantQ, q.adv, Fq.parse); wantQ = awQ.ok ? awQ.expr : null; }
                 var cmQ = wantQ ? Dq.composeModifier(wantQ, q.mod || 0, Fq.parse) : null;
                 if (!cmQ || !cmQ.ok || cmQ.expr !== q.expr) { denyQ('error', { error: { message: 'That roll does not match its button now.', pos: 0, len: 0 } }); return; }
-                if (actQ.needs) { var ndQ = Fq.evaluate(actQ.needs, { vars: varsQ }); if (!(ndQ.ok && (ndQ.value === true || (typeof ndQ.value === 'number' && ndQ.value !== 0)))) { denyQ('error', { error: { message: actQ.needsText || ('Not now: it needs ' + actQ.needs), pos: 0, len: 0 } }); return; } }   // R2b: what it needs, through their view (the row's names)
+                if (actQ.needs && !SQ.rollNeedsOk(actQ, varsQ, Fq)) { denyQ('error', { error: { message: SQ.rollNeedsSays(actQ), pos: 0, len: 0 } }); return; }   // R2b: what it needs, through their view (the row's names); the one reading (1.5.4: no die in it is rolled)
             }
         }
         if (Fq.names(q.expr).length && !varsQ) { denyQ('names'); return; }
@@ -7954,7 +7959,7 @@ net.diceRoll = function(expr, o) {
         if (o.act && !o.row) (Array.isArray(campR.system.rolls) ? campR.system.rolls : []).forEach(function(r) { if (r && r.id === o.act && typeof r.formula === 'string' && !r.apply) entR = r; });
         else if (o.row && typeof o.row.i === 'number') (Array.isArray(campR.system.fields) ? campR.system.fields : []).forEach(function(f) { if (f && f.id === o.row.f && f.kind === 'item-list' && f.list && Array.isArray(f.list.rolls)) { var lrR0 = f.list.rolls[o.row.i]; if (lrR0 && typeof lrR0.formula === 'string' && !lrR0.apply) entR = lrR0; } });
     }
-    if (entR && entR.needs && varsR) { var ndR = F.evaluate(entR.needs, { vars: varsR }); if (!(ndR.ok && (ndR.value === true || (typeof ndR.value === 'number' && ndR.value !== 0)))) return { error: entR.needsText || ('Not now: it needs ' + entR.needs) }; }   // R2b: its needs (before anything is rolled)   // Stage 6 F5b: a roll on one row — its Row.* names
+    if (entR && entR.needs && varsR && !SR.rollNeedsOk(entR, varsR, F)) return { error: SR.rollNeedsSays(entR) };   // R2b: its needs (before anything is rolled)   // Stage 6 F5b: a roll on one row — its Row.* names
     var res = F.evaluate(expr, varsR ? { vars: varsR } : {});
     if (!res.ok) return { error: res.error.message, pos: res.error.pos, len: res.error.len };
     if (o.row && chR && SR && campR && campR.system) rowP = SR.rowRollNames(campR.system, chR, o.row.f, o.row.r, (res.breakdown && res.breakdown.names) || [], F);   // what its Row.* names read, and whether the row is GM-only

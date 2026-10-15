@@ -759,7 +759,7 @@ pendingChecks.push((async () => {
     check('Stage 6: the host\'s Undo window — every pickup opens or extends it, a drop inside it lowers its count and never closes it (it lapses)',
         /if \(gA\) \{ gA\.added \+= resI\.added; gA\.until = nowI \+ Si\.LIMITS\.undoGraceMs; \} else _rowGrace\[gkA\] = \{ until: nowI \+ Si\.LIMITS\.undoGraceMs, added: resI\.added \};/.test(ciR) && /else if \(grI && resI\.undone > 0\) grI\.added = Math\.max\(0, grI\.added - resI\.undone\);/.test(ciR) && !/delete _rowGrace\[gkI\]/.test(ciR));
     check('Stage 6 removal rules on the wire: a bound item\'s refusal and a cursed one\'s answer carry the GM\'s message, which the client cleans as text (cleanItemMsg) before a toast shows it; the host keys legacy GM-only rows before hosting sends anything',
-        /conn\.send\(\{ type: 'char-deny', rid: qi\.rid, reason: 'stays', msg: resI\.msg \|\| '' \}\)/.test(ciR) && /conn\.send\(\(resI\.hid \|\| resI\.keptOn\) && resI\.msg \? \{ type: 'char-ack', rid: qi\.rid, msg: resI\.msg \} : \{ type: 'char-ack', rid: qi\.rid \}\)/.test(ciR)
+        /conn\.send\(\{ type: 'char-deny', rid: qi\.rid, reason: 'stays', msg: resI\.msg \|\| '' \}\)/.test(ciR) && /var itMI = resI\.hid && resI\.msg \? resI\.msg : resI\.keptOn && resI\.keptMsg \? resI\.keptMsg : '';/.test(ciR) && /conn\.send\(itMI \? \{ type: 'char-ack', rid: qi\.rid, msg: itMI \} : \{ type: 'char-ack', rid: qi\.rid \}\)/.test(ciR)
         && /charPendingDone\(msg\.rid, msg\.type === 'char-ack', SC2\.cleanDenyReason\(msg\.reason\), SC2\.cleanItemMsg\(msg\.msg\)\)/.test(src) && /Sh\.stampRows\(campH\.system, campH\.chars \|\| \{\}\);[^\n]*\n\s*net\.applyingRemote = true; save\(true\);/.test(src));
 }
 
@@ -3025,6 +3025,221 @@ pendingChecks.push((async () => {
         j(campWA.chars.c_a.values.f_wp[0].ct) === j({ Charges: 5 }) && outWA.sent.some(m => m.type === 'char-ack') && outWA.sent.some(m => m.type === 'apply' && m.priv === 'gm' && j(m.lines) === j([{ n: 'Charges', d: 4, v: 5 }])), j([campWA.chars.c_a.values.f_wp, outWA.sent.map(m => m.type)]));
 })());
 
+// SITE_EQUIVALENT_PLAN fold 2 on the wire (the owner, 2026-10-14: "everything in my campaign is able to be created using just the system and character
+// sheet creation UI"): (A) a system roll's or apply action's needs, judged by the host through the player's own view, before anything is rolled or moved,
+// with the reason a list roll gets; (B) a player's switch-on on a One at a time list, one change the host stores and sends whole, each row's equip lock kept
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js')), Dx = await import(url('dicecore.js')), J = JSON.stringify;
+    const line = k => { const i = src.indexOf(k); if (i < 0) throw new Error('netcheck: ' + k + ' not found'); return src.slice(i, src.indexOf('\n', i)); };
+    const helpers = ['function own(', 'function peerProfileId(', 'function fxLib(', 'function itemLib(', 'function diceFrom('].map(line).join('\n') + '\n';
+    const rqSrc = between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]', 'rollreq'), drSrc = between('// [netcheck:diceroll-start]', '// [netcheck:diceroll-end]', 'diceroll');
+    const apSrc = between('// [netcheck:charapply-start]', '// [netcheck:charapply-end]', 'charapply'), paSrc = between('// [netcheck:postapply-start]', '// [netcheck:postapply-end]', 'postapply'), dlSrc = between('// [netcheck:chardelta-start]', '// [netcheck:chardelta-end]', 'chardelta');
+    const ciSrc = between('// [netcheck:charitem-start]', '// [netcheck:charitem-end]', 'charitem'), ntSrc = (() => { const i = src.indexOf('function itemNotice('), k = src.indexOf('net.syncChars = function', i); if (i < 0 || k < 0) throw new Error('netcheck: itemNotice not found'); return src.slice(i, k); })();
+    const sysN = Sx.cleanSystem({ v: 1, name: 'N', fields: [{ id: 'f_st', key: 'Stunned', kind: 'toggle', edit: 'owner' }, { id: 'f_bl', key: 'Bleeding', kind: 'number', def: 0 }, { id: 'f_hp', key: 'HP', kind: 'number', def: 10 }, { id: 'f_g', key: 'GSecret', kind: 'number', def: 0, vis: 'gm' }],
+        rolls: [{ id: 'r_dodge', label: 'Dodge', formula: '3d6 <= 10', needs: 'not(Stunned)', needsText: 'Not while stunned' }, { id: 'r_g', label: 'G', formula: '3d6 <= 30', needs: 'GSecret > 0', needsText: 'Secret' },
+            { id: 'r_bleed', label: 'Bleed', apply: [{ f: 'f_hp', formula: 'Bleeding' }], needs: 'Bleeding > 0', needsText: 'Not bleeding' }] }, { F: Fx, gmView: true });
+    const chN = v => ({ c_a: { id: 'c_a', name: 'Ana', ownerId: 'u_a', npc: false, values: v } });
+    const runR = (msg, vals) => { const out = { table: [], sent: [] };
+        const camp = { id: 'k', activeItemId: 'm1', system: sysN, chars: chN(vals), items: { m1: { type: 'map', whiteboard: [] } } };
+        const net = { role: 'host', paused: false, roster: { pA: { id: 'u_a', name: 'Pat', location: 'm1' } }, combats: {}, syncCharDelta() {} };
+        const conn = { peer: 'pA', send(m) { packCheck(m); out.sent.push(JSON.parse(J(m))); } };
+        const win = { wpFormula: Fx, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} }, wpVtt: { on: () => true, rulesOn: () => true } };
+        new Function('msg', 'conn', 'net', 'DC', 'SC', 'window', 'getActiveCampaign', 'peerPaused', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'saveRemoteSoon', 'var diceLimit = null, _diceSlowSaid = {};\n' + helpers + rqSrc)(
+            Object.assign({ type: 'roll-req', rid: 'q1', charId: 'c_a' }, msg), conn, net, () => Dx, () => Sx, win, () => camp, () => false, e => { throw e; }, rec => { out.table.push(rec.expr); }, () => {}, () => {}, () => {});
+        return out; };
+    const rNo = runR({ act: 'r_dodge', expr: '3d6 <= 10' }, { f_st: true }), rYes = runR({ act: 'r_dodge', expr: '3d6 <= 10' }, { f_st: false }), rGm = runR({ act: 'r_g', expr: '3d6 <= 30' }, {});
+    const rMod = runR({ act: 'r_dodge', expr: Dx.composeModifier('3d6 <= 10', 2, Fx.parse).expr, mod: 2 }, { f_st: true });
+    check('fold 2 (A) a player\'s system roll that needs something (roll-req, run for real): refused before anything is rolled while it is not met, with its own words and the reason a list roll gets, a modifier beside it too; rolled once it is met; needs that read a GM-only value are not in their view, so their roll is not held back by them',
+        rNo.table.length === 0 && J(rNo.sent) === J([{ type: 'roll-deny', rid: 'q1', reason: 'error', message: 'Not while stunned', pos: 0, len: 0 }]) && rMod.table.length === 0 && rMod.sent[0].message === 'Not while stunned'
+        && J(rYes.table) === J(['3d6 <= 10']) && !rYes.sent.some(m => m.type === 'roll-deny') && J(rGm.table) === J(['3d6 <= 30']), J([rNo, rYes, rGm, rMod.sent]));
+    const runG = (act, vals) => { const camp = { id: 'k', system: sysN, chars: chN(vals) }, net = { active: true, role: 'host', stream: false, conns: [], roster: {}, syncCharDelta() {} }, pushed = [];
+        const dr = new Function('net', 'DC', 'SC', 'window', 'getActiveCampaign', 'getProfile', 'toast', 'ui', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'save', 'var _dicePending = null;\n' + helpers + drSrc + '\nreturn net.diceRoll;')(
+            net, () => Dx, () => Sx, { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { tokenCtxFor: () => null, charChanged() {} } }, () => camp, () => ({ id: 'u_gm', name: 'GM' }), () => {}, () => null, e => { throw e; }, () => {}, rec => pushed.push(rec.expr), () => {}, () => {});
+        return [dr('3d6 <= 10', { charId: 'c_a', act: act }), pushed]; };
+    const gNo = runG('r_dodge', { f_st: true }), gYes = runG('r_dodge', { f_st: false });
+    check('fold 2 (A) the GM\'s own system roll that needs something (net.diceRoll, run for real): refused with its words before anything is rolled, rolled once it is met',
+        J(gNo) === J([{ error: 'Not while stunned' }, []]) && gYes[0].ok === true && J(gYes[1]) === J(['3d6 <= 10']), J([gNo, gYes]));
+    const runA = vals => { const camp = { id: 'k', system: sysN, items: {}, chars: chN(vals) }, out = { sent: [], chat: [] };
+        const conn = { peer: 'pA', open: true, send: m => { packCheck(m); out.sent.push(JSON.parse(J(m))); } }, net = { active: true, role: 'host', paused: false, combats: {}, conns: [conn], roster: { pA: { id: 'u_a', name: 'Pat' } } };
+        new Function('msg', 'conn', 'net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'peerProfileId', 'lim', 'own', 'diceFrom', 'sendTable', 'pushChat', 'logEvent', 'applyLine', 'var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {};\n' + dlSrc + '\n' + paSrc + '\n' + apSrc)(
+            { type: 'char-apply', rid: 'a1', charId: 'c_a', act: 'r_bleed', label: 'Bleed' }, conn, net, () => Sx, { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} } }, () => false, () => camp, () => {}, e => { throw e; }, c => (net.roster[c.peer] ? net.roster[c.peer].id : null), { allow: () => true },
+            (ob, k) => !!ob && Object.prototype.hasOwnProperty.call(ob, k), (p, gm) => ({ id: p.id, name: p.name, gm: !!gm }), () => {}, m => out.chat.push(m), () => {}, r => Dx.applyText(r));
+        out.vals = camp.chars.c_a.values; return out; };
+    const aNo = runA({ f_bl: 0 }), aYes = runA({ f_bl: 2 });
+    check('fold 2 (A) a player\'s apply action that needs something (char-apply, run for real): refused with the reason a list roll gets and its words while it is not met, nothing moved, stored or carded; pressed once it is met, it moves its values on the host\'s copy',
+        J(aNo.sent) === J([{ type: 'char-deny', rid: 'a1', reason: 'error', msg: 'Not bleeding' }]) && J(aNo.vals) === J({ f_bl: 0 }) && aNo.chat.length === 0 && aYes.sent.some(m => m.type === 'char-ack') && aYes.vals.f_hp === 8, J([aNo, aYes.sent.map(m => m.type), aYes.vals]));
+    // (B) a switch-on on a One at a time list, through the host's real char-item branch, the real delta and the GM's notice
+    const sysB = Sx.cleanSystem({ v: 1, name: 'B', rolls: [], fields: [{ id: 'f_ar', key: 'Armour', label: 'Armour', kind: 'item-list', edit: 'owner', vis: 'all', list: { on: { label: 'Worn', per: 'Loc' }, stats: [{ key: 'Loc', kind: 'pick', opts: [{ label: 'Torso', name: 'HP' }, { label: 'Arm', name: 'HP' }] }] } }],
+        items: [{ id: 'i_pl', name: 'Plate', stats: { Loc: 'Torso' }, eq: 'bound', eqMsg: 'It is fused' }, { id: 'i_ma', name: 'Mail', stats: { Loc: 'Torso' } }, { id: 'i_br', name: 'Bracer', stats: { Loc: 'Arm' } }, { id: 'i_he', name: 'Helm', stats: { Loc: 'Torso' }, eq: 'curse', eqMsg: 'It clings' }] }, { F: Fx, gmView: true });
+    const runB = rows => { const camp = { id: 'k', system: sysB, chars: { c_1: { id: 'c_1', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_ar: rows } } } }, out = { answer: [], owner: [], notes: [], saves: 0 }, box = b => m => { packCheck(m); b.push(JSON.parse(J(m))); };
+        const net = { active: true, role: 'host', paused: false, conns: [{ peer: 'pA', open: true, send: box(out.owner) }], roster: { pA: { id: 'u_a' } } };
+        const win = { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} }, wpDiceCore: null };
+        const Hh = new Function('net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'peerProfileId', 'lim', 'toast', 'logEvent',
+            'var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {};\n' + dlSrc + '\n' + ntSrc + '\nreturn { handle: function(msg, conn) {\n' + ciSrc + '\n} };')(
+            net, () => Sx, win, () => false, () => camp, () => { out.saves++; }, e => { throw e; }, c => (net.roster[c.peer] ? net.roster[c.peer].id : null), { allow: () => true }, t => out.notes.push(t), () => {});
+        Hh.handle({ type: 'char-item', rid: 'i1', charId: 'c_1', fieldId: 'f_ar', op: 'set', rowId: 'w_m', facts: { on: true } }, { peer: 'pA', send: box(out.answer) });
+        out.rows = camp.chars.c_1.values.f_ar.map(r => r.id + ':' + r.on + (r.keptOn ? 'k' : '')).join(' ');
+        out.ownRows = out.owner.length ? ((out.owner[0].values || {}).f_ar || []).map(r => r.id + ':' + r.on).join(' ') : ''; return out; };
+    const bOk = runB([{ id: 'w_x', defId: 'i_ma', qty: 1, on: true }, { id: 'w_m', defId: 'i_ma', qty: 1, on: false }, { id: 'w_b', defId: 'i_br', qty: 1, on: true }]);
+    const bBound = runB([{ id: 'w_p', defId: 'i_pl', qty: 1, on: true }, { id: 'w_m', defId: 'i_ma', qty: 1, on: false }]), bCurse = runB([{ id: 'w_h', defId: 'i_he', qty: 1, on: true }, { id: 'w_m', defId: 'i_ma', qty: 1, on: false }]);
+    check('fold 2 (B) a player\'s switch-on on a One at a time list, per a stat (char-item, run for real): one change, stored and sent whole, the other row on the same location off and the one on another location left on; a bound row the change would switch off refuses it with that row\'s message, nothing stored, sent or saved, the GM told as for any bound row; a curse-on-contact row stays on, kept, its owner\'s copy showing it off and the answer carrying its message, the GM told',
+        J(bOk.answer) === J([{ type: 'char-ack', rid: 'i1' }]) && bOk.rows === 'w_x:false w_m:true w_b:true' && bOk.ownRows === 'w_x:false w_m:true w_b:true' && bOk.saves === 1 && bOk.owner.length === 1
+        && J(bBound.answer) === J([{ type: 'char-deny', rid: 'i1', reason: 'stays', msg: 'Plate is bound and stays on, so Mail stays off. It is fused' }]) && bBound.rows === 'w_p:true w_m:false' && bBound.owner.length === 0 && bBound.saves === 0 && bBound.notes.length === 1
+        && J(bCurse.answer) === J([{ type: 'char-ack', rid: 'i1', msg: 'It clings' }]) && bCurse.rows === 'w_h:truek w_m:true' && bCurse.ownRows === 'w_h:false w_m:true' && bCurse.notes.length === 1, J([bOk, bBound, bCurse]));
+})());
+
+// [m410] SITE_EQUIVALENT_PLAN fold 2 on the wire, each behaviour by a case of its own (the tests that go with the mutations of m410): (B) a player's own
+// app lays a switch-on as the host stores it, and a change still waiting over a newer host copy alike (the real net.charItem and reapplyPending beside
+// the host's real char-item branch and delta, with the real core); (A) the host judges a system roll's needs with the round of the fight on the map
+// the player is on, as their own sheet reads it
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js')), Dx = await import(url('dicecore.js')), J = JSON.stringify;
+    const rawB = { v: 1, name: 'B', rolls: [], fields: [{ id: 'f_ar', key: 'Armour', label: 'Armour', kind: 'item-list', edit: 'owner', vis: 'all', list: { on: { label: 'Worn', per: 'Loc' }, stats: [{ key: 'Loc', kind: 'pick', opts: [{ label: 'Torso', name: 'HP' }, { label: 'Arm', name: 'HP' }] }] } }],
+        items: [{ id: 'i_ma', name: 'Mail', stats: { Loc: 'Torso' } }, { id: 'i_br', name: 'Bracer', stats: { Loc: 'Arm' } }, { id: 'i_he', name: 'Helm', stats: { Loc: 'Torso' }, eq: 'curse', eqMsg: 'It clings' }] };
+    const sysB = Sx.cleanSystem(rawB, { F: Fx, gmView: true }), view = Sx.cleanSystem(sysB, { F: Fx, gmView: false });
+    const hostRows = () => [{ id: 'w_x', defId: 'i_ma', qty: 1, on: true }, { id: 'w_m', defId: 'i_ma', qty: 1, on: false }, { id: 'w_b', defId: 'i_br', qty: 1, on: true }, { id: 'w_h', defId: 'i_he', qty: 1, on: true }];
+    const hostChar = rows => ({ id: 'c_1', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_ar: rows } }), onOf = rows => (rows || []).map(r => r.id + ':' + (r.on === true)).join(' ');
+    const SET = { op: 'set', rowId: 'w_m', facts: { on: true } };
+    // a player's own app: their copy as the host makes it for them
+    const cA = src.indexOf('net.charItem = function('), cZ = src.indexOf('\n};\n', cA) + 3, sentC = [];
+    const campC = { id: 'k', system: view, chars: { c_1: JSON.parse(J(Sx.charFor(hostChar(hostRows()), view, 'u_a', { full: sysB }))) } };
+    const netC = { active: true, role: 'client', stream: false, foreign: true, syncedPeer: 'h', myId: 'u_a', libEntry: () => null, conns: [{ peer: 'h', open: true, send: m => { packCheck(m); sentC.push(JSON.parse(J(m))); } }] };
+    new Function('net', 'SC', 'getActiveCampaign', 'window', '_charPending', 'charPendingDone', 'setTimeout', src.slice(cA, cZ))(netC, () => Sx, () => campC, { wpFormula: Fx, wpVtt: { on: () => true } }, {}, () => {}, () => 0);
+    const rC = netC.charItem('c_1', 'f_ar', SET), mine = onOf(campC.chars.c_1.values.f_ar);
+    // the host, the very message the player's app sent
+    const ciSrc = between('// [netcheck:charitem-start]', '// [netcheck:charitem-end]', 'charitem'), dlSrc = between('// [netcheck:chardelta-start]', '// [netcheck:chardelta-end]', 'chardelta');
+    const ntSrc = (() => { const i = src.indexOf('function itemNotice('), k = src.indexOf('net.syncChars = function', i); if (i < 0 || k < 0) throw new Error('netcheck: itemNotice not found'); return src.slice(i, k); })();
+    const campH = { id: 'k', system: sysB, chars: { c_1: hostChar(hostRows()) } }, ans = [], owner = [], box = b => m => { packCheck(m); b.push(JSON.parse(J(m))); };
+    const netH = { active: true, role: 'host', paused: false, conns: [{ peer: 'pA', open: true, send: box(owner) }], roster: { pA: { id: 'u_a' } } };
+    const winH = { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} }, wpDiceCore: null };
+    new Function('net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'peerProfileId', 'lim', 'toast', 'logEvent',
+        'var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {};\n' + dlSrc + '\n' + ntSrc + '\nreturn function(msg, conn) {\n' + ciSrc + '\n};')(
+        netH, () => Sx, winH, () => false, () => campH, () => {}, e => { throw e; }, c => (netH.roster[c.peer] ? netH.roster[c.peer].id : null), { allow: () => true }, () => {}, () => {})(sentC[0], { peer: 'pA', send: box(ans) });
+    const told = owner.length ? onOf((owner[0].values || {}).f_ar) : '', stored = campH.chars.c_1.values.f_ar.map(r => r.id + ':' + r.on + (r.keptOn ? 'k' : '')).join(' ');
+    // a change still waiting, laid over a newer copy from the host in which the GM put another Mail on (reapplyPending, run for real)
+    const rA = src.indexOf('function reapplyPending(charId) {'), rZ = src.indexOf('\n}\n', rA) + 3, rpSrc = src.slice(rA, rZ);
+    const newer = hostRows().concat([{ id: 'w_n', defId: 'i_ma', qty: 1, on: true }]), campR = { id: 'k', system: view, chars: { c_1: JSON.parse(J(Sx.charFor(hostChar(newer), view, 'u_a', { full: sysB }))) } };
+    new Function('getActiveCampaign', 'SC', '_charHost', '_charPending', 'window', 'net', rpSrc + '\nreturn reapplyPending;')(() => campR, () => Sx, { c_1: { f_ar: JSON.parse(J(campR.chars.c_1.values.f_ar)) } }, { e1: { charId: 'c_1', fieldId: 'f_ar', kind: 'item', q: JSON.parse(J(SET)) } }, { wpFormula: Fx }, { libEntry: () => null })('c_1');
+    const laid = onOf(campR.chars.c_1.values.f_ar);
+    check('m410 (B) a player\'s own app lays a switch-on on a One at a time list as the host stores it (the real net.charItem, the host\'s real char-item branch and delta, reapplyPending, with the real core): at once on their copy, the other Mail on the Torso off, the cursed Helm off as they see it and the Bracer on the Arm left on; only the op is sent; the host stores the Helm kept on and tells them what their app already shows; a change still waiting is laid over a newer copy in which the GM put another Mail on, which goes off too',
+        rC.ok === true && mine === 'w_x:false w_m:true w_b:true w_h:false' && J(sentC.map(m => [m.type, m.op, m.rowId, m.facts])) === J([['char-item', 'set', 'w_m', { on: true }]])
+        && J(ans) === J([{ type: 'char-ack', rid: sentC[0].rid, msg: 'It clings' }]) && stored === 'w_x:false w_m:true w_b:true w_h:truek' && told === mine
+        && laid === 'w_x:false w_m:true w_b:true w_h:false w_n:false', J([rC, mine, sentC, ans, stored, told, laid]));
+    // (A) the host judges a player's system roll with the round of the fight on their map (roll-req, run for real)
+    const line = k => { const i = src.indexOf(k); if (i < 0) throw new Error('netcheck: ' + k + ' not found'); return src.slice(i, src.indexOf('\n', i)); };
+    const helpers = ['function own(', 'function peerProfileId(', 'function fxLib(', 'function itemLib(', 'function diceFrom('].map(line).join('\n') + '\n';
+    const rqSrc = between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]', 'rollreq');
+    const sysR = Sx.cleanSystem({ v: 1, name: 'R', fields: [{ id: 'f_hp', key: 'HP', kind: 'number', def: 10 }], rolls: [{ id: 'r_rally', label: 'Rally', formula: '3d6 <= 10', needs: 'CombatRound >= 2', needsText: 'Not before round 2' }] }, { F: Fx, gmView: true });
+    const runRd = round => { const out = { table: [], sent: [] };
+        const camp = { id: 'k', activeItemId: 'm1', system: sysR, chars: { c_a: { id: 'c_a', name: 'Ana', ownerId: 'u_a', npc: false, values: {} } }, items: { m1: { type: 'map', whiteboard: [{ id: 't1', isChar: true, charId: 'c_a', ownerId: 'u_a', x: 0, y: 0, width: 50, height: 50 }] } } };
+        const net = { role: 'host', paused: false, roster: { pA: { id: 'u_a', name: 'Pat', location: 'm1' } }, combats: round ? { m1: { round: round, turn: 0, rows: [{ tokId: 't1' }] } } : {}, syncCharDelta() {} };
+        const conn = { peer: 'pA', send(m) { packCheck(m); out.sent.push(JSON.parse(J(m))); } };
+        const win = { wpFormula: Fx, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} }, wpVtt: { on: () => true, rulesOn: () => true } };
+        new Function('msg', 'conn', 'net', 'DC', 'SC', 'window', 'getActiveCampaign', 'peerPaused', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'saveRemoteSoon', 'var diceLimit = null, _diceSlowSaid = {};\n' + helpers + rqSrc)(
+            { type: 'roll-req', rid: 'q1', charId: 'c_a', act: 'r_rally', expr: '3d6 <= 10' }, conn, net, () => Dx, () => Sx, win, () => camp, () => false, e => { throw e; }, rec => { out.table.push(rec.expr); }, () => {}, () => {}, () => {});
+        return [out.table.length, out.sent.filter(m => m.type === 'roll-deny').map(m => m.message)]; };
+    const rd = [runRd(0), runRd(1), runRd(2)];
+    check('m410 (A) the host judges a player\'s system roll by the round of the fight on the map they are on (roll-req, run for real): with no fight and in round 1 it is refused in its own words, in round 2 it is rolled',
+        J(rd) === J([[0, ['Not before round 2']], [0, ['Not before round 2']], [1, []]]), J(rd));
+})());
+
+// [m410 review] SITE_EQUIVALENT_PLAN fold 2 on the wire, what its review found, each run for real: (4) the host's two readings of a roll's needs roll
+// no die; (5) a bound row inside its grace goes for another row's switch-on and its grace is spent; (6) a curse kept on beside a row switched on that
+// has a lock of its own is said, on the answer and to the GM; reviewer two (2) a bound row that keeps a switch-on off is said in words that name both
+// rows; (1) a row moved by a change of its stat into a group that has one on comes into it off, and a bound one is refused in words of its own; (2) a
+// choice whose option the players' view drops puts a row in the same group on the host and on the player's own app
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js')), Dx = await import(url('dicecore.js')), J = JSON.stringify;
+    const line = k => { const i = src.indexOf(k); if (i < 0) throw new Error('netcheck: ' + k + ' not found'); return src.slice(i, src.indexOf('\n', i)); };
+    const helpers = ['function own(', 'function peerProfileId(', 'function fxLib(', 'function itemLib(', 'function diceFrom('].map(line).join('\n') + '\n';
+    const rqSrc = between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]', 'rollreq'), drSrc = between('// [netcheck:diceroll-start]', '// [netcheck:diceroll-end]', 'diceroll');
+    const ciSrc = between('// [netcheck:charitem-start]', '// [netcheck:charitem-end]', 'charitem'), dlSrc = between('// [netcheck:chardelta-start]', '// [netcheck:chardelta-end]', 'chardelta');
+    const ntSrc = (() => { const i = src.indexOf('function itemNotice('), k = src.indexOf('net.syncChars = function', i); if (i < 0 || k < 0) throw new Error('netcheck: itemNotice not found'); return src.slice(i, k); })();
+    // (4) needs that hold a die: the host never rolls it, so they are never met, on a player's roll and on the GM's own (24 tries each)
+    const sysD = Sx.cleanSystem({ v: 1, name: 'D', fields: [{ id: 'f_hp', key: 'HP', kind: 'number', def: 10 }], rolls: [{ id: 'r_d', label: 'Luck', formula: '3d6 <= 10', needs: 'd2 > 1', needsText: 'Not by luck' }] }, { F: Fx, gmView: true });
+    const runRD = () => { const out = { table: [], sent: [] };
+        const camp = { id: 'k', activeItemId: 'm1', system: sysD, chars: { c_a: { id: 'c_a', name: 'Ana', ownerId: 'u_a', npc: false, values: {} } }, items: { m1: { type: 'map', whiteboard: [] } } };
+        const net = { role: 'host', paused: false, roster: { pA: { id: 'u_a', name: 'Pat', location: 'm1' } }, combats: {}, syncCharDelta() {} };
+        const conn = { peer: 'pA', send(m) { packCheck(m); out.sent.push(JSON.parse(J(m))); } };
+        const win = { wpFormula: Fx, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} }, wpVtt: { on: () => true, rulesOn: () => true } };
+        new Function('msg', 'conn', 'net', 'DC', 'SC', 'window', 'getActiveCampaign', 'peerPaused', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'saveRemoteSoon', 'var diceLimit = null, _diceSlowSaid = {};\n' + helpers + rqSrc)(
+            { type: 'roll-req', rid: 'q1', charId: 'c_a', act: 'r_d', expr: '3d6 <= 10' }, conn, net, () => Dx, () => Sx, win, () => camp, () => false, e => { throw e; }, rec => { out.table.push(rec.expr); }, () => {}, () => {}, () => {});
+        return J([out.table.length, out.sent.filter(m => m.type === 'roll-deny').map(m => m.message)]); };
+    const runGD = () => { const camp = { id: 'k', system: sysD, chars: { c_a: { id: 'c_a', name: 'Ana', ownerId: 'u_a', npc: false, values: {} } } }, net = { active: true, role: 'host', stream: false, conns: [], roster: {}, syncCharDelta() {} }, pushed = [];
+        const dr = new Function('net', 'DC', 'SC', 'window', 'getActiveCampaign', 'getProfile', 'toast', 'ui', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'save', 'var _dicePending = null;\n' + helpers + drSrc + '\nreturn net.diceRoll;')(
+            net, () => Dx, () => Sx, { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { tokenCtxFor: () => null, charChanged() {} } }, () => camp, () => ({ id: 'u_gm', name: 'GM' }), () => {}, () => null, e => { throw e; }, () => {}, rec => pushed.push(rec.expr), () => {}, () => {});
+        return J([dr('3d6 <= 10', { charId: 'c_a', act: 'r_d' }), pushed]); };
+    const dR = [], dG = []; for (let i = 0; i < 24; i++) { dR.push(runRD()); dG.push(runGD()); }
+    check('m410 review (4) needs that hold a die are never met on the host (roll-req and net.diceRoll, run for real, 24 times each): the die is never rolled, so the roll is refused in its own words every time, as the player\'s greyed button says',
+        dR.every(x => x === J([0, ['Not by luck']])) && dG.every(x => x === J([{ error: 'Not by luck' }, []])), J([dR.filter(x => x !== J([0, ['Not by luck']])).length, dG.filter(x => x !== J([{ error: 'Not by luck' }, []])).length]));
+    // the host's real char-item branch, its real delta and the GM's notices, one world per case, several messages each
+    const mkH = (sys, rows) => { const camp = { id: 'k', system: sys, chars: { c_1: { id: 'c_1', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_ar: rows } } } }, out = { answer: [], owner: [], notes: [] }, box = b => m => { packCheck(m); b.push(JSON.parse(J(m))); };
+        const net = { active: true, role: 'host', paused: false, conns: [{ peer: 'pA', open: true, send: box(out.owner) }], roster: { pA: { id: 'u_a' } } };
+        const win = { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} }, wpDiceCore: null };
+        const Hh = new Function('net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'peerProfileId', 'lim', 'toast', 'logEvent',
+            'var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {};\n' + dlSrc + '\n' + ntSrc + '\nreturn { handle: function(msg, conn) {\n' + ciSrc + '\n}, grace: function() { return Object.keys(_rowGrace); }, graceSet: function(k, v) { _rowGrace[k] = v; } };')(
+            net, () => Sx, win, () => false, () => camp, () => {}, e => { throw e; }, c => (net.roster[c.peer] ? net.roster[c.peer].id : null), { allow: () => true }, t => out.notes.push(t), () => {});
+        let n = 0; const send = q => { out.answer.length = 0; Hh.handle(Object.assign({ type: 'char-item', rid: 'i' + (++n), charId: 'c_1', fieldId: 'f_ar' }, q), { peer: 'pA', send: box(out.answer) }); return J(out.answer); };
+        const rowsNow = () => camp.chars.c_1.values.f_ar.map(r => r.id + ':' + r.on + (r.keptOn ? 'k' : '')).join(' '), told = () => out.owner.length ? ((out.owner[out.owner.length - 1].values || {}).f_ar || []).map(r => r.id + ':' + r.on).join(' ') : '';
+        const byHand = (rid, on) => { camp.chars.c_1.values.f_ar.find(r => r.id === rid).on = on; };
+        return { send, rowsNow, told, byHand, out, grace: Hh.grace, graceSet: Hh.graceSet }; };
+    const rawE = { v: 1, name: 'E', rolls: [], fields: [{ id: 'f_hp', key: 'HP', kind: 'number', def: 10 }, { id: 'f_ar', key: 'Armour', label: 'Armour', kind: 'item-list', edit: 'owner', vis: 'all', list: { on: { label: 'Worn', per: 'Loc' }, stats: [{ key: 'Loc', kind: 'pick', opts: [{ label: 'Torso', name: 'HP' }, { label: 'Arm', name: 'HP' }] }] } }],
+        items: [{ id: 'i_pl', name: 'Plate', stats: { Loc: 'Torso' }, eq: 'bound', eqMsg: 'It is fused' }, { id: 'i_ma', name: 'Mail', stats: { Loc: 'Torso' } }, { id: 'i_sh', name: 'Shield', stats: { Loc: 'Torso' } }, { id: 'i_he', name: 'Helm', stats: { Loc: 'Torso' }, eq: 'curse', eqMsg: 'It clings' }] };
+    const sysE = Sx.cleanSystem(rawE, { F: Fx, gmView: true }), ON = rid => ({ op: 'set', rowId: rid, facts: { on: true } });
+    // (5) and reviewer two (2): the Plate switched on opens its grace; the Shield switched on inside it takes the Plate off and spends it; the GM puts
+    // the Plate back on by hand, and the Mail switched on is then refused in words that name both rows, the GM told the same
+    const G5 = mkH(sysE, [{ id: 'w_p', defId: 'i_pl', qty: 1, on: false }, { id: 'w_m', defId: 'i_ma', qty: 1, on: true }, { id: 'w_s', defId: 'i_sh', qty: 1, on: false }]);
+    const g5 = [G5.send(ON('w_p')), G5.rowsNow(), J(G5.grace())]; const g5b = [G5.send(ON('w_s')), G5.rowsNow(), G5.told(), J(G5.grace())];
+    G5.byHand('w_p', true); G5.byHand('w_s', false); const g5c = [G5.send(ON('w_m')), G5.rowsNow()];
+    const lapse = till => { const W = mkH(sysE, [{ id: 'w_p', defId: 'i_pl', qty: 1, on: true }, { id: 'w_m', defId: 'i_ma', qty: 1, on: false }]); W.graceSet('c_1|f_ar|w_p|on', { until: Date.now() + till, added: 0 }); W.graceSet('c_1|f_ar|w_p', { until: Date.now() + 60000, added: 1 }); return [W.send(ON('w_m')), W.rowsNow()]; };
+    const g5l = lapse(-1), g5o = lapse(60000);
+    check('m410 review (5) a bound row inside its grace (the host\'s real char-item branch): switched on, the Plate opens its grace; the Shield switched on a moment later takes it off with the Mail\'s place kept, one change stored and sent, and spends that grace; the GM puts it back on, and a switch-on is then refused; a grace that has run out holds nothing, nor does the row\'s pickup window, and one still open lets it go',
+        J(g5) === J([J([{ type: 'char-ack', rid: 'i1' }]), 'w_p:true w_m:false w_s:false', J(['c_1|f_ar|w_p|on'])]) && J(g5b) === J([J([{ type: 'char-ack', rid: 'i2' }]), 'w_p:false w_m:false w_s:true', 'w_p:false w_m:false w_s:true', '[]'])
+        && J(g5c) === J([J([{ type: 'char-deny', rid: 'i3', reason: 'stays', msg: 'Plate is bound and stays on, so Mail stays off. It is fused' }]), 'w_p:true w_m:false w_s:false'])
+        && J(g5l) === J([J([{ type: 'char-deny', rid: 'i1', reason: 'stays', msg: 'Plate is bound and stays on, so Mail stays off. It is fused' }]), 'w_p:true w_m:false']) && J(g5o) === J([J([{ type: 'char-ack', rid: 'i1' }]), 'w_p:false w_m:true']), J([g5, g5b, g5c, g5l, g5o]));
+    check('m410 review, reviewer two (2): a bound row that keeps a switch-on off is said by both rows\' names, to the player on the refusal and to the GM in a notice of its own (never "tried to switch off" the bound row)',
+        J(G5.out.notes) === J(['Ana switched on Plate — bound: it stays on until you switch it off.', 'Ana tried to switch on Mail — Plate is bound and stays on, so it stays off.']), J(G5.out.notes));
+    // (6) the bound Plate switched on beside the cursed Helm that is on: the Helm is kept on out of the player's sight and both are said
+    const G6 = mkH(sysE, [{ id: 'w_p', defId: 'i_pl', qty: 1, on: false }, { id: 'w_h', defId: 'i_he', qty: 1, on: true }]);
+    const g6 = [G6.send(ON('w_p')), G6.rowsNow(), G6.told()];
+    check('m410 review (6) a curse kept on beside a row switched on that has a lock of its own (the host\'s real char-item branch): the Helm stays on out of the player\'s sight, its message rides the answer, and the GM is told both, the Plate switched on and the Helm kept on',
+        J(g6) === J([J([{ type: 'char-ack', rid: 'i1', msg: 'It clings' }]), 'w_p:true w_h:truek', 'w_p:true w_h:false'])
+        && J(G6.out.notes) === J(['Ana switched on Plate — bound: it stays on until you switch it off.', 'Ana switched off Helm — it stays on, out of their sight, until you switch it off.']), J([g6, G6.out.notes]));
+    // (1) a row of the player's own moved by its stat into a group that has one on comes into it off; a bound copy moved by its stat (Setting A) is
+    // refused in words of its own and the GM is told in words of their own
+    const sysC = Sx.cleanSystem({ v: 1, name: 'C', rolls: [], fields: [{ id: 'f_ar', key: 'Gear', label: 'Gear', kind: 'item-list', edit: 'owner', vis: 'all', list: { custom: true, on: { label: 'Worn', per: 'Slot' }, stats: [{ key: 'Slot' }] } }] }, { F: Fx, gmView: true });
+    const own1 = (id, nm, slot) => ({ id: id, qty: 1, on: true, own: 1, def: { name: nm, category: '', icon: '', notes: '', vis: 'all', stats: { Slot: slot } } });
+    const G1 = mkH(sysC, [own1('w_a', 'A', 1), own1('w_b', 'B', 2)]), g1 = [G1.send({ op: 'custom', rowId: 'w_b', def: { stats: { Slot: 1 } } }), G1.rowsNow(), G1.told()];
+    const G1f = mkH(sysC, [own1('w_a', 'A', 1), own1('w_b', 'B', 2)]), g1f = [G1f.send({ op: 'custom', rowId: 'w_b', def: { stats: { Slot: 3 } } }), G1f.rowsNow()];
+    const sysM = Sx.cleanSystem({ v: 1, name: 'M', rolls: [], listRules: { ownerStats: true }, fields: [{ id: 'f_ar', key: 'Gear', label: 'Gear', kind: 'item-list', edit: 'owner', vis: 'all', list: { on: { label: 'Worn', per: 'Slot' }, stats: [{ key: 'Slot' }] } }],
+        items: [{ id: 'i_pl', name: 'Plate', stats: { Slot: 1 }, eq: 'bound', eqMsg: 'It is fused' }, { id: 'i_ma', name: 'Mail', stats: { Slot: 2 } }, { id: 'i_bo', name: 'Boots', stats: { Slot: 3 } }] }, { F: Fx, gmView: true });
+    const GM = mkH(sysM, [{ id: 'w_p', defId: 'i_pl', qty: 1, on: true }, { id: 'w_m', defId: 'i_ma', qty: 1, on: true }]), gm1 = [GM.send({ op: 'ov', rowId: 'w_p', ov: { stats: { Slot: 2 } } }), GM.rowsNow()];
+    const GB = mkH(sysM, [{ id: 'w_b', defId: 'i_bo', qty: 1, on: true }, { id: 'w_m', defId: 'i_ma', qty: 1, on: true }]), gb1 = [GB.send({ op: 'ov', rowId: 'w_b', ov: { stats: { Slot: 2 } } }), GB.rowsNow(), GB.told()];
+    check('m410 review (1) a row moved by a change of its stat into a group that has one on (the host\'s real char-item branch): a row of the player\'s own moved into Slot 1 comes into it off, stored and sent so; moved to a free slot it stays on; a library copy moved by its own stat (Setting A) comes in off too; a bound one is refused in words of its own, nothing stored, and the GM is told it was a change',
+        J(g1) === J([J([{ type: 'char-ack', rid: 'i1' }]), 'w_a:true w_b:false', 'w_a:true w_b:false']) && J(g1f) === J([J([{ type: 'char-ack', rid: 'i1' }]), 'w_a:true w_b:true'])
+        && J(gb1) === J([J([{ type: 'char-ack', rid: 'i1' }]), 'w_b:false w_m:true', 'w_b:false w_m:true'])
+        && J(gm1) === J([J([{ type: 'char-deny', rid: 'i1', reason: 'stays', msg: 'Plate is bound and stays on. Another row of that group is on, so that change is not made. It is fused' }]), 'w_p:true w_m:true'])
+        && J(GM.out.notes) === J(['Ana tried to change Plate — it is bound and stays on, and another row of that group is on.']), J([g1, g1f, gb1, gm1, GM.out.notes]));
+    // (2) a choice whose option names a GM-only value: the player's own app (the real net.charItem) and the host (the real char-item branch, the
+    // very message) put the Mail in the same group, so what the player saw at once is what the host stored and sent
+    const rawQ = { v: 1, name: 'Q', rolls: [], fields: [{ id: 'f_s', key: 'TorsoDR', kind: 'number', vis: 'gm' }, { id: 'f_h', key: 'HeadDR', kind: 'number' },
+        { id: 'f_ar', key: 'Armour', label: 'Armour', kind: 'item-list', edit: 'owner', vis: 'all', list: { on: { label: 'Worn', per: 'Loc' }, stats: [{ key: 'Loc', kind: 'pick', def: 'Head', opts: [{ label: 'Head', name: 'HeadDR' }, { label: 'Torso', name: 'TorsoDR' }] }] } }],
+        items: [{ id: 'i_he', name: 'Helm', stats: { Loc: 'Head' } }, { id: 'i_ma', name: 'Mail', stats: { Loc: 'Torso' } }] };
+    const sysQ = Sx.cleanSystem(rawQ, { F: Fx, gmView: true }), viewQ = Sx.cleanSystem(sysQ, { F: Fx, gmView: false });
+    const rowsQ = () => [{ id: 'w_m', defId: 'i_ma', qty: 1, on: true }, { id: 'w_h', defId: 'i_he', qty: 1, on: false }], onQ = rows => (rows || []).map(r => r.id + ':' + (r.on === true)).join(' ');
+    const cA = src.indexOf('net.charItem = function('), cZ = src.indexOf('\n};\n', cA) + 3, sentQ = [];
+    const campQ = { id: 'k', system: viewQ, chars: { c_1: JSON.parse(J(Sx.charFor({ id: 'c_1', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_ar: rowsQ() } }, viewQ, 'u_a', { full: sysQ }))) } };
+    const netQ = { active: true, role: 'client', stream: false, foreign: true, syncedPeer: 'h', myId: 'u_a', libEntry: () => null, conns: [{ peer: 'h', open: true, send: m => { packCheck(m); sentQ.push(JSON.parse(J(m))); } }] };
+    new Function('net', 'SC', 'getActiveCampaign', 'window', '_charPending', 'charPendingDone', 'setTimeout', src.slice(cA, cZ))(netQ, () => Sx, () => campQ, { wpFormula: Fx, wpVtt: { on: () => true } }, {}, () => {}, () => 0);
+    const rQ = netQ.charItem('c_1', 'f_ar', ON('w_h')), mineQ = onQ(campQ.chars.c_1.values.f_ar);
+    const GQ = mkH(sysQ, rowsQ()); const ansQ = sentQ.length ? (() => { GQ.out.answer.length = 0; return GQ.send({ op: sentQ[0].op, rowId: sentQ[0].rowId, facts: sentQ[0].facts }); })() : '';
+    check('m410 review (2) a choice whose option names a GM-only value (Torso reads TorsoDR): the player\'s own app and the host group the Mail alike, by the player\'s own view of the list, so the Helm switched on takes it off on both machines and what the player saw at once is what the host stored and sent',
+        rQ.ok === true && mineQ === 'w_m:false w_h:true' && ansQ === J([{ type: 'char-ack', rid: 'i1' }]) && onQ(campQ.chars.c_1.values.f_ar) === GQ.rowsNow().replace(/k/g, '') && GQ.told() === mineQ, J([rQ, mineQ, ansQ, GQ.rowsNow(), GQ.told()]));
+})());
+
 // Stage 6 HUD R3: a roll's Malf on the wire — the host works it out through the player's view, puts it on the record (every machine then shows the
 // malfunction from the draws), and a malfunction is a failure with its own consequences; the GM's own: a GM-only Malf keeps the roll private
 pendingChecks.push((async () => {
@@ -3316,7 +3531,7 @@ pendingChecks.push((async () => {
             const out = { toasts: [], logs: [], labels: [], calls: [], privs: [], errs: [], dice: (o.dice || []).slice(), seqs: JSON.parse(j(o.seqs || {})) };
             const camp = { system: { combat: { initiative: ir } }, chars: { c_a: { id: 'c_a' }, c_b: { id: 'c_b' }, c_g: { id: 'c_g' } }, items: { m1: { type: 'map', meta: { title: 'Hall' }, whiteboard: [{ id: 't_a', isChar: true, charId: 'c_a', ownerId: 'u_a' }, { id: 't_g', isChar: true, charId: 'c_g' }, { id: 't_b', isChar: true, charId: 'c_b', ownerId: 'u_b' }, { id: 't_x', isChar: false, charId: 'c_a', ownerId: 'u_a' }] } } };
             const net = { role: 'host', active: true, combats: {}, diceRoll: (expr, d) => { out.labels.push(expr + '|' + d.label); if (o.diceErr) return { error: o.diceErr }; return { ok: true, value: out.dice.length ? out.dice.shift() : 1 }; } };
-            const win = { wpFormula: Fx, wpSheets: { rollInit: (id, oI) => { out.calls.push(id); out.privs.push(!!(oI && oI.priv === true)); if (o.rollErr) return { error: o.rollErr }; const s = out.seqs[id]; return { ok: true, value: s && s.length ? s.shift() : 0 }; } } };
+            const win = { wpFormula: Fx, wpSheets: { rollInit: (id, oI) => { out.calls.push(id); out.privs.push(!!(oI && oI.priv === true)); if (o.rollErr) return { error: o.rollErr }; if (o.held && Object.prototype.hasOwnProperty.call(o.held, id)) return { held: true, error: o.held[id] }; const s = out.seqs[id]; return { ok: true, value: s && s.length ? s.shift() : 0 }; } } };
             const api = new Function('net', 'window', 'getActiveCampaign', 'broadcastCombats', 'logEvent', 'toast', 'render', 'console', 'showConfirm', 'own', 'SC', ccO + '\n' + setO + '\n' + stepO + '\nreturn { initIntoFight: initIntoFight, cleanCombats: cleanCombats };')(
                 net, win, () => camp, () => {}, (k, t) => out.logs.push(t), t => out.toasts.push(t), () => {}, { error: e => out.errs.push(String(e && e.message)) }, () => {}, H.own, () => Sx);
             return Object.assign(out, { net, camp, api, c: () => net.combats.m1, ids: () => net.combats.m1.rows.map(r => r.id), cur: () => net.combats.m1.rows[net.combats.m1.turn].id }); };
@@ -3335,6 +3550,10 @@ pendingChecks.push((async () => {
         check('initiative O4 every round: a roll the sheet refuses is said once and the rest keep their numbers and their order; without the rule a new round rolls nothing and keeps the order',
             j(Ef.calls) === j(['c_a']) && Ef.toasts.filter(t => t === 'Dice are off for this campaign (Settings > VTT features).').length === 1 && j(Ef.ids()) === j(['r_a', 'r_g', 'r_c', 'r_x']) && Ef.c().rows[0].init === 15
             && En.calls.length === 0 && En.labels.length === 0 && j(En.ids()) === j(['r_a', 'r_g', 'r_c', 'r_x']) && !('side' in En.c()), j([Ef.calls, Ef.toasts, Ef.ids(), En.ids()]));
+        // [m410 review] (3) a row whose initiative roll the sheet holds back by what it needs is passed over: it keeps its number, the rest roll on, nothing said
+        const Eq = mkO({ every: true }, { seqs: { c_g: [18] }, held: { c_a: 'Not while down' } }); Eq.net.combatSet('m1', { round: 1, turn: 0, rows: rowsO() }); stepN(Eq, 4);
+        check('m410 review (3) every round, a row whose initiative roll is held back by its needs (the sheet\'s rollInit answering held) is passed over: it keeps its number and its place by it, the rows after it still roll, and nothing is said',
+            j(Eq.calls) === j(['c_a', 'c_g']) && j(Eq.c().rows.map(r => [r.id, r.init, r.rolled || 0])) === j([['r_g', 18, 1], ['r_a', 15, 0], ['r_c', 12, 0], ['r_x', 1, 0]]) && !Eq.toasts.some(t => /Not while down/.test(t)) && Eq.errs.length === 0, j([Eq.calls, Eq.c().rows, Eq.toasts]));
         // hidden pieces (owner, 2026-10-01): a creature the GM hid rolls again in private — its row reads Hidden on the table, and an open card would name it
         const Eh = mkO({ every: true }, { seqs: { c_a: [3], c_g: [18], c_h: [19] } }); Eh.camp.chars.c_h = { id: 'c_h' }; Eh.camp.items.m1.whiteboard.push({ id: 't_h', isChar: true, charId: 'c_h', hidden: true });
         Eh.net.combatSet('m1', { round: 1, turn: 0, rows: rowsO().concat([{ id: 'r_h', name: 'Lurker', tokId: 't_h', init: 11, src: null }]) }); stepN(Eh, 5);
@@ -11783,7 +12002,7 @@ pendingChecks.push((async () => {
             rOwn.ok === true && j(sentC) === j(['i_two']) && j(kitR) === j(['i_lib1', 'i_two'])
             && j(ans) === j([{ type: 'char-deny', rid: 'i1', reason: 'needs', msg: 'That needs something you do not have.' }]) && campH.chars.c_1.values.f_kit.length === 1
             && src.includes("{ player: true, view: camp.system, lib: net.libEntry, copy: true });") && rpSrc.includes("var o = { player: true, view: camp.system, lib: net.libEntry, copy: true },")
-            && ciSrc.includes("{ player: true, view: window.wpSheets ? window.wpSheets.playerSystem(campI) : null, grace: grI, onGrace: !!ogI, lib: libI, libPl: window.wpLibrary && window.wpLibrary.playerEntry ? function(id) { return window.wpLibrary.playerEntry(id); } : null });") && !/copy:/.test(ciSrc),
+            && ciSrc.includes("{ player: true, view: window.wpSheets ? window.wpSheets.playerSystem(campI) : null, grace: grI, onGrace: !!ogI, graceOf: gofI, lib: libI, libPl: window.wpLibrary && window.wpLibrary.playerEntry ? function(id) { return window.wpLibrary.playerEntry(id); } : null });") && !/copy:/.test(ciSrc),
             j([rOwn, sentC, kitR, ans]));
     }
 })());

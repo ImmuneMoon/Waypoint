@@ -132,6 +132,13 @@ Character sheets
   reads the same way, as Skills.max.Parry. Weapons.on.max.Acc and
   Weapons.on.min.Acc read only the rows switched on. With no row they
   read 0.
+- A roll or an apply action on the Rolls tab can need something
+  first, as a list's roll can. Its button greys out while it is not
+  met, and the host refuses a player's press then. By the clock it is
+  passed over then, and so is an apply action in a fight.
+- A list's switch can be One at a time. Switching a row on switches
+  the others off. Per a stat makes it one for each value of that stat,
+  as one armour on for each location.
 
 Calendar
 - The game clock runs by itself while you host a session: a second of

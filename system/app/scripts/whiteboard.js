@@ -7857,18 +7857,19 @@ window.wpOpenCombat = openCombatModal;
         var n = window.wpNet; return !!(typeof tokId === 'string' && n && typeof n.tokUnseen === 'function' && n.tokUnseen(mapId, tokId));
     }
     function combatRollAll(draft) {
-        var n = 0; if (!draft || !window.wpSheets || !window.wpSheets.rollInit) return n;
+        var n = 0, held = [], heldW = ''; if (!draft || !window.wpSheets || !window.wpSheets.rollInit) return n;
         for (var k = 0; k < draft.rows.length; k++) {
             var r = draft.rows[k]; if (!r || !r.on || !r.charId || r.rolled) continue;
-            var rr = window.wpSheets.rollInit(r.charId, { priv: combatRollPriv(draft.mapId, r.tokId) }); if (rr && rr.error) { toast(rr.error); break; }
+            var rr = window.wpSheets.rollInit(r.charId, { priv: combatRollPriv(draft.mapId, r.tokId) }); if (rr && rr.held) { held.push(r.name || 'A character'); heldW = heldW || rr.error || ''; continue; } if (rr && rr.error) { toast(rr.error); break; }   // held (1.5.4): what its initiative roll needs is not met, it is passed over
             if (rr && typeof rr.value === 'number') { r.init = rr.value; r.rolled = true; delete r.tb; n++; }
         }
         draft.rows = combatSortByInit(draft.rows);
+        if (held.length) toast(held.join(', ') + (held.length === 1 ? ' was' : ' were') + ' passed over. ' + heldW);
         return n;
     }
     // [systemcheck:rollall-end]
     var rollAllBtn = document.getElementById('combatRollAllBtn');
-    if (rollAllBtn) rollAllBtn.addEventListener('click', function() { if (!combatDraft) return; var nR = combatRollAll(combatDraft); if (!nR) toast('Every ticked character has its initiative already.'); renderCombatModal(); });
+    if (rollAllBtn) rollAllBtn.addEventListener('click', function() { if (!combatDraft) return; var nR = combatRollAll(combatDraft); if (!nR && !combatDraft.rows.some(function(r) { return r && r.on && r.charId && !r.rolled; })) toast('Every ticked character has its initiative already.'); renderCombatModal(); });   // 1.5.4: never said while a row was passed over or a roll refused
     var addBtn = document.getElementById('combatAddBtn'), addName = document.getElementById('combatAddName');
     function addCustom() {
         var name = (addName.value || '').trim(); if (!name) { addName.focus(); return; }

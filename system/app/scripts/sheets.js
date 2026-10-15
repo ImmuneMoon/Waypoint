@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { timeRuleRun, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, aliasFromShadowBase, sbRowOps, sbApplyProposal, cleanUploads, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, DEFAULT_POSTURES, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
+import { rollNeedsOk, rollNeedsSays, timeRuleRun, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, aliasFromShadowBase, sbRowOps, sbApplyProposal, cleanUploads, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, DEFAULT_POSTURES, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
 import { cleanCalendar, fmtWhen, fmtDate, timeOf, calPreset, CAL_LIMITS } from './calendarcore.js';
 
@@ -3203,10 +3203,11 @@ function rollNode(r, c, sys, vars) {   // sys, vars: the system drawn and the re
     var label = rollLabel(r, sys, c, vars), b = el('button', 'tool sheet-roll' + (Object.prototype.hasOwnProperty.call(ROLL_TONE_CLS, r.tone) ? ROLL_TONE_CLS[r.tone] : ''), label); var can = canRoll(c);
     if (r.icon) b.insertBefore(iconNode(r.icon, 'sheet-roll-icon'), b.firstChild); b.title = r.formula + (can ? ' · shift-click to add a modifier' : ' (dice are off here, or this is not your character)'); b.disabled = !can;
     var cbR = can && typeof costBlock === 'function' ? costBlock(c, r.cost) : ''; if (cbR) { b.disabled = true; b.title = cbR + ' \u2014 ' + r.formula; }   // turn-based combat T4
+    if (can && r.needs && typeof rollNeedsOk === 'function' && typeof vars === 'function' && !rollNeedsOk(r, vars, F())) { b.disabled = true; b.title = (r.needsText || 'Not now') + ' \u2014 it needs ' + r.needs; }   // 1.5.4: what it needs, as a list roll's button (the host judges a player's roll)
     b.addEventListener('click', function(e) {
         var lb = label, vv = vars;
         if (sys && typeof vars === 'function' && r.label && r.label.indexOf('{') >= 0 && F()) { try { var campN = getActiveCampaign(), cN = charById(c.id, campN) || c; vv = resolveAll(sys, cN, F(), tokenCtxFor(c.id, campN)).vars; lb = rollLabel(r, sys, cN, vv); } catch (err) { lb = label; vv = vars; } }   // HF5 review: the values as they are at the click, as the roll reads them (a redraw may still wait on a focused box)
-        var why = labelSecret(sys, vv, r.label); if (why) toast('Kept private: its label shows a GM-only value (' + why + ').'); var oR = why ? { priv: true } : r.vis === 'gm' ? { gmOnly: true } : undefined; if ((Array.isArray(r.then) && r.then.length) || r.malf || r.cost || r.dmg || r.init === true) { oR = oR || {}; oR.act = r.id; } sheetRoll(e, c.id, r.formula, lb, oR);   // R1: a roll with consequences names itself (initiative O1: the initiative roll too, so the host can trust its number into the fight)   // a GM-only roll stays the GM's
+        var why = labelSecret(sys, vv, r.label); if (why) toast('Kept private: its label shows a GM-only value (' + why + ').'); var oR = why ? { priv: true } : r.vis === 'gm' ? { gmOnly: true } : undefined; if (r.needs) { oR = oR || {}; oR.act = r.id; } if ((Array.isArray(r.then) && r.then.length) || r.malf || r.cost || r.dmg || r.init === true) { oR = oR || {}; oR.act = r.id; } sheetRoll(e, c.id, r.formula, lb, oR);   // R1: a roll with consequences names itself (initiative O1: the initiative roll too, so the host can trust its number into the fight)   // a GM-only roll stays the GM's
     });
     var box = el('div', 'sheet-field sheet-kind-roll'); box.appendChild(b); return box;
 }
@@ -3229,6 +3230,7 @@ function applyNode(r, c, sys, vars) {
     var label = rollLabel(r, sys, c, vars), can = (_fxLive || window.wpPrintCopy === true) && canApply(c), b = el('button', 'tool sheet-roll sheet-apply' + (Object.prototype.hasOwnProperty.call(ROLL_TONE_CLS, r.tone) ? ROLL_TONE_CLS[r.tone] : ''), label);
     if (r.icon) b.insertBefore(iconNode(r.icon, 'sheet-roll-icon'), b.firstChild);
     b.title = applyTitle(r, sys) + (r.each ? ' \u2014 also ' + (r.by ? 'due' : 'by itself') + (r.each === 'turn' ? ' at the start of its character\u2019s turn' : ' on every new round of a combat') + (r.by ? ' (a reminder for ' + (r.by === 'gm' ? 'the GM' : 'its player') + ' to press)' : '') : '') + (can ? '' : ' (not here: this is a preview or a pop-out, or not your character)'); b.disabled = !can;
+    if (can && r.needs && typeof rollNeedsOk === 'function' && typeof vars === 'function' && !rollNeedsOk(r, vars, F())) { b.disabled = true; b.title = (r.needsText || 'Not now') + ' \u2014 it needs ' + r.needs; }   // 1.5.4: what it needs (the host judges a player's press, applyAct the GM's)
     b.addEventListener('click', function() {
         var campN = getActiveCampaign(), cN = charById(c.id, campN); if (!cN) return;
         var lb = label; if (sys && r.label && r.label.indexOf('{') >= 0) { try { lb = rollLabel(r, sys, cN, resolveAll(sys, cN, F(), tokenCtxFor(cN.id, campN)).vars); } catch (err) { lb = label; } }   // the label as it reads at the press
@@ -3278,8 +3280,8 @@ function timedHook(mapId, combat, kind) {
     var who = kind === 'turn' ? { rows: combat && Array.isArray(combat.rows) && combat.rows[combat.turn] ? [combat.rows[combat.turn]] : [] } : combat;
     combatChars(mp, who, charsOf(camp)).forEach(function(e) {
         var c = charById(e.charId, camp); if (!c) return;
-        dues.forEach(function(a) { if (n.postDue) n.postDue(c, a, kind, combat.round, a.by === 'owner' && a.vis !== 'gm'); });
-        var tc = withRound(tokenCtx(mp, e.tok, tokenFlags()), combat);
+        var tc = withRound(tokenCtx(mp, e.tok, tokenFlags()), combat), vvD = null;
+        dues.forEach(function(a) { if (a.needs && typeof rollNeedsOk === 'function') { vvD = vvD || resolveAll(sys, c, F(), tc).vars; if (!rollNeedsOk(a, vvD, F())) return; } if (n.postDue) n.postDue(c, a, kind, combat.round, a.by === 'owner' && a.vis !== 'gm'); });   // 1.5.4: no reminder while its needs are not met
         var res = applyRound(sys, c, function(w) { return resolveAll(sys, w, F(), tc).vars; }, F(), tc, kind), ids = Object.keys(res.values);
         if (!ids.length) return;
         c.values = c.values || {}; ids.forEach(function(fid) { c.values[fid] = res.values[fid]; }); c.updated = Date.now();
@@ -3305,6 +3307,7 @@ function runTimeRules(fires, words) {
         byChar[cid].forEach(function(fi) {
             var rule = (Array.isArray(sys.rolls) ? sys.rolls : []).filter(function(r) { return r && r.id === fi.r && r.every; })[0]; if (!rule) return;
             var res = timeRuleRun(sys, c, rule, fi.n, F(), D), ks = Object.keys(res.values);
+            if (res.held && !res.ran) return;   // 1.5.4: its needs were not met, so it was passed over
             if (ks.length) { c.values = c.values || {}; ks.forEach(function(k) { if (JSON.stringify(c.values[k]) === JSON.stringify(res.values[k])) return; c.values[k] = res.values[k]; all[k] = res.values[k]; }); }   // only what really moved is stored and sent
             var acts = Array.isArray(rule.apply) ? rule : { apply: Array.isArray(rule.then) ? rule.then : [] }, reads = typeof rule.formula === 'string' ? gmOnlyNames(sys, F().names(rule.formula).map(function(x) { return { name: x }; })).length > 0 : false;
             if (rule.vis === 'gm' || applyScope(sys, c, acts, reads, F()) === 'gm') gm = true;
@@ -3341,6 +3344,7 @@ function rollInit(charId, opts) {   // opts.priv: rolled in private whatever the
     if (!window.wpDice || !window.wpDice.rollFor) return { error: 'Dice are not available.' };
     if (window.wpVtt && !window.wpVtt.on('dice')) return { error: 'Dice are off for this campaign (Settings > VTT features).' };
     var allI = F() ? resolveAll(sys, c, F(), tokenCtxFor(c.id, camp)) : null, lbI = allI ? rollLabel(r, sys, c, allI.vars) : r.label, whyI = allI ? labelSecret(sys, allI.vars, r.label) : '';   // HF5a: the label's value, and the GM's privacy rule
+    if (r.needs && !(allI && typeof rollNeedsOk === 'function' && rollNeedsOk(r, allI.vars, F()))) return { held: true, error: typeof rollNeedsSays === 'function' ? rollNeedsSays(r) : (r.needsText || 'Not now: it needs ' + r.needs) };   // 1.5.4: what the initiative roll needs, before anything is rolled (the roster's Roll all and the every-round re-roll pass over a row it holds back)
     if (whyI) toast('Kept private: its label shows a GM-only value (' + whyI + ').');
     return window.wpDice.rollFor(charId, r.formula, lbI || 'Initiative', { source: 'combat', priv: !!whyI || !!(opts && opts.priv === true), gmOnly: r.vis === 'gm' });
 }
@@ -4513,6 +4517,8 @@ function refreshErrors() {
         });
         if (n > capS) errs.push({ message: 'At most ' + capS + ' stats a list: Save keeps the first ' + capS + '.' });
         if (typeof sp.price === 'string' && sp.price && !mine[sp.price.toLowerCase()]) errs.push({ message: 'The price names no stat of this list: Save drops it.' });
+        var onD = sp.on && typeof sp.on === 'object' && !Array.isArray(sp.on) ? sp.on : null, onPer = onD && typeof onD.per === 'string' ? onD.per.trim() : '';   // 1.5.4 One at a time: a Per stat as Save reads it
+        if (onPer && !keptW[onPer.toLowerCase()]) errs.push({ message: 'One at a time goes by "' + onD.per + '", which is no stat of this list. ' + (onD.one === true ? 'Save keeps one row on for the whole list.' : 'Save drops it.') });
         (Array.isArray(sp.cols) ? sp.cols : []).forEach(function(cc) {   // 1.5.4 With: what Save drops of a column's With stats, as the cleaner reads them
             if (!cc || typeof cc !== 'object' || !Array.isArray(cc.plus)) return;
             var cn = (typeof cc.label === 'string' && cc.label) || (typeof cc.key === 'string' && cc.key) || 'A column', seenP = Object.create(null), keptP = 0;
@@ -4560,6 +4566,10 @@ function refreshErrors() {
     });
     var clean = cleanSystem(draft, { F: F(), gmView: true });
     if (!clean) return;
+    (Array.isArray(draft.rolls) ? draft.rolls : []).forEach(function(r) {   // 1.5.4: a roll's or an apply action's needs that Save cannot keep, as the cleaner reads it (the validator says the rest)
+        if (!r || typeof r !== 'object' || typeof r.needs !== 'string' || !r.needs.trim()) return;
+        var cr = (clean.rolls || []).filter(function(x) { return x && x.id === r.id; })[0]; if (cr && !cr.needs) (errorsById[r.id] = errorsById[r.id] || []).push({ prop: 'needs', message: 'This is no formula Save can keep, so Save drops it.' });
+    });
     // F4c1 review: what Save drops of an item's stats with no word otherwise — a value past ±1e9, and past LIMITS.entryStats an item (the first come are kept)
     var cleanById = Object.create(null); (clean.items || []).forEach(function(ci) { if (ci && ci.id) cleanById[ci.id] = ci; });
     (draft.items || []).forEach(function(it) {
@@ -4821,7 +4831,7 @@ function errorCell(id) {
     if (!cell.childNodes.length) cell.style.display = 'none';
     return cell;
 }
-function errPrefix(p, warn) { var m = /^(apply|then)\.(\d+)$/.exec(p || ''); if (m) return (m[1] === 'then' ? 'Then ' : 'Change ') + (+m[2] + 1) + ': '; if (p === 'turn.move') return 'Move per turn: '; if (p === 'has') return 'Has: '; if (p === 'spent') return 'Spent: '; if (p === 'cost') return 'Costs: '; if (warn || !p || p === 'formula' || p === 'rollFormula' || p === 'apply' || p === 'list') return ''; return p + ': '; }   // Stage 6 HUD H7: an apply action's change by its number
+function errPrefix(p, warn) { var m = /^(apply|then)\.(\d+)$/.exec(p || ''); if (m) return (m[1] === 'then' ? 'Then ' : 'Change ') + (+m[2] + 1) + ': '; if (p === 'turn.move') return 'Move per turn: '; if (p === 'has') return 'Has: '; if (p === 'spent') return 'Spent: '; if (p === 'cost') return 'Costs: '; if (p === 'needs') return 'Needs: '; if (warn || !p || p === 'formula' || p === 'rollFormula' || p === 'apply' || p === 'list') return ''; return p + ': '; }   // Stage 6 HUD H7: an apply action's change by its number
 function formulaTextFor(id, prop) {
     if (id === 'combat' && prop === 'turn.move') return (draft.combat && draft.combat.turn && draft.combat.turn.move) || '';   // turn-based combat T1
     if (id === 'range') return prop === 'formula' && draft.combat && draft.combat.range && typeof draft.combat.range.formula === 'string' ? draft.combat.range.formula.trim() : '';   // range penalties R1: as refreshErrors read it
@@ -4831,6 +4841,7 @@ function formulaTextFor(id, prop) {
     if (f) return prop === 'roll' ? f.roll || '' : f[DEF_PROP[f.kind]] || '';
     var r = draft.rolls.find(function(x) { return x.id === id; });
     if (r && prop === 'malf') return r.malf || '';   // R3
+    if (r && prop === 'needs') return r.needs || '';   // 1.5.4
     if (r) { var amI = /^(apply|then)\.(\d+)$/.exec(prop || ''); return amI ? ((Array.isArray(r[amI[1]]) && r[amI[1]][+amI[2]] && r[amI[1]][+amI[2]].formula) || '') : (r.formula || ''); }   // H7: a change's amount
     var it = (draft.items || []).find(function(x) { return x.id === id; });
     return it ? (prop === 'cost' ? it.cost || '' : it.damage || '') : '';
@@ -4983,6 +4994,10 @@ function rollRow(r) {
     if (!isApply) { var dl = el('label', 'sys-hover'); var dc = el('input'); dc.type = 'checkbox'; dc.className = 'sys-dmg-chk'; dc.checked = r.dmg === true; dl.appendChild(dc); dl.appendChild(document.createTextNode(' Damage')); dl.title = 'A damage roll: its card in Table Chat takes the damage colour, a larger total and a damage tag'; top.appendChild(dl); }   // chat cards (owner 2026-09-27)
     top.appendChild(btnRow([['up', 'Move up', '&#9650;'], ['down', 'Move down', '&#9660;'], ['del', 'Delete this roll', '&times;']]));
     row.appendChild(top);
+    var ndR = el('div', 'sys-flags sys-roll-needsrow');   // 1.5.4: what it needs before it may be used, as a list roll's
+    var ndI = input('sys-roll-needs field', typeof r.needs === 'string' ? r.needs : '', (isApply ? 'Pressed' : 'Rolled') + ' only while this formula is true for the character, such as Bleeding > 0. It may not hold dice. Leave it empty to ' + (isApply ? 'press' : 'roll') + ' at any time. By the clock' + (isApply ? ' and in a fight' : '') + ' it is passed over while it is not met.', 'Needs, such as Bleeding > 0'); ndI.maxLength = LIMITS.formula; ndR.appendChild(ndI);
+    var ndT = input('sys-roll-needstext field', typeof r.needsText === 'string' ? r.needsText : '', 'What the greyed button says when it cannot be used', 'Not while stunned'); ndT.maxLength = LIMITS.label; ndR.appendChild(ndT);
+    row.appendChild(ndR);
     row.appendChild(everyRow(r));   // item 20 K5: by the campaign's clock
     row.appendChild(applyEditor(r, isApply ? 'apply' : 'then'));   // R1: a roll's consequences under it
     var err = errorCell(r.id); err.dataset.errFor = r.id; row.appendChild(err);
@@ -5174,6 +5189,13 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
     if (sw) {
         orow.appendChild(input('sys-list-onlabel field', sw.label || '', 'The switch\u2019s name on the sheet', 'On'));
         orow.appendChild(checkLabel('sys-list-ondef', sw.def === true, 'Starts on', 'A new row starts switched on; a row from before the list had its switch reads it until it is switched'));
+        var oneOn = sw.one === true || (typeof sw.per === 'string' && !!sw.per);   // 1.5.4 One at a time: switching a row on switches the others off, for the whole list or for each value of a stat
+        orow.appendChild(checkLabel('sys-list-onone', oneOn, 'One at a time', 'Only one row is switched on at a time. Switching one on switches the others off. A row you keep on for a curse stays on. While a bound row is on, a player cannot switch another of its group on. A new row that would start on starts off while another is on, and so does a row whose stat moves it into such a group.'));
+        if (oneOn) {
+            var opS = el('select', 'sys-list-onper'); opS.title = 'One row on for the whole list, or one for each value of a stat, as one armour on for each location: rows whose stat reads the same value are one group';
+            perOptions(opS, sp);
+            orow.appendChild(opS);
+        }
     }
     card.appendChild(orow);
     // Stage 6 F4c1: the list's stats — a number every item of it carries (Acc, Wt, Cost), ten at most — and the one that is its price
@@ -5271,12 +5293,26 @@ function listOfCard(target) { var cd = target && target.closest ? target.closest
 // stat typed through its spelling (cr on the way to crit); the price stat's key cleared to retype it leaves the price blank and remembers which
 // stat it was, until a price is chosen or a stat added, moved or removed
 var _priceAt = new WeakMap();
+var _perAt = new WeakMap();   // 1.5.4 One at a time: the same for the stat One at a time goes by
 function statKeyInput(lsp, stL, sti, raw) {
     var stD = stL[sti], pl = typeof lsp.price === 'string' ? lsp.price.toLowerCase() : '', own = -1;
+    var swK = lsp.on && typeof lsp.on === 'object' ? lsp.on : null, pk = swK && typeof swK.per === 'string' ? swK.per.toLowerCase() : '', ownP = -1;   // Per follows its OWN stat's key, as the price does
+    if (pk) { for (var qp = 0; qp < stL.length; qp++) if (stL[qp] && typeof stL[qp].key === 'string' && stL[qp].key.toLowerCase() === pk) { ownP = qp; break; } }
+    else if (swK && swK.per === '' && _perAt.get(lsp) === sti) ownP = sti;
     if (pl) { for (var q = 0; q < stL.length; q++) if (stL[q] && typeof stL[q].key === 'string' && stL[q].key.toLowerCase() === pl) { own = q; break; } }
     else if (lsp.price === '' && _priceAt.get(lsp) === sti) own = sti;
     stD.key = String(raw).trim().slice(0, 24);
     if (own === sti) { lsp.price = stD.key; _priceAt.set(lsp, sti); }
+    if (ownP === sti) { swK.per = stD.key; swK.one = true; _perAt.set(lsp, sti); }   // and the whole list if it is cleared, as the Per list's own handler leaves it
+}
+// 1.5.4 One at a time: the Per stat choices: Whole list, then each stat of the list by its label, the one in use picked, and a stat the list does
+// not have kept and said as such (refreshErrors says what Save does with it). Option texts and values only. Kept up to date as a stat's key or
+// label is typed, as the Price choices are
+function perOptions(sel, sp) {
+    sel.textContent = '';
+    var sw = sp && sp.on && typeof sp.on === 'object' ? sp.on : {}, opV = typeof sw.per === 'string' ? sw.per : '', opHas = false;
+    [['', 'Whole list']].concat((Array.isArray(sp.stats) ? sp.stats : []).filter(function(s) { return s && typeof s === 'object' && typeof s.key === 'string' && s.key; }).map(function(s) { return [s.key, 'Per ' + (s.label || s.key)]; })).forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; if (!opHas && o[0].toLowerCase() === opV.toLowerCase()) { op.selected = true; opHas = true; } sel.appendChild(op); });
+    if (opV && !opHas) { var opX = el('option', null, 'Per ' + opV + ' (no such stat)'); opX.value = opV; opX.selected = true; sel.appendChild(opX); }
 }
 function priceOptions(sel, sp) {   // F4c1: the Price choices — No price, then each stat by its key (kept up to date as a key is typed)
     sel.textContent = '';
@@ -6302,6 +6338,7 @@ function onInput(e) {
             else if (lcc.indexOf('sys-list-statnames') >= 0) { var stn = t.value.split(',').map(function(s) { return s.trim(); }).slice(0, LIMITS.labels); while (stn.length && !stn[stn.length - 1]) stn.pop(); if (stn.some(Boolean)) stD.labels = stn; else delete stD.labels; }
             else return;
             var pCard = t.closest('.sys-list-card'), pSel = pCard ? pCard.querySelector('.sys-list-price') : null; if (pSel) priceOptions(pSel, lsp);   // the Price choices follow a key or a label as it is typed
+            var oSel = pCard ? pCard.querySelector('.sys-list-onper') : null; if (oSel) perOptions(oSel, lsp);   // 1.5.4: and the Per choices
         }
         else return;
         markDirty(); patchErrors(); return;
@@ -6336,6 +6373,8 @@ function onInput(e) {
         else if (c.indexOf('sys-formula') >= 0) r.formula = t.value;
         else if (c.indexOf('sys-roll-icon') >= 0) { if (t.value.trim()) r.icon = t.value.slice(0, 32); else delete r.icon; }   // Stage 6 look fold
         else if (c.indexOf('sys-roll-malf') >= 0) { if (t.value.trim()) r.malf = t.value.slice(0, LIMITS.formula); else delete r.malf; }   // Stage 6 HUD R3
+        else if (c.indexOf('sys-roll-needstext') >= 0) { if (t.value.trim()) r.needsText = t.value.slice(0, LIMITS.label); else delete r.needsText; }   // 1.5.4: what it needs (Save cleans it)
+        else if (c.indexOf('sys-roll-needs') >= 0) { if (t.value.trim()) r.needs = t.value.slice(0, LIMITS.formula); else delete r.needs; }
         else if (c.indexOf('sys-roll-evn') >= 0) everyEdit(r, c, t);   // item 20 K5
         else return;
     } else return;
@@ -6396,6 +6435,8 @@ function onChange(e) {
         else if (c.indexOf('sys-list-haslvl') >= 0) { if (t.checked) lsc.lvl = { label: 'Level', min: 0, step: 1, def: 0 }; else delete lsc.lvl; }
         else if (c.indexOf('sys-list-hason') >= 0) { if (t.checked) lsc.on = { label: 'On' }; else delete lsc.on; }
         else if (c.indexOf('sys-list-ondef') >= 0) { if (lsc.on && typeof lsc.on === 'object') { if (t.checked) lsc.on.def = true; else delete lsc.on.def; } }
+        else if (c.indexOf('sys-list-onone') >= 0) { if (lsc.on && typeof lsc.on === 'object') { if (t.checked) lsc.on.one = true; else { delete lsc.on.one; delete lsc.on.per; } } }   // 1.5.4 One at a time
+        else if (c.indexOf('sys-list-onper') >= 0) { if (lsc.on && typeof lsc.on === 'object') { lsc.on.one = true; if (t.value) lsc.on.per = t.value; else delete lsc.on.per; } }   // ... for the whole list, or per a stat (Save keeps the one that holds: the stat, else the whole list)
         else if (c.indexOf('sys-list-colhide') >= 0 || c.indexOf('sys-list-colfoot') >= 0) { var chr = t.closest('.sys-list-col'), chD = chr && Array.isArray(lsc.cols) ? lsc.cols[+chr.dataset.ci] : null; if (!chD || typeof chD !== 'object') return; var chK = c.indexOf('sys-list-colhide') >= 0 ? 'hide' : 'foot'; if (t.checked) chD[chK] = true; else delete chD[chK]; }   // Stage 6 F5a1
         else if (c.indexOf('sys-list-statkind') >= 0) { var skr = t.closest('.sys-list-stat'), skD = skr && Array.isArray(lsc.stats) ? lsc.stats[+skr.dataset.si] : null; if (!skD || typeof skD !== 'object') return; delete skD.def; delete skD.labels; if (t.value === 'pick') { skD.kind = 'pick'; skD.opts = Array.isArray(skD.opts) ? skD.opts : []; if (typeof lsc.price === 'string' && skD.key && lsc.price.toLowerCase() === String(skD.key).toLowerCase()) delete lsc.price; } else { delete skD.kind; delete skD.opts; } markDirty(); renderAll(); return; }   // Stage 6 F5a2: a number or a choice (a choice is never the price)
         else if (c.indexOf('sys-list-statpdef') >= 0) { var spr = t.closest('.sys-list-stat'), spD = spr && Array.isArray(lsc.stats) ? lsc.stats[+spr.dataset.si] : null; if (!spD || typeof spD !== 'object') return; if (t.value) spD.def = t.value; else delete spD.def; }   // Stage 6 F5a2: a choice's default
@@ -6578,6 +6619,7 @@ function onClick(e) {
         else if (sact === 'statdel' && sI >= 0 && sI < sArr.length) { var gone = sArr.splice(sI, 1)[0]; if (gone && typeof gone.key === 'string' && typeof lsb.price === 'string' && lsb.price.toLowerCase() === gone.key.toLowerCase()) delete lsb.price; }
         else return;
         _priceAt.delete(lsb);
+        _perAt.delete(lsb); if (sact === 'statdel' && gone && typeof gone.key === 'string' && lsb.on && typeof lsb.on === 'object' && typeof lsb.on.per === 'string' && lsb.on.per.toLowerCase() === gone.key.toLowerCase()) { delete lsb.on.per; lsb.on.one = true; }   // 1.5.4: One at a time by a stat removed goes by the whole list, whether the system was saved in between or not
         if (!sArr.length) { delete lsb.stats; delete lsb.price; }
         markDirty(); renderAll(); return;
     }

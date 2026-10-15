@@ -86,6 +86,15 @@ Character sheets
   locations. That needs a Locations list with a level, which holds the
   DR, and the stats for it: one named stated, and one for each kind,
   such as vsEnergy.
+- A sheet from ShadowBase reads as the website reads it now. A
+  species' racial attribute counts once, a droid starts from the
+  attributes its parts give it, and the flat jump bonus the book
+  withdrew is gone. A droid's trait whose part is not working, or a
+  second copy of one part's trait, comes in giving nothing. A droid
+  whose Memory Core alone is corrupted is not crippled there.
+- For ShadowBase writes your credits onto the character's credit chip,
+  where the website reads its money, and gives the file a chip if it
+  has none. Before, the website put its old figure back.
 - Text style on a sheet. With Edit sheet on, click into a text or notes
   field and a bar comes up on it, as in a planner. Select words and make
   them bold, italic, underlined, struck through or coloured, or give

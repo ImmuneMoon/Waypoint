@@ -3918,7 +3918,7 @@ var SB_MAP = [
     { path: ['characteristics', 'defenses', 'dodge'], keys: ['dodge'] }, { path: ['characteristics', 'defenses', 'parry'], keys: ['parry'] }
 ];
 function pick(obj, path) { var cur = obj; for (var i = 0; i < path.length; i++) { if (!isObj(cur)) return undefined; cur = cur[path[i]]; } return cur; }
-function numOf(v) { if (typeof v === 'number') return v; if (isObj(v)) { var c = [v.effective, v.final, v.value, v.level, v.current]; for (var i = 0; i < c.length; i++) if (typeof c[i] === 'number' && isFinite(c[i])) return c[i]; } return undefined; }
+function numOf(v) { if (typeof v === 'number') return v; if (isObj(v)) { var c = [v.effective, v.final, v.value, v.level, v.current, v.base]; for (var i = 0; i < c.length; i++) if (typeof c[i] === 'number' && isFinite(c[i])) return c[i]; } return undefined; }
 // Stage 6 F3: the rest of a website dossier's scalars, each onto the key a system built on them has (a stored kind; its own rules, as an
 // edit's). A level bought is the dossier's figure less the base the website prices it on — the raw attribute (its stored value, else the
 // template), or Will and Per as bought (their figure, else IQ) for Fright and the senses; a figure the dossier leaves empty buys nothing (0)
@@ -3931,8 +3931,9 @@ function sbMarks(t) {   // the website's [n] marks in a text: the first of each 
 }
 // Stage 6 F7c: the modifier bag a piece of gear's text reads as, the website's way (its parser, rule for rule and in its order: the first
 // stat a clause names wins): "+15 lbs carry weight capacity" carryCapacity 15, "+1 to Force Points" forcePoints 1. Numbers in brackets, after
-// an x (a multiplier) and in a fraction are not bonuses. { channel: number } over the channels sbMods knows
-var SB_TEXT_STAT = [[/\bhp\b|\bhit\s*points?\b/i, 'hitPoints'], [/\bkicks?\b/i, 'kickDamage'], [/\bjump(?:ing)?\s+distance\b/i, 'jumpDistance'], [/\bbasic\s*speed\b/i, 'basicSpeed'], [/\bfright\b/i, 'frightCheck'],
+// an x (a multiplier) and in a fraction are not bonuses. { channel: number } over the channels sbMods knows. The flat jump bonus is withdrawn
+// (the book's update of 2026-10-08: what helps you jump does it through Move): the site's parser has no jump clause, and neither has this one
+var SB_TEXT_STAT = [[/\bhp\b|\bhit\s*points?\b/i, 'hitPoints'], [/\bkicks?\b/i, 'kickDamage'], [/\bbasic\s*speed\b/i, 'basicSpeed'], [/\bfright\b/i, 'frightCheck'],
     [/\bstriking\s*st\b/i, 'strikingSt'], [/\blifting\s*st\b/i, 'liftingSt'], [/\barm\s*st\b/i, 'strikingSt'], [/\bst\b|\bstrength\b/i, 'strength'], [/\bhigh\s*manual\s*dex/i, ''], [/\bdx\b|\bdexterity\b/i, 'dexterity'],
     [/\biq\b|\bintel\b/i, 'iq'], [/\bht\b|\bhealth\b/i, 'health'], [/\bwill\b/i, 'will'], [/\bper\b|\bperception\b/i, 'perception'], [/\bmove\b/i, 'move'], [/\bdodge\b/i, 'dodge'], [/\bdr\b/i, 'dr'],
     [/\blbs\b|\bcarry\b|\bcapacity\b/i, 'carryCapacity'], [/\bep\b|\bendurance\b/i, 'endurancePoints'], [/\bfp\b|\bforce\s*points\b/i, 'forcePoints'], [/\bhit\b|\battack\b/i, 'toHit']];
@@ -3965,17 +3966,70 @@ function sbCrystal(j) {
     });
     return out;
 }
+// An attribute as the website stores it: { value, points, effective } (effective since the site's round twenty-two). value is the figure
+// bought, null for "at the baseline, nothing bought": the template's baseline for a living character, the hardware's for a droid (its
+// chassis and its processor, which the file states nowhere else). effective is the figure the sheet rolls, the value or that baseline
+// with every modifier in play on it, so it is never a base: read as one, a species' ST +4 was added twice, once in the figure and once by
+// its row (the site's handoff of 2026-10-14). The base is value; where value is null it is effective less what the file's own rows add
+// (sbAttrChan), and nothing is bought, so the baseline its points are priced from is the same figure. { base, tpl }
+var SB_ATTR_K = { strength: 'st', dexterity: 'dx', iq: 'iq', health: 'ht' };
+function sbIdle(t) { return t.suspended === true || (typeof t.countedWithCopyOf === 'string' && !!t.countedWithCopyOf.trim()); }   // a trait row worth an absent row on every figure, its points apart (a droid part not working; a further copy of one part's trait)
+function sbAttrChan(j, a) {   // what the file's own rows add to an attribute, as the website sums its channel: the trait rows in play and the status effects (the phase in play)
+    var n = 0, add = function(bag) { var v = isObj(bag) ? bag[a] : undefined; if (typeof v === 'number' && fin(v) && Math.abs(v) <= LIMITS.effectAmount) n += v; };
+    var tr = isObj(j.traits) ? j.traits : {};
+    ['advantages', 'disadvantages', 'quirks'].forEach(function(k) { (Array.isArray(tr[k]) ? tr[k].slice(0, LIMITS.carried) : []).forEach(function(t) { if (isObj(t) && !sbIdle(t)) add(t.modifiers); }); });
+    (Array.isArray(j.statusEffects) ? j.statusEffects.slice(0, LIMITS.effectRows) : []).forEach(function(x) { if (!isObj(x)) return; var ph = Array.isArray(x.phases) && typeof x.phaseIndex === 'number' && x.phaseIndex >= 1 && isObj(x.phases[x.phaseIndex - 1]) ? x.phases[x.phaseIndex - 1] : null; add(ph && isObj(ph.modifiers) ? ph.modifiers : x.modifiers); });
+    return n;
+}
+function sbAttr(j, a, k) {
+    var inv = isObj(j.investment) ? j.investment : {}, bl = sbNum(inv[k + 'Baseline']), x = isObj(j.attributes) ? j.attributes[a] : undefined; if (bl === undefined) bl = 10;
+    if (sbNum(x) !== undefined) return { base: x, tpl: bl };
+    if (!isObj(x)) return { base: bl, tpl: bl };
+    var v = sbNum(x.value); if (v !== undefined) return { base: v, tpl: bl };
+    var e = sbNum(x.effective); if (e !== undefined) { var b = e - sbAttrChan(j, a); return { base: b, tpl: b }; }
+    var o = [x.final, x.level, x.current].map(sbNum).filter(function(y) { return y !== undefined; })[0];   // an older sheet's shapes
+    return o === undefined ? { base: bl, tpl: bl } : { base: o, tpl: bl };
+}
+// The money, as the website reads it (src/lib/currency-transaction.ts): a loose row of the Currencies category in inventory.general (in no
+// storage) holds a Credit Chip's storedValue or an Aurodium bar's denominationValue, each times its quantity. When a file is opened the
+// site sets the purse to what those rows hold, whatever credits.total says (the owner, 2026-10-08: "a sheet load always shows what its
+// credit chips hold"), so the total alone is no money and a write-back that wrote only it was undone in silence
+function sbLoose(r) { return isObj(r) && r.category === 'Currencies' && !r.storageLocationId; }
+function sbCash(v) { var n = Number(v); return fin(n) ? n : 0; }   // Number(x) || 0, as the site reads a row's figures
+function sbMoneyHeld(rows) { var t = 0; (Array.isArray(rows) ? rows : []).forEach(function(r) { if (!sbLoose(r)) return; var q = sbCash(r.quantity); t += sbCash(r.storedValue) * q + sbCash(r.denominationValue) * q; }); return t; }
+// A gain or a spending on those rows, the site's own rule with both kinds of money tracked: a gain onto the chip that holds the most (or a
+// new Credit Chip, the site's own row), a spending off the chips that hold the least and then off the smallest bars. One difference: the
+// change of a bar broken to pay goes onto a chip, never back into smaller bars (the site makes it in bars by its table of denominations,
+// which Waypoint does not copy); the sum is the same. Rows are changed in place on the copy; the rows that hold nothing go, as the site's do
+function sbMoneyMove(rows, delta, newId) {
+    var r2 = function(n) { return Math.round(n * 100) / 100; }, eq = rows.slice();
+    var chips = function(desc) { return eq.filter(function(e) { return sbLoose(e) && e.storedValue != null; }).sort(function(a, b) { return desc ? sbCash(b.storedValue) - sbCash(a.storedValue) : sbCash(a.storedValue) - sbCash(b.storedValue); }); };
+    if (delta > 0) {
+        var top = chips(true).filter(function(c) { return sbCash(c.quantity) > 0; })[0];   // a chip of no quantity holds nothing, whatever it stores (the site would put the gain on it and lose it)
+        if (top) top.storedValue = r2(sbCash(top.storedValue) + delta / (sbCash(top.quantity) || 1));
+        else eq.push({ id: newId(), name: 'Credit Chip', category: 'Currencies', weight: 0.28, cost: 0, quantity: 1, storedValue: r2(delta), description: 'Standard digital credit storage.', condition: 'Fine' });
+    } else if (delta < 0) {
+        var rem = -delta, over = 0;
+        chips(false).forEach(function(c) { if (rem <= 0) return; var q = sbCash(c.quantity) || 1, sv = sbCash(c.storedValue), held = sv * q; if (held >= rem) { c.storedValue = r2(sv - rem / q); rem = 0; } else { c.storedValue = 0; rem -= held; } });
+        eq.filter(function(e) { return sbLoose(e) && e.denominationValue != null; }).sort(function(a, b) { return sbCash(a.denominationValue) - sbCash(b.denominationValue); }).forEach(function(a) {
+            if (rem <= 0) return; var d = sbCash(a.denominationValue) || 1, q = sbCash(a.quantity), inStack = d * q;
+            if (inStack >= rem) { var take = Math.ceil(rem / d); a.quantity = Math.max(0, q - take); over = take * d - rem; rem = 0; } else { a.quantity = 0; rem -= inStack; }
+        });
+        if (over > 0) return sbMoneyMove(eq.filter(sbMoneyKept), over, newId);
+    }
+    return eq.filter(sbMoneyKept);
+}
+function sbMoneyKept(e) { return !isObj(e) || e.category !== 'Currencies' || sbCash(e.quantity) > 0 || (e.storedValue != null && sbCash(e.storedValue) > 0); }
 function sbScalars(j) {   // lower-case key -> the dossier's value (a number, a boolean or a text), before any field's rules
     var o = function(v) { return isObj(v) ? v : {}; }, inv = o(j.investment), at = o(j.attributes), ch = o(j.characteristics), pt = o(j.points), cr = o(j.credits), dt = o(j.details), nr = o(j.narrative), out = map();
-    var tpl = function(k) { var v = sbNum(inv[k + 'Baseline']); return v === undefined ? 10 : v; };
-    var raw = function(a, k) { var v = numOf(at[a]); return v === undefined ? tpl(k) : v; };
+    var raw = function(a, k) { return sbAttr(j, a, k).base; };
     var rST = raw('strength', 'st'), rDX = raw('dexterity', 'dx'), rIQ = raw('iq', 'iq'), rHT = raw('health', 'ht');
     var fig = function(k) { return isObj(ch[k]) ? sbNum(ch[k].final) : undefined; }, pW = fig('will'), pP = fig('perception'); if (pW === undefined) pW = rIQ; if (pP === undefined) pP = rIQ;
     var lvl = function(key, k, base) { var f = fig(k); out[key] = f === undefined ? 0 : f - base; };
     ['player', 'species', 'homeworld', 'campaign', 'literacy'].forEach(function(k) { if (typeof j[k] === 'string') out[k] = j[k]; });
     if (typeof inv.isStartingPointsMode === 'boolean') out.cpmode = inv.isStartingPointsMode;
     if (typeof inv.useLiftingST === 'boolean') out.useliftst = inv.useLiftingST;
-    [['st', 'st'], ['dx', 'dx'], ['iq', 'iq'], ['ht', 'ht']].forEach(function(p) { out[p[0] + 'tpl'] = tpl(p[1]); });
+    [['st', 'strength'], ['dx', 'dexterity'], ['iq', 'iq'], ['ht', 'health']].forEach(function(p) { out[p[0] + 'tpl'] = sbAttr(j, p[1], p[0]).tpl; });
     SB_FREE.forEach(function(p) { var v = sbNum(inv[p[1] + 'Baseline']); out[p[0]] = v === undefined ? 0 : v; });
     lvl('hplvl', 'hitPoints', rST); lvl('eplvl', 'endurancePoints', rHT); lvl('forcelvl', 'forcePoints', pW); lvl('willlvl', 'will', rIQ); lvl('perlvl', 'perception', rIQ); lvl('frightlvl', 'frightCheck', pW);
     lvl('visionlvl', 'vision', pP); lvl('hearinglvl', 'hearing', pP); lvl('tastelvl', 'tasteAndSmell', pP); lvl('touchlvl', 'touch', pP);
@@ -3983,7 +4037,8 @@ function sbScalars(j) {   // lower-case key -> the dossier's value (a number, a 
     if (sbNum(pt.total) !== undefined) out.points = pt.total;
     if (sbNum(pt.powerPoints) !== undefined) out.pp = pt.powerPoints;
     var al = sbNum(pt.forceAlignment); if (al === undefined && (sbNum(pt.lightSidePoints) !== undefined || sbNum(pt.darkSidePoints) !== undefined)) al = (sbNum(pt.lightSidePoints) || 0) - (sbNum(pt.darkSidePoints) || 0); if (al !== undefined) out.align = al;   // an older dossier has only the two sides
-    if (sbNum(cr.total) !== undefined) out.credits = cr.total;
+    var gen = isObj(j.inventory) && Array.isArray(j.inventory.general) ? j.inventory.general : null;   // the money its loose rows hold, as the site opens the file; a file with no such row keeps its stated total here (the site opens it at 0, and the write-back gives it a chip)
+    if (gen && gen.some(sbLoose)) out.credits = Math.round(sbMoneyHeld(gen) * 100) / 100; else if (sbNum(cr.total) !== undefined) out.credits = cr.total;
     if (sbNum(cr.tradedCp) !== undefined) out.cptraded = cr.tradedCp;
     if (typeof cr.tradedForm === 'string') out.creditsform = cr.tradedForm;
     [['height', 'height'], ['weight', 'weight'], ['age', 'age'], ['sm', 'sizeModifier'], ['appearance', 'appearance'], ['turn', 'turnCounter']].forEach(function(p) { var v = dt[p[1]]; if (typeof v === 'string' || sbNum(v) !== undefined) out[p[0]] = v; });
@@ -4005,8 +4060,8 @@ function sbScalars(j) {   // lower-case key -> the dossier's value (a number, a 
 // character file with what the table changed written into a COPY of it, for the website's Import Character. That import replaces the whole
 // sheet, so the file stays whole: every key Waypoint does not track rides along exactly as the website wrote it, in its own order. Only
 // these are written, each only where this system has the field the bridge fills from that very place (SB_MAP, the same choice of field)
-// and the file can hold it: a pool's current (hitPoints, endurancePoints, forcePoints) as the sheet shows it; the credits total and the Force
-// alignment as the character stores them; and from the character's token its posture (one of the website's seven) and its elevation in
+// and the file can hold it: a pool's current (hitPoints, endurancePoints, forcePoints) as the sheet shows it; the money and the Force
+// alignment as the character stores them (the money on the file's loose money rows, sbMoneyMove, and their sum as credits.total); and from the character's token its posture (one of the website's seven) and its elevation in
 // yards. tok: { posture?, elevation? }, each given only while its feature is on at this table, or null with no token. A value this view
 // cannot read is left out and named. { json, changes: [{ label, from, to }], same: [label], left: [words] } or { error: 'file' | 'system' }
 function sbWriteBack(json, sys, char, all, tok) {
@@ -4029,11 +4084,32 @@ function sbWriteBack(json, sys, char, all, tok) {
         if (cur === undefined) { left.push(label + ': not readable on this sheet'); return; }
         put(m.path.concat('current'), label, cur, false);
     });
-    [[['credits', 'total'], 'credits'], [['points', 'forceAlignment'], 'align']].forEach(function(p) {
-        var f = ix[p[1]]; if (!f || f.kind !== 'number') return;
-        var v = num(isObj(char) && isObj(char.values) && Object.prototype.hasOwnProperty.call(char.values, f.id) ? char.values[f.id] : undefined);
-        if (v !== undefined) put(p[0], cutText(f.label || f.key, LIMITS.name), v, true);   // never set on this sheet: the file's own stands
-    });
+    var held = function(f) { return num(isObj(char) && isObj(char.values) && Object.prototype.hasOwnProperty.call(char.values, f.id) ? char.values[f.id] : undefined); };   // never set on this sheet: undefined, the file's own stands
+    var fCr = ix.credits, vCr = fCr && fCr.kind === 'number' ? held(fCr) : undefined;
+    if (vCr !== undefined) {   // the money: the session's difference onto the loose money rows, and credits.total their sum (the site opens the file at the rows)
+        var lCr = cutText(fCr.label || fCr.key, LIMITS.name), hasOwn = function(o, k) { return Object.prototype.hasOwnProperty.call(o, k); };
+        var invC = hasOwn(out, 'inventory') ? out.inventory : undefined, genC = isObj(invC) && hasOwn(invC, 'general') ? invC.general : undefined, crC = hasOwn(out, 'credits') ? out.credits : undefined;
+        if ((invC !== undefined && !isObj(invC)) || (genC !== undefined && !Array.isArray(genC)) || (crC !== undefined && !isObj(crC))) left.push(lCr + ': the file has no place for it');
+        else {
+            var rows0 = Array.isArray(genC) ? genC : [], had0 = num(sbMoneyHeld(rows0)), tot0 = isObj(crC) && hasOwn(crC, 'total') ? crC.total : undefined;
+            if (Math.abs(had0 - vCr) < 0.005 && tot0 === vCr) same.push(lCr);
+            else {
+                var rows1 = rows0;
+                if (Math.abs(had0 - vCr) >= 0.005) {
+                    var ids = map(); rows0.forEach(function(r) { if (isObj(r) && typeof r.id === 'string') ids[r.id] = 1; });
+                    rows1 = sbMoneyMove(rows0, Math.round((vCr - had0) * 100) / 100, function() { var k = 1; while (ids['waypoint-credit-chip-' + k] === 1) k++; ids['waypoint-credit-chip-' + k] = 1; return 'waypoint-credit-chip-' + k; });
+                    if (!isObj(invC)) invC = out.inventory = {};
+                    invC.general = rows1;
+                }
+                var had1 = num(sbMoneyHeld(rows1));
+                if (!isObj(crC)) crC = out.credits = {};
+                crC.total = had1; changes.push({ label: lCr, from: typeof tot0 === 'number' ? tot0 : had0, to: had1 });
+                if (Math.abs(had1 - vCr) >= 0.005) left.push(lCr + ': the file\u2019s money can hold ' + had1 + ', not less than nothing');
+            }
+        }
+    }
+    var fAl = ix.align, vAl = fAl && fAl.kind === 'number' ? held(fAl) : undefined;
+    if (vAl !== undefined) put(['points', 'forceAlignment'], cutText(fAl.label || fAl.key, LIMITS.name), vAl, true);
     if (isObj(tok)) {
         if (typeof tok.posture === 'string') { if (POSTURE_IDS.indexOf(tok.posture) >= 0) put(['details', 'posture'], 'Posture', tok.posture, true, 'standing'); else left.push('Posture: the token\u2019s is not one the website knows'); }
         var el = num(tok.elevation); if (el !== undefined) put(['details', 'elevation'], 'Elevation', el, true, 0);
@@ -4058,7 +4134,7 @@ function aliasFromShadowBase(json, sys, F, strict) {   // strict (Onboarding F4,
         if (!f) return;
         var raw = pick(json, m.path);
         if (f.kind === 'resource') { var cur = isObj(raw) && typeof raw.current === 'number' ? raw.current : numOf(raw); if (cur === undefined) return; var rv = cleanValue(f, { cur: cur }); if (!rv) return; values[f.id] = rv; matched++; return; }
-        var n = numOf(raw); if (n === undefined) return;
+        var n = m.path[0] === 'attributes' ? (raw === undefined ? undefined : sbAttr(json, m.path[1], SB_ATTR_K[m.path[1]]).base) : numOf(raw); if (n === undefined) return;   // an attribute: its base (sbAttr), never the figure it rolls
         var nv = cleanValue(f, n); if (nv === undefined) return;   // the field's own rules (bounds, step, the wire-safe range), as an edit would
         values[f.id] = nv; matched++;
     });
@@ -4095,9 +4171,9 @@ function aliasFromShadowBase(json, sys, F, strict) {   // strict (Onboarding F4,
 // skipped (and named), a stat its list lacks is dropped by the row's own cleaning. Pure; nothing applied here
 var SB_CHAN = { strength: ['st', 'strace'], dexterity: ['dx', 'dxrace'], iq: ['iq', 'iqrace'], health: ['ht', 'htrace'], will: ['will', 'willrace'], perception: ['per', 'perrace'],
     move: ['movebonus'], basicMove: ['movebonus'], dodge: ['dodge'], dr: ['drbonus'], carryCapacity: ['carrybonus'], toHit: ['tohit'], basicSpeed: ['speed'], frightCheck: ['fright'],
-    parry: ['parrybonus'], block: ['blockbonus'], stunRecovery: ['stunrec'], strikingSt: ['strikest'], liftingSt: ['liftst'], armSt: ['armst'], kickDamage: ['kickdmg'], jumpDistance: ['jumpbonus'],
+    parry: ['parrybonus'], block: ['blockbonus'], stunRecovery: ['stunrec'], strikingSt: ['strikest'], liftingSt: ['liftst'], armSt: ['armst'], kickDamage: ['kickdmg'],
     activeDefenses: ['dodge', 'parrybonus', 'blockbonus'] };
-var SB_POOL = { endurancePoints: 'ep', forcePoints: 'force', hitPoints: 'hp' };
+var SB_POOL = { endurancePoints: 'ep', forcePoints: 'force', hitPoints: 'hp' };   // a bag's jumpDistance is no channel: the book withdrew the flat jump bonus (2026-10-08), and the site reads the key as nothing
 function sbMods(bag, ix, worn) {   // a dossier's modifier bag as changes to this system's fields (a key it lacks: that change is left out); at most LIMITS.effectMods;
     // worn (gear, an effect): an attribute alone, never its trait channel (what a trait adds is bought, what is worn is not)
     var out = []; if (!isObj(bag)) return out;
@@ -4198,6 +4274,11 @@ function sbRowOps(json, sys, find) {
         var f = list(p[0]), rows = rowsAt(isObj(json.traits) ? json.traits[p[1]] : null); if (rows.length && !f) { skip(p[0]); return; } if (!f) return;
         rows.forEach(function(t) {
             var pts = sbInt(t.points) || 0, lvl = sbInt(t.level), g = sbInt(t.baselinePoints) || 0, nm = cutText(t.name, LIMITS.name);
+            if (sbIdle(t)) {   // the site marks a row that gives nothing: suspended (its droid part seated and not working, or a processor that does not run) or countedWithCopyOf (a further copy of one part's trait, which counts once). Its points stand; it adds nothing and is no copy of an entry, so no level, need or change reads it
+                var sI = { bp: pts }; if (g) sI.granted = g;
+                addCustom(f, { name: nm, category: cat0(f), notes: t.suspended === true ? 'Gives nothing while ' + (cutText(t.suspendedBy, 60) || 'its part') + ' is not working.' : 'Gives nothing: ' + cutText(t.countedWithCopyOf, 60) + ' gives this trait already, and a part\u2019s trait counts once.', stats: sI }, facts(f, lvl === undefined ? 0 : lvl));
+                return;
+            }
             var e = (lvl !== undefined ? entry(f, nm + ' ' + lvl) : null) || entry(f, nm), el = e ? (lvl !== undefined && e.name === nm ? lvl : (typeof e.lvl === 'number' ? e.lvl : 0)) : 0;
             var same = !!e && st(e, 'bp') + st(e, 'per') * el === pts;
             if (same && !taken(f, e)) { addLib(f, e, facts(f, el), g ? { stats: { granted: g } } : null); return; }
@@ -4327,7 +4408,7 @@ function sbRowOps(json, sys, find) {
             if (d.amputated === true) { skip('amputated: ' + nm); return; }
             var id = typeof d.id === 'string' ? d.id : '', l = id && locById[id] ? locById[id] : null;
             var stt = typeof d.status === 'string' ? d.status : l && typeof l.status === 'string' ? l.status : dStates && id && Object.prototype.hasOwnProperty.call(dStates, id) && typeof dStates[id] === 'string' ? dStates[id] : 'Healthy';
-            var fx = facts(fLc, num(d.dr), stt !== 'Healthy'), e = entry(fLc, cutText(d.type, LIMITS.name)), sm = l ? Math.round(num(l.relativeSM)) : 0;
+            var fx = facts(fLc, num(d.dr), stt !== 'Healthy' && stt !== 'Corrupted'), e = entry(fLc, cutText(d.type, LIMITS.name)), sm = l ? Math.round(num(l.relativeSM)) : 0;   // Corrupted: the Memory Core alone (the processor works and the droid runs), so nothing is crippled; its -2 is to rolls
             var typed = map(), seenV = map();
             (Array.isArray(d.typedDr) ? d.typedDr.slice(0, 32) : []).forEach(function(t) {
                 if (!isObj(t) || typeof t.bonus !== 'number' || !fin(t.bonus) || !t.bonus) return;   // no figure: nothing to carry

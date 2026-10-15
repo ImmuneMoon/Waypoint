@@ -7839,7 +7839,7 @@ function postApply(rec, scope, ch, conn) {
     logEvent('char', applyLine(rec));
     if (ch && typeof ch.id === 'string' && typeof bellOut === 'function') bellOut(ch.id, { apply: rec });   // the character's bell here
 }
-function applyLines(lines) { return (Array.isArray(lines) ? lines : []).slice(0, 4).map(function(l) { var cap = function(x) { return Math.max(-1e15, Math.min(1e15, x)); }; return { n: String(l.n).slice(0, 60), d: cap(l.d), v: cap(l.v) }; }); }   // what the card carries: a label, two numbers (clients refuse past 1e15)
+function applyLines(lines) { var mxL = (typeof window !== 'undefined' && window && window.wpSystemCore && window.wpSystemCore.LIMITS && window.wpSystemCore.LIMITS.applyChanges) || 8; return (Array.isArray(lines) ? lines : []).slice(0, mxL).map(function(l) {   /* one line a change: systemcore LIMITS.applyChanges (8 since 1.5.4), as dicecore cleanApply takes them */ var cap = function(x) { return Math.max(-1e15, Math.min(1e15, x)); }; return { n: String(l.n).slice(0, 60), d: cap(l.d), v: cap(l.v) }; }); }   // what the card carries: a label, two numbers (clients refuse past 1e15)
 // [netcheck:postapply-end]
 // The bell (the HUD's notes, sheets.js): a note for a character's bell on this machine — cid '' finds this player's character named as
 function bellOut(cid, note, as) { try { if (window.wpSheets && window.wpSheets.bellNote) window.wpSheets.bellNote(cid, note, as); } catch (e) { console.error(e); } }

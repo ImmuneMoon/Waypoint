@@ -11,7 +11,7 @@ import { cleanRec, makeRec, textSig, RULES as LOOK_RULES } from './lookcore.js';
 
 var VERSION = '1.5.0';
 var LIMITS = Object.freeze({
-    fields: 300, rolls: 50, sections: 40, tabs: 12, placements: 300, options: 50, optionChars: 60,   // Stage 6: room for a big sheet (one section per section of a Foundry-sized sheet)
+    fields: 400, rolls: 50, sections: 60, tabs: 12, placements: 400, options: 50, optionChars: 60,   // Stage 6: room for a big sheet (one section per section of a Foundry-sized sheet); 1.5.4: 400 fields, 60 sections and 400 placements (a website's whole sheet: 300, 40 and 300 before)
     key: 64, label: 60, formula: 300,       // 300 = the dice path's expression cap, so a sheet roll never dies there
     text: 200, notes: 20000, name: 60, charName: 60, names: 200,
     makingMax: 12,   // Onboarding F3: characters in the making at one table at once (each a player's own, on the GM's disk)
@@ -20,13 +20,13 @@ var LIMITS = Object.freeze({
     rmMsg: 200, undoMs: 10000, undoGraceMs: 15000,   // Stage 6: a bound or cursed item's message; a pickup's Undo (the host allows a little longer: the round trip)
     listCats: 20, rowNote: 200, lvlAbs: 1e6,     // Stage 6 F4b: a list's categories, a row's note, the size of a row level
     desc: 4000, lvls: 20, lvlText: 600, lvlTag: 40, rowsText: 400000,   // 1.5.4: an entry's description, the levels it describes, a level's text and the words beside it; the long text one list's rows carry to their owner in all
-    listStats: 12, entryStats: 16, statAbs: 1e9,   // Stage 6 F4c1: a list's stats (12 since range penalties: a weapons list with Half and MaxRange), the stats an item carries, the size of a stat (a price, a weight: 99,999,999 fits)
-    listCols: 6,                             // Stage 6 F5a1: a list's columns (a formula per row)
+    listStats: 24, entryStats: 32, statAbs: 1e9,   // Stage 6 F4c1: a list's stats (12 since range penalties: a weapons list with Half and MaxRange; 24 since 1.5.4: a whole weapon line), the stats an item carries (32 since 1.5.4: a copy's own values hold every stat of its list and more), the size of a stat (a price, a weight: 99,999,999 fits)
+    listCols: 12,                            // Stage 6 F5a1: a list's columns (a formula per row; 6 before 1.5.4)
     colPlus: 8,                              // 1.5.4 With: the stats a column names as adding to it in a case of their own (a DR of 15 that is 35 against energy)
     pickOpts: 48,                            // Stage 6 F5a2: a choice stat's options
-    rowRolls: 4,                             // Stage 6 F5b: a list's rolls (a button on each row)
-    applyChanges: 4,                         // Stage 6 HUD H7: an apply action's changes (a pool or a number each)
-    rowCounters: 4,                          // Stage 6 HUD R2: a list's counters (a number each row keeps: Charges, Hits)
+    rowRolls: 8,                             // Stage 6 F5b: a list's rolls (a button on each row; 4 before 1.5.4)
+    applyChanges: 8,                         // Stage 6 HUD H7: an apply action's changes (a pool or a number each), and a roll's consequences (4 before 1.5.4)
+    rowCounters: 8,                          // Stage 6 HUD R2: a list's counters (a number each row keeps: Charges, Hits; 4 before 1.5.4)
     turnActs: 6,                             // turn-based combat T1: what one turn allows (Action, Bonus action, Maneuver)
     turnUnits: 6,                            // turn-based combat T1: the system's own time units (a segment, a watch)
     lightPresets: 24,                        // lighting L4: the system's light presets (a torch, a lantern)
@@ -74,12 +74,16 @@ var SHAPES = Object.freeze({ circle: 1 }), BLAST_AUTO = Object.freeze({ full: 1,
 var ROW_ID = /^w_[A-Za-z0-9_]{1,24}$/, ROW_OPS = Object.freeze({ add: 1, remove: 1, setQty: 1, keep: 1, undo: 1, set: 1, ov: 1, custom: 1 });   // undo (Stage 6): a pickup taken back; set (F4b): a row's facts; ov (F4c2): a copy's own values; custom (F4c3): a character's own row, made or changed
 // Stage 6 F4b: an item's key in formulas (F5a: Skills.<Key>.lvl) — never a row word, which a row's own names use
 var ITEM_KEY = /^[A-Za-z][A-Za-z0-9_]{0,39}$/, ROW_WORDS = Object.freeze({ count: 1, qty: 1, on: 1, has: 1, lvl: 1, paid: 1, row: 1 });
+// 1.5.4: the words a list's names put between the list and what they read — List.on.Wt (the rows switched on), List.max.Parry and List.min.Wt
+// (the highest and the lowest one row gives), List.on.max.Parry — so never an item's key or a stat's: List.<word>.<name> never reads a row by its key.
+// max and min were refused as keys already (a reserved suffix, a function's name); they are named here so that stays so whatever those lists hold
+var LIST_WORDS = Object.freeze({ on: 1, max: 1, min: 1 });
 // Stage 6 F4c1: a list's stat key (F5a reads Row.<key>) — never an Object.prototype name in either case (the wire's packer refuses one, and the
 // engine takes Row.toString as a name) or BYTES_PER_ELEMENT (the packer sends an object holding it as an empty typed array: every stat of that
 // item gone for players), a row word, a reserved suffix (base is refused: his Advantages use cpBase) or a function name; with the
 // engine, one a formula can address. A stat's value: a number (never a numeric string), within 1e9 either way (0.0001 lb, -0.5, 99,999,999)
 var STAT_KEY = /^[A-Za-z][A-Za-z0-9_]{0,23}$/;
-function statKey(k, F) { if (typeof k !== 'string' || !STAT_KEY.test(k)) return ''; var l = lower(k); if ((k in Object.prototype) || (l in Object.prototype) || ROW_WORDS[l] || RESERVED_SUFFIX[l] || FUNC_NAMES[l] || l === 'bytes_per_element') return ''; return F && F.parse && !validKey('Row.' + k, F) ? '' : k; }
+function statKey(k, F) { if (typeof k !== 'string' || !STAT_KEY.test(k)) return ''; var l = lower(k); if ((k in Object.prototype) || (l in Object.prototype) || ROW_WORDS[l] || LIST_WORDS[l] === 1 || RESERVED_SUFFIX[l] || FUNC_NAMES[l] || l === 'bytes_per_element') return ''; return F && F.parse && !validKey('Row.' + k, F) ? '' : k; }
 function statNum(x) { return typeof x === 'number' && fin(x) && Math.abs(x) <= LIMITS.statAbs ? x : undefined; }
 // Stage 6: what a player's removal of an item does. bound: it stays (only the GM removes it); curse (on contact): it leaves their sheet and
 // the GM keeps it on the character, out of their sight, until the GM removes it. Absent: an ordinary removal. The GM's secret: never in the
@@ -271,7 +275,7 @@ function cleanSlider(v) {
     return out;
 }
 // Stage 6 HUD H7: an apply action — a roll entry of a second kind: changes (a pool or a number moved by a formula, no dice) in place of a
-// formula; never the initiative roll. A change: { f: fieldId, formula, add? }; each field once, four at most. An unfinished one (no field,
+// formula; never the initiative roll. A change: { f: fieldId, formula, add? }; each field once, LIMITS.applyChanges at most. An unfinished one (no field,
 // no formula) is kept for the GM's editor, where the validator names it; the players' view drops the whole action (applyTargets)
 function cleanApplyChanges(list, withWhen, withCounters) {   // withWhen (R1): a roll's consequences, each always / on success / on failure (a field once per when); withCounters (R2b): a list's — a change may move one of the row's counters ({ c: key })
     var out = [], seen = map();
@@ -1064,7 +1068,7 @@ function cleanListSpec(v, gmView, F) {   // F (F4c1): the engine, for a stat key
     if (v.noQty === true) out.noQty = true;
     var lv = cleanLvlSpec(v.lvl); if (lv) out.lvl = lv;
     if (isObj(v.on)) { var sw = { label: cutText(v.on.label, LIMITS.label) || 'On' }; if (v.on.def === true) sw.def = true; out.on = sw; }
-    if (Array.isArray(v.stats)) {   // F4c1: its stats — a number every item of it carries (Acc, Wt, Cost), ten at most, each key once ignoring case (the first wins; a key is never trimmed or fixed)
+    if (Array.isArray(v.stats)) {   // F4c1: its stats — a number every item of it carries (Acc, Wt, Cost), LIMITS.listStats at most, each key once ignoring case (the first wins; a key is never trimmed or fixed)
         var sts = [], seenS = map();
         for (var si = 0; si < v.stats.length && sts.length < LIMITS.listStats; si++) {
             var s = v.stats[si], pick = isObj(s) && s.kind === 'pick'; if (!isObj(s) || (s.kind !== undefined && s.kind !== 'num' && !pick)) continue;   // F5a2: a number, or a choice (pick) of named options
@@ -1086,7 +1090,7 @@ function cleanListSpec(v, gmView, F) {   // F (F4c1): the engine, for a stat key
     }
     if (out.stats && typeof v.price === 'string') { var pl = lower(v.price); for (var pi = 0; pi < out.stats.length; pi++) if (lower(out.stats[pi].key) === pl) { if (out.stats[pi].kind !== 'pick') out.price = out.stats[pi].key; break; } }   // F5a2: never a choice   // F4c1: the price is one of its stats (stored as its key): a row records it as paid when it is added
     if (v.custom === true) out.custom = true;   // F4c3: Custom rows — players may add rows of their own (+ Custom…); the GM may on any list shaped here
-    if (Array.isArray(v.cols)) {   // F5a1: its columns — a formula worked out for each row (Row.lvl, Row.<stat>…), six at most; a key shares the stats' names (unique ignoring case)
+    if (Array.isArray(v.cols)) {   // F5a1: its columns — a formula worked out for each row (Row.lvl, Row.<stat>…), LIMITS.listCols at most; a key shares the stats' names (unique ignoring case)
         var cls = [], seenK = map(); (out.stats || []).forEach(function(x) { seenK[lower(x.key)] = 1; });
         for (var ci = 0; ci < v.cols.length && cls.length < LIMITS.listCols; ci++) {
             var cv = v.cols[ci]; if (!isObj(cv)) continue;
@@ -1110,7 +1114,7 @@ function cleanListSpec(v, gmView, F) {   // F (F4c1): the engine, for a stat key
         }
         if (cls.length) out.cols = cls;
     }
-    if (Array.isArray(v.counters)) {   // Stage 6 HUD R2: its counters — a whole number each row keeps (Charges, Hits), four at most: a key of its own (never a stat's or a
+    if (Array.isArray(v.counters)) {   // Stage 6 HUD R2: its counters — a whole number each row keeps (Charges, Hits), LIMITS.rowCounters at most: a key of its own (never a stat's or a
         // column's), a label, where a row starts (0..1e6) and its most (a formula, Row.* read; null: the players' view blanked a GM-only name)
         var cts = [], seenT = map(); (out.stats || []).concat(out.cols || []).forEach(function(x) { seenT[lower(x.key)] = 1; });
         for (var ti = 0; ti < v.counters.length && cts.length < LIMITS.rowCounters; ti++) {
@@ -1122,7 +1126,7 @@ function cleanListSpec(v, gmView, F) {   // F (F4c1): the engine, for a stat key
         }
         if (cts.length) out.counters = cts;
     }
-    if (Array.isArray(v.rolls)) {   // F5b: its rolls — a button on each row, the formula worked out with the row's names (Row.*; dice allowed), four at most
+    if (Array.isArray(v.rolls)) {   // F5b: its rolls — a button on each row, the formula worked out with the row's names (Row.*; dice allowed), LIMITS.rowRolls at most
         var rls = [];
         v.rolls.forEach(function(rv) { if (rls.length >= LIMITS.rowRolls || !isObj(rv)) return; if (Array.isArray(rv.apply)) { var lap = { label: cutText(rv.label, LIMITS.label) || 'Apply', apply: cleanApplyChanges(rv.apply, false, true) }, lac = costKey(rv.cost); if (lac) lap.cost = lac; rls.push(lap); return; } var rro = { label: cutText(rv.label, LIMITS.label) || 'Roll', formula: cleanFormulaText(rv.formula) || '' }; if (Array.isArray(rv.then)) { var rth = cleanApplyChanges(rv.then, true, true); if (rth.length) rro.then = rth; } var rmf2 = cleanFormulaText(rv.malf); if (rmf2) rro.malf = rmf2; if (rv.dmg === true) rro.dmg = true; var rnd = cleanFormulaText(rv.needs); if (rnd) { rro.needs = rnd; var rnt = cutText(rv.needsText, LIMITS.label); if (rnt) rro.needsText = rnt; } var lrc = costKey(rv.cost); if (lrc) rro.cost = lrc; rls.push(rro); });   // R2b: a list roll's consequences (a counter too) and what it needs   // HUD H7b: or an apply action on each row (its amounts read the row as Row.*)
         if (rls.length) out.rolls = rls;
@@ -1232,7 +1236,7 @@ function lvlClamp(spec, n) {
 function decOf(v) { for (var d = 0; d < 12; d++) { var s = v * Math.pow(10, d); if (Math.abs(s - Math.round(s)) < 1e-9 * Math.max(1, Math.abs(s))) return d; } return 12; }   // the decimals a number needs (0.25: 2)
 function cleanItemKey(k, F) {   // F4b: '' when it is not a usable key (with the engine: also one a formula can address, L.<key>.lvl)
     if (typeof k !== 'string' || !ITEM_KEY.test(k)) return '';
-    var l = lower(k); if (ROW_WORDS[l] || RESERVED_SUFFIX[l] || FUNC_NAMES[l] || (k in Object.prototype) || (l in Object.prototype)) return '';
+    var l = lower(k); if (ROW_WORDS[l] || LIST_WORDS[l] === 1 || RESERVED_SUFFIX[l] || FUNC_NAMES[l] || (k in Object.prototype) || (l in Object.prototype)) return '';   // 1.5.4: never on, max or min (List.max.<name> is the list's highest)
     return F && F.parse && !validKey('L.' + k + '.x', F) ? '' : k;
 }
 // Stage 6 look fold (L4): band groups — { id, label }, at most LIMITS.bandGroups, ids once. { list, ids } (ids a prototype-free set).
@@ -1888,7 +1892,7 @@ function cleanFacts(v) {
     return Object.keys(out).length ? out : null;
 }
 // Stage 6 F4c2: an ov op's patch, by shape (applyRowOp judges the rest) — each text null or a string within four times its cap, a lock null or a
-// mode (none lifts the library's), a blast null or { ft, name? }, stats null or up to 16 keys (a stat key, never a prototype name in either case),
+// mode (none lifts the library's), a blast null or { ft, name? }, stats null or up to LIMITS.entryStats keys (a stat key, never a prototype name in either case),
 // each null or a number within 1e9. held never comes from the wire (the host keeps it); other keys are dropped; a wrong type refuses the whole
 // message. A plain object; null when it is malformed or nothing is left
 var OV_KEYS = ['name', 'icon', 'category', 'notes', 'stats', 'area', 'damage', 'cost', 'rm', 'rmMsg', 'eq', 'eqMsg'], OV_CAP = Object.freeze({ name: 240, icon: 256, category: 160, notes: 800, damage: 1200, cost: 1200, rmMsg: 800, eqMsg: 800 });
@@ -2052,21 +2056,21 @@ function mergeOv(base, ov) {
 // The definition a row draws and throws from: the library entry, else the deleted entry's copy, else the row's own. { def, src, base } or null.
 // F4c2: def carries the copy's own values over base (the entry, the copy); without them def is base itself (the library object)
 // Stage 6 library L1d: which library entries the system's formulas address by key — every List.Key.<name> in any text of the system (fields,
-// rolls, the sheet; a stray match in a note only adds an entry), for each item list, not already one of the system's items in that list's
+// rolls, the sheet, the combat card, the effects, and since the review of the fold of 409 the point budgets; a stray match in a note only adds an entry), for each item list, not already one of the system's items in that list's
 // scope — found through lookup(lowerKey) → the library's entries with that key (the first in the list's categories wins). At most
 // LIMITS.core entries and LIMITS.coreBytes (the rest are left out: over: the count). Returns { core, over }. 126b: a rule (an entry's formula
 // prerequisite) is such a text too: an item's own is read here, and more holds the rules of the library's entries, which the caller hands in
 function coreOf(sys, lookup, more) {
     var out = [], seen = map(), over = 0, bytes = 0; if (!isObj(sys) || typeof lookup !== 'function') return { core: out, over: 0 };
     var texts = []; var walk = function(v, d) { if (d > 12) return; if (typeof v === 'string') { if (v.indexOf('.') > 0) texts.push(v); return; } if (Array.isArray(v)) v.forEach(function(x) { walk(x, d + 1); }); else if (isObj(v)) Object.keys(v).forEach(function(k) { walk(v[k], d + 1); }); };
-    ['fields', 'rolls', 'sheet', 'combat', 'effects'].forEach(function(k) { walk(sys[k], 0); });
+    ['fields', 'rolls', 'sheet', 'combat', 'effects', 'budgets'].forEach(function(k) { walk(sys[k], 0); });
     (Array.isArray(sys.items) ? sys.items : []).forEach(function(it) { if (isObj(it) && typeof it.needsIf === 'string' && it.needsIf.indexOf('.') > 0) texts.push(it.needsIf); });
     (Array.isArray(more) ? more : []).forEach(function(t) { if (typeof t === 'string' && t.indexOf('.') > 0) texts.push(t); });
     var all = texts.join('\n'), items = Array.isArray(sys.items) ? sys.items : [];
     (Array.isArray(sys.fields) ? sys.fields : []).forEach(function(f) {
         if (!isObj(f) || f.kind !== 'item-list' || typeof f.key !== 'string') return;
         var cats = isObj(f.list) && Array.isArray(f.list.cats) && f.list.cats.length ? f.list.cats : null, re = new RegExp('(^|[^A-Za-z0-9_.])' + f.key.replace(/[^A-Za-z0-9_]/g, '') + '\\.([A-Za-z][A-Za-z0-9_]{0,39})\\.[A-Za-z]', 'gi'), m, keys = map();
-        while ((m = re.exec(all))) { var k = lower(m[2]); if (k !== 'on') keys[k] = 1; }
+        while ((m = re.exec(all))) { var k = lower(m[2]); if (LIST_WORDS[k] !== 1) keys[k] = 1; }   // List.on.*, List.max.*, List.min.* address no entry (1.5.4: max and min, as on)
         Object.keys(keys).forEach(function(k) {
             var inScope = function(it) { return isObj(it) && typeof it.key === 'string' && lower(it.key) === k && (!cats || catIn(cats, it.category)); };
             if (items.some(inScope)) return;
@@ -2584,7 +2588,7 @@ function fxIndex(sys, char, stance, autos) {   // conditions C3: stance (stanceC
         var v = m.op === 'add' ? m.v * mult : 0, key = lower(tf.key) + (m.part === 'max' ? '.max' : '');
         idx = idx || map(); var slot = idx[key] || (idx[key] = { add: 0, on: false, src: [] });
         if (m.op === 'on') slot.on = true; else slot.add += v;
-        if (slot.src.length < 12) slot.src.push({ name: name, op: m.op, v: v, gm: gm });
+        srcKeep(slot.src, { name: name, op: m.op, v: v, gm: gm });   // 12 at most, a GM-only one kept past them
     };
     (sys && Array.isArray(sys.fields) ? sys.fields : []).forEach(function(f) {
         if (f.kind !== 'effects') return;
@@ -3011,6 +3015,16 @@ function facingValue(fc, l) {   // a built-in facing name's value; with no conte
     }
     return undefined;
 }
+// 5h: the sources a value's breakdown keeps, 12 at most (what a hover's line shows). A GM-only one is never the one the cap leaves out: gmEffectNames
+// reads them to keep the GM's public roll private, and twelve rows read through one visible effect once filled a list's total before the one
+// row a GM-only effect moved (the review of the fold of 409). It takes the place of the last source that is not GM-only. seen, where it is
+// handed in, keeps each source once, by through|name|op|v
+function srcKeep(list, m, seen) {
+    if (seen) { var sk = m.through + '|' + m.name + '|' + m.op + '|' + m.v; if (seen[sk] === 1) return; seen[sk] = 1; }
+    if (list.length < 12) { list.push(m); return; }
+    if (!m.gm) return;
+    for (var i = list.length - 1; i >= 0; i--) if (!list[i].gm) { list[i] = m; return; }
+}
 function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no effect applied (the breakdown's true base); ropts.facing / ropts.stance: tokenCtx(...) for the built-in token names
     var autoL = (ropts && (ropts.noFx || ropts.noAuto)) ? null : autoEffectsOn(sys, char, F);   // conditions C4: the automatic effects on, from a first pass that holds none
     var ix = keyIndex(sys), cache = map(), chain = [], fx = (ropts && ropts.noFx) ? null : fxIndex(sys, char, ropts ? ropts.stance : null, autoL), detail = map();
@@ -3022,8 +3036,8 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         var out = [], seen = map();
         names.forEach(function(n) {
             var nm = n && typeof n.name === 'string' ? n.name : null, d = nm ? detail[lower(nm)] : null; if (!d) return;
-            d.mods.forEach(function(m) { var sk = nm + '|' + m.name + '|' + m.op + '|' + m.v; if (seen[sk] || out.length >= 12) return; seen[sk] = 1; out.push({ through: nm, name: m.name, op: m.op, v: m.v, gm: m.gm }); });
-            d.via.forEach(function(m) { var sk = m.through + '|' + m.name + '|' + m.op + '|' + m.v; if (seen[sk] || out.length >= 12) return; seen[sk] = 1; out.push(m); });
+            d.mods.forEach(function(m) { srcKeep(out, { through: nm, name: m.name, op: m.op, v: m.v, gm: m.gm }, seen); });
+            d.via.forEach(function(m) { srcKeep(out, m, seen); });
         });
         return out.length ? out : null;
     }
@@ -3094,7 +3108,7 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         if (L.st[w] && L.st[w].kind === 'pick') return undefined;   // F5a2: a choice has no total
         if (chain.indexOf(l) >= 0) return loopError(l);
         chain.push(l);
-        var sum = 0, err = null, vias = [];
+        var sum = 0, err = null, vias = [], seenV = map();
         for (var i = 0; i < L.rows.length && !err; i++) {
             var x = L.rows[i]; if (onlyOn && (x.r.keptOn === 1 || !rowOn(L.spec, x.r))) continue;   // a curse kept on: off, as its owner holds it
             var qn = L.spec && L.spec.noQty ? 1 : (x.r.qty | 0);
@@ -3102,7 +3116,7 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
             if (w === 'qty') { sum += qn; continue; }
             var v = rowVal(L, x, w);
             if (v && typeof v === 'object' && v.error) { err = v; break; }
-            if (L.cl[w] || (L.st[w] && L.st[w].kind === 'pick')) { var dv = detail[lower(L.f.key) + '#' + x.id + '.' + w]; if (dv) dv.via.forEach(function(m) { if (vias.length < 12) vias.push(m); }); }
+            if (L.cl[w] || (L.st[w] && L.st[w].kind === 'pick')) { var dv = detail[lower(L.f.key) + '#' + x.id + '.' + w]; if (dv) dv.via.forEach(function(m) { srcKeep(vias, m, seenV); }); }   // each source once, a GM-only one past the cap
             var nv = v === true ? 1 : (typeof v === 'number' && isFinite(v) ? v : 0);
             sum += (w === 'paid' || L.st[w]) ? nv * qn : nv;
         }
@@ -3111,6 +3125,30 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         if (sum > 1e15) sum = 1e15; else if (sum < -1e15) sum = -1e15;
         if (vias.length) detail[l] = { base: sum, mods: [], via: vias };
         cache[l] = sum; return sum;
+    }
+    // 1.5.4 (the site equivalent plan, option 1): L.max.<w> | L.min.<w> (L.on.max.* | L.on.min.* over the rows switched on) — the highest or the
+    // lowest figure one row gives: a number stat as the row reads it (never times its quantity: it is the row's own figure), a column's value
+    // (true reads 1); 0 with no row. A choice, a counter and the row words have none (undefined: an unknown name). The first row error wins, and a
+    // column that reads its own list's highest is a loop, as for totals; a column's effects' sources are kept as a total keeps them
+    function extremeOf(L, l, w, onlyOn, hi) {
+        if (l in cache) return cache[l];
+        if (!(L.st[w] && L.st[w].kind !== 'pick') && !L.cl[w]) return undefined;
+        if (chain.indexOf(l) >= 0) return loopError(l);
+        chain.push(l);
+        var best = null, err = null, vias = [], seenV = map();
+        for (var i = 0; i < L.rows.length && !err; i++) {
+            var x = L.rows[i]; if (onlyOn && (x.r.keptOn === 1 || !rowOn(L.spec, x.r))) continue;   // a curse kept on: off, as its owner holds it
+            var v = rowVal(L, x, w);
+            if (v && typeof v === 'object' && v.error) { err = v; break; }
+            if (L.cl[w]) { var dv = detail[lower(L.f.key) + '#' + x.id + '.' + w]; if (dv) dv.via.forEach(function(m) { srcKeep(vias, m, seenV); }); }   // each source once, a GM-only one past the cap
+            var nv = v === true ? 1 : (typeof v === 'number' && isFinite(v) ? v : 0);
+            if (best === null || (hi ? nv > best : nv < best)) best = nv;
+        }
+        chain.pop();
+        if (err) return err;
+        var out = best === null ? 0 : best; if (out > 1e15) out = 1e15; else if (out < -1e15) out = -1e15;
+        if (vias.length) detail[l] = { base: out, mods: [], via: vias };
+        cache[l] = out; return out;
     }
     // Owed review leftover (a), the owner's ruling of 2026-10-01: a GM-only row is its key's row only where the players' view hides that
     // name — on a GM-only list, or where a GM-only entry in the list's scope has the key (the names cleanSystem blanks for players).
@@ -3132,9 +3170,13 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         return ent ? { r: { defId: ent.id, qty: 0 }, d: ent, id: 'k:' + key, virt: true } : { r: { qty: 0 }, d: null, id: 'k:' + key, virt: true };
     }
     function listName(l, name) {   // a name on a carried list, or undefined (then the rest of the lookup); name: as written (a loop's message)
-        var segs = l.split('.'), f = ix[segs[0]]; if (!f || f.kind !== 'item-list' || segs.length < 2 || segs.length > 3) return undefined;
+        var segs = l.split('.'), f = ix[segs[0]]; if (!f || f.kind !== 'item-list' || segs.length < 2 || segs.length > 4) return undefined;
+        var on4 = segs.length === 4 && segs[1] === 'on', ext = on4 ? segs[2] : segs[1];   // 1.5.4: L.max.<w>, L.min.<w>, and four parts only for L.on.max.<w> and L.on.min.<w>
+        if (segs.length === 4 && ext !== 'max' && ext !== 'min') return undefined;
         var L = listCtx(f); if (typeof name === 'string' && !pretty[l]) pretty[l] = name;
         if (segs.length === 2) return totalOf(L, l, segs[1], false);
+        if ((ext === 'max' || ext === 'min') && segs.length === (on4 ? 4 : 3)) return extremeOf(L, l, segs[segs.length - 1], on4, ext === 'max');
+        if (segs.length === 4) return undefined;
         if (segs[1] === 'on') return totalOf(L, l, segs[2], true);
         var w = segs[2]; if (w !== 'lvl' && w !== 'qty' && w !== 'on' && w !== 'has' && w !== 'paid' && !L.st[w] && !L.cl[w] && !(L.ct && L.ct[w])) return undefined;   // R2: or a counter
         if (l in cache) return cache[l];
@@ -3432,11 +3474,22 @@ function validateSystem(sys, F) {
         if (!total && (word === 'on' || word === 'has')) return { id: '', key: node, kind: 'toggle', vis: lf.vis, list: lf, noEdge: true };
         return null;
     }
+    function extTarget(lf, word) {   // 1.5.4: what L.max.<w> and L.min.<w> read — a number stat or a column, as its total does (a column a node of the loop graph); a choice, a counter and a row word have none
+        var w = listWords(lf)[word];
+        if (w === 'stat' || w === 'col') return wordTarget(lf, word, true);
+        if (w === 'pick') return { pickTotal: true, ext: true, list: lf };
+        if (w === 'ctr') return { ctrTotal: true, ext: true, list: lf };
+        if (word === 'count' || word === 'qty' || word === 'paid' || word === 'lvl' || word === 'on' || word === 'has') return { extWord: true, list: lf };
+        return null;
+    }
     function listTarget(n, rowList) {
         var sg = lower(n).split('.');
         if (sg[0] === 'row' && sg.length === 2 && !ix.row) return rowList ? wordTarget(rowList, sg[1], false) : { rowOutside: true };
-        var lf = lsts[sg[0]]; if (!lf || sg.length < 2 || sg.length > 3) return null;
+        var lf = lsts[sg[0]]; if (!lf || sg.length < 2 || sg.length > 4) return null;
         if (sg.length === 2) return wordTarget(lf, sg[1], true);
+        var on4 = sg.length === 4 && sg[1] === 'on', ex = on4 ? sg[2] : sg[1];   // 1.5.4: L.max.<w>, L.min.<w>, L.on.max.<w>, L.on.min.<w> (the resolver's listName)
+        if (ex === 'max' || ex === 'min') { if (sg.length !== (on4 ? 4 : 3)) return null; var te = extTarget(lf, sg[sg.length - 1]); if (te && on4) te.onTotal = true; return te; }
+        if (sg.length === 4) return null;
         if (sg[1] === 'on') { var to = wordTarget(lf, sg[2], true); if (to) to.onTotal = true; return to; }
         var ta = wordTarget(lf, sg[2], false); if (!ta) return null;
         ta.addr = sg[1]; if (gmKsV[lower(lf.key)] && gmKsV[lower(lf.key)][sg[1]] === 1) ta.gmKey = true;
@@ -3454,8 +3507,9 @@ function validateSystem(sys, F) {
         p.names.forEach(function(n) {
             var l = lower(n), target = known[l];
             if (!target) { var lt = listTarget(n, rowList); if (lt && lt.rowOutside) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" names a row, so it is known only in a list\u2019s own columns.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; } target = lt; }   // F5a1
-            if (target && target.ctrTotal) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" is a counter, so it has no total: read one row (' + target.list.key + '.<key>.' + n.split('.').pop() + ').', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }   // R2
-            if (target && target.pickTotal) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" is a choice, so it has no total: read one row (' + target.list.key + '.<key>.' + n.split('.').pop() + ').', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }   // F5a2
+            if (target && target.ctrTotal) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" is a counter, so it has no ' + (target.ext ? 'highest or lowest' : 'total') + ': read one row (' + target.list.key + '.<key>.' + n.split('.').pop() + ').', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }   // R2
+            if (target && target.pickTotal) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" is a choice, so it has no ' + (target.ext ? 'highest or lowest' : 'total') + ': read one row (' + target.list.key + '.<key>.' + n.split('.').pop() + ').', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }   // F5a2
+            if (target && target.extWord) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '": the highest and the lowest read a number stat or a column of ' + (target.list.label || target.list.key) + ', not ' + n.split('.').pop() + '.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }   // 1.5.4
             if (isRollProp(prop) && n.length > 64) { errors.push({ id: owner.id, prop: prop, message: 'A roll carries names of 64 characters at most: "' + n + '" has ' + n.length + '.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }   // F5a1 (critic 8): the dice path refuses a longer one
             if (!target) { var s = suggest(n, keys); errors.push({ id: owner.id, prop: prop, message: 'Unknown name "' + n + '"' + (s ? ' — did you mean "' + s + '"?' : ''), pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }
             if (!NUMERIC[target.kind]) { errors.push({ id: owner.id, prop: prop, message: '"' + n + '" is ' + (target.kind === 'notes' ? 'a notes field' : (target.kind === 'effects' || target.kind === 'item-list') ? 'a list' : 'text') + ', not a number.', pos: Math.max(0, lower(text).indexOf(l)), len: n.length }); return; }
@@ -4783,7 +4837,7 @@ function rowRollNames(sys, char, fieldId, rowId, names, F) {
             var w = l.slice(4), c = null, st = null;
             (Array.isArray(spec.cols) ? spec.cols : []).forEach(function(x) { if (!c && isObj(x) && lower(x.key) === w) c = x; });
             (Array.isArray(spec.stats) ? spec.stats : []).forEach(function(x) { if (!st && isObj(x) && lower(x.key) === w) st = x; });
-            if (c) { push(f.key + '.' + c.key); if (!done[lower(c.key)] && typeof c.formula === 'string' && c.formula && F && F.names) { done[lower(c.key)] = 1; expand(F.names(c.formula)); } }   // each column once, however deep (owed review F5b#1: a list has up to six)
+            if (c) { push(f.key + '.' + c.key); if (!done[lower(c.key)] && typeof c.formula === 'string' && c.formula && F && F.names) { done[lower(c.key)] = 1; expand(F.names(c.formula)); } }   // each column once, however deep (owed review F5b#1: a list has up to LIMITS.listCols)
             else if (st && st.kind === 'pick' && rd) { var lb = rowStat(spec, rd.def, st.key); (st.opts || []).forEach(function(o) { if (lower(o.label) === lower(lb)) push(o.name); }); }
         }); };
         expand(names);

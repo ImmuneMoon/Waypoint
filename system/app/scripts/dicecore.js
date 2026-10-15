@@ -21,7 +21,9 @@ var LIMITS = Object.freeze({
     names: 200,         // named values a record may carry (rolls from a character sheet)
     nameChars: 64,
     label: 60,          // a roll's label, the character's name on a card
-    cardChars: 240      // describe() cap in a toast / plain-text card
+    cardChars: 240,     // describe() cap in a toast / plain-text card
+    applyLines: 8,      // an apply card's lines: one a change an action or a roll's Then makes (systemcore LIMITS.applyChanges; 4 before 1.5.4)
+    rowRolls: 8         // a list's rolls, so a row roll's index is 0 to 7 (systemcore LIMITS.rowRolls; 4 before 1.5.4)
 });
 var ID_RE = /^r_[A-Za-z0-9]{1,16}$/;
 var RID_RE = /^[A-Za-z0-9_-]{1,24}$/;
@@ -128,7 +130,7 @@ function cleanRollReq(msg) {
     if (msg.row !== undefined) {   // Stage 6 F5b: a roll on one row of a carried list (its Row.* names), only as a character
         var rw = msg.row; if (!out.charId || !rw || typeof rw !== 'object' || Array.isArray(rw) || typeof rw.f !== 'string' || !/^[A-Za-z0-9_]{1,64}$/.test(rw.f) || typeof rw.r !== 'string' || !/^w_[A-Za-z0-9_]{1,24}$/.test(rw.r)) return null;
         out.row = { f: rw.f, r: rw.r };
-        if (rw.i !== undefined) { if (!isInt(rw.i) || rw.i < 0 || rw.i > 3) return null; out.row.i = rw.i; }   // Stage 6 HUD R2b: the list's roll (with consequences or needs: the host rebuilds it)
+        if (rw.i !== undefined) { if (!isInt(rw.i) || rw.i < 0 || rw.i >= LIMITS.rowRolls) return null; out.row.i = rw.i; }   // Stage 6 HUD R2b: the list's roll (with consequences or needs: the host rebuilds it), by its place among the list's LIMITS.rowRolls
     }
     if (msg.act !== undefined) {   // Stage 6 HUD R1: a roll with consequences names its entry; its modifier and advantage travel as data (the host rebuilds the formula from the entry)
         if (!out.charId || out.row || typeof msg.act !== 'string' || !/^r_[A-Za-z0-9_]{1,24}$/.test(msg.act)) return null;
@@ -161,13 +163,13 @@ function cleanRoll(rec) {
     var as = cleanLabel(rec.as); if (as === null) return null; if (as) out.as = as;
     return out;
 }
-// Stage 6 HUD H7: the host's card for an apply action — { type: 'apply', id, from, as?, label?, lines: [{ n, d, v }] (1 to 4), ts, priv? }:
+// Stage 6 HUD H7: the host's card for an apply action — { type: 'apply', id, from, as?, label?, lines: [{ n, d, v }] (1 to LIMITS.applyLines), ts, priv? }:
 // each change as text and numbers only (a field's label, the amount signed, the new value); null when anything is malformed
 function cleanApply(rec) {
     if (!rec || typeof rec !== 'object') return null;
     if (typeof rec.id !== 'string' || !ID_RE.test(rec.id)) return null;
     var from = cleanFrom(rec.from); if (!from) return null;
-    if (!Array.isArray(rec.lines) || !rec.lines.length || rec.lines.length > 4) return null;
+    if (!Array.isArray(rec.lines) || !rec.lines.length || rec.lines.length > LIMITS.applyLines) return null;
     var lines = [];
     for (var i = 0; i < rec.lines.length; i++) {
         var l = rec.lines[i]; if (!l || typeof l !== 'object') return null;

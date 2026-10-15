@@ -4493,7 +4493,7 @@ function refreshErrors() {
         if (!KINDS[f.kind]) errs.push({ prop: 'kind', message: 'Pick a kind.' });
         if (errs.length) errorsById[f.id] = errs;
     });
-    (draft.items || []).forEach(function(it) { if (it && it.key && !cleanItemKey(String(it.key), F())) (errorsById[it.id] = errorsById[it.id] || []).push({ prop: 'key', message: 'Not a usable key: a letter, then letters, digits and _ (up to 40); not a word formulas already use (count, qty, on, has, lvl, paid, row; max, cur, ranks, base; a function or reserved word such as floor, and, true; constructor). Save drops it.' }); });   // Stage 6 F4b
+    (draft.items || []).forEach(function(it) { if (it && it.key && !cleanItemKey(String(it.key), F())) (errorsById[it.id] = errorsById[it.id] || []).push({ prop: 'key', message: 'Not a usable key: a letter, then letters, digits and _ (up to 40); not a word formulas already use (count, qty, on, has, lvl, paid, row; max, min, cur, ranks, base; a function or reserved word such as floor, and, true; constructor). Save drops it.' }); });   // Stage 6 F4b
     // Stage 6 F4c1: each list's stats as Save will read them (a key it drops, a repeat, past the cap, a price naming none, another list's spelling),
     // under the list's card; and what Save drops when a saved stat is renamed or removed (a stat's key is its identity)
     var capS = LIMITS.listStats, firstSp = Object.create(null), keptAll = Object.create(null), keptBy = Object.create(null), firstDef = Object.create(null);
@@ -4503,7 +4503,7 @@ function refreshErrors() {
         st.forEach(function(s, i) {
             var k = s && typeof s === 'object' && typeof s.key === 'string' ? s.key : '';
             if (!k.trim()) { errs.push({ message: 'Stat ' + (i + 1) + ' needs a key: Save drops it.' }); return; }
-            if (!statKey(k, F())) { errs.push({ message: 'Stat key "' + k + '" is not usable: a letter, then letters, digits and _ (up to 24, no spaces); not a word formulas already use (count, qty, on, has, lvl, paid, row; max, cur, ranks, base; a function or reserved word such as floor, and, true; constructor, toString). Save drops it.' }); return; }
+            if (!statKey(k, F())) { errs.push({ message: 'Stat key "' + k + '" is not usable: a letter, then letters, digits and _ (up to 24, no spaces); not a word formulas already use (count, qty, on, has, lvl, paid, row; max, min, cur, ranks, base; a function or reserved word such as floor, and, true; constructor, toString). Save drops it.' }); return; }
             var l = k.toLowerCase(); if (mine[l]) { errs.push({ message: 'Stat key "' + k + '" repeats "' + mine[l] + '" (keys ignore case): Save keeps the first.' }); return; }
             mine[l] = k; if (++n > capS) return;
             keptW[l] = 1;   // 1.5.4 With: the stats Save keeps of this list
@@ -4560,13 +4560,13 @@ function refreshErrors() {
     });
     var clean = cleanSystem(draft, { F: F(), gmView: true });
     if (!clean) return;
-    // F4c1 review: what Save drops of an item's stats with no word otherwise — a value past ±1e9, and past 16 an item (the first come are kept)
+    // F4c1 review: what Save drops of an item's stats with no word otherwise — a value past ±1e9, and past LIMITS.entryStats an item (the first come are kept)
     var cleanById = Object.create(null); (clean.items || []).forEach(function(ci) { if (ci && ci.id) cleanById[ci.id] = ci; });
     (draft.items || []).forEach(function(it) {
         var ci = it && cleanById[it.id]; if (!ci || !it.stats || typeof it.stats !== 'object' || Array.isArray(it.stats)) return;
         var keptL = Object.create(null), big = [], over = [], mis = [];
         Object.keys(ci.stats || {}).forEach(function(k) { keptL[k.toLowerCase()] = 1; });
-        Object.keys(it.stats).forEach(function(k) { var sv = it.stats[k], l = k.toLowerCase(); if (!keptAll[l] || keptL[l]) return; if (firstDef[l] && misfits(firstDef[l], sv)) { mis.push([k, firstDef[l], sv]); return; } if (typeof sv !== 'number' || !isFinite(sv)) return; if (Math.abs(sv) > LIMITS.statAbs) big.push(k); else over.push(k); });   // owed review F5a2#6: a value its stat no longer takes is said as that, never as past 16
+        Object.keys(it.stats).forEach(function(k) { var sv = it.stats[k], l = k.toLowerCase(); if (!keptAll[l] || keptL[l]) return; if (firstDef[l] && misfits(firstDef[l], sv)) { mis.push([k, firstDef[l], sv]); return; } if (typeof sv !== 'number' || !isFinite(sv)) return; if (Math.abs(sv) > LIMITS.statAbs) big.push(k); else over.push(k); });   // owed review F5a2#6: a value its stat no longer takes is said as that, never as past LIMITS.entryStats
         mis.forEach(function(x) { (errorsById[it.id] = errorsById[it.id] || []).push({ prop: 'stats', message: x[1].kind === 'pick' ? (typeof x[2] === 'string' ? '\u201c' + x[0] + '\u201d has no option \u201c' + x[2] + '\u201d now: Save drops it.' : '\u201c' + x[0] + '\u201d is a choice now: Save drops its number.') : '\u201c' + x[0] + '\u201d is a number now: Save drops its choice.' }); });
         big.forEach(function(k) { (errorsById[it.id] = errorsById[it.id] || []).push({ prop: 'stats', message: '“' + k + '” is past ±1,000,000,000: Save drops it.' }); });
         if (over.length) (errorsById[it.id] = errorsById[it.id] || []).push({ prop: 'stats', message: 'At most ' + LIMITS.entryStats + ' stats an item: Save drops ' + over.map(function(k) { return '“' + k + '”'; }).join(', ') + ' (the first ' + LIMITS.entryStats + ' are kept; clear the ones it does not need).' });
@@ -4947,7 +4947,7 @@ function buildDefCell(def, f) {
     }
     else if (k === 'select') { def.appendChild(input('sys-options field', (f.options || []).join(', '), 'The options, separated by commas', 'Options, separated by commas')); def.appendChild(input('sys-def-text field', f.def, 'Default option', 'Default')); }
 }
-// Stage 6 HUD H7: an apply action's changes — each a pool or a number, Subtract or Add, and the amount (a formula, no dice); four at most
+// Stage 6 HUD H7: an apply action's changes — each a pool or a number, Subtract or Add, and the amount (a formula, no dice); LIMITS.applyChanges at most
 function applyEditor(r, key) {   // key (R1): 'apply' — an apply action's changes; 'then' — a roll's consequences (each with its When)
     key = key === 'then' ? 'then' : 'apply';
     var box = el('div', 'sys-apply' + (key === 'then' ? ' sys-then' : '')), list = Array.isArray(r[key]) ? r[key] : [];
@@ -5181,7 +5181,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
     sb.appendChild(el('span', 'sys-num-cap', 'Stats'));
     sts.forEach(function(s0, si) {
         var s = s0 && typeof s0 === 'object' ? s0 : {}, sr = el('div', 'sys-flags sys-list-stat'); sr.dataset.si = String(si);
-        var ki = input('sys-list-statkey field', typeof s.key === 'string' ? s.key : '', 'The stat’s key: a letter, then letters, digits and _ (up to 24); not a word formulas already use (count, qty, on, has, lvl, paid, row; max, cur, ranks, base; a function or reserved word such as floor, and, true). The key is the stat’s identity: renaming or removing it drops its values at Save. A column reads it as Row.key, any formula as List.key (the list\u2019s total)', 'Key'); ki.maxLength = 24; sr.appendChild(ki);
+        var ki = input('sys-list-statkey field', typeof s.key === 'string' ? s.key : '', 'The stat’s key: a letter, then letters, digits and _ (up to 24); not a word formulas already use (count, qty, on, has, lvl, paid, row; max, min, cur, ranks, base; a function or reserved word such as floor, and, true). The key is the stat’s identity: renaming or removing it drops its values at Save. A column reads it as Row.key, any formula as List.key (the list\u2019s total)', 'Key'); ki.maxLength = 24; sr.appendChild(ki);
         sr.appendChild(input('sys-list-statlabel field', typeof s.label === 'string' ? s.label : '', 'The stat’s name on the sheet (blank: its key)', 'Label'));
         var kS = el('select', 'sys-list-statkind'); kS.title = 'Number: each item holds a number. Choice: each item picks one of named options (Strength = ST), and formulas read that option\u2019s value';   // Stage 6 F5a2
         [['', 'Number'], ['pick', 'Choice']].forEach(function(o) { var ko = el('option', null, o[1]); ko.value = o[0]; if ((s.kind === 'pick' ? 'pick' : '') === o[0]) ko.selected = true; kS.appendChild(ko); }); sr.appendChild(kS);
@@ -5201,7 +5201,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
     var sadd = el('button', 'tool ghost sys-btn sys-list-statadd', '+ Stat'); sadd.dataset.act = 'statadd'; sadd.disabled = sts.length >= LIMITS.listStats; sadd.title = sadd.disabled ? 'At most ' + LIMITS.listStats + ' stats a list' : 'A number each item of this list carries (Acc, Wt, Cost), set on the item in Items'; sb.appendChild(sadd);
     if (sts.length) { var pr = el('label', 'sys-num sys-price-box'), ps = el('select', 'sys-list-price'); pr.appendChild(el('span', 'sys-num-cap', 'Price')); ps.title = 'A row records it as Paid when added: what one cost (yours to correct on the sheet)'; priceOptions(ps, sp); pr.appendChild(ps); sb.appendChild(pr); }
     card.appendChild(sb);
-    // Stage 6 F5a1: the list's columns — a formula worked out for each row (Row.lvl, Row.<stat>, another column), six at most — and the names it offers
+    // Stage 6 F5a1: the list's columns — a formula worked out for each row (Row.lvl, Row.<stat>, another column), LIMITS.listCols at most — and the names it offers
     var cls = Array.isArray(sp.cols) ? sp.cols : [], cb2 = el('div', 'sys-list-cols');
     cb2.appendChild(el('span', 'sys-num-cap', 'Columns'));
     cls.forEach(function(c0, ci) {
@@ -5218,7 +5218,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
         cb2.appendChild(cr);
     });
     var cadd = el('button', 'tool ghost sys-btn sys-list-coladd', '+ Column'); cadd.dataset.act = 'coladd'; cadd.disabled = cls.length >= LIMITS.listCols; cadd.title = cadd.disabled ? 'At most ' + LIMITS.listCols + ' columns a list' : 'A formula worked out for each row (a skill\u2019s cost from its level, a weapon\u2019s to-hit)'; cb2.appendChild(cadd);
-    // Stage 6 HUD R2: the list's counters — a whole number each row keeps (Charges, Hits), four at most: its key (Row.<key>), label, start and most
+    // Stage 6 HUD R2: the list's counters — a whole number each row keeps (Charges, Hits), LIMITS.rowCounters at most: its key (Row.<key>), label, start and most
     var ctsL = Array.isArray(sp.counters) ? sp.counters : [];
     cb2.appendChild(el('span', 'sys-num-cap', 'Counters'));
     ctsL.forEach(function(t0, ti) {
@@ -5231,7 +5231,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
         cb2.appendChild(rw);
     });
     var tadd = el('button', 'tool ghost sys-btn sys-list-ctadd', '+ Counter'); tadd.dataset.act = 'ctadd'; tadd.disabled = ctsL.length >= LIMITS.rowCounters; tadd.title = tadd.disabled ? 'At most ' + LIMITS.rowCounters + ' counters a list' : 'A number each row keeps and shows with \u2212 and + (a weapon\u2019s Charges, its Hits)'; cb2.appendChild(tadd);
-    // Stage 6 F5b: the list's rolls — a button on each row, the formula rolled with the row's names (dice allowed), four at most
+    // Stage 6 F5b: the list's rolls — a button on each row, the formula rolled with the row's names (dice allowed), LIMITS.rowRolls at most
     var rls = Array.isArray(sp.rolls) ? sp.rolls : [];
     cb2.appendChild(el('span', 'sys-num-cap', 'Rolls'));
     rls.forEach(function(r0, ri) {
@@ -5260,10 +5260,10 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
 }
 // F5a1: the names a list offers formulas, as one line of text for its card (its key as typed)
 function listNamesText(key, sp) {
-    var k = String(key || 'List'), own = [];
+    var k = String(key || 'List'), own = [], nums = [];
     if (k.indexOf('.') >= 0) return 'A list whose key has a dot has no names formulas can read (they would read ' + k.split('.')[0] + '.\u2026): give it a key without one.';   // owed review F5a1#6
-    (Array.isArray(sp.stats) ? sp.stats : []).concat(Array.isArray(sp.cols) ? sp.cols : []).forEach(function(x) { if (x && typeof x.key === 'string' && x.key) own.push(x.key); });
-    return 'Formulas read ' + k + '.count, ' + k + '.qty' + (sp.price ? ', ' + k + '.paid' : '') + own.map(function(w) { return ', ' + k + '.' + w; }).join('') + ' (the list\u2019s totals)' + (sp.on ? '; ' + k + '.on.\u2026 the same over the rows switched on' : '') + '; ' + k + '.<key>.lvl (and .qty, .on, .has' + (own.length ? ', a stat or a column' : '') + ') one row by its item\u2019s key. A column or a roll reads its row as Row.lvl, Row.qty, Row.on, Row.has, Row.paid' + (own.length ? ', Row.' + own.join(', Row.') : '') + '.';
+    (Array.isArray(sp.stats) ? sp.stats : []).concat(Array.isArray(sp.cols) ? sp.cols : []).forEach(function(x) { if (x && typeof x.key === 'string' && x.key) { own.push(x.key); if (x.kind !== 'pick') nums.push(x.key); } });   // nums (1.5.4): what has a highest and a lowest
+    return 'Formulas read ' + k + '.count, ' + k + '.qty' + (sp.price ? ', ' + k + '.paid' : '') + own.map(function(w) { return ', ' + k + '.' + w; }).join('') + ' (the list\u2019s totals)' + (sp.on ? '; ' + k + '.on.\u2026 the same over the rows switched on' : '') + '; ' + k + '.<key>.lvl (and .qty, .on, .has' + (own.length ? ', a stat or a column' : '') + ') one row by its item\u2019s key.' + (nums.length ? ' ' + k + '.max.\u2026 and ' + k + '.min.\u2026 read the highest and the lowest one row gives of a number stat or a column, as ' + k + '.max.' + nums[0] + (sp.on ? '; ' + k + '.on.max.\u2026 and ' + k + '.on.min.\u2026 the same over the rows switched on' : '') + '.' : '') + ' A column or a roll reads its row as Row.lvl, Row.qty, Row.on, Row.has, Row.paid' + (own.length ? ', Row.' + own.join(', Row.') : '') + '.';
 }
 function checkLabel(cls, on, text, title) { var l = el('label', 'sys-check'), cb = el('input', cls); cb.type = 'checkbox'; cb.checked = !!on; l.appendChild(cb); l.appendChild(document.createTextNode(' ' + text)); if (title) l.title = title; return l; }
 function listOfCard(target) { var cd = target && target.closest ? target.closest('.sys-list-card') : null; if (!cd) return null; return (draft.fields || []).find(function(x) { return x.id === cd.dataset.lid; }) || null; }
@@ -6464,7 +6464,7 @@ function onChange(e) {
 function onClick(e) {
     if (!draft) return;
     var b = e.target.closest && e.target.closest('button'); if (!b) return;
-    if (b.id === 'sysAddField') { draft.fields.push({ id: uid('f_'), key: '', label: '', kind: 'number', def: 0, step: 1, edit: 'owner', vis: 'all', hover: false }); markDirty(); renderAll(); var last = ui('sysFieldRows').lastElementChild; if (last) { var k = last.querySelector('.sys-key'); if (k) k.focus(); last.scrollIntoView({ block: 'nearest' }); } return; }
+    if (b.id === 'sysAddField') { if (draft.fields.length >= LIMITS.fields) { toast('At most ' + LIMITS.fields + ' fields.'); return; } draft.fields.push({ id: uid('f_'), key: '', label: '', kind: 'number', def: 0, step: 1, edit: 'owner', vis: 'all', hover: false }); markDirty(); renderAll(); var last = ui('sysFieldRows').lastElementChild; if (last) { var k = last.querySelector('.sys-key'); if (k) k.focus(); last.scrollIntoView({ block: 'nearest' }); } return; }
     if (b.id === 'sysAddRoll') { draft.rolls.push({ id: uid('r_'), label: '', formula: '', vis: 'all' }); markDirty(); renderAll(); var lr = ui('sysRollRows').lastElementChild; if (lr) { var l = lr.querySelector('.sys-label'); if (l) l.focus(); } return; }
     if (b.id === 'sysAddChar') { showPrompt('Name the character', 'New character', function(name) { if (name === null) return; var c = newCharacter({ name: String(name || '').trim() || 'New character' }); afterCharChange(c, true); renderAll(); }); return; }
     if (b.id === 'sysAddItem') { if (!Array.isArray(draft.items)) draft.items = []; if (draft.items.length >= LIMITS.items) { toast('At most ' + LIMITS.items + ' items.'); return; } draft.items.push({ id: uid('i_'), name: '', category: '', icon: '', notes: '', vis: 'all', area: null, damage: '', cost: '', throwSkill: '' }); markDirty(); renderAll(); var li = ui('sysItemRows').lastElementChild; if (li) { var n = li.querySelector('.sys-item-name'); if (n) n.focus(); li.scrollIntoView({ block: 'nearest' }); } return; }

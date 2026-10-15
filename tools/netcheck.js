@@ -2970,8 +2970,8 @@ pendingChecks.push((async () => {
             rolls: [{ label: 'Fire', formula: '3d6 <= 30', needs: 'Row.Charges >= 1', needsText: 'Out of charges', then: [{ c: 'Charges', formula: '1' }, { c: 'Hits', formula: '1', add: true, when: 'hit' }] }, { label: 'Damage', formula: '2d6', needs: 'Row.Hits > 0', needsText: 'No hit pending', then: [{ c: 'Hits', formula: '0', set: true }] }] } }],
         items: [{ id: 'i_bl', name: 'Blaster', stats: { Shots: 5 } }] }, { F: Fx, gmView: true });
     const rowsW = ct => [{ id: 'w_1', defId: 'i_bl', qty: 1, ct: ct }];
-    const runW = (msg, ct) => { const out = { table: [], sent: [], deltas: [] };
-        const camp = { id: 'k', activeItemId: 'm1', system: sysW, chars: { c_a: { id: 'c_a', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_wp: rowsW(ct) } } }, items: { m1: { type: 'map', whiteboard: [] } } };
+    const runW = (msg, ct, sys) => { const out = { table: [], sent: [], deltas: [] };
+        const camp = { id: 'k', activeItemId: 'm1', system: sys || sysW, chars: { c_a: { id: 'c_a', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_wp: rowsW(ct) } } }, items: { m1: { type: 'map', whiteboard: [] } } };
         const net = { role: 'host', paused: false, roster: { pA: { id: 'u_a', name: 'Pat', location: 'm1' } }, combats: {}, syncCharDelta: (id, d) => out.deltas.push(JSON.parse(JSON.stringify(d))) };
         const conn = { peer: 'pA', send(m) { packCheck(m); out.sent.push(JSON.parse(JSON.stringify(m))); } };
         const win = { wpFormula: Fx, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} }, wpVtt: { on: () => true, rulesOn: () => true } };
@@ -2987,6 +2987,16 @@ pendingChecks.push((async () => {
         && wDmg.table.length === 1 && j(wDmg.ct) === j({ Charges: 2, Hits: 0 }) && refusedW(wNoHit, 'No hit pending') && refusedW(wFake, 'That roll does not match its button now.')
         && wMod.table.length === 1 && j(wMod.ct) === j({ Charges: 1, Hits: 1 }) && wPlain.table.length === 1 && wPlain.deltas.length === 0 && j(wPlain.ct) === j({ Charges: 2 }),
         j([wFire.ct, wEmpty.sent, wDmg.ct, wNoHit.sent, wFake.sent, wMod.ct, wPlain.ct]));
+    // the review of the fold of 409: a list holds eight rolls since 1.5.4, so a player's eighth (index 7) with a Then reaches the host's real branch, and one past them does not
+    const sysW8 = Sx.cleanSystem({ v: 1, name: 'W8', rolls: [], fields: [
+        { id: 'f_wp', key: 'Weapons', kind: 'item-list', edit: 'owner', list: { stats: [{ key: 'Shots' }], counters: [{ key: 'Charges', def: 3, max: 'Row.Shots' }, { key: 'Hits' }],
+            rolls: [0, 1, 2, 3, 4, 5, 6].map(i => ({ label: 'R' + i, formula: 'd' + (i + 4) })).concat([{ label: 'Burst', formula: '3d6 <= 30', needs: 'Row.Charges >= 1', needsText: 'Out of charges', then: [{ c: 'Charges', formula: '1' }, { c: 'Hits', formula: '1', add: true, when: 'hit' }] }]) } }],
+        items: [{ id: 'i_bl', name: 'Blaster', stats: { Shots: 5 } }] }, { F: Fx, gmView: true });
+    const w8 = runW({ expr: '3d6 <= 30', row: { f: 'f_wp', r: 'w_1', i: 7 } }, { Charges: 2 }, sysW8), w8e = runW({ expr: '3d6 <= 30', row: { f: 'f_wp', r: 'w_1', i: 7 } }, { Charges: 0 }, sysW8);
+    const w8n = runW({ expr: '3d6 <= 30', row: { f: 'f_wp', r: 'w_1', i: 8 } }, { Charges: 2 }, sysW8), w8m = runW({ expr: Dx.composeModifier('3d6 <= 30', 2, Fx.parse).expr, row: { f: 'f_wp', r: 'w_1', i: 7 }, mod: 2 }, { Charges: 2 }, sysW8);
+    check('409 a player\'s eighth list roll (index 7: a list holds eight since 1.5.4) with a Then and needs, through the host\'s real roll-req branch: rolled with its charge spent and its hit scored on the host\'s copy (one delta), with a modifier beside it too; refused "Out of charges" with none; an index past the list\'s eight refused as a roll that could not be read',
+        sysW8.fields[0].list.rolls.length === 8 && w8.table.length === 1 && j(w8.ct) === j({ Charges: 1, Hits: 1 }) && w8.deltas.length === 1 && w8m.table.length === 1 && j(w8m.ct) === j({ Charges: 1, Hits: 1 })
+        && refusedW(w8e, 'Out of charges') && j(w8e.ct) === j({ Charges: 0 }) && refusedW(w8n, 'That roll could not be read.') && j(w8n.ct) === j({ Charges: 2 }), j([w8.sent, w8.ct, w8m.sent, w8e.sent, w8n.sent]));
     // the GM's own: net.diceRoll with the row's index — its needs before anything is rolled, its consequences here
     const runGW = (expr, o, ct) => { const out = { deltas: [], saves: 0 };
         const camp = { id: 'k', system: sysW, chars: { c_a: { id: 'c_a', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_wp: rowsW(ct) } } } };
@@ -3116,7 +3126,7 @@ pendingChecks.push((async () => {
         && a2_pub.ret.ok && a2_pub.ret.priv === false && j(a2_pub.pushed) === j([['global', '']]) && a2_pub.table.length === 1 && a2_pub.toasts.length === 0, j([a2_hid.map(([n, r]) => [n, r.pushed, r.toasts]), a2_pub.pushed]));
 })());
 // owed review F5b: the GM's own roll on a row while hosting (net.diceRoll sliced and run for real) — a column reading a GM-only value, a choice's
-// option naming one, a column a GM-only effect moves (one and two columns deep), six columns deep to a choice or to that effect, a visible item's row
+// option naming one, a column a GM-only effect moves (one and two columns deep), twelve columns deep (a list's most) to a choice or to that effect, a visible item's row
 // on a GM-only list, and a curse the GM keeps on while its owner sees it off each stay the GM's, with a toast, and nothing reaches the table; a plain
 // row roll and a row switched on as usual go to the table; the owner's own roll on the kept-on row stays public and reads what they hold (roll-req)
 pendingChecks.push((async () => {
@@ -3166,13 +3176,13 @@ pendingChecks.push((async () => {
         && b5_priv(b5_S2e, /^Kept private: a GM-only effect changes .*\bST\b/) && b5_priv(b5_S3, /^Kept private: a GM-only effect changes .*\bST\b/) && b5_priv(b5_S4, /^Kept private: a GM-only effect changes .*\bST\b/)
         && b5_priv(b5_S5, 'Kept private: that roll is on a GM-only item or list (Blaster · Hush).') && b5_pub(b5_P) && j(b5_P.pushed[0][2]) === j(['Row.Hit=13']),
         j([b5_S1.pushed, b5_S1.toasts, b5_S2.pushed, b5_S2.toasts, b5_S2e.pushed, b5_S2e.toasts, b5_S3.pushed, b5_S3.toasts, b5_S4.pushed, b5_S4.toasts, b5_S5.pushed, b5_S5.toasts, b5_P.pushed, b5_P.toasts]));
-    // six columns deep (a list's most): A reads Row.B, … the last reads a choice whose option names GMFig, ST under the GM-only effect, or a choice naming ST under it
-    const b5_chain = (base, end) => { const ks = ['A', 'B', 'C', 'D', 'E', 'G2'], r = JSON.parse(JSON.stringify(base));
+    // twelve columns deep (a list's most since 1.5.4, six before): A reads Row.B, … the last reads a choice whose option names GMFig, ST under the GM-only effect, or a choice naming ST under it
+    const b5_chain = (base, end) => { const ks = ['A', 'B', 'C', 'D', 'E', 'G2', 'H2', 'I2', 'J2', 'K2', 'L2', 'M2'], r = JSON.parse(JSON.stringify(base));
         r.fields[3].list.cols = ks.map((k, i) => ({ key: k, label: k, formula: i < ks.length - 1 ? 'Row.' + ks[i + 1] : end })); return Sx.cleanSystem(r, { F: Fx, gmView: true }); };
     const b5_c6 = b5_chain(b5_raw, 'Row.Grip'), b5_e6 = b5_chain(b5_rawN, 'ST'), b5_g6 = b5_chain(b5_rawN, 'Row.Grip');
     const b5_C6 = b5_runGM(b5_c6, b5_ch(false), 'd20 + Row.A', b5_row('Attack')), b5_E6 = b5_runGM(b5_e6, b5_ch(true), 'd20 + Row.A', b5_row('Attack')), b5_G6 = b5_runGM(b5_g6, b5_ch(true), 'd20 + Row.A', b5_row('Attack')), b5_E6off = b5_runGM(b5_e6, b5_ch(false), 'd20 + Row.A', b5_row('Attack'));
-    check('owed F5b a GM-only value six columns down stays the GM\'s: a chain of six columns ending in a choice whose option names GMFig, in ST under a GM-only effect, or in a choice whose option names ST under it keeps the GM\'s roll private (every column is followed, not four); the same chain with no effect on goes to the table (Row.A = 10)',
-        b5_c6.fields[3].list.cols.length === 6 && b5_priv(b5_C6, /^Kept private: that roll uses a GM-only value \(.*GMFig/) && b5_priv(b5_E6, /^Kept private: a GM-only effect changes .*\bST\b/) && b5_priv(b5_G6, /^Kept private: a GM-only effect changes .*\bST\b/)
+    check('owed F5b a GM-only value twelve columns down (a list\'s most since 1.5.4) stays the GM\'s: a chain of twelve columns ending in a choice whose option names GMFig, in ST under a GM-only effect, or in a choice whose option names ST under it keeps the GM\'s roll private (every column is followed, not four); the same chain with no effect on goes to the table (Row.A = 10)',
+        b5_c6.fields[3].list.cols.length === 12 && b5_priv(b5_C6, /^Kept private: that roll uses a GM-only value \(.*GMFig/) && b5_priv(b5_E6, /^Kept private: a GM-only effect changes .*\bST\b/) && b5_priv(b5_G6, /^Kept private: a GM-only effect changes .*\bST\b/)
         && b5_pub(b5_E6off) && j(b5_E6off.pushed[0][2]) === j(['Row.A=10']), j([b5_C6.pushed, b5_C6.toasts, b5_E6.pushed, b5_E6.toasts, b5_G6.pushed, b5_G6.toasts, b5_E6off.pushed, b5_E6off.toasts]));
     // a curse the GM keeps on: the player switched it off (applyRowOp, run for real) — their copy reads it off (Row.Hit 1), the GM's on (3)
     const b5_rawK = { v: 1, name: 'K', rolls: [], fields: [
@@ -4100,7 +4110,7 @@ pendingChecks.push((async () => {
     let packedB = true; try { packCheck(msgB); } catch (e) { packedB = e.message; }
     const sizeB = J(msgB).length, inlB = projB.values.f_wp.filter(r => r.lnk === 1);
     check('F4c1 on the wire: 150 rows at their largest (pointers with what was paid, GM-only items inline with every stat a list may carry (' + Sx.LIMITS.listStats + '), 200-character notes) project, pack and stay within 200,000 bytes (' + sizeB + ' bytes)',
-        packedB === true && sizeB < 200000 && projB.values.f_wp.length === 150 && inlB.length === 75 && Object.keys(inlB[0].def.stats).length === Sx.LIMITS.listStats && Sx.LIMITS.listStats >= 12 && projB.values.f_wp.every(r => typeof r.paid === 'number'), String(packedB) + ' ' + sizeB);
+        packedB === true && sizeB < 200000 && projB.values.f_wp.length === 150 && inlB.length === 75 && Object.keys(inlB[0].def.stats).length === Sx.LIMITS.listStats && Sx.LIMITS.listStats >= 24 && projB.values.f_wp.every(r => typeof r.paid === 'number'), String(packedB) + ' ' + sizeB);
 })());
 
 // Stage 6 F4c3: custom rows on the wire — the real char-item handler (with the real delta and the GM's notice, sliced from net.js) on one host:
@@ -4246,8 +4256,8 @@ pendingChecks.push((async () => {
     const stored = Sx.cleanValue(big.fields[0], rowsB, Sx.valueOpts(big)), projB = Sx.charFor({ id: 'c_b', name: 'B', ownerId: 'u_b', npc: false, values: { f_wp: stored } }, viewB, 'u_b', { items: libB }), msgB = { type: 'char', campId: 'k', char: projB };
     let packedB = true; try { packCheck(msgB); } catch (e) { packedB = e.message; }
     const sizeB = J(msgB).length, p0 = projB.values.f_wp[0];
-    check('F4c2 on the wire: 150 rows each with every value of its own at its largest (every stat a list may carry, all held, a blast, 200-character notes) project, pack and stay within 200,000 bytes (' + sizeB + ' bytes), with no formula or lock in them',
-        packedB === true && sizeB < 200000 && projB.values.f_wp.length === 150 && Object.keys(p0.ov.stats).length === Sx.LIMITS.listStats && p0.ov.held.length === Sx.LIMITS.listStats && Sx.LIMITS.listStats >= 12 && !/9d6|curse|bound|rrrr|eeee/.test(J(msgB)), String(packedB) + ' ' + sizeB);
+    check('F4c2 on the wire: 150 rows each with every value of its own at its largest (every stat a list may carry, all held, a blast, 200-character notes) project, pack and stay within 250,000 bytes (' + sizeB + ' bytes; 200,000 while a list carried twelve stats), with no formula or lock in them',
+        packedB === true && sizeB < 250000 && projB.values.f_wp.length === 150 && Object.keys(p0.ov.stats).length === Sx.LIMITS.listStats && p0.ov.held.length === Sx.LIMITS.listStats && Sx.LIMITS.listStats >= 24 && !/9d6|curse|bound|rrrr|eeee/.test(J(msgB)), String(packedB) + ' ' + sizeB);
 })());
 {   // the joined player's top bar (1.5.0): "<campaign> › <map>" from the host's strings — the real whereName / tableWhere / paintWhere, sliced from net.js
     const whereSrc = between('// [netcheck:where-start]', '// [netcheck:where-end]', 'where');

@@ -361,6 +361,7 @@ function saveEntry() {
     var e = current(); if (!e || !st.packId || !ready(st.packId)) return;
     var raw = readForm(); if (!raw.name.trim()) { toast('Give the entry a name.'); return; }
     var SCr = window.wpSystemCore, rlT = typeof raw.needsIf === 'string' ? raw.needsIf.trim() : ''; if (rlT && !(SCr && SCr.needRule && SCr.needRule(rlT, F()))) { toast('The rule under What it needs is not a formula this sheet can work out. A rule rolls no dice.'); return; }   // 126b: never dropped in silence
+    var kyT = typeof raw.key === 'string' ? raw.key.trim() : ''; if (kyT && SCr && SCr.cleanItemKey && !SCr.cleanItemKey(kyT, F())) { toast('\u201c' + kyT + '\u201d is not a usable key. A key is a letter, then letters, digits and _. It is not a word formulas already use, such as on, max, min, count or lvl.'); return; }   // 1.5.4: never dropped in silence (List.max.<name> is the list's highest)
     var c = cleanLibEntry(raw, gmCtx()); if (!c) { toast('That entry could not be kept.'); return; }
     var list = workOf(st.packId), i = -1; list.forEach(function(x, k) { if (x.id === c.id) i = k; });
     var was = i >= 0 ? list[i] : null;

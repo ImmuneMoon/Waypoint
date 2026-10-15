@@ -123,6 +123,15 @@ Character sheets
   too.
 - A notes box on a sheet keeps its own scroll, and the height you
   dragged it to, while you type.
+- Bigger systems. A list can carry up to 24 stats, 12 columns, 8 rolls
+  and 8 counters, and an action or a roll up to 8 changes. An item holds
+  up to 32 stats. A system holds up to 400 fields, and a sheet or its
+  HUD up to 60 sections and 400 placements.
+- A list's highest and lowest. Formulas read Weapons.max.Acc, the
+  highest Acc one row has, and Weapons.min.Acc, the lowest. A column
+  reads the same way, as Skills.max.Parry. Weapons.on.max.Acc and
+  Weapons.on.min.Acc read only the rows switched on. With no row they
+  read 0.
 
 Calendar
 - The game clock runs by itself while you host a session: a second of

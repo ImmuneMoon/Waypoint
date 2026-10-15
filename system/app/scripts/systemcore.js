@@ -4058,7 +4058,8 @@ var SB_MAP = [
     { path: ['characteristics', 'hitPoints'], keys: ['hp', 'hitpoints'] }, { path: ['characteristics', 'endurancePoints'], keys: ['fp', 'ep', 'fatigue', 'endurance'] },
     { path: ['characteristics', 'forcePoints'], keys: ['force', 'forcepoints'] }, { path: ['characteristics', 'will'], keys: ['will'] }, { path: ['characteristics', 'perception'], keys: ['per', 'perception'] },
     { path: ['characteristics', 'basicSpeed'], keys: ['speed', 'basicspeed'] }, { path: ['characteristics', 'basicMove'], keys: ['move', 'basicmove'] },
-    { path: ['characteristics', 'defenses', 'dodge'], keys: ['dodge'] }, { path: ['characteristics', 'defenses', 'parry'], keys: ['parry'] }
+    { path: ['characteristics', 'defenses', 'dodge'], keys: ['dodge'] }, { path: ['characteristics', 'defenses', 'parry'], keys: ['parry'] }, { path: ['characteristics', 'defenses', 'block'], keys: ['block'] },
+    { path: ['characteristics', 'vision'], keys: ['vision'] }, { path: ['characteristics', 'hearing'], keys: ['hearing'] }, { path: ['characteristics', 'tasteAndSmell'], keys: ['taste', 'tasteandsmell'] }, { path: ['characteristics', 'touch'], keys: ['touch'] }   // a stored figure only: a field worked out by formula is never filled (the site's file states each sense's effective roll since 2026-10-14, null where it reads N/A)
 ];
 function pick(obj, path) { var cur = obj; for (var i = 0; i < path.length; i++) { if (!isObj(cur)) return undefined; cur = cur[path[i]]; } return cur; }
 function numOf(v) { if (typeof v === 'number') return v; if (isObj(v)) { var c = [v.effective, v.final, v.value, v.level, v.current, v.base]; for (var i = 0; i < c.length; i++) if (typeof c[i] === 'number' && isFinite(c[i])) return c[i]; } return undefined; }
@@ -4121,6 +4122,14 @@ function sbIdle(t) { return t.suspended === true || (typeof t.countedWithCopyOf 
 // rows in play (never a suspended row or a further copy of one part's trait), the status effects (the phase in play), the armour worn (its
 // bag, else what its notes read as, with its DX and Move penalties) and the implants and limbs installed (their bag, else their text). A figure
 // the file states whole (an attribute's effective, a droid's Lifting ST) less this is the share no row of Waypoint's will add again
+// A worn piece's fit as the site reads it (illFittingOf, Ch13): Ill-Fitting by its build (illFitting) or a garment tied up over a gone
+// limb (its stored tiedUp record) is -1 DX and -1 Basic Move, a piece that owes its re-fit and nothing else (needsRefit) -1 DX, and it is one
+// penalty a piece, never two added. A Mis-Sized piece (one Size Modifier from its wearer) is not read: which pieces fit at every size is
+// the site's catalogue's to say, and the file states it in no key of the row
+function sbFitPen(x) {
+    var ill = x.illFitting === true || (x.type === 'Clothing' && Array.isArray(x.tiedUp) && x.tiedUp.length > 0);
+    return ill ? { dexterity: -1, move: -1 } : x.needsRefit === true ? { dexterity: -1, move: 0 } : { dexterity: 0, move: 0 };
+}
 function sbChan(j, a) {
     var n = 0, add = function(bag) { var v = isObj(bag) ? bag[a] : undefined; if (typeof v === 'number' && fin(v) && Math.abs(v) <= LIMITS.effectAmount) n += v; };
     var tr = isObj(j.traits) ? j.traits : {}, inv = isObj(j.inventory) ? j.inventory : {}, pen = function(v) { return typeof v === 'number' && fin(v) ? v : 0; };
@@ -4130,7 +4139,7 @@ function sbChan(j, a) {
     rows(inv.armor).forEach(function(x) {
         if (x.equipped !== true || x.storageLocationId || x.isSeveredRemnant === true || !own(x)) return;
         var bag = isObj(x.modifiers) ? x.modifiers : sbTextBag(x.notes); add(bag);
-        if (a === 'dexterity') n += pen(typeof x.finalDXPenalty === 'number' ? x.finalDXPenalty : x.dxPenalty); if (a === 'move') n += pen(typeof x.finalMovePenalty === 'number' ? x.finalMovePenalty : x.movePenalty);
+        if (a === 'dexterity') n += pen(typeof x.finalDXPenalty === 'number' ? x.finalDXPenalty : x.dxPenalty) + sbFitPen(x).dexterity; if (a === 'move') n += pen(typeof x.finalMovePenalty === 'number' ? x.finalMovePenalty : x.movePenalty) + sbFitPen(x).move;
     });
     rows(inv.implants).concat(rows(inv.cybernetics)).forEach(function(x) { if (x.installed === true) add(isObj(x.modifiers) ? x.modifiers : sbTextBag(x.effect)); });
     rows(inv.cyberneticUpgrades).forEach(function(x) { if (x.equipped === true) add(isObj(x.modifiers) ? x.modifiers : sbTextBag(x.effect)); });
@@ -4195,6 +4204,8 @@ function sbScalars(j) {   // lower-case key -> the dossier's value (a number, a 
     ['player', 'species', 'homeworld', 'campaign', 'literacy'].forEach(function(k) { if (typeof j[k] === 'string') out[k] = j[k]; });
     if (typeof inv.isStartingPointsMode === 'boolean') out.cpmode = inv.isStartingPointsMode;
     if (typeof inv.useLiftingST === 'boolean') out.useliftst = inv.useLiftingST;
+    if (typeof inv.useStrikingST === 'boolean') out.usestrikest = inv.useStrikingST;
+    if (typeof inv.useArmST === 'boolean') out.usearmst = inv.useArmST;
     [['st', 'strength'], ['dx', 'dexterity'], ['iq', 'iq'], ['ht', 'health']].forEach(function(p) { out[p[0] + 'tpl'] = sbAttr(j, p[1], p[0]).tpl; });
     SB_FREE.forEach(function(p) { var v = sbNum(inv[p[1] + 'Baseline']); out[p[0]] = v === undefined ? 0 : v; });
     lvl('hplvl', 'hitPoints', rST); lvl('eplvl', 'endurancePoints', rHT); lvl('forcelvl', 'forcePoints', pW); lvl('willlvl', 'will', rIQ); lvl('perlvl', 'perception', rIQ); lvl('frightlvl', 'frightCheck', pW);
@@ -4210,6 +4221,11 @@ function sbScalars(j) {   // lower-case key -> the dossier's value (a number, a 
     if (strikeL !== undefined) out.strikest = strikeL - sbChan(j, 'strikingSt');
     if (isObj(ch.powerPoints) && sbNum(ch.powerPoints.max) !== undefined) out.ppcap = ch.powerPoints.max;
     if (sbNum(pt.droidHardware) !== undefined) out.hwpts = pt.droidHardware + (sbNum(pt.droidGoverningIq) || 0);
+    // A droid's hardware bases: its build's Will, Perception, HP and Basic Move, the base the file states for each (a living character's
+    // are its attributes', which the system works out). A droid that cannot run, and its corrupted core's roll penalty (to IQ, Will and
+    // Perception rolls, never to the figures), read only where the file states the droid's processor and core at all
+    if (dt.isDroid === true) [['willhw', 'will'], ['perhw', 'perception'], ['hphw', 'hitPoints'], ['movehw', 'basicMove']].forEach(function(p) { var b = isObj(ch[p[1]]) ? sbNum(ch[p[1]].base) : undefined; if (b !== undefined) out[p[0]] = b; });
+    if (isObj(ch.processorCore)) { out.cannotrun = isObj(ch.unableToRun); var rp = isObj(ch.processorCore.rollPenalty) ? sbNum(ch.processorCore.rollPenalty.amount) : undefined; out.corepen = rp === undefined ? 0 : rp; }
     var al = sbNum(pt.forceAlignment); if (al === undefined && (sbNum(pt.lightSidePoints) !== undefined || sbNum(pt.darkSidePoints) !== undefined)) al = (sbNum(pt.lightSidePoints) || 0) - (sbNum(pt.darkSidePoints) || 0); if (al !== undefined) out.align = al;   // an older dossier has only the two sides
     var gen = isObj(j.inventory) && Array.isArray(j.inventory.general) ? j.inventory.general : null;   // the money its loose rows hold, as the site opens the file; a file with no such row keeps its stated total here (the site opens it at 0, and the write-back gives it a chip)
     if (gen && gen.some(sbLoose)) out.credits = Math.round(sbMoneyHeld(gen) * 100) / 100; else if (sbNum(cr.total) !== undefined) out.credits = cr.total;
@@ -4530,7 +4546,7 @@ function sbRowOps(json, sys, find) {
         Object.keys(st2).forEach(function(k) { if (!st2[k] && k !== 'wt' && k !== 'cr') delete st2[k]; });
         var ib = isObj(a.modifiers) ? a.modifiers : sbTextBag(a.notes), bag = {};   // worn: its own bag (else what its notes read as), its DX and Move penalties added
         Object.keys(ib).forEach(function(k) { if (Object.prototype.hasOwnProperty.call(ib, k)) bag[k] = ib[k]; });
-        bag.dexterity = num(typeof a.finalDXPenalty === 'number' ? a.finalDXPenalty : a.dxPenalty) + num(ib.dexterity); bag.move = num(typeof a.finalMovePenalty === 'number' ? a.finalMovePenalty : a.movePenalty) + num(ib.move);
+        var fit = sbFitPen(a); bag.dexterity = num(typeof a.finalDXPenalty === 'number' ? a.finalDXPenalty : a.dxPenalty) + num(ib.dexterity) + fit.dexterity; bag.move = num(typeof a.finalMovePenalty === 'number' ? a.finalMovePenalty : a.movePenalty) + num(ib.move) + fit.move;   // its fit too (sbFitPen)
         var mods = sbMods(bag, ix, true);   // worn, not bought: the attribute alone
         var e = entry(fA, cutText(a.name, LIMITS.name)); var fx = facts(fA, undefined, a.equipped === true);
         if (e) addLib(fA, e, fx, build(e, a, st2.wt, st2.cr)); else addCustom(fA, { name: a.name, category: cutText(a.type, LIMITS.category), notes: cutText(a.effects || a.penalties || '', LIMITS.text), stats: st2, mods: mods, modsOn: true }, fx);   // its penalties only while worn
@@ -4574,6 +4590,7 @@ function sbRowOps(json, sys, find) {
     if (stS) {
         var vsK = (Array.isArray(fLc.list.stats) ? fLc.list.stats : []).filter(function(s) { return isObj(s) && s.kind !== 'pick' && /^vs[a-z]+$/i.test(String(s.key)); });   // the list's typed stats
         var penS = statDefOf(fLc.list, 'pen'), penK = penS && penS.kind !== 'pick' ? penS.key : null;
+        var dnS = statDefOf(fLc.list, 'down'); if (dnS && dnS.kind === 'pick') dnS = null;   // a part seated and not working (the site's notWorking, 30 minutes): only where the list has a number stat `down`
         var locById = map(); locs.forEach(function(l) { if (typeof l.id === 'string' && l.id) locById[l.id] = l; });
         var dStates = isObj(json.droidBuild) && isObj(json.droidBuild.locationStates) ? json.droidBuild.locationStates : null;
         var unk = map(), unkN = 0;   // the kinds the list has no stat for: eight are named, the rest said once (a file may hold thousands)
@@ -4596,10 +4613,11 @@ function sbRowOps(json, sys, find) {
                 var ovL = {}; if (nm !== e.name) ovL.name = nm; if (sm && penK) { ovL.stats = {}; ovL.stats[penK] = rowStat(fLc.list, e, penK) + sm; }   // the entry's own penalty, read under the list's spelling of the stat
                 addLib(fLc, e, fx, Object.keys(ovL).length ? ovL : null);
                 var os = {}; os[stS.key] = rowStat(fLc.list, e, stS.key) !== 1 ? 1 : null;
+                if (dnS) os[dnS.key] = d.notWorking === true ? (rowStat(fLc.list, e, dnS.key) !== 1 ? 1 : null) : (rowStat(fLc.list, e, dnS.key) !== 0 ? 0 : null);   // a part seated and not working: the list's `down`, where it has one
                 vsK.forEach(function(s) { var tv = typed[s.key] !== undefined ? typed[s.key] : 0; os[s.key] = tv !== rowStat(fLc.list, e, s.key) ? tv : null; });   // a figure the entry reads alike is the entry's own (null), as a weapon's range is
                 push(fLc, { op: 'ov', rowId: out.ops[out.ops.length - 1].q.rowId, ov: { stats: os } });
             } else {
-                var cs = {}; if (sm && penK) cs[penK] = sm; cs[stS.key] = 1; vsK.forEach(function(s) { if (typed[s.key] !== undefined) cs[s.key] = typed[s.key]; else if (rowStat(fLc.list, null, s.key) !== 0) cs[s.key] = 0; });   // the site states none: a default of the stat's own must not stand in for it
+                var cs = {}; if (sm && penK) cs[penK] = sm; cs[stS.key] = 1; if (dnS && d.notWorking === true) cs[dnS.key] = 1; vsK.forEach(function(s) { if (typed[s.key] !== undefined) cs[s.key] = typed[s.key]; else if (rowStat(fLc.list, null, s.key) !== 0) cs[s.key] = 0; });   // the site states none: a default of the stat's own must not stand in for it
                 addCustom(fLc, { name: d.name, stats: cs }, fx);
             }
         });

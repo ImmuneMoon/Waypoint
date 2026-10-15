@@ -6,8 +6,9 @@
    token's name and art as the portrait; a token with no sheet exports a
    minimal skeleton the site's tolerant importer fills with defaults.
 
-   The stored sheet never keeps a portrait when the token has art of its own —
-   portraits are ~500KB data URLs and the token image IS the portrait. */
+   The stored sheet keeps its portrait exactly as the site wrote it, a null one
+   too (the site's handoff of 2026-10-15: carry portrait back as it came). The
+   token's art is made from it, a framed copy saved as a picture of its own. */
 
 import { toast, save, canPersistLocal } from './io.js';
 import { getActiveCampaign, getActiveMap } from './models.js';
@@ -131,20 +132,7 @@ export function attachSheet(item, file, done) {
             toast('Sheet attached: ' + (j.name || 'character') + ' ✓');
             if (done) done(j);
         };
-        // The sheet's portrait is kept but downsized to the shared ≤512px
-        // standard so a high-res original never bloats the save — and never
-        // gets silently replaced by lower-res token art at export time.
-        if (typeof j.portrait === 'string' && /^data:image\//.test(j.portrait)) {
-            loadImage(j.portrait).then(function(img) {
-                if (img) {
-                    try { j.portrait = toPortrait(img, 512); } catch (e) { delete j.portrait; }
-                } else delete j.portrait;
-                finish();
-            });
-        } else {
-            delete j.portrait;
-            finish();
-        }
+        finish();   // the sheet's portrait as the site wrote it, a null one too: never re-encoded, never dropped
     }).catch(function() { toast('Could not read that file.'); });
 }
 
@@ -230,24 +218,24 @@ export function importCharacterToken(file) {
         // original also saves the whole portrait (the GM's: reopened by Frame picture…)
         var src = null, keepSrc = null, framed = null;
         if (typeof j.portrait === 'string' && /^data:image\//.test(j.portrait)) {
-            var img = await loadImage(j.portrait);
+            var img = await loadImage(j.portrait), art = null;   // the sheet keeps its portrait as it came; the token's art is a copy made from it
             if (img) {
-                try { j.portrait = toPortrait(img, 512); } catch (e) { delete j.portrait; }   // normalize what stays on the sheet
-                if (j.portrait && window.wpFrame) {
+                try { art = toPortrait(img, 512); } catch (e) { art = null; }
+                if (art && window.wpFrame) {
                     var gp = { isChar: true, type: 'image', src: 'x', w: 60, h: 52 };
-                    framed = await new Promise(function(done) { if (!window.wpFrame.open(j.portrait, { px: 256, as: 'blob', title: 'Frame ' + (j.name || 'the character') + '\u2019s token', guide: window.wpTokenGuide ? window.wpTokenGuide(gp, map) : null, keep: true, onCancel: function() { done(null); } }, done)) done(false); });
+                    framed = await new Promise(function(done) { if (!window.wpFrame.open(art, { px: 256, as: 'blob', title: 'Frame ' + (j.name || 'the character') + '\u2019s token', guide: window.wpTokenGuide ? window.wpTokenGuide(gp, map) : null, keep: true, onCancel: function() { done(null); } }, done)) done(false); });
                     if (framed === null) { toast('Import cancelled.'); return; }
                 }
-                if (j.portrait) {
+                if (art) {
                     try {
                         var base = (j.name || 'character').replace(/[^\w\- ]+/g, '').trim() || 'character';
                         var upTo = async function(body, fname) { var up = await fetch('/api/upload?mapId=' + encodeURIComponent(camp.activeItemId) + '&filename=' + encodeURIComponent(fname), { method: 'POST', body: body }); var res = await up.json(); return res && res.url ? res.url : null; };
-                        var whole = await (await fetch(j.portrait)).blob();
+                        var whole = await (await fetch(art)).blob();
                         src = await upTo(framed && framed.blob ? framed.blob : whole, base + ' - token.png');
                         if (src && framed && framed.keep) keepSrc = await upTo(whole, base + ' - portrait.png');
                     } catch (e) { /* portrait upload failed — token ships without art */ }
                 }
-            } else delete j.portrait;
+            }
         }
         var st0 = (await import('./state.js')).state;
         var wrap = document.getElementById('whiteboardWrap');

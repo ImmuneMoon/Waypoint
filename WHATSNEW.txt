@@ -102,6 +102,13 @@ Character sheets
 - A token's Export JSON keeps a sheet from the website as the website
   wrote it, but for the token's posture and elevation. It no longer
   rewrites the sheet's languages, name or picture.
+- A sheet from ShadowBase brings more across. That is a droid's own
+  Will, Perception, HP and Basic Move, a stored Block, the senses and
+  the Striking ST and Arm ST switches. It is also a droid that cannot
+  run, its corrupted core's roll penalty and a part that is not
+  working. A worn piece that fits badly takes off DX and Basic Move.
+  A sheet attached to a token keeps its portrait as the website wrote
+  it.
 - Text style on a sheet. With Edit sheet on, click into a text or notes
   field and a bar comes up on it, as in a planner. Select words and make
   them bold, italic, underlined, struck through or coloured, or give

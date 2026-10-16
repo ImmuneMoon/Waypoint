@@ -109,6 +109,13 @@ Character sheets
   working. A worn piece that fits badly takes off DX and Basic Move.
   A sheet attached to a token keeps its portrait as the website wrote
   it.
+- A sheet from ShadowBase also reads what the website takes from a
+  row's own words. That is a weapon's skill level as the website works
+  it out, the damage of a weapon built from parts, whether a weapon
+  parries or blocks, and a row that is Destroyed. It is also a narrowed
+  Enhanced Parry, the sense an Acute Senses row sharpens and a droid's
+  leg or foot that is Destroyed. Each comes only into a field or a list
+  stat your system has.
 - Text style on a sheet. With Edit sheet on, click into a text or notes
   field and a bar comes up on it, as in a planner. Select words and make
   them bold, italic, underlined, struck through or coloured, or give

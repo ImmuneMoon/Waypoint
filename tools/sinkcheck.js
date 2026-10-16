@@ -4771,6 +4771,68 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && said4.every(c => c.every(k => k[3] === 0)) && PG2.clean() && !HTML4.test(ecSrc4), j([said4, PG2.htmlSet, PG2.attrs]));
     }
 
+    /* ---- [m412] the review of build 8, the bridge's readings on the sheet: what the eight readings write onto a row (systemcore.js sbRowOps and
+       aliasFromShadowBase, run for real on a hostile website file) is drawn by the sheet's own stat chips and stat line (sheets.js statChips,
+       statLine and statLineNode, run for real on a page that refuses markup) only as a number or one of the system's own labels, as text. The
+       file puts markup and a prototype's name in a skill's name, a weapon's skill, a row's own words, a Class Type and a damage mode, and none
+       of it is drawn; the system, from a file too, has hostile labels, which are drawn as the text they are ---- */
+    {
+        const j = JSON.stringify, SY5 = await import(modUrl('systemcore.js')), FO5 = await import(modUrl('formula.js'));
+        const sh5 = read('sheets.js'), HTML5 = /innerHTML|insertAdjacentHTML|outerHTML|setAttribute|document\.write/;
+        const cut5 = (a, b) => { const i = sh5.indexOf(a), k = i < 0 ? -1 : sh5.indexOf(b, i + a.length); if (i < 0 || k < 0) throw new Error('sinkcheck: sheets.js ' + a.trim().slice(0, 40) + ' not found'); return sh5.slice(i, k); };
+        const line5 = k => cut5('\n' + k, '\n').slice(1);
+        const mkPage5 = () => {
+            const made = [], htmlSet = [], attrs = [];
+            const fake = tag => { const e = { tag, children: [], childNodes: [], style: {}, dataset: {}, className: '', textContent: '', appendChild(k) { this.children.push(k); this.childNodes.push(k); return k; }, setAttribute(n, v) { attrs.push([n, v]); }, addEventListener() {} }; ['innerHTML', 'outerHTML'].forEach(p => Object.defineProperty(e, p, { set(v) { htmlSet.push(v); }, get() { return ''; } })); e.insertAdjacentHTML = (w, v) => { htmlSet.push(v); }; made.push(e); return e; };
+            const doc = { createElement: fake, createTextNode: t => { const n = { tag: '#text', textContent: String(t) }; made.push(n); return n; } };
+            return { made, htmlSet, attrs, fake, doc, clean: () => htmlSet.length === 0 && attrs.length === 0 && made.every(e => e.tag === '#text' || Object.keys(e.style).length === 0) };
+        };
+        // what only the FILE writes (its markers are never drawn), and a system from a file whose stat labels are hostile
+        const FX = '<img src=x onerror=alert(5) data-file=1>', FP = '__proto__', sp = (key, extra) => Object.assign({ key, label: T + key, show: true }, extra || {});
+        const SENSE5 = [['V', T + ' Vision'], ['H', P + ' Hearing'], ['S', 'Taste ' + T + ' Smell'], ['T', 'Touch']], YES5 = ['No', T + 'Yes'], DB5 = ['Flat', T + 'Swing', P + 'Thrust'];
+        const sys5 = SY5.cleanSystem({ v: 1, name: T, rolls: [], fields: [{ id: 'f_strike', key: 'StrikeST', label: T, kind: 'number', vis: 'all' }, { id: 'f_mlost', key: 'MotiveLost', label: P, kind: 'toggle', vis: 'all' },
+            { id: 'f_sk', key: 'Skills', label: T, kind: 'item-list', vis: 'all', list: { cats: ['Skill'], noQty: true, custom: true, multi: true, lvl: { label: 'Level', min: -10, max: 40, def: 10 }, stats: [{ key: 'attr' }, { key: 'diff' }, { key: 'fix' }, { key: 'free' }, sp('npar')] } },
+            { id: 'f_adv', key: 'Advantages', label: T, kind: 'item-list', vis: 'all', list: { cats: ['Advantage'], noQty: true, custom: true, lvl: { label: 'Level', min: 0, max: 10, def: 0 }, stats: [{ key: 'bp' }, { key: 'per' }, sp('sense', { kind: 'pick', opts: SENSE5.map(p => ({ name: p[0], label: p[1] })) })] } },
+            { id: 'f_wp', key: 'Weapons', label: T, kind: 'item-list', vis: 'all', list: { cats: ['Melee Weapon', 'Ranged Weapon', 'Lightsaber'], custom: true, multi: true, stats: [{ key: 'wt' }, { key: 'cr' }, sp('dd'), sp('da'), sp('db', { labels: DB5 }), sp('wsl'), sp('wdf', { labels: ['Parry and Block', 'Parry', 'Block', 'None'] }), sp('scrap', { labels: YES5 })] } },
+            { id: 'f_gear', key: 'Gear', label: T, kind: 'item-list', vis: 'all', list: { cats: ['Gear'], custom: true, multi: true, stats: [{ key: 'wt' }, { key: 'cr' }, sp('scrap', { labels: YES5 })] } },
+            { id: 'f_am', key: 'Ammo', label: T, kind: 'item-list', vis: 'all', list: { cats: ['Ammunition'], custom: true, multi: true, stats: [sp('wt'), sp('cr')] } }] }, { F: FO5, gmView: true });
+        const LIB5 = [{ id: 'i_m412s_b', name: 'Broadsword', key: 'Broadsword', category: 'Skill', desc: 'Defaults: DX-5.' }, { id: 'i_m412s_r', name: 'Rope', key: 'Rope', category: 'Gear' },
+            { id: 'i_m412s_v', name: 'Vibroblade', key: 'Vibroblade', category: 'Melee Weapon', stats: { dd: 2, da: -1, db: 1 } }, { id: 'i_m412s_a', name: 'Acute Senses', key: 'AcuteSenses', category: 'Advantage', lvl: 1, stats: { bp: 0, per: 2 } },
+            { id: 'i_m412s_s', name: 'Saber', key: 'Saber', category: 'Lightsaber', stats: {} }];
+        const find5 = n => LIB5.filter(e => e.name.toLowerCase() === String(n).trim().toLowerCase());
+        const file5 = { type: 'character', name: FX, details: { isDroid: true }, droidBuild: {}, attributes: { dexterity: { value: 10, effective: 10 } }, characteristics: { strikingSt: { levels: 3 }, locationDr: [{ id: 'l', name: FX, type: 'Leg', dr: 3, typedDr: [], status: 'Destroyed' }] },
+            skills: [{ name: 'Broadsword', level: '12', relativeLevel: 'DX/A+2' }, { name: FX, level: '14' }, { name: FP, level: 14 }, { name: 'Guns (' + FX + ')', level: 13 }],
+            traits: { advantages: [{ name: 'Striking ST', level: 3, points: 15 }, { name: 'Acute Senses', level: 1, points: 2, description: FX + ' Hearing ' + FP }, { name: 'Enhanced Parry (Narrowed)', level: 2, points: 10, description: FX + ' broadsword ' + FP }] },
+            inventory: { general: [{ name: 'Rope', condition: 'Destroyed' }, { name: FX, condition: 'Destroyed' }],
+                weapons: { melee: [{ baseType: 'Vibroblade', baseSkill: 'Broadsword', damageModes: [{ stType: 'thr', bonusDice: 1, bonus: 1, label: FX }], conditionTracked: true, conditionShown: 'Destroyed' }, { customName: FX + 'B', baseSkill: FX, finalCost: 1 }],
+                    blasters: [{ customName: 'Odd ' + FP, baseSkill: 'Guns (' + FX + ')', finalCost: 1 }, { customName: 'Wreck', baseSkill: 'Guns', finalCost: 9, conditionTracked: true, conditionShown: 'Destroyed', loadedAmmunitionData: { name: FX + ' Pack', cost: 25, type: FX } }],
+                    lightsabers: [{ name: FX, classType: FX, conditionTracked: true, conditionShown: 'Destroyed' }, { name: 'Saber', calculatedDamage: '5d ' + FX, finalParryMod: FX }] } } };
+        const proto5 = () => j([Object.keys(Object.prototype), ({}).polluted, ({}).npar, ({}).sense, typeof ({}).constructor]), p05 = proto5();
+        const ch5 = { id: 'c_m412', name: 'S', ownerId: '', npc: true, values: {} }, refused5 = [];
+        let ro5 = null, v5 = null;
+        SY5.setLibraryFind(id => LIB5.find(e => e.id === id) || null);
+        const PG5 = mkPage5(), drawn5 = [];
+        try {
+            ro5 = SY5.sbRowOps(file5, sys5, find5); v5 = SY5.aliasFromShadowBase(file5, sys5, FO5).values;
+            ro5.ops.forEach(o => { const a = SY5.applyRowOp(sys5, ch5, o.f, o.q, FO5, {}); if (a.ok) ch5.values[o.f] = a.value; else refused5.push(o.q.op + ':' + a.reason); });
+            const W5 = new Function('document', 'rowStat', 'rowPaid', 'ovDot', "'use strict';\n" + line5('function el(tag, cls, text) {') + cut5('\nfunction statFmt(v) {', '\n// F4c1: what one of a row cost') + cut5('\nfunction statDot(s, spec, ovc) {', '\nvar _rfClearing') + '\nreturn { statChips, statLineNode };')(PG5.doc, SY5.rowStat, SY5.rowPaid, () => null);
+            sys5.fields.filter(f => f.kind === 'item-list').forEach(f => (ch5.values[f.id] || []).forEach(r => { const rd = SY5.rowDef(sys5, r), host = PG5.fake('div');
+                W5.statChips(host, rd.def, f.list, null); const ln = W5.statLineNode(r, rd.def, f.list, null);
+                drawn5.push({ f: f.id, name: rd.def.name, chips: host.children.map(c => [c.tag, c.className, c.children.map(k => [k.tag, k.textContent, (k.children || []).length])]), line: ln ? [ln.tag, ln.textContent, ln.children.map(k => [k.tag, k.textContent])] : null }); }));
+        } finally { SY5.setLibraryFind(null); }
+        const chipOf = (f, name, key) => { const d = drawn5.find(x => x.f === f && x.name === name), st = sys5.fields.find(x => x.id === f).list.stats.find(s => s.key === key), c = d ? d.chips.find(k => k[2][0][1] === st.label) : null; return c ? c[2][1][1] : null; };
+        const allowed = f => { const out = []; sys5.fields.find(x => x.id === f).list.stats.forEach(s => { (s.labels || []).forEach(l => out.push(l)); (s.opts || []).forEach(o => out.push(o.label)); }); return out; };
+        const texts5 = PG5.made.filter(e => e.tag === '#text' || typeof e.textContent === 'string').map(e => e.textContent).join('\n');
+        const chipsOk = drawn5.every(d => d.chips.every(c => c[0] === 'span' && c[1] === 'sheet-chip sheet-item-stat' && c[2].length === 2 && c[2][0][0] === 'small' && c[2][0][2] === 0 && c[2][1][0] === '#text'
+            && sys5.fields.find(x => x.id === d.f).list.stats.some(s => s.label === c[2][0][1]) && (/^ -?\d+(\.\d+)?$/.test(c[2][1][1]) || allowed(d.f).indexOf(c[2][1][1].slice(1)) >= 0 || c[2][1][1] === ' —')));
+        check('m412 the bridge\'s readings on the sheet (sbRowOps and the sheet\'s own statChips and statLineNode, run for real on a page that refuses markup): from a hostile website file every figure a reading writes is drawn as a chip of a small label and ONE text node that is a number or one of the system\'s own labels (a choice\'s label, a stat\'s value name), and a line of text; the narrowed parry (2), the sense the row\'s words name (the system\'s label for Hearing), the damage mode (1, 1, Thrust by its label), the skill level (12, 14 and 13 through markup in a held skill\'s name), the scrap mark (Yes by its label); the review of that half: a lightsaber\'s library copy whose damage text holds markup takes its dice alone (5), and the loaded pack of a blaster the track destroyed comes in as an Ammo row of its price (25) and no weight, whatever its name; nothing the file wrote is drawn, nothing is written as markup, an attribute or a style, and no prototype is touched',
+            !!ro5 && refused5.length === 0 && drawn5.length >= 10 && chipsOk && PG5.clean() && !/data-file|alert\(5\)/.test(texts5) && texts5.indexOf(FP) < 0
+            && chipOf('f_sk', 'Broadsword', 'npar') === ' 2' && chipOf('f_adv', 'Acute Senses', 'sense') === ' ' + P + ' Hearing' && chipOf('f_wp', 'Vibroblade', 'dd') === ' 1' && chipOf('f_wp', 'Vibroblade', 'da') === ' 1' && chipOf('f_wp', 'Vibroblade', 'db') === ' ' + P + 'Thrust'
+            && chipOf('f_wp', 'Vibroblade', 'wsl') === ' 12' && chipOf('f_wp', 'Vibroblade', 'scrap') === ' ' + T + 'Yes' && chipOf('f_wp', FX + 'B', 'wsl') === ' 14' && chipOf('f_wp', FX + 'B', 'wdf') === ' None' && chipOf('f_wp', FX, 'scrap') === ' ' + T + 'Yes' && chipOf('f_wp', 'Odd ' + FP, 'wsl') === ' 13' && chipOf('f_gear', 'Rope', 'scrap') === ' ' + T + 'Yes' && chipOf('f_wp', 'Saber', 'dd') === ' 5' && chipOf('f_am', FX + ' Pack', 'cr') === ' 25' && chipOf('f_am', FX + ' Pack', 'wt') === ' 0'
+            && drawn5.every(d => !d.line || (d.line[0] === 'div' && d.line[2].length === 0 && !/data-file|alert\(5\)/.test(d.line[1]))) && v5.f_mlost === true && v5.f_strike === 0 && proto5() === p05 && !HTML5.test(cut5('\nfunction statFmt(v) {', '\n// F4c1: what one of a row cost')),
+            j([refused5, drawn5.map(d => [d.f, d.name.length > 30 ? d.name.slice(0, 30) : d.name, d.chips.map(c => c[2][1] && c[2][1][1])]), PG5.htmlSet, PG5.attrs, v5 && [v5.f_mlost, v5.f_strike]]));
+    }
+
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

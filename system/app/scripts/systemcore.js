@@ -4130,11 +4130,12 @@ function sbFitPen(x) {
     var ill = x.illFitting === true || (x.type === 'Clothing' && Array.isArray(x.tiedUp) && x.tiedUp.length > 0);
     return ill ? { dexterity: -1, move: -1 } : x.needsRefit === true ? { dexterity: -1, move: 0 } : { dexterity: 0, move: 0 };
 }
-function sbChan(j, a) {
+function sbChan(j, a, traitsOnly) {   // traitsOnly: the trait rows in play alone (a trained skill level's basis: sbRollAt)
     var n = 0, add = function(bag) { var v = isObj(bag) ? bag[a] : undefined; if (typeof v === 'number' && fin(v) && Math.abs(v) <= LIMITS.effectAmount) n += v; };
     var tr = isObj(j.traits) ? j.traits : {}, inv = isObj(j.inventory) ? j.inventory : {}, pen = function(v) { return typeof v === 'number' && fin(v) ? v : 0; };
     var own = function(x) { return !(x.isInstalled === true && typeof x.installedInDroidId === 'string' && x.installedInDroidId !== 'PLAYER_DROID'); }, rows = function(v) { return Array.isArray(v) ? v.slice(0, LIMITS.carried).filter(isObj) : []; };
     ['advantages', 'disadvantages', 'quirks'].forEach(function(k) { rows(tr[k]).forEach(function(t) { if (!sbIdle(t)) add(t.modifiers); }); });
+    if (traitsOnly) return n;
     rows(j.statusEffects).slice(0, LIMITS.effectRows).forEach(function(x) { var ph = Array.isArray(x.phases) && typeof x.phaseIndex === 'number' && x.phaseIndex >= 1 && isObj(x.phases[x.phaseIndex - 1]) ? x.phases[x.phaseIndex - 1] : null; add(ph && isObj(ph.modifiers) ? ph.modifiers : x.modifiers); });
     rows(inv.armor).forEach(function(x) {
         if (x.equipped !== true || x.storageLocationId || x.isSeveredRemnant === true || !own(x)) return;
@@ -4145,12 +4146,16 @@ function sbChan(j, a) {
     rows(inv.cyberneticUpgrades).forEach(function(x) { if (x.equipped === true) add(isObj(x.modifiers) ? x.modifiers : sbTextBag(x.effect)); });
     return n;
 }
+// The website's Critical Power (hooks/use-character-calculations.ts): a droid at 10 PP or less rolls -1 DX and -1 IQ, an effect of its own
+// that the file lists among no status effects, though its effective figures hold it. points.powerPoints is the file's PP (0 where the
+// sheet has none, as the website writes it). What a droid's base is read from takes it out; the shift a trained level rides holds it
+function sbCrit(j, a) { var dt = isObj(j.details) ? j.details : {}, pt = isObj(j.points) ? j.points : {}, pp = sbNum(pt.powerPoints); return dt.isDroid === true && pp !== undefined && pp <= 10 && (a === 'dexterity' || a === 'iq') ? -1 : 0; }
 function sbAttr(j, a, k) {
     var inv = isObj(j.investment) ? j.investment : {}, bl = sbNum(inv[k + 'Baseline']), x = isObj(j.attributes) ? j.attributes[a] : undefined; if (bl === undefined) bl = 10;
     if (sbNum(x) !== undefined) return { base: x, tpl: bl };
     if (!isObj(x)) return { base: bl, tpl: bl };
     var v = sbNum(x.value); if (v !== undefined) return { base: v, tpl: bl };
-    var e = sbNum(x.effective); if (e !== undefined) { var b = e - sbChan(j, a); return { base: b, tpl: b }; }
+    var e = sbNum(x.effective); if (e !== undefined) { var b = e - sbChan(j, a) - sbCrit(j, a); return { base: b, tpl: b }; }
     var o = [x.final, x.level, x.current].map(sbNum).filter(function(y) { return y !== undefined; })[0];   // an older sheet's shapes
     return o === undefined ? { base: bl, tpl: bl } : { base: o, tpl: bl };
 }
@@ -4195,6 +4200,26 @@ function sbMoneyMove(rows, delta, newId) {
     return eq.filter(sbMoneyKept);
 }
 function sbMoneyKept(e) { return !isObj(e) || e.category !== 'Currencies' || sbCash(e.quantity) > 0 || (e.storedValue != null && sbCash(e.storedValue) > 0); }
+// lib/qualified-st.ts qualifiedStLevels: a trait row in play named for Striking ST or Lifting ST adds, BY ITS NAME, the stBonus the website's
+// catalogue entry of that very name holds at the row's level (lib/advantages.ts: Striking ST and Striking ST (Cybernetic), Lifting ST and
+// Lifting ST (Cybernetic), +1, +2 and +3 at levels 1 to 3; qualifiedStBonus, the name exactly). A row of another spelling, at another
+// level or that gives nothing (sbIdle) adds nothing there. sbQualRow: { a: the channel, lvl: the name's levels, b: the bag's own figure
+// there } for a row the website counts by its name, else null. Such a row adds its name's levels here and never its bag, which sbChan
+// already took off with every other row's: as a library copy, by its entry's change; as a row of its own (another price, a second copy, no
+// entry), by its own change for that channel, which sbRowOps makes the name's levels in place of the bag's figure. So sbQualSt is, over
+// those rows, the name's levels less the bag's figure. a: 'strikingSt' or 'liftingSt'
+var SB_QUAL_ST = { 'Striking ST': 'strikingSt', 'Striking ST (Cybernetic)': 'strikingSt', 'Lifting ST': 'liftingSt', 'Lifting ST (Cybernetic)': 'liftingSt' };
+function sbQualRow(t) {
+    if (!isObj(t) || sbIdle(t) || typeof t.name !== 'string' || !Object.prototype.hasOwnProperty.call(SB_QUAL_ST, t.name)) return null;
+    var l = typeof t.level === 'number' || typeof t.level === 'string' ? Number(t.level) : NaN; if (l !== 1 && l !== 2 && l !== 3) return null;
+    var a = SB_QUAL_ST[t.name], b = isObj(t.modifiers) ? t.modifiers[a] : undefined;
+    return { a: a, lvl: l, b: typeof b === 'number' && fin(b) && Math.abs(b) <= LIMITS.effectAmount ? b : 0 };
+}
+function sbQualSt(j, a) {
+    var tr = isObj(j.traits) ? j.traits : {}, n = 0;
+    ['advantages', 'disadvantages'].forEach(function(k) { (Array.isArray(tr[k]) ? tr[k].slice(0, LIMITS.carried) : []).forEach(function(t) { var q = sbQualRow(t); if (q && q.a === a) n += q.lvl - q.b; }); });
+    return n;
+}
 function sbScalars(j) {   // lower-case key -> the dossier's value (a number, a boolean or a text), before any field's rules
     var o = function(v) { return isObj(v) ? v : {}; }, inv = o(j.investment), at = o(j.attributes), ch = o(j.characteristics), pt = o(j.points), cr = o(j.credits), dt = o(j.details), nr = o(j.narrative), out = map();
     var raw = function(a, k) { return sbAttr(j, a, k).base; };
@@ -4217,14 +4242,24 @@ function sbScalars(j) {   // lower-case key -> the dossier's value (a number, a 
     // them out): Lifting ST and Striking ST as the levels the rows do not already add (a droid's parts print theirs on no row), a droid's
     // most Power Points, and its build's XP as Chapter 17 prints it, hardware plus the governing IQ term. Read only, never written back
     var lv = function(v) { return isObj(v) ? sbNum(v.levels) : undefined; }, liftL = lv(ch.liftingSt), strikeL = lv(ch.strikingSt);
-    if (liftL !== undefined) out.liftst = liftL - sbChan(j, 'liftingSt');
-    if (strikeL !== undefined) out.strikest = strikeL - sbChan(j, 'strikingSt');
+    // The review of build 8 (group G): the levels the website adds by a trait row's NAME are added here by that very row too, as its entry's
+    // change, or by that row's own change where it is a row of its own, so they come off as that row's share in place of its bag (sbQualSt):
+    // a Striking ST 3 row counted twice read Punching ST 16 for 13
+    if (liftL !== undefined) out.liftst = liftL - sbChan(j, 'liftingSt') - sbQualSt(j, 'liftingSt');
+    if (strikeL !== undefined) out.strikest = strikeL - sbChan(j, 'strikingSt') - sbQualSt(j, 'strikingSt');
     if (isObj(ch.powerPoints) && sbNum(ch.powerPoints.max) !== undefined) out.ppcap = ch.powerPoints.max;
     if (sbNum(pt.droidHardware) !== undefined) out.hwpts = pt.droidHardware + (sbNum(pt.droidGoverningIq) || 0);
     // A droid's hardware bases: its build's Will, Perception, HP and Basic Move, the base the file states for each (a living character's
     // are its attributes', which the system works out). A droid that cannot run, and its corrupted core's roll penalty (to IQ, Will and
     // Perception rolls, never to the figures), read only where the file states the droid's processor and core at all
     if (dt.isDroid === true) [['willhw', 'will'], ['perhw', 'perception'], ['hphw', 'hitPoints'], ['movehw', 'basicMove']].forEach(function(p) { var b = isObj(ch[p[1]]) ? sbNum(ch[p[1]].base) : undefined; if (b !== undefined) out[p[0]] = b; });
+    // The review of build 8 (group G): a droid's leg or foot Destroyed (lib/droid-anatomy.ts droidPartsOutOfAction, halvesMoveAndDodge for a Leg
+    // or a Foot row on record). The record is droidBuild.locationStates, filed by PART ("leg:<build>:<part>"), and only the anatomy turns a part
+    // into the location it is fitted at; the file states that very word on the location's row of its table (characteristics.locationDr, status:
+    // the record's word for a droid), and lists a Destroyed one as amputated, so it comes in as no row. A Crippled or a not working one is a row
+    // and counts there. Read where the file states the droid's build and its table: false where none is Destroyed. A living character's file
+    // states an empty build, and the field is a droid's: nothing is written for one, so the field reads its own default
+    if (isObj(j.droidBuild) && dt.isDroid === true && Array.isArray(ch.locationDr)) out.motivelost = ch.locationDr.slice(0, LIMITS.carried).some(function(l) { return isObj(l) && (l.type === 'Leg' || l.type === 'Foot') && l.status === 'Destroyed'; });
     if (isObj(ch.processorCore)) { out.cannotrun = isObj(ch.unableToRun); var rp = isObj(ch.processorCore.rollPenalty) ? sbNum(ch.processorCore.rollPenalty.amount) : undefined; out.corepen = rp === undefined ? 0 : rp; }
     var al = sbNum(pt.forceAlignment); if (al === undefined && (sbNum(pt.lightSidePoints) !== undefined || sbNum(pt.darkSidePoints) !== undefined)) al = (sbNum(pt.lightSidePoints) || 0) - (sbNum(pt.darkSidePoints) || 0); if (al !== undefined) out.align = al;   // an older dossier has only the two sides
     var gen = isObj(j.inventory) && Array.isArray(j.inventory.general) ? j.inventory.general : null;   // the money its loose rows hold, as the site opens the file; a file with no such row keeps its stated total here (the site opens it at 0, and the write-back gives it a chip)
@@ -4406,6 +4441,164 @@ function sbRange(v) {
     if (a > SB_RANGE_MAX || (b !== null && b > SB_RANGE_MAX)) return null;
     return b === null ? { half: 0, max: a } : { half: a, max: b };
 }
+// The review of build 8, the bridge's half (2026-10-15, group G of the gap map): what the website reads off a row's own words, which no
+// formula reads. Each is filled only where this system's list or field has the key it fills, so a system without it reads every file op
+// for op as before. A level as the website reads a stored one (parseInt of its text): a whole number of at most six digits, or null
+function sbLevelInt(v) {
+    if (typeof v === 'number') return fin(v) && Math.abs(v) < 1e6 ? Math.trunc(v) : null;
+    var m = typeof v === 'string' ? /^\s*([+-]?\d{1,6})(?!\d)/.exec(v.slice(0, 40)) : null; return m ? parseInt(m[1], 10) : null;
+}
+// lib/skill-defaults.ts canonicalSkillName (case, white space, the apostrophe's typography and the space before a specialty folded) and
+// splitSpecialty. A text only: anything else reads as no name
+var SB_SPEC = /^(.*?)\s*\(([^()]*)\)\s*$/;
+function sbSkNorm(s) {
+    var c = lower((typeof s === 'string' ? s.slice(0, 200) : '').replace(/[‘’ʼ]/g, "'")).replace(/\s+/g, ' ').trim(), m = SB_SPEC.exec(c);
+    if (!m) return c; var sp = m[2].trim(); return sp ? m[1].trim() + ' (' + sp + ')' : m[1].trim();
+}
+function sbSkSplit(s) { var raw = typeof s === 'string' ? s.slice(0, 200).trim() : '', m = SB_SPEC.exec(raw); return m ? { base: m[1].trim(), spec: m[2].trim() } : { base: raw, spec: null }; }
+// lib/melee-weapon-equivalence.ts canonicalMeleeSkill, Ch3's Melee Weapon equivalence (one skill under two names): a dedicated skill whose
+// own catalogue text grants the second name ("Can be taken as a specialty of Melee Weapon", at a sentence's start; never Melee Weapon
+// itself), and Melee Weapon (X) where X names such a skill or a melee weapon of the catalogue whose own skill is one. lib(name): that
+// skill's catalogue text; arm(name): that weapon's own skill. The skill it denotes, folded, or null
+var SB_GRANT = /(^|[.!?]\s)can be taken as a specialty of melee weapon/i;
+function sbGrants(lib, name) { var n = lower(name.trim()); return !!n && n !== 'melee weapon' && SB_GRANT.test(lib(name)); }
+function sbMelee(base, spec, lib, arm) {
+    var b = lower(base.trim()); if (!b) return null;
+    if (!spec) return sbGrants(lib, base) ? b : null;
+    if (b !== 'melee weapon') return null;
+    if (sbGrants(lib, spec)) return lower(spec.trim());
+    var k = arm(spec); return typeof k === 'string' && k && sbGrants(lib, k) ? lower(k.trim()) : null;
+}
+// skill-defaults.ts entryClause: a skill's "Defaults:" clause in its catalogue text, to the first full stop; '' where it says none, null
+// where it has none. Armstech's "branch defaults" (a crafting skill's, never a weapon's) are read as the entry's clause too
+function sbClause(t) { var s = typeof t === 'string' ? t.slice(0, 4000) : '', at = s.indexOf('Defaults:'); if (at < 0) return null; var c = s.slice(at + 9).split('.')[0].slice(0, 600); return /\bnone\b/i.test(c) ? '' : c; }
+// skill-defaults.ts resolveSkillLevel, rule for rule: the Melee Weapon equivalence at full level (the highest of its names held), then the
+// exact name, then the best of every other specialty of the skill held (the generalist Any at -1, another Class Type of Lightsaber Combat
+// at -1, any other at -2; never across Metallurgy's), the routes its catalogue clause prints from a skill held (skillRouteDefaults; not
+// chained) and its attribute defaults (attributeDefaults). held: the skills the file holds as sbHeld reads them, once a file: each name
+// folded, and its level as it rolls, its stored figure plus the shift its own attribute rides (rowLevelShift), so that a file of many
+// weapons and many skills folds each skill once. at: the roll attributes (sbRollAt). { level, src } (src 'attribute' for an attribute
+// default), or null for none
+function sbHeld(owned, at) {
+    return owned.map(function(s) {
+        var h = sbSkSplit(s.name), n = sbLevelInt(s.level), m = n !== null && typeof s.relativeLevel === 'string' ? /^\s*(ST|DX|IQ|HT|Will|Per)\b/i.exec(s.relativeLevel.slice(0, 40)) : null;
+        return { name: sbSkNorm(s.name), base: h.base, spec: h.spec, nBase: sbSkNorm(h.base), nSpec: sbSkNorm(h.spec), lvl: n === null ? null : n + (m ? at.d[lower(m[1])] : 0), mel: undefined };
+    });
+}
+function sbResolve(target, held, at, lib, arm) {
+    var t = typeof target === 'string' ? target.slice(0, 200).trim() : ''; if (!t) return null;
+    var N = sbSkNorm, sp = sbSkSplit(t), nT = N(t), nB = N(sp.base), nS = N(sp.spec), best = null;
+    var canon = sbMelee(sp.base, sp.spec, lib, arm);
+    if (canon) held.forEach(function(h) { if (h.mel === undefined) h.mel = sbMelee(h.base, h.spec, lib, arm); if (h.mel !== canon || h.lvl === null || (best && best.level >= h.lvl)) return; best = { level: h.lvl, src: 'trained' }; });
+    if (best) return best;
+    var ex = null; for (var i = 0; i < held.length && !ex; i++) if (held[i].name === nT) ex = held[i];
+    if (ex && ex.lvl !== null) return { level: ex.lvl, src: 'trained' };
+    var cand = [];
+    if (sp.base !== 'Metallurgy') held.forEach(function(h) {
+        if (h.nBase !== nB || !h.spec || (sp.spec && h.nSpec === nS) || h.lvl === null) return; var gen = h.nSpec === 'any';
+        cand.push({ level: h.lvl - (gen || nB === 'lightsaber combat' ? 1 : 2), src: gen ? 'generalist' : 'specialty' });
+    });
+    var cl = sbClause(lib(sp.base)), m;
+    if (cl) {
+        var re = /([A-Za-z][A-Za-z'’ ]*(?:-[A-Za-z][A-Za-z'’ ]*)*(?:\s*\([^)]*\))?)\s*-\s*(\d+)/g;
+        while ((m = re.exec(cl))) {
+            var rn = m[1].trim().replace(/^(?:or|and)\s+/i, '').trim(); if (/^(DX|IQ|HT|Will|Per|ST)$/i.test(rn)) continue;
+            var rs = sbSkSplit(rn), rB = N(rs.base), rS = N(rs.spec), ow = null;
+            for (var k = 0; k < held.length && !ow; k++) { var h2 = held[k]; if (h2.nBase === rB && (rs.spec === null || h2.nSpec === rS || rS === 'any')) ow = h2; }
+            if (ow && ow.lvl !== null) cand.push({ level: ow.lvl - parseInt(m[2], 10), src: 'skill' });
+        }
+        var ad = null, re2 = /\b(DX|IQ|HT|Will|Per|ST)\s*-\s*(\d+)/gi;
+        while ((m = re2.exec(cl))) { var av = at[lower(m[1])]; if (typeof av !== 'number') continue; var al = av - parseInt(m[2], 10); if (!ad || al > ad.level) ad = { level: al, src: 'attribute' }; }
+        if (ad) cand.push(ad);
+    }
+    if (!cand.length) return null;
+    return cand.reduce(function(b, c) { return c.level > b.level ? c : b; });
+}
+// lib/roll-targets.ts rollAttributes, from what the file states: each attribute as the sheet rolls it (its own effective, Will's and
+// Perception's), a Corrupted core's penalty off IQ, Will and Perception rolls (characteristics.processorCore.rollPenalty), and in d the
+// shift a trained level rides: what the effective figure has over the level's own basis, base plus trait modifiers (the engine's
+// rollDeltas), here what the file's status effects, armour worn and implants installed add (sbChan less its trait rows) and a droid's
+// Critical Power (sbCrit)
+function sbRollAt(j) {
+    var at = isObj(j.attributes) ? j.attributes : {}, ch = isObj(j.characteristics) ? j.characteristics : {}, o = { d: {} };
+    [['st', 'strength'], ['dx', 'dexterity'], ['iq', 'iq'], ['ht', 'health']].forEach(function(p) { var x = at[p[1]], e = isObj(x) ? sbNum(x.effective) : undefined; o[p[0]] = e !== undefined ? e : sbAttr(j, p[1], p[0]).base + sbChan(j, p[1]) + sbCrit(j, p[1]); });
+    [['will', 'will'], ['per', 'perception']].forEach(function(p) { var x = ch[p[1]], e = isObj(x) ? sbNum(x.effective) : undefined; if (e === undefined && isObj(x)) e = sbNum(x.final); o[p[0]] = e !== undefined ? e : o.iq; });
+    var rp = isObj(ch.processorCore) && isObj(ch.processorCore.rollPenalty) ? sbNum(ch.processorCore.rollPenalty.amount) : undefined, off = rp !== undefined && rp < 0 ? Math.max(rp, -LIMITS.effectAmount) : 0;
+    [['st', 'strength'], ['dx', 'dexterity'], ['iq', 'iq'], ['ht', 'health'], ['will', 'will'], ['per', 'perception']].forEach(function(p) { o.d[p[0]] = sbChan(j, p[1]) - sbChan(j, p[1], true) + sbCrit(j, p[1]) + (p[0] === 'iq' || p[0] === 'will' || p[0] === 'per' ? off : 0); });
+    o.iq += off; o.will += off; o.per += off;
+    return o;
+}
+// lib/defense-skills.ts canParryWith and canBlockWith, by a skill's base name (its specialty set aside): Ch3's melee weapon skills, the
+// unarmed skills and Lightsaber Combat parry; Shield and Lightsaber Combat block; Guns, Gunner, Fast-Draw, Liquid Projector, Thrown Weapon
+// and every other skill neither. And the Tactical HUD's own gate (roller-window.tsx, isShield): no parry with a weapon whose name, base type
+// or own name holds "shield", whatever its skill gives. sbDefends: that answer as a stat's value, by its labels (Parry and Block, Parry,
+// Block, None: sbDefLabel); sbNoParry: a value of that stat with the parry taken out of it, as a library copy named for a shield reads
+var SB_PARRY = ['axe/mace', 'baton', 'broadsword', 'fencing', 'flail', 'jitte/sai', 'knife', 'main-gauche', 'melee weapon', 'polearm', 'saber', 'shortsword', 'smallsword', 'spear', 'staff', 'tonfa', 'two-handed axe/mace', 'two-handed flail', 'two-handed sword', 'whips',
+    'brawling', 'judo', 'karate', 'echani martial arts', 'teräs käsi', 'lightsaber combat'];
+var SB_BLOCK = ['shield', 'lightsaber combat'];
+var SB_DEF_WORDS = ['none', 'parry', 'block', 'parry and block'];   // a label by what it gives: a parry 1, a block 2
+var SB_RANGED_SLOTS = ['gripPart', 'receiverPart', 'barrelPart', 'targetingPart', 'powerUnitPart'];
+function sbRangedParts(x) { return SB_RANGED_SLOTS.some(function(k) { return x[k] != null; }); }
+function sbParries(skill) { return SB_PARRY.indexOf(lower(sbSkSplit(skill).base)) >= 0; }
+function sbShield(x) { return ['name', 'baseType', 'customName'].some(function(k) { return typeof x[k] === 'string' && lower(x[k]).indexOf('shield') >= 0; }); }
+function sbDefLabel(s, pa, bl) {
+    var want = SB_DEF_WORDS[(pa ? 1 : 0) + (bl ? 2 : 0)], at = -1;
+    (isObj(s) && Array.isArray(s.labels) ? s.labels : []).forEach(function(l, i) { if (at < 0 && typeof l === 'string' && lower(l.trim()) === want) at = i; });
+    return at < 0 ? undefined : at;
+}
+function sbDefends(s, skill, shield) { var b = lower(sbSkSplit(skill).base); return sbDefLabel(s, shield !== true && SB_PARRY.indexOf(b) >= 0, SB_BLOCK.indexOf(b) >= 0); }
+function sbNoParry(s, v) { var w = isObj(s) && Array.isArray(s.labels) && typeof v === 'number' && typeof s.labels[v] === 'string' ? SB_DEF_WORDS.indexOf(lower(s.labels[v].trim())) : -1; return w < 0 ? undefined : sbDefLabel(s, false, w >= 2); }
+// lib/enhanced-defenses.ts narrowedParryBonus: Ch4's narrowed Enhanced Parry "improves only parries made with the chosen weapon or skill",
+// the choice written in its row's own words. Each row named Enhanced Parry (Narrowed) whose words are neither empty nor the library's own
+// default note gives its level (1 at least) to a skill whose name shares a word with them (choiceTokens: a word of three letters or more,
+// a possessive's s left off, no stop word, no number)
+var SB_NARROW_STOP = map(); ['the', 'and', 'for', 'with', 'that', 'this', 'its', 'only', 'made', 'makes', 'one', 'single', 'chosen', 'choice', 'choose', 'name', 'named', 'record', 'notes', 'row', 'level', 'bonus', 'applies', 'apply', 'improves', 'improve',
+    'per', 'your', 'you', 'parry', 'parries', 'parried', 'block', 'blocks', 'dodge', 'narrow', 'narrowed', 'weapon', 'weapons', 'skill', 'skills', 'enhanced', 'defense', 'defenses', 'defence', 'defences', 'example'].forEach(function(w) { SB_NARROW_STOP[w] = 1; });
+var SB_NARROW_NOTE = 'Applies only to parries with the chosen weapon or skill — name it in this row\'s notes.';
+function sbChoice(t) { return lower(typeof t === 'string' ? t.slice(0, 2000) : '').replace(/['’]s\b/g, '').split(/[^a-z0-9]+/).filter(function(w) { return w.length >= 3 && SB_NARROW_STOP[w] !== 1 && !/^\d+$/.test(w); }); }
+function sbNarrowRows(rows) {   // the rows that narrow a parry, each read once a file: its words as their tokens, and its level
+    var out = [];
+    rows.forEach(function(r) {
+        if (typeof r.name !== 'string' || r.name.trim() !== 'Enhanced Parry (Narrowed)') return;
+        var note = typeof r.description === 'string' ? r.description.trim() : ''; if (!note || note === SB_NARROW_NOTE) return;
+        var tk = map(), l = typeof r.level === 'number' || typeof r.level === 'string' ? Number(r.level) : NaN; sbChoice(note).forEach(function(w) { tk[w] = 1; });
+        out.push({ tk: tk, lvl: fin(l) && l >= 1 ? Math.min(l, 1000) : 1 });
+    });
+    return out;
+}
+function sbNarrowed(nrows, skill) {
+    var sub = sbChoice(skill), n = 0; if (!sub.length) return 0;
+    nrows.forEach(function(r) { if (sub.some(function(w) { return r.tk[w] === 1; })) n += r.lvl; });
+    return n;
+}
+// lib/acute-senses.ts acuteSenseNameOf: the sense an Acute Senses row sharpens, its name's ("Acute Senses (Vision)", or Ch4's short form
+// "Acute Vision"), else for a bare "Acute Senses" the one sense its own words name (none named, or two: it cannot say). { sense, bare }
+// (sense null where it cannot say) for a row that is Acute Senses at all, else null. sbSenseVal: a sense as a stat's value, the place of
+// the label that names it (Smell and Taste are one roll), or a choice's label
+var SB_ACUTE = /^acute\s+(?:senses\s*\(\s*(smell|taste|touch|vision|hearing)\s*\)|(smell|taste|touch|vision|hearing))$/i;
+function sbAcute(t) {
+    var nm = typeof t.name === 'string' ? t.name.slice(0, 200).trim() : '', m = SB_ACUTE.exec(nm), cap = function(w) { return w.charAt(0).toUpperCase() + lower(w.slice(1)); };
+    if (m) return { sense: cap(m[1] || m[2]), bare: false };
+    if (!/^acute\s+senses$/i.test(nm)) return null;
+    var said = map(), n = 0, re = /\b(smell|taste|touch|vision|hearing)\b/gi, w, d = typeof t.description === 'string' ? t.description.slice(0, 4000) : '';
+    while ((w = re.exec(d))) { var s = cap(w[1]); if (said[s] !== 1) { said[s] = 1; n++; } }
+    return { sense: n === 1 ? Object.keys(said)[0] : null, bare: true };
+}
+function sbSenseVal(s, sense) {
+    var labs = s.kind === 'pick' ? (Array.isArray(s.opts) ? s.opts : []).map(function(o) { return isObj(o) && typeof o.label === 'string' ? o.label : ''; }) : Array.isArray(s.labels) ? s.labels : [], re = new RegExp('\\b' + sense + '\\b', 'i'), at = -1;
+    labs.forEach(function(l, i) { if (at < 0 && typeof l === 'string' && re.test(l)) at = i; });
+    return at < 0 ? undefined : s.kind === 'pick' ? labs[at] : at;
+}
+// What the website leaves out of Total Equipment Cost as Destroyed (Scrap) (hooks/calculation-helpers/calculateEquipment.ts,
+// calculateTotalEquipmentCost): a gear row, an implant, a cybernetic limb or an upgrade whose stored condition is Destroyed (isScrap); a
+// piece of armour the condition track destroyed, Destroyed beside the track's own mark conditionTracked (lib/utils/character-sheet-helpers.ts
+// armorIsScrap); a melee weapon or a blaster the track destroyed (lib/malfunction.ts weaponIsScrap: the mark and the state the sheet reads
+// for it, which the file states as conditionShown); a lightsaber whose every blade is (saberIsScrap: a staff, lib/lightsaber-assembly.ts
+// isStaffHilt, by both blades, its second's state conditionTwoShown). A file from before the shown state reads the stored one
+function sbScrapRow(x) { return x.condition === 'Destroyed'; }
+function sbScrapArmor(x) { return x.conditionTracked === true && x.condition === 'Destroyed'; }
+function sbScrapWeapon(x, blade) { var s = blade === 2 ? (typeof x.conditionTwoShown === 'string' ? x.conditionTwoShown : x.conditionTwo) : (typeof x.conditionShown === 'string' ? x.conditionShown : x.condition); return x.conditionTracked === true && s === 'Destroyed'; }
+function sbScrapSaber(x) { var staff = isObj(x.coupler) && (!!x.coupler.inventoryId || !!x.coupler.partId); return sbScrapWeapon(x, 1) && (!staff || sbScrapWeapon(x, 2)); }
 function sbRowOps(json, sys, find) {
     var out = { ops: [], lists: [], seen: [], rows: 0, skipped: [] }; if (!isObj(json) || !sys) return out;   // seen (U1): every list the file carries, rows or none (an upload offers removals there)
     var ix = keyIndex(sys), seenL = map(), n = 0, pfx = Math.random().toString(36).slice(2, 6);
@@ -4445,23 +4638,42 @@ function sbRowOps(json, sys, find) {
     var addLib = function(f, e, fx, ov) { var id = rid(); usedLib[f.id + '|' + e.id] = 1; push(f, { op: 'add', defId: e.id, rowId: id }); if (fx) push(f, { op: 'set', rowId: id, facts: fx }); if (ov) push(f, { op: 'ov', rowId: id, ov: ov }); out.rows++; };
     var addCustom = function(f, def, fx, twin) { var id = rid(); var d = { name: cutText(def.name, LIMITS.name) || 'Item' }; ['category', 'notes', 'key'].forEach(function(k) { if (typeof def[k] === 'string' && def[k].trim()) d[k] = def[k]; }); if (isObj(def.stats) && Object.keys(def.stats).length) d.stats = def.stats; if (Array.isArray(def.mods) && def.mods.length) { d.mods = def.mods; if (def.modsOn === true) d.modsOn = true; } push(f, twin ? { op: 'custom', rowId: id, def: d, twin: twin } : { op: 'custom', rowId: id, def: d }); if (fx) push(f, { op: 'set', rowId: id, facts: fx }); out.rows++; };
     var cat0 = function(f) { return isObj(f.list) && Array.isArray(f.list.cats) && f.list.cats.length ? f.list.cats[0] : ''; };
+    // the review of build 8 (group G): figures the bridge reads for a library copy go in an ov op of their own after the row's (applyOv takes a
+    // patch whole or not at all), a figure its entry reads alike written null, the entry's own (as a weapon's range is: an upload offers a copy's
+    // own one back); scrapK: the list's number stat `scrap`, Destroyed (scrap), where it has one
+    var ownOp = function(f, e, vals) { var os = {}, n2 = 0; Object.keys(vals).forEach(function(k) { os[k] = vals[k] !== rowStat(f.list, e, k) ? vals[k] : null; n2++; }); if (n2) push(f, { op: 'ov', rowId: out.ops[out.ops.length - 1].q.rowId, ov: { stats: os } }); };
+    var scrapK = function(f) { var s = f ? statDefOf(f.list, 'scrap') : null; return s && s.kind !== 'pick' ? s.key : null; };
     var rowsAt = function(v) { return Array.isArray(v) ? v.slice(0, LIMITS.carried).filter(function(r) { return isObj(r) && typeof r.name === 'string' && r.name.trim(); }) : []; };
     var skip = function(what) { if (out.skipped.indexOf(what) < 0) out.skipped.push(what); };
     // skills: the level typed; matched on the base name (the text before "(") and kept linked (its key still addresses it), the copy's own
     // name (the specialty), attribute, difficulty, fixed modifier and granted points held as that copy's own values where they differ
     var fS = list('skills'), sk = rowsAt(json.skills);
     if (sk.length && !fS) skip('skills');
+    // the review of build 8 (group G): Ch4's narrowed Enhanced Parry on the skill it is narrowed to (sbNarrowed, over the advantage rows in play),
+    // where the list has a number stat `npar`: on each skill that parries (sbParries), as a library copy's own figure, on a custom row in its stats
+    var npS = fS ? statDefOf(fS.list, 'npar') : null; if (npS && npS.kind === 'pick') npS = null;
+    var nRows = npS ? sbNarrowRows(rowsAt(tr0.advantages).filter(function(t) { return !sbIdle(t); })) : [];
     if (fS) sk.forEach(function(s) {
+        var np = npS && sbParries(s.name) ? sbNarrowed(nRows, s.name) : null;
         var full = cutText(s.name, LIMITS.name), base = full.replace(/\s*\(.*$/, '').trim() || full, rl = sbRelLevel(s.relativeLevel), lvl = sbInt(s.level), g = sbInt(s.baselinePoints) || 0, e = entry(fS, base);
         var fx = facts(fS, lvl === undefined ? undefined : lvl);
-        if (e) { var ov = {}, os = {}; if (full !== e.name) ov.name = full; if (rl) ['attr', 'diff', 'fix'].forEach(function(k) { if (st(e, k) !== rl[k]) os[k] = rl[k]; }); else os.free = 1; if (g) os.granted = g; if (Object.keys(os).length) ov.stats = os; addLib(fS, e, fx, Object.keys(ov).length ? ov : null); return; }
+        if (e) { var ov = {}, os = {}; if (full !== e.name) ov.name = full; if (rl) ['attr', 'diff', 'fix'].forEach(function(k) { if (st(e, k) !== rl[k]) os[k] = rl[k]; }); else os.free = 1; if (g) os.granted = g; if (Object.keys(os).length) ov.stats = os; addLib(fS, e, fx, Object.keys(ov).length ? ov : null); if (np !== null) { var on = {}; on[npS.key] = np; ownOp(fS, e, on); } return; }
         var stats = rl ? { attr: rl.attr, diff: rl.diff } : { free: 1 };   // an unreadable relative level ("Native") costs nothing, its level kept
-        if (rl && rl.fix) stats.fix = rl.fix; if (g) stats.granted = g;
+        if (rl && rl.fix) stats.fix = rl.fix; if (g) stats.granted = g; if (np && np !== rowStat(fS.list, null, npS.key)) stats[npS.key] = np;
         addCustom(fS, { name: full, category: cat0(fS), key: cleanItemKey(base.replace(/[^A-Za-z0-9]+/g, '')), stats: stats }, fx);
     });
     // traits: a library entry only when its points at the row's level are the row's points (else a custom row with the row's own points and changes)
     [['advantages', 'advantages'], ['disadvantages', 'disadvantages'], ['quirks', 'quirks']].forEach(function(p) {
         var f = list(p[0]), rows = rowsAt(isObj(json.traits) ? json.traits[p[1]] : null); if (rows.length && !f) { skip(p[0]); return; } if (!f) return;
+        // the review of build 8 (group G): an Acute Senses row (sbAcute), where the list has a stat `sense` with a label a sense: "Acute <Sense>" is
+        // tied to the entry of its sense (Acute Senses (Vision)) where the list holds one, and the row's own Sense is set from what it reads
+        var seS = statDefOf(f.list, 'sense'); if (seS && !(seS.kind === 'pick' || (Array.isArray(seS.labels) && seS.labels.length))) seS = null;
+        // and the levels the website adds by a row's NAME (sbQualRow; sbQualSt took them off the channel): a library copy of its entry adds them by the
+        // entry's change; a row of its own takes them as its own change for that channel, in place of the bag's figure (qMods); and a row the website
+        // does not count by its name (another spelling, another level) is never a copy of such an entry, whose change would add what the website
+        // does not, but a row of its own with its bag. Only where the system has the channel's field (qField)
+        var qField = function(a) { var g = ix[SB_CHAN[a][0]]; return g && (g.kind === 'number' || g.kind === 'formula' || g.kind === 'skill') ? g : null; };
+        var qMods = function(mods, g, l) { var o = mods.filter(function(m) { return !(isObj(m) && m.f === g.id && m.op === 'add' && m.part === undefined); }); o.unshift({ f: g.id, op: 'add', v: l }); return o.slice(0, LIMITS.effectMods); };
         rows.forEach(function(t) {
             var pts = sbInt(t.points) || 0, lvl = sbInt(t.level), g = sbInt(t.baselinePoints) || 0, nm = cutText(t.name, LIMITS.name);
             if (sbIdle(t)) {   // the site marks a row that gives nothing: suspended (its droid part seated and not working, or a processor that does not run) or countedWithCopyOf (a further copy of one part's trait, which counts once). Its points stand; it adds nothing and is no copy of an entry, so no level, need or change reads it
@@ -4469,12 +4681,15 @@ function sbRowOps(json, sys, find) {
                 addCustom(f, { name: nm, category: cat0(f), notes: t.suspended === true ? 'Gives nothing while ' + (cutText(t.suspendedBy, 60) || 'its part') + ' is not working.' : 'Gives nothing: ' + cutText(t.countedWithCopyOf, 60) + ' gives this trait already, and a part\u2019s trait counts once.', stats: sI }, facts(f, lvl === undefined ? 0 : lvl));
                 return;
             }
-            var e = (lvl !== undefined ? entry(f, nm + ' ' + lvl) : null) || entry(f, nm), el = e ? (lvl !== undefined && e.name === nm ? lvl : (typeof e.lvl === 'number' ? e.lvl : 0)) : 0;
-            var same = !!e && st(e, 'bp') + st(e, 'per') * el === pts;
-            if (same && !taken(f, e)) { addLib(f, e, facts(f, el), g ? { stats: { granted: g } } : null); return; }
-            var tw = same && e.vis !== 'gm' ? twinOf(f, e) : null, bagM = sbMods(t.modifiers, ix), useE = !!tw && !bagM.length && !!tw.mods;   // the file's own bag, where it states one, before the entry's changes
-            var stats = tw ? tw.stats : { bp: pts }; if (g) stats.granted = g; if (!tw && e && e.vis !== 'gm' && st(e, 'szd')) stats.szd = 1;
-            addCustom(f, { name: nm, category: (tw && tw.category) || cat0(f), notes: tw ? tw.notes : '', stats: stats, mods: useE ? tw.mods : bagM, modsOn: useE && tw.modsOn }, facts(f, tw ? el : lvl === undefined ? 0 : lvl), tw && !bagM.length ? e.id : null);   // a twin whose changes are its entry's is marked, whatever the copy read here carries (a players' copy lacks changes to fields they do not see): the host sets them from its own copy (twinMods)
+            var ac = seS ? sbAcute(t) : null, acN = ac && !ac.bare ? 'Acute Senses (' + ac.sense + ')' : '', acV = ac && ac.sense ? sbSenseVal(seS, ac.sense) : undefined;
+            var e = (lvl !== undefined ? entry(f, nm + ' ' + lvl) : null) || entry(f, nm), tied = false; if (!e && acN && acN !== nm) { e = entry(f, acN); tied = !!e; }
+            var el = e ? (lvl !== undefined && (e.name === nm || tied) ? lvl : (typeof e.lvl === 'number' ? e.lvl : 0)) : 0;
+            var qR = sbQualRow(t), qF = qR ? qField(qR.a) : null, qE = !!e && Object.prototype.hasOwnProperty.call(SB_QUAL_ST, e.name) && !!qField(SB_QUAL_ST[e.name]);
+            var same = !!e && st(e, 'bp') + st(e, 'per') * el === pts && !(qE && !(qR && t.name === e.name));
+            if (same && !taken(f, e)) { addLib(f, e, facts(f, el), g ? { stats: { granted: g } } : null); if (ac) { var so = {}; so[seS.key] = acV === undefined ? rowStat(f.list, e, seS.key) : acV; ownOp(f, e, so); } return; }
+            var tw = same && e.vis !== 'gm' ? twinOf(f, e) : null, bagM = sbMods(t.modifiers, ix), useE = !!tw && !bagM.length && !!tw.mods, qOwn = !!qF && !useE;   // the file's own bag, where it states one, before the entry's changes
+            var stats = tw ? tw.stats : { bp: pts }; if (g) stats.granted = g; if (!tw && e && e.vis !== 'gm' && st(e, 'szd')) stats.szd = 1; if (acV !== undefined && acV !== rowStat(f.list, null, seS.key)) stats[seS.key] = acV;
+            addCustom(f, { name: nm, category: (tw && tw.category) || cat0(f), notes: tw ? tw.notes : '', stats: stats, mods: useE ? tw.mods : qOwn ? qMods(bagM, qF, qR.lvl) : bagM, modsOn: useE && tw.modsOn }, facts(f, tw ? el : lvl === undefined ? 0 : lvl), tw && !bagM.length && !qOwn ? e.id : null);   // a twin whose changes are its entry's is marked, whatever the copy read here carries (a players' copy lacks changes to fields they do not see): the host sets them from its own copy (twinMods)
         });
     });
     // powers and techniques: a library entry only when its CP at the row's level is the row's CP; forms by name
@@ -4522,20 +4737,20 @@ function sbRowOps(json, sys, find) {
     var build = function(e, x, wt, cr) { var ov = {}, os = {}; if (ownName(x) !== e.name) ov.name = ownName(x); if (typeof wt === 'number' && wt !== st(e, 'wt')) os.wt = wt; if (typeof cr === 'number' && cr !== st(e, 'cr')) os.cr = cr; if (Object.keys(os).length) ov.stats = os; return Object.keys(ov).length ? ov : null; };   // a copy's own name and build over its entry's
     var fin2 = function(a2, b2) { return typeof a2 === 'number' && fin(a2) ? a2 : typeof b2 === 'number' && fin(b2) ? b2 : undefined; };
     var qtyOp = function(f, q) { var id = out.ops.length ? out.ops[out.ops.length - 1].q.rowId : ''; var n2 = Math.max(1, Math.min(LIMITS.maxQty, Math.round(num(q) || 1))); if (id && n2 > 1 && !(isObj(f.list) && f.list.noQty)) push(f, { op: 'setQty', rowId: id, qty: n2 }); };
-    var gearRow = function(f, g, st2) { var e = entry(f, cutText(g.name, LIMITS.name)); if (e) addLib(f, e, facts(f, undefined, !!g.storageLocationId), build(e, g, st2.wt, st2.cr)); else addCustom(f, { name: g.name, category: cutText(g.category, LIMITS.category), notes: cutText(typeof g.notes === 'string' && g.notes ? g.notes : g.description, LIMITS.text), stats: st2 }, facts(f, undefined, !!g.storageLocationId)); qtyOp(f, g.quantity); };
+    var gearRow = function(f, g, st2, scrap) { var e = entry(f, cutText(g.name, LIMITS.name)), sk2 = scrapK(f), sv = {}; if (sk2) sv[sk2] = scrap ? 1 : 0; if (e) { addLib(f, e, facts(f, undefined, !!g.storageLocationId), build(e, g, st2.wt, st2.cr)); ownOp(f, e, sv); } else { if (sk2 && scrap) st2[sk2] = 1; addCustom(f, { name: g.name, category: cutText(g.category, LIMITS.category), notes: cutText(typeof g.notes === 'string' && g.notes ? g.notes : g.description, LIMITS.text), stats: st2 }, facts(f, undefined, !!g.storageLocationId)); } qtyOp(f, g.quantity); };   // scrap: the row is Destroyed (scrap), by its own kind's rule (sbScrapRow and its kin)
     // a power cell loaded in a blaster is inside that blaster's own weight and cost (the website, 2026-10-03): never a gear row beside it. One
     // loaded in a suit is not inside the suit's figures, and stays
     var inBlaster = function(x) { return x.isInstalled === true && typeof x.installedInBlasterId === 'string' && !!x.installedInBlasterId; };
     var fG = list('gear'), gear = rowsAt(inv.general).filter(function(x) { return own(x) && !inBlaster(x); });
     if (gear.length && !fG) skip('gear');
-    if (fG) gear.forEach(function(g) { gearRow(fG, g, { wt: g.weightless === true ? 0 : num(g.weight), cr: num(g.cost) }); });
+    if (fG) gear.forEach(function(g) { gearRow(fG, g, { wt: g.weightless === true ? 0 : num(g.weight), cr: num(g.cost) }, sbScrapRow(g)); });
     var fA = list('armor'), arm = rowsAt(inv.armor).filter(own);
     if (arm.length && !fA) skip('armor');
     var SLOT = { head: 'drHead', face: 'drFace', torso: 'drTorso', arm: 'drArm', arms: 'drArm', leg: 'drLeg', legs: 'drLeg', hand: 'drHand', hands: 'drHand', foot: 'drFoot', feet: 'drFoot' };
     if (fA) arm.forEach(function(a) {
         var wt = num(typeof a.finalWeight === 'number' ? a.finalWeight : a.weight), cr = num(typeof a.finalCost === 'number' ? a.finalCost : a.cost);
-        if (a.storageLocationId) { if (fG) gearRow(fG, a, { wt: wt, cr: cr }); return; }   // in storage: carried nowhere, kept as stowed gear
-        if (a.isSeveredRemnant === true) { if (fG) gearRow(fG, a, { wt: wt, cr: cr }); return; }   // wreckage left on a severed limb (the website, 2026-10-03): carried, with its weight and cost, and never worn again — a gear row, not armour
+        if (a.storageLocationId) { if (fG) gearRow(fG, a, { wt: wt, cr: cr }, sbScrapArmor(a)); return; }   // in storage: carried nowhere, kept as stowed gear
+        if (a.isSeveredRemnant === true) { if (fG) gearRow(fG, a, { wt: wt, cr: cr }, sbScrapArmor(a)); return; }   // wreckage left on a severed limb (the website, 2026-10-03): carried, with its weight and cost, and never worn again — a gear row, not armour
         var m2 = function(x, y) { return Math.max(num(x), num(y)); }, st2 = { wt: wt, cr: cr };
         if (typeof a.drValue === 'number' && Array.isArray(a.locations)) a.locations.forEach(function(l) { var k = SLOT[lower(String(l)).replace(/^(left|right)\s+/, '').trim()]; if (k) st2[k] = Math.max(st2[k] || 0, num(a.drValue)); });   // an older sheet: one DR over its locations
         else {
@@ -4549,20 +4764,76 @@ function sbRowOps(json, sys, find) {
         var fit = sbFitPen(a); bag.dexterity = num(typeof a.finalDXPenalty === 'number' ? a.finalDXPenalty : a.dxPenalty) + num(ib.dexterity) + fit.dexterity; bag.move = num(typeof a.finalMovePenalty === 'number' ? a.finalMovePenalty : a.movePenalty) + num(ib.move) + fit.move;   // its fit too (sbFitPen)
         var mods = sbMods(bag, ix, true);   // worn, not bought: the attribute alone
         var e = entry(fA, cutText(a.name, LIMITS.name)); var fx = facts(fA, undefined, a.equipped === true);
-        if (e) addLib(fA, e, fx, build(e, a, st2.wt, st2.cr)); else addCustom(fA, { name: a.name, category: cutText(a.type, LIMITS.category), notes: cutText(a.effects || a.penalties || '', LIMITS.text), stats: st2, mods: mods, modsOn: true }, fx);   // its penalties only while worn
+        var skA = scrapK(fA), svA = {}; if (skA) svA[skA] = sbScrapArmor(a) ? 1 : 0;
+        if (e) { addLib(fA, e, fx, build(e, a, st2.wt, st2.cr)); ownOp(fA, e, svA); } else { if (skA && sbScrapArmor(a)) st2[skA] = 1; addCustom(fA, { name: a.name, category: cutText(a.type, LIMITS.category), notes: cutText(a.effects || a.penalties || '', LIMITS.text), stats: st2, mods: mods, modsOn: true }, fx); }   // its penalties only while worn
         qtyOp(fA, a.quantity);
     });
     var nvl = function(v) { return typeof v === 'number' && fin(v) ? v : 0; };
     var dmgOf = function(t) { var s = typeof t === 'string' ? t.trim() : '', m = /^(\d{1,3})d(?:6)?\s*([+-]\s*\d{1,3})?/i.exec(s), w = /^(sw|thr)\s*([+-]\s*\d{1,3})?/i.exec(s); if (m) return { dd: parseInt(m[1], 10), da: m[2] ? parseInt(m[2].replace(/\s+/g, ''), 10) : 0, db: 0 }; if (w) return { dd: 0, da: w[2] ? parseInt(w[2].replace(/\s+/g, ''), 10) : 0, db: lower(w[1]) === 'sw' ? 1 : 2 }; return null; };
     var fW = list('weapons'), sab = isObj(inv.weapons) ? rowsAt(inv.weapons.lightsabers).filter(own) : [];
+    // the review of build 8 (group G), on the Weapons list where it has each stat: the skill level the website's Tactical HUD rolls the weapon's
+    // own skill at (wsl: getSkillTargetInfo over the weapon rows with their derived lines, which are the file's rows; a lightsaber asks Lightsaber
+    // Combat (<its Class Type>), lib/lightsaber-class-type.ts lightsaberCombatSkill, every other weapon its baseSkill; sbResolve), whatever it
+    // stands on, less what DX's changes add since, which the list's Skill adds again: a skill held, another specialty, a route, an attribute
+    // default, and where nothing prints a default the HUD's own DX-5 (DX-6 for a name that holds "combat"). Where the catalogue's text of the
+    // skill cannot be read (a players' index row holds none) an attribute default and the HUD's fallback are not known, so nothing is written
+    // and the list's choice of skill reads its own default. Destroyed (scrap); which defence a weapon gives (wdf, sbDefends: a row of its own
+    // by its skill, and on any row no parry where it is named for a shield); and what a weapon built from parts strikes with: a melee copy's
+    // active damage mode (dmOp), a lightsaber's and a blaster's dice and adds and a lightsaber's or a melee weapon's parry mod as the file states
+    // them (dmOwn). The catalogue's text of a skill (its Defaults: clause, the Melee Weapon grant) and a melee weapon's own skill are read off
+    // the list's entries of that name, as the website reads its catalogue. Built from parts: a blaster with a part in one of its slots (the
+    // website's own test, lib/ranged-assembly.ts hasRangedSlots: sbRangedParts), a melee weapon whose damage modes the file states, and every
+    // lightsaber; a weapon of the older shape holds its catalogue's figures, which its entry reads
+    var wslS = fW ? statDefOf(fW.list, 'wsl') : null, wdfS = fW ? statDefOf(fW.list, 'wdf') : null, wScK = scrapK(fW); if (wslS && wslS.kind === 'pick') wslS = null; if (wdfS && wdfS.kind === 'pick') wdfS = null;
+    var rollAt = null, held = null, skTx = map(), wpTx = map();
+    // a skill's catalogue text: '' where the Skills list holds no entry of that name (the website's catalogue has none either), null where the
+    // entry holds no text to read (a players' index row) or there is no Skills list
+    var libSk = function(n) { var k = lower(n.trim()); if (skTx[k] === undefined) { var e = fS ? entry(fS, cutText(n, LIMITS.name)) : null; skTx[k] = !fS ? null : !e ? '' : typeof e.desc === 'string' && e.desc ? e.desc.slice(0, 4000) : typeof e.notes === 'string' ? e.notes.slice(0, 4000) : null; } return skTx[k]; };
+    var armSk = function(n) { var k = lower(n.trim()); if (wpTx[k] === undefined) { var e = fW ? entry(fW, cutText(n, LIMITS.name)) : null; wpTx[k] = e && isObj(e.stats) && typeof e.stats.wsk === 'string' ? e.stats.wsk : ''; } return wpTx[k]; };
+    var wpnOwn = function(skill, scrap) {   // { stat key: figure } a weapon row holds of the website's
+        var o = {};
+        if (wslS) {
+            if (!rollAt) { rollAt = sbRollAt(json); held = sbHeld(sk, rollAt); }
+            var r = sbResolve(skill, held, rollAt, libSk, armSk), lv = r && r.src !== 'attribute' ? r.level : libSk(sbSkSplit(skill).base) === null ? null : r ? r.level : rollAt.dx - (lower(skill.trim()).indexOf('combat') >= 0 ? 6 : 5), v = lv === null ? 0 : lv - rollAt.d.dx;
+            o[wslS.key] = fin(v) && Math.abs(v) <= 1000 ? v : 0;
+        }
+        if (wScK) o[wScK] = scrap ? 1 : 0; return o;
+    };
+    var ownStats = function(st2, own, skill, shield) {   // a row of its own: each figure an empty row would not read, and which defence its skill gives
+        Object.keys(own).forEach(function(k) { if (own[k] !== rowStat(fW.list, null, k)) st2[k] = own[k]; });
+        if (wdfS) { var d = sbDefends(wdfS, skill, shield); if (d !== undefined && d !== rowStat(fW.list, null, wdfS.key)) st2[wdfS.key] = d; }
+    };
+    var wdfOwn = function(o, e, shield) { if (wdfS) { var d = rowStat(fW.list, e, wdfS.key), d2 = shield ? sbNoParry(wdfS, d) : d; o[wdfS.key] = d2 === undefined ? d : d2; } return o; };   // a library copy: its entry's, with no parry where it is named for a shield
+    // a melee weapon built from parts strikes with its active mode (lib/melee-weapon-stats.ts: damageModes[selectedDamageMode || 0], its
+    // bonusDice and bonus over the ST damage of its stType: a swing, else a thrust): a library copy holds the mode's dice and adds and that
+    // base as its own figures where they differ from its entry's; only where the list has number stats dd, da and db, since dice and adds over
+    // a base read as nothing else
+    var numK = function(k) { var s = fW ? statDefOf(fW.list, k) : null; return s && s.kind !== 'pick' ? s.key : null; }, ddK = numK('dd'), daK = numK('da'), dbK = numK('db'), pmK = numK('pm');
+    var dmOp = function(e, x) {
+        if (!ddK || !daK || !dbK || !Array.isArray(x.damageModes)) return;
+        var i = x.selectedDamageMode || 0, md = typeof i === 'number' && i >= 0 && Math.floor(i) === i && i < x.damageModes.length ? x.damageModes[i] : null;
+        var dd = isObj(md) ? md.bonusDice || 0 : null, da = isObj(md) ? md.bonus || 0 : null;
+        if (typeof dd !== 'number' || typeof da !== 'number' || !fin(dd) || !fin(da) || Math.abs(dd) > 100 || Math.abs(da) > 100) return;
+        var o = {}; o[ddK] = dd; o[daK] = da; o[dbK] = md.stType === 'sw' ? 1 : 2; ownOp(fW, e, o);
+    };
+    // a lightsaber's and a blaster's library copy strike with what their parts make, the dice and adds the file states (a lightsaber's
+    // calculated damage, a blaster's final damage: dmgOf), and a lightsaber's or a melee weapon's parry with its own parry mod (finalParryMod,
+    // which the HUD adds to the weapon's Parry): each the copy's own figure where it differs from its entry's, only where the list has the
+    // number stats (dice and adds together, and a swing or a thrust only with db), and a damage text that reads as no dice (By Caliber) none
+    var dmOwn = function(o, dm, pm) {
+        if (dm && ddK && daK && (dbK || !dm.db)) { o[ddK] = dm.dd; o[daK] = dm.da; if (dbK) o[dbK] = dm.db; }
+        if (pmK && typeof pm === 'number' && fin(pm) && Math.abs(pm) <= 100) o[pmK] = pm;
+        return o;
+    };
     if (sab.length && !fW) skip('weapons');
     if (fW) sab.forEach(function(s) {
         var wt = num(s.finalWeight), cr = num(typeof s.totalCost === 'number' ? s.totalCost : s.cost);
-        if (s.storageLocationId) { if (fG) gearRow(fG, s, { wt: wt, cr: cr }); return; }
+        if (s.storageLocationId) { if (fG) gearRow(fG, s, { wt: wt, cr: cr }, sbScrapSaber(s)); return; }
         var st2 = { wt: wt, cr: cr }, dm = dmgOf(s.calculatedDamage || s.finalDamage), pk = pickOf(fW, 'wsk', typeof s.baseSkill === 'string' && s.baseSkill ? s.baseSkill : 'Lightsaber Combat');
         if (dm) { st2.dd = dm.dd; if (dm.da) st2.da = dm.da; if (dm.db) st2.db = dm.db; }
         if (typeof s.finalParryMod === 'number') st2.pm = s.finalParryMod; if (pk) st2.wsk = pk;
-        var e = entry(fW, cutText(s.name, LIMITS.name)); if (e) addLib(fW, e, facts(fW, undefined, s.equipped === true), build(e, s, wt, cr)); else addCustom(fW, { name: s.name, category: 'Lightsaber', notes: cutText(s.calculatedDamage || '', LIMITS.text), stats: st2 }, facts(fW, undefined, s.equipped === true));
+        var e = entry(fW, cutText(s.name, LIMITS.name)), skL = 'Lightsaber Combat (' + (typeof s.classType === 'string' && s.classType.trim() ? s.classType.slice(0, 100).trim() : 'Standard') + ')', ownL = wpnOwn(skL, sbScrapSaber(s)), shL = sbShield(s);
+        if (e) { addLib(fW, e, facts(fW, undefined, s.equipped === true), build(e, s, wt, cr)); ownOp(fW, e, dmOwn(wdfOwn(ownL, e, shL), dm, s.finalParryMod)); } else { ownStats(st2, ownL, skL, shL); addCustom(fW, { name: s.name, category: 'Lightsaber', notes: cutText(s.calculatedDamage || '', LIMITS.text), stats: st2 }, facts(fW, undefined, s.equipped === true)); }
         qtyOp(fW, s.quantity);
     });
     var fM = list('ammo'), loose = [].concat(rowsAt(inv.ammunition), rowsAt(inv.weaponModifications), rowsAt(inv.armorModifications), rowsAt(inv.lightsaberModifications)).filter(function(x) { return own(x) && x.isInstalled !== true && x.equipped !== true && x.condition !== 'Destroyed'; });   // a part in place is part of its weapon (weighed with it); a destroyed one is neither stock nor a working part
@@ -4650,21 +4921,35 @@ function sbRowOps(json, sys, find) {
     // stored one never read it
     var rgH = fW ? statDefOf(fW.list, 'half') : null, rgM = fW ? statDefOf(fW.list, 'maxrange') : null, rgK = rgH && rgM && rgH.kind !== 'pick' && rgM.kind !== 'pick' ? [rgH.key, rgM.key] : null;
     var rgOf = function(x) { var r = rgK ? sbRange(x.finalHalfDamageRange) : null; return r ? [r.half, r.max] : null; };
+    // a blaster the condition track destroyed is worth nothing, and the pack loaded into it is counted as the pack it is (calculateEquipment.ts
+    // calculateTotalEquipmentCost: fullCost(loadedAmmunitionData) times the weapon's quantity, a magazine with its rounds: mag). So where the list
+    // the wreck comes into marks a wreck (has: its scrap stat) and the system has an Ammo list, the pack comes in there at that price, its
+    // weight 0 since the weapon's own still holds it; never a pack that costs nothing (one bundled with the weapon)
+    var packOut = function(x, has) {
+        var p = x.loadedAmmunitionData; if (!has || !fM || !isObj(p) || !sbScrapWeapon(x, 1)) return;
+        var c = mag(p, 'cost'), nm = cutText(typeof p.name === 'string' ? p.name : '', LIMITS.name) || 'Power Pack', e = entry(fM, nm), fx = facts(fM, typeof p.currentCharges === 'number' ? p.currentCharges : undefined); if (!(c > 0)) return;
+        if (e) addLib(fM, e, fx, build(e, { name: nm }, 0, c)); else addCustom(fM, { name: nm, category: cutText(p.category || p.type, LIMITS.category), notes: 'Loaded in ' + ownName(x) + ', which is Destroyed. It counts as the pack it is.', stats: { wt: 0, cr: c } }, fx);
+        qtyOp(fM, x.quantity);
+    };
     var rgOp = function(e, rg) { if (!rg) return; var os = {}; rg.forEach(function(v, i) { os[rgK[i]] = v !== rowStat(fW.list, e, rgK[i]) ? v : null; }); push(fW, { op: 'ov', rowId: out.ops[out.ops.length - 1].q.rowId, ov: { stats: os } }); };   // the row addLib just made
     if (fW) arms.forEach(function(p2) {
         var x = p2[0], wt = fin2(x.finalWeight, x.baseWeight), cr = (p2[1] === 'Ranged Weapon' && !(typeof x.finalCost === 'number' && fin(x.finalCost))) ? nvl(x.baseCost) + nvl(x.totalUpgradesCost) : nvl(x.finalCost), e = byBase(fW, x, x.baseType), fx = facts(fW, undefined, x.equipped === true), rg = p2[1] === 'Ranged Weapon' ? rgOf(x) : null;
-        if (x.storageLocationId) { if (fG) gearRow(fG, { name: ownName(x), quantity: x.quantity, storageLocationId: x.storageLocationId }, { wt: nvl(wt), cr: nvl(cr) }); return; }
-        if (e) { addLib(fW, e, fx, build(e, x, wt, cr)); rgOp(e, rg); }
+        if (x.storageLocationId) { if (fG) { gearRow(fG, { name: ownName(x), quantity: x.quantity, storageLocationId: x.storageLocationId }, { wt: nvl(wt), cr: nvl(cr) }, sbScrapWeapon(x, 1)); if (p2[1] === 'Ranged Weapon') packOut(x, !!scrapK(fG)); } return; }
+        var skW = typeof x.baseSkill === 'string' ? x.baseSkill : '', ownW = wpnOwn(skW, sbScrapWeapon(x, 1)), shW = sbShield(x);
+        if (e) { addLib(fW, e, fx, build(e, x, wt, cr)); rgOp(e, rg); if (p2[1] === 'Melee Weapon') dmOp(e, x); ownOp(fW, e, dmOwn(wdfOwn(ownW, e, shW), p2[1] === 'Ranged Weapon' && sbRangedParts(x) ? dmgOf(x.finalDamage) : null, p2[1] === 'Melee Weapon' && Array.isArray(x.damageModes) ? x.finalParryMod : undefined)); }
         else { var s2 = { wt: nvl(wt), cr: nvl(cr) }, dm = dmgOf(x.finalDamage || x.baseDamage), pk = pickOf(fW, 'wsk', x.baseSkill), mst = fin2(x.finalStRequirement, typeof x.baseStrength === 'number' ? x.baseStrength : parseInt(x.baseStrength, 10));
             if (pk) s2.wsk = pk; if (typeof x.finalAccuracy === 'number') s2.acc = x.finalAccuracy; if (typeof x.finalParryMod === 'number') s2.pm = x.finalParryMod; if (mst) s2.minst = mst; if (dm) { s2.dd = dm.dd; if (dm.da) s2.da = dm.da; if (dm.db) s2.db = dm.db; }
             if (rg) rg.forEach(function(v, i) { if (v !== rowStat(fW.list, null, rgK[i])) s2[rgK[i]] = v; });
+            ownStats(s2, ownW, skW, shW);
             addCustom(fW, { name: ownName(x), category: p2[1], notes: cutText([x.finalDamage, x.finalDamageType].filter(Boolean).join(' '), LIMITS.text), stats: s2 }, fx); }
         qtyOp(fW, x.quantity);
+        if (p2[1] === 'Ranged Weapon') packOut(x, !!wScK);
     });
     if (fW) bombs.forEach(function(x) {
         var wt = fin2(x.finalWeight, x.weight), cr = nvl(x.finalCost), e = byBase(fW, x, x.baseExplosiveName), fx = facts(fW, undefined, false);
         if (e) addLib(fW, e, fx, build(e, x, wt, cr));
         else { var s3 = { wt: nvl(wt), cr: nvl(cr) }, dm3 = dmgOf(x.finalDamageEffect), pk3 = pickOf(fW, 'wsk', 'Thrown Weapon'); if (pk3) s3.wsk = pk3; if (dm3) { s3.dd = dm3.dd; if (dm3.da) s3.da = dm3.da; }
+            ownStats(s3, {}, typeof x.baseSkill === 'string' && x.baseSkill.trim() ? x.baseSkill : 'Thrown Weapon', sbShield(x));
             addCustom(fW, { name: ownName(x), category: 'Explosive', notes: cutText(x.finalDamageEffect || '', LIMITS.text), stats: s3 }, fx); }
         qtyOp(fW, x.quantity);
     });
@@ -4682,8 +4967,9 @@ function sbRowOps(json, sys, find) {
     if (cy.length && !fC) skip('cybernetics');
     if (fC) cy.forEach(function(p3) {
         var x = p3[0], g3 = sbInt(x.baselinePoints) || 0, cp = fin2(x.finalCp, fin2(x.cp, x.baseCp)), fx = facts(fC, undefined, p3[2]), e = entry(fC, cutText(x.name, LIMITS.name));
-        if (e) { var ov3 = {}; if (typeof cp === 'number' && cp !== st(e, 'cp')) ov3.cp = cp; if (g3) ov3.granted = g3; addLib(fC, e, fx, Object.keys(ov3).length ? { stats: ov3 } : null); return; }
-        var s5 = { cp: nvl(cp), wt: nvl(x.weight), cr: nvl(x.cost) }; if (g3) s5.granted = g3;
+        var cK = scrapK(fC), svC = {}; if (cK) svC[cK] = sbScrapRow(x) ? 1 : 0;
+        if (e) { var ov3 = {}; if (typeof cp === 'number' && cp !== st(e, 'cp')) ov3.cp = cp; if (g3) ov3.granted = g3; addLib(fC, e, fx, Object.keys(ov3).length ? { stats: ov3 } : null); ownOp(fC, e, svC); return; }
+        var s5 = { cp: nvl(cp), wt: nvl(x.weight), cr: nvl(x.cost) }; if (g3) s5.granted = g3; if (cK && sbScrapRow(x)) s5[cK] = 1;
         addCustom(fC, { name: x.name, category: p3[1], notes: cutText(x.effect || '', LIMITS.text), stats: s5, mods: sbMods(isObj(x.modifiers) ? x.modifiers : sbTextBag(x.effect), ix, true), modsOn: true }, fx);
     });
     return out;

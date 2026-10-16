@@ -177,7 +177,10 @@ export async function buildCharacterJson(item, campName) {
     if (window.wpStance) {
         if (!base.details || typeof base.details !== 'object') base.details = {};
         if (window.wpStance.on('posture')) base.details.posture = window.wpStance.tokenPosture(item);
-        if (window.wpStance.on('elevation')) base.details.elevation = window.wpStance.tokenElevation(item);
+        // the elevation only where the token's differs from the file's as a token holds it (to a tenth of a yard, within 999 either way;
+        // whiteboard.js setTokenElevation, which seeded it): a height the website stores in yards to six decimals stays as it came
+        if (window.wpStance.on('elevation')) { var te = window.wpStance.tokenElevation(item), fe = made ? undefined : base.details.elevation;
+            if (!(typeof fe === 'number' && isFinite(fe) && Math.max(-999, Math.min(999, Math.round(fe * 10) / 10)) === te)) base.details.elevation = te; }
     }
     var portrait = made ? await bestPortraitDataUrl(item) : null;
     if (portrait) base.portrait = portrait;   // a made file only: the site's file keeps its own picture

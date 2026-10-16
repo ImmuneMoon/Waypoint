@@ -131,6 +131,19 @@ Character sheets
 - A sheet from ShadowBase also brings a narrowed Enhanced Parry onto
   the weapon its words name, a worn piece's weight class and the Armor
   specialty a skill row is, each into a list stat your system has.
+- A sheet from ShadowBase reads where each weapon or armour part is,
+  as the website now states it. A part inside its weapon or suit adds
+  nothing of its own, and a part the website carries is carried and
+  priced. A part in a storage box is priced as the website prices it,
+  and a weapon or suit designed and not yet built is worth only its
+  parts. Cultural familiarity is counted from the website's own rows,
+  which go back as they came. An older file's text is read into rows
+  as the website reads it. The unfamiliar culture comes into a switch
+  and a text your system has, and For ShadowBase writes it back. A file
+  that leaves it out or empty turns it off.
+- For ShadowBase writes a figure only where it changed here. A pool or
+  an elevation the website keeps and Waypoint cannot hold stays as the
+  website wrote it.
 - Text style on a sheet. With Edit sheet on, click into a text or notes
   field and a bar comes up on it, as in a planner. Select words and make
   them bold, italic, underlined, struck through or coloured, or give

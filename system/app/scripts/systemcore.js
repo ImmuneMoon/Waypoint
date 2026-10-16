@@ -4349,6 +4349,48 @@ function sbQualSt(j, a) {
     ['advantages', 'disadvantages'].forEach(function(k) { (Array.isArray(tr[k]) ? tr[k].slice(0, LIMITS.carried) : []).forEach(function(t) { var q = sbQualRow(t); if (q && q.a === a) n += q.lvl - q.b; }); });
     return n;
 }
+// Cultural Familiarity as the website bills it (its v1.0.3, c2c5ef6: lib/cultural-familiarity-rows.ts culturalFamiliarityXp, the one place it
+// is billed). culturalFamiliarityEntries is the stored record, one row per culture: where the file has it, the bill is its rows, each read as
+// the import reads one (cultureRowForFile) and priced by cultureRowCost: a native or granted row free, a row kept as written its own figure,
+// every other 1 XP (Ch4, "1 point per culture"). Its text, culturalFamiliarities, is the rows' projection, which bills the same by its brackets
+// (projectCulturesField), and the website puts it back to that on load where it says anything else. A file without rows (every file
+// before v1.0.3, and one Waypoint makes) is read into rows as the website's load reads it (lib/load-sheet.ts applyLoadMigrations,
+// migrateCultureRows, readCultureRows) and billed by them: its text split into entries (sbCultureSplit), "Name [0]" native and free,
+// "Name [1]" bought at 1 XP, any other entry kept as written at its first bracket; and the baseline (a finite number, else 0) absorbs
+// 1 XP for each bought row in order while at least 1 of it is left, and is never taken off otherwise. The species package the load joins
+// by marks which rows are free and changes no total. So a file the published site (v1.0.2) writes bills here what the website bills once
+// it opens that file, and the same character's v1.0.2 and v1.0.3 files bill alike. The rows themselves are never written: a write-back
+// carries them exactly as they came, ids included (sbWriteBack)
+function sbCultureXp(j) {
+    var rows = isObj(j) ? j.culturalFamiliarityEntries : undefined, n = 0;
+    if (Array.isArray(rows)) { rows.slice(0, 2000).forEach(function(r) { var o = isObj(r) ? r : {}; n += o.native === true || o.granted === true ? 0 : typeof o.xpAsWritten === 'number' && isFinite(o.xpAsWritten) ? o.xpAsWritten : 1; }); return n; }
+    var b0 = isObj(j) ? j.culturalFamiliaritiesBaseline : undefined, left = typeof b0 === 'number' && isFinite(b0) ? b0 : 0;   // the importer's `|| 0`, then readCultureRows' isNumber
+    sbCultureSplit(isObj(j) && typeof j.culturalFamiliarities === 'string' ? j.culturalFamiliarities.slice(0, LIMITS.notes) : '').forEach(function(e) {
+        var m = /^(.*?)\s*\[\s*([+-]?\d+)\s*(?:points?)?\s*\]$/.exec(e), fg = m && !/[[\]]/.test(m[1]) && sbCultureName(m[1]) !== '' ? Number(m[2]) : NaN;   // readCultureEntry's READABLE
+        if (fg === 0) return;   // native: free
+        if (fg === 1) { if (left >= 1) { left -= 1; return; } n += 1; return; }   // bought: 1 XP, unless the baseline still covers it
+        var b = /\[\s*([+-]?\d+)\s*(?:points?)?\s*\]/.exec(e); if (b) n += parseInt(b[1], 10);   // kept as written: what it declared (extractPointsFromMultiEntryString)
+    });
+    return n;
+}
+// lib/cultural-familiarity-rows.ts splitCultureEntries: a line or an entry split by ';', and a comma at depth 0 that follows a closing bracket
+// ("Core Worlds [1], Hutt Space [1]" is two entries); any other comma is part of a name. Each piece trimmed, an empty one none. The look back
+// over white space stands for its slice(...).trimEnd().endsWith(']'), the same test without copying the line at every comma
+function sbCultureSplit(t) {
+    var out = [];
+    String(t).split(/[;\n]/).forEach(function(line) {
+        var depth = 0, start = 0;
+        for (var at = 0; at < line.length; at++) {
+            var c = line.charAt(at);
+            if (c === '(' || c === '[') depth++;
+            else if ((c === ')' || c === ']') && depth > 0) depth--;
+            else if (c === ',' && depth === 0) { var k = at - 1; while (k >= start && /\s/.test(line.charAt(k))) k--; if (k >= start && line.charAt(k) === ']') { out.push(line.slice(start, at)); start = at + 1; } }
+        }
+        out.push(line.slice(start));
+    });
+    return out.map(function(p) { return p.trim(); }).filter(function(p) { return !!p; });
+}
+function sbCultureName(raw) { return String(raw).replace(/[;\r\n]+/g, ',').replace(/[[\]]/g, '').replace(/\s+/g, ' ').trim(); }   // normalizeCultureName
 function sbScalars(j) {   // lower-case key -> the dossier's value (a number, a boolean or a text), before any field's rules
     var o = function(v) { return isObj(v) ? v : {}; }, inv = o(j.investment), at = o(j.attributes), ch = o(j.characteristics), pt = o(j.points), cr = o(j.credits), dt = o(j.details), nr = o(j.narrative), out = map();
     var raw = function(a, k) { return sbAttr(j, a, k).base; };
@@ -4406,7 +4448,16 @@ function sbScalars(j) {   // lower-case key -> the dossier's value (a number, a 
     if (typeof j.republicRaised === 'boolean') out.republic = j.republicRaised;
     if (typeof j.culturalFamiliarities === 'string') out.culture = j.culturalFamiliarities;
     var base = function(k) { return sbNum(j[k + 'Baseline']) || 0; };   // top-level, not under investment
-    out.culturecp = sbMarks(j.culturalFamiliarities) - base('culturalFamiliarities'); out.litcp = sbMarks(j.literacy) - base('literacy'); out.langcp = sbMarks(j.languages) - base('languages');
+    var cxp = sbCultureXp(j);   // Cultural Familiarity: the website's rows where the file has them, else its text less the baseline, as before
+    out.culturecp = cxp !== null ? cxp : sbMarks(j.culturalFamiliarities) - base('culturalFamiliarities'); out.litcp = sbMarks(j.literacy) - base('literacy'); out.langcp = sbMarks(j.languages) - base('languages');
+    // the unfamiliar culture (the website's v1.0.3, c2c5ef6; the site's handoff, B6 item 25a): details.unfamiliarCultureOn and
+    // details.unfamiliarCulture, session state held as the posture is (components/character-sheet/unfamiliar-culture-controls.tsx), read as
+    // the website's import reads them, whatever the file holds (lib/utils/character-json-importer.ts, lines 187 and 188: the switch on only
+    // where it is true, the culture the text it holds, else ''; kept while the switch is off). So a file whose player switched it off and
+    // emptied the box (its exporter always writes both keys, character-json-exporter.ts lines 524 and 525) and a file without them (v1.0.2
+    // and before) read off with no culture, as the website opens them, and a culture an earlier file named is not kept by a Copy
+    out.unfcultureon = dt.unfamiliarCultureOn === true;
+    out.unfculture = typeof dt.unfamiliarCulture === 'string' ? dt.unfamiliarCulture : '';
     if (typeof j.shipPosition === 'string') out.shiprole = j.shipPosition;
     if (typeof j.assignedStation === 'string') out.station = j.assignedStation;
     var cy = sbCrystal(j); out.crystalmult = cy.mult; out.crystalflat = cy.flat;   // F7c: the saber crystals' pull on the Force pool
@@ -4439,6 +4490,12 @@ function sbWriteBack(json, sys, char, all, tok) {
         if (!f || f.kind !== 'resource') return;   // only a pool has a current: a system that holds the figure as a plain number reads it, and writes nothing back
         var e = all[f.id], cur = isObj(e) && !e.error ? num(e.value) : undefined, label = cutText(f.label || f.key, LIMITS.name) + ', current';
         if (cur === undefined) { left.push(label + ': not readable on this sheet'); return; }
+        // the file's current as this sheet holds it (the reader's cleanValue: a whole number within the field's bounds; an empty box, null,
+        // the pool's max, as the website's load fills it): where that is the sheet's, nothing changed in play, and the file's own figure
+        // stands (the website's own box takes any figure, -3 or -1500, and an empty one, which this sheet cannot hold)
+        var fo = pick(out, m.path), fc = isObj(fo) && Object.prototype.hasOwnProperty.call(fo, 'current') ? fo.current : undefined;
+        var fh = typeof fc === 'number' && fin(fc) ? cleanValue(f, { cur: fc }) : fc === null ? { cur: e.max } : undefined;
+        if (isObj(fh) && num(fh.cur) === cur) { same.push(label); return; }
         put(m.path.concat('current'), label, cur, false);
     });
     var held = function(f) { return num(isObj(char) && isObj(char.values) && Object.prototype.hasOwnProperty.call(char.values, f.id) ? char.values[f.id] : undefined); };   // never set on this sheet: undefined, the file's own stands
@@ -4467,9 +4524,25 @@ function sbWriteBack(json, sys, char, all, tok) {
     }
     var fAl = ix.align, vAl = fAl && fAl.kind === 'number' ? held(fAl) : undefined;
     if (vAl !== undefined) put(['points', 'forceAlignment'], cutText(fAl.label || fAl.key, LIMITS.name), vAl, true);
+    // the unfamiliar culture, a session field (the site's handoff, B6 item 25a and B9): the switch and the culture named, each from the field the
+    // bridge fills from it (a toggle UnfCultureOn, a text UnfCulture) and only where the character holds a value of its own that differs from
+    // the file's as the website's import reads it (lib/utils/character-json-importer.ts: the switch on only where it is true; the culture a
+    // text, else '', compared as this field would hold it, cut and cleaned), so a key the file lacks stays absent while it is off and unchanged,
+    // and a culture longer than the field holds is not cut by a write-back that changed nothing
+    var ownV = function(f) { return isObj(char) && isObj(char.values) && Object.prototype.hasOwnProperty.call(char.values, f.id) ? char.values[f.id] : undefined; };
+    var dtU = Object.prototype.hasOwnProperty.call(out, 'details') && isObj(out.details) ? out.details : null, dtHas = function(k) { return !!dtU && Object.prototype.hasOwnProperty.call(dtU, k); };
+    var fUo = ix.unfcultureon, vUo = fUo && fUo.kind === 'toggle' ? ownV(fUo) : undefined;
+    if (typeof vUo === 'boolean') { var lUo = cutText(fUo.label || fUo.key, LIMITS.name); if (vUo === (dtHas('unfamiliarCultureOn') && dtU.unfamiliarCultureOn === true)) same.push(lUo); else put(['details', 'unfamiliarCultureOn'], lUo, vUo, true); }
+    var fUc = ix.unfculture, vUc = fUc && (fUc.kind === 'text' || fUc.kind === 'notes') ? ownV(fUc) : undefined;
+    if (typeof vUc === 'string') { var lUc = cutText(fUc.label || fUc.key, LIMITS.name), fileUc = dtHas('unfamiliarCulture') && typeof dtU.unfamiliarCulture === 'string' ? dtU.unfamiliarCulture : ''; if (cleanValue(fUc, fileUc) === vUc) same.push(lUc); else put(['details', 'unfamiliarCulture'], lUc, vUc, true); }
     if (isObj(tok)) {
         if (typeof tok.posture === 'string') { if (POSTURE_IDS.indexOf(tok.posture) >= 0) put(['details', 'posture'], 'Posture', tok.posture, true, 'standing'); else left.push('Posture: the token\u2019s is not one the website knows'); }
-        var el = num(tok.elevation); if (el !== undefined) put(['details', 'elevation'], 'Elevation', el, true, 0);
+        // the elevation, where the token's differs from the file's as a token holds it (whiteboard.js setTokenElevation: to a tenth of a yard,
+        // within 999 either way): a height typed in metres on the website is yards to six decimals, which the token rounds, so nothing changed
+        // in play leaves the file's own figure
+        var el = num(tok.elevation), dtE = Object.prototype.hasOwnProperty.call(out, 'details') && isObj(out.details) ? out.details : null, fe = dtE && Object.prototype.hasOwnProperty.call(dtE, 'elevation') ? dtE.elevation : undefined;
+        var feH = typeof fe === 'number' && fin(fe) ? Math.max(-999, Math.min(999, Math.round(fe * 10) / 10)) : undefined;
+        if (el !== undefined) { if (feH !== undefined && feH === el) same.push('Elevation'); else put(['details', 'elevation'], 'Elevation', el, true, 0); }
     } else left.push('Posture and elevation: no token of this character to read');
     return { json: out, changes: changes, same: same, left: left };
 }
@@ -4505,7 +4578,9 @@ function aliasFromShadowBase(json, sys, F, strict) {   // strict (Onboarding F4,
         var fxv = cleanValue(fxF, fxRows, valueOpts(sys)); if (fxv) { values[fxF.id] = fxv; matched++; }
     }
     var sc = sbScalars(json);   // Stage 6 F3: the other scalars (after SB_MAP: a key it filled keeps its value)
-    Object.keys(sc).forEach(function(k) { var f = ix[k]; if (!f || !STORED[f.kind] || f.id in values) return; var v = sbPut(f, sc[k]); if (v === undefined) return; values[f.id] = v; matched++; });
+    // the culture of the unfamiliar culture is the file's text, an empty one too (the website's import, sbScalars): the one text an empty value
+    // of the file wipes, since the website then holds none
+    Object.keys(sc).forEach(function(k) { var f = ix[k]; if (!f || !STORED[f.kind] || f.id in values) return; var v = k === 'unfculture' && (f.kind === 'text' || f.kind === 'notes') && typeof sc[k] === 'string' ? cleanValue(f, sc[k]) : sbPut(f, sc[k]); if (v === undefined) return; values[f.id] = v; matched++; });
     var temp = { id: 'c_tmp', name: '', ownerId: '', npc: true, values: values };
     (Array.isArray(json.skills) ? json.skills : []).forEach(function(s) {
         if (!isObj(s) || typeof s.name !== 'string') return;
@@ -4774,6 +4849,147 @@ function sbScrapRow(x) { return x.condition === 'Destroyed'; }
 function sbScrapArmor(x) { return x.conditionTracked === true && x.condition === 'Destroyed'; }
 function sbScrapWeapon(x, blade) { var s = blade === 2 ? (typeof x.conditionTwoShown === 'string' ? x.conditionTwoShown : x.conditionTwo) : (typeof x.conditionShown === 'string' ? x.conditionShown : x.condition); return x.conditionTracked === true && s === 'Destroyed'; }
 function sbScrapSaber(x) { var staff = isObj(x.coupler) && (!!x.coupler.inventoryId || !!x.coupler.partId); return sbScrapWeapon(x, 1) && (!staff || sbScrapWeapon(x, 2)); }
+// Where a weapon's or an armour's part row is, as the file states it (the website's export since c2c5ef6, v1.0.3; the site's handoff, item 11
+// and B13): inventory.weaponModifications[].place and inventory.armorModifications[].place, { where, host, weighedUnits }, the one answer the
+// website's carried weight asks of the row (lib/part-row-places.ts partRowCarried, by the sheet's state and not by the row's flags; derived,
+// and its import takes it off, partRowsWithoutPlace). The row adds its weight times weighedUnits to carried weight
+// (hooks/calculation-helpers/calculateEquipment.ts), and host is the weapon or armour row it is fitted to. What it is worth the file does not
+// state; it is the website's rule over the same answer (lib/unbuilt-designs.ts partRowGearUnits, part-row-places.ts partRowOwnUnits): in-host,
+// inside its host's figures, only the units the host does not hold, the very ones weighed; on-host (a host whose figures do not take it in),
+// released (marked fitted, held by no host) and loose, every unit, each weighed; on-stored-host, every unit, its spares weighed and the rest in
+// the box with their host; flagged-fitted (marked fitted, named by no host the website places parts for) and stowed (in a storage box), none
+// weighed, and every unit counted unless it is installed in something but the player (the website's rule for a row nothing places: of a row
+// in a box the file does not say whether a host names it, so a part stowed with no flag that a host's own field names is counted here, where
+// the website counts only its spares). A place that does not read as the website writes one is no place, and the row is read by its flags
+// as before: a word it does not use, a host that is neither a text nor null, a count that is no whole number, more weighed than the row holds,
+// a quantity that is no figure, a storage box the word does not match, or flags the word does not match. Lightsaber parts and cybernetic
+// upgrades carry none. { where, host, w: units weighed, v: units counted in what the gear is worth } or null
+var SB_PLACE = { 'in-host': 1, 'on-host': 1, 'on-stored-host': 1, released: 1, loose: 1, 'flagged-fitted': 1, stowed: 1 };
+// What the place does not settle is read as the website reads its sheet, from the hosts and the rows the file holds as the website stores
+// them (sbPartCtx). Two kinds of row: (1) a part fitted into a design never built is worth every unit, as loose stock is, whatever its place
+// (lib/unbuilt-designs.ts partRowGearUnits, rowsInUnbuiltDesigns), and the design itself nothing (sbDesign); (2) a part in a storage box is
+// worth what its standing gives (partRowOwnUnits): every unit where the website places it on a host whose figures do not take it in, or
+// releases it (marked installed in a weapon or a suit that does not hold it, as an older Abort Design left it, then sent to a box), and
+// only its spares where its host's figures hold it; a row the website places nowhere by its flags, as before. The box, the host and the
+// held count are not in a stowed row's place (weighedUnits 0 whatever it is), so the standing is worked out (sbFamily).
+var SB_PART_SLOTS = ['gripPart', 'headPart', 'guardPart', 'receiverPart', 'barrelPart', 'targetingPart', 'powerUnitPart', 'emitter', 'switch', 'sleeve', 'pommel', 'coupler', 'emitterTwo', 'switchTwo', 'sleeveTwo', 'couplerTwo'];   // lib/installed-attachments.ts PART_SLOTS
+var SB_PART_IDS = ['modificationId', 'powerCell', 'lens', 'emitterMatrix', 'powerCellTwo', 'lensTwo', 'emitterMatrixTwo', 'primaryCrystal', 'primaryCrystalTwo', 'powerCrystal', 'powerCrystalTwo', 'hiltGripModId', 'bladeHeadModId', 'edgeAccentModId',
+    'sightsOpticsModId', 'powerCellModId', 'barrelEmitterModId', 'stockChassisModId', 'triggerAssemblyModId', 'magazineFeedModId', 'barrelMuzzleModId', 'fuelSystemModId', 'nozzleIgniterModId', 'deploymentModId', 'housingModId', 'payloadFeedModId', 'launchTubeModId'];   // modificationId and PART_ID_FIELDS
+var SB_PART_LISTS = ['gripParts', 'headParts', 'guardParts', 'utilityParts'];   // PART_LISTS (lib/melee-assembly.ts MELEE_SLOTS; utilityParts the one that takes no material)
+var SB_ARMOR_MODS = ['integratedModId', 'overlayModId', 'underlayModId', 'utilityModId'], SB_ARMOR_PARTS = ['shellPart', 'backingPart', 'framePart', 'visorPart', 'trimPart'];   // armorAttachmentIds; ARMOR_COMPONENT_SLOTS
+var SB_SABER_SLOTS = ['emitter', 'switch', 'sleeve', 'pommel', 'coupler', 'emitterTwo', 'switchTwo', 'sleeveTwo', 'couplerTwo'];   // lib/lightsaber-assembly.ts LIGHTSABER_SLOTS
+var SB_MELEE_TREAT = ['hiltGripModId', 'bladeHeadModId', 'edgeAccentModId'];   // lib/fitted-goods.ts MELEE_TREATMENT_SLOTS
+var SB_RANGED_MODS = ['sightsOpticsModId', 'stockChassisModId', 'triggerAssemblyModId', 'powerCellModId', 'barrelEmitterModId', 'barrelMuzzleModId', 'magazineFeedModId', 'fuelSystemModId', 'nozzleIgniterModId', 'deploymentModId', 'housingModId', 'payloadFeedModId', 'launchTubeModId'];   // RANGED_MOD_SLOT_FIELDS
+var SB_HOST_CLAIM = ['installedInSaberId', 'installedInMeleeId', 'installedInBlasterId', 'installedInArmorId', 'installedInDroidId', 'installedInVehicleId'];   // part-row-places.ts HOST_CLAIM_FIELDS
+var SB_FAM_CATS = { treat: ['hiltGripMod', 'bladeHeadMod', 'edgeAccentMod'], unit: ['Melee Power Unit'], ranged: ['Sights/Optics', 'Power Cell', 'Barrel/Emitter', 'Stock/Chassis', 'Trigger Assembly', 'Magazine/Feed System', 'Barrel/Muzzle', 'Fuel System', 'Nozzle/Igniter', 'Deployment Mechanism', 'Housing/Concealment', 'Payload / Feed Mechanism', 'Launch Tube / Projector'],
+    armor: ['Integrated Mod', 'Overlay Mod', 'Underlay Mod', 'Utility Mod'] };   // each family's isMember: MELEE_TREATMENT_SLOTS' categories, MELEE_SLOTS' power unit, weapon-mod-data.ts RANGED_MOD_CATEGORIES, armor-mod-slots.ts CATEGORY_BY_SLOT_TYPE
+function sbIsId(v) { return typeof v === 'string' && v.length > 0; }
+function sbHosts(v) { return Array.isArray(v) ? v.slice(0, LIMITS.carried).filter(isObj) : []; }   // a list's rows (the website's filter(Boolean): what is no object names nothing and is no design)
+function sbUniq(a) { var s = map(), o = []; a.forEach(function(v) { if (sbIsId(v) && s[v] !== 1) { s[v] = 1; o.push(v); } }); return o; }
+function sbWeaponIds(w) {   // weaponAttachmentIds: every row a weapon names, by any field the app counts as holding one
+    var o = SB_PART_IDS.map(function(k) { return w[k]; });
+    (Array.isArray(w.installedModIds) ? w.installedModIds.slice(0, LIMITS.carried) : []).forEach(function(v) { o.push(v); });
+    (Array.isArray(w.modifications) ? w.modifications.slice(0, LIMITS.carried) : []).forEach(function(m) { o.push(typeof m === 'string' ? m : isObj(m) ? m.id : undefined); });
+    SB_PART_SLOTS.forEach(function(k) { o.push(isObj(w[k]) ? w[k].inventoryId : undefined); });
+    SB_PART_LISTS.forEach(function(k) { (Array.isArray(w[k]) ? w[k].slice(0, LIMITS.carried) : []).forEach(function(en) { o.push(isObj(en) ? en.inventoryId : undefined); }); });
+    return sbUniq(o);
+}
+function sbArmorIds(a) { return sbUniq(SB_ARMOR_MODS.map(function(k) { return a[k]; }).concat(SB_ARMOR_PARTS.map(function(k) { return isObj(a[k]) ? a[k].inventoryId : undefined; }))); }   // armorHostPartIds
+// lib/melee-assembly.ts hasDerivableMeleeComponents: a power unit named, or a component whose part and material resolve (resolveMeleeEntry:
+// the row its entry names, the first of that id, else the entry itself). Resolving is a lookup in the website's catalogue, which the file
+// does not hold: here a part and a material are known where they are named, as every row the website writes names them
+function sbMeleeDerives(w, rows) {
+    var by = null, row = function(id) { if (!by) { by = map(); rows.forEach(function(r) { var k = String(r.id == null ? '' : r.id); if (by[k] === undefined) by[k] = r; }); } return by[String(id)]; };
+    return SB_PART_LISTS.some(function(k) {
+        return (Array.isArray(w[k]) ? w[k].slice(0, LIMITS.carried) : []).some(function(en) {
+            if (!isObj(en)) return false;
+            if (k === 'utilityParts') return !!(en.partId || en.inventoryId);
+            var r = en.inventoryId ? row(en.inventoryId) : undefined;
+            return (r ? sbIsId(r.partId) || sbIsId(r.name) : sbIsId(en.partId)) && sbIsId(r ? r.materialId : en.materialId);
+        });
+    });
+}
+// lib/unbuilt-designs.ts isUnbuiltDesign: a row never built (isConstructed not set) that its family calls a design by the test its own price is
+// derived by: a blaster with component slots (ranged-assembly.ts hasRangedSlots), a lightsaber with hilt slot objects (hasSaberSlots), a
+// melee weapon with components a price can be derived from (sbMeleeDerives), a suit's Piece whose component slot names a part, which is not
+// worn, and whose price is not its own (its assembly's figures, `frame`, or no price yet). A design adds nothing to the gear total (a
+// blaster its loaded pack at the pack's full price): calculateEquipment.ts, armorRowWorth and calculateTotalEquipmentCost
+function sbDesign(kind, h, rows) {
+    if (!isObj(h) || h.isConstructed) return false;
+    if (kind === 'blaster') return sbRangedParts(h);
+    if (kind === 'saber') return SB_SABER_SLOTS.some(function(k) { return h[k] != null && typeof h[k] === 'object'; });
+    if (kind === 'melee') return sbMeleeDerives(h, rows || []);
+    return kind === 'armor' && SB_ARMOR_PARTS.some(function(k) { return isObj(h[k]) && !!(h[k].partId || h[k].inventoryId); }) && !h.equipped && (h.frame != null || !(Number(h.cost) > 0));
+}
+// part-row-places.ts placeFamily, one family: the rows its hosts name, each placed in-host where a host's figures take it in (or it is
+// flagged installed in a host that names it and may still hold it), else on-host where a host that names it is carried, else on-stored-host,
+// its held count the most units any host names it for and its host the one the place is about; then a row of the family that no host
+// placed is released where it is marked installed in a host of the family that does not hold it, or marked fitted alone with no claim and
+// held by no host. fm: { hosts, names(h, byId) -> [{ id, u, t }], claim, cats, holds(h) -> ids, stored(h) or null }. Into the map by row id
+function sbFamily(fm, inv, byId, into) {
+    var hold = map(), order = [];
+    fm.hosts.forEach(function(h) { fm.names(h, byId).forEach(function(n) { if (byId[n.id] === undefined || into[n.id] !== undefined) return; if (!hold[n.id]) { hold[n.id] = []; order.push(n.id); } hold[n.id].push({ h: h, u: n.u, t: n.t }); }); });
+    order.forEach(function(id) {
+        var row = byId[id], fi = String(row[fm.claim] == null ? '' : row[fm.claim]), held = hold[id], most = 1;
+        var here = function(e) { return !!row.isInstalled && (fi === '' || String(e.h.id == null ? '' : e.h.id) === fi) && (fm.stored ? fm.stored(e.h) : true); };
+        var pr = held.filter(function(e) { return e.t; })[0] || held.filter(here)[0], ca = held.filter(function(e) { return !e.h.storageLocationId; })[0], hid = (pr || ca || held[0]).h.id, hs = String(hid == null ? '' : hid);
+        held.forEach(function(e) { if (e.u > most) most = e.u; });
+        into[id] = { place: pr ? 'in-host' : ca ? 'on-host' : 'on-stored-host', held: most, host: sbIsId(hs) ? hs : null };
+    });
+    inv.forEach(function(row) {
+        var id = String(row.id); if (into[id] !== undefined || fm.cats.indexOf(String(row.category == null ? '' : row.category)) < 0) return;
+        if (row.isInstalled) { var c = String(row[fm.claim] == null ? '' : row[fm.claim]), h = fm.hosts.filter(function(x) { return x.id && String(x.id) === c; })[0]; if (h && fm.holds(h).indexOf(id) < 0) into[id] = { place: 'released', held: 0, host: null }; }
+        else if (row.equipped && !SB_HOST_CLAIM.some(function(k) { return sbIsId(row[k]); }) && !fm.hosts.some(function(h) { return fm.holds(h).indexOf(id) >= 0; })) into[id] = { place: 'released', held: 0, host: null };
+    });
+}
+// what the bridge reads of a file's hosts once: design: the part rows fitted into a design never built, by parts list (rowsInUnbuiltDesigns:
+// a row a design names or that claims one, and no built thing names); stand: each weapon's and armour's part row's standing
+// (weaponPartRowPlaces: Ch12's melee treatments, the melee power units, Ch11's blaster mods; armorPartRowPlaces: Ch13's Mods). A blaster's
+// figures take in only a mod the chapter lists (rangedModByKey, a catalogue the file does not hold): here a mod row the blaster names by
+// a part id or a name
+function sbPartCtx(inv) {
+    var W = isObj(inv.weapons) ? inv.weapons : {}, melee = sbHosts(W.melee), blasters = sbHosts(W.blasters), suits = sbHosts(inv.armor), mods = sbHosts(inv.weaponModifications);
+    var out = { design: { weaponModifications: map(), lightsaberModifications: map(), armorModifications: map() }, stand: { weaponModifications: map(), armorModifications: map() }, mods: mods };
+    var built = { weaponModifications: map(), lightsaberModifications: map(), armorModifications: map() };
+    [['blaster', blasters, 'weaponModifications', sbWeaponIds, 'installedInBlasterId'], ['melee', melee, 'weaponModifications', sbWeaponIds, 'installedInMeleeId'],
+     ['saber', sbHosts(W.lightsabers), 'lightsaberModifications', sbWeaponIds, 'installedInSaberId'], ['armor', suits, 'armorModifications', sbArmorIds, 'installedInArmorId']].forEach(function(r) {
+        var ds = map(), anyD = false;
+        r[1].forEach(function(h) { var d = sbDesign(r[0], h, mods); r[3](h).forEach(function(id) { (d ? out.design : built)[r[2]][id] = 1; }); if (d && sbIsId(h.id)) { ds[h.id] = 1; anyD = true; } });
+        if (anyD) sbHosts(inv[r[2]]).forEach(function(x) { if (x.id && ds[String(x[r[4]] == null ? '' : x[r[4]])] === 1) out.design[r[2]][String(x.id)] = 1; });
+    });
+    Object.keys(built).forEach(function(l) { Object.keys(built[l]).forEach(function(id) { delete out.design[l][id]; }); });
+    var withId = function(v) { return sbHosts(v).filter(function(r) { return !!r.id; }); }, byId = function(rows) { var m2 = map(); rows.forEach(function(r) { m2[String(r.id)] = r; }); return m2; };
+    var wInv = withId(inv.weaponModifications), aInv = withId(inv.armorModifications);
+    if (wInv.length) {
+        var wB = byId(wInv), wS = out.stand.weaponModifications;
+        sbFamily({ hosts: melee, claim: 'installedInMeleeId', cats: SB_FAM_CATS.treat, holds: sbWeaponIds, stored: function(h) { return (Number(h.finalCost) || 0) > 0; },
+            names: function(h) { var ids = SB_MELEE_TREAT.map(function(k) { return h[k]; }).filter(sbIsId); if (!ids.length) return []; var t = sbMeleeDerives(h, wInv); return ids.map(function(id) { return { id: id, u: 1, t: t }; }); } }, wInv, wB, wS);
+        sbFamily({ hosts: melee, claim: 'installedInMeleeId', cats: SB_FAM_CATS.unit, holds: sbWeaponIds, stored: null,
+            names: function(h) { var u = map(), o = []; (Array.isArray(h.utilityParts) ? h.utilityParts.slice(0, LIMITS.carried) : []).forEach(function(en) { if (!isObj(en) || !sbIsId(en.inventoryId)) return; if (u[en.inventoryId] === undefined) { u[en.inventoryId] = 0; o.push(en.inventoryId); } u[en.inventoryId] += Math.max(1, Number(en.quantity) || 1); }); return o.map(function(id) { return { id: id, u: u[id], t: true }; }); } }, wInv, wB, wS);
+        sbFamily({ hosts: blasters, claim: 'installedInBlasterId', cats: SB_FAM_CATS.ranged, holds: sbWeaponIds, stored: function() { return false; },
+            names: function(h, by) { var ids = SB_RANGED_MODS.map(function(k) { return h[k]; }).filter(sbIsId); if (!ids.length) return []; var wr = sbRangedParts(h); return ids.map(function(id) { var r = by[id]; return { id: id, u: 1, t: wr && !!r && (sbIsId(r.partId) || sbIsId(r.name)) }; }); } }, wInv, wB, wS);
+    }
+    if (aInv.length) sbFamily({ hosts: suits, claim: 'installedInArmorId', cats: SB_FAM_CATS.armor, holds: sbArmorIds, stored: null,
+        names: function(h, by) { return SB_ARMOR_MODS.map(function(k) { return h[k]; }).filter(sbIsId).map(function(id) { return { id: id, u: 1, t: !(by[id] && by[id].name === 'None') }; }); } }, aInv, byId(aInv), out.stand.armorModifications);
+    return out;
+}
+function sbPlace(x, list, ctx) {
+    var p = isObj(x) ? x.place : undefined; if (!isObj(p)) return null;
+    var wh = typeof p.where === 'string' && Object.prototype.hasOwnProperty.call(SB_PLACE, p.where) ? p.where : '', w = p.weighedUnits, h = p.host;
+    if (!wh || !(h === null || (typeof h === 'string' && h.length <= 400)) || typeof w !== 'number' || !fin(w) || Math.floor(w) !== w || w < 0 || w > 1e6) return null;
+    var qr = x.quantity === undefined || x.quantity === null ? 1 : typeof x.quantity === 'number' || typeof x.quantity === 'boolean' || (typeof x.quantity === 'string' && x.quantity.length <= 40) ? Number(x.quantity) : NaN;
+    if (!fin(qr)) return null;   // a quantity that is no figure: the website states no whole count for such a row
+    var q = qr > 0 ? qr : 0; if (Math.floor(q) !== q) return null;   // the units the row holds: Math.max(0, Number(quantity ?? 1) || 0), as partRowOwnUnits reads them
+    var looseFlags = !x.equipped && (!x.isInstalled || x.installedInDroidId === 'PLAYER_DROID');   // partRowCarried's own test of a row nothing places
+    if (!!x.storageLocationId !== (wh === 'stowed') || (wh === 'loose' && !looseFlags) || (wh === 'flagged-fitted' && looseFlags)) return null;
+    if (wh === 'stowed' || wh === 'flagged-fitted' ? w !== 0 : wh === 'in-host' || wh === 'on-stored-host' ? w > q : w !== q) return null;
+    // worth: a part in a design never built every unit (ctx.design); in its host only the spares; flagged fitted by its flags; in a box by its
+    // standing (ctx.stand: in its host's figures the spares, any other standing every unit), by its flags where it has none; else every unit
+    var id = x.id == null ? '' : String(x.id), dz = !!ctx && id !== '' && !!ctx.design[list] && ctx.design[list][id] === 1, st = !!ctx && id !== '' && ctx.stand[list] ? ctx.stand[list][id] : undefined;
+    var flags = !x.isInstalled || x.installedInDroidId === 'PLAYER_DROID' ? q : 0;
+    var v = dz ? q : wh === 'in-host' ? w : wh === 'flagged-fitted' ? flags : wh === 'stowed' ? (st ? (st.place === 'in-host' ? Math.max(0, q - st.held) : q) : flags) : q;
+    return { where: wh, host: h, w: w, v: v };
+}
 function sbRowOps(json, sys, find) {
     var out = { ops: [], lists: [], seen: [], rows: 0, skipped: [] }; if (!isObj(json) || !sys) return out;   // seen (U1): every list the file carries, rows or none (an upload offers removals there)
     var ix = keyIndex(sys), seenL = map(), n = 0, pfx = Math.random().toString(36).slice(2, 6);
@@ -4927,6 +5143,7 @@ function sbRowOps(json, sys, find) {
     // of its name is in the list's categories. Stored gear reads Stowed; what sits installed in a droid, or in a saber, is not the character's to carry
     var inv = isObj(json.inventory) ? json.inventory : {}, num = function(v) { return typeof v === 'number' && fin(v) ? v : 0; };
     var own = function(x) { return !(x.isInstalled === true && typeof x.installedInDroidId === 'string' && x.installedInDroidId !== 'PLAYER_DROID'); };
+    var ctxP = sbPartCtx(inv);   // the hosts and the parts they name, read as the website reads its sheet: designs never built, and each part row's standing
     var ownName = function(x) { var n2 = [x.customName, x.name, x.baseType, x.baseExplosiveName, x.baseChassis].filter(function(v) { return typeof v === 'string' && v.trim(); })[0]; return n2 ? cutText(n2, LIMITS.name) : ''; };
     var build = function(e, x, wt, cr) { var ov = {}, os = {}; if (ownName(x) !== e.name) ov.name = ownName(x); if (typeof wt === 'number' && wt !== st(e, 'wt')) os.wt = wt; if (typeof cr === 'number' && cr !== st(e, 'cr')) os.cr = cr; if (Object.keys(os).length) ov.stats = os; return Object.keys(ov).length ? ov : null; };   // a copy's own name and build over its entry's
     var fin2 = function(a2, b2) { return typeof a2 === 'number' && fin(a2) ? a2 : typeof b2 === 'number' && fin(b2) ? b2 : undefined; };
@@ -4944,7 +5161,7 @@ function sbRowOps(json, sys, find) {
     var szA = fA ? sbSize(json) : null, drA = isObj(json.details) && json.details.isDroid === true;   // the wearer's size, for a piece's fit where the file states none, and whether a droid wears it (sbFitPen)
     var tiA = fA ? sbLabelled(statDefOf(fA.list, 'tier')) : null;   // a worn piece's weight class, for the untrained armour penalty (lib/armor-skill.ts wornArmorTier)
     if (fA) arm.forEach(function(a) {
-        var wt = num(typeof a.finalWeight === 'number' ? a.finalWeight : a.weight), cr = num(typeof a.finalCost === 'number' ? a.finalCost : a.cost);
+        var wt = num(typeof a.finalWeight === 'number' ? a.finalWeight : a.weight), cr = (sbDesign('armor', a, ctxP.mods) ? 0 : num(typeof a.finalCost === 'number' ? a.finalCost : a.cost));
         if (a.storageLocationId) { if (fG) gearRow(fG, a, { wt: wt, cr: cr }, sbScrapArmor(a)); return; }   // in storage: carried nowhere, kept as stowed gear
         if (a.isSeveredRemnant === true) { if (fG) gearRow(fG, a, { wt: wt, cr: cr }, sbScrapArmor(a)); return; }   // wreckage left on a severed limb (the website, 2026-10-03): carried, with its weight and cost, and never worn again — a gear row, not armour
         var m2 = function(x, y) { return Math.max(num(x), num(y)); }, st2 = { wt: wt, cr: cr };
@@ -5040,7 +5257,7 @@ function sbRowOps(json, sys, find) {
     };
     if (sab.length && !fW) skip('weapons');
     if (fW) sab.forEach(function(s) {
-        var wt = num(s.finalWeight), cr = num(typeof s.totalCost === 'number' ? s.totalCost : s.cost);
+        var wt = num(s.finalWeight), cr = sbDesign('saber', s) ? 0 : num(typeof s.totalCost === 'number' ? s.totalCost : s.cost);
         if (s.storageLocationId) { if (fG) gearRow(fG, s, { wt: wt, cr: cr }, sbScrapSaber(s)); return; }
         var st2 = { wt: wt, cr: cr }, dm = dmgOf(s.calculatedDamage || s.finalDamage), pk = pickOf(fW, 'wsk', typeof s.baseSkill === 'string' && s.baseSkill ? s.baseSkill : 'Lightsaber Combat');
         if (dm) { st2.dd = dm.dd; if (dm.da) st2.da = dm.da; if (dm.db) st2.db = dm.db; }
@@ -5057,14 +5274,32 @@ function sbRowOps(json, sys, find) {
     // system has one. A lightsaber's part flagged worn (equipped) and not installed is priced and not weighed: no host's field names a saber's
     // part (lib/unbuilt-designs.ts partRowGearUnits), so the two functions read its flags alone; the website's own load takes that flag off
     // every such row but a Destroyed one
-    var fM = list('ammo'), loose = [].concat(rowsAt(inv.ammunition), rowsAt(inv.weaponModifications), rowsAt(inv.armorModifications)).filter(function(x) { return own(x) && x.isInstalled !== true && x.equipped !== true; })
-        .concat(rowsAt(inv.lightsaberModifications).filter(function(x) { return own(x) && x.isInstalled !== true; }));   // a part in place is part of its weapon (weighed with it)
+    // A weapon's or an armour's part row that states its place (sbPlace; the website's export since c2c5ef6) is read by it, never by its flags: a
+    // row of its own for the units weighed on its own line, at its weight and its cost, and for the rest it is worth, one priced and weighing
+    // nothing (a stowed row of the Gear list where they are in a storage box, the row's own or its host's). The units its host holds are its
+    // host's (inside the weapon's or the suit's own figures, or stowed with it), so no row of the part's comes in for them. A row with no place
+    // (a file before v1.0.3) is read by its flags as before: a part flagged worn or installed is left out
+    var fM = list('ammo'), flagLoose = function(x) { return own(x) && x.isInstalled !== true && x.equipped !== true; }, solo = function(x) { return { x: x, p: null }; };
+    // A part fitted into a design never built (ctxP.design) is worth every unit, as loose stock is: by its place where it has one (sbPlace), and
+    // where it has none (a file before v1.0.3, a lightsaber's part) though its flags say fitted, priced and weighing nothing
+    var inD = function(lk, x) { var id = x.id == null ? '' : String(x.id); return own(x) && id !== '' && ctxP.design[lk][id] === 1; };
+    var placedOf = function(lk) { return rowsAt(inv[lk]).map(function(x) { return { x: x, p: own(x) ? sbPlace(x, lk, ctxP) : null, d: inD(lk, x) }; }); };
+    var placed = placedOf('weaponModifications').concat(placedOf('armorModifications'));
+    var loose = rowsAt(inv.ammunition).filter(flagLoose).map(solo).concat(placed.filter(function(t) { return t.p ? t.p.v > 0 : flagLoose(t.x) || t.d; }))
+        .concat(rowsAt(inv.lightsaberModifications).filter(function(x) { return own(x) && (x.isInstalled !== true || inD('lightsaberModifications', x)); }).map(solo));   // a part in place is part of its weapon (weighed with it)
     // a magazine (isContainer) weighs and costs its own figures plus each round it holds (the website, 2026-10-03): the row's are the empty vessel's
     var mag = function(x, k) { var v = num(x[k]); if (x.isContainer !== true || !Array.isArray(x.contents)) return v; x.contents.slice(0, 500).forEach(function(c) { if (isObj(c)) v += num(c[k]); }); return Math.round(v * 10000) / 10000; };
     if (loose.length && !fM) skip('ammo');
-    if (fM) loose.forEach(function(x) {
+    var ammoRow = function(x, wq, cq, n) { var e = entry(fM, cutText(x.name, LIMITS.name)); var fx = facts(fM, typeof x.currentCharges === 'number' ? x.currentCharges : undefined); if (e) addLib(fM, e, fx, build(e, x, wq, cq)); else addCustom(fM, { name: x.name, category: cutText(x.category || x.type, LIMITS.category), notes: cutText(x.effect || x.notes || '', LIMITS.text), stats: { wt: wq, cr: cq } }, fx); qtyOp(fM, n); };
+    if (fM) loose.forEach(function(t) {
+        var x = t.x, p = t.p;
+        if (p) {   // by its place: (weight || 0) times the units weighed (calculateEquipment.ts), (cost || 0) times the units it is worth (partRowGearUnits)
+            if (p.w > 0) ammoRow(x, num(x.weight), num(x.cost), p.w);
+            if (p.v > p.w) { if ((p.where === 'stowed' || p.where === 'on-stored-host') && fG) gearRow(fG, { name: x.name, quantity: p.v - p.w, storageLocationId: x.storageLocationId || p.host || 'host', category: x.category || x.type, notes: x.effect || x.notes }, { wt: num(x.weight), cr: num(x.cost) }, false); else ammoRow(x, 0, num(x.cost), p.v - p.w); }
+            return;
+        }
         if (x.storageLocationId && fG) { gearRow(fG, { name: x.name, quantity: x.quantity, storageLocationId: x.storageLocationId, category: x.category || x.type, notes: x.effect || x.notes }, { wt: mag(x, 'weight'), cr: mag(x, 'cost') }, false); return; }
-        var wq = x.equipped === true ? 0 : mag(x, 'weight'), e = entry(fM, cutText(x.name, LIMITS.name)); var fx = facts(fM, typeof x.currentCharges === 'number' ? x.currentCharges : undefined); if (e) addLib(fM, e, fx, build(e, x, wq, mag(x, 'cost'))); else addCustom(fM, { name: x.name, category: cutText(x.category || x.type, LIMITS.category), notes: cutText(x.effect || x.notes || '', LIMITS.text), stats: { wt: wq, cr: mag(x, 'cost') } }, fx); qtyOp(fM, x.quantity);
+        ammoRow(x, x.equipped === true || x.isInstalled === true ? 0 : mag(x, 'weight'), mag(x, 'cost'), x.quantity);   // installed: a part of a design never built
     });
     // hit locations: each by its type's entry (penalty, cripple divisor, armour slot), its own name and size; its innate DR less wear the level; not
     // healthy reads Crippled; an amputated one is left out
@@ -5158,7 +5393,8 @@ function sbRowOps(json, sys, find) {
     };
     var rgOp = function(e, rg) { if (!rg) return; var os = {}; rg.forEach(function(v, i) { os[rgK[i]] = v !== rowStat(fW.list, e, rgK[i]) ? v : null; }); push(fW, { op: 'ov', rowId: out.ops[out.ops.length - 1].q.rowId, ov: { stats: os } }); };   // the row addLib just made
     if (fW) arms.forEach(function(p2) {
-        var x = p2[0], wt = fin2(x.finalWeight, x.baseWeight), cr = (p2[1] === 'Ranged Weapon' && !(typeof x.finalCost === 'number' && fin(x.finalCost))) ? nvl(x.baseCost) + nvl(x.totalUpgradesCost) : nvl(x.finalCost), e = byBase(fW, x, x.baseType), fx = facts(fW, undefined, x.equipped === true), rg = p2[1] === 'Ranged Weapon' ? rgOf(x) : null;
+        var x = p2[0], wt = fin2(x.finalWeight, x.baseWeight), dsW = sbDesign(p2[1] === 'Ranged Weapon' ? 'blaster' : 'melee', x, ctxP.mods);   // a design never built: nothing, a blaster its loaded pack at the pack's full price
+        var cr = dsW ? (p2[1] === 'Ranged Weapon' && isObj(x.loadedAmmunitionData) ? mag(x.loadedAmmunitionData, 'cost') : 0) : (p2[1] === 'Ranged Weapon' && !(typeof x.finalCost === 'number' && fin(x.finalCost))) ? nvl(x.baseCost) + nvl(x.totalUpgradesCost) : nvl(x.finalCost), e = byBase(fW, x, x.baseType), fx = facts(fW, undefined, x.equipped === true), rg = p2[1] === 'Ranged Weapon' ? rgOf(x) : null;
         if (x.storageLocationId) { if (fG) { gearRow(fG, { name: ownName(x), quantity: x.quantity, storageLocationId: x.storageLocationId }, { wt: nvl(wt), cr: nvl(cr) }, sbScrapWeapon(x, 1)); if (p2[1] === 'Ranged Weapon') packOut(x, !!scrapK(fG)); } return; }
         var skW = typeof x.baseSkill === 'string' ? x.baseSkill : '', ownW = wpnOwn(skW, sbScrapWeapon(x, 1), sbWName(x)), shW = sbShield(x);
         if (e) { addLib(fW, e, fx, build(e, x, wt, cr)); rgOp(e, rg); if (p2[1] === 'Melee Weapon') dmOp(e, x); ownOp(fW, e, dmOwn(wdfOwn(ownW, e, shW), p2[1] === 'Ranged Weapon' && sbRangedParts(x) ? dmgOf(x.finalDamage) : null, p2[1] === 'Melee Weapon' && Array.isArray(x.damageModes) ? x.finalParryMod : undefined)); }
@@ -5275,7 +5511,9 @@ function sbProposal(sys, char, dossier, F, find) {
     Object.keys(al.values).forEach(function(fid) {
         var f = fieldById(sys, fid); if (!f) return;
         var a = cur[fid], b = al.values[fid];
-        if (f.kind === 'resource' ? (isObj(a) ? a.cur : null) === (isObj(b) ? b.cur : null) : JSON.stringify(a === undefined ? null : a) === JSON.stringify(b)) return;
+        // a value the character never set reads its field's own (storedOf): a file that says the same changes nothing, so no line is offered
+        var a0 = a === undefined && f.kind !== 'resource' ? storedOf(f, null) : a;
+        if (f.kind === 'resource' ? (isObj(a) ? a.cur : null) === (isObj(b) ? b.cur : null) : JSON.stringify(a0 === undefined ? null : a0) === JSON.stringify(b)) return;
         push({ kind: 'value', f: fid, label: f.label || f.key, from: sbShow(f, a), to: sbShow(f, b), value: b, accept: true }); out.values++;
     });
     var ro = sbRowOps(dossier, sys, find), scratch = { id: char.id, name: char.name, ownerId: char.ownerId, npc: char.npc, values: {} }, groups = [], at = map();

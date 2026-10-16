@@ -4905,6 +4905,54 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             j([refusedQ, drawnQ.map(d => [d.f, d.name.length > 30 ? d.name.slice(0, 30) : d.name, d.chips.map(c => c[2][1] && c[2][1][1]), d.notes && d.notes.map(n => [n[1], n[2].slice(0, 40)])]), PGQ.htmlSet, PGQ.attrs, vQ, vD, vT3, fileText.length]));
     }
 
+    /* ---- [m415] the bridge's unfamiliar culture on the page: the culture a website file names, as the player typed it there, read into the
+       sheet's field (systemcore.js aliasFromShadowBase, run for real on a hostile file), and the one typed here, written back by For ShadowBase
+       (sbWriteBack), reach the question For ShadowBase asks (sheets.js sbExportBody and sbExportWords, run for real on a page that refuses
+       markup) only as the text of a line: markup and a prototype's name as the characters they are, a long one cut, a control character
+       never read into the field, and a value that is no text in fixed words ---- */
+    {
+        const j = JSON.stringify, SYU = await import(modUrl('systemcore.js')), FOU = await import(modUrl('formula.js'));
+        const shU = read('sheets.js'), HTMLU = /innerHTML|insertAdjacentHTML|outerHTML|setAttribute|document\.write/;
+        const cutU = (a, b) => { const i = shU.indexOf(a), k = i < 0 ? -1 : shU.indexOf(b, i + a.length); if (i < 0 || k < 0) throw new Error('sinkcheck: sheets.js ' + a.trim().slice(0, 40) + ' not found'); return shU.slice(i, k); };
+        const lineU = k => cutU('\n' + k, '\n').slice(1);
+        const mkPageU = () => {
+            const made = [], htmlSet = [], attrs = [];
+            const fake = tag => { const e = { tag, children: [], childNodes: [], style: {}, dataset: {}, className: '', textContent: '', appendChild(k) { this.children.push(k); this.childNodes.push(k); return k; }, setAttribute(n, v) { attrs.push([n, v]); }, addEventListener() {} }; ['innerHTML', 'outerHTML'].forEach(p => Object.defineProperty(e, p, { set(v) { htmlSet.push(v); }, get() { return ''; } })); e.insertAdjacentHTML = (w, v) => { htmlSet.push(v); }; made.push(e); return e; };
+            const doc = { createElement: fake, createTextNode: t => { const n = { tag: '#text', textContent: String(t) }; made.push(n); return n; } };
+            return { made, htmlSet, attrs, fake, doc, clean: () => htmlSet.length === 0 && attrs.length === 0 && made.every(e => e.tag === '#text' || Object.keys(e.style).length === 0) };
+        };
+        // what only the FILE writes, what only the player types here, and a system from a file whose labels are hostile
+        const FX = '<img src=x onerror=alert(15) data-file=1>', FP = '__proto__', BEL = String.fromCharCode(7);
+        const sysU = SYU.cleanSystem({ v: 1, name: T, rolls: [], fields: [{ id: 'f_uo', key: 'UnfCultureOn', label: T, kind: 'toggle', vis: 'all' }, { id: 'f_uc', key: 'UnfCulture', label: P, kind: 'text', vis: 'all' }] }, { F: FOU, gmView: true });
+        const fileU = { type: 'character', writtenBySiteVersion: '1.0.3', name: FX, details: { unfamiliarCultureOn: false, unfamiliarCulture: FX + ' Hutt ' + FP + BEL } };
+        const typedU = '"><script>x()</script>' + FP + ' ' + 'y'.repeat(30);
+        const oddU = { type: 'character', name: 'O', details: { unfamiliarCultureOn: JSON.parse('{"toString":"x"}'), unfamiliarCulture: JSON.parse('{"toString":"x","valueOf":"y"}') } };
+        const protoU = () => j([Object.keys(Object.prototype), ({}).polluted, ({}).unfamiliarCulture, typeof ({}).constructor]), pU0 = protoU();
+        const PGU = mkPageU();
+        let vU = null, vO = null, rU = null, rO = null, linesU = null, linesO = null, threwU = null;
+        try {
+            vU = SYU.aliasFromShadowBase(fileU, sysU, FOU).values; vO = SYU.aliasFromShadowBase(oddU, sysU, FOU).values;
+            const chU = { id: 'c_m415', name: FX, ownerId: '', npc: true, values: Object.assign({}, vU, { f_uo: true, f_uc: typedU }) };
+            rU = SYU.sbWriteBack(fileU, sysU, chU, SYU.resolveAll(sysU, chU, FOU), null);
+            const chO = { id: 'c_m415o', name: 'O', ownerId: '', npc: true, values: { f_uo: true, f_uc: 'A' } };
+            rO = SYU.sbWriteBack(oddU, sysU, chO, SYU.resolveAll(sysU, chO, FOU), null);
+            const WU = new Function('document', 'sbKeptName', 'sbKeptAgo', "'use strict';\n" + lineU('function el(tag, cls, text) {') + cutU('\nfunction sbExportWords(v) {', '\n// the copy made from one file') + '\nreturn { body: sbExportBody };')(PGU.doc, n => String(n), () => 'just now');
+            const say = box => box.children.map(c => [c.tag, c.className, c.textContent, (c.children || []).length]);
+            linesU = say(WU.body(rU, FX, fileU.name, null)); linesO = say(WU.body(rO, 'O', 'O', null));
+        } catch (e) { threwU = String(e && e.stack || e).slice(0, 300); }
+        // the question's words for a value, written out again here: a text past 40 characters cut there, a value that is no text in fixed words
+        const wordU = v => typeof v === 'string' ? (v.length > 40 ? v.slice(0, 40) + '…' : v) : typeof v === 'boolean' ? (v ? 'yes' : 'no') : 'something else';
+        const rowsU = ls => (ls || []).filter(l => l[1] === 'sb-export-row');
+        const wantU = [['div', 'sb-export-row', T + ': ' + wordU(false) + ' → ' + wordU(true), 0], ['div', 'sb-export-row', P + ': ' + wordU(FX + ' Hutt ' + FP + BEL) + ' → ' + wordU(typedU), 0]];
+        const wantO = [['div', 'sb-export-row', T + ': something else → yes', 0], ['div', 'sb-export-row', P + ': something else → A', 0]];
+        const fileTextU = PGU.made.filter(e => typeof e.textContent === 'string' && /data-file|<script>/.test(e.textContent));
+        check('m415 the unfamiliar culture from a hostile website file and the one typed here (aliasFromShadowBase and sbWriteBack, then the sheet\'s own sbExportBody and sbExportWords, run for real on a page that refuses markup): the culture the file names is read into the field as the characters it is, with no control character; the question For ShadowBase asks says each change as the text of one line with no child, the file\'s culture and the typed one cut at 40 characters, markup and a prototype\'s name never markup, an attribute or a style; a switch and a culture that are objects naming toString are read as the website\'s import reads them (character-json-importer.ts lines 187 and 188: off, no culture) and said as something else; nothing reaches a prototype',
+            threwU === null && !!vU && vU.f_uc === FX + ' Hutt ' + FP && vU.f_uo === false && j(vO) === j({ f_uo: false, f_uc: '' }) && j(rowsU(linesU)) === j(wantU) && j(rowsU(linesO)) === j(wantO)
+            && linesU.concat(linesO).every(l => l[0] === 'div' && typeof l[2] === 'string' && l[3] === 0) && fileTextU.length === 1 && fileTextU.every(e => e.tag === 'div' && e.children.length === 0)
+            && PGU.clean() && protoU() === pU0 && !HTMLU.test(cutU('\nfunction sbExportWords(v) {', '\n// the copy made from one file')),
+            j([threwU, vU, vO, linesU, linesO, PGU.htmlSet, PGU.attrs, fileTextU.length]));
+    }
+
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

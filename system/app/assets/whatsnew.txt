@@ -116,6 +116,21 @@ Character sheets
   Enhanced Parry, the sense an Acute Senses row sharpens and a droid's
   leg or foot that is Destroyed. Each comes only into a field or a list
   stat your system has.
+- A sheet from ShadowBase brings its size as the website works it out,
+  and a droid's size is its build's, so a droid no longer reads SM 0.
+  A worn piece's fit comes as the website states it: a piece a whole
+  size off its wearer takes 2 DX and 1 Basic Move, and one two sizes
+  off gives nothing while worn. The Basic Lift the website shows comes
+  into a number field of your system's, and a loose part that is
+  Destroyed keeps its weight and cost, as on the website.
+- A sheet from ShadowBase reads more as the website does. A worn
+  device, an implant or an upgrade gives 1 less of each bonus when
+  Damaged and nothing when Broken. A piece's penalties count its fitted
+  mods, a droid gets nothing from a piece it cannot wear, and a part in
+  a storage box is stowed.
+- A sheet from ShadowBase also brings a narrowed Enhanced Parry onto
+  the weapon its words name, a worn piece's weight class and the Armor
+  specialty a skill row is, each into a list stat your system has.
 - Text style on a sheet. With Edit sheet on, click into a text or notes
   field and a bar comes up on it, as in a planner. Select words and make
   them bold, italic, underlined, struck through or coloured, or give

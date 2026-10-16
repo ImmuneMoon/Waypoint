@@ -4833,6 +4833,78 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             j([refused5, drawn5.map(d => [d.f, d.name.length > 30 ? d.name.slice(0, 30) : d.name, d.chips.map(c => c[2][1] && c[2][1][1])]), PG5.htmlSet, PG5.attrs, v5 && [v5.f_mlost, v5.f_strike]]));
     }
 
+    /* ---- [m413] the bridge's readings of 2026-10-15 on the sheet: what a worn piece's fit, the size, the Basic Lift, a loose part that is Destroyed,
+       a weapon's own narrowed parry, Acute Senses on Disadvantages, a piece's weight class and the Armor specialty write (systemcore.js sbRowOps
+       and aliasFromShadowBase, run for real on a hostile website file) is drawn by the sheet's own row details (sheets.js noteBits, with
+       statChips, statLineNode and descBits, run for real on a page that refuses markup) as text alone: the reason a piece cannot be worn and
+       the file's own words after it are one text of a notes line, every figure is a number or one of the system's own labels, and the size
+       and the Basic Lift reach a field as a number or not at all ---- */
+    {
+        const j = JSON.stringify, SYQ = await import(modUrl('systemcore.js')), FOQ = await import(modUrl('formula.js'));
+        const shQ = read('sheets.js'), HTMLQ = /innerHTML|insertAdjacentHTML|outerHTML|setAttribute|document\.write/;
+        const cutQ = (a, b) => { const i = shQ.indexOf(a), k = i < 0 ? -1 : shQ.indexOf(b, i + a.length); if (i < 0 || k < 0) throw new Error('sinkcheck: sheets.js ' + a.trim().slice(0, 40) + ' not found'); return shQ.slice(i, k); };
+        const lineQ = k => cutQ('\n' + k, '\n').slice(1);
+        const mkPageQ = () => {
+            const made = [], htmlSet = [], attrs = [];
+            const fake = tag => { const e = { tag, children: [], childNodes: [], style: {}, dataset: {}, className: '', textContent: '', appendChild(k) { this.children.push(k); this.childNodes.push(k); return k; }, setAttribute(n, v) { attrs.push([n, v]); }, addEventListener() {} }; ['innerHTML', 'outerHTML'].forEach(p => Object.defineProperty(e, p, { set(v) { htmlSet.push(v); }, get() { return ''; } })); e.insertAdjacentHTML = (w, v) => { htmlSet.push(v); }; made.push(e); return e; };
+            const doc = { createElement: fake, createTextNode: t => { const n = { tag: '#text', textContent: String(t) }; made.push(n); return n; } };
+            return { made, htmlSet, attrs, fake, doc, clean: () => htmlSet.length === 0 && attrs.length === 0 && made.every(e => e.tag === '#text' || Object.keys(e.style).length === 0) };
+        };
+        // what only the FILE writes, and a system from a file whose labels are hostile
+        const FX = '<img src=x onerror=alert(13) data-file=1>', FP = '__proto__', sp = (key, extra) => Object.assign({ key, label: T + key, show: true }, extra || {});
+        // (a weight class is read by the label that names it exactly, so those labels are the class's own words; a sense by the word in its label)
+        const TIQ = ['None', 'Light', 'Medium', 'Heavy'], SENQ = [T + 'None', 'Vision', P + 'Hearing', 'Taste & Smell', 'Touch'];
+        const lst = (id, key, list) => ({ id: 'f_' + id, key, label: T, kind: 'item-list', vis: 'all', list });
+        const sysQ = SYQ.cleanSystem({ v: 1, name: T, rolls: [], fields: [{ id: 'f_dx', key: 'DX', label: T, kind: 'number', vis: 'all' }, { id: 'f_mb', key: 'MoveBonus', label: P, kind: 'number', vis: 'all' }, { id: 'f_sm', key: 'SM', label: T, kind: 'number', vis: 'all', step: 0.01 }, { id: 'f_bl', key: 'BL', label: P, kind: 'number', vis: 'all', step: 0.01 },
+            lst('sk', 'Skills', { cats: ['Skill'], noQty: true, custom: true, multi: true, lvl: { label: 'Level', min: -10, max: 40, def: 10 }, stats: [{ key: 'attr' }, { key: 'diff' }, { key: 'fix' }, { key: 'free' }, sp('armT', { labels: TIQ })] }),
+            lst('adv', 'Advantages', { cats: ['Advantage'], noQty: true, custom: true, lvl: { label: 'Level', min: 0, max: 10, def: 0 }, stats: [{ key: 'bp' }, { key: 'per' }] }),
+            lst('dis', 'Disadvantages', { cats: ['Disadvantage'], noQty: true, custom: true, lvl: { label: 'Level', min: 0, max: 10, def: 0 }, stats: [{ key: 'bp' }, { key: 'per' }, sp('sense', { labels: SENQ })] }),
+            lst('wp', 'Weapons', { cats: ['Melee Weapon', 'Ranged Weapon', 'Lightsaber'], custom: true, multi: true, stats: [{ key: 'wt' }, { key: 'cr' }, sp('wnp')] }),
+            lst('ar', 'Armor', { cats: ['Armor'], custom: true, multi: true, on: { label: T }, stats: [sp('wt'), sp('cr'), sp('drTorso'), sp('tier', { labels: TIQ })] }),
+            lst('am', 'Ammo', { custom: true, multi: true, stats: [sp('wt'), sp('cr')] })], items: [{ id: 'i_m413s_arm', name: 'Armor', key: 'Armor', category: 'Skill' }] }, { F: FOQ, gmView: true });
+        const findQ = n => sysQ.items.filter(e => e.name.toLowerCase() === String(n).trim().toLowerCase());
+        const fileQ = { type: 'character', name: FX, details: { isDroid: false, sizeModifier: FX, sizeModifierEffective: FX }, attributes: { dexterity: { value: null, effective: 10 } }, characteristics: { basicLift: FX + ' lbs' },
+            skills: [{ name: 'Armor (Heavy)', level: 12 }, { name: FX, level: 11 }, { name: 'Armor (' + FX + ')', level: 10 }],
+            traits: { advantages: [{ name: 'Enhanced Parry (Narrowed)', level: 2, points: 10, description: FX + ' beskad ' + FP }], disadvantages: [{ name: 'Acute Senses', level: 1, points: 2, description: FX + ' hearing ' + FP }, { name: FX, level: 1, points: -5, description: FX }] },
+            inventory: { armor: [{ name: FX, type: FX, equipped: true, weight: 5, cost: 50, drTorso: 3, tier: 'Heavy', fit: { cutForSm: FX, wornAtSm: FX, misSized: true, wearable: false, illFittingAnyCause: false, refitOwed: false }, effects: FX + ' ' + P },
+                { name: 'Vest', equipped: true, weight: 1, cost: 9, tier: FX, itemSizeModifier: FX, illFitting: true, effects: FX }],
+                weapons: { melee: [{ customName: FX + ' Beskad', baseSkill: 'Broadsword', finalCost: 1 }], blasters: [{ customName: 'Beskad ' + FX, baseSkill: 'Guns (' + FX + ')', finalCost: 1 }] },
+                ammunition: [{ name: FX, condition: 'Destroyed', weight: 0.2, cost: 7, type: FX, notes: FX }] } };
+        const droidQ = (build, more) => Object.assign({ type: 'character', name: FX, details: { isDroid: true, sizeModifier: FX }, droidBuild: build }, more || {});
+        const protoQ = () => j([Object.keys(Object.prototype), ({}).polluted, ({}).tier, ({}).armT, ({}).wnp, ({}).sense, ({}).misSized, typeof ({}).constructor]), pQ0 = protoQ();
+        const chQ = { id: 'c_m413', name: 'S', ownerId: '', npc: true, values: {} }, refusedQ = [], drawnQ = [];
+        let roQ = null, vQ = null, vD = null, vT3 = null;
+        const PGQ = mkPageQ();
+        try {
+            roQ = SYQ.sbRowOps(fileQ, sysQ, findQ); vQ = SYQ.aliasFromShadowBase(fileQ, sysQ, FOQ).values;
+            vD = SYQ.aliasFromShadowBase(droidQ({ chassisId: FX, head: { componentId: FP, customHeightM: FX } }, { inventory: { armor: [{ name: FX, fit: { wornAtSm: FX } }] }, characteristics: { basicLift: [FX] } }), sysQ, FOQ).values;
+            vT3 = SYQ.aliasFromShadowBase(droidQ({ chassisId: 'wedge-series', head: { componentId: 't3-rotating' }, legs: [{ componentId: 't3-leg' }] }, { characteristics: { basicLift: '5.88 lbs' } }), sysQ, FOQ).values;
+            roQ.ops.forEach(o => { const a = SYQ.applyRowOp(sysQ, chQ, o.f, o.q, FOQ, {}); if (a.ok) chQ.values[o.f] = a.value; else refusedQ.push(o.q.op + ':' + a.reason); });
+            const WQ = new Function('document', 'rowStat', 'rowPaid', 'ovDot', 'rowLvl', 'fmtNum', 'LIMITS', 'commitItem', 'rowIdOf', "'use strict';\n" + lineQ('function el(tag, cls, text) {') + '\n' + lineQ('function lvlText(L, lv) {') + cutQ('\nfunction noteBits(', '\nvar _noteOpen')
+                + cutQ('\nfunction statFmt(v) {', '\n// F4c1: what one of a row cost') + cutQ('\nfunction statDot(s, spec, ovc) {', '\nvar _rfClearing') + '\nreturn { statChips, noteBits };')(PGQ.doc, SYQ.rowStat, SYQ.rowPaid, () => null, SYQ.rowLvl, SYQ.fmtNum, SYQ.LIMITS, () => {}, SYQ.rowIdOf);
+            sysQ.fields.filter(f => f.kind === 'item-list').forEach(f => (chQ.values[f.id] || []).forEach(r => { const rd = SYQ.rowDef(sysQ, r), host = PGQ.fake('div');
+                WQ.statChips(host, rd.def, f.list, null); const nb = WQ.noteBits(r, rd.def, null, f, false, null);
+                drawnQ.push({ f: f.id, name: rd.def.name, chips: host.children.map(c => [c.tag, c.className, c.children.map(k => [k.tag, k.textContent, (k.children || []).length])]), notes: nb ? nb.children.map(k => [k.tag, k.className, k.textContent, k.children.length]) : null }); }));
+        } catch (e) { refusedQ.push('threw: ' + String(e && e.stack || e).slice(0, 300)); }
+        const chipQ = (f, name, key) => { const d = drawnQ.find(x => x.f === f && x.name === name), st = sysQ.fields.find(x => x.id === f).list.stats.find(s => s.key === key), c = d ? d.chips.find(k => k[2][0][1] === st.label) : null; return c ? c[2][1][1] : null; };
+        const notesQ = (f, name) => { const d = drawnQ.find(x => x.f === f && x.name === name), n = d && d.notes ? d.notes.find(k => k[1] === 'sheet-item-notes') : null; return n ? n : null; };
+        const allowedQ = f => { const out = []; sysQ.fields.find(x => x.id === f).list.stats.forEach(s => { (s.labels || []).forEach(l => out.push(l)); (s.opts || []).forEach(o => out.push(o.label)); }); return out; };
+        const chipsOkQ = drawnQ.every(d => d.chips.every(c => c[0] === 'span' && c[1] === 'sheet-chip sheet-item-stat' && c[2].length === 2 && c[2][0][0] === 'small' && c[2][0][2] === 0 && c[2][1][0] === '#text'
+            && sysQ.fields.find(x => x.id === d.f).list.stats.some(s => s.label === c[2][0][1]) && (/^ -?\d+(\.\d+)?$/.test(c[2][1][1]) || allowedQ(d.f).indexOf(c[2][1][1].slice(1)) >= 0)));
+        // the file's own words are drawn only as the text of a notes line, an element with no child
+        const fileText = PGQ.made.filter(e => typeof e.textContent === 'string' && e.textContent.indexOf('data-file') >= 0);
+        const REASON = 'Cut two or more sizes from its wearer. It cannot be worn and gives nothing while worn. ';
+        check('m413 the bridge\'s readings of 2026-10-15 on the sheet (sbRowOps and the sheet\'s own noteBits, statChips and statLineNode, run for real on a page that refuses markup): from a hostile website file every op applies, every figure a reading writes is drawn as a chip of a small label and ONE text node that is a number or one of the system\'s own labels (the weight class Heavy by its label, None for a tier that is markup; the Armor specialty Heavy, None for a skill named in markup or for a specialty in markup; the sense the row\'s words name, Hearing by its label; the narrowed parry 2 on the blade its words name and 0 on a gun; a Destroyed loose part at 0.2 and 7); a piece that cannot be worn says why, its file\'s words after the reason in the SAME text of a notes line, an element that holds no child; nothing the file wrote is drawn but as such a text, nothing is written as markup, an attribute or a style; the size and the Basic Lift reach a number field as a number (a T3\'s -1.85, 5.88; a droid whose build derives no size at its stored record, which is markup here and so 0, as Number reads it) or not at all, never as the file\'s text; and no prototype is touched',
+            !!roQ && refusedQ.length === 0 && drawnQ.length >= 10 && chipsOkQ && PGQ.clean()
+            && chipQ('f_ar', FX, 'tier') === ' Heavy' && chipQ('f_ar', 'Vest', 'tier') === ' None' && chipQ('f_ar', FX, 'drTorso') === ' 3' && chipQ('f_sk', 'Armor (Heavy)', 'armT') === ' Heavy' && chipQ('f_sk', FX, 'armT') === ' None' && chipQ('f_sk', 'Armor (' + FX + ')', 'armT') === ' None'
+            && chipQ('f_dis', 'Acute Senses', 'sense') === ' ' + P + 'Hearing' && chipQ('f_wp', FX + ' Beskad', 'wnp') === ' 2' && chipQ('f_wp', 'Beskad ' + FX, 'wnp') === ' 0' && chipQ('f_am', FX, 'wt') === ' 0.2' && chipQ('f_am', FX, 'cr') === ' 7'
+            && j(notesQ('f_ar', FX)) === j(['div', 'sheet-item-notes', REASON + FX + ' ' + P, 0]) && j(notesQ('f_ar', 'Vest')) === j(['div', 'sheet-item-notes', FX, 0]) && j(notesQ('f_am', FX)) === j(['div', 'sheet-item-notes', FX, 0])
+            && fileText.length === 3 && fileText.every(e => e.tag === 'div' && e.className === 'sheet-item-notes' && e.children.length === 0)
+            && !!vQ && !('f_sm' in vQ) && !('f_bl' in vQ) && typeof vQ.f_dx === 'number' && !!vD && vD.f_sm === 0 && !('f_bl' in vD) && !!vT3 && vT3.f_sm === -1.85 && vT3.f_bl === 5.88
+            && protoQ() === pQ0 && !HTMLQ.test(cutQ('\nfunction noteBits(', '\nvar _noteOpen') + cutQ('\nfunction statFmt(v) {', '\n// F4c1: what one of a row cost')),
+            j([refusedQ, drawnQ.map(d => [d.f, d.name.length > 30 ? d.name.slice(0, 30) : d.name, d.chips.map(c => c[2][1] && c[2][1][1]), d.notes && d.notes.map(n => [n[1], n[2].slice(0, 40)])]), PGQ.htmlSet, PGQ.attrs, vQ, vD, vT3, fileText.length]));
+    }
+
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

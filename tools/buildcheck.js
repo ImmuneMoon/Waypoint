@@ -4629,6 +4629,153 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
     }
     }
 
+    /* ---- cell labels (1.5.4, backlog 34; the owner picked "Small table extras": "hex cell labels at a set opacity"): whiteboard.js sliced by its
+            celllabels markers and run for real on a page of plain objects whose canvas writes down what it is asked, the cells held against the
+            app's own snapToHex and the labels against a reading of the suite's own; the page, the style sheet, main.js and the words pinned ---- */
+    {
+        const wbL = read('system/app/scripts/whiteboard.js'), ixL = read('system/app/index.html'), cssL = read('system/app/style.css'), mainL = read('system/app/scripts/main.js');
+        const labSrc = wbL.split('// [buildcheck:celllabels-start]').length === 2 ? cutM(wbL, 'celllabels', 'whiteboard.js') : '';
+        const snapHex = new Function(cut(read('system/app/scripts/datamap.js'), 'function snapToHex(', '  ') + NL + 'return snapToHex;')();
+        const mkLab = o => {
+            o = o || {};
+            const calls = [], toasts = [], saves = [], ros = [];
+            const ctx = { setTransform(...a) { calls.push(['T'].concat(a)); }, clearRect(...a) { calls.push(['clear'].concat(a)); }, strokeText(t, x, y) { calls.push(['S', t, x, y]); }, fillText(t, x, y) { calls.push(['F', t, x, y]); } };
+            const cv = { width: 300, height: 150, style: {}, getContext: k => (k === '2d' ? ctx : null) };
+            const cls = () => { const s = new Set(); return { s, toggle(c, f) { if (f) s.add(c); else s.delete(c); return !!f; }, contains: c => s.has(c) }; };
+            const lis = () => ({ L: {}, addEventListener(t, f) { (this.L[t] = this.L[t] || []).push(f); }, fire(t) { (this.L[t] || []).forEach(f => f()); } });
+            const row = Object.assign(lis(), { attrs: {}, classList: cls(), setAttribute(k, v) { this.attrs[k] = String(v); } }), sl = Object.assign(lis(), { value: '50', disabled: true }), val = { textContent: '50%' };
+            const wrap = { clientWidth: o.W === undefined ? 800 : o.W, clientHeight: o.H === undefined ? 600 : o.H, scrollLeft: o.sl || 0, scrollTop: o.st || 0 };
+            const els = { cellLabels: cv, gridLabelsBtn: row, gridLabelsOpacity: sl, gridLabelsVal: val, whiteboardWrap: wrap };
+            if (o.noCanvas) delete els.cellLabels;
+            const doc = { getElementById: id => (Object.prototype.hasOwnProperty.call(els, id) ? els[id] : null) };
+            const W = { map: 'map' in o ? o.map : { id: 'm1', type: 'map', meta: { gridType: 'hex', cellLabels: 0.5 } } };
+            const st = { viewMode: o.view || 'visual', gridType: o.grid || 'hex', zoomLevel: o.zoom || 1 }, win = { devicePixelRatio: o.dpr || 1 };
+            const RO = function(f) { ros.push(typeof f); this.observe = el => { ros.push(el === wrap ? 'wrap' : '?'); }; };
+            const api = new Function('document', 'window', 'state', 'getActiveMap', 'save', 'toast', 'buildMay', 'ResizeObserver', "'use strict';" + NL + labSrc + NL
+                + 'return { cellLabelsOf: cellLabelsOf, hexColName: hexColName, hexLabelCells: hexLabelCells, drawCellLabels: drawCellLabels, cellLabelsSync: cellLabelsSync, cellLabelsToggle: cellLabelsToggle, cellLabelsSlide: cellLabelsSlide, cellLabelsWire: cellLabelsWire, MAX: CELL_LABEL_MAX };')(
+                doc, win, st, () => W.map, () => saves.push(j(W.map && W.map.meta)), t => toasts.push(t), o.noMay ? undefined : () => o.player !== true, RO);
+            return { api, W, cv, ctx, calls, row, sl, val, wrap, st, win, toasts, saves, ros, texts: () => calls.filter(c => c[0] === 'F').map(c => c.slice(1)) };
+        };
+        let L0 = null, lerr = ''; try { L0 = mkLab(); } catch (e) { lerr = String(e && e.stack || e); }
+        check('cell labels: whiteboard.js\'s celllabels slice is found once and runs on a page of plain objects', !!labSrc && !!L0 && lerr === '', lerr);
+        if (L0) {
+            const A = L0.api;
+            // a map's number, read the one way on every screen
+            const ofIn = [0.5, 1, 0.1, 0.05, 0.12, 0.13, 0.99, 1.5, 7, 0, -0.3, NaN, Infinity, -Infinity, '0.5', null, undefined, {}, [0.5], true];
+            check('cell labels: a map\'s number is read only as a number, 0.1 to 1 in steps of 0.05, and everything else (none, 0 or less, text, a list, an object, true, a number that is no number) is off',
+                j(ofIn.map(A.cellLabelsOf)) === j([0.5, 1, 0.1, 0.1, 0.1, 0.15, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), j(ofIn.map(A.cellLabelsOf)));
+            // a column's letters, against a reading of the suite's own
+            const LET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', mine = n => (n < 26 ? LET[n] : mine(Math.floor(n / 26) - 1) + LET[n % 26]);
+            const colBad = []; for (let c = 0; c < 2000; c++) if (A.hexColName(c) !== mine(c)) colBad.push([c, A.hexColName(c)]);
+            check('cell labels: a column\'s letters run A to Z, then AA, AB, and on to ZZ and AAA, for 2,000 columns as the suite reads them; anything that is no column has none',
+                colBad.length === 0 && A.hexColName(0) === 'A' && A.hexColName(25) === 'Z' && A.hexColName(26) === 'AA' && A.hexColName(701) === 'ZZ' && A.hexColName(702) === 'AAA'
+                && [-1, 1.5, '3', null, undefined, NaN, Infinity, 100001, [2]].every(c => A.hexColName(c) === ''), j(colBad.slice(0, 5)));
+            // the cells of a box, against the app's own snapToHex: each label in its own cell, and every cell the box shows labelled once
+            const want = (x0, y0, x1, y1) => {
+                const seen = new Map();
+                for (let px = Math.floor(x0) - 60; px <= x1 + 60; px += 15) for (let py = Math.floor(y0) - 60; py <= y1 + 60; py += 15) {   // 15 px apart: no hex cell, 52 across at its narrowest, lies between four of them
+                    const c = snapHex(px, py, 30, 'center'), cx = Math.round(c.x), cy = Math.round(c.y), q = (cx - 15) / 45;
+                    if (q < 0 || cy <= 0 || !(cx + 20 >= x0 && cx - 20 <= x1 && cy - 12 >= y0 && cy - 22 <= y1)) continue;
+                    seen.set(cx + ',' + cy, mine(q) + Math.ceil(cy / 52));
+                }
+                return [...seen.entries()].map(e => { const p = e[0].split(','); return [e[1], +p[0], +p[1] - 22]; }).sort();
+            };
+            const got = (x0, y0, x1, y1) => { const r = A.hexLabelCells(x0, y0, x1, y1, A.MAX); return r ? r.map(c => [c.t, c.x, c.y]).sort() : null; };
+            const boxes = [[0, 0, 800, 600], [0, 0, 200, 120], [-300, -300, 500, 400], [5000, 7000, 6200, 7800], [44, 25, 46, 27], [10, 10, 10, 10]];
+            for (let i = 0; i < 200; i++) { const x0 = ri(-300, 9000), y0 = ri(-300, 9000); boxes.push([x0, y0, x0 + ri(0, 1400), y0 + ri(0, 900)]); }
+            const boxBad = boxes.filter(b => j(got(...b)) !== j(want(...b)));
+            const cellBad = [], dup = [];
+            boxes.forEach(b => { const r = A.hexLabelCells(b[0], b[1], b[2], b[3], A.MAX) || [], ts = new Set();
+                r.forEach(c => { const mid = snapHex(c.x, c.y + 22, 30, 'center'), inside = snapHex(c.x, c.y + 5, 30, 'center'); if (mid.x !== c.x || Math.abs(mid.y - (c.y + 22)) > 1e-9 || inside.x !== mid.x || inside.y !== mid.y) cellBad.push([b, c]); if (ts.has(c.t)) dup.push(c.t); ts.add(c.t); }); });
+            const small = A.hexLabelCells(0, 0, 200, 120, A.MAX) || [], at = t => { const c = small.filter(s => s.t === t)[0]; return c ? [c.x, c.y] : null; };
+            check('cell labels: the labels of a box are exactly those of every cell whose middle is on the board and whose label meets the box, found again by the app\'s own snapToHex over 206 boxes on and off the board; each label stands in its own cell, at the top of it, and names it once; column A is the half cell at the left edge, row 1 the first whole cell of a column, an odd column\'s half a cell lower',
+                boxBad.length === 0 && cellBad.length === 0 && dup.length === 0 && j(at('A1')) === j([15, 30]) && j(at('B1')) === j([60, 4]) && j(at('C1')) === j([105, 30]) && j(at('B2')) === j([60, 56]) && at('A0') === null && at('B0') === null
+                && j(A.hexLabelCells(-500, -500, -100, -100, A.MAX)) === j([]), j([boxBad.slice(0, 2).map(b => [b, got(...b), want(...b)]), cellBad.slice(0, 2), dup.slice(0, 3)]).slice(0, 900));
+            const n800 = (A.hexLabelCells(0, 0, 800, 600, A.MAX) || []).length, t0 = Date.now(), huge = A.hexLabelCells(0, 0, 1e9, 1e9, A.MAX), wide = A.hexLabelCells(0, 0, 1e12, 10, A.MAX), tall = A.hexLabelCells(0, 0, 10, 1e12, A.MAX), strip = A.hexLabelCells(0, 15, 1e12, 25, A.MAX), quick = Date.now() - t0 < 200;
+            const junk = [[NaN, 0, 1, 1, 9], [0, 0, -1, 1, 9], [0, 1, 1, 0, 9], ['0', 0, 1, 1, 9], [0, 0, 1, 1, 0], [0, 0, 1, 1, Infinity], [0, 0, 1, 1, NaN], [0, 0, 1, 1, '9'], [0, 0, Infinity, 1, 9], [null, 0, 1, 1, 9]].map(a => A.hexLabelCells(...a));
+            check('cell labels: never more than the cap at once (' + A.MAX + '): a box that would hold one more gives none, at once however large it is, and so does a box wider than the cap\'s count of columns that holds no label at all (a strip between two rows of labels); a box that is no box, or a cap that is no number, gives none',
+                n800 > 100 && (A.hexLabelCells(0, 0, 800, 600, n800) || []).length === n800 && A.hexLabelCells(0, 0, 800, 600, n800 - 1) === null && huge === null && wide === null && tall === null && strip === null && j(A.hexLabelCells(0, 15, 1000, 25, A.MAX)) === j([]) && quick && junk.every(r => r === null) && A.MAX === 6000, j([n800, quick, junk]));
+            // drawn: the view's cells, in the board's own pixels, once a view
+            const props = c => [c.globalAlpha, c.font, c.textAlign, c.textBaseline, c.fillStyle, c.strokeStyle, c.lineWidth];
+            const first = A.drawCellLabels(), firstCalls = L0.calls.slice(), firstLook = props(L0.ctx), cv0 = [L0.cv.width, L0.cv.height, L0.cv.style.width, L0.cv.style.height, L0.cv.style.display];
+            const wantTxt = (A.hexLabelCells(0, 0, 800, 600, A.MAX) || []).map(c => [c.t, c.x, c.y]);
+            const again = A.drawCellLabels(), sameN = L0.calls.length;
+            L0.wrap.scrollLeft = 450; L0.wrap.scrollTop = 520; A.drawCellLabels(); const moved = L0.calls.slice(sameN), movedTxt = moved.filter(c => c[0] === 'F').map(c => c.slice(1));
+            check('cell labels: drawn on the one canvas the size of the view, in the board\'s own pixels as the rulers read the view, every label of the cells in view a dark edge and then light words, at the map\'s strength; drawn again only when the view changed, and then for the cells that are in view then',
+                first === true && again === true && j(firstCalls.slice(0, 3)) === j([['T', 1, 0, 0, 1, 0, 0], ['clear', 0, 0, 800, 600], ['T', 1, 0, 0, 1, -0, -0]]) && j(firstCalls.filter(c => c[0] === 'F').map(c => c.slice(1))) === j(wantTxt)
+                && firstCalls.slice(3).every((c, i) => c[0] === (i % 2 ? 'F' : 'S')) && firstCalls.length === 3 + 2 * wantTxt.length && sameN === firstCalls.length
+                && j(firstLook) === j([0.5, '600 10px Inter, sans-serif', 'center', 'top', '#ffffff', 'rgba(0,0,0,0.85)', 3]) && j(cv0) === j([800, 600, '800px', '600px', 'block'])
+                && j(moved.slice(0, 3)) === j([['T', 1, 0, 0, 1, 0, 0], ['clear', 0, 0, 800, 600], ['T', 1, 0, 0, 1, -450, -520]]) && j(movedTxt) === j((A.hexLabelCells(450, 520, 1250, 1120, A.MAX) || []).map(c => [c.t, c.x, c.y])), j([firstCalls.slice(0, 4), firstLook, cv0, moved.slice(0, 3)]));
+            const Z2 = mkLab({ zoom: 2, dpr: 2, sl: 100, st: 60 }); Z2.api.drawCellLabels(); const z2 = Z2.calls.slice(0, 3), z2t = Z2.texts();
+            const Zs = [0.45, 0.5].map(z => { const X = mkLab({ zoom: z }); const r = X.api.drawCellLabels(); return [r, X.cv.style.display || '', X.texts().length > 0]; });
+            const dpr9 = mkLab({ dpr: 9 }); dpr9.api.drawCellLabels();
+            check('cell labels: at another zoom and on a sharper screen the canvas holds the screen\'s own pixels and the labels stand where the board draws their cells; below 5 screen pixels a label is none, so a map zoomed far out draws none; a screen\'s sharpness is read at most twice the view',
+                j(z2) === j([['T', 1, 0, 0, 1, 0, 0], ['clear', 0, 0, 1600, 1200], ['T', 4, 0, 0, 4, -200, -120]]) && j(z2t) === j((Z2.api.hexLabelCells(50, 30, 450, 330, 6000) || []).map(c => [c.t, c.x, c.y])) && Z2.cv.width === 1600 && Z2.cv.style.width === '800px'
+                && j(Zs) === j([[false, 'none', false], [true, 'block', true]]) && dpr9.cv.width === 1600, j([z2, Zs, dpr9.cv.width]));
+            // where none are drawn
+            const none = [{ grid: 'square' }, { grid: 'off' }, { view: 'data' }, { map: null }, { map: { id: 'p', type: 'planner', meta: { cellLabels: 0.5 } } }, { map: { id: 'm', type: 'map' } }, { map: { id: 'm', type: 'map', meta: {} } },
+                { map: { id: 'm', type: 'map', meta: { cellLabels: '0.5' } } }, { map: { id: 'm', type: 'map', meta: { cellLabels: { v: 1 } } } }, { map: { id: 'm', type: 'map', meta: { cellLabels: -1 } } }, { W: 0 }, { H: 0 }]
+                .map(o => { const X = mkLab(o); let r, e = ''; try { r = X.api.drawCellLabels(); } catch (err) { e = String(err); } return [r, X.cv.style.display || '', X.calls.length, e]; });
+            const NC = mkLab({ noCanvas: true }); let ncR, ncE = ''; try { ncR = NC.api.drawCellLabels(); } catch (e) { ncE = String(e); }
+            const loud = mkLab({ map: { id: 'm', type: 'map', meta: { cellLabels: 5 } } }); loud.api.drawCellLabels();
+            const back = mkLab(); back.api.drawCellLabels(); back.st.gridType = 'square'; back.api.drawCellLabels(); const backHid = back.cv.style.display, nb = back.calls.length; back.st.gridType = 'hex'; back.api.drawCellLabels();
+            check('cell labels: none on a square grid, with no grid, on the data map, on a page, on a map that has none or holds no number for them, and in a view of no size: the canvas is put away and nothing drawn; with no canvas in the page nothing throws; a number past 1 is read as 1; and labels put away come back when the grid is hex again',
+                none.every(r => r[0] === false && r[1] === 'none' && r[2] === 0 && r[3] === '') && ncR === false && ncE === '' && loud.ctx.globalAlpha === 1 && backHid === 'none' && back.calls.length > nb && back.cv.style.display === 'block', j([none, ncR, ncE]));
+            // the Grid menu: the row, the slider and the figure, a toggle, the slider, and the GM's alone
+            const M = mkLab({ map: { id: 'm1', type: 'map', meta: { gridType: 'hex' } } }), mA = M.api;
+            mA.cellLabelsSync(); const off0 = [M.row.classList.contains('on'), M.row.attrs['aria-pressed'], M.sl.disabled, M.sl.value, M.val.textContent, M.cv.style.display];
+            const t1 = mA.cellLabelsToggle(), on1 = [j(M.W.map.meta), M.saves.length, M.row.classList.contains('on'), M.row.attrs['aria-pressed'], M.sl.disabled, M.cv.style.display, M.toasts.length];
+            const s1 = mA.cellLabelsSlide('80', false), on2 = [j(M.W.map.meta), M.saves.length, M.val.textContent, M.ctx.globalAlpha];
+            const s2 = mA.cellLabelsSlide('80', true), s3 = mA.cellLabelsSlide('abc', true), s4 = mA.cellLabelsSlide('3', false), on3 = [M.W.map.meta.cellLabels, M.saves.length];
+            mA.cellLabelsSlide('80', false); const t2 = mA.cellLabelsToggle(), off1 = [j(M.W.map.meta), 'cellLabels' in M.W.map.meta, M.saves.length, M.row.classList.contains('on'), M.sl.disabled, M.sl.value, M.cv.style.display];
+            const s5 = mA.cellLabelsSlide('60', true), off2 = [j(M.W.map.meta), M.saves.length];
+            mA.cellLabelsToggle(); const on4 = M.W.map.meta.cellLabels;
+            const M3 = mkLab({ map: { id: 'm3', type: 'map', meta: { cellLabels: 0.3 } } }); M3.api.cellLabelsToggle(); const m3off = 'cellLabels' in M3.W.map.meta; M3.api.cellLabelsToggle(); const m3on = M3.W.map.meta.cellLabels;
+            check('cell labels in the Grid menu: the row says whether they are on (gold, and pressed), the slider is off while they are, Cell labels puts them on at the strength last used, the map\'s own when it came with one, 50% the first time, and off again with one save each, Label opacity moves them as it slides and saves once it is let go, and does nothing while they are off',
+                j(off0) === j([false, 'false', true, '50', '50%', 'none']) && t1 === true && j(on1) === j(['{"gridType":"hex","cellLabels":0.5}', 1, true, 'true', false, 'block', 0])
+                && s1 === true && j(on2) === j(['{"gridType":"hex","cellLabels":0.8}', 1, '80%', 0.8]) && s2 === true && s3 === false && s4 === true && j(on3) === j([0.1, 2])
+                && t2 === true && j(off1) === j(['{"gridType":"hex"}', false, 3, false, true, '80', 'none']) && s5 === false && j(off2) === j(['{"gridType":"hex"}', 3]) && on4 === 0.8 && m3off === false && m3on === 0.3, j([off0, on1, on2, on3, off1, off2, on4, m3off, m3on]));
+            const SQ = mkLab({ grid: 'square', map: { id: 'm1', type: 'map', meta: { gridType: 'square' } } }); const sqT = SQ.api.cellLabelsToggle();
+            const PL = mkLab({ player: true }); const plMeta = j(PL.W.map.meta), plT = PL.api.cellLabelsToggle(), plS = PL.api.cellLabelsSlide('70', true);
+            const NB = mkLab({ noMay: true }), nbT = NB.api.cellLabelsToggle(), nbS = NB.api.cellLabelsSlide('70', true);
+            const NM = mkLab({ map: null }), nmT = NM.api.cellLabelsToggle(), PG = mkLab({ map: { id: 'p', type: 'planner', meta: {} } }), pgT = PG.api.cellLabelsToggle();
+            check('cell labels: put on over a square grid they are kept and said to show on a hex grid; on someone else\'s table, where the map builder\'s own test is not in reach, with no map and on a page, neither the row nor the slider changes anything; the test asked is the map builder\'s own, and whiteboard.js gains no place of its own that asks whose screen it is',
+                /\n  function cellLabelsMay\(\) \{ return typeof buildMay === 'function' && buildMay\(\); \}/.test(labSrc) && !/playerScreen/.test(labSrc) &&
+                sqT === true && SQ.W.map.meta.cellLabels === 0.5 && j(SQ.toasts) === j(['Cell labels show on a hex grid. Pick Hex in this menu to see them.']) && SQ.cv.style.display === 'none'
+                && plT === false && plS === false && j(PL.W.map.meta) === plMeta && PL.saves.length === 0 && nbT === false && nbS === false && NB.saves.length === 0 && nmT === false && NM.saves.length === 0 && pgT === false && j(PG.W.map.meta) === '{}', j([sqT, SQ.toasts, plT, plS, nmT, pgT]));
+            const WI = mkLab({ map: { id: 'm1', type: 'map', meta: { gridType: 'hex' } } }); let wiE = ''; try { WI.api.cellLabelsWire(); } catch (e) { wiE = String(e); }
+            WI.row.fire('click'); const wOn = WI.W.map.meta.cellLabels; WI.sl.value = '70'; WI.sl.fire('input'); const wIn = [WI.W.map.meta.cellLabels, WI.saves.length]; WI.sl.fire('change'); const wCh = WI.saves.length;
+            check('cell labels: the wiring presses the row, follows the slider as it moves and saves when it is let go, watches the view\'s own size, and hands the drawing to main.js',
+                wiE === '' && wOn === 0.5 && j(wIn) === j([0.7, 1]) && wCh === 2 && j(WI.ros) === j(['function', 'wrap']) && /window\.wpCellLabels = drawCellLabels;/.test(labSrc), j([wiE, wOn, wIn, wCh, WI.ros]));
+        }
+        // the page, the style sheet, the two hooks, and the words
+        const gm = (() => { const a = ixL.indexOf('<div class="shape-menu menu-list" id="gridMenu">'), z = ixL.indexOf('</div>\n          </div>', a); return a > 0 && z > a ? ixL.slice(a, z) : ''; })();
+        const LROW = '<button class="wb-tool-btn menu-row" id="gridLabelsBtn" title="Cell labels. On a hex grid each cell shows its column letter and row number, as A1. Kept with this map, and everyone at the table sees them. Press again to take them off."><span class="mr-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7V5h14v2M12 5v14M9.5 19h5"/></svg></span><span class="mr-txt">Cell labels<small>Each hex cell shows its name, as A1.</small></span></button>';
+        const LBLOCK = '<div class="menu-block" title="How strongly this map&rsquo;s cell labels show. Kept with the map.">\n                      <div class="draw-menu-label">Label opacity <span id="gridLabelsVal">50%</span></div>\n                      <input type="range" id="gridLabelsOpacity" min="10" max="100" step="5" value="50" style="width:100%;" disabled>\n                  </div>';
+        const board = ixL.slice(ixL.indexOf('<div id="main" class="main">'), ixL.indexOf('<div id="whiteboardWrap">'));
+        check('cell labels in the page: the Grid menu holds Cell labels after the grids, wearing the drawing the Text box row wears, with Label opacity under it, then Grid opacity; the canvas stands in the map\'s area right after the rulers, once, and out of a screen reader\'s way',
+            gm.includes('id="gridHexBtn"') && gm.indexOf('<div class="menu-rule"></div>\n                  ' + LROW + '\n                  ' + LBLOCK + '\n                  <div class="menu-rule"></div>\n                  <button class="wb-tool-btn menu-row" id="gridOpacityBtn"') > gm.indexOf('id="gridHexBtn"')
+            && ixL.split(' id="gridLabelsBtn"').length === 2 && ixL.split(' id="cellLabels"').length === 2 && board.includes('      <canvas id="rulerLeft" width="36"></canvas>\n      <canvas id="cellLabels" aria-hidden="true"></canvas>\n')
+            && ixL.split('<path d="M5 7V5h14v2M12 5v14M9.5 19h5"/>').length === 3, gm.slice(0, 200));
+        check('cell labels: the canvas lies over the map\'s view as the rulers do, under the fog of war as the grid is, and takes no press; the stream window keeps it where it keeps the grid; main.js asks for the labels at every scroll, zoom and resize of the view before the rulers\' own way out; the board asks at every redraw, once the grid is set; the slice writes no markup, and is wired once',
+            cssL.includes('\n  #cellLabels { position: absolute; top: 0; left: 0; z-index: 3940; pointer-events: none; display: none; }') && /\n  #fogScreen \{ position: fixed; z-index: 3950;/.test(cssL) && !/stream-mode[^{]*#cellLabels/.test(cssL)
+            && mainL.includes('    function renderRulers() {\n        if (window.wpCellLabels) window.wpCellLabels();') && mainL.split('window.wpCellLabels').length === 3
+            && wbL.includes("      if (mapGrid !== state.gridType) applyGridType(mapGrid);\n      if (typeof cellLabelsSync === 'function') cellLabelsSync();")
+            && wbL.split('cellLabelsWire();').length === 2 && wbL.includes('  // [buildcheck:celllabels-end]\n  cellLabelsWire();\n') && !/innerHTML|insertAdjacentHTML|outerHTML|document\.write/.test(labSrc));
+        const NOTE_L = "- On the play map, a hex grid can name its cells. Cell labels, in the\n  Grid menu, shows each cell's column letter and row number, as A1.\n  Label opacity sets how strongly they show. Both are kept with the\n  map, and everyone at the table sees them.\n";
+        check('cell labels said: Help\'s Grids part tells what they are, where to press, that they are kept with the map and seen by the table, how a cell is named and when they hide; both release notes carry the same lines',
+            ixL.includes('<li><b>Cell labels</b> give each cell of a hex grid a name: its column letter and its row number, as A1 or C7.\n') && ixL.includes('<li>Press <b>Cell labels</b> in the Grid menu to show them on this map, and again to take them off. <b>Label opacity</b> under it sets how strongly they show.</li>')
+            && ixL.includes('<li>Column A stands at the map&rsquo;s left edge, and row 1 is the first whole cell at the top of a column.</li>') && ixL.includes('<li>They show on a hex grid only. They hide while you are zoomed far out, and come back as you zoom in.</li>')
+            && [read('WHATSNEW.txt'), read('system/app/assets/whatsnew.txt')].every(t => t.split(NOTE_L).length === 2));
+        // the review (2026-10-16): the note stands under The play map, never under Character sheets, and the save-file guide names the key with
+        // what cellLabelsOf reads, in the map's meta block between the grid's scale and the camera
+        const underL = t => { const a = t.indexOf('\nThe play map\n'), z = t.indexOf('\nThe top bar and the data map\n', a), at = t.indexOf(NOTE_L); return a > 0 && z > a && at > a && at < z && t.slice(a + 1, at).indexOf('\n\n') < 0; };   // no blank line, the end of a section, between the heading and the note
+        const ciL = read('CAMPAIGN_INTEGRATION.md'), CIL = '    "cellLabels": 0.5,                 // OPTIONAL: a hex map\'s cell labels (A1, B2...), how strongly they\n                                       // show: a number above 0, read as 0.1 to 1 in steps of 0.05; absent,\n                                       // 0 or no number: off. Kept with the map; the table sees them too\n';
+        check('cell labels said where they belong (the review of 2026-10-16): the note stands under The play map in both release notes, and the save-file guide names map.meta.cellLabels in the map\'s meta block, after the grid\'s scale and before the camera, read as the labels read it',
+            [read('WHATSNEW.txt'), read('system/app/assets/whatsnew.txt')].every(underL) && ciL.split(CIL).length === 2 && ciL.indexOf(CIL) > ciL.indexOf('"cellValue": 100') && ciL.indexOf(CIL) < ciL.indexOf('    // lastX/lastY/lastZoom') && ciL.indexOf(CIL) > ciL.indexOf('### Map item'),
+            [read('WHATSNEW.txt'), read('system/app/assets/whatsnew.txt')].map(underL).join() + ' ' + ciL.indexOf('cellLabels'));
+    }
+
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

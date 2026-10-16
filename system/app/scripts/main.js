@@ -1148,6 +1148,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
     var RULER_STEPS = [25, 50, 100, 250, 500, 1000, 2500, 5000, 10000];
 
     function renderRulers() {
+        if (window.wpCellLabels) window.wpCellLabels();   // backlog 34: a hex map's cell labels follow the view as the rulers do, whether the rulers show or not (whiteboard.js)
         var top = document.getElementById('rulerTop');
         var left = document.getElementById('rulerLeft');
         var xm = document.getElementById('rulerCursorX');

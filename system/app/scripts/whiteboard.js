@@ -448,6 +448,7 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
       var mapGrid = (activeMap.meta && activeMap.meta.gridType) || 'off';
 
       if (mapGrid !== state.gridType) applyGridType(mapGrid);
+      if (typeof cellLabelsSync === 'function') cellLabelsSync();   // backlog 34: the Grid menu's Cell labels and the labels themselves follow the map on screen
 
       // Placed rulers are per-scene: clear them when the map changes
 
@@ -7597,6 +7598,117 @@ if(_el_shapeHexTriggerBtn) _el_shapeHexTriggerBtn.addEventListener('click', func
 
 
 
+  // [buildcheck:celllabels-start]
+  /* Cell labels (1.5.4, backlog 34; the owner picked "Small table extras": "hex cell labels at a set opacity"). On a hex map the GM may
+     have each cell show its name: a column letter, A for the column at the board's left edge, then B, and after Z, AA; and a row number,
+     1 for the first whole cell at the column's top. Odd columns stand half a cell lower, so their row 1 is too. The choice is kept with
+     the map as ONE number, map.meta.cellLabels, how strongly the labels show, from 0.1 to 1. None, or anything that is no such number,
+     is off: it is read only through cellLabelsOf, on the GM's screen and on a player's, whatever a file or a host holds. Everyone at the
+     table sees the labels, as everyone sees the grid, and the stream window shows them where it shows the grid.
+     They are drawn on one canvas the size of the map's view (#cellLabels, under the fog as the grid is), only the cells in view, only
+     while the hex grid is on and a label is large enough to read, and drawn again only when the view, the map or the number changed. So
+     a large map costs no more than a small one, and a map with them off costs one look at a number. */
+  var CELL_LABEL_FONT = 10, CELL_LABEL_MIN_PX = 5, CELL_LABEL_MAX = 6000;   // a label's size on the board; below 5 screen pixels none is drawn; at most this many at once
+  var _cellLab = { key: '', last: 0.5 };
+  // A map's number as the labels read it: 0 for off, else from 0.1 to 1 in steps of 0.05
+  function cellLabelsOf(v) {
+      if (typeof v !== 'number' || !isFinite(v) || v <= 0) return 0;
+      return Math.round(Math.max(0.1, Math.min(1, v)) * 20) / 20;
+  }
+  // A column's letters: 0 is A, 25 is Z, 26 is AA. '' for anything that is no column
+  function hexColName(c) {
+      if (typeof c !== 'number' || !(c >= 0) || c !== Math.floor(c) || c > 100000) return '';
+      var s = '';
+      for (var n = c + 1; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + (n - 1) % 26) + s;
+      return s;
+  }
+  // The labels for a box of the board (in its own pixels): [{ x, y, t }], x and y the top middle of a label and t its words. Cell centres are
+  // datamap.js snapToHex's own: x = 45q + 15, y = 52r in an even column and 52r + 26 in an odd one. A cell has a label where its column is on
+  // the board and its middle below the board's top edge, and the label is listed where its own box (40 wide, from 22 to 12 above the cell's
+  // middle) meets the box asked for. null where the box is none, or spans more columns or would hold more labels than max
+  function hexLabelCells(x0, y0, x1, y1, max) {
+      var num = function(v) { return typeof v === 'number' && isFinite(v); };
+      if (!num(x0) || !num(y0) || !num(x1) || !num(y1) || !(x1 >= x0) || !(y1 >= y0) || !num(max) || !(max > 0)) return null;
+      var qa = Math.max(0, Math.ceil((x0 - 35) / 45)), qb = Math.floor((x1 + 5) / 45);
+      if (qb - qa + 1 > max) return null;
+      var spans = [], total = 0, q, k;
+      for (q = qa; q <= qb; q++) {
+          var off = q % 2 ? 26 : 0, ka = Math.max(off ? 0 : 1, Math.ceil((y0 + 12 - off) / 52)), kb = Math.floor((y1 + 22 - off) / 52);
+          if (kb < ka) continue;
+          total += kb - ka + 1; if (total > max) return null;
+          spans.push([q, off, ka, kb]);
+      }
+      var out = [];
+      spans.forEach(function(sp) {
+          var col = hexColName(sp[0]), x = 45 * sp[0] + 15;
+          for (k = sp[2]; k <= sp[3]; k++) out.push({ x: x, y: 52 * k + sp[1] - 22, t: col + (sp[1] ? k + 1 : k) });
+      });
+      return out;
+  }
+  // Draws this screen's labels, or puts the canvas away. true: labels stand on screen
+  function drawCellLabels() {
+      var cv = document.getElementById('cellLabels'); if (!cv || typeof cv.getContext !== 'function') return false;
+      var m = getActiveMap(), wrap = document.getElementById('whiteboardWrap'), z = state.zoomLevel || 1;
+      var a = m && m.type === 'map' && m.meta ? cellLabelsOf(m.meta.cellLabels) : 0, W = wrap ? wrap.clientWidth : 0, H = wrap ? wrap.clientHeight : 0;
+      var cells = a > 0 && state.viewMode === 'visual' && state.gridType === 'hex' && W > 0 && H > 0 && CELL_LABEL_FONT * z >= CELL_LABEL_MIN_PX
+          ? hexLabelCells(wrap.scrollLeft / z, wrap.scrollTop / z, (wrap.scrollLeft + W) / z, (wrap.scrollTop + H) / z, CELL_LABEL_MAX) : null;
+      if (!cells) { if (_cellLab.key !== 'off') { cv.style.display = 'none'; _cellLab.key = 'off'; } return false; }
+      var d = Math.min(2, Math.max(1, Number(window.devicePixelRatio) || 1)), key = [m.id, a, z, wrap.scrollLeft, wrap.scrollTop, W, H, d].join('|');
+      if (key === _cellLab.key) return true;
+      _cellLab.key = key;
+      var pw = Math.round(W * d), ph = Math.round(H * d);
+      if (cv.width !== pw) cv.width = pw;
+      if (cv.height !== ph) cv.height = ph;
+      cv.style.width = W + 'px'; cv.style.height = H + 'px';
+      var ctx = cv.getContext('2d'); if (!ctx) return false;
+      ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, pw, ph);
+      ctx.setTransform(d * z, 0, 0, d * z, -wrap.scrollLeft * d, -wrap.scrollTop * d);   // the board's own pixels, as the rulers read the view
+      ctx.globalAlpha = a; ctx.font = '600 ' + CELL_LABEL_FONT + 'px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.lineJoin = 'round'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.fillStyle = '#ffffff';   // a dark edge under light words, as the grid's lines: they read on any ground
+      for (var i = 0; i < cells.length; i++) { ctx.strokeText(cells[i].t, cells[i].x, cells[i].y); ctx.fillText(cells[i].t, cells[i].x, cells[i].y); }
+      cv.style.display = 'block';
+      return true;
+  }
+  function cellLabelsMay() { return typeof buildMay === 'function' && buildMay(); }   // the GM's own campaign on the machine that owns it, as the map builder asks: never on someone else's table
+  // The Grid menu says how the map on screen stands, and the labels follow it
+  function cellLabelsSync() {
+      var m = getActiveMap(), a = m && m.type === 'map' && m.meta ? cellLabelsOf(m.meta.cellLabels) : 0, pct = Math.round((a || cellLabelsOf(_cellLab.last) || 0.5) * 100);
+      var row = document.getElementById('gridLabelsBtn'), sl = document.getElementById('gridLabelsOpacity'), val = document.getElementById('gridLabelsVal');
+      if (row) { row.classList.toggle('on', a > 0); row.setAttribute('aria-pressed', a > 0 ? 'true' : 'false'); }
+      if (sl) { sl.value = String(pct); sl.disabled = !(a > 0); }
+      if (val) val.textContent = pct + '%';
+      return drawCellLabels();
+  }
+  // Cell labels in the Grid menu: on at the last strength used, or off. One save, so one Undo takes it back
+  function cellLabelsToggle() {
+      var m = getActiveMap(); if (!m || m.type !== 'map' || !m.meta || !cellLabelsMay()) return false;
+      var a = cellLabelsOf(m.meta.cellLabels);
+      if (a > 0) { _cellLab.last = a; delete m.meta.cellLabels; }
+      else m.meta.cellLabels = cellLabelsOf(_cellLab.last) || 0.5;
+      save(); cellLabelsSync();
+      if (!(a > 0) && state.gridType !== 'hex') toast('Cell labels show on a hex grid. Pick Hex in this menu to see them.');
+      return true;
+  }
+  // Label opacity: the labels follow the slider as it moves, and the map is saved once it is let go. Only while they are on
+  function cellLabelsSlide(v, keep) {
+      var m = getActiveMap(), a = cellLabelsOf(parseInt(v, 10) / 100);
+      if (!m || m.type !== 'map' || !m.meta || !cellLabelsMay() || !(cellLabelsOf(m.meta.cellLabels) > 0) || !(a > 0)) return false;
+      _cellLab.last = a; m.meta.cellLabels = a;
+      var val = document.getElementById('gridLabelsVal'); if (val) val.textContent = Math.round(a * 100) + '%';
+      drawCellLabels();
+      if (keep === true) save();
+      return true;
+  }
+  function cellLabelsWire() {
+      var row = document.getElementById('gridLabelsBtn'), sl = document.getElementById('gridLabelsOpacity'), wrap = document.getElementById('whiteboardWrap');
+      if (row) row.addEventListener('click', function() { cellLabelsToggle(); });
+      if (sl) { sl.addEventListener('input', function() { cellLabelsSlide(sl.value, false); }); sl.addEventListener('change', function() { cellLabelsSlide(sl.value, true); }); }
+      if (wrap && typeof ResizeObserver === 'function') new ResizeObserver(function() { drawCellLabels(); }).observe(wrap);   // the view grew or shrank: a panel folded, the window resized
+      window.wpCellLabels = drawCellLabels;   // main.js renderRulers asks it at every scroll and zoom, as the rulers follow the view
+  }
+  // [buildcheck:celllabels-end]
+  cellLabelsWire();
+
   var _el_wbGridBtn = document.getElementById('wbGridBtn');
 
   if(_el_wbGridBtn) _el_wbGridBtn.addEventListener('click', function() {
@@ -7799,7 +7911,7 @@ function renderCombatModal() {
     var m = document.getElementById('combatModal'), list = document.getElementById('combatRows'); if (!m || !list || !combatDraft) return;
     var camp = getActiveCampaign(), map = camp && camp.items[combatDraft.mapId];
     document.getElementById('combatMapName').textContent = map && map.meta && map.meta.title || combatDraft.mapId;
-    var running = combatDraft.running;
+    var running = combatDraft.running, findHere = findWho(window.wpNet, !!window.wpStream), amHere = getActiveMap();   // backlog 26: a name finds its token on this screen
     document.getElementById('combatStartBtn').textContent = running ? 'Update Combat' : 'Start Combat';
     var rallB = document.getElementById('combatRollAllBtn'); if (rallB) rallB.style.display = window.wpSheets && window.wpSheets.hasInitRoll() ? '' : 'none';   // initiative O1: only with an initiative roll in the system
     list.innerHTML = combatDraft.rows.map(function(r, i) {
@@ -7807,7 +7919,7 @@ function renderCombatModal() {
             + '<span class="combat-grip" title="Drag to reorder">&#8942;</span>'
             + '<input type="checkbox" class="combat-on"' + (r.on ? ' checked' : '') + ' title="In the fight">'
             + (r.src ? '<img class="combat-face" src="' + esc(resolveImg(r.src)) + '" alt="">' : '<span class="combat-face combat-face-empty">' + (r.custom ? '&#10022;' : '&#9733;') + '</span>')
-            + '<span class="combat-name">' + esc(r.name) + (r.party ? ' <span class="combat-tag">party</span>' : '') + (r.targeted ? ' <span class="combat-tag" style="color:var(--gold); border-color:var(--gold);">' + r.targeted + '</span>' : '') + (r.custom ? ' <span class="combat-tag">custom</span>' : '') + '</span>'
+            + '<span class="combat-name">' + findName(r.name, r.tokId, !!findOf(combatDraft.mapId, r.tokId, findHere, amHere, state.viewMode)) + (r.party ? ' <span class="combat-tag">party</span>' : '') + (r.targeted ? ' <span class="combat-tag" style="color:var(--gold); border-color:var(--gold);">' + r.targeted + '</span>' : '') + (r.custom ? ' <span class="combat-tag">custom</span>' : '') + '</span>'
             + (r.charId && window.wpSheets && window.wpSheets.hasInitRoll() ? '<button class="tool ghost combat-roll" title="Roll initiative from the character sheet: a table roll, or yours alone when it reads a GM-only value. Players see the order, never the number">&#127922;</button>' : '')
             + '<input type="number" class="combat-init field" value="' + (r.init || 0) + '" title="Initiative — higher goes first">'
             + '<button class="tool ghost combat-up" title="Move up">&#9650;</button><button class="tool ghost combat-down" title="Move down">&#9660;</button>'
@@ -7832,6 +7944,7 @@ window.wpOpenCombat = openCombatModal;
         if (e.target.classList.contains('combat-init')) { combatDraft.rows[i].init = Number(e.target.value) || 0; combatDraft.rows[i].rolled = true; delete combatDraft.rows[i].tb; combatDraft.rows = combatSortByInit(combatDraft.rows); renderCombatModal(); }   // initiative O1: a number given is its number (a player's roll no longer changes it)
     });
     list.addEventListener('keydown', function(e) { e.stopPropagation(); });
+    m.addEventListener('pointerdown', function() { rosterUnpeek(m); });   // backlog 26: a press on the roster while it is faded for a find brings it back at once
     list.addEventListener('click', function(e) {
         var i = rowOf(e); if (i < 0) return;
         var rows = combatDraft.rows;
@@ -7839,6 +7952,7 @@ window.wpOpenCombat = openCombatModal;
         else if (e.target.closest('.combat-down') && i < rows.length - 1) { rows.splice(i + 1, 0, rows.splice(i, 1)[0]); renderCombatModal(); }
         else if (e.target.closest('.combat-roll')) { var rr = window.wpSheets && rows[i].charId ? window.wpSheets.rollInit(rows[i].charId, { priv: combatRollPriv(combatDraft.mapId, rows[i].tokId) }) : null; if (rr && rr.error) toast(rr.error); else if (rr && typeof rr.value === 'number') { rows[i].init = rr.value; rows[i].rolled = true; delete rows[i].tb; combatDraft.rows = combatSortByInit(rows); renderCombatModal(); } }
         else if (e.target.closest('.combat-del')) { rows.splice(i, 1); renderCombatModal(); }
+        else if (e.target.closest('.combat-find')) { if (combatFind(combatDraft.mapId, String(e.target.closest('.combat-find').dataset.tok || ''))) rosterPeek(m, FIND_MS + 200); }   // backlog 26: the token found on this screen, the roster faded while its ring shows
     });
     var dragI = -1;
     list.addEventListener('dragstart', function(e) { dragI = rowOf(e); if (dragI < 0) { e.preventDefault(); return; } e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', String(dragI)); } catch (err) {} });
@@ -7900,13 +8014,14 @@ function renderCombatStrip() {
     var cur = c.rows[c.turn] || {}, nxt = c.rows[(c.turn + 1) % c.rows.length] || {};
     var host = n.role === 'host', mine = !host && n.myTurnTok ? n.myTurnTok() : null;   // turn-based combat T2: the player on turn ends it here
     strip.style.display = 'flex';
+    var who = findWho(n, !!window.wpStream), nameOf = function(r) { return findName(r.name || '', r.tokId, !!findOf(am.id, r.tokId, who, am, state.viewMode)); };   // backlog 26: a name that finds its token on this screen is a button
     var myTokIds = {}; if (!host && am && Array.isArray(am.whiteboard)) am.whiteboard.forEach(function(w) { if (w && w.isChar && w.ownerId && w.ownerId === n.myId && typeof w.id === 'string') myTokIds[w.id] = 1; });   // initiative O3: whose held rows a player may act from
-    var heldH = c.rows.map(function(r, i) { return r && r.held === 1 && i !== c.turn ? '<span class="combat-strip-held" title="Holding their turn: Act puts them right after whoever is acting">held ' + esc(r.name || '') + '</span>' + (host || (typeof r.tokId === 'string' && myTokIds[r.tokId] === 1) ? '<button class="combat-strip-btn" data-act="act" data-row="' + esc(r.id) + '" title="Act now: right after whoever is acting">Act</button>' : '') : ''; }).join('');
+    var heldH = c.rows.map(function(r, i) { return r && r.held === 1 && i !== c.turn ? '<span class="combat-strip-held" data-tip="Holding their turn: Act puts them right after whoever is acting">held ' + nameOf(r) + '</span>' + (host || (typeof r.tokId === 'string' && myTokIds[r.tokId] === 1) ? '<button class="combat-strip-btn" data-act="act" data-row="' + esc(r.id) + '" title="Act now: right after whoever is acting">Act</button>' : '') : ''; }).join('');
     strip.innerHTML = '<span class="combat-strip-round" title="Round">&#9876; R' + c.round + '</span>'
         + (c.side === 'pc' || c.side === 'rest' ? '<span class="combat-strip-side" title="Side initiative: this round&rsquo;s sides roll put this side first">' + (c.side === 'pc' ? 'players first' : 'the rest first') + '</span>' : '')
         + (host ? '<button class="combat-strip-btn" data-act="prev" title="Previous turn">&#9664;</button>' : '')
-        + '<span class="combat-strip-cur" title="Whose turn it is">' + (cur.src ? '<img src="' + esc(resolveImg(cur.src)) + '" alt="">' : '') + esc(cur.name || '') + '</span>'
-        + '<span class="combat-strip-next" title="Up next">next ' + esc(nxt.name || '') + '</span>'
+        + '<span class="combat-strip-cur" data-tip="Whose turn it is">' + (cur.src ? '<img src="' + esc(resolveImg(cur.src)) + '" alt="">' : '') + nameOf(cur) + '</span>'
+        + '<span class="combat-strip-next" data-tip="Up next">next ' + nameOf(nxt) + '</span>'
         + (mine ? '<button class="combat-strip-btn combat-strip-endturn" data-act="endturn" title="End your turn: play moves on to the next in the order">End turn</button>' : '')
         + (host || mine ? '<button class="combat-strip-btn" data-act="hold" title="Hold this turn: play moves on, and Act later this round puts them right after whoever is acting (a hold not used by the round&rsquo;s end is lost)">Hold</button>' : '') + heldH
         + (host ? '<button class="combat-strip-btn" data-act="next" title="Next turn">&#9654;</button><button class="combat-strip-btn" data-act="edit" title="Combat roster">&#9998;</button><button class="combat-strip-btn danger" data-act="end" title="End combat">&times;</button>' : '');
@@ -7916,6 +8031,8 @@ window.wpRenderCombatStrip = renderCombatStrip;
     var strip = document.getElementById('combatStrip'); if (!strip) return;
     strip.addEventListener('pointerdown', function(e) { e.stopPropagation(); });
     strip.addEventListener('click', function(e) {
+        var fb = e.target.closest && e.target.closest('.combat-find');
+        if (fb) { e.stopPropagation(); var amF = getActiveMap(); if (amF) combatFind(amF.id, String(fb.dataset.tok || '')); return; }   // backlog 26: a name finds its token on this screen
         var b = e.target.closest && e.target.closest('.combat-strip-btn'); if (!b) return;
         e.stopPropagation();
         var n = window.wpNet, am = getActiveMap();
@@ -7930,6 +8047,70 @@ window.wpRenderCombatStrip = renderCombatStrip;
         else if (b.dataset.act === 'act') n.combatAct(am.id, String(b.dataset.row || ''));
     });
 })();
+// [lookcheck:combatfind-start]
+/* Find on the map from a fight (1.5.4, backlog 26; the owner picked "Find on map from the turn strip": "a press on a name in the turn strip or
+   the roster pans the map to that token and pings it. The Characters section already has Find on the map; this adds it where you run a
+   fight."). A press on a name there did nothing before, so the name itself is the button. It moves THIS screen alone: the pan is the board's
+   own scroll, which the scroll handler keeps as a view as it keeps a pan by hand (io.js saveView: nothing stamped, recorded or sent), and the
+   ring is fx.js's own ping drawn here through its receiver (wpFx.receive), never through play, which sends. The GM finds any token of the
+   fight on the map on screen, hidden or not; a player only a token their own copy of the map holds, which never holds a hidden one. A row
+   with no token, a row a player reads as Hidden, a token this screen's copy does not hold and every name in the stream window stay plain
+   text. The strip is drawn again at every redraw, so a name's tip is data-tip, never a title the browser would show beside it, and so is
+   the tip of the part of the strip that holds the name: the browser shows an element's title for whatever inside it has none. */
+var FIND_MS = 1600;   // as long as the GM's own ping shows (fx.js PING_MS)
+// Who may find here: 'gm' on the GM's own screen at a table, 'player' on a player's app, '' in the stream window or away from a table
+function findWho(n, stream) { if (stream === true || !n || n.active !== true || n.stream) return ''; return n.role === 'host' ? 'gm' : n.role === 'client' ? 'player' : ''; }
+// The token a name finds on this screen's copy of a map, or null. gm: the GM's own screen, where a hidden token is found too
+function findTok(map, tokId, gm) {
+    if (!map || map.type !== 'map' || !Array.isArray(map.whiteboard) || typeof tokId !== 'string' || !tokId) return null;
+    for (var i = 0; i < map.whiteboard.length; i++) {
+        var w = map.whiteboard[i]; if (!w || typeof w !== 'object' || w.id !== tokId) continue;
+        if (typeof w.x !== 'number' || typeof w.y !== 'number' || !isFinite(w.x) || !isFinite(w.y)) return null;
+        return w.hidden && gm !== true ? null : w;
+    }
+    return null;
+}
+// The token a fight's row finds here: only on the map on screen, shown as the play map, and only for whoever may find
+function findOf(mapId, tokId, who, am, view) { return (who === 'gm' || who === 'player') && !!am && am.id === mapId && view === 'visual' ? findTok(am, tokId, who === 'gm') : null; }
+// A name as the strip and the roster write it: a button where it finds a token here, else the plain name. Everything through esc
+function findName(name, tokId, ok) {
+    var t = esc(String(name || ''));
+    if (ok !== true || typeof tokId !== 'string' || !tokId) return t;
+    var tip = esc('Find ' + (String(name || '') || 'this token') + ' on the map');
+    return '<button type="button" class="combat-find" data-tok="' + esc(tokId) + '" data-tip="' + tip + '" aria-label="' + tip + '">' + t + '</button>';
+}
+// The scroll that puts the token's middle in the middle of a view vw by vh at zoom z, with that middle on the board
+function findScroll(tok, z, vw, vh) {
+    var zz = typeof z === 'number' && isFinite(z) && z > 0 ? z : 1, w = Number(tok.w), h = Number(tok.h);
+    var x = tok.x + (isFinite(w) && w > 0 ? w : 60) / 2, y = tok.y + (isFinite(h) && h > 0 ? h : 52) / 2;
+    return { x: x, y: y, left: Math.max(0, Math.round(x * zz - (Number(vw) || 0) / 2)), top: Math.max(0, Math.round(y * zz - (Number(vh) || 0) / 2)) };
+}
+// fx.js's ping round that token: as far out as its larger side, never less than 40
+function findPing(mapId, at, tok) { var w = Number(tok.w), h = Number(tok.h); return { kind: 'burst', look: 'ping', mapId: mapId, x: at.x, y: at.y, r: Math.round(Math.max(isFinite(w) ? w : 0, isFinite(h) ? h : 0, 40)), ms: FIND_MS }; }
+// The press: this screen is moved to the token, which is marked. Answers 'ring' (fx.js's ping drawn here), 'pulse' (Visual effects off: the
+// token's own pulse), 'pan' (moved, nothing to mark) or '' (nothing done; where the token is no longer here, said)
+function combatFind(mapId, tokId) {
+    var who = findWho(window.wpNet, !!window.wpStream); if (!who) return '';
+    var am = getActiveMap(), tok = findOf(mapId, tokId, who, am, state.viewMode);
+    if (!tok) { toast(who === 'gm' ? 'That token is no longer on this map.' : 'That token is not in sight now.'); return ''; }
+    var wrap = document.getElementById('whiteboardWrap'); if (!wrap) return '';
+    var at = findScroll(tok, state.zoomLevel, wrap.clientWidth, wrap.clientHeight);
+    wrap.scrollLeft = at.left; wrap.scrollTop = at.top;
+    var C = window.wpFxCore, F = window.wpFx, on = !window.wpVtt || !!window.wpVtt.on('fx');
+    var p = on && C && typeof C.cleanFx === 'function' && F && typeof F.receive === 'function' ? C.cleanFx(findPing(am.id, at, tok)) : null;
+    if (p) { F.receive(p); return 'ring'; }
+    var el = state.wbEls && Object.prototype.hasOwnProperty.call(state.wbEls, tok.id) ? state.wbEls[tok.id] : null;
+    if (!el || !el.classList) return 'pan';
+    el.classList.remove('fx-pulse'); void el.offsetWidth; el.classList.add('fx-pulse');
+    el.addEventListener('animationend', function done() { el.classList.remove('fx-pulse'); el.removeEventListener('animationend', done); });
+    return 'pulse';
+}
+// The roster lies over the map: a find from it fades it while the ring shows, so the map shows under it. A press on it, or the time, brings
+// it back
+var _peekT = null;
+function rosterUnpeek(m) { if (_peekT) { clearTimeout(_peekT); _peekT = null; } if (m && m.classList) m.classList.remove('combat-peek'); }
+function rosterPeek(m, ms) { if (!m || !m.classList) return; rosterUnpeek(m); m.classList.add('combat-peek'); _peekT = setTimeout(function() { _peekT = null; m.classList.remove('combat-peek'); }, ms); }
+// [lookcheck:combatfind-end]
 function openCastModal() {
     var m = document.getElementById('castModal'), list = document.getElementById('castList'); if (!m || !list) return;
     var camp = getActiveCampaign(); if (!camp) return;

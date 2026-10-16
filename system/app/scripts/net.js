@@ -391,6 +391,27 @@ function cleanHostFxb(w) { var S = window.wpSystemCore, out = []; if (w.isChar &
 // Lighting L4: an item's light as the host sent it, cleaned again (fogcore cleanLight: numbers clamped, a unit the app knows, the name short
 // plain text); with no cleaner on hand it does not come in
 function cleanHostLight(w) { var FCl = window.wpFogCore, lc = FCl && FCl.cleanLight ? FCl.cleanLight(w.light) : null; if (lc) w.light = lc; else if (w.type === 'light' && FCl && FCl.cleanLight) w.light = { bright: 0, dim: 0 }; else delete w.light; }
+// The camera (the review of backlog 26, 2026-10-16): where a screen last looked at a map (meta lastX, lastY and lastZoom on the data map,
+// lastWbX, lastWbY and lastWbZoom on the play map) is that screen's own. The GM's may rest on a hidden token (Find on the map, a pan), so
+// it never leaves the host: sanitizeItem deletes these keys, written out there. A player's app keeps none a host names (camHold, from
+// cleanHostMap) and keeps its own across a whole map and a delta (camOf before, camHold after). A map it holds no view of opens on a
+// token of its own there (camLand, from applyStage), else at the map's home as ever
+var CAM_KEYS = ['lastX', 'lastY', 'lastZoom', 'lastWbX', 'lastWbY', 'lastWbZoom'];
+function camOf(m) { var out = {}, me = m && typeof m === 'object' && m.meta && typeof m.meta === 'object' ? m.meta : null; if (me) CAM_KEYS.forEach(function(k) { if (Object.prototype.hasOwnProperty.call(me, k) && typeof me[k] === 'number' && isFinite(me[k])) out[k] = me[k]; }); return out; }
+function camHold(m, was) { if (!m || typeof m !== 'object' || !m.meta || typeof m.meta !== 'object') return m; CAM_KEYS.forEach(function(k) { delete m.meta[k]; if (was && typeof was === 'object' && Object.prototype.hasOwnProperty.call(was, k) && typeof was[k] === 'number' && isFinite(was[k])) m.meta[k] = was[k]; }); return m; }
+// me: this player's id; party: the stream window, which opens on any player's token. A character token before a waiting one, and only a
+// token this copy holds (the host sends no hidden one). Answers the point it opens on, or null where it leaves the camera as it was
+function camLand(map, me, party) {
+    if (!map || typeof map !== 'object' || map.type !== 'map' || !Array.isArray(map.whiteboard)) return null;
+    var num = function(v) { return typeof v === 'number' && isFinite(v); }, meta = map.meta && typeof map.meta === 'object' ? map.meta : null;
+    if (meta && num(meta.lastWbX) && num(meta.lastWbY)) return null;   // a view of its own: kept
+    var ok = function(w) { return !!w && typeof w === 'object' && !w.hidden && typeof w.ownerId === 'string' && w.ownerId !== '' && (party === true || (typeof me === 'string' && me !== '' && w.ownerId === me)) && num(w.x) && num(w.y); };
+    var tok = map.whiteboard.filter(function(w) { return ok(w) && w.isChar; })[0] || map.whiteboard.filter(function(w) { return ok(w) && w.waiting; })[0];
+    if (!tok) return null;
+    if (!meta) meta = map.meta = {};
+    meta.lastWbX = tok.x + (num(tok.w) && tok.w > 0 ? tok.w : 60) / 2; meta.lastWbY = tok.y + (num(tok.h) && tok.h > 0 ? tok.h : 52) / 2;
+    return { x: meta.lastWbX, y: meta.lastWbY };
+}
 function cleanHostMap(m) {
     if (!m || typeof m !== 'object') return m;
     if (Array.isArray(m.whiteboard)) m.whiteboard = m.whiteboard.slice(0, 6000).map(cleanHostWbItem).filter(Boolean); else m.whiteboard = [];
@@ -398,6 +419,7 @@ function cleanHostMap(m) {
     if (m.stub === true) { m.whiteboard = []; m.rooms = []; m.links = []; } else if (m.stub !== undefined) delete m.stub;   // possession: a stub holds nothing (whatever a host put on it); the mark is true or absent
     var flC = window.wpFogCore && window.wpFogCore.cleanFogLit ? window.wpFogCore.cleanFogLit(m.fogLit) : null; if (flC) m.fogLit = flC; else delete m.fogLit;   // lighting L3: the lit cells the host sent this player, cleaned again
     if (m.lightsCapped !== true) delete m.lightsCapped;
+    if (typeof camHold === 'function') camHold(m, null);   // the camera is this screen's own: none a host names (applyItem and applyItemDelta put this app's own back)
     if (m.meta && typeof m.meta === 'object') ['gen', 'city', 'world'].forEach(function(k) { if (m.meta[k] !== undefined) delete m.meta[k]; });   // 1.5.4: a map's GM-only meta keys (the seed and settings a dungeon, a city or a world was generated from) are never sent, and a player's app keeps none a host names. ONE list here and the same list in sanitizeItem: a new such key joins both (netcheck reads the two against each other)
     if (m.fogMarks !== undefined) { var mkC = window.wpFogCore && window.wpFogCore.cleanFogMarks ? window.wpFogCore.cleanFogMarks(m.fogMarks, ownCellKeysOf(m)) : null; if (mkC) m.fogMarks = mkC; else delete m.fogMarks; }   // senses S4: this player's marks, cleaned again
     if (m.fogOff !== undefined) { var ofC = window.wpFogCore && window.wpFogCore.cleanFogOff ? window.wpFogCore.cleanFogOff(m.fogOff, ownTokIdsOf(m)) : null; if (ofC) m.fogOff = ofC; else delete m.fogOff; }   // senses S7a: their own tokens only, cleaned again
@@ -703,6 +725,7 @@ function sanitizeItem(item) {
     if (item.type === 'doc') return window.wpDocRender ? window.wpDocRender.cleanDoc(item) : null;   // GM-only pages and unknown block types never leave the host; without the renderer, no page at all
     if (item.type !== 'map') return item;
     var m = JSON.parse(JSON.stringify(item), wireNum);
+    if (m.meta && typeof m.meta === 'object') { delete m.meta.lastX; delete m.meta.lastY; delete m.meta.lastZoom; delete m.meta.lastWbX; delete m.meta.lastWbY; delete m.meta.lastWbZoom; }   // the camera (CAM_KEYS, written out here): where the GM last looked may be on a hidden token, and is the GM's screen's own; a player's app opens on its own (camLand)
     if (m.meta && typeof m.meta === 'object') ['gen', 'city', 'world'].forEach(function(k) { if (m.meta[k] !== undefined) delete m.meta[k]; });   // 1.5.4: a map's GM-only meta keys (the seed and settings a dungeon, a city or a world was generated from, kept to make it again) never go on the wire. The same list as in cleanHostMap: a new such key joins both
     delete m.fogLit; delete m.lightsCapped;   // lighting L3: only ever set per player, on their own copy (fogCopyFor) — never from the host's map
     delete m.fogMarks; delete m.fogOff;   // senses S4: likewise a player's marks
@@ -1490,6 +1513,7 @@ function applyStage(stage) {
         var ptS = landS && landingPoint(destS, landS);
         if (ptS && ptS.wbX != null) { destS.meta = destS.meta || {}; destS.meta.lastWbX = ptS.wbX; destS.meta.lastWbY = ptS.wbY; }
     }
+    if (typeof camLand === 'function' && (net.role === 'client' || window.wpStream)) camLand(camp.items[stage.itemId], net.myId, !!window.wpStream);   // the camera: a map this app holds no view of opens on a token of its own there, never where the GM last looked (the host sends no camera)
     updateCampaignSelect();
     updateSidebarNav();
     render();
@@ -1592,7 +1616,9 @@ function applyItem(msg) {
     if (incoming && incoming.type === 'doc') { incoming = window.wpDocRender ? window.wpDocRender.cleanDoc(incoming, { keepHidden: true }) : null; if (!incoming) return; }   // a page is normalised before it is stored (a hostile host can send shapes, not just markup)
     if (!incoming || typeof incoming !== 'object') return;
     if (incoming.type !== 'map' && incoming.type !== 'doc') return;   // security (2026-10-01): a player's copy holds maps and pages, nothing else a host names (a planner never ships; an unknown kind used to be stored as sent)
+    var camWas = incoming.type === 'map' && typeof camOf === 'function' && Object.prototype.hasOwnProperty.call(camp.items, msg.itemId) ? camOf(camp.items[msg.itemId]) : null;   // the camera this app had for the map (none a host names)
     if (incoming.type === 'map') incoming = cleanHostMap(incoming);   // text items rebuilt, colors checked, bounded
+    if (camWas && typeof camHold === 'function') camHold(incoming, camWas);
     if (incoming.type === 'map' && typeof actOver === 'function') actOver(msg.itemId, incoming, ackIn(msg.ack));   // 14c: what this copy lacks of their own actions, written back
     net.applyingRemote = true;
     camp.items[msg.itemId] = incoming;
@@ -1906,6 +1932,7 @@ function applyItemDelta(msg) {
     var camp = campOf(msg.campId); if (!camp || !validKey(msg.itemId)) return;
     var it = own(camp.items, msg.itemId) ? camp.items[msg.itemId] : null;
     if (!it || it.stub === true) { broadcast({ type: 'needItem', campId: msg.campId, itemId: msg.itemId }, null); return; }   // never had it, or holds only its stub (possession): ask for the whole thing
+    var camWas = it.type === 'map' && typeof camOf === 'function' ? camOf(it) : null;   // the camera this app had for the map: a delta's meta names none, and cleanHostMap takes any off
     net.applyingRemote = true;
     (it.type === 'doc' ? ['blocks'] : ['whiteboard', 'rooms']).forEach(function(key) {   // a page has blocks, a map has the rest — a delta never adds the other kind
         var ch = msg[key]; if (!ch || typeof ch !== 'object') return;
@@ -1920,6 +1947,7 @@ function applyItemDelta(msg) {
     });
     ['links', 'meta', 'cats'].forEach(function(k) { if (msg[k] !== undefined) it[k] = msg[k]; });
     if (it.type === 'map') cleanHostMap(it);   // whatever the delta touched: text items rebuilt, colors checked, bounded
+    if (it.type === 'map' && camWas && typeof camHold === 'function') camHold(it, camWas);
     if (it.type === 'map' && typeof actOver === 'function') actOver(msg.itemId, it, ackIn(msg.ack));   // 14c: what this change lacks of their own actions, written back
     if (it.type === 'doc') {   // re-normalised after every delta, then the reader (if it shows this page) follows
         var cd = window.wpDocRender ? window.wpDocRender.cleanDoc(it, { keepHidden: true }) : null;

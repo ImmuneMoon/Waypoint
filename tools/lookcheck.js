@@ -50,7 +50,9 @@ const INVENTORY = ['wbFloatingToolbar', 'wbCenterBtn', 'wbCenterMenu', 'wbCenter
     // built with the tick the owner asked for on Explode (2026-10-07: "Ask each time"): Also hits the token at the centre, and the row that holds it
     'blastHitCentreRow', 'blastHitCentre',
     // built with the fog menu's groups (2026-10-06): its three folds, each a button and the part it shows
-    'fogFoldLight', 'fogLightVision', 'fogFoldPreview', 'fogPreviewBox', 'fogFoldCamp', 'fogCampBox'];
+    'fogFoldLight', 'fogLightVision', 'fogFoldPreview', 'fogPreviewBox', 'fogFoldCamp', 'fogCampBox',
+    // built with the cell labels (backlog 34, 2026-10-16; the owner picked "Small table extras"): the Grid menu's row, its slider with the figure beside it, and the canvas the labels are drawn on
+    'gridLabelsBtn', 'gridLabelsVal', 'gridLabelsOpacity', 'cellLabels'];
 // The choices inside the menus that have no id: found by the attribute their handler reads
 const ROWS = { buildshape: ['rect', 'circle', 'poly', 'corridor', 'line'], mode: ['grid', 'items', 'both'], straight: ['false', 'true'], tip: ['round', 'square', 'flat'], size: ['2', '3', '6', '10', '16'], emode: ['precise', 'segment'], unit: ['imperial', 'metric'],
     fgrid: ['square', 'hex'], fbrush: ['reveal', 'hide', 'clear'], fstroke: ['1', '3', '5', 'box', 'piece'], shapesize: ['free', 'cell'], as: ['r', 'd'], shape: ['circle', 'ring', 'cone', 'tok'] };
@@ -67,7 +69,7 @@ const board = (() => { const a = ix.indexOf('<div id="wbFloatingToolbar"'), z = 
     const idN = id => count(ix, ' id="' + id + '"'), ALL = INVENTORY.concat(HEADER, SETTINGS);
     const gone = ALL.filter(id => idN(id) !== 1).map(id => id + ' x' + idN(id)), out = INVENTORY.filter(id => count(board, ' id="' + id + '"') !== 1);
     check('nothing is removed (the owner: "lets not remove functionality with these updates, that critical."): each of the ' + INVENTORY.length + ' controls of the play map\'s toolbar, its menus and what stands around the map is in the page exactly once and still around the map, and so is each of the ' + HEADER.length + ' of the top bar with Import and every kind of Export, and each of the ' + SETTINGS.length + ' of the three switches in Settings',
-        board.length > 1000 && gone.length === 0 && out.length === 0 && INVENTORY.length === 205 && HEADER.length === 55 && SETTINGS.length === 6 && new Set(ALL).size === 266, J([gone, out]));
+        board.length > 1000 && gone.length === 0 && out.length === 0 && INVENTORY.length === 209 && HEADER.length === 55 && SETTINGS.length === 6 && new Set(ALL).size === 270, J([gone, out]));
     const rowsBad = Object.keys(ROWS).filter(k => J((board.match(new RegExp('<button[^>]* data-' + k + '="([^"]*)"', 'g')) || []).map(m => m.slice(m.lastIndexOf('="') + 2, -1))) !== J(ROWS[k]));
     const sw = (board.match(/<button class="draw-swatch" data-color="(#[0-9a-f]{6})"/g) || []).map(m => m.slice(-8, -1));
     check('nothing is removed, the choices inside the menus: Snap\'s three modes, the pen\'s two styles, three tips and five sizes, the eraser\'s two modes, the two measuring systems, the fog\'s two gridless grids, three brushes and five strokes, the two shape sizes, the Radius tool\'s three shapes and a circle\'s two readings, each in its order, and the seven colours of the pen and of the fill with a custom colour for each',
@@ -553,6 +555,7 @@ function runPress(P, win) {
     const ST = ' style="bottom:100%; top:auto; flex-direction:column; min-width:', C = '; left:50%; transform:translateX(-50%); margin-bottom:10px;">';
     const MENUS_BY_NAME = [
         ['<div class="shape-menu menu-list" id="gridMenu">', [['gridOffBtn', 'Off', '', 'Off'], ['gridSqBtn', 'Square', '', 'Square'], ['gridHexBtn', 'Hex', '', 'Hex'], '-',
+            ['gridLabelsBtn', 'Cell labels', 'Each hex cell shows its name, as A1.', 'Cell labels. On a hex grid each cell shows its column letter and row number, as A1. Kept with this map, and everyone at the table sees them. Press again to take them off.'], 'block', '-',
             ['gridOpacityBtn', 'Grid opacity&hellip;', 'Opens Settings at the grid&rsquo;s look.', 'Grid opacity&hellip; (opens Settings)']]],
         ['<div class="shape-menu menu-list" id="shapeMenu">', [['shapeRectBtn', 'Rectangle', '', 'Rectangle'], ['shapeCircBtn', 'Circle', '', 'Circle'], ['shapeDiaBtn', 'Diamond', '', 'Diamond'],
             ['shapeHexBtn', 'Hexagon', 'Seats onto the cells of a hex grid.', 'Hexagon &mdash; resizes like any shape; centers onto hex grid cells'], '-',
@@ -572,8 +575,8 @@ function runPress(P, win) {
     const read = open => (kidsOf(ix, open) || []).map(k => { const m = ROW.exec(k.text); return m ? [m[1], m[4], m[5] || '', m[2]] : k.text === '<div class="menu-rule"></div>' ? '-' : /^<div class="menu-block" title="[^"]+">/.test(k.text) ? 'block' : '?' + k.text.slice(0, 60); });
     const off = MENUS_BY_NAME.filter(m => J(read(m[0])) !== J(m[1])).map(m => [/id="([A-Za-z]+)"/.exec(m[0])[1], read(m[0])]);
     const noIcon = MENUS_BY_NAME.reduce((a, m) => a.concat((kidsOf(ix, m[0]) || []).filter(k => ROW.test(k.text) && !ROW.exec(k.text)[3] && ROW.exec(k.text)[1] !== 'gridOffBtn').map(k => k.ids[0])), []);
-    check('a toolbar menu lists each choice by its name (the owner: "the options need to be more obvious for what something does"): Grid, Shapes, Add, Scene and More each read as a list of rows in their order, a row its icon, its name, and a grey line where the name is not enough; every row keeps its id and the tooltip it had; Shapes keeps New shape size and New item opacity under its rows; with the four line types of the data map\'s Link menu and the three rows that generate a dungeon, a city and a world in Build\'s options the page holds twenty-six such rows',
-        off.length === 0 && noIcon.length === 0 && count(ix, 'class="wb-tool-btn menu-row') === 26, J([off, noIcon]));
+    check('a toolbar menu lists each choice by its name (the owner: "the options need to be more obvious for what something does"): Grid, Shapes, Add, Scene and More each read as a list of rows in their order, a row its icon, its name, and a grey line where the name is not enough; every row keeps its id and the tooltip it had; Shapes keeps New shape size and New item opacity under its rows; with the four line types of the data map\'s Link menu and the three rows that generate a dungeon, a city and a world in Build\'s options the page holds twenty-six such rows; the Grid menu has Cell labels after the grids, with Label opacity under it, then Grid opacity, so twenty-seven',
+        off.length === 0 && noIcon.length === 0 && count(ix, 'class="wb-tool-btn menu-row') === 27, J([off, noIcon]));
     // Build's options end in the three rows that lay a whole map (the map builder: the dungeon, the city, and the world of fold B7). Each
     // drawing was shown to the owner first: the dungeon's row wears Build's own blocks, the city's the drawing picked by prompt on the row's
     // sheet ("B. Wall and gate", 2026-10-11), and the world's the drawing picked by prompt on the world sheet ("A. Peaks (Recommended)",
@@ -906,6 +909,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         + "- The toolbar is laid out anew, and no tool is gone. Undo and redo\n  lead, then the tools in groups. Centre, the grid and snap stand in a\n  column at the map's right edge. More, the last button, holds Clear\n  board. In a narrow window the bar tightens, then wraps into even\n  rows, so no tool is ever cut off.\n"
         + "- A tool that has options has a small arrow beside its icon. The icon\n  takes the tool, and a second press puts it away. The arrow opens the\n  tool's options, and they stay up while you work, until you press the\n  arrow again or take another tool. Snap's icon switches snapping, and\n  its arrow opens what it snaps to.\n"
         + "- The toolbar's menus list each choice by name: Grid, Shapes, Add,\n  Scene and More. A grey line under a name says what the choice does\n  where the name is not enough, and the Grid menu marks the grid in\n  use.\n"
+        + "- On the play map, a hex grid can name its cells. Cell labels, in the\n  Grid menu, shows each cell's column letter and row number, as A1.\n  Label opacity sets how strongly they show. Both are kept with the\n  map, and everyone at the table sees them.\n"
         + "- The box at the top right of a map wears the toolbar's look. Its\n  pointer location and its zoom buttons can each be hidden on their\n  own. Tick them under Show in the centre menu, or press their buttons\n  in Settings > Table. The rulers have a tick there too.\n"
         + "- The blast tool is now the Radius tool, and every player has it. It\n  places a circle to measure with, in the ruler's gold. Type its size\n  in the ruler's unit, as a radius or as a diameter, and every token\n  inside shows its distance. Circles are yours alone. A blast with\n  damage is still thrown from a character's sheet.\n"
         + "- The Radius tool also measures a ring and a cone. A ring holds the\n  tokens between two distances. A cone is a wedge from a point: set\n  its angle, press a cell and drag to aim it, and drag its handle to\n  turn it later.\n"
@@ -927,6 +931,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         + "- The top of the window is one quiet row. Its captioned boxes are gone,\n  and each button still says what it is when you point at it.\n"
         + "- The campaign's name stands in the top row. Press it for the list of\n  your campaigns. The same menu holds Search, New, Rename, System and\n  Delete, which stood beside the list as five buttons.\n"
         + "- More, the three dots at the right end of the top row, holds Export\n  As with its twelve kinds, Import, Refresh, About and the way back to\n  the welcome screen.\n- Each kind of Export As has a small drawing beside its name.\n"
+        + "- Report a problem, in More and in About, opens a new issue page on\n  GitHub in your web browser. Waypoint's version and what it runs on\n  are filled in: the kind of computer, and the desktop app or a web\n  browser. Nothing is sent until you send it there.\n"
         + "- The top row has map tabs. The map on screen stands first, with its\n  parent maps inside the tab. Your pinned maps and the last maps you\n  opened follow. An eye and a number mark a map your players are on,\n  and the plus opens quick-jump.\n"
         + "- The top row has pills that say what is going on: this map's fog, the\n  table and its players, a pause, the round and whose turn it is, and\n  a fog preview. A pill shows only while it has something to say, and\n  a press opens its thing.\n"
         + "- A player's video chip and the Review button wear line drawings and\n  read as pills too.\n"
@@ -981,14 +986,15 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
     const header2 = ix.slice(ix.indexOf('<header>'), ix.indexOf('</header>')), FIVE = ['soundInd', 'musicInd', 'handoutsBtn', 'journalBtn', 'helpBtn'];
     const mmKids = kidsOf(ix, '<div class="row-menu" id="moreMenu" hidden>') || [], filesKids = kidsOf(ix, '<div class="rm-part" id="moreFiles">') || [], foldKids = kidsOf(ix, '<div class="rm-part" id="moreFold">') || [];
     const kindKids = kidsOf(ix, '<div id="saveAsMenu" class="dropdown header-dropdown" style="display:none;">') || [];
-    const ROW2 = /^<button class="rm-row" (id|data-press)="([A-Za-z]+)" title="([^"]*)">(<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">.*?<\/svg>|<img src="icon\.ico" alt="" class="rm-mark">)<span>([^<]+)<\/span>(?:<small data-badge="([A-Za-z]+)"><\/small>)?<\/button>$/;
-    const rowOf = k => { const m = ROW2.exec(k.text); return m ? [m[1], m[2], m[5], m[6] || '', m[4].indexOf('<img') === 0 ? 'mark' : 'drawing', m[3]] : k.text === '<div class="rm-rule"></div>' ? '-' : /^<div class="rm-label">[^<]+<\/div>$/.test(k.text) ? 'label:' + k.text.slice(22, -6) : '?' + k.open.slice(0, 70); };
+    const ROW2 = /^<button class="rm-row" (id|data-press)="([A-Za-z]+)" title="([^"]*)">(<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">.*?<\/svg>|<img src="icon\.ico" alt="" class="rm-mark">|<span class="rm-slot"><\/span>)<span>([^<]+)<\/span>(?:<small data-badge="([A-Za-z]+)"><\/small>)?<\/button>$/;
+    const rowOf = k => { const m = ROW2.exec(k.text); return m ? [m[1], m[2], m[5], m[6] || '', m[4].indexOf('<img') === 0 ? 'mark' : m[4].indexOf('<span') === 0 ? 'slot' : 'drawing', m[3]] : k.text === '<div class="rm-rule"></div>' ? '-' : /^<div class="rm-label">[^<]+<\/div>$/.test(k.text) ? 'label:' + k.text.slice(22, -6) : '?' + k.open.slice(0, 70); };
     const mmSeq = mmKids.map(k => (k.open === '<div class="rm-part" id="moreFiles">' ? 'files' : k.open === '<div class="rm-part" id="moreFold">' ? 'fold' : rowOf(k)));
     const filesSeq = filesKids.map(k => (k.open === '<div class="dropdown-wrap" id="saveAsDropdownWrap">' ? 'export:' + k.ids.join(',') : rowOf(k))), foldSeq = foldKids.map(rowOf);
     const drawOf = how => { const at = ix.indexOf(how), m = at < 0 ? null : /<svg class="ico[^"]*" viewBox="0 0 24 24" aria-hidden="true">.*?<\/svg>/.exec(ix.slice(at, ix.indexOf('</button>', at))); return m ? m[0] : '?' + how; };
     const KINDS = ['exportImgBtn', 'exportMapPicBtn', 'exportPdfBtn', 'exportHtmlBtn', 'exportMdBtn', '|', 'exportItemBtn', 'exportMapsBtn', 'exportWbsBtn', 'exportPlannersBtn', 'exportDocsBtn', '|', 'exportCampaignBtn', 'exportBtn'];
-    check('the More menu, as the owner passed it drawn: three dots at the right end of the row, the drawing the play map\'s own More wears, open a menu that is put away in the page and holds, in this order, Export As, Import, then Refresh Waypoint, About Waypoint and Back to the welcome screen, then the part that shows only while the row is folded: Sound, Music, Handouts, Journal and Help; Export As, Import, Refresh and About are the buttons they were, each with its id and its drawing and now its name, and Export As says it opens a list and keeps its twelve kinds beside it, in their order, each with its id; the row to the welcome screen wears the Waypoint mark and presses the mark itself; each of the five rows carries no id, wears the drawing of the control it stands for, and names a control that is still in the row, once',
+    check('the More menu, as the owner passed it drawn: three dots at the right end of the row, the drawing the play map\'s own More wears, open a menu that is put away in the page and holds, in this order, Export As, Import, then Refresh Waypoint, About Waypoint, Report a problem and Back to the welcome screen, then the part that shows only while the row is folded: Sound, Music, Handouts, Journal and Help; Export As, Import, Refresh and About are the buttons they were, each with its id and its drawing and now its name, and Export As says it opens a list and keeps its twelve kinds beside it, in their order, each with its id; the row to the welcome screen wears the Waypoint mark and presses the mark itself; Report a problem (backlog 34) presses the link in About, which is in the page once, and keeps the empty slot a row has for a drawing, since no drawing of its own has been shown to the owner; each of the five rows carries no id, wears the drawing of the control it stands for, and names a control that is still in the row, once',
         J(mmSeq) === J(['label:More', 'files', ['id', 'refreshBtn', 'Refresh Waypoint', '', 'drawing', 'Refresh Waypoint &mdash; reloads the app and puts you straight back into your session'], ['id', 'aboutBtn', 'About Waypoint', '', 'drawing', 'About Waypoint'],
+            ['data-press', 'aboutReportLink', 'Report a problem', '', 'slot', 'Report a problem. Opens a new issue page on GitHub in your web browser, with Waypoint&rsquo;s version and what it runs on filled in. Nothing is sent until you send it there.'],
             ['data-press', 'headerBrand', 'Back to the welcome screen', '', 'mark', 'Back to the welcome screen'], 'fold'])
         && J(filesSeq) === J(['export:saveAsDropdownWrap,saveAsBtn,saveAsMenu,' + KINDS.filter(k => k !== '|').join(','), ['id', 'importBtn', 'Import', '', 'drawing', 'Import. Bring in a campaign, a map, a planner or a page from a file.'], '-'])
         && J(foldSeq) === J(['-', 'label:Folded in while the window is narrow', ['data-press', 'soundInd', 'Sound', '', 'drawing', 'Sound. Your volume and mute.'], ['data-press', 'musicInd', 'Music', '', 'drawing', 'Music. Your volume and mute.'],
@@ -997,7 +1003,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         && /<div class="dropdown-wrap" id="saveAsDropdownWrap">\n\s*<button class="rm-row" id="saveAsBtn" aria-haspopup="true" title="Export As\. Save the open map, the campaign or everything as a file\."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="[^"]+"\/><\/svg><span>Export As<\/span><small>12 kinds &rsaquo;<\/small><\/button>\n\s*<div id="saveAsMenu" class="dropdown header-dropdown" style="display:none;">\n/.test(ix)
         && count(ix, '<button class="tool ghost icon" id="moreMenuBtn" aria-haspopup="true" aria-expanded="false" aria-controls="moreMenu" title="More. Export As, Import, Refresh, About and the welcome screen."><svg class="ico ico-dots" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5h.01M12 12h.01M12 19h.01"/></svg></button>') === 1
         && drawOf(' id="moreMenuBtn"') === drawOf(' id="wbMoreBtn"') && FIVE.every(id => drawOf(' data-press="' + id + '"') === drawOf(' id="' + id + '"') && count(header2, ' id="' + id + '"') === 1 && count(ix, ' data-press="' + id + '"') === 1)
-        && count(header2, ' data-press="') === 6 && count(ix, '<div class="header-brand" id="headerBrand" title="Back to the welcome screen" style="cursor:pointer;">\n      <img src="icon.ico" alt="" class="brand-icon">') === 1
+        && count(header2, ' data-press="') === 7 && count(ix, ' id="aboutReportLink"') === 1 && ix.indexOf(' id="aboutReportLink"') > ix.indexOf('<div id="aboutModal"') && ix.indexOf(' id="aboutReportLink"') < ix.indexOf('<div id="legalModal"') && count(ix, '<div class="header-brand" id="headerBrand" title="Back to the welcome screen" style="cursor:pointer;">\n      <img src="icon.ico" alt="" class="brand-icon">') === 1
         && /<div class="hdr-group" data-label="App">\n\s*<button class="tool ghost icon" id="settingsBtn"[^\n]*\n\s*<button class="tool ghost icon" id="helpBtn"[^\n]*\n\s*<div class="row-menu-wrap" id="moreMenuWrap">\n\s*<button class="tool ghost icon" id="moreMenuBtn"/.test(ix), J([mmSeq, filesSeq, foldSeq]).slice(0, 900));
     // ---- the twelve kinds of Export As, each in its own drawing (the sheet of thirteen, passed with "Use these drawings"; the map picture's on its own sheet, 2026-10-10, passed with "C. Corner marks") ----
     const KIND_D = { exportImgBtn: 'M3 5h18v14H3zM7.5 8.5a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6zM3.5 17l5-5 3.5 3.5 3-3 5.5 5.5', exportMapPicBtn: 'M3 8.5V5h3.5M17.5 5H21v3.5M21 15.5V19h-3.5M6.5 19H3v-3.5M7.5 8.5h9v7h-9zM12 8.5v7M7.5 12h9', exportPdfBtn: 'M7 8.5v-5h10v5M7 17H4.5V8.5h15V17H17M7 13.5h10v7H7z',
@@ -2068,6 +2074,154 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
     const CNOTE = "- The left panel has a Characters section, under Maps. It lists the\n  campaign's character sheets: your players' characters first, each\n  with its player's name, and the NPCs under one fold. Click one to\n  open its sheet. Right-click it for its HUD, to find its token on the\n  map or to delete the sheet. It has its own icon on the rail, and a\n  player sees their own characters there.\n";
     check('the Characters section, said: Help names it right after the entry on the panel\'s lists, and both release notes carry it after the rail\'s note',
         count(ix, 'that list&rsquo;s tools: add one, fold or unfold its tree, and <b>search</b> it.</li>\n                          ' + CHELP + '\n') === 1 && [rootRead('WHATSNEW.txt'), read('assets/whatsnew.txt')].every(t => count(t, "  map with that section alone, or the pin to keep it open.\n" + CNOTE) === 1));
+}
+
+// Find on the map from a fight (1.5.4, backlog 26; the owner picked "Find on map from the turn strip": "a press on a name in the turn strip or
+// the roster pans the map to that token and pings it"). whiteboard.js's combatfind slice run for real on a page of plain objects, with the
+// turn strip's own drawing and wiring and the roster's (each sliced from whiteboard.js) around it, the real esc of inspector.js and the
+// real fxcore cleaning the ring. The name itself is the button, since a press on it did nothing before; it moves this screen alone.
+{
+    const fSl = sliceOf(wbSrc, 'combatfind');
+    const cutWb = (a, z) => { const i = wbSrc.indexOf(a), k = wbSrc.indexOf(z, i + 1); return i >= 0 && k > i && count(wbSrc, a) === 1 ? wbSrc.slice(i, k) : ''; };
+    const stripSrc = cutWb('function renderCombatStrip() {', '\nwindow.wpRenderCombatStrip = renderCombatStrip;'), stripWire = cutWb('(function wireCombatStrip() {', '\n// [lookcheck:combatfind-start]');
+    const modalSrc = cutWb('function renderCombatModal() {', '\nfunction openCombatModal('), modalWire = cutWb('(function wireCombatModal() {', '\nfunction renderCombatStrip() {');
+    const escSrc = (/\n  (function esc\(s\)\{return [^\n]*\})\n/.exec(read('scripts/inspector.js')) || [])[1] || '';
+    let cf = {}, cferr = '';
+    try {
+        const FX = new Function(read('scripts/fxcore.js').replace(/\nexport \{[^}]*\};?/, '\n') + '\nreturn API;')();
+        const cls = () => { const s = new Set(); return { s, add(c) { s.add(c); }, remove(c) { s.delete(c); }, contains(c) { return s.has(c); } }; };
+        const node = id => ({ id, on: {}, style: {}, dataset: {}, innerHTML: '', textContent: '', classList: cls(), offsetWidth: 1, addEventListener(t, f) { (this.on[t] = this.on[t] || []).push(f); }, removeEventListener(t, f) { this.on[t] = (this.on[t] || []).filter(x => x !== f); } });
+        const TOKS = () => [{ id: 't_ana', isChar: true, ownerId: 'u_a', x: 1000, y: 2000, w: 60, h: 52 }, { id: 't_orc', isChar: true, x: 3000, y: 4000, w: 120, h: 100 }, { id: 't_hid', isChar: true, hidden: true, x: 500, y: 600, w: 60, h: 52 }];
+        const ROWS = () => [{ id: 'r_ana', name: 'Ana', tokId: 't_ana', init: 0 }, { id: 'r_orc', name: 'Orc <b>"x"', tokId: 't_orc', init: 0, held: 1 }, { id: 'c_trap', name: 'Trap', tokId: null, init: 0 }, { id: 'r_hid', name: 'Ghost', tokId: 't_hid', init: 0 }];
+        const world = o => {
+            o = o || {};
+            const log = [], toasts = [], sent = [], timers = [];
+            const map = { id: 'm1', type: 'map', meta: { title: 'Keep' }, whiteboard: o.toks || TOKS() };
+            const camp = { activeItemId: 'm1', items: { m1: map, m2: { id: 'm2', type: 'map', meta: { title: 'Yard' }, whiteboard: [] } } };
+            const net = { active: o.active !== false, role: o.role || 'host', myId: 'u_a', stream: !!o.netStream, combats: { m1: { mapId: 'm1', round: 2, turn: o.turn || 0, rows: o.rows || ROWS() } }, send: m => sent.push(m), myTurnTok: () => null,
+                combatStep: (id, d) => log.push('step ' + id + ' ' + d), combatEnd: id => log.push('end ' + id), combatHold: id => log.push('hold ' + id), combatAct: (id, r) => log.push('act ' + id + ' ' + r) };
+            const fx = { receive: f => log.push('receive ' + JSON.stringify(f)), play: f => { log.push('PLAY'); sent.push(f); } };
+            const win = { wpNet: net, wpFx: o.noFx ? undefined : fx, wpFxCore: FX, wpVtt: { on: k => !(k === 'fx' && o.fxOff) } };
+            if (o.stream) win.wpStream = true;
+            const st = { viewMode: o.view || 'visual', zoomLevel: o.zoom || 1, wbEls: {} };
+            const els = {}; ['combatStrip', 'combatModal', 'combatRows', 'combatMapName', 'combatStartBtn', 'combatCancelBtn', 'combatCloseBtn'].forEach(id => { els[id] = node(id); });
+            els.whiteboardWrap = { clientWidth: 800, clientHeight: 600, scrollLeft: 5, scrollTop: 7 };
+            (o.toks || map.whiteboard).forEach(w => { if (!o.noEl) st.wbEls[w.id] = node(w.id); });
+            const doc = { getElementById: id => (Object.prototype.hasOwnProperty.call(els, id) ? els[id] : null) };
+            const api = new Function('document', 'window', 'state', 'getActiveMap', 'getActiveCampaign', 'toast', 'resolveImg', 'setTimeout', 'clearTimeout', 'openCombatModal', 'draft',
+                escSrc + '\nvar combatDraft = draft;\n' + fSl + '\n' + stripSrc + '\n' + stripWire + '\n' + modalSrc + '\n' + modalWire
+                + '\nreturn { findWho: findWho, findTok: findTok, findOf: findOf, findName: findName, findScroll: findScroll, findPing: findPing, combatFind: combatFind, rosterPeek: rosterPeek, rosterUnpeek: rosterUnpeek, renderCombatStrip: renderCombatStrip, renderCombatModal: renderCombatModal, FIND_MS: FIND_MS, draft: function(d) { if (d !== undefined) combatDraft = d; return combatDraft; } };')(
+                doc, win, st, () => camp.items[camp.activeItemId], () => camp, t => toasts.push(t), s => 'img:' + s, (f, ms) => { timers.push({ f, ms }); return timers.length; }, k => log.push('clear ' + k), id => log.push('roster ' + id), o.draft || null);
+            const ev = t => ({ target: t, stopped: 0, stopPropagation() { this.stopped++; }, preventDefault() {} });
+            const fire = (e, type, x) => { (e.on[type] || []).slice().forEach(f => f.call(e, x)); return x; };
+            return { api, els, st, camp, map, net, win, log, toasts, sent, timers, ev, fire, take: () => [log.splice(0), toasts.splice(0)] };
+        };
+        // the pure parts
+        const A = world().api;
+        cf.who = [A.findWho({ active: true, role: 'host' }, false), A.findWho({ active: true, role: 'client' }, false), A.findWho({ active: true, role: 'host' }, true), A.findWho({ active: true, role: 'client', stream: true }, false),
+            A.findWho({ active: false, role: 'host' }, false), A.findWho({ active: 'yes', role: 'host' }, false), A.findWho({ active: true, role: 'peer' }, false), A.findWho(null, false)];
+        const m = { id: 'm1', type: 'map', whiteboard: TOKS().concat([{ id: 't_str', x: '10', y: 20 }, { id: 't_nan', x: NaN, y: 1 }]) };
+        const id = w => (w ? w.id : null);
+        cf.tok = [id(A.findTok(m, 't_ana', false)), id(A.findTok(m, 't_hid', true)), id(A.findTok(m, 't_hid', false)), id(A.findTok(m, 't_hid', 'yes')), id(A.findTok(m, 't_none', true)), id(A.findTok(m, '', true)), id(A.findTok(m, null, true)),
+            id(A.findTok(m, 't_str', true)), id(A.findTok(m, 't_nan', true)), id(A.findTok(m, 'constructor', true)), id(A.findTok(Object.assign({}, m, { type: 'planner' }), 't_ana', true)), id(A.findTok({ id: 'm1', type: 'map', whiteboard: {} }, 't_ana', true)), id(A.findTok(null, 't_ana', true))];
+        cf.of = [id(A.findOf('m1', 't_hid', 'gm', m, 'visual')), id(A.findOf('m1', 't_hid', 'player', m, 'visual')), id(A.findOf('m1', 't_ana', 'player', m, 'visual')), id(A.findOf('m2', 't_ana', 'gm', m, 'visual')),
+            id(A.findOf('m1', 't_ana', 'gm', m, 'data')), id(A.findOf('m1', 't_ana', '', m, 'visual')), id(A.findOf('m1', 't_ana', 'gm', null, 'visual'))];
+        cf.name = [A.findName('Orc <b>"x"', 't"><i', true), A.findName('Orc <b>', 't_orc', false), A.findName('Orc', null, true), A.findName('', 't_x', true), A.findName(undefined, 't_x', 'yes')];
+        cf.scroll = [A.findScroll({ x: 1000, y: 2000, w: 60, h: 52 }, 1, 800, 600), A.findScroll({ x: 1000, y: 2000, w: 60, h: 52 }, 2, 800, 600), A.findScroll({ x: 10, y: 10 }, 1, 800, 600), A.findScroll({ x: 100, y: 100, w: '120', h: -4 }, 0, 0, undefined)];
+        cf.ping = [A.findPing('m1', { x: 1030, y: 2026 }, { w: 60, h: 52 }), A.findPing('m1', { x: 1, y: 2 }, { w: 120, h: 300 }), A.findPing('m1', { x: 1, y: 2 }, { w: 'x', h: 10 }), FX.cleanFx(A.findPing('m1', { x: 1030, y: 2026 }, { w: 60, h: 52 }))];
+        // the press on each screen
+        const press = (o, tok, mapId) => { const Wd = world(o), before = J(Wd.camp); const r = Wd.api.combatFind(mapId || 'm1', tok); const t = Wd.take();
+            return [r, Wd.els.whiteboardWrap.scrollLeft, Wd.els.whiteboardWrap.scrollTop, t[0], t[1], Wd.sent.length, J(Wd.camp) === before, Wd.st.wbEls[tok] ? [...Wd.st.wbEls[tok].classList.s] : null]; };
+        cf.gm = [press({}, 't_ana'), press({}, 't_hid'), press({ zoom: 2 }, 't_orc'), press({}, 't_none'), press({}, 't_ana', 'm2'), press({ view: 'data' }, 't_ana')];
+        cf.player = [press({ role: 'client' }, 't_ana'), press({ role: 'client' }, 't_hid'), press({ role: 'client' }, 't_gone'), press({ role: 'client', stream: true }, 't_ana'), press({ role: 'client', netStream: true }, 't_ana'), press({ active: false }, 't_ana')];
+        const P1 = world({ fxOff: true }), p1 = P1.api.combatFind('m1', 't_orc'), e1 = P1.st.wbEls.t_orc, had = e1.classList.contains('fx-pulse'); P1.fire(e1, 'animationend', {});
+        cf.pulse = [p1, had, e1.classList.contains('fx-pulse'), (e1.on.animationend || []).length, P1.take(), P1.els.whiteboardWrap.scrollLeft, press({ noFx: true }, 't_ana')[0], press({ fxOff: true, noEl: true }, 't_ana').slice(0, 4),
+            press({ toks: [{ id: 't_far', x: 40000, y: 10, w: 60, h: 52 }] }, 't_far').slice(0, 5)];
+        // the strip, drawn by its own code
+        const tags = h => (h.match(/<button type="button" class="combat-find"[^>]*>[^<]*<\/button>/g) || []);
+        const G = world(); G.api.renderCombatStrip(); const gH = G.els.combatStrip.innerHTML;
+        const G2 = world({ turn: 2 }); G2.api.renderCombatStrip(); const g2H = G2.els.combatStrip.innerHTML;
+        const PR = [{ id: 'h0', name: 'Hidden', tokId: null }, { id: 'r_ana', name: 'Ana', tokId: 't_ana' }, { id: 'r_gone', name: 'Bandit', tokId: 't_gone', held: 1 }, { id: 'r_orc', name: 'Orc', tokId: 't_orc' }];
+        const PL = world({ role: 'client', rows: PR, toks: TOKS().filter(w => !w.hidden) }); PL.api.renderCombatStrip(); const pH = PL.els.combatStrip.innerHTML;
+        const PL2 = world({ role: 'client', rows: PR, turn: 1, toks: TOKS().filter(w => !w.hidden) }); PL2.api.renderCombatStrip(); const p2H = PL2.els.combatStrip.innerHTML;
+        const SW = world({ stream: true }); SW.api.renderCombatStrip(); const sH = SW.els.combatStrip.innerHTML;
+        // the review (2026-10-16): the browser shows an element's title for whatever inside it has none, so no part of the strip or of a
+        // roster row that holds a name button may wear one beside the button's own tip: each name button's open tags around it, read in order
+        const titledAround = h => { const out = [], open = []; const re = /<(\/?)([a-z]+)\b([^>]*)>/g; let mt; while ((mt = re.exec(h))) { if (/^(img|input|br)$/.test(mt[2])) continue; if (mt[1]) { open.pop(); continue; } if (/ class="combat-find"/.test(mt[3]) && open.some(a => / title="/.test(a))) out.push(mt[0]); open.push(mt[3]); } return out; };
+        cf.titled = [titledAround(gH), titledAround(g2H), titledAround(pH), titledAround(p2H), titledAround('<div class="combat-row"><span title="x"><b>n</b> <button type="button" class="combat-find" data-tok="t">a</button></span></div>').length,
+            gH.indexOf('<span class="combat-strip-cur" data-tip="Whose turn it is">') > 0 && g2H.indexOf('<span class="combat-strip-held" data-tip="Holding their turn: Act puts them right after whoever is acting">held <button') > 0];
+        cf.strip = [tags(gH), tags(g2H), tags(pH), tags(p2H), tags(sH), /title="/.test(tags(gH).join('')), gH.indexOf('<span class="combat-strip-next" data-tip="Up next">next <button') > 0, pH.indexOf('<span class="combat-strip-cur" data-tip="Whose turn it is">Hidden</span>') >= 0,
+            p2H.indexOf('held Bandit</span>') >= 0, sH.indexOf('Orc &lt;b&gt;&quot;x&quot;') > 0];
+        // the strip, wired by its own code
+        const S = world(), sFake = (f, b) => ({ closest: q => (q === '.combat-find' ? f : q === '.combat-strip-btn' ? b : null) });
+        const sE = S.fire(S.els.combatStrip, 'click', S.ev(sFake({ dataset: { tok: 't_orc' } }, null)));
+        const sWas = [sE.stopped, S.els.whiteboardWrap.scrollLeft, S.els.whiteboardWrap.scrollTop, S.take()];
+        const nE = S.fire(S.els.combatStrip, 'click', S.ev(sFake(null, { dataset: { act: 'next' } }))), nWas = [nE.stopped, S.take()];
+        const zE = S.fire(S.els.combatStrip, 'click', S.ev(sFake(null, null))), zWas = [zE.stopped, S.take(), S.els.whiteboardWrap.scrollLeft];
+        const PS = world({ role: 'client' }); PS.fire(PS.els.combatStrip, 'click', PS.ev(sFake({ dataset: { tok: 't_hid' } }, null))); const psWas = [PS.take(), PS.els.whiteboardWrap.scrollLeft];
+        cf.stripWire = [sWas, nWas, zWas, psWas, (S.els.combatStrip.on.pointerdown || []).length];
+        // the roster, drawn by its own code
+        const DR = mapId => ({ mapId, running: false, rows: [{ id: 'r_t_ana', name: 'Ana', tokId: 't_ana', init: 0, on: true }, { id: 'c_trap', name: 'Trap', tokId: null, init: 0, on: true, custom: true }, { id: 'r_t_orc', name: 'Orc', tokId: 't_orc', init: 0, on: true }] });
+        const R = world({ draft: DR('m1') }); R.api.renderCombatModal(); const rH = R.els.combatRows.innerHTML;
+        const R2 = world({ draft: DR('m2') }); R2.api.renderCombatModal(); const r2H = R2.els.combatRows.innerHTML;
+        const R3 = world({ draft: DR('m1'), view: 'data' }); R3.api.renderCombatModal(); const r3H = R3.els.combatRows.innerHTML;
+        cf.titled.push(titledAround(rH));
+        cf.roster = [tags(rH), tags(r2H).length, tags(r3H).length, rH.indexOf('<span class="combat-name">Trap <span class="combat-tag">custom</span></span>') > 0, R.els.combatModal.style.display];
+        // the roster, wired by its own code: a find fades it while the ring shows, the time or a press on it brings it back
+        const RW = world({ draft: DR('m1') }), row = { dataset: { i: '2' } }, rFake = f => ({ closest: q => (q === '.combat-row' ? row : q === '.combat-find' ? f : null) });
+        RW.fire(RW.els.combatRows, 'click', RW.ev(rFake({ dataset: { tok: 't_orc' } })));
+        const rw1 = [RW.els.combatModal.classList.contains('combat-peek'), RW.timers.map(t => t.ms), RW.els.whiteboardWrap.scrollLeft, RW.take()];
+        RW.timers[0].f(); const rw2 = RW.els.combatModal.classList.contains('combat-peek');
+        RW.fire(RW.els.combatRows, 'click', RW.ev(rFake({ dataset: { tok: 't_ana' } }))); const rw3 = RW.els.combatModal.classList.contains('combat-peek'); RW.take();
+        RW.fire(RW.els.combatModal, 'pointerdown', {}); const rw4 = [RW.els.combatModal.classList.contains('combat-peek'), RW.take()[0]];
+        RW.fire(RW.els.combatRows, 'click', RW.ev(rFake({ dataset: { tok: 't_gone' } }))); const rw5 = [RW.els.combatModal.classList.contains('combat-peek'), RW.timers.length, RW.take()];
+        RW.fire(RW.els.combatRows, 'click', RW.ev(rFake(null))); const rw6 = [RW.els.combatModal.classList.contains('combat-peek'), RW.take(), RW.api.draft().rows.length];
+        cf.rosterWire = [rw1, rw2, rw3, rw4, rw5, rw6];
+    } catch (e) { cferr = String(e && e.stack || e); }
+    const RING = (x, y, r) => 'receive ' + J({ kind: 'burst', mapId: 'm1', x, y, look: 'ping', r, ms: 1600 });
+    const NOGM = 'That token is no longer on this map.', NOPL = 'That token is not in sight now.';
+    check('Find on the map from a fight (backlog 26), the pure parts run for real: only the GM\'s own screen at a table and a player\'s app may find, never the stream window or a screen away from a table; a token is found on this screen\'s copy of the map by its id alone, a hidden one only on the GM\'s screen, never one with no place in numbers; only on the map on screen shown as the play map; a name is a button with its tip in data-tip only where it finds a token, and every name and id goes through esc; the pan puts the token\'s middle in the middle of the view at the zoom on screen, never past the board\'s top or left edge; the ring is fx.js\'s ping round the token, as far out as its larger side and never less than 40, which the real fxcore keeps',
+        !cferr && J(cf.who) === J(['gm', 'player', '', '', '', '', '', ''])
+        && J(cf.tok) === J(['t_ana', 't_hid', null, null, null, null, null, null, null, null, null, null, null])
+        && J(cf.of) === J(['t_hid', null, 't_ana', null, null, null, null])
+        && J(cf.name) === J(['<button type="button" class="combat-find" data-tok="t&quot;&gt;&lt;i" data-tip="Find Orc &lt;b&gt;&quot;x&quot; on the map" aria-label="Find Orc &lt;b&gt;&quot;x&quot; on the map">Orc &lt;b&gt;&quot;x&quot;</button>', 'Orc &lt;b&gt;', 'Orc',
+            '<button type="button" class="combat-find" data-tok="t_x" data-tip="Find this token on the map" aria-label="Find this token on the map"></button>', ''])
+        && J(cf.scroll) === J([{ x: 1030, y: 2026, left: 630, top: 1726 }, { x: 1030, y: 2026, left: 1660, top: 3752 }, { x: 40, y: 36, left: 0, top: 0 }, { x: 160, y: 126, left: 160, top: 126 }])
+        && J(cf.ping) === J([{ kind: 'burst', look: 'ping', mapId: 'm1', x: 1030, y: 2026, r: 60, ms: 1600 }, { kind: 'burst', look: 'ping', mapId: 'm1', x: 1, y: 2, r: 300, ms: 1600 }, { kind: 'burst', look: 'ping', mapId: 'm1', x: 1, y: 2, r: 40, ms: 1600 },
+            { kind: 'burst', mapId: 'm1', x: 1030, y: 2026, look: 'ping', r: 60, ms: 1600 }]), cferr || J([cf.who, cf.tok, cf.of, cf.name, cf.scroll, cf.ping]));
+    check('Find on the map from a fight, the press run for real on each screen: the GM\'s screen goes to any token of the fight on the map on screen, a hidden one too, and rings it through fx.js\'s receiver alone, so nothing is sent, nothing is played to the table and the campaign is left as it was; a player\'s app goes only to a token its own copy holds and never to a hidden one, and says so in fixed words; another map, the data view, the stream window and a screen away from a table do nothing; with Visual effects off or no effects module the token\'s own pulse marks it once and its listener goes, with no element the pan alone, and a ring fxcore refuses falls back to the pulse',
+        !cferr && J(cf.gm) === J([['ring', 630, 1726, [RING(1030, 2026, 60)], [], 0, true, []], ['ring', 130, 326, [RING(530, 626, 60)], [], 0, true, []], ['ring', 5720, 7800, [RING(3060, 4050, 120)], [], 0, true, []],
+            ['', 5, 7, [], [NOGM], 0, true, null], ['', 5, 7, [], [NOGM], 0, true, []], ['', 5, 7, [], [NOGM], 0, true, []]])
+        && J(cf.player) === J([['ring', 630, 1726, [RING(1030, 2026, 60)], [], 0, true, []], ['', 5, 7, [], [NOPL], 0, true, []], ['', 5, 7, [], [NOPL], 0, true, null], ['', 5, 7, [], [], 0, true, []], ['', 5, 7, [], [], 0, true, []], ['', 5, 7, [], [], 0, true, []]])
+        && J(cf.pulse) === J(['pulse', true, false, 0, [[], []], 2660, 'pulse', ['pan', 630, 1726, []], ['pulse', 39630, 0, [], []]]), cferr || J([cf.gm, cf.player, cf.pulse]));
+    check('Find on the map from a fight, no second tip (the review of 2026-10-16): no part of the turn strip that holds a name button, whose turn it is, who is next or who holds, wears a title, on the GM\'s screen or a player\'s, and no part of a roster row does either, since the browser would show that title beside the button\'s own tip; each part keeps its words as data-tip',
+        !cferr && J(cf.titled) === J([[], [], [], [], 1, true, []]), cferr || J(cf.titled));
+    check('Find on the map from a fight, the turn strip drawn and wired by its own code: on the GM\'s screen whose turn it is, who is next and who holds are each a button that finds its token, a hidden one too, with no title beside its data-tip, and a row with no token stays plain; on a player\'s app a row read as Hidden and a row whose token their copy does not hold stay plain; the stream window draws no button; a press on a name is taken, goes no further and finds its token on this screen, a press on a hidden token\'s name on a player\'s app finds nothing, and the strip\'s own buttons work as before',
+        !cferr && J(cf.strip) === J([['<button type="button" class="combat-find" data-tok="t_ana" data-tip="Find Ana on the map" aria-label="Find Ana on the map">Ana</button>',
+                '<button type="button" class="combat-find" data-tok="t_orc" data-tip="Find Orc &lt;b&gt;&quot;x&quot; on the map" aria-label="Find Orc &lt;b&gt;&quot;x&quot; on the map">Orc &lt;b&gt;&quot;x&quot;</button>',
+                '<button type="button" class="combat-find" data-tok="t_orc" data-tip="Find Orc &lt;b&gt;&quot;x&quot; on the map" aria-label="Find Orc &lt;b&gt;&quot;x&quot; on the map">Orc &lt;b&gt;&quot;x&quot;</button>'],
+            ['<button type="button" class="combat-find" data-tok="t_hid" data-tip="Find Ghost on the map" aria-label="Find Ghost on the map">Ghost</button>',
+                '<button type="button" class="combat-find" data-tok="t_orc" data-tip="Find Orc &lt;b&gt;&quot;x&quot; on the map" aria-label="Find Orc &lt;b&gt;&quot;x&quot; on the map">Orc &lt;b&gt;&quot;x&quot;</button>'],
+            ['<button type="button" class="combat-find" data-tok="t_ana" data-tip="Find Ana on the map" aria-label="Find Ana on the map">Ana</button>'],
+            ['<button type="button" class="combat-find" data-tok="t_ana" data-tip="Find Ana on the map" aria-label="Find Ana on the map">Ana</button>'], [], false, true, true, true, true])
+        && J(cf.stripWire) === J([[1, 2660, 3750, [[RING(3060, 4050, 120)], []]], [1, [['step m1 1'], []]], [0, [[], []], 2660], [[[], [NOPL]], 5], 1]), cferr || J([cf.strip, cf.stripWire]));
+    check('Find on the map from a fight, the roster drawn and wired by its own code: a row\'s name is a button that finds its token only while the fight\'s map is the one on screen as the play map, and a custom row stays plain; a press on it finds the token on this screen and fades the roster for as long as the ring shows and a little more, after which it comes back, and a second find starts the fade again; a press on the faded roster brings it back at once; a find that finds nothing fades nothing and says why; a press on the row anywhere else changes nothing',
+        !cferr && J(cf.roster) === J([['<button type="button" class="combat-find" data-tok="t_ana" data-tip="Find Ana on the map" aria-label="Find Ana on the map">Ana</button>', '<button type="button" class="combat-find" data-tok="t_orc" data-tip="Find Orc on the map" aria-label="Find Orc on the map">Orc</button>'], 0, 0, true, 'flex'])
+        && J(cf.rosterWire) === J([[true, [1800], 2660, [[RING(3060, 4050, 120)], []]], false, true, [false, ['clear 2']], [false, 2, [[], [NOGM]]], [false, [[], []], 3]]), cferr || J([cf.roster, cf.rosterWire]));
+    const FIND_GM = "A hold not used by the end of the round is lost, and they act in their usual place next round.</li>\n                                  <li>Click a name on the turn strip, or in the roster, to find its token. Your screen moves to it and marks it for a moment. Nobody else&rsquo;s screen moves. The roster fades while the mark shows, so you see the map under it.</li>\n";
+    const FIND_PL = "                          <li><b>In a fight</b>, the turn strip at the top of the map shows whose turn it is and who is next. Click a name there to find that token. Your screen moves to it and marks it for a moment. A name whose token you cannot see is plain text.</li>\n                      </ul>\n                      <h4>What you'll see</h4>\n";
+    const FIND_NOTE = "  the notepad stays plain text.\n- A name on the turn strip, or in the combat roster, finds its token.\n  Click it and your screen moves to the token and marks it for a\n  moment. Nobody else's screen moves. The roster fades while the mark\n  shows, so you see the map under it. A player finds only a token\n  they can see.\n";
+    const plPane = (() => { const a = ix.indexOf('<div class="help-pane" data-pane="mp-player"'), z = ix.indexOf('<div class="help-pane" data-pane="', a + 10); return a > 0 ? ix.slice(a, z > a ? z : ix.length) : ''; })();
+    check('Find on the map from a fight, as it is wired and said: the strip draws whose turn it is, who is next and who holds through the one name writer and the roster its rows\' names, each press goes to the one finder, the finder never plays, saves or sends anything, the roster takes a press on itself to bring it back, the styles are there, and Help says it to the GM under Combat after Hold and to players in What you can do, and both release notes carry it',
+        fSl.length > 2000 && !/\.play\(|save\(|saveView|\.send\(|broadcast|sendFx|innerHTML/.test(fSl.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, ''))
+        && count(stripSrc, 'nameOf(cur)') === 1 && count(stripSrc, 'nameOf(nxt)') === 1 && count(stripSrc, "held ' + nameOf(r) + '</span>'") === 1 && !/esc\((cur|nxt|r)\.name/.test(stripSrc)
+        && count(stripSrc, "var who = findWho(n, !!window.wpStream), nameOf = function(r) { return findName(r.name || '', r.tokId, !!findOf(am.id, r.tokId, who, am, state.viewMode)); };") === 1
+        && count(modalSrc, "'<span class=\"combat-name\">' + findName(r.name, r.tokId, !!findOf(combatDraft.mapId, r.tokId, findHere, amHere, state.viewMode)) + (r.party") === 1 && !/esc\(r\.name\)/.test(modalSrc)
+        && count(stripWire, "if (fb) { e.stopPropagation(); var amF = getActiveMap(); if (amF) combatFind(amF.id, String(fb.dataset.tok || '')); return; }") === 1
+        && count(modalWire, "else if (e.target.closest('.combat-find')) { if (combatFind(combatDraft.mapId, String(e.target.closest('.combat-find').dataset.tok || ''))) rosterPeek(m, FIND_MS + 200); }") === 1
+        && count(modalWire, "    m.addEventListener('pointerdown', function() { rosterUnpeek(m); });") === 1 && count(wbSrc, 'combatFind(') === 3
+        && count(css, '\n  .combat-find { font: inherit; color: inherit; background: none; border: 0;') === 1 && count(css, '\n  #combatModal.combat-peek { background: transparent !important; }') === 1 && count(css, '\n  #combatModal.combat-peek > div { opacity: .1; pointer-events: none; transition: opacity .15s; }\n') === 1
+        && count(ix, FIND_GM) === 1 && count(plPane, FIND_PL) === 1 && [rootRead('WHATSNEW.txt'), read('assets/whatsnew.txt')].every(t => count(t, FIND_NOTE) === 1), J([fSl.length, count(ix, FIND_GM), count(plPane, FIND_PL)]));
 }
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');

@@ -23,6 +23,11 @@ Multiplayer
   and one of Waypoint's fonts for the whole notepad. Every player reads
   it with that look, and Save to my Journal keeps it. A web address in
   the notepad stays plain text.
+- A name on the turn strip, or in the combat roster, finds its token.
+  Click it and your screen moves to the token and marks it for a
+  moment. Nobody else's screen moves. The roster fades while the mark
+  shows, so you see the map under it. A player finds only a token
+  they can see.
 
 Character sheets
 - Delete a sheet from the sheet itself: Delete in its head (asked
@@ -333,6 +338,10 @@ The play map
   Scene and More. A grey line under a name says what the choice does
   where the name is not enough, and the Grid menu marks the grid in
   use.
+- On the play map, a hex grid can name its cells. Cell labels, in the
+  Grid menu, shows each cell's column letter and row number, as A1.
+  Label opacity sets how strongly they show. Both are kept with the
+  map, and everyone at the table sees them.
 - The box at the top right of a map wears the toolbar's look. Its
   pointer location and its zoom buttons can each be hidden on their
   own. Tick them under Show in the centre menu, or press their buttons
@@ -482,6 +491,10 @@ The top bar and the data map
   As with its twelve kinds, Import, Refresh, About and the way back to
   the welcome screen.
 - Each kind of Export As has a small drawing beside its name.
+- Report a problem, in More and in About, opens a new issue page on
+  GitHub in your web browser. Waypoint's version and what it runs on
+  are filled in: the kind of computer, and the desktop app or a web
+  browser. Nothing is sent until you send it there.
 - The top row has map tabs. The map on screen stands first, with its
   parent maps inside the tab. Your pinned maps and the last maps you
   opened follow. An eye and a number mark a map your players are on,
@@ -636,6 +649,9 @@ Fixes
   flowchart's labels. A word that stood only in a node's table was
   found by no search: not quick-jump, not the panel's search, not the
   search of the Planners list.
+- A player's screen no longer opens where you last looked at a map.
+  A find or a pan of yours stays on your screen, and a map a player
+  arrives on opens on their own token there.
 
 WAYPOINT 1.5.3 — What's New
 ============================

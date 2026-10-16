@@ -94,6 +94,9 @@ Always keep a backup copy of `saves/data.json` before writing to it. (The app al
                                        // always draw on top of content (gridFront is obsolete/ignored)
     "cellValue": 100, "cellUnit": "yd" // OPTIONAL measurement scale per grid cell (defaults: 1 yd/hex,
                                        // 5 ft/square; units: yd|ft|m|km|mi) — for space battles etc.
+    "cellLabels": 0.5,                 // OPTIONAL: a hex map's cell labels (A1, B2...), how strongly they
+                                       // show: a number above 0, read as 0.1 to 1 in steps of 0.05; absent,
+                                       // 0 or no number: off. Kept with the map; the table sees them too
     // lastX/lastY/lastZoom, lastWbX/lastWbY/lastWbZoom: camera memory; omit, app fills them
     // gen / city / world: the seed and settings a generated dungeon, city or world map keeps, so that
     // the GM can make it again. They are the GM's own: never sent to players, and cleaned on import

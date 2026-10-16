@@ -174,5 +174,34 @@ function wire() {
     campSync(); foldFit(); markSync();
 }
 // [lookcheck:toprowwire-end]
+
+// [sinkcheck:report-start]
+/* Report a problem (1.5.4, backlog 34; the owner picked "Small table extras": "a Report a problem row that opens a filled-in GitHub issue page
+   in your browser. Nothing is sent by itself."). The row in More presses the link in About (its data-press), so the one place a click on a
+   link is decided, linkgate.js, opens it: About is the app's own words, and in the shell a web address goes to the system browser. The
+   address is the project's new issue page with its body filled in: Waypoint's version and the kind of computer, in plain words, and nothing
+   else of the user's. No title is set. Nothing is sent: the page waits for its own button. The link holds the bare page until this runs. */
+var REPORT_NEW = 'https://github.com/ImmuneMoon/Waypoint/issues/new';
+// The version as version.json gives it, or 'unknown': nothing but a version's own characters reaches the address
+function reportVersion(v) { return typeof v === 'string' && /^[0-9A-Za-z.+-]{1,40}$/.test(v) ? v : 'unknown'; }
+// The kind of computer and whether this is the desktop app, read from the browser's own words; nothing else of them
+function reportPlatform(ua) {
+    ua = typeof ua === 'string' ? ua : '';
+    var os = /Windows/.test(ua) ? 'Windows' : /Android/.test(ua) ? 'Android' : /iPhone|iPad|iPod/.test(ua) ? 'iOS' : /Macintosh|Mac OS X/.test(ua) ? 'macOS' : /Linux|X11/.test(ua) ? 'Linux' : 'another system';
+    return os + ', ' + (/\bElectron\//.test(ua) ? 'the desktop app' : 'a web browser');
+}
+function reportUrl(version, ua) {
+    var body = 'Waypoint version: ' + reportVersion(version) + '\nPlatform: ' + reportPlatform(ua) + '\n\nWhat happened:\n\n\nWhat you expected:\n\n\nHow to make it happen again:\n\n';
+    return REPORT_NEW + '?body=' + encodeURIComponent(body);
+}
+// About's link takes the address, once the version is known and whenever it changes. Answers the address, or '' with no link in the page
+function reportSync() {
+    var a = document.getElementById('aboutReportLink'); if (!a) return '';
+    var href = reportUrl(window.wpAppVersion, typeof navigator !== 'undefined' && navigator ? navigator.userAgent : '');
+    if (a.getAttribute('href') !== href) a.setAttribute('href', href);
+    return href;
+}
+// [sinkcheck:report-end]
+reportSync(); document.addEventListener('wp-version', reportSync);
 wire();
 window.wpTopRow = { open: openMenu, close: closeMenus, shown: menuShown, sync: campSync, box: anchorBox };

@@ -2374,6 +2374,64 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             check('links (your own): a link in your planner\'s preview, your handbook reader or panel and the app\'s own words opens directly while you are not a player — a click, the middle button, Ctrl+click and a click on the link\'s text each open exactly the cleaned address in a new window with no opener, the engine\'s own following stopped; the right button is left alone; nothing is asked',
                 J(P.opened) === J([[OK, '_blank', 'noopener,noreferrer'], [OK, '_blank', 'noopener,noreferrer'], [OK, '_blank', 'noopener,noreferrer'], [OK, '_blank', 'noopener,noreferrer']]) && [e1, e2, e3, e4].every(e => e.defaultPrevented) && !e5.defaultPrevented && !e6.defaultPrevented && !P.asking() && H.opened.length === 4 && !H.asking(), [P.opened, H.opened.length]);
         }
+        {   // Report a problem (1.5.4, backlog 34; the owner picked "Small table extras": "a Report a problem row that opens a filled-in GitHub issue
+            // page in your browser. Nothing is sent by itself."): toprow.js's report slice run for real; its address held to the link rule, to the
+            // shell's own rule for a web link and to the URL parser; About's link opened by the gate itself, as the GM and as a player at a table
+            const rpSrc = slice('toprow.js', 'report'), trAll = read('toprow.js'), ixR = fs.readFileSync(path.join(dir, '..', 'index.html'), 'utf8').replace(/\r\n/g, '\n');
+            const shellR = require(path.join(dir, '..', '..', 'resources', 'app', 'shellguard.js')), coreMain = fs.readFileSync(path.join(dir, '..', '..', 'resources', 'app', 'main.js'), 'utf8');
+            const mkRp = (ver, ua, el) => new Function('document', 'window', 'navigator', "'use strict';\n" + rpSrc + '\nreturn { reportVersion: reportVersion, reportPlatform: reportPlatform, reportUrl: reportUrl, reportSync: reportSync, REPORT_NEW: REPORT_NEW };')(
+                { getElementById: id => (id === 'aboutReportLink' ? el || null : null) }, { wpAppVersion: ver }, { userAgent: ua });
+            const UA = { win: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Waypoint/1.5.4 Chrome/128.0.0.0 Electron/32.0.0 Safari/537.36',
+                mac: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36', lin: 'Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0',
+                and: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36', ios: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1' };
+            let rpErr = '', R = null; try { R = mkRp('1.5.4', UA.win); } catch (e) { rpErr = String(e && e.stack || e); }
+            const NEW = 'https://github.com/ImmuneMoon/Waypoint/issues/new', REST = '\n\nWhat happened:\n\n\nWhat you expected:\n\n\nHow to make it happen again:\n\n';
+            const VERS = [['1.5.4', '1.5.4'], ['1.5.4-beta.2', '1.5.4-beta.2'], ['1.6.0+b7', '1.6.0+b7'], [T, 'unknown'], [P, 'unknown'], ['1.5.4\nWaypoint version: 9', 'unknown'], ['1.5.4 ', 'unknown'], ['a'.repeat(41), 'unknown'], ['', 'unknown'], [7, 'unknown'], [null, 'unknown'], [undefined, 'unknown'], [{ toString() { return '1.5.4'; } }, 'unknown']];
+            const PLATS = [[UA.win, 'Windows, the desktop app'], [UA.mac, 'macOS, a web browser'], [UA.lin, 'Linux, a web browser'], [UA.and, 'Android, a web browser'], [UA.ios, 'iOS, a web browser'], [UA.mac + ' Electron/32.0.0', 'macOS, the desktop app'],
+                ['', 'another system, a web browser'], [null, 'another system, a web browser'], [7, 'another system, a web browser'], [T + P, 'another system, a web browser']];
+            const urlBad = [];
+            if (R) VERS.forEach(v => PLATS.forEach(p => {
+                const u = R.reportUrl(v[0], p[0]); let parsed = null; try { parsed = new URL(u); } catch (e) { /* none */ }
+                const keys = parsed ? [...parsed.searchParams.keys()] : null, body = parsed ? parsed.searchParams.get('body') : null;
+                if (!parsed || u.indexOf(NEW + '?body=') !== 0 || parsed.origin !== 'https://github.com' || parsed.pathname !== '/ImmuneMoon/Waypoint/issues/new' || J(keys) !== J(['body']) || body !== 'Waypoint version: ' + v[1] + '\nPlatform: ' + p[1] + REST
+                    || TFl.cleanLink(u) !== u || shellR.webLinkOk(3999, u) !== u || parsed.href !== u || u.length > 600 || !G0.readUrl(u) || G0.readUrl(u).site !== 'github.com') urlBad.push([v[0], p[0], u]);
+            }));
+            check('Report a problem (toprow.js, run for real): the address is the project\'s new issue page and nothing else: no title, and a body of Waypoint\'s version, kept only as a version\'s own characters and else said unknown, the kind of computer and whether it is the desktop app, in plain words, and the three questions it asks; for ' + VERS.length * PLATS.length + ' versions and browsers, hostile ones among them, it is an address the link rule keeps, the shell hands to the system browser as it is, and the URL parser reads with that body alone',
+                rpErr === '' && !!R && urlBad.length === 0 && R.REPORT_NEW === NEW && J(VERS.map(v => R.reportVersion(v[0]))) === J(VERS.map(v => v[1])) && J(PLATS.map(p => R.reportPlatform(p[0]))) === J(PLATS.map(p => p[1])), rpErr || J(urlBad.slice(0, 2)));
+            // About's link takes the address once the version is known, and only when it changed
+            const sets = [], linkEl = { attrs: { href: NEW }, getAttribute(k) { return Object.prototype.hasOwnProperty.call(this.attrs, k) ? this.attrs[k] : null; }, setAttribute(k, v) { sets.push([k, String(v)]); this.attrs[k] = String(v); } };
+            let syncErr = '', s1 = null, s2 = null, s0 = null; try { const Rs = mkRp('1.5.4', UA.win, linkEl); s1 = Rs.reportSync(); s2 = Rs.reportSync(); s0 = mkRp('1.5.4', UA.win, null).reportSync(); } catch (e) { syncErr = String(e); }
+            check('Report a problem: About\'s link is given the address once the version is known, by setAttribute alone and only when it changed; with no link in the page nothing throws',
+                syncErr === '' && !!R && s1 === R.reportUrl('1.5.4', UA.win) && s2 === s1 && J(sets) === J([['href', s1]]) && s0 === '', J([syncErr, sets.length]));
+            // the gate opens About's link at once, whoever presses it: About is the app's own words
+            const opensFor = net => { const Pg = mkPage({ net }), a = Pg.link('aboutModal', R ? R.reportUrl('1.5.4', UA.win) : '', { target: '_blank', rel: 'noopener noreferrer' }), e = Pg.click(a); return [J(Pg.opened), Pg.asking(), !!e.defaultPrevented]; };
+            const href0 = R ? R.reportUrl('1.5.4', UA.win) : '', wantOpen = [J([[href0, '_blank', 'noopener,noreferrer']]), false, true];
+            check('Report a problem: the link in About is opened by the gate itself, at once and with no question, as the GM, as a player at someone\'s table and with no table: the very address, in a new window with no opener, the engine\'s own following stopped',
+                !!R && [GM, PLAYER, ALONE].every(n => J(opensFor(n)) === J(wantOpen)), J([GM, PLAYER, ALONE].map(opensFor)));
+            const aboutAt = ixR.indexOf('<div id="aboutModal"'), legalAt = ixR.indexOf('<div id="legalModal"'), linkAt = ixR.indexOf('<a id="aboutReportLink" href="' + NEW + '" target="_blank" rel="noopener noreferrer"');
+            const repoM = /\nconst UPDATE_REPO = '([^']+)';/.exec(coreMain.replace(/\r\n/g, '\n'));
+            check('Report a problem in the page: About holds the link once, with the bare new issue page until the script fills it, a new window and no opener; More holds one row that presses it, beside About and before the way to the welcome screen; More presses a row\'s control by its id; the page is the repository the updates come from; the slice writes no markup and is asked at load and when the version is known',
+                aboutAt > 0 && linkAt > aboutAt && linkAt < legalAt && ixR.split(' id="aboutReportLink"').length === 2 && ixR.split(' data-press="aboutReportLink"').length === 2
+                && ixR.indexOf(' data-press="aboutReportLink"') > ixR.indexOf(' id="aboutBtn"') && ixR.indexOf(' data-press="aboutReportLink"') < ixR.indexOf(' data-press="headerBrand"')
+                && trAll.includes("            if (press) { menuSet(id, false); var c = document.getElementById(press.getAttribute('data-press')); if (c) c.click(); return; }")
+                && !!repoM && NEW === 'https://github.com/' + repoM[1] + '/issues/new' && !/innerHTML|insertAdjacentHTML|outerHTML|document\.write|window\.open|location\s*=/.test(rpSrc)
+                && trAll.split("reportSync(); document.addEventListener('wp-version', reportSync);").length === 2 && trAll.includes("// [sinkcheck:report-end]\nreportSync(); document.addEventListener('wp-version', reportSync);\nwire();\n"));
+            const NOTE_R = "- Report a problem, in More and in About, opens a new issue page on\n  GitHub in your web browser. Waypoint's version and what it runs on\n  are filled in: the kind of computer, and the desktop app or a web\n  browser. Nothing is sent until you send it there.\n";
+            const wnR = [path.join(dir, '..', '..', '..', 'WHATSNEW.txt'), path.join(dir, '..', 'assets', 'whatsnew.txt')].map(f => fs.readFileSync(f, 'utf8').replace(/\r\n/g, '\n'));
+            check('Report a problem said: Help\'s part on the top row\'s More says where it is, what it opens and fills in, and that nothing is sent by itself; both release notes carry the same lines',
+                ixR.includes('<li><b>Report a problem</b> is there too, and in About. It opens a new issue page on GitHub in your web browser. Waypoint&rsquo;s version and what it runs on are filled in: the kind of computer, and the desktop app or a web browser. Nothing is sent until you send it there.</li>')
+                && wnR.every(t => t.split(NOTE_R).length === 2));
+            // the review (2026-10-16): every place says what the address fills in, which is the version and what Waypoint runs on, read from
+            // the browser's own words: an Android or an iOS device or another system as well as Windows, a Mac or Linux, and the desktop app or a
+            // web browser. The note stands under the top bar's heading, with More, never under Character sheets
+            const SAYS = 'with Waypoint&rsquo;s version and what it runs on filled in. Nothing is sent until you send it there.', aboutR = ixR.slice(aboutAt, legalAt);
+            const underR = t => { const a = t.indexOf('\nThe top bar and the data map\n'), z = t.indexOf('\nThe Journal\n', a), at = t.indexOf(NOTE_R); return a > 0 && z > a && at > a && at < z && t.slice(a + 1, at).indexOf('\n\n') < 0; };   // no blank line, the end of a section, between the heading and the note
+            const fills = R ? [R.reportPlatform(UA.win), R.reportPlatform(UA.and), R.reportPlatform(UA.ios), R.reportPlatform('')] : [];
+            check('Report a problem says what it fills in (the review of 2026-10-16): About and More\'s row say Waypoint\'s version and what it runs on, Help and both release notes say that this is the kind of computer and the desktop app or a web browser, which is what the address carries for every kind of computer, and no place names only Windows, a Mac or Linux; the note stands under The top bar and the data map in both release notes',
+                aboutR.split('Report a problem</a> opens a new issue page on GitHub in your web browser, ' + SAYS + '</div>').length === 2 && ixR.split('<button class="rm-row" data-press="aboutReportLink" title="Report a problem. Opens a new issue page on GitHub in your web browser, ' + SAYS + '">').length === 2
+                && J(fills) === J(['Windows, the desktop app', 'Android, a web browser', 'iOS, a web browser', 'another system, a web browser']) && ixR.indexOf('Windows, a Mac or Linux') < 0 && wnR.every(t => t.indexOf('Windows, a Mac or Linux') < 0 && underR(t)),
+                J([fills, wnR.map(underR)]));
+        }
         {   // a player at a table: the GM's page asks
             const P = mkPage({ net: PLAYER }), a = P.link('docReaderBody', OK), b = P.link('docPanelBody', 'https://other.example/'), e1 = P.click(a);
             const up = P.asking(), title = P.ccTitle.textContent, lines = J(P.lines()), wide = P.ccBox.classList.contains('confirm-wide'), kids = P.body() ? P.body().all() : [];

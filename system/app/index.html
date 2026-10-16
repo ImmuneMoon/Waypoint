@@ -168,6 +168,7 @@
             </div>
             <button class="rm-row" id="refreshBtn" title="Refresh Waypoint &mdash; reloads the app and puts you straight back into your session"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M17.6 2.8v4.2h-4.2"/></svg><span>Refresh Waypoint</span></button>
             <button class="rm-row" id="aboutBtn" title="About Waypoint"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zM12 11v5.6M12 7.5h.01"/></svg><span>About Waypoint</span></button>
+            <button class="rm-row" data-press="aboutReportLink" title="Report a problem. Opens a new issue page on GitHub in your web browser, with Waypoint&rsquo;s version and what it runs on filled in. Nothing is sent until you send it there."><span class="rm-slot"></span><span>Report a problem</span></button>
             <button class="rm-row" data-press="headerBrand" title="Back to the welcome screen"><img src="icon.ico" alt="" class="rm-mark"><span>Back to the welcome screen</span></button>
             <div class="rm-part" id="moreFold">
               <div class="rm-rule"></div>
@@ -214,6 +215,7 @@
                   <button class="tool ghost" id="aboutEmailCopy" style="padding:2px 8px; font-size:11px;">Copy</button>
               </div>
               <div style="font-size:11px; color:var(--ink-dim); margin-top:6px; line-height:1.5;">Found a bug? Email us what you were doing, what you expected, and what happened instead &mdash; screenshots welcome.</div>
+              <div style="font-size:11px; color:var(--ink-dim); margin-top:6px; line-height:1.5;"><a id="aboutReportLink" href="https://github.com/ImmuneMoon/Waypoint/issues/new" target="_blank" rel="noopener noreferrer" style="color:var(--blue); font-weight:600;">Report a problem</a> opens a new issue page on GitHub in your web browser, with Waypoint&rsquo;s version and what it runs on filled in. Nothing is sent until you send it there.</div>
           </div>
 
           <div style="font-size:11px; color:var(--ink-dim); text-align:center; margin-bottom:10px;">Includes the Inter typeface and 22 more typefaces for text on maps (SIL Open Font License 1.1; assets/fonts/FONTS.txt names each with its copyright notice), Font Awesome Free icons (CC BY 4.0), and PeerJS, Mermaid and html2canvas (MIT License).</div>
@@ -319,6 +321,7 @@
                               <ul>
                                   <li>Export As and Import are rows of it. So are Refresh Waypoint and About Waypoint.</li>
                                   <li>Back to the welcome screen is there too. The Waypoint mark at the left does the same.</li>
+                                  <li><b>Report a problem</b> is there too, and in About. It opens a new issue page on GitHub in your web browser. Waypoint&rsquo;s version and what it runs on are filled in: the kind of computer, and the desktop app or a web browser. Nothing is sent until you send it there.</li>
                                   <li>Where the window is too narrow for the row, Sound, Music, Handouts, Journal and Help move into More. Nothing is cut off.</li>
                               </ul>
                           </li>
@@ -722,6 +725,14 @@
                       <h4>Grids</h4>
                       <ol>
                           <li>Click the grid button at the right edge of the play map and pick <b>Off, Square or Hex</b>. Hex cells are flat-top: a flat side faces up. The choice is remembered per map.</li>
+                          <li><b>Cell labels</b> give each cell of a hex grid a name: its column letter and its row number, as A1 or C7.
+                              <ul>
+                                  <li>Press <b>Cell labels</b> in the Grid menu to show them on this map, and again to take them off. <b>Label opacity</b> under it sets how strongly they show.</li>
+                                  <li>Both are kept with the map. Everyone at the table sees the labels, and so does the stream window.</li>
+                                  <li>Column A stands at the map&rsquo;s left edge, and row 1 is the first whole cell at the top of a column.</li>
+                                  <li>They show on a hex grid only. They hide while you are zoomed far out, and come back as you zoom in.</li>
+                              </ul>
+                          </li>
                           <li>Grids draw on top of your art so cells stay visible. Text lifts above the grid automatically, and any other item can via right-click &rarr; <b>Show Above Grid</b>.</li>
                           <li>Turn on <b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h4.5v9a2.5 2.5 0 0 0 5 0V3H19v9a7 7 0 0 1-14 0V3zM5 7h4.5M14.5 7H19"/></svg> Snap</b> and tokens seat themselves into cells as you drop them. On hex maps they sit centred in the cell, and on a map with no grid on a dot of the background. With Snap off, a token lands exactly where you drop it, on any grid. A token you fitted with <b>Fit to Grid</b> stays in its cell. Your players&rsquo; drops follow your Snap: while it is on, a token a player drops lands in a cell too. On hex maps freehand strokes follow cell corners even on fast swipes.</li>
                           <li><b>Tokens take the grid&rsquo;s shape:</b> a token the app places comes in the shape of the map&rsquo;s cells. That is a hexagon on a hex map, a square on a square map, and a circle with no grid. A picture is cut to that shape.
@@ -1237,6 +1248,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                               <ul>
                                   <li>Once the fight runs, a player who rolls their character&rsquo;s initiative from their sheet takes that number into the order, once, if their row has none yet. The order re-sorts and whoever&rsquo;s turn it is keeps it. Players see the order, never the numbers.</li>
                                   <li>On the turn strip, <b>Hold</b> lets the one on turn wait. It is yours for anyone, and a player&rsquo;s for their own turn with turn-based combat on. Play moves on and the strip shows them <b>held</b>. Later in the round <b>Act</b> puts them right after whoever is acting, and they keep that place. A hold not used by the end of the round is lost, and they act in their usual place next round.</li>
+                                  <li>Click a name on the turn strip, or in the roster, to find its token. Your screen moves to it and marks it for a moment. Nobody else&rsquo;s screen moves. The roster fades while the mark shows, so you see the map under it.</li>
                                   <li>A creature your players have seen stays in their order by name when you hide it or it moves out of their sight. Take it out of the fight with <b>Update Combat</b> once it has left. One they have never seen in this fight reads <b>Hidden</b> until they see it.</li>
                                   <li>When a player targets one of your characters on a map with no fight running, you are asked whether to start combat there, once per character per session. Click <b>Yes</b>: Enter does not answer it. <b>A player targets one of my characters</b> in Settings &#9656; VTT features &#9656; Turn-based combat set to <b>Do nothing</b> stops the asking.</li>
                               </ul>
@@ -1380,6 +1392,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li><b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.2 5.1L10.7 2.8L13.3 2.8L13.8 5.1A7.1 7.1 0 0 1 15.6 5.9L17.6 4.6L19.4 6.4L18.1 8.5A7.1 7.1 0 0 1 18.9 10.2L21.2 10.7L21.2 13.3L18.9 13.8A7.1 7.1 0 0 1 18.1 15.6L19.4 17.6L17.6 19.4L15.6 18.1A7.1 7.1 0 0 1 13.8 18.9L13.3 21.2L10.7 21.2L10.2 18.9A7.1 7.1 0 0 1 8.5 18.1L6.4 19.4L4.6 17.6L5.9 15.6A7.1 7.1 0 0 1 5.1 13.8L2.8 13.3L2.8 10.7L5.1 10.2A7.1 7.1 0 0 1 5.9 8.5L4.6 6.4L6.4 4.6L8.4 5.9A7.1 7.1 0 0 1 10.2 5.1zM12 8.9a3.1 3.1 0 1 0 0 6.2 3.1 3.1 0 0 0 0-6.2z"/></svg> Settings &#9656; VTT features</b> can switch dice off for yourself, and the cards still show.</li>
                               </ul>
                           </li>
+                          <li><b>In a fight</b>, the turn strip at the top of the map shows whose turn it is and who is next. Click a name there to find that token. Your screen moves to it and marks it for a moment. A name whose token you cannot see is plain text.</li>
                       </ul>
                       <h4>What you'll see</h4>
                       <ul>
@@ -2660,6 +2673,12 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                   <button class="wb-tool-btn menu-row" id="gridSqBtn" title="Square"><span class="mr-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16H4zM4 9.3h16M4 14.7h16M9.3 4v16M14.7 4v16"/></svg></span><span class="mr-txt">Square</span></button>
                   <button class="wb-tool-btn menu-row" id="gridHexBtn" title="Hex"><span class="mr-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 4h9l4.5 8-4.5 8h-9L3 12l4.5-8z"/></svg></span><span class="mr-txt">Hex</span></button>
                   <div class="menu-rule"></div>
+                  <button class="wb-tool-btn menu-row" id="gridLabelsBtn" title="Cell labels. On a hex grid each cell shows its column letter and row number, as A1. Kept with this map, and everyone at the table sees them. Press again to take them off."><span class="mr-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7V5h14v2M12 5v14M9.5 19h5"/></svg></span><span class="mr-txt">Cell labels<small>Each hex cell shows its name, as A1.</small></span></button>
+                  <div class="menu-block" title="How strongly this map&rsquo;s cell labels show. Kept with the map.">
+                      <div class="draw-menu-label">Label opacity <span id="gridLabelsVal">50%</span></div>
+                      <input type="range" id="gridLabelsOpacity" min="10" max="100" step="5" value="50" style="width:100%;" disabled>
+                  </div>
+                  <div class="menu-rule"></div>
                   <button class="wb-tool-btn menu-row" id="gridOpacityBtn" title="Grid opacity&hellip; (opens Settings)"><span class="mr-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM12 4v16M12 8h5.6M12 12h8M12 16h5.6"/></svg></span><span class="mr-txt">Grid opacity&hellip;<small>Opens Settings at the grid&rsquo;s look.</small></span></button>
               </div>
           </div>
@@ -2679,6 +2698,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
       </div>
       <canvas id="rulerTop" height="18"></canvas>
       <canvas id="rulerLeft" width="36"></canvas>
+      <canvas id="cellLabels" aria-hidden="true"></canvas>
       <div id="rulerCursorX"></div>
       <div id="rulerCursorY"></div>
       <div id="fxScreen"></div>

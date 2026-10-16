@@ -1467,6 +1467,7 @@
   #rulerLeft { position: absolute; top: 0; left: 0; width: 36px; height: 100%; z-index: 3960; pointer-events: none; display: none; }
   #rulerCursorX { position: absolute; top: 0; width: 1px; height: 18px; background: var(--gold); z-index: 3961; pointer-events: none; display: none; }
   #rulerCursorY { position: absolute; left: 0; width: 36px; height: 1px; background: var(--gold); z-index: 3961; pointer-events: none; display: none; }
+  #cellLabels { position: absolute; top: 0; left: 0; z-index: 3940; pointer-events: none; display: none; }   /* backlog 34: a hex map's cell labels (whiteboard.js drawCellLabels), over the map's view as the rulers are, and under the fog of war (#fogScreen 3950) as the grid is */
   /* Party strip: the players' characters, top-right under the zoom box */
   #partyStrip {
     position: absolute; top: 62px; right: 14px; z-index: 8990; display: flex; flex-wrap: wrap; justify-content: flex-end;
@@ -2213,6 +2214,11 @@
   .combat-strip-btn { font: inherit; background: transparent; border: 1px solid var(--edge); color: var(--ink); border-radius: 10px; padding: 1px 8px; cursor: pointer; font-size: 11px; }
   .combat-strip-btn:hover { border-color: var(--gold); color: var(--gold); }
   .combat-strip-btn.danger:hover { border-color: var(--red); color: var(--red); }
+  .combat-find { font: inherit; color: inherit; background: none; border: 0; border-radius: 3px; padding: 0; margin: 0; cursor: pointer; text-decoration: underline dotted; text-decoration-color: var(--dim); text-underline-offset: 3px; }   /* backlog 26: a name on the turn strip or in the roster finds its token on this screen */
+  .combat-find:hover, .combat-find:focus-visible { color: var(--gold); text-decoration-color: var(--gold); }
+  .combat-find:focus-visible { outline: 1px solid var(--gold); outline-offset: 2px; }
+  #combatModal.combat-peek { background: transparent !important; }   /* a find from the roster: the map shows under it while the ring does (the backdrop's colour is inline) */
+  #combatModal.combat-peek > div { opacity: .1; pointer-events: none; transition: opacity .15s; }
   .combat-row { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border: 1px solid var(--edge); border-radius: 6px; background: rgba(0,0,0,0.08); }
   .combat-row.off { opacity: .55; }
   .combat-row.drop-before { border-top: 2px solid var(--gold); }

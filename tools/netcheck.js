@@ -1075,6 +1075,74 @@ pendingChecks.push((async () => {
         gmMetaHm.length === 1 && gmMetaSi.length === 1 && gmMetaHm[0] === gmMetaSi[0] && gmMetaHm[0] === "'gen', 'city', 'world'" && gmMetaAll.length === 2 && gmMetaGone === 2 && ['gen', 'city', 'world'].every(gmMetaOne)
         && JSON.stringify(oneSent.meta) === '{"title":"One","keep":"kept"}' && JSON.stringify(oneHost.meta) === '{"title":"One","keep":"kept"}' && JSON.stringify(oneGm.meta) === JSON.stringify(oneMap().meta), JSON.stringify([gmMetaSaid(), oneSent.meta, oneHost.meta]));
     }
+    // The camera is each screen's own (the review of backlog 26, 2026-10-16, finding 1): Find on the map from a fight, and the Characters
+    // section's Find, set the GM's remembered camera exactly on a hidden token, and the camera rode every map to every player and the stream
+    // window. The real sanitizeItem, sanitizeAppState, itemDelta, cleanHostMap, applyItem, applyItemDelta and applyStage, with the helpers
+    {
+        const camSrc = fnSrc('// The camera (the review of backlog 26', '\nfunction cleanHostMap(m) {', 'the camera helpers') + '\n';
+        const chmSrc = fnSrc('function cleanHostMap(m) {', '\n}\n', 'cleanHostMap') + '\n}\n';
+        const CM = new Function('window', 'cleanHostWbItem', 'ownCellKeysOf', 'ownTokIdsOf', 'safeColor', '"use strict";\n' + camSrc + chmSrc + '\nreturn { cleanHostMap: cleanHostMap, camOf: camOf, camHold: camHold, camLand: camLand, CAM_KEYS: CAM_KEYS };')({}, w => w, () => ({}), () => ({}), () => true);
+        const siC = new Function(siSrc() + '\nreturn sanitizeItem;')(), JC = JSON.stringify;
+        const AMB = { id: 'amb', type: 'image', isChar: true, hidden: true, x: 12345, y: 6789, w: 60, h: 52 }, FOUND = { lastWbX: 12375, lastWbY: 6815, lastWbZoom: 1.5 };   // the GM found the hidden ambusher: the view's middle on its centre
+        const camMap = cam => ({ id: 'm1', type: 'map', meta: Object.assign({ title: 'Cave', gridType: 'hex', lastX: 222, lastY: 333, lastZoom: 0.5 }, cam || FOUND), rooms: [], links: [], whiteboard: [{ id: 'wall', type: 'rect', x: 0, y: 0, w: 50, h: 50 }, JSON.parse(JC(AMB))] });
+        const camRe = /"last(Wb)?(X|Y|Zoom)"|12375|6815/;
+        // the host: a whole map, the join snapshot and the stream window, and a delta
+        const gmM = camMap(), sentC = siC(gmM), snapC = () => ({ activeCampaignId: 'k1', _schema: 2, campaigns: { k1: { id: 'k1', name: 'Hosted', activeItemId: 'm1', items: { m1: camMap() } } } });
+        const forPc2 = SAs(snapC(), 'u_p'), forSc2 = SAs(snapC());
+        const qhC = new Function(fnSrc('function quickHash(', '\n}\n', 'quickHash') + '\n}\nreturn quickHash;')(), idC = lineOf('function uniqueIds(') + '\n' + fnSrc('function itemDelta(itemId, clean) {', '\nfunction applyItemDelta(', 'itemDelta');
+        const camOnly = new Function('_lastSent', 'quickHash', 'cleanMap', idC + '\nreturn itemDelta("m1", cleanMap);')({ m1: siC(camMap({ lastWbX: 15000, lastWbY: 15000, lastWbZoom: 1 })) }, qhC, sentC);
+        const delKeys = ((/\n    if \(m\.meta && typeof m\.meta === 'object'\) \{((?: delete m\.meta\.[A-Za-z]+;)+) \}   \/\/ the camera/.exec(fnSrc('function sanitizeItem(', '\n}\n', 'sanitizeItem')) || [])[1] || '').match(/[A-Za-z]+(?=;)/g) || [];
+        check('the camera never leaves the host (the review of Find on the map from a fight): the GM\'s remembered view of a map, which Find puts exactly on a hidden token, is on no whole map, no join snapshot and no stream window\'s copy, and its numbers are nowhere in them, for the play map and the data map alike; the GM\'s own map keeps it; a map whose only change is the camera gives no delta, so a pan or a find sends nothing at all; sanitizeItem deletes exactly the six keys of the one list',
+            JC(Object.keys(sentC.meta)) === '["title","gridType"]' && !camRe.test(JC(sentC)) && sentC.whiteboard.length === 1 && JC(gmM.meta) === JC(camMap().meta)
+            && !camRe.test(JC(forPc2)) && !camRe.test(JC(forSc2)) && forPc2.campaigns.k1.items.m1.meta.title === 'Cave' && forSc2.campaigns.k1.items.m1.meta.gridType === 'hex'
+            && camOnly === false && JC(delKeys) === JC(CM.CAM_KEYS) && JC(CM.CAM_KEYS) === JC(['lastX', 'lastY', 'lastZoom', 'lastWbX', 'lastWbY', 'lastWbZoom']),
+            JC([sentC.meta, forPc2.campaigns.k1.items.m1.meta, forSc2.campaigns.k1.items.m1.meta, camOnly && camOnly.meta, delKeys]));
+        // a player's app: none a host names, its own kept across a whole map and a delta
+        const hostCam = Object.assign({ lastX: 9, lastY: 8, lastZoom: 3 }, FOUND), fromHostCm = CM.cleanHostMap({ id: 'm1', type: 'map', meta: Object.assign({ title: 'Cave' }, hostCam), whiteboard: [] });
+        const OWN = { lastWbX: 100, lastWbY: 200, lastWbZoom: 2 };
+        const stC = () => ({ appState: { activeCampaignId: 'k', campaigns: { k: { id: 'k', activeItemId: 'm1', items: { m1: { id: 'm1', type: 'map', meta: Object.assign({ title: 'Cave', lastY: 'x' }, OWN), whiteboard: [], rooms: [] } } } } } });
+        const aiC = fnSrc('function applyItem(msg) {', '\n}\n', 'applyItem') + '\n}\n', adC = fnSrc('function applyItemDelta(msg) {', '\n}\n', 'applyItemDelta') + '\n}\n';
+        const runAi = (st, msg) => new Function('net', 'state', 'window', 'getActiveCampaign', 'render', 'updateSidebarNav', 'cleanHostMap', 'camOf', 'camHold', 'msg', ownKeySrc + aiC + '\napplyItem(msg);')({ applyingRemote: false }, st, { wpFog: { invalidateVision() {}, redraw() {} } }, () => st.appState.campaigns.k, () => {}, () => {}, CM.cleanHostMap, CM.camOf, CM.camHold, msg);
+        const runAd = (st, msg) => new Function('state', 'net', 'window', 'broadcast', 'cleanHostMap', 'actOver', 'ackIn', 'getActiveCampaign', 'render', 'updateSidebarNav', 'camOf', 'camHold', 'msg', ownKeySrc + adC + '\napplyItemDelta(msg);')(st, { applyingRemote: false }, {}, () => {}, CM.cleanHostMap, () => {}, () => 0, () => st.appState.campaigns.k, () => {}, () => {}, CM.camOf, CM.camHold, msg);
+        const camOfM = m => { const o = {}; ['lastX', 'lastY', 'lastZoom', 'lastWbX', 'lastWbY', 'lastWbZoom'].forEach(k => { if (m && m.meta && k in m.meta) o[k] = m.meta[k]; }); return o; };
+        const sA = stC(); runAi(sA, { type: 'item', campId: 'k', itemId: 'm1', item: { id: 'm1', type: 'map', meta: Object.assign({ title: 'Cave 2' }, hostCam), whiteboard: [] } });
+        runAi(sA, { type: 'item', campId: 'k', itemId: 'm2', item: { id: 'm2', type: 'map', meta: Object.assign({ title: 'Yard' }, hostCam), whiteboard: [] } });
+        const sD = stC(); runAd(sD, { type: 'itemDelta', campId: 'k', itemId: 'm1', meta: Object.assign({ title: 'Cave 3' }, hostCam), whiteboard: { set: [{ id: 'a', type: 'rect', x: 0, y: 0, w: 5, h: 5 }], del: [] } });
+        const sE = stC(); runAd(sE, { type: 'itemDelta', campId: 'k', itemId: 'm1', whiteboard: { set: [{ id: 'a', type: 'rect', x: 0, y: 0, w: 5, h: 5 }], del: [] } });
+        const mA = sA.appState.campaigns.k.items.m1, mA2 = sA.appState.campaigns.k.items.m2, mD = sD.appState.campaigns.k.items.m1, mE = sE.appState.campaigns.k.items.m1;
+        const camOfOdd = [CM.camOf({ meta: { lastX: 'x', lastY: NaN, lastZoom: Infinity, lastWbX: 5, lastWbY: -7.5, lastWbZoom: null, title: 3 } }), CM.camOf(null), CM.camOf({ meta: 'x' }), CM.camOf(Object.assign(Object.create({ lastWbX: 1 }), { meta: Object.create({ lastWbY: 2 }) }))];
+        const camHoldOdd = [CM.camHold({ meta: { title: 'T', lastWbX: 1, lastX: 2 } }, { lastWbX: 'x', lastWbY: NaN, lastZoom: 4, other: 9 }).meta, CM.camHold({ meta: { lastWbZoom: 3 } }, null).meta, CM.camHold(null, { lastWbX: 1 }), JC(CM.camHold({ meta: 'x' }, { lastWbX: 1 }))];
+        check('the camera on a player\'s app: a map from a host, older or hostile, keeps none of the camera it names; a whole map and a delta with or without meta keep the camera this app had for that map, a number alone, and none it did not have; the rest of the meta and the pieces are taken as they come',
+            JC(camOfOdd) === JC([{ lastWbX: 5, lastWbY: -7.5 }, {}, {}, {}]) && JC(camHoldOdd) === JC([{ title: 'T', lastZoom: 4 }, {}, null, '{"meta":"x"}'])
+            && JC(fromHostCm.meta) === '{"title":"Cave"}'
+            && mA.meta.title === 'Cave 2' && JC(camOfM(mA)) === JC(OWN) && JC(camOfM(mA2)) === '{}' && mA2.meta.title === 'Yard'
+            && mD.meta.title === 'Cave 3' && JC(camOfM(mD)) === JC(OWN) && mD.whiteboard.length === 1 && mE.meta.title === 'Cave' && JC(camOfM(mE)) === JC(OWN) && mE.whiteboard.length === 1,
+            JC([fromHostCm.meta, mA.meta, mA2.meta, mD.meta, mE.meta]));
+        // where a map opens on a player's app and in the stream window: the real applyStage with camLand
+        const asC = fnSrc('function applyStage(stage) {', '\n}\n', 'applyStage') + '\n}\n';
+        const TOKC = () => [{ id: 't_q', isChar: true, ownerId: 'u_q', x: 300, y: 400, w: 60, h: 52 }, { id: 't_w', waiting: 1, ownerId: 'u_p', x: 50, y: 60, w: 60, h: 52 }, { id: 't_p', isChar: true, ownerId: 'u_p', x: 1000, y: 2000, w: 120, h: 100 }, { id: 't_n', isChar: true, x: 7, y: 7 }];
+        const stage = (o) => {
+            const map = { id: 'm1', type: 'map', meta: Object.assign({ title: 'Cave' }, o.cam || {}), rooms: o.room ? [{ id: 'r1' }] : [], whiteboard: o.toks || TOKC() };
+            const st = { appState: { activeCampaignId: 'k', campaigns: { k: { id: 'k', activeItemId: 'm0', items: { m1: map } } } }, viewMode: 'data' }, restored = [];
+            const net = { role: o.role, myId: o.myId === undefined ? 'u_p' : o.myId, _snapshotting: true, applyingRemote: false };
+            new Function('net', 'state', 'window', 'landingPoint', 'updateCampaignSelect', 'updateSidebarNav', 'render', 'camLand', 'stage', ownKeySrc + asC + '\napplyStage(stage);')(
+                net, st, { wpStream: o.stream, appRestoreCamera: () => restored.push(JC(camOfM(map))) }, () => ({ wbX: 500, wbY: 600 }), () => {}, () => {}, () => {}, o.noLand ? undefined : CM.camLand, { campId: 'k', itemId: 'm1', landRoomId: o.room ? 'r1' : undefined });
+            return [map.meta.lastWbX === undefined ? null : map.meta.lastWbX, map.meta.lastWbY === undefined ? null : map.meta.lastWbY, restored.length, st.appState.campaigns.k.activeItemId];
+        };
+        const lands = [stage({ role: 'client' }), stage({ role: 'client', toks: TOKC().filter(w => w.id !== 't_p') }), stage({ role: 'client', cam: OWN }), stage({ role: 'client', room: true }), stage({ stream: true }),
+            stage({ role: 'host' }), stage({ role: 'client', toks: TOKC().filter(w => w.ownerId !== 'u_p') }), stage({ role: 'client', toks: TOKC().map(w => Object.assign(w, w.ownerId === 'u_p' ? { hidden: true } : {})) }),
+            stage({ role: 'client', myId: '' }), stage({ role: 'client', cam: { lastWbX: 'x', lastWbY: 5 } }), stage({ role: 'client', noLand: true })];
+        const landFn = CM.camLand, landOdd = [landFn(null, 'u_p'), landFn({ type: 'map', whiteboard: 'x' }, 'u_p'), landFn({ type: 'planner', whiteboard: TOKC() }, 'u_p'), landFn({ type: 'map', whiteboard: [{ isChar: true, ownerId: 'u_p', x: '10', y: 5 }] }, 'u_p')];
+        check('the camera when a map opens (applyStage, run for real): on a player\'s app a map it holds no view of opens on the player\'s own character token there, else on their waiting token, else at the map\'s home as before; a view of its own and a landing room\'s point are kept; the stream window opens on a player\'s token; the GM\'s own screen is never moved this way; another player\'s token, a token with no owner, a hidden one, a player with no id and a place that is no number are no landing',
+            JC(lands) === JC([[1060, 2050, 1, 'm1'], [80, 86, 1, 'm1'], [100, 200, 1, 'm1'], [500, 600, 1, 'm1'], [330, 426, 1, 'm1'], [null, null, 1, 'm1'], [null, null, 1, 'm1'], [null, null, 1, 'm1'], [null, null, 1, 'm1'], [1060, 2050, 1, 'm1'], [null, null, 1, 'm1']])
+            && JC(landOdd) === JC([null, null, null, null]),
+            JC([lands, landOdd]));
+        const FIX_CAM = "- A player's screen no longer opens where you last looked at a map.\n  A find or a pan of yours stays on your screen, and a map a player\n  arrives on opens on their own token there.\n";
+        const fixUnder = t => { const a = t.indexOf('\nFixes\n'), z = t.indexOf('\nWAYPOINT 1.5.3', a), at = t.indexOf(FIX_CAM); return a > 0 && z > a && at > a && at < z && t.slice(a + 1, at).indexOf('\n\n') < 0 && t.split(FIX_CAM).length === 2; };
+        check('the camera said: both release notes carry the line under 1.5.4\'s Fixes, and Help still tells the GM that a find moves no one else\'s screen, which is now so',
+            ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(f => fixUnder(fs.readFileSync(path.join(__dirname, '..', f), 'utf8').replace(/\r\n/g, '\n')))
+            && fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8').includes('Your screen moves to it and marks it for a moment. Nobody else&rsquo;s screen moves.'));
+    }
     const wbP = forPs.campaigns.k1.items.m1.whiteboard, wbS = forSs.campaigns.k1.items.m1.whiteboard, wbK = keptS.campaigns.k1.items.m1.whiteboard;
     check('backlog 125 a pin never leaves the host: a piece that opens a page reaches a player and the stream window as the piece alone, without its page key, whether it names a planner or a handbook page, on a picture, a shape or a token; the GM\'s own map keeps every link; the one rule a piece is sent by deletes the key, and a player\'s app deletes it again',
         wbP.length === 3 && wbS.length === 3 && wbP.concat(wbS).every(w => !('page' in w)) && JSON.stringify(wbP.map(w => w.id)) === '["pin1","pin2","tokN"]' && JSON.stringify(wbK.map(w => w.page)) === '["plan_secret_twist","doc_rules","plan_secret_twist"]'

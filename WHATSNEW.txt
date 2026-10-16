@@ -141,6 +141,13 @@ Character sheets
   as the website reads it. The unfamiliar culture comes into a switch
   and a text your system has, and For ShadowBase writes it back. A file
   that leaves it out or empty turns it off.
+- A sheet from ShadowBase sets a switch your system has when the culture
+  its unfamiliar culture names is one of its culture rows, as the website
+  judges it. Case, spacing and the shape of an apostrophe do not count,
+  and a blank name never matches. The switch is never written back, and
+  it can be changed in play. A skill row named for one of the twelve
+  social skills sets a list stat your system has, so their rolls can
+  take the website's -3.
 - For ShadowBase writes a figure only where it changed here. A pool or
   an elevation the website keeps and Waypoint cannot hold stays as the
   website wrote it.

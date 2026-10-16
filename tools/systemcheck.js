@@ -10915,6 +10915,464 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 && ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(f => rdK(f).includes("  priced. A part in a storage box is priced as the website prices it,\n  and a weapon or suit designed and not yet built is worth only its\n  parts.") && rdK(f).includes("- For ShadowBase writes a figure only where it changed here. A pool or\n"))
                 && (clK === null || ['sbPartCtx', 'sbDesign', 'sbFamily', 'sbCultureSplit', 'readCultureRows', 'storedOf'].every(k => clK.includes(k))));
         }
+        // the unfamiliar culture's tick and the twelve (the owner, 2026-10-16: "Take "Tick now, matcher later". So the tick starts exactly where the
+        // site would, set it on import with the site's own rule"), on small made-up files and a generic system that is no campaign's (U8: the
+        // three session fields and a Skills list with a number stat `cult` whose -3 is on its Roll alone): the bridge sets UnfCultureHeld by the
+        // website's own rule (lib/cultural-familiarity-rows.ts sameCulture over cultureRowsOf, as unfamiliarCultureState asks it: (1) a semicolon
+        // or a line break a comma and a square bracket gone, (2) a run of white space one space and the ends trimmed, (3) case aside, (4) a
+        // curly or slanted apostrophe a straight one; a blank never matching; every row; the rows, else an older file's text read into rows; the
+        // load's rename of a species package's retired entry, cultural-familiarity-migration.ts), never writes it back, and a system without the
+        // key reads every file as before; and a skill row's `cult` by the website's isCultureBoundSkill (the twelve, a specialty of one)
+        {
+            const u8F = (id, key, kind, extra) => Object.assign({ id: 'f_' + id, key, label: key, kind, vis: 'all' }, extra || {});
+            const u8Sk = cult => u8F('sk', 'Skills', 'item-list', { list: { cats: ['Skill'], noQty: true, custom: true, multi: true, lvl: { label: 'Level', min: -10, max: 40, def: 10 }, stats: [{ key: 'attr' }, { key: 'diff' }, { key: 'fix' }, { key: 'free' }].concat(cult ?[{ key: 'cult', label: 'Culture-bound', labels: ['No', 'Yes'], hide: true }] : []),
+                cols: [{ key: 'Target', label: 'Target', formula: 'Row.lvl + Row.fix' }].concat(cult ? [{ key: 'UnfPen', label: 'Unfamiliar culture', hide: true, formula: 'if(and(Row.cult = 1, UnfCultureOn, not UnfCultureHeld), -3, 0)' }] : []), rolls: [{ label: 'Roll', formula: cult ? '3d6 <= Row.Target + Row.UnfPen' : '3d6 <= Row.Target' }] } });
+            const u8Sys = (held, cult) => cleanSystem({ v: 1, name: 'U8', rolls: [], items: [], fields: [u8F('uo', 'UnfCultureOn', 'toggle', { label: 'Unfamiliar culture' }), u8F('uc', 'UnfCulture', 'text', { label: 'Culture you are among' })].concat(held ? [u8F('uh', 'UnfCultureHeld', 'toggle', { label: 'That culture is on the sheet' })] : [], [u8Sk(cult)]) }, { F, gmView: true });
+            const U8 = u8Sys(true, true), U8H = u8Sys(false, false), U8C = u8Sys(true, false);
+            const u8File = (d, more) => Object.assign({ type: 'character', writtenBySiteVersion: '1.0.3', name: 'U8', details: d }, more || {});
+            const heldOf = (d, more) => aliasFromShadowBase(u8File(d, more), U8, F).values.f_uh, on = c => ({ unfamiliarCultureOn: true, unfamiliarCulture: c });
+            const rowsOf = (...ns) => ({ culturalFamiliarityEntries: ns.map(n => typeof n === 'string' ? { name: n } : n) }), UG = (more) => Object.assign({ species: 'Ugnaught' }, more);
+            const H = [
+                ['the same name', heldOf(on('Hutt Space'), rowsOf('Kashyyyk', 'Hutt Space')), true],
+                ['(3) case aside', heldOf(on('HUTT space'), rowsOf('Hutt Space')), true],
+                ['(2) a run of white space one space, the ends trimmed', heldOf(on('  Hutt \t  Space '), rowsOf('Hutt Space')), true],
+                ['(1) a semicolon a comma', heldOf(on('Ord Mantell;Lower City'), rowsOf('Ord Mantell,Lower City')), true],
+                ['(1) a line break a comma', heldOf(on('Ord Mantell\r\n Lower City'), rowsOf('Ord Mantell, Lower City')), true],
+                ['(1) a square bracket gone', heldOf(on('[Hutt Space]'), rowsOf('Hutt [Space]')), true],
+                ['(4) a curly apostrophe on the row', heldOf(on('twi\'lek culture'), rowsOf('Twi’lek Culture')), true],
+                ['another culture', heldOf(on('Hutt Space'), rowsOf('Kashyyyk', 'Hutt Spaces')), false],
+                ['a comma is no space', heldOf(on('Ord Mantell, Lower City'), rowsOf('Ord Mantell,Lower City')), false],
+                ['a blank never matches', heldOf(on(''), rowsOf('')), false],
+                ['white space alone is blank', heldOf(on('  \t '), rowsOf(' ')), false],
+                ['brackets alone are blank', heldOf(on('[ ]'), rowsOf('[]')), false],
+                ['no culture named', heldOf({ unfamiliarCultureOn: true }, rowsOf('Hutt Space')), false],
+                ['a culture that is no text', heldOf({ unfamiliarCultureOn: true, unfamiliarCulture: 7 }, rowsOf('7')), false],
+                ['switched off: the tick as the culture named and the rows say', heldOf({ unfamiliarCultureOn: false, unfamiliarCulture: 'Hutt Space' }, rowsOf('Hutt Space')), true],
+                ['a native row counts', heldOf(on('Kashyyyk'), rowsOf({ name: 'Kashyyyk', native: true })), true],
+                ['a row a species grants counts', heldOf(on('Bounty Hunter Guilds'), rowsOf({ name: 'Bounty Hunter Guilds', granted: true, fromSpecies: 'Trandoshan' })), true],
+                ['a row kept as written counts', heldOf(on('Core Worlds'), rowsOf({ name: 'Core Worlds', xpAsWritten: 2, notes: 'As written: Core Worlds [2]' })), true],
+                ['a row named by a number, as the import reads it', heldOf(on('7'), rowsOf({ name: 7 })), true],
+                ['a row named null, by nothing or by an object with no reading', heldOf(on('null'), rowsOf({ name: null }, {}, { name: JSON.parse('{"toString":"x"}') })), false],
+                ['a row that is no object', heldOf(on('Hutt Space'), { culturalFamiliarityEntries: ['Hutt Space', null, 3, ['Hutt Space']] }), false],
+                ['rows, an empty list too, before the text', heldOf(on('Hutt Space'), { culturalFamiliarityEntries: [], culturalFamiliarities: 'Hutt Space [1]' }), false],
+                ['rows that are no list: the text', heldOf(on('Hutt Space'), { culturalFamiliarityEntries: { name: 'Hutt Space' }, culturalFamiliarities: 'Hutt Space [1]' }), true],
+                ['an older file: its text read into rows', heldOf(on('Hutt Space'), { culturalFamiliarities: 'Kashyyyk [0]; Hutt Space [1]' }), true],
+                ['an older file: a line break between entries', heldOf(on('Hutt Space'), { culturalFamiliarities: 'Kashyyyk [0]\nHutt Space [1]' }), true],
+                ['an older file: a comma after a bracket splits', heldOf(on('Hutt Space'), { culturalFamiliarities: 'Core Worlds [1], Hutt Space [1]' }), true],
+                ['an older file: any other comma is part of a name', [heldOf(on('Mos Eisley'), { culturalFamiliarities: 'Tatooine, Mos Eisley [1]' }), heldOf(on('Tatooine, Mos Eisley'), { culturalFamiliarities: 'Tatooine, Mos Eisley [1]' })], [false, true]],
+                ['an older file: an entry kept as written, by its name without its brackets', [heldOf(on('Core Worlds'), { culturalFamiliarities: 'Core Worlds [2]' }), heldOf(on('Core Worlds'), { culturalFamiliarities: 'Core [x] Worlds' }), heldOf(on('Hutt Space'), { culturalFamiliarities: 'Hutt Space' })], [true, true, true]],
+                ['an older file whose text is no text, read by its words as the website reads it', heldOf(on('5'), { culturalFamiliarities: 5 }), true],
+                ['the load\'s rename of an Ugnaught\'s retired native row', [heldOf(on('Gentes'), UG(rowsOf({ name: 'Gentes / Cloud City', native: true }))), heldOf(on('Gentes / Cloud City'), UG(rowsOf({ name: 'Gentes  /  Cloud City ', native: true })))], [true, false]],
+                ['no rename of a row bought at 1 XP', heldOf(on('Gentes / Cloud City'), UG(rowsOf('Gentes / Cloud City'))), true],
+                ['no rename on another species\' sheet', heldOf(on('Gentes / Cloud City'), { species: 'Human', culturalFamiliarities: 'Gentes / Cloud City [0]' }), true],
+                ['the rename in an older file\'s text, the species read trimmed', [heldOf(on('Gentes'), { species: ' Ugnaught ', culturalFamiliarities: 'Kashyyyk [0];Gentes / Cloud City [0]' }), heldOf(on('Gentes / Cloud City'), UG({ culturalFamiliarities: 'Gentes / Cloud City [0]' }))], [true, false]],
+                ['the Twi\'lek package\'s rename', heldOf(on('Twi\'lek Culture'), Object.assign({ species: 'Twi\'lek' }, rowsOf({ name: 'Twi\'lek Clans', native: true }))), true],
+                ['no details at all', aliasFromShadowBase({ type: 'character', name: 'U8', culturalFamiliarityEntries: [{ name: 'Hutt Space' }] }, U8, F).values.f_uh, false]
+            ].concat(['‘', '’', 'ʼ', '`', '´'].map(a => ['(4) the apostrophe ' + a + ' a straight one, in capitals and with a run of spaces', heldOf(on('TWI' + a + 'LEK  culture'), rowsOf('Twi\'lek Culture')), true]));
+            const hBad = H.filter(c => j(c[1]) !== j(c[2])).map(c => c[0] + ': ' + j(c[1]));
+            check('the unfamiliar culture\'s tick (the owner, 2026-10-16: "Tick now, matcher later"): That culture is on the sheet (a toggle UnfCultureHeld) read from the file by the website\'s own rule (lib/cultural-familiarity-rows.ts sameCulture over cultureRowsOf, as unfamiliarCultureState asks it), the culture details.unfamiliarCulture names against every row of culturalFamiliarityEntries, a native one, one a species grants and one kept as written alike: (1) a semicolon or a line break a comma and a square bracket gone, (2) a run of white space one space and the ends trimmed, (3) case aside, (4) each of the five curly or slanted apostrophes a straight one, on the culture and on the row; a blank, white space alone, brackets alone, no culture or one that is no text never matching; a comma that is no space another culture; a row named by a number as the import reads it, a row that is no object or names nothing none; the rows before the text, an empty list too; rows that are no list, or none, the text read into rows as sbCultureXp reads it; the load\'s rename of an Ugnaught\'s or a Twi\'lek\'s retired native entry, never a row bought at 1 XP, never on another species\' sheet; and the tick the same whether the switch is on or off (' + H.length + ' cases)',
+                !hBad.length && H.length === 40, hBad);
+            // never written back, and a system without the key reads every file as before
+            const wbF = u8File(on('Hutt Space'), rowsOf('Hutt Space')), wbV = aliasFromShadowBase(wbF, U8, F).values;
+            const back = vals => { const ch = { id: 'c_u8', name: 'U8', ownerId: '', npc: true, values: Object.assign({}, wbV, vals) }; return S.sbWriteBack(wbF, U8, ch, S.resolveAll(U8, ch, F), null); };
+            const wb = [back({}), back({ f_uh: false }), back({ f_uh: true }), back({ f_uh: 'yes' })];
+            const FILES = [wbF, u8File(on('Ord'), { culturalFamiliarities: 'Ord [1]' }), u8File({}), { type: 'character', name: 'X' }, u8File(on(''), rowsOf('Hutt Space'))];
+            const noKey = FILES.map(f => { const a = Object.assign({}, aliasFromShadowBase(f, U8, F).values), b = aliasFromShadowBase(f, U8H, F).values, h = a.f_uh; delete a.f_uh; return [typeof h, j(a) === j(b)]; });
+            check('the unfamiliar culture\'s tick is never written back (sbWriteBack): with the tick as read, switched off, switched on and holding a value of another kind, the file comes back byte for byte as it went and nothing names it; and a system without the key reads each file value for value as with it, but for the tick, which a system with it always holds as true or false',
+                wb.every(w => j(w.json) === j(wbF) && !w.changes.length && !w.same.concat(w.left).some(s => /That culture/.test(s))) && j(noKey) === j(FILES.map(() => ['boolean', true])), j([wb.map(w => [w.changes, w.same]), noKey]));
+            // a skill row's `cult`: the website's isCultureBoundSkill by the row's own name, where the list has the stat: a library copy's own value only
+            // where its entry reads otherwise (one entry marked, one of the twelve its older pack does not mark, one not of the twelve), a custom row in
+            // its stats; the -3 on the Roll alone, while the switch is on and the culture not held
+            const LIB8 = [{ id: 'i_sk_dip', name: 'Diplomacy', key: 'Diplomacy', category: 'Skill', stats: { cult: 1 } }, { id: 'i_sk_int', name: 'Interrogation', key: 'Interrogation', category: 'Skill' }, { id: 'i_sk_sf', name: 'Savoir-Faire', key: 'SavoirFaire', category: 'Skill' }];
+            const byI8 = Object.create(null), byN8 = Object.create(null); LIB8.forEach(e => { byI8[e.id] = e; (byN8[e.name.toLowerCase()] = byN8[e.name.toLowerCase()] || []).push(e); });
+            const find8 = n => byN8[String(n).trim().toLowerCase()] || [];
+            const SK8 = ['Diplomacy', 'Diplomacy (Hutts)', 'Diplomacy (Hutts) (Corellian)', 'Interrogation', 'Savoir-Faire (Military)', 'Fast-Talk', 'Tactics', 'Acting(Holodrama)', 'public speaking', 'Leadership (', 'Propaganda)'];
+            const skF = names => u8File(on('Hutt Space'), Object.assign(rowsOf('Kashyyyk'), { skills: names.map(n => ({ name: n, level: '12', relativeLevel: 'IQ/A' })) }));
+            const run8 = (sys0, file) => { const r = aliasFromShadowBase(file, sys0, F), ro = S.sbRowOps(file, sys0, find8), ch = { id: 'c_u8', name: 'U8', ownerId: '', npc: true, values: Object.assign({}, r.values) }, bad = [];
+                ro.ops.forEach(o => { const a = S.applyRowOp(sys0, ch, o.f, o.q, F, {}); if (a.ok) ch.values[o.f] = a.value; else bad.push(o.q.op + ':' + a.reason); }); return { ro, ch, bad }; };
+            let k8 = null, k8b = null, k8c = null;
+            S.setLibraryFind(id => byI8[id] || null);
+            try { k8 = run8(U8, skF(SK8)); k8b = run8(U8, skF(['Diplomacy', 'Interrogation', 'Tactics'])); k8c = run8(U8C, skF(['Diplomacy', 'Interrogation', 'Tactics'])); } finally { S.setLibraryFind(null); }
+            const rhs8 = U8.fields.find(f => f.key === 'Skills').list.rolls[0].formula.split('<=')[1];
+            const pens8 = (res, uo, uh) => { const ch = { id: 'c_u8', name: 'U8', ownerId: '', npc: true, values: Object.assign({}, res.ch.values, { f_uo: uo, f_uh: uh }) }, rs = S.resolveAll(U8, ch, F), rv = S.makeResolver(U8, ch, F, null);
+                return (ch.values.f_sk || []).map(r => { const id = S.rowIdOf(r), t = (rs.f_sk.cells[id] || []).find(x => x.key === 'Target'); return [t ? t.value : null, t ? F.evaluate(rhs8, { vars: rv.row('f_sk', id) }).value - t.value : null]; }); };
+            const own8 = (k8.ch.values.f_sk || []).map(r => r.defId ? (r.ov && r.ov.stats && 'cult' in r.ov.stats ? 'copy ' + r.ov.stats.cult : 'copy') : 'own ' + (r.def && r.def.stats && 'cult' in r.def.stats ? r.def.stats.cult : '-'));
+            const pOn = pens8(k8, true, false), pHeld = pens8(k8, true, true), pOff = pens8(k8, false, false), norm = ops => j(ops).replace(/w_sb[0-9a-z]+/g, 'R');
+            check('the unfamiliar culture\'s twelve: a website file\'s skill row is Culture-bound (a number stat cult) where the website\'s own isCultureBoundSkill calls its name one of Ch4\'s twelve social skills, a specialty of one included (a last bracket that closes the name: Diplomacy (Hutts), Acting(Holodrama), Savoir-Faire (Military)), and nowhere else (Interrogation, Tactics, Diplomacy (Hutts) (Corellian), Leadership ( and Propaganda) are not): a library copy holds it as its own value only where its entry reads otherwise (an older pack\'s Savoir-Faire unmarked, the Corellian specialty of a marked entry), a custom row in its stats; so the Roll takes -3 on exactly those rows while Unfamiliar culture is on and That culture is on the sheet is off, and nothing while it is held or off, the Target the same each time; and a file whose rows all read as their entries reads op for op as on a list without the stat',
+                !k8.bad.length && j(own8) === j(['copy', 'copy', 'copy 0', 'copy', 'copy 1', 'own 1', 'own -', 'own 1', 'own 1', 'own -', 'own -']) && j(pOn.map(p => p[1])) === j([-3, -3, 0, 0, -3, -3, 0, -3, -3, 0, 0])
+                && pHeld.every(p => p[1] === 0) && pOff.every(p => p[1] === 0) && j(pOn.map(p => p[0])) === j(pHeld.map(p => p[0])) && j(pOn.map(p => p[0])) === j(pOff.map(p => p[0])) && pOn.every(p => p[0] === 12)
+                && !k8b.bad.length && norm(k8b.ro.ops) === norm(k8c.ro.ops), j([k8.bad, own8, pOn, pHeld, pOff, norm(k8b.ro.ops) === norm(k8c.ro.ops)]));
+            // the words: Help, both release notes, and this file where it is there (CLAUDE.md is the maintainer's own copy, git-ignored)
+            const hU8 = rdK('system/app/index.html');
+            check('the unfamiliar culture\'s tick, the words: Help says where the system has a switch named UnfCultureHeld the file sets it by the website\'s rule, case, spacing and the shape of an apostrophe aside and a blank never matching, that it is never written back and can be changed in play, and that a skill of the twelve sets cult, and no longer that Waypoint leaves the -3 to the table; both release notes say it' + (clK === null ? '' : '; this file names sbCultureHeld, sbCultureFold and sbCultureBound'),
+                hU8.includes('A switch named <code>UnfCultureHeld</code> is on when one of the file&rsquo;s culture rows names that culture, as the website judges it.') && hU8.includes('It is never written back, and you or the player can change it in play.')
+                && hU8.includes('sets a number stat named <code>cult</code>') && !hU8.includes('so apply it at the table')
+                && ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].every(f => rdK(f).includes('- A sheet from ShadowBase sets a switch your system has when the culture\n'))
+                && (clK === null || ['sbCultureHeld', 'sbCultureFold', 'sbCultureBound', 'UnfCultureHeld'].every(k => clK.includes(k))));
+        }
+        // m416: the unfamiliar culture's tick read rule by rule (the owner, 2026-10-16: "Take "Tick now, matcher later". So the tick starts exactly
+        // where the site would, set it on import with the site's own rule"), each a check of its own on small made-up files and a generic system
+        // that is no campaign's (M6: the switch, the culture, the tick, CultureCP and a Skills list with a number stat `cult`): the website's
+        // sameCulture (lib/cultural-familiarity-rows.ts) step by step, (1) a semicolon or a line break a comma and a square bracket gone, (2) a
+        // run of white space one space and the ends trimmed, (3) case aside by a lower-case fold, (4) the five curly or slanted apostrophes a
+        // straight one, each alone and then together and in their order; a blank name; every kind of row; the load's rename of a retired
+        // species entry (lib/cultural-familiarity-migration.ts) at its edges; an older file's text read into rows (readCultureRows); the tick
+        // reading the rows and the text as far as the bill reads them; the tick only where the system has the key, as a toggle; never written
+        // back, and offered on an upload in fixed words; a hostile file; and the twelve (isCultureBoundSkill) one by one. The cases between the
+        // two markers below are data alone: scratch/handoff-tools/m416/probe-site.mjs reads them and asks the website's own code (the sheet its
+        // own Import opens, unfamiliarCultureState, isCultureBoundSkill) for each, so every expected answer is the website's
+        {
+            // m416 cases begin
+            const m6C = (c, more, off) => Object.assign({ type: 'character', writtenBySiteVersion: '1.0.3', name: 'M6', details: { unfamiliarCultureOn: !off, unfamiliarCulture: c } }, more || {});
+            const m6R = (...ns) => ({ culturalFamiliarityEntries: ns.map(n => typeof n === 'string' ? { name: n } : n) });
+            const m6T = t => ({ culturalFamiliarities: t });
+            const m6Sp = (sp, more) => Object.assign({ species: sp }, more || {});
+            const m6X = c => 'U+' + c.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0');
+            const M6_AP = ['\u2018', '\u2019', '\u02bc', '`', '\u00b4'];
+            const m6K = row => m6C('Hutt Space', m6R('Kashyyyk', row, 'Coruscant'));
+            const m6GC = 'Gentes / Cloud City', m6UG = row => m6Sp('Ugnaught', m6R('Kashyyyk', row)), m6UT = t => m6Sp('Ugnaught', m6T(t)), m6O = (c, t) => m6C(c, m6T(t));
+            const M6_CASES = {
+                step1: [
+                    ['a semicolon a comma, on the culture', m6C('Ord;Lower', m6R('Ord,Lower')), true],
+                    ['and on the row', m6C('Ord,Lower', m6R('Ord;Lower')), true],
+                    ['a line feed a comma', m6C('Ord\nLower', m6R('Ord,Lower')), true],
+                    ['a carriage return a comma', m6C('Ord\rLower', m6R('Ord,Lower')), true],
+                    ['a run of them one comma', m6C('Ord;\r\n;\nLower', m6R('Ord,Lower')), true],
+                    ['so never two', m6C('Ord;;Lower', m6R('Ord,,Lower')), false],
+                    ['a comma, never a space', m6C('Ord;Lower', m6R('Ord Lower')), false],
+                    ['nor nothing', m6C('Ord;Lower', m6R('OrdLower')), false],
+                    ['a comma at an end is kept', m6C(';Hutt Space', m6R('Hutt Space')), false],
+                    ['and read as a comma', m6C(';Hutt Space', m6R(',Hutt Space')), true],
+                    ['a line separator is no line break here', m6C('Ord\u2028Lower', m6R('Ord,Lower')), false],
+                    ['nor is a bar', m6C('Ord|Lower', m6R('Ord,Lower')), false],
+                    ['an opening square bracket gone', m6C('[Hutt Space', m6R('Hutt Space')), true],
+                    ['a closing one gone', m6C('Hutt Space]', m6R('Hutt Space')), true],
+                    ['inside a word, taken out and never made a space', m6C('Hu[tt Spa]ce', m6R('Hutt Space')), true],
+                    ['on the row', m6C('Hutt Space', m6R('[Hutt] [Space]')), true],
+                    ['round brackets stay', m6C('Hutt (Space)', m6R('Hutt Space')), false],
+                    ['and braces', m6C('Hutt {Space}', m6R('Hutt Space')), false],
+                    ['and angle brackets', m6C('Hutt <Space>', m6R('Hutt Space')), false]],
+                step2: [
+                    ['a run of spaces one', m6C('Hutt    Space', m6R('Hutt Space')), true],
+                    ['a tab', m6C('Hutt\tSpace', m6R('Hutt Space')), true],
+                    ['a vertical tab and a form feed', m6C('Hutt\u000b\fSpace', m6R('Hutt Space')), true],
+                    ['a no-break space', m6C('Hutt\u00a0Space', m6R('Hutt Space')), true],
+                    ['an em space beside an ideographic space', m6C('Hutt\u2003\u3000Space', m6R('Hutt Space')), true],
+                    ['a line and a paragraph separator', m6C('Hutt\u2028\u2029Space', m6R('Hutt Space')), true],
+                    ['the ends trimmed, a byte order mark among them', m6C('\ufeff \tHutt Space\u00a0 ', m6R('Hutt Space')), true],
+                    ['on the row', m6C('Hutt Space', m6R(' \u00a0Hutt \t Space\u3000')), true],
+                    ['white space is never taken out', m6C('HuttSpace', m6R('Hutt Space')), false],
+                    ['a zero-width space is no white space', m6C('Hutt\u200bSpace', m6R('Hutt Space')), false],
+                    ['nor beside a space', m6C('Hutt \u200bSpace', m6R('Hutt Space')), false],
+                    ['nor a next-line control', m6C('Hutt\u0085Space', m6R('Hutt Space')), false],
+                    ['a space beside a comma stays', m6C('Ord, Lower', m6R('Ord,Lower')), false]],
+                step3: [
+                    ['capitals', m6C('HUTT SPACE', m6R('hutt space')), true],
+                    ['on the row', m6C('hutt space', m6R('HUTT SPACE')), true],
+                    ['mixed', m6C('hUtT sPaCe', m6R('Hutt Space')), true],
+                    ['letters with accents', m6C('\u00c9TOILE \u00c7A', m6R('\u00e9toile \u00e7a')), true],
+                    ['Greek', m6C('\u039a\u0391\u039c\u0399\u039d\u039f', m6R('\u03ba\u03b1\u03bc\u03b9\u03bd\u03bf')), true],
+                    ['a lower-case fold, as the website\'s: a sharp s is no SS', m6C('STRASSE', m6R('Stra\u00dfe')), false],
+                    ['the Kelvin sign a k', m6C('\u212aashyyyk', m6R('Kashyyyk')), true],
+                    ['a ligature is not its letters', m6C('\ufb01re', m6R('FIRE')), false],
+                    ['digits as they are', m6C('Sector 7G', m6R('sector 7g')), true]],
+                step4: [].concat(
+                    M6_AP.map(a => ['the apostrophe ' + m6X(a) + ' a straight one, on the culture', m6C('Twi' + a + 'lek', m6R('Twi\'lek')), true]),
+                    M6_AP.map(a => ['the apostrophe ' + m6X(a) + ' a straight one, on the row', m6C('Twi\'lek', m6R('Twi' + a + 'lek')), true]),
+                    [['two of them alike', m6C('Twi\u2018lek', m6R('Twi\u00b4lek')), true],
+                    ['an apostrophe is never taken out', m6C('Twi\u2019lek', m6R('Twilek')), false],
+                    ['each of a pair', m6C('Twi\u2019\u2019lek', m6R('Twi\'\'lek')), true],
+                    ['a pair is never one', m6C('Twi\u2019\u2019lek', m6R('Twi\'lek')), false]],
+                    ['\u201b', '\u2032', '\u02b9', '\uff07', '\u02bb', '"', '\u201c', '\u02ca'].map(m => ['the mark ' + m6X(m) + ' is no apostrophe', m6C('Twi' + m + 'lek', m6R('Twi\'lek')), false])),
+                together: [
+                    ['all four at once, on the culture', m6C('  TWI\u2019LEK;\n  [Clans]\u00a0 ', m6R('twi\'lek, clans')), true],
+                    ['and on the row', m6C('kel\'dor, enclave', m6R(' [KEL\u2019DOR;  Enclave] ')), true],
+                    ['the brackets go before white space is made one', m6C('Hutt [ ] Space', m6R('Hutt Space')), true],
+                    ['separators become one comma before white space is made one', m6C('Ord ;\n; Lower', m6R('Ord , Lower')), true],
+                    ['and so never two', m6C('Ord ;\n; Lower', m6R('Ord , , Lower')), false],
+                    ['the ends trimmed after the brackets go', m6C('[ Hutt Space ]', m6R('Hutt Space')), true],
+                    ['a line break at an end a comma before the ends are trimmed', m6C('Hutt Space\n', m6R('Hutt Space')), false],
+                    ['and read as one', m6C('Hutt Space\n', m6R('Hutt Space,')), true],
+                    ['case and two apostrophes', m6C('KEL\u00b4DOR ENCLAVE', m6R('kel\u2018dor enclave')), true]],
+                blank: [
+                    ['an empty culture, an empty row beside it', m6C('', m6R('', 'Hutt Space')), false],
+                    ['white space alone', m6C(' \t\u00a0\u3000 ', m6R(' ')), false],
+                    ['square brackets alone', m6C('[][ ]', m6R('[]')), false],
+                    ['a byte order mark alone', m6C('\ufeff', m6R('\ufeff')), false],
+                    ['rows that name nothing', m6C('', m6R({}, { name: null }, { name: '' }, { name: [] })), false],
+                    ['no culture key', { type: 'character', name: 'M6', details: { unfamiliarCultureOn: true }, culturalFamiliarityEntries: [{ name: 'Hutt Space' }] }, false],
+                    ['a semicolon alone is a comma, no blank', m6C(';', m6R(',')), true],
+                    ['and a line break', m6C('\n', m6R(';')), true],
+                    ['an apostrophe alone is no blank', m6C('\u2019', m6R('\'')), true]],
+                rows: [
+                    ['a row bought at 1 XP', m6K({ name: 'Hutt Space' }), true],
+                    ['a native row', m6K({ name: 'Hutt Space', native: true }), true],
+                    ['a granted row', m6K({ name: 'Hutt Space', granted: true }), true],
+                    ['a row a species grants', m6K({ name: 'Hutt Space', granted: true, fromSpecies: 'Rodian' }), true],
+                    ['a native row from a species', m6K({ name: 'Hutt Space', native: true, fromSpecies: 'Rodian' }), true],
+                    ['a row naming a species with no mark', m6K({ name: 'Hutt Space', fromSpecies: 'Rodian' }), true],
+                    ['a row kept as written at 0', m6K({ name: 'Hutt Space', xpAsWritten: 0 }), true],
+                    ['at 2, with its notes', m6K({ name: 'Hutt Space', xpAsWritten: 2, notes: 'As written: Hutt Space [2]' }), true],
+                    ['at -1', m6K({ name: 'Hutt Space', xpAsWritten: -1 }), true],
+                    ['a free row kept as written', m6K({ name: 'Hutt Space', native: true, xpAsWritten: 3 }), true],
+                    ['a row whose marks are no marks', m6K({ name: 'Hutt Space', native: 'yes', granted: 1, xpAsWritten: 'two', fromSpecies: '' }), true],
+                    ['a row with an id, false marks and keys the website does not know', m6K({ id: 'r1', name: 'Hutt Space', native: false, granted: false, colour: 'red' }), true],
+                    ['the first row', m6C('Hutt Space', m6R('Hutt Space', 'A', 'B')), true],
+                    ['the last row', m6C('Hutt Space', m6R('A', 'B', 'Hutt Space')), true],
+                    ['a culture the file holds twice', m6C('Hutt Space', m6R({ name: 'hutt space', native: true }, 'Hutt Space')), true],
+                    ['every kind of row, none naming it', m6C('Hutt Space', m6R('Kashyyyk', { name: 'Hutt', native: true }, { name: 'Space', granted: true, fromSpecies: 'Hutt' }, { name: 'Hutt Spaces', xpAsWritten: 2 })), false]],
+                rename: [
+                    ['an Ugnaught\'s native row renamed', m6C('Gentes', m6UG({ name: m6GC, native: true })), true],
+                    ['its old name no longer held', m6C(m6GC, m6UG({ name: m6GC, native: true })), false],
+                    ['a granted one renamed too', m6C('Gentes', m6UG({ name: m6GC, granted: true })), true],
+                    ['and its old name gone', m6C(m6GC, m6UG({ name: m6GC, granted: true })), false],
+                    ['a free row kept as written renamed', m6C('Gentes', m6UG({ name: m6GC, native: true, xpAsWritten: 2 })), true],
+                    ['a row kept as written at 0 and not free kept', m6C(m6GC, m6UG({ name: m6GC, xpAsWritten: 0 })), true],
+                    ['a mark that is no true one kept', m6C(m6GC, m6UG({ name: m6GC, native: 1 })), true],
+                    ['another case is the player\'s own', m6C(m6GC, m6UG({ name: 'gentes / cloud city', native: true })), true],
+                    ['so it is not renamed', m6C('Gentes', m6UG({ name: 'gentes / cloud city', native: true })), false],
+                    ['spaces round the name renamed', m6C('Gentes', m6UG({ name: ' Gentes / Cloud City  ', native: true })), true],
+                    ['white space within it made one, renamed', m6C('Gentes', m6UG({ name: 'Gentes  /\tCloud City', native: true })), true],
+                    ['a name holding the bracket is not the entry', m6C('Gentes / Cloud City 0', m6UG({ name: 'Gentes / Cloud City [0]', native: true })), true],
+                    ['nor renamed', m6C('Gentes', m6UG({ name: 'Gentes / Cloud City [0]', native: true })), false],
+                    ['every such row renamed', m6C(m6GC, m6Sp('Ugnaught', m6R({ name: m6GC, native: true }, { name: m6GC, granted: true }))), false],
+                    ['the other rows as they are', m6C('Kashyyyk', m6UG({ name: m6GC, native: true })), true],
+                    ['a Twi\'lek\'s native row renamed', m6C('Twi\'lek Culture', m6Sp('Twi\'lek', m6R({ name: 'Twi\'lek Clans', native: true }))), true],
+                    ['its old name no longer held', m6C('Twi\'lek Clans', m6Sp('Twi\'lek', m6R({ name: 'Twi\'lek Clans', native: true }))), false],
+                    ['a curly apostrophe in the row is the player\'s own', m6C('Twi\'lek Clans', m6Sp('Twi\'lek', m6R({ name: 'Twi\u2019lek Clans', native: true }))), true],
+                    ['the species in another case: no rename', m6C(m6GC, m6Sp('ugnaught', m6R({ name: m6GC, native: true }))), true],
+                    ['the species with a curly apostrophe: no rename', m6C('Twi\'lek Clans', m6Sp('Twi\u2019lek', m6R({ name: 'Twi\'lek Clans', native: true }))), true],
+                    ['the species trimmed', m6C('Gentes', m6Sp('\tUgnaught ', m6R({ name: m6GC, native: true }))), true],
+                    ['an older file: the projection\'s own text renamed', m6C('Gentes', m6UT('Kashyyyk [0]; Gentes / Cloud City [0]')), true],
+                    ['its old name no longer held', m6C(m6GC, m6UT('Kashyyyk [0]; Gentes / Cloud City [0]')), false],
+                    ['a line break between', m6C('Gentes', m6UT('Kashyyyk [0]\nGentes / Cloud City [0]')), true],
+                    ['a CRLF after it', m6C('Gentes', m6UT('Gentes / Cloud City [0]\r\nKashyyyk [0]')), true],
+                    ['white space round it', m6C('Gentes', m6UT('  Gentes / Cloud City [0]\t')), true],
+                    ['a comma list is not split for the rename', m6C(m6GC, m6UT('Kashyyyk [0], Gentes / Cloud City [0]')), true],
+                    ['so nothing renamed there', m6C('Gentes', m6UT('Kashyyyk [0], Gentes / Cloud City [0]')), false],
+                    ['an entry bought at 1 XP kept', m6C(m6GC, m6UT('Gentes / Cloud City [1]')), true],
+                    ['an entry with more words kept', m6C('Gentes / Cloud City (home)', m6UT('Gentes / Cloud City [0] (home)')), true],
+                    ['and not renamed', m6C('Gentes (home)', m6UT('Gentes / Cloud City [0] (home)')), false],
+                    ['an entry spaced otherwise kept', m6C(m6GC, m6UT('Gentes /  Cloud City [0]')), true],
+                    ['and not renamed', m6C('Gentes', m6UT('Gentes /  Cloud City [0]')), false],
+                    ['a Twi\'lek\'s older file renamed', m6C('Twi\'lek Culture', m6Sp('Twi\'lek', m6T('Hutt Space [1]; Twi\'lek Clans [0]'))), true],
+                    ['rows before the text: the text neither renamed nor read', m6C('Gentes', m6Sp('Ugnaught', Object.assign(m6R(), m6T('Gentes / Cloud City [0]')))), false]],
+                text: [
+                    ['a native entry', m6O('Kashyyyk', 'Kashyyyk [0]'), true],
+                    ['a bought entry', m6O('Hutt Space', 'Hutt Space [1]'), true],
+                    ['an entry at another figure', m6O('Core Worlds', 'Core Worlds [3]'), true],
+                    ['a negative figure', m6O('Core Worlds', 'Core Worlds [-2]'), true],
+                    ['a figure with a sign', m6O('Core Worlds', 'Core Worlds [+1]'), true],
+                    ['points written out', m6O('Core Worlds', 'Core Worlds [2 points]'), true],
+                    ['one point', m6O('Core Worlds', 'Core Worlds [1 point]'), true],
+                    ['a bare entry', m6O('Core Worlds', 'Core Worlds'), true],
+                    ['a bracket that is no figure', m6O('Core Worlds', 'Core Worlds [x]'), true],
+                    ['two brackets, both taken off', m6O('Core Worlds', 'Core Worlds [1] [2]'), true],
+                    ['a bracket with no space beside it a space', m6O('Core Worlds', 'Core[x]Worlds'), true],
+                    ['never nothing', m6O('CoreWorlds', 'Core[x]Worlds'), false],
+                    ['a bracket first', m6O('Core Worlds', '[1] Core Worlds'), true],
+                    ['words after the bracket kept', m6O('Core Worlds here', 'Core Worlds [1] here'), true],
+                    ['and part of the name', m6O('Core Worlds', 'Core Worlds [1] here'), false],
+                    ['a bracket left open', m6O('Core Worlds', 'Core [Worlds'), true],
+                    ['a closing bracket first', m6O('Core Worlds', 'Core ]Worlds['), true],
+                    ['a bracket inside a bracket, up to the first closing one', m6O('Core c Worlds', 'Core [a [b] c] Worlds'), true],
+                    ['so not the whole', m6O('Core Worlds', 'Core [a [b] c] Worlds'), false],
+                    ['a bracket holding a carriage return taken off whole', m6O('Core Worlds', 'Core [a\rb] Worlds'), true],
+                    ['entries split at a semicolon, a line break and a CRLF', m6O('Hutt Space', 'A [1];B [1]\nHutt Space [1]\r\nC [1]'), true],
+                    ['the last of them', m6O('C', 'A [1];B [1]\nHutt Space [1]\r\nC [1]'), true],
+                    ['a carriage return alone splits nothing', m6O('Hutt Space', 'A [1]\rHutt Space [1]'), false],
+                    ['it is a comma in the name', m6O('A ,Hutt Space', 'A [1]\rHutt Space [1]'), true],
+                    ['at a comma after a bracket, white space before the comma', m6O('Hutt Space', 'Core Worlds [1] , Hutt Space [1]'), true],
+                    ['not at a comma inside round brackets', m6O('Outer (Rim , Hutt)', 'Outer (Rim [1], Hutt) [1]'), true],
+                    ['so no entry of its own', m6O('Hutt', 'Outer (Rim [1], Hutt) [1]'), false],
+                    ['nor at a comma after anything but a bracket', m6O('Mos Eisley', 'Tatooine, Mos Eisley [1]'), false],
+                    ['empty entries passed over', m6O('Hutt Space', ';;\n; Hutt Space [1];;'), true],
+                    ['a bracket alone names nothing', m6O('0', '[0]'), false],
+                    ['rows that are null: the text', m6C('Hutt Space', { culturalFamiliarityEntries: null, culturalFamiliarities: 'Hutt Space [1]' }), true],
+                    ['rows that are text: the text', m6C('Hutt Space', { culturalFamiliarityEntries: 'Kashyyyk', culturalFamiliarities: 'Hutt Space [1]' }), true]],
+                hostile: [].concat([
+                    ['details that are null', { type: 'character', name: 'M6', details: null, culturalFamiliarityEntries: [{ name: 'Hutt Space' }] }, false],
+                    ['details that are a list', { type: 'character', name: 'M6', details: ['Hutt Space'], culturalFamiliarityEntries: [{ name: 'Hutt Space' }] }, false],
+                    ['details that are text', { type: 'character', name: 'M6', details: 'Hutt Space', culturalFamiliarityEntries: [{ name: 'Hutt Space' }] }, false],
+                    ['a culture that is a list', m6C(['Hutt Space'], m6R('Hutt Space')), false],
+                    ['a culture that is an object', m6C(JSON.parse('{"toString":"Hutt Space"}'), m6R('Hutt Space', 'object Object')), false],
+                    ['a culture that is true', m6C(true, m6R('true')), false],
+                    ['a culture under a key of __proto__', JSON.parse('{"type":"character","name":"M6","details":{"__proto__":{"unfamiliarCultureOn":true,"unfamiliarCulture":"Hutt Space"}},"culturalFamiliarityEntries":[{"name":"Hutt Space"}]}'), false],
+                    ['details under a key of __proto__', JSON.parse('{"type":"character","name":"M6","__proto__":{"details":{"unfamiliarCultureOn":true,"unfamiliarCulture":"Hutt Space"}},"culturalFamiliarityEntries":[{"name":"Hutt Space"}]}'), false],
+                    ['rows and text under a key of __proto__', JSON.parse('{"type":"character","name":"M6","details":{"unfamiliarCultureOn":true,"unfamiliarCulture":"Hutt Space"},"__proto__":{"culturalFamiliarityEntries":[{"name":"Hutt Space"}],"culturalFamiliarities":"Hutt Space [1]"}}'), false],
+                    ['a row whose name is under a key of __proto__', m6C('Hutt Space', { culturalFamiliarityEntries: JSON.parse('[{"__proto__":{"name":"Hutt Space"}}]') }), false],
+                    ['a row named by a list, read as the import reads it', m6C('Hutt Space', m6R({ name: ['Hutt Space'] })), true],
+                    ['by a list of two', m6C('Hutt,Space', m6R({ name: ['Hutt', 'Space'] })), true],
+                    ['by an object', m6C('object Object', m6R({ name: {} })), true],
+                    ['by true', m6C('TRUE', m6R({ name: true })), true],
+                    ['by 0', m6C('0', m6R({ name: 0 })), true],
+                    ['a row named null names nothing', m6C('null', m6R({ name: null })), false],
+                    ['a control character is no white space', m6C('\u0000Hutt Space', m6R('Hutt Space')), false],
+                    ['a species that is a list', m6C(m6GC, m6Sp(['Ugnaught'], m6R({ name: m6GC, native: true }))), true],
+                    ['a species that is a number', m6C(m6GC, m6Sp(5, m6T('Gentes / Cloud City [0]'))), true]],
+                    ['__proto__', 'constructor', 'toString', 'hasOwnProperty', 'valueOf', '__defineGetter__'].map(sp => ['a species named ' + sp + ', its rows', m6C(m6GC, m6Sp(sp, m6R({ name: m6GC, native: true }))), true]),
+                    ['__proto__', 'constructor', 'toString', 'hasOwnProperty', 'valueOf', '__defineGetter__'].map(sp => ['a species named ' + sp + ', its text', m6C(m6GC, m6Sp(sp, m6T('Gentes / Cloud City [0]'))), true])),
+                // the review of 2026-10-16: a text that is no text, as the website's import keeps it (its || '') and its load reads it (String)
+                nottext: [
+                    ['a number, by its words', m6O('5', 5), true],
+                    ['a number written as a power of ten, by its words', m6O('1e+21', 1e21), true],
+                    ['a list, by its words', m6O('Hutt Space', ['Hutt Space [1]']), true],
+                    ['a list of two, split at the comma after a bracket', m6O('B', ['A [1]', 'B [1]']), true],
+                    ['a list of lists, by its words', m6O('B', [['A [1]'], ['B [1]']]), true],
+                    ['a list holding null, whose comma begins the name', m6O(',Hutt Space', [null, 'Hutt Space [1]']), true],
+                    ['so not Hutt Space alone', m6O('Hutt Space', [null, 'Hutt Space [1]']), false],
+                    ['true, by its word', m6O('true', true), true],
+                    ['an object, whose words are a bracket that names nothing', m6O('object Object', {}), false],
+                    ['0 reads as nothing', m6O('0', 0), false],
+                    ['false reads as nothing', m6O('false', false), false],
+                    ['null reads as nothing', m6O('null', null), false],
+                    ['an empty list reads as nothing', m6O('Hutt Space', []), false],
+                    ['an Ugnaught\'s list is never renamed', m6C(m6GC, m6UT(['Gentes / Cloud City [0]'])), true],
+                    ['so no Gentes there', m6C('Gentes', m6UT(['Gentes / Cloud City [0]'])), false],
+                    ['rows before it: the list neither read nor renamed', m6C('Hutt Space', Object.assign(m6R('Kashyyyk'), m6T(['Hutt Space [1]']))), false]]
+            };
+            // where the website's own import stops (a name String cannot read throws there), the bridge passes the row over and reads on
+            const M6_SITE_STOPS = [['a row named by what String cannot read is passed over', m6C('Hutt Space', m6R({ name: JSON.parse('{"toString":1,"valueOf":2}') }, 'Hutt Space')), true],
+                ['a culture text String cannot read reads as nothing', m6O('Hutt Space', JSON.parse('[{"toString":1,"valueOf":2},"Hutt Space [1]"]')), false]];
+            const m6LS = String.fromCharCode(0x2028), m6PS = String.fromCharCode(0x2029);   // a line and a paragraph separator: the pattern's "." reads neither
+            const M6_SKILLS = [['Diplomacy', 1], ['Fast-Talk', 1], ['Merchant', 1], ['Intimidation', 1], ['Streetwise', 1], ['Carousing', 1], ['Public Speaking', 1], ['Savoir-Faire', 1], ['Leadership', 1], ['Politics', 1], ['Propaganda', 1], ['Acting', 1],
+                ['DIPLOMACY', 1], [' streetwise\t', 1], ['Merchant (Spice)', 1], ['Intimidation(Hutts)', 1], ['Politics  ( Senate )  ', 1], ['Carousing ()', 1],
+                ['Interrogation', 0], ['Interrogation (Social)', 0], ['Tactics', 0], ['Fast Talk', 0], ['Savoir Faire', 0], ['PublicSpeaking', 0], ['Public  Speaking', 0], ['Diplomacies', 0], ['Diplomacy x', 0],
+                ['Diplomacy (a) b', 0], ['Diplomacy (a(b)', 0], ['Diplomacy (Hu(t)ts)', 0], ['(Diplomacy)', 0], ['Diplomacy (a) (b)', 0], ['Acting [Holodrama]', 0], ['Leadership (', 0], ['Tactics\nDiplomacy (Hutts)', 0],
+                ['Tactics' + m6LS + 'Diplomacy (Hutts)', 0], ['Tactics' + m6PS + 'Diplomacy (Hutts)', 0], ['Diplomacy' + m6LS + ' (Hutts)', 1], ['Diplomacy (Hu' + m6PS + 'tts)', 1]];
+            // m416 cases end
+            const m6Proto = Object.getOwnPropertyNames(Object.prototype).sort().join();
+            const m6F = (id, key, kind, extra) => Object.assign({ id: 'f_' + id, key, label: key, kind, vis: 'all' }, extra || {});
+            const m6Sk = m6F('sk', 'Skills', 'item-list', { list: { cats: ['Skill'], noQty: true, custom: true, multi: true, lvl: { label: 'Level', min: -10, max: 40, def: 10 },
+                stats: [{ key: 'attr' }, { key: 'diff' }, { key: 'fix' }, { key: 'free' }, { key: 'cult', label: 'Culture-bound', labels: ['No', 'Yes'], hide: true }] } });
+            const m6Sys = fields => cleanSystem({ v: 1, name: 'M6', rolls: [], items: [], fields }, { F, gmView: true });
+            const M6 = m6Sys([m6F('uo', 'UnfCultureOn', 'toggle', { label: 'Unfamiliar culture' }), m6F('uc', 'UnfCulture', 'text', { label: 'Culture you are among' }), m6F('uh', 'UnfCultureHeld', 'toggle', { label: 'That culture is on the sheet' }), m6F('cp', 'CultureCP', 'number'), m6Sk]);
+            const m6Got = (file, sys) => { try { const v = aliasFromShadowBase(file, sys || M6, F).values; return Object.prototype.hasOwnProperty.call(v, 'f_uh') ? v.f_uh : 'absent'; } catch (e) { return 'threw ' + (e && e.message); } };
+            const m6Bad = list => list.filter(c => j(m6Got(c[1])) !== j(c[2])).map(c => c[0] + ': ' + j(m6Got(c[1])));
+            const m6Say = k => '(' + M6_CASES[k].length + ' cases)';
+            const m6Is = (k, n) => { const b = m6Bad(M6_CASES[k]); return [!b.length && M6_CASES[k].length === n, b]; };
+            let r6 = m6Is('step1', 19);
+            check('m416 the tick, step (1) alone (sameCulture by sanitizeCultureInput): a semicolon, a line feed and a carriage return each a comma, on the culture and on the row, a run of them one comma and never two, a comma and never a space or nothing, kept at an end; a line separator and a bar no line break; an opening and a closing square bracket each gone, inside a word too and never made a space, on the row too; round brackets, braces and angle brackets kept ' + m6Say('step1'), r6[0], r6[1]);
+            r6 = m6Is('step2', 13);
+            check('m416 the tick, step (2) alone (normalizeCultureName): a run of white space one space, a tab, a vertical tab, a form feed, a no-break space, an em space, an ideographic space, a line and a paragraph separator among it, the ends trimmed with a byte order mark among them, on the culture and on the row; white space never taken out, and a zero-width space, a next-line control and a space beside a comma never white space made one ' + m6Say('step2'), r6[0], r6[1]);
+            r6 = m6Is('step3', 9);
+            check('m416 the tick, step (3) alone (foldCulture\'s toLowerCase): capitals, on the culture and on the row, mixed case, accented and Greek letters alike; a lower-case fold and never an upper-case one, as the website\'s (a sharp s is no SS, the Kelvin sign a k, a ligature not its letters); digits as they are ' + m6Say('step3'), r6[0], r6[1]);
+            r6 = m6Is('step4', 22);
+            check('m416 the tick, step (4) alone (foldCulture\'s apostrophes): each of U+2018, U+2019, U+02BC, the backtick and U+00B4 a straight apostrophe, on the culture and on the row, two of them alike, each of a pair; an apostrophe never taken out and a pair never one; and U+201B, the prime, U+02B9, the full-width apostrophe, U+02BB, a double quote, U+201C and U+02CA no apostrophe ' + m6Say('step4'), r6[0], r6[1]);
+            r6 = m6Is('together', 9);
+            check('m416 the tick, the four steps together and in their order: all four at once on the culture and on the row; the square brackets taken out before white space is made one, a run of separators one comma before it, the ends trimmed after both (so a line break at an end is a comma that stays); case and two kinds of apostrophe at once ' + m6Say('together'), r6[0], r6[1]);
+            r6 = m6Is('blank', 9);
+            check('m416 the tick, a blank name never matches, judged after the steps: an empty culture beside an empty row, white space alone, square brackets alone, a byte order mark alone, rows that name nothing, no culture key; and a semicolon, a line break or an apostrophe alone no blank (a comma, an apostrophe) ' + m6Say('blank'), r6[0], r6[1]);
+            r6 = m6Is('rows', 16);
+            check('m416 the tick, every kind of row counts (cultureRowsOf, every row): bought, native, granted, granted by a species, native from a species, naming a species with no mark, kept as written at 0, at 2 with its notes and at -1, free and kept as written, marks that are no marks, an id, false marks and unknown keys; first, last, held twice; and none of them naming another culture ' + m6Say('rows'), r6[0], r6[1]);
+            r6 = m6Is('rename', 35);
+            check('m416 the tick, the load\'s rename of a species package\'s retired entry (migrateCulturalFamiliarities): an Ugnaught\'s free row, native or granted, kept as written or not, renamed Gentes and every such row; a row kept as written at 0 and not free, a mark that is no true one, another case, a name holding its bracket kept as the player wrote them; spaces round the name and white space within it made one, renamed; the other rows untouched; the Twi\'lek\'s alike, a curly apostrophe the player\'s own; a species in another case or with a curly apostrophe renaming nothing, one with white space round it trimmed; and in an older file\'s text, the exact entry only (between "; ", a line break or a CRLF, white space round it), never within a comma list, an entry bought at 1 XP, one with more words or spaced otherwise; and never in text a file with rows holds ' + m6Say('rename'), r6[0], r6[1]);
+            r6 = m6Is('text', 32);
+            check('m416 the tick, an older file\'s text read into rows (readCultureRows, readCultureEntry): an entry native, bought, at another figure, negative, with a sign, with its points written out, bare, with a bracket that is no figure or two brackets, by its name with every bracketed part a space, first or with words after it, a bracket left open or closing first, a bracket in a bracket up to the first closing one, a bracket holding a carriage return; entries split at a semicolon, a line break and a CRLF, never at a lone carriage return (a comma in the name), at a comma after a bracket with white space between, never at one inside round brackets or after anything else; empty entries passed over, a bracket alone naming nothing; rows that are null or text read as no rows ' + m6Say('text'), r6[0], r6[1]);
+            r6 = m6Is('hostile', 31);
+            const m6Big = (() => { const t0 = Date.now(), many = Array.from({ length: 100000 }, (_, i) => ({ name: 'R' + i })); many[1500] = { name: 'Hutt Space' };
+                const a = [m6Got(m6C('Hutt Space', { culturalFamiliarityEntries: many })), m6Got(m6C('x'.repeat(1000000), m6R('y'.repeat(999999)))), m6Got(m6C('y'.repeat(1000000), m6R('Y'.repeat(1000000)))),
+                    m6Got(m6C('Hutt Space', m6T('Hutt Space [1];' + '['.repeat(1000000)))), m6Got(m6C('Hutt Space', m6T(', ]'.repeat(400000) + ';Hutt Space')))];
+                return { a, ms: Date.now() - t0 }; })();
+            r6[1] = r6[1].concat(m6Bad(M6_SITE_STOPS));
+            check('m416 the tick, a hostile file: details that are null, a list or text, a culture that is a list, an object or true, a culture, details, rows or text hidden under a key of __proto__, a row whose name is hidden there, each reading no culture or no row; a row named by a list, an object, true or 0 read as String reads it, as the import does, and one named null naming nothing; a control character no white space; a species that is a list, a number or the name of something every object inherits renaming nothing, in rows and in text, and nothing thrown; a row named by what String cannot read passed over (the website\'s own import stops there); a hundred thousand rows, a million characters of culture and of name, and a text of a million brackets or of a long comma list read at once; nothing written onto a prototype ' + m6Say('hostile'),
+                r6[0] && !r6[1].length && j(m6Big.a) === j([true, false, true, true, false]) && m6Big.ms < 4000 && Object.getOwnPropertyNames(Object.prototype).sort().join() === m6Proto && ({}).name === undefined && ({}).unfamiliarCulture === undefined, j([r6[1], m6Big]));
+            // the tick reads the rows and the text as far as the bill reads them (sbCultureXp: the first 2000 rows, the text to LIMITS.notes), so the two
+            // readings of one file cannot drift apart
+            const m6N = n => Array.from({ length: n }, (_, i) => ({ name: 'R' + i }));
+            const m6Cp = file => aliasFromShadowBase(file, M6, F).values.f_cp;
+            const m6TIn = 'x'.repeat(LIMITS.notes - 11) + ';Hutt Space', m6BIn = 'x'.repeat(LIMITS.notes - 8) + ';Ord [3]';
+            const m6Bound = [m6Got(m6C('R1999', { culturalFamiliarityEntries: m6N(2001) })), m6Got(m6C('R2000', { culturalFamiliarityEntries: m6N(2001) })), m6Cp(m6C('', { culturalFamiliarityEntries: m6N(2001) })),
+                m6TIn.length, m6Got(m6C('Hutt Space', m6T(m6TIn))), m6Got(m6C('Hutt Space', m6T('x' + m6TIn))), m6Got(m6C('Hutt Spac', m6T('x' + m6TIn))), m6Cp(m6C('', m6T(m6BIn))), m6Cp(m6C('', m6T('x' + m6BIn)))];
+            check('m416 the tick reads the rows and the text exactly as far as the bill reads them (sbCultureXp, the culture\'s XP): the 2000th row counts and the 2001st does not, for the tick and the bill alike (2001 rows billed 2000); the text\'s last character within LIMITS.notes counts and one past it does not, for the tick (a name cut there read cut) and the bill (a bracket cut there bills nothing)',
+                j(m6Bound) === j([true, false, 2000, LIMITS.notes, true, false, true, 3, 0]), j(m6Bound));
+            // the tick only where the system has the key, and only as a toggle; a system without it as before
+            const m6File = m6C('Hutt Space', m6R('Hutt Space'));
+            const m6Keys = [
+                ['the tick alone, with neither the switch nor the culture', m6Sys([m6F('uh', 'UnfCultureHeld', 'toggle')]), { f_uh: true }],
+                ['a key written in lower case', m6Sys([m6F('uh', 'unfcultureheld', 'toggle')]), { f_uh: true }],
+                ['no tick: the switch and the culture alone', m6Sys([m6F('uo', 'UnfCultureOn', 'toggle'), m6F('uc', 'UnfCulture', 'text')]), { f_uo: true, f_uc: 'Hutt Space' }],
+                ['a number under the key', m6Sys([m6F('uh', 'UnfCultureHeld', 'number')]), {}],
+                ['a text under the key', m6Sys([m6F('uh', 'UnfCultureHeld', 'text')]), {}],
+                ['notes under the key', m6Sys([m6F('uh', 'UnfCultureHeld', 'notes')]), {}],
+                ['a list of choices under the key', m6Sys([m6F('uh', 'UnfCultureHeld', 'select', { options: ['true', 'false', 'on', 'off', 'Yes', 'No'] })]), {}],
+                ['a formula under the key', m6Sys([m6F('uh', 'UnfCultureHeld', 'formula', { formula: '1' })]), {}],
+                ['a key that only begins as it does', m6Sys([m6F('uh', 'UnfCultureHeld2', 'toggle')]), {}]];
+            const m6KBad = m6Keys.filter(k => j(aliasFromShadowBase(m6File, k[1], F).values) !== j(k[2])).map(k => k[0] + ': ' + j(aliasFromShadowBase(m6File, k[1], F).values));
+            const m6Always = [{ type: 'character', name: 'X' }, m6C(''), m6C('Nowhere', m6R('Hutt Space')), m6C('Hutt Space', m6R('Hutt Space'), true)].map(f => m6Got(f));
+            check('m416 the tick is read only where the system has the key UnfCultureHeld (in any case of its letters) and only as a toggle: with neither the switch nor the culture beside it, it is read all the same; a system without it reads the switch and the culture alone; a number, a text, notes, a list of choices or a formula under that key, and a key that only begins as it does, read nothing; and a system with it always holds true or false, never nothing (a file with no details, an empty culture, a culture the file does not hold, one switched off that it does)',
+                !m6KBad.length && j(m6Always) === j([false, false, false, true]), j([m6KBad, m6Always]));
+            // never written back, whatever the session holds, and offered on an upload in fixed words
+            const m6WF = { type: 'character', writtenBySiteVersion: '1.0.3', name: 'M6', details: { height: '1.8 m', unfamiliarCultureOn: true, unfamiliarCulture: 'Hutt Space', unfamiliarCultureHeld: 'as it came' }, culturalFamiliarityEntries: [{ id: 'cf1', name: 'Hutt Space' }] };
+            const m6WV = aliasFromShadowBase(m6WF, M6, F).values;
+            const m6Back = vals => { const ch = { id: 'c_m6', name: 'M6', ownerId: '', npc: true, values: Object.assign({}, m6WV, vals) }; Object.keys(vals).forEach(k => { if (vals[k] === undefined) delete ch.values[k]; }); return S.sbWriteBack(m6WF, M6, ch, S.resolveAll(M6, ch, F), null); };
+            const m6WB = [m6Back({}), m6Back({ f_uh: false }), m6Back({ f_uh: undefined }), m6Back({ f_uh: 'yes' }), m6Back({ f_uh: false, f_uo: false, f_uc: 'Kashyyyk' }), m6Back({ f_uh: true, f_uo: false, f_uc: 'Kashyyyk' })];
+            const m6Said = w => w.changes.map(c => c.label).concat(w.same, w.left).filter(s => /That culture|UnfCultureHeld/.test(String(s)));
+            const m6Sess = Object.assign({}, m6WF.details, { unfamiliarCultureOn: false, unfamiliarCulture: 'Kashyyyk' });
+            const m6Pr = (file, uh) => S.sbProposal(M6, { id: 'c_m6', name: 'M6', ownerId: 'p1', npc: false, values: uh === undefined ? {} : { f_uh: uh } }, file, F, () => []).changes.filter(c => c.f === 'f_uh').map(c => [c.label, c.from, c.to, c.value, c.accept]);
+            const m6Prs = [m6Pr(m6File, false), m6Pr(m6File, true), m6Pr(m6C('Nowhere', m6R('Hutt Space')), undefined), m6Pr(m6C('Nowhere', m6R('Hutt Space')), true)];
+            check('m416 the tick is never written back (sbWriteBack): with the tick as read, switched off, never set, holding a value of another kind, and beside a session that switches the culture off and names another, the file\'s details come back as they went but for the switch and the culture the session moved, a key of the file\'s own that looks like the tick carried exactly as it came, and nothing said of the tick; on a player\'s upload it is offered as any toggle is, by the system\'s own label and the fixed words on and off, ticked, and nothing where the file reads what the character holds (one that never set it reads off)',
+                m6WB.slice(0, 4).every(w => j(w.json) === j(m6WF) && !w.changes.length) && m6WB.slice(4).every(w => j(w.json.details) === j(m6Sess) && j(w.json.culturalFamiliarityEntries) === j(m6WF.culturalFamiliarityEntries)) && m6WB.every(w => !m6Said(w).length)
+                && j(m6Prs) === j([[['That culture is on the sheet', 'off', 'on', true, true]], [], [], [['That culture is on the sheet', 'on', 'off', false, true]]]), j([m6WB.map(w => [w.json.details, w.changes.map(c => c.label), m6Said(w)]), m6Prs]));
+            // the twelve, one by one, as the website's isCultureBoundSkill judges a skill row's own name: a custom row's `cult` (1 for one of them)
+            const m6SkF = { type: 'character', name: 'M6', skills: M6_SKILLS.map(s => ({ name: s[0], level: '12', relativeLevel: 'IQ/A' })) };
+            const m6SkRo = S.sbRowOps(m6SkF, M6, () => []), m6SkC = m6SkRo.ops.filter(o => o.q.op === 'custom').map(o => o.q.def && o.q.def.stats && o.q.def.stats.cult ? o.q.def.stats.cult : 0);
+            const m6SkBad = M6_SKILLS.filter((s, i) => m6SkC[i] !== s[1]).map(s => j(s[0]) + ': ' + m6SkC[M6_SKILLS.indexOf(s)]);
+            check('m416 the twelve one by one (sbCultureBound, the website\'s isCultureBoundSkill): each of Diplomacy, Fast-Talk, Merchant, Intimidation, Streetwise, Carousing, Public Speaking, Savoir-Faire, Leadership, Politics, Propaganda and Acting, in capitals, with white space round it, and with a specialty (with or without a space before it, with white space inside and after it, or empty) is Culture-bound; Interrogation and its specialty, Tactics, the twelve spelt otherwise (a space for a hyphen, no space, two spaces, a plural, a word after), a bracket with words after it, a bracket left open or holding a bracket, a name that is a bracket alone, two specialties, a square bracket and a specialty after a line break are not (' + M6_SKILLS.length + ' names)',
+                m6SkC.length === M6_SKILLS.length && !m6SkBad.length && M6_SKILLS.length === 39, j([m6SkC.length, m6SkBad]));
+            // the reviews of 2026-10-16. (1) The twelve judged in one pass (sbCultureBound): a skill's name from a file is any length (a player's
+            // upload carries a text of 400,000 characters), and the website's pattern, which the bridge read it by, backtracks over the white space
+            // in one (a second over 40,000 characters, minutes over 400,000, the GM's app frozen). Names of 40,000 characters, of white space with a
+            // bracket after it, of brackets alone, of a tab run, of line breaks before the bracket, read at once; and 6,000 seeded names, line
+            // breaks of every kind among them, judged as the website's own pattern (splitSpecialty's, read here by the suite) judges each
+            const m6Tw = new Set(['diplomacy', 'fast-talk', 'merchant', 'intimidation', 'streetwise', 'carousing', 'public speaking', 'savoir-faire', 'leadership', 'politics', 'propaganda', 'acting']);
+            const m6Ref = n => { const raw = n.trim(); if (!raw) return 0; const m = raw.match(/^(.*?)\s*\(([^()]*)\)\s*$/); return m6Tw.has(raw.toLowerCase()) || m6Tw.has((m ? m[1].trim() : raw).toLowerCase()) ? 1 : 0; };
+            const m6CultOf = names => S.sbRowOps({ type: 'character', name: 'M6', skills: names.map(n => ({ name: n, level: '12', relativeLevel: 'IQ/A' })) }, M6, () => []).ops.filter(o => o.q.op === 'custom').map(o => o.q.def && o.q.def.stats && o.q.def.stats.cult ? o.q.def.stats.cult : 0);
+            const m6Long = 40000, m6LongN = ['a' + ' '.repeat(m6Long - 2) + 'b', 'Diplomacy' + ' '.repeat(m6Long - 12) + '(x)', '('.repeat(m6Long), ' ('.repeat(m6Long / 2) + ')', 'x' + '\t'.repeat(m6Long - 3) + '(y)', 'Diplomacy (' + ' '.repeat(m6Long - 12) + ')', 'Diplomacy' + '\n'.repeat(m6Long - 12) + '(x)'];
+            const m6T0 = Date.now(), m6LongC = m6CultOf(m6LongN), m6LongMs = Date.now() - m6T0;
+            let m6Seed = 416; const m6Rnd = () => { m6Seed = (m6Seed + 0x6D2B79F5) | 0; let t = Math.imul(m6Seed ^ (m6Seed >>> 15), 1 | m6Seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+            const m6Bits = ['Diplomacy', 'diplomacy', 'FAST-TALK', 'Acting', 'Public Speaking', 'savoir-faire', 'Tactics', 'Interrogation', ' ', '  ', '\t', '\n', '\r', m6LS, m6PS, String.fromCharCode(0xa0), '(', ')', '((', '))', '()', ')(', 'x', 'Hutts', '[', ']', ' (Hutts)', '(Hutts)', ','];
+            const m6Sweep = [].concat(...['\n', '\r', m6LS, m6PS].map(b => ['Public' + b + 'Speaking (Senate)', 'Public Speaking' + b + ' (Senate)', 'Public Speaking (Sen' + b + 'ate)', b + 'Public Speaking (Senate)' + b]));
+            while (m6Sweep.length < 6000) { let n = ''; const k = 1 + Math.floor(m6Rnd() * 6); for (let i = 0; i < k; i++) n += m6Bits[Math.floor(m6Rnd() * m6Bits.length)]; if (n.trim()) m6Sweep.push(n); }
+            const m6SwC = []; for (let i = 0; i < m6Sweep.length; i += 150) m6SwC.push(...m6CultOf(m6Sweep.slice(i, i + 150)));
+            const m6LT = new RegExp('[\\n\\r' + m6LS + m6PS + ']', 'g');
+            const m6SwBad = m6Sweep.filter((n, i) => m6SwC[i] !== m6Ref(n)).map(n => j(n)), m6SwYes = m6Sweep.filter(n => m6Ref(n) === 1).length, m6SwLB = m6Sweep.filter(n => m6Ref(n) === 0 && m6Ref(n.replace(m6LT, ' ')) === 1).length;
+            check('m416 the twelve judged in one pass (sbCultureBound, the review of 2026-10-16): a name of 40,000 characters, white space with a bracket after it, brackets alone, a tab run or line breaks before its bracket, is judged at once (' + m6LongMs + ' ms for seven; the website\'s pattern backtracks over such a name, and a player\'s upload carries one of 400,000 characters), and 6,000 seeded names, line breaks, line and paragraph separators, no-break spaces, brackets left open, closed twice or empty among them, are judged as the website\'s own pattern judges each (' + m6SwYes + ' Culture-bound; ' + m6SwLB + ' not, only for a line break in the base)',
+                m6LongMs < 300 && j(m6LongC) === j([0, 1, 0, 0, 0, 1, 1]) && m6SwC.length === m6Sweep.length && !m6SwBad.length && m6SwYes > 200 && m6SwLB >= 4, j([m6LongMs, m6LongC, m6SwBad.slice(0, 6), m6SwC.length, m6SwYes, m6SwLB]));
+            // (2) A culture text that is no text (sbCultureText): the website's import keeps any value of culturalFamiliarities that reads as true
+            // (its || '') and its load reads it by String, so the tick, the bill and the Culture text read its words; never renamed
+            r6 = m6Is('nottext', 16);
+            const m6CuSys = m6Sys([m6F('cp', 'CultureCP', 'number'), m6F('cu', 'Culture', 'notes')]);
+            const m6Bill = (t, more) => { const v = aliasFromShadowBase(Object.assign({ type: 'character', name: 'M6', culturalFamiliarities: t }, more || {}), m6CuSys, F).values; return [v.f_cp, Object.prototype.hasOwnProperty.call(v, 'f_cu') ? v.f_cu : null]; };
+            const m6Bills = [5, ['Hutt Space [1]'], ['A [1]', 'B [1]'], [['A [1]'], ['B [1]']], true, {}, 0, false, null, [], JSON.parse('[{"toString":1,"valueOf":2},"Hutt Space [1]"]'), 'A [1]; B [1]'].map(t => m6Bill(t)).concat([m6Bill(['A [1]', 'B [1]'], { culturalFamiliaritiesBaseline: 1 })]);
+            const m6Stop = m6Bad(M6_SITE_STOPS);
+            check('m416 a culture text that is no text (sbCultureText, the review of 2026-10-16): the website\'s import keeps any value of culturalFamiliarities that reads as true and its load reads it by String, so the tick reads a number, a list, a list of lists and true by their words and an object as the one bracket it names (nothing), 0, false, null and an empty list as nothing, a list holding null with its comma; never renamed by the load, which renames a text alone; rows before it as ever; the bill and the Culture text read it alike (5 bills 0, a list of one bought entry 1, of two 2 and 1 under a baseline of 1, true and an object 0, its words the Culture text); and a text String cannot read reads as nothing, bills 0 and stops nothing ' + m6Say('nottext'),
+                r6[0] && !r6[1].length && !m6Stop.length && j(m6Bills) === j([[0, '5'], [1, 'Hutt Space [1]'], [2, 'A [1],B [1]'], [2, 'A [1],B [1]'], [0, 'true'], [0, '[object Object]'], [0, null], [0, null], [0, null], [0, null], [0, null], [2, 'A [1]; B [1]'], [1, 'A [1],B [1]']]), j([r6[1], m6Stop, m6Bills]));
+            // (3) A second spelling of a skill kept (skFree; in sbRowOps before the -3): a row of its own never takes a key a library copy of this
+            // very file holds, whatever the order (laid after the copy it was refused and lost, laid before it the two held one key), nor one the
+            // system's own items hold under the list (keyClash refuses it); it falls to its whole name's key, else to none. A key the system holds
+            // under another category is free
+            const m6KLib = [{ id: 'i_m6_sf', name: 'Savoir-Faire', key: 'SavoirFaire', category: 'Skill' }, { id: 'i_m6_ft', name: 'Fast-Talk', key: 'FastTalk', category: 'Skill' }];
+            const m6KBy = Object.create(null), m6KN = Object.create(null); m6KLib.forEach(e => { m6KBy[e.id] = e; (m6KN[e.name.toLowerCase()] = m6KN[e.name.toLowerCase()] || []).push(e); });
+            const m6KSys = cleanSystem({ v: 1, name: 'M6K', rolls: [], items: [{ id: 'i_m6_ps', name: 'Public Speaking', key: 'PublicSpeaking', category: 'Skill' }, { id: 'i_m6_ac', name: 'Acting', key: 'Acting', category: 'Gear' }], fields: [m6Sk] }, { F, gmView: true });
+            const m6KNames = ['Savoir-Faire', 'Savoir Faire (Military)', 'Fast-Talk (Court)', 'Fast Talk (Hutts)', 'Public-Speaking (Senate)', 'Acting (Holo)', 'Savoir Faire (Military)'];
+            const m6KRun = names => { const ro = S.sbRowOps({ type: 'character', name: 'M6', skills: names.map(n => ({ name: n, level: '12', relativeLevel: 'IQ/A' })) }, m6KSys, n => m6KN[String(n).trim().toLowerCase()] || []), ch = { id: 'c_m6', name: 'M6', ownerId: '', npc: true, values: {} }, bad = [];
+                ro.ops.forEach(o => { const a = S.applyRowOp(m6KSys, ch, o.f, o.q, F, {}); if (a.ok) ch.values[o.f] = a.value; else bad.push(o.q.op + ' ' + (o.q.def ? o.q.def.name : '') + ': ' + a.reason); });
+                const rows = (ch.values.f_sk || []).map(r => { const d = (S.rowDef(m6KSys, r) || {}).def || {}; return [(r.ov && r.ov.name) || d.name, typeof d.key === 'string' ? d.key : '']; });
+                return { bad, rows, keys: rows.map(r => r[1]).filter(Boolean) }; };
+            let m6KA = null, m6KB = null;
+            S.setLibraryFind(id => m6KBy[id] || null);
+            try { m6KA = m6KRun(m6KNames); m6KB = m6KRun(m6KNames.slice().reverse()); } finally { S.setLibraryFind(null); }
+            const m6KWant = [['Savoir-Faire', 'SavoirFaire'], ['Savoir Faire (Military)', 'SavoirFaireMilitary'], ['Fast-Talk (Court)', 'FastTalk'], ['Fast Talk (Hutts)', 'FastTalkHutts'], ['Public-Speaking (Senate)', 'PublicSpeakingSenate'], ['Acting (Holo)', 'Acting'], ['Savoir Faire (Military)', '']];
+            const m6KWantB = [['Savoir Faire (Military)', 'SavoirFaireMilitary'], ['Acting (Holo)', 'Acting'], ['Public-Speaking (Senate)', 'PublicSpeakingSenate'], ['Fast Talk (Hutts)', 'FastTalkHutts'], ['Fast-Talk (Court)', 'FastTalk'], ['Savoir Faire (Military)', ''], ['Savoir-Faire', 'SavoirFaire']];
+            check('m416 a second spelling of a skill kept (skFree, the review of 2026-10-16): a website file\'s skill row of its own (Savoir Faire (Military), Fast Talk (Hutts)) never takes the key of a library copy the same file holds (Savoir-Faire, and Fast-Talk (Court), a specialty of a copy), in either order, nor a key the system\'s own items hold under the list (Public Speaking); each falls to its whole name\'s key (SavoirFaireMilitary, FastTalkHutts, PublicSpeakingSenate), and a second row of one name to none; a key the system holds under another category is free (Acting); every row on the sheet with no refusal and no key held twice, as the website keeps every row',
+                !m6KA.bad.length && !m6KB.bad.length && j(m6KA.rows) === j(m6KWant) && j(m6KB.rows) === j(m6KWantB) && new Set(m6KA.keys).size === m6KA.keys.length && new Set(m6KB.keys).size === m6KB.keys.length, j([m6KA, m6KB]));
+            // (4) the words: Help, and this file where it is there (CLAUDE.md is the maintainer's own copy, git-ignored)
+            const hM6 = rdK('system/app/index.html');
+            check('m416 the words of the review (2026-10-16): Help says only a file\'s skill rows are judged by their name, a row made by hand on a sheet or in the library takes cult as it is set there, and a row renamed later keeps its own' + (clK === null ? '' : '; this file names sbCultureText, skFree and the name judged in one pass'),
+                hM6.includes('<li>Only a file&rsquo;s skill rows are judged by their name. A skill row made by hand, on a sheet or in the library, takes <code>cult</code> as it is set there. A row renamed later keeps the one it had.</li>')
+                && (clK === null || ['sbCultureText', 'skFree', 'in one pass'].every(k => clK.includes(k))));
+        }
         // the sheet's side: sheets.js sliced by its sbexport markers
         const shK = rdx('scripts/sheets.js'), kW = { client: false, view: null, asked: [], tok: null, flags: { turning: true, posture: true, elevation: true } };
         const mkEl = (tag, cls, text) => ({ tag, cls: cls || '', text: text === undefined ? '' : text, kids: [], appendChild(c) { this.kids.push(c); return c; } });

@@ -4365,13 +4365,24 @@ function sbCultureXp(j) {
     var rows = isObj(j) ? j.culturalFamiliarityEntries : undefined, n = 0;
     if (Array.isArray(rows)) { rows.slice(0, 2000).forEach(function(r) { var o = isObj(r) ? r : {}; n += o.native === true || o.granted === true ? 0 : typeof o.xpAsWritten === 'number' && isFinite(o.xpAsWritten) ? o.xpAsWritten : 1; }); return n; }
     var b0 = isObj(j) ? j.culturalFamiliaritiesBaseline : undefined, left = typeof b0 === 'number' && isFinite(b0) ? b0 : 0;   // the importer's `|| 0`, then readCultureRows' isNumber
-    sbCultureSplit(isObj(j) && typeof j.culturalFamiliarities === 'string' ? j.culturalFamiliarities.slice(0, LIMITS.notes) : '').forEach(function(e) {
+    sbCultureSplit(sbCultureText(j).slice(0, LIMITS.notes)).forEach(function(e) {   // the text as the website reads it (sbCultureText)
         var m = /^(.*?)\s*\[\s*([+-]?\d+)\s*(?:points?)?\s*\]$/.exec(e), fg = m && !/[[\]]/.test(m[1]) && sbCultureName(m[1]) !== '' ? Number(m[2]) : NaN;   // readCultureEntry's READABLE
         if (fg === 0) return;   // native: free
         if (fg === 1) { if (left >= 1) { left -= 1; return; } n += 1; return; }   // bought: 1 XP, unless the baseline still covers it
         var b = /\[\s*([+-]?\d+)\s*(?:points?)?\s*\]/.exec(e); if (b) n += parseInt(b[1], 10);   // kept as written: what it declared (extractPointsFromMultiEntryString)
     });
     return n;
+}
+// A file's culturalFamiliarities as the website's import and load read it (character-json-importer.ts: savedData.culturalFamiliarities || '',
+// then splitCultureEntries' String(text ?? '')): a text as it is; anything else that reads as true by String (a number, a list, true), and
+// nothing where String cannot read it (the website's load stops there); anything that reads as false nothing. The bill (sbCultureXp), the
+// tick (sbCultureHeld) and the Culture text (sbScalars) read it here alone. Only a text is renamed by the load (cultural-familiarity-migration.ts
+// migrateCulturalFamiliarities reads a text alone)
+function sbCultureText(j) {
+    var v = isObj(j) ? j.culturalFamiliarities : undefined;
+    if (typeof v === 'string') return v;
+    if (!v) return '';
+    try { return String(v); } catch (e) { return ''; }
 }
 // lib/cultural-familiarity-rows.ts splitCultureEntries: a line or an entry split by ';', and a comma at depth 0 that follows a closing bracket
 // ("Core Worlds [1], Hutt Space [1]" is two entries); any other comma is part of a name. Each piece trimmed, an empty one none. The look back
@@ -4391,6 +4402,60 @@ function sbCultureSplit(t) {
     return out.map(function(p) { return p.trim(); }).filter(function(p) { return !!p; });
 }
 function sbCultureName(raw) { return String(raw).replace(/[;\r\n]+/g, ',').replace(/[[\]]/g, '').replace(/\s+/g, ' ').trim(); }   // normalizeCultureName
+// The unfamiliar culture's tick (the owner, 2026-10-16: "Take "Tick now, matcher later". So the tick starts exactly where the site would, set it
+// on import with the site's own rule"): whether the sheet holds the culture the file's switch names, read into a toggle UnfCultureHeld where the
+// system has one (sbScalars) and never written back, since the website works it out itself. The website's rule (its v1.0.3, c2c5ef6:
+// lib/cultural-familiarity-rows.ts, unfamiliarCultureState asking sameCulture of each row cultureRowsOf gives): two names are one culture
+// when they are equal once folded (sbCultureFold: foldCulture, (1) a semicolon or a line break a comma and a square bracket gone, (2) a run of
+// white space one space and the ends trimmed, (3) case aside, (4) a curly or slanted apostrophe, U+2018, U+2019, U+02BC, ` or U+00B4, a
+// straight one), and a blank never matches. Every row counts, a native one and one a species package grants too. The culture is
+// details.unfamiliarCulture as the website's import reads it (character-json-importer.ts: a text, else ''), whatever the switch says, so
+// the tick is right when the switch is turned on in play. The rows are the file's culturalFamiliarityEntries, each name as the import reads it
+// (cultureRowForFile: a text as it is, anything else String of it, null and absent ''), else its text (sbCultureText) read into rows as sbCultureXp reads it
+// (readCultureEntry's name), the rows at most 2000 and the text as far as LIMITS.notes, as sbCultureXp reads them; either way after the load's
+// rename of a species package's retired entry,
+// on that species' own sheet and only where the entry is exactly the retired one (cultural-familiarity-migration.ts
+// migrateCulturalFamiliarities: a free row whose projection is it, an entry of the text that is it), as the website opens the file
+var SB_CULT_RENAME = { 'Ugnaught': [['Gentes / Cloud City [0]', 'Gentes [0]']], "Twi'lek": [["Twi'lek Clans [0]", "Twi'lek Culture [0]"]] };
+function sbCultureFold(t) { return sbCultureName(t).toLowerCase().replace(/[\u2018\u2019\u02bc`\u00b4]/g, "'"); }   // foldCulture, of a text
+// readCultureEntry's name, one reading for both its branches: an entry it can price ends in its one bracket, and its name before it is the
+// entry without its bracketed parts, as an entry kept as written is read
+function sbCultureEntryName(e) { return sbCultureName(e.replace(/\[[^\]]*\]/g, ' ')); }
+function sbCultureHeld(j) {
+    var dt = isObj(j) && isObj(j.details) ? j.details : {}, want = sbCultureFold(typeof dt.unfamiliarCulture === 'string' ? dt.unfamiliarCulture : '');
+    if (want === '') return false;   // a blank name never matches
+    var sp = isObj(j) && typeof j.species === 'string' ? j.species.trim() : '', ren = Object.prototype.hasOwnProperty.call(SB_CULT_RENAME, sp) ? SB_CULT_RENAME[sp] : [];
+    var rows = isObj(j) ? j.culturalFamiliarityEntries : undefined, names = [];
+    if (Array.isArray(rows)) rows.slice(0, 2000).forEach(function(r) {
+        var o = isObj(r) ? r : {}, v = o.name, nm = '';
+        if (typeof v === 'string') nm = v; else if (v !== null && v !== undefined) { try { nm = String(v); } catch (e) { nm = ''; } }   // a name String cannot read names nothing (the website's import stops there)
+        ren.forEach(function(p) { if ((o.native === true || o.granted === true) && sbCultureName(nm) + ' [0]' === p[0]) nm = sbCultureEntryName(p[1]); });   // projectCultureRow of a free row: its name and [0]
+        names.push(nm);
+    });
+    else {
+        var t = sbCultureText(j).slice(0, LIMITS.notes);   // the text as the website reads it (sbCultureText), renamed only where it is one
+        if (ren.length && typeof j.culturalFamiliarities === 'string') t = t.split(/([;\n])/).map(function(part, i) { if (i % 2 === 1) return part; var hit = null; ren.forEach(function(p) { if (!hit && part.trim() === p[0]) hit = p; }); return hit ? part.replace(hit[0], function() { return hit[1]; }) : part; }).join('');
+        names = sbCultureSplit(t).map(sbCultureEntryName);
+    }
+    return names.some(function(n) { return sbCultureFold(n) === want; });
+}
+// The twelve social skills Ch4's Social Rolls passage lists, as the website lists them (lib/cultural-familiarity-rows.ts CULTURE_BOUND_SKILLS),
+// and whether a skill's name is one of them, a specialty of one included (isCultureBoundSkill, by skill-defaults.ts splitSpecialty: the text
+// before a last bracket that closes the name). Interrogation is not one of them, nor any other skill a GM rules culturally bound. The name is
+// judged in one pass, never by splitSpecialty's pattern (/^(.*?)\s*\(([^()]*)\)\s*$/), which backtracks over the white space in a name: a
+// name from a file is any length (a player's upload carries a text of 400,000 characters), and that pattern took minutes over one. The same
+// answer as the pattern's: the name (trimmed) ends in ")", its last "(" opens the bracket that ")" closes with no ")" between, and before
+// that "(" the base, its white space at the end set aside, holds no line break (the pattern's "." reads none), which needs no test of its
+// own: a base that holds one is no name of the twelve, none of which holds one
+var SB_CULT_SKILLS = ['diplomacy', 'fast-talk', 'merchant', 'intimidation', 'streetwise', 'carousing', 'public speaking', 'savoir-faire', 'leadership', 'politics', 'propaganda', 'acting'];
+function sbCultureBound(name) {
+    var raw = typeof name === 'string' ? name.trim() : ''; if (raw === '') return false;
+    if (SB_CULT_SKILLS.indexOf(raw.toLowerCase()) >= 0) return true;
+    var open = raw.lastIndexOf('(');
+    if (open < 0 || raw.indexOf(')', open) !== raw.length - 1) return false;   // the first ")" after it is the name's last character
+    var head = raw.slice(0, open).trimEnd();
+    return SB_CULT_SKILLS.indexOf(head.toLowerCase()) >= 0;
+}
 function sbScalars(j) {   // lower-case key -> the dossier's value (a number, a boolean or a text), before any field's rules
     var o = function(v) { return isObj(v) ? v : {}; }, inv = o(j.investment), at = o(j.attributes), ch = o(j.characteristics), pt = o(j.points), cr = o(j.credits), dt = o(j.details), nr = o(j.narrative), out = map();
     var raw = function(a, k) { return sbAttr(j, a, k).base; };
@@ -4446,7 +4511,7 @@ function sbScalars(j) {   // lower-case key -> the dossier's value (a number, a 
     if (typeof dt.stunType === 'string') out.stun = /^physical$/i.test(dt.stunType) ? 1 : /^mental$/i.test(dt.stunType) ? 2 : 0;
     [['description', 'description'], ['background', 'background'], ['notes', 'notes']].forEach(function(p) { if (typeof nr[p[1]] === 'string') out[p[0]] = nr[p[1]]; });
     if (typeof j.republicRaised === 'boolean') out.republic = j.republicRaised;
-    if (typeof j.culturalFamiliarities === 'string') out.culture = j.culturalFamiliarities;
+    if (typeof j.culturalFamiliarities === 'string' || j.culturalFamiliarities) out.culture = sbCultureText(j);   // as the website reads it (sbCultureText): a value that is no text by String
     var base = function(k) { return sbNum(j[k + 'Baseline']) || 0; };   // top-level, not under investment
     var cxp = sbCultureXp(j);   // Cultural Familiarity: the website's rows where the file has them, else its text less the baseline, as before
     out.culturecp = cxp !== null ? cxp : sbMarks(j.culturalFamiliarities) - base('culturalFamiliarities'); out.litcp = sbMarks(j.literacy) - base('literacy'); out.langcp = sbMarks(j.languages) - base('languages');
@@ -4458,6 +4523,7 @@ function sbScalars(j) {   // lower-case key -> the dossier's value (a number, a 
     // and before) read off with no culture, as the website opens them, and a culture an earlier file named is not kept by a Copy
     out.unfcultureon = dt.unfamiliarCultureOn === true;
     out.unfculture = typeof dt.unfamiliarCulture === 'string' ? dt.unfamiliarCulture : '';
+    out.unfcultureheld = sbCultureHeld(j);   // whether the sheet holds that culture, by the website's own rule (sbCultureHeld); never written back
     if (typeof j.shipPosition === 'string') out.shiprole = j.shipPosition;
     if (typeof j.assignedStation === 'string') out.station = j.assignedStation;
     var cy = sbCrystal(j); out.crystalmult = cy.mult; out.crystalflat = cy.flat;   // F7c: the saber crystals' pull on the Force pool
@@ -5059,15 +5125,25 @@ function sbRowOps(json, sys, find) {
     // and the Armor specialty a skill row is (sbArmorSpec), where the list has a number stat `armT` with its labels: what the untrained armour
     // penalty asks of the skills (lib/armor-skill.ts hasArmorSkillFor), as a library copy's own figure, on a custom row in its stats
     var atS = fS ? sbLabelled(statDefOf(fS.list, 'armT')) : null;
+    // and whether a skill row is one of Ch4's twelve social skills, a specialty of one included, as the website judges it by the row's own name
+    // (sbCultureBound), where the list has a number stat `cult` (1 for one of them): what the unfamiliar culture's -3 asks of a skill, as a
+    // library copy's own figure only where its entry reads otherwise, on a custom row in its stats
+    var cbS = fS ? statDefOf(fS.list, 'cult') : null; if (cbS && cbS.kind === 'pick') cbS = null;
     var skKey = map();   // the keys a row of its own has taken: the list refuses one twice (keyClash), so a second specialty of one skill would be lost
+    // and the keys it may not take (the review of the unfamiliar culture's -3, 2026-10-16): one an entry a row of this file is a copy of holds,
+    // since that copy is on the sheet whatever the order (a row of its own laid after it was refused, so a second spelling of the skill, Savoir
+    // Faire (Military) beside Savoir-Faire, was lost; laid before it, the two held one key), and one the system's own items or core hold under
+    // the list, which keyClash refuses all the same. Each such row falls to its whole name's key (SavoirFaireMilitary), else to none
+    if (fS) sk.forEach(function(s) { var f0 = cutText(s.name, LIMITS.name), e0 = entry(fS, f0.replace(/\s*\(.*$/, '').trim() || f0); if (e0 && typeof e0.key === 'string' && e0.key) skKey[lower(e0.key)] = 1; });
+    var skFree = function(k) { return !!k && skKey[lower(k)] !== 1 && !keyClash(sys, [], null, k, fS.list, {}); };
     if (fS) sk.forEach(function(s) {
-        var np = npS && sbParries(s.name) ? sbNarrowed(nRows, s.name) : null, at = atS ? sbArmorSpec(atS, s.name) : undefined;
+        var np = npS && sbParries(s.name) ? sbNarrowed(nRows, s.name) : null, at = atS ? sbArmorSpec(atS, s.name) : undefined, cb = cbS ? (sbCultureBound(s.name) ? 1 : 0) : undefined;
         var full = cutText(s.name, LIMITS.name), base = full.replace(/\s*\(.*$/, '').trim() || full, rl = sbRelLevel(s.relativeLevel), lvl = sbInt(s.level), g = sbInt(s.baselinePoints) || 0, e = entry(fS, base);
         var fx = facts(fS, lvl === undefined ? undefined : lvl);
-        if (e) { var ov = {}, os = {}; if (full !== e.name) ov.name = full; if (rl) ['attr', 'diff', 'fix'].forEach(function(k) { if (st(e, k) !== rl[k]) os[k] = rl[k]; }); else os.free = 1; if (g) os.granted = g; if (Object.keys(os).length) ov.stats = os; addLib(fS, e, fx, Object.keys(ov).length ? ov : null); var on = {}; if (np !== null) on[npS.key] = np; if (at !== undefined) on[atS.key] = at; ownOp(fS, e, on); return; }
+        if (e) { var ov = {}, os = {}; if (full !== e.name) ov.name = full; if (rl) ['attr', 'diff', 'fix'].forEach(function(k) { if (st(e, k) !== rl[k]) os[k] = rl[k]; }); else os.free = 1; if (g) os.granted = g; if (Object.keys(os).length) ov.stats = os; addLib(fS, e, fx, Object.keys(ov).length ? ov : null); var on = {}; if (np !== null) on[npS.key] = np; if (at !== undefined) on[atS.key] = at; if (cb !== undefined && cb !== rowStat(fS.list, e, cbS.key)) on[cbS.key] = cb; ownOp(fS, e, on); return; }
         var stats = rl ? { attr: rl.attr, diff: rl.diff } : { free: 1 };   // an unreadable relative level ("Native") costs nothing, its level kept
-        if (rl && rl.fix) stats.fix = rl.fix; if (g) stats.granted = g; if (np && np !== rowStat(fS.list, null, npS.key)) stats[npS.key] = np; if (at !== undefined && at !== rowStat(fS.list, null, atS.key)) stats[atS.key] = at;
-        var kB = cleanItemKey(base.replace(/[^A-Za-z0-9]+/g, '')), kF = cleanItemKey(full.replace(/[^A-Za-z0-9]+/g, '')), kU = kB && skKey[lower(kB)] !== 1 ? kB : kF && skKey[lower(kF)] !== 1 ? kF : '';   // its skill's key, else its whole name's (Guns (Rifle) beside Guns (Pistol): GunsRifle), else none
+        if (rl && rl.fix) stats.fix = rl.fix; if (g) stats.granted = g; if (np && np !== rowStat(fS.list, null, npS.key)) stats[npS.key] = np; if (at !== undefined && at !== rowStat(fS.list, null, atS.key)) stats[atS.key] = at; if (cb !== undefined && cb !== rowStat(fS.list, null, cbS.key)) stats[cbS.key] = cb;
+        var kB = cleanItemKey(base.replace(/[^A-Za-z0-9]+/g, '')), kF = cleanItemKey(full.replace(/[^A-Za-z0-9]+/g, '')), kU = skFree(kB) ? kB : skFree(kF) ? kF : '';   // its skill's key, else its whole name's (Guns (Rifle) beside Guns (Pistol): GunsRifle), else none
         if (kU) skKey[lower(kU)] = 1;
         addCustom(fS, { name: full, category: cat0(fS), key: kU, stats: stats }, fx);
     });

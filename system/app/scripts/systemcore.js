@@ -366,7 +366,7 @@ function cleanSlider(v) {
     var out = {}; if (!isObj(v)) return out;
     var HEX = /^#[0-9a-fA-F]{6}$/;
     ['low', 'high'].forEach(function(k) { if (typeof v[k] === 'string') { var t = str(v[k], LIMITS.label).replace(CTRL_RE_G, ' ').trim(); if (t) out[k] = t; } });
-    ['lowColor', 'highColor'].forEach(function(k) { if (typeof v[k] === 'string' && HEX.test(v[k])) out[k] = v[k].toLowerCase(); });
+    ['lowColor', 'midColor', 'highColor'].forEach(function(k) { if (typeof v[k] === 'string' && HEX.test(v[k])) out[k] = v[k].toLowerCase(); });   // midColor (1.5.4): a third colour at the track's middle, as an alignment's grey
     return out;
 }
 // Stage 6 HUD H7: an apply action — a roll entry of a second kind: changes (a pool or a number moved by a formula, no dice) in place of a

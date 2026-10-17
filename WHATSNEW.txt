@@ -35,6 +35,9 @@ Multiplayer
   GM's takes only its buttons too.
 
 Character sheets
+- A slider's track can have a middle colour. Pick it beside the low and
+  high colours in the System editor, as an alignment's grey between its
+  two sides. A slider without one is drawn as before.
 - Delete a sheet from the sheet itself: Delete in its head (asked
   first). You may delete any sheet; a player may delete one of their own
   that they are still making or do not play, and you are told. A sheet

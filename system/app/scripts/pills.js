@@ -67,7 +67,11 @@ function pillsState(w, am, view, fogBtn) {
 // What a press on a pill does: it presses the control that owns the thing, or asks the module that does. Answers what it did
 function pillPress(id, doc, w, am) {
     var press = function(ctl) { var b = doc.getElementById(ctl); if (!b) return ''; b.click(); return ctl; };
-    if (id === 'fogPill') { var fm = doc.getElementById('fogMenu'); return fm && fm.classList.contains('show') ? 'open' : press('fogModeBtn'); }   // it opens the options and never closes them: the button itself does that
+    if (id === 'fogPill') {   // it opens the options and never closes them: the button itself does that. Options that are up while their bar
+        // stood back under a window come in front of it (backlog 143, F3), through the one place that brings a bar forward, whiteboard.js barFront
+        var fm = doc.getElementById('fogMenu'); if (!fm || !fm.classList.contains('show')) return press('fogModeBtn');
+        return typeof w.wpBarFront === 'function' && w.wpBarFront(fm) === true ? 'front' : 'open';
+    }
     if (id === 'tablePill') return press('netBtn');
     if (id === 'pausedPill') return w.wpNet && w.wpNet.paused === true ? press('sessionPauseBtn') : '';   // never a press that would pause a table that runs
     if (id === 'roundPill') { if (!am || typeof w.wpOpenCombat !== 'function') return ''; w.wpOpenCombat(am.id, {}); return 'combat'; }

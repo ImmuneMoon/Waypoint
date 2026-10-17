@@ -418,9 +418,11 @@ const LAY =['wbUndoBtn', 'wbRedoBtn', '|', 'moveModeBtn', 'panModeBtn', '|', 'dr
 const GM_HAS = { wbUndoBtn: 1, wbRedoBtn: 1, fillModeBtn: 1, shapeMenuBtn: 1, addMenuBtn: 1, fogModeBtn: 1, sceneFxBtn: 1, pagesBtn: 1, wbMoreBtn: 1 };   // what a player's bar does not show (and no separator)
 function toolbarPage(player) {
     const byId = {}, docOn = [], doc = { getElementById: id => byId[id] || null, addEventListener: (t, f) => { docOn.push([t, f]); }, querySelectorAll: sel => main.all().filter(n => n.is(sel)) };
-    // a press, as a page gives it: down through the boxes it is in (the capture listeners), then up from the target, and on to the page unless a listener stops it
-    const click = target => { const way = []; for (let n = target; n; n = n.parentElement) way.push(n); const ev = { target, stopped: false, stopPropagation() { this.stopped = true; } };
-        way.slice().reverse().forEach(n => n.on.forEach(l => { if (l[0] === 'click' && l[2]) l[1].call(n, ev); }));
+    // a press, as a page gives it: down through the boxes it is in (the capture listeners, where a box that stops it keeps it from the target and
+    // the rest), then up from the target, and on to the page unless a listener stops it. more: what the event carries besides (a pointer's click
+    // counts its clicks in detail, a key's or a script's counts none)
+    const click = (target, more) => { const way = []; for (let n = target; n; n = n.parentElement) way.push(n); const ev = Object.assign({ target, stopped: false, stopPropagation() { this.stopped = true; } }, more || {});
+        for (const n of way.slice().reverse()) { n.on.forEach(l => { if (l[0] === 'click' && l[2]) l[1].call(n, ev); }); if (ev.stopped && n !== target) return; }
         for (const n of way) { n.on.forEach(l => { if (l[0] === 'click' && !l[2]) l[1].call(n, ev); }); if (ev.stopped) return; }
         docOn.forEach(l => { if (l[0] === 'click') l[1](ev); }); };
     const mk = (tag, id, cls, parent) => { const e = new El(tag, id, cls); e.click = () => click(e); if (id) byId[id] = e; if (parent) parent.add(e); return e; };
@@ -496,6 +498,11 @@ function runPress(P, win) {
     check('what a press does (toolPress, run for real): the icon takes a tool that is not in hand and never opens its options, and puts a tool in hand away with its options; the small arrow opens the options and takes the tool with them, leaves the tool where it is when it is already in hand, and closes options that are up without putting the tool away',
         J([T('icon', false, false), T('icon', false, true), T('icon', true, false), T('icon', true, true), T('chev', false, false), T('chev', true, false), T('chev', false, true), T('chev', true, true)])
         === J(['take/', 'take/', 'away/close', 'away/close', 'take/open', '/open', '/close', '/close']), J([T('icon', false, false), T('icon', true, true), T('chev', false, false), T('chev', true, true)]));
+    const T4 = (a, b, c, d) => { const r = tp(a, b, c, d); return r ? r.tool + '/' + r.opts : 'none'; };
+    check('what a press does where the bar stood back (toolPress, run for real; backlog 143, F2): the small arrow over options that are up while their bar stood back under the floating boxes brings them in front and closes nothing, the tool in hand or not, so one press brings them back; over options that are closed it opens them as ever; only true says the bar stood back; the icon\'s rule takes no account of it',
+        J([T4('chev', true, true, true), T4('chev', false, true, true), T4('chev', true, false, true), T4('chev', false, false, true), T4('chev', true, true, 1), T4('chev', true, true, 'yes'), T4('chev', true, true, false),
+            T4('icon', true, true, true), T4('icon', false, true, true), T4('icon', false, false, true), T4('icon', true, false, true)])
+        === J(['/front', '/front', '/open', 'take/open', '/close', '/close', '/close', 'away/close', 'take/', 'take/', 'away/close']), J([T4('chev', true, true, true), T4('chev', true, false, true), T4('chev', true, true, 1), T4('icon', true, true, true)]));
     // the wiring, run on the page of plain objects: two tools that have options, the arrow tool, and a hand that the stand-in tools set
     const P = toolbarPage(false), R = runPress(P, {}), b = P.byId, log = [], seen = [], page = []; let hand = 'move';
     P.doc.addEventListener('click', e => page.push(e.target.id));   // what reaches the page: a press on a tool or its arrow is the tool's own and does not
@@ -2332,6 +2339,170 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         && MO.made.length === 1 && J(MO.made[0].seen.map(([t, o]) => [t.id, o])) === J(['wbFloatingToolbar', 'wbEdgeTools', 'dataFloatingToolbar'].map(id => [id, { subtree: true, attributes: true, attributeFilter: ['class'], attributeOldValue: true }]))
         && code.length > 500 && !/wpStream|wpPopout|net-client|playerScreen|canWrite|classList\.(add|remove|toggle)\('show'/.test(code), err || J([seen, each, none, MO.made.length]));
     check('the open menu over the boxes is said: both release notes carry the line under 1.5.4\'s fixes, alike, with the box pressed coming in front of a tool\'s options', wn.every(t => count(t, "- The Pages shelf, and every other menu of the map's tools, opens over\n  the page panel, a sheet, a HUD and Table Chat. The shelf opened under\n  the page panel, so its rows were covered and a press went to the\n  panel. A question, a notice and the tour still come in front of it.\n  A tool's options stay up while you work. Press a window and it comes\n  in front of them, as windows do on a desktop. Open them again, or\n  press the tool bar, and they come in front once more.\n") === 1) && wn[0].indexOf("- The Pages shelf, and every other menu of the map's tools, opens over\n") < wn[0].indexOf('WAYPOINT 1.5.3'));
+}
+
+/* ---------- one press brings stepped-back options forward (backlog 143, the review's F2 and F3) ---------- */
+// Found in the review of 2026-10-16: with a tool's options stepped back under a window, one press of its small arrow closed them (the bar came
+// forward for the 0.2 s fade, then they went), so bringing them back took two presses; the same for a button that only opens a menu; and the
+// Fog pill did nothing to fog options that were up but stepped back. The bar's slice and the presses' slice run together on a page of plain
+// objects, with a floating box, an observer that is told as a browser tells it, and stand-ins for the own handlers of the buttons that only
+// open a menu and of Snap's two buttons, which toggle as the page's own do; then the pills' slice with what the bar's slice publishes
+{
+    const P = toolbarPage(false), b = P.byId, caps = [], mos = [], hits = [], page = [], seen = [];
+    const box = new El('div', 'docPanel', ''), boxRow = new El('div', 'docPanelRow', 'row'); P.main.add(box); box.add(boxRow);
+    P.main.all().concat([P.main]).forEach(e => { e.contains = n => { for (; n; n = n.parentElement) if (n === e) return true; return false; }; });
+    function MO(cb) { mos.push(cb); } MO.prototype.observe = function() {};
+    function RO() {} RO.prototype.observe = function() {};
+    // a menu's class changed, and the observer of the bars told as a browser tells it (every menu of this page is in a bar)
+    P.main.querySelectorAll('.shape-menu').forEach(m => { const cl = m.classList; ['add', 'remove', 'toggle'].forEach(k => { const f = cl[k]; cl[k] = (c, v) => { const old = [...m.cls].join(' '), r = f(c, v); mos.forEach(cb => cb([{ type: 'attributes', attributeName: 'class', target: m, oldValue: old }])); return r; }; }); });
+    const win = { wpFloats: { boxes: () => [box] } }, doc = Object.assign({}, P.doc, { addEventListener: (t, f, c) => { caps.push([t, f, c === true]); P.doc.addEventListener(t, f, c); } });
+    let api = null, err = '';
+    try { api = new Function('document', 'window', 'ResizeObserver', 'MutationObserver', barSrc + '\n' + pressSrc + '\nreturn { BAR_BACK: BAR_BACK, barBehind: barBehind, barFront: barFront, toolOptsOnly: toolOptsOnly, wireTool: wireTool };')(doc, win, RO, MO); } catch (e) { err = String(e && e.message || e); }
+    // a press of the pointer: its pointerdown first, then its click, which counts one click; a press by a key: its click alone, which counts none
+    const down = t => caps.filter(l => l[0] === 'pointerdown').forEach(l => l[1]({ type: 'pointerdown', target: t })), pt = t => { down(t); P.click(t, { detail: 1 }); }, kb = t => P.click(t, { detail: 0 });
+    let hand = 'move', pairs = [], direct = '';
+    const st = () => hand + ' | ' + P.open().join(',') + ' | ' + [P.bar, P.edge].map(x => x.cls.has(api.BAR_BACK) ? 'back' : 'up').join(',');
+    if (api) {
+        P.doc.addEventListener('click', e => page.push(e.target.id));
+        b.moveModeBtn.addEventListener('click', () => { hand = 'move'; api.toolOptsOnly('moveModeBtn'); });
+        [['drawModeBtn', 'drawOptBtn', 'pen'], ['eraserModeBtn', 'eraserOptBtn', 'eraser']].forEach(t => api.wireTool({ id: t[0], chev: t[1], inHand: () => hand === t[2], take: () => { hand = t[2]; api.toolOptsOnly(t[0]); } }));
+        [['shapeMenuBtn', 'shapeMenu'], ['addMenuBtn', 'addMenu'], ['fogModeBtn', 'fogMenu'], ['sceneFxBtn', 'sceneFxMenu'], ['wbCenterBtn', 'wbCenterMenu'], ['wbGridBtn', 'gridMenu']].forEach(p => b[p[0]].addEventListener('click', () => { hits.push(p[0]); b[p[1]].classList.toggle('show'); }));
+        b.wbSnapBtn.addEventListener('click', e => { e.stopPropagation(); hits.push('wbSnapBtn'); });
+        b.snapOptBtn.addEventListener('click', e => { e.stopPropagation(); hits.push('snapOptBtn'); b.snapMenu.classList.toggle('show'); });
+        pairs = P.main.querySelectorAll('.tool-pair').filter(p => p.on.some(l => l[0] === 'click' && l[2])).map(p => p.children[0].id);
+        // a tool's small arrow
+        pt(b.drawOptBtn); seen.push(st());                                            // the arrow: the pen and its options, over the boxes
+        pt(boxRow); seen.push(st());                                                  // a press in the page panel: every bar back, the options still up
+        pt(b.drawOptBtn); seen.push(st());                                            // the arrow: in front again, and nothing closes (F2)
+        pt(b.drawOptBtn); seen.push(st());                                            // the arrow over options in front: they close, as ever
+        pt(b.drawOptBtn); pt(boxRow); kb(b.drawOptBtn); seen.push(st());              // by a key, with the bar back: in front, nothing closes
+        kb(b.drawOptBtn); seen.push(st());                                            // by a key, in front: they close
+        pt(b.drawOptBtn); pt(boxRow); pt(b.drawModeBtn); seen.push(st());             // the icon of the tool in hand, its options back: away, options and all, as ever
+        pt(b.eraserOptBtn); pt(boxRow); pt(b.drawModeBtn); seen.push(st());           // another tool's icon: that tool, and the options put away, as ever
+        pt(b.drawOptBtn); pt(boxRow); down(b.drawOptBtn); kb(b.drawOptBtn); seen.push(st());   // a pointer pressed and let go elsewhere, then a key: the bar is in front, so the key closes them
+        pt(b.drawOptBtn); pt(boxRow); down(P.bar); down(b.wbCenterBtn); P.click(b.drawOptBtn, { detail: 1 }); seen.push(st());   // a click whose last pointerdown found another bar back: in front, so it closes
+        // a button that only opens a menu, and its arrow
+        pt(b.shapeOptBtn); pt(boxRow); pt(b.shapeOptBtn); seen.push(st());           // the arrow over the menu stood back: in front, the button never pressed
+        pt(b.shapeOptBtn); seen.push(st());                                           // the arrow over the menu in front: the button pressed, which closes it
+        pt(b.shapeMenuBtn); pt(boxRow); pt(b.shapeMenuBtn); seen.push(st());          // the button itself over its menu stood back: in front
+        pt(b.shapeMenuBtn); seen.push(st());                                          // and in front: it closes
+        pt(b.addMenuBtn); pt(boxRow); kb(b.addMenuBtn); seen.push(st());              // by a key, stood back: in front
+        kb(b.addOptBtn); seen.push(st());                                             // its arrow by a key, in front: closes
+        pt(b.viewOptBtn); pt(boxRow); pt(b.wbCenterBtn); seen.push(st());             // the column's View: in front, the bar still back
+        pt(b.gridOptBtn); pt(boxRow); pt(b.gridMenuRow); seen.push(st());             // a row of a menu stood back: the menu's own, as ever
+        pt(boxRow); pt(b.sceneOptBtn); seen.push(st());                              // a menu that is closed, the bars back: the arrow opens it, as ever
+        // Snap: its arrow is a tool's arrow, its icon keeps its own press
+        pt(b.snapOptBtn); pt(boxRow); pt(b.snapOptBtn); seen.push(st());             // the arrow over Snap's options stood back: in front, its handler never pressed
+        pt(b.snapOptBtn); seen.push(st());                                            // in front: its handler closes them
+        pt(b.snapOptBtn); pt(boxRow); pt(b.wbSnapBtn); seen.push(st());              // the icon: its own press, the options left up
+        direct = J([api.barBehind(boxRow, { detail: 1 }), api.barBehind(null), api.barBehind(b.snapMenu), api.barFront(boxRow), api.barFront(b.snapMenu), api.barFront(null), typeof win.wpBarFront === 'function' && win.wpBarFront === api.barFront]);
+    }
+    const H = ['shapeMenuBtn', 'shapeMenuBtn', 'shapeMenuBtn', 'shapeMenuBtn', 'addMenuBtn', 'addMenuBtn', 'wbCenterBtn', 'wbGridBtn', 'sceneFxBtn', 'snapOptBtn', 'snapOptBtn', 'snapOptBtn', 'wbSnapBtn'];
+    check('one press brings stepped-back options forward (backlog 143, F2; the bar\'s and the presses\' slices run together for real on a page of plain objects): with a tool\'s options up and its bar stood back under a window, one press of its small arrow brings them in front and closes nothing, by the pointer and by a key; over options in front it closes them as ever; the icon\'s own rule is as it was; a button that only opens a menu, its arrow, and Snap\'s arrow do the same, and neither their own handlers nor the page hear such a press, while Snap\'s icon keeps its own press and a row of the menu its own; a pointer let go elsewhere, or a click whose pointerdown found another bar back, brings nothing forward that is in front already',
+        !!api && J(seen) === J(['pen | drawMenu | up,up', 'pen | drawMenu | back,back', 'pen | drawMenu | up,back', 'pen |  | up,back', 'pen | drawMenu | up,back', 'pen |  | up,back', 'move |  | up,back', 'pen |  | up,back', 'pen |  | up,back', 'pen |  | up,up',
+            'pen | shapeMenu | up,back', 'pen |  | up,back', 'pen | shapeMenu | up,back', 'pen |  | up,back', 'pen | addMenu | up,back', 'pen |  | up,back', 'pen | wbCenterMenu | back,up', 'pen | gridMenu | back,up', 'pen | sceneFxMenu | up,back',
+            'pen | snapMenu | back,up', 'pen |  | back,up', 'pen | snapMenu | back,up'])
+        && J(hits) === J(H) && J(pairs) === J(['shapeMenuBtn', 'addMenuBtn', 'fogModeBtn', 'sceneFxBtn', 'wbCenterBtn', 'wbGridBtn', 'wbSnapBtn']) && direct === J([false, false, false, false, false, false, true])
+        && J(page.filter(id => id !== 'docPanelRow')) === J(['moveModeBtn', 'shapeMenuBtn', 'shapeMenuBtn', 'shapeMenuBtn', 'shapeMenuBtn', 'addMenuBtn', 'addMenuBtn', 'wbCenterBtn', 'wbGridBtn', 'gridMenuRow', 'sceneFxBtn']), err || J([seen, hits, pairs, direct, page]));
+    // the Fog pill (F3): the pills' slice, with the window the bar's slice publishes to
+    let pill = '';
+    try {
+        const pillPress = new Function(sliceOf(read('scripts/pills.js'), 'pills') + '\nreturn pillPress;')(), am = { id: 'm1' }, n0 = hits.length;
+        pt(b.fogOptBtn); pt(boxRow); const r1 = pillPress('fogPill', P.doc, win, am), s1 = st();          // fog options up and stood back: brought in front, the fog button never pressed
+        const r2 = pillPress('fogPill', P.doc, win, am), s2 = st();                                       // in front: nothing to do
+        pt(boxRow); const r3 = pillPress('fogPill', P.doc, {}, am), s3 = st();                           // a window with nothing published: nothing brought forward, nothing closed
+        pt(b.fogModeBtn); pt(b.fogModeBtn); pt(boxRow); const r4 = pillPress('fogPill', P.doc, win, am), s4 = st();   // the fog button brings them in front, then closes them; closed, the bars back: the pill presses the button, and the menu opens over the boxes
+        pill = J([r1, s1, r2, s2, r3, s3, r4, s4, hits.slice(n0)]);
+    } catch (e) { pill = String(e && e.stack || e); }
+    check('the Fog pill brings fog options that stood back in front (backlog 143, F3; pills.js pillPress run for real with what whiteboard.js\'s bar slice publishes, window.wpBarFront): over fog options that are up while their bar stood back under a window, a press of the pill brings them in front and presses nothing; in front, it does nothing; with nothing published it closes nothing; over closed options it presses the fog button, which opens them over the boxes',
+        pill === J(['front', 'pen | fogMenu | up,back', 'open', 'pen | fogMenu | up,back', 'open', 'pen | fogMenu | back,back', 'fogModeBtn', 'pen | fogMenu | up,back', ['fogModeBtn', 'fogModeBtn', 'fogModeBtn']]), pill);
+}
+
+/* ---------- forward only where a window that shows covers the options (backlog 143, the review of 2026-10-17) ---------- */
+// Found live after F2: a press on any floating box stands the bars back, and only a press on the bar or a menu that opens brings them forward.
+// Where no window covers the options (Table Chat at the bottom right, the options near the left of the bar), standing back changes nothing to
+// be seen, so the first press of the arrow did nothing you could see and only the second closed them. The rule (the maintainer): barBehind
+// answers true only where the bar stood back AND a window that shows covers the open menu, judged by their rectangles as they stood at the
+// press; where nothing can be measured it keeps the class's answer. Each world is a fresh page of plain objects that is given rectangles, with
+// the bar's and the presses' slices and the pills' slice run for real, and the dice roller's own listener, which takes its pop off the page at
+// a pointerdown outside it, heard after the bar's as the page hears them
+{
+    const MENU = { left: 100, top: 50, width: 200, height: 150 }, OVER = { left: 250, top: 150, width: 300, height: 300 }, FAR = { left: 900, top: 600, width: 300, height: 200 };
+    // windows that touch the menu on each of its four sides, and two inside it with no area: none of them covers it
+    const NEAR = [{ left: 0, top: 60, width: 100, height: 50 }, { left: 300, top: 60, width: 100, height: 50 }, { left: 120, top: 0, width: 50, height: 50 }, { left: 120, top: 200, width: 50, height: 50 },
+        { left: 120, top: 100, width: 50, height: 0 }, { left: 120, top: 100, width: 0, height: 50 }].map(r => [r, '']);
+    let pillPress = null; try { pillPress = new Function(sliceOf(read('scripts/pills.js'), 'pills') + '\nreturn pillPress;')(); } catch (e) { pillPress = null; }
+    // a world: the window pressed (the page panel) drawn at doc, other windows [rect, how] (how: '' up, 'none' its display none, 'hidden', 'away'),
+    // the dice roller's pop drawn at pop once it is put on the page; o.flat: every rectangle empty; o.menuFlat: the menus' alone
+    function world(doc, others, pop, o) {
+        o = o || {};
+        const P = toolbarPage(false), b = P.byId, caps = [], mos = [], hits = [], lay = new Map();
+        const mk = (id, r, how) => { const x = new El('div', id, ''); P.main.add(x); x.add(new El('div', id + 'Row', 'row')); lay.set(x, r);
+            if (how === 'none') x.style.display = 'none'; if (how === 'hidden') x.hidden = true; if (how === 'away') x.cls.add('wp-away'); return x; };
+        const box = mk('docPanel', doc, ''), list = [box].concat((others || []).map((w, i) => mk('win' + i, w[0], w[1])));
+        const popEl = new El('div', 'dicePop', 'dice-modpop'); popEl.add(new El('div', 'dicePopRow', 'tool')); lay.set(popEl, pop || FAR);
+        if (!o.menuFlat) ['drawMenu', 'eraserMenu', 'shapeMenu', 'fogMenu', 'snapMenu'].forEach(id => lay.set(b[id], MENU));
+        const within = (root, n) => { for (; n; n = n.parentElement) if (n === root) return true; return false; };
+        P.main.all().concat([P.main, popEl, popEl.children[0]]).forEach(e => { e.contains = n => within(e, n);
+            e.getBoundingClientRect = () => Object.assign({ left: 0, top: 0, width: 0, height: 0 }, o.flat ? {} : lay.get(e)); });
+        function MO(cb) { mos.push(cb); } MO.prototype.observe = function() {};
+        function RO() {} RO.prototype.observe = function() {};
+        P.main.querySelectorAll('.shape-menu').forEach(m => { const cl = m.classList; ['add', 'remove', 'toggle'].forEach(k => { const f = cl[k]; cl[k] = (c, v) => { const old = [...m.cls].join(' '), r = f(c, v); mos.forEach(cb => cb([{ type: 'attributes', attributeName: 'class', target: m, oldValue: old }])); return r; }; }); });
+        const win = { wpFloats: { boxes: () => list } }, doc2 = Object.assign({}, P.doc, { addEventListener: (t, f, c) => { caps.push([t, f, c === true]); P.doc.addEventListener(t, f, c); } });
+        let api = null, err = '';
+        try { api = new Function('document', 'window', 'ResizeObserver', 'MutationObserver', barSrc + '\n' + pressSrc + '\nreturn { BAR_BACK: BAR_BACK, barBehind: barBehind, barFront: barFront, toolOptsOnly: toolOptsOnly, wireTool: wireTool };')(doc2, win, RO, MO); } catch (e) { err = String(e && e.message || e); }
+        const takeOff = () => { const i = P.main.children.indexOf(popEl); if (i >= 0) P.main.children.splice(i, 1); popEl.parentElement = null; };
+        doc2.addEventListener('pointerdown', e => { if (popEl.parentElement && !within(popEl, e.target)) takeOff(); }, true);   // the dice roller's own, after the bar's
+        let hand = 'move';
+        if (api) {
+            b.moveModeBtn.addEventListener('click', () => { hand = 'move'; api.toolOptsOnly('moveModeBtn'); });
+            [['drawModeBtn', 'drawOptBtn', 'pen'], ['eraserModeBtn', 'eraserOptBtn', 'eraser']].forEach(t => api.wireTool({ id: t[0], chev: t[1], inHand: () => hand === t[2], take: () => { hand = t[2]; api.toolOptsOnly(t[0]); } }));
+            [['shapeMenuBtn', 'shapeMenu'], ['addMenuBtn', 'addMenu'], ['fogModeBtn', 'fogMenu'], ['sceneFxBtn', 'sceneFxMenu'], ['wbCenterBtn', 'wbCenterMenu'], ['wbGridBtn', 'gridMenu']].forEach(p => b[p[0]].addEventListener('click', () => { hits.push(p[0]); b[p[1]].classList.toggle('show'); }));
+            b.snapOptBtn.addEventListener('click', e => { e.stopPropagation(); hits.push('snapOptBtn'); b.snapMenu.classList.toggle('show'); });
+        }
+        const down = t => caps.filter(l => l[0] === 'pointerdown').forEach(l => l[1]({ type: 'pointerdown', target: t }));
+        const st = () => hand + ' | ' + P.open().join(',') + ' | ' + [P.bar, P.edge].map(x => x.cls.has(api.BAR_BACK) ? 'back' : 'up').join(',') + (popEl.parentElement ? ' | pop' : '');
+        return { P, b, api, err, hits, st, row: box.children[0], win, pt: t => { down(t); P.click(t, { detail: 1 }); }, kb: t => P.click(t, { detail: 0 }), putPop: () => { P.main.add(popEl); } };
+    }
+    // each case: a world, what is pressed, and where things stand after each press that counts
+    const run = (args, fn) => { const W = world.apply(null, args); if (!W.api) return 'no slice: ' + W.err; try { return fn(W); } catch (e) { return 'threw: ' + String(e && e.stack || e); } };
+    const arrow = (args, how, pop) => run(args, W => { const b = W.b, by = how === 'key' ? W.kb : W.pt; W.pt(b.drawOptBtn); W.pt(W.row); if (pop) W.putPop(); const s = []; by(b.drawOptBtn); s.push(W.st()); by(b.drawOptBtn); s.push(W.st()); return s; });
+    const R = {
+        over: arrow([OVER]), overKey: arrow([OVER], 'key'),
+        far: arrow([FAR, NEAR]), farKey: arrow([FAR, NEAR], 'key'),
+        none: arrow([FAR, [[OVER, 'none']]]), hidden: arrow([FAR, [[OVER, 'hidden']]]), away: arrow([FAR, [[OVER, 'away']]]),
+        pop: arrow([FAR, [], OVER], '', true), popKey: arrow([FAR, [], OVER], 'key', true), popFar: arrow([FAR, [], FAR], '', true),
+        flat: arrow([OVER, NEAR, OVER, { flat: true }], '', true), flatKey: arrow([OVER, NEAR, OVER, { flat: true }], 'key', true),
+        menuFlat: run([OVER, [], null, { menuFlat: true }], W => { W.pt(W.b.drawOptBtn); W.pt(W.row); const d = [W.api.barBehind(W.b.drawMenu), W.api.barBehind(W.b.drawMenu, { detail: 0 })]; W.pt(W.b.drawOptBtn); return [d, W.st()]; })
+    };
+    const E = {
+        over: ['pen | drawMenu | up,back', 'pen |  | up,back'], overKey: ['pen | drawMenu | up,back', 'pen |  | up,back'],
+        far: ['pen |  | up,back', 'pen | drawMenu | up,back'], farKey: ['pen |  | back,back', 'pen | drawMenu | up,back'],
+        none: ['pen |  | up,back', 'pen | drawMenu | up,back'], hidden: ['pen |  | up,back', 'pen | drawMenu | up,back'], away: ['pen |  | up,back', 'pen | drawMenu | up,back'],
+        pop: ['pen | drawMenu | up,back', 'pen |  | up,back'], popKey: ['pen | drawMenu | up,back | pop', 'pen |  | up,back | pop'], popFar: ['pen |  | up,back', 'pen | drawMenu | up,back'],
+        flat: ['pen | drawMenu | up,back', 'pen |  | up,back'], flatKey: ['pen | drawMenu | up,back | pop', 'pen |  | up,back | pop'],
+        menuFlat: [[false, false], 'pen |  | up,back']
+    };
+    check('one press of a tool\'s small arrow brings its options in front only where a window that shows covers them (backlog 143, the review of 2026-10-17; whiteboard.js barBehind run for real on pages of plain objects given rectangles): with the page panel pressed over the options, the first press brings them in front and the second closes them, by the pointer and by a key; with it far off, beside them on any side or with no area, the first press closes them as it did before F2; so it does with a window over them whose display is none, that is hidden, or that is put away for this view; the dice roller\'s pop over them brings them in front, judged by the pointer as it stood at the pointerdown, at which the pop goes; where every rectangle is empty the bar\'s own word stands; and a menu that has no rectangle while a window has one is covered by none',
+        J(R) === J(E), J(R));
+    // a button that only opens a menu, its arrow, and Snap's arrow
+    const btn = (args, first) => run(args, W => { const b = W.b; W.pt(b.shapeOptBtn); W.pt(W.row); W.pt(b[first]); const s1 = W.st(); W.pt(b.shapeMenuBtn); return [s1, W.st(), W.hits]; });
+    const snap = args => run(args, W => { const b = W.b; W.pt(b.snapOptBtn); W.pt(W.row); W.pt(b.snapOptBtn); const s1 = W.st(); W.pt(b.snapOptBtn); return [s1, W.st(), W.hits]; });
+    const RB = { over: btn([OVER], 'shapeMenuBtn'), overArrow: btn([OVER], 'shapeOptBtn'), far: btn([FAR, NEAR], 'shapeMenuBtn'), farArrow: btn([FAR, NEAR], 'shapeOptBtn'), away: btn([FAR, [[OVER, 'away']]], 'shapeMenuBtn'),
+        snapOver: snap([OVER]), snapFar: snap([FAR, NEAR]) };
+    const S = ['shapeMenuBtn', 'shapeMenuBtn'], S3 = ['shapeMenuBtn', 'shapeMenuBtn', 'shapeMenuBtn'];
+    const EB = { over: ['move | shapeMenu | up,back', 'move |  | up,back', S], overArrow: ['move | shapeMenu | up,back', 'move |  | up,back', S], far: ['move |  | up,back', 'move | shapeMenu | up,back', S3], farArrow: ['move |  | up,back', 'move | shapeMenu | up,back', S3],
+        away: ['move |  | up,back', 'move | shapeMenu | up,back', S3], snapOver: ['move | snapMenu | back,up', 'move |  | back,up', ['snapOptBtn', 'snapOptBtn']], snapFar: ['move |  | back,up', 'move | snapMenu | back,up', ['snapOptBtn', 'snapOptBtn', 'snapOptBtn']] };
+    check('a button that only opens a menu, its arrow and Snap\'s arrow follow the same rule (backlog 143, the review of 2026-10-17; the presses\' guard, menuFront, asking barBehind): with a window that shows over the menu the first press brings it in front without the button\'s own handler, and the next closes it; with none over it, or only one put away for this view, the first press reaches the button\'s own handler and closes it, as before F2',
+        J(RB) === J(EB), J(RB));
+    // the Fog pill, through what the bar's slice publishes
+    const pill = (args, pop) => run(args, W => { if (!pillPress) return 'no pills slice'; W.pt(W.b.fogOptBtn); W.pt(W.row); if (pop) W.putPop(); const r = pillPress('fogPill', W.P.doc, W.win, { id: 'm1' }); return [r, W.st(), W.hits]; });
+    const RP = { over: pill([OVER]), far: pill([FAR, NEAR]), hidden: pill([FAR, [[OVER, 'hidden']]]), none: pill([FAR, [[OVER, 'none']]]), pop: pill([FAR, [], OVER], true), flat: pill([FAR, NEAR, FAR, { flat: true }]) };
+    const F1 = ['fogModeBtn'];
+    const EP = { over: ['front', 'move | fogMenu | up,back', F1], far: ['open', 'move | fogMenu | back,back', F1], hidden: ['open', 'move | fogMenu | back,back', F1], none: ['open', 'move | fogMenu | back,back', F1],
+        pop: ['front', 'move | fogMenu | up,back | pop', F1], flat: ['front', 'move | fogMenu | up,back', F1] };
+    check('the Fog pill brings fog options in front only where a window that shows covers them (backlog 143, the review of 2026-10-17; pills.js pillPress run for real with whiteboard.js\'s window.wpBarFront, which asks barBehind): under the page panel or the dice roller\'s pop it brings them in front and presses nothing; with no window over them, or only one that is hidden or whose display is none, it answers open and leaves the menu as it is, the bar where it stood; where every rectangle is empty the bar\'s own word stands',
+        J(RP) === J(EP), J(RP));
 }
 
 /* ---------- the bar of a page in a window of its own: an inventory of its own ---------- */

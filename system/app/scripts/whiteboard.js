@@ -2175,10 +2175,13 @@ window.wpFitToGrid = fitToGrid;
   // 107, the presses (the owner, 2026-10-06, of a tool that has options: "Chevron opens them"): the icon only takes the tool, and the small arrow
   // beside it opens the tool's options, which stay up while they are wanted. Options belong to the tool in hand: another tool taken puts them away.
   var TOOL_OPTS = { drawModeBtn: 'drawMenu', eraserModeBtn: 'eraserMenu', fillModeBtn: 'fillMenu', measureModeBtn: 'measureMenu', blastModeBtn: 'blastMenu', buildModeBtn: 'buildMenu' };   // a tool that has options, and the menu that holds them
-  // What a press does. part: 'icon', or 'chev' for the small arrow. inHand: the tool is the one in hand. open: its options are up.
-  // It answers what becomes of the tool ('take' it, put it 'away' for the arrow, or '' leave it) and of its options ('open', 'close', or '' leave them)
-  function toolPress(part, inHand, open) {
-      if (part === 'chev') return open ? { tool: '', opts: 'close' } : { tool: inHand ? '' : 'take', opts: 'open' };
+  // What a press does. part: 'icon', or 'chev' for the small arrow. inHand: the tool is the one in hand. open: its options are up. back: they are
+  // up, their bar stood back under the floating boxes when the press began and a window that shows covered them (barBehind), and only true says so.
+  // It answers what becomes of the tool ('take' it, put it 'away' for the arrow, or '' leave it) and of its options ('open', 'close', 'front' to
+  // bring them in front of the boxes, or '' leave them). The arrow over options that stood back brings them in front and closes nothing, so one
+  // press brings them back (backlog 143, F2); over options in front of the boxes it closes them. The icon's rule takes no account of where they stand
+  function toolPress(part, inHand, open, back) {
+      if (part === 'chev') return open ? { tool: '', opts: back === true ? 'front' : 'close' } : { tool: inHand ? '' : 'take', opts: 'open' };
       return inHand ? { tool: 'away', opts: 'close' } : { tool: 'take', opts: '' };
   }
   // Only the tool in hand keeps its options up. updateWbToolbar asks, so a tool taken by a key or by the app itself counts as well as a press
@@ -2188,20 +2191,40 @@ window.wpFitToGrid = fitToGrid;
   // The one wiring of a tool that has options. o: { id: its button, chev: its small arrow, inHand(), take(), sync(): bring its options up to date }
   function wireTool(o) {
       var btn = document.getElementById(o.id), chev = document.getElementById(o.chev), menu = document.getElementById(TOOL_OPTS[o.id]);
-      function press(part) {
-          var p = toolPress(part, !!o.inHand(), !!(menu && menu.classList.contains('show')));
+      function press(part, e) {
+          var open = !!(menu && menu.classList.contains('show'));
+          var p = toolPress(part, !!o.inHand(), open, open && typeof barBehind === 'function' && barBehind(menu, e) === true);
           if (p.tool === 'take') o.take();
           if (p.tool === 'away') { var mv = document.getElementById('moveModeBtn'); if (mv) mv.click(); }
           if (menu && p.opts === 'open') { if (o.sync) o.sync(); menu.classList.add('show'); }
           if (menu && p.opts === 'close') menu.classList.remove('show');
+          if (menu && p.opts === 'front' && typeof barFront === 'function') barFront(menu);   // options that stood back come in front, and nothing closes
       }
-      if (btn) btn.addEventListener('click', function(e) { e.stopPropagation(); press('icon'); });
-      if (chev) chev.addEventListener('click', function(e) { e.stopPropagation(); press('chev'); });
+      if (btn) btn.addEventListener('click', function(e) { e.stopPropagation(); press('icon', e); });
+      if (chev) chev.addEventListener('click', function(e) { e.stopPropagation(); press('chev', e); });
   }
-  // A button that only opens a menu (Shapes, Add, Fog, Scene, View, Grid) is a pair too, and the two are one control: its small arrow presses it
+  // A button that only opens a menu (Shapes, Add, Fog, Scene, View, Grid) is a pair too, and the two are one control: its small arrow presses it.
+  // A menu that is up while its bar stood back under the floating boxes, where a window that shows covers it, comes in front at one press of such a button or of its arrow, and of
+  // Snap's arrow, whose options are its own, and nothing closes (backlog 143, F2). toolPress decides it as it does for a tool's arrow, since a
+  // button that only opens a menu is the arrow of a tool always in hand. Heard on the pair in the capture phase, so such a press never reaches
+  // the button's own handler, which would close the menu. A tool's own pair is wireTool's, and Snap's icon keeps its own press
+  function menuFront(e, menu, chev, btn) {
+      var hit = e && e.target && typeof e.target.closest === 'function' ? e.target.closest('button') : null;
+      if (!hit || (hit !== chev && hit !== btn)) return false;
+      var open = menu.classList.contains('show');
+      if (toolPress('chev', true, open, open && typeof barBehind === 'function' && barBehind(menu, e) === true).opts !== 'front') return false;
+      e.stopPropagation(); if (typeof barFront === 'function') barFront(menu);
+      return true;
+  }
   function wireMenuArrows() {
       Array.prototype.forEach.call(document.querySelectorAll('.tool-chev[data-for]'), function(c) {
           c.addEventListener('click', function(e) { e.stopPropagation(); var b = document.getElementById(c.getAttribute('data-for')); if (b) b.click(); });
+      });
+      Array.prototype.forEach.call(document.querySelectorAll('.tool-pair'), function(pair) {
+          var icon = pair.querySelector('.wb-tool-btn'), chev = pair.querySelector('.tool-chev'), menu = pair.querySelector('.shape-menu');
+          if (!icon || !chev || !menu || Object.prototype.hasOwnProperty.call(TOOL_OPTS, icon.id)) return;
+          var forId = chev.getAttribute('data-for'), btn = forId ? document.getElementById(forId) : null;
+          pair.addEventListener('click', function(e) { menuFront(e, menu, chev, btn); }, true);
       });
   }
   wireMenuArrows();
@@ -6228,13 +6251,19 @@ function wbOneMenu(e) {
 // capture phase, so a box that stops its own presses still counts. Nothing here opens or closes a menu: one that closes at a press elsewhere
 // still does, by its own listener. The same on every screen
 var BAR_BACK = 'tb-back';
+var _barWas = null;   // the bar the last press of the pointer found stood back, which barPress brings forward at once: the click that press ends in asks it (barBehind)
+var _barSaw = null;   // the windows that showed at that pointerdown, as barShowing gives them: that click asks whether one covered its open menu then
+// The bar that holds el, or null
+function barOf(el) { return el && typeof el.closest === 'function' ? el.closest('.floating-toolbar') : null; }
 function barWindow(t) {
     if (t.closest('.dice-modpop')) return true;
     var F = window.wpFloats, bs = F && typeof F.boxes === 'function' ? F.boxes() : [];
     return bs.some(function(b) { return b === t || (typeof b.contains === 'function' && b.contains(t)); });
 }
 function barPress(e) {
-    var t = e && e.target; if (!t || typeof t.closest !== 'function') return;
+    var t = e && e.target, held = barOf(t); _barWas = held && held.classList.contains(BAR_BACK) ? held : null;
+    _barSaw = _barWas ? barShowing() : null;   // the windows as they stand at this press, before one goes at it (the dice roller's pop does)
+    if (!t || typeof t.closest !== 'function') return;
     var bar = t.closest('.floating-toolbar');
     if (bar) { bar.classList.remove(BAR_BACK); return; }
     if (barWindow(t)) Array.prototype.forEach.call(document.querySelectorAll('.floating-toolbar'), function(b) { b.classList.add(BAR_BACK); });
@@ -6246,6 +6275,44 @@ function barOpened(recs) {
         if (bar) bar.classList.remove(BAR_BACK);
     });
 }
+// The rectangle el is drawn in, as { l, t, w, h }, or null where it has none: a box that is not laid out, or a page with no layout to measure
+function barRect(el) {
+    var r = el && typeof el.getBoundingClientRect === 'function' ? el.getBoundingClientRect() : null;
+    return r && +r.width > 0 && +r.height > 0 ? { l: +r.left, t: +r.top, w: +r.width, h: +r.height } : null;
+}
+// The windows that show, as their rectangles (one with none as null): a box of floats.js's own list that is up, not hidden and not put away
+// for this view (wp-away), and the dice roller's pop, which stands apart on the page
+function barShowing() {
+    var F = window.wpFloats, got = F && typeof F.boxes === 'function' ? F.boxes() : null, bs = got ? Array.prototype.slice.call(got) : [];
+    if (typeof document.querySelectorAll === 'function') Array.prototype.forEach.call(document.querySelectorAll('.dice-modpop'), function(p) { bs.push(p); });
+    return bs.filter(function(b) { return !!b && !(b.style && b.style.display === 'none') && !b.hidden && !(b.classList && b.classList.contains('wp-away')); }).map(barRect);
+}
+// Whether a window seen (barShowing's rectangles) covers el, an open menu. Where nothing can be measured (el and every window with no
+// rectangle, as on a page of plain objects) it cannot be told, and the answer is yes, so the bar's own word stands
+function barCovered(el, seen) {
+    var m = barRect(el), rs = (seen || []).filter(Boolean);
+    if (!m && !rs.length) return true;
+    return !!m && rs.some(function(r) { return r.l < m.l + m.w && m.l < r.l + r.w && r.t < m.t + m.h && m.t < r.t + r.h; });
+}
+// Whether el, an open menu of a bar, is behind a window as the press e begins (backlog 143, F2): its bar stood back under the boxes AND a
+// window that shows covers it (the review of 2026-10-17: where none covers the options, standing back changes nothing to be seen, and one
+// press of the arrow closes them as ever). A click of the pointer asks what its own pointerdown found, the bar (_barWas) and the windows as
+// they stood (_barSaw), since barPress has brought the bar forward by then and the dice roller's pop goes at that pointerdown; a press by a
+// key or by a script, whose click counts no clicks, and a press from outside the bar ask the bar and the windows as they stand. A tool's
+// arrow (wireTool) and the pairs wireMenuArrows guards ask it for toolPress, and barFront asks it
+function barBehind(el, e) {
+    var bar = barOf(el); if (!bar) return false;
+    var ptr = !!e && e.detail > 0 && _barWas === bar;
+    if (!ptr && !bar.classList.contains(BAR_BACK)) return false;
+    return barCovered(el, ptr ? _barSaw : barShowing());
+}
+// Brings the bar that holds el in front of the boxes again where barBehind says el is behind a window, and answers whether it did. Nothing
+// is opened or closed. The Fog pill asks it for fog options that are up (pills.js pillPress, F3)
+function barFront(el) {
+    var bar = barOf(el); if (!bar || !barBehind(el)) return false;
+    bar.classList.remove(BAR_BACK); return true;
+}
+window.wpBarFront = barFront;
 document.addEventListener('pointerdown', barPress, true);
 if (typeof MutationObserver === 'function') { var _barMo = new MutationObserver(barOpened); Array.prototype.forEach.call(document.querySelectorAll('.floating-toolbar'), function(b) { _barMo.observe(b, { subtree: true, attributes: true, attributeFilter: ['class'], attributeOldValue: true }); }); }
 // More, the last button of the bar: its menu holds Clear board. A press on a row puts the menu away, and so does a press anywhere else

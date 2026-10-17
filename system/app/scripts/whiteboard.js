@@ -6218,6 +6218,36 @@ function wbOneMenu(e) {
     [_wbTb, _wbEdge].forEach(function(box) { if (box) box.querySelectorAll('.shape-menu.show').forEach(function(m) { if (m !== own && m !== insideMenu) m.classList.remove('show'); }); });
 }
 [_wbTb, _wbEdge].forEach(function(box) { if (box) box.addEventListener('click', wbOneMenu, true); });
+// A menu of the map's tools rises over the floating boxes as it opens, and steps back under them when one is pressed (backlog 143; the owner,
+// 2026-10-16, by prompt: "Rise, then step back (Recommended)": "A menu or a tool's options open over the windows. When you press a window, that
+// window comes back over the tool's options, like windows on a desktop"). style.css raises a .floating-toolbar while a menu of it is open (the
+// play map's bar, the column at its edge, the data map's bar). A press on a floating box gives the bars BAR_BACK, which puts one with an open
+// menu back under the boxes, its menu still open. The boxes are floats.js's own list (wpFloats.boxes: the sheet, a HUD, the page panel, Sound,
+// Music, Video, Effects, the notepad, Table Chat and the dice roller) and the dice roller's pop, which stands apart on the page. A press on a
+// bar, its open menu among it, takes BAR_BACK off that bar, and so does a menu of it that opens, by a press, a key or the tour. Taken in the
+// capture phase, so a box that stops its own presses still counts. Nothing here opens or closes a menu: one that closes at a press elsewhere
+// still does, by its own listener. The same on every screen
+var BAR_BACK = 'tb-back';
+function barWindow(t) {
+    if (t.closest('.dice-modpop')) return true;
+    var F = window.wpFloats, bs = F && typeof F.boxes === 'function' ? F.boxes() : [];
+    return bs.some(function(b) { return b === t || (typeof b.contains === 'function' && b.contains(t)); });
+}
+function barPress(e) {
+    var t = e && e.target; if (!t || typeof t.closest !== 'function') return;
+    var bar = t.closest('.floating-toolbar');
+    if (bar) { bar.classList.remove(BAR_BACK); return; }
+    if (barWindow(t)) Array.prototype.forEach.call(document.querySelectorAll('.floating-toolbar'), function(b) { b.classList.add(BAR_BACK); });
+}
+// A menu that opens: its class gains show. One drawn again while it is up is no opening, which its class before the change tells
+function barOpened(recs) {
+    recs.forEach(function(r) {
+        var m = r.target, bar = m && m.classList && m.classList.contains('shape-menu') && m.classList.contains('show') && !/(^|\s)show(\s|$)/.test(r.oldValue || '') ? m.closest('.floating-toolbar') : null;
+        if (bar) bar.classList.remove(BAR_BACK);
+    });
+}
+document.addEventListener('pointerdown', barPress, true);
+if (typeof MutationObserver === 'function') { var _barMo = new MutationObserver(barOpened); Array.prototype.forEach.call(document.querySelectorAll('.floating-toolbar'), function(b) { _barMo.observe(b, { subtree: true, attributes: true, attributeFilter: ['class'], attributeOldValue: true }); }); }
 // More, the last button of the bar: its menu holds Clear board. A press on a row puts the menu away, and so does a press anywhere else
 var _el_wbMoreBtn = document.getElementById('wbMoreBtn'), _el_wbMoreMenu = document.getElementById('wbMoreMenu');
 if (_el_wbMoreBtn && _el_wbMoreMenu) {

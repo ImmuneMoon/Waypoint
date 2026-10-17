@@ -112,7 +112,7 @@
   /* 107, the row's menus (toprow.js). A menu takes controls out of the row and takes none away: a row of a menu is the control itself, with its
      id, its tooltip and its handler. The campaign's name opens the first: the list of campaigns, then Search, New, Rename, System and Delete */
   .row-menu-wrap { position: relative; display: inline-flex; min-width: 0; }
-  .row-menu { position: absolute; top: 100%; left: 0; z-index: 10000; margin-top: 6px; min-width: 240px; max-width: 340px; max-height: calc(100vh - 80px); overflow-y: auto; box-sizing: border-box; padding: 5px; display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--edge); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.5); }
+  .row-menu { position: absolute; top: 100%; left: 0; z-index: 90020; margin-top: 6px; min-width: 240px; max-width: 340px; max-height: calc(100vh - 80px); overflow-y: auto; box-sizing: border-box; padding: 5px; display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--edge); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.5); }   /* over an open menu of the map's tools (90010), Table Chat and every floating box: opened later, it is in front */
   .row-menu[hidden] { display: none; }
   #campaignSelect[hidden] { display: none; }   /* the page's own campaign list: every module's source for the campaigns, out of sight whatever a later rule says of a select */
   .rm-label { padding: 6px 8px 2px; font-size: 10px; letter-spacing: .5px; text-transform: uppercase; color: var(--faint); }
@@ -365,7 +365,7 @@
         align-items: center;
         padding: 6px;
         gap: 6px;
-        z-index: 8993;   /* the map's own tool bar (and its flyouts, which stack inside it): over the map, under the token toolbar (8995) and every floating window (9000 and up) — a window dragged over it covers it, as the owner chose */
+        z-index: 8993;   /* the map's own tool bar (and its flyouts, which stack inside it): over the map, under the token toolbar (8995) and every floating window (9000 and up) — a window dragged over it covers it, as the owner chose, until one of its menus is open, and again once a window is pressed (below) */
         transition: z-index 0s .2s;   /* drops back under the token toolbar only once a closed flyout has faded (below) */
         box-shadow: 0 8px 24px rgba(0,0,0,0.6);
     }
@@ -507,9 +507,19 @@
         opacity: 1;
         pointer-events: auto;
     }
-    /* A tool bar with a flyout open (the fog menu, the pen's, snap, measure…) rises over the token toolbar (8995), so a selected
-       token's bar never covers the menu in use; still under every floating window (9000 and up). */
-    .floating-toolbar:has(.shape-menu.show) { z-index: 8996; transition-delay: 0s; }
+    /* A tool bar with a menu open (the Pages shelf, the fog menu, the pen's, Snap, View, More…) rises over everything that floats over the
+       map (backlog 143, found live 2026-10-16: the shelf opened under the page panel, its rows covered and a press on them going to the
+       panel): the token toolbar (8995), every floating box (the sheet, a HUD and the page panel from 9000, raised up to 9400 by sheets.js
+       raisePanel; the notepad, Sound, Music, Video and Effects at 9000), Table Chat (90000) and its dice roller (90001, its pop 90002).
+       What comes up over the menu in use is still in front of it: the top row's menus, the map's right-click menu and its hover card
+       (90020), the pause and update banners, a notice, a question, a dialog and the tour (95000 and up). lookcheck holds the ladder */
+    .floating-toolbar:has(.shape-menu.show) { z-index: 90010; transition-delay: 0s; }
+    /* ...and steps back under the floating boxes, its menu still open, once one of them is pressed (backlog 143; the owner, 2026-10-16, by prompt:
+       "Rise, then step back (Recommended)": "When you press a window, that window comes back over the tool's options, like windows on a desktop").
+       whiteboard.js barPress gives the bar BAR_BACK at a press on a floating box and takes it off at a press on the bar or as a menu of it opens.
+       8996: under every box (9000 and up) and still over the token toolbar (8995), so a selected token's bar never covers the menu in use. No
+       transition of its own: the open rule's delay of 0s holds, so the box pressed comes in front at once. lookcheck holds it */
+    .floating-toolbar.tb-back:has(.shape-menu.show) { z-index: 8996; }
 
     /* ---- draw tool options menu ---- */
     .draw-tool-btn { position: relative; }
@@ -712,7 +722,7 @@
     .pv-folds .pv-blk.pv-fold-hid > .pv-fold-btn { visibility: hidden; }
     .pv-folds .pv-blk.pv-fold-hid::after { content: none; }
   }
-  #plannerPreview .pv-blk { scroll-margin-top: 58px; }   /* a heading jumped to lands under the planner's sticky bar, not behind it */
+  #plannerPreview .pv-blk, #plannerPreview .pv-blk :is(h1, h2, h3) { scroll-margin-top: var(--pv-top, 58px); }   /* a block a landing brings to the top, and a heading the Outline jumps to, land under the planner's sticky bar, never behind it: pagenav.js navBarSet writes the bar's own height and the gap under it, kept current as the bar wraps (backlog 143); 58px where no bar is measured */
   #docPanelResults { flex: none; max-height: 46%; overflow: auto; border-bottom: 1px solid var(--edge); background: var(--panel); }
   .docpanel-res { padding: 7px 10px; cursor: pointer; border-bottom: 1px solid var(--edge); }
   .docpanel-res:last-child { border-bottom: none; }
@@ -788,7 +798,7 @@
   .snap-line.h { height: 1px; }
   .snap-label { position: absolute; background: var(--blue); color: #fff; font-size: 10px; padding: 2px 4px; border-radius: 3px; z-index: 9998; white-space: nowrap; pointer-events: none; transform: translate(5px, -15px); }
   
-  #wbTooltip { position: absolute; pointer-events: none; user-select: none; -webkit-user-select: none; z-index: 20000; display: none; transition: opacity 0.15s; }
+  #wbTooltip { position: absolute; pointer-events: none; user-select: none; -webkit-user-select: none; z-index: 90020; display: none; transition: opacity 0.15s; }   /* a token's hover card: in front of an open menu of the map's tools (90010), as the right-click menu is */
   #wbTooltip .room { position: relative !important; left: 0 !important; top: 0 !important; box-shadow: 0 4px 12px rgba(0,0,0,0.5); max-width: 320px; max-height: calc(100vh - 120px); overflow: hidden; overflow-wrap: anywhere; }   /* no transform: a scale here isn't seen by the JS clamp (it measures the un-transformed box) and let a tall card spill past the board edge */
   #wbTooltip .room img { max-height: 120px; object-fit: cover; }
 
@@ -1148,7 +1158,7 @@
 
   /* Floating mini-toolbar above the whiteboard selection */
   #selToolbar {
-    position: absolute; z-index: 8995; display: none; align-items: center; gap: 2px;   /* over the map, the party and combat strips (8990) and the tool bar (8993) — under a tool bar whose flyout is open (8996) and every floating window (the sheet, a HUD, the doc panel: 9000 and up) */
+    position: absolute; z-index: 8995; display: none; align-items: center; gap: 2px;   /* over the map, the party and combat strips (8990) and the tool bar (8993) — under every floating window (the sheet, a HUD, the doc panel: 9000 and up) and a tool bar whose menu is open (90010) */
     background: var(--panel2); border: 1px solid var(--edge); border-radius: 7px;
     padding: 3px 5px; box-shadow: 0 4px 14px rgba(0,0,0,0.45);
     pointer-events: none;   /* the bar itself never blocks the board... */

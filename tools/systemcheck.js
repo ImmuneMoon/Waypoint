@@ -3115,8 +3115,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('HUD frame HF2b: the floating windows (the sheet, a HUD, the doc panel) sit over the map\'s own toolbars — the token\'s selection toolbar and the tool bars under every window, still over the party and combat strips',
             [zSel, zBar, zSheet, zHud, zDoc, zStrip].every(isFinite) && zSel < Math.min(zSheet, zHud, zDoc) && zBar < Math.min(zSheet, zHud, zDoc) && zSel > zStrip && zBar > zStrip && zBar < zSel, j({ zSel, zBar, zSheet, zHud, zDoc, zStrip }));
         const zOpen = zOf(/\.floating-toolbar:has\(\.shape-menu\.show\) \{[^}]*?z-index: (\d+);/), zDrop = zOf(/\.floating-toolbar \{[^}]*?transition: z-index 0s ([\d.]+)s;/), menuFade = zOf(/\.floating-toolbar \.shape-menu \{[^}]*?transition: opacity ([\d.]+)s;/);
-        check('Tool bar flyouts: a tool bar with a flyout open (the fog menu, the pen\'s, snap, measure…) rises over the token\'s selection toolbar, so a selected token\'s bar never covers the menu in use, and stays under every floating window; it rises at once and drops back only once the closed flyout has faded',
-            isFinite(zOpen) && zOpen > zSel && zOpen < Math.min(zSheet, zHud, zDoc) && /\.floating-toolbar:has\(\.shape-menu\.show\) \{[^}]*?transition-delay: 0s;/.test(css4)
+        check('Tool bar flyouts: a tool bar with a flyout open (the fog menu, the pen\'s, snap, measure…) rises over the token\'s selection toolbar, so a selected token\'s bar never covers the menu in use, and over every floating window too (backlog 143, found live 2026-10-16: the Pages shelf opened under the page panel; lookcheck holds the whole ladder); it rises at once and drops back only once the closed flyout has faded',
+            isFinite(zOpen) && zOpen > zSel && zOpen > Math.max(zSheet, zHud, zDoc) && /\.floating-toolbar:has\(\.shape-menu\.show\) \{[^}]*?transition-delay: 0s;/.test(css4)
             && isFinite(zDrop) && zDrop === menuFade, j({ zOpen, zSel, zSheet, zHud, zDoc, zDrop, menuFade }));
     }
 

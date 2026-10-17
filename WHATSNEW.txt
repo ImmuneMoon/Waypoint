@@ -665,6 +665,16 @@ Fixes
   after the first one on the page into "Syntax error in text".
 - The search in the panel over the map no longer empties a sequence
   diagram. The words it found went missing from the chart.
+- The Pages shelf, and every other menu of the map's tools, opens over
+  the page panel, a sheet, a HUD and Table Chat. The shelf opened under
+  the page panel, so its rows were covered and a press went to the
+  panel. A question, a notice and the tour still come in front of it.
+  A tool's options stay up while you work. Press a window and it comes
+  in front of them, as windows do on a desktop. Open them again, or
+  press the tool bar, and they come in front once more.
+- In a planner's or a page's own view, a part the Outline jumps to, or
+  a search lands on, is no longer half hidden under the Find bar. Where
+  the bar took two rows, the top of the part stayed under it.
 
 WAYPOINT 1.5.3 — What's New
 ============================

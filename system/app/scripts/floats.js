@@ -121,5 +121,6 @@ function watch() {
 }
 // [floatcheck:watch-end]
 
-window.wpFloats = { sync: floatSync, reveal: floatReveal, leave: floatLeave, away: floatAway, shown: floatShown, view: floatNow };
+// boxes(): every floating box, which a press is told by (backlog 143: whiteboard.js barPress puts a tool bar's open menu back under the box pressed)
+window.wpFloats = { sync: floatSync, reveal: floatReveal, leave: floatLeave, away: floatAway, shown: floatShown, view: floatNow, boxes: floatBoxes };
 watch();

@@ -709,7 +709,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('the Outline is styled: the menu is fixed over the reader and its notices, scrolls by itself past three fifths of the window, and its rows step in by level; a heading jumped to is lit and, in the planner\'s own view, lands clear of the bar that stays at the top; with motion reduced it is outlined and nothing moves; a window of its own still hides everything but its wrap, where the menu is made',
             /\n  #pageNavMenu \{ position: fixed; z-index: 99996; [^\n]*max-height: 60vh; overflow: auto;/.test(css) && /\n  #docReaderModal \{ position: fixed;[^\n]*z-index: 99990;/.test(css) && /\n  body\.doc-reader-open #toast \{ z-index: 99995; \}/.test(css)
             && /\n  #pageNavMenu \.pagenav-lv2 \{ padding-left: 26px; \}\n  #pageNavMenu \.pagenav-lv3 \{ padding-left: 40px;/.test(css) && /\n  \.doc-view \.pagenav-hit, #popoutBody \.pagenav-hit \{ animation: pageNavHit 1\.3s ease-out;/.test(css)
-            && /@media \(prefers-reduced-motion: reduce\) \{ \.doc-view \.pagenav-hit, #popoutBody \.pagenav-hit \{ animation: none; outline: 2px solid var\(--gold\); \} \}/.test(css) && /\n  #plannerPreview \.pv-blk \{ scroll-margin-top: 58px; \}/.test(css)
+            && /@media \(prefers-reduced-motion: reduce\) \{ \.doc-view \.pagenav-hit, #popoutBody \.pagenav-hit \{ animation: none; outline: 2px solid var\(--gold\); \} \}/.test(css) && /\n  #plannerPreview \.pv-blk, #plannerPreview \.pv-blk :is\(h1, h2, h3\) \{ scroll-margin-top: var\(--pv-top, 58px\); \}/.test(css)
             && css.includes('body.popout-mode > *:not(#popoutWrap):not(#chatPanel):not(#customConfirm):not(svg):not([id^="dmermaid"]) { display: none !important; }') && /#popoutBar #popoutDock, #popoutBar #popoutOutline \{ flex: none;/.test(css));
         check('the renderers still draw what the outline reads: each block in a box of its own that carries the block\'s number, a page\'s and a planner\'s alike, with a heading, a node\'s title or a table\'s title as the first thing in it',
             dr.includes("var blk = '<div class=\"pv-blk\" data-blk=\"' + i + '\">';") && pl.includes("html += '<div class=\"pv-blk\" data-blk=\"' + _bi + '\">';") && dr.includes("case 'h3': blk += '<h3 class=\"doc-h3\">'")
@@ -725,7 +725,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && src.includes("    if (typeof window.addEventListener === 'function') window.addEventListener('storage', function(e) {\n        if (e && e.key !== null && e.key !== FOLD_STORE) return;\n")
             && src.includes("        if (typeof window.MutationObserver === 'function') new window.MutationObserver(function() { foldApply(root); }).observe(root, { childList: true });")
             && J(scripts.filter(f => /pv-fold|wp_pageFolds/.test(read('scripts/' + f)))) === J(['pagenav.js']));
-        const fa = css.indexOf('  @media screen {\n    .pv-folds .pv-fold-btn { display: block; float: left;'), fz = css.indexOf('\n  }\n  #plannerPreview .pv-blk { scroll-margin-top: 58px; }'), foldCss = fa > 0 && fz > fa ? css.slice(fa + '  @media screen {\n'.length, fz + 1) : '';
+        const fa = css.indexOf('  @media screen {\n    .pv-folds .pv-fold-btn { display: block; float: left;'), fz = css.indexOf('\n  }\n  #plannerPreview .pv-blk, #plannerPreview .pv-blk :is(h1, h2, h3) { scroll-margin-top: var(--pv-top, 58px); }'), foldCss = fa > 0 && fz > fa ? css.slice(fa + '  @media screen {\n'.length, fz + 1) : '';
         const am = /\n    \.pv-folds \.pv-fold-btn \{ display: block; float: left; width: (\d+)px; height: (\d+)px; margin: (-?\d+)px (-?\d+)px (-?\d+)px (-?\d+)px; padding: 0;/.exec('\n' + foldCss), box = am ? [+am[6] + +am[1] + +am[4], +am[3] + +am[2] + +am[5]] : null;
         check('the folds are styled, on screen only: an arrow shows only on a page the folds have marked; an open block is never positioned for it (a positioned block would be painted after the blocks before it, its background over a picture floated beside it): the arrow is floated into the left margin with a margin box of no width and no height, so it moves and clears nothing, and only a folded part, whose content is put away, is positioned for its word and its arrow; what is put away keeps its place in the page\'s layout — never display: none, so a chart drawn while it is folded is laid out as it will be shown —, a folded part is clipped downwards only so that its arrow in the margin shows, and its word and a heading\'s count are printed from an attribute; every rule lives under the folds\' own class inside the screen block, so a printed page is the page as drawn',
             foldCss.length > 500 && css.includes('\n  .pv-fold-btn { display: none; }\n  @media screen {\n') && foldCss.split('\n').filter(Boolean).every(l => /^    \.pv-folds \.pv-/.test(l)) && !/display:\s*none/.test(foldCss)
@@ -744,6 +744,85 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('the Outline is said: Help\'s Planners part says what the button does and where else it is; both release notes carry the line, alike; the suite is one of those CI runs',
             fs.readFileSync(path.join(root, '.github/workflows/checks.yml'), 'utf8').includes('        run: node tools/pagecheck.js') && ix.includes('<li><b>Outline</b>, beside the Find box, lists the page&rsquo;s headings. Click one to jump to it. The panel over the map, a page in its own window and a player&rsquo;s reader have the same button.</li>')
             && wn.every(t => t.includes('- Outline, wherever you read a planner or a page: the button lists\n  the page\'s headings, and a click on one jumps to it. It is in the\n  planner\'s own view, the panel over the map, a page\'s own window and\n  a player\'s reader.\n')));
+    }
+
+    /* ---- the planner's own view: a block or a heading jumped to lands clear of the Find bar, however many rows the bar takes (backlog 143) ---- */
+    // Found live 2026-10-16: the bar takes one row or more as the view's width allows (99 px in a 1366 by 850 window with the left panel
+    // docked), and the style sheet gave a block a fixed 58 px, and a heading the Outline jumps to none at all, so the top of either stayed
+    // under the bar. pagenav.js's bartop slice measures the bar and writes the margin; it is run here on a page of plain objects
+    {
+        const css = read('style.css'), ix = read('index.html'), wn = ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].map(f => fs.readFileSync(path.join(root, f), 'utf8').replace(/\r\n/g, '\n'));
+        const bt = slice('bartop'), B = new Function(bt + '\nreturn { NAV_BAR: NAV_BAR, navBarTop: navBarTop, navBarSet: navBarSet, navBarWire: navBarWire };')();
+        // a page of plain objects of this suite's own: a bar whose height a check sets, a box whose style keeps what is written on it, a window
+        const page = o => {
+            o = o || {};
+            const props = {}, log = [], on = {}, made = [];
+            const box = { style: { setProperty(k, v) { log.push('set ' + k + ' ' + v); props[k] = v; }, removeProperty(k) { log.push('remove ' + k); delete props[k]; } } };
+            const bar = { h: o.h, getBoundingClientRect() { if (o.throws) throw new Error('no layout'); return { top: 0, height: this.h, bottom: this.h }; } };
+            const doc = { defaultView: { addEventListener(t, f) { (on[t] = on[t] || []).push(f); } }, getElementById: id => id === 'plannerFindBar' ? (o.noBar ? null : bar) : id === 'plannerPreview' ? (o.noBox ? null : box) : null };
+            function Obs(cb) { made.push(this); this.cb = cb; this.seen = []; }
+            Obs.prototype.observe = function(el) { this.seen.push(el); };
+            return { doc, bar, box, props, log, on, made, Obs };
+        };
+        const RULE = '\n  #plannerPreview .pv-blk, #plannerPreview .pv-blk :is(h1, h2, h3) { scroll-margin-top: var(--pv-top, 58px); }';
+        const fb = /\n  #plannerFindBar \{ position: sticky; top: (-?\d+)px; [^\n]*? margin: (-?\d+)px (-?\d+)px (\d+)px; /.exec(css), wrapPad = /\n  #plannerPreviewWrap \{ [^\n]*?padding: (\d+)px;/.exec(css);
+        const fbm = /scroll-margin-top: var\(--pv-top, (\d+)px\)/.exec(css), fallback = fbm ? fbm[1] : '';
+        const bad = ['', 0, -3, NaN, Infinity, -Infinity, '99', null, undefined, 10000, {}, [98]].filter(h => B.navBarTop(h) !== '');
+        check('the margin a block keeps above it follows the bar: its height rounded up and the gap the bar keeps under it, so a one-row bar of 48 px gives exactly the 58 px the style sheet always gave, and two or three rows give more; nothing for a height that is no measure (a view put away measures 0, and no text, list or object is a height)',
+            B.navBarTop(48) === '58px' && B.navBarTop(56.8) === '67px' && B.navBarTop(98.6) === '109px' && B.navBarTop(128.6) === '139px' && B.navBarTop(0.2) === '11px' && B.navBarTop(9999.5) === '10010px' && bad.length === 0 && B.NAV_BAR[2] === 10,
+            J([B.navBarTop(98.6), bad]));
+        // where a block lands, worked out from the style sheet and the slice: the bar sticks at the very top of the view and covers its own height;
+        // a block jumped to stands its margin below the view's top. Every bar height lands it clear of the bar, at the very place the page's first
+        // block stands under the bar (the bar's height and its own margin-bottom). The old fixed 58 px left 41 px of it under a bar of two rows
+        const lands = [56.8, 98.6, 128.6, 200, 431.3].map(h => { const p = page({ h }); B.navBarSet(p.doc); const m = parseFloat(p.props['--pv-top'] || (fallback + 'px')); return { h, m, clear: m >= h, first: m === Math.ceil(h) + (fb ? +fb[4] : NaN) }; });
+        check('a block or a heading brought to the top of the planner\'s own view lands clear of the Find bar, however many rows it takes: the style sheet\'s one rule gives every block and every heading in it (what the Outline and a landing bring to the top) the margin the slice writes, with 58 px where nothing is measured; the bar sticks at the very top of the view (its top and its upper margin undo the view\'s padding), and the gap the slice adds is the bar\'s own margin-bottom, so a block lands where the page\'s first block stands under the bar',
+            lands.every(l => l.clear && l.first) && css.split(RULE).length === 2 &&fallback === '58' && !/\n  #plannerPreview \.pv-blk \{ scroll-margin-top: 58px; \}/.test(css)
+            && fb && wrapPad && +fb[1] === -wrapPad[1] && +fb[2] === -wrapPad[1] && +fb[3] === -wrapPad[1] && +fb[4] === B.NAV_BAR[2] && css.split('--pv-top').length === 2,
+            J([lands, fb && fb.slice(1), wrapPad && wrapPad[1], fallback]));
+        // what the Outline brings to the top is a heading of its block (navGo(now.el), now.el from navOutline), and a landing brings the block itself:
+        // both are what the rule names
+        const d0 = makeDom(), pv = mk(d0, 'div', 'wrap', [blk(d0, 0, [mk(d0, 'h1', '', ['Title'])]), blk(d0, 1, [mk(d0, 'h2', '', ['A section'])]), blk(d0, 2, [mk(d0, 'div', 'node', [mk(d0, 'h3', '', ['A node'])])]), blk(d0, 3, [mk(d0, 'h3', 'doc-h3', ['A sub-heading'])])]);
+        const heads = O.navOutline(pv);
+        check('what the Outline and a landing bring to the top is what the rule names: every heading the Outline lists is an h1, h2 or h3 inside a block, the Outline\'s press scrolls that heading and a landing scrolls the block, both through the one scroll (block start)',
+            heads.length === 4 && heads.every(h => ['H1', 'H2', 'H3'].indexOf(h.el.nodeName) >= 0 && h.el.closest('.pv-blk')) && src.includes('        navGo(now.el);\n') && src.includes("        if (again === true) navTop(el); else navGo(el);\n")
+            && src.includes("function navTop(el) { try { if (typeof navBarFor === 'function') navBarFor(el); el.scrollIntoView({ block: 'start', behavior: 'auto' }); } catch (err) {} }") && src.split('scrollIntoView(').length === 2, J(heads.map(h => h.el.nodeName)));
+        // the slice on the page of plain objects
+        const p1 = page({ h: 98.6 }), w1 = B.navBarSet(p1.doc); p1.bar.h = 0; const w2 = B.navBarSet(p1.doc);
+        const pNo = page({ h: 98.6, noBar: true }); pNo.props['--pv-top'] = '99px'; const w3 = B.navBarSet(pNo.doc);
+        const pBox = page({ h: 98.6, noBox: true }), w4 = B.navBarSet(pBox.doc), pThrow = page({ h: 98.6, throws: true }), w5 = B.navBarSet(pThrow.doc);
+        let threw = false; try { B.navBarSet(null); B.navBarSet({}); } catch (e) { threw = true; }
+        check('the margin is written on the box of the page and taken off where nothing is measured: a bar of two rows gives 109 px; the view put away (the bar measures 0) takes it off, so the style sheet\'s 58 px stands; no bar takes it off; no box, a bar that cannot be measured, or a page that is none writes nothing and throws nothing',
+            w1 === '109px' && w2 === '' && J(p1.log) === J(['set --pv-top 109px', 'remove --pv-top']) && !('--pv-top' in p1.props) && w3 === '' && !('--pv-top' in pNo.props)
+            && w4 === '' && pBox.log.length === 0 && w5 === '' && pThrow.log.length === 0 && !threw, J([w1, w2, p1.log, w3, w4, w5, threw]));
+        const pO = page({ h: 56.8 }), r1 = B.navBarWire(pO.doc, pO.Obs), at1 = pO.props['--pv-top']; pO.bar.h = 128.6; pO.made[0].cb([]); const at2 = pO.props['--pv-top']; pO.bar.h = 0; pO.made[0].cb([]); const at3 = pO.props['--pv-top'];
+        const pR = page({ h: 98.6 }), r2 = B.navBarWire(pR.doc, undefined), atR1 = pR.props['--pv-top']; pR.bar.h = 56.8; (pR.on.resize || []).forEach(f => f()); const atR2 = pR.props['--pv-top'];
+        const pN = page({ h: 98.6, noBar: true }), r3 = B.navBarWire(pN.doc, pN.Obs);
+        let threw2 = false, r4, r5; try { r4 = B.navBarWire(null, pN.Obs); r5 = B.navBarWire({}, pN.Obs); } catch (e) { threw2 = true; }
+        check('the margin is kept current whenever the bar changes size: one observer follows the bar and writes the margin at once (two rows and a wider view, then three, then the view put away); with no observer at hand, every change of the window\'s size; with no bar, nothing is followed, made or written; the slice reads nothing but the page it is handed, and pagenav.js hands it the page and the browser\'s observer once, right after the module wires its places',
+            r1 === true && pO.made.length === 1 && pO.made[0].seen.length === 1 && pO.made[0].seen[0] === pO.bar && at1 === '67px' && at2 === '139px' && at3 === undefined && !pO.on.resize
+            && r2 === true && atR1 === '109px' && atR2 === '67px' && (pR.on.resize || []).length === 1
+            && r3 === false && pN.made.length === 0 && pN.log.length === 0 && !pN.on.resize && r4 === false && r5 === false && !threw2
+            && !/\bwindow\b|\bdocument\b/.test(bt.replace(/\/\/[^\n]*/g, '')) && src.includes("\n    navWire();\n    navBarWire(document, window.ResizeObserver);   // backlog 143") && src.split('navBarWire(').length === 3,
+            J([r1, at1, at2, at3, r2, atR1, atR2, r3, r4, r5, threw2]));
+        // a landing made as the view comes up (quick-jump's Enter from the data map, found in the review of 2026-10-16) scrolls before the browser
+        // tells the observer the bar's size, and the view put away had taken the margin off: the one scroll measures the bar itself first. Run for real:
+        // the land slice and this one together, a block that records the margin as it is scrolled to, and no observer told anything
+        const LT = new Function("'use strict';\n" + slice('land') + '\n' + bt + '\nreturn { navTop: navTop, navBarFor: navBarFor };')();
+        const at = [], own = (p, inPv) => ({ ownerDocument: p.doc, closest: sel => (inPv && sel === '#plannerPreview' ? p.box : null), scrollIntoView(o) { at.push([p.props['--pv-top'], o && o.block]); } });
+        const pL = page({ h: 98.6 }); LT.navTop(own(pL, true)); pL.bar.h = 128.6; LT.navTop(own(pL, true));
+        const pP = page({ h: 98.6 }); LT.navTop(own(pP, false)); const pH = page({ h: 0 }); pH.props['--pv-top'] = '109px'; LT.navTop(own(pH, true));
+        let threw3 = false, f3; try { LT.navTop(null); f3 = [LT.navBarFor(null), LT.navBarFor({}), LT.navBarFor({ ownerDocument: null, closest: () => ({}) })]; } catch (e) { threw3 = true; }
+        check('a block or a heading scrolled to as the planner\'s own view comes up lands clear of the bar all the same: the one scroll measures the bar first, so the margin is the bar\'s as it stands at that moment (two rows, then three) though no observer was told; a block of any other place writes nothing and is scrolled all the same; the view put away measures nothing and takes the margin off; nothing that is no block throws or writes',
+            J(at) === J([['109px', 'start'], ['139px', 'start'], [undefined, 'start'], [undefined, 'start']]) && J(pL.log) === J(['set --pv-top 109px', 'set --pv-top 139px']) && pP.log.length === 0 && J(pH.log) === J(['remove --pv-top'])
+            && !threw3 && J(f3) === J(['', '', '']) && src.split('navBarFor(').length === 3,
+            J([at, pL.log, pP.log, pH.log, threw3, f3]));
+        // the other places a page is read have no bar over the box they scroll: their bars stand beside it, so a block there lands at the top in sight
+        const stickies = css.split('\n').filter(l => /position:\s*sticky/.test(l)).map(l => l.trim().split(' {')[0]);
+        check('only the planner\'s own view has a bar over the page it scrolls: the page panel\'s search row, a page\'s own window\'s bar and the reader\'s head stand outside the box each scrolls, and no rule makes anything over a page sticky but the planner\'s Find bar, so the panel, a window of its own and the reader are left as they were',
+            J(stickies) === J(['.lib-fbtns', '.sheet-frame', '.sheet-sticky-titles > .sheet-section:not(.sheet-subsection):not(.sheet-dash) > .sheet-sec-title', '#plannerFindBar'])
+            && /\n  #docPanelSearchRow \{ [^\n]*flex: none;/.test(css) && /\n  #docPanelBody \{ overflow: auto;/.test(css) && /\n  #popoutBar \{ flex: none;/.test(css) && /\n  #docReaderBody \{ flex: 1; overflow-y: auto;/.test(css)
+            && /<div id="docReaderModal" style="display:none;">\n    <div class="doc-reader-head">[^\n]*\n    <div id="docReaderBody" class="doc-view"><\/div>\n<\/div>/.test(ix) && J(B.NAV_BAR.slice(0, 2)) === J(['plannerFindBar', 'plannerPreview']), J(stickies));
+        check('the landing clear of the bar is said: both release notes carry the line under 1.5.4\'s fixes, alike', wn.every(t => t.split("- In a planner's or a page's own view, a part the Outline jumps to, or\n  a search lands on, is no longer half hidden under the Find bar. Where\n  the bar took two rows, the top of the part stayed under it.\n").length === 2) && wn[0].indexOf("- In a planner's or a page's own view, a part the Outline jumps to, or\n  a search lands on, is no longer half hidden under the Find bar. Where\n  the bar took two rows, the top of the part stayed under it.\n") < wn[0].indexOf('WAYPOINT 1.5.3'));
     }
 
     summed = true;

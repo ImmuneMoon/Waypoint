@@ -2224,6 +2224,116 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         && count(ix, FIND_GM) === 1 && count(plPane, FIND_PL) === 1 && [rootRead('WHATSNEW.txt'), read('assets/whatsnew.txt')].every(t => count(t, FIND_NOTE) === 1), J([fSl.length, count(ix, FIND_GM), count(plPane, FIND_PL)]));
 }
 
+/* ---------- an open menu of the map's tools stands over everything that floats (backlog 143) ---------- */
+// Found live 2026-10-16 (the owner, by prompt: "Now, before Sunday (Recommended)"): the Pages shelf opened under the page panel, so its rows
+// were covered and a press on them went to the panel, and Table Chat covered it too. Every menu of the play map's bar, of the column at the
+// map's edge and of the data map's bar is a .shape-menu in a .floating-toolbar, so ONE rule raises the bar that holds an open one. The
+// ladder is read from the style sheet, from the page where an element carries its own z-index, and from the scripts that set one: the bar
+// at rest under every floating box (a window dragged over it covers it, as the owner chose); with a menu open over every one of them, and
+// under what comes up over the menu in use (the top row's menus, the map's right-click menu and its hover card, which were in front of an
+// open menu before and stay so), every notice, question and dialog, and the tour
+{
+    const flSrc = read('scripts/floats.js'), shSrc = read('scripts/sheets.js'), wn = [rootRead('WHATSNEW.txt'), read('assets/whatsnew.txt')];
+    const rx = s => s.replace(/[.*+?^(){}|$[\]\\]/g, '\\$&');
+    // a z-index: the first rule of the style sheet that opens with the selector (on one line or several), or '@id' as the page writes it on the element
+    const zCss = sel => { const m = new RegExp('\\n[ \\t]*' + rx(sel) + ' ?\\{[^}]*?z-index: ?(\\d+);').exec(css); return m ? +m[1] : NaN; };
+    const zTag = id => { const m = new RegExp(' id="' + rx(id) + '"[^>]*? style="[^"]*?z-index: ?(\\d+)[;"]').exec(ix); return m ? +m[1] : NaN; };
+    const zOf = s => s.charAt(0) === '@' ? zTag(s.slice(1)) : zCss(s);
+    const REST = zOf('.floating-toolbar'), OPEN = zOf('.floating-toolbar:has(.shape-menu.show)'), SEL = zOf('#selToolbar');
+    const fm = /\nvar FLOAT_IDS = (\[[^\]]*\]);/.exec(flSrc), FLOATS = fm ? JSON.parse(fm[1].replace(/'/g, '"')) : [];
+    const floatZ = FLOATS.map(id => { const c = zOf('#' + id); return [id, isNaN(c) ? zOf('@' + id) : c]; }).concat([['.hud-panel', zOf('.hud-panel')], ['.dice-modpop', zOf('.dice-modpop')]]);
+    const zBase = /\nvar _zTop = (\d+);/.exec(shSrc), zCap = /if \(_zTop >= (\d+)\) \{ var ps = floatPanels\(\)/.exec(shSrc), RAISED = zCap ? +zCap[1] : NaN;   // sheets.js raisePanel: a sheet, a HUD or the page panel brought to the front, renumbered before it passes the cap
+    const FRONT = ['.row-menu', '@contextMenu', '#wbTooltip'], LATER = ['.context-menu', '@sidebarContextMenu', '@edgeMenu', '@partyMenu', '#pageNavMenu', '@imgCatMenu', '.lib-pick', '.sheet-dl-pop', '.face-pop', '#soundPop', '.music-pillpop', '#linkPeek'];
+    const modals = [...ix.matchAll(/<div id="(\w+Modal)"[^>]*? style="[^"]*?z-index: ?(\d+);/g)].map(m => m[1]);
+    const STAY = ['#toast', '#pauseBanner', '#updateBanner', '#soundGate', '#musicGate', '@customConfirm', '@customPrompt', '.gen-modal', '.frame-modal', '@welcomeScreen', '#tourOverlay', '#tourChip'].concat(modals.map(id => '@' + id));
+    const frontTop = Math.max(...FRONT.map(zOf)), bad = [];
+    floatZ.forEach(([id, z]) => { if (!(z > REST && z < OPEN)) bad.push('float ' + id + '=' + z); });
+    if (!(RAISED < OPEN && zBase && +zBase[1] === floatZ[0][1])) bad.push('raised ' + RAISED);
+    FRONT.concat(LATER).forEach(s => { if (!(zOf(s) > OPEN)) bad.push('in front ' + s + '=' + zOf(s)); });
+    STAY.forEach(s => { if (!(zOf(s) > OPEN && zOf(s) > frontTop)) bad.push('stays ' + s + '=' + zOf(s)); });
+    check('an open menu of the map\'s tools stands over everything that floats (backlog 143, found live 2026-10-16: the Pages shelf opened under the page panel and Table Chat, its rows covered and a press going to the panel): the bar at rest stays under every floating box, so a window dragged over it covers it as the owner chose; with a menu open it rises over the token toolbar, every box floats.js puts away (the sheet, the page panel, Sound, Music, Video, Effects, the notepad, Table Chat and the dice roller), a HUD, the dice roller\'s pop and a box sheets.js brings to the front; what comes up over the menu in use is still in front of it (the top row\'s menus, the map\'s right-click menu and hover card, every other menu and pop of the app), and so is every notice, question, dialog and the tour, all read from the style sheet, the page and the scripts',
+        FLOATS.length === 9 && FLOATS.indexOf('docPanel') >= 0 && FLOATS.indexOf('chatPanel') >= 0 && floatZ.every(([, z]) => !isNaN(z)) && REST === 8993 && SEL === 8995 && SEL > REST && OPEN > SEL && OPEN === 90010 && frontTop === 90020
+            && modals.length >= 29 && STAY.every(s => !isNaN(zOf(s))) && bad.length === 0
+            && /\n    \.floating-toolbar \{\n[^}]*        transition: z-index 0s \.2s;/.test(css) && count(css, '\n    .floating-toolbar:has(.shape-menu.show) { z-index: 90010; transition-delay: 0s; }\n') === 1,
+        J([REST, SEL, OPEN, RAISED, frontTop, floatZ, bad, modals.length]));
+    // every menu of the three bars is a .shape-menu inside its .floating-toolbar, so the one rule raises each of them
+    const seg = (a, z) => { const i = ix.indexOf(a), j = ix.indexOf(z, i + 1); return i > 0 && j > i ? ix.slice(i, j) : ''; };
+    const menusIn = s => (s.match(/<[a-z]+\b[^>]*>/g) || []).map(t => { const i = / id="(\w*Menu)"/.exec(t), c = / class="([^"]*)"/.exec(t); return i ? i[1] + (c && c[1].split(' ').indexOf('shape-menu') >= 0 ? '' : ':NOT') : null; }).filter(Boolean);
+    const bars = [seg('<div id="dataFloatingToolbar" class="floating-toolbar">', '<div id="wbFloatingToolbar"'), seg('<div id="wbFloatingToolbar" class="floating-toolbar">', '<div id="wbEdgeTools"'), seg('<div id="wbEdgeTools" class="floating-toolbar edge-tools"', '<div id="partyStrip"')].map(menusIn);
+    // and nothing around the bars makes a stacking context of its own, which would hold an open menu under the boxes whatever its z-index
+    const ctx = ['.app', '.layout-wrapper', '#main', '.main'].map(sel => [sel, [...css.matchAll(new RegExp('\\n[ \\t]*' + rx(sel) + ' ?\\{([^}]*)\\}', 'g'))].map(m => m[1])]);
+    check('the one rule reaches every menu of the map\'s tools: each of the seventeen menus of the data map\'s bar, the play map\'s bar and the column at the map\'s edge is a .shape-menu inside its .floating-toolbar, and none of the boxes the bars stand in (.app, .layout-wrapper, #main) makes a stacking context of its own (no z-index, transform, filter, isolation, will-change, contain, perspective, opacity or blend), so an open menu is weighed against the floating boxes themselves',
+        J(bars) === J([['dataCenterMenu', 'linkMenu'], ['drawMenu', 'eraserMenu', 'fillMenu', 'shapeMenu', 'addMenu', 'buildMenu', 'measureMenu', 'blastMenu', 'fogMenu', 'sceneFxMenu', 'pagesMenu', 'wbMoreMenu'], ['wbCenterMenu', 'gridMenu', 'snapMenu']])
+            && ctx.every(([, rules]) => rules.length >= 1 && rules.every(r => !/(^|;|\s)(z-index|transform|filter|isolation|will-change|contain|perspective|opacity|mix-blend-mode)\s*:/.test(r)))
+            && /<div class="app">/.test(ix) && ix.indexOf('<div class="layout-wrapper">') < ix.indexOf('<div id="main" class="main">') && ix.indexOf('<div id="main" class="main">') < ix.indexOf('<div id="dataFloatingToolbar" class="floating-toolbar">'),
+        J([bars, ctx.map(([s, r]) => s + ':' + r.length)]));
+    // Rise, then step back (the owner, 2026-10-16, by prompt: "Rise, then step back (Recommended)": "A menu or a tool's options open over the
+    // windows. When you press a window, that window comes back over the tool's options, like windows on a desktop"). whiteboard.js barPress gives
+    // the bars one class at a press on a floating box, and one rule of the style sheet puts a bar with that class and an open menu back under
+    // the boxes: where it stands is read from the style sheet, and the code is run for real on a page of plain objects below
+    const bk = /\nvar BAR_BACK = '([a-z][a-z-]*)';\n/.exec(barSrc), BACKSEL = '.floating-toolbar.' + (bk ? bk[1] : '?') + ':has(.shape-menu.show)', BACK = zOf(BACKSEL);
+    const backLine = '\n    ' + BACKSEL + ' { z-index: ' + BACK + '; }\n';
+    check('a box pressed comes back in front of an open menu (the owner\'s pick of 2026-10-16, "Rise, then step back"): one rule of the style sheet, for the class whiteboard.js names BAR_BACK, puts a bar with an open menu back under every floating box (the sheet, a HUD, the page panel, Sound, Music, Video, Effects, the notepad, Table Chat, the dice roller and its pop, the first place sheets.js brings a box to the front), and still over the token toolbar, so a selected token\'s bar never covers the menu in use; it sets no transition of its own, so the box comes in front at once',
+        !!bk && BACK > SEL && floatZ.every(([, z]) => BACK < z) && !!zBase && BACK < +zBase[1] && count(css, backLine) === 1, J([bk && bk[1], BACK, SEL, floatZ, zBase && zBase[1]]));
+    // the code itself: the bar's slice with floats.js's own list of boxes, a recording observer, and presses as a page gives them (the capture
+    // listeners of the page first, then, unless the box pressed stops its own presses, the rest)
+    const fl0 = flSrc.indexOf('// [floatcheck:core-start]'), fl1 = flSrc.indexOf('// [floatcheck:core-end]');
+    const P = toolbarPage(false), b = P.byId, win = {}, caps = [];
+    const el = (id, cls, parent) => { const e = new El('div', id, cls); if (id) b[id] = e; (parent || P.main).add(e); return e; };
+    const data = el('dataFloatingToolbar', 'floating-toolbar'); el('linkBtn', 'wb-tool-btn', data); const lm = el('linkMenu', 'shape-menu', data); el('linkMenuRow', 'wb-tool-btn', lm);
+    FLOATS.forEach(id => el(id + 'Row', 'row', el(id, '')));   // every box floats.js names, each with a row inside it
+    const layer = el('hudLayer', ''), hud = el('', 'hud-panel', layer), hudRow = el('', 'row', hud);
+    const pop = el('', 'dice-modpop'), popRow = el('', 'tool', pop), mapEl = el('whiteboardWrap', ''), ctxRow = el('', 'menu-item', el('contextMenu', 'dropdown'));
+    P.main.all().concat([P.main]).forEach(e => { e.contains = n => { for (; n; n = n.parentElement) if (n === e) return true; return false; }; });
+    let boxes = null; try { boxes = fl0 > 0 && fl1 > fl0 ? new Function('window', 'document', 'state', 'getActiveMap', 'isDocLike', 'CustomEvent', flSrc.slice(fl0, fl1) + '\nreturn floatBoxes;')(win, P.doc, { viewMode: 'visual' }, () => null, () => false, function() {}) : null; } catch (e) { boxes = null; }
+    win.wpFloats = { boxes: boxes };
+    const doc = Object.assign({}, P.doc, { addEventListener: (t, f, c) => { caps.push([t, f, c === true]); P.doc.addEventListener(t, f, c); } });
+    function MO(cb) { MO.made.push(this); this.cb = cb; this.seen = []; } MO.made = []; MO.prototype.observe = function(t, o) { this.seen.push([t, o || {}]); };
+    function RO2() { this.observe = () => {}; }
+    let api = null, err = '';
+    try { api = new Function('document', 'window', 'ResizeObserver', 'MutationObserver', barSrc + '\nreturn { barPress: barPress, BAR_BACK: BAR_BACK };')(doc, win, RO2, MO); } catch (e) { err = String(e && e.message || e); }
+    const within = (root, n) => { for (; n; n = n.parentElement) if (n === root) return true; return false; };
+    // a menu's class changed by the page's own code, and the observer told as a browser tells it
+    const setCls = (m, on, c) => { const old = [...m.cls].join(' '), k = c || 'show'; if (on) m.cls.add(k); else m.cls.delete(k);
+        MO.made.forEach(mo => { const o = (mo.seen.filter(([root, op]) => (root === m || (op.subtree === true && within(root, m))) && op.attributes !== false && (op.attributes === true || op.attributeOldValue === true || !!op.attributeFilter) && (!op.attributeFilter || op.attributeFilter.indexOf('class') >= 0))[0] || [])[1];
+            if (o) mo.cb([{ type: 'attributes', attributeName: 'class', target: m, oldValue: o.attributeOldValue === true ? old : null }], mo); }); };
+    const press = (t, stops) => { const ev = { type: 'pointerdown', target: t }; caps.filter(l => l[0] === 'pointerdown' && l[2]).forEach(l => l[1](ev)); if (!stops) caps.filter(l => l[0] === 'pointerdown' && !l[2]).forEach(l => l[1](ev)); };
+    // where each bar stands as the style sheet has it: at rest with no menu open, up with one open, back with one open and the class
+    const st = () => [P.bar, P.edge, data].map(x => { const open = x.querySelectorAll('.shape-menu.show').map(m => m.id).sort(); return (!open.length ? 'rest' : x.cls.has(api.BAR_BACK) ? 'back' : 'up') + ':' + open.join(','); }).join(' | ');
+    const seen = [], each = [], none = [];
+    if (api && boxes) {
+        setCls(b.drawMenu, true); seen.push(st());                                       // the pen's options open: up
+        press(b.docPanelRow); seen.push(st());                                           // a press in the page panel: back, the options still open
+        press(P.bar); seen.push(st());                                                   // a press on the bar: up again
+        setCls(b.gridMenu, true); setCls(lm, true); seen.push(st());                     // a menu of the column and of the data map's bar open: up
+        press(hudRow, true); seen.push(st());                                            // a HUD that stops its own presses: every bar with an open menu back
+        press(b.gridMenuRow); seen.push(st());                                           // a press in the column's open menu raises the column alone
+        setCls(b.drawMenu, true); seen.push(st());                                       // the pen's options drawn again while up: no opening, still back
+        setCls(b.eraserMenu, true, 'wide'); seen.push(st());                             // a closed menu of the bar whose class changes otherwise: no opening, still back
+        setCls(b.fogMenu, true); seen.push(st());                                        // the fog menu opens on the bar (a press, a key, the tour): up
+        press(mapEl); press(ctxRow); seen.push(st());                                    // a press on the map or on the right-click menu: nothing changes
+        press(b.chatPanelRow); seen.push(st());                                          // Table Chat: back
+        press(b.linkBtn); seen.push(st());                                               // the data map's bar pressed: it alone up
+        press(popRow); seen.push(st());                                                  // the dice roller's pop: back
+        ['drawMenu', 'fogMenu', 'gridMenu'].forEach(id => setCls(b[id], false)); setCls(lm, false); seen.push(st());   // every menu put away by its own code
+        setCls(b.eraserMenu, true); seen.push(st());                                     // the eraser's options open later: up, whatever the bar was
+        press(b.dicePanelRow); seen.push(st());                                          // the dice roller: back
+        FLOATS.concat(['hud', 'pop']).forEach(id => { press(P.bar); const u = st(); press(id === 'hud' ? hud : id === 'pop' ? pop : b[id]); each.push(u + ' > ' + st()); });   // each box itself
+        win.wpFloats = undefined; press(P.bar); press(b.sheetPanelRow); none.push(st()); press(popRow); none.push(st()); win.wpFloats = { boxes: boxes };   // floats.js not there: no box but the pop
+    }
+    const code = (() => { const a = barSrc.indexOf('\nvar BAR_BACK'), z = barSrc.indexOf('\n', barSrc.indexOf('_barMo.observe(')); return a > 0 && z > a ? barSrc.slice(a, z) : ''; })();
+    const U = 'up:eraserMenu | rest: | rest:', B = 'back:eraserMenu | rest: | rest:';
+    check('the step back, run for real on a page of plain objects with floats.js\'s own list of boxes (whiteboard.js barPress and barOpened): a press in any floating box puts every bar with an open menu back under the boxes, the menu still open, a box that stops its own presses too; a press on a bar or in its open menu raises that bar alone, and so does a menu of it that opens, but not one drawn again while it is up nor a closed one whose class changes otherwise; a press on the map or the right-click menu changes nothing; with floats.js not there only the dice roller\'s pop counts; nothing here opens or closes a menu, and nothing is told apart for a player\'s app or the stream window',
+        !!api && !!boxes && J(seen) === J(['up:drawMenu | rest: | rest:', 'back:drawMenu | rest: | rest:', 'up:drawMenu | rest: | rest:', 'up:drawMenu | up:gridMenu | up:linkMenu', 'back:drawMenu | back:gridMenu | back:linkMenu',
+            'back:drawMenu | up:gridMenu | back:linkMenu', 'back:drawMenu | up:gridMenu | back:linkMenu', 'back:drawMenu | up:gridMenu | back:linkMenu', 'up:drawMenu,fogMenu | up:gridMenu | back:linkMenu', 'up:drawMenu,fogMenu | up:gridMenu | back:linkMenu',
+            'back:drawMenu,fogMenu | back:gridMenu | back:linkMenu', 'back:drawMenu,fogMenu | back:gridMenu | up:linkMenu', 'back:drawMenu,fogMenu | back:gridMenu | back:linkMenu', 'rest: | rest: | rest:', U, B])
+        && each.length === FLOATS.length + 2 && each.every(s => s === U + ' > ' + B) && J(none) === J([U, B])
+        && J(caps.filter(l => l[0] === 'pointerdown').map(l => [l[1] === api.barPress, l[2]])) === J([[true, true]])
+        && MO.made.length === 1 && J(MO.made[0].seen.map(([t, o]) => [t.id, o])) === J(['wbFloatingToolbar', 'wbEdgeTools', 'dataFloatingToolbar'].map(id => [id, { subtree: true, attributes: true, attributeFilter: ['class'], attributeOldValue: true }]))
+        && code.length > 500 && !/wpStream|wpPopout|net-client|playerScreen|canWrite|classList\.(add|remove|toggle)\('show'/.test(code), err || J([seen, each, none, MO.made.length]));
+    check('the open menu over the boxes is said: both release notes carry the line under 1.5.4\'s fixes, alike, with the box pressed coming in front of a tool\'s options', wn.every(t => count(t, "- The Pages shelf, and every other menu of the map's tools, opens over\n  the page panel, a sheet, a HUD and Table Chat. The shelf opened under\n  the page panel, so its rows were covered and a press went to the\n  panel. A question, a notice and the tour still come in front of it.\n  A tool's options stay up while you work. Press a window and it comes\n  in front of them, as windows do on a desktop. Open them again, or\n  press the tool bar, and they come in front once more.\n") === 1) && wn[0].indexOf("- The Pages shelf, and every other menu of the map's tools, opens over\n") < wn[0].indexOf('WAYPOINT 1.5.3'));
+}
+
 /* ---------- the bar of a page in a window of its own: an inventory of its own ---------- */
 // 1.5.4 (docs/PLANNER_ORG_DESIGN.md 4.1 and 6: "lookcheck's inventory takes every new control's id"). popout.js writes the bar of a page's
 // window, which gained a Find box with step 1; pagenav.js puts the Outline button in it. Each control is written once, in this order, and

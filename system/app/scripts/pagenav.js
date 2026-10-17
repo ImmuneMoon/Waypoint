@@ -302,7 +302,8 @@ function landWords(root, q) {
 function navFlash(el) { if (!el || !el.classList) return false; el.classList.add('pagenav-hit'); setTimeout(function() { el.classList.remove('pagenav-hit'); }, 1300); return true; }
 // the light navFlash put on taken off before its time: a landing made again on another block lights that one alone (docpanel.js hlFinder)
 function navUnflash(el) { if (!el || !el.classList) return false; el.classList.remove('pagenav-hit'); return true; }
-function navTop(el) { try { el.scrollIntoView({ block: 'start', behavior: 'auto' }); } catch (err) {} }
+// a block of the planner's own view has its margin measured first (navBarFor, backlog 143), asked through typeof so the slice runs alone
+function navTop(el) { try { if (typeof navBarFor === 'function') navBarFor(el); el.scrollIntoView({ block: 'start', behavior: 'auto' }); } catch (err) {} }
 function navGo(el) { navTop(el); navFlash(el); }
 // Opens a drawn page at its landing. root holds the page's drawn blocks, each carrying its place in it.blocks as data-blk (docrender renderDoc and
 // the planner's own renderer both number a block so, a block they draw nothing for keeping its number), and at is found by reading each drawn
@@ -434,8 +435,48 @@ function navWire() {
 function navRootOf(el) { for (var i = 0; el && el.closest && i < NAV_PLACES.length; i++) { var r = el.closest('#' + NAV_PLACES[i][1]); if (r) return r; } return null; }
 // [pagecheck:menu-end]
 
+// [pagecheck:bartop-start]
+// 1.5.4 (backlog 143, found live 2026-10-16): a block jumped to in a page's own view (the Outline, a landing, a search that lands on it) is
+// brought to the top of the view, and the Find bar stays there over the page. The bar takes one row or more as the view's width allows, so
+// where the block lands follows the bar's real height: the style sheet reads --pv-top, the bar's height and the gap under it, which is where
+// the page's first block stands below the bar, and 58px where no bar is measured. Only the planner's own view has such a bar: the page panel,
+// a window of its own and the reader keep their bars above the box they scroll, and none of them is touched
+var NAV_BAR = ['plannerFindBar', 'plannerPreview', 10];   // the bar, the box of the page under it, and the gap under the bar (its margin-bottom)
+// the margin a block keeps above it for a bar this tall, as css; '' for a height that is no measure (a view put away measures 0)
+function navBarTop(h) { return typeof h === 'number' && isFinite(h) && h > 0 && h < 10000 ? (Math.ceil(h) + NAV_BAR[2]) + 'px' : ''; }
+// the bar measured and the margin written on the box, or taken off where nothing is measured so that the style sheet's 58px stands. Answers
+// what it wrote; it never throws
+function navBarSet(doc) {
+    try {
+        var bar = doc.getElementById(NAV_BAR[0]), box = doc.getElementById(NAV_BAR[1]), r, v;
+        if (!box || !box.style) return '';
+        r = bar && typeof bar.getBoundingClientRect === 'function' ? bar.getBoundingClientRect() : null;
+        v = navBarTop(r ? r.height : 0);
+        if (v) box.style.setProperty('--pv-top', v); else box.style.removeProperty('--pv-top');
+        return v;
+    } catch (e) { return ''; }
+}
+// kept current whenever the bar changes size (a wider or narrower view, the editor shown or put away, a page with other buttons, the view put
+// away), or with no observer at hand at every change of the window's size. Answers whether there is a bar to follow
+function navBarWire(doc, Obs) {
+    var bar = doc && typeof doc.getElementById === 'function' ? doc.getElementById(NAV_BAR[0]) : null, go = function() { navBarSet(doc); };
+    if (!bar) return false;
+    if (typeof Obs === 'function') new Obs(go).observe(bar);
+    else if (doc.defaultView && typeof doc.defaultView.addEventListener === 'function') doc.defaultView.addEventListener('resize', go);
+    go();
+    return true;
+}
+// measured again at the very moment a block of the planner's own view is scrolled to (navTop, the one scroll of the Outline and of a landing):
+// a landing made as the view comes up scrolls in a turn of its own, before the observer is told the bar's new size, and the view put away
+// had taken the margin off. Answers what it wrote, and '' for a block of any other place; it never throws
+function navBarFor(el) {
+    try { var d = el && el.ownerDocument; return d && typeof el.closest === 'function' && el.closest('#' + NAV_BAR[1]) ? navBarSet(d) : ''; } catch (e) { return ''; }
+}
+// [pagecheck:bartop-end]
+
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     navWire();
+    navBarWire(document, window.ResizeObserver);   // backlog 143: a block jumped to in the planner's own view lands clear of its Find bar
     window.wpPageNav = {
         outline: navOutline, close: function() { navClose(false); }, isOpen: navIsOpen,
         reveal: function(el) { var root = navRootOf(el); return root ? foldReveal(root, el, false) : false; },   // Find, before it scrolls to a hit

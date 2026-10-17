@@ -1143,8 +1143,8 @@ function turnView(v, final) {
     if (final && v.dialStale) { v.dialStale = false; if (namesFacing(systemOf(camp))) redrawForFacing(v); }
 }
 // The floating panels (the sheet, every HUD, the doc panel) come to the front when clicked or opened — only while a HUD is open (with none,
-// the sheet and the doc panel stack by DOM order as before): z from 9001, renumbered in order before it passes 9400 (the map tooltip is at
-// 20000, the context menu at 100000, chat at 90000, modals above)
+// the sheet and the doc panel stack by DOM order as before): z from 9001, renumbered in order before it passes 9400 (chat is at 90000, a
+// tool bar with a menu open at 90010, the map's hover card and right-click menu at 90020, modals above: lookcheck holds the ladder)
 var _zTop = 9000;
 function floatPanels() { var l = [ui('sheetPanel'), ui('docPanel')]; Object.keys(huds).forEach(function(id) { l.push(huds[id].panel); }); return l.filter(Boolean); }
 function raisePanel(p) {

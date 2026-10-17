@@ -38,7 +38,7 @@ function world() {
     const win = {}, st = { viewMode: 'visual' }, W = { asked: 0, item: { type: 'map' } };
     class CE { constructor(t) { this.type = t; } }
     const api = new Function('window', 'document', 'state', 'getActiveMap', 'isDocLike', 'CustomEvent', 'MutationObserver', coreSrc + '\n' + watchSrc
-        + '\nreturn { view: floatView, now: floatNow, up: floatUp, away: floatAway, shown: floatShown, note: floatNote, sync: floatSync, reveal: floatReveal, leave: floatLeave, watch: watch, IDS: FLOAT_IDS, WITH: FLOAT_WITH, AWAY: FLOAT_AWAY, BACK: FLOAT_BACK, LAYER: FLOAT_LAYER };')(
+        + '\nreturn { view: floatView, now: floatNow, up: floatUp, away: floatAway, shown: floatShown, note: floatNote, sync: floatSync, reveal: floatReveal, leave: floatLeave, watch: watch, boxes: floatBoxes, IDS: FLOAT_IDS, WITH: FLOAT_WITH, AWAY: FLOAT_AWAY, BACK: FLOAT_BACK, LAYER: FLOAT_LAYER };')(
         win, doc, st, () => { W.asked++; return W.item; }, it => !!it && (it.type === 'planner' || it.type === 'doc'), CE, MO);
     api.IDS.forEach(id => { els[id] = mkEl(id, 'none'); });
     Object.assign(W, { api, els, layer, doc, win, st,
@@ -183,9 +183,18 @@ const VIEWS = ['play', 'data', 'page'];
     sheet.style.display = 'none'; mo.cb([{ type: 'attributes', target: sheet }]); const downCls = J(sheet.classes()); sheet.style.display = 'flex'; mo.cb([{ type: 'attributes', target: sheet }]); const upAgain = W.is(sheet);
     check('what the watcher sees: a box that comes up belongs to the view on screen then (a sheet opened on the play map is away on the data map, opened again on the data map it shows there), a HUD added to the layer alike, a text node is no box, and a box dragged about asks nothing',
         first === 'shown' && dragged === 0 && still === 'away' && hudOn === 'shown' && hudPage === 'away' && downCls === '[]' && upAgain === 'shown', J([first, dragged, still, hudOn, hudPage, downCls, upAgain]));
-    check('the module publishes its six calls and starts its watcher; it imports only the app\'s state and the two readers of the open item, and nothing in it writes a box\'s own display',
-        /\nwindow\.wpFloats = \{ sync: floatSync, reveal: floatReveal, leave: floatLeave, away: floatAway, shown: floatShown, view: floatNow \};\nwatch\(\);\n$/.test(fl)
+    check('the module publishes its seven calls and starts its watcher (boxes, the one list of the floating boxes, which a press on one is told by: backlog 143, whiteboard.js barPress); it imports only the app\'s state and the two readers of the open item, and nothing in it writes a box\'s own display',
+        /\nwindow\.wpFloats = \{ sync: floatSync, reveal: floatReveal, leave: floatLeave, away: floatAway, shown: floatShown, view: floatNow, boxes: floatBoxes \};\nwatch\(\);\n$/.test(fl)
         && J((fl.match(/^import [^\n]*$/gm) || [])) === J(["import { state } from './state.js';", "import { getActiveMap, isDocLike } from './models.js';"]) && !/\.style\.display\s*=[^=]/.test(fl) && !/innerHTML|eval\(|new Function/.test(fl), J(fl.match(/^import [^\n]*$/gm)));
+}
+
+/* ---------- the boxes, as a press is told by them (backlog 143) ---------- */
+{
+    const W = world(), a = W.api, h1 = W.hud(), h2 = W.hud(); delete W.els.videoPanel;
+    const got = a.boxes(), want = a.IDS.filter(id => id !== 'videoPanel').map(id => W.els[id]).concat([h1, h2]);
+    W.go('data'); const away = a.boxes();
+    check('the floating boxes as one list (boxes, published for the map\'s tool bars: a press in one puts an open menu of the tools back under it): every box the module names that the page holds, in its order, then each HUD of the layer, whether it is up, down or put away',
+        got.length === want.length && got.every((e, i) => e === want[i]) && away.length === want.length && away.every((e, i) => e === want[i]), J([got.length, want.length]));
 }
 
 /* ---------- the page, the stylesheet, the view switch ---------- */

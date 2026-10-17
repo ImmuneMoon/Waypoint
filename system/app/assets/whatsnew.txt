@@ -174,6 +174,15 @@ Character sheets
   with no level is level 5, the Wookiee's renamed trait is found under
   either name, and a droid's size is worked out in inches, as the
   website now does.
+- A trait from ShadowBase is its library entry by its name, whatever its
+  points. A free racial trait at 0 points is that trait, so what your
+  system works out from it counts, and its price, name and level come
+  with it. A trait named with words in brackets after it is the trait
+  your system marks with the list stat named, where no entry has the
+  whole name. A trait with no levels takes its entry's changes, as
+  ShadowBase does. A GM-only entry is never matched this way. A
+  player's upload offers the library's copy in place of the row read
+  before.
 - Text style on a sheet. With Edit sheet on, click into a text or notes
   field and a bar comes up on it, as in a planner. Select words and make
   them bold, italic, underlined, struck through or coloured, or give

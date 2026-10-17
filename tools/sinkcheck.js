@@ -5119,6 +5119,58 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             j([refusedR, vR, vD, rowsR, htmlSet, attrs]));
     }
 
+    /* ---- [free traits] a trait row the bridge reads by its name whatever its points (the owner, 2026-10-17): the file's own name of a qualified
+       variant ("High Pain Threshold (<markup>)") becomes a library copy's own name, its price the copy's own figures, and a row of its own read
+       before is offered as that copy in the Review (systemcore.js sbRowOps and sbProposal, run for real on a hostile website file, each op
+       applied). Drawn by the sheet's own row name, statChips and noteBits (sheets.js, run for real on a page that refuses markup) and by the
+       Review's own drawing (openReview), it is text alone, and a price a number ---- */
+    {
+        const j = JSON.stringify, SYV = await import(modUrl('systemcore.js')), FOV = await import(modUrl('formula.js'));
+        const shV = read('sheets.js'), HTMLV = /innerHTML|insertAdjacentHTML|outerHTML|setAttribute|document\.write/;
+        const cutV = (a, b) => { const i = shV.indexOf(a), k = i < 0 ? -1 : shV.indexOf(b, i + a.length); if (i < 0 || k < 0) throw new Error('sinkcheck: sheets.js ' + a.trim().slice(0, 40) + ' not found'); return shV.slice(i, k); };
+        const lineV = k => cutV('\n' + k, '\n').slice(1);
+        const made = [], htmlSet = [], attrs = [];
+        const fake = tag => { const e = { tag, children: [], childNodes: [], style: {}, dataset: {}, className: '', textContent: '', appendChild(k) { this.children.push(k); this.childNodes.push(k); return k; }, setAttribute(n, v) { attrs.push([n, v]); }, addEventListener() {} }; ['innerHTML', 'outerHTML'].forEach(p => Object.defineProperty(e, p, { set(v) { htmlSet.push(v); }, get() { return ''; } })); e.insertAdjacentHTML = (w, v) => { htmlSet.push(v); }; made.push(e); return e; };
+        const docV = { createElement: fake, createTextNode: t => { const n = { tag: '#text', textContent: String(t) }; made.push(n); return n; } };
+        const FX = '<img src=x onerror=alert(17) data-file=1>', VN = ('High Pain Threshold (' + FX + ')').slice(0, 60);
+        const sysV = SYV.cleanSystem({ v: 1, name: T, rolls: [], fields: [{ id: 'f_ph', key: 'PainHigh', label: T, kind: 'formula', vis: 'all', formula: 'Advantages.HighPain.has' },
+            { id: 'f_adv', key: 'Advantages', label: T, kind: 'item-list', vis: 'all', list: { cats: ['Advantage'], noQty: true, custom: true, lvl: { label: P, min: 0, max: 10, def: 0 }, stats: [{ key: 'bp', label: T + 'bp', show: true }, { key: 'per', label: P, show: true }, { key: 'granted', label: T }, { key: 'named', label: T }] } }],
+            items: [{ id: 'i_ftv_hpt', name: 'High Pain Threshold', key: 'HighPain', category: 'Advantage', notes: T, stats: { bp: 10, per: 2, named: 1 } }, { id: 'i_ftv_x', name: FX, key: 'Fx', category: 'Advantage', notes: P, stats: { bp: 5 } }] }, { F: FOV, gmView: true });
+        const findV = n => sysV.items.filter(e => e.name.toLowerCase() === String(n).trim().toLowerCase());
+        const fileV = { type: 'character', name: FX, traits: { advantages: [{ name: 'High Pain Threshold (' + FX + ')', points: 0, level: 1, description: FX, modifiers: { [FX]: 3, __proto__: { health: 9 } } }, { name: FX, points: 0, baselinePoints: 0, description: FX }] } };
+        const protoV = () => j([Object.keys(Object.prototype), ({}).polluted, ({}).health, typeof ({}).constructor]), pV0 = protoV();
+        const chV = { id: 'c_ftv', name: 'S', ownerId: '', npc: true, values: {} }, refusedV = [], drawnV = [];
+        let prV = null, phV = null, nRowsV = 0;
+        try {
+            SYV.sbRowOps(fileV, sysV, findV).ops.forEach(o => { const a = SYV.applyRowOp(sysV, chV, o.f, o.q, FOV, {}); if (a.ok) chV.values[o.f] = a.value; else refusedV.push(o.q.op + ':' + a.reason); });
+            phV = SYV.resolveAll(sysV, chV, FOV).vars('PainHigh');
+            const WV = new Function('document', 'rowStat', 'rowPaid', 'ovDot', 'rowLvl', 'fmtNum', 'LIMITS', 'commitItem', 'rowIdOf', "'use strict';\n" + lineV('function el(tag, cls, text) {') + '\n' + lineV('function lvlText(L, lv) {') + cutV('\nfunction noteBits(', '\nvar _noteOpen')
+                + cutV('\nfunction statFmt(v) {', '\n// F4c1: what one of a row cost') + cutV('\nfunction statDot(s, spec, ovc) {', '\nvar _rfClearing') + '\nreturn { el, statChips, noteBits };')(docV, SYV.rowStat, SYV.rowPaid, () => null, SYV.rowLvl, SYV.fmtNum, SYV.LIMITS, () => {}, SYV.rowIdOf);
+            const fV = sysV.fields.find(f => f.id === 'f_adv');
+            (chV.values.f_adv || []).forEach(r => { const rd = SYV.rowDef(sysV, r), host = fake('div'), nm = WV.el('span', 'sheet-item-name', rd.def.name);
+                WV.statChips(host, rd.def, fV.list, null); const nb = WV.noteBits(r, rd.def, null, fV, false, null);
+                drawnV.push({ copy: !!r.defId, name: nm.textContent, kids: nm.children.length, chips: host.children.map(c => [c.tag, c.className, c.children.map(k => [k.tag, k.textContent, (k.children || []).length])]), notes: nb ? nb.children.map(k => [k.tag, k.className, k.textContent, k.children.length]) : null }); });
+            nRowsV = made.length;   // what the sheet drew (the Review's window below is shown by its own style)
+            // the Review: a character holding the variant as a row of its own (the reading before 2026-10-17) is offered the copy in its place
+            const chO = { id: 'c_ftv', name: FX, ownerId: '', npc: true, values: { f_adv: [{ id: 'w_ftvold', qty: 1, lvl: 1, def: { name: VN, category: 'Advantage', icon: '', notes: '', vis: 'all', stats: { bp: 0 } } }] } };
+            prV = SYV.sbProposal(sysV, chO, fileV, FOV, findV);
+            const nodes = { uploadModal: fake('div'), uploadHead: fake('h3'), uploadList: fake('div'), uploadApply: fake('button'), uploadReject: fake('button') };
+            const campV = { uploads: [{ id: 'up_ftv', charId: 'c_ftv', from: 'u_a', name: P, at: 1, changes: prV.changes }], chars: { c_ftv: chO } };
+            const elV = (tag, cls, text) => { const e = fake(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+            new Function('ui', 'getActiveCampaign', 'uploadsOf', 'charById', 'isClient', 'el', 'systemOf', 'F', 'sbApplyProposal', 'afterCharChange', 'net', 'toast', 'save', 'renderViews', 'closeReview', 'var _review = null, lastChange = null;\n' + slice('sheets.js', 'uploadreview') + '\nreturn openReview;')(
+                id => nodes[id], () => campV, (cp, id) => SYV.cleanUploads(cp.uploads).filter(u => u.charId === id), (id, cp) => cp.chars[id] || null, () => false, elV, () => null, () => null, () => ({}), () => {}, () => null, () => {}, () => {}, () => {}, () => {})('c_ftv');
+            drawnV.push({ review: nodes.uploadList.children.map(r => r.children.map(k => [k.tag, k.className, k.textContent, k.children.length])) });
+        } catch (e) { refusedV.push('threw: ' + String(e && e.stack || e).slice(0, 300)); }
+        const rowsV = drawnV.filter(d => !d.review), revV = (drawnV.find(d => d.review) || {}).review || [];
+        const chipsOkV = rowsV.every(d => d.chips.every(c => c[0] === 'span' && c[2].length === 2 && c[2][0][0] === 'small' && c[2][0][2] === 0 && c[2][1][0] === '#text' && /^ -?\d+(\.\d+)?$/.test(c[2][1][1])));
+        const notesOkV = rowsV.every(d => !d.notes || d.notes.every(n => typeof n[2] === 'string' && n[3] === 0));
+        check('free traits on the sheet (sbRowOps and sbProposal from a hostile website file, every op applied, then the sheet\'s own row name, statChips and noteBits and the Review\'s own drawing on a page that refuses markup): a qualified variant named in markup is the library copy of the trait the system\'s formula reads (PainHigh true), under the file\'s name cut to the list\'s 60 characters, as one text with no child; a row named as a hostile entry is that entry\'s copy, its name the entry\'s as text; a price a chip of a small label and one number (Base points 0, Points per level 0, as the file prices it); a bag key in markup or a prototype\'s key no change (both copies); the Review offers the copy in place of the row read before, unticked, and the other copy as a new row, their labels, words and arrows each one text; nothing written as markup, an attribute or a style, and nothing on a prototype',
+            refusedV.length === 0 && phV === true && j(rowsV.map(d => [d.copy, d.name, d.kids])) === j([[true, VN, 0], [true, FX, 0]]) && rowsV[0].chips.length === 2 && rowsV[0].chips.every(c => / 0$/.test(c[2][1][1])) && chipsOkV && notesOkV
+                && !!prV && prV.changes.length === 2 && prV.changes[0].kind === 'add' && prV.changes[0].accept === false && prV.changes[0].from === 'a row of its own' && revV.length === 2 && revV.every(r => r.every(k => k[3] === 0)) && revV[0].some(k => k[2] === T + ': ' + VN)
+                && htmlSet.length === 0 && attrs.length === 0 && nRowsV > 0 && made.slice(0, nRowsV).every(e => e.tag === '#text' || Object.keys(e.style).length === 0) && protoV() === pV0 && !HTMLV.test(cutV('\nfunction noteBits(', '\nvar _noteOpen')),
+            j([refusedV, phV, rowsV, revV, prV && prV.changes, htmlSet, attrs]));
+    }
+
     {
         // the Pages shelf opens a planner of the map at its node (1.5.4, PLANNER_ORG_DESIGN 4.1): the node's block id comes from a campaign file and
         // reaches the row's data-at alone, only as a block id of letters, digits, _ and -, 64 at most (pageshelf.js sliced by its shelfcheck markers,

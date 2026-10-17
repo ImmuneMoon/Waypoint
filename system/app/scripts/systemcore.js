@@ -2235,18 +2235,29 @@ function mergeOv(base, ov) {
 // rolls, the sheet, the combat card, the effects, and since the review of the fold of 409 the point budgets; a stray match in a note only adds an entry), for each item list, not already one of the system's items in that list's
 // scope — found through lookup(lowerKey) → the library's entries with that key (the first in the list's categories wins). At most
 // LIMITS.core entries and LIMITS.coreBytes (the rest are left out: over: the count). Returns { core, over }. 126b: a rule (an entry's formula
-// prerequisite) is such a text too: an item's own is read here, and more holds the rules of the library's entries, which the caller hands in
-function coreOf(sys, lookup, more) {
-    var out = [], seen = map(), over = 0, bytes = 0; if (!isObj(sys) || typeof lookup !== 'function') return { core: out, over: 0 };
+// prerequisite) is such a text too: an item's own is read here, and more holds the rules of the library's entries, which the caller hands in.
+// coreKeys: the keys each item list's names address in those texts, [{ f, keys }] in the system's order of fields, keys a map of lower-case keys
+// in the order they are first met (coreOf; sbRowOps, for a trait whose effects the system's own formulas work out)
+function coreKeys(sys, more) {
+    var out = []; if (!isObj(sys)) return out;
     var texts = []; var walk = function(v, d) { if (d > 12) return; if (typeof v === 'string') { if (v.indexOf('.') > 0) texts.push(v); return; } if (Array.isArray(v)) v.forEach(function(x) { walk(x, d + 1); }); else if (isObj(v)) Object.keys(v).forEach(function(k) { walk(v[k], d + 1); }); };
     ['fields', 'rolls', 'sheet', 'combat', 'effects', 'budgets'].forEach(function(k) { walk(sys[k], 0); });
     (Array.isArray(sys.items) ? sys.items : []).forEach(function(it) { if (isObj(it) && typeof it.needsIf === 'string' && it.needsIf.indexOf('.') > 0) texts.push(it.needsIf); });
     (Array.isArray(more) ? more : []).forEach(function(t) { if (typeof t === 'string' && t.indexOf('.') > 0) texts.push(t); });
-    var all = texts.join('\n'), items = Array.isArray(sys.items) ? sys.items : [];
+    var all = texts.join('\n');
     (Array.isArray(sys.fields) ? sys.fields : []).forEach(function(f) {
         if (!isObj(f) || f.kind !== 'item-list' || typeof f.key !== 'string') return;
-        var cats = isObj(f.list) && Array.isArray(f.list.cats) && f.list.cats.length ? f.list.cats : null, re = new RegExp('(^|[^A-Za-z0-9_.])' + f.key.replace(/[^A-Za-z0-9_]/g, '') + '\\.([A-Za-z][A-Za-z0-9_]{0,39})\\.[A-Za-z]', 'gi'), m, keys = map();
+        var re = new RegExp('(^|[^A-Za-z0-9_.])' + f.key.replace(/[^A-Za-z0-9_]/g, '') + '\\.([A-Za-z][A-Za-z0-9_]{0,39})\\.[A-Za-z]', 'gi'), m, keys = map();
         while ((m = re.exec(all))) { var k = lower(m[2]); if (LIST_WORDS[k] !== 1) keys[k] = 1; }   // List.on.*, List.max.*, List.min.* address no entry (1.5.4: max and min, as on)
+        out.push({ f: f, keys: keys });
+    });
+    return out;
+}
+function coreOf(sys, lookup, more) {
+    var out = [], seen = map(), over = 0, bytes = 0; if (!isObj(sys) || typeof lookup !== 'function') return { core: out, over: 0 };
+    var items = Array.isArray(sys.items) ? sys.items : [];
+    coreKeys(sys, more).forEach(function(fk) {
+        var f = fk.f, keys = fk.keys, cats = isObj(f.list) && Array.isArray(f.list.cats) && f.list.cats.length ? f.list.cats : null;
         Object.keys(keys).forEach(function(k) {
             var inScope = function(it) { return isObj(it) && typeof it.key === 'string' && lower(it.key) === k && (!cats || catIn(cats, it.category)); };
             if (items.some(inScope)) return;
@@ -5332,7 +5343,8 @@ function sbRowOps(json, sys, find) {
         if (kU) skKey[lower(kU)] = 1;
         addCustom(fS, { name: full, category: cat0(fS), key: kU, stats: stats }, fx);
     });
-    // traits: a library entry only when its points at the row's level are the row's points (else a custom row with the row's own points and changes)
+    // traits: a library entry, its price by level, where its points at the row's level are the row's points; and since the owner's rule of
+    // 2026-10-17 a library entry by its NAME whatever its points (below); else a custom row with the row's own points and changes
     [['advantages', 'advantages'], ['disadvantages', 'disadvantages'], ['quirks', 'quirks']].forEach(function(p) {
         var f = list(p[0]), rows = rowsAt(isObj(json.traits) ? json.traits[p[1]] : null); if (rows.length && !f) { skip(p[0]); return; } if (!f) return;
         // the review of build 8 (group G): an Acute Senses row (sbAcute), where the list has a stat `sense` with a label a sense: "Acute <Sense>" is
@@ -5346,6 +5358,34 @@ function sbRowOps(json, sys, find) {
         var qMods = function(mods, g, l) { var o = mods.filter(function(m) { return !(isObj(m) && m.f === g.id && m.op === 'add' && m.part === undefined); }); o.unshift({ f: g.id, op: 'add', v: l }); return o.slice(0, LIMITS.effectMods); };
         // v1.0.4: the Wookiee's Distinctive Features under the name the website shows (sbDfRenamed), and either name finding the other's entry
         var dfR = p[1] === 'disadvantages' ? sbDfRenamed(isObj(json.traits) ? json.traits.disadvantages : null, json.species) : [];
+        // The owner, 2026-10-17: "The site never uses a row's points to decide what the row is. A row is its library entry by NAME, whatever its
+        // points ... Points only price the row; they never identify it." So a row named exactly as an entry (or "name level", as above; case and
+        // all, as the website's lookupEntry reads a name), and an Acute Senses row or the Wookiee's renamed trait tied to its entry, is a library
+        // copy at any price: a free racial trait at 0 points is that trait. Its price is the file's, held as the copy's own bp, with per 0 where the
+        // list has it (a level changed later moves the price no more than it moves a row of its own); its name, level and granted points the
+        // file's. A copy at its entry's price is made op for op as before, with no price of its own. And for "the traits whose effects the sheet
+        // works out", the entries the list marks so (its number stat named, 1 on such an entry: the SotMW build sets it on the traits the website
+        // reads by isNamedTrait), a row named for it followed by " (" and a qualifier ("High Pain Threshold (Zabrak Racial Trait)") is that entry
+        // where no entry carries the whole name, its own name kept, and its own bag read as the website reads such a row; an unmarked entry
+        // (Enemy, Mandalorian Combat Aptitude, Super Jump) is read by its exact name alone, as the website reads it. A copy's name is cut to the
+        // list's length before it is read, and no pattern runs over it (variantOf). Only where the list has a number stat bp to hold the price,
+        // never for a GM-only entry (a player's upload naming one would carry the GM's own words), and only where the file's bag gives on this
+        // system's fields what the entry's changes give at that level (a library copy can carry no change of its own); a row named exactly
+        // for a flat entry with changes, is that entry whatever bag it stored, as the website's traitModifiersFor reads the
+        // library's own modifiers for such a trait: any other row as before. A second row of one entry is a row of its own, as before, so a trait
+        // held twice is read once. What includes a trait (Mandalorian Combat Aptitude) is the system's formulas to read. An upload's Review offers
+        // a copy's own price back (sbProposal)
+        var numS = function(k) { var s = statDefOf(f.list, k); return s && s.kind !== 'pick' ? s.key : null; }, bpS = numS('bp'), perS = numS('per'), fKT = fieldKinds(sys), nmS = numS('named');
+        var exactE = function(n, l) { var a = l !== undefined ? entry(f, n + ' ' + l) : null; if (a && a.name === n + ' ' + l) return a; var b = entry(f, n); return b && b.name === n ? b : null; };
+        var variantOf = function(n, l) {   // the longest base before " (" that names, exactly, an entry the list marks as read so (named 1), players may see and the list does not hold yet; none where the list has no such stat
+            for (var i = nmS ? n.lastIndexOf(' (') : -1; i > 0; i = n.lastIndexOf(' (', i - 1)) {
+                var b = n.slice(0, i), v = exactE(b, l); if (!v || v.vis === 'gm') continue;
+                if (rowStat(f.list, v, nmS) === 1 && !taken(f, v)) return { e: v, tied: v.name === b };
+            }
+            return null;
+        };
+        var gives = function(mods, l) { var o = map(); (Array.isArray(mods) ? mods : []).forEach(function(m) { if (!isObj(m) || typeof m.f !== 'string' || !fKT[m.f]) return; var k = m.f + '|' + m.op + '|' + (m.part === 'max' ? 'max' : ''); if (m.op === 'on') o[k] = 1; else if (m.op === 'add' && typeof m.v === 'number' && fin(m.v)) o[k] = (o[k] || 0) + m.v * (m.lvl === true ? l : 1); }); return o; };   // what changes give, field by field, at a level
+        var alike = function(a, b) { return Object.keys(a).concat(Object.keys(b)).every(function(k) { return Math.abs((a[k] || 0) - (b[k] || 0)) < 1e-9; }); };
         rows.forEach(function(t) {
             var pts = sbInt(t.points) || 0, lvl = sbInt(t.level), g = sbInt(t.baselinePoints) || 0, nm = dfR.indexOf(t) >= 0 ? SB_DF[1] : cutText(t.name, LIMITS.name);
             if (sbIdle(t)) {   // the site marks a row that gives nothing: suspended (its droid part seated and not working, or a processor that does not run) or countedWithCopyOf (a further copy of one part's trait, which counts once). Its points stand; it adds nothing and is no copy of an entry, so no level, need or change reads it
@@ -5359,11 +5399,21 @@ function sbRowOps(json, sys, find) {
             if (ac && (t.level === null || t.level === undefined || t.level === '')) { var acNo = sbSenseVal(seS, 'None'); if (acNo !== undefined) acV = acNo; }   // a row that states no level sharpens nothing (acuteSenseBonuses: no level is no level 0, and no level 1 either): its sense None, where the stat has that label
             var e = (lvl !== undefined ? entry(f, nm + ' ' + lvl) : null) || entry(f, nm), tied = false; if (!e && acN && acN !== nm) { e = entry(f, acN); tied = !!e; }
             var dfX = false; if (!e && dfI >= 0) { e = entry(f, SB_DF[1 - dfI]); tied = dfX = !!e; }   // the other name's entry, the copy under the name the website shows
+            var vB = false; if (!e && !ac && dfI < 0 && bpS) { var vr = variantOf(nm, lvl); if (vr) { e = vr.e; tied = vr.tied; vB = true; } }   // a qualified name of a trait the formulas read, under its own name
             var el = e ? (lvl !== undefined && (e.name === nm || tied) ? lvl : (typeof e.lvl === 'number' ? e.lvl : 0)) : 0;
             var qR = sbQualRow(t), qF = qR ? qField(qR.a) : null, qE = !!e && Object.prototype.hasOwnProperty.call(SB_QUAL_ST, e.name) && !!qField(SB_QUAL_ST[e.name]);
-            var same = !!e && st(e, 'bp') + st(e, 'per') * el === pts && !(qE && !(qR && t.name === e.name));
-            if (same && !taken(f, e)) { var ovT = g ? { stats: { granted: g } } : null; if (dfX && e.name !== nm) { ovT = ovT || {}; ovT.name = nm; } addLib(f, e, facts(f, el), ovT); if (ac) { var so = {}; so[seS.key] = acV === undefined ? rowStat(f.list, e, seS.key) : acV; ownOp(f, e, so); } return; }
-            var tw = same && e.vis !== 'gm' ? twinOf(f, e) : null, bagM = sbMods(t.modifiers, ix), useE = !!tw && !bagM.length && !!tw.mods, qOwn = !!qF && !useE;   // the file's own bag, where it states one, before the entry's changes
+            var bagM = sbMods(t.modifiers, ix), fxN = facts(f, el), lvN = fxN && typeof fxN.lvl === 'number' ? fxN.lvl : 0;
+            var bagOk = !!e && alike(gives(qF ? qMods(bagM, qF, qR.lvl) : bagM, lvN), gives(e.mods, lvN));   // what the file's bag gives on this system's fields is what the entry's changes give
+            var flat = !!e && !vB && !qE && e.name === nm && Array.isArray(e.mods) && e.mods.length > 0 && !st(e, 'per');   // the website's traitModifiersFor: a flat trait named so reads its library entry's own modifiers, whatever its row stored
+            var same = !!e && st(e, 'bp') + st(e, 'per') * el === pts && !(qE && !(qR && t.name === e.name)) && !(vB && !bagOk);   // a variant reads its own bag (no entry carries its name), so only a bag the entry's changes match makes it a copy
+            var byN = !same && !!e && e.vis !== 'gm' && !!bpS && (vB || tied || e.name === nm || (lvl !== undefined && e.name === nm + ' ' + lvl)) && !(qE && !(qR && t.name === e.name)) && (flat || bagOk);   // the owner's rule: by its name, at the file's price
+            if ((same || byN) && !taken(f, e)) {
+                var ovT = g ? { stats: { granted: g } } : null; if ((dfX || vB) && e.name !== nm) { ovT = ovT || {}; ovT.name = nm; } addLib(f, e, fxN, ovT);
+                if (byN) { var pr = {}; pr[bpS] = pts; if (perS) pr[perS] = 0; ownOp(f, e, pr); }   // its price, the file's (a figure its entry reads alike written null)
+                if (ac) { var so = {}; so[seS.key] = acV === undefined ? rowStat(f.list, e, seS.key) : acV; ownOp(f, e, so); }
+                return;
+            }
+            var tw = same && e.vis !== 'gm' ? twinOf(f, e) : null, useE = !!tw && !bagM.length && !!tw.mods, qOwn = !!qF && !useE;   // the file's own bag, where it states one, before the entry's changes
             var stats = tw ? tw.stats : { bp: pts }; if (g) stats.granted = g; if (!tw && e && e.vis !== 'gm' && st(e, 'szd')) stats.szd = 1; if (acV !== undefined && acV !== rowStat(f.list, null, seS.key)) stats[seS.key] = acV;
             addCustom(f, { name: nm, category: (tw && tw.category) || cat0(f), notes: tw ? tw.notes : '', stats: stats, mods: useE ? tw.mods : qOwn ? qMods(bagM, qF, qR.lvl) : bagM, modsOn: useE && tw.modsOn }, facts(f, tw ? el : lvl === undefined ? 0 : lvl), tw && !bagM.length && !qOwn ? e.id : null);   // a twin whose changes are its entry's is marked, whatever the copy read here carries (a players' copy lacks changes to fields they do not see): the host sets them from its own copy (twinMods)
         });
@@ -5783,6 +5833,7 @@ function sbProposal(sys, char, dossier, F, find) {
         push({ kind: 'value', f: fid, label: f.label || f.key, from: sbShow(f, a), to: sbShow(f, b), value: b, accept: true }); out.values++;
     });
     var ro = sbRowOps(dossier, sys, find), scratch = { id: char.id, name: char.name, ownerId: char.ownerId, npc: char.npc, values: {} }, groups = [], at = map();
+    var ixP = keyIndex(sys), trL = map(); ['advantages', 'disadvantages', 'quirks'].forEach(function(k) { var fT = ixP[k], bS = fT && fT.kind === 'item-list' ? statDefOf(fT.list, 'bp') : null; if (bS && bS.kind !== 'pick') trL[fT.id] = 1; });   // the bridge's trait lists (sbRowOps)
     ro.lists.forEach(function(fid) { scratch.values[fid] = []; });
     ro.ops.forEach(function(o) { var k = o.f + '|' + o.q.rowId; if (!at[k]) { at[k] = { f: o.f, rowId: o.q.rowId, ops: [] }; groups.push(at[k]); } at[k].ops.push(o.q); });
     groups.forEach(function(g) {   // each row as the copy would make it (on the scratch character: the ops must pass, as they would by hand)
@@ -5797,6 +5848,14 @@ function sbProposal(sys, char, dossier, F, find) {
             for (var i = 0; i < mine.length && m < 0; i++) { var c = mine[i]; if (used[i] === 1 || c.hid === 1) continue;
                 if (t.defId ? c.defId === t.defId && lower2(isObj(c.ov) && c.ov.name) === lower2(isObj(t.ov) && t.ov.name) : !c.defId && isObj(c.def) && lower2(c.def.name) === lower2(t.def.name)) m = i; }
             if (m < 0 && t.defId) for (var i2 = 0; i2 < mine.length && m < 0; i2++) if (used[i2] !== 1 && mine[i2].hid !== 1 && mine[i2].defId === t.defId) m = i2;   // one copy of the entry: its own name may differ
+            // on a trait list, a row of the character's own under the copy's name: the same row read before as a row of its own (a trait at a price
+            // that is not its entry's, before the owner's rule of 2026-10-17). One change puts the library's copy in its place, unticked as a removal
+            // is: the row may hold the GM's own work. Unticked, the character keeps the row as it is, and no second row of it is made
+            if (m < 0 && t.defId && trL[fid] === 1) {
+                var tnR = lower2(nameOf(t)), rp = -1;
+                for (var i3 = 0; i3 < mine.length && rp < 0; i3++) { var c3 = mine[i3]; if (used[i3] !== 1 && c3.hid !== 1 && typeof c3.defId !== 'string' && c3.lnk !== 1 && isObj(c3.def) && lower2(c3.def.name) === tnR && rowIdOf(c3)) rp = i3; }
+                if (rp >= 0) { used[rp] = 1; push({ kind: 'add', f: fid, row: rowIdOf(mine[rp]), label: fl + ': ' + nameOf(t), from: 'a row of its own', to: 'the library\u2019s' + (typeof t.lvl === 'number' ? ', level ' + fmtNum(t.lvl) : ''), ops: [{ op: 'remove', rowId: rowIdOf(mine[rp]) }].concat(g.ops), accept: false }); out.rows++; return; }
+            }
             if (m < 0) { push({ kind: 'add', f: fid, label: fl + ': ' + nameOf(t), from: '—', to: nameOf(t) + (typeof t.lvl === 'number' ? ' ' + fmtNum(t.lvl) : ''), ops: g.ops, accept: true }); out.rows++; return; }
             used[m] = 1; var c = mine[m], rid = rowIdOf(c), nm = nameOf(c);
             var fx = {}, fromF = [], toF = [];
@@ -5819,6 +5878,15 @@ function sbProposal(sys, char, dossier, F, find) {
                         var ev = rowStat(isObj(f && f.list) ? f.list : null, base, k); if (cov.stats[k] === ev) return;   // the copy's own figure already reads as its entry's (the entry came to read it since): nothing to show
                         if (siteOwn(f, k)) { sst[k] = null; sfr.push(k + ' ' + sbShow(null, cov.stats[k])); sto.push(k + ' ' + sbShow(null, ev)); return; } pst[k] = null; fr.push(k + ' ' + sbShow(null, cov.stats[k])); to.push(k + ' ' + sbShow(null, ev)); if (held.indexOf(k) >= 0) gmHeld = true;
                     });
+                });
+                // a trait copy's own price (Base points, Points per level) that the next file no longer states: its row is at its entry's price
+                // again, which the bridge reads as the plain copy and states no price for (sbRowOps), so the copy's own price is offered back
+                if (trL[fid] === 1 && isObj(cov.stats)) ['bp', 'per'].forEach(function(k0) {
+                    var sd = statDefOf(isObj(f && f.list) ? f.list : null, k0), k = sd && sd.kind !== 'pick' ? sd.key : null;
+                    if (!k || !Object.prototype.hasOwnProperty.call(cov.stats, k) || Object.prototype.hasOwnProperty.call(pst, k) || (isObj(tov.stats) && Object.prototype.hasOwnProperty.call(tov.stats, k))) return;
+                    if ((g.ops || []).some(function(q) { return isObj(q) && q.op === 'ov' && isObj(q.ov) && isObj(q.ov.stats) && Object.prototype.hasOwnProperty.call(q.ov.stats, k); })) return;   // the file states it: read above
+                    var ev = rowStat(f.list, base, k); if (cov.stats[k] === ev) return;
+                    pst[k] = null; fr.push(k + ' ' + sbShow(null, cov.stats[k])); to.push(k + ' ' + sbShow(null, ev)); if (held.indexOf(k) >= 0) gmHeld = true;
                 });
                 if (Object.keys(pst).length) patch.stats = pst;
                 if (Object.keys(patch).length) { push({ kind: 'stat', f: fid, row: rid, label: fl + ': ' + nm, from: fr.join(', '), to: to.join(', '), ov: patch, accept: !gmHeld, held: gmHeld }); out.rows++; }

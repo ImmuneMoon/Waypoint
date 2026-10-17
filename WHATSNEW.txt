@@ -28,6 +28,11 @@ Multiplayer
   moment. Nobody else's screen moves. The roster fades while the mark
   shows, so you see the map under it. A player finds only a token
   they can see.
+- The offer to start combat when a player targets one of your
+  characters takes only its buttons. An Escape pressed for something
+  else answered it No, and it was not asked again that session. The
+  question a player is asked when a table answers that is not their
+  GM's takes only its buttons too.
 
 Character sheets
 - Delete a sheet from the sheet itself: Delete in its head (asked
@@ -193,6 +198,9 @@ Character sheets
 - A list's switch can be One at a time. Switching a row on switches
   the others off. Per a stat makes it one for each value of that stat,
   as one armour on for each location.
+- The boxes of a row on a sheet stay level. A label of two lines used
+  to push its box down. It now grows upward. A list in a narrow column
+  shows a short choice whole, where Not stunned read Not stunnec.
 
 Calendar
 - The game clock runs by itself while you host a session: a second of
@@ -238,6 +246,10 @@ Fog of war
   fog menu): each player's own screen keeps the ground they have walked
   past, dimmed, with the creatures there still hidden. It was off until
   ticked; a campaign that never touched it now has it on.
+- On a player's screen a ruler's length, and the size of a circle or a
+  blast, are drawn over the fog. A ruler measured into the dark showed
+  no length. What else a ruler says still shows only where the player
+  can see.
 
 Planners and pages
 - Right-click a planner or a handbook page in the left panel and choose
@@ -392,6 +404,9 @@ The play map
   back your last change.
 - Pasting into a text box on the map pastes plain words, as the
   Content editor does.
+- A click anywhere inside a filled area, or inside a line drawn with
+  the flat tip, picks it up. Only its thin edge used to. A token that
+  stands on it still takes its own click.
 - Textures. A painted cell, a rectangle, a hexagon, a circle, a diamond
   or a filled area can wear one of eight patterns over its colour:
   flagstones, bricks, cobbles, planks, stone, hatching, ripples or
@@ -521,7 +536,9 @@ The top bar and the data map
   with its player's name, and the NPCs under one fold. Click one to
   open its sheet. Right-click it for its HUD, to find its token on the
   map or to delete the sheet. It has its own icon on the rail, and a
-  player sees their own characters there.
+  player sees their own characters there. Its + asks whether a new
+  sheet is a player's character or an NPC. Only the question's
+  buttons answer it, so Enter does nothing there.
 - The top row can be hidden: press the small arrow at its right end.
   A tab at the top edge shows it again. The map tabs and the pills
   stay, floating on the map.
@@ -572,6 +589,24 @@ The Journal
   whose GM runs an older Waypoint, the words arrive without it.
 
 Fixes
+- Escape closes the one thing on top, one press at a time. A
+  right-click menu goes first, then an open menu, then the window on
+  top. Help, Settings, Multiplayer, the calendar, the Journal, the
+  combat roster and the other windows now close on Escape, and so
+  does the map's right-click menu. Nothing behind it hears the key:
+  your target and the tool in your hand stay as they are until
+  nothing else is open, and the dice roller no longer closes along
+  with what Escape was pressed for.
+- A tool's options are an open menu too. The first Escape closes them
+  and the tool stays in your hand. The next Escape puts the tool away.
+- Table Chat, the table notepad, Sound and Music close on Escape when
+  one of them is the box you used last. Chat keeps its messages. The
+  notepad keeps its words and goes from your screen only. It comes
+  back when its words change, and the GM brings it back with the
+  Table Notepad button.
+- Escape ends typing in a text box on the map and keeps your words.
+- An effects burst you armed and did not place is put down when you
+  take another tool. A later Escape used to put that tool away.
 - The Journal's unread count stays in sight while the top row is hidden,
   as chat's does.
 - A key held down no longer answers a question. A question that came up
@@ -733,6 +768,23 @@ Fixes
   As opens them and the arrow keys go through them. Folded into More in
   a narrow window, Sound and Music say there when they are muted or off
   for you, as their icons do in the top row.
+- The play map's toolbar now stays over the floating boxes. A sheet, a
+  HUD or the page panel moved over it no longer covers its tools. While
+  a tool's options are up, a box you press still comes in front of
+  them, and one press on the tool brings them back.
+- A sheet, a HUD, the page panel, the notepad, Table Chat and the Sound,
+  Music, Video and Visual effects panels open clear of the toolbar, the
+  View, Grid and Snap buttons at the map's edge and the turn strip. A
+  HUD opened over whose turn it is, and a sheet over the View, Grid and
+  Snap buttons. Where the room is short a box opens shorter. A box you
+  moved still opens where you left it.
+- A player's handbook page opens beside the left rail and ends above
+  the toolbar, and in a fight it stands under the turn strip. It
+  covered the rail, half the toolbar and half the strip.
+- The map tab keeps the name of the map on screen whole. Where the row
+  is short, the maps above it in the path give way first. Hosting with
+  a fight running, the tab cut every name to a letter or two, the
+  map's own too.
 
 WAYPOINT 1.5.3 — What's New
 ============================

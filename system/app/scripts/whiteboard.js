@@ -1642,7 +1642,7 @@ window.wpFitToGrid = fitToGrid;
       }, true);
       document.addEventListener('keydown', function(e) {
           var pop = bar.querySelector('.st-color-pop');
-          if (e.key === 'Escape' && pop && !pop.hidden) pop.hidden = true;
+          if (e.key === 'Escape' && pop && !pop.hidden && (!window.wpEsc || window.wpEsc.free(e))) pop.hidden = true;   // 1.5.4: esckey.js puts it away, one thing a press
       });
   })();
 
@@ -2831,7 +2831,7 @@ window.wpFitToGrid = fitToGrid;
           }
       });
       document.addEventListener('pointerdown', function(e) { if (menu && menu.classList.contains('show') && !e.target.closest('#partyMenu')) closePartyMenu(); }, true);
-      document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closePartyMenu(); });
+      document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && (!window.wpEsc || window.wpEsc.free(e))) closePartyMenu(); });   // 1.5.4: esckey.js puts it away, one thing a press
   })();
   /* ---- targeting (players) ----
      The owner's ruling of 2026-10-01: a plain click on a token targets nothing (a look at a token used to target it by mistake). A player
@@ -2859,7 +2859,11 @@ window.wpFitToGrid = fitToGrid;
           if (el && el.dataset.id === d.doorId && window.wpNet.doorReq) window.wpNet.doorReq(d.mapId, d.doorId);   // door open/close request (host validates adjacency + lock)
       }, true);
       document.addEventListener('keydown', function(e) {
-          if (e.key === 'Escape') { if (window.wpNet && window.wpNet.active && (window.wpNet.role === 'client' || window.wpNet.role === 'host') && window.wpNet.targets && window.wpNet.targets[window.wpNet.myId]) window.wpNet.clearMyTarget(); return; }
+          if (e.key === 'Escape') {   // 1.5.4 (the owner, 2026-10-17: "Close the top one"): only when nothing else was open, and never from a field, whose key it is
+              var tgE = e.target, inField = !!tgE && ((tgE.tagName && /^(INPUT|TEXTAREA|SELECT)$/.test(tgE.tagName)) || tgE.isContentEditable === true);
+              if ((!window.wpEsc || window.wpEsc.free(e)) && !inField && window.wpNet && window.wpNet.active && (window.wpNet.role === 'client' || window.wpNet.role === 'host') && window.wpNet.targets && window.wpNet.targets[window.wpNet.myId]) window.wpNet.clearMyTarget();
+              return;
+          }
           if (e.key !== 't' && e.key !== 'T') return;
           if (e.ctrlKey || e.metaKey || e.altKey || !e.target || (e.target.tagName && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) || e.target.isContentEditable) return;   // typing, or a shortcut of the browser's
           var hov = document.querySelector('#whiteboard .wb-item:hover'), am = getActiveMap();
@@ -3486,7 +3490,7 @@ window.wpFitToGrid = fitToGrid;
               if (cv && cv.name) labCov = 'Cover: ' + cv.name;
           }
           var prR = tB && tB !== tA ? postureRanged(tB) : '';   // posture: a foe's ranged roll at -2 against the token the ruler ends on, after the distance (display only)
-          html += '<text x="' + (mx + 8) + '" y="' + (my - 8) + '">' + measureLabel(dist, diagCells(m)) + (prR ? ' \u00b7 ' + esc(prR) : '') + '</text>';
+          html += '<text x="' + (mx + 8) + '" y="' + (my - 8) + '"><tspan class="fog-cap">' + measureLabel(dist, diagCells(m)) + '</tspan>' + (prR ? ' \u00b7 ' + esc(prR) : '') + '</text>';   // the length alone is drawn over the fog on a player's screen (fog.js measureCaps)
           var _covY = my + 11;
           if (lab3) { html += '<text x="' + (mx + 8) + '" y="' + _covY + '">' + lab3 + '</text>'; _covY += 19; }
           if (labCov) html += '<text x="' + (mx + 8) + '" y="' + _covY + '">' + labCov + '</text>';
@@ -3882,7 +3886,8 @@ window.wpFitToGrid = fitToGrid;
           if (kind === 'cone') html += '<path class="area" d="' + conePath(b.x, b.y, rPx, b.dir, b.deg) + '"></path>' + DOT + (own ? '<circle class="blast-aim" data-i="' + i + '" cx="' + svgNum(b.x + rPx * Math.cos(b.dir || 0)) + '" cy="' + svgNum(b.y + rPx * Math.sin(b.dir || 0)) + '" r="7"><title>Drag to turn the cone</title></circle>' : '');   // a path is numbers only (svgNum); a blast's cone has no handle: it went off as it was aimed
           else if (kind === 'ring' && innerYd(b) > 0) html += '<path class="area" fill-rule="evenodd" d="' + ringPath(b.x, b.y, rPx, innerYd(b) * pxPerYd) + '"></path>' + GRAB + DOT;
           else html += '<circle class="area" cx="' + b.x + '" cy="' + b.y + '" r="' + rPx + '"></circle>' + GRAB + DOT;
-          var lbl = (own ? esc(circleWords(b.yd, b.as, ru, b.inn, b.deg)) : (b.name ? esc(b.name) + ' ' : '') + ftOut(b.ft) + ' ft' + (kind === 'ring' ? ', from ' + ftOut(b.inFt) + ' ft' : kind === 'cone' ? ', ' + coneDeg(b.deg, 60) + '\u00b0' : '') + ' \u00b7 r ' + fmtLen(rYd)) + (elevOn ? ' \u00b7 at ' + fmtElev(b.elev || 0) + ' ' + lenUnit() : '');   // item 19 H1: in the viewer's unit
+          var lblName = !own && b.name ? esc(b.name) + ' ' : '', lblSize = own ? esc(circleWords(b.yd, b.as, ru, b.inn, b.deg)) : ftOut(b.ft) + ' ft' + (kind === 'ring' ? ', from ' + ftOut(b.inFt) + ' ft' : kind === 'cone' ? ', ' + coneDeg(b.deg, 60) + '\u00b0' : '') + ' \u00b7 r ' + fmtLen(rYd);
+          var lbl = lblName + '<tspan class="fog-cap">' + lblSize + '</tspan>' + (elevOn ? ' \u00b7 at ' + fmtElev(b.elev || 0) + ' ' + lenUnit() : '');   // item 19 H1: in the viewer's unit. Its size alone is drawn over the fog on a player's screen (fog.js measureCaps): a name and a height stay on the board
           html += '<text x="' + (b.x + 8) + '" y="' + (kind === 'cone' ? b.y - 12 : b.y - rPx - 8) + '">' + lbl + '</text>';   // a cone's words stand at its point: it has no top
           if (!playerScreen() && kind !== 'cone' && kind !== 'ring') html += '<text class="blast-boom" data-i="' + i + '" x="' + (b.x + 8) + '" y="' + (b.y - rPx - 26) + '">💥 Boom</text>';   // fires a burst everyone sees (1.5.0)
           blastDistances(b, map).forEach(function(r) {
@@ -4192,10 +4197,17 @@ window.wpFitToGrid = fitToGrid;
       document.addEventListener('keyup', function(e) { if (_pingAlt && e.key === 'Alt') { _pingAlt = false; e.preventDefault(); } }, true);
       wbWrap.addEventListener('dblclick', function(e) { if (e.altKey && window.wpFx && window.wpFx.canPing()) { e.preventDefault(); e.stopImmediatePropagation(); } }, true);   // two quick pings never open a token's Properties
   }
-  // Esc cancels an armed throw or FX burst and returns to the arrow
+  // Esc cancels an armed throw or FX burst and returns to the arrow, when nothing else was open (1.5.4: esckey.js). With nothing armed it puts
+  // the tool in hand away, back to Select (the owner, 2026-10-17, by prompt: "Close the options first (Recommended)": the first Escape closes
+  // a tool's options and the tool stays in hand, and the next puts the tool away). Never from a field, whose key it is; Build is Build's own
+  // (buildKey, which drops a polygon under way first), and a placement is the placement's (disarmPlacement)
+  var ESC_TOOLS = ['drawModeBtn', 'eraserModeBtn', 'fillModeBtn', 'measureModeBtn', 'blastModeBtn', 'fogModeBtn', 'panModeBtn'];
   document.addEventListener('keydown', function(e) {
-      if (e.key !== 'Escape') return;
-      if (_armedThrow || _fxArm) { _armedThrow = null; _fxArm = null; document.body.classList.remove('placing'); window.isMeasureMode = false; window.wpMeasureKind = 'ruler'; var mvE = document.getElementById('moveModeBtn'); if (mvE) mvE.click(); }
+      if (e.key !== 'Escape' || (window.wpEsc && !window.wpEsc.free(e))) return;
+      if (_armedThrow || _fxArm) { _armedThrow = null; _fxArm = null; document.body.classList.remove('placing'); window.isMeasureMode = false; window.wpMeasureKind = 'ruler'; var mvE = document.getElementById('moveModeBtn'); if (mvE) mvE.click(); return; }
+      var tgT = e.target; if (tgT && ((tgT.tagName && /^(INPUT|TEXTAREA|SELECT)$/.test(tgT.tagName)) || tgT.isContentEditable === true)) return;
+      var held = ESC_TOOLS.filter(function(id) { var b = document.getElementById(id); return !!b && !!b.classList && b.classList.contains('active'); })[0];
+      if (held) { var mvT = document.getElementById('moveModeBtn'); if (mvT) mvT.click(); }
   });
   window.wpMeasure = { config: mapMeasureConfig, cellYards: cellYards, pxToYards: function(px) { var c = cellYards(), ppy = c ? mapMeasureConfig().cellPx / c : 0; return ppy ? Math.round(px / ppy * 10) / 10 : null; } };
   // Fog of war (1.5.0): a play-map mode. fog.js owns the menu and the overlay. The toolbar's button opens and closes the menu and nothing
@@ -4692,7 +4704,7 @@ window.wpFitToGrid = fitToGrid;
   }
   // The owed review, 2026-10-09: a Throw armed from a sheet and then left, by taking another tool and not by Esc, stayed armed, and the next
   // click of the Radius tool threw it for real, for the whole table, where its player meant to measure. Taking any tool puts it down
-  function disarmThrow() { if (_armedThrow) { _armedThrow = null; document.body.classList.remove('placing'); } }
+  function disarmThrow() { if (_armedThrow) { _armedThrow = null; document.body.classList.remove('placing'); } if (typeof window !== 'undefined' && window.wpDisarmFxBurst) window.wpDisarmFxBurst(); }   // 1.5.4: a burst armed from the effects panel goes too: left armed, it made a later Escape put away the tool taken since
   // ... and when the last shape of the tool's own goes (set off, or taken off by a right-click), the shape kept for the next click follows
   // what the options then show, an older shape's numbers: a click places what is in sight
   function circleRekept() {
@@ -5283,7 +5295,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
           _imgLibOrder.forEach(function(p) { _imgLibSel[p] = 1; });
           renderImgLib(document.getElementById('imgLibSearch').value);
       }, true);
-      document.addEventListener('keydown', function(e) { if (e.key === 'Escape') hideImgCatMenu(); });
+      document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && (!window.wpEsc || window.wpEsc.free(e))) hideImgCatMenu(); });   // 1.5.4: esckey.js puts it away, one thing a press
   })();
 
   function renderImgLib(filter) {
@@ -6552,7 +6564,7 @@ function addWbItemAt(type, props, x, y) {
     save(); render();
 }
 document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape' && window.wpPlace && !window.wpPlace.build) { disarmPlacement(); toast('Placement cancelled.'); }   // a placement that is Build's own is Build's to end (buildKey)
+    if (e.key === 'Escape' && window.wpPlace && !window.wpPlace.build && (!window.wpEsc || window.wpEsc.free(e))) { disarmPlacement(); toast('Placement cancelled.'); }   // a placement that is Build's own is Build's to end (buildKey)
 });
 // [buildcheck:buildtool-start]
 // The map builder (fold B1c, backlog 23): the Build tool, the GM's alone. A tool with options, wired like every other (wireTool): its icon
@@ -6839,6 +6851,7 @@ function buildPolyEnd() { _build.poly = null; _build.polyMap = null; if (_build.
 // The keys while Build is in hand: Enter closes a polygon of three corners or more, Esc drops a polygon under way, else puts the tool away
 function buildKey(e) {
     if (!window.isBuildMode || e.defaultPrevented) return;
+    if (e.key === 'Escape' && window.wpEsc && !window.wpEsc.free(e)) return;   // 1.5.4: an Escape that closed something else (a window, a menu) is not Build's
     var t = e.target, typing = !!t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || '') || t.isContentEditable === true), own = typing && !!(t.closest && t.closest('#buildMenu'));
     if ((typing && !(own && e.key === 'Escape')) || buildAsking() || !buildHere()) return;   // a field's own keys, a question of the app's, another view: none of them Build's. Esc in a field of Build's own options still is
     if (e.key === 'Enter' && _build.poly && _build.poly.length >= 3 && buildPolyHere()) { e.preventDefault(); buildPolyClose(); buildArm(); }
@@ -8362,7 +8375,7 @@ function tableMenuParts(e, role) {
                 html += '<div class="menu-item cm-session" data-act="combat-edit">&#9998; Combat Roster\u2026</div>';
                 html += '<div class="menu-item cm-session" data-act="combat-end" style="color:var(--danger)">End Combat</div>';
             } else html += '<div class="menu-item cm-session" data-act="combat" title="Pick who is in the fight, give initiative, run the turns">&#9876; Start Combat\u2026</div>';
-            html += '<div class="menu-item cm-session" data-act="notepad">&#128221; ' + (n.notepad && n.notepad.on ? 'Put Away Table Notepad' : 'Open Table Notepad') + '</div>';
+            html += '<div class="menu-item cm-session" data-act="notepad">&#128221; ' + (n.notepad && n.notepad.on ? (typeof n.notepadHidden === 'function' && n.notepadHidden() ? 'Show Table Notepad' : 'Put Away Table Notepad') : 'Open Table Notepad') + '</div>';
             html += '<div class="menu-divider"></div>';
             html += '<div class="menu-item cm-session" data-act="summon">&#128227; Summon Everyone Here</div>';
             html += '<div class="menu-item cm-session" data-act="travel">' + (n.travelLocked ? '&#128275; Allow Travel Between Maps' : '&#128274; Lock Travel Between Maps') + '</div>';

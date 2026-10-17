@@ -26,6 +26,7 @@
 <script type="module" src="scripts/leftrail.js"></script>
 <script type="module" src="scripts/rowhide.js"></script>
 <script type="module" src="scripts/syskey.js"></script>
+<script type="module" src="scripts/esckey.js"></script>
 <script type="module" src="scripts/net.js"></script>
 <script type="module" src="scripts/faces.js"></script>
 <script type="module" src="scripts/framer.js"></script>
@@ -281,7 +282,7 @@
                           </li>
                           <li><b>Map tabs:</b> the top row shows the map in front and the maps you go back to. Press a tab to go to that map.
                               <ul>
-                                  <li>The lighter tab is the map on screen. Its parent maps stand inside it, each one press away.</li>
+                                  <li>The lighter tab is the map on screen. Its parent maps stand inside it, each one press away. Where the row is short they give way first, so the map&rsquo;s own name stays whole.</li>
                                   <li>Your pinned maps come next, each with a pin. Pin a map from the play map&rsquo;s right-click menu.</li>
                                   <li>The last maps you opened follow them.</li>
                                   <li>An eye and a number mark a map your players are on. Point at the tab for their names.</li>
@@ -356,7 +357,7 @@
                           <li>The <b>minimap</b> in the top-left corner shows where your content is. Click anywhere on it to fly the camera there. It dims when idle, and the chevron collapses it.</li>
                           <li>Drag the thin gutters beside either sidebar to resize the panels.</li>
                           <li>Right-click <b>Maps</b>, <b>Planners</b> or <b>Handbook</b> in the left panel for that list&rsquo;s tools: add one, fold or unfold its tree, and <b>search</b> it.</li>
-                          <li><b>Characters</b> in the left panel lists the campaign&rsquo;s character sheets, under Maps. Your players&rsquo; characters stand first with each player&rsquo;s name, and the NPCs wait under one fold. Click a character to open its sheet. Right-click it for its HUD, to find its token on the map, or to delete the sheet. Press <b>+</b> to make a new sheet. A player sees their own characters there.</li>
+                          <li><b>Characters</b> in the left panel lists the campaign&rsquo;s character sheets, under Maps. Your players&rsquo; characters stand first with each player&rsquo;s name, and the NPCs wait under one fold. Click a character to open its sheet. Right-click it for its HUD, to find its token on the map, or to delete the sheet. Press <b>+</b> to make a new sheet. It asks with two buttons whether the sheet is for a player&rsquo;s character or an NPC, then for its name. A player sees their own characters there.</li>
                           <li><b>Floating boxes</b> stay with the play map. On the data map, a planner or a handbook page they are put away. Nothing is closed: music plays on and a sheet keeps its place. Back on the play map they are as you left them.
                               <ul>
                                   <li>The boxes are a character sheet, a HUD, the page panel, Table Chat with its dice roller and the table notepad. The Sound, Music, Visual effects and Video panels are boxes too.</li>
@@ -364,6 +365,18 @@
                                   <li>A box comes in front of the others when you open it or click it.</li>
                                   <li>Someone else&rsquo;s roll opens Table Chat by itself only on the play map. On another view you get a notice, and a count on the chat button. Your own roll opens the chat where you are for a few seconds.</li>
                                   <li>A window of its own always stays where you put it: a sheet, a page or the chat you popped out, and the stream window.</li>
+                                  <li>A box opens clear of the play map&rsquo;s toolbar, the View, Grid and Snap buttons at its edge and the turn strip. Where the room is short it opens shorter. A box you moved opens where you left it.</li>
+                                  <li>The toolbar stays over the boxes. While a tool&rsquo;s options are up, press a box and it comes over the toolbar and the options. One press on the tool brings them back.</li>
+                              </ul>
+                          </li>
+                          <li><b>Escape</b> closes the one thing on top, one press at a time.
+                              <ul>
+                                  <li>A right-click menu goes first, then an open menu, then the window on top. Nothing behind it hears the key.</li>
+                                  <li>A box you type in keeps its own <kbd>Esc</kbd> first. A search that holds words is cleared, and a text bar goes away.</li>
+                                  <li>A question waits for its answer. Some questions take only their buttons, so <kbd>Esc</kbd> leaves them up.</li>
+                                  <li>A tool&rsquo;s options are an open menu too. The first <kbd>Esc</kbd> closes them, and the tool stays in your hand.</li>
+                                  <li>Table Chat, the notepad, Sound and Music close when one of them is the box you used last. Chat keeps its messages.</li>
+                                  <li>With nothing open, <kbd>Esc</kbd> puts the tool in your hand away, ends a placement and clears your target.</li>
                               </ul>
                           </li>
                       </ul>
@@ -478,6 +491,7 @@
                           <li><b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18v14H3zM7.5 8.5a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6zM3.5 17l5-5 3.5 3.5 3-3 5.5 5.5"/></svg> Image</b> adds an image. You can also drag an image file from your computer onto the board.</li>
                           <li><b>Text boxes:</b> <kbd>Double Click</kbd> a text box on the canvas to edit its words, or select it and type in the <b>Content</b> editor in Properties.
                               <ul>
+                                  <li><kbd>Esc</kbd> ends typing in a box on the canvas, as a click elsewhere does. Your words are kept.</li>
                                   <li>The Content editor has the bar of a planner's text block. It makes the words you select bold, italic, underlined or struck through.</li>
                                   <li>It colours the words you select and sizes them. <b>Default</b> takes a colour off again.</li>
                                   <li>It has bulleted and numbered lists, clear formatting, and the symbol tray.</li>
@@ -543,7 +557,7 @@
                           <li><kbd>Ctrl + C</kbd>, <kbd>Ctrl + X</kbd> and <kbd>Ctrl + V</kbd> copy, cut and paste selected items. Pasting a screenshot or a copied image from outside the app drops it at your cursor.</li>
                           <li>The <b>New item opacity</b> slider in the Shapes and Pen menus sets the transparency new items are created with.</li>
                           <li>Click to select. Drag the corner handle to resize. Hold <kbd>Shift</kbd>, or turn on <b>Lock proportions</b> in the selection toolbar, to keep the width and height in ratio. Resizing one member of a <b>group</b> scales the whole group. Drag the blue dot to rotate. Arrow keys nudge the selection, and <kbd>Shift</kbd> makes the steps bigger.</li>
-                          <li><b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4l4 4-8.5 8.5-4.5 1 1-4.5L14 4zM4 21c2-1.6 3.6 1.2 5.6 0s3.2-1.4 5 0 3.4.6 5.4-.4"/></svg> Draw</b> sketches freehand. Click it again for color, stroke size, <b>pen tip</b>, straight-line mode and opacity. The tip is round, square, or a flat calligraphy nib whose width varies with direction.</li>
+                          <li><b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4l4 4-8.5 8.5-4.5 1 1-4.5L14 4zM4 21c2-1.6 3.6 1.2 5.6 0s3.2-1.4 5 0 3.4.6 5.4-.4"/></svg> Draw</b> sketches freehand. Click it again for color, stroke size, <b>pen tip</b>, straight-line mode and opacity. The tip is round, square, or a flat calligraphy nib whose width varies with direction. You pick a line up by its stroke. A filled area, or a line drawn with the flat tip, takes a click anywhere inside it. A token on top still takes its own click.</li>
                           <li><b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 4.5l5 5a1.5 1.5 0 0 1 0 2.1L12 19H7.5l-3.6-3.6a1.5 1.5 0 0 1 0-2.1l8.5-8.8a1.5 1.5 0 0 1 2.1 0zM8.5 9.5l6 6M12 19h8"/></svg> Eraser</b> rubs out only what its circle passes over, and the rest of the stroke stays. Click the eraser again for its size and mode: <b>Precise</b> trims strokes exactly to the circle, <b>Segments</b> removes whole point-to-point pieces.</li>
                           <li><b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 3l9 9-6.5 6.5a2.1 2.1 0 0 1-3 0L4.5 13.5a2.1 2.1 0 0 1 0-3L10 5M4.2 12h14.6M20.5 16s1.5 2 1.5 3.2a1.5 1.5 0 0 1-3 0c0-1.2 1.5-3.2 1.5-3.2z"/></svg> Fill</b> is the GM&rsquo;s tool for coloring grid cells. Click or drag cells to lay a cell-sized colored shape beneath the tokens: a hexagon on hex maps, a square on square maps. Right-click a cell to clear it, and painting a filled cell recolors it. Each fill is an ordinary board item: move it, restyle it, change its opacity or delete it like any shape.
                               <ul>
@@ -1385,7 +1399,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           <li><b>Just a token&hellip;</b> asks only for a name. You play at once with the face you chose. With character sheets, you get an empty sheet that is yours to fill in when you like. Press <b>Done</b> when it is finished.</li>
                           <li><b>Doors &amp; stairs:</b> double-click a portal marker to travel through on your own. The GM can summon the party back together. A portal with a small &#128274; beside its marker is locked by your GM: it lets you through once they unlock it.</li>
                           <li><b>Chat:</b> click <b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-7.5L7 20.5v-4H5a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2zM7.5 9h9M7.5 12.5h5.5"/></svg></b> to talk to the table. A message from the GM marked <b>private</b> is a whisper only you can see.</li>
-                          <li><b>Handbook:</b> the left panel shows the GM's rules and reference pages. Click one to read it in a panel over the map. <kbd>Esc</kbd> or &times; closes it. The map and chat keep working beside it. The pages are a copy that lives only while you are at the table.</li>
+                          <li><b>Handbook:</b> the left panel shows the GM's rules and reference pages. Click one to read it in a panel over the map. <kbd>Esc</kbd> or &times; closes it. The map and chat keep working beside it. The panel leaves the left rail and the toolbar in sight, and in a fight it stands under the turn strip. The pages are a copy that lives only while you are at the table.</li>
                           <li><b>Sound:</b> the GM's ambient loop and cues play on your machine. The <b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 9.5H7l5-4v13l-5-4H3.5zM15.5 9.3a4 4 0 0 1 0 5.4M18.2 6.8a8 8 0 0 1 0 10.4"/></svg></b> speaker in the top row has your own volume, a mute, and <b>Off for me at this table</b>. In a browser tab, one click on the page is needed before sound may play. The speaker pulses until then.</li>
                           <li><b>Music:</b> a song or playlist the GM set for a map starts on your machine as you enter it. It keeps playing if the next map uses the same one. The <b><svg class="ico ico-note" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 17.5V6.4l10.5-2.6v11.2M8.5 10.4l10.5-2.6"/><circle cx="6" cy="17.5" r="2.5"/><circle cx="16.5" cy="15" r="2.5"/></svg></b> note in the top row has your own music volume and mute, separate from Sound. The GM can take control of everyone's music for a moment.</li>
                           <li><b>Character sheets:</b> right-click your token &#9656; <b>Sheet&hellip;</b> to open your character&rsquo;s sheet.
@@ -1426,7 +1440,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li>A handout or a shared page asks the same way when you read it later from your Journal, with no session running. Links in your own notes open directly.</li>
                               </ul>
                           </li>
-                          <li>When the GM runs <b>fog of war</b>, your screen is covered except for what your own token can see. Creatures out of sight are not shown. Fog is the GM's to control: there is no switch to turn it off for yourself.</li>
+                          <li>When the GM runs <b>fog of war</b>, your screen is covered except for what your own token can see. Creatures out of sight are not shown. Fog is the GM's to control: there is no switch to turn it off for yourself. A ruler&rsquo;s length, and the size of a circle or a blast, show over the fog, so you can measure into the dark.</li>
                           <li>When your GM&rsquo;s system names its light levels, your own <b>target mark</b> shows the light your target stands in as your token sees it. &#9789; is dim and &#9679; is dark, with the light&rsquo;s name under the target. The ruler dragged from your own token to another shows it too.</li>
                           <li>When your GM&rsquo;s system has a range penalty, each <b>target mark</b> shows it at its lower corner, as &minus;4 say. Every ruler shows it too, as <b>Range &minus;4</b>.</li>
                           <li><b>Your light:</b> right-click your own token and use <b>Light</b> to switch its light off or on. You can also pick one of the lights your GM offers, such as a torch or a lantern. You are told if it cannot be done: the GM may have locked the token or its light, or paused the table.</li>
@@ -1454,13 +1468,14 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li>Everyone reads it with that look. The fonts are Waypoint&rsquo;s own, and a web address in it stays plain text.</li>
                                   <li><b>Save to my Journal</b> keeps a copy as a note of your own, with its look.</li>
                                   <li><b>Clear</b> wipes the words for everyone. The notepad goes when the GM puts it away or the session ends.</li>
+                                  <li><kbd>Esc</kbd> puts the notepad away on your own screen when you used it last. Its words stay. It comes back when its words change, and the GM brings it back with <b>Table Notepad</b>.</li>
                               </ul>
                           </li>
                           <li><b>Targeting:</b> right-click a character token that isn't yours &#9656; <b>Target</b> to mark it as your target. Pressing <b>T</b> while pointing at it does the same.
                               <ul>
                                   <li>Everyone sees a small copy of your own token on it. Several targeters line up in the middle and wrap into rows.</li>
                                   <li>A plain click targets nothing, so looking at a token never marks it.</li>
-                                  <li>To clear, right-click it again &#9656; <b>Clear target</b>, press <b>T</b> again, or press <b>Esc</b>.</li>
+                                  <li>To clear, right-click it again &#9656; <b>Clear target</b>, press <b>T</b> again, or press <b>Esc</b> while nothing else is open.</li>
                                   <li>You have one target at a time. The party list&rsquo;s <b>Target</b> row works too.</li>
                               </ul>
                           </li>
@@ -2171,6 +2186,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           <li><kbd>Shift + 1</kbd> &nbsp; Fit to content: frame the selection if there is one, else the whole map.</li>
                           <li><kbd>Arrow Keys</kbd> &nbsp; Nudge the selection 1px, or 10px with <kbd>Shift</kbd>.</li>
                           <li><kbd>Delete</kbd> or <kbd>Backspace</kbd> &nbsp; Delete the selected item.</li>
+                          <li><kbd>Esc</kbd> &nbsp; Close the one thing on top: a right-click menu, then an open menu, then a window. With nothing open, it puts the tool in your hand away and clears your target.</li>
                       </ul>
                       <h4>Toolbar</h4>
                       <ul>

@@ -103,6 +103,7 @@ function openDoc(id, land) {
     readerLandSet(id, land);   // before the draw, which makes it
     if (title) title.textContent = (it.meta && it.meta.title) || 'Page';
     m.style.display = 'flex';
+    if (typeof readerPlace === 'function') readerPlace(m);   // clear of the rail, the turn strip and the tool bar, once it can be measured
     document.body.classList.add('doc-reader-open');
     body.scrollTop = 0;
     renderInto(body, it);
@@ -141,6 +142,36 @@ function setForeign(on) {
     if (!on) closeDoc();
     setMermaidMode(on ? 'strict' : 'loose');
 }
+
+// [floatcheck:reader-start]
+// Where the reader stands (the owner, 2026-10-17, by prompt: "open clear"): from the map's own left edge, so the left rail or the docked
+// panel stays in sight, under the turn strip while a fight shows it, and ending above the map's tool bar, as a floating box opens
+// (floats.js spot). Its top is first put just under the top row, as it always was, and the style sheet's rule for a hidden row still has
+// the last word there unless the strip needs the reader lower. With nothing to measure it stands as the style sheet has it
+function readerPlace(m) {
+    var s = m && m.style, F = window.wpFloats, main = ui('main'); if (!s || typeof m.getBoundingClientRect !== 'function') return false;
+    if (typeof s.removeProperty === 'function') s.removeProperty('top');
+    var hdr = document.querySelector('header'); if (hdr && typeof hdr.getBoundingClientRect === 'function') s.top = Math.round(hdr.getBoundingClientRect().bottom) + 'px';
+    s.left = ''; s.bottom = '';
+    if (!F || typeof F.spot !== 'function' || !main || typeof main.getBoundingClientRect !== 'function') return false;
+    var r = m.getBoundingClientRect(), a = main.getBoundingClientRect(); if (!(r.width > 0 && r.height > 0)) return false;
+    var p = F.spot({ l: Math.max(r.left, a.left), t: r.top, w: r.width, h: r.height }, false); if (!p) return false;
+    s.left = p.l + 'px';
+    if (p.t !== Math.round(r.top) && typeof s.setProperty === 'function') s.setProperty('top', p.t + 'px', 'important');
+    s.bottom = Math.max(0, Math.round(window.innerHeight - p.t - p.h)) + 'px';
+    return true;
+}
+// Placed again while it is open, when the window changes size, a fight's strip comes or goes, or the top row is hidden or shown
+function readerWatch() {
+    var again = function() { var m = ui('docReaderModal'); if (isOpen()) readerPlace(m); };
+    if (typeof window.addEventListener === 'function') window.addEventListener('resize', again);
+    if (typeof MutationObserver !== 'function') return;
+    var mo = new MutationObserver(again), cs = ui('combatStrip');
+    if (cs) mo.observe(cs, { attributes: true, attributeFilter: ['style'] });
+    if (document.body) mo.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+}
+// [floatcheck:reader-end]
+readerWatch();
 
 var closeBtn = ui('docReaderClose');
 if (closeBtn) closeBtn.addEventListener('click', closeDoc);

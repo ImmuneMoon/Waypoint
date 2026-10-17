@@ -1675,7 +1675,7 @@ pendingChecks.push((async () => {
     const tNo = runTa({}, { yes: false }), tSlow = runTa({}, { slow: true }), tStranger = runTa({}, { peer: 'pZ' }), tLong = runTa({ id: 'x'.repeat(81) }), tNoCamp = runTa({}, { noCamp: true });
     const ptr = [['u_a', 'Ana', { id: 'orc', mapId: 'm1' }]], quiet = r => r.applied.length === 1 && r.applied[0][0] === 'u_a' && !!r.applied[0][2] && r.bcast === 1 && r.asks.length === 0 && r.opened.length === 0 && r.threw === '';
     check('targeting (host, the target branch run for real): a player\'s pointer at one of the GM\'s characters is applied and sent as before and the GM is asked once to start combat there, the question answered by its buttons alone (noEnter) — Yes opens the roster with that character pre-ticked for that player, No opens nothing; asked once per character per session',
-        j(t1.applied) === j(ptr) && t1.bcast === 1 && j(t1.asks) === j([['Ana is targeting Orc on Keep. Start combat there?', { noEnter: true }]]) && j(t1.opened) === j([['m1', { pre: ['orc'], owner: 'u_a' }]]) && j(t1.asked) === j(['m1|orc'])
+        j(t1.applied) === j(ptr) && t1.bcast === 1 && j(t1.asks) === j([['Ana is targeting Orc on Keep. Start combat there?', { noEnter: true, noEscape: true }]]) && j(t1.opened) === j([['m1', { pre: ['orc'], owner: 'u_a' }]]) && j(t1.asked) === j(['m1|orc'])
         && j(tNo.asks.length) === '1' && tNo.opened.length === 0 && quiet(t2) && j(t2.asked) === j(['m1|orc']), j([t1, tNo, t2]));
     check('targeting (host): with the campaign\'s switch off (turnRules.targetAsk "off") the pointer still goes out but nothing is asked and nothing is marked asked (switched on again, the offer is still owed); any other value asks; a hidden token, a player\'s token, a piece that is no character, nothing of that id, a map with a fight running, a page, a map that is none (a prototype name too), a cleared pointer or no campaign ask nothing and throw nothing; the rate limit, a stranger and an id past 80 characters apply nothing',
         quiet(tOff) && j(tOff.asked) === '[]' && tOn.asks.length === 1 && tJunk.asks.length === 1 && [tHid, tPc, tBox, tNone, tFight, tDoc, tProto].every(quiet) && j(tClear.applied) === j([['u_a', 'Ana', null]]) && tClear.bcast === 1 && tClear.asks.length === 0
@@ -11613,7 +11613,7 @@ pendingChecks.push((async () => {
         const mal = mkSigner(), malSnap = c => ({ type: 'snapshot', gmId: 'u_mallory', key: 'm'.repeat(32), gmPub: mal.pub, sig: mal.sign(dataOf(c.wpCn, c.peer, 'u_mallory', 'm'.repeat(32))), appState: {} });
         const hNo = await first({ peer: 'waypoint-c1c1-r1' }, async c => malSnap(c));
         const ask = hNo.P.c.confirms[0] || {}; if (ask.cb) ask.cb(false);
-        const noSaid = [hNo.taken, hNo.next, hNo.asks, J(hNo.offer) === J({ pub: mal.pub }), ask.t === hNo.P.S.words.ask, !!(ask.opts && ask.opts.noEnter === true), hNo.P.c.joins.length, hNo.key === s1.key, hNo.P.HC.gmRoomFor('c1c1')];
+        const noSaid = [hNo.taken, hNo.next, hNo.asks, J(hNo.offer) === J({ pub: mal.pub }), ask.t === hNo.P.S.words.ask, !!(ask.opts && ask.opts.noEnter === true && ask.opts.noEscape === true), hNo.P.c.joins.length, hNo.key === s1.key, hNo.P.HC.gmRoomFor('c1c1')];
         const hYes = await first({ peer: 'waypoint-c1c1-r1' }, async c => malSnap(c));
         hYes.P.net.active = false; hYes.P.c.confirms[0].cb(true); const joined = J(hYes.P.c.joins);
         hYes.P.S.joinTrustReset();                                       // as joinSession begins the join the yes started
@@ -11825,7 +11825,7 @@ pendingChecks.push((async () => {
         const LATE_Q = 'The table at this room code did not show in time that it is your GM\u2019s. It may only be slow \u2014 or someone else is at that code. Join again and wait for it as long as it takes? Your app still checks that it is your GM before you are joined.';
         const q1 = fresh(), cq1 = wait(q1, q1.connect({ peer: ROOM })); q1.deliver({ type: 'wait' }, cq1); q1.fire(5000);
         const q1r = [cq1.wpSnapDead === true, q1.c.next, q1.c.hb, q1.net.active, q1.c.status.slice(), q1.S.trust().refused, q1.c.confirms.length, q1.c.toasts.length, J(q1.store.m) === J(pat.store.m), badOf(q1).length];
-        q1.S.snapAsk('C1C1', 'Pat'); q1.S.snapAsk('C1C1', 'Pat'); const askQ = q1.c.confirms.map(d => [d.t, !!d.opts && d.opts.noEnter === true]);
+        q1.S.snapAsk('C1C1', 'Pat'); q1.S.snapAsk('C1C1', 'Pat'); const askQ = q1.c.confirms.map(d => [d.t, !!d.opts && d.opts.noEnter === true && d.opts.noEscape === true]);
         if (q1.c.confirms[0]) q1.c.confirms[0].cb(true); q1.S.joinTrustReset();           // yes — and the join begins again, as joinSession begins it
         const cq1b = wait(q1, q1.connect({ peer: ROOM })), heldQ = q1.S.hostHeld ? q1.S.hostHeld(cq1b) : null, q1yes = [J(q1.c.joins), !!heldQ && heldQ.gmId === 'u_gm' && J(heldQ.pub) === J(s1.gmPub), armed(q1), q1.deliver({ type: 'wait' }, cq1b), q1.fire(), cq1b.open && cq1b.wpSnapDead !== true];   // held to the GM still, and no clock: its wait is waited on
         const q1n = q1.c.next, q1u = q1.deliver({ type: 'snapshot', gmId: 'u_gm', key: 'e'.repeat(32), appState: {} }, cq1b); await q1.settle(cq1b);   // after that yes, whoever answers shows an unsigned table under the GM's id

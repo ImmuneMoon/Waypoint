@@ -270,7 +270,8 @@ function sync() {
     var cb = ui('chatBtn'); if (cb) cb.addEventListener('click', function() { setTimeout(function() { var c = ui('chatPanel'); if (c && c.style.display === 'none') closePanel(); else if (panelShown()) placePanel(); }, 0); });
     window.addEventListener('resize', function() { if (panelShown()) placePanel(); });
     p.addEventListener('wpfloatback', function() { if (panelShown()) placePanel(); });   // 1.5.4 (floats.js): back on screen with Table Chat, its place against the chat is worked out again
-    document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && panelShown()) closePanel(); }, true);   // a roller put away with its view is not closed by a key
+    var cp = ui('chatPanel'); if (cp) cp.addEventListener('wpfloatmoved', function() { if (panelShown()) placePanel(); });   // and when floats.js puts Table Chat clear of the tool bar
+    document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && panelShown() && (!window.wpEsc || window.wpEsc.free(e))) closePanel(); }, true);   // a roller put away with its view is not closed by a key; 1.5.4: esckey.js closes it when it is the thing on top, and never with something else
 })();
 window.wpDiceSync = sync;
 setTimeout(sync, 0);

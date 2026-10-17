@@ -473,7 +473,7 @@ function dockTakes(search) { try { var q = new URLSearchParams(String(search == 
     });
     // Esc closes the panel when focus is on it or nowhere (never steals Esc from a dialog/menu/input elsewhere)
     document.addEventListener('keydown', function(e) {
-        if (e.key !== 'Escape' || !openId || (window.wpFloats && window.wpFloats.away(ui('docPanel')))) return;   // 1.5.4 (floats.js): a panel put away with its view is not closed by a key
+        if (e.key !== 'Escape' || !openId || (window.wpFloats && window.wpFloats.away(ui('docPanel'))) || (window.wpEsc && !window.wpEsc.free(e))) return;   // 1.5.4 (floats.js): a panel put away with its view is not closed by a key; esckey.js closes it when it is the thing on top
         var ae = document.activeElement;
         if (ae && ae.id === 'docPanelSearchInput') return;   // the input's own handler deals with Esc
         if (!ae || ae === document.body || (ae.closest && ae.closest('#docPanel'))) close();

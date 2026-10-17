@@ -81,19 +81,45 @@ function tabsHere(net, id) {
 function tabsRecent(store, camp) {   // this computer's list of the maps last opened, which the left panel keeps
     try { var v = JSON.parse(store.getItem('wp_recent_' + camp.id) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; }
 }
+// The tab in front keeps the map's own name whole (the owner, 2026-10-17, by prompt: "Drop the path first (Recommended)"). Where the row is
+// short, the maps above it in its breadcrumb give way first: the farthest is put away, with the mark after it, then the next, and only once
+// none is left is the name itself cut. cut() says whether the name is cut for want of room as the tab stands now. Every map of the path is
+// shown again first, so one put away comes back when the row has room. Answers how many were put away
+function crumbFit(bc, cut) {
+    var kids = bc && bc.children ? bc.children : [], parts = [], n = 0;
+    for (var i = 0; i < kids.length; i++) if (kids[i] && kids[i].classList && kids[i].classList.contains('crumb')) parts.push(kids[i]);
+    var mark = function(k, on) { k.hidden = on; var s = k.nextElementSibling; if (s && s.classList && s.classList.contains('crumb-sep')) s.hidden = on; };
+    parts.forEach(function(k) { mark(k, false); });
+    while (n < parts.length && cut() === true) mark(parts[n++], true);
+    return n;
+}
 // [lookcheck:maptabs-end]
 
 function tabsClip() { var list = document.getElementById('mapTabList'); if (list) list.classList.toggle('clip', list.scrollWidth > list.clientWidth + 1); }   // a list too long for the row fades out at its end
+// Whether the map's own name is cut for want of room: its words are wider than the box they stand in, measured to the fraction of a pixel
+// (an ellipsis shows for less than one), and the box is not held to its own longest
+function crumbCut(c) {
+    if (!c || typeof document.createRange !== 'function') return false;
+    var cs = getComputedStyle(c), rg = document.createRange(); rg.selectNodeContents(c);
+    var w = c.getBoundingClientRect().width, box = w - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0), mw = parseFloat(cs.maxWidth);
+    return rg.getBoundingClientRect().width > box + 0.05 && !(isFinite(mw) && w >= mw - 0.5);
+}
+function tabsFit() {   // the path gives way before the map's own name, then the list fades where it is cut
+    var bc = document.getElementById('mapBreadcrumb');
+    if (bc && bc.style.display === 'flex') crumbFit(bc, function() { return crumbCut(bc.querySelector('.crumb-current')); });
+    tabsClip();
+}
 function tabsSync() {
     var camp = getActiveCampaign(), bc = document.getElementById('mapBreadcrumb'); if (!camp) return;
     var model = tabsModel(camp, tabsRecent(localStorage, camp), function(id) { return tabsHere(window.wpNet, id); });
-    tabsDraw(document, model, !!bc && bc.style.display === 'flex'); tabsClip();
+    tabsDraw(document, model, !!bc && bc.style.display === 'flex'); tabsFit();
 }
 function wire() {
-    var list = document.getElementById('mapTabList'), add = document.getElementById('mapTabAdd');
+    var list = document.getElementById('mapTabList'), add = document.getElementById('mapTabAdd'), box = document.getElementById('mapTabs');
     if (list) list.addEventListener('click', function(e) { var b = e.target && e.target.closest ? e.target.closest('.map-tab') : null, id = b ? b.getAttribute('data-id') : null; if (id && tabMap(getActiveCampaign(), id)) navigateToMap(id); });
     if (add) add.addEventListener('click', function() { if (window.wpCmdkOpen) window.wpCmdkOpen(); });
     window.addEventListener('resize', tabsClip);
+    if (box && typeof ResizeObserver === 'function') new ResizeObserver(tabsFit).observe(box);   // the row's room for the tabs changed: a pill came, the row folded
     tabsSync();
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire();

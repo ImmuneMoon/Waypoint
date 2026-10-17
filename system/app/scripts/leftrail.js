@@ -120,9 +120,9 @@ function wire() {
         var t = e.target; if (t && t.closest && (t.closest('#campaignSidebar') || t.closest('#leftRail') || t.closest('.context-menu') || t.closest('#tourCard'))) return;
         act({ t: 'away' });
     }, true);
-    document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && st.mode === 'open') act({ t: 'away' }); });
+    document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && st.mode === 'open' && (!window.wpEsc || window.wpEsc.free(e))) act({ t: 'away' }); });
     sync();
 }
 function sync() { return act({ t: 'view', play: playNow() }); }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire();
-window.wpLeftRail = { sync: sync, toggled: function() { return act({ t: 'toggle' }); }, settle: function() { return act({ t: 'settle' }); }, mode: function() { return st.mode; } };
+window.wpLeftRail = { sync: sync, toggled: function() { return act({ t: 'toggle' }); }, settle: function() { return act({ t: 'settle' }); }, mode: function() { return st.mode; }, away: function() { return act({ t: 'away' }); } };

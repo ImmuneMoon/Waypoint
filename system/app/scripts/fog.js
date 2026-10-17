@@ -1311,7 +1311,7 @@ function placeScreen() {
     c.style.width = w + 'px'; c.style.height = h + 'px';
     var ctx = c.getContext('2d'); if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
-function clearCanvas() { var c = screenEl() && screenEl().querySelector('canvas.fog-canvas'); if (c) { var x = c.getContext('2d'); if (x) { x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, c.width, c.height); x.restore(); } } }   // in the canvas's own pixels: under the screen's scale a page zoom below 100% cleared only its top-left part
+function clearCanvas() { if (typeof capsShow === 'function') capsShow(false); var c = screenEl() && screenEl().querySelector('canvas.fog-canvas'); if (c) { var x = c.getContext('2d'); if (x) { x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, c.width, c.height); x.restore(); } } }   // in the canvas's own pixels: under the screen's scale a page zoom below 100% cleared only its top-left part
 function isFogMode() { return !!window.isFogMode; }
 function active() {
     if (state.viewMode !== 'visual') return false;
@@ -1406,6 +1406,7 @@ function partyTiers(map, grid) {
     return { list: list, keys: keys };
 }
 function draw() {
+    if (typeof capsShow === 'function') capsShow(false);           // the board shows the distances again unless this frame draws them over the fog
     var s = screenEl(), wrap = ui('whiteboardWrap'), C = core(); if (!s || !wrap || !C) return;
     placeScreen();
     var c = s.querySelector('canvas.fog-canvas'); if (!c) return;
@@ -1465,6 +1466,7 @@ function draw() {
     drawCaptions(ctx, s);
     drawSenseCaptions(ctx, s, blindCaptionsFor(map, camp, drawOwner()));   // senses S3: why a blind token's screen is dark
     if (typeof drawWhyDark === 'function') drawWhyDark(ctx, s, map, grid, mask, tiers, Date.now());   // 1.5.4: why the cell under a resting pointer is dark (the GM's screen)
+    if (typeof measureCaps === 'function') measureCaps(ctx, s);    // 1.5.4: the ruler's and a blast's distance words, over an opaque fog
 }
 // Lighting L4 (owner answer 7): the name of the light a targeted token stands in, under the token. Drawn here, over the fog: the board's own
 // layers lie under it, and on a player's screen the cells beneath a token are often dark. whiteboard.js marks the token with the words it
@@ -1486,6 +1488,43 @@ function drawCaptions(ctx, s) {
     }
     ctx.restore();
 }
+
+// [fogcheck:rulercaps-start]
+// The ruler's and a blast's distance words over the fog (the owner, 2026-10-17: "Ruler now, rest after"). The board's measure layer lies under
+// this canvas, and on an opaque fog (a player's screen, the stream window) a ruler measured into the dark showed no length. whiteboard.js marks
+// the distance words of each ruler, circle and blast with the class fog-cap. While this overlay draws them the body wears fog-caps, the style
+// sheet keeps the marked words out of sight on the board, and they are drawn here as canvas text, at their own place and size, in their own
+// colour. Those words alone: what else a ruler or a blast says (cover, light, range, a move's cost, a height, a posture, a name) stays on the
+// board, under the fog where the cell is dark. Every draw takes the body's word back first and a cleared canvas does too, so the words are
+// never out of sight on both
+var MCAPS_MOST = 60, _capsOn = false;
+function capsShow(on) {
+    on = on === true; if (on === _capsOn) return;
+    _capsOn = on; var b = typeof document !== 'undefined' && document ? document.body : null;
+    if (b && b.classList) b.classList.toggle('fog-caps', on);
+}
+function capsColour(v, d) { return typeof v === 'string' && /^rgba?\([0-9., ]+\)$/.test(v) ? v : d; }   // a colour as the style sheet worked it out, else the fallback
+function measureCaps(ctx, s) {
+    if (!(isClientView() || isStreamView()) || !ctx || !ctx.fillText) return 0;
+    var els = document.querySelectorAll('#measureLayer .fog-cap'), sr = s.getBoundingClientRect(), z = state.zoomLevel || 1, n = 0;
+    capsShow(true);
+    ctx.save(); ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+    for (var i = 0; i < els.length && n < MCAPS_MOST; i++) {
+        var t = String(els[i].textContent || '').slice(0, 200); if (!t) continue;
+        var r = els[i].getBoundingClientRect(); if (!(r.width > 0) || !(r.height > 0)) continue;
+        var x = r.left - sr.left, y = r.top + r.height / 2 - sr.top;
+        if (x + r.width < 0 || x > sr.width || y + r.height < 0 || y - r.height > sr.height) continue;   // off the board's view
+        var cs = typeof getComputedStyle === 'function' ? getComputedStyle(els[i]) : null, px = Math.max(6, Math.min(240, (parseFloat(cs && cs.fontSize) || 14) * z));
+        ctx.font = 'bold ' + px + 'px monospace';
+        ctx.lineWidth = Math.max(0, Math.min(40, (parseFloat(cs && cs.strokeWidth) || 4) * z)); ctx.strokeStyle = capsColour(cs && cs.stroke, '#14141a');
+        if (ctx.lineWidth > 0 && ctx.strokeText) ctx.strokeText(t, x, y);
+        ctx.fillStyle = capsColour(cs && cs.fill, '#e0a54f'); ctx.fillText(t, x, y);
+        n++;
+    }
+    ctx.restore();
+    return n;
+}
+// [fogcheck:rulercaps-end]
 
 // Senses S4: a player's marks on their fog — each a glyph in its cell told apart by its shape (1 sound: three arcs, 2 tremor: a zigzag, 3 presence: a
 // ring round a dot, 4 heat: a teardrop), in one colour, moving slowly (still under reduced motion; never flashing), never on a cell they see; its fixed

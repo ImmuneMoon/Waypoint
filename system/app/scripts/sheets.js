@@ -345,8 +345,9 @@ function newCharacter(o) {
     charsOf(camp)[c.id] = c;   // born unassigned: an owner is given through giveCharacter
     return c;
 }
-// A new sheet made by the GM from the left panel's Characters section (charlist.js): born unassigned, saved and told to the table as any change is
-function addCharacter(name) { if (isClient() || !canWrite()) return null; var c = newCharacter({ name: name }); if (c) { afterCharChange(c, true); renderAll(); } return c; }
+// A new sheet made by the GM from the left panel's Characters section (charlist.js): a player's character or, with npc true, an NPC, as the GM
+// answered there; born unassigned, saved and told to the table as any change is
+function addCharacter(name, npc) { if (isClient() || !canWrite()) return null; var c = newCharacter({ name: name, npc: npc === true }); if (c) { afterCharChange(c, true); renderAll(); } return c; }
 function afterCharChange(c, whole, values) {
     var camp = getActiveCampaign(); if (!camp) return;
     c.updated = Date.now();
@@ -896,15 +897,22 @@ function makeHud(charId) {
 function hudPref() { try { var o = JSON.parse(pref('wp_hudPanel', 'null')); return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {}; } catch (e) { return {}; } }
 function saveHudPref(p, sized) { var r = p.getBoundingClientRect(), o = hudPref(); o.x = Math.round(r.left); o.y = Math.round(r.top); if (sized) { o.w = Math.round(r.width); o.h = Math.round(r.height); } setPref('wp_hudPanel', JSON.stringify(o)); }
 // The first HUD opens in the middle of the window (the owner's Q4, as the reference); after that, wherever a HUD was last left. A second one
-// opened onto the same spot steps down and right (at most five times), so it never hides the first.
+// opened onto the same spot steps down and right (at most five times), so it never hides the first. The middle is moved where it leaves the
+// map's tool bar, the column at its edge and the turn strip clear (floats.js spot; the owner, 2026-10-17: "open clear"), and a HUD taller
+// than the room there is made shorter, its foot kept where the room ends however far it steps. A place a HUD was left at is kept as it is
 function placeHud(v) {
     var p = v.panel, o = hudPref(), W = window.innerWidth, H = window.innerHeight, num = function(x) { return typeof x === 'number' && isFinite(x); };
-    var sized = num(o.w) && num(o.h), w = sized ? Math.min(W - 16, Math.max(360, o.w)) : (p.offsetWidth || 470), h = sized ? Math.min(H - 16, Math.max(240, o.h)) : (p.offsetHeight || 700), x, y;
-    if (num(o.x) && num(o.y)) { x = o.x; y = o.y; } else { x = (W - w) / 2; y = (H - h) / 2; }
+    var sized = num(o.w) && num(o.h), w = sized ? Math.min(W - 16, Math.max(360, o.w)) : (p.offsetWidth || 470), h = sized ? Math.min(H - 16, Math.max(240, o.h)) : (p.offsetHeight || 700), x, y, foot = null;
+    if (num(o.x) && num(o.y)) { x = o.x; y = o.y; } else {
+        x = (W - w) / 2; y = (H - h) / 2;
+        var F = typeof window !== 'undefined' ? window.wpFloats : null, sp = F && typeof F.spot === 'function' ? F.spot({ l: x, t: y, w: w, h: h }, true) : null;
+        if (sp) { x = sp.l; y = sp.t; foot = sp.t + sp.h; }
+    }
     var near = function() { return Object.keys(huds).some(function(id) { var u = huds[id]; if (!u || u === v) return false; var r = u.panel.getBoundingClientRect(); return Math.abs(r.left - x) <= 8 && Math.abs(r.top - y) <= 8; }); };
     for (var k = 0; k < 5 && near(); k++) { x += 24; y += 24; }
     p.style.left = Math.round(Math.max(0, Math.min(W - 160, x))) + 'px'; p.style.top = Math.round(Math.max(0, Math.min(H - 80, y))) + 'px';
     if (sized) sizePanel(p, o.w, o.h);
+    else if (foot !== null && y + h > foot) p.style.height = Math.max(240, Math.round(foot - y)) + 'px';
 }
 function closeHud(charId) { var v = huds[charId]; if (!v) return; if (typeof sbxFlush === 'function') sbxFlush(); clearTimeout(v.redraw); delete huds[charId]; if (v.panel && v.panel.parentNode) v.panel.parentNode.removeChild(v.panel); }
 function closeHuds() { Object.keys(huds).forEach(function(id) { closeHud(id); }); }

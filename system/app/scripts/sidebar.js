@@ -576,7 +576,7 @@ function panelJudge(chN) { var camp = getActiveCampaign(); return panelHeld(docu
           });
       });
       document.addEventListener('pointerdown', function(e) { if (!(e.target.closest && e.target.closest('.section-actions'))) hideSectionActions(); }, true);
-      document.addEventListener('keydown', function(e) { if (e.key === 'Escape') hideSectionActions(); });
+      document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && (!window.wpEsc || window.wpEsc.free(e))) hideSectionActions(); });   // 1.5.4: esckey.js puts them away, one thing a press
       document.querySelectorAll('.section-actions').forEach(function(a) { a.addEventListener('click', function() { setTimeout(hideSectionActions, 0); }); });
       (function() { var sb = document.getElementById('campaignSidebar'); if (sb) sb.addEventListener('scroll', hideSectionActions); })();
 

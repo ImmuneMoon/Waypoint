@@ -10,7 +10,7 @@
    the sheet module's to do and to judge (openSheet, openHud, askDeleteSheet): this module only asks. */
 import { getActiveCampaign, getActiveMap } from './models.js';
 import { state } from './state.js';
-import { showPrompt } from './dialogs.js';
+import { showPrompt, showConfirm } from './dialogs.js';
 import { toast } from './io.js';
 import { navigateToMap, updateSidebarNav, panelJudge } from './sidebar.js';
 
@@ -182,17 +182,25 @@ function wire() {
         e.preventDefault(); e.stopPropagation(); menuFor(r.dataset.char, e.clientX, e.clientY);
     });
     document.addEventListener('pointerdown', function(e) { if (_menu && _menu.style.display !== 'none' && !(e.target && e.target.closest && e.target.closest('#charMenu'))) menuAway(); }, true);
-    document.addEventListener('keydown', function(e) { if (e.key === 'Escape') menuAway(); });
+    document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && (!window.wpEsc || window.wpEsc.free(e))) menuAway(); });   // 1.5.4: esckey.js puts it away, one thing a press
     var plus = document.getElementById('newCharBtn');
     if (plus) plus.addEventListener('click', function(e) {
         e.stopPropagation();
         var S = sheets(); if (!S || !S.addCharacter) return;
         if (foreign() || !(window.wpCanPersistLocal && window.wpCanPersistLocal())) { toast('A sheet cannot be made here. This campaign is not yours to change.'); return; }
-        showPrompt('Name the character', 'New character', function(name) {
-            if (name === null) return;
-            var c = S.addCharacter(String(name || '').trim() || 'New character'); if (!c) return;
-            sync(); if (S.canOpen(c.id)) S.openSheet(c.id);
-        });
+        // Asked each time (the owner, 2026-10-17: "Ask each time"): a player's character or an NPC. An NPC lands under the NPCs' fold, which opens
+        // to show it; a player's character stands with the players, with no player until it is given one. The question takes its buttons alone
+        // (the owner, 2026-10-17, by prompt: "None, buttons only (Recommended)"): Enter answers neither, and Escape is Cancel
+        showConfirm('Is the new sheet for a player\u2019s character or for an NPC?', function(ans) {
+            if (ans !== true && ans !== 'alt') return;
+            var npc = ans === true, def = npc ? 'New NPC' : 'New character';
+            showPrompt(npc ? 'Name the NPC' : 'Name the character', def, function(name) {
+                if (name === null) return;
+                var c = S.addCharacter(String(name || '').trim() || def, npc); if (!c) return;
+                if (npc) _open = true;
+                sync(); if (S.canOpen(c.id)) S.openSheet(c.id);
+            });
+        }, { yes: 'NPC', alt: 'Player\u2019s character', noEnter: true });
     });
     updateSidebarNav();   // the panel judges once more what it holds for this screen, the section among it (sidebar.js asks sync)
 }

@@ -112,6 +112,11 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       // (a link's site and whole address: linkgate.js). A question without one is drawn exactly as before.
       var bodyEl = opts && opts.body && typeof opts.body === 'object' && opts.body.nodeType === 1 ? opts.body : null, slot = null;
 
+      // opts.yes and opts.alt: a question with two answers beside Cancel (the Characters section's +: a player's character or an NPC). OK says
+      // opts.yes and loses its red; a second button, put before OK, says opts.alt and answers 'alt'. Both are words set as text, and OK is as it
+      // was once the question is answered. A question without them is drawn exactly as before
+      var yesText = opts && typeof opts.yes === 'string' ? opts.yes.slice(0, 60) : '', altText = opts && typeof opts.alt === 'string' ? opts.alt.slice(0, 60) : '', altBtn = null, okWas = null;
+
       if (p.style.display === 'flex' || layerUp('customPrompt')) { _confirmQueue.push([title, callback, opts]); return; }   // one question at a time: a second waits its turn instead of silently replacing the first (whose answer would then never arrive)
 
       document.getElementById('customConfirmTitle').textContent = title;
@@ -148,6 +153,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
           if (slot) { if (slot.parentNode) { slot.parentNode.classList.remove('confirm-wide'); slot.parentNode.removeChild(slot); } slot = null; }
 
+          if (okWas) { okBtn.textContent = okWas.text; if (okWas.danger) okBtn.classList.add('danger'); okWas = null; }
+
+          if (altBtn) { altBtn.onclick = null; if (altBtn.parentNode) altBtn.parentNode.removeChild(altBtn); altBtn = null; }
+
           layersNext();
 
       }
@@ -159,6 +168,10 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (row && row.parentNode) { slot = document.createElement('div'); slot.id = 'customConfirmBody'; slot.appendChild(bodyEl); row.parentNode.insertBefore(slot, row); row.parentNode.classList.add('confirm-wide'); }
 
       if (isAlert) cancelBtn.style.display = 'none';
+
+      if (yesText) { okWas = { text: okBtn.textContent, danger: okBtn.classList.contains('danger') }; okBtn.textContent = yesText; okBtn.classList.remove('danger'); }
+
+      if (altText && okBtn.parentNode) { altBtn = document.createElement('button'); altBtn.type = 'button'; altBtn.className = 'tool'; altBtn.id = 'customConfirmAlt'; altBtn.textContent = altText; altBtn.onclick = function() { cleanup(); callback('alt'); }; okBtn.parentNode.insertBefore(altBtn, okBtn); }
 
       if (careful) { okBtn.disabled = true; readyT = setTimeout(function() { okBtn.disabled = false; }, CONFIRM_CAREFUL_MS); }
 

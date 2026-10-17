@@ -370,8 +370,8 @@
         align-items: center;
         padding: 6px;
         gap: 6px;
-        z-index: 8993;   /* the map's own tool bar (and its flyouts, which stack inside it): over the map, under the token toolbar (8995) and every floating window (9000 and up) — a window dragged over it covers it, as the owner chose, until one of its menus is open, and again once a window is pressed (below) */
-        transition: z-index 0s .2s;   /* drops back under the token toolbar only once a closed flyout has faded (below) */
+        z-index: 9500;   /* the map's own tool bar (and its flyouts, which stack inside it): over the map, the token toolbar (8995) and every floating window (9000, raised up to 9400 by sheets.js raisePanel), under Table Chat (90000) and every menu. The owner, 2026-10-17, by prompt: "The toolbar always stays over windows" — a window dragged over it no longer covers it. While one of its menus is open it rises higher, and steps back under the windows once a window is pressed (below) */
+        transition: z-index 0s .2s;   /* drops back from an open menu's height only once a closed flyout has faded (below) */
         box-shadow: 0 8px 24px rgba(0,0,0,0.6);
     }
     .wb-tool-btn {
@@ -515,12 +515,14 @@
     /* A tool bar with a menu open (the Pages shelf, the fog menu, the pen's, Snap, View, More…) rises over everything that floats over the
        map (backlog 143, found live 2026-10-16: the shelf opened under the page panel, its rows covered and a press on them going to the
        panel): the token toolbar (8995), every floating box (the sheet, a HUD, the page panel, the notepad, Sound, Music, Video and
-       Effects from 9000, raised up to 9400 by sheets.js raisePanel), Table Chat (90000) and its dice roller (90001, its pop 90002).
+       Effects from 9000, raised up to 9400 by sheets.js raisePanel), which the bar at rest stands over already (9500), Table Chat
+       (90000) and its dice roller (90001, its pop 90002).
        What comes up over the menu in use is still in front of it: the top row's menus, the map's right-click menu and its hover card
        (90020), the pause and update banners, a notice, a question, a dialog and the tour (95000 and up). lookcheck holds the ladder */
     .floating-toolbar:has(.shape-menu.show) { z-index: 90010; transition-delay: 0s; }
     /* ...and steps back under the floating boxes, its menu still open, once one of them is pressed (backlog 143; the owner, 2026-10-16, by prompt:
-       "Rise, then step back (Recommended)": "When you press a window, that window comes back over the tool's options, like windows on a desktop").
+       "Rise, then step back (Recommended)": "When you press a window, that window comes back over the tool's options, like windows on a desktop";
+       and 2026-10-17, "On top unless options open (Recommended)": the bar with no menu open stays over the windows whatever is pressed).
        whiteboard.js barPress gives the bar BAR_BACK at a press on a floating box and takes it off at a press on the bar or as a menu of it opens.
        8996: under every box (9000 and up) and still over the token toolbar (8995), so a selected token's bar never covers the menu in use. No
        transition of its own: the open rule's delay of 0s holds, so the box pressed comes in front at once. lookcheck holds it */
@@ -661,6 +663,7 @@
      Players never pick drawings up at all — they erase their own with the eraser. */
   .wb-item.path { pointer-events: none; }
   .wb-item.path svg path { pointer-events: stroke; }
+  body:not(.net-client) .wb-item.path svg > path:not([fill="none"]) { pointer-events: visiblePainted; }   /* a filled area and a line of the flat tip are painted bodies, their outline a pixel wide: the GM picks one up by a press anywhere inside it, as a textured one (the owner, 2026-10-17: "Anywhere inside"). A token standing on it still takes the press (datamap.js attachDrag) */
   .wb-item.path.sel { pointer-events: auto; }
   body.net-client .wb-item.path svg path { pointer-events: none; }
   /* ---- stream window: only the play map ---- */
@@ -954,6 +957,7 @@
   #measureLayer line { stroke: var(--gold); stroke-width: 2; stroke-dasharray: 8 5; }
   #measureLayer circle { fill: var(--gold); }
   #measureLayer text { fill: var(--gold); font: bold 14px monospace; paint-order: stroke; stroke: var(--bg); stroke-width: 4px; }
+  body.fog-caps #measureLayer .fog-cap { visibility: hidden; }   /* a distance the fog's own canvas draws over the fog (fog.js measureCaps): kept out of sight on the board while it does */
   /* Placed rulers are clickable (click removes); the fat transparent line is the hit area */
   #measureLayer g.measure { pointer-events: auto; cursor: pointer; }
   #measureLayer g.measure.live { pointer-events: none; }
@@ -1163,7 +1167,7 @@
 
   /* Floating mini-toolbar above the whiteboard selection */
   #selToolbar {
-    position: absolute; z-index: 8995; display: none; align-items: center; gap: 2px;   /* over the map, the party and combat strips (8990) and the tool bar (8993) — under every floating window (the sheet, a HUD, the doc panel: 9000 and up) and a tool bar whose menu is open (90010) */
+    position: absolute; z-index: 8995; display: none; align-items: center; gap: 2px;   /* over the map and the party and combat strips (8990) — under every floating window (the sheet, a HUD, the doc panel: 9000 and up), the tool bar (9500, or 8996 when its open menu stepped back) and a tool bar whose menu is open (90010) */
     background: var(--panel2); border: 1px solid var(--edge); border-radius: 7px;
     padding: 3px 5px; box-shadow: 0 4px 14px rgba(0,0,0,0.45);
     pointer-events: none;   /* the bar itself never blocks the board... */
@@ -1670,7 +1674,7 @@
      independently"): the box keeps its place and wears the toolbar's skin and its line icons. Its two halves, the pointer location and the zoom buttons,
      are each put away by a switch of this computer's own (main.js applyCorner sets the two body classes) */
   #zoomBox {
-    position: absolute; top: 26px; right: 14px; z-index: 8992;   /* over the map and the party and combat strips (8990), under the tool bar (8993) and its open menu: a tall tool menu is never cut by it */
+    position: absolute; top: 26px; right: 14px; z-index: 8992;   /* over the map and the party and combat strips (8990), under the tool bar (9500) and its open menu: a tall tool menu is never cut by it */
     display: flex; align-items: center; gap: 4px;
     background: var(--deep); border: 1px solid #333; border-radius: 10px;
     padding: 4px 5px; box-shadow: 0 8px 24px rgba(0,0,0,0.6);
@@ -1785,7 +1789,7 @@
   #mapTabFront { background: var(--panel2); color: var(--ink); flex: 0 1 auto; min-width: 0; overflow: hidden; }
   #mapTabFront #mapBreadcrumb { font-size: 12px; }
   #mapTabFront .mt-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-  #mapTabList { display: flex; align-items: center; gap: 2px; flex: 0 1000 auto; min-width: 0; overflow: hidden; }   /* the list gives way before the tab in front does */
+  #mapTabList { display: flex; align-items: center; gap: 2px; flex: 0 1000000 auto; min-width: 0; overflow: hidden; }   /* the list gives way before the tab in front does, all of it: at 1000 the tab in front still gave a fraction of a pixel, and its name read "The I…" with room to spare */
   #mapTabList.clip { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 26px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 26px), transparent); }
   .map-tab { flex: none; border: 0; background: none; color: var(--dim); cursor: pointer; font-family: inherit; }
   .map-tab:hover, .map-tab:focus-visible { background: var(--panel2); color: var(--ink); }
@@ -2815,6 +2819,12 @@
   .sheet-grid { display: grid; gap: 6px 10px; }
   .sheet-field { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
   .sheet-field.sheet-row { grid-column: 1 / -1; }
+  /* A row's boxes stay level (the owner, 2026-10-17, of a label that wraps to two lines and pushed its box down: "Both"). In a grid of the sheet
+     a field that opens with its own label is a grid of one column, aligned with the row by its label's last line: a label of two lines grows
+     upward, and the boxes under the labels of a row start level, whatever stands under a box (a pool's bar, a caption). A tile, an inline row,
+     a field as wide as the row and one with no label of its own (a roll, a link, the search) are drawn as before */
+  .sheet-grid > .sheet-field:not(.sheet-tile):not(.sheet-inline-row):not(.sheet-row):has(> .sheet-label:first-child) { display: grid; grid-template-columns: minmax(0, 1fr); align-self: baseline; }
+  .sheet-grid > .sheet-field:not(.sheet-tile):not(.sheet-inline-row):not(.sheet-row) > .sheet-label:first-child { align-self: last baseline; }
   .sheet-label { color: var(--dim); font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .sheet-gm .sheet-label::after { content: ' \00b7 GM'; color: var(--gold); }
   .sheet-value { font-size: 14px; font-weight: 700; color: var(--ink); }
@@ -2824,6 +2834,7 @@
   #sysLayoutPreview input.field, #sysLayoutPreview select.field, #sysLayoutPreview textarea.field,
   #popoutBody.sheet-view input.field, #popoutBody.sheet-view select.field, #popoutBody.sheet-view textarea.field,
   #sheetPrint input.field, #sheetPrint select.field, #sheetPrint textarea.field, #sheetPrint .sheet-print-text.field { padding: 3px 6px; font-size: 12.5px; }
+  :is(#sheetPanel, #sysLayoutPreview, #popoutBody, #sheetPrint, .hud-panel) .sheet-grid .sheet-field select.sheet-select { padding-right: 2px; }   /* a list in a column, as wide as its column, gives its words the room beside its arrow: Not stunned read Not stunnec in a column of a quarter */
   #popoutBody.sheet-view { max-width: 720px; margin: 0 auto; width: 100%; box-sizing: border-box; padding: 18px 22px 48px; display: flex; flex-direction: column; gap: 10px; }
   #sheetPanel .field, #sysLayoutPreview .field, #popoutBody.sheet-view .field, #sheetPrint .field { margin-bottom: 0; }   /* the sheet uses grid gaps for spacing; the base .field margin shifted inputs off the −/+ baseline */
   .sheet-num { width: 64px; }

@@ -4090,7 +4090,7 @@ function padWire(ta, p) {
 }
 function renderNotepad() {
     var p = ui('notepadPanel'), ta = ui('notepadText'); if (!p || !ta) return;
-    var on = net.active && net.notepad.on;
+    var hid = typeof padHid === 'function' && padHid(), on = net.active && net.notepad.on && !hid;   // 1.5.4: put away on this screen by Escape (padHid, asked at every draw so that a pad that is gone forgets it); it shows again when its words change
     p.style.display = on ? 'flex' : 'none';
     if (!on) return;
     var host = net.role === 'host';
@@ -4101,11 +4101,32 @@ function renderNotepad() {
     var who = ui('notepadWho'); if (who) who.textContent = host ? 'everyone at the table sees this' : 'written by ' + (net.notepad.gm || 'the GM');
 }
 // [netcheck:padbox-end]
+// [floatcheck:padaway-start]
+// Escape puts the table notepad away on this screen alone while it is the window last used (the owner, 2026-10-17, by prompt: "Yes, when on
+// top (Recommended)": Chat keeps its messages "and the notepad its words"). Nothing is sent and nothing is lost: its words stay, for the table
+// and here. It shows again when its words change, when the GM opens a new pad, and on the GM's screen by Table Notepad in the Multiplayer
+// window or on the map's right-click menu (net.notepadToggle). _padAway: the words it held when it was put away, or null
+var _padAway = null;
+function padHid() {
+    if (_padAway === null) return false;
+    if (!(net.active && net.notepad && net.notepad.on) || _padAway !== String(net.notepad.text || '')) { _padAway = null; return false; }   // put away by the GM, a session that ended, or new words: it shows again
+    return true;
+}
+function padAway() {
+    if (!(net.active && net.notepad && net.notepad.on)) return false;
+    _padAway = String(net.notepad.text || ''); renderNotepad();
+    return true;
+}
+function padBack() { if (_padAway === null) return false; _padAway = null; renderNotepad(); return true; }
+// [floatcheck:padaway-end]
+net.notepadAway = padAway;
+net.notepadHidden = function() { return padHid(); };   // put away on this screen by Escape (the map's right-click row then says Show)
 window.wpRenderNotepad = renderNotepad;
 net.notepadToggle = function() {
     if (net.role !== 'host') return;
     if (net.notepad.on) {
         var npF = ui('notepadPanel');
+        if (typeof padBack === 'function' && padBack()) { if (npF && window.wpFloats) window.wpFloats.reveal(npF); return; }   // 1.5.4: put away on this screen by Escape, asked for again it shows again with its words
         if (npF && window.wpFloats && window.wpFloats.away(npF)) { window.wpFloats.reveal(npF); return; }   // 1.5.4 (floats.js): it is up, on another view: asked for here it shows here, and nobody is asked to put it away
         var has = String(net.notepad.text || '').trim();
         var aeN = typeof document !== 'undefined' ? document.activeElement : null;   // the question is answered by keys the document hears: Enter must not also press the pad's own button again, which would open a new pad the moment this one is put away
@@ -5468,7 +5489,7 @@ function snapAsk(code, name) {   // at the end of a join the player began, when 
         if (!yes || net.active) return;   // (a table joined or hosted meanwhile stands)
         _snapAccept = rf.late ? { code: roomCodeOf(code), late: true } : { code: roomCodeOf(code), gmId: rf.gmId, pub: rf.offer.pub || null };   // (late: a yes to waiting longer for the proof, and to nothing else)
         joinSession(code, name);
-    }, { noEnter: true });
+    }, { noEnter: true, noEscape: true });   // 1.5.4 (the owner, 2026-10-17: "Buttons only"): a key pressed for something else never answers it
 }
 // The host proves itself EARLY (the owner's ruling of 2026-10-01: "prove it early"). A host on this version answers a hello — after its ban,
 // version and password checks, before any admission — with one signed word, 'gmhello': its GM id, its public key and a signature over hostData
@@ -5904,7 +5925,7 @@ function handleMessage(msg, conn) {
                     // the question may have been up while the player who targeted left the table or was removed from it: a Yes then opens nothing for someone who is gone, and says why
                     if (!Object.keys(net.roster).some(function(k) { var rA = net.roster[k]; return !!rA && rA.id === askPid; })) { if (typeof toast === 'function') toast((tp.name || 'A player') + ' has left the table, so no combat was started.'); return; }
                     if (window.wpOpenCombat) window.wpOpenCombat(msg.mapId, { pre: [msg.id], owner: tp.id });
-                }, { noEnter: true });
+                }, { noEnter: true, noEscape: true });   // 1.5.4 (the owner, 2026-10-17: "Buttons only"): an Escape pressed for something else said No, and it is never asked again for that character this session
             }
         }
         // [netcheck:targetask-end]

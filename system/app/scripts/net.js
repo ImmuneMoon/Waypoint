@@ -5900,7 +5900,10 @@ function handleMessage(msg, conn) {
                 var askPid = tp.id;
                 showConfirm((tp.name || 'A player') + ' is targeting ' + (tokT.charName || tokT.name || 'a character') + ' on ' + mapTitleOf(msg.mapId) + '. Start combat there?', function(yes) {
                     delete combatAskOpen[askPid];
-                    if (yes && window.wpOpenCombat) window.wpOpenCombat(msg.mapId, { pre: [msg.id], owner: tp.id });
+                    if (!yes) return;
+                    // the question may have been up while the player who targeted left the table or was removed from it: a Yes then opens nothing for someone who is gone, and says why
+                    if (!Object.keys(net.roster).some(function(k) { var rA = net.roster[k]; return !!rA && rA.id === askPid; })) { if (typeof toast === 'function') toast((tp.name || 'A player') + ' has left the table, so no combat was started.'); return; }
+                    if (window.wpOpenCombat) window.wpOpenCombat(msg.mapId, { pre: [msg.id], owner: tp.id });
                 }, { noEnter: true });
             }
         }
@@ -7182,6 +7185,7 @@ function wireConn(conn) {
                 videoOver(); if (window.wpVideo && window.wpVideo.tableLeft) window.wpVideo.tableLeft();   // item 21 V2: and a video the GM was showing
                 stopHeartbeat(); setIndicator(null);
                 net.roster = Object.create(null); net.away = Object.create(null);   // the old table's players never carry into this machine's own campaign
+                net.notepad = { on: false, text: '' }; if (typeof padReset === 'function') padReset(); setTimeout(renderNotepad, 0);   // and the GM's table notepad goes with the table, as leaveSession has it: on this way out it ran no leaveSession, so the pad stayed up with its words and no button to close it
                 renderRoster();
                 load();   // the 'end' handler already told the player what happened
             }
@@ -8447,7 +8451,7 @@ function syncSessionButtons() {
     var hosting = !!(net.active && net.role === 'host');
     var endB = ui('netEndBtn'), leaveB = ui('netLeaveBtn');
     if (endB) endB.style.display = hosting ? 'block' : 'none';
-    if (leaveB) leaveB.style.display = hosting ? 'none' : 'block';
+    if (leaveB) leaveB.style.display = !hosting && ((net.active && net.role === 'client') || net.foreign) ? 'block' : 'none';   // 1.5.4: only at someone else's table, or on the way back from one (it showed outside every session, and did nothing)
     var pauseHdr = ui('sessionPauseBtn');
     if (pauseHdr) pauseHdr.style.display = hosting ? '' : 'none';   // the header pause button is a host-only session control
     refreshPauseUi();   // keep its label in step whenever the session buttons resync

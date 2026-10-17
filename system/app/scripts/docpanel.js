@@ -294,14 +294,21 @@ function tabsDraw(strip, list, front, camp) {
     return list.length;
 }
 // [shelfcheck:tabs-end]
+// [shelfcheck:place-start]
+// 1.5.4: a place is kept only from a panel that has a size. floats.js puts the panel away with a class while another view is on screen, and
+// the size of 0 measured then was saved, so after a restart the panel opened in the window's top left corner at its smallest (found live).
+// A place saved so is passed over, and the panel opens where it opens by default
+function placeRec(r) { return r && r.width > 0 && r.height > 0 ? { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) } : null; }
 function place() {
     var p = ui('docPanel'); if (!p) return;
     try {
-        var pos = JSON.parse(localStorage.getItem('wp_docPanel') || 'null'); if (!pos) return;
+        var pos = JSON.parse(localStorage.getItem('wp_docPanel') || 'null'); if (!pos || typeof pos !== 'object') return;
+        if ((pos.w !== undefined || pos.h !== undefined) && !(pos.w > 0 && pos.h > 0)) return;   // measured while the panel was put away
         if (isFinite(pos.x) && isFinite(pos.y)) { p.style.left = Math.max(0, Math.min(window.innerWidth - 160, pos.x)) + 'px'; p.style.top = Math.max(0, Math.min(window.innerHeight - 80, pos.y)) + 'px'; p.style.right = 'auto'; }
         if (isFinite(pos.w) && isFinite(pos.h)) { p.style.width = pos.w + 'px'; p.style.height = pos.h + 'px'; }
     } catch (e) {}
 }
+// [shelfcheck:place-end]
 function draw(force) {
     var p = ui('docPanel'); if (!p || p.style.display === 'none' || !openId) return;
     var camp = activeCamp(); var it = camp && camp.items && camp.items[openId];
@@ -438,7 +445,7 @@ function dockTakes(search) { try { var q = new URLSearchParams(String(search == 
         strip.addEventListener('auxclick', function(e) { var tab = e.button === 1 && e.target.closest ? e.target.closest('.docpanel-tab') : null; if (tab) { e.preventDefault(); tabClose(tab.dataset.id); } });
     }
     var drag = null;
-    function savePos() { var r = p.getBoundingClientRect(); try { localStorage.setItem('wp_docPanel', JSON.stringify({ x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) })); } catch (e) {} }
+    function savePos() { var rec = placeRec(p.getBoundingClientRect()); if (!rec) return; try { localStorage.setItem('wp_docPanel', JSON.stringify(rec)); } catch (e) {} }   // 1.5.4: never a place measured while the panel is put away
     head.addEventListener('pointerdown', function(e) { if (e.target.closest('button, select, input')) return; var r = p.getBoundingClientRect(); drag = { dx: e.clientX - r.left, dy: e.clientY - r.top }; head.setPointerCapture(e.pointerId); });
     head.addEventListener('pointermove', function(e) { if (!drag) return; p.style.left = (e.clientX - drag.dx) + 'px'; p.style.top = (e.clientY - drag.dy) + 'px'; p.style.right = 'auto'; });
     head.addEventListener('pointerup', function() { if (!drag) return; drag = null; savePos(); });

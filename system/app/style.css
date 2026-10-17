@@ -142,11 +142,16 @@
   .rm-mark { flex: 0 0 14px; width: 14px; height: 14px; border-radius: 3px; display: block; }   /* the Waypoint mark, on the row that goes where the mark goes */
   .rm-row > small:empty { display: none; }
   .rm-row > small[data-badge] { color: var(--gold); font-weight: 700; }
+  .rm-row.dim > .ico, .rm-row.off-mine > .ico { opacity: .45; }   /* Sound or Music folded into More: muted or off here, or off for you, as its icon in the row says (toprow.js markSync) */
+  .rm-row.off-mine { position: relative; }
+  .rm-row.off-mine::after { content: ''; position: absolute; left: 8px; width: 14px; top: 50%; height: 2px; margin-top: -1px; background: var(--red); border-radius: 1px; transform: rotate(-45deg); pointer-events: none; }
   #moreMenu .dropdown-wrap { display: block; }
   #moreMenu #saveAsMenu { top: -6px; left: auto; right: 100%; margin: 0 7px 0 0; min-width: 210px; max-height: calc(100vh - 90px); overflow-y: auto; padding: 5px; background: var(--panel); border-color: var(--edge); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.5); }
   #moreMenu #saveAsMenu .menu-item { display: flex; align-items: center; gap: 9px; padding: 5px 8px; border-radius: 5px; font-size: 12.5px; }
   #moreMenu #saveAsMenu .menu-item > .ico { flex: none; color: var(--dim); }
   #moreMenu #saveAsMenu .menu-divider { height: 1px; margin: 4px 2px; background: var(--edge); }
+  #moreMenu #saveAsMenu button.menu-item { width: 100%; box-sizing: border-box; border: 0; background: none; color: var(--ink); font: inherit; font-size: 12.5px; text-align: left; white-space: nowrap; cursor: pointer; }   /* a kind is a button, so the keyboard reaches it as it reaches every row of More */
+  #moreMenu #saveAsMenu button.menu-item:hover, #moreMenu #saveAsMenu button.menu-item:focus-visible { background: var(--edge); color: var(--ink); outline: none; }
   body.net-client #moreFiles { display: none !important; }   /* a player exports and imports nothing of the GM's: the part goes with its rule */
   body:not(.row-narrow) #moreFold { display: none; }
   body.row-narrow header #soundInd, body.row-narrow header #musicInd, body.row-narrow header #handoutsBtn, body.row-narrow header #journalBtn, body.row-narrow header #helpBtn { display: none !important; }
@@ -509,8 +514,8 @@
     }
     /* A tool bar with a menu open (the Pages shelf, the fog menu, the pen's, Snap, View, More…) rises over everything that floats over the
        map (backlog 143, found live 2026-10-16: the shelf opened under the page panel, its rows covered and a press on them going to the
-       panel): the token toolbar (8995), every floating box (the sheet, a HUD and the page panel from 9000, raised up to 9400 by sheets.js
-       raisePanel; the notepad, Sound, Music, Video and Effects at 9000), Table Chat (90000) and its dice roller (90001, its pop 90002).
+       panel): the token toolbar (8995), every floating box (the sheet, a HUD, the page panel, the notepad, Sound, Music, Video and
+       Effects from 9000, raised up to 9400 by sheets.js raisePanel), Table Chat (90000) and its dice roller (90001, its pop 90002).
        What comes up over the menu in use is still in front of it: the top row's menus, the map's right-click menu and its hover card
        (90020), the pause and update banners, a notice, a question, a dialog and the tour (95000 and up). lookcheck holds the ladder */
     .floating-toolbar:has(.shape-menu.show) { z-index: 90010; transition-delay: 0s; }
@@ -2365,7 +2370,7 @@
   .vid-name:focus { outline: none; border-color: var(--gold); }
   .vid-meta { color: var(--dim); font-size: 10.5px; white-space: nowrap; }
   .vid-foot { border-top: 1px solid var(--edge); padding-top: 6px; font-size: 11px; color: var(--dim); }
-  #videoPanel.vid-max { left: 0 !important; top: 0 !important; right: auto; width: 100vw !important; height: 100vh !important; max-width: none; max-height: none; border-radius: 0; z-index: 100001; }
+  #videoPanel.vid-max { left: 0 !important; top: 0 !important; right: auto; width: 100vw !important; height: 100vh !important; max-width: none; max-height: none; border-radius: 0; z-index: 100001 !important; }   /* over the z sheets.js raisePanel writes on the box when it is pressed */
   #videoPanel.vid-max #videoBody, #videoPanel.vid-max .video-resize, #videoPanel.vid-max .video-caption { display: none; }
   #videoPanel.vid-max #videoHead { cursor: default; }
   /* item 21 V2: the stage's table row (who the video is shown to, live), and a player's side of a showing in the same panel */
@@ -2759,6 +2764,7 @@
 
   /* Character sheets (1.5.0): the sheet panel over the play map */
   #sheetPanel { position: fixed; right: 18px; top: 120px; width: 460px; max-width: 96vw; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; max-height: 82vh; }
+  #sheetPanel:focus, .hud-panel:focus { outline: none; }   /* 1.5.4: a sheet or a HUD a button opened takes the focus itself (sheets.js focusPanel); its gold edge says where it is */
   #sheetPanel.sheet-has-table { width: min(680px, 96vw); }   /* Stage 4: a rich item table's columns need room — widen the panel, still responsive to the viewport */
   /* The sheet's head is TWO ROWS (the owner, 2026-10-10, by prompt: "Two rows"). Row one is the character: its picture, its name and player, the
      list of characters, then the HUD, a window of its own and close at the right end. Row two is what is done to the sheet, and Download ends

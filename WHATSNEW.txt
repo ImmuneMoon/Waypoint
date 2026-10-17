@@ -675,6 +675,64 @@ Fixes
 - In a planner's or a page's own view, a part the Outline jumps to, or
   a search lands on, is no longer half hidden under the Find bar. Where
   the bar took two rows, the top of the part stayed under it.
+- A pen tip picked after its tooltip had shown is the tip the pen draws
+  with. Square and Flat lines were drawn round, though the button showed
+  the tip as picked.
+- With a piece selected on the map, the first press on the turn strip
+  works. Next, Previous, Hold, the roster and a name each needed two
+  presses.
+- A new text box has its words Double click to edit text selected when
+  you start, so what you type takes their place. They used to stay after
+  your own words.
+- The combat roster's title reads as one. Combat and the map's name stand
+  together at the left.
+- A tool's options stop under the top row and scroll inside. In a short
+  window the top of Build's options was under the row, out of reach.
+- The eraser cuts a turned pen line where the line is drawn. It cut the
+  line where it lay before it was turned.
+- In the Tutorial, a drag across the Inn's common room or the Guard room
+  no longer moves the room's floor, a piece you cannot see. Both floors
+  are locked now. A Tutorial you already have is changed once, the next
+  time you open it.
+- Visual effects, Sound, Music, Video and the table notepad open in
+  front of a sheet or the page panel. They opened under either one,
+  even their title bar out of reach, and a click left them there.
+  Every box over the map now comes in front when you open it or click
+  it, with or without a HUD open.
+- After the app restarted, the page panel could open in the window's
+  top left corner at its smallest, over the campaign menu. It now opens
+  where you left it, or where it opens by default.
+- The HUD button on a sheet moves you into the HUD it opens, so Esc
+  closes the HUD. Esc used to close the sheet behind it and leave the
+  HUD. The HUD's Sheet button does the same the other way.
+- In a narrow window the Pages shelf ran past the window's right edge,
+  and the pins on its rows were cut off. It now stays inside the
+  window.
+- The Multiplayer window showed Leave Session when you were in no
+  session, and it did nothing. It now shows only at someone else's
+  table.
+- A character sheet in a window of its own follows its token. It is
+  drawn again when the token turns or takes another posture or height,
+  where it kept the old facing and figures until the character itself
+  changed.
+- When the GM ends the session or removes a player, the table
+  notepad goes with the table. It stayed on the player's screen with
+  the GM's words, and no button closed it.
+- Tab out of a field you changed in Properties goes on to the next
+  field, and Shift+Tab to the one before. The focus used to fall onto
+  the page, and the next Backspace deleted the piece.
+- A click on a name in the Elements list selects that piece. Properties
+  and Delete used to act on the piece selected before it.
+- When a player targets one of your characters and leaves the table
+  before you answer, Yes to starting combat there starts nothing and
+  says why. It used to open the roster as if they were still there.
+- Import with Replace says which players it bound to their characters
+  in a campaign file from before players had ids, as Merge and opening
+  a save do. It said nothing, and no later load said it either.
+- Export As's kinds can be reached from the keyboard: Enter on Export
+  As opens them and the arrow keys go through them. Folded into More in
+  a narrow window, Sound and Music say there when they are muted or off
+  for you, as their icons do in the top row.
 
 WAYPOINT 1.5.3 — What's New
 ============================

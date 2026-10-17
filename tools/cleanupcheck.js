@@ -1167,6 +1167,32 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 && Jt(opens) === Jt(['sub', 'top', 'n', 'top']) && Jt(noted) === Jt([['c7:1']]) && !!st7.appState.campaigns.c7
                 && ioSrc.includes("  window.wpTakeBindNotes = function() { var n = _bindNotes; _bindNotes = []; return n; };") && mainSrc.includes("          if (typeof window.wpTakeBindNotes === 'function') bindsM = window.wpTakeBindNotes() || [];"), Jt([nest, keyed.r, Object.keys(keyed.camps), opens, noted]));
         }
+        /* ---- Import Replace says who it bound (a found fault of 1.5.4: a file from before player ids was bound by the normaliser on Replace, and
+           nothing was said, while a Merge and a load say it once; the binding is saved with the file, so no later load says it either). main.js's
+           Replace handler, sliced and run for real on a page of plain objects ---- */
+        {
+            const replR = mainSrc.slice(mainSrc.indexOf("_el_importReplaceBtn.addEventListener('click'"), mainSrc.indexOf('var _el_importCancelBtn')), Jr = JSON.stringify;
+            const runR = o => {
+                const out = { order: [], noted: [], nothing: 0, threw: '' }, c1 = { id: 'c1', name: 'One' }, c2 = { id: 'c2', name: 'Two' }, cleanR = o.empty ? null : { campaigns: { c1, c2 }, activeCampaignId: 'c1' }, st = { appState: { campaigns: {} } };
+                const win = { wpTakeBindNotes: () => { out.order.push('take'); return o.notes ? [{ camp: c1, r: { bound: 2, linked: 1 } }, null, { camp: c2, r: { bound: 1, linked: 0 } }, { camp: c2 }] : []; },
+                    wpNoteBindings: l => { out.order.push('note'); out.noted.push(l.map(n => n.camp.id + ':' + n.r.bound)); out.liveThen = st.appState === cleanR; } };
+                if (o.decline) win.wpConfirmCampaignSwitch = () => {};   // the GM keeps the session: nothing is replaced
+                if (o.bare) { delete win.wpTakeBindNotes; delete win.wpNoteBindings; }
+                let handler = null;
+                try {
+                    new Function('_el_importReplaceBtn', 'pendingImport', 'cleanImport', 'importDeps', 'importNothing', 'window', 'state', 'takeImportedLibrary', 'finishImport', replR)(
+                        { addEventListener: (k, h) => { if (k === 'click') handler = h; } }, { campaigns: {} }, () => { out.order.push('clean'); return cleanR; }, () => ({}), () => { out.nothing++; }, win, st, () => {}, m => { out.order.push('finish:' + m); });
+                    handler();
+                } catch (e) { out.threw = String(e && e.message); }
+                return out;
+            };
+            const rN = replR ? runR({ notes: true }) : null, rNone = replR ? runR({}) : null, rDecl = replR ? runR({ notes: true, decline: true }) : null, rEmpty = replR ? runR({ notes: true, empty: true }) : null, rBare = replR ? runR({ notes: true, bare: true }) : null;
+            check('import: Replace says who it bound, as a Merge and a load do (main.js\'s Replace handler, sliced and run for real): what the normaliser bound in the file is taken once the file has cleaned and said once the file is the live state, before the import is finished and saved, so its Session Log lines are saved with it; an entry that is no binding is passed over; a file that binds nobody says nothing; a Replace the GM declines while hosting says nothing; a file that cleans to nothing takes nothing; and with no notice at hand it imports as before',
+                !!rN && Jr(rN) === Jr({ order: ['clean', 'take', 'note', 'finish:Imported (replaced all data).'], noted: [['c1:2', 'c2:1']], nothing: 0, threw: '', liveThen: true })
+                && Jr(rNone) === Jr({ order: ['clean', 'take', 'finish:Imported (replaced all data).'], noted: [], nothing: 0, threw: '' })
+                && Jr(rDecl) === Jr({ order: ['clean', 'take'], noted: [], nothing: 0, threw: '' }) && Jr(rEmpty) === Jr({ order: ['clean'], noted: [], nothing: 1, threw: '' })
+                && Jr(rBare) === Jr({ order: ['clean', 'finish:Imported (replaced all data).'], noted: [], nothing: 0, threw: '' }), Jr([rN, rNone, rDecl, rEmpty, rBare]));
+        }
         /* ---- fold B5: a secret door (the map builder; the owner, by prompt: players see "The wall's look (Recommended)" where a secret door stands
            until it is found, and it is found by "A row, and opening it (Recommended)"). A file's tick (a piece's secret) and the look named for it
            (seenColor, seenTexture) through the real import: on Replace (cleanImport: the load's own normaliser, then the item cleaners), on Merge

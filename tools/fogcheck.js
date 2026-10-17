@@ -1260,7 +1260,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const stage = (camp0, rebuild, net) => { const st = { appState: { campaigns: camp0 ? { camp_tutorial: camp0 } : {}, activeCampaignId: 'camp_other' }, selId: 'n1', selWbId: 'w1', selWbIds: ['w1'], linkStart: 'n1' }, log = [];
                 const lightsOf = it => it && Array.isArray(it.whiteboard) ? it.whiteboard.filter(w => w && w.light).length : -1;
                 const ens = new Function('state', 'window', 'createNewMap', 'TUTORIAL_ART_URL', 'TUTORIAL_CAMP_ID', 'resetHistory', 'tutorialHandbookPage', 'tutorialVtt', 'updateCampaignSelect', 'updateSidebarNav', 'render', 'save', 'installTutorialArt', 'newCamp', 'withoutHistory', "'use strict';" + NL
-                    + ['tutorialEffects', 'tutorialHud', 'tutorialSenses', 'tutorialSystem', 'tutorialBrazier', 'tutorialSmoke', 'tutorialTorch', 'tutorialCellarTexts', 'buildTutorialFogMap', 'hosting', 'ensureTutorialLights', 'ensureTutorialSenses', 'tutorialCampaign', 'ensureTutorialCampaign'].map(fnT).join(NL)
+                    + ['tutorialEffects', 'tutorialHud', 'tutorialSenses', 'tutorialSystem', 'tutorialBrazier', 'tutorialSmoke', 'tutorialTorch', 'tutorialCellarTexts', 'buildTutorialFogMap', 'hosting', 'ensureTutorialLights', 'ensureTutorialSenses', 'ensureTutorialFloors', 'tutorialCampaign', 'ensureTutorialCampaign'].map(fnT).join(NL)
                     + NL + 'function buildTutorialCampaign() { return newCamp(tutorialSystem(), buildTutorialFogMap()); }' + NL + 'return ensureTutorialCampaign;')(
                     st, net ? { wpNet: net } : {}, mkMap, '/x/', 'camp_tutorial', () => log.push('reset'), () => ({ id: 'doc_tut_handbook', type: 'doc' }), () => ({}), () => log.push('select'), () => log.push('nav'), () => log.push('render'), () => log.push('save'), () => log.push('art'),
                     (sys, map) => { log.push('build'); return { id: 'camp_tutorial', system: sys, items: { map_tut_fog: map } }; },
@@ -1306,6 +1306,31 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 && !/sent/.test(hB.log) && !/sent/.test(hC.log) && !/sent/.test(hD.log) && !/sent/.test(hE.log) && !/sent/.test(hF.log) && threwH === ''
                 && /net\.broadcastItemFiltered = function\(campId, itemId\) \{/.test(require('fs').readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'utf8')),
                 lj([hA.log, hB.log, hC.log, hD.log, hE.log, hF.log, hG.log, threwH]));
+            // the Tutorial's two floors that link a room (found live 2026-10-17): a drag begun on the Inn's Common room floor, a piece no one sees, moved
+            // it and selected it where it should draw a selection box. The real buildTutorialCampaign, sliced and run with the app's two makers and its
+            // four helpers stubbed, and the stage of ensureTutorialCampaign above
+            const tuBuilt = () => new Function('createNewCampaign', 'createNewMap', 'createNewPlanner', 'createNewDoc', 'TUTORIAL_NAME', 'TUTORIAL_CAMP_ID', 'TUTORIAL_ART_URL', 'tutorialVtt', 'ensureTutorialSheet', 'buildTutorialFogMap', 'tutorialHandbookPage', "'use strict';" + NL + fnT('buildTutorialCampaign') + NL + 'return buildTutorialCampaign();')(
+                n => ({ id: 'camp_new', name: n, items: {}, chars: {} }), mkMap, n => ({ id: 'p_new', type: 'planner', meta: { title: n }, blocks: [] }), n => ({ id: 'd_new', type: 'doc', meta: { title: n }, blocks: [] }),
+                'Tutorial', 'camp_tutorial', '/x/', () => ({}), () => {}, () => TU.map(), () => ({ id: 'doc_tut_handbook', type: 'doc' }));
+            const flo = c => [['map_tut_inn', 'tut_wb_innfloor'], ['map_tut_ground', 'tut_wb_guardfloor']].map(([mid, wid]) => { const m = c.items[mid]; return m && Array.isArray(m.whiteboard) ? m.whiteboard.find(w => w && w.id === wid) || null : null; });
+            const flMaps = c => lj([c.items.map_tut_inn, c.items.map_tut_ground].map(m => Object.assign({}, m, { whiteboard: m.whiteboard.filter(w => !(w && /^tut_wb_(inn|guard)floor$/.test(w.id))) })));
+            let flErr = '', NB = null; try { NB = tuBuilt(); } catch (e) { flErr = String(e && e.message); }
+            const nbF = NB ? flo(NB) : [null, null];
+            // an older Tutorial: the cellar as older() has it, beside the built Inn and Ground floor with both floors unlocked, as before 1.5.4
+            const oldFl = () => { const c = older(), b = tuBuilt(); c.items.map_tut_inn = b.items.map_tut_inn; c.items.map_tut_ground = b.items.map_tut_ground; flo(c).forEach(w => { delete w.locked; }); return c; };
+            const fA = oldFl(), fArest = flMaps(fA), sFA = stage(fA), fAafter = lj(flo(fA)), fArest2 = flMaps(fA), fAmark = fA.tutorialFloors;
+            flo(fA)[0].locked = false; const sFA2 = stage(fA);   // the GM unlocks the Inn's floor later: the next start leaves it so
+            const fB = oldFl(); fB.tutorialFloors = 1; const fBpre = lj(flo(fB)), sFB = stage(fB);   // a Tutorial marked done is not touched
+            let threwFl = ''; try { const fC = oldFl(); fC.items.map_tut_inn.whiteboard.unshift(null, 7, 'x'); fC.items.map_tut_ground = { whiteboard: 'none' }; stage(fC); const fD = older(); fD.items.map_tut_inn = null; stage(fD); } catch (e) { threwFl = String(e && e.message); }
+            const at = (log, s) => log.split(',').indexOf(s);
+            check('the Tutorial\'s two floors that link a room are locked (found live 2026-10-17: a drag across the Inn moved the Common room floor, a piece no one sees, where it should draw a selection box): the real buildTutorialCampaign, sliced and run, gives the Inn\'s Common room floor and the Hideout\'s Guard room floor locked, as the map picture under each is; an older Tutorial has both locked once at its next start, each outside the GM\'s undo and before the save, key for key as a new Tutorial has them, with nothing else of either map changed, and is marked done (1); a Tutorial marked done is not touched, a floor the GM unlocks later stays unlocked, and nothing throws on a Tutorial that holds anything else there',
+                flErr === '' && !!NB && nbF.every(w => !!w && w.locked === true && w.type === 'rect' && w.color === 'transparent' && w.opacity === 0.1 && typeof w.nodeId === 'string')
+                && fAafter === lj(nbF) && fArest2 === fArest && fAmark === 1 && sFA.log.split('nohist:map_tut_inn:').length === 2 && sFA.log.split('nohist:map_tut_ground:').length === 2
+                && at(sFA.log, 'save') > sFA.log.split(',').findIndex(s => /^nohist:map_tut_ground:/.test(s)) && sFA.log.split(',').findIndex(s => /^nohist:map_tut_inn:/.test(s)) >= 0
+                && flo(fA)[0].locked === false && flo(fA)[1].locked === true && !/nohist:map_tut_(inn|ground)/.test(sFA2.log)
+                && lj(flo(fB)) === fBpre && flo(fB).every(w => w.locked === undefined) && !/nohist:map_tut_(inn|ground)/.test(sFB.log) && threwFl === ''
+                && tuF.split('ensureTutorialFloors(').length === 3,   // its definition and the one call
+                lj([flErr, nbF, fAafter === lj(nbF), fArest2 === fArest, fAmark, sFA.log, sFA2.log, sFB.log, threwFl]));
             const autoC = older(); delete autoC.items.map_tut_fog.fog.light; autoC.tutorialLight = 1; const autoLvl0 = LT.mapLevel(Object.assign({}, autoC.items.map_tut_fog, { id: 'tutauto0' })); stage(autoC);
             const autoMap = autoC.items.map_tut_fog, autoLvl1 = LT.mapLevel(Object.assign({}, autoMap, { id: 'tutauto1' })), dimC = older(); dimC.items.map_tut_fog.fog.light = 'dim'; dimC.tutorialLight = 1; stage(dimC);
             const noFog = older(); delete noFog.items.map_tut_fog.fog; noFog.tutorialLight = 1; let threwF = ''; try { TU.lights(noFog); TU.lights({ items: { map_tut_fog: { fog: 'dark', whiteboard: [] } } }); } catch (e) { threwF = String(e && e.message); }

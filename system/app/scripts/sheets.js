@@ -86,7 +86,7 @@ function openPage(id) {
             if (left !== null) { dp.style.left = Math.round(left) + 'px'; dp.style.right = 'auto'; dp.style.top = Math.round(Math.max(8, b.top)) + 'px'; }
         }
     }
-    raisePanel(dp);   // HF2a: over the HUDs too (a no-op while none is open)
+    raisePanel(dp);   // HF2a: over the HUDs and every other box too
     var si = ui('docPanelSearchInput'); if (si) { try { si.focus({ preventScroll: true }); } catch (e) {} }   // so Esc closes the page before the sheet
 }
 // What the open sheet's chips and links show (each referenced page: here or not, its title, GM-only), recorded at every live render;
@@ -550,6 +550,7 @@ function dialSigOf(c, camp) {
     var fl = tokenFlags(), t = c ? facingTarget(c, camp) : null, fc = t ? facingCtx(t.map, t.tok, fl.turning) : null, st = t ? stanceCtx(t.tok, fl) : null, n = net();
     return [JSON.stringify(fl), t ? t.mapId + '|' + t.tok.id + '|' + (t.tok.ownerId || '') + '|' + (t.tok.locked ? 1 : 0) : '', fc ? fc.deg + '|' + fc.sides + '|' + fc.threats.join(',') : '', st ? st.posture + '|' + st.elevation : '', !!(n && (n.paused || n.selfPaused))].join('#');
 }
+function dialSigFor(charId, camp) { var c = charById(charId, camp); return c ? dialSigOf(c, camp) : ''; }   // 1.5.4: for a sheet in a window of its own (popout.js), which redraws when it moves
 function namesFacing(sys) {   // does a formula on the sheet (or a {formula} in a caption) name a built-in facing name, so a finished turn redraws its numbers?
     var Fm = F(); if (!sys || !Array.isArray(sys.fields) || !Fm || !Fm.names) return false;
     var own = {}; sys.fields.forEach(function(f) { own[String(f.key).toLowerCase()] = 1; });
@@ -878,7 +879,7 @@ function makeHud(charId) {
     layer.appendChild(p);
     p.addEventListener('keydown', function(e) { e.stopPropagation(); if (e.key === 'Escape') { e.preventDefault(); closeHud(charId); } });
     p.addEventListener('pointerdown', function() { raisePanel(p); }, true);
-    q('hud-sheet').addEventListener('click', function() { openSheet(charId); });
+    q('hud-sheet').addEventListener('click', function() { openSheet(charId); if (sheetOpen === charId) focusPanel(ui('sheetPanel')); });   // 1.5.4: the sheet opened takes the focus, so Escape closes it and not this HUD
     q('hud-endturn').addEventListener('click', endTurn);   // turn-based combat T2
     q('hud-close').addEventListener('click', function() { closeHud(charId); });
     var head = v.head, drag = null;
@@ -905,7 +906,7 @@ function placeHud(v) {
     p.style.left = Math.round(Math.max(0, Math.min(W - 160, x))) + 'px'; p.style.top = Math.round(Math.max(0, Math.min(H - 80, y))) + 'px';
     if (sized) sizePanel(p, o.w, o.h);
 }
-function closeHud(charId) { var v = huds[charId]; if (!v) return; if (typeof sbxFlush === 'function') sbxFlush(); clearTimeout(v.redraw); delete huds[charId]; if (v.panel && v.panel.parentNode) v.panel.parentNode.removeChild(v.panel); if (!Object.keys(huds).length) resetZ(); }
+function closeHud(charId) { var v = huds[charId]; if (!v) return; if (typeof sbxFlush === 'function') sbxFlush(); clearTimeout(v.redraw); delete huds[charId]; if (v.panel && v.panel.parentNode) v.panel.parentNode.removeChild(v.panel); }
 function closeHuds() { Object.keys(huds).forEach(function(id) { closeHud(id); }); }
 // The HUD's twin of renderSheet: its head (portrait, name, the HUD's title), then the HUD's own layout in the sheet's look
 function renderHud(charId) {
@@ -1142,17 +1143,39 @@ function turnView(v, final) {
     var rg = typeof rangeSigOf === 'function' ? rangeSigOf(c, camp) : ''; if (rg !== v.rangeSig) { v.rangeSig = rg; v.dialStale = true; }   // range R2: what reads RangeMod or TargetDistance   // HF5b: a round change redraws what reads CombatRound
     if (final && v.dialStale) { v.dialStale = false; if (namesFacing(systemOf(camp))) redrawForFacing(v); }
 }
-// The floating panels (the sheet, every HUD, the doc panel) come to the front when clicked or opened — only while a HUD is open (with none,
-// the sheet and the doc panel stack by DOM order as before): z from 9001, renumbered in order before it passes 9400 (chat is at 90000, a
-// tool bar with a menu open at 90010, the map's hover card and right-click menu at 90020, modals above: lookcheck holds the ladder)
+// The floating panels (the sheet, every HUD, the page panel, Sound, Music, Video, Effects and the notepad) come to the front when pressed or
+// opened: z from 9001, renumbered in order before it passes 9400 (chat is at 90000, a tool bar with a menu open at 90010, the map's hover
+// card and right-click menu at 90020, modals above: lookcheck holds the ladder). 1.5.4: every one of them, with or without a HUD open (found
+// live: Effects, Sound, Music, Video and the notepad came up under an open sheet or page panel, which stand later in the page at the same z,
+// and a press on them left them there)
 var _zTop = 9000;
-function floatPanels() { var l = [ui('sheetPanel'), ui('docPanel')]; Object.keys(huds).forEach(function(id) { l.push(huds[id].panel); }); return l.filter(Boolean); }
+var Z_BOXES = ['sheetPanel', 'docPanel', 'soundPanel', 'musicPanel', 'videoPanel', 'fxPanel', 'notepadPanel'];
+function floatPanels() { var l = Z_BOXES.map(function(id) { return ui(id); }); Object.keys(huds).forEach(function(id) { l.push(huds[id].panel); }); return l.filter(Boolean); }
 function raisePanel(p) {
-    if (!p || !Object.keys(huds).length || String(p.style.zIndex) === String(_zTop)) return;
+    if (!p || String(p.style.zIndex) === String(_zTop)) return;
     if (_zTop >= 9400) { var ps = floatPanels().filter(function(x) { return x !== p; }).sort(function(a, b) { return (+a.style.zIndex || 9000) - (+b.style.zIndex || 9000); }); _zTop = 9000; ps.forEach(function(x) { x.style.zIndex = String(++_zTop); }); }
     p.style.zIndex = String(++_zTop);
 }
-function resetZ() { [ui('sheetPanel'), ui('docPanel')].forEach(function(x) { if (x) x.style.zIndex = ''; }); _zTop = 9000; }   // the last HUD closed: today's stacking again
+// A box comes forward when it is pressed (in the capture phase, before its own controls) and when its own module shows it (its inline display)
+function raiseWire(bx, MO) {
+    if (!bx || typeof bx.addEventListener !== 'function') return;
+    bx.addEventListener('pointerdown', function() { raisePanel(bx); }, true);
+    if (typeof MO !== 'function') return;
+    var shown = bx.style.display !== 'none';
+    new MO(function() { var now = bx.style.display !== 'none'; if (now && !shown) raisePanel(bx); shown = now; }).observe(bx, { attributes: true, attributeFilter: ['style'] });
+}
+// 1.5.4: a window a button opens takes the focus, so the next key is that window's own (found live: Escape closed the sheet behind a HUD just
+// opened from it, and the HUD stayed). The panel itself takes it, so a stray key presses nothing in it, and only while it holds it: a press
+// on the panel's own ground later focuses nothing, as before
+function focusPanel(p) {
+    if (!p || typeof p.focus !== 'function') return;
+    if (typeof p.hasAttribute === 'function' && !p.hasAttribute('tabindex')) {
+        p.setAttribute('tabindex', '-1');
+        if (typeof p.addEventListener === 'function') p.addEventListener('blur', function off() { p.removeEventListener('blur', off); p.removeAttribute('tabindex'); });
+    }
+    try { p.focus({ preventScroll: true }); } catch (e) {}
+}
+function hudFocus(charId) { var v = huds[charId]; if (v) focusPanel(v.panel); }
 // Where a handbook page opens beside: the view in front (the most recently raised of the open sheet and the HUDs)
 function frontView() {
     var l = []; var sp = ui('sheetPanel'); if (sp && sp.style.display !== 'none') l.push(sp);
@@ -1169,7 +1192,7 @@ function hudButton(pl, c, sys, vctx) {
     var b = el('button', 'tool sheet-roll sheet-hud-link'); b.type = 'button'; b.disabled = !ok;
     b.appendChild(iconNode('icon:wave-square', 'sheet-hud-icon')); b.appendChild(el('span', 'sheet-hud-text', pl.text || ('Open ' + name)));
     b.title = ok ? 'Open ' + name + (tb ? ' at its ' + (tb.label || 'chosen') + ' tab' : '') : (live ? 'No HUD to open here' : 'Opens ' + name + ' (on the sheet itself)');
-    if (ok) b.addEventListener('click', function(e) { e.preventDefault(); if (b.closest('#systemModal')) return; openHud(c.id, pl.tab ? { tab: pl.tab } : null); });
+    if (ok) b.addEventListener('click', function(e) { e.preventDefault(); if (b.closest('#systemModal')) return; openHud(c.id, pl.tab ? { tab: pl.tab } : null); if (typeof hudFocus === 'function') hudFocus(c.id); });   // 1.5.4: the HUD opened takes the focus
     var box = el('div', 'sheet-field sheet-kind-hud'); box.appendChild(b); return box;
 }
 // [systemcheck:hud-end]
@@ -6706,7 +6729,7 @@ function importFile(file) {
     var sc = ui('sheetClose'); if (sc) sc.addEventListener('click', closeSheet);
     var rv = ui('sheetRevert'); if (rv) rv.addEventListener('click', revertLast);
     var pk = ui('sheetPick'); if (pk) pk.addEventListener('change', function() { if (pk.value) openSheet(pk.value); });
-    var hdB = ui('sheetHud'); if (hdB) hdB.addEventListener('click', function() { if (sheetOpen) openHud(sheetOpen); });
+    var hdB = ui('sheetHud'); if (hdB) hdB.addEventListener('click', function() { var id = sheetOpen; if (!id) return; openHud(id); hudFocus(id); });   // 1.5.4: the HUD opened takes the focus, so Escape closes it and not the sheet
     var upBt = ui('sheetUpload'); if (upBt) upBt.addEventListener('click', importJson);   // Stage 6 U3
     var picBt = ui('sheetPic'); if (picBt) picBt.addEventListener('click', function(e) { e.stopPropagation(); pickCharPicture(picBt); });   // Onboarding F1c
     var dlBt = ui('sheetDownload'); if (dlBt) dlBt.addEventListener('click', function(e) { e.stopPropagation(); openDownloadMenu(dlBt); });   // Onboarding F2a
@@ -6720,9 +6743,7 @@ function importFile(file) {
     var rvChip = ui('reviewChip'); if (rvChip) rvChip.addEventListener('click', reviewNext);
     var rvC = ui('uploadClose'); if (rvC) rvC.addEventListener('click', closeReview);
     var etB = ui('sheetEndTurn'); if (etB) etB.addEventListener('click', endTurn);   // turn-based combat T2: the player on turn ends it   // HUD frame (HF2a): the reference's header button
-    p.addEventListener('pointerdown', function() { raisePanel(p); }, true);
-    var dpn = ui('docPanel');   // the doc panel (docpanel.js, not edited here) comes forward when clicked or shown — only while a HUD is open
-    if (dpn) { dpn.addEventListener('pointerdown', function() { raisePanel(dpn); }, true); if (window.MutationObserver) { var dpShown = dpn.style.display !== 'none'; new MutationObserver(function() { var now = dpn.style.display !== 'none'; if (now && !dpShown) raisePanel(dpn); dpShown = now; }).observe(dpn, { attributes: true, attributeFilter: ['style'] }); } }
+    Z_BOXES.forEach(function(id) { raiseWire(ui(id), window.MutationObserver); });   // every floating box comes forward when pressed or shown (1.5.4: with or without a HUD; the page panel is docpanel.js's, not edited here)
     var drag = null;
     head.addEventListener('pointerdown', function(e) { if (e.target.closest('button, select')) return; var r = p.getBoundingClientRect(); drag = { dx: e.clientX - r.left, dy: e.clientY - r.top }; head.setPointerCapture(e.pointerId); });
     head.addEventListener('pointermove', function(e) { if (!drag) return; p.style.left = (e.clientX - drag.dx) + 'px'; p.style.top = (e.clientY - drag.dy) + 'px'; p.style.right = 'auto'; });
@@ -6757,7 +6778,7 @@ window.wpSheets = { bellNote: bellNote, runTimeRules: runTimeRules, startMaking:
     charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, addCharacter: addCharacter, askDeleteSheet: askDeleteSheet, deleteCharacter: deleteCharacter, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
     charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId, tokenFx: tokenFx, tokenFxModel: tokenFxModel, tokenFxCharOp: tokenFxCharOp,
     playerFinder: playerFinder, charFromJson: charFromJson, startFromFile: startFromFile,
-    openSheet: openSheet, closeSheet: closeSheet, openHud: openHud, closeHud: closeHud, closeHuds: closeHuds, hudFor: hudFor, rolled: rolled, tokenTurned: tokenTurned, tokenCtxFor: tokenCtxFor, canOpen: canOpen, renderSheet: renderViews, renderSheetInto: renderSheetInto, charChanged: charChanged, charGone: charGone, editResult: editResult, styleResult: styleResult, commitLook: commitLook, sheetOpen: function() { return sheetOpen; }, canRoll: canRoll, hasInitRoll: hasInitRoll, rollInit: rollInit, initTieNow: initTieNow, fromShadowBase: fromShadowBase, LIMITS: LIMITS };
+    openSheet: openSheet, closeSheet: closeSheet, openHud: openHud, closeHud: closeHud, closeHuds: closeHuds, hudFor: hudFor, rolled: rolled, tokenTurned: tokenTurned, tokenCtxFor: tokenCtxFor, dialSig: dialSigFor, canOpen: canOpen, renderSheet: renderViews, renderSheetInto: renderSheetInto, charChanged: charChanged, charGone: charGone, editResult: editResult, styleResult: styleResult, commitLook: commitLook, sheetOpen: function() { return sheetOpen; }, canRoll: canRoll, hasInitRoll: hasInitRoll, rollInit: rollInit, initTieNow: initTieNow, fromShadowBase: fromShadowBase, LIMITS: LIMITS };
 
 // Pop the open sheet out into its own window (like the doc panel); dock-back there reopens the in-app panel.
 (function wireSheetPopout() {

@@ -579,28 +579,40 @@ if(_el_addCharBtn) _el_addCharBtn.addEventListener('click', function() {
 
   /* ---------- inspector ---------- */
 
+  // [sinkcheck:inspfocus-start]
   // Rebuilding the panel keeps the user's place: scroll offset, and the focused
   // field (by id, or class + row index) with its caret, come back after the swap.
-  function renderInspector(){
+  // A field that says its change as the focus leaves it (Tab, Shift+Tab, a press elsewhere) has the panel rebuilt once the focus has landed:
+  // the browser is moving the focus on to the next control of the panel as it stands, and a panel rebuilt under it dropped the focus onto
+  // the page, where the next Backspace deleted the piece. The control it landed on, of any kind, is then found again in the new panel: by its
+  // id, else by its class and row, else as the same one of its kind in the panel (a text box's alignment buttons have no id)
+  var _inspLate = false;
+  function renderInspector(late){
     var panel = inspector;
+    var ae = document.activeElement, evL = typeof window !== 'undefined' && window ? window.event : null;
+    if (panel && evL && (evL.type === 'change' || evL.type === 'blur' || evL.type === 'focusout') && evL.target && evL.target.nodeType === 1 && evL.target !== ae && panel.contains(evL.target)) {
+        if (!_inspLate) { _inspLate = true; setTimeout(function() { _inspLate = false; renderInspector(true); }, 0); }
+        return;
+    }
     var scrollTop = panel ? panel.scrollTop : 0;
-    var ae = document.activeElement;
-    var focusKey = null, caret = null;
-    if (ae && panel && panel.contains(ae) && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT')) {
+    var focusKey = null, caret = null, focusAt = null;
+    if (ae && panel && panel.contains(ae) && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT' || late === true)) {
         focusKey = ae.id ? '#' + ae.id : (ae.className && ae.dataset.idx != null ? '.' + String(ae.className).split(' ')[0] + '[data-idx="' + ae.dataset.idx + '"]' : null);
+        if (!focusKey && late === true) { var tagL = String(ae.tagName).toLowerCase(); focusAt = [tagL, Array.prototype.indexOf.call(panel.querySelectorAll(tagL), ae)]; }
         try { caret = [ae.selectionStart, ae.selectionEnd]; } catch (e) {}
     }
     renderInspectorInner();
     if (!panel) return;
     panel.scrollTop = scrollTop;
-    if (focusKey) {
-        var again = panel.querySelector(focusKey);
+    if (focusKey || focusAt) {
+        var again = focusKey ? panel.querySelector(focusKey) : panel.querySelectorAll(focusAt[0])[focusAt[1]];
         if (again && document.activeElement !== again) {
             try { again.focus({ preventScroll: true }); if (caret && caret[0] != null && again.setSelectionRange) again.setSelectionRange(caret[0], caret[1]); } catch (e) {}
             panel.scrollTop = scrollTop;
         }
     }
   }
+  // [sinkcheck:inspfocus-end]
 
   function renderInspectorInner(){
 
@@ -1649,9 +1661,11 @@ if(_el_elementSearchInput) _el_elementSearchInput.addEventListener('input', func
 
               
 
+              // [sinkcheck:elpick-start]
               if(state.viewMode === 'data') state.selId = id;
 
-              else state.selWbId = id;
+              else { state.selWbId = id; state.selWbIds = [id]; }   // the selection the board, Properties and Delete read: the piece picked here alone, never the one picked before it
+              // [sinkcheck:elpick-end]
 
               
 

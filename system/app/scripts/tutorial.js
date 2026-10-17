@@ -241,7 +241,7 @@ function buildTutorialCampaign() {
     var IX = 14868, IY = 14773;   // places the drawing's grid lines on multiples of 50
     inn.whiteboard = [
         { id: 'tut_wb_innmap', type: 'image', src: A + 'map_inn.jpg', x: IX, y: IY, w: 1198, h: 1089, color: 'transparent', layer: 'back', locked: true, name: 'The Inn' },
-        { id: 'tut_wb_innfloor', type: 'rect', x: 15000, y: 15000, w: 800, h: 600, color: 'transparent', layer: 'back-mid', nodeId: 'tut_inn_common', name: 'Common room floor', opacity: 0.1 },
+        { id: 'tut_wb_innfloor', type: 'rect', x: 15000, y: 15000, w: 800, h: 600, color: 'transparent', layer: 'back-mid', nodeId: 'tut_inn_common', name: 'Common room floor', opacity: 0.1, locked: true },   // locked: a piece no one sees, which a drag across the room would move (ensureTutorialFloors)
         { id: 'tut_wb_innlabel', type: 'text', x: 14880, y: 14700, w: 520, h: 40, color: 'transparent', text: '<b>The Inn</b> (square grid) \u2014 square picture tokens, one 50 px cell each', fontSize: 14, layer: 'front' },
         sqTok(15250, 15400, pic('bren_sq.jpg', { id: 'tut_wb_bren', charName: 'Bren of Hollowvale', name: 'Bren', charStats: 'Fighter. Shield and a short temper. Your character \u2014 drag me; Snap seats me in a cell.' })),
         sqTok(15300, 15400, pic('tharic_sq.jpg', { id: 'tut_wb_tharic', charName: 'Tharic Ironfist', name: 'Tharic', charStats: 'Knight. Says little, hits hard.' })),
@@ -266,7 +266,7 @@ function buildTutorialCampaign() {
     ground.links = [['tut_g_guard', 'tut_g_office', '', { label: 'Door' }], ['tut_g_guard', 'tut_g_armory', '', { label: 'Door' }], ['tut_g_guard', 'tut_g_cell', 'secret', { label: 'Barred hatch' }]];
     ground.whiteboard = [
         { id: 'tut_wb_groundmap', type: 'image', src: A + 'map_ground.jpg', x: O, y: O, w: 1024, h: 1024, color: 'transparent', layer: 'back', locked: true, name: 'Ground floor plan' },
-        { id: 'tut_wb_guardfloor', type: 'rect', x: O + 60, y: O + 190, w: 640, h: 640, color: 'transparent', layer: 'back-mid', nodeId: 'tut_g_guard', name: 'Guard room floor', opacity: 0.1 },
+        { id: 'tut_wb_guardfloor', type: 'rect', x: O + 60, y: O + 190, w: 640, h: 640, color: 'transparent', layer: 'back-mid', nodeId: 'tut_g_guard', name: 'Guard room floor', opacity: 0.1, locked: true },   // locked, as the Inn's floor is
         { id: 'tut_wb_groundlabel', type: 'text', x: O + 40, y: O - 60, w: 620, h: 40, color: 'transparent', text: '<b>Hideout \u2014 Ground Floor</b> (hex grid) \u2014 hex picture tokens; the stairs are portals: double-click them', fontSize: 14, layer: 'front' },
         // On a hex grid the picture tokens are clipped to a hexagon and fill one cell (60\u00d752)
         hexTok(O + 420, O + 470, pic('orc_hex.png', { id: 'tut_wb_grukk', charName: 'Grukk', name: 'Grukk', charStats: 'Orc raider chief. NPC \u2014 right-click for conditions, posture, elevation.', charRef: 'tut_c_grukk' })),
@@ -575,6 +575,17 @@ function ensureTutorialSenses(camp) {
     if (!fm || typeof fm !== 'object' || !Array.isArray(fm.whiteboard)) return;
     if (!fm.whiteboard.some(function(w) { return w && typeof w === 'object' && (w.id === 'tut_wb_smoke' || w.smoke === true); })) fm.whiteboard.push(tutorialSmoke());
 }
+// The floors that link a room (1.5.4), once per Tutorial (camp.tutorialFloors 1): the Inn's Common room floor and the Guard room floor are
+// locked where an older Tutorial holds them unlocked. No one sees either, and a drag begun on one moved it where it should draw a selection box
+// (found live, 2026-10-17). Each change is no step of the GM's undo, and a floor the GM unlocks later stays as they leave it
+function ensureTutorialFloors(camp) {
+    if (!camp || typeof camp !== 'object' || !camp.items || typeof camp.items !== 'object') return;
+    [['map_tut_inn', 'tut_wb_innfloor'], ['map_tut_ground', 'tut_wb_guardfloor']].forEach(function(f) {
+        var m = Object.prototype.hasOwnProperty.call(camp.items, f[0]) ? camp.items[f[0]] : null;
+        var w = m && typeof m === 'object' && Array.isArray(m.whiteboard) ? m.whiteboard.filter(function(x) { return x && typeof x === 'object' && x.id === f[1]; })[0] : null;
+        if (w && w.locked !== true) withoutHistory(m, function() { w.locked = true; });
+    });
+}
 // Creates the Tutorial campaign (or rebuilds it when asked) and makes it active
 function ensureTutorialCampaign(rebuild) {
     var camp = tutorialCampaign();
@@ -598,6 +609,7 @@ function ensureTutorialCampaign(rebuild) {
         if (senseNow) { ensureTutorialSenses(camp); camp.tutorialSenses = 1; }   // senses (S8), once: the system's Hearing and the cellar's smoke, where an older Tutorial has none of its own
     });
     if (window.wpVtt && !window.wpVtt.locked()) camp.vtt = tutorialVtt();   // an older or flat-default copy: the tour never teaches chips that do not draw
+    if (!(camp.tutorialFloors >= 1)) { ensureTutorialFloors(camp); camp.tutorialFloors = 1; }   // 1.5.4, once: the two floors no one sees are locked
     state.appState.activeCampaignId = TUTORIAL_CAMP_ID;
     state.selId = null; state.selWbId = null; state.selWbIds = []; state.linkStart = null;
     updateCampaignSelect(); updateSidebarNav(); render(); save(true);

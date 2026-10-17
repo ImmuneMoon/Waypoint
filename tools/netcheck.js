@@ -9540,7 +9540,7 @@ pendingChecks.push((async () => {
             keys('good') === j(KEYS6.concat('look')) && look('good') === j(goodP) && keys('none') === j(KEYS6) && look('linked') === j({ fmt: { spans: [{ s: 0, e: 4, b: true }] }, sig: sigP }) && look('fonted') === j({ fmt: { i: true }, sig: sigP })
             && ['stale', 'hostile', 'bytes', 'word', 'off', 'cut', 'noCore', 'noWindow', 'noRules'].every(k => keys(k) === j(KEYS6)) && got.off.on === false && got.cut.text.length === 20000
             && src.includes("    if (!ta) return;\n    padWire(ta, p);\n    if (close) close.addEventListener('click', function() { net.notepadToggle(); });") && src.split('padWire(').length === 3 && src.split('function padKey(').length === 2 && src.split("addEventListener('keydown', padKey)").length === 2
-            && /window\.wpJournalAddNote\(meta, 'Table notes [^']* ' \+ new Date\(\)\.toLocaleDateString\(\), text, meta && meta\.look\);/.test(src) && src.includes("            net.notepad.text = ''; _pad.fmt = undefined;") && src.split("if (typeof padReset === 'function') padReset();").length === 3
+            && /window\.wpJournalAddNote\(meta, 'Table notes [^']* ' \+ new Date\(\)\.toLocaleDateString\(\), text, meta && meta\.look\);/.test(src) && src.includes("            net.notepad.text = ''; _pad.fmt = undefined;") && src.split("if (typeof padReset === 'function') padReset();").length === 4
             && src.includes("    if (typeof text === 'string') net.notepad.text = text.slice(0, 20000);\n") && src.includes("if (window.wpTextBox && typeof window.wpTextBox.place === 'function') window.wpTextBox.place(); });")
             && ixN.includes('<div id="notepadText" class="field"></div>') && !/<textarea[^>]*id="notepadText"/.test(ixN) && (src.match(/msg\.type === 'notepad'/g) || []).length === 1 && /msg\.type === 'notepad' && net\.role === 'client'/.test(src) && !/ta\.value/.test(src.slice(src.indexOf('// [netcheck:padbox-end]'), src.indexOf('/* ---------- combat / turn order ----------'))),
             j([Object.keys(got).map(k => [k, keys(k), look(k)])]));
@@ -11146,6 +11146,50 @@ pendingChecks.push((async () => {
             !!clSrc && adm.threw === '' && str.threw === '' && adm.saves === 1 && adm.rosters === 1 && adm.renders === 1 && adm.toasts.length === 1 && /Xan left/.test(adm.toasts[0]) && adm.logs.length === 1 && gone(adm)
             && str.saves === 0 && str.rosters === 0 && str.renders === 0 && str.toasts.length === 0 && str.logs.length === 0 && gone(str) && str.swept === 1 && J(str.forgotConn) === J(['pX']) && J(str.hung) === J(['pX']) && str.rosterDraws === 1, J([adm, str]));
     }
+    /* ---- J6b: a player's app the GM ends the session for (or removes, or refuses) puts the GM's table notepad away with the table (a found fault
+       of 1.5.4: that way out runs no leaveSession, and the pad stayed up with the GM's words and no button to close it). The close handler, run
+       for real as a player's app ---- */
+    {
+        const clSrc = slice('// [netcheck:connclose-start]', '// [netcheck:connclose-end]');
+        const runEnd = active => {
+            const out = { resets: 0, draws: [], loads: 0, threw: '' }, conn = { peer: 'room', open: false };
+            const net = { role: 'client', active, conns: [conn], roster: Object.create(null), targets: {}, applyingRemote: false, leaving: true, code: 'c1c1', peer: active ? { destroy() {} } : null, notepad: { on: true, text: 'The GM\'s words', look: { sig: 1 }, gm: 'GM' } };
+            const env = { net, assetInflight: {}, assetRefs: {}, assetBytes: {}, diceLimit: null, charLimit: null, _lim: {}, _connMeta: {}, lastSeen: {},
+                sensesForget() {}, fogDragSweep() {}, fogForgetConn() {}, videoHang() {}, videoTold() {}, videoOver() {}, renderRoster() {}, toast() {}, getActiveCampaign: () => null, logEvent() {}, startWaitGrace() {}, render() {}, broadcastTargets() {}, save() {}, broadcastRoster() {},
+                cancelReconnect() {}, setPausedLocal() {}, stopHeartbeat() {}, setIndicator() {}, load() { out.loads++; }, reconn: {}, scheduleReconnect() {}, getProfile: () => ({ name: 'Me' }), window: {}, hostGone: () => false,
+                padReset() { out.resets++; }, renderNotepad() { out.draws.push([net.active, net.notepad.on, net.notepad.text]); }, setTimeout: f => f() };
+            const names = Object.keys(env);
+            try { new Function('conn', ...names, clSrc)(conn, ...names.map(n => env[n])); } catch (e) { out.threw = String(e && e.message); }
+            out.pad = net.notepad; return out;
+        };
+        const ended = clSrc ? runEnd(true) : null, own = clSrc ? runEnd(false) : null;
+        check('J6b (a player\'s app, the close handler run for real): the GM ends the session, removes the player or refuses them, and the table\'s connection closes: the GM\'s table notepad goes with the table, its words and what styled them, and is drawn again so that it is put away, after the app has left the table; a Leave of the player\'s own, which has put everything away already, does nothing more here',
+            !!ended && ended.threw === '' && J(ended.pad) === J({ on: false, text: '' }) && ended.resets === 1 && J(ended.draws) === J([[false, false, '']]) && ended.loads === 1
+            && own.threw === '' && own.resets === 0 && own.draws.length === 0 && own.pad.on === true && own.loads === 0, J([ended, own]));
+    }
+    /* ---- J2b: the Start-combat offer answered after its player left: the question may stay up while the player who targeted leaves the table or is
+       removed (a found fault of 1.5.4), and a Yes then opens nothing for someone who is gone, and says so (the targetask slice, run for real) ---- */
+    {
+        const taSrc = slice('// [netcheck:targetask-start]', '// [netcheck:targetask-end]');
+        const offer = (meanwhile, yes) => {
+            const out = { asks: [], opened: [], toasts: [], threw: '' }, open = Object.create(null);
+            const camp = { id: 'k', turnRules: {}, items: { m1: { id: 'm1', type: 'map', meta: { title: 'Keep' }, whiteboard: [{ id: 'orc', isChar: true, charName: 'Orc' }] } } };
+            const net = { role: 'host', roster: Object.create(null), combats: {} }; net.roster.pA = { id: 'u_a', name: 'Ana' }; net.roster.pB = { id: 'u_b', name: 'Bo' };
+            try {
+                new Function('msg', 'conn', 'net', 'allow', 'applyTarget', 'broadcastTargets', 'combatAsked', 'combatAskOpen', 'getActiveCampaign', 'showConfirm', 'mapTitleOf', 'window', 'own', 'toast', taSrc)(
+                    { type: 'target', id: 'orc', mapId: 'm1' }, { peer: 'pA' }, net, () => true, () => {}, () => {}, {}, open, () => camp, (t, cb) => out.asks.push(cb), () => 'Keep', { wpOpenCombat: (m, o) => out.opened.push([m, o]) }, H.own, m => out.toasts.push(String(m)));
+                meanwhile(net); out.asks[0](yes);
+            } catch (e) { out.threw = String(e && e.message); }
+            out.open = Object.keys(open); return out;
+        };
+        const stays = taSrc ? offer(() => {}, true) : null, gone = taSrc ? offer(n => { delete n.roster.pA; }, true) : null, back = taSrc ? offer(n => { delete n.roster.pA; n.roster.pA2 = { id: 'u_a', name: 'Ana' }; }, true) : null;
+        const goneNo = taSrc ? offer(n => { delete n.roster.pA; }, false) : null, otherGone = taSrc ? offer(n => { delete n.roster.pB; }, true) : null;
+        const OPEN = J([['m1', { pre: ['orc'], owner: 'u_a' }]]);
+        check('J2b (host, the target branch run for real): the Start-combat offer answered Yes while its player is still at the table opens the roster as before; answered Yes after that player left the table or was removed, it opens nothing and says why in plain words; a player back on a new connection counts as at the table; No says nothing; another player leaving changes nothing; either way the offer is no longer open',
+            !!stays && [stays, gone, back, goneNo, otherGone].every(r => r.threw === '' && r.asks.length === 1 && r.open.length === 0) && J(stays.opened) === OPEN && stays.toasts.length === 0
+            && gone.opened.length === 0 && J(gone.toasts) === J(['Ana has left the table, so no combat was started.']) && J(back.opened) === OPEN && back.toasts.length === 0
+            && goneNo.opened.length === 0 && goneNo.toasts.length === 0 && J(otherGone.opened) === OPEN, J([stays, gone, back, goneNo, otherGone]));
+    }
     /* ---- J8: a pos final that moves nothing writes nothing (the pos gate, run for real) ---- */
     {
         const posSrc = slice('// [netcheck:pos-start]', '// [netcheck:pos-end]');
@@ -11910,6 +11954,17 @@ pendingChecks.push((async () => {
         JSON.stringify(seen) === JSON.stringify(want) && w.api.netPaneWant(false, null, 'x') === null && w.api.netPaneWant(true, undefined, 'host') === 'join'
         && iName > 0 && iBar > iName && iHost > iBar && iHostBtn > iHost && iJoin > iHostBtn && iJoinBtn > iJoin && html.split('id="netNameInput"').length === 2 && html.split('id="netJoinAvatar"').length === 2 && /data-pane="host" aria-expanded="false" aria-controls="netPaneHost"/.test(html) && /data-pane="join" aria-expanded="false" aria-controls="netPaneJoin"/.test(html) && wired,
         JSON.stringify([seen, iName, iBar, iHost, iHostBtn, iJoin, iJoinBtn, wired]));
+}
+// 1.5.4 (found live): Leave Session showed outside every session, where it did nothing (net.leaveSessionConfirm asks nothing with no table)
+{
+    const ssA = src.indexOf('function syncSessionButtons() {'), ssSrc = ssA < 0 ? '' : src.slice(ssA, src.indexOf('\n}\n', ssA) + 2);
+    const runSS = netS => { const el = () => ({ style: { display: '?' }, dataset: {}, classList: { toggle() {} }, removeAttribute() {} }), els = { netEndBtn: el(), netLeaveBtn: el(), sessionPauseBtn: el(), chatBtn: el() };
+        new Function('net', 'ui', 'netPaneSync', 'refreshPauseUi', 'window', ssSrc + '\nsyncSessionButtons();')(netS, id => els[id] || null, () => {}, () => {}, {}); return [els.netEndBtn.style.display, els.netLeaveBtn.style.display]; };
+    const ssStates = [runSS({ active: false, role: null }), runSS({ active: true, role: 'host' }), runSS({ active: true, role: 'client' }), runSS({ active: false, role: null, foreign: true }), runSS({ active: true, role: 'client', foreign: true }), runSS({ active: false, role: 'client' })];
+    const lcA = src.indexOf('net.leaveSessionConfirm = function() {'), lcSrc = lcA < 0 ? '' : src.slice(lcA, src.indexOf('\n};\n', lcA));
+    check('Leave Session is in the Multiplayer panel only where it does something (syncSessionButtons run for real): never outside a session, where it showed and did nothing; never for the GM hosting, who has End Session; at someone else\'s table, and on the way back from one whose link is down; not while a join has not yet reached its table',
+        JSON.stringify(ssStates) === JSON.stringify([['none', 'none'], ['block', 'none'], ['none', 'block'], ['none', 'block'], ['none', 'block'], ['none', 'none']]) && /\n    if \(!net\.active && !net\.foreign\) return;\n/.test(lcSrc),
+        JSON.stringify(ssStates));
 }
 pendingChecks.push((async () => {
     /* ---- 126: point budgets, the host's watch on a player's own change (the owner: "A budget you define"; a breach and its watch "per system dictation") ---- */

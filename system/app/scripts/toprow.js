@@ -113,12 +113,20 @@ function foldSync() {
     return any;
 }
 // A count that a folded control wears, the Journal's unread pages, is said in More too: on that control's row, and as a dot on More's own
-// button, which the style sheet shows only while the row is narrow. true: there is one to say
+// button, which the style sheet shows only while the row is narrow. true: there is one to say.
+// So is what Sound's and Music's icons say in the row: off for you (the icon struck through), off here, or muted (the icon dimmed). Their
+// rows say it in words and wear the icon's look. That is no count, so it puts no dot on More
 function markSync() {
     var any = false;
     Array.prototype.forEach.call(document.querySelectorAll('#moreMenu [data-badge]'), function(s) {
         var b = document.getElementById(s.getAttribute('data-badge')), txt = b && b.style.display !== 'none' ? String(b.textContent || '') : '';
         s.textContent = txt; if (txt) any = true;
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('#moreMenu [data-state]'), function(s) {
+        var row = s.parentNode, c = row && row.getAttribute ? document.getElementById(row.getAttribute('data-press')) : null, cl = c && c.classList;
+        var mine = !!cl && cl.contains('off-mine'), off = !!cl && cl.contains('sound-off'), mute = !!cl && cl.contains('muted');
+        s.textContent = mine ? 'Off for you' : off ? 'Off' : mute ? 'Muted' : '';
+        if (row && row.classList) { row.classList.toggle('off-mine', mine); row.classList.toggle('dim', !mine && (off || mute)); }
     });
     var mb = menuBtn('moreMenu'); if (mb) mb.classList.toggle('marked', any);
     return any;
@@ -169,6 +177,9 @@ function wire() {
         new MutationObserver(function() { var now = document.body.classList.contains('tour-on'); if (now !== touring) { touring = now; fitSoon(); } }).observe(document.body, { attributes: true, attributeFilter: ['class'] });   // the tour's card going up or away. The fold's own word on the body is no news
         Array.prototype.forEach.call(document.querySelectorAll('#moreMenu [data-badge]'), function(s) {   // a count changing on a control that may be folded
             var bd = document.getElementById(s.getAttribute('data-badge')); if (bd) new MutationObserver(markSync).observe(bd, { attributes: true, attributeFilter: ['style'], childList: true, characterData: true, subtree: true });
+        });
+        Array.prototype.forEach.call(document.querySelectorAll('#moreMenu [data-state]'), function(s) {   // Sound or Music muted, or switched off, while it may be folded
+            var cs = s.parentNode && s.parentNode.getAttribute ? document.getElementById(s.parentNode.getAttribute('data-press')) : null; if (cs) new MutationObserver(markSync).observe(cs, { attributes: true, attributeFilter: ['class'] });
         });
     }
     campSync(); foldFit(); markSync();

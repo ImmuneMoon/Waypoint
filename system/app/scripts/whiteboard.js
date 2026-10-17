@@ -550,6 +550,8 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
 
                       el.focus();
 
+                      textStandInPick(el, document, window);   // a box still holding its stand-in words has them all selected, so what is typed takes their place
+
                   });
 
                   el.addEventListener('paste', function(e) {   // 1.5.4: plain words only, as the Content editor in Properties pastes them: markup from elsewhere names fonts of the computer it came from
@@ -2188,6 +2190,19 @@ window.wpFitToGrid = fitToGrid;
   function toolOptsOnly(activeId) {
       Object.keys(TOOL_OPTS).forEach(function(id) { if (id !== activeId) { var m = document.getElementById(TOOL_OPTS[id]); if (m) m.classList.remove('show'); } });
   }
+  // [lookcheck:optsfit-start]
+  // A tool's options open upward from the bar, and the style sheet caps them by the window alone (found live, 2026-10-17): in a window 700
+  // high Build's ran their top rows under the top row, where no press reaches them. Up, they stop 8 px under the top row, or under its bar
+  // while it is hidden, and scroll inside, as the fog menu's do (fog.js fitMenu). The cap is set whether or not they reach so far now, since
+  // what they hold grows as a pick shows more rows, and they never take less than 160 px
+  function optsFit(menu, doc) {
+      if (!menu || !menu.style || typeof menu.getBoundingClientRect !== 'function') return;
+      menu.style.maxHeight = '';
+      var hd = doc && typeof doc.querySelector === 'function' ? doc.querySelector('header') : null, top = (hd ? hd.getBoundingClientRect().bottom : 0) + 8, r = menu.getBoundingClientRect();
+      if (!(r && isFinite(r.bottom) && isFinite(top)) || r.bottom <= 0) return;   // not laid out: the style sheet's cap stands
+      menu.style.maxHeight = Math.max(160, Math.floor(r.bottom - top)) + 'px';
+  }
+  // [lookcheck:optsfit-end]
   // The one wiring of a tool that has options. o: { id: its button, chev: its small arrow, inHand(), take(), sync(): bring its options up to date }
   function wireTool(o) {
       var btn = document.getElementById(o.id), chev = document.getElementById(o.chev), menu = document.getElementById(TOOL_OPTS[o.id]);
@@ -2196,12 +2211,13 @@ window.wpFitToGrid = fitToGrid;
           var p = toolPress(part, !!o.inHand(), open, open && typeof barBehind === 'function' && barBehind(menu, e) === true);
           if (p.tool === 'take') o.take();
           if (p.tool === 'away') { var mv = document.getElementById('moveModeBtn'); if (mv) mv.click(); }
-          if (menu && p.opts === 'open') { if (o.sync) o.sync(); menu.classList.add('show'); }
+          if (menu && p.opts === 'open') { if (o.sync) o.sync(); menu.classList.add('show'); optsFit(menu, document); }
           if (menu && p.opts === 'close') menu.classList.remove('show');
           if (menu && p.opts === 'front' && typeof barFront === 'function') barFront(menu);   // options that stood back come in front, and nothing closes
       }
       if (btn) btn.addEventListener('click', function(e) { e.stopPropagation(); press('icon', e); });
       if (chev) chev.addEventListener('click', function(e) { e.stopPropagation(); press('chev', e); });
+      if (menu && typeof window !== 'undefined' && typeof window.addEventListener === 'function') window.addEventListener('resize', function() { if (menu.classList.contains('show')) optsFit(menu, document); });   // up while the window changes: kept clear of the top row
   }
   // A button that only opens a menu (Shapes, Add, Fog, Scene, View, Grid) is a pair too, and the two are one control: its small arrow presses it.
   // A menu that is up while its bar stood back under the floating boxes, where a window that shows covers it, comes in front at one press of such a button or of its arrow, and of
@@ -2285,7 +2301,7 @@ window.wpFitToGrid = fitToGrid;
       document.querySelectorAll('#drawStyleRow .draw-style-btn').forEach(function(btn) {
           btn.classList.toggle('active', (btn.dataset.straight === 'true') === !!state.drawStraight);
       });
-      document.querySelectorAll('#drawTipRow .draw-style-btn').forEach(function(btn) { btn.classList.toggle('active', btn.dataset.tip === (state.drawTip || 'round')); });
+      document.querySelectorAll('#drawTipRow .draw-style-btn').forEach(function(btn) { btn.classList.toggle('active', btn.dataset.nib === (state.drawTip || 'round')); });
   }
 
   if(_el_moveModeBtn) _el_moveModeBtn.addEventListener('click', function() {
@@ -2986,16 +3002,21 @@ window.wpFitToGrid = fitToGrid;
   /* ---- click-away deselect ----
      Clicking anywhere that isn't the board, the Properties/Elements sidebar,
      the selection toolbar, a menu, or a dialog drops the selection, so the
-     floating toolbar never lingers over an item you've moved on from. */
+     floating toolbar never lingers over an item you've moved on from.
+     The turn strip keeps it too (found live, 2026-10-17): the redraw this
+     makes ran before the press's click, and drew the strip's buttons again
+     under the pointer, so the first press on Next, Hold or a name did nothing. */
+  // [lookcheck:clickaway-start]
   document.addEventListener('pointerdown', function(e) {
       if (state.viewMode !== 'visual') return;
       if (!state.selWbId && !(state.selWbIds && state.selWbIds.length)) return;
       var t = e.target;
       if (!t || !t.closest) return;
-      if (t.closest('#whiteboardWrap, #sidebar, #selToolbar, #contextMenu, .floating-toolbar, .shape-menu, .dropdown, .menu-item, [id$="Modal"], #sheetPanel, .hud-panel, #soundPanel, #dicePanel, #cmdkModal, input, select, textarea, [contenteditable="true"]')) return;
+      if (t.closest('#whiteboardWrap, #sidebar, #selToolbar, #contextMenu, .floating-toolbar, .shape-menu, .dropdown, .menu-item, [id$="Modal"], #sheetPanel, .hud-panel, #soundPanel, #dicePanel, #cmdkModal, #combatStrip, input, select, textarea, [contenteditable="true"]')) return;
       state.selWbId = null; state.selWbIds = [];
       if (window.appRender) window.appRender();
   }, true);
+  // [lookcheck:clickaway-end]
 
   /* ---- hover tooltip hygiene: it must never outlive the hover ----
      The per-item pointerleave can be missed (element re-rendered under the
@@ -3106,15 +3127,23 @@ window.wpFitToGrid = fitToGrid;
           var reach = (state.eraserSize || 6) + (item.strokeWidth || 3) / 2;
           var reachSq = reach * reach;
           var abs = item.pts.map(function(p) { return [item.x + p[0] * sx, item.y + p[1] * sy]; });
+          // a TURNED line (found 2026-10-17): the board turns it about its box's centre, and the eraser cut it where it lay before the turn. The
+          // eraser's place is turned back into the line's own frame and the line cut there, as a filled region is; each piece keeps the turn and
+          // the stretch, its box moved so that it is drawn where that part of the line was drawn
+          var ex = x, ey = y, turn = +item.rot, tc = 1, ts = 0, ocx = item.x + item.w / 2, ocy = item.y + item.h / 2;
+          if (turn && isFinite(turn) && isFinite(ocx) && isFinite(ocy)) {
+              tc = Math.cos(turn * Math.PI / 180); ts = Math.sin(turn * Math.PI / 180);
+              ex = ocx + (x - ocx) * tc + (y - ocy) * ts; ey = ocy - (x - ocx) * ts + (y - ocy) * tc;
+          } else turn = 0;
           if (abs.length === 1) {
-              var ddx = x - abs[0][0], ddy = y - abs[0][1];
+              var ddx = ex - abs[0][0], ddy = ey - abs[0][1];
               if (ddx*ddx + ddy*ddy <= reachSq) { if (eraseHeld(item, eraserClient)) { heldHit = item; out.push(item); return; } changed = true; return; }
               out.push(item); return;
           }
           var cut = [];
           var any = false;
           for (var i = 0; i + 1 < abs.length; i++) {
-              cut[i] = distToSegSq(x, y, abs[i][0], abs[i][1], abs[i+1][0], abs[i+1][1]) <= reachSq;
+              cut[i] = distToSegSq(ex, ey, abs[i][0], abs[i][1], abs[i+1][0], abs[i+1][1]) <= reachSq;
               if (cut[i]) any = true;
           }
           if (!any) { out.push(item); return; }
@@ -3129,7 +3158,7 @@ window.wpFitToGrid = fitToGrid;
                   var A = abs[s], B = abs[s+1];
                   if (!cut[s]) { if (!run.length) run.push(A); run.push(B); continue; }
                   var dxs = B[0] - A[0], dys = B[1] - A[1];
-                  var fx = A[0] - x, fy = A[1] - y;
+                  var fx = A[0] - ex, fy = A[1] - ey;
                   var qa = dxs*dxs + dys*dys, qb = 2 * (fx*dxs + fy*dys), qc = fx*fx + fy*fy - reachSq;
                   var t0 = 0, t1 = 1;
                   if (qa > 0) {
@@ -3156,6 +3185,10 @@ window.wpFitToGrid = fitToGrid;
                   x: minX, y: minY, w: w, h: h, baseW: w / kx, baseH: h / ky,
                   pts: run.map(function(p) { return [(p[0] - minX) / kx, (p[1] - minY) / ky]; })
               });
+              if (turn) {   // turned about its own centre, the piece stands where the line drew it: its centre goes where the line's turn takes it
+                  var dcx = minX + w / 2 - ocx, dcy = minY + h / 2 - ocy;
+                  piece.x = minX - (dcx - (dcx * tc - dcy * ts)); piece.y = minY - (dcy - (dcx * ts + dcy * tc));
+              }
               delete piece.groupId;
               out.push(piece);
               run = [];
@@ -4746,13 +4779,19 @@ window.wpFitToGrid = fitToGrid;
           syncDrawMenu();
       });
   });
+  // [lookcheck:pennib-start]
+  // A pen tip's button names its nib in data-nib, never data-tip: tooltips.js moves every title into data-tip at the first hover, so a tip
+  // read from there after a hover was the tooltip's words, which every reader of a line takes as round (found live, 2026-10-17). Only a nib
+  // the pen knows is taken, as at the launch
   document.querySelectorAll('#drawTipRow .draw-style-btn').forEach(function(btn) {
       btn.addEventListener('click', function() {
-          state.drawTip = this.dataset.tip;
+          var nib = this.dataset.nib; if (['round', 'square', 'flat'].indexOf(nib) === -1) return;
+          state.drawTip = nib;
           saveDrawPrefs();
           syncDrawMenu();
       });
   });
+  // [lookcheck:pennib-end]
 
   syncDrawMenu();
 
@@ -6450,6 +6489,15 @@ document.querySelectorAll('.shape-size-btn').forEach(function(b) {
 });
 syncShapeSizeButtons();
 
+// [lookcheck:textstandin-start]
+// 144 (c): a new text box holds these words until something is typed in it. Entered while it still holds them (the box placed, a double-click,
+// the text tool), the box has them all selected, so what is typed takes their place: the caret stood before them, and typing went in front
+var TEXT_STANDIN = 'Double click to edit text';
+function textStandInPick(el, doc, win) {
+    if (!el || String(el.textContent == null ? '' : el.textContent).trim() !== TEXT_STANDIN) return false;
+    try { var rg = doc.createRange(); rg.selectNodeContents(el); var sl = win.getSelection(); sl.removeAllRanges(); sl.addRange(rg); return true; } catch (e) { return false; }
+}
+// [lookcheck:textstandin-end]
 // The text tool on an existing text box edits it in place (datamap.js hit-tests the click)
 window.wpPlaceDisarm = disarmPlacement;
 window.wpEditTextBox = function(id) {
@@ -6457,6 +6505,7 @@ window.wpEditTextBox = function(id) {
     state.selWbId = id; state.selWbIds = [id]; render();
     var el = state.wbEls[id]; if (!el) return false;
     el.contentEditable = 'true'; el.classList.add('editing'); el.style.cursor = 'text'; el.focus();
+    if (textStandInPick(el, document, window)) return true;   // the stand-in words, selected whole
     try { var rg = document.createRange(); rg.selectNodeContents(el); rg.collapse(false); var sl = window.getSelection(); sl.removeAllRanges(); sl.addRange(rg); } catch (e) {}   // caret at the end
     return true;
 };
@@ -7518,7 +7567,7 @@ var _el_shapeTextBtn = document.getElementById('shapeTextBtn');
 
 if(_el_shapeTextBtn) _el_shapeTextBtn.addEventListener('click', function() {
 
-    armPlacement('text', {w:200, h:60, color:'transparent', text:'Double click to edit text'}, 'text box');
+    armPlacement('text', {w:200, h:60, color:'transparent', text:TEXT_STANDIN}, 'text box');
 
 });
 
@@ -8126,14 +8175,16 @@ function renderCombatStrip() {
     var strip = document.getElementById('combatStrip'); if (!strip) return;
     var n = window.wpNet, am = getActiveMap();
     var c = n && n.active && am && am.type === 'map' && state.viewMode === 'visual' && n.combats && n.combats[am.id];
-    if (!c) { strip.innerHTML = ''; strip.style.display = 'none'; return; }
+    if (!c) { strip.innerHTML = ''; strip.wpDrawn = ''; strip.style.display = 'none'; return; }
     var cur = c.rows[c.turn] || {}, nxt = c.rows[(c.turn + 1) % c.rows.length] || {};
     var host = n.role === 'host', mine = !host && n.myTurnTok ? n.myTurnTok() : null;   // turn-based combat T2: the player on turn ends it here
     strip.style.display = 'flex';
     var who = findWho(n, !!window.wpStream), nameOf = function(r) { return findName(r.name || '', r.tokId, !!findOf(am.id, r.tokId, who, am, state.viewMode)); };   // backlog 26: a name that finds its token on this screen is a button
     var myTokIds = {}; if (!host && am && Array.isArray(am.whiteboard)) am.whiteboard.forEach(function(w) { if (w && w.isChar && w.ownerId && w.ownerId === n.myId && typeof w.id === 'string') myTokIds[w.id] = 1; });   // initiative O3: whose held rows a player may act from
     var heldH = c.rows.map(function(r, i) { return r && r.held === 1 && i !== c.turn ? '<span class="combat-strip-held" data-tip="Holding their turn: Act puts them right after whoever is acting">held ' + nameOf(r) + '</span>' + (host || (typeof r.tokId === 'string' && myTokIds[r.tokId] === 1) ? '<button class="combat-strip-btn" data-act="act" data-row="' + esc(r.id) + '" title="Act now: right after whoever is acting">Act</button>' : '') : ''; }).join('');
-    strip.innerHTML = '<span class="combat-strip-round" title="Round">&#9876; R' + c.round + '</span>'
+    // drawn again only when it changed (found live, 2026-10-17): a redraw between a press and its click took the button pressed off the page, so
+    // the press did nothing. What was written last is kept on the strip, since a hover moves each title into data-tip and the page's markup changes
+    var html = '<span class="combat-strip-round" title="Round">&#9876; R' + c.round + '</span>'
         + (c.side === 'pc' || c.side === 'rest' ? '<span class="combat-strip-side" title="Side initiative: this round&rsquo;s sides roll put this side first">' + (c.side === 'pc' ? 'players first' : 'the rest first') + '</span>' : '')
         + (host ? '<button class="combat-strip-btn" data-act="prev" title="Previous turn">&#9664;</button>' : '')
         + '<span class="combat-strip-cur" data-tip="Whose turn it is">' + (cur.src ? '<img src="' + esc(resolveImg(cur.src)) + '" alt="">' : '') + nameOf(cur) + '</span>'
@@ -8141,6 +8192,7 @@ function renderCombatStrip() {
         + (mine ? '<button class="combat-strip-btn combat-strip-endturn" data-act="endturn" title="End your turn: play moves on to the next in the order">End turn</button>' : '')
         + (host || mine ? '<button class="combat-strip-btn" data-act="hold" title="Hold this turn: play moves on, and Act later this round puts them right after whoever is acting (a hold not used by the round&rsquo;s end is lost)">Hold</button>' : '') + heldH
         + (host ? '<button class="combat-strip-btn" data-act="next" title="Next turn">&#9654;</button><button class="combat-strip-btn" data-act="edit" title="Combat roster">&#9998;</button><button class="combat-strip-btn danger" data-act="end" title="End combat">&times;</button>' : '');
+    if (strip.wpDrawn !== html) { strip.innerHTML = html; strip.wpDrawn = html; }
 }
 window.wpRenderCombatStrip = renderCombatStrip;
 (function wireCombatStrip() {

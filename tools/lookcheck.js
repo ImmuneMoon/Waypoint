@@ -54,7 +54,7 @@ const INVENTORY = ['wbFloatingToolbar', 'wbCenterBtn', 'wbCenterMenu', 'wbCenter
     // built with the cell labels (backlog 34, 2026-10-16; the owner picked "Small table extras"): the Grid menu's row, its slider with the figure beside it, and the canvas the labels are drawn on
     'gridLabelsBtn', 'gridLabelsVal', 'gridLabelsOpacity', 'cellLabels'];
 // The choices inside the menus that have no id: found by the attribute their handler reads
-const ROWS = { buildshape: ['rect', 'circle', 'poly', 'corridor', 'line'], mode: ['grid', 'items', 'both'], straight: ['false', 'true'], tip: ['round', 'square', 'flat'], size: ['2', '3', '6', '10', '16'], emode: ['precise', 'segment'], unit: ['imperial', 'metric'],
+const ROWS = { buildshape: ['rect', 'circle', 'poly', 'corridor', 'line'], mode: ['grid', 'items', 'both'], straight: ['false', 'true'], nib: ['round', 'square', 'flat'], size: ['2', '3', '6', '10', '16'], emode: ['precise', 'segment'], unit: ['imperial', 'metric'],
     fgrid: ['square', 'hex'], fbrush: ['reveal', 'hide', 'clear'], fstroke: ['1', '3', '5', 'box', 'piece'], shapesize: ['free', 'cell'], as: ['r', 'd'], shape: ['circle', 'ring', 'cone', 'tok'] };
 const SWATCHES = ['#e9e9f0', '#1a1a1a', '#d9534f', '#e0a54f', '#5cb87a', '#4db3d3', '#b98cff'];
 // The top bar's controls, held from now on for the part that follows the toolbar (the slim row): Import and Export among them, of which the
@@ -204,7 +204,7 @@ const DOTS = '<path d="M12 5h.01M12 12h.01M12 19h.01"/>', TICK = '<path d="M5 12
         && draw('zoomOutBtn') === MINUS && draw('zoomInBtn') === '<path d="M12 4.5v15M4.5 12h15"/>' && draw('zoomInBtn').includes(MINUS.slice(9, -3)), J([draw('wbMoreBtn'), draw('wbRulersBtn'), draw('zoomOutBtn'), draw('zoomInBtn')]));
     // left as they are, on purpose: a pen tip IS its shape, and Snap's switch row has its words written by the script
     check('left as they were, on purpose: the pen\'s three tips are their own shapes, and Snap\'s switch row keeps the words its script writes',
-        innerOfBtn('data-tip="round"') === '&#9679; Round' && innerOfBtn('data-tip="square"') === '&#9632; Square' && innerOfBtn('data-tip="flat"') === '&#9698; Flat' && innerOfBtn('id="snapOffBtn"') === '&#9211; Turn snapping off');
+        innerOfBtn('data-nib="round"') === '&#9679; Round' && innerOfBtn('data-nib="square"') === '&#9632; Square' && innerOfBtn('data-nib="flat"') === '&#9698; Flat' && innerOfBtn('id="snapOffBtn"') === '&#9211; Turn snapping off');
     // every drawing is a plain path (or, for the note, a path and two circles): nothing else can stand in an icon
     const zoomIcons = ['zoomOutBtn', 'zoomInBtn'].map(id => [id, innerOfBtn('id="' + id + '"')]);
     const odd = bar.concat(menu, zoomIcons).filter(b => { const s = svgIn(b[1]); return typeof s !== 'string' || !/^<path d="[MmLlHhVvAaCcSsZz0-9 .,-]+"\/>(<circle cx="[\d.]+" cy="[\d.]+" r="[\d.]+"\/>){0,2}$/.test(s); }).map(b => b[0]);
@@ -993,8 +993,8 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
     const header2 = ix.slice(ix.indexOf('<header>'), ix.indexOf('</header>')), FIVE = ['soundInd', 'musicInd', 'handoutsBtn', 'journalBtn', 'helpBtn'];
     const mmKids = kidsOf(ix, '<div class="row-menu" id="moreMenu" hidden>') || [], filesKids = kidsOf(ix, '<div class="rm-part" id="moreFiles">') || [], foldKids = kidsOf(ix, '<div class="rm-part" id="moreFold">') || [];
     const kindKids = kidsOf(ix, '<div id="saveAsMenu" class="dropdown header-dropdown" style="display:none;">') || [];
-    const ROW2 = /^<button class="rm-row" (id|data-press)="([A-Za-z]+)" title="([^"]*)">(<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">.*?<\/svg>|<img src="icon\.ico" alt="" class="rm-mark">|<span class="rm-slot"><\/span>)<span>([^<]+)<\/span>(?:<small data-badge="([A-Za-z]+)"><\/small>)?<\/button>$/;
-    const rowOf = k => { const m = ROW2.exec(k.text); return m ? [m[1], m[2], m[5], m[6] || '', m[4].indexOf('<img') === 0 ? 'mark' : m[4].indexOf('<span') === 0 ? 'slot' : 'drawing', m[3]] : k.text === '<div class="rm-rule"></div>' ? '-' : /^<div class="rm-label">[^<]+<\/div>$/.test(k.text) ? 'label:' + k.text.slice(22, -6) : '?' + k.open.slice(0, 70); };
+    const ROW2 = /^<button class="rm-row" (id|data-press)="([A-Za-z]+)" title="([^"]*)">(<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">.*?<\/svg>|<img src="icon\.ico" alt="" class="rm-mark">|<span class="rm-slot"><\/span>)<span>([^<]+)<\/span>(?:<small data-badge="([A-Za-z]+)"><\/small>|<small (data-state)><\/small>)?<\/button>$/;
+    const rowOf = k => { const m = ROW2.exec(k.text); return m ? [m[1], m[2], m[5], m[6] || (m[7] ? 'state' : ''), m[4].indexOf('<img') === 0 ? 'mark' : m[4].indexOf('<span') === 0 ? 'slot' : 'drawing', m[3]] : k.text === '<div class="rm-rule"></div>' ? '-' : /^<div class="rm-label">[^<]+<\/div>$/.test(k.text) ? 'label:' + k.text.slice(22, -6) : '?' + k.open.slice(0, 70); };
     const mmSeq = mmKids.map(k => (k.open === '<div class="rm-part" id="moreFiles">' ? 'files' : k.open === '<div class="rm-part" id="moreFold">' ? 'fold' : rowOf(k)));
     const filesSeq = filesKids.map(k => (k.open === '<div class="dropdown-wrap" id="saveAsDropdownWrap">' ? 'export:' + k.ids.join(',') : rowOf(k))), foldSeq = foldKids.map(rowOf);
     const drawOf = how => { const at = ix.indexOf(how), m = at < 0 ? null : /<svg class="ico[^"]*" viewBox="0 0 24 24" aria-hidden="true">.*?<\/svg>/.exec(ix.slice(at, ix.indexOf('</button>', at))); return m ? m[0] : '?' + how; };
@@ -1004,9 +1004,9 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
             ['data-press', 'aboutReportLink', 'Report a problem', '', 'slot', 'Report a problem. Opens a new issue page on GitHub in your web browser, with Waypoint&rsquo;s version and what it runs on filled in. Nothing is sent until you send it there.'],
             ['data-press', 'headerBrand', 'Back to the welcome screen', '', 'mark', 'Back to the welcome screen'], 'fold'])
         && J(filesSeq) === J(['export:saveAsDropdownWrap,saveAsBtn,saveAsMenu,' + KINDS.filter(k => k !== '|').join(','), ['id', 'importBtn', 'Import', '', 'drawing', 'Import. Bring in a campaign, a map, a planner or a page from a file.'], '-'])
-        && J(foldSeq) === J(['-', 'label:Folded in while the window is narrow', ['data-press', 'soundInd', 'Sound', '', 'drawing', 'Sound. Your volume and mute.'], ['data-press', 'musicInd', 'Music', '', 'drawing', 'Music. Your volume and mute.'],
+        && J(foldSeq) === J(['-', 'label:Folded in while the window is narrow', ['data-press', 'soundInd', 'Sound', 'state', 'drawing', 'Sound. Your volume and mute.'], ['data-press', 'musicInd', 'Music', 'state', 'drawing', 'Music. Your volume and mute.'],
             ['data-press', 'handoutsBtn', 'Handouts', '', 'drawing', 'Handouts. Pictures and written pages to show your players.'], ['data-press', 'journalBtn', 'Journal', 'journalBadge', 'drawing', 'Journal. Everything a GM has shown you, with your notes.'], ['data-press', 'helpBtn', 'Help', '', 'drawing', 'Help and shortcuts']])
-        && J(kindKids.map(k => k.ids[0] || (k.text === '<div class="menu-divider"></div>' ? '|' : '?'))) === J(KINDS) && kindKids.every(k => k.ids.length < 2 && (k.ids.length === 0 || /^<div class="menu-item" id="[A-Za-z]+" title="[^"]+"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="[MmLlHhVvAaCcSsZz0-9 .,-]+"\/><\/svg><span>[A-Za-z ]+<\/span><\/div>$/.test(k.text)))
+        && J(kindKids.map(k => k.ids[0] || (k.text === '<div class="menu-divider"></div>' ? '|' : '?'))) === J(KINDS) && kindKids.every(k => k.ids.length < 2 && (k.ids.length === 0 || /^<button type="button" class="menu-item" id="[A-Za-z]+" title="[^"]+"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="[MmLlHhVvAaCcSsZz0-9 .,-]+"\/><\/svg><span>[A-Za-z ]+<\/span><\/button>$/.test(k.text)))
         && /<div class="dropdown-wrap" id="saveAsDropdownWrap">\n\s*<button class="rm-row" id="saveAsBtn" aria-haspopup="true" title="Export As\. Save the open map, the campaign or everything as a file\."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="[^"]+"\/><\/svg><span>Export As<\/span><small>12 kinds &rsaquo;<\/small><\/button>\n\s*<div id="saveAsMenu" class="dropdown header-dropdown" style="display:none;">\n/.test(ix)
         && count(ix, '<button class="tool ghost icon" id="moreMenuBtn" aria-haspopup="true" aria-expanded="false" aria-controls="moreMenu" title="More. Export As, Import, Refresh, About and the welcome screen."><svg class="ico ico-dots" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5h.01M12 12h.01M12 19h.01"/></svg></button>') === 1
         && drawOf(' id="moreMenuBtn"') === drawOf(' id="wbMoreBtn"') && FIVE.every(id => drawOf(' data-press="' + id + '"') === drawOf(' id="' + id + '"') && count(header2, ' id="' + id + '"') === 1 && count(ix, ' data-press="' + id + '"') === 1)
@@ -1019,7 +1019,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         exportDocsBtn: 'M12 6.5c-2-1.3-4.6-1.8-8-1.5v13c3.4-.3 6 .2 8 1.5 2-1.3 4.6-1.8 8-1.5V5c-3.4-.3-6 .2-8 1.5zM12 6.5v13', exportCampaignBtn: 'M3.5 6h6l2 2.5h9v11h-17z', exportBtn: 'M12 3l8 4.5v9L12 21l-8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9' };
     const KIND_N = { exportImgBtn: 'Save as Image', exportMapPicBtn: 'Save Map as Picture', exportPdfBtn: 'Save PDF', exportHtmlBtn: 'Save HTML', exportMdBtn: 'Save Markdown', exportItemBtn: 'Export This Map', exportMapsBtn: 'Export All Maps', exportWbsBtn: 'Export All Play Maps',
         exportPlannersBtn: 'Export All Planners', exportDocsBtn: 'Export All Pages', exportCampaignBtn: 'Export This Campaign', exportBtn: 'Export Everything' };
-    const kindRow = id => { const k = kindKids.filter(q => q.ids[0] === id)[0], m = k ? /^<div class="menu-item" id="[A-Za-z]+" title="[^"]+"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="([^"]+)"\/><\/svg><span>([^<]+)<\/span><\/div>$/.exec(k.text) : null; return m ? [m[1], m[2]] : ['?', '?']; };
+    const kindRow = id => { const k = kindKids.filter(q => q.ids[0] === id)[0], m = k ? /^<button type="button" class="menu-item" id="[A-Za-z]+" title="[^"]+"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="([^"]+)"\/><\/svg><span>([^<]+)<\/span><\/button>$/.exec(k.text) : null; return m ? [m[1], m[2]] : ['?', '?']; };
     const kindIds = KINDS.filter(k => k !== '|'), kindBad = kindIds.filter(id => kindRow(id)[0] !== KIND_D[id] || kindRow(id)[1] !== KIND_N[id]);
     const addImg = /id="addImageBtn" title="Add Image"><span class="mr-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="([^"]+)"\/>/.exec(ix);
     const playV = /<button class="seg-btn" data-mode="visual"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="([^"]+)"\/>/.exec(ix);
@@ -1056,14 +1056,15 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         moreMenu.querySelectorAll = q => (q === 'button' ? [saveAs].concat(others, [welcome], prox) : q === '.header-dropdown' ? [flyout] : []);
         Object.defineProperty(header, 'offsetHeight', { get() { w.measured++; return opts.high ? opts.high(body.classList.contains('row-narrow')) : 36; } }); header.children = [el('div'), el('div')];
         const els = Object.assign({ campMenu, campMenuList: campList, campMenuName: nameEl, campaignSelect: sel, moreMenu, otherMenu, journalBadge: badge }, ctl); (opts.gone || []).forEach(id => { delete els[id]; });
+        const states = opts.states ? prox.filter(r => r.attrs['data-press'] === 'soundInd' || r.attrs['data-press'] === 'musicInd').map(r => { const s = el('small'); s.attrs['data-state'] = ''; s.parentNode = r; r.kids.push(s); return s; }) : [];   // Sound's and Music's rows: the place that says their state
         const doc = { body, getElementById: id => (own(els, id) ? els[id] : null), querySelector: q => (q === '[aria-controls="campMenu"]' ? campBtn : q === '[aria-controls="moreMenu"]' ? moreBtn : q === 'header' ? (opts.noHeader ? null : header) : null),
-            querySelectorAll: q => (q === '#moreFold [data-press]' ? prox : q === '#moreMenu [data-badge]' ? [small] : []), createElement: el, createTextNode: t => ({ text: String(t) }), addEventListener(t, f, c) { w.docL.push([t, f, c]); }, get activeElement() { return w.focused; } };
+            querySelectorAll: q => (q === '#moreFold [data-press]' ? prox : q === '#moreMenu [data-badge]' ? [small] : q === '#moreMenu [data-state]' ? states : []), createElement: el, createTextNode: t => ({ text: String(t) }), addEventListener(t, f, c) { w.docL.push([t, f, c]); }, get activeElement() { return w.focused; } };
         function MO(cb) { this.cb = cb; w.obs.push(this); } MO.prototype.observe = function(t, o) { this.t = t; this.o = o; };
         function RO(cb) { this.cb = cb; this.seen = []; w.ros.push(this); } RO.prototype.observe = function(t) { this.seen.push(t); };
         const win = { addEventListener(t, f) { w.winL.push([t, f]); } }, raf = f => { w.frames.push(f); }, gcs = c => ({ display: c.avail === false || body.classList.contains('row-narrow') ? 'none' : 'flex' });
         const src = '"use strict";\n' + trSlice + '\n' + (opts.wire ? trWire + '\nwire();\n' : '') + 'return { rows: campRows, name: campName, draw: campDraw, sync: campSync, pick: campPick, open: openMenu, close: closeMenus, shown: menuShown, step: menuStep, type: menuType, focus: menuFocus, mrows: menuRows, fit: foldFit, fold: foldSync, mark: markSync, box: anchorBox, MENUS: MENUS, ONE_ROW: ONE_ROW };';
         try { w.api = new Function('document', 'Event', 'MutationObserver', 'ResizeObserver', 'requestAnimationFrame', 'getComputedStyle', 'window', src)(doc, function(type, o) { this.type = type; this.bubbles = !!(o && o.bubbles); }, opts.noMO ? undefined : MO, opts.noRO ? undefined : RO, raf, gcs, win); } catch (e) { w.err = 'threw: ' + String(e && e.message); }
-        return Object.assign(w, { body, header, sel, campBtn, moreBtn, campMenu, moreMenu, campList, nameEl, flyout, badge, small, five, saveAs, others, welcome, prox, ctl, els,
+        return Object.assign(w, { body, header, sel, campBtn, moreBtn, campMenu, moreMenu, campList, nameEl, flyout, badge, small, five, saveAs, others, welcome, prox, ctl, els, states,
             list: () => campList.kids.map(b => [b.tag, b.type, b.className, b.attrs['data-camp'], b.attrs['aria-current'] || '', b.kids.map(k => (k.text !== undefined ? 'text:' + k.text : k.tag + '.' + k.className)).join('|')]) }); };
     const tryIn = (w, f) => { try { if (w.api) f(); } catch (e) { w.err = 'threw: ' + String(e && e.message); } };
     const R = mkTop({ at: 'c2', camps: [['c1', 'First'], ['c2', HOSTILE], ['c3', '']] }), rr = [], marks = () => J(R.list().map(b => b[2] + '/' + b[4]));
@@ -1184,6 +1185,28 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
             1, false, true, 0, 1, 0, 1, false, 1, true, '2', true]) && !W2.err && J(w2) === J(['First', 0, 0, J(['resize']), 0, 1, '4']) && !W3.err && W3.ros.length === 0 && J(W3.winL.map(l => l[0])) === J(['resize'])
         && !W4.err && W4.body.classList.contains('row-narrow') && W4.small.textContent === '5' && W4.moreBtn.classList.contains('marked') && W4.frames.length === 0
         && /\nwire\(\);\nwindow\.wpTopRow = \{ open: openMenu, close: closeMenus, shown: menuShown, sync: campSync, box: anchorBox \};\n$/.test(trSrc) && !/innerHTML|insertAdjacentHTML|outerHTML|document\.write/.test(trSrc), W.err || W2.err || W3.err || W4.err || J(zz) + ' ' + J(w2));
+    // A found fault of 1.5.4 (backlog 107 R1c, notes 6 and 7): Export As's twelve kinds were no buttons, so no key of the menu reached them, and
+    // Sound or Music folded into More said nothing of being muted or off, which their icons say in the row. markSync and wire, run for real
+    const S = mkTop({ at: 'c1', camps: [['c1', 'First']], wire: true, states: true }), ss = [];
+    tryIn(S, () => {
+        const said = () => S.states.map(s => s.textContent + '|' + s.parentNode.className);
+        const snd = S.ctl.soundInd, mus = S.ctl.musicInd, cls = (c, v) => { c.className = v; };
+        ss.push(J(said()));                                                                                    // nothing to say: both rows plain
+        cls(snd, 'tool ghost icon muted'); S.api.mark(); ss.push(J(said()), S.moreBtn.classList.contains('marked'));                       // Sound muted: said and dimmed, and More is not marked, which a count alone does
+        cls(snd, 'tool ghost icon sound-off muted'); cls(mus, 'tool ghost icon off-mine'); S.api.mark(); ss.push(J(said()));           // Sound off here; Music off for this player: struck through
+        cls(snd, 'tool ghost icon sound-off off-mine'); cls(mus, 'tool ghost icon playing'); S.api.mark(); ss.push(J(said()));           // Sound off for this player; Music playing again
+        const obsS = S.obs.filter(o => o.t === snd || o.t === mus); ss.push(obsS.length, J(obsS.map(o => o.o)));                       // each control's class is watched while More may show its row
+        cls(snd, 'tool ghost icon'); obsS[0].cb(); ss.push(J(said()));                                           // and a change of it is said at once
+    });
+    check('More says what a folded Sound or Music says in the row (toprow.js markSync and wire, run for real): Sound muted or off here reads Muted or Off on its row, dimmed; Sound or Music off for this player reads Off for you, struck through as its icon is; each goes back to plain when the control does; the state is no count, so More\'s button is not marked for it; the controls\' classes are watched, so a change is said at once while More is up',
+        !S.err && J(ss) === J([J(['|', '|']), J(['Muted|dim', '|']), false, J(['Off|dim', 'Off for you|off-mine']), J(['Off for you|off-mine', '|']), 2, J([{ attributes: true, attributeFilter: ['class'] }, { attributes: true, attributeFilter: ['class'] }]), J(['|', '|'])])
+        && css.includes('\n  .rm-row.dim > .ico, .rm-row.off-mine > .ico { opacity: .45; }') && css.includes("\n  .rm-row.off-mine::after { content: ''; position: absolute; left: 8px; width: 14px;"), S.err || J(ss));
+    const kindsBtn = kindKids.filter(k => k.ids.length === 1);
+    check('Export As\'s twelve kinds are buttons (a found fault of 1.5.4: they were no buttons, so the keys of the More menu passed them by): each is a button of its own type, so the arrow keys, Home, End and a letter reach it among More\'s rows once Export As has opened its list, and Enter presses it; while the list is put away its kinds are out of sight and take no key; a kind looks as it did, with the focus shown as a pointer over it shows',
+        kindsBtn.length === 12 && kindsBtn.every(k => k.open.indexOf('<button type="button" class="menu-item" id="') === 0) && !/<div class="menu-item"/.test(ix.slice(ix.indexOf('<div id="saveAsMenu"'), ix.indexOf('id="importBtn"')))
+        && /function menuRows\(id\) \{ var m = document\.getElementById\(id\); return m \? Array\.prototype\.slice\.call\(m\.querySelectorAll\('button'\)\)\.filter\(function\(r\) \{ return r\.offsetParent !== null; \}\) : \[\]; \}/.test(trSrc)
+        && css.includes('\n  #moreMenu #saveAsMenu button.menu-item { width: 100%; box-sizing: border-box; border: 0; background: none; color: var(--ink); font: inherit; font-size: 12.5px; text-align: left; white-space: nowrap; cursor: pointer; }')
+        && css.includes('\n  #moreMenu #saveAsMenu button.menu-item:hover, #moreMenu #saveAsMenu button.menu-item:focus-visible { background: var(--edge); color: var(--ink); outline: none; }'), J(kindsBtn.map(k => k.open.slice(0, 60))));
     // The owed review, 2026-10-09 (backlog 138): a key the menu takes was prevented but went on to the page, whose own arrow keys move a selected
     // token or node, so walking the Campaign menu's rows nudged the piece and sent it to the table. The list this menu replaced was passed over
     // by the page's handler; a key the menu takes now goes no further, and a key it does not take is still the page's
@@ -2668,6 +2691,129 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         bar.length > 500 && J(order) === J(BAR) && once.length === 0 && count(pn, "pb.id = 'popoutOutline';") === 1 && /pb\.id = 'popoutOutline'; pb\.type = 'button'; pb\.title = 'Outline: [^']+';/.test(pn)
         && tip('popoutFind') === 'Find words on this page. Enter goes to the next match and Shift+Enter to the one before. Esc clears. Ctrl+F takes you here.'
         && tip('popoutFindPrev') === 'Previous match (Shift+Enter)' && tip('popoutFindNext') === 'Next match (Enter)' && tip('popoutDock') === 'Put this back into a floating panel in the main window', J([order, once, ['popoutFind', 'popoutFindPrev', 'popoutFindNext', 'popoutDock'].map(tip)]));
+}
+
+/* ---------- the board's small things of 2026-10-17 (found live in the hunt of that day) ---------- */
+{
+    // 1. a pen tip's button names its nib in data-nib. tooltips.js moves every title into data-tip at the first hover, so a nib kept there became
+    // the tooltip's words after a hover: the pen stored "Square tip — blocky ends and corners" as its tip, and every reader drew the line round
+    const tipSrc = read('scripts/tooltips.js'), both = [];
+    for (const m of ix.matchAll(/<[a-zA-Z][^>]*>/g)) if (/\sdata-tip=/.test(m[0]) && /\stitle=/.test(m[0])) both.push(m[0].slice(0, 80));
+    const tipRow = (/<div class="draw-menu-row" id="drawTipRow">([\s\S]*?)<\/div>/.exec(ix) || [])[1] || '';
+    const nibBtns = [...tipRow.matchAll(/<button class="draw-style-btn[^"]*" data-nib="([a-z]+)" title="([^"]+)">/g)].map(m => [m[1], m[2]]);
+    const nibSrc = sliceOf(wbSrc, 'pennib');
+    const nibRun = (nibs, hover) => { const st = { drawTip: 'round' }, said = [], btns = nibs.map(n => ({ dataset: { nib: n[0] }, title: n[1], on: {}, addEventListener(t, f) { this.on[t] = f; } }));
+        if (hover) btns.forEach(b => { b.dataset.tip = b.title; delete b.title; });   // what tooltips.js does at the first hover (textOf)
+        let err = ''; try { new Function('document', 'state', 'saveDrawPrefs', 'syncDrawMenu', nibSrc)({ querySelectorAll: q => (q === '#drawTipRow .draw-style-btn' ? btns : []) }, st, () => said.push('save'), () => said.push('sync')); } catch (e) { err = String(e && e.message || e); }
+        const got = btns.map(b => { if (b.on.click) b.on.click.call(b); return st.drawTip; }); return { err, got, said: said.join() }; };
+    const nibA = nibRun(nibBtns, true), nibB = nibRun(nibBtns, false), nibC = nibRun([['Square tip', 'x'], ['', 'y'], ['constructor', 'z']], true);
+    check('a pen tip\'s button names its nib in data-nib, never in data-tip, which tooltips.js fills with the title at the first hover (found live 2026-10-17: rested on Square for half a second and pressed, the pen stored the tooltip\'s words as its tip, so a Square or Flat line was drawn round, and the button still showed as on): no control of the page carries both a data-tip and a title; the three tips name round, square and flat; the tip row\'s press, sliced and run for real after a hover moved each title, sets the very nib, saves and brings the menu up to date, and takes nothing that is not a nib the pen knows; the menu marks the tip in hand by its nib',
+        both.length === 0 && J(nibBtns.map(b => b[0])) === J(['round', 'square', 'flat']) && nibSrc.length > 200
+        && nibA.err === '' && J(nibA.got) === J(['round', 'square', 'flat']) && nibA.said === 'save,sync,save,sync,save,sync' && J(nibB.got) === J(nibA.got)
+        && nibC.err === '' && J(nibC.got) === J(['round', 'round', 'round']) && nibC.said === ''
+        && count(wbSrc, "btn.classList.toggle('active', btn.dataset.nib === (state.drawTip || 'round'));") === 1 && !/dataset\.tip === \(state\.drawTip/.test(wbSrc)
+        && tipSrc.includes("if (el.hasAttribute('title')) { el.dataset.tip = el.getAttribute('title'); el.removeAttribute('title'); }"),
+        J([both, nibBtns.map(b => b[0]), nibA, nibB, nibC]));
+
+    // 2. the turn strip keeps the selection, and is drawn again only when it changed. With a piece selected, the click-away deselect (a capture
+    // listener on the document) drew the board again at the press, the strip with it, so the button under the pointer was gone before its click
+    const awaySrc = sliceOf(wbSrc, 'clickaway');
+    const elOf = (tag, id, cls, parent, attrs) => ({ tagName: tag.toUpperCase(), id: id || '', cls: cls || [], parentElement: parent || null, attrs: attrs || {} });
+    const matches = (e, sel) => { let m; sel = sel.trim();
+        if ((m = /^#([\w-]+)$/.exec(sel))) return e.id === m[1];
+        if ((m = /^\.([\w-]+)$/.exec(sel))) return e.cls.indexOf(m[1]) >= 0;
+        if ((m = /^\[id\$="([^"]+)"\]$/.exec(sel))) return e.id.slice(-m[1].length) === m[1] && e.id.length >= m[1].length;
+        if ((m = /^\[([\w-]+)="([^"]*)"\]$/.exec(sel))) return e.attrs[m[1]] === m[2];
+        if (/^[a-z]+$/.test(sel)) return e.tagName === sel.toUpperCase();
+        throw new Error('lookcheck: a selector the test does not read: ' + sel); };
+    const closestOf = e => function(list) { for (let n = e; n; n = n.parentElement) if (list.split(',').some(s => matches(n, s))) return n; return null; };
+    const awayRun = target => { const st = { viewMode: 'visual', selWbId: 'w1', selWbIds: ['w1'] }; let renders = 0, lis = null, err = '';
+        try { new Function('document', 'state', 'window', awaySrc)({ addEventListener: (t, f, cap) => { if (t === 'pointerdown' && cap === true) lis = f; } }, st, { appRender: () => { renders++; } }); if (target) target.closest = closestOf(target); lis({ target }); } catch (e) { err = String(e && e.message || e); }
+        return [err, st.selWbId, renders]; };
+    const body = elOf('body'), main = elOf('div', 'main', [], body), strip = elOf('div', 'combatStrip', [], main), nextBtn = elOf('button', '', ['combat-strip-btn'], strip), party = elOf('div', 'partyStrip', [], main), wrap = elOf('div', 'whiteboardWrap', [], main), onMap = elOf('div', '', [], wrap);
+    const away = [awayRun(nextBtn), awayRun(strip), awayRun(onMap), awayRun(party), awayRun(body)];
+    // the strip, drawn by its own code twice over with nothing changed between: the second draw writes nothing, so the button pressed stays
+    const fSl = sliceOf(wbSrc, 'combatfind'), cutWb = (a, z) => { const i = wbSrc.indexOf(a), k = wbSrc.indexOf(z, i + 1); return i >= 0 && k > i && count(wbSrc, a) === 1 ? wbSrc.slice(i, k) : ''; };
+    const stripSrc = cutWb('function renderCombatStrip() {', '\nwindow.wpRenderCombatStrip = renderCombatStrip;'), escSrc = (/\n  (function esc\(s\)\{return [^\n]*\})\n/.exec(read('scripts/inspector.js')) || [])[1] || '';
+    let drawErr = '', draws = [];
+    try {
+        let html = '', writes = 0; const stripEl = { style: {}, dataset: {}, get innerHTML() { return html; }, set innerHTML(v) { html = v; writes++; } };
+        const net = { active: true, role: 'host', myId: 'u_g', combats: { m1: { mapId: 'm1', round: 1, turn: 0, rows: [{ id: 'r1', name: 'Ana', tokId: 't1' }, { id: 'r2', name: 'Orc', tokId: 't2' }] } }, myTurnTok: () => null };
+        const map = { id: 'm1', type: 'map', whiteboard: [{ id: 't1', isChar: true, x: 0, y: 0, w: 50, h: 50 }, { id: 't2', isChar: true, x: 100, y: 0, w: 50, h: 50 }] };
+        const draw = new Function('document', 'window', 'state', 'getActiveMap', 'getActiveCampaign', 'toast', 'resolveImg', 'setTimeout', 'clearTimeout', 'openCombatModal', escSrc + '\n' + fSl + '\n' + stripSrc + '\nreturn renderCombatStrip;')(
+            { getElementById: id => (id === 'combatStrip' ? stripEl : null) }, { wpNet: net }, { viewMode: 'visual', zoomLevel: 1, wbEls: {} }, () => map, () => ({ items: { m1: map } }), () => {}, s => s, () => 0, () => {}, () => {});
+        draw(); draws.push([writes, /data-act="next"/.test(html)]);
+        html = html.replace(/ title="Next turn"/, ' data-tip="Next turn"');   // what a hover does to the page's own markup
+        draw(); draw(); draws.push([writes, /data-tip="Next turn"/.test(html)]);
+        net.combats.m1.turn = 1; draw(); draws.push([writes, /title="Next turn"/.test(html)]);
+        const was = net.combats.m1; delete net.combats.m1; draw(); draws.push([writes, html, stripEl.style.display]);
+        net.combats.m1 = was; draw(); draws.push([writes, /data-act="next"/.test(html), stripEl.style.display]);
+    } catch (e) { drawErr = String(e && e.message || e); }
+    check('the turn strip answers its first press while a piece is selected (found live 2026-10-17: Next, Hold, the roster and a name each needed two presses): the click-away deselect, sliced and run for real on a page of plain objects with the selectors it names read as a browser reads them, keeps the selection and draws nothing for a press on the strip or a button in it, as for a press on the map, and still drops it for a press elsewhere; and the strip, drawn by its own code, writes its markup only when it changed, so a redraw with nothing new leaves the button under the pointer in place, even after a hover moved a title into data-tip; a change of turn draws it again, the strip put away is emptied, and a fight back on the map is drawn whole',
+        awaySrc.length > 200 && J(away) === J([['', 'w1', 0], ['', 'w1', 0], ['', 'w1', 0], ['', null, 1], ['', null, 1]])
+        && drawErr === '' && J(draws) === J([[1, true], [1, true], [2, true], [3, '', 'none'], [4, true, 'flex']]),
+        J([away, drawErr, draws]));
+
+    // 3. a new text box's stand-in words are selected when it is entered, so what is typed takes their place: the caret stood before them, and a
+    // box typed into at once kept them ("GateDouble click to edit text")
+    const standSrc = sliceOf(wbSrc, 'textstandin');
+    const standRun = (text, opts) => { opts = opts || {}; const log = [], el = { textContent: text };
+        const doc = { createRange: () => { if (opts.noRange) throw new Error('no range'); return { selectNodeContents: n => log.push(n === el ? 'contents' : 'other') }; } }, win = { getSelection: () => ({ removeAllRanges: () => log.push('clear'), addRange: () => log.push('add') }) };
+        let r = null, err = ''; try { r = new Function(standSrc + '\nreturn textStandInPick;')()(opts.noEl ? null : el, doc, win); } catch (e) { err = String(e && e.message || e); } return [r, log.join(), err]; };
+    const stand = [standRun('Double click to edit text'), standRun('  Double click to edit text\n'), standRun('GateDouble click to edit text'), standRun('Gate'), standRun(''), standRun(null), standRun('Double click to edit text', { noEl: true }), standRun('Double click to edit text', { noRange: true })];
+    const dbl = wbSrc.indexOf("                      el.focus();\r\n") >= 0 ? -1 : wbSrc.indexOf("                      el.focus();\n\n                      textStandInPick(el, document, window);");
+    check('a new text box\'s stand-in words are selected whole when it is entered, so what is typed takes their place (backlog 144 (c), found live 2026-10-17: typed into at once, a box stored "GateDouble click to edit text"): textStandInPick, sliced and run for real, selects the box\'s whole contents when it holds the stand-in words and nothing else, white space aside, and answers false and selects nothing for any other text, for no box and where no range can be made; the box placed with those words is entered by its double-click, which asks it after the focus, and the text tool asks it before it puts the caret at the end',
+        standSrc.length > 100 && J(stand) === J([[true, 'contents,clear,add', ''], [true, 'contents,clear,add', ''], [false, '', ''], [false, '', ''], [false, '', ''], [false, '', ''], [false, '', ''], [false, '', '']])
+        && dbl > 0 && count(wbSrc, "armPlacement('text', {w:200, h:60, color:'transparent', text:TEXT_STANDIN}, 'text box');") === 1 && count(wbSrc, "'Double click to edit text'") === 1
+        && wbSrc.includes("    el.contentEditable = 'true'; el.classList.add('editing'); el.style.cursor = 'text'; el.focus();\n    if (textStandInPick(el, document, window)) return true;   // the stand-in words, selected whole\n    try { var rg = document.createRange(); rg.selectNodeContents(el); rg.collapse(false);")
+        && wbSrc.includes("if (el && el.classList.contains('text')) { try { el.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); } catch(_) {} }"),
+        J([stand, dbl]));
+
+    // 4. the combat roster's title reads as one: its words and the map's name stand together at the left, the close button alone at the right
+    const h3 = (/<h3 [^>]*>((?:(?!<\/h3>)[\s\S])*?id="combatMapName"[\s\S]*?)<\/h3>/.exec(ix) || [])[1] || '';
+    const kids = []; { let depth = 0, at = 0, txt = ''; const re = /<(\/?)([a-z0-9]+)\b[^>]*>/gi; let m; while ((m = re.exec(h3))) { if (depth === 0) txt += h3.slice(at, m.index); if (!m[1]) { if (depth === 0) kids.push(m[2].toLowerCase()); if (!/^(br|img|input|path)$/i.test(m[2]) && !/\/>$/.test(m[0])) depth++; } else depth--; at = re.lastIndex; } if (depth === 0) txt += h3.slice(at); kids.push('text:' + txt.trim()); }
+    check('the combat roster\'s title reads as one (found live 2026-10-17: "Combat —" stood at the left and the map\'s name in the middle, since the title spreads its parts across its width): its words and the map\'s name are one part of the title, standing together at the left, and the close button the other; nothing of the title stands outside them',
+        J(kids) === J(['span', 'button', 'text:']) && /^<span>Combat &mdash; <span id="combatMapName" style="color:var\(--ink\); font-weight:500;"><\/span><\/span> <button id="combatCloseBtn"/.test(h3) && count(ix, 'id="combatMapName"') === 1,
+        J([kids, h3.slice(0, 160)]));
+
+    // 5. a tool's options stop under the top row: Build's, in a window 700 high, opened with their top under the 41 px row, where Material could not
+    // be seen or pressed. optsFit, sliced and run for real, and wireTool's open and the window's resize asking it
+    const fitSrc = sliceOf(wbSrc, 'optsfit');
+    const fitRun = (hdBottom, bottom, height, o) => { o = o || {}; const menu = o.noRect ? { style: { maxHeight: 'x' } } : { style: { maxHeight: 'x' }, getBoundingClientRect() { const h = this.style.maxHeight ? Math.min(height, parseFloat(this.style.maxHeight)) : height; return { top: bottom - h, bottom, height: h }; } };
+        const doc = { querySelector: q => (q === 'header' && hdBottom !== null ? { getBoundingClientRect: () => ({ bottom: hdBottom }) } : null) };
+        let err = ''; try { new Function(fitSrc + '\nreturn optsFit;')()(menu, o.noDoc ? undefined : doc); } catch (e) { err = String(e && e.message || e); }
+        return [menu.style.maxHeight, o.noRect ? null : menu.getBoundingClientRect().top, err]; };
+    const fits = [fitRun(41, 623, 604), fitRun(41, 623, 300), fitRun(58, 623, 604), fitRun(null, 623, 604), fitRun(41, 150, 140), fitRun(41, 0, 0), fitRun(41, 623, 604, { noRect: true }), fitRun(41, 623, 604, { noDoc: true })];
+    // the wiring: the pen's options opened by its arrow are fitted; a resize fits them again while they are up and leaves them alone when they are down
+    let wired = '', fitLog = [];
+    try {
+        const cls = () => { const s = new Set(); return { add: c => s.add(c), remove: c => s.delete(c), contains: c => s.has(c), toggle: (c, on) => (on ? s.add(c) : s.delete(c)) }; };
+        let hd = 41; const lis = {}, el = id => ({ id, on: {}, style: {}, classList: cls(), addEventListener(t, f) { this.on[t] = f; } });
+        const btn = el('drawModeBtn'), chev = el('drawOptBtn'), menu = Object.assign(el('drawMenu'), { getBoundingClientRect() { return { top: 623 - 604, bottom: 623, height: 604 }; } });
+        const doc = { getElementById: id => ({ drawModeBtn: btn, drawOptBtn: chev, drawMenu: menu })[id] || null, querySelectorAll: () => [], querySelector: q => (q === 'header' ? { getBoundingClientRect: () => ({ bottom: hd }) } : null) };
+        const api = new Function('document', 'window', pressSrc + '\nreturn { wireTool: wireTool };')(doc, { addEventListener: (t, f) => { (lis[t] = lis[t] || []).push(f); } });
+        let hand = false; api.wireTool({ id: 'drawModeBtn', chev: 'drawOptBtn', inHand: () => hand, take: () => { hand = true; }, sync: () => {} });
+        fitLog.push([menu.style.maxHeight === undefined ? '' : menu.style.maxHeight, (lis.resize || []).length]);
+        chev.on.click({ stopPropagation() {} }); fitLog.push([menu.classList.contains('show'), menu.style.maxHeight]);
+        hd = 80; (lis.resize || []).forEach(f => f()); fitLog.push(menu.style.maxHeight);
+        chev.on.click({ stopPropagation() {} }); hd = 41; (lis.resize || []).forEach(f => f()); fitLog.push([menu.classList.contains('show'), menu.style.maxHeight]);
+    } catch (e) { wired = String(e && e.message || e); }
+    check('a tool\'s options stop under the top row and scroll inside (found live 2026-10-17: in a window 700 high Build\'s options opened with their top under the 41 px row, where Material could not be seen or pressed): optsFit, sliced and run for real, caps them 8 px under the top row (or under its bar while it is hidden) whether or not they reach so far now, since a pick can make them taller, never under 160 px; one that is not laid out keeps the style sheet\'s cap, and a page with nothing to measure changes nothing; wireTool, run for real, fits them as its arrow opens them, and a change of the window fits them again while they are up and never while they are down',
+        fitSrc.length > 200 && J(fits) === J([['574px', 49, ''], ['574px', 323, ''], ['557px', 66, ''], ['615px', 19, ''], ['160px', 10, ''], ['', 0, ''], ['x', null, ''], ['615px', 19, '']])
+        && wired === '' && J(fitLog) === J([['', 1], [true, '574px'], '535px', [false, '535px']])
+        && count(wbSrc, "if (menu && p.opts === 'open') { if (o.sync) o.sync(); menu.classList.add('show'); optsFit(menu, document); }") === 1,
+        J([fits, wired, fitLog]));
+
+    // what a user sees of them is said in both copies of the release notes, under 1.5.4's fixes, and the text box's in Help
+    const wn1 = rootRead('WHATSNEW.txt'), wn2 = read('assets/whatsnew.txt');
+    const fixesOf = s => { const a = s.indexOf('\nFixes\n'), z = s.indexOf('\nWAYPOINT 1.5.3'); return a > 0 && z > a && a < s.indexOf('\nWAYPOINT 1.5.3') ? s.slice(a, z) : ''; };
+    const NOTES = ['- A pen tip picked after its tooltip had shown is the tip the pen draws\n', '- With a piece selected on the map, the first press on the turn strip\n', '- A new text box has its words Double click to edit text selected when\n',
+        "- The combat roster's title reads as one. Combat and the map's name stand\n", "- A tool's options stop under the top row and scroll inside. In a short\n", '- The eraser cuts a turned pen line where the line is drawn. It cut the\n', "- In the Tutorial, a drag across the Inn's common room or the Guard room\n"];
+    const f1 = fixesOf(wn1), f2 = fixesOf(wn2);
+    check('the board\'s small things of 2026-10-17 are said in both copies of the release notes alike, under 1.5.4\'s fixes, and Help says that a new text box\'s words are selected when you start',
+        f1.length > 1000 && f1 === f2 && NOTES.every(n => count(f1, n) === 1)
+        && count(ix, '<li>A new text box holds the words Double click to edit text. They are selected when you start, so what you type takes their place.</li>') === 1,
+        J(NOTES.map(n => count(f1, n))));
 }
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');

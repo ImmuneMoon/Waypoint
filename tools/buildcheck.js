@@ -1820,10 +1820,10 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         tErr || j([tilesT && tilesT.map(tl => tl && tl.slice(0, 3)), pathsT && pathsT.length]));
 
     /* -- the page, the wiring and what is said -- */
-    const rowS = '<div class="menu-item" id="exportMapPicBtn" title="The open map drawn as one picture file, without tokens, hidden pieces or your GM marks"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8.5V5h3.5M17.5 5H21v3.5M21 15.5V19h-3.5M6.5 19H3v-3.5M7.5 8.5h9v7h-9zM12 8.5v7M7.5 12h9"/></svg><span>Save Map as Picture</span></div>';
+    const rowS = '<button type="button" class="menu-item" id="exportMapPicBtn" title="The open map drawn as one picture file, without tokens, hidden pieces or your GM marks"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8.5V5h3.5M17.5 5H21v3.5M21 15.5V19h-3.5M6.5 19H3v-3.5M7.5 8.5h9v7h-9zM12 8.5v7M7.5 12h9"/></svg><span>Save Map as Picture</span></button>';
     const modS = cutM2s(ixS, '<div id="shotModal"', '\n</div>\n\n<div id="genModal"'), idsS = (modS.match(/ id="([A-Za-z]+)"/g) || []).map(s => s.slice(5, -1));
     check('the page and the wiring: the row stands once in Export As, right after Save as Image, with the drawing the owner picked ("C. Corner marks") and its name in a span; the two modules are loaded right after the generator\'s core; the dialog is fixed words in the page, put away, a dialog to a screen reader, its sixteen ids each once in the page and in this order, its chips with the values the code reads, and no script or handler in it; a tick wears the app\'s gold; the dialog\'s code holds no markup sink, saves and sends nothing and draws nothing on the board, is wired once after its slice, and hears every key, Escape let go and a paste first, at the window, through three listeners there and no more; its line says that fog is not drawn, its Area chip speaks of every piece that is not hidden, and its Cell size chips say in the page what the code says for a square grid; and buildcore publishes the two inks every tile is drawn with, the very ones in its tiles',
-        ixS.split(rowS).length === 2 && ixS.indexOf(rowS) > ixS.indexOf(' id="exportImgBtn"') && ixS.indexOf(rowS) < ixS.indexOf(' id="exportPdfBtn"') && ixS.includes('<span>Save as Image</span></div>\n                  ' + rowS + '\n')
+        ixS.split(rowS).length === 2 && ixS.indexOf(rowS) > ixS.indexOf(' id="exportImgBtn"') && ixS.indexOf(rowS) < ixS.indexOf(' id="exportPdfBtn"') && ixS.includes('<span>Save as Image</span></button>\n                  ' + rowS + '\n')
         && ixS.includes('<script type="module" src="scripts/gencore.js"></script>\n<script type="module" src="scripts/shotcore.js"></script>\n<script type="module" src="scripts/mapshot.js"></script>\n')
         && j(idsS) === j(['shotModal', 'shotTitle', 'shotAreaName', 'shotArea', 'shotCellName', 'shotCell', 'shotSize', 'shotShowName', 'shotGridTick', 'shotGrid', 'shotLabels', 'shotBgName', 'shotBg', 'shotNote', 'shotCancel', 'shotGo']) && idsS.every(id => ixS.split(' id="' + id + '"').length === 2)
         && j((modS.match(/ data-(area|cell|bg)="[^"]*"/g) || []).map(s => s.trim())) === j(['data-area="map"', 'data-area="view"', 'data-cell="50"', 'data-cell="70"', 'data-cell="100"', 'data-cell="140"', 'data-bg="dark"', 'data-bg="none"'])
@@ -2935,6 +2935,44 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         && M5_ODDBOX.length === 4 && m5OddErase.every(Boolean)
         && m5Mine[0] === 4 && m5Mine[1] && m5Mine[2] && m4Arr(m5Mine[3], [[100, 240, 8, 24], [260, 400, 8, 24]]) && j(m5Mine[4]) === j(['save', 'render']) && m5Mine[5] === 'p1,p1',
         j([m5EraseRun.map((r, i) => r.ok ? -1 : i).filter(i => i >= 0).slice(0, 12), m5EraseRun.filter(r => r.hit).length, m5EraseRun.filter(r => r.hit && !r.resized).length, m5EraseRun.filter(r => r.hit && r.n > 0).length, m5EraseRun.filter(r => r.hit && r.n >= 2).length, m5EraseRun.filter(r => r.hit && r.n === 0).length, m5TallCut.ok, m5TallCut.drawn, m5TallSeg.n, m5EllRun.map(r => [r.ok, r.drawn]), m5CutThenErase, m5Found.n, m5Found.base, m5Found.at && [m5Found.at.ok, m5Found.at.n], m5Found.off && [m5Found.off.ok, m5Found.off.hit], m5Mine]));
+
+    // a TURNED line (found 2026-10-17, backlog 23b (5)): the board turns a pen line about its box's centre, and the eraser read its points as they
+    // lay before the turn, so it cut the line where nothing was drawn and passed over it where it was. The eraser now turns its place back into the
+    // line's own frame, cuts there as this suite reads it to (m5Runs), and lays each piece with the line's turn and stretch, its box moved so that
+    // it is drawn where that part of the line was drawn. Four lines turned five ways, resized three ways, with each nib, in both modes and at two
+    // sizes, touched at the middle of a stretch as it is DRAWN (always a hit) and where that middle lay before the turn (a miss wherever that place
+    // is clear of the line as drawn)
+    const m6Turn = (W, p) => { const cx = W.x + W.w / 2, cy = W.y + W.h / 2, a = W.rot * Math.PI / 180, co = Math.cos(a), si = Math.sin(a), dx = p[0] - cx, dy = p[1] - cy; return [cx + dx * co - dy * si, cy + dx * si + dy * co]; };
+    const m6Back = (W, p) => { const cx = W.x + W.w / 2, cy = W.y + W.h / 2, a = W.rot * Math.PI / 180, co = Math.cos(a), si = Math.sin(a), dx = p[0] - cx, dy = p[1] - cy; return [cx + dx * co + dy * si, cy - dx * si + dy * co]; };
+    const m6Near = (a, b) => a.length === b.length && a.every((p, i) => Math.abs(p[0] - b[i][0]) <= 1e-6 && Math.abs(p[1] - b[i][1]) <= 1e-6);
+    const m6EraseOf = (W, at, mode, size) => { const other = { id: 'x', type: 'rect', x: 0, y: 0, w: 50, h: 50 }, list = [other, W], was = j(W), r = m5Eraser(mode, size)(list, at[0], at[1]), flat = Object.assign({}, W), ws = F.pathSegs(W);
+        delete flat.rot; const back = m6Back(W, at), m = m5Runs(flat, back[0], back[1], mode, size), pieces = r.out.filter(p => p !== other);
+        if (!m.hit) return { ok: r.out === list && r.said.length === 0 && j(W) === was, hit: false, n: 1 };
+        const ok = r.out !== list && r.out[0] === other && j(r.said) === j(['save', 'render']) && j(W) === was && pieces.length === m.runs.length
+            && pieces.every((p, i) => /^wbe\d+$/.test(p.id) && p.rot === W.rot && p.strokeWidth === W.strokeWidth && p.tip === W.tip && j(Object.keys(p)) === j(Object.keys(W).filter(k => k !== 'groupId'))
+                && m2Close(F.lineScale(p)[0], F.lineScale(W)[0]) && m2Close(F.lineScale(p)[1], F.lineScale(W)[1])   // the line's own stretch
+                && m6Near(m2Pts(p), m.runs[i].map(q => m6Turn(W, q)))   // drawn point for point where this suite's reading of the cut, turned as the line is, puts it
+                && F.pathSegs(p).every(s => m4Off([s[0], s[1]], ws) <= 1e-6 && m4Off([s[2], s[3]], ws) <= 1e-6)   // the fog reads the piece on the line as drawn
+                && F.pathSegs(p).every(s => (mode === 'segment' ? true : m5Far(at, s) >= m.r - 1e-6)));   // nothing left inside the eraser's circle where it was pressed
+        return { ok, hit: true, n: pieces.length };
+    };
+    const M6_LINES = [[[[100, 100], [400, 100], [400, 300]], 1], [[[100, 100], [400, 250]], 0], [m4Zig(6).map(p => [p[0] + 100, p[1] + 60]), 2], [m5Hand, 17]];
+    const M6_ROT = [30, 90, 135, -60, 400], M6_SIZE = [[1, 1], [2, 1], [1, 3]], M6_MODES = [['precise', 6], ['segment', 6], ['precise', 14]];
+    const m6Run = [].concat(...M6_LINES.map(([pts, k]) => [].concat(...M6_ROT.map(rot => [].concat(...M6_SIZE.map(([kx, ky]) => [].concat(...M5_PEN.map(([tip, sw]) => [].concat(...M6_MODES.map(([mode, size]) => {
+        const W = m2Stretch(m2Line(pts, b5Wall, { tip, strokeWidth: sw, groupId: 'g1' }), kx, ky, rot), flat = Object.assign({}, W); delete flat.rot;
+        const drawnAt = m5Mid(W, k), was = m5Mid(flat, k), reach = size + m4Wide(W) / 2, clear = m4Off(was, F.pathSegs(W)) > reach + 1;
+        return { at: m6EraseOf(W, drawnAt, mode, size), before: clear ? m6EraseOf(W, was, mode, size) : null };
+    }))))))))));
+    // by hand: a level line 8 px wide from (100,100) to (400,100), in the pen's box from (100,100) to (400,110), turned a quarter about that
+    // box's centre (250,105), is drawn upright from (255,-45) to (255,255). The eraser, 6 px, at (255,5) takes what lies within 10 px of it: two
+    // pieces, drawn from (255,-45) to (255,-5) and from (255,15) to (255,255), each still turned 90 degrees. At (150,100), where the line lay
+    // before its turn, it touches nothing
+    const m6Q = () => m2Line([[100, 100], [400, 100]], b5Wall, { strokeWidth: 8, rot: 90 }), m6QHit = m5Eraser('precise', 6)([m6Q()], 255, 5), m6QMiss = m5Eraser('precise', 6)([m6Q()], 150, 100);
+    check('the eraser cuts a TURNED pen line where it is drawn, and never where it lay before its turn (found 2026-10-17; whiteboard.js eraseWorldPoint, sliced with the helper it asks and run for real on a map of plain objects; fogcore pathSegs and lineScale): its place is turned back into the line\'s own frame, the line cut there as this suite reads the eraser to cut, and each piece laid with the line\'s turn, its stretch and its keys, its box moved so that it is drawn point for point where that part of the line was drawn. Over four lines turned 30, 90, 135, -60 and 400 degrees, resized three ways, with each nib, in both modes and at two sizes of eraser: every touch where the line is drawn is a hit, and nothing of it is left inside the eraser\'s circle; every touch where the line lay before its turn, clear of it as drawn, is a miss that changes nothing and says nothing. By hand: a level line turned upright, cut at (250,0), leaves (250,-50) to (250,-10) and (250,10) to (250,250); at (150,100) nothing',
+        m6Run.length === 540 && m6Run.every(r => r.at.ok && r.at.hit) && m6Run.filter(r => r.before).length === 243 && m6Run.filter(r => r.before).every(r => r.before.ok && !r.before.hit) && m6Run.some(r => r.at.n >= 2)
+        && m6QHit.out.length === 2 && m6QHit.out.every(p => p.rot === 90 && p.strokeWidth === 8) && m4Arr(m6QHit.out.map(p => [].concat(...m2Pts(p))), [[255, -45, 255, -5], [255, 15, 255, 255]]) && j(m6QHit.said) === j(['save', 'render'])
+        && m6QMiss.out.length === 1 && m6QMiss.said.length === 0 && m6QMiss.out[0].rot === 90,
+        j([m6Run.length, m6Run.map((r, i) => r.at.ok && r.at.hit ? -1 : i).filter(i => i >= 0).slice(0, 12), m6Run.filter(r => r.before).length, m6Run.map((r, i) => !r.before || (r.before.ok && !r.before.hit) ? -1 : i).filter(i => i >= 0).slice(0, 12), m6QHit.out.map(m2Pts), m6QMiss.out.length]));
 
     // Merge Drawings: the menu's own branch, sliced by its own text and run on a map of plain objects. Its one statement that speaks, a notice loaded from another module, is swapped for a note of the suite's own
     const m5MergeHead = "} else if (action.includes('cm-merge')) {", m5MergeTail = "} else if (action.includes('cm-vis')) {", m5MergeSays = "import('./io.js').then(m=>m.toast('Drawings merged.'));";

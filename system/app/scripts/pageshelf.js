@@ -276,10 +276,22 @@ function noteActive() {
 }
 
 // [shelfcheck:wire-start]
+// 1.5.4: the shelf stands centred on its button, and in a narrow window it ran past the window's edge (found live: 46 px past it at 1000 px,
+// the rows' pins cut off). Shown, it is moved back inside, 8 px clear of either edge, and again as the window changes size, once the tool
+// bar has been fitted to the new size (whiteboard.js fitBar, which a resize observer runs before the next task)
+function shelfFit(m) {
+    if (!m || !m.style || typeof m.getBoundingClientRect !== 'function') return;
+    m.style.marginLeft = '';
+    var W = window.innerWidth; if (!(W > 0)) return;
+    var r = m.getBoundingClientRect(), dx = 0;
+    if (r.right > W - 8) dx = W - 8 - r.right;
+    if (r.left + dx < 8) dx = 8 - r.left;
+    if (dx) m.style.marginLeft = (dx < 0 ? Math.floor(dx) : Math.ceil(dx)) + 'px';
+}
 function shelfWire() {
     var btn = document.getElementById('pagesBtn'), menu = shelfMenu();
     if (btn && menu) {
-        btn.addEventListener('click', function() { if (shelfIsOpen()) shelfClose(); else { shelfRender(); menu.classList.add('show'); } });
+        btn.addEventListener('click', function() { if (shelfIsOpen()) shelfClose(); else { shelfRender(); menu.classList.add('show'); shelfFit(menu); } });
         menu.addEventListener('click', function(e) {
             e.stopPropagation();   // a row redrawn under the click must not read as a click outside the menu
             var t = e.target, at = function(sel) { return t && t.closest ? t.closest(sel) : null; }, row = at('.ps-row'), id = row ? row.dataset.id : '';
@@ -292,6 +304,7 @@ function shelfWire() {
         });
         menu.addEventListener('keydown', function(e) { if (e.key === 'Escape') { e.stopPropagation(); shelfClose(); if (btn.focus) btn.focus(); } });
         document.addEventListener('click', function(e) { var t = e.target; if (shelfIsOpen() && !(t && t.closest && (t.closest('#pagesMenu') || t.closest('#pagesBtn')))) shelfClose(); });
+        if (typeof window.addEventListener === 'function') window.addEventListener('resize', function() { setTimeout(function() { if (shelfIsOpen()) shelfFit(menu); }, 0); });
     }
     var treeRow = document.getElementById('ctxPinPage');
     if (treeRow) treeRow.addEventListener('click', function() { var cm = document.getElementById('sidebarContextMenu'), id = cm ? cm.dataset.id : ''; if (cm) cm.style.display = 'none'; if (id) pinPage(id); });

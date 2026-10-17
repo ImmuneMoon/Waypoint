@@ -129,6 +129,7 @@ if (spec) {
         if (!landed && itemId === pp.item) { landed = true; popLandNow(pp, window.wpPageNav, body, it, finder, findBox, false); landPend = { gen: gen, hand: popHand ? popHand.mark() : null }; }   // 1.5.4: once, at the first drawing that holds the page
         if (window.mermaid) { var nodes = Array.prototype.slice.call(body.querySelectorAll('pre.mermaid')); if (nodes.length) { try { Promise.resolve(window.mermaid.run({ nodes: nodes })).then(function() { if (window.wpFcPostProcess) window.wpFcPostProcess(body, it); }).catch(function() {}).then(function() { charted(gen, it); }).catch(function() {}); } catch (e) {} } }   // 1.5.4 (the review of step 1): a chart the library could not draw stops neither the Find nor the landing (it rejects the whole run for one)
     }
+    // [systemcheck:popsheet-start]
     function tickSheet(data) {
         var slash = arg.indexOf('/'), campId = slash >= 0 ? arg.slice(0, slash) : '', charId = slash >= 0 ? arg.slice(slash + 1) : arg;
         var camp = (campId && data.campaigns[campId]) || (data.activeCampaignId && data.campaigns[data.activeCampaignId]) || data.campaigns[Object.keys(data.campaigns)[0]];
@@ -138,7 +139,7 @@ if (spec) {
         var WS = window.wpSheets; if (!WS || !WS.renderSheetInto) return;
         var c = WS.charById ? WS.charById(charId, camp) : null;
         if (!c) { if (lastSig !== ' NOSHEET') { lastSig = ' NOSHEET'; body.className = ''; msg('That character is no longer here.'); document.title = 'Waypoint — (removed)'; } return; }
-        var sig = JSON.stringify(c) + ' ' + JSON.stringify(camp.system || null);
+        var sig = JSON.stringify(c) + ' ' + JSON.stringify(camp.system || null) + '\n' + (WS.dialSig ? WS.dialSig(charId, camp) : '');   // 1.5.4: and what the sheet reads of its token (its facing, posture and elevation), so a turn, a posture or a height redraws it
         if (sig === lastSig) return; lastSig = sig;
         body.className = 'sheet-view';
         var keep = body.scrollTop;
@@ -147,6 +148,7 @@ if (spec) {
         var title = (sr && sr.title) || (c.name || 'Character');
         document.title = 'Waypoint — ' + title; if (titleEl) titleEl.textContent = title;
     }
+    // [systemcheck:popsheet-end]
 
     async function tick() {
         var data; try { data = await (await fetch('/api/data', { cache: 'no-store' })).json(); } catch (e) { return; }

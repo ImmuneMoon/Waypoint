@@ -5090,6 +5090,58 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             outS.every(s => s === '-|id|aria-pressed|' + TXT) && okS === 'b_Good-1|at,id|aria-pressed|' + TXT, J([outS, okS]));
     }
 
+    {
+        // Properties keeps the focus where the Tab key sends it (a found fault of 1.5.4: a field that says its change as the focus leaves it had the
+        // panel rebuilt under the browser's Tab, the focus fell onto the page, and the next Backspace deleted the piece). inspector.js renderInspector,
+        // sliced by its inspfocus markers and run for real on a panel of plain objects that is drawn anew each time it is rebuilt
+        const J = JSON.stringify, inspSrc = slice('inspector.js', 'inspfocus');
+        const LAYOUT = [['INPUT', 'wbName', ''], ['INPUT', 'wbVisible', ''], ['BUTTON', '', 'tool ghost ts-align', 'left'], ['BUTTON', '', 'tool ghost ts-align', 'center'], ['INPUT', 'wbHeight', ''], ['BUTTON', 'wbDup', 'tool']];
+        const mkP = () => {
+            const P = { gen: 0, els: [], timers: [], rebuilt: 0, focused: [] }, doc = { activeElement: null }, win = { event: undefined };
+            const draw = () => { P.gen++; P.els = LAYOUT.map(l => { const e = { tagName: l[0], id: l[1], className: l[2], dataset: l[3] ? { align: l[3] } : {}, gen: P.gen, nodeType: 1, selectionStart: l[0] === 'INPUT' ? 3 : undefined, selectionEnd: l[0] === 'INPUT' ? 5 : undefined,
+                focus() { doc.activeElement = e; P.focused.push(P.gen + ':' + (e.id || e.dataset.align)); }, setSelectionRange(a, b) { e.sel = [a, b]; } }; return e; }); };
+            const panel = { scrollTop: 40, contains: e => !!e && P.els.indexOf(e) >= 0, querySelector: q => (q.charAt(0) === '#' ? P.els.filter(e => '#' + e.id === q)[0] || null : null), querySelectorAll: t => P.els.filter(e => e.tagName.toLowerCase() === t) };
+            draw();
+            P.ri = new Function('inspector', 'document', 'window', 'setTimeout', 'renderInspectorInner', '"use strict";\n' + inspSrc + '\nreturn renderInspector;')(panel, doc, win, f => { P.timers.push(f); }, () => { P.rebuilt++; draw(); });
+            P.doc = doc; P.win = win; P.panel = panel; P.el = id => P.els.filter(e => (e.id || e.dataset.align) === id)[0];
+            P.tick = () => { const t = P.timers.splice(0); P.win.event = undefined; t.forEach(f => f()); };
+            P.at = () => (P.doc.activeElement ? P.doc.activeElement.gen + ':' + (P.doc.activeElement.id || P.doc.activeElement.dataset.align || P.doc.activeElement.tagName) : 'none');
+            return P;
+        };
+        const BODY = { tagName: 'BODY', id: '', className: '', dataset: {}, nodeType: 1, gen: 0 }, out = {};
+        try {
+            // Tab out of a changed Name: the change is said with the focus already off the field. Nothing is rebuilt until the focus lands (render may ask
+            // twice in that one change), then once: the focus is on the new copy of the control the Tab landed on
+            let P = mkP(), old = P.el('wbName'); P.doc.activeElement = BODY; P.win.event = { type: 'change', target: old };
+            P.ri(); P.ri(); out.tab = [P.rebuilt, P.timers.length]; P.doc.activeElement = P.el('wbVisible'); P.tick(); out.tab.push(P.rebuilt, P.at(), P.timers.length, P.panel.scrollTop);
+            // Shift+Tab, or a Tab that lands on a button with no id: the same one of its kind in the new panel, never the page
+            P = mkP(); P.doc.activeElement = BODY; P.win.event = { type: 'change', target: P.el('wbHeight') }; P.ri(); P.doc.activeElement = P.el('center'); P.tick(); out.btn = [P.rebuilt, P.at(), J(P.doc.activeElement.dataset)];
+            // the field's own blur (the categories' name asks so)
+            P = mkP(); P.doc.activeElement = BODY; P.win.event = { type: 'blur', target: P.el('wbName') }; P.ri(); out.blur = [P.rebuilt, P.timers.length]; P.doc.activeElement = P.el('wbDup'); P.tick(); out.blur.push(P.rebuilt, P.at());
+            // a press on the map: the focus lands on no control of the panel, and nothing is put back
+            P = mkP(); P.doc.activeElement = BODY; P.win.event = { type: 'change', target: P.el('wbName') }; P.ri(); P.doc.activeElement = BODY; P.tick(); out.map = [P.rebuilt, P.at(), J(P.focused)];
+            // Enter in a field, a list stepped, a tick: the focus stays on the field, so the panel is rebuilt at once and the field and its caret come back, as before
+            P = mkP(); old = P.el('wbHeight'); P.doc.activeElement = old; P.win.event = { type: 'change', target: old }; P.ri(); out.enter = [P.rebuilt, P.timers.length, P.at(), J(P.doc.activeElement.sel)];
+            // a change outside the panel, a redraw that is no change, a window's own blur, and a button in the panel with no change under way: as before
+            P = mkP(); P.doc.activeElement = BODY; P.win.event = { type: 'change', target: { nodeType: 1 } }; P.ri(); out.outside = [P.rebuilt, P.timers.length];
+            P = mkP(); P.doc.activeElement = P.el('wbName'); P.ri(); out.redraw = [P.rebuilt, P.timers.length, P.at()];
+            P = mkP(); P.doc.activeElement = BODY; P.win.event = { type: 'blur', target: { addEventListener() {} } }; P.ri(); out.winBlur = [P.rebuilt, P.timers.length];
+            P = mkP(); P.doc.activeElement = P.el('wbDup'); P.ri(); out.plainBtn = [P.rebuilt, P.at()];
+        } catch (e) { out.threw = String(e && e.stack || e); }
+        check('Properties keeps the focus where the Tab key sends it (inspector.js renderInspector, sliced and run for real on a panel drawn anew at each rebuild): a field that says its change as the focus leaves it, by Tab, Shift+Tab or its own blur, has the panel rebuilt once, after the focus has landed, and the focus is then on the new copy of the control it landed on, by its id or, for a button with none, as the same one of its kind, never on the page where the next Backspace deletes the piece; a press elsewhere puts nothing back; Enter, a list stepped or a tick, which keep the focus, rebuild at once with the field and its caret back as before; a change outside the panel, a redraw that is no change and the window\'s own blur rebuild at once as before',
+            !!inspSrc && !out.threw && J(out.tab) === J([0, 1, 1, '2:wbVisible', 0, 40]) && J(out.btn) === J([1, '2:center', J({ align: 'center' })]) && J(out.blur) === J([0, 1, 1, '2:wbDup'])
+            && J(out.map) === J([1, '0:BODY', '[]'])
+            && J(out.enter) === J([1, 0, '2:wbHeight', J([3, 5])]) && J(out.outside) === J([1, 0]) && J(out.redraw) === J([1, 0, '2:wbName']) && J(out.winBlur) === J([1, 0]) && J(out.plainBtn) === J([1, '1:wbDup']), J(out));
+        // the Elements list picks the piece it names (a found fault of 1.5.4: a click there set the one piece Properties is drawn for and left the
+        // selection the board, Properties and Delete read on the piece picked before it). The click's own lines, sliced by their elpick markers
+        const elSrc = slice('inspector.js', 'elpick'), inspAll = read('inspector.js'), atEl = inspAll.indexOf('// [sinkcheck:elpick-start]');
+        const pickE = (mode, before) => { const st = Object.assign({ viewMode: mode }, before); new Function('state', 'id', elSrc)(st, 'tharic'); return st; };
+        const pv = pickE('visual', { selWbId: 'bren', selWbIds: ['bren', 'orc'] }), pd = pickE('data', { selId: 'r1', selWbId: 'bren', selWbIds: ['bren'] });
+        check('the Elements list picks the piece it names (inspector.js, the row\'s click sliced and run for real): on the play map the piece clicked becomes the whole selection, so Properties and Delete read it and never the piece picked before; on the data map the room clicked is picked as before; the lines stand in the name\'s own click handler',
+            J(pv) === J({ viewMode: 'visual', selWbId: 'tharic', selWbIds: ['tharic'] }) && J(pd) === J({ viewMode: 'data', selId: 'tharic', selWbId: 'bren', selWbIds: ['bren'] })
+            && atEl > inspAll.lastIndexOf("listEl.querySelectorAll('.el-name').forEach(function(el) {", atEl) && inspAll.lastIndexOf("if(!target) return;", atEl) > inspAll.lastIndexOf("el.addEventListener('click', function() {", atEl), J([pv, pd]));
+    }
+
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

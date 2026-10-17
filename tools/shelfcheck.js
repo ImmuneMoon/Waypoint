@@ -374,6 +374,30 @@ const drawSrc = sliceOf(ps, 'draw');
         J([pressAt('p_bar', 'open'), pressAt('p_free', 'open'), pressAt('p_bar', 'pin')]));
 }
 
+/* ---------- the shelf keeps inside the window (1.5.4, backlog 144 (b); found live: 46 px past its right edge in a window 1000 px wide) ---------- */
+{
+    const wireSrc = sliceOf(ps, 'wire');
+    // the shelf as a box laid out round its button: centred on it by the style sheet, then moved by its own left margin
+    const mkMenu = (left, width) => ({ style: { marginLeft: '' }, getBoundingClientRect() { const l = left + (parseFloat(this.style.marginLeft) || 0); return { left: l, right: l + width, top: 300, bottom: 700, width: width, height: 400 }; } });
+    const fitWith = (W, left, width) => { const m = mkMenu(left, width); new Function('window', wireSrc + '\nreturn shelfFit;')({ innerWidth: W })(m); return [m.style.marginLeft, Math.round(m.getBoundingClientRect().left), Math.round(m.getBoundingClientRect().right)]; };
+    const fits = [fitWith(1000, 716, 330), fitWith(1000, -40, 330), fitWith(1000, 300, 330), fitWith(1000, 662, 330), fitWith(300, 100, 330), fitWith(0, 716, 330)];
+    check('the shelf is moved back inside the window, 8 px clear of each edge: one that runs past the right edge (716 to 1046 in 1000 px, as found live) by its left margin to end 8 px inside it, one past the left edge to begin 8 px inside it, one inside it left where it is, one ending exactly 8 px inside left too; a window narrower than the shelf keeps its left edge in sight; a window whose width cannot be read moves nothing',
+        J(fits) === J([['-54px', 662, 992], ['48px', 8, 338], ['', 300, 630], ['', 662, 992], ['-92px', 8, 338], ['', 716, 1046]]), J(fits));
+    // the button's press, run for real through shelfWire on a page of plain objects, and the window's change of size
+    const dom = makeDom(), doc = dom.document, btn = dom.mk('button', 'wb-tool-btn', null, 'pagesBtn'), menu = dom.mk('div', 'shape-menu page-shelf', null, 'pagesMenu'), ls = {};
+    doc.body.appendChild(btn); doc.body.appendChild(menu); menu.getBoundingClientRect = mkMenu(716, 330).getBoundingClientRect; const win = { innerWidth: 1000, addEventListener: (t, f) => { ls[t] = f; } };
+    const open = () => menu.classList.contains('show');
+    const later = [];   // the window's change of size fits the shelf in a task of its own, after the tool bar is fitted: run here when the test says
+    new Function('document', 'window', 'setTimeout', 'shelfMenu', 'shelfIsOpen', 'shelfClose', 'shelfRender', 'pinPage', 'openPage', 'pageWay', 'viewNow', wireSrc + '\nshelfWire();')(doc, win, f => { later.push(f); }, () => menu, open, () => { menu.classList.remove('show'); }, () => {}, () => {}, () => {}, () => 'panel', () => 'play');
+    const tasks = () => { const n = later.length; later.splice(0).forEach(f => f()); return n; };
+    dom.fire(btn, 'click'); const a1 = [open(), menu.style.marginLeft];
+    win.innerWidth = 1400; ls.resize(); const a1b = menu.style.marginLeft, t1 = tasks(), a2 = menu.style.marginLeft; win.innerWidth = 900; ls.resize(); const t2 = tasks(), a3 = menu.style.marginLeft;
+    dom.fire(btn, 'click'); win.innerWidth = 1000; ls.resize(); tasks(); const a4 = [open(), menu.style.marginLeft];
+    const fitHalf = (() => { const m = mkMenu(716.5, 330); new Function('window', wireSrc + '\nreturn shelfFit;')({ innerWidth: 1000 })(m); return m.getBoundingClientRect().right; })();
+    check('the Pages button fits the shelf it shows into the window (run for real), and a change of the window\'s size fits an open shelf again, in a task of its own so that the tool bar is fitted first: back where the style sheet puts it once it fits, moved further in a narrower window, and a shelf that is put away is left alone; a shelf half a pixel over is moved a whole pixel, never left over the edge',
+        J(a1) === J([true, '-54px']) && a1b === '-54px' && t1 === 1 && t2 === 1 && a2 === '' && a3 === '-154px' && J(a4) === J([false, '-154px']) && typeof ls.resize === 'function' && fitHalf <= 992, J([a1, a1b, t1, a2, a3, a4, fitHalf]));
+}
+
 /* ---------- never on the wire, swept with the recent maps ---------- */
 {
     const netS = read('scripts/net.js'), cu = read('scripts/cleanup.js'), sb = read('scripts/sidebar.js'), dp = fs.readFileSync(path.join(app, 'scripts', 'docpanel.js'), 'utf8');
@@ -723,6 +747,24 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
         /id="docPanelClose" title="Close the panel and every tab in it \(Esc\)">&times;<\/button><\/div>\n    <div id="docPanelTabs" class="docpanel-tabs" role="toolbar" aria-label="Pages open in this panel" style="display:none;"><\/div>\n    <div id="docPanelSearchRow">/.test(ix)
         && /\n\s*\.docpanel-tab-x::before \{ content: "\\00d7"; \}/.test(css) && /\n\s*\.docpanel-tab\.on \{ background: var\(--panel2\); border-color: var\(--gold\); opacity: 1; \}/.test(css) && /\n\s*\.docpanel-tabs \{ display: flex; [^\n]*overflow-x: auto;/.test(css)
         && !/[^\x00-\x7f]/.test(tabsSrc + tabdoSrc) && !dpS.includes('\r') && count(dpS, '\0') === 3);
+}
+
+/* ---------- the page panel's place (docpanel.js, 1.5.4; found live: after a restart it opened in the window's top left corner at its smallest) ---------- */
+{
+    const placeSrc = dpSlice('place'), spLine = (() => { const i = dpS.indexOf('    function savePos() {'); return i < 0 ? '' : dpS.slice(i, dpS.indexOf('\n', i)); })();
+    const PR = new Function(placeSrc + '\nreturn placeRec;')();
+    const recs = [PR({ left: 10.4, top: 20.6, width: 440.2, height: 300 }), PR({ left: 0, top: 0, width: 0, height: 0 }), PR({ left: 5, top: 5, width: 300, height: 0 }), PR({ left: 5, top: 5, width: 0, height: 200 }), PR(null)];
+    check('a place is kept only from a panel that has a size: one measured while floats.js has the panel put away (a size of 0) is no place, and one with a size is its corner and size in whole pixels',
+        J(recs) === J([{ x: 10, y: 21, w: 440, h: 300 }, null, null, null, null]), J(recs));
+    // savePos, run for real: the observer of the panel's size calls it whenever the panel's inline display is not none, which a panel put away by a class still is
+    const save = rect => { const store = {}; new Function('p', 'localStorage', placeSrc + '\n' + spLine + '\nreturn savePos;')({ getBoundingClientRect: () => rect }, { setItem: (k, v) => { store[k] = v; } })(); return store.wp_docPanel || null; };
+    const saved = [save({ left: 0, top: 0, width: 0, height: 0 }), save({ left: 120, top: 80, width: 440, height: 500 })];
+    // place, run for real against what the computer kept
+    const put = kept => { const p = { style: {} }, win = { innerWidth: 1366, innerHeight: 850 }; new Function('ui', 'localStorage', 'window', placeSrc + '\nplace();')(id => id === 'docPanel' ? p : null, { getItem: k => k === 'wp_docPanel' ? kept : null }, win); return p.style; };
+    const placed = [put(J({ x: 0, y: 0, w: 0, h: 0 })), put(J({ x: 300, y: 140, w: 0, h: 0 })), put(J({ x: 300, y: 140, w: 500, h: 0 })), put(J({ x: 300, y: 140, w: 500, h: 420 })), put(J({ x: 300, y: 140 })), put(null), put('7'), put('"x"'), put('{bad')];
+    check('the panel opens where it was left, and never at a place measured while it was put away: a record with a size of 0 (the zeros already saved on a computer too) is passed over whole and the panel opens where it opens by default; a record with a size puts it there at that size; an older record with no size puts it there; nothing kept, a number, a text and a record that does not read are passed over; the size observer\'s save keeps no place of a panel that has no size',
+        J(placed) === J([{}, {}, {}, { left: '300px', top: '140px', right: 'auto', width: '500px', height: '420px' }, { left: '300px', top: '140px', right: 'auto' }, {}, {}, {}, {}])
+        && saved[0] === null && J(JSON.parse(saved[1])) === J({ x: 120, y: 80, w: 440, h: 500 }) && count(dpS, 'savePos();') === 2 && count(dpS, "localStorage.setItem('wp_docPanel'") === 1, J([placed, saved]));
 }
 
 /* ---------- the page-text search reads a planner's nodes ---------- */

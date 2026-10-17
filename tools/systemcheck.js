@@ -2965,21 +2965,77 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && /!HUD_CID\.test\(String\(charId\)\)\) return null;\n    var p = tpl\.content\.firstElementChild\.cloneNode\(true\); p\.dataset\.cid = charId;/.test(hudSlice)
             && /var v = huds\[charId\];\n    if \(!v\) \{/.test(hudSlice) && (hudSlice.match(/setPref\('wp_hudPanel'/g) || []).length === 2 && !/wp_sheetPanel/.test(hudSlice)
             && /var sys = hudView\(full\)/.test(hudSlice) && /\{ campId: camp\.id, view: 'hud', preview: false, targets: pinTargetsAll\(full\.sheet\) \}/.test(hudSlice) && /v\.name\.textContent = c\.name; v\.sub\.textContent = /.test(hudSlice));
-        // raisePanel / resetZ / floatPanels, run for real
+        // raisePanel / floatPanels / raiseWire / focusPanel / hudFocus, run for real
         const zSrc = sh2.slice(sh2.indexOf('var _zTop = 9000;'), sh2.indexOf('// Where a handbook page opens beside'));
         const mkP = n => ({ n, style: { zIndex: '' } }), sp = mkP('sheet'), dp = mkP('doc'), h1 = mkP('hud1'), h2 = mkP('hud2'), hudsZ = Object.create(null);
-        const Z = new Function('ui', 'huds', zSrc + '\nreturn { raisePanel: raisePanel, resetZ: resetZ, floatPanels: floatPanels, top: function() { return _zTop; } };')(id => id === 'sheetPanel' ? sp : id === 'docPanel' ? dp : null, hudsZ);
-        Z.raisePanel(sp); const noHud = sp.style.zIndex === '' && Z.top() === 9000;
+        const boxP = { soundPanel: mkP('sound'), musicPanel: mkP('music'), videoPanel: mkP('video'), fxPanel: mkP('fx'), notepadPanel: mkP('notepad') };
+        const Z = new Function('ui', 'huds', zSrc + '\nreturn { raisePanel: raisePanel, floatPanels: floatPanels, raiseWire: raiseWire, focusPanel: focusPanel, hudFocus: hudFocus, top: function() { return _zTop; } };')(id => id === 'sheetPanel' ? sp : id === 'docPanel' ? dp : boxP[id] || null, hudsZ);
+        // 1.5.4 (found live): with no HUD open a box comes forward too, Effects over the sheet and the page panel that stand later in the page
+        Z.raisePanel(boxP.fxPanel); const noHud = boxP.fxPanel.style.zIndex === '9001' && sp.style.zIndex === '' && dp.style.zIndex === '' && Z.top() === 9001;
+        Z.raisePanel(sp); Z.raisePanel(sp); const zqAgain = sp.style.zIndex === '9002' && Z.top() === 9002;   // the box in front raised zqAgain stays as it is
         hudsZ.c_a = { panel: h1 }; Z.raisePanel(sp); Z.raisePanel(h1); Z.raisePanel(dp);
         const order0 = [sp, h1, dp].sort((a, b) => +a.style.zIndex - +b.style.zIndex).map(p => p.n).join(',');
         let maxZ = 0, topOk = true; const seq = [sp, h1, dp];
         for (let k = 0; k < 1000; k++) { const p = seq[k % 3]; Z.raisePanel(p); maxZ = Math.max(maxZ, +sp.style.zIndex, +dp.style.zIndex, +h1.style.zIndex); if (+p.style.zIndex !== Math.max(+sp.style.zIndex, +dp.style.zIndex, +h1.style.zIndex)) topOk = false; }
+        const all7 = [sp, dp, h1].concat(Object.values(boxP)); let topAll = true, maxAll = 0;
+        for (let k = 0; k < 1500; k++) { const p = all7[(k * 5) % all7.length]; Z.raisePanel(p); const zs = all7.map(x => +x.style.zIndex || 9000); maxAll = Math.max(maxAll, ...zs); if ((+p.style.zIndex || 9000) !== Math.max(...zs) || zs.filter(z => z === +p.style.zIndex).length !== 1) topAll = false; }
         Z.raisePanel(dp); Z.raisePanel(sp); const before = [h1, dp, sp].map(p => +p.style.zIndex); for (let k = 0; k < 500; k++) Z.raisePanel(k % 2 ? h1 : h1 === h1 ? h1 : h1);
         const keptOrder = +dp.style.zIndex < +sp.style.zIndex;   // raising only the HUD, renumbering keeps the others' order (doc under sheet)
         hudsZ.c_b = { panel: h2 }; const fl = Z.floatPanels().map(p => p.n).join(',');
-        Z.resetZ(); const reset = sp.style.zIndex === '' && dp.style.zIndex === '' && Z.top() === 9000;
-        check('HUD frame HF2a: click-to-raise (the owner\'s Q5) — a no-op with no HUD open; with one, the raised panel is on top, 1000 raises never pass 9400, renumbering keeps the others\' order; every HUD is a floating panel; closing the last HUD puts back today\'s stacking',
-            noHud && order0 === 'sheet,hud1,doc' && topOk && maxZ <= 9400 && maxZ > 9000 && keptOrder && fl === 'sheet,doc,hud1,hud2' && reset && before.length === 3, j({ noHud, order0, topOk, maxZ, keptOrder, fl, reset }));
+        // a box comes forward when pressed (a capture listener, so before its own controls) and when its own module shows it, never at a move
+        const mkBox = n => ({ n, style: { zIndex: '', display: 'none' }, ls: [], addEventListener(t, f, c) { this.ls.push([t, f, c]); } }), obs = [];
+        function MO(cb) { this.cb = cb; obs.push(this); } MO.prototype.observe = function(t, o) { this.t = t; this.o = o; };
+        const wb = mkBox('wired'); Z.raiseWire(wb, MO); const mo = obs[0];
+        const press = wb.ls.length === 1 && wb.ls[0][0] === 'pointerdown' && wb.ls[0][2] === true, seen = !!mo && mo.t === wb && j(mo.o) === j({ attributes: true, attributeFilter: ['style'] });
+        Z.raisePanel(sp); wb.style.display = 'flex'; mo.cb([]); const shownUp = +wb.style.zIndex === Z.top();
+        Z.raisePanel(sp); const wz = wb.style.zIndex; wb.style.left = '40px'; mo.cb([]); const movedStill = wb.style.zIndex === wz && sp.style.zIndex === String(Z.top());   // still up: a move is no showing
+        wb.ls[0][1](); const pressedUp = +wb.style.zIndex === Z.top();
+        Z.raisePanel(sp); wb.style.display = 'none'; mo.cb([]); wb.style.display = 'flex'; mo.cb([]); const reshown = +wb.style.zIndex === Z.top();
+        const nob = mkBox('noMO'); Z.raiseWire(nob, undefined); Z.raiseWire(null, MO); Z.raiseWire({ style: {} }, MO); const quiet = nob.ls.length === 1 && obs.length === 1;
+        // the window a button opens takes the focus, the panel itself, once marked to take it and never scrolled to
+        const mkF = has => { const e = { attrs: has ? { tabindex: '0' } : {}, focused: [], ls: [], hasAttribute(k) { return k in this.attrs; }, setAttribute(k, v) { this.attrs[k] = v; }, removeAttribute(k) { delete this.attrs[k]; }, focus(o) { this.focused.push(o); },
+            addEventListener(t, f) { this.ls.push([t, f]); }, removeEventListener(t, f) { this.ls = this.ls.filter(l => !(l[0] === t && l[1] === f)); }, fire(t) { this.ls.filter(l => l[0] === t).forEach(l => l[1]()); } }; return e; };
+        const f1 = mkF(false), f2 = mkF(true); Z.focusPanel(f1); Z.focusPanel(f1); const held = [f1.attrs.tabindex, f1.ls.length]; f1.fire('blur'); const let1 = ['tabindex' in f1.attrs, f1.ls.length];
+        Z.focusPanel(f1); const again1 = [f1.attrs.tabindex, f1.ls.length]; Z.focusPanel(f2); f2.fire('blur'); Z.focusPanel(null); Z.focusPanel({});
+        // marked to take the focus while it holds it, once, and let go of at its blur, so a press on its own ground later focuses nothing; a panel that takes the focus of itself is left as it is
+        const focusOk = j(held) === j(['-1', 1]) && j(let1) === j([false, 0]) && j(again1) === j(['-1', 1]) && j(f1.focused) === j([{ preventScroll: true }, { preventScroll: true }, { preventScroll: true }]) && f2.attrs.tabindex === '0' && f2.ls.length === 0 && f2.focused.length === 1;
+        const fh = mkF(false); hudsZ.c_f = { panel: fh }; Z.hudFocus('c_f'); Z.hudFocus('c_none'); const hudF = fh.focused.length === 1;
+        // the two buttons that open the other window, their handlers run for real: the sheet's HUD button and the HUD's Sheet button
+        const lineOf = s => { const i = sh2.indexOf(s); return i < 0 ? '' : sh2.slice(i, sh2.indexOf('\n', i)); };
+        const hdLine = lineOf("var hdB = ui('sheetHud'); if (hdB) hdB.addEventListener('click', function() {"), hsLine = lineOf("q('hud-sheet').addEventListener('click', function() {");
+        const runHd = sOpen => { const bt = mkBox('btn'), hp = mkF(false), hz = Object.create(null), opened = []; new Function('ui', 'huds', 'sheetOpen', 'openHud', zSrc + '\n' + hdLine)(id => id === 'sheetHud' ? bt : null, hz, sOpen, id => { opened.push(id); hz[id] = { panel: hp }; }); const cl = bt.ls.find(l => l[0] === 'click'); if (cl) cl[1](); return [opened.join(), hp.focused.length, hp.attrs.tabindex || '']; };
+        const runHs = ok => { const bt = mkBox('btn'), spF = mkF(false), opened = []; new Function('ui', 'huds', 'q', 'charId', 'R', zSrc + '\nvar sheetOpen = null; function openSheet(id) { R.push(id); if (R.ok) sheetOpen = id; }\n' + hsLine)(id => id === 'sheetPanel' ? spF : null, Object.create(null), c => c === 'hud-sheet' ? bt : null, 'c_a', Object.assign(opened, { ok })); const cl = bt.ls.find(l => l[0] === 'click'); if (cl) cl[1](); return [opened.join(), spF.focused.length]; };
+        const hdR = [runHd('c_a'), runHd(null)], hsR = [runHs(true), runHs(false)];
+        const fm = /\nvar FLOAT_IDS = (\[[^\]]*\]);/.exec(fs.readFileSync(path.join(app, 'scripts', 'floats.js'), 'utf8').replace(/\r\n/g, '\n')), zb = /\nvar Z_BOXES = (\[[^\]]*\]);/.exec(sh2);
+        const boxesAll = !!fm && !!zb && j(JSON.parse(fm[1].replace(/'/g, '"')).filter(id => id !== 'chatPanel' && id !== 'dicePanel')) === j(JSON.parse(zb[1].replace(/'/g, '"')));
+        check('HUD frame HF2a: click-to-raise (the owner\'s Q5), 1.5.4 for every floating box with or without a HUD (found live: Effects, Sound, Music, Video and the notepad came up under an open sheet or page panel, and a press left them there) — a box raised with no HUD open comes in front; the raised panel is on top, 1000 raises never pass 9400, renumbering keeps the others\' order; the seven boxes at the panels\' level and every HUD are floating panels, the same boxes floats.js names but Table Chat and the dice roller, which stand higher; a box comes forward when pressed (in the capture phase) and when shown, never at a move; closing the last HUD leaves the stacking as it is',
+            noHud && zqAgain && order0 === 'sheet,hud1,doc' && topOk && maxZ <= 9400 && maxZ > 9000 && keptOrder && topAll && maxAll <= 9400 && fl === 'sheet,doc,sound,music,video,fx,notepad,hud1,hud2' && boxesAll && before.length === 3
+            && press && seen && shownUp && movedStill && pressedUp && reshown && quiet && !/resetZ/.test(sh2) && /delete huds\[charId\]; if \(v\.panel && v\.panel\.parentNode\) v\.panel\.parentNode\.removeChild\(v\.panel\); \}\n/.test(sh2)
+            && (sh2.match(/\n    Z_BOXES\.forEach\(function\(id\) \{ raiseWire\(ui\(id\), window\.MutationObserver\); \}\);/g) || []).length === 1 && /\n  #videoPanel\.vid-max \{[^}\n]*z-index: 100001 !important; \}/.test(css2),
+            j({ noHud, zqAgain, order0, topOk, maxZ, keptOrder, topAll, maxAll, fl, boxesAll, press, seen, shownUp, movedStill, pressedUp, reshown, quiet }));
+        check('HUD frame HF2a, 1.5.4 (found live: the HUD opened from the sheet left the focus on the sheet, so Escape closed the sheet behind and left the HUD): the window a button opens takes the focus — the sheet\'s HUD button focuses the HUD it opened and the HUD\'s Sheet button the sheet (their handlers run for real), the panel itself, marked to take it once and only while it holds it (a press on its own ground later focuses nothing, as before) and never scrolled to, a panel that already takes it left as it is; nothing focused where nothing opened; the HUD button on the sheet asks the same; the panels show no ring of their own for it',
+            focusOk && hudF && j(hdR) === j([['c_a', 1, '-1'], ['', 0, '']]) && j(hsR) === j([['c_a', 1], ['c_a', 0]])
+            && /openHud\(c\.id, pl\.tab \? \{ tab: pl\.tab \} : null\); if \(typeof hudFocus === 'function'\) hudFocus\(c\.id\); \}\);/.test(sh2) && /\n  #sheetPanel:focus, \.hud-panel:focus \{ outline: none; \}/.test(css2),
+            j({ focusOk, hudF, hdR, hsR }));
+        // 1.5.4: the GM's sheet in a window of its own follows its token (popout.js tickSheet, sliced by its popsheet markers and run for real
+        // on plain objects): it redraws when the character or the system changes, and when what the sheet reads of its token does
+        const poS = fs.readFileSync(path.join(app, 'scripts', 'popout.js'), 'utf8'), poA = poS.indexOf('// [systemcheck:popsheet-start]'), poZ = poS.indexOf('// [systemcheck:popsheet-end]');
+        const tickSrc = poA > 0 && poZ > poA ? poS.slice(poA, poZ) : '';
+        const runPop = (withSig, steps) => {
+            const R = { renders: 0 }, body = { className: '', scrollTop: 0 }, st = {}, doc = { title: '' };
+            const WS = { renderSheetInto: () => { R.renders++; return { title: 'Bren' }; }, charById: (id, camp) => (camp.chars || []).find(c => c.id === id) || null };
+            if (withSig) WS.dialSig = (id, camp) => { const t = camp.items.m1.whiteboard.find(w => w.charId === id); return t ? [t.facing, t.posture, t.elevation].join('|') : ''; };   // a stand-in for the sheet's own dialSigOf
+            const tick = new Function('body', 'arg', 'msg', 'titleEl', 'state', 'window', 'document', "var lastSig = '';\n" + tickSrc + '\nreturn tickSheet;')(body, 'k1/c_a', () => {}, { textContent: '' }, st, { wpSheets: WS }, doc);
+            const tok = { id: 't1', charId: 'c_a', facing: 0, posture: 'standing', elevation: 0 }, data = { activeCampaignId: 'k1', campaigns: { k1: { id: 'k1', system: { v: 1 }, chars: [{ id: 'c_a', name: 'Bren' }], items: { m1: { type: 'map', whiteboard: [tok] } } } } };
+            return steps.map(f => { f(tok, data); tick(JSON.parse(JSON.stringify(data))); return R.renders; }).concat([doc.title, body.className, st.appState && st.appState.activeCampaignId]);
+        };
+        const popSteps = [() => {}, () => {}, t => { t.facing = 90; }, () => {}, t => { t.posture = 'prone'; }, t => { t.elevation = 2; }, t => { t.x = 400; }, (t, d) => { d.campaigns.k1.chars[0].name = 'Bren Hal'; }];
+        const popR = runPop(true, popSteps), popOld = runPop(false, popSteps);
+        check('a character sheet in a window of its own follows its token (1.5.4, backlog Stage 5h\'s known limit, the GM\'s alone; popout.js tickSheet, sliced and run for real): it draws once, not again while nothing changes, again when the token turns, takes another posture or another height, as the sheet reads them (window.wpSheets.dialSig, the sheet\'s own dialSigOf for that character), not for a move the sheet reads nothing of, and when the character changes; a sheet module with no dialSig redraws for the character alone, as before; the sheet exports it',
+            j(popR) === j([1, 1, 2, 2, 3, 4, 4, 5, 'Waypoint \u2014 Bren', 'sheet-view', 'k1']) && j(popOld) === j([1, 1, 1, 1, 1, 1, 1, 2, 'Waypoint \u2014 Bren', 'sheet-view', 'k1'])
+            && /\nfunction dialSigFor\(charId, camp\) \{ var c = charById\(charId, camp\); return c \? dialSigOf\(c, camp\) : ''; \}/.test(sh2) && /tokenCtxFor: tokenCtxFor, dialSig: dialSigFor, /.test(sh2)
+            && /fc \? fc\.deg \+ '\|' \+ fc\.sides \+ '\|' \+ fc\.threats\.join\(','\) : '', st \? st\.posture \+ '\|' \+ st\.elevation : ''/.test(sh2),
+            j({ popR, popOld, slice: tickSrc.length }));
         // renderViews, run for real
         const rvSrc = sh2.slice(sh2.indexOf('function renderViews(charId, skip) {'), sh2.indexOf('// A token turned (tokenTurned)'));
         const painted = [], sb = { n: 'sheetBody' }, hb1 = { n: 'b1' }, hb2 = { n: 'b2' }, hudsV = Object.create(null); hudsV.c_a = { body: hb1 }; hudsV.c_b = { body: hb2 };
@@ -3005,8 +3061,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && sh2.indexOf('function swapTokenControls(') > sh2.indexOf('function facingNode(') && sh2.indexOf('function swapTokenControls(') < sh2.indexOf('function tokenTurned(')
             && /var body = v \? v\.body : ui\('sheetBody'\)/.test(rf) && /setTimeout\(function\(\) \{ redrawForFacing\(v\); \}, 0\)/.test(rf) && /if \(v\) \{ if \(huds\[v\.charId\] === v\) renderHud\(v\.charId\); \} else renderSheet\(\);/.test(rf) && /if \(v\) v\.redraw = tmr; else _dialRedraw = tmr;/.test(rf));
         check('HUD frame HF2a: the entries and exports — the sheet head\'s HUD button shows only for a HUD they can open; the sheet and the doc panel come forward when clicked or shown; a page opens beside the view in front; window.wpSheets carries openHud/closeHud/closeHuds/hudFor and renderSheet repaints every view; a click inside a HUD keeps the map\'s selection',
-            /var hOn = hudHasContent\(sys\) && canOpen\(c\.id\); hb\.style\.display = hOn \? '' : 'none';/.test(sh2) && /if \(hdB\) hdB\.addEventListener\('click', function\(\) \{ if \(sheetOpen\) openHud\(sheetOpen\); \}\);/.test(sh2)
-            && /p\.addEventListener\('pointerdown', function\(\) \{ raisePanel\(p\); \}, true\);/.test(sh2) && /if \(now && !dpShown\) raisePanel\(dpn\);/.test(sh2) && /placeSheet\(\); raisePanel\(p\); renderSheet\(\);/.test(sh2)
+            /var hOn = hudHasContent\(sys\) && canOpen\(c\.id\); hb\.style\.display = hOn \? '' : 'none';/.test(sh2) && /if \(hdB\) hdB\.addEventListener\('click', function\(\) \{ var id = sheetOpen; if \(!id\) return; openHud\(id\); hudFocus\(id\); \}\);/.test(sh2)
+            && /p\.addEventListener\('pointerdown', function\(\) \{ raisePanel\(p\); \}, true\);/.test(sh2) && /Z_BOXES\.forEach\(function\(id\) \{ raiseWire\(ui\(id\), window\.MutationObserver\); \}\);/.test(sh2) && /placeSheet\(\); raisePanel\(p\); renderSheet\(\);/.test(sh2)
             && /var dp = ui\('docPanel'\), sp = frontView\(\);/.test(sh2) && /\n    raisePanel\(dp\);/.test(sh2)
             && /openHud: openHud, closeHud: closeHud, closeHuds: closeHuds, hudFor: hudFor,/.test(sh2) && /renderSheet: renderViews,/.test(sh2) && !/renderSheet: renderSheet/.test(sh2)
             && /\[id\$="Modal"\], #sheetPanel, \.hud-panel, #soundPanel,/.test(wb2));
@@ -3071,6 +3127,10 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             live.className === 'sheet-field sheet-kind-hud' && lb.disabled === false && j(opened) === j([['c_a', { tab: 't_x' }]]) && lb.kids[1].textContent === 'Open Combat HUD' && /at its Status tab/.test(lb.title)
             && [prev, pop, none].every(b => b.disabled === true && !b.ls.click) && none.kids[1].textContent === 'Mine'
             && /var live = _fxLive && !\(vctx && vctx\.preview\) && !window\.wpPopout,/.test(hbSrc) && /, ok = live && hudFor\(c\.id\);/.test(hbSrc) && !/innerHTML/.test(hbSrc) && /if \(b\.closest\('#systemModal'\)\) return; openHud\(c\.id, pl\.tab \? \{ tab: pl\.tab \} : null\);/.test(hbSrc), j({ opened, t: lb.title }));
+        const hbOrder = [], HBF = new Function('el', 'iconNode', 'hudFor', 'openHud', '_fxLive', 'window', 'hudFocus', hbSrc + '\nreturn hudButton;')(mkEl, v => mkEl('span', 'icon ' + v), id => id === 'c_a', id => hbOrder.push('open ' + id), true, {}, id => hbOrder.push('focus ' + id));
+        const hbf = HBF({ kind: 'hud' }, { id: 'c_a' }, sysH, { view: 'sheet', preview: false }).kids[0]; if (hbf.ls.click) hbf.ls.click({ preventDefault() {} });
+        check('HUD frame HF2b, 1.5.4: the HUD button placed on the sheet hands the focus to the HUD it opened, once it is open (run for real), so Escape closes the HUD and not the sheet',
+            j(hbOrder) === j(['open c_a', 'focus c_a']), j(hbOrder));
         const wb3 = fs.readFileSync(path.join(app, 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, '\n');
         const incs = [...wb3.matchAll(/action\.includes\('([^']+)'\)/g)].map(m => m[1]).filter(x => x !== 'cm-hud'), iHud = wb3.indexOf("} else if (action.includes('cm-hud')) {"), iLayers = wb3.indexOf("var layers = ['back', 'back-mid', 'middle', 'front-mid', 'front'];");
         check('HUD frame HF2b: every entry point asks hudFor — the GM\'s token menu (a static row, its own branch before the layer fallback, the menu closed after), the player\'s own-token menu (its own listener that stops the click), the party strip, token Properties and the Characters row; no other menu action is matched by "cm-hud"',

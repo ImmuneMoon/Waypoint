@@ -3131,13 +3131,15 @@
   .sheet-band.sheet-band-inline .sheet-band-item .sheet-bar, .sheet-band.sheet-band-chips .sheet-band-item .sheet-bar { display: none; }
   .sheet-band.sheet-band-chips .sheet-band-item:not(.sheet-kind-roll) { border: 1px solid var(--edge); border-radius: 9999px; padding: 2px 10px; background: color-mix(in srgb, var(--dim) 12%, transparent); }
   /* L8: arrows inside a number box — a pool's − / + become up and down arrows in a column (the button text stays for screen readers) */
-  .sheet-steppers-inside .sheet-kind-resource .sheet-ctl { display: inline-grid; grid-template-columns: auto auto 18px auto auto; grid-template-rows: 14px 14px; column-gap: 0; }
-  .sheet-steppers-inside .sheet-kind-resource .sheet-pool-icon { grid-column: 1; grid-row: 1 / 3; align-self: center; margin-right: 4px; }
-  .sheet-steppers-inside .sheet-kind-resource .sheet-cur { grid-column: 2; grid-row: 1 / 3; height: 28px; border-radius: 4px 0 0 4px; }
-  .sheet-steppers-inside .sheet-kind-resource [data-part="plus"] { grid-column: 3; grid-row: 1; height: 14px; min-height: 0; padding: 0; font-size: 0; border-radius: 0 4px 0 0; }
-  .sheet-steppers-inside .sheet-kind-resource [data-part="minus"] { grid-column: 3; grid-row: 2; height: 14px; min-height: 0; padding: 0; font-size: 0; border-radius: 0 0 4px 0; border-top: 0; }
-  .sheet-steppers-inside .sheet-kind-resource .sheet-total { grid-column: 4; grid-row: 1 / 3; align-self: center; margin-left: 6px; }
-  .sheet-steppers-inside .sheet-kind-resource .sheet-reset { grid-column: 5; grid-row: 1 / 3; align-self: center; }
+  .sheet-steppers-inside .sheet-kind-resource .sheet-ctl { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px 0; min-width: min-content; }   /* a row from the left, as a pool's plain row is; in a cell too narrow for it the total and the fill button wrap under the box, never into the next column */
+  .sheet-steppers-inside .sheet-kind-resource .sheet-pool-icon { order: 1; margin-right: 4px; }
+  .sheet-steppers-inside .sheet-kind-resource .sheet-cur { order: 2; height: 28px; margin-right: 18px; border-radius: 4px 0 0 4px; }   /* the arrows stand in its right margin, so the box and its arrows never part on a wrap */
+  .sheet-steppers-inside .sheet-kind-resource [data-part="plus"] { order: 3; flex: none; align-self: flex-start; width: 18px; margin-left: -18px; height: 14px; min-height: 0; padding: 0; font-size: 0; border-radius: 0 4px 0 0; }
+  .sheet-steppers-inside .sheet-kind-resource [data-part="minus"] { order: 4; flex: none; align-self: flex-end; width: 18px; margin-left: -18px; height: 14px; min-height: 0; padding: 0; font-size: 0; border-radius: 0 0 4px 0; border-top: 0; }   /* under + : together the box's own height, joined to it */
+  .sheet-steppers-inside .sheet-kind-resource .sheet-total { order: 5; margin-left: 6px; }
+  .sheet-steppers-inside .sheet-kind-resource .sheet-total:has(+ .sheet-reset) { margin-right: 28px; }   /* the fill button stands in its right margin, so the two go to a second line together */
+  .sheet-steppers-inside .sheet-kind-resource .sheet-reset { order: 6; flex: none; width: 28px; padding: 0; margin-left: -28px; }
+  .sheet-steppers-inside .sheet-tile.sheet-kind-resource .sheet-ctl { justify-content: center; margin: 0 -4px; }   /* a tile centres each line, and its side padding is room for the row */
   .sheet-steppers-inside .sheet-numwrap { display: inline-grid; grid-template-columns: auto 18px; grid-template-rows: 14px 14px; }
   .sheet-steppers-inside .sheet-numwrap > input.sheet-num { grid-column: 1; grid-row: 1 / 3; height: 28px; border-radius: 4px 0 0 4px; }
   .sheet-steppers-inside .sheet-steps { display: contents; }
@@ -3629,6 +3631,8 @@
       #sheetPrint .sheet-frame { position: static !important; }
       #sheetPrint .sheet-section, #sheetPrint .sheet-item, #sheetPrint tr, #sheetPrint .sheet-field { break-inside: avoid; }
       #sheetPrint button:not(.sheet-roll):not(.sheet-item-roll) { display: none !important; }
+      #sheetPrint .sheet-steppers-inside .sheet-kind-resource .sheet-cur { margin-right: 0; border-radius: 4px; }   /* a pool's arrows and fill button are not printed: the room they stood in is given back */
+      #sheetPrint .sheet-steppers-inside .sheet-kind-resource .sheet-total { margin-right: 0; }
   }
   .hud-ico-wave { width: 15px; height: 15px; color: var(--sheet-primary, var(--gold)); }
   /* HF2b: the HUD button placement — a full-width button led by the HUD's wave glyph */

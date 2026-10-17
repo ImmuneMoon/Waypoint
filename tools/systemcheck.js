@@ -3958,6 +3958,52 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('look L8: every rule is gated by its class; the arrow masks are literal URLs to bundled files; the editor offers all five in the details row; Help says so',
             l8rules.length >= 28 && ungated8.length === 0 && ['chevron-up', 'chevron-down'].every(n => l8css.indexOf('url("assets/icons/fa/solid/' + n + '.svg")') >= 0 && fs.existsSync(path.join(app, 'assets', 'icons', 'fa', 'solid', n + '.svg')))
             && ['sys-look-numbers', 'sys-look-band', 'sys-look-steppers', 'sys-look-values', 'sys-look-rows'].every(c => sh8.indexOf("select('" + c + "'") >= 0) && /The same box sets <b>monospaced numbers<\/b>/.test(fs.readFileSync(path.join(app, 'index.html'), 'utf8')), j([l8rules.length, ungated8]));
+        // A pool's arrows inside its box (the owner, 2026-10-17, of the Endurance Points pool in a four-column section: "style issue here"). Laid
+        // out as a grid, the two arrows stood 4 px apart and off the box (the control's row gap stood between them), the row ran 44 px past its
+        // 100 px cell into the next pool's, and in a wider cell the grid's tracks spread the box from its icon and its arrows. The rules are read
+        // from style.css, and the row is worked out from their own numbers as a wrapping flex row is laid out.
+        const decl8 = sel => { const ln = css8.split('\n').find(x => x.split('{')[0].trim() === sel); if (!ln) return null; const o = {}; ln.slice(ln.indexOf('{') + 1, ln.indexOf('}')).split(';').forEach(d => { const i = d.indexOf(':'); if (i > 0) o[d.slice(0, i).trim()] = d.slice(i + 1).trim(); }); return o; };
+        const px8 = v => { const m = /^(-?\d+(?:\.\d+)?)px$/.exec(String(v === undefined ? '' : v).trim()); return m ? Number(m[1]) : String(v).trim() === '0' ? 0 : NaN; };
+        const P8 = '.sheet-steppers-inside .sheet-kind-resource ';
+        const ctl8 = decl8(P8 + '.sheet-ctl') || {}, icon8 = decl8(P8 + '.sheet-pool-icon') || {}, cur8 = decl8(P8 + '.sheet-cur') || {}, plus8 = decl8(P8 + '[data-part="plus"]') || {}, minus8 = decl8(P8 + '[data-part="minus"]') || {};
+        const tot8 = decl8(P8 + '.sheet-total') || {}, totR8 = decl8(P8 + '.sheet-total:has(+ .sheet-reset)') || {}, rs8 = decl8(P8 + '.sheet-reset') || {}, curB8 = decl8('.sheet-ctl .sheet-cur') || {};
+        const H8 = px8(cur8.height), W8 = px8(plus8.width);
+        check('look L8, a pool\'s arrows inside its box: the control is a flex row with no grid of its own (no row gap can stand between the arrows) and never narrower than its box and arrows (min-width: min-content, so in a cell under 64 px the arrows stay on the box), each arrow half the box\'s height, + at the top of the line and − at its foot, so together exactly the box\'s height and joined to it; the arrows stand in the box\'s own right margin and take no room of their own',
+            !('display' in ctl8) && !Object.keys(ctl8).some(k => /^grid/.test(k)) && ctl8['flex-direction'] === 'row' && ctl8['align-items'] === 'center' && /^\S+ 0(px)?$/.test(ctl8.gap || '') && ctl8['min-width'] === 'min-content'
+            && H8 === 28 && px8(plus8.height) === H8 / 2 && px8(minus8.height) === H8 / 2 && plus8['align-self'] === 'flex-start' && minus8['align-self'] === 'flex-end' && plus8['min-height'] === '0' && minus8['min-height'] === '0' && minus8['border-top'] === '0'
+            && cur8['border-radius'] === '4px 0 0 4px' && plus8['border-radius'] === '0 4px 0 0' && minus8['border-radius'] === '0 0 4px 0'
+            && W8 === 18 && px8(minus8.width) === W8 && px8(cur8['margin-right']) === W8 && px8(plus8['margin-left']) === -W8 && px8(minus8['margin-left']) === -W8 && plus8.flex === 'none' && minus8.flex === 'none',
+            j([ctl8, cur8, plus8, minus8]));
+        // the row as the engine lays a wrapping flex row out: in the parts' own order, an item that does not fit goes to a new line when the line
+        // holds something; the icon's glyph and the total "/ 12" as measured live (17.25 and 20.91 px), every other number the style sheet's own
+        const row8 = (cell, bare) => {
+            const parts = [['icon', icon8, 17.25], ['cur', cur8, px8(curB8.width)], ['plus', plus8, W8], ['minus', minus8, px8(minus8.width)], ['total', tot8, 20.91], ['reset', rs8, px8(rs8.width)]]
+                .filter(p => !bare || (p[0] !== 'icon' && p[0] !== 'reset')).map(p => ({ n: p[0], o: Number(p[1].order), w: p[2], ml: px8(p[1]['margin-left'] || '0'), mr: p[0] === 'total' && !bare ? px8(totR8['margin-right'] || '0') : px8(p[1]['margin-right'] || '0') }))
+                .sort((a, b) => a.o - b.o);
+            const cg = px8(String(ctl8.gap || '').split(' ')[1] || '0'), out = {}; let line = 0, x = 0, held = 0;
+            parts.forEach(p => { const outer = p.ml + p.w + p.mr; if (held && x + cg + outer > cell + 1e-9) { line++; x = 0; held = 0; } if (held) x += cg; out[p.n] = { line, left: x + p.ml, right: x + p.ml + p.w, edge: x + outer }; x += outer; held++; });
+            return out;
+        };
+        const eq8 = (a, b) => Math.abs(a - b) < 1e-6, fits8 = (r, cell) => Object.keys(r).every(k => r[k].right <= cell + 1e-9 && r[k].edge <= cell + 1e-9);
+        const ownerCell8 = row8(99.7), hud8 = row8(142.7), wide8 = row8(177), wideBare8 = row8(177, true);
+        const sweep8 = []; for (let cw = 64; cw <= 400; cw += 0.5) [false, true].forEach(bare => { const r = row8(cw, bare); if (!(r.plus.line === r.cur.line && r.minus.line === r.cur.line && eq8(r.plus.left, r.cur.right) && eq8(r.minus.left, r.cur.right) && (bare || r.reset.line === r.total.line && eq8(r.reset.left, r.total.right)) && fits8(r, cw))) sweep8.push([cw, bare]); });
+        check('look L8, a pool\'s arrows inside its box: in the owner\'s 99.7 px cell the icon, the box and its arrows keep the first line and the total with the fill button go to a second line under them, never into the next column; in the HUD\'s 142.7 px cell and a 177 px one the whole row is one line, packed from the left as the row is meant (the box 4 px after its icon, the arrows on its right edge, the total 6 px on, the fill button right after it); and in every cell from 64 to 400 px, with an icon and a fill button or without, the arrows never part from the box, the fill button never from the total, and nothing runs past the cell',
+            !!ctl8['flex-wrap'] && ctl8['flex-wrap'] === 'wrap' && ['icon', 'cur', 'plus', 'minus'].every(k => ownerCell8[k].line === 0) && ownerCell8.total.line === 1 && ownerCell8.reset.line === 1 && fits8(ownerCell8, 99.7)
+            && Object.keys(hud8).every(k => hud8[k].line === 0) && fits8(hud8, 142.7) && Object.keys(wide8).every(k => wide8[k].line === 0)
+            && eq8(wide8.icon.left, 0) && eq8(wide8.cur.left, wide8.icon.right + 4) && eq8(wide8.plus.left, wide8.cur.right) && eq8(wide8.minus.left, wide8.cur.right) && eq8(wide8.total.left, wide8.plus.right + 6) && eq8(wide8.reset.left, wide8.total.right)
+            && eq8(wideBare8.cur.left, 0) && eq8(wideBare8.total.left, wideBare8.plus.right + 6) && sweep8.length === 0,
+            j([ownerCell8, hud8, wide8, sweep8.slice(0, 6)]));
+        const tile8 = decl8('.sheet-steppers-inside .sheet-tile.sheet-kind-resource .sheet-ctl') || {}, tileBox8 = decl8('.sheet-field.sheet-tile') || {}, base8 = decl8('.sheet-ctl') || {};
+        const prtAt8 = css8.lastIndexOf('  @media print {', css8.indexOf('#sheetPrint button:not(')), prt8 = prtAt8 < 0 ? '' : css8.slice(prtAt8, css8.indexOf('\n  }\n', prtAt8) + 4);   // the print block that holds the sheet's own print rules
+        check('look L8, a pool\'s arrows inside its box: where the wrap applies and where it never does — only under the look (the base .sheet-ctl wraps nothing, the plain pool keeps its own wrap rule, a number\'s arrows keep their own grid); the band keeps its own centring (the pool\'s rule sets no justify-content and no display); a tile centres each line and lends the row its side padding; no sheet field is a size container, so a band chip or a tile, whose width follows its content, can never collapse; on paper, where the arrows and the fill button are not printed, the room they stood in is given back',
+            !('flex-wrap' in base8) && base8.display === 'flex' && /\n  \.sheet-ctl\.sheet-ctl-wrap \{ flex-wrap: wrap; \}\n/.test(css8)
+            && /\n  \.sheet-steppers-inside \.sheet-numwrap \{ display: inline-grid; grid-template-columns: auto 18px; grid-template-rows: 14px 14px; \}\n/.test(css8)
+            && !('justify-content' in ctl8) && /\n  \.sheet-band \.sheet-kind-resource \.sheet-ctl \{ justify-content: center; \}\n/.test(css8)
+            && tile8['justify-content'] === 'center' && tile8.margin === '0 -' + String(tileBox8.padding || '').split(' ')[1]
+            && !css8.split('\n').some(l => /\.sheet-/.test(l) && /container-type|@container/.test(l))
+            && /#sheetPrint button:not\(\.sheet-roll\):not\(\.sheet-item-roll\) \{ display: none !important; \}/.test(prt8)
+            && /\n      #sheetPrint \.sheet-steppers-inside \.sheet-kind-resource \.sheet-cur \{ margin-right: 0; border-radius: 4px; \}/.test(prt8) && /\n      #sheetPrint \.sheet-steppers-inside \.sheet-kind-resource \.sheet-total \{ margin-right: 0; \}/.test(prt8),
+            j([base8, tile8, tileBox8, prt8.length]));
     }
 
     /* ---- Stage 6 look fold (L7): a formula as a badge coloured by its value name; a pool's own colour ---- */

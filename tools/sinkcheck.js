@@ -5071,6 +5071,54 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             j([threwU, vU, vO, linesU, linesO, PGU.htmlSet, PGU.attrs, fileTextU.length]));
     }
 
+    /* ---- [m417] the bridge's readings of the website's v1.0.4 on the sheet: what Air Move, a height and a weight read by their imperial half,
+       Indomitable's level, the Wookiee's renamed row and a droid's custom head in inches write (systemcore.js aliasFromShadowBase and
+       sbRowOps, run for real on a hostile website file, each op applied) is drawn by the sheet's own row details (sheets.js noteBits and
+       statChips, run for real on a page that refuses markup) as text alone: a number field takes a number or nothing, a text field the file's
+       own words as a value, a row's level a number, and the only name a reading writes onto a row is one of the Wookiee row's two names ---- */
+    {
+        const j = JSON.stringify, SYR = await import(modUrl('systemcore.js')), FOR = await import(modUrl('formula.js'));
+        const shR = read('sheets.js'), HTMLR = /innerHTML|insertAdjacentHTML|outerHTML|setAttribute|document\.write/;
+        const cutR = (a, b) => { const i = shR.indexOf(a), k = i < 0 ? -1 : shR.indexOf(b, i + a.length); if (i < 0 || k < 0) throw new Error('sinkcheck: sheets.js ' + a.trim().slice(0, 40) + ' not found'); return shR.slice(i, k); };
+        const lineR = k => cutR('\n' + k, '\n').slice(1);
+        const made = [], htmlSet = [], attrs = [];
+        const fake = tag => { const e = { tag, children: [], childNodes: [], style: {}, dataset: {}, className: '', textContent: '', appendChild(k) { this.children.push(k); this.childNodes.push(k); return k; }, setAttribute(n, v) { attrs.push([n, v]); }, addEventListener() {} }; ['innerHTML', 'outerHTML'].forEach(p => Object.defineProperty(e, p, { set(v) { htmlSet.push(v); }, get() { return ''; } })); e.insertAdjacentHTML = (w, v) => { htmlSet.push(v); }; made.push(e); return e; };
+        const docR = { createElement: fake, createTextNode: t => { const n = { tag: '#text', textContent: String(t) }; made.push(n); return n; } };
+        // what only the FILE writes, and a system from a file whose labels are hostile
+        const FX = '<img src=x onerror=alert(17) data-file=1>', FP = '__proto__', DO = 'Distinctive Features (8ft tall)', DN = 'Distinctive Features (Towering, furred)';
+        const lst = (id, key, cats) => ({ id: 'f_' + id, key, label: T, kind: 'item-list', vis: 'all', list: { cats, noQty: true, custom: true, lvl: { label: P, min: 0, max: 10, def: 0 }, stats: [{ key: 'bp', label: T + 'bp', show: true }, { key: 'per', label: P }, { key: 'granted', label: T }] } });
+        const sysR = SYR.cleanSystem({ v: 1, name: T, rolls: [], fields: [{ id: 'f_sm', key: 'SM', label: T, kind: 'number', vis: 'all', step: 0.01 }, { id: 'f_air', key: 'AirMove', label: P, kind: 'number', vis: 'all' },
+            { id: 'f_h', key: 'Height', label: T, kind: 'number', vis: 'all', unit: 'in', step: 0.1 }, { id: 'f_w', key: 'Weight', label: P, kind: 'text', vis: 'all' }, lst('adv', 'Advantages', ['Advantage']), lst('dis', 'Disadvantages', ['Disadvantage'])],
+            items: [{ id: 'i_m417_ind', name: 'Indomitable', key: 'Indomitable', category: 'Advantage', stats: { bp: 0, per: 3 } }, { id: 'i_m417_df', name: DN, key: 'DFeat', category: 'Disadvantage', notes: T, stats: { bp: -1 } }] }, { F: FOR, gmView: true });
+        const findR = n => sysR.items.filter(e => e.name.toLowerCase() === String(n).trim().toLowerCase());
+        const fileR = { type: 'character', writtenBySiteVersion: FX, name: FX, species: FX, details: { isDroid: false, height: FX + " / 6'7\"", weight: FX + ' / 72 kg', sizeModifier: 0.24 },
+            characteristics: { airMove: { effective: FX, unencumbered: FX }, basicSpeed: { effective: FX } },
+            traits: { advantages: [{ name: 'Indomitable', level: FX, points: 15, description: FX }, { name: 'Indomitable (' + FX + ')', points: 15, baselinePoints: 15 }, { name: 'Flight', points: 30, description: FX }],
+                disadvantages: [{ name: DO, points: -1, fromSpecies: FX, description: FX }, { name: DO, points: -1, fromSpecies: 'Wookiee' }, { name: FX, points: -1 }] } };
+        const droidR = { type: 'character', name: FX, details: { isDroid: true, sizeModifier: FX, height: "6'7\" / 2.00 m" }, droidBuild: { chassisId: 'sphere-chassis', head: { componentId: FP, customHeightIn: FX, customHeightM: { toString: FX } }, chassisMods: { motiveMountIds: [FX, 'micro-repulsor'] } } };
+        const protoR = () => j([Object.keys(Object.prototype), ({}).polluted, ({}).level, ({}).unencumbered, typeof ({}).constructor]), pR0 = protoR();
+        const chR = { id: 'c_m417', name: 'S', ownerId: '', npc: true, values: {} }, refusedR = [], drawnR = [];
+        let vR = null, vD = null;
+        try {
+            vR = SYR.aliasFromShadowBase(fileR, sysR, FOR).values; vD = SYR.aliasFromShadowBase(droidR, sysR, FOR).values;
+            Object.assign(chR.values, vR);
+            SYR.sbRowOps(fileR, sysR, findR).ops.forEach(o => { const a = SYR.applyRowOp(sysR, chR, o.f, o.q, FOR, {}); if (a.ok) chR.values[o.f] = a.value; else refusedR.push(o.q.op + ':' + a.reason); });
+            const WR = new Function('document', 'rowStat', 'rowPaid', 'ovDot', 'rowLvl', 'fmtNum', 'LIMITS', 'commitItem', 'rowIdOf', "'use strict';\n" + lineR('function el(tag, cls, text) {') + '\n' + lineR('function lvlText(L, lv) {') + cutR('\nfunction noteBits(', '\nvar _noteOpen')
+                + cutR('\nfunction statFmt(v) {', '\n// F4c1: what one of a row cost') + cutR('\nfunction statDot(s, spec, ovc) {', '\nvar _rfClearing') + '\nreturn { statChips, noteBits };')(docR, SYR.rowStat, SYR.rowPaid, () => null, SYR.rowLvl, SYR.fmtNum, SYR.LIMITS, () => {}, SYR.rowIdOf);
+            sysR.fields.filter(f => f.kind === 'item-list').forEach(f => (chR.values[f.id] || []).forEach(r => { const rd = SYR.rowDef(sysR, r), host = fake('div');
+                WR.statChips(host, rd.def, f.list, null); const nb = WR.noteBits(r, rd.def, null, f, false, null);
+                drawnR.push({ f: f.id, copy: !!r.defId, name: rd.def.name, lvl: r.lvl, chips: host.children.map(c => [c.tag, c.className, c.children.map(k => [k.tag, k.textContent, (k.children || []).length])]), notes: nb ? nb.children.map(k => [k.tag, k.className, k.textContent, k.children.length]) : null }); }));
+        } catch (e) { refusedR.push('threw: ' + String(e && e.stack || e).slice(0, 300)); }
+        const chipsOkR = drawnR.every(d => d.chips.every(c => c[0] === 'span' && c[2].length === 2 && c[2][0][0] === 'small' && c[2][0][2] === 0 && c[2][1][0] === '#text' && /^ -?\d+(\.\d+)?$/.test(c[2][1][1])));
+        const notesOkR = drawnR.every(d => !d.notes || d.notes.every(n => typeof n[2] === 'string' && n[3] === 0));
+        const rowsR = drawnR.map(d => [d.f, d.copy ? 'copy' : 'own', d.name, typeof d.lvl === 'number' ? d.lvl : '-']);
+        check('m417 the bridge\'s v1.0.4 readings on the sheet (aliasFromShadowBase and sbRowOps from a hostile website file, every op applied, then the sheet\'s own statChips and noteBits on a page that refuses markup): Air Move a number or nothing (markup is no figure, and Flight with no readable Basic Speed writes none); a height of two halves one of which is markup nothing, a pair that reads into a number field in inches by its imperial half (79), a weight that is no pair into a text field as the characters it is; a droid\'s custom head that is markup stands on nothing (-2.3); Indomitable\'s level a number (5 for a level that is markup), a variant named in markup a row of its own; the Wookiee\'s row a copy under one of its two names alone (the old one where it is not the package\'s, the new one where it is), a row named in markup a row of its own; every chip a small label and one text node that is a number, every notes line one text with no child, and nothing written as markup, an attribute or a style',
+            refusedR.length === 0 && !!vR && !('f_air' in vR) && !('f_h' in vR) && vR.f_w === FX + ' / 72 kg' && !!vD && Math.round(vD.f_sm * 100) === -230 && vD.f_h === 79
+            && j(rowsR) === j([['f_adv', 'copy', 'Indomitable', 5], ['f_adv', 'own', 'Indomitable (' + FX + ')', 5], ['f_adv', 'own', 'Flight', 0], ['f_dis', 'copy', DO, 0], ['f_dis', 'own', DN, 0], ['f_dis', 'own', FX, 0]])
+            && chipsOkR && notesOkR && htmlSet.length === 0 && attrs.length === 0 && made.every(e => e.tag === '#text' || Object.keys(e.style).length === 0) && protoR() === pR0 && !HTMLR.test(cutR('\nfunction noteBits(', '\nvar _noteOpen')),
+            j([refusedR, vR, vD, rowsR, htmlSet, attrs]));
+    }
+
     {
         // the Pages shelf opens a planner of the map at its node (1.5.4, PLANNER_ORG_DESIGN 4.1): the node's block id comes from a campaign file and
         // reaches the row's data-at alone, only as a block id of letters, digits, _ and -, 64 at most (pageshelf.js sliced by its shelfcheck markers,

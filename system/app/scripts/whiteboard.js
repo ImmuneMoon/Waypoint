@@ -77,6 +77,14 @@ function ydOut(yd) { var v = Number(yd); if (!isFinite(v)) v = 0; return metricO
 function ydIn(v) { var n = Number(v); return !isFinite(n) ? NaN : metricOn() ? n / YD_M : n; }   // what the viewer typed, in yards
 function fmtLen(yd) { return String(Math.round(ydOut(yd) * 10) / 10) + ' ' + lenUnit(); }
 function fmtElev(e) { e = ydOut(e); return (e > 0 ? '+' : e < 0 ? '\u2212' : '') + (Math.round(Math.abs(e) * 10) / 10); }   // signed, in the viewer's unit (the caller adds lenUnit())
+// A height box and its step (the read-only check of 2026-10-17: in Metric a step was one metre, 1.1 yd, so a height of whole yards, which is
+// what Height clears low cover counts, was lost at the first press). A step is one yard in both, shown as 0.91 m in Metric. A box shows a
+// height to a tenth of a yard, or in Metric to the centimetre, so what it shows comes back as the very tenth of a yard it was. A box with
+// arrows of its own steps from the figure it shows, so that figure is its step base too (boxHeight). Numbers and plain text
+function ydBox(yd) { var v = ydOut(yd); return metricOn() ? Math.round(v * 100) / 100 : Math.round(v * 10) / 10; }
+function ydStep() { return metricOn() ? YD_M : 1; }
+function stepWords(d) { return (d < 0 ? 'Down' : 'Up') + ' one yard' + (metricOn() ? ' (0.91 m)' : ''); }
+function boxHeight(box, yd) { if (!box) return; var s = String(ydBox(yd)); box.step = String(ydStep()); box.defaultValue = s; box.value = s; }
 // [systemcheck:lenunit-end]
 // [systemcheck:postranged-start]
 // Every posture but standing makes a smaller target: -2 to a foe's RANGED attack roll (Chapter 9, Change Posture, Target Modifier; the owner's
@@ -93,7 +101,7 @@ function postureListNow() { var S = window.wpSystemCore; return S && S.postureLi
 function tokenPostureAt(it) { var S = window.wpSystemCore; if (S && S.postureAt) return S.postureAt(postureSys(), it && it.posture); var p = tokenPosture(it), i = POSTURES.indexOf(p); return { i: i, p: { id: p, name: POSTURE_LABEL[p], tag: POSTURE_CHIP[p] || '', small: i > 0 } }; }
 function postureRanged(tok) { if (!(tok && tok.isChar && stanceOn('posture'))) return ''; var at = tokenPostureAt(tok); return at.i > 0 && at.p && at.p.small === true ? '\u2212' + (-POSTURE_RANGED) + ' ranged (posture: ' + String(at.p.name || '').toLowerCase() + ')' : ''; }
 // [systemcheck:postranged-end]
-window.wpStance = { POSTURES: POSTURES, POSTURE_LABEL: POSTURE_LABEL, normalizePosture: normalizePosture, tokenElevation: tokenElevation, tokenGround: tokenGround, groundAt: groundAt, groundWords: groundWords, tokenPosture: tokenPosture, postures: postureListNow, postureAt: tokenPostureAt, on: stanceOn, setElevation: setTokenElevation, setPosture: setTokenPosture, fmtElev: fmtElev, lenUnit: lenUnit, ydOut: ydOut, ydIn: ydIn, fmtLen: fmtLen };   // item 19 H1: lengths in the viewer's unit
+window.wpStance = { POSTURES: POSTURES, POSTURE_LABEL: POSTURE_LABEL, normalizePosture: normalizePosture, tokenElevation: tokenElevation, tokenGround: tokenGround, groundAt: groundAt, groundWords: groundWords, tokenPosture: tokenPosture, postures: postureListNow, postureAt: tokenPostureAt, on: stanceOn, setElevation: setTokenElevation, setPosture: setTokenPosture, fmtElev: fmtElev, lenUnit: lenUnit, ydOut: ydOut, ydIn: ydIn, fmtLen: fmtLen, ydBox: ydBox, ydStep: ydStep, stepWords: stepWords, boxHeight: boxHeight };   // item 19 H1: lengths in the viewer's unit; 1.5.4: a height box and its step of one yard
 
 // [fogcheck:stancechips-start]
 // A token's stance chips (its Elevation, its posture), drawn into its element. Item 19b H5: the Elevation chip reads the token's height where it
@@ -129,10 +137,10 @@ function stanceMenuHtml(it) {
     var ctl = 'padding:2px 4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;';
     var html = '<div class="menu-divider"></div>', gWords = eOn ? groundWords(it, getActiveMap()) : '';   // item 19b H5: the ground it stands on, beside its own Elevation
     if (eOn) html += '<div class="menu-item cm-stance" style="display:flex; align-items:center; gap:6px; cursor:default;"><span class="cm-stance" style="flex:1;">Elevation' + (gWords ? ' <span class="cm-stance stance-ground" style="color:var(--dim); font-size:11px;" title="The ground this token stands on, added to its own elevation">' + esc(gWords) + '</span>' : '') + '</span>'
-        + '<button class="cm-stance align-btn stance-elev" data-d="-1" title="Down one ' + (metricOn() ? 'metre' : 'yard') + '">&minus;</button>'
-        + '<input class="cm-stance stance-elev-in num-stepped" type="number" step="1" value="' + (Math.round(ydOut(tokenElevation(it)) * 10) / 10) + '" style="width:54px; ' + ctl + '">'
+        + '<button class="cm-stance align-btn stance-elev" data-d="-1" title="' + stepWords(-1) + '">&minus;</button>'
+        + '<input class="cm-stance stance-elev-in num-stepped" type="number" step="' + ydStep() + '" value="' + ydBox(tokenElevation(it)) + '" style="width:54px; ' + ctl + '">'
         + '<span class="cm-stance" style="color:var(--dim);">' + lenUnit() + '</span>'
-        + '<button class="cm-stance align-btn stance-elev" data-d="1" title="Up one ' + (metricOn() ? 'metre' : 'yard') + '">+</button></div>';   // item 19 H1: in the viewer's unit
+        + '<button class="cm-stance align-btn stance-elev" data-d="1" title="' + stepWords(1) + '">+</button></div>';   // item 19 H1: in the viewer's unit; 1.5.4: a step of one yard in both
     if (pOn) html += '<div class="menu-item cm-stance" style="display:flex; align-items:center; gap:6px; cursor:default;"><span class="cm-stance" style="flex:1;">Posture</span>'
         + '<select class="cm-stance stance-post" style="' + ctl + '">' + postureOptionsHtml(it) + '</select></div>';
     return html;
@@ -172,9 +180,10 @@ function wireStanceMenu(cMenu, items, onChange) {
     var am0 = getActiveMap(), mapId = am0 && am0.id, ids = items.map(function(t) { return t.id; });
     function live() { var got = ids.map(function(id) { return ownTokenNow(mapId, id); }); if (got.some(function(t) { return !t; })) { cMenu.style.display = 'none'; return null; } return got; }
     var inp = cMenu.querySelector('.stance-elev-in');
-    function setAll(v) { var ts = live(); if (!ts) return; var yd = ydIn(v); ts.forEach(function(t) { setTokenElevation(t, yd); }); if (inp) inp.value = Math.round(ydOut(tokenElevation(ts[0])) * 10) / 10; onChange(); }   // item 19 H1: v in the viewer's unit
+    function setYd(yd) { var ts = live(); if (!ts) return; ts.forEach(function(t) { setTokenElevation(t, yd); }); if (inp) boxHeight(inp, tokenElevation(ts[0])); onChange(); }   // in yards: the menu's tokens at that height, and the box showing it
+    function setAll(v) { setYd(ydIn(v)); }   // item 19 H1: v in the viewer's unit
     Array.prototype.forEach.call(cMenu.querySelectorAll('.stance-elev'), function(b) {
-        b.addEventListener('click', function(ce) { ce.stopPropagation(); var ts = live(); if (ts) setAll(ydOut(tokenElevation(ts[0])) + parseInt(b.dataset.d, 10)); });
+        b.addEventListener('click', function(ce) { ce.stopPropagation(); var ts = live(); if (ts) setYd(tokenElevation(ts[0]) + parseInt(b.dataset.d, 10)); });   // 1.5.4: one yard in Metric too, where it was one metre (1.1 yd)
     });
     if (inp) { inp.addEventListener('click', function(ce) { ce.stopPropagation(); }); inp.addEventListener('change', function() { setAll(this.value); }); }
     var sel = cMenu.querySelector('.stance-post');
@@ -3284,9 +3293,9 @@ window.wpFitToGrid = fitToGrid;
 
       var metric = (state.measureUnit === 'metric');
 
-      var toMetric = { yd: ['m', 0.9144], ft: ['m', 0.3048], mi: ['km', 1.60934] };
+      var toMetric = { yd: ['m', 0.9144], ft: ['m', 0.3048], mi: ['km', 1.609344] };   // the exact definitions (1.5.4): a yard is 0.9144 m and a mile 1.609344 km, as ydPer counts
 
-      var toImperial = { m: ['yd', 1.09361], km: ['mi', 0.621371] };
+      var toImperial = { m: ['yd', 1 / 0.9144], km: ['mi', 1 / 1.609344] };
 
       if (metric && toMetric[unit]) { val *= toMetric[unit][1]; unit = toMetric[unit][0]; }
 
@@ -3416,7 +3425,14 @@ window.wpFitToGrid = fitToGrid;
   }
   function rangeModText(m) { return typeof m !== 'number' || !isFinite(m) ? '' : m < 0 ? '\u2212' + String(-m) : m > 0 ? '+' + String(m) : '0'; }
   var RANGE_UNIT_WORD = { yd: 'yd', ft: 'ft', m: 'm', cells: 'cells' };
-  function rangeTitle(rg) { return 'Range ' + rangeModText(rg.mod) + ' (' + (Math.round(rg.dist * 10) / 10) + ' ' + (Object.prototype.hasOwnProperty.call(RANGE_UNIT_WORD, rg.unit) ? RANGE_UNIT_WORD[rg.unit] : 'yd') + ')'; }
+  // A target mark's tooltip says the distance in the viewer's own unit (1.5.4, the review of the v1.0.4 merge; docs/V104_PLAN.md gap 2): a rule
+  // that counts in yards or feet reads in metres under Metric, and one in metres reads in yards under Imperial, by the exact definitions, as a
+  // height does; cells as they are, and with no setting at hand the rule's own unit. Only what is said changes: the modifier is the rule's
+  function rangeTitle(rg) {
+      var u = Object.prototype.hasOwnProperty.call(RANGE_UNIT_WORD, rg.unit) ? RANGE_UNIT_WORD[rg.unit] : 'yd', d = rg.dist, mo = typeof metricOn === 'function' ? metricOn() : null;
+      if (mo === true && (u === 'yd' || u === 'ft')) { d = d * (u === 'yd' ? 0.9144 : 0.3048); u = 'm'; } else if (mo === false && u === 'm') { d = d / 0.9144; u = 'yd'; }
+      return 'Range ' + rangeModText(rg.mod) + ' (' + (Math.round(d * 10) / 10) + ' ' + u + ')';
+  }
   function rulerRangeText(x, y, rg) { return rg ? '<text x="' + x + '" y="' + y + '">Range ' + esc(rangeModText(rg.mod)) + '</text>' : ''; }
   function targetRangeHtml(markHtml, rg) { return rg && rg.mod !== 0 ? '<span class="target-pair">' + markHtml + '<span class="target-range" title="' + esc(rangeTitle(rg)) + '">' + esc(rangeModText(rg.mod)) + '</span></span>' : markHtml; }
   // [sinkcheck:rangelabel-end]
@@ -3434,8 +3450,11 @@ window.wpFitToGrid = fitToGrid;
   function targetHeightHtml(markHtml, hg) { return hg && typeof hg.mod === 'number' && isFinite(hg.mod) && hg.mod !== 0 ? '<span class="target-pair">' + markHtml + '<span class="target-height" title="' + esc(heightTitle(hg)) + '">' + esc(rangeModText(hg.mod)) + '</span></span>' : markHtml; }
   // [sinkcheck:heightlabel-end]
   // Turn-based combat T1 (D8): on a square grid the ruler counts a diagonal as the system says (every diagonal 1 square, or alternating 1-2);
-  // null keeps the straight line (no rule, a hex grid, no grid)
+  // null keeps the straight line (no rule, no grid). A hex grid counts the hexes between the two ends' cells, as range, a blast's distances
+  // and the 3D line count them (the read-only check of 2026-10-17: the ruler read the straight line over 52 px, so two hexes along a row read
+  // 1.7 where the range rule counted 2)
   function diagCells(m) {
+      if (state.gridType === 'hex') return hexDist(hexCellOf(m.x1, m.y1), hexCellOf(m.x2, m.y2));
       var sc = window.wpSystemCore, sys = window.wpSheets && window.wpSheets.systemOf ? window.wpSheets.systemOf() : null, dg = sys && sys.combat && sys.combat.turn ? sys.combat.turn.diag : '';
       if (!sc || !sc.gridCells || (dg !== 'one' && dg !== 'alt') || state.gridType !== 'square') return null;
       var px = mapMeasureConfig().cellPx; return sc.gridCells((m.x2 - m.x1) / px, (m.y2 - m.y1) / px, dg);
@@ -3651,17 +3670,28 @@ window.wpFitToGrid = fitToGrid;
       state.selWbId = null; state.selWbIds = []; render();
   } });
 
+  // [systemcheck:unitset-start]
+  // Imperial or Metric (the read-only check of 2026-10-17: a switch in Settings or in the Measure menu drew again neither the rulers nor the
+  // height chips, which went on saying the old unit until something else drew them). One place sets the choice, keeps it for this computer
+  // and draws again everything that reads it: the board (the chips, the target marks, Properties), the rulers and the shapes, the Radius
+  // tool's boxes, both rows of buttons, and every open sheet and HUD (the Elevation row, a blast's size, a field's measure in metric too and a
+  // height's half: sheets.js renderViews). Only the two words are taken. Another window of this computer (a sheet or a page in a window of its
+  // own, the stream window) hears the word as a storage event and is drawn again by this same path, storing nothing (heard); a sheet in a
+  // window of its own then follows by its signature, which names the setting (sheets.js unitSig). Nothing else sets the choice but the read of
+  // it at the start
+  function unitSet(u, heard) {
+      state.measureUnit = u === 'metric' ? 'metric' : 'imperial';
+      if (heard !== true) { try { localStorage.setItem('wp_measureUnit', state.measureUnit); } catch (e) {} }
+      document.querySelectorAll('#measureUnitRow .draw-style-btn, .set-unit-btn').forEach(function(b) { b.classList.toggle('active', b.dataset.unit === state.measureUnit); });
+      syncMeasureMenu(); render(); renderMeasures(); syncBlastMenu();
+      if (window.wpSheets && window.wpSheets.renderSheet) window.wpSheets.renderSheet();
+  }
+  window.wpUnitSet = unitSet;
+  window.addEventListener('storage', function(ev) { if (ev && ev.key === 'wp_measureUnit' && (ev.newValue === 'metric' || ev.newValue === 'imperial') && ev.newValue !== state.measureUnit) unitSet(ev.newValue, true); });   // the word of another window of this computer
+  // [systemcheck:unitset-end]
   document.querySelectorAll('#measureUnitRow .draw-style-btn').forEach(function(b) {
 
-      b.addEventListener('click', function() {
-
-          state.measureUnit = this.dataset.unit;
-
-          try { localStorage.setItem('wp_measureUnit', state.measureUnit); } catch (e) {}
-
-          syncMeasureMenu(); renderMeasures();
-
-      });
+      b.addEventListener('click', function() { unitSet(this.dataset.unit); });
 
   });
 
@@ -3742,7 +3772,7 @@ window.wpFitToGrid = fitToGrid;
   // Under them stand the shapes on screen, the size kept, the ruler's unit on the map on screen, whose a shape is and what it holds
   var CIRCLE_MAX_YD = 10000000, CIRCLE_MIN_YD = 0.01;
   function unitKnown(u) { return u === 'ft' || u === 'm' || u === 'km' || u === 'mi' ? u : 'yd'; }   // one of the ruler's five units, yards for anything else
-  function ydPer(u) { return u === 'ft' ? 1 / 3 : u === 'm' ? 1.09361 : u === 'km' ? 1093.61 : u === 'mi' ? 1760 : 1; }   // yards in one of them, as unitToYd counts
+  function ydPer(u) { return u === 'ft' ? 1 / 3 : u === 'm' ? 1 / 0.9144 : u === 'km' ? 1000 / 0.9144 : u === 'mi' ? 1760 : 1; }   // yards in one of them, as unitToYd counts: by the exact definitions, a yard 0.9144 m (the review of the v1.0.4 merge: 1.09361 said a token 184 yd off 168.3 m, where the ruler says 168.2)
   function rulerUnitOf(mapUnit, metric) {   // the unit the ruler's label ends in on a map of that unit
       var u = unitKnown(mapUnit);
       if (metric) return u === 'yd' || u === 'ft' ? 'm' : u === 'mi' ? 'km' : u;
@@ -3754,19 +3784,54 @@ window.wpFitToGrid = fitToGrid;
   function shapeNote(as, tok) { var s = shapeOf(as); return s === 'ring' ? 'A ring. The tokens between its two distances are inside.' : s === 'cone' ? 'A wedge from a point. Press a cell and drag to aim it.' : tok === true ? 'A circle on a token. It moves with its token, and does not count it.' : 'A circle. Every token inside shows its distance.'; }
   function coneDeg(v, was) { var n = typeof v === 'number' || typeof v === 'string' ? Math.round(Number(v)) : NaN; return isFinite(n) && n >= 1 && n <= 360 ? n : (typeof was === 'number' && was >= 1 && was <= 360 ? Math.round(was) : 60); }   // a cone's angle in whole degrees, 1 to 360; what does not read keeps the angle there was
   function lenTrim(v) { v = Number(v); if (!isFinite(v) || !(v > 0)) return 0; return v >= 1 ? Math.round(v * 100) / 100 : Number(v.toPrecision(3)); }   // a size as it is typed: two decimals, three figures under 1
-  function circleYd(typed, as, unit) {   // the number in the box as a radius in yards; 0: nothing to place
+  function circleYd(typed, as, unit, cellYd) {   // the number in the box as a radius in yards; 0: nothing to place. cellYd: the yards one cell of the map holds (circleSnap)
       var n = typeof typed === 'number' || typeof typed === 'string' ? Number(typed) : NaN;
       if (!isFinite(n) || !(n > 0)) return 0;
-      var yd = n * ydPer(unitKnown(unit)) / (circleAs(as) === 'd' ? 2 : 1);
+      var yd = circleSnap(n * ydPer(unitKnown(unit)) / (circleAs(as) === 'd' ? 2 : 1), n, as, unit, cellYd);
       return yd < CIRCLE_MIN_YD ? 0 : Math.min(CIRCLE_MAX_YD, yd);
   }
-  function circleTyped(yd, as, unit) { var v = Number(yd); return !isFinite(v) || !(v > 0) ? 0 : lenTrim(v * (circleAs(as) === 'd' ? 2 : 1) / ydPer(unitKnown(unit))); }   // a radius in yards as the number the box shows
-  function circleWords(yd, as, unit, inn, deg) {   // what a shape is: a fixed word, its numbers, and a unit of the five
-      var k = circleKind(as), u = unitKnown(unit);
-      if (k === 'ring') return 'Ring ' + circleTyped(inn, 'r', unit) + ' to ' + circleTyped(yd, 'r', unit) + ' ' + u;
-      if (k === 'cone') return 'Cone ' + circleTyped(yd, 'r', unit) + ' ' + u + ', ' + coneDeg(deg, 60) + '\u00b0';
-      return (k === 'd' ? 'Diameter ' : 'Radius ') + circleTyped(yd, k, unit) + ' ' + u;
+  // The box shows a size to two decimals (lenTrim), so 3 yd reads 2.74 m, and 2.74 m typed back was 2.9965 yd, short of a token three hexes
+  // away (the read-only check of 2026-10-17). A size is taken at the nearest tenth of a cell where the box would show that very number, as a
+  // height is kept to a tenth of a yard: 2.74 m on a map of 1 yd cells is 3 yd, 3.05 m on 5 ft squares is 10 ft. A size the box would show
+  // otherwise is kept as typed, and so is every size with no cell to go by
+  function circleSnap(yd, n, as, unit, cellYd) {
+      var c = typeof cellYd === 'number' && isFinite(cellYd) && cellYd > 0 ? cellYd : 0; if (!c) return yd;
+      var t = Math.round(yd / c * 10) / 10 * c;
+      return t > 0 && circleTyped(t, as, unit) === lenTrim(n) ? t : yd;
   }
+  function cellYdNow() { var c = mapMeasureConfig(); return c.per * ydPer(c.unit); }   // the yards one cell of the map on screen holds, as the board counts them (unitToYd)
+  function circleTyped(yd, as, unit) { var v = Number(yd); return !isFinite(v) || !(v > 0) ? 0 : lenTrim(v * (circleAs(as) === 'd' ? 2 : 1) / ydPer(unitKnown(unit))); }   // a radius in yards as the number the box shows
+  function circleWords(yd, as, unit, inn, deg, say) {   // what a shape is: a fixed word, its numbers, and a unit of the five. say: the number a distance in yards is said as (a thrown blast's, blastNum); else as the box shows it
+      var k = circleKind(as), u = unitKnown(unit), n = typeof say === 'function' ? say : function(v, a) { return circleTyped(v, a, unit); };
+      if (k === 'ring') return 'Ring ' + n(inn, 'r') + ' to ' + n(yd, 'r') + ' ' + u;
+      if (k === 'cone') return 'Cone ' + n(yd, 'r') + ' ' + u + ', ' + coneDeg(deg, 60) + '\u00b0';
+      return (k === 'd' ? 'Diameter ' : 'Radius ') + n(yd, k) + ' ' + u;
+  }
+  // A shape on the map in words, in the ruler's unit on that map (the owner, 2026-10-17, by prompt: "The ruler's unit (Recommended)"): the
+  // tool's own by its size, a thrown blast by its name and its radius as the Radius tool says a radius, with a ring's two distances or a
+  // cone's angle. The item keeps its feet inside: only what is said follows the ruler. Plain text: the caller escapes it. The label on the map
+  // draws the two parts apart, since the size alone is drawn over the fog on a player's screen (fog.js measureCaps): blastName, blastSize
+  function blastName(b) { return !ownCircle(b) && b && typeof b.name === 'string' && b.name ? b.name : ''; }   // a thrown blast's name; a shape of the tool's own has none
+  // A thrown blast's size is said as the Radius tool says a size, but in metres or kilometres as the sheet says a measure in metric (the review of
+  // the v1.0.4 merge: a 3 yd blast read 2.74 m beside a field's "3 yd (2.7 m)" and the website's own "3-yard (2.7 m) radius"): systemcore
+  // metricOf, the website's rule, over the figure the same map reads under Imperial (iu: yd, ft or mi, the unit rulerImpNow gives; absent,
+  // yards for metres and miles for kilometres), to the decimals that figure shows and one more for a whole one. The tool's own box keeps two
+  // decimals (2.74 m), since a size typed as it shows must read back. With no system core at hand, as the box shows a size. Plain text
+  function blastNum(yd, unit, iu) {
+      var u = unitKnown(unit), S = window.wpSystemCore;
+      if ((u === 'm' || u === 'km') && S && typeof S.metricOf === 'function') {
+          var i = u === 'km' ? 'mi' : iu === 'ft' ? 'ft' : 'yd', fig = circleTyped(yd, 'r', i), t = fig > 0 ? S.metricOf(i, fig, String(fig)) : '', sp = typeof t === 'string' ? t.indexOf(' ') : -1;
+          if (sp > 0) return t.slice(0, sp);
+      }
+      return String(circleTyped(yd, 'r', u));
+  }
+  function blastSize(b, unit, iu) {
+      if (ownCircle(b)) return circleWords(b.yd, b.as, unit, b.inn, b.deg);
+      var k = kindOf(b), r = blastRadiusYd(b), say = function(v) { return blastNum(v, unit, iu); };
+      return k === 'ring' && innerYd(b) > 0 ? circleWords(r, 'ring', unit, innerYd(b), 0, say) : k === 'cone' ? circleWords(r, 'cone', unit, 0, b.deg, say) : circleWords(r, 'r', unit, 0, 0, say);
+  }
+  function blastWords(b, unit, iu) { var n = blastName(b); return (n ? n + ' \u00b7 ' : '') + blastSize(b, unit, iu); }
+  function blastLen(ft, unit, iu) { var v = Number(ft); return blastNum(isFinite(v) ? v / 3 : 0, unit, iu) + ' ' + unitKnown(unit); }   // an item's blast radius, kept in feet, in that unit: what the sheet shows beside the item
   function rulerLen(yd, unit) { var v = Number(yd); if (!isFinite(v) || v < 0) v = 0; return String(Math.round(v / ydPer(unitKnown(unit)) * 10) / 10) + ' ' + unitKnown(unit); }   // a measured length, to a tenth as the ruler reads it
   function circleShape(o) {   // a shape's numbers, each within its bounds: { yd, as, inn, deg }. A ring's two distances in either order; where no ring is left, the whole disc
       var as = circleKind(o && o.as), yd = Number(o && o.yd), inn = Number(o && o.inn);
@@ -3806,6 +3871,7 @@ window.wpFitToGrid = fitToGrid;
   var circleDir = 0, coneAim = null;   // the way the last cone was turned, and the cone being turned: { b, sx, sy, moved, fresh } (fresh: just placed, not yet said)
   var circleCas = circleKept.as === 'd' ? 'd' : 'r';   // how a circle's number was last read: what Circle goes back to from a ring or a cone
   function rulerUnitNow() { return rulerUnitOf(mapMeasureConfig().unit, state.measureUnit === 'metric'); }   // the unit the ruler reads in on the map on screen
+  function rulerImpNow() { return rulerUnitOf(mapMeasureConfig().unit, false); }   // the unit the same map reads in under Imperial: a thrown blast's metres are turned from it (blastNum)
   function ownCircle(b) { return !!b && typeof b.yd === 'number' && b.yd > 0; }   // a circle of the Radius tool's own, never a thrown blast
   // What a shape is, for one of the tool's own and for a blast alike. A blast is a circle unless an explosion gave it a shape (the owner, of
   // whether a cone or a ring should explode too: "A cone and a ring, soon"): a ring keeps its inner distance in feet (shape 'ring', inFt), a
@@ -3841,7 +3907,7 @@ window.wpFitToGrid = fitToGrid;
   var _blastHitIds = [];
   var blastDrag = null;   // { i, sx, sy, ox, oy, moved } while a blast is being dragged
   var _armedThrow = null;   // { charId, fieldId, rowId, ft, name, by, damage, gmOnly } while a sheet Throw is armed (one-shot)
-  function unitToYd(u) { return { yd: 1, ft: 1 / 3, m: 1.09361, km: 1093.61, mi: 1760 }[u] || 1; }
+  function unitToYd(u) { return { yd: 1, ft: 1 / 3, m: 1 / 0.9144, km: 1000 / 0.9144, mi: 1760 }[u] || 1; }   // by the exact definitions, as ydPer
   function cellYards() { var cfg = mapMeasureConfig(); return cfg.per * unitToYd(cfg.unit); }
   function hexCellOf(x, y) {   // same rounding as datamap.js snapToHex (flat-top, s = 30, 52 px rows)
       var s = 30, h = 52, q = (x - s / 2) / (1.5 * s), r = y / h - q / 2;
@@ -3863,7 +3929,6 @@ window.wpFitToGrid = fitToGrid;
       return Math.hypot(bx - ax, by - ay) / mapMeasureConfig().cellPx * cellYards();
   }
   function blastRadiusYd(b) { return ownCircle(b) ? b.yd : b.ft / 3; }   // the tool's own circle keeps yards; a thrown blast its item's feet
-  function ftOut(v) { v = Number(v); return isFinite(v) ? Math.round(v * 10) / 10 : 0; }   // a blast's feet as its label says them, to a tenth: an explosion set off from a circle is not always a whole number of feet
   function blastDistances(b, map) {   // every character token (hidden ones too — the GM is the only viewer)
       var elevOn = stanceOn('elevation');
       return (map.whiteboard || []).filter(function(t) { return t.isChar; }).map(function(t) {
@@ -3875,25 +3940,25 @@ window.wpFitToGrid = fitToGrid;
   }
   function blastSvg() {
       var map = getActiveMap(); if (!map || !blasts.length) return '';
-      var pxPerYd = mapMeasureConfig().cellPx / cellYards(), elevOn = stanceOn('elevation'), html = '', ru = rulerUnitNow();
+      var pxPerYd = mapMeasureConfig().cellPx / cellYards(), elevOn = stanceOn('elevation'), html = '', ru = rulerUnitNow(), ri = rulerImpNow();
       if (circleFollow(map)) { if (!circleKeptPicked && typeof circleRekept === 'function') circleRekept(); syncBlastMenu(); }   // a circle on a token stands where its token stands now; one lost or found: the options show what is on screen, and the next click places it
       blasts.forEach(function(b, i) {
           if (b.lost) return;   // its token is off this screen's copy of the map
-          var rYd = blastRadiusYd(b), rPx = rYd * pxPerYd, own = ownCircle(b);   // the tool's own circle reads in the ruler's unit; a thrown blast keeps its item's feet and the handbook's yards
+          var rYd = blastRadiusYd(b), rPx = rYd * pxPerYd, own = ownCircle(b);   // the tool's own circle and a thrown blast both read in the ruler's unit (blastSize); a thrown blast keeps its item's feet inside
           var onTok = own && typeof b.tok === 'string';   // on a token: a press at its centre is the token's, so its dot takes none (the style sheet's on-tok)
           html += '<g class="blast' + (own ? ' own' : '') + (onTok ? ' on-tok' : '') + '" data-i="' + i + '"><title>' + (onTok ? 'It moves with its token \u00b7 right-click its edge to remove' : 'Drag to move \u00b7 right-click to remove') + '</title>';
           var kind = kindOf(b), DOT = '<circle class="dot" cx="' + b.x + '" cy="' + b.y + '" r="6"></circle>', GRAB = '<circle class="ring" cx="' + b.x + '" cy="' + b.y + '" r="' + rPx + '"></circle>';
           if (kind === 'cone') html += '<path class="area" d="' + conePath(b.x, b.y, rPx, b.dir, b.deg) + '"></path>' + DOT + (own ? '<circle class="blast-aim" data-i="' + i + '" cx="' + svgNum(b.x + rPx * Math.cos(b.dir || 0)) + '" cy="' + svgNum(b.y + rPx * Math.sin(b.dir || 0)) + '" r="7"><title>Drag to turn the cone</title></circle>' : '');   // a path is numbers only (svgNum); a blast's cone has no handle: it went off as it was aimed
           else if (kind === 'ring' && innerYd(b) > 0) html += '<path class="area" fill-rule="evenodd" d="' + ringPath(b.x, b.y, rPx, innerYd(b) * pxPerYd) + '"></path>' + GRAB + DOT;
           else html += '<circle class="area" cx="' + b.x + '" cy="' + b.y + '" r="' + rPx + '"></circle>' + GRAB + DOT;
-          var lblName = !own && b.name ? esc(b.name) + ' ' : '', lblSize = own ? esc(circleWords(b.yd, b.as, ru, b.inn, b.deg)) : ftOut(b.ft) + ' ft' + (kind === 'ring' ? ', from ' + ftOut(b.inFt) + ' ft' : kind === 'cone' ? ', ' + coneDeg(b.deg, 60) + '\u00b0' : '') + ' \u00b7 r ' + fmtLen(rYd);
-          var lbl = lblName + '<tspan class="fog-cap">' + lblSize + '</tspan>' + (elevOn ? ' \u00b7 at ' + fmtElev(b.elev || 0) + ' ' + lenUnit() : '');   // item 19 H1: in the viewer's unit. Its size alone is drawn over the fog on a player's screen (fog.js measureCaps): a name and a height stay on the board
+          var lblName = blastName(b) ? esc(blastName(b)) + ' \u00b7 ' : '', lblSize = esc(blastSize(b, ru, ri));   // a shape of the tool's own and a thrown blast alike in the ruler's unit (1.5.4), the words blastWords says
+          var lbl = lblName + '<tspan class="fog-cap">' + lblSize + '</tspan>' + (elevOn ? ' \u00b7 at ' + fmtElev(b.elev || 0) + ' ' + lenUnit() : '');   // item 19 H1: a height in the viewer's unit. Its size alone is drawn over the fog on a player's screen (fog.js measureCaps): a name and a height stay on the board
           html += '<text x="' + (b.x + 8) + '" y="' + (kind === 'cone' ? b.y - 12 : b.y - rPx - 8) + '">' + lbl + '</text>';   // a cone's words stand at its point: it has no top
           if (!playerScreen() && kind !== 'cone' && kind !== 'ring') html += '<text class="blast-boom" data-i="' + i + '" x="' + (b.x + 8) + '" y="' + (b.y - rPx - 26) + '">💥 Boom</text>';   // fires a burst everyone sees (1.5.0)
           blastDistances(b, map).forEach(function(r) {
               if (!shapeHolds(b, r)) return;
               var cvB = window.wpFog && window.wpFog.coverAt ? window.wpFog.coverAt(b.x, b.y, r.tok, map, elevOn ? (b.elev || 0) : 0, elevOn ? tokenElevation(r.tok, map, b.thrown === true) : 0) : null;   // cover follow-ups: the cover each token in range has from the blast's centre (local, advisory); item 19 H1: from the blast's height
-              html += '<text class="hit" x="' + (r.tok.x + (r.tok.w || 60) / 2) + '" y="' + (r.tok.y - 5) + '" text-anchor="middle">' + (own ? esc(rulerLen(r.d, ru)) : fmtLen(r.d)) + (elevOn && r.v ? ' (' + (r.v > 0 ? '\u2191' : '\u2193') + (Math.round(ydOut(Math.abs(r.v)) * 10) / 10) + ')' : '') + (cvB ? ' \u00b7 ' + esc(cvB.name) : '') + '</text>';
+              html += '<text class="hit" x="' + (r.tok.x + (r.tok.w || 60) / 2) + '" y="' + (r.tok.y - 5) + '" text-anchor="middle">' + esc(rulerLen(r.d, ru)) + (elevOn && r.v ? ' (' + (r.v > 0 ? '\u2191' : '\u2193') + (Math.round(ydOut(Math.abs(r.v)) * 10) / 10) + ')' : '') + (cvB ? ' \u00b7 ' + esc(cvB.name) : '') + '</text>';
           });
           html += '</g>';
       });
@@ -3906,6 +3971,8 @@ window.wpFitToGrid = fitToGrid;
       _blastHitIds = Object.keys(hit);
       _blastHitIds.forEach(function(id) { if (state.wbEls[id]) state.wbEls[id].classList.add(hit[id]); });
   }
+  window.wpBlastLen = function(ft) { return blastLen(ft, rulerUnitNow(), rulerImpNow()); };   // the sheet's blast tag, in the ruler's unit on the map on screen
+  window.wpRulerUnit = function() { return rulerUnitNow() + '|' + rulerImpNow(); };   // ... and that unit with the one its metres are turned from, so the sheet is drawn again on a map in another unit
   window.wpRefreshBlasts = function() { if (blasts.length || _blastHitIds.length || measures.length) renderMeasures(); };   // and the rulers placed: their words read the tokens they end on (a posture, a height) and the table's switches
   window.wpBlasts = function() { return blasts; };   // sandbox testing hook
   function clearBlasts() { blasts = []; renderMeasures(); syncBlastMenu(); if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.broadcastBlastClear) { var mc = getActiveMap(); window.wpNet.broadcastBlastClear(mc ? mc.id : null); } }
@@ -3972,7 +4039,8 @@ window.wpFitToGrid = fitToGrid;
       pushBlast(b); renderMeasures(); syncBlastMenu();
       if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.broadcastBlast) window.wpNet.broadcastBlast({ x: b.x, y: b.y, ft: b.ft, name: opts.gmOnly ? '' : b.name, elev: b.elev, by: b.by }, map.id);   // a GM-only item's blast reaches players unnamed
       var n = blastDistances(b, map).filter(function(r) { return r.d <= blastRadiusYd(b) + 1e-9; }).length;
-      toast((b.by ? b.by + ' throws ' : 'Thrown ') + (b.name ? b.name + ' ' : '') + b.ft + ' ft \u2014 ' + n + ' token' + (n === 1 ? '' : 's') + ' in range.' + (seatB ? ' It went off in front of the wall or door it hit.' : ''));
+      var rw = typeof blastSize === 'function' && typeof rulerUnitNow === 'function' ? blastSize({ ft: b.ft }, rulerUnitNow(), typeof rulerImpNow === 'function' ? rulerImpNow() : '') : 'Radius ' + b.ft + ' ft';   // in the ruler's unit, as its label (1.5.4): in metres as the sheet says a measure
+      toast((b.by ? b.by + ' throws ' : 'Thrown: ') + (b.name || 'a blast') + ', ' + rw.charAt(0).toLowerCase() + rw.slice(1) + '. ' + n + ' token' + (n === 1 ? '' : 's') + ' in range.' + (seatB ? ' It went off in front of the wall or door it hit.' : ''));
       resolveThrow(b, opts, n);
       return b;
   }
@@ -4660,7 +4728,7 @@ window.wpFitToGrid = fitToGrid;
       var shN = document.getElementById('blastShapeNote'); if (shN) shN.textContent = shapeNote(now.as, now.tok);
       var asRow = document.getElementById('blastAsRow'); if (asRow) asRow.style.display = shNow === 'circle' || shNow === 'tok' ? '' : 'none';   // Radius or Diameter is a circle's question, on a token or not
       document.querySelectorAll('#blastAsRow .draw-style-btn').forEach(function(x) { x.classList.toggle('active', x.dataset.as === now.as); });
-      var elIn = document.getElementById('blastElev'); if (elIn && document.activeElement !== elIn) elIn.value = b ? Math.round(ydOut(b.elev || 0) * 10) / 10 : 0;   // item 19 H1: in the viewer's unit
+      var elIn = document.getElementById('blastElev'); if (elIn && document.activeElement !== elIn) boxHeight(elIn, b ? b.elev || 0 : 0);   // item 19 H1: in the viewer's unit; 1.5.4: its arrows step one yard from the figure it shows
       var elU = document.getElementById('blastElevUnit'); if (elU) elU.textContent = lenUnit();
       var elRow = document.getElementById('blastElevRow'); if (elRow) elRow.style.display = stanceOn('elevation') ? '' : 'none';
       var flat = document.getElementById('blastFlatNote');
@@ -4686,9 +4754,9 @@ window.wpFitToGrid = fitToGrid;
   function setCircle(ch) {
       var ru = rulerUnitNow(), now = circleNow(), kind = ch.as !== undefined ? circleKind(ch.as) : now.as;
       if (_circleUnitShown && _circleUnitShown !== ru) { syncBlastMenu(); return; }   // the unit changed under the boxes: show them as they stand
-      var yd = ch.size !== undefined ? circleYd(ch.size, kind, ru) : now.yd;
+      var cy = cellYdNow(), yd = ch.size !== undefined ? circleYd(ch.size, kind, ru, cy) : now.yd;
       if (!(yd > 0)) { syncBlastMenu(); return; }   // nothing to read
-      circleKept = circleShape({ yd: yd, as: kind, inn: ch.inner !== undefined ? circleYd(ch.inner, 'r', ru) : now.inn, deg: ch.deg !== undefined ? coneDeg(ch.deg, now.deg) : now.deg, tok: ch.tok !== undefined ? ch.tok === true : now.tok });
+      circleKept = circleShape({ yd: yd, as: kind, inn: ch.inner !== undefined ? circleYd(ch.inner, 'r', ru, cy) : now.inn, deg: ch.deg !== undefined ? coneDeg(ch.deg, now.deg) : now.deg, tok: ch.tok !== undefined ? ch.tok === true : now.tok });
       try { localStorage.setItem('wp_radius', JSON.stringify(circleKept)); } catch (e) {}
       if (circleKept.as === 'r' || circleKept.as === 'd') circleCas = circleKept.as;
       var c = lastEdit(); if (!c) circleKeptPicked = true;
@@ -4741,6 +4809,7 @@ window.wpFitToGrid = fitToGrid;
   }); });
   var _el_blastElev = document.getElementById('blastElev');
   if (_el_blastElev) _el_blastElev.addEventListener('input', function() { var b = lastTall(); if (!b) return; var v = ydIn(this.value); b.elev = isFinite(v) ? Math.max(-999, Math.min(999, Math.round(v * 10) / 10)) : 0; b.autoElev = false; renderMeasures(); });   // item 19 H1: typed in the viewer's unit
+  if (_el_blastElev) _el_blastElev.addEventListener('change', function() { var b = lastTall(); if (b) boxHeight(this, b.elev || 0); });   // once set, the box shows the height as kept, and steps from there
   var _el_blastClearBtn = document.getElementById('blastClearBtn');
   if (_el_blastClearBtn) _el_blastClearBtn.addEventListener('click', function() {
       if (playerScreen()) { blasts = blasts.filter(function(b) { return !ownCircle(b); }); renderMeasures(); syncBlastMenu(); }   // a player clears the circles they placed: a blast the GM threw is the table's

@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { rollNeedsOk, rollNeedsSays, timeRuleRun, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, aliasFromShadowBase, sbRowOps, sbApplyProposal, cleanUploads, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, DEFAULT_POSTURES, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
+import { cleanFieldUnit, unitTail, heightWords, rollNeedsOk, rollNeedsSays, timeRuleRun, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, aliasFromShadowBase, sbRowOps, sbApplyProposal, cleanUploads, sideOf, threatArc, facingCtx, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, DEFAULT_POSTURES, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
 import { cleanCalendar, fmtWhen, fmtDate, timeOf, calPreset, CAL_LIMITS } from './calendarcore.js';
 
@@ -503,10 +503,30 @@ function turningOn() { return window.wpVtt ? !!window.wpVtt.on('turning') : true
 function vttOn(which) { return window.wpVtt ? !!window.wpVtt.on(which) : true; }
 function ruleOn(which) { var v = window.wpVtt; return !v || (v.rulesOn ? v.rulesOn(which) : v.on(which)); }   // Stage 6: the table's setting (a player's "off for me" only hides a control)
 function tokenFlags() { return { turning: ruleOn('turning'), posture: ruleOn('posture'), elevation: ruleOn('elevation') }; }   // Stage 6: the features the token names read through — the same gate as the host's rolls
-function stanceSigOf(c, camp) {   // what the stance control shows: its rows, the token, its values, who may use it
+function stanceSigOf(c, camp) {   // what the stance control shows: its rows, the token, its values, who may use it, and the viewer's Measurement system (unitSig)
     var fl = tokenFlags(), t = c ? facingTarget(c, camp) : null, st = t ? stanceCtx(t.tok, fl) : null, n = net();
-    return [vttOn('posture'), vttOn('elevation'), t ? t.mapId + '|' + t.tok.id + '|' + (t.tok.ownerId || '') + '|' + (t.tok.locked ? 1 : 0) : '', st ? st.posture + '|' + (st.pid || '') + '|' + st.elevation : '', !!(n && (n.paused || n.selfPaused))].join('#');   // conditions C3: the posture as stored (a posture of the system's own list)
+    return [vttOn('posture'), vttOn('elevation'), t ? t.mapId + '|' + t.tok.id + '|' + (t.tok.ownerId || '') + '|' + (t.tok.locked ? 1 : 0) : '', st ? st.posture + '|' + (st.pid || '') + '|' + st.elevation : '', !!(n && (n.paused || n.selfPaused)), typeof unitSig === 'function' ? unitSig() : ''].join('#');   // conditions C3: the posture as stored (a posture of the system's own list); 1.5.4: Imperial or Metric switched draws the row again
 }
+// [systemcheck:sheetelev-start]
+// The Elevation row of the sheet and of a HUD in the viewer's own unit, as the map's own menu has it (whiteboard.js wpStance; the read-only
+// check of 2026-10-17: in Metric the row went on in yards while the map said metres). It is shown and typed in yards or metres and kept in
+// yards, and a step is one yard in both, shown as 0.91 m in Metric. With no stance module at hand the row is in yards, as it was
+function elevUnits() {
+    var S = typeof window !== 'undefined' ? window.wpStance : null, ok = !!(S && S.ydBox && S.ydIn && S.ydStep && S.stepWords && S.lenUnit);
+    return {
+        unit: ok ? S.lenUnit() : 'yd',
+        inc: ok ? S.ydStep() : 1,
+        box: function(yd) { return ok ? S.ydBox(yd) : yd; },
+        yd: function(v) { return ok ? S.ydIn(v) : Number(v); },
+        step: function(d) { return ok ? S.stepWords(d) : (d < 0 ? 'Down' : 'Up') + ' one yard'; }
+    };
+}
+// [systemcheck:sheetelev-end]
+var _rulerUnitAt = '';   // the ruler's unit the views were last drawn in (tokenTurned): another map in another unit draws them again
+function rulerUnitShown() { var f = typeof window !== 'undefined' ? window.wpRulerUnit : null; return typeof f === 'function' ? String(f()) : ''; }
+// An item's blast radius beside it, in the ruler's unit on the map on screen, as the Radius tool says a size (the owner, 2026-10-17, by prompt:
+// "The ruler's unit (Recommended)"): yards on a map in yards, metres under Metric. The item keeps its feet; with no board at hand they are said
+function blastTag(ft) { var f = typeof window !== 'undefined' && typeof window.wpBlastLen === 'function' ? window.wpBlastLen(ft) : ''; return typeof f === 'string' && f ? f : ft + ' ft'; }
 function mapOk(m) { return !!(m && m.type === 'map' && Array.isArray(m.whiteboard)); }
 // Which token the dial (and every facing name on the sheet and in rolls) reads:
 // - a player: their own shown token on the map they are on — the token the host reads for their rolls;
@@ -549,9 +569,9 @@ function rangeSigOf(c, camp) { var t = c ? facingTarget(c, camp) : null, r = t ?
 function roundSigOf(c, camp) { var t = c ? facingTarget(c, camp) : null, cb = t ? combatOn(t.mapId) : null; return cb && typeof cb.round === 'number' ? String(cb.round) : ''; }   // HF5b: what CombatRound reads for this character, so a round change redraws the view
 function dialSigOf(c, camp) {
     var fl = tokenFlags(), t = c ? facingTarget(c, camp) : null, fc = t ? facingCtx(t.map, t.tok, fl.turning) : null, st = t ? stanceCtx(t.tok, fl) : null, n = net();
-    return [JSON.stringify(fl), t ? t.mapId + '|' + t.tok.id + '|' + (t.tok.ownerId || '') + '|' + (t.tok.locked ? 1 : 0) : '', fc ? fc.deg + '|' + fc.sides + '|' + fc.threats.join(',') : '', st ? st.posture + '|' + st.elevation : '', !!(n && (n.paused || n.selfPaused))].join('#');
+    return [JSON.stringify(fl), t ? t.mapId + '|' + t.tok.id + '|' + (t.tok.ownerId || '') + '|' + (t.tok.locked ? 1 : 0) : '', fc ? fc.deg + '|' + fc.sides + '|' + fc.threats.join(',') : '', st ? st.posture + '|' + st.elevation : '', !!(n && (n.paused || n.selfPaused)), typeof unitSig === 'function' ? unitSig() : ''].join('#');   // 1.5.4: the viewer's Measurement system, which the Elevation row, a measure's metric figure and a height's half are drawn by (unitSig)
 }
-function dialSigFor(charId, camp) { var c = charById(charId, camp); return c ? dialSigOf(c, camp) : ''; }   // 1.5.4: for a sheet in a window of its own (popout.js), which redraws when it moves
+function dialSigFor(charId, camp) { var c = charById(charId, camp); return c ? dialSigOf(c, camp) : ''; }   // 1.5.4: for a sheet in a window of its own (popout.js), which redraws when it moves, and when the viewer's Measurement system changes (dialSigOf names it)
 function namesFacing(sys) {   // does a formula on the sheet (or a {formula} in a caption) name a built-in facing name, so a finished turn redraws its numbers?
     var Fm = F(); if (!sys || !Array.isArray(sys.fields) || !Fm || !Fm.names) return false;
     var own = {}; sys.fields.forEach(function(f) { own[String(f.key).toLowerCase()] = 1; });
@@ -662,15 +682,16 @@ function stanceNode(c, gm) {
     }
     if (eOn) {
         var er = el('div', 'sheet-stance-row'); er.appendChild(el('span', 'sheet-label', 'Elevation'));
-        var em = el('button', 'tool ghost sheet-pm', '\u2212'); em.dataset.dk = 'elevm'; em.title = 'Down one yard'; em.disabled = !live;
-        var ei = el('input', 'field sheet-num sheet-cur num-stepped'); ei.type = 'number'; ei.step = '1'; ei.value = String(st.elevation); ei.dataset.dk = 'elev'; ei.dataset.cur = String(st.elevation); ei.disabled = !live; ei.title = 'Height above the ground, in yards';
-        var ep = el('button', 'tool ghost sheet-pm', '+'); ep.dataset.dk = 'elevp'; ep.title = 'Up one yard'; ep.disabled = !live;
-        var stepBy = function(d) { var cur = ei.value !== '' && isFinite(Number(ei.value)) ? Number(ei.value) : st.elevation; setSt({ elevation: cur + d }); };   // from what the box shows (a typed 2.5 then + is 3.5)
+        var eu = elevUnits(), eShown = String(eu.box(st.elevation));   // 1.5.4: in the viewer's unit, kept in yards
+        var em = el('button', 'tool ghost sheet-pm', '\u2212'); em.dataset.dk = 'elevm'; em.title = eu.step(-1); em.disabled = !live;
+        var ei = el('input', 'field sheet-num sheet-cur num-stepped'); ei.type = 'number'; ei.step = String(eu.inc); ei.defaultValue = eShown; ei.value = eShown; ei.dataset.dk = 'elev'; ei.dataset.cur = eShown; ei.disabled = !live; ei.title = 'Height above the ground, in ' + (eu.unit === 'm' ? 'metres' : 'yards');
+        var ep = el('button', 'tool ghost sheet-pm', '+'); ep.dataset.dk = 'elevp'; ep.title = eu.step(1); ep.disabled = !live;
+        var stepBy = function(d) { var cur = ei.value !== '' && isFinite(Number(ei.value)) ? eu.yd(ei.value) : st.elevation; setSt({ elevation: cur + d }); };   // from what the box shows (a typed 2.5 then + is 3.5); a step is one yard in both
         [em, ep].forEach(function(b) { b.addEventListener('mousedown', function(ev) { ev.preventDefault(); }); });   // the box keeps focus: no blur commit racing the click
         em.addEventListener('click', function() { stepBy(-1); });
         ep.addEventListener('click', function() { stepBy(1); });
-        ei.addEventListener('change', function() { if (isFinite(Number(ei.value))) setSt({ elevation: Number(ei.value) }); });
-        er.appendChild(em); er.appendChild(ei); er.appendChild(ep); er.appendChild(el('span', 'sheet-unit', 'yd')); wrap.appendChild(er);
+        ei.addEventListener('change', function() { if (isFinite(Number(ei.value))) setSt({ elevation: eu.yd(ei.value) }); });
+        er.appendChild(em); er.appendChild(ei); er.appendChild(ep); er.appendChild(el('span', 'sheet-unit', eu.unit)); wrap.appendChild(er);
     }
     var mt = t.map.meta && typeof t.map.meta.title === 'string' ? t.map.meta.title.slice(0, 60) : ''; if (mt) wrap.appendChild(el('span', 'sheet-dial-map', 'on ' + mt));
     if (!gm && t.tok.locked) wrap.appendChild(el('span', 'sheet-dial-map', '\uD83D\uDD12 Locked by the GM'));
@@ -706,6 +727,7 @@ function swapTokenControls(p, c, camp) {
 }
 function tokenTurned(tokId, final) {
     try { Object.keys(huds).forEach(function(id) { turnView(huds[id], final); }); } catch (e) {}   // HUD frame (HF2a): every HUD, whether or not a sheet is open
+    try { if (typeof rulerUnitShown === 'function' && typeof renderViews === 'function') { var ruN = rulerUnitShown(), anyView = Object.keys(huds).length > 0 || !!sheetOpen; if (ruN !== _rulerUnitAt) { _rulerUnitAt = ruN; if (anyView) renderViews(); } } } catch (e) {}   // 1.5.4: a blast's radius is said in the ruler's unit on the map on screen, so another map in another unit draws the open views again
     try {
         if (!sheetOpen) return;
         var p = ui('sheetPanel'); if (!p || p.style.display === 'none') return;
@@ -1245,7 +1267,7 @@ function headerBlocks(head, sys, c, all, gm, own) {
         list.forEach(function(q) {
             var f = q && q.id ? byId[q.id] : null; if (!f) return;
             if (c.partial && !f.hover) return;
-            var en = headerEntry(f, all[f.id]); if (!en) { if (ledger || f.kind !== 'toggle' || !idnOk(f)) return; en = { text: f.label }; }   // an off toggle shows as a chip only while on — unless it can be switched on here
+            var en = headerEntry(f, all[f.id], typeof unitsMetric === 'function' ? unitsMetric() : undefined); if (!en) { if (ledger || f.kind !== 'toggle' || !idnOk(f)) return; en = { text: f.label }; }   // an off toggle shows as a chip only while on — unless it can be switched on here
             var it = el('div', itemCls + (f.vis === 'gm' ? ' sheet-gm' : ''));
             var lab = el('span', 'sheet-label', f.label); lab.title = f.key; it.appendChild(lab);
             var tone = en.neg ? ' sheet-hdr-neg' : en.pos ? ' sheet-hdr-pos' : '';
@@ -1256,7 +1278,7 @@ function headerBlocks(head, sys, c, all, gm, own) {
                 if (f.min !== undefined) inp.min = String(f.min); if (f.max !== undefined) inp.max = String(f.max);
                 inp.addEventListener('change', function() { commit(c, f, Number(inp.value)); });
                 var rawN = Number(inp.value); inp.className = inp.className.replace(/ sheet-hdr-(neg|pos)/g, '') + (rawN < 0 ? ' sheet-hdr-neg' : f.sign && rawN > 0 ? ' sheet-hdr-pos' : '');   // 5h: toned by the number the box shows
-                var ed = el('span', 'sheet-hdr-val sheet-hdr-edit'); ed.appendChild(inp); if (f.unit) ed.appendChild(el('span', 'sheet-unit', f.unit));
+                var ed = el('span', 'sheet-hdr-val sheet-hdr-edit'); ed.appendChild(inp); if (f.unit) ed.appendChild(el('span', 'sheet-unit', typeof unitText === 'function' ? unitText(f, Number(inp.value), inp.value) : f.unit));
                 var eL = all[f.id]; if (eL && eL.mods && eL.mods.length) { var fbL = fxMark(eL); if (fbL) { fbL.textContent = '\u2192 ' + fmtNum(eL.value); ed.appendChild(fbL); } }   // 5h: the effective value beside the base
                 it.appendChild(ed); box.appendChild(it); return;
             }
@@ -1277,6 +1299,7 @@ function idnControl(f, c, e, tone) {
     var raw = c.values ? c.values[f.id] : undefined, wrap = el('span', 'sheet-hdr-val sheet-hdr-edit sheet-idn-edit'), ctl;
     var named = f.kind === 'number' && Array.isArray(f.labels) && f.labels.length;
     if (typeof lookOnPaper === 'function' && lookOnPaper(f, c)) { var pv = el('span', 'sheet-hdr-val' + (tone || ''), String(raw)); pv.title = String(raw); lookInto(pv, f, c, raw); return pv; }   // item 35: on paper a styled text is read with its look, as the locked sheet shows it (with no look it prints as it always did)
+    if (typeof heightPaper === 'function') { var hP = heightPaper(f, c, tone); if (hP) return hP; }   // 1.5.4: on paper a height reads by the half of the viewer's setting, as the locked sheet shows it
     if (f.kind === 'text') { ctl = typeof sbxNode === 'function' ? sbxNode(f, c, false) : null; if (!ctl) { ctl = el('input', 'field sheet-text sheet-idn-input'); ctl.type = 'text'; ctl.maxLength = f.max || 200; ctl.value = raw === undefined ? String(f.def || '') : String(raw); ctl.addEventListener('change', function() { commit(c, f, ctl.value); }); } }   // item 35: its own box where the box can serve
     else if (f.kind === 'select') { ctl = el('select', 'field sheet-select sheet-idn-input'); var sv = raw === undefined ? f.def : raw; (f.options || []).forEach(function(o) { ctl.appendChild(opt(o, o, sv === o)); }); ctl.addEventListener('change', function() { commit(c, f, ctl.value); }); }
     else if (f.kind === 'toggle') { ctl = el('input', 'sheet-idn-check'); ctl.type = 'checkbox'; ctl.checked = raw === undefined ? f.def === true : raw === true; ctl.addEventListener('change', function() { commit(c, f, ctl.checked); }); }
@@ -1292,7 +1315,7 @@ function idnControl(f, c, e, tone) {
     }
     ctl.dataset.fid = f.id; ctl.dataset.part = 'idn'; ctl.title = f.label + (f.unit && f.kind === 'number' && !named ? ' (' + f.unit + ')' : '');
     wrap.appendChild(ctl);
-    if (f.kind === 'number' && !named) { if (f.unit) wrap.appendChild(el('span', 'sheet-unit', f.unit)); if (e && e.mods && e.mods.length) { var fb = fxMark(e); if (fb) { fb.textContent = '\u2192 ' + fmtNum(e.value); wrap.appendChild(fb); } } }   // 5h: the effective value beside the base
+    if (f.kind === 'number' && !named) { if (f.unit) wrap.appendChild(el('span', 'sheet-unit', typeof unitText === 'function' ? unitText(f, Number(ctl.value), ctl.value) : f.unit)); if (e && e.mods && e.mods.length) { var fb = fxMark(e); if (fb) { fb.textContent = '\u2192 ' + fmtNum(e.value); wrap.appendChild(fb); } } }   // 5h: the effective value beside the base
     return wrap;
 }
 // Stage 5g: the text colour for a label on a filled accent (the open filled tab) — near-black or white, whichever reads better
@@ -2191,11 +2214,11 @@ function itemRmBtn(entry, def, c, f) {
     var rm = el('button', 'tool ghost sheet-item-rm', '×'); rm.title = entry.hid === 1 ? 'Dispel: remove ' + def.name + ' from the character' : 'Remove ' + def.name;
     rm.addEventListener('click', function() { commitItem(c, f, { op: 'remove', rowId: rowIdOf(entry) }); }); return rm;
 }
-function itemCellText(col, def) {
+function itemCellText(col, def, len) {   // len: how the sheet on screen says a blast's radius (blastTag); with none the item's feet, as the readable page writes them
     if (col === 'category') return def.category || '';
     if (col === 'cost') return def.cost || '';
     if (col === 'damage') return def.damage || '';
-    if (col === 'area') return def.area ? (def.area.ft + ' ft' + (def.area.shape && def.area.shape !== 'circle' ? ' ' + def.area.shape : '')) : '';
+    if (col === 'area') return def.area ? ((typeof len === 'function' ? len(def.area.ft) : def.area.ft + ' ft') + (def.area.shape && def.area.shape !== 'circle' ? ' ' + def.area.shape : '')) : '';
     return '';
 }
 // Stage 6 F6b: what a row's item changes on its character, as chips on the row ("DEX −2", "HP max +5", "Inspiration on") — a change per level
@@ -2398,7 +2421,7 @@ function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, 
         var line = el('div', 'sheet-item' + (entry.hid === 1 ? ' sheet-item-hid' : ''));
         if (def.icon) line.appendChild(iconNode(def.icon, 'sheet-item-icon'));
         var ovc = ovCtx(entry, rd, gm);   // F4c2: what this copy holds of its own (a dot on each)
-        var nm = el('span', 'sheet-item-name', def.name); if (def.area) nm.appendChild(el('span', 'sheet-item-area-tag', ' ' + def.area.ft + ' ft')); if (def.notes) nm.title = def.notes; ovNameDot(nm, ovc, true); line.appendChild(nm);
+        var nm = el('span', 'sheet-item-name', def.name); if (def.area) nm.appendChild(el('span', 'sheet-item-area-tag', ' ' + (typeof blastTag === 'function' ? blastTag(def.area.ft) : def.area.ft + ' ft'))); if (def.notes) nm.title = def.notes; ovNameDot(nm, ovc, true); line.appendChild(nm);
         if (chips && def.category) line.appendChild(el('span', 'sheet-chip', def.category));
         lostBits(line, rd, entry, c, f, gm, chg); needBits(line, sysI, c, entry, rd, gm); gmItemBits(line, def, entry, gm, !!(spec && spec.on)); keyShareChip(line, entry, rd, unseenL); modsBits(line, def, entry, spec, sysI);
         var noteLn = null;
@@ -2499,12 +2522,12 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty,
         var tr = el('tr', entry.hid === 1 ? 'sheet-item-hid' : null), nameTd = el('td', 'sheet-itcol-name');
         if (def.icon) nameTd.appendChild(iconNode(def.icon, 'sheet-item-icon'));
         nameTd.appendChild(document.createTextNode(def.name));
-        if (def.area) nameTd.appendChild(el('span', 'sheet-item-area-tag', ' ' + def.area.ft + ' ft'));
+        if (def.area) nameTd.appendChild(el('span', 'sheet-item-area-tag', ' ' + (typeof blastTag === 'function' ? blastTag(def.area.ft) : def.area.ft + ' ft')));
         var ovT = ovCtx(entry, rd, gm); ovNameDot(nameTd, ovT);   // F4c2: a dot when the copy holds values of its own
         if (tbl.chips && def.category) nameTd.appendChild(el('span', 'sheet-chip', def.category));
         lostBits(nameTd, rd, entry, c, f, gm, chg); needBits(nameTd, sysI, c, entry, rd, gm); gmItemBits(nameTd, def, entry, gm, hasO); keyShareChip(nameTd, entry, rd, unseenT); modsBits(nameTd, def, entry, spec, sysI);
         tr.appendChild(nameTd);
-        cols.forEach(function(col) { tr.appendChild(el('td', 'sheet-itcol-' + col, itemCellText(col, def))); });
+        cols.forEach(function(col) { tr.appendChild(el('td', 'sheet-itcol-' + col, itemCellText(col, def, typeof blastTag === 'function' ? blastTag : null))); });
         shownSt.forEach(function(s) { var sTd = el('td', 'sheet-itcol-stat', statText(s, rowStat(spec, def, s.key))), sDt = statDot(s, spec, ovT); if (sDt) sTd.appendChild(sDt); tr.appendChild(sTd); });
         var cellsT = res && res.cells ? res.cells[rid] : null; shownCl.forEach(function(x) { var v = cellsT ? cellsT[x.i] : null, cTd = el('td', 'sheet-itcol-col' + (v && v.error ? ' sheet-item-colerr' : ''), v ? v.text + (x.c.unit && !v.error ? ' ' + x.c.unit : '') + (typeof plusText === 'function' ? plusText(v) : '') : ''); if (v && v.error) cTd.title = v.error; tr.appendChild(cTd); });   // F5a1: its columns (1.5.4: and what a column's With stats add, in brackets)
         if (hasL) { var lTd = el('td', 'sheet-itcol-lvl'), lcT = lvlCtl(entry, def, c, f, spec, chg); if (lcT) lTd.appendChild(lcT); tr.appendChild(lTd); }
@@ -3070,7 +3093,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
     var playOk = editable && (!lk || f.live !== false), editOk = editable && (!lk || f.live === true);   // a list's two halves: what is used in play (a switch, a count, a use), and what changes the character (a level, a row, a note)
     var raw = c.values ? c.values[f.id] : undefined;
     var k = f.kind;
-    if (k === 'formula') { var v = el('div', 'sheet-value' + (e && e.error ? ' sheet-err' : '') + signTone(f, e), e && e.error ? '—' : e ? e.text + (f.unit && e.text !== '' && !e.label ? ' ' + f.unit : '') : ''); v.title = e && e.error ? e.error : f.formula || ''; if (f.badge && e && !e.error) { var tnB = valueTone(f, e), bd = el('span', 'sheet-badge' + (Object.prototype.hasOwnProperty.call(TONE_CLASS, tnB) ? TONE_CLASS[tnB] : ''), v.textContent); v.textContent = ''; v.appendChild(bd); } var fmF = fxMark(e); if (fmF) { v.appendChild(fmF); v.title += '\n' + fmF.title; } box.appendChild(v); return box; }
+    if (k === 'formula') { var v = el('div', 'sheet-value' + (e && e.error ? ' sheet-err' : '') + signTone(f, e), e && e.error ? '—' : e ? e.text + (f.unit && e.text !== '' && !e.label ? ' ' + (typeof unitText === 'function' ? unitText(f, e.value, e.text) : f.unit) : '') : ''); v.title = e && e.error ? e.error : f.formula || ''; if (f.badge && e && !e.error) { var tnB = valueTone(f, e), bd = el('span', 'sheet-badge' + (Object.prototype.hasOwnProperty.call(TONE_CLASS, tnB) ? TONE_CLASS[tnB] : ''), v.textContent); v.textContent = ''; v.appendChild(bd); } var fmF = fxMark(e); if (fmF) { v.appendChild(fmF); v.title += '\n' + fmF.title; } box.appendChild(v); return box; }
     if (k === 'number' && Array.isArray(f.labels) && f.labels.length) {   // Stage 6: a number with value names — a dropdown that stores the position (formulas read the number)
         var rowL = el('div', 'sheet-ctl'), ls = el('select', 'field sheet-select'), curL = Number(raw === undefined ? f.def : raw);
         ls.dataset.fid = f.id; f.labels.forEach(function(t, i) { ls.appendChild(opt(String(i), t || String(i), curL === i)); });
@@ -3103,9 +3126,10 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
         if (f.counter) row.appendChild(stepWrap(inp, f, c, use, true));   // HUD frame (HF4a, H8): a counter, minus and plus either side (the cleaner never keeps one with value names or a slider)
         else if (lkS.steppers === 'inside' && !(k === 'number' && f.slider && f.min !== undefined && f.max !== undefined)) row.appendChild(stepWrap(inp, f, c, use));   // Stage 6 look fold (L8)
         else row.appendChild(inp);
-        if (k === 'number' && e && e.mods && e.mods.length) { var fb = fxMark(e); if (fb) { fb.textContent = '\u2192 ' + fmtNum(e.value); row.appendChild(fb); } }   // 5h: the box edits the base; the effective value beside it
-        if (k === 'skill') { var tot = el('span', 'sheet-total' + (e && e.error ? ' sheet-err' : '') + signTone(f, e), e && e.error ? '—' : '= ' + (e ? e.text : '')); tot.title = e && e.error ? e.error : (f.base ? 'ranks + ' + f.base : 'ranks'); row.appendChild(tot); var fmS = fxMark(e); if (fmS) { row.appendChild(fmS); tot.title += '\n' + fmS.title; } }
-        if (f.unit) row.appendChild(el('span', 'sheet-unit', f.unit));   // Stage 5g
+        var uAt = [Number(inp.value), inp.value];   // 1.5.4: the figure the unit follows: the box's, the effective value beside it, or a skill's total
+        if (k === 'number' && e && e.mods && e.mods.length) { var fb = fxMark(e); if (fb) { fb.textContent = '\u2192 ' + fmtNum(e.value); row.appendChild(fb); uAt = [e.value, fmtNum(e.value)]; } }   // 5h: the box edits the base; the effective value beside it
+        if (k === 'skill') { var tot = el('span', 'sheet-total' + (e && e.error ? ' sheet-err' : '') + signTone(f, e), e && e.error ? '—' : '= ' + (e ? e.text : '')); tot.title = e && e.error ? e.error : (f.base ? 'ranks + ' + f.base : 'ranks'); row.appendChild(tot); var fmS = fxMark(e); if (fmS) { row.appendChild(fmS); tot.title += '\n' + fmS.title; } uAt = [e && !e.error ? e.value : NaN, e ? e.text : '']; }
+        if (f.unit) row.appendChild(el('span', 'sheet-unit', typeof unitText === 'function' ? unitText(f, uAt[0], uAt[1]) : f.unit));   // Stage 5g; 1.5.4: a measure in metric too under Metric
         box.appendChild(row); return box;
     }
     if (k === 'resource') {
@@ -3117,7 +3141,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
         var minus = el('button', 'tool ghost sheet-pm', '−'); minus.dataset.fid = f.id; minus.dataset.part = 'minus'; minus.title = 'One less'; minus.disabled = !use;
         var ci = el('input', 'field sheet-num sheet-cur num-stepped'); ci.type = 'number'; ci.dataset.fid = f.id; ci.value = String(cur); ci.disabled = !use; if (f.min !== undefined) ci.min = String(f.min); if (max !== null) ci.max = String(max);
         var plus = el('button', 'tool ghost sheet-pm', '+'); plus.dataset.fid = f.id; plus.dataset.part = 'plus'; plus.title = 'One more'; plus.disabled = !use;
-        var mx = el('span', 'sheet-total' + (e && e.error ? ' sheet-err' : ''), '/ ' + (max === null ? '—' : fmtNum(max)) + (f.unit ? ' ' + f.unit : '')); mx.title = e && e.error ? e.error : (f.maxFormula || 'no max'); var fmR = fxMark(e, true); if (fmR) mx.title += '\n' + fmR.title;
+        var mx = el('span', 'sheet-total' + (e && e.error ? ' sheet-err' : ''), '/ ' + (max === null ? '—' : fmtNum(max)) + (f.unit ? ' ' + (typeof unitText === 'function' ? unitText(f, cur, String(cur), max, max === null ? '' : fmtNum(max)) : f.unit) : '')); mx.title = e && e.error ? e.error : (f.maxFormula || 'no max'); var fmR = fxMark(e, true); if (fmR) mx.title += '\n' + fmR.title;
         minus.addEventListener('click', function() { commit(c, f, { cur: cur - 1 }); });
         plus.addEventListener('click', function() { commit(c, f, { cur: cur + 1 }); });
         ci.addEventListener('change', function() { commit(c, f, { cur: Number(ci.value) }); });
@@ -3134,6 +3158,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
         return box;
     }
     if (k === 'toggle') { var lb = el('label', 'sheet-toggle'); var cb = el('input'); cb.type = 'checkbox'; cb.dataset.fid = f.id; cb.checked = raw === undefined ? f.def === true : raw === true; cb.disabled = !use; cb.addEventListener('change', function() { commit(c, f, cb.checked); }); lb.appendChild(cb); lb.appendChild(document.createTextNode(' ' + (cb.checked ? 'on' : 'off'))); box.appendChild(lb); if (e && e.value === true && !cb.checked && e.mods && e.mods.length) { var ft = el('span', 'sheet-eff sheet-eff-same', 'on (' + e.mods.map(function(m) { return m.name; }).join(', ') + ')'); ft.title = 'Switched on by ' + e.mods.map(function(m) { return m.name; }).join(', '); box.appendChild(ft); } return box; }
+    if (k === 'text' && typeof heightNode === 'function') { var hN = heightNode(f, c, use); if (hN) { box.appendChild(hN); return box; } }   // 1.5.4: a height, read by the half of the viewer's setting
     if ((k === 'text' || k === 'notes') && typeof lookNode === 'function') { var lkN = lookNode(f, c, use, k === 'notes'); if (lkN) { box.appendChild(lkN); return box; } }   // item 35: read with its look where it is only read here; else as ever, below
     if (k === 'text') { var ti = el('input', 'field sheet-text'); ti.type = 'text'; ti.dataset.fid = f.id; ti.maxLength = f.max || 200; ti.value = raw === undefined ? String(f.def || '') : String(raw); ti.disabled = !use; ti.addEventListener('change', function() { commit(c, f, ti.value); }); box.appendChild(ti); return box; }
     if (k === 'notes') { var ta = el('textarea', 'field sheet-notes'); ta.dataset.fid = f.id; ta.rows = 4; ta.value = raw === undefined ? '' : String(raw); ta.disabled = !use; var tmr = null; ta.addEventListener('input', function() { clearTimeout(tmr); tmr = setTimeout(function() { commit(c, f, ta.value); }, 600); }); ta.addEventListener('change', function() { clearTimeout(tmr); commit(c, f, ta.value); }); box.appendChild(ta); return box; }
@@ -3548,6 +3573,45 @@ function lookPaper() { return typeof _sbx !== 'undefined' && !!_sbx && _sbx.pape
 function lookOnPaper(f, c) { return !!f && f.kind === 'text' && lookPaper() && !!lookOf(f, c); }   // a one-line text that prints with its look (the header's own control asks)
 function lookReadRule(f) { var r = lookRule(f); if (!r || !lookPaper()) return r; var o = {}, k; for (k in r) if (Object.prototype.hasOwnProperty.call(r, k)) o[k] = r[k]; o.link = false; return o; }
 // [systemcheck:sheetlook-end]
+// [systemcheck:fieldunit-start]
+// 1.5.4, a field's display unit (systemcore cleanFieldUnit; the owner, 2026-10-17: "my system should match the site while letting the user pick
+// metric or imperial"). The viewer's own Measurement system, read where the map reads it (whiteboard.js metricOn), and what the sheet draws by
+// it: a measure's figure in metric too under Metric, and a height by the half of the setting where its text is read. Display only: a box holds
+// and commits its figure in the book's unit. The core is asked through typeof, so a harness that slices one function of the sheet draws it as
+// it always did. The setting is changed in ONE place, whiteboard.js unitSet (Settings, the Measure menu, and the word of another window of this
+// computer), which draws every open sheet and HUD again; a view's signature names it (unitSig), so a sheet in a window of its own follows too
+function unitsMetric() { try { return typeof state !== 'undefined' && !!state && state.measureUnit === 'metric'; } catch (e) { return false; } }
+function unitSig() { return unitsMetric() ? 'metric' : 'imperial'; }   // the viewer's Measurement system in a view's signature (stanceSigOf, dialSigOf)
+function unitText(f, value, shown, max, shownMax) { return String(f.unit) + (typeof unitTail === 'function' ? unitTail(f, value, shown, unitsMetric(), max, shownMax) : ''); }   // the words after a figure
+// A text field read as a height (the unit height), as the viewer's setting reads it: the text as stored, and the half shown. Null where it is
+// no height or where the half is the text itself
+function heightNow(f, c) {
+    if (!f || f.kind !== 'text' || typeof cleanFieldUnit !== 'function' || typeof heightWords !== 'function' || cleanFieldUnit(f.unit, 'text') !== 'height') return null;
+    var raw = c && c.values ? c.values[f.id] : undefined, stored = raw === undefined || raw === null ? String(f.def || '') : String(raw), shown = heightWords(stored, unitsMetric());
+    return shown === stored ? null : { stored: stored, shown: shown };
+}
+// Where the field is only read here, or on paper: the half, in the box a read text is drawn in, the text as stored in its tooltip. Null where
+// the field may be used here (its box holds the text as stored) or there is no half to show: the field is then drawn as it always was
+function heightNode(f, c, use) {
+    var paper = typeof lookPaper === 'function' && lookPaper(); if (use && !paper) return null;
+    var h = heightNow(f, c); if (!h) return null;
+    var ti = el('input', 'field sheet-text'); ti.type = 'text'; ti.dataset.fid = f.id; ti.value = h.shown; ti.disabled = true; ti.title = h.stored; return ti;
+}
+function heightPaper(f, c, tone) {   // the header's own control on paper: the half, as the locked sheet shows it
+    if (!(typeof lookPaper === 'function' && lookPaper())) return null;
+    var h = heightNow(f, c); if (!h) return null;
+    var pv = el('span', 'sheet-hdr-val' + (tone || ''), h.shown); pv.title = h.stored; return pv;
+}
+// The System editor's Unit box: the measures offered as a list beside what may be typed (a datalist, made once). Its id, or '' with no page
+function unitWordsList() {
+    try {
+        if (document.getElementById('sysUnitWords')) return 'sysUnitWords';
+        var dl = el('datalist'); dl.id = 'sysUnitWords';
+        [['yd', 'yards'], ['ft', 'feet'], ['in', 'inches'], ['lb', 'pounds'], ['mi', 'miles']].forEach(function(o) { dl.appendChild(opt(o[0], o[1])); });
+        (document.getElementById('systemModal') || document.body).appendChild(dl); return 'sysUnitWords';
+    } catch (e) { return ''; }
+}
+// [systemcheck:fieldunit-end]
 // [systemcheck:commitlook-start]
 // Item 35: the look of one text of a character (bold, a colour, a link), set from its sheet. rec: a look record made for the text the sheet
 // holds now, or null to take the look off. A player's goes to the host and is laid over at once. The GM's is judged by the very rule the
@@ -4528,6 +4592,13 @@ function refreshErrors() {
         if (!KINDS[f.kind]) errs.push({ prop: 'kind', message: 'Pick a kind.' });
         if (errs.length) errorsById[f.id] = errs;
     });
+    if (typeof cleanFieldUnit === 'function') draft.fields.forEach(function(f) {   // 1.5.4: a field's unit as Save reads it: a text field's unit that is not height goes, and a measure spelled so that it is not one stays as words
+        var uw = f && typeof f.unit === 'string' ? f.unit.trim() : ''; if (!uw) return;
+        if (f.kind === 'text') { if (uw !== 'height') (errorsById[f.id] = errorsById[f.id] || []).push({ prop: 'unit', message: 'A text field takes the unit height alone, so Save drops \u201c' + uw + '\u201d.' }); return; }
+        if (f.kind !== 'number' && f.kind !== 'formula' && f.kind !== 'skill' && f.kind !== 'resource') return;
+        var NEAR = { yard: 'yd', yards: 'yd', yd: 'yd', yds: 'yd', foot: 'ft', feet: 'ft', ft: 'ft', inch: 'in', inches: 'in', 'in': 'in', pound: 'lb', pounds: 'lb', lb: 'lb', lbs: 'lb', mile: 'mi', miles: 'mi', mi: 'mi' }, lw = uw.toLowerCase().replace(/\.$/, '');
+        if (Object.prototype.hasOwnProperty.call(NEAR, lw) && !cleanFieldUnit(uw, f.kind)) (warningsById[f.id] = warningsById[f.id] || []).push({ prop: 'unit', message: 'Its unit \u201c' + uw + '\u201d is shown as written in both settings. Write ' + NEAR[lw] + ' and Metric shows the figure in metric too.' });
+    });
     (draft.items || []).forEach(function(it) { if (it && it.key && !cleanItemKey(String(it.key), F())) (errorsById[it.id] = errorsById[it.id] || []).push({ prop: 'key', message: 'Not a usable key: a letter, then letters, digits and _ (up to 40); not a word formulas already use (count, qty, on, has, lvl, paid, row; max, min, cur, ranks, base; a function or reserved word such as floor, and, true; constructor). Save drops it.' }); });   // Stage 6 F4b
     // Stage 6 F4c1: each list's stats as Save will read them (a key it drops, a repeat, past the cap, a price naming none, another list's spelling),
     // under the list's card; and what Save drops when a saved stat is renamed or removed (a stat's key is its identity)
@@ -4908,7 +4979,8 @@ function fieldRow(f) {
     if (f.kind === 'number' && (!f.counter || f.slider)) { var sl = el('label', 'sys-hover'); var sc = el('input'); sc.type = 'checkbox'; sc.checked = !!f.slider; sc.className = 'sys-slider-chk'; sl.appendChild(sc); sl.appendChild(document.createTextNode(' Slider')); sl.title = 'Show this number as a range on a two-colour track with end labels (needs a min and a max)'; flags.appendChild(sl); }   // Stage 5e (a counter is not a slider: hidden while Counter is on, shown while a slider is set so it can be turned off)
     if ((f.kind === 'number' && !f.slider && !(Array.isArray(f.labels) && f.labels.length)) || f.kind === 'skill') { var cnl = el('label', 'sys-hover'); var cnc = el('input'); cnc.type = 'checkbox'; cnc.checked = !!f.counter; cnc.className = 'sys-counter-chk'; cnl.appendChild(cnc); cnl.appendChild(document.createTextNode(' Counter')); cnl.title = 'Draw \u2212 and + either side of the box (a turn counter, death saves, ammo, slots used)'; flags.appendChild(cnl); }   // HUD frame (HF4a, H8): never with a slider or value names
     if (f.kind !== 'formula') { var lvL = el('label', 'sys-hover sys-live'); lvL.appendChild(document.createTextNode('Locked: ')); var lvS = el('select', 'sys-live-sel'); [['', 'automatic'], ['on', 'stays live'], ['off', 'needs Edit sheet']].forEach(function(o) { lvS.appendChild(opt(o[0], o[1], (f.live === true ? 'on' : f.live === false ? 'off' : '') === o[0])); }); lvL.appendChild(lvS); lvL.title = 'On a locked sheet and in the HUD. Automatic: a pool, a switch, a counter and a number with value names keep working, and everything else needs Edit sheet. Choose here to say otherwise for this field'; flags.appendChild(lvL); }   // the sheet's lock: this field's own word on it
-    if (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill' || f.kind === 'resource') flags.appendChild(input('sys-unit field', f.unit, 'A short unit after the value, on the sheet and in the header (pts, kg, ft)', 'Unit'));   // Stage 5g
+    if (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill' || f.kind === 'resource') { var uIn = flags.appendChild(input('sys-unit field', f.unit, 'A short unit after the value, on the sheet and in the header (pts, kg, ft). yd, ft, in, lb and mi are measures: under Metric the sheet shows the figure in metric too', 'Unit')); var uLs = typeof unitWordsList === 'function' ? unitWordsList() : ''; if (uLs) uIn.setAttribute('list', uLs); }   // Stage 5g; 1.5.4: the measures offered as a list, any other unit still typed
+    else if (f.kind === 'text') flags.appendChild(select('sys-unit-text', [['', 'Unit: none'], ['height', 'Unit: height']], f.unit === 'height' ? 'height' : '', 'Height: the text is read as a height. Imperial shows its feet and inches, Metric its metres'));   // 1.5.4
     if (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill') { var sgl = el('label', 'sys-hover'); var sgc = el('input'); sgc.type = 'checkbox'; sgc.checked = !!f.sign; sgc.className = 'sys-sign-chk'; sgl.appendChild(sgc); sgl.appendChild(document.createTextNode(' \u00b1 colour')); sgl.title = 'Colour the value by its sign: green above zero, red below (points remaining, a modifier)'; flags.appendChild(sgl); }   // Stage 5g
     if (f.kind !== 'notes' && f.kind !== 'text' && f.kind !== 'select' && f.kind !== 'item-list' && f.kind !== 'effects') flags.appendChild(input('sys-roll field', f.roll, 'A roll button for this field (dice allowed): d20 + ' + (f.key || 'Key'), 'Roll (optional)'));
     if (f.kind === 'number' || f.kind === 'formula') flags.appendChild(input('sys-vnames field', (f.labels || []).join(', '), 'Names for the values 0, 1, 2\u2026 separated by commas (Not stunned, Physical, Mental): a number becomes a dropdown, a formula shows the name for its value; formulas still read the number. A named value is a word: \u00b1 colour, unit and slider do not apply to it', 'Value names (optional)'));   // Stage 6
@@ -6492,7 +6564,7 @@ function onChange(e) {
     var ctx = fieldOfRow(t); if (!ctx) return;
     var f = ctx.f, r = ctx.r;
     if (f) {
-        if (c.indexOf('sys-kind') >= 0) { f.kind = t.value; delete f.formula; delete f.maxFormula; delete f.base; delete f.options; f.def = f.kind === 'toggle' ? false : f.kind === 'text' || f.kind === 'select' ? '' : f.kind === 'resource' ? 'max' : 0; if (f.kind === 'resource' && f.min === undefined) f.min = 0; markDirty(); renderAll(); return; }
+        if (c.indexOf('sys-kind') >= 0) { f.kind = t.value; delete f.formula; delete f.maxFormula; delete f.base; delete f.options; if (f.unit === 'height' ? f.kind !== 'text' : f.kind === 'text') delete f.unit; f.def = f.kind === 'toggle' ? false : f.kind === 'text' || f.kind === 'select' ? '' : f.kind === 'resource' ? 'max' : 0; if (f.kind === 'resource' && f.min === undefined) f.min = 0; markDirty(); renderAll(); return; }
         if (c.indexOf('sys-edit') >= 0) f.edit = t.value;
         else if (c.indexOf('sys-vis') >= 0) f.vis = t.value;
         else if (c.indexOf('sys-hover-chk') >= 0) f.hover = t.checked;
@@ -6515,6 +6587,7 @@ function onChange(e) {
         else if (c.indexOf('sys-vnames') >= 0 && f.kind === 'formula' && f.badge) { markDirty(); renderAll(); return; }   // L7: the tones row follows the value names
         else if (c.indexOf('sys-vnames') >= 0) { if (f.kind === 'number') { var rwV = t.closest('.sys-row'), dcV = rwV && rwV.querySelector('.sys-def'), wantCnt = !f.slider && !(Array.isArray(f.labels) && f.labels.length); if (rwV && !!rwV.querySelector('.sys-counter-chk') !== wantCnt) { if (Array.isArray(f.labels) && f.labels.length) delete f.counter; markDirty(); renderAll(); return; } if (dcV) buildDefCell(dcV, f); } markDirty(); patchErrors(); return; }   // HF4a: names given or cleared — the Counter box comes or goes (a named number is never a counter)   // Stage 6: a number's default cell follows (a pick of the names, or its own range back when they are cleared); nothing else in the row moves, so focus stays
         else if (c.indexOf('sys-def-lbl') >= 0) f.def = Number(t.value);
+        else if (c.indexOf('sys-unit-text') >= 0) { if (t.value === 'height') f.unit = 'height'; else delete f.unit; }   // 1.5.4: a text field's unit
         else return;
     } else if (r) {
         if (c.indexOf('sys-roll-kind') >= 0) { if (t.value === 'apply') { if (!Array.isArray(r.apply)) r.apply = [{ f: '', formula: '' }]; delete r.init; } else { delete r.apply; delete r.round; delete r.each; delete r.by; } markDirty(); renderAll(); return; }   // Stage 6 HUD H7: Roll | Apply (a formula typed before stays in the draft)

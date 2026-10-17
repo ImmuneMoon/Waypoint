@@ -192,6 +192,100 @@ function suggest(name, keys) {
 
 /* ---------- cleaners ---------- */
 function cleanNum(v, dflt) { v = Number(v); return fin(v) ? v : dflt; }
+// 1.5.4, a field's display unit (the website's v1.0.4; the owner, 2026-10-17: "my system should match the site while letting the user pick
+// metric or imperial"). A field keeps its unit as the words shown after its value (Stage 5g). Where those words are a measure of the book's
+// own, the sheet also shows the figure in metric while the viewer's Measurement system is Metric: "7 yd (6.4 m)", "32 lbs (14.5 kg)". The
+// measures are yd, ft, in, lb and mi, and lbs and yds as the website writes them. A text field may carry the unit height and is read as a
+// height: the website's pair "6'7\" / 2.00 m" by the half of the viewer's setting. DISPLAY ONLY: a field holds its figure in the book's unit,
+// and nothing here reaches a formula, a roll, a stored value or a file. A field with no such unit is drawn exactly as before. Both views alike
+var FIELD_MEASURE = Object.freeze(Object.assign(Object.create(null), { yd: 'yd', yds: 'yd', ft: 'ft', 'in': 'in', lb: 'lb', lbs: 'lb', mi: 'mi' }));
+// A measure in metric: what one of it is, and the metric word (the exact international definitions, as the website's display-units.ts)
+var MEASURES = Object.freeze(Object.assign(Object.create(null), { yd: Object.freeze({ per: 0.9144, word: 'm' }), ft: Object.freeze({ per: 0.3048, word: 'm' }), 'in': Object.freeze({ per: 2.54, word: 'cm' }), lb: Object.freeze({ per: 0.45359237, word: 'kg' }), mi: Object.freeze({ per: 1.609344, word: 'km' }) }));
+var MEASURE_KINDS = Object.freeze(Object.assign(Object.create(null), { number: 1, formula: 1, skill: 1, resource: 1 }));
+// A field's display unit, by its unit's words and its kind: yd, ft, in, lb or mi for a number, a formula, a skill or a pool; height for a text
+// field; '' for anything else (a unit such as pts is shown as it is, in both settings)
+function cleanFieldUnit(v, kind) {
+    if (typeof v !== 'string' || typeof kind !== 'string') return '';
+    if (kind === 'text') return v === 'height' ? 'height' : '';
+    return MEASURE_KINDS[kind] === 1 && Object.prototype.hasOwnProperty.call(FIELD_MEASURE, v) ? FIELD_MEASURE[v] : '';
+}
+// The decimals a figure shows: as the sheet wrote it (its own text, trailing zeros taken off), else as the number is written; four at most
+function placesShown(shown, value) {
+    var s = typeof shown === 'string' && shown.length <= 40 ? shown.trim() : '', m = /^[-+\u2212]?\d+(?:\.(\d+))?$/.exec(s);
+    if (m) return m[1] ? Math.min(4, m[1].replace(/0+$/, '').length) : 0;
+    var t = Math.abs(value).toFixed(4).replace(/\.?0+$/, ''), dot = t.indexOf('.');
+    return dot < 0 ? 0 : t.length - dot - 1;
+}
+// A figure of a measure in metric, its number alone: to the decimals the website shows (display-units.ts): as many as the figure shows, one
+// more where the metric unit is ten times the size (a metre is 3.28 ft), at least one for a whole figure (Move 5 is 4.6 m and Move 6 is
+// 5.5 m), trailing zeros taken off, and never 0 for a figure that is not. It is the figure AS SHOWN that is turned, where the sheet's text of
+// it reads as a number, since the website turns the figure it shows (the review of the v1.0.4 merge: a load of 1.86438 lb, shown as 1.86,
+// read 0.85 kg, where 1.86 lb is 0.84 kg and the website says 0.84). '' for no measure or no number
+function shownFig(shown) { var s = typeof shown === 'string' && shown.length <= 40 ? shown.trim() : ''; return /^[-+\u2212]?\d+(?:\.\d+)?$/.test(s) ? Number(s.replace(/^\u2212/, '-')) : NaN; }   // the sheet's text of a figure as a number; NaN where it is none
+function metricNum(unit, value, shown) {
+    var m = typeof unit === 'string' && Object.prototype.hasOwnProperty.call(MEASURES, unit) ? MEASURES[unit] : null;
+    if (!m || typeof value !== 'number' || !isFinite(value) || Math.abs(value) > 1e15) return '';
+    var s = shownFig(shown), d = placesShown(shown, value), up = Math.max(0, Math.round(Math.log10(1 / m.per))), dm = d + Math.max(up, d === 0 ? 1 : 0), v = (isFinite(s) ? s : value) * m.per;
+    while (v !== 0 && dm < 6 && Number(Math.abs(v).toFixed(dm)) === 0) dm++;
+    var t = v.toFixed(dm); if (t.indexOf('.') >= 0) t = t.replace(/\.?0+$/, ''); if (t === '-0') t = '0';
+    return t;
+}
+function metricOf(unit, value, shown) { var n = metricNum(unit, value, shown); return n ? n + ' ' + MEASURES[unit].word : ''; }   // "6.4 m", or ''
+// What a sheet draws after a field's unit for the viewer's setting: under Metric (only true counts) a measure's figure in metric, in brackets,
+// " (6.4 m)"; a pool's two figures as one, " (4.6/9.1 m)"; else ''. value / shown: the figure drawn before the unit and its text
+function unitTail(f, value, shown, metric, max, shownMax) {
+    if (metric !== true || !isObj(f)) return '';
+    var u = cleanFieldUnit(f.unit, f.kind); if (!u || u === 'height') return '';
+    if (f.kind === 'resource') { var a = metricNum(u, value, shown), b = metricNum(u, max, shownMax); return a && b ? ' (' + a + '/' + b + ' ' + MEASURES[u].word + ')' : ''; }
+    var t = metricOf(u, value, shown); return t ? ' (' + t + ')' : '';
+}
+// A height or a weight written as text, read in ONE place as the website reads one (lib/display-units.ts readHeightText and readWeightText):
+// the sheet's display of a height (heightWords) and the ShadowBase bridge (sbHeightIn, sbWeightLb) both ask readMeasure. A half is folded
+// (curly quote marks straight, lower case) and read by the forms of its kind: a height's feet from centimetres, metres, inches, or feet with
+// inches; a weight's pounds from kilograms or pounds; a bare figure is the book's own unit, feet or pounds, with no unit said. Two halves are
+// the book's pair, "6'7\" / 2.00 m" or the order a file before v1.0.4 may hold, "2.00 m / 6'7\"": each half says its unit, one of each system,
+// and the pair is read by its imperial half. { v, metric, pair }: the figure read (feet or pounds), whether it is metric, and a pair's two
+// halves as written, trimmed; null where nothing reads, a kind that is none, or a text that is no text
+var M_PER_FT = 0.3048, KG_PER_LB = 0.45359237, MEASURE_NUM = '(\\d+(?:\\.\\d*)?|\\.\\d+)', MEASURE_BARE = new RegExp('^' + MEASURE_NUM + '$');
+var MEASURE_FORMS = Object.freeze(Object.assign(Object.create(null), {
+    height: [[new RegExp('^' + MEASURE_NUM + '\\s*(?:cm|centimet(?:re|er)s?)$'), function(n) { return n / 100 / M_PER_FT; }, true], [new RegExp('^' + MEASURE_NUM + '\\s*(?:m|metres?|meters?)$'), function(n) { return n / M_PER_FT; }, true],
+        [new RegExp('^' + MEASURE_NUM + '\\s*(?:in|inch|inches|")$'), function(n) { return n / 12; }, false], [new RegExp('^' + MEASURE_NUM + "\\s*(?:'|ft|foot|feet)\\s*(?:" + MEASURE_NUM + '\\s*(?:in|inch|inches|")?)?$'), function(n, i) { return n + (i ? Number(i) / 12 : 0); }, false]],
+    weight: [[new RegExp('^' + MEASURE_NUM + '\\s*(?:kg|kgs|kilograms?|kilos?)\\.?$'), function(n) { return n / KG_PER_LB; }, true], [new RegExp('^' + MEASURE_NUM + '\\s*(?:lb|lbs|pounds?)\\.?$'), function(n) { return n; }, false]]
+}));
+function measureHalf(text, forms) {   // one half: { v, metric, said } or null
+    var t = String(text).replace(/[\u2018\u2019\u02bc\u2032]/g, "'").replace(/[\u201c\u201d\u2033]/g, '"').trim().toLowerCase(), m; if (!t) return null;
+    for (var i = 0; i < forms.length; i++) if ((m = forms[i][0].exec(t))) return { v: forms[i][1](Number(m[1]), m[2]), metric: forms[i][2], said: true };
+    return (m = MEASURE_BARE.exec(t)) ? { v: Number(m[1]), metric: false, said: false } : null;
+}
+function readMeasure(text, kind) {
+    var forms = typeof kind === 'string' && Object.prototype.hasOwnProperty.call(MEASURE_FORMS, kind) ? MEASURE_FORMS[kind] : null, s = typeof text === 'string' ? text.trim() : '';
+    if (!forms || !s) return null;
+    var h = s.split('/'), a, b;
+    if (h.length === 2) {
+        a = measureHalf(h[0], forms); b = measureHalf(h[1], forms);
+        if (!a || !b || !a.said || !b.said || a.metric === b.metric) return null;
+        return { v: (a.metric ? b : a).v, metric: false, pair: { metric: (a.metric ? h[0] : h[1]).trim(), imperial: (a.metric ? h[1] : h[0]).trim() } };
+    }
+    if (h.length !== 1) return null;
+    a = measureHalf(s, forms); return a && isFinite(a.v) ? { v: a.v, metric: a.metric, pair: null } : null;
+}
+// The inches a height read so stands for, as Ch2's rule works from them (handoffs (39) and (41)): an imperial height as written, a tenth kept
+// ("5'6.9\"" is 66.9), a metric one to the nearest whole inch, a half rounding up ("2.00 m" is 79); the float's own noise taken off first
+function measureInches(r) { var inches = Number((r.v * 12).toPrecision(12)); return r.metric ? Math.floor(inches + 0.5) : inches; }
+// A height as the viewer's setting reads it (the website's showHeightText, display-units.ts): its pair, "6'7\" / 2.00 m" or "2.00 m / 6'7\"",
+// by the half of that setting; a single height as written where it is in that setting, else converted: metres to the centimetre, or feet and
+// inches to the nearest whole inch, a half rounding up. A text that is no height is shown as it is. A text of any length is read, as the
+// website's showHeightText and the bridge read it (the review of the v1.0.4 merge: a cap of 64 characters showed a pair padded past it whole,
+// where both read its half): readMeasure is one pass, and a stored text is held to LIMITS.text
+function heightWords(text, metric) {
+    if (typeof text !== 'string') return text === undefined || text === null ? '' : String(text);
+    var r = readMeasure(text, 'height'), want = metric === true; if (!r) return text;
+    if (r.pair) return want ? r.pair.metric : r.pair.imperial;
+    if (r.metric === want) return text.trim();
+    if (want) return (r.v * M_PER_FT).toFixed(2) + ' m';
+    var inch = measureInches(r);
+    return Math.floor(inch / 12) + "'" + (inch % 12) + '"';
+}
 function cleanField(f, F, gmView) {
     if (!isObj(f) || typeof f.id !== 'string' || !FIELD_ID.test(f.id) || !KINDS[f.kind]) return null;
     if (!validKey(f.key, F)) return null;
@@ -232,6 +326,7 @@ function cleanField(f, F, gmView) {
     if (f.roll !== undefined) { var r = cleanFormulaText(f.roll); if (r) out.roll = r; }
     if (f.tile === true && (k === 'number' || k === 'formula' || k === 'skill' || k === 'resource')) out.tile = true;   // Stage 3: render this numeric field as a stat tile
     if ((k === 'number' || k === 'formula' || k === 'skill' || k === 'resource') && typeof f.unit === 'string') { var un = cutPoints(f.unit, LIMITS.unit, ' '); if (un) out.unit = un; }   // Stage 5g: a unit after the value ("pts", "kg")
+    else if (k === 'text' && cleanFieldUnit(f.unit, k) === 'height') out.unit = 'height';   // 1.5.4: a text read as a height (the one unit a text field takes)
     if ((k === 'number' || k === 'formula' || k === 'skill') && f.sign === true) out.sign = true;   // Stage 5g: colour the value by its sign (green above zero, red below)
     if ((k === 'number' || k === 'formula') && Array.isArray(f.labels)) {   // Stage 6: names for the values 0, 1, 2… — a number becomes a dropdown that stores the position, a formula shows the name for its value; formulas always read the number
         var lbs = cleanLabels(f.labels);
@@ -3513,13 +3608,14 @@ function fmtNum(v) { if (typeof v === 'boolean') return v ? 'yes' : 'no'; if (ty
 // to leave it out. A toggle shows as a chip only while on; an error prints '—' with the message as a title (as the field itself does
 // below); a negative number marks itself so the figure can read red. Stage 5g: an empty text/select keeps its place as a dash (a row
 // that vanished read as a missing field), the field's unit follows the value, and a field coloured by sign marks a positive too.
-function headerEntry(f, e) {
+function headerEntry(f, e, metric) {   // metric (1.5.4): the viewer's Measurement system, true for Metric and false for Imperial; absent, the field as stored (an export)
     if (!f || !e) return null;
     if (f.kind === 'toggle') return e.value === true ? { chip: true, text: f.label } : null;
     if (e.error) return { text: '\u2014', error: String(e.error) };
     if (e.text === undefined || e.text === null || e.text === '') return { text: '\u2014', empty: true };
     var numeric = (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill') && typeof e.value === 'number' && !e.label;   // a named value is a word, never red or green
-    var out = { text: f.unit && !e.label ? e.text + ' ' + f.unit : e.text };   // Stage 6: a named value is a word (no unit)
+    var ht = f.kind === 'text' && cleanFieldUnit(f.unit, 'text') === 'height';   // 1.5.4: a height, by the half of the viewer's setting (with none told, as stored)
+    var out = { text: ht ? (metric === true || metric === false ? heightWords(String(e.text), metric) : e.text) : f.unit && !e.label ? e.text + ' ' + f.unit + unitTail(f, e.value, e.text, metric, e.max, typeof e.max === 'number' ? fmtNum(e.max) : '') : e.text };   // Stage 6: a named value is a word (no unit); 1.5.4: a measure in metric too under Metric
     if (numeric && e.value < 0) out.neg = true; else if (numeric && f.sign && e.value > 0) out.pos = true;
     var why = fxText(e) || (f.kind === 'resource' ? fxText(e, true) : ''); if (why) out.why = why;   // 5h: where the number came from
     return out;
@@ -4127,31 +4223,55 @@ function sbCrystal(j) {
 // (sbChan), and nothing is bought, so the baseline its points are priced from is the same figure. { base, tpl }
 var SB_ATTR_K = { strength: 'st', dexterity: 'dx', iq: 'iq', health: 'ht' };
 function sbIdle(t) { return t.suspended === true || (typeof t.countedWithCopyOf === 'string' && !!t.countedWithCopyOf.trim()); }   // a trait row worth an absent row on every figure, its points apart (a droid part not working; a further copy of one part's trait)
-// A droid's size by its build, as the website works it out (lib/droid-size.ts deriveDroidSm, at 4900da8 the size lib/wearer-size.ts
-// wearerSm gives a droid, and so its armour's fit and its Basic Lift). Its height is its head's, its chassis torso's and the tallest of its
-// struts' stances and its motive mounts' hover clearances, in metres (lib/droid-data.ts: the four tables below, the same in v1.0.1, v1.0.2
-// and 4900da8; a head with no height of its own, the S6's Custom head, stands on the build's head.customHeightM), rounded to the
-// centimetre; in feet 6 * log10(feet / 6) to two decimals (lib/size-modifier.ts sizeModifierForFeet, 0 for no height); and the
-// chassis shape's own step on top (+2 a sphere, +1 a quadruped). null where the build names no chassis these tables hold: a chassis the
-// website adds later is for the file's own figures to say (sbSize)
+// A droid's size by its build, as the website works it out (lib/droid-size.ts deriveDroidSm: the size lib/wearer-size.ts wearerSm gives a
+// droid, and so its armour's fit and its Basic Lift). Since the website's v1.0.4 (70a35d3; handoff (39), Ch17: "Part heights are given in
+// inches, to a tenth of an inch, and a template's height is their sum") its height is in INCHES: its head's, its chassis torso's and the
+// tallest of its struts' stances and its motive mounts' hover clearances (lib/droid-data.ts heightIn, torsoHeightIn, stanceHeightIn and
+// hoverHeightIn: the four tables below), summed to a tenth (toTenthInch); in feet 6 * log10(feet / 6) to two decimals (lib/size-modifier.ts
+// sizeModifierForFeet of inches / 12, 0 for no height); and the chassis shape's own step on top (+2 a sphere, +1 a quadruped), to a
+// hundredth. Until v1.0.3 the site summed the parts in metres to the centimetre, and four droids read a hundredth from it: the Mark II +0.49
+// (+0.48), the Patrol -1.33 (-1.32), the S6 -1.95 (-1.96) and Ch17's unique unit -1.66 (-1.65). A head with no height of its own (the S6's
+// Custom head) stands on the build's head.customHeightIn, in inches (the S6's 2.0), else on head.customHeightM, the metres a file before
+// v1.0.4 holds (the S6's 0.05, read as metres / 0.0254), each taken to a tenth of an inch where Number reads it as a finite figure, else on
+// nothing (customHeadInches; v1.0.3 sized the whole droid at 0 for a height Number could not read). null where the build names no chassis
+// these tables hold: a chassis the website adds later is for the file's own figures to say (sbSize)
 var SB_DROID = {
-    chassis: { 'ge3-bipedal': [0.58, 0], 'hk-bipedal': [0.6, 0], 'sentinel-bipedal': [0.62, 0], 'standard-bipedal': [0.65, 0], 'r-series-cyl': [0.68, 0], 'patrol-repulsor': [0.55, 0], 'mk2-quad': [0.55, 1], 'mk3-quad': [1.05, 1], 'sphere-chassis': [0.3, 2], 'monopedal-mk1': [0.65, 0], 'wedge-series': [0.46, 0] },
-    head: { 'ge3-head': 0.22, 'hk-head': 0.26, 'r-series-fixed': 0.15, 't3-rotating': 0.16, 'assault-dome': 0.25, 'integrated-mk2': 0.25, 'patrol-tower': 0.28, 'sentinel-visor': 0.26, 'wedge-mk1-assault': 0.25 },
-    strut: { 'arachnid-leg': 0.7, 'ge3-leg': 0.9, 'hk-leg': 0.94, 'sentinel-leg': 0.92, 'stomper-leg': 1.1, 't3-leg': 0.28 },
-    mount: { 'micro-repulsor': 0.05, 'r-series-repulsor': 0.17, 'wing-repulsor': 0.27 }   // a foot, a pad and a tread hold no clearance (0)
+    chassis: { 'ge3-bipedal': [22.8, 0], 'hk-bipedal': [23.6, 0], 'sentinel-bipedal': [24.4, 0], 'standard-bipedal': [25.6, 0], 'r-series-cyl': [26.8, 0], 'patrol-repulsor': [21.7, 0], 'mk2-quad': [21.7, 1], 'mk3-quad': [41.3, 1], 'sphere-chassis': [11.8, 2], 'monopedal-mk1': [25.6, 0], 'wedge-series': [18.1, 0] },
+    head: { 'ge3-head': 8.7, 'hk-head': 10.2, 'r-series-fixed': 5.9, 't3-rotating': 6.3, 'assault-dome': 9.8, 'integrated-mk2': 9.8, 'patrol-tower': 11.0, 'sentinel-visor': 10.2, 'wedge-mk1-assault': 9.8 },
+    strut: { 'arachnid-leg': 27.6, 'ge3-leg': 35.4, 'hk-leg': 37.0, 'sentinel-leg': 36.2, 'stomper-leg': 43.3, 't3-leg': 11.0 },
+    mount: { 'micro-repulsor': 2.0, 'r-series-repulsor': 6.7, 'wing-repulsor': 10.6 }   // a foot, a pad and a tread hold no clearance (0)
 };
 function sbOwnKey(o, k) { return typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k) ? o[k] : undefined; }
+// Number(v) of a value a JSON file holds, exactly as JavaScript reads it: a number as it is, a text and a truth value by Number, null 0,
+// an object NaN, and a list by its text: none 0, two or more NaN (a comma joins them), one its one value's text (nothing 0, a truth value NaN)
+function sbJsNum(v) {
+    for (var top = true, d = 0; d < 256; d++, top = false) {
+        if (typeof v === 'number') return v;
+        if (typeof v === 'string') return Number(v);
+        if (typeof v === 'boolean') return top ? Number(v) : NaN;
+        if (v === null || v === undefined) return top && v === undefined ? NaN : 0;
+        if (!Array.isArray(v)) return NaN;
+        if (v.length !== 1) return v.length ? NaN : 0;
+        v = v[0];
+    }
+    return NaN;
+}
+function sbIsNum(v) { return typeof v === 'number' && isFinite(v); }   // Number.isFinite, unbounded (fin holds a figure to 1e15)
+function sbTenthIn(x) { return Math.round(Number((Number(x) * 10).toPrecision(12))) / 10; }   // toTenthInch: the float's own noise taken off first
+function sbHeadIn(hd) {   // customHeadInches: customHeightIn, else customHeightM / 0.0254, each where it is set and reads as a finite figure; else 0
+    var i = hd.customHeightIn, m = hd.customHeightM, ni = i === undefined || i === null ? NaN : sbJsNum(i), nm = m === undefined || m === null ? NaN : sbJsNum(m);
+    return sbIsNum(ni) ? sbTenthIn(ni) : sbIsNum(nm) ? sbTenthIn(nm / 0.0254) : 0;
+}
 function sbDroidSm(b) {
     if (!isObj(b)) return null;
     var c = sbOwnKey(SB_DROID.chassis, b.chassisId); if (!c) return null;
-    var hd = isObj(b.head) ? b.head : {}, h = sbOwnKey(SB_DROID.head, hd.componentId), cu = hd.customHeightM;
-    var headM = h !== undefined ? h : cu === undefined || cu === null ? 0 : typeof cu === 'number' || typeof cu === 'boolean' || (typeof cu === 'string' && cu.length <= 40) ? Number(cu) : NaN;   // Number(customHeightM ?? 0), as the website reads it
+    var hd = isObj(b.head) ? b.head : {}, h = sbOwnKey(SB_DROID.head, hd.componentId), headIn = h !== undefined ? h : sbHeadIn(hd);
     var legs = Array.isArray(b.legs) ? b.legs.slice(0, LIMITS.carried) : [], mv = 0;
     legs.forEach(function(l) { var s = isObj(l) ? sbOwnKey(SB_DROID.strut, l.componentId) : undefined; mv = Math.max(mv, s === undefined ? 0 : s); });   // legs stand side by side: the tallest stance
     legs.map(function(l) { return isObj(l) ? l.motiveMountId : undefined; }).concat(isObj(b.chassisMods) && Array.isArray(b.chassisMods.motiveMountIds) ? b.chassisMods.motiveMountIds.slice(0, LIMITS.carried) : [])
         .forEach(function(id) { var m = sbOwnKey(SB_DROID.mount, id); mv = Math.max(mv, m === undefined ? 0 : m); });
-    var ft = Math.round((headM + c[0] + mv) * 100) / 100 * 3.28084, sm = isFinite(ft) && ft > 0 ? Math.round(6 * Math.log10(ft / 6) * 100) / 100 : NaN;
-    return (isFinite(sm) ? sm : 0) + c[1];
+    var ft = sbTenthIn(headIn + c[0] + mv) / 12, sm = sbIsNum(ft) && ft > 0 ? Math.round(6 * Math.log10(ft / 6) * 100) / 100 : NaN;
+    return Math.round(Number((((sbIsNum(sm) ? sm : 0) + c[1]) * 100).toPrecision(12))) / 100;   // toHundredth: -3.95 + 2 is -1.95, never -1.9500000000000002
 }
 // The sheet's real Size Modifier (the site's note of 2026-10-15, item 2): details.sizeModifierEffective where the file states it (the site's
 // export after 4900da8; lib/wearer-size.ts wearerSm, a droid's by its build, a living character's its stored size). A file without it: a
@@ -4456,6 +4576,70 @@ function sbCultureBound(name) {
     var head = raw.slice(0, open).trimEnd();
     return SB_CULT_SKILLS.indexOf(head.toLowerCase()) >= 0;
 }
+// The website's v1.0.4 (70a35d3; the site's handoff, Start here 12 to 17 and B14), what its file says that an older one does not, each read
+// as the website reads it. Indomitable by level (handoff (38), Ch4: "3 points/level, max 15 points", "Level 5 costs 15 points, the old flat
+// price"): the level an advantage row named Indomitable, or a variant of it by name ("Indomitable (Racial)"), reads (lib/mind-resistance.ts
+// indomitableLevel): its own level as Number reads it, taken down to a whole level and held to 0 to 5; and 5 for a row that states no level
+// or one Number cannot read, the flat 15-point row every file before v1.0.4 holds, which the website reads as Level 5 and never rewrites.
+// null for any other row
+function sbIndomitable(t) {
+    var n = typeof t.name === 'string' ? t.name.trim() : '', v = t.level, l;
+    if (n !== 'Indomitable' && n.indexOf('Indomitable (') !== 0) return null;
+    l = v === undefined || v === null ? NaN : sbJsNum(v);
+    return sbIsNum(l) ? Math.max(0, Math.min(5, Math.floor(l))) : 5;
+}
+// The Wookiee's racial trait, which the book renamed (handoff (39): "Distinctive Features (8ft tall)" is now "Distinctive Features
+// (Towering, furred)"). The website renames the package's row when it opens a file (lib/trait-name-migration.ts wookieeFeatureRowsToRename,
+// over the whole disadvantage list): the rows of the old name marked fromSpecies Wookiee; else, on a sheet whose species is Wookiee and
+// that holds no row of the new name, every row of the old name; and a row of the old name on anyone else stays as bought. The rows it
+// renames, by identity. Either name then finds the entry of the other where the library holds only one (one made before v1.0.4, or a file
+// written before it), and a copy so found keeps the name the website shows
+var SB_DF = ['Distinctive Features (8ft tall)', 'Distinctive Features (Towering, furred)'];
+function sbWookiee(v) { return typeof v === 'string' && lower(v.trim()) === 'wookiee'; }
+function sbDfRenamed(rows, species) {
+    var list = Array.isArray(rows) ? rows : [], old = list.filter(function(r) { return isObj(r) && r.name === SB_DF[0]; }), marked;
+    if (!old.length) return [];
+    marked = old.filter(function(r) { return sbWookiee(r.fromSpecies); }); if (marked.length) return marked;
+    if (!sbWookiee(species) || list.some(function(r) { return isObj(r) && r.name === SB_DF[1]; })) return [];
+    return old;
+}
+// Flight's Air Move (handoff (38), Ch4: "Your Air Move is twice your Basic Speed, rounded down ... Encumbrance reduces Air Move exactly as
+// it reduces Basic Move"): characteristics.airMove { effective, unencumbered }, derived and never read back (the website's import reads
+// neither), stated only on a character with Flight in play. The unencumbered figure, where the file states it as a number: the load's cut is
+// the system's own, as Move's is. A file without it is worked out as the website works it (lib/flight.ts airMoveOf): a row named Flight, or
+// a variant of it by name ("Flight (Racial)"), in play (sbIdle: a suspended row or a further copy gives nothing), twice the effective Basic
+// Speed rounded down, 12 significant digits first, so 2 x 5.15 is 10, and 0 for a droid that cannot run; and with no Flight, 0, since
+// a character without it has no Air Move. undefined where Flight is in play and no Basic Speed reads
+function sbAirMove(j) {
+    var ch = isObj(j.characteristics) ? j.characteristics : {}, a = isObj(ch.airMove) ? sbNum(ch.airMove.unencumbered) : undefined;
+    if (a !== undefined) return a;
+    var rows = isObj(j.traits) && Array.isArray(j.traits.advantages) ? j.traits.advantages.slice(0, LIMITS.carried) : [];
+    var fly = rows.some(function(t) { var n = isObj(t) && typeof t.name === 'string' ? t.name.trim() : ''; return !!n && !sbIdle(t) && (n === 'Flight' || n.indexOf('Flight (') === 0); });
+    if (!fly) return 0;
+    if (isObj(ch.unableToRun)) return 0;
+    var bs = numOf(ch.basicSpeed); if (bs === undefined || !sbIsNum(bs)) return undefined;
+    return Math.max(0, Math.floor(Number((2 * bs).toPrecision(12))));
+}
+// A height or a weight the file states as text (details.height, details.weight: the player's own record, stored, never worked out on a load),
+// read as the website reads one by the core's one reader of such a text (readMeasure, which the sheet's display of a height asks too; a bare
+// figure in the book's unit). A height: the inches its rule works from (measureInches), feet and inches as written, a tenth kept ("5'6.9\""
+// is 66.9), a figure in metres or centimetres alone to the nearest whole inch, a half rounding up ("2.00 m" is 79), and the book's pair by its
+// imperial half, in the order v1.0.4 writes it ("6'7\" / 2.00 m") and the order a file before it may hold ("2.00 m / 6'7\""). A weight: its
+// pounds, the pair by its pound half ("272 lb / 124 kg", "124 kg / 272 lb"), kilograms alone by 0.45359237. null where nothing reads
+function sbHeightIn(text) { var r = readMeasure(text, 'height'); return r ? measureInches(r) : null; }   // readHeightText(text, 'imperial').inches
+function sbWeightLb(text) { var r = readMeasure(text, 'weight'); return r ? r.v : null; }   // readWeightText(text, 'imperial').lb
+// ... into a NUMBER field keyed Height or Weight, in the field's own unit (the system's choice), the measure its unit names as the sheet judges
+// one (cleanFieldUnit: yds and lbs as the website writes them): a height in inches (in), feet (ft) or yards (yd), a weight in pounds (lb). A
+// text field keeps the file's own text exactly as before (the sheet shows its halves), a number field of any other unit, or of none, takes
+// nothing from a text, and a figure the file states as a number goes in as it is, as before. undefined where nothing goes in
+var SB_LEN_IN = { 'in': 1, ft: 12, yd: 36 };
+function sbMeasure(k, f, v) {
+    if (typeof v !== 'string' || f.kind !== 'number') return sbPut(f, v);
+    var u = cleanFieldUnit(f.unit, f.kind);
+    if (k === 'height' && Object.prototype.hasOwnProperty.call(SB_LEN_IN, u)) { var hi = sbHeightIn(v); return hi === null ? undefined : cleanValue(f, hi / SB_LEN_IN[u]); }
+    if (k === 'weight' && u === 'lb') { var lb = sbWeightLb(v); return lb === null ? undefined : cleanValue(f, lb); }
+    return undefined;
+}
 function sbScalars(j) {   // lower-case key -> the dossier's value (a number, a boolean or a text), before any field's rules
     var o = function(v) { return isObj(v) ? v : {}; }, inv = o(j.investment), at = o(j.attributes), ch = o(j.characteristics), pt = o(j.points), cr = o(j.credits), dt = o(j.details), nr = o(j.narrative), out = map();
     var raw = function(a, k) { return sbAttr(j, a, k).base; };
@@ -4527,6 +4711,7 @@ function sbScalars(j) {   // lower-case key -> the dossier's value (a number, a 
     if (typeof j.shipPosition === 'string') out.shiprole = j.shipPosition;
     if (typeof j.assignedStation === 'string') out.station = j.assignedStation;
     var cy = sbCrystal(j); out.crystalmult = cy.mult; out.crystalflat = cy.flat;   // F7c: the saber crystals' pull on the Force pool
+    var air = sbAirMove(j); if (air !== undefined) out.airmove = air;   // v1.0.4: Flight's Air Move, unencumbered (sbAirMove), into a stored field keyed AirMove alone; never written back
     return out;
 }
 // The way back to the website (the owner, 2026-10-04: "waypoint takes the shadowbase json and exports it in a way shadowbase can read it ... a
@@ -4646,7 +4831,7 @@ function aliasFromShadowBase(json, sys, F, strict) {   // strict (Onboarding F4,
     var sc = sbScalars(json);   // Stage 6 F3: the other scalars (after SB_MAP: a key it filled keeps its value)
     // the culture of the unfamiliar culture is the file's text, an empty one too (the website's import, sbScalars): the one text an empty value
     // of the file wipes, since the website then holds none
-    Object.keys(sc).forEach(function(k) { var f = ix[k]; if (!f || !STORED[f.kind] || f.id in values) return; var v = k === 'unfculture' && (f.kind === 'text' || f.kind === 'notes') && typeof sc[k] === 'string' ? cleanValue(f, sc[k]) : sbPut(f, sc[k]); if (v === undefined) return; values[f.id] = v; matched++; });
+    Object.keys(sc).forEach(function(k) { var f = ix[k]; if (!f || !STORED[f.kind] || f.id in values) return; var v = k === 'unfculture' && (f.kind === 'text' || f.kind === 'notes') && typeof sc[k] === 'string' ? cleanValue(f, sc[k]) : k === 'height' || k === 'weight' ? sbMeasure(k, f, sc[k]) : sbPut(f, sc[k]); if (v === undefined) return; values[f.id] = v; matched++; });
     var temp = { id: 'c_tmp', name: '', ownerId: '', npc: true, values: values };
     (Array.isArray(json.skills) ? json.skills : []).forEach(function(s) {
         if (!isObj(s) || typeof s.name !== 'string') return;
@@ -5159,20 +5344,25 @@ function sbRowOps(json, sys, find) {
         // does not, but a row of its own with its bag. Only where the system has the channel's field (qField)
         var qField = function(a) { var g = ix[SB_CHAN[a][0]]; return g && (g.kind === 'number' || g.kind === 'formula' || g.kind === 'skill') ? g : null; };
         var qMods = function(mods, g, l) { var o = mods.filter(function(m) { return !(isObj(m) && m.f === g.id && m.op === 'add' && m.part === undefined); }); o.unshift({ f: g.id, op: 'add', v: l }); return o.slice(0, LIMITS.effectMods); };
+        // v1.0.4: the Wookiee's Distinctive Features under the name the website shows (sbDfRenamed), and either name finding the other's entry
+        var dfR = p[1] === 'disadvantages' ? sbDfRenamed(isObj(json.traits) ? json.traits.disadvantages : null, json.species) : [];
         rows.forEach(function(t) {
-            var pts = sbInt(t.points) || 0, lvl = sbInt(t.level), g = sbInt(t.baselinePoints) || 0, nm = cutText(t.name, LIMITS.name);
+            var pts = sbInt(t.points) || 0, lvl = sbInt(t.level), g = sbInt(t.baselinePoints) || 0, nm = dfR.indexOf(t) >= 0 ? SB_DF[1] : cutText(t.name, LIMITS.name);
             if (sbIdle(t)) {   // the site marks a row that gives nothing: suspended (its droid part seated and not working, or a processor that does not run) or countedWithCopyOf (a further copy of one part's trait, which counts once). Its points stand; it adds nothing and is no copy of an entry, so no level, need or change reads it
                 var sI = { bp: pts }; if (g) sI.granted = g;
                 addCustom(f, { name: nm, category: cat0(f), notes: t.suspended === true ? 'Gives nothing while ' + (cutText(t.suspendedBy, 60) || 'its part') + ' is not working.' : 'Gives nothing: ' + cutText(t.countedWithCopyOf, 60) + ' gives this trait already, and a part\u2019s trait counts once.', stats: sI }, facts(f, lvl === undefined ? 0 : lvl));
                 return;
             }
+            var ind = p[1] === 'advantages' ? sbIndomitable(t) : null; if (ind !== null) lvl = ind;   // v1.0.4: Indomitable's level, 5 for a row that states none (sbIndomitable)
+            var dfI = p[1] === 'disadvantages' ? SB_DF.indexOf(nm) : -1;
             var ac = seS ? sbAcute(t) : null, acN = ac && !ac.bare ? 'Acute Senses (' + ac.sense + ')' : '', acV = ac && ac.sense ? sbSenseVal(seS, ac.sense) : undefined;
             if (ac && (t.level === null || t.level === undefined || t.level === '')) { var acNo = sbSenseVal(seS, 'None'); if (acNo !== undefined) acV = acNo; }   // a row that states no level sharpens nothing (acuteSenseBonuses: no level is no level 0, and no level 1 either): its sense None, where the stat has that label
             var e = (lvl !== undefined ? entry(f, nm + ' ' + lvl) : null) || entry(f, nm), tied = false; if (!e && acN && acN !== nm) { e = entry(f, acN); tied = !!e; }
+            var dfX = false; if (!e && dfI >= 0) { e = entry(f, SB_DF[1 - dfI]); tied = dfX = !!e; }   // the other name's entry, the copy under the name the website shows
             var el = e ? (lvl !== undefined && (e.name === nm || tied) ? lvl : (typeof e.lvl === 'number' ? e.lvl : 0)) : 0;
             var qR = sbQualRow(t), qF = qR ? qField(qR.a) : null, qE = !!e && Object.prototype.hasOwnProperty.call(SB_QUAL_ST, e.name) && !!qField(SB_QUAL_ST[e.name]);
             var same = !!e && st(e, 'bp') + st(e, 'per') * el === pts && !(qE && !(qR && t.name === e.name));
-            if (same && !taken(f, e)) { addLib(f, e, facts(f, el), g ? { stats: { granted: g } } : null); if (ac) { var so = {}; so[seS.key] = acV === undefined ? rowStat(f.list, e, seS.key) : acV; ownOp(f, e, so); } return; }
+            if (same && !taken(f, e)) { var ovT = g ? { stats: { granted: g } } : null; if (dfX && e.name !== nm) { ovT = ovT || {}; ovT.name = nm; } addLib(f, e, facts(f, el), ovT); if (ac) { var so = {}; so[seS.key] = acV === undefined ? rowStat(f.list, e, seS.key) : acV; ownOp(f, e, so); } return; }
             var tw = same && e.vis !== 'gm' ? twinOf(f, e) : null, bagM = sbMods(t.modifiers, ix), useE = !!tw && !bagM.length && !!tw.mods, qOwn = !!qF && !useE;   // the file's own bag, where it states one, before the entry's changes
             var stats = tw ? tw.stats : { bp: pts }; if (g) stats.granted = g; if (!tw && e && e.vis !== 'gm' && st(e, 'szd')) stats.szd = 1; if (acV !== undefined && acV !== rowStat(f.list, null, seS.key)) stats[seS.key] = acV;
             addCustom(f, { name: nm, category: (tw && tw.category) || cat0(f), notes: tw ? tw.notes : '', stats: stats, mods: useE ? tw.mods : qOwn ? qMods(bagM, qF, qR.lvl) : bagM, modsOn: useE && tw.modsOn }, facts(f, tw ? el : lvl === undefined ? 0 : lvl), tw && !bagM.length && !qOwn ? e.id : null);   // a twin whose changes are its entry's is marked, whatever the copy read here carries (a players' copy lacks changes to fields they do not see): the host sets them from its own copy (twinMods)
@@ -5988,6 +6178,6 @@ function orderBySide(rows, isPc, first) {
     var a = [], b = []; list.forEach(function(r) { (!!isPc(r) === (first === 'pc') ? a : b).push(r); });
     return a.concat(b);
 }
-var API = { VERSION: VERSION, rollNeedsOk: rollNeedsOk, rollNeedsSays: rollNeedsSays, onGroup: onGroup, onlyOne: onlyOne, onHeld: onHeld, cleanNeeds: cleanNeeds, hideNeeds: hideNeeds, needsMet: needsMet, needsSays: needsSays, needRule: needRule, ruleTrue: ruleTrue, setRuleJudge: setRuleJudge, cleanBudgets: cleanBudgets, budgetsOf: budgetsOf, budgetWatch: budgetWatch, budgetSays: budgetSays, cleanDesc: cleanDesc, cleanLvls: cleanLvls, EVERY_UNITS: EVERY_UNITS, cleanEvery: cleanEvery, timeRuleRun: timeRuleRun, cleanFace: cleanFace, charForView: charForView, mapGridOf: mapGridOf, tokenCell: tokenCell, shapeStandIn: shapeStandIn, cleanFrame: cleanFrame, openChar: openChar, newCharRules: newCharRules, charClash: charClash, coreOf: coreOf, setLibraryFind: setLibraryFind, statKeys: statKeys, statPicks: statPicks, cleanIcon: cleanIcon, droppedCounts: droppedCounts, parseLasts: parseLasts, lastsSecs: lastsSecs, roundSecs: roundSecs, fxLeftNow: fxLeftNow, fxTick: fxTick, mapCellScale: mapCellScale, moveAllowCells: moveAllowCells, dueActs: dueActs, gridCells: gridCells, cleanTurn: cleanTurn, TURN_UNITS: TURN_UNITS, TIME_WORDS: TIME_WORDS, roundActs: roundActs, combatChars: combatChars, applyRound: applyRound, thenChanges: thenChanges, showsIf: showsIf, rowRollNames: rowRollNames, applyAct: applyAct, applyScope: applyScope, cleanCharApply: cleanCharApply, APPLY_KINDS: APPLY_KINDS, hudView: hudView, hudHasContent: hudHasContent, pinTargetsAll: pinTargetsAll, TONES: TONES, valueTone: valueTone, cleanTones: cleanTones, playableChars: playableChars, activeCharOf: activeCharOf, activeChars: activeChars, ownedTokenPlan: ownedTokenPlan, applyOwnerOps: applyOwnerOps, migrateBindings: migrateBindings, tokenSourceFor: tokenSourceFor, playsAs: playsAs, cleanNewPlayers: cleanNewPlayers, newPlayerRules: newPlayerRules, waitingTokensOf: waitingTokensOf, waitingNeed: waitingNeed, stackZ: stackZ, LIMITS: LIMITS, PALETTE_KEYS: PALETTE_KEYS, headerEdits: headerEdits, pinTargets: pinTargets, pruneGroups: pruneGroups, GROUP_ID: GROUP_ID, GLYPHS: GLYPHS, glyphPath: glyphPath, ROLL_TONES: ROLL_TONES, KINDS: KINDS, STORED: STORED, DEF_PROP: DEF_PROP, LAYOUT: LAYOUT, validPageId: validPageId, BAND_KINDS: BAND_KINDS, IDENTITY_KINDS: IDENTITY_KINDS, LEDGER_KINDS: LEDGER_KINDS, headerEntry: headerEntry, captionParts: captionParts, capExpr: capExpr, labelNames: labelNames, labelGmNames: labelGmNames, valueOpts: valueOpts, rowIdOf: rowIdOf, cleanRowDef: cleanRowDef, rowDef: rowDef, projectRows: projectRows, cleanListSpec: cleanListSpec, STAT_KEY: STAT_KEY, statKey: statKey, cleanEntryStats: cleanEntryStats, rowStats: rowStats, rowStat: rowStat, plusText: plusText, rowPaid: rowPaid, cleanListRules: cleanListRules, cleanOv: cleanOv, mergeOv: mergeOv, itemReach: itemReach, OV_LOCK: OV_LOCK, lvlClamp: lvlClamp, rowLvl: rowLvl, rowOn: rowOn, cleanItemKey: cleanItemKey, ROW_WORDS: ROW_WORDS, applyRowOp: applyRowOp, orphanRows: orphanRows, stampRows: stampRows, libSnaps: libSnaps, carriedBy: carriedBy, cleanItemMods: cleanItemMods, fieldKinds: fieldKinds, unseenMods: unseenMods, cleanItemMsg: cleanItemMsg, RM_MODES: RM_MODES, applyEffectOp: applyEffectOp, cleanCharEffect: cleanCharEffect, gmEffectNames: gmEffectNames, fxText: fxText, activeEffects: activeEffects, tokenEffects: tokenEffects, autoEffectsOn: autoEffectsOn, tokenOwnEffects: tokenOwnEffects, projectEffects: projectEffects, FACING_NAMES: FACING_NAMES, TOKEN_NAMES: TOKEN_NAMES, POSTURE_IDS: POSTURE_IDS, POSTURE_NAMES: POSTURE_NAMES, DEFAULT_POSTURES: DEFAULT_POSTURES, cleanPostures: cleanPostures, postureList: postureList, ownPostures: ownPostures, postureAt: postureAt, postureSeven: postureSeven, stanceCtx: stanceCtx, tokenCtx: tokenCtx, withRound: withRound, rangeCtx: rangeCtx, withRange: withRange, sideOf: sideOf, threatArc: threatArc, cleanThreats: cleanThreats, facingCtx: facingCtx, charTokenOn: charTokenOn, cycleThreat: cycleThreat, RESERVED_SUFFIX: RESERVED_SUFFIX, emptySystem: emptySystem, uid: uid, validKey: validKey, cleanFormulaText: cleanFormulaText, hasDice: hasDice, cleanField: cleanField, cleanRollDef: cleanRollDef, cleanItemDef: cleanItemDef, cleanCombat: cleanCombat, cleanCover: cleanCover, cleanLightRules: cleanLightRules, lightName: lightName, lightPresets: lightPresets, LIGHT_UNITS: LIGHT_UNITS, cleanRangeRules: cleanRangeRules, rangeModOf: rangeModOf, rangeDist: rangeDist, rangeOf: rangeOf, RANGE_UNITS: RANGE_UNITS, cleanSenses: cleanSenses, secretFieldIds: secretFieldIds, gmViewFields: gmViewFields, coverTier: coverTier, coverOutcome: coverOutcome, coverDamage: coverDamage, cleanSystem: cleanSystem, cleanValue: cleanValue, cleanChar: cleanChar, cleanCharEdit: cleanCharEdit, cleanCharEdits: cleanCharEdits, resetTargets: resetTargets, cleanCharItem: cleanCharItem, cleanDenyReason: cleanDenyReason, cleanSheetStyle: cleanSheetStyle, fieldById: fieldById, itemDef: itemDef, keyIndex: keyIndex, makeResolver: makeResolver, resolveAll: resolveAll, hoverLines: hoverLines, gmOnlyNames: gmOnlyNames, gmDerivedNames: gmDerivedNames, gmPools: gmPools, initRoll: initRoll, orderByInit: orderByInit, cleanInitRules: cleanInitRules, cleanHeightRules: cleanHeightRules, heightModOf: heightModOf, heightOf: heightOf, HEIGHT_UNITS: HEIGHT_UNITS, initTie: initTie, sideFirst: sideFirst, orderBySide: orderBySide, validateSystem: validateSystem, charFor: charFor, applyEdit: applyEdit, autoLayout: autoLayout, aliasFromShadowBase: aliasFromShadowBase, sbRowOps: sbRowOps, sbRange: sbRange, sbMods: sbMods, sbFpText: sbFpText, sbTextBag: sbTextBag, sbFacing: sbFacing, sbWriteBack: sbWriteBack, sbProposal: sbProposal, sbApplyProposal: sbApplyProposal, cleanCharUpload: cleanCharUpload, cleanUploads: cleanUploads, fillMaking: fillMaking, sbFill: sbFill, fmtNum: fmtNum, suggest: suggest, lookRule: lookRule, cleanLooks: cleanLooks, applyStyle: applyStyle, cleanCharStyle: cleanCharStyle, lookOf: lookOf, lookFor: lookFor };
+var API = { VERSION: VERSION, cleanFieldUnit: cleanFieldUnit, metricOf: metricOf, unitTail: unitTail, readMeasure: readMeasure, heightWords: heightWords, MEASURES: MEASURES, rollNeedsOk: rollNeedsOk, rollNeedsSays: rollNeedsSays, onGroup: onGroup, onlyOne: onlyOne, onHeld: onHeld, cleanNeeds: cleanNeeds, hideNeeds: hideNeeds, needsMet: needsMet, needsSays: needsSays, needRule: needRule, ruleTrue: ruleTrue, setRuleJudge: setRuleJudge, cleanBudgets: cleanBudgets, budgetsOf: budgetsOf, budgetWatch: budgetWatch, budgetSays: budgetSays, cleanDesc: cleanDesc, cleanLvls: cleanLvls, EVERY_UNITS: EVERY_UNITS, cleanEvery: cleanEvery, timeRuleRun: timeRuleRun, cleanFace: cleanFace, charForView: charForView, mapGridOf: mapGridOf, tokenCell: tokenCell, shapeStandIn: shapeStandIn, cleanFrame: cleanFrame, openChar: openChar, newCharRules: newCharRules, charClash: charClash, coreOf: coreOf, setLibraryFind: setLibraryFind, statKeys: statKeys, statPicks: statPicks, cleanIcon: cleanIcon, droppedCounts: droppedCounts, parseLasts: parseLasts, lastsSecs: lastsSecs, roundSecs: roundSecs, fxLeftNow: fxLeftNow, fxTick: fxTick, mapCellScale: mapCellScale, moveAllowCells: moveAllowCells, dueActs: dueActs, gridCells: gridCells, cleanTurn: cleanTurn, TURN_UNITS: TURN_UNITS, TIME_WORDS: TIME_WORDS, roundActs: roundActs, combatChars: combatChars, applyRound: applyRound, thenChanges: thenChanges, showsIf: showsIf, rowRollNames: rowRollNames, applyAct: applyAct, applyScope: applyScope, cleanCharApply: cleanCharApply, APPLY_KINDS: APPLY_KINDS, hudView: hudView, hudHasContent: hudHasContent, pinTargetsAll: pinTargetsAll, TONES: TONES, valueTone: valueTone, cleanTones: cleanTones, playableChars: playableChars, activeCharOf: activeCharOf, activeChars: activeChars, ownedTokenPlan: ownedTokenPlan, applyOwnerOps: applyOwnerOps, migrateBindings: migrateBindings, tokenSourceFor: tokenSourceFor, playsAs: playsAs, cleanNewPlayers: cleanNewPlayers, newPlayerRules: newPlayerRules, waitingTokensOf: waitingTokensOf, waitingNeed: waitingNeed, stackZ: stackZ, LIMITS: LIMITS, PALETTE_KEYS: PALETTE_KEYS, headerEdits: headerEdits, pinTargets: pinTargets, pruneGroups: pruneGroups, GROUP_ID: GROUP_ID, GLYPHS: GLYPHS, glyphPath: glyphPath, ROLL_TONES: ROLL_TONES, KINDS: KINDS, STORED: STORED, DEF_PROP: DEF_PROP, LAYOUT: LAYOUT, validPageId: validPageId, BAND_KINDS: BAND_KINDS, IDENTITY_KINDS: IDENTITY_KINDS, LEDGER_KINDS: LEDGER_KINDS, headerEntry: headerEntry, captionParts: captionParts, capExpr: capExpr, labelNames: labelNames, labelGmNames: labelGmNames, valueOpts: valueOpts, rowIdOf: rowIdOf, cleanRowDef: cleanRowDef, rowDef: rowDef, projectRows: projectRows, cleanListSpec: cleanListSpec, STAT_KEY: STAT_KEY, statKey: statKey, cleanEntryStats: cleanEntryStats, rowStats: rowStats, rowStat: rowStat, plusText: plusText, rowPaid: rowPaid, cleanListRules: cleanListRules, cleanOv: cleanOv, mergeOv: mergeOv, itemReach: itemReach, OV_LOCK: OV_LOCK, lvlClamp: lvlClamp, rowLvl: rowLvl, rowOn: rowOn, cleanItemKey: cleanItemKey, ROW_WORDS: ROW_WORDS, applyRowOp: applyRowOp, orphanRows: orphanRows, stampRows: stampRows, libSnaps: libSnaps, carriedBy: carriedBy, cleanItemMods: cleanItemMods, fieldKinds: fieldKinds, unseenMods: unseenMods, cleanItemMsg: cleanItemMsg, RM_MODES: RM_MODES, applyEffectOp: applyEffectOp, cleanCharEffect: cleanCharEffect, gmEffectNames: gmEffectNames, fxText: fxText, activeEffects: activeEffects, tokenEffects: tokenEffects, autoEffectsOn: autoEffectsOn, tokenOwnEffects: tokenOwnEffects, projectEffects: projectEffects, FACING_NAMES: FACING_NAMES, TOKEN_NAMES: TOKEN_NAMES, POSTURE_IDS: POSTURE_IDS, POSTURE_NAMES: POSTURE_NAMES, DEFAULT_POSTURES: DEFAULT_POSTURES, cleanPostures: cleanPostures, postureList: postureList, ownPostures: ownPostures, postureAt: postureAt, postureSeven: postureSeven, stanceCtx: stanceCtx, tokenCtx: tokenCtx, withRound: withRound, rangeCtx: rangeCtx, withRange: withRange, sideOf: sideOf, threatArc: threatArc, cleanThreats: cleanThreats, facingCtx: facingCtx, charTokenOn: charTokenOn, cycleThreat: cycleThreat, RESERVED_SUFFIX: RESERVED_SUFFIX, emptySystem: emptySystem, uid: uid, validKey: validKey, cleanFormulaText: cleanFormulaText, hasDice: hasDice, cleanField: cleanField, cleanRollDef: cleanRollDef, cleanItemDef: cleanItemDef, cleanCombat: cleanCombat, cleanCover: cleanCover, cleanLightRules: cleanLightRules, lightName: lightName, lightPresets: lightPresets, LIGHT_UNITS: LIGHT_UNITS, cleanRangeRules: cleanRangeRules, rangeModOf: rangeModOf, rangeDist: rangeDist, rangeOf: rangeOf, RANGE_UNITS: RANGE_UNITS, cleanSenses: cleanSenses, secretFieldIds: secretFieldIds, gmViewFields: gmViewFields, coverTier: coverTier, coverOutcome: coverOutcome, coverDamage: coverDamage, cleanSystem: cleanSystem, cleanValue: cleanValue, cleanChar: cleanChar, cleanCharEdit: cleanCharEdit, cleanCharEdits: cleanCharEdits, resetTargets: resetTargets, cleanCharItem: cleanCharItem, cleanDenyReason: cleanDenyReason, cleanSheetStyle: cleanSheetStyle, fieldById: fieldById, itemDef: itemDef, keyIndex: keyIndex, makeResolver: makeResolver, resolveAll: resolveAll, hoverLines: hoverLines, gmOnlyNames: gmOnlyNames, gmDerivedNames: gmDerivedNames, gmPools: gmPools, initRoll: initRoll, orderByInit: orderByInit, cleanInitRules: cleanInitRules, cleanHeightRules: cleanHeightRules, heightModOf: heightModOf, heightOf: heightOf, HEIGHT_UNITS: HEIGHT_UNITS, initTie: initTie, sideFirst: sideFirst, orderBySide: orderBySide, validateSystem: validateSystem, charFor: charFor, applyEdit: applyEdit, autoLayout: autoLayout, aliasFromShadowBase: aliasFromShadowBase, sbRowOps: sbRowOps, sbRange: sbRange, sbMods: sbMods, sbFpText: sbFpText, sbTextBag: sbTextBag, sbFacing: sbFacing, sbWriteBack: sbWriteBack, sbProposal: sbProposal, sbApplyProposal: sbApplyProposal, cleanCharUpload: cleanCharUpload, cleanUploads: cleanUploads, fillMaking: fillMaking, sbFill: sbFill, fmtNum: fmtNum, suggest: suggest, lookRule: lookRule, cleanLooks: cleanLooks, applyStyle: applyStyle, cleanCharStyle: cleanCharStyle, lookOf: lookOf, lookFor: lookFor };
 if (typeof window !== 'undefined') window.wpSystemCore = API;
-export { VERSION, rollNeedsOk, rollNeedsSays, onGroup, onlyOne, onHeld, cleanNeeds, hideNeeds, needsMet, needsSays, needRule, ruleTrue, setRuleJudge, cleanBudgets, budgetsOf, budgetWatch, budgetSays, cleanDesc, cleanLvls, EVERY_UNITS, cleanEvery, timeRuleRun, cleanFace, charForView, mapGridOf, tokenCell, shapeStandIn, cleanFrame, openChar, newCharRules, charClash, coreOf, setLibraryFind, statKeys, statPicks, cleanIcon, droppedCounts, parseLasts, lastsSecs, roundSecs, fxLeftNow, fxTick, mapCellScale, moveAllowCells, dueActs, gridCells, cleanTurn, TURN_UNITS, TIME_WORDS, roundActs, combatChars, applyRound, thenChanges, showsIf, rowRollNames, applyAct, applyScope, cleanCharApply, APPLY_KINDS, hudView, hudHasContent, pinTargetsAll, TONES, valueTone, cleanTones, playableChars, activeCharOf, activeChars, ownedTokenPlan, applyOwnerOps, migrateBindings, tokenSourceFor, playsAs, cleanNewPlayers, newPlayerRules, waitingTokensOf, waitingNeed, stackZ, LIMITS, PALETTE_KEYS, headerEdits, pinTargets, pruneGroups, GROUP_ID, GLYPHS, glyphPath, ROLL_TONES, KINDS, STORED, DEF_PROP, LAYOUT, validPageId, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, capExpr, labelNames, labelGmNames, valueOpts, rowIdOf, cleanRowDef, rowDef, projectRows, cleanListSpec, STAT_KEY, statKey, cleanEntryStats, rowStats, rowStat, plusText, rowPaid, cleanListRules, cleanOv, mergeOv, itemReach, OV_LOCK, lvlClamp, rowLvl, rowOn, cleanItemKey, ROW_WORDS, applyRowOp, orphanRows, stampRows, libSnaps, carriedBy, cleanItemMods, fieldKinds, unseenMods, cleanItemMsg, RM_MODES, applyEffectOp, cleanCharEffect, gmEffectNames, fxText, activeEffects, tokenEffects, autoEffectsOn, tokenOwnEffects, projectEffects, FACING_NAMES, TOKEN_NAMES, POSTURE_IDS, POSTURE_NAMES, DEFAULT_POSTURES, cleanPostures, postureList, ownPostures, postureAt, postureSeven, stanceCtx, tokenCtx, withRound, rangeCtx, withRange, sideOf, threatArc, cleanThreats, facingCtx, charTokenOn, cycleThreat, RESERVED_SUFFIX, emptySystem, uid, validKey, cleanFormulaText, hasDice, cleanField, cleanRollDef, cleanItemDef, cleanCombat, cleanCover, cleanLightRules, lightName, lightPresets, LIGHT_UNITS, cleanRangeRules, rangeModOf, rangeDist, rangeOf, RANGE_UNITS, cleanSenses, secretFieldIds, gmViewFields, coverTier, coverOutcome, coverDamage, cleanSystem, cleanValue, cleanChar, cleanCharEdit, cleanCharEdits, resetTargets, cleanCharItem, cleanDenyReason, cleanSheetStyle, fieldById, itemDef, keyIndex, makeResolver, resolveAll, hoverLines, gmOnlyNames, gmDerivedNames, gmPools, initRoll, orderByInit, cleanInitRules, cleanHeightRules, heightModOf, heightOf, HEIGHT_UNITS, initTie, sideFirst, orderBySide, validateSystem, charFor, applyEdit, autoLayout, aliasFromShadowBase, sbRowOps, sbRange, sbMods, sbFpText, sbTextBag, sbFacing, sbWriteBack, sbProposal, sbApplyProposal, cleanCharUpload, cleanUploads, fillMaking, sbFill, fmtNum, suggest, lookRule, cleanLooks, applyStyle, cleanCharStyle, lookOf, lookFor };
+export { VERSION, cleanFieldUnit, metricOf, unitTail, readMeasure, heightWords, MEASURES, rollNeedsOk, rollNeedsSays, onGroup, onlyOne, onHeld, cleanNeeds, hideNeeds, needsMet, needsSays, needRule, ruleTrue, setRuleJudge, cleanBudgets, budgetsOf, budgetWatch, budgetSays, cleanDesc, cleanLvls, EVERY_UNITS, cleanEvery, timeRuleRun, cleanFace, charForView, mapGridOf, tokenCell, shapeStandIn, cleanFrame, openChar, newCharRules, charClash, coreOf, setLibraryFind, statKeys, statPicks, cleanIcon, droppedCounts, parseLasts, lastsSecs, roundSecs, fxLeftNow, fxTick, mapCellScale, moveAllowCells, dueActs, gridCells, cleanTurn, TURN_UNITS, TIME_WORDS, roundActs, combatChars, applyRound, thenChanges, showsIf, rowRollNames, applyAct, applyScope, cleanCharApply, APPLY_KINDS, hudView, hudHasContent, pinTargetsAll, TONES, valueTone, cleanTones, playableChars, activeCharOf, activeChars, ownedTokenPlan, applyOwnerOps, migrateBindings, tokenSourceFor, playsAs, cleanNewPlayers, newPlayerRules, waitingTokensOf, waitingNeed, stackZ, LIMITS, PALETTE_KEYS, headerEdits, pinTargets, pruneGroups, GROUP_ID, GLYPHS, glyphPath, ROLL_TONES, KINDS, STORED, DEF_PROP, LAYOUT, validPageId, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, capExpr, labelNames, labelGmNames, valueOpts, rowIdOf, cleanRowDef, rowDef, projectRows, cleanListSpec, STAT_KEY, statKey, cleanEntryStats, rowStats, rowStat, plusText, rowPaid, cleanListRules, cleanOv, mergeOv, itemReach, OV_LOCK, lvlClamp, rowLvl, rowOn, cleanItemKey, ROW_WORDS, applyRowOp, orphanRows, stampRows, libSnaps, carriedBy, cleanItemMods, fieldKinds, unseenMods, cleanItemMsg, RM_MODES, applyEffectOp, cleanCharEffect, gmEffectNames, fxText, activeEffects, tokenEffects, autoEffectsOn, tokenOwnEffects, projectEffects, FACING_NAMES, TOKEN_NAMES, POSTURE_IDS, POSTURE_NAMES, DEFAULT_POSTURES, cleanPostures, postureList, ownPostures, postureAt, postureSeven, stanceCtx, tokenCtx, withRound, rangeCtx, withRange, sideOf, threatArc, cleanThreats, facingCtx, charTokenOn, cycleThreat, RESERVED_SUFFIX, emptySystem, uid, validKey, cleanFormulaText, hasDice, cleanField, cleanRollDef, cleanItemDef, cleanCombat, cleanCover, cleanLightRules, lightName, lightPresets, LIGHT_UNITS, cleanRangeRules, rangeModOf, rangeDist, rangeOf, RANGE_UNITS, cleanSenses, secretFieldIds, gmViewFields, coverTier, coverOutcome, coverDamage, cleanSystem, cleanValue, cleanChar, cleanCharEdit, cleanCharEdits, resetTargets, cleanCharItem, cleanDenyReason, cleanSheetStyle, fieldById, itemDef, keyIndex, makeResolver, resolveAll, hoverLines, gmOnlyNames, gmDerivedNames, gmPools, initRoll, orderByInit, cleanInitRules, cleanHeightRules, heightModOf, heightOf, HEIGHT_UNITS, initTie, sideFirst, orderBySide, validateSystem, charFor, applyEdit, autoLayout, aliasFromShadowBase, sbRowOps, sbRange, sbMods, sbFpText, sbTextBag, sbFacing, sbWriteBack, sbProposal, sbApplyProposal, cleanCharUpload, cleanUploads, fillMaking, sbFill, fmtNum, suggest, lookRule, cleanLooks, applyStyle, cleanCharStyle, lookOf, lookFor };

@@ -173,16 +173,16 @@ if (_avClear) _avClear.addEventListener('click', function() {
     toast('Picture removed.');
 });
 
+// Imperial or Metric: whiteboard.js wpUnitSet sets the choice and draws again everything that reads it, the measure menu's own buttons and
+// every open sheet and HUD among them (the read-only check of 2026-10-17: a switch here left the rulers and the height chips in the old unit).
+// It is the one place the choice is set: with no board at hand nothing is switched
 document.querySelectorAll('.set-unit-btn').forEach(function(b) {
     b.addEventListener('click', function() {
-        state.measureUnit = this.dataset.unit;
-        try { localStorage.setItem('wp_measureUnit', state.measureUnit); } catch (e) {}
+        var u = this.dataset.unit === 'metric' ? 'metric' : 'imperial';
+        if (!window.wpUnitSet) return;
+        window.wpUnitSet(u);
         syncPanel();
-        // keep the measure menu's own buttons in agreement
-        document.querySelectorAll('#measureUnitRow .draw-style-btn').forEach(function(mb) {
-            mb.classList.toggle('active', mb.dataset.unit === state.measureUnit);
-        });
-        toast(this.dataset.unit === 'metric' ? 'Metric measurements.' : 'Imperial measurements.');
+        toast(u === 'metric' ? 'Metric measurements.' : 'Imperial measurements.');
     });
 });
 

@@ -53,6 +53,12 @@ Character sheets
 - In the System editor, each field has a Locked list. Automatic keeps
   pools, switches, counters and named values working on a locked sheet.
   Stays live and Needs Edit sheet say otherwise for that one field.
+- A field's unit can be a measure: yd, ft, in, lb or mi. When Settings
+  say Metric, the sheet shows the figure in metric too, as 7 yd (6.4 m)
+  or 32 lbs (14.5 kg). Formulas, rolls and files still read the figure
+  as it is. A text field can take the unit height: on a locked sheet
+  and in the HUD, a height written as 6'7" / 2.00 m reads 6'7" under
+  Imperial and 2.00 m under Metric.
 - The button that lets a player fill in their whole sheet now reads
   Unlock for player, and Lock for player to close it again.
 - A list's stat can be Hidden, in the System editor's Lists tab. Use it
@@ -161,6 +167,13 @@ Character sheets
 - For ShadowBase writes a figure only where it changed here. A pool or
   an elevation the website keeps and Waypoint cannot hold stays as the
   website wrote it.
+- A sheet from ShadowBase reads the website's v1.0.4. Air Move comes into
+  a number field your system has. A height or a weight is read by its
+  feet and inches or its pounds, whichever order the file writes them
+  in, and a text field keeps the file's own words. An Indomitable row
+  with no level is level 5, the Wookiee's renamed trait is found under
+  either name, and a droid's size is worked out in inches, as the
+  website now does.
 - Text style on a sheet. With Edit sheet on, click into a text or notes
   field and a bar comes up on it, as in a planner. Select words and make
   them bold, italic, underlined, struck through or coloured, or give
@@ -607,6 +620,26 @@ Fixes
 - Escape ends typing in a text box on the map and keeps your words.
 - An effects burst you armed and did not place is put down when you
   take another tool. A later Escape used to put that tool away.
+- A thrown blast is said in the ruler's unit on that map, as a circle of
+  the Radius tool is: yards on a map in yards, metres under Metric. So
+  are the radius beside an item on the sheet and the notice of a throw.
+  The item keeps its radius in feet. In metres a blast reads as a
+  sheet's measure does, so a 3 yd blast is 2.7 m.
+- On a hex map the ruler counts the hexes between its two ends, as range
+  does. It read the straight line, so two hexes along a row read 1.7.
+- Switching Imperial or Metric, in Settings or in the measure options,
+  draws the rulers, the height chips and the sheet again at once. They
+  went on in the old unit until something else drew them. Every HUD and
+  a sheet in a window of its own follow too.
+- A size typed in metres in the Radius tool is taken as the box shows
+  it. 2.74 m, which the box shows for 3 yd, is 3 yd, so a token three
+  hexes away is inside. It was 2.9965 yd and left that token out.
+- In Metric the buttons and arrows beside a height step one yard, shown
+  as 0.91 m. They stepped a metre, 1.1 yd, which could change whether a
+  token clears low cover. The Elevation row of a sheet and of a HUD now
+  reads in metres under Metric too.
+- A target mark's range tooltip gives its distance in your choice of
+  Imperial or Metric. It said yards under Metric.
 - The Journal's unread count stays in sight while the top row is hidden,
   as chat's does.
 - A key held down no longer answers a question. A question that came up

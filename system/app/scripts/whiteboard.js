@@ -2216,6 +2216,10 @@ window.wpFitToGrid = fitToGrid;
       e.stopPropagation(); if (typeof barFront === 'function') barFront(menu);
       return true;
   }
+  // A button that opens a menu and has no small arrow follows the same rule, heard by menuFront on the box that holds the button and its menu,
+  // in the capture phase as a pair is (backlog 143, the review of 2026-10-17): More and Pages on the play map's bar, Link and Center on the data
+  // map's. A press that brings nothing forward reaches the button's own handler, as before. A new such button joins this list
+  var MENU_BTNS = { wbMoreBtn: 'wbMoreMenu', pagesBtn: 'pagesMenu', linkBtn: 'linkMenu', dataCenterBtn: 'dataCenterMenu' };   // the button, and the menu it opens
   function wireMenuArrows() {
       Array.prototype.forEach.call(document.querySelectorAll('.tool-chev[data-for]'), function(c) {
           c.addEventListener('click', function(e) { e.stopPropagation(); var b = document.getElementById(c.getAttribute('data-for')); if (b) b.click(); });
@@ -2225,6 +2229,10 @@ window.wpFitToGrid = fitToGrid;
           if (!icon || !chev || !menu || Object.prototype.hasOwnProperty.call(TOOL_OPTS, icon.id)) return;
           var forId = chev.getAttribute('data-for'), btn = forId ? document.getElementById(forId) : null;
           pair.addEventListener('click', function(e) { menuFront(e, menu, chev, btn); }, true);
+      });
+      Object.keys(MENU_BTNS).forEach(function(id) {
+          var btn = document.getElementById(id), menu = document.getElementById(MENU_BTNS[id]), box = btn ? btn.parentElement : null;
+          if (box && menu) box.addEventListener('click', function(e) { menuFront(e, menu, null, btn); }, true);
       });
   }
   wireMenuArrows();
@@ -6246,7 +6254,8 @@ function wbOneMenu(e) {
 // window comes back over the tool's options, like windows on a desktop"). style.css raises a .floating-toolbar while a menu of it is open (the
 // play map's bar, the column at its edge, the data map's bar). A press on a floating box gives the bars BAR_BACK, which puts one with an open
 // menu back under the boxes, its menu still open. The boxes are floats.js's own list (wpFloats.boxes: the sheet, a HUD, the page panel, Sound,
-// Music, Video, Effects, the notepad, Table Chat and the dice roller) and the dice roller's pop, which stands apart on the page. A press on a
+// Music, Video, Effects, the notepad, Table Chat and the dice roller) and the dice roller's pop, which stands apart on the page. A focus that
+// arrives in one, by a key or a script, does the same (barFocus). A press on a
 // bar, its open menu among it, takes BAR_BACK off that bar, and so does a menu of it that opens, by a press, a key or the tour. Taken in the
 // capture phase, so a box that stops its own presses still counts. Nothing here opens or closes a menu: one that closes at a press elsewhere
 // still does, by its own listener. The same on every screen
@@ -6260,13 +6269,22 @@ function barWindow(t) {
     var F = window.wpFloats, bs = F && typeof F.boxes === 'function' ? F.boxes() : [];
     return bs.some(function(b) { return b === t || (typeof b.contains === 'function' && b.contains(t)); });
 }
+// Every bar takes BAR_BACK: one with an open menu goes back under the boxes, its menu still open
+function barStep() { Array.prototype.forEach.call(document.querySelectorAll('.floating-toolbar'), function(b) { b.classList.add(BAR_BACK); }); }
 function barPress(e) {
     var t = e && e.target, held = barOf(t); _barWas = held && held.classList.contains(BAR_BACK) ? held : null;
     _barSaw = _barWas ? barShowing() : null;   // the windows as they stand at this press, before one goes at it (the dice roller's pop does)
     if (!t || typeof t.closest !== 'function') return;
     var bar = t.closest('.floating-toolbar');
     if (bar) { bar.classList.remove(BAR_BACK); return; }
-    if (barWindow(t)) Array.prototype.forEach.call(document.querySelectorAll('.floating-toolbar'), function(b) { b.classList.add(BAR_BACK); });
+    if (barWindow(t)) barStep();
+}
+// A focus that arrives in a floating box steps the bars back as a press on one does (backlog 143, the review of 2026-10-17: Tab into a window
+// left a tool's options over it): the same boxes and the dice roller's pop, the focus moved by a key or by a script that focuses a field of
+// one. A focus anywhere else, in a bar or a menu of it among them, leaves every bar as it stands
+function barFocus(e) {
+    var t = e && e.target;
+    if (t && typeof t.closest === 'function' && barWindow(t)) barStep();
 }
 // A menu that opens: its class gains show. One drawn again while it is up is no opening, which its class before the change tells
 function barOpened(recs) {
@@ -6314,6 +6332,7 @@ function barFront(el) {
 }
 window.wpBarFront = barFront;
 document.addEventListener('pointerdown', barPress, true);
+document.addEventListener('focusin', barFocus, true);
 if (typeof MutationObserver === 'function') { var _barMo = new MutationObserver(barOpened); Array.prototype.forEach.call(document.querySelectorAll('.floating-toolbar'), function(b) { _barMo.observe(b, { subtree: true, attributes: true, attributeFilter: ['class'], attributeOldValue: true }); }); }
 // More, the last button of the bar: its menu holds Clear board. A press on a row puts the menu away, and so does a press anywhere else
 var _el_wbMoreBtn = document.getElementById('wbMoreBtn'), _el_wbMoreMenu = document.getElementById('wbMoreMenu');

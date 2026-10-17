@@ -2505,6 +2505,155 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         J(RP) === J(EP), J(RP));
 }
 
+/* ---------- the three small things left (backlog 143, the review of 2026-10-17; the owner: "lets take care of these small issues") ---------- */
+// (1) A focus that arrived in a floating box by Tab, or by a script that focuses a field of one, left a tool's options over it: only a press of
+// the pointer stepped the bars back. whiteboard.js barFocus, a capture listener for focusin, steps them back as barPress does for a press, by
+// the same boxes. (2) Under a paused table a filter on #whiteboardWrap made the wrap a stacking context, which held the right-click menu and
+// the hover card that stand in it under the bars and the boxes, and a containing block, which took the right-click menu, fixed to the window,
+// off its place. The filter is on the board's own layer now, and the wrap's ground is dimmed by the filter's own numbers, written out. (3)
+// More, Pages and the data map's Link and Center open a menu and have no small arrow, so one press of them closed a menu that stood back under
+// a window. They are named in MENU_BTNS and heard by menuFront as a pair is
+{
+    const flSrc = read('scripts/floats.js'), fl0 = flSrc.indexOf('// [floatcheck:core-start]'), fl1 = flSrc.indexOf('// [floatcheck:core-end]');
+    const fm = /\nvar FLOAT_IDS = (\[[^\]]*\]);/.exec(flSrc), FLOATS = fm ? JSON.parse(fm[1].replace(/'/g, '"')) : [];
+    // (1) the bar's slice on a page of plain objects with floats.js's own list of boxes, as the step back's own check has it, and focus events
+    // as a page gives them: the capture listeners of the page first, then, unless the box the focus lands in stops its own, the rest
+    const P = toolbarPage(false), b = P.byId, win = {}, caps = [];
+    const el = (id, cls, parent) => { const e = new El('div', id, cls); if (id) b[id] = e; (parent || P.main).add(e); return e; };
+    const data = el('dataFloatingToolbar', 'floating-toolbar'); el('linkBtn', 'wb-tool-btn', data); const lm = el('linkMenu', 'shape-menu', data); el('linkMenuRow', 'wb-tool-btn', lm);
+    FLOATS.forEach(id => el(id + 'Row', 'row', el(id, '')));
+    const hud = el('', 'hud-panel', el('hudLayer', '')), hudRow = el('', 'row', hud);
+    const pop = el('', 'dice-modpop'), popRow = el('', 'tool', pop), mapEl = el('whiteboardWrap', ''), ctxRow = el('', 'menu-item', el('contextMenu', 'dropdown'));
+    P.main.all().concat([P.main]).forEach(e => { e.contains = n => { for (; n; n = n.parentElement) if (n === e) return true; return false; }; });
+    let boxes = null; try { boxes = fl0 > 0 && fl1 > fl0 ? new Function('window', 'document', 'state', 'getActiveMap', 'isDocLike', 'CustomEvent', flSrc.slice(fl0, fl1) + '\nreturn floatBoxes;')(win, P.doc, { viewMode: 'visual' }, () => null, () => false, function() {}) : null; } catch (e) { boxes = null; }
+    win.wpFloats = { boxes: boxes };
+    const doc = Object.assign({}, P.doc, { addEventListener: (t, f, c) => { caps.push([t, f, c === true]); P.doc.addEventListener(t, f, c); } });
+    function MO() {} MO.prototype.observe = function() {};
+    function RO() {} RO.prototype.observe = function() {};
+    let api = null, err = '';
+    try { api = new Function('document', 'window', 'ResizeObserver', 'MutationObserver', barSrc + '\nreturn { barPress: barPress, barFocus: barFocus, BAR_BACK: BAR_BACK };')(doc, win, RO, MO); } catch (e) { err = String(e && e.message || e); }
+    const press = t => caps.filter(l => l[0] === 'pointerdown' && l[2]).forEach(l => l[1]({ type: 'pointerdown', target: t }));
+    const focus = (t, stops) => { const ev = { type: 'focusin', target: t, relatedTarget: null }; caps.filter(l => l[0] === 'focusin' && l[2]).forEach(l => l[1](ev)); if (!stops) caps.filter(l => l[0] === 'focusin' && !l[2]).forEach(l => l[1](ev)); };
+    const st = () => [P.bar, P.edge, data].map(x => { const open = x.querySelectorAll('.shape-menu.show').map(m => m.id).sort(); return (!open.length ? 'rest' : x.cls.has(api.BAR_BACK) ? 'back' : 'up') + ':' + open.join(','); }).join(' | ');
+    const seen = [], each = [], none = [];
+    let threw = '';
+    if (api && boxes) {
+        b.drawMenu.classList.add('show'); seen.push(st());                               // the pen's options open: up
+        focus(b.docPanelRow); seen.push(st());                                          // Tab into the page panel: back, the options still open
+        focus(b.drawOptBtn); focus(b.drawMenuRow); seen.push(st());                     // a focus in the bar and in its open menu: nothing brought forward
+        press(P.bar); seen.push(st());                                                  // a press on the bar: up again
+        focus(b.drawMenuRow); focus(b.drawModeBtn); seen.push(st());                    // a focus in the bar and its open menu: nothing stepped back
+        b.gridMenu.classList.add('show'); lm.classList.add('show'); press(P.edge); press(data); seen.push(st());   // a menu of the column and of the data map's bar open, each bar pressed: up
+        focus(hudRow, true); seen.push(st());                                           // a HUD that stops its own focus events: every bar with an open menu back
+        press(P.bar); seen.push(st());                                                  // the bar pressed: it alone up
+        focus(mapEl); focus(ctxRow); try { focus(null); focus({}); } catch (e) { threw = String(e && e.message || e); } seen.push(st());   // the map, the right-click menu, no element: nothing
+        focus(popRow); seen.push(st());                                                 // the dice roller's pop: back
+        b.gridMenu.classList.remove('show'); lm.classList.remove('show');
+        FLOATS.concat(['hud', 'pop']).forEach(id => { press(P.bar); const u = st(); focus(id === 'hud' ? hud : id === 'pop' ? pop : b[id]); each.push(u + ' > ' + st()); });   // each box itself
+        win.wpFloats = undefined; press(P.bar); focus(b.sheetPanelRow); none.push(st()); focus(popRow); none.push(st()); win.wpFloats = { boxes: boxes };   // floats.js not there: no box but the pop
+    }
+    const U = 'up:drawMenu | rest: | rest:', B = 'back:drawMenu | rest: | rest:';
+    check('a focus that arrives in a window steps the bars back as a press on one does (backlog 143, the review of 2026-10-17: Tab into a window left a tool\'s options over it; whiteboard.js barFocus run for real on a page of plain objects with floats.js\'s own list of boxes): a focus in any floating box, a HUD that stops its own focus events too, or in the dice roller\'s pop puts every bar with an open menu back under the boxes, its menu still open; a focus in a bar or in its open menu leaves every bar as it stands, back or up; a focus on the map, in the right-click menu, or with no element changes nothing and throws nothing; with floats.js not there only the pop counts; one capture listener for focusin beside the one for pointerdown',
+        !!api && !!boxes && J(seen) === J([U, B, B, U, U, 'up:drawMenu | up:gridMenu | up:linkMenu', 'back:drawMenu | back:gridMenu | back:linkMenu', 'up:drawMenu | back:gridMenu | back:linkMenu', 'up:drawMenu | back:gridMenu | back:linkMenu', 'back:drawMenu | back:gridMenu | back:linkMenu'])
+        && threw === '' && each.length === FLOATS.length + 2 && each.every(s => s === U + ' > ' + B) && J(none) === J([U, B])
+        && J(caps.filter(l => l[0] === 'focusin' || l[0] === 'focusout').map(l => [l[0], l[1] === api.barFocus, l[2]])) === J([['focusin', true, true]])
+        && J(caps.filter(l => l[0] === 'pointerdown').map(l => [l[1] === api.barPress, l[2]])) === J([[true, true]]), err || J([seen, threw, each, none]));
+    // (1) and (3) where the windows have rectangles: a fresh page of plain objects with the data map's bar, the bar's and the presses' slices
+    // run together, More's own handler as the bar's slice wires it, stand-ins that toggle as the page's own do for Pages, Link and Center (the
+    // data map's two stop their press, as datamap.js's do), and focus events as a page gives them
+    const MENU = { left: 100, top: 50, width: 200, height: 150 }, OVER = { left: 250, top: 150, width: 300, height: 300 }, FAR = { left: 900, top: 600, width: 300, height: 200 };
+    function world(rect) {
+        const P = toolbarPage(false), b = P.byId, caps = [], mos = [], hits = [], page = [], lay = new Map();
+        const mk = (tag, id, cls, parent) => { const e = new El(tag, id, cls); if (id) b[id] = e; parent.add(e); return e; };
+        const data = mk('div', 'dataFloatingToolbar', 'floating-toolbar', P.main);
+        [['dataCenterBtn', 'dataCenterMenu'], ['linkBtn', 'linkMenu']].forEach(([bt, mn]) => { const w = mk('div', '', '', data); mk('button', bt, 'wb-tool-btn', w); mk('button', mn + 'Row', 'wb-tool-btn', mk('div', mn, 'shape-menu', w)); });
+        const box = mk('div', 'docPanel', '', P.main), row = mk('div', 'docPanelRow', 'row', box); lay.set(box, rect);
+        ['drawMenu', 'wbMoreMenu', 'pagesMenu', 'linkMenu', 'dataCenterMenu'].forEach(id => lay.set(b[id], MENU));
+        const within = (root, n) => { for (; n; n = n.parentElement) if (n === root) return true; return false; };
+        P.main.all().concat([P.main]).forEach(e => { e.contains = n => within(e, n); e.getBoundingClientRect = () => Object.assign({ left: 0, top: 0, width: 0, height: 0 }, lay.get(e)); });
+        function MO(cb) { mos.push(cb); } MO.prototype.observe = function() {};
+        function RO() {} RO.prototype.observe = function() {};
+        P.main.querySelectorAll('.shape-menu').forEach(m => { const cl = m.classList; ['add', 'remove', 'toggle'].forEach(k => { const f = cl[k]; cl[k] = (c, v) => { const old = [...m.cls].join(' '), r = f(c, v); mos.forEach(cb => cb([{ type: 'attributes', attributeName: 'class', target: m, oldValue: old }])); return r; }; }); });
+        const win = { wpFloats: { boxes: () => [box] } }, doc = Object.assign({}, P.doc, { addEventListener: (t, f, c) => { caps.push([t, f, c === true]); P.doc.addEventListener(t, f, c); } });
+        let api = null, err = '';
+        try { api = new Function('document', 'window', 'ResizeObserver', 'MutationObserver', barSrc + '\n' + pressSrc + '\nreturn { BAR_BACK: BAR_BACK, toolOptsOnly: toolOptsOnly, wireTool: wireTool, TOOL_OPTS: TOOL_OPTS, MENU_BTNS: MENU_BTNS };')(doc, win, RO, MO); } catch (e) { err = String(e && e.message || e); }
+        let hand = 'move';
+        if (api) {
+            P.doc.addEventListener('click', e => page.push(e.target.id || '?'));
+            b.moveModeBtn.addEventListener('click', () => { hand = 'move'; api.toolOptsOnly('moveModeBtn'); });
+            api.wireTool({ id: 'drawModeBtn', chev: 'drawOptBtn', inHand: () => hand === 'pen', take: () => { hand = 'pen'; api.toolOptsOnly('drawModeBtn'); } });
+            b.wbMoreBtn.addEventListener('click', () => { hits.push('wbMoreBtn'); });   // beside More's own handler, which the bar's slice wired
+            b.pagesBtn.addEventListener('click', () => { hits.push('pagesBtn'); b.pagesMenu.classList.toggle('show'); });
+            [['linkBtn', 'linkMenu'], ['dataCenterBtn', 'dataCenterMenu']].forEach(([bt, mn]) => b[bt].addEventListener('click', e => { e.stopPropagation(); hits.push(bt); b[mn].classList.toggle('show'); }));
+        }
+        const down = t => caps.filter(l => l[0] === 'pointerdown').forEach(l => l[1]({ type: 'pointerdown', target: t }));
+        const focus = t => caps.filter(l => l[0] === 'focusin').forEach(l => l[1]({ type: 'focusin', target: t, relatedTarget: null }));
+        const st = () => hand + ' | ' + P.open().join(',') + ' | ' + [P.bar, P.edge, data].map(x => x.cls.has(api.BAR_BACK) ? 'back' : 'up').join(',');
+        return { P, b, api, err, hits, page, st, row, focus, pt: t => { down(t); P.click(t, { detail: 1 }); }, kb: t => P.click(t, { detail: 0 }) };
+    }
+    const run = (rect, fn) => { const W = world(rect); if (!W.api) return 'no slice: ' + W.err; try { return fn(W); } catch (e) { return 'threw: ' + String(e && e.stack || e); } };
+    // (1) Tab into the page panel over the pen's options, then the pen's small arrow, by a key or by the pointer
+    const tab = (rect, how) => run(rect, W => { const by = how === 'key' ? W.kb : W.pt, s = []; W.pt(W.b.drawOptBtn); s.push(W.st()); W.focus(W.row); s.push(W.st()); by(W.b.drawOptBtn); s.push(W.st()); by(W.b.drawOptBtn); s.push(W.st()); return s; });
+    const RT = { over: tab(OVER, 'key'), overPt: tab(OVER), far: tab(FAR, 'key'), farPt: tab(FAR) };
+    const T0 = 'pen | drawMenu | up,up,up', T1 = 'pen | drawMenu | back,back,back';
+    const ET = { over: [T0, T1, 'pen | drawMenu | up,back,back', 'pen |  | up,back,back'], overPt: [T0, T1, 'pen | drawMenu | up,back,back', 'pen |  | up,back,back'],
+        far: [T0, T1, 'pen |  | back,back,back', 'pen | drawMenu | up,back,back'], farPt: [T0, T1, 'pen |  | up,back,back', 'pen | drawMenu | up,back,back'] };
+    check('after a focus that arrived in a window, the small arrow follows the review\'s rule (backlog 143, the review of 2026-10-17; the bar\'s and the presses\' slices run together on pages of plain objects given rectangles): Tab into the page panel over the pen\'s options puts them back, and one press of the arrow, by a key or by the pointer, brings them in front and closes nothing while the panel covers them, the next closing them; with the panel far off the first press closes them, as it did before',
+        J(RT) === J(ET), J(RT));
+    // (3) More, Pages, Link and Center: opened, put back by a focus that arrives in the page panel (a press of the pointer there would close
+    // each of them by its own press-elsewhere rule), then pressed twice, by the pointer or by a key
+    const btn = (rect, id, how) => run(rect, W => { const by = how === 'key' ? W.kb : W.pt, s = []; W.pt(W.b[id]); s.push(W.st()); W.focus(W.row); s.push(W.st()); by(W.b[id]); s.push(W.st()); by(W.b[id]); s.push(W.st()); return [s, W.hits, W.page]; });
+    const IDS = [['wbMoreBtn', 'wbMoreMenu', 0], ['pagesBtn', 'pagesMenu', 0], ['linkBtn', 'linkMenu', 2], ['dataCenterBtn', 'dataCenterMenu', 2]];
+    const RB = {}, EB = {};
+    IDS.forEach(([id, menu, at]) => {
+        const ups = (x, y) => ['up', 'up', 'up'].map((v, i) => i === at ? x : y).join(','), heard = n => Array(n).fill(id), pg = n => at === 2 ? [] : heard(n);   // the data map's own handlers stop their press
+        const O = 'move | ' + menu + ' | ', C = 'move |  | ';
+        RB[id] = { over: btn(OVER, id), overKey: btn(OVER, id, 'key'), far: btn(FAR, id), farKey: btn(FAR, id, 'key') };
+        EB[id] = { over: [[O + 'up,up,up', O + 'back,back,back', O + ups('up', 'back'), C + ups('up', 'back')], heard(2), pg(2)],
+            overKey: [[O + 'up,up,up', O + 'back,back,back', O + ups('up', 'back'), C + ups('up', 'back')], heard(2), pg(2)],
+            far: [[O + 'up,up,up', O + 'back,back,back', C + ups('up', 'back'), O + ups('up', 'back')], heard(3), pg(3)],
+            farKey: [[O + 'up,up,up', O + 'back,back,back', C + 'back,back,back', O + ups('up', 'back')], heard(3), pg(3)] };
+    });
+    const other = run(OVER, W => { const b = W.b, r = []; W.pt(b.wbMoreBtn); W.focus(W.row); W.pt(b.wbMoreMenuRow); r.push(W.st(), W.page.slice()); W.focus(W.row); W.pt(b.pagesBtn); r.push(W.st(), W.hits.slice());
+        r.push(['wbMoreBtn', 'pagesBtn', 'linkBtn', 'dataCenterBtn'].map(id => b[id].parentElement.on.filter(l => l[0] === 'click' && l[2]).length), J(W.api.MENU_BTNS)); return r; });
+    check('More, Pages and the data map\'s Link and Center follow the same rule as the pairs (backlog 143, the review of 2026-10-17; whiteboard.js MENU_BTNS, heard by menuFront on the box that holds each button and its menu, run for real with More\'s own handler): with the page panel over a menu of one that a focus put back, one press of its button, by the pointer or by a key, brings the menu in front and neither the button\'s own handler nor the page hears it, and the next press closes it; with the panel far off the first press closes it as before; a row of the menu keeps its own press, a closed menu opens as before, and each box takes one capture listener',
+        J(RB) === J(EB) && J(other) === J(['move |  | up,back,back', ['wbMoreBtn', 'wbMoreMenuRow'], 'move | pagesMenu | up,back,back', ['wbMoreBtn', 'pagesBtn'], [1, 1, 1, 1], J({ wbMoreBtn: 'wbMoreMenu', pagesBtn: 'pagesMenu', linkBtn: 'linkMenu', dataCenterBtn: 'dataCenterMenu' })]),
+        J([RB, other]));
+    // every menu of the three bars is reached by exactly one of the three press rules, read from the page: a tool's own (wireTool, TOOL_OPTS),
+    // a pair's (menuFront on a .tool-pair) and a button's with no arrow (menuFront on MENU_BTNS), each such button its wrapper's first child
+    // beside its menu, with no small arrow
+    const W0 = world(OVER), dataKids = kidsOf(ix, '<div id="dataFloatingToolbar" class="floating-toolbar">') || [];
+    const menusOf = s => (s.match(/<[a-z]+\b[^>]*>/g) || []).map(t => { const i = / id="(\w*Menu)"/.exec(t), c = / class="([^"]*)"/.exec(t); return i && c && c[1].split(' ').indexOf('shape-menu') >= 0 ? i[1] : null; }).filter(Boolean);
+    const kids = barKids.concat(edgeKids, dataKids), allMenus = [].concat(...kids.map(k => menusOf(k.text))).sort();
+    const TO = W0.api ? W0.api.TOOL_OPTS : {}, MB = W0.api ? W0.api.MENU_BTNS : {};
+    const pairMenus = kids.filter(k => /class="[^"]*\btool-pair\b/.test(k.open) && !Object.prototype.hasOwnProperty.call(TO, k.ids[0])).map(k => menusOf(k.text)[0]);
+    const reach = Object.keys(TO).map(id => TO[id]).concat(pairMenus, Object.keys(MB).map(id => MB[id])).sort();
+    const placed = Object.keys(MB).filter(id => { const k = kids.filter(x => x.ids[0] === id)[0]; return !!k && k.ids[1] === MB[id] && !/tool-pair|tool-chev/.test(k.text) && k.text.slice(k.open.length).trim().indexOf('<button class="wb-tool-btn" id="' + id + '"') === 0; });
+    check('every menu of the map\'s three bars answers one press rule, read from the page (backlog 143, the review of 2026-10-17): each of the seventeen is a tool\'s options (TOOL_OPTS), a pair\'s menu (menuFront on its .tool-pair) or the menu of a button that has no small arrow (MENU_BTNS: More, Pages, Link and Center), and none is two of them; each button of MENU_BTNS is the first child of the box that holds it and its menu, with no arrow beside it',
+        !!W0.api && allMenus.length === 17 && J(reach) === J(allMenus) && new Set(reach).size === reach.length && J(placed) === J(Object.keys(MB)) && placed.length === 4, J([allMenus, reach, placed]));
+    // (2) a paused table: the style sheet read as rules, its comments taken out
+    const rules = [...css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(m => [m[1].trim(), m[2].trim()]), sels = r => r[0].split(',').map(s => s.trim());
+    const onWrap = rules.filter(r => sels(r).some(s => /#whiteboardWrap(?:[.:[][^\s>+~*]*)?$/.test(s)));
+    const STACK = /(?:^|[;\s])(z-index|transform|translate|rotate|scale|filter|backdrop-filter|isolation|will-change|contain|perspective|opacity|mix-blend-mode|clip-path|mask|mask-image)\s*:/;
+    const pRule = rules.filter(r => sels(r).indexOf('body.net-paused #whiteboard') >= 0), gRule = rules.filter(r => sels(r).indexOf('body.net-paused #whiteboardWrap') >= 0);
+    const pf = pRule.length === 1 ? /^filter: brightness\(([\d.]+)\) saturate\(([\d.]+)\);$/.exec(pRule[0][1]) : null, k = pf ? +pf[1] : NaN, s = pf ? +pf[2] : NaN;
+    const L = 'calc(0.213 * r + 0.715 * g + 0.072 * b)', pc = x => +(x * 100).toFixed(6) + '%';
+    const GROUND = 'background: color-mix(in srgb, color-mix(in srgb, var(--bg2) ' + pc(s) + ', rgb(from var(--bg2) ' + L + ' ' + L + ' ' + L + ') ' + pc(1 - s) + ') ' + pc(k) + ', black);';
+    const wrapBase = rules.filter(r => r[0] === '#whiteboardWrap'), boardBase = rules.filter(r => r[0] === '#whiteboard');
+    const wrapKids = (kidsOf(ix, '<div id="whiteboardWrap">') || []).map(x => x.ids[0] || '?');
+    // the ground written out against the filter as the specification defines it: brightness a slope, saturate its matrix
+    const bg2 = [...css.matchAll(/--bg2:#([0-9a-f]{6});/gi)].map(m => [0, 2, 4].map(i => parseInt(m[1].slice(i, i + 2), 16)));
+    const SAT = [[0.213 + 0.787 * s, 0.715 - 0.715 * s, 0.072 - 0.072 * s], [0.213 - 0.213 * s, 0.715 + 0.285 * s, 0.072 - 0.072 * s], [0.213 - 0.213 * s, 0.715 - 0.715 * s, 0.072 + 0.928 * s]];
+    const off = bg2.map(c => { const lum = 0.213 * c[0] + 0.715 * c[1] + 0.072 * c[2]; return Math.max(...[0, 1, 2].map(i => Math.abs(k * (s * c[i] + (1 - s) * lum) - k * (SAT[i][0] * c[0] + SAT[i][1] * c[1] + SAT[i][2] * c[2])))); });
+    check('a paused table dims the board and never the wrap that holds the right-click menu and the hover card (backlog 143, the review of 2026-10-17, read from the style sheet and the page): the two stand in #whiteboardWrap beside the board, and no rule of the wrap itself makes it a stacking context or a containing block (no filter, transform, opacity, isolation, will-change, contain, perspective, blend, clip, mask or z-index), so they stand over the bars and the boxes paused as unpaused; the filter, as it was, is on the board\'s own layer, a stacking context already by its transform, and on the data map\'s wrap; the wrap\'s ground, var(--bg2), shows through the board, and paused it is the filter\'s own numbers written out, 65% the colour and 35% its luminance grey, then 75% of that and 25% black, which is the specification\'s saturate matrix and brightness for both themes',
+        J(wrapKids) === J(['whiteboard', 'wbTooltip', 'contextMenu']) && onWrap.length >= 4 && onWrap.filter(r => STACK.test(r[1])).length === 0
+        && pRule.length === 1 && J(sels(pRule[0])) === J(['body.net-paused #whiteboard', 'body.net-paused #canvasWrap']) && k === 0.75 && s === 0.65
+        && boardBase.length === 1 && /(?:^|;\s*)transform: scale\(1\);/.test(boardBase[0][1])
+        && gRule.length === 1 && J(sels(gRule[0])) === J(['body.net-paused #whiteboardWrap']) && gRule[0][1] === GROUND
+        && wrapBase.length >= 1 && /(?:^|;\s*)background: var\(--bg2\);/.test(wrapBase[wrapBase.length - 1][1]) && bg2.length === 2 && off.every(d => d < 1e-9),
+        J([wrapKids, onWrap.filter(r => STACK.test(r[1])).map(r => r[0]), pRule, gRule, boardBase.length, off]));
+}
+
 /* ---------- the bar of a page in a window of its own: an inventory of its own ---------- */
 // 1.5.4 (docs/PLANNER_ORG_DESIGN.md 4.1 and 6: "lookcheck's inventory takes every new control's id"). popout.js writes the bar of a page's
 // window, which gained a Find box with step 1; pagenav.js puts the Outline button in it. Each control is written once, in this order, and

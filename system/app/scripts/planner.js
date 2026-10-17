@@ -2422,6 +2422,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               if (n.nodeType !== 1) continue;
               var tag = String(n.nodeName).toUpperCase();
               if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'SVG') continue;
+              if (tag === 'PRE' && (' ' + String(n.className || '') + ' ').indexOf(' mermaid ') >= 0) continue;   // 1.5.4 (the review of step 1): a diagram's source, drawn or not: the library reads a pre it has not drawn yet as its markup, and a mark put there broke the chart
               if (PF_INLINE[tag] && !(tag === 'SPAN' && n.className)) walk(n); else { end(); walk(n); end(); }
           }
       };
@@ -2595,22 +2596,100 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       if (activeMap.type === 'doc') {   // a page renders through the shared renderer (docrender.js): escaped text, sanitized prose — what a player gets
           preview.innerHTML = renderDoc(activeMap, { mermaid: !!window.mermaid, docStyle: (getActiveCampaign() || {}).docStyle, empty: '<div style="color:var(--dim); font-style:italic; text-align:center; padding-top: 100px;">This is the live preview pane.<br><br>Add blocks in the editor on the left to start building your page.</div>' });
-          runPreviewMermaid();
+          runPreviewMermaid(activeMap.id);
           return;
       }
 
       preview.innerHTML = plannerPreviewHtml(activeMap, getActiveCampaign());
-      runPreviewMermaid();
+      runPreviewMermaid(activeMap.id);
   }
-  function runPreviewMermaid() {
-      if (!window.mermaid) return;
+  // [shelfcheck:plannerland-start]
+  function runPreviewMermaid(id) {
+      var gen = pvDrawn(id);   // 1.5.4: the page the preview now holds; a landing waits until its diagrams are laid out
+      if (!window.mermaid) { pvLaidOut(gen); return; }
       var runMermaid = function(tries) {
           var pane = document.getElementById('plannerPreview');
           if (pane && pane.clientWidth === 0 && tries < 40) { setTimeout(function() { runMermaid(tries + 1); }, 60); return; }   // wait until laid out, else labels measure wrong
-          try { Promise.resolve(mermaid.run({ querySelector: '#plannerPreview .mermaid' })).then(fcPostProcess).catch(function() {}); } catch(e) { }
+          try { Promise.resolve(mermaid.run({ querySelector: '#plannerPreview .mermaid' })).then(fcPostProcess).catch(function() {}).then(function() { pvLaidOut(gen); }); } catch(e) { pvLaidOut(gen); }
       };
       runMermaid(0);
   }
+  // 1.5.4 (PLANNER_ORG_DESIGN 4.1; the owner, 2026-10-16: "Landing now, rest after Sunday"): a page opened as the page itself opens at one
+  // block, { at }, or at a search hit, { q }. The landing waits for the draw of its own page and for that draw's diagrams to be laid out, so
+  // nothing moves the page after it lands, and it is used once. It is dropped when another page is on screen, and when it has waited 8 s.
+  // Both are pagenav.js's landing, as in every other place: the block (for words, the first that holds them, a chart's labels too) scrolled
+  // to the top, its folds opened and lit for a moment. Nothing is written into the planner's own Find box: a word put there would stay, and
+  // every later draw of the preview (each key typed in the editor) would scroll back to it. The preview is on screen in both views, so the
+  // landing is made there; in the editing view the editor's own block is scrolled to as well, unlit, so the words to change are in sight
+  // beside the words read
+  var PV_LAND_MS = 8000, _pvLand = null, _pvLandT = null, _pvAt = { id: '', gen: 0, busy: false };
+  // the reader's own input on the planner, its preview and its editor (docpanel.js readerHand): a landing is not made where the reader has moved
+  // the page by their own hand since it was asked for, judged by their input and never by scrollTop
+  function pvHand() { try { var dp = window.wpDocPanel, w = document.getElementById('plannerWrap'); return dp && typeof dp.hand === 'function' && w ? dp.hand(w) : null; } catch (e) { return null; } }
+  // The page the preview now holds: drawn, its diagrams still to be laid out
+  function pvDrawn(id) { _pvAt = { id: typeof id === 'string' ? id : '', gen: ((_pvAt && _pvAt.gen) || 0) + 1, busy: true }; return _pvAt.gen; }
+  // That draw is laid out: a landing that waits for it is tried (an older draw's word is passed over)
+  function pvLaidOut(gen) { if (!_pvAt || gen !== _pvAt.gen) return false; _pvAt.busy = false; return plannerLandTry(); }
+  // The one way in (window.wpPlannerLand): the landing cleaned by the one cleaner (pagenav.js landOf), kept, and tried at once. A landing that
+  // does not clean is none, and drops one that waited
+  function plannerLand(id, land) {
+      var pn = window.wpPageNav, to = null, h = pvHand();
+      if (typeof id === 'string' && id && land != null && pn && typeof pn.landOf === 'function') { try { to = pn.landOf(land) || null; } catch (e) { to = null; } }
+      _pvLand = to ? { id: id, land: to, t: Date.now(), hand: h ? h.mark() : null } : null;
+      if (to) plannerLandTry();
+      return !!to;
+  }
+  // Ready when its page is the one on screen, drawn and laid out. It lands after the draw that made it ready has finished (the reading
+  // view's width is set after the preview), so in a turn of its own
+  function plannerLandTry() {
+      var w = _pvLand; if (!w) return false;
+      var am = getActiveMap();
+      if (!am || am.id !== w.id || !(Date.now() - w.t <= PV_LAND_MS)) { _pvLand = null; return false; }
+      if (!_pvAt || _pvAt.id !== w.id || _pvAt.busy) return false;
+      if (!_pvLandT) _pvLandT = setTimeout(plannerLandNow, 0);
+      return true;
+  }
+  function plannerLandNow() {
+      _pvLandT = null;
+      var w = _pvLand, am = getActiveMap(); if (!w) return false;
+      if (!am || am.id !== w.id) { _pvLand = null; return false; }
+      if (!_pvAt || _pvAt.id !== w.id || _pvAt.busy) return false;   // drawn again meanwhile: that draw's own laying out lands it
+      _pvLand = null;   // used once
+      var h = pvHand(); if (h && h.since(w.hand)) return false;   // the reader has moved the page by their own hand since: never against them
+      var pv = document.getElementById('plannerPreview'), pn = window.wpPageNav; if (!pv || !pn || typeof pn.land !== 'function') return false;
+      var was = Array.prototype.slice.call(pv.querySelectorAll('.pagenav-hit'));
+      if (!pn.land(pv, am, w.land)) return false;
+      var bi = typeof w.land.q === 'string' ? pvLitIndex(pv, was) : pvIndexOf(am, w.land.at);
+      if (bi >= 0 && !plannerFullscreen) pvEditorTo(bi);
+      return true;
+  }
+  // The place of the block a landing at words has lit (pagenav.js lights the block it lands on): the one lit now that was not lit before it, by
+  // the number it was drawn with, or -1
+  function pvLitIndex(pv, was) {
+      var now = pv.querySelectorAll('.pagenav-hit');
+      for (var i = 0; i < now.length; i++) {
+          if (was.indexOf(now[i]) >= 0) continue;
+          var n = now[i].dataset ? now[i].dataset.blk : '';
+          return typeof n === 'string' && /^\d{1,6}$/.test(n) ? Number(n) : -1;
+      }
+      return -1;
+  }
+  // The place of a block in its page by its own id (own keys only), or -1
+  function pvIndexOf(it, at) {
+      var bs = it && Array.isArray(it.blocks) ? it.blocks : [];
+      for (var i = 0; i < bs.length; i++) { var b = bs[i]; if (b && typeof b === 'object' && Object.prototype.hasOwnProperty.call(b, 'id') && b.id === at) return i; }
+      return -1;
+  }
+  // The editor's own box for that block, scrolled to: found by comparing its place, never by building a selector
+  function pvEditorTo(bi) {
+      var eds = document.querySelectorAll('.planner-block-edit'), el = null;
+      for (var i = 0; i < eds.length && !el; i++) if (eds[i].dataset && eds[i].dataset.idx === String(bi)) el = eds[i];
+      if (!el) return false;
+      try { el.scrollIntoView({ block: 'start', behavior: 'auto' }); } catch (e) {}
+      return true;
+  }
+  // [shelfcheck:plannerland-end]
+  window.wpPlannerLand = plannerLand;
 
   
 

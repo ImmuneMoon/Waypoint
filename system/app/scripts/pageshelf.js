@@ -79,14 +79,16 @@ function mapChain(camp, mapId) {
     return out;
 }
 // The planners that play on a map: each planner one of whose nodes links to it (the link its own Open map line follows; a node drawn as
-// a plain table shows no link and counts for none). One row a planner, with the name of its first such node
+// a plain table shows no link and counts for none). One row a planner, with the name of its first such node and, where that node's block
+// id is a sound one (LAND_AT, the landing's own rule), that id: the row opens the planner at that node (1.5.4, PLANNER_ORG_DESIGN 4.1)
+var LAND_AT = /^[A-Za-z0-9_-]{1,64}$/;
 function pagesFor(camp, mapId) {
     var out = []; if (!mapOf(camp, mapId)) return out;
     Object.keys(camp.items).forEach(function(id) {
         var it = camp.items[id]; if (!it || it.type !== 'planner' || !Array.isArray(it.blocks)) return;
-        var n = 0, first = '';
-        for (var i = 0; i < it.blocks.length && i < 4000; i++) { var b = it.blocks[i]; if (b && b.type === 'node' && b.mode !== 'table' && b.linkMapId === mapId) { if (!n) first = shelfText(b.title, 80); n++; } }
-        if (n) out.push({ id: id, node: first, n: n });
+        var n = 0, first = '', at = '';
+        for (var i = 0; i < it.blocks.length && i < 4000; i++) { var b = it.blocks[i]; if (b && b.type === 'node' && b.mode !== 'table' && b.linkMapId === mapId) { if (!n) { first = shelfText(b.title, 80); at = typeof b.id === 'string' && LAND_AT.test(b.id) ? b.id : ''; } n++; } }
+        if (n) { var r = { id: id, node: first, n: n }; if (at) r.at = at; out.push(r); }
     });
     return out;
 }
@@ -137,11 +139,11 @@ function shelfModel(camp, mapId, recentRaw) {
     var seen = Object.create(null), take = function(id) { if (seen[id]) return false; seen[id] = 1; return true; };
     var pins = pinnedOf(camp), pinned = Object.create(null); pins.forEach(function(id) { pinned[id] = 1; });
     var nextId = Object.keys(camp.items).filter(function(id) { var it = camp.items[id]; return !!it && it.type === 'planner' && !!it.meta && it.meta.status === 'next'; })[0] || '';
-    var row = function(id, sub) { var it = camp.items[id]; return { id: id, title: pageTitle(it), kind: it.type, sub: sub || '', pinned: !!pinned[id], next: id === nextId }; };
+    var row = function(id, sub, at) { var it = camp.items[id], o = { id: id, title: pageTitle(it), kind: it.type, sub: sub || '', pinned: !!pinned[id], next: id === nextId }; if (at) o.at = at; return o; };   // at: the node a planner of this map opens at (Here and Around)
     var room = SHELF.here;
     mapChain(camp, mapId).forEach(function(mid, k) {
         if (room <= 0) return;
-        var rows = pagesFor(camp, mid).filter(function(r) { return !seen[r.id]; }).map(function(r) { return row(r.id, r.node && r.node !== pageTitle(camp.items[r.id]) ? r.node + (r.n > 1 ? ' +' + (r.n - 1) : '') : ''); });
+        var rows = pagesFor(camp, mid).filter(function(r) { return !seen[r.id]; }).map(function(r) { return row(r.id, r.node && r.node !== pageTitle(camp.items[r.id]) ? r.node + (r.n > 1 ? ' +' + (r.n - 1) : '') : '', r.at); });
         if (k === 0) mapPinsOn(camp, mid).forEach(function(id) { if (!seen[id] && !rows.some(function(r) { return r.id === id; })) rows.push(row(id, 'pinned on this map')); });   // a page a piece of this map opens belongs here too
         rows.sort(function(a, b) { return (a.next ? 0 : 1) - (b.next ? 0 : 1) || natCmp(a.title, b.title); });
         rows = rows.slice(0, room); rows.forEach(function(r) { seen[r.id] = 1; });   // the owed review, 2026-10-09: a row is seen once it is KEPT. Marked before the cut, a page past the limit stood nowhere on the shelf, pinned or not
@@ -159,6 +161,7 @@ function shelfModel(camp, mapId, recentRaw) {
 function shelfEl(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
 function shelfRow(r, marked) {   // marked: the planner marked Next wears its mark, wherever it stands but under Next scene itself
     var row = shelfEl('div', 'ps-row'); row.dataset.id = r.id;
+    if (typeof r.at === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(r.at)) row.dataset.at = r.at;   // the node the row opens at: a block id, and nothing else, reaches the attribute
     var open = shelfEl('button', 'ps-open'); open.type = 'button';
     open.title = 'Open over the map. Ctrl+click opens a new window. Alt+click opens the page itself.';
     open.appendChild(shelfEl('span', 'ps-ico', r.kind === 'doc' ? '📖' : '📑'));
@@ -200,19 +203,27 @@ function recentNote(id) {
 // [shelfcheck:recent-end]
 
 // [shelfcheck:open-start]
+// The landing a caller hands in: { at } a block of the page, { q } a search text (1.5.4, PLANNER_ORG_DESIGN 4.1). It is cleaned once, by the
+// one cleaner (pagenav.js landOf), and what does not clean, or no cleaner, is no landing
+function landClean(land) {
+    var pn = window.wpPageNav; if (land == null || !pn || typeof pn.landOf !== 'function') return null;
+    try { return pn.landOf(land) || null; } catch (e) { return null; }
+}
 // Opens a page of the campaign on screen the way that was asked for, and says how it opened: 'window', 'panel', 'go', 'reader', or ''
 // when there is no such page. A window that cannot be opened falls back to the panel, and a panel that is not there to the page itself.
-function openPage(id, way) {
+// A landing goes with every way, the fallbacks too; with none, each way is asked exactly as before
+function openPage(id, way, land) {
     var camp = getActiveCampaign(), it = pageOf(camp, id); if (!it) return '';
-    var n = window.wpNet, dp = window.wpDocPanel;
+    var n = window.wpNet, dp = window.wpDocPanel, to = landClean(land);
     if (n && n.foreign) {   // at someone else's table a page is read, never edited, and a planner is never there
-        if (it.type === 'doc' && typeof window.wpOpenDoc === 'function') { window.wpOpenDoc(id); return 'reader'; }
+        if (it.type === 'doc' && typeof window.wpOpenDoc === 'function') { if (to) window.wpOpenDoc(id, to); else window.wpOpenDoc(id); return 'reader'; }
         return '';
     }
-    if (way === 'window') { if (dp && typeof dp.popOut === 'function' && dp.popOut(id)) return 'window'; way = 'panel'; }
-    if (way === 'panel' && dp && typeof dp.open === 'function') { dp.open(id); return 'panel'; }
+    if (way === 'window') { if (dp && typeof dp.popOut === 'function' && (to ? dp.popOut(id, to) : dp.popOut(id))) return 'window'; way = 'panel'; }
+    if (way === 'panel' && dp && typeof dp.open === 'function') { if (to) dp.open(id, to); else dp.open(id); return 'panel'; }
     camp.activeItemId = id; state.selId = null; state.selWbId = null; state.linkStart = null;
     updateSidebarNav(); if (window.appRender) window.appRender(); save(true);
+    if (to && typeof window.wpPlannerLand === 'function') window.wpPlannerLand(id, to);   // the page itself lands once it is drawn (planner.js)
     return 'go';
 }
 // [shelfcheck:open-end]
@@ -272,11 +283,12 @@ function shelfWire() {
         menu.addEventListener('click', function(e) {
             e.stopPropagation();   // a row redrawn under the click must not read as a click outside the menu
             var t = e.target, at = function(sel) { return t && t.closest ? t.closest(sel) : null; }, row = at('.ps-row'), id = row ? row.dataset.id : '';
+            var land = row && row.dataset.at ? { at: row.dataset.at } : null;   // a row of Here or Around opens at its node, by either press
             if (at('.ps-find')) { shelfClose(); if (window.wpCmdkOpen) window.wpCmdkOpen(); return; }
             if (!id) return;
             if (at('.ps-pin')) { pinPage(id); return; }
-            if (at('.ps-win')) { shelfClose(); openPage(id, 'window'); return; }
-            if (at('.ps-open')) { shelfClose(); openPage(id, pageWay(viewNow(), e)); }
+            if (at('.ps-win')) { shelfClose(); openPage(id, 'window', land); return; }
+            if (at('.ps-open')) { shelfClose(); openPage(id, pageWay(viewNow(), e), land); }
         });
         menu.addEventListener('keydown', function(e) { if (e.key === 'Escape') { e.stopPropagation(); shelfClose(); if (btn.focus) btn.focus(); } });
         document.addEventListener('click', function(e) { var t = e.target; if (shelfIsOpen() && !(t && t.closest && (t.closest('#pagesMenu') || t.closest('#pagesBtn')))) shelfClose(); });

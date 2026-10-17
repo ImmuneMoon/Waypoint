@@ -171,6 +171,66 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && plR.includes("  else if (!_isStreamP) { try { new BroadcastChannel('waypoint').addEventListener('message', function(e) { if (pvGotoOk(e.data, getActiveCampaign())) navigateToMap(e.data.map, e.data.room || null); }); } catch (e) {} }"), JSON.stringify([msgs, oks, noes]));
     }
 
+    /* ---- a landing read from a window's own address (1.5.4; docs/PLANNER_ORG_DESIGN.md 4.1): words are a search and never markup, an id never a selector ---- */
+    {
+        const cutOf = (f, a, b) => { const s = read(f), i = s.indexOf(a), j = s.indexOf(b); if (i < 0 || j <= i) throw new Error('sinkcheck: ' + a + ' is not in ' + f); return s.slice(i, j); };
+        const PL = new Function(cutOf('popout.js', '// [textcheck:popland-start]', '// [textcheck:popland-end]') + '\nreturn { popPlace: popPlace, popLandNow: popLandNow };')();
+        const landSrc = cutOf('pagenav.js', '// [pagecheck:land-start]', '// [pagecheck:land-end]'), landOf = new Function(landSrc + '\nreturn landOf;')();
+        // a tree of plain objects that refuses markup: elements and text nodes only, every element made counted
+        const made = [];
+        function TX(v) { this.nodeType = 3; this.nodeValue = v; this.parentNode = null; }
+        function EL(tag, cls, kids) { this.nodeType = 1; this.nodeName = String(tag).toUpperCase(); this.className = cls || ''; this.childNodes = []; this.parentNode = null; this.on = {}; this.scrolled = 0; (kids || []).forEach(k => this.appendChild(typeof k === 'string' ? new TX(k) : k)); }
+        const sibOf = function() { const l = this.parentNode ? this.parentNode.childNodes : [], i = l.indexOf(this); return i >= 0 && i + 1 < l.length ? l[i + 1] : null; };
+        Object.defineProperty(TX.prototype, 'nextSibling', { get: sibOf }); Object.defineProperty(EL.prototype, 'nextSibling', { get: sibOf });
+        Object.defineProperty(EL.prototype, 'firstChild', { get() { return this.childNodes[0] || null; } });
+        Object.defineProperty(EL.prototype, 'classList', { get() { const el = this; return { add: c => { el.on[c] = 1; }, remove: c => { delete el.on[c]; }, contains: c => !!el.on[c], toggle: (c, v) => { if (v) el.on[c] = 1; else delete el.on[c]; return !!v; } }; } });
+        ['innerHTML', 'outerHTML'].forEach(k => Object.defineProperty(EL.prototype, k, { get() { throw new Error(k + ' read'); }, set() { throw new Error(k + ' written: markup where only elements and text nodes may be made'); } }));
+        const cut1 = n => { if (n.parentNode) { const l = n.parentNode.childNodes; l.splice(l.indexOf(n), 1); n.parentNode = null; } };
+        EL.prototype.appendChild = function(c) { cut1(c); c.parentNode = this; this.childNodes.push(c); return c; };
+        EL.prototype.insertBefore = function(c, ref) { cut1(c); c.parentNode = this; this.childNodes.splice(this.childNodes.indexOf(ref), 0, c); return c; };
+        EL.prototype.removeChild = function(c) { cut1(c); return c; };
+        EL.prototype.normalize = function() { for (let i = 0; i < this.childNodes.length; i++) { const n = this.childNodes[i]; if (n.nodeType !== 3) { n.normalize(); continue; } if (!n.nodeValue) { this.childNodes.splice(i--, 1); continue; } const nx = this.childNodes[i + 1]; if (nx && nx.nodeType === 3) { n.nodeValue += nx.nodeValue; this.childNodes.splice(i + 1, 1); i--; } } };
+        EL.prototype.scrollIntoView = function() { this.scrolled++; };
+        EL.prototype.closest = function(sel) { const c = String(sel).replace(/^\./, ''); for (let n = this; n; n = n.parentNode) if (n.nodeType === 1 && (' ' + n.className + ' ').indexOf(' ' + c + ' ') >= 0) return n; return null; };
+        EL.prototype.querySelectorAll = function(sel) { if (sel !== 'mark.docpanel-hit') throw new Error('selector not understood here: ' + sel); const out = []; (function walk(el) { el.childNodes.forEach(n => { if (n.nodeType !== 1) return; if (n.nodeName === 'MARK' && n.className === 'docpanel-hit') out.push(n); walk(n); }); })(this); return out; };
+        TX.prototype.splitText = function(at) { const rest = new TX(this.nodeValue.slice(at)); this.nodeValue = this.nodeValue.slice(0, at); const l = this.parentNode.childNodes; l.splice(l.indexOf(this) + 1, 0, rest); rest.parentNode = this.parentNode; return rest; };
+        const textOf = n => n.nodeType === 3 ? n.nodeValue : n.childNodes.map(textOf).join('');
+        const nav = { landOf: landOf, apply: () => {}, flash: () => {}, reveal: () => {} };
+        const hlFinder = new Function('ui', 'document', 'window', cutOf('docpanel.js', '// [textcheck:panelfold-start]', '// [textcheck:panelfold-end]') + '\n' + cutOf('docpanel.js', '// [textcheck:panelfind-start]', '// [textcheck:panelfind-end]') + '\nreturn hlFinder;')(
+            () => null, { createElement: tag => { const e = new EL(tag); made.push(e.nodeName); return e; } }, { wpPageNav: nav });
+        const HOSTILE = ['<img src=x onerror=alert(1)>', '" onmouseover="alert(1)', '</mark><script>alert(1)</script>', "javascript:alert(1)//'", '&lt;b&gt; & &amp; %3Cb%3E', '<svg onload=alert(1)>/q:x/at:b_1'];
+        const read1 = search => { const spec = new URLSearchParams(search).get('popout') || '', c = spec.indexOf(':'); return PL.popPlace(c >= 0 ? spec.slice(c + 1) : ''); };
+        const runs = HOSTILE.map(h => {
+            made.length = 0; let err = '';
+            const body = new EL('div', 'wrap', [new EL('div', 'pv-blk', [new EL('p', '', ['Before ', new EL('b', '', [h]), ' after.'])])]), before = textOf(body), box = { value: '' }, fdr = hlFinder(() => body, () => null);
+            const out = [];
+            [['encoded', '?popout=doc:c1/p1/q:' + encodeURIComponent(h)], ['as typed', '?popout=doc:c1/p1/q:' + h]].forEach(a => {
+                try {
+                    const pl = read1(a[1]), L = landOf(pl.land), was = box.value, ok = PL.popLandNow(pl, nav, body, { blocks: [] }, fdr, box, false);
+                    out.push(L ? [a[0], ok === true, box.value === L.q, fdr.hits().length >= 1, fdr.hits().every(hit => hit.every(m => m.nodeName === 'MARK' && m.childNodes.every(c => c.nodeType === 3))), a[0] !== 'encoded' || L.q === landOf({ q: h }).q]
+                        : [a[0], ok === false, box.value === was, fdr.hits().length === 0, true, a[0] !== 'encoded']);   // an address written by hand may say no words at all (an & ends its value)
+                    fdr.clear();
+                } catch (e) { err = String(e); }
+            });
+            return { h, err, out, made: made.slice(), back: textOf(body) === before };
+        });
+        const asWords = runs.every(r => r.err === '' && r.back && r.made.every(t => t === 'MARK') && r.out.length === 2 && r.out.every(o => o.slice(1).every(v => v === true)));
+        // an id from an address never reaches a selector: pagenav.js land, sliced with what it stands on, on the page of plain objects in tools/boxdom.js
+        const { makeDom } = require('./boxdom.js'), dom = makeDom(), seen = [], is0 = dom.El.prototype.is; dom.El.prototype.is = function(sel) { seen.push(sel); return is0.call(this, sel); };
+        const pn = read('pagenav.js'), part = n => cutOf('pagenav.js', '// [pagecheck:' + n + '-start]', '// [pagecheck:' + n + '-end]');
+        const land = new Function('document', 'window', 'location', 'setTimeout', 'URLSearchParams', 'getActiveCampaign', part('outline') + '\n' + part('fold') + '\n' + part('land') + '\nreturn land;')(dom.document, { localStorage: { getItem: () => null, setItem: () => {} } }, { search: '' }, dom.setTimeout, URLSearchParams, () => null);
+        const root = dom.mk('div', '', null, 'popoutBody'); dom.document.body.appendChild(root);
+        ['b_1', 'b_2'].forEach((id, i) => { const b = dom.mk('div', 'pv-blk', { blk: i }); b.appendChild(dom.mk('p')); b.childNodes[0].appendChild(dom.document.createTextNode('block ' + i)); root.appendChild(b); });
+        const it = { blocks: [{ id: 'b_1' }, { id: 'b_2' }] }, ATS = ['b_1"],[onclick=x', '*', '.pv-blk', 'b_1 , div', '#popoutBody', '[data-blk]', 'b_1\\', "b_1'"], refused = ATS.map(a => [read1('?popout=doc:c1/p1/at:' + encodeURIComponent(a)).land, land(root, it, read1('?popout=doc:c1/p1/at:' + encodeURIComponent(a)).land)]);
+        const okAt = land(root, it, read1('?popout=doc:c1/p1/at:b_2').land), hitAt = root.childNodes[1].calls.filter(c => c === 'scrollIntoView').length;
+        check('a landing read from a window\'s own address (popout.js popPlace and popLandNow, the panel\'s Find and pagenav.js landOf and land, each sliced and run for real): words from the address, encoded or written in it as they are, go into the window\'s Find box as its value and are found as text on a page that refuses markup — the only element made is the mark around a hit, holding text alone, and the page reads as it did once the search is cleared —; an id that is no id lands nowhere, and one that is is found by the number its drawn box carries, so no selector ever asked holds what the address said',
+            asWords && refused.every(r => r[1] === false) && okAt === true && hitAt === 1 && seen.length > 0 && !seen.some(s => /b_\d|onclick|\*|\[data-blk\]|#popoutBody|'/.test(s)) && pn.indexOf('innerHTML') < 0, JSON.stringify([runs.filter(r => r.err || !r.back), refused, okAt, hitAt, seen.filter(s => /b_|onclick/.test(s))]));
+        const po = fs.readFileSync(path.join(dir, 'popout.js'), 'latin1'), st = po.slice(po.indexOf("    wrap.innerHTML = '"), po.indexOf("    document.body.appendChild(wrap);"));
+        const rest = st.replace(/'(?:[^'\\\n]|\\.)*'/g, '').replace('wrap.innerHTML', '').replace('kind ===', '');
+        check('a page\'s window writes its bar, Find box and all, from fixed words alone: the one statement that writes markup there joins string literals and nothing else, so no word of an address, a page or a search reaches it; the Find box is filled with the landing\'s words as its value',
+            st.length > 200 && /^[\s=+()?:;]*$/.test(rest) && st.includes('id="popoutFind"') && /if \(!again && box\) box\.value = L\.q;/.test(cutOf('popout.js', '// [textcheck:popland-start]', '// [textcheck:popland-end]')), rest);
+    }
+
     /* ---- text style (1.5.0): a plain field's format in the planner preview — drawn from runs, hostile formats plain, none exactly as before ---- */
     {
         const RED = '#d9534f', GREEN = '#5cb87a';
@@ -5009,6 +5069,25 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && linesU.concat(linesO).every(l => l[0] === 'div' && typeof l[2] === 'string' && l[3] === 0) && fileTextU.length === 1 && fileTextU.every(e => e.tag === 'div' && e.children.length === 0)
             && PGU.clean() && protoU() === pU0 && !HTMLU.test(cutU('\nfunction sbExportWords(v) {', '\n// the copy made from one file')),
             j([threwU, vU, vO, linesU, linesO, PGU.htmlSet, PGU.attrs, fileTextU.length]));
+    }
+
+    {
+        // the Pages shelf opens a planner of the map at its node (1.5.4, PLANNER_ORG_DESIGN 4.1): the node's block id comes from a campaign file and
+        // reaches the row's data-at alone, only as a block id of letters, digits, _ and -, 64 at most (pageshelf.js sliced by its shelfcheck markers,
+        // run for real on a page that refuses markup)
+        const psAll = read('pageshelf.js'), psCut = n => { const a = psAll.indexOf('// [shelfcheck:' + n + '-start]'), z = psAll.indexOf('// [shelfcheck:' + n + '-end]'); if (a < 0 || z < a) throw new Error('sinkcheck: the ' + n + ' slice of pageshelf.js is not marked'); return psAll.slice(a, z); };
+        const { makeDom } = require('./boxdom.js'), domS = makeDom(), J = JSON.stringify;
+        const SH = new Function('document', psCut('way') + psCut('shelf') + psCut('draw') + '\nreturn { model: shelfModel, draw: shelfDraw };')(domS.document);
+        const oneS = id => {
+            const c = { id: 'c', items: { m1: { type: 'map', meta: { title: T } }, p1: { type: 'planner', meta: { title: T }, blocks: [{ type: 'node', id: id, title: P, linkMapId: 'm1' }] } } }, menu = domS.document.createElement('div');
+            try { SH.draw(menu, SH.model(c, 'm1', [])); } catch (e) { return 'threw ' + (e && e.message); }
+            const r = menu.children.filter(k => k.className === 'ps-row'), texts = r.length ? r[0].children[0].children.map(k => k.textContent) : [];
+            return r.length !== 1 ? 'rows ' + r.length : ('at' in r[0].dataset ? r[0].dataset.at : '-') + '|' + Object.keys(r[0].dataset).sort().join(',') + '|' + menu.all().map(e => Object.keys(e.attrs).join(',')).filter(Boolean).join(';') + '|' + J(texts);
+        };
+        const HOST = [T, P, '" onclick="x', 'b_1" data-x="y', 'javascript:alert(1)', 'b 1', 'x'.repeat(65), '', 7, null, { toString: () => 'b_ok' }, ['b_ok']];
+        const outS = HOST.map(oneS), okS = oneS('b_Good-1'), TXT = J(['\uD83D\uDCD1', T, P]);
+        check('the Pages shelf\'s node (1.5.4: a planner of the map opens at it): a block id a campaign file names reaches the row only as data-at, and only as a block id of letters, digits, _ and -, 64 at most; markup, a quote that would end the attribute, an address, a space, past 64 characters, empty, a number, an object and a list reach nothing, and the row is drawn with elements and text nodes, the title and the node\'s name as text',
+            outS.every(s => s === '-|id|aria-pressed|' + TXT) && okS === 'b_Good-1|at,id|aria-pressed|' + TXT, J([outS, okS]));
     }
 
     summed = true;

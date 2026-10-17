@@ -52,25 +52,47 @@ function setMermaidMode(m) {
     if (!window.mermaid || !window.wpMermaidConfig || mode === m) return;
     try { mermaid.initialize(Object.assign({}, window.wpMermaidConfig, { securityLevel: m === 'strict' ? 'strict' : (window.wpMermaidConfig.securityLevel || 'loose') })); mode = m; } catch (e) {}
 }
+// [shelfcheck:readerland-start]
+// 1.5.4 (PLANNER_ORG_DESIGN 4.1): the reader opens a page at one block, { at }, or at the first block that holds a search text, { q }. The
+// landing is cleaned by the one cleaner (pagenav.js landOf) and kept for the page asked for. It is made once that page's draw is laid out,
+// its diagrams too, and only by the reader's latest draw: a page opened since, with a landing or none, drops it, and so does a closed reader
+var _rdLand = null, _rdGen = 0;
+// the reader's own input on the reader's page (docpanel.js readerHand): a landing is not made where the reader has moved the page by their own
+// hand since it was asked for, judged by their input and never by scrollTop
+function rdHand() { try { var dp = window.wpDocPanel, b = ui('docReaderBody'); return dp && typeof dp.hand === 'function' && b ? dp.hand(b) : null; } catch (e) { return null; } }
+function readerLandSet(id, land) {
+    var pn = window.wpPageNav, to = null, h = rdHand();
+    if (land != null && pn && typeof pn.landOf === 'function') { try { to = pn.landOf(land) || null; } catch (e) { to = null; } }
+    _rdLand = to ? { id: id, land: to, hand: h ? h.mark() : null } : null;
+    return !!to;
+}
+function readerLaidOut(gen, body, it) {
+    var w = _rdLand; if (!w || !gen || gen !== _rdGen) return false;
+    _rdLand = null;   // used once
+    if (w.id !== openDocId) return false;   // the reader shows another page now, or none
+    var h = rdHand(); if (h && h.since(w.hand)) return false;   // the reader has moved the page by their own hand since: never against them
+    var pn = window.wpPageNav;
+    return !!(pn && typeof pn.land === 'function' && pn.land(body, it, w.land));
+}
 function renderInto(body, it) { renderPage(body, it); openSig = sigOf(it); }
 // A page drawn into any element — the reader, and a sheet's or HUD's handbook search (Stage 6 HUD H12, window.wpDocRenderPage): the
 // sanitised render (docrender), the campaign's look, its diagrams laid out (strict at another's table)
 function renderPage(body, it) {
     if (foreign()) setMermaidMode('strict');
-    var _camp = getActiveCampaign();
+    var _camp = getActiveCampaign(), gen = body && body === ui('docReaderBody') ? ++_rdGen : 0;   // 1.5.4: which draw of the reader this is, for a landing
     body.innerHTML = renderDoc(it, { src: srcOf, mermaid: !!window.mermaid, docStyle: _camp && _camp.docStyle });
-    if (!window.mermaid) return;
+    if (!window.mermaid) { readerLaidOut(gen, body, it); return; }
     var nodes = Array.from(body.querySelectorAll('pre.mermaid'));
-    if (!nodes.length) return;
+    if (!nodes.length) { readerLaidOut(gen, body, it); return; }
     var run = function(tries) {
         if (body.clientWidth === 0 && tries < 40) { setTimeout(function() { run(tries + 1); }, 60); return; }   // laid out first, else labels measure wrong
-        try { Promise.resolve(mermaid.run({ nodes: nodes })).then(function() { if (window.wpFcPostProcess) window.wpFcPostProcess(body, it); }).catch(function() {}); } catch (e) {}
+        try { Promise.resolve(mermaid.run({ nodes: nodes })).then(function() { if (window.wpFcPostProcess) window.wpFcPostProcess(body, it); }).catch(function() {}).then(function() { readerLaidOut(gen, body, it); }); } catch (e) { readerLaidOut(gen, body, it); }
     };
     run(0);
 }
 
-// Open a page of the campaign on screen in the reader. Returns false when there is no such page.
-function openDoc(id) {
+// Open a page of the campaign on screen in the reader. Returns false when there is no such page. A landing ({ at } or { q }) opens it there
+function openDoc(id, land) {
     var camp = getActiveCampaign(), it = camp && camp.items && camp.items[id];
     if (!it || it.type !== 'doc') return false;
     var m = ui('docReaderModal'), body = ui('docReaderBody'), title = ui('docReaderTitle');
@@ -78,6 +100,7 @@ function openDoc(id) {
     var hdr = document.querySelector('header');
     if (hdr) m.style.top = Math.round(hdr.getBoundingClientRect().bottom) + 'px';   // just under the header, whatever its height
     openDocId = id; openCampId = camp.id;
+    readerLandSet(id, land);   // before the draw, which makes it
     if (title) title.textContent = (it.meta && it.meta.title) || 'Page';
     m.style.display = 'flex';
     document.body.classList.add('doc-reader-open');
@@ -92,6 +115,7 @@ function closeDoc() {
     document.body.classList.remove('doc-reader-open');
     openDocId = null; openCampId = null; openSig = '';
 }
+// [shelfcheck:readerland-end]
 // The GM's edits arrived (net.js applyItem / applyItemDelta): re-render only the page on screen,
 // only when it changed, keeping the reader's scroll position.
 function refresh(campId, itemId) {

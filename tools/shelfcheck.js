@@ -73,6 +73,67 @@ const W = new Function(waySrc + '\nreturn { way: pageWay, pageOf: pageOf };')();
         && !/innerHTML|insertAdjacentHTML|window\.open\(|eval\(|new Function/.test(ps) && J(ps.match(/^import [^\n]*$/gm)) === J(["import { state } from './state.js';", "import { getActiveCampaign, getActiveMap } from './models.js';", "import { save, toast } from './io.js';", "import { updateSidebarNav } from './sidebar.js';"]), J(ps.match(/^import [^\n]*$/gm)));
 }
 
+/* ---------- opening it at a place (1.5.4, PLANNER_ORG_DESIGN 4.1; the owner, 2026-10-16: "Landing now, rest after Sunday") ---------- */
+// pagenav.js landOf as the landing's contract says it (builder A writes the real one and pagecheck runs it). A search text that trims to 1 to
+// 200 characters is { q }, cut at 200 by code points; else a block id of letters, digits, _ and -, 64 at most, is { at }; anything else none
+const landOfStand = v => {
+    if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+    const own = k => (Object.prototype.hasOwnProperty.call(v, k) ? v[k] : undefined), q = own('q'), at = own('at');
+    if (typeof q === 'string') { const t = q.trim(); if (t) return { q: Array.from(t).slice(0, 200).join('').trim() }; }
+    return typeof at === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(at) ? { at: at } : null;
+};
+const JUNK_LANDS = [null, undefined, 7, 'b_k3', [], {}, { at: 'b k3' }, { at: '<b>' }, { at: 5 }, { at: 'x'.repeat(65) }, { at: '' }, { q: '' }, { q: '   ' }, { q: 7 }, { q: null, at: null }];
+// A promise of the suite's own: Promise.resolve hands back a chain whose then and catch run only when the suite settles it, in order, so a
+// wait for diagrams is run step by step with no event loop
+const syncPromise = () => {
+    const chains = [];
+    const P = { resolve: () => { const c = []; chains.push(c); const h = { then: f => { c.push(['then', f]); return h; }, catch: f => { c.push(['catch', f]); return h; } }; return h; } };
+    const one = (c, fail) => { let err = fail || null; c.forEach(([k, f]) => { if (k === 'then' && !err) { try { f(); } catch (e) { err = e; } } else if (k === 'catch' && err) { try { f(err); err = null; } catch (e) { err = e; } } }); };
+    const settle = fail => { chains.splice(0).forEach(c => one(c, fail)); }, first = fail => { const c = chains.shift(); if (c) one(c, fail); };
+    return { P, settle, first, waiting: () => chains.length };
+};
+{
+    // o: way, id, land (absent: no third argument), foreign, noPanel / noPop / popFails, noNav (no cleaner), throws (the cleaner throws)
+    const run = o => {
+        const R = { log: [], open: [], pop: [], read: [], land: [] }, args = a => Array.prototype.slice.call(a);
+        const camp = { activeItemId: 'm1', items: { p1: { type: 'planner' }, d1: { type: 'doc' }, m1: { type: 'map' } } }, state = { selId: 'r1', selWbId: 'w1', linkStart: 'r2' };
+        const dp = o.noPanel ? undefined : { open: function() { R.log.push('open'); R.open.push(args(arguments)); } };
+        if (dp && !o.noPop) dp.popOut = function() { R.log.push('pop'); R.pop.push(args(arguments)); return !o.popFails; };
+        const win = { wpDocPanel: dp, wpNet: { foreign: !!o.foreign }, appRender: () => { R.log.push('render'); },
+            wpOpenDoc: function() { R.log.push('read'); R.read.push(args(arguments)); }, wpPlannerLand: function() { R.log.push('land'); R.land.push(args(arguments)); } };
+        if (!o.noNav) win.wpPageNav = { landOf: o.throws ? () => { throw new Error('no'); } : landOfStand };
+        const openPage = new Function('window', 'state', 'getActiveCampaign', 'updateSidebarNav', 'save', waySrc + '\n' + openSrc + '\nreturn openPage;')(win, state, () => camp, () => { R.log.push('nav'); }, () => { R.log.push('save'); });
+        const id = o.id || 'p1', how = 'land' in o ? openPage(id, o.way, o.land) : openPage(id, o.way);
+        return Object.assign(R, { how: how, active: camp.activeItemId });
+    };
+    const AT = { at: 'b_k3' }, Q = { q: '  the barkeep  ' };
+    const pnS = read('scripts/pagenav.js'), lA = pnS.indexOf('// [pagecheck:land-start]'), lZ = pnS.indexOf('// [pagecheck:land-end]'), realLandOf = lA >= 0 && lZ > lA ? new Function(pnS.slice(lA, lZ) + '\nreturn landOf;')() : null;
+    const CORPUS = JUNK_LANDS.concat([AT, Q, { q: ' barkeep ' }, { q: 'barkeep' }, { q: 'x' }, { q: 'ledger' }, { q: '  the barkeep ' }, { at: 'b_c' }, { at: 'b_zz' }, { at: 'b_inh' }, { at: 'b_back' }, { at: 'b_Good-1' }, { at: 'b k' }, { q: '\u00e9'.repeat(250) }, { q: 'a', at: 'b_k3' }, { q: '', at: 'b_k3' }, Object.create({ at: 'b_k3' }), Object.create({ q: 'x' }), ['b_k3']]);
+    const disagree = realLandOf ? CORPUS.filter(L => J(realLandOf(L)) !== J(landOfStand(L))) : ['pagenav.js has no land slice'];
+    check('the landing\'s cleaner these checks stand in for answers as pagenav.js\'s own landOf does (sliced by its pagecheck land markers), landing for landing, on every landing they hand it: a search text before a block, trimmed and cut at 200 characters, own keys only, no list',
+        disagree.length === 0, J(disagree));
+    const ways = L => ({ win: run({ way: 'window', land: L }), pan: run({ way: 'panel', land: L }), go: run({ way: 'go', land: L }) });
+    const a = ways(AT), q = ways(Q);
+    check('a page opens at a place by every way (openPage, run for real, with the landing\'s cleaner as its contract says it): the landing is cleaned once and the clean one is handed on, to the window\'s pop-out, to the panel, and on the page itself to the planner\'s own landing once the page is drawn and saved; a block stays a block, a search text is trimmed; the map stays on screen for the panel and the window',
+        [[a, AT], [q, Q]].every(([w, L]) => { const c = landOfStand(L); return w.win.how === 'window' && J(w.win.pop) === J([['p1', c]]) && w.win.open.length === 0 && w.win.land.length === 0 && w.win.active === 'm1'
+            && w.pan.how === 'panel' && J(w.pan.open) === J([['p1', c]]) && w.pan.pop.length === 0 && w.pan.land.length === 0 && w.pan.active === 'm1'
+            && w.go.how === 'go' && w.go.active === 'p1' && J(w.go.log) === J(['nav', 'render', 'save', 'land']) && J(w.go.land) === J([['p1', c]]) && w.go.open.length === 0 && w.go.pop.length === 0; })
+        && a.win.pop[0][1] !== AT && J(q.pan.open[0][1]) === J({ q: 'the barkeep' }), J([a, q]));
+    const fb = [run({ way: 'window', land: AT, popFails: true }), run({ way: 'window', land: AT, noPop: true }), run({ way: 'panel', land: AT, noPanel: true }), run({ way: 'window', land: AT, noPanel: true })];
+    check('the fallbacks keep the landing: a window that cannot be opened falls back to the panel, which opens at it, and a panel that is not there falls back to the page itself, which lands once it is drawn',
+        fb[0].how === 'panel' && J(fb[0].pop) === J([['p1', AT]]) && J(fb[0].open) === J([['p1', AT]]) && J(fb[0].log) === J(['pop', 'open']) && fb[1].how === 'panel' && J(fb[1].open) === J([['p1', AT]])
+        && fb[2].how === 'go' && J(fb[2].land) === J([['p1', AT]]) && fb[3].how === 'go' && J(fb[3].land) === J([['p1', AT]]) && J(fb[3].log) === J(['nav', 'render', 'save', 'land']), J(fb));
+    const fr = ['window', 'panel', 'go'].map(w => run({ way: w, id: 'd1', land: Q, foreign: true })), frP = run({ way: 'go', id: 'p1', land: Q, foreign: true }), frNone = run({ way: 'panel', id: 'd1', foreign: true });
+    check('at someone else\'s table the reader opens a handbook page at the landing whatever way is asked, and a planner still opens nothing; with no landing the reader is handed the page alone',
+        fr.every(r => r.how === 'reader' && J(r.read) === J([['d1', { q: 'the barkeep' }]]) && r.open.length + r.pop.length + r.land.length === 0) && frP.how === '' && frP.read.length === 0 && frP.land.length === 0 && J(frNone.read) === J([['d1']]), J([fr, frP, frNone]));
+    const plain = ['window', 'panel', 'go'].map(w => run({ way: w })), plainF = run({ way: 'panel', id: 'd1', foreign: true });
+    const shape = r => J([r.how, r.log, r.open, r.pop, r.read, r.land, r.active]);
+    const junk = JUNK_LANDS.filter(L => ['window', 'panel', 'go'].some((w, i) => shape(run({ way: w, land: L })) !== shape(plain[i])) || shape(run({ way: 'go', id: 'd1', foreign: true, land: L })) !== shape(plainF));
+    const noNav = ['window', 'panel', 'go'].every((w, i) => shape(run({ way: w, land: AT, noNav: true })) === shape(plain[i]) && shape(run({ way: w, land: AT, throws: true })) === shape(plain[i]));
+    check('with no landing every way is asked exactly as before, with the page alone: the window, the panel and the reader are handed one argument and the page itself lands nowhere; a landing of junk is no landing (a number, a bare id, a list, an id with a space or markup or past 64 characters, an empty or blank search, a search that is no text), and so is every landing where the cleaner is not there or throws',
+        J(plain[0].pop) === J([['p1']]) && J(plain[1].open) === J([['p1']]) && J(plain[2].log) === J(['nav', 'render', 'save']) && plain[2].land.length === 0 && J(plainF.read) === J([['d1']]) && junk.length === 0 && noNav, J([plain, plainF, junk]));
+}
+
 /* ---------- the session shelf: what it holds ---------- */
 const shelfSrc = sliceOf(ps, 'shelf');
 const S = new Function(waySrc + '\n' + shelfSrc + '\nreturn { SHELF: SHELF, shelfText: shelfText, pageTitle: pageTitle, pinnedOf: pinnedOf, pinToggle: pinToggle, recentClean: recentClean, recentAdd: recentAdd, mapChain: mapChain, pagesFor: pagesFor, natCmp: natCmp, shelfModel: shelfModel };')();
@@ -167,6 +228,29 @@ const mkCamp = () => ({ id: 'c1', items: {
         && fm.where.length === 2 && fm.where[0].rows.length === 10 && fm.where[1].title === 'City' && fm.where[1].rows.length === 2, J(bm.where.map(g => [g.title, g.rows.length])));
 }
 
+{
+    // The Here and Around rows open a planner at the first node that links to their map (1.5.4, PLANNER_ORG_DESIGN 4.1): that node's block id rides on
+    // the row as at, only where it is a sound block id. A page a piece of the map is pinned to, Next scene, Pinned and Recent carry none
+    const lc = mkCamp();
+    lc.items.p_bar.blocks = [{ type: 'h1', id: 'b_h' }, { type: 'node', id: 'b_tbl', mode: 'table', title: 'x', linkMapId: 'm_bar' }, { type: 'node', id: 'b_other', title: 'Elsewhere', linkMapId: 'm_city' }, { type: 'node', id: 'b_back', title: 'The back room', linkMapId: 'm_bar' }, { type: 'node', id: 'b_cellar', title: 'The cellar', linkMapId: 'm_bar' }];
+    lc.items.p_fight.blocks = [{ type: 'node', id: 'x" onclick="y', title: '3.20 Bar fight', linkMapId: 'm_bar' }, { type: 'node', id: 'b_late', title: 'Later', linkMapId: 'm_bar' }];
+    lc.items.p_city.blocks = [{ type: 'node', id: 'b_market', title: 'Market', linkMapId: 'm_city' }];
+    lc.items.p_free.blocks = [{ type: 'node', title: 'No id', linkMapId: 'm_bar' }];
+    lc.items.m_bar.whiteboard = [{ id: 'w1', type: 'rect', page: 'd_rules' }];
+    lc.pinnedPages = ['p_table'];
+    const bar = S.pagesFor(lc, 'm_bar'), city = S.pagesFor(lc, 'm_city');
+    const odd = [5, '', 'x'.repeat(65), 'b k', '<b>', null, ['b_1'], { id: 'b_1' }].map(id => { const c = mkCamp(); c.items.p_bar.blocks = [{ type: 'node', id: id, title: 'T', linkMapId: 'm_bar' }]; return S.pagesFor(c, 'm_bar')[0]; });
+    check('a planner that plays on a map knows the node it plays at: the block id of its first node that links to that map (a plain table and a node of another map passed over), the same planner a node of its own for each map; where that first node\'s id is no sound block id (markup, a space, past 64 characters, empty, a number, a list, an object) the row opens at the top, never at a later node',
+        J(bar) === J([{ id: 'p_bar', node: 'The back room', n: 2, at: 'b_back' }, { id: 'p_fight', node: '3.20 Bar fight', n: 2 }, { id: 'p_free', node: 'No id', n: 1 }])
+        && J(city) === J([{ id: 'p_bar', node: 'Elsewhere', n: 1, at: 'b_other' }, { id: 'p_city', node: 'Market', n: 1, at: 'b_market' }]) && odd.every(r => r && r.n === 1 && !('at' in r)), J([bar, city, odd]));
+    const m = S.shelfModel(lc, 'm_bar', ['d_rules', 'p_table', 'p_city']), here = m.where[0], around = m.where[1];
+    const atOf = rows => rows.map(r => r.id + ':' + ('at' in r ? r.at : '-'));
+    const off = S.shelfModel(lc, '', ['p_bar']);
+    check('the shelf\'s rows: under Here a planner opens at its node for this map, under Around at its node for the map around it; a page pinned on this map, the planner marked Next under Next scene, a pinned page and a recent one open as before, at the top, even a planner that has a node here',
+        J(atOf(here.rows)) === J(['p_fight:-', 'p_bar:b_back', 'd_rules:-', 'p_free:-']) && around.title === 'City' && J(atOf(around.rows)) === J(['p_city:b_market'])
+        && J(atOf(m.pinned)) === J(['p_table:-']) && m.recent.length === 0 && J(atOf(off.next)) === J(['p_fight:-']) && J(atOf(off.recent)) === J(['p_bar:-']), J([atOf(here.rows), atOf(around.rows), atOf(m.pinned), atOf(off.next), atOf(off.recent)]));
+}
+
 /* ---------- the shelf drawn: elements and text nodes only ---------- */
 const { makeDom } = require('./boxdom.js');
 const drawSrc = sliceOf(ps, 'draw');
@@ -192,6 +276,16 @@ const drawSrc = sliceOf(ps, 'draw');
     D.draw(menu, S.shelfModel({ id: 'e', items: {} }, '', [])); const empty = menu.children.map(k => k.className);
     check('drawn again it holds only the new rows; under its own heading the planner marked Next wears no second mark; a shelf with nothing on it says how to put a page there and still offers Find a page',
         J(heads2) === J(['Next scene', 'Pinned']) && J(again) === J(['3.20 Bar fight', '<img src=x onerror=alert(1)> & "quotes"']) && J(empty) === J(['ps-empty', 'ps-foot', 'ps-note']) && /^No pages here yet\. Pin a planner or a handbook page from its right-click menu in the left panel, or find one below\.$/.test(menu.children[0].textContent), J([heads2, again, empty]));
+}
+
+{
+    // a row's node rides as data-at, and only a sound block id reaches the attribute: the draw asks again whatever a model hands it
+    const dom = makeDom(), D = new Function('document', drawSrc + '\nreturn { row: shelfRow };')(dom.document);
+    const base = { id: 'p_bar', title: 'The Bar', kind: 'planner', sub: '', pinned: false, next: false };
+    const rowAt = at => { const r = D.row(Object.assign({}, base, at === undefined ? {} : { at: at }), true); return ['at' in r.dataset ? r.dataset.at : '-', r.children.map(c => c.tagName + '.' + c.className).join(' ')]; };
+    const good = rowAt('b_back'), none = rowAt(undefined), bad = ['x" onclick="y', '<b>', 'b k', 'x'.repeat(65), '', 7, { toString: () => 'b_x' }, ['b_1']].map(rowAt);
+    check('a row drawn for a planner of the map carries its node as data-at, and nothing else of the row changes; a row with none carries none; a block id that is not sound never reaches the attribute, whatever the model says (markup, a space, past 64 characters, empty, a number, an object, a list)',
+        good[0] === 'b_back' && good[1] === 'BUTTON.ps-open BUTTON.ps-win BUTTON.ps-pin' && none[0] === '-' && none[1] === good[1] && bad.every(b => b[0] === '-' && b[1] === good[1]), J([good, none, bad]));
 }
 
 /* ---------- recent pages on this computer ---------- */
@@ -240,15 +334,15 @@ const drawSrc = sliceOf(ps, 'draw');
 /* ---------- the shelf's button, its rows and the two other pins ---------- */
 {
     const wireSrc = sliceOf(ps, 'wire');
-    const mk = o => { const dom = makeDom(), doc = dom.document, R = { opened: [], pinned: [], drawn: 0, closed: 0, cmdk: 0, focused: 0 };
+    const mk = o => { const dom = makeDom(), doc = dom.document, R = { opened: [], lands: [], pinned: [], drawn: 0, closed: 0, cmdk: 0, focused: 0 };
         const tb = dom.mk('div', 'floating-toolbar'), btn = dom.mk('button', 'wb-tool-btn', null, 'pagesBtn'), menu = dom.mk('div', 'shape-menu page-shelf', null, 'pagesMenu'), board = dom.mk('div', '', null, 'whiteboard');
         const cm = dom.mk('div', '', { id: 'p_bar' }, 'sidebarContextMenu'), pinRow = dom.mk('div', 'menu-item', null, 'ctxPinPage'), head = dom.mk('button', '', null, 'docPanelPin'); cm.style.display = 'block'; cm.appendChild(pinRow);
         [tb, board, cm, head].forEach(e => doc.body.appendChild(e)); tb.appendChild(btn); tb.appendChild(menu); btn.focus = () => { R.focused++; };
-        const D = new Function('document', drawSrc + '\nreturn shelfDraw;')(doc), camp = mkCamp(); camp.pinnedPages = ['p_free'];
+        const D = new Function('document', drawSrc + '\nreturn shelfDraw;')(doc), camp = (o && o.camp) || mkCamp(); camp.pinnedPages = ['p_free'];
         const shelfIsOpen = () => menu.classList.contains('show'), shelfClose = () => { if (shelfIsOpen()) { menu.classList.remove('show'); menu.textContent = ''; R.closed++; } }, shelfRender = () => { R.drawn++; D(menu, S.shelfModel(camp, 'm_bar', [])); };
         new Function('document', 'window', 'shelfMenu', 'shelfIsOpen', 'shelfClose', 'shelfRender', 'pinPage', 'openPage', 'pageWay', 'viewNow', wireSrc + '\nshelfWire();')(
             o && o.bare ? { getElementById: () => null, addEventListener: () => { throw new Error('wired with nothing to wire'); } } : doc, { wpCmdkOpen: () => { R.cmdk++; }, wpDocPanel: { openId: () => (o && o.open) || '' } }, () => menu, shelfIsOpen, shelfClose, shelfRender,
-            id => { R.pinned.push(id); if (shelfIsOpen()) shelfRender(); }, (id, way) => { R.opened.push(id + ':' + way); }, W.way, () => (o && o.view) || 'play');
+            id => { R.pinned.push(id); if (shelfIsOpen()) shelfRender(); }, (id, way, land) => { R.opened.push(id + ':' + way); R.lands.push(land === undefined ? 'none' : J(land)); }, W.way, () => (o && o.view) || 'play');
         const rowOf = id => menu.children.find(k => k.className === 'ps-row' && k.dataset.id === id);
         return { dom, R, btn, menu, board, cm, pinRow, head, rowOf, open: shelfIsOpen }; };
     const A = mk(); A.dom.fire(A.btn, 'click'); const up = [A.open(), A.R.drawn, A.menu.children.length > 3]; A.dom.fire(A.btn, 'click'); const down = [A.open(), A.menu.children.length];
@@ -270,6 +364,14 @@ const drawSrc = sliceOf(ps, 'draw');
     const N = mk({}); N.dom.fire(N.head, 'click'); N.cm.dataset.id = ''; N.dom.fire(N.pinRow, 'click'); let bareThrew = ''; try { mk({ bare: true }); } catch (e) { bareThrew = e.message; }
     check('the two other pins ask the same call: the row in the tree\'s right-click menu pins the page the menu was opened on and puts the menu away, and the pin on the page panel\'s head pins the page in the panel; with no page there is nothing to pin, and a page with none of these parts wires nothing',
         J(tree) === J(['p_bar', 'none']) && hd === 'p_bar,d_rules' && N.R.pinned.length === 0 && bareThrew === '', J([tree, hd, N.R.pinned, bareThrew]));
+    // 1.5.4 (PLANNER_ORG_DESIGN 4.1): a row of Here hands its node to both presses
+    const atCamp = () => { const c = mkCamp(); c.items.p_bar.blocks = [{ type: 'node', id: 'b_back', title: 'The back room', linkMapId: 'm_bar' }]; return c; };
+    const pressAt = (id, part, extra) => { const X = mk({ camp: atCamp() }); X.dom.fire(X.btn, 'click'); const row = X.rowOf(id), el = part === 'win' ? row.children[1] : part === 'pin' ? row.children[2] : row.children[0]; X.dom.fire(el, 'click', extra || {}); return [X.R.opened.join(), X.R.lands.join(), X.R.pinned.join()]; };
+    const AT = J({ at: 'b_back' });
+    check('a row of Here opens its planner at its node, by a press with the keys held and by its window button; a row with no node hands no landing on, and its pin opens nothing',
+        J(pressAt('p_bar', 'open')) === J(['p_bar:panel', AT, '']) && J(pressAt('p_bar', 'open', { ctrlKey: true })) === J(['p_bar:window', AT, '']) && J(pressAt('p_bar', 'open', { altKey: true })) === J(['p_bar:go', AT, ''])
+        && J(pressAt('p_bar', 'win')) === J(['p_bar:window', AT, '']) && J(pressAt('p_free', 'open')) === J(['p_free:panel', 'null', '']) && J(pressAt('p_free', 'win')) === J(['p_free:window', 'null', '']) && J(pressAt('p_bar', 'pin')) === J(['', '', 'p_bar']),
+        J([pressAt('p_bar', 'open'), pressAt('p_free', 'open'), pressAt('p_bar', 'pin')]));
 }
 
 /* ---------- never on the wire, swept with the recent maps ---------- */
@@ -311,8 +413,8 @@ const drawSrc = sliceOf(ps, 'draw');
         J(hints) === J(['Enter opens it over the map. Ctrl+Enter opens a new window. Alt+Enter opens the page itself.', 'Enter opens it over the map. Ctrl+Enter opens a new window. Alt+Enter opens the page itself.',
             'Enter opens the page. Shift+Enter opens it in a panel here. Ctrl+Enter opens a new window.', 'Enter opens the page. Shift+Enter opens it in a panel here. Ctrl+Enter opens a new window.', 'Enter goes there.', 'Enter goes there.', 'Enter goes there.', '', 'Enter goes there.']), J(hints));
     const go = mainS.slice(mainS.indexOf('    function cmdkGo(en, ev) {'), mainS.indexOf('    function cmdkGoNow(en) {'));
-    check('quick-jump asks the rule before it leaves the map: a page that opens over the map or in a window is handed to the one opener and nothing else runs, and only the page itself goes on to the old path, which still asks before another campaign replaces a hosted one',
-        /^    function cmdkGo\(en, ev\) \{\n        if \(!en\) return;\n        cmdkClose\(\);\n        var way = cmdkWay\(en, ev\);\n        if \(way !== 'go'\) \{ window\.wpPageShelf\.open\(en\.itemId, way\); return; \}[^\n]*\n/.test(go) && /wpConfirmCampaignSwitch\(function\(\) \{ cmdkGoNow\(en\); \}\); return; \}\n        cmdkGoNow\(en\);\n    \}\n/.test(go), go.slice(0, 300));
+    check('quick-jump asks the rule before it leaves the map: a page that opens over the map or in a window is handed to the one opener, with the row\'s landing (1.5.4), and nothing else runs, and only the page itself goes on to the old path, which still asks before another campaign replaces a hosted one',
+        /^    function cmdkGo\(en, ev\) \{\n        if \(!en\) return;\n        cmdkClose\(\);\n        var way = cmdkWay\(en, ev\);\n        if \(way !== 'go'\) \{ window\.wpPageShelf\.open\(en\.itemId, way, cmdkLand\(en\)\); return; \}[^\n]*\n/.test(go) && /wpConfirmCampaignSwitch\(function\(\) \{ cmdkGoNow\(en\); \}\); return; \}\n        cmdkGoNow\(en\);\n    \}\n/.test(go), go.slice(0, 300));
     check('the keys and the pointer hand their event on, so the keys held count: Enter, a click on a row; the row under the pointer is the row in front, and the line follows the row as the list is drawn, as the arrows move and as the pointer moves',
         count(mainS, "if (e.key === 'Enter') { e.preventDefault(); cmdkGo(_cmdkShown[_cmdkIdx], e); return; }") === 1 && count(mainS, "if (row) cmdkGo(_cmdkShown[+row.dataset.i], e);") === 1
         && count(mainS, "list.addEventListener('mousemove', function(e) { var row = e.target.closest('.cmdk-row'); if (row) cmdkFront(+row.dataset.i); });") === 1
@@ -322,6 +424,226 @@ const drawSrc = sliceOf(ps, 'draw');
     check('the page has the line under the list, drawn as text, hidden while it is empty; the module is loaded once, after floats.js, whose view it asks',
         count(ix, '<div id="cmdkList" style="max-height:46vh; overflow-y:auto;"></div>\n        <div id="cmdkHint" class="cmdk-hint" role="status"></div>') === 1 && /\n\s*\.cmdk-hint:empty \{ display: none; \}/.test(css) && /\n\s*\.cmdk-hint \{ padding: 7px 16px; /.test(css)
         && count(ix, 'scripts/pageshelf.js') === 1 && ix.includes('<script type="module" src="scripts/floats.js"></script>\n<script type="module" src="scripts/pageshelf.js"></script>\n'));
+}
+
+{
+    // quick-jump opens a row found by a page's words at those words (1.5.4, PLANNER_ORG_DESIGN 4.1): main.js sliced by its cmdkrows, cmdkway and
+    // cmdkgo markers and run for real, with the landing's cleaner as its contract says it and stand-ins that record what they are handed
+    const wSrc = sliceOf(mainS, 'cmdkway'), rowsSrc = sliceOf(mainS, 'cmdkrows'), goSrc = sliceOf(mainS, 'cmdkgo');
+    const ldOf = nav => new Function('window', 'state', wSrc + '\nreturn cmdkLand;')(nav === false ? {} : { wpPageNav: { landOf: nav || landOfStand } }, { appState: { activeCampaignId: 'c1' } });
+    const ld = ldOf(), pg = { kind: 'planner', label: 'P', sub: 'Camp', campId: 'c1', itemId: 'p1' }, hit = q => Object.assign({}, pg, { snippet: 'the <mark>barkeep</mark>', q: q });
+    check('a quick-jump row found by a page\'s words has a landing, the words typed cleaned by the one cleaner; a row matched by its name has none, nor has a row whose words do not clean, nor any row where the cleaner is not there or throws',
+        J(ld(hit(' barkeep '))) === J({ q: 'barkeep' }) && ld(pg) === null && ld(null) === null && ld(undefined) === null && ld({ kind: 'map', campId: 'c1', itemId: 'm1', label: 'M', sub: 'C' }) === null
+        && ['', '   ', 7, null, {}, ['x']].every(v => ld(hit(v)) === null) && ldOf(false)(hit('barkeep')) === null && ldOf(() => { throw new Error('x'); })(hit('barkeep')) === null);
+    const rowsOf = (q, search) => { const list = { innerHTML: '' }, st = { appState: { campaigns: { c1: { id: 'c1', name: 'Camp', items: {} } } } };
+        return new Function('state', 'window', 'document', 'esc', 'cmdkHintSync', "var _cmdkEntries = [{ kind: 'planner', label: 'Barkeep notes', sub: 'Camp', campId: 'c1', itemId: 'p1' }, { kind: 'map', label: 'The Bar', sub: 'Camp', campId: 'c1', itemId: 'm1' }], _cmdkShown = [], _cmdkIdx = 0;\n" + rowsSrc + '\nreturn function(q) { cmdkRender(q); return _cmdkShown; };')(
+            st, { wpDocSearch: search }, { getElementById: () => list }, s => String(s), () => {})(q); };
+    const search = (raw, c, types) => [{ id: 'p1', type: 'planner', title: 'Barkeep notes', snippet: 's1' }, { id: 'p2', type: 'planner', title: 'Session 3', snippet: 'the <mark>barkeep</mark> knows' }, { id: 'd1', type: 'doc', title: 'Rules', snippet: 's3' }];
+    const typed = rowsOf('  barkeep ', search), empty = rowsOf('', search), keys = typed.map(en => en.itemId + ':' + ('q' in en ? en.q : '-') + ':' + ('snippet' in en ? 's' : '-'));
+    check('the rows a page\'s words found keep the words typed, trimmed, beside their snippet; a row matched by its name, the same page found by both too, keeps none; with nothing typed no row keeps any',
+        J(keys) === J(['p1:-:-', 'p2:barkeep:s', 'd1:barkeep:s']) && empty.length === 2 && empty.every(en => !('q' in en)), J([keys, empty]));
+    // cmdkGo and cmdkGoNow: every way cmdkWay gives
+    const goRun = (en, ev, o) => { o = o || {};
+        const R = { log: [], shelf: [], read: [], land: [] }, args = a => Array.prototype.slice.call(a);
+        const st = { viewMode: 'visual', appState: { activeCampaignId: 'c1', campaigns: { c1: { id: 'c1', activeItemId: 'm1', items: { p1: { id: 'p1', type: 'planner', meta: {} }, d1: { id: 'd1', type: 'doc', meta: {} }, m1: { id: 'm1', type: 'map', meta: {}, rooms: [] } } }, c2: { id: 'c2', activeItemId: null, items: { p9: { id: 'p9', type: 'planner', meta: {} } } } } } };
+        const win = { wpPageShelf: { wayNow: e => W.way(o.view || 'play', e), open: function() { R.log.push('shelf'); R.shelf.push(args(arguments)); } }, wpPageNav: { landOf: landOfStand }, wpNet: { foreign: !!o.foreign },
+            wpOpenDoc: function() { R.log.push('read'); R.read.push(args(arguments)); }, wpPlannerLand: function() { R.log.push('land'); R.land.push(args(arguments)); }, wpConfirmCampaignSwitch: fn => { R.log.push('ask'); fn(); } };
+        new Function('window', 'state', 'cmdkClose', 'save', 'updateCampaignSelect', 'updateSidebarNav', 'render', 'restoreCameraPosition', wSrc + '\n' + goSrc + '\nreturn cmdkGo;')(
+            win, st, () => { R.log.push('close'); }, () => { R.log.push('save'); }, () => {}, () => {}, () => { R.log.push('render'); }, () => {})(en, ev);
+        return Object.assign(R, { active: st.appState.activeCampaignId + '/' + st.appState.campaigns[st.appState.activeCampaignId].activeItemId }); };
+    const QB = { q: 'barkeep' }, cr = hit(' barkeep '), dc = Object.assign({}, cr, { kind: 'doc', itemId: 'd1' }), far = { kind: 'planner', label: 'F', sub: 'Other', campId: 'c2', itemId: 'p9', snippet: 's', q: 'barkeep' };
+    const p0 = goRun(cr, null), p1 = goRun(cr, { ctrlKey: true }), p2 = goRun(cr, { altKey: true }), p3 = goRun(far, null), n0 = goRun(pg, null), n2 = goRun(pg, { altKey: true });
+    check('quick-jump hands a row\'s landing to every way: over the map and in a window through the one opener, the page itself through the planner\'s own landing once it is drawn and saved, and another campaign\'s page after the question that switches campaigns; a row matched by its name hands none on and the page itself lands nowhere',
+        J(p0.shelf) === J([['p1', 'panel', QB]]) && J(p0.log) === J(['close', 'shelf']) && J(p1.shelf) === J([['p1', 'window', QB]]) && J(p2.log) === J(['close', 'save', 'render', 'land']) && J(p2.land) === J([['p1', QB]]) && p2.active === 'c1/p1'
+        && J(p3.log) === J(['close', 'ask', 'save', 'render', 'land']) && J(p3.land) === J([['p9', QB]]) && p3.active === 'c2/p9' && J(n0.shelf) === J([['p1', 'panel', null]]) && J(n2.log) === J(['close', 'save', 'render']) && n2.land.length === 0,
+        J([p0, p1, p2, p3, n0, n2]));
+    const f0 = goRun(dc, { altKey: true }, { foreign: true }), f1 = goRun(Object.assign({}, pg, { kind: 'doc', itemId: 'd1' }), { altKey: true }, { foreign: true }), mp = goRun({ kind: 'map', label: 'M', sub: 'C', campId: 'c1', itemId: 'm1', q: 'barkeep', snippet: 's' }, null);
+    check('a joined player\'s reader opens a page at the words a page\'s words found, and with the page alone for a row matched by its name; a map is gone to as before and nothing lands on it',
+        J(f0.read) === J([['d1', QB]]) && f0.land.length === 0 && J(f1.read) === J([['d1']]) && f1.land.length === 0 && J(mp.log) === J(['close', 'save', 'render']) && mp.land.length === 0 && mp.shelf.length === 0 && mp.active === 'c1/m1', J([f0, f1, mp]));
+}
+{
+    // the left panel's Search Planners and Search Pages (dialogs.js, sliced by its listland markers with the two lists' own handlers, run for real
+    // on a page of plain objects): a typed query's result opens at the hit, an empty query's A to Z list as before
+    const dlS = read('scripts/dialogs.js'), lsSrc = sliceOf(dlS, 'listland');
+    const hA = "  var _el_searchPlannersBtn = document.getElementById('searchPlannersBtn');", hZ = "  var _el_searchMapsBtn = document.getElementById('searchMapsSidebarBtn');", hdlSrc = dlS.slice(dlS.indexOf(hA), dlS.indexOf(hZ));
+    const resEl = () => { let html = ''; const btns = []; return { btns, querySelectorAll: () => btns.slice(), get innerHTML() { return html; }, set innerHTML(v) { html = v; btns.length = 0; (v.match(/data-id="[^"]*"/g) || []).forEach(m => { const b = { dataset: { id: m.slice(9, -1) }, fns: [], addEventListener(ev, fn) { if (ev === 'click') this.fns.push(fn); } }; btns.push(b); }); } }; };
+    const dlRun = o => {
+        const R = { log: [], land: [], read: [] }, els = {}, args = a => Array.prototype.slice.call(a);
+        ['searchPlannersBtn', 'searchDocsBtn', 'plannerSearchClose', 'docSearchClose'].forEach(id => { els[id] = { fn: null, addEventListener(ev, fn) { this.fn = fn; } }; });
+        ['plannerSearchModal', 'docSearchModal'].forEach(id => { els[id] = { style: {} }; });
+        ['plannerSearchInput', 'docSearchInput'].forEach(id => { els[id] = { value: '', focus() {} }; });
+        els.plannerSearchResults = resEl(); els.docSearchResults = resEl();
+        const camp = { id: 'c1', activeItemId: 'm1', items: { p1: { type: 'planner', meta: { title: 'Bar' } }, p2: { type: 'planner', meta: { title: 'Alley' } }, d1: { type: 'doc', meta: { title: 'Rules' } }, m1: { type: 'map', meta: {} } } }, st = { selId: 'x', selWbId: 'y', linkStart: 'z' };
+        const win = { wpDocSearch: (q, c, types) => types[0] === 'planner' ? [{ id: 'p1', title: 'Bar', snippet: 's' }] : [{ id: 'd1', title: 'Rules', snippet: 's' }], wpNet: { foreign: !!o.foreign },
+            wpOpenDoc: function() { R.log.push('read'); R.read.push(args(arguments)); }, wpPlannerLand: function() { R.log.push('land'); R.land.push(args(arguments)); } };
+        if (!o.noNav) win.wpPageNav = { landOf: landOfStand };
+        new Function('document', 'getActiveCampaign', 'esc', 'window', 'state', 'updateSidebarNav', 'render', 'save', 'setTimeout', lsSrc + hdlSrc)(
+            { getElementById: id => els[id] || null }, () => camp, s => String(s), win, st, () => { R.log.push('nav'); }, () => { R.log.push('render'); }, () => { R.log.push('save'); }, () => {});
+        const k = o.docs ? 'doc' : 'planner', inp = els[k + 'SearchInput'], res = els[k + 'SearchResults'];
+        els[o.docs ? 'searchDocsBtn' : 'searchPlannersBtn'].fn(); inp.value = o.q || ''; inp.onkeyup();
+        const b = res.btns.find(x => x.dataset.id === o.pick); if (b) b.fns.forEach(fn => fn.call(b));
+        return Object.assign(R, { active: camp.activeItemId, sel: J([st.selId, st.selWbId, st.linkStart]), shown: res.btns.map(x => x.dataset.id), modal: els[k + 'SearchModal'].style.display }); };
+    const QB = J([{ q: 'barkeep' }]);
+    const pT = dlRun({ q: ' barkeep ', pick: 'p1' }), pE = dlRun({ q: '', pick: 'p2' }), pB = dlRun({ q: '   ', pick: 'p2' }), pN = dlRun({ q: 'barkeep', pick: 'p1', noNav: true });
+    const dT = dlRun({ docs: true, q: 'barkeep', pick: 'd1' }), dE = dlRun({ docs: true, q: '', pick: 'd1' }), fT = dlRun({ docs: true, q: 'barkeep', pick: 'd1', foreign: true }), fE = dlRun({ docs: true, q: '', pick: 'd1', foreign: true });
+    check('Search Planners and Search Pages open a typed query\'s result at the hit: the page itself as a click in the tree opens it, then the planner\'s own landing with the words typed, trimmed; an empty or blank query\'s A to Z list opens as before and lands nowhere, and so does every result where the cleaner is not there',
+        J(pT.log) === J(['nav', 'render', 'save', 'land']) && J(pT.land.map(x => x[1])) === QB && pT.land[0][0] === 'p1' && pT.active === 'p1' && pT.sel === J([null, null, null]) && pT.modal === 'none'
+        && J(pE.log) === J(['nav', 'render', 'save']) && pE.active === 'p2' && J(pE.shown) === J(['p2', 'p1']) && J(pB.log) === J(['nav', 'render', 'save']) && J(pN.log) === J(['nav', 'render', 'save'])
+        && J(dT.log) === J(['nav', 'render', 'save', 'land']) && J(dT.land) === J([['d1', { q: 'barkeep' }]]) && J(dE.log) === J(['nav', 'render', 'save']), J([pT, pE, pB, pN, dT, dE]));
+    check('a joined player\'s result of Search Pages opens in the reader at the hit, and with the page alone from the A to Z list; the page itself is never opened there',
+        J(fT.read) === J([['d1', { q: 'barkeep' }]]) && J(fT.log) === J(['read']) && fT.active === 'm1' && J(fE.read) === J([['d1']]) && J(fE.log) === J(['read']), J([fT, fE]));
+}
+{
+    // the page itself lands once it is drawn (planner.js, sliced by its plannerland markers and run for real on a page of plain objects, the
+    // draw's diagrams run through a promise of the suite's own, the landing's cleaner as its contract says it and pagenav's landing a recorder)
+    const pl = read('scripts/planner.js'), plSrc = sliceOf(pl, 'plannerland');
+    const plRun = o => { o = o || {};
+        const dom = makeDom(), doc = dom.document, R = { land: [], find: [], fc: 0, mm: [], log: [] };
+        const pv = dom.mk('div', '', null, 'plannerPreview'), box = dom.mk('input', '', null, 'plannerFind'); doc.body.appendChild(box);
+        const wrap = o.hand !== undefined || o.wrap ? dom.mk('div', '', null, 'plannerWrap') : null, fld = dom.mk('input'); if (wrap) { doc.body.appendChild(wrap); wrap.appendChild(fld); wrap.appendChild(pv); } else doc.body.appendChild(pv);   // the planner's wrap holds the editor's fields and the preview
+        const page = { id: 'p1', type: 'planner', blocks: [{ id: 'b_a', type: 'h1' }, 'junk', { id: 'b_c', type: 'node' }, { id: 'b_d', type: 'text' }, Object.create({ id: 'b_inh' })] }, other = { id: 'p2', type: 'planner', blocks: [] };
+        [0, 2, 3].forEach(i => { const b = dom.mk('div', 'pv-blk', { blk: i }); b.appendChild(doc.createTextNode('block ' + i)); pv.appendChild(b); doc.body.appendChild(dom.mk('div', 'planner-block-edit', { idx: i })); });
+        doc.body.appendChild(dom.mk('div', 'planner-block-edit', { idx: 4 }));   // the block whose id the page only inherits has its editor box too
+        let active = o.none ? null : page, now = 1000; const sp = syncPromise();
+        const win = { mermaid: o.mermaid ? {} : undefined }; if (o.hand) win.wpDocPanel = { hand: o.hand };
+        if (o.junk) pv.appendChild(dom.mk('div', 'pv-blk', { blk: '0x2' }));   // a drawn block whose number is no number (Number would read it as 2)
+        if (o.preLit) pv.children.find(c => c.dataset.blk === o.preLit).classList.add('pagenav-hit');   // a block lit a moment before (an Outline row)
+        const lights = o.lights === undefined ? '3' : o.lights;   // the block a landing at words lights, as pagenav.js lights the block it lands on (none for null)
+        if (o.noLand) win.wpPageNav = { landOf: landOfStand };   // a page navigation with no landing of its own
+        else if (!o.noNav) win.wpPageNav = { landOf: landOfStand, land: (root, it, land) => { R.log.push('land'); R.land.push([root === pv, it === page, J(land)]); if (!o.landFails && land && land.q && lights !== null) { const b = pv.children.find(c => c.dataset.blk === lights); if (b) b.classList.add('pagenav-hit'); } return !o.landFails; } };
+        const findApply = keep => { R.log.push('find'); R.find.push([box.value, keep]); const blk = pv.children.find(c => c.dataset.blk === '3'); blk.appendChild(dom.mk('mark', 'pf-hit pf-cur')); };
+        const api = new Function('window', 'document', 'getActiveMap', 'setTimeout', 'Date', 'plannerFindApply', 'mermaid', 'Promise', 'fcPostProcess', 'var plannerFullscreen = ' + !!o.full + ';\n' + plSrc
+            + '\nreturn { draw: runPreviewMermaid, land: plannerLand, pending: function() { return _pvLand; } };')(
+            win, doc, () => active, dom.setTimeout, { now: () => now }, findApply, { run: arg => { R.mm.push(arg); return {}; } }, sp.P, () => { R.log.push('fc'); R.fc++; });
+        const ed = i => doc.querySelectorAll('.planner-block-edit').find(e => e.dataset.idx === String(i)).calls.filter(c => c === 'scrollIntoView').length;
+        return { api, R, page, other, ed: () => [0, 2, 3].map(ed), ed4: () => ed(4), set: p => { active = p; }, tick: ms => { now += ms; }, settle: sp.settle, first: sp.first, timers: () => dom.page.timers.length, run: dom.runTimers, box, dom, pv, wrap, fld }; };
+    const AT = { at: 'b_c' };
+    const A = plRun(); A.api.draw('p1'); const k1 = A.api.land('p1', AT), t1 = A.timers(), before = A.R.land.length; A.run(); const a1 = [J(A.R.land), J(A.ed()), A.api.pending()];
+    A.api.draw('p1'); A.run(); A.api.land('p1', null); A.run(); const a2 = [A.R.land.length, A.timers()];
+    check('the page itself lands at a block once it is drawn: the landing is kept, then made in a turn of its own after the draw has finished, through pagenav\'s landing on the planner\'s preview with the page drawn there; in the editing view the editor\'s own box for that block is scrolled to as well; it is used once, so a later draw lands nothing, and a landing of junk is none',
+        k1 === true && t1 === 1 && before === 0 && a1[0] === J([[true, true, J(AT)]]) && a1[1] === J([0, 1, 0]) && a1[2] === null && J(a2) === J([1, 0]), J([k1, t1, before, a1, a2]));
+    const B = plRun({ full: true }); B.api.draw('p1'); B.api.land('p1', AT); B.run(); const C = plRun(); C.api.draw('p1'); C.api.land('p1', { at: 'b_zz' }); C.run(); const C2 = plRun(); C2.api.draw('p1'); C2.api.land('p1', { at: 'b_inh' }); C2.run();
+    const Fl = plRun({ landFails: true }); Fl.api.draw('p1'); Fl.api.land('p1', AT); Fl.run();
+    check('the reading view shows the preview alone, so only the preview is landed; a block that is not in the page, or whose id the page only inherits, scrolls no editor box, and nor does a landing pagenav could not make',
+        B.R.land.length === 1 && J(B.ed()) === J([0, 0, 0]) && C.R.land.length === 1 && J(C.ed()) === J([0, 0, 0]) && C2.R.land.length === 1 && J(C2.ed()) === J([0, 0, 0]) && C2.ed4() === 0 && Fl.R.land.length === 1 && J(Fl.ed()) === J([0, 0, 0]), J([B.ed(), C.ed(), C2.ed(), Fl.ed()]));
+    const M = plRun({ mermaid: true }); M.api.draw('p1'); M.api.land('p1', AT); const m1 = [M.timers(), M.R.land.length, J(M.R.mm)]; M.api.draw('p1'); M.first(); const m15 = [M.timers(), M.R.fc]; M.settle(); const m2 = [M.timers(), M.R.fc]; M.run(); const m3 = [M.R.land.length, J(M.R.log)];
+    const Fz = plRun({ mermaid: true }); Fz.api.draw('p1'); Fz.api.land('p1', AT); Fz.settle(new Error('the diagram library failed')); Fz.run(); const fz = [Fz.R.land.length, Fz.R.fc];
+    const W2 = plRun(); W2.set(W2.page); W2.api.land('p1', AT); const w1 = [W2.timers(), !!W2.api.pending()]; W2.api.draw('p1'); W2.run(); const w2 = W2.R.land.length;
+    check('a landing waits for the render it belongs to: for the draw of its page, and for that draw\'s diagrams to be laid out after the diagram library and the pass that follows it, and lands too where the library fails; a draw made meanwhile is the one waited for, and the older one\'s word is passed over, so it lands once and only after the newer draw',
+        J(m1) === J([0, 0, J([{ querySelector: '#plannerPreview .mermaid' }])]) && J(m15) === J([0, 1]) && J(m2) === J([1, 2]) && J(m3) === J([1, J(['fc', 'fc', 'land'])]) && J(w1) === J([0, true]) && w2 === 1 && J(fz) === J([1, 0]), J([m1, m15, m2, m3, w1, w2, fz]));
+    const X = plRun(); X.set(X.other); X.api.draw('p2'); X.api.land('p1', AT); const x1 = [X.timers(), X.api.pending()]; X.set(X.page); X.api.draw('p1'); X.run();
+    const Y = plRun({ mermaid: true }); Y.api.draw('p1'); Y.api.land('p1', AT); Y.set(Y.other); Y.settle(); const y1 = Y.api.pending(); Y.set(Y.page); Y.api.draw('p1'); Y.settle(); Y.run();
+    const Z = plRun({ mermaid: true }); Z.api.draw('p1'); Z.api.land('p1', AT); Z.tick(8001); Z.settle(); Z.run();
+    const J2 = plRun({ mermaid: true }); J2.api.draw('p1'); J2.api.land('p1', AT); J2.api.land('p1', { at: 'b k' }); J2.settle(); J2.run();
+    const N = plRun({ noNav: true }); N.api.draw('p1'); const n1 = N.api.land('p1', AT); N.run(); const E = plRun({ none: true }); E.api.draw('p1'); E.api.land('p1', AT); E.run();
+    check('a landing for a page that is not the one on screen is dropped, at once or while it waits, and never made when that page comes back; one that has waited past 8 seconds is dropped; a landing of junk drops one that waited; with no cleaner there is no landing, and with no page on screen none is kept',
+        x1[0] === 0 && x1[1] === null && X.R.land.length === 0 && y1 === null && Y.R.land.length === 0 && Z.R.land.length === 0 && J2.R.land.length === 0 && n1 === false && N.R.land.length === 0 && E.R.land.length === 0 && E.api.pending() === null, J([x1, y1, Y.R.land, Z.R.land, J2.R.land]));
+    // the review of step 1 (2026-10-16): words land as a block does, through pagenav's landing, which lights the block (the planner's own Find never
+    // lit it, nor read a chart's label, and the words it was given stayed in its box, so every later draw of the preview scrolled back to them)
+    const Q1 = plRun(); Q1.box.value = 'typed before'; Q1.api.draw('p1'); Q1.api.land('p1', { q: '  the barkeep ' }); Q1.run(); const QF = plRun({ full: true }); QF.api.draw('p1'); QF.api.land('p1', { q: 'barkeep' }); QF.run();
+    const QP = plRun({ preLit: '0' }); QP.api.draw('p1'); QP.api.land('p1', { q: 'barkeep' }); QP.run(); const QN = plRun({ lights: null }); QN.api.draw('p1'); QN.api.land('p1', { q: 'barkeep' }); QN.run();
+    const QJ = plRun({ junk: true, lights: '0x2' }); QJ.api.draw('p1'); QJ.api.land('p1', { q: 'barkeep' }); QJ.run();
+    let nlErr = ''; const NL = plRun({ noLand: true }); NL.api.draw('p1'); const nl = NL.api.land('p1', AT); try { NL.run(); } catch (e) { nlErr = String(e); }
+    const T2 = plRun(); T2.api.draw('p1'); T2.api.land('p1', AT); T2.api.land('p1', { q: 'x' }); const t2 = T2.timers(); T2.run();
+    check('a search text lands as a block does, through pagenav\'s landing on the preview with the page drawn there (the review of step 1): the planner\'s own Find is never run and its box keeps what it held; in the editing view the editor\'s box of the block the landing lit is scrolled to — the one it lit, not one lit a moment before, and none where it lit none or lit a block whose number is no number —; a page navigation with no landing of its own lands nothing and throws nothing; a second landing before the first is made takes its place, in the one turn already asked for',
+        J(Q1.R.land) === J([[true, true, J({ q: 'the barkeep' })]]) && Q1.R.find.length === 0 && Q1.box.value === 'typed before' && J(Q1.ed()) === J([0, 0, 1]) && J(QF.ed()) === J([0, 0, 0]) && QF.R.land.length === 1
+        && J(QP.ed()) === J([0, 0, 1]) && J(QN.ed()) === J([0, 0, 0]) && QN.R.land.length === 1 && J(QJ.ed()) === J([0, 0, 0]) && QJ.R.land.length === 1 && nl === true && nlErr === '' && J(NL.ed()) === J([0, 0, 0]) && NL.api.pending() === null
+        && t2 === 1 && J(T2.R.land) === J([[true, true, J({ q: 'x' })]]) && T2.R.find.length === 0, J([Q1.R, Q1.ed(), QF.R, QP.ed(), QN.ed(), QJ.ed(), t2, T2.R]));
+    // and run whole: planner.js's find and plannerland slices and its renderPlannerPreview, beside pagenav.js's own outline, fold and land slices, on
+    // a page of plain objects. The block that holds the words is lit, a chart's label read; the planner's Find box keeps what it held, so a later
+    // draw of the preview scrolls nowhere and another planner opens with nothing marked
+    // a landing is not made where the reader has moved the page by their own hand since it was asked for (the maintainer's decision, found live:
+    // a chart drawn above the landed block moves scrollTop, so a judge by scrollTop would never land): docpanel.js readerHand, run for real on the
+    // planner's own wrap, the preview and the editor inside it; judged by their input, never by scrollTop
+    const dpH = fs.readFileSync(path.join(app, 'scripts', 'docpanel.js'), 'utf8'), handSrc = dpH.slice(dpH.indexOf('// [textcheck:panelhand-start]'), dpH.indexOf('// [textcheck:panelhand-end]'));
+    if (handSrc.length < 200) throw new Error('shelfcheck: docpanel.js has no panelhand slice');
+    const handOn = o => { const H = new Function(handSrc + '\nreturn readerHand;')(); const P = plRun(Object.assign({ mermaid: true, hand: H }, o)); return P; };
+    const hk = [];
+    for (const [name, act] of [['none', null], ['wheel', P => P.dom.fire(P.wrap, 'wheel')], ['press', P => P.dom.fire(P.pv, 'pointerdown')], ['key', P => P.dom.fire(P.pv, 'keydown', { key: 'PageDown' })], ['field key', P => P.dom.fire(P.fld, 'keydown', { key: 'ArrowDown' })], ['other key', P => P.dom.fire(P.pv, 'keydown', { key: 'a' })], ['scrollTop', P => { P.pv.scrollTop = 300; P.wrap.scrollTop = 300; }], ['before', 'before']]) {
+        const P = handOn(); P.api.draw('p1');
+        if (act === 'before') { P.dom.fire(P.wrap, 'wheel'); P.api.land('p1', AT); } else { P.api.land('p1', AT); if (act) act(P); }
+        P.settle(); P.run(); hk.push([name, P.R.land.length, P.api.pending()]);
+    }
+    const NH = plRun({ mermaid: true, hand: null, wrap: true }); NH.api.draw('p1'); NH.api.land('p1', AT); NH.dom.fire(NH.wrap, 'wheel'); NH.settle(); NH.run();
+    check('the page itself is not landed where the reader has moved the page by their own hand since the landing was asked for (planner.js pvHand with docpanel.js readerHand, run for real): a wheel on the planner, a press on its preview and a key that scrolls there drop it, and so the landing is not made when its diagrams are laid out; a key typed into a field or any other key does not, nor a change of scrollTop alone, nor anything the reader did before it was asked for; where no watch is published it lands as before',
+        J(hk) === J([['none', 1, null], ['wheel', 0, null], ['press', 0, null], ['key', 0, null], ['field key', 1, null], ['other key', 1, null], ['scrollTop', 1, null], ['before', 1, null]]) && NH.R.land.length === 1, J([hk, NH.R.land]));
+    const pnW = read('scripts/pagenav.js'), pnCut = n => { const a = pnW.indexOf('// [pagecheck:' + n + '-start]'), z = pnW.indexOf('// [pagecheck:' + n + '-end]'); if (a < 0 || z < a) throw new Error('shelfcheck: pagenav.js has no ' + n + ' slice'); return pnW.slice(a, z); };
+    const plCut = (a, z) => { const i = pl.indexOf(a), k = pl.indexOf(z, i); if (i < 0 || k < 0) throw new Error('shelfcheck: planner.js has no ' + a); return pl.slice(i, k); };
+    const pfSrc = plCut('// [textcheck:find-start]', '// [textcheck:find-end]'), rppSrc = plCut('  function renderPlannerPreview() {', '  function renderPlannerPreviewCore() {');
+    const whole = o => { o = o || {};
+        const dom = makeDom(), doc = dom.document;
+        dom.Text.prototype.splitText = function(at) { const rest = new dom.Text(this.nodeValue.slice(at)); this.nodeValue = this.nodeValue.slice(0, at); const l = this.parentNode.childNodes; l.splice(l.indexOf(this) + 1, 0, rest); rest.parentNode = this.parentNode; return rest; };
+        dom.El.prototype.normalize = function() { for (let i = 0; i < this.childNodes.length; i++) { const n = this.childNodes[i]; if (n.nodeType !== 3) { n.normalize(); continue; } if (!n.nodeValue) { this.childNodes.splice(i--, 1); continue; } const nx = this.childNodes[i + 1]; if (nx && nx.nodeType === 3) { n.nodeValue += nx.nodeValue; this.childNodes.splice(i + 1, 1); i--; } } };
+        const pv = dom.mk('div', '', null, 'plannerPreview'), box = dom.mk('input', '', null, 'plannerFind'), cnt = dom.mk('span', '', null, 'plannerFindCount'); [box, cnt, pv].forEach(e => doc.body.appendChild(e));
+        const timers = [], st = (fn, ms) => { timers.push({ fn: fn, ms: ms || 0 }); return timers.length; }, store = { data: {}, getItem(k) { return k in this.data ? this.data[k] : null; }, setItem(k, v) { this.data[k] = String(v); } };
+        const win = { localStorage: store, innerWidth: 1000, innerHeight: 800, addEventListener() {} }, camp = { id: 'c1', activeItemId: 'p1' };
+        const nav = new Function('document', 'window', 'location', 'setTimeout', 'URLSearchParams', 'getActiveCampaign', pnCut('outline') + pnCut('fold') + pnCut('land') + '\nreturn { landOf: landOf, land: land, flash: navFlash, foldReveal: foldReveal };')(doc, win, { search: '' }, st, URLSearchParams, () => camp);
+        win.wpPageNav = { landOf: nav.landOf, land: nav.land, flash: nav.flash, reveal: el => nav.foldReveal(pv, el, false) };
+        let active = null, api = null;
+        const part = b => b.chart ? dom.mk('div', 'diagram fc-box', null) : doc.createElement(b.type === 'h2' ? 'h2' : 'p');
+        const drawPage = page => { while (pv.firstChild) pv.removeChild(pv.firstChild); const w = dom.mk('div', 'wrap'); pv.appendChild(w);
+            page.blocks.forEach((b, i) => { const d = dom.mk('div', 'pv-blk', { blk: String(i) }), p = part(b); d.appendChild(p); w.appendChild(d);
+                if (!b.chart) { p.appendChild(doc.createTextNode(b.text)); return; }
+                const svg = doc.createElement('svg'), sty = doc.createElement('style'), g = dom.mk('g', 'node'), fo = doc.createElement('foreignObject'), dv = doc.createElement('div'), sp = dom.mk('span', 'nodeLabel'), bb = doc.createElement('b');
+                sty.appendChild(doc.createTextNode('.nodeLabel { color: red } the guards')); sp.appendChild(doc.createTextNode(b.chart[0])); bb.appendChild(doc.createTextNode(b.chart[1])); sp.appendChild(bb);
+                dv.appendChild(sp); fo.appendChild(dv); g.appendChild(fo); svg.appendChild(sty); svg.appendChild(g); p.appendChild(svg); }); };
+        api = new Function('window', 'document', 'getActiveMap', 'setTimeout', 'Date', 'mermaid', 'Promise', 'fcPostProcess', 'renderPlannerPreviewCore', 'var plannerFullscreen = ' + !!o.full + ';\n' + pfSrc + '\n' + plSrc + '\n' + rppSrc
+            + '\nreturn { draw: runPreviewMermaid, land: plannerLand, rpp: renderPlannerPreview };')(win, doc, () => active, st, { now: () => 1000 }, undefined, Promise, () => {}, () => { drawPage(active); api.draw(active.id); });
+        [0, 1, 2, 3, 4].forEach(i => doc.body.appendChild(dom.mk('div', 'planner-block-edit', { idx: String(i) })));
+        const run = () => { for (let g = 0; g < 50; g++) { const i = timers.findIndex(t => t.ms < 1000); if (i < 0) break; timers.splice(i, 1)[0].fn(); } };
+        const lit = () => pv.all().filter(e => e.classList.contains('pagenav-hit')).map(e => e.dataset.blk), marks = () => pv.querySelectorAll('mark.pf-hit').length;
+        const scrolled = () => pv.all().filter(e => e.calls.indexOf('scrollIntoView') >= 0).map(e => (e.dataset && e.dataset.blk) || e.nodeName), ed = () => doc.querySelectorAll('.planner-block-edit').map(e => e.calls.filter(c => c === 'scrollIntoView').length);
+        return { api, box, cnt, run, lit, marks, scrolled, ed, set: p => { active = p; } };
+    };
+    const WP1 = { id: 'p1', type: 'planner', blocks: [{ id: 'b_a', type: 'h2', text: 'Arrival' }, { id: 'b_b', type: 'p', text: 'The guards wait here.' }, { id: 'b_c', type: 'h2', text: 'The ambush' }, { id: 'b_d', type: 'p', text: 'Bandits ambush the party at the bridge.' }, { id: 'b_e', chart: ['Start ', 'here'] }] };
+    const WP2 = { id: 'p2', type: 'planner', blocks: [{ id: 'b_x', type: 'h2', text: 'Another planner' }, { id: 'b_y', type: 'p', text: 'An old ambush site on the hill.' }] };
+    const V1 = whole(); V1.set(WP1); V1.api.rpp(); V1.api.land('p1', { q: 'AMBUSH' }); V1.run(); const v1 = [V1.lit(), V1.scrolled(), J(V1.ed()), V1.box.value, V1.cnt.textContent, V1.marks()];
+    V1.api.rpp(); V1.api.rpp(); const v1b = [V1.scrolled(), V1.marks(), V1.lit()]; V1.set(WP2); V1.api.rpp(); const v1c = [V1.scrolled(), V1.marks(), V1.box.value];
+    const V2 = whole(); V2.set(WP1); V2.api.rpp(); V2.api.land('p1', { q: 'start here' }); V2.run(); const v2 = [V2.lit(), J(V2.ed())];
+    const V3 = whole({ full: true }); V3.box.value = 'guards'; V3.set(WP1); V3.api.rpp(); const v3a = V3.marks(); V3.api.land('p1', { q: 'bandits' }); V3.run(); const v3 = [v3a, V3.lit(), V3.box.value, J(V3.ed())];
+    const V4 = whole(); V4.set(WP1); V4.api.rpp(); V4.api.land('p1', { at: 'b_d' }); V4.run(); const v4 = [V4.lit(), V4.scrolled(), J(V4.ed())];
+    check('the page itself opened at words, run whole on the real code (planner.js\'s Find, its landing and its preview\'s redraw, with pagenav.js\'s own landing; the review of step 1): the first block that holds the words is scrolled to and lit, and the editor\'s box for it in the editing view; nothing is written into the planner\'s Find box and nothing marked, so later draws of the preview scroll nowhere and another planner opens with nothing marked; words a chart holds as its label are found; a Find typed by hand stays as it was; a block lands as before',
+        J(v1) === J([['2'], ['2'], J([0, 0, 1, 0, 0]), '', '', 0]) && J(v1b) === J([[], 0, []]) && J(v1c) === J([[], 0, '']) && J(v2) === J([['4'], J([0, 0, 0, 0, 1])])
+        && J(v3) === J([1, ['3'], 'guards', J([0, 0, 0, 0, 0])]) && J(v4) === J([['3'], ['3'], J([0, 0, 0, 1, 0])]), J([v1, v1b, v1c, v2, v3, v4]));
+    check('the planner draws through the one word and publishes the landing once: both of the preview\'s draws say which page it now holds, and the diagram run ends in that draw\'s word, after the pass that follows it',
+        count(pl, '          runPreviewMermaid(activeMap.id);\n          return;\n') === 1 && count(pl, '      preview.innerHTML = plannerPreviewHtml(activeMap, getActiveCampaign());\n      runPreviewMermaid(activeMap.id);\n') === 1 && count(pl, 'runPreviewMermaid(') === 3
+        && count(pl, "Promise.resolve(mermaid.run({ querySelector: '#plannerPreview .mermaid' })).then(fcPostProcess).catch(function() {}).then(function() { pvLaidOut(gen); }); } catch(e) { pvLaidOut(gen); }") === 1 && count(pl, 'window.wpPlannerLand = plannerLand;') === 1);
+}
+{
+    // a player's reader lands once the page is drawn (handbook.js, sliced by its readerland markers and run for real on plain objects)
+    const hb = read('scripts/handbook.js'), rdSrc = sliceOf(hb, 'readerland');
+    const rdRun = o => { o = o || {};
+        const R = { land: [], log: [], mm: 0 };
+        const body = { innerHTML: '', scrollTop: 40, clientWidth: 500, querySelectorAll: () => (o.diagrams ? [{}] : []), on: {}, addEventListener(t, f) { (this.on[t] = this.on[t] || []).push(f); }, fire(t, e) { (this.on[t] || []).forEach(f => f(Object.assign({ type: t }, e || {}))); } }, other = { innerHTML: '', clientWidth: 500, querySelectorAll: () => (o.diagrams ? [{}] : []) };
+        const els = { docReaderModal: { style: { display: 'none' } }, docReaderBody: body, docReaderTitle: { textContent: '' } };
+        const camp = { id: 'c1', items: { d1: { type: 'doc', meta: { title: 'Rules' } }, d2: { type: 'doc', meta: { title: 'More' } }, p1: { type: 'planner', meta: {} } } }, name = it => Object.keys(camp.items).find(k => camp.items[k] === it) || '?';
+        const sp = syncPromise();
+        const win = { mermaid: o.diagrams ? {} : undefined, wpFcPostProcess: () => { R.log.push('fc'); } }; if (o.hand) win.wpDocPanel = { hand: o.hand };
+        if (!o.noNav) win.wpPageNav = { landOf: landOfStand, land: (root, it, land) => { R.log.push('land'); R.land.push([root === body, name(it), J(land)]); return true; } };
+        const api = new Function('window', 'document', 'ui', 'getActiveCampaign', 'renderDoc', 'srcOf', 'sigOf', 'foreign', 'setMermaidMode', 'mermaid', 'setTimeout', 'Promise', "var openDocId = null, openCampId = null, openSig = '';\n" + rdSrc
+            + '\nreturn { open: openDoc, close: closeDoc, page: renderPage, into: renderInto };')(
+            win, { querySelector: () => null, body: { classList: { add() {}, remove() {} } } }, id => els[id] || null, () => camp, it => { R.log.push('draw:' + name(it)); return '<div></div>'; }, p => p, () => 'sig', () => false, () => {}, { run: () => { R.mm++; return {}; } }, fn => fn(), sp.P);
+        return { api, R, body, other, camp, settle: sp.settle }; };
+    const AT = { at: 'b_k3' };
+    const A = rdRun(), a0 = A.api.open('d1', AT), a1 = J(A.R.log); A.api.into(A.body, A.camp.items.d1); A.api.open('d1'); const a2 = A.R.land.length;
+    const P1 = rdRun(), p0 = P1.api.open('d1', { q: '  the barkeep ' }), Pl = rdRun(), pl0 = Pl.api.open('p1', AT);
+    const jk = JUNK_LANDS.map(L => { const X = rdRun(); X.api.open('d1', L); return X.R.land.length; }), nn = rdRun({ noNav: true }); nn.api.open('d1', AT);
+    check('the reader opens a page at a landing once it is drawn: pagenav\'s landing on the reader\'s body with the page drawn there, used once, so a refresh or an open with no landing lands nothing; a search text is trimmed; a planner opens nothing; a landing of junk, or no cleaner, lands nothing',
+        a0 === true && a1 === J(['draw:d1', 'land']) && J(A.R.land) === J([[true, 'd1', J(AT)]]) && a2 === 1 && p0 === true && J(P1.R.land) === J([[true, 'd1', J({ q: 'the barkeep' })]]) && pl0 === false && Pl.R.land.length === 0
+        && jk.every(n => n === 0) && nn.R.land.length === 0, J([a0, a1, A.R.land, P1.R.land, jk]));
+    const M = rdRun({ diagrams: true }); M.api.open('d1', AT); const m1 = [M.R.land.length, M.R.mm]; M.api.page(M.other, M.camp.items.d2); M.settle(); const m2 = J(M.R.log);
+    const S2 = rdRun({ diagrams: true }); S2.api.open('d1', AT); S2.api.open('d2'); S2.settle(); const S3 = rdRun({ diagrams: true }); S3.api.open('d1', AT); S3.api.open('d2', { q: 'ledger' }); S3.settle();
+    const Cl = rdRun({ diagrams: true }); Cl.api.open('d1', AT); Cl.api.close(); Cl.settle();
+    check('a reader\'s landing waits for the page\'s diagrams and the pass that follows them, and only the reader\'s latest draw makes it: a page drawn meanwhile elsewhere (a sheet\'s handbook search) neither makes nor drops it; a page opened since drops it, or makes its own landing alone; a closed reader lands nothing',
+        J(m1) === J([0, 1]) && m2 === J(['draw:d1', 'draw:d2', 'fc', 'land', 'fc']) && J(M.R.land) === J([[true, 'd1', J(AT)]]) && S2.R.land.length === 0 && J(S3.R.land) === J([[true, 'd2', J({ q: 'ledger' })]]) && Cl.R.land.length === 0, J([m1, m2, S2.R.land, S3.R.land, Cl.R.land]));
+    // and a reader's landing likewise (handbook.js rdHand with docpanel.js readerHand, run for real)
+    const dpR = fs.readFileSync(path.join(app, 'scripts', 'docpanel.js'), 'utf8'), handR = dpR.slice(dpR.indexOf('// [textcheck:panelhand-start]'), dpR.indexOf('// [textcheck:panelhand-end]'));
+    const rk = [];
+    for (const [name, act] of [['none', null], ['wheel', b => b.fire('wheel')], ['touch', b => b.fire('touchstart')], ['key', b => b.fire('keydown', { key: 'End', target: { nodeName: 'P' } })], ['field key', b => b.fire('keydown', { key: 'End', target: { nodeName: 'INPUT' } })], ['scrollTop', b => { b.scrollTop = 900; }]]) {
+        const X = rdRun({ diagrams: true, hand: new Function(handR + '\nreturn readerHand;')() }); X.api.open('d1', AT); if (act) act(X.body); X.settle(); rk.push([name, X.R.land.length]);
+    }
+    check('a reader\'s landing is not made where the reader has moved the page by their own hand since it was asked for (handbook.js rdHand with docpanel.js readerHand, run for real): a wheel, a touch and a key that scrolls on the reader\'s page drop it, so it is not made once the diagrams are laid out; a key typed into a field does not, nor a change of scrollTop alone',
+        J(rk) === J([['none', 1], ['wheel', 0], ['touch', 0], ['key', 0], ['field key', 1], ['scrollTop', 1]]), J(rk));
 }
 
 /* ---------- the play map's Next scene row ---------- */
@@ -552,6 +874,7 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
         && plan.includes('<li>The &times; on a tab closes that page, and so does the middle mouse button. The panel&rsquo;s own &times; closes every tab.</li>')
         && plan.includes('<li>The window button sends the page in front to a window of its own and closes its tab. The other tabs stay.</li>')
         && plan.includes('<li>The panel holds eight pages. A ninth takes the place of the oldest.</li>') && wn.every(t => count(t, NOTE3) === 1 && count(t, FIX3) === 1));
+    const NOTE5 = "- A page you find opens at the place it found. The Pages shelf's\n  Here and Around rows open a planner at its node for that map. A\n  quick-jump row found by a page's words, and a result of Search\n  Planners or Search Pages, open at the words you typed. The page\n  scrolls there, opens the folds around it and lights the spot for a\n  moment. This works over the map, in a window of its own, on the\n  page itself and in a player's reader. A page in a window of its own\n  has a Find box too. Ctrl+F takes you to it.\n";
     const NOTE4 = "- A piece of the play map can open a page. Select a picture, a token\n  or a plain shape and pick the page under Opens page in its\n  Properties. The piece then wears a small mark: a click on it opens\n  the page over the map, and Ctrl+click opens a window of its own.\n  The piece's right-click menu has Open page too, and the Pages shelf\n  lists the page under Here on that map. The link is yours alone:\n  players get the piece without it.\n";
     const guide = fs.readFileSync(path.join(root, 'CAMPAIGN_INTEGRATION.md'), 'utf8').replace(/\r\n/g, '\n');
     check('Help says the map pin, in the Planners part under In a session: what it is and where it is set; the mark and what a click, Ctrl+click and Alt+click on it do; the menu row; the shelf\'s Here; and that players get the piece without its link. Both release notes carry it, alike; the integration guide gives the two keys, their limits and that neither is sent',
@@ -560,6 +883,15 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
         && plan.includes('<li>The piece&rsquo;s right-click menu has <b>Open page</b> too.</li>') && plan.includes('<li>The Pages shelf lists the page under <b>Here</b> while you are on that map.</li>')
         && plan.includes('<li>A map pin is yours alone. Players get the piece without its link, and they never see the mark.</li>') && wn.every(t => count(t, NOTE4) === 1)
         && guide.includes("may carry `page`, the id of a planner or a handbook page of the same campaign.") && guide.includes("at most 80 characters from `A-Z a-z 0-9 _ . : -`.") && guide.includes("A campaign may carry `pinnedPages`, an array of planner and handbook page ids kept on the GM's Pages shelf, 24 at most. Both keys are GM prep and are never sent to players."));
+    check('Help says a page found opens at the place it found (1.5.4, PLANNER_ORG_DESIGN 4.1), in the Planners part under In a session after the shelf: the Here and Around rows, quick-jump\'s rows found by a page\'s words and the two search lists of the left panel; the page scrolled there, its folds opened and the spot lit; over the map, in a window of its own, on the page itself and in a player\'s reader; and the Find box of a window of its own, which Ctrl+F takes you to. Both release notes carry it, alike',
+        plan.includes('<li>A page you find opens <b>at the place it found</b>.\n')
+        && plan.includes('<li>The shelf&rsquo;s <b>Here</b> and <b>Around</b> rows open a planner at its node for that map.</li>')
+        && plan.includes('<li>A quick-jump row found by a page&rsquo;s words opens at those words. So does a result of <b>Search Planners</b> or <b>Search Pages</b> in the left panel.</li>')
+        && plan.includes('<li>The page scrolls there, the folds around it open, and the spot is lit for a moment.</li>')
+        && plan.includes('<li>This works over the map, in a window of its own, on the page itself and in a player&rsquo;s reader.</li>')
+        && plan.includes('<li>A page in a window of its own has a <b>Find</b> box too. <kbd>Ctrl</kbd>+<kbd>F</kbd> takes you to it.</li>')
+        && plan.indexOf('<li>The shelf is yours alone.') < plan.indexOf('<li>A page you find opens') && plan.indexOf('<li>A page you find opens') < plan.indexOf('<li>The panel over the map holds several pages at once.')
+        && wn.every(t => count(t, NOTE5) === 1));
     check('Help\'s Planners part says a click on Next scene opens it over the map; both release notes carry the line, alike; the suite is one of those CI runs',
         plan.includes('the play map&rsquo;s right-click menu then offers it as <b>&#9654; Next scene</b>. A click there opens it over the map. <b>Played</b> and <b>Skipped</b> mark a scene done.</li>')
         && wn.every(t => count(t, NOTE) === 1) && fs.readFileSync(path.join(root, '.github/workflows/checks.yml'), 'utf8').replace(/\r\n/g, '\n').includes('        if: ${{ !cancelled() }}\n        run: node tools/shelfcheck.js\n'));

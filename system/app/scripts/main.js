@@ -1333,6 +1333,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
         });
     }
 
+    // [shelfcheck:cmdkrows-start]
     function cmdkRender(q) {
         var raw = (q || '').trim(), ql = raw.toLowerCase();
         var scored = [];
@@ -1354,7 +1355,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
             Object.values(state.appState.campaigns).forEach(function(c) {
                 window.wpDocSearch(raw, c, ['doc', 'planner']).forEach(function(r) {
                     var key = c.id + '/' + r.id; if (already[key]) return; already[key] = 1;
-                    shown.push({ kind: r.type, label: r.title, sub: c.name, campId: c.id, itemId: r.id, snippet: r.snippet });
+                    shown.push({ kind: r.type, label: r.title, sub: c.name, campId: c.id, itemId: r.id, snippet: r.snippet, q: raw });   // 1.5.4: found by these words, so it opens at them (cmdkLand)
                 });
             });
         }
@@ -1371,6 +1372,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
             : '<div class="cmdk-empty">No matches.</div>';
         cmdkHintSync();
     }
+    // [shelfcheck:cmdkrows-end]
 
     function cmdkOpen() {
         cmdkBuild();
@@ -1398,15 +1400,23 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
         if (cmdkWay(en, { shiftKey: true }) === 'go') return 'Enter goes there.';
         return cmdkWay(en, null) === 'panel' ? 'Enter opens it over the map. Ctrl+Enter opens a new window. Alt+Enter opens the page itself.' : 'Enter opens the page. Shift+Enter opens it in a panel here. Ctrl+Enter opens a new window.';
     }
+    // 1.5.4 (PLANNER_ORG_DESIGN 4.1): a row found by a page's words opens at them, by every way. Its landing is the words typed, cleaned by the
+    // one cleaner (pagenav.js landOf); a row matched by its name has none and opens as before
+    function cmdkLand(en) {
+        var pn = window.wpPageNav;
+        if (!en || typeof en.q !== 'string' || !en.q || !pn || typeof pn.landOf !== 'function') return null;
+        try { return pn.landOf({ q: en.q }) || null; } catch (e) { return null; }
+    }
     // [shelfcheck:cmdkway-end]
     function cmdkHintSync() { var h = document.getElementById('cmdkHint'); if (h) h.textContent = cmdkHint(_cmdkShown[_cmdkIdx]); }
     function cmdkFront(i) { if (i === _cmdkIdx || !_cmdkShown[i]) return; _cmdkIdx = i; document.getElementById('cmdkList').querySelectorAll('.cmdk-row').forEach(function(r, k) { r.classList.toggle('active', k === _cmdkIdx); }); cmdkHintSync(); }
 
+    // [shelfcheck:cmdkgo-start]
     function cmdkGo(en, ev) {
         if (!en) return;
         cmdkClose();
         var way = cmdkWay(en, ev);
-        if (way !== 'go') { window.wpPageShelf.open(en.itemId, way); return; }   // 1.5.4: over the map or in a window of its own, and the map stays on screen
+        if (way !== 'go') { window.wpPageShelf.open(en.itemId, way, cmdkLand(en)); return; }   // 1.5.4: over the map or in a window of its own, and the map stays on screen; a row found by a page's words opens at them
         // A jump into another campaign while hosting is a campaign switch: the session ends first (asked)
         if (en.campId !== state.appState.activeCampaignId && window.wpConfirmCampaignSwitch) { window.wpConfirmCampaignSwitch(function() { cmdkGoNow(en); }); return; }
         cmdkGoNow(en);
@@ -1415,7 +1425,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
         if (!state.appState.campaigns[en.campId] || !state.appState.campaigns[en.campId].items[en.itemId]) return;
         var camp = state.appState.campaigns[en.campId];
         var it = camp.items[en.itemId];
-        if (it.type === 'doc' && window.wpNet && window.wpNet.foreign) { if (window.wpOpenDoc) window.wpOpenDoc(en.itemId); return; }   // a joined player reads a page in the panel; the map stays
+        if (it.type === 'doc' && window.wpNet && window.wpNet.foreign) { if (window.wpOpenDoc) { var landF = cmdkLand(en); if (landF) window.wpOpenDoc(en.itemId, landF); else window.wpOpenDoc(en.itemId); } return; }   // a joined player reads a page in the panel; the map stays
         state.appState.activeCampaignId = en.campId;
         camp.activeItemId = en.itemId;
         if (window.wpApplyRememberedView) window.wpApplyRememberedView();
@@ -1434,7 +1444,10 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
         render();
         restoreCameraPosition();
         if (window.wpSettingsSync) window.wpSettingsSync();   // Ctrl+K works over an open Settings modal: its VTT rows follow the campaign
+        var land = cmdkLand(en);
+        if (land && (it.type === 'planner' || it.type === 'doc') && typeof window.wpPlannerLand === 'function') window.wpPlannerLand(en.itemId, land);   // 1.5.4: the page itself lands at the words once it is drawn (planner.js)
     }
+    // [shelfcheck:cmdkgo-end]
 
     (function wireCmdk() {
         var inp = document.getElementById('cmdkInput');

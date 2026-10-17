@@ -689,6 +689,22 @@ if(_el_delItemBtn) _el_delItemBtn.addEventListener('click', function() {
 
 
   
+  // [shelfcheck:listland-start]
+  // 1.5.4 (PLANNER_ORG_DESIGN 4.1): a typed query's result opens at the hit. Its landing is the words typed, cleaned by the one cleaner
+  // (pagenav.js landOf); an empty query's A to Z list has none and opens exactly as before
+  function listLand(q) {
+      var pn = window.wpPageNav;
+      if (typeof q !== 'string' || !q || !pn || typeof pn.landOf !== 'function') return null;
+      try { return pn.landOf({ q: q }) || null; } catch (e) { return null; }
+  }
+  // The page itself, as a click in the tree opens it, then the landing once the page is drawn (planner.js)
+  function listGo(camp, id, land) {
+      camp.activeItemId = id;
+      state.selId = null; state.selWbId = null; state.linkStart = null;
+      updateSidebarNav(); render(); save(true);
+      if (land && typeof window.wpPlannerLand === 'function') window.wpPlannerLand(id, land);
+  }
+  // [shelfcheck:listland-end]
   var _el_searchPlannersBtn = document.getElementById('searchPlannersBtn');
   if(_el_searchPlannersBtn) _el_searchPlannersBtn.addEventListener('click', function() {
       var camp = getActiveCampaign();
@@ -715,12 +731,11 @@ if(_el_delItemBtn) _el_delItemBtn.addEventListener('click', function() {
           }
           if (!html) html = '<div class="muted">No items found.</div>';
           res.innerHTML = html;
+          var land = listLand(q);   // a typed query's result opens at the hit
           res.querySelectorAll('button').forEach(btn => {
               btn.addEventListener('click', function() {
                   m.style.display = 'none';
-                  camp.activeItemId = this.dataset.id;
-                  state.selId = null; state.selWbId = null; state.linkStart = null;
-                  updateSidebarNav(); render(); save(true);
+                  listGo(camp, this.dataset.id, land);
                   setTimeout(function(){ if(document.getElementById('centerBtn')) if (window.appRestoreCamera) window.appRestoreCamera();   /* the old #centerBtn is gone: restore the map's remembered camera */ }, 10);
               });
           });
@@ -761,13 +776,12 @@ if(_el_delItemBtn) _el_delItemBtn.addEventListener('click', function() {
           }
           if (!html) html = '<div class="muted">No pages found.</div>';
           res.innerHTML = html;
+          var land = listLand(q);   // a typed query's result opens at the hit, in the reader too
           res.querySelectorAll('button').forEach(btn => {
               btn.addEventListener('click', function() {
                   m.style.display = 'none';
-                  if (window.wpNet && window.wpNet.foreign) { if (window.wpOpenDoc) window.wpOpenDoc(this.dataset.id); return; }   // a received page is read, not edited
-                  camp.activeItemId = this.dataset.id;
-                  state.selId = null; state.selWbId = null; state.linkStart = null;
-                  updateSidebarNav(); render(); save(true);
+                  if (window.wpNet && window.wpNet.foreign) { if (window.wpOpenDoc) { if (land) window.wpOpenDoc(this.dataset.id, land); else window.wpOpenDoc(this.dataset.id); } return; }   // a received page is read, not edited
+                  listGo(camp, this.dataset.id, land);
               });
           });
       }

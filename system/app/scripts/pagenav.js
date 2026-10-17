@@ -63,7 +63,10 @@ var _foldMem = Object.create(null);   // what this window holds by itself: a pag
 function foldHash(s) { s = String(s); var h = 0x811c9dc5; for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return ('0000000' + h.toString(16)).slice(-8); }
 // the campaign and the page a place shows, as one text ('' where it cannot be said). One page has one key wherever it is read
 function navKeyFor(rootId) {
-    if (rootId === 'popoutBody') { var m = /^doc:(.+)$/.exec(new URLSearchParams(location.search).get('popout') || ''); return m ? m[1] : ''; }
+    if (rootId === 'popoutBody') {   // the window's page, as popout.js read it from its address (wpPopoutKey: the campaign and the page, never the landing after them)
+        if (typeof window.wpPopoutKey === 'string') return window.wpPopoutKey;
+        var m = /^doc:(.+)$/.exec(new URLSearchParams(location.search).get('popout') || ''); return m ? m[1] : '';
+    }
     var camp = typeof getActiveCampaign === 'function' ? getActiveCampaign() : null, cid = camp && typeof camp.id === 'string' ? camp.id : '', id = '';
     if (rootId === 'plannerPreview') id = camp && typeof camp.activeItemId === 'string' ? camp.activeItemId : '';
     else if (rootId === 'docPanelBody') id = window.wpDocPanel && typeof window.wpDocPanel.openId === 'function' ? window.wpDocPanel.openId() : '';
@@ -229,8 +232,108 @@ function foldReveal(root, el, own) {
 function foldStrip(root) { if (!root) return; navBlocks(root).forEach(foldClear); if (root.classList) root.classList.remove('pv-folds'); }
 // [pagecheck:fold-end]
 
+// [pagecheck:land-start]
+// Landing (1.5.4; the owner, 2026-10-16, by prompt: "Landing now, rest after Sunday (Recommended)"). Every way of opening a page can open it
+// at one block ({ at: the block's id }) or at a search hit ({ q: the words }): the page is scrolled there, the folds around it are opened, and the
+// block is lit for a moment, as a row of the Outline lights its heading. Nothing is stored and nothing is sent.
+var LAND_Q = 200, LAND_AT = /^[A-Za-z0-9_-]{1,64}$/;
+// The one cleaner of a landing: { q } where q is text that trims to 1 to 200 characters (cut by whole characters; half a character, which no
+// address can carry, is dropped), else { at } where at is 1 to 64 letters, digits, _ and -, else null. Own keys only; it never throws
+function landOf(v) {
+    try {
+        if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+        var own = function(k) { return Object.prototype.hasOwnProperty.call(v, k) ? v[k] : undefined; }, q = own('q'), at;
+        if (typeof q === 'string') {
+            var s = Array.from(q).filter(function(c) { var u = c.charCodeAt(0); return c.length > 1 || u < 0xd800 || u > 0xdfff; }).join('').trim();
+            s = Array.from(s).slice(0, LAND_Q).join('').trim();
+            if (s) return { q: s };
+        }
+        at = own('at');
+        if (typeof at === 'string' && LAND_AT.test(at)) return { at: at };
+    } catch (e) {}
+    return null;
+}
+// The page's Find folds words so: case and accents aside, one character for one (docpanel.js fold; pagecheck holds the two alike)
+function landFold(s) { return String(s == null ? '' : s).replace(/[\u00c0-\u024f\u1e00-\u1eff]/g, function(c) { return c.normalize('NFD')[0] || c; }).toLowerCase(); }
+function landEsc(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+// A drawn block's text in the stretches the page's Find reads it in (docpanel.js hlStretches), folded: the inline runs of a styled word read on,
+// anything else ends a stretch. Never its arrow's, a style sheet's or a script's. As the Find reads it (the review of step 1): never a diagram's
+// source the diagram library has not drawn yet, and in a drawn chart only its HTML labels (a foreignObject's), so that the panel and a window,
+// which land where their Find marks, land on the very block the page itself and the reader land on
+var LAND_RUN = { SPAN: 1, B: 1, STRONG: 1, I: 1, EM: 1, U: 1, S: 1, STRIKE: 1, A: 1, CODE: 1, FONT: 1, BIG: 1, SMALL: 1, MARK: 1 };
+function landUndrawn(k) {
+    if (String(k.nodeName).toUpperCase() !== 'PRE' || !navHas(k, 'mermaid')) return false;
+    for (var i = 0; k.childNodes && i < k.childNodes.length; i++) if (k.childNodes[i].nodeType === 1 && String(k.childNodes[i].nodeName).toUpperCase() === 'SVG') return false;
+    return true;
+}
+function landRuns(b) {
+    var out = [], cur = '', svg = false, end = function() { if (cur.trim()) out.push(landFold(cur)); cur = ''; };   // svg: inside a drawn chart and outside its HTML labels
+    (function walk(n) {
+        for (var i = 0; n && n.childNodes && i < n.childNodes.length; i++) {
+            var k = n.childNodes[i]; if (k.nodeType === 3) { if (!svg) cur += k.nodeValue; continue; }
+            if (k.nodeType !== 1 || navHas(k, 'pv-fold-btn') || landUndrawn(k)) continue;
+            var t = String(k.nodeName).toUpperCase(); if (t === 'STYLE' || t === 'SCRIPT') continue;
+            if (LAND_RUN[t] === 1 && !(t === 'SPAN' && k.className)) walk(k); else if (t === 'SVG' || t === 'FOREIGNOBJECT') { var was = svg; end(); svg = t === 'SVG'; walk(k); end(); svg = was; } else { end(); walk(k); end(); }
+        }
+    })(b);
+    end();
+    return out;
+}
+// whether a block's stretches hold a word at the start of a word, as the page's Find marks a word (docpanel.js matchRanges)
+function landHas(runs, w) { var re = new RegExp('(^|[^a-z0-9])' + landEsc(w)); return runs.some(function(r) { return re.test(r); }); }
+// The ONE rule for where words land, in every place a page is read (the maintainer's decision on the review of step 1): the first drawn block
+// that holds the whole of them in one stretch; else the first that holds each of them at the start of a word; else the first that holds any of
+// them at the start of a word; else none
+function landFind(blocks, q) {
+    var nq = landFold(q).trim(), words = nq.split(/\s+/).filter(Boolean), runs = blocks.map(landRuns), i;
+    if (!nq) return null;
+    for (i = 0; i < blocks.length; i++) if (runs[i].some(function(r) { return r.indexOf(nq) >= 0; })) return blocks[i];
+    if (words.length < 2) return null;
+    for (i = 0; i < blocks.length; i++) if (words.every(function(w) { return landHas(runs[i], w); })) return blocks[i];
+    for (i = 0; i < blocks.length; i++) if (words.some(function(w) { return landHas(runs[i], w); })) return blocks[i];
+    return null;
+}
+// The block words land on in a drawn page, by that rule, for a place that lands where its own Find marks (docpanel.js hlFinder: the panel over
+// the map and a page's window). The words as the landing's cleaner keeps them; null where they land nowhere. It never throws
+function landWords(root, q) {
+    try { var L = landOf({ q: q }); return L && root && typeof root === 'object' ? landFind(navBlocks(root), L.q) : null; } catch (e) { return null; }
+}
+// An element of the page lit for a moment (the Outline's row, a landing, a search hit's block); and brought to the top of its scroll box first
+function navFlash(el) { if (!el || !el.classList) return false; el.classList.add('pagenav-hit'); setTimeout(function() { el.classList.remove('pagenav-hit'); }, 1300); return true; }
+// the light navFlash put on taken off before its time: a landing made again on another block lights that one alone (docpanel.js hlFinder)
+function navUnflash(el) { if (!el || !el.classList) return false; el.classList.remove('pagenav-hit'); return true; }
+function navTop(el) { try { el.scrollIntoView({ block: 'start', behavior: 'auto' }); } catch (err) {} }
+function navGo(el) { navTop(el); navFlash(el); }
+// Opens a drawn page at its landing. root holds the page's drawn blocks, each carrying its place in it.blocks as data-blk (docrender renderDoc and
+// the planner's own renderer both number a block so, a block they draw nothing for keeping its number), and at is found by reading each drawn
+// block's own entry of it.blocks: never by putting the landing's text in a selector. The folds kept for the page are put on first (the page was
+// drawn a moment ago), then those around the block are opened, as the Outline opens them. Answers whether it landed; it never throws.
+// again (true only): the landing made once more after the page's charts were drawn (docpanel.js, popout.js): brought into view and its folds
+// opened as before, and not lit a second time
+function land(root, it, lnd, again) {
+    try {
+        var L = landOf(lnd), el = null, blocks, i; if (!L || !root || typeof root !== 'object') return false;
+        blocks = navBlocks(root);
+        if (L.at) {
+            var list = it && typeof it === 'object' && Array.isArray(it.blocks) ? it.blocks : null;
+            for (i = 0; list && i < blocks.length && !el; i++) {
+                var n = blocks[i].dataset ? blocks[i].dataset.blk : '', b = typeof n === 'string' && /^\d{1,6}$/.test(n) && Object.prototype.hasOwnProperty.call(list, n) ? list[n] : null;
+                if (b && typeof b === 'object' && Object.prototype.hasOwnProperty.call(b, 'id') && b.id === L.at) el = blocks[i];
+            }
+        } else el = landFind(blocks, L.q);
+        if (!el) return false;
+        if (NAV_PLACES.some(function(p) { return p[1] === root.id; })) foldApply(root);
+        foldReveal(root, el, true);
+        if (again === true) navTop(el); else navGo(el);
+        return true;
+    } catch (e) { return false; }
+}
+// [pagecheck:land-end]
+
 // [pagecheck:menu-start]
 var _navMenu = null, _navFrom = null, _navRoot = null;   // the menu (made at the first press), the button it is open from, and the page it lists
+// a press of the menu moves the page by the reader's own hand: a landing waiting to be made again on it is not made (docpanel.js readerHand)
+function navHand(root) { try { var dp = window.wpDocPanel, h = dp && typeof dp.hand === 'function' ? dp.hand(root) : null; if (h) h.moved(); } catch (e) {} }
 function navMenuEl() {
     if (_navMenu) return _navMenu;
     var m = document.createElement('div'); m.id = 'pageNavMenu'; m.setAttribute('role', 'menu'); m.style.display = 'none';
@@ -238,11 +341,11 @@ function navMenuEl() {
     m.addEventListener('click', function(e) {
         var act = e.target && e.target.closest ? e.target.closest('.pagenav-act') : null, row = act ? null : (e.target && e.target.closest ? e.target.closest('.pagenav-row') : null); if (!act && !row) return;
         var root = _navRoot; navClose(false); if (!root) return;
+        navHand(root);
         if (act) { foldAll(root, act.dataset.act === 'foldall'); return; }
         var bi = row.dataset.blk, find = function() { return navOutline(root).filter(function(h) { return h.bi === bi; })[0]; }, now = find(); if (!now) return;   // read again: the page may have been drawn again since
         if (foldReveal(root, now.el, true)) now = find() || now;   // a heading that was put away is brought out, and its own section opened
-        try { now.el.scrollIntoView({ block: 'start', behavior: 'auto' }); } catch (err) {}
-        now.el.classList.add('pagenav-hit'); setTimeout(function() { now.el.classList.remove('pagenav-hit'); }, 1300);
+        navGo(now.el);
     });
     m.addEventListener('keydown', function(e) {
         var rows = Array.prototype.slice.call(m.querySelectorAll('.pagenav-row, .pagenav-act')), at = rows.indexOf(document.activeElement), to = -1;   // the headings, then Fold all and Open all
@@ -336,6 +439,9 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     window.wpPageNav = {
         outline: navOutline, close: function() { navClose(false); }, isOpen: navIsOpen,
         reveal: function(el) { var root = navRootOf(el); return root ? foldReveal(root, el, false) : false; },   // Find, before it scrolls to a hit
-        strip: foldStrip, apply: foldApply   // an export of the page's own markup takes the folds off, then puts them back
+        strip: foldStrip, apply: foldApply,   // an export of the page's own markup takes the folds off, then puts them back
+        landWords: landWords,   // 1.5.4: the block words land on, by the one rule the page itself and the reader land by (docpanel.js hlFinder)
+        unflash: navUnflash,   // 1.5.4: a block a landing lit, its light taken off when the landing is made again on another (docpanel.js hlFinder)
+        landOf: landOf, land: land, flash: navFlash   // 1.5.4: a page opened at one block or at a search hit (docpanel.js, popout.js, pageshelf.js)
     };
 }

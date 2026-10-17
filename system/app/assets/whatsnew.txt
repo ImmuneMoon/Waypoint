@@ -301,6 +301,14 @@ Planners and pages
   link, or reach it with Tab, and the address it leads to stands at
   the bottom left of the window, as in a web browser. A link from
   someone else still asks first.
+- A page you find opens at the place it found. The Pages shelf's
+  Here and Around rows open a planner at its node for that map. A
+  quick-jump row found by a page's words, and a result of Search
+  Planners or Search Pages, open at the words you typed. The page
+  scrolls there, opens the folds around it and lights the spot for a
+  moment. This works over the map, in a window of its own, on the
+  page itself and in a player's reader. A page in a window of its own
+  has a Find box too. Ctrl+F takes you to it.
 
 The tour
 - The tour is short now. Each step says what a thing is and the few
@@ -652,6 +660,11 @@ Fixes
 - A player's screen no longer opens where you last looked at a map.
   A find or a pan of yours stays on your screen, and a map a player
   arrives on opens on their own token there.
+- Finding words no longer breaks a chart. A search in the panel over
+  the map, or the planner's own Find, could turn a flowchart or a chart
+  after the first one on the page into "Syntax error in text".
+- The search in the panel over the map no longer empties a sequence
+  diagram. The words it found went missing from the chart.
 
 WAYPOINT 1.5.3 — What's New
 ============================

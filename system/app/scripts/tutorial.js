@@ -21,7 +21,7 @@ import { save, toast, canPersistLocal, resetHistory, takeSafetyCopy, withoutHist
 import { updateCampaignSelect, updateSidebarNav, navigateToMap } from './sidebar.js';
 import { showConfirm } from './dialogs.js';
 
-var TUTORIAL_VERSION = '1.5.6';          // bump when STEPS or the demo campaign change
+var TUTORIAL_VERSION = '1.6.0';          // bump when STEPS or the demo campaign change
 var TUTORIAL_CAMP_ID = 'camp_tutorial';  // one Tutorial campaign per save
 var TUTORIAL_NAME = 'Tutorial';
 var TUTORIAL_ART_CAT = 'Default';   // the category every tutorial picture sits in (its own shelf, not under All)
@@ -57,6 +57,15 @@ function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function
 /* ---------- the demo campaign ---------- */
 // Ids are fixed so the tour can find its pieces and a rebuild replaces the old copy cleanly.
 /* ---- the demo system and character (character sheets, 1.5.0): a tiny ruleset so the tour can open a real sheet ---- */
+// The Tutorial's own postures (1.6.0, backlog 183 (3), the owner by prompt: "Simple generic lists (Recommended)"): Standing, Kneeling and
+// Prone, the ids its demo tokens use. No ranged note: a system gives its own
+function tutorialPostures() { return [{ id: 'standing', name: 'Standing' }, { id: 'kneeling', name: 'Kneeling', tag: 'KNL' }, { id: 'lying-prone', name: 'Prone', tag: 'PRN' }]; }
+// ... and an older Tutorial gets them once (camp.tutorialPostures 1), where its system lists none of its own; never a step of the GM's undo
+function ensureTutorialPostures(camp) {
+    var sys = camp && camp.system; if (!sys || typeof sys !== 'object') return;
+    if (!sys.combat || typeof sys.combat !== 'object') sys.combat = {};
+    if (!(Array.isArray(sys.combat.postures) && sys.combat.postures.length >= 2)) sys.combat.postures = tutorialPostures();
+}
 function tutorialSystem() {
     return { v: 1, name: 'Tutorial rules', preset: '', updated: 1,
         fields: [
@@ -78,7 +87,7 @@ function tutorialSystem() {
         rolls: [{ id: 'r_tut_init', label: 'Initiative', formula: 'd20 + floor((DEX - 10) / 2)', vis: 'all', init: true }, { id: 'r_tut_atk', label: 'Attack (sword)', formula: 'd20 + Skill.Sword', vis: 'all' }],
         items: [{ id: 'i_tut_firepot', name: 'Firepot', category: 'Thrown', icon: '🔥', notes: 'A thrown clay pot of alchemist\'s fire.', vis: 'all', area: { ft: 10, shape: 'circle', name: 'Firepot' }, damage: '2d6', cost: '', throwSkill: '' }],
         effects: tutorialEffects(),
-        combat: { blastAuto: 'full', blastRoller: 'owner', hpResource: 'f_tut_hp', light: { names: { dim: 'Dim light', dark: 'Darkness' }, presets: [{ name: 'Torch', bright: 3, dim: 7, pick: true }, { name: 'Brazier', bright: 2, dim: 4 }] }, senses: tutorialSenses() },   // lighting (L6): what the rules call a dim and a dark place, and two lights in yards — the torch one a player may pick; senses (S8): Hearing
+        combat: { blastAuto: 'full', blastRoller: 'owner', hpResource: 'f_tut_hp', postures: tutorialPostures(), light: { names: { dim: 'Dim light', dark: 'Darkness' }, presets: [{ name: 'Torch', bright: 3, dim: 7, pick: true }, { name: 'Brazier', bright: 2, dim: 4 }] }, senses: tutorialSenses() },   // lighting (L6): what the rules call a dim and a dark place, and two lights in yards — the torch one a player may pick; senses (S8): Hearing
         sheet: { sections: [], identity: [{ id: 'f_tut_class' }], ledger: [{ id: 'f_tut_strmod' }, { id: 'f_tut_sight' }], band: [{ id: 'f_tut_hp' }, { id: 'f_tut_ac' }, { id: 'f_tut_prone' }, { roll: 'r_tut_init' }], hud: tutorialHud() } };   // the automatic layout, with a header block (Stage 5d), a pinned band (Stage 5c) and a HUD (Stage 6) so the tour shows them
 }
 // the HUD (Stage 6): Bren's compact second window — checks and his attack on one tab, his condition on the other
@@ -354,7 +363,7 @@ function buildTutorialCampaign() {
         { id: 'tut_wb_thp2', type: 'circle', x: 14800, y: 15160, w: 40, h: 40, color: '#3a3a4a', layer: 'back-mid', name: 'Root pillar' },
         { id: 'tut_wb_thp3', type: 'circle', x: 15000, y: 14800, w: 40, h: 40, color: '#3a3a4a', layer: 'back-mid', name: 'Root pillar' },
         { id: 'tut_wb_thp4', type: 'circle', x: 15000, y: 15160, w: 40, h: 40, color: '#3a3a4a', layer: 'back-mid', name: 'Root pillar' },
-        hexTok(15240, 15000, pic('king_hex.png', { id: 'tut_wb_king', charName: 'King Thalindor Starseeker', name: 'King Thalindor', charStats: 'On the dais: Elevation +1. An NPC \u2014 the GM moves him.', charRef: 'tut_c_king', elevation: 1, posture: 'sitting' })),
+        hexTok(15240, 15000, pic('king_hex.png', { id: 'tut_wb_king', charName: 'King Thalindor Starseeker', name: 'King Thalindor', charStats: 'On the dais: Elevation +1. An NPC \u2014 the GM moves him.', charRef: 'tut_c_king', elevation: 1 })),
         hexTok(15240, 14900, pic('golems_hex.png', { id: 'tut_wb_warden1', charName: 'Warden', name: 'Warden', charStats: 'Elven golem. Does not move unless the king does.', elevation: 1 })),
         hexTok(15240, 15100, pic('golems_hex.png', { id: 'tut_wb_warden2', charName: 'Second Warden', name: 'Second Warden', charStats: 'Elven golem.', elevation: 1 })),
         hexTok(14700, 14950, pic('bren_hex.png', { id: 'tut_wb_bren3', charName: 'Bren of Hollowvale', name: 'Bren', charStats: 'Fighter.' })),
@@ -610,6 +619,7 @@ function ensureTutorialCampaign(rebuild) {
     });
     if (window.wpVtt && !window.wpVtt.locked()) camp.vtt = tutorialVtt();   // an older or flat-default copy: the tour never teaches chips that do not draw
     if (!(camp.tutorialFloors >= 1)) { ensureTutorialFloors(camp); camp.tutorialFloors = 1; }   // 1.5.4, once: the two floors no one sees are locked
+    if (!(camp.tutorialPostures >= 1)) { ensureTutorialPostures(camp); camp.tutorialPostures = 1; }   // 1.6.0, once: its own postures, now that no list is a default
     state.appState.activeCampaignId = TUTORIAL_CAMP_ID;
     state.selId = null; state.selWbId = null; state.selWbIds = []; state.linkStart = null;
     updateCampaignSelect(); updateSidebarNav(); render(); save(true);

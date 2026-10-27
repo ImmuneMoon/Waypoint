@@ -6,7 +6,7 @@
      page), the sheet walked as it is laid out: the header, the dashboard, the band as one line, every tab, every section.
    fileBase(name): a character's name as a file name. isCharFile(j): a character file. The caller (sheets.js) picks the view, works out
    `all` (resolveAll) on that same view and saves the file. */
-import { STORED, fmtNum, headerEntry, autoLayout, catPlace, rowDef, rowIdOf, rowLvl, rowOn, rowStat, plusText, rowPaid, showsIf, POSTURE_NAMES, postureAt, ownPostures, lookOf, unitWords, textWords, listWords } from './systemcore.js';
+import { STORED, fmtNum, headerEntry, autoLayout, catPlace, rowDef, rowIdOf, rowLvl, rowOn, rowStat, plusText, rowPaid, showsIf, postureAt, ownPostures, lookOf, unitWords, textWords, listWords } from './systemcore.js';
 import { docToMarkdown, mdEscapeText, fmtFromInline } from './docmd.js';
 import { cleanFmt, runsOf, SIZE_EM } from './textfmt.js';
 import { LIMITS as DOC_LIMITS } from './docrender.js';
@@ -335,7 +335,7 @@ function sheetToMarkdown(sys, view, all, opts) {
             else if (pl.kind === 'text' && pl.text) { flush(); B.push(textBlock('<p>' + lines(pl.text) + '</p>')); }
             else if (pl.kind === 'link' && typeof opts.pageTitle === 'function') { var pt = pl.page ? opts.pageTitle(pl.page) : null; if (typeof pt === 'string') items.push('<li>' + esc(pl.text || pt) + '</li>'); }
             else if (pl.kind === 'facing' && opts.tctx && isObj(opts.tctx.facing) && typeof opts.tctx.facing.deg === 'number') { var fc = opts.tctx.facing, nth = Array.isArray(fc.threats) ? fc.threats.length : 0; items.push(li('Facing', Math.round(fc.deg) + '°' + (nth ? ' · ' + nth + (nth === 1 ? ' threat marked' : ' threats marked') : ''))); }
-            else if (pl.kind === 'stance' && opts.tctx && isObj(opts.tctx.stance)) { var st = opts.tctx.stance, atX = typeof st.pid === 'string' || ownPostures(sys) ? postureAt(sys, st.pid) : null, pn = (atX && atX.p && atX.p.name) || POSTURE_NAMES[st.posture] || POSTURE_NAMES[0]; /* conditions C3: the posture as stored, in the system's own list */ items.push(li('Posture', pn)); if (typeof st.elevation === 'number' && st.elevation) items.push(li('Elevation', fmtNum(st.elevation) + ' yd')); }
+            else if (pl.kind === 'stance' && opts.tctx && isObj(opts.tctx.stance)) { var st = opts.tctx.stance, atX = ownPostures(sys) ? postureAt(sys, st.pid) : null; /* conditions C3: the posture as stored, in the system's own list; 1.6.0: none with no list */ if (atX && atX.p) items.push(li('Posture', String(atX.p.name || ''))); if (typeof st.elevation === 'number' && st.elevation) items.push(li('Elevation', fmtNum(st.elevation) + ' yd')); }
         });
         flush();
         secs.forEach(function(ch) { if (parentOf(ch) === sec) sectionBlocks(ch, true); });

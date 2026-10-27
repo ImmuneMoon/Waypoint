@@ -163,7 +163,7 @@
         wpFogSync: 'Re-check the Fog of war feature for the campaign or table on screen: shows or hides the fog tool and repaints (called by the VTT toggle fan-out). wpFogRedraw() just repaints the current fog overlay.',
         wpSpacePan: 'Flag - true while Space is held to pan the board from any tool.',
         wpSpawnTokenForCharacter: 'Drop a play-map token for a character. [sandbox hook]',
-        wpStance: 'The token-stance API (whiteboard.js): POSTURES, tokenElevation / tokenPosture, setElevation / setPosture, fmtElev, and on(feature) — which delegates to wpVtt.on.',
+        wpStance: 'The token-stance API (whiteboard.js): postures and postureAt (the list the system names), tokenElevation, setElevation / setPosture, fmtElev, and on(feature) — which delegates to wpVtt.on.',
         wpSyncRightPanel: 'Open/close the right Properties panel to match the current selection.',
         wpTurnToken: "Rotate a token's facing by N steps (+1 = clockwise).",
         wpUploadBlob: 'Upload a picture into an item\'s folder: (mapId, name, blob) → Promise of the /saves/images/… URL (whiteboard.js; the play-map drop, the planner Upload button and the Markdown importer all use it).',

@@ -873,7 +873,7 @@
                               </ul>
                           </li>
                           <li>When your system has a <b>range penalty</b>, every ruler also shows its modifier, such as <b>Range &minus;4</b>. The penalty is set in the <b>Range</b> box of the System editor&rsquo;s Combat card.</li>
-                          <li>With <b>Token posture</b> on, a ruler that ends on a token that is not standing adds <b>&minus;2 ranged</b> after the distance, and names the posture beside it. Every posture but standing makes a smaller target: &minus;2 to a foe&rsquo;s ranged attack roll, never melee. Waypoint only shows it, and whoever rolls adds it.</li>
+                          <li>With <b>Token posture</b> on, a ruler that ends on a token shows its posture&rsquo;s ranged note after the distance. It reads as <b>&minus;2 ranged</b> with the posture&rsquo;s name. The note is what a foe&rsquo;s ranged attack roll takes, never melee. Waypoint only shows it, and whoever rolls adds it.</li>
                       </ol>
                       <h4>Radius</h4>
                       <ul>
@@ -908,11 +908,11 @@
                       </ul>
                       <div class="help-tip"><b>Blasts from the sheet:</b> a blast with damage is thrown by a character, PC or NPC, from their sheet. It uses the campaign&rsquo;s own item library, under System &#9656; Items, and each item has its own name, radius and damage. A thrown blast reads in the ruler&rsquo;s unit on that map, as a circle of the Radius tool does. In metres it reads as a sheet&rsquo;s measure does, so a 3 yd blast is 2.7 m. The item keeps its radius in feet. See Help &#9656; Character sheets.</div>
                       <h4>Elevation &amp; posture</h4>
-                      <p>Two VTT features in <b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.2 5.1L10.7 2.8L13.3 2.8L13.8 5.1A7.1 7.1 0 0 1 15.6 5.9L17.6 4.6L19.4 6.4L18.1 8.5A7.1 7.1 0 0 1 18.9 10.2L21.2 10.7L21.2 13.3L18.9 13.8A7.1 7.1 0 0 1 18.1 15.6L19.4 17.6L17.6 19.4L15.6 18.1A7.1 7.1 0 0 1 13.8 18.9L13.3 21.2L10.7 21.2L10.2 18.9A7.1 7.1 0 0 1 8.5 18.1L6.4 19.4L4.6 17.6L5.9 15.6A7.1 7.1 0 0 1 5.1 13.8L2.8 13.3L2.8 10.7L5.1 10.2A7.1 7.1 0 0 1 5.9 8.5L4.6 6.4L6.4 4.6L8.4 5.9A7.1 7.1 0 0 1 10.2 5.1zM12 8.9a3.1 3.1 0 1 0 0 6.2 3.1 3.1 0 0 0 0-6.2z"/></svg> Settings &#9656; VTT features</b> give every character token a height and a posture. The height is in yards or metres, by your choice under Measuring. The postures are standing, crouching, sitting, kneeling, crawling, prone and face up, unless your system sets its own on its Combat card.</p>
+                      <p>Two VTT features in <b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.2 5.1L10.7 2.8L13.3 2.8L13.8 5.1A7.1 7.1 0 0 1 15.6 5.9L17.6 4.6L19.4 6.4L18.1 8.5A7.1 7.1 0 0 1 18.9 10.2L21.2 10.7L21.2 13.3L18.9 13.8A7.1 7.1 0 0 1 18.1 15.6L19.4 17.6L17.6 19.4L15.6 18.1A7.1 7.1 0 0 1 13.8 18.9L13.3 21.2L10.7 21.2L10.2 18.9A7.1 7.1 0 0 1 8.5 18.1L6.4 19.4L4.6 17.6L5.9 15.6A7.1 7.1 0 0 1 5.1 13.8L2.8 13.3L2.8 10.7L5.1 10.2A7.1 7.1 0 0 1 5.9 8.5L4.6 6.4L6.4 4.6L8.4 5.9A7.1 7.1 0 0 1 10.2 5.1zM12 8.9a3.1 3.1 0 1 0 0 6.2 3.1 3.1 0 0 0 0-6.2z"/></svg> Settings &#9656; VTT features</b> give every character token a height and a posture. The height is in yards or metres, by your choice under Measuring. The postures are the ones your system lists on its Combat card. A system that lists none has no posture.</p>
                       <ul>
                           <li>Both show as small chips at the foot of the token and in its Properties. Players right-click their own token to set theirs.</li>
                           <li>Switch either off and the chips vanish but the values stay.</li>
-                          <li>A token that is not standing is a smaller target. Its posture chip&rsquo;s tooltip and its hover card say that <b>ranged attacks against this token are at &minus;2</b>, on the attacker&rsquo;s roll. A ruler that ends on it shows the &minus;2 after the distance.</li>
+                          <li>A posture can carry a ranged note. Its chip&rsquo;s tooltip and the token&rsquo;s hover card then say that <b>ranged attacks against this token are at &minus;2</b>, or whatever the note says, on the attacker&rsquo;s roll. A ruler that ends on it shows the note after the distance.</li>
                           <li>That &minus;2 is shown only, never added to a roll for you, and it goes with the chips when Token posture is off.</li>
                           <li>Both are set <b>per campaign</b>. In a session your campaign's settings are the most your players see.</li>
                       </ul>
@@ -2139,13 +2139,13 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li>What each unit cost is kept on the row as Paid.</li>
                               </ul>
                           </li>
-                          <li><b>Postures</b>, at the foot of the Combat card, name how your tokens can stand. Without a list they take the seven built-in postures: standing, crouching, sitting, kneeling, crawling, lying prone and lying face up. Each but standing is a smaller target.
+                          <li><b>Postures</b>, at the foot of the Combat card, name how your tokens can stand. A system with no list has posture switched off: no chip, no menu, and Posture reads 0.
                               <ul>
-                                  <li><b>Name your own postures</b> starts from those seven, keeping their ids so a website sheet still sets them. Rename, reorder or add, up to 12.</li>
-                                  <li>Each posture has a <b>tag</b> for its chip on the token, up to 4 characters, and <b>notes</b> shown under it on the sheet. It has a <b>Smaller target</b> tick: &minus;2 to a foe&rsquo;s ranged roll, shown on the ruler and the token, never rolled for you. It has <b>changes</b> like an effect&rsquo;s, applied to the character while its token takes that posture.</li>
-                                  <li>The first is how a token stands with none set: it takes no tick and no changes.</li>
+                                  <li><b>Add postures</b> starts a list with Standing and one more. Rename, reorder or add, up to 12.</li>
+                                  <li>Each posture has a <b>tag</b> for its chip on the token, up to 4 characters, and <b>notes</b> shown under it on the sheet. It has a <b>Ranged note</b>, a whole number from &minus;20 to 20 that a foe&rsquo;s ranged roll takes. It shows on the ruler and the token, and is never rolled for you. It has <b>changes</b> like an effect&rsquo;s, applied to the character while its token takes that posture.</li>
+                                  <li>The first is how a token stands with none set: it takes no ranged note and no changes.</li>
                                   <li>Formulas read <b>Posture</b> as each one&rsquo;s place in the list, 0 for the first. So moving one changes what they read.</li>
-                                  <li><b>Back to the seven</b> drops your list.</li>
+                                  <li><b>Switch posture off</b> drops your list.</li>
                               </ul>
                           </li>
                           <li><b>Light</b>, on the Combat card, holds your game&rsquo;s light: what it calls a <b>dim</b> and a <b>dark</b> place, and its <b>light presets</b>. Word the penalty into a place&rsquo;s name, as in <code>Dim light (-2 to see)</code>, since the ruler and target marks show it on fogged maps with Lighting on. A preset, such as a torch or a lantern, is a name, a bright and a dim radius, and what they count in: yards, feet, metres or grid cells. A light&rsquo;s Properties on the play map offer the presets. One copied onto a light stays as it was when you change the list. Tick <b>Players may pick</b> on those a player may choose for their own token, from its right-click menu. The starter systems come with a few.</li>
@@ -2372,8 +2372,8 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           </li>
                           <li><b>Stance</b>: on the Layout tab, add <b>Stance</b>, the posture and elevation control, to a section. It shows and sets the character&rsquo;s token posture and elevation. Those are the same values as the token&rsquo;s chip and right-click menu, so changing either changes both. The token is found the same way as for the Facing dial.
                               <ul>
-                                  <li>Under the posture it says what that posture does: its changes and its notes. For a smaller target it says that <b>ranged attacks against you are at &minus;2</b>, on their roll and not yours.</li>
-                                  <li>Formulas can read <b>Posture</b>: 0 standing, 1 crouching, 2 sitting, 3 kneeling, 4 crawling, 5 lying prone, 6 lying face up. With postures of your own it is each one&rsquo;s place in your list. They can read <b>Elevation</b>, in yards. An example is <code>if(Posture = 0, 0, -2)</code>.</li>
+                                  <li>Under the posture it says what that posture does: its changes and its notes. For a posture with a ranged note it says that <b>ranged attacks against you are at &minus;2</b>, or whatever the note says, on their roll and not yours.</li>
+                                  <li>Formulas can read <b>Posture</b>: each posture&rsquo;s place in your system&rsquo;s list, 0 for the first, and 0 where the system lists none. They can read <b>Elevation</b>, in yards. An example is <code>if(Posture = 0, 0, -2)</code>.</li>
                                   <li>The elevation shows and is typed in yards or metres, as you chose under Measuring. A step is one yard either way. Formulas still read it in yards.</li>
                                   <li>Each reads 0 while its VTT feature is off or there is no token. The features are Token posture and Token elevation. A field of your own named Posture or Elevation keeps the name.</li>
                                   <li>A player sets their own token&rsquo;s stance, though not while paused. The numbers follow the table&rsquo;s settings: a player who switches the posture or elevation chips off for themselves only hides them.</li>
@@ -3554,7 +3554,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <div class="set-vtt-row" data-vtt="posture" style="margin-bottom:8px;">
                 <div class="set-field-label" style="display:flex; justify-content:space-between;">Token posture <span id="setPostureState" style="color:var(--dim);"></span></div>
                 <button class="tool ghost" id="setPostureBtn" style="width:100%;">Toggle Posture</button>
-                <div class="set-vtt-help" style="font-size:10.5px; color:var(--dim); line-height:1.4;">Standing, crouching, sitting, kneeling, crawling, prone or face up: a chip on the token. Players set their own token's posture and elevation by right-clicking it. Set per campaign; in a session, this campaign's setting is the most your players can see.</div>
+                <div class="set-vtt-help" style="font-size:10.5px; color:var(--dim); line-height:1.4;">A chip on the token, from the postures your system lists on its Combat card. Players set their own token's posture and elevation by right-clicking it. Set per campaign; in a session, this campaign's setting is the most your players can see.</div>
                 <div class="set-vtt-role" style="display:none; font-size:10.5px; color:var(--dim); line-height:1.4;"></div>
             </div>
             <div class="set-vtt-row" data-vtt="minimap" style="margin-bottom:8px;">

@@ -994,7 +994,7 @@ pendingChecks.push((async () => {
 })());
 /* ================= a session is one campaign (owner's answer 2026-09-29, found during senses S0 (b)): the real sanitizeAppState copies only the hosted campaign ================= */
 {
-    const saSrc = src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState');
+    const saSrc = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState');
     const SA = new Function('own', 'window', 'fxLib', 'itemLib', 'withHoverLines', 'fogCopyFor', 'fogPartyCopy', "'use strict';\n" + saSrc + '\nreturn sanitizeAppState;')(H.own, {}, () => ({}), () => ({}), v => v, (it) => it, (it) => it);
     const map = id => ({ id, type: 'map', meta: { title: id }, rooms: [], links: [], whiteboard: [{ id: 'orc_' + id, type: 'image', isChar: true, x: 1, y: 1, w: 50, h: 50 }] });
     const gm = () => ({ activeCampaignId: 'k1', _schema: 2, campaigns: { k1: { id: 'k1', name: 'Hosted', activeItemId: 'm1', items: { m1: map('m1') } }, k2: { id: 'k2', name: 'Secret game', activeItemId: 'm2', items: { m2: map('m2'), p2: { id: 'p2', type: 'planner', blocks: [] } } } } });
@@ -1011,7 +1011,7 @@ pendingChecks.push((async () => {
     try {
         const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).replace(/[\\]/g, '/');
         const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
-        const saSrcC = src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState');
+        const saSrcC = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState');
         const win = { wpSystemCore: Sx, wpFormula: Fx, wpLibrary: { catsFor: () => ({ show: ['Charms'], hide: ['Smuggled Relics'] }) } };
         const SAc = new Function('own', 'window', 'fxLib', 'itemLib', 'withHoverLines', 'fogCopyFor', 'fogPartyCopy', "'use strict';\n" + saSrcC + '\nreturn sanitizeAppState;')(H.own, win, () => ({}), () => ({}), v => v, it => it, it => it);
         const sys = () => ({ v: 1, name: 'Docks kit', rolls: [], items: [{ id: 'i_blade', name: 'Blade', category: 'Weapons' }, { id: 'i_coat', name: 'Coat', category: 'Armor' }, { id: 'i_gem', name: 'Gem', category: 'Hidden Stash', vis: 'gm' }],
@@ -1028,7 +1028,7 @@ pendingChecks.push((async () => {
 })());
 // item 21 V1: the campaign's video library is the GM's alone — the real sanitizeAppState leaves it out of the join snapshot and the stream window
 {
-    const saSrcV = src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState');
+    const saSrcV = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState');
     const SAv = new Function('own', 'window', 'fxLib', 'itemLib', 'withHoverLines', 'fogCopyFor', 'fogPartyCopy', "'use strict';\n" + saSrcV + '\nreturn sanitizeAppState;')(H.own, {}, () => ({}), () => ({}), v => v, (it) => it, (it) => it);
     const vids = () => [{ id: 'v_abcdefgh', name: 'The reveal', path: '/saves/images/video/k1/aaaa_reveal.mp4', size: 123456, dur: 42 }];
     const gmV = () => ({ activeCampaignId: 'k1', _schema: 2, campaigns: { k1: { id: 'k1', name: 'Hosted', activeItemId: null, items: {}, videos: vids() } } });
@@ -1040,7 +1040,7 @@ pendingChecks.push((async () => {
 }
 // backlog 125 (pageshelf.js): the pages pinned for the session name planners, which are the GM's alone — the real sanitizeAppState leaves the list (and the pinned maps) out of the join snapshot and the stream window
 {
-    const saSrcS = src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState');
+    const saSrcS = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState');
     const SAs = new Function('own', 'window', 'fxLib', 'itemLib', 'withHoverLines', 'fogCopyFor', 'fogPartyCopy', "'use strict';\n" + saSrcS + '\nreturn sanitizeAppState;')(H.own, {}, () => ({}), () => ({}), v => v, (it) => it, (it) => it);
     const gmS = () => ({ activeCampaignId: 'k1', _schema: 2, campaigns: { k1: { id: 'k1', name: 'Hosted', activeItemId: 'm1', pinnedMaps: ['m1'], pinnedPages: ['plan_secret_twist', 'doc_rules'],
         items: { m1: { id: 'm1', type: 'map', meta: { title: 'm1' }, rooms: [], links: [], whiteboard: [{ id: 'pin1', type: 'image', x: 1, y: 1, w: 50, h: 50, page: 'plan_secret_twist' }, { id: 'pin2', type: 'rect', x: 9, y: 9, w: 50, h: 50, page: 'doc_rules' }, { id: 'tokN', type: 'image', isChar: true, x: 5, y: 5, w: 50, h: 50, page: 'plan_secret_twist' }] }, plan_secret_twist: { id: 'plan_secret_twist', type: 'planner', meta: { title: 'The twist' }, blocks: [] }, doc_rules: { id: 'doc_rules', type: 'doc', meta: { title: 'Rules' }, blocks: [] } } } } });
@@ -1189,7 +1189,7 @@ pendingChecks.push((async () => {
 }
 // hidden pieces (owner, 2026-10-01: players see nothing where something is hidden): the join snapshot and the stream window, by the real sanitizeAppState
 {
-    const saSrcH = src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState');
+    const saSrcH = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState');
     const SAh = new Function('own', 'window', 'fxLib', 'itemLib', 'withHoverLines', 'fogCopyFor', 'fogPartyCopy', "'use strict';\n" + saSrcH + '\nreturn sanitizeAppState;')(H.own, {}, () => ({}), () => ({}), v => v, (it) => it, (it) => it);
     const gmH = () => ({ activeCampaignId: 'k1', _schema: 2, campaigns: { k1: { id: 'k1', name: 'Hosted', activeItemId: 'm1', items: { m1: { id: 'm1', type: 'map', rooms: [], links: [], whiteboard: [{ id: 'seen', type: 'rect', x: 1, y: 2, w: 3, h: 4 },
         { id: 'lurker', type: 'image', isChar: true, charName: 'Lurker', hidden: true, x: 777, y: 888, w: 60, h: 52 }, { id: 'trapdoor', type: 'rect', hidden: true, trap: true, targetMapId: 'm2', x: 555, y: 666, w: 50, h: 50 }] } } } } });
@@ -1208,7 +1208,7 @@ pendingChecks.push((async () => {
     const fogT = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'fog.js'), 'utf8').replace(/\r\n/g, '\n');
     const fogA = fogT.indexOf('function core() {'), fogB = fogT.indexOf('/* ---------- the overlay');
     const fogSrc = fogT.slice(fogA, fogB);
-    const saSrcP = src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + between('// [netcheck:foglit-start]', '// [netcheck:foglit-end]', 'foglit') + '\n' + lineOf('function mapFogged(') + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState');
+    const saSrcP = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + between('// [netcheck:foglit-start]', '// [netcheck:foglit-end]', 'foglit') + '\n' + lineOf('function mapFogged(') + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState');
     const mkSA = (feats, noFog, stance) => {   // stance: the host's stance module, where a case reads the ground
         const win = { wpFogCore: FCp, wpVtt: { on: k => feats[k] !== false, campaignOn: k => feats[k] !== false, mode: () => 'stream' } }; if (stance) win.wpStance = stance;
         let fog = null;
@@ -1336,9 +1336,10 @@ pendingChecks.push((async () => {
 // the patch gate: own keys only, and a token (or a stroke) the GM locked is frozen for its player
 {
     const patchSrc = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch');
-    const cleanersSrc = src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem('));
+    const cleanersSrc = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem('));
     const stroke = (w, pid) => (w && w.type === 'path' && w.ownerId === pid && Array.isArray(w.pts)) ? { id: w.id, type: 'path', byPlayer: true, ownerId: pid, pts: w.pts, x: w.x || 0, y: w.y || 0 } : null;
-    const runPatch = (camps, msg) => { try { return new Function('state', 'window', 'playerStroke', 'msg', 'prof', cleanersSrc + ownKeySrc + patchSrc + '\nreturn applyClientItemFiltered(msg, prof);')({ appState: { campaigns: camps } }, { wpVtt: { campaignOn: () => true } }, stroke, msg, { id: 'u_p' }); } catch (e) { return 'threw: ' + e.message; } };
+    const coreP = { ownPostures: () => true, postureAt: (sys, v) => ({ i: v === 'kneeling' ? 1 : 0, p: { id: v === 'kneeling' ? v : 'standing' } }) };   // 1.6.0: a system's own list stands in (none is a default)
+    const runPatch = (camps, msg) => { try { return new Function('state', 'window', 'playerStroke', 'msg', 'prof', cleanersSrc + ownKeySrc + patchSrc + '\nreturn applyClientItemFiltered(msg, prof);')({ appState: { campaigns: camps } }, { wpVtt: { campaignOn: () => true }, wpSystemCore: coreP }, stroke, msg, { id: 'u_p' }); } catch (e) { return 'threw: ' + e.message; } };
     const mk = () => ({ c1: { id: 'c1', items: { m1: { type: 'map', whiteboard: [
         { id: 't1', isChar: true, ownerId: 'u_p', x: 0, y: 0, rot: 0, front: 0 },
         { id: 't2', isChar: true, ownerId: 'u_p', x: 0, y: 0, rot: 0, front: 0, locked: true },
@@ -1385,7 +1386,7 @@ pendingChecks.push((async () => {
         j([held({ blocksSight: 1 }), held({ barrier: 'yes' }), held(null)]));
     // (2) the host's patch gate
     const patchSrc = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch');
-    const cleanersSrc = src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem('));
+    const cleanersSrc = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem('));
     const psSrc = fnSrc('function playerStroke(', '\n}\n', 'playerStroke') + '\n}\n';
     const run = (camps, msg, o) => { o = o || {}; const out = {}; let r;
         try { r = new Function('state', 'window', 'msg', 'prof', 'out', cleanersSrc + ownKeySrc + psSrc + patchSrc + '\nreturn applyClientItemFiltered(msg, prof, out);')({ appState: { campaigns: camps } }, o.noCore ? { wpVtt: { campaignOn: () => true } } : { wpVtt: { campaignOn: () => true }, wpFogCore: FCh }, msg, { id: o.pid || 'u_p' }, out); } catch (e) { r = 'threw: ' + e.message; }
@@ -1545,7 +1546,7 @@ pendingChecks.push((async () => {
     const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
     const FCn = await import(url('fogcore.js'));
     const patchSrc = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch'), actsSrc = between('// [netcheck:strokeacts-start]', '// [netcheck:strokeacts-end]', 'strokeacts');
-    const cleanersSrc = src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem('));
+    const cleanersSrc = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem('));
     const psSrc = fnSrc('function playerStroke(', '\n}\n', 'playerStroke') + '\n}\n';
     const run = (camps, msg, pid, pend) => { const notes = [], out = pend ? { conn: { peer: 'peer1' } } : {}; let r;
         try { r = new Function('state', 'window', 'msg', 'prof', 'out', 'strokeNote', 'hidPendOf', cleanersSrc + ownKeySrc + psSrc + patchSrc + '\nreturn applyClientItemFiltered(msg, prof, out);')({ appState: { campaigns: camps } }, { wpVtt: { campaignOn: () => true }, wpFogCore: FCn }, msg, { id: pid || 'u_p' }, out, (c, m, what, id) => { notes.push([c, m, what, id].join(':')); }, pend ? () => pend : undefined); } catch (e) { r = 'threw: ' + e.message; }
@@ -1581,7 +1582,7 @@ pendingChecks.push((async () => {
 // and a budget of points per player per map beside the count
 {
     const patchSrc = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch');
-    const cleanersSrc = src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem('));
+    const cleanersSrc = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem('));
     const psSrc = fnSrc('function playerStroke(', '\n}\n', 'playerStroke') + '\n}\n';
     const runP = (camps, msg, prof) => { try { return new Function('state', 'window', 'msg', 'prof', cleanersSrc + ownKeySrc + psSrc + patchSrc + '\nreturn applyClientItemFiltered(msg, prof);')({ appState: { campaigns: camps } }, { wpVtt: { campaignOn: () => true } }, msg, prof); } catch (e) { return 'threw: ' + e.message; } };
     const mk = () => ({ c1: { id: 'c1', items: {
@@ -4602,7 +4603,7 @@ pendingChecks.push((async () => {
     const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
     const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
     const posT = between('// [netcheck:pos-start]', '// [netcheck:pos-end]', 'pos'), patT = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch'), tmT = between('// [netcheck:turnmove-start]', '// [netcheck:turnmove-end]', 'turnmove');
-    const clT = src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem('));
+    const clT = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem('));
     const lineT = k => { const i = src.indexOf(k); return src.slice(i, src.indexOf('\n', i)); };
     const helpT = ['function peerProfileId(', 'function fxLib(', 'function itemLib('].map(lineT).join('\n') + '\n';
     const sysT = Sx.cleanSystem({ v: 1, name: 'T', fields: [{ id: 'f_sp', key: 'Speed', kind: 'number', def: 30 }, { id: 'f_g', key: 'GMFig', kind: 'number', def: 1, vis: 'gm' }], rolls: [], combat: { turn: { move: 'Speed', unit: 'ft', diag: 'one' } } }, { F: Fx, gmView: true });
@@ -7333,7 +7334,7 @@ pendingChecks.push((async () => {
         /\} else if \(\((?:msg\.type === '[a-z-]+' \|\| )+msg\.type === 'tok-light-ans'\) && net\.role === 'client'\) \{[^\n]*\n\s*\/\/ \[netcheck:charmakeans-start\]/.test(src));
 
     // (d) no other door in: the patch gate, the wire copy
-    const patchSrc = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch'), cleanersSrc = src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem('));
+    const patchSrc = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch'), cleanersSrc = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem('));
     const stroke = (w, pid) => (w && w.type === 'path' && w.ownerId === pid && Array.isArray(w.pts)) ? { id: w.id, type: 'path', byPlayer: true, ownerId: pid, pts: w.pts, x: w.x || 0, y: w.y || 0 } : null;
     const runPatch = (camps, msg) => { try { return new Function('state', 'window', 'playerStroke', 'msg', 'prof', cleanersSrc + ownKeySrc + patchSrc + '\nreturn applyClientItemFiltered(msg, prof);')({ appState: { campaigns: camps } }, { wpVtt: { campaignOn: () => true }, wpFogCore: FCx, wpSystemCore: Sx }, stroke, msg, { id: 'u_p' }); } catch (e) { return 'threw: ' + e.message; } };
     const liveP = () => ({ c1: { id: 'c1', system: sysOf(), items: { m1: { type: 'map', whiteboard: [
@@ -7390,7 +7391,7 @@ pendingChecks.push((async () => {
     const siS = siSrc();
     const afS = fnSrc('function anyFog(', '\n}\n', 'anyFog') + '\n}\n', mfS = lineOf('function mapFogged('), svS = lineOf('var _saveSoon = null;') + '\n' + lineOf('function saveRemoteSoon()');
     const nsS2 = between('// [netcheck:newplayerssync-start]', '// [netcheck:newplayerssync-end]', 'newplayerssync'), thS2 = between('// [netcheck:threats-start]', '// [netcheck:threats-end]', 'threats');
-    const posS2 = between('// [netcheck:pos-start]', '// [netcheck:pos-end]', 'pos'), patS2 = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch'), clS2 = src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem('));
+    const posS2 = between('// [netcheck:pos-start]', '// [netcheck:pos-end]', 'pos'), patS2 = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch'), clS2 = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem('));
     const netSrc = ['var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {}, bannedIds = {};', siS, flS, afS, mfS, whole('net.sendItem = function('), whole('net.broadcastItemFiltered = function('), whole('net.itemGone = function('), whole('net.kickPlayer = function('), smS, nsS2, cbS, ordersSrc, svS, dlS, ftS, bpS,
         'return { edit: function(msg, conn) {', edS, '}, fx: function(msg, conn) {', fxS, '}, threats: function(msg, conn) {', thS2, '}, sig: function() { return _sensesSig; }, pend: function() { return _sensesPend; }, at: function() { return _sensesAt; }, seed: sensesSeed, fire: sensesFire, forget: sensesForget, reset: sensesReset, pids: sensesPids,',
         'drop: sensesDrop, forgetMap: sensesForgetMap, keys: sensesKeys, banned: function() { return bannedIds; },',
@@ -8681,7 +8682,7 @@ pendingChecks.push((async () => {
     const bw = n => between('// [netcheck:' + n + '-start]', '// [netcheck:' + n + '-end]', n);
     const modSrc = ['var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {}, bannedIds = {};', siSrc(), bw('foglit'), fnSrc('function anyFog(', '\n}\n', 'anyFog') + '\n}\n', lineOf('function mapFogged('),
         fnSrc('function quickHash(', '\n}\n', 'quickHash') + '\n}\n', fnSrc('function playerStroke(', '\n}\n', 'playerStroke') + '\n}\n', whole4('net.sendItem = function('), whole4('net.broadcastItemFiltered = function('), whole4('net.itemGone = function('), whole4('net.kickPlayer = function('), bw('sensesmoved'), bw('combats'), lineOf('var _saveSoon = null;'), lineOf('function saveRemoteSoon()'), bw('bpos'),
-        src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem(')), ownKeySrc, bw('pos'), bw('patch'), bw('fogdiffapply'), bw('fogmove'), ordersSrc,
+        src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem(')), ownKeySrc, bw('pos'), bw('patch'), bw('fogdiffapply'), bw('fogmove'), ordersSrc,
         'return { pos: handlePos, patch: applyClientItemFiltered, landed: fogLanded, sweep: fogDragSweep, open: openDrag, opens: openDrags, end: dragEnd, live: fogOwnLive, clean: sanitizeItem, combats: broadcastCombats, targets: broadcastTargets, drags: function() { return _dragFrom; }, stale: FOG_DRAG_STALE_MS,',
         'held: function() { return _fogHeld; }, seedSnap: fogSeedSnapshot, forgetAll: fogForgetAll, hash: quickHash, copy: fogCopyFor, hid: function() { return _hidPend; },',
         'acks: function() { return _acks; }, ackTook: ackTook, ackOf: ackOf, withAck: withAck, ackSend: ackSend, forgetConn: fogForgetConn,',
@@ -8692,7 +8693,7 @@ pendingChecks.push((async () => {
     const J = v => JSON.stringify(v);
     const T = (id, owner, charId, c, r, more) => Object.assign({ id, type: 'image', isChar: true, charName: id, x: c * 50, y: r * 50, w: 50, h: 50, rot: 0, front: 0 }, owner ? { ownerId: owner } : {}, charId ? { charId } : {}, more || {});
     const M = (id, wb, fog) => ({ id, type: 'map', meta: { title: id, gridType: 'square', cellValue: 5, cellUnit: 'ft' }, rooms: [], links: [], fog: Object.assign({ on: true, mode: 'auto', light: 'dark', manual: { adds: [], cuts: [] } }, fog || {}), whiteboard: wb });
-    const sysM = Sx.cleanSystem({ v: 1, name: 'S', rolls: [], fields: [{ id: 'f_sight', key: 'Sight', label: 'Sight', kind: 'number', def: 60, edit: 'owner', vis: 'all' }] }, { F: Fx, gmView: true });
+    const sysM = Sx.cleanSystem({ v: 1, name: 'S', rolls: [], fields: [{ id: 'f_sight', key: 'Sight', label: 'Sight', kind: 'number', def: 60, edit: 'owner', vis: 'all' }], combat: { postures: ['standing', 'crouching', 'sitting', 'kneeling', 'crawling', 'lying-prone', 'lying-face-up'].map(id => ({ id, name: id })) } }, { F: Fx, gmView: true });   // 1.6.0: postures of its own, none being a default
     // mA: a dark 5 ft map; Ana's tA at (2,2) sees 12 cells, the orc at (15,2) is 13 away (seen from (5,2)); Bo's tB at (2,4) sees tA, never the orc.
     // mB: tA2 and orc2 the same way. mC: a facing cone of 90 degrees with tC and a bat 4 cells off. mO: Bo's other map
     const quickHash4 = new Function(fnSrc('function quickHash(', '\n}\n', 'quickHash') + '\n}\nreturn quickHash;')();
@@ -10182,7 +10183,7 @@ pendingChecks.push((async () => {
     check('item 20 K2 what a player may be sent of a clock (clockOut): day 1 when there is none yet, the time cleaned (below 0 is 0, past the limit the limit), nothing with the Calendar off or no campaign',
         j(outK) === j([{ t: 0 }, { t: 0 }, { t: 0 }, { t: 1e15 }, null, null]), j(outK));
     // the join snapshot: the real sanitizeAppState, with and without the clock's rule beside it
-    const saSrcK = src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState');
+    const saSrcK = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState');
     const clockOutSrc = syncK.slice(syncK.indexOf('function clockOut('), syncK.indexOf('\n', syncK.indexOf('function clockOut(')));
     const SAk = new Function('own', 'window', 'fxLib', 'itemLib', 'withHoverLines', 'fogCopyFor', 'fogPartyCopy', "'use strict';\n" + clockOutSrc + '\n' + saSrcK + '\nreturn sanitizeAppState;')(H.own, { wpCalendarCore: CCx, wpVtt: vttK }, () => ({}), () => ({}), v => v, it => it, it => it);
     const SA0 = new Function('own', 'window', 'fxLib', 'itemLib', 'withHoverLines', 'fogCopyFor', 'fogPartyCopy', "'use strict';\n" + saSrcK + '\nreturn sanitizeAppState;')(H.own, { wpCalendarCore: CCx, wpVtt: vttK }, () => ({}), () => ({}), v => v, it => it, it => it);
@@ -11184,7 +11185,7 @@ pendingChecks.push((async () => {
         fnSrc('function quickHash(', '\n}\n', 'quickHash') + '\n}\n', lineOf('function uniqueIds('), fnSrc('function itemDelta(itemId, clean) {', '\nfunction applyItemDelta(', 'itemDelta'), fnSrc('function playerStroke(', '\n}\n', 'playerStroke') + '\n}\n',
         whole9('net.sendItem = function('), whole9('net.broadcastItemFiltered = function('), whole9('net.itemGone = function('), whole9('net.pushItems = function('), whole9('net.summonPlayerToMap = function('), bw('stage'), bw('combats'),
         fnSrc('function freeSpotNear(', '\n}\n', 'freeSpotNear') + '\n}\n', fnSrc('function stepOffPortal(', '\n}\n', 'stepOffPortal') + '\n}\n', fnSrc('function portalUnder(', '\n}\n', 'portalUnder') + '\n}\n', trSrc,
-        lineOf('var _saveSoon = null;'), lineOf('function saveRemoteSoon()'), bw('bpos'), src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem(')), bw('pos'), bw('patch'), bw('fogmove'), ordersSrc,
+        lineOf('var _saveSoon = null;'), lineOf('function saveRemoteSoon()'), bw('bpos'), src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem(')), bw('pos'), bw('patch'), bw('fogmove'), ordersSrc,
         'return { snapshot: sanitizeAppState, travel: hostTravel, stageConn: stageConn, relay: broadcastPos, seedSnap: fogSeedSnapshot, catchUp: fogCatchUp, fire: fogMoveFire, arm: fogArm, forgetConn: fogForgetConn, forgetAll: fogForgetAll, ackTook: ackTook, fogHeld: function() { return _fogHeld; },',
         'held: typeof mapHeld === "function" ? mapHeld : null, heldNote: typeof mapHeldNote === "function" ? mapHeldNote : null, heldOf: typeof mapHeldOf === "function" ? mapHeldOf : null, give: typeof mapGive === "function" ? mapGive : null, stub: typeof mapStub === "function" ? mapStub : null, store: function() { return typeof _mapHeld === "object" ? _mapHeld : null; }, take: typeof mapTake === "function" ? mapTake : null, left: typeof mapLeft === "function" ? mapLeft : null, follow: typeof followConns === "function" ? followConns : null, pend: function(p, m) { return typeof hidPendOf === "function" ? hidPendOf(p, m) : null; }, posIn: typeof handlePos === "function" ? handlePos : null, patchIn: typeof applyClientItemFiltered === "function" ? applyClientItemFiltered : null,',
         'needItem: function(msg, conn) {', niBody, '}, stubSync: typeof mapStubSync === "function" ? mapStubSync : null, stubSaid: function() { return typeof _stubSaid === "object" ? _stubSaid : null; } };'].join('\n');
@@ -15645,7 +15646,7 @@ pendingChecks.push((async () => {
         fnSrc('function quickHash(', '\n}\n', 'quickHash') + '\n}\n', lineOf('function uniqueIds('), fnSrc('function itemDelta(itemId, clean) {', '\nfunction applyItemDelta(', 'itemDelta'), fnSrc('function playerStroke(', '\n}\n', 'playerStroke') + '\n}\n',
         wholeS('net.sendItem = function('), wholeS('net.broadcastItemFiltered = function('), wholeS('net.itemGone = function('), wholeS('net.pushItems = function('), wholeS('net.summonPlayerToMap = function('), bw('stage'),
         fnSrc('function freeSpotNear(', '\n}\n', 'freeSpotNear') + '\n}\n', fnSrc('function stepOffPortal(', '\n}\n', 'stepOffPortal') + '\n}\n', fnSrc('function portalUnder(', '\n}\n', 'portalUnder') + '\n}\n', fnSrc('function hostTravel(conn, traveler, portal, fromMap, gmHand) {', '\n// The portal item under a token\'s center', 'hostTravel'),
-        lineOf('var _saveSoon = null;'), lineOf('function saveRemoteSoon()'), bw('bpos'), src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem(')), bw('pos'), bw('patch'), bw('fogmove'), ordersSrc,
+        lineOf('var _saveSoon = null;'), lineOf('function saveRemoteSoon()'), bw('bpos'), src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem(')), bw('pos'), bw('patch'), bw('fogmove'), ordersSrc,
         'return { snapshot: sanitizeAppState, seedSnap: fogSeedSnapshot, arm: fogArm, heldNote: mapHeldNote, heldOf: mapHeldOf, patchIn: applyClientItemFiltered };'].join('\n');
     const NAMES = ['net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'sendFailed', 'peerProfileId', 'lim', 'pushChat', 'state', 'broadcast', '_lastSent', 'setTimeout', 'clearTimeout', 'save', 'toast', 'logEvent', 'renderRoster', 'dropWaitingFor', 'allow', 'render', 'broadcastRoster', 'checkRoomHandouts', 'applyPosToDom', 'bellOut', 'renderNotepad', 'fogNow', 'ensurePlayerToken', 'findLandingRoom', 'landingPoint'];
     const buildHost = new Function(...NAMES, modSrc);
@@ -16673,7 +16674,7 @@ pendingChecks.push((async () => {
         const DRh = await import(urlW('docrender.js')), win = { wpDocRender: DRh }, J2 = JSON.stringify;
         const pg = (id, players, parentId) => ({ id, type: 'doc', meta: Object.assign({ title: id }, players === false ? { players: false } : {}, parentId ? { parentId } : {}), blocks: [{ id: 'b1', type: 'text', content: '<p>' + id + '</p>' }] });
         const camp = { id: 'k', name: 'K', activeItemId: 'm', items: { m: { id: 'm', type: 'map', meta: { title: 'M' }, whiteboard: [], rooms: [], links: [] }, f: pg('f', false), c: pg('c', true, 'f'), g: pg('g', true, 'c'), p: pg('p', true) } };
-        const saSrcH = src.slice(src.indexOf('var POSTURE_SET = '), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState');
+        const saSrcH = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState');
         const [SAh, SIh] = new Function('own', 'window', 'fxLib', 'itemLib', 'withHoverLines', 'fogCopyFor', 'fogPartyCopy', 'getActiveCampaign', "'use strict';\n" + saSrcH + '\nreturn [sanitizeAppState, sanitizeItem];')(H.own, win, () => ({}), () => ({}), v => v, it => it, it => it, () => camp);
         const snap = SAh({ activeCampaignId: 'k', campaigns: { k: camp } }, 'u_a', null), keys = Object.keys(snap.campaigns.k.items).sort().join(), stream = Object.keys(SAh({ activeCampaignId: 'k', campaigns: { k: camp } }).campaigns.k.items).sort().join();
         const one = { c: SIh(camp.items.c), g: SIh(camp.items.g), p: !!SIh(camp.items.p), f: SIh(camp.items.f) };

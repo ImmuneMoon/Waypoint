@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast, toastAction } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { cleanDamageRules, rollSwitches, rollSwitchesAll, cleanRollSw, withCross, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, envBands, envWorst, ALT_MAX, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, DEFAULT_POSTURES, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
+import { cleanDamageRules, rollSwitches, rollSwitchesAll, cleanRollSw, withCross, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, envBands, envWorst, ALT_MAX, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, postureRangedOf, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
 import { roundSays } from './systemcore.js';   // clarity package: how a value was rounded, for its tooltip
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
 import { lvlsFromBox, lvlsToText } from './librarycore.js';
@@ -543,6 +543,7 @@ function postureFollow(c, camp) {
     var sys = camp.system, now = postureFx(sys, c, F()), key = (camp.id || '') + '|' + c.id, was = _postOn[key]; _postOn[key] = now;
     if (!was) return [];
     var vt = window.wpVtt; if (vt && !(vt.rulesOn ? vt.rulesOn('posture') : vt.on('posture'))) return [];
+    if (typeof postureList === 'function' && !postureList(sys).length) return [];   // 1.6.0: a system with no postures of its own has posture switched off
     var came = Object.keys(now).filter(function(id) { return !was[id]; }), went = Object.keys(was).filter(function(id) { return !now[id] && was[id].back; }); if (!came.length && !went.length) return [];
     var S = window.wpSystemCore, seat = function(t, p) { var at = S && S.postureAt ? S.postureAt(sys, p) : null; if (at && at.i > 0 && at.p) t.posture = at.p.id; else delete t.posture; }, maps = [];
     Object.keys(camp.items || {}).forEach(function(mid) {
@@ -876,7 +877,7 @@ function facingNode(c, gm) {
 // Stage 6: the token's posture and elevation on the sheet — the same values as the token's chip and menu, set from either (a player: their own
 // token, not paused; each part only while its VTT feature is on). With both features off a player sees nothing and the GM a note.
 function stanceNode(c, gm) {
-    var wrap = el('div', 'sheet-stance'), pOn = vttOn('posture'), eOn = vttOn('elevation'); wrap.dataset.sig = stanceSigOf(c, getActiveCampaign());
+    var wrap = el('div', 'sheet-stance'), pOn = vttOn('posture') && postureList(systemOf()).length > 0, eOn = vttOn('elevation');   // 1.6.0: posture only where the system lists its own wrap.dataset.sig = stanceSigOf(c, getActiveCampaign());
     if (!pOn && !eOn) { if (!gm) { wrap.hidden = true; return wrap; } wrap.appendChild(el('div', 'sheet-dial-note', 'Token posture and elevation are off (Settings \u25b8 VTT features).')); return wrap; }
     var t = facingTarget(c, getActiveCampaign()), st = t ? stanceCtx(t.tok, tokenFlags()) : null;   // the values are the table's (a hidden row is only a display choice)
     if (!st) { wrap.appendChild(el('div', 'sheet-dial-note', 'No token on this map.')); return wrap; }
@@ -885,7 +886,7 @@ function stanceNode(c, gm) {
     if (pOn) {
         var pr = el('label', 'sheet-stance-row'); pr.appendChild(el('span', 'sheet-label', 'Posture'));
         var ps = el('select', 'field sheet-select'); ps.dataset.dk = 'posture';
-        var sysS = systemOf(), atS = postureAt(sysS, st.pid);   // conditions C3: the postures in use (the system's own list, else the seven)
+        var sysS = systemOf(), atS = postureAt(sysS, st.pid);   // conditions C3: the system's own postures
         postureList(sysS).forEach(function(p, i) { ps.appendChild(opt(p.id, p.name, atS.i === i)); });
         ps.disabled = !live; ps.addEventListener('change', function() { setSt({ posture: ps.value }); });
         pr.appendChild(ps); wrap.appendChild(pr);
@@ -909,13 +910,14 @@ function stanceNode(c, gm) {
     return wrap;
 }
 // [sinkcheck:posturewords-start]
-// Conditions C3: what the token's posture does, under the stance control as the reference sheet shows a posture's effect — its changes, a smaller
-// target's -2 (in the website's words), its notes; nothing for the first posture. Text only (a text node)
+// Conditions C3: what the token's posture does, under the stance control as the reference sheet shows a posture's effect — its changes, its
+// ranged note (1.6.0), its notes; nothing for the first posture. Text only (a text node)
+function rangedWords(n) { return (n < 0 ? '\u2212' + (-n) : '+' + n); }   // a ranged note's figure, signed: text
 function postureWords(sys, at) {
     if (!at || !(at.i > 0) || !at.p || typeof at.p !== 'object') return '';
     var labels = {}; ((sys && Array.isArray(sys.fields)) ? sys.fields : []).forEach(function(x) { if (x && typeof x.id === 'string') labels[x.id] = x.label || x.key; });
     var out = (Array.isArray(at.p.mods) ? at.p.mods : []).map(function(m) { return fxChangeText(m, labels); });
-    if (at.p.small === true) out.push('Ranged attacks against you are at \u22122 (their roll, not yours)');
+    var rg = typeof postureRangedOf === 'function' ? postureRangedOf(at.p) : 0; if (rg) out.push('Ranged attacks against you are at ' + rangedWords(rg) + ' (their roll, not yours)');
     if (typeof at.p.notes === 'string' && at.p.notes) out.push(at.p.notes);
     return out.join(' \u00b7 ');
 }
@@ -5896,13 +5898,14 @@ function refreshErrors() {
         psE.forEach(function(p, i) {
             if (!p || typeof p !== 'object') return;
             var nm = 'Posture ' + (i + 1), nmT = typeof p.name === 'string' ? p.name.slice(0, 256).replace(lCtl, ' ').trim() : '', lb = nmT ? ' (' + nmT + ')' : '';
-            if (typeof p.id !== 'string' || pSeen[p.id] || !(/^p_[A-Za-z0-9_]{1,24}$/.test(p.id) || POSTURE_IDS.indexOf(p.id) >= 0)) { pErr.push({ message: nm + lb + ': its id is not one Save keeps, or another posture has it: Save drops it.' }); return; }
+            if (typeof p.id !== 'string' || pSeen[p.id] || !/^(?:p_[A-Za-z0-9_]{1,24}|[a-z][a-z0-9-]{0,23})$/.test(p.id)) { pErr.push({ message: nm + lb + ': its id is not one Save keeps, or another posture has it: Save drops it.' }); return; }
             if (pKept >= LIMITS.postures) { pErr.push({ message: nm + lb + ': at most ' + LIMITS.postures + ', so Save drops it.' }); return; }
             pSeen[p.id] = 1; pKept++;
             if (!nmT) pErr.push({ message: nm + ' has no name: Save calls it Posture.' });
             if (typeof p.tag === 'string' && Array.from(p.tag.replace(lCtl, ' ').trim()).length > LIMITS.postureTag) pErr.push({ message: nm + lb + ': a tag is at most ' + LIMITS.postureTag + ' characters, so Save cuts it.' });
             var mods = Array.isArray(p.mods) ? p.mods : [];
-            if (pKept === 1) { if (p.small === true || mods.length) pErr.push({ message: nm + lb + ' is first, how a token stands with none set: Save drops its smaller-target tick and its changes.' }); return; }
+            if (pKept === 1) { if (p.small === true || p.ranged !== undefined || mods.length) pErr.push({ message: nm + lb + ' is first, how a token stands with none set: Save drops its ranged note and its changes.' }); return; }
+            if (p.ranged !== undefined && !(typeof p.ranged === 'number' && p.ranged === Math.round(p.ranged) && p.ranged !== 0 && Math.abs(p.ranged) <= 20)) pErr.push({ message: nm + lb + ': a ranged note is a whole number from \u221220 to 20, not 0, so Save drops it.' });
             mods.forEach(function(m, mi) {
                 var k = m && typeof m === 'object' && typeof m.f === 'string' ? kindsP[m.f] : '';
                 var ok = !!k && (m.op === 'on' ? k === 'toggle' : m.op === 'add' && typeof m.v === 'number' && isFinite(m.v) && Math.abs(m.v) <= LIMITS.effectAmount && (m.part === 'max' ? k === 'resource' : (k === 'number' || k === 'skill' || k === 'formula')));
@@ -5910,7 +5913,7 @@ function refreshErrors() {
                 else if (!ok) pErr.push({ message: nm + lb + ', change ' + (mi + 1) + ': a field that is gone or changed kind, or an amount that is no number: Save drops it.' });
             });
         });
-        if (pKept < 2) pErr.push({ message: 'A list of postures needs at least two: Save goes back to the seven.' });
+        if (pKept < 2) pErr.push({ message: 'A list of postures needs at least two: Save drops it, and posture is switched off.' });
     }
     if (pErr.length) errorsById.postures = pErr;
     // initiative O2: what Save drops of the tie steps, under the Initiative box — read as the cleaner reads them (a step that reads, of 300
@@ -7109,22 +7112,22 @@ function budgetClick(b) {
     markDirty(); renderBudgets(); patchErrors(); return true;
 }
 // [systemcheck:budgetbox-end]
-// Conditions C3 (docs/CONDITIONS_PLAN.md): the system's own postures on the Combat card — how a token can stand, in order. None: the seven.
-// Name your own starts from the seven (their ids kept, so a website sheet still sets them). Each row a name, its chip's tag, a "smaller target"
-// tick (-2 to a foe's ranged roll, shown only: the owner's answer of 2026-09-30), notes and changes as an effect's; the first is how a token
-// stands with none set and takes neither. Every text lands as a value or a text node. Save cleans them; refreshErrors says what it would drop
+// Conditions C3 (docs/CONDITIONS_PLAN.md): the system's own postures on the Combat card — how a token can stand, in order. None: posture is
+// switched off (1.6.0, backlog 183 (3)). Add postures starts a list of Standing and one more. Each row a name, its chip's tag, a ranged note
+// (a whole number a foe's ranged roll takes, shown only: "A ranged note per posture (Recommended)"), notes and changes as an effect's; the first
+// is how a token stands with none set and takes neither. Every text lands as a value or a text node. Save cleans them; refreshErrors says what it would drop
 // [sinkcheck:posturebox-start]
 function postureDraft() { var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }); return Array.isArray(cm.postures) ? cm.postures : (cm.postures = []); }
 function postureBox(box, cm) {
     var arr = Array.isArray(cm.postures) ? cm.postures : [], wrap = el('div', 'sys-postures'), targets = fxTargets(draft);
     wrap.appendChild(el('div', 'sys-light-head', 'Postures'));
-    wrap.appendChild(el('div', 'sys-note', arr.length ? 'How a token can stand, in order. The first is how a token stands with none set; formulas read Posture as each one\u2019s place (0 for the first), so moving one changes what they read. A posture\u2019s changes apply to the character while its token takes it; a smaller target shows \u22122 to a foe\u2019s ranged roll on the ruler and the token (never worked into a roll).' : 'Your tokens take the seven built-in postures: Standing, Crouching, Sitting, Kneeling, Crawling, Lying prone (face down) and Lying face up, each but Standing a smaller target (\u22122 to a foe\u2019s ranged roll, shown only). Name your own to rename, reorder or add to them, each with changes like an effect\u2019s.'));
+    wrap.appendChild(el('div', 'sys-note', arr.length ? 'How a token can stand, in order. The first is how a token stands with none set; formulas read Posture as each one\u2019s place (0 for the first), so moving one changes what they read. A posture\u2019s changes apply to the character while its token takes it. Its ranged note shows what a foe\u2019s ranged roll takes on the ruler and the token, and is never worked into a roll.' : 'Posture is off for this system: tokens have no posture chip or menu, and Posture reads 0. Add postures to list how a token can stand, each with a ranged note and changes like an effect\u2019s.'));
     arr.forEach(function(p0, i) {
         var p = p0 && typeof p0 === 'object' ? p0 : {}, row = el('div', 'sys-row sys-posture-row'); row.dataset.pi = String(i);
         var top = el('div', 'sys-flags');
         var n = input('sys-posture-name field', typeof p.name === 'string' ? p.name : '', i === 0 ? 'How a token stands with no posture set (Standing)' : 'Its name on a token\u2019s menu and the sheet', 'Name'); n.maxLength = LIMITS.name; top.appendChild(n);
         var tg = input('sys-posture-tag field', typeof p.tag === 'string' ? p.tag : '', 'The chip on the token: up to ' + LIMITS.postureTag + ' characters (empty: the name\u2019s first three letters)', 'Tag'); tg.maxLength = 8; top.appendChild(tg);
-        if (i > 0) { var sl = el('label', 'sys-hover'), sc = el('input', 'sys-posture-small'); sc.type = 'checkbox'; sc.checked = p.small === true; sl.appendChild(sc); sl.appendChild(document.createTextNode(' Smaller target')); sl.title = 'Ticked: \u22122 to a foe\u2019s ranged roll against a token in this posture, shown on the ruler that ends on it and in its tooltip (never worked into a roll)'; top.appendChild(sl); }
+        if (i > 0) { var sl = el('label', 'sys-hover'), rv = typeof p.ranged === 'number' ? p.ranged : p.small === true ? -2 : '', sc = numInput('sys-posture-ranged field', rv, 'What a foe\u2019s ranged roll against a token in this posture takes, a whole number from \u221220 to 20, shown on the ruler that ends on it and in its tooltip, never worked into a roll. Empty: none', '1'); sc.min = '-20'; sc.max = '20'; sc.style.width = '56px'; sl.appendChild(document.createTextNode('Ranged note ')); sl.appendChild(sc); top.appendChild(sl); }
         [['up', '\u25b2', 'Move up'], ['down', '\u25bc', 'Move down'], ['del', '\u00d7', 'Remove this posture']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = 'ps' + bd[0]; bb.title = bd[2]; top.appendChild(bb); });
         row.appendChild(top);
         var nr = el('div', 'sys-flags'), nt = input('sys-posture-notes field', typeof p.notes === 'string' ? p.notes : '', 'Shown under the posture on the sheet\u2019s Stance control', 'Notes'); nt.maxLength = LIMITS.postureNotes; nr.appendChild(nt); row.appendChild(nr);
@@ -7145,10 +7148,10 @@ function postureBox(box, cm) {
         wrap.appendChild(row);
     });
     var bar = el('div', 'sys-flags');
-    if (!arr.length) { var own = el('button', 'tool ghost sys-btn sys-posture-own', 'Name your own postures'); own.dataset.act = 'psseven'; own.title = 'Start from the seven built-in postures, their ids kept (a website sheet still sets them): rename, reorder, add, give each changes'; bar.appendChild(own); }
+    if (!arr.length) { var own = el('button', 'tool ghost sys-btn sys-posture-own', 'Add postures'); own.dataset.act = 'psown'; own.title = 'Switch posture on for this system: start a list with Standing and one more, then name, reorder and add to them'; bar.appendChild(own); }
     else {
-        var ad = el('button', 'tool ghost sys-btn sys-posture-add', '+ Posture'); ad.dataset.act = 'psadd'; ad.disabled = arr.length >= LIMITS.postures; ad.title = ad.disabled ? 'At most ' + LIMITS.postures : 'Another way to stand, a smaller target to begin with'; bar.appendChild(ad);
-        var bk = el('button', 'tool ghost sys-btn sys-posture-clear', 'Back to the seven'); bk.dataset.act = 'psclear'; bk.title = 'Drop this list: your tokens take the seven built-in postures again (a token in a posture of yours stands as the first)'; bar.appendChild(bk);
+        var ad = el('button', 'tool ghost sys-btn sys-posture-add', '+ Posture'); ad.dataset.act = 'psadd'; ad.disabled = arr.length >= LIMITS.postures; ad.title = ad.disabled ? 'At most ' + LIMITS.postures : 'Another way to stand'; bar.appendChild(ad);
+        var bk = el('button', 'tool ghost sys-btn sys-posture-clear', 'Switch posture off'); bk.dataset.act = 'psclear'; bk.title = 'Drop this list: tokens have no posture chip or menu, and Posture reads 0. A token keeps what it had, unseen'; bar.appendChild(bk);
     }
     wrap.appendChild(bar);
     var err = errorCell('postures'); err.dataset.errFor = 'postures'; wrap.appendChild(err);
@@ -7157,32 +7160,32 @@ function postureBox(box, cm) {
 function postureRowOf(t) { var arr = postureDraft(), row = t.closest && t.closest('.sys-posture-row'), i = row ? +row.dataset.pi : -1; return i >= 0 && i < arr.length && Math.floor(i) === i && arr[i] && typeof arr[i] === 'object' ? arr[i] : null; }
 function onPostureInput(t) {
     var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-posture-') < 0) return false;
-    if (c.indexOf('sys-posture-small') >= 0 || c.indexOf('sys-posture-target') >= 0) return true;   // their change events do the work
+    if (c.indexOf('sys-posture-target') >= 0) return true;   // its change event does the work
     var p = postureRowOf(t); if (!p) return true;
     if (c.indexOf('sys-posture-name') >= 0) p.name = t.value.slice(0, LIMITS.name);
     else if (c.indexOf('sys-posture-tag') >= 0) { if (t.value.trim()) p.tag = t.value.slice(0, 8); else delete p.tag; }
     else if (c.indexOf('sys-posture-notes') >= 0) { if (t.value.trim()) p.notes = t.value.slice(0, LIMITS.postureNotes); else delete p.notes; }
+    else if (c.indexOf('sys-posture-ranged') >= 0) { var rn = Number(t.value); delete p.small; if (t.value === '' || !isFinite(rn) || Math.round(rn) === 0) delete p.ranged; else p.ranged = Math.max(-20, Math.min(20, Math.round(rn))); }   // 1.6.0: the tick before it goes
     else if (c.indexOf('sys-posture-amt') >= 0) { var ln = t.closest('.sys-posture-mod'), m = ln && Array.isArray(p.mods) ? p.mods[+ln.dataset.mi] : null; if (!m || typeof m !== 'object') return true; var nv = Number(t.value); m.v = t.value === '' || !isFinite(nv) ? 0 : nv; }
     else return true;
     markDirty(); patchErrors(); return true;
 }
 function onPostureChange(t) {
     var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-posture-') < 0) return false;
-    if (c.indexOf('sys-posture-small') < 0 && c.indexOf('sys-posture-target') < 0) return true;   // the boxes' change events (their input events did the work)
+    if (c.indexOf('sys-posture-target') < 0) return true;   // the boxes' change events (their input events did the work)
     var p = postureRowOf(t); if (!p) return true;
-    if (c.indexOf('sys-posture-small') >= 0) { if (t.checked) p.small = true; else delete p.small; markDirty(); patchErrors(); return true; }
     var ln = t.closest('.sys-posture-mod'), m = ln && Array.isArray(p.mods) ? p.mods[+ln.dataset.mi] : null; if (!m || typeof m !== 'object') return true;
     var tp = String(t.value).split('|'); m.f = tp[0];
     if (tp[1] === 'on') { m.op = 'on'; delete m.v; delete m.part; } else { m.op = 'add'; if (typeof m.v !== 'number') m.v = 1; if (tp[1] === 'max') m.part = 'max'; else delete m.part; }
     markDirty(); renderAll(); return true;
 }
 function postureClick(b) {
-    var mt = /^ps(seven|add|clear|up|down|del|modadd|moddel)$/.exec(b.dataset.act || ''); if (!mt) return false;
+    var mt = /^ps(own|add|clear|up|down|del|modadd|moddel)$/.exec(b.dataset.act || ''); if (!mt) return false;
     var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' });
-    if (mt[1] === 'seven') { cm.postures = DEFAULT_POSTURES.map(function(d) { var o = { id: d.id, name: d.name, tag: d.tag }; if (d.small === true) o.small = true; return o; }); markDirty(); renderAll(); return true; }
+    if (mt[1] === 'own') { cm.postures = [{ id: 'standing', name: 'Standing' }, { id: uid('p_'), name: '' }]; markDirty(); renderAll(); return true; }   // 1.6.0: posture switched on, the first and one more to name
     if (mt[1] === 'clear') { delete cm.postures; markDirty(); renderAll(); return true; }
     var arr = postureDraft();
-    if (mt[1] === 'add') { if (arr.length >= LIMITS.postures) { toast('At most ' + LIMITS.postures + ' postures.'); return true; } arr.push({ id: uid('p_'), name: '', small: true }); markDirty(); renderAll(); return true; }
+    if (mt[1] === 'add') { if (arr.length >= LIMITS.postures) { toast('At most ' + LIMITS.postures + ' postures.'); return true; } arr.push({ id: uid('p_'), name: '' }); markDirty(); renderAll(); return true; }
     var row = b.closest('.sys-posture-row'), i = row ? +row.dataset.pi : -1; if (!(i >= 0 && i < arr.length && Math.floor(i) === i)) return true;
     var p = arr[i] && typeof arr[i] === 'object' ? arr[i] : null;
     if (mt[1] === 'up') { if (i > 0) arr.splice(i - 1, 0, arr.splice(i, 1)[0]); }

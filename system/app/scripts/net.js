@@ -720,14 +720,13 @@ if (_rosterEl) _rosterEl.addEventListener('click', function(e) {
 // Strip GM-only content before anything leaves the host: planners never ship,
 // room notes / character dossier info never ship, GM-note cards never ship,
 // and hidden whiteboard items never ship (not even their place).
-// Token stance from a player: a finite elevation in yards, a posture of the list in use (conditions C3: the system's own, by its id, else the seven)
-var POSTURE_SET = { standing: 1, crouching: 1, sitting: 1, kneeling: 1, crawling: 1, 'lying-prone': 1, 'lying-face-up': 1 };
-var POSTURE_OLD = { prone: 'lying-prone', supine: 'lying-face-up' };   // 1.4.6 pre-release ids, still read
+// Token stance from a player: a finite elevation in yards, a posture of the system's own list by its id (conditions C3; 1.6.0, backlog 183 (3):
+// a system with no list of its own has posture switched off, so nothing is stored)
 function cleanElevation(v) { v = Math.round(Number(v) * 10) / 10; return isFinite(v) ? Math.max(-999, Math.min(999, v)) : 0; }
 function cleanPosture(v, sys) {   // '' for the first posture (none stored)
     var S = typeof window === 'object' && window ? window.wpSystemCore : null;
-    if (S && S.ownPostures && S.ownPostures(sys)) { var at = S.postureAt(sys, typeof v === 'string' ? v : ''); return at.i > 0 && at.p ? at.p.id : ''; }
-    v = String(v || 'standing').toLowerCase(); v = POSTURE_OLD[v] || v; return POSTURE_SET[v] && v !== 'standing' ? v : '';
+    if (!(S && S.ownPostures && S.ownPostures(sys))) return '';
+    var at = S.postureAt(sys, typeof v === 'string' ? v : ''); return at.i > 0 && at.p ? at.p.id : '';
 }
 // 1.5.6: a page nested under a GM-only page is GM only too (docrender pageHid), judged in the hosted campaign (the one on screen)
 function docHidHere(id) { var c = typeof getActiveCampaign === 'function' ? getActiveCampaign() : null, R = window.wpDocRender; return !!(c && c.items && R && typeof R.pageHid === 'function' && R.pageHid(c.items, id)); }

@@ -6,6 +6,18 @@ Campaigns
   with a New map button. Before, the last campaign's map stayed on
   screen. Any campaign with no map shows this screen.
 
+Postures
+- Postures are now your system's own. A system with no list of its own
+  has posture switched off: tokens have no posture chip or menu, and
+  Posture reads 0. Add postures on the System editor's Combat card.
+- Each posture has a Ranged note in place of the Smaller target tick: a
+  whole number from -20 to 20 that a foe's ranged roll takes. The ruler,
+  the chip and the hover card show it, and no roll adds it for you. A
+  posture ticked as a smaller target before reads as -2.
+- The d20 starter lists Standing and Prone, and the Tutorial Standing,
+  Kneeling and Prone. A token keeps the posture it had, unseen while its
+  system lists none.
+
 Restore points, a trial run and a test copy
 - Try something out without keeping it. The campaign menu has three new
   ways, and each one leaves your other campaigns as they are.

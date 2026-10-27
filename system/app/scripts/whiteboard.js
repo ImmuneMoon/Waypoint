@@ -21,22 +21,7 @@ var _lastMeasureMapId = null;
    In a session the GM's campaign settings are the ceiling for the player copy: they arrive
    with the snapshot and again whenever the GM flips one, and a player may switch a feature
    off for themselves on top. stanceOn delegates to the one gate, window.wpVtt.on (vtt.js). */
-// The ids are the seven postures' own; the 1.4.6 pre-release ids prone / supine and the long
-// names are still accepted on read.
-var POSTURES = ['standing', 'crouching', 'sitting', 'kneeling', 'crawling', 'lying-prone', 'lying-face-up'];
-var POSTURE_LABEL = { standing: 'Standing', crouching: 'Crouching', sitting: 'Sitting', kneeling: 'Kneeling', crawling: 'Crawling', 'lying-prone': 'Lying prone (face down)', 'lying-face-up': 'Lying face up' };   // the website's labels (posture-rules.ts POSTURE_EFFECTS)
-var POSTURE_CHIP = { crouching: 'CRO', sitting: 'SIT', kneeling: 'KNL', crawling: 'CRW', 'lying-prone': 'PRN', 'lying-face-up': 'SUP' };
-function normalizePosture(v) {
-    var s = String(v || '').toLowerCase().replace(/[^a-z]+/g, ' ').trim();
-    if (!s || s === 'standing' || s === 'stand') return 'standing';
-    if (/face ?up|supine|on (the|their) back/.test(s)) return 'lying-face-up';
-    if (/prone|face ?down/.test(s)) return 'lying-prone';
-    if (/crouch/.test(s)) return 'crouching';
-    if (/sit/.test(s)) return 'sitting';
-    if (/kneel/.test(s)) return 'kneeling';
-    if (/crawl/.test(s)) return 'crawling';
-    return 'standing';
-}
+// The postures are the system's own list (systemcore postureList): a system with none has posture switched off (1.6.0, backlog 183 (3)).
 // [fogcheck:ground-start]
 // Item 19b H5 (the owner's answer of 2026-10-01, "Added": ground height): a token's height is its own elevation — what its player or the GM
 // set, "above the ground you stand on" — plus the ground under it: the highest Ground height (item.ground, yards, below 0 for a pit) of the
@@ -55,16 +40,16 @@ function groundAt(map, x, y, shown) {   // the ground under a board point of a m
 // number and fixed words; callers escape it
 function groundWords(it, map) { var g = stanceOn('elevation') ? tokenGround(it, map) : 0; return g ? fmtElev(g) + ' ' + lenUnit() + ' ground' : ''; }
 // [fogcheck:ground-end]
-function tokenPosture(it) { return normalizePosture(it && it.posture); }
-function stanceOn(which) {   // 'elevation' | 'posture'
+function stanceOn(which) {   // 'elevation' | 'posture'; posture only where the system lists its own (1.6.0)
+    if (which === 'posture' && !postureListNow().length) return false;
     var v = window.wpVtt;
     if (v) return v.on(which);
     try { return localStorage.getItem('wp_' + which) !== 'off'; } catch (e) { return true; }   // vtt.js absent: the 1.4.6 keys, on until switched off
 }
 function setTokenElevation(it, v) { v = Math.round(Number(v) * 10) / 10; if (!isFinite(v) || v === 0) delete it.elevation; else it.elevation = Math.max(-999, Math.min(999, v)); }
-function setTokenPosture(it, v) {   // conditions C3: a posture of the list in use by its id (the first: none stored); without the core, the seven as ever
-    var S = window.wpSystemCore; if (S && S.postureAt) { var at = S.postureAt(postureSys(), typeof v === 'string' ? v : ''); if (at.i > 0 && at.p) it.posture = at.p.id; else delete it.posture; return; }
-    v = normalizePosture(v); if (v === 'standing') delete it.posture; else it.posture = v;
+function setTokenPosture(it, v) {   // conditions C3: a posture of the system's own list by its id (the first: none stored); with no list, nothing
+    var S = window.wpSystemCore; if (!(S && S.postureAt) || !postureListNow().length) return;
+    var at = S.postureAt(postureSys(), typeof v === 'string' ? v : ''); if (at.i > 0 && at.p) it.posture = at.p.id; else delete it.posture;
 }
 // [systemcheck:lenunit-start]
 // Item 19 H1 (the owner's words, 2026-09-30: "people should still be able to see the measurement in metric if they have that set as their
@@ -87,21 +72,20 @@ function stepWords(d) { return (d < 0 ? 'Down' : 'Up') + ' one yard' + (metricOn
 function boxHeight(box, yd) { if (!box) return; var s = String(ydBox(yd)); box.step = String(ydStep()); box.defaultValue = s; box.value = s; }
 // [systemcheck:lenunit-end]
 // [systemcheck:postranged-start]
-// Every posture but standing makes a smaller target: -2 to a foe's RANGED attack roll (the owner's
-// rulings of 2026-09-30). Display only, no roll reads it: after the distance on a ruler that ends on the token, and a second line under its
-// posture in its chip's tooltip and its hover card, while Token posture is on (as the chip is). The figure is fixed here as it is in the
-// website's RANGED_TARGET_PENALTY (src/lib/posture-rules.ts): if the rule changes, both change together. Plain text: callers escape it
-var POSTURE_RANGED = -2;
-var POSTURE_RANGED_LINE = 'Ranged attacks against this token are at \u2212' + (-POSTURE_RANGED) + ' (their roll)';
-// Conditions C3 (the owner's answer of 2026-09-30): the postures in use are the system's own list (its Combat card), else the seven, and the
-// note is each posture's own "smaller target" tick (on for the six of the seven). The chip, the menus and the hover card follow the list too.
-// A name or a tag comes from a system file or the host: it lands through esc or as text
+// A posture's ranged note (1.6.0, backlog 183 (3), the owner by prompt: "A ranged note per posture (Recommended)"): what a foe's RANGED roll
+// against a token in it takes, a whole number the system gives each posture of its own list (its Combat card), none by default. Display only,
+// no roll reads it: after the distance on a ruler that ends on the token, and a second line under its posture in its chip's tooltip and its
+// hover card, while Token posture is on (as the chip is). The chip, the menus and the hover card follow the list. A name or a tag comes from a
+// system file or the host: it lands through esc or as text
 function postureSys() { return window.wpSheets && window.wpSheets.systemOf ? window.wpSheets.systemOf() : null; }
-function postureListNow() { var S = window.wpSystemCore; return S && S.postureList ? S.postureList(postureSys()) : POSTURES.map(function(p, i) { return { id: p, name: POSTURE_LABEL[p], tag: POSTURE_CHIP[p] || '', small: i > 0 }; }); }
-function tokenPostureAt(it) { var S = window.wpSystemCore; if (S && S.postureAt) return S.postureAt(postureSys(), it && it.posture); var p = tokenPosture(it), i = POSTURES.indexOf(p); return { i: i, p: { id: p, name: POSTURE_LABEL[p], tag: POSTURE_CHIP[p] || '', small: i > 0 } }; }
-function postureRanged(tok) { if (!(tok && tok.isChar && stanceOn('posture'))) return ''; var at = tokenPostureAt(tok); return at.i > 0 && at.p && at.p.small === true ? '\u2212' + (-POSTURE_RANGED) + ' ranged (posture: ' + String(at.p.name || '').toLowerCase() + ')' : ''; }
+function postureListNow() { var S = window.wpSystemCore; return S && S.postureList ? S.postureList(postureSys()) : []; }
+function tokenPostureAt(it) { var S = window.wpSystemCore; return S && S.postureAt ? S.postureAt(postureSys(), it && it.posture) : { i: 0 }; }
+function postureRangedOf(p) { var S = window.wpSystemCore; return S && S.postureRangedOf ? S.postureRangedOf(p) : 0; }
+function rangedSigned(n) { return n < 0 ? '\u2212' + (-n) : '+' + n; }
+function postureRangedLine(p) { var n = postureRangedOf(p); return n ? 'Ranged attacks against this token are at ' + rangedSigned(n) + ' (their roll)' : ''; }
+function postureRanged(tok) { if (!(tok && tok.isChar && stanceOn('posture'))) return ''; var at = tokenPostureAt(tok), n = at.i > 0 && at.p ? postureRangedOf(at.p) : 0; return n ? rangedSigned(n) + ' ranged (posture: ' + String(at.p.name || '').toLowerCase() + ')' : ''; }
 // [systemcheck:postranged-end]
-window.wpStance = { POSTURES: POSTURES, POSTURE_LABEL: POSTURE_LABEL, normalizePosture: normalizePosture, tokenElevation: tokenElevation, tokenGround: tokenGround, groundAt: groundAt, groundWords: groundWords, tokenPosture: tokenPosture, postures: postureListNow, postureAt: tokenPostureAt, on: stanceOn, setElevation: setTokenElevation, setPosture: setTokenPosture, fmtElev: fmtElev, lenUnit: lenUnit, ydOut: ydOut, ydIn: ydIn, fmtLen: fmtLen, ydBox: ydBox, ydStep: ydStep, stepWords: stepWords, boxHeight: boxHeight };   // item 19 H1: lengths in the viewer's unit; 1.5.4: a height box and its step of one yard
+window.wpStance = { tokenElevation: tokenElevation, tokenGround: tokenGround, groundAt: groundAt, groundWords: groundWords, postures: postureListNow, postureAt: tokenPostureAt, on: stanceOn, setElevation: setTokenElevation, setPosture: setTokenPosture, fmtElev: fmtElev, lenUnit: lenUnit, ydOut: ydOut, ydIn: ydIn, fmtLen: fmtLen, ydBox: ydBox, ydStep: ydStep, stepWords: stepWords, boxHeight: boxHeight };   // item 19 H1: lengths in the viewer's unit; 1.5.4: a height box and its step of one yard
 
 // [fogcheck:stancechips-start]
 // A token's stance chips (its Elevation, its posture), drawn into its element. Item 19b H5: the Elevation chip reads the token's height where it
@@ -113,7 +97,7 @@ function stanceChipsSync(el, item, activeMap) {
     var postAt = item.isChar && stanceOn('posture') ? tokenPostureAt(item) : null;   // conditions C3: its place in the list in use (the first: no chip)
     var stanceHtml = '';
     if (elevV) stanceHtml += '<span class="chip elev' + (elevV < 0 ? ' below' : '') + '" title="Elevation ' + fmtElev(elevV) + ' ' + lenUnit() + (elevG ? ' (' + esc(elevG) + ')' : '') + '">' + fmtElev(elevV) + '</span>';
-    if (postAt && postAt.i > 0 && postAt.p) stanceHtml += '<span class="chip post" title="' + esc(postAt.p.name) + (postAt.p.small === true ? '&#10;' + esc(POSTURE_RANGED_LINE) : '') + '">' + esc(postAt.p.tag) + '</span>';   // its tooltip's second line, a smaller target's: a foe's ranged roll at -2
+    if (postAt && postAt.i > 0 && postAt.p) stanceHtml += '<span class="chip post" title="' + esc(postAt.p.name) + (postureRangedLine(postAt.p) ? '&#10;' + esc(postureRangedLine(postAt.p)) : '') + '">' + esc(postAt.p.tag) + '</span>';   // its tooltip's second line, the posture's ranged note
     var stanceEl = el.querySelector(':scope > .token-stance');
     if (stanceHtml) {
         if (!stanceEl) { stanceEl = document.createElement('div'); stanceEl.className = 'token-stance'; el.appendChild(stanceEl); }
@@ -637,7 +621,7 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
                       var sheetLines = window.wpSheets ? window.wpSheets.hoverLinesForToken(wItem) : [];
                       if (sheetLines.length) { var ttSheet = document.createElement('div'); ttSheet.className = 'rc'; ttSheet.style.cssText = 'color:var(--ink); font-size:11px;'; ttSheet.textContent = sheetLines.join(' · '); ttRoot.appendChild(ttSheet); }
                       if (stanceBits.length) { var ttStance = document.createElement('div'); ttStance.className = 'rc'; ttStance.style.cssText = 'color:var(--gold); font-size:11px;'; ttStance.textContent = stanceBits.join(' · '); ttRoot.appendChild(ttStance); }
-                      if (postureRanged(wItem)) { var ttRanged = document.createElement('div'); ttRanged.className = 'rc'; ttRanged.style.cssText = 'color:var(--dim); font-size:11px; text-transform:none; letter-spacing:0;'; ttRanged.textContent = POSTURE_RANGED_LINE; ttRoot.appendChild(ttRanged); }   // posture: a foe's ranged roll at -2 (display only)
+                      if (postureRanged(wItem)) { var ttRanged = document.createElement('div'); ttRanged.className = 'rc'; ttRanged.style.cssText = 'color:var(--dim); font-size:11px; text-transform:none; letter-spacing:0;'; ttRanged.textContent = postureRangedLine(tokenPostureAt(wItem).p); ttRoot.appendChild(ttRanged); }   // posture: its ranged note (display only)
                       tt.textContent = ''; tt.appendChild(ttRoot);
 
                       tt.style.display = 'block';
@@ -3648,7 +3632,7 @@ window.wpFitToGrid = fitToGrid;
               var cA = tokenCentre(tA), cB = tokenCentre(tB), cv = window.wpFog.coverBetween(cA.x, cA.y, cB.x, cB.y, stanceOn('elevation') ? tokenElevation(tA, amR) : 0, stanceOn('elevation') ? tokenElevation(tB, amR) : 0);   // found live (item 19): from the tokens' own cells, never the cells a snapped ruler's ends happen to fall in   // advisory: Waypoint estimates cover from the map's blockers; the GM makes the call (item 19 H1: from the first end's height to the second's)
               if (cv && cv.name) labCov = 'Cover: ' + cv.name;
           }
-          var prR = tB && tB !== tA ? postureRanged(tB) : '';   // posture: a foe's ranged roll at -2 against the token the ruler ends on, after the distance (display only)
+          var prR = tB && tB !== tA ? postureRanged(tB) : '';   // posture: its ranged note against the token the ruler ends on, after the distance (display only)
           html += '<text x="' + (mx + 8) + '" y="' + (my - 8) + '"><tspan class="fog-cap">' + measureLabel(dist, diagCells(m)) + '</tspan>' + (prR ? ' \u00b7 ' + esc(prR) : '') + '</text>';   // the length alone is drawn over the fog on a player's screen (fog.js measureCaps)
           var _covY = my + 11;
           if (lab3) { html += '<text x="' + (mx + 8) + '" y="' + _covY + '">' + lab3 + '</text>'; _covY += 19; }

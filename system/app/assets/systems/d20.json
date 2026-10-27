@@ -76,7 +76,11 @@
         { "id": "sn_blindsgt", "name": "Blindsight", "range": { "by": "field", "field": "f_blindsight" }, "unit": "ft", "grade": "full", "arc": "all" },
         { "id": "sn_tremorsn", "name": "Tremorsense", "range": { "by": "field", "field": "f_trem" }, "unit": "ft", "grade": "mark", "walls": "pass", "arc": "all", "glyph": "tremor" }
       ]
-    }
+    },
+    "postures": [
+      { "id": "standing", "name": "Standing" },
+      { "id": "lying-prone", "name": "Prone", "tag": "PRN" }
+    ]
   },
   "sheet": {
     "sections": [

@@ -11,7 +11,7 @@ import { showPrompt, showConfirm } from './dialogs.js';
 import { searchEntries, entryFromForm, newEntryId, keyClashes, cleanLibEntry, libCtx, LIB, packFile, readPackImport, packImportPlan, bulkSet, bulkMove, lvlsToText } from './librarycore.js';
 import { itemReach, carriedBy } from './systemcore.js';
 
-var ROW_H = 28, FLUSH_MS = 1000, FORM_KEYS = ['name', 'key', 'category', 'icon', 'vis', 'notes', 'desc', 'lvls', 'ref', 'gmNotes', 'damage', 'cost', 'throwSkill', 'tags', 'lvl', 'stats', 'area', 'rm', 'rmMsg', 'eq', 'eqMsg', 'again', 'opens', 'mods', 'modsOn', 'needs', 'needsIf', 'needsFrom', 'needsMsg'];
+var ROW_H = 28, FLUSH_MS = 1000, FORM_KEYS = ['name', 'key', 'category', 'icon', 'vis', 'notes', 'desc', 'lvls', 'ref', 'gmNotes', 'damage', 'cost', 'throwSkill', 'tags', 'lvl', 'stats', 'area', 'rm', 'rmMsg', 'eq', 'eqMsg', 'again', 'rollSw', 'opens', 'mods', 'modsOn', 'needs', 'needsIf', 'needsFrom', 'needsMsg'];
 var NEED_MAX = 8, NEED_PICK = 2000;   // 126b: the entries one entry needs, and the longest list its chooser offers
 var VIS = [['all', 'Players can see it'], ['gm', 'GM only']];
 var st = { open: false, campId: null, packId: null, entryId: null, q: '', shown: [], work: map(), dirty: map(), timer: null, draftNew: null, sel: map(), anchor: null, imp: null, fm: null, fmFor: null, fn: null, fnFor: null };   // fm (F6): the open entry's changes being edited
@@ -245,6 +245,7 @@ function field(form, id, label, value, opts) {
 }
 function renderForm() {
     var form = ui('libForm'); if (!form) return; form.textContent = '';
+    st.fs = null; st.fsFor = null;   // 1.6.0: and of its roll bonuses
     st.fm = null; st.fmFor = null; st.fn = null; st.fnFor = null; st.fo = null; st.foFor = null;   // 1.5.8: and of what it opens   // the owed review, 2026-10-09: the form is filled from the entry as it is stored, every box of it. The working copies of its changes and its needs outlived the form (a close, an import, another campaign), and Save entry wrote stale ones back
     if (st.imp) { renderImport(form); return; }
     var many = st.draftNew ? [] : chosen(); if (many.length > 1) { renderBulk(form, many); return; }
@@ -273,6 +274,7 @@ function renderForm() {
     field(form, 'throwSkill', 'Thrown with', e.throwSkill, { max: 40, ph: 'A skill key', title: 'The skill a throw of it rolls' });
     field(form, 'gmNotes', 'GM notes', e.gmNotes, { area: true, rows: 3, max: LIB.gmNotes, title: 'Yours alone: never on a player’s screen' });
     modsBox(form, e);   // Stage 6 F6
+    swLibBox(form, e);   // 1.6.0: its roll bonuses
     needsBox(form, e);   // 126b
     opensBox(form, e);   // 1.5.8
     form.appendChild(el('div', 'lib-fsub', 'Locks (yours alone)'));
@@ -372,6 +374,44 @@ function rowKeys(f) {
     allEntries().concat(sysItems()).forEach(function(e) { if (!e || typeof e.key !== 'string' || !e.key || seen[e.key]) return; if (cats && cats.indexOf(String(e.category || '').toLowerCase()) < 0) return; seen[e.key] = 1; out.push([e.key, e.name || e.key]); });
     return out.sort(function(a, b) { return a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0; }).slice(0, 2000);
 }
+// 1.6.0 roll switches (the owner, by prompt: "In the ± window"): the bonuses this entry offers to rolls, as the System editor's Roll bonuses box
+// has them: a name, how much it helps, and the rolls it offers itself to (a field's own roll, a system roll, any roll on a list's rows, or only
+// on rows of one entry by its key). Elements and values only
+function swLibTargets() {
+    var c = camp(), sy = c && c.system ? c.system : null, o = [], nm = function(x) { return x.label || x.key || x.id; };
+    ((sy && sy.fields) || []).forEach(function(f) { if (f && typeof f.id === 'string' && f.roll) o.push(['f|' + f.id, 'The roll of ' + nm(f)]); });
+    ((sy && sy.rolls) || []).forEach(function(r) { if (r && typeof r.id === 'string' && !Array.isArray(r.apply) && typeof r.formula === 'string') o.push(['r|' + r.id, 'Roll: ' + (r.label || r.id)]); });
+    itemLists().forEach(function(f) { if (Array.isArray(f.list.rolls) && f.list.rolls.some(function(r) { return r && !Array.isArray(r.apply); })) o.push(['l|' + f.id, 'Any roll on ' + nm(f)]); });
+    return o;
+}
+function swLibBox(form, e) {
+    if (st.fsFor !== e.id || !st.fs) { st.fs = clone(Array.isArray(e.rollSw) ? e.rollSw : []); st.fsFor = e.id; }
+    var targets = swLibTargets(), toVal = function(t) { return t && typeof t === 'object' ? (typeof t.f === 'string' ? 'f|' + t.f : typeof t.r === 'string' ? 'r|' + t.r : typeof t.l === 'string' ? 'l|' + t.l : '') : ''; }, toOf = function(v) { var p = String(v || '').split('|'), o = {}; if ((p[0] === 'f' || p[0] === 'r' || p[0] === 'l') && p[1]) { o[p[0]] = p[1]; return o; } return null; };
+    form.appendChild(el('div', 'lib-fsub', 'Roll bonuses it offers, each a tick in the roll\u2019s \u00b1 window'));
+    var box = el('div', 'lib-mods'); form.appendChild(box);
+    var draw = function() {
+        box.textContent = '';
+        st.fs.forEach(function(s, si) {
+            if (!s || typeof s !== 'object') return; if (!Array.isArray(s.to)) s.to = [];
+            var ln = el('div', 'lib-ctl lib-mod lib-sw');
+            var nmI = el('input', 'field lib-sw-name'); nmI.type = 'text'; nmI.placeholder = 'Name'; nmI.value = typeof s.name === 'string' ? s.name : ''; nmI.maxLength = 60; nmI.title = 'Its name in the roll\u2019s \u00b1 window and on the card, such as Aimed shot'; nmI.addEventListener('input', function() { s.name = nmI.value; }); ln.appendChild(nmI);
+            var am = el('input', 'field lib-mod-amt'); am.type = 'number'; am.step = '1'; am.value = typeof s.v === 'number' ? String(s.v) : ''; am.title = 'How much it helps the roll, as the \u00b1 window\u2019s modifier does. A negative one hinders. Whole, 1 to 99 either way'; am.addEventListener('input', function() { s.v = am.value === '' ? 0 : Number(am.value); }); ln.appendChild(am);
+            s.to.forEach(function(t, ti) {
+                var v = toVal(t), opts = targets.slice(); if (v && !opts.some(function(o) { return o[0] === v; })) opts.unshift([v, '(a roll that is gone)']);
+                var sel = select(opts, v); sel.title = 'A roll it offers itself to'; sel.addEventListener('change', function() { var nt = toOf(sel.value); if (nt) { s.to[ti] = nt; draw(); } }); ln.appendChild(sel);
+                if (t && typeof t.l === 'string') { var ky = el('input', 'field lib-mod-key'); ky.type = 'text'; ky.placeholder = 'Entry key (optional)'; ky.value = typeof t.key === 'string' ? t.key : ''; ky.title = 'Only on rows of the entry with this key. Blank: on every row of the list'; ky.addEventListener('input', function() { var k = ky.value.trim(); if (k) t.key = k; else delete t.key; }); ln.appendChild(ky); }
+                var tx = el('button', 'tool ghost', '\u00d7'); tx.type = 'button'; tx.title = 'Take this roll off'; tx.addEventListener('click', function() { s.to.splice(ti, 1); draw(); }); ln.appendChild(tx);
+            });
+            var ta = el('button', 'tool ghost', '+ Another roll'); ta.type = 'button'; ta.title = 'Another roll it offers itself to'; ta.disabled = !targets.length || s.to.length >= 8; ta.addEventListener('click', function() { var o = toOf(targets[0][0]); if (o) { s.to.push(o); draw(); } }); ln.appendChild(ta);
+            var x = el('button', 'tool ghost', '\u00d7'); x.type = 'button'; x.title = 'Remove this bonus'; x.addEventListener('click', function() { st.fs.splice(si, 1); draw(); }); ln.appendChild(x);
+            box.appendChild(ln);
+        });
+        var add = el('button', 'tool ghost', '+ Roll bonus'); add.type = 'button'; add.title = targets.length ? 'A bonus a roller may add to some rolls, ticked in the roll\u2019s \u00b1 window' : 'The system has no roll to offer it to yet'; add.disabled = !targets.length || st.fs.length >= 4;
+        add.addEventListener('click', function() { var o = toOf(targets[0][0]); if (o) { st.fs.push({ name: '', v: 1, to: [o] }); draw(); } });
+        box.appendChild(add);
+    };
+    draw();
+}
 function modsBox(form, e) {
     if (st.fmFor !== e.id || !st.fm) { st.fm = clone(Array.isArray(e.mods) ? e.mods : []); st.fmFor = e.id; }
     var anyL = itemLists().some(function(f) { return f.list && f.list.lvl; }), anyO = itemLists().some(function(f) { return f.list && f.list.on; }), targets = modTargets();
@@ -411,7 +451,7 @@ function modsBox(form, e) {
 function readForm() {
     var g = function(id) { var n = ui('libF_' + id); return n ? n.value : ''; }, e = current(), stats = {};
     Array.prototype.forEach.call(document.querySelectorAll('#libForm [data-stat]'), function(n) { stats[n.dataset.stat] = n.value; });
-    var typed = entryFromForm({ id: e.id, name: g('name'), key: g('key'), category: g('category'), icon: g('icon'), vis: g('vis'), lvl: g('lvl'), stats: stats, notes: g('notes'), desc: g('desc'), lvls: g('lvls'), lvlsWas: e.lvls, tags: g('tags'), ref: g('ref'), damage: g('damage'), cost: g('cost'), throwSkill: g('throwSkill'), areaFt: g('areaFt'), areaShape: e.area && e.area.shape, areaName: e.area && e.area.name, areaType: g('areaType'), areaUse: g('areaUse'), areaPlace: g('areaPlace'), areaTrig: g('areaTrig'), areaAd: g('areaAd'), areaFlight: g('areaFlight'), areaFrag: g('areaFrag'), areaFragType: g('areaFragType'), areaAffs: [0, 1].map(function(i) { return { vs: g('areaAff' + i + 'Vs'), fx: g('areaAff' + i + 'Fx'), who: g('areaAff' + i + 'Who'), needs: g('areaAff' + i + 'Needs'), n: g('areaAff' + i + 'Lasts'), u: g('areaAff' + i + 'Unit') }; }), gmNotes: g('gmNotes'), again: g('again'), rm: g('rm'), rmMsg: g('rmMsg'), eq: g('eq'), eqMsg: g('eqMsg'), mods: st.fmFor === e.id && st.fm ? st.fm : e.mods, modsOn: ui('libF_modsOn') ? ui('libF_modsOn').checked : e.modsOn === true, opens: st.foFor === e.id && st.fo ? st.fo : e.opens, needs: st.fnFor === e.id && st.fn ? st.fn : e.needs, needsIf: g('needsIf'), needsFrom: g('needsFrom'), needsMsg: g('needsMsg') });
+    var typed = entryFromForm({ id: e.id, name: g('name'), key: g('key'), category: g('category'), icon: g('icon'), vis: g('vis'), lvl: g('lvl'), stats: stats, notes: g('notes'), desc: g('desc'), lvls: g('lvls'), lvlsWas: e.lvls, tags: g('tags'), ref: g('ref'), damage: g('damage'), cost: g('cost'), throwSkill: g('throwSkill'), areaFt: g('areaFt'), areaShape: e.area && e.area.shape, areaName: e.area && e.area.name, areaType: g('areaType'), areaUse: g('areaUse'), areaPlace: g('areaPlace'), areaTrig: g('areaTrig'), areaAd: g('areaAd'), areaFlight: g('areaFlight'), areaFrag: g('areaFrag'), areaFragType: g('areaFragType'), areaAffs: [0, 1].map(function(i) { return { vs: g('areaAff' + i + 'Vs'), fx: g('areaAff' + i + 'Fx'), who: g('areaAff' + i + 'Who'), needs: g('areaAff' + i + 'Needs'), n: g('areaAff' + i + 'Lasts'), u: g('areaAff' + i + 'Unit') }; }), gmNotes: g('gmNotes'), again: g('again'), rm: g('rm'), rmMsg: g('rmMsg'), eq: g('eq'), eqMsg: g('eqMsg'), rollSw: st.fsFor === e.id && st.fs ? st.fs : e.rollSw, mods: st.fmFor === e.id && st.fm ? st.fm : e.mods, modsOn: ui('libF_modsOn') ? ui('libF_modsOn').checked : e.modsOn === true, opens: st.foFor === e.id && st.fo ? st.fo : e.opens, needs: st.fnFor === e.id && st.fn ? st.fn : e.needs, needsIf: g('needsIf'), needsFrom: g('needsFrom'), needsMsg: g('needsMsg') });
     var out = clone(e), eqShown = !!ui('libF_eq'); FORM_KEYS.forEach(function(k) { if (eqShown || (k !== 'eq' && k !== 'eqMsg')) delete out[k]; }); return Object.assign(out, typed);   // a switch lock the form does not show (no list has a switch) is kept
 }
 // 1.5.8: an entry's blast extras beside its radius: its damage type (a key of the Combat card's types, or none), whether going off uses one

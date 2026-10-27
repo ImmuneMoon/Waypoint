@@ -188,6 +188,7 @@ export function entryFromForm(f) {
         if (afs.length) ar.aff = afs;
     }
     if (f.again === 'name') out.again = 'name';   // 1.6.0: held again under another name
+    if (Array.isArray(f.rollSw) && f.rollSw.length) out.rollSw = JSON.parse(JSON.stringify(f.rollSw));   // 1.6.0: its roll bonuses (cleaned as an entry's are)
     if (f.rm === 'bound' || f.rm === 'curse') { out.rm = f.rm; if (s(f.rmMsg).trim()) out.rmMsg = s(f.rmMsg); }   // L2b: a player's removal (bound / curse on contact) and its message, as the Items tab has them
     if (f.eq === 'bound' || f.eq === 'curse') { out.eq = f.eq; if (s(f.eqMsg).trim()) out.eqMsg = s(f.eqMsg); }   // and switching it off
     if (Array.isArray(f.mods) && f.mods.length) out.mods = JSON.parse(JSON.stringify(f.mods)); if (f.modsOn === true) out.modsOn = true;   // F6: its changes to the character (cleaned as an entry's are)

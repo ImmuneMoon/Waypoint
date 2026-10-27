@@ -62,6 +62,12 @@ function modsInto(wrap, mods) {
     });
     if (any) wrap.appendChild(box);
 }
+// 1.6.0 roll switches: the bonuses ticked in the roll's ± window, by name, as text nodes; nothing where it had none
+function swInto(wrap, sw) {
+    if (!Array.isArray(sw) || !sw.length) return; var box = el('div', 'chat-mods chat-sw');
+    sw.forEach(function(x) { if (x && typeof x === 'object' && typeof x.v === 'number') box.appendChild(el('div', 'chat-mod-src', (x.v > 0 ? '+' : '−') + Math.abs(x.v) + ' ' + x.n + ', added')); });
+    if (box.firstChild) wrap.appendChild(box);
+}
 function renderCard(m) {
     var rec = m.roll, res = m.res, n = net(), Fm = F();
     var priv = !!(rec.priv || rec.to);
@@ -94,7 +100,8 @@ function renderCard(m) {
     else parts.forEach(function(p) { if (typeof p === 'string') brk.appendChild(document.createTextNode(p)); else brk.appendChild(el('span', 'roll-die', p.text)); });
     if (typeof dieInto === 'function') dieInto(brk, rec);   // 1.5.8: the die its formula rolls, first on the dice line
     wrap.appendChild(brk);
-    if (typeof modsInto === 'function') modsInto(wrap, rec.mods);   // 1.5.8: what changed the values it read (asked through typeof for a suite that slices the card alone)
+    if (typeof modsInto === 'function') modsInto(wrap, rec.mods);
+    if (typeof swInto === 'function') swInto(wrap, rec.sw);   // 1.6.0: the roll switches it was rolled with   // 1.5.8: what changed the values it read (asked through typeof for a suite that slices the card alone)
     wrap.className += mf ? ' card-malf' : v && v.kind === 'check' ? (v.pass ? ' card-ok' : ' card-fail') : rec.dmg === 1 ? ' card-dmg' : '';   // chat cards: the left stripe — a malfunction, the check's outcome, else a damage roll, else plain
     var total = el('div', 'roll-total' + (mf ? ' roll-fail roll-malf' : v && v.kind === 'check' ? (v.pass ? ' roll-ok' : ' roll-fail') : rec.dmg === 1 ? ' roll-dmg' : ''), mf ? 'malfunction (Malf ' + rec.malf + ')' : v ? (v.kind === 'check' ? v.text : '= ' + v.text) : '');
     if (crit) total.appendChild(el('span', 'roll-' + crit, v && v.crit ? (crit === 'crit' ? 'critical success' : 'critical failure') : crit === 'crit' ? 'natural 20' : 'natural 1'));
@@ -217,7 +224,7 @@ function rollFor(charId, expr, label, opts) {
     opts = opts || {};
     var s = ui('diceChar'); if (s && panelOpen()) { syncChars(); if (Array.prototype.some.call(s.options, function(o) { return o.value === charId; })) s.value = charId; }
     _rollMore = opts.range || opts.blast || opts.used === true ? { range: opts.range || undefined, blast: opts.blast || undefined, used: opts.used === true ? true : undefined } : null;   // 1.5.8 explosives: a throw's range to its aim, the blast a damage roll is for (this machine's own words); 1.5.9: a damage roll already applied as it is rolled (a blast's fragmentation)
-    var r = roll(expr, { on: typeof opts.on === 'string' && opts.on ? opts.on : undefined, priv: !!opts.priv, gmOnly: !!opts.gmOnly, charId: charId, label: label, source: opts.source || 'sheet', row: opts.row || undefined, act: opts.act || undefined, mod: opts.mod || undefined, adv: opts.adv || undefined, dmg: opts.dmg === true ? true : undefined });   // row (F5b): a roll on a list's row; act/mod/adv (R1): a roll with consequences   // gmOnly: a roll made of GM-only data (net.diceRoll keeps it the host's)   // 1.5.9: on, the token of the adjacent character it is used on
+    var r = roll(expr, { on: typeof opts.on === 'string' && opts.on ? opts.on : undefined, priv: !!opts.priv, gmOnly: !!opts.gmOnly, charId: charId, label: label, source: opts.source || 'sheet', fr: opts.fr || undefined, sw: opts.sw || undefined, row: opts.row || undefined, act: opts.act || undefined, mod: opts.mod || undefined, adv: opts.adv || undefined, dmg: opts.dmg === true ? true : undefined });   // row (F5b): a roll on a list's row; act/mod/adv (R1): a roll with consequences   // gmOnly: a roll made of GM-only data (net.diceRoll keeps it the host's)   // 1.5.9: on, the token of the adjacent character it is used on
     if (r.error) toast(r.error);
     return r;
 }
@@ -229,19 +236,42 @@ function onModKey(e) { if (e.key === 'Escape' && modPop) { e.preventDefault(); e
 function clampMod(v) { return v > 99 ? 99 : v < -99 ? -99 : v; }
 // Open a small popover by the roll button; a positive modifier always helps (composeModifier places it correctly),
 // and on Roll we send the composed formula down the normal wire path. Falls back to a plain roll if the engine is absent.
-function rollWithMod(charId, expr, label, opts, anchor) {
+// What the ± window's Roll sends: a named roll (a system roll, a list's roll by its index, and since 1.6.0 a field's own roll) its modifier,
+// advantage and roll switches as data, which the host rebuilds the formula from; a roll that is not named and has a switch ticked is named by
+// the roll's swRef first (act, row with its index, fr); any other its formula alone, as before
+function modOpts(opts, mod, advMode, pk, rf) {   // rf: the roll's swRef
+    var o = opts, named = !!(opts && (opts.act || opts.fr || (opts.row && typeof opts.row.i === 'number')));
+    if (pk && pk.length && !named && rf && typeof rf === 'object') { o = Object.assign({}, opts || {}); if (typeof rf.r === 'string') o.act = rf.r; else if (typeof rf.f === 'string') o.fr = rf.f; else if (typeof rf.l === 'string' && typeof rf.row === 'string' && typeof rf.i === 'number') o.row = { f: rf.l, r: rf.row, i: rf.i }; named = !!(o.act || o.fr || o.row); }
+    return named ? Object.assign({}, o, { mod: mod || undefined, adv: advMode !== 'normal' ? advMode : undefined, sw: pk && pk.length ? pk : undefined }) : opts;
+}
+function rollWithMod(charId, expr, label, opts, anchor, swRef) {   // swRef (1.6.0): which roll this is ({ f } | { r } | { l, row, i }), for its roll switches
     var Fm = F(); closeModPop();
     if (!Fm || !Fm.parse) return rollFor(charId, expr, label, opts);
     var mod = 0, advMode = 'normal', numEl, prevEl, advBtns = {};
     var canAdv = withAdvantage(expr, 'adv', Fm.parse).ok;   // a lone plain die can roll twice keep best/worst
     var pop = el('div', 'dice-modpop'); modPop = pop;
     pop.appendChild(el('div', 'dice-modpop-title', label ? 'Roll ' + label : 'Roll with a modifier'));
+    // 1.6.0 roll switches (the owner, by prompt: "In the ± window"): the bonuses this character's items and effects offer this roll, each a
+    // tick, off at first; the host checks each one ticked is really the character's (systemcore swJudge)
+    var swAv = swRef && typeof swRef === 'object' && window.wpSheets && typeof window.wpSheets.rollSwitchesFor === 'function' ? window.wpSheets.rollSwitchesFor(charId, swRef) : [], swOn = {}, swBtns = [];
+    if (!Array.isArray(swAv)) swAv = [];
+    function swSum() { return swAv.reduce(function(s, w) { return s + (swOn[w.s + '#' + w.i] ? w.v : 0); }, 0); }
+    if (swAv.length) {
+        var swBox = el('div', 'dice-modsw'); swBox.appendChild(el('div', 'dice-modsw-cap', 'Bonuses you may add'));
+        swAv.forEach(function(w) {
+            var k = w.s + '#' + w.i, b = el('button', 'tool ghost dice-swbtn'); b.type = 'button'; b.setAttribute('aria-pressed', 'false');
+            b.appendChild(el('span', 'dice-swbtn-n', w.name)); b.appendChild(el('span', 'dice-swbtn-v', (w.v > 0 ? '+' : '−') + Math.abs(w.v)));
+            b.title = 'Add ' + w.name + ' to this roll'; b.addEventListener('click', function() { swOn[k] = !swOn[k]; refresh(); });
+            swBtns.push([b, k]); swBox.appendChild(b);
+        });
+        pop.appendChild(swBox);
+    }
     function applied() {   // advantage first (rewrites the die), then the flat modifier
         var base = expr;
         if (advMode !== 'normal') { var a = withAdvantage(expr, advMode, Fm.parse); if (a.ok) base = a.expr; }
-        return composeModifier(base, mod, Fm.parse);
+        return composeModifier(base, mod + swSum(), Fm.parse);   // 1.6.0: and the roll switches ticked
     }
-    function refresh() { numEl.textContent = (mod > 0 ? '+' : '') + mod; var r = applied(); prevEl.textContent = r.ok ? r.expr : expr; if (canAdv) ['dis', 'normal', 'adv'].forEach(function(m) { advBtns[m].classList.toggle('on', advMode === m); }); }
+    function refresh() { swBtns.forEach(function(p) { p[0].classList.toggle('on', !!swOn[p[1]]); p[0].setAttribute('aria-pressed', swOn[p[1]] ? 'true' : 'false'); }); numEl.textContent = (mod > 0 ? '+' : '') + mod; var r = applied(); prevEl.textContent = r.ok ? r.expr : expr; if (canAdv) ['dis', 'normal', 'adv'].forEach(function(m) { advBtns[m].classList.toggle('on', advMode === m); }); }
     if (canAdv) {
         var advRow = el('div', 'dice-modadv');
         [['dis', 'Disadvantage', 'Dis'], ['normal', 'Normal', 'Normal'], ['adv', 'Advantage', 'Adv']].forEach(function(m) { var b = el('button', 'tool ghost dice-advbtn', m[2]); b.title = m[1] + ' (roll twice, keep the ' + (m[0] === 'dis' ? 'worse' : m[0] === 'adv' ? 'better' : 'roll as written') + ')'; b.addEventListener('click', function() { advMode = m[0]; refresh(); }); advBtns[m[0]] = b; advRow.appendChild(b); });
@@ -256,7 +286,7 @@ function rollWithMod(charId, expr, label, opts, anchor) {
     var plus = el('button', 'tool ghost dice-modpm', '+'); plus.title = 'One more'; plus.addEventListener('click', function() { mod = clampMod(mod + 1); refresh(); });
     numRow.appendChild(minus); numRow.appendChild(numEl); numRow.appendChild(plus); pop.appendChild(numRow);
     prevEl = el('div', 'dice-modpop-prev', expr); pop.appendChild(prevEl);
-    var go = el('button', 'tool dice-modpop-go', 'Roll'); go.addEventListener('click', function() { var r = applied(); if (!r.ok) { toast('That roll cannot take that change.'); return; } closeModPop(); rollFor(charId, r.expr, label, opts && (opts.act || (opts.row && typeof opts.row.i === 'number')) ? Object.assign({}, opts, { mod: mod || undefined, adv: advMode !== 'normal' ? advMode : undefined }) : opts); });   // R1: a roll with consequences sends its modifier and advantage as data
+    var go = el('button', 'tool dice-modpop-go', 'Roll'); go.addEventListener('click', function() { var r = applied(); if (!r.ok) { toast('That roll cannot take that change.'); return; } closeModPop(); rollFor(charId, r.expr, label, modOpts(opts, mod, advMode, swAv.filter(function(w) { return swOn[w.s + '#' + w.i]; }).map(function(w) { return { s: w.s, i: w.i }; }), swRef)); });   // R1: a roll with consequences sends its modifier and advantage as data
     pop.appendChild(go);
     document.body.appendChild(pop);
     var rct = anchor && anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : { left: 120, top: 120, bottom: 140 };
@@ -284,7 +314,7 @@ function roll(expr, opts) {
     lastSource = opts.source || 'panel';
     var clean = cleanExpr(expr);
     if (!clean) return { error: 'Type a formula, for example 2d6 + 3 (up to ' + LIMITS.expr + ' characters).' };
-    var r = n.diceRoll(clean, { priv: !!opts.priv, gmOnly: !!opts.gmOnly, charId: opts.charId || undefined, label: opts.label || undefined, row: opts.row || undefined, act: opts.act || undefined, mod: opts.mod || undefined, adv: opts.adv || undefined, dmg: opts.dmg === true ? true : undefined, on: typeof opts.on === 'string' && opts.on ? opts.on : undefined, range: more ? more.range : undefined, blast: more ? more.blast : undefined, used: more && more.used === true ? true : undefined });   // dmg: this machine's own word (a thrown item's damage); the wire never carries it
+    var r = n.diceRoll(clean, { priv: !!opts.priv, gmOnly: !!opts.gmOnly, charId: opts.charId || undefined, label: opts.label || undefined, fr: opts.fr || undefined, sw: opts.sw || undefined, row: opts.row || undefined, act: opts.act || undefined, mod: opts.mod || undefined, adv: opts.adv || undefined, dmg: opts.dmg === true ? true : undefined, on: typeof opts.on === 'string' && opts.on ? opts.on : undefined, range: more ? more.range : undefined, blast: more ? more.blast : undefined, used: more && more.used === true ? true : undefined });   // dmg: this machine's own word (a thrown item's damage); the wire never carries it
     if (!r.error && !opts.row) remember(clean);   // Stage 6 F5b: a row roll is not remembered (its Row.* names need its row)
     return r;
 }

@@ -66,6 +66,9 @@ System editor
 - An item can be Held again under another name: a list that holds each
   item once takes it again, each copy under a name of its own.
 - A counter that counts up by the clock stops at its most.
+- An item or an effect can offer roll bonuses, each a tick in a roll's
+  ± window. The ± shows gold where one applies, the table checks each one,
+  and the card names what was added.
 - Formulas can read the campaign's date: Date.year, Date.day, Date.days,
   Date.hour and Date.minute. A year that counts down reads as negative.
 - A list's roll or action can run when a row's counter crosses a step, on

@@ -22,6 +22,7 @@ var LIMITS = Object.freeze({
     nameChars: 64,
     label: 60,          // a roll's label, the character's name on a card
     cardChars: 240,     // describe() cap in a toast / plain-text card
+    swPicks: 8,         // 1.6.0: the roll switches one roll may name (systemcore LIMITS.rollSw a holder)
     applyLines: 8,      // an apply card's lines: one a change an action or a roll's Then makes (systemcore LIMITS.applyChanges; 4 before 1.5.4)
     rowRolls: 10        // a list's rolls, so a row roll's index is 0 to 9 (systemcore LIMITS.rowRolls; 4 before 1.5.4, 8 before 1.6.0)
 });
@@ -147,6 +148,13 @@ function cleanMods(list) {
 function foldNames(names) { var o = {}; (names || []).forEach(function(n) { o[String(n.name).toLowerCase()] = n.value; }); return o; }
 function cleanRid(msg) { return msg && typeof msg === 'object' && typeof msg.rid === 'string' && RID_RE.test(msg.rid) ? msg.rid : null; }
 // A player's request: { type: 'roll-req', rid, expr, priv? }
+// 1.6.0: a roll switch's holder on the wire: '<list or effects field>|<row or effect>'
+var SW_RE = /^f_[A-Za-z0-9_]{1,24}\|[a-z]_[A-Za-z0-9_]{1,24}$/;
+function cleanSwNames(v) {
+    if (!Array.isArray(v) || !v.length || v.length > LIMITS.swPicks) return null; var o = [];
+    for (var i = 0; i < v.length; i++) { var x = v[i]; if (!x || typeof x !== 'object') return null; var n = cleanLabel(x.n); if (!n || !isInt(x.v) || !x.v || x.v < -99 || x.v > 99) return null; o.push({ n: n, v: x.v }); }
+    return o;
+}
 function cleanRollReq(msg) {
     if (!msg || typeof msg !== 'object') return null;
     var expr = cleanExpr(msg.expr); if (!expr) return null;
@@ -164,10 +172,20 @@ function cleanRollReq(msg) {
         if (!out.charId || out.row || typeof msg.act !== 'string' || !/^r_[A-Za-z0-9_]{1,24}$/.test(msg.act)) return null;
         out.act = msg.act;
     }
-    if (out.act || (out.row && out.row.i !== undefined)) {   // R1/R2b: a named entry's modifier and advantage
+    if (msg.fr !== undefined) {   // 1.6.0: a field's own roll with roll switches ticked names its field (the host rebuilds the formula from it)
+        if (!out.charId || out.row || out.act || typeof msg.fr !== 'string' || !/^f_[A-Za-z0-9_]{1,24}$/.test(msg.fr)) return null;
+        out.fr = msg.fr;
+    }
+    if (out.act || out.fr || (out.row && out.row.i !== undefined)) {   // R1/R2b: a named entry's modifier and advantage
         if (msg.mod !== undefined) { if (!isInt(msg.mod) || msg.mod < -99 || msg.mod > 99) return null; if (msg.mod) out.mod = msg.mod; }
         if (msg.adv !== undefined) { if (msg.adv !== 'adv' && msg.adv !== 'dis') return null; out.adv = msg.adv; }
     } else if (msg.mod !== undefined || msg.adv !== undefined) return null;
+    if (msg.sw !== undefined) {   // 1.6.0: the roll switches ticked in its ± window, each by its holder and its place there (the host judges them: systemcore swJudge)
+        if (!(out.act || out.fr || (out.row && out.row.i !== undefined)) || !Array.isArray(msg.sw) || !msg.sw.length || msg.sw.length > LIMITS.swPicks) return null;
+        var swO = [], swK = {};
+        for (var si = 0; si < msg.sw.length; si++) { var p = msg.sw[si]; if (!p || typeof p !== 'object' || Array.isArray(p) || typeof p.s !== 'string' || !SW_RE.test(p.s) || !isInt(p.i) || p.i < 0 || p.i > 3 || Object.prototype.hasOwnProperty.call(swK, p.s + '#' + p.i)) return null; swK[p.s + '#' + p.i] = 1; swO.push({ s: p.s, i: p.i }); }
+        out.sw = swO;
+    }
     if (msg.on !== undefined) {   // 1.5.9 (book es/et plan, section 3): the token of the adjacent character a named entry is used on (the host judges it)
         if (!(out.act || (out.row && out.row.i !== undefined)) || typeof msg.on !== 'string' || msg.on.length < 1 || msg.on.length > 80 || CTRL_RE.test(msg.on)) return null;
         out.on = msg.on;
@@ -190,7 +208,8 @@ function cleanRoll(rec) {
     if (rec.rid !== undefined) { if (typeof rec.rid !== 'string' || !RID_RE.test(rec.rid)) return null; out.rid = rec.rid; }
     if (rec.names !== undefined) { var nm = cleanNames(rec.names); if (!nm) return null; if (nm.length) out.names = nm; }
     if (rec.malf !== undefined) { if (!isInt(rec.malf) || rec.malf < 1 || rec.malf > 1000000) return null; out.malf = rec.malf; }
-    if (rec.mods !== undefined) { var md = cleanMods(rec.mods); if (md) out.mods = md; }   // 1.5.8: what changed the values it reads (a list that does not clean is left off, the roll kept)
+    if (rec.mods !== undefined) { var md = cleanMods(rec.mods); if (md) out.mods = md; }
+    if (rec.sw !== undefined) { var swc = cleanSwNames(rec.sw); if (swc) out.sw = swc; }   // 1.6.0: the roll switches it was rolled with, by name (a list that does not clean is left off, the roll kept)   // 1.5.8: what changed the values it reads (a list that does not clean is left off, the roll kept)
     if (rec.dmg !== undefined) { if (rec.dmg !== 1) return null; out.dmg = 1; }   // chat cards: a damage roll, marked by the host from its roll (never the roller's word)   // Stage 6 HUD R3: the roll's malfunction threshold (every machine works the malfunction out from the draws)
     var lb = cleanLabel(rec.label); if (lb === null) return null; if (lb) out.label = lb;
     var as = cleanLabel(rec.as); if (as === null) return null; if (as) out.as = as;
@@ -419,6 +438,6 @@ function RateLimit(cfg) {
 }
 function uid() { return 'r_' + Math.random().toString(36).slice(2, 10); }
 
-var API = { checkOf: checkOf, VERSION: VERSION, LIMITS: LIMITS, cleanExpr: cleanExpr, composeModifier: composeModifier, withAdvantage: withAdvantage, cleanFrom: cleanFrom, cleanRollReq: cleanRollReq, cleanRoll: cleanRoll, cleanApply: cleanApply, applyText: applyText, applyChanges: applyChanges, cleanDue: cleanDue, dueText: dueText, cleanDeny: cleanDeny, cleanRid: cleanRid, cleanLabel: cleanLabel, cleanNames: cleanNames, cleanMods: cleanMods, foldNames: foldNames, replay: replay, checkTableRoll: checkTableRoll, denyText: denyText, parseCommand: parseCommand, verdictOf: verdictOf, critOf: critOf, under3d6: under3d6, cardText: cardText, tagOf: tagOf, naturalOf: naturalOf, malfOf: malfOf, RateLimit: RateLimit, uid: uid, fmtNum: fmtNum, cardLook: cardLook, cleanCardLook: cleanCardLook };
+var API = { cleanSwNames: cleanSwNames, checkOf: checkOf, VERSION: VERSION, LIMITS: LIMITS, cleanExpr: cleanExpr, composeModifier: composeModifier, withAdvantage: withAdvantage, cleanFrom: cleanFrom, cleanRollReq: cleanRollReq, cleanRoll: cleanRoll, cleanApply: cleanApply, applyText: applyText, applyChanges: applyChanges, cleanDue: cleanDue, dueText: dueText, cleanDeny: cleanDeny, cleanRid: cleanRid, cleanLabel: cleanLabel, cleanNames: cleanNames, cleanMods: cleanMods, foldNames: foldNames, replay: replay, checkTableRoll: checkTableRoll, denyText: denyText, parseCommand: parseCommand, verdictOf: verdictOf, critOf: critOf, under3d6: under3d6, cardText: cardText, tagOf: tagOf, naturalOf: naturalOf, malfOf: malfOf, RateLimit: RateLimit, uid: uid, fmtNum: fmtNum, cardLook: cardLook, cleanCardLook: cleanCardLook };
 if (typeof window !== 'undefined') window.wpDiceCore = API;
-export { checkOf, VERSION, LIMITS, cleanExpr, composeModifier, withAdvantage, cleanFrom, cleanRollReq, cleanRoll, cleanApply, applyText, applyChanges, cleanDue, dueText, cleanDeny, cleanRid, cleanLabel, cleanNames, cleanMods, foldNames, replay, checkTableRoll, denyText, parseCommand, verdictOf, critOf, under3d6, cardText, tagOf, RateLimit, uid, fmtNum, naturalOf, malfOf, cardLook, cleanCardLook };
+export { cleanSwNames, checkOf, VERSION, LIMITS, cleanExpr, composeModifier, withAdvantage, cleanFrom, cleanRollReq, cleanRoll, cleanApply, applyText, applyChanges, cleanDue, dueText, cleanDeny, cleanRid, cleanLabel, cleanNames, cleanMods, foldNames, replay, checkTableRoll, denyText, parseCommand, verdictOf, critOf, under3d6, cardText, tagOf, RateLimit, uid, fmtNum, naturalOf, malfOf, cardLook, cleanCardLook };

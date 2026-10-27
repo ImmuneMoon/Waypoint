@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast, toastAction } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { cleanDamageRules, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, DEFAULT_POSTURES, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
+import { cleanDamageRules, rollSwitches, rollSwitchesAll, cleanRollSw, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, DEFAULT_POSTURES, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
 import { lvlsFromBox, lvlsToText } from './librarycore.js';
 import { dieNode, DIE_LABELS } from './dieicons.js';   // 1.5.8, backlog 149: the dice drawings (pure)
@@ -2823,10 +2823,10 @@ function rowRollBtns(host, spec, entry, def, c, f, res) {   // res (R2b): the fi
         var goL = function(e) {
             if (r.to === 'near' && typeof allyPick === 'function' && !(e && e.wpAlly !== undefined)) { var evL = typeof pressOf === 'function' ? pressOf(e, b) : e; allyPick(evL.currentTarget || b, c, function(on) { evL.wpAlly = on || ''; goL(evL); }); return; }   // 1.5.9 (book es/et plan, section 3): whom it is for first
             var oL = { row: withE ? { f: f.id, r: rid, i: ri } : { f: f.id, r: rid } }; if (e && typeof e.wpAlly === 'string' && e.wpAlly) oL.on = e.wpAlly;
-            sheetRoll(e, c.id, r.formula, nm + ' \u00b7 ' + lb, oL);
+            sheetRoll(e, c.id, r.formula, nm + ' \u00b7 ' + lb, oL, { l: f.id, row: rid, i: ri });
         };
         b.addEventListener('click', goL);
-        host.appendChild(b); var pmL = typeof rollModBtn === 'function' ? rollModBtn(b, goL) : null; if (pmL) host.appendChild(pmL);   // 1.5.9: its ±
+        host.appendChild(b); var pmL = typeof rollModBtn === 'function' ? rollModBtn(b, goL, typeof swCount === 'function' ? swCount(c, { l: f.id, row: rid }) : 0) : null; if (pmL) host.appendChild(pmL);   // 1.5.9: its ±
     });
 }
 // 1.6.0 Counts by the game clock: a timed counter's words for its chip's title, "counts down one every 2 days" (a unit of the system's by its label)
@@ -3616,7 +3616,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
     if (f.tile) box.classList.add('sheet-tile');   // Stage 3: compact stat tile (value big, label small)
     if (f.vis === 'gm') box.classList.add('sheet-gm');
     var lab = el('label', 'sheet-label', f.label); lab.title = f.key + (f.vis === 'gm' ? ' (GM only)' : ''); box.appendChild(lab);
-    if (f.roll) { var rb = el('button', 'tool ghost sheet-field-roll', typeof dieFor === 'function' ? undefined : String.fromCharCode(55356, 57266)); if (typeof dieFor === 'function') rb.appendChild(dieFor(f.rollDie, f.roll)); rb.title = 'Roll ' + f.roll + ' · shift-click to add a modifier'; rb.disabled = !canRoll(c); var goF = function(e) { sheetRoll(e, c.id, f.roll, f.label || f.key, f.vis === 'gm' ? { gmOnly: true } : undefined); }; rb.addEventListener('click', goF); lab.appendChild(rb); var pmF = typeof rollModBtn === 'function' ? rollModBtn(rb, goF) : null; if (pmF) lab.appendChild(pmF); }   // the field's own roll (1.5.0); a GM-only field's stays the GM's
+    if (f.roll) { var rb = el('button', 'tool ghost sheet-field-roll', typeof dieFor === 'function' ? undefined : String.fromCharCode(55356, 57266)); if (typeof dieFor === 'function') rb.appendChild(dieFor(f.rollDie, f.roll)); rb.title = 'Roll ' + f.roll + ' · shift-click to add a modifier'; rb.disabled = !canRoll(c); var goF = function(e) { sheetRoll(e, c.id, f.roll, f.label || f.key, f.vis === 'gm' ? { gmOnly: true } : undefined, { f: f.id }); }; rb.addEventListener('click', goF); lab.appendChild(rb); var pmF = typeof rollModBtn === 'function' ? rollModBtn(rb, goF, typeof swCount === 'function' ? swCount(c, { f: f.id }) : 0) : null; if (pmF) lab.appendChild(pmF); }   // the field's own roll (1.5.0); a GM-only field's stays the GM's
     var editable = gm || (own && f.vis === 'all' && (f.edit === 'owner' || c.making === 1 || c.unlocked === 1));
     var lk = typeof lockedNow === 'function' && lockedNow(), use = editable && (typeof fieldOpen !== 'function' || fieldOpen(f));   // the sheet's lock: this field's own control in the view being drawn (locked, only what changes in play). Asked through typeof: a harness that slices this function alone draws it unlocked
     var playOk = editable && (!lk || f.live !== false), editOk = editable && (!lk || f.live === true);   // a list's two halves: what is used in play (a switch, a count, a use), and what changes the character (a level, a row, a note)
@@ -3764,9 +3764,16 @@ function openLibPickerPlayer(anchor, c, f, spec) {
         } });
 }
 // A roll from a sheet button: shift/alt-click opens the situational-modifier popover (Stage 5a); a plain click rolls straight away.
-function sheetRoll(e, charId, expr, label, opts) {
+// 1.6.0 roll switches (the owner, by prompt: "In the ± window"): the bonuses this character's items and effects offer one roll (ref: { f } a
+// field's own roll, { r } a system roll, { l, row } a roll on that row), read from the system and the character this screen holds (a player's
+// own view and copy), as the host judges them. Worked out once for a character in one draw (_swMemo, let go after it)
+var _swMemo = null;
+function swAll(sys, c) { if (!_swMemo) { _swMemo = typeof Map === 'function' ? new Map() : null; if (_swMemo) Promise.resolve().then(function() { _swMemo = null; }); } var hit = _swMemo ? _swMemo.get(c) : null; if (hit && hit.sys === sys) return hit.all; var all = rollSwitchesAll(sys, c); if (_swMemo) _swMemo.set(c, { sys: sys, all: all }); return all; }
+function swCount(c, ref) { var sys = systemOf(); if (!sys || !c || typeof c !== 'object') return 0; try { return rollSwitches(sys, c, ref, swAll(sys, c)).length; } catch (e) { return 0; } }
+function rollSwitchesFor(charId, ref) { var camp = getActiveCampaign(), sys = systemOf(camp), c = charById(charId, camp); if (!sys || !c || !ref || typeof ref !== 'object') return []; try { return rollSwitches(sys, c, ref).map(function(w) { return { s: w.s, i: w.i, name: w.name, v: w.v }; }); } catch (e) { return []; } }
+function sheetRoll(e, charId, expr, label, opts, swRef) {   // swRef (1.6.0): which roll this is, for the roll switches its \u00b1 window offers (handed to that window alone)
     if (!window.wpDice) return;
-    if ((e.shiftKey || e.altKey) && window.wpDice.rollWithMod) window.wpDice.rollWithMod(charId, expr, label, opts, e.currentTarget);
+    if ((e.shiftKey || e.altKey) && window.wpDice.rollWithMod) { if (swRef) window.wpDice.rollWithMod(charId, expr, label, opts, e.currentTarget, swRef); else window.wpDice.rollWithMod(charId, expr, label, opts, e.currentTarget); }
     else if (window.wpDice.rollFor) window.wpDice.rollFor(charId, expr, label, opts);
 }
 // [sinkcheck:allymenu-start]
@@ -3810,10 +3817,11 @@ function pressOf(e, b) { return { shiftKey: !!(e && e.shiftKey), altKey: !!(e &&
 // small ± beside a roll button opens the very popover shift-click opens, for that very roll, anchored to the ±. go is the roll button's own
 // click handler, handed an event that says shift and names the ±, so the roll's formula, label and opts are the button's own. Pressed as the
 // roll is: disabled with it, with its reason. None on paper (a print copy), which shows no control
-function rollModBtn(b, go) {
+function rollModBtn(b, go, nSw) {   // nSw (1.6.0): how many roll switches offer themselves to this roll; the ± is marked where any do
     if (!b || typeof go !== 'function' || (typeof window !== 'undefined' && window && window.wpPrintCopy === true)) return null;
     var pm = el('button', 'tool ghost sheet-roll-mod', '\u00b1'); pm.type = 'button';
     pm.title = 'Add a modifier, or roll twice and keep the better or worse'; if (pm.setAttribute) pm.setAttribute('aria-label', 'Roll with a modifier');
+    if (typeof nSw === 'number' && nSw > 0) { pm.classList.add('sheet-roll-mod-sw'); pm.title = 'Add a bonus you have (' + nSw + '), a modifier, or roll twice and keep the better or worse'; if (pm.setAttribute) pm.setAttribute('aria-label', 'Roll with a modifier: ' + nSw + (nSw === 1 ? ' bonus' : ' bonuses') + ' you may add'); }
     if (b.disabled) { pm.disabled = true; if (b.title) pm.title = b.title; }
     pm.addEventListener('click', function() { if (pm.disabled) return; go({ shiftKey: true, altKey: false, currentTarget: pm, modAt: pm, preventDefault: function() {} }); });
     return pm;
@@ -3848,11 +3856,11 @@ function rollNode(r, c, sys, vars) {   // sys, vars: the system drawn and the re
         if (r.to === 'near' && typeof allyPick === 'function' && !(e && e.wpAlly !== undefined)) { var evN = typeof pressOf === 'function' ? pressOf(e, b) : e; allyPick(evN.currentTarget || b, c, function(on) { evN.wpAlly = on || ''; goN(evN); }); return; }   // 1.5.9 (book es/et plan, section 3): whom it is for first, where someone stands next to it
         var lb = label, vv = vars;
         if (sys && typeof vars === 'function' && r.label && r.label.indexOf('{') >= 0 && F()) { try { var campN = getActiveCampaign(), cN = charById(c.id, campN) || c; vv = resolveAll(sys, cN, F(), tokenCtxFor(c.id, campN)).vars; lb = rollLabel(r, sys, cN, vv); } catch (err) { lb = label; vv = vars; } }   // HF5 review: the values as they are at the click, as the roll reads them (a redraw may still wait on a focused box)
-        var why = labelSecret(sys, vv, r.label); if (why) toast('Kept private: its label shows a GM-only value (' + why + ').'); var oR = why ? { priv: true } : r.vis === 'gm' ? { gmOnly: true } : undefined; if (r.needs) { oR = oR || {}; oR.act = r.id; } if (r.to === 'near') { oR = oR || {}; oR.act = r.id; if (e && typeof e.wpAlly === 'string' && e.wpAlly) oR.on = e.wpAlly; } if ((Array.isArray(r.then) && r.then.length) || r.malf || r.cost || r.dmg || r.init === true) { oR = oR || {}; oR.act = r.id; } sheetRoll(e, c.id, r.formula, lb, oR);   // R1: a roll with consequences names itself (initiative O1: the initiative roll too, so the host can trust its number into the fight)   // a GM-only roll stays the GM's
+        var why = labelSecret(sys, vv, r.label); if (why) toast('Kept private: its label shows a GM-only value (' + why + ').'); var oR = why ? { priv: true } : r.vis === 'gm' ? { gmOnly: true } : undefined; if (r.needs) { oR = oR || {}; oR.act = r.id; } if (r.to === 'near') { oR = oR || {}; oR.act = r.id; if (e && typeof e.wpAlly === 'string' && e.wpAlly) oR.on = e.wpAlly; } if ((Array.isArray(r.then) && r.then.length) || r.malf || r.cost || r.dmg || r.init === true) { oR = oR || {}; oR.act = r.id; } sheetRoll(e, c.id, r.formula, lb, oR, { r: r.id });   // R1: a roll with consequences names itself (initiative O1: the initiative roll too, so the host can trust its number into the fight)   // a GM-only roll stays the GM's
     };
     b.addEventListener('click', goN);
     var box = el('div', 'sheet-field sheet-kind-roll'); box.appendChild(b);
-    var pm = typeof rollModBtn === 'function' ? rollModBtn(b, goN) : null; if (pm) { box.appendChild(pm); box.classList.add('sheet-roll-pair'); }   // 1.5.9: its ±, pressed as the roll is
+    var pm = typeof rollModBtn === 'function' ? rollModBtn(b, goN, typeof swCount === 'function' ? swCount(c, { r: r.id }) : 0) : null; if (pm) { box.appendChild(pm); box.classList.add('sheet-roll-pair'); }   // 1.5.9: its ±, pressed as the roll is
     return box;
 }
 // A roll from this character's sheet: the dice feature on, and for a player their own character
@@ -6063,10 +6071,79 @@ function effectRow(d) {
         psL.forEach(function(p) { if (p.id === d.posture) return; var kl = el('label', 'sys-hover'), kc = el('input'); kc.type = 'checkbox'; kc.className = 'sys-fx-posturekeep'; kc.setAttribute('data-pid', p.id); kc.checked = Array.isArray(d.postureKeep) && d.postureKeep.indexOf(p.id) >= 0; kl.appendChild(kc); kl.appendChild(document.createTextNode(' ' + p.name + ' ')); kpW.appendChild(kl); });
         flags.appendChild(kpW); } }   // 1.6.0: the postures it leaves alone   // 1.5.9 (the owner's O6)
     flags.appendChild(btnRow([['up', 'Move up', '&#9650;'], ['down', 'Move down', '&#9660;'], ['dup', 'Duplicate', '&#10697;'], ['del', 'Delete this effect', '&times;']]));
-    row.appendChild(top); row.appendChild(mods); row.appendChild(flags);
+    row.appendChild(top); row.appendChild(mods); if (typeof swBox === 'function') row.appendChild(swBox(d)); row.appendChild(flags);
     var auR = el('div', 'sys-flags sys-fx-autorow'), auI = input('sys-fx-auto field', typeof d.auto === 'string' ? d.auto : '', 'A formula: while it is true, or a number other than 0, the effect is on by itself for every character, as HP <= 0 turns on Unconscious. It reads the character\u2019s own values with the effects applied by hand (never another automatic effect, and a token\u2019s names read 0). Only a visible effect reading only what players can read applies itself', 'Applies itself when\u2026 (e.g. HP <= 0)'); auI.maxLength = LIMITS.formula; auR.appendChild(auI); row.appendChild(auR);   // conditions C4
     var auE = errorCell(d.id); auE.dataset.errFor = d.id; row.appendChild(auE);
     return row;
+}
+// 1.6.0 roll switches (the owner, by prompt: "In the ± window"): the bonuses an item or an effect offers to rolls, each a line: its name, how
+// much it helps, and the rolls it offers itself to (a field's own roll, a system roll, any roll on a list's rows, or only on rows of one entry
+// by its key). A roller ticks it in the roll's ± window, and the host checks it is theirs. What Save does with each said under it, the
+// cleaner's own reading. Values and text nodes only
+function swTargets() {
+    var o = [], nm = function(x) { return x.label || x.key || x.id; };
+    (draft.fields || []).forEach(function(f) { if (f && typeof f.id === 'string' && f.roll) o.push(['f|' + f.id, 'The roll of ' + nm(f)]); });
+    (draft.rolls || []).forEach(function(r) { if (r && typeof r.id === 'string' && !Array.isArray(r.apply) && typeof r.formula === 'string') o.push(['r|' + r.id, 'Roll: ' + (r.label || r.id)]); });
+    (draft.fields || []).forEach(function(f) { if (f && typeof f.id === 'string' && f.kind === 'item-list' && f.list && Array.isArray(f.list.rolls) && f.list.rolls.some(function(r) { return r && !Array.isArray(r.apply); })) o.push(['l|' + f.id, 'Any roll on ' + nm(f)]); });
+    return o;
+}
+function swToVal(t) { return t && typeof t === 'object' ? (typeof t.f === 'string' ? 'f|' + t.f : typeof t.r === 'string' ? 'r|' + t.r : typeof t.l === 'string' ? 'l|' + t.l : '') : ''; }
+function swToOf(v) { var p = String(v || '').split('|'), o = {}; if ((p[0] === 'f' || p[0] === 'r' || p[0] === 'l') && p[1]) { o[p[0]] = p[1]; return o; } return null; }
+function swBox(h) {
+    var box = el('div', 'sys-fx-mods sys-sw-box'), sws = Array.isArray(h.rollSw) ? h.rollSw : [], tg = swTargets();
+    box.appendChild(el('span', 'sys-note', 'Roll bonuses it offers, each a tick in the roll\u2019s \u00b1 window:'));
+    sws.forEach(function(s, si) {
+        if (!s || typeof s !== 'object') return;
+        var ln = el('div', 'sys-fx-mod sys-sw'); ln.dataset.si = String(si);
+        ln.appendChild(input('sys-sw-name field', typeof s.name === 'string' ? s.name : '', 'Its name in the roll\u2019s \u00b1 window and on the card, such as Aimed shot', 'Name'));
+        ln.appendChild(numInput('sys-sw-v', typeof s.v === 'number' ? s.v : '', 'How much it helps the roll, as the \u00b1 window\u2019s modifier does. A negative one hinders. Whole, 1 to 99 either way', '1'));
+        (Array.isArray(s.to) ? s.to : []).forEach(function(t, ti) {
+            var tw = el('span', 'sys-sw-to'), v = swToVal(t), op = tg.slice(); tw.dataset.ti = String(ti);
+            if (v && !op.some(function(o) { return o[0] === v; })) op.unshift([v, '(a roll that is gone)']);
+            tw.appendChild(select('sys-sw-tosel', op, v, 'A roll it offers itself to'));
+            if (t && typeof t.l === 'string') tw.appendChild(input('sys-sw-key field', typeof t.key === 'string' ? t.key : '', 'Only on rows of the entry with this key. Blank: on every row of the list', 'Entry key (optional)'));
+            tw.appendChild(btnRow([['swtodel', 'Take this roll off', '&times;']]));
+            ln.appendChild(tw);
+        });
+        if (!Array.isArray(s.to) || s.to.length < LIMITS.swTo) { var ta = el('button', 'tool ghost sys-btn', '+ Another roll'); ta.dataset.act = 'swtoadd'; ta.title = 'Another roll it offers itself to'; if (!tg.length) ta.disabled = true; ln.appendChild(ta); }
+        ln.appendChild(btnRow([['swdel', 'Remove this bonus', '&times;']]));
+        box.appendChild(ln);
+        var er = el('div', 'sys-err sys-sw-err'); er.dataset.si = String(si); er.textContent = swSays(s); box.appendChild(er);
+    });
+    if (sws.length < LIMITS.rollSw) { var add = el('button', 'tool ghost sys-btn', '+ Roll bonus'); add.dataset.act = 'swadd'; add.title = tg.length ? 'A bonus a roller may add to some rolls, ticked in the roll\u2019s \u00b1 window' : 'Give a field a roll, or add a roll, first'; if (!tg.length) add.disabled = true; box.appendChild(add); }
+    return box;
+}
+function swSays(s) {   // what Save does with one roll bonus: '' where it keeps it whole
+    if (!s || typeof s !== 'object') return '';
+    if (!(typeof s.name === 'string' && s.name.trim())) return 'Save drops it: it needs a name.';
+    var n = typeof s.v === 'number' && isFinite(s.v) ? Math.round(s.v) : 0; if (!n || n < -99 || n > 99) return 'Save drops it: how much it helps must be a whole number from 1 to 99, or from \u22121 to \u221299.';
+    if (!cleanRollSw([s])) return 'Save drops it: it needs a roll it offers itself to.';
+    return '';
+}
+function swHolder(t) { return fxOfRow(t) || itemOfRow(t); }
+function swLine(t, h) { var ln = t && t.closest ? t.closest('.sys-sw') : null; if (!ln || !h || !Array.isArray(h.rollSw)) return null; var s = h.rollSw[+ln.dataset.si]; return s && typeof s === 'object' ? { ln: ln, s: s } : null; }
+function swSaysAt(t, s) { var box = t.closest ? t.closest('.sys-sw-box') : null, ln = t.closest ? t.closest('.sys-sw') : null, er = box && ln ? Array.prototype.filter.call(box.querySelectorAll('.sys-sw-err'), function(x) { return x.dataset.si === ln.dataset.si; })[0] : null; if (er) er.textContent = swSays(s); }
+function onSwInput(t) {
+    var c = t.className || ''; if (!/(^| )sys-sw-(name|v|key)( |$)/.test(c)) return false;
+    var L = swLine(t, swHolder(t)); if (!L) return true;
+    if (/(^| )sys-sw-name( |$)/.test(c)) L.s.name = String(t.value).slice(0, LIMITS.label);
+    else if (/(^| )sys-sw-v( |$)/.test(c)) { var n = parseFloat(t.value); if (isFinite(n)) L.s.v = n; else delete L.s.v; }
+    else { var tw = t.closest('.sys-sw-to'), tt = tw && Array.isArray(L.s.to) ? L.s.to[+tw.dataset.ti] : null; if (tt && typeof tt === 'object') { var k = String(t.value).trim().slice(0, LIMITS.key); if (k) tt.key = k; else delete tt.key; } }
+    markDirty(); swSaysAt(t, L.s); return true;
+}
+function onSwChange(t) {
+    if (!/(^| )sys-sw-tosel( |$)/.test(t.className || '')) return false;
+    var L = swLine(t, swHolder(t)), tw = t.closest ? t.closest('.sys-sw-to') : null, nt = swToOf(t.value); if (!L || !tw || !nt || !Array.isArray(L.s.to)) return true;
+    L.s.to[+tw.dataset.ti] = nt; markDirty(); renderAll(); return true;
+}
+function onSwClick(b) {
+    var a = b.dataset ? b.dataset.act : ''; if (a !== 'swadd' && a !== 'swdel' && a !== 'swtoadd' && a !== 'swtodel') return false;
+    var h = swHolder(b); if (!h) return true;
+    if (a === 'swadd') { var t0 = swTargets()[0], o0 = t0 ? swToOf(t0[0]) : null; if (!o0) return true; h.rollSw = Array.isArray(h.rollSw) ? h.rollSw : []; if (h.rollSw.length >= LIMITS.rollSw) { toast('At most ' + LIMITS.rollSw + ' roll bonuses each.'); return true; } h.rollSw.push({ name: '', v: 1, to: [o0] }); }
+    else if (a === 'swdel') { var L = swLine(b, h); if (L) { h.rollSw.splice(+L.ln.dataset.si, 1); if (!h.rollSw.length) delete h.rollSw; } }
+    else if (a === 'swtoadd') { var L2 = swLine(b, h), t1 = swTargets()[0], o1 = t1 ? swToOf(t1[0]) : null; if (L2 && o1) { L2.s.to = Array.isArray(L2.s.to) ? L2.s.to : []; if (L2.s.to.length < LIMITS.swTo) L2.s.to.push(o1); } }
+    else { var L3 = swLine(b, h), tw = b.closest ? b.closest('.sys-sw-to') : null; if (L3 && tw && Array.isArray(L3.s.to)) L3.s.to.splice(+tw.dataset.ti, 1); }
+    markDirty(); renderAll(); return true;
 }
 function fxOfRow(target) { var row = target.closest && target.closest('.sys-fx-row'); if (!row) return null; return (draft.effects || []).find(function(x) { return x.id === row.dataset.eid; }) || null; }
 function itemRow(it) {
@@ -6110,6 +6187,7 @@ function itemRow(it) {
     var stBox = itemStatsBox(it, sDefs); if (stBox) row.appendChild(stBox);   // F4c1
     var nrow = el('div', 'sys-item-notes-row'); nrow.appendChild(input('sys-item-notes field', it.notes, 'Notes shown on the sheet', 'Notes (optional)')); row.appendChild(nrow);
     row.appendChild(itemModsBox(it, anyL, anyO));   // Stage 6 F6
+    if (typeof swBox === 'function') row.appendChild(swBox(it));   // 1.6.0: its roll bonuses (asked through typeof: a suite slices this row alone)
     if (it.area) row.appendChild(affBox(it));   // 1.5.9 (es): its blast's afflictions
     var err = errorCell(it.id); err.dataset.errFor = it.id; row.appendChild(err);
     return row;
@@ -7856,6 +7934,7 @@ function itemOfRow(target) { var row = target.closest && target.closest('.sys-it
 function onInput(e) {
     if (!draft) return;
     var t = e.target; if (onLayoutInput(t)) return;
+    if (onSwInput(t)) return;   // 1.6.0: an item's or an effect's roll bonuses
     if (onTurnInput(t)) return;   // turn-based combat T1
     if (onLightInput(t)) return;   // lighting L4
     if (onSensesInput(t)) return;   // senses S2a
@@ -8042,6 +8121,7 @@ function onChange(e) {
     if (!draft) return;
     var t = e.target, c = t.className || '';
     if (onLayoutChange(t)) return;
+    if (onSwChange(t)) return;   // 1.6.0: a roll bonus's roll
     if (onTurnChange(t)) return;   // turn-based combat T1
     if (onLightChange(t)) return;   // lighting L4
     if (onSensesChange(t)) return;   // senses S2a
@@ -8223,6 +8303,7 @@ function onChange(e) {
 function onClick(e) {
     if (!draft) return;
     var b = e.target.closest && e.target.closest('button'); if (!b) return;
+    if (onSwClick(b)) return;   // 1.6.0: an item's or an effect's roll bonuses
     if (b.id === 'sysAddField') { if (draft.fields.length >= LIMITS.fields) { toast('At most ' + LIMITS.fields + ' fields.'); return; } draft.fields.push({ id: uid('f_'), key: '', label: '', kind: 'number', def: 0, step: 1, edit: 'owner', vis: 'all', hover: false }); markDirty(); renderAll(); var last = ui('sysFieldRows').lastElementChild; if (last) { var k = last.querySelector('.sys-key'); if (k) k.focus(); last.scrollIntoView({ block: 'nearest' }); } return; }
     if (b.id === 'sysAddRoll') { draft.rolls.push({ id: uid('r_'), label: '', formula: '', vis: 'all' }); markDirty(); renderAll(); var lr = ui('sysRollRows').lastElementChild; if (lr) { var l = lr.querySelector('.sys-label'); if (l) l.focus(); } return; }
     if (b.id === 'sysAddChar') { showPrompt('Name the character', 'New character', function(name) { if (name === null) return; var c = newCharacter({ name: String(name || '').trim() || 'New character' }); afterCharChange(c, true); renderAll(); }); return; }
@@ -8579,7 +8660,7 @@ function damageFromRoll(fromId, total, done, type) {   // 1.5.7: done, called on
 }
 function damageOn() { var sys = systemOf(); return !!dmgRules(sys) && !isClient() && canWrite(); }   // the cards' Apply to target: the GM's own machine
 // [systemcheck:dmgwin-end]
-window.wpSheets = { bellNote: bellNote, crossSeed: crossSeed, turnEndHook: turnEndHook, goneLocal: goneLocal, goneWait: goneWait, postureSeed: function() { return postureSeed(getActiveCampaign()); }, runTimeRules: runTimeRules, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
+window.wpSheets = { bellNote: bellNote, rollSwitchesFor: rollSwitchesFor, crossSeed: crossSeed, turnEndHook: turnEndHook, goneLocal: goneLocal, goneWait: goneWait, postureSeed: function() { return postureSeed(getActiveCampaign()); }, runTimeRules: runTimeRules, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
     gmFinder: gmFinder, uploadsChanged: uploadsChanged, approveNote: approveNote, openReview: openReview, readersChanged: readersChanged, emojiSet: EMOJI_SET, applyCharFace: applyCharFace, applyCharFrame: applyCharFrame, applyTokenFrame: applyTokenFrame,
     charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, addCharacter: addCharacter, askDeleteSheet: askDeleteSheet, deleteCharacter: deleteCharacter, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
     charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId, tokenFx: tokenFx, tokenFxModel: tokenFxModel, tokenFxCharOp: tokenFxCharOp,

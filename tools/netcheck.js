@@ -2455,6 +2455,49 @@ pendingChecks.push((async () => {
         j([a, b.table, c.table, d.table, f.table, e.sent, g.sent]));
 })());
 
+// 1.6.0 roll switches (the owner, by prompt: "In the ± window"): a player's roll with bonuses ticked in its ± window — the real roll-req branch
+// with the real dicecore, formula engine and systemcore: the host judges each one through the player's own view (systemcore swJudge), composes it
+// with the modifier from the field's own formula (fr), names what was added on the card, and refuses a bonus the character does not have for that
+// roll, one of a GM-only item, a sum that does not match, and a pick on a roll that names nothing
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js')), Dx = await import(url('dicecore.js'));
+    const rqSrc = (ordersSrc + '\n' + between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]', 'rollreq'));
+    const helpers = ['function own(', 'function peerProfileId(', 'function fxLib(', 'function itemLib(', 'function diceFrom('].map(k => { const i = src.indexOf(k); if (i < 0) throw new Error('netcheck: ' + k + ' not found'); return src.slice(i, src.indexOf('\n', i)); }).join('\n') + '\n';
+    const gmSys = Sx.cleanSystem({ v: 1, name: 'W', fields: [
+        { id: 'f_st', key: 'Stealth', label: 'Stealth', kind: 'skill', roll: '3d6' }, { id: 'f_gm', key: 'Secret', label: 'Secret', kind: 'skill', roll: '3d6', vis: 'gm' },
+        { id: 'f_gear', key: 'Gear', label: 'Gear', kind: 'item-list', list: {} }, { id: 'f_fx', key: 'Fx', label: 'Fx', kind: 'effects' }],
+        items: [{ id: 'i_cloak', name: 'Cloak', rollSw: [{ name: 'In shadow', v: 2, to: [{ f: 'f_st' }] }] }, { id: 'i_amul', name: 'Amulet', vis: 'gm', rollSw: [{ name: 'Hex', v: 3, to: [{ f: 'f_st' }] }] }],
+        effects: [{ id: 'e_aim', name: 'Aimed', rollSw: [{ name: 'Aim', v: 1, to: [{ f: 'f_st' }] }] }], sheet: { sections: [] } }, { F: Fx, gmView: true });
+    const cm = n => Dx.composeModifier('3d6', n, Fx.parse).expr;
+    const run = m => {
+        const camp = { id: 'k', activeItemId: 'm1', system: gmSys, chars: { c_a: { id: 'c_a', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_gear: [{ id: 'w_a', defId: 'i_cloak', qty: 1 }, { id: 'w_b', defId: 'i_amul', qty: 1 }], f_fx: [{ id: 'x_1', ref: 'e_aim', on: true }] } } }, items: { m1: { type: 'map', whiteboard: [] } } };
+        const net = { active: true, role: 'host', paused: false, roster: { pA: { id: 'u_a', name: 'Pat', location: 'm1' } }, combats: {} };
+        const out = { table: [], sent: [] };
+        const conn = { peer: 'pA', send(x) { packCheck(x); out.sent.push(JSON.parse(JSON.stringify(x))); } };
+        const win = { wpFormula: Fx, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }) }, wpVtt: { on: () => true, rulesOn: () => true } };
+        const msg = Object.assign({ type: 'roll-req', rid: 'q1', charId: 'c_a', label: 'Stealth' }, m);
+        new Function('msg', 'conn', 'net', 'DC', 'SC', 'window', 'getActiveCampaign', 'peerPaused', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'var diceLimit = null, _diceSlowSaid = {};\n' + helpers + rqSrc)(
+            msg, conn, net, () => Dx, () => Sx, win, () => camp, () => false, e => { throw e; }, rec => { packCheck(rec); out.table.push(JSON.parse(JSON.stringify(rec))); }, () => {}, () => {});
+        return out;
+    };
+    const dmsg = o => o.sent.length === 1 && o.sent[0].type === 'roll-deny' ? o.sent[0].message || o.sent[0].reason : '';
+    const ok = run({ expr: cm(4), fr: 'f_st', mod: 1, sw: [{ s: 'f_gear|w_a', i: 0 }, { s: 'f_fx|e_aim', i: 0 }] });
+    const plainFr = run({ expr: cm(-1), fr: 'f_st', mod: -1 });
+    const sum = run({ expr: cm(1), fr: 'f_st', sw: [{ s: 'f_gear|w_a', i: 0 }] });
+    const gmPick = run({ expr: cm(3), fr: 'f_st', sw: [{ s: 'f_gear|w_b', i: 0 }] });
+    const gmField = run({ expr: cm(2), fr: 'f_gm', sw: [{ s: 'f_gear|w_a', i: 0 }] });
+    const unnamed = run({ expr: cm(2), sw: [{ s: 'f_gear|w_a', i: 0 }] });
+    check('1.6.0 roll switches on the host (roll-req, run for real): a field\'s own roll named by its field takes the bonuses ticked, each judged through the player\'s view, composed with the modifier from the field\'s own formula, the card naming what was added; a field\'s own roll with a modifier alone goes as a named roll; a sum that does not match the button, a bonus of a GM-only item, a GM-only field\'s roll and a pick on a roll that names nothing are refused',
+        ok.table.length === 1 && ok.sent.length === 0 && j(ok.table[0].sw) === j([{ n: 'In shadow', v: 2 }, { n: 'Aim', v: 1 }]) && ok.table[0].expr === cm(4)
+        && plainFr.table.length === 1 && plainFr.table[0].sw === undefined
+        && sum.table.length === 0 && dmsg(sum) === 'That roll does not match its button now.'
+        && gmPick.table.length === 0 && dmsg(gmPick) === 'That bonus is not yours to add to this roll now.'
+        && gmField.table.length === 0 && /^That (roll does not match its button|bonus is not yours to add to this roll) now.$/.test(dmsg(gmField))
+        && unnamed.table.length === 0 && dmsg(unnamed) === 'That roll could not be read.',
+        j([ok, plainFr.table, sum.sent, gmPick.sent, gmField.sent, unnamed.sent]));
+})());
+
 // Range penalties R2 (docs/RANGE_PLAN.md 3): a player's roll and apply action read RangeMod and TargetDistance to their own pointer's target
 // as their copy holds it — the real roll-req and char-apply branches with the real rangeTo (sliced by its netcheck markers), systemcore,
 // formula engine and dicecore; never a target the GM hid, one their sight drops on a fogged map, one on another map, their own token or

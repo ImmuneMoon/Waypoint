@@ -2746,6 +2746,14 @@
   .dice-advbtn { flex: 1 1 0; padding: 3px 0; font-size: 11px; }
   .dice-advbtn.on { border-color: var(--gold); color: var(--gold); background: rgba(212,165,79,0.12); }
   .dice-modpop-chips { display: flex; gap: 4px; }
+  /* 1.6.0 roll switches: the bonuses a roll may take, each a tick, and the ± that says some are there */
+  .dice-modsw { display: flex; flex-direction: column; gap: 4px; }
+  .dice-modsw-cap { font-size: 11px; color: var(--dim); }
+  .dice-swbtn { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 3px 8px; font-size: 12px; text-align: left; }
+  .dice-swbtn-v { color: var(--dim); font-variant-numeric: tabular-nums; }
+  .dice-swbtn.on { border-color: var(--gold); color: var(--gold); background: rgba(212,165,79,0.12); }
+  .dice-swbtn.on .dice-swbtn-v { color: var(--gold); }
+  .sheet-roll-mod.sheet-roll-mod-sw { color: var(--gold); border-color: var(--gold); }
   .dice-modchip { flex: 1 1 0; padding: 2px 0; font-size: 12px; }
   .dice-modpop-num { display: flex; align-items: center; justify-content: center; gap: 10px; }
   .dice-modpm { padding: 0 10px; height: 26px; font-size: 15px; }

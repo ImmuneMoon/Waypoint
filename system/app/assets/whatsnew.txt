@@ -91,6 +91,16 @@ System editor
 - An action or a roll used on someone next to you can read their figures,
   as On. and a name. So a medpac can say Not on a droid, with its needs
   not(On.Droid). Used on yourself, it reads your own.
+- A formula can be rounded by a pick from a list, with no arithmetic to
+  write: Rounding normally, down, up, or up only from a point, such as a
+  Dodge that drops its decimals unless they are .95 or more, to whole
+  numbers, tenths, hundredths or thousandths. A pool's Max formula can
+  be rounded the same way. It rounds the figure as written, so 8.95 is
+  never read as 8.9499, and the value's tooltip on the sheet says what it
+  was, as 7.95, rounded up from .95.
+- Every box of a field's row says what it is, filled or not: Key, Label,
+  Kind, Formula, Max formula, Starting value and the rest. Before, a
+  filled box lost its name, and a pool's starting value had none.
 
 Using an item on someone next to you
 - When the GM rolls it, an amount that reads a GM-only value keeps the

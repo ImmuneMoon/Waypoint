@@ -2904,6 +2904,17 @@
   .sys-def { flex: 1 0 100%; min-width: 240px; gap: 10px; align-items: flex-end; }
   .sys-num { display: inline-flex; flex-direction: column; gap: 2px; }
   .sys-num-cap { font-size: 9px; text-transform: uppercase; letter-spacing: .05em; color: var(--dim); padding-left: 1px; }
+  /* clarity package: a captioned text box or list (capBox) takes the room the bare box had, and the box fills it; capInline names one on the row of ticks */
+  .sys-cap { min-width: 0; }
+  .sys-row .sys-cap > input, .sys-row .sys-cap > select { flex: none; width: 100%; min-width: 0; box-sizing: border-box; }
+  .sys-row-main > .sys-cap:has(> .sys-key) { flex: 0 0 140px; }
+  .sys-row-main > .sys-cap:has(> .sys-label) { flex: 1 1 180px; min-width: 150px; }
+  .sys-def > .sys-cap:has(> .sys-formula), .sys-def > .sys-cap:has(> .sys-options) { flex: 1 1 220px; min-width: 180px; }
+  .sys-def > .sys-cap:has(> .sys-def-res) { flex: 0 0 110px; }
+  .sys-def > .sys-cap:has(> .sys-def-text) { flex: 1 1 140px; min-width: 120px; }
+  .sys-capin { white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }
+  .sys-flags .sys-capin:has(> .sys-vnames), .sys-flags .sys-capin:has(> .sys-caption) { flex: 1 1 240px; min-width: 0; }
+  .sys-flags .sys-capin > .sys-vnames, .sys-flags .sys-capin > .sys-caption { flex: 1; width: auto; min-width: 0; }
   .sys-row input:focus, .sys-row select:focus, #sysCombatBox input:focus, #sysCombatBox select:focus, #sysListRules select:focus, #sysCalendar input:focus, #sysCalendar select:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 2px rgba(224,165,79,0.22); }
   .sys-btns { gap: 3px; }
   .sys-def input[type=number], .sys-row input[type=number] { width: 68px; padding: 4px 6px; font-size: 12px; }

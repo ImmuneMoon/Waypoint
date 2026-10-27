@@ -9,6 +9,7 @@ import { save, toast, toastAction } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
 import { cleanDamageRules, rollSwitches, rollSwitchesAll, cleanRollSw, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, DEFAULT_POSTURES, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
+import { roundSays } from './systemcore.js';   // clarity package: how a value was rounded, for its tooltip
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
 import { lvlsFromBox, lvlsToText } from './librarycore.js';
 import { dieNode, DIE_LABELS } from './dieicons.js';   // 1.5.8, backlog 149: the dice drawings (pure)
@@ -3622,7 +3623,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
     var playOk = editable && (!lk || f.live !== false), editOk = editable && (!lk || f.live === true);   // a list's two halves: what is used in play (a switch, a count, a use), and what changes the character (a level, a row, a note)
     var raw = c.values ? c.values[f.id] : undefined;
     var k = f.kind;
-    if (k === 'formula') { var v = el('div', 'sheet-value' + (e && e.error ? ' sheet-err' : '') + signTone(f, e), e && e.error ? '—' : e ? (f.unit && e.text !== '' && !e.label ? (typeof figWords === 'function' ? figWords(f, e.value, e.text) : e.text + ' ' + f.unit) : e.text) : ''); v.title = e && e.error ? e.error : f.formula || ''; if (f.badge && e && !e.error) { var tnB = valueTone(f, e), bd = el('span', 'sheet-badge' + (Object.prototype.hasOwnProperty.call(TONE_CLASS, tnB) ? TONE_CLASS[tnB] : ''), v.textContent); v.textContent = ''; v.appendChild(bd); } var fmF = fxMark(e); if (fmF) { v.appendChild(fmF); v.title += '\n' + fmF.title; } box.appendChild(v); return box; }
+    if (k === 'formula') { var v = el('div', 'sheet-value' + (e && e.error ? ' sheet-err' : '') + signTone(f, e), e && e.error ? '—' : e ? (f.unit && e.text !== '' && !e.label ? (typeof figWords === 'function' ? figWords(f, e.value, e.text) : e.text + ' ' + f.unit) : e.text) : ''); v.title = e && e.error ? e.error : f.formula || ''; if (e && !e.error && e.unrounded !== undefined && typeof roundSays === 'function') v.title += '\n' + roundSays(f, e.unrounded); if (f.badge && e && !e.error) { var tnB = valueTone(f, e), bd = el('span', 'sheet-badge' + (Object.prototype.hasOwnProperty.call(TONE_CLASS, tnB) ? TONE_CLASS[tnB] : ''), v.textContent); v.textContent = ''; v.appendChild(bd); } var fmF = fxMark(e); if (fmF) { v.appendChild(fmF); v.title += '\n' + fmF.title; } box.appendChild(v); return box; }
     if (k === 'number' && Array.isArray(f.labels) && f.labels.length) {   // Stage 6: a number with value names — a dropdown that stores the position (formulas read the number)
         var rowL = el('div', 'sheet-ctl'), ls = el('select', 'field sheet-select'), curL = Number(raw === undefined ? f.def : raw);
         ls.dataset.fid = f.id; f.labels.forEach(function(t, i) { ls.appendChild(opt(String(i), t || String(i), curL === i)); });
@@ -3671,7 +3672,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
         var minus = el('button', 'tool ghost sheet-pm', '−'); minus.dataset.fid = f.id; minus.dataset.part = 'minus'; minus.title = 'One less'; minus.disabled = !use;
         var ci = el('input', 'field sheet-num sheet-cur num-stepped'); ci.type = 'number'; ci.dataset.fid = f.id; ci.value = String(cur); ci.disabled = !use; if (f.min !== undefined) ci.min = String(f.min); if (max !== null) ci.max = String(max);
         var plus = el('button', 'tool ghost sheet-pm', '+'); plus.dataset.fid = f.id; plus.dataset.part = 'plus'; plus.title = 'One more'; plus.disabled = !use;
-        var mx = el('span', 'sheet-total' + (e && e.error ? ' sheet-err' : ''), '/ ' + (max === null ? '—' : fmtNum(max)) + (f.unit ? ' ' + (typeof unitText === 'function' ? unitText(f, cur, String(cur), max, max === null ? '' : fmtNum(max)) : f.unit) : '')); mx.title = e && e.error ? e.error : (f.maxFormula || 'no max'); var fmR = fxMark(e, true); if (fmR) mx.title += '\n' + fmR.title;
+        var mx = el('span', 'sheet-total' + (e && e.error ? ' sheet-err' : ''), '/ ' + (max === null ? '—' : fmtNum(max)) + (f.unit ? ' ' + (typeof unitText === 'function' ? unitText(f, cur, String(cur), max, max === null ? '' : fmtNum(max)) : f.unit) : '')); mx.title = e && e.error ? e.error : (f.maxFormula || 'no max'); if (e && !e.error && e.maxUnrounded !== undefined && typeof roundSays === 'function') mx.title += '\n' + roundSays(f, e.maxUnrounded); var fmR = fxMark(e, true); if (fmR) mx.title += '\n' + fmR.title;
         minus.addEventListener('click', function() { commit(c, f, { cur: cur - 1 }); });
         plus.addEventListener('click', function() { commit(c, f, { cur: cur + 1 }); });
         ci.addEventListener('change', function() { commit(c, f, { cur: Number(ci.value) }); });
@@ -4307,7 +4308,7 @@ function metricSel(cls, v) {
 // The fewest and the most decimals a figure shows (decMin, decMax), and whether its thousands are grouped (group), on a field's row
 function decBox(f) {
     var l = el('label', 'sys-hover sys-dec'); l.appendChild(document.createTextNode('Decimals: '));
-    [['sys-decmin', f.decMin, 'least'], ['sys-decmax', f.decMax, 'most']].forEach(function(d) { var n = el('input', d[0] + ' field'); n.type = 'number'; n.min = '0'; n.max = '5'; n.step = '1'; n.value = typeof d[1] === 'number' ? String(d[1]) : ''; n.placeholder = d[2]; l.appendChild(n); });
+    [['sys-decmin', f.decMin, 'least'], ['sys-decmax', f.decMax, 'most']].forEach(function(d, i) { if (i) l.appendChild(document.createTextNode(' to ')); var n = el('input', d[0] + ' field'); n.type = 'number'; n.min = '0'; n.max = '5'; n.step = '1'; n.value = typeof d[1] === 'number' ? String(d[1]) : ''; n.placeholder = d[2]; l.appendChild(n); });   // clarity package: Decimals: 1 to 2 reads as the fewest and the most once both are filled
     l.title = 'The fewest and the most decimals the value shows, 0 to 5: 1 and 2 read 32.0 and 5.88. Blank: as before, two at most. Formulas, rolls and the character file read the figure as it is'; return l;
 }
 // [systemcheck:fieldunit-end]
@@ -5854,6 +5855,11 @@ function numField(cls, value, title, cap, step) { var l = el('label', 'sys-num')
 function select(cls, options, value, title) { var s = el('select', cls); options.forEach(function(o) { s.appendChild(opt(o[0], o[1], o[0] === value)); }); if (title) s.title = title; return s; }
 function btnRow(list) { var btns = el('span', 'sys-btns'); list.forEach(function(b) { var x = el('button', 'tool ghost sys-btn'); x.dataset.act = b[0]; x.title = b[1]; x.innerHTML = b[2]; btns.appendChild(x); }); return btns; }
 function labeledSelect(cls, cap, options, value, title) { var l = el('label', 'sys-combat-item'); l.appendChild(el('span', 'sys-num-cap', cap)); l.appendChild(select(cls, options, value, title)); return l; }
+// Clarity package: every box says what it is, filled or not (a placeholder goes as you type, so a filled box read as nothing: a −50 meant for
+// a pool's Min went into its unnamed starting value). capBox captions a text box or a list above it, as numField captions a number;
+// capInline names one on the row of ticks before it, as Locked: and Metric: are. The box keeps its class, so the handlers find it as before
+function capBox(box, cap) { var l = el('label', 'sys-num sys-cap'); l.appendChild(el('span', 'sys-num-cap', cap)); l.appendChild(box); return l; }
+function capInline(box, words) { var l = el('label', 'sys-hover sys-capin'); l.appendChild(document.createTextNode(words)); l.appendChild(box); return l; }
 // [lookcheck:lineunder-start]
 // 107, options that say what they do: one grey line under the captioned list a box was just given. Fixed words, set as text
 function lineUnder(box, text) { var l = box && box.lastChild; if (l) l.appendChild(el('small', 'sys-line', text)); }
@@ -5861,9 +5867,9 @@ function lineUnder(box, text) { var l = box && box.lastChild; if (l) l.appendChi
 function fieldRow(f) {
     var row = el('div', 'sys-row'); row.dataset.id = f.id;
     var top = el('div', 'sys-row-main');
-    top.appendChild(input('sys-key field', f.key, 'The name formulas use: STR, Skill.Stealth. Letters, digits, _ and dots.', 'Key'));
-    top.appendChild(input('sys-label field', f.label, 'Shown on the sheet', 'Label'));
-    top.appendChild(select('sys-kind', Object.keys(KIND_LABEL).map(function(k) { return [k, KIND_LABEL[k]]; }), f.kind, KIND_HELP[f.kind] || ''));
+    top.appendChild(capBox(input('sys-key field', f.key, 'The name formulas use: STR, Skill.Stealth. Letters, digits, _ and dots.', 'STR'), 'Key'));   // clarity package: captioned
+    top.appendChild(capBox(input('sys-label field', f.label, 'Shown on the sheet', 'Strength'), 'Label'));
+    top.appendChild(capBox(select('sys-kind', Object.keys(KIND_LABEL).map(function(k) { return [k, KIND_LABEL[k]]; }), f.kind, KIND_HELP[f.kind] || ''), 'Kind'));
     var def = el('div', 'sys-def'); top.appendChild(def); buildDefCell(def, f);
     var flags = el('div', 'sys-flags');
     if (STORED[f.kind]) flags.appendChild(select('sys-edit', [['owner', 'Player may edit'], ['gm', 'GM edits']], f.edit || 'owner', 'Who may change the value at the table'));
@@ -5873,16 +5879,16 @@ function fieldRow(f) {
     if (f.kind === 'number' && (!f.counter || f.slider)) { var sl = el('label', 'sys-hover'); var sc = el('input'); sc.type = 'checkbox'; sc.checked = !!f.slider; sc.className = 'sys-slider-chk'; sl.appendChild(sc); sl.appendChild(document.createTextNode(' Slider')); sl.title = 'Show this number as a range on a two-colour track with end labels (needs a min and a max)'; flags.appendChild(sl); }   // Stage 5e (a counter is not a slider: hidden while Counter is on, shown while a slider is set so it can be turned off)
     if ((f.kind === 'number' && !f.slider && !(Array.isArray(f.labels) && f.labels.length)) || f.kind === 'skill') { var cnl = el('label', 'sys-hover'); var cnc = el('input'); cnc.type = 'checkbox'; cnc.checked = !!f.counter; cnc.className = 'sys-counter-chk'; cnl.appendChild(cnc); cnl.appendChild(document.createTextNode(' Counter')); cnl.title = 'Draw \u2212 and + either side of the box (a turn counter, death saves, ammo, slots used)'; flags.appendChild(cnl); }   // HUD frame (HF4a, H8): never with a slider or value names
     if (f.kind !== 'formula') { var lvL = el('label', 'sys-hover sys-live'); lvL.appendChild(document.createTextNode('Locked: ')); var lvS = el('select', 'sys-live-sel'); [['', 'automatic'], ['on', 'stays live'], ['off', 'needs Edit sheet']].forEach(function(o) { lvS.appendChild(opt(o[0], o[1], (f.live === true ? 'on' : f.live === false ? 'off' : '') === o[0])); }); lvL.appendChild(lvS); lvL.title = 'On a locked sheet and in the HUD. Automatic: a pool, a switch, a counter and a number with value names keep working, and everything else needs Edit sheet. Choose here to say otherwise for this field'; flags.appendChild(lvL); }   // the sheet's lock: this field's own word on it
-    if (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill' || f.kind === 'resource') { var uIn = flags.appendChild(input('sys-unit field', f.unit, 'A short unit after the value, on the sheet and in the header (pts, kg, ft). yd, ft, in, lb and mi are measures: under Metric the sheet shows the figure in metric too', 'Unit')); var uLs = typeof unitWordsList === 'function' ? unitWordsList() : ''; if (uLs) uIn.setAttribute('list', uLs); }   // Stage 5g; 1.5.4: the measures offered as a list, any other unit still typed
+    if (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill' || f.kind === 'resource') { var uIn = input('sys-unit field', f.unit, 'A short unit after the value, on the sheet and in the header (pts, kg, ft). yd, ft, in, lb and mi are measures: under Metric the sheet shows the figure in metric too', 'pts'); flags.appendChild(capInline(uIn, 'Unit: ')); var uLs = typeof unitWordsList === 'function' ? unitWordsList() : ''; if (uLs) uIn.setAttribute('list', uLs); }   // Stage 5g; 1.5.4: the measures offered as a list, any other unit still typed
     if ((f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill') && typeof metricSel === 'function') { flags.appendChild(metricSel('sys-metricshow', f.unitShow)); flags.appendChild(decBox(f)); var grl = el('label', 'sys-hover'); var grc = el('input'); grc.type = 'checkbox'; grc.checked = f.group === true; grc.className = 'sys-group-chk'; grl.appendChild(grc); grl.appendChild(document.createTextNode(' 1,000s')); grl.title = 'Group the thousands with commas: 1,234.57'; flags.appendChild(grl); }   // 1.5.4: how a measure reads under Metric, the decimals, the thousands
     else if (f.kind === 'text') flags.appendChild(select('sys-unit-text', [['', 'Unit: none'], ['height', 'Unit: height'], ['weight', 'Unit: weight']], f.unit === 'height' || f.unit === 'weight' ? f.unit : '', 'Height or weight: the text is read as one. Imperial shows its feet and inches or pounds, Metric its metres or kilograms'));   // 1.5.4
     if (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill') { var sgl = el('label', 'sys-hover'); var sgc = el('input'); sgc.type = 'checkbox'; sgc.checked = !!f.sign; sgc.className = 'sys-sign-chk'; sgl.appendChild(sgc); sgl.appendChild(document.createTextNode(' \u00b1 colour')); sgl.title = 'Colour the value by its sign: green above zero, red below (points remaining, a modifier)'; flags.appendChild(sgl); }   // Stage 5g
-    if (f.kind !== 'notes' && f.kind !== 'text' && f.kind !== 'select' && f.kind !== 'item-list' && f.kind !== 'effects') { flags.appendChild(input('sys-roll field', f.roll, 'A roll button for this field (dice allowed): d20 + ' + (f.key || 'Key'), 'Roll (optional)')); if (typeof dieSel === 'function') flags.appendChild(dieSel('sys-fielddie', f.rollDie, 'The die its roll button wears. From its formula: the die it rolls, so 3d6 shows three dice and d20 a d20. Kept only beside a roll')); }
-    if (f.kind === 'number' || f.kind === 'formula') flags.appendChild(input('sys-vnames field', (f.labels || []).join(', '), 'Names for the values 0, 1, 2\u2026 separated by commas (Not stunned, Physical, Mental): a number becomes a dropdown, a formula shows the name for its value; formulas still read the number. A named value is a word: \u00b1 colour, unit and slider do not apply to it', 'Value names (optional)'));   // Stage 6
+    if (f.kind !== 'notes' && f.kind !== 'text' && f.kind !== 'select' && f.kind !== 'item-list' && f.kind !== 'effects') { flags.appendChild(capInline(input('sys-roll field', f.roll, 'A roll button for this field (dice allowed): d20 + ' + (f.key || 'Key'), 'optional'), 'Roll: ')); if (typeof dieSel === 'function') flags.appendChild(dieSel('sys-fielddie', f.rollDie, 'The die its roll button wears. From its formula: the die it rolls, so 3d6 shows three dice and d20 a d20. Kept only beside a roll')); }
+    if (f.kind === 'number' || f.kind === 'formula') flags.appendChild(capInline(input('sys-vnames field', (f.labels || []).join(', '),'Names for the values 0, 1, 2\u2026 separated by commas (Not stunned, Physical, Mental): a number becomes a dropdown, a formula shows the name for its value; formulas still read the number. A named value is a word: \u00b1 colour, unit and slider do not apply to it', 'optional'), 'Value names: '));   // Stage 6
     if (f.kind === 'formula') { var bgl = el('label', 'sys-hover'), bgc = el('input'); bgc.type = 'checkbox'; bgc.checked = !!f.badge; bgc.className = 'sys-badge-chk'; bgl.appendChild(bgc); bgl.appendChild(document.createTextNode(' Badge')); bgl.title = 'Show the value as a small pill; with value names, each name can have its own colour'; flags.appendChild(bgl); }   // Stage 6 look fold (L7)
-    flags.appendChild(input('sys-caption field', f.caption, 'A line under the field on the sheet \u2014 {formula} shows a value, {\u00b1formula} the value with its sign (+2), e.g. Base: {ST * 2}', 'Caption (optional)'));   // Fold B; Stage 6: {\u00b1\u2026}
+    flags.appendChild(capInline(input('sys-caption field', f.caption, 'A line under the field on the sheet \u2014 {formula} shows a value, {\u00b1formula} the value with its sign (+2), e.g. Base: {ST * 2}', 'optional'), 'Caption: '));   // Fold B; Stage 6: {\u00b1\u2026}
     if (f.kind === 'resource') {   // Fold B: the pool's icon, a fill-to-max button, the bar
-        var rIcoIn = input('sys-res-icon field', f.icon, 'An icon before the value \u2014 an emoji or a bundled icon', 'Icon'); flags.appendChild(rIcoIn); flags.appendChild(glyphButton(rIcoIn));
+        var rIcoIn = input('sys-res-icon field', f.icon, 'An icon before the value \u2014 an emoji or a bundled icon', 'none'); flags.appendChild(capInline(rIcoIn, 'Icon: ')); flags.appendChild(glyphButton(rIcoIn));
         var rsl = el('label', 'sys-hover'); var rsc = el('input'); rsc.type = 'checkbox'; rsc.checked = !!f.reset; rsc.className = 'sys-reset-chk'; rsl.appendChild(rsc); rsl.appendChild(document.createTextNode(' \u21bb Reset')); rsl.title = 'A button that fills the pool back to its max'; flags.appendChild(rsl);
         var rcl = el('label', 'sys-sec-color'), rci = el('input'); rci.type = 'color'; rci.className = 'sys-res-color'; rci.value = f.color || '#4db3d3'; rci.title = 'The pool\u2019s own colour: its icon, its bar and its value on the band'; rcl.appendChild(el('span', 'sys-sec-style-lbl', 'Colour')); rcl.appendChild(rci); flags.appendChild(rcl);   // L7
         if (f.color) { var rcc = el('button', 'tool ghost sys-btn', 'No colour'); rcc.dataset.act = 'rescolorclr'; rcc.title = 'Back to the theme\u2019s colours'; flags.appendChild(rcc); }
@@ -5917,7 +5923,7 @@ function buildDefCell(def, f) {
     def.textContent = '';
     var k = f.kind;
     if (k === 'number' || k === 'skill') {
-        if (k === 'skill') def.appendChild(input('sys-formula field', f.base, 'The base added to the ranks (a formula, no dice): DEXmod. Empty = ranks alone.', 'Base formula (optional)'));
+        if (k === 'skill') def.appendChild(capBox(input('sys-formula field', f.base, 'The base added to the ranks (a formula, no dice): DEXmod. Empty = ranks alone.', 'optional: DEXmod'), 'Base formula'));
         if (k === 'number' && Array.isArray(f.labels) && f.labels.length) {   // Stage 6: a named number — its default is one of its names; the range is the names
             var dl = Math.max(0, Math.min(f.labels.length - 1, Math.round(Number(f.def) || 0)));
             def.appendChild(select('sys-def-lbl', f.labels.map(function(t, i) { return [String(i), t || String(i)]; }), String(dl), 'The value a new character starts with'));
@@ -5928,13 +5934,13 @@ function buildDefCell(def, f) {
         def.appendChild(numField('sys-min', f.min, 'Minimum (empty = none)', 'Min'));
         def.appendChild(numField('sys-max', f.max, 'Maximum (empty = none)', 'Max'));
         def.appendChild(numField('sys-step', f.step === undefined ? 1 : f.step, 'Step', 'Step'));
-    } else if (k === 'formula') def.appendChild(input('sys-formula field', f.formula, 'Computed from other fields; no dice here: floor((STR - 10) / 2)', 'Formula'));
+    } else if (k === 'formula') { def.appendChild(capBox(input('sys-formula field', f.formula, 'Computed from other fields; no dice here: floor((STR - 10) / 2)', '(STR - 10) / 2'), 'Formula')); roundCells(def, f); }   // clarity package: and how its value is rounded
     else if (k === 'resource') {
-        def.appendChild(input('sys-formula field', f.maxFormula, 'The maximum, as a formula (no dice): 10 + CONmod * 2', 'Max formula'));
-        def.appendChild(input('sys-def-res field', f.def === 'max' || f.def === undefined ? 'max' : f.def, 'Starting value: a number, or "max" for full', 'Default'));
+        def.appendChild(capBox(input('sys-formula field', f.maxFormula, 'The maximum, as a formula (no dice): 10 + CONmod * 2', '10 + CONmod * 2'), 'Max formula')); roundCells(def, f);   // clarity package: its max rounded as a formula's value is
+        def.appendChild(capBox(input('sys-def-res field', f.def === 'max' || f.def === undefined ? 'max' : f.def, 'Starting value: a number, or "max" for full', 'max'), 'Starting value'));
         def.appendChild(numField('sys-min', f.min === undefined ? 0 : f.min, 'Minimum', 'Min'));
     } else if (k === 'toggle') { var t = el('label', 'sys-toggle-def'); var c = el('input'); c.type = 'checkbox'; c.className = 'sys-def-bool'; c.checked = f.def === true; t.appendChild(c); t.appendChild(document.createTextNode(' On by default')); def.appendChild(t); }
-    else if (k === 'text') { def.appendChild(input('sys-def-text field', f.def, 'Default text', 'Default')); def.appendChild(numField('sys-max', f.max === undefined ? 200 : f.max, 'Most characters (up to 200)', 'Chars')); }
+    else if (k === 'text') { def.appendChild(capBox(input('sys-def-text field', f.def, 'Default text', 'optional'), 'Default text')); def.appendChild(numField('sys-max', f.max === undefined ? 200 : f.max, 'Most characters (up to 200)', 'Chars')); }
     else if (k === 'notes') def.appendChild(el('span', 'sys-note', 'A long text on the sheet; not read by formulas.'));
     else if (k === 'effects') def.appendChild(el('span', 'sys-note', 'Status effects on the sheet; the library is the Effects tab. Who may change the list: the edit setting beside.'));
     else if (k === 'item-list') {
@@ -5954,7 +5960,17 @@ function buildDefCell(def, f) {
             def.appendChild(box);
         }
     }
-    else if (k === 'select') { def.appendChild(input('sys-options field', (f.options || []).join(', '), 'The options, separated by commas', 'Options, separated by commas')); def.appendChild(input('sys-def-text field', f.def, 'Default option', 'Default')); }
+    else if (k === 'select') { def.appendChild(capBox(input('sys-options field', (f.options || []).join(', '), 'The options, separated by commas', 'Fighter, Rogue, Mage'), 'Options, separated by commas')); def.appendChild(capBox(input('sys-def-text field', f.def, 'Default option', 'the first'), 'Default option')); }
+}
+// Clarity package: how a formula's value is rounded, picked from a list so a GM never writes the arithmetic (systemcore roundBy works it, so
+// Up only from .95 is exact where mod(x, 1) >= 0.95 is not). To shows once it rounds; Up from only for Up only from
+var ROUND_WORDS = [['', 'None'], ['near', 'Normally'], ['down', 'Down'], ['up', 'Up'], ['from', 'Up only from…']];
+function roundCells(def, f) {
+    var how = ROUND_WORDS.some(function(o) { return o[0] && o[0] === f.round; }) ? f.round : '';
+    def.appendChild(labeledSelect('sys-round', 'Rounding', ROUND_WORDS, how, 'How the value is rounded. None: as it works out. Normally: half up, as round() does. Down and Up: always that way. Up only from: up only when what lies past the place is at least the point you set, as .95 for a Dodge'));
+    if (!how) return;
+    def.appendChild(labeledSelect('sys-roundto', 'To', [['0', 'whole numbers'], ['1', 'tenths'], ['2', 'hundredths'], ['3', 'thousandths']], String(f.roundTo >= 1 && f.roundTo <= 3 ? f.roundTo : 0), 'The place it is rounded to'));
+    if (how === 'from') def.appendChild(numField('sys-roundat', typeof f.roundAt === 'number' ? f.roundAt : 0.5, 'Up only when what lies past the place is this much or more, 0.01 to 0.99: at .95, 7.94 stays 7 and 7.95 becomes 8', 'Up from', '0.01'));
 }
 // Stage 6 HUD H7: an apply action's changes — each a pool or a number, Subtract or Add, and the amount (a formula, no dice); LIMITS.applyChanges at most
 function applyEditor(r, key) {   // key (R1): 'apply' — an apply action's changes; 'then' — a roll's consequences (each with its When)
@@ -8101,6 +8117,7 @@ function onInput(e) {
         else if (c.indexOf('sys-max') >= 0) { if (t.value === '') delete f.max; else f.max = Number(t.value); }
         else if (c.indexOf('sys-step') >= 0) f.step = Number(t.value) || 1;
         else if (c.indexOf('sys-options') >= 0) f.options = t.value.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+        else if (c.indexOf('sys-roundat') >= 0) { if (String(t.value).trim() === '' || !isFinite(Number(t.value))) delete f.roundAt; else f.roundAt = Number(t.value); }   // clarity package (Save holds it to 0.01 to 0.99)
         else if (c.indexOf('sys-decmin') >= 0 || c.indexOf('sys-decmax') >= 0) { var dk = c.indexOf('sys-decmin') >= 0 ? 'decMin' : 'decMax'; if (String(t.value).trim() === '' || !isFinite(Number(t.value))) delete f[dk]; else f[dk] = Number(t.value); }   // 1.5.4 (Save keeps a whole number 0 to 4)
         else return;
     } else if (r) {
@@ -8251,7 +8268,7 @@ function onChange(e) {
     var ctx = fieldOfRow(t); if (!ctx) return;
     var f = ctx.f, r = ctx.r;
     if (f) {
-        if (c.indexOf('sys-kind') >= 0) { f.kind = t.value; delete f.formula; delete f.maxFormula; delete f.base; delete f.options; if (f.unit === 'height' || f.unit === 'weight' ? f.kind !== 'text' : f.kind === 'text') delete f.unit; if (f.kind !== 'number' && f.kind !== 'formula' && f.kind !== 'skill') { delete f.unitShow; delete f.decMin; delete f.decMax; delete f.group; } f.def = f.kind === 'toggle' ? false : f.kind === 'text' || f.kind === 'select' ? '' : f.kind === 'resource' ? 'max' : 0; if (f.kind === 'resource' && f.min === undefined) f.min = 0; markDirty(); renderAll(); return; }
+        if (c.indexOf('sys-kind') >= 0) { f.kind = t.value; delete f.formula; delete f.maxFormula; delete f.base; delete f.options; if (f.unit === 'height' || f.unit === 'weight' ? f.kind !== 'text' : f.kind === 'text') delete f.unit; if (f.kind !== 'number' && f.kind !== 'formula' && f.kind !== 'skill') { delete f.unitShow; delete f.decMin; delete f.decMax; delete f.group; } if (f.kind !== 'formula' && f.kind !== 'resource') { delete f.round; delete f.roundTo; delete f.roundAt; } f.def = f.kind === 'toggle' ? false : f.kind === 'text' || f.kind === 'select' ? '' : f.kind === 'resource' ? 'max' : 0; if (f.kind === 'resource' && f.min === undefined) f.min = 0; markDirty(); renderAll(); return; }
         if (c.indexOf('sys-edit') >= 0) f.edit = t.value;
         else if (c.indexOf('sys-vis') >= 0) f.vis = t.value;
         else if (c.indexOf('sys-hover-chk') >= 0) f.hover = t.checked;
@@ -8259,6 +8276,8 @@ function onChange(e) {
         else if (c.indexOf('sys-tile-chk') >= 0) { if (t.checked) f.tile = true; else delete f.tile; }   // Stage 3: stat-tile display
         else if (c.indexOf('sys-sign-chk') >= 0) { if (t.checked) f.sign = true; else delete f.sign; }   // Stage 5g: colour by sign
         else if (c.indexOf('sys-badge-chk') >= 0) { if (t.checked) f.badge = true; else delete f.badge; markDirty(); renderAll(); return; }   // L7: the tones row follows
+        else if (t.classList.contains('sys-roundto')) { if (Number(t.value) >= 1) f.roundTo = Number(t.value); else delete f.roundTo; }   // clarity package: the place it rounds to (by the whole class: sys-round is a prefix of it and of sys-roundat)
+        else if (t.classList.contains('sys-round')) { if (t.value) f.round = t.value; else { delete f.round; delete f.roundTo; } if (t.value !== 'from') delete f.roundAt; markDirty(); renderAll(); return; }   // ... and how: To and Up from follow
         else if (c.indexOf('sys-tone-sel') >= 0) { var tiN = Number(t.dataset.ti), tArr = Array.isArray(f.tones) ? f.tones.slice() : []; if (isFinite(tiN) && tiN >= 0 && tiN < LIMITS.labels) { while (tArr.length <= tiN) tArr.push(''); tArr[tiN] = t.value; while (tArr.length && !tArr[tArr.length - 1]) tArr.pop(); if (tArr.length) f.tones = tArr; else delete f.tones; } }   // L7
         else if (c.indexOf('sys-res-color') >= 0) { markDirty(); renderAll(); return; }   // L7: a colour picked — "No colour" appears
         else if (c.indexOf('sys-reset-chk') >= 0) { if (t.checked) f.reset = true; else delete f.reset; }   // Fold B: fill-to-max button

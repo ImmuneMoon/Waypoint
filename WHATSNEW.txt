@@ -21,6 +21,15 @@ Scenes
   picture in a planner or a page you are reading to show it as a scene.
 
 Systems
+- Rows that open. Tick Rows open on a list and each row gets an arrow
+  before its name. It opens the row's details, and so does a press on the
+  name. Open all and Close all stand over the list.
+- Each part of a list's row has a Shows list: On the row, In the details
+  or Hidden. That covers a column, a counter, a roll, the level, the switch
+  and Paid. A busy row can keep its name, switch and main rolls on the
+  row, with the rest one press away. The HUD keeps every part on its row.
+- The remove, edit and notes buttons on a row now have names a screen
+  reader says, and a counter's minus and plus are larger.
 - A system holds 80 rolls, up from 50. The System editor's + Roll now
   greys out at the limit and says why, where before a roll past it was
   dropped at Save.

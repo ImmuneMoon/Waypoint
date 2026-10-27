@@ -2112,7 +2112,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const cardA = LC5(JSON.parse(j(rawA.fields[0])), ['Skill']), colRows = find5(cardA, 'sys-list-col'), six = LC5({ id: 'f_s', key: 'S', label: 'S', kind: 'item-list', list: { cols: Array.from({ length: 24 }, (_, i) => ({ key: 'C' + i, formula: '1' })) } }, []);
             check('F5a1 the Lists card (run for real): a row per column (key up to 24, label, formula up to 300, unit, value names, Hidden, Total, ▲ ▼ ×), + Column (greyed at twenty-four since 1.6.0), and a line naming what formulas can read of the list; the handlers write the draft (pinned)',
                 colRows.length === 3 && j(find5(cardA, 'sys-list-colkey').map(x => x.value)) === j(['Cost', 'Twice', 'Band']) && find5(cardA, 'sys-list-colformula')[0].maxLength === 300 && find5(cardA, 'sys-list-colkey')[0].maxLength === 24
-                && j(find5(cardA, 'sys-list-colhide').map(x => x.checked)) === j([false, true, false]) && j(find5(cardA, 'sys-list-colfoot').map(x => x.checked)) === j([true, true, false]) && find5(cardA, 'sys-list-coladd')[0].disabled === false && find5(six, 'sys-list-coladd')[0].disabled === true
+                && find5(cardA, 'sys-list-colhide').length === 0 /* 1.6.0 R2: a column's Hidden is its Shows list now, checked in its own check */ &&j(find5(cardA, 'sys-list-colfoot').map(x => x.checked)) === j([true, true, false]) && find5(cardA, 'sys-list-coladd')[0].disabled === false && find5(six, 'sys-list-coladd')[0].disabled === true
                 && /^Formulas read Skills\.count, Skills\.qty, Skills\.Rel, Skills\.Diff, Skills\.Cost, Skills\.Twice, Skills\.Band \(the list’s totals\); Skills\.on\.… the same over the rows switched on; Skills\.<key>\.lvl/.test(find5(cardA, 'sys-list-names')[0].textContent)
                 && /else if \(lcc\.indexOf\('sys-list-colformula'\) >= 0\) cD\.formula = t\.value\.slice\(0, LIMITS\.formula\);/.test(shT) && /if \(cact === 'coladd'\) \{ if \(cArr\.length >= LIMITS\.listCols\)/.test(shT) && /var chK = c\.indexOf\('sys-list-colhide'\) >= 0 \? 'hide' : 'foot';/.test(shT)
                 && /itemListInto\(wrap, f, c, rowsI, sysI, canThrow, playOk, gm, emptyI, resI, editOk\);/.test(shT) && /itemTableInto\(wrap, f, c, rowsI, sysI, canThrow, playOk, gm, emptyI, resI, editOk\);/.test(shT),   // 1.5.5 (a list placed once a category): the rows its placement shows, and the field's entry with its totals drawn once
@@ -5526,7 +5526,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const shSW = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL), hSW = fs.readFileSync(path.join(app, 'index.html'), 'utf8');
         check('1.5.8 a switch\'s needs (source): the sheet greys a player\'s switch with the words and tells the GM, the GM\'s own hand is told in a notice, the Lists tab has its two boxes and their handlers, Save says it drops words with no formula; Help and the Lists key name it',
             shSW.includes("if (!on && okOn === false) { var swW = typeof rollNeedsSays === 'function' ? rollNeedsSays(S) : 'Not now'; cb.classList.add('sheet-item-onno'); if (typeof isClient === 'function' && isClient()) { cb.disabled = true; cb.title = swW; }")
-            && (shSW.match(/res && res\.onOk \? res\.onOk\[rid\] : undefined, res && res\.onShow \? res\.onShow\[rid\] : undefined\)/g) || []).length === 2 && shSW.includes("if (typeof res.onNeeds === 'string' && res.onNeeds) toast('Switched on all the same. A player would be told: ' + res.onNeeds);")
+            && (shSW.match(/res && res\.onOk \? res\.onOk\[rid\] : undefined, res && res\.onShow \? res\.onShow\[rid\] : undefined\)/g) || []).length === 4   /* 1.6.0 R2: and twice more, a switch placed in a row's details (plain and in a table) */ && shSW.includes("if (typeof res.onNeeds === 'string' && res.onNeeds) toast('Switched on all the same. A player would be told: ' + res.onNeeds);")
             && shSW.includes("orow.appendChild(input('sys-list-swneeds field',") && shSW.includes("lsp.on.needs = t.value.slice(0, LIMITS.formula); else delete lsp.on.needs;") && shSW.includes("lsp.on.needsText = t.value.slice(0, LIMITS.label); else delete lsp.on.needsText;")
             && shSW.includes("'The switch has words but no Needs to switch on, so Save drops its words.'") && /<li><b>Needs to switch on<\/b> is a formula a row must meet before its switch goes on/.test(hSW) && /<b>Needs to switch on<\/b><small>/.test(hSW));
     }
@@ -6473,7 +6473,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('With stats in the System editor (listCard, run for real): each column row has one With stats box, after the value names and before Hidden, holding the column\'s names as stored, separated by a comma and a space (empty for a column that names none), at most 240 characters, with its placeholder and a tooltip that shows the example',
             boxes.length === 5 && j(boxes.map(x => [x.className, x.value, x.placeholder, x.maxLength, x.type])) === j([['sys-list-colplus field', 'vsCold,  vsion ', 'With stats (optional)', 240, 'text']].concat([['vsIon'], ['vsIon'], ['vsIon'], ['VSION, vsenergy']].map(v => ['sys-list-colplus field', v[0], 'With stats (optional)', 240, 'text'])))
             && boxes.every(x => x.title === 'Number stats of this list that add to this column in a case of their own, by their keys, separated by commas. Where such a stat is not 0 the row shows the two added, with the stat’s label: DR 15 (35 vs. energy)')
-            && j(kidsW(rowW).slice(0, 8).map(k => k.className + (kidsW(k)[0] ? '>' + kidsW(k)[0].className : ''))) === j(['sys-list-colkey field', 'sys-list-collabel field', 'sys-list-colformula field', 'sys-list-colunit field', 'sys-list-colnames field', 'sys-list-colplus field', 'sys-check>sys-list-colhide', 'sys-check>sys-list-colfoot'])
+            && j(kidsW(rowW).slice(0, 7).map(k => k.className + (kidsW(k)[0] ? '>' + kidsW(k)[0].className : ''))) === j(['sys-list-colkey field', 'sys-list-collabel field', 'sys-list-colformula field', 'sys-list-colunit field', 'sys-list-colnames field', 'sys-list-colplus field', 'sys-check>sys-list-colfoot'])   /* 1.6.0 R2: the Hidden tick became the column's Shows list */
             && j(findW(cardN, 'sys-list-colplus').map(x => x.value)) === j(['', '', '', '', '']), j(boxes.map(x => [x.className, x.value, x.placeholder, x.maxLength])));
         const hA = shW.indexOf('else if (lcc.indexOf(\'sys-list-colplus\') >= 0) {'), hLine = hA < 0 ? '' : shW.slice(hA, shW.indexOf(NL, hA)), onA = shW.indexOf('function onInput('), namesA = shW.indexOf('else if (lcc.indexOf(\'sys-list-colnames\') >= 0)');
         const typeW = (cls, value, cD) => new Function('lcc', 't', 'cD', 'LIMITS', 'if (false) {} ' + (hLine || 'else throw new Error("the handler");') + NL + 'else return "not mine"; return cD;')(cls, { value }, cD, S.LIMITS);
@@ -15606,6 +15606,89 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && shA.includes("rw.appendChild(altBox(rr, ") && shA.includes("rw.appendChild(altBox(tt, ");
         check('1.6.0 a list roll, an action and a counter may carry other names (alt), each a name and a formula of the row with no dice, ' + 'four at most, a pair missing either part dropped, one that reads a GM-only value left out of the players\' view; resolveAll names each row by the first that holds (e.rl for its rolls and actions in list order, a counter\'s on its cell), and nothing for a list with none; the validator reads each formula with Row names; the sheet draws a row\'s roll, action and counter by it',
             cleanOk && J(names) === J({ a: ['Later', '', 'Mend'], b: ['Fix malfunction', '', ''] }) && J(cts) === J({ a: ['Jammed'], b: ['Broken'] }) && !('rl' in plain) && v.ok && !vBad.ok && wired, J([cleanOk, names, cts, 'rl' in plain, v.ok, vBad.ok, wired]));
+    }
+    {   // 1.6.0, backlog 180 R1 and R2 (the owner, by prompt: "A. Arrow before the name", "A. A Shows list beside each part", "A tick the builder sets"): rows that open, and where each part of a row stands
+        const J = JSON.stringify;
+        const rawR = { v: 1, name: 'R', rolls: [], sheet: { sections: [] },
+            items: [{ id: 'i_bl', name: 'Blaster', stats: { Dmg: 3, Cost: 5 } }, { id: 'i_kn', name: 'Knife', stats: { Dmg: 1, Cost: 2 } }, { id: 'i_pb', name: 'Pebbles', stats: {} }],
+            fields: [{ id: 'f_g', key: 'Gear', label: 'Gear', kind: 'item-list', list: { open: true, price: 'Cost', paidPlace: 'details',
+                stats: [{ key: 'Dmg', label: 'Dmg', show: true }, { key: 'Cost', label: 'Cost' }],
+                lvl: { label: 'Rank', min: 0, max: 5, place: 'hide' }, on: { label: 'Ready', place: 'details' },
+                cols: [{ key: 'Hit', label: 'Hit', formula: 'Row.Dmg + 1', place: 'details' }, { key: 'Sec', label: 'Sec', formula: '1', hide: true, place: 'details' }, { key: 'Wt', label: 'Wt', formula: '2', place: 'bogus' }],
+                counters: [{ key: 'Ammo', label: 'Ammo', max: '10', place: 'details' }, { key: 'Heat', label: 'Heat', max: '5', place: 'hide' }, { key: 'Jam', label: 'Jam', max: '1', place: 7 }],
+                rolls: [{ label: 'Shoot', formula: '3d6' }, { label: 'Clear', formula: '3d6', place: 'details' }, { label: 'Fix', formula: '3d6', place: 'hide' }] } },
+                { id: 'f_x', key: 'Other', label: 'Other', kind: 'item-list', list: { open: 'yes', paidPlace: 'details', stats: [{ key: 'Wt', label: 'Wt' }] } }] };
+        const gR = S.cleanSystem(rawR, { F, gmView: true }), pR = S.cleanSystem(rawR, { F, gmView: false }), lw = (sy, id) => sy.fields.find(x => x.id === id).list;
+        const placesOf = l => J([l.open, l.paidPlace, l.lvl.place, l.on.place, l.cols.map(c => [c.place, c.hide]), l.counters.map(c => c.place), l.rolls.map(r => r.place)]);
+        const want = J([true, 'details', 'hide', 'details', [['details', undefined], [undefined, true], [undefined, undefined]], ['details', 'hide', undefined], [undefined, 'details', 'hide']]);
+        const cleanOk = placesOf(lw(gR, 'f_g')) === want && placesOf(lw(pR, 'f_g')) === want && J(S.cleanSystem(gR, { F, gmView: true })) === J(gR) && J(S.cleanSystem(pR, { F, gmView: false })) === J(pR)
+            && !('open' in lw(gR, 'f_x')) && !('paidPlace' in lw(gR, 'f_x'));
+        // the drawing: the real item widgets (sliced from sheets.js) on a page of plain objects that knows a class list, a click and an svg
+        const shR = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+        const cutR = (a, b) => { const i = shR.indexOf(a), k = shR.indexOf(b, i + 1); if (i < 0 || k < 0) throw new Error('rows slice: ' + a); return shR.slice(i, k); };
+        const itR = cutR('// ---- item-list widgets', '// 5h: an effect\'s changes as short text'), plR = cutR('// [systemcheck:placesel-start]', '// [systemcheck:placesel-end]');
+        const mkE = (tag, cls, text) => { const e = { tag, className: cls || '', textContent: text === undefined || text === null ? '' : String(text), children: [], attrs: {}, title: '', type: '', value: '', checked: false, disabled: false, selected: false, dataset: {}, style: {}, on: {},
+            classList: { toggle(c, on) { const k = e.className.split(' ').filter(Boolean); const has = k.includes(c), want = on === undefined ? !has : !!on; if (want && !has) k.push(c); if (!want && has) k.splice(k.indexOf(c), 1); e.className = k.join(' '); return want; }, add(c) { this.toggle(c, true); }, remove(c) { this.toggle(c, false); }, contains(c) { return e.className.split(' ').includes(c); } },
+            get childNodes() { return e.children; }, get firstChild() { return e.children[0] || null; }, appendChild(x) { e.children.push(x); return x; }, insertBefore(x, r) { const i = r ? e.children.indexOf(r) : -1; if (i < 0) e.children.push(x); else e.children.splice(i, 0, x); return x; },
+            setAttribute(k, v) { e.attrs[k] = String(v); }, addEventListener(k, fn) { e.on[k] = fn; }, click() { if (e.on.click) e.on.click({}); } }; return e; };
+        const docR = { createTextNode: t => ({ tag: '#text', textContent: t, children: [] }), createElementNS: (ns, tag) => Object.assign(mkE(tag), { ns }) };
+        const optR = (v, t, sl) => { const o = mkE('option', null, t); o.value = v; if (sl) o.selected = true; return o; };
+        const depsR = ['el', 'iconNode', 'rowDef', 'rowIdOf', 'rowLvl', 'rowOn', 'commitItem', 'opt', 'fmtNum', 'iconText', 'LIMITS', '_fxLive', 'document', 'renderViews', 'closeHud', 'closeSheet', 'window', 'systemOf', 'getActiveCampaign', 'facingTarget', 'uid', 'F', 'fxText', 'canRoll', 'sheetRoll', 'commit', 'valueTone', 'TONE_CLASS', 'rowStat', 'rowPaid', '_fxView'];
+        const depsV = view => [mkE, (v, cls) => mkE('span', cls, v), S.rowDef, S.rowIdOf, S.rowLvl, S.rowOn, () => {}, optR, S.fmtNum, v => v || '', S.LIMITS, true, docR, () => {}, () => {}, () => {}, {}, () => gR, () => null, () => null, p => p + 'new', () => F, S.fxText, () => true, () => {}, () => {}, S.valueTone, {}, S.rowStat, S.rowPaid, view];
+        const back = '\nreturn { itemListInto, itemTableInto, partPlace, partHere, rowOpener, openAllBar, _noteOpen };';
+        const WS = new Function(...depsR, itR + back)(...depsV('sheet')), WHd = new Function(...depsR, itR + back)(...depsV('hud'));
+        const walkR = (n, p, acc) => { if (n && p(n)) acc.push(n); ((n && n.children) || []).forEach(k => walkR(k, p, acc)); return acc; }, byR = (n, c) => walkR(n, x => (' ' + x.className + ' ').indexOf(' ' + c + ' ') >= 0, []);
+        const txR = n => !n ? '' : (n.textContent || '') + (n.children || []).map(txR).join('|');
+        const chR = { id: 'c_r', name: 'Kael', ownerId: 'u_r', values: { f_g: [{ id: 'w_b', defId: 'i_bl', qty: 1, paid: 5 }, { id: 'w_k', defId: 'i_kn', qty: 1 }, { id: 'w_p', defId: 'i_pb', qty: 3 }] } };
+        const resR = S.resolveAll(gR, chR, F, null).f_g, fG = gR.fields.find(x => x.id === 'f_g');
+        const wrapS = mkE('div'); WS.itemListInto(wrapS, fG, chR, chR.values.f_g, gR, false, true, true, '', resR);
+        const lines = wrapS.children.filter(n => n.className.split(' ').includes('sheet-item')), notes = wrapS.children.filter(n => n.className === 'sheet-item-noteline');
+        const bl = lines[0], blNote = notes[0], opB = byR(bl, 'sheet-item-opener')[0], parts = byR(blNote, 'sheet-item-parts')[0];
+        const rowTx = txR(bl), partTx = txR(parts);
+        const drawOk = byR(wrapS, 'sheet-item-openall').length === 1 && bl.children[0].className === 'sheet-item-opslot' && !!opB && opB.tag === 'button' && byR(bl, 'sheet-item-notes-t').length === 0
+            && !!parts && blNote.children[0] === parts && /Shoot/.test(rowTx) && !/Clear|Fix|Hit|Ammo|Heat|Rank/.test(rowTx) && /Jam/.test(rowTx) && /Clear/.test(partTx) && /Ammo/.test(partTx) && /Hit/.test(partTx) && !/Fix|Heat|Sec|Shoot|Jam/.test(partTx)
+            && byR(lines[2], 'sheet-item-opener-none').length === 0;
+        const closed0 = [blNote.style.display, opB.ariaExpanded, opB.ariaLabel, opB.className.includes('is-open')];
+        opB.click(); const open1 = [blNote.style.display, opB.ariaExpanded, opB.ariaLabel, opB.className.includes('is-open')];
+        byR(bl, 'sheet-item-name')[0].click(); const byName = [blNote.style.display, opB.ariaExpanded];
+        const bar = byR(wrapS, 'sheet-item-openall')[0], allOpen = () => notes.map(n => n.style.display);
+        bar.children[0].click(); const afterOpen = allOpen(); bar.children[1].click(); const afterClose = allOpen();
+        const svgOk = opB.children[0].tag === 'svg' && opB.children[0].children[0].attrs.d === 'M6 9.5l6 6 6-6' && opB.children[0].attrs['aria-hidden'] === 'true';
+        // the same rows again keep a row opened (the 📝 line's own memory)
+        opB.click(); const wrap2 = mkE('div'); WS.itemListInto(wrap2, fG, chR, chR.values.f_g, gR, false, true, true, '', resR); const kept = wrap2.children.filter(n => n.className === 'sheet-item-noteline')[0].style.display; opB.click();
+        // the HUD has no details: every part not hidden stands on the row, no arrow, no Open all
+        const wrapH = mkE('div'); WHd.itemListInto(wrapH, fG, chR, chR.values.f_g, gR, false, true, true, '', resR);
+        const hTx = txR(wrapH.children.filter(n => n.className.split(' ').includes('sheet-item'))[0]);
+        const hudOk = byR(wrapH, 'sheet-item-opener').length === 0 && byR(wrapH, 'sheet-item-openall').length === 0 && byR(wrapH, 'sheet-item-parts').length === 0 && /Shoot/.test(hTx) && /Clear/.test(hTx) && /Ammo/.test(hTx) && /Hit/.test(hTx) && !/Fix|Heat|Rank/.test(hTx);
+        // a list not ticked Rows open draws its 📝 as before and no arrow
+        const gN = S.cleanSystem(Object.assign({}, rawR, { fields: [Object.assign({}, rawR.fields[0], { list: Object.assign({}, rawR.fields[0].list, { open: false }) })] }), { F, gmView: true });
+        const wrapN = mkE('div'); WS.itemListInto(wrapN, gN.fields[0], chR, chR.values.f_g, gN, false, true, true, '', S.resolveAll(gN, chR, F, null).f_g);
+        const plainOk = byR(wrapN, 'sheet-item-opener').length === 0 && byR(wrapN, 'sheet-item-openall').length === 0 && byR(wrapN, 'sheet-item-notes-t').length >= 1;
+        const pp = WS.partPlace, ph = WS.partHere;
+        const pureOk = pp({ place: 'details' }, false) === 'details' && pp({ place: 'details' }, true) === 'row' && pp({ hide: true, place: 'details' }) === 'hide' && pp({ place: 'hide' }, true) === 'hide' && pp(null) === 'row' && pp({ place: 'x' }) === 'row' && pp('details') === 'row'
+            && !ph({ place: 'details' }, 'row', false) && ph({ place: 'details' }, 'details', false) && ph({ place: 'details' }, 'row', true) && !ph({ place: 'hide' }, null) && ph({}, null) && ph(undefined, 'row');
+        // the editor: the Shows list and its one handler
+        const PL = new Function('el', plR + '\nreturn { placeSel, placeSet };')(mkE);
+        const sel = PL.placeSel('ct:2', 'details'), selS = sel.children[1], hideSel = PL.placeSel('col:0', 'hide'), plainSel = PL.placeSel('lvl', 'nope');
+        const selOk = sel.children[0].textContent === 'Shows' && selS.className === 'sys-list-place' && selS.dataset.part === 'ct:2' && J(selS.children.map(o => [o.value, o.textContent, o.selected])) === J([['', 'On the row', false], ['details', 'In the details', true], ['hide', 'Hidden', false]])
+            && hideSel.children[1].children[2].selected && plainSel.children[1].children[0].selected && !plainSel.children[1].children[1].selected;
+        const lsc = { cols: [{ key: 'A', hide: true }], counters: [{ key: 'C' }], rolls: [{ label: 'R' }], lvl: {}, on: { place: 'details' }, price: 'Cost' };
+        const sets = [PL.placeSet(lsc, 'col:0', 'details'), J(lsc.cols[0]), PL.placeSet(lsc, 'col:0', 'hide'), J(lsc.cols[0]), PL.placeSet(lsc, 'ct:0', 'hide'), PL.placeSet(lsc, 'roll:0', 'details'), PL.placeSet(lsc, 'lvl', 'details'), PL.placeSet(lsc, 'on', ''), PL.placeSet(lsc, 'paid', 'hide'),
+            PL.placeSet(lsc, 'col:9', 'details'), PL.placeSet(lsc, 'x', 'details'), PL.placeSet(lsc, 'roll:0', 'bogus'), PL.placeSet({}, 'lvl', 'details')];
+        const setOk = J(sets) === J([true, J({ key: 'A', place: 'details' }), true, J({ key: 'A', hide: true }), true, true, true, true, true, false, false, true, false])
+            && J(lsc) === J({ cols: [{ key: 'A', hide: true }], counters: [{ key: 'C', place: 'hide' }], rolls: [{ label: 'R' }], lvl: { place: 'details' }, on: {}, price: 'Cost', paidPlace: 'hide' });
+        const css = fs.readFileSync(path.join(app, 'style.css'), 'utf8');
+        const wiredOk = shR.includes("cr.appendChild(placeSel('col:' + ci, cc.hide === true ? 'hide' : cc.place));") && shR.includes("rw.appendChild(placeSel('ct:' + ti, tt.place));") && shR.includes("rw.appendChild(placeSel('roll:' + ri, rr.place));")
+            && shR.includes("lr.appendChild(placeSel('lvl', lv.place));") && shR.includes("orow.appendChild(placeSel('on', sw.place));") && shR.includes("sb.appendChild(placeSel('paid', sp.paidPlace));")
+            && shR.includes("else if (c.indexOf('sys-list-place') >= 0) { if (typeof placeSet === 'function') placeSet(lsc, t.dataset.part, t.value); }") && shR.includes("else if (c.indexOf('sys-list-open') >= 0) { if (t.checked) lsc.open = true; else delete lsc.open; }")
+            && !shR.includes("checkLabel('sys-list-colhide'") &&/\.sheet-item-ct \.sheet-item-ctb \{[^}]*height: 24px; min-width: 24px;/.test(css) && /\.sheet-item-opener\.is-open \.ico \{ transform: none; \}/.test(css) && /prefers-reduced-motion: reduce\) \{ \.sheet-item-opener \.ico \{ transition: none; \}/.test(css);
+        check('1.6.0, backlog 180 R1 and R2: a list may be ticked Rows open (open, true only) and each part of its row given a place, On the row, In the details or Hidden (place on the level, the switch, a column, a counter and a roll; paidPlace beside a price; '
+            + 'a column\'s Hidden stays its own hide), the same in both views and a fixed point; on the sheet (itemListInto, sliced and run for real) a row with details gets an arrow before its name, a real button whose name says what it does and whether it is open, '
+            + 'opened by the arrow, by a press on the name and by Open all, closed by Close all, kept across a redraw, with no 📝; the parts In the details stand at the top of the details and nowhere on the row; Hidden is drawn nowhere; '
+            + 'the HUD has no details, so there every part not hidden stands on its row with no arrow; a list not ticked draws its 📝 as before; the editor\'s Shows list and its one handler (placeSel, placeSet), the wiring and the styles',
+            cleanOk && drawOk && J(closed0) === J(['none', 'false', 'Show details of Blaster', false]) && J(open1) === J(['', 'true', 'Hide details of Blaster', true]) && J(byName) === J(['none', 'false'])
+            && afterOpen.every(d => d === '') && afterClose.every(d => d === 'none') && svgOk && kept === '' && hudOk && plainOk && pureOk && selOk && setOk && wiredOk,
+            J([cleanOk, drawOk, svgOk, kept, hudOk, plainOk, pureOk, selOk, wiredOk, closed0, open1, byName, afterOpen, afterClose, sets, J(lsc), rowTx, partTx, hTx]));
     }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');

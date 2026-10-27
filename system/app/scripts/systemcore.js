@@ -2083,6 +2083,10 @@ function cleanItemTable(v) {
 // names count from the level's minimum: Powers 1–4) and a switch per row (Readied, Equipped…). Plain values; null when nothing is set. An
 // empty categories list survives only in the players' view (none of the list's categories has an item they can see: nothing to pick); the
 // GM's empty list means every category.
+// 1.6.0 (backlog 180, R2; the owner, by prompt: "A Shows list beside each part"): where a part of a list's row stands. Absent is On the row,
+// as every part stood before; 'details' is the row's details (its 📝 line, or the body of a row that opens), 'hide' is drawn nowhere (worked
+// with all the same). Only those two words are kept, the same in both views
+function partPlaceIn(o, v) { if (isObj(o) && isObj(v) && (v.place === 'details' || v.place === 'hide')) o.place = v.place; return o; }
 function cleanListSpec(v, gmView, F) {   // F (F4c1): the engine, for a stat key (validKey('Row.' + key))
     if (!isObj(v)) return null;
     var out = {};
@@ -2093,8 +2097,8 @@ function cleanListSpec(v, gmView, F) {   // F (F4c1): the engine, for a stat key
     }
     if (v.multi === true) out.multi = true;
     if (v.noQty === true) out.noQty = true;
-    var lv = cleanLvlSpec(v.lvl); if (lv) out.lvl = lv;
-    if (isObj(v.on)) { var sw = { label: cutText(v.on.label, LIMITS.label) || 'On' }; if (v.on.def === true) sw.def = true; rollNeedsInto(sw, v.on); var swSh = cleanFormulaText(v.on.showIf); if (swSh) sw.showIf = swSh; out.on = sw; }   // 1.5.8: what a row needs before it is switched on (Row.* read, no dice), and the words a refusal says, as a roll's needs
+    var lv = cleanLvlSpec(v.lvl); if (lv) out.lvl = partPlaceIn(lv, v.lvl);
+    if (isObj(v.on)) { var sw = { label: cutText(v.on.label, LIMITS.label) || 'On' }; if (v.on.def === true) sw.def = true; rollNeedsInto(sw, v.on); var swSh = cleanFormulaText(v.on.showIf); if (swSh) sw.showIf = swSh; out.on = partPlaceIn(sw, v.on); }   // 1.5.8: what a row needs before it is switched on (Row.* read, no dice), and the words a refusal says, as a roll's needs
     if (Array.isArray(v.stats)) {   // F4c1: its stats — a number every item of it carries (Acc, Wt, Cost), LIMITS.listStats at most, each key once ignoring case (the first wins; a key is never trimmed or fixed)
         var sts = [], seenS = map();
         for (var si = 0; si < v.stats.length && sts.length < LIMITS.listStats; si++) {
@@ -2126,6 +2130,8 @@ function cleanListSpec(v, gmView, F) {   // F (F4c1): the engine, for a stat key
     if (out.stats && typeof v.price === 'string') { var pl = lower(v.price); for (var pi = 0; pi < out.stats.length; pi++) if (lower(out.stats[pi].key) === pl) { if (out.stats[pi].kind !== 'pick') out.price = out.stats[pi].key; break; } }   // F5a2: never a choice   // F4c1: the price is one of its stats (stored as its key): a row records it as paid when it is added
     if (v.money === '@lvl' && isObj(out.lvl) && !Array.isArray(out.lvl.labels)) out.money = '@lvl';   // 1.5.6 a Money box: each row holds its level (a chip's money)
     else if (out.stats && typeof v.money === 'string') { var mk = lower(v.money); for (var mi = 0; mi < out.stats.length; mi++) if (lower(out.stats[mi].key) === mk) { if (out.stats[mi].kind !== 'pick') out.money = out.stats[mi].key; break; } }   // ... or each piece is worth a number stat (a bar's denomination)
+    if (out.price && (v.paidPlace === 'details' || v.paidPlace === 'hide')) out.paidPlace = v.paidPlace;   // 1.6.0 R2: where Paid stands
+    if (v.open === true) out.open = true;   // 1.6.0 R1 (the owner, by prompt: "A tick the builder sets"): Rows open for their details
     if (v.trade === true) out.trade = true;   // 1.5.6 Tradable: rows of this list may be traded between characters (gear, money; never a skill)
     if (v.custom === true) out.custom = true;   // F4c3: Custom rows — players may add rows of their own (+ Custom…); the GM may on any list shaped here
     if (Array.isArray(v.cols)) {   // F5a1: its columns — a formula worked out for each row (Row.lvl, Row.<stat>…), LIMITS.listCols at most; a key shares the stats' names (unique ignoring case)
@@ -2138,6 +2144,7 @@ function cleanListSpec(v, gmView, F) {   // F (F4c1): the engine, for a stat key
             var cu = unitOf(cv.unit, true); if (cu) { co.unit = cu; if (cleanFieldUnit(cu, 'number')) { if (cv.unitShow === 'swap' || cv.unitShow === 'bare') co.unitShow = cv.unitShow; var cdm = decCount(cv.decMax); if (cdm !== null) co.decMax = cdm; } }   // 1.5.4: how a measure reads under Metric, and its most decimals
             var clb = cleanLabels(cv.labels); if (clb) co.labels = clb;
             if (cv.hide === true) co.hide = true;   // worked out (totals, other columns) but not drawn on the row
+            else if (cv.place === 'details') co.place = 'details';   // 1.6.0 R2: drawn in the row's details (Hidden stays the column's own hide)
             if (cv.foot === true) co.foot = true;   // its total under the list
             if (Array.isArray(cv.plus)) {   // 1.5.4 With: number stats of this list that add to the column in a case of their own, by the list's own spelling, each once, LIMITS.colPlus at most. The same in both views: a stat is no secret
                 var cps = [], seenW = map();
@@ -2163,6 +2170,7 @@ function cleanListSpec(v, gmView, F) {   // F (F4c1): the engine, for a stat key
             var ttm = cleanRowTimer(tv.timer); if (ttm) { if (!out.on) { delete ttm.on; delete ttm.reset; } to.timer = ttm; }   // 1.6.0 Counts by the game clock (Only while on needs the list's switch)
             var tal = cleanAlt(tv.alt, F); if (tal) to.alt = tal;   // 1.6.0: its other names, row by row
             if (tv.roll === true) to.roll = true;   // 1.5.7: Set by rolls only (a roll's change, an action and the GM set it; a player never by hand)
+            partPlaceIn(to, tv);   // 1.6.0 R2
             cts.push(to);
         }
         if (cts.length) out.counters = cts;
@@ -2203,7 +2211,7 @@ function cleanListSpec(v, gmView, F) {   // F (F4c1): the engine, for a stat key
     }
     if (Array.isArray(v.rolls)) {   // F5b: its rolls — a button on each row, the formula worked out with the row's names (Row.*; dice allowed), LIMITS.rowRolls at most
         var rls = [];
-        v.rolls.forEach(function(rv) { if (rls.length >= LIMITS.rowRolls || !isObj(rv)) return; if (Array.isArray(rv.apply)) { var lap = { label: cutText(rv.label, LIMITS.label) || 'Apply', apply: cleanApplyChanges(rv.apply, false, true) }, lac = costKey(rv.cost); if (lac) lap.cost = lac; if (rv.to === 'near') lap.to = 'near'; if (rv.gm === true) lap.gm = true; var lsh = cleanFormulaText(rv.showIf); if (lsh) lap.showIf = lsh; var lal = cleanAlt(rv.alt, F); if (lal) lap.alt = lal; if (gmView) { var lxc = cleanRowCross(rv.cross, out.counters); if (lxc) lap.cross = lxc; } rls.push(lap); return; } var rro = { label: cutText(rv.label, LIMITS.label) || 'Roll', formula: cleanFormulaText(rv.formula) || '' }; if (Array.isArray(rv.then)) { var rth = cleanApplyChanges(rv.then, true, true); if (rth.length) rro.then = rth; } var rmf2 = cleanFormulaText(rv.malf); if (rmf2) rro.malf = rmf2; if (rv.dmg === true) { rro.dmg = true; var rdt = cleanFormulaText(rv.dtype); if (rdt) rro.dtype = rdt; } var rnd = cleanFormulaText(rv.needs); if (rnd) { rro.needs = rnd; var rnt = cutText(rv.needsText, LIMITS.label); if (rnt) rro.needsText = rnt; } var lrc = costKey(rv.cost); if (lrc) rro.cost = lrc; var lrd = cleanDie(rv.die); if (lrd) rro.die = lrd; if (rv.to === 'near') rro.to = 'near'; if (rv.gm === true) rro.gm = true; var rsh = cleanFormulaText(rv.showIf); if (rsh) rro.showIf = rsh; var ral = cleanAlt(rv.alt, F); if (ral) rro.alt = ral; if (gmView) { var rxc = cleanRowCross(rv.cross, out.counters); if (rxc) rro.cross = rxc; } rls.push(rro); });   // cross (1.6.0): it also runs on a row whose counter crosses a step   // showIf (1.6.0): Shown where, a formula of the row's names; its button only on rows where it holds   // 1.6.0: gm, only the GM presses it (the players' view drops it: applyTargets)   // R2b: a list roll's consequences (a counter too) and what it needs   // HUD H7b: or an apply action on each row (its amounts read the row as Row.*)
+        v.rolls.forEach(function(rv) { if (rls.length >= LIMITS.rowRolls || !isObj(rv)) return; if (Array.isArray(rv.apply)) { var lap = { label: cutText(rv.label, LIMITS.label) || 'Apply', apply: cleanApplyChanges(rv.apply, false, true) }, lac = costKey(rv.cost); if (lac) lap.cost = lac; if (rv.to === 'near') lap.to = 'near'; if (rv.gm === true) lap.gm = true; var lsh = cleanFormulaText(rv.showIf); if (lsh) lap.showIf = lsh; var lal = cleanAlt(rv.alt, F); if (lal) lap.alt = lal; if (gmView) { var lxc = cleanRowCross(rv.cross, out.counters); if (lxc) lap.cross = lxc; } partPlaceIn(lap, rv); rls.push(lap); return; } var rro = { label: cutText(rv.label, LIMITS.label) || 'Roll', formula: cleanFormulaText(rv.formula) || '' }; if (Array.isArray(rv.then)) { var rth = cleanApplyChanges(rv.then, true, true); if (rth.length) rro.then = rth; } var rmf2 = cleanFormulaText(rv.malf); if (rmf2) rro.malf = rmf2; if (rv.dmg === true) { rro.dmg = true; var rdt = cleanFormulaText(rv.dtype); if (rdt) rro.dtype = rdt; } var rnd = cleanFormulaText(rv.needs); if (rnd) { rro.needs = rnd; var rnt = cutText(rv.needsText, LIMITS.label); if (rnt) rro.needsText = rnt; } var lrc = costKey(rv.cost); if (lrc) rro.cost = lrc; var lrd = cleanDie(rv.die); if (lrd) rro.die = lrd; if (rv.to === 'near') rro.to = 'near'; if (rv.gm === true) rro.gm = true; var rsh = cleanFormulaText(rv.showIf); if (rsh) rro.showIf = rsh; var ral = cleanAlt(rv.alt, F); if (ral) rro.alt = ral; if (gmView) { var rxc = cleanRowCross(rv.cross, out.counters); if (rxc) rro.cross = rxc; } partPlaceIn(rro, rv); rls.push(rro); });   // cross (1.6.0): it also runs on a row whose counter crosses a step   // showIf (1.6.0): Shown where, a formula of the row's names; its button only on rows where it holds   // 1.6.0: gm, only the GM presses it (the players' view drops it: applyTargets)   // R2b: a list roll's consequences (a counter too) and what it needs   // HUD H7b: or an apply action on each row (its amounts read the row as Row.*)
         if (rls.length) out.rolls = rls;
     }
     return Object.keys(out).length ? out : null;

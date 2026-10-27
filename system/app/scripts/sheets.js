@@ -2577,7 +2577,7 @@ function itemQtyCell(entry, c, f) {   // Stage 6 F4a: by row id. Every item has 
     qc.appendChild(pl); return qc;
 }
 function itemRmBtn(entry, def, c, f) {
-    var rm = el('button', 'tool ghost sheet-item-rm', '×'); rm.title = entry.hid === 1 ? 'Dispel: remove ' + def.name + ' from the character' : 'Remove ' + def.name;
+    var rm = el('button', 'tool ghost sheet-item-rm', '×'); rm.title = entry.hid === 1 ? 'Dispel: remove ' + def.name + ' from the character' : 'Remove ' + def.name; rm.ariaLabel = rm.title;
     rm.addEventListener('click', function() { commitItem(c, f, { op: 'remove', rowId: rowIdOf(entry) }); }); return rm;
 }
 function itemCellText(col, def, len) {   // len: how the sheet on screen says a blast's radius (blastTag); with none the item's feet, as the readable page writes them
@@ -2700,8 +2700,36 @@ function descBits(entry, def, spec) {
     return box;
 }
 var _noteOpen = Object.create(null);   // F4b: the rows whose 📝 line is open (kept across a redraw)
+// [systemcheck:rowplace-start]
+// 1.6.0 (backlog 180, R1 and R2; the owner, by prompt: "A. Arrow before the name", "A. A Shows list beside each part", "A tick the builder
+// sets"). Where a part of a row stands: on the row, in the details, or nowhere. The HUD has no details, so a part in the details stands on
+// its row there; Hidden is hidden everywhere. want: 'row' or 'details' for what is drawn now, else every part that is not hidden
+function partPlace(p, hud) { var v = p && typeof p === 'object' ? (p.hide === true ? 'hide' : p.place) : ''; return v === 'hide' ? 'hide' : v === 'details' && !hud ? 'details' : 'row'; }
+function partHere(p, want, hud) { var at = partPlace(p, hud); return at !== 'hide' && (!want || at === want); }
+var _placeWant = null;   // what itemListInto and itemTableInto draw now ('row' or 'details'); null for every other caller, which draws as before
+// The arrow before a row's name (R1): a real button that opens the row's details and says so, kept per row as 📝's line is. none: no details,
+// a blank of its size so the names line up
+function rowOpener(line, entry, c, f, name, none) {
+    if (none) { var sp = el('span', 'sheet-item-opener sheet-item-opener-none'); sp.ariaHidden = 'true'; return sp; }
+    var k = c.id + '|' + f.id + '|' + rowIdOf(entry), b = el('button', 'tool ghost sheet-item-opener'); b.type = 'button';
+    var NS = 'http://www.w3.org/2000/svg', sv = document.createElementNS(NS, 'svg'), pth = document.createElementNS(NS, 'path');
+    sv.setAttribute('class', 'ico'); sv.setAttribute('viewBox', '0 0 24 24'); sv.setAttribute('aria-hidden', 'true'); pth.setAttribute('d', 'M6 9.5l6 6 6-6'); sv.appendChild(pth); b.appendChild(sv);
+    var show = function() { var on = !!_noteOpen[k]; line.style.display = on ? '' : 'none'; b.classList.toggle('is-open', on); b.ariaExpanded = on ? 'true' : 'false'; var w = (on ? 'Hide' : 'Show') + ' details of ' + name; b.ariaLabel = w; b.title = w; };
+    b._wpSet = function(on) { if (on) _noteOpen[k] = 1; else delete _noteOpen[k]; show(); };
+    b.addEventListener('click', function() { b._wpSet(!_noteOpen[k]); });
+    show(); return b;
+}
+// Open all and Close all, for the rows of one list drawn here
+function openAllBar(openers) {
+    var bar = el('div', 'sheet-item-openall'), all = function(on) { openers.forEach(function(b) { b._wpSet(on); }); };
+    var oa = el('button', 'tool ghost sheet-item-openall-b', 'Open all'); oa.type = 'button'; oa.title = 'Show the details of every row of this list';
+    var ca = el('button', 'tool ghost sheet-item-openall-b', 'Close all'); ca.type = 'button'; ca.title = 'Hide the details of every row of this list';
+    oa.addEventListener('click', function() { all(true); }); ca.addEventListener('click', function() { all(false); });
+    bar.appendChild(oa); bar.appendChild(ca); return bar;
+}
+// [systemcheck:rowplace-end]
 function noteToggle(line, entry, c, f) {
-    var k = c.id + '|' + f.id + '|' + rowIdOf(entry), b = el('button', 'tool ghost sheet-item-notes-t', '📝'); b.title = entry.note ? 'Notes \u00b7 ' + entry.note : 'Notes';
+    var k = c.id + '|' + f.id + '|' + rowIdOf(entry), b = el('button', 'tool ghost sheet-item-notes-t', '📝'); b.title = entry.note ? 'Notes \u00b7 ' + entry.note : 'Notes'; b.ariaLabel = 'Notes';   // a screen reader says Notes, not memo
     line.style.display = _noteOpen[k] ? '' : 'none';
     b.addEventListener('click', function() { if (_noteOpen[k]) delete _noteOpen[k]; else _noteOpen[k] = 1; line.style.display = _noteOpen[k] ? '' : 'none'; });
     return b;
@@ -2842,11 +2870,14 @@ function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, 
     var chg = edit === undefined ? editable : !!edit && _fxLive, hudRow = _fxView === 'hud';   // hudRow (the owner, 2026-10-04): the HUD's rows stay short — a description is read on the sheet
     var spec = f.list || null, seenCat = Object.create(null), nCat = 0, unseenL = gm ? unseenKeys(c, f, carried, sysI) : null;   // F4b: a list with options draws its rows' facts, and a category chip while its rows span more than one; F4c3: the keys of rows its owner cannot see (the GM's sheet)
     if (spec) carried.forEach(function(r) { var d0 = rowDef(sysI, r), cc = d0 && d0.def && d0.def.category ? String(d0.def.category).toLowerCase() : ''; if (cc && !seenCat[cc]) { seenCat[cc] = 1; nCat++; } });
-    var chips = nCat > 1;
+    var chips = nCat > 1, opens = !!(spec && spec.open === true) && !hudRow, openers = [];   // 1.6.0 R1: rows that open (never on the HUD, which has no details)
+    if (opens && carried.length > 1) wrap.appendChild(openAllBar(openers));
     carried.forEach(function(entry) {
         var rd = rowDef(sysI, entry), def = rd ? rd.def : null; if (!def) return;
         var rid = rowIdOf(entry);
-        var line = el('div', 'sheet-item' + (entry.hid === 1 ? ' sheet-item-hid' : ''));
+        var line = el('div', 'sheet-item' + (entry.hid === 1 ? ' sheet-item-hid' : '') + (opens ? ' sheet-item-opens' : ''));
+        var opSlot = opens ? el('span', 'sheet-item-opslot') : null; if (opSlot) line.appendChild(opSlot);   // the arrow goes here once the row knows whether it has details
+        _placeWant = hudRow ? null : 'row';
         if (def.icon) line.appendChild(iconNode(def.icon, 'sheet-item-icon'));
         var ovc = ovCtx(entry, rd, gm);   // F4c2: what this copy holds of its own (a dot on each)
         var nm = el('span', 'sheet-item-name', def.name); if (def.area) nm.appendChild(el('span', 'sheet-item-area-tag', ' ' + (typeof blastTag === 'function' ? blastTag(def.area.ft) : def.area.ft + ' ft'))); if (def.notes) nm.title = def.notes; ovNameDot(nm, ovc, true); line.appendChild(nm);
@@ -2855,10 +2886,23 @@ function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, 
         lostBits(line, rd, entry, c, f, gm, chg); needBits(line, sysI, c, entry, rd, gm); gmItemBits(line, def, entry, gm, !!(spec && spec.on)); keyShareChip(line, entry, rd, unseenL); modsBits(line, def, entry, spec, sysI);
         if (typeof onceBits === 'function') onceBits(line, sysI, c, f, carried, entry);   // 1.5.8 Counted once
         var noteLn = null;
-        if (spec) { statChips(line, def, spec, ovc); colChips(line, spec, res && res.cells ? res.cells[rid] : null); ctCtl(line, entry, c, f, spec, editable, res && res.cts ? res.cts[rid] : null); if (typeof loadCtl === 'function') loadCtl(line, entry, c, f, spec, editable, sysI, res && res.ldOk ? res.ldOk[rid] : undefined); if (typeof chamberCtl === 'function') chamberCtl(line, entry, c, f, spec, editable, sysI, gm, canThrow, res && res.chOk ? res.chOk[rid] : undefined); var lc = lvlCtl(entry, def, c, f, spec, chg && !opnR); if (lc) line.appendChild(lc); var oc = onCtl(entry, c, f, spec, editable, true, res && res.onOk ? res.onOk[rid] : undefined, res && res.onShow ? res.onShow[rid] : undefined); if (oc) line.appendChild(oc); var pcL = paidCtl(entry, def, c, f, spec, chg, gm, true); if (pcL) line.appendChild(pcL); noteLn = hudRow ? null : noteBits(entry, def, c, f, chg, ovc); }   // F4c1: the stats shown On the row, what one cost
+        if (spec) { statChips(line, def, spec, ovc); colChips(line, spec, res && res.cells ? res.cells[rid] : null); ctCtl(line, entry, c, f, spec, editable, res && res.cts ? res.cts[rid] : null); if (typeof loadCtl === 'function') loadCtl(line, entry, c, f, spec, editable, sysI, res && res.ldOk ? res.ldOk[rid] : undefined); if (typeof chamberCtl === 'function') chamberCtl(line, entry, c, f, spec, editable, sysI, gm, canThrow, res && res.chOk ? res.chOk[rid] : undefined); var lc = partHere(spec.lvl, _placeWant, hudRow) ? lvlCtl(entry, def, c, f, spec, chg && !opnR) : null; if (lc) line.appendChild(lc); var oc = partHere(spec.on, _placeWant, hudRow) ? onCtl(entry, c, f, spec, editable, true, res && res.onOk ? res.onOk[rid] : undefined, res && res.onShow ? res.onShow[rid] : undefined) : null; if (oc) line.appendChild(oc); var pcL = partHere({ place: spec.paidPlace }, _placeWant, hudRow) ? paidCtl(entry, def, c, f, spec, chg, gm, true) : null; if (pcL) line.appendChild(pcL); noteLn = hudRow ? null : noteBits(entry, def, c, f, chg, ovc); }   // F4c1: the stats shown On the row, what one cost
         if (def.area && canThrow && (gm || def.vis !== 'gm') && entry.hid !== 1) line.appendChild(itemThrowBtn(def, c, f, rid));   // a GM-only item: the GM's throw only (a player's copy never carries its area)
         rowRollBtns(line, spec, entry, def, c, f, res);   // F5b: the list's rolls on this row
-        if (noteLn) line.appendChild(noteToggle(noteLn, entry, c, f));
+        if (spec && !hudRow) {   // 1.6.0 R2: the parts placed in the details stand at the top of the row's details
+            _placeWant = 'details'; var dp = el('div', 'sheet-item-parts');
+            colChips(dp, spec, res && res.cells ? res.cells[rid] : null); ctCtl(dp, entry, c, f, spec, editable, res && res.cts ? res.cts[rid] : null);
+            if (partHere(spec.lvl, 'details', false)) { var lcD = lvlCtl(entry, def, c, f, spec, chg && !opnR); if (lcD) dp.appendChild(lcD); }
+            if (partHere(spec.on, 'details', false)) { var ocD = onCtl(entry, c, f, spec, editable, true, res && res.onOk ? res.onOk[rid] : undefined, res && res.onShow ? res.onShow[rid] : undefined); if (ocD) dp.appendChild(ocD); }
+            if (partHere({ place: spec.paidPlace }, 'details', false)) { var pcD = paidCtl(entry, def, c, f, spec, chg, gm, true); if (pcD) dp.appendChild(pcD); }
+            rowRollBtns(dp, spec, entry, def, c, f, res);
+            if (dp.childNodes.length) { if (!noteLn) noteLn = el('div', 'sheet-item-noteline'); noteLn.insertBefore(dp, noteLn.firstChild); }
+        }
+        _placeWant = null;
+        if (opSlot) {   // R1: the arrow before the name opens the details, and so does a press on the name; no 📝 then
+            var opB = rowOpener(noteLn, entry, c, f, def.name, !noteLn); opSlot.appendChild(opB);
+            if (noteLn) { openers.push(opB); nm.classList.add('sheet-item-name-opens'); nm.addEventListener('click', function() { opB.click(); }); }
+        } else if (noteLn) line.appendChild(noteToggle(noteLn, entry, c, f));
         var rr = chg && !opnR ? rowRights(entry, rd, spec, gm, sysI) : ''; if (rr) line.appendChild(editBtn(entry, c, f, rr, rd.src === 'custom'));   // F4c2: ✎ — on a list shaped in the Lists tab, where the row can be changed (never the Layout preview or a pop-out)
         if (editable && !opnR) { var ub = undoBtn(entry, c, f); if (ub) line.appendChild(ub); if (!(spec && spec.noQty)) line.appendChild(itemQtyCell(entry, c, f)); if (chg) line.appendChild(itemRmBtn(entry, def, c, f)); }
         else if (!(spec && spec.noQty)) line.appendChild(el('span', 'sheet-item-qtyn', '×' + entry.qty));
@@ -2886,6 +2930,7 @@ function rowRollBtns(host, spec, entry, def, c, f, res) {   // res (R2b): the fi
     if (!spec || !Array.isArray(spec.rolls) || !spec.rolls.length || !(_fxLive || window.wpPrintCopy === true) || entry.hid === 1) return;   // F2b: a print copy draws a row's rolls as the live sheet does
     var rid = rowIdOf(entry), nm = (def && def.name) || 'Item', rollOk = canRoll(c), applyOk = null;
     spec.rolls.forEach(function(r, ri) {
+        if (typeof partHere === 'function' && !partHere(r, _placeWant, _fxView === 'hud')) return;   // 1.6.0 R2: its place
         if (res && res.rs && res.rs[rid] && res.rs[rid][ri] === false) return;   // 1.6.0: Shown where: no button on a row where it does not hold
         if (r && Array.isArray(r.apply)) {   // Stage 6 HUD H7b: an apply action on this row (Apply costs on a power), for a viewer who may change the character
             if (applyOk === null) applyOk = canApply(c);
@@ -2921,7 +2966,7 @@ function ctCtl(host, entry, c, f, spec, editable, cells) {
     if (!spec || !Array.isArray(spec.counters) || !spec.counters.length || entry.hid === 1) return;
     var rid = rowIdOf(entry), byKey = {}; (Array.isArray(cells) ? cells : []).forEach(function(x) { if (x && typeof x.key === 'string') byKey[x.key] = x; });
     spec.counters.forEach(function(t) {
-        if (!t || typeof t.key !== 'string') return;
+        if (!t || typeof t.key !== 'string' || (typeof partHere === 'function' && !partHere(t, _placeWant, _fxView === 'hud'))) return;   // 1.6.0 R2: its place
         var cell = byKey[t.key], v = cell && typeof cell.value === 'number' ? cell.value : (entry.ct && typeof entry.ct[t.key] === 'number' ? entry.ct[t.key] : (t.def || 0)), mx = cell && typeof cell.max === 'number' ? cell.max : null;
         if (mx === 0 && !(entry.ct && typeof entry.ct[t.key] === 'number' && entry.ct[t.key] > 0)) return;   // 1.5.8: a counter whose most works out to 0 on this row holds nothing here (a sword's Charges): no chip
         var tLb = (cell && typeof cell.label === 'string' && cell.label) || t.label || t.key, w = el('span', 'sheet-chip sheet-item-ct'); w.title = tLb;   // 1.6.0: this row's other name, where one holds
@@ -3049,7 +3094,7 @@ function openChamberMenu(anchor, c, f, entry, sf, spec, sys) {   // on the page,
 // Stage 6 F5a1: the columns shown on a row — a chip each, its label small ("Cost 11 pts"); an error reads "\u2014" with the message on hover
 function colChips(host, spec, cells) {
     if (!cells || !Array.isArray(spec.cols)) return;
-    spec.cols.forEach(function(cc, i) { var v = cells[i]; if (cc.hide === true || !v) return; var ch = el('span', 'sheet-chip sheet-item-col' + (v.error ? ' sheet-item-colerr' : '')); ch.appendChild(el('small', null, cc.label)); ch.appendChild(document.createTextNode(' ' + (typeof colShown === 'function' ? colShown(cc, v) : v.text + (cc.unit && !v.error ? ' ' + cc.unit : '')) + (typeof plusText === 'function' ? plusText(v) : ''))); if (v.error) ch.title = v.error; host.appendChild(ch); });
+    spec.cols.forEach(function(cc, i) { var v = cells[i]; if ((typeof partHere === 'function' && !partHere(cc, _placeWant, _fxView === 'hud')) || (typeof partHere !== 'function' && cc.hide === true) || !v) return; var ch = el('span', 'sheet-chip sheet-item-col' + (v.error ? ' sheet-item-colerr' : '')); ch.appendChild(el('small', null, cc.label)); ch.appendChild(document.createTextNode(' ' + (typeof colShown === 'function' ? colShown(cc, v) : v.text + (cc.unit && !v.error ? ' ' + cc.unit : '')) + (typeof plusText === 'function' ? plusText(v) : ''))); if (v.error) ch.title = v.error; host.appendChild(ch); });
 }
 // F5a1: the totals under a list — each stat shown on the row and each column marked Total, summed over the rows carried (a kept curse is not)
 function totalsLine(wrap, spec, foot, cap) {   // cap (1.5.5): its caption, Total where none is given
@@ -3064,9 +3109,9 @@ function totalsLine(wrap, spec, foot, cap) {   // cap (1.5.5): its caption, Tota
 function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, res, edit) {   // res (F5a1): the field's resolved entry; edit (the sheet's lock): as itemListInto's
     editable = editable && _fxLive; canThrow = canThrow && _fxLive;   // the Layout preview and a pop-out draw their controls inert
     var chg = edit === undefined ? editable : !!edit && _fxLive, hudRow = _fxView === 'hud';
-    var tbl = f.table, cols = (tbl.columns || []).slice(), spec = f.list || null, hasL = !!(spec && spec.lvl), hasO = !!(spec && spec.on), hasQ = !(spec && spec.noQty);   // F4b: a level and a switch column; no quantity
-    var shownSt = spec && Array.isArray(spec.stats) ? spec.stats.filter(function(s) { return s && s.show === true; }) : [], nStat = shownSt.length, hasP = !!(spec && spec.price);   // F4c1: a column per stat shown On the row, and Paid
-    var shownCl = spec && Array.isArray(spec.cols) ? spec.cols.map(function(cc, i) { return { c: cc, i: i }; }).filter(function(x) { return x.c && x.c.hide !== true; }) : [], nCol = shownCl.length;   // F5a1: a column per list column not Hidden
+    var tbl = f.table, cols = (tbl.columns || []).slice(), spec = f.list || null, hasL = !!(spec && spec.lvl) && partPlace(spec.lvl, hudRow) === 'row', hasO = !!(spec && spec.on) && partPlace(spec.on, hudRow) === 'row', hasQ = !(spec && spec.noQty);   // 1.6.0 R2: a level or a switch placed elsewhere has no column   // F4b: a level and a switch column; no quantity
+    var shownSt = spec && Array.isArray(spec.stats) ? spec.stats.filter(function(s) { return s && s.show === true; }) : [], nStat = shownSt.length, hasP = !!(spec && spec.price) && partPlace({ place: spec.paidPlace }, hudRow) === 'row';   // F4c1: a column per stat shown On the row, and Paid (1.6.0 R2: where it stands)
+    var shownCl = spec && Array.isArray(spec.cols) ? spec.cols.map(function(cc, i) { return { c: cc, i: i }; }).filter(function(x) { return x.c && partPlace(x.c, hudRow) === 'row'; }) : [], nCol = shownCl.length;   // 1.6.0 R2: a column in the details is drawn in the row's notes   // F5a1: a column per list column not Hidden
     var unseenT = gm ? unseenKeys(c, f, carried, sysI) : null;   // F4c3: the keys of rows its owner cannot see (the GM's sheet)
     if (tbl.chips) cols = cols.filter(function(x) { return x !== 'category'; });   // a chip beside the name replaces the column
     var wantNotes = cols.indexOf('notes') >= 0; cols = cols.filter(function(x) { return x !== 'notes'; });   // notes render as an expandable row, not a column
@@ -3082,12 +3127,12 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty,
     if (hasP) htr.appendChild(el('th', 'sheet-itcol-paid', 'Paid'));
     if (hasAct) htr.appendChild(el('th', 'sheet-itcol-act', ''));
     thead.appendChild(htr); table.appendChild(thead);
-    var tbody = el('tbody'), shown = 0, totalQty = 0;
+    var tbody = el('tbody'), shown = 0, totalQty = 0, opensT = !!(spec && spec.open === true) && !hudRow, openersT = [];   // 1.6.0 R1
     carried.forEach(function(entry) {
         var rd = rowDef(sysI, entry), def = rd ? rd.def : null; if (!def) return;
         var rid = rowIdOf(entry);
         shown++; totalQty += entry.qty;
-        var tr = el('tr', entry.hid === 1 ? 'sheet-item-hid' : null), nameTd = el('td', 'sheet-itcol-name');
+        var tr = el('tr', entry.hid === 1 ? 'sheet-item-hid' : null), nameTd = el('td', 'sheet-itcol-name'), opSlotT = opensT ? el('span', 'sheet-item-opslot') : null; if (opSlotT) nameTd.appendChild(opSlotT);
         if (def.icon) nameTd.appendChild(iconNode(def.icon, 'sheet-item-icon'));
         nameTd.appendChild(document.createTextNode(def.name));
         if (def.area) nameTd.appendChild(el('span', 'sheet-item-area-tag', ' ' + (typeof blastTag === 'function' ? blastTag(def.area.ft) : def.area.ft + ' ft')));
@@ -3113,17 +3158,25 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty,
             if (def.area && canThrow && (gm || def.vis !== 'gm') && entry.hid !== 1) actTd.appendChild(itemThrowBtn(def, c, f, rid));
             if (hudRow) { /* no details line in the HUD */ } else if (spec) {   // F4b: 📝 — the item's notes and the row's own note
                 var nbT = noteBits(entry, def, c, f, chg, ovT);
-                if (nbT) { notesRow = el('tr', 'sheet-itemtable-notes'); var ntdS = el('td'); ntdS.colSpan = span; ntdS.appendChild(nbT); notesRow.appendChild(ntdS); actTd.appendChild(noteToggle(notesRow, entry, c, f)); }
+                _placeWant = 'details'; var dpT = el('div', 'sheet-item-parts'), cellsD = res && res.cells ? res.cells[rid] : null;   // 1.6.0 R2: the parts placed in the details
+                colChips(dpT, spec, cellsD); ctCtl(dpT, entry, c, f, spec, editable, res && res.cts ? res.cts[rid] : null);
+                if (spec.lvl && partHere(spec.lvl, 'details', false)) { var lcDT = lvlCtl(entry, def, c, f, spec, chg); if (lcDT) dpT.appendChild(lcDT); }
+                if (spec.on && partHere(spec.on, 'details', false)) { var ocDT = onCtl(entry, c, f, spec, editable, true, res && res.onOk ? res.onOk[rid] : undefined, res && res.onShow ? res.onShow[rid] : undefined); if (ocDT) dpT.appendChild(ocDT); }
+                if (spec.price && partHere({ place: spec.paidPlace }, 'details', false)) { var pcDT = paidCtl(entry, def, c, f, spec, chg, gm, true); if (pcDT) dpT.appendChild(pcDT); }
+                rowRollBtns(dpT, spec, entry, def, c, f, res); _placeWant = null;
+                if (dpT.childNodes.length) { if (!nbT) nbT = el('div', 'sheet-item-noteline'); nbT.insertBefore(dpT, nbT.firstChild); }
+                if (nbT) { notesRow = el('tr', 'sheet-itemtable-notes'); var ntdS = el('td'); ntdS.colSpan = span; ntdS.appendChild(nbT); notesRow.appendChild(ntdS); if (opSlotT) { var opBT = rowOpener(notesRow, entry, c, f, def.name, false); opSlotT.appendChild(opBT); openersT.push(opBT); } else actTd.appendChild(noteToggle(notesRow, entry, c, f)); }
+                else if (opSlotT) opSlotT.appendChild(rowOpener(null, entry, c, f, def.name, true));
             } else if (wantNotes && def.notes) {
                 notesRow = el('tr', 'sheet-itemtable-notes'); var ntd = el('td', null, def.notes); ntd.colSpan = span; notesRow.appendChild(ntd); notesRow.style.display = 'none';
                 var nt = el('button', 'tool ghost sheet-item-notes-t', '📝'); nt.title = 'Notes';
                 nt.addEventListener('click', function() { notesRow.style.display = notesRow.style.display === 'none' ? '' : 'none'; });
                 actTd.appendChild(nt);
             }
-            ctCtl(actTd, entry, c, f, spec, editable, res && res.cts ? res.cts[rowIdOf(entry)] : null);   // Stage 6 HUD R2: its counters
+            _placeWant = hudRow ? null : 'row'; ctCtl(actTd, entry, c, f, spec, editable, res && res.cts ? res.cts[rowIdOf(entry)] : null);   // Stage 6 HUD R2: its counters (1.6.0 R2: those on the row)
             if (typeof loadCtl === 'function') loadCtl(actTd, entry, c, f, spec, editable, sysI, res && res.ldOk ? res.ldOk[rid] : undefined);   // 1.5.8 Loads from, and Loads only where (1.5.9: in a table too)
             if (typeof chamberCtl === 'function') chamberCtl(actTd, entry, c, f, spec, editable, sysI, gm, canThrow, res && res.chOk ? res.chOk[rid] : undefined);   // 1.5.9 Chambers from, and Chambers only where
-            rowRollBtns(actTd, spec, entry, def, c, f, res);   // F5b: the list's rolls
+            rowRollBtns(actTd, spec, entry, def, c, f, res); _placeWant = null;   // F5b: the list's rolls (1.6.0 R2: those on the row)
             if (rrT) actTd.appendChild(editBtn(entry, c, f, rrT, rd.src === 'custom'));   // F4c2: ✎
             if (editable) { var ubT = undoBtn(entry, c, f); if (ubT) actTd.appendChild(ubT); if (chg) actTd.appendChild(itemRmBtn(entry, def, c, f)); }
             tr.appendChild(actTd);
@@ -3133,6 +3186,7 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty,
         if (rrT && rfOpen(c, f, rid)) { var fTr = el('tr', 'sheet-itemtable-form'), fTd = el('td'); fTd.colSpan = span; fTd.appendChild(rowForm(entry, rd, c, f, spec, sysI, rrT)); fTr.appendChild(fTd); tbody.appendChild(fTr); }   // F4c2: its form, across the table
     });
     if (!shown) { var er = el('tr'), ec = el('td', 'sheet-empty-note', empty || 'No items.'); ec.colSpan = span; er.appendChild(ec); tbody.appendChild(er); }
+    if (opensT && openersT.length > 1) wrap.appendChild(openAllBar(openersT));   // 1.6.0 R1: Open all and Close all, above the table
     table.appendChild(tbody);
     if (tbl.footer && shown) {
         var tfoot = el('tfoot'), ftr = el('tr'), fc = el('td', 'sheet-itft', shown + (shown === 1 ? ' item' : ' items')), ftT = res && res.foot ? res.foot : null;
@@ -3167,7 +3221,7 @@ function rowRights(entry, rd, spec, gm, sysI) {   // who may change this copy's 
 function rfOpen(c, f, rid, view) { return !!(_rowForm && _rowForm.charId === c.id && _rowForm.fieldId === f.id && _rowForm.rowId === rid && (_rowForm.view || 'sheet') === (view || _fxView)); }
 function editBtn(entry, c, f, mode, cust) {   // ✎ opens this row's form (or closes it), in the view it is drawn in (kept now: another view may be drawn before the click); cust (F4c3): a custom row
     var rid = rowIdOf(entry), vw = _fxView, b = el('button', 'tool ghost sheet-item-edit', '✎'); b.type = 'button';
-    b.title = cust ? 'Change it' : mode === 'gm' ? 'Change this copy' : 'Change this copy’s stats'; b.dataset.fid = f.id; b.dataset.part = 'ed-' + rid;
+    b.title = cust ? 'Change it' : mode === 'gm' ? 'Change this copy' : 'Change this copy’s stats'; b.ariaLabel = b.title; b.dataset.fid = f.id; b.dataset.part = 'ed-' + rid;
     b.addEventListener('click', function() { _rowForm = rfOpen(c, f, rid, vw) ? null : { charId: c.id, fieldId: f.id, rowId: rid, view: vw, typed: {} }; renderViews(c.id); });
     return b;
 }
@@ -5990,6 +6044,27 @@ function patchErrors() {
 function input(cls, value, title, placeholder) { var i = el('input', cls); i.type = 'text'; i.value = value === undefined || value === null ? '' : String(value); if (title) i.title = title; if (placeholder) i.placeholder = placeholder; i.spellcheck = false; i.autocomplete = 'off'; return i; }
 function numInput(cls, value, title, step) { var i = el('input', cls); i.type = 'number'; i.value = value === undefined || value === null ? '' : String(value); i.title = title || ''; if (step) i.step = step; return i; }   // step (F4c1): 'any' for a stat (0.0001, -0.5)
 function numField(cls, value, title, cap, step) { var l = el('label', 'sys-num'); l.appendChild(el('span', 'sys-num-cap', cap)); l.appendChild(numInput(cls, value, title, step)); return l; }   // a captioned number (Default / Min / Max / Step) so the def row reads without hovering
+// [systemcheck:placesel-start]
+// 1.6.0 (backlog 180, R2; the owner, by prompt: "A. A Shows list beside each part"): where a part of a list's row stands, captioned Shows. part
+// names it for the one handler: lvl, on, paid, or col, ct or roll and its place in its list
+var PLACES = [['', 'On the row'], ['details', 'In the details'], ['hide', 'Hidden']];
+function placeSel(part, cur) {
+    var l = el('label', 'sys-num sys-place-box'), s = el('select', 'sys-list-place'); l.appendChild(el('span', 'sys-num-cap', 'Shows'));
+    PLACES.forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; if (o[0] === (cur === 'details' || cur === 'hide' ? cur : '')) op.selected = true; s.appendChild(op); });
+    s.dataset.part = part; s.title = 'Where it stands: on the row, in the row\u2019s details (its \ud83d\udcdd line, or the body of a row that opens), or hidden. The HUD has no details, so there it stands on the row.';
+    l.appendChild(s); return l;
+}
+// The one handler: the Shows list of a part writes its place, a column's Hidden as the column's own hide
+function placeSet(lsc, part, value) {
+    var pv = value === 'details' || value === 'hide' ? value : '', m = /^(col|ct|roll):(\d+)$/.exec(typeof part === 'string' ? part : ''), tgt = null;
+    if (part === 'paid') { if (pv) lsc.paidPlace = pv; else delete lsc.paidPlace; return true; }
+    if (part === 'lvl') tgt = lsc.lvl; else if (part === 'on') tgt = lsc.on;
+    else if (m) { var arr = m[1] === 'col' ? lsc.cols : m[1] === 'ct' ? lsc.counters : lsc.rolls; tgt = Array.isArray(arr) ? arr[+m[2]] : null; if (tgt && typeof tgt === 'object' && m[1] === 'col') { delete tgt.hide; if (pv === 'hide') { tgt.hide = true; pv = ''; } } }
+    if (!tgt || typeof tgt !== 'object') return false;
+    if (pv) tgt.place = pv; else delete tgt.place;
+    return true;
+}
+// [systemcheck:placesel-end]
 function select(cls, options, value, title) { var s = el('select', cls); options.forEach(function(o) { s.appendChild(opt(o[0], o[1], o[0] === value)); }); if (title) s.title = title; return s; }
 function btnRow(list) { var btns = el('span', 'sys-btns'); list.forEach(function(b) { var x = el('button', 'tool ghost sys-btn'); x.dataset.act = b[0]; x.title = b[1]; x.innerHTML = b[2]; btns.appendChild(x); }); return btns; }
 function labeledSelect(cls, cap, options, value, title) { var l = el('label', 'sys-combat-item'); l.appendChild(el('span', 'sys-num-cap', cap)); l.appendChild(select(cls, options, value, title)); return l; }
@@ -6496,6 +6571,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
     fl.appendChild(checkLabel('sys-list-multi', sp.multi === true, 'Same item more than once', 'Adding an item it already holds makes a new row (a skill twice, with two specialties) instead of raising the quantity'));
     fl.appendChild(checkLabel('sys-list-noqty', sp.noQty === true, 'No quantity', 'Rows have no quantity (skills, powers): the \u2212/+ and \u00d7n go, and an item is on the list once unless the same item may be there more than once. Quantities already stored come back if you untick it'));
     fl.appendChild(checkLabel('sys-list-custom', sp.custom === true, 'Custom rows', 'Players may add rows of their own with + Custom\u2026 on their sheet (a name, an icon, a category, notes, a key and stats) and change the ones they made; you can add them on any shaped list'));   // Stage 6 F4c3
+    fl.appendChild(checkLabel('sys-list-open', sp.open === true, 'Rows open', 'Each row gets an arrow before its name that opens its details: what each part set to Shows In the details holds, its description and its note. Open all and Close all stand over the list.'));   // 1.6.0 R1
     fl.appendChild(checkLabel('sys-list-trade', sp.trade === true, 'Tradable', 'Rows of this list can be put on the table in a trade between two characters: gear and money, never skills'));   // 1.5.6 trading
     card.appendChild(fl);
     var lv = sp.lvl && typeof sp.lvl === 'object' ? sp.lvl : null, lr = el('div', 'sys-flags sys-list-lvl');
@@ -6503,6 +6579,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
     if (lv) {
         lr.appendChild(input('sys-list-lvllabel field', lv.label || '', 'The level\u2019s name on the sheet', 'Level'));
         lr.appendChild(numField('sys-list-lvlmin', lv.min, 'The lowest level (blank: none)', 'min'));
+        if (typeof placeSel === 'function') lr.appendChild(placeSel('lvl', lv.place));   // 1.6.0 R2
         lr.appendChild(numField('sys-list-lvlmax', lv.max, 'The highest level (blank: none; with value names, the names set it)', 'max'));
         lr.appendChild(numField('sys-list-lvlstep', lv.step, 'The step between levels', 'step'));
         lr.appendChild(numField('sys-list-lvldef', lv.def, 'The level a new row starts at (an item\u2019s own Level in Items comes first); a row with no level of its own reads it', 'default'));
@@ -6514,6 +6591,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
     orow.appendChild(checkLabel('sys-list-hason', !!sw, 'Rows have a switch', 'Each row can be switched on and off: Readied, Equipped, Active, Stowed\u2026 In Layout a placement of the list can show only the rows switched on'));
     if (sw) {
         orow.appendChild(input('sys-list-onlabel field', sw.label || '', 'The switch\u2019s name on the sheet', 'On'));
+        if (typeof placeSel === 'function') orow.appendChild(placeSel('on', sw.place));   // 1.6.0 R2
         orow.appendChild(checkLabel('sys-list-ondef', sw.def === true, 'Starts on', 'A new row starts switched on; a row from before the list had its switch reads it until it is switched'));
         var oneOn = sw.one === true || (typeof sw.per === 'string' && !!sw.per) || (typeof sw.over === 'string' && !!sw.over);   // 1.6.0 O1: or where places meet   // 1.5.4 One at a time: switching a row on switches the others off, for the whole list or for each value of a stat
         orow.appendChild(checkLabel('sys-list-onone', oneOn, 'One at a time', 'Only one row is switched on at a time. Switching one on switches the others off. A row you keep on for a curse stays on. While a bound row is on, a player cannot switch another of its group on. A new row that would start on starts off while another is on, and so does a row whose stat moves it into such a group.'));
@@ -6553,7 +6631,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
         sb.appendChild(sr);
     });
     var sadd = el('button', 'tool ghost sys-btn sys-list-statadd', '+ Stat'); sadd.dataset.act = 'statadd'; sadd.disabled = sts.length >= LIMITS.listStats; sadd.title = sadd.disabled ? 'At most ' + LIMITS.listStats + ' stats a list' : 'A number each item of this list carries (Acc, Wt, Cost), set on the item in Items'; sb.appendChild(sadd);
-    if (sts.length) { var pr = el('label', 'sys-num sys-price-box'), ps = el('select', 'sys-list-price'); pr.appendChild(el('span', 'sys-num-cap', 'Price')); ps.title = 'A row records it as Paid when added: what one cost (yours to correct on the sheet)'; priceOptions(ps, sp); pr.appendChild(ps); sb.appendChild(pr); }
+    if (sts.length) { var pr = el('label', 'sys-num sys-price-box'), ps = el('select', 'sys-list-price'); pr.appendChild(el('span', 'sys-num-cap', 'Price')); ps.title = 'A row records it as Paid when added: what one cost (yours to correct on the sheet)'; priceOptions(ps, sp); pr.appendChild(ps); sb.appendChild(pr); if (sp.price && typeof placeSel === 'function') sb.appendChild(placeSel('paid', sp.paidPlace)); }   // 1.6.0 R2: where Paid stands
     { var mb = el('label', 'sys-num sys-money-box'), msel = el('select', 'sys-list-money'); mb.appendChild(el('span', 'sys-num-cap', 'Holds money')); msel.title = 'Rows of this list are money: each row holds its level, as a chip holds its amount, or each piece is worth a stat, as a bar is worth its denomination. Buying and selling pay from and into these rows'; if (typeof moneyOptions === 'function') moneyOptions(msel, sp); mb.appendChild(msel); sb.appendChild(mb); }   // 1.5.6 the Money box
     card.appendChild(sb);
     // Stage 6 F5a1: the list's columns — a formula worked out for each row (Row.lvl, Row.<stat>, another column), LIMITS.listCols at most — and the names it offers
@@ -6568,7 +6646,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
         if (typeof metricSel === 'function') { cr.appendChild(metricSel('sys-list-colmetric', cc.unitShow)); cr.appendChild(numField('sys-list-coldec', typeof cc.decMax === 'number' ? cc.decMax : '', 'The most decimals a measure shows, 0 to 5, its zeros taken off. Blank: four under Instead or Bare, and as before Beside', 'decimals', '1')); }   // 1.5.4: how a measure reads under Metric, and its most decimals
         cr.appendChild(input('sys-list-colnames field', Array.isArray(cc.labels) ? cc.labels.join(', ') : '', 'Names for the values 0, 1, 2\u2026 separated by commas: the row shows the name, formulas read the number', 'Value names (optional)'));
         var cpI = input('sys-list-colplus field', Array.isArray(cc.plus) ? cc.plus.join(', ') : '', 'Number stats of this list that add to this column in a case of their own, by their keys, separated by commas. Where such a stat is not 0 the row shows the two added, with the stat\u2019s label: DR 15 (35 vs. energy)', 'With stats (optional)'); cpI.maxLength = 240; cr.appendChild(cpI);   // 1.5.4 With
-        cr.appendChild(checkLabel('sys-list-colhide', cc.hide === true, 'Hidden', 'Worked out (for totals and other columns) but not shown on the row'));
+        if (typeof placeSel === 'function') cr.appendChild(placeSel('col:' + ci, cc.hide === true ? 'hide' : cc.place));   // 1.6.0 R2: on the row, in the details, or Hidden (worked out for totals and other columns, not shown)
         cr.appendChild(checkLabel('sys-list-colfoot', cc.foot === true, 'Total', 'Its total shows under the list'));
         [['colup', '\u25b2', 'Move up'], ['coldown', '\u25bc', 'Move down'], ['coldel', '\u00d7', 'Remove this column']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = bd[0]; bb.title = bd[2]; cr.appendChild(bb); });
         cb2.appendChild(cr);
@@ -6583,7 +6661,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
         var tl = input('sys-list-ctlabel field', typeof tt.label === 'string' ? tt.label : '', 'What the row shows (blank: the key)', 'Label'); tl.maxLength = LIMITS.label; rw.appendChild(tl);
         if (typeof altBox === 'function') rw.appendChild(altBox(tt, 'The row shows this name for the counter where the formula holds, such as Jammed where Row.Kind = 2. The first that holds wins.'));   // 1.6.0: its other names
         var tdf = el('input', 'field sys-list-ctdef'); tdf.type = 'number'; tdf.min = '0'; tdf.step = '1'; tdf.value = typeof tt.def === 'number' ? String(tt.def) : ''; tdf.placeholder = 'Starts at 0'; tdf.title = 'Where a new row starts'; rw.appendChild(tdf);
-        var tmx = input('sys-list-ctmax field', typeof tt.max === 'string' ? tt.max : '', 'Its most, worked out for each row (no dice): 20, Row.Shots; empty: no most', 'Most (e.g. Row.Shots)'); tmx.maxLength = LIMITS.formula; rw.appendChild(tmx);
+        var tmx = input('sys-list-ctmax field', typeof tt.max === 'string' ? tt.max : '', 'Its most, worked out for each row (no dice): 20, Row.Shots; empty: no most', 'Most (e.g. Row.Shots)'); tmx.maxLength = LIMITS.formula; rw.appendChild(tmx); if (typeof placeSel === 'function') rw.appendChild(placeSel('ct:' + ti, tt.place));   // 1.6.0 R2
         rw.appendChild(checkLabel('sys-list-ctroll', tt.roll === true, 'Set by rolls only', 'Rolls, actions and you set it. A player cannot change it by hand: their sheet shows it with no \u2212 or +'));   // 1.5.7
         {   // 1.6.0 Counts by the game clock: down to 0 and its word, or up; Only while on and Starts again when off where the list has a switch
             var tmr = tt.timer && typeof tt.timer === 'object' && !Array.isArray(tt.timer) ? tt.timer : null;
@@ -6658,7 +6736,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
         var rr = r0 && typeof r0 === 'object' ? r0 : {}, rw = el('div', 'sys-flags sys-list-roll'); rw.dataset.ri = String(ri);
         var rl = input('sys-list-rolllabel field', typeof rr.label === 'string' ? rr.label : '', 'The button\u2019s name on each row (Attack, Check)', 'Label'); rl.maxLength = LIMITS.label; rw.appendChild(rl);
         var rApply = Array.isArray(rr.apply), rk = el('select', 'sys-list-rollkind'); rk.title = 'Roll: dice for the row. Apply: moves pools or numbers by an amount the row works out (Apply costs: FP \u2212 Row.FPCost)';   // Stage 6 HUD H7b
-        [['roll', 'Roll'], ['apply', 'Apply']].forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; rk.appendChild(op); }); rk.value = rApply ? 'apply' : 'roll'; rw.appendChild(rk);
+        [['roll', 'Roll'], ['apply', 'Apply']].forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; rk.appendChild(op); }); rk.value = rApply ? 'apply' : 'roll'; rw.appendChild(rk); if (typeof placeSel === 'function') rw.appendChild(placeSel('roll:' + ri, rr.place));   // 1.6.0 R2
         var actsL = Array.isArray(acts) ? acts : [];   // turn-based combat T1: what one press costs
         if (actsL.length || rr.cost) { var rco = el('select', 'sys-list-rollcost'); rco.title = 'What one press costs in turn-based combat: one of the actions a turn allows'; var rcOpts = [['', 'Costs nothing']].concat(actsL.map(function(a) { return [a.key, 'Costs: ' + (a.label || a.key)]; })); if (rr.cost && !actsL.some(function(a) { return a.key.toLowerCase() === String(rr.cost).toLowerCase(); })) rcOpts.push([rr.cost, 'Costs: ' + rr.cost + ' (no such action)']); rcOpts.forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; rco.appendChild(op); }); rco.value = rr.cost || ''; rw.appendChild(rco); }
         var rnr = el('select', 'sys-list-near'); rnr.title = 'Applies to: whom its changes go on. With an adjacent character, a press asks who it is for when someone stands next to you, your target first. A row\u2019s own counters stay with the user. Its formulas read OnSelf, 1 on yourself and 0 on another'; [['', 'Applies to the user'], ['near', 'Applies to the user or an adjacent character']].forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; rnr.appendChild(op); }); rnr.value = rr.to === 'near' ? 'near' : ''; rw.appendChild(rnr);   // 1.5.9 (book es/et plan, section 3): Applies to
@@ -8459,6 +8537,8 @@ function onChange(e) {
         else if (c.indexOf('sys-list-multi') >= 0) { if (t.checked) lsc.multi = true; else delete lsc.multi; }
         else if (c.indexOf('sys-list-noqty') >= 0) { if (t.checked) lsc.noQty = true; else delete lsc.noQty; }
         else if (c.indexOf('sys-list-custom') >= 0) { if (t.checked) lsc.custom = true; else delete lsc.custom; }   // Stage 6 F4c3
+        else if (c.indexOf('sys-list-place') >= 0) { if (typeof placeSet === 'function') placeSet(lsc, t.dataset.part, t.value); }   // 1.6.0 R2: a part's Shows list
+        else if (c.indexOf('sys-list-open') >= 0) { if (t.checked) lsc.open = true; else delete lsc.open; }   // 1.6.0 R1: Rows open
         else if (c.indexOf('sys-list-trade') >= 0) { if (t.checked) lsc.trade = true; else delete lsc.trade; }   // 1.5.6 Tradable
         else if (c.indexOf('sys-list-lvlsplit') >= 0) { if (lsc.lvl && typeof lsc.lvl === 'object') { if (t.checked) lsc.lvl.split = true; else delete lsc.lvl.split; } }   // 1.5.6 trading
         else if (c.indexOf('sys-list-statsplit') >= 0) { var sxr = t.closest('.sys-list-stat'), sxD = sxr && Array.isArray(lsc.stats) ? lsc.stats[+sxr.dataset.si] : null; if (!sxD || typeof sxD !== 'object') return; if (t.checked) sxD.split = true; else delete sxD.split; }

@@ -3324,7 +3324,7 @@
   .sheet-item-load { display: inline-flex; align-items: center; gap: 4px; } .sheet-item-load .sheet-item-ctb { padding: 0 6px; height: 18px; font-size: 11px; line-height: 1; } .sheet-item-load-none .sheet-item-ctl { opacity: 0.7; font-style: italic; }   /* 1.5.8 Loads from: what a row has loaded, and its Load */
   .sheet-item-chamber .sheet-item-ctl { white-space: nowrap; } .sheet-item-chamber .sheet-item-ctb + .sheet-item-ctb { margin-left: 2px; } .sheet-item-launch { white-space: nowrap; }   /* 1.5.9 Chambers from: a row's chamber, its Chamber and Unchamber, and the GM's Launch */
   .sys-list-card .sys-flags.sys-list-chamber { flex-wrap: wrap; } .sys-list-card .sys-flags.sys-list-chamber select.sys-list-chambercap { flex: 0 0 auto; } .sys-list-card .sys-flags.sys-list-chamber input.sys-list-chamberby, .sys-list-card .sys-flags.sys-list-chamber input.sys-list-chamberto { flex: 0 1 150px; font-family: ui-monospace, Consolas, monospace; }   /* 1.5.9: the Lists tab's Chambers from box */
-  .sheet-item-ct { display: inline-flex; align-items: center; gap: 2px; } .sheet-item-ct .sheet-item-ctb { padding: 0 5px; height: 18px; min-width: 18px; font-size: 11px; line-height: 1; } .sheet-item-ct .sheet-item-ctv { min-width: 1.5em; text-align: center; }   /* R2: a row's counters */
+  .sheet-item-ct { display: inline-flex; align-items: center; gap: 2px; } .sheet-item-ct .sheet-item-ctb { padding: 0 5px; height: 24px; min-width: 24px; font-size: 11px; line-height: 1; } .sheet-item-ct .sheet-item-ctv { min-width: 1.5em; text-align: center; }   /* R2: a row's counters */
   .sys-list-card .sys-flags.sys-list-ct input.sys-list-ctmax { flex: 2 1 160px; font-family: ui-monospace, Consolas, monospace; } .sys-list-card .sys-flags.sys-list-ct input.sys-list-ctdef { width: 90px; }
   .sys-list-card .sys-flags.sys-list-needsrow { margin-left: 18px; } .sys-list-card .sys-flags.sys-list-needsrow input.sys-list-needs { flex: 2 1 180px; font-family: ui-monospace, Consolas, monospace; }   /* R2b */
   .sys-apply.sys-then { margin-left: 18px; } .sys-apply.sys-then .sys-apply-add { align-self: flex-start; }   /* R1: a roll's consequences */
@@ -3647,6 +3647,18 @@
   .sheet-chip { display: inline-block; margin-left: 6px; padding: 0 7px; border-radius: 9px; font-size: 10px; line-height: 16px; background: var(--panel2); color: var(--dim); vertical-align: middle; }
   .sheet-itemtable-notes td { padding: 2px 8px 6px 26px; color: var(--dim); font-size: 11.5px; font-style: italic; white-space: normal; }
   .sheet-item-notes-t { padding: 0 6px; height: 24px; }
+  /* 1.6.0 (backlog 180, R1 and R2): a row that opens, the arrow before its name, and the parts placed in its details */
+  .sheet-item-opslot { display: inline-flex; flex: 0 0 auto; }
+  .sheet-item-opener { width: 24px; height: 24px; padding: 0; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+  .sheet-item-opener .ico { width: 14px; height: 14px; transform: rotate(-90deg); transition: transform .12s; }
+  .sheet-item-opener.is-open .ico { transform: none; }
+  .sheet-item-opener-none { width: 24px; height: 24px; display: inline-block; }
+  .sheet-item-name-opens { cursor: pointer; }
+  .sheet-item-parts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 2px 0 4px; color: var(--ink); }
+  .sheet-item-openall { display: flex; justify-content: flex-end; gap: 6px; margin: 0 0 4px; }
+  .sheet-item-openall-b { padding: 0 8px; height: 24px; font-size: 11px; }
+  @media (prefers-reduced-motion: reduce) { .sheet-item-opener .ico { transition: none; } }
+  .sys-place-box select { min-width: 120px; }
   .sheet-itemtable tfoot td { border-top: 1px solid var(--edge); border-bottom: none; color: var(--dim); font-size: 11px; padding-top: 4px; }
   .sheet-itemtable .sheet-itft-qty { text-align: right; white-space: nowrap; }
   /* Stage 4: the item-table controls in the System editor's field row */

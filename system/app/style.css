@@ -3286,6 +3286,8 @@
   .sheet-row-form input[type=number] { flex: 0 0 80px; width: 80px; }
   .sheet-rf-f .field:disabled { opacity: 0.7; cursor: not-allowed; }
   .sheet-rf-back { padding: 0 5px; height: 22px; flex: none; }
+  .sheet-rf-places { flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 4px; }   /* 1.6.0: a set of places, a button a place */
+  .sheet-rf-place { padding: 1px 8px; height: 22px; font-size: 11.5px; }
   /* Stage 6 F4c3: a custom row's form (its GM only tick); the GM's mark on a player's custom row whose key a row they cannot see shares (with the marks above) */
   .sheet-rf-f input.sheet-rf-gm { flex: none; margin: 3px 0; cursor: pointer; }
   .sheet-rf-f.sheet-rf-wide { grid-column: 1 / -1; align-items: flex-start; }

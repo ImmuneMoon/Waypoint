@@ -15396,6 +15396,26 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('1.6.0 CrossStep and Crossed (docs/BOOK_ES_ET_PLAN.md 4a): a crossing\'s run reads the step it runs for and how many steps the change passed, laid on its token context by withCross (whole numbers 0 to 999, nothing else of the context changed, the context handed in left as it was); with no crossing both read 0, so a press or a reminder works the formula out; a field of the system\'s own named CrossStep keeps its name; the validator knows the two names in a rule that runs When a value crosses, its formula and its Then, and says they are known only there anywhere else',
             J(rd) === J([0, 0, 2, 3, 2, 1, 0, 4, 3, 2, 0]) && vOk && own === 5 && same, J([rd, errs.map(e => [e.id, e.message]), own, same]));
     }
+    {   // 1.6.0: a set of places in a row's own-values form, one button a place (sheets.js placeBtns and rfUnlabel, sliced by their rfplaces markers and run for real)
+        const J = JSON.stringify, shP = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), pa = shP.indexOf('// [systemcheck:rfplaces-start]'), pz = shP.indexOf('// [systemcheck:rfplaces-end]');
+        const mkEl = (tag, cls, txt) => { const e = { tagName: tag.toUpperCase(), className: cls || '', textContent: txt === undefined ? '' : txt, children: [], attrs: {}, on: {}, disabled: false, type: '',
+            get firstChild() { return this.children[0] || null; }, get lastChild() { return this.children[this.children.length - 1] || null; },
+            appendChild(c) { const p = c.parent; if (p) p.children.splice(p.children.indexOf(c), 1); c.parent = this; this.children.push(c); return c; }, replaceChild(n, o) { const i = this.children.indexOf(o); n.parent = this; this.children[i] = n; return o; },
+            setAttribute(k, v) { this.attrs[k] = String(v); }, addEventListener(k, f) { this.on[k] = f; } }; return e; };
+        const P = new Function('el', shP.slice(pa, pz) + '\nreturn { placeBtns: placeBtns, rfUnlabel: rfUnlabel };')(mkEl);
+        const sent = [], st = { key: 'Covers', set: true, labels: ['Head', 'Body', 'Left hand', 'Right hand'] }, box = P.placeBtns(st, 5, n => sent.push(n), false);
+        const words = box.children.map(b => [b.textContent, b.attrs['aria-pressed'], /\bon\b/.test(b.className), b.type]);
+        box.children[1].on.click(); box.children[0].on.click(); box.children[3].on.click();
+        const lockB = P.placeBtns(st, 2, n => sent.push('no'), true), noNames = P.placeBtns({ key: 'X', set: true }, 'x', () => {}, false), wide = P.placeBtns({ key: 'Y', set: true, labels: new Array(20).fill('p') }, 1, () => {}, false);
+        const grid = mkEl('div', 'sheet-rf-grid'), lab = grid.appendChild(mkEl('label', 'sheet-rf-f')), cap = lab.appendChild(mkEl('span', 'sheet-rf-cap', 'Covers')), bx = lab.appendChild(box); P.rfUnlabel(grid);
+        const grid2 = mkEl('div', 'g'), dv = grid2.appendChild(mkEl('div', 'x')); P.rfUnlabel(grid2); P.rfUnlabel(mkEl('div', 'empty'));
+        check('1.6.0 a set of places in a row\'s own-values form (sheets.js placeBtns and rfUnlabel, run for real): one button a place named by the stat\'s value names, pressed in where the row takes that place (aria-pressed and the gold of a tool that is on); a press sends the set with that place taken or given back; a stat the GM holds draws its buttons off; with no value names one place, at most 16; the form\'s label around them made a div, so a press on its caption presses nothing, its caption and buttons kept in order; a wrapper that is no label left alone',
+            J(words) === J([['Head', 'true', true, 'button'], ['Body', 'false', false, 'button'], ['Left hand', 'true', true, 'button'], ['Right hand', 'false', false, 'button']]) && J(sent) === J([7, 4, 13])
+            && lockB.children.every(b => b.disabled) && J(noNames.children.map(b => [b.textContent, b.attrs['aria-pressed']])) === J([['Place 1', 'false']]) && wide.children.length === 16
+            && grid.children.length === 1 && grid.children[0].tagName === 'DIV' && grid.children[0].className === 'sheet-rf-f sheet-rf-wide' && grid.children[0].children[0] === cap && grid.children[0].children[1] === bx
+            && grid2.children[0] === dv && shP.includes('ctl = placeBtns(s, typeof mine === \'number\' ? mine : bv, put, lock);') && shP.includes('ctl = placeBtns(s, typeof mine === \'number\' ? mine : dv, put, false);') && (shP.match(/if \(s\.set === true\) rfUnlabel\(grid\);/g) || []).length === 2,
+            J([words, sent, noNames.children.length, wide.children.length, grid.children.map(x => [x.tagName, x.className])]));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

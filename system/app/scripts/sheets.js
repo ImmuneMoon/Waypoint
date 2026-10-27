@@ -3149,6 +3149,21 @@ function catChoices(sysI) {
     var LBk = window.wpLibrary; if (typeof isClient === 'function' && !isClient() && LBk && LBk.catsFor) { var lcs = LBk.catsFor(); if (lcs) out = out.concat(lcs.show || [], lcs.hide || []); }
     return out;
 }
+// [systemcheck:rfplaces-start]
+// 1.6.0: a set of places (a list stat that a switch's Where … meet reads, set: true) in a row's own-values form: one button a place, named by the
+// stat's value names as the Items tab's ticks are, pressed in or out (aria-pressed), each press sending the set with that place taken or given back.
+// Buttons and not ticks, since the form wraps each control in a label: rfUnlabel then makes that wrapper a div, so a press on the caption presses nothing
+function placeBtns(s, cur, put, lock) {
+    var box = el('span', 'sheet-rf-places'), v = typeof cur === 'number' && isFinite(cur) ? Math.floor(Math.abs(cur)) & 0xFFFF : 0, L = s && Array.isArray(s.labels) ? s.labels : [], n = Math.max(1, Math.min(16, L.length || 1));
+    for (var i = 0; i < n; i++) (function(bit) {
+        var on = ((v >> bit) & 1) === 1, b = el('button', 'tool ghost sheet-rf-place' + (on ? ' on' : ''), String(L[bit] || 'Place ' + (bit + 1)));
+        b.type = 'button'; b.setAttribute('aria-pressed', on ? 'true' : 'false'); if (lock) b.disabled = true;
+        b.addEventListener('click', function() { put(v ^ (1 << bit)); }); box.appendChild(b);
+    })(i);
+    return box;
+}
+function rfUnlabel(grid) { var lab = grid && grid.lastChild; if (!lab || String(lab.tagName).toUpperCase() !== 'LABEL') return; var dv = el('div', lab.className + ' sheet-rf-wide'); while (lab.firstChild) dv.appendChild(lab.firstChild); grid.replaceChild(dv, lab); }
+// [systemcheck:rfplaces-end]
 function rowForm(entry, rd, c, f, spec, sysI, mode) {
     if (rd.src === 'custom') return customForm(entry, rd, c, f, spec, sysI, mode);   // F4c3: a custom row's own form (its values are its own: nothing behind them)
     var rid = rowIdOf(entry), ov = entry.ov && typeof entry.ov === 'object' ? entry.ov : {}, base = rd.base || {}, lost = rd.src === 'lost', stRef = _rowForm, typed = stRef && stRef.typed ? stRef.typed : {};
@@ -3205,6 +3220,8 @@ function rowForm(entry, rd, c, f, spec, sysI, mode) {
             ctl = el('select', 'field sheet-rf-sel'); ctl.appendChild(opt('', lib + statText(s, bv), mine === undefined));
             (s.opts || []).forEach(function(o) { ctl.appendChild(opt(o.label, o.label, typeof mine === 'string' && mine.toLowerCase() === o.label.toLowerCase())); });
             ctl.addEventListener('change', function() { put(ctl.value === '' ? null : ctl.value); });
+        } else if (s.set === true) {   // 1.6.0: a set of places, a button a place
+            ctl = placeBtns(s, typeof mine === 'number' ? mine : bv, put, lock);
         } else if (Array.isArray(s.labels) && s.labels.length) {
             ctl = el('select', 'field sheet-rf-sel'); ctl.appendChild(opt('', lib + statText(s, bv), mine === undefined));
             s.labels.forEach(function(t, i) { ctl.appendChild(opt(String(i), t || String(i), mine === i)); });
@@ -3216,6 +3233,7 @@ function rowForm(entry, rd, c, f, spec, sysI, mode) {
         }
         if (lock) ctl.disabled = true;
         add(s.label || k, ctl, name, mine !== undefined && !lock, function() { put(null); }, lock ? 'Set by the GM' : gmSet ? 'Set by the GM. A change goes to them as an ask.' : lib + statText(s, bv));
+        if (s.set === true) rfUnlabel(grid);   // 1.6.0
     });
     if (mode === 'gm') {
         var bi = el('input', 'field sheet-rf-num'), bShown = ov.area && typeof ov.area === 'object' && ov.area.ft ? String(ov.area.ft) : ''; bi.type = 'number'; bi.min = '0'; bi.max = String(LIMITS.maxBlastFt); bi.step = '1'; bi.value = bShown; bi.placeholder = base.area && base.area.ft ? String(base.area.ft) : 'none'; keepTyped(bi, partOf('ft'));
@@ -3287,6 +3305,8 @@ function customForm(entry, rd, c, f, spec, sysI, mode) {
             ctl = el('select', 'field sheet-rf-sel'); ctl.appendChild(opt('', '—', mine === undefined));
             (s.opts || []).forEach(function(o) { ctl.appendChild(opt(o.label, o.label, typeof mine === 'string' && mine.toLowerCase() === o.label.toLowerCase())); });
             ctl.addEventListener('change', function() { put(ctl.value === '' ? null : ctl.value); });
+        } else if (s.set === true) {   // 1.6.0: a set of places, a button a place
+            ctl = placeBtns(s, typeof mine === 'number' ? mine : dv, put, false);
         } else if (Array.isArray(s.labels) && s.labels.length) {
             ctl = el('select', 'field sheet-rf-sel'); ctl.appendChild(opt('', '—', mine === undefined));
             s.labels.forEach(function(t, i) { ctl.appendChild(opt(String(i), t || String(i), mine === i)); });
@@ -3297,6 +3317,7 @@ function customForm(entry, rd, c, f, spec, sysI, mode) {
             ctl.addEventListener('change', function() { if (hold(part, ctl.value)) return; took(part); var sv = String(ctl.value).trim(), n = Number(sv); if (ctl.validity && ctl.validity.badInput) { ctl.value = shown; return; } if (sv === '') { put(null); return; } if (!isFinite(n) || Math.abs(n) > LIMITS.statAbs) { ctl.value = shown; return; } put(n); });
         }
         add(s.label || k, ctl, name, 'Blank: ' + statText(s, dv) + ' (the list’s default)');
+        if (s.set === true) rfUnlabel(grid);   // 1.6.0
     });
     // Stage 6 F6b: its changes to the character — the fields of the system this sheet draws (a player's: their own view); the whole list goes
     // with each change, and the host judges it again

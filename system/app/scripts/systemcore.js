@@ -86,6 +86,8 @@ var BAND_KINDS = Object.freeze({ number: 1, formula: 1, resource: 1, skill: 1, t
 var IDENTITY_KINDS = Object.freeze({ number: 1, formula: 1, resource: 1, skill: 1, toggle: 1, text: 1, select: 1 });   // Stage 5d: what an identity row can show, read-only (notes and item lists stay in sections)
 var LEDGER_KINDS = Object.freeze({ number: 1, formula: 1, resource: 1, skill: 1 });   // Stage 5d: what a ledger figure can show — a number over its label
 var RESERVED_SUFFIX = Object.freeze({ max: 1, ranks: 1, cur: 1, base: 1 });
+// 1.6.0: the endings a formula reads as a part of a field: the reserved four and full (a pool's Pool.full). full is not reserved, so a key may end in it
+var NAME_SUFFIX = Object.freeze({ max: 1, ranks: 1, cur: 1, base: 1, full: 1 });
 var FUNC_NAMES = Object.freeze({ floor: 1, ceil: 1, trunc: 1, round: 1, abs: 1, sqrt: 1, min: 1, max: 1, clamp: 1, mod: 1, 'if': 1, and: 1, or: 1, not: 1, 'true': 1, 'false': 1 });
 // Stage 5f: a handbook page id as a sheet names it. Pages' ids are free-form by contract (CAMPAIGN_INTEGRATION.md), capped at 80 by
 // docrender.cleanDoc; never an Object.prototype name. The system cannot see the campaign, so this is the format only — which pages a
@@ -2544,7 +2546,7 @@ function cleanSystem(sys, opts) {
         var isDropped = map(); dropped.forEach(function(k) { isDropped[k] = 1; });
         var mentions = function(text) {
             if (!text) return false;
-            var hit = function(n) { var l = lower(n); if (l.length > 3 && l.indexOf('on.') === 0) l = l.slice(3); var dot = l.lastIndexOf('.'); if (isDropped[l]) return true; var sg = l.split('.'); if (sg.length > 1 && (droppedList[sg[0]] === 1 || (sg.length > 2 && gmKeys[sg[0]] && gmKeys[sg[0]][sg[1]] === 1))) return true; return dot > 0 && RESERVED_SUFFIX[l.slice(dot + 1)] && isDropped[l.slice(0, dot)]; };   // F5a1: a GM-only list by its first segment, L.<a GM-only entry's key> (critic 5)
+            var hit = function(n) { var l = lower(n); if (l.length > 3 && l.indexOf('on.') === 0) l = l.slice(3); var dot = l.lastIndexOf('.'); if (isDropped[l]) return true; var sg = l.split('.'); if (sg.length > 1 && (droppedList[sg[0]] === 1 || (sg.length > 2 && gmKeys[sg[0]] && gmKeys[sg[0]][sg[1]] === 1))) return true; return dot > 0 && NAME_SUFFIX[l.slice(dot + 1)] && isDropped[l.slice(0, dot)]; };   // F5a1: a GM-only list by its first segment, L.<a GM-only entry's key> (critic 5)
             if (F.parse(text).ok) return F.names(text).some(hit);
             return (String(text).match(/[A-Za-z_][A-Za-z0-9_.]*/g) || []).some(function(t) { return hit(t) || hit(t.split('.')[0]); });   // Stage 6: text that does not parse is checked word by word — a typo never carries a GM-only name to players
         };
@@ -3146,7 +3148,7 @@ function chainsWalk(sys, F) {
         if (L && l.slice(0, 4) === 'row.') { var w = l.slice(4), cw = w.split('.'); return w.indexOf('.') < 0 ? rowNode(L, w) : cw.length === 2 && (cw[0] === 'round' || cw[0] === 'fired') && L.chs ? rowNode(listOf(L.chs), cw[1]) : ''; }   // 1.5.9: a round's stat or column, on its own list
         if (ix[l]) return defNode(ix[l], '');
         if (l.indexOf('.') > 0) { var ln = listNode(l); if (ln !== undefined) return ln; }
-        var dot = l.lastIndexOf('.'); if (dot > 0 && RESERVED_SUFFIX[l.slice(dot + 1)] && ix[l.slice(0, dot)]) return defNode(ix[l.slice(0, dot)], l.slice(dot + 1));
+        var dot = l.lastIndexOf('.'); if (dot > 0 && NAME_SUFFIX[l.slice(dot + 1)] && ix[l.slice(0, dot)]) return defNode(ix[l.slice(0, dot)], l.slice(dot + 1));
         return '';
     };
     var namesOf = function(t) { var ns = F.names(t); return (Array.isArray(ns) ? ns : []).map(function(x) { return typeof x === 'string' ? x : isObj(x) && typeof x.name === 'string' ? x.name : ''; }); };   // a throw goes to chainsShallow's own catch
@@ -5168,7 +5170,7 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         if (l in cache) return cache[l];
         var field = ix[l], suffix = null;
         if (!field && l.indexOf('.') > 0) { var lnv = listName(l, name); if (lnv !== undefined) return lnv; }   // Stage 6 F5a1: a carried list's totals and addressed rows (after the exact key, before the suffixes)
-        if (!field) { var dot = l.lastIndexOf('.'); if (dot > 0 && RESERVED_SUFFIX[l.slice(dot + 1)]) { field = ix[l.slice(0, dot)]; suffix = l.slice(dot + 1); } }
+        if (!field) { var dot = l.lastIndexOf('.'); if (dot > 0 && NAME_SUFFIX[l.slice(dot + 1)]) { field = ix[l.slice(0, dot)]; suffix = l.slice(dot + 1); } }
         if (!field) return builtin(l);
         if (chain.indexOf(l) >= 0) return loopError(l);
         var out, r, k = field.kind;
@@ -5181,9 +5183,10 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
             else if (suffix === 'base' || !suffix) { var b = (field.base || field.base === null) ? evalDef(l, field.base) : { value: 0 }; if (b.error) return b; out = suffix === 'base' ? withFx(l, b.value, b.via || null) : withFx(l, ranks + b.value, b.via || null); }   // 5h: effects reach the total; ranks and base stay raw. A base the players' view blanked (it names a GM-only field) reads "GM only" for the skill and .base, as a formula does (never ranks + 0); no base is ranks alone
             else return undefined;
         } else if (k === 'resource') {
-            if (suffix && suffix !== 'max' && suffix !== 'cur') return undefined;
+            if (suffix && suffix !== 'max' && suffix !== 'cur' && suffix !== 'full') return undefined;   // 1.6.0: .full
             var stored = storedOf(field, char);   // { cur } — cur null means "full" (def: 'max')
-            if (suffix === 'max') { r = (field.maxFormula || field.maxFormula === null) ? evalDef(l, field.maxFormula) : { value: field.min || 0 }; if (r.error) return r; out = withFx(l, field.round && field.maxFormula ? roundKept(l, r.value, field) : r.value, r.via || null); }   // l is already "key.max": one chain name, so a max naming itself is reported as the loop it is
+            if (suffix === 'full') out = stored.cur === null ? 1 : 0;   // 1.6.0: 1 while nothing is stored (the pool reads its max), 0 once a current is stored, whatever it holds
+            else if (suffix === 'max') { r = (field.maxFormula || field.maxFormula === null) ? evalDef(l, field.maxFormula) : { value: field.min || 0 }; if (r.error) return r; out = withFx(l, field.round && field.maxFormula ? roundKept(l, r.value, field) : r.value, r.via || null); }   // l is already "key.max": one chain name, so a max naming itself is reported as the loop it is
             else if (stored.cur === null) { var mxv = fn(field.key + '.max'); if (mxv && typeof mxv === 'object' && mxv.error) return mxv; out = withFx(l, mxv, viaOf([{ name: field.key + '.max' }])); }   // a full pool reads its max through the resolver (worked out once, cached)
             else out = stored.cur;
         } else if (k === 'formula') { if (suffix) return undefined; r = evalDef(l, field.formula); if (r.error) return r; out = withFx(l, field.round ? roundKept(l, r.value, field) : r.value, r.via || null); }   // clarity package: rounded as the GM picked, then the effects added
@@ -5470,7 +5473,7 @@ function validateSystem(sys, F) {
     var errors = [], warnings = [];
     if (!sys || !F) return { ok: false, errors: [{ message: 'No system.' }], warnings: warnings };
     var keys = sys.fields.map(function(f) { return f.key; }), lowerKeys = keys.map(lower), ix = keyIndex(sys);
-    var known = map(); sys.fields.forEach(function(f) { known[lower(f.key)] = f; if (f.kind === 'resource') { known[lower(f.key) + '.max'] = f; known[lower(f.key) + '.cur'] = f; } if (f.kind === 'skill') { known[lower(f.key) + '.ranks'] = f; known[lower(f.key) + '.base'] = f; } if (f.kind === 'number') known[lower(f.key) + '.base'] = f; });   // 5h: "ST.base" is the stored number, before effects (a points cost reads it)
+    var known = map(); sys.fields.forEach(function(f) { known[lower(f.key)] = f; if (f.kind === 'resource') { known[lower(f.key) + '.max'] = f; known[lower(f.key) + '.cur'] = f; known[lower(f.key) + '.full'] = f; } if (f.kind === 'skill') { known[lower(f.key) + '.ranks'] = f; known[lower(f.key) + '.base'] = f; } if (f.kind === 'number') known[lower(f.key) + '.base'] = f; });   // 5h: "ST.base" is the stored number, before effects (a points cost reads it)
     DATE_NAMES.forEach(function(n) { var l = lower(n); if (!ix.date && !known[l]) known[l] = { id: '', key: n, kind: 'number', vis: 'all' }; });   // 1.6.0: the date
     TOKEN_NAMES.forEach(function(n) { var l = lower(n), fam = l.split('.')[0]; if (!ix[fam] && !known[l]) known[l] = { id: '', key: n, kind: fam === 'arc' && l !== 'arc' ? 'toggle' : 'number', vis: 'all' }; });   // 5h Fold 3: the facing names (a field named Facing, Arc or Threats keeps the family)
     var edges = map(), gmP = gmPools(sys, F);   // a pool whose max is GM-only: players see none of it
@@ -6258,7 +6261,7 @@ function gmOnlyNames(sys, names) {
     var ix = keyIndex(sys), out = [], gmKs = gmEntryKeys(sys, sys.fields);
     names.forEach(function(n) {
         var l = lower(n && n.name || ''), f = ix[l]; if (!f && l.length > 3 && l.indexOf('on.') === 0) { l = l.slice(3); f = ix[l]; }   // 1.6.0: On.<name>, the one it is used on, is judged as that name
-        if (!f) { var dot = l.lastIndexOf('.'); if (dot > 0 && RESERVED_SUFFIX[l.slice(dot + 1)]) f = ix[l.slice(0, dot)]; }
+        if (!f) { var dot = l.lastIndexOf('.'); if (dot > 0 && NAME_SUFFIX[l.slice(dot + 1)]) f = ix[l.slice(0, dot)]; }
         if (!f) { var sg = l.split('.'), lf = sg.length > 1 ? ix[sg[0]] : null; if (lf && lf.kind === 'item-list' && (lf.vis === 'gm' || (sg.length > 2 && gmKs[lower(lf.key)] && gmKs[lower(lf.key)][sg[1]] === 1))) f = { vis: 'gm' }; }   // F5a1: a GM-only list, L.<a GM-only entry's key> (critic 4)
         if (f && f.vis === 'gm') out.push(n.name);
     });
@@ -6288,7 +6291,7 @@ function gmDerivedNames(sys, F, names) {
         var ix = keyIndex(sys), hot = map(), readBy = map(), queue = [], gmKs = gmEntryKeys(sys, sys.fields);
         var reads = function(name) {   // the field a name reads (the resolver's lookup) and whether its value is that field's definition worked out
             var l = lower(name), f = ix[l], sfx = '';
-            if (!f) { var dot = l.lastIndexOf('.'); if (dot > 0 && RESERVED_SUFFIX[l.slice(dot + 1)]) { f = ix[l.slice(0, dot)]; sfx = l.slice(dot + 1); } }
+            if (!f) { var dot = l.lastIndexOf('.'); if (dot > 0 && NAME_SUFFIX[l.slice(dot + 1)]) { f = ix[l.slice(0, dot)]; sfx = l.slice(dot + 1); } }
             if (!f) { var sg = l.split('.'), lf = sg.length > 1 ? ix[sg[0]] : null; if (lf && lf.kind === 'item-list') { if (lf.vis === 'gm' || (sg.length > 2 && gmKs[lower(lf.key)] && gmKs[lower(lf.key)][sg[1]] === 1)) return { f: { id: '#gm', vis: 'gm' }, def: false }; return { f: { id: 'l#' + lower(lf.key), vis: 'all' }, def: true }; } }   // F5a1: a list's names are worked out from its columns (one node per list)
             if (!f) return null;
             var def = false;

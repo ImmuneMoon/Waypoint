@@ -15355,6 +15355,23 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && shC.includes("'Max formula')); roundCells(def, f);") && shC.includes("if (e && !e.error && e.unrounded !== undefined && typeof roundSays === 'function') v.title += '\\n' + roundSays(f, e.unrounded);")
             && shC.includes("if (e && !e.error && e.maxUnrounded !== undefined && typeof roundSays === 'function') mx.title += '\\n' + roundSays(f, e.maxUnrounded);"), J([sayP, eP('HP'), eP('EP').max]));
     }
+    {   // 1.6.0: <Pool>.full (the campaign build's ask): 1 while a pool is full with nothing stored, 0 once a current is stored, even one at its max
+        const J = JSON.stringify;
+        const sysP = S.cleanSystem({ v: 1, name: 'P', fields: [
+            { id: 'f_ep', key: 'EP', label: 'EP', kind: 'resource', maxFormula: '10', def: 'max' },
+            { id: 'f_hp', key: 'HP', label: 'HP', kind: 'resource', maxFormula: '8', def: 3 },
+            { id: 'f_c', key: 'Cost', label: 'Cost', kind: 'formula', formula: 'if(EP.full, 0, 2)' },
+            { id: 'f_x', key: 'Stat.full', label: 'X', kind: 'number', def: 7 }], sheet: { sections: [] } }, { F, gmView: true });
+        const rd = (vals, names) => { const r = S.makeResolver(sysP, { id: 'c', values: vals }, F); return names.map(n => r(n)); };
+        const full = rd({}, ['EP.full', 'EP', 'EP.cur', 'EP.max', 'Cost', 'HP.full', 'HP', 'Stat.full']);
+        const atMax = rd({ f_ep: { cur: 10 } }, ['EP.full', 'EP', 'Cost']), part = rd({ f_ep: { cur: 4 } }, ['EP.full', 'EP', 'Cost']);
+        const vOk = !/Unknown name/.test(J(S.validateSystem(sysP, F))) && /Unknown name/.test(J(S.validateSystem(S.cleanSystem({ v: 1, name: 'Q', fields: [{ id: 'f_ep', key: 'EP', label: 'EP', kind: 'resource', maxFormula: '10' }, { id: 'f_c', key: 'C', label: 'C', kind: 'formula', formula: 'EP.empty' }], sheet: { sections: [] } }, { F, gmView: true }), F)));
+        const keyOk = S.validKey('Stat.full', F) === true;
+        const sysG = S.cleanSystem({ v: 1, name: 'G', fields: [{ id: 'f_s', key: 'Sec', label: 'Sec', kind: 'resource', maxFormula: '5', vis: 'gm' }, { id: 'f_o', key: 'Open', label: 'Open', kind: 'resource', maxFormula: '5' }], sheet: { sections: [] } }, { F, gmView: true });
+        const gmOk = J(S.gmOnlyNames(sysG, [{ name: 'Sec.full' }, { name: 'Open.full' }])) === J(['Sec.full']);
+        check('1.6.0 <Pool>.full (the campaign build\'s ask: a cost taken off current EP once, where the max was lowered by it too): the resolver reads 1 while a pool is full with nothing stored and 0 once a current is stored, even one exactly at its max, so a formula tells the two apart; a pool that starts at a number reads 0; the validator knows the name; .full is not a reserved ending, so a field keyed Stat.full is still a key and is read as itself; a GM-only pool\'s .full is a GM-only name',
+            J(full) === J([1, 10, 10, 10, 0, 0, 3, 7]) && J(atMax) === J([0, 10, 2]) && J(part) === J([0, 4, 2]) && vOk && keyOk && gmOk, J([full, atMax, part, vOk, keyOk, gmOk]));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

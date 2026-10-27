@@ -3963,6 +3963,7 @@
   /* Onboarding F3: a player's own character — the GM's review bar, the owner's Done, the join card's actions, the GM's chip badges */
   .sheet-review-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 10px; background: rgba(212,175,55,0.12); border-bottom: 1px solid var(--gold); font-size: 12px; flex: none; }
   .sheet-review-bar .sheet-rv-text { flex: 1 1 180px; min-width: 0; }
+  .sheet-stale-bar { background: rgba(220,90,70,0.12); border-bottom-color: #c0503e; }   /* 1.6.0 (backlog 190): an out-of-date sheet */
   /* 126, point budgets: the strip under the sheet's head, a chip a budget, red when it is over */
   .sheet-budgets { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 10px; border-bottom: 1px solid var(--edge); font-size: 12px; flex: none; }
   .sheet-budget { display: inline-flex; align-items: baseline; gap: 6px; padding: 2px 9px; border: 1px solid var(--edge); border-radius: 10px; }

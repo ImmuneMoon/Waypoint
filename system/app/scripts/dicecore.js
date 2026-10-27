@@ -300,6 +300,7 @@ var DENY_TEXT = {
     off: 'Dice are off for this campaign (Settings > VTT features).',
     slow: 'Slow down: a few rolls a second is plenty.',
     paused: 'The table is paused — no rolls until the GM resumes.',
+    held: 'Your character needs a new sheet first. Send one from its sheet.',
     many: 'At most ' + LIMITS.dice + ' dice in a table roll.',
     names: 'Pick a character in the roller for names like STR (its sheet gives the values).',
     char: 'Pick one of your own characters for that roll.',

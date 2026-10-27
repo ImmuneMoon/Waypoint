@@ -21,6 +21,14 @@ Scenes
   picture in a planner or a page you are reading to show it as a scene.
 
 Systems
+- New sheets after a change. When you change the system so that your
+  players' sheets no longer fit, press Ask for new sheets in the System
+  editor's Characters tab. Every player's character goes out of date.
+- A player with a character out of date can chat and read pages, and
+  nothing else, until you approve a new sheet. Their sheet has Send a new
+  sheet, which takes a Waypoint character file. It waits in your Review,
+  one line a field that differs, and applying it makes the character
+  current. Mark current on a sheet, or Mark all current, does it at once.
 - Rows that open. Tick Rows open on a list and each row gets an arrow
   before its name. It opens the row's details, and so does a press on the
   name. Open all and Close all stand over the list.

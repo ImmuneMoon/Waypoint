@@ -6748,7 +6748,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && eOn.r && eOn.r.gm === true && eOn.r.view.values.f_gmfig === 7 && j(eOn.calls) === j(['cleanSystem:true', 'resolveAll'])
             && eCli.r && eCli.r.gm === false && !('f_gmfig' in eCli.r.view.values) && j(eCli.calls) === j(['playerSystem', 'resolveAll']) && ePart.r === null && eShut.r === null, j([eOff.calls, eOn.calls, eCli.calls]));
         check('F2a (source): a character file is refused by Import on a character in play before an outside sheet file\'s check (never sent to the GM as a dossier; Onboarding F4: one still being made takes it, after a confirm); the head\'s Download shows for whoever may open the whole sheet; the file\'s name goes through fileBase; the menu sits on the page and Escape closes it before the panel does',
-            /var isFile = isCharFile\(j\);\n\s*if \(isFile && !making\) \{ toast\([^\n]*\); return; \}[^\n]*\n\s*if \(!isFile && \(!sheetFilesOk\(\) \|\| !j \|\| typeof j !== 'object' \|\| Array\.isArray\(j\)\)\)/.test(shX)
+            /var isFile = isCharFile\(j\);\n[^\n]*staleJ[^\n]*\n\s*if \(isFile && !making && !staleJ\) \{ toast\([^\n]*\); return; \}[^\n]*\n\s*if \(!isFile && \(!sheetFilesOk\(\) \|\| !j \|\| typeof j !== 'object' \|\| Array\.isArray\(j\)\)\)/.test(shX)
             && /if \(making\) \{\n\s*showConfirm\('Fill ' \+ nm \+ ' from this file\? What it carries replaces what the sheet has\.', function\(y\) \{\n\s*if \(!y\) return;\n\s*var rM = n\.charUpload\(id, j, function\(a\) \{ toast\(a\.error \|\| fillNote\(a, j\)\); if \(!a\.error\) filePicture\(id, j\); \}\);/.test(shX)
             && /var dlB = ui\('sheetDownload'\); if \(dlB\) dlB\.style\.display = canOpen\(c\.id\) && !c\.partial \? '' : 'none';/.test(shX)
             && /var base = fileBase\(X\.view\.name\) \+ \(X\.gm \? '-gm' : ''\);/.test(shX) && (shX.match(/saveTextFile\(base \+ '/g) || []).length === 2 && !/a\.download = (?!name)/.test(shX.slice(shX.indexOf('function saveTextFile('), shX.indexOf('function pictureData(')))
@@ -7045,7 +7045,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const ixF = fs.readFileSync(path.join(app, 'index.html'), 'utf8');
         check('F3a Help says it (both sides), and the head, the review bar and the join card have their places',
             /<b>Make a character&hellip;<\/b> on your card starts a character of your own\. When there is no waiting token, <b>My character&hellip;<\/b> on your own chip does the same\./.test(ixF) && /No other player sees the character until you press <b>Done<\/b>\. Your GM can\./.test(ixF) && /If you gave them a character meanwhile, that one stays in play and theirs is kept\./.test(ixF) && /A player can also make a character of their own/.test(ixF)
-            && /id="sheetDone"/.test(ixF) && /id="sheetName"/.test(ixF) && /id="sheetUnlock"/.test(ixF) && /<div id="sheetReviewBar" class="sheet-review-bar" role="status" style="display:none;"><\/div><div id="sheetBody"/.test(ixF) && /id="joinCardMake"/.test(ixF) && /id="joinCardOpen"/.test(ixF));
+            && /id="sheetDone"/.test(ixF) && /id="sheetName"/.test(ixF) && /id="sheetUnlock"/.test(ixF) && /<div id="sheetReviewBar" class="sheet-review-bar" role="status" style="display:none;"><\/div><div id="sheetStaleBar" class="sheet-review-bar sheet-stale-bar" role="status" style="display:none;"><\/div><div id="sheetBody"/.test(ixF) && /id="joinCardMake"/.test(ixF) && /id="joinCardOpen"/.test(ixF));
     }
     /* ---- Grid-shaped incoming tokens (owner, 2026-09-27) ---- */
     {
@@ -10525,7 +10525,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             /\n    var slEl = ui\('sysLists'\);[^\n]*\n    if \(tab === 'lists'\) renderBudgets\(\);/.test(sh) && ixB.includes('            <div id="sysListRules"></div>\n            <div id="sysBudgets"></div>\n            <div id="sysEnv"></div>\n            <div id="sysListRows" class="sys-rows"></div>')   /* 1.6.0: the Environment readings box under the budgets' (moved on purpose) */
             && /\n    if \(onInitInput\(t\)\) return;[^\n]*\n    if \(onBudgetInput\(t\)\) return;/.test(sh) && /\n    if \(onInitChange\(t\)\) return;[^\n]*\n    if \(onBudgetChange\(t\)\) return;/.test(sh) && /\n    if \(calendarClick\(b\)\) return;[^\n]*\n    if \(budgetClick\(b\)\) return;/.test(sh)
             && epB('has') === 'Has: ' && epB('spent') === 'Spent: ' && epB('turn.move') === 'Move per turn: ' && sh.includes("    if (/^b_/.test(id)) { var bdF = (draft.budgets || []).find(function(x) { return x && x.id === id; }); return bdF && (prop === 'has' || prop === 'spent') && typeof bdF[prop] === 'string' ? bdF[prop] : ''; }")
-            && sh.includes("    renderReviewBar(c, camp, gm);\n    var bdB = ui('sheetBudgets'); if (bdB) bdB.style.display = !c.partial && budgetBar(bdB, sys, c) ? '' : 'none';") && ixB.includes('<div id="sheetBudgets" class="sheet-budgets" role="status" style="display:none;"></div><div id="sheetReviewBar" class="sheet-review-bar" role="status" style="display:none;"></div><div id="sheetBody"></div>')
+            && sh.includes("    renderReviewBar(c, camp, gm);\n    var bdB = ui('sheetBudgets'); if (bdB) bdB.style.display = !c.partial && budgetBar(bdB, sys, c) ? '' : 'none';") && ixB.includes('<div id="sheetBudgets" class="sheet-budgets" role="status" style="display:none;"></div><div id="sheetReviewBar" class="sheet-review-bar" role="status" style="display:none;"></div><div id="sheetStaleBar" class="sheet-review-bar sheet-stale-bar" role="status" style="display:none;"></div><div id="sheetBody"></div>')
             && sh.includes("    var bdP = el('div', 'sheet-budgets'); if (budgetBar(bdP, sys, c)) container.insertBefore(bdP, container.firstChild);")
             && sh.split("if (typeof budgetNote === 'function') budgetNote(sys, c, f.id, res.value);").length === 3 && sh.split("if (typeof budgetNote === 'function') budgetNote(sys, c, d);").length === 2
             && sh.indexOf("budgetNote(sys, c, d);") < sh.indexOf("c.values = c.values || {}; ids.forEach(function(fid) { c.values[fid] = d[fid]; });") && /budgetNote\(sys, c, f\.id, res\.value\);[^\n]*\n    c\.values = c\.values \|\| \{\}; c\.values\[f\.id\] = res\.value;/.test(sh)
@@ -15689,6 +15689,82 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             cleanOk && drawOk && J(closed0) === J(['none', 'false', 'Show details of Blaster', false]) && J(open1) === J(['', 'true', 'Hide details of Blaster', true]) && J(byName) === J(['none', 'false'])
             && afterOpen.every(d => d === '') && afterClose.every(d => d === 'none') && svgOk && kept === '' && hudOk && plainOk && pureOk && selOk && setOk && wiredOk,
             J([cleanOk, drawOk, svgOk, kept, hudOk, plainOk, pureOk, selOk, wiredOk, closed0, open1, byName, afterOpen, afterClose, sets, J(lsc), rowTx, partTx, hTx]));
+    }
+    {   // 1.6.0, backlog 190 (the owner: "a general contingency for if a gm changes their system"; by prompt "Also chat and read pages"): the sheet revision
+        const J = JSON.stringify;
+        const rawV = { v: 1, name: 'V', rolls: [], sheet: { sections: [] }, sheetRev: 2,
+            items: [{ id: 'i_bl', name: 'Blade', vis: 'all' }, { id: 'i_gm', name: 'Hex', vis: 'gm' }],
+            fields: [{ id: 'f_str', key: 'Str', label: 'Strength', kind: 'number', vis: 'all', edit: 'owner' }, { id: 'f_note', key: 'Note', label: 'Note', kind: 'text', vis: 'all', edit: 'owner' },
+                { id: 'f_sec', key: 'Sec', label: 'Secret', kind: 'number', vis: 'gm' }, { id: 'f_g', key: 'Gear', label: 'Gear', kind: 'item-list', vis: 'all', edit: 'owner' }, { id: 'f_fx', key: 'Fx', label: 'Effects', kind: 'effects', vis: 'all' }] };
+        const gV = S.cleanSystem(rawV, { F, gmView: true }), pV = S.cleanSystem(rawV, { F, gmView: false });
+        const revOk = gV.sheetRev === 2 && pV.sheetRev === 2 && J(S.cleanSystem(gV, { F, gmView: true })) === J(gV) && !('sheetRev' in S.cleanSystem(Object.assign({}, rawV, { sheetRev: 0 }), { F, gmView: true }))
+            && ['x', 1.5, -1, 1e7, NaN, null, true].every(v => S.cleanSheetRev(v) === undefined) && S.cleanSheetRev(1) === 1 && S.cleanSheetRev(1e6) === 1e6 && S.sheetRevOf(gV) === 2 && S.sheetRevOf({}) === 0 && S.sheetRevOf(null) === 0
+            && !('sheetRev' in S.cleanSystem(Object.assign({}, rawV, { sheetRev: undefined }), { F, gmView: true }));
+        const kael = { id: 'c_k', name: 'Kael', ownerId: 'u_p', values: { f_str: 10, f_note: 'old', f_sec: 5, f_g: [{ id: 'w_a', defId: 'i_bl', qty: 1 }, { id: 'w_s', defId: 'i_gm', qty: 1 }] } };
+        const st = c => S.charStale(gV, c);
+        const staleOk = st(kael) && !st(Object.assign({}, kael, { sheetRev: 2 })) && !st(Object.assign({}, kael, { sheetRev: 3 })) && st(Object.assign({}, kael, { sheetRev: 1 }))
+            && !st(Object.assign({}, kael, { npc: true })) && !st(Object.assign({}, kael, { ownerId: '' })) && !st(Object.assign({}, kael, { making: 1 })) && !st(Object.assign({}, kael, { partial: true }))
+            && !S.charStale(Object.assign({}, gV, { sheetRev: undefined }), kael) && !S.charStale(null, kael) && !st(null)
+            && J(S.staleOf(gV, { c_k: kael, c_b: Object.assign({}, kael, { id: 'c_b', sheetRev: 2 }), c_o: Object.assign({}, kael, { id: 'c_o', ownerId: 'u_q' }) }, 'u_p').map(c => c.id)) === J(['c_k'])
+            && S.staleOf(gV, null, 'u_p').length === 0 && S.staleOf(gV, { c_k: kael }, '').length === 0;
+        const cc = S.cleanChar(Object.assign({}, kael, { sheetRev: 2 }), gV, { state: 'host' }), ccBad = S.cleanChar(Object.assign({}, kael, { sheetRev: 'x' }), gV, { state: 'host' });
+        const own = S.charFor(Object.assign({}, kael, { sheetRev: 2 }), pV, 'u_p', {}), mate = S.charFor(Object.assign({}, kael, { sheetRev: 2 }), pV, 'u_q', {});
+        const charOk = cc.sheetRev === 2 && !('sheetRev' in ccBad) && !('sheetRev' in S.cleanChar(kael, gV, { state: 'host' })) && own && own.sheetRev === 2 && mate && !('sheetRev' in mate);
+        const ups = S.cleanUploads([{ id: 'up_a', charId: 'c_k', changes: [], rev: true }, { id: 'up_b', charId: 'c_k', changes: [], rev: 'yes' }]);
+        const upOk = ups.length === 2 && ups[0].rev === true && !('rev' in ups[1]) && J(ups[0].changes) === '[]';
+        // revProposal: a Waypoint file for an out-of-date character, one value change a field that differs; a GM-only row stays; effects and GM fields never offered
+        const fill = { values: { f_str: 12, f_note: 'old', f_sec: 99 }, lists: ['f_g'], ops: [{ f: 'f_g', q: { op: 'add', defId: 'i_bl', rowId: 'w_b', qty: 2 } }], fxLists: ['f_fx'] };
+        const pr = S.revProposal(gV, kael, fill, F, { view: pV }), byF = {}; (pr ? pr.changes : []).forEach(c => { byF[c.f] = c; });
+        const gList = byF.f_g ? byF.f_g.value : [];
+        const propOk = !!pr && J(Object.keys(byF).sort()) === J(['f_g', 'f_str']) && byF.f_str.kind === 'value' && byF.f_str.value === 12 && byF.f_str.from === '10' && byF.f_str.to === '12' && byF.f_str.label === 'Strength' && byF.f_str.accept === true
+            && Array.isArray(gList) && gList.some(r => r.defId === 'i_gm' && r.id === 'w_s') && gList.some(r => r.defId === 'i_bl') && !gList.some(r => r.id === 'w_a') && byF.f_g.to === gList.length + ' rows'
+            && pr.changes.every(c => /^u_[a-z0-9]+$/.test(c.id)) && J(kael.values.f_g.map(r => r.id)) === J(['w_a', 's'.replace('s', 'w_s')]) && kael.making === undefined
+            && J(S.cleanUploads([{ id: 'up_c', charId: 'c_k', changes: pr.changes, rev: true }])[0].changes.map(c => c.f).sort()) === J(['f_g', 'f_str']);
+        // a copy held again under its own name comes back from Waypoint's own file as a row of its own (fillMaking passes its name to the add), and a list that loses rows is offered unticked
+        const XR = await import(url('sheetexport.js'));
+        const sysA = S.cleanSystem({ v: 1, name: 'A', rolls: [], sheet: { sections: [] }, sheetRev: 1, items: [{ id: 'i_pot', name: 'Pot', again: 'name' }], fields: [{ id: 'f_k', key: 'Kit', label: 'Kit', kind: 'item-list', vis: 'all', edit: 'owner', list: { on: { label: 'On' } } }] }, { F, gmView: true }), pA = S.cleanSystem(sysA, { F, gmView: false });
+        const brenA = { id: 'c_b', name: 'Bren', ownerId: 'u_p', values: { f_k: [{ id: 'w_1', defId: 'i_pot', qty: 1 }, { id: 'w_2', defId: 'i_pot', qty: 1, on: false, ov: { name: 'Spare pot' } }] } };
+        const fileA = XR.charToJson(pA, S.charForView(brenA, pA), null, {}), fillA = XR.charFromJson(pA, JSON.parse(J(fileA)), nm => (pA.items || []).filter(e => e.name.toLowerCase() === String(nm).trim().toLowerCase()));
+        const prA = S.revProposal(sysA, brenA, fillA, F, { view: pA }), mkA = S.fillMaking(sysA, Object.assign({}, brenA, { making: 1, values: {} }), fillA, F, { view: pA });
+        const lostA = S.revProposal(sysA, brenA, { lists: ['f_k'], ops: [{ f: 'f_k', q: { op: 'add', defId: 'i_pot', rowId: 'w_x' } }, { f: 'f_k', q: { op: 'add', defId: 'i_pot', rowId: 'w_y' } }] }, F, { view: pA });
+        const againOk = !!prA && prA.changes.length === 0 && mkA.ok && J((mkA.values.f_k || []).map(r => [r.defId, r.qty, r.ov && r.ov.name])) === J([['i_pot', 1, undefined], ['i_pot', 1, 'Spare pot']])
+            && !!lostA && lostA.changes.length === 1 && lostA.changes[0].accept === false && /could not place/.test(lostA.changes[0].label);
+        const same = S.revProposal(gV, kael, { values: { f_str: 10 } }, F, { view: pV }), applied =S.applyProposal(gV, kael, pr, { [byF.f_str.id]: true, [byF.f_g.id]: true }, F, {});
+        const applyOk = againOk && !!same && same.changes.length === 0 && applied.done === 2 && applied.values.f_str === 12 && applied.values.f_sec === 5 && S.revProposal(gV, null, fill, F, {}) === null && S.revProposal(gV, kael, null, F, {}) === null;
+        // the sheet's bar, Mark current and the two buttons of the Characters tab (sheets.js, sliced by its stalebar markers and run for real on a page of plain objects)
+        const shV = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+        const sbI = shV.indexOf('// [systemcheck:stalebar-start]'), sbK = shV.indexOf('// [systemcheck:stalebar-end]'), sbSrc = sbI >= 0 && sbK > sbI ? shV.slice(sbI, sbK) : '';
+        const mkE = (tag, cls, text) => { let tx = text == null ? '' : String(text); const e = { tag, className: cls || '', children: [], style: {}, on: {}, title: '', type: '', get textContent() { return tx; }, set textContent(v) { tx = String(v); e.children.length = 0; }, appendChild(x) { e.children.push(x); return x; }, addEventListener(k, fn) { e.on[k] = fn; } }; return e; };
+        const bar = mkE('div'), log = [];
+        let campV, gmClient = false, writeOk = true, upl = [];
+        const SB = new Function('ui', 'el', 'systemOf', 'uploadsOf', 'isClient', 'canWrite', 'openReview', 'importJson', 'getActiveCampaign', 'charById', 'afterCharChange', 'toast', 'net', 'charsOf', 'showConfirm', 'save', 'renderAll', 'renderViews', 'window', 'draft',
+            sbSrc + '\nreturn { renderStaleBar, markCurrent, askNewSheets, allSheetsCurrent, staleCount };')(
+            id => (id === 'sheetStaleBar' ? bar : null), mkE, c => (c ? c.system : null), () => upl, () => gmClient, () => writeOk, (a, b, cId) => log.push('review ' + cId), () => log.push('import'), () => campV, id => (campV.chars[id] || null),
+            (c, whole) => log.push('after ' + c.id + ' ' + c.sheetRev + ' ' + whole), t => log.push('toast ' + t), () => ({ logEvent: (k, t) => log.push('log ' + t), syncSystem: () => log.push('sync') }), c => c.chars,
+            (q, cb, o) => { log.push('ask ' + (o && o.yes)); cb(true); }, () => log.push('save'), () => log.push('renderAll'), () => log.push('renderViews'), { wpSystemCore: S }, null);
+        const labels = () => bar.children.filter(k => k.tag === 'button').map(b => b.textContent);
+        campV = { system: gV, chars: { c_k: JSON.parse(J(kael)), c_n: { id: 'c_n', name: 'Npc', npc: true, values: {} } } };
+        SB.renderStaleBar(campV.chars.c_k, campV, true, false); const gmL = [bar.style.display, labels()];
+        upl = [{ id: 'up_r', rev: true, changes: [] }, { id: 'up_x', changes: [] }]; SB.renderStaleBar(campV.chars.c_k, campV, true, false); const gmR = labels(); bar.children[1].on.click(); const revLog = log.slice(-1)[0];
+        gmClient = true; SB.renderStaleBar(campV.chars.c_k, campV, false, true); const plL = [bar.style.display, labels()]; bar.children[1].on.click(); const impLog = log.slice(-1)[0];
+        SB.renderStaleBar(campV.chars.c_k, campV, false, false); const mateL = bar.style.display; gmClient = false;
+        SB.renderStaleBar(Object.assign({}, campV.chars.c_k, { sheetRev: 2 }), campV, true, false); const curL = bar.style.display;
+        log.length = 0; const mk = SB.markCurrent('c_k'); const mkOk = mk === true && campV.chars.c_k.sheetRev === 2 && log[0] === 'after c_k 2 true' && /Kael is current/.test(log[1]);
+        campV.chars.c_k.sheetRev = 1; campV.chars.c_m = Object.assign(JSON.parse(J(kael)), { id: 'c_m', name: 'Mira' }); log.length = 0; SB.allSheetsCurrent(); const allOk = campV.chars.c_k.sheetRev === 2 && campV.chars.c_m.sheetRev === 2 && log.filter(x => /^after /.test(x)).length === 2;
+        log.length = 0; SB.askNewSheets(); const askOk = campV.system.sheetRev === 3 && log.indexOf('ask Ask for new sheets') === 0 && log.indexOf('sync') > 0 && log.indexOf('save') > 0 && SB.staleCount(campV) === 2;
+        writeOk = false; log.length = 0; const noW = SB.markCurrent('c_k') === false && log.length === 0; writeOk = true;
+        const barOk = sbSrc !== '' && gmL[0] === '' && J(gmL[1]) === J(['Mark current']) && J(gmR) === J(['Review', 'Mark current']) && revLog === 'review up_r' && plL[0] === '' && J(plL[1]) === J(['Send a new sheet…']) && impLog === 'import'
+            && mateL === 'none' && curL === 'none' && mkOk && allOk && askOk && noW && !/innerHTML/.test(sbSrc);
+        const ixV = fs.readFileSync(path.join(app, 'index.html'), 'utf8');
+        const wiredOk = shV.includes("    if (typeof renderStaleBar === 'function') renderStaleBar(c, camp, gm, own);") && shV.includes("var nsB = ui('sysNewSheets'); if (nsB) nsB.addEventListener('click', askNewSheets);") && shV.includes("var acB = ui('sysSheetsCurrent'); if (acB) acB.addEventListener('click', allSheetsCurrent);")
+            && shV.includes("if (up.rev === true && window.wpSystemCore && typeof window.wpSystemCore.sheetRevOf === 'function') { var srA = window.wpSystemCore.sheetRevOf(sys); if (srA) { ch2.sheetRev = srA;") && shV.includes("apply.disabled = (!n && up.rev !== true) || noRd;")
+            && shV.includes("if (isFile && !making && !staleJ) {") && shV.includes("var srN = window.wpSystemCore && typeof window.wpSystemCore.sheetRevOf === 'function' ? window.wpSystemCore.sheetRevOf(camp.system) : 0; if (srN) c.sheetRev = srN;")
+            && ixV.includes('id="sheetStaleBar"') && ixV.includes('id="sysNewSheets"') && ixV.includes('id="sysSheetsCurrent"') && /<b>New sheets after a change<\/b>/.test(ixV);
+        check('1.6.0, backlog 190: a system may carry a sheet revision (sheetRev, a whole number 1 to 1e6, the same in both views, absent where none) and a character the revision it was last made current at (kept by cleanChar, on its owner\'s copy alone); '
+            + 'a player\'s character below the system\'s revision is out of date (charStale: never an NPC, one with no player, one in the making or a teammate\'s copy), staleOf lists a player\'s; an upload entry keeps rev only as true; '
+            + 'revProposal reads Waypoint\'s own file as a fill of one in the making would be and offers one value change a field that differs, a GM-only row kept, an effects list and a GM field never offered, nothing for a file that changes nothing, and applyProposal applies it; '
+            + 'the sheet\'s bar (renderStaleBar, sliced and run for real): the GM\'s Review and Mark current, the player\'s Send a new sheet, nothing for a teammate or a current sheet; Mark current, Mark all current and Ask for new sheets, the wiring, the page and Help',
+            revOk && staleOk && charOk && upOk && propOk && applyOk && barOk && wiredOk, J([revOk, staleOk, charOk, upOk, propOk, applyOk, barOk, wiredOk, pr && pr.changes.map(c => [c.f, c.from, c.to]), gList.map(r => [r.id, r.defId]), gmL, gmR, plL, mateL, curL, log]));
     }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');

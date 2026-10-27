@@ -151,6 +151,37 @@ check('table keys (client): remembered per GM id, absent → empty string, a pro
 // Security R2 (cluster B, #7 #22 #8): the table key is proven, never sent. The host challenges a known id with a fresh nonce; the player answers
 // with HMAC-SHA256(key, 'wp-auth|' + nonce + '|' + the room id THEY dialled); the host checks it over its own room id. A key in clear (an older
 // client) is ignored, so a proof relayed through a squatted room generation or another GM's table never opens the real one.
+// 1.6.0, backlog 190 (the owner: "a general contingency for if a gm changes their system"; by prompt "Also chat and read pages"): the host holds a
+// player with a character out of date at every gate the GM's own pause holds them at, and the player's app reads the same from its own copies
+pendingChecks.push((async () => {
+    const S = await import('file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', 'systemcore.js')).split(String.fromCharCode(92)).join('/'));
+    const J = JSON.stringify, held = between('// [netcheck:sheetheld-start]', '// [netcheck:sheetheld-end]', 'sheetheld');
+    const sys = { fields: [], sheetRev: 2 };
+    const camp = { system: sys, chars: { c_k: { id: 'c_k', name: 'Kael', ownerId: 'u_p', values: {} }, c_m: { id: 'c_m', name: 'Mira', ownerId: 'u_q', values: {}, sheetRev: 2 }, c_n: { id: 'c_n', name: 'Npc', npc: true, values: {} } } };
+    const ui = { n: 0 }, logs = [];
+    const mk = (net) => new Function('net', 'SC', 'getActiveCampaign', 'refreshPauseUi', 'pausedById', 'window',
+        held + '\nreturn { heldById, peerHeld, peerGmPaused, heldNames, heldSync, heldSay, heldBanner, HELD_WORDS };')(net, () => S, () => camp, () => { ui.n++; }, pid => !!(net.pausedPlayers && net.pausedPlayers[pid]), { wpStepLog: (a, b, o) => logs.push(a + ' ' + b + ' ' + J(o)) });
+    const host = { role: 'host', active: true, roster: { pP: { id: 'u_p' }, pQ: { id: 'u_q' } }, pausedPlayers: { u_q: true } }, H = mk(host);
+    const hostOk = H.heldById('u_p') === true && H.heldById('u_q') === false && H.heldById('') === false && H.peerHeld('pP') && !H.peerHeld('pQ') && !H.peerHeld('pX') && H.peerGmPaused('pQ') && !H.peerGmPaused('pP');
+    const cl = { role: 'client', active: true, myId: 'u_p', stream: false }, C = mk(cl);
+    C.heldSync(); const c1 = [cl.selfHeld, J(cl.heldNames), ui.n, C.heldBanner(), C.heldSay('x')];
+    camp.chars.c_k.sheetRev = 2; C.heldSync(); const c2 = [cl.selfHeld, J(cl.heldNames), C.heldSay('x')];
+    cl.stream = true; camp.chars.c_k.sheetRev = 1; C.heldSync(); const c3 = cl.selfHeld; cl.stream = false;
+    cl.selfPaused = true; C.heldSync(); const c4 = C.heldSay('paused words'); cl.selfPaused = false;
+    const clientOk = c1[0] === true && c1[1] === J(['Kael']) && c1[2] === 1 && /^Kael needs a new sheet before you can play\. Open its sheet and press Send a new sheet\. Chat and pages still work\.$/.test(c1[3]) && c1[4] === C.HELD_WORDS
+        && c2[0] === false && c2[1] === '[]' && c2[2] === 'x' && c3 === false && c4 === 'paused words' && logs.filter(l => /^sheetrev v1 (held|free)/.test(l)).length >= 2 && H.heldNames().length === 0;
+    // the wiring: every pause gate composes the hold; the upload asks the GM's pause alone; a Waypoint file for an out-of-date character goes for review
+    const wiredOk = src.includes("function peerPaused(peer) { var p = net.roster[peer]; return !!(p && (pausedById(p.id) || (typeof heldById === 'function' && heldById(p.id)))); }")
+        && src.includes("if (net.paused || (typeof peerGmPaused === 'function' ? peerGmPaused(conn.peer) : peerPaused(conn.peer))) { ansU({ reason: 'paused' }); return; }")
+        && src.includes("var staleU = !!(typeof Su.charStale === 'function' && Su.charStale(campU.system, chU));") && src.includes("if (isFileU && !staleU) { ansU({ reason: 'file' }); return; }")
+        && src.includes("Su.revProposal(campU.system, chU, fillR, Fu, { view: viewR, lib: pfR.lib, now: nowU })") && src.includes("if (rdU) entU.reader = rdU.id; if (staleU) entU.rev = true;")
+        && src.includes("if (msg.id && typeof peerHeld === 'function' && peerHeld(conn.peer)) return;") && src.includes("var frozenMe = (net.paused || net.selfPaused || net.selfHeld) && isClient;")
+        && (src.match(/if \(typeof heldSync === 'function'\) heldSync\(\)/g) || []).length === 5 && src.includes("if (srD) chD.sheetRev = srD;");
+    check('1.6.0, backlog 190: the host holds a player who has a character out of date (heldById over systemcore staleOf; never for a current one, an NPC or another player), composed with the GM\'s own pause at every gate (peerPaused) while a new sheet may still be sent (the upload asks the GM\'s pause alone); '
+        + 'a held player points at nothing; a Waypoint file for an out-of-date character in play goes to the Review as a new sheet (rev), one a reader takes too, while for a current one it is still refused; a character finished in the making is made current; '
+        + 'the player\'s app reads its hold from its own copies (heldSync: the banner in fixed words, the board dimmed, the step logged, never in the stream window) and says a refusal the hold gave as one (heldSay), the GM\'s pause still said as a pause',
+        hostOk && clientOk && wiredOk, J([hostOk, clientOk, wiredOk, c1, c2, c3, c4, logs]));
+})());
 pendingChecks.push((async () => {
     const j = JSON.stringify, K32 = 'k'.repeat(32), PROOF = (key, nonce, room) => hmacRef(key, 'wp-auth|' + nonce + '|' + room + FPTAIL);
     const h = harness({ players: { u_known: { name: 'Kay', key: K32 } } }); const c = h.conn('p2');
@@ -776,7 +807,7 @@ pendingChecks.push((async () => {
         /if \(gA\) \{ gA\.added \+= resI\.added; gA\.until = nowI \+ Si\.LIMITS\.undoGraceMs; \} else _rowGrace\[gkA\] = \{ until: nowI \+ Si\.LIMITS\.undoGraceMs, added: resI\.added \};/.test(ciR) && /else if \(grI && resI\.undone > 0\) grI\.added = Math\.max\(0, grI\.added - resI\.undone\);/.test(ciR) && !/delete _rowGrace\[gkI\]/.test(ciR));
     check('Stage 6 removal rules on the wire: a bound item\'s refusal and a cursed one\'s answer carry the GM\'s message, which the client cleans as text (cleanItemMsg) before a toast shows it; the host keys legacy GM-only rows before hosting sends anything',
         /conn\.send\(\{ type: 'char-deny', rid: qi\.rid, reason: 'stays', msg: resI\.msg \|\| '' \}\)/.test(ciR) && /var itMI = resI\.hid && resI\.msg \? resI\.msg : resI\.keptOn && resI\.keptMsg \? resI\.keptMsg : '';/.test(ciR) && /conn\.send\(itMI \? \{ type: 'char-ack', rid: qi\.rid, msg: itMI \} : \{ type: 'char-ack', rid: qi\.rid \}\)/.test(ciR)
-        && /charPendingDone\(msg\.rid, msg\.type === 'char-ack', SC2\.cleanDenyReason\(msg\.reason\), SC2\.cleanItemMsg\(msg\.msg\)\)/.test(src) && /Sh\.stampRows\(campH\.system, campH\.chars \|\| \{\}\);[^\n]*\n\s*net\.applyingRemote = true; save\(true\);/.test(src));
+        && /var rsH = SC2\.cleanDenyReason\(msg\.reason\), msH = SC2\.cleanItemMsg\(msg\.msg\);[^\n]*charPendingDone\(msg\.rid, msg\.type === 'char-ack', rsH, msH\)/.test(src) && /Sh\.stampRows\(campH\.system, campH\.chars \|\| \{\}\);[^\n]*\n\s*net\.applyingRemote = true; save\(true\);/.test(src));
 }
 
 // Stage 6 look fold: the players' view of a system carrying every look-fold key packs for the wire (no prototype-free object —
@@ -6444,7 +6475,7 @@ pendingChecks.push((async () => {
     const lRate = look({ face: '\u{1F43A}' }, { allow: false }), lStranger = look({ face: '\u{1F43A}' }, { peer: 'pX' }), lSame = look({ face: 'pic:orc' }, { start: 'pic:orc' }), lShape = look({ face: 5 });
     check('F1b my-look (host, run for real): an admitted player\'s clean face is stored on their roster entry and their waiting token (the GM keeps seeing it while they are away) and sent to everyone (the roster redrawn); \'\' clears it; about one change a second (a burst of five); a refused face, a paused table or player, a flood, a stranger, no string or no change (which costs no allowance) changes nothing',
         lOk.face === '\u{1F43A}' && lOk.bc === 1 && lOk.rd === 1 && lOk.wface === '\u{1F43A}' && j(lOk.lim) === j({ perMs: 1000, burst: 5, windowMs: 10000 }) && lClr.face === undefined && lClr.wface === undefined && lClr.bc === 1 && lBad.face === 'pic:orc' && lBad.bc === 0 && lPause.face === undefined && lPP.bc === 0 && lRate.bc === 0 && lStranger.bc === 0 && lSame.bc === 0 && lSame.allows === 0 && lShape.bc === 0
-        && /net\.sendMyLook = function\(\) \{\n\s*if \(!net\.active \|\| net\.role !== 'client' \|\| net\.paused \|\| net\.selfPaused \|\| !net\.syncedPeer/.test(src.replace(/\r\n/g, '\n')), j([lOk, lClr, lBad, lPause, lRate]));
+        && /net\.sendMyLook = function\(\) \{\n\s*if \(!net\.active \|\| net\.role !== 'client' \|\| net\.paused \|\| net\.selfPaused \|\| net\.selfHeld \|\| !net\.syncedPeer/.test(src.replace(/\r\n/g, '\n')), j([lOk, lClr, lBad, lPause, lRate]));
 }
 // Onboarding F1c: a character's own picture — the plan (charFacePlan), char-pic on the host (run for real) and the player's sender
 {
@@ -12472,7 +12503,7 @@ pendingChecks.push((async () => {
         const pendErr = ['__proto__', 'constructor', 'hasOwnProperty', 'toString'].map(runPend).join('');
         check('security K g16 (client): the queued-edit table is prototype-free and read by own key — a char-ack or char-deny whose request id is "__proto__" or "constructor" settles nothing and reaches no sheet; the sound-transfer table is prototype-free and reset so; both pinned',
             pendSrc !== '' && pendErr === '' && calls.length === 0 && /var p = Object\.prototype\.hasOwnProperty\.call\(_charPending, rid\) \? _charPending\[rid\] : null; if \(!p\) return;/.test(pendSrc)
-            && /if \(typeof msg\.rid !== 'string' \|\| !Object\.prototype\.hasOwnProperty\.call\(_charPending, msg\.rid\)\) return; charPendingDone\(msg\.rid/.test(src)
+            && /if \(typeof msg\.rid !== 'string' \|\| !Object\.prototype\.hasOwnProperty\.call\(_charPending, msg\.rid\)\) return; var rsH = SC2\.cleanDenyReason\(msg\.reason\), msH = SC2\.cleanItemMsg\(msg\.msg\);[^\n]*charPendingDone\(msg\.rid/.test(src)
             && (src.match(/_charPending = Object\.create\(null\)/g) || []).length === 2 && !/_charPending = \{\}/.test(src)
             && /^var assetWaiters = Object\.create\(null\);/m.test(src) && /assetWaiters = Object\.create\(null\); assetPending = Object\.create\(null\);/.test(src) && !/assetWaiters = \{\}/.test(src), J([pendErr, calls]));
     }

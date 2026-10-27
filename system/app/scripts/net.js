@@ -1898,6 +1898,7 @@ function applySnapshot(msg) {
         net._snapshotting = false;   // a stage that throws must not leave every later stage looking like part of the join
     }
     if (window.wpSettingsSync) window.wpSettingsSync();
+    try { if (typeof heldSync === 'function') heldSync(); } catch (e) {}   // 1.6.0 (backlog 190): out of date as we join
     try { if (window.wpSheets && window.wpSheets.charChanged) window.wpSheets.charChanged(null); } catch (e) {}   // Onboarding F0: a sheet whose character was reassigned while we were away closes now
     if (net.fromWelcome || (typeof webJoinOnly === 'function' && webJoinOnly())) { net.fromWelcome = false; if (window.wpHideWelcome) window.wpHideWelcome(); }   // a join started from the welcome screen: its campaign is here, so leave the welcome for the table (1.5.5: and every join on a website whose plan joins tables alone, where the welcome is the only other screen)
 }
@@ -2207,7 +2208,7 @@ function scheduleStageFollow() {
 // (#netPauseBtn in the panel, #sessionPauseBtn in the header) stay in step here.
 function refreshPauseUi() {
     var isClient = net.role === 'client';
-    var frozenMe = (net.paused || net.selfPaused) && isClient;
+    var frozenMe = (net.paused || net.selfPaused || net.selfHeld) && isClient;
     var banner = ui('pauseBanner');
     if (banner) {
         banner.style.display = frozenMe ? 'block' : 'none';
@@ -2215,7 +2216,8 @@ function refreshPauseUi() {
             ? '⏸️ The GM paused the table — chat is still open.'
             : '⏸️ The GM paused you — chat is still open.';
     }
-    document.body.classList.toggle('net-paused', (net.paused || (net.selfPaused && isClient)) && net.active);
+    if (banner && frozenMe && !net.paused && !net.selfPaused && net.selfHeld) banner.textContent = heldBanner();   // 1.6.0 (backlog 190): held for a new sheet
+    document.body.classList.toggle('net-paused', (net.paused || ((net.selfPaused || net.selfHeld) && isClient)) && net.active);
     var btn = ui('netPauseBtn');
     if (btn) { btn.innerHTML = net.paused ? '&#9654;&#65039; Resume the Table' : '&#9208;&#65039; Pause the Table'; btn.classList.toggle('paused', net.paused); }
     var sb = ui('sessionPauseBtn');
@@ -2235,7 +2237,7 @@ function setSelfPausedLocal(on) {
 }
 // host: is this player individually paused? (composes with the table pause)
 function pausedById(pid) { return !!(pid && net.pausedPlayers && net.pausedPlayers[pid]); }
-function peerPaused(peer) { var p = net.roster[peer]; return !!(p && pausedById(p.id)); }
+function peerPaused(peer) { var p = net.roster[peer]; return !!(p && (pausedById(p.id) || (typeof heldById === 'function' && heldById(p.id)))); }   // 1.6.0 (backlog 190): a player held for a new sheet stops at every gate a pause stops at
 // host: freeze/thaw one player individually. Enforced host-side at every move/travel/edit gate; the
 // player is told so they see a banner and stop trying. Composes with the whole-table pause.
 net.pausePlayer = function(playerId, on) {
@@ -2252,6 +2254,34 @@ net.pausePlayer = function(playerId, on) {
     logEvent('table', (on ? 'Paused ' : 'Resumed ') + nm);
 };
 net.isPlayerPaused = function(playerId) { return pausedById(playerId); };
+// [netcheck:sheetheld-start]
+// 1.6.0, backlog 190 (the owner: a player whose character the system has made out of date "won't be able to do anything on the play map with
+// their character or interact in any way with the campaign until this is done", and by prompt "Also chat and read pages"): the host holds a
+// player who has a character out of date (systemcore staleOf: below the system's sheet revision), at every gate the GM's own pause holds them at
+// (peerPaused), so chat, the pages they read and a new sheet sent for review are what is left (char-upload asks the GM's pause alone). The
+// GM is never held. A player's app reads the same from its own copies (heldSync): the banner, the board dimmed, nothing sent, and its words
+function heldById(pid) {
+    if (!pid || net.role !== 'host') return false;
+    var S = SC(), camp = getActiveCampaign(); return !!(S && typeof S.staleOf === 'function' && camp && camp.system && S.staleOf(camp.system, camp.chars, pid).length);
+}
+function peerHeld(peer) { var p = net.roster[peer]; return !!(p && heldById(p.id)); }
+function peerGmPaused(peer) { var p = net.roster[peer]; return !!(p && pausedById(p.id)); }
+var HELD_WORDS = 'Your character needs a new sheet first. Send one from its sheet. Chat and pages still work.';
+function heldNames() {
+    if (!net.active || net.role !== 'client' || net.stream) return [];
+    var S = SC(), camp = getActiveCampaign(); if (!S || typeof S.staleOf !== 'function' || !camp || !camp.system) return [];
+    return S.staleOf(camp.system, camp.chars, net.myId).map(function(c) { return String(c.name || 'Your character'); });
+}
+function heldSync() {
+    var h = heldNames(), was = !!net.selfHeld; net.selfHeld = h.length > 0; net.heldNames = h;
+    if (was !== net.selfHeld && typeof window !== 'undefined' && window.wpStepLog) window.wpStepLog('sheetrev v1', net.selfHeld ? 'held' : 'free', { chars: h.length });
+    refreshPauseUi();
+    if (was && !net.selfHeld && net.reconcileLook) net.reconcileLook();   // a face picked while held goes now
+}
+function heldSay(w) { return net.selfHeld && !net.paused && !net.selfPaused ? HELD_WORDS : w; }   // a refusal a hold gave is said as one
+function heldBanner() { var h = net.heldNames || [], nm = h.length === 1 ? h[0] : h.length + ' of your characters'; return nm + ' needs a new sheet before you can play. Open its sheet and press Send a new sheet. Chat and pages still work.'; }
+net.heldSync = heldSync; net.isPlayerHeld = function(playerId) { return heldById(playerId); };
+// [netcheck:sheetheld-end]
 
 /* ---------- VTT feature ceiling (Settings ▸ VTT features, per campaign) ---------- */
 // The hosted campaign's VTT features (elevation, posture, minimap — vtt.js) are the most a
@@ -3643,7 +3673,7 @@ function broadcastPos(msg, exceptConn, camp, map, w) {
 // [netcheck:bpos-end]
 net.streamPos = function(wItem, final, mapId) {   // fold M8: mapId, the map a gesture began on (else the one on screen)
     if (!net.active || !wItem) return;
-    if ((net.paused || net.selfPaused) && net.role === 'client') return;
+    if ((net.paused || net.selfPaused || net.selfHeld) && net.role === 'client') return;
     var camp = getActiveCampaign();
     if (!camp) return;
     var now = Date.now();
@@ -4193,6 +4223,7 @@ net.sendThreats = function(campId, itemId, wbId, list) {
 net.requestTravel = function(viaItemId) {
     if (!net.active || net.role !== 'client' || !net.conns[0] || !net.conns[0].open) return;
     if (!net.foreign || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return;   // R2 security: seated only
+    if (net.selfHeld && !net.paused && !net.selfPaused) { toast(typeof HELD_WORDS === 'string' ? HELD_WORDS : 'Your character needs a new sheet first.'); return; }   // 1.6.0 (backlog 190)
     if (net.paused || net.selfPaused) { toast(net.selfPaused && !net.paused ? 'The GM has paused you.' : 'The table is paused.'); return; }
     try { net.conns[0].send({ type: 'travel', viaItemId: viaItemId }); } catch (e) { sendFailed(e); }
 };
@@ -5352,6 +5383,7 @@ net.setTarget = function(itemId, mapId, itemName) {
     var me = net.myId, cur = net.targets[me];
     var next = (cur && cur.id === itemId) ? null : { id: itemId, mapId: mapId };
     if (net.role === 'client') {
+        if (net.selfHeld && next) { toast(typeof HELD_WORDS === 'string' ? HELD_WORDS : 'Your character needs a new sheet first.'); return; }   // 1.6.0 (backlog 190): a held player points at nothing (a pointer of theirs may still be cleared)
         var c0 = net.conns[0];
         if (!net.foreign || !net.syncedPeer || !c0 || !c0.open || c0.peer !== net.syncedPeer) return;   // R2 security: seated only — a token of the player's own campaign, pointed at while they wait for the GM's Allow, is named to no one
         try { c0.send({ type: 'target', id: next ? itemId : null, mapId: mapId }); } catch (e) { sendFailed(e); }
@@ -5936,7 +5968,7 @@ net.charPic = function(charId, face, img, done) {
     var camp = getActiveCampaign();
     if (!camp || !net.active || net.role !== 'client' || net.stream) return { error: 'Not at a table.' };
     if (!net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return { error: 'Not at the table yet.' };
-    if (net.paused || net.selfPaused) return { error: 'The table is paused.' };
+    if (net.paused || net.selfPaused || net.selfHeld) return { error: typeof heldSay === 'function' ? heldSay('The table is paused.') : 'The table is paused.' };
     if (window.wpVtt && !window.wpVtt.on('sheets')) return { error: 'Character sheets are off here.' };
     var c = camp.chars && own(camp.chars, charId) ? camp.chars[charId] : null; if (!c || c.partial || c.npc || !c.ownerId || c.ownerId !== net.myId) return { error: 'That character is not yours.' };
     var f = cleanFace(face || ''), im = typeof img === 'string' ? img : '';
@@ -5951,10 +5983,10 @@ net.charPic = function(charId, face, img, done) {
 // Onboarding F3: a player's own character — start one (in the making: theirs alone, every field they can see theirs to set), name it while it is,
 // say it is done (it goes live; an unlocked one locks again). done({ ok, charId? } | { error }); a GM whose Waypoint has none of this never answers
 var _mkPending = {};
-var MK_WHY = { making: 'Finish the character you are making first (press Done on its sheet).', nomap: 'Wait until your GM brings you to a map.', paused: 'The table is paused.', closed: 'Making a character is not open at this table.', have: 'You already play a character here.', busy: 'Too many characters are being made at this table right now.', slow: 'A moment, please.', missing: 'That character is gone.', owner: 'That character is not yours.', notmaking: 'That character is finished already.', inplay: 'That is the character you play: only your GM can delete it.', bad: 'That name cannot be used.', off: 'Character sheets are off here.' };
-var TOK_WHY = { paused: 'The table is paused.', slow: 'A moment between pictures, please.', missing: 'That token is no longer here (it may have moved to another map).', tokowner: 'That token is not yours.', locked: 'The GM has locked that token.', bad: 'That picture could not be used.', off: 'The GM cannot take pictures here.', failed: 'The GM could not save that picture.' };   // tok-pic's answers, read by what we asked
-var LIGHT_WHY = { paused: 'The table is paused.', slow: 'A moment between changes of light, please.', missing: 'That token is no longer here (it may have moved to another map).', tokowner: 'That token is not yours.', locked: 'The GM has locked that token.', lightlock: 'The GM has locked that token\u2019s light.', preset: 'That light is no longer on offer (the GM changed the list).', nolight: 'That token carries no light to switch.', cap: 'This map already has the most light sources it can hold.', off: 'The GM cannot take a light here.' };   // tok-light's answers, read by what we asked
-var ASK_WHY = { paused: 'The table is paused.', off: 'Character sheets are off at this table.', missing: 'That row is no longer on your sheet.', owner: 'That character is not yours.', slow: 'A moment between asks, please.', field: 'That cannot be asked for here.', value: 'That change cannot be asked for.', full: 'Too many asks already wait for the GM.', same: 'That is already so.' };   // 1.5.5: an ask's answer, in its own words
+var MK_WHY = { making: 'Finish the character you are making first (press Done on its sheet).', nomap: 'Wait until your GM brings you to a map.', get paused() { return typeof heldSay === 'function' ? heldSay('The table is paused.') : 'The table is paused.'; }, closed: 'Making a character is not open at this table.', have: 'You already play a character here.', busy: 'Too many characters are being made at this table right now.', slow: 'A moment, please.', missing: 'That character is gone.', owner: 'That character is not yours.', notmaking: 'That character is finished already.', inplay: 'That is the character you play: only your GM can delete it.', bad: 'That name cannot be used.', off: 'Character sheets are off here.' };
+var TOK_WHY = { get paused() { return typeof heldSay === 'function' ? heldSay('The table is paused.') : 'The table is paused.'; }, slow: 'A moment between pictures, please.', missing: 'That token is no longer here (it may have moved to another map).', tokowner: 'That token is not yours.', locked: 'The GM has locked that token.', bad: 'That picture could not be used.', off: 'The GM cannot take pictures here.', failed: 'The GM could not save that picture.' };   // tok-pic's answers, read by what we asked
+var LIGHT_WHY = { get paused() { return typeof heldSay === 'function' ? heldSay('The table is paused.') : 'The table is paused.'; }, slow: 'A moment between changes of light, please.', missing: 'That token is no longer here (it may have moved to another map).', tokowner: 'That token is not yours.', locked: 'The GM has locked that token.', lightlock: 'The GM has locked that token\u2019s light.', preset: 'That light is no longer on offer (the GM changed the list).', nolight: 'That token carries no light to switch.', cap: 'This map already has the most light sources it can hold.', off: 'The GM cannot take a light here.' };   // tok-light's answers, read by what we asked
+var ASK_WHY = { get paused() { return typeof heldSay === 'function' ? heldSay('The table is paused.') : 'The table is paused.'; }, off: 'Character sheets are off at this table.', missing: 'That row is no longer on your sheet.', owner: 'That character is not yours.', slow: 'A moment between asks, please.', field: 'That cannot be asked for here.', value: 'That change cannot be asked for.', full: 'Too many asks already wait for the GM.', same: 'That is already so.' };   // 1.5.5: an ask's answer, in its own words
 // 1.5.5: the stats of a player's ask as the wire may carry them: a plain object of at most 24 keys named as a list stat is (a letter, then letters,
 // digits or _, 32 at most), each a finite number, a choice's label (60 characters at most, no control character) or null; anything else none
 function askStats(v) {
@@ -5973,7 +6005,7 @@ function askStats(v) {
 function mkSend(type, m, done) {
     if (!net.active || net.role !== 'client' || net.stream) return { error: 'Not at a table.' };
     if (!net.foreign || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return { error: 'Not at the table yet.' };
-    if (net.paused || net.selfPaused) return { error: 'The table is paused.' };
+    if (net.paused || net.selfPaused || net.selfHeld) return { error: typeof heldSay === 'function' ? heldSay('The table is paused.') : 'The table is paused.' };
     var rid = 'k' + Math.random().toString(36).slice(2, 10);
     _mkPending[rid] = { kind: type, done: done, timer: setTimeout(function() { var p = _mkPending[rid]; delete _mkPending[rid]; if (p && typeof p.done === 'function') p.done({ error: 'No answer from the GM (their Waypoint may not have this yet).' }); }, 20000) };
     m.type = type; m.rid = rid;
@@ -5999,7 +6031,7 @@ net.tokLight = function(mapId, wbId, o, done) {
 };
 // Onboarding F1b: a player's changed face reaches the host (their roster entry; everyone's view of their waiting token follows)
 net.sendMyLook = function() {
-    if (!net.active || net.role !== 'client' || net.paused || net.selfPaused || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return false;
+    if (!net.active || net.role !== 'client' || net.paused || net.selfPaused || net.selfHeld || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return false;
     try { net.conns[0].send({ type: 'my-look', face: getProfile().face || '' }); } catch (e) { sendFailed(e); return false; }
     return true;
 };
@@ -6007,7 +6039,7 @@ net.sendMyLook = function() {
 // or one the host's limit dropped), it is sent again — a moment later, once — on every roster and when a pause lifts
 var _lookTimer = null;
 net.reconcileLook = function() {
-    if (!net.active || net.role !== 'client' || net.paused || net.selfPaused || !net.syncedPeer || _lookTimer) return;
+    if (!net.active || net.role !== 'client' || net.paused || net.selfPaused || net.selfHeld || !net.syncedPeer || _lookTimer) return;
     var differs = function() { var me = own(net.roster, net.myId) ? net.roster[net.myId] : null; return !!me && (me.face || '') !== cleanFace(getProfile().face || ''); };
     if (!differs()) return;
     _lookTimer = setTimeout(function() { _lookTimer = null; if (differs()) net.sendMyLook(); }, 1200);
@@ -6858,6 +6890,7 @@ function handleMessage(msg, conn) {
     } else if (msg.type === 'target' && net.role === 'host') {
         // [netcheck:targetask-start]
         var tp = net.roster[conn.peer]; if (!tp || (typeof tp.id === 'string' && tp.id.indexOf('tk:') === 0)) return;   // 1.5.5 (the release trace, F5): a key of tk: and a token's id is one of the GM's characters' pointers, so such a player sets none and nothing is sent
+        if (msg.id && typeof peerHeld === 'function' && peerHeld(conn.peer)) return;   // 1.6.0 (backlog 190): a held player points at nothing
         if (!allow('target', { perMs: 100, burst: 20, windowMs: 5000, table: 1000 }, conn.peer)) return;
         var okId = msg.id === null || (typeof msg.id === 'string' && msg.id.length <= 80);
         if (!okId || typeof msg.mapId !== 'string' || msg.mapId.length > 80) return;
@@ -6944,13 +6977,13 @@ function handleMessage(msg, conn) {
         // [netcheck:uploadans-start]
         var UP_WHY = { paused: 'The table is paused.', off: 'Character sheets are off here.', slow: 'Wait a moment before sending another file.', missing: 'That character is gone.', owner: 'That character is not yours.', file: 'A character file only fills a character you are still making.', nofile: 'Starting a character from a file is not open at this table.', wait: 'The GM\u2019s library is still loading; try again in a moment.', unread: 'The GM could not read it.' };
         var cnt = function(v) { return typeof v === 'number' && isFinite(v) ? Math.max(0, Math.min(100000, v | 0)) : 0; };
-        if (typeof pU.done === 'function') pU.done(typeof msg.reason === 'string' ? { error: Object.prototype.hasOwnProperty.call(UP_WHY, msg.reason) ? UP_WHY[msg.reason] : 'The GM could not read it.' } : { n: cnt(msg.n), auto: cnt(msg.auto), left: cnt(msg.left) });
+        if (typeof pU.done === 'function') pU.done(typeof msg.reason === 'string' ? { error: Object.prototype.hasOwnProperty.call(UP_WHY, msg.reason) ? UP_WHY[msg.reason] : 'The GM could not read it.' } : (function(o) { if (msg.rev === true) o.rev = true; return o; })({ n: cnt(msg.n), auto: cnt(msg.auto), left: cnt(msg.left) }));
         // [netcheck:uploadans-end]
     } else if (msg.type === 'char-pic-ans' && net.role === 'client') {   // Onboarding F1c: the host's answer to our picture
         // [netcheck:charpicans-start]
         if (typeof msg.rid !== 'string' || !Object.prototype.hasOwnProperty.call(_picPending, msg.rid)) return;
         var pP = _picPending[msg.rid]; delete _picPending[msg.rid]; clearTimeout(pP.timer);
-        var PIC_WHY = { paused: 'The table is paused.', off: 'Character sheets are off here.', slow: 'A moment between pictures, please.', missing: 'That character is gone.', owner: 'That character is not yours.', bad: 'That picture could not be used.', failed: 'The GM could not save that picture.' };
+        var PIC_WHY = { get paused() { return typeof heldSay === 'function' ? heldSay('The table is paused.') : 'The table is paused.'; }, off: 'Character sheets are off here.', slow: 'A moment between pictures, please.', missing: 'That character is gone.', owner: 'That character is not yours.', bad: 'That picture could not be used.', failed: 'The GM could not save that picture.' };
         if (typeof pP.done === 'function') pP.done(msg.ok === true ? { ok: true } : { error: typeof msg.reason === 'string' && Object.prototype.hasOwnProperty.call(PIC_WHY, msg.reason) ? PIC_WHY[msg.reason] : 'The GM could not take it.' });   // only a reason of our own is shown
         // [netcheck:charpicans-end]
     } else if ((msg.type === 'char-ask-ans' || msg.type === 'char-make-ans' || msg.type === 'char-name-ans' || msg.type === 'char-done-ans' || msg.type === 'char-delete-ans' || msg.type === 'char-token-ans' || msg.type === 'tok-pic-ans' || msg.type === 'tok-light-ans') && net.role === 'client') {   // Onboarding F3: the host's answer to one of ours
@@ -6996,7 +7029,7 @@ function handleMessage(msg, conn) {
         var SC2 = window.wpSystemCore;
         var dropP = function(id) { Object.keys(_charPending).forEach(function(rid) { if (_charPending[rid].charId === id) { clearTimeout(_charPending[rid].timer); delete _charPending[rid]; } }); };   // Onboarding F0: a copy that is no longer ours drops its queued edits
         if (msg.type === 'row-gone') { var rgC = typeof SC2.cleanRowGone === 'function' ? SC2.cleanRowGone(msg) : null; if (!rgC) return; if (window.wpSheets && typeof window.wpSheets.goneWait === 'function') rgC.items.forEach(function(it) { window.wpSheets.goneWait(rgC.charId, it.f, it.r); }); return; }   // 1.6.0: rows a press of ours used up: their Undo waits for the change
-        if (msg.type === 'char-ack' || msg.type === 'char-deny') { if (typeof msg.rid !== 'string' || !Object.prototype.hasOwnProperty.call(_charPending, msg.rid)) return; charPendingDone(msg.rid, msg.type === 'char-ack', SC2.cleanDenyReason(msg.reason), SC2.cleanItemMsg(msg.msg)); return; }   // Stage 6: a bound or cursed item's message, as text
+        if (msg.type === 'char-ack' || msg.type === 'char-deny') { if (typeof msg.rid !== 'string' || !Object.prototype.hasOwnProperty.call(_charPending, msg.rid)) return; var rsH = SC2.cleanDenyReason(msg.reason), msH = SC2.cleanItemMsg(msg.msg); if (rsH === 'paused' && net.selfHeld && !net.paused && !net.selfPaused) { rsH = 'error'; msH = typeof HELD_WORDS === 'string' ? HELD_WORDS : ''; } charPendingDone(msg.rid, msg.type === 'char-ack', rsH, msH); return; }   // Stage 6: a bound or cursed item's message, as text
         if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId) return;
         var campC = campOf(msg.campId); if (!campC || !campC.system) return;   // the system always comes first
         var sysC = campC.system;
@@ -7007,6 +7040,7 @@ function handleMessage(msg, conn) {
             if (typeof noteHostLooks === 'function') noteHostLooks(outC);   // item 35: and the looks the host says they have
             Object.keys(outC).forEach(function(id) { if (outC[id].partial || outC[id].ownerId !== net.myId) dropP(id); });   // no longer ours: queued edits go, never laid over a teammate copy
             campC.chars = outC; Object.keys(outC).forEach(reapplyPending);
+            if (typeof heldSync === 'function') heldSync();   // 1.6.0 (backlog 190)
             if (window.wpSheets) window.wpSheets.charChanged(null);
             return;
         }
@@ -7015,10 +7049,11 @@ function handleMessage(msg, conn) {
             if (typeof msg.id !== 'string' || !Object.prototype.hasOwnProperty.call(campC.chars, msg.id) || !campC.chars[msg.id]) return;   // own ids only: a host naming '__proto__' reaches no prototype
             delete campC.chars[msg.id]; delete _charHost[msg.id]; if (typeof styleGone === 'function') styleGone(msg.id);
             Object.keys(_charPending).forEach(function(rid) { if (_charPending[rid].charId === msg.id) { clearTimeout(_charPending[rid].timer); delete _charPending[rid]; } });
+            if (typeof heldSync === 'function') heldSync();
             if (window.wpSheets) window.wpSheets.charGone(msg.id);
             return;
         }
-        if (msg.type === 'char') { var c1 = SC2.cleanChar(msg.char, sysC, { state: 'owner' }); if (!c1) return; c1.partial = !!(msg.char && msg.char.partial === true); if (typeof noteHostChar === 'function') noteHostChar(c1); if (c1.partial || c1.ownerId !== net.myId) dropP(c1.id); campC.chars[c1.id] = c1; noteHostCopy(c1.id, c1.values); reapplyPending(c1.id); if (window.wpSheets) window.wpSheets.charChanged(c1.id); return; }
+        if (msg.type === 'char') { var c1 = SC2.cleanChar(msg.char, sysC, { state: 'owner' }); if (!c1) return; c1.partial = !!(msg.char && msg.char.partial === true); if (typeof noteHostChar === 'function') noteHostChar(c1); if (c1.partial || c1.ownerId !== net.myId) dropP(c1.id); campC.chars[c1.id] = c1; noteHostCopy(c1.id, c1.values); reapplyPending(c1.id); if (typeof heldSync === 'function') heldSync(); if (window.wpSheets) window.wpSheets.charChanged(c1.id); return; }
         if (typeof msg.id !== 'string' || !Object.prototype.hasOwnProperty.call(campC.chars, msg.id) || !campC.chars[msg.id] || !msg.values || typeof msg.values !== 'object') return;   // own ids only: a delta for '__proto__' would write onto every object's prototype
         var tgt = campC.chars[msg.id], hb = Object.prototype.hasOwnProperty.call(_charHost, msg.id) ? _charHost[msg.id] : null; tgt.values = tgt.values || {};   // a delta updates a whole host copy, never starts a partial one
         Object.keys(msg.values).forEach(function(fid) { var f = SC2.fieldById(sysC, fid); if (!f) return; if (msg.values[fid] === null) { delete tgt.values[fid]; if (hb) delete hb[fid]; return; } var v = SC2.cleanValue(f, msg.values[fid], SC2.valueOpts(sysC)); if (v !== undefined) { tgt.values[fid] = v; if (hb) hb[fid] = JSON.parse(JSON.stringify(v)); } });
@@ -7191,7 +7226,7 @@ function handleMessage(msg, conn) {
         // 1.5.6 trading: a player's step of a trade — admitted, its own limiter, then the host's own judge (tradeDo), whose refusal is said to them alone
         var prTr = net.roster[conn.peer]; if (!prTr || !prTr.id || typeof msg.op !== 'string') return;
         if (!allow('trade', { perMs: 100, burst: 20, windowMs: 4000, table: 400 }, conn.peer)) return;
-        if (peerPaused(conn.peer)) { try { conn.send({ type: 'tradeState', refused: 'The table is paused.' }); } catch (e) { sendFailed(e); } return; }
+        if (peerPaused(conn.peer)) { try { conn.send({ type: 'tradeState', refused: !net.paused && typeof peerGmPaused === 'function' && !peerGmPaused(conn.peer) && typeof HELD_WORDS === 'string' ? HELD_WORDS : 'The table is paused.' }); } catch (e) { sendFailed(e); } return; }
         var qTr = { op: msg.op }; ['from', 'to', 'tid', 'side', 'fid', 'row'].forEach(function(k) { if (typeof msg[k] === 'string' && msg[k].length <= 40) qTr[k] = msg[k]; });
         if (msg.yes === true) qTr.yes = true; if (msg.on === true) qTr.on = true; if (Array.isArray(msg.offer)) qTr.offer = msg.offer.slice(0, 80);
         var rTr = tradeDo({ pid: prTr.id }, qTr);
@@ -7241,7 +7276,7 @@ function handleMessage(msg, conn) {
         var ansU = function(o) { o.type = 'char-upload-ans'; o.rid = qu.rid; try { conn.send(o); } catch (e) { sendFailed(e); } };
         var isFileU = !!(qu.sheet && typeof qu.sheet === 'object' && qu.sheet.format === 'waypoint-character');   // Onboarding F2a: a character file (never read as a dossier)
         var rdU = isFileU || typeof Su.readerFor !== 'function' ? null : Su.readerFor(qu.sheet);   // 2026-10-18: any other file is read by the outside reader that claims it, where one is registered
-        if (net.paused || peerPaused(conn.peer)) { ansU({ reason: 'paused' }); return; }
+        if (net.paused || (typeof peerGmPaused === 'function' ? peerGmPaused(conn.peer) : peerPaused(conn.peer))) { ansU({ reason: 'paused' }); return; }   // 1.6.0 (backlog 190): a new sheet is what a player held for one may still send
         if (window.wpVtt && !window.wpVtt.on('sheets')) { ansU({ reason: 'off' }); return; }
         var nowU = Date.now(); if (_uploadAt[conn.peer] && nowU - _uploadAt[conn.peer] < UPLOAD_GAP_MS) { ansU({ reason: 'slow' }); return; }
         var campU = getActiveCampaign(), chU = (campU && campU.chars && typeof qu.charId === 'string' && Object.prototype.hasOwnProperty.call(campU.chars, qu.charId) ? campU.chars[qu.charId] : null);
@@ -7274,13 +7309,16 @@ function handleMessage(msg, conn) {
             return;
         }
         // [netcheck:charfill-end]
-        if (isFileU) { ansU({ reason: 'file' }); return; }   // a character file fills only a character in the making (owner, 2026-09-27: in play, Import stays as it was)
+        var staleU = !!(typeof Su.charStale === 'function' && Su.charStale(campU.system, chU));   // 1.6.0 (backlog 190): out of date: its player's new sheet, for the GM's review
+        if (isFileU && !staleU) { ansU({ reason: 'file' }); return; }   // a character file fills only a character in the making (owner, 2026-09-27: in play, Import stays as it was)
         _uploadAt[conn.peer] = nowU;
-        if (!rdU) { ansU({ reason: 'unread' }); return; }   // no reader here takes that file
+        if (!rdU && !isFileU) { ansU({ reason: 'unread' }); return; }   // no reader here takes that file
         var findU = window.wpSheets && window.wpSheets.gmFinder ? window.wpSheets.gmFinder(campU, campU.system) : null;
-        var prU = rdU.propose(campU.system, chU, qu.sheet, Fu, findU), autoU = 0, wroteU = false;
+        var SHr = isFileU ? window.wpSheets : null, viewR = SHr && SHr.playerSystem ? SHr.playerSystem(campU) : null, pfR = viewR && SHr.playerFinder ? SHr.playerFinder(campU, viewR) : null;   // Waypoint's own file, read as a fill of one in the making would be
+        var fillR = pfR && SHr.charFromJson ? SHr.charFromJson(viewR, qu.sheet, pfR.find, pfR.findKey) : null;
+        var prU = isFileU ? (fillR && typeof Su.revProposal === 'function' ? Su.revProposal(campU.system, chU, fillR, Fu, { view: viewR, lib: pfR.lib, now: nowU }) : null) : rdU.propose(campU.system, chU, qu.sheet, Fu, findU), autoU = 0, wroteU = false;
         if (!prU || !Array.isArray(prU.changes)) { ansU({ reason: 'unread' }); return; }   // wroteU: something of the campaign changed below (security 2026-10-01: an upload that changes nothing is not saved)
-        if (campU.system.listRules && campU.system.listRules.uploadFacts === true) {   // setting B: their own row facts at once, each as their own hand would make it (a list they cannot change, a locked switch, a row kept from them: it waits for the GM)
+        if (rdU && campU.system.listRules && campU.system.listRules.uploadFacts === true) {   // setting B: their own row facts at once, each as their own hand would make it (a list they cannot change, a locked switch, a row kept from them: it waits for the GM)
             var optU = { player: true, view: window.wpSheets && window.wpSheets.playerSystem ? window.wpSheets.playerSystem(campU) : null }, valsU = chU.values, doneU = {};
             prU.changes.forEach(function(ch) { if (ch.kind !== 'fact') return; var oneU = {}; oneU[ch.id] = true; var rU = Su.applyProposal(campU.system, Object.assign({}, chU, { values: valsU }), prU, oneU, Fu, Object.assign({ rowOp: rdU.rowOp }, optU)); if (rU.done === 1) { valsU = rU.values; doneU[ch.id] = true; autoU++; } });
             if (autoU) {
@@ -7289,19 +7327,20 @@ function handleMessage(msg, conn) {
             }
             prU.changes = prU.changes.filter(function(ch) { return doneU[ch.id] !== true; });
         }
-        if (prU.changes.length) {
+        if (prU.changes.length || staleU) {   // an out-of-date character's new sheet waits for the GM even where it changes nothing: applying it makes the character current
             var upsU = (Array.isArray(campU.uploads) ? campU.uploads : []).filter(function(u) { return u && (u.charId !== qu.charId || u.ask === true); });   // 1.5.5: a player's asks for that character stay   // a newer upload of the same character replaces the older
             var idU = 'up_' + nowU.toString(36) + Math.random().toString(36).slice(2, 6);
-            upsU.push({ id: idU, charId: qu.charId, from: profU.id, name: String(profU.name || 'A player').slice(0, 60), at: nowU, changes: prU.changes, reader: rdU.id });   // the reader that read it applies it
+            var entU = { id: idU, charId: qu.charId, from: profU.id, name: String(profU.name || 'A player').slice(0, 60), at: nowU, changes: prU.changes }; if (rdU) entU.reader = rdU.id; if (staleU) entU.rev = true; upsU.push(entU);   // the reader that read it applies it
             campU.uploads = upsU.slice(-Su.LIMITS.uploads);
-            var tU = (profU.name || 'A player') + ' sent a sheet update for ' + (chU.name || 'their character') + ': ' + prU.changes.length + (prU.changes.length === 1 ? ' change' : ' changes') + ' to review (the gold Review button in the header).';
+            var tU = (profU.name || 'A player') + (staleU ? ' sent a new sheet for ' : ' sent a sheet update for ') + (chU.name || 'their character') + (staleU ? ' (out of date)' : '') + ': ' + prU.changes.length + (prU.changes.length === 1 ? ' change' : ' changes') + ' to review (the gold Review button in the header).';
             toast(tU); logEvent('char', tU);
             if (window.wpSheets && window.wpSheets.approveNote) window.wpSheets.approveNote(qu.charId, tU, 'review', idU);   // 1.5.5: a card that stays until the GM opens it, naming its entry
             if (window.wpSheets && window.wpSheets.uploadsChanged) window.wpSheets.uploadsChanged(qu.charId);
             wroteU = true;
         }
         if (wroteU) saveRemoteSoon();
-        ansU({ n: prU.changes.length, auto: autoU });
+        ansU(staleU ? { n: prU.changes.length, auto: autoU, rev: true } : { n: prU.changes.length, auto: autoU });
+        if (staleU && window.wpStepLog) window.wpStepLog('sheetrev v1', 'sent', { changes: prU.changes.length, file: isFileU ? 'waypoint' : 'reader' });
         // [netcheck:charupload-end]
     } else if (msg.type === 'char-ask' && net.role === 'host') {
         // [netcheck:charask-start]
@@ -7519,6 +7558,7 @@ function handleMessage(msg, conn) {
         var campS = campOf(msg.campId); if (!campS) return;
         if (msg.system === null) delete campS.system;
         else { var csys = window.wpSystemCore.cleanSystem(msg.system, { F: window.wpFormula, gmView: false, libCats: {}, needShown: true }); if (csys) campS.system = csys; }
+        if (typeof heldSync === 'function') heldSync();   // 1.6.0 (backlog 190): a raised revision holds us at once
         if (window.wpSheetsSync) window.wpSheetsSync();
     } else if (msg.type === 'docStyle' && net.role === 'client') {
         // the hosted campaign's document look changed mid-session (doc theming): from the synced host only, re-validated here; an open Handbook page and the sheet follow
@@ -7679,7 +7719,7 @@ function handleMessage(msg, conn) {
         if (window.wpHistFlush) window.wpHistFlush();
         var wasRD = net.applyingRemote; net.applyingRemote = true;
         try {
-            if (stD === 'making') { var playD = !SD.activeCharOf(campD, prD.id).id || chD.invited === 1; delete chD.making; delete chD.invited; chD.review = 1; window.wpSheets.giveCharacter(prD.id, chD.id, { play: playD, pic: true }); }   // asked while it is still in the making: does the GM's give (a character they play) stand?
+            if (stD === 'making') { var playD = !SD.activeCharOf(campD, prD.id).id || chD.invited === 1; delete chD.making; delete chD.invited; chD.review = 1; var srD = typeof SD.sheetRevOf === 'function' ? SD.sheetRevOf(campD.system) : 0; if (srD) chD.sheetRev = srD;   /* 1.6.0 (backlog 190): made under this system */ window.wpSheets.giveCharacter(prD.id, chD.id, { play: playD, pic: true }); }   // asked while it is still in the making: does the GM's give (a character they play) stand?
             else { delete chD.unlocked; chD.review = 1; chD.updated = Date.now(); save(true); net.syncChar(chD.id); }
         } finally { net.applyingRemote = wasRD; }
         var tD = (prD.name || 'A player') + (stD === 'making' ? ' finished making ' : ' finished the sheet of ') + chD.name + (clD.length ? ' (the name is also ' + clD.map(function(k) { return CLW[k]; }).join(' and ') + ')' : '');
@@ -8056,6 +8096,7 @@ function handleMessage(msg, conn) {
         if (msg.type === 'roll-deny') {
             if (!_dicePending) return;
             var dn = Dr.cleanDeny(msg, _dicePending.expr.length); if (!dn || dn.rid !== _dicePending.rid) return;
+            if (dn.reason === 'paused' && net.selfHeld && !net.paused && !net.selfPaused) dn.reason = 'held';   // 1.6.0 (backlog 190): said as the hold it was
             var pend = _dicePending; clearTimeout(pend.timer); _dicePending = null;
             if (window.wpDice) window.wpDice.onDeny(dn, pend.expr);
             return;
@@ -8780,7 +8821,7 @@ function leaveSession(silent) {
     if (!silent) setIndicator(null);
     setPausedLocal(false);
     setTravelLockLocal(false);
-    net.pausedPlayers = {}; setSelfPausedLocal(false);   // per-player pauses are per-session, like the table pause and travel lock
+    net.pausedPlayers = {}; net.selfHeld = false; net.heldNames = []; setSelfPausedLocal(false);   // per-player pauses are per-session, like the table pause and travel lock
     bannedIds = {}; pendingJoins = []; approvalOpen = false; _unboundSaid = Object.create(null);   // bans, pending approvals and the notices of a key proven over another connection are per-session
     var hi = ui('netHostInfo');
     if (hi) hi.style.display = 'none';

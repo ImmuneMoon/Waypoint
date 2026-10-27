@@ -358,6 +358,7 @@ function giveTokenChar(camp, w, c) {
 function newCharacter(o) {
     var camp = getActiveCampaign(); if (!camp) return null;
     var c = { id: uid('c_'), name: String(o && o.name || 'New character').slice(0, LIMITS.charName), ownerId: '', portrait: o && o.portrait || '', npc: !!(o && o.npc), values: {}, updated: Date.now() };
+    var srN = window.wpSystemCore && typeof window.wpSystemCore.sheetRevOf === 'function' ? window.wpSystemCore.sheetRevOf(camp.system) : 0; if (srN) c.sheetRev = srN;   // 1.6.0 (backlog 190): made under this system
     charsOf(camp)[c.id] = c;   // born unassigned: an owner is given through giveCharacter
     return c;
 }
@@ -1014,6 +1015,7 @@ function renderSheet() {
     var dlX = ui('sheetDelete'); if (dlX) { var mineX = isClient() && own && !c.partial && charList(camp).filter(function(x) { return !x.partial && x.ownerId === myId(); }).length > 1; dlX.style.display = (gm && canWrite()) || mineX ? '' : 'none'; dlX.title = gm ? 'Delete this sheet: its values are gone; its tokens keep their name and lose the link' : 'Delete this sheet of yours: one you are still making, or one you do not play (your GM is told)'; }
     renderReviewBar(c, camp, gm);
     var bdB = ui('sheetBudgets'); if (bdB) bdB.style.display = !c.partial && budgetBar(bdB, sys, c) ? '' : 'none';   // 126: the point budgets, under the head
+    if (typeof renderStaleBar === 'function') renderStaleBar(c, camp, gm, own);   // 1.6.0 (backlog 190): an out-of-date sheet says so
     var rvB = ui('sheetReview'), rvN = gm ? uploadsOf(camp, c.id) : []; if (rvB) { rvB.style.display = rvN.length ? '' : 'none'; if (rvN.length) rvB.textContent = 'Review (' + rvN[0].changes.length + ')'; }   // U3: the GM's review of it
     var hb = ui('sheetHud'); if (hb) { var hOn = hudHasContent(sys) && canOpen(c.id); hb.style.display = hOn ? '' : 'none'; if (hOn) hb.title = 'Open ' + (sys.sheet.hud.title || 'the HUD'); }   // HUD frame (HF2a): only when the saved system has a HUD they can see
     p.classList.toggle('sheet-has-headportrait', !!(sys.sheet && sys.sheet.look && sys.sheet.look.portrait));   // Stage 5g: the header block carries the portrait, so the title bar's small one steps aside
@@ -4959,6 +4961,68 @@ function budgetNote(sys, c, a, v) {
     if (hit) toast((c && c.name ? c.name : 'This character') + (hit.lost === true ? ': ' : ' is over. ') + budgetSays(hit));
 }
 // [systemcheck:budgetbar-end]
+// [systemcheck:stalebar-start]
+// 1.6.0, backlog 190 (the owner: "a general contingency for if a gm changes their system in a campaign where people have characters"): a sheet
+// out of date (systemcore charStale) says so under its head. Its player is told why they are held and is offered Send a new sheet (Waypoint's own
+// character file, or a file an outside reader takes), which waits for the GM's review; the GM is offered the Review where one waits, and Mark
+// current, which makes the character current as it is. The GM asks every player for a new sheet from the System editor's Characters tab
+// (askNewSheets: the system's revision one higher, saved and told to the table at once), and may make every sheet current there again
+function renderStaleBar(c, camp, gm, own) {
+    var bar = ui('sheetStaleBar'); if (!bar) return;
+    bar.textContent = '';
+    var S = window.wpSystemCore, sys = systemOf(camp), st = !!(S && typeof S.charStale === 'function' && c && !c.partial && S.charStale(sys, c)), mine = !gm && !!own && isClient();
+    if (!st || (!gm && !mine)) { bar.style.display = 'none'; return; }
+    var ups = gm ? uploadsOf(camp, c.id).filter(function(u) { return u && u.rev === true; }) : [];
+    bar.appendChild(el('span', 'sheet-rv-text', gm
+        ? (ups.length ? 'A new sheet for this character waits for your review. Its player is held until you apply it or mark it current.' : 'This sheet is out of date: the system changed since it was made. Its player is held until a new sheet is approved.')
+        : 'This sheet is out of date: your GM changed the game. Send a new sheet for your GM to approve. Until then you can chat and read pages.'));
+    var bt = function(label, title, fn) { var b = el('button', 'tool ghost notepad-btn', label); b.type = 'button'; b.title = title; b.addEventListener('click', fn); bar.appendChild(b); };
+    if (gm && canWrite()) {
+        if (ups.length) bt('Review', 'Open the new sheet its player sent', function() { openReview(c.id, null, ups[0].id); });
+        bt('Mark current', 'The sheet is fine as it is: its player plays again', function() { markCurrent(c.id); });
+    }
+    if (mine) bt('Send a new sheet\u2026', 'Pick a character file for your GM to review', function() { importJson(); });
+    bar.style.display = '';
+}
+function markCurrent(id) {
+    var camp = getActiveCampaign(), c = charById(id, camp), S = window.wpSystemCore, sys = systemOf(camp);
+    if (!c || isClient() || !canWrite() || !S || typeof S.sheetRevOf !== 'function') return false;
+    var r = S.sheetRevOf(sys); if (!r) return false;
+    c.sheetRev = r; afterCharChange(c, true);
+    toast(c.name + ' is current: its player plays again.');
+    var n = net(); if (n && n.logEvent) n.logEvent('char', c.name + ' marked current');
+    if (window.wpStepLog) window.wpStepLog('sheetrev v1', 'current', { by: 'gm', chars: 1 });
+    return true;
+}
+function staleCount(camp) { var S = window.wpSystemCore, sys = systemOf(camp), cs = camp ? charsOf(camp) : {}; return S && typeof S.charStale === 'function' ? Object.keys(cs).filter(function(k) { return S.charStale(sys, cs[k]); }).length : 0; }
+function askNewSheets() {
+    var camp = getActiveCampaign(), S = window.wpSystemCore, sys = systemOf(camp); if (!camp || !sys || isClient() || !canWrite() || !S || typeof S.sheetRevOf !== 'function') return;
+    var cs = charsOf(camp), pl = Object.keys(cs).filter(function(k) { var x = cs[k]; return x && !x.npc && x.ownerId && x.making !== 1; }).length;
+    if (!pl) { toast('No player has a character yet: there is nobody to ask.'); return; }
+    showConfirm('Ask every player for a new sheet? ' + pl + (pl === 1 ? ' character goes' : ' characters go') + ' out of date. Their players can only chat and read pages until you approve a new sheet or mark it current. Use it after a change to the system that their sheets no longer fit.', function(y) {
+        if (!y) return;
+        var cur = getActiveCampaign(), sy = systemOf(cur); if (cur !== camp || !sy) return;
+        sy.sheetRev = Math.min(1e6, S.sheetRevOf(sy) + 1); if (draft) draft.sheetRev = sy.sheetRev;
+        save(true);
+        var n = net(); if (n && n.syncSystem) n.syncSystem(); if (n && n.logEvent) n.logEvent('char', 'Asked every player for a new sheet');
+        if (window.wpStepLog) window.wpStepLog('sheetrev v1', 'asked', { rev: sy.sheetRev, chars: pl });
+        toast(pl + (pl === 1 ? ' character is' : ' characters are') + ' out of date now. Each sheet says so, and its player can send a new one.');
+        renderAll(); renderViews(null); if (window.appRender) window.appRender();
+    }, { yes: 'Ask for new sheets', noEnter: true });
+}
+function allSheetsCurrent() {
+    var camp = getActiveCampaign(), S = window.wpSystemCore, sys = systemOf(camp); if (!camp || !sys || isClient() || !canWrite() || !S || typeof S.sheetRevOf !== 'function') return;
+    var r = S.sheetRevOf(sys), cs = charsOf(camp), ids = Object.keys(cs).filter(function(k) { return S.charStale(sys, cs[k]); });
+    if (!ids.length) { toast('Every sheet is current.'); return; }
+    showConfirm('Mark all ' + ids.length + ' out-of-date ' + (ids.length === 1 ? 'sheet' : 'sheets') + ' current as they are? Their players play again.', function(y) {
+        if (!y) return;
+        ids.forEach(function(k) { var c = cs[k]; if (c && S.charStale(sys, c)) { c.sheetRev = r; afterCharChange(c, true); } });
+        var n = net(); if (n && n.logEvent) n.logEvent('char', 'Marked ' + ids.length + ' sheets current');
+        if (window.wpStepLog) window.wpStepLog('sheetrev v1', 'current', { by: 'gm', chars: ids.length });
+        toast(ids.length + (ids.length === 1 ? ' sheet is' : ' sheets are') + ' current again.'); renderAll();
+    }, { yes: 'Mark current' });
+}
+// [systemcheck:stalebar-end]
 function renderReviewBar(c, camp, gm) {
     var bar = ui('sheetReviewBar'); if (!bar) return;
     bar.textContent = '';
@@ -5281,7 +5345,8 @@ function importJson() {   // the owner sends their sheet file to the GM (the GM 
         file.text().then(function(txt) {
             var j = null; try { j = JSON.parse(txt); } catch (e) { toast('That file is not valid JSON.'); return; }
             var isFile = isCharFile(j);
-            if (isFile && !making) { toast('A character file only fills a character you are still making.'); return; }   // Onboarding F2a: never sent as a dossier (owner, 2026-09-27: in play, Import stays as it was)
+            var staleJ = !!(window.wpSystemCore && typeof window.wpSystemCore.charStale === 'function' && window.wpSystemCore.charStale(systemOf(), c));   // 1.6.0 (backlog 190): out of date, its new sheet goes for review
+            if (isFile && !making && !staleJ) { toast('A character file only fills a character you are still making.'); return; }   // Onboarding F2a: never sent as a dossier (owner, 2026-09-27: in play, Import stays as it was)
             if (!isFile && (!sheetFilesOk() || !j || typeof j !== 'object' || Array.isArray(j))) { toast(making ? 'That is not a character file this table reads.' : 'That is not a sheet file your GM\u2019s Waypoint reads.'); return; }
             var n = net(); if (!n || !n.charUpload) return;
             if (!isFile && typeof keepFile === 'function') { var campI = getActiveCampaign(); if (campI) keepFile(campI.id, id, j, txt, file.name); }   // a reader may remember the file read here
@@ -5295,6 +5360,7 @@ function importJson() {   // the owner sends their sheet file to the GM (the GM 
             }
             var r = n.charUpload(c.id, j, function(a) {
                 if (a.error) { toast(a.error); return; }
+                if (a.rev) { toast('Your new sheet is with your GM' + (a.n ? ': ' + a.n + (a.n === 1 ? ' change' : ' changes') + ' to review.' : '.') + ' You play again once they approve it.'); return; }
                 toast(a.n ? 'Sent to the GM: ' + a.n + (a.n === 1 ? ' change' : ' changes') + ' to review' + (a.auto ? ' (' + a.auto + ' applied at once)' : '') + '.' : a.auto ? a.auto + (a.auto === 1 ? ' change' : ' changes') + ' applied.' : 'Nothing to change: your sheet already matches.');
             });
             if (r && r.error) toast(r.error); else toast('Sending your sheet to the GM\u2026');
@@ -5336,7 +5402,8 @@ function openReview(charId, mine, pick) {   // mine: the GM's own file, read on 
     });
     var apply = ui('uploadApply'), rej = ui('uploadReject'), SCr = window.wpSystemCore, rdA = up.reader && SCr && SCr.readerById ? SCr.readerById(up.reader) : null, noRd = !!up.reader && !rdA;   // the reader that read the file applies it (its own row op)
     if (noRd) head.textContent += '. It was read by a sheet reader this Waypoint does not have, so it cannot be applied here.';
-    var count = function() { var n = Object.keys(ticks).filter(function(k) { return ticks[k]; }).length; apply.textContent = 'Apply ' + n + (n === 1 ? ' change' : ' changes'); apply.disabled = !n || noRd; };
+    if (up.rev === true) head.textContent += '. A new sheet for an out-of-date character: applying it makes the character current.';   // 1.6.0 (backlog 190)
+    var count = function() { var n = Object.keys(ticks).filter(function(k) { return ticks[k]; }).length; apply.textContent = !n && up.rev === true ? 'Mark current' : 'Apply ' + n + (n === 1 ? ' change' : ' changes'); apply.disabled = (!n && up.rev !== true) || noRd; };
     count();
     var stale = function(cmp) {   // 1.5.5: an entry the player changed while the Review was open (an ask that grew, was replaced or taken back) is applied and removed by nobody: it is shown again as it stands
         if (up.own === true) return false;
@@ -5348,6 +5415,7 @@ function openReview(charId, mine, pick) {   // mine: the GM's own file, read on 
         var acc = {}; Object.keys(ticks).forEach(function(k) { if (ticks[k]) acc[k] = true; });
         var r = applyProposal(sys, ch2, up, acc, F(), rdA ? { rowOp: rdA.rowOp } : {});
         ch2.values = r.values; lastChange = null;   // the values are replaced whole: no single field to Revert
+        if (up.rev === true && window.wpSystemCore && typeof window.wpSystemCore.sheetRevOf === 'function') { var srA = window.wpSystemCore.sheetRevOf(sys); if (srA) { ch2.sheetRev = srA; if (window.wpStepLog) window.wpStepLog('sheetrev v1', 'current', { by: 'review', changes: r.done }); } }   // 1.6.0 (backlog 190): approved: current
         cmp.uploads = (Array.isArray(cmp.uploads) ? cmp.uploads : []).filter(function(u) { return !u || u.id !== up.id; });
         afterCharChange(ch2, true);
         var n2 = net(); if (up.own !== true && n2 && n2.uploadDone) n2.uploadDone(up.charId, r.done, up.changes.length);
@@ -8872,6 +8940,8 @@ function importFile(file) {
     var edBt = ui('sheetEdit'); if (edBt) edBt.addEventListener('click', function() { if (!sheetOpen) return; _sheetEdit = _sheetEdit === sheetOpen ? null : sheetOpen; renderSheet(); });   // the sheet's lock: this viewer's own switch, for the sheet that is open
     var dlBt = ui('sheetDelete'); if (dlBt) dlBt.addEventListener('click', function() { if (sheetOpen) askDeleteSheet(sheetOpen); });
     var cfI = ui('sysCharFilter'); if (cfI) cfI.addEventListener('input', charFilter);
+    var nsB = ui('sysNewSheets'); if (nsB) nsB.addEventListener('click', askNewSheets);   // 1.6.0 (backlog 190)
+    var acB = ui('sysSheetsCurrent'); if (acB) acB.addEventListener('click', allSheetsCurrent);
     var rvBt = ui('sheetReview'); if (rvBt) rvBt.addEventListener('click', function() { if (sheetOpen) openReview(sheetOpen); });
     var rvChip = ui('reviewChip'); if (rvChip) rvChip.addEventListener('click', reviewNext);
     var rvC = ui('uploadClose'); if (rvC) rvC.addEventListener('click', closeReview);

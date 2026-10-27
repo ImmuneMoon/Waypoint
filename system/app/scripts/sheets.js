@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast, toastAction } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { cleanDamageRules, rollSwitches, rollSwitchesAll, cleanRollSw, withCross, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, envBands, envWorst, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, DEFAULT_POSTURES, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
+import { cleanDamageRules, rollSwitches, rollSwitchesAll, cleanRollSw, withCross, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, envBands, envWorst, ALT_MAX, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, DEFAULT_POSTURES, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
 import { roundSays } from './systemcore.js';   // clarity package: how a value was rounded, for its tooltip
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
 import { lvlsFromBox, lvlsToText } from './librarycore.js';
@@ -2888,13 +2888,13 @@ function rowRollBtns(host, spec, entry, def, c, f, res) {   // res (R2b): the fi
         if (r && Array.isArray(r.apply)) {   // Stage 6 HUD H7b: an apply action on this row (Apply costs on a power), for a viewer who may change the character
             if (applyOk === null) applyOk = canApply(c);
             if (!applyOk || !r.apply.length) return;
-            var al = r.label || 'Apply', ab = el('button', 'tool ghost sheet-item-roll sheet-item-apply', al); ab.type = 'button'; ab.title = nm + ' \u00b7 ' + al + ': ' + applyTitle(r, systemOf(getActiveCampaign()));
+            var al = (res && res.rl && res.rl[rid] && res.rl[rid].r[ri]) || r.label || 'Apply', ab = el('button', 'tool ghost sheet-item-roll sheet-item-apply', al); ab.type = 'button'; ab.title = nm + ' \u00b7 ' + al + ': ' + applyTitle(r, systemOf(getActiveCampaign()));
             var cbA = typeof costBlock === 'function' ? costBlock(c, r.cost) : ''; if (cbA) { ab.disabled = true; ab.title = cbA + ' \u2014 ' + ab.title; }   // turn-based combat T4
             ab.addEventListener('click', function() { var campN = getActiveCampaign(), cN = charById(c.id, campN); if (!cN) return; if (r.to === 'near' && typeof allyPick === 'function') { allyPick(ab, cN, function(on) { applyAction(r, cN, nm + ' \u00b7 ' + al, { f: f.id, r: rid, i: ri }, on || undefined); }); return; } applyAction(r, cN, nm + ' \u00b7 ' + al, { f: f.id, r: rid, i: ri }); });   // 1.5.9: whom it is for first, where it Applies to an adjacent character
             host.appendChild(ab); return;
         }
         if (!rollOk || !r || typeof r.formula !== 'string' || !r.formula) return;
-        var lb = r.label || 'Roll', b = el('button', 'tool ghost sheet-item-roll', lb); b.type = 'button'; if (typeof dieFor === 'function') b.insertBefore(dieFor(r.die, r.formula), b.firstChild); b.title = nm + ' \u00b7 ' + lb + ': ' + r.formula + ' (shift-click adds a modifier)';   // 1.5.8: its die (1.5.9: its title back, which this comment had swallowed)
+        var lb = (res && res.rl && res.rl[rid] && res.rl[rid].r[ri]) || r.label || 'Roll', b = el('button', 'tool ghost sheet-item-roll', lb); b.type = 'button'; if (typeof dieFor === 'function') b.insertBefore(dieFor(r.die, r.formula), b.firstChild); b.title = nm + ' \u00b7 ' + lb + ': ' + r.formula + ' (shift-click adds a modifier)';   // 1.5.8: its die (1.5.9: its title back, which this comment had swallowed)
         var nOk = !r.needs || !(res && res.rn && res.rn[rid]) || res.rn[rid][ri] !== false, withE = !!(Array.isArray(r.then) && r.then.length) || !!r.needs || !!r.malf || !!r.cost || !!r.dmg || !!r.showIf;   // Stage 6 HUD R2b: its needs for this row; a roll with consequences or needs names its index
         if (r.to === 'near') withE = true;   // 1.5.9 (book es/et plan, section 3): one that Applies to an adjacent character names its index too, so the host finds whom it may reach
         if (!nOk) { b.disabled = true; b.title = (r.needsText || 'Not now') + ' \u2014 it needs ' + r.needs; }
@@ -2922,8 +2922,8 @@ function ctCtl(host, entry, c, f, spec, editable, cells) {
         if (!t || typeof t.key !== 'string') return;
         var cell = byKey[t.key], v = cell && typeof cell.value === 'number' ? cell.value : (entry.ct && typeof entry.ct[t.key] === 'number' ? entry.ct[t.key] : (t.def || 0)), mx = cell && typeof cell.max === 'number' ? cell.max : null;
         if (mx === 0 && !(entry.ct && typeof entry.ct[t.key] === 'number' && entry.ct[t.key] > 0)) return;   // 1.5.8: a counter whose most works out to 0 on this row holds nothing here (a sword's Charges): no chip
-        var w = el('span', 'sheet-chip sheet-item-ct'); w.title = t.label || t.key;
-        w.appendChild(el('span', 'sheet-item-ctl', (t.label || t.key) + ' '));
+        var tLb = (cell && typeof cell.label === 'string' && cell.label) || t.label || t.key, w = el('span', 'sheet-chip sheet-item-ct'); w.title = tLb;   // 1.6.0: this row's other name, where one holds
+        w.appendChild(el('span', 'sheet-item-ctl', tLb + ' '));
         var set = function(n) { var o = {}; o[t.key] = n; commitItem(c, f, { op: 'set', rowId: rid, facts: { ct: o } }); };
         var tmC = t.timer && typeof t.timer === 'object' ? t.timer : null, ed = editable && !((t.roll === true || !!tmC) && isClient());   // 1.5.7: a counter set by rolls only shows no - or + on a player's app; 1.6.0: nor one the clock counts
         if (tmC) w.title = (t.label || t.key) + ': ' + ctClockWords(tmC);
@@ -5424,6 +5424,28 @@ function close(force) {
     if (dirty && !force) { showConfirm('Close the System editor without saving? Your changes to the fields, rolls and layout since the last Save are lost (characters are saved as you go).', function(yes) { if (yes) { dirty = false; close(true); } }); return; }
     m.style.display = 'none'; draft = null;
 }
+// [systemcheck:altbox-start]
+// 1.6.0: other names for a list roll, an action or a counter (alt: [{ if, label }]), edited in place on the draft object it is handed: a name and a
+// formula a pair, + Other name and \u00d7, ALT_MAX at most. Its own listeners, and class names no handler of the Lists tab reads (sys-alt-*)
+function altBox(obj, tip) {
+    var box = el('div', 'sys-alt'), max = typeof ALT_MAX === 'number' ? ALT_MAX : 4;
+    var draw = function() {
+        box.textContent = ''; var list = Array.isArray(obj.alt) ? obj.alt : [];
+        list.forEach(function(a, j) {
+            var rw = el('span', 'sys-alt-row'), nm = input('sys-alt-label field', a && typeof a.label === 'string' ? a.label : '', 'The name shown on rows where its formula holds', 'Other name'), fi = input('sys-alt-if field', a && typeof a.if === 'string' ? a.if : '', tip, 'Where (Row.Kind = 2)');
+            nm.maxLength = LIMITS.label; fi.maxLength = LIMITS.formula;
+            nm.addEventListener('input', function() { if (obj.alt && obj.alt[j]) { obj.alt[j].label = nm.value.slice(0, LIMITS.label); markDirty(); if (typeof patchErrors === 'function') patchErrors(); } });
+            fi.addEventListener('input', function() { if (obj.alt && obj.alt[j]) { obj.alt[j].if = fi.value.slice(0, LIMITS.formula); markDirty(); if (typeof patchErrors === 'function') patchErrors(); } });
+            var x = el('button', 'tool ghost sys-btn sys-alt-del', '\u00d7'); x.type = 'button'; x.title = 'Remove this name';
+            x.addEventListener('click', function(e) { e.stopPropagation(); if (!Array.isArray(obj.alt)) return; obj.alt.splice(j, 1); if (!obj.alt.length) delete obj.alt; markDirty(); draw(); if (typeof patchErrors === 'function') patchErrors(); });
+            rw.appendChild(nm); rw.appendChild(fi); rw.appendChild(x); box.appendChild(rw);
+        });
+        if (list.length < max) { var ad = el('button', 'tool ghost sys-btn sys-alt-add', '+ Other name'); ad.type = 'button'; ad.title = tip; ad.addEventListener('click', function(e) { e.stopPropagation(); if (!Array.isArray(obj.alt)) obj.alt = []; if (obj.alt.length >= max) return; obj.alt.push({ label: '', if: '' }); markDirty(); draw(); var ins = box.querySelectorAll('.sys-alt-label'); if (ins.length) ins[ins.length - 1].focus(); }); box.appendChild(ad); }
+    };
+    draw();
+    return box;
+}
+// [systemcheck:altbox-end]
 function markDirty() { dirty = true; var s = ui('sysSaveBtn'); if (s) s.classList.add('on'); }
 // Stage 6: each stored value of a field the saved system still has, checked against it again (a value past new value names, a lowered max,
 // a removed library entry) — what a reload does, at once, so the GM's sheet, their formulas and every player agree. Other ids stay as they are.
@@ -6556,6 +6578,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
         var tt = t0 && typeof t0 === 'object' ? t0 : {}, rw = el('div', 'sys-flags sys-list-ct'); rw.dataset.ti = String(ti);
         var tk = input('sys-list-ctkey field', typeof tt.key === 'string' ? tt.key : '', 'Its name in formulas: Row.<key> (Charges, Hits)', 'Key'); tk.maxLength = 24; rw.appendChild(tk);
         var tl = input('sys-list-ctlabel field', typeof tt.label === 'string' ? tt.label : '', 'What the row shows (blank: the key)', 'Label'); tl.maxLength = LIMITS.label; rw.appendChild(tl);
+        if (typeof altBox === 'function') rw.appendChild(altBox(tt, 'The row shows this name for the counter where the formula holds, such as Jammed where Row.Kind = 2. The first that holds wins.'));   // 1.6.0: its other names
         var tdf = el('input', 'field sys-list-ctdef'); tdf.type = 'number'; tdf.min = '0'; tdf.step = '1'; tdf.value = typeof tt.def === 'number' ? String(tt.def) : ''; tdf.placeholder = 'Starts at 0'; tdf.title = 'Where a new row starts'; rw.appendChild(tdf);
         var tmx = input('sys-list-ctmax field', typeof tt.max === 'string' ? tt.max : '', 'Its most, worked out for each row (no dice): 20, Row.Shots; empty: no most', 'Most (e.g. Row.Shots)'); tmx.maxLength = LIMITS.formula; rw.appendChild(tmx);
         rw.appendChild(checkLabel('sys-list-ctroll', tt.roll === true, 'Set by rolls only', 'Rolls, actions and you set it. A player cannot change it by hand: their sheet shows it with no \u2212 or +'));   // 1.5.7
@@ -6638,6 +6661,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
         var rnr = el('select', 'sys-list-near'); rnr.title = 'Applies to: whom its changes go on. With an adjacent character, a press asks who it is for when someone stands next to you, your target first. A row\u2019s own counters stay with the user. Its formulas read OnSelf, 1 on yourself and 0 on another'; [['', 'Applies to the user'], ['near', 'Applies to the user or an adjacent character']].forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; rnr.appendChild(op); }); rnr.value = rr.to === 'near' ? 'near' : ''; rw.appendChild(rnr);   // 1.5.9 (book es/et plan, section 3): Applies to
         rw.appendChild(checkLabel('sys-list-gmonly', rr.gm === true, 'GM only', 'Only you press it. Players never see its button, and the table refuses theirs'));   // 1.6.0
         var rsI = input('sys-list-rollshow field', typeof rr.showIf === 'string' ? rr.showIf : '', 'Its button shows only on rows where this is true, such as Row.Kind = 2. Row names are read. No dice. Empty: on every row', 'Shown where (optional)'); rsI.maxLength = LIMITS.formula; rw.appendChild(rsI);   // 1.6.0
+        if (typeof altBox === 'function') rw.appendChild(altBox(rr, 'Its button reads this name on rows where the formula holds, such as Fix malfunction where Row.Kind = 2. The first that holds wins.'));   // 1.6.0: its other names
         if (rApply) { cb2.appendChild(rw); var lxA = typeof listCrossRow === 'function' ? listCrossRow(rr, ri, sp.counters) : null; if (lxA) cb2.appendChild(lxA); listApplyEditor(cb2, rr, ri, 'apply', sp, targets); return; }   // 1.6.0: when a row's counter crosses a step
         var rf = input('sys-list-rollformula field', typeof rr.formula === 'string' ? rr.formula : '', 'Rolled for the row: dice allowed; Row.lvl, Row.<stat>, Row.<column> read the row, any other name the character (3d6 <= Row.Skill, d20 + Row.Hit)', 'Formula (d20 + Row.Hit)'); rf.maxLength = LIMITS.formula; rw.appendChild(rf);
         rw.appendChild(checkLabel('sys-list-dmg', rr.dmg === true, 'Damage', 'A damage roll: its card in Table Chat takes the damage colour, a larger total and a damage tag'));   // chat cards (owner 2026-09-27)

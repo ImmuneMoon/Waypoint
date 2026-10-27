@@ -15584,6 +15584,26 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && J(gn(pls)) === J(['Players:<b>Hostile</b>/1,Kael/2']) && J(gn(rolls)) === J(['Players:<b>Hostile</b>/1,Kael/1']) && J(gn(found)) === J(['NPCs \u00b7 Docks:Aba/1']) && J(gn(byName)) === J(['Players:Kael/2'])
             && muteOk && srcOk, J([coreOk, order, chatOf, run.changes, run.rolls, run.chat, line, gn(all), gn(rolls), gn(found), muteOk, srcOk]));
     }
+    {   // 1.6.0: a list roll's, an action's and a counter's other names, row by row (alt: the SotMW session's round 112 ask)
+        const J = JSON.stringify;
+        const rawN = { v: 1, name: 'N', items: [{ id: 'i_a', name: 'Blaster', stats: { Kind: 1 } }, { id: 'i_b', name: 'Saber', stats: { Kind: 2 } }], sheet: { sections: [] }, fields: [{ id: 'f_w', key: 'Weapons', label: 'Weapons', kind: 'item-list', vis: 'all', list: {
+            stats: [{ key: 'Kind', label: 'Kind', type: 'number' }], counters: [{ key: 'Jam', label: 'Jammed', alt: [{ if: 'Row.Kind = 2', label: 'Broken' }, { if: '1d6', label: 'Dice' }, { if: 'Row.Kind = 2', label: '' }] }],
+            rolls: [{ label: 'Clear jam', formula: '3d6', alt: [{ if: 'Row.Kind = 2', label: 'Fix malfunction' }, { if: 'Row.Kind >= 1', label: 'Later' }, { if: 'Secret > 0', label: 'Hidden' }] }, { label: 'Fire', formula: '1d6' }, { label: 'Patch', apply: [{ f: 'f_s', formula: '1' }], alt: [{ if: 'Row.Kind = 1', label: 'Mend' }] }] } },
+            { id: 'f_s', key: 'Secret', label: 'Secret', kind: 'number', vis: 'gm' }] };
+        const gN = S.cleanSystem(rawN, { F, gmView: true }), pN = S.cleanSystem(rawN, { F, gmView: false }), lw = s => s.fields.find(f => f.id === 'f_w').list;
+        const cleanOk = J(lw(gN).rolls[0].alt) === J([{ if: 'Row.Kind = 2', label: 'Fix malfunction' }, { if: 'Row.Kind >= 1', label: 'Later' }, { if: 'Secret > 0', label: 'Hidden' }]) && J(lw(gN).counters[0].alt) === J([{ if: 'Row.Kind = 2', label: 'Broken' }]) && !('alt' in lw(gN).rolls[1])
+            && J(lw(pN).rolls[0].alt) === J([{ if: 'Row.Kind = 2', label: 'Fix malfunction' }, { if: 'Row.Kind >= 1', label: 'Later' }]) && J(S.cleanSystem(gN, { F, gmView: true })) === J(gN) && S.cleanAlt([1, 2, 3, 4, 5].map(i => ({ if: 'Row.Kind = ' + i, label: 'n' + i })), F).length === S.ALT_MAX;
+        const ch = { id: 'c_n', values: { f_w: [{ id: 'w_a1', defId: 'i_a', qty: 1 }, { id: 'w_b1', defId: 'i_b', qty: 1 }] } };
+        const e = S.resolveAll(gN, ch, F, null).f_w;
+        const names = { a: e.rl && e.rl.w_a1 && e.rl.w_a1.r, b: e.rl && e.rl.w_b1 && e.rl.w_b1.r }, cts = { a: (e.cts.w_a1 || []).map(c => c.label || ''), b: (e.cts.w_b1 || []).map(c => c.label || '') };
+        const plain = S.resolveAll(S.cleanSystem({ v: 1, name: 'P', fields: [{ id: 'f_w', key: 'W', label: 'W', kind: 'item-list', list: { rolls: [{ label: 'R', formula: '1d6' }] } }], sheet: { sections: [] } }, { F, gmView: true }), { id: 'c', values: { f_w: [] } }, F, null).f_w;
+        const v = S.validateSystem(Object.assign(JSON.parse(J(gN)), {}), F), vBad = S.validateSystem((() => { const x = JSON.parse(J(gN)); x.fields[0].list.rolls[0].alt[0].if = 'Row.Nope = 2'; return x; })(), F);
+        const shA = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+        const wired = shA.includes("var lb = (res && res.rl && res.rl[rid] && res.rl[rid].r[ri]) || r.label || 'Roll'") && shA.includes("var al = (res && res.rl && res.rl[rid] && res.rl[rid].r[ri]) || r.label || 'Apply'") && shA.includes("var tLb = (cell && typeof cell.label === 'string' && cell.label) || t.label || t.key")
+            && shA.includes("rw.appendChild(altBox(rr, ") && shA.includes("rw.appendChild(altBox(tt, ");
+        check('1.6.0 a list roll, an action and a counter may carry other names (alt), each a name and a formula of the row with no dice, ' + 'four at most, a pair missing either part dropped, one that reads a GM-only value left out of the players\' view; resolveAll names each row by the first that holds (e.rl for its rolls and actions in list order, a counter\'s on its cell), and nothing for a list with none; the validator reads each formula with Row names; the sheet draws a row\'s roll, action and counter by it',
+            cleanOk && J(names) === J({ a: ['Later', '', 'Mend'], b: ['Fix malfunction', '', ''] }) && J(cts) === J({ a: ['Jammed'], b: ['Broken'] }) && !('rl' in plain) && v.ok && !vBad.ok && wired, J([cleanOk, names, cts, 'rl' in plain, v.ok, vBad.ok, wired]));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

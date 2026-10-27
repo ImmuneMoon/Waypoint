@@ -85,6 +85,9 @@ System editor
   folding open to what changed, with a search, filters and a Mute per rule.
   A rule's Notes in the Rolls tab says where its runs go: in chat, the panel
   only, or the panel only with its players never told.
+- A list's roll, action or counter can take another name on some rows. Add
+  it with + Other name, with a formula of the row, such as a roll that reads
+  Fix malfunction on one kind of weapon and Clear jam on the rest.
 - Formulas read Making, 1 while a character is being made. A prerequisite
   rule of Making = 1 lets players take an entry only while making their
   character, and you may still add it at any time.

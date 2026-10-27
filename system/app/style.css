@@ -2440,6 +2440,10 @@
   #timePanel .tp-unmute { border: 0; padding: 0; text-decoration: underline; }
   #timePanel .tp-foot { padding: 8px 12px; color: var(--dim); font-size: 12px; }
   #timePanel .tp-empty { padding: 12px; color: var(--dim); font-size: 12.5px; }
+  /* 1.6.0: a list roll's or counter's other names */
+  .sys-alt { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; flex-basis: 100%; }
+  .sys-alt-row { display: inline-flex; gap: 4px; align-items: center; }
+  .sys-alt-row .sys-alt-label { width: 130px; } .sys-alt-row .sys-alt-if { width: 170px; }
   .chat-trun { display: flex; gap: 8px; align-items: center; margin-bottom: 7px; padding: 5px 7px; border-left: 3px solid var(--gold); border-radius: 4px; background: rgba(0,0,0,0.12); }
   .chat-trun .ico { width: 15px; height: 15px; flex: none; }
   .chat-trun-txt { flex: 1; } .chat-trun-txt small { display: block; color: var(--dim); font-size: 11px; }

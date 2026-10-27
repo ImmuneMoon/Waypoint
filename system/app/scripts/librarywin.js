@@ -381,7 +381,7 @@ function swLibTargets() {
     var c = camp(), sy = c && c.system ? c.system : null, o = [], nm = function(x) { return x.label || x.key || x.id; };
     ((sy && sy.fields) || []).forEach(function(f) { if (f && typeof f.id === 'string' && f.roll) o.push(['f|' + f.id, 'The roll of ' + nm(f)]); });
     ((sy && sy.rolls) || []).forEach(function(r) { if (r && typeof r.id === 'string' && !Array.isArray(r.apply) && typeof r.formula === 'string') o.push(['r|' + r.id, 'Roll: ' + (r.label || r.id)]); });
-    itemLists().forEach(function(f) { if (Array.isArray(f.list.rolls) && f.list.rolls.some(function(r) { return r && !Array.isArray(r.apply); })) o.push(['l|' + f.id, 'Any roll on ' + nm(f)]); });
+    itemLists().forEach(function(f) { if (Array.isArray(f.list.rolls) && f.list.rolls.some(function(r) { return r && !Array.isArray(r.apply); })) o.push(['l|' + f.id, 'Rolls on ' + nm(f)]); });
     return o;
 }
 function swLibBox(form, e) {
@@ -399,7 +399,11 @@ function swLibBox(form, e) {
             s.to.forEach(function(t, ti) {
                 var v = toVal(t), opts = targets.slice(); if (v && !opts.some(function(o) { return o[0] === v; })) opts.unshift([v, '(a roll that is gone)']);
                 var sel = select(opts, v); sel.title = 'A roll it offers itself to'; sel.addEventListener('change', function() { var nt = toOf(sel.value); if (nt) { s.to[ti] = nt; draw(); } }); ln.appendChild(sel);
-                if (t && typeof t.l === 'string') { var ky = el('input', 'field lib-mod-key'); ky.type = 'text'; ky.placeholder = 'Entry key (optional)'; ky.value = typeof t.key === 'string' ? t.key : ''; ky.title = 'Only on rows of the entry with this key. Blank: on every row of the list'; ky.addEventListener('input', function() { var k = ky.value.trim(); if (k) t.key = k; else delete t.key; }); ln.appendChild(ky); }
+                if (t && typeof t.l === 'string') { var ky = el('input', 'field lib-mod-key'); ky.type = 'text'; ky.placeholder = 'Entry key (optional)'; ky.value = typeof t.key === 'string' ? t.key : ''; ky.title = 'Only on rows of the entry with this key. Blank: on every row of the list'; ky.addEventListener('input', function() { var k = ky.value.trim(); if (k) t.key = k; else delete t.key; }); ln.appendChild(ky);
+                    var lf = itemLists().filter(function(x) { return x.id === t.l; })[0], lrs = lf && lf.list && Array.isArray(lf.list.rolls) ? lf.list.rolls : [], ro = [['', 'Any roll']], rv = '';   // 1.6.0: only this roll of the list
+                    lrs.forEach(function(r) { if (r && !Array.isArray(r.apply) && typeof r.label === 'string' && r.label.trim() && !ro.some(function(x) { return x[0].toLowerCase() === r.label.trim().toLowerCase(); })) ro.push([r.label.trim(), r.label.trim()]); });
+                    if (typeof t.roll === 'string' && t.roll.trim()) { var rh = ro.filter(function(x) { return x[0] && x[0].toLowerCase() === t.roll.trim().toLowerCase(); })[0]; if (rh) rv = rh[0]; else { ro.push([t.roll, t.roll + ' (no roll of that name now)']); rv = t.roll; } }
+                    var rs = select(ro, rv); rs.title = 'Only this roll of the list, such as its Attack and not its Damage. Any roll: every roll on its rows'; rs.addEventListener('change', function() { if (rs.value) t.roll = rs.value; else delete t.roll; }); ln.appendChild(rs); }
                 var tx = el('button', 'tool ghost', '\u00d7'); tx.type = 'button'; tx.title = 'Take this roll off'; tx.addEventListener('click', function() { s.to.splice(ti, 1); draw(); }); ln.appendChild(tx);
             });
             var ta = el('button', 'tool ghost', '+ Another roll'); ta.type = 'button'; ta.title = 'Another roll it offers itself to'; ta.disabled = !targets.length || s.to.length >= 8; ta.addEventListener('click', function() { var o = toOf(targets[0][0]); if (o) { s.to.push(o); draw(); } }); ln.appendChild(ta);

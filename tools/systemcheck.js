@@ -15294,7 +15294,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && J(rq({ row: { f: 'f_gear', r: 'w_a', i: 0 }, sw: [{ s: 'f_fx|e_aim', i: 0 }] }).sw) === J([{ s: 'f_fx|e_aim', i: 0 }]) && DCw.cleanRollReq({ rid: 'q1', expr: '3d6', fr: 'f_st' }) === null;
         const cardOk = J(DCw.cleanSwNames([{ n: 'Aim', v: 1 }, { n: 'Hex', v: -3 }])) === J([{ n: 'Aim', v: 1 }, { n: 'Hex', v: -3 }]) && DCw.cleanSwNames([{ n: 'A', v: 0 }]) === null && DCw.cleanSwNames([{ n: '', v: 1 }]) === null && DCw.cleanSwNames('x') === null;
         const netS = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n'), diceS = fs.readFileSync(path.join(app, 'scripts', 'dice.js'), 'utf8').replace(/\r\n/g, '\n'), shS = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
-        const hostOk = netS.includes("SQ.swJudge(viewQ, chvQ, q.act ? { r: q.act } : q.fr ? { f: q.fr } : { l: q.row.f, row: q.row.r }, q.sw)") && netS.includes("Dq.composeModifier(wantQ, (q.mod || 0) + (swQ ? swQ.v : 0), Fq.parse)") && netS.includes("else if (q.fr) (Array.isArray(viewQ.fields) ? viewQ.fields : []).forEach(function(f) { if (f && f.id === q.fr && typeof f.roll === 'string' && f.roll) actQ = { formula: f.roll }; });")
+        const hostOk = netS.includes("SQ.swJudge(viewQ, chvQ, q.act ? { r: q.act } : q.fr ? { f: q.fr } : { l: q.row.f, row: q.row.r, i: q.row.i }, q.sw)")   /* 1.6.0: the roll's index too, for a bonus on one roll of a list (moved on purpose) */ && netS.includes("Dq.composeModifier(wantQ, (q.mod || 0) + (swQ ? swQ.v : 0), Fq.parse)") && netS.includes("else if (q.fr) (Array.isArray(viewQ.fields) ? viewQ.fields : []).forEach(function(f) { if (f && f.id === q.fr && typeof f.roll === 'string' && f.roll) actQ = { formula: f.roll }; });")
             && netS.includes("SR.swJudge(campR.system, chR, refSw, o.sw)") && netS.includes("toast('Kept private: it adds a GM-only bonus (");
         // the ± window's Roll, sliced and run: a roll that is not named is named by its swRef once a bonus is ticked; one with none goes as before
         const mo = diceS.slice(diceS.indexOf('function modOpts('), diceS.indexOf('function rollWithMod('));
@@ -15415,6 +15415,19 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && grid.children.length === 1 && grid.children[0].tagName === 'DIV' && grid.children[0].className === 'sheet-rf-f sheet-rf-wide' && grid.children[0].children[0] === cap && grid.children[0].children[1] === bx
             && grid2.children[0] === dv && shP.includes('ctl = placeBtns(s, typeof mine === \'number\' ? mine : bv, put, lock);') && shP.includes('ctl = placeBtns(s, typeof mine === \'number\' ? mine : dv, put, false);') && (shP.match(/if \(s\.set === true\) rfUnlabel\(grid\);/g) || []).length === 2,
             J([words, sent, noNames.children.length, wide.children.length, grid.children.map(x => [x.tagName, x.className])]));
+    }
+    {   // 1.6.0: a roll bonus aimed at one roll of a list, by its label (the campaign build: Aimed a turn on a weapon's Attack, not its Damage)
+        const J = JSON.stringify;
+        const sysW = S.cleanSystem({ v: 1, name: 'W', fields: [{ id: 'f_w', key: 'Weapons', label: 'Weapons', kind: 'item-list', list: { rolls: [{ label: 'Attack', formula: '3d6' }, { label: 'Damage', formula: '2d6' }, { label: 'Parry', formula: '3d6' }] } }],
+            items: [{ id: 'i_b', name: 'Blaster', key: 'Blaster', rollSw: [{ name: 'Aimed', v: 2, to: [{ l: 'f_w', roll: '  attack ' }] }, { name: 'Any', v: 1, to: [{ l: 'f_w' }] }, { name: 'Gone', v: 1, to: [{ l: 'f_w', roll: 'Feint' }] }] }], sheet: { sections: [] } }, { F, gmView: true });
+        const kept = J(sysW.items[0].rollSw.map(s => s.to)), ch = { id: 'c', values: { f_w: [{ id: 'r1', defId: 'i_b', qty: 1 }] } };
+        const at = i => S.rollSwitches(sysW, ch, { l: 'f_w', row: 'r1', i: i }).map(w => w.name), noI = S.rollSwitches(sysW, ch, { l: 'f_w', row: 'r1' }).map(w => w.name);
+        const jA = S.swJudge(sysW, ch, { l: 'f_w', row: 'r1', i: 0 }, [{ s: 'f_w|r1', i: 0 }]), jD = S.swJudge(sysW, ch, { l: 'f_w', row: 'r1', i: 1 }, [{ s: 'f_w|r1', i: 0 }]);
+        const nt = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'latin1');
+        check('1.6.0 a roll bonus on one roll of a list (the campaign build: Aimed a turn helps a weapon\'s Attack and not its Damage or Parry): the cleaner keeps a list target\'s roll as its label; the bonus offers itself to that list roll alone, by its label in any case, and to no roll with no index; a bonus with no roll named offers itself to every roll on the row; one naming a roll the list does not have offers itself to none; the host judges a tick by the roll\'s index on both ways a roll comes in',
+            kept === J([[{ l: 'f_w', roll: 'attack' }], [{ l: 'f_w' }], [{ l: 'f_w', roll: 'Feint' }]]) && J([at(0), at(1), at(2), noI]) === J([['Aimed', 'Any'], ['Any'], ['Any'], ['Any']])
+            && jA.ok && jA.v === 2 && !jD.ok && nt.includes("{ l: q.row.f, row: q.row.r, i: q.row.i }, q.sw)") && nt.includes("{ l: String(o.row.f), row: String(o.row.r), i: typeof o.row.i === 'number' ? o.row.i : undefined }"),
+            J([kept, at(0), at(1), at(2), noI, jA, jD]));
     }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');

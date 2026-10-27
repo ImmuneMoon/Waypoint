@@ -4880,7 +4880,7 @@ function srcKeep(list, m, seen) {
 // folded into the figure before, so nothing of it shows. A toggle switched on by an effect is no number and is passed over. None: null
 // 1.6.0 roll switches (the owner, by prompt: "In the ± window"): a bonus an item or an effect offers to some rolls, which the roller ticks in
 // the roll's ± window, off by default: { name, v (whole, 1 to 99 either way, how much it helps, as the window's modifier), to: [ { f } a field's
-// own roll | { r } a system roll | { l, key? } any roll on a list's rows, or only on rows of that entry ] }. kinds (a view's fields by id, when
+// own roll | { r } a system roll | { l, key?, roll? } any roll on a list's rows, or only on rows of that entry, or only the list roll of that label ] }. kinds (a view's fields by id, when
 // known): a field or a list it does not hold is no target. LIMITS.rollSw a holder, LIMITS.swTo rolls a switch
 function cleanRollSw(v, kinds) {
     if (!Array.isArray(v)) return null; var outS = [];
@@ -4892,7 +4892,7 @@ function cleanRollSw(v, kinds) {
             if (to.length >= LIMITS.swTo || !isObj(t)) return; var x = null;
             if (typeof t.f === 'string' && FIELD_ID.test(t.f)) { if (!kinds || hasOwn(kinds, t.f)) x = { f: t.f }; }
             else if (typeof t.r === 'string' && ROLL_ID.test(t.r)) x = { r: t.r };
-            else if (typeof t.l === 'string' && FIELD_ID.test(t.l)) { if (!kinds || kinds[t.l] === 'item-list') { x = { l: t.l }; var k = cleanItemKey(t.key); if (k) x.key = k; } }
+            else if (typeof t.l === 'string' && FIELD_ID.test(t.l)) { if (!kinds || kinds[t.l] === 'item-list') { x = { l: t.l }; var k = cleanItemKey(t.key); if (k) x.key = k; var rl = cutText(t.roll, LIMITS.label); if (rl) x.roll = rl; } }   // 1.6.0: roll, one list roll by its label
             if (!x) return; var sk = JSON.stringify(x).toLowerCase(); if (seen[sk]) return; seen[sk] = 1; to.push(x);
         });
         if (to.length) outS.push({ name: nm, v: n, to: to });
@@ -4921,7 +4921,8 @@ function rollSwitchesAll(sys, char) {
     return outA;
 }
 // The switches that offer themselves to one roll: ref { f } a field's own roll, { r } a system roll, { l, row } a roll on that row of that list
-// (a target with a key only where the row's entry has that key). all: rollSwitchesAll's answer, else worked out here
+// (a target with a key only where the row's entry has that key; one with a roll only where ref.i is that list's roll of that label, read in the
+// view handed in, so a player's index reads their own list). all: rollSwitchesAll's answer, else worked out here
 function rollSwitches(sys, char, ref, all) {
     if (!isObj(ref)) return []; var A = Array.isArray(all) ? all : rollSwitchesAll(sys, char), rk = null;
     if (typeof ref.l === 'string') { if (typeof ref.row !== 'string' || !isObj(char) || !isObj(char.values) || !hasOwn(char.values, ref.l) || !Array.isArray(char.values[ref.l])) return []; var rw = null; char.values[ref.l].forEach(function(r) { if (isObj(r) && r.id === ref.row) rw = r; }); if (!rw) return []; var rdk = rowDef(sys, rw); rk = rdk && isObj(rdk.def) && typeof rdk.def.key === 'string' ? lower(rdk.def.key) : ''; }
@@ -4929,9 +4930,15 @@ function rollSwitches(sys, char, ref, all) {
         if (!isObj(t)) return false;
         if (typeof ref.f === 'string') return t.f === ref.f;
         if (typeof ref.r === 'string') return t.r === ref.r;
-        if (typeof ref.l === 'string') return t.l === ref.l && (typeof t.key !== 'string' || (!!rk && lower(t.key) === rk));
+        if (typeof ref.l === 'string') return t.l === ref.l && (typeof t.key !== 'string' || (!!rk && lower(t.key) === rk)) && (typeof t.roll !== 'string' || swRollIs(sys, ref, t.roll));
         return false;
     }); });
+}
+// 1.6.0: whether ref.i is the list roll of that label (trimmed, any case) on ref.l's own list in this view; no index, no roll there: no
+function swRollIs(sys, ref, label) {
+    if (!isObj(ref) || typeof ref.i !== 'number' || !isObj(sys) || !Array.isArray(sys.fields)) return false; var lr = null;
+    sys.fields.forEach(function(f) { if (!lr && isObj(f) && f.id === ref.l && f.kind === 'item-list' && isObj(f.list) && Array.isArray(f.list.rolls)) lr = f.list.rolls[ref.i] || null; });
+    return isObj(lr) && typeof lr.label === 'string' && lower(lr.label.trim()) === lower(String(label).trim());
 }
 // The one judge of what a roller ticked (the host's, on every roll that names its switches): each pick { s, i } a switch that offers itself to
 // that roll now, once. { ok, v: their sum, names: [{ n, v, gm? }] } or { ok: false }

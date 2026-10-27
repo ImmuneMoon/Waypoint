@@ -6129,7 +6129,7 @@ function swTargets() {
     var o = [], nm = function(x) { return x.label || x.key || x.id; };
     (draft.fields || []).forEach(function(f) { if (f && typeof f.id === 'string' && f.roll) o.push(['f|' + f.id, 'The roll of ' + nm(f)]); });
     (draft.rolls || []).forEach(function(r) { if (r && typeof r.id === 'string' && !Array.isArray(r.apply) && typeof r.formula === 'string') o.push(['r|' + r.id, 'Roll: ' + (r.label || r.id)]); });
-    (draft.fields || []).forEach(function(f) { if (f && typeof f.id === 'string' && f.kind === 'item-list' && f.list && Array.isArray(f.list.rolls) && f.list.rolls.some(function(r) { return r && !Array.isArray(r.apply); })) o.push(['l|' + f.id, 'Any roll on ' + nm(f)]); });
+    (draft.fields || []).forEach(function(f) { if (f && typeof f.id === 'string' && f.kind === 'item-list' && f.list && Array.isArray(f.list.rolls) && f.list.rolls.some(function(r) { return r && !Array.isArray(r.apply); })) o.push(['l|' + f.id, 'Rolls on ' + nm(f)]); });
     return o;
 }
 function swToVal(t) { return t && typeof t === 'object' ? (typeof t.f === 'string' ? 'f|' + t.f : typeof t.r === 'string' ? 'r|' + t.r : typeof t.l === 'string' ? 'l|' + t.l : '') : ''; }
@@ -6147,6 +6147,7 @@ function swBox(h) {
             if (v && !op.some(function(o) { return o[0] === v; })) op.unshift([v, '(a roll that is gone)']);
             tw.appendChild(select('sys-sw-tosel', op, v, 'A roll it offers itself to'));
             if (t && typeof t.l === 'string') tw.appendChild(input('sys-sw-key field', typeof t.key === 'string' ? t.key : '', 'Only on rows of the entry with this key. Blank: on every row of the list', 'Entry key (optional)'));
+            if (t && typeof t.l === 'string') { var swR = swRollOpts(t.l, t.roll); tw.appendChild(select('sys-sw-roll', swR.o, swR.v, 'Only this roll of the list, such as its Attack and not its Damage. Any roll: every roll on its rows')); }   // 1.6.0
             tw.appendChild(btnRow([['swtodel', 'Take this roll off', '&times;']]));
             ln.appendChild(tw);
         });
@@ -6158,11 +6159,20 @@ function swBox(h) {
     if (sws.length < LIMITS.rollSw) { var add = el('button', 'tool ghost sys-btn', '+ Roll bonus'); add.dataset.act = 'swadd'; add.title = tg.length ? 'A bonus a roller may add to some rolls, ticked in the roll\u2019s \u00b1 window' : 'Give a field a roll, or add a roll, first'; if (!tg.length) add.disabled = true; box.appendChild(add); }
     return box;
 }
+// 1.6.0: a list target's one roll, by label: Any roll, then each roll of the list that has a label; a label no roll has now kept and said
+function swRollOpts(lid, cur) {
+    var f = (draft.fields || []).filter(function(x) { return x && x.id === lid; })[0], rs = f && f.list && Array.isArray(f.list.rolls) ? f.list.rolls : [], o = [['', 'Any roll']], v = '';
+    rs.forEach(function(r) { if (r && !Array.isArray(r.apply) && typeof r.label === 'string' && r.label.trim() && !o.some(function(x) { return x[0].toLowerCase() === r.label.trim().toLowerCase(); })) o.push([r.label.trim(), r.label.trim()]); });
+    if (typeof cur === 'string' && cur.trim()) { var hit = o.filter(function(x) { return x[0] && x[0].toLowerCase() === cur.trim().toLowerCase(); })[0]; if (hit) v = hit[0]; else { o.push([cur, cur + ' (no roll of that name now)']); v = cur; } }
+    return { o: o, v: v };
+}
 function swSays(s) {   // what Save does with one roll bonus: '' where it keeps it whole
     if (!s || typeof s !== 'object') return '';
     if (!(typeof s.name === 'string' && s.name.trim())) return 'Save drops it: it needs a name.';
     var n = typeof s.v === 'number' && isFinite(s.v) ? Math.round(s.v) : 0; if (!n || n < -99 || n > 99) return 'Save drops it: how much it helps must be a whole number from 1 to 99, or from \u22121 to \u221299.';
     if (!cleanRollSw([s])) return 'Save drops it: it needs a roll it offers itself to.';
+    var gone = (Array.isArray(s.to) ? s.to : []).filter(function(t) { return t && typeof t.l === 'string' && typeof t.roll === 'string' && t.roll.trim() && swRollOpts(t.l, t.roll).o.some(function(x) { return / \(no roll of that name now\)$/.test(x[1]); }); })[0];   // 1.6.0
+    if (gone) return 'It is kept, but no roll of that list is named ' + gone.roll.trim() + ' now, so it offers itself to none there.';
     return '';
 }
 function swHolder(t) { return fxOfRow(t) || itemOfRow(t); }
@@ -6177,6 +6187,10 @@ function onSwInput(t) {
     markDirty(); swSaysAt(t, L.s); return true;
 }
 function onSwChange(t) {
+    if (/(^| )sys-sw-roll( |$)/.test(t.className || '')) {   // 1.6.0: one roll of the list, or any
+        var LR = swLine(t, swHolder(t)), twR = t.closest ? t.closest('.sys-sw-to') : null, tR = LR && twR && Array.isArray(LR.s.to) ? LR.s.to[+twR.dataset.ti] : null; if (!tR || typeof tR !== 'object') return true;
+        if (t.value) tR.roll = String(t.value).slice(0, LIMITS.label); else delete tR.roll; markDirty(); swSaysAt(t, LR.s); return true;
+    }
     if (!/(^| )sys-sw-tosel( |$)/.test(t.className || '')) return false;
     var L = swLine(t, swHolder(t)), tw = t.closest ? t.closest('.sys-sw-to') : null, nt = swToOf(t.value); if (!L || !tw || !nt || !Array.isArray(L.s.to)) return true;
     L.s.to[+tw.dataset.ti] = nt; markDirty(); renderAll(); return true;

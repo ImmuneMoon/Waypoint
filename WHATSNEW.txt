@@ -71,6 +71,10 @@ System editor
 - A roll or an action that runs when a value crosses can read CrossStep,
   the step it runs for, and Crossed, how many steps the change passed.
   The System editor warns where its own changes move the value it watches.
+- A row's own values show a set of places as one button a place, in place
+  of a number to type.
+- A roll bonus for a list can name one of its rolls, so a bonus to Attack
+  is not offered on the same weapon's Damage.
 - An item or an effect can offer roll bonuses, each a tick in a roll's
   ± window. The ± shows gold where one applies, the table checks each one,
   and the card names what was added.

@@ -446,6 +446,7 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
   function renderWhiteboard() {
       if (window.wpRenderPartyStrip) window.wpRenderPartyStrip();
       if (window.wpRenderCombatStrip) window.wpRenderCombatStrip();
+      if (window.wpEnvTool && window.wpEnvTool.draw) window.wpEnvTool.draw();   // 1.6.0: the Environment tool's layer, while it is in hand
       if (window.wpFogRedraw) window.wpFogRedraw();   // keep the fog overlay live whenever a fog map is on screen (any tool, during drags)
 
       var activeMap = getActiveMap();
@@ -2247,7 +2248,7 @@ window.wpFitToGrid = fitToGrid;
   // [lookcheck:press-start]
   // 107, the presses (the owner, 2026-10-06, of a tool that has options: "Chevron opens them"): the icon only takes the tool, and the small arrow
   // beside it opens the tool's options, which stay up while they are wanted. Options belong to the tool in hand: another tool taken puts them away.
-  var TOOL_OPTS = { drawModeBtn: 'drawMenu', eraserModeBtn: 'eraserMenu', fillModeBtn: 'fillMenu', measureModeBtn: 'measureMenu', blastModeBtn: 'blastMenu', buildModeBtn: 'buildMenu' };   // a tool that has options, and the menu that holds them
+  var TOOL_OPTS = { drawModeBtn: 'drawMenu', eraserModeBtn: 'eraserMenu', fillModeBtn: 'fillMenu', measureModeBtn: 'measureMenu', blastModeBtn: 'blastMenu', buildModeBtn: 'buildMenu', envModeBtn: 'envMenu' };   // a tool that has options, and the menu that holds them (1.6.0: the Environment tool)
   // What a press does. part: 'icon', or 'chev' for the small arrow. inHand: the tool is the one in hand. open: its options are up. back: they are
   // up, their bar stood back under the floating boxes when the press began and a window that shows covered them (barBehind), and only true says so.
   // It answers what becomes of the tool ('take' it, put it 'away' for the arrow, or '' leave it) and of its options ('open', 'close', 'front' to
@@ -2325,7 +2326,7 @@ window.wpFitToGrid = fitToGrid;
   wireMenuArrows();
   // [lookcheck:press-end]
   function updateWbToolbar(activeId) {
-      ['moveModeBtn', 'panModeBtn', 'drawModeBtn', 'eraserModeBtn', 'measureModeBtn', 'blastModeBtn', 'fogModeBtn', 'fillModeBtn', 'buildModeBtn'].forEach(id => {
+      ['moveModeBtn', 'panModeBtn', 'drawModeBtn', 'eraserModeBtn', 'measureModeBtn', 'blastModeBtn', 'fogModeBtn', 'fillModeBtn', 'buildModeBtn', 'envModeBtn'].forEach(id => {
           var el = document.getElementById(id);
           if (el) el.classList.remove('active');
       });
@@ -2336,10 +2337,12 @@ window.wpFitToGrid = fitToGrid;
       window.isFogMode = (activeId === 'fogModeBtn');   // fog paints on the board; other modes clear it
       window.isFillMode = (activeId === 'fillModeBtn');   // fill paints cells; other modes clear it
       window.isBuildMode = (activeId === 'buildModeBtn');   // Build lays pieces; other modes clear it
+      window.isEnvMode = (activeId === 'envModeBtn');   // 1.6.0: the Environment tool paints a map's readings; other modes clear it
+      if (window.wpEnvTool && window.wpEnvTool.draw) window.wpEnvTool.draw();   // its layer shows while it is in hand alone
       if (activeId !== 'buildModeBtn' && typeof buildDown === 'function') buildDown(activeId);   // another tool taken puts down what Build armed (its placement, its pen preset, a polygon under way)
       if (activeId !== 'eraserModeBtn' && window.wpEraserCursorHide) window.wpEraserCursorHide();
       // Per-tool cursors (style.css `body.mode-*`): the class beats every item's own cursor
-      ['mode-move', 'mode-pan', 'mode-draw', 'mode-eraser', 'mode-measure', 'mode-blast', 'mode-fog', 'mode-fill', 'mode-build'].forEach(function(c) { document.body.classList.remove(c); });
+      ['mode-move', 'mode-pan', 'mode-draw', 'mode-eraser', 'mode-measure', 'mode-blast', 'mode-fog', 'mode-fill', 'mode-build', 'mode-env'].forEach(function(c) { document.body.classList.remove(c); });
       document.body.classList.add('mode-' + String(activeId || 'moveModeBtn').replace('ModeBtn', ''));
       toolOptsOnly(activeId);   // 107: a tool's options belong to the tool in hand
       disarmThrow();   // a tool taken puts an armed sheet Throw down (the owed review, 2026-10-09)
@@ -4829,7 +4832,7 @@ window.wpFitToGrid = fitToGrid;
   // the tool in hand away, back to Select (the owner, 2026-10-17, by prompt: "Close the options first (Recommended)": the first Escape closes
   // a tool's options and the tool stays in hand, and the next puts the tool away). Never from a field, whose key it is; Build is Build's own
   // (buildKey, which drops a polygon under way first), and a placement is the placement's (disarmPlacement)
-  var ESC_TOOLS = ['drawModeBtn', 'eraserModeBtn', 'fillModeBtn', 'measureModeBtn', 'blastModeBtn', 'fogModeBtn', 'panModeBtn'];
+  var ESC_TOOLS = ['drawModeBtn', 'eraserModeBtn', 'fillModeBtn', 'measureModeBtn', 'blastModeBtn', 'fogModeBtn', 'panModeBtn', 'envModeBtn'];
   document.addEventListener('keydown', function(e) {
       if (e.key !== 'Escape' || (window.wpEsc && !window.wpEsc.free(e))) return;
       if (_armedThrow || _fxArm) { _armedThrow = null; _fxArm = null; document.body.classList.remove('placing'); window.isMeasureMode = false; window.wpMeasureKind = 'ruler'; var mvE = document.getElementById('moveModeBtn'); if (mvE) mvE.click(); return; }
@@ -4883,6 +4886,22 @@ window.wpFitToGrid = fitToGrid;
       wbWrap.addEventListener('contextmenu', function(e) { if (window.isFogMode) e.preventDefault(); });
       document.addEventListener('pointerup', function() { if (_fogPaintBtn >= 0) { hostGestureEnd(); if (window.wpFog && window.wpFog.strokeEnd) window.wpFog.strokeEnd(); } _fogPaintBtn = -1; });   // fold M6: the stroke is over (a dragged box is painted now)
       document.addEventListener('pointercancel', function() { if (_fogPaintBtn >= 0) { hostGestureEnd(); if (window.wpFog && window.wpFog.strokeEnd) window.wpFog.strokeEnd(true); } _fogPaintBtn = -1; });   // taken away by the system: a box half dragged paints nothing
+  }
+  // 1.6.0, the map environment's tool (docs/MAP_ENVIRONMENT_PLAN.md 11 and 14; envtool.js): the GM's, on the machine that owns the campaign.
+  // A press, a drag and the release hand the board's points to the tool, as the fog brush's are; datamap.js keeps the board's own drag away
+  wireTool({ id: 'envModeBtn', chev: 'envOptBtn', inHand: function() { return !!window.isEnvMode; }, sync: function() { if (window.wpEnvTool) window.wpEnvTool.sync(); }, take: function() {
+      if (!window.wpEnvTool || !window.wpEnvTool.may()) return;
+      window.isDrawingMode = false; window.isEraserMode = false; window.isMeasureMode = false; window.isFogMode = false;
+      if (wbWrap) wbWrap.style.cursor = 'crosshair';
+      updateWbToolbar('envModeBtn'); closeDrawMenu();
+      state.selWbId = null; state.selWbIds = []; render();
+  } });
+  if (wbWrap) {
+      var _envBtn = -1, _envBoard = function(e) { var box = wbWrap.getBoundingClientRect(); return { x: (e.clientX - box.left + wbWrap.scrollLeft) / state.zoomLevel, y: (e.clientY - box.top + wbWrap.scrollTop) / state.zoomLevel }; };
+      wbWrap.addEventListener('pointerdown', function(e) { if (!window.isEnvMode || e.button !== 0 || !window.wpEnvTool) return; var pt = _envBoard(e); _envBtn = 0; window.wpEnvTool.strokeStart(pt.x, pt.y); e.preventDefault(); });
+      wbWrap.addEventListener('pointermove', function(e) { if (!window.isEnvMode || _envBtn < 0 || !window.wpEnvTool) return; var pt = _envBoard(e); window.wpEnvTool.strokeMove(pt.x, pt.y); });
+      document.addEventListener('pointerup', function() { if (_envBtn >= 0 && window.wpEnvTool) window.wpEnvTool.strokeEnd(); _envBtn = -1; });
+      document.addEventListener('pointercancel', function() { if (_envBtn >= 0 && window.wpEnvTool) window.wpEnvTool.strokeEnd(true); _envBtn = -1; });
   }
   // Fill bucket (1.5.0, GM): click or drag grid cells to drop a cell-sized colored shape (hexagon on hex maps,
   // square on square maps) seated in the cell at layer 'back' (below tokens); right-click a cell clears its fill.

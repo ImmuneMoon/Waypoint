@@ -78,7 +78,12 @@ System editor
 - Environment readings: a system can name readings a map gives its
   characters, such as a temperature. The table writes each into a number
   field where the character's token stands, so effects and time rules can
-  follow it. The tool to set them on a map comes next.
+  follow it.
+- The Environment tool, beside the fog's, paints those readings onto a
+  map's cells: a brush 1, 3 or 5 cells wide, a dragged box or a piece's
+  outline. Erase gives cells back to the map's own value, set in the same
+  options. The painted cells show only to you, and only while the tool is
+  in hand.
 - An item or an effect can offer roll bonuses, each a tick in a roll's
   ± window. The ± shows gold where one applies, the table checks each one,
   and the card names what was added.

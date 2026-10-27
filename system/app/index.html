@@ -60,6 +60,7 @@
 <script type="module" src="scripts/envtool.js"></script>
 <script type="module" src="scripts/linkgate.js"></script>
 <script type="module" src="scripts/handouts.js"></script>
+<script type="module" src="scripts/scene.js"></script>
 <script type="module" src="scripts/handbook.js"></script>
 <script type="module" src="scripts/docpanel.js"></script>
 <script type="module" src="scripts/popout.js"></script>
@@ -129,6 +130,7 @@
       <button class="pill hot" id="pausedPill" hidden title="The table is paused. Press to resume it."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg><span class="pill-txt">Paused</span></button>
       <button class="pill on" id="roundPill" hidden title="A fight is on this map. Opens the turn order."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v14H5zM9 9h.01M15 9h.01M12 12h.01M9 15h.01M15 15h.01"/></svg><span class="pill-txt"></span></button>
       <button class="pill on" id="viewPill" hidden title="The fog is drawn as a player sees it. Press to end the preview."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12c2.5-4.5 6-7 10-7s7.5 2.5 10 7c-2.5 4.5-6 7-10 7s-7.5-2.5-10-7zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/></svg><span class="pill-txt"></span></button>
+      <button class="pill on" id="scenePill" hidden title="A scene is showing. Press to show it again or close it for everyone."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9.5h14v10H5zM5 17l4-3.5 3 2.5 2-1.5 5 3.5M12 2.5v3.5M7 4l1.5 2.5M17 4l-1.5 2.5"/></svg><span class="pill-txt"></span></button>
       <button class="pill hot" id="trialPill" hidden title="A trial run is on. Press to end it."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M17.6 2.8v4.2h-4.2"/></svg><span class="pill-txt"></span></button>
     </div>
     <div class="header-group">
@@ -1314,6 +1316,16 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li>You can also attach a handout to a room, in the room's Properties. A player whose token enters that room then sees it.</li>
                                   <li>Everything you show lands in that player's own Journal, on their machine, with their notes.</li>
                                   <li>A web address in a handout's text or caption is a link wherever it is read. In <b>Preview</b> it opens for you directly. On a player's screen the click asks them first and shows where it leads. A page a player shares with you asks you the same way.</li>
+                              </ul>
+                          </li>
+                          <li><b>Scenes:</b> <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9.5h14v10H5zM5 17l4-3.5 3 2.5 2-1.5 5 3.5M12 2.5v3.5M7 4l1.5 2.5M17 4l-1.5 2.5"/></svg> <b>Show as a scene…</b> puts a picture big on your players' screens, with no need to place it on the map or bring anyone to it. It is a handout shown in a larger window.
+                              <ul>
+                                  <li>Right-click a picture or a token on the map, or a picture in the Image Library. A picture handout and a planner's picture block have the button too.</li>
+                                  <li>Give it a title and a caption, and pick Everyone or some players. You must be hosting a table, and only the picture is sent.</li>
+                                  <li><b>Keep it in their Journals</b> is on at first. Untick it and the scene leaves nothing behind on their machines.</li>
+                                  <li>Each player closes it when they like. Tick <b>Stays up until I close it</b> to keep it on every screen until you close it.</li>
+                                  <li>While it is up, the <b>Scene</b> pill in the top row opens <b>Show it again</b> and <b>Close for everyone</b>. A new scene takes the place of the one that is up.</li>
+                                  <li>A scene always opens on screen, whatever a player set for handouts. The stream window does not show it.</li>
                               </ul>
                           </li>
                           <li><b>Party strip:</b> the small tokens in the play map's top-right corner are your players' characters. One is highlighted when it is on the map you are viewing, and dimmed when that player is not connected.
@@ -3110,6 +3122,26 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     </div>
   </div>
 
+<!-- A scene (backlog 181): a picture shown big to the table. scene.js -->
+<div id="sceneModal" class="gen-modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="sceneHead">
+    <div class="gen-box scene-box">
+        <h3 id="sceneHead" class="scene-head"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9.5h14v10H5zM5 17l4-3.5 3 2.5 2-1.5 5 3.5M12 2.5v3.5M7 4l1.5 2.5M17 4l-1.5 2.5"/></svg><span>Show a scene</span><button type="button" id="sceneCloseBtn" class="tool ghost modal-close" title="Close" aria-label="Close"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3 L13 13 M13 3 L3 13"/></svg></button></h3>
+        <div id="sceneNow" class="scene-now" hidden>
+            <div class="scene-now-txt"><b id="sceneNowTitle"></b><span id="sceneNowWho" class="gen-line"></span></div>
+            <div class="gen-foot"><button type="button" class="tool ghost" id="sceneAgain" title="Show the scene that is up again, to the same players. One who closed it sees it again.">Show it again</button><button type="button" class="tool" id="sceneEnd" title="Close the scene on every player&rsquo;s screen.">Close for everyone</button></div>
+        </div>
+        <div id="sceneForm">
+            <div class="scene-pic"><img id="scenePic" alt=""><span id="sceneFile" class="gen-line"></span></div>
+            <div class="gen-row"><span class="gen-name">Title</span><input type="text" id="sceneTitleIn" maxlength="120" placeholder="What the players see above it"></div>
+            <div class="gen-row"><span class="gen-name">Caption</span><textarea id="sceneCapIn" rows="2" maxlength="4000" placeholder="Optional. A line read under the picture."></textarea></div>
+            <div class="gen-row"><span class="gen-name" id="sceneWhoName">Show to</span><span class="gen-seg" id="sceneWhoSeg" role="group" aria-labelledby="sceneWhoName"></span></div>
+            <div class="gen-row"><span class="gen-name"></span><label class="gen-tick" title="Each player keeps it in their Journal, where they can look at it again and add notes."><input type="checkbox" id="sceneKeep" checked> Keep it in their Journals</label></div>
+            <div class="gen-row"><span class="gen-name"></span><label class="gen-tick" title="Players cannot close it. It stays up until you press Close for everyone."><input type="checkbox" id="sceneHold"> Stays up until I close it</label></div>
+            <div class="gen-line" id="sceneSays" aria-live="polite"></div>
+            <div class="gen-foot"><button type="button" class="tool ghost" id="sceneCancel">Cancel</button><button type="button" class="tool" id="sceneGo">Show</button></div>
+        </div>
+    </div>
+</div>
 <div id="shotModal" class="gen-modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="shotTitle">
     <div class="gen-box">
         <h3 id="shotTitle">Save map as picture</h3>
@@ -3843,6 +3875,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                 <div id="imgLibPreviewName" class="ilp-name"></div>
                 <div id="imgLibPreviewMeta" class="ilp-meta"></div>
                 <button class="tool" id="imgLibPreviewAdd">Add to map</button>
+                <button class="tool ghost" id="imgLibPreviewScene" title="Show this picture big to everyone or to some players, without putting it on the map"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9.5h14v10H5zM5 17l4-3.5 3 2.5 2-1.5 5 3.5M12 2.5v3.5M7 4l1.5 2.5M17 4l-1.5 2.5"/></svg> Show as a scene&hellip;</button>
                 <button class="tool ghost" id="imgLibPreviewCat" title="Tag this picture with a category (it can be in several)">Add to category&hellip;</button>
                 <button class="tool ghost danger" id="imgLibPreviewDel" title="Delete this picture file from your saves folder (asks first, and says where it is used)">Delete picture</button>
                 <button class="tool ghost" id="imgLibPreviewBack">&larr; Back to the library</button>

@@ -45,7 +45,7 @@ var ESC_WINDOWS = [['helpModal', 'helpCloseBtn'], ['settingsModal', 'settingsClo
     ['vttNoticeModal', 'vttNoticeKeepBtn'], ['vttPushModal', 'vttPushCancelBtn'], ['soundLibModal', 'soundLibClose'], ['systemModal', 'sysClose', 1], ['libraryModal', 'libClose', 1],
     ['calendarModal', 'calendarClose'], ['journalModal', 'journalCloseBtn'], ['combatModal', 'combatCloseBtn'], ['castModal', 'castCloseBtn'],
     ['handoutModal', 'handoutCloseBtn'], ['handoutsModal', 'handoutsCloseBtn'], ['installerModal', 'installerCloseBtn'], ['sessionLogModal', 'sessionLogClose'],
-    ['uploadModal', 'uploadClose'], ['docReaderModal', 'docReaderClose'], ['docImportModal', 'docImportCancel'], ['cmdkModal', ''], ['tradeModal', 'tradeCloseBtn'], ['priceModal', 'priceCloseBtn']];
+    ['uploadModal', 'uploadClose'], ['docReaderModal', 'docReaderClose'], ['docImportModal', 'docImportCancel'], ['cmdkModal', ''], ['tradeModal', 'tradeCloseBtn'], ['priceModal', 'priceCloseBtn'], ['sceneModal', 'sceneCloseBtn']];
 var ESC_BOXES = ['sheetPanel', 'fxPanel', 'videoPanel', 'docPanel', 'dicePanel'];   // floating boxes that answer Escape when the focus is in them (a HUD too)
 // Table Chat, the table notepad, Sound and Music: closed on Escape as a window is, while the focus is in one of them or it is the box last
 // used (the owner, 2026-10-17, by prompt: "Yes, when on top (Recommended)"). One whose module is not there to close it keeps its fields' keys

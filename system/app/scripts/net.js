@@ -5625,10 +5625,19 @@ function relayShare(msg, conn, sender) {
     if (names.length) logEvent('share', (sp.name || 'A player') + ' shared "' + (out.title || 'a note') + '" with ' + names.join(', '));
 }
 // [netcheck:share-end]
-net.revealHandout = function(hid, pids) {
+// [netcheck:scenekeys-start]
+// Backlog 181: a scene is a picture handout shown big. o: { scene, hold, keep }, each read only as true (keep only as false): a scene's keys
+// on the message, which a player's app reads the same way (handouts.js sceneIn). Nothing for a text handout, and none at all without o.scene
+function sceneKeys(o, kind) {
+    if (!o || typeof o !== 'object' || o.scene !== true || kind === 'text') return null;
+    var k = { scene: true }; if (o.hold === true) k.hold = true; if (o.keep === false) k.nokeep = true; return k;
+}
+// [netcheck:scenekeys-end]
+net.revealHandout = function(hid, pids, o) {
     if (!net.active || net.role !== 'host') { toast('Host a session first.'); return; }
     var camp = getActiveCampaign(); var h = camp && camp.handouts && camp.handouts[hid];
     if (!h || !window.wpHandoutPayload) return;
+    var sk = sceneKeys(o, h.kind);
     var targets = net.conns.filter(function(c) { var p = net.roster[c.peer]; return c.open && p && (!pids || pids.indexOf(p.id) >= 0); });
     if (!targets.length) { toast('Nobody to show it to right now.'); return; }
     window.wpHandoutPayload(h).then(function(pl) {
@@ -5636,7 +5645,8 @@ net.revealHandout = function(hid, pids) {
             var p = net.roster[c.peer];
             try { c.send(pl.kind === 'text'
                 ? { type: 'handout', kind: 'text', campId: camp.id, gmId: getProfile().id, campaign: camp.name || '', gm: getProfile().name || 'GM', id: h.id, title: h.title || '', caption: h.caption || '', text: pl.text, tags: (h.tags || []).slice(0, 8) }
-                : { type: 'handout', campId: camp.id, gmId: getProfile().id, campaign: camp.name || '', gm: getProfile().name || 'GM', id: h.id, title: h.title || '', caption: h.caption || '', mime: pl.mime, data: pl.data, tags: (h.tags || []).slice(0, 8) }); } catch (e) { sendFailed(e, 'handout'); return; }   // refused: not recorded as shown
+                : Object.assign({ type: 'handout', campId: camp.id, gmId: getProfile().id, campaign: camp.name || '', gm: getProfile().name || 'GM', id: h.id, title: h.title || '', caption: h.caption || '', mime: pl.mime, data: pl.data, tags: (h.tags || []).slice(0, 8) }, sk || {})); } catch (e) { sendFailed(e, 'handout'); return; }   // refused: not recorded as shown
+            if (sk && sk.nokeep) return;   // a scene kept out of the Journals is no reveal: nothing comes back to them on a reconnect
             camp.handoutReveals = camp.handoutReveals || {};
             camp.handoutReveals[p.id] = camp.handoutReveals[p.id] || {};
             camp.handoutReveals[p.id][h.id] = Date.now();
@@ -5644,9 +5654,23 @@ net.revealHandout = function(hid, pids) {
         });
         net.applyingRemote = true; save(true); net.applyingRemote = false;
         document.dispatchEvent(new CustomEvent('wp-handout-revealed'));
-        toast('"' + (h.title || 'Handout') + '" shown to ' + targets.map(function(c) { return net.roster[c.peer].name || 'a player'; }).join(', ') + '.');
-        logEvent('handout', '"' + (h.title || 'Handout') + '" shown to ' + targets.map(function(c) { return net.roster[c.peer].name || 'a player'; }).join(', '));
+        toast('"' + (h.title || 'Handout') + '" shown' + (sk ? ' as a scene' : '') + ' to ' + targets.map(function(c) { return net.roster[c.peer].name || 'a player'; }).join(', ') + '.');
+        logEvent('handout', '"' + (h.title || 'Handout') + '" shown' + (sk ? ' as a scene' : '') + ' to ' + targets.map(function(c) { return net.roster[c.peer].name || 'a player'; }).join(', '));
+        if (sk && typeof window.wpStepLog === 'function') window.wpStepLog('scene v1', 'shown', { to: targets.length, hold: !!sk.hold, kept: !sk.nokeep });
     }).catch(function() { toast('Could not prepare that picture.'); });
+};
+// Backlog 181: the GM's Close for everyone. Every connected player of the audience (all with pids null) is told the scene's id; a player's app
+// puts it away where it shows it (handouts.js sceneClosed). Answers how many were told
+net.sceneClose = function(hid, pids) {
+    if (!net.active || net.role !== 'host' || typeof hid !== 'string' || !hid) return 0;
+    var camp = getActiveCampaign(); if (!camp) return 0;
+    var n = 0;
+    net.conns.forEach(function(c) {
+        var p = net.roster[c.peer]; if (!c.open || !p || (pids && pids.indexOf(p.id) < 0)) return;
+        try { c.send({ type: 'scene-close', campId: camp.id, gmId: getProfile().id, id: hid }); n++; } catch (e) { sendFailed(e, 'scene'); }
+    });
+    if (typeof window.wpStepLog === 'function') window.wpStepLog('scene v1', 'closed', { to: n });
+    return n;
 };
 // Everything already revealed to this player, sent again (their journal keeps one copy per handout)
 function sendMissedHandouts(conn, prof) {
@@ -6863,6 +6887,14 @@ function handleMessage(msg, conn) {
         if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId || msg.gmId !== net.gmId) return;
         if (window.wpJournalReceive) window.wpJournalReceive(msg);
         // [netcheck:handoutmsg-end]
+    } else if (msg.type === 'scene-close' && net.role === 'client') {
+        // [netcheck:sceneclose-start]
+        // backlog 181: the GM closed a scene for everyone. Gated as a handout is: the synced host only, after its snapshot, never the stream window,
+        // and only for the table played. The id is all it names, and the Journal's viewer cleans it before it compares
+        if (!net.foreign || conn.peer !== net.syncedPeer || net.stream || !net.gmId) return;
+        if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId || msg.gmId !== net.gmId) return;
+        if (typeof msg.id === 'string' && msg.id.length <= 80 && window.wpSceneClosed) window.wpSceneClosed(msg.id);
+        // [netcheck:sceneclose-end]
     } else if (msg.type === 'notepad' && net.role === 'client') {
         // [netcheck:notepadmsg-start]
         if (!net.foreign || conn.peer !== net.syncedPeer || net.stream) return;   // the synced host only, after its snapshot; never the stream window

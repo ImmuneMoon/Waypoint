@@ -355,6 +355,14 @@ function plateInk(bg) {
     return lum < 128 ? '#f2f2f7' : '#1f1d24';
 }
 // [sinkcheck:resolveimg-start]
+// Backlog 181: the picture a piece of the map would show as a scene: a picture's own, or a character token's, as the app's own path
+// (picRef: never a web address); a character's portrait where its token wears none. '' for anything else
+function sceneSrcOf(w) {
+    if (!w || typeof w !== 'object' || w.type !== 'image' || w.waiting) return '';
+    if (typeof w.src === 'string' && picRef(w.src) && !/^(data:|blob:)/.test(w.src)) return w.src;
+    var camp = w.isChar && w.charId ? getActiveCampaign() : null, ch = camp && camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, w.charId) ? camp.chars[w.charId] : null;
+    return ch && typeof ch.portrait === 'string' && picRef(ch.portrait) && !/^(data:|blob:)/.test(ch.portrait) ? ch.portrait : '';
+}
 function resolveImg(src) {
     var out = (window.wpNet && window.wpNet.assetSrc) ? window.wpNet.assetSrc(src) : src;
     return out === src ? picRef(src) : out;   // unchanged (the GM, solo or hosting; a bundled asset): the app's own pictures only — a web address from a file never loads
@@ -5748,7 +5756,8 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       var from = (_imgLibCat && _imgLibCat !== '__none' && _imgLibCat !== '__bymap') ? _imgLibCat : '';
       var others = catList().filter(function(c) { return mine.indexOf(c.name) < 0; });
       var opt = function(act) { return others.map(function(c) { return '<button class="wb-tool-btn party-menu-item" data-act="' + act + '" data-cat="' + esc(c.name) + '">' + esc(c.name) + (c.store === 'shared' ? ' \u25C7' : '') + '</button>'; }).join(''); };
-      var html = '<div class="party-menu-head">' + (many ? 'Add ' + src.length + ' pictures to' : 'Add to category') + '</div>'
+      var html = (!many && window.wpScene ? '<button class="wb-tool-btn party-menu-item" data-act="scene" title="Show this picture big to everyone or to some players">Show as a scene\u2026</button>' : '')   // backlog 181
+          + '<div class="party-menu-head">' + (many ? 'Add ' + src.length + ' pictures to' : 'Add to category') + '</div>'
           + opt('add')
           + '<button class="wb-tool-btn party-menu-item" data-act="new-add">+ New category\u2026</button>';
       if (from && (many || mine.indexOf(from) >= 0)) {
@@ -5904,6 +5913,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
           e.stopPropagation();
           var src = menu.dataset.multi ? Object.keys(_imgLibSel) : menu.dataset.src, act = b.dataset.act, cat = b.dataset.cat || ''; hideImgCatMenu();
           if (menu.dataset.multi && !src.length) return;
+          if (act === 'scene') { if (!menu.dataset.multi && window.wpScene) window.wpScene.open(src); return; }   // backlog 181
           if (act === 'new-add' || act === 'new-move') { imgCatNew(function(name) { imgCatChange(src, act === 'new-move' ? 'move' : 'add', name); }); return; }
           if (act === 'add' || act === 'move' || act === 'remove') imgCatChange(src, act, cat);
       });
@@ -6153,6 +6163,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       else { add.textContent = _imgLibPick ? 'Use this picture' : (castBatch() > 1 ? 'Add \u00d7' + castBatch() + ' to map' : 'Add to map'); add.title = _imgLibPick ? 'Use this picture where you asked for one' : 'Place it on the current play map (the number in Copies)'; }
       if (catBtn) catBtn.style.display = _imgLibPicker ? 'none' : '';
       if (delBtn) delBtn.style.display = _imgLibPicker ? 'none' : '';
+      var scBtn = document.getElementById('imgLibPreviewScene'); if (scBtn) scBtn.style.display = _imgLibPicker || !window.wpScene ? 'none' : '';   // backlog 181
       pv.dataset.src = src; delete pv.dataset.cid;   // leaving cast mode: the Add button reads src, not a stale cid
       grid.style.display = 'none'; pv.style.display = 'flex';
       // arrows step through the pictures in the order the grid shows them
@@ -6205,6 +6216,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       var catBtn = document.getElementById('imgLibPreviewCat'), delBtn = document.getElementById('imgLibPreviewDel');
       if (catBtn) catBtn.style.display = 'none';
       if (delBtn) delBtn.style.display = 'none';
+      var scBtnC = document.getElementById('imgLibPreviewScene'); if (scBtnC) scBtnC.style.display = 'none';   // a cast face is no picture of the campaign's to show
       var prevB = document.getElementById('imgLibPrevBtn'), nextB = document.getElementById('imgLibNextBtn'), cnt = document.getElementById('imgLibPreviewCount');
       if (prevB) prevB.disabled = true;
       if (nextB) nextB.disabled = true;
@@ -6214,6 +6226,8 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
   (function wireImgPreview() {
       var pv = document.getElementById('imgLibPreview'); if (!pv) return;
       document.getElementById('imgLibPreviewBack').addEventListener('click', closeImgPreview);
+      var scB = document.getElementById('imgLibPreviewScene');   // backlog 181: this picture as a scene, the library left as it is under the box
+      if (scB) scB.addEventListener('click', function() { var src = pv.dataset.src; if (src && !pv.dataset.cid && window.wpScene) window.wpScene.open(src); });
       // Delete the picture file itself (saves/images only; the shell must have /api/delete-image — 1.4.6 core)
       var delB = document.getElementById('imgLibPreviewDel');
       if (delB) delB.addEventListener('click', function() {
@@ -9425,7 +9439,8 @@ document.addEventListener('contextmenu', function(e) {
             if (isWb && firstItem && firstItem.charId && window.wpSheets && window.wpSheets.hudFor && window.wpSheets.hudFor(firstItem.charId)) html += '<div class="menu-item cm-hud">&#12336; HUD&hellip;</div>';   // HUD frame (HF2b)
             }
             if (isWb && firstItem && selectedIds.length === 1 && window.wpSheets && window.wpSheets.tokenFxModel && window.wpSheets.tokenFxModel(firstItem)) html += '<div class="menu-item cm-effects">&#10022; Effects&hellip;</div>';   // conditions C2
-            if (isWb && firstItem && firstItem.isChar && !firstItem.waiting && firstItem.type === 'image' && firstItem.src && window.wpFrame && window.wpSheets && window.wpSheets.applyTokenFrame) html += '<div class="menu-item cm-frame-pic">&#128444;&#65039; Frame picture&hellip;</div>';   // the token creator: the selected tokens (a character's change together)
+            if (isWb && firstItem && firstItem.isChar && !firstItem.waiting && firstItem.type === 'image' && firstItem.src && window.wpFrame && window.wpSheets && window.wpSheets.applyTokenFrame) html += '<div class="menu-item cm-frame-pic">&#128444;&#65039; Frame picture&hellip;</div>';
+            if (isWb && selectedIds.length === 1 && sceneSrcOf(firstItem) && window.wpScene) html += '<div class="menu-item cm-scene-show" title="Show this picture big to everyone or to some players, without moving anyone">' + '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9.5h14v10H5zM5 17l4-3.5 3 2.5 2-1.5 5 3.5M12 2.5v3.5M7 4l1.5 2.5M17 4l-1.5 2.5"/></svg>' + 'Show as a scene&hellip;</div>';   // backlog 181   // the token creator: the selected tokens (a character's change together)
             var gmLit = isWb ? gmLightToggle(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); })) : null;   // lighting L5: the selected lights, switched together
             if (gmLit) html += '<div class="menu-item cm-light">&#128161; ' + (gmLit.anyOn ? 'Light off' : 'Light on') + '</div>';
             if (isWb && firstItem && firstItem.isChar && firstItem.ownerId && window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.isConnected && window.wpNet.isConnected(firstItem.ownerId)) {
@@ -9571,6 +9586,11 @@ document.addEventListener('contextmenu', function(e) {
                 } else if (action.includes('cm-pulse')) {
                     var itPu = am.whiteboard.find(function(x) { return x.id === selectedIds[0]; });
                     if (itPu && window.wpFx) window.wpFx.play({ kind: 'pulse', mapId: am.id, tok: itPu.id });
+                    return;
+                } else if (action.includes('cm-scene-show')) {   // backlog 181: a scene of this picture
+                    cMenu.style.display = 'none';
+                    var itSc = am.whiteboard.find(function(x) { return x.id === selectedIds[0]; }), scSrc = sceneSrcOf(itSc);
+                    if (scSrc && window.wpScene) window.wpScene.open(scSrc, { title: itSc.isChar && typeof itSc.name === 'string' ? itSc.name : '' });
                     return;
                 } else if (action.includes('cm-frame-pic')) {   // the token creator, the GM's side
                     cMenu.style.display = 'none';

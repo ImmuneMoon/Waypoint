@@ -93,6 +93,9 @@ jobs:
       - name: campsafecheck — restore points, a trial run and a test copy, the pure core and the flows on stand-ins
         if: ${{ !cancelled() }}
         run: node tools/campsafecheck.js
+      - name: scenecheck — a picture shown big to the table, the GM box, the player window, the wire and the pill
+        if: ${{ !cancelled() }}
+        run: node tools/scenecheck.js
       - name: voicecheck — voice chat's pure core, the host's hub and a player's link on stub connections
         if: ${{ !cancelled() }}
         run: node tools/voicecheck.js

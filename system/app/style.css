@@ -1556,6 +1556,25 @@
   #genMap { flex: 1 1 auto; min-width: 0; }
   #genSeedNew { padding: 3px 10px; margin: 0; }
   .gen-line { font-size: 11px; color: var(--dim); line-height: 1.4; margin: 4px 0; }
+  /* a scene (backlog 181): the GM's box, and the handout window a scene opens in, bigger */
+  .scene-box { width: 460px; }
+  .scene-head { display: flex; align-items: center; gap: 8px; }
+  .scene-head > span { flex: 1; }
+  .scene-head .ico { width: 18px; height: 18px; }
+  .scene-now { border: 1px solid var(--gold); border-radius: 6px; padding: 8px 10px; margin: 0 0 12px; }
+  .scene-now[hidden], #sceneForm[hidden] { display: none; }
+  .scene-now-txt { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+  .scene-pic { display: flex; flex-direction: column; align-items: center; gap: 4px; margin: 0 0 8px; }
+  .scene-pic img { max-width: 100%; max-height: 180px; object-fit: contain; border-radius: 5px; background: #000; }
+  #sceneTitleIn, #sceneCapIn { flex: 1 1 auto; min-width: 0; }
+  #sceneCapIn { background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 4px; padding: 4px 6px; font: inherit; font-size: 12px; resize: vertical; outline: none; }
+  #sceneCapIn:focus { border-color: var(--gold); }
+  #sceneWhoSeg { flex-wrap: wrap; }
+  #sceneSays { min-height: 15px; }
+  #handoutModal.handout-scene #handoutImg { width: min(86vw, 1100px); max-width: 94vw; max-height: 74vh; }   /* a small picture, as a token's is, is drawn up to the window too: object-fit keeps its shape */
+  #handoutModal.handout-scene #handoutTitle { font-size: 1.35em; }
+  #handoutCloseBtn[hidden] { display: none; }
+  #contextMenu .menu-item .ico { pointer-events: none; margin-right: 4px; }   /* the menu reads the class of what was pressed: never the drawing's */
   #genCount { color: var(--ink); min-height: 16px; }
   /* the city's dialog (fold B6) is the same box with ids of its own: its seed, its new map's name, its list of maps and its count sized alike */
   #citySeed { width: 130px; font-family: ui-monospace, Consolas, monospace; }

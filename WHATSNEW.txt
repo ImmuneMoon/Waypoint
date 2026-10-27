@@ -6,6 +6,18 @@ Campaigns
   with a New map button. Before, the last campaign's map stayed on
   screen. Any campaign with no map shows this screen.
 
+Scenes
+- Show as a scene... puts a picture big on your players' screens, with no
+  need to place it on the map or bring anyone to it. Find it on the
+  right-click menu of a picture or a token on the map, in the Image
+  Library, on a picture handout and on a planner's picture block.
+- Pick Everyone or some players, and give it a title and a caption. It
+  opens in a larger handout window and is kept in their Journals, unless
+  you untick that.
+- Each player closes it when they like, or tick Stays up until I close
+  it. While it is up, a Scene pill in the top row has Show it again and
+  Close for everyone.
+
 Postures
 - Postures are now your system's own. A system with no list of its own
   has posture switched off: tokens have no posture chip or menu, and

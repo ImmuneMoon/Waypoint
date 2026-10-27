@@ -265,10 +265,25 @@ function handoutBudget(msg) {
     if (_hoCount >= 1000 || _hoBytes + n > 500 * 1024 * 1024) { if (!_hoSaid) { _hoSaid = true; toast('The GM is sending more handouts than this session can hold — the rest are skipped.'); } return false; }
     _hoCount++; _hoBytes += n; return true;
 }
+// [scenecheck:in-start]
+// Backlog 181 (the owner, 2026-10-27, by prompt: a scene shows "A window", each player closes it, the GM may keep it up until they close it, and
+// a tick keeps it in the Journals). A scene is a picture handout the GM shows big: it opens whatever the player's own setting for handouts says.
+// Only the GM's own picture handout is one (never a text, a page a player shared or a reconnect's quiet replay), each key only as true.
+function sceneIn(msg) {
+    var sc = !!msg && typeof msg === 'object' && msg.scene === true && msg.kind !== 'text' && !msg.sharedBy && msg.replay !== true;
+    return { scene: sc, hold: sc && msg.hold === true, keep: !(sc && msg.nokeep === true) };
+}
+// Which scene waits to be shown: a close from the GM may land while its picture is still being saved, and then it never comes up
+var _sceneSeq = 0, _sceneWait = Object.create(null);
+function sceneBegin(id) { _sceneSeq++; _sceneWait[id] = _sceneSeq; return _sceneSeq; }
+function sceneLive(id, g) { return _sceneWait[id] === g; }
+function sceneEnd(id) { delete _sceneWait[id]; }
+// [scenecheck:in-end]
 async function receiveHandout(msg) {
     var campId = journalKey(msg), id = safeId(msg.id);
     if (!campId || !id) return;
     if (!handoutBudget(msg)) return;
+    var sc = sceneIn(msg), sg = sc.scene ? sceneBegin(id) : 0;
     await journalDisk();
     if (msg.kind === 'text') return receiveTextHandout(msg, campId, id);
     if (!(msg.data && msg.data.byteLength !== undefined)) return;
@@ -277,6 +292,11 @@ async function receiveHandout(msg) {
     var kind = picKind(bytes); if (!kind) return;   // bytes that are no picture are not stored under a picture's name, whatever the sender calls them
     var mime = kind.mime, ext = kind.ext;
     var title = String(msg.title || 'Handout').slice(0, 120), caption = String(msg.caption || '').slice(0, 4000);
+    if (sc.scene && !sc.keep) {   // a scene the GM keeps out of the Journals: shown from this machine's memory alone, nothing written
+        if (!sceneLive(id, sg)) return;
+        sceneShow({ title: title, caption: caption, src: sceneBlob(bytes, mime), scene: true, hold: sc.hold, sceneId: id, from: cameFrom(msg) });
+        return;
+    }
     if (!journalRoom(campId, bytes.length, title.length + caption.length + 1024)) { journalFull(); return; }
     var hash = hashBytes(bytes);
     var existing, added = false, failed = false, src, shownId = id, stale = [];
@@ -325,6 +345,7 @@ async function receiveHandout(msg) {
     await registerJournal(campId);
     if (msg.replay && !added) return;   // already in the journal, unchanged: refreshed, no fanfare
     badge(unseen + 1);
+    if (sc.scene) { if (sceneLive(id, sg)) sceneShow({ title: title, caption: caption, src: src, fresh: true, entry: { campId: campId, id: shownId }, from: cameFrom(msg), scene: true, hold: sc.hold, sceneId: id }); return; }
     if (handoutPopup()) showHandout({ title: title, caption: caption, src: src, fresh: true, entry: { campId: campId, id: shownId }, from: cameFrom(msg) });
     else toast((msg.sharedBy ? msg.sharedBy + ' shared' : 'New handout') + ': "' + (title || 'Handout') + '" — in your Journal.');
 }
@@ -389,6 +410,7 @@ function viewerFrom(m, from) {
 function showHandout(h) {
     var m = ui('handoutModal'); if (!m) return;
     viewerFrom(m, h.from);
+    if (typeof sceneLook === 'function') sceneLook(m, h);   // backlog 181: a scene is this window, bigger
     var linked = !window.wpStream;
     ui('handoutTitle').textContent = h.title || 'Handout';
     var im = ui('handoutImg'), tx = ui('handoutText');
@@ -402,7 +424,7 @@ function showHandout(h) {
     var cp = ui('handoutCaption');
     if (linked) fillLinked(cp, h.caption || '', document); else cp.textContent = h.caption || '';
     cp.style.display = h.caption ? 'block' : 'none';
-    ui('handoutFresh').style.display = h.fresh ? 'flex' : 'none';
+    ui('handoutFresh').style.display = h.fresh && !h.hold ? 'flex' : 'none';   // Add notes closes the window: a scene held up keeps it
     var nw = ui('handoutNotesWrap'), nt = ui('handoutNotes');
     viewerEntry = h.entry || null;
     if (nw && nt) {
@@ -438,7 +460,42 @@ if (_hNotes) {
 var _hJournal = ui('handoutOpenJournalBtn');
 if (_hJournal) _hJournal.addEventListener('click', function() { ui('handoutModal').style.display = 'none'; openJournal(); });
 var _hClose = ui('handoutCloseBtn');
-if (_hClose) _hClose.addEventListener('click', function() { ui('handoutModal').style.display = 'none'; });
+if (_hClose) _hClose.addEventListener('click', function() { var m = ui('handoutModal'); if (m.dataset.hold === '1') return; viewerShut(m); });
+// [scenecheck:look-start]
+// A scene wears the class handout-scene (a bigger picture) and names its own id. One the GM holds up has no close and takes no Escape: it
+// goes by the GM's Close for everyone, or when this app is no longer at that GM's table. Any other handout opened after it is drawn as before
+var _sceneUrl = '';
+function sceneLook(m, h) {
+    var sc = !!h && h.scene === true, hold = sc && h.hold === true;
+    m.classList.toggle('handout-scene', sc);
+    m.dataset.scene = sc && typeof h.sceneId === 'string' ? h.sceneId : '';
+    m.dataset.hold = hold ? '1' : '';
+    var x = typeof document !== 'undefined' ? document.getElementById('handoutCloseBtn') : null; if (x) x.hidden = hold;
+    if (_sceneUrl && (!h || h.src !== _sceneUrl)) { try { URL.revokeObjectURL(_sceneUrl); } catch (e) {} _sceneUrl = ''; }   // the memory of a scene that was not kept, once another picture takes its place
+}
+function sceneBlob(bytes, mime) { try { _sceneUrl = URL.createObjectURL(new Blob([bytes], { type: mime })); } catch (e) { _sceneUrl = ''; } return _sceneUrl; }
+function viewerShut(m) { m.style.display = 'none'; sceneLook(m, null); }
+// The GM closed a scene for everyone: it is put away where it shows, and never comes up where its picture is still on its way
+function sceneClosed(id) {
+    var sid = safeId(id); if (!sid) return false;
+    sceneEnd(sid);
+    var m = ui('handoutModal'); if (!m || m.style.display === 'none' || m.dataset.scene !== sid) return false;
+    viewerShut(m); return true;
+}
+function sceneShow(h) { logStep('show', { hold: !!h.hold, kept: !!h.entry }); showHandout(h); sceneWatch(); }
+// A scene held up goes with the table: once this app is no longer at the GM's table, it closes
+var _sceneTimer = null;
+function sceneWatch() {
+    if (_sceneTimer) return;
+    _sceneTimer = setInterval(function() {
+        var m = ui('handoutModal'), n = window.wpNet;
+        if (!m || m.style.display === 'none' || m.dataset.hold !== '1') { clearInterval(_sceneTimer); _sceneTimer = null; return; }
+        if (!(n && n.active && n.foreign)) { viewerShut(m); clearInterval(_sceneTimer); _sceneTimer = null; }
+    }, 2000);
+}
+function logStep(step, o) { try { if (typeof window !== 'undefined' && typeof window.wpStepLog === 'function') window.wpStepLog('scene v1', step, o); } catch (e) {} }   // steplog.js: the step and its facts, nothing of the picture or its words
+// [scenecheck:look-end]
+window.wpSceneClosed = sceneClosed;
 
 /* ---------- the Journal window ---------- */
 // [sinkcheck:journal-start]
@@ -1147,6 +1204,7 @@ function renderHandouts() {
             '<label class="handout-auto" title="Every player receives this the next time they connect (once each), without you pressing anything"><input type="checkbox" class="handout-auto-box"' + (h.autoOnJoin ? ' checked' : '') + '> Give to every player when they join</label>' +
             '<div class="handout-actions">' +
             '<button class="tool" data-act="table" title="Show it to everyone connected right now">Show to table</button>' +
+            (h.kind === 'text' ? '' : '<button class="tool" data-act="scene" title="Show it big to everyone or to some players, and close it for everyone when you are done">Show as a scene</button>') +
             (givePlayers.length ? '<select class="handout-give" title="Give this handout to one player, or to the whole table. A connected player gets it now; anyone else the next time they join.">' + giveOpts + '</select><button class="tool handout-give-btn" data-act="give" disabled title="Give the handout to the chosen recipient">Give</button>' : '') +
             '<button class="tool ghost" data-act="preview">Preview</button>' +
             '<button class="tool ghost danger" data-act="delete" title="Remove this handout (players keep what they were already shown)">Delete</button>' +
@@ -1154,6 +1212,19 @@ function renderHandouts() {
     }).join('');
 }
 window.wpRenderHandouts = renderHandouts;
+// Backlog 181: the handout a scene is saved as. The handout named, else this campaign's picture handout of that very picture, else a new one.
+// Its title and caption are the ones typed for the scene. Answers its id, or '' where there is no campaign or no picture
+window.wpHandoutFor = function(src, title, caption, hid) {
+    var camp = getActiveCampaign(), p = picRef(src); if (!camp || !p) return '';
+    var hs = handoutsOf(camp), h = typeof hid === 'string' && Object.prototype.hasOwnProperty.call(hs, hid) && hs[hid].kind !== 'text' ? hs[hid] : null;
+    if (!h) h = Object.keys(hs).map(function(k) { return hs[k]; }).find(function(x) { return x && x.kind !== 'text' && x.src === src; }) || null;
+    if (!h) { var id = 'h' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); h = hs[id] = { id: id, title: '', caption: '', src: src, createdAt: Date.now() }; }
+    h.title = String(title || '').slice(0, 120) || niceName(src).slice(0, 120); h.caption = String(caption || '').slice(0, 4000);
+    save(true);
+    if (ui('handoutsModal') && ui('handoutsModal').style.display === 'flex') renderHandouts();
+    return h.id;
+};
+window.wpHandoutName = function(src) { return niceName(src); };
 var _hTagRow = ui('handoutTagRow');
 if (_hTagRow) _hTagRow.addEventListener('click', function(e) {
     var b = e.target.closest && e.target.closest('[data-tag]'); if (!b) return;
@@ -1262,6 +1333,7 @@ if (_hList) {
         if (thumb || (b && b.dataset.act === 'preview')) { showHandout({ title: h.title, caption: h.caption, src: h.kind === 'text' ? null : h.src, text: h.kind === 'text' ? h.text : '', from: atSomeonesTable() ? null : { own: true } }); return; }   // your own handout: its links open directly
         if (!b) return;
         if (b.dataset.act === 'table') { net.revealHandout(h.id, null); }
+        else if (b.dataset.act === 'scene') { if (window.wpScene && h.kind !== 'text') window.wpScene.open(h.src, { title: h.title, caption: h.caption, hid: h.id }); }
         else if (b.dataset.act === 'give') {
             var selG = row.querySelector('.handout-give'); var val = selG && selG.value; if (!val) return;
             if (val === '*') {                       // the whole table: now (if connected) and to each as they join

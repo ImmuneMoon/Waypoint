@@ -1474,7 +1474,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
           } else if (b.type === 'image') {
               html += '<div class="b-img-row"><div class="b-img-thumb">' + (picRef(b.src) ? '<img src="' + esc(picRef(b.src)) + '" alt="">' : '<span>No picture yet</span>') + '</div>'
-                    + '<div class="b-img-ctl"><div class="fc-opts"><button class="tool ghost b-img-pick" data-idx="' + idx + '" title="Pick a picture already in this campaign">Choose from library…</button>'
+                    + '<div class="b-img-ctl"><div class="fc-opts">' + (picRef(b.src) && window.wpScene ? '<button class="tool ghost b-img-scene" data-idx="' + idx + '" title="Show this picture big to everyone or to some players at your table">Show as a scene…</button>' : '') + '<button class="tool ghost b-img-pick" data-idx="' + idx + '" title="Pick a picture already in this campaign">Choose from library…</button>'
                     + '<label class="tool ghost b-img-uplabel" title="Upload a picture from your computer">Upload…<input type="file" accept="image/*" class="b-img-upload" data-idx="' + idx + '" style="display:none;"></label>'
                     + (isDocEd ? '' : '<label>Width <select class="b-imgw" data-idx="' + idx + '">' + [25, 33, 50, 66, 75, 100].map(function(w) { return '<option value="' + w + '"' + ((b.width || 100) === w ? ' selected' : '') + '>' + w + '%</option>'; }).join('') + '</select></label>'
                     + '<label>Align <select class="b-imga" data-idx="' + idx + '">' + [['left', 'Left'], ['center', 'Centre'], ['right', 'Right']].map(function(o) { return '<option value="' + o[0] + '"' + ((b.align || 'center') === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></label>') + '</div>'
@@ -1604,6 +1604,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       // Attach listeners
 
+      Array.from(blockContainer.querySelectorAll('.b-img-scene')).forEach(el => el.addEventListener('click', function() {   // backlog 181: this picture as a scene
+          var bk = activeMap.blocks[+this.dataset.idx]; if (bk && picRef(bk.src) && window.wpScene) window.wpScene.open(bk.src, { caption: typeof bk.caption === 'string' ? bk.caption : '' });
+      }));
       Array.from(blockContainer.querySelectorAll('.b-img-pick')).forEach(el => el.addEventListener('click', function() {
           var idx = +this.dataset.idx;
           if (!window.wpPickImage) { toast('The image library is not available here.'); return; }

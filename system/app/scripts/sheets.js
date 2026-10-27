@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast, toastAction } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { cleanDamageRules, rollSwitches, rollSwitchesAll, cleanRollSw, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, DEFAULT_POSTURES, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
+import { cleanDamageRules, rollSwitches, rollSwitchesAll, cleanRollSw, withCross, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, DEFAULT_POSTURES, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
 import { roundSays } from './systemcore.js';   // clarity package: how a value was rounded, for its tooltip
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
 import { lvlsFromBox, lvlsToText } from './librarycore.js';
@@ -413,14 +413,14 @@ function crossFollow(c, camp) {
         var now = crossValue(sys, c, r, vars), k = (camp.id || '') + '|' + c.id + '|' + r.id; if (now === null) return;
         var was = Object.prototype.hasOwnProperty.call(_crossSeen, k) ? _crossSeen[k] : null; _crossSeen[k] = now; if (was === null) return;
         var hit = crossings(r, was, now, vars, F()); if (!hit.length) return;
-        for (var i = 0; i < (r.cross.one ? 1 : hit.length); i++) runs.push({ r: r });
+        for (var i = 0; i < (r.cross.one ? 1 : hit.length); i++) runs.push({ r: r, cx: { step: r.cross.one ? hit[hit.length - 1] : hit[i], n: hit.length } });   // 1.6.0: CrossStep and Crossed
     });
     lrs.forEach(function(x) {   // 1.6.0: a row's counter, read and its steps worked out with that row's names; a row seen for the first time is only noted
         rowCrossRows(c, x).forEach(function(row) {
             var k = (camp.id || '') + '|' + c.id + '|' + x.f + '|' + row.id + '|' + x.i, g = rowCrossValue(vars, x, row.id); if (!g) return;
             var was = Object.prototype.hasOwnProperty.call(_crossSeen, k) ? _crossSeen[k] : null; _crossSeen[k] = g.v; if (was === null) return;
             var hit = crossings(x.r, was, g.v, g.rv, F()); if (!hit.length) return;
-            for (var j = 0; j < (x.r.cross.one ? 1 : hit.length); j++) runs.push({ r: x.r, at: { f: x.f, r: row.id, i: x.i } });
+            for (var j = 0; j < (x.r.cross.one ? 1 : hit.length); j++) runs.push({ r: x.r, at: { f: x.f, r: row.id, i: x.i }, cx: { step: x.r.cross.one ? hit[hit.length - 1] : hit[j], n: hit.length } });
         });
     });
     if (!runs.length) return 0;
@@ -431,11 +431,11 @@ function crossFollow(c, camp) {
     try {
         runs.forEach(function(x) {
             var r = x.r, lb = String(r.label || (Array.isArray(r.apply) ? 'Apply' : 'Roll')).split('{')[0].trim() || (Array.isArray(r.apply) ? 'Apply' : 'Roll');
-            if (x.at) { if (off) return; var cR = charById(c.id, camp); if (!cR) return; if (Array.isArray(r.apply)) applyAction(r, cR, lb, x.at); else if (window.wpDice && window.wpDice.rollFor) window.wpDice.rollFor(cR.id, r.formula, lb, { row: x.at }); return; }   // 1.6.0: on its row, as the GM's own press; an NPC whose rules are off runs nothing
+            if (x.at) { if (off) return; var cR = charById(c.id, camp); if (!cR) return; if (Array.isArray(r.apply)) applyAction(r, cR, lb, x.at, undefined, x.cx); else if (window.wpDice && window.wpDice.rollFor) window.wpDice.rollFor(cR.id, r.formula, lb, { row: x.at, cross: x.cx }); return; }   // 1.6.0: on its row, as the GM's own press; an NPC whose rules are off runs nothing
             if (r.cross.by || off) { if (n && n.postDue) n.postDue(c, r, 'cross', 1, !off && r.cross.by === 'owner' && r.vis !== 'gm'); return; }
             var cN = charById(c.id, camp); if (!cN) return;
-            if (Array.isArray(r.apply)) applyAction(r, cN, lb);
-            else if (window.wpDice && window.wpDice.rollFor) window.wpDice.rollFor(cN.id, r.formula, lb, r.vis === 'gm' ? { act: r.id, gmOnly: true } : { act: r.id });
+            if (Array.isArray(r.apply)) applyAction(r, cN, lb, undefined, undefined, x.cx);   // 1.6.0: with CrossStep and Crossed
+            else if (window.wpDice && window.wpDice.rollFor) window.wpDice.rollFor(cN.id, r.formula, lb, r.vis === 'gm' ? { act: r.id, gmOnly: true, cross: x.cx } : { act: r.id, cross: x.cx });
         });
     } finally { _crossDepth--; }
     return runs.length;
@@ -3895,7 +3895,7 @@ function applyNode(r, c, sys, vars) {
 // Stage 6 HUD H7: an apply action pressed — a player asks the host (the new values come back as its delta, the card as its record); the GM
 // works it out here with the saved system (the sheet's own resolver, token and round included), stores it as ONE change (one Revert brings
 // every value back) and posts the card to whoever may see it (applyScope); a card that would carry a GM-only value is kept private, with a toast
-function applyAction(r, c, label, row, on) {   // row (H7b): { f, r, i } — a list's action on one of the character's rows; on (1.5.9): the token of the adjacent character it is used on
+function applyAction(r, c, label, row, on, cx) {   // cx (1.6.0): a crossing's run, { step, n }, read as CrossStep and Crossed   // row (H7b): { f, r, i } — a list's action on one of the character's rows; on (1.5.9): the token of the adjacent character it is used on
     var n = net(), camp = getActiveCampaign(), sys = systemOf(camp); if (!camp || !sys || !F()) return;
     if (isClient()) { if (!n || !n.charApply) return; var q = row ? (on ? n.charApply(c.id, null, label, row, on) : n.charApply(c.id, null, label, row)) : on ? n.charApply(c.id, r.id, label, undefined, on) : n.charApply(c.id, r.id, label); if (q && q.error) toast(q.error); return; }
     if (!canWrite()) return;
@@ -3906,7 +3906,8 @@ function applyAction(r, c, label, row, on) {   // row (H7b): { f, r, i } — a l
     var onT = null, ftT = null;   // 1.5.9 (book es/et plan, section 3): the adjacent character it is used on, judged on this screen's own map (net.allyOn), a hidden token too
     if (on && act.to !== 'near') return;
     if (on) { ftT = facingTarget(c, camp); onT = n && typeof n.allyOn === 'function' ? n.allyOn(camp, ftT && ftT.map, ftT && ftT.tok, on) : null; if (!onT || onT.error) { toast(onT && onT.message ? onT.message : 'That cannot be used on them now.'); return; } }
-    var tc = tokenCtxFor(c.id, camp), vv = resolveAll(sys, c, F(), tc).vars;
+    var tc = tokenCtxFor(c.id, camp); if (cx && typeof withCross === 'function') tc = withCross(tc, cx);   // 1.6.0
+    var vv = resolveAll(sys, c, F(), tc).vars;
     if (row) { vv = vv && typeof vv.row === 'function' ? vv.row(row.f, row.r) : null; if (!vv) { toast('That row cannot be used now.'); return; } }   // H7b: the row's own names (Row.*)
     if (act.to === 'near' && typeof withOnSelf === 'function') vv = withOnSelf(vv, !onT, onT ? makeResolver(sys, onT.ch, F(), n && typeof n.allyCtx === 'function' ? n.allyCtx(ftT.map, onT.tok) : null) : null);   // 1.6.0: and On.<name>, the one it is used on   // 1.5.9: OnSelf, 1 on its user and 0 on another
     var res = applyAct(sys, c, act, vv, F(), tc, row ? { f: row.f, r: row.r } : null, undefined, window.wpDiceCore || null, onT ? { char: onT.ch, tctx: n && typeof n.allyCtx === 'function' ? n.allyCtx(ftT.map, onT.tok) : null } : null, { now: Date.now(), inCombat: !!(n && n.charInCombat && n.charInCombat(c.id)), onInCombat: !!(onT && n && n.charInCombat && n.charInCombat(onT.ch.id)) });   // R2b: a list's action may move its row's counters; 1.5.9: this machine's dice roll a Rolled amount, and a field's change lands on the one it is used on
@@ -5495,6 +5496,7 @@ function refreshErrors() {
             if (Array.isArray(chr.cats) && chr.cats.length > LIMITS.listCats) errs.push({ message: 'Chambers from takes at most ' + LIMITS.listCats + ' categories. Save keeps the first ' + LIMITS.listCats + '.' });
             if (typeof chr.reach === 'string' && chr.reach.trim() && typeof cleanReach === 'function' && !cleanReach(chr.reach, F())) errs.push({ message: 'Flies at most does not read as a formula with no dice. Save drops it.' });   // 1.5.9 (es), as the cleaner reads it
         }
+        (Array.isArray(sp.rolls) ? sp.rolls : []).forEach(function(rr) { var xc = rr && rr.cross && typeof rr.cross === 'object' && typeof rr.cross.ct === 'string' ? rr.cross.ct.toLowerCase() : ''; if (xc && (Array.isArray(rr.apply) ? rr.apply : Array.isArray(rr.then) ? rr.then : []).some(function(ch) { return !!ch && typeof ch === 'object' && typeof ch.c === 'string' && ch.c.toLowerCase() === xc; })) (warningsById['list:' + f.id] = warningsById['list:' + f.id] || []).push({ message: 'When a value crosses: its own changes move the value it watches, so a run can set off another, at most 3 in a row.' }); });   // 1.6.0: a row's crossing that moves its own counter
         keptBy[f.id] = mine;
         if (errs.length) errorsById['list:' + f.id] = errs;
     });
@@ -5707,6 +5709,12 @@ function refreshErrors() {
             if (evK && !(evK.wait === true && fiK) && fcTexts.some(fcReads)) say(warningsById, evK.wait === true ? 'By the clock: CombatRound reads 0 when it runs by the clock. Only runs In a fight read the round.' : 'By the clock: CombatRound reads 0 when it runs by the clock, even in a fight. Only its runs In a fight read the round.');
         });
     }
+    // 1.6.0 (docs/BOOK_ES_ET_PLAN.md 4a, its Risks): a crossing whose own changes move the value it watches can set itself off again. Said, never
+    // dropped: the run's depth cap (crossFollow, 3) stops it
+    (Array.isArray(draft.rolls) ? draft.rolls : []).forEach(function(r) {
+        if (!r || typeof r !== 'object' || typeof r.id !== 'string' || !r.cross || typeof r.cross !== 'object' || typeof r.cross.f !== 'string' || !r.cross.f) return;
+        if ((Array.isArray(r.apply) ? r.apply : Array.isArray(r.then) ? r.then : []).some(function(ch) { return !!ch && typeof ch === 'object' && ch.f === r.cross.f; })) (warningsById[r.id] = Array.isArray(warningsById[r.id]) ? warningsById[r.id] : []).push({ message: 'When a value crosses: its own changes move the value it watches, so a run can set off another, at most 3 in a row.' });
+    });
     // senses S2a: what Save drops or leaves out of the senses, under the Combat card's Senses box — read as the cleaner reads (systemcore
     // cleanSenses): a name left once control characters go, a range field of a number, formula, skill or pool its owner can read, a finite number
     var snO = draft.combat && draft.combat.senses && typeof draft.combat.senses === 'object' ? draft.combat.senses : null, snE = snO && Array.isArray(snO.list) ? snO.list : null, sErr = [], sKept = 0;

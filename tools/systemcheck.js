@@ -12596,6 +12596,14 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         }
         const rU6 = runE(drU6), saidU6 = ['f_a', 'f_b', 'f_c', 'f_d'].map(id => [(rU6.e[id] || []).map(x => x.message), (rU6.w[id] || []).map(x => x.message)]).concat([(rU6.e['list:f_l'] || []).map(x => x.message)]);
         const keptU6 = S.cleanSystem(JSON.parse(j(drU6)), { F, gmView: true }).fields.map(f => f.list ? f.list.stats.map(s => [s.key, s.unit, s.unitShow, s.decMax]).concat(f.list.cols.map(c => [c.key, c.unit, c.unitShow, c.decMax])) : [f.id, f.unit, f.unitShow, f.decMin]);
+        {   // 1.6.0: a crossing whose own changes move the value it watches, said under it as a warning (refreshErrors run for real), never dropped
+            const xsD = (ch, lch) => ({ name: 'X', items: [], sheet: { sections: [] }, fields: [{ id: 'f_hp', key: 'HP', label: 'HP', kind: 'resource', maxFormula: '10' }, { id: 'f_n', key: 'N', label: 'N', kind: 'number' }, { id: 'f_l', key: 'L', label: 'L', kind: 'item-list', vis: 'all', list: { counters: [{ key: 'ch', label: 'Charge' }], rolls: [{ label: 'Drain', apply: [{ c: lch, formula: '1', add: true }], cross: { ct: 'ch', at: '0' } }] } }],
+                rolls: [{ id: 'r_x', label: 'Bleed', apply: [{ f: ch, formula: '-1', add: true }], cross: { f: 'f_hp', at: '0' } }, { id: 'r_y', label: 'Check', formula: '3d6', then: [{ f: ch, formula: '-1', add: true }], cross: { f: 'f_hp', at: '-HP.max' } }] });
+            const xsW = d => { const r = runE(d); return [(r.w.r_x || []).map(x => x.message), (r.w.r_y || []).map(x => x.message), (r.w['list:f_l'] || []).map(x => x.message)]; }, xsSelf = xsW(xsD('f_hp', 'CH')), xsOther = xsW(xsD('f_n', 'zz'));
+            const xsM = 'When a value crosses: its own changes move the value it watches, so a run can set off another, at most 3 in a row.', xsHas = a => a.indexOf(xsM) >= 0;
+            check('1.6.0 a crossing that sets itself off (docs/BOOK_ES_ET_PLAN.md 4a, its Risks; refreshErrors run for real): an action or a roll\'s Then that moves the very pool it watches, and a list\'s action that moves the very counter it watches, in any case, are each warned under their rule, and nothing is dropped; one that moves another value says nothing',
+                xsHas(xsSelf[0]) && xsHas(xsSelf[1]) && xsHas(xsSelf[2]) && !xsHas(xsOther[0]) && !xsHas(xsOther[1]) && !xsHas(xsOther[2]), JSON.stringify([xsSelf, xsOther]));
+        }
         check('the review of the forms fold, the System editor reads a unit as Save does (generality finding 6; refreshErrors run for real with systemcore unitOf in reach, the cleaner agreeing on each): a unit of lb and six spaces before more words, and one ending in a control character, are lb to Save, so Metric Instead and Bare beside them say nothing and are kept; a measure word cut so that it stands alone, feet, is said to show as written; a text field\'s unit that is not exactly height or weight is said to be dropped, as it is; a stat\'s and a column\'s most decimals beside no measure, past five or no number, each said as Save does it',
             j(saidU6) === j([[[], []], [[], []], [['A text field takes the unit height or weight alone, so Save drops “height”.'], []], [[], ['Its unit “feet” is shown as written in both settings. Write ft and Metric shows the figure in metric too.']], ['Stat "cr": decimals need a unit that is a measure, such as lb, so Save drops them.', 'Stat "up": decimals are whole numbers from 0 to 5, so Save keeps 5.', 'Column "C": decimals are whole numbers from 0 to 5, so Save keeps 2.', 'Column "D": the decimals are no number, so Save drops them.']])
             && j(keptU6) === j([['f_a', 'lb', 'swap', undefined], ['f_b', 'lb', 'bare', 1], ['f_c', undefined, undefined, undefined], ['f_d', 'feet', undefined, undefined], [['wt', 'lb', 'swap', 5], ['cr', 'cr', undefined, undefined], ['up', 'lb', undefined, 5], ['C', 'lb', 'swap', 2], ['D', 'lb', undefined, undefined]]]), j([saidU6, keptU6]));
@@ -14435,7 +14443,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const ixF = fs.readFileSync(path.join(app, 'index.html'), 'utf8').replace(/\r\n/g, '\n'), wnF = fs.readFileSync(path.join(app, '..', '..', 'WHATSNEW.txt'), 'utf8').replace(/\r\n/g, '\n'), wnF2 = fs.readFileSync(path.join(app, 'assets', 'whatsnew.txt'), 'utf8').replace(/\r\n/g, '\n');
         const dcF = fs.readFileSync(path.join(app, 'scripts', 'dice.js'), 'utf8').replace(/\r\n/g, '\n');
         check('1.5.9 (es) the Items tab\'s Fragmentation and its type are wired, the dice roller hands a roll\'s used word on to the host\'s roll as this machine\'s own, and Help and both release notes say it',
-            dcF.includes("used: opts.used === true ? true : undefined } : null;") && dcF.includes("blast: more ? more.blast : undefined, used: more && more.used === true ? true : undefined });")
+            dcF.includes("used: opts.used === true ? true : undefined, cross: opts.cross && typeof opts.cross === 'object' ? opts.cross : undefined } : null;") && dcF.includes("blast: more ? more.blast : undefined, used: more && more.used === true ? true : undefined, cross: more && more.cross ? more.cross : undefined });")
             && shF.includes("area.appendChild(input('sys-item-afrag field', typeof it.area.frag === 'string' ? it.area.frag : ''") && shF.includes("if (dtys.length) area.appendChild(select('sys-item-afragtype',")
             && shF.includes("else if (/(^| )sys-item-afrag( |$)/.test(ic)) { if (!it.area) return; if (t.value.trim()) it.area.frag = t.value.slice(0, LIMITS.formula); else { delete it.area.frag; delete it.area.fragType; } }")
             && shF.includes("if (c.indexOf('sys-item-afragtype') >= 0) { if (iit.area) { if (t.value) iit.area.fragType = t.value; else delete iit.area.fragType; } markDirty(); patchErrors(); return; }")
@@ -14843,7 +14851,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const w = mk(), seeded = w.api.crossSeed(), seededAgain = w.api.crossSeed();
         const r1 = w.hp(-12), r2 = w.hp(-25), r3 = w.hp(-5), r4 = w.hp(-15), r5 = w.hp(-30), r6 = w.hp(3);
         const runOk = seeded === 3 && seededAgain === 0 && J([r1, r2, r3, r4, r5, r6]) === J([1, 1, 0, 1, 2, 1])
-            && J(w.out.rolls) === J([['c_a', '3d6 <= 10', 'Death check', J({ act: 'r_dc' })], ['c_a', '3d6 <= 10', 'Death check', J({ act: 'r_dc' })], ['c_a', '3d6 <= 10', 'Death check', J({ act: 'r_dc' })], ['c_a', '3d6 <= 10', 'Death check', J({ act: 'r_dc' })], ['c_a', '1d6', 'Up', J({ act: 'r_up' })]])
+            && J(w.out.rolls) === J([['c_a', '3d6 <= 10', 'Death check', J({ act: 'r_dc', cross: { step: 1, n: 1 } })], ['c_a', '3d6 <= 10', 'Death check', J({ act: 'r_dc', cross: { step: 2, n: 1 } })], ['c_a', '3d6 <= 10', 'Death check', J({ act: 'r_dc', cross: { step: 1, n: 1 } })], ['c_a', '3d6 <= 10', 'Death check', J({ act: 'r_dc', cross: { step: 2, n: 1 } })], ['c_a', '1d6', 'Up', J({ act: 'r_up', cross: { step: 2, n: 2 } })]])   // 1.6.0: each run with its CrossStep and Crossed (moved on purpose)
             && J(w.out.dues) === J([['c_a', 'r_dead', 'cross', false]]) && w.out.applied.length === 0;
         const fresh = mk(), notSeen = fresh.hp(-12);   // the first look at a character only notes, so a load crosses nothing
         const offs = [mk({ client: true }), mk({ write: false })].map(x => { x.api.crossSeed(); return [x.hp(-12), x.out.rolls.length]; });
@@ -15218,15 +15226,15 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const rec = { applied: [], rolls: [] }, c = { id: 'c_a', name: 'Ana', values: { f_fp: 10, f_g: [{ id: 'w_1', defId: 'i_m', qty: 1, ct: { Days: 0 } }] } }, camp = { id: 'k', system: gX, chars: { c_a: c } };
             const api = new Function('isClient', 'canWrite', 'F', 'crossings', 'makeResolver', 'getActiveCampaign', 'fieldById', 'tokenCtxFor', 'charById', 'net', 'toast', 'applyAction', 'window', shX.slice(xa, xz) + '\nreturn { crossFollow: crossFollow, crossSeed: crossSeed };')(
                 () => false, () => true, () => F, S.crossings, S.makeResolver, () => camp, (s, id) => s.fields.filter(f => f.id === id)[0] || null, () => null, (id, k) => k.chars[id] || null, () => ({}), () => {},
-                (r, ch, lb, at) => rec.applied.push([lb, ch.id, J(at)]), { wpDice: { rollFor: (id, f, lb, op) => rec.rolls.push([id, f, lb, J(op)]) }, wpCalendar: { rulesRun: () => (o.off ? false : null) } });
+                (r, ch, lb, at, on, cx) => rec.applied.push([lb, ch.id, J(at), J(cx)]), { wpDice: { rollFor: (id, f, lb, op) => rec.rolls.push([id, f, lb, J(op)]) }, wpCalendar: { rulesRun: () => (o.off ? false : null) } });   // 1.6.0: and its CrossStep and Crossed
             return { rec, c, api, days: (v, rid) => { c.values.f_g.forEach(r => { if (r.id === (rid || 'w_1')) r.ct = { Days: v }; }); return api.crossFollow(c, camp); } };
         };
         const w = mk(), seeded = w.api.crossSeed(), r1 = w.days(2), r2 = w.days(2), r3 = w.days(4);
         w.c.values.f_g.push({ id: 'w_2', defId: 'i_m', qty: 1, ct: { Days: 3 } }); const r4 = w.api.crossFollow(w.c, { id: 'k', system: gX, chars: { c_a: w.c } }), r5 = w.days(4, 'w_2');
         const at1 = J({ f: 'f_g', r: 'w_1', i: 0 }), at2 = J({ f: 'f_g', r: 'w_2', i: 0 });
         const runOk = seeded === 2 && J([r1, r2, r3, r4, r5]) === J([3, 0, 2, 0, 1])
-            && J(w.rec.applied) === J([['Hunger', 'c_a', at1], ['Hunger', 'c_a', at1], ['Hunger', 'c_a', at1], ['Hunger', 'c_a', at1], ['Hunger', 'c_a', at2]])
-            && J(w.rec.rolls) === J([['c_a', '3d6', 'Check', J({ row: { f: 'f_g', r: 'w_1', i: 1 } })]]);
+            && J(w.rec.applied) === J([['Hunger', 'c_a', at1, J({ step: 1, n: 2 })], ['Hunger', 'c_a', at1, J({ step: 2, n: 2 })], ['Hunger', 'c_a', at1, J({ step: 3, n: 2 })], ['Hunger', 'c_a', at1, J({ step: 4, n: 2 })], ['Hunger', 'c_a', at2, J({ step: 4, n: 1 })]])
+            && J(w.rec.rolls) === J([['c_a', '3d6', 'Check', J({ row: { f: 'f_g', r: 'w_1', i: 1 }, cross: { step: 1, n: 1 } })]]);   // 1.6.0: each run with its CrossStep and Crossed (moved on purpose)
         const off = mk({ off: true }); off.api.crossSeed(); const rOff = off.days(3);
         const edOk = shX.includes('function listCrossRow(rr, ri, cts) {') && shX.includes("if (c.indexOf('sys-list-xsct') >= 0) { if (t.value) rr.cross = Object.assign({ dir: 'up', at: '1', step: '1', count: 20 }, cr || {}, { ct: t.value }); else delete rr.cross; return 'all'; }")
             && shX.includes("else if (lcc.indexOf('sys-list-xs') >= 0) {") && shX.includes("else if (c.indexOf('sys-list-xs') >= 0) {");
@@ -15371,6 +15379,22 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const gmOk = J(S.gmOnlyNames(sysG, [{ name: 'Sec.full' }, { name: 'Open.full' }])) === J(['Sec.full']);
         check('1.6.0 <Pool>.full (the campaign build\'s ask: a cost taken off current EP once, where the max was lowered by it too): the resolver reads 1 while a pool is full with nothing stored and 0 once a current is stored, even one exactly at its max, so a formula tells the two apart; a pool that starts at a number reads 0; the validator knows the name; .full is not a reserved ending, so a field keyed Stat.full is still a key and is read as itself; a GM-only pool\'s .full is a GM-only name',
             J(full) === J([1, 10, 10, 10, 0, 0, 3, 7]) && J(atMax) === J([0, 10, 2]) && J(part) === J([0, 4, 2]) && vOk && keyOk && gmOk, J([full, atMax, part, vOk, keyOk, gmOk]));
+    }
+    {   // 1.6.0: CrossStep and Crossed (docs/BOOK_ES_ET_PLAN.md 4a): a crossing's run reads the step it runs for and how many the change passed
+        const J = JSON.stringify;
+        const sysC = S.cleanSystem({ v: 1, name: 'C', fields: [{ id: 'f_hp', key: 'HP', label: 'HP', kind: 'resource', maxFormula: '10', def: 'max', min: -40 }, { id: 'f_n', key: 'N', label: 'N', kind: 'number', def: 0 }],
+            rolls: [{ id: 'r_dc', label: 'Death check', formula: '3d6 + CrossStep - Crossed', cross: { f: 'f_hp', at: '-HP.max', step: 'HP.max', count: 2 }, then: [{ f: 'f_n', formula: 'CrossStep * 10 + Crossed', set: true }] },
+                { id: 'r_a', label: 'A', apply: [{ f: 'f_n', formula: 'CrossStep', set: true }] }], sheet: { sections: [] } }, { F, gmView: true });
+        const ch = { id: 'c', values: {} }, v0 = S.makeResolver(sysC, ch, F, null), v1 = S.makeResolver(sysC, ch, F, S.withCross(null, { step: 2, n: 3 })), v2 = S.makeResolver(sysC, ch, F, S.withCross({ combat: { round: 4 } }, { step: 1.7, n: -2 }));
+        const rd = [v0('CrossStep'), v0('Crossed'), v1('CrossStep'), v1('Crossed'), v1('crossstep'), v2('CrossStep'), v2('Crossed'), v2('CombatRound')], ra = S.resolveAll(sysC, ch, F, S.withCross(null, { step: 3, n: 2 })).vars;   // found live: the whole sheet's resolver, which an action is worked out with, reads them too
+        rd.push(ra('CrossStep'), ra('Crossed'), S.resolveAll(sysC, ch, F, null).vars('CrossStep'));
+        const vr = S.validateSystem(sysC, F), errs = Array.isArray(vr) ? vr : (vr && Array.isArray(vr.errors) ? vr.errors : []);
+        const vOk = errs.some(e => e.id === 'r_a' && /"CrossStep" is known only in a roll or an action that runs When a value crosses\./.test(e.message)) && !errs.some(e => e.id === 'r_dc');
+        const sysK = S.cleanSystem({ v: 1, name: 'K', fields: [{ id: 'f_k', key: 'CrossStep', label: 'K', kind: 'number', def: 5 }], rolls: [], sheet: { sections: [] } }, { F, gmView: true });
+        const own = S.makeResolver(sysK, { id: 'c', values: {} }, F, S.withCross(null, { step: 2, n: 1 }))('CrossStep');
+        const tc0 = { facing: 1 }, same = S.withCross(tc0, 'x') === tc0 && S.withCross(tc0, null) === tc0 && J(S.withCross(tc0, { step: 2, n: 1 })) === J({ facing: 1, cross: { step: 2, n: 1 } }) && J(tc0) === J({ facing: 1 });
+        check('1.6.0 CrossStep and Crossed (docs/BOOK_ES_ET_PLAN.md 4a): a crossing\'s run reads the step it runs for and how many steps the change passed, laid on its token context by withCross (whole numbers 0 to 999, nothing else of the context changed, the context handed in left as it was); with no crossing both read 0, so a press or a reminder works the formula out; a field of the system\'s own named CrossStep keeps its name; the validator knows the two names in a rule that runs When a value crosses, its formula and its Then, and says they are known only there anywhere else',
+            J(rd) === J([0, 0, 2, 3, 2, 1, 0, 4, 3, 2, 0]) && vOk && own === 5 && same, J([rd, errs.map(e => [e.id, e.message]), own, same]));
     }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');

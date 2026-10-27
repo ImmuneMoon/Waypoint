@@ -68,6 +68,9 @@ System editor
 - A counter that counts up by the clock stops at its most.
 - A formula can tell a full pool from one stored at its max: HP.full is 1
   while nothing is stored, 0 once a current is.
+- A roll or an action that runs when a value crosses can read CrossStep,
+  the step it runs for, and Crossed, how many steps the change passed.
+  The System editor warns where its own changes move the value it watches.
 - An item or an effect can offer roll bonuses, each a tick in a roll's
   ± window. The ± shows gold where one applies, the table checks each one,
   and the card names what was added.

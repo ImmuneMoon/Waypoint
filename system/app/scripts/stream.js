@@ -133,10 +133,25 @@ if (on) {
             var svChan = new BroadcastChannel('waypoint');
             svChan.addEventListener('message', function(e) { var d = e.data; if (d && d.type === 'video-stage') streamVideoApply(d, svEl, svBox, svCap, window.wpVideoCore, svSoundOn()); });
             svChan.postMessage({ type: 'video-stage-query' });
+            var ssBox = document.getElementById('streamScene'), ssImg = document.getElementById('streamSceneImg'), ssT = document.getElementById('streamSceneTitle'), ssC = document.getElementById('streamSceneCap');
+            if (ssBox && ssImg && ssT && ssC) { svChan.addEventListener('message', function(e) { var d = e.data; if (d && d.type === 'scene-stage') streamSceneApply(d, ssBox, ssImg, ssT, ssC); }); svChan.postMessage({ type: 'scene-stage-query' }); }
             window.addEventListener('storage', function(e) { if (e.key === 'wp_streamSound') svEl.muted = !svSoundOn(); });
         } catch (e) {}
     }
 }
+// [scenecheck:stream-start]
+// Backlog 181: a scene shown to everyone, as the main window says it over BroadcastChannel (scene.js stagePost). Another window's data: the
+// picture only as a path of the campaign's own pictures, the title and the caption as text; anything else takes the scene down
+function streamSceneApply(d, box, img, ttl, cap) {
+    var sc = d && typeof d === 'object' && d.scene && typeof d.scene === 'object' ? d.scene : null;
+    var p = sc && typeof sc.src === 'string' && /^\/saves\/images\//.test(sc.src) && !/[\x00-\x1f\\]|\.\./.test(sc.src) && sc.src.length <= 400 ? sc.src : '';
+    if (!p) { box.style.display = 'none'; img.removeAttribute('src'); ttl.textContent = ''; cap.textContent = ''; return false; }
+    img.setAttribute('src', encodeURI(p));
+    ttl.textContent = typeof sc.title === 'string' ? sc.title.slice(0, 120) : '';
+    cap.textContent = typeof sc.caption === 'string' ? sc.caption.slice(0, 4000) : '';
+    box.style.display = ''; return true;
+}
+// [scenecheck:stream-end]
 // [videocheck:streamwatch-start]
 // What the stream window does with the main window's word on its stage: a video shown to players is played here from its own path (videoSrc:
 // an uploaded video's path, encoded, or nothing), at the GM's position when this window has drifted more than 1.5 s from it, playing or

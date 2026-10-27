@@ -16,7 +16,14 @@ Scenes
   you untick that.
 - Each player closes it when they like, or tick Stays up until I close
   it. While it is up, a Scene pill in the top row has Show it again and
-  Close for everyone.
+  Close for everyone, and says who has closed it.
+- A scene shown to everyone shows in the stream window too. Right-click a
+  picture in a planner or a page you are reading to show it as a scene.
+
+Systems
+- A system holds 80 rolls, up from 50. The System editor's + Roll now
+  greys out at the limit and says why, where before a roll past it was
+  dropped at Save.
 
 Postures
 - Postures are now your system's own. A system with no list of its own

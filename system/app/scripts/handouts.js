@@ -460,7 +460,7 @@ if (_hNotes) {
 var _hJournal = ui('handoutOpenJournalBtn');
 if (_hJournal) _hJournal.addEventListener('click', function() { ui('handoutModal').style.display = 'none'; openJournal(); });
 var _hClose = ui('handoutCloseBtn');
-if (_hClose) _hClose.addEventListener('click', function() { var m = ui('handoutModal'); if (m.dataset.hold === '1') return; viewerShut(m); });
+if (_hClose) _hClose.addEventListener('click', function() { var m = ui('handoutModal'); if (m.dataset.hold === '1') return; var sid = m.dataset.scene || ''; viewerShut(m); if (sid && window.wpNet && typeof window.wpNet.sceneShut === 'function') window.wpNet.sceneShut(sid); });   // backlog 181: the GM's pill says who closed it
 // [scenecheck:look-start]
 // A scene wears the class handout-scene (a bigger picture) and names its own id. One the GM holds up has no close and takes no Escape: it
 // goes by the GM's Close for everyone, or when this app is no longer at that GM's table. Any other handout opened after it is drawn as before

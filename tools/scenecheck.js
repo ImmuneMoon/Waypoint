@@ -84,7 +84,7 @@ const SPOT = 'M5 9.5h14v10H5zM5 17l4-3.5 3 2.5 2-1.5 5 3.5M12 2.5v3.5M7 4l1.5 2.
     check('the window (handouts.js sceneLook, sceneClosed and sceneShow, run for real on a page of plain objects): a scene wears handout-scene and names its id; one held up hides the close; the GM\'s close puts away the scene it names and no other, and lets the window be drawn as before; a close that lands while the picture is still on its way keeps it from ever coming up, as does a newer showing of the same scene; one not held keeps its close; another picture taking its place lets go of the memory a scene not kept was shown from; each scene shown is a line of the step log',
         !err && w === j([[false, true], ['flex', true, 'h1', '1', true], false, 'flex', true, ['none', false, '', '', false, false], false, false, ['', false], [false, '', ['blob:x1']], false, 2]), err || w);
     check('a scene held up takes no Escape and no press of the close (the close\'s own handler refuses while held, and Escape presses that button), Add notes is not offered on it, and it closes by itself once this app is no longer at the GM\'s table (pinned)',
-        hoJs.includes("if (_hClose) _hClose.addEventListener('click', function() { var m = ui('handoutModal'); if (m.dataset.hold === '1') return; viewerShut(m); });")
+        hoJs.includes("if (_hClose) _hClose.addEventListener('click', function() { var m = ui('handoutModal'); if (m.dataset.hold === '1') return; var sid = m.dataset.scene || ''; viewerShut(m); if (sid && window.wpNet && typeof window.wpNet.sceneShut === 'function') window.wpNet.sceneShut(sid); });")
         && hoJs.includes("ui('handoutFresh').style.display = h.fresh && !h.hold ? 'flex' : 'none';") && hoJs.includes("if (!(n && n.active && n.foreign)) { viewerShut(m); clearInterval(_sceneTimer); _sceneTimer = null; }")
         && count(esc, "['handoutModal', 'handoutCloseBtn']") === 1);
     check('a scene always opens, whatever the player set for handouts; one kept is saved as any handout and opens with its Journal entry; one not kept is shown from memory and writes nothing (pinned)',
@@ -163,9 +163,48 @@ check('the handout a scene is saved as (handouts.js wpHandoutFor): the one named
     const notes = [readRoot('WHATSNEW.txt'), readU('assets/whatsnew.txt')];
     check('Help has a Scenes entry beside Handouts with the spotlight drawing: where it is offered, hosting a table, Keep it in their Journals, Stays up until I close it, the Scene pill with Show it again and Close for everyone, and that the stream window does not show it; both release notes say it',
         help.length > 200 && help.includes(SPOT) && help.includes('<b>Show as a scene…</b>') && help.includes('<b>Keep it in their Journals</b>') && help.includes('<b>Stays up until I close it</b>')
-        && help.includes('<b>Show it again</b>') && help.includes('<b>Close for everyone</b>') && help.includes('The stream window does not show it.')
-        && notes.every(n => n.includes('Scenes\n- Show as a scene... puts a picture big on your players\' screens, with no') && n.includes('Close for everyone.')));
+        && help.includes('<b>Show it again</b>') && help.includes('<b>Close for everyone</b>') && help.includes('It also says who has closed it.') && help.includes('The stream window shows a scene you show to everyone, until you close it.') && help.includes('or a picture in a planner or a page you are reading.')
+        && notes.every(n => n.includes('Scenes\n- Show as a scene... puts a picture big on your players\' screens, with no') && n.includes('Close for everyone, and says who has closed it.') && n.includes('- A scene shown to everyone shows in the stream window too.')));
 }
 
+/* ================= the three gaps: who closed it, the stream window, a picture where a page is read ================= */
+{
+    let T = null, err = '';
+    try { T = new Function('picRef', slice(sceneJs, 'scenecheck:core') + slice(sceneJs, 'scenecheck:readpic') + '\nreturn { sceneShut, sceneStage, readPicSrc };')(v => (typeof v === 'string' && !/^[a-z]+:/i.test(v) ? v : '')); } catch (e) { err = String(e); }
+    let r = '';
+    if (T) {
+        const img = (src, inRead) => ({ tagName: 'IMG', getAttribute: () => src, closest: s => (inRead && s === '#plannerPreview, #docPanelBody' ? {} : null) });
+        r = j([T.sceneShut([]), T.sceneShut(['Pat']), T.sceneShut(['Pat', 'Pat', 'Kael']), T.sceneShut(['A', 'B', 'C', 'D', 'E']), T.sceneShut([7, '', null]), T.sceneShut('Pat'),
+            T.sceneStage({ src: '/saves/images/g.png', title: 'Gate', caption: 'c', pids: null }), T.sceneStage({ src: '/saves/images/g.png', title: 'Gate', pids: ['u_1'] }), T.sceneStage(null), T.sceneStage({ src: '', pids: null }), T.sceneStage({ src: '/saves/images/g.png', title: 'x'.repeat(200), pids: null }).title.length,
+            T.readPicSrc(img('/saves/images/a%20b.png', true)), T.readPicSrc(img('/saves/images/a.png', false)), T.readPicSrc(img('https://x.test/a.png', true)), T.readPicSrc(img('/saves/sounds/a.png', true)), T.readPicSrc(img('%E0%A4%A', true)), T.readPicSrc({ tagName: 'DIV', closest: () => ({}), getAttribute: () => '/saves/images/a.png' }), T.readPicSrc(null)]);
+    }
+    check('who closed it (sceneShut), what the stream window is told (sceneStage) and a picture where a page is read (readPicSrc), scene.js run for real: the names of those who closed it, each once, three and then how many more; the stream window is told a scene only while it shows to everyone, as its path, title and caption, cut; a right-click offers it only on a picture in the planner\'s own view or the page panel, and only a picture of the campaign\'s own, decoded as it was drawn',
+        !err && r === j(['', 'Pat closed it.', 'Pat, Kael have closed it.', 'A, B, C and 2 more have closed it.', '', '',
+            { src: '/saves/images/g.png', title: 'Gate', caption: 'c' }, null, null, null, 120,
+            '/saves/images/a b.png', '', '', '', '', '', '']), err || r);
+    let st = '';
+    try {
+        const A = new Function(slice(read('scripts/stream.js'), 'scenecheck:stream') + '\nreturn streamSceneApply;')();
+        const mk = () => { const at = {}; return { style: { display: 'none' }, textContent: '', setAttribute: (k, v) => { at[k] = v; }, removeAttribute: k => { delete at[k]; }, at }; };
+        const box = mk(), img = mk(), t = mk(), c = mk();
+        const run = d => { const ok = A(d, box, img, t, c); return [ok, box.style.display, img.at.src || '', t.textContent, c.textContent]; };
+        st = j([run({ scene: { src: '/saves/images/a b.png', title: '<b>Gate</b>', caption: 'Up' } }), run({ scene: null }), run({ scene: { src: '/saves/images/../data.json', title: 'x' } }), run({ scene: { src: 'https://x.test/a.png' } }), run({ scene: { src: '/saves/images/a.png', title: 7 } }), run(null)]);
+    } catch (e) { st = String(e); }
+    check('the stream window (stream.js streamSceneApply, run for real on a page of plain objects): a scene the main window says is shown to everyone stands over the map with its title and caption as text; none, a path that walks out, a web address or anything that is no scene takes it down; what is no text is no words',
+        st === j([[true, '', '/saves/images/a%20b.png', '<b>Gate</b>', 'Up'], [false, 'none', '', '', ''], [false, 'none', '', '', ''], [false, 'none', '', '', ''], [true, '', '/saves/images/a.png', '', ''], [false, 'none', '', '', '']]), st);
+    let hb = '';
+    try {
+        const body = slice(netJs, 'netcheck:sceneclosed');
+        const run = (ros, msg, ok) => { const got = []; new Function('net', 'conn', 'msg', 'allow', 'window', body)({ roster: ros }, { peer: 'P' }, msg, () => ok !== false, { wpScene: { seen: (id, name, hid) => got.push([id, name, hid]) } }); return got; };
+        hb = j([run({ P: { id: 'u_1', name: 'Pat' } }, { id: 'h1' }), run({}, { id: 'h1' }), run({ P: { id: 'u_1', name: 'Pat' } }, { id: 7 }), run({ P: { id: 'u_1', name: 'Pat' } }, { id: 'x'.repeat(81) }), run({ P: { id: 'u_1', name: 'Pat' } }, { id: 'h1' }, false), run({ P: { id: 'u_1' } }, { id: 'h1' })]);
+    } catch (e) { hb = String(e); }
+    check('the host\'s scene-closed branch (net.js, run for real): an admitted player\'s word that they closed a scene goes to scene.js by their id and name with the scene\'s id; nothing from a connection that is not admitted, an id that is no text or longer than 80, or past the limiter; a nameless player is A player',
+        hb === j([[['u_1', 'Pat', 'h1']], [], [], [], [], [['u_1', 'A player', 'h1']]]), hb);
+    check('a player\'s app says so only for a scene it closed by its own press, only at a table it has joined, and only the scene\'s id; the pill and the box say it; a press of Show it again forgets who closed it (pinned)',
+        netJs.includes("net.sceneShut = function(id) {\n    if (!net.active || net.role !== 'client' || !net.foreign || typeof id !== 'string' || !id || id.length > 80) return false;")
+        && netJs.includes("try { c.send({ type: 'scene-closed', id: id }); return true; } catch (e) { return false; }")
+        && pillsJs.includes("(typeof st.scene.shut === 'string' && st.scene.shut ? ' ' + st.scene.shut : '')") && sceneJs.includes('function again() { var n = now(); if (!n) return; n.shut = [];')
+        && sceneJs.includes("if (!_chan || window.wpStream) return;") && count(esc, "'charMenu', 'sceneMenu']") === 1 && count(ix, '<div id="sceneMenu" class="shape-menu" role="menu"') === 1 && count(ix, '<div id="streamScene" style="display:none;">') === 1);
+}
 console.log(NL + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

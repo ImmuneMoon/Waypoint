@@ -5672,6 +5672,12 @@ net.sceneClose = function(hid, pids) {
     if (typeof window.wpStepLog === 'function') window.wpStepLog('scene v1', 'closed', { to: n });
     return n;
 };
+// Backlog 181: a player closed a scene themselves. Their app tells the host the scene's id, and nothing else; the host's branch below
+net.sceneShut = function(id) {
+    if (!net.active || net.role !== 'client' || !net.foreign || typeof id !== 'string' || !id || id.length > 80) return false;
+    var c = net.conns[0]; if (!c || !c.open) return false;
+    try { c.send({ type: 'scene-closed', id: id }); return true; } catch (e) { return false; }
+};
 // Everything already revealed to this player, sent again (their journal keeps one copy per handout)
 function sendMissedHandouts(conn, prof) {
     var camp = getActiveCampaign(); if (!camp) return;
@@ -6877,6 +6883,14 @@ function handleMessage(msg, conn) {
             }
         }
         // [netcheck:targetask-end]
+    } else if (msg.type === 'scene-closed' && net.role === 'host') {
+        // [netcheck:sceneclosed-start]
+        // backlog 181: an admitted player closed a scene themselves. Their name goes to the GM's pill (scene.js seen, which keeps it only for
+        // the scene that is up); a few a minute; nothing is stored, sent or saved
+        var spS = net.roster[conn.peer]; if (!spS || typeof spS.id !== 'string' || typeof msg.id !== 'string' || !msg.id || msg.id.length > 80) return;
+        if (!allow('sceneshut', { perMs: 1000, burst: 4, windowMs: 60000, table: 300 }, String(spS.id))) return;
+        if (window.wpScene && typeof window.wpScene.seen === 'function') window.wpScene.seen(spS.id, String(spS.name || 'A player'), msg.id);
+        // [netcheck:sceneclosed-end]
     } else if (msg.type === 'share' && net.role === 'host') {
         relayShare(msg, conn);
     } else if (msg.type === 'handout' && net.role === 'client') {

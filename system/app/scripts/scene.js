@@ -41,6 +41,19 @@ function sceneForm(f) {
     return { title: String(typeof o.title === 'string' ? o.title : '').trim().slice(0, SCENE_TITLE), caption: String(typeof o.caption === 'string' ? o.caption : '').slice(0, SCENE_CAP),
         hold: o.hold === true, keep: o.keep !== false };
 }
+// Who closed it, in words: the names of the players who closed the scene themselves, each once, at most three and then how many more
+function sceneShut(names) {
+    var a = (Array.isArray(names) ? names : []).filter(function(n, i, all) { return typeof n === 'string' && n && all.indexOf(n) === i; });
+    if (!a.length) return '';
+    var said = a.slice(0, 3).join(', ') + (a.length > 3 ? ' and ' + (a.length - 3) + ' more' : '');
+    return said + (a.length === 1 ? ' closed it.' : ' have closed it.');
+}
+// What the stream window is told: the scene up, only while it shows to everyone (the table's own screen never shows what some players were
+// shown alone), as the picture's own path, its title and its caption; else none
+function sceneStage(n) {
+    if (!n || typeof n !== 'object' || n.pids || typeof n.src !== 'string' || !n.src) return null;
+    return { src: n.src, title: String(n.title || '').slice(0, SCENE_TITLE), caption: String(n.caption || '').slice(0, SCENE_CAP) };
+}
 // [scenecheck:core-end]
 
 var ui = function(id) { return document.getElementById(id); };
@@ -53,8 +66,24 @@ function mine() { return !(net && ((net.active && net.role === 'client') || net.
 // The scene up, while this machine hosts the campaign it was shown in; else none, and none is kept
 function now() {
     var camp = getActiveCampaign();
-    if (_now && (!hosting() || !camp || camp.id !== _now.camp)) _now = null;
+    if (_now && (!hosting() || !camp || camp.id !== _now.camp)) { _now = null; stagePost(); }
     return _now;
+}
+// The stream window (a window of this computer's own) is told the scene up as it changes, and answers its own question when it opens
+var _chan = null; try { if (!window.wpStream) _chan = new BroadcastChannel('waypoint'); } catch (e) { _chan = null; }
+var _staged = '';
+function stagePost(force) {
+    if (!_chan || window.wpStream) return;   // the stream window loads this module too: it only listens
+    var st = sceneStage(_now), sig = JSON.stringify(st);
+    if (!force && sig === _staged) return;
+    _staged = sig; try { _chan.postMessage({ type: 'scene-stage', scene: st }); } catch (e) {}
+}
+if (_chan) _chan.addEventListener('message', function(e) { if (e.data && e.data.type === 'scene-stage-query') { now(); stagePost(true); } });
+// A player closed the scene themselves (net.js's host branch tells this): their name is kept for the pill and the box
+function seen(pid, name, hid) {
+    var n = now(); if (!n || hid !== n.hid || typeof name !== 'string') return false;
+    if (n.shut.indexOf(name) < 0) n.shut.push(name.slice(0, 60));
+    log('closedby', { n: n.shut.length }); drawNow(); pillsSync(); return true;
 }
 function pillsSync() { if (window.wpPills && typeof window.wpPills.sync === 'function') window.wpPills.sync(); }
 
@@ -75,7 +104,7 @@ function drawNow() {
     part.hidden = !n;
     if (!n) return;
     ui('sceneNowTitle').textContent = n.title || 'Scene';
-    ui('sceneNowWho').textContent = 'Showing to ' + sceneWho(n.pids, sceneAudience(net && net.roster)) + (n.hold ? '. It stays up until you close it.' : '.');
+    ui('sceneNowWho').textContent = 'Showing to ' + sceneWho(n.pids, sceneAudience(net && net.roster)) + (n.hold ? '. It stays up until you close it.' : '.') + (sceneShut(n.shut) ? ' ' + sceneShut(n.shut) : '');
 }
 function drawSays() {
     var says = ui('sceneSays'), go = ui('sceneGo'); if (!says || !go) return;
@@ -116,12 +145,32 @@ function show() {
     var old = now(); if (old) net.sceneClose(old.hid, old.pids);   // a new scene takes the place of the one up, on every screen that had it
     net.revealHandout(hid, pids, { scene: true, hold: f.hold, keep: f.keep });
     var camp = getActiveCampaign();
-    _now = { camp: camp ? camp.id : '', hid: hid, title: f.title || (typeof window.wpHandoutName === 'function' ? window.wpHandoutName(_box.src) : ''), pids: pids, hold: f.hold, keep: f.keep };
+    _now = { camp: camp ? camp.id : '', hid: hid, src: _box.src, caption: f.caption, title: f.title || (typeof window.wpHandoutName === 'function' ? window.wpHandoutName(_box.src) : ''), pids: pids, hold: f.hold, keep: f.keep, shut: [] };
+    stagePost();
     log('show', { to: pids ? pids.length : aud.length, hold: f.hold, kept: f.keep });
     close(); pillsSync();
 }
-function again() { var n = now(); if (!n) return; net.revealHandout(n.hid, n.pids, { scene: true, hold: n.hold, keep: n.keep }); log('again', {}); close(); }
-function end() { var n = now(); if (!n) return; var told = net.sceneClose(n.hid, n.pids); _now = null; toast('Closed "' + (n.title || 'the scene') + '" for ' + (told === 1 ? '1 player.' : told + ' players.')); close(); pillsSync(); }
+function again() { var n = now(); if (!n) return; n.shut = []; net.revealHandout(n.hid, n.pids, { scene: true, hold: n.hold, keep: n.keep }); log('again', {}); close(); pillsSync(); }
+function end() { var n = now(); if (!n) return; var told = net.sceneClose(n.hid, n.pids); _now = null; stagePost(); toast('Closed "' + (n.title || 'the scene') + '" for ' + (told === 1 ? '1 player.' : told + ' players.')); close(); pillsSync(); }
+// [scenecheck:readpic-start]
+// A picture where a planner or a page is read on the GM's own screen (the planner's own view, the page panel over the map): a right-click
+// offers Show as a scene... in a one-row menu. Only a picture of the campaign's own, by the path it was drawn from; never in a window of its
+// own or the stream window, never on a player's app
+var READ_PLACES = '#plannerPreview, #docPanelBody';
+function readPicSrc(img) {
+    if (!img || img.tagName !== 'IMG' || !img.closest || !img.closest(READ_PLACES)) return '';
+    var raw = img.getAttribute('src') || '', p = ''; try { p = decodeURI(raw); } catch (e) { return ''; }
+    return /^\/saves\/images\//.test(p) && picRef(p) === p ? p : '';
+}
+function readMenuHide() { var mm = ui('sceneMenu'); if (mm && mm.style.display !== 'none') { mm.style.display = 'none'; mm.dataset.src = ''; } }
+function readMenuAt(src, x, y) {
+    var mm = ui('sceneMenu'); if (!mm) return false;
+    mm.dataset.src = src; mm.style.display = 'flex';
+    var w = mm.offsetWidth || 200, h = mm.offsetHeight || 40;
+    mm.style.left = Math.max(4, Math.min(x, window.innerWidth - w - 4)) + 'px'; mm.style.top = Math.max(4, Math.min(y, window.innerHeight - h - 4)) + 'px';
+    return true;
+}
+// [scenecheck:readpic-end]
 
 function wire() {
     var m = ui('sceneModal'); if (!m) return;
@@ -140,6 +189,17 @@ function wire() {
     ui('sceneCloseBtn').addEventListener('click', close);
     ui('sceneAgain').addEventListener('click', again);
     ui('sceneEnd').addEventListener('click', end);
+    if (!window.wpStream && !document.body.classList.contains('popout-mode')) {
+        document.addEventListener('contextmenu', function(e) {
+            if (!mine()) return;
+            var src = readPicSrc(e.target); if (!src) return;
+            e.preventDefault(); e.stopPropagation(); readMenuAt(src, e.clientX, e.clientY);
+        }, true);
+        document.addEventListener('pointerdown', function(e) { if (!(e.target && e.target.closest && e.target.closest('#sceneMenu'))) readMenuHide(); }, true);
+        window.addEventListener('blur', readMenuHide); document.addEventListener('scroll', readMenuHide, true);
+        var rm = ui('sceneMenu');
+        if (rm) rm.addEventListener('click', function(e) { var b = e.target && e.target.closest ? e.target.closest('button') : null; if (!b) return; var src = rm.dataset.src; readMenuHide(); if (src) open(src); });
+    }
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire();
-window.wpScene = { open: open, now: function() { var n = now(); return n ? { title: n.title, who: sceneWho(n.pids, sceneAudience(net && net.roster)), hold: n.hold } : null; } };
+window.wpScene = { open: open, seen: seen, menuHide: readMenuHide, now: function() { var n = now(); return n ? { title: n.title, who: sceneWho(n.pids, sceneAudience(net && net.roster)), hold: n.hold, shut: sceneShut(n.shut) } : null; } };

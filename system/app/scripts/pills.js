@@ -32,7 +32,7 @@ function pillsModel(st) {
     var r = pillCount(st.round), who = pillCut(st.turn);
     if (hosting && r) out.roundPill = { text: 'Round ' + r + (who ? ' \u00b7 ' + who : ''), tip: 'A fight is on this map' + (who ? ', and it is the turn of ' + who : '') + '. Opens the turn order.' };
     if (hosting && st.scene && typeof st.scene === 'object') { var sn = pillCut(st.scene.title) || 'a picture', sw = typeof st.scene.who === 'string' && st.scene.who ? st.scene.who : 'the table';   // backlog 181 (scene.js)
-        out.scenePill = { text: 'Scene \u00b7 ' + sn, tip: 'Showing ' + sn + ' to ' + sw + (st.scene.hold === true ? '. It stays up until you close it' : '') + '. Press to show it again or close it for everyone.' }; }
+        out.scenePill = { text: 'Scene \u00b7 ' + sn, tip: 'Showing ' + sn + ' to ' + sw + (st.scene.hold === true ? '. It stays up until you close it' : '') + '.' + (typeof st.scene.shut === 'string' && st.scene.shut ? ' ' + st.scene.shut : '') + ' Press to show it again or close it for everyone.' }; }
     if (play && typeof st.preview === 'string' && st.preview !== '' && st.preview !== 'off') {
         var as = st.preview === 'party' ? 'the party' : (pillCut(st.previewName) || 'a player');
         out.viewPill = { text: 'Viewing as ' + as, tip: 'The fog is drawn as ' + as + ' sees it. Press to end the preview.' };

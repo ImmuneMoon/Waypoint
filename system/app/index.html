@@ -1320,12 +1320,12 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           </li>
                           <li><b>Scenes:</b> <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9.5h14v10H5zM5 17l4-3.5 3 2.5 2-1.5 5 3.5M12 2.5v3.5M7 4l1.5 2.5M17 4l-1.5 2.5"/></svg> <b>Show as a scene…</b> puts a picture big on your players' screens, with no need to place it on the map or bring anyone to it. It is a handout shown in a larger window.
                               <ul>
-                                  <li>Right-click a picture or a token on the map, or a picture in the Image Library. A picture handout and a planner's picture block have the button too.</li>
+                                  <li>Right-click a picture or a token on the map, a picture in the Image Library, or a picture in a planner or a page you are reading. A picture handout and a planner's picture block have the button too.</li>
                                   <li>Give it a title and a caption, and pick Everyone or some players. You must be hosting a table, and only the picture is sent.</li>
                                   <li><b>Keep it in their Journals</b> is on at first. Untick it and the scene leaves nothing behind on their machines.</li>
                                   <li>Each player closes it when they like. Tick <b>Stays up until I close it</b> to keep it on every screen until you close it.</li>
-                                  <li>While it is up, the <b>Scene</b> pill in the top row opens <b>Show it again</b> and <b>Close for everyone</b>. A new scene takes the place of the one that is up.</li>
-                                  <li>A scene always opens on screen, whatever a player set for handouts. The stream window does not show it.</li>
+                                  <li>While it is up, the <b>Scene</b> pill in the top row opens <b>Show it again</b> and <b>Close for everyone</b>. It also says who has closed it. A new scene takes the place of the one that is up.</li>
+                                  <li>A scene always opens on screen, whatever a player set for handouts. The stream window shows a scene you show to everyone, until you close it.</li>
                               </ul>
                           </li>
                           <li><b>Party strip:</b> the small tokens in the play map's top-right corner are your players' characters. One is highlighted when it is on the map you are viewing, and dimmed when that player is not connected.
@@ -3373,6 +3373,8 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
 </div>
 
 <div id="streamVideo" style="display:none;"><video id="streamVideoEl" playsinline muted></video><div id="streamVideoCap"></div></div>
+<div id="streamScene" style="display:none;"><div id="streamSceneTitle"></div><img id="streamSceneImg" alt=""><div id="streamSceneCap"></div></div>
+<div id="sceneMenu" class="shape-menu" role="menu" style="display:none; position:fixed; flex-direction:column; min-width:180px; z-index:100001;"><button type="button" class="wb-tool-btn party-menu-item" role="menuitem" title="Show this picture big to everyone or to some players at your table"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9.5h14v10H5zM5 17l4-3.5 3 2.5 2-1.5 5 3.5M12 2.5v3.5M7 4l1.5 2.5M17 4l-1.5 2.5"/></svg> Show as a scene&hellip;</button></div>
 <div id="streamBar" style="display:none;">
     <span class="stream-dot" title="Live: this window mirrors your table from the party's standpoint &mdash; what the players' tokens see together"></span>
     <label for="streamFocus">Showing</label>

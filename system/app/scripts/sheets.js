@@ -8187,6 +8187,7 @@ function renderAll() {
     var rr = ui('sysRollRows'); rr.textContent = '';
     if (!draft.rolls.length) rr.appendChild(el('div', 'sys-empty', 'No rolls yet. A roll is a formula with dice, as a button on the sheet: d20 + STRmod. Set its Kind to Apply for a button that moves pools or numbers instead (Apply costs, Apply wounds).'));
     draft.rolls.forEach(function(r) { rr.appendChild(rollRow(r)); });
+    var rAdd = ui('sysAddRoll'); if (rAdd) { rAdd.disabled = draft.rolls.length >= LIMITS.rolls; rAdd.title = rAdd.disabled ? 'A system holds ' + LIMITS.rolls + ' rolls at most. Remove one to add another.' : 'Add a roll'; }   // 1.6.0: one past the cap was dropped at Save with nothing said
     var itr = ui('sysItemRows'); if (itr) { itr.textContent = ''; if (!draft.items || !draft.items.length) itr.appendChild(el('div', 'sys-empty', 'No items yet. Add weapons, gear or explosives your characters can carry — an item with a blast area can be thrown from the sheet.')); (draft.items || []).forEach(function(it) { itr.appendChild(itemRow(it)); }); renderCombat(); }
     var cr = ui('sysCharRows'); if (cr) { cr.textContent = ''; var camp = getActiveCampaign(), list = charList(camp); if (!list.length) cr.appendChild(el('div', 'sys-empty', 'No characters yet. New character here, or "New character from this token" in a token\'s Properties.')); list.forEach(function(c) { cr.appendChild(charRow(c, camp)); }); charFilter(); }
     var note = ui('sysFeatureNote'); if (note) note.style.display = featureOn() ? 'none' : '';

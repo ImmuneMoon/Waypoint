@@ -34,7 +34,7 @@ function dieOf(text) {
 // The die a roll entry is drawn with: the GM's pick (its die, or a field's rollDie), else its formula's
 function rollDie(pick, formula) { return cleanDie(pick) || dieOf(formula); }
 var LIMITS = Object.freeze({
-    fields: 400, rolls: 50, sections: 60, tabs: 12, placements: 400, options: 50, optionChars: 60,   // Stage 6: room for a big sheet (one section per section of a large VTT sheet); 1.5.4: 400 fields, 60 sections and 400 placements (a website's whole sheet: 300, 40 and 300 before)
+    fields: 400, rolls: 80, sections: 60, tabs: 12, placements: 400, options: 50, optionChars: 60,   // Stage 6: room for a big sheet (one section per section of a large VTT sheet); 1.5.4: 400 fields, 60 sections and 400 placements (a website's whole sheet: 300, 40 and 300 before)
     key: 64, label: 60, formula: 300,       // 300 = the dice path's expression cap, so a sheet roll never dies there
     text: 200, notes: 20000, name: 60, charName: 60, names: 200,
     makingMax: 12,   // Onboarding F3: characters in the making at one table at once (each a player's own, on the GM's disk)

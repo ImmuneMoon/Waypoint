@@ -397,7 +397,7 @@ pendingChecks.push((async () => {
     check('M1: a Ban from the Players panel (its branch run for real) calls net.kickPlayer exactly once, with the first roster key of the profile, and that one call takes both of Pat\'s connections (told, closed, forgotten once); a profile not at the table and a player\'s machine call it not at all; in the source the Ban branch calls it once and never in a loop, net.js calls it twice (the roster\'s kick button, the Ban branch) and no other script does, and kickPlayer is the only place that sends \'kicked\'; the host has 31 message branches (video-up of item 21 among them, and voice-up of voice chat, 1.5.9, the newest)',
         js(ban1) === js({ threw: '', calls: ['pA1'], roster: ['pB', 'pX', 'pY'], kicked: ['pA1', 'pA2'], timers: 2, forgot: ['forget:u_a'], banned: ['u_a'], session: ['u_a'], saves: 1 }) && js(banAway.calls) === js([]) && banAway.kicked.length === 0 && banAway.threw === '' && js(banClient.calls) === js([]) && banClient.kicked.length === 0 && banClient.threw === ''
         && (noCom(banBody).match(/net\.kickPlayer\(/g) || []).length === 1 && !/forEach|\bfor \(|\bwhile \(/.test(noCom(banBody)) && js(kickCalls) === js([['net.js', 2]]) && (noCom(src).match(/net\.kickPlayer\(/g) || []).length === 2
-        && js(kickedSends) === js([['net.js', 1]]) && kickSrc.indexOf("conn.send({ type: 'kicked' });") >= 0 && (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 31, js([ban1, banAway, banClient, kickCalls, kickedSends]));
+        && js(kickedSends) === js([['net.js', 1]]) && kickSrc.indexOf("conn.send({ type: 'kicked' });") >= 0 && (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 32, js([ban1, banAway, banClient, kickCalls, kickedSends]));
 
     /* round 2: the review's three older gaps — a removed player's pointer and roster row, a second connection under one key, a queued request */
     const tg = { u_a: { mapId: 'm1', id: 'orc' }, u_b: { mapId: 'm1', id: 'gob' } }, withT = t => h => { h.env.net.targets = JSON.parse(js(t)); };
@@ -5150,7 +5150,7 @@ pendingChecks.push((async () => {
     check('fold M0 (source): combatHidden is defined once and read only by combatsFor and net.syncCombatHidden, inside the combats slice; net.syncCombatHidden is called once, from the host\'s save; the GM\'s own strip (whiteboard.js) reads neither; the host\'s message handler has the same number of branches as before',
         (src.match(/function combatHidden\(/g) || []).length === 1 && (src.match(/combatHidden\(/g) || []).length === 3 && (cbSrc.match(/combatHidden\(/g) || []).length === 3
         && (src.match(/syncCombatHidden/g) || []).length === 3 && (cbSrc.match(/syncCombatHidden/g) || []).length === 1 && (olsSrc.match(/syncCombatHidden/g) || []).length === 2 && (cbSrc.match(/_combatHidSig = combatHidSigNow\(\);/g) || []).length === 1
-        && !/combatsFor|combatHidden|syncCombatHidden/.test(wbAll) && (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 31,
+        && !/combatsFor|combatHidden|syncCombatHidden/.test(wbAll) && (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 32,
         j([(src.match(/combatHidden\(/g) || []).length, (src.match(/syncCombatHidden/g) || []).length, (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length]));
 }
 
@@ -8291,7 +8291,7 @@ pendingChecks.push((async () => {
             && /if \(hosting\) \{ window\.wpNet\.applyingRemote = true; save\(true\); window\.wpNet\.applyingRemote = false; if \(window\.wpFog\) window\.wpFog\.invalidateVision\(\); if \(backS && backS\.length && typeof window\.wpNet\.strokesBack === 'function'\) window\.wpNet\.strokesBack\(item\.id, backS\); if \(window\.wpNet\.sendItem\) window\.wpNet\.sendItem\(camp\.id, item\.id\);/.test(ioT));
         const dmT = read('datamap.js'), posCode = posS2.replace(/\/\/[^\n]*/g, ''), patCode = patS2.replace(/\/\/[^\n]*/g, '');
         check('senses S0 (source): nothing new comes in from a player — no branch of the host\'s message handler was added or names sight or senses, the hook and its timer read nothing of a message or of a connection\'s word, and what is kept (what a copy was made by, the text last known, the sends that wait) is never saved or sent: it lives in the host\'s memory, named nowhere else',
-            hostBranches.length === 31 && !hostBranches.some(b => /sens|sight/i.test(b)) && !/msg\.type === '[^']*(sens|sight)/i.test(src) && !/\bmsg\b/.test(smCode) && !/\bconn\b/.test(smCode) && !/type: '(?!combats'|targets')/.test(smCode)
+            hostBranches.length === 32 && !hostBranches.some(b => /sens|sight/i.test(b)) && !/msg\.type === '[^']*(sens|sight)/i.test(src) && !/\bmsg\b/.test(smCode) && !/\bconn\b/.test(smCode) && !/type: '(?!combats'|targets')/.test(smCode)
             && count(src, /_sensesSig/g) === count(flS + smS, /_sensesSig/g) && count(src, /_sensesPend/g) === count(smS, /_sensesPend/g) && count(smS, /_sensesPend/g) > 0 && count(flS, /_sensesSig/g) > 0 && !/_senses(Sig|Pend|At)/.test(sheetsT + ioT + fogT + dmT + read('main.js'))
             && count(src, /_sensesAt/g) === count(flS + smS, /_sensesAt/g) && count(flS, /_sensesAt/g) > 0 && count(smS, /_sensesAt/g) > 0
             && !/sensesReads|sensesHidden/.test(src) && count(smCode, /setTimeout\(/g) === 1 && count(smCode, /SENSES_RESEND_MS/g) === 2, j([hostBranches.length, count(src, /_sensesSig/g), count(src, /_sensesPend/g), count(src, /_sensesAt/g), count(smCode, /setTimeout\(/g)]));
@@ -8331,7 +8331,7 @@ pendingChecks.push((async () => {
         const cnt = (s, re) => (s.match(re) || []).length, hostB = cnt(src, /msg\.type === '[a-z-]+' && net\.role === 'host'/g);
         check('fold M0 (source): no pointer message goes to all outside broadcastTargets — net.js broadcasts one only there, in its branch for a table without fog, and (hidden pieces) that one too is built by targetsFor; every other pointer message is a player\'s own copy built by targetsFor; the combats slice now defines broadcastTargets, and the host\'s message handler has the same number of branches as before',
             btSrc.length > 0 && cnt(src, /broadcast\(\{ type: 'targets'/g) === 1 && cnt(btSrc, /broadcast\(\{ type: 'targets'/g) === 1 && cnt(src, /targets: net\.targets/g) === 0 && /broadcast\(\{ type: 'targets', targets: targetsFor\(null\) \}, null\)/.test(btSrc)
-            && cnt(src, /type: 'targets'/g) === cnt(src, /type: 'targets', targets: targetsFor\(/g) && cbS.indexOf(btSrc) >= 0 && cbS.indexOf('function targetsFor(') >= 0 && hostB === 31,
+            && cnt(src, /type: 'targets'/g) === cnt(src, /type: 'targets', targets: targetsFor\(/g) && cbS.indexOf(btSrc) >= 0 && cbS.indexOf('function targetsFor(') >= 0 && hostB === 32,
             j([btSrc.length, cnt(src, /broadcast\(\{ type: 'targets'/g), cnt(src, /type: 'targets'/g), cbS.indexOf(btSrc), hostB]));
 
         // (c) the live position relay and the drag that feeds it
@@ -8666,7 +8666,7 @@ pendingChecks.push((async () => {
 
     // (8) where it sits: a client branch (the host's branches still 25), and nothing sends the message yet
     check('fold M3: the catch-up is a client branch only (the host\'s branches are 31: none new but video-up of item 21, char-delete of 1.5.4, char-style of item 35, char-ask of 1.5.5, char-damage and trade of 1.5.6, and voice-up of voice chat, 1.5.9); the host builds it in one place only, its catch-up of a copy (fold M7)',
-        (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 31 && /\} else if \(msg\.type === 'fogDiff' && net\.role === 'client'\) \{\n\s*\/\/ \[netcheck:fogdiff-start\]/.test(src)
+        (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 32 && /\} else if \(msg\.type === 'fogDiff' && net\.role === 'client'\) \{\n\s*\/\/ \[netcheck:fogdiff-start\]/.test(src)
         && (src.match(/msg\.type === 'fogDiff'/g) || []).length === 1 && (src.match(/type: 'fogDiff'/g) || []).length === 1 && /function fogCatchUp\([^]*?type: 'fogDiff'/.test(between('// [netcheck:fogmove-start]', '// [netcheck:fogmove-end]', 'fogmove')));
 })());
 // fold M4: an open drag is judged where it began. The real pos gate, patch path, relay, sends, kick, senses and the fogmove slice are compiled as
@@ -16196,7 +16196,7 @@ pendingChecks.push((async () => {
         /combats: combatsFor\(prof\.id, prof\.location\), fights: true,/.test(src) && /\n    if \(typeof fightsKnow === 'function'\) fightsKnow\(msg\.fights\);[^\n]*\n    net\.combats = typeof cleanFightsIn === 'function' \? cleanFightsIn\(msg\.combats\) : cleanCombats\(msg\.combats\);/.test(snapBody)
         && src.split('fightsKnow(').length === 3 && /var before = net\.combats, after = typeof cleanFightsIn === 'function' \? cleanFightsIn\(msg\.combats\) : cleanCombats\(msg\.combats\);/.test(src)
         && !/combats\[(mapId|am\.id|map\.id|activeMap\.id|combatDraft\.mapId|getActiveMap\(\)\.id|msg\.mapId|locQ|locA|pr\.location|mid)\]/.test(src + rdApp('scripts/whiteboard.js') + rdApp('scripts/pills.js') + rdApp('scripts/sheets.js'))
-        && (src.match(/net\.combats\[fid\] = f;/g) || []).length === 1 && (src.match(/combatOver\(/g) || []).length === 4 && (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 31);
+        && (src.match(/net\.combats\[fid\] = f;/g) || []).length === 1 && (src.match(/combatOver\(/g) || []).length === 4 && (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 32);
 })());
 // Fold 4 (backlog 152, docs/FIGHT_CLOCK_DESIGN.md sections 1 and 4 to 6; the owner's answer to question 1, "Every character"): each fight keeps its own
 // time, and the clock reads the one furthest behind, counting every second once. net.js run for real (the combats slice, everything from combatRefresh

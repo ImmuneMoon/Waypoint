@@ -33,7 +33,7 @@
 
 // [floatcheck:esc-start]
 var ESC_ASIDE = ['customConfirm', 'customPrompt', 'cleanupAskModal', 'cleanupSummaryModal', 'cleanupMissingModal', 'cleanupBackupModal', 'frameModal', 'genModal', 'cityModal', 'worldModal', 'shotModal', 'imgLibPreview'];
-var ESC_RIGHT = ['contextMenu', 'sidebarContextMenu', 'edgeMenu', 'charMenu'];   // the right-click menus: put away by their display
+var ESC_RIGHT = ['contextMenu', 'sidebarContextMenu', 'edgeMenu', 'charMenu', 'sceneMenu'];   // the right-click menus: put away by their display
 var ESC_OWN_MENUS = '#pageNavMenu, #pageLinkMenu, .face-pop, .sheet-dl-pop, .dice-modpop, .sys-glyph-pop, .lib-pick, .rte-symwrap.open';   // menus whose own listener takes Escape
 var ESC_ROW_MENUS = ['campMenu', 'moreMenu', 'notesMenu', 'rowTray'];   // the top row's (toprow.js): put away by hidden
 var ESC_TOOL_OPTS = ['drawMenu', 'eraserMenu', 'fillMenu', 'measureMenu', 'blastMenu', 'buildMenu'];   // a tool's options: a menu the first Escape closes, the tool staying in hand; a field of theirs keeps its own Escape first (the Radius tool's two boxes)

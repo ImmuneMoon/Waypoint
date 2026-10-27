@@ -15429,6 +15429,25 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && jA.ok && jA.v === 2 && !jD.ok && nt.includes("{ l: q.row.f, row: q.row.r, i: q.row.i }, q.sw)") && nt.includes("{ l: String(o.row.f), row: String(o.row.r), i: typeof o.row.i === 'number' ? o.row.i : undefined }"),
             J([kept, at(0), at(1), at(2), noI, jA, jD]));
     }
+    {   // 1.6.0: the map environment, fold 1 (docs/MAP_ENVIRONMENT_PLAN.md 11 to 13): the system's readings, a map's own values and cells, envAt
+        const J = JSON.stringify, FCg = await import('file:///' + path.resolve(path.join(app, 'scripts', 'fogcore.js')).split(String.fromCharCode(92)).join('/'));
+        const raw = { v: 1, name: 'E', sheet: { sections: [] }, rolls: [], fields: [{ id: 'f_t', key: 'Temp', label: 'Temperature', kind: 'number' }, { id: 'f_here', key: 'TempHere', label: 'Here', kind: 'toggle' }, { id: 'f_tol', key: 'Tol', label: 'Tolerance', kind: 'number', vis: 'gm' }, { id: 'f_g', key: 'Grav', label: 'Gravity', kind: 'number', vis: 'gm' }, { id: 'f_x', key: 'X', label: 'X', kind: 'text' }],
+            env: [{ key: 'temp', label: 'Temperature', field: 'f_t', placed: 'f_here', unit: 'temp', warnLow: '10 - Tol * 5', dangerLow: '-18', warnHigh: '32', dangerHigh: '43 + 1d6' },
+                { key: 'grav', label: 'Gravity', field: 'f_g', unit: 'g' }, { key: 'temp', label: 'Again', field: 'f_t' }, { key: 'x', field: 'f_x' }, { key: '1bad', field: 'f_t' }, { key: 'rad', field: 'f_t' }, { key: 'air', field: 'f_t', placed: 'f_t', unit: 'a unit far too long to keep' }] };
+        const gm = S.cleanSystem(raw, { F, gmView: true }), pl = S.cleanSystem(raw, { F, gmView: false });
+        const gmOk = J(gm.env) === J([{ key: 'temp', label: 'Temperature', field: 'f_t', placed: 'f_here', unit: 'temp', warnLow: '10 - Tol * 5', dangerLow: '-18', warnHigh: '32' }, { key: 'grav', label: 'Gravity', field: 'f_g', unit: 'g' }]);
+        const plOk = J(pl.env) === J([{ key: 'temp', label: 'Temperature', field: 'f_t', placed: 'f_here', unit: 'temp', dangerLow: '-18', warnHigh: '32' }]) && J(S.cleanSystem(gm, { F, gmView: true }).env) === J(gm.env) && !('env' in S.cleanSystem(Object.assign({}, raw, { env: [] }), { F, gmView: true }));
+        const vErr = S.validateSystem(S.cleanSystem(Object.assign({}, raw, { env: [{ key: 'temp', field: 'f_t', warnLow: 'Nope + 1' }] }), { F, gmView: true }), F), vE = Array.isArray(vErr) ? vErr : (vErr && vErr.errors) || [];
+        const valsOk = J(FCg.cleanEnvVals({ temp: -30, grav: 2e9, x: 'hot', 'bad key': 1, n: NaN })) === J({ temp: -30, grav: 1e6 }) && FCg.cleanEnvVals([1]) === null && FCg.cleanEnvVals({}) === null
+            && J(FCg.cleanEnvCells({ '2,3': { temp: 40 }, '1:-2': { temp: 5 }, 'x,y': { temp: 1 }, '4,4': { temp: 'no' } })) === J({ '2,3': { temp: 40 }, '1:-2': { temp: 5 } }) && FCg.cleanEnvCells({ '1,1': {} }) === null;
+        const sq = FCg.gridFor('square'), mp = { meta: { env: { temp: 20, grav: 1 }, envCells: { '2,3': { temp: -25 }, '0,0': { grav: 3 } } } };
+        const at1 = FCg.envAt(['temp', 'grav', 'rad'], mp, { x: 100, y: 150, w: 50, h: 50 }, sq), at2 = FCg.envAt(['temp', 'grav'], mp, { x: 0, y: 0, w: 50, h: 50 }, sq), at3 = FCg.envAt(['temp', 'grav'], mp, { x: 100, y: 150, w: 50, h: 50 }, null), at4 = FCg.envAt(['temp'], { meta: {} }, { x: 0, y: 0 }, sq);
+        const atOk = J(at1) === J({ temp: -25, grav: 1 }) && J(at2) === J({ temp: 20, grav: 3 }) && J(at3) === J({ temp: 20, grav: 1 }) && J(at4) === J({});
+        const ntE = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'latin1'), cuE = fs.readFileSync(path.join(app, 'scripts', 'cleanup.js'), 'utf8');
+        const wireOk = (ntE.match(/\['gen', 'city', 'world', 'env', 'envCells'\]\.forEach/g) || []).length === 2 && cuE.includes("['env', 'envCells'].forEach(function(k) { if (it.meta[k] === undefined) return;");
+        check('1.6.0 the map environment, fold 1 (docs/MAP_ENVIRONMENT_PLAN.md 11 to 13): the system names its readings, each a key, a label, the number field the host writes it into, a toggle field kept on while its token is on a map, a unit (temp, or a few words) and four bands that are formulas with no dice; a reading of a field that is no number, of a field taken twice, a key taken twice or no key goes, and a placed field that is no toggle is dropped; the players\' view keeps only readings of fields they hold and no band that reads a GM-only value; the validator reads a band\'s names; a map\'s own readings and its painted cells are cleaned to keys and finite numbers held to a million; envAt reads a token\'s cell, else the map\'s own, else nothing, and only the map\'s own on a map with no grid; a map\'s readings and cells never go on the wire and are cleaned on import',
+            gmOk && plOk && vE.some(e => /Nope/.test(J(e))) && valsOk && atOk && wireOk, J([gm.env, pl.env, valsOk, at1, at2, at3, at4, wireOk]));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

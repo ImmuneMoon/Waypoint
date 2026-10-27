@@ -1034,6 +1034,16 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 !!outCt && jl(ctOf(outCt.campaigns.cCt.items)) === jl(ctWant) && jl(ctOf(icCt.items)) === jl(ctWant) && jl(ctOf(icCtN.items)) === jl(Array(8).fill('none')) && jl(ctOf(icCtO.items)) === jl(Array(8).fill('none')) && Object.keys(icCtN.items).length === 9 && icCt.items.t8.type === 'map' && icCt.items.t9.type === 'map' && icCt.items.t1.meta.title === 'A' && !/onerror|<b>/.test(jl(icCt.items))
                 && jl(icCtB.items.t9.meta.gen) === jl({ seed: '4471-fox', w: 30, h: 20, rooms: 'few', corr: 'straight', doors: 'none' }) && jl(icCtB.items.t9.meta.city) === ctWant[7] && !('gen' in icCt.items.t9.meta),
                 jl([outCt && ctOf(outCt.campaigns.cCt.items), ctOf(icCt.items), ctOf(icCtN.items), ctOf(icCtO.items), icCtB.items.t9.meta]));
+            {   // 1.6.0: a map's environment from a file, its own readings and its painted cells, cleaned by fogcore on Replace and on Merge, none without the cleaner
+                const evItems = () => ({ e1: { id: 'e1', type: 'map', meta: { title: 'Cold', env: { temp: -30, grav: 'x', 'no key': 1 }, envCells: { '2,3': { temp: 45 }, 'x,y': { temp: 1 }, '4,4': {} } }, rooms: [], links: [], whiteboard: [] },
+                    e2: { id: 'e2', type: 'map', meta: { title: 'Odd', env: [1, 2], envCells: 'a cell' }, rooms: [], links: [], whiteboard: [] } });
+                const outEv = cleanImport(JSON.parse(jl({ campaigns: { cEv: { id: 'cEv', name: 'E', items: evItems() } } })), depsL), icEv = { items: evItems() }; cleanImportItems(icEv, depsL);
+                const icEvN = { items: evItems() }; cleanImportItems(icEvN, Object.assign({}, depsL, { FC: null }));
+                const evOf = its => ['e1', 'e2'].map(k => jl([its[k].meta.env, its[k].meta.envCells]));
+                const evWant = [jl([{ temp: -30 }, { '2,3': { temp: 45 } }]), jl([undefined, undefined])];
+                check('import: a map\'s environment (1.6.0), its own readings and its painted cells, comes in as fogcore cleans it, on Replace and on Merge: a reading only under a plain key and as a finite number, a cell only under a key of the grid\'s own form with at least one such reading, and a list or a text in their place none; with no cleaner on hand none comes in at all',
+                    !!outEv && jl(evOf(outEv.campaigns.cEv.items)) === jl(evWant) && jl(evOf(icEv.items)) === jl(evWant) && evOf(icEvN.items).every(x => x === jl([undefined, undefined])), jl([outEv && evOf(outEv.campaigns.cEv.items), evOf(icEv.items), evOf(icEvN.items)]));
+            }
             // 1.5.4 (worldcore.js, fold B7): the seed and settings a map's world was generated from, from a file
             const WORLDc = await import(surl('worldcore.js')), depsW = Object.assign({}, depsL, { WORLD: WORLDc });
             const wdGood = { seed: '4471-fox', land: 'continent', size: 'large', mountains: 'many', forests: 'none', rivers: 'few', climate: 'dry', towns: 'names' };

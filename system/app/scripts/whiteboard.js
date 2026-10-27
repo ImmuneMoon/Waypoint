@@ -1200,6 +1200,11 @@ import { cssColor, picRef } from './safecore.js';   // a map from a file: colour
               if (fxEl.dataset.sig !== fxHtml) { fxEl.dataset.sig = fxHtml; fxEl.innerHTML = fxHtml; }
           } else if (fxEl) fxEl.remove();
           pagePinSync(el, item, hideFromMe);   // 1.5.4 (pageshelf.js): a pin's mark, on the GM's screen alone
+          var envT = item.isChar && window.wpSheets && window.wpSheets.tokenEnv ? window.wpSheets.tokenEnv(item) : null, envEl = el.querySelector(':scope > .token-env');   // 1.6.0: the map environment's badge (the owner: "As drawn")
+          if (envT) {
+              if (!envEl) { envEl = document.createElement('div'); envEl.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13.5V5a2 2 0 0 1 4 0v8.5a4 4 0 1 1-4 0z"/></svg>'; el.appendChild(envEl); }
+              envEl.className = 'token-env ' + (envT.band === 'danger' ? 'danger' : 'warn'); envEl.title = envT.text; envEl.setAttribute('aria-label', envT.text);
+          } else if (envEl) envEl.remove();
           if (item.id === state.selWbId && (!state.selWbIds || state.selWbIds.length === 1) && !item.locked) {
 
               el.classList.add('sel');

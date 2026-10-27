@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast, toastAction } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { cleanDamageRules, rollSwitches, rollSwitchesAll, cleanRollSw, withCross, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, DEFAULT_POSTURES, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
+import { cleanDamageRules, rollSwitches, rollSwitchesAll, cleanRollSw, withCross, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, envBands, envWorst, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, POSTURE_NAMES, DEFAULT_POSTURES, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
 import { roundSays } from './systemcore.js';   // clarity package: how a value was rounded, for its tooltip
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
 import { lvlsFromBox, lvlsToText } from './librarycore.js';
@@ -428,6 +428,35 @@ function envFollow(camp) {
 function envSoon() { if (_envSoon) return; _envSoon = setTimeout(function() { _envSoon = 0; try { envFollow(getActiveCampaign()); } catch (e) { if (window.wpStepLog) window.wpStepLog('env v1', 'failed', { at: 'follow' }); } }, 250); }
 if (typeof window !== 'undefined' && !window.__wpEnvTick) window.__wpEnvTick = setInterval(envSoon, 2000);
 // [systemcheck:envfollow-end]
+// [systemcheck:envband-start]
+// 1.6.0, the map environment, fold 4 (the owner, by prompt: "As drawn"; docs/MAP_ENVIRONMENT_PLAN.md 11): a player sees one figure, their own
+// reading, amber as it nears an extreme and red at one (systemcore envBands, the one judge). envMark colours a reading's field wherever the sheet
+// draws it (the sheet, a print, the HUD), and tokenEnv says what a character token's badge shows: on the GM's screen for a character a player
+// plays, on a player's own app for a character of their own whole copy, never a teammate's, an NPC's or in the stream window; nothing while
+// every reading is comfortable
+function envWords(r) {   // "Temperature 4 °C: getting cold", in the viewer's half of Imperial or Metric for a temperature
+    var temp = r.unit === 'temp', met = typeof unitsMetric === 'function' ? unitsMetric() : false, v = temp && !met ? Math.round((r.v * 9 / 5 + 32) * 10) / 10 : r.v;
+    var u = temp ? (met ? '\u00b0C' : '\u00b0F') : r.unit, fig = String(Math.round(v * 10) / 10) + (u ? ' ' + u : '');
+    var how = r.side === 'low' ? (temp ? 'cold' : 'low') : (temp ? 'hot' : 'high');
+    return r.label + ' ' + fig + (r.band ? ': ' + (r.band === 'danger' ? 'dangerously ' : 'getting ') + how : '');
+}
+function envMark(box, f, c, sys, vars) {
+    if (!box || !f || !c || !sys || !Array.isArray(sys.env) || !sys.env.length || !F()) return;
+    var mine = sys.env.some(function(e) { return e && e.field === f.id; }); if (!mine) return;
+    var r = null; try { r = envBands(sys, c, F(), vars || undefined).find(function(x) { return x.field === f.id; }); } catch (e) { r = null; }
+    if (!r || !r.band) return;
+    box.classList.add('sheet-env-' + r.band); box.title = envWords(r);
+}
+function tokenEnv(w) {   // { band, text } for a character token's badge on this screen, or null
+    if (!w || !w.isChar || w.waiting || typeof w.charId !== 'string' || (window.wpVtt && !window.wpVtt.on('sheets'))) return null;
+    var n = window.wpNet; if (n && n.stream) return null;
+    var camp = getActiveCampaign(), sys = systemOf(camp), c = charById(w.charId, camp); if (!sys || !c || !Array.isArray(sys.env) || !sys.env.length || !F()) return null;
+    var client = !!(n && (n.foreign || (n.active && n.role === 'client')));
+    if (client ? (c.partial || !myId() || c.ownerId !== myId()) : !(c.ownerId && !c.npc)) return null;   // the player's own whole copy; on the GM's screen a character a player plays
+    var r = null; try { r = envWorst(envBands(sys, c, F())); } catch (e) { r = null; }
+    return r ? { band: r.band, text: envWords(r) } : null;
+}
+// [systemcheck:envband-end]
 // [systemcheck:cross-start]
 // 1.5.9 (docs/BOOK_ES_ET_PLAN.md 4a; the book (et) and (eu): a death check every time HP falls past -HP or a further multiple, even at a line
 // already rolled; rising above a line re-arms it; the owner's O5: a value typed by hand counts like any change): on the machine that owns the
@@ -3670,6 +3699,7 @@ function signTone(f, e) { if (!f.sign || !e || e.error || e.label || typeof e.va
 // A field on the sheet: its control, then (Fold B) its caption line — text, with each {formula} worked out for this character, drawn as text
 function fieldNode(f, c, e, gm, own, sysArg, vars, plc) {   // vars: the render's resolver (sections pass it; the band shows no captions); plc (F4b): the placement
     var box = fieldNodeBody(f, c, e, gm, own, sysArg, plc);
+    if (typeof envMark === 'function') envMark(box, f, c, sysArg, vars);   // 1.6.0: a reading's figure in its band's colour
     if (f.caption && sysArg && vars && F()) box.appendChild(captionNode(f.caption, sysArg, c, vars));
     return box;
 }
@@ -5894,6 +5924,7 @@ function refreshErrors() {
         });
     });
     if (bErr.length) errorsById.budgets = bErr;
+    if (typeof envSays === 'function' && F()) { var eSy = null, eS = envSays(draft.env, draft.fields, F(), function(ns) { eSy = eSy || { fields: gmViewFields(draft, F()), items: draft.items, core: draft.core }; return gmDerivedNames(eSy, F(), ns); }); if (eS.errs.length) errorsById.env = (errorsById.env || []).concat(eS.errs); if (eS.warns.length) warningsById.env = (warningsById.env || []).concat(eS.warns); }   // 1.6.0: what Save does with the environment readings
     if (typeof damageSays === 'function') { var dmS = damageSays(draft.combat && draft.combat.damage, clean, F()); if (dmS.errs.length) errorsById.damage = dmS.errs; if (dmS.warns.length) warningsById.damage = dmS.warns; }   // 1.5.6: what Save drops of the damage rules, as the cleaner reads them
 }
 function errorCell(id) {
@@ -6910,6 +6941,92 @@ function onInitChange(t) {   // the boxes' change events (their input events did
 // them; refreshErrors says what it would drop
 // [systemcheck:budgetbox-start]
 var BUDGET_OVER_OPTS = [['refuse', 'Refuse a change that goes over'], ['warn', 'Warn, and let it through'], ['off', 'Only show it']], BUDGET_WHEN_OPTS = [['always', 'Always'], ['making', 'While a character is made'], ['play', 'In play']];
+// [systemcheck:envbox-start]
+// 1.6.0, the map environment: the Environment readings box (the Lists tab, under the point budgets). A reading a row: its key, its name, the number
+// field the host writes it into, the toggle kept on while it applies, a temperature (stored in degrees Celsius) or another reading with its unit,
+// and the four bands, each a formula of the character's names in the reading's own unit. What Save drops is said under it (refreshErrors)
+var ENV_KIND_OPTS = [['temp', 'A temperature, in \u00b0C'], ['other', 'Another reading']], ENV_BAND_CAPS = { warnLow: ['Warn below', 'Amber below this: a formula, such as 10'], dangerLow: ['Danger below', 'Red below this: a formula, such as -18'], warnHigh: ['Warn above', 'Amber above this: a formula, such as 32'], dangerHigh: ['Danger above', 'Red above this: a formula, such as 43'] };
+function envDraft() { return Array.isArray(draft.env) ? draft.env : (draft.env = []); }
+function envFieldOpts(kind, none) { var o = [['', none]]; (Array.isArray(draft.fields) ? draft.fields : []).forEach(function(f) { if (f && f.kind === kind && typeof f.id === 'string') o.push([f.id, f.label || f.key || f.id]); }); return o; }
+function renderEnv() {
+    var box = ui('sysEnv'); if (!box) return; box.textContent = '';
+    var arr = Array.isArray(draft.env) ? draft.env : [], wrap = el('div', 'sys-budgets sys-env');
+    wrap.appendChild(el('div', 'sys-light-head', 'Environment readings'));
+    wrap.appendChild(el('div', 'sys-note', 'A reading is a value a map gives its characters where their token stands, such as a temperature. You paint it on a map with the Environment tool. Waypoint writes it into the number field you pick, and keeps the toggle you pick on while it applies. Its bands are formulas of the character\u2019s names: the figure turns amber past a warning band and red past a danger band, and so does a badge on the token of a character a player plays. Give that field a minimum and maximum wide enough for every reading.'));
+    arr.forEach(function(e0, i) {
+        var e = e0 && typeof e0 === 'object' ? e0 : {}, rw = el('div', 'sys-flags sys-env-row'); rw.dataset.ei = String(i);
+        var cap = function(t, x) { var l = el('label', 'sys-combat-item sys-bud-f'); l.appendChild(el('span', 'sys-num-cap', t)); l.appendChild(x); rw.appendChild(l); };   // every box of the row says what it is
+        var k = input('sys-env-key field', typeof e.key === 'string' ? e.key : '', 'Its key: a letter, then letters, digits or _', 'temp'); k.maxLength = 24; cap('Key', k);
+        var n = input('sys-env-label field', typeof e.label === 'string' ? e.label : '', 'Its name, as a player reads it', 'Temperature'); n.maxLength = LIMITS.label; cap('Name', n);
+        rw.appendChild(labeledSelect('sys-env-field field', 'Written into', envFieldOpts('number', 'Pick a number field'), typeof e.field === 'string' ? e.field : '', 'The number field the reading is written into'));
+        rw.appendChild(labeledSelect('sys-env-placed field', 'On while it applies', envFieldOpts('toggle', 'None'), typeof e.placed === 'string' ? e.placed : '', 'A toggle kept on while the reading applies where the token stands, and off with no reading'));
+        var temp = e.unit === 'temp'; rw.appendChild(labeledSelect('sys-env-kind field', 'Kind', ENV_KIND_OPTS, temp ? 'temp' : 'other', 'A temperature is typed in each viewer\u2019s \u00b0F or \u00b0C and stored in \u00b0C'));
+        if (!temp) { var u = input('sys-env-unit field', typeof e.unit === 'string' ? e.unit : '', 'Its unit, shown after the figure', 'Unit: g'); u.maxLength = 12; rw.appendChild(u); }
+        ENV_BANDS_UI.forEach(function(b) { var l = el('label', 'sys-combat-item sys-bud-f'); l.appendChild(el('span', 'sys-num-cap', ENV_BAND_CAPS[b][0])); var fi = input('sys-env-band field', typeof e[b] === 'string' ? e[b] : '', ENV_BAND_CAPS[b][1], 'None'); fi.dataset.band = b; fi.maxLength = LIMITS.formula; l.appendChild(fi); rw.appendChild(l); });
+        [['up', '\u25b2', 'Move up'], ['down', '\u25bc', 'Move down'], ['del', '\u00d7', 'Remove']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = 'ev' + bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
+        wrap.appendChild(rw);
+    });
+    var ad = el('button', 'tool ghost sys-btn sys-env-add', '+ Reading'); ad.dataset.act = 'evadd'; ad.disabled = arr.length >= LIMITS.env; ad.title = ad.disabled ? 'At most ' + LIMITS.env : 'A reading a map gives its characters, such as a temperature'; wrap.appendChild(ad);
+    var err = errorCell('env'); err.dataset.errFor = 'env'; wrap.appendChild(err);
+    box.appendChild(wrap);
+}
+var ENV_BANDS_UI = ['warnLow', 'dangerLow', 'warnHigh', 'dangerHigh'];
+function envRowOf(t) { var rw = t.closest('.sys-env-row'), i = rw ? +rw.dataset.ei : -1, arr = envDraft(); return arr[i] && typeof arr[i] === 'object' ? arr[i] : null; }
+function onEnvInput(t) {
+    var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-env-') < 0) return false;
+    var e = envRowOf(t); if (!e) return true;
+    if (c.indexOf('sys-env-key') >= 0) e.key = t.value.slice(0, 24);
+    else if (c.indexOf('sys-env-label') >= 0) e.label = t.value.slice(0, LIMITS.label);
+    else if (c.indexOf('sys-env-unit') >= 0) e.unit = t.value.slice(0, 12);
+    else if (c.indexOf('sys-env-band') >= 0 && ENV_BANDS_UI.indexOf(t.dataset.band) >= 0) { if (t.value.trim()) e[t.dataset.band] = t.value.slice(0, LIMITS.formula); else delete e[t.dataset.band]; }
+    else return true;
+    markDirty(); patchErrors(); return true;
+}
+function onEnvChange(t) {
+    var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-env-') < 0) return false;
+    var e = envRowOf(t); if (!e) return true;
+    if (c.indexOf('sys-env-field') >= 0) { if (t.value) e.field = t.value; else delete e.field; }
+    else if (c.indexOf('sys-env-placed') >= 0) { if (t.value) e.placed = t.value; else delete e.placed; }
+    else if (c.indexOf('sys-env-kind') >= 0) { e.unit = t.value === 'temp' ? 'temp' : ''; markDirty(); renderEnv(); patchErrors(); return true; }
+    else return true;
+    markDirty(); patchErrors(); return true;
+}
+function envClick(b) {
+    var m = /^ev(add|up|down|del)$/.exec(b.dataset.act || ''); if (!m) return false;
+    var arr = envDraft(), rw = b.closest('.sys-env-row'), i = rw ? +rw.dataset.ei : -1;
+    if (m[1] === 'add') { if (arr.length >= LIMITS.env) { toast('At most ' + LIMITS.env + '.'); return true; } arr.push({ key: '', label: '', unit: 'temp' }); }
+    else if (!(i >= 0 && i < arr.length && Math.floor(i) === i)) return true;
+    else if (m[1] === 'up') { if (i > 0) arr.splice(i - 1, 0, arr.splice(i, 1)[0]); }
+    else if (m[1] === 'down') { if (i < arr.length - 1) arr.splice(i + 1, 0, arr.splice(i, 1)[0]); }
+    else arr.splice(i, 1);
+    markDirty(); renderEnv(); patchErrors(); return true;
+}
+function envSays(env, fields, F0, gmNames) {   // what Save does with each reading, as cleanEnv reads it: { errs, warns }
+    var errs = [], warns = [], kinds = {}, seen = {}, seenF = {}, KEY = /^[A-Za-z][A-Za-z0-9_]{0,23}$/, lab = function(id) { var f = (fields || []).find(function(x) { return x && x.id === id; }); return f ? (f.label || f.key || id) : id; };
+    (Array.isArray(fields) ? fields : []).forEach(function(f) { if (f && typeof f.id === 'string') kinds[f.id] = f.kind; });
+    var CAP = { warnLow: 'Warn below', dangerLow: 'Danger below', warnHigh: 'Warn above', dangerHigh: 'Danger above' };
+    (Array.isArray(env) ? env : []).forEach(function(e, i) {
+        var nm = 'Reading ' + (i + 1);
+        if (i >= LIMITS.env) { if (i === LIMITS.env) errs.push({ message: 'At most ' + LIMITS.env + ' readings: Save drops the rest.' }); return; }
+        if (!e || typeof e !== 'object') return;
+        if (typeof e.key !== 'string' || !KEY.test(e.key)) { errs.push({ message: nm + ': its key is a letter, then up to 23 letters, digits or _. Save drops it.' }); return; }
+        if (seen[e.key.toLowerCase()]) { errs.push({ message: nm + ': another reading has the key ' + e.key + '. Save drops it.' }); return; }
+        if (typeof e.field !== 'string' || kinds[e.field] !== 'number') { errs.push({ message: nm + ': it needs a number field to be written into. Save drops it.' }); return; }
+        if (seenF[e.field]) { errs.push({ message: nm + ': another reading is written into ' + lab(e.field) + '. Save drops it.' }); return; }
+        seen[e.key.toLowerCase()] = 1; seenF[e.field] = 1;
+        if (typeof e.placed === 'string' && e.placed && kinds[e.placed] !== 'toggle') errs.push({ message: nm + ': the field kept on while it applies must be a toggle. Save leaves it out.' });
+        ENV_BANDS_UI.forEach(function(b) {
+            var t = typeof e[b] === 'string' ? e[b].trim() : ''; if (!t) return;
+            var pa = F0 ? F0.parse(t) : null, at = nm + ', ' + CAP[b] + ': ';
+            if (!pa || !pa.ok) { errs.push({ message: at + (pa && pa.error && pa.error.message ? pa.error.message : 'the formula cannot be read.') + ' Save drops that band.' }); return; }
+            if (pa.ast && hasDice(pa.ast.body)) { errs.push({ message: at + 'a band rolls no dice. Save drops that band.' }); return; }
+            var gm = typeof gmNames === 'function' ? gmNames(Array.isArray(pa.names) ? pa.names : []) : [];
+            if (gm.length) warns.push({ message: at + 'it reads ' + gm[0] + ', which players cannot read, so their own figure shows no colour for this band.' });
+        });
+    });
+    return { errs: errs, warns: warns };
+}
+// [systemcheck:envbox-end]
 function budgetDraft() { return Array.isArray(draft.budgets) ? draft.budgets : (draft.budgets = []); }
 function renderBudgets() {
     var box = ui('sysBudgets'); if (!box) return; box.textContent = '';
@@ -6923,8 +7040,8 @@ function renderBudgets() {
             var l = el('label', 'sys-combat-item sys-bud-f'); l.appendChild(el('span', 'sys-num-cap', g[1]));
             var fi = input('sys-bud-' + g[0] + ' field', typeof b[g[0]] === 'string' ? b[g[0]] : '', g[2], g[3]); fi.maxLength = LIMITS.formula; l.appendChild(fi); rw.appendChild(l);
         });
-        rw.appendChild(labeledSelect('sys-bud-over', 'When over', BUDGET_OVER_OPTS, b.over === 'warn' || b.over === 'off' ? b.over : 'refuse', 'What happens when a player’s own change would take their character over this budget. Refuse stops the change. Warn lets it through with a note to them and to you. Only show it does not check'));
-        rw.appendChild(labeledSelect('sys-bud-when', 'Watched', BUDGET_WHEN_OPTS, b.when === 'making' || b.when === 'play' ? b.when : 'always', 'When the budget is watched: always, only while a player is making the character, or only once it is in play'));
+        rw.appendChild(labeledSelect('sys-bud-over field', 'When over', BUDGET_OVER_OPTS, b.over === 'warn' || b.over === 'off' ? b.over : 'refuse', 'What happens when a player’s own change would take their character over this budget. Refuse stops the change. Warn lets it through with a note to them and to you. Only show it does not check'));
+        rw.appendChild(labeledSelect('sys-bud-when field', 'Watched', BUDGET_WHEN_OPTS, b.when === 'making' || b.when === 'play' ? b.when : 'always', 'When the budget is watched: always, only while a player is making the character, or only once it is in play'));
         [['up', '▲', 'Move up'], ['down', '▼', 'Move down'], ['del', '×', 'Remove']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = 'bd' + bd[0]; bb.title = bd[2]; rw.appendChild(bb); });
         wrap.appendChild(rw);
         if (typeof b.id === 'string') { var re = errorCell(b.id); re.dataset.errFor = b.id; wrap.appendChild(re); }   // the validator's reading of its two formulas
@@ -8023,6 +8140,7 @@ function renderAll() {
     var sfEl = ui('sysEffects'); if (sfEl) sfEl.style.display = tab === 'effects' ? '' : 'none';   // 5h
     var slEl = ui('sysLists'); if (slEl) { slEl.style.display = tab === 'lists' ? '' : 'none'; if (tab === 'lists') renderLists(); }   // Stage 6 F4b
     if (tab === 'lists') renderBudgets();   // 126: the Point budgets box, under the list rules
+    if (tab === 'lists') renderEnv();   // 1.6.0: the Environment readings box, under the budgets
     var efr = ui('sysEffectRows'); if (efr) { efr.textContent = ''; if (!draft.effects || !draft.effects.length) efr.appendChild(el('div', 'sys-empty', 'No status effects yet. Add Rage, Prone, Blessed\u2026 each with the numbers it changes, then put a Status effects field on the sheet.')); (draft.effects || []).forEach(function(d) { efr.appendChild(effectRow(d)); }); }
     var sl = ui('sysLayout'); if (sl) { sl.style.display = tab === 'layout' ? '' : 'none'; if (tab === 'layout') renderLayout(); }
     var scal = ui('sysCalendar'); if (scal) { scal.style.display = tab === 'calendar' ? '' : 'none'; if (tab === 'calendar') renderCalendar(); }   // item 20 K1: the calendar
@@ -8050,6 +8168,7 @@ function onInput(e) {
     if (onPostureInput(t)) return;   // conditions C3
     if (onInitInput(t)) return;   // initiative O2
     if (onBudgetInput(t)) return;   // 126: the Lists tab's point budgets
+    if (onEnvInput(t)) return;   // 1.6.0: the Environment readings
     if (onHeightInput(t)) return;   // item 19 H2
     if (onCalendarInput(t)) return;   // item 20 K1
     if (onDamageInput(t)) return;   // 1.5.6: the Taking damage box
@@ -8238,6 +8357,7 @@ function onChange(e) {
     if (onPostureChange(t)) return;   // conditions C3
     if (onInitChange(t)) return;   // initiative O2
     if (onBudgetChange(t)) return;   // 126
+    if (onEnvChange(t)) return;   // 1.6.0
     if (onHeightChange(t)) return;   // item 19 H2
     if (onCalendarChange(t)) return;   // item 20 K1
     if (onDamageChange(t)) return;   // 1.5.6: the Taking damage box
@@ -8431,6 +8551,7 @@ function onClick(e) {
     if (heightClick(b)) return;   // item 19 H2: the Combat card's height table
     if (calendarClick(b)) return;   // item 20 K1: the Calendar tab
     if (budgetClick(b)) return;   // 126: the Lists tab's point budgets
+    if (envClick(b)) return;   // 1.6.0: the Environment readings
     if (damageClick(b)) return;   // 1.5.6: the Taking damage box
     var crow = b.closest('.sys-char-row');
     if (crow) {
@@ -8774,7 +8895,7 @@ function damageOn() { var sys = systemOf(); return !!dmgRules(sys) && !isClient(
 window.wpSheets = { bellNote: bellNote, envSoon: envSoon, envFollow: envFollow, rollSwitchesFor: rollSwitchesFor, crossSeed: crossSeed, turnEndHook: turnEndHook, goneLocal: goneLocal, goneWait: goneWait, postureSeed: function() { return postureSeed(getActiveCampaign()); }, runTimeRules: runTimeRules, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
     gmFinder: gmFinder, uploadsChanged: uploadsChanged, approveNote: approveNote, openReview: openReview, readersChanged: readersChanged, emojiSet: EMOJI_SET, applyCharFace: applyCharFace, applyCharFrame: applyCharFrame, applyTokenFrame: applyTokenFrame,
     charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, addCharacter: addCharacter, askDeleteSheet: askDeleteSheet, deleteCharacter: deleteCharacter, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
-    charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId, tokenFx: tokenFx, tokenFxModel: tokenFxModel, tokenFxCharOp: tokenFxCharOp,
+    charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId, tokenFx: tokenFx, tokenEnv: tokenEnv, tokenFxModel: tokenFxModel, tokenFxCharOp: tokenFxCharOp,
     playerFinder: playerFinder, charFromJson: charFromJson, startFromFile: startFromFile,
     openSheet: openSheet, closeSheet: closeSheet, openHud: openHud, closeHud: closeHud, closeHuds: closeHuds, hudFor: hudFor, rolled: rolled, tokenTurned: tokenTurned, tokenCtxFor: tokenCtxFor, dialSig: dialSigFor, canOpen: canOpen, renderSheet: renderViews, renderSheetInto: renderSheetInto, charChanged: charChanged, charGone: charGone, editResult: editResult, styleResult: styleResult, commitLook: commitLook, sheetOpen: function() { return sheetOpen; }, canRoll: canRoll, hasInitRoll: hasInitRoll, rollInit: rollInit, initTieNow: initTieNow, LIMITS: LIMITS,
     readerKit: function() { return { exportView: exportView, charById: charById, tokenFlags: tokenFlags, facingTarget: facingTarget, stanceCtx: stanceCtx, el: el, saveTextFile: saveTextFile, systemOf: systemOf, F: F, isClient: isClient, canWrite: canWrite, newCharacter: newCharacter, linkToken: linkToken, afterCharChange: afterCharChange, openReview: openReview, gmFinder: gmFinder, renderViews: renderViews, sheetOpen: function() { return sheetOpen; } }; } };   // what an outside reader's page code reads the sheet by

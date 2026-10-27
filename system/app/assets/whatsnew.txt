@@ -84,6 +84,11 @@ System editor
   outline. Erase gives cells back to the map's own value, set in the same
   options. The painted cells show only to you, and only while the tool is
   in hand.
+- A reading may have warning and danger bands, set in the System editor's
+  Lists tab, each a formula of the character's names. Past one the figure
+  on the sheet turns amber or red, and a small thermometer in that colour
+  shows on the token of a character a player plays, for that player and
+  you.
 - An item or an effect can offer roll bonuses, each a tick in a roll's
   ± window. The ± shows gold where one applies, the table checks each one,
   and the card names what was added.

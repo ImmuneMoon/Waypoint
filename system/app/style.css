@@ -903,6 +903,13 @@
   .token-fx .tfx { width: 14px; height: 14px; border-radius: 50%; background: rgba(0,0,0,0.82); color: #e9e9f0; box-shadow: 0 0 0 1.5px #9aa0a6; display: inline-flex; align-items: center; justify-content: center; font: 700 9px/1 Inter, sans-serif; overflow: hidden; white-space: nowrap; }
   .token-fx .tfx.buff { box-shadow: 0 0 0 1.5px #5cb87a; }
   .token-fx .tfx.debuff { box-shadow: 0 0 0 1.5px #d9534f; }
+  /* 1.6.0: the map environment's badge on a character's token, amber near an extreme and red at one (the owner: "As drawn") */
+  .token-env { position: absolute; right: -6px; top: -6px; z-index: 6; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; border: 1.5px solid #111; transform: scale(var(--wbz, 1)); transform-origin: 100% 0; pointer-events: auto; }
+  .token-env svg { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+  .token-env.warn { background: #e0a03a; color: #1a1a1a; }
+  .token-env.danger { background: #d9534f; color: #fff; }
+  .sheet-env-warn .sheet-ctl, .sheet-env-warn .field, .sheet-env-warn .sheet-value { color: #e0a03a; border-color: #e0a03a; }
+  .sheet-env-danger .sheet-ctl, .sheet-env-danger .field, .sheet-env-danger .sheet-value { color: #d9534f; border-color: #d9534f; }
   .token-fx .tfx.gm { outline: 1px dashed #e0a54f; outline-offset: 1px; }
   .token-fx .tfx .wp-glyph { width: 9px; height: 9px; vertical-align: 0; }
   .token-fx .tfx.more { width: auto; padding: 0 3px; border-radius: 7px; }

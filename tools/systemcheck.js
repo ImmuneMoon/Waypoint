@@ -10737,6 +10737,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             '<li>A player&rsquo;s picker greys out an entry their character may not take yet, and says what it needs. The sheet&rsquo;s <b>+ Add item&hellip;</b> list does the same.</li>',
             '<li>Your machine judges every pick a player makes. A pick that does not meet its needs is refused, and the player is told why.</li>',
             '<li>The <b>Message</b> box holds words of your own for that. Leave it empty and the player is told what it needs, a rule as you wrote it.</li>',
+            '<li>Formulas read <b>Making</b>, 1 while a character is being made and 0 once it is in play. A Rule of <code>Making = 1</code> lets players take an entry only while making their character. You may still add it at any time.</li>',   // 1.6.0: Making (moved on purpose)
             '<li>You may always give an entry yourself. Your picker only tells you when the character does not meet what it needs.</li>',
             '<li>A need that names a GM-only entry is never named to a player. They are told it needs something they do not have.</li>',
             '<li>A rule that reads something players may not read is not shown to them either. Your machine judges it alone, and the form tells you so.</li>',
@@ -10748,7 +10749,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('126b prerequisites are said: Help has an entry by its name, right after Point budgets and before Weapon ranges, with where they are set, the level, the Rule and how it reads the character, what both pickers do, that the GM\'s machine judges every pick, the Message box, that the GM may always give, that a GM-only need is never named and a rule players may not read is not shown, what does not count, that a row stays and is marked, who sees the mark, and a sheet file; its points are nested one level, each once and in that order; Coming up says prerequisites are built and no longer lists anything of them as to come; the integration guide names the three keys with their limits, who is judged, what a players\' copy holds, the keys the app writes on a row, and that a rule\'s addressed entries are in the core; both release notes carry the same lines right after the budgets; the house rules say where an entry\'s needs are judged; the window\'s own words are the ones Help uses, and the picker\'s styles are there',
             helpN.startsWith('<li><b>Prerequisites</b> are what a character must have before it may take an entry. You set them in the Library, in an entry&rsquo;s <b>What it needs</b> box.\n')
             && ixN.indexOf('<li><b>Point budgets</b> watch') > 0 && ixN.indexOf('<li><b>Point budgets</b> watch') < hA && ixN.slice(ixN.indexOf('<li><b>Point budgets</b> watch'), hA).split('<li><b>').length === 4
-            && (helpN.match(/<li>/g) || []).length === 15 && (helpN.match(/<ul>/g) || []).length === 1 && POINTS.every((p, i) => helpN.split(p).length === 2 && (i === 0 || helpN.indexOf(POINTS[i - 1]) < helpN.indexOf(p)))
+            && (helpN.match(/<li>/g) || []).length === 16 /* 1.6.0: Making's point (moved on purpose) */ && (helpN.match(/<ul>/g) || []).length === 1 && POINTS.every((p, i) => helpN.split(p).length === 2 && (i === 0 || helpN.indexOf(POINTS[i - 1]) < helpN.indexOf(p)))
             && /<\/li>\n\s*<\/ul>\n\s*<\/li>\n\s*$/.test(helpN)
             && coming.includes('<li>Point <b>budgets</b> are built too: see System &#9656; Lists.</li>\n                                  <li><b>Prerequisites</b> are built too: see the Library&rsquo;s <b>What it needs</b> box.</li>\n') && !/Still to come/.test(coming) && (coming.match(/<li>/g) || []).length === 4
             && !/Still to come: <b>prerequisites<\/b>/.test(ixN) && !/Still to come: a prerequisite/.test(ixN)
@@ -15527,6 +15528,32 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && J(box.cls) === J(['sheet-env-danger']) && box.title === 'Temperature -22 °F: dangerously cold' && J(box2.cls) === J([])
             && sayW.length === 8 && /Warn below: a band rolls no dice\. Save drops that band\./.test(sayW[0]) && /Reading 1, Danger below: .*Save drops that band\./.test(sayW[1]) && /another reading has the key Temp/.test(sayW[2]) && /Reading 3: its key is a letter/.test(sayW[3]) && /Reading 4: it needs a number field/.test(sayW[4]) && /Reading 5: another reading is written into Temperature. Save drops it./.test(sayW[5]) && /Reading 6: the field kept on while it applies must be a toggle/.test(sayW[6]) && says.warns.length === 1 && /reads Secret, which players cannot read/.test(says.warns[0].message),
             J([words, gmT, plT, stT, box.cls, box2.cls, sayW]));
+    }
+    {   // 1.6.0: a copy held again is refused a name another copy carries as the site's organisation key reads it (againFold)
+        const J = JSON.stringify;
+        const rawB = { v: 1, name: 'B', items: [{ id: 'i_o', name: 'Org', again: 'name' }], fields: [{ id: 'f_o', key: 'Orgs', label: 'Orgs', kind: 'item-list', edit: 'owner', list: { noQty: true } }], sheet: { sections: [] } };
+        const gB = S.cleanSystem(rawB, { F, gmView: true });
+        const c = { id: 'c_b', ownerId: 'u_b', values: { f_o: [{ id: 'o_1', defId: 'i_o', qty: 1 }, { id: 'o_2', defId: 'i_o', qty: 1, ov: { name: 'Republic-Navy' } }] } };
+        const add = nm => S.applyRowOp(gB, c, 'f_o', { op: 'add', rowId: 'w_new8x', defId: 'i_o', qty: 1, name: nm }, F, {});
+        const r = ['Republic  Navy', 'republic navy!', ' REPUBLIC_NAVY ', '--- ', 'Republic Navy 2', 'Örg', 'org'].map(n => { const x = add(n); return x.ok ? 'ok' : (x.msg || x.reason); });
+        const folds = [S.againFold('Republic-Navy'), S.againFold('  A__b--C  '), S.againFold('Ünïcode 9'), S.againFold(5), S.againFold('!!')];
+        check('1.6.0 a copy held again (again: \'name\') is refused a name that reads as another copy\'s once both are folded as the site\'s organisation key folds them (lower case, each run of characters that are no letter or digit one space, trimmed), the entry\'s own name among them, and a name with no letter or digit is refused in words of its own',
+            J(r) === J(['Another Org already has that name.', 'Another Org already has that name.', 'Another Org already has that name.', 'A name needs a letter or a digit.', 'ok', 'ok', 'Another Org already has that name.'])
+            && J(folds) === J(['republic navy', 'a b c', 'ünïcode 9', '', '']), J([r, folds]));
+    }
+    {   // 1.6.0: Making, 1 while a character is in the making, read by any formula and by an entry's needs rule, which judges a player's pick alone
+        const J = JSON.stringify;
+        const rawM = { v: 1, name: 'M', items: [{ id: 'i_fs', name: 'Sensitive', needsIf: 'Making = 1', needsMsg: 'Only while making your character.' }], fields: [{ id: 'f_l', key: 'Gifts', label: 'Gifts', kind: 'item-list', edit: 'owner', list: { noQty: true } }, { id: 'f_m', key: 'Shown', label: 'Shown', kind: 'formula', formula: 'Making * 10' }], sheet: { sections: [] } };
+        const gM = S.cleanSystem(rawM, { F, gmView: true }), pM = S.cleanSystem(rawM, { F, gmView: false });
+        const ch = mk => Object.assign({ id: 'c_m', ownerId: 'u_m', values: { f_l: [] } }, mk ? { making: 1 } : {});
+        const add = (c, o) => { const r = S.applyRowOp(gM, c, 'f_l', { op: 'add', rowId: 'w_mk01', defId: 'i_fs', qty: 1 }, F, o); return r.ok ? 'ok' : (r.msg || r.reason); };
+        const reads = [S.resolveAll(gM, ch(true), F, null).f_m.value, S.resolveAll(gM, ch(false), F, null).f_m.value, S.resolveAll(gM, Object.assign(ch(false), { making: true }), F, null).f_m.value];
+        const picks = [add(ch(true), { player: true, view: pM }), add(ch(false), { player: true, view: pM }), add(ch(false), {})];
+        const own = S.cleanSystem({ v: 1, name: 'O', fields: [{ id: 'f_x', key: 'Making', label: 'Making', kind: 'number', def: 7 }, { id: 'f_y', key: 'Read', label: 'Read', kind: 'formula', formula: 'Making + 1' }], sheet: { sections: [] } }, { F, gmView: true });
+        const ownR = S.resolveAll(own, ch(true), F, null).f_y.value, vOk = S.validateSystem(gM, F).ok;
+        const copy = S.charFor(Object.assign(ch(true), { values: {} }), gM, 'u_m', {}), copyR = copy ? S.resolveAll(gM, copy, F, null).f_m.value : null;
+        check('1.6.0 formulas read Making, 1 while a character is in the making and 0 once in play, a field of the system\'s own named Making keeping the name; the validator knows it; its owner\'s copy reads it as the host does; an entry\'s Rule of Making = 1 lets a player take it only while making and the GM at any time, in the GM\'s own words',
+            J(reads) === J([10, 0, 10]) && J(picks) === J(['ok', 'Only while making your character.', 'ok']) && ownR === 8 && vOk && copyR === 10, J([reads, picks, ownR, vOk, copyR]));
     }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');

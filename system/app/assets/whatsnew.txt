@@ -79,6 +79,12 @@ System editor
   characters, such as a temperature. The table writes each into a number
   field where the character's token stands, so effects and time rules can
   follow it.
+- Formulas read Making, 1 while a character is being made. A prerequisite
+  rule of Making = 1 lets players take an entry only while making their
+  character, and you may still add it at any time.
+- Two copies of an entry held again under names of their own may not share a
+  name that reads alike once case, spaces and marks are set aside, so
+  Republic-Navy and Republic Navy are one name.
 - The Environment tool, beside the fog's, paints those readings onto a
   map's cells: a brush 1, 3 or 5 cells wide, a dragged box or a piece's
   outline. Erase gives cells back to the map's own value, set in the same

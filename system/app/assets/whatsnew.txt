@@ -75,6 +75,10 @@ System editor
   of a number to type.
 - A roll bonus for a list can name one of its rolls, so a bonus to Attack
   is not offered on the same weapon's Damage.
+- Environment readings: a system can name readings a map gives its
+  characters, such as a temperature. The table writes each into a number
+  field where the character's token stands, so effects and time rules can
+  follow it. The tool to set them on a map comes next.
 - An item or an effect can offer roll bonuses, each a tick in a roll's
   ± window. The ± shows gold where one applies, the table checks each one,
   and the card names what was added.

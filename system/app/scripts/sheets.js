@@ -379,6 +379,55 @@ function afterCharChange(c, whole, values) {
     renderViews(c.id);   // HUD frame (HF2a): the sheet and every HUD of this character
     if (typeof crossFollow === 'function') crossFollow(c, camp);   // 1.5.9: a value that crossed a step runs its rules, once the change is stored
 }
+// [systemcheck:envfollow-start]
+// 1.6.0, the map environment, fold 2 (docs/MAP_ENVIRONMENT_PLAN.md 4, 11 and 13; the owner, by prompt: "No reading at all"): on the machine that
+// owns the campaign alone, each character's readings are worked out where its token stands (fogcore envAt: its cell's painted value, else the
+// map's own) and written into the number field each reading names, with its toggle field on; a character whose token stands on no map, or on a
+// map that sets that reading nowhere, has NO reading: the number is cleared and the toggle off. Only what differs is written, as a time rule's
+// write is (outside the GM's undo, sent as a delta, then the crossings and an effect's posture follow), so a run that finds all as it was
+// writes, sends and saves nothing. envSoon asks it a moment after the board is drawn, and every two seconds for a move the table made
+var _envSoon = 0;
+function envTokenOf(camp, c) {   // where a character's readings are read: a player's character at a table, the map its player is on; else the map on screen, then the campaign's maps in order; never a waiting token
+    var items = camp && camp.items && typeof camp.items === 'object' ? camp.items : {}, on = function(mid) {
+        var m = typeof mid === 'string' && Object.prototype.hasOwnProperty.call(items, mid) ? items[mid] : null; if (!m || m.type !== 'map' || !Array.isArray(m.whiteboard)) return null;
+        var t = null; m.whiteboard.forEach(function(w) { if (!t && w && w.isChar && w.charId === c.id && !w.waiting) t = w; }); return t ? { map: m, tok: t } : null;
+    };
+    var n = net(), loc = null; if (c.ownerId && !c.npc && n && n.active && n.role === 'host' && n.roster) Object.keys(n.roster).forEach(function(k) { var r = n.roster[k]; if (r && r.id === c.ownerId && typeof r.location === 'string') loc = r.location; });
+    var h = loc ? on(loc) : null; if (h) return h; h = on(camp && camp.activeItemId); if (h) return h;
+    var ids = Object.keys(items); for (var i = 0; i < ids.length; i++) { h = on(ids[i]); if (h) return h; }
+    return null;
+}
+function envWant(sys, camp, c, FC) {   // { fieldId: value | null (cleared) } where the stored value differs from the readings now
+    var env = sys && Array.isArray(sys.env) ? sys.env : [], vals = {}, at = envTokenOf(camp, c), got = at ? FC.envAt(env.map(function(e) { return e.key; }), at.map, at.tok, FC.gridFor((at.map.meta && at.map.meta.gridType) || 'off', at.map.fog && at.map.fog.cell)) : {}, pl = {};
+    var cur = c.values && typeof c.values === 'object' ? c.values : {};
+    env.forEach(function(e) {
+        var f = fieldById(sys, e.field); if (!f || f.kind !== 'number') return;
+        var v = Object.prototype.hasOwnProperty.call(got, e.key) ? cleanValue(f, got[e.key]) : undefined, has = Object.prototype.hasOwnProperty.call(cur, f.id) && typeof cur[f.id] === 'number';
+        if (v === undefined) { if (has) vals[f.id] = null; } else if (!has || cur[f.id] !== v) vals[f.id] = v;
+        if (typeof e.placed === 'string') { var pf = fieldById(sys, e.placed); if (pf && pf.kind === 'toggle') pl[pf.id] = pl[pf.id] === true || v !== undefined; }
+    });
+    Object.keys(pl).forEach(function(id) { if ((cur[id] === true) !== pl[id]) vals[id] = pl[id]; });   // two readings may share one toggle: on while either reads here
+    return vals;
+}
+function envFollow(camp) {
+    var sys = camp && camp.system, FC = window.wpFogCore; if (!sys || !Array.isArray(sys.env) || !sys.env.length || !FC || typeof FC.envAt !== 'function' || isClient() || !canWrite() || net() && net().stream) return 0;
+    var n = net(), changed = 0;
+    Object.keys(camp.chars || {}).forEach(function(id) {
+        var c = camp.chars[id]; if (!c || typeof c !== 'object' || c.making) return;
+        var vals; try { vals = envWant(sys, camp, c, FC); } catch (e) { if (window.wpStepLog) window.wpStepLog('env v1', 'failed', { at: 'want' }); return; }
+        var ks = Object.keys(vals); if (!ks.length) return;
+        c.values = c.values || {}; ks.forEach(function(k) { if (vals[k] === null) delete c.values[k]; else c.values[k] = vals[k]; }); c.updated = Date.now();
+        if (n && n.active && n.role === 'host' && n.syncCharDelta) n.syncCharDelta(c.id, vals);
+        if (typeof renderViews === 'function') renderViews(c.id);
+        if (typeof ruleFollow === 'function') ruleFollow(c, camp);   // a temperature that crossed a step, an effect it switched on
+        changed++;
+    });
+    if (changed) { save(true); if (window.wpStepLog) window.wpStepLog('env v1', 'written', { chars: changed, sent: !!(n && n.active && n.role === 'host') }); if (window.appRender) window.appRender(); }
+    return changed;
+}
+function envSoon() { if (_envSoon) return; _envSoon = setTimeout(function() { _envSoon = 0; try { envFollow(getActiveCampaign()); } catch (e) { if (window.wpStepLog) window.wpStepLog('env v1', 'failed', { at: 'follow' }); } }, 250); }
+if (typeof window !== 'undefined' && !window.__wpEnvTick) window.__wpEnvTick = setInterval(envSoon, 2000);
+// [systemcheck:envfollow-end]
 // [systemcheck:cross-start]
 // 1.5.9 (docs/BOOK_ES_ET_PLAN.md 4a; the book (et) and (eu): a death check every time HP falls past -HP or a further multiple, even at a line
 // already rolled; rising above a line re-arms it; the owner's O5: a value typed by hand counts like any change): on the machine that owns the
@@ -8722,7 +8771,7 @@ function damageFromRoll(fromId, total, done, type) {   // 1.5.7: done, called on
 }
 function damageOn() { var sys = systemOf(); return !!dmgRules(sys) && !isClient() && canWrite(); }   // the cards' Apply to target: the GM's own machine
 // [systemcheck:dmgwin-end]
-window.wpSheets = { bellNote: bellNote, rollSwitchesFor: rollSwitchesFor, crossSeed: crossSeed, turnEndHook: turnEndHook, goneLocal: goneLocal, goneWait: goneWait, postureSeed: function() { return postureSeed(getActiveCampaign()); }, runTimeRules: runTimeRules, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
+window.wpSheets = { bellNote: bellNote, envSoon: envSoon, envFollow: envFollow, rollSwitchesFor: rollSwitchesFor, crossSeed: crossSeed, turnEndHook: turnEndHook, goneLocal: goneLocal, goneWait: goneWait, postureSeed: function() { return postureSeed(getActiveCampaign()); }, runTimeRules: runTimeRules, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, draft: function() { return draft; },
     gmFinder: gmFinder, uploadsChanged: uploadsChanged, approveNote: approveNote, openReview: openReview, readersChanged: readersChanged, emojiSet: EMOJI_SET, applyCharFace: applyCharFace, applyCharFrame: applyCharFrame, applyTokenFrame: applyTokenFrame,
     charsOf: charsOf, charList: charList, charById: charById, newCharacter: newCharacter, addCharacter: addCharacter, askDeleteSheet: askDeleteSheet, deleteCharacter: deleteCharacter, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
     charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId, tokenFx: tokenFx, tokenFxModel: tokenFxModel, tokenFxCharOp: tokenFxCharOp,

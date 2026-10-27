@@ -15448,6 +15448,34 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('1.6.0 the map environment, fold 1 (docs/MAP_ENVIRONMENT_PLAN.md 11 to 13): the system names its readings, each a key, a label, the number field the host writes it into, a toggle field kept on while its token is on a map, a unit (temp, or a few words) and four bands that are formulas with no dice; a reading of a field that is no number, of a field taken twice, a key taken twice or no key goes, and a placed field that is no toggle is dropped; the players\' view keeps only readings of fields they hold and no band that reads a GM-only value; the validator reads a band\'s names; a map\'s own readings and its painted cells are cleaned to keys and finite numbers held to a million; envAt reads a token\'s cell, else the map\'s own, else nothing, and only the map\'s own on a map with no grid; a map\'s readings and cells never go on the wire and are cleaned on import',
             gmOk && plOk && vE.some(e => /Nope/.test(J(e))) && valsOk && atOk && wireOk, J([gm.env, pl.env, valsOk, at1, at2, at3, at4, wireOk]));
     }
+    {   // 1.6.0: the map environment, fold 2: the host's writer (sheets.js envTokenOf, envWant and envFollow, sliced by their envfollow markers and run for real)
+        const J = JSON.stringify, FCe = await import('file:///' + path.resolve(path.join(app, 'scripts', 'fogcore.js')).split(String.fromCharCode(92)).join('/'));
+        const shE = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), ea = shE.indexOf('// [systemcheck:envfollow-start]'), ez = shE.indexOf('// [systemcheck:envfollow-end]');
+        const sysE = S.cleanSystem({ v: 1, name: 'E', sheet: { sections: [] }, rolls: [], fields: [{ id: 'f_t', key: 'Temp', label: 'Temperature', kind: 'number', min: -100, max: 100 }, { id: 'f_here', key: 'TempHere', label: 'Here', kind: 'toggle' }, { id: 'f_g', key: 'Grav', label: 'Gravity', kind: 'number' }],
+            env: [{ key: 'temp', field: 'f_t', placed: 'f_here', unit: 'temp' }, { key: 'grav', field: 'f_g' }] }, { F, gmView: true });
+        const mk = o => { o = o || {};
+            const rec = { deltas: [], saves: 0, follows: [], logs: [], renders: 0 };
+            const camp = { id: 'k', system: sysE, activeItemId: 'm1', chars: { a: { id: 'a', name: 'Ana', ownerId: 'u_a', values: {} }, b: { id: 'b', name: 'Bo', npc: true, values: { f_t: 5, f_here: true } }, z: { id: 'z', name: 'Making', making: true, values: {} } },
+                items: { m1: { id: 'm1', type: 'map', meta: { gridType: 'square', env: { temp: 20 } }, whiteboard: [{ id: 't_a', isChar: true, charId: 'a', x: 100, y: 150, w: 50, h: 50 }, { id: 't_w', isChar: true, charId: 'b', waiting: true, x: 0, y: 0 }] },
+                    m2: { id: 'm2', type: 'map', meta: { gridType: 'square', env: { temp: 30, grav: 2 }, envCells: { '0,0': { temp: -50 } } }, whiteboard: [{ id: 't_b', isChar: true, charId: 'b', x: 0, y: 0, w: 50, h: 50 }] } } };
+            const n = { active: !!o.host, role: o.host ? 'host' : '', roster: o.roster || {}, syncCharDelta: (id, v) => rec.deltas.push([id, J(v)]), stream: false };
+            const api = new Function('net', 'isClient', 'canWrite', 'fieldById', 'cleanValue', 'renderViews', 'ruleFollow', 'save', 'getActiveCampaign', 'window', shE.slice(ea, ez) + '\nreturn { envFollow: envFollow, envWant: envWant, envTokenOf: envTokenOf };')(
+                () => n, () => !!o.client, () => o.write !== false, S.fieldById, S.cleanValue, () => rec.renders++, (c) => rec.follows.push(c.id), () => rec.saves++, () => camp,
+                { wpFogCore: FCe, __wpEnvTick: 1, wpStepLog: (a, b, d) => rec.logs.push([a, b, J(d)]), appRender: () => {} });
+            return { rec, camp, api, n };
+        };
+        const w = mk({ host: true }), r1 = w.api.envFollow(w.camp), vA = J(w.camp.chars.a.values), vB = J(w.camp.chars.b.values), r2 = w.api.envFollow(w.camp);
+        w.camp.items.m1.whiteboard[0].x = 400; w.camp.items.m1.meta.envCells = { '8,3': { temp: 41 } }; const r3 = w.api.envFollow(w.camp), vA3 = J(w.camp.chars.a.values);
+        w.camp.items.m1.whiteboard = []; const r4 = w.api.envFollow(w.camp), vA4 = J(w.camp.chars.a.values);
+        const offs = [mk({ client: true }), mk({ write: false })].map(x => [x.api.envFollow(x.camp), J(x.camp.chars.a.values)]);
+        const rp = mk({ host: true, roster: { p1: { id: 'u_a', location: 'm2' } } }); rp.camp.items.m2.whiteboard.push({ id: 't_a2', isChar: true, charId: 'a', x: 500, y: 500, w: 50, h: 50 }); rp.api.envFollow(rp.camp);
+        const noEnv = mk({ host: true }); noEnv.camp.system = S.cleanSystem({ v: 1, name: 'N', sheet: { sections: [] }, rolls: [], fields: [] }, { F, gmView: true }); const rN = noEnv.api.envFollow(noEnv.camp);
+        check('1.6.0 the map environment, fold 2 (sheets.js envFollow, run for real with the real fogcore and the real cleaner): on the machine that owns the campaign each character\'s readings are written where its token stands, its cell\'s painted value before the map\'s own, its toggle on; a reading the map sets nowhere is cleared, its toggle off where no other reading holds it; a character with no token on a map has its number cleared and its toggle off; a waiting token and a character being made count for nothing; only what differs is written, sent as one delta a character, followed by the crossings and saved once; a second run with nothing moved writes, sends and saves nothing; a player\'s character at a table reads the map its player is on; a player\'s app, a campaign this machine may not write and a system with no readings write nothing',
+            r1 === 2 && vA === J({ f_t: 20, f_here: true }) && vB === J({ f_t: -50, f_here: true, f_g: 2 }) && r2 === 0 && w.rec.deltas.length === 4 && J(w.rec.follows) === J(['a', 'b', 'a', 'a'])
+            && r3 === 1 && vA3 === J({ f_t: 41, f_here: true }) && r4 === 1 && vA4 === J({ f_here: false }) && J(w.rec.deltas[3]) === J(['a', J({ f_t: null, f_here: false })]) && w.rec.saves === 3 && w.rec.logs.length === 3 && w.rec.logs.every(l => l[0] === 'env v1' && l[1] === 'written')
+            && offs.every(x => x[0] === 0 && x[1] === '{}') && J(rp.camp.chars.a.values) === J({ f_t: 30, f_g: 2, f_here: true }) && rN === 0 && !('f_t' in mk().camp.chars.z.values),
+            J([r1, vA, vB, r2, r3, vA3, r4, vA4, w.rec.deltas, w.rec.saves, offs, rp.camp.chars.a.values, rN]));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

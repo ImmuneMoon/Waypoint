@@ -321,6 +321,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       
 
       if (window.wpMapTabs) window.wpMapTabs.sync();   // the top row's map tabs (maptabs.js): the tab in front holds the breadcrumb drawn just above
+      if (window.wpSheets && window.wpSheets.envSoon) window.wpSheets.envSoon();   // 1.6.0: the map environment's readings, written where a token stands (a moment later, once a run of redraws settles)
       if (window.wpSheets && window.wpSheets.crossSeed) window.wpSheets.crossSeed();   // 1.5.9 (book es/et plan 4a): the values the crossings watch, noted for every character not seen yet, so a load crosses nothing
       if (window.wpSheets && window.wpSheets.postureSeed) window.wpSheets.postureSeed();   // the review of fold 6b: and the effects that set a posture, so the first change after a load lays a token down
       if (window.wpCharList) window.wpCharList.sync();   // the left panel's Characters section (charlist.js): every change of a character ends in a redraw, and the list is drawn again only when it changed

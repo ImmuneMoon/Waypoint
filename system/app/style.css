@@ -2415,6 +2415,35 @@
   #soundPanel { position: fixed; right: 18px; top: 200px; width: 380px; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
   #soundHead { display: flex; align-items: center; gap: 6px; padding: 6px 8px; cursor: move; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); user-select: none; }
   #soundPanel .notepad-btn { padding: 1px 7px; font-size: 11px; }
+  /* 1.6.0, backlog 173: the Time rules panel and its chat line */
+  #timePanel { position: fixed; right: 18px; top: 140px; width: 440px; max-width: calc(100vw - 24px); max-height: 70vh; z-index: 9000; display: flex; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
+  #timeHead { display: flex; align-items: center; gap: 6px; padding: 6px 8px; cursor: move; background: rgba(0,0,0,0.12); border-bottom: 1px solid var(--edge); user-select: none; }
+  #timeHead .notepad-btn { padding: 1px 7px; font-size: 11px; }
+  #timeBody { overflow: auto; padding-bottom: 4px; }
+  #timePanel .tp-runs, #timePanel .tp-tools { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 10px 0; align-items: center; }
+  #timePanel .tp-tools { padding-bottom: 6px; }
+  #timePanel .tp-find { flex: 1 1 140px; min-width: 120px; }
+  #timePanel .tp-older { width: auto; max-width: 160px; }
+  #timePanel .tp-chip { font: inherit; font-size: 12px; padding: 2px 9px; border-radius: 12px; border: 1px solid var(--edge); background: transparent; color: var(--dim); cursor: pointer; }
+  #timePanel .tp-chip.on { background: var(--gold); border-color: var(--gold); color: var(--gold-ink, #1a1a1a); }
+  #timePanel .tp-grp { padding: 6px 12px 2px; font-size: 10.5px; color: var(--dim); text-transform: uppercase; letter-spacing: .06em; }
+  #timePanel .tp-ch { margin: 0 8px 4px; border-radius: 6px; background: rgba(0,0,0,0.14); }
+  #timePanel .tp-ch-h { display: flex; gap: 8px; align-items: center; width: 100%; padding: 6px 8px; background: transparent; border: 0; color: inherit; font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+  #timePanel .tp-arrow { color: var(--dim); width: 12px; }
+  #timePanel .tp-n { flex: 1; } #timePanel .tp-n small, #timePanel .tp-count { color: var(--dim); font-size: 11.5px; }
+  #timePanel .tp-chg { padding: 0 8px 8px 28px; font-size: 12.5px; }
+  #timePanel .tp-line { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; padding: 3px 0; border-top: 1px solid var(--edge); }
+  #timePanel .tp-r { color: var(--dim); min-width: 110px; } #timePanel .tp-v { flex: 1; min-width: 120px; }
+  #timePanel .tp-tag { color: var(--dim); font-size: 10.5px; }
+  #timePanel .tp-mute, #timePanel .tp-unmute { font: inherit; font-size: 11px; color: var(--dim); background: transparent; border: 1px solid var(--edge); border-radius: 4px; padding: 0 6px; cursor: pointer; }
+  #timePanel .tp-mute.on { color: var(--gold); border-color: var(--gold); }
+  #timePanel .tp-unmute { border: 0; padding: 0; text-decoration: underline; }
+  #timePanel .tp-foot { padding: 8px 12px; color: var(--dim); font-size: 12px; }
+  #timePanel .tp-empty { padding: 12px; color: var(--dim); font-size: 12.5px; }
+  .chat-trun { display: flex; gap: 8px; align-items: center; margin-bottom: 7px; padding: 5px 7px; border-left: 3px solid var(--gold); border-radius: 4px; background: rgba(0,0,0,0.12); }
+  .chat-trun .ico { width: 15px; height: 15px; flex: none; }
+  .chat-trun-txt { flex: 1; } .chat-trun-txt small { display: block; color: var(--dim); font-size: 11px; }
+  .chat-trun-open { padding: 1px 8px; font-size: 12px; }
   #soundPanel.min #soundBody { display: none; }
   #soundBody { padding: 6px 8px 8px; display: flex; flex-direction: column; gap: 8px; max-height: 55vh; overflow: auto; }
   .snd-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }

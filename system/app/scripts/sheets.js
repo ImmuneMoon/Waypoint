@@ -1402,7 +1402,7 @@ function turnView(v, final) {
 // live: Effects, Sound, Music, Video and the notepad came up under an open sheet or page panel, which stand later in the page at the same z,
 // and a press on them left them there)
 var _zTop = 9000;
-var Z_BOXES = ['sheetPanel', 'docPanel', 'soundPanel', 'musicPanel', 'videoPanel', 'fxPanel', 'notepadPanel'];
+var Z_BOXES = ['sheetPanel', 'docPanel', 'soundPanel', 'musicPanel', 'videoPanel', 'fxPanel', 'notepadPanel', 'timePanel'];
 function floatPanels() { var l = Z_BOXES.map(function(id) { return ui(id); }); Object.keys(huds).forEach(function(id) { l.push(huds[id].panel); }); return l.filter(Boolean); }
 function raisePanel(p) {
     if (!p || String(p.style.zIndex) === String(_zTop)) return;
@@ -4102,12 +4102,12 @@ function ruleDice(rule) {   // whether a time rule's roll rolls dice: its own fo
 // needs held it back), as it was run, so that calendar.js keeps the time of a run held back (heldBack). Without either, exactly as before
 function runTimeRules(fires, words, at, back) {
     var camp = getActiveCampaign(), sys = systemOf(camp), n = net(), D = window.wpDiceCore; if (!camp || !sys || !F() || !Array.isArray(fires)) return 0;
-    var byChar = Object.create(null), order = [], changed = 0, aud = Object.create(null);
+    var byChar = Object.create(null), order = [], changed = 0, aud = Object.create(null), runChars = [];
     var flat = typeof makeResolver === 'function' && typeof ruleRunCtx === 'function' && typeof chainsShallow === 'function' && chainsShallow(sys, F());   // shared only where sharing changes nothing
     fires.forEach(function(fi) { if (!fi || typeof fi.c !== 'string' || typeof fi.r !== 'string') return; if (!byChar[fi.c]) { byChar[fi.c] = []; order.push(fi.c); } byChar[fi.c].push(fi); });
     order.forEach(function(cid) {
         var c = charById(cid, camp); if (!c) return;
-        var parts = [], all = {}, gm = false, kept = null;   // kept (1.5.5): { k, r } — a resolver of c as it now stands, in the context k, while nothing is stored
+        var parts = [], pl = [], lines = [], all = {}, gm = false, kept = null;   // pl, lines (backlog 173): what its player is told, and the run's lines for the Time rules panel   // kept (1.5.5): { k, r } — a resolver of c as it now stands, in the context k, while nothing is stored
         byChar[cid].forEach(function(fi) {
             var rule = (Array.isArray(sys.rolls) ? sys.rolls : []).filter(function(r) { return r && r.id === fi.r && (r.every || r.inFight); })[0]; if (!rule) return;
             var ak = rule.id + (c.npc || !c.ownerId ? '|n' : '|o');   // applyScope reads nothing else of the character
@@ -4129,12 +4129,16 @@ function runTimeRules(fires, words, at, back) {
             if (moved !== null && !moved.length && !(res.rolls.made && ruleDice(rule)) && !(res.drew > 0)) return;   // the flood fix: it moved nothing and rolled no dice, so it says nothing (1.5.9: a Rolled amount that drew dice rolled them)
             var head = (rule.label || 'A rule') + ' \u00d7' + fi.n + (res.rolls.made ? ' (' + res.rolls.pass + ' of ' + res.rolls.made + ' succeeded)' : '');
             var lns = moved || res.lines.filter(function(l) { return l.d !== 0; });   // with no resolver, the run's own lines, as before; a roll of dice that moved nothing says no change
-            parts.push(head + (lns.length ? ': ' + lns.map(function(l) { return l.n + ' ' + (l.d >= 0 ? '+' : '') + l.d + ' \u2192 ' + l.v; }).join(', ') : ': no change'));
+            var body = lns.length ? lns.map(function(l) { return l.n + ' ' + (l.d >= 0 ? '+' : '') + l.d + ' \u2192 ' + l.v; }).join(', ') : 'no change', nt = rule.notes === 'quiet' || rule.notes === 'panel' ? rule.notes : '';
+            parts.push(head + ': ' + body); if (nt !== 'quiet') pl.push(head + ': ' + body); lines.push({ r: rule.id, head: head, body: body, notes: nt, roll: !Array.isArray(rule.apply) });   // backlog 173: a rule set Panel only, players never told, is not in its player's summary
         });
         if (Object.keys(all).length) { c.updated = Date.now(); if (n && n.active && n.role === 'host' && n.syncCharDelta) n.syncCharDelta(c.id, all); renderViews(c.id); changed++; }   // what was written is stored, sent and saved, said or not
-        if (parts.length && n && n.timeCard) n.timeCard(c, (words ? words + ' \u2014 ' : '') + (c.name || 'A character') + ': ' + parts.join('; '), gm);   // the flood fix: no part left, no summary
+        var tp = typeof window !== 'undefined' && window.wpTimePanel && typeof window.wpTimePanel.add === 'function' ? window.wpTimePanel : null, lead = (words ? words + ' \u2014 ' : '') + (c.name || 'A character') + ': ';
+        if (parts.length && n && n.timeCard) { if (tp || pl.length !== parts.length) n.timeCard(c, lead + parts.join('; '), gm, { player: pl.length ? lead + pl.join('; ') : '', gmChat: !tp }); else n.timeCard(c, lead + parts.join('; '), gm); }   // the flood fix: no part left, no summary; backlog 173: the GM's chat gets the run's one line from the panel instead
+        if (parts.length && tp) runChars.push({ c: c, gm: gm, lines: lines });
         if (Object.keys(all).length && typeof ruleFollow === 'function') ruleFollow(c, camp);   // the review of folds 4a and 6b: a bleed past minus HP owes its death check now, and an effect it brought on lays its token down
     });
+    if (runChars.length && window.wpTimePanel) { try { window.wpTimePanel.add(camp, sys, words, runChars); } catch (e) { console.error(e); } }   // backlog 173: the run kept for the Time rules panel, and its one chat line
     if (changed) { save(true); if (window.appRender) window.appRender(); }
     return changed;
 }
@@ -6143,6 +6147,7 @@ function rollRow(r) {
     row.appendChild(everyRow(r));   // item 20 K5: by the campaign's clock
     row.appendChild(fightRow(r));   // backlog 152, fold 5: in a fight
     row.appendChild(askRow(r));   // and whether its runs wait for your word
+    if (r.every || r.inFight || r.notes) row.appendChild(noteRow(r));   // 1.6.0, backlog 173: where its runs are said, for a time rule
     if (typeof crossRow === 'function') row.appendChild(crossRow(r));   // 1.5.9 (book es/et plan 4a): when a value crosses a step
     row.appendChild(applyEditor(r, isApply ? 'apply' : 'then'));   // R1: a roll's consequences under it
     var err = errorCell(r.id); err.dataset.errFor = r.id; row.appendChild(err);
@@ -8044,6 +8049,10 @@ function askRow(r) {   // Ask me first: its runs wait for the GM's word
     var row = el('div', 'sys-flags sys-roll-askrow'), al = el('label', 'sys-hover'), ac = el('input', 'sys-roll-evask'); ac.type = 'checkbox'; ac.checked = r.ask === true; ac.title = 'Its runs wait for your word, even when Time rules run at once. With the Calendar on they wait in the Calendar window\u2019s list. With it off they wait in the bell in the top row.'; al.appendChild(ac); al.appendChild(document.createTextNode(' Ask me first')); row.appendChild(al);
     return row;
 }
+function noteRow(r) {   // 1.6.0, backlog 173: where its runs are said
+    var row = el('div', 'sys-flags sys-roll-noterow'), nl = el('label', 'sys-hover'), ns = el('select', 'field sys-roll-tnote'); ns.title = 'Where its runs are said. In chat counts it on the run\u2019s one chat line. Panel only keeps it in the Time rules panel and the Session Log. Players never told: its player is not told of it either.'; [['', 'In chat'], ['panel', 'Panel only'], ['quiet', 'Panel only, players never told']].forEach(function(o) { var op = el('option', '', o[1]); op.value = o[0]; if ((r.notes || '') === o[0]) op.selected = true; ns.appendChild(op); }); nl.appendChild(document.createTextNode('Notes ')); nl.appendChild(ns); row.appendChild(nl);
+    return row;
+}
 function everyBare(r, k, u) { var o = r[k]; if (o && typeof o === 'object' && !Array.isArray(o) && o.u === u && Object.keys(o).length === 1) delete r[k]; }   // a tick taken off a rule that holds nothing but the shown unit takes the rule away, so no line stays under it
 function everyEdit(r, c, t) {   // the By the clock, In a fight and Ask me first boxes' edits; a unit or a tick before any number keeps the shown unit
     if (c.indexOf('sys-roll-evn') >= 0) { var v = Number(t.value); r.every = Object.assign({ u: 'day' }, r.every && typeof r.every === 'object' && !Array.isArray(r.every) ? r.every : {}); if (String(t.value).trim() && isFinite(v)) r.every.n = v; else delete r.every; return true; }
@@ -8056,6 +8065,7 @@ function everyEdit(r, c, t) {   // the By the clock, In a fight and Ask me first
     if (c.indexOf('sys-roll-evhold') >= 0) { r.every = Object.assign({ u: 'day' }, r.every && typeof r.every === 'object' && !Array.isArray(r.every) ? r.every : {}); if (t.checked === true) r.every.whileNeeds = true; else { delete r.every.whileNeeds; everyBare(r, 'every', 'day'); } return true; }   // 1.5.5: Only while its needs hold
     if (c.indexOf('sys-roll-ifhold') >= 0) { r.inFight = Object.assign({ u: 'round' }, r.inFight && typeof r.inFight === 'object' && !Array.isArray(r.inFight) ? r.inFight : {}); if (t.checked === true) r.inFight.whileNeeds = true; else { delete r.inFight.whileNeeds; everyBare(r, 'inFight', 'round'); } return true; }
     if (c.indexOf('sys-roll-evask') >= 0) { if (t.checked === true) r.ask = true; else delete r.ask; return true; }
+    if (c.indexOf('sys-roll-tnote') >= 0) { if (t.value === 'panel' || t.value === 'quiet') r.notes = t.value; else delete r.notes; return true; }   // 1.6.0, backlog 173
     return false;
 }
 // [sinkcheck:everyrow-end]
@@ -8524,7 +8534,7 @@ function onChange(e) {
         else if (c.indexOf('sys-roll-each') >= 0) { delete r.round; if (t.value === 'round' || t.value === 'turn' || t.value === 'turnEnd') { r.each = t.value; if (!Array.isArray(r.apply) && r.by !== 'gm' && r.by !== 'owner') r.by = 'owner'; } else { delete r.each; delete r.by; } markDirty(); renderAll(); return; }   // 1.5.9: a roll is due for its player until another is picked   // Stage 6 HUD G10 + turn-based combat T2b
         else if (c.indexOf('sys-roll-by') >= 0) { if (t.value === 'gm' || t.value === 'owner') r.by = t.value; else delete r.by; }
         else if (c.indexOf('sys-roll-xs') >= 0) { if (crossEdit(r, c, t) === 'all') { markDirty(); renderAll(); return; } }   // 1.5.9 (book es/et plan 4a): When a value crosses
-        else if (c.indexOf('sys-roll-evu') >= 0 || c.indexOf('sys-roll-evrest') >= 0 || c.indexOf('sys-roll-evwait') >= 0 || c.indexOf('sys-roll-ifu') >= 0 || c.indexOf('sys-roll-iffresh') >= 0 || c.indexOf('sys-roll-evask') >= 0 || c.indexOf('sys-roll-evhold') >= 0 || c.indexOf('sys-roll-ifhold') >= 0) everyEdit(r, c, t);   // item 20 K5; backlog 152, fold 5: Waits in a fight, In a fight's unit and tick, Ask me first; 1.5.5: Only while its needs hold, in both rows
+        else if (c.indexOf('sys-roll-evu') >= 0 || c.indexOf('sys-roll-evrest') >= 0 || c.indexOf('sys-roll-evwait') >= 0 || c.indexOf('sys-roll-ifu') >= 0 || c.indexOf('sys-roll-iffresh') >= 0 || c.indexOf('sys-roll-evask') >= 0 || c.indexOf('sys-roll-evhold') >= 0 || c.indexOf('sys-roll-ifhold') >= 0 || c.indexOf('sys-roll-tnote') >= 0) everyEdit(r, c, t);   // item 20 K5; backlog 152, fold 5: Waits in a fight, In a fight's unit and tick, Ask me first; 1.5.5: Only while its needs hold, in both rows
         else if (c.indexOf('sys-dmg-chk') >= 0) { if (t.checked) r.dmg = true; else delete r.dmg; }   // chat cards: a damage roll
         else if (c.indexOf('sys-init-chk') >= 0) { r.init = t.checked; if (t.checked) draft.rolls.forEach(function(o) { if (o !== r) delete o.init; }); markDirty(); renderAll(); return; }
         else return;

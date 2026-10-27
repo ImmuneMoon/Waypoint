@@ -4856,11 +4856,12 @@ function fxEnded(ch, name) {   // "Bless ran out on Pat." — a private line for
 // [netcheck:timecard-start]
 // Item 20 K5: a time rules summary (sheets.js runTimeRules) — a private line for the GM, and one for the character's player at the table unless it
 // is the GM's alone (an NPC, or a rule that moves or reads what the player cannot see); and the Session Log's Time
-net.timeCard = function(ch, text, gmOnly) {
+net.timeCard = function(ch, text, gmOnly, opts) {   // opts (backlog 173): player, what its player is told (a rule set Panel only, players never told, left out; empty: nothing); gmChat false, the GM's chat gets the run's one line instead
     if (net.role === 'client' || net.stream || !ch || typeof ch !== 'object') return;
     var t = String(text || '').slice(0, 1500), m = { type: 'chat', scope: 'whisper', from: { id: net.myId || 'gm', name: 'GM', gm: true }, text: t, ts: Date.now(), kind: 'time' };   // 1.5.6: kind time, so a player's app shows it as they chose (timeNote)
-    if (!gmOnly && net.active && net.role === 'host' && ch.ownerId && !ch.npc) net.conns.forEach(function(c) { if (c.open && net.roster[c.peer] && peerProfileId(c) === ch.ownerId) { try { c.send(m); } catch (e) { sendFailed(e); } } });
-    if (typeof timeNote === 'function') timeNote(m); else pushChat(m);   // 1.5.6: the GM's own chat by the GM's own Time rule notes choice
+    var po = opts && typeof opts === 'object' && typeof opts.player === 'string' ? opts.player.slice(0, 1500) : t, mP = po === t ? m : Object.assign({}, m, { text: po });
+    if (!gmOnly && po && net.active && net.role === 'host' && ch.ownerId && !ch.npc) net.conns.forEach(function(c) { if (c.open && net.roster[c.peer] && peerProfileId(c) === ch.ownerId) { try { c.send(mP); } catch (e) { sendFailed(e); } } });
+    if (!(opts && typeof opts === 'object' && opts.gmChat === false)) if (typeof timeNote === 'function') timeNote(m); else pushChat(m);   // 1.5.6: the GM's own chat by the GM's own Time rule notes choice
     logEvent('time', t);   // the Session Log keeps every line whatever the chat shows
 };
 // [netcheck:timecard-end]
@@ -4888,6 +4889,13 @@ function timeNote(m) {
     _timeBuf.push(net.role === 'client' ? Object.assign({}, m, { fromHost: true }) : m);
     if (!_timeTimer) _timeTimer = setTimeout(timeFlush, mode === '1h' ? 3600000 : 600000);
 }
+// Backlog 173: the GM's one chat line a run of the time rules, with Open (timepanel.js draws it): a whisper of the GM's own, so no player and no
+// join's history ever holds it; the GM's own Time rule notes choice of Off posts none
+net.timeRunLine = function(run) {
+    if (net.role === 'client' || net.stream || !run || typeof run !== 'object' || timeNotesMode() === 'off') return false;
+    pushChat({ type: 'chat', scope: 'whisper', from: { id: net.myId || 'gm', name: 'GM', gm: true }, text: String(run.text || '').slice(0, 300), ts: Date.now(), kind: 'time', trun: { id: String(run.id || '').slice(0, 40), sub: String(run.sub || '').slice(0, 200) } });
+    return true;
+};
 net.timeNotesNow = function() { var mode = timeNotesMode(); if (mode === 'off') { _timeBuf.length = 0; if (_timeTimer) { clearTimeout(_timeTimer); _timeTimer = null; } } else timeFlush(); };
 // [netcheck:timenote-end]
 function fxCombatChars(mapId, combat) { var camp = getActiveCampaign(); if (!camp || !camp.system) return []; var S = SC(), mp = camp && camp.items && own(camp.items, mapId) ? camp.items[mapId] : null; return S && S.combatChars && mp ? S.combatChars(mp, combat, camp.chars || {}).map(function(e) { return camp.chars[e.charId]; }).filter(Boolean) : []; }
@@ -9252,7 +9260,7 @@ function renderChat() {
     var frag = document.createDocumentFragment();
     chatLog.forEach(function(m) {
         var node = null;
-        try { node = m.roll ? (window.wpDice ? window.wpDice.renderCard(m) : null) : m.apply ? (window.wpDice && window.wpDice.renderApply ? window.wpDice.renderApply(m) : null) : m.due ? (window.wpDice && window.wpDice.renderDue ? window.wpDice.renderDue(m) : null) : chatEntryNode(m); } catch (e) { node = null; }   // one bad entry never blanks the panel
+        try { node = m.roll ? (window.wpDice ? window.wpDice.renderCard(m) : null) : m.apply ? (window.wpDice && window.wpDice.renderApply ? window.wpDice.renderApply(m) : null) : m.due ? (window.wpDice && window.wpDice.renderDue ? window.wpDice.renderDue(m) : null) : m.trun && window.wpTimePanel && window.wpTimePanel.renderLine ? window.wpTimePanel.renderLine(m) : chatEntryNode(m); } catch (e) { node = null; }   // one bad entry never blanks the panel
         if (node) frag.appendChild(node);
     });
     log.textContent = ''; log.appendChild(frag);

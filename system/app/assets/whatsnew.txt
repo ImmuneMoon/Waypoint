@@ -79,6 +79,12 @@ System editor
   characters, such as a temperature. The table writes each into a number
   field where the character's token stands, so effects and time rules can
   follow it.
+- Time rules now post one line in your chat per run, with how many
+  characters changed and an Open button. It brings up the Time rules panel:
+  this session's runs, players first and then NPCs by map, each character
+  folding open to what changed, with a search, filters and a Mute per rule.
+  A rule's Notes in the Rolls tab says where its runs go: in chat, the panel
+  only, or the panel only with its players never told.
 - Formulas read Making, 1 while a character is being made. A prerequisite
   rule of Making = 1 lets players take an entry only while making their
   character, and you may still add it at any time.

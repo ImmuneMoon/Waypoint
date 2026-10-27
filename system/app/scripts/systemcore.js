@@ -649,6 +649,7 @@ function crossings(rule, before, after, vars, F) {
 function fightRuleInto(out, r, gmView) {
     var inF = cleanInFight(r.inFight, out.needs); if (inF) out.inFight = inF;
     if (r.ask === true && gmView && (out.every || out.inFight)) out.ask = true;
+    if ((r.notes === 'panel' || r.notes === 'quiet') && gmView && (out.every || out.inFight)) out.notes = r.notes;   // 1.6.0, backlog 173: where its runs are said, Panel only or Panel only with its players never told (absent: in chat); the GM's view alone, as the host alone runs a rule
 }
 // Stage 6 HUD H7: each apply action's targets against this view's fields — the GM's: a change whose field is no longer a pool or a number
 // (deleted, or its kind changed) keeps its amount and loses the field (the validator asks for one); the players': an action with any change

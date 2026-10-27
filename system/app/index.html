@@ -67,6 +67,7 @@
 <script type="module" src="scripts/docimport.js"></script>
 <script type="module" src="scripts/charlist.js"></script>
 <script type="module" src="scripts/notices.js"></script>
+<script type="module" src="scripts/timepanel.js"></script>
 <script type="module" src="scripts/trade.js"></script>
 <script type="module" src="scripts/blastcore.js"></script>
 <script type="module" src="scripts/tutorial.js"></script>
@@ -365,6 +366,14 @@
                                   <li>&times; takes a notice away. <b>Clear all</b> asks first. A thing that waits still waits in the Review or the Calendar. Time rules that wait only in the bell stay there until you apply or skip them.</li>
                                   <li>Your list stays on this computer through a restart, the newest 200 of each campaign.</li>
                                   <li>Players have the bell too. Theirs holds what their app told them at your table, and goes when they leave.</li>
+                              </ul>
+                          </li>
+                          <li><b>The Time rules panel</b> holds this session&rsquo;s runs of the time rules, the newest first. Your chat gets one line a run, with how many characters changed. Its <b>Open</b> button brings the panel up.
+                              <ul>
+                                  <li>Players come first, then NPCs by the map they stand on. Press a character to see each rule and what it moved. Find, and the All, Players, NPCs and Rolls chips, narrow the list.</li>
+                                  <li><b>Mute</b> beside a rule leaves it off the chat line on this computer. It keeps running and stays in the panel and the Session Log.</li>
+                                  <li>A rule&rsquo;s <b>Notes</b> in the Rolls tab says where its runs go. <b>In chat</b> counts it on the line. <b>Panel only</b> keeps it in the panel. <b>Panel only, players never told</b> also leaves it out of its player&rsquo;s summary.</li>
+                                  <li>Off in your own Time rule notes posts no line. The panel keeps runs only while Waypoint is open. The Session Log keeps every line.</li>
                               </ul>
                           </li>
                       </ul>
@@ -930,7 +939,8 @@
                                   <li>The steps, Move and Set work while no fight is on. While a fight is on they move nothing, and a press says why. Time you move on while a list waits is counted once you apply or skip it.</li>
                                   <li><b>Apply</b> runs the ticked ones. The rolls are made for them, each player gets a summary in chat, and the Session Log gets a line. The summary is yours alone for an NPC, or for a rule that moves or reads what the player cannot see.</li>
                                   <li>A rule&rsquo;s run that moves nothing and rolls no dice posts no summary and no Session Log line, such as one that fills a pool already full.</li>
-                                  <li>A player chooses in their own Settings how these summaries reach them: <b>Time rule notes</b> every time, gathered every 10 minutes or every hour, or off. The rules run either way. Your own choice there works for your chat the same way, and the Session Log keeps every line.</li>
+                                  <li>A player chooses in their own Settings how these summaries reach them: <b>Time rule notes</b> every time, gathered every 10 minutes or every hour, or off. The rules run either way. The Session Log keeps every line.</li>
+                                  <li>Your own chat gets one line a run, with an <b>Open</b> button that brings up the Time rules panel.</li>
                                   <li><b>Skip</b> lets the time pass with no rules run.</li>
                                   <li>A <b>Set</b> forward always asks, so a jump of the story runs nothing unless you say so. Moving the clock back and on again counts nothing twice. After you move the clock back, nothing counts again until it passes the latest time it reached. Until then no timed effect runs out and no time rule counts.</li>
                                   <li>In a fight the rules run at the close of each round for everyone in it, NPCs too, with no list. A fight counts as activity.</li>
@@ -3925,6 +3935,10 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     <div id="soundBody"></div>
 </div>
 <div id="musicPanel" style="display:none;"></div>
+<div id="timePanel" style="display:none;" role="dialog" aria-label="Time rules">
+    <div id="timeHead"><span class="notepad-title"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zM12 7.5V12l-3 2.2"/></svg> Time rules</span><span style="flex:1;"></span><button class="tool ghost notepad-btn" id="timeCloseBtn" title="Close the panel (the rules keep running)">&times;</button></div>
+    <div id="timeBody"></div>
+</div>
 <div id="soundLibModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--overlay); z-index:100000; align-items:center; justify-content:center;">
     <div class="snd-lib-box" style="background:var(--panel2); padding:18px 22px; border:1px solid var(--gold); border-radius:8px;">
         <div class="snd-lib-head"><h3 style="margin:0; color:var(--gold);">&#127925; Sound Library</h3><span style="flex:1;"></span><button class="tool" id="soundLibUpload" title="Add sound files from your computer: MP3, OGG, M4A or WebM, up to 4 MB each; loops up to two minutes, cues cut after thirty seconds">&#8853; Add sounds&hellip;</button><button class="tool ghost" id="soundLibClose" title="Close">&times;</button></div>
@@ -4009,7 +4023,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         </div>
         <div id="sysRolls" class="sys-tab" style="display:none;">
             <div class="sys-toolbar"><button class="tool" id="sysAddRoll" title="Add a roll">+ Roll</button><span class="sys-note">A roll is a formula with dice: <code>d20 + STRmod</code>, <code>3d6 &lt;= Skill.Stealth</code>. Tick <b>Initiative</b> on the one the combat roster should use.</span><button class="tool ghost sys-key-btn" data-key="rolls" aria-expanded="false" aria-controls="sysKeyRolls" title="What each tick of a row on this tab does">What the ticks mean</button></div>
-            <div class="sys-key" id="sysKeyRolls" hidden><b>Initiative</b><small>The combat roster rolls this for initiative.</small><b>Damage</b><small>A damage roll. Its card in Table Chat takes the damage colour and a damage tag.</small><b>Applies to</b><small>A press next to someone asks who it is for. Its changes go on that sheet.</small><b>During rest only</b><small>By the clock, it counts only time you move on as Rest.</small><b>Waits in a fight</b><small>By the clock, its count waits while its character is in a fight.</small><b>Only while its needs hold</b><small>By the clock or in a fight, it counts only the time its Needs hold.</small><b>Each fight starts again</b><small>In a fight, its count begins again with each new fight.</small><b>Ask me first</b><small>Its runs wait for your word, even when Time rules run at once.</small><b>Once however many</b><small>When a value crosses, it runs once for a change that passes several steps.</small><b>Rolled</b><small>The amount may roll dice. The host rolls it each time.</small></div>
+            <div class="sys-key" id="sysKeyRolls" hidden><b>Initiative</b><small>The combat roster rolls this for initiative.</small><b>Damage</b><small>A damage roll. Its card in Table Chat takes the damage colour and a damage tag.</small><b>Applies to</b><small>A press next to someone asks who it is for. Its changes go on that sheet.</small><b>During rest only</b><small>By the clock, it counts only time you move on as Rest.</small><b>Waits in a fight</b><small>By the clock, its count waits while its character is in a fight.</small><b>Only while its needs hold</b><small>By the clock or in a fight, it counts only the time its Needs hold.</small><b>Each fight starts again</b><small>In a fight, its count begins again with each new fight.</small><b>Ask me first</b><small>Its runs wait for your word, even when Time rules run at once.</small><b>Notes</b><small>Where its runs go: in chat, in the Time rules panel, or there with players never told.</small><b>Once however many</b><small>When a value crosses, it runs once for a change that passes several steps.</small><b>Rolled</b><small>The amount may roll dice. The host rolls it each time.</small></div>
             <div id="sysRollRows" class="sys-rows"></div>
         </div>
         <div id="sysItems" class="sys-tab" style="display:none;">

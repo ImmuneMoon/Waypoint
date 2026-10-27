@@ -17,7 +17,7 @@ import { state } from './state.js';
 import { getActiveMap, isDocLike } from './models.js';
 
 // [floatcheck:core-start]
-var FLOAT_IDS = ['sheetPanel', 'docPanel', 'soundPanel', 'musicPanel', 'videoPanel', 'fxPanel', 'notepadPanel', 'chatPanel', 'dicePanel'];
+var FLOAT_IDS = ['sheetPanel', 'docPanel', 'soundPanel', 'musicPanel', 'videoPanel', 'fxPanel', 'notepadPanel', 'chatPanel', 'dicePanel', 'timePanel'];
 var FLOAT_LAYER = 'hudLayer', FLOAT_AWAY = 'wp-away', FLOAT_BACK = 'wpfloatback';
 var FLOAT_WITH = { dicePanel: 'chatPanel' };   // the dice roller goes where Table Chat goes, while the chat is up
 var _floatOn = new WeakMap(), _floatWas = new WeakMap();   // a box -> the views besides the play map it shows on (a Set); a box -> whether it was up when last looked at

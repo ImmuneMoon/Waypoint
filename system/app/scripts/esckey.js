@@ -49,7 +49,7 @@ var ESC_WINDOWS = [['helpModal', 'helpCloseBtn'], ['settingsModal', 'settingsClo
 var ESC_BOXES = ['sheetPanel', 'fxPanel', 'videoPanel', 'docPanel', 'dicePanel'];   // floating boxes that answer Escape when the focus is in them (a HUD too)
 // Table Chat, the table notepad, Sound and Music: closed on Escape as a window is, while the focus is in one of them or it is the box last
 // used (the owner, 2026-10-17, by prompt: "Yes, when on top (Recommended)"). One whose module is not there to close it keeps its fields' keys
-var ESC_LAST = ['chatPanel', 'notepadPanel', 'soundPanel', 'musicPanel'];
+var ESC_LAST = ['chatPanel', 'notepadPanel', 'soundPanel', 'musicPanel', 'timePanel'];
 
 function escEach(list, fn) { if (list) for (var i = 0; i < list.length; i++) fn(list[i]); }
 // Shown: drawn on the page (a box that is put away, or inside one, has no box to draw)
@@ -120,7 +120,8 @@ function escLastBoxes(doc, win) {
     var shut = { chatPanel: function(el) { if (!escPress(doc, 'chatCloseBtn')) el.style.display = 'none'; },
         notepadPanel: N && typeof N.notepadAway === 'function' ? function() { N.notepadAway(); } : null,
         soundPanel: S && typeof S.closePanel === 'function' ? function() { S.closePanel(); } : null,
-        musicPanel: M && typeof M.closePanel === 'function' ? function() { M.closePanel(); } : null };
+        musicPanel: M && typeof M.closePanel === 'function' ? function() { M.closePanel(); } : null,
+        timePanel: function(el) { if (!escPress(doc, 'timeCloseBtn')) el.style.display = 'none'; } };   // 1.6.0, backlog 173: the Time rules panel by its own close
     ESC_LAST.forEach(function(id) { var el = doc.getElementById(id), fn = shut[id]; if (fn && escShown(el)) out.push({ el: el, close: function() { fn(el); } }); });
     return out;
 }

@@ -3432,7 +3432,7 @@ function rowForm(entry, rd, c, f, spec, sysI, mode) {
     form.appendChild(head); form.appendChild(grid);
     if (asks) form.insertBefore(el('div', 'sheet-rf-ask', 'Each change goes to the GM. It takes effect once they apply it.'), grid);
     if (mode === 'gm') {
-        text('name', 'Name', LIMITS.name, base.name || '');
+        text('name', 'Name', LIMITS.itemName, base.name || '');
         text('icon', 'Icon', 48, base.icon || 'An emoji, or icon:name');
         var cats = [], seenC = Object.create(null), pushC = function(x) { var t = String(x || '').trim(); if (t && !seenC[t.toLowerCase()]) { seenC[t.toLowerCase()] = 1; cats.push(t); } };
         if (spec && Array.isArray(spec.cats) && spec.cats.length) spec.cats.forEach(pushC); else catChoices(sysI).forEach(pushC);
@@ -3503,7 +3503,7 @@ function customForm(entry, rd, c, f, spec, sysI, mode) {
     var dn = el('button', 'tool ghost sys-btn sheet-rf-done', 'Done'); dn.type = 'button'; dn.dataset.fid = f.id; dn.dataset.part = 'ed-' + rid;
     dn.addEventListener('click', function() { _rowForm = null; renderViews(c.id); }); head.appendChild(dn);
     form.appendChild(head); form.appendChild(grid);
-    var nb = text('name', 'Name', LIMITS.name, d.name || '', 'Its name (blank keeps it)');
+    var nb = text('name', 'Name', LIMITS.itemName, d.name || '', 'Its name (blank keeps it)');
     text('icon', 'Icon', 48, d.icon || '', 'An emoji, or icon:name');
     var cats = [], seenC = Object.create(null), curC = typeof d.category === 'string' ? d.category : '', pushC = function(x) { var t = String(x || '').trim(); if (t && !seenC[t.toLowerCase()]) { seenC[t.toLowerCase()] = 1; cats.push(t); } };
     if (spec && Array.isArray(spec.cats)) spec.cats.forEach(pushC); else catChoices(sysI).forEach(pushC);   // owed review F5a1#7: a players' view's empty list (every category GM-only) offers none
@@ -5698,7 +5698,7 @@ var BADGE_TONES = [['', 'Plain'], ['good', 'Good (green)'], ['warn', 'Warning (a
 function badgeSel(cls, opts, cur, tip) { var s = el('select', cls); s.title = tip; opts.forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; if (o[0] === (cur || '')) op.selected = true; s.appendChild(op); }); return s; }
 function badgeTick(cls, on, words, tip) { var lb = el('label', 'sys-flag'), cb = el('input', cls); cb.type = 'checkbox'; cb.checked = on === true; lb.title = tip; lb.appendChild(cb); lb.appendChild(document.createTextNode(' ' + words)); return { lb: lb, cb: cb }; }
 function badgeBox(sp) {
-    var box = el('div', 'sys-badges'), max = typeof BADGE_MAX === 'number' ? BADGE_MAX : 8, ch = function() { markDirty(); if (typeof patchErrors === 'function') patchErrors(); };
+    var box = el('div', 'sys-badges'), max = typeof BADGE_MAX === 'number' ? BADGE_MAX : 12, ch = function() { markDirty(); if (typeof patchErrors === 'function') patchErrors(); };
     var draw = function() {
         box.textContent = ''; box.appendChild(el('span', 'sys-num-cap', 'Badges'));
         var list = Array.isArray(sp.badges) ? sp.badges : [];
@@ -8544,7 +8544,7 @@ function onInput(e) {
     var it = itemOfRow(t);
     if (it) {
         var ic = t.className || '';
-        if (ic.indexOf('sys-item-name') >= 0) it.name = t.value.slice(0, LIMITS.name);
+        if (ic.indexOf('sys-item-name') >= 0) it.name = t.value.slice(0, LIMITS.itemName);
         else if (ic.indexOf('sys-item-cat') >= 0) it.category = t.value.slice(0, LIMITS.category);
         else if (ic.indexOf('sys-item-ft') >= 0) { if (it.area) it.area.ft = t.value === '' ? 0 : Number(t.value); }
         else if (ic.indexOf('sys-item-aad') >= 0) { if (it.area) { var adI = Number(t.value); if (t.value !== '' && isFinite(adI) && adI > 0) it.area.ad = adI; else delete it.area.ad; } }   // 1.5.8 explosives

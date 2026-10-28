@@ -91,7 +91,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     check('an index row: [id, key, name, category, icon, tags, fingerprint] from a players\'-view entry, and its cleaner takes exactly that (the arity, the id, a key by the rule, text cut, the fingerprint\'s form)',
         j(row) === j(['i_rope', 'Rope', 'Rope', 'Gear', '🪢', ['Tool', 'Climbing', 'x'.repeat(24)], hP]) && j(cleanIndexRow(row)) === j(row)
         && cleanIndexRow(row.slice(0, 6)) === null && cleanIndexRow([...row, 'extra']) === null &&cleanIndexRow(['x', '', 'N', '', '', [], hP]) === null && cleanIndexRow(['i_a', '', 'N', '', '', [], 'zz']) === null
-        && j(cleanIndexRow(['i_a', '1bad', 'N'.repeat(99), 'C\u0000at', '<b>', ['\u0007t'], hP])) === j(['i_a', '', 'N'.repeat(60), 'C at', '<b>', ['t'], hP]), j(row));
+        && j(cleanIndexRow(['i_a', '1bad', 'N'.repeat(299), 'C\u0000at', '<b>', ['\u0007t'], hP])) === j(['i_a', '', 'N'.repeat(240), 'C at', '<b>', ['t'], hP]), j(row));   // 1.6.0, backlog 194: a name cut at 240 (60 before), moved on purpose
 
     /* ---- L1c: the manifest's operations ---- */
     {

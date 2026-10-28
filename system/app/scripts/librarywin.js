@@ -270,7 +270,7 @@ function renderForm() {
     var e = current(); if (!e) { form.appendChild(el('div', 'lib-empty', st.packId && ready(st.packId) ? 'Choose an entry, or + Entry to add one. Ctrl-click, Shift-click or Ctrl+A choose several.' : '')); return; }
     form.appendChild(el('div', 'lib-fhead', st.draftNew && !e.name ? 'New entry' : e.name));
     if (!st.draftNew) { var cb0 = camp() ? carriedBy(camp().system, camp().chars || {}, e.id) : { rows: 0 }; form.appendChild(el('div', 'lib-note', cb0.rows ? 'Carried by ' + cb0.rows + (cb0.rows === 1 ? ' row' : ' rows') + ' on ' + cb0.chars + (cb0.chars === 1 ? ' character' : ' characters') + ': a change here reaches them.' : 'No character carries it.')); }   // L4
-    field(form, 'name', 'Name', e.name, { max: 60 });
+    field(form, 'name', 'Name', e.name, { max: 240 });   // 1.6.0, backlog 194: an entry's name 240, as the item cleaner keeps it
     field(form, 'key', 'Key', e.key, { max: 40, ph: 'e.g. Stealth', title: 'The name formulas use for it (List.Key.stat): unique within the lists that draw on it' });
     var clash = keyClashes(allEntries().concat(sysItems()), e); if (clash.length) form.appendChild(el('div', 'lib-warn', 'Also the key of ' + clash.slice(0, 3).map(function(c) { return c.name; }).join(', ') + (clash.length > 3 ? '…' : '') + ' (an item of the system wins in formulas).'));
     catList(form);

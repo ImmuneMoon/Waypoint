@@ -336,7 +336,7 @@ export function bulkMove(src, dst, ids, opts) {
         if (chosen && room > 0) {
             if (!opts.copy) { out.dst.push(e); room--; out.done++; return; }
             var id = newEntryId(has, opts.rnd);
-            if (id) { has[id] = 1; var d = JSON.parse(JSON.stringify(e)); d.id = id; delete d.key; if (typeof opts.suffix === 'string' && opts.suffix) d.name = (d.name + opts.suffix).slice(0, 60); out.dst.push(d); room--; out.done++; }
+            if (id) { has[id] = 1; var d = JSON.parse(JSON.stringify(e)); d.id = id; delete d.key; if (typeof opts.suffix === 'string' && opts.suffix) d.name = (d.name + opts.suffix).slice(0, 240); out.dst.push(d); room--; out.done++; }
             else out.left++;
         } else if (chosen) out.left++;
         out.src.push(e);
@@ -404,7 +404,7 @@ export function cleanIndexRow(r, F) {   // F: the formula engine, for a row of n
     if (!Array.isArray(r) || r.length < 7 || r.length > 9 || typeof r[0] !== 'string' || !ITEM_RE.test(r[0])) return null;
     var key = typeof r[1] === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,39}$/.test(r[1]) ? r[1] : '', tags = Array.isArray(r[5]) ? r[5].map(function(t) { return line(t, LIB.tag); }).filter(Boolean).slice(0, LIB.tags) : [];
     if (typeof r[6] !== 'string' || !HASH_RE.test(r[6])) return null;
-    var out = [r[0], key, line(r[2], 60) || 'Item', line(r[3], 40), cleanIcon(r[4]), tags, r[6]];
+    var out = [r[0], key, line(r[2], 240) || 'Item', line(r[3], 40), cleanIcon(r[4]), tags, r[6]];
     if (r.length === 8) { var nd = cleanNeeds(r[7]); if (!nd) return null; out.push(nd); }
     if (r.length === 9) { var nd9 = r[7] === null ? null : cleanNeeds(r[7]), rl9 = needRule(r[8], F); if ((r[7] !== null && !nd9) || !rl9) return null; out.push(nd9); out.push(rl9); }
     return out;

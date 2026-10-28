@@ -36,7 +36,7 @@ function rollDie(pick, formula) { return cleanDie(pick) || dieOf(formula); }
 var LIMITS = Object.freeze({
     fields: 400, rolls: 80, sections: 60, tabs: 12, placements: 400, options: 50, optionChars: 60,   // Stage 6: room for a big sheet (one section per section of a large VTT sheet); 1.5.4: 400 fields, 60 sections and 400 placements (a website's whole sheet: 300, 40 and 300 before)
     key: 64, label: 60, formula: 300,       // 300 = the dice path's expression cap, so a sheet roll never dies there
-    text: 200, notes: 20000, name: 60, charName: 60, names: 200,
+    text: 200, notes: 20000, name: 60, itemName: 240, charName: 60, names: 200,   // 1.6.0, backlog 194: an item's and a library entry's name 240 (60 before), as a row's own name; every other name and a character's stay 60
     makingMax: 12,   // Onboarding F3: characters in the making at one table at once (each a player's own, on the GM's disk)
     core: 1000, coreBytes: 256 * 1024,       // Stage 6 library L1d: library entries a formula addresses by key, copied into the system
     items: 200, carried: 150, category: 40, maxBlastFt: 3000, maxQty: 99,   // item library (Stage 5); Stage 6: 150 rows a list (a big sheet's skills)
@@ -709,7 +709,7 @@ function cleanNeeds(v, names) {
         if (out.length >= LIMITS.needs || !isObj(n) || typeof n.id !== 'string' || !ITEM_ID.test(n.id) || seen[n.id]) return;
         seen[n.id] = 1; var o = { id: n.id }, l = typeof n.lvl === 'number' ? lvlNum(n.lvl) : undefined; if (l !== undefined) o.lvl = l;
         var fr = typeof n.from === 'number' ? lvlNum(n.from) : undefined; if (fr !== undefined) o.from = fr;   // from: the level of the entry that needs it from which this need applies (a level's own prerequisite); with none it applies to taking the entry at all
-        if (names === true && typeof n.name === 'string') { var nn = cutText(n.name, LIMITS.name); if (nn) o.name = nn; }
+        if (names === true && typeof n.name === 'string') { var nn = cutText(n.name, LIMITS.itemName); if (nn) o.name = nn; }
         out.push(o);
     });
     return out.length ? out : null;
@@ -777,7 +777,7 @@ function needsSays(def, missing, nameOf) {
     var parts = [], other = false;
     (Array.isArray(missing) ? missing : []).forEach(function(n) {
         if (isObj(n) && n.rule !== undefined) { var rt = typeof n.rule === 'string' ? cutText(n.rule, LIMITS.formula) : ''; if (rt) parts.push(rt); else other = true; return; }
-        var nm = isObj(n) && typeof nameOf === 'function' ? nameOf(n.id) : null; if (typeof nm !== 'string' || !nm) { other = true; return; } parts.push(cutText(nm, LIMITS.name) + (typeof n.lvl === 'number' ? ' at level ' + fmtNum(n.lvl) : ''));
+        var nm = isObj(n) && typeof nameOf === 'function' ? nameOf(n.id) : null; if (typeof nm !== 'string' || !nm) { other = true; return; } parts.push(cutText(nm, LIMITS.itemName) + (typeof n.lvl === 'number' ? ' at level ' + fmtNum(n.lvl) : ''));
     });
     if (other) parts.push(parts.length ? 'something else' : 'something you do not have');
     if (!parts.length) return 'Your character does not meet what that needs.';
@@ -803,7 +803,7 @@ function cleanItemDef(it, F, gmView, keys, picks, kinds) {   // kinds (F6): the 
     if (!gmView && vis === 'gm') return null;
     var out = {
         id: it.id,
-        name: str(it.name, LIMITS.name).replace(CTRL_RE_G, ' ').trim() || 'Item',   // Stage 6: every control character (the non-global pattern replaced only the first)
+        name: str(it.name, LIMITS.itemName).replace(CTRL_RE_G, ' ').trim() || 'Item',   // Stage 6: every control character (the non-global pattern replaced only the first)
         category: str(it.category, LIMITS.category).replace(CTRL_RE_G, ' ').trim(),
         icon: cleanIcon(it.icon),                                                    // Stage 6: cut by code points (never half an emoji)
         notes: str(it.notes, LIMITS.text).replace(CTRL_RE_G, ' '),
@@ -1445,7 +1445,7 @@ function tradeOfferable(sys, char, who) {
         var spec = isObj(f.list) ? f.list : {}, rows = isObj(char.values) && Array.isArray(char.values[f.id]) ? char.values[f.id] : [];
         rows.forEach(function(r) {
             if (!isObj(r) || r.hid === 1) return; var rid = rowIdOf(r), rd = rowDef(sys, r); if (!rid || !rd || !isObj(rd.def) || rd.def.vis === 'gm') return;
-            var q = clampNum(cleanNum(r.qty, 1) | 0, 1, LIMITS.maxQty), e = { fid: f.id, list: f.label || 'List', rowId: rid, name: cutText(rd.def.name, LIMITS.name) || 'Item', qty: q, split: [] };
+            var q = clampNum(cleanNum(r.qty, 1) | 0, 1, LIMITS.maxQty), e = { fid: f.id, list: f.label || 'List', rowId: rid, name: cutText(rd.def.name, LIMITS.itemName) || 'Item', qty: q, split: [] };
             if (q === 1 && isObj(spec.lvl) && spec.lvl.split === true) e.split.push({ key: '@lvl', label: spec.lvl.label || 'Level', max: rowLvl(spec, r, rd.def), step: spec.lvl.step > 0 ? spec.lvl.step : 1 });
             if (q === 1) (Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (isObj(s) && s.split === true && s.kind !== 'pick') e.split.push({ key: s.key, label: s.label || s.key, max: rowStat(spec, rd.def, s.key), step: 0.01 }); });
             if (spec.price) { var pr = rowStat(spec, rd.def, spec.price); if (fin(pr) && pr !== 0) e.price = pr; }
@@ -1485,7 +1485,7 @@ function tradeInto(sys, char, fid, key, like) {
     (isObj(char.values) && Array.isArray(char.values[fid]) ? char.values[fid] : []).forEach(function(r) {
         if (out.length >= TRADE_LINES || !isObj(r) || r.hid === 1 || r.keptOn === 1 || (r.qty | 0 || 1) !== 1) return; var rid = rowIdOf(r), rd = rowDef(sys, r); if (!rid || !rd || !isObj(rd.def) || rd.def.vis === 'gm') return;
         if (!isL && !tradeEntry(r, like)) return;
-        out.push({ rowId: rid, name: cutText(rd.def.name, LIMITS.name) || 'Item', cur: isL ? rowLvl(spec, r, rd.def) : rowStat(spec, rd.def, key) });
+        out.push({ rowId: rid, name: cutText(rd.def.name, LIMITS.itemName) || 'Item', cur: isL ? rowLvl(spec, r, rd.def) : rowStat(spec, rd.def, key) });
     });
     return out;
 }
@@ -1601,7 +1601,7 @@ function moneyMove(sys, char, delta) {
         if (!chipBox) { err = { ok: false, reason: 'change', msg: 'There is no way to hold that in whole pieces.' }; return; }
         var l = listOf(chipBox.f.id); if (l.filter(moneyLive).length >= LIMITS.carried) { err = { ok: false, reason: 'field', msg: 'A list there is full.' }; return; }
         var id = null; for (var i = 0; i < 50 && !id; i++) { var t = uid('w_'); if (!l.some(function(r) { return rowIdOf(r) === t; })) id = t; } if (!id) { err = { ok: false, reason: 'field', msg: 'A list there is full.' }; return; }
-        var nm = (Array.isArray(chipBox.spec.cats) && chipBox.spec.cats[0]) || chipBox.f.label || 'Chip', nr = { id: id, def: { name: cutText(nm, LIMITS.name) || 'Chip' }, qty: 1, lvl: 0 };
+        var nm = (Array.isArray(chipBox.spec.cats) && chipBox.spec.cats[0]) || chipBox.f.label || 'Chip', nr = { id: id, def: { name: cutText(nm, LIMITS.itemName) || 'Chip' }, qty: 1, lvl: 0 };
         if (Array.isArray(chipBox.spec.cats) && chipBox.spec.cats[0]) nr.def.category = chipBox.spec.cats[0];
         if (isObj(chipBox.spec.on)) nr.on = false; l.push(nr); lvlSet(chipBox, nr, amt);
     };
@@ -1859,7 +1859,7 @@ var ALT_MAX = 4;
 // words shown on a row only while a formula of the row holds (no dice), in a tone of TONES or plain, as a pill after the name or as a line under
 // the row (line), tinting its row in its tone (tint) or pulsing (pulse), with a tip in words. BADGE_MAX at most; the same in both views but where
 // the players' view drops one that reads a GM-only name
-var BADGE_MAX = 8;
+var BADGE_MAX = 12;   // 1.6.0, backlog 195: twelve (eight before)
 function cleanBadges(v, F) { if (!Array.isArray(v)) return null; var out = []; for (var i = 0; i < v.length && i < BADGE_MAX * 4 && out.length < BADGE_MAX; i++) { var b = v[i]; if (!isObj(b)) continue; var w = cutText(b.words, LIMITS.text), fi = budgetFormula(b.if, F); if (!w || !fi) continue; var o = { words: w, if: fi }; if (typeof b.tone === 'string' && Object.prototype.hasOwnProperty.call(TONES, b.tone)) o.tone = b.tone; if (b.line === true) o.line = true; if (b.tint === true) o.tint = true; if (b.pulse === true) o.pulse = true; var tp = cutText(b.tip, LIMITS.text); if (tp) o.tip = tp; out.push(o); } return out.length ? out : null; }
 // 1.6.0 R7 (backlog 180; the owner, by prompt: "B. In a small box at the end", "A. Its target or its dice"): what a list roll's button shows after
 // its name: '@fig', its own figure, or a column of the list by its key; anything else none
@@ -3402,7 +3402,7 @@ function cleanCharItem(msg) {
     if (typeof msg.op !== 'string' || !ROW_OPS[msg.op]) return null;
     var out = { rid: msg.rid, charId: msg.charId, fieldId: msg.fieldId, op: msg.op };
     if (msg.op === 'add') { if (typeof msg.defId !== 'string' || !ITEM_ID.test(msg.defId)) return null; out.defId = msg.defId; }
-    if (msg.op === 'add' && msg.name !== undefined) { if (typeof msg.name !== 'string') return null; var agW = cutText(msg.name, LIMITS.name); if (!agW) return null; out.name = agW; }   // 1.6.0: a copy's own name (an entry held again)
+    if (msg.op === 'add' && msg.name !== undefined) { if (typeof msg.name !== 'string') return null; var agW = cutText(msg.name, LIMITS.itemName); if (!agW) return null; out.name = agW; }   // 1.6.0: a copy's own name (an entry held again)
     if (typeof msg.rowId !== 'string' || !ROW_ID.test(msg.rowId)) return null; out.rowId = msg.rowId;
     if (msg.op === 'add' || msg.op === 'setQty' || msg.op === 'undo') { var qty = msg.qty === undefined ? 1 : (cleanNum(msg.qty, NaN) | 0); if (!(qty >= 0)) return null; out.qty = clampNum(qty, 0, LIMITS.maxQty); }
     if (msg.op === 'set') { var fx = cleanFacts(msg.facts); if (!fx) return null; out.facts = fx; }   // F4b
@@ -3483,7 +3483,7 @@ function cutText(v, n) { return str(v, n).replace(CTRL_RE_G, ' ').trim(); }
 function cleanRowDef(d, gmView) {   // an item's definition carried on a row, by the item rules; a GM-only one keeps no area (it is never thrown by a player)
     if (!isObj(d)) return null;
     var vis = d.vis === 'gm' ? 'gm' : 'all';
-    var out = { name: cutText(d.name, LIMITS.name) || 'Item', category: cutText(d.category, LIMITS.category), icon: cleanIcon(d.icon), notes: str(d.notes, LIMITS.text).replace(CTRL_RE_G, ' '), vis: vis };
+    var out = { name: cutText(d.name, LIMITS.itemName) || 'Item', category: cutText(d.category, LIMITS.category), icon: cleanIcon(d.icon), notes: str(d.notes, LIMITS.text).replace(CTRL_RE_G, ' '), vis: vis };
     if (isObj(d.area) && (gmView || vis === 'all')) { var ft = cleanNum(d.area.ft, 0) | 0; if (ft > 0) out.area = areaExtra({ ft: clampNum(ft, 1, LIMITS.maxBlastFt), shape: SHAPES[d.area.shape] ? d.area.shape : 'circle', name: cutText(d.area.name, LIMITS.label) }, d.area, gmView); }
     if (gmView && RM_MODES[d.rm] === 1) { out.rm = d.rm; var rmm = cutText(d.rmMsg, LIMITS.rmMsg); if (rmm) out.rmMsg = rmm; }   // Stage 6: secret, the GM's copy only
     if (gmView && RM_MODES[d.eq] === 1) { out.eq = d.eq; var eqm = cutText(d.eqMsg, LIMITS.rmMsg); if (eqm) out.eqMsg = eqm; }   // F4b: the equip lock, as secret
@@ -3589,7 +3589,7 @@ function rowFacts(o, e, spec) {
 // only (every stat by the key rule). A plain object in this key order, each key only when set; null when nothing is left
 function cleanOv(v, spec) {
     if (!isObj(v)) return null;
-    var o = {}, nm = cutText(v.name, LIMITS.name), ic = cleanIcon(v.icon), ca = cutText(v.category, LIMITS.category);
+    var o = {}, nm = cutText(v.name, LIMITS.itemName), ic = cleanIcon(v.icon), ca = cutText(v.category, LIMITS.category);
     if (nm) o.name = nm;
     if (ic) o.icon = ic;
     if (ca) o.category = ca;
@@ -3846,7 +3846,7 @@ function projectRows(rows, view, lib, spec, ruleShown) {   // ruleShown (126b): 
                 io.src = r.defId;
                 var cnP = cleanNeeds(le.needs), rnP = cnP ? hideNeeds({ needs: cnP }, function(id) { var x = typeof lib === 'function' ? lib(id) : (lib && Object.prototype.hasOwnProperty.call(lib, id)) ? lib[id] : null; return isObj(x) && x.vis !== 'gm'; }).needs : null;
                 if (rnP) {   // ... and the needs of it that players may see, from the library as it is now, each with the needed entry's name: their sheet marks the row while one is not met, and says which, with nothing of the library loaded
-                    rnP.forEach(function(n) { var x = typeof lib === 'function' ? lib(n.id) : (lib && Object.prototype.hasOwnProperty.call(lib, n.id)) ? lib[n.id] : null, nm = isObj(x) && typeof x.name === 'string' ? cutText(x.name, LIMITS.name) : ''; if (nm) n.name = nm; });
+                    rnP.forEach(function(n) { var x = typeof lib === 'function' ? lib(n.id) : (lib && Object.prototype.hasOwnProperty.call(lib, n.id)) ? lib[n.id] : null, nm = isObj(x) && typeof x.name === 'string' ? cutText(x.name, LIMITS.itemName) : ''; if (nm) n.name = nm; });
                     io.needs = rnP;
                 }
                 var rjP = typeof ruleShown === 'function' ? ruleShown : _ruleJudge; if (typeof le.needsIf === 'string' && le.needsIf && typeof rjP === 'function' && rjP(le.needsIf) === true) { io.needsIf = le.needsIf; var lfP = typeof le.needsFrom === 'number' ? lvlNum(le.needsFrom) : undefined; if (lfP !== undefined) io.needsFrom = lfP; }   // ... and its rule, where a player's own app could work it out
@@ -3892,7 +3892,7 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
             var missR = nmR.ok ? [] : nmR.missing.map(function(n) { return isObj(n) && n.rule !== undefined && !(isObj(pvE) && pvE.needsIf === n.rule) ? { rule: true } : n; });
             if (!nmR.ok) return { ok: false, reason: 'needs', msg: needsSays(ent, missR, function(id) { var d2 = itemDef(sys, id); if (d2) return valueOpts(opts.view || null).items[id] === 1 ? d2.name : null; var l2 = typeof opts.lib === 'function' ? opts.lib(id) : null; return isObj(l2) && l2.vis !== 'gm' ? l2.name : null; }) };
         }
-        var agN = q.name !== undefined ? cutText(q.name, LIMITS.name) : '';   // 1.6.0: a copy held again under its own name: only for an entry ticked so, never a name another copy of it carries
+        var agN = q.name !== undefined ? cutText(q.name, LIMITS.itemName) : '';   // 1.6.0: a copy held again under its own name: only for an entry ticked so, never a name another copy of it carries
         if (q.name !== undefined) { if (ent.again !== 'name' || !agN) return { ok: false, reason: 'value' }; var agL = againFold(agN); if (!agL) return { ok: false, reason: 'value', msg: 'A name needs a letter or a digit.' }; if (list.some(function(r) { if (!isObj(r) || r.hid === 1 || r.defId !== q.defId) return false; var rdA = rowDef(sys, r); return !!rdA && againFold(rdA.def.name) === agL; })) return { ok: false, reason: 'value', msg: 'Another ' + ent.name + ' already has that name.' }; }
         var n = spec && spec.noQty ? 1 : clampNum((q.qty | 0) || 1, 1, LIMITS.maxQty), have = -1;
         if (!agN && !(spec && spec.multi && q.rowId !== undefined)) for (var j = 0; j < list.length; j++) if (isObj(list[j]) && list[j].defId === q.defId && (fromLib || !list[j].snap) && list[j].hid !== 1 && typeof list[j].opn !== 'string' && !isObj(list[j].ld) && !Array.isArray(list[j].rd) && !isObj(list[j].fd)) { have = j; break; }   // never into a kept curse; F4b: a list that takes the same item more than once makes a new row
@@ -4058,7 +4058,7 @@ function applyOv(rw, base, pq, spec, F, player, aspec, note) {   // aspec (F5a2)
                 if (k === 'eqMsg' && !blank(v) && !(spec && isObj(spec.on))) return bad;
                 if (blank(v)) { delete cur[k]; continue; }
                 if (typeof v !== 'string') return bad;
-                var t = k === 'icon' ? cleanIcon(v) : k === 'notes' ? str(v, LIMITS.text).replace(CTRL_RE_G, ' ') : cutText(v, k === 'name' ? LIMITS.name : k === 'category' ? LIMITS.category : LIMITS.rmMsg);
+                var t = k === 'icon' ? cleanIcon(v) : k === 'notes' ? str(v, LIMITS.text).replace(CTRL_RE_G, ' ') : cutText(v, k === 'name' ? LIMITS.itemName : k === 'category' ? LIMITS.category : LIMITS.rmMsg);
                 if (!t || !t.trim()) return bad;   // text that cleans to nothing (an icon that is not bundled)
                 if (t === (typeof base[k] === 'string' ? base[k] : '')) delete cur[k]; else cur[k] = t;
             } else if (k === 'damage' || k === 'cost') {
@@ -4291,7 +4291,7 @@ function applyCustom(sys, list, q, spec, F, opts, extra, aspec, fill) {   // asp
             if (k === 'eqMsg' && !blank(v) && !isObj(spec.on)) return bad;
             if (blank(v)) { if (k === 'rmMsg' || k === 'eqMsg') delete d[k]; else if (k !== 'name') d[k] = ''; continue; }
             if (typeof v !== 'string') return bad;
-            var t = k === 'icon' ? cleanIcon(v) : k === 'notes' ? str(v, LIMITS.text).replace(CTRL_RE_G, ' ') : cutText(v, k === 'name' ? LIMITS.name : k === 'category' ? LIMITS.category : LIMITS.rmMsg);
+            var t = k === 'icon' ? cleanIcon(v) : k === 'notes' ? str(v, LIMITS.text).replace(CTRL_RE_G, ' ') : cutText(v, k === 'name' ? LIMITS.itemName : k === 'category' ? LIMITS.category : LIMITS.rmMsg);
             if (!t || !t.trim()) return bad;   // text that cleans to nothing (an icon that is not bundled)
             d[k] = t;
         } else if (k === 'key') {

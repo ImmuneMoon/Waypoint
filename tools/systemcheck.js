@@ -10854,7 +10854,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const SAYS = 'This character does not meet what it needs. ';
         check('126b a need on an owner\'s copy carries the needed entry\'s name (projectRows, cleanChar and needBits run for real): the host writes, with each need players may see, the name of the entry it names as the library has it now, cut and trimmed, and none where the name is no text; a need that is hidden carries nothing; a player\'s app keeps a name only as text, cut to a name\'s length, and never one that is no text or empty; a definition never keeps a name with a need, in either view, so an entry reads and hashes as it did; and the mark on a player\'s sheet names what is needed from the row itself, with nothing loaded from the library, where it said only that something was missing; a need with no name falls back to what the app can read',
             j(outQ[0].needs) === j([{ id: 'i_sys', lvl: 2, name: 'Sys Item' }, { id: 'i_lib3', name: 'Lib Three' }, { id: 'i_lib5' }]) && !/SECRET|i_lib2/.test(j(outQ))
-            && j(keptQ) === j([{ id: 'i_sys', lvl: 2, name: 'Sys Item' }, { id: 'i_lib3', name: 'N'.repeat(LIMITS.name) }, { id: 'i_lib4' }, { id: 'i_lib5' }, { id: 'i_lib6' }])
+            && j(keptQ) === j([{ id: 'i_sys', lvl: 2, name: 'Sys Item' }, { id: 'i_lib3', name: 'N'.repeat(LIMITS.itemName) }, { id: 'i_lib4' }, { id: 'i_lib5' }, { id: 'i_lib6' }])
             && j(gmQ.items[1].needs) === j([{ id: 'i_sys' }]) && j(plQ.items[1].needs) === j([{ id: 'i_sys' }]) && j(plAgain.items[1]) === j(plQ.items[1]) && j(S.cleanNeeds([{ id: 'i_a', name: 'x' }])) === j([{ id: 'i_a' }]) && j(S.cleanNeeds([{ id: 'i_a', name: 'x' }], true)) === j([{ id: 'i_a', name: 'x' }]) && j(S.cleanNeeds([{ id: 'i_a', name: 'x' }], 1)) === j([{ id: 'i_a' }])
             && tip({ id: 'w_1', qty: 1, def: { name: 'L1' }, lnk: 1, src: 'i_lib1', needs: outQ[0].needs }) === SAYS + 'That needs Sys Item at level 2, Lib Three and something else.'
             && tip({ id: 'w_1', qty: 1, def: { name: 'L1' }, lnk: 1, src: 'i_lib1', needs: [{ id: 'i_lib3', name: 'Lib Three' }] }) === SAYS + 'That needs Lib Three.'
@@ -15788,7 +15788,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && J(lB(gB).stats[0].tones) === J(['good', 'warn', 'danger']) && !('tones' in lB(gB).stats[1]) && J(lB(gB).cols[0].tones) === J(['', '', 'danger']) && J(lB(pB).stats[0].tones) === J(lB(gB).stats[0].tones)
             && J(S.cleanSystem(gB, { F, gmView: true })) === J(gB) && J(S.cleanSystem(pB, { F, gmView: false })) === J(pB)
             && S.cleanBadges(Array.from({ length: 12 }, (x, i) => ({ words: 'b' + i, if: 'Row.cond = ' + i }))) === null
-            && S.cleanBadges(Array.from({ length: 12 }, (x, i) => ({ words: 'b' + i, if: 'Row.cond = ' + i })), F).length === S.BADGE_MAX && S.BADGE_MAX === 8 && S.cleanBadges('x', F) === null && S.cleanBadges([], F) === null
+            && S.cleanBadges(Array.from({ length: 16 }, (x, i) => ({ words: 'b' + i, if: 'Row.cond = ' + i })), F).length === S.BADGE_MAX && S.BADGE_MAX === 12   /* backlog 195: twelve, moved on purpose */ && S.cleanBadges('x', F) === null && S.cleanBadges([], F) === null
             && !('badges' in (S.cleanSystem({ v: 1, name: 'N', fields: [{ id: 'f_n', key: 'N', label: 'N', kind: 'item-list', list: {} }] }, { F, gmView: true }).fields[0].list || {}));
         // the resolver: which badges hold on each row; a row whose formula cannot be worked out shows none
         const chB = { id: 'c_b', name: 'Kael', ownerId: 'u_b', values: { f_hid: 2, f_g: [{ id: 'w_rf', defId: 'i_rf', qty: 1, ct: { jam: 1 } }, { id: 'w_hb', defId: 'i_hb', qty: 1 }, { id: 'w_br', defId: 'i_br', qty: 1 }] } };
@@ -15850,7 +15850,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         fire(lbl('sys-badge-words'), 'input', 'Jammed'); fire(lbl('sys-badge-kind'), 'change', 'line'); fire(lbl('sys-badge-pulse'), 'change', true); fire(lbl('sys-badge-tint'), 'change', false); fire(lbl('sys-badge-tone'), 'change', ''); fire(lbl('sys-badge-tip'), 'input', 'Clear it');
         const afterE = J(spE.badges);
         byB(boxE, 'sys-badge-add')[0].click(); const twoE = spE.badges.length; byB(boxE, 'sys-badge-del')[0].click(); byB(boxE, 'sys-badge-del')[0].click();
-        const spF = { badges: Array.from({ length: 8 }, () => ({ words: 'w', if: '1' })) }, boxF = BB.badgeBox(spF);
+        const spF = { badges: Array.from({ length: S.BADGE_MAX }, () => ({ words: 'w', if: '1' })) }, boxF = BB.badgeBox(spF);   // backlog 195: full at the cap (twelve), moved on purpose
         const editOk = editOk0 && afterE === J([{ words: 'Jammed', if: 'Row.jam > 0', line: true, pulse: true, tip: 'Clear it' }]) && twoE === 2 && !('badges' in spE) && dirtyB > 6 && byB(boxF, 'sys-badge-add')[0].disabled === true;
         const stE = { key: 'cond', labels: ['Fine', '', 'Broken'] }, trE = BB.toneRow(stE), selsE = byB(trE, 'sys-ltone-sel');
         fire(selsE[1], 'change', 'danger'); const t1 = J(stE.tones); fire(selsE[0], 'change', 'good'); const t2 = J(stE.tones); fire(selsE[1], 'change', ''); const t3 = J(stE.tones); fire(selsE[0], 'change', ''); const t4 = 'tones' in stE;
@@ -15863,11 +15863,22 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && shB2.includes("if (typeof badgeBox === 'function') card.appendChild(badgeBox(sp));") && shB2.includes("var stR = toneRow(s); if (stR) sr.appendChild(stR);") && shB2.includes("var ctR = toneRow(cc); if (ctR) cr.appendChild(ctR);")
             && shB2.includes("import { roundSays, BADGE_MAX } from './systemcore.js';")
             && /@media \(prefers-reduced-motion: reduce\) \{ \.sheet-badge-pulse \{ animation: none; \} \}/.test(cssB) && /\.sheet-item\.sheet-tint-danger, tr\.sheet-tint-danger > td:first-child \{ box-shadow: inset 3px 0 0 var\(--red\); \}/.test(cssB) && /\.sheet-badge\.sheet-tone-plain \{ color: var\(--dim\); \}/.test(cssB);
-        check('1.6.0, backlog 180 R4 and R5: a list\'s row badges (badges, 8 at most: words and a Shown where formula with no dice, a tone of the app\'s own or plain, a line, a tint, a pulse and a tip, each only as the cleaner keeps it) and a tone per value name of a stat or a column (tones, as a field\'s), '
+        check('1.6.0, backlog 180 R4 and R5: a list\'s row badges (badges, twelve at most since backlog 195: words and a Shown where formula with no dice, a tone of the app\'s own or plain, a line, a tint, a pulse and a tip, each only as the cleaner keeps it) and a tone per value name of a stat or a column (tones, as a field\'s), '
             + 'the same in both views and a fixed point, a badge that reads a GM-only name the GM\'s alone; the resolver says which hold on each row (bd), the validator reads each formula; on the sheet (itemListInto and itemTableInto, sliced and run for real) a badge stands right after the name as a pill, '
             + 'a line under its row, the first that tints gives its row its tint and edge, one that pulses pulses itself and the style sheet stills it where motion is reduced; a toned value name is its label small, then the word as a badge, in a table the badge alone; '
             + 'the HUD has the pills and no lines; the editor\'s Badges box and Colours row (badgeBox, toneRow, run for real) edit the draft in place; the readable page says the badges after the name',
             cleanOk && resOk && valOk && drawOk && hudOk && tableOk && pureOk && editOk && toneOk && mdOk && wiredOk, J([cleanOk, resOk, valOk, drawOk, hudOk, tableOk, pureOk, editOk, toneOk, mdOk, wiredOk, resG.bd, pillsOf(rf), rf.className, condOf(rf), afterE, t1, t2, t3, vB.errors.map(x => x.prop).slice(0, 4)]));
+    }
+    {   // 1.6.0, backlog 194 (the SotMW session, 2026-10-28): an item's and a library entry's name 240, as a row's own name; every other name and a character's stay 60
+        const long = 'Long name ' + 'x'.repeat(300), J = JSON.stringify;
+        const itN = S.cleanItemDef({ id: 'i_long', name: long }, F, true), ovN = S.cleanOv({ name: long }, true);
+        const sysN = S.cleanSystem({ v: 1, name: long, fields: [], rolls: [], items: [{ id: 'i_long', name: long }], sheet: { sections: [] } }, { F, gmView: true });
+        const chN = S.cleanChar({ id: 'c_long', name: long, values: {} }, sysN);
+        const shN = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8');
+        const nameOk = S.LIMITS.itemName === 240 && S.LIMITS.name === 60 && S.LIMITS.charName === 60 && itN && itN.name === long.slice(0, 240) && ovN && ovN.name === long.slice(0, 240)
+            && sysN.items[0].name === long.slice(0, 240) && sysN.name === long.slice(0, 60) && chN.name === long.slice(0, 60)
+            && shN.includes("text('name', 'Name', LIMITS.itemName, base.name || '');") && shN.includes("if (ic.indexOf('sys-item-name') >= 0) it.name = t.value.slice(0, LIMITS.itemName);");
+        check('1.6.0, backlog 194: an item\'s name 240 (LIMITS.itemName; 60 before): the item cleaner, a system\'s own item and a copy\'s own name keep 240, the row form and the Items tab let 240 be typed; a system\'s and a character\'s name still 60', nameOk, J([S.LIMITS.itemName, itN && itN.name.length, ovN && ovN.name.length, sysN.items[0].name.length, sysN.name.length, chN.name.length]));
     }
     {   // 1.6.0, backlog 180 R6 and R7 (the owner, by prompt: "A. Button, filled while on", "B. An icon from the set", "B. In a small box at the end", "A. Its target or its dice"; and "lets add icons before other buttons too")
         const J = JSON.stringify;

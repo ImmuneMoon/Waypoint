@@ -16072,6 +16072,39 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             + 'never a row kept hidden from its player nor one with no definition, so the GM and the player see one number; the header draws it after the title, its style, the Layout tab\'s button and its handler, and Help',
             cleanOk && countOk && wiredOk, J([cleanOk, countOk, wiredOk, mPl, PC(f9, c9, mPl, g9), PC(f9, c9, rPl, g9), PC(f9, c9, gOn.sheet.sections[0].fields[0], gOn), PC(f9, c9, { id: 'f_g' }, { v: 1, items: g9.items, sheet: { sections: [{ id: 's_x', fields: [{ id: 'f_g' }] }] } }), PC(f9, { id: 'c_e', values: {} }, mPl, g9), PC(g9.fields.find(x => x.id === 'f_n'), c9, mPl, g9)]));
     }
+    {   // 1.6.0, backlog 180 R10 (the owner's order of 2026-10-27): a choice stat on a row as a menu, where the list ticks Choices as menus
+        const J = JSON.stringify;
+        const raw10 = { v: 1, name: 'C', rolls: [], items: [{ id: 'i_sp', name: 'Spear', stats: { Grip: 'Two hands', Cond: 0 } }], sheet: { sections: [] },
+            fields: [{ id: 'f_w', key: 'Weap', label: 'Weapons', kind: 'item-list', edit: 'owner', list: { menus: true, stats: [{ key: 'Grip', label: 'Grip', kind: 'pick', opts: [{ label: 'One hand', name: 'ST' }, { label: 'Two hands', name: 'ST' }], show: true }, { key: 'Cond', label: 'Condition', labels: ['Fine', 'Worn', 'Broken'], show: true }, { key: 'Wt', label: 'Wt', show: true }] } },
+                { id: 'f_o', key: 'Other', label: 'Other', kind: 'item-list', list: { menus: 'yes' } }] };
+        const g10 = S.cleanSystem(raw10, { F, gmView: true }), p10 = S.cleanSystem(raw10, { F, gmView: false }), sp10 = g10.fields[0].list;
+        const cleanOk = sp10.menus === true && p10.fields[0].list.menus === true && !(g10.fields[1].list && 'menus' in g10.fields[1].list) && J(S.cleanSystem(g10, { F, gmView: true })) === J(g10);
+        const sh10 = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+        const a10 = sh10.indexOf('// [systemcheck:statmenu-start]'), b10 = sh10.indexOf('// [systemcheck:statmenu-end]'), sent10 = [];
+        const mk10 = (tag, cls, text) => { const e = { tag, className: cls || '', children: [], dataset: {}, value: '', selected: false, disabled: false, on: {}, title: '', ariaLabel: '', textContent: text === undefined ? '' : String(text), get firstChild() { return e.children[0] || null; }, appendChild(x) { e.children.push(x); return x; }, insertBefore(x, r) { const i = e.children.indexOf(r); if (i < 0) e.children.push(x); else e.children.splice(i, 0, x); return x; }, addEventListener(k, fn) { e.on[k] = fn; } }; return e; };
+        const opt10 = (v, t, s) => { const o = mk10('option', null, t); o.value = v; if (s) o.selected = true; return o; };
+        let rights10 = 'gm';
+        const SM = new Function('el', 'opt', 'statShown', 'rowStat', 'commitItem', 'rowIdOf', 'rowRights', sh10.slice(a10, b10) + '\nreturn { statMenuMode, statMenu };')(mk10, opt10, (s, v) => s.kind === 'pick' ? String(v) : Array.isArray(s.labels) && s.labels[v] ? s.labels[v] : String(v), S.rowStat, (c, f, q) => sent10.push(q), S.rowIdOf, () => rights10);
+        const ent10 = { id: 'w_s', defId: 'i_sp', qty: 1 }, rd10 = { src: 'lib', def: { name: 'Spear', stats: { Grip: 'Two hands', Cond: 0 } }, base: { stats: { Grip: 'Two hands', Cond: 0 } } };
+        const lrA = { listRules: { ownerStats: true } }, lrQ = { listRules: { ownerStats: true, statsAsk: true } };
+        const modeOk = SM.statMenuMode(ent10, rd10, sp10, true, g10, true) === 'gm' && SM.statMenuMode(ent10, rd10, sp10, true, g10, false) === '' && SM.statMenuMode(ent10, rd10, g10.fields[1].list || {}, true, g10, true) === ''
+            && SM.statMenuMode(Object.assign({}, ent10, { hid: 1 }), rd10, sp10, true, g10, true) === '' && SM.statMenuMode(Object.assign({}, ent10, { opn: 'w_x' }), rd10, sp10, true, g10, true) === ''
+            && (rights10 = 'stats', SM.statMenuMode(ent10, rd10, sp10, false, lrA, true) === 'stats' && SM.statMenuMode(ent10, rd10, sp10, false, lrQ, true) === '' && SM.statMenuMode(ent10, rd10, sp10, false, {}, true) === '') && (rights10 = '', SM.statMenuMode(ent10, rd10, sp10, false, lrA, true) === '');
+        const fG = { id: 'f_w' }, gripS = sp10.stats[0], condS = sp10.stats[1], wtS = sp10.stats[2];
+        const mG = SM.statMenu(gripS, 'Two hands', ent10, rd10, {}, fG, sp10, 'gm'), mC = SM.statMenu(condS, 1, ent10, rd10, {}, fG, sp10, 'gm'), mX = SM.statMenu(condS, 7, ent10, rd10, {}, fG, sp10, 'gm');
+        const drawOk = mG && J(mG.children.map(o => [o.value, o.textContent, o.selected])) === J([['One hand', 'One hand', false], ['Two hands', 'Two hands', true]]) && mG.ariaLabel === 'Grip' && mG.dataset.part === 'st-w_s-Grip'
+            && mC && J(mC.children.map(o => [o.value, o.textContent, o.selected])) === J([['0', 'Fine', false], ['1', 'Worn', true], ['2', 'Broken', false]])
+            && mX && mX.children[0].disabled === true && mX.children[0].selected === true && mX.children.length === 4 && SM.statMenu(wtS, 2, ent10, rd10, {}, fG, sp10, 'gm') === null
+            && SM.statMenu(condS, 1, Object.assign({}, ent10, { ov: { held: ['cond'] } }), rd10, {}, fG, sp10, 'stats') === null && !!SM.statMenu(condS, 1, Object.assign({}, ent10, { ov: { held: ['cond'] } }), rd10, {}, fG, sp10, 'gm');
+        mG.value = 'One hand'; mG.on.change(); mG.value = 'Two hands'; mG.on.change(); mC.value = '2'; mC.on.change(); mC.value = '0'; mC.on.change(); mX.value = ''; mX.on.change();
+        const sendOk = J(sent10) === J([{ op: 'ov', rowId: 'w_s', ov: { stats: { Grip: 'One hand' } } }, { op: 'ov', rowId: 'w_s', ov: { stats: { Grip: null } } }, { op: 'ov', rowId: 'w_s', ov: { stats: { Cond: 2 } } }, { op: 'ov', rowId: 'w_s', ov: { stats: { Cond: null } } }]);
+        const ht10 = fs.readFileSync(path.join(app, 'index.html'), 'utf8');
+        const wiredOk = sh10.includes("_rowMenu = smR ? function(s, sv) { return statMenu(s, sv, entry, rd, c, f, spec, smR); } : null;") && sh10.includes("        _rowMenu = null;\n") && sh10.includes("mnC = typeof _rowMenu === 'function' ? _rowMenu(s, sv) : null;") && sh10.includes("mnB = typeof _rowMenu === 'function' ? _rowMenu(s, sv) : null;")
+            && sh10.includes("checkLabel('sys-list-menus', sp.menus === true, 'Choices as menus'") && sh10.includes("else if (c.indexOf('sys-list-menus') >= 0) { if (t.checked) lsc.menus = true; else delete lsc.menus; }") && ht10.includes('<li><b>Choices as menus</b> makes a choice stat on a row a menu');
+        check('1.6.0, backlog 180 R10: a list may tick Choices as menus (menus, true only, the same in both views and a fixed point); then a choice stat (a pick, or a number with value names, never a set of places or a Hidden stat) is a menu on its row and in its boxes (statMenu, run for real) for whoever may set the copy\'s own stats there: '
+            + 'the GM, or its owner where players set their copies\' stats and no ask rule holds, never a stat the GM set for that owner, a locked sheet, a row kept from its player or one another row opens; the value it holds marked, a value past the names shown and not offered; a pick sent as the copy\'s own stat, the library\'s own value as none; its wiring, its tick and Help',
+            cleanOk && modeOk && drawOk && sendOk && wiredOk, J([cleanOk, modeOk, drawOk, sendOk, wiredOk, mG && mG.children.map(o => [o.value, o.textContent, o.selected]), mG && [mG.ariaLabel, mG.dataset.part], mC && mC.children.map(o => [o.value, o.textContent, o.selected]), mX && mX.children.map(o => [o.value, o.disabled, o.selected])]));
+    }
     {   // 1.6.0, backlog 180 R11 (the owner's order of 2026-10-27; a removed row's Undo is 1.5.8's): split a stack into a row of its own
         const J = JSON.stringify;
         const sys11 = S.cleanSystem({ v: 1, name: 'C', rolls: [], items: [{ id: 'i_gr', name: 'Grenade', category: 'Explosive' }, { id: 'i_rp', name: 'Rope' }],

@@ -2755,6 +2755,28 @@ var _noteOpen = Object.create(null);   // F4b: the rows whose 📝 line is open 
 function partPlace(p, hud) { var v = p && typeof p === 'object' ? (p.hide === true ? 'hide' : p.place) : ''; return v === 'hide' ? 'hide' : v === 'details' && !hud ? 'details' : 'row'; }
 function partHere(p, want, hud) { var at = partPlace(p, hud); return at !== 'hide' && (!want || at === want); }
 var _placeWant = null;   // what itemListInto and itemTableInto draw now ('row' or 'details'); null for every other caller, which draws as before
+var _rowMenu = null;   // 1.6.0, backlog 180 R10: while itemListInto draws a row, what makes a choice stat's menu there (statMenu), for whoever may set this copy's own stats; null for every other caller
+// [systemcheck:statmenu-start] 1.6.0, backlog 180 R10: a choice stat on a row as a menu, for whoever may set the copy's own stats here (the GM, or its owner
+// under Players set their copies' stats with no ask rule), else its value name as before. A pick is set as an ov of the copy's own, the library's value as none
+function statMenuMode(entry, rd, spec, gm, sysI, edit) {
+    if (!edit || !spec || spec.menus !== true || !entry || entry.hid === 1 || typeof entry.opn === 'string' || typeof rowRights !== 'function') return '';   // only where the list ticks Choices as menus
+    var m = rowRights(entry, rd, spec, gm, sysI), lr = sysI && sysI.listRules && typeof sysI.listRules === 'object' ? sysI.listRules : {};
+    if (m === 'gm') return 'gm';
+    return m === 'stats' && lr.ownerStats === true && lr.statsAsk !== true ? 'stats' : '';   // under the ask rule a change is an ask, made in the ✎ form
+}
+function statMenu(s, sv, entry, rd, c, f, spec, mode) {
+    if (!s || typeof s.key !== 'string' || !s.key || s.set === true || s.hide === true) return null;
+    var pick = s.kind === 'pick', opts = pick ? (Array.isArray(s.opts) ? s.opts.map(function(o) { return o && typeof o.label === 'string' ? o.label : ''; }).filter(Boolean) : []) : (Array.isArray(s.labels) ? s.labels.map(function(t, i) { return typeof t === 'string' && t ? t : String(i); }) : []);
+    if (!opts.length) return null;
+    var lk = s.key.toLowerCase(), held = entry && entry.ov && Array.isArray(entry.ov.held) ? entry.ov.held.map(function(k) { return String(k).toLowerCase(); }) : [];
+    if (mode === 'stats' && held.indexOf(lk) >= 0) return null;   // a stat the GM set stays the GM's (Setting A)
+    var sel = el('select', 'field sheet-item-statsel'), found = false; sel.ariaLabel = s.label || s.key; sel.title = (s.label || s.key) + ' of this row'; sel.dataset.fid = f.id; sel.dataset.part = 'st-' + rowIdOf(entry) + '-' + s.key;
+    opts.forEach(function(t, i) { var on = pick ? (typeof sv === 'string' && sv.toLowerCase() === t.toLowerCase()) : sv === i; if (on) found = true; sel.appendChild(opt(pick ? t : String(i), t, on)); });
+    if (!found) { var xo = opt('', statShown(s, sv), true); xo.disabled = true; sel.insertBefore(xo, sel.firstChild); }   // a value past the names, or none
+    sel.addEventListener('change', function() { if (sel.value === '') return; var bv = rowStat(spec, rd && rd.base ? rd.base : {}, s.key), v = pick ? sel.value : Number(sel.value), same = pick ? (typeof bv === 'string' && bv.toLowerCase() === String(v).toLowerCase()) : bv === v, p = {}; p[s.key] = same ? null : v; commitItem(c, f, { op: 'ov', rowId: rowIdOf(entry), ov: { stats: p } }); });   // the library's own value goes back to the library
+    return sel;
+}
+// [systemcheck:statmenu-end]
 // The arrow before a row's name (R1): a real button that opens the row's details and says so, kept per row as 📝's line is. none: no details,
 // a blank of its size so the names line up
 function rowOpener(line, entry, c, f, name, none) {
@@ -2892,7 +2914,7 @@ function figBox(label, text, tone, more) {
 }
 function statBoxes(entry, def, spec, ovc) {   // every stat that is not Hidden, then Paid: the details line's figures, as boxes
     var g = el('div', 'sheet-item-boxes');
-    (Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (s.hide === true) return; var sv = rowStat(spec, def, s.key); g.appendChild(figBox(s.label, statShown(s, sv), typeof nameTone === 'function' ? nameTone(s, sv) : '', [statDot(s, spec, ovc)])); });
+    (Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (s.hide === true) return; var sv = rowStat(spec, def, s.key), mnB = typeof _rowMenu === 'function' ? _rowMenu(s, sv) : null; if (mnB) { var bxB = el('label', 'sheet-item-box'), vbB = el('b', 'sheet-item-boxv'); bxB.appendChild(el('small', null, s.label)); vbB.appendChild(mnB); var dtB = statDot(s, spec, ovc); if (dtB) vbB.appendChild(dtB); bxB.appendChild(vbB); g.appendChild(bxB); return; } g.appendChild(figBox(s.label, statShown(s, sv), typeof nameTone === 'function' ? nameTone(s, sv) : '', [statDot(s, spec, ovc)])); });
     if (spec.price) g.appendChild(figBox('Paid', statFmt(rowPaid(spec, entry, def)), '', []));
     return g.childNodes.length ? g : null;
 }
@@ -2945,7 +2967,7 @@ function nameTone(c, v) { if (!c || !Array.isArray(c.tones) || !Array.isArray(c.
 function tonedChip(cls, label, words, t) { var ch = el('span', cls + ' sheet-item-toned'); ch.appendChild(el('small', null, label)); ch.appendChild(document.createTextNode(' ')); ch.appendChild(el('span', 'sheet-badge sheet-tone-' + t, words)); return ch; }   // R5: its label small, then the word as a badge
 // [systemcheck:rowbadge-end]
 function statChips(host, def, spec, ovc) {   // the stats shown On the row: a chip each beside the name, its label small ("Acc 2"); F4c2: a dot on a value of the copy's own
-    (Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (s.show !== true) return; var sv = rowStat(spec, def, s.key), stT = typeof nameTone === 'function' ? nameTone(s, sv) : '', ch = stT ? tonedChip('sheet-chip sheet-item-stat', s.label, statShown(s, sv), stT) : el('span', 'sheet-chip sheet-item-stat'); if (!stT) { ch.appendChild(el('small', null, s.label)); ch.appendChild(document.createTextNode(' ' + statShown(s, sv))); } var dt = statDot(s, spec, ovc); if (dt) ch.appendChild(dt); host.appendChild(ch); });
+    (Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (s.show !== true) return; var sv = rowStat(spec, def, s.key), mnC = typeof _rowMenu === 'function' ? _rowMenu(s, sv) : null; if (mnC) { var mcC = el('label', 'sheet-chip sheet-item-stat sheet-item-statpick'); mcC.appendChild(el('small', null, s.label)); mcC.appendChild(document.createTextNode(' ')); mcC.appendChild(mnC); var dtC = statDot(s, spec, ovc); if (dtC) mcC.appendChild(dtC); host.appendChild(mcC); return; } var stT = typeof nameTone === 'function' ? nameTone(s, sv) : '', ch = stT ? tonedChip('sheet-chip sheet-item-stat', s.label, statShown(s, sv), stT) : el('span', 'sheet-chip sheet-item-stat'); if (!stT) { ch.appendChild(el('small', null, s.label)); ch.appendChild(document.createTextNode(' ' + statShown(s, sv))); } var dt = statDot(s, spec, ovc); if (dt) ch.appendChild(dt); host.appendChild(ch); });
 }
 function statLine(entry, def, spec) {   // every stat, then what one cost: "Acc 2 · Wt 0.0001 · Paid 500" (the 📝 line: a player reads every stat there)
     var parts = (Array.isArray(spec.stats) ? spec.stats : []).filter(function(s) { return s.hide !== true; }).map(function(s) { return s.label + ' ' + statShown(s, rowStat(spec, def, s.key)); });   // 1.5.4: a Hidden stat is worked with, never listed
@@ -2997,7 +3019,9 @@ function itemListInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty, 
         lostBits(line, rd, entry, c, f, gm, chg); needBits(line, sysI, c, entry, rd, gm); gmItemBits(line, def, entry, gm, !!(spec && spec.on)); keyShareChip(line, entry, rd, unseenL); modsBits(line, def, entry, spec, sysI);
         if (typeof onceBits === 'function') onceBits(line, sysI, c, f, carried, entry);   // 1.5.8 Counted once
         var noteLn = null;
+        var smR = spec && typeof statMenuMode === 'function' ? statMenuMode(entry, rd, spec, gm, sysI, chg && !hudRow) : ''; _rowMenu = smR ? function(s, sv) { return statMenu(s, sv, entry, rd, c, f, spec, smR); } : null;   // 1.6.0 R10
         if (spec) { statChips(line, def, spec, ovc); colChips(line, spec, res && res.cells ? res.cells[rid] : null, res && res.cfx ? res.cfx[rid] : null); ctCtl(line, entry, c, f, spec, editable, res && res.cts ? res.cts[rid] : null); if (typeof loadCtl === 'function') loadCtl(line, entry, c, f, spec, editable, sysI, res && res.ldOk ? res.ldOk[rid] : undefined); if (typeof chamberCtl === 'function') chamberCtl(line, entry, c, f, spec, editable, sysI, gm, canThrow, res && res.chOk ? res.chOk[rid] : undefined); var lc = partHere(spec.lvl, _placeWant, hudRow) ? lvlCtl(entry, def, c, f, spec, chg && !opnR) : null; if (lc) line.appendChild(lc); var oc = partHere(spec.on, _placeWant, hudRow) ? onCtl(entry, c, f, spec, editable, true, res && res.onOk ? res.onOk[rid] : undefined, res && res.onShow ? res.onShow[rid] : undefined) : null; if (oc) line.appendChild(oc); var pcL = partHere({ place: spec.paidPlace }, _placeWant, hudRow) ? paidCtl(entry, def, c, f, spec, chg, gm, true) : null; if (pcL) line.appendChild(pcL); noteLn = hudRow ? null : noteBits(entry, def, c, f, chg, ovc); }   // F4c1: the stats shown On the row, what one cost
+        _rowMenu = null;
         if (def.area && canThrow && (gm || def.vis !== 'gm') && entry.hid !== 1) line.appendChild(itemThrowBtn(def, c, f, rid));   // a GM-only item: the GM's throw only (a player's copy never carries its area)
         rowRollBtns(line, spec, entry, def, c, f, res);   // F5b: the list's rolls on this row
         if (spec && !hudRow) {   // 1.6.0 R2: the parts placed in the details stand at the top of the row's details
@@ -6832,6 +6856,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
     fl.appendChild(checkLabel('sys-list-custom', sp.custom === true, 'Custom rows', 'Players may add rows of their own with + Custom\u2026 on their sheet (a name, an icon, a category, notes, a key and stats) and change the ones they made; you can add them on any shaped list'));   // Stage 6 F4c3
     fl.appendChild(checkLabel('sys-list-open', sp.open === true, 'Rows open', 'Each row gets an arrow before its name that opens its details: what each part set to Shows In the details holds, its description and its note. Open all and Close all stand over the list.'));   // 1.6.0 R1
     fl.appendChild(checkLabel('sys-list-trade', sp.trade === true, 'Tradable', 'Rows of this list can be put on the table in a trade between two characters: gear and money, never skills'));   // 1.5.6 trading
+    fl.appendChild(checkLabel('sys-list-menus', sp.menus === true, 'Choices as menus', 'A choice stat on a row, or in its boxes, is a menu for whoever may set that copy\u2019s stats: you, or its owner where players set their copies\u2019 stats. Off: its value name'));   // 1.6.0 R10
     fl.appendChild(checkLabel('sys-list-boxes', sp.boxes === true, 'Figures as boxes', 'A row\u2019s details show its figures as small boxes, each its label above its figure: every stat, the columns placed in the details, and Paid. Off: one line, as Acc 2 \u00b7 Wt 1'));   // 1.6.0 R3
     card.appendChild(fl);
     var lv = sp.lvl && typeof sp.lvl === 'object' ? sp.lvl : null, lr = el('div', 'sys-flags sys-list-lvl');
@@ -8805,6 +8830,7 @@ function onChange(e) {
         else if (c.indexOf('sys-list-custom') >= 0) { if (t.checked) lsc.custom = true; else delete lsc.custom; }   // Stage 6 F4c3
         else if (c.indexOf('sys-list-place') >= 0) { if (typeof placeSet === 'function') placeSet(lsc, t.dataset.part, t.value); }   // 1.6.0 R2: a part's Shows list
         else if (c.indexOf('sys-list-open') >= 0) { if (t.checked) lsc.open = true; else delete lsc.open; }
+        else if (c.indexOf('sys-list-menus') >= 0) { if (t.checked) lsc.menus = true; else delete lsc.menus; }   // 1.6.0 R10
         else if (c.indexOf('sys-list-boxes') >= 0) { if (t.checked) lsc.boxes = true; else delete lsc.boxes; }   // 1.6.0 R3   // 1.6.0 R1: Rows open
         else if (c.indexOf('sys-list-trade') >= 0) { if (t.checked) lsc.trade = true; else delete lsc.trade; }   // 1.5.6 Tradable
         else if (c.indexOf('sys-list-lvlentry') >= 0) { if (lsc.lvl && typeof lsc.lvl === 'object') { if (t.checked) lsc.lvl.entry = true; else delete lsc.lvl.entry; } }   // 1.6.0 R8

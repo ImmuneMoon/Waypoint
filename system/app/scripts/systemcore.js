@@ -2163,6 +2163,7 @@ function cleanListSpec(v, gmView, F) {   // F (F4c1): the engine, for a stat key
     if (out.price && (v.paidPlace === 'details' || v.paidPlace === 'hide')) out.paidPlace = v.paidPlace;   // 1.6.0 R2: where Paid stands
     var bdg = cleanBadges(v.badges, F); if (bdg) out.badges = bdg;   // 1.6.0 R4: its row badges
     if (v.boxes === true) out.boxes = true;   // 1.6.0 R3 (the owner, by prompt: "A. A list ticks it"): Figures as boxes in a row's details
+    if (v.menus === true) out.menus = true;   // 1.6.0 R10: Choices as menus, a choice stat a menu on its row for whoever may set the copy's own stats
     if (v.open === true) out.open = true;   // 1.6.0 R1 (the owner, by prompt: "A tick the builder sets"): Rows open for their details
     if (v.trade === true) out.trade = true;   // 1.5.6 Tradable: rows of this list may be traded between characters (gear, money; never a skill)
     if (v.custom === true) out.custom = true;   // F4c3: Custom rows — players may add rows of their own (+ Custom…); the GM may on any list shaped here

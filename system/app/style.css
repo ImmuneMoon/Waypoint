@@ -3059,6 +3059,7 @@
   .sheet-section { display: flex; flex-direction: column; gap: 4px; }
   .sheet-sec-title { display: flex; align-items: baseline; gap: 8px; color: var(--sheet-accent, var(--gold)); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; border-bottom: 1px solid var(--edge); padding-bottom: 2px; }
   .sheet-sec-name { flex: 1; min-width: 0; }
+  .sheet-item-statsel { font-size: 11px; padding: 1px 4px; min-height: 0; height: auto; max-width: 160px; }   /* 1.6.0, backlog 180 R10: a choice stat as a menu on its row */
   .sheet-split { font-size: 11px; padding: 0 6px; }   /* 1.6.0, backlog 180 R11 */
   .sheet-sec-count { margin-left: 5px; color: var(--dim); font-weight: 400; font-variant-numeric: tabular-nums; }   /* 1.6.0, backlog 180 R9: Melee Technique (3) */
   /* Stage 5f: a handbook chip in a section header (the owner's reference chip: a small pill, icon + page title) and a handbook link button */

@@ -6,7 +6,7 @@
      page), the sheet walked as it is laid out: the header, the dashboard, the band as one line, every tab, every section.
    fileBase(name): a character's name as a file name. isCharFile(j): a character file. The caller (sheets.js) picks the view, works out
    `all` (resolveAll) on that same view and saves the file. */
-import { STORED, fmtNum, headerEntry, autoLayout, catPlace, placeVal, rowDef, rowIdOf, rowLvl, rowOn, rowStat, plusText, rowPaid, showsIf, postureAt, ownPostures, lookOf, unitWords, textWords, listWords } from './systemcore.js';
+import { STORED, fmtNum, headerEntry, autoLayout, catPlace, placeVal, setsOf, rowDef, rowIdOf, rowLvl, rowOn, rowStat, plusText, rowPaid, showsIf, postureAt, ownPostures, lookOf, unitWords, textWords, listWords } from './systemcore.js';
 import { docToMarkdown, mdEscapeText, fmtFromInline } from './docmd.js';
 import { cleanFmt, runsOf, SIZE_EM } from './textfmt.js';
 import { LIMITS as DOC_LIMITS } from './docrender.js';
@@ -300,6 +300,7 @@ function sheetToMarkdown(sys, view, all, opts) {
         B.push({ type: 'table', title: label, cols: cols.map(function(c) { return cell(c.t); }), rows: rows.map(function(r, i) { return cols.map(function(c) { return cell(c.g(r, defs[i])); }); }) });
         var notes = rows.map(function(r, i) { return typeof r.note === 'string' && r.note ? li((defs[i] && defs[i].name) || '?', r.note) : ''; }).filter(Boolean);
         if (notes.length) B.push(textBlock('<ul>' + notes.join('') + '</ul>'));
+        if (!onOnly && (!catT || catT.home) && typeof spec.sets === 'string' && spec.sets) { var setW = setsOf(sys, spec, vals[f.id]).map(function(g) { return g.name + ' ' + g.on + '/' + g.n + ' ' + String(isObj(spec.on) && spec.on.label || 'on').toLowerCase() + (g.all ? ', complete' : ''); }); if (setW.length) B.push(textBlock('<p><b>Sets:</b> ' + esc(plain(setW.join('; '))) + '</p>')); }   // 1.6.0 R15: each set with its count, once, under the home placement
     }
     function fxBlock(f) {
         var lib = Object.create(null); ((sys && Array.isArray(sys.effects)) ? sys.effects : []).forEach(function(d) { if (isObj(d) && typeof d.id === 'string') lib[d.id] = d; });

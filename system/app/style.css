@@ -3327,6 +3327,13 @@
   .sheet-item-box { display: inline-flex; flex-direction: column; align-items: center; min-width: 54px; padding: 3px 9px; border: 1px solid var(--edge); border-radius: 7px; background: var(--panel2); }
   .sheet-item-box > small { font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: .04em; }
   .sheet-item-boxv { font-size: 13px; font-weight: 700; color: var(--ink); white-space: nowrap; }
+  /* 1.6.0 R8: a row's level as a menu of its entry's own levels, each its words in a darker box */
+  .sheet-item-lvlbtn { padding: 0 8px; height: 24px; font-size: 11px; display: inline-flex; align-items: center; gap: 4px; }
+  .sheet-item-lvltagbox { margin-left: 2px; padding: 0 5px; border-radius: 4px; background: color-mix(in srgb, #000 35%, transparent); font-weight: 700; white-space: nowrap; }
+  .sheet-dl-pop .sheet-lvl-item { flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; width: 100%; }
+  .sheet-dl-pop .sheet-lvl-item .sheet-item-lvlword { font-size: 13px; }
+  .sheet-dl-pop .sheet-lvl-item.on { border-color: var(--gold); }
+  .sheet-lvl-pop { width: auto; min-width: 160px; }
   .sheet-item-rollfig { margin-left: 6px; padding: 0 5px; border-radius: 4px; background: color-mix(in srgb, #000 35%, transparent); font-weight: 700; }
   /* Stage 6 HUD C8: a part whose show-if is false, as the Layout preview draws it; the placement's if button and box */
   .sheet-showif-off { opacity: 0.4; outline: 1px dashed var(--edge); outline-offset: 2px; }

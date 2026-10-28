@@ -15991,6 +15991,51 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             + 'the resolver keeps each cell\'s effects (cfx, only where one reached a cell), and a column an effect changed carries ▲ or ▼ with its breakdown on its box, its chip and its rich table cell (itemListInto and itemTableInto with the real fxMark, run for real); a list not ticked draws its line and its chips as before; the editor\'s tick and its handler',
             cleanOk && resOk && drawOk && plainOk && tableOk && pureOk && wiredOk, J([cleanOk, resOk, drawOk, plainOk, tableOk, pureOk, wiredOk, resX.cfx, boxesA, markBox && markBox.title, markChip && markChip.title]));
     }
+    {   // 1.6.0, backlog 180 R8 (the owner, by prompt: "A list ticks it", and of each choice "10 pts could be in its own darker box like we have in the option b of r7")
+        const J = JSON.stringify;
+        const rawL = { v: 1, name: 'L', rolls: [], sheet: { sections: [] }, items: [],
+            fields: [{ id: 'f_g', key: 'Feats', label: 'Feats', kind: 'item-list', list: { lvl: { label: 'Rank', min: 1, max: 9, entry: true } } }, { id: 'f_o', key: 'Other', label: 'Other', kind: 'item-list', list: { lvl: { label: 'Rank', entry: 'yes' } } }] };
+        const gL = S.cleanSystem(rawL, { F, gmView: true }), pL = S.cleanSystem(rawL, { F, gmView: false });
+        const cleanOk = gL.fields[0].list.lvl.entry === true && pL.fields[0].list.lvl.entry === true && !('entry' in gL.fields[1].list.lvl) && J(S.cleanSystem(gL, { F, gmView: true })) === J(gL) && J(S.cleanSystem(pL, { F, gmView: false })) === J(pL);
+        const shL = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+        const cutL = (a, b) => { const i = shL.indexOf(a), k = shL.indexOf(b, i + 1); if (i < 0 || k < 0) throw new Error('r8 slice: ' + a); return shL.slice(i, k); };
+        const itL = cutL('// ---- item-list widgets', '// 5h: an effect\'s changes as short text');
+        const docL = { listeners: {}, activeElement: null, body: null, createTextNode: t => ({ tag: '#text', textContent: t, children: [] }), addEventListener(k, fn) { (this.listeners[k] = this.listeners[k] || []).push(fn); }, removeEventListener(k, fn) { this.listeners[k] = (this.listeners[k] || []).filter(x => x !== fn); } };
+        const hasCls = (n, sel) => sel.split('.').filter(Boolean).every(c => (' ' + (n.className || '') + ' ').indexOf(' ' + c + ' ') >= 0);
+        const mkL = (tag, cls, text) => { const e = { tag, className: cls || '', children: [], attrs: {}, title: '', type: '', value: '', dataset: {}, style: {}, on: {}, parent: null,
+            classList: { add(c) { if (!hasCls(e, c)) e.className = (e.className + ' ' + c).trim(); }, contains(c) { return hasCls(e, c); } },
+            get childNodes() { return e.children; }, appendChild(x) { x.parent = e; e.children.push(x); return x; }, insertBefore(x, r) { x.parent = e; const i = r ? e.children.indexOf(r) : -1; if (i < 0) e.children.push(x); else e.children.splice(i, 0, x); return x; },
+            remove() { if (e.parent) { e.parent.children = e.parent.children.filter(k => k !== e); e.parent = null; } }, contains(x) { let n = x; while (n) { if (n === e) return true; n = n.parent; } return false; },
+            querySelectorAll(sel) { const acc = []; const w = n => (n.children || []).forEach(k => { if (k.tag !== '#text' && hasCls(k, sel)) acc.push(k); w(k); }); w(e); return acc; }, querySelector(sel) { return this.querySelectorAll(sel)[0] || null; },
+            setAttribute(k, v) { e.attrs[k] = String(v); }, getBoundingClientRect() { return { left: 100, right: 160, top: 50, bottom: 74 }; }, addEventListener(k, fn) { e.on[k] = fn; }, click() { if (e.on.click) e.on.click({ preventDefault() {} }); }, focus() { docL.activeElement = e; } };
+            if (text !== undefined && text !== null) e.children.push({ tag: '#text', textContent: String(text), children: [] }); return e; };
+        docL.body = mkL('body');
+        const txL = n => !n ? '' : n.tag === '#text' ? n.textContent : (n.children || []).map(txL).join('');
+        const sentL = [];
+        const depsL = ['el', 'iconNode', 'rowDef', 'rowIdOf', 'rowLvl', 'rowOn', 'commitItem', 'opt', 'fmtNum', 'iconText', 'LIMITS', '_fxLive', 'document', 'renderViews', 'closeHud', 'closeSheet', 'window', 'systemOf', 'getActiveCampaign', 'facingTarget', 'uid', 'F', 'fxText', 'canRoll', 'sheetRoll', 'commit', 'valueTone', 'TONE_CLASS', 'rowStat', 'rowPaid', '_fxView'];
+        const WL = new Function(...depsL, itL + '\nreturn { lvlCtl, openLvlMenu, closeLoadMenu, lvlWord, entryLvls, getPop: function() { return _ldPop; } };')(mkL, (v, cls) => mkL('span', cls), S.rowDef, S.rowIdOf, S.rowLvl, S.rowOn, (c, f, op) => sentL.push(op), (v, t, sl) => { const o = mkL('option', null, t); o.value = v; if (sl) o.selected = true; return o; }, S.fmtNum, v => v || '', S.LIMITS, true, docL, () => {}, () => {}, () => {}, { innerWidth: 1000, innerHeight: 800 }, () => gL, () => null, () => null, p => p + 'new', () => F, S.fxText, () => true, () => {}, () => {}, S.valueTone, {}, S.rowStat, S.rowPaid, 'sheet');
+        const fL = gL.fields[0], spL = fL.list, defL = { name: 'Quick Draw', lvls: [{ lvl: 1, text: 'a', tag: '2 pts' }, { lvl: 2, text: 'b', tag: '4 pts' }, { lvl: 3, text: 'c' }] }, chL = { id: 'c_l', name: 'Kael' };
+        const kidsL = n => n.children.map(k => k.tag === '#text' ? '#' + k.textContent : k.className + ':' + txL(k));
+        const w1 = WL.lvlCtl({ id: 'w_a', lvl: 2 }, defL, chL, fL, spL, true), btn = w1.children[0];
+        const btnOk = btn && btn.tag === 'button' && btn.className === 'tool ghost sheet-item-lvlbtn' && J(kidsL(btn)) === J(['sheet-item-lvlword:Rank 2', 'sheet-item-lvltagbox:4 pts']) && btn.attrs['aria-haspopup'] === 'menu';
+        btn.click(); const pop = WL.getPop(), items = pop ? pop.querySelectorAll('.sheet-dl-item') : [];
+        const popOk = !!pop && pop.parent === docL.body && hasCls(pop, 'sheet-dl-pop') && J(items.map(kidsL)) === J([['sheet-item-lvlword:Rank 1', 'sheet-item-lvltagbox:2 pts'], ['sheet-item-lvlword:Rank 2', 'sheet-item-lvltagbox:4 pts'], ['sheet-item-lvlword:Rank 3']])
+            && J(items.map(b => b.attrs['aria-checked'])) === J(['false', 'true', 'false']) && hasCls(items[1], 'on') && docL.activeElement === items[1] && pop.style.left === '100px' && pop.style.top === '80px';
+        items[2].click(); const pickOk = WL.getPop() === null && pop.parent === null && J(sentL) === J([{ op: 'set', rowId: 'w_a', facts: { lvl: 3 } }]) && docL.activeElement === btn && (docL.listeners.keydown || []).length === 0;
+        btn.click(); btn.click(); const toggleOk = WL.getPop() === null;
+        btn.click(); (docL.listeners.keydown || []).slice().forEach(fn => fn({ key: 'Escape', preventDefault() {}, stopPropagation() {} })); const escOk = WL.getPop() === null && docL.activeElement === btn;
+        btn.click(); WL.getPop().querySelectorAll('.sheet-dl-item')[1].click(); const sameOk = sentL.length === 1;
+        const w5 = WL.lvlCtl({ id: 'w_b', lvl: 5 }, defL, chL, fL, spL, true), outOk = J(kidsL(w5.children[0])) === J(['sheet-item-lvlword:Rank 5']);
+        const wR = WL.lvlCtl({ id: 'w_a', lvl: 1 }, defL, chL, fL, spL, false), readOk = J(kidsL(wR)) === J(['sheet-item-lvlword:Rank 1', 'sheet-item-lvltagbox:2 pts']);
+        const wN = WL.lvlCtl({ id: 'w_a', lvl: 1 }, { name: 'Plain' }, chL, fL, spL, true), noneOk = wN.children[0].className === 'field sheet-item-lvlin';
+        const wO = WL.lvlCtl({ id: 'w_a', lvl: 1 }, defL, chL, fL, Object.assign({}, spL, { lvl: { label: 'Rank', min: 1 } }), true), offOk = wO.children[0].className === 'field sheet-item-lvlin';
+        const namedOk = WL.lvlWord({ label: 'Rank', min: 1, labels: ['Novice', 'Adept'] }, 2) === 'Adept' && WL.lvlWord({ label: 'Rank', min: 1, labels: ['Novice', 'Adept'] }, 5) === 'Rank 5' && WL.lvlWord({}, 3) === 'Level 3' && J(WL.entryLvls({ lvls: [null, { lvl: 'x' }, { lvl: 2 }] })) === J([{ lvl: 2 }]) && J(WL.entryLvls(null)) === '[]';
+        const cssL = fs.readFileSync(path.join(app, 'style.css'), 'utf8');
+        const wiredOk = shL.includes("lr.appendChild(checkLabel('sys-list-lvlentry', lv.entry === true, 'Levels from the entry',") && shL.includes("else if (c.indexOf('sys-list-lvlentry') >= 0) { if (lsc.lvl && typeof lsc.lvl === 'object') { if (t.checked) lsc.lvl.entry = true; else delete lsc.lvl.entry; } }") && /\.sheet-item-lvltagbox \{[^}]*background: color-mix\(in srgb, #000 35%, transparent\);/.test(cssL);
+        check('1.6.0, backlog 180 R8: a list\'s level may be ticked Levels from the entry (entry, true only, the same in both views and a fixed point); where the row\'s entry has By level rows the level is a button (lvlCtl, run for real) of the level\'s word and its tag in a darker box, opening the Load menu\'s own pop of every listed level, '
+            + 'the row\'s own one marked and focused, a pick committing the level once and closing it, the button again or Escape closing it, the same level committing nothing; a stored level outside the list still on the button; read-only the words and the box; an entry with none, or a list not ticked, keeps the level box; a named level by its name; the editor\'s tick, its handler and the box\'s style',
+            cleanOk && btnOk && popOk && pickOk && toggleOk && escOk && sameOk && outOk && readOk && noneOk && offOk && namedOk && wiredOk, J([cleanOk, btnOk, popOk, pickOk, toggleOk, escOk, sameOk, outOk, readOk, noneOk, offOk, namedOk, wiredOk, btn && kidsL(btn), pop && pop.style, sentL]));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

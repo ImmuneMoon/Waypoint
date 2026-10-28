@@ -2342,6 +2342,7 @@ function cleanLvlSpec(v) {
     var d = lvlNum(v.def); out.def = lvlClamp(out, d === undefined ? (out.min !== undefined ? out.min : 0) : d);
     if (lbs) out.labels = lbs;
     else if (v.split === true) out.split = true;   // 1.5.6 Split in trades: a trade may take part of a row's level (a money chip's stored amount); never a level of named values
+    if (v.entry === true) out.entry = true;   // 1.6.0 R8 (the owner, by prompt: "A list ticks it"): Levels from the entry, a row's level a menu of its entry's own By level rows
     return out;
 }
 // A level on a list's terms: stepped from its minimum, clamped to its range (a bound left out is open, within LIMITS.lvlAbs)

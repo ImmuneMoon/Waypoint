@@ -2633,11 +2633,39 @@ function lvlFit(i, L) {
     var n = lvlRoom(L, i.value);
     if (n > 4) i.style.width = 'calc(58px + ' + (n - 4) + 'ch)'; else if (i.style.width) i.style.width = '';
 }
+// [systemcheck:lvlmenu-start] 1.6.0 R8 (backlog 180; the owner, by prompt: "A list ticks it", and of each choice, "10 pts could be in its own darker
+// box like we have in the option b of r7"): where a list ticks Levels from the entry and a row's entry has By level rows, its level is a button that
+// opens a menu of those levels, each the list's word for a level (or the level's name) and its tag in a darker box. It shares the Load menu's pop,
+// so one press elsewhere, Escape and the arrow keys work as there. A stored level outside them still shows and works
+function entryLvls(def) { return (def && Array.isArray(def.lvls) ? def.lvls : []).filter(function(r) { return !!r && typeof r === 'object' && typeof r.lvl === 'number' && isFinite(r.lvl); }); }
+function lvlWord(L, n) { var t = lvlText(L, n); return Array.isArray(L.labels) && L.labels.length && t !== fmtNum(n) ? t : (L.label || 'Level') + ' ' + t; }
+function lvlTagOf(lvs, n) { for (var i = 0; i < lvs.length; i++) if (lvs[i].lvl === n) return typeof lvs[i].tag === 'string' ? lvs[i].tag : ''; return ''; }
+function lvlFace(node, L, n, tag) { node.appendChild(el('span', 'sheet-item-lvlword', lvlWord(L, n))); if (typeof tag === 'string' && tag) node.appendChild(el('span', 'sheet-item-lvltagbox', tag)); return node; }
+function openLvlMenu(anchor, lvs, L, lv, go) {
+    if (_ldPop) { var was = _ldPop._anchor === anchor; closeLoadMenu(); if (was) return; }
+    var pop = el('div', 'sheet-dl-pop sheet-lvl-pop'); pop.setAttribute('role', 'menu'); pop.setAttribute('aria-label', L.label || 'Level'); pop._anchor = anchor;
+    lvs.forEach(function(r) { var b = lvlFace(el('button', 'sheet-dl-item sheet-lvl-item' + (r.lvl === lv ? ' on' : '')), L, r.lvl, r.tag); b.type = 'button'; b.setAttribute('role', 'menuitemradio'); b.setAttribute('aria-checked', r.lvl === lv ? 'true' : 'false');
+        b.addEventListener('click', function(e) { e.preventDefault(); closeLoadMenu(); try { anchor.focus(); } catch (er) {} if (r.lvl !== lv) go(r.lvl); }); pop.appendChild(b); });
+    pop.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+    pop.addEventListener('keydown', function(e) { e.stopPropagation(); if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return; e.preventDefault(); var its = Array.prototype.slice.call(pop.querySelectorAll('.sheet-dl-item')), at = its.indexOf(document.activeElement), nx = its[(at + (e.key === 'ArrowDown' ? 1 : its.length - 1) + its.length) % its.length]; try { if (nx) nx.focus(); } catch (er) {} });
+    document.body.appendChild(pop); _ldPop = pop;
+    var r0 = anchor.getBoundingClientRect(), n = pop.children.length; pop.style.left = Math.max(8, Math.min(window.innerWidth - 288, r0.left)) + 'px'; pop.style.top = Math.max(8, Math.min(window.innerHeight - (24 + 36 * n), r0.bottom + 6)) + 'px';
+    document.addEventListener('mousedown', ldOutside, true); document.addEventListener('keydown', ldKey, true);
+    var cur = pop.querySelector('.sheet-lvl-item.on') || pop.querySelector('.sheet-dl-item'); try { if (cur) cur.focus(); } catch (er) {}
+}
+// [systemcheck:lvlmenu-end]
 // Stage 6 F4b: a row's level — a number box, or a dropdown when the level has names (they count from its minimum); text when it cannot be
 // changed. One set op per change (the host judges it again)
 function lvlCtl(entry, def, c, f, spec, editable) {
     var L = spec.lvl; if (!L || typeof L !== 'object') return null;
     var lv = rowLvl(spec, entry, def), w = el('span', 'sheet-item-lvl'), rid = rowIdOf(entry); w.title = L.label;
+    var lvsE = L.entry === true && typeof entryLvls === 'function' ? entryLvls(def) : [];   // 1.6.0 R8: Levels from the entry
+    if (lvsE.length) {
+        if (!editable) { lvlFace(w, L, lv, lvlTagOf(lvsE, lv)); return w; }
+        var lb = el('button', 'tool ghost sheet-item-lvlbtn'); lb.type = 'button'; lb.title = L.label + ': pick from this entry\u2019s levels'; lb.dataset.fid = f.id; lb.dataset.part = 'lvl-' + rid; lb.setAttribute('aria-haspopup', 'menu'); lvlFace(lb, L, lv, lvlTagOf(lvsE, lv));
+        lb.addEventListener('click', function(e) { e.preventDefault(); openLvlMenu(lb, lvsE, L, lv, function(n) { commitItem(c, f, { op: 'set', rowId: rid, facts: { lvl: n } }); }); });
+        w.appendChild(lb); return w;
+    }
     if (!editable) { w.appendChild(el('span', 'sheet-item-lvln', lvlText(L, lv))); return w; }
     if (Array.isArray(L.labels) && L.labels.length) {
         var s = el('select', 'field sheet-item-lvlsel'); s.title = L.label; s.dataset.fid = f.id; s.dataset.part = 'lvl-' + rid;
@@ -6789,6 +6817,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
         lr.appendChild(numField('sys-list-lvlstep', lv.step, 'The step between levels', 'step'));
         lr.appendChild(numField('sys-list-lvldef', lv.def, 'The level a new row starts at (an item\u2019s own Level in Items comes first); a row with no level of its own reads it', 'default'));
         lr.appendChild(input('sys-list-lvlnames field', (lv.labels || []).join(', '), 'Names for the levels from the minimum up, separated by commas (Broken, Accented, Fluent): the level becomes a dropdown', 'Value names (optional)'));
+        lr.appendChild(checkLabel('sys-list-lvlentry', lv.entry === true, 'Levels from the entry', 'A row\u2019s level is a menu of its entry\u2019s own By level rows, each with its words beside it in a box: Level 2 (10 pts). An entry with none keeps the level box'));   // 1.6.0 R8
         if (!(Array.isArray(lv.labels) && lv.labels.length)) lr.appendChild(checkLabel('sys-list-lvlsplit', lv.split === true, 'Split in trades', 'A trade may give part of this figure, as money from a chip. A row of quantity 1 only'));   // 1.5.6 trading: a chip's stored money as its level
     }
     card.appendChild(lr);
@@ -8751,6 +8780,7 @@ function onChange(e) {
         else if (c.indexOf('sys-list-open') >= 0) { if (t.checked) lsc.open = true; else delete lsc.open; }
         else if (c.indexOf('sys-list-boxes') >= 0) { if (t.checked) lsc.boxes = true; else delete lsc.boxes; }   // 1.6.0 R3   // 1.6.0 R1: Rows open
         else if (c.indexOf('sys-list-trade') >= 0) { if (t.checked) lsc.trade = true; else delete lsc.trade; }   // 1.5.6 Tradable
+        else if (c.indexOf('sys-list-lvlentry') >= 0) { if (lsc.lvl && typeof lsc.lvl === 'object') { if (t.checked) lsc.lvl.entry = true; else delete lsc.lvl.entry; } }   // 1.6.0 R8
         else if (c.indexOf('sys-list-lvlsplit') >= 0) { if (lsc.lvl && typeof lsc.lvl === 'object') { if (t.checked) lsc.lvl.split = true; else delete lsc.lvl.split; } }   // 1.5.6 trading
         else if (c.indexOf('sys-list-statsplit') >= 0) { var sxr = t.closest('.sys-list-stat'), sxD = sxr && Array.isArray(lsc.stats) ? lsc.stats[+sxr.dataset.si] : null; if (!sxD || typeof sxD !== 'object') return; if (t.checked) sxD.split = true; else delete sxD.split; }
         else if (c.indexOf('sys-list-haslvl') >= 0) { if (t.checked) lsc.lvl = { label: 'Level', min: 0, step: 1, def: 0 }; else delete lsc.lvl; }

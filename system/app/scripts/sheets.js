@@ -2658,11 +2658,11 @@ function entryLvls(def) { return (def && Array.isArray(def.lvls) ? def.lvls : []
 function lvlWord(L, n) { var t = lvlText(L, n); return Array.isArray(L.labels) && L.labels.length && t !== fmtNum(n) ? t : (L.label || 'Level') + ' ' + t; }
 function lvlTagOf(lvs, n) { for (var i = 0; i < lvs.length; i++) if (lvs[i].lvl === n) return typeof lvs[i].tag === 'string' ? lvs[i].tag : ''; return ''; }
 function lvlFace(node, L, n, tag) { node.appendChild(el('span', 'sheet-item-lvlword', lvlWord(L, n))); if (typeof tag === 'string' && tag) node.appendChild(el('span', 'sheet-item-lvltagbox', tag)); return node; }
-function openLvlMenu(anchor, lvs, L, lv, go) {
+function openLvlMenu(anchor, lvs, L, lv, go, always) {   // always (1.6.0 R12): the row's own level is a choice too (a roll at a level)
     if (_ldPop) { var was = _ldPop._anchor === anchor; closeLoadMenu(); if (was) return; }
     var pop = el('div', 'sheet-dl-pop sheet-lvl-pop'); pop.setAttribute('role', 'menu'); pop.setAttribute('aria-label', L.label || 'Level'); pop._anchor = anchor;
     lvs.forEach(function(r) { var b = lvlFace(el('button', 'sheet-dl-item sheet-lvl-item' + (r.lvl === lv ? ' on' : '')), L, r.lvl, r.tag); b.type = 'button'; b.setAttribute('role', 'menuitemradio'); b.setAttribute('aria-checked', r.lvl === lv ? 'true' : 'false');
-        b.addEventListener('click', function(e) { e.preventDefault(); closeLoadMenu(); try { anchor.focus(); } catch (er) {} if (r.lvl !== lv) go(r.lvl); }); pop.appendChild(b); });
+        b.addEventListener('click', function(e) { e.preventDefault(); closeLoadMenu(); try { anchor.focus(); } catch (er) {} if (always === true || r.lvl !== lv) go(r.lvl); }); pop.appendChild(b); });
     pop.addEventListener('mousedown', function(e) { e.stopPropagation(); });
     pop.addEventListener('keydown', function(e) { e.stopPropagation(); if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return; e.preventDefault(); var its = Array.prototype.slice.call(pop.querySelectorAll('.sheet-dl-item')), at = its.indexOf(document.activeElement), nx = its[(at + (e.key === 'ArrowDown' ? 1 : its.length - 1) + its.length) % its.length]; try { if (nx) nx.focus(); } catch (er) {} });
     document.body.appendChild(pop); _ldPop = pop;
@@ -2671,6 +2671,17 @@ function openLvlMenu(anchor, lvs, L, lv, go) {
     var cur = pop.querySelector('.sheet-lvl-item.on') || pop.querySelector('.sheet-dl-item'); try { if (cur) cur.focus(); } catch (er) {}
 }
 // [systemcheck:lvlmenu-end]
+// [systemcheck:asklvl-start] 1.6.0, backlog 180 R12: a roll that asks the level runs at one from the list's lowest to the row's own, picked in the level menu
+// (the entry's own levels where it has them, else every whole level); false where there is nothing to pick, so the roll goes on at the row's own level
+function askRollLvl(anchor, entry, def, spec, go) {
+    var L = spec && spec.lvl && typeof spec.lvl === 'object' ? spec.lvl : null; if (!L) return false;
+    var own = rowLvl(spec, entry, def), lo = typeof L.min === 'number' ? L.min : 1; if (typeof own !== 'number' || own <= lo) return false;
+    var byE = typeof entryLvls === 'function' ? entryLvls(def).filter(function(r) { return r.lvl >= lo && r.lvl <= own && r.lvl === Math.floor(r.lvl); }) : [], lvs = byE;
+    if (!lvs.length) { lvs = []; for (var n = lo; n <= own && lvs.length < 40; n++) lvs.push({ lvl: n }); }
+    if (lvs.length < 2) return false;
+    openLvlMenu(anchor, lvs, L, own, go, true); return true;
+}
+// [systemcheck:asklvl-end]
 // Stage 6 F4b: a row's level — a number box, or a dropdown when the level has names (they count from its minimum); text when it cannot be
 // changed. One set op per change (the host judges it again)
 function lvlCtl(entry, def, c, f, spec, editable) {
@@ -3085,7 +3096,8 @@ function rowRollBtns(host, spec, entry, def, c, f, res) {   // res (R2b): the fi
         var cbL = typeof costBlock === 'function' ? costBlock(c, r.cost) : ''; if (cbL) { b.disabled = true; b.title = cbL + ' \u2014 ' + nm + ' \u00b7 ' + lb; }   // turn-based combat T4
         var goL = function(e) {
             if (r.to === 'near' && typeof allyPick === 'function' && !(e && e.wpAlly !== undefined)) { var evL = typeof pressOf === 'function' ? pressOf(e, b) : e; allyPick(evL.currentTarget || b, c, function(on) { evL.wpAlly = on || ''; goL(evL); }); return; }   // 1.5.9 (book es/et plan, section 3): whom it is for first
-            var oL = { row: withE ? { f: f.id, r: rid, i: ri } : { f: f.id, r: rid } }; if (e && typeof e.wpAlly === 'string' && e.wpAlly) oL.on = e.wpAlly;
+            if (r.askLvl === true && typeof askRollLvl === 'function' && !(e && e.wpLvl !== undefined)) { var evV = typeof pressOf === 'function' ? pressOf(e, b) : e; if (askRollLvl(evV.currentTarget || b, entry, def, spec, function(n) { evV.wpLvl = n; goL(evV); })) return; }   // 1.6.0 R12: at which level first
+            var oL = { row: withE || r.askLvl === true ? { f: f.id, r: rid, i: ri } : { f: f.id, r: rid } }; if (e && typeof e.wpAlly === 'string' && e.wpAlly) oL.on = e.wpAlly; if (e && typeof e.wpLvl === 'number') oL.row.lv = e.wpLvl;
             sheetRoll(e, c.id, r.formula, nm + ' \u00b7 ' + lb, oL, { l: f.id, row: rid, i: ri });
         };
         b.addEventListener('click', goL);
@@ -5739,6 +5751,7 @@ function rollExtras(row, rr, sp, isApply) {
     if (cur && !hit) { var ox = el('option', null, 'Shows ' + cur + ' (not on this list)'); ox.value = cur; ox.selected = true; s.appendChild(ox); }
     s.addEventListener('change', function(e) { e.stopPropagation(); if (s.value) rr.show = s.value; else delete rr.show; ch(); });
     row.appendChild(s);
+    if (sp && sp.lvl && typeof sp.lvl === 'object') { var akL = checkLabel('sys-rlasklvl', rr.askLvl === true, 'Asks the level', 'Pressed, it asks which level to run at, from the list\u2019s lowest to the row\u2019s own, and Row.lvl reads that level. A spell of level 3 cast at level 1'), akC = akL.firstChild; akC.addEventListener('change', function(e) { e.stopPropagation(); if (akC.checked) rr.askLvl = true; else delete rr.askLvl; ch(); }); row.appendChild(akL); }   // 1.6.0, backlog 180 R12
 }
 // [systemcheck:rowswitchbox-end]
 // [systemcheck:badgebox-start]

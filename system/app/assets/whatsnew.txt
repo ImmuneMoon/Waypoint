@@ -21,6 +21,7 @@ Scenes
   picture in a planner or a page you are reading to show it as a scene.
 
 Systems
+- A list roll can ask which level to run at, up to the row's own, so a spell of level 3 can be cast at level 1.
 - A list may make its choice stats menus on each row, ticked Choices as menus, for whoever may set them.
 - A stack on a sheet can be split: Split beside its quantity puts some of it in a row of its own.
 - A list's place in the layout can count its rows in its section's title, such as Melee Technique (3).

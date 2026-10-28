@@ -7981,13 +7981,14 @@ function handleMessage(msg, conn) {
             if (typeof rangeTo === 'function' && SQ.withRange) tcQ = SQ.withRange(tcQ, rangeTo(campQ, mapQ, locQ, SQ.charTokenOn(mapQ, q.charId, pidQ, { strict: true }), pidQ));   // range R2: RangeMod and TargetDistance, to their own target as their copy holds it   // HUD frame (HF5b): CombatRound reads the combat on the map they are on (the token context stays null without a token)
             chQ = srcQ; varsQ = SQ.makeResolver(viewQ, chvQ, Fq, tcQ);
             if (q.row) {   // Stage 6 F5b: a roll on one of their rows — its names through their own view; a row of a GM-only item keeps the roll between them and the GM
-                var rvQ = varsQ.row(q.row.f, q.row.r); if (!rvQ) { denyQ('char'); return; }
+                var rvQ = varsQ.row(q.row.f, q.row.r, typeof q.row.lv === 'number' ? q.row.lv : undefined); if (!rvQ) { denyQ('char'); return; }   // 1.6.0 R12: at the level asked, from the list's lowest to the row's own
                 varsQ = rvQ; if (SQ.rowRollNames(campQ.system, srcQ, q.row.f, q.row.r, [], Fq).gm) q.priv = 'gm';
             }
             if (q.act || q.fr || (q.row && typeof q.row.i === 'number')) {   // 1.6.0: or a field's own roll with roll switches ticked (fr)   // Stage 6 HUD R1/R2b: a roll with consequences or needs — the entry as their view has it (a system roll, a list's roll), its formula rebuilt from it (no faked hit), its needs met
                 if (q.act) (Array.isArray(viewQ.rolls) ? viewQ.rolls : []).forEach(function(r) { if (r && r.id === q.act && typeof r.formula === 'string' && !r.apply) actQ = r; });
                 else if (q.fr) (Array.isArray(viewQ.fields) ? viewQ.fields : []).forEach(function(f) { if (f && f.id === q.fr && typeof f.roll === 'string' && f.roll) actQ = { formula: f.roll }; });   // 1.6.0: a field's own roll, as their view has it
                 else (Array.isArray(viewQ.fields) ? viewQ.fields : []).forEach(function(f) { if (f && f.id === q.row.f && f.kind === 'item-list' && f.list && Array.isArray(f.list.rolls)) { var lrQ = f.list.rolls[q.row.i]; if (lrQ && typeof lrQ.formula === 'string' && !lrQ.apply) actQ = lrQ; } });
+                if (q.row && typeof q.row.lv === 'number' && !(actQ && actQ.askLvl === true)) { denyQ('char'); return; }   // 1.6.0 R12: a level only for a roll that asks it
                 var wantQ = actQ ? actQ.formula : null;
                 if (wantQ && q.adv) { var awQ = Dq.withAdvantage(wantQ, q.adv, Fq.parse); wantQ = awQ.ok ? awQ.expr : null; }
                 var swQ = q.sw ? (typeof SQ.swJudge === 'function' ? SQ.swJudge(viewQ, chvQ, q.act ? { r: q.act } : q.fr ? { f: q.fr } : { l: q.row.f, row: q.row.r, i: q.row.i }, q.sw) : { ok: false }) : null;   // 1.6.0: the roll switches ticked, each one this character has for this roll now (systemcore swJudge, through their view)
@@ -9195,7 +9196,7 @@ net.diceRoll = function(expr, o) {
         if (o.priv) req.priv = 'gm';
         if (o.charId) req.charId = o.charId;
         if (o.label) req.label = String(o.label).slice(0, D.LIMITS.label);
-        if (o.row && o.charId) { req.row = { f: String(o.row.f), r: String(o.row.r) }; if (typeof o.row.i === 'number') req.row.i = o.row.i; }   // R2b: a list's roll with consequences or needs names its index
+        if (o.row && o.charId) { req.row = { f: String(o.row.f), r: String(o.row.r) }; if (typeof o.row.i === 'number') req.row.i = o.row.i; if (typeof o.row.i === 'number' && typeof o.row.lv === 'number') req.row.lv = o.row.lv; }   // R2b: a list's roll with consequences or needs names its index
         if (o.charId && ((o.act && !o.row) || (o.fr && !o.act && !o.row) || (o.row && typeof o.row.i === 'number'))) { if (o.act && !o.row) req.act = String(o.act); if (o.fr && !o.act && !o.row) req.fr = String(o.fr); if (Array.isArray(o.sw) && o.sw.length) req.sw = o.sw.slice(0, D.LIMITS.swPicks).map(function(x) { return { s: String(x && x.s), i: x && x.i }; }); if (o.mod) req.mod = o.mod; if (o.adv) req.adv = o.adv; if (typeof o.on === 'string' && o.on) req.on = o.on.slice(0, 80); }   // 1.5.9: on, the token of the adjacent character it is used on (the host judges it)   // Stage 6 HUD R1: the entry, its modifier and advantage (the host rebuilds the formula)   // Stage 6 F5b: a roll on a row
         _dicePending = { rid: rid, expr: expr, charId: o.charId || '', timer: setTimeout(function() { _dicePending = null; if (window.wpDice) window.wpDice.onDeny({ reason: 'error', message: 'No answer from the GM. Their Waypoint may not have dice yet.', pos: 0, len: 0 }, expr); }, D.LIMITS.timeoutMs) };
         try { net.conns[0].send(req); } catch (e) { clearTimeout(_dicePending.timer); _dicePending = null; return { error: 'Could not reach the GM.' }; }
@@ -9206,7 +9207,7 @@ net.diceRoll = function(expr, o) {
     if (chR && o.range && typeof o.range === 'object' && SR && SR.withRange) { tcR = SR.withRange(tcR || {}, o.range); varsR = SR.makeResolver(campR.system, chR, F, tcR); }
     if (chR && o.cross && typeof o.cross === 'object' && SR && typeof SR.withCross === 'function') { tcR = SR.withCross(tcR, o.cross); varsR = SR.makeResolver(campR.system, chR, F, tcR); }   // 1.6.0: a crossing's run reads CrossStep and Crossed (this machine's own word, never over the wire)   // 1.5.8 explosives: a throw's range to the point it aims at (this machine's own word, never over the wire)
     var rowP = null;
-    if (o.row && varsR) { var rvR = varsR.row(o.row.f, o.row.r); if (!rvR) return { error: D.denyText('char') }; varsR = rvR; }
+    if (o.row && varsR) { var rvR = varsR.row(o.row.f, o.row.r, typeof o.row.lv === 'number' ? o.row.lv : undefined); if (!rvR) return { error: D.denyText('char') }; varsR = rvR; }   // 1.6.0 R12: at the level asked
     var entR = null;   // Stage 6 HUD R1/R2b: the entry a roll with consequences or needs names — a system roll by act, a list's roll by its index
     if (chR && SR && campR && campR.system) {
         if (o.act && !o.row) (Array.isArray(campR.system.rolls) ? campR.system.rolls : []).forEach(function(r) { if (r && r.id === o.act && typeof r.formula === 'string' && !r.apply) entR = r; });
@@ -9218,6 +9219,7 @@ net.diceRoll = function(expr, o) {
         if (typeof o.on === 'string' && o.on) { ftR = window.wpSheets && window.wpSheets.facingTarget ? window.wpSheets.facingTarget(chR, campR) : null; onR = typeof allyOn === 'function' ? allyOn(campR, ftR && ftR.map, ftR && ftR.tok, o.on, '') : { error: 'missing', message: 'That character is not there.' }; if (onR.error) return { error: onR.message }; }
         if (typeof SR.withOnSelf === 'function') varsR = SR.withOnSelf(varsR, !onR, onR ? SR.makeResolver(campR.system, onR.ch, F, typeof allyCtx === 'function' && ftR ? allyCtx(ftR.map, onR.tok) : null) : null);   // 1.6.0: On.<name>   // OnSelf in its formula, its needs and its Then
     }
+    if (o.row && typeof o.row.lv === 'number' && !(entR && entR.askLvl === true)) return { error: D.denyText('char') };   // 1.6.0 R12: a level only for a roll that asks it
     if (o.row && entR && typeof entR.showIf === 'string' && entR.showIf && varsR && !SR.rollNeedsOk({ needs: entR.showIf }, varsR, F)) return { error: 'That roll is not offered on this row.' };   // 1.6.0: Shown where
     if (entR && entR.needs && varsR && !SR.rollNeedsOk(entR, varsR, F)) return { error: SR.rollNeedsSays(entR) };
     var swR = null; if (Array.isArray(o.sw) && o.sw.length) { var refSw = o.act && !o.row ? { r: String(o.act) } : o.fr ? { f: String(o.fr) } : o.row ? { l: String(o.row.f), row: String(o.row.r), i: typeof o.row.i === 'number' ? o.row.i : undefined } : null; swR = chR && SR && campR && campR.system && refSw && typeof SR.swJudge === 'function' ? SR.swJudge(campR.system, chR, refSw, o.sw) : { ok: false }; if (!swR.ok) return { error: 'That bonus is not this character\u2019s to add to this roll now.' }; }   // 1.6.0: the roll switches ticked, judged as a player's are (the formula already holds them)   // R2b: its needs (before anything is rolled)   // Stage 6 F5b: a roll on one row — its Row.* names

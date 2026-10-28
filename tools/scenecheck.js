@@ -206,5 +206,24 @@ check('the handout a scene is saved as (handouts.js wpHandoutFor): the one named
         && pillsJs.includes("(typeof st.scene.shut === 'string' && st.scene.shut ? ' ' + st.scene.shut : '')") && sceneJs.includes('function again() { var n = now(); if (!n) return; n.shut = [];')
         && sceneJs.includes("if (!_chan || window.wpStream) return;") && count(esc, "'charMenu', 'sceneMenu']") === 1 && count(ix, '<div id="sceneMenu" class="shape-menu" role="menu"') === 1 && count(ix, '<div id="streamScene" style="display:none;">') === 1);
 }
+{   // the Handouts window's Clear all (the owner, 2026-10-28: "the clear all would still be nice to have")
+    const hsrc = read('scripts/handouts.js'), ix = read('index.html'), J = JSON.stringify;
+    const run = (n, yes) => {
+        const hs = {}; for (let i = 0; i < n; i++) hs['h' + i] = { id: 'h' + i, title: 'H' + i };
+        const camp = { handouts: hs, items: { m1: { id: 'm1', type: 'map', rooms: [{ id: 'r1', handoutId: 'h0' }, { id: 'r2', handoutId: 'other' }] }, p1: { id: 'p1', type: 'page' } } };
+        const out = { asked: [], toasts: [], saves: 0, drawn: 0, barrier: [] };
+        const fn = new Function('getActiveCampaign', 'handoutsOf', 'showConfirm', 'toast', 'save', 'renderHandouts', 'historyBarrier', slice(hsrc, 'scenecheck:hclear') + '\nreturn handoutsClearAll;')(
+            () => camp, c => c.handouts, (q, cb, o) => { out.asked.push([q, o]); cb(yes); }, t => out.toasts.push(t), () => { out.saves++; }, () => { out.drawn++; }, ids => out.barrier.push(ids));
+        fn(); return { camp, out };
+    };
+    const y = run(3, true), no = run(2, false), none = run(0, true), one = run(1, true);
+    check('the Handouts window\'s Clear all (handouts.js handoutsClearAll, run for real): asked first by count with Enter answering nothing, every handout of the campaign gone with a room\'s handout, saved and drawn once and said; No keeps them all; none to clear said; the button in the window, greyed with nothing to clear',
+        J(Object.keys(y.camp.handouts)) === '[]' && y.out.asked.length === 1 && y.out.asked[0][0] === 'Delete all 3 handouts of this campaign? Players keep what they were already shown.' && y.out.asked[0][1].noEnter === true && y.out.asked[0][1].yes === 'Delete all'
+        && !('handoutId' in y.camp.items.m1.rooms[0]) && y.camp.items.m1.rooms[1].handoutId === 'other' && J(y.out.barrier) === J([['m1']]) && y.out.saves === 1 && y.out.drawn === 1 && J(y.out.toasts) === J(['All 3 handouts are gone. Players keep what they were already shown.'])
+        && Object.keys(no.camp.handouts).length === 2 && no.out.saves === 0 && no.camp.items.m1.rooms[0].handoutId === 'h0'
+        && none.out.asked.length === 0 && J(none.out.toasts) === J(['There are no handouts to clear.']) && one.out.asked[0][0] === 'Delete the one handout of this campaign? Players keep what they were already shown.'
+        && count(ix, 'id="handoutClearAll"') === 1 && hsrc.includes("var clrA = ui('handoutClearAll'); if (clrA) clrA.disabled = !Object.keys(handoutsOf(camp)).length;") && hsrc.includes("if (_clrAll) _clrAll.addEventListener('click', function() { handoutsClearAll(); });"),
+        J([y.out, no.out, none.out]));
+}
 console.log(NL + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

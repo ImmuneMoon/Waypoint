@@ -13,7 +13,8 @@ import { getActiveCampaign, getActiveMap } from './models.js';
 import { save, toast, historyBarrier } from './io.js';
 import { esc } from './inspector.js';
 import { picRef } from './safecore.js';   // a handout's picture is the app's own (a web address from a file never loads)
-import { fillLinked } from './linkgate.js';   // a web address in a text that is read is a link; whether a click on it asks first is decided there
+import { fillLinked } from './linkgate.js';
+import { showConfirm } from './dialogs.js';   // Clear all asks first   // a web address in a text that is read is a link; whether a click on it asks first is decided there
 
 // [netcheck:journal-start]
 var ui = function(id) { return document.getElementById(id); };
@@ -1171,6 +1172,7 @@ function renderHandoutTags(camp) {
 function renderHandouts() {
     var camp = getActiveCampaign(), list = ui('handoutsList'); if (!camp || !list) return;
     renderHandoutTags(camp);
+    var clrA = ui('handoutClearAll'); if (clrA) clrA.disabled = !Object.keys(handoutsOf(camp)).length;   // Clear all: nothing to clear, nothing to press
     var hs = Object.values(handoutsOf(camp)).sort(function(a, b) { return (b.createdAt || 0) - (a.createdAt || 0); });
     if (handoutTag) hs = hs.filter(function(h) { return (Array.isArray(h.tags) ? h.tags : []).indexOf(handoutTag) >= 0; });
     if (!hs.length) { list.innerHTML = '<div style="color:var(--dim); padding:12px; line-height:1.5;">No handouts yet. Press <b>New handout</b> and pick a picture from your campaign — a place, a face, a letter. Then show it to the table, to one player, or attach it to a room so whoever walks in sees it.</div>'; return; }
@@ -1297,6 +1299,21 @@ if (_newTextBtn) _newTextBtn.addEventListener('click', function() {
     save(true); renderHandouts();
     var row = document.querySelector('.handout-row[data-id="' + id + '"] .handout-title'); if (row) { row.focus(); row.select(); }
 });
+// [scenecheck:hclear-start]
+// Clear all (the owner, 2026-10-28: "the clear all would still be nice to have"): every handout of this campaign, asked first; a room's handout
+// goes with it, as one Delete takes it; players keep what they were already shown
+function handoutsClearAll(camp, ask) {
+    camp = camp || getActiveCampaign(); if (!camp) return;
+    var hs = handoutsOf(camp), ids = Object.keys(hs); if (!ids.length) { toast('There are no handouts to clear.'); return; }
+    (ask || showConfirm)((ids.length === 1 ? 'Delete the one handout' : 'Delete all ' + ids.length + ' handouts') + ' of this campaign? Players keep what they were already shown.', function(ok) {
+        if (!ok) return; var gone = {}; ids.forEach(function(id) { gone[id] = 1; delete hs[id]; });
+        var swept = []; Object.values(camp.items || {}).forEach(function(m) { if (m && m.type === 'map') (m.rooms || []).forEach(function(r) { if (r && gone[r.handoutId] === 1) { delete r.handoutId; if (swept.indexOf(m.id) < 0) swept.push(m.id); } }); });
+        if (swept.length) historyBarrier(swept);
+        save(true); renderHandouts(); toast(ids.length === 1 ? 'The handout is gone. Players keep what they were already shown.' : 'All ' + ids.length + ' handouts are gone. Players keep what they were already shown.');
+    }, { noEnter: true, yes: 'Delete all' });
+}
+// [scenecheck:hclear-end]
+var _clrAll = ui('handoutClearAll'); if (_clrAll) _clrAll.addEventListener('click', function() { handoutsClearAll(); });
 var _pickClose = ui('handoutPickClose');
 if (_pickClose) _pickClose.addEventListener('click', function() { ui('handoutPick').style.display = 'none'; });
 

@@ -19,6 +19,8 @@ Scenes
   Close for everyone, and says who has closed it.
 - A scene shown to everyone shows in the stream window too. Right-click a
   picture in a planner or a page you are reading to show it as a scene.
+- The Handouts window has Clear all beside each row's Delete. It
+  asks first, and players keep what they were already shown.
 
 Hidden pieces
 - Settings has Hidden pieces on my map: Faded shows a piece you hid from players see-through, as before, and Invisible leaves it off your screen until you show it. No grey cloud stands in for a hidden piece any more.

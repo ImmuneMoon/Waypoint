@@ -2162,6 +2162,7 @@ function cleanListSpec(v, gmView, F) {   // F (F4c1): the engine, for a stat key
     else if (out.stats && typeof v.money === 'string') { var mk = lower(v.money); for (var mi = 0; mi < out.stats.length; mi++) if (lower(out.stats[mi].key) === mk) { if (out.stats[mi].kind !== 'pick') out.money = out.stats[mi].key; break; } }   // ... or each piece is worth a number stat (a bar's denomination)
     if (out.price && (v.paidPlace === 'details' || v.paidPlace === 'hide')) out.paidPlace = v.paidPlace;   // 1.6.0 R2: where Paid stands
     var bdg = cleanBadges(v.badges, F); if (bdg) out.badges = bdg;   // 1.6.0 R4: its row badges
+    if (v.boxes === true) out.boxes = true;   // 1.6.0 R3 (the owner, by prompt: "A. A list ticks it"): Figures as boxes in a row's details
     if (v.open === true) out.open = true;   // 1.6.0 R1 (the owner, by prompt: "A tick the builder sets"): Rows open for their details
     if (v.trade === true) out.trade = true;   // 1.5.6 Tradable: rows of this list may be traded between characters (gear, money; never a skill)
     if (v.custom === true) out.custom = true;   // F4c3: Custom rows — players may add rows of their own (+ Custom…); the GM may on any list shaped here
@@ -5315,6 +5316,7 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
     fn.rangeRead = function() { return rangeRead; };   // range R3: a fresh resolver asked for a roll's names says whether its value reads the range
     fn.row = function(fieldId, rowId) { var f = null; sys.fields.forEach(function(x) { if (!f && x.id === fieldId && x.kind === 'item-list') f = x; }); if (!f) return null; var L = listCtx(f); for (var i = 0; i < L.rows.length; i++) if (L.rows[i].id === rowId) return rowVars(L, L.rows[i]); return null; };   // F5b: a row's own names for a roll on it (a kept curse has none)
     fn.needsOk = function(f, row, text, self) { var L = f ? listCtx(f) : null; if (!L || !isObj(row) || typeof text !== 'string' || !text) return true; if (self === true && readsOn(text, F)) return true; var rd = rowDef(sys, row), rv0 = rowVars(L, { r: row, d: rd ? rd.def : null, id: rowIdOf(row) || '' }), v = F.evaluate(text, { vars: self === true ? withOnSelf(rv0, true) : rv0, random: noDice }); return !!(v.ok && (v.value === true || (typeof v.value === 'number' && v.value !== 0))); };   // Stage 6 HUD R2b: a list roll's needs on one row (an error holds it back)
+    fn.cellDetail = function(f, row, colKey) { var id = rowIdOf(row); return f && id ? detail[lower(f.key) + '#' + id + '.' + lower(colKey)] || null : null; };   // 1.6.0 R3: what changed one row's column (the effects aimed at it, and those on the names it reads)
     fn.rollFig = function(f, row, text) { var L = f ? listCtx(f) : null; if (!L || !isObj(row) || typeof text !== 'string' || !text) return ''; var rd = rowDef(sys, row); return rollFigOf(text, rowVars(L, { r: row, d: rd ? rd.def : null, id: rowIdOf(row) || '' }), F); };   // 1.6.0 R7: a roll's own figure on one row
     fn.ctMax = function(f, row, key) { var L = f ? listCtx(f) : null, t = L && L.ct ? L.ct[lower(key)] : null; if (!t || !t.max || !isObj(row)) return null; var rd = rowDef(sys, row), v = F.evaluate(t.max, { vars: rowVars(L, { r: row, d: rd ? rd.def : null, id: rowIdOf(row) || '' }), random: noDice }); return v.ok && typeof v.value === 'number' && fin(v.value) ? Math.max(0, Math.floor(v.value)) : null; };   // Stage 6 HUD R2: a counter's most for this row (none: null)
     fn.cell = function(f, row, colKey) { var L = listCtx(f), c = L.cl[lower(colKey)]; if (!c || !isObj(row)) return undefined; var rd = rowDef(sys, row); return colVal(L, { r: row, d: rd ? rd.def : null, id: rowIdOf(row) || '' }, c); };   // F5a1: one row's column (the sheet's cells)
@@ -5455,6 +5457,9 @@ function listCells(f, e, r) {
     f.list.cols.forEach(function(c) { if (c.foot === true) { var t = tot(c.key); if (t) foot[c.key] = t; } });
     (Array.isArray(f.list.stats) ? f.list.stats : []).forEach(function(s) { if (s.show === true && !(Array.isArray(s.labels) && s.labels.length)) { var t = tot(s.key); if (t) foot[s.key] = t; } });
     e.cells = cells; e.foot = foot;
+    var cfx = map(), anyFx = false;   // 1.6.0 R3: the effects on each cell, for its \u25b2 / \u25bc (e.cfx: rowId -> [{ base, mods, via } or null per column]; only where an effect reached one)
+    rows.forEach(function(row) { var id = rowIdOf(row); if (!id || typeof r.cellDetail !== 'function') return; var arr = f.list.cols.map(function(c) { var d = r.cellDetail(f, row, c.key); return d ? { base: d.base, mods: d.mods, via: d.via } : null; }); if (arr.some(Boolean)) { cfx[id] = arr; anyFx = true; } });
+    if (anyFx) e.cfx = cfx;
 }
 // Stage 6 HUD R2b: each row's answer to its list rolls' needs — e.rn: rowId -> [true | false per roll] (a roll that needs nothing: true)
 function listLdNeeds(f, e, r) { var ok = map(); (Array.isArray(e.value) ? e.value : []).forEach(function(row) { var id = rowIdOf(row); if (!id) return; try { ok[id] = r.needsOk(f, row, f.list.load.needs); } catch (x) { ok[id] = false; } }); e.ldOk = ok; }   // 1.5.8 Loads only where, by row

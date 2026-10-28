@@ -15940,6 +15940,57 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             + 'its icon the list\'s or a check, one press switching it; where it cannot be used a chip of its word; a roll\'s figure in a small box at the end of its button, its own icon after its die, an apply action\'s icon its own or a bolt (the System editor\'s apply action too); the editor\'s Word while off, Icon and Shows (swWordsBox, rollExtras, run for real)',
             cleanOk && figOk && resOk && drawOk && pressOk && chipOk && editOk && wiredOk, J([cleanOk, figOk, resOk, drawOk, pressOk, chipOk, editOk, wiredOk, resS.rf, kidsS(off), kidsS(att), sent, sw1, optsS]));
     }
+    {   // 1.6.0, backlog 180 R3 (the owner, by prompt: "A. A list ticks it", "A. Stats, columns and Paid", "A. In the box and on the chip"): a row's figures as boxes, and a column an effect changed marked
+        const J = JSON.stringify;
+        const rawX = { v: 1, name: 'X', rolls: [], sheet: { sections: [] },
+            items: [{ id: 'i_sk', key: 'skiff', name: 'Skiff', stats: { spd: 12, cost: 900 }, mods: [{ f: 'f_g', op: 'add', v: 2, key: 'skiff', col: 'Speed' }, { f: 'f_g', op: 'add', v: -1, key: 'skiff', col: 'Top' }] }, { id: 'i_bt', key: 'boat', name: 'Boat', stats: { spd: 8, cost: 50 } }],
+            fields: [{ id: 'f_g', key: 'Gear', label: 'Gear', kind: 'item-list', list: { boxes: true, price: 'cost', stats: [{ key: 'spd', label: 'Spd' }, { key: 'cost', label: 'Cost' }, { key: 'step', label: 'Step', hide: true }],
+                cols: [{ key: 'Speed', label: 'Speed', formula: 'Row.spd', place: 'details' }, { key: 'Top', label: 'Top', formula: 'Row.spd + 1' }] } },
+                { id: 'f_o', key: 'Other', label: 'Other', kind: 'item-list', list: { boxes: 'yes', stats: [{ key: 'spd', label: 'Spd' }] } }] };
+        const gX = S.cleanSystem(rawX, { F, gmView: true }), pX = S.cleanSystem(rawX, { F, gmView: false }), lX = (sy, id) => sy.fields.find(x => x.id === id).list;
+        const cleanOk = lX(gX, 'f_g').boxes === true && lX(pX, 'f_g').boxes === true && !('boxes' in lX(gX, 'f_o')) && J(S.cleanSystem(gX, { F, gmView: true })) === J(gX) && J(S.cleanSystem(pX, { F, gmView: false })) === J(pX);
+        const chX = { id: 'c_x', name: 'Kael', ownerId: 'u_x', values: { f_g: [{ id: 'w_a', defId: 'i_sk', qty: 1, paid: 900 }, { id: 'w_b', defId: 'i_bt', qty: 1, paid: 50 }] } };
+        const resX = S.resolveAll(gX, chX, F, null).f_g;
+        const resOk = J(resX.cfx) === J({ w_a: [{ base: 12, mods: [{ name: 'Skiff', op: 'add', v: 2, gm: false }], via: [] }, { base: 13, mods: [{ name: 'Skiff', op: 'add', v: -1, gm: false }], via: [] }] })
+            && J(resX.cells.w_a.map(c => c.value)) === J([14, 12]) && S.resolveAll(S.cleanSystem({ v: 1, name: 'N', items: [{ id: 'i_n', name: 'N', stats: { spd: 1 } }], fields: [{ id: 'f_n', key: 'N', label: 'N', kind: 'item-list', list: { stats: [{ key: 'spd', label: 'Spd' }], cols: [{ key: 'A', label: 'A', formula: 'Row.spd' }] } }] }, { F, gmView: true }), { id: 'c', name: 'c', values: { f_n: [{ id: 'w_n', defId: 'i_n', qty: 1 }] } }, F, null).f_n.cfx === undefined;
+        // the sheet: the real item widgets and fxMark, on a page of plain objects
+        const shX = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+        const cutX = (a, b) => { const i = shX.indexOf(a), k = shX.indexOf(b, i + 1); if (i < 0 || k < 0) throw new Error('r3 slice: ' + a); return shX.slice(i, k); };
+        const itX = cutX('// ---- item-list widgets', '// 5h: an effect\'s changes as short text'), fmX = cutX('// 5h: a ▲ / ▼ beside a value an effect touched', '// 5h: a character\'s status effects');
+        const mkX = (tag, cls, text) => { const e = { tag, className: cls || '', children: [], attrs: {}, title: '', type: '', value: '', checked: false, disabled: false, dataset: {}, style: {}, on: {},
+            classList: { toggle(c, on) { const k = e.className.split(' ').filter(Boolean); const has = k.includes(c), want = on === undefined ? !has : !!on; if (want && !has) k.push(c); if (!want && has) k.splice(k.indexOf(c), 1); e.className = k.join(' '); return want; }, add(c) { this.toggle(c, true); }, remove(c) { this.toggle(c, false); }, contains(c) { return e.className.split(' ').includes(c); } },
+            get childNodes() { return e.children; }, get firstChild() { return e.children[0] || null; }, get lastChild() { return e.children[e.children.length - 1] || null; }, appendChild(x) { e.children.push(x); return x; }, insertBefore(x, r) { const i = r ? e.children.indexOf(r) : -1; if (i < 0) e.children.push(x); else e.children.splice(i, 0, x); return x; },
+            setAttribute(k, v) { e.attrs[k] = String(v); }, addEventListener(k, fn) { e.on[k] = fn; }, click() { if (e.on.click) e.on.click({}); }, focus() {} };
+            if (text !== undefined && text !== null) e.children.push({ tag: '#text', textContent: String(text), children: [] }); return e; };
+        const txX = n => !n ? '' : n.tag === '#text' ? n.textContent : (n.children || []).map(txX).join('');
+        const docX = { createTextNode: t => ({ tag: '#text', textContent: t, children: [] }), createElementNS: (ns, tag) => Object.assign(mkX(tag), { ns }) };
+        const depsX = ['el', 'iconNode', 'rowDef', 'rowIdOf', 'rowLvl', 'rowOn', 'commitItem', 'opt', 'fmtNum', 'iconText', 'LIMITS', '_fxLive', 'document', 'renderViews', 'closeHud', 'closeSheet', 'window', 'systemOf', 'getActiveCampaign', 'facingTarget', 'uid', 'F', 'fxText', 'canRoll', 'sheetRoll', 'commit', 'valueTone', 'TONE_CLASS', 'rowStat', 'rowPaid', '_fxView'];
+        const valsX = view => [mkX, (v, cls) => mkX('span', cls), S.rowDef, S.rowIdOf, S.rowLvl, S.rowOn, () => {}, (v, t) => mkX('option', null, t), S.fmtNum, v => v || '', S.LIMITS, true, docX, () => {}, () => {}, () => {}, {}, () => gX, () => null, () => null, p => p + 'new', () => F, S.fxText, () => true, () => {}, () => {}, S.valueTone, {}, S.rowStat, S.rowPaid, view];
+        const WX = new Function(...depsX, fmX + itX + '\nreturn { itemListInto, itemTableInto, statBoxes, colBoxes, cellMark, figBox };')(...valsX('sheet'));
+        const byX = (n, c) => { const acc = []; const w = k => { if ((' ' + (k.className || '') + ' ').indexOf(' ' + c + ' ') >= 0) acc.push(k); (k.children || []).forEach(w); }; w(n); return acc; };
+        const fG = gX.fields.find(x => x.id === 'f_g'), wX = mkX('div'); WX.itemListInto(wX, fG, chX, chX.values.f_g, gX, false, true, true, '', resX);
+        const rowsX = wX.children.filter(n => n.className.split(' ').includes('sheet-item')), notesX = wX.children.filter(n => n.className === 'sheet-item-noteline');
+        const grids = byX(notesX[0], 'sheet-item-boxes'), boxesA = grids[0] ? grids[0].children.map(b => [b.children[0] && txX(b.children[0]), txX(b.children[1])]) : null;
+        const markBox = grids[0] ? byX(grids[0], 'sheet-eff')[0] : null, chipTop = byX(rowsX[0], 'sheet-item-col')[0], markChip = chipTop ? byX(chipTop, 'sheet-eff')[0] : null;
+        const drawOk = grids.length === 1 && J(boxesA) === J([['Spd', '12'], ['Cost', '900'], ['Paid', '900'], ['Speed', '14▲']]) && byX(notesX[0], 'sheet-item-statline').length === 0
+            && markBox && markBox.className === 'sheet-eff sheet-eff-up' && markBox.title === '12 base · Skiff +2' && markChip && markChip.className === 'sheet-eff sheet-eff-down' && markChip.title === '13 base · Skiff −1'
+            && byX(rowsX[1], 'sheet-eff').length === 0 && byX(notesX[1], 'sheet-eff').length === 0;
+        // a list not ticked: its one grey line and its columns as chips, as before
+        const gN = S.cleanSystem(Object.assign({}, rawX, { fields: [Object.assign({}, rawX.fields[0], { list: Object.assign({}, rawX.fields[0].list, { boxes: false }) })] }), { F, gmView: true }), wN = mkX('div');
+        WX.itemListInto(wN, gN.fields[0], chX, chX.values.f_g, gN, false, true, true, '', S.resolveAll(gN, chX, F, null).f_g);
+        const plainOk = byX(wN, 'sheet-item-boxes').length === 0 && byX(wN, 'sheet-item-statline').length === 2 && byX(wN, 'sheet-item-col').length === 4;
+        // the rich table: a column's mark in its cell
+        const wT = mkX('div'); WX.itemTableInto(wT, Object.assign({}, fG, { table: { columns: [] } }), chX, chX.values.f_g, gX, false, true, true, '', resX);
+        const tdTop = byX(wT, 'sheet-itcol-col').filter(td => /^12/.test(txX(td)))[0];
+        const tableOk = !!tdTop && byX(tdTop, 'sheet-eff-down').length === 1;
+        const pureOk = WX.cellMark(null, 0, { value: 1 }) === null && WX.cellMark([null], 0, { value: 1 }) === null && WX.cellMark([{ base: 1, mods: [{ name: 'A', op: 'add', v: 1 }], via: [] }], 0, { error: 'x' }) === null && WX.statBoxes({}, {}, { stats: [{ key: 'a', label: 'A', hide: true }] }, null) === null;
+        const cssX = fs.readFileSync(path.join(app, 'style.css'), 'utf8'), ixX = fs.readFileSync(path.join(app, 'index.html'), 'utf8');
+        const wiredOk = shX.includes("fl.appendChild(checkLabel('sys-list-boxes', sp.boxes === true, 'Figures as boxes',") && shX.includes("else if (c.indexOf('sys-list-boxes') >= 0) { if (t.checked) lsc.boxes = true; else delete lsc.boxes; }")
+            && /\.sheet-item-box \{[^}]*flex-direction: column;/.test(cssX) && ixX.includes('<b>Figures as boxes</b> shows a row');
+        check('1.6.0, backlog 180 R3: a list ticked Figures as boxes (boxes, true only, the same in both views and a fixed point) draws a row\'s details as small boxes, each its label above its figure: every stat that is not Hidden, Paid, then the columns placed in the details, in one grid with no grey line; '
+            + 'the resolver keeps each cell\'s effects (cfx, only where one reached a cell), and a column an effect changed carries ▲ or ▼ with its breakdown on its box, its chip and its rich table cell (itemListInto and itemTableInto with the real fxMark, run for real); a list not ticked draws its line and its chips as before; the editor\'s tick and its handler',
+            cleanOk && resOk && drawOk && plainOk && tableOk && pureOk && wiredOk, J([cleanOk, resOk, drawOk, plainOk, tableOk, pureOk, wiredOk, resX.cfx, boxesA, markBox && markBox.title, markChip && markChip.title]));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

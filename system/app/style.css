@@ -3322,6 +3322,11 @@
   .sheet-item-onb .sheet-item-onico { margin-right: 0; }
   .sheet-item-onw { display: inline-flex; align-items: center; gap: 4px; }
   .sheet-item-onw:not(.is-on) { opacity: .6; }
+  /* 1.6.0 R3: a row's figures as boxes in its details, each its label above its figure */
+  .sheet-item-boxes { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 6px; }
+  .sheet-item-box { display: inline-flex; flex-direction: column; align-items: center; min-width: 54px; padding: 3px 9px; border: 1px solid var(--edge); border-radius: 7px; background: var(--panel2); }
+  .sheet-item-box > small { font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: .04em; }
+  .sheet-item-boxv { font-size: 13px; font-weight: 700; color: var(--ink); white-space: nowrap; }
   .sheet-item-rollfig { margin-left: 6px; padding: 0 5px; border-radius: 4px; background: color-mix(in srgb, #000 35%, transparent); font-weight: 700; }
   /* Stage 6 HUD C8: a part whose show-if is false, as the Layout preview draws it; the placement's if button and box */
   .sheet-showif-off { opacity: 0.4; outline: 1px dashed var(--edge); outline-offset: 2px; }

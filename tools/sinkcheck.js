@@ -4828,7 +4828,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             j(fW.list.cols[0].plus) === j(['vsEnergy', 'vsIon', 'vsCold']) && refusedW.length === 0 && j(cells0[0].more) === j([{ key: 'vsEnergy', label: T, text: '35' }, { key: 'vsIon', label: P, text: '25' }])
             && SYw.plusText(cells0[0]) === WORDS && SYw.plusText({ more: [] }) === '' && SYw.plusText(null) === '' && SYw.plusText({ more: [{ text: 1, label: X1 }] }) === ' (1 ' + X1 + ')' && protoKeys() === proto0,
             j([fW.list.cols[0].plus, refusedW, cells0, SYw.plusText(cells0[0])]));
-        const ccSrc = cutW('\nfunction colChips(host, spec, cells) {', '\n}\n', true), tdSrc = cutW('var cellsT = res && res.cells ? res.cells[rid] : null; shownCl.forEach(', 'tr.appendChild(cTd); });', true);
+        const ccSrc = cutW('\nfunction colChips(host, spec, cells, cfx) {', '\n}\n', true) /* 1.6.0 R3: the cells' marks (moved on purpose) */, tdSrc = cutW('var cellsT = res && res.cells ? res.cells[rid] : null; shownCl.forEach(', 'tr.appendChild(cTd); });', true);
         const PG1 = mkPage(), host1 = PG1.fake('div');
         new Function('document', 'plusText', "'use strict';\n" + lineW('function el(tag, cls, text) {') + ccSrc + '\nreturn colChips;')(PG1.doc, SYw.plusText)(host1, fW.list, cells0);
         const chip1 = host1.children[0];
@@ -4841,7 +4841,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const td2 = tr2.children[0];
         check('With stats (the rich table\'s cell, its own statement run for real on the same kind of page): the cell is a td whose text is the figure and what its With stats add; no child, no markup, no attribute, no title; and every line of sheets.js that asks plusText is one of those two text sinks',
             tr2.children.length === 1 && !!td2 && td2.tag === 'td' && td2.className === 'sheet-itcol-col' && td2.textContent === '15' + WORDS && td2.children.length === 0 && td2.title === undefined && PG2.clean() && !HTMLW.test(tdSrc)
-            && j(shW.split('\n').filter(l => /plusText\s*\(/.test(l)).map(l => l.indexOf('ch.appendChild(document.createTextNode(') >= 0 && ccSrc.indexOf(l) >= 0 ? 'chip' : l.indexOf(tdSrc) >= 0 ? 'td' : 'other')) === j(['chip', 'td']),
+            && j(shW.split('\n').filter(l => /plusText\s*\(/.test(l)).map(l => l.indexOf('ch.appendChild(document.createTextNode(') >= 0 && ccSrc.indexOf(l) >= 0 ? 'chip' : l.indexOf(tdSrc) >= 0 ? 'td' : l.indexOf("var tx = v.error ? '\\u2014' : (typeof colShown === 'function' ? colShown(cc, v) : v.text) + (typeof plusText === 'function' ? plusText(v) : '')") >= 0 ? 'box' : 'other')) === j(['box', 'chip', 'td'])
+            && shW.includes("if (tone) v.appendChild(el('span', 'sheet-badge sheet-tone-' + tone, text)); else v.appendChild(document.createTextNode(text));") /* 1.6.0 R3: a column's box, a text node through figBox (moved on purpose) */,
             j([tr2.children.length, td2 && [td2.tag, td2.className, td2.textContent, td2.children.length], PG2.htmlSet, PG2.attrs, shW.split('\n').filter(l => /plusText\s*\(/.test(l)).length]));
         // the readable page: what sheetexport.js writes is read back as the plain words, and drawn as escaped text
         const mdW = XPw.sheetToMarkdown(sysW, chW, resW, { F: FOw, gm: true }), backW = DMw.markdownToBlocks(mdW, { kind: 'doc' }), tblW = (backW.blocks || []).filter(b => b.type === 'table')[0] || { cols: [], rows: [] };

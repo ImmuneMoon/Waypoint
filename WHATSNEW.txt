@@ -21,6 +21,8 @@ Scenes
   picture in a planner or a page you are reading to show it as a scene.
 
 Systems
+- A list may show a row's figures as boxes in its details, each its label above its figure.
+- A column an effect changed is marked with an up or down arrow, as a field is. Hover it for what changed it.
 - A list's switch may have a word while off, such as Ready beside Readied. It is then a button that says what the row is now, filled while on, with an icon.
 - A list's roll may show its figure in a small box at the end of its button: what a check rolls against, a roll's dice, or a column.
 - Action buttons wear an icon too, a bolt where none is picked, as roll buttons wear their die.

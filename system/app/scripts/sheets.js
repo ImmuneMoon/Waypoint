@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast, toastAction } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { cleanDamageRules, placeVal, setsOf, rollSwitches, rollSwitchesAll, cleanRollSw, withCross, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, envBands, envWorst, ALT_MAX, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, postureRangedOf, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
+import { cleanDamageRules, placeVal, setsOf, capsAt, droppedWords, rollSwitches, rollSwitchesAll, cleanRollSw, withCross, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, envBands, envWorst, ALT_MAX, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, postureRangedOf, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
 import { roundSays, BADGE_MAX } from './systemcore.js';   // clarity package: how a value was rounded, for its tooltip
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
 import { lvlsFromBox, lvlsToText } from './librarycore.js';
@@ -8596,10 +8596,28 @@ function turnClick(b) {
     else arr.splice(i, 1);
     markDirty(); renderAll(); return true;
 }
+// [systemcheck:capnote-start]
+// 1.6.0: the System editor says what is at its limit, so that one more would be left out (systemcore capsAt), and what a load of this campaign
+// left out of its system (io.js noteDrops, window.wpSysDrops by campaign id). Text nodes alone; nothing shown where there is nothing to say
+function capLines(sys, dr) {
+    var out = [], dw = dr && typeof droppedWords === 'function' ? droppedWords(dr) : '';
+    if (dw) out.push('When this campaign loaded, its system held more than Waypoint keeps, so this was left out: ' + dw + '.');
+    (typeof capsAt === 'function' ? capsAt(sys) : []).forEach(function(a) { out.push('At the limit: ' + a.max + ' ' + a.what + (a.what.indexOf('HUD') === 0 ? '' : a.what === 'sections' || a.what === 'placements' ? ' on the sheet' : '') + '. One more would be left out.'); });
+    return out;
+}
+function capNoteSync() {
+    var box = ui('sysCapNote'); if (!box) return;
+    var camp = getActiveCampaign(), drops = window.wpSysDrops && camp && typeof camp.id === 'string' ? window.wpSysDrops[camp.id] : null, lines = capLines(draft, drops);
+    while (box.firstChild) box.removeChild(box.firstChild);
+    lines.forEach(function(t) { box.appendChild(el('div', null, t)); });
+    box.style.display = lines.length ? '' : 'none';
+}
+// [systemcheck:capnote-end]
 function renderAll() {
     closeGlyphPicker();   // Stage 6: the rows it was opened from are being redrawn
     if (!draft) return;
     refreshErrors();
+    if (typeof capNoteSync === 'function') capNoteSync();   // 1.6.0: what is at its limit, and what a load left out
     document.querySelectorAll('#systemModal .sys-tabs button').forEach(function(b) { b.classList.toggle('active', b.dataset.tab === tab); });
     ui('sysFields').style.display = tab === 'fields' ? '' : 'none';
     ui('sysRolls').style.display = tab === 'rolls' ? '' : 'none';
@@ -9193,7 +9211,7 @@ function importFile(file) {
         var c = cleanSystem(j, { F: F(), gmView: true }); if (!c) throw new Error('not a system');
         var v = validateSystem(c, F());
         draft = c; draft.updated = 0; ui('sysName').value = draft.name || ''; markDirty(); renderAll();
-        var dr = droppedCounts(j, c), drT = Object.keys(dr).map(function(k) { return dr[k] + ' ' + (dr[k] === 1 ? k.slice(0, -1) : k); }).join(', ');   // Stage 6 library L0: what the file had that was left out is counted, never cut silently
+        var dr = droppedCounts(j, c), drT = typeof droppedWords === 'function' ? droppedWords(dr) : Object.keys(dr).map(function(k) { return dr[k] + ' ' + (dr[k] === 1 ? k.slice(0, -1) : k); }).join(', ');   // Stage 6 library L0: what the file had that was left out is counted, never cut silently
         var nN = function(n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); };
         toast('Imported ' + (c.name || 'a system') + ': ' + nN(c.fields.length, 'field') + ', ' + nN(c.rolls.length, 'roll') + (c.items && c.items.length ? ', ' + nN(c.items.length, 'item') : '') + (v.ok ? '.' : ', ' + v.errors.length + ' error' + (v.errors.length === 1 ? '' : 's') + ' to fix.') + (drT ? ' Left out (over the limits, or not valid): ' + drT + '.' : ''));
     }).catch(function() { toast('That file is not a Waypoint system.'); });

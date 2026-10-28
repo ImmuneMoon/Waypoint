@@ -6146,7 +6146,27 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('L0 droppedCounts: per kind, what the file had that cleaning left out (205 items past the 200 limit: 5; a duplicate and a junk field: 2; a bad effect: 1); a kind that lost nothing is not listed; nothing for a non-object',
             JSON.stringify(dL) === JSON.stringify({ fields: 2, items: 5, effects: 1 }) && cL.items.length === 200 && JSON.stringify(S.droppedCounts(null, cL)) === '{}' && JSON.stringify(S.droppedCounts({ items: 'x' }, cL)) === '{}', JSON.stringify(dL));
         check('L0 the import\'s notice names the items it kept and counts what it left out ("Left out (over the limits, or not valid): 5 items"), singular for one',
-            /var dr = droppedCounts\(j, c\), drT = Object\.keys\(dr\)\.map\(function\(k\) \{ return dr\[k\] \+ ' ' \+ \(dr\[k\] === 1 \? k\.slice\(0, -1\) : k\); \}\)\.join\(', '\);/.test(shL) && /\(drT \? ' Left out \(over the limits, or not valid\): ' \+ drT \+ '\.' : ''\)/.test(shL) && /nN\(c\.fields\.length, 'field'\) \+ ', ' \+ nN\(c\.rolls\.length, 'roll'\)/.test(shL));
+            /var dr = droppedCounts\(j, c\), drT = typeof droppedWords === 'function' \? droppedWords\(dr\) : Object\.keys\(dr\)\.map\(function\(k\) \{ return dr\[k\] \+ ' ' \+ \(dr\[k\] === 1 \? k\.slice\(0, -1\) : k\); \}\)\.join\(', '\);/.test(shL) && /\(drT \? ' Left out \(over the limits, or not valid\): ' \+ drT \+ '\.' : ''\)/.test(shL) && /nN\(c\.fields\.length, 'field'\) \+ ', ' \+ nN\(c\.rolls\.length, 'roll'\)/.test(shL));   // moved on purpose (1.6.0): the words through droppedWords, the one wording
+        // 1.6.0 (the owner, 2026-10-28: "count dropped sections and placements, sheet and HUD, with what is said today, and warn in the System editor too")
+        const fsL = [{ id: 'f_a', key: 'A', kind: 'number' }], secL = (n, per) => Array.from({ length: n }, (_, i) => ({ id: 's_' + i, title: 'S', fields: Array.from({ length: per }, () => ({ kind: 'divider' })) }));
+        const rawS = { v: 1, name: 'S', rolls: [], fields: fsL, sheet: { sections: secL(103, 1).concat([{ id: 's_x', title: 'X', fields: [{ id: 'f_gone' }] }]), hud: { title: 'H', tabs: [], sections: [{ id: 's_h1', title: 'H', fields: [{ id: 'f_a' }, { id: 'f_nope' }, { kind: 'divider' }] }] } } };
+        const cS = cleanSystem(rawS, { F, gmView: true }), dS = S.droppedCounts(rawS, cS);
+        const capS = S.capsAt(cS), capW = S.droppedWords(dS);
+        const at400 = cleanSystem({ v: 1, name: 'P', rolls: [], fields: fsL, sheet: { sections: secL(2, 200) } }, { F, gmView: true }), capP = S.capsAt(at400);
+        const ioL = fs.readFileSync(path.join(app, 'scripts', 'io.js'), 'utf8').replace(/\r\n/g, '\n');
+        const cnSrc = shL.slice(shL.indexOf('// [systemcheck:capnote-start]'), shL.indexOf('// [systemcheck:capnote-end]'));
+        const CL = new Function('droppedWords', 'capsAt', cnSrc + '\nreturn capLines;')(S.droppedWords, S.capsAt);
+        const linesS = CL(cS, dS), linesNone = CL(cleanSystem({ v: 1, name: 'N', rolls: [], fields: fsL }, { F, gmView: true }), null);
+        check('1.6.0 a system\'s drops counted for its layouts too: droppedCounts names the sheet\'s sections past the limit (104 read, 100 kept: 4) and the placements its kept sections lost, a section left out taking its own with it, the HUD\'s apart; droppedWords says them in the one wording; capsAt names what stands at its limit (100 sections on the sheet, 400 placements), nothing for a small system',
+            JSON.stringify(dS) === JSON.stringify({ sections: 4, 'HUD placements': 1 }) && cS.sheet.sections.length === 100 && capW === '4 sections, 1 HUD placement' && S.droppedWords({}) === '' && S.droppedWords(null) === ''
+            && JSON.stringify(capS) === JSON.stringify([{ what: 'sections', n: 100, max: 100 }]) && JSON.stringify(capP.map(a => a.what)) === JSON.stringify(['placements']) && S.capsAt(null).length === 0,
+            JSON.stringify([dS, capS, capW, capP]));
+        check('1.6.0 the load says what it left out of a campaign\'s system once, on the GM\'s own save, logged as a step and kept for the System editor; the System editor\'s note (capLines, run for real) says that and what is at its limit, as text nodes, nothing where there is nothing to say',
+            ioL.includes("if (csys && window.wpSystemCore.droppedCounts) { var sdr = window.wpSystemCore.droppedCounts(c.system, csys); if (Object.keys(sdr).length) _dropNotes.push({ camp: c, dr: sdr }); }")
+            && ioL.includes("if (typeof _dropNotes !== 'undefined') { if (_dropNotes.length && canPersistLocal() && typeof noteDrops === 'function') noteDrops(_dropNotes); _dropNotes = []; }") && ioL.includes("window.wpStepLog('system v1', 'dropped', f);") && ioL.includes("window.wpSysDrops[c.id] = n.dr;")
+            && JSON.stringify(linesS) === JSON.stringify(['When this campaign loaded, its system held more than Waypoint keeps, so this was left out: 4 sections, 1 HUD placement.', 'At the limit: 100 sections on the sheet. One more would be left out.'])
+            && linesNone.length === 0 && /while \(box\.firstChild\) box\.removeChild\(box\.firstChild\);\n    lines\.forEach\(function\(t\) \{ box\.appendChild\(el\('div', null, t\)\); \}\);/.test(cnSrc) && !/innerHTML/.test(cnSrc)
+            && shL.includes("if (typeof capNoteSync === 'function') capNoteSync();"), JSON.stringify([linesS, linesNone]));
     }
     /* ---- Stage 6 library L1c: the library lookup (rowDef, projections), a library row kept through cleaning, the runtime's wiring ---- */
     {

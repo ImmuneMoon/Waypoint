@@ -25,6 +25,7 @@ Hidden pieces
 
 Systems
 - A sheet or its HUD may hold up to 100 sections, where 60 was the most.
+- A system that holds more than Waypoint keeps is never cut down in silence. When it loads or is imported, a notice names what was left out, sections and placements included. The System editor says what stands at its limit.
 - A list can keep its rows in sets, such as a suit of armour: each set shows how many are on, says Complete when all are, and switches on or off at once. A formula reads Row.setall for a set bonus.
 - The sheet reads larger: its labels, row words, chips and boxes, and a field’s roll and its ± beside its name. The HUD keeps its compact size.
 - A list placed in several places can split them by a choice stat, such as a body slot or a container, in place of categories.

@@ -67,10 +67,11 @@ import { webReady } from './webmode.js';   // 1.5.5: what a website's plan allow
       if (xd > yd && xd > zd) rx = -ry - rz; else if (yd > zd) ry = -rx - rz;
       return { x: 1.5 * s * rx + s / 2, y: h * (ry + rx / 2) };
   }
+  var _dropNotes = [];   // 1.6.0: what the normaliser left out of a campaign's system (droppedCounts), for load()'s one-time notice, as _bindNotes
   var _bindNotes = [];   // Onboarding F0: what the normaliser bound, for load()'s one-time notice (never from migrateAppState itself: it also runs in the stream window, pop-outs and cleanup copies)
   function migrateAppState(data) {
     var changed = false;
-    _bindNotes = [];
+    _bindNotes = []; _dropNotes = [];
     function fix(reason) { changed = true; }
     function isPlain(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }   // an entry the app reads fields from: a null, a number, a string or a list there (a hand-edited or generated file) is dropped
 
@@ -180,6 +181,7 @@ import { webReady } from './webmode.js';   // 1.5.5: what a website's plan allow
         if (c.library !== undefined && window.wpLibraryCore && window.wpLibraryCore.cleanManifest) { var lman = window.wpLibraryCore.cleanManifest(c.library); if (lman) c.library = lman; else delete c.library; }   // Stage 6 library L1c: the manifest of the pack files beside the save (librarycore; never dropped for want of the cleaner)
         if (c.system !== undefined && window.wpSystemCore && window.wpFormula) {   // character sheets (1.5.0): a system from a file is cleaned like one off the wire
             var csys = c.system ? window.wpSystemCore.cleanSystem(c.system, { F: window.wpFormula, gmView: true }) : null;
+            if (csys && window.wpSystemCore.droppedCounts) { var sdr = window.wpSystemCore.droppedCounts(c.system, csys); if (Object.keys(sdr).length) _dropNotes.push({ camp: c, dr: sdr }); }   // 1.6.0: what was left out, over the limits or not valid, is said, never cut silently
             if (csys) c.system = csys; else delete c.system;
         }
         if (c.chars && typeof c.chars === 'object' && window.wpSystemCore) {   // characters (1.5.0): cleaned against the system, owners stamped on their tokens
@@ -238,6 +240,18 @@ import { webReady } from './webmode.js';   // 1.5.5: what a website's plan allow
       setTimeout(function() { toast('Players now follow their characters by id: ' + bound + ' bound' + (linked ? ', ' + linked + ' token' + (linked === 1 ? '' : 's') + ' linked by name' : '') + '. The Session Log lists anyone with more than one character.'); }, 1200);
   }
 
+  // 1.6.0 (the owner, 2026-10-28, of a section cut at the limit with no word: "count dropped sections and placements, sheet and HUD, with what is
+  // said today, and warn in the System editor too"): a campaign's system that held more than Waypoint keeps is said once in a notice, logged as
+  // a step, and kept by campaign id for the System editor's note (window.wpSysDrops, this machine's memory alone)
+  function noteDrops(list) {
+      var SC = window.wpSystemCore; window.wpSysDrops = window.wpSysDrops || Object.create(null);
+      list.forEach(function(n) {
+          var c = n.camp, w = SC && SC.droppedWords ? SC.droppedWords(n.dr) : ''; if (!c || !w) return;
+          if (typeof c.id === 'string') window.wpSysDrops[c.id] = n.dr;
+          if (window.wpStepLog) { var f = {}; Object.keys(n.dr).forEach(function(k) { f[k.replace(/[^a-z]/gi, '')] = n.dr[k]; }); window.wpStepLog('system v1', 'dropped', f); }
+          setTimeout(function() { toast((c.name || 'A campaign') + ': its system held more than Waypoint keeps, so this was left out: ' + w + '. The System editor says what is at its limit.'); }, 0);
+      });
+  }
   window.wpTakeBindNotes = function() { var n = _bindNotes; _bindNotes = []; return n; };   // main.js: what the normaliser bound in a file it shaped for a Merge, taken once
   window.wpNoteBindings = noteBindings;   // main.js: an import's bindings get the same notice
 
@@ -302,6 +316,7 @@ import { webReady } from './webmode.js';   // 1.5.5: what a website's plan allow
         if (window.wpDocForeign) window.wpDocForeign(!!(window.wpNet && window.wpNet.foreign));   // the handbook reader closes and mermaid goes back to the app's own mode
         if (_bindNotes.length && canPersistLocal()) { noteBindings(_bindNotes); setTimeout(function() { if (canPersistLocal()) save(true); }, 0); }   // Onboarding F0: the one-time notice, only on the GM's own save — and the binding saved now, so it is once
         _bindNotes = [];
+        if (typeof _dropNotes !== 'undefined') { if (_dropNotes.length && canPersistLocal() && typeof noteDrops === 'function') noteDrops(_dropNotes); _dropNotes = []; }   // 1.6.0: only on the GM's own save, never in the stream window, a pop-out or a player's app (typeof: a suite runs load alone)
         if (window.wpSound) window.wpSound.foreign(!!(window.wpNet && window.wpNet.foreign));
         if (window.wpFx) window.wpFx.foreign(!!(window.wpNet && window.wpNet.foreign));   // a table's loop stops when the player's own campaign comes back; a GM's own reload keeps his
         if (canPersistLocal()) sweepRecents(state.appState);   // recent-map keys for campaigns not in this save go (a joined table's ids never stay)

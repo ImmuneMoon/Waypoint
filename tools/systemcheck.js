@@ -5545,7 +5545,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const shU = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL), ioU = fs.readFileSync(path.join(app, 'scripts', 'io.js'), 'utf8').replace(/\r\n/g, NL), nU = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, NL), hU = fs.readFileSync(path.join(app, 'index.html'), 'utf8');
         check('1.5.8 a removed row\'s Undo (source): commitItem keeps the row before a removal and offers a notice with Undo once it is gone, never after a sale; the Undo checks the list on the GM\'s machine and goes through the host on a player\'s app, sent and waited for; io.js has a notice with one button, ten seconds long; a refused Undo has words of its own; Help says so',
             shU.includes("var goneB = typeof goneOf === 'function' ? goneOf(c, f, q) : null;") && shU.includes("if (goneB) goneNote(c, f, goneB);   // 1.5.8: never after a sale") && shU.includes("typeof q.get === 'number' || typeof q.rowId !== 'string') return null;") && shU.includes("if (goneB && r && !r.error) goneNote(c, f, goneB);")
-            && shU.includes("if (!isClient() && JSON.stringify(cur) !== after) { toast(nm + ' cannot come back: the list changed since.'); return; }") && shU.includes("commitItem(cN, f, { op: 'restore', rowId: rid, row: g.row, at: g.at });") && shU.includes("}, LIMITS.undoMs);")
+            && shU.includes("if (!isClient() && JSON.stringify(cur) !== after) { toast(nm + ' cannot come back: the list changed since.'); return; }") && shU.includes("var qR = { op: 'restore', rowId: rid, row: g.row, at: g.at }; if (g.parts) qR.parts = g.parts; commitItem(cN, f, qR);") && shU.includes("}, LIMITS.undoMs);")
             && /export function toastAction\(msg, label, fn, ms\) \{/.test(ioU) && ioU.includes("tb.hidden = true; _toastAct = null; ++_toastGen;") && nU.includes("|| q.op === 'restore') {   // 1.5.6 a purchase or a sale")
             && shU.includes("'That cannot come back now: the list changed since, or the moment passed.'") && /A row you or a player remove wholly can come back too\./.test(hU));
     }
@@ -16293,12 +16293,54 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const pressOk = J(commits) === J([['f_o', J({ op: 'setQty', rowId: 'w_a1', qty: 3 })], ['f_o', J({ op: 'remove', rowId: 'w_a3' })], ['f_o', J({ op: 'add', defId: 'i_long', rowId: 'w_new', in: 'w_g' })]]) && addSel.value === '';
         const hostsOk = J(PP.hosts(g14, ch2, 'f_o')) === J({ w_g: 1, w_h: 1 }) && PP.hosts(g14, ch2, 'f_p') === null;
         const wiredOk = sh14.includes("if (spec && spec.parts && typeof partPills === 'function') partPills(wrap, c, f, spec, sysI, entry, chg && !hudRow);") && sh14.includes("if (phI) rowsI = rowsI.filter(function(r) { return !(r && typeof r.in === 'string' && phI[r.in]); });")
-            && sh14.includes("Its ' + (nP === 1 ? 'part goes' : nP + ' parts go') + ' with it, and Undo brings back ' + def.name + ' alone.'") && sh14.includes("if (partIn) qL.in = partIn;") && sh14.includes("if (partIn) qP.in = partIn;")
+            && sh14.includes("Its ' + (nP === 1 ? 'part goes' : nP + ' parts go') + ' with it. Undo brings ' + (nP === 1 ? 'it' : 'them') + ' back too.'") && sh14.includes("if (partIn) qL.in = partIn;") && sh14.includes("if (partIn) qP.in = partIn;")
             && sh14.includes("else if (c.indexOf('sys-list-partsfrom') >= 0) {") && sh14.includes("var ptTr = el('tr', 'sheet-itemtable-parts'), ptTd = el('td'); ptTd.colSpan = span;") && sh14.includes("el('select', 'sys-list-partsfrom')") && sx14.includes("+ bdW(r) + partW(r); } }];")
             && nt14.includes("var ptW = (q.op === 'add' && q.in !== undefined)") && nt14.includes("['defId', 'rowId', 'qty', 'pay', 'get', 'from', 'back', 'in']");
         check('1.6.0, backlog 180 R14: a list may take parts from an item list (parts { from, cats, label }, this list too, the same in both views and a fixed point, none from a list the view lacks); a part is a row of that list carrying in, its host\'s id, added to a host that is there and no part itself, of a category it takes, stacking only with its own kind in the same host; '
             + 'removing a host removes its parts (a kept curse keeps them, kept too); Row.parts and Row.parts.<stat> read their count and totals, known only on a list that takes parts; the wire\'s add carries in; the sheet\'s pills (partPills, run for real) with - + and x where the character may be changed and the entries that fit, the add a row op of the parts\' list; a part drawn under its host alone; a removal of a host that holds parts asked first; the library pickers, the Lists tab, the readable page and a player\'s app waiting for the host',
             cleanOk && addOk && resOk && valOk && wireOk && rmOk && curseOk && selfOk && drawOk && pressOk && hostsOk && wiredOk, J([cleanOk, addOk, resOk, valOk, wireOk, rmOk, curseOk, selfOk, drawOk, pressOk, hostsOk, wiredOk, adds, ch.values && ch.values.f_o, cells, pills, commits]));
+    }
+    {   // 1.6.0 R14 (the owner, 2026-10-28: "make Undo after removing a row bring its parts back too, for the GM and for players"): a host's parts come back with it
+        const J = JSON.stringify;
+        const rawU = { v: 1, name: 'P', rolls: [], items: [{ id: 'i_gust', name: 'Gust', category: 'Power' }, { id: 'i_wide', name: 'Wider', category: 'Option', stats: { XP: 4 } }, { id: 'i_long', name: 'Longer', category: 'Option', stats: { XP: 3 } }],
+            fields: [{ id: 'f_p', key: 'Powers', label: 'Powers', kind: 'item-list', vis: 'all', edit: 'owner', list: { parts: { from: 'f_o', cats: ['Option'] }, rolls: [{ label: 'Spend', apply: [{ q: true, formula: '1' }] }] } },
+                { id: 'f_o', key: 'Opts', label: 'Opts', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'XP', label: 'XP' }] } },
+                { id: 'f_s', key: 'Self', label: 'Self', kind: 'item-list', vis: 'all', edit: 'owner', list: { parts: { from: 'f_s' }, rolls: [{ label: 'Spend', apply: [{ q: true, formula: '1' }] }] } }], sheet: { sections: [] } };
+        const gU = cleanSystem(rawU, { F, gmView: true }), spP = gU.fields[0].list, spS = gU.fields[2].list;
+        const base = () => ({ id: 'c1', values: { f_p: [{ id: 'w_0', defId: 'i_gust', qty: 1 }, { id: 'w_g', defId: 'i_gust', qty: 1 }], f_o: [{ id: 'w_a1', defId: 'i_wide', qty: 2, in: 'w_g' }, { id: 'w_z', defId: 'i_long', qty: 1, in: 'w_0' }, { id: 'w_a3', defId: 'i_long', qty: 1, in: 'w_g', hid: 1 }],
+            f_s: [{ id: 'w_s0', defId: 'i_wide', qty: 1 }, { id: 'w_s1', defId: 'i_gust', qty: 1 }, { id: 'w_s2', defId: 'i_wide', qty: 1, in: 'w_s1' }, { id: 'w_s3', defId: 'i_long', qty: 1 }, { id: 'w_s4', defId: 'i_long', qty: 1, in: 'w_s1' }] } });
+        const put = (ch, fid, r) => { ch.values = Object.assign({}, ch.values); ch.values[fid] = r.value; if (r.also) Object.assign(ch.values, r.also); return r; };
+        const kept = S.partsKept(gU, spP, base().values, 'w_g'), keptS = S.partsKept(gU, spS, base().values, 'w_s1');
+        const keptOk = J(kept) === J({ f: 'f_o', rows: [{ row: { id: 'w_a1', defId: 'i_wide', qty: 2, in: 'w_g' }, at: 0 }, { row: { id: 'w_a3', defId: 'i_long', qty: 1, in: 'w_g', hid: 1 }, at: 2 }] }) && J(keptS.rows.map(p => [p.row.id, p.at])) === J([['w_s2', 2], ['w_s4', 4]])
+            && S.partsKept(gU, spP, base().values, 'w_0').rows.length === 1 && S.partsKept(gU, spP, base().values, 'w_nope') === null && S.partsKept(gU, {}, base().values, 'w_g') === null && S.partsKept(gU, spP, null, 'w_g') === null;
+        // the other list: removed, then the restore with the kept parts puts the host and its parts back as they stood
+        const chA = base(), b0 = J(chA.values); put(chA, 'f_p', S.applyRowOp(gU, chA, 'f_p', { op: 'remove', rowId: 'w_g' }, F, {}));
+        const goneA = J(chA.values.f_o.map(r => r.id)), rA = put(chA, 'f_p', S.applyRowOp(gU, chA, 'f_p', { op: 'restore', rowId: 'w_g', row: { id: 'w_g', defId: 'i_gust', qty: 1 }, at: 1, parts: kept }, F, {}));
+        const otherOk = goneA === J(['w_z']) && rA.ok && J(chA.values) === b0;
+        // the same list
+        const chB = base(), bS = J(chB.values.f_s); put(chB, 'f_s', S.applyRowOp(gU, chB, 'f_s', { op: 'remove', rowId: 'w_s1' }, F, {}));
+        const goneB = J(chB.values.f_s.map(r => r.id)), rB = put(chB, 'f_s', S.applyRowOp(gU, chB, 'f_s', { op: 'restore', rowId: 'w_s1', row: { id: 'w_s1', defId: 'i_gust', qty: 1 }, at: 1, parts: keptS }, F, {}));
+        const sameOk = goneB === J(['w_s0', 'w_s3']) && rB.ok && J(chB.values.f_s) === bS && !rB.also;
+        // no parts named: the host alone, as before; parts of another host, another list, or a row already there: passed over
+        const chC = base(); put(chC, 'f_p', S.applyRowOp(gU, chC, 'f_p', { op: 'remove', rowId: 'w_g' }, F, {})); const rC = S.applyRowOp(gU, chC, 'f_p', { op: 'restore', rowId: 'w_g', row: { id: 'w_g', defId: 'i_gust', qty: 1 }, at: 1 }, F, {});
+        const fake = { f: 'f_o', rows: [{ row: { id: 'w_q', defId: 'i_wide', qty: 1, in: 'w_0' }, at: 0 }, { row: { id: 'w_z', defId: 'i_long', qty: 1, in: 'w_g' }, at: 0 }, 'junk', { row: 7 }] };
+        const rD = S.applyRowOp(gU, chC, 'f_p', { op: 'restore', rowId: 'w_g', row: { id: 'w_g', defId: 'i_gust', qty: 1 }, at: 1, parts: fake }, F, {}), rE = S.applyRowOp(gU, chC, 'f_p', { op: 'restore', rowId: 'w_g', row: { id: 'w_g', defId: 'i_gust', qty: 1 }, at: 1, parts: { f: 'f_p', rows: kept.rows } }, F, {});
+        const guardOk = rC.ok && !rC.also && rD.ok && !rD.also && rE.ok && !rE.also;
+        // an action that uses a host up takes its parts with it, and keeps them for its Undo
+        const chE = base(), rv = (c, f, r) => S.makeResolver(gU, c, F, null).row(f, r);
+        const uE = S.applyAct(gU, chE, spP.rolls[0], rv(chE, 'f_p', 'w_g'), F, null, { f: 'f_p', r: 'w_g' }), uS = S.applyAct(gU, chE, spS.rolls[0], rv(chE, 'f_s', 'w_s1'), F, null, { f: 'f_s', r: 'w_s1' });
+        const actOk = uE.ok && J(uE.values.f_p.map(r => r.id)) === J(['w_0']) && J(uE.values.f_o.map(r => r.id)) === J(['w_z']) && J(uE.gone[0].parts) === J(kept)
+            && uS.ok && J(uS.values.f_s.map(r => r.id)) === J(['w_s0', 'w_s3']) && J(uS.gone[0].parts) === J(keptS) && !('f_o' in uS.values);
+        const chF = base(); Object.assign(chF.values, uE.values); const rF = put(chF, 'f_p', S.applyRowOp(gU, chF, 'f_p', { op: 'restore', rowId: 'w_g', row: uE.gone[0].row, at: uE.gone[0].at, parts: uE.gone[0].parts }, F, {}));
+        const actUndoOk = rF.ok && J(chF.values) === J(base().values);
+        // the GM's sheet keeps the parts for its Undo, and the host keeps them in its own record for a player's
+        const shU = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), ntU = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n');
+        const wireOk = shU.includes("pk = f.list && f.list.parts && typeof partsKept === 'function' ? partsKept(systemOf(getActiveCampaign()), f.list, c.values, q.rowId) : null; if (pk) g0.parts = pk; return g0;")
+            && shU.includes("var qR = { op: 'restore', rowId: rid, row: g.row, at: g.at }; if (g.parts) qR.parts = g.parts; commitItem(cN, f, qR);") && shU.includes("goneNote(c, f, g.parts ? { row: g.row, at: g.at, parts: g.parts } : { row: g.row, at: g.at });")
+            && ntU.includes("if (goI.parts) qi.parts = JSON.parse(JSON.stringify(goI.parts));") && ntU.includes("pkG = fdG && fdG.list && fdG.list.parts && Si.partsKept ? Si.partsKept(campI.system, fdG.list, befV, qi.rowId) : null; if (pkG) _rowGrace[gkI + '|gone'].parts = pkG;")
+            && ntU.includes("if (g.parts) _rowGrace[charId + '|' + g.f + '|' + g.r + '|gone'].parts = JSON.parse(JSON.stringify(g.parts));");
+        check('1.6.0 R14 a removed host\'s Undo brings its parts back (partsKept: the parts as they stood, by their places, kept ones too; the restore puts each back at its place, in the same list or another through also, never one of another host, one already there or into another list; with none named the host alone); an action that uses a host up takes its parts with it and keeps them for its Undo; the GM\'s sheet and the host\'s own record for a player keep them, and the host hands its own to the restore',
+            keptOk && otherOk && sameOk && guardOk && actOk && actUndoOk && wireOk, J([keptOk, otherOk, sameOk, guardOk, actOk, actUndoOk, wireOk, kept, goneA, goneB, uE.gone, uS.gone]));
     }
     {   // 1.6.0, backlog 180 R11 (the owner's order of 2026-10-27; a removed row's Undo is 1.5.8's): split a stack into a row of its own
         const J = JSON.stringify;

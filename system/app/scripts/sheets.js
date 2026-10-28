@@ -8,7 +8,7 @@ import { getActiveCampaign } from './models.js';
 import { save, toast, toastAction } from './io.js';
 import { picRef } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
-import { cleanDamageRules, placeVal, setsOf, capsAt, droppedWords, partsSrc, partsOf, rollSwitches, rollSwitchesAll, cleanRollSw, withCross, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, envBands, envWorst, ALT_MAX, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, postureRangedOf, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
+import { cleanDamageRules, placeVal, setsOf, capsAt, droppedWords, partsSrc, partsOf, partsKept, rollSwitches, rollSwitchesAll, cleanRollSw, withCross, readsOn, postureFx, crossings, loadFits, chamberTakes, chamberCap, CHAMBER_CAP, cleanReach, openSync, moneyBoxes, moneyHeld, rowOpMoney, onceOf, catHome, catPlace, cleanPlaceCats, catSplits, cleanFieldUnit, unitTail, heightWords, measureWords, unitWords, unitHead, listWords, unitOf, textWords, measureStore, rollNeedsOk, rollNeedsSays, timeRuleRun, ruleRunCtx, chainsShallow, makeResolver, hasDice, figText, cleanEvery, cleanInFight, droppedCounts, validPageId, LIMITS, KINDS, showsIf, rowRollNames, gmOnlyNames, applyAct, withOnSelf, applyScope, applyRound, dueActs, combatChars, roundSecs, fxLeftNow, lastsSecs, APPLY_KINDS, TURN_UNITS, LIGHT_UNITS, RANGE_UNITS, HEIGHT_UNITS, TIME_WORDS, STORED, DEF_PROP, BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, headerEntry, captionParts, emptySystem, uid, validKey, cleanSystem, cleanChar, validateSystem, resolveAll, hoverLines, autoLayout, applyEdit, applyStyle, cleanLooks, lookOf, lookFor, lookRule, applyEffectOp, fxText, fmtNum, budgetsOf, budgetWatch, budgetSays, needsMet, needsSays, initRoll, applyProposal, cleanUploads, envBands, envWorst, ALT_MAX, sideOf, threatArc, facingCtx, facingNow, setAimSource, stanceCtx, tokenCtx, POSTURE_IDS, postureRangedOf, postureList, postureAt, autoEffectsOn, initTie, charTokenOn, cycleThreat, valueTone, TONES, activeCharOf, playableChars, ownedTokenPlan, applyOwnerOps, migrateBindings, capExpr, cleanValue, fieldById, valueOpts, applyRowOp, rowIdOf, rowDef, orphanRows, stampRows, cleanRowDef, projectRows, STAT_KEY, PALETTE_KEYS, GLYPHS, glyphPath, headerEdits, pinTargets, pinTargetsAll, hudView, hudHasContent, resetTargets, cleanListSpec, statKey, rowStat, plusText, rowPaid, itemReach, gmDerivedNames, labelGmNames, gmEffectNames, labelNames, withRound, rangeCtx, withRange, rowLvl, rowOn, cleanItemKey, charForView, secretFieldIds, gmViewFields } from './systemcore.js';
 import { roundSays, BADGE_MAX } from './systemcore.js';   // clarity package: how a value was rounded, for its tooltip
 import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
 import { lvlsFromBox, lvlsToText } from './librarycore.js';
@@ -2601,7 +2601,7 @@ function itemRmBtn(entry, def, c, f) {
     rm.addEventListener('click', function() {
         var sysR = systemOf(getActiveCampaign()), nP = f.list && f.list.parts && typeof partsOf === 'function' ? partsOf(sysR, c, f.list, rowIdOf(entry)).length : 0;   // 1.6.0 R14: a row that holds parts asks first, since they go with it
         if (!nP) { commitItem(c, f, { op: 'remove', rowId: rowIdOf(entry) }); return; }
-        showConfirm('Remove ' + def.name + '? Its ' + (nP === 1 ? 'part goes' : nP + ' parts go') + ' with it, and Undo brings back ' + def.name + ' alone.', function(ok) { if (ok) commitItem(c, f, { op: 'remove', rowId: rowIdOf(entry) }); }, { noEnter: true });
+        showConfirm('Remove ' + def.name + '? Its ' + (nP === 1 ? 'part goes' : nP + ' parts go') + ' with it. Undo brings ' + (nP === 1 ? 'it' : 'them') + ' back too.', function(ok) { if (ok) commitItem(c, f, { op: 'remove', rowId: rowIdOf(entry) }); }, { noEnter: true });
     }); return rm;
 }
 function itemCellText(col, def, len) {   // len: how the sheet on screen says a blast's radius (blastTag); with none the item's feet, as the readable page writes them
@@ -4936,7 +4936,7 @@ function commitItem(c, f, q) {   // Stage 6 F4a: a row op q = { op: add|remove|s
 function goneOf(c, f, q) {
     if (!q || (q.op !== 'remove' && q.op !== 'setQty' && q.op !== 'undo') || typeof q.get === 'number' || typeof q.rowId !== 'string') return null;
     var v = c && c.values && Array.isArray(c.values[f.id]) ? c.values[f.id] : [];
-    for (var i = 0; i < v.length; i++) if (rowIdOf(v[i]) === q.rowId) return v[i] && v[i].hid === 1 ? null : { row: clone(v[i]), at: i };
+    for (var i = 0; i < v.length; i++) if (rowIdOf(v[i]) === q.rowId) { if (v[i] && v[i].hid === 1) return null; var g0 = { row: clone(v[i]), at: i }, pk = f.list && f.list.parts && typeof partsKept === 'function' ? partsKept(systemOf(getActiveCampaign()), f.list, c.values, q.rowId) : null; if (pk) g0.parts = pk; return g0; }   // 1.6.0 R14: its parts too, for the Undo
     return null;
 }
 function goneNote(c, f, g) {
@@ -4948,7 +4948,7 @@ function goneNote(c, f, g) {
         var camp = getActiveCampaign(), cN = charById(cid, camp); if (!cN) return;
         var cur = cN.values && Array.isArray(cN.values[f.id]) ? cN.values[f.id] : [];
         if (!isClient() && JSON.stringify(cur) !== after) { toast(nm + ' cannot come back: the list changed since.'); return; }
-        commitItem(cN, f, { op: 'restore', rowId: rid, row: g.row, at: g.at });
+        var qR = { op: 'restore', rowId: rid, row: g.row, at: g.at }; if (g.parts) qR.parts = g.parts; commitItem(cN, f, qR);   // 1.6.0 R14: its parts come back with it
     }, LIMITS.undoMs);
 }
 // [systemcheck:gonethen-start]
@@ -4956,7 +4956,7 @@ function goneNote(c, f, g) {
 // the GM's machine at once (goneLocal); on a player's app the host's row-gone word comes first, so the row is taken as this copy holds it
 // (goneWait) and its notice waits for the change that takes it off (goneFire, from charChanged), within a few seconds
 var _goneWait = [];
-function goneLocal(charId, gone) { var camp = getActiveCampaign(), sys = systemOf(camp), c = charById(charId, camp); if (!c || !sys || !Array.isArray(gone)) return 0; var n = 0; gone.forEach(function(g) { var f = g && typeof g.f === 'string' ? fieldById(sys, g.f) : null; if (f && g.row) { goneNote(c, f, { row: g.row, at: g.at }); n++; } }); return n; }
+function goneLocal(charId, gone) { var camp = getActiveCampaign(), sys = systemOf(camp), c = charById(charId, camp); if (!c || !sys || !Array.isArray(gone)) return 0; var n = 0; gone.forEach(function(g) { var f = g && typeof g.f === 'string' ? fieldById(sys, g.f) : null; if (f && g.row) { goneNote(c, f, g.parts ? { row: g.row, at: g.at, parts: g.parts } : { row: g.row, at: g.at }); n++; } }); return n; }
 function goneWait(charId, fid, rid) {
     var c = charById(charId), rows = c && c.values && Array.isArray(c.values[fid]) ? c.values[fid] : [], at = -1;
     for (var i = 0; i < rows.length; i++) if (rowIdOf(rows[i]) === rid) { at = i; break; }

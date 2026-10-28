@@ -3694,6 +3694,20 @@ pendingChecks.push((async () => {
     check('1.5.8 a removed row\'s Undo (char-item, run for real): restore puts back the very row the host took out, its values whole and at its place, stored and sent, once; a row a message names is never read; refused as stale once the list changed since, when nothing was removed, or when a quantity was only lowered',
         u1r === J(['char-ack']) && u1b !== u1a && u1u === J(['char-ack']) && u1c === u1a && u1again === J(['char-deny:stale']) && u2u === J(['char-deny:stale']) && !/w_f/.test(u2r)
         && u3u === J(['char-deny:stale']) && u3c === J(['char-deny:stale']) && u4u === J(['char-ack']) && u4r === J(['w_f:1', 'w_e:3', 'w_g:1']), J([u1r, u1u, u1c === u1a, u1again, u2u, u3u, u3c, u4u, u4r]));
+    // 1.6.0 R14 (the owner, 2026-10-28: "make Undo after removing a row bring its parts back too, for the GM and for players"): a host's parts, from the host's own record
+    const sysP = Sx.cleanSystem({ v: 1, name: 'P', rolls: [], fields: [{ id: 'f_wd', key: 'Wands', label: 'Wands', kind: 'item-list', edit: 'owner', vis: 'all', list: { parts: { from: 'f_op' } } }, { id: 'f_op', key: 'Opts', label: 'Opts', kind: 'item-list', edit: 'owner', vis: 'all' }],
+        items: [{ id: 'i_fu', name: 'Full' }, { id: 'i_wi', name: 'Wider' }] }, { F: Fx, gmView: true });
+    const mkP = () => { const camp = { id: 'k', system: sysP, chars: { c_1: { id: 'c_1', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_wd: [{ id: 'w_f', defId: 'i_fu', qty: 1 }, { id: 'w_g', defId: 'i_fu', qty: 1 }], f_op: [{ id: 'w_o', defId: 'i_wi', qty: 1, in: 'w_g' }, { id: 'w_p', defId: 'i_wi', qty: 2, in: 'w_f' }] } } } }, out = { answer: [], owner: [], saves: 0 }, box = b => m => { packCheck(m); b.push(JSON.parse(J(m))); };
+        const net = { active: true, role: 'host', paused: false, conns: [{ peer: 'pA', open: true, send: box(out.owner) }], roster: { pA: { id: 'u_a' } } };
+        const win = { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} }, wpDiceCore: null };
+        const Hh = new Function('net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'peerProfileId', 'lim', 'toast', 'logEvent',
+            'var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {};\n' + dlSrc + '\n' + ntSrc + '\nreturn { handle: function(msg, conn) {\n' + ciSrc + '\n} };')(
+            net, () => Sx, win, () => false, () => camp, () => { out.saves++; }, e => { throw e; }, c => (net.roster[c.peer] ? net.roster[c.peer].id : null), { allow: () => true }, () => {}, () => {});
+        let n = 0; const send = m => { out.answer.length = 0; Hh.handle(Object.assign({ type: 'char-item', rid: 'p' + (++n), charId: 'c_1', fieldId: 'f_wd' }, m), { peer: 'pA', send: box(out.answer) }); return J(out.answer.map(a => a.type + (a.reason ? ':' + a.reason : ''))); };
+        return { camp, out, send, vals: () => J(camp.chars.c_1.values) }; };
+    const p1 = mkP(), p1a = p1.vals(), p1r = p1.send({ op: 'remove', rowId: 'w_g' }), p1b = J(p1.camp.chars.c_1.values.f_op.map(r => r.id)), p1u = p1.send({ op: 'restore', rowId: 'w_g', parts: { f: 'f_op', rows: [{ row: { id: 'w_x', defId: 'i_wi', qty: 9, in: 'w_g' }, at: 0 }] } }), p1c = p1.vals();
+    check('1.6.0 R14 a player\'s Undo of a host they removed (char-item, run for real): its parts come back with it, from the host\'s own record and never the message\'s, the host and every part as they stood, stored and sent',
+        p1r === J(['char-ack']) && p1b === J(['w_p']) && p1u === J(['char-ack']) && p1c === p1a && p1.out.saves === 2, J([p1r, p1b, p1u, p1c, p1a]));
 })());
 
 // [m410] SITE_EQUIVALENT_PLAN fold 2 on the wire, each behaviour by a case of its own (the tests that go with the mutations of m410): (B) a player's own

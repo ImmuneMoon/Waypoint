@@ -4153,6 +4153,16 @@
   .sheet-field.sheet-inline-row > .sheet-label { flex: 0 1 auto; min-width: 0; font-size: 12px; font-weight: 500; color: var(--ink); }
   .sheet-field.sheet-inline-row > .sheet-ctl, .sheet-field.sheet-inline-row > .sheet-value, .sheet-field.sheet-inline-row > .sheet-toggle { flex: 0 1 auto; min-width: 0; }
   .sheet-field.sheet-inline-row > .sheet-value { font-size: 13px; }
+  /* 1.6.0, backlog 197 (the owner, 2026-10-28, on docs/sheets/sheet-sizes-sheet.html: "the text from the A. Medium example", and of a field's roll and its ±, "the buttons next to sword in b. large are the ones i like"): the sheet panel, the Layout preview, a sheet in a window of its own and the printed sheet read larger; every other button keeps its size, and the HUD keeps today's. :where() keeps each rule as specific as the rule it grows, so a system's own look (caps labels, a band, a headline title) still wins */
+  :where(#sheetPanel, #sysLayoutPreview, #popoutBody.sheet-view, #sheetPrint) .sheet-sec-title { font-size: 11.5px; }
+  :where(#sheetPanel, #sysLayoutPreview, #popoutBody.sheet-view, #sheetPrint) .sheet-label { font-size: 12px; }
+  :where(#sheetPanel, #sysLayoutPreview, #popoutBody.sheet-view, #sheetPrint) .sheet-item { font-size: 13px; }
+  :where(#sheetPanel, #sysLayoutPreview, #popoutBody.sheet-view, #sheetPrint) .sheet-chip { font-size: 11px; line-height: 18px; }
+  :where(#sheetPanel, #sysLayoutPreview, #popoutBody.sheet-view, #sheetPrint) .sheet-total, :where(#sheetPanel, #sysLayoutPreview, #popoutBody.sheet-view, #sheetPrint) .sheet-toggle { font-size: 13px; }
+  :is(#sheetPanel, #sysLayoutPreview, #popoutBody.sheet-view, #sheetPrint) :is(input.field, select.field, textarea.field, .sheet-print-text.field) { font-size: 14px; }   /* the boxes’ own rule holds an id, so this one does too */
+  :where(#sheetPanel, #sysLayoutPreview, #popoutBody.sheet-view, #sheetPrint) :is(.sheet-read, .sheet-box.ts-box) { font-size: 14px; }   /* the read block and the text box keep the plain input’s own size there */
+  :where(#sheetPanel, #sysLayoutPreview, #popoutBody.sheet-view, #sheetPrint) .sheet-field-roll, :where(#sheetPanel, #sysLayoutPreview, #popoutBody.sheet-view, #sheetPrint) .sheet-field-roll + .sheet-roll-mod { display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 7px; font-size: 13px; line-height: 1; vertical-align: text-bottom; box-sizing: border-box; }   /* text-bottom: it grows its label upward only, so a row of fields stays level whether or not one has a roll */
+  :where(#sheetPanel, #sysLayoutPreview, #popoutBody.sheet-view, #sheetPrint) .sheet-field-roll .ico-die { width: 15px; height: 15px; }
   .sheet-field.sheet-inline-row > input.sheet-text, .sheet-field.sheet-inline-row > select.sheet-select { flex: 1 1 7em; width: auto; min-width: 0; }
   /* a number box (plain or with the look's arrows) and a named number's dropdown stay compact in a line, so the Roll keeps its place beside
      them in a narrow cell (input.field's width: 100% would give the box its intrinsic ~160px and push the Roll to a second line) */

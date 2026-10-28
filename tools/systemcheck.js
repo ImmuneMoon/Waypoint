@@ -16151,6 +16151,18 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             + 'nothing without the tick; drawn on the list and the rich table, an edge with no tint in the style sheet, and the editor\'s tick',
             cleanOk && edgeOk && wiredOk, J([cleanOk, edgeOk, wiredOk, r]));
     }
+    {   // 1.6.0, backlog 197 (the owner, 2026-10-28: "the text from the A. Medium example", and "the buttons next to sword in b. large are the ones i like"): the sheet reads larger, the HUD as before
+        const css7 = fs.readFileSync(path.join(app, 'style.css'), 'utf8').replace(/\r\n/g, '\n');
+        const W7 = '(#sheetPanel, #sysLayoutPreview, #popoutBody.sheet-view, #sheetPrint)', d7 = sel => { const i = css7.indexOf('\n  ' + sel + ' {'); return i < 0 ? null : css7.slice(css7.indexOf('{', i), css7.indexOf('}', i) + 1); };
+        const at7 = css7.indexOf('backlog 197'), base7 = ['  .sheet-label {', '  .sheet-item {', '  .sheet-chip {', '  .sheet-sec-title {', '  .sheet-field-roll {', '  .sheet-read, .sheet-box.ts-box {'].map(s => css7.indexOf('\n' + s));
+        const blk7 = at7 > 0 ? css7.slice(css7.lastIndexOf('/*', at7),css7.indexOf('\n  .sheet-field.sheet-inline-row > input.sheet-text', at7)) : '';
+        check('1.6.0, backlog 197: the sheet panel, the Layout preview, a sheet in a window of its own and a print read larger (labels 12 px, section titles 11.5 px, row words 13 px, chips 11 px on 18 px, boxes and their read block 14 px), each through :where() so a system\'s own look still wins and after the rule it grows; the field\'s roll and its ± 24 px with 13 px words, grown upward from the text\'s foot so a row stays level; the HUD\'s boxes keep 12.5 px',
+            d7(':where' + W7 + ' .sheet-label') === '{ font-size: 12px; }' && d7(':where' + W7 + ' .sheet-sec-title') === '{ font-size: 11.5px; }' && d7(':where' + W7 + ' .sheet-item') === '{ font-size: 13px; }' && d7(':where' + W7 + ' .sheet-chip') === '{ font-size: 11px; line-height: 18px; }'
+            && d7(':is' + W7 + ' :is(input.field, select.field, textarea.field, .sheet-print-text.field)') === '{ font-size: 14px; }' && d7(':where' + W7 + ' :is(.sheet-read, .sheet-box.ts-box)') === '{ font-size: 14px; }'
+            && d7(':where' + W7 + ' .sheet-field-roll, :where' + W7 + ' .sheet-field-roll + .sheet-roll-mod') === '{ display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 7px; font-size: 13px; line-height: 1; vertical-align: text-bottom; box-sizing: border-box; }'
+            && base7.every(i => i > 0 && i < at7) && !/hud/i.test(blk7.replace(/\/\*[^]*?\*\//g, ''))
+            && d7('.hud-panel input.field, .hud-panel select.field, .hud-panel textarea.field') === '{ padding: 3px 6px; font-size: 12.5px; }');
+    }
     {   // 1.6.0, backlog 180 R13 (the owner's order of 2026-10-27): a list's places split by a choice stat's value (a body slot, a container) in place of categories
         const J = JSON.stringify;
         const raw13 = { v: 1, name: 'C', rolls: [], items: [{ id: 'i_helm', name: 'Helm', category: 'Armor', stats: { Slot: 'Head' } }, { id: 'i_mail', name: 'Mail', category: 'Armor', stats: { Slot: 'Torso' } }, { id: 'i_ring', name: 'Ring', category: 'Jewel', stats: { Slot: 'Hands' } }, { id: 'i_belt', name: 'Belt', category: 'Armor' }],

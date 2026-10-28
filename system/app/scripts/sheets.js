@@ -3425,6 +3425,7 @@ function itemTableInto(wrap, f, c, carried, sysI, canThrow, editable, gm, empty,
             tr.appendChild(actTd);
         }
         tbody.appendChild(tr);
+        if (spec && spec.parts && typeof partPills === 'function') { var ptHold = el('div'); if (partPills(ptHold, c, f, spec, sysI, entry, chg && !hudRow)) { var ptTr = el('tr', 'sheet-itemtable-parts'), ptTd = el('td'); ptTd.colSpan = span; ptTd.appendChild(ptHold.firstChild); ptTr.appendChild(ptTd); tbody.appendChild(ptTr); } }   // 1.6.0 R14: its parts, as pills across the table under its row
         if (notesRow) tbody.appendChild(notesRow);
         if (rrT && rfOpen(c, f, rid)) { var fTr = el('tr', 'sheet-itemtable-form'), fTd = el('td'); fTd.colSpan = span; fTd.appendChild(rowForm(entry, rd, c, f, spec, sysI, rrT)); fTr.appendChild(fTd); tbody.appendChild(fTr); }   // F4c2: its form, across the table
     });
